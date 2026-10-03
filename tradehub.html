@@ -1245,6 +1245,9 @@ window._mailRelay = window._mailRelay || async function (res) {
 </script>
 
 <script type="text/babel">
+// A1's numbers face (theme overhaul phase 10): Inter, tabular figures, weight
+// 500 on figures. Tickers keep their own weight; code stays mono.
+const TB_NUM="'Inter',system-ui,-apple-system,sans-serif";
 (function(){
 /* ══ TradeBoard React App (scoped IIFE) ══════════════════════════════════════
    All React/state is scoped inside this IIFE to avoid name collisions.
@@ -3495,7 +3498,7 @@ function TBComputedBar({label,value,color,unit=''}){
   return(<div style={{marginBottom:12}}>
     <div style={{display:'flex',justifyContent:'space-between',marginBottom:5}}>
       <span style={{fontSize:13,color:'var(--txm)',fontWeight:700}}>{label}</span>
-      <span style={{fontSize:11,fontFamily:'IBM Plex Mono,monospace',color,fontWeight:700}}>{value}{unit}</span>
+      <span style={{fontSize:11,fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',color,fontWeight:500}}>{value}{unit}</span>
     </div>
     <div className="tb-computed-bar"><div className="tb-computed-bar-fill" style={{width:`${value}%`,background:color}}/></div>
   </div>);
@@ -3516,7 +3519,7 @@ function TBJournalStats({trades,activeFilter,onFilterChange}){
      now and the typography can no longer drift out of alignment. */
   const C=({label,val,sub,col,fk,bg,bd})=>{const active=fk&&activeFilter===fk;return(<div onClick={fk?()=>onFilterChange&&onFilterChange(active?'ALL':fk):undefined} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:2,padding:'10px 18px',background:bg||'transparent',borderRadius:10,border:active?'1px solid var(--ac)':`1px solid ${bd||'var(--bd)'}`,minWidth:72,cursor:fk?'pointer':'default',transition:'all .15s'}}>
     <div style={{fontSize:11,color:active?'var(--ac)':'var(--txm)',fontWeight:800,textTransform:'uppercase',letterSpacing:1}}>{label}</div>
-    <div style={{fontFamily:'IBM Plex Mono,monospace',fontSize:20,fontWeight:800,color:col||'var(--tx)'}}>{val}</div>
+    <div style={{fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontSize:20,fontWeight:500,color:col||'var(--tx)'}}>{val}</div>
     {sub&&<div style={{fontSize:10,color:'var(--txm)'}}>{sub}</div>}
   </div>);};
   const flat=(s.wins+s.losses)===0;
@@ -3686,10 +3689,10 @@ function TBTradeModal({entry,onClose,onSave,onDel}){
               <button onClick={addLeg} style={{alignSelf:'center',width:36,height:36,borderRadius:'50%',border:'2px dashed var(--bdl)',background:'transparent',color:'var(--ac)',fontSize:22,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>+</button>
               {autoStats.entryTotal>0&&(
                 <div style={{display:'flex',gap:14,flexWrap:'wrap',padding:'10px 14px',background:'var(--s2)',borderRadius:10,border:'1px solid var(--bd)',fontSize:12}}>
-                  <span style={{color:'var(--txm)'}}>Entry: <span style={{fontFamily:'IBM Plex Mono,monospace',color:'var(--tx)',fontWeight:700}}>{tbFmt$(autoStats.entryTotal)}</span></span>
-                  {autoStats.exitTotal>0&&<span style={{color:'var(--txm)'}}>Exit: <span style={{fontFamily:'IBM Plex Mono,monospace',color:'var(--tx)',fontWeight:700}}>{tbFmt$(autoStats.exitTotal)}</span></span>}
-                  {autoStats.netPnL!=null&&<span style={{color:'var(--txm)'}}>P&L: <span style={{fontFamily:'IBM Plex Mono,monospace',fontWeight:700,color:tbPnlCol(autoStats.netPnL)}}>{tbFmt$(autoStats.netPnL)}</span></span>}
-                  {autoStats.pnlPct!=null&&<span style={{fontFamily:'IBM Plex Mono,monospace',fontWeight:700,color:tbPnlCol(autoStats.pnlPct)}}>{tbFmtPct(autoStats.pnlPct)}</span>}
+                  <span style={{color:'var(--txm)'}}>Entry: <span style={{fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',color:'var(--tx)',fontWeight:500}}>{tbFmt$(autoStats.entryTotal)}</span></span>
+                  {autoStats.exitTotal>0&&<span style={{color:'var(--txm)'}}>Exit: <span style={{fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',color:'var(--tx)',fontWeight:500}}>{tbFmt$(autoStats.exitTotal)}</span></span>}
+                  {autoStats.netPnL!=null&&<span style={{color:'var(--txm)'}}>P&L: <span style={{fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontWeight:500,color:tbPnlCol(autoStats.netPnL)}}>{tbFmt$(autoStats.netPnL)}</span></span>}
+                  {autoStats.pnlPct!=null&&<span style={{fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontWeight:500,color:tbPnlCol(autoStats.pnlPct)}}>{tbFmtPct(autoStats.pnlPct)}</span>}
                   {autoStats.holdTime&&<span style={{color:'var(--txm)'}}>Hold: <span style={{color:'var(--txd)',fontWeight:600}}>{autoStats.holdTime}</span></span>}
                 </div>
               )}
@@ -3704,7 +3707,7 @@ function TBTradeModal({entry,onClose,onSave,onDel}){
               <div><span style={TB_LS}>Net P&L Override $ <span style={{color:'var(--txm)',fontWeight:400,textTransform:'none',letterSpacing:0,fontSize:9}}>(blank = auto from legs)</span></span><input style={TB_IS} type="number" value={netPnL} onChange={e=>setNetPnL(e.target.value)} placeholder="Auto-computed"/></div>
               <div><span style={TB_LS}>Tags</span><input style={TB_IS} value={tags} onChange={e=>setTags(e.target.value)} placeholder="gap, catalyst, earnings…"/></div>
               <div>
-                <span style={TB_LS}>Confidence <span style={{color:'var(--ac)',fontFamily:'IBM Plex Mono,monospace'}}>{confidence}</span>/10</span>
+                <span style={TB_LS}>Confidence <span style={{color:'var(--ac)',fontFamily:TB_NUM,fontWeight:500,fontVariantNumeric:'tabular-nums'}}>{confidence}</span>/10</span>
                 <input type="range" min="0" max="10" value={confidence} onChange={e=>setConf(e.target.value)} style={{width:'100%',accentColor:'var(--ac)',cursor:'pointer'}}/>
                 <div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:'var(--txm)',marginTop:2}}><span>0</span><span>5</span><span>10</span></div>
               </div>
@@ -3744,18 +3747,18 @@ function TBTradeRow({trade,onClick,asFragment}){
   const qty=buyLegs.reduce((a,l)=>a+(parseFloat(l.qty)||0),0)||trade.qty||0;
   const cells=(<React.Fragment>
       <td style={{padding:'11px 14px',fontSize:14,color:'var(--txm)',whiteSpace:'nowrap'}}>{entryDate?entryDate.toLocaleDateString('en-US',{month:'numeric',day:'numeric',year:'numeric'}):'—'}</td>
-      <td style={{padding:'11px 14px'}}><span style={{fontFamily:'IBM Plex Mono,monospace',fontWeight:700,fontSize:14,color:'var(--tx)'}}>{trade.ticker||'—'}</span>{trade.market&&trade.market!=='STOCK'&&<span style={{fontSize:9,color:'var(--txm)',background:'var(--s2)',borderRadius:4,padding:'1px 5px',fontWeight:700,marginLeft:5}}>{trade.market}</span>}</td>
+      <td style={{padding:'11px 14px'}}><span style={{fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontWeight:700,fontSize:14,color:'var(--tx)'}}>{trade.ticker||'—'}</span>{trade.market&&trade.market!=='STOCK'&&<span style={{fontSize:9,color:'var(--txm)',background:'var(--s2)',borderRadius:4,padding:'1px 5px',fontWeight:700,marginLeft:5}}>{trade.market}</span>}</td>
       <td style={{padding:'11px 14px'}}>{s.status==='OPEN'?<span style={{fontSize:11,fontWeight:800,color:'var(--tbw)',background:'rgba(251,191,36,0.12)',borderRadius:6,padding:'3px 9px'}}>OPEN</span>:s.netPnL!=null&&s.netPnL>0?<span style={{fontSize:11,fontWeight:800,color:'var(--tbb)',background:'rgba(164,185,134,0.1)',borderRadius:6,padding:'3px 9px'}}>WIN</span>:s.netPnL!=null&&s.netPnL<0?<span style={{fontSize:11,fontWeight:800,color:'var(--tbr)',background:'rgba(214,138,124,0.1)',borderRadius:6,padding:'3px 9px'}}>LOSS</span>:s.unmatched?<span title="Sold shares with no matching buy in the journal — bought before the synced history, so the cost basis (and P&L) is unknown." style={{fontSize:11,fontWeight:800,color:'var(--txm)',background:'var(--s2)',borderRadius:6,padding:'3px 9px'}}>NO BASIS</span>:<span style={{fontSize:11,fontWeight:800,color:'var(--txm)',background:'var(--s2)',borderRadius:6,padding:'3px 9px'}}>—</span>}</td>
       <td style={{padding:'11px 14px'}}><span style={{fontSize:11,fontWeight:800,color:isLong?'var(--tbb)':'var(--tbr)'}}>{isLong?'LONG':'SHORT'}</span></td>
       <td style={{padding:'11px 14px'}}>{trade.source==='manual'?<span style={{fontSize:9,fontWeight:800,color:'var(--info)',background:'rgba(96,165,250,0.1)',borderRadius:4,padding:'2px 6px',border:'1px solid rgba(96,165,250,0.2)'}}>M</span>:trade.source==='csv'?<span style={{fontSize:9,fontWeight:800,color:'var(--tbw)',background:'rgba(251,191,36,0.08)',borderRadius:4,padding:'2px 6px',border:'1px solid rgba(251,191,36,0.2)'}}>CSV</span>:<span style={{fontSize:9,fontWeight:800,color:'var(--tbb)',background:'rgba(164,185,134,0.08)',borderRadius:4,padding:'2px 6px',border:'1px solid rgba(164,185,134,0.2)'}}>W</span>}</td>
-      <td style={{padding:'11px 14px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',fontSize:14,color:'var(--txd)'}}>{tbFmtNum(qty)}</td>
-      <td style={{padding:'11px 14px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',fontSize:14,color:'var(--txd)'}}>{s.avgEntry?tbFmt$(s.avgEntry):'—'}</td>
-      <td style={{padding:'11px 14px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',fontSize:14,color:'var(--txd)'}}>{s.avgExit?tbFmt$(s.avgExit):'—'}</td>
-      <td style={{padding:'11px 14px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',fontSize:14,color:'var(--txd)'}}>{s.entryTotal?tbFmt$(s.entryTotal):'—'}</td>
-      <td style={{padding:'11px 14px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',fontSize:14,color:'var(--txd)'}}>{s.exitTotal?tbFmt$(s.exitTotal):'—'}</td>
+      <td style={{padding:'11px 14px',textAlign:'right',fontFamily:TB_NUM,fontWeight:500,fontVariantNumeric:'tabular-nums',fontSize:14,color:'var(--txd)'}}>{tbFmtNum(qty)}</td>
+      <td style={{padding:'11px 14px',textAlign:'right',fontFamily:TB_NUM,fontWeight:500,fontVariantNumeric:'tabular-nums',fontSize:14,color:'var(--txd)'}}>{s.avgEntry?tbFmt$(s.avgEntry):'—'}</td>
+      <td style={{padding:'11px 14px',textAlign:'right',fontFamily:TB_NUM,fontWeight:500,fontVariantNumeric:'tabular-nums',fontSize:14,color:'var(--txd)'}}>{s.avgExit?tbFmt$(s.avgExit):'—'}</td>
+      <td style={{padding:'11px 14px',textAlign:'right',fontFamily:TB_NUM,fontWeight:500,fontVariantNumeric:'tabular-nums',fontSize:14,color:'var(--txd)'}}>{s.entryTotal?tbFmt$(s.entryTotal):'—'}</td>
+      <td style={{padding:'11px 14px',textAlign:'right',fontFamily:TB_NUM,fontWeight:500,fontVariantNumeric:'tabular-nums',fontSize:14,color:'var(--txd)'}}>{s.exitTotal?tbFmt$(s.exitTotal):'—'}</td>
       <td style={{padding:'11px 14px',textAlign:'right',fontSize:11,color:s.holdTime?'var(--ac)':'var(--txm)',fontWeight:600,whiteSpace:'nowrap'}}>{s.holdTime||'—'}</td>
-      <td style={{padding:'11px 14px',textAlign:'right'}}>{s.netPnL!=null?<span style={{fontFamily:'IBM Plex Mono,monospace',fontWeight:700,fontSize:14,color:tbPnlCol(s.netPnL)}}>{tbFmt$(s.netPnL)}</span>:<span style={{color:'var(--txm)',fontSize:11}}>—</span>}</td>
-      <td style={{padding:'11px 14px',textAlign:'right'}}>{s.pnlPct!=null?<span style={{fontFamily:'IBM Plex Mono,monospace',fontWeight:700,fontSize:12,color:tbPnlCol(s.pnlPct)}}>{tbFmtPct(s.pnlPct)}</span>:<span style={{color:'var(--txm)',fontSize:11}}>—</span>}</td>
+      <td style={{padding:'11px 14px',textAlign:'right'}}>{s.netPnL!=null?<span style={{fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontWeight:500,fontSize:14,color:tbPnlCol(s.netPnL)}}>{tbFmt$(s.netPnL)}</span>:<span style={{color:'var(--txm)',fontSize:11}}>—</span>}</td>
+      <td style={{padding:'11px 14px',textAlign:'right'}}>{s.pnlPct!=null?<span style={{fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontWeight:500,fontSize:12,color:tbPnlCol(s.pnlPct)}}>{tbFmtPct(s.pnlPct)}</span>:<span style={{color:'var(--txm)',fontSize:11}}>—</span>}</td>
       <td style={{padding:'11px 14px'}}>{trade.setupType&&<span style={{fontSize:10,color:'var(--txm)',background:'var(--s2)',borderRadius:4,padding:'2px 7px',fontWeight:600}}>{trade.setupType}</span>}</td>
       <td style={{padding:'11px 14px',maxWidth:160}}>{trade.notes?<span style={{fontSize:13,color:'var(--txd)',fontFamily:"var(--font-accent)",fontStyle:'normal',display:'-webkit-box',WebkitLineClamp:1,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{trade.notes}</span>:<span style={{fontSize:13,color:'var(--txm)',fontFamily:'var(--font-accent)'}}>—</span>}</td>
     </React.Fragment>);
@@ -3922,7 +3925,7 @@ function TBBackupModal({jHook,onClose}){
           </div>
           {/* Storage actually used, against the ceilings retention enforces. */}
           {(usage.local>0||usage.cloud>0)&&(
-            <div style={{fontSize:11,color:'var(--txm)',display:'flex',gap:12,flexWrap:'wrap',fontFamily:"'IBM Plex Mono',monospace"}}>
+            <div style={{fontSize:11,color:'var(--txm)',display:'flex',gap:12,flexWrap:'wrap',fontFamily:TB_NUM,fontWeight:500,fontVariantNumeric:'tabular-nums'}}>
               <span>device {fmtBytes(usage.local)} <span style={{opacity:.6}}>/ {fmtBytes(TB_BK.LOCAL_BUDGET)}</span></span>
               <span>cloud {fmtBytes(usage.cloud)} <span style={{opacity:.6}}>/ {fmtBytes(TB_BK.CLOUD_BUDGET)}</span></span>
             </div>
@@ -4299,7 +4302,7 @@ function TBEquityCurve({trades}){
                    padding:'8px 10px',boxShadow:'0 8px 24px rgba(0,0,0,.5)'}}>
               <div style={{display:'flex',alignItems:'center',gap:7}}>
                 <span style={{width:12,height:2,borderRadius:1,background:col,flexShrink:0}}/>
-                <span style={{fontFamily:'IBM Plex Mono,monospace',fontSize:14,fontWeight:800,color:'var(--tx)'}}>
+                <span style={{fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontSize:14,fontWeight:500,color:'var(--tx)'}}>
                   {(hp.y>=0?'+':'−')+tbFmt$(Math.abs(hp.y))}
                 </span>
               </div>
@@ -4341,11 +4344,11 @@ function TBEquityCurve({trades}){
                 <td style={{padding:'5px 10px 5px 0',color:'var(--txm)',whiteSpace:'nowrap'}}>{fmtDay(p.t)}</td>
                 <td style={{padding:'5px 10px 5px 0',color:'var(--txd)',whiteSpace:'nowrap',
                       overflow:'hidden',textOverflow:'ellipsis'}}>{p.ticker}</td>
-                <td style={{padding:'5px 10px 5px 0',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',
+                <td style={{padding:'5px 10px 5px 0',textAlign:'right',fontFamily:TB_NUM,fontWeight:500,
                       color:tbPnlCol(p.pnl),fontVariantNumeric:'tabular-nums',whiteSpace:'nowrap'}}>
                   {(p.pnl>=0?'+':'−')+tbFmt$(Math.abs(p.pnl))}
                 </td>
-                <td style={{padding:'5px 0',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',
+                <td style={{padding:'5px 0',textAlign:'right',fontFamily:TB_NUM,fontWeight:500,
                       color:'var(--tx)',fontVariantNumeric:'tabular-nums',whiteSpace:'nowrap'}}>
                   {(p.y>=0?'+':'−')+tbFmt$(Math.abs(p.y))}
                 </td>
@@ -4565,20 +4568,20 @@ function TBJournalPage(){
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:5}}>
                   <div style={{display:'flex',alignItems:'center',gap:8}}>
                     {selectMode&&<div style={{width:18,height:18,borderRadius:4,border:`2px solid ${selected.has(t.id)?'var(--ac)':'var(--bdl)'}`,background:selected.has(t.id)?'var(--ac)':'transparent',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,color:'#fff'}}>{selected.has(t.id)?'✓':''}</div>}
-                    <span style={{fontFamily:'IBM Plex Mono,monospace',fontWeight:700,fontSize:14,color:'var(--tx)'}}>{t.ticker||'—'}</span>
+                    <span style={{fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontWeight:700,fontSize:14,color:'var(--tx)'}}>{t.ticker||'—'}</span>
                     <span style={{fontSize:11,fontWeight:800,color:isLong?'var(--tbb)':'var(--tbr)'}}>{isLong?'LONG':'SHORT'}</span>
                     {s.status==='OPEN'?<span style={{fontSize:10,fontWeight:800,color:'var(--tbw)',background:'rgba(251,191,36,0.12)',borderRadius:5,padding:'2px 6px'}}>OPEN</span>:s.netPnL!=null&&s.netPnL>0?<span style={{fontSize:10,fontWeight:800,color:'var(--tbb)',background:'rgba(164,185,134,0.1)',borderRadius:5,padding:'2px 6px'}}>WIN</span>:s.netPnL!=null&&s.netPnL<0?<span style={{fontSize:10,fontWeight:800,color:'var(--tbr)',background:'rgba(214,138,124,0.1)',borderRadius:5,padding:'2px 6px'}}>LOSS</span>:null}
                     {t.source==='manual'&&<span style={{fontSize:9,fontWeight:800,color:'var(--info)',background:'rgba(96,165,250,0.1)',borderRadius:4,padding:'1px 5px',border:'1px solid rgba(96,165,250,0.2)'}}>MANUAL</span>}{t.source==='csv'&&<span style={{fontSize:9,fontWeight:800,color:'var(--tbw)',background:'rgba(251,191,36,0.08)',borderRadius:4,padding:'1px 5px',border:'1px solid rgba(251,191,36,0.2)'}}>CSV</span>}
                   </div>
                   <div style={{textAlign:'right'}}>
-                    {s.netPnL!=null&&<div style={{fontFamily:'IBM Plex Mono,monospace',fontWeight:700,fontSize:14,color:tbPnlCol(s.netPnL)}}>{tbFmt$(s.netPnL)}</div>}
-                    {s.pnlPct!=null&&<div style={{fontFamily:'IBM Plex Mono,monospace',fontSize:11,color:tbPnlCol(s.pnlPct)}}>{tbFmtPct(s.pnlPct)}</div>}
+                    {s.netPnL!=null&&<div style={{fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontWeight:500,fontSize:14,color:tbPnlCol(s.netPnL)}}>{tbFmt$(s.netPnL)}</div>}
+                    {s.pnlPct!=null&&<div style={{fontFamily:TB_NUM,fontWeight:500,fontVariantNumeric:'tabular-nums',fontSize:11,color:tbPnlCol(s.pnlPct)}}>{tbFmtPct(s.pnlPct)}</div>}
                   </div>
                 </div>
                 <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
                   {entryDate&&<span style={{fontSize:13,color:'var(--txm)'}}>{entryDate.toLocaleDateString('en-US',{month:'numeric',day:'numeric'})}</span>}
-                  {s.avgEntry>0&&<span style={{fontSize:13,color:'var(--txm)'}}>In: <span style={{color:'var(--txd)',fontFamily:'IBM Plex Mono,monospace'}}>{tbFmt$(s.avgEntry)}</span></span>}
-                  {s.avgExit>0&&<span style={{fontSize:13,color:'var(--txm)'}}>Out: <span style={{color:'var(--txd)',fontFamily:'IBM Plex Mono,monospace'}}>{tbFmt$(s.avgExit)}</span></span>}
+                  {s.avgEntry>0&&<span style={{fontSize:13,color:'var(--txm)'}}>In: <span style={{color:'var(--txd)',fontFamily:TB_NUM,fontWeight:500,fontVariantNumeric:'tabular-nums'}}>{tbFmt$(s.avgEntry)}</span></span>}
+                  {s.avgExit>0&&<span style={{fontSize:13,color:'var(--txm)'}}>Out: <span style={{color:'var(--txd)',fontFamily:TB_NUM,fontWeight:500,fontVariantNumeric:'tabular-nums'}}>{tbFmt$(s.avgExit)}</span></span>}
                   {s.holdTime&&<span style={{fontSize:13,color:'var(--ac)',fontWeight:600}}>{s.holdTime}</span>}
                   {t.setupType&&<span style={{fontSize:10,color:'var(--txm)',background:'var(--s2)',borderRadius:4,padding:'1px 6px',fontWeight:600}}>{t.setupType}</span>}
                 </div>
@@ -4766,13 +4769,13 @@ function TBMarketStatus({isMobile}){
       </div>
       <div style={{textAlign:isMobile?'left':'right'}}>
         <div style={{fontSize:10,fontWeight:800,color:'var(--txm)',textTransform:'uppercase',letterSpacing:1.2}}>{cdLabel}</div>
-        <div style={{fontFamily:'IBM Plex Mono,monospace',fontSize:18,fontWeight:800,color:'var(--tx)'}}>{cd}</div>
+        <div style={{fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontSize:18,fontWeight:500,color:'var(--tx)'}}>{cd}</div>
       </div>
     </div>
     <div style={{fontSize:12,color:'var(--txd)',marginTop:10,paddingTop:10,borderTop:'1px solid var(--bd)'}}>{hoursLine}</div>
     {upcoming.length>0&&<div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:8}}>
       {upcoming.map(u=>(<div key={u.d} style={{display:'flex',alignItems:'center',gap:6,background:'var(--s2)',border:'1px solid var(--bd)',borderRadius:8,padding:'4px 9px'}}>
-        <span style={{fontSize:11,fontWeight:800,color:'var(--txd)',fontFamily:'IBM Plex Mono,monospace'}}>{tbMktDayLabel(u.d)}</span>
+        <span style={{fontSize:11,fontWeight:500,color:'var(--txd)',fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums'}}>{tbMktDayLabel(u.d)}</span>
         <span style={{fontSize:11,color:'var(--txm)'}}>{u.n}</span>
         <span style={{fontSize:8.5,fontWeight:800,letterSpacing:.3,textTransform:'uppercase',color:u.half?'#e0b57c':'#adadb2',background:(u.half?'#e0b57c':'#adadb2')+'1a',borderRadius:4,padding:'1px 5px'}}>{u.half?'½ day':'closed'}</span>
       </div>))}
@@ -4879,7 +4882,7 @@ function TBPortfolioPage(){
 
   const StatCard=({label,value,sub,color})=>(<div className="tb-card" style={{padding:'14px 18px'}}>
     <div style={{fontSize:10,fontWeight:800,color:'var(--txm)',textTransform:'uppercase',letterSpacing:1.5,marginBottom:6}}>{label}</div>
-    <div style={{fontFamily:'IBM Plex Mono,monospace',fontSize:20,fontWeight:800,color:color||'var(--tx)'}}>{value}</div>
+    <div style={{fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontSize:20,fontWeight:500,color:color||'var(--tx)'}}>{value}</div>
     {sub&&<div style={{fontSize:10,color:'var(--txm)',marginTop:3}}>{sub}</div>}
   </div>);
 
@@ -4938,7 +4941,7 @@ function TBPortfolioPage(){
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:1,background:'var(--bd)',borderTop:'1px solid var(--bd)'}}>
           {extra.map(([label,k])=>(<div key={k} style={{background:'var(--s1)',padding:'12px 18px'}}>
             <div style={{fontSize:10,fontWeight:800,color:'var(--txm)',textTransform:'uppercase',letterSpacing:1,marginBottom:4}}>{label}</div>
-            <div style={{fontFamily:'IBM Plex Mono,monospace',fontSize:15,fontWeight:700,color:'var(--txd)'}}>{tbFmt$(parseFloat(acct[k]))}</div>
+            <div style={{fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontSize:15,fontWeight:500,color:'var(--txd)'}}>{tbFmt$(parseFloat(acct[k]))}</div>
           </div>))}
         </div>
       </details>);
@@ -4953,14 +4956,14 @@ function TBPortfolioPage(){
             row — the worker already fetches both (cost_price / last_price). */}
         <thead><tr>{['Symbol','Qty','Avg Cost','Last','Market Val','Unreal P&L','% P&L','Day %'].map(h=><th key={h} style={{padding:'9px 14px',fontSize:10,fontWeight:800,color:'var(--txm)',textTransform:'uppercase',letterSpacing:1.5,textAlign:h==='Symbol'?'left':'right',background:'var(--s2)',borderBottom:'1px solid var(--bd)',whiteSpace:'nowrap'}}>{h}</th>)}</tr></thead>
         <tbody>{positions.map((p,i)=>(<tr key={i} style={{borderBottom:'1px solid var(--bd)'}} onMouseEnter={e=>e.currentTarget.style.background='var(--s2)'} onMouseLeave={e=>e.currentTarget.style.background=''}>
-          <td style={{padding:'11px 14px',fontFamily:'IBM Plex Mono,monospace',fontWeight:700,fontSize:15,color:'var(--tx)'}}>{p.ticker||p.symbol||'—'}</td>
-          <td style={{padding:'11px 14px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',fontSize:14,color:'var(--txd)'}}>{tbFmtNum(p.shares)}</td>
-          <td style={{padding:'11px 14px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',fontSize:14,color:'var(--txm)'}}>{p.avgCost?tbFmt$(p.avgCost):'—'}</td>
-          <td style={{padding:'11px 14px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',fontSize:14,color:'var(--txd)'}}>{p.currentPrice?tbFmt$(p.currentPrice):'—'}</td>
-          <td style={{padding:'11px 14px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',fontSize:14,color:'var(--txd)'}}>{tbFmt$(p.marketValue)}</td>
-          <td style={{padding:'11px 14px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',fontSize:14,color:tbPnlCol(p.unrealizedPnL),fontWeight:700}}>{tbFmt$(p.unrealizedPnL)}</td>
-          <td style={{padding:'11px 14px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',fontSize:14,color:tbPnlCol(p.unrealizedPct)}}>{tbFmtPct(p.unrealizedPct)}</td>
-          <td style={{padding:'11px 14px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',fontSize:14,color:tbPnlCol(p.lastChangePct)}}>{tbFmtPct(p.lastChangePct)}</td>
+          <td style={{padding:'11px 14px',fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontWeight:700,fontSize:15,color:'var(--tx)'}}>{p.ticker||p.symbol||'—'}</td>
+          <td style={{padding:'11px 14px',textAlign:'right',fontFamily:TB_NUM,fontWeight:500,fontVariantNumeric:'tabular-nums',fontSize:14,color:'var(--txd)'}}>{tbFmtNum(p.shares)}</td>
+          <td style={{padding:'11px 14px',textAlign:'right',fontFamily:TB_NUM,fontWeight:500,fontVariantNumeric:'tabular-nums',fontSize:14,color:'var(--txm)'}}>{p.avgCost?tbFmt$(p.avgCost):'—'}</td>
+          <td style={{padding:'11px 14px',textAlign:'right',fontFamily:TB_NUM,fontWeight:500,fontVariantNumeric:'tabular-nums',fontSize:14,color:'var(--txd)'}}>{p.currentPrice?tbFmt$(p.currentPrice):'—'}</td>
+          <td style={{padding:'11px 14px',textAlign:'right',fontFamily:TB_NUM,fontWeight:500,fontVariantNumeric:'tabular-nums',fontSize:14,color:'var(--txd)'}}>{tbFmt$(p.marketValue)}</td>
+          <td style={{padding:'11px 14px',textAlign:'right',fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontSize:14,color:tbPnlCol(p.unrealizedPnL),fontWeight:500}}>{tbFmt$(p.unrealizedPnL)}</td>
+          <td style={{padding:'11px 14px',textAlign:'right',fontFamily:TB_NUM,fontWeight:500,fontVariantNumeric:'tabular-nums',fontSize:14,color:tbPnlCol(p.unrealizedPct)}}>{tbFmtPct(p.unrealizedPct)}</td>
+          <td style={{padding:'11px 14px',textAlign:'right',fontFamily:TB_NUM,fontWeight:500,fontVariantNumeric:'tabular-nums',fontSize:14,color:tbPnlCol(p.lastChangePct)}}>{tbFmtPct(p.lastChangePct)}</td>
         </tr>))}</tbody>
       </table></div>}
     </div>}
@@ -4984,11 +4987,11 @@ function TBPortfolioPage(){
           const stop  = parseFloat(o.stopPrice??o.stop_price)||0;
           const priceCell = limit>0?tbFmt$(limit):stop>0?`${tbFmt$(stop)} stp`:'MKT';
           return(<tr key={o.orderId||o.clientOrderId||i} style={{borderBottom:'1px solid var(--bd)'}} onMouseEnter={e=>e.currentTarget.style.background='var(--s2)'} onMouseLeave={e=>e.currentTarget.style.background=''}>
-            <td style={{padding:'9px 12px',fontFamily:'IBM Plex Mono,monospace',fontWeight:700,fontSize:15,color:'var(--tx)'}}>{sym}</td>
+            <td style={{padding:'9px 12px',fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontWeight:700,fontSize:15,color:'var(--tx)'}}>{sym}</td>
             <td style={{padding:'9px 12px',fontSize:12,fontWeight:700,color:side==='SELL'?'var(--tbr)':'var(--tbb)'}}>{side||'—'}</td>
-            <td style={{padding:'9px 12px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',color:'var(--txd)',fontSize:12}}>{tbFmtNum(qty)}</td>
-            <td style={{padding:'9px 12px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',color:'var(--txd)',fontSize:12}}>{tbFmtNum(filled)}</td>
-            <td style={{padding:'9px 12px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',color:'var(--txd)',fontSize:12}}>{priceCell}</td>
+            <td style={{padding:'9px 12px',textAlign:'right',fontFamily:TB_NUM,fontWeight:500,fontVariantNumeric:'tabular-nums',color:'var(--txd)',fontSize:12}}>{tbFmtNum(qty)}</td>
+            <td style={{padding:'9px 12px',textAlign:'right',fontFamily:TB_NUM,fontWeight:500,fontVariantNumeric:'tabular-nums',color:'var(--txd)',fontSize:12}}>{tbFmtNum(filled)}</td>
+            <td style={{padding:'9px 12px',textAlign:'right',fontFamily:TB_NUM,fontWeight:500,fontVariantNumeric:'tabular-nums',color:'var(--txd)',fontSize:12}}>{priceCell}</td>
             <td style={{padding:'9px 12px',fontSize:13,color:'var(--txd)'}}>{(o.orderType||o.order_type||'—').toUpperCase()}</td>
             <td style={{padding:'9px 12px',fontSize:12,color:'var(--txm)'}}>{o.tif||'—'}</td>
             {/* Webull sends raw enums (PARTIAL_FILLED) — drop the underscore. */}
@@ -5017,12 +5020,12 @@ function TBPortfolioPage(){
           const st=(h.status||'').toUpperCase();
           return(<tr key={i} style={{borderBottom:'1px solid var(--bd)'}} onMouseEnter={e=>e.currentTarget.style.background='var(--s2)'} onMouseLeave={e=>e.currentTarget.style.background=''}>
             <td style={{padding:'9px 12px',fontSize:12,color:'var(--txm)',whiteSpace:'nowrap'}}>{dt?tbFmtDate(dt):'—'}</td>
-            <td style={{padding:'9px 12px',fontFamily:'IBM Plex Mono,monospace',fontWeight:700,fontSize:14,color:'var(--tx)'}}>{h.symbol||h.ticker||'—'}</td>
+            <td style={{padding:'9px 12px',fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontWeight:700,fontSize:14,color:'var(--tx)'}}>{h.symbol||h.ticker||'—'}</td>
             <td style={{padding:'9px 12px',fontSize:12,fontWeight:700,color:isBuy?'var(--tbb)':'var(--tbr)'}}>{(h.action||h.side||'—').toUpperCase()}</td>
-            <td style={{padding:'9px 12px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',color:'var(--txd)',fontSize:12}}>{tbFmtNum(qty)||'—'}</td>
-            <td style={{padding:'9px 12px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',color:'var(--txd)',fontSize:12}}>{price?tbFmt$(price):'—'}</td>
-            <td style={{padding:'9px 12px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',color:'var(--txd)',fontSize:13,fontWeight:600}}>{total?tbFmt$(total):'—'}</td>
-            <td style={{padding:'9px 12px',textAlign:'right',fontFamily:'IBM Plex Mono,monospace',color:'var(--txm)',fontSize:12}}>{fee!=null&&fee!==''?tbFmt$(fee):'—'}</td>
+            <td style={{padding:'9px 12px',textAlign:'right',fontFamily:TB_NUM,fontWeight:500,fontVariantNumeric:'tabular-nums',color:'var(--txd)',fontSize:12}}>{tbFmtNum(qty)||'—'}</td>
+            <td style={{padding:'9px 12px',textAlign:'right',fontFamily:TB_NUM,fontWeight:500,fontVariantNumeric:'tabular-nums',color:'var(--txd)',fontSize:12}}>{price?tbFmt$(price):'—'}</td>
+            <td style={{padding:'9px 12px',textAlign:'right',fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',color:'var(--txd)',fontSize:13,fontWeight:500}}>{total?tbFmt$(total):'—'}</td>
+            <td style={{padding:'9px 12px',textAlign:'right',fontFamily:TB_NUM,fontWeight:500,fontVariantNumeric:'tabular-nums',color:'var(--txm)',fontSize:12}}>{fee!=null&&fee!==''?tbFmt$(fee):'—'}</td>
             {/* --txw was never defined, so this cell rendered with an invalid colour. */}
             <td style={{padding:'9px 12px',fontSize:12,color:st.includes('FILL')?'var(--tbb)':st?'var(--txm)':'var(--txd)'}}>{(h.status||'—').replace(/_/g,' ')}</td>
           </tr>);
@@ -5041,8 +5044,8 @@ function TBPortfolioPage(){
           return(<tr key={i} style={{borderBottom:'1px solid var(--bd)'}} onMouseEnter={e=>e.currentTarget.style.background='var(--s2)'} onMouseLeave={e=>e.currentTarget.style.background=''}>
             <td style={{padding:'9px 12px',fontSize:12,color:'var(--txm)',whiteSpace:'nowrap'}}>{dt?tbFmtDate(dt):'—'}</td>
             <td style={{padding:'9px 12px',fontSize:12,fontWeight:700,color:'var(--ac)'}}>{a.type||a.activityType||'—'}</td>
-            <td style={{padding:'9px 12px',fontFamily:'IBM Plex Mono,monospace',fontWeight:700,fontSize:13,color:'var(--tx)'}}>{a.symbol||a.ticker||'—'}</td>
-            <td style={{padding:'9px 12px',fontFamily:'IBM Plex Mono,monospace',fontSize:13,color:a.amount>=0?'var(--tbb)':'var(--tbr)',fontWeight:600}}>{a.amount!=null?tbFmt$(a.amount):'—'}</td>
+            <td style={{padding:'9px 12px',fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontWeight:700,fontSize:13,color:'var(--tx)'}}>{a.symbol||a.ticker||'—'}</td>
+            <td style={{padding:'9px 12px',fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontSize:13,color:a.amount>=0?'var(--tbb)':'var(--tbr)',fontWeight:500}}>{a.amount!=null?tbFmt$(a.amount):'—'}</td>
             <td style={{padding:'9px 12px',fontSize:13,color:'var(--txd)'}}>{a.description||a.desc||'—'}</td>
           </tr>);
         })}</tbody>
@@ -5248,7 +5251,7 @@ function TBTrashModal({trash,onRestore,onPurge,onClose,focus}){
                     <div style={{flex:'1 1 160px',minWidth:0,overflow:'hidden'}}>
                       <div style={{fontWeight:700,fontSize:13.5,color:'var(--tx)',whiteSpace:'nowrap',
                         overflow:'hidden',textOverflow:'ellipsis',
-                        ...(s.mono?{fontFamily:"'IBM Plex Mono',monospace",letterSpacing:.5,fontWeight:800}:null)}}>{s.name(item)}</div>
+                        ...(s.mono?{fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',letterSpacing:.5,fontWeight:800}:null)}}>{s.name(item)}</div>
                       <div style={{fontSize:10.5,color:'var(--txm)',marginTop:2}}>
                         {s.kind} · deleted {new Date(item.trashed).toLocaleDateString()} · auto-deletes in {days}d
                       </div>
@@ -5347,7 +5350,7 @@ function TBWatchlistEditor({watchlist=[],onChange,onToast,onTrashTickers,trashCo
         onChange={e=>setTickerInput(e.target.value.toUpperCase())}
         onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();addTicker(tickerInput);}}}
         placeholder="Add tickers — comma or space separated (e.g. NVDA, MU, AMD)"
-        style={{flex:'1 1 240px',minWidth:0,fontFamily:"'IBM Plex Mono',monospace",fontSize:14,fontWeight:700,letterSpacing:0.5,padding:'11px 14px',background:'var(--s1)',border:'1px solid var(--bd)',borderRadius:10,color:'var(--tx)',outline:'none'}}/>
+        style={{flex:'1 1 240px',minWidth:0,fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontSize:14,fontWeight:700,letterSpacing:0.5,padding:'11px 14px',background:'var(--s1)',border:'1px solid var(--bd)',borderRadius:10,color:'var(--tx)',outline:'none'}}/>
       <button className="tb-btn-primary" onClick={()=>addTicker(tickerInput)} disabled={!canAdd} style={{flex:'0 0 auto',fontSize:13,padding:'11px 20px',opacity:canAdd?1:0.4}}>+ Add</button>
     </div>
 
@@ -5356,7 +5359,7 @@ function TBWatchlistEditor({watchlist=[],onChange,onToast,onTrashTickers,trashCo
       {watchlist.length===0&&<span style={{fontSize:13,color:'var(--txm)',fontFamily:'var(--font-accent)'}}>No tickers — add some above or reset to default.</span>}
       {[...watchlist].sort().map(t=>(
         <span key={t} style={{display:'inline-flex',alignItems:'center',gap:8,padding:'7px 8px 7px 13px',borderRadius:10,border:'1px solid var(--bd)',background:'var(--s1)'}}>
-          <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:14,fontWeight:800,letterSpacing:0.5,color:'var(--tx)'}}>{t}</span>
+          <span style={{fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontSize:14,fontWeight:800,letterSpacing:0.5,color:'var(--tx)'}}>{t}</span>
           <span title="Sector" style={{fontSize:10,fontWeight:600,color:'var(--txm)',padding:'2px 7px',borderRadius:100,background:'var(--s2)',whiteSpace:'nowrap'}}>{tbInferSector(t)}</span>
           <span onClick={()=>removeTicker(t)} title={'Remove '+t} role="button" style={{cursor:'pointer',color:'var(--txm)',fontSize:16,lineHeight:1,padding:'0 4px',fontWeight:700,transition:'color .15s'}}
             onMouseEnter={ev=>ev.currentTarget.style.color='var(--tbr)'}
@@ -5369,7 +5372,7 @@ function TBWatchlistEditor({watchlist=[],onChange,onToast,onTrashTickers,trashCo
         add-order (not sorted) so it mirrors exactly what you typed. */}
     <div style={{fontSize:11,fontWeight:800,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)',marginBottom:10}}>Copy list</div>
     <div style={{display:'flex',alignItems:'stretch',gap:8,marginBottom:22,flexWrap:'wrap'}}>
-      <div style={{flex:'1 1 240px',minWidth:0,fontFamily:"'IBM Plex Mono',monospace",fontSize:13,fontWeight:700,color:'var(--txd)',background:'var(--s1)',border:'1px solid var(--bd)',borderRadius:10,padding:'11px 14px',wordBreak:'break-word',lineHeight:1.6}}>
+      <div style={{flex:'1 1 240px',minWidth:0,fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontSize:13,fontWeight:700,color:'var(--txd)',background:'var(--s1)',border:'1px solid var(--bd)',borderRadius:10,padding:'11px 14px',wordBreak:'break-word',lineHeight:1.6}}>
         {watchlist.length?('['+watchlist.join(', ')+']'):'[]'}
       </div>
       <button onClick={()=>{const s='['+watchlist.join(', ')+']';const done=()=>onToast&&onToast('Copied '+watchlist.length+' ticker'+(watchlist.length!==1?'s':''),'copy');try{navigator.clipboard.writeText(s).then(done).catch(()=>{const ta=document.createElement('textarea');ta.value=s;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');}catch(e){}document.body.removeChild(ta);done();});}catch(e){}}}
@@ -7051,7 +7054,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
         ?<div style={{border:'1px solid var(--bd)',borderRadius:8,background:'var(--s2)',overflow:'hidden'}}>
           <div style={{display:'flex',alignItems:'center',gap:8,padding:'9px 13px',borderBottom:'1px solid var(--bd)'}}>
             <span style={{fontFamily:'var(--font-accent)',fontSize:13,fontWeight:700,color:'var(--tx)',minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{selPrompt.name}</span>
-            <span style={{marginLeft:'auto',flexShrink:0,fontSize:11,color:'var(--txm)',fontFamily:"'IBM Plex Mono',monospace"}}>{selPromptText.length.toLocaleString()} chars</span>
+            <span style={{marginLeft:'auto',flexShrink:0,fontSize:11,color:'var(--txm)',fontFamily:TB_NUM,fontWeight:500,fontVariantNumeric:'tabular-nums'}}>{selPromptText.length.toLocaleString()} chars</span>
           </div>
           {/* Capped and scrollable rather than clamped to one line: a prompt is a
               document, and the point of a preview is being able to check it. */}
@@ -7637,7 +7640,7 @@ function TBNewsSummaryOverlay({onClose,summary,loading,error,generatedAt,eventCo
                                  background:nhToneColor(S.tone),border:'2px solid var(--s1)',boxShadow:'0 1px 4px rgba(0,0,0,.5)'}}/>
                   </div>
                   <span style={{fontSize:9,fontWeight:800,color:'var(--tbb)',letterSpacing:.5,flexShrink:0}}>BULL</span>
-                  <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,fontWeight:800,color:nhToneColor(S.tone),minWidth:38,textAlign:'right',flexShrink:0}}>
+                  <span style={{fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontSize:11,fontWeight:500,color:nhToneColor(S.tone),minWidth:38,textAlign:'right',flexShrink:0}}>
                     {S.toneScore>0?'+':''}{S.toneScore.toFixed(2)}
                   </span>
                 </div>
@@ -7662,7 +7665,7 @@ function TBNewsSummaryOverlay({onClose,summary,loading,error,generatedAt,eventCo
                           {k.tickers&&k.tickers.length>0&&(
                             <div style={{display:'flex',flexWrap:'wrap',gap:5,marginTop:7}}>
                               {k.tickers.map(t=>(
-                                <span key={t} style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,fontWeight:700,color:'var(--ac)',
+                                <span key={t} style={{fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontSize:10,fontWeight:700,color:'var(--ac)',
                                                       background:'var(--s2)',border:'1px solid var(--bd)',padding:'2px 6px',borderRadius:4}}>{t}</span>
                               ))}
                             </div>
@@ -7682,7 +7685,7 @@ function TBNewsSummaryOverlay({onClose,summary,loading,error,generatedAt,eventCo
                     {S.tickers.map((t,i)=>(
                       <div key={i} style={{display:'flex',alignItems:'flex-start',gap:9,padding:'9px 11px',borderRadius:8,
                                            background:'var(--s2)',border:'1px solid var(--bd)',minWidth:0}}>
-                        <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:12,fontWeight:800,color:nhStance(t.stance),flexShrink:0,minWidth:44}}>
+                        <span style={{fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontSize:12,fontWeight:500,color:nhStance(t.stance),flexShrink:0,minWidth:44}}>
                           {t.ticker}
                         </span>
                         <span style={{fontSize:12,lineHeight:1.45,color:'var(--txd)',minWidth:0}}>{t.note}</span>
@@ -7742,7 +7745,7 @@ function TBNewsSummaryOverlay({onClose,summary,loading,error,generatedAt,eventCo
 
               <div style={{fontSize:10,color:'var(--txm)',borderTop:'1px solid var(--bd)',paddingTop:12,display:'flex',flexWrap:'wrap',gap:8,alignItems:'center'}}>
                 <span>AI summary of {eventCount} analyzed events</span>
-                {S.model&&<span style={{fontFamily:"'IBM Plex Mono',monospace",opacity:.75}}>· {S.model}</span>}
+                {S.model&&<span style={{fontFamily:TB_NUM,fontWeight:500,fontVariantNumeric:'tabular-nums',opacity:.75}}>· {S.model}</span>}
                 <span style={{opacity:.75}}>· regenerated only when the news rebuilds</span>
               </div>
             </div>
@@ -8315,7 +8318,7 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
   /* ── Styles (TB tokens) ── */
   const segWrap={display:'flex',flexWrap:'wrap',background:'var(--s2)',border:'1px solid var(--bd)',borderRadius:8,padding:3,gap:2};
   const segBtn=(on,col)=>({fontFamily:'inherit',fontSize:11,fontWeight:on?800:600,border:'none',background:on?'var(--s1)':'transparent',color:on?(col||'var(--tx)'):'var(--txd)',padding:'6px 10px',borderRadius:6,cursor:'pointer',transition:'all .15s',display:'inline-flex',alignItems:'center',whiteSpace:'nowrap',boxShadow:on?'0 1px 3px var(--shadow)':'none'});
-  const chip=(on,faded)=>({fontFamily:"'IBM Plex Mono',monospace",fontSize:11,fontWeight:700,padding:'5px 10px',borderRadius:100,cursor:'pointer',border:'1px solid '+(on?'var(--ac)':'var(--bd)'),background:on?'var(--ac)':'var(--s1)',color:on?'var(--bg)':'var(--txd)',transition:'all .15s',userSelect:'none',display:'inline-flex',alignItems:'center',gap:4,opacity:faded?0.4:1,letterSpacing:0.3});
+  const chip=(on,faded)=>({fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontSize:11,fontWeight:700,padding:'5px 10px',borderRadius:100,cursor:'pointer',border:'1px solid '+(on?'var(--ac)':'var(--bd)'),background:on?'var(--ac)':'var(--s1)',color:on?'var(--bg)':'var(--txd)',transition:'all .15s',userSelect:'none',display:'inline-flex',alignItems:'center',gap:4,opacity:faded?0.4:1,letterSpacing:0.3});
   const lbl={fontSize:10,fontWeight:900,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)',flexShrink:0,whiteSpace:'nowrap'};
 
   return(<div className="tb-fade-in tb-page-content nh-page" style={{maxWidth:1100,margin:'0 auto'}}>
@@ -8332,7 +8335,7 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
           ):(
             <span>No events loaded — hit Refresh</span>
           )}
-          <span style={{fontSize:11,background:'var(--s2)',border:'1px solid var(--bd)',padding:'2px 8px',borderRadius:4,fontFamily:"'IBM Plex Mono',monospace",whiteSpace:'nowrap'}}>
+          <span style={{fontSize:11,background:'var(--s2)',border:'1px solid var(--bd)',padding:'2px 8px',borderRadius:4,fontFamily:TB_NUM,fontWeight:500,fontVariantNumeric:'tabular-nums',whiteSpace:'nowrap'}}>
             {rlRemaining}/{NH_DAILY_LIMIT} left today
           </span>
           {rlCooldown>0&&<span style={{fontSize:11,color:'var(--tbw)',whiteSpace:'nowrap',display:'inline-flex',alignItems:'center',gap:5}}><TBIcon n="clock"/> {nhFmtTime(rlCooldown)}</span>}
@@ -8431,9 +8434,9 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
                    selection without arguing with the move colour. */
                 style={{padding:'12px 14px',cursor:'pointer',borderLeft:'3px solid '+nhMoveColor(m.dp),outline:on?'2px solid var(--tx)':'none'}}>
                 <div style={{display:'flex',alignItems:'baseline',gap:8}}>
-                  <span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:800,fontSize:14,color:'var(--ac)'}}>{m.t}</span>
-                  <span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:800,fontSize:13,color:nhMoveColor(m.dp)}}>{m.dp>0?'▲':'▼'} {nhFmtPct(m.dp)}</span>
-                  <span style={{marginLeft:'auto',fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:'var(--txd)'}}>{nhFmtPrice(m.c)}</span>
+                  <span style={{fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontWeight:800,fontSize:14,color:'var(--ac)'}}>{m.t}</span>
+                  <span style={{fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontWeight:500,fontSize:13,color:nhMoveColor(m.dp)}}>{m.dp>0?'▲':'▼'} {nhFmtPct(m.dp)}</span>
+                  <span style={{marginLeft:'auto',fontFamily:TB_NUM,fontWeight:500,fontVariantNumeric:'tabular-nums',fontSize:12,color:'var(--txd)'}}>{nhFmtPrice(m.c)}</span>
                 </div>
                 {hl?(
                   <div style={{fontSize:12,lineHeight:1.4,color:'var(--txm)',marginTop:7,display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{hl}</div>
@@ -8475,7 +8478,7 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
         {sentFilter!=='all'&&<span style={{background:'var(--s1)',border:'1px solid var(--bd)',padding:'2px 8px',borderRadius:100,fontWeight:700}}>{NH_SLABEL[sentFilter]} <span onClick={()=>setSentFilter('all')} style={{cursor:'pointer',color:'var(--txm)'}}>×</span></span>}
         {impFilter!=='all'&&<span style={{background:'var(--s1)',border:'1px solid var(--bd)',padding:'2px 8px',borderRadius:100,fontWeight:700}}>{impFilter} <span onClick={()=>setImpFilter('all')} style={{cursor:'pointer',color:'var(--txm)'}}>×</span></span>}
         {selSectors.map(s=><span key={s} style={{background:'var(--s1)',border:'1px solid var(--bd)',padding:'2px 8px',borderRadius:100,fontWeight:700}}>{s} <span onClick={()=>toggleSector(s)} style={{cursor:'pointer',color:'var(--txm)'}}>×</span></span>)}
-        {selTickers.map(t=><span key={t} style={{background:'var(--s1)',border:'1px solid var(--bd)',padding:'2px 8px',borderRadius:100,fontWeight:700,fontFamily:"'IBM Plex Mono',monospace"}}>{t} <span onClick={()=>toggleTicker(t)} style={{cursor:'pointer',color:'var(--txm)'}}>×</span></span>)}
+        {selTickers.map(t=><span key={t} style={{background:'var(--s1)',border:'1px solid var(--bd)',padding:'2px 8px',borderRadius:100,fontWeight:700,fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums'}}>{t} <span onClick={()=>toggleTicker(t)} style={{cursor:'pointer',color:'var(--txm)'}}>×</span></span>)}
         {hasFilter&&<span onClick={clearAll} style={{marginLeft:'auto',color:'var(--ac)',fontWeight:700,cursor:'pointer'}}>Clear all</span>}
       </div>
     )}
@@ -8576,19 +8579,19 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
             <div key={e.id} className="tb-card" style={{padding:'16px 18px',borderLeft:'3px solid '+(breaking?'var(--tbw)':tm.c)}}>
               <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:9,flexWrap:'wrap'}}>
                 {breaking&&<span style={{fontSize:9,fontWeight:900,letterSpacing:0.7,color:'#fff',background:'var(--tbw)',padding:'3px 8px',borderRadius:100,textTransform:'uppercase',display:'inline-flex',alignItems:'center',gap:4}}><span style={{width:6,height:6,borderRadius:'50%',background:'#fff'}}/>Breaking</span>}
-                <span style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:800,fontSize:13,color:'var(--ac)'}}>{e.primaryTicker}</span>
-                {hasPct&&<span title="Today's move" style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:800,fontSize:11,color:nhMoveColor(q.dp)}}>{q.dp>0?'▲':'▼'} {nhFmtPct(q.dp)}</span>}
-                {e.additionalTickers?.length>0&&<span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:'var(--txm)',fontWeight:600}}>+ {e.additionalTickers.join(' · ')}</span>}
+                <span style={{fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontWeight:800,fontSize:13,color:'var(--ac)'}}>{e.primaryTicker}</span>
+                {hasPct&&<span title="Today's move" style={{fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontWeight:500,fontSize:11,color:nhMoveColor(q.dp)}}>{q.dp>0?'▲':'▼'} {nhFmtPct(q.dp)}</span>}
+                {e.additionalTickers?.length>0&&<span style={{fontFamily:TB_NUM,fontVariantNumeric:'tabular-nums',fontSize:11,color:'var(--txm)',fontWeight:600}}>+ {e.additionalTickers.join(' · ')}</span>}
                 {e.sectors?.length>0&&<span style={{fontSize:11,color:'var(--txm)',paddingLeft:8,borderLeft:'1px solid var(--bd)'}}>{e.sectors[0]}</span>}
                 {tier!=='minor'&&<span style={{fontSize:10,fontWeight:800,textTransform:'uppercase',letterSpacing:0.6,padding:'3px 9px',borderRadius:100,background:(tier==='critical'||tier==='major')?tm.c:'transparent',color:(tier==='critical'||tier==='major')?'#fff':tm.c,border:(tier==='critical'||tier==='major')?'none':'1px solid '+tm.c,display:'inline-flex',alignItems:'center',gap:4}}>
-                  {tm.label}<span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,opacity:0.8,marginLeft:2}}>{e.impact?.score}</span>
+                  {tm.label}<span style={{fontFamily:TB_NUM,fontWeight:500,fontVariantNumeric:'tabular-nums',fontSize:9,opacity:0.8,marginLeft:2}}>{e.impact?.score}</span>
                 </span>}
                 <span className={sentCls} style={{fontSize:10}}>
-                  {NH_SLABEL[sLabel]}{score!==0&&<span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,opacity:0.75,marginLeft:3}}>{nhFmtScore(score)}</span>}
+                  {NH_SLABEL[sLabel]}{score!==0&&<span style={{fontFamily:TB_NUM,fontWeight:500,fontVariantNumeric:'tabular-nums',fontSize:9,opacity:0.75,marginLeft:3}}>{nhFmtScore(score)}</span>}
                 </span>
                 {e.eventType&&e.eventType!=='other'&&<span style={{fontSize:10,fontWeight:600,color:'var(--txm)',padding:'2px 8px',border:'1px solid var(--bd)',borderRadius:100,textTransform:'uppercase',letterSpacing:0.5}}>{e.eventType}</span>}
                 {e.aiAnalyzed===false&&<span style={{fontSize:9,fontWeight:800,color:'var(--tbw)',padding:'2px 6px',border:'1px solid var(--tbw)',borderRadius:100,letterSpacing:0.5,opacity:0.7}}>RAW</span>}
-                <span style={{marginLeft:'auto',fontSize:11,color:'var(--txm)',fontFamily:"'IBM Plex Mono',monospace"}}>{nhTimeAgo(e.ts)}</span>
+                <span style={{marginLeft:'auto',fontSize:11,color:'var(--txm)',fontFamily:TB_NUM,fontWeight:500,fontVariantNumeric:'tabular-nums'}}>{nhTimeAgo(e.ts)}</span>
               </div>
               <div style={{fontSize:15,lineHeight:1.55,color:'var(--tx)',fontWeight:500,fontFamily:"'Manrope',system-ui,-apple-system,sans-serif",marginBottom:11}}>{e.summary}</div>
               <NHHeadlineList sources={sources}/>
