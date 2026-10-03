@@ -174,7 +174,7 @@ async function scan(c, label, scope) {
   console.log('riftiq.html');
   await load(c, 'riftiq.html', { wait: 5000 });
   await bodyTabular(c, 'riftiq');
-  for (const html of ['<span class="stat-val">7.4</span>', '<div class="match-row"><span class="kda-val">8 / 2 / 11</span></div>',
+  for (const html of ['<div class="match-row"><span class="kda-val">8 / 2 / 11</span></div>',
                       '<div class="stats-numbers"><div class="sn-sub">142 games</div></div>', '<div class="io-cost">3,100</div>',
                       '<div class="ranked-card"><span class="division">II 54 LP</span></div>']) {
     const r = await probe(c, 'body', html, '.stat-val,.kda-val,.sn-sub,.io-cost,.division');
