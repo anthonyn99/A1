@@ -4,9 +4,9 @@
 //
 //   1. desktop: mouse-drag a program-nav button sideways
 //   2. desktop: the nav sits still under the cursor, and a plain click navigates
-//   3. phone width: touch-drag a dropdown row by its grip
-//   4. phone width: a finger on a dropdown row (not the grip) does not drag
-//   5. Settings → External links: mouse-drag a row by its grip
+//   3. phone width: a held finger drags a dropdown row (no grips: Tony, 2026-10-02)
+//   4. phone width: a quick swipe on a dropdown row does not drag
+//   5. Settings → External links: mouse-drag a row
 //   6. Veda's dropdown still carries her own grip (untouched)
 //
 // Run: node tests/live/index-drag.live.js
@@ -33,8 +33,9 @@ async function mouseDrag(c, x, y, dx, dy, steps = 16) {
   await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: x + dx, y: y + dy, button: 'left', clickCount: 1 });
   await sleep(400);
 }
-async function touchDrag(c, x, y, dy, steps = 16) {
+async function touchDrag(c, x, y, dy, steps = 16, holdMs = 0) {
   await c.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+  if (holdMs) await sleep(holdMs);
   for (let i = 1; i <= steps; i++) {
     await c.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y + (dy * i) / steps }] });
     await sleep(16);
@@ -96,21 +97,20 @@ async function load(c, who, w, h, mobile) {
   await load(c, 'tony', 390, 844, true);
   await evalJs(c, "document.getElementById('tn-dd-trigger').click(); 1");
   await sleep(400);
-  ok('dropdown rows carry a real grip button', await evalJs(c, "return document.querySelectorAll('#tn-dd-panel .tn-dd-item > button.dsort-grip').length>3;"));
+  ok('dropdown rows show no grip', await evalJs(c, "return document.querySelectorAll('#tn-dd-panel .tn-dd-item').length>3 && !document.querySelector('#tn-dd-panel .dsort-grip');"));
   const o1 = await order(c);
-  const g0 = await rect(c, "document.querySelector('#tn-dd-panel .tn-dd-item .dsort-grip')");
   const r1 = await rect(c, "document.querySelectorAll('#tn-dd-panel .tn-dd-item')[1]");
-  // a finger on the row's label: the list scrolls, nothing moves
+  // a quick swipe on the row: the list scrolls, nothing moves
   const l0 = await rect(c, "document.querySelector('#tn-dd-panel .tn-dd-item .dd-text')");
   await touchDrag(c, l0.x, l0.y, r1.h * 2);
-  ok('touch on the row (not the grip) does not reorder', JSON.stringify(await order(c)) === JSON.stringify(o1));
+  ok('a quick swipe on a row does not reorder', JSON.stringify(await order(c)) === JSON.stringify(o1));
   if (!(await evalJs(c, "return getComputedStyle(document.getElementById('tn-dd-panel')).display!=='none';"))) {
     await evalJs(c, "document.getElementById('tn-dd-trigger').click(); 1"); await sleep(400);
   }
-  await touchDrag(c, g0.x, g0.y, r1.h * 2 + 4);
+  await touchDrag(c, l0.x, l0.y, r1.h * 2 + 4, 16, 400);
   const o2 = await order(c);
   const e2 = o1.slice(); const m = e2.splice(0, 1)[0]; e2.splice(2, 0, m);
-  ok('touch on the grip: row 0 dragged two rows down lands at 2 (saved order)', JSON.stringify(o2) === JSON.stringify(e2), JSON.stringify({ o1, o2 }));
+  ok('a held finger: row 0 dragged two rows down lands at 2 (saved order)', JSON.stringify(o2) === JSON.stringify(e2), JSON.stringify({ o1, o2 }));
   await c.send('Page.captureScreenshot', { format: 'png' }).then((r) => fs.writeFileSync(shotPath('p1b-dd-after'), Buffer.from(r.result.data, 'base64')));
 
   console.log('\nSettings: external link rows');
@@ -119,11 +119,11 @@ async function load(c, who, w, h, mobile) {
   await sleep(800);
   const ids = () => evalJs(c, "return JSON.stringify([...document.querySelectorAll('#thset-linklist .thset-link-row')].map(r=>r.getAttribute('data-link-id')));").then(JSON.parse);
   const i1 = await ids();
-  ok('Settings rows carry a real grip button', await evalJs(c, "return document.querySelectorAll('#thset-linklist .thset-link-row > button.dsort-grip').length===" + i1.length + ";") && i1.length > 1, i1.length);
+  ok('Settings rows show no grip', await evalJs(c, "return !document.querySelector('#thset-linklist .dsort-grip, #thset-linklist .thset-grip');") && i1.length > 1, i1.length);
   if (i1.length > 1) {
     await evalJs(c, "document.querySelector('#thset-linklist .thset-link-row').scrollIntoView({block:'center'}); 1");
     await sleep(300);
-    const sg = await rect(c, "document.querySelector('#thset-linklist .thset-link-row .dsort-grip')");
+    const sg = await rect(c, "document.querySelector('#thset-linklist .thset-link-row .thset-label')");
     const sr = await rect(c, "document.querySelectorAll('#thset-linklist .thset-link-row')[1]");
     await mouseDrag(c, sg.x, sg.y, 0, sr.y - sg.y + 6);
     await sleep(500);

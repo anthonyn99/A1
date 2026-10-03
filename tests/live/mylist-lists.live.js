@@ -271,13 +271,13 @@ async function mouseDrag(c, x, y, x2, y2, { steps = 16, cancel = false, mid = nu
   await sleep(300);
   ok('a quick touch swipe on a row does not drag it', (await evalJs(c, order)) === io);
   const i2 = await rect(c, `document.querySelectorAll('#items-container .item')[2]`);
-  const g0 = await rect(c, `document.querySelectorAll('#items-container .item')[0].querySelector('.dsort-grip')`);
+  const g0 = { x: i0.x - 40, y: i0.y };
   await c.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: g0.x, y: g0.y }] });
-  await sleep(40);
+  await sleep(400);   // a held finger picks the row up (no grips: Tony, 2026-10-02)
   for (let i = 1; i <= 12; i++) { await c.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: g0.x, y: g0.y + ((i2.y + 12 - g0.y) * i) / 12 }] }); await sleep(18); }
   await c.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await sleep(450);
-  ok('a finger on a row\'s grip reorders it on touch', (await evalJs(c, order)) !== io, await evalJs(c, order));
+  ok('a held finger reorders a row on touch', (await evalJs(c, order)) !== io, await evalJs(c, order));
   // picker at phone width = bottom sheet, 2 columns, fits
   await evalJs(c, `document.getElementById('new-list-btn').click(); return 1`);
   await sleep(250);

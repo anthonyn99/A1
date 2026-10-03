@@ -57,11 +57,10 @@ when Tony says "continue theme" / "next theme phase".
   engine (`enableDrag` …, now commented as hers, and it ignores presses while
   Tony is the profile).
   - Items: for Tony each store group renders as its own `.ml-grp`
-    (header + rows) sharing `group:'ml-items'`, so a row moves between groups;
-    every row leads with a real grip (`mlGripHtml`). Mouse: anywhere on the
-    row. Touch: the grip only (a finger on the row scrolls). ↑/↓ on a focused
-    grip moves one place, crossing into the next/previous group at the ends
-    (`mlItemKey`), and refocuses. Off in select mode and while editing.
+    (header + rows) sharing `group:'ml-items'`, so a row moves between groups.
+    Mouse: anywhere on the row. Touch: a 300ms hold. No grip dots (the
+    grip + ↑/↓ version shipped first and was removed the same day, Tony's
+    ask). Off in select mode and while editing.
   - Tabs: `mlTabsDrag(bar, row, kind)`: `axis:'x'`, `hold:300`.
   - Every drop goes through the existing `applyDrop(kind, id, {store,
     beforeId})`, so both profiles save through the same data code.
@@ -276,14 +275,20 @@ a see-through tint or soft halo that reads as one.
 - The `.chip.dragged` CSS (~690).
 
 **What "MAGI's DnD" means, all of it required:**
+- **NO GRIP DOTS (Tony, 2026-10-02).** Never draw a ⋮⋮ grip (no
+  `A1Drag.grip`, no `.dsort-grip`) on Tony's side: just implement the drag.
+  Every row, list or chip, is taken by the row itself: `hold:300` on every
+  `A1Drag.sort`. Grips were removed the same day from MyJournal's entries,
+  index's nav dropdown and Settings links, OneInbox's accounts and MyList's
+  items. Arrow-key moves needed a focused grip, so they went with them
+  (`onKey` is unused). dragsort.js still supports grips; Tony's pages don't
+  use them. Veda's own grips are hers and stay.
 - **One code path:** pointer events, so mouse, touch and pen behave the same.
 - **Mouse:** a press anywhere on the row that is not a control picks it up
   after 4px of movement. Text selection is prevented.
-- **Touch:**
-  - Lists: only the grip (⋮⋮, a real `<button>`) starts a drag, so the list
-    still scrolls under a finger.
-  - Chip rows: a 300ms hold picks up. Moving 8px before the hold completes is
-    a scroll, not a drag.
+- **Touch:** a 300ms hold on the row picks it up, for lists and chip rows
+  alike. Moving 8px before the hold completes is a scroll, not a drag, so a
+  list still scrolls under a finger.
   - Haptic tick on pickup.
 - **While dragging:** the lifted row follows the pointer with `transform`
   ONLY, so nothing is laid out per frame.
@@ -297,8 +302,6 @@ a see-through tint or soft halo that reads as one.
   to)`.
   - The click a release fires is swallowed (only that one).
   - Escape or pointercancel puts the row back.
-- **Keyboard:** focus a grip and ↑/↓ move the row one place (`onKey`), then
-  the grip is refocused after the redraw.
 - **Reduced motion:** no transitions.
 - **Synced lists:** new order numbers come from `dropOrder()` (the midpoint of
   the new neighbours), so only the moved item changes. That keeps Firestore

@@ -9,13 +9,11 @@
 // that records setDoc calls in window.__fsWrites. Nothing leaves the machine.
 //
 //   1. theme: MAGI tokens, solid purple Compose, purple wordmark, magi hover
-//   2. desktop: rows carry a real grip button, no old svg grip
+//   2. desktop: rows show no grip (Tony, 2026-10-02), no old svg grip
 //   3. desktop: mouse-drag a row by its label, saved + synced order change,
 //      the drop's click does not select the account, a plain click does
-//   4. desktop: ↑/↓ on a focused grip moves the row and keeps focus on it;
-//      a click on a grip never selects the account
-//   5. phone width: a finger on the row scrolls, a finger on the grip drags
-//   6. the signature box has MAGI's grip: drag, click toggle, reload keeps it
+//   4. phone width: a quick swipe on a row scrolls, a held finger drags
+//   5. the signature box has MAGI's grip: drag, click toggle, reload keeps it
 //
 // Run:          node tests/live/oneinbox-drag.live.js
 // Shots only:   node tests/live/oneinbox-drag.live.js --shots <label>
@@ -103,8 +101,9 @@ async function click(c, x, y) {
   await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
   await sleep(400);
 }
-async function touchDrag(c, x, y, dy, steps = 16) {
+async function touchDrag(c, x, y, dy, steps = 16, holdMs = 0) {
   await c.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+  if (holdMs) await sleep(holdMs);
   for (let i = 1; i <= steps; i++) {
     await c.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y + (dy * i) / steps }] });
     await sleep(16);
@@ -185,10 +184,9 @@ async function shot(c, name, w, h) {
   // ── 2. grips ──
   console.log('desktop');
   ok('three accounts drawn', JSON.stringify(await shown(c)) === JSON.stringify(ACCTS), await shown(c));
-  ok('each account row has a real grip button',
-    (await evalJs(c, "return [...document.querySelectorAll('#navAccounts .navitem[data-dkey]')].every(r=>r.querySelector('button.dsort-grip'))+'';")) === 'true');
+  ok('account rows show no grip', (await evalJs(c, "return !document.querySelector('#navAccounts .dsort-grip')+'';")) === 'true');
   ok('the old svg grip is gone', (await evalJs(c, "return document.querySelectorAll('#navAccounts svg.grip').length;")) === 0);
-  ok('"All accounts" is not draggable', (await evalJs(c, "return !document.querySelector('#navAccounts .navitem[data-acct=all] .dsort-grip')+'';")) === 'true');
+  ok('"All accounts" is not a drag row', (await evalJs(c, "return !document.querySelector('#navAccounts .navitem[data-acct=all]').hasAttribute('data-dkey')+'';")) === 'true');
 
   // ── 3. mouse drag ──
   {
@@ -206,21 +204,6 @@ async function shot(c, name, w, h) {
     ok('a plain click selects the account', (await active(c)) === ACCTS[1], await active(c));
   }
 
-  // ── 4. keyboard + grip click ──
-  {
-    await evalJs(c, `${row(ACCTS[1])}.querySelector('.dsort-grip').focus(); 1`);
-    await c.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'ArrowDown', code: 'ArrowDown', windowsVirtualKeyCode: 40 });
-    await c.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'ArrowDown', code: 'ArrowDown', windowsVirtualKeyCode: 40 });
-    await sleep(400);
-    const want = [ACCTS[2], ACCTS[1], ACCTS[0]];
-    ok('ArrowDown on a grip moves the row', JSON.stringify(await saved(c)) === JSON.stringify(want), await saved(c));
-    ok('focus stays on the moved row\'s grip', (await evalJs(c, "var g=document.activeElement; return g&&g.classList.contains('dsort-grip')?g.closest('[data-acct]').dataset.acct:'';")) === ACCTS[1]);
-    await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 120, y: 240 });
-    const g = await rect(c, row(ACCTS[0]) + ".querySelector('.dsort-grip')");
-    await click(c, g.x, g.y);
-    ok('a click on a grip does not select its account', (await active(c)) === ACCTS[1], await active(c));
-  }
-
   // ── 5. phone ──
   console.log('phone');
   await load(c, 400, 860, true, true);
@@ -230,13 +213,12 @@ async function shot(c, name, w, h) {
     const a = await rect(c, row(before[0]) + ".querySelector('.lbl')");
     const z = await rect(c, row(before[2]));
     await touchDrag(c, a.x, a.y, z.y - a.y + z.h * 0.4);
-    ok('a finger on the row does not reorder', JSON.stringify(await saved(c)) === JSON.stringify(before), await saved(c));
-    const gp = await rect(c, row(before[0]) + ".querySelector('.dsort-grip')");
-    ok('the grip is visible on touch', (await css(c, '#navAccounts .dsort-grip', 'opacity')) !== '0');
+    ok('a quick swipe on a row does not reorder', JSON.stringify(await saved(c)) === JSON.stringify(before), await saved(c));
+    const a2 = await rect(c, row(before[0]) + ".querySelector('.lbl')");
     const z2 = await rect(c, row(before[2]));
-    await touchDrag(c, gp.x, gp.y, z2.y - gp.y + z2.h * 0.4);
+    await touchDrag(c, a2.x, a2.y, z2.y - a2.y + z2.h * 0.4, 16, 400);
     const want = [before[1], before[2], before[0]];
-    ok('a finger on the grip reorders', JSON.stringify(await saved(c)) === JSON.stringify(want), await saved(c));
+    ok('a held finger reorders', JSON.stringify(await saved(c)) === JSON.stringify(want), await saved(c));
   }
 
   // ── 6. signature resize ──

@@ -29525,15 +29525,6 @@ window.hideBrainstormJournal = function() {
     transition: background 0.1s, border-color 0.1s, transform .17s cubic-bezier(.2, .8, .2, 1);
     position: relative;
   }
-/* The drag grip (dragsort.js .dsort-grip), pinned where the old handle sat:
-   shown on hover or focus with a mouse, always faintly on touch. */
-#tj-root .entry-item .tj-grip {
-    position: absolute; left: 0; top: 50%; translate: 0 -50%;
-    width: 24px; height: 32px; margin: 0;
-    opacity: 0; transition: opacity 0.1s;
-  }
-#tj-root .entry-item:hover .tj-grip, #tj-root .entry-item .tj-grip:focus-visible { opacity: 1; }
-@media(hover:none){#tj-root .entry-item .tj-grip{opacity:0.55;}}
 #tj-root .entry-item:hover { background: var(--card); border-color: var(--border); }
 #tj-root .entry-item:active { background: var(--card2) !important; border-left-color: var(--ac) !important; }
 #tj-root .entry-item.active {
@@ -31707,13 +31698,8 @@ function renderSidebar() {
       </div>
       <button class="entry-delete" data-id="${entry.id}" title="Move to Trash">${window.TNI.x}</button>
     `;
-    if (isDraggable && window.A1Drag) {
-      const g = window.A1Drag.grip('Move ' + (entry.title || 'Untitled'));
-      g.classList.add('tj-grip');
-      div.insertBefore(g, div.firstChild);
-    }
     div.addEventListener('click', e => {
-      if (e.target.closest('.entry-delete') || e.target.closest('.tj-grip')) return;
+      if (e.target.closest('.entry-delete')) return;
       // Flush the just-edited entry BEFORE changing activeId — see BJ sidebar handler.
       saveCurrentEntry(); _tjFbFlush(); state.activeId = entry.id; renderSidebar(); loadActiveEntry();
     });
@@ -31760,15 +31746,12 @@ function renderSidebar() {
       state.entries.splice(to > from ? ti + 1 : ti, 0, moved);
       saveState(); renderSidebar(); _tjFbOrder();
     };
+    // A row: a mouse takes it anywhere, a finger after a 300ms hold (no grip: Tony, 2026-10-02).
     window.A1Drag.sort(list, {
       row: '.entry-item',
+      hold: 300,
       canDrag: () => isDraggable,
       onDrop: move,
-      onKey: (row, dir) => {
-        const from = entries.findIndex(x => x.id === row.dataset.entryId);
-        move(from, from + dir);
-        window.A1Drag.refocus(list, row.dataset.entryId);
-      },
     });
   }
   const ec = document.getElementById('tj-entry-count');
@@ -43718,8 +43701,6 @@ function injectTonyDropdownCSS(){
     '#tony-app-nav-inner.tn-force-dd #tn-dd-trigger{display:inline-flex!important;}'+
     '#tn-dd-panel .tn-dd-item{display:flex;align-items:center;gap:8px;padding:11px 12px;border-radius:6px;cursor:pointer;color:#adadb2;font-family:\'Inter\',system-ui,-apple-system,sans-serif;font-size:13px;font-weight:600;user-select:none;-webkit-user-select:none;touch-action:pan-y;transition:all .12s;border:1px solid transparent;}'+
     '#tn-dd-panel .tn-dd-item .dd-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}'+
-    /* dragsort.js's grip, sized to the row so the list keeps its rhythm. */
-    '#tn-dd-panel .dsort-grip{height:24px;margin:-6px -2px -6px -6px;}'+
     /* MAGI's .side-item: hover steps the fill up a surface, the current app is a 16% accent tint. */
     '#tn-dd-panel .tn-dd-item:hover{background:#34343a;color:#f4f3f0;}'+
     '#tn-dd-panel .tn-dd-item.tn-dd-active{background:color-mix(in srgb,#c0aeea 20%,#2c2c31);color:#dbd0f5;}'+
@@ -43737,11 +43718,9 @@ function renderTonyDropdownPanel(){
     item.className='tn-dd-item'+(app===cur?' tn-dd-active':'');
     item.setAttribute('data-dd-app',app); item.setAttribute('data-dkey',app);
     var _lbl=document.createElement('span'); _lbl.className='dd-text'; _lbl.textContent=TONY_SELECT_LABELS[app]||tonyMap[app];
-    var _grip=window.A1Drag?A1Drag.grip('Move '+_lbl.textContent):document.createElement('span');
-    item.appendChild(_grip); item.appendChild(_lbl);
+    item.appendChild(_lbl);
     item.addEventListener('click',function(e){
       e.stopPropagation();
-      if(e.target.closest('.dsort-grip')) return;
       if(app.indexOf('custom:')===0){ openLink('tony',app.slice(7)); }
       else{if(window._tonyNav)window._tonyNav(app);}
       closeTonyDD();
@@ -43756,7 +43735,8 @@ function renderTonyDropdownPanel(){
           _lpy=e.touches[0].clientY; _lpm=false;
           _lpt=setTimeout(function(){
             _lpt=null;
-            if(!_lpm&&window.alManage) window.alManage(a==='custom:tradehub'?'tony_tradehub':'tony_warroom');
+            // A held finger that picked the row up is dragging it, not asking for the lock.
+            if(!_lpm&&!(window.A1Drag&&A1Drag.active)&&window.alManage) window.alManage(a==='custom:tradehub'?'tony_tradehub':'tony_warroom');
           },600);
         },{passive:true});
         el.addEventListener('touchmove',function(e){
@@ -43772,18 +43752,12 @@ function renderTonyDropdownPanel(){
   if(lbl) lbl.textContent=TONY_SELECT_LABELS[cur]||tonyMap[cur]||'Menu';
 }
 
-// The dropdown's rows: dragged by the grip (any part, with a mouse), and a
-// focused grip's ↑/↓ moves the row one place.
+// The dropdown's rows: a mouse takes it anywhere, a finger after a 300ms hold (no grip: Tony, 2026-10-02).
 function tonyDDDragInit(panel){
   if(!window.A1Drag) return;
   function apps(){ return Array.prototype.map.call(panel.querySelectorAll('.tn-dd-item'),function(n){ return n.getAttribute('data-dd-app'); }); }
-  A1Drag.sort(panel,{row:'.tn-dd-item',
-    onDrop:function(from,to){ var a=apps(); moveTony(a[from],a[to]); },
-    onKey:function(row,dir){
-      var a=apps(), i=a.indexOf(row.getAttribute('data-dd-app')), j=i+dir;
-      if(i<0||j<0||j>=a.length) return;
-      moveTony(a[i],a[j]); A1Drag.refocus(panel,a[i]);
-    }});
+  A1Drag.sort(panel,{row:'.tn-dd-item',hold:300,
+    onDrop:function(from,to){ var a=apps(); moveTony(a[from],a[to]); }});
 }
 
 function openTonyDD(){
@@ -44515,7 +44489,6 @@ if(document.readyState==='loading'){
 #thset-box:not(.veda) .thset-btn{border-radius:6px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;}
 #thset-box:not(.veda) .thset-btn:hover{opacity:1;box-shadow:0 0 0 3px rgba(192,174,234,.22);}
 #thset-box:not(.veda) .thset-close:hover{background:#34343a;}
-#thset-box:not(.veda) .thset-grip{color:#c0aeea;}
 /* action cluster wraps below the label on narrow rows instead of overflowing */
 .thset-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;}
 .thset-link-row{flex-wrap:wrap;row-gap:8px;}
@@ -44762,9 +44735,9 @@ function renderLinkList(container,profile){
     row.setAttribute('data-link-id',l.id);
 
     row.setAttribute('data-dkey',l.id);
-    var grip;
-    if(profile==='tony'&&window.A1Drag) grip=A1Drag.grip('Move '+l.label);
-    else { grip=document.createElement('span'); grip.className='thset-grip'; grip.innerHTML='&#8942;&#8942;'; grip.title='Drag to reorder'; }
+    // Tony's rows have no grip (A1Drag takes the row); Veda's keep hers.
+    var grip=null;
+    if(!(profile==='tony'&&window.A1Drag)){ grip=document.createElement('span'); grip.className='thset-grip'; grip.innerHTML='&#8942;&#8942;'; grip.title='Drag to reorder'; }
 
     var col=document.createElement('div'); col.style.cssText='flex:1;min-width:120px;display:flex;flex-direction:column;gap:2px;';
     var lab=document.createElement('div'); lab.className='thset-label'; lab.textContent=l.label;
@@ -44801,8 +44774,9 @@ function renderLinkList(container,profile){
     var actions=document.createElement('div'); actions.className='thset-actions';
     actions.appendChild(pill); actions.appendChild(edit); actions.appendChild(del);
 
-    row.appendChild(grip); row.appendChild(col); row.appendChild(actions);
-    if(!(profile==='tony'&&window.A1Drag)) attachSettingsDrag(grip,row,container,profile);
+    if(grip) row.appendChild(grip);
+    row.appendChild(col); row.appendChild(actions);
+    if(grip) attachSettingsDrag(grip,row,container,profile);
     container.appendChild(row);
   });
   if(profile==='tony'&&window.A1Drag) linkListDragInit(container);
@@ -44819,14 +44793,10 @@ function linkListDragInit(container){
     if(window._navReorderCustom) window._navReorderCustom('tony',a);
     return m;
   }
-  A1Drag.sort(container,{row:'.thset-link-row',
+  // A row: a mouse takes it anywhere, a finger after a 300ms hold (no grip: Tony, 2026-10-02).
+  A1Drag.sort(container,{row:'.thset-link-row',hold:300,
     canDrag:function(){ return _curProfile==='tony'; },
-    onDrop:function(from,to){ put(from,to); },
-    onKey:function(row,dir){
-      var a=ids(), i=a.indexOf(row.getAttribute('data-link-id')), j=i+dir;
-      if(i<0||j<0||j>=a.length) return;
-      A1Drag.refocus(container,put(i,j));
-    }});
+    onDrop:function(from,to){ put(from,to); }});
 }
 
 // Vertical drag-reorder for the custom-button rows (grip only). On drop, reads the

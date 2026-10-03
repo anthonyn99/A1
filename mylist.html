@@ -868,9 +868,7 @@ body:not([data-profile=veda]) #top-caption{border-radius:8px;border-width:1px;}
 }
 body:not([data-profile=veda]) #lock-menu .btn.solid{color:var(--accent);}
 /* Drag (dragsort.js): an item's group is its own list, so an item can move
-   between groups; the grip leads the row. */
-body:not([data-profile=veda]) .item .dsort-grip{margin:-6px -6px -6px -6px;}
-@media (pointer:coarse){ body:not([data-profile=veda]) .item .dsort-grip{width:34px;height:40px;} }
+   between groups. */
 /* Resize (resizegrip.js): MAGI's corner grip is Tony's, the ns-resize one Veda's
    (the event box is in the page for both). */
 body:not([data-profile=veda]) .ta-wrap > .resize-grip{display:none;}
@@ -3600,7 +3598,6 @@ function applyDrop(kind, id, t){
 // ── Tony: MAGI's drag (dragsort.js, theme plan §2) ───────────────────────────
 // A drop is translated into the {store, beforeId} target applyDrop already
 // understands, so both profiles' drags land through the same data code.
-function mlGripHtml(name){ return A1Drag.grip('Move '+name).outerHTML; }
 function mlTabsDrag(bar, row, kind){
   if(!bar) return;
   if(activeProfile==='tony' && window.A1Drag){
@@ -3627,19 +3624,6 @@ function mlItemDrop(from, to, fromList, toList){
   if(toList===fromList) dest=dest.filter(function(_, i){ return i!==from; });
   applyDrop('list', id, { store: toList===fromList ? null : (toList.getAttribute('data-store')||''),
                           beforeId: dest[to] ? dest[to].dataset.id : null });
-}
-// A focused grip's ↑/↓: one place within the group; past its end, into the
-// next group (top) or the previous one (bottom).
-function mlItemKey(row, dir){
-  var g=row.parentElement, rows=mlGroupRows(g), i=rows.indexOf(row), id=row.dataset.id, t;
-  var grps=Array.prototype.slice.call(document.querySelectorAll('#items-container .ml-grp')), gi=grps.indexOf(g);
-  if(dir<0 && i>0) t={ store:null, beforeId: rows[i-1].dataset.id };
-  else if(dir>0 && i<rows.length-1) t={ store:null, beforeId: rows[i+2] ? rows[i+2].dataset.id : null };
-  else if(dir<0 && gi>0) t={ store: grps[gi-1].getAttribute('data-store')||'', beforeId:null };
-  else if(dir>0 && gi<grps.length-1){ var nx=mlGroupRows(grps[gi+1]); t={ store: grps[gi+1].getAttribute('data-store')||'', beforeId: nx[0] ? nx[0].dataset.id : null }; }
-  if(!t) return;
-  applyDrop('list', id, t);
-  A1Drag.refocus($('items-container'), id);
 }
 
 // ════════ RENDER ════════
@@ -3753,7 +3737,8 @@ function render(){
   if(activeProfile==='tony' && window.A1Drag){
     if(!selectMode && !editingItemId){
       Array.prototype.forEach.call(document.querySelectorAll('#items-container .ml-grp'), function(g){
-        A1Drag.sort(g, { row:'.item[data-id]', group:'ml-items', onDrop:mlItemDrop, onKey:mlItemKey });
+        // A row: a mouse takes it anywhere, a finger after a 300ms hold (no grip: Tony, 2026-10-02).
+        A1Drag.sort(g, { row:'.item[data-id]', group:'ml-items', hold:300, onDrop:mlItemDrop });
       });
     }
     mlTonyGrips($('list-view'));
@@ -3852,7 +3837,6 @@ function itemHtml(it){
   }
   var tg = activeProfile==='tony' && window.A1Drag;
   return '<div class="item'+(it.done?' done':'')+'" data-id="'+it.id+'"'+(tg?' data-dkey="'+it.id+'"':'')+'>'
-    +(tg ? mlGripHtml(it.name) : '')
     +'<div class="chk" onclick="ML.toggleDone(\''+it.id+'\')">'+(it.done?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</div>'
     +'<div class="body"><div class="nm">'+esc(it.name)+'</div>'+itemSubHtml(it)+'</div>'
     +'<div class="acts">'

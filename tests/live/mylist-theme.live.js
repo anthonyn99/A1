@@ -182,7 +182,7 @@ async function shots(c) {
   // ── 2. drag: items ───────────────────────────────────────────────────────
   console.log('drag: items (mouse)');
   ok('Tony\'s item groups run on A1Drag', await ev(c, `return document.querySelectorAll('#items-container .ml-grp.dsort').length===3 && !document.getElementById('items-container').classList.contains('dsort')`));
-  ok('every item row has a grip button', await ev(c, `return [...document.querySelectorAll('#items-container .item[data-id]')].every(r=>r.querySelector('button.dsort-grip'))`));
+  ok('item rows show no grip', await ev(c, `return document.querySelectorAll('#items-container .item[data-id]').length===6 && !document.querySelector('.dsort-grip')`));
   ok('drawn order', JSON.stringify(await drawn(c)) === '["s1","s2","s3","s4","s5","s6"]', JSON.stringify(await drawn(c)));
   let a = await rect(c, row('s1') + ".querySelector('.nm')"), b = await rect(c, row('s3'));
   await mouseDrag(c, a.x, a.y, 0, b.bottom - a.y - 6);
@@ -199,12 +199,6 @@ async function shots(c) {
   a = await rect(c, row('s2') + ".querySelector('.nm')");
   await click(c, a.x, a.y);
   ok('a plain click on a row is not a move', (await ev(c, 'return window.__saves.length')) === n0);
-  // Keyboard: a focused grip and ↓ moves the row one place.
-  await ev(c, `${row('s4')}.querySelector('.dsort-grip').focus(); return 1`);
-  await c.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'ArrowDown', code: 'ArrowDown', windowsVirtualKeyCode: 40 }); await sleep(300);
-  const kd = await drawn(c);
-  ok('↓ on a grip moves Socks one place down', kd.indexOf('s4') === 1, JSON.stringify(kd));
-  ok('…and the grip keeps focus', await ev(c, `return document.activeElement && document.activeElement.classList.contains('dsort-grip') && document.activeElement.closest('.item').dataset.id==='s4'`));
   // Escape mid-drag puts the row back.
   const before = JSON.stringify(await drawn(c));
   a = await rect(c, row('s1') + ".querySelector('.nm')");
@@ -227,7 +221,7 @@ async function shots(c) {
   await sleep(500);
   ok('…and redraws after the drop', await ev(c, `return !window.__rowEl.isConnected`));
   await ev(c, 'ML.toggleSelectMode(); return 1'); await sleep(200);
-  ok('select mode: rows are not draggable', await ev(c, `return !document.querySelector('#items-container .dsort') && !document.querySelector('#items-container .dsort-grip')`));
+  ok('select mode: rows are not draggable', await ev(c, `return !document.querySelector('#items-container .dsort')`));
   await ev(c, 'ML.toggleSelectMode(); return 1'); await sleep(200);
 
   // ── 3. drag: list tabs + view tabs (mouse) ───────────────────────────────
@@ -274,11 +268,11 @@ async function shots(c) {
   await load(c, 'tony', 390, 844, true);
   const p0 = JSON.stringify(await drawn(c));
   a = await rect(c, row('s1') + ".querySelector('.nm')"); b = await rect(c, row('s3'));
-  await touchDrag(c, a.x, a.y, 0, b.bottom - a.y, 400);
-  ok('a finger on the row (not the grip) does not drag it', JSON.stringify(await drawn(c)) === p0, JSON.stringify(await drawn(c)));
-  a = await rect(c, row('s1') + ".querySelector('.dsort-grip')"); b = await rect(c, row('s3'));
-  await touchDrag(c, a.x, a.y, 0, b.bottom - a.y - 4, 30);
-  ok('a finger on the grip drags Milk below Bread', JSON.stringify(await drawn(c)) === '["s2","s3","s1","s4","s5","s6"]', JSON.stringify(await drawn(c)));
+  await touchDrag(c, a.x, a.y, 0, b.bottom - a.y, 30);
+  ok('a quick swipe on a row does not drag it', JSON.stringify(await drawn(c)) === p0, JSON.stringify(await drawn(c)));
+  a = await rect(c, row('s1') + ".querySelector('.nm')"); b = await rect(c, row('s3'));
+  await touchDrag(c, a.x, a.y, 0, b.bottom - a.y - 4, 400);
+  ok('a held finger drags Milk below Bread', JSON.stringify(await drawn(c)) === '["s2","s3","s1","s4","s5","s6"]', JSON.stringify(await drawn(c)));
   a = await rect(c, chipOf('L_shop')); b = await rect(c, chipOf('L_todo'));
   await touchDrag(c, a.x, a.y, b.right - a.x - 4, 0, 60);
   ok('a quick swipe on the tabs does not move a tab', (await ev(c, `return document.querySelector('#lists-bar .list-chip').dataset.id`)) === 'L_shop');

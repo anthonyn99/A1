@@ -3,12 +3,11 @@
 // Real mouse, keyboard and touch input over CDP, asserting the order MyJournal
 // actually SAVES (its localStorage cache, tony_journal_v3), not just the DOM.
 //
-//   1. desktop: rows carry a real grip button and no HTML5 draggable
+//   1. desktop: rows show no grip (Tony, 2026-10-02) and no HTML5 draggable
 //   2. desktop: mouse-drag a row by its title, saved order changes, the
 //      drop's click does not open the entry, a plain click does
-//   3. desktop: ↑/↓ on a focused grip moves the row and keeps focus on it
-//   4. desktop: a search narrows the list and switches reordering off
-//   5. phone width: a finger on the row scrolls, a finger on the grip drags
+//   3. desktop: a search narrows the list and switches reordering off
+//   4. phone width: a quick swipe on a row scrolls, a held finger drags
 //   6. the AI prompt box has MAGI's grip: drag, click toggle, reload keeps it
 //   7. Veda's Brainstorm Journal keeps its own handle (untouched)
 //
@@ -59,8 +58,9 @@ async function click(c, x, y) {
   await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
   await sleep(400);
 }
-async function touchDrag(c, x, y, dy, steps = 16) {
+async function touchDrag(c, x, y, dy, steps = 16, holdMs = 0) {
   await c.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+  if (holdMs) await sleep(holdMs);
   for (let i = 1; i <= steps; i++) {
     await c.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y + (dy * i) / steps }] });
     await sleep(16);
@@ -95,7 +95,7 @@ async function load(c, w, h, mobile, keepStorage) {
   await load(c, 1440, 900, false);
   ok('the seeded entries are listed (trash hidden)', JSON.stringify(await shown(c)) === '["e_a","e_b","e_c","e_d"]', JSON.stringify(await shown(c)));
   ok('the list is an A1Drag list', await evalJs(c, "return document.getElementById('tj-entries-list').classList.contains('dsort');"));
-  ok('every row has a real grip button', await evalJs(c, "return [...document.querySelectorAll('#tj-entries-list .entry-item')].every(r=>r.querySelector(':scope > button.dsort-grip.tj-grip'));"));
+  ok('rows show no grip', await evalJs(c, "return document.querySelectorAll('#tj-entries-list .entry-item').length===4 && !document.querySelector('#tj-entries-list .dsort-grip');"));
   ok('no HTML5 draggable or old handle left', await evalJs(c, "return !document.querySelector('#tj-entries-list [draggable=\"true\"], #tj-entries-list .entry-drag-handle');"));
 
   // Alpha by its title, down until its bottom edge passes Charlie's middle.
@@ -111,18 +111,14 @@ async function load(c, w, h, mobile, keepStorage) {
   await click(c, d.x, d.y);
   ok('a plain click still opens an entry', await evalJs(c, "return !!document.querySelector('#tj-entries-list .entry-item.active[data-entry-id=e_d]');"));
 
-  console.log('\nDesktop: keyboard');
-  await evalJs(c, row('e_b') + ".querySelector('.tj-grip').focus(); 1");
-  await c.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'ArrowDown', code: 'ArrowDown', windowsVirtualKeyCode: 40 });
-  await c.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'ArrowDown', code: 'ArrowDown', windowsVirtualKeyCode: 40 });
-  await sleep(400);
-  ok('↓ on Bravo\'s grip moves it one place down (saved)', JSON.stringify(await saved(c)) === '["e_x","e_c","e_b","e_a","e_d"]', JSON.stringify(await saved(c)));
-  ok('focus stays on Bravo\'s grip after the redraw', await evalJs(c, "var g=document.activeElement; return !!(g && g.classList.contains('tj-grip') && g.closest('.entry-item').dataset.entryId==='e_b');"));
-
   console.log('\nDesktop: a search turns reordering off');
   await evalJs(c, "var s=document.getElementById('tj-search-box'); s.value='a'; s.dispatchEvent(new Event('input',{bubbles:true})); 1");
   await sleep(400);
-  ok('no grips while searching', await evalJs(c, "return document.querySelectorAll('#tj-entries-list .entry-item').length>0 && !document.querySelector('#tj-entries-list .tj-grip');"));
+  const sv0 = await saved(c);
+  const sa = await rect(c, "document.querySelector('#tj-entries-list .entry-item .entry-item-title')");
+  const sr = await rect(c, "document.querySelector('#tj-entries-list .entry-item')");
+  await mouseDrag(c, sa.x, sa.y, 0, sr.h * 2 + 6);
+  ok('a drag while searching moves nothing', JSON.stringify(await saved(c)) === JSON.stringify(sv0), JSON.stringify(await saved(c)));
   await evalJs(c, "var s=document.getElementById('tj-search-box'); s.value=''; s.dispatchEvent(new Event('input',{bubbles:true})); 1");
   await sleep(300);
 
@@ -166,13 +162,12 @@ async function load(c, w, h, mobile, keepStorage) {
   const t0 = await rect(c, row('e_a') + ".querySelector('.entry-item-title')");
   const r0 = await rect(c, row('e_a'));
   await touchDrag(c, t0.x, t0.y, r0.h * 2 + 6);
-  ok('a finger on the row (not the grip) does not reorder', JSON.stringify(await saved(c)) === JSON.stringify(o1), JSON.stringify(await saved(c)));
+  ok('a quick swipe on a row does not reorder', JSON.stringify(await saved(c)) === JSON.stringify(o1), JSON.stringify(await saved(c)));
   await evalJs(c, "var h=document.getElementById('tj-hamburger'); var sb=document.getElementById('tj-sidebar'); if(h && sb && sb.getBoundingClientRect().right<=0) h.click(); 1");
   await sleep(500);
-  ok('the grip shows on touch without hover', parseFloat(await evalJs(c, `return getComputedStyle(${row('e_a')}.querySelector('.tj-grip')).opacity;`)) > 0.3);
-  const gp = await rect(c, row('e_a') + ".querySelector('.tj-grip')");
-  await touchDrag(c, gp.x, gp.y, r0.h * 2 + 6);
-  ok('a finger on the grip drags: Alpha two rows down lands third (saved)', JSON.stringify(await saved(c)) === '["e_b","e_x","e_c","e_a","e_d"]', JSON.stringify(await saved(c)));
+  const t1 = await rect(c, row('e_a') + ".querySelector('.entry-item-title')");
+  await touchDrag(c, t1.x, t1.y, r0.h * 2 + 6, 16, 400);
+  ok('a held finger drags: Alpha two rows down lands third (saved)', JSON.stringify(await saved(c)) === '["e_b","e_x","e_c","e_a","e_d"]', JSON.stringify(await saved(c)));
   await c.send('Page.captureScreenshot', { format: 'png' }).then((r) => fs.writeFileSync(shotPath('p2-journal-touch-after'), Buffer.from(r.result.data, 'base64')));
 
   console.log('\nVeda\'s Brainstorm Journal is untouched');

@@ -359,14 +359,6 @@ aside.sidebar{
    still scrolls under a finger. The grip is a real button: focus it and
    the arrow keys move the row. It stays out of sight until the row is hovered
    on a mouse; touch has no hover, so there it is always shown. */
-#navAccounts .dsort-grip{height:28px;margin:-6px -6px -6px 0;opacity:.7}
-/* On a mouse it floats over the row's end, so a hidden grip costs the
-   address no width. */
-@media (hover:hover){
-  #navAccounts .navitem[data-dkey]{position:relative}
-  #navAccounts .dsort-grip{position:absolute;right:4px;top:50%;margin:-14px 0 0;opacity:0;background:var(--surface-2);transition:opacity .13s}
-  #navAccounts .navitem:hover .dsort-grip,#navAccounts .dsort-grip:focus-visible{opacity:1}
-}
 
 /* ── Select ──────────────────────────────────────────────────────────────
    A native <select> renders its option list as OS chrome: on this dark theme
@@ -2570,9 +2562,6 @@ el('msgList').addEventListener('click', e => {
 });
 
 el('sidebar').addEventListener('click', e => {
-  // The grip moves the row; it never selects the account. (dragsort.js
-  // swallows the click a drag's release fires.)
-  if (e.target.closest('.dsort-grip')) return;
   const f = e.target.closest('[data-folder]');
   if (f){
     S.folder = f.dataset.folder;
@@ -2641,16 +2630,12 @@ function moveAcct(from, to){
 function wireAcctDrag(){
   const list = el('navAccounts');
   if (!window.A1Drag) return;
-  list.querySelectorAll('.navitem[data-dkey]').forEach(r =>
-    r.appendChild(A1Drag.grip('Move ' + r.dataset.acct)));
+  // A row: a mouse takes it anywhere, a finger after a 300ms hold (no grip: Tony, 2026-10-02).
   A1Drag.sort(list, {
     row: '.navitem[data-dkey]',
+    hold: 300,
     canDrag: () => S.accounts.length > 1,
     onDrop: moveAcct,
-    onKey: (row, dir) => {
-      const from = S.accounts.findIndex(x => x.email === row.dataset.dkey);
-      if (moveAcct(from, from + dir)) A1Drag.refocus(list, row.dataset.dkey);
-    },
   });
 }
 
