@@ -208,6 +208,14 @@ async function gripChecks(c, name, boxJs, key, reopen) {
   ok('three chips', JSON.stringify(await chips(c)) === '["pa","pb","pc"]', JSON.stringify(await chips(c)));
   ok('selected chip is solid purple with a dark label', await evalJs(c, `var s=getComputedStyle(${chip('pa')}); return s.backgroundColor==='rgb(192, 174, 234)'&&s.color==='rgb(26, 26, 29)';`));
   const ca = await rect(c, chip('pa')), cc = await rect(c, chip('pc'));
+  // Lifted, the selected chip sits on s2: its dark label went black (Tony, 2026-10-02).
+  await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: ca.x, y: ca.y });
+  await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: ca.x, y: ca.y, button: 'left', clickCount: 1 });
+  for (let i = 1; i <= 4; i++) { await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: ca.x + i * 5, y: ca.y, button: 'left', buttons: 1 }); await sleep(16); }
+  const liftC = await evalJs(c, `var e=${chip('pa')}; return e.classList.contains('dsort-drag')+' '+getComputedStyle(e).color;`);
+  ok('lifted selected chip keeps a light label', liftC === 'true rgb(244, 243, 240)', liftC);
+  await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: ca.x + 20, y: ca.y, button: 'left', clickCount: 1 });
+  await sleep(600);
   await mouseDrag(c, ca.x, ca.y, cc.right - ca.x - 6, 0);
   ok('mouse drag moves Alpha to the end', JSON.stringify(await chips(c)) === '["pb","pc","pa"]', JSON.stringify(await chips(c)));
   ok('order saved (tradeboard_prompts_v2)', JSON.stringify(await savedPrompts(c)) === '["pb","pc","pa"]', JSON.stringify(await savedPrompts(c)));
@@ -227,6 +235,21 @@ async function gripChecks(c, name, boxJs, key, reopen) {
   await goTo(c, DESK, 'analysis');
   await gripChecks(c, 'quick prompt', "document.querySelector('textarea.tb-quick-box')", 'th.quick',
     async () => { await load(c, 1440, 900, false, true); await goTo(c, DESK, 'analysis'); });
+  // Deploy: leaving the button used to fade its purple fill under hoverfx's
+  // dropped brightness and flash (Tony, 2026-10-02). The fill swaps at once.
+  const depJs = "[...document.querySelectorAll('button')].find(b=>/Deploy Trading Auto Launch/.test(b.textContent))";
+  await see(c, depJs);
+  const dp = await rect(c, depJs);
+  await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: dp.x, y: dp.y }); await sleep(300);
+  const depOn = await evalJs(c, `var s=getComputedStyle(${depJs}); return s.backgroundColor+' '+s.color;`);
+  ok('Deploy hover: solid purple, dark label', depOn === 'rgb(192, 174, 234) rgb(26, 26, 29)', depOn);
+  await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: dp.x, y: dp.bottom + 120 });
+  const depOff = await evalJs(c, `var s=getComputedStyle(${depJs}); return s.backgroundColor+' | '+s.transitionProperty;`);
+  // Set Password kept an old inline transparent background over the solid
+  // purple, so its dark label read black on charcoal (Tony, 2026-10-02).
+  const setPw = await evalJs(c, `window._tbManageLock(); var b=document.getElementById('applock-submit'), s=getComputedStyle(b); var r=b.textContent+' | '+s.backgroundColor+' | '+s.color; document.getElementById('applock-cancel').click(); return r;`);
+  ok('Set Password: solid purple with a dark label', setPw === 'Set Password | rgb(192, 174, 234) | rgb(26, 26, 29)', setPw);
+  ok('Deploy leave: the fill is gone at once (no background fade)', /^rgba\(0, 0, 0, 0\) \| /.test(depOff) && !/\b(all|background)/.test(depOff.split('|')[1]), depOff);
   const openTrade = async () => {
     await goTo(c, DESK, 'journal');
     await evalJs(c, "var b=[...document.querySelectorAll('button')].find(b=>/Manual Trade/i.test(b.textContent)); if(b) b.click(); 1");

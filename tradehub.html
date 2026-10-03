@@ -7126,8 +7126,13 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
       </button>
       <div style={{borderTop:'1px solid var(--bd)',paddingTop:14,display:'flex',flexDirection:'column',gap:8}}>
         <button onClick={handleDeploy}
-          style={{display:'inline-flex',alignItems:'center',justifyContent:'center',gap:9,background:'transparent',color:'var(--tx)',border:'1.5px solid var(--ac)',borderRadius:8,padding:'12px 24px',fontSize:14,fontWeight:800,cursor:'pointer',transition:'all .15s',alignSelf:'stretch'}}
-          onMouseEnter={e=>{e.currentTarget.style.background='var(--ac)';e.currentTarget.style.color='#000';}}
+          style={{display:'inline-flex',alignItems:'center',justifyContent:'center',gap:9,background:'transparent',color:'var(--tx)',border:'1.5px solid var(--ac)',borderRadius:8,padding:'12px 24px',fontSize:14,fontWeight:800,cursor:'pointer',alignSelf:'stretch'}}
+          /* The fill swaps instantly: fading it out under hoverfx's fading
+             brightness flashed before the button went dark. hoverfx animates
+             background with an !important transition-property, which only an
+             inline !important outranks. */
+          ref={el=>{if(el)el.style.setProperty('transition-property','filter,border-color','important');}}
+          onMouseEnter={e=>{e.currentTarget.style.background='var(--ac)';e.currentTarget.style.color='var(--bg)';}}
           onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color='var(--tx)';}}>
           <TBIcon n="rocket" size={15}/> Deploy Trading Auto Launch
         </button>
@@ -10673,7 +10678,7 @@ function alShowOverlay(mode){
   _el('applock-pw').classList.remove('error');
   _el('applock-title').textContent='TradeHub';
   _el('applock-title').style.color='';
-  _el('applock-submit').style.background='transparent';
+  _el('applock-submit').style.background='';   // the CSS solid purple (its label is dark)
   _el('applock-submit').style.display='';
   var m=_el('al-menu-btns'); if(m) m.remove();
   if (mode==='setpw'){

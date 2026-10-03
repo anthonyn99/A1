@@ -63,6 +63,9 @@
     '  transition: none !important; position: relative; z-index: 5 !important; cursor: grabbing !important;',
     '  box-shadow: 0 10px 28px -8px var(--ds-shadow, rgba(0,0,0,.55)), 0 0 0 1px color-mix(in srgb, var(--ds-ac, #c0aeea) 55%, transparent) !important;',
     '  background: var(--ds-s2, #2c2c31) !important;',
+    // The lifted row is always on s2, so its label must be light: a selected
+    // chip's dark-on-accent label would otherwise go black on charcoal.
+    '  color: var(--ds-tx, #f4f3f0) !important;',
     '}',
     '.dsort-drag.dsort-chip { scale: 1.06; }',
     '.dsort-settle { transition: transform .17s cubic-bezier(.2, .8, .2, 1), box-shadow .17s, scale .17s !important; }',
