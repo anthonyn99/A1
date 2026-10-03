@@ -7845,12 +7845,21 @@ function warmAudioSoon() {
     if (window.requestIdleCallback) requestIdleCallback(go, { timeout: 1000 }); else go();
   }, 1500);
 }
+// iOS (iPadOS reports itself as a Mac with touch) is the exception: it only
+// lets a context start INSIDE a gesture, so one made later is born suspended
+// and a queue run with no further tap would be silent. There it is made on the
+// first tap, as before; the freeze was Windows opening its audio device.
+const AUDIO_IN_GESTURE = /iP(hone|ad|od)/.test(navigator.userAgent)
+  || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
 function unlockAudio() {
-  if (!actx) { warmAudioSoon(); return; }
+  if (!actx) { if (AUDIO_IN_GESTURE) audio(); else warmAudioSoon(); return; }
   if (actx.state === "suspended") actx.resume().catch(() => {});
 }
 window.addEventListener("pointerdown", unlockAudio, { capture: true, passive: true });
 window.addEventListener("keydown", unlockAudio, { capture: true, passive: true });
+// iOS counts touchend (not touchstart / pointerdown) as the gesture that may
+// start audio, so it is listened for too.
+window.addEventListener("touchend", unlockAudio, { capture: true, passive: true });
 
 /** One struck tone.
  *
