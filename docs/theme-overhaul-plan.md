@@ -8,104 +8,81 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-10-02, at the end of **Phase 7** (Vault + the Vault
-Launcher extension: theme, drags, resize grips, NUMBERS). Done, tested, pushed.
+**Last updated:** 2026-10-02, at the end of **Phase 8** (Solace: theme, drags,
+resize grips, NUMBERS). Done, tested, pushed.
 **Tags:** phase N is bracketed by `theme-pN-start` → `theme-pN-end`, for
-N = 1, 1b, 2, 3, 4, 5, 6, 7.
-**Next phase:** **Phase 8: Solace** (theme + its drags + its resize handles +
-the §2 NUMBERS rule, no gradient fills; see §3, §4 "Phases 3–10"). Start it
-only when Tony says "continue theme" / "next theme phase".
+N = 1, 1b, 2, 3, 4, 5, 6, 7, 8.
+**Next phase:** **Phase 9: Shield + Shield (HTML)** (theme + its drags + its
+resize handles + the §2 NUMBERS rule, no gradient fills; see §3, §4 "Phases
+3–10"). Shield HAS a Veda profile: every change is gated to Tony's, and
+Veda's shots must stay pixel-identical. Start it only when Tony says
+"continue theme" / "next theme phase".
 
-**Phase 7, what shipped (Vault is Tony-only, so no Veda diff):**
-- **Tokens** (vault.html `:root` AND `#kc-root`, plus the JS `THEME` that
-  `applyTheme()` writes onto `#kc-root`): `--ac`/`--acs` `#c0aeea`, `--acp`
-  `#dbd0f5` (wordmark, panel titles, dialog titles), `--acd` = `--acl`
-  `#9a86c9` (accent LINES; `--acl` was a gold rgba wash), `--bd` the hairline
-  `rgba(255,255,255,.06)`, `--bdl` `#45454c` (every control's resting
-  outline), `--s3` `#34343a`, `--gold` (warnings only), `--ring` (fields'
-  3px ring at 16%), radius 8, `--ds-ac`/`--ds-s2`. The old suite block
-  (`--gold-*`, `.suite-title`, `.suite-accent`) and Fraunces are gone;
-  `--font-accent` is Inter.
-- **Buttons** (`.kc-hbtn`, `.kc-new-btn`, `.kc-btn-*`, `.vault-btn`,
-  `.vault-tab`, `.vault-gen-tab`, uiModal, lock menu) are MAGI's `.btn`:
-  10px / 700 / uppercase / 1px, `bdl` outline that turns accent on hover, no
-  glows. Selected = solid purple with a dark label: the current tab, New
-  Connection, `.kc-btn-primary`, `.vault-btn.primary`, the generator's
-  current mode, the uiModal OK (danger = red outline), Unlock / lock-menu
-  accent rows. Fields: accent border + `--ring`. Labels 9px/700/txm.
-- **Dialogs** (`.kc-overlay`/`.kc-modal`, `.vault-overlay`/`.vault-modal`,
-  uiModal): `rgba(0,0,0,.62)` + 2px blur, s1 box on a hairline, radius 8;
-  titles in `acp`. The lock: no radial glow, `acd` card outline, radius 8.
-- **Gold stays only where it means something:** expiry/staging/weak-password
-  warnings (`.warn` chips, the strength meter's middle step, the plain-text
-  export notice, `.vault-health-warn`), the pinned ★, the file-type colour
-  for docs (a category colour). Card-brand faces keep their gradients (the
-  plan's rule); the range slider's two-tone track is a hard-stop gradient
-  that reads solid (`vault-controls.js`, kept).
-- **No gradients otherwise:** the lock's radial glow, the ID thumbnail veil
-  (solid `rgba(26,26,29,.55)`), an empty ID card's media band, and both
-  loading skeletons (Files, ID viewer) are solid with an opacity pulse.
-  Washes became `s3` (dropdown options, calendar cells) or went.
-- **NUMBERS:** body + controls `tabular-nums`, Inter; one-time codes
-  (`.vault-totp-code`), the card-face number, ID document numbers, the
-  health score, the popup's card number/expiry are Inter 500 tabular.
-  Passwords, API keys, the recovery key and the generator output stay mono
-  (secrets/tokens, per §2).
-- `<body data-hoverfx="magi">` on vault.html AND the popup.
-- **Drag (`dragsort.js` in vault.html's `<head>`; the popup carries a
-  byte-identical `Vault/dragsort.js`, enforced by `tests/dragsort.test.js`):**
-  - Keychain cards (edit mode only): each `.kc-col` is a list,
-    `group:'kc-cards'`, `hold:300`; a drop rewrites `conns` + `kc_colmap`
-    (`onCardDrop`). In edit mode the columns stretch full height so a card
-    drops below a column's last card too.
-  - Keychain link rows: each card's `.kc-items` is a list,
-    `group:'kc-items'`, so a row moves between cards (`onItemDrop`).
-  - The header buttons (`[data-hk]`, `axis:'x'`) and the tab bar
-    (`.vault-tab`, `axis:'x'`), both `hold:300`; `VaultOrder.apply()` (new, in
-    vault-ui.js) puts a saved order on either strip. Saves as before
-    (`hdrOrder` in vault_cloud, `tabOrder` in the keychain doc).
-  - Secure Notes, Payments and API Keys: `host.makeReorderable()` is now
-    A1Drag (`row:'.vault-site'`, `ignore:'.vault-rowbody'` so an open row's
-    text stays selectable, `canDrag` off while a search is on). The `.vault-drag`
-    grip buttons, `dragHandle()` and the "Clear the search to reorder" toasts
-    are gone.
-  - The Launcher popup's cards (Reorder mode only): each `.col` is a list,
-    `group:'pop-cards'`; `onCardDrop` → the existing `persistOrder()`.
-  - Deleted: `Vault/vault-drag.js`, `Vault/vault-card-drag.js`, the hand-rolled
-    card/item drags in vault.html (`kc-card-fly`, placeholders, handles), the
-    `KCI.grip` icon.
-  - Not changed: Vault Files' HTML5 "drag a file onto a folder" (a move into a
-    folder, not a reorder) and the ID viewer's pan/swipe.
-- **`dragsort.js` gained (all programs):** `ignore` (presses inside it are
-  never a drag); nested lists (the innermost list that takes a press keeps
-  it: `e.a1DragClaimed`); and a **bug fix**: a lifted chip's 1.06 was the
-  CSS `scale` property, which also scales the translate, so chips/tabs
-  trailed the pointer by 6% of the distance (23px on a long drag). It is now
-  `scale(1.06)` inside the row's own transform. 43 jsdom checks.
-- **Resize:** `vault-controls.js`'s textarea grip is MAGI's (`A1Resize`,
-  key `a1.h.vault.<id|name|placeholder>`); `resizegrip.js` loads in
-  vault.html's `<head>`. The popup has no text boxes, so it carries no copy.
-  The popup's width/height rails are window sizing, not a box grip: kept.
-- **The extension popup** (`Vault/popup.html`): MAGI tokens, Google Fonts
-  link for Inter/Manrope, wordmark `#dbd0f5` (was gradient text), solid
-  current tab / primary / Fill, `bdl` outlines, Reorder toggle in purple,
-  dialogs `.62` + blur. **`content.js`** (the autofill dropdown on other
-  sites): Inter, a Manrope `acl` header, purple icons; warnings and the ★ stay
-  gold. Reload the extension in `chrome://extensions` to see it.
-- **Tests:** `tests/live/vault-theme.live.js` (46 checks): vault.html theme,
-  numbers, no gradients/gold; cards by mouse (down a column, across columns,
-  saved order + colmap), link rows within and between cards, a row's button
-  still clicks, header drag, the modal's grip (drag + stored), MAGI dialog +
-  uiModal, phone swipe vs 300ms hold; the harness's Secure Notes (mouse drag,
-  saved order, open-row text never drags, off while searching); the popup
-  (theme, no grips, cross-column drag PUT to the keychain doc, Reorder off =
-  no drag) with chrome.* + the Worker stubbed. Against `theme-p7-start` it
-  fails 35 of 46. `tests/live/vault-apikey.live.js` follows the tab drag
-  (`.dsort-drag`), 117/117.
-- **TradeHub, same session (Tony's ask):** Control's Watchlist buttons wrap
-  on a phone (the group was `flexShrink:0`, pushing Trash off the screen).
-  `tests/live/tradehub-mobile-fit.live.js` checks every TradeHub page at
-  360/390/430px for anything off the screen (commit `39ea0a2`).
+**Phase 8, what shipped (Solace is Tony-only, so no Veda diff):**
+- **Tokens** (solace.html `body{}`): `--accent` `#c0aeea`, `--acl`
+  `#dbd0f5` (wordmark, panel/dialog titles: `.modal-title`, `.rec-mbox h3`,
+  `.rec-sec`, the timer's circuit name, "Add Module"/"Modules"), `--accent-deep`
+  `#9a86c9` (accent LINES: lock card, `.badge-accent`, Run, a routine group's
+  left edge), `--border` is now the hairline `rgba(255,255,255,.06)` and
+  `--border2` `#45454c` every control's resting outline, `--s3`, `--gold`
+  (only the busy sync dot and the timer ring's last half), `--ring`, radius 8,
+  `--ds-ac`/`--ds-s2`. `--accent-pale` is `txm` (field labels). The old suite
+  block (`--gold-*`, `.suite-title`), `--accent-soft`/`--accent-line`, the
+  Recipe dialog's brighter-gold token override, and Fraunces / DM Sans /
+  Bebas Neue (fonts link and every use) are gone; `--font-accent` is Inter.
+- **MotionCore (`#mc-root`) is tokenised**: its ~56 hard-coded colours are
+  the tokens above. Its `.btn` family is MAGI's `.btn` (10px / 700 /
+  uppercase / 1px, radius 6, bdl → accent on hover, no glow/lift/wash);
+  `.btn-primary` solid purple, `.btn-danger` a red outline (was a red wash).
+  Cards radius 8 on a hairline; badges radius 4. The Circuits/Routines switch,
+  the section rail (Fitness/Nutrition: was an underline with a gold glow) and
+  the subtabs are MAGI nav buttons, current = solid purple, dark label.
+- **Recipes**: shared `.btn` is MAGI's; `.btn.solid` (New recipe, Save, Go)
+  solid purple. Category pills keep their own colours (phase-1 rule).
+  Picked mic row: s2 + accent outline (was a gold wash). The live caption, mic
+  picker and voice bar sit on bdl outlines.
+- **Dialogs** (circuit/routine, recipe, confirm, mic picker, uiModal):
+  `rgba(0,0,0,.62)` + 2px blur, s1 box on a hairline, radius 8. uiModal is
+  Vault's (OK solid purple; danger = red outline, was a red fill). The lock:
+  no radial glow, `acd` card, solid-purple Unlock/Set Password and accent
+  menu rows, no hover glows.
+- **NUMBERS**: body + controls `tabular-nums`. Module numbers and seconds, the
+  builder's numbers, the timer's seconds/progress/next, badges, routine
+  quantities, recipe quantities and step numbers are Inter 500 tabular (were
+  Bebas Neue / bold). The timer's exercise name is Manrope 800 (was Bebas).
+- **Timer ring**: purple, gold in the last half (amber state), pastel red in
+  the last quarter (was gold / `#e8b62a` / `#dc4650`, with a gold halo).
+- `<body data-hoverfx="magi">`; `dragsort.js` + `resizegrip.js` in `<head>`.
+- **Drag (A1Drag, `hold:300`, no grips):**
+  - MotionCore: circuits (`.circuit-card`), routines (`.routine-card`) and
+    the circuit dialog's modules (`.module-builder-item`), via
+    `mcDrag(listId, row, getArr, setArr, redraw, save)`. A drop splices the
+    array, `mcSave()` (not for the dialog's modules: they save with "Save
+    Circuit"), redraws. `mcRenderCircuits`/`mcRenderRoutines` defer with
+    `A1Drag.later`. Deleted: `mcInitDragList` (placeholder + ghost),
+    `MC_GRIP`, the `.drag-handle` ⋮⋮ grips and their CSS, `touch-action:none`
+    on module rows.
+  - Recipes: the book (`.rec-row`) and a recipe's steps (`.rec-step`) via
+    `recDrag(list, kind)` → `applyDrop(kind, from, to)` (undo + save +
+    renumber as before). The book only drags while no search/filter is on
+    (`canDrag`; the old engine stayed wired after a search, a latent bug).
+    `renderRecipes` defers with `A1Drag.later`. Deleted: MyList's ghost +
+    insertion-line engine (`enableDrag`, `beginDrag`, `dnd*`), its CSS and
+    the `dndLastEnd` click guard (A1Drag swallows the drop's click).
+- **Resize (`resizegrip.js`, `solGrip(ta, key, label, grow)`):** the recipe
+  instructions box (`a1.h.sol.rec-instr`) and a step's editor
+  (`a1.h.sol.rec-step`), both auto-grown (`autoGrow` skips `data-user-h`;
+  handing back re-runs it); the circuit description (`a1.h.sol.circuit-desc`)
+  and the routine's workout box (`a1.h.sol.routine`), which were native
+  `resize:vertical` corners. The old `.resize-grip` ns-resize handle, its
+  document-level pointer code and `dataset.manual` are gone.
+- **Tests:** `tests/live/solace-theme.live.js` (69 checks): it fakes Firebase
+  (seeded `getDoc`/`onSnapshot`, `setDoc` → `window.__fsWrites`). Theme, no
+  old fonts, no gradients, no gold, no grip dots, numbers, magi hover;
+  circuits/routines/modules/recipes/steps by mouse with SAVED orders, the
+  drop's click, a press on a button, no drag while searching; all four grips;
+  every dialog and the lock; phone: swipe vs a held finger. `--shots <label>`
+  shots 16 views. Against `theme-p8-start` it fails 52 of 63.
 
 **Start-of-session checklist**
 1. `git pull`, then `git tag theme-pN-start && git push origin theme-pN-start`.
@@ -439,8 +416,8 @@ wrap-up phase.
 | 5 | **MyList, Tony profile only (theme + drags + resize grips)** | **done 2026-10-02** |
 | 6 | **Insight (theme + drags + resize grips)** | **done 2026-10-02** |
 | 7 | **Vault (Keychain) + Vault extension (theme + drags + resize + numbers)** | **done 2026-10-02** |
-| 8 | Solace (theme + drags + numbers) | **next** |
-| 9 | Shield + Shield (HTML) (theme + drags + numbers) | |
+| 8 | **Solace (theme + drags + resize grips + numbers)** | **done 2026-10-02** |
+| 9 | Shield + Shield (HTML) (theme + drags + numbers) | **next** |
 | 10 | **Numbers sweep** (§2 "NUMBERS"): Tony's TaskHub + chrome, MyJournal, OneInbox, TradeHub, MyList (Tony), **RiftIQ: WarRoom AND ProView**, MAGI | |
 | 11 | Wrap-up: **PriceWatch extension**, MAGI onto dragsort.js, sweep (LifeHub colours done in 3) | |
 
@@ -927,6 +904,99 @@ Tony-only, so no Veda diff):
   `ovkey`), so a Keep/Remove decision is always saved under the group's
   current key, never the fuzzy-matched older one. Harmless today; a
   one-word fix if Tony wants it.
+
+### Phase 7 — Vault + the Vault Launcher extension (done 2026-10-02)
+**What shipped** (moved here from §0 at the end of phase 8; Vault is
+Tony-only, so no Veda diff):
+- **Tokens** (vault.html `:root` AND `#kc-root`, plus the JS `THEME` that
+  `applyTheme()` writes onto `#kc-root`): `--ac`/`--acs` `#c0aeea`, `--acp`
+  `#dbd0f5` (wordmark, panel titles, dialog titles), `--acd` = `--acl`
+  `#9a86c9` (accent LINES; `--acl` was a gold rgba wash), `--bd` the hairline
+  `rgba(255,255,255,.06)`, `--bdl` `#45454c` (every control's resting
+  outline), `--s3` `#34343a`, `--gold` (warnings only), `--ring` (fields'
+  3px ring at 16%), radius 8, `--ds-ac`/`--ds-s2`. The old suite block
+  (`--gold-*`, `.suite-title`, `.suite-accent`) and Fraunces are gone;
+  `--font-accent` is Inter.
+- **Buttons** (`.kc-hbtn`, `.kc-new-btn`, `.kc-btn-*`, `.vault-btn`,
+  `.vault-tab`, `.vault-gen-tab`, uiModal, lock menu) are MAGI's `.btn`:
+  10px / 700 / uppercase / 1px, `bdl` outline that turns accent on hover, no
+  glows. Selected = solid purple with a dark label: the current tab, New
+  Connection, `.kc-btn-primary`, `.vault-btn.primary`, the generator's
+  current mode, the uiModal OK (danger = red outline), Unlock / lock-menu
+  accent rows. Fields: accent border + `--ring`. Labels 9px/700/txm.
+- **Dialogs** (`.kc-overlay`/`.kc-modal`, `.vault-overlay`/`.vault-modal`,
+  uiModal): `rgba(0,0,0,.62)` + 2px blur, s1 box on a hairline, radius 8;
+  titles in `acp`. The lock: no radial glow, `acd` card outline, radius 8.
+- **Gold stays only where it means something:** expiry/staging/weak-password
+  warnings (`.warn` chips, the strength meter's middle step, the plain-text
+  export notice, `.vault-health-warn`), the pinned ★, the file-type colour
+  for docs (a category colour). Card-brand faces keep their gradients (the
+  plan's rule); the range slider's two-tone track is a hard-stop gradient
+  that reads solid (`vault-controls.js`, kept).
+- **No gradients otherwise:** the lock's radial glow, the ID thumbnail veil
+  (solid `rgba(26,26,29,.55)`), an empty ID card's media band, and both
+  loading skeletons (Files, ID viewer) are solid with an opacity pulse.
+  Washes became `s3` (dropdown options, calendar cells) or went.
+- **NUMBERS:** body + controls `tabular-nums`, Inter; one-time codes
+  (`.vault-totp-code`), the card-face number, ID document numbers, the
+  health score, the popup's card number/expiry are Inter 500 tabular.
+  Passwords, API keys, the recovery key and the generator output stay mono
+  (secrets/tokens, per §2).
+- `<body data-hoverfx="magi">` on vault.html AND the popup.
+- **Drag (`dragsort.js` in vault.html's `<head>`; the popup carries a
+  byte-identical `Vault/dragsort.js`, enforced by `tests/dragsort.test.js`):**
+  - Keychain cards (edit mode only): each `.kc-col` is a list,
+    `group:'kc-cards'`, `hold:300`; a drop rewrites `conns` + `kc_colmap`
+    (`onCardDrop`). In edit mode the columns stretch full height so a card
+    drops below a column's last card too.
+  - Keychain link rows: each card's `.kc-items` is a list,
+    `group:'kc-items'`, so a row moves between cards (`onItemDrop`).
+  - The header buttons (`[data-hk]`, `axis:'x'`) and the tab bar
+    (`.vault-tab`, `axis:'x'`), both `hold:300`; `VaultOrder.apply()` (new, in
+    vault-ui.js) puts a saved order on either strip. Saves as before
+    (`hdrOrder` in vault_cloud, `tabOrder` in the keychain doc).
+  - Secure Notes, Payments and API Keys: `host.makeReorderable()` is now
+    A1Drag (`row:'.vault-site'`, `ignore:'.vault-rowbody'` so an open row's
+    text stays selectable, `canDrag` off while a search is on). The `.vault-drag`
+    grip buttons, `dragHandle()` and the "Clear the search to reorder" toasts
+    are gone.
+  - The Launcher popup's cards (Reorder mode only): each `.col` is a list,
+    `group:'pop-cards'`; `onCardDrop` → the existing `persistOrder()`.
+  - Deleted: `Vault/vault-drag.js`, `Vault/vault-card-drag.js`, the hand-rolled
+    card/item drags in vault.html (`kc-card-fly`, placeholders, handles), the
+    `KCI.grip` icon.
+  - Not changed: Vault Files' HTML5 "drag a file onto a folder" (a move into a
+    folder, not a reorder) and the ID viewer's pan/swipe.
+- **`dragsort.js` gained (all programs):** `ignore` (presses inside it are
+  never a drag); nested lists (the innermost list that takes a press keeps
+  it: `e.a1DragClaimed`); and a **bug fix**: a lifted chip's 1.06 was the
+  CSS `scale` property, which also scales the translate, so chips/tabs
+  trailed the pointer by 6% of the distance (23px on a long drag). It is now
+  `scale(1.06)` inside the row's own transform. 43 jsdom checks.
+- **Resize:** `vault-controls.js`'s textarea grip is MAGI's (`A1Resize`,
+  key `a1.h.vault.<id|name|placeholder>`); `resizegrip.js` loads in
+  vault.html's `<head>`. The popup has no text boxes, so it carries no copy.
+  The popup's width/height rails are window sizing, not a box grip: kept.
+- **The extension popup** (`Vault/popup.html`): MAGI tokens, Google Fonts
+  link for Inter/Manrope, wordmark `#dbd0f5` (was gradient text), solid
+  current tab / primary / Fill, `bdl` outlines, Reorder toggle in purple,
+  dialogs `.62` + blur. **`content.js`** (the autofill dropdown on other
+  sites): Inter, a Manrope `acl` header, purple icons; warnings and the ★ stay
+  gold. Reload the extension in `chrome://extensions` to see it.
+- **Tests:** `tests/live/vault-theme.live.js` (46 checks): vault.html theme,
+  numbers, no gradients/gold; cards by mouse (down a column, across columns,
+  saved order + colmap), link rows within and between cards, a row's button
+  still clicks, header drag, the modal's grip (drag + stored), MAGI dialog +
+  uiModal, phone swipe vs 300ms hold; the harness's Secure Notes (mouse drag,
+  saved order, open-row text never drags, off while searching); the popup
+  (theme, no grips, cross-column drag PUT to the keychain doc, Reorder off =
+  no drag) with chrome.* + the Worker stubbed. Against `theme-p7-start` it
+  fails 35 of 46. `tests/live/vault-apikey.live.js` follows the tab drag
+  (`.dsort-drag`), 117/117.
+- **TradeHub, same session (Tony's ask):** Control's Watchlist buttons wrap
+  on a phone (the group was `flexShrink:0`, pushing Trash off the screen).
+  `tests/live/tradehub-mobile-fit.live.js` checks every TradeHub page at
+  360/390/430px for anything off the screen (commit `39ea0a2`).
 
 ### Phases 3–10 (from the original survey; re-read each file before building)
 
