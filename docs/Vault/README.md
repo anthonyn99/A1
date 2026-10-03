@@ -20,15 +20,16 @@ Rebuilt from the old *D2L Tabs Automate* class project (used only as a template)
   the launchable links. Vault Launcher renders them as cards.
 - **Open one / open a group** — one click launches a single link or every link in a
   group.
-- **Rearrange connection cards** — the **Reorder** switch above the Links list turns
-  on a drag grip on every card. Drop a card in a new spot (or, at two columns, a
+- **Rearrange connection cards** — the **Reorder** switch above the Links list makes
+  every card draggable (MAGI's drag, `dragsort.js`: a mouse takes the card anywhere
+  that is not a button, a finger after a 300 ms hold; no grips). Drop a card in a new spot (or, at two columns, a
   new column) and the new order is PUT straight to `dashboards/keychain` through the
   same Worker. Vault's Keychain listens on that document with `onSnapshot`, so an
   open Vault tab re-renders in the new order within a second — and the popup polls
   every 5s, so an edit made in Vault shows up here without reopening. Groups with no
   link items aren't rendered but are round-tripped untouched, and a one-column
   reorder carries each card's existing column forward instead of flattening the
-  app's two-column layout. See `vault-card-drag.js` and `persistOrder()` in
+  app's two-column layout. See `onCardDrop()` and `persistOrder()` in
   `popup.js`. The switch is off by default and its state is remembered.
 - **Read-mostly mirror** — reads `dashboards/keychain` in Firestore, the exact document
   Keychain uses, and reflects it live. **Card order is the one thing this popup
@@ -117,24 +118,21 @@ window — only presenting a credential does.
 ### Card & note order
 
 Cards **and secure notes** carry an `order` integer (inside the ciphertext, like
-everything else). Drag the grip handle in TaskHub → Vault → Payments or
-Sensitive Info to reorder; for cards the extension list **and** the checkout
+everything else). Drag a row in Vault → Payments, Sensitive Info or API Keys
+to reorder; for cards the extension list **and** the checkout
 dropdown follow, because both call the same `VaultPay.sortCards()`. Reordering
 is PWA-only — the extension stays a read + autofill client and never writes to
 the vault.
 
-Both sections run on ONE engine, `host.makeReorderable()` in `vault-ui.js`, so
-they can't drift apart. Its DOM contract: each list child is a
-`.vault-site[data-id]` carrying a `.vault-drag` handle and (optionally) a
-`.vault-rowbody` that collapses mid-drag.
+Every list runs on ONE engine, `host.makeReorderable()` in `vault-ui.js`, which
+is MAGI's drag (`dragsort.js`, `window.A1Drag`, shared by every A1 program). Its
+DOM contract: each list child is a `.vault-site[data-id]`; an open row's
+`.vault-rowbody` is never a handle, so its text stays selectable.
 
-- **Desktop, touch and keyboard** are one implementation: Pointer Events on a
-  dedicated handle (HTML5 drag-and-drop is desktop-only). The handle sets
-  `touch-action:none` so a phone hands us the gesture instead of scrolling, and
-  arrow keys move a focused handle for pointer-free use.
-- While dragging, `.vault-reordering` collapses expanded row bodies via CSS, so
-  every row is the same height and the target index is exact arithmetic rather
-  than hit-testing ragged boxes. Dragging near an edge auto-scrolls.
+- **Mouse and touch** are one implementation (Pointer Events). A mouse takes a
+  row anywhere that is not a control after 4px; a finger after a 300 ms hold, so
+  a swipe still scrolls the list. No grips. Escape puts the row back; dragging
+  near an edge auto-scrolls.
 - Only rows that actually moved are rewritten (`VaultPay.reorderPlan` for cards,
   the same minimal-diff in `commitSensitiveOrder` for notes), and they go out
   through `VaultStore.saveMany()` — one repaint, one debounced Firestore write.
@@ -262,10 +260,10 @@ connections/colmap/savedAt, so neither writer can wipe it. (It used to live in
 `dashboards/vault_cloud`, which the extension can't reach; an existing order is
 carried over once.) Tabs the popup doesn't have are skipped.
 
-`vault-drag.js` (tab bar + header buttons) works in layout coordinates: the
-dragged item tracks the pointer exactly, neighbours glide from where they are,
-swaps use midpoint hysteresis, touch arms on a 260 ms long press with a haptic
-tick (a swipe still scrolls), Escape cancels, and the drop settles smoothly.
+The tab bar and the header buttons reorder with the same `dragsort.js` (a
+mouse after 4px, a finger after a 300 ms hold with a haptic tick, so a swipe
+still scrolls the strip; Escape cancels). `VaultOrder.apply()` in `vault-ui.js`
+puts a saved order back on either strip.
 
 ### Sync: `dashboards/vault_pw` merges per item
 

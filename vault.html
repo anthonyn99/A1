@@ -214,6 +214,9 @@ input,select,textarea,button{font-variant-numeric:tabular-nums;}
 #kc-conns-list{display:flex;gap:10px;align-items:flex-start;min-height:48px;}
 .kc-col{display:flex;flex-direction:column;gap:10px;flex:1;min-width:0;}
 #kc-root.view-mode .kc-col:empty{display:none;}
+/* Edit mode: every column runs the full height of the board, so a card can be
+   dropped anywhere in it (below its last card too), not only over a card. */
+#kc-root.edit-mode #kc-conns-list{align-items:stretch;}
 #kc-root.edit-mode .kc-col:empty{border:1px dashed var(--bdl);border-radius:var(--radius);min-height:60px;}
 .kc-col-empty{flex:1;}
 #kc-conns-list>.kc-empty{flex:1;}
@@ -574,7 +577,6 @@ window._mailRelay = window._mailRelay || async function (res) {
     pencil:    I('<path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>'),
     x:         I('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
     check:     I('<path d="M20 6 9 17l-5-5"/>'),
-    grip:      I('<circle cx="9" cy="6" r="1.3"/><circle cx="9" cy="12" r="1.3"/><circle cx="9" cy="18" r="1.3"/><circle cx="15" cy="6" r="1.3"/><circle cx="15" cy="12" r="1.3"/><circle cx="15" cy="18" r="1.3"/>'),
     eye:       I('<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>')
   };
 })();

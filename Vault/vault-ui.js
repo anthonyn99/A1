@@ -405,13 +405,13 @@
   // extension can't reach; an order saved there is carried over once.
   var TAB_ORDER_LS = 'vault.tabOrder';
   function enableTabReorder(tabs) {
-    if (!window.VaultDrag) return;
+    if (!window.A1Drag) return;
     var seenCloud = false;
 
     function apply(order) {
       if (!Array.isArray(order) || !order.length) return;
-      if (tabs.querySelector('.vdrag')) return;      // don't yank a tab mid-drag
-      window.VaultDrag.applyOrder(tabs, '.vault-tab', 'data-tab', order);
+      // A tab is never yanked from under a drag: the order waits for the drop.
+      window.A1Drag.later(function () { applyOrder(tabs, '.vault-tab', 'data-tab', order); });
       try { localStorage.setItem(TAB_ORDER_LS, JSON.stringify(order)); } catch (e) {}
     }
     function save(order) {
@@ -419,7 +419,17 @@
       if (typeof window._fbSaveTabOrder === 'function') window._fbSaveTabOrder(order);
     }
 
-    window.VaultDrag.enable(tabs, { item: '.vault-tab', key: 'data-tab', onDrop: save });
+    // MAGI's drag (dragsort.js): a mouse takes a tab after 4px, a finger after
+    // a 300ms hold, so a swipe still scrolls the strip on a phone.
+    window.A1Drag.sort(tabs, {
+      row: '.vault-tab', axis: 'x', hold: 300,
+      onDrop: function (from, to) {
+        var order = [].map.call(tabs.querySelectorAll(':scope > .vault-tab'), function (b) { return b.getAttribute('data-tab'); });
+        order.splice(to, 0, order.splice(from, 1)[0]);
+        applyOrder(tabs, '.vault-tab', 'data-tab', order);
+        save(order);
+      }
+    });
 
     // First paint from this device's last known order, then the live doc.
     try { apply(JSON.parse(localStorage.getItem(TAB_ORDER_LS) || 'null')); } catch (e) {}
@@ -437,6 +447,31 @@
       if (typeof window._fbSaveTabOrder === 'function') window._fbSaveTabOrder(order);
     }, 6000);
   }
+
+  // Apply a saved order to a strip (the tab bar, the header actions). Unknown
+  // keys are skipped, and an item the saved order predates (added since) keeps
+  // its default neighbour instead of piling up at the end.
+  function applyOrder(nav, itemSel, keyAttr, saved) {
+    if (!nav || !Array.isArray(saved) || !saved.length) return;
+    var have = {};
+    var nodes = Array.prototype.slice.call(nav.querySelectorAll(itemSel));
+    nodes.forEach(function (n) { have[n.getAttribute(keyAttr)] = n; });
+    var fresh = nodes.filter(function (n) { return saved.indexOf(n.getAttribute(keyAttr)) < 0; });
+    var prevOf = {};
+    fresh.forEach(function (n) { var i = nodes.indexOf(n); prevOf[n.getAttribute(keyAttr)] = i > 0 ? nodes[i - 1] : null; });
+    // Already in this order? Touch nothing (no reflow, no focus loss).
+    var target = saved.filter(function (k) { return have[k]; });
+    var current = nodes.map(function (n) { return n.getAttribute(keyAttr); }).filter(function (k) { return saved.indexOf(k) >= 0; });
+    if (target.join() === current.join()) return;
+    saved.forEach(function (k) { if (have[k]) { nav.appendChild(have[k]); delete have[k]; } });
+    fresh.forEach(function (n) {
+      var p = prevOf[n.getAttribute(keyAttr)];
+      if (p && p.parentNode === nav && p !== n) nav.insertBefore(n, p.nextSibling);
+      else if (!p && nodes[0] && nodes[0] !== n) nav.insertBefore(n, nav.querySelector(itemSel));
+      else nav.appendChild(n);
+    });
+  }
+  window.VaultOrder = { apply: applyOrder };
 
   function tabBtn(id, label, icon) {
     return el('button', {
@@ -563,13 +598,13 @@
     var startY = 0, startX = 0, pulling = false, dist = 0, armed = false, refreshing = false;
 
     // A pull must not start on top of something that owns the gesture itself:
-    // a drag handle (card reorder), a zoomable document, or anything inside an
-    // open modal/viewer sitting above the page.
+    // a row being reordered, a zoomable document, or anything inside an open
+    // modal/viewer sitting above the page.
     function gestureBlocked(target) {
       if (refreshing) return true;
       if (document.querySelector('.vault-overlay, .vid-viewer')) return true;
-      if (scroller.querySelector('.vault-reordering')) return true;
-      return !!(target && target.closest && target.closest('.vault-drag, .vid-stage, input, textarea, select'));
+      if (window.A1Drag && window.A1Drag.active) return true;
+      return !!(target && target.closest && target.closest('.vid-stage, input, textarea, select'));
     }
     function setPull(px) {
       dist = px;
@@ -966,11 +1001,10 @@
     var searching = !!currentQuery;
     var items = searching ? store.search(currentQuery).filter(function (i) { return i.kind === 'sensitive'; }) : sortSensitive(store.byKind('sensitive'));
     if (!items.length) { list.appendChild(emptyState('No secure notes yet. Store Wi-Fi passwords, lock combos, recovery codes, license keys…')); return; }
-    items.forEach(function (it) { list.appendChild(sensitiveRow(it, searching)); });
+    items.forEach(function (it) { list.appendChild(sensitiveRow(it)); });
     // Reordering a FILTERED list would be a lie: positions 0..n of a search
-    // result aren't positions in the vault. So drag is only live on the full
-    // list, and the handle explains itself when it isn't.
-    if (!searching && items.length > 1) makeReorderable(list, commitSensitiveOrder);
+    // result aren't positions in the vault. So drag is only live on the full list.
+    if (items.length > 1) makeReorderable(list, commitSensitiveOrder);
   }
   function fillPaymentList(list) {
     if (!window.VaultPayUI) { list.innerHTML = ''; list.appendChild(emptyState('Payments module not loaded.')); return; }
@@ -1088,32 +1122,15 @@
     return el('div', { class: 'vault-account' + (indented ? ' indented' : '') }, [main, actions]);
   }
 
-  // ── drag to reorder (shared: Payments + Sensitive Info) ────────────────────
-  // ONE engine for every reorderable list in Vault, so the two sections can
-  // never drift apart in feel. Contract: `listEl`'s direct children are the
-  // rows, each `.vault-site[data-id]`, each carrying a `.vault-drag` handle and
-  // (optionally) a `.vault-rowbody` that collapses mid-drag.
-  //
-  // Pointer Events, so mouse / touch / pen are ONE code path — HTML5 drag-and-
-  // drop is desktop-only and would have needed a separate touch implementation.
-  //
-  // Dragging is anchored to an explicit handle rather than the whole row: on a
-  // phone, "press the row and move" is indistinguishable from "scroll the
-  // list", and the row is also the tap target that expands the card. The handle
-  // carries `touch-action:none` so the browser hands us the gesture instead of
-  // scrolling.
-  //
-  // While a drag is live the list gets `.vault-reordering`, which collapses
-  // every expanded body via CSS (no re-render). That makes all rows the same
-  // height, so the target index is exact integer arithmetic instead of
-  // per-row hit-testing against ragged heights.
-  function scrollParent(node) {
-    for (var e = node.parentElement; e; e = e.parentElement) {
-      var s = getComputedStyle(e).overflowY;
-      if ((s === 'auto' || s === 'scroll') && e.scrollHeight > e.clientHeight) return e;
-    }
-    return null;
-  }
+  // ── drag to reorder (shared: Payments, Sensitive Info, API Keys) ───────────
+  // ONE engine for every reorderable list in Vault: MAGI's (dragsort.js). The
+  // contract: `listEl`'s direct children are the rows, each
+  // `.vault-site[data-id]`. A row is taken by itself -- a mouse anywhere that
+  // is not a control, a finger after a 300ms hold (a swipe still scrolls) --
+  // with no grip. An open row's body (`.vault-rowbody`) is never a handle, so
+  // its text stays selectable. Reordering a FILTERED list would be a lie
+  // (positions in a search result aren't positions in the vault), so drag is
+  // off while a search is on.
   // Pure array move. Mirrors VaultPay.moveInList (which is unit-tested) but is
   // kept local so the shell never depends on the payments module loading.
   function moveInList(list, from, to) {
@@ -1125,134 +1142,18 @@
   }
 
   function makeReorderable(listEl, onCommit) {
-    if (listEl.__reorderBound) return;
-    listEl.__reorderBound = true;
-
-    listEl.addEventListener('pointerdown', function (e) {
-      if (e.button != null && e.button > 0) return;                 // left/primary only
-      var handle = e.target.closest && e.target.closest('.vault-drag');
-      if (!handle || handle.classList.contains('disabled') || !listEl.contains(handle)) return;
-      start(e, handle);
-    });
-
-    function start(e, handle) {
-      var row = handle.closest('.vault-site');
-      var rows = Array.prototype.slice.call(listEl.children);
-      var from = rows.indexOf(row);
-      if (from < 0 || rows.length < 2) return;
-
-      e.preventDefault();
-      e.stopPropagation();                        // never let this reach the row's expand handler
-      listEl.classList.add('vault-reordering');   // uniform row heights from here on
-
-      // Measure AFTER collapsing, so `step` reflects what's on screen now.
-      var rects = rows.map(function (r) { return r.getBoundingClientRect(); });
-      var step = rows.length > 1 ? (rects[1].top - rects[0].top) : rects[0].height;
-      if (!step) { listEl.classList.remove('vault-reordering'); return; }
-
-      var scroller = scrollParent(listEl);
-      var startY = e.clientY;
-      var startScroll = scroller ? scroller.scrollTop : 0;
-      var to = from, raf = null, lastY = startY;
-
-      row.classList.add('vault-drag-active');
-      try { handle.setPointerCapture(e.pointerId); } catch (_) {}
-
-      function place(dy) {
-        row.style.transform = 'translateY(' + dy + 'px)';
-        var next = Math.max(0, Math.min(rows.length - 1, from + Math.round(dy / step)));
-        if (next === to) return;
-        to = next;
-        rows.forEach(function (r, i) {
-          if (i === from) return;
-          var shift = 0;
-          if (from < to && i > from && i <= to) shift = -step;
-          else if (from > to && i >= to && i < from) shift = step;
-          r.style.transform = shift ? 'translateY(' + shift + 'px)' : '';
-        });
+    if (!window.A1Drag) return;
+    window.A1Drag.sort(listEl, {
+      row: '.vault-site', hold: 300, ignore: '.vault-rowbody',
+      canDrag: function () { return !currentQuery; },
+      onDrop: function (from, to) {
+        var rows = Array.prototype.filter.call(listEl.children, function (r) { return r.matches('.vault-site'); });
+        // Re-append in the new order (appendChild moves an existing child), so
+        // the DOM matches the drop at once -- the save is what catches up.
+        var ordered = moveInList(rows, from, to);
+        ordered.forEach(function (r) { listEl.appendChild(r); });
+        onCommit(ordered.map(function (r) { return r.getAttribute('data-id'); }));
       }
-      // Rects are viewport-based, so a scroll moves every row equally; adding
-      // the scroll delta back keeps the dragged row under the finger AND keeps
-      // the index maths consistent with the original measurements.
-      function currentDy() { return (lastY - startY) + ((scroller ? scroller.scrollTop : 0) - startScroll); }
-
-      // Auto-scroll when dragging near the edge — without it you can't move a
-      // card past the fold on a phone.
-      function edgeScroll() {
-        raf = null;
-        if (!scroller) return;
-        var box = scroller.getBoundingClientRect();
-        var zone = 64, speed = 0;
-        if (lastY < box.top + zone) speed = -Math.ceil((box.top + zone - lastY) / 6);
-        else if (lastY > box.bottom - zone) speed = Math.ceil((lastY - (box.bottom - zone)) / 6);
-        if (speed) {
-          scroller.scrollTop += speed;
-          place(currentDy());
-          raf = requestAnimationFrame(edgeScroll);
-        }
-      }
-
-      function onMove(ev) {
-        lastY = ev.clientY;
-        place(currentDy());
-        if (raf == null) raf = requestAnimationFrame(edgeScroll);
-      }
-      function onUp() {
-        handle.removeEventListener('pointermove', onMove);
-        handle.removeEventListener('pointerup', onUp);
-        handle.removeEventListener('pointercancel', onUp);
-        if (raf != null) { cancelAnimationFrame(raf); raf = null; }
-        try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
-
-        rows.forEach(function (r) { r.style.transform = ''; });
-        row.classList.remove('vault-drag-active');
-        listEl.classList.remove('vault-reordering');
-
-        if (to !== from) {
-          // Re-append in the new order (appendChild moves an existing child),
-          // so the DOM matches the drop immediately — the save is what catches
-          // up, not the other way round.
-          var ordered = moveInList(rows, from, to);
-          ordered.forEach(function (r) { listEl.appendChild(r); });
-          onCommit(ordered.map(function (r) { return r.getAttribute('data-id'); }));
-        }
-      }
-      handle.addEventListener('pointermove', onMove);
-      handle.addEventListener('pointerup', onUp);
-      handle.addEventListener('pointercancel', onUp);
-    }
-
-    // Keyboard equivalent — the handle is a real button, so ↑/↓ move the row
-    // for anyone not using a pointer at all.
-    listEl.addEventListener('keydown', function (e) {
-      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
-      var handle = e.target.closest && e.target.closest('.vault-drag');
-      if (!handle || handle.classList.contains('disabled') || !listEl.contains(handle)) return;
-      var rows = Array.prototype.slice.call(listEl.children);
-      var row = handle.closest('.vault-site');
-      var from = rows.indexOf(row);
-      var to = from + (e.key === 'ArrowUp' ? -1 : 1);
-      if (from < 0 || to < 0 || to >= rows.length) return;
-      e.preventDefault();
-      var ordered = moveInList(rows, from, to);
-      ordered.forEach(function (r) { listEl.appendChild(r); });
-      handle.focus();
-      onCommit(ordered.map(function (r) { return r.getAttribute('data-id'); }));
-    });
-  }
-  // The grip glyph every drag handle uses.
-  function gripIcon() { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="6" r="1.7"/><circle cx="9" cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="9" cy="18" r="1.7"/><circle cx="15" cy="18" r="1.7"/></svg>'; }
-  // A ready-made handle button. `searching` disables it: positions 0..n of a
-  // filtered list aren't positions in the real list, so reordering one would be
-  // a lie — the handle says so instead of silently doing the wrong thing.
-  function dragHandle(label, searching, onBlocked) {
-    return el('button', {
-      class: 'vault-icon vault-drag' + (searching ? ' disabled' : ''),
-      type: 'button',
-      'aria-label': searching ? 'Clear the search to reorder' : 'Reorder ' + label + ' — drag, or use the arrow keys',
-      title: searching ? 'Clear the search to reorder' : 'Drag to reorder (or focus and press ↑ / ↓)',
-      html: gripIcon(),
-      onclick: function (e) { e.stopPropagation(); if (searching && onBlocked) onBlocked(); },
     });
   }
 
@@ -1300,7 +1201,7 @@
     try { await store.saveMany(writes); }
     catch (e) { toast('Could not save the new order'); refreshList('sensitive'); }
   }
-  function sensitiveRow(it, searching) {
+  function sensitiveRow(it) {
     var hasNotes = !!(it.notes && String(it.notes).trim());
     var cfKids = (Array.isArray(it.customFields) ? it.customFields : []).filter(function (cf) { return cf && (cf.label || cf.value); }).map(function (cf) {
       return el('div', { class: 'vault-acc-line' }, [
@@ -1314,11 +1215,10 @@
     if (cfKids.length) bodyKids.push(el('div', { class: 'vault-note-cf' }, cfKids));
     if (hasNotes) bodyKids.push(el('div', { class: 'vault-note-actions' }, [iconBtn('Copy details', copyIcon(), function (e) { e.stopPropagation(); copyText(it.notes, 'Details copied'); })]));
     if (!bodyKids.length) bodyKids.push(el('div', { class: 'vault-note-text', style: 'color:var(--txm)' }, ['No details yet — tap edit to add.']));
-    // .vault-rowbody lets the shared drag engine collapse this while reordering.
+    // .vault-rowbody: the shared drag never takes a press inside it.
     var body = el('div', { class: 'vault-note-body vault-rowbody' }, bodyKids);
     body.style.display = _senOpen[it.id] ? '' : 'none';
     var head = el('div', { class: 'vault-row vault-note-head', style: 'cursor:pointer' }, [
-      dragHandle(it.title || 'this note', searching, function () { toast('Clear the search to reorder notes'); }),
       el('div', { class: 'vault-note-icon', html: cabinetIcon() }),
       el('div', { class: 'vault-row-main' }, [
         el('div', { class: 'vault-row-title' }, [it.title || 'Untitled']),
@@ -2029,7 +1929,7 @@
       iconBtn: iconBtn, emptyState: emptyState,
       // The one drag-to-reorder engine, shared so Payments and Sensitive Info
       // can never drift apart. See makeReorderable() for the DOM contract.
-      makeReorderable: makeReorderable, dragHandle: dragHandle,
+      makeReorderable: makeReorderable,
       // Rendered SVG STRINGS, not the builder functions — iconBtn() and
       // innerHTML both want markup, and handing over the function instead
       // stringifies its source into the button.
@@ -2080,10 +1980,10 @@
       // positioned child would scroll away with the content instead of hanging
       // under the header.
       '.vault-ptr{position:fixed;top:calc(env(safe-area-inset-top,0px) + 6px);left:50%;transform:translateX(-50%);',
-      '  width:34px;height:34px;border-radius:50%;background:var(--s2);border:1px solid var(--bd);',
+      '  width:34px;height:34px;border-radius:50%;background:var(--s2);border:1px solid var(--bdl);',
       '  display:flex;align-items:center;justify-content:center;color:var(--txd);',
       '  opacity:0;pointer-events:none;z-index:8;box-shadow:0 6px 18px rgba(0,0,0,.45)}',
-      '.vault-ptr.armed{color:var(--acs,#e0b874);border-color:var(--ac)}',
+      '.vault-ptr.armed{color:var(--acs,#c0aeea);border-color:var(--ac)}',
       '.vault-ptr svg{display:block}',
       '@keyframes vault-ptr-spin{to{transform:rotate(360deg)}}',
       '.vault-ptr.spinning .vault-ptr-spinner{animation:vault-ptr-spin .7s linear infinite}',
@@ -2106,22 +2006,21 @@
       // Bleed guard: extends the bar's own background 4px upward so no seam
       // can open between it and the sticky header above.
       '.vault-tabs::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:5px;background:var(--bg);pointer-events:none}',
-      '.vault-tab{flex:0 0 auto;background:transparent;border:1px solid var(--bd);color:var(--txd);font-size:11px;font-weight:500;letter-spacing:1.2px;text-transform:uppercase;padding:0 14px;height:34px;border-radius:var(--radius-sm);cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:border-color .18s,color .18s}',
-      '.vault-tab:hover{color:var(--tx);border-color:var(--txd)}.vault-tab.active{background:transparent;color:var(--acs,#e0b874);border-color:var(--ac)}',
-      /* Tabs are draggable to reorder. `manipulation` keeps the browser's own
-         horizontal panning (so the strip still scrolls on touch) while dropping
-         the 300ms double-tap delay; a reorder drag arms from a long press and
-         suppresses that scrolling only once armed. */
-      '.vault-tab{touch-action:manipulation;-webkit-user-select:none;user-select:none}',
-      '.vault-tab.vdrag{z-index:5;cursor:grabbing;opacity:.97;border-color:var(--ac);color:var(--acs,#e0b874);background:transparent;box-shadow:0 10px 26px var(--shadow)}',
+      '.vault-tab{flex:0 0 auto;background:transparent;border:1px solid var(--bdl);color:var(--txd);font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:0 14px;height:34px;border-radius:var(--radius-sm);cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:border-color .18s,color .18s}',
+      '.vault-tab:hover{color:var(--tx);border-color:var(--ac)}.vault-tab.active{background:var(--ac);color:var(--bg);border-color:var(--ac)}',
+      /* Tabs are draggable to reorder (A1Drag). `manipulation` keeps the
+         browser's own horizontal panning (so the strip still scrolls on touch)
+         while dropping the 300ms double-tap delay; a drag arms from a 300ms
+         hold and suppresses that scrolling only once armed. */
+      '.vault-tab{touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}',
       '.vault-tab svg{display:block;width:15px;height:15px;flex-shrink:0}',
       '.vault-panel{max-width:1100px;margin:0 auto;width:100%;padding:0 var(--vpadr) calc(28px + env(safe-area-inset-bottom,0px)) var(--vpadl)}',
       // Search + Add + Settings + Lock stay pinned just below the tabs.
       '.vault-toolbar{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;position:sticky;top:calc(var(--vhbar-h,60px) + var(--vtabs-h,54px));z-index:5;background:var(--bg);padding:8px 0 10px}',
       '.vault-toolbar .vault-icon{width:38px;height:38px}',
       '.vault-search-wrap{position:relative;flex:1;display:flex}',
-      '.vault-search{flex:1;background:var(--s1);border:1px solid var(--bd);color:var(--tx);border-radius:var(--radius);padding:10px 38px 10px 14px;font-size:14px;outline:none;width:100%}',
-      '.vault-search:focus{border-color:var(--ac)}',
+      '.vault-search{flex:1;background:var(--field,#19191c);border:1px solid var(--bdl);color:var(--tx);border-radius:var(--radius);padding:10px 38px 10px 14px;font-size:14px;outline:none;width:100%}',
+      '.vault-search:focus{border-color:var(--ac);box-shadow:0 0 0 3px rgba(192,174,234,.16)}',
       '.vault-search-clear{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:26px;height:26px;border:none;background:var(--s3);color:var(--txd);border-radius:50%;font-size:17px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}.vault-search-clear:hover{color:var(--tx);background:var(--bdl)}',
       '.vault-list{display:flex;flex-direction:column;gap:8px}',
       '.vault-site{background:var(--s1);border:1px solid var(--bd);border-radius:var(--radius);overflow:hidden}',
@@ -2131,14 +2030,14 @@
       '.vault-note-icon{width:26px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--ac)}.vault-note-icon svg{width:16px;height:16px;display:block}',
       '.vault-row-main{flex:1;min-width:0}.vault-row-title{font-size:14px;font-weight:500;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.vault-row-sub{font-size:12px;color:var(--txd);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}',
-      '.vault-tag{background:transparent;border:1px solid var(--bd);color:var(--txd);font-size:10.5px;font-weight:500;letter-spacing:.2px;padding:3px 9px;border-radius:5px;flex-shrink:0}',
+      '.vault-tag{background:transparent;border:1px solid var(--bdl);color:var(--txd);font-size:10.5px;font-weight:500;letter-spacing:.2px;padding:3px 9px;border-radius:4px;flex-shrink:0}',
       '.vault-accounts{border-top:1px solid var(--bd)}',
       '.vault-account{display:flex;align-items:center;gap:12px;padding:11px 14px;border-top:1px solid var(--bd)}.vault-account:first-child{border-top:none}',
       '.vault-account.indented{padding-left:22px;background:var(--bg)}',
       '.vault-acc-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:7px}',
       '.vault-acc-line{display:flex;align-items:center;gap:8px}',
       '.vault-acc-field{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}',
-      '.vault-acc-flabel{font-size:9.5px;font-weight:500;color:var(--txm);text-transform:uppercase;letter-spacing:1.4px}',
+      '.vault-acc-flabel{font-size:9px;font-weight:700;color:var(--txm);text-transform:uppercase;letter-spacing:1.4px}',
       '.vault-acc-val{font-size:13px;color:var(--tx);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.vault-acc-val.muted{color:var(--txm);font-weight:400}',
       '.vault-acc-pw{font-size:13px;color:var(--txd);font-family:ui-monospace,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.vault-pw-dots{letter-spacing:2px}',
       // Capped so a long action row can never squeeze the values it belongs to
@@ -2147,30 +2046,15 @@
       '.vault-note-body{padding:0 14px 14px}',
       '.vault-note-text{color:var(--tx);font-size:13px;line-height:1.6;white-space:pre-wrap;word-break:break-word;background:var(--s2);border:1px solid var(--bd);border-radius:var(--radius-sm);padding:12px}',
       '.vault-note-actions{display:flex;justify-content:flex-end;margin-top:8px}',
-      '.vault-icon{background:transparent;border:1px solid var(--bd);color:var(--txd);width:30px;height:30px;border-radius:var(--radius-sm);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:border-color .18s,color .18s;padding:0}',
+      '.vault-icon{background:transparent;border:1px solid var(--bdl);color:var(--txd);width:30px;height:30px;border-radius:var(--radius-sm);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:border-color .18s,color .18s;padding:0}',
       '.vault-icon svg{display:block;width:15px;height:15px}',
-      '.vault-icon:hover{color:var(--acs,#e0b874);border-color:var(--ac)}',
-      '.vault-icon.vpay-on,.vault-icon.vault-on{color:var(--acs,#e0b874);border-color:var(--acl,rgba(224,184,116,.36))}',
-      // ── drag to reorder (Payments + Sensitive Info share this) ──
-      // touch-action:none is what stops the browser from treating a drag on the
-      // handle as a scroll gesture; without it, mobile reordering is impossible.
-      '.vault-drag{cursor:grab;touch-action:none;flex-shrink:0;background:transparent;border-color:transparent;color:var(--txm)}',
-      '.vault-drag:hover{color:var(--tx);background:var(--s3);border-color:var(--bd)}',
-      '.vault-drag:focus-visible{outline:2px solid var(--ac);outline-offset:1px;color:var(--tx)}',
-      '.vault-drag.disabled{opacity:.3;cursor:not-allowed}',
-      '.vault-drag.disabled:hover{color:var(--txm);background:transparent;border-color:transparent}',
-      // Non-dragged rows glide to their new slot; the dragged row tracks the
-      // finger with no transition so it never lags behind the pointer.
-      '.vault-reordering .vault-site{transition:transform .16s cubic-bezier(.2,.7,.3,1)}',
-      '.vault-reordering .vault-rowbody{display:none!important}',  // uniform row heights → exact index maths
-      '.vault-reordering{cursor:grabbing}',
-      '.vault-reordering .vault-site.vault-drag-active{transition:none;z-index:3;position:relative;cursor:grabbing;',
-      '  border-color:var(--ac);box-shadow:0 12px 28px rgba(0,0,0,.5);transform-origin:center}',
-      '.vault-reordering .vault-site.vault-drag-active .vault-drag{cursor:grabbing;color:var(--ac)}',
-      '@media (prefers-reduced-motion:reduce){.vault-reordering .vault-site{transition:none}}',
-      '.vault-empty{border:1px dashed var(--bd);border-radius:var(--radius);padding:34px 20px;text-align:center;color:var(--txd);font-size:13px;line-height:1.7}',
+      '.vault-icon:hover{color:var(--acs,#c0aeea);border-color:var(--ac)}',
+      '.vault-icon.vpay-on,.vault-icon.vault-on{color:var(--acs,#c0aeea);border-color:var(--acl,#9a86c9)}',
+      // Open/close a row by its head; a held or dragged row is A1Drag's.
+      '.vault-site{-webkit-touch-callout:none}',
+      '.vault-empty{border:1px dashed var(--bdl);border-radius:var(--radius);padding:34px 20px;text-align:center;color:var(--txd);font-size:13px;line-height:1.7}',
       '.vault-footer{display:flex;justify-content:space-between;margin-top:18px;padding-top:12px;border-top:1px solid var(--bd)}',
-      '.vault-link-btn{background:none;border:none;color:var(--txd);font-size:12px;font-weight:500;cursor:pointer;padding:4px 8px;display:inline-flex;align-items:center;gap:7px;transition:color .15s}.vault-link-btn:hover{color:var(--acs,#e0b874)}',
+      '.vault-link-btn{background:none;border:none;color:var(--txd);font-size:12px;font-weight:500;cursor:pointer;padding:4px 8px;display:inline-flex;align-items:center;gap:7px;transition:color .15s}.vault-link-btn:hover{color:var(--acs,#c0aeea)}',
       '.vault-link-btn svg{display:block;width:14px;height:14px}',
       // lock/setup
       '.vault-lock{display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;min-height:300px}',
@@ -2180,11 +2064,11 @@
       '.vault-sub{font-size:12.5px;color:var(--txd);line-height:1.6;margin-bottom:18px}',
       '.vault-input{width:100%;background:var(--field,#19191c);border:1px solid var(--bdl,#45454c);transition:border-color .15s,box-shadow .15s;color:var(--tx);border-radius:var(--radius);padding:11px 13px;font-size:14px;outline:none;margin-bottom:10px;font-family:inherit}',
       '.vault-input:hover{border-color:#57575f}',
-      '.vault-input:focus{border-color:var(--ac);box-shadow:0 0 0 3px rgba(224,184,116,.12)}textarea.vault-input{resize:vertical;min-height:52px}',
-      '.vault-btn{width:100%;background:transparent;border:1px solid var(--bd);color:var(--tx);border-radius:var(--radius-sm);padding:12px;font-size:13.5px;font-weight:500;letter-spacing:.2px;cursor:pointer;margin-bottom:8px;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:border-color .18s,color .18s}',
+      '.vault-input:focus{border-color:var(--ac);box-shadow:0 0 0 3px rgba(192,174,234,.16)}textarea.vault-input{resize:vertical;min-height:52px}',
+      '.vault-btn{width:100%;background:transparent;border:1px solid var(--bdl);color:var(--tx);border-radius:var(--radius-sm);padding:12px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;margin-bottom:8px;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:border-color .18s,color .18s}',
       '.vault-btn svg{display:block;width:15px;height:15px;flex-shrink:0}',
-      '.vault-btn:hover{border-color:var(--txd)}.vault-btn.primary{background:transparent;color:var(--acs,#e0b874);border-color:var(--acl,rgba(224,184,116,.36))}.vault-btn.primary:hover{border-color:var(--ac)}',
-      '.vault-btn.primary:disabled{opacity:.5;cursor:not-allowed}.vault-btn.sm{width:auto;padding:10px 16px;margin:0}.vault-btn.danger{background:transparent;color:#d68a7c;border-color:#d68a7c44}',
+      '.vault-btn:hover{border-color:var(--ac)}.vault-btn.primary{background:var(--ac);color:var(--bg);border-color:var(--ac)}.vault-btn.primary:hover{border-color:var(--ac)}',
+      '.vault-btn.primary:disabled{opacity:.5;cursor:not-allowed}.vault-btn.sm{width:auto;padding:10px 16px;margin:0}.vault-btn.danger{background:transparent;color:#d68a7c;border-color:var(--bdl)}.vault-btn.danger:hover{border-color:#d68a7c}',
       '.vault-err{color:#d68a7c;font-size:12px;min-height:16px;margin-bottom:6px;text-align:left}',
       '.vault-fine{font-size:10px;color:var(--txm);margin-top:8px;letter-spacing:.3px}',
       '.vault-meter{height:5px;background:var(--s3);border-radius:3px;overflow:hidden;margin-bottom:10px}.vault-meter-fill{height:100%;width:0;background:#d68a7c;transition:width .2s,background .2s}',
@@ -2193,23 +2077,23 @@
       // modal
       // 100dvh (not vh) so a phone's collapsing URL bar can't push the modal's
       // action buttons off-screen; the insets keep it clear of notch + home bar.
-      '.vault-overlay{position:fixed;inset:0;background:rgba(14,14,16,.66);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;z-index:99998;overflow-y:auto;',
+      '.vault-overlay{position:fixed;inset:0;background:rgba(0,0,0,.62);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);display:flex;align-items:center;justify-content:center;z-index:99998;overflow-y:auto;',
       '  padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}',
-      '.vault-modal{background:var(--s2);border:1px solid #5b5b64;border-radius:var(--radius);padding:22px;width:440px;max-width:100%;max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain;box-shadow:0 0 0 1px rgba(224,184,116,.10),0 24px 70px rgba(0,0,0,.6)}',
-      '.vault-modal-title{font-family:var(--display,inherit);font-size:20px;font-weight:600;letter-spacing:-.2px;color:var(--tx);margin-bottom:18px}',
-      '.vault-field{margin-bottom:12px}.vault-flabel{display:block;font-size:10px;font-weight:500;color:var(--txm);text-transform:uppercase;letter-spacing:1.4px;margin-bottom:7px}',
+      '.vault-modal{background:var(--s1);border:1px solid var(--bd);border-radius:var(--radius);padding:22px;width:440px;max-width:100%;max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain;box-shadow:0 24px 70px rgba(0,0,0,.6)}',
+      '.vault-modal-title{font-family:var(--display,inherit);font-size:20px;font-weight:700;letter-spacing:-.2px;color:var(--acp,#dbd0f5);margin-bottom:18px}',
+      '.vault-field{margin-bottom:12px}.vault-flabel{display:block;font-size:9px;font-weight:700;color:var(--txm);text-transform:uppercase;letter-spacing:1.4px;margin-bottom:7px}',
       '.vault-field .vault-input{margin-bottom:0}select.vault-input{cursor:pointer}',
       '.vault-pw-input{display:flex;gap:6px}.vault-pw-input .vault-input{flex:1}',
       // flex-basis 120px: a 4-button row (the generator) wraps to 2x2 rather
       // than shrinking every label into an ellipsis on a phone.
       '.vault-modal-actions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}.vault-modal-actions .vault-btn{width:auto;flex:1 1 120px;margin:0;white-space:nowrap}',
-      '.vault-setting-row{display:block;width:100%;text-align:left;background:var(--s2);border:1px solid var(--bd);color:var(--tx);border-radius:var(--radius);padding:13px 15px;font-size:13.5px;font-weight:600;cursor:pointer;margin-bottom:8px}.vault-setting-row:hover{border-color:var(--ac)}',
+      '.vault-setting-row{display:block;width:100%;text-align:left;background:var(--s2);border:1px solid var(--bdl);color:var(--tx);border-radius:var(--radius);padding:13px 15px;font-size:13.5px;font-weight:600;cursor:pointer;margin-bottom:8px}.vault-setting-row:hover{border-color:var(--ac)}',
       '.vault-ie-row{display:flex;align-items:center;gap:12px;background:var(--s2);border:1px solid var(--bd);border-radius:var(--radius);padding:12px 14px;margin-bottom:8px}',
       '.vault-ie-title{font-size:13px;font-weight:500;color:var(--tx)}.vault-ie-desc{font-size:11px;color:var(--txd);line-height:1.5;margin-top:2px}',
       // health dashboard
       '.vault-health-top{display:flex;align-items:center;gap:16px;margin-bottom:18px}',
       '.vault-health-score{position:relative;width:92px;height:92px;flex-shrink:0}',
-      '.vault-health-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:600}',
+      '.vault-health-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:500;font-variant-numeric:tabular-nums}',
       '.vault-health-label{font-size:16px;font-weight:600;color:var(--tx)}.vault-health-sub{font-size:12px;color:var(--txd);margin-top:2px}',
       '.vault-health-cat{display:flex;align-items:center;gap:10px;background:var(--s2);border:1px solid var(--bd);border-radius:var(--radius);padding:11px 13px;margin-bottom:6px;cursor:pointer}',
       '.vault-health-cat:hover{border-color:var(--bdl)}',
@@ -2222,7 +2106,7 @@
       '.vault-mini-edit{color:var(--txd);display:flex}',
       // totp / custom fields / history
       '.vault-totp-main{display:flex;align-items:center;gap:8px}',
-      '.vault-totp-code{font-family:ui-monospace,monospace;font-size:15px;font-weight:500;letter-spacing:1px;color:var(--ac)}',
+      '.vault-totp-code{font-family:var(--sans,inherit);font-variant-numeric:tabular-nums;font-size:15px;font-weight:500;letter-spacing:1px;color:var(--ac)}',
       '.vault-totp-bar{width:34px;height:4px;background:var(--s3);border-radius:2px;overflow:hidden;flex-shrink:0}.vault-totp-bar>div{height:100%;width:100%;background:var(--ac);transition:width 1s linear}',
       '.vault-cf-row{display:flex;gap:6px;margin-bottom:6px}.vault-cf-row .vault-input{flex:1;min-width:0}',
       '.vault-hist-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--bd)}',
@@ -2233,7 +2117,7 @@
       // generator
       '.vault-gen-out{font-family:ui-monospace,monospace;font-size:16px;color:var(--ac);background:var(--s2);border:1px solid var(--bd);border-radius:var(--radius);padding:16px;word-break:break-all;text-align:center;margin-bottom:14px;min-height:24px}',
       '.vault-gen-tabs,.vault-gen-len{display:flex;gap:8px;margin-bottom:12px}.vault-gen-len{align-items:center;justify-content:space-between;font-size:12px;color:var(--txd)}',
-      '.vault-gen-tab{flex:1;background:var(--s2);border:1px solid var(--bd);color:var(--txd);border-radius:var(--radius-sm);padding:8px;font-size:12px;font-weight:500;cursor:pointer}.vault-gen-tab.active{background:transparent;color:var(--acs,#e0b874);border-color:var(--ac)}',
+      '.vault-gen-tab{flex:1;background:transparent;border:1px solid var(--bdl);color:var(--txd);border-radius:var(--radius-sm);padding:8px;font-size:12px;font-weight:500;cursor:pointer}.vault-gen-tab.active{background:var(--ac);color:var(--bg);border-color:var(--ac)}',
       '.vault-gen-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.vault-gen-opt{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--txd);cursor:pointer}',
       '.vault-range{width:100%;accent-color:var(--ac)}.vault-gen-len .vault-range{flex:1;margin-left:12px}',
       '.vault-toast.show{opacity:1!important}',
@@ -2304,9 +2188,7 @@
       '  .vault-search-clear{width:30px;height:30px}',
       '  .vault-link-btn{padding:8px 10px}',
       '  .vault-setting-row{padding:15px}',
-      '  .vault-icon:hover{color:var(--txd);border-color:var(--bd)}',
-      '  .vault-drag{color:var(--txd)}',   // visible without a hover to reveal it
-      '  .vault-drag:hover{color:var(--txd);background:transparent;border-color:transparent}',
+      '  .vault-icon:hover{color:var(--txd);border-color:var(--bdl)}',
       '}',
     ].join('');
     document.head.appendChild(el('style', { id: 'vault-ui-styles', html: css }));

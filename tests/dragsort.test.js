@@ -173,6 +173,7 @@ async function drag(target, from, to, kind) {
   ptr('pointermove', window, 150, 15, 'touch');
   ptr('pointermove', window, 250, 15, 'touch');
   ok('chip row: the chip moves along x', /translate3d\(210px, 0px, 0\)|translate3d\(210px, 0, 0\)/.test(c0.style.transform), c0.style.transform);
+  ok('chip row: the lifted chip is 1.06 inside its own transform', /scale\(1\.06\)$/.test(c0.style.transform), c0.style.transform);
   ptr('pointerup', window, 250, 15, 'touch');
   await wait(SETTLE);
   ok('chip row: chip 0 lands in slot 2', JSON.stringify(cd) === '[[0,2]]', JSON.stringify(cd));
@@ -246,6 +247,8 @@ async function drag(target, from, to, kind) {
   ok('CSS injected once, with MAGI fallbacks', doc.querySelectorAll('#a1-dragsort-css').length === 1 && /var\(--ds-ac, #c0aeea\)/.test(doc.getElementById('a1-dragsort-css').textContent));
   ok('the grip cannot scroll the page under a finger', /\.dsort-grip \{[^}]*touch-action: none/.test(doc.getElementById('a1-dragsort-css').textContent));
   ok('a lifted row\'s label is light on s2 (a selected chip\'s dark label went black)', /\.dsort-drag \{[^}]*color: var\(--ds-tx, #f4f3f0\) !important/.test(doc.getElementById('a1-dragsort-css').textContent));
+  ok('a lifted chip is scaled inside its transform, not by the `scale` property (that scaled the translate: the chip trailed the pointer 6%)',
+     !/scale: 1\.06/.test(doc.getElementById('a1-dragsort-css').textContent));
   ok('reduced motion: no transitions', /prefers-reduced-motion: reduce/.test(doc.getElementById('a1-dragsort-css').textContent));
 
   console.log(`\n  ${pass} passed, ${fail} failed`);

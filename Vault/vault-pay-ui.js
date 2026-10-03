@@ -70,9 +70,8 @@
     // Reordering a FILTERED list would be a lie: positions 0..n of a search
     // result aren't positions in the wallet. So drag is only live on the full
     // list, and the handle explains itself when it isn't.
-    var searching = !!host.query();
-    items.forEach(function (it) { list.appendChild(cardRow(it, host, searching)); });
-    if (!searching && items.length > 1) {
+    items.forEach(function (it) { list.appendChild(cardRow(it, host)); });
+    if (items.length > 1) {
       host.makeReorderable(list, function (orderedIds) { commitOrder(host, orderedIds); });
     }
   }
@@ -107,12 +106,12 @@
   }
 
   // Drag-to-reorder is the shell's shared engine (host.makeReorderable, defined
-  // in vault-ui.js) so Payments and Sensitive Info stay one behaviour, not two.
-  // Contract: each list child is a `.vault-site[data-id]` carrying a
-  // `.vault-drag` handle and a `.vault-rowbody` that collapses mid-drag.
+  // in vault-ui.js) so every list in Vault is one behaviour, not several.
+  // Contract: each list child is a `.vault-site[data-id]`, taken by the row
+  // itself; its `.vault-rowbody` (the open card) is never a handle.
 
   // ── one card ───────────────────────────────────────────────────────────────
-  function cardRow(it, host, searching) {
+  function cardRow(it, host) {
     var el = host.el;
     var s = PAY.summarize(it);
     var revealed = false, remaskTimer = null;
@@ -155,10 +154,7 @@
         host.refreshList(KIND);
       },
     });
-    var handle = host.dragHandle(s.title, searching, function () { host.toast('Clear the search to reorder cards'); });
-
     var head = el('div', { class: 'vault-row vpay-head' }, [
-      handle,
       el('span', { class: 'vpay-mark', html: PAY.brandMark(s.network) }),
       el('div', { class: 'vault-row-main' }, [
         el('div', { class: 'vault-row-title' }, [s.title]),
@@ -489,8 +485,6 @@
       '.vpay-chip.warn{background:transparent;border:1px solid rgba(224,184,116,.36);color:#e0b874}.vpay-chip.bad{background:transparent;border:1px solid rgba(214,138,124,.45);color:#d68a7c}',
       '.vault-icon.vpay-on{color:var(--ac);border-color:var(--ac)}',
       '.vpay-body{border-top:1px solid var(--bd)}',
-      // Drag-to-reorder styling lives with the shared engine in vault-ui.js
-      // (.vault-drag / .vault-reordering / .vault-rowbody).
       '.vpay-detail{display:flex;gap:16px;padding:14px;align-items:flex-start}',
       '.vpay-detail-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px}',
       // the card face
@@ -510,7 +504,7 @@
       '.vpay-face-star{color:#f4d795;line-height:0;display:inline-flex}.vpay-face-star svg{width:14px;height:14px;display:block}',
       '.vpay-face-chip{width:31px;height:23px;border-radius:5px;margin:10px 0 8px;position:relative;z-index:1;',
       '  background:linear-gradient(135deg,#e6c878,#b8922f);box-shadow:inset 0 0 0 1px rgba(0,0,0,.18)}',
-      '.vpay-face-num{font-family:ui-monospace,monospace;font-size:14.5px;letter-spacing:1.2px;font-weight:600;position:relative;z-index:1;',
+      '.vpay-face-num{font-family:var(--sans,inherit);font-variant-numeric:tabular-nums;font-size:14.5px;letter-spacing:1.2px;font-weight:500;position:relative;z-index:1;',
       '  text-shadow:0 1px 2px rgba(0,0,0,.4);word-break:break-all}',
       '.vpay-face-num.shown{color:#ffe9ef}',
       '.vpay-face-bot{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;margin-top:auto;padding-top:8px;position:relative;z-index:1}',

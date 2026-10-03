@@ -98,7 +98,6 @@ let connections = [];
 let colmap = null;          // Keychain's column map (index-aligned to connections)
 let lastCols = 0;           // last-rendered column count (to re-render on width change)
 let reorderMode = false;
-let dragCtl = null;
 let pollTimer = null;
 let lastOwnSaveAt = 0;
 const COL2_MIN = 560;       // px width of #app at/above which we go to 2 columns
@@ -126,7 +125,7 @@ chrome.storage.local.get([VaultSize.KEY, REORDER_KEY], (d) => {
   // or a profile whose localStorage was cleared. Normally a no-op.
   if (VaultSize.adoptStored(d && d[VaultSize.KEY])) render();
 
-  // Reorder is sticky: leave it on and the grips are there next time.
+  // Reorder is sticky: leave it on and the cards are draggable next time.
   setReorder(!!(d && d[REORDER_KEY]), false);
 
   // Re-flow into 1 or 2 columns whenever the content box actually changes.
@@ -227,7 +226,6 @@ makeRail(document.getElementById("resize-y"), "y");
 const CD = ['#f1b0c4','#f6c29e','#f1e19e','#cfe39c','#a9dcb4','#9bd8d0','#a3c8ec','#c3aee6','#e795ae','#f0ac7e','#e7d07e','#b9d683','#8fc99c','#82c6be','#8aafe2','#ab92dc'];
 
 const COPY_SVG ='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
-const GRIP_SVG = '<svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="3" r="1.5"/><circle cx="10" cy="3" r="1.5"/><circle cx="6" cy="8" r="1.5"/><circle cx="10" cy="8" r="1.5"/><circle cx="6" cy="13" r="1.5"/><circle cx="10" cy="13" r="1.5"/></svg>';
 
 // Map any stored color to the nearest pastel in CD by hue (non-destructive —
 // mirrors index.html's _pastelize so Vault matches Keychain/Links exactly).
@@ -355,8 +353,8 @@ function buildCard(conn, ci) {
   const card = document.createElement("div");
   card.className = "card";
   card.style.setProperty("--card-accent", color);
-  // The drag module reads/rewrites this — it is the ORIGINAL index into
-  // `connections`, which is what a reorder write has to be expressed in.
+  // The ORIGINAL index into `connections`, which is what a reorder write has
+  // to be expressed in (onCardDrop reads it).
   card.dataset.ci = String(ci);
 
   const linkRows = links.map(l => `
@@ -376,7 +374,6 @@ function buildCard(conn, ci) {
   card.innerHTML = `
     <div class="card-top">
       <div class="card-headline">
-        <span class="grip" data-role="card-grip" title="Drag to reorder">${GRIP_SVG}</span>
         <div class="card-name">${esc(conn.name || "Untitled")}</div>
       </div>
       ${openGroupBtn}
@@ -444,13 +441,15 @@ function renderList() {
       openUrls(links.map(l => l.url), { name: conn.name || "Group", color });
     }));
 
-  // The grips are recreated on every render, so the drag module has to rebind.
-  if (dragCtl) dragCtl.rebind();
-  else dragCtl = VaultCardDrag.enable(groupsEl, {
-    scroller: scrollEl,
-    isEnabled: () => reorderMode,
-    onDrop: persistOrder
-  });
+  // MAGI's drag (dragsort.js), the same as the Vault app's cards: every column
+  // is a list and the columns share a group. With Reorder on, a mouse takes a
+  // card anywhere that is not a button and a finger after a 300ms hold; there
+  // are no grips. The columns are rebuilt every render, so they are wired anew.
+  groupsEl.querySelectorAll(".col").forEach(col => A1Drag.sort(col, {
+    row: ".card", group: "pop-cards", hold: 300,
+    canDrag: () => reorderMode,
+    onDrop: onCardDrop
+  }));
 }
 
 
@@ -459,6 +458,7 @@ function renderList() {
 // offset is captured around the rebuild and put back — clamped, in case the new
 // list is shorter than the old one.
 function render() {
+  if (A1Drag.active) { A1Drag.later(render); return; }
   const top = scrollEl ? scrollEl.scrollTop : 0;
   renderList();
   if (scrollEl && top) {
@@ -484,6 +484,19 @@ toggleEl.addEventListener("keydown", (e) => {
 // covers the cards that are rendered — groups with no links are filtered out of
 // the view. Those hidden entries must survive the write, so they are appended in
 // their existing relative order rather than dropped.
+// A drop, as the reading order of the shown cards (original indexes into
+// `connections`) and the column each one now sits in.
+function onCardDrop(from, to, fromList, toList) {
+  const lists = [...groupsEl.querySelectorAll(".col")];
+  const cols = lists.map(col => [...col.children].filter(n => n.classList.contains("card")).map(n => +n.dataset.ci));
+  const fc = lists.indexOf(fromList), tc = lists.indexOf(toList);
+  if (fc < 0 || tc < 0) return;
+  cols[tc].splice(to, 0, cols[fc].splice(from, 1)[0]);
+  const order = [], map = [];
+  cols.forEach((col, c) => col.forEach(ci => { map[order.length] = c; order.push(ci); }));
+  persistOrder({ order, colmap: map });
+}
+
 function persistOrder(result) {
   if (!result || !Array.isArray(result.order)) { render(); return; }
 
@@ -617,7 +630,7 @@ function stableJson(v) {
 // the DOM and a rail drag is measuring it, so a poll must not rebuild under
 // either — the next one, five seconds later, will pick the change up.
 function interacting() {
-  return !!document.querySelector(".card-fly") || /resizing-/.test(document.body.className);
+  return A1Drag.active || /resizing-/.test(document.body.className);
 }
 
 function applyRemote(doc) {

@@ -250,8 +250,8 @@
       '.vcl-empty{padding:44px 20px;text-align:center;color:var(--txm);font:400 13px/1.6 var(--sans);}',
       '.vcl-empty .big{font:600 15px/1.4 var(--display);color:var(--txd);margin-bottom:6px;}',
       '.vcl-err{border:1px solid rgba(214,138,124,.34);background:rgba(214,138,124,.07);color:var(--err);border-radius:var(--radius);padding:11px 14px;font:400 12px/1.5 var(--sans);margin:10px 0;}',
-      '.vcl-skel{height:56px;border-bottom:1px solid var(--bd);background:linear-gradient(90deg,var(--s1) 25%,var(--s2) 50%,var(--s1) 75%);background-size:200% 100%;animation:vclsk 1.15s infinite;}',
-      '@keyframes vclsk{0%{background-position:200% 0}100%{background-position:-200% 0}}',
+      '.vcl-skel{height:56px;border-bottom:1px solid var(--bd);background:var(--s1);animation:vclsk .9s ease-in-out infinite alternate;}',
+      '@keyframes vclsk{from{opacity:.55}to{opacity:1}}',
       '@media(prefers-reduced-motion:reduce){.vcl-skel{animation:none;}.vcl-fill{transition:none;}}',
 
       /* section heads */
@@ -361,7 +361,7 @@
       '@keyframes vclin{from{opacity:0;transform:translate(-50%,8px)}to{opacity:1;transform:translate(-50%,0)}}',
 
       /* AI answer */
-      '.vcl-aians{border:1px solid var(--acl);border-radius:var(--radius);background:rgba(224,184,116,.06);padding:12px 14px;margin:10px 0;font:400 12.5px/1.6 var(--sans);color:var(--txd);display:flex;gap:9px;}',
+      '.vcl-aians{border:1px solid var(--acl);border-radius:var(--radius);background:var(--s1);padding:12px 14px;margin:10px 0;font:400 12.5px/1.6 var(--sans);color:var(--txd);display:flex;gap:9px;}',
       '.vcl-aians svg{font-size:15px;color:var(--ac);flex:0 0 auto;margin-top:1px;}',
 
       /* phone tuning */

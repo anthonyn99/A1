@@ -348,9 +348,9 @@ than reinventing:
   documents a real bug from getting this wrong: a `max-width:420px` rule matched
   the 352px desktop popup and hid its own resize grip, with no way to get it
   back. Touch targets ≥34px under `@media (pointer:coarse)`.
-- **Tab bar and header actions are drag-reorderable** (`vault-drag.js`: mouse
-  arms after 5px, touch on a 320ms long-press, edge auto-scroll), with order
-  synced through the cloud settings doc.
+- **Tab bar and header actions are drag-reorderable** (the A1 root's
+  `dragsort.js` since 2026-10-02: mouse after 4px, touch on a 300ms hold, edge
+  auto-scroll), with order synced through the cloud settings doc.
 - **Pull-to-refresh** — `bindPullToRefresh` in `vault-ui.js`.
 - Extension popup: `<html>` is the sized element; nothing may be locked to the
   viewport or the popup can never shrink (see the long note in

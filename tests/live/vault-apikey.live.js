@@ -286,7 +286,7 @@ const panelHtml = `document.getElementById('vault-apikeys-panel').innerHTML`;
     const x = src.x + (dst.x - 30 - src.x) * k / 24;
     await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y: src.y, button: 'left', buttons: 1 });
     await sleep(20);
-    const r = await evalJs(c, `const e = document.querySelector('.vault-tab.vdrag'); if (!e) return null; const r = e.getBoundingClientRect(); return r.left + r.width / 2`);
+    const r = await evalJs(c, `const e = document.querySelector('.vault-tab.dsort-drag'); if (!e) return null; const r = e.getBoundingClientRect(); return r.left + r.width / 2`);
     if (r != null) drift.push(Math.abs(r - x));
   }
   await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: dst.x - 30, y: src.y, button: 'left', clickCount: 1 });
@@ -416,12 +416,12 @@ const panelHtml = `document.getElementById('vault-apikeys-panel').innerHTML`;
   await sleep(150);
   const lp = await evalJs(c, `const r = document.querySelector('.vault-tab').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }`);
   await touch('touchStart', lp.x, lp.y); await sleep(350);
-  ok(await evalJs(c, `!!document.querySelector('.vault-tab.vdrag')`), 'long-press arms the drag');
+  ok(await evalJs(c, `!!document.querySelector('.vault-tab.dsort-drag')`), 'long-press arms the drag');
   const tdrift = [];
   for (let k = 1; k <= 20; k++) {
     const x = lp.x + k * 9;
     await touch('touchMove', x, lp.y); await sleep(20);
-    const r = await evalJs(c, `const e = document.querySelector('.vault-tab.vdrag'); if (!e) return null; const r = e.getBoundingClientRect(); return r.left + r.width / 2`);
+    const r = await evalJs(c, `const e = document.querySelector('.vault-tab.dsort-drag'); if (!e) return null; const r = e.getBoundingClientRect(); return r.left + r.width / 2`);
     tdrift.push(r == null ? 999 : Math.abs(r - x));
   }
   await touch('touchEnd'); await sleep(400);

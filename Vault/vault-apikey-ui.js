@@ -63,9 +63,8 @@
         : emptyHero(host));
       return;
     }
-    var searching = !!host.query();
-    items.forEach(function (it) { list.appendChild(keyRow(it, host, searching)); });
-    if (!searching && items.length > 1) {
+    items.forEach(function (it) { list.appendChild(keyRow(it, host)); });
+    if (items.length > 1) {
       host.makeReorderable(list, function (orderedIds) { commitOrder(host, orderedIds); });
     }
   }
@@ -100,7 +99,7 @@
   }
 
   // ── one key ────────────────────────────────────────────────────────────────
-  function keyRow(it, host, searching) {
+  function keyRow(it, host) {
     var el = host.el;
     var s = AK.summarize(it);
     var consoleHref = AK.safeHref(it.consoleUrl) || (s.provider && s.provider.console) || '';
@@ -123,7 +122,6 @@
     if (quickCopy) quickCopy.classList.add('vak-quick');
 
     var head = el('div', { class: 'vault-row vak-head' }, [
-      host.dragHandle(s.title, searching, function () { host.toast('Clear the search to reorder keys'); }),
       el('span', { class: 'vak-mark', html: AK.providerMark(s.provider) }),
       el('div', { class: 'vault-row-main' }, [
         el('div', { class: 'vault-row-title' }, [s.title]),
@@ -502,7 +500,7 @@
       '.vak-secret{color:var(--txd)}',
       // A revealed key wraps instead of truncating — you're reading it to type
       // or verify it, so every character must be on screen.
-      '.vak-secret.shown{color:var(--acs,#e0b874);white-space:normal;word-break:break-all;user-select:all}',
+      '.vak-secret.shown{color:var(--acs,#c0aeea);white-space:normal;word-break:break-all;user-select:all}',
       '.vak-notes .vault-note-text{margin-top:6px}',
       '.vak-hist-wrap{display:flex;flex-direction:column;gap:8px}',
       '.vak-hist-toggle{align-self:flex-start;padding:2px 0}',
@@ -523,7 +521,7 @@
       '.vak-warn{color:#e0b874;font-size:11.5px;min-height:14px;margin:-4px 0 4px;line-height:1.5}',
       '.vak-notes-input{min-height:96px}',
       '.vak-sec{font-size:11px;font-weight:800;color:var(--txm);text-transform:uppercase;letter-spacing:.6px;margin:16px 0 10px;padding-top:12px;border-top:1px solid var(--bd)}',
-      '.vault-cf-row .vault-icon.vault-on{color:var(--acs,#e0b874);border-color:var(--ac)}',
+      '.vault-cf-row .vault-icon.vault-on{color:var(--acs,#c0aeea);border-color:var(--ac)}',
       // ── responsive ──
       '@media (max-width:900px){',
       '  .vak-chips .vak-env{display:none}',             // environment also reads in the subtitle
