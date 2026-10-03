@@ -884,9 +884,12 @@
   // Objects are content-addressed, so each distinct version is decrypted once
   // and snapshots refer to it by id. Read-only: backup-export.html calls this
   // so a restore needs no passphrase typed — only a browser that still holds it.
-  async function exportDocs(re) {
+  // `since` (ms epoch) skips older snapshots: weeks of TaskHub versions overflow
+  // a single JSON string ("Invalid string length").
+  async function exportDocs(re, since) {
     re = re || /^dashboards\/(main|vedasdash)(_archive_\d+)?$/;
     var snaps = await listSnapshots(), out = { device: deviceSlug(), snapshots: [], objects: {} };
+    if (since) snaps = snaps.filter(function (at) { return at >= since; });
     for (var i = 0; i < snaps.length; i++) {
       var man = await vGet('snapshots', String(snaps[i]));
       if (!man) continue;

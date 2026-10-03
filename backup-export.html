@@ -28,11 +28,20 @@
   try {
     if (!window.A1Backup) return say('Backup code did not load. Reload this page.', 'bad');
     if (!A1Backup.isSetUp()) return say('Backups are not switched on in this browser, so there is nothing to export here. Try another browser or device.', 'bad');
-    var out = await A1Backup.exportDocs();
+    // ?hours=N (default 36) — older history is skipped so the file stays small.
+    var hours = Number(new URLSearchParams(location.search).get('hours')) || 36;
+    var out = await A1Backup.exportDocs(null, Date.now() - hours * 3600000);
     out.exportedAt = Date.now();
-    if (!out.snapshots.length) return say('Backups are on here, but no snapshots are stored in this browser.', 'bad');
+    if (!out.snapshots.length) return say('Backups are on here, but none from the last ' + hours + ' hours.', 'bad');
+    // Built in parts so no single string has to hold the whole export.
+    var parts = ['{"device":', JSON.stringify(out.device), ',"exportedAt":', String(out.exportedAt),
+                 ',"snapshots":', JSON.stringify(out.snapshots), ',"objects":{'];
+    Object.keys(out.objects).forEach(function (h, i) {
+      parts.push((i ? ',' : '') + JSON.stringify(h) + ':', JSON.stringify(out.objects[h]));
+    });
+    parts.push('}}');
     var a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([JSON.stringify(out)], { type: 'application/json' }));
+    a.href = URL.createObjectURL(new Blob(parts, { type: 'application/json' }));
     a.download = 'taskhub-restore-' + out.device + '-' + out.exportedAt + '.json';
     document.body.appendChild(a); a.click();
     var first = new Date(out.snapshots[out.snapshots.length - 1].at), last = new Date(out.snapshots[0].at);
