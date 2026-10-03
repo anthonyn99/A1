@@ -225,6 +225,34 @@ section('request');
     t('a later success clears the error', W._vdBridgeErr === '' && W._vdBridgeUp === true);
   }
 
+  {
+    // Her report: the sites opened AFTER the assistant tab and buried it. With
+    // the bridge up, the page opens NO tab; the bridge opens the assistant last.
+    const order = [];
+    const { W } = sandbox({ fetch: recFetch(order) });
+    W.open = (u) => { order.push('open:' + u); return null; };
+    W._vdBridgeUp = true;
+    const item = { id: 'a1', title: 'FAFSA', aiPrep: true };
+    W._vdPrepKits.a1 = { sig: W._vdPrepSig(item, '2026-10-04'), prompt: 'THE PROMPT', sites: [{ label: 'S', url: 'https://studentaid.gov/' }], apps: ['w1'] };
+    W._vdPrepLaunch(item, '2026-10-04');
+    await new Promise(r => setTimeout(r, 0));
+    const body = order[0] && order[0].startsWith('fetch:POST') ? JSON.parse(order[0].slice(order[0].indexOf('{'))) : null;
+    t('bridge up: the page opens no tab of its own', !order.some(o => o.startsWith('open:')), JSON.stringify(order));
+    t('and hands the assistant to the bridge as focus (opened last)',
+      body && body.focus === 'https://www.perplexity.ai/search?q=THE%20PROMPT' && body.urls[0] === 'https://studentaid.gov/' && body.apps[0] === 'w1', JSON.stringify(body));
+  }
+  {
+    const order = [];
+    const { W } = sandbox({ fetch: recFetch(order) });
+    W.open = (u) => { order.push('open:' + u); return null; };
+    W._vdBridgeUp = true;
+    const item = { id: 'a1', title: 'gym', aiPrep: true };
+    W._vdPrepKits.a1 = { sig: W._vdPrepSig(item, '2026-10-04'), prompt: 'P', sites: [], apps: [] };
+    W._vdPrepLaunch(item, '2026-10-04');
+    await new Promise(r => setTimeout(r, 0));
+    t('bridge up but nothing else to open: the page just opens the assistant', order.length === 1 && order[0].startsWith('open:'), JSON.stringify(order));
+  }
+
   section('bridge probe → veda_pc_apps');
   {
     const order = [];

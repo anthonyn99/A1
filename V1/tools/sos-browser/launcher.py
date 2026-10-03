@@ -6,7 +6,15 @@ and it may open only ONE new tab per click, so the kit's apps and sites are
 handed to this bridge, which already runs on her PC from logon.
 
   GET  /api/apps     -> { ok, apps:[{id, name}] }   every Start Menu / Desktop app
-  POST /api/launch   { apps:[id], urls:[url] } -> { ok, opened, unknown }
+  POST /api/launch   { apps:[id], urls:[url], focus?:url } -> { ok, opened, unknown }
+
+── ORDER: THE AI TAB ENDS UP IN FRONT ────────────────────────────────────────
+Apps open first, then the sites, then `focus` (the AI assistant, prompt typed
+in) LAST. A browser makes the newest tab the active one, so the assistant is
+the tab she lands on with the sites waiting beside it. That is why the page
+hands the assistant URL to this bridge instead of opening it itself whenever
+the bridge is reachable: a tab the page opened first would end up buried
+behind the sites opened after it.
 
 ── WHAT A REQUEST MAY NAME ───────────────────────────────────────────────────
 Never a path, never a command. Apps are named by an opaque id that only this
@@ -191,11 +199,57 @@ def is_web_url(u) -> bool:
     return p.scheme in ("http", "https") and bool(p.hostname)
 
 
+FOCUS_URL_MAX = 16000                      # the assistant URL carries the whole prompt
+
+
+def browser_command() -> str | None:
+    """The default browser's open command, e.g.
+    '"C:\\...\\brave.exe" --single-argument %1'.
+
+    URLs go through this rather than os.startfile because ShellExecute is not
+    safe with long URLs (the ~2083-char INTERNET_MAX_URL_LENGTH), and the
+    assistant URL carries a prompt of up to 6000 characters, percent-encoded.
+    A process command line allows 32767.
+    """
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                            r"Software\Microsoft\Windows\Shell\Associations\UrlAssociations\https\UserChoice") as k:
+            prog = winreg.QueryValueEx(k, "ProgId")[0]
+        with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, prog + r"\shell\open\command") as k:
+            cmd = winreg.QueryValueEx(k, "")[0]
+        return cmd if "%1" in cmd else None
+    except OSError:
+        return None
+
+
+def _open_url(url: str) -> None:
+    cmd = browser_command()
+    # The URL is percent-encoded http(s) (is_web_url checked it), so it holds no
+    # quote or space that could break out of the template's argument.
+    if cmd and '"' not in url and " " not in url:
+        subprocess.Popen(cmd.replace("%1", url),
+                         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    else:
+        os.startfile(url)                  # noqa: S606
+
+
+def is_web_url_long(u) -> bool:
+    """is_web_url for the assistant URL, which may be longer than 4000 chars."""
+    if not isinstance(u, str) or len(u) > FOCUS_URL_MAX:
+        return False
+    p = urlparse(u.strip())
+    return p.scheme in ("http", "https") and bool(p.hostname)
+
+
 def _start(target: str) -> None:          # indirection so tests never open anything
-    os.startfile(target)                   # noqa: S606 — a scanned .lnk / shell:AppsFolder id, or an http(s) url
+    if is_web_url(target):
+        _open_url(target)
+    else:
+        os.startfile(target)               # noqa: S606 — a scanned .lnk / shell:AppsFolder id
 
 
-def launch(app_ids, urls, *, starter=None, table=None) -> dict:
+def launch(app_ids, urls, *, focus=None, starter=None, table=None) -> dict:
     starter = starter or _start
     table = table if table is not None else apps()
     ids = [str(i) for i in (app_ids or []) if isinstance(i, str)][:MAX_APPS]
@@ -204,14 +258,10 @@ def launch(app_ids, urls, *, starter=None, table=None) -> dict:
     if table is not None and any(i not in table for i in ids) and table is _cache.get("apps"):
         table = apps(force=True)
     good_urls = [u.strip() for u in (urls or []) if is_web_url(u)][:MAX_URLS]
+    focus_url = focus.strip() if is_web_url_long(focus) else None
     opened, unknown, failed = [], [], []
-    for u in good_urls:
-        try:
-            starter(u)
-            opened.append(u)
-        except OSError:
-            failed.append(u)
-        time.sleep(LAUNCH_GAP_S)
+    # Apps first: their windows take a moment to appear, and the browser should
+    # be what is in front at the end.
     for i in ids:
         a = table.get(i)
         if not a:
@@ -223,4 +273,20 @@ def launch(app_ids, urls, *, starter=None, table=None) -> dict:
         except OSError:
             failed.append(a["name"])
         time.sleep(LAUNCH_GAP_S)
+    for u in good_urls:
+        try:
+            starter(u)
+            opened.append(u)
+        except OSError:
+            failed.append(u)
+        time.sleep(LAUNCH_GAP_S)
+    # The assistant LAST, so it is the active tab (see the module docstring).
+    if focus_url:
+        if good_urls:
+            time.sleep(LAUNCH_GAP_S * 2)
+        try:
+            starter(focus_url)
+            opened.append("focus")
+        except OSError:
+            failed.append("focus")
     return {"ok": True, "opened": opened, "unknown": unknown, "failed": failed}

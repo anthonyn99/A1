@@ -15793,7 +15793,7 @@ function VdPrepPanel({item,dateKey,onClose}){
         RC("div",{style:{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}},
           RC("span",{style:{fontSize:12,fontWeight:700,color:TX,flex:1,minWidth:160}},
             window._vdBridgeUp?"Sites and apps open on your PC when you press \u2726."
-            :window._vdBridgeErr==="down"?"The StudyOS helper isn\u2019t answering on this PC, so only the AI site opened."
+            :window._vdBridgeErr==="down"?"The StudyOS helper isn\u2019t answering on this PC, so the sites and apps didn\u2019t open."
             :window._vdBridgeErr?"Your browser stopped TaskHub from opening the sites and apps on this PC."
             :"Checking the StudyOS helper on this PC\u2026"),
           RC("button",{type:"button",style:btn(true),onClick:()=>window._vdPrepOpenLocal(kit.apps||[],(kit.sites||[]).map(x=>x.url))},"Open sites & apps")),
@@ -43410,9 +43410,11 @@ window._sosResUseBrowser = function(on){
     });
   };
 
-  window._vdPrepOpenLocal = function(appIds, urls){
+  // focus (optional): the assistant URL, which the bridge opens LAST so it is
+  // the active tab once everything else has opened (see launcher.py).
+  window._vdPrepOpenLocal = function(appIds, urls, focus){
     if (!onWindows()) return Promise.resolve(null);
-    var body = JSON.stringify({ apps: appIds || [], urls: urls || [] });
+    var body = JSON.stringify(Object.assign({ apps: appIds || [], urls: urls || [] }, focus ? { focus: focus } : {}));
     return bridgeFetch('/api/launch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body }, 8000)
       .then(function(j){
         window._vdBridgeUp = !!(j && j.ok);
@@ -43510,18 +43512,29 @@ window._sosResUseBrowser = function(on){
     next(0);
   };
 
-  // The ✨ click. The assistant tab is the one new tab the click allows, so it
-  // opens first and synchronously; the kit's apps and sites then go to the
-  // bridge, which is a fetch and needs no gesture.
+  // The ✦ click. The assistant must END UP as the active tab, with the kit's
+  // sites beside it. A browser activates the newest tab, so whoever opens
+  // things must open the assistant LAST:
+  //  - bridge reachable (her PC): the bridge opens apps, then sites, then the
+  //    assistant. The page opens no tab itself; one it opened first would end
+  //    up buried behind the sites opened after it (her report, 2026-10-03).
+  //  - otherwise (phone, bridge down or blocked): the page opens the assistant
+  //    in the one tab the click allows, and the panel's links do the rest.
+  // If the bridge was believed up but the call fails, the gesture is gone and
+  // nothing opened; the panel says so and its "Open in …" button opens it.
   window._vdPrepLaunch = function(item, dateKey){
     var got = window._vdPrepKitFor(item, dateKey);
     var kit = got && got.kit;
     var site = window._vdPrepSite(item);
     // A stale kit was built for an older title or note, so its prompt is wrong now.
     var prompt = (kit && got.fresh && kit.prompt) || window._vdPrepFallbackPrompt(item, dateKey);
-    try { window.open(window._vdPrepAssistantUrl(site, prompt), '_blank', 'noopener'); } catch(e){}
-    if (kit && got.fresh && ((kit.sites && kit.sites.length) || (kit.apps && kit.apps.length))) {
-      window._vdPrepOpenLocal(kit.apps || [], (kit.sites || []).map(function(x){ return x.url; }));
+    var aiUrl = window._vdPrepAssistantUrl(site, prompt);
+    var extras = !!(kit && got.fresh && ((kit.sites && kit.sites.length) || (kit.apps && kit.apps.length)));
+    if (extras && window._vdBridgeUp && onWindows()) {
+      window._vdPrepOpenLocal(kit.apps || [], (kit.sites || []).map(function(x){ return x.url; }), aiUrl);
+    } else {
+      try { window.open(aiUrl, '_blank', 'noopener'); } catch(e){}
+      if (extras) window._vdPrepOpenLocal(kit.apps || [], (kit.sites || []).map(function(x){ return x.url; }));
     }
     if (!got || !got.fresh) window._vdPrepRequest(item, dateKey);
     window.dispatchEvent(new CustomEvent('vd-prep-open', { detail: { id: item.id, dateKey: dateKey } }));

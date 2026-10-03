@@ -977,9 +977,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send({"ok": False, "error": "origin not allowed"}, 403)
             if not isinstance(body, dict):
                 return self._send({"ok": False, "error": "bad body"}, 400)
-            res = launcher.launch(body.get("apps"), body.get("urls"))
+            res = launcher.launch(body.get("apps"), body.get("urls"), focus=body.get("focus"))
             launcher.log("launch", self.headers.get("Origin"),
-                         {"asked": {"apps": body.get("apps"), "urls": body.get("urls")}, **res})
+                         {"asked": {"apps": body.get("apps"), "urls": body.get("urls"),
+                                    "focus": (str(body.get("focus"))[:80] if body.get("focus") else None)}, **res})
             return self._send(res)
 
         if p == "/api/ai/jobs/adopt":
