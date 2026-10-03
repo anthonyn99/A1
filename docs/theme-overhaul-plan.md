@@ -8,82 +8,95 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-10-02, at the end of **Phase 4** (TradeHub: theme,
-drags, resize grips). Done, tested, pushed.
+**Last updated:** 2026-10-02, at the end of **Phase 5** (MyList, Tony's
+profile: theme, drags, resize grips). Done, tested, pushed.
 **Tags:** phase 1 `theme-p1-start` → `theme-p1-end`; phase 1b
 `theme-p1b-start` → `theme-p1b-end`; phase 2 `theme-p2-start` →
 `theme-p2-end`; phase 3 `theme-p3-start` → `theme-p3-end`; phase 4
-`theme-p4-start` → `theme-p4-end`.
-**Next phase:** **Phase 5: MyList, Tony's profile only** (theme + its drags
-+ its resize handles, no gradient fills; see §3, §4 "Phases 3–10"). MyList
-is SHARED with Veda: gate everything on her profile and pixel-diff her
-views. Start it only when Tony says "continue theme" / "next theme phase".
+`theme-p4-start` → `theme-p4-end`; phase 5 `theme-p5-start` →
+`theme-p5-end`.
+**Next phase:** **Phase 6: Insight** (Tony-only; theme + its drags + its
+resize handles, no gradient fills; see §3, §4 "Phases 3–10"). Start it only
+when Tony says "continue theme" / "next theme phase".
 
-**Phase 4, what shipped:**
-- **TradeHub is MAGI.** `TB_STYLES` `#tradeboard-root` carries MAGI's
-  tokens: `--ac` `#c0aeea`, `--acs` (accent text), `--acd` `#9a86c9`,
-  `--acp` `#dbd0f5` (panel titles), `--acl` (an accent LINE, borders only),
-  `--s3` `#34343a`, plus `--gold` (real gold) and `--blue`, and the
-  `--ds-ac`/`--ds-s2` tint for dragsort/resizegrip. `--acg` (a gold wash)
-  and the `:root` `--gold-*`/`--red-glow` tokens are gone.
-  - Fraunces and the DM Sans / DM Mono / Bebas link are gone;
-    `--font-accent` is Inter. Lora stays: it is a Playbook font choice.
-  - `.tb-btn-primary/-ghost/-danger` are MAGI's `.btn` (10px, 700,
-    uppercase, 1px; `font-size` is `!important` because ~25 call sites pass
-    an old inline `fontSize`). bdl outline, accent on hover, no glow, no CSS
-    press (hoverfx does it). `.tb-x-close` has no wash or halo.
-  - `.tb-section-label` is a MAGI panel title. Fields get the accent border
-    + 3px ring at 16%; buttons a 2px accent focus outline.
-  - Selected = solid: the AI-destination and MAGI-unit chips, the prompt
-    chips, the Playbook toolbar's active tool (solid purple, dark label);
-    the Playbook page list's active item is s2 with a 2px accent left edge;
-    selected Journal rows are s2 (was a gold wash). Every `#fff`/`#000`
-    label on a purple fill is `var(--bg)`.
-  - Gold stays only where it means something: the ★ favourite in the
-    prompt picker and the Playbook storage warning. The Playbook's text and
-    highlight colour palettes and `mark` are content, so unchanged.
-  - The News bear→bull tone track was a gradient; it is solid `--s3`.
-  - Category / importance colours (`TB_CAT_COLORS`, `TB_IMP`, the status
-    badges) are NOT themed, per the phase-1 rule.
-  - The whole-app lock (CSS + its JS button styles) and `uiModal` are
-    purple: no radial gradient, no glows, primary = solid purple; the modal
-    is MAGI's dialog (`rgba(0,0,0,.62)` + 2px blur, s1 box, hairline,
-    radius 8).
-  - Wordmark `#dbd0f5`. `<body data-hoverfx="magi">`.
-- **Drag (`dragsort.js`, now loaded in TradeHub's `<head>` with
-  `resizegrip.js`):**
-  - The page tabs (`TBNavBar`, desktop and phone) run on `A1Drag.sort`
-    (`row:'.tb-navtab', axis:'x', hold:300`). A drop hands the new id order
-    to `onReorderNav` (localStorage `tb_nav_order_v1` + Firebase), as before.
-    The hand-rolled pointer code (`liveIds`, `draggingRef`, `justDraggedRef`
-    …) is deleted.
-  - The Prompts tab's chips run on `A1Drag.sort` (`row:'.tb-pchip',
-    axis:'grid', hold:300`); a drop is a splice + `onSave`, the selection
-    follows its chip. The old `dragState`/`overIdx` code is deleted.
-  - React pattern used: `A1Drag.sort` re-wired in an effect every render
-    (same listeners, new options) with the live values in a ref; React never
-    owns `transform` on those rows.
-- **Resize (`resizegrip.js`):** three boxes have MAGI's corner grip:
-  - the Prompts tab preview (`a1.h.th.prompt`, was a hand-rolled ns-resize
-    corner),
-  - Analysis → Quick Prompt (`a1.h.th.quick`, was its own pointer grip; the
-    old `tb_quick_prompt_h` key is a NEW dry-run item in
-    `cleanup-rules.json`, `tradehub-quick-height`),
-  - the trade modal's Notes (`a1.h.th.trade-notes`, was native
-    `resize:vertical`), via a new `TBGripBox` wrapper component.
-  - **Gotcha:** a gripped box's default height must be a CSS class
-    (`.tb-prompt-render`, `.tb-quick-box`, `.tb-notes-box` in TB_STYLES),
-    never an inline React style: handing the box back to auto clears its
-    inline height/min/max.
-- **Tests:** `tests/live/tradehub-drag.live.js` (49 checks: theme, desktop tab
-  drag + saved order + swallowed drop click + reload, phone hold vs swipe,
-  prompt chips by mouse and by held finger, all three grips: drag, store,
-  reload, click toggles). Firebase stays blocked; prompts are seeded in
-  `tradeboard_prompts_v2`. `--shots <label>` takes every tab, the confirm
-  dialog and phone shots. Against `theme-p4-start` it fails from the first
-  theme check. TradeHub is Tony-only, so there is no Veda diff.
-- **Left for later:** status badges (OPEN/CLOSED/manual) still use their
-  translucent tinted backgrounds; they are status colours, not controls.
+**Phase 5, what shipped:**
+- **MyList is MAGI on Tony's profile; Veda's is pixel-identical** (11 views:
+  lists, manual, edit, select, picker, confirm, lock, events, price watch,
+  uiModal, phone). Every Tony rule is behind `body:not([data-profile=veda])`.
+  - Tokens (`body{}`): `--accent` `#c0aeea`, `--acl` `#dbd0f5` (wordmark,
+    panel titles), `--gold` (only the busy sync dot), `--hair`, plus the
+    `--ds-ac`/`--ds-s2` tint. `--accent-pale` is `txm` (field labels).
+    `--font-accent` is Inter for Tony; Fraunces stays LOADED because Veda's
+    item descriptions use it.
+  - The old "Insight component language" block (outline-only, gold glows)
+    is now MAGI's: `.btn` 10px/700/uppercase/1px, radius 6, bdl border →
+    accent on hover, no glow, no CSS press (hoverfx does it); `.btn.solid` is
+    a SOLID purple fill with a dark label. Fields: accent border + 3px ring at
+    16%. Labels 9px/700/txm.
+  - Selected = solid: the current view tab, the active list tab and Manual-on
+    are solid purple with a dark label; the mic and Go are solid with no
+    halo. A PICKED row (selected item, chosen list type, chosen mic) is s2
+    with an accent outline. Store chips are outlined, radius 4.
+  - "MAGI shapes" block at the end of the main `<style>`: panel titles
+    (group headers, ITEMS, section labels, event years, Manual's
+    sub-titles: Manrope 800, uppercase, 1.8px, `acl`), radii 8/6/4, cards on
+    a hairline, numbers in IBM Plex Mono, dialogs `rgba(0,0,0,.62)` + 2px
+    blur on an s1 box (confirm, type picker, mic picker, extension modal,
+    event modal, lock), no halos in the lock menu, the best-price row and
+    price-drop banner solid.
+  - The Events view's own lighter/deeper golds are gone (dates, rail dots,
+    "+ New event" are purple).
+  - The chooser's Tony card is purple. `body[data-hoverfx="magi"]` is set in
+    `enterProfile` for Tony only (removed for Veda and on the chooser).
+    `theme-color` is `#1a1a1d` for Tony.
+  - uiModal (shared): for Tony the OK is solid purple with a dark label
+    (danger = pastel red), MAGI's dialog and field ring; Veda's values are
+    unchanged (`tony()` check at render time).
+- **Drag (`dragsort.js`, loaded in `<head>` with `resizegrip.js`):** Tony's
+  view tabs, list tabs and items run on `A1Drag`; Veda keeps MyList's own
+  engine (`enableDrag` …, now commented as hers, and it ignores presses while
+  Tony is the profile).
+  - Items: for Tony each store group renders as its own `.ml-grp`
+    (header + rows) sharing `group:'ml-items'`, so a row moves between groups;
+    every row leads with a real grip (`mlGripHtml`). Mouse: anywhere on the
+    row. Touch: the grip only (a finger on the row scrolls). ↑/↓ on a focused
+    grip moves one place, crossing into the next/previous group at the ends
+    (`mlItemKey`), and refocuses. Off in select mode and while editing.
+  - Tabs: `mlTabsDrag(bar, row, kind)`: `axis:'x'`, `hold:300`.
+  - Every drop goes through the existing `applyDrop(kind, id, {store,
+    beforeId})`, so both profiles save through the same data code.
+  - `render()` defers itself with `A1Drag.later` while a row is lifted (a
+    remote update mid-drag waits for the drop).
+- **`dragsort.js` gained** (all programs): a list that is ITSELF the
+  scroller (MyList's tab strip) auto-scrolls and is measured in content
+  coordinates; a drop into an EMPTY list lands under what it already holds
+  (a group's header); disconnected lists leave a `group` when a new one
+  registers. The other programs' live tests all still pass.
+- **Resize (`resizegrip.js`):** MAGI's corner grip on Tony's Details boxes:
+  add item + edit item share `a1.h.ml.details`; the event box is
+  `a1.h.ml.event` (`mlTonyGrip`, `mlTonyGrips`, `mlEventGrip`). `autoGrow`
+  leaves a hand-sized box (`data-user-h`) alone. Veda keeps the old
+  ns-resize grip (`GRIP_OLD`, `gripOld()`); the static event box carries both
+  and CSS shows each profile its own.
+- **Tests:** `tests/live/mylist-theme.live.js` (55 checks: theme, item drag by
+  mouse incl. cross-group and into an emptied group, swallowed click, ↑/↓,
+  Escape, remote update mid-drag, select mode; tab + view-tab drags and
+  saved orders; the grip's click/drag/store/no-auto-grow/shared height and
+  the event grip; phone: row vs grip, quick swipe vs hold, tab strip
+  auto-scroll; Veda: no A1Drag, her drag, her grip, her gold uiModal).
+  `--shots <label>` takes both profiles' views + the chooser. It turns on
+  `Emulation.setFocusEmulationEnabled` so `:focus` matches headless. Against
+  `theme-p5-start` it fails. `tests/live/mylist-lists.live.js` now asserts
+  `.dsort-drag`/`.dsort-on` and a touch drag by the grip (51 checks).
+- **Also this session (Tony's asks, TradeHub, commit `bd7bb7b`):** a lifted
+  row's label is forced light in `dragsort.js` (a selected prompt chip went
+  black mid-drag); "Deploy Trading Auto Launch" swaps its hover fill
+  instantly (an inline `!important` `transition-property` outranks
+  hoverfx's, which faded the purple out and flashed); the app lock's "Set
+  Password" lost an old inline `background:transparent` that hid its solid
+  purple behind the dark label.
+- **Left for later:** the chooser's shared `.pw-sub` names Nunito, which is
+  never loaded (falls back to sans-serif on both profiles; not touched).
 
 **Start-of-session checklist**
 1. `git pull`, then `git tag theme-pN-start && git push origin theme-pN-start`.
@@ -391,8 +404,8 @@ wrap-up phase.
 | 2 | **Index B: MyJournal** (theme + its drags + resize handles) | **done 2026-10-02** |
 | 3 | **OneInbox** (theme + drags + resize; also LifeHub colours, RiftIQ icon) | **done 2026-10-02** |
 | 4 | **TradeHub** (theme + drags + resize grips) | **done 2026-10-02** |
-| 5 | MyList, Tony profile only (theme + drags) | **next** |
-| 6 | Insight (theme + drags) | |
+| 5 | **MyList, Tony profile only (theme + drags + resize grips)** | **done 2026-10-02** |
+| 6 | Insight (theme + drags) | **next** |
 | 7 | Vault (Keychain) + **Vault extension** (theme + drags) | |
 | 8 | Solace (theme + drags) | |
 | 9 | Shield + Shield (HTML) (theme + drags) | |
@@ -648,6 +661,73 @@ end of phase 2):
     live GitHub Pages copy), `mock.handle(request)` returns `{status, json}`
     or `{text, type}`.
 - OneInbox is Tony-only, so there is no Veda diff for this phase.
+
+### Phase 4 — TradeHub (done 2026-10-02)
+**What shipped** (moved here from §0 at the end of phase 5):
+- **TradeHub is MAGI.** `TB_STYLES` `#tradeboard-root` carries MAGI's
+  tokens: `--ac` `#c0aeea`, `--acs` (accent text), `--acd` `#9a86c9`,
+  `--acp` `#dbd0f5` (panel titles), `--acl` (an accent LINE, borders only),
+  `--s3` `#34343a`, plus `--gold` (real gold) and `--blue`, and the
+  `--ds-ac`/`--ds-s2` tint for dragsort/resizegrip. `--acg` (a gold wash)
+  and the `:root` `--gold-*`/`--red-glow` tokens are gone.
+  - Fraunces and the DM Sans / DM Mono / Bebas link are gone;
+    `--font-accent` is Inter. Lora stays: it is a Playbook font choice.
+  - `.tb-btn-primary/-ghost/-danger` are MAGI's `.btn` (10px, 700,
+    uppercase, 1px; `font-size` is `!important` because ~25 call sites pass
+    an old inline `fontSize`). bdl outline, accent on hover, no glow, no CSS
+    press (hoverfx does it). `.tb-x-close` has no wash or halo.
+  - `.tb-section-label` is a MAGI panel title. Fields get the accent border
+    + 3px ring at 16%; buttons a 2px accent focus outline.
+  - Selected = solid: the AI-destination and MAGI-unit chips, the prompt
+    chips, the Playbook toolbar's active tool (solid purple, dark label);
+    the Playbook page list's active item is s2 with a 2px accent left edge;
+    selected Journal rows are s2 (was a gold wash). Every `#fff`/`#000`
+    label on a purple fill is `var(--bg)`.
+  - Gold stays only where it means something: the ★ favourite in the
+    prompt picker and the Playbook storage warning. The Playbook's text and
+    highlight colour palettes and `mark` are content, so unchanged.
+  - The News bear→bull tone track was a gradient; it is solid `--s3`.
+  - Category / importance colours (`TB_CAT_COLORS`, `TB_IMP`, the status
+    badges) are NOT themed, per the phase-1 rule.
+  - The whole-app lock (CSS + its JS button styles) and `uiModal` are
+    purple: no radial gradient, no glows, primary = solid purple; the modal
+    is MAGI's dialog (`rgba(0,0,0,.62)` + 2px blur, s1 box, hairline,
+    radius 8).
+  - Wordmark `#dbd0f5`. `<body data-hoverfx="magi">`.
+- **Drag (`dragsort.js`, now loaded in TradeHub's `<head>` with
+  `resizegrip.js`):**
+  - The page tabs (`TBNavBar`, desktop and phone) run on `A1Drag.sort`
+    (`row:'.tb-navtab', axis:'x', hold:300`). A drop hands the new id order
+    to `onReorderNav` (localStorage `tb_nav_order_v1` + Firebase), as before.
+    The hand-rolled pointer code (`liveIds`, `draggingRef`, `justDraggedRef`
+    …) is deleted.
+  - The Prompts tab's chips run on `A1Drag.sort` (`row:'.tb-pchip',
+    axis:'grid', hold:300`); a drop is a splice + `onSave`, the selection
+    follows its chip. The old `dragState`/`overIdx` code is deleted.
+  - React pattern used: `A1Drag.sort` re-wired in an effect every render
+    (same listeners, new options) with the live values in a ref; React never
+    owns `transform` on those rows.
+- **Resize (`resizegrip.js`):** three boxes have MAGI's corner grip:
+  - the Prompts tab preview (`a1.h.th.prompt`, was a hand-rolled ns-resize
+    corner),
+  - Analysis → Quick Prompt (`a1.h.th.quick`, was its own pointer grip; the
+    old `tb_quick_prompt_h` key is a NEW dry-run item in
+    `cleanup-rules.json`, `tradehub-quick-height`),
+  - the trade modal's Notes (`a1.h.th.trade-notes`, was native
+    `resize:vertical`), via a new `TBGripBox` wrapper component.
+  - **Gotcha:** a gripped box's default height must be a CSS class
+    (`.tb-prompt-render`, `.tb-quick-box`, `.tb-notes-box` in TB_STYLES),
+    never an inline React style: handing the box back to auto clears its
+    inline height/min/max.
+- **Tests:** `tests/live/tradehub-drag.live.js` (49 checks: theme, desktop tab
+  drag + saved order + swallowed drop click + reload, phone hold vs swipe,
+  prompt chips by mouse and by held finger, all three grips: drag, store,
+  reload, click toggles). Firebase stays blocked; prompts are seeded in
+  `tradeboard_prompts_v2`. `--shots <label>` takes every tab, the confirm
+  dialog and phone shots. Against `theme-p4-start` it fails from the first
+  theme check. TradeHub is Tony-only, so there is no Veda diff.
+- **Left for later:** status badges (OPEN/CLOSED/manual) still use their
+  translucent tinted backgrounds; they are status colours, not controls.
 
 ### Phases 3–10 (from the original survey; re-read each file before building)
 
