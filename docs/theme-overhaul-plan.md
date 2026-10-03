@@ -82,7 +82,9 @@ pixel-diff her views.
   the audio device inside the gesture (`unlockAudio`), a ~270ms freeze, on
   the old code too. `unlockAudio` now makes the AudioContext once input has
   been quiet for 1.5s (idle callback, never mid-drag); a later press only
-  resumes a suspended one (iOS). The live drag test times every frame from
+  resumes a suspended one. iPhone/iPad (`AUDIO_IN_GESTURE`) still make it
+  inside the first tap (+ a `touchend` listener): iOS only starts audio in a
+  gesture. The live drag test times every frame from
   the first press again (33ms worst) and checks the context then runs.
 - **Veda's shots** (index veda, mobile, settings, confirm, lock): identical
   except the quote band and the lock field's blinking caret.
