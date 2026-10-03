@@ -67,7 +67,8 @@ async function probe(c, host, html, pick) {
     w.remove(); return r;
   })());`));
 }
-const isNum = (r) => /^\s*['"]?Inter\b/.test(r.ff) && r.fw === '500' && /tabular-nums/.test(r.fvn);
+// MAGI's stack leads with its glyph-only "MAGI Symbols" face; Inter is the text.
+const isNum = (r) => /^\s*(?:"MAGI Symbols",\s*)?['"]?Inter\b/.test(r.ff) && r.fw === '500' && /tabular-nums/.test(r.fvn);
 
 async function bodyTabular(c, label, sel) {
   const r = JSON.parse(await evalJs(c, `return JSON.stringify((function(){
