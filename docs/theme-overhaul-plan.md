@@ -8,94 +8,66 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-10-02, at the end of **Phase 5** (MyList, Tony's
-profile: theme, drags, resize grips). Done, tested, pushed.
-**Tags:** phase 1 `theme-p1-start` → `theme-p1-end`; phase 1b
-`theme-p1b-start` → `theme-p1b-end`; phase 2 `theme-p2-start` →
-`theme-p2-end`; phase 3 `theme-p3-start` → `theme-p3-end`; phase 4
-`theme-p4-start` → `theme-p4-end`; phase 5 `theme-p5-start` →
-`theme-p5-end`.
-**Next phase:** **Phase 6: Insight** (Tony-only; theme + its drags + its
-resize handles, no gradient fills; see §3, §4 "Phases 3–10"). Start it only
-when Tony says "continue theme" / "next theme phase".
+**Last updated:** 2026-10-02, at the end of **Phase 6** (Insight: theme,
+drags, resize grips). Done, tested, pushed.
+**Tags:** phase N is bracketed by `theme-pN-start` → `theme-pN-end`, for
+N = 1, 1b, 2, 3, 4, 5, 6.
+**Next phase:** **Phase 7: Vault (Keychain) + the Vault extension** (theme
++ its drags + its resize handles, no gradient fills; see §3, §4 "Phases
+3–10"; Vault/*.test.js are run by hand). Start it only when Tony says
+"continue theme" / "next theme phase".
 
-**Phase 5, what shipped:**
-- **MyList is MAGI on Tony's profile; Veda's is pixel-identical** (11 views:
-  lists, manual, edit, select, picker, confirm, lock, events, price watch,
-  uiModal, phone). Every Tony rule is behind `body:not([data-profile=veda])`.
-  - Tokens (`body{}`): `--accent` `#c0aeea`, `--acl` `#dbd0f5` (wordmark,
-    panel titles), `--gold` (only the busy sync dot), `--hair`, plus the
-    `--ds-ac`/`--ds-s2` tint. `--accent-pale` is `txm` (field labels).
-    `--font-accent` is Inter for Tony; Fraunces stays LOADED because Veda's
-    item descriptions use it.
-  - The old "Insight component language" block (outline-only, gold glows)
-    is now MAGI's: `.btn` 10px/700/uppercase/1px, radius 6, bdl border →
-    accent on hover, no glow, no CSS press (hoverfx does it); `.btn.solid` is
-    a SOLID purple fill with a dark label. Fields: accent border + 3px ring at
-    16%. Labels 9px/700/txm.
-  - Selected = solid: the current view tab, the active list tab and Manual-on
-    are solid purple with a dark label; the mic and Go are solid with no
-    halo. A PICKED row (selected item, chosen list type, chosen mic) is s2
-    with an accent outline. Store chips are outlined, radius 4.
-  - "MAGI shapes" block at the end of the main `<style>`: panel titles
-    (group headers, ITEMS, section labels, event years, Manual's
-    sub-titles: Manrope 800, uppercase, 1.8px, `acl`), radii 8/6/4, cards on
-    a hairline, numbers in IBM Plex Mono, dialogs `rgba(0,0,0,.62)` + 2px
-    blur on an s1 box (confirm, type picker, mic picker, extension modal,
-    event modal, lock), no halos in the lock menu, the best-price row and
-    price-drop banner solid.
-  - The Events view's own lighter/deeper golds are gone (dates, rail dots,
-    "+ New event" are purple).
-  - The chooser's Tony card is purple. `body[data-hoverfx="magi"]` is set in
-    `enterProfile` for Tony only (removed for Veda and on the chooser).
-    `theme-color` is `#1a1a1d` for Tony.
-  - uiModal (shared): for Tony the OK is solid purple with a dark label
-    (danger = pastel red), MAGI's dialog and field ring; Veda's values are
-    unchanged (`tony()` check at render time).
-- **Drag (`dragsort.js`, loaded in `<head>` with `resizegrip.js`):** Tony's
-  view tabs, list tabs and items run on `A1Drag`; Veda keeps MyList's own
-  engine (`enableDrag` …, now commented as hers, and it ignores presses while
-  Tony is the profile).
-  - Items: for Tony each store group renders as its own `.ml-grp`
-    (header + rows) sharing `group:'ml-items'`, so a row moves between groups.
-    Mouse: anywhere on the row. Touch: a 300ms hold. No grip dots (the
-    grip + ↑/↓ version shipped first and was removed the same day, Tony's
-    ask). Off in select mode and while editing.
-  - Tabs: `mlTabsDrag(bar, row, kind)`: `axis:'x'`, `hold:300`.
-  - Every drop goes through the existing `applyDrop(kind, id, {store,
-    beforeId})`, so both profiles save through the same data code.
-  - `render()` defers itself with `A1Drag.later` while a row is lifted (a
-    remote update mid-drag waits for the drop).
-- **`dragsort.js` gained** (all programs): a list that is ITSELF the
-  scroller (MyList's tab strip) auto-scrolls and is measured in content
-  coordinates; a drop into an EMPTY list lands under what it already holds
-  (a group's header); disconnected lists leave a `group` when a new one
-  registers. The other programs' live tests all still pass.
-- **Resize (`resizegrip.js`):** MAGI's corner grip on Tony's Details boxes:
-  add item + edit item share `a1.h.ml.details`; the event box is
-  `a1.h.ml.event` (`mlTonyGrip`, `mlTonyGrips`, `mlEventGrip`). `autoGrow`
-  leaves a hand-sized box (`data-user-h`) alone. Veda keeps the old
-  ns-resize grip (`GRIP_OLD`, `gripOld()`); the static event box carries both
-  and CSS shows each profile its own.
-- **Tests:** `tests/live/mylist-theme.live.js` (55 checks: theme, item drag by
-  mouse incl. cross-group and into an emptied group, swallowed click, ↑/↓,
-  Escape, remote update mid-drag, select mode; tab + view-tab drags and
-  saved orders; the grip's click/drag/store/no-auto-grow/shared height and
-  the event grip; phone: row vs grip, quick swipe vs hold, tab strip
-  auto-scroll; Veda: no A1Drag, her drag, her grip, her gold uiModal).
-  `--shots <label>` takes both profiles' views + the chooser. It turns on
-  `Emulation.setFocusEmulationEnabled` so `:focus` matches headless. Against
-  `theme-p5-start` it fails. `tests/live/mylist-lists.live.js` now asserts
-  `.dsort-drag`/`.dsort-on` and a touch drag by the grip (51 checks).
-- **Also this session (Tony's asks, TradeHub, commit `bd7bb7b`):** a lifted
-  row's label is forced light in `dragsort.js` (a selected prompt chip went
-  black mid-drag); "Deploy Trading Auto Launch" swaps its hover fill
-  instantly (an inline `!important` `transition-property` outranks
-  hoverfx's, which faded the purple out and flashed); the app lock's "Set
-  Password" lost an old inline `background:transparent` that hid its solid
-  purple behind the dark label.
-- **Left for later:** the chooser's shared `.pw-sub` names Nunito, which is
-  never loaded (falls back to sans-serif on both profiles; not touched).
+**Phase 6, what shipped (Insight is Tony-only, so no Veda diff):**
+- **Tokens** (`:root`): `--ac` `#c0aeea`, `--acl` `#dbd0f5` (wordmark,
+  panel titles), `--acd` `#9a86c9` (accent lines: the lock card, Manual /
+  deposit chips, a hovered account card), `--gold` is the REAL suite gold
+  `#e0b874` (was the off-suite `#ecc78c`) and is kept only for money in
+  (In / Assets / Net ≥ 0 / recurring totals / cash on hand / `+` amounts),
+  "Due soon" and the syncing dot. `--border-soft` is the hairline, `--radius`
+  8, `--mono` IBM Plex Mono. The old suite block (`--gold-primary`,
+  `--gold-glow`, `.suite-title`, `.suite-accent`, all unused) and Fraunces
+  are gone; `--font-accent` is Inter.
+- `.btn` is MAGI's (10px/700/uppercase/1px, bdl → accent on hover, no glow,
+  no CSS press). `.btn.gold` was renamed `.btn.solid` (solid purple, dark
+  label) in the markup and in JS (`menuBtn`, the import dupes' chosen
+  decision, the missing-payment "Yes"). `toast(msg, good)` → `.toast.good`.
+- Selected = solid: the current tab (the editorial underline is gone; tabs
+  are MAGI nav buttons), the expense/income segment, display mode on.
+- Panel titles (Manrope 800, uppercase, 1.8px, `acl`): panel and dialog
+  h3s, institution headers, Monthly history when open, empty states. Labels
+  9px/700. Figures (stats, balances, amounts, history, cash) in Plex Mono.
+- Fields: accent border + 3px ring at 16%; focus 2px accent outline.
+  Dialogs: `rgba(0,0,0,.62)` + 2px blur, s1 box on a hairline.
+- Gradients removed: the date headers' fading rule (solid hairline) and
+  the lock screen's radial glow. `<body data-hoverfx="magi">`.
+- **Drag (`dragsort.js`, now in Insight's `<head>` with `resizegrip.js`):**
+  - Tabs: `A1Drag.sort($('nav'), {row:'.tab', axis:'x', hold:300})`; a drop
+    splices `navOrder`, `renderNav()`, `saveNavOrder()` (Firestore prefs) as
+    before. `renderNav` defers with `A1Drag.later`. The hand-rolled
+    `enableNavDrag` / `navSuppressClick` are deleted.
+  - Recurring: the auto rows and the manual rows now render into their own
+    lists (`#recAuto`, `#recManual`, class `.reclist`), each wired by
+    `recDrag(list, ids, group)`, so a row never leaves its group. A drop
+    writes `recurringOrder` / `recurring` through `saveExpenselog()` as
+    before. `renderRecurring` defers with `A1Drag.later`. The old
+    `enableRecDrag` (FLIP code, `.dragging`/`.dropping` CSS) is deleted.
+- **Resize:** both notes fields (`#mNote`, `#rNotes`) have MAGI's corner
+  grip (`makeResizable` → `A1Resize`, keys `a1.h.ins.mNote` /
+  `a1.h.ins.rNotes`). The old `.ta-grip` ns-resize handle is deleted.
+- **Tests:** `tests/live/insight-theme.live.js` (48 checks): it fakes
+  Firebase (seeded `onSnapshot`, `setDoc` → `window.__fsWrites`), the
+  insight-api and lock workers and Plaid's script. Theme, no gradients and
+  none of the old tan-gold on three screens, magi hover/press, tab drag +
+  saved order + swallowed drop click, both Recurring groups + saved orders,
+  group isolation, a press on a row's button, the grip (drag, store, click
+  back), and phone: swipe vs held finger on a row and a tab. `--shots
+  <label>` shots every view, the recurring dialog, the lock manager and the
+  phone. Against `theme-p6-start` it fails from the first drag check.
+- **Noticed, not changed:** the Recurring click handler reads
+  `row.dataset.ovKey`, but the attribute is `data-ovkey` (dataset
+  `ovkey`), so a Keep/Remove decision is always saved under the group's
+  current key, never the fuzzy-matched older one. Harmless today; a
+  one-word fix if Tony wants it.
 
 **Start-of-session checklist**
 1. `git pull`, then `git tag theme-pN-start && git push origin theme-pN-start`.
@@ -408,8 +380,8 @@ wrap-up phase.
 | 3 | **OneInbox** (theme + drags + resize; also LifeHub colours, RiftIQ icon) | **done 2026-10-02** |
 | 4 | **TradeHub** (theme + drags + resize grips) | **done 2026-10-02** |
 | 5 | **MyList, Tony profile only (theme + drags + resize grips)** | **done 2026-10-02** |
-| 6 | Insight (theme + drags) | **next** |
-| 7 | Vault (Keychain) + **Vault extension** (theme + drags) | |
+| 6 | **Insight (theme + drags + resize grips)** | **done 2026-10-02** |
+| 7 | Vault (Keychain) + **Vault extension** (theme + drags) | **next** |
 | 8 | Solace (theme + drags) | |
 | 9 | Shield + Shield (HTML) (theme + drags) | |
 | 10 | Wrap-up: **PriceWatch extension**, MAGI onto dragsort.js, sweep (LifeHub colours done in 3) | |
@@ -731,6 +703,85 @@ end of phase 2):
   theme check. TradeHub is Tony-only, so there is no Veda diff.
 - **Left for later:** status badges (OPEN/CLOSED/manual) still use their
   translucent tinted backgrounds; they are status colours, not controls.
+
+### Phase 5 — MyList, Tony's profile (done 2026-10-02)
+**What shipped** (moved here from §0 at the end of phase 6):
+- **MyList is MAGI on Tony's profile; Veda's is pixel-identical** (11 views:
+  lists, manual, edit, select, picker, confirm, lock, events, price watch,
+  uiModal, phone). Every Tony rule is behind `body:not([data-profile=veda])`.
+  - Tokens (`body{}`): `--accent` `#c0aeea`, `--acl` `#dbd0f5` (wordmark,
+    panel titles), `--gold` (only the busy sync dot), `--hair`, plus the
+    `--ds-ac`/`--ds-s2` tint. `--accent-pale` is `txm` (field labels).
+    `--font-accent` is Inter for Tony; Fraunces stays LOADED because Veda's
+    item descriptions use it.
+  - The old "Insight component language" block (outline-only, gold glows)
+    is now MAGI's: `.btn` 10px/700/uppercase/1px, radius 6, bdl border →
+    accent on hover, no glow, no CSS press (hoverfx does it); `.btn.solid` is
+    a SOLID purple fill with a dark label. Fields: accent border + 3px ring at
+    16%. Labels 9px/700/txm.
+  - Selected = solid: the current view tab, the active list tab and Manual-on
+    are solid purple with a dark label; the mic and Go are solid with no
+    halo. A PICKED row (selected item, chosen list type, chosen mic) is s2
+    with an accent outline. Store chips are outlined, radius 4.
+  - "MAGI shapes" block at the end of the main `<style>`: panel titles
+    (group headers, ITEMS, section labels, event years, Manual's
+    sub-titles: Manrope 800, uppercase, 1.8px, `acl`), radii 8/6/4, cards on
+    a hairline, numbers in IBM Plex Mono, dialogs `rgba(0,0,0,.62)` + 2px
+    blur on an s1 box (confirm, type picker, mic picker, extension modal,
+    event modal, lock), no halos in the lock menu, the best-price row and
+    price-drop banner solid.
+  - The Events view's own lighter/deeper golds are gone (dates, rail dots,
+    "+ New event" are purple).
+  - The chooser's Tony card is purple. `body[data-hoverfx="magi"]` is set in
+    `enterProfile` for Tony only (removed for Veda and on the chooser).
+    `theme-color` is `#1a1a1d` for Tony.
+  - uiModal (shared): for Tony the OK is solid purple with a dark label
+    (danger = pastel red), MAGI's dialog and field ring; Veda's values are
+    unchanged (`tony()` check at render time).
+- **Drag (`dragsort.js`, loaded in `<head>` with `resizegrip.js`):** Tony's
+  view tabs, list tabs and items run on `A1Drag`; Veda keeps MyList's own
+  engine (`enableDrag` …, now commented as hers, and it ignores presses while
+  Tony is the profile).
+  - Items: for Tony each store group renders as its own `.ml-grp`
+    (header + rows) sharing `group:'ml-items'`, so a row moves between groups.
+    Mouse: anywhere on the row. Touch: a 300ms hold. No grip dots (the
+    grip + ↑/↓ version shipped first and was removed the same day, Tony's
+    ask). Off in select mode and while editing.
+  - Tabs: `mlTabsDrag(bar, row, kind)`: `axis:'x'`, `hold:300`.
+  - Every drop goes through the existing `applyDrop(kind, id, {store,
+    beforeId})`, so both profiles save through the same data code.
+  - `render()` defers itself with `A1Drag.later` while a row is lifted (a
+    remote update mid-drag waits for the drop).
+- **`dragsort.js` gained** (all programs): a list that is ITSELF the
+  scroller (MyList's tab strip) auto-scrolls and is measured in content
+  coordinates; a drop into an EMPTY list lands under what it already holds
+  (a group's header); disconnected lists leave a `group` when a new one
+  registers. The other programs' live tests all still pass.
+- **Resize (`resizegrip.js`):** MAGI's corner grip on Tony's Details boxes:
+  add item + edit item share `a1.h.ml.details`; the event box is
+  `a1.h.ml.event` (`mlTonyGrip`, `mlTonyGrips`, `mlEventGrip`). `autoGrow`
+  leaves a hand-sized box (`data-user-h`) alone. Veda keeps the old
+  ns-resize grip (`GRIP_OLD`, `gripOld()`); the static event box carries both
+  and CSS shows each profile its own.
+- **Tests:** `tests/live/mylist-theme.live.js` (55 checks: theme, item drag by
+  mouse incl. cross-group and into an emptied group, swallowed click, ↑/↓,
+  Escape, remote update mid-drag, select mode; tab + view-tab drags and
+  saved orders; the grip's click/drag/store/no-auto-grow/shared height and
+  the event grip; phone: row vs grip, quick swipe vs hold, tab strip
+  auto-scroll; Veda: no A1Drag, her drag, her grip, her gold uiModal).
+  `--shots <label>` takes both profiles' views + the chooser. It turns on
+  `Emulation.setFocusEmulationEnabled` so `:focus` matches headless. Against
+  `theme-p5-start` it fails. `tests/live/mylist-lists.live.js` now asserts
+  `.dsort-drag`/`.dsort-on` and a touch drag by the grip (51 checks).
+- **Also this session (Tony's asks, TradeHub, commit `bd7bb7b`):** a lifted
+  row's label is forced light in `dragsort.js` (a selected prompt chip went
+  black mid-drag); "Deploy Trading Auto Launch" swaps its hover fill
+  instantly (an inline `!important` `transition-property` outranks
+  hoverfx's, which faded the purple out and flashed); the app lock's "Set
+  Password" lost an old inline `background:transparent` that hid its solid
+  purple behind the dark label.
+- **Left for later:** the chooser's shared `.pw-sub` names Nunito, which is
+  never loaded (falls back to sans-serif on both profiles; not touched).
 
 ### Phases 3–10 (from the original survey; re-read each file before building)
 

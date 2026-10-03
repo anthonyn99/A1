@@ -1830,7 +1830,6 @@ window._mailRelay = window._mailRelay || async function (res) {
       try { await saveNavOrder(); } catch { toast('Could not save the new tab order'); }
     }
   });
-  })();
 
   // ── Unified feed ─────────────────────────────────────────────────────────
   function allTxs() {
@@ -2647,7 +2646,6 @@ window._mailRelay = window._mailRelay || async function (res) {
       }
     });
   }
-  })();
 
   function openRec(r) {
     editingRecId = r ? r.id : null;
