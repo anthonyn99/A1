@@ -354,7 +354,7 @@ cookie.
 | `probe(base)` | `GET /api/health`. Returns `unauthorized` on a 401, and **`wrongprofile`** when `profile` isn't this console's profile. The console says whose engine it is instead of calling it "offline". |
 | `authed()`, `streamUrl()` | Add `X-MAGI-Token` to every call, or `?token=` to event streams, which can't carry headers. |
 | `cloudPublishToken`, `cloudFetchToken`, `cloudSaveEngines`, `cloudWatch` | Share the token and the engine list through the profile's Firestore document (fields `token` and `engines`). A phone picks them up with no typing. A token that hasn't been proven to work only fills an empty field. |
-| `engSeen`, `openEnginePicker` | The engine registry (`magi.<profile>.engines`), for a person with more than one PC. |
+| `engSeen`, `engineSection` | The engine registry (`magi.<profile>.engines`), listed at the top of the Engines sheet (`openSetup`, opened from the status row at the foot of the sidebar). |
 
 **magi-link** is `workers2/magi-link/worker.js`, a Cloudflare Worker that
 records where the tunnel currently is. Its records are keyed by

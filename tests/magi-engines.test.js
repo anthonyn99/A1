@@ -76,7 +76,7 @@ const conn = lift('async function connect(quiet = false)');
 ok('connect tries each engine', /for \(const eng of order\)/.test(conn));
 ok('the active one is tried first', /if \(act\) order\.push\(act\)/.test(conn),
    'the machine you usually use should not wait behind one that is asleep');
-ok('it stops at the first that answers', /if \(online\(\)\) \{ syncEngineBtn\(\); return r; \}/.test(conn));
+ok('it stops at the first that answers', /if \(online\(\)\) return r;/.test(conn));
 const to = lift('async function connectTo(eng, quiet = false)', 6000);
 ok('each engine brings its own port', /const ENG_PORT = \(eng && eng\.port\) \|\| 8000/.test(to));
 ok('and its own token', /link\.token = \(eng && eng\.token\) \|\| loadToken\(\)/.test(to));
@@ -133,10 +133,14 @@ ok('lastSeen stays local',
    /\.map\(\(e\) => \(\{ id: e\.id, label: e\.label \|\| "", token: e\.token, port: e\.port \|\| 8000 \}\)\)/.test(MAGI));
 ok('merging is a union, not a replace', /function engMerge\(rows\)/.test(MAGI));
 
-console.log('\nThe picker is ours, and stays out of the way');
-const pick = lift('function openEnginePicker()', 5000);
-ok('there is a picker', /function openEnginePicker\(\)/.test(MAGI));
-ok('hidden until there is a choice', /const many = ENG\.list\.filter\(\(e\) => e\.id\)\.length > 1/.test(MAGI));
+console.log('\nThe picker is ours, and lives in the Engines sheet');
+const pick = lift('function engineSection(', 5000);
+ok('there is a picker', /function engineSection\(box, done, reopen\)/.test(MAGI));
+ok('it heads the Connect sheet',
+   /engineSection\(box, done, \(\) => \{ done\(\); openSetup\(\); \}\)/.test(MAGI));
+ok('the status row opens it on every profile', /\$\("linkBtn"\)\.onclick = openSetup;/.test(MAGI));
+ok('no header chip to crowd out LifeHub', !/id="engineBtn"/.test(MAGI),
+   'a chip in the header row pushed the LifeHub button off the rail');
 ok('no native dialog', !/\b(window\.)?(alert|confirm|prompt)\s*\(/.test(pick));
 ok('forgetting one asks first', /uiConfirmMagi\(/.test(pick));
 ok('opening it does not wake every machine', !/await probe\(/.test(pick),
