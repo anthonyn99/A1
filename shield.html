@@ -64,14 +64,13 @@
 
    Suite rules inherited:
      · Never introduce a new hue. --ac for emphasis, --err/--grn for meaning.
-     · Tony: gold #e0b874 on #1a1a1d, radius 9/6, Manrope + Inter.
+     · Tony: MAGI purple #c0aeea on #1a1a1d, radius 8/6, Manrope + Inter
+       (theme overhaul phase 9; the MAGI block at the end of this sheet).
      · Veda: purple #8D769A on #1B1C1E, radius 5 everywhere, Playfair + Plex Mono.
        (V1/shared/tokens.css says 10/14/20px radii — that doc is stale, ships at 5.)
    ══════════════════════════════════════════════════════════════════════════ */
 
-/* Suite tokens — mirrored verbatim from index.html:47. */
 :root{
-  --gold-primary:#e0b874;
   --suite-display:'Manrope',system-ui,-apple-system,sans-serif;
   --safe-t:env(safe-area-inset-top,0px);
   --safe-b:env(safe-area-inset-bottom,0px);
@@ -82,14 +81,15 @@
 /* ── TONY (also the neutral default, so the profile chooser and any overlay
       shown before a profile is picked have a complete palette) ────────────── */
 body,body[data-profile="tony"]{
-  --bg:#1a1a1d; --s1:#232327; --s2:#2c2c31; --s3:#37373d;
-  --bd:#34343a; --bdl:#45454c;
+  --bg:#1a1a1d; --s1:#232327; --s2:#2c2c31; --s3:#34343a;
+  --bd:rgba(255,255,255,.06); --bdl:#45454c;
   --tx:#f4f3f0; --txd:#adadb2; --txm:#8d8d94;
-  --ac:#e0b874; --acs:#e0b874; --acl:rgba(224,184,116,.36); --acbg:rgba(224,184,116,.10);
-  --err:#d68a7c; --errl:rgba(214,138,124,.40); --errbg:rgba(214,138,124,.10);
-  --grn:#a4b986; --amber:#d9b38f;
+  --ac:#c0aeea; --acs:#c0aeea; --acl:#9a86c9; --acbg:#2c2c31;
+  --acx:#dbd0f5; --gold:#e0b874; --ring:rgba(192,174,234,.16);
+  --err:#d68a7c; --errl:rgba(214,138,124,.40); --errbg:#3a2a28;
+  --grn:#a4b986; --amber:#e0b874;
   --shadow:rgba(0,0,0,.42);
-  --radius:9px; --radius-sm:6px;
+  --radius:8px; --radius-sm:6px;
   --display:'Manrope',system-ui,-apple-system,sans-serif;
   --sans:'Inter',system-ui,-apple-system,sans-serif;
   --head-tr:none; --head-ls:-.3px; --head-wt:700;
@@ -155,7 +155,7 @@ body[data-gate="app"] #profile-overlay{display:none}
 }
 .pf-mark{display:flex;flex-direction:column;align-items:center;gap:10px}
 .pf-mark svg{width:52px;height:52px}
-.pf-word{font-family:var(--suite-display);font-size:26px;font-weight:750;letter-spacing:-.5px;color:var(--gold-primary)}
+.pf-word{font-family:var(--suite-display);font-size:26px;font-weight:750;letter-spacing:-.5px;color:#dbd0f5}
 .pf-sub{font-size:10px;font-weight:600;letter-spacing:2.4px;text-transform:uppercase;color:#8d8d94}
 .pf-cards{display:flex;gap:18px;flex-wrap:wrap;justify-content:center}
 .pf-card{
@@ -167,9 +167,9 @@ body[data-gate="app"] #profile-overlay{display:none}
 .pf-card:hover{transform:translateY(-2px)}
 .pf-card:active{transform:translateY(0)}
 .pf-card .glyph{font-size:60px;line-height:1;font-weight:800}
-.pf-card.t{border-color:rgba(224,184,116,.28)}
-.pf-card.t .glyph{font-family:'Manrope',sans-serif;color:#e0b874}
-.pf-card.t:hover{border-color:#e0b874;box-shadow:0 0 14px rgba(224,184,116,.22)}
+.pf-card.t{border-color:#45454c}
+.pf-card.t .glyph{font-family:'Manrope',sans-serif;color:#c0aeea}
+.pf-card.t:hover{border-color:#c0aeea}
 .pf-card.v{background:#26272A;border-color:rgba(141,118,154,.30)}
 .pf-card.v .glyph{font-family:'Playfair Display',serif;font-weight:900;color:#8D769A}
 .pf-card.v:hover{border-color:#8D769A;box-shadow:0 0 14px rgba(141,118,154,.26)}
@@ -285,7 +285,6 @@ body[data-gate="app"] #profile-overlay{display:none}
 }
 .pill:hover{border-color:var(--ac)}
 .pill.on{background:var(--ac);color:var(--bg);border-color:var(--ac)}
-body[data-profile="tony"] .pill.on{background:transparent;color:var(--ac);box-shadow:inset 0 0 0 1px var(--acl),0 0 6px var(--acbg)}
 /* Configure's sub-tabs are a second level of navigation sitting directly under
    the accent-coloured main nav. Painting both in the accent made the screen
    read as two competing rows; neutral grey here keeps the hierarchy legible and
@@ -737,7 +736,7 @@ label.fld{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;tex
    These buttons are built in JS with an inline `border` shorthand, which no
    stylesheet rule can override without !important — so the old hover here was
    dead on arrival and the menu gave no feedback at all. The glow is what makes
-   the target obvious; the colours are profile tokens, so T reads gold and V
+   the target obvious; the colours are profile tokens, so T reads purple and V
    reads purple with nothing profile-specific written here.
 
    --acl / --errl rather than --acbg for the shadow: both are translucent in
@@ -858,6 +857,100 @@ label.fld{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;tex
   .big{padding:14px 16px}
   .big .lbl{font-size:17px}
 }
+
+/* ══ MAGI — Tony's side (theme overhaul phase 9) ═══════════════════════════
+   Every rule is behind body:not([data-profile="veda"]) so Veda's profile
+   renders exactly as before. Tony's tokens are in the TONY block above:
+   --ac MAGI purple, --acl its deep line colour #9a86c9, --acx the light
+   title colour, --bd a hairline. Selected = a SOLID purple fill with a dark
+   label, or an accent outline; no glows, no washes, no gradients. Hover and
+   press come from hoverfx.js (body[data-hoverfx="magi"], set in themeFor). */
+body:not([data-profile="veda"]),
+body:not([data-profile="veda"]) :is(input,select,textarea,button){font-variant-numeric:tabular-nums}
+body:not([data-profile="veda"]) .brand{color:var(--acx)}
+body:not([data-profile="veda"]) .brand svg{color:var(--ac)}
+body:not([data-profile="veda"]) .pf-badge{border-color:var(--bdl)}
+body:not([data-profile="veda"]) .pf-badge:hover{border-color:var(--ac)}
+
+/* Buttons: MAGI's .btn (10px / 700 / uppercase / 1px, radius 6, bdl → accent). */
+body:not([data-profile="veda"]) :is(.btn,.pill,.pick-tab,#uim-btns button){
+  font-size:10px;font-weight:700;letter-spacing:1px;border-radius:6px;
+}
+body:not([data-profile="veda"]) .btn:hover{border-color:var(--ac)}
+body:not([data-profile="veda"]) :is(.btn,.big):active{transform:none}
+body:not([data-profile="veda"]) .btn.ac{border-color:var(--acl);color:var(--ac)}
+body:not([data-profile="veda"]) .btn.ac:hover{border-color:var(--ac);box-shadow:none}
+body:not([data-profile="veda"]) .btn.danger:hover{border-color:var(--err);background:transparent}
+body:not([data-profile="veda"]) .pill{color:var(--tx)}
+body:not([data-profile="veda"]) .pill:hover{border-color:var(--ac)}
+body:not([data-profile="veda"]) .pill.on,
+body:not([data-profile="veda"]) .pick-tab.on{background:var(--ac);color:var(--bg);border-color:var(--ac);box-shadow:none}
+body:not([data-profile="veda"]) .pill.sub{color:var(--txd);border-color:var(--bdl)}
+body:not([data-profile="veda"]) .pill.sub:hover{color:var(--tx);border-color:var(--ac)}
+body[data-profile="tony"] .pill.sub.on{background:transparent;color:var(--ac);border-color:var(--ac);box-shadow:none}
+body:not([data-profile="veda"]) .pick-tab{border-color:var(--bdl)}
+body:not([data-profile="veda"]) .pick-tab:hover{border-color:var(--ac);color:var(--tx)}
+body:not([data-profile="veda"]) .setchip{border-color:var(--bdl)}
+body:not([data-profile="veda"]) .setchip:hover{border-color:var(--ac);color:var(--tx)}
+body:not([data-profile="veda"]) .setchip.on{border-color:var(--ac);color:var(--ac);box-shadow:none}
+body:not([data-profile="veda"]) .setchip-n{font-weight:500;background:var(--s2)}
+body:not([data-profile="veda"]) .tut-btn{border-color:var(--bdl)}
+body:not([data-profile="veda"]) .tut-btn:hover{border-color:var(--ac);color:var(--ac)}
+body:not([data-profile="veda"]) .empty{border-color:var(--bdl)}
+body:not([data-profile="veda"]) .toggle{background:var(--bdl)}
+body:not([data-profile="veda"]) .toggle.on{background:var(--ac)}
+body:not([data-profile="veda"]) .toggle.on i{background:var(--bg)}
+body:not([data-profile="veda"]) #scroller .track{background:var(--s3)}
+body:not([data-profile="veda"]) .wiz-tick{border-color:var(--bdl)}
+body:not([data-profile="veda"]) :is(.kbd,.pick-ico){border-color:var(--bdl)}
+
+/* Fields: an accent border plus a 3px ring at 16%. */
+body:not([data-profile="veda"]) :is(input[type=text],input[type=password],select,.pick-search,.uim-input){border-color:var(--bdl)}
+body:not([data-profile="veda"]) :is(input,select,.pick-search,.uim-input,#applock-pw):focus{border-color:var(--ac);box-shadow:0 0 0 3px var(--ring)}
+
+/* Titles and labels. */
+body:not([data-profile="veda"]) .sec-title{
+  font-family:var(--display);font-size:11px;font-weight:800;letter-spacing:1.8px;color:var(--acx);
+}
+body:not([data-profile="veda"]) label.fld{font-size:9px}
+
+/* The big actions: accent lines, no glow. */
+body:not([data-profile="veda"]) .big{border-color:var(--bdl)}
+body:not([data-profile="veda"]) .big.close{border-color:var(--acl)}
+body:not([data-profile="veda"]) .big.close:hover{border-color:var(--ac);box-shadow:none}
+body:not([data-profile="veda"]) .big.emg{border-color:var(--errl)}
+body:not([data-profile="veda"]) .big.emg:hover{border-color:var(--err);box-shadow:none}
+
+/* Rows. A picked row is s2 with an accent outline. */
+body:not([data-profile="veda"]) .dev.me{border-color:var(--acl)}
+body:not([data-profile="veda"]) .pick-row:hover{border-color:var(--acl);box-shadow:none}
+body:not([data-profile="veda"]) .pick-row.sel{background:var(--s2);border-color:var(--ac);box-shadow:none}
+body:not([data-profile="veda"]) .ro-bar{background:var(--s2)}
+body:not([data-profile="veda"]) .wiz.done{background:var(--s2)}
+body:not([data-profile="veda"]) .tag{border-radius:4px}
+
+/* NUMBERS: Inter 500 tabular. */
+body:not([data-profile="veda"]) .wiz-n{font-weight:500}
+
+/* The emergency takeover: no radial glow. */
+body:not([data-profile="veda"]) #emg-screen{background-image:none}
+
+/* Dialogs: rgba(0,0,0,.62) + 2px blur, an s1 box on a hairline, radius 8. */
+body:not([data-profile="veda"]) #uim-overlay{background:rgba(0,0,0,.62);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
+body:not([data-profile="veda"]) #uim-box{background:var(--s1);border-color:var(--bd);border-radius:8px}
+body:not([data-profile="veda"]) #uim-btns button{border-color:var(--bdl)}
+body:not([data-profile="veda"]) #uim-btns button:hover{border-color:var(--ac);box-shadow:none}
+body:not([data-profile="veda"]) #uim-cancel:hover{border-color:var(--ac);box-shadow:none}
+body:not([data-profile="veda"]) .uim-label{font-size:9px}
+body:not([data-profile="veda"]) #toast{border-radius:8px}
+
+/* The app lock: an acd card, a solid purple submit, no glows. */
+body:not([data-profile="veda"]) #applock-box{border-color:var(--acl);border-radius:8px}
+body:not([data-profile="veda"]) #applock-submit{background:var(--ac);color:var(--bg);border-color:var(--ac);font-weight:700}
+body:not([data-profile="veda"]) #applock-submit:hover:not(:disabled){border-color:var(--ac);box-shadow:none}
+body:not([data-profile="veda"]) #applock-bio button:hover,
+body:not([data-profile="veda"]) #al-menu-btns button:hover{border-color:var(--ac) !important;box-shadow:none}
+body:not([data-profile="veda"]) #al-menu-btns button.al-dg:hover{border-color:var(--err) !important;box-shadow:none}
 </style>
 <style id="ui-cap-2000">
 /* == Suite-wide 2000px UI cap ==============================================
@@ -953,7 +1046,7 @@ window._mailRelay = window._mailRelay || async function (res) {
   <div class="pf-mark">
     <svg viewBox="0 0 96 96" aria-hidden="true">
       <g fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M48 14 22 23v24c0 17 13 28 26 35" stroke="#e0b874"/>
+        <path d="M48 14 22 23v24c0 17 13 28 26 35" stroke="#c0aeea"/>
         <path d="M48 14 74 23v24c0 17-13 28-26 35" stroke="#8D769A"/>
         <circle cx="48" cy="42" r="7" stroke="#adadb2"/>
         <path d="M48 49v11" stroke="#adadb2"/>
@@ -1026,7 +1119,7 @@ window._mailRelay = window._mailRelay || async function (res) {
   + '.uim-input{transition:border-color .18s,box-shadow .18s;}'
   // The passcode prompt runs through this modal, so it is a lock screen too and
   // gets the same hover treatment as the App Lock menu. Everything is a profile
-  // token, so T glows gold and V purple with nothing per-profile written here.
+  // token. Tony's own MAGI rules (main sheet) take the glows off his side.
   + '.uim-input:focus{border-color:var(--ac);box-shadow:0 0 11px var(--acl);}'
   + '#uim-err{font-size:12.5px;color:var(--err);font-weight:500;min-height:15px;margin-bottom:4px;}'
   + '#uim-btns{display:flex;gap:10px;margin-top:18px;justify-content:flex-end;}'
@@ -1066,8 +1159,11 @@ window._mailRelay = window._mailRelay || async function (res) {
     el('uim-err').textContent='';
     var ok=el('uim-ok'), ca=el('uim-cancel');
     ok.textContent=cfg.okLabel||'OK';
-    ok.style.color=cfg.danger?'var(--err)':'var(--ac)';
-    ok.style.borderColor=cfg.danger?'var(--errl)':'var(--acl)';
+    // Tony (MAGI): a solid purple OK with a dark label; danger stays an outline.
+    var magi=document.body.getAttribute('data-profile')!=='veda';
+    ok.style.background=(magi&&!cfg.danger)?'var(--ac)':'';
+    ok.style.color=cfg.danger?'var(--err)':(magi?'var(--bg)':'var(--ac)');
+    ok.style.borderColor=cfg.danger?'var(--errl)':(magi?'var(--ac)':'var(--acl)');
     ca.textContent=cfg.cancelLabel||'Cancel'; ca.style.display=(cfg.kind==='alert')?'none':'';
     el('uim-overlay').classList.add('show');
     setTimeout(function(){ var fi=fw.querySelector('input'); if(fi){ fi.focus(); try{fi.select();}catch(e){} } else ok.focus(); }, 40);
@@ -1607,7 +1703,7 @@ var AL_JOURNAL = 'applock';
 var AL_EMAIL = { tony:'anthonypn99@gmail.com', veda:'vedaapatel1605@gmail.com' };
 var AL_FORM  = { tony:'https://formspree.io/f/xeedkebo', veda:'https://formspree.io/f/xzdlwaqg' };
 var AL_LABELS = {
-  tony_shield: { label:'Shield', profile:'tony', accent:'#e0b874' },
+  tony_shield: { label:'Shield', profile:'tony', accent:'#c0aeea' },
   veda_shield: { label:'Shield', profile:'veda', accent:'#8D769A' }
 };
 
@@ -1758,7 +1854,7 @@ function el(id){ return document.getElementById(id); }
 var _mode='unlock', _id=null, _cb=null, _onCancel=null, _removeBio=false;
 var _attempts={}, _cooldown={};
 
-function meta(id){ return AL_LABELS[id] || { label:'Shield', profile:'tony', accent:'#e0b874' }; }
+function meta(id){ return AL_LABELS[id] || { label:'Shield', profile:'tony', accent:'#c0aeea' }; }
 
 function showOverlay(id, mode, cb, onCancel){
   _id=id; _mode=mode; _cb=cb||null; _onCancel=onCancel||null; _removeBio=false;
@@ -5147,6 +5243,9 @@ function reconcile(prevGlobalV, prevOn){
 /* ══ BOOT ═════════════════════════════════════════════════════════════════ */
 function themeFor(p){
   document.body.setAttribute('data-profile', p);
+  // MAGI's hover/press (hoverfx.js) on Tony's side only; Veda keeps classic.
+  if (p === 'veda') document.body.removeAttribute('data-hoverfx');
+  else document.body.setAttribute('data-hoverfx', 'magi');
   var m = $('meta-theme');
   if (m) m.setAttribute('content', p === 'veda' ? '#1B1C1E' : '#1a1a1d');
   var b = $('pf-badge'); if (b) b.textContent = p === 'veda' ? 'V' : 'T';
@@ -5204,6 +5303,7 @@ function goProfileSelect(){
   $('emg-screen').classList.remove('on');
   document.body.setAttribute('data-gate', 'boot');
   document.body.setAttribute('data-profile', 'tony');
+  document.body.removeAttribute('data-hoverfx');
   renderProfileCards();
 }
 
