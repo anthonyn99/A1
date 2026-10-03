@@ -75,7 +75,10 @@
     document.body.appendChild(a); a.click();
     var first = new Date(out.snapshots[out.snapshots.length - 1].at), last = new Date(out.snapshots[0].at);
     say('Done — ' + out.snapshots.length + ' backups saved to Downloads (' +
-        first.toLocaleString() + ' to ' + last.toLocaleString() + ').\nYou can close this tab.', 'ok');
+        first.toLocaleString() + ' to ' + last.toLocaleString() + ').\n' +
+        'Other devices opened: ' + (out.repo.filter(function (r) { return r.ok; })
+          .map(function (r) { return r.device; }).join(', ') || 'none') +
+        '.\nYou can close this tab.', 'ok');
   } catch (e) {
     say('Export failed: ' + (e && e.message || e), 'bad');
   }
