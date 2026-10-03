@@ -108,7 +108,9 @@ body {
   font-size: 13px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
 }
+input, select, textarea, button { font-variant-numeric: tabular-nums; }
 
 
 
@@ -1968,15 +1970,17 @@ del.md-html { color: var(--txd); }
    Inter carries running UI and, most importantly, the answers -- a verdict is
    prose and prose in a fixed pitch reads like a log file. Manrope carries the
    headings. IBM Plex Mono is reserved for things where the character grid is
-   the point: latencies, char counts, CSS selectors, codenames, table data.
-   Mixing them at random would just look inconsistent, so the rule is that
-   mono means "this is a value, not a sentence". */
-.node-meta, .core-count, .verdict-quorum, .node-sub,
-.slide-count, .bs-council-meta,
+   the point: code, paths, SHAs, tokens, diffs, codenames. Numbers are A1's
+   one numbers face, Inter 500 with tabular figures, so digits are one width
+   and columns line up (theme overhaul phase 10). */
 .studio-raw, .verdict-body code, .sheet-note code, .bs-hint code,
-table.doctor, table.doctor code, .v-table,
+table.doctor, table.doctor code,
 .quiz-opt-letter, .side-tag, .bs-chip {
   font-family: var(--font-mono);
+}
+.node-meta, .core-count, .verdict-quorum, .node-sub,
+.slide-count, .bs-council-meta, .v-table {
+  font-family: var(--font); font-weight: 500; font-variant-numeric: tabular-nums;
 }
 
 /* Headings take the display face. */
@@ -5604,6 +5608,30 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
   .sidebar { overflow-y: auto; }
   .qbar textarea { min-height: 48px; }
   .node-body { max-height: 60vh; }
+}
+
+/* ══ NUMBERS: A1's one face (theme overhaul phase 10) ══
+   These figures named the mono face on their own rules. Counts, times,
+   speeds, step and section numbers read in Inter 500 with tabular
+   figures; mono stays for code, paths, SHAs, tokens and diffs. */
+.br-conf-v,
+.br-sec-n,
+.br-step-n,
+.br-point-n,
+.br-rail-n,
+.fc-num,
+.sd-no,
+.sd-count,
+.sd-present-count,
+.vd-scene-hd,
+.au-times,
+.au-speed,
+.au-line-time,
+.code-git-ab,
+.code-auto-cd,
+.code-appr-n,
+.repo-num {
+  font-family: var(--font); font-weight: 500; font-variant-numeric: tabular-nums;
 }
 </style>
 <style id="ui-cap-2000">
