@@ -15721,7 +15721,7 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
           RC("input",{type:"checkbox",checked:aiPrep,onChange:e=>setAiPrep(e.target.checked),style:{accentColor:A,margin:0,cursor:"pointer"}}),
           RC("span",{style:{width:11,height:11,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.sparkle}}),"AI prep"),
         aiPrep&&RC(React.Fragment,null,
-          RC("div",{style:{fontSize:11,color:TXD,marginBottom:8,lineHeight:1.5}},"An AI gets this ready ahead of time: a draft, the sites and apps you’ll need, and a prompt for your assistant. Press ✨ on the task to open it all. Nothing is ever sent for you."),
+          RC("div",{style:{fontSize:11,color:TXD,marginBottom:8,lineHeight:1.5}},"An AI gets this ready ahead of time: a draft, the sites and apps you’ll need, and a prompt for your assistant. Press ✦ on the task to open it all. Nothing is ever sent for you."),
           RC("textarea",{style:{...mi,minHeight:64,resize:"vertical",fontWeight:500,fontSize:13,lineHeight:1.45},value:aiNote,onChange:e=>setAiNote(e.target.value),placeholder:"Details for the AI: who it’s for, email address, what to say, links…"}),
           RC("div",{style:{display:"flex",gap:6,marginTop:8,flexWrap:"wrap",alignItems:"center"}},
             RC("span",{style:{fontSize:11,color:TXD,fontWeight:700,marginRight:2}},"Assistant"),
@@ -15794,7 +15794,7 @@ function VdPrepPanel({item,dateKey,onClose}){
       kit&&fresh&&kit.apps&&kit.apps.length>0&&RC("div",null,
         RC("div",{style:lbl},"Apps on your PC"),
         RC("div",{style:{display:"flex",gap:6,flexWrap:"wrap"}},kit.apps.map(id=>RC("button",{key:id,type:"button",title:"Open on your PC",onClick:()=>window._vdPrepOpenLocal([id],[]),style:{...box,padding:"5px 10px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",opacity:window._vdBridgeUp?1:.6}},appName[id]||"App"))),
-        RC("div",{style:{fontSize:11,color:TXM,marginTop:6}},window._vdBridgeUp?"\u2728 opens these and the sites on your PC. Click one to open just that app.":"Apps open on your PC when the StudyOS bridge is running there.")),
+        RC("div",{style:{fontSize:11,color:TXM,marginTop:6}},window._vdBridgeUp?"✦ opens these and the sites on your PC. Click one to open just that app.":"Apps open on your PC when the StudyOS bridge is running there.")),
       RC("div",{style:{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",borderTop:"1px solid "+BD,paddingTop:12}},
         RC("span",{style:{fontSize:11,color:TXD,fontWeight:700}},"Default assistant:"),
         Object.keys(sites).map(k=>RC("button",{key:k,type:"button",onClick:()=>{window._vdPrepSetDefaultSite(k);setDefSite(k);},style:{...btn(defSite===k),padding:"4px 10px",fontSize:10}},sites[k].name)))));
@@ -17145,7 +17145,7 @@ function App(){
   const vdPrepBtn=(t,k)=>{const g=window._vdPrepKitFor?window._vdPrepKitFor(t,k):null;const ready=!!(g&&g.fresh);
     const busy=!!(window._vdPrepBusy&&window._vdPrepBusy[t.id]);const nm=((window._vdPrepSites||{})[window._vdPrepSite?window._vdPrepSite(t):""]||{}).name||"your assistant";
     return RC("button",{type:"button",title:busy?"AI prep: preparing…":ready?"AI prep ready — opens "+nm+" with everything prepared":"AI prep: opens "+nm+" (kit not ready yet)",
-      style:{...vdIcoBtn(A),opacity:ready?1:.5},onClick:ev=>{ev.stopPropagation();window._vdPrepLaunch&&window._vdPrepLaunch(t,k);}},vdIco(TNI.sparkle,12));};
+      style:{...vdIcoBtn(A),opacity:ready?1:.5},onClick:ev=>{ev.stopPropagation();window._vdPrepLaunch&&window._vdPrepLaunch(t,k);}},RC("span",{"aria-hidden":true,style:{fontSize:13,lineHeight:1,display:"inline-flex"}},"✦"));};
   const vdIco=(svg,px)=>RC("span",{style:{width:px||15,height:px||15,fontSize:px||15,lineHeight:0,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0},dangerouslySetInnerHTML:{__html:svg}});
   // Hairline pair bracketing the current weekday's column in Daily Habits, from
   // the header through the last habit row — a quiet "you are here" gutter.
