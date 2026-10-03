@@ -163,7 +163,36 @@
     return { doc: out, report: report };
   }
 
-  var api = { mergeDoc: mergeDoc, mergeList: mergeList, looksRetyped: looksRetyped, _norm: norm };
+  // Which backup did live get reset TO? The candidate it differs from least.
+  // That is the right `base`: anything live changed relative to it was done
+  // after the reset and must be kept.
+  function itemMap(p) {
+    var o = {};
+    var add = function (k, a) {
+      if (Array.isArray(a)) a.forEach(function (x, i) { o[k + '|' + (idOf(x) || i)] = norm(x); });
+    };
+    LISTS.forEach(function (f) { add(f, (p || {})[f]); });
+    var d = (p || {}).data || {};
+    Object.keys(d).forEach(function (k) { add('data/' + k, d[k]); });
+    return o;
+  }
+  function distance(a, b) {
+    var am = itemMap(a), bm = itemMap(b), n = 0;
+    Object.keys(am).forEach(function (k) { if (am[k] !== bm[k]) n++; });
+    Object.keys(bm).forEach(function (k) { if (!(k in am)) n++; });
+    return n;
+  }
+  function pickBase(candidates, live) {
+    var best = null, bestD = Infinity;
+    candidates.forEach(function (c) {
+      if (!c) return;
+      var d = distance(c, live);
+      if (d < bestD) { bestD = d; best = c; }
+    });
+    return { base: best, distance: bestD };
+  }
+
+  var api = { mergeDoc: mergeDoc, pickBase: pickBase, distance: distance, mergeList: mergeList, looksRetyped: looksRetyped, _norm: norm };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.A1BackupMerge = api;
 })(this);
