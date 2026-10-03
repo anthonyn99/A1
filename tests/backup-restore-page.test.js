@@ -133,12 +133,21 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     ok(!(await evalJs('window.__writes')), 'nothing written after a wrong passphrase');
 
     await submit(PASS);
-    for (let i = 0; i < 80 && (await evalJs('document.getElementById("go").hidden')); i++) await sleep(250);
-    const opened = await evalJs('!document.getElementById("go").hidden');
+    for (let i = 0; i < 80 && (await evalJs('document.getElementById("bar").hidden')); i++) await sleep(250);
+    const opened = await evalJs('!document.getElementById("bar").hidden');
     ok(opened, 'the right passphrase opens the backup and offers Restore');
     if (!opened) console.log('        page says: ' + await evalJs('document.getElementById("st").textContent'));
     const plan = await evalJs('document.getElementById("plan").textContent');
     ok(/Tony.s TaskHub/.test(plan) && /Veda.s TaskHub/.test(plan), 'one passphrase shows BOTH TaskHubs');
+    if (process.env.SHOT) { await send('Emulation.setDeviceMetricsOverride', { width: 1000, height: 1300, deviceScaleFactor: 1, mobile: false }); await sleep(300);
+      fs.writeFileSync(process.env.SHOT, Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).result.data, 'base64')); }
+    ok(await evalJs('document.querySelectorAll("input[name=bk]").length') >= 1, 'the backups are listed to choose from');
+    await evalJs('document.querySelector("input[name=mode][value=rollback]").click()');
+    ok(/Roll back both/.test(await evalJs('document.getElementById("go").textContent')), 'Full rollback can be chosen');
+    await evalJs('document.querySelector("input[name=who][value=main]").click()');
+    ok(!/Tony.s TaskHub/.test(await evalJs('document.getElementById("plan").textContent')), 'a TaskHub can be left out');
+    await evalJs('document.querySelector("input[name=who][value=main]").click(); document.querySelector("input[name=mode][value=merge]").click()');
+    ok(/Restore both/.test(await evalJs('document.getElementById("go").textContent')), 'back to Merge, both TaskHubs');
     ok(await evalJs('localStorage.getItem("a1b_pass") === null'), 'the typed passphrase is not saved');
     ok(!(await evalJs('window.__writes')), 'nothing written before Restore is clicked');
 

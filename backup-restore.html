@@ -4,47 +4,145 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Backup Restore</title>
-<!-- Puts both TaskHubs back to a backup taken before a reset, keeping what was
-     done since (backup-merge.js). Uses this browser's saved passphrase, or asks
-     for Tony's or Veda's (kept in memory only): every snapshot holds BOTH
-     TaskHubs, so either passphrase restores both. No data leaves the browser.
-     ?good=<device> picks the pre-reset backup from Index Backups/ (default:
-     the newest one this passphrase opens). Nothing is written until Restore is
-     clicked, and the current state is copied to dashboards/<doc>_prerestore
-     first. Does not run TaskHub, so no stale local copy can write back. -->
+<!-- Puts the TaskHubs back to a backup (backup-merge.js). Uses this browser's
+     saved passphrase, or asks for Tony's or Veda's (kept in memory only): every
+     snapshot holds BOTH TaskHubs, so either passphrase restores both. No data
+     leaves the browser. Backups come from Index Backups/ (tools/pull-backups.mjs
+     — run it first) plus this browser's own vault. The person picks the backup,
+     Merge (keep what was done since) or Full rollback, and which TaskHubs.
+     ?good=<device> preselects that device's newest backup. Nothing is written
+     until Restore is clicked, and the current state is copied to
+     dashboards/<doc>_prerestore first. Does not run TaskHub, so no stale local
+     copy can write back. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  :root { --bg: #18181b; --fg: #ececf1; --muted: #a1a1aa; --accent: #c0aeea; --bad: #f08a8a; --line: #2e2e33; }
-  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; }
-  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
-  h1 { font-size: 22px; margin: 0 0 8px; } h2 { font-size: 17px; margin: 24px 0 6px; }
-  #st { color: var(--muted); white-space: pre-line; }
-  .ok { color: var(--accent) !important; } .bad { color: var(--bad) !important; }
-  ul { margin: 4px 0; padding-left: 20px; } li { color: var(--muted); } li b { color: var(--fg); font-weight: 500; }
-  button { font: inherit; padding: 12px 28px; border: 0; border-radius: 8px; background: #8D769A; color: #fff; cursor: pointer; margin-top: 24px; }
-  button:disabled { opacity: .5; cursor: default; }
+  :root {
+    --bg: #131316; --card: #1b1b20; --raise: #23232a; --line: #2c2c34; --fg: #ececf1;
+    --muted: #9b9ba6; --faint: #6c6c78; --accent: #c0aeea; --accent-ink: #1a1424; --accent-2: #8D769A;
+    --good: #8fd1a8; --bad: #f08a8a; --warn: #e6c27a; --radius: 14px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f6f5f8; --card: #ffffff; --raise: #f1eff5; --line: #e4e1ea; --fg: #1d1b22;
+      --muted: #67646f; --faint: #9a97a3; --accent: #6f58a3; --accent-ink: #ffffff; --accent-2: #8D769A;
+      --good: #2f8a55; --bad: #c44747; --warn: #a77a1c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 15px/1.55 Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  main { max-width: 720px; margin: 0 auto; padding: 48px 16px 120px; }
+  header h1 { font-size: 26px; font-weight: 600; letter-spacing: -.01em; margin: 0 0 6px; }
+  header p { margin: 0; color: var(--muted); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; margin-top: 20px; }
+  .label { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); margin: 0 0 12px; }
+  #st { margin-top: 20px; color: var(--muted); white-space: pre-line; min-height: 1.5em; }
+  #st.ok { color: var(--good); } #st.bad { color: var(--bad); }
+  #st.ok, #st.bad { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; }
+
+  form#pf { display: flex; gap: 10px; flex-wrap: wrap; }
+  form#pf p { flex-basis: 100%; margin: 0 0 4px; color: var(--muted); }
+  input[type=password] { flex: 1 1 240px; font: inherit; color: var(--fg); background: var(--raise);
+    border: 1px solid var(--line); border-radius: 10px; padding: 11px 14px; outline: none; }
+  input[type=password]:focus { border-color: var(--accent); }
+  button { font: inherit; font-weight: 500; border: 0; border-radius: 10px; padding: 11px 20px; cursor: pointer;
+           background: var(--accent); color: var(--accent-ink); }
+  button:disabled { opacity: .45; cursor: default; }
+
+  .backups { display: grid; gap: 8px; max-height: 340px; overflow: auto; padding-right: 2px; }
+  .opt { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--line);
+         border-radius: 10px; background: var(--raise); cursor: pointer; }
+  .opt:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .opt input { accent-color: var(--accent); margin-top: 3px; }
+  .opt .t { font-weight: 500; } .opt .s { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .newest { font-size: 11px; font-weight: 600; color: var(--accent); margin-left: 6px; letter-spacing: .04em; }
+
+  .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .seg .opt { flex-direction: column; gap: 2px; }
+  .seg .opt input { position: absolute; opacity: 0; pointer-events: none; }
+  .who { display: flex; gap: 8px; flex-wrap: wrap; }
+  .who .opt { align-items: center; padding: 9px 14px; }
+
+  .doc { margin-top: 20px; }
+  .doc h2 { font-size: 17px; font-weight: 600; margin: 0 0 4px; }
+  .doc .meta { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .chip { font-size: 13px; padding: 4px 10px; border-radius: 999px; background: var(--raise); border: 1px solid var(--line);
+          color: var(--muted); font-variant-numeric: tabular-nums; }
+  .chip b { color: var(--fg); font-weight: 600; margin-right: 4px; }
+  details { border-top: 1px solid var(--line); padding: 10px 0 2px; }
+  details:first-of-type { border-top: 0; }
+  summary { cursor: pointer; color: var(--fg); font-weight: 500; list-style: none; display: flex; justify-content: space-between; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: '+'; color: var(--faint); } details[open] summary::after { content: '−'; }
+  details ul { margin: 8px 0 6px; padding-left: 18px; color: var(--muted); }
+  details li { margin: 3px 0; } details li span { color: var(--faint); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .none { color: var(--muted); }
+
+  .bar { position: fixed; left: 0; right: 0; bottom: 0; background: color-mix(in srgb, var(--bg) 88%, transparent);
+         backdrop-filter: blur(10px); border-top: 1px solid var(--line); }
+  .bar div { max-width: 720px; margin: 0 auto; padding: 14px 16px; display: flex; gap: 12px; align-items: center; justify-content: space-between; }
+  .bar small { color: var(--muted); }
+  @media (max-width: 520px) { .seg { grid-template-columns: 1fr; } main { padding-top: 32px; } }
 </style>
 <script src="backup.js"></script>
 <script src="backup-merge.js"></script>
 </head>
 <body>
 <main>
-  <h1>Restore TaskHubs from backup</h1>
+  <header>
+    <h1>Restore TaskHubs</h1>
+    <p>Put Tony's and Veda's TaskHubs back to a backup. Nothing changes until you press Restore.</p>
+  </header>
+
+  <section class="card" id="passcard" hidden>
+    <p class="label">Passphrase</p>
+    <form id="pf" hidden>
+      <p>Type Tony's or Veda's backup passphrase. Either one restores both TaskHubs. It is only used on this page and never saved.</p>
+      <input id="pw" type="password" autocomplete="off" placeholder="Backup passphrase">
+      <button>Open backups</button>
+    </form>
+  </section>
+
   <div id="st"></div>
-  <form id="pf" hidden><p style="color:var(--muted)">Type Tony's or Veda's backup passphrase. Either one restores both TaskHubs. It is used on this page only and never saved.</p><input id="pw" type="password" autocomplete="off" placeholder="backup passphrase" style="font:inherit;padding:12px;border-radius:8px;border:1px solid #444;background:#222;color:var(--fg);width:100%;box-sizing:border-box"><button>Open backups</button></form>
+
+  <div id="choices" hidden>
+    <section class="card">
+      <p class="label">Restore from</p>
+      <div class="backups" id="backups"></div>
+    </section>
+    <section class="card">
+      <p class="label">How</p>
+      <div class="seg">
+        <label class="opt"><input type="radio" name="mode" value="merge" checked><span class="t">Merge</span>
+          <span class="s">The backup, plus anything done since it. Recommended.</span></label>
+        <label class="opt"><input type="radio" name="mode" value="rollback"><span class="t">Full rollback</span>
+          <span class="s">Exactly as the backup was. Later changes are dropped.</span></label>
+      </div>
+      <p class="label" style="margin-top:18px">Which TaskHubs</p>
+      <div class="who" id="who"></div>
+    </section>
+  </div>
+
   <div id="plan"></div>
-  <button id="go" hidden>Restore both TaskHubs</button>
 </main>
+<div class="bar" id="bar" hidden><div><small id="barnote"></small><button id="go">Restore</button></div></div>
+
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js';
 import { initializeAppCheck, ReCaptchaV3Provider } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js';
 import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js';
 import { getFirestore, doc, getDocFromServer, setDoc } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js';
 
-const st = document.getElementById('st'), plan = document.getElementById('plan'), go = document.getElementById('go');
+const $ = (id) => document.getElementById(id);
+const st = $('st'), plan = $('plan'), go = $('go');
 const say = (t, cls) => { st.textContent = t; st.className = cls || ''; };
 const DOCS = [['main', 'Tony'], ['vedasdash', 'Veda']];
-const when = (ms) => new Date(ms).toLocaleString();
+const when = (ms) => new Date(ms).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const KNOWN = { 'android-no8fj5': 'Tony’s phone', 'pc-1cw70x': 'Tony’s PC (Brave)' };
+const devName = (d) => KNOWN[d] || ({ android: 'Android phone', iphone: 'iPhone', pc: 'PC', mac: 'Mac' }[d.split('-')[0]] || 'Device') + ' · ' + d.split('-').pop();
 
 // Same project, config and App Check key as index.html.
 const app = initializeApp({
@@ -84,98 +182,137 @@ async function repoSnapshots(dec) {
   return out;
 }
 
-function summarize(report) {
-  const vs = (x) => / vs .+ · /.test(x.title || '');
-  const lines = [];
+const VS = (x) => / vs .+ · /.test(x.title || '');
+function preview(report) {
   const by = (op) => report.filter((x) => x.op === op);
-  const list = (label, xs, fmt) => {
-    if (!xs.length) return;
-    lines.push('<li>' + label + ':<ul>' + xs.slice(0, 40).map((x) => '<li><b>' + esc(fmt(x)) + '</b></li>').join('') +
-               (xs.length > 40 ? '<li>…and ' + (xs.length - 40) + ' more</li>' : '') + '</ul></li>');
+  const label = (x) => esc(x.title || x.where) + (x.where && x.where.startsWith('data/') ? ' <span>' + esc(x.where.slice(5)) + '</span>' : '');
+  const checks = by('updated').filter((x) => x.changes && x.changes.includes('done'));
+  const edits = by('updated').filter((x) => x.title && !(x.changes && x.changes.includes('done')));
+  const groups = [
+    ['Brought back', by('restored')],
+    ['Check-offs changed', checks],
+    ['Edited back', edits],
+    ['Removed', by('removed')],
+    ['Re-typed copies replaced', by('dropped-copy').map((x) => Object.assign({}, x, { title: x.title + '  →  ' + x.original }))],
+    ['Kept from since the backup', by('kept-new')]
+  ].filter(([, xs]) => xs.length);
+  if (!groups.length && !by('updated').some((x) => x.where === 'hc')) return '<p class="none">Already matches this backup — nothing to change.</p>';
+  const chips = groups.map(([t, xs]) => '<span class="chip"><b>' + xs.length + '</b>' + t + '</span>').join('') +
+    (by('updated').some((x) => x.where === 'hc') ? '<span class="chip">Habit check-offs</span>' : '');
+  const lists = groups.map(([t, xs]) => {
+    const plain = xs.filter((x) => !VS(x)), vs = xs.filter(VS);
+    const items = plain.slice(0, 60).map((x) => '<li>' + label(x) + '</li>').join('') +
+      (plain.length > 60 ? '<li>…and ' + (plain.length - 60) + ' more</li>' : '') +
+      (vs.length ? '<li>' + vs.length + ' esports match entries</li>' : '');
+    return '<details><summary>' + t + ' (' + xs.length + ')</summary><ul>' + items + '</ul></details>';
+  }).join('');
+  return '<div class="chips">' + chips + '</div>' + lists;
+}
+
+let ALL = [], LIVE = {}, WORK = [];
+
+function choices() {
+  const id = (document.querySelector('input[name=bk]:checked') || {}).value;
+  return {
+    snap: ALL.find((s) => s.key === id),
+    mode: document.querySelector('input[name=mode]:checked').value,
+    who: [...document.querySelectorAll('input[name=who]:checked')].map((x) => x.value)
   };
-  const t = (x) => (x.title || x.where) + (x.where && x.where.startsWith('data/') ? '  (' + x.where.slice(5) + ')' : '');
-  list('Brought back', by('restored'), t);
-  list('Updated to last night’s version', by('updated').filter((x) => x.title), (x) => t(x) + (x.changes && x.changes.includes('done') ? ' — check-off restored' : ''));
-  const rm = by('removed'), rmVs = rm.filter(vs);
-  list('Removed again (deleted last night, brought back by the reset)', rm.filter((x) => !vs(x)), t);
-  if (rmVs.length) lines.push('<li>Removed again: <b>' + rmVs.length + ' esports match entries</b> (deleted last night, brought back by the reset)</li>');
-  list('Re-typed copies replaced by the original', by('dropped-copy'), (x) => x.title + '  →  ' + x.original);
-  const kept = by('kept-new');
-  if (kept.length) lines.push('<li>Kept from since the reset: <b>' + kept.filter((x) => !vs(x)).map((x) => esc(x.title)).join(', ') +
-    (kept.some(vs) ? (kept.filter((x) => !vs(x)).length ? ', ' : '') + kept.filter(vs).length + ' esports entries' : '') + '</b></li>');
-  if (by('updated').some((x) => x.where === 'hc')) lines.push('<li>Habit check-offs restored</li>');
-  return lines.length ? '<ul>' + lines.join('') + '</ul>' : '<ul><li>No differences — nothing to restore.</li></ul>';
+}
+
+function render() {
+  const { snap, mode, who } = choices();
+  WORK = [];
+  plan.innerHTML = '';
+  if (!snap) return;
+  for (const [name, person] of DOCS) {
+    const g = snap.docs[name];
+    if (!g || !who.includes(name)) continue;
+    const live = LIVE[name];
+    const cands = ALL.map((s) => s.docs[name]).filter((d) => d && d.savedAt < g.savedAt);
+    const pb = A1BackupMerge.pickBase(cands, live);
+    const r = mode === 'rollback' ? A1BackupMerge.rollbackDoc(pb.base || {}, g, live) : A1BackupMerge.mergeDoc(pb.base || {}, g, live);
+    WORK.push({ name, who: person, live, merged: r.doc });
+    plan.insertAdjacentHTML('beforeend', '<section class="card doc"><h2>' + person + '’s TaskHub</h2><div class="meta">Backup saved ' +
+      esc(when(g.savedAt)) + (mode === 'merge' && pb.base ? ' · currently matches the ' + esc(when(pb.base.savedAt)) + ' state' : '') +
+      '</div>' + preview(r.report) + '</section>');
+  }
+  $('bar').hidden = !WORK.length;
+  go.disabled = !WORK.length;
+  go.textContent = mode === 'rollback' ? 'Roll back ' + (WORK.length === 2 ? 'both' : WORK[0] ? WORK[0].who + '’s' : '') : 'Restore ' + (WORK.length === 2 ? 'both TaskHubs' : WORK[0] ? WORK[0].who + '’s TaskHub' : '');
+  $('barnote').textContent = 'The current state is saved first, so this can be undone.';
 }
 
 // `pass` = a typed passphrase (kept in memory only); null = this browser's saved one.
 async function run(pass) {
   try {
-    say('Reading backups…');
+    say('Opening backups…');
     await signInAnonymously(getAuth(app));
     const dec = pass ? (env) => A1Backup._internals.decryptEnvWith(env, pass) : A1Backup._internals.decryptEnv;
 
     const repo = await repoSnapshots(dec);
-    let localSnaps = [];
+    let local = [];
     if (!pass) {
-      const local = await A1Backup.exportDocs(null, Date.now() - 72 * 3600000);
-      localSnaps = local.snapshots.map((s) => ({ device: local.device, at: s.at, docs: Object.fromEntries(
-        DOCS.map(([n]) => [n, local.objects[s.docs['dashboards/' + n]]]).filter(([, v]) => v)) }));
+      const ex = await A1Backup.exportDocs(null, Date.now() - 72 * 3600000);
+      local = ex.snapshots.map((s) => ({ device: ex.device, at: s.at, docs: Object.fromEntries(
+        DOCS.map(([n]) => [n, ex.objects[s.docs['dashboards/' + n]]]).filter(([, v]) => v)) }));
     }
-    const all = repo.concat(localSnaps);
+    if (!repo.length && !local.length) {
+      $('passcard').hidden = false; $('pf').hidden = false;
+      return say(pass ? 'That passphrase did not open any backup. Check it, or try the other person’s.'
+                      : 'This browser’s saved passphrase did not open any backup.', 'bad');
+    }
+    $('passcard').hidden = true;
+
+    for (const [name] of DOCS) LIVE[name] = (await getDocFromServer(doc(db, 'dashboards/' + name))).data();
+
+    // One option per distinct state (same saved times = same backup), newest first.
+    const seen = new Set();
+    ALL = repo.concat(local).filter((s) => {
+      const k = DOCS.map(([n]) => (s.docs[n] || {}).savedAt).join('|');
+      s.key = k;
+      if (seen.has(k)) return false; seen.add(k); return true;
+    }).sort((a, b) => Math.max(...DOCS.map(([n]) => (b.docs[n] || {}).savedAt || 0)) - Math.max(...DOCS.map(([n]) => (a.docs[n] || {}).savedAt || 0)));
 
     const want = new URLSearchParams(location.search).get('good');
-    const latest = repo.filter((r) => r.latest);
-    const good = want ? latest.find((r) => r.device === want) : latest.sort((a, b) => b.at - a.at)[0];
-    if (!good) {
-      document.getElementById('pf').hidden = false;
-      return say(pass ? 'That passphrase did not open ' + (want ? 'the ' + want + ' backup' : 'any backup') + '. Try again, or the other person’s.'
-                      : 'Could not open the backup ' + (want || '') + ' with this browser’s passphrase.', 'bad');
-    }
-    document.getElementById('pf').hidden = true;
-
-    const work = [];
-    for (const [name, who] of DOCS) {
-      const g = good.docs[name];
-      if (!g) continue;
-      const live = (await getDocFromServer(doc(db, 'dashboards/' + name))).data();
-      const cands = all.map((s) => s.docs[name]).filter((d) => d && d.savedAt < g.savedAt);
-      const pb = A1BackupMerge.pickBase(cands, live);
-      const r = A1BackupMerge.mergeDoc(pb.base || {}, g, live);
-      work.push({ name, who, live, merged: r.doc, report: r.report });
-      plan.insertAdjacentHTML('beforeend', '<h2>' + who + '’s TaskHub</h2><div style="color:var(--muted)">Backup from ' +
-        esc(when(g.savedAt)) + ' (' + esc(good.device) + '). ' + (pb.base ? 'It had been reset to the ' + esc(when(pb.base.savedAt)) + ' state.' : '') + '</div>' + summarize(r.report));
-    }
-    if (!work.length) return say('That backup has no TaskHub data.', 'bad');
-    say('Nothing has been changed yet. Check the list below, then press Restore.');
-    go.hidden = false;
-    go.onclick = async () => {
-      go.disabled = true; say('Restoring…');
-      try {
-        for (const w of work) {
-          // Refuse if someone edited since this page read it — the merge would be stale.
-          const now = (await getDocFromServer(doc(db, 'dashboards/' + w.name))).data();
-          if (now.savedAt !== w.live.savedAt) throw new Error(w.who + '’s TaskHub changed while this page was open. Reload this page and try again.');
-          await setDoc(doc(db, 'dashboards/' + w.name + '_prerestore'), { at: Date.now(), doc: w.live });
-          await setDoc(doc(db, 'dashboards/' + w.name), Object.assign({}, w.merged, { savedAt: Date.now() }));
-        }
-        say('Restored. Reload TaskHub on every device (yours and Veda’s). The previous state was saved to dashboards/main_prerestore and vedasdash_prerestore.', 'ok');
-        go.hidden = true;
-        window.__restored = Date.now();
-      } catch (e) { say('Restore failed: ' + (e && e.message || e) + '\nNothing after this point was written.', 'bad'); go.disabled = false; }
-    };
-  } catch (e) { say('Could not prepare the restore: ' + (e && e.message || e), 'bad'); }
+    const pick = (want && ALL.find((s) => s.device === want && s.latest)) || ALL[0];
+    $('backups').innerHTML = ALL.slice(0, 40).map((s, i) => '<label class="opt"><input type="radio" name="bk" value="' + esc(s.key) + '"' +
+      (s === pick ? ' checked' : '') + '><span><span class="t">' + esc(devName(s.device)) + (i === 0 ? '<span class="newest">NEWEST</span>' : '') +
+      '</span><br><span class="s">' + DOCS.map(([n, p]) => p + ' ' + (s.docs[n] ? esc(when(s.docs[n].savedAt)) : '—')).join(' · ') + '</span></span></label>').join('');
+    $('who').innerHTML = DOCS.map(([n, p]) => '<label class="opt"><input type="checkbox" name="who" value="' + n + '" checked> ' + p + '</label>').join('');
+    $('choices').hidden = false;
+    document.querySelectorAll('#choices input').forEach((el) => el.addEventListener('change', render));
+    say('');
+    render();
+  } catch (e) { say('Could not open the backups: ' + (e && e.message || e), 'bad'); }
 }
 
+go.onclick = async () => {
+  go.disabled = true; say('Restoring…');
+  try {
+    for (const w of WORK) {
+      // Refuse if someone edited since this page read it — the plan would be stale.
+      const now = (await getDocFromServer(doc(db, 'dashboards/' + w.name))).data();
+      if (now.savedAt !== w.live.savedAt) throw new Error(w.who + '’s TaskHub changed while this page was open. Reload this page and try again.');
+      await setDoc(doc(db, 'dashboards/' + w.name + '_prerestore'), { at: Date.now(), doc: w.live });
+      await setDoc(doc(db, 'dashboards/' + w.name), Object.assign({}, w.merged, { savedAt: Date.now() }));
+    }
+    say('Restored. Reload TaskHub on every device. The previous state was saved to dashboards/' +
+        WORK.map((w) => w.name + '_prerestore').join(' and ') + '.', 'ok');
+    $('bar').hidden = true; $('choices').hidden = true;
+    window.__restored = Date.now();
+  } catch (e) { say('Restore failed: ' + (e && e.message || e) + '\nNothing after this point was written.', 'bad'); go.disabled = false; }
+};
+
 // A saved passphrase is used straight away; otherwise ask for either person's.
-document.getElementById('pf').onsubmit = (e) => {
+$('pf').onsubmit = (e) => {
   e.preventDefault();
-  const pw = document.getElementById('pw'), pass = pw.value;
+  const pw = $('pw'), pass = pw.value;
   pw.value = '';
-  plan.innerHTML = '';
   if (pass) run(pass);
 };
 if (A1Backup.isSetUp()) run(null);
-else { document.getElementById('pf').hidden = false; say('This browser has no saved backup passphrase.'); }
+else { $('passcard').hidden = false; $('pf').hidden = false; }
 </script>
 </body>
 </html>
