@@ -116,6 +116,10 @@
    also reaches his overlays on <body> (settings, uiModal, the program nav). */
 body[data-th-profile="tony"],
 body[data-th-profile="tony"] :is(input,select,textarea,button){font-variant-numeric:tabular-nums;}
+/* The TaskHub banner's action button (th-banner-action) is inline-styled gold
+   for both profiles; Tony's is MAGI's .btn: a bdl outline turning purple. */
+body[data-th-profile="tony"] .th-banner-action{color:#c0aeea!important;border-color:#45454c!important;border-radius:6px!important;font-size:10px!important;font-weight:700!important;letter-spacing:1px!important;}
+body[data-th-profile="tony"] .th-banner-action:hover{border-color:#c0aeea!important;}
 /* Every button in every app root gets the glow by default. The TaskHubs need
    it most — their buttons are inline-styled from React, and those handlers only
    set border-color/color, never box-shadow, so this never fights them.
@@ -34894,6 +34898,8 @@ body[data-th-profile="tony"] .docx-math-resize { background: #c0aeea; }
   font-size: 12pt !important;
   line-height: 1.5 !important;
 }
+/* Tony's page edge is a purple hairline, not gold (theme phase 11). */
+#tj-root .docx-sheet { box-shadow: 0 1px 3px rgba(0,0,0,.55), 0 14px 40px rgba(0,0,0,.5), 0 0 0 1px rgba(192,174,234,.10); }
 /* Both forms are needed: the descendant one covers text inside blocks, the element one
    covers text sitting DIRECTLY in the sheet (contenteditable routinely leaves the first
    line unwrapped) -- without it that line highlighted in the browser's default colour. */
