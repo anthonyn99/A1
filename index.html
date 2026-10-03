@@ -110,6 +110,12 @@
   /* MAGI has no serif: the quote, "Resets every Monday" and today's day name
      read in the UI face instead of Fraunces. */
   --font-accent:'Inter',system-ui,-apple-system,sans-serif;}
+/* A1's numbers face on Tony's side (theme overhaul phase 10): Inter with
+   tabular figures, so digits are one width and columns line up. Controls
+   don't inherit it, so they're named. The attribute is Tony-only, so it
+   also reaches his overlays on <body> (settings, uiModal, the program nav). */
+body[data-th-profile="tony"],
+body[data-th-profile="tony"] :is(input,select,textarea,button){font-variant-numeric:tabular-nums;}
 /* Every button in every app root gets the glow by default. The TaskHubs need
    it most — their buttons are inline-styled from React, and those handlers only
    set border-color/color, never box-shadow, so this never fights them.
@@ -7232,7 +7238,7 @@ const PLAN_PAL_TONY={
   TX:"#f4f3f0",TXD:"#adadb2",TXM:"#8d8d94",TXF:"#71717a",
   AC:"#c0aeea",ACINK:"#1a1a1d",OK:PLAN_GRN_TONY,WARN:"#d9a863",BAD:"#d68a7c",
   FONT:"'Inter',system-ui,-apple-system,sans-serif",
-  MONO:"'IBM Plex Mono',ui-monospace,monospace"};
+  MONO:"'Inter',system-ui,-apple-system,sans-serif"};
 // Passed as an Add-dialog's `initial` to open it straight on the Plan tab (the
 // Weekly header chip does this). It must be ONE stable object: the dialogs key
 // their reset effect on `initial`, so a fresh literal per render would re-seed
@@ -29604,7 +29610,7 @@ window.hideBrainstormJournal = function() {
     color: var(--text3);
     font-weight: 400;
     letter-spacing: 0.06em;
-    font-family: var(--font-mono);
+    font-family: var(--font); font-weight: 500;
   }
 
 #tj-root #tj-new-entry-btn {
@@ -30025,7 +30031,7 @@ window.hideBrainstormJournal = function() {
 #tj-root #tj-empty-state .empty-hint {
     margin-top: 6px;
     font-size: 10px;
-    font-family: var(--font-mono);
+    font-family: var(--font);
     color: var(--ac);
     opacity: 0.6;
     background: transparent;
@@ -30461,7 +30467,7 @@ window.hideBrainstormJournal = function() {
 
   /* ── CHAR COUNT ── */
 #tj-root .char-count {
-    font-family: var(--font-mono);
+    font-family: var(--font); font-weight: 500;
     font-size: 10px;
     color: var(--text3);
     text-align: right;
