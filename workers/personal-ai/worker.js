@@ -1515,7 +1515,9 @@ const PREP_SCHEMA = {
         subject: { type: 'STRING' },
         body: { type: 'STRING' },
       },
-      required: ['kind'],
+      // All four, not just kind: with the rest optional Gemini returned
+      // {kind:'email'} and no body while the summary claimed a drafted email.
+      required: ['kind', 'to', 'subject', 'body'],
     },
     sites: {
       type: 'ARRAY',
@@ -1585,12 +1587,15 @@ function buildPrepPrompt({ task, note, site, today, weekday, apps }) {
     ``,
     `Return JSON with:`,
     `- helpful: false ONLY if there is nothing to prepare (e.g. "gym", "laundry", "sleep early"). Then keep the rest minimal.`,
-    `- summary: 1-2 short sentences telling Veda what you prepared and what is left for her to do.`,
+    `- summary: 1-2 short sentences telling Veda what you prepared and what is left for her to do. Mention only`,
+    `  what this JSON actually contains (never say you drafted an email unless draft.body holds it).`,
     `- prompt: a complete, self-contained message Veda will paste into ${siteName}. Write it in her voice ("I need to…"),`,
     `  include every detail from the task and notes, and ask for the concrete finished output (the full email, a`,
     `  comparison with links, a step-by-step plan, etc.). ${siteName === 'Perplexity' ? 'Perplexity searches the web, so ask it to cite sources and current info where that helps.' : ''}`,
     `  The assistant knows nothing else about her, so the prompt must stand alone. Max ~1200 words.`,
     `- draft: your own best first draft of the deliverable, so she has something even before opening ${siteName}.`,
+    `  The COMPLETE text goes in draft.body; a draft with an empty body is discarded. Always fill every draft field`,
+    `  (use "" for ones that do not apply).`,
     `  kind "email" when the task is to email/write to someone: fill to (only an address that appears in her notes,`,
     `  else empty), subject, and body (complete, polite, signed "Veda", placeholders like [date] only where a fact`,
     `  is genuinely unknown). kind "message" for a text/DM, "document" for notes/outlines/lists, "none" if no draft fits.`,
