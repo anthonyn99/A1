@@ -15750,6 +15750,7 @@ function VdPrepPanel({item,dateKey,onClose}){
   const[copied,setCopied]=useState("");
   const[defSite,setDefSite]=useState(()=>window._vdPrepDefaultSite?window._vdPrepDefaultSite():"perplexity");
   useScrollLock(!!item);
+  useEffect(()=>{if(item&&window._vdBridgeProbe&&!window._vdBridgeUp)window._vdBridgeProbe();},[item&&item.id]);
   if(!item)return null;
   const got=window._vdPrepKitFor?window._vdPrepKitFor(item,dateKey):null;
   const kit=got&&got.kit;const fresh=!!(got&&got.fresh);
@@ -15788,6 +15789,17 @@ function VdPrepPanel({item,dateKey,onClose}){
           d.subject&&RC("div",{style:{display:"flex",alignItems:"center",gap:8,fontSize:12,color:TXD}},RC("span",{style:{fontWeight:700,minWidth:52}},"Subject"),RC("span",{style:{color:TX,flex:1,minWidth:0}},d.subject),copyBtn("subject",d.subject))),
         RC("div",{style:{...box,whiteSpace:"pre-wrap",maxHeight:260,overflowY:"auto"}},d.body),
         RC("div",{style:{marginTop:6}},copyBtn("body",d.body))),
+      kit&&fresh&&((kit.sites&&kit.sites.length)||(kit.apps&&kit.apps.length))>0&&/Windows/i.test(navigator.userAgent||"")&&RC("div",{style:{...box,padding:"10px 12px",display:"flex",flexDirection:"column",gap:8,borderColor:window._vdBridgeErr?"#d29922":BDL}},
+        RC("div",{style:{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}},
+          RC("span",{style:{fontSize:12,fontWeight:700,color:TX,flex:1,minWidth:160}},
+            window._vdBridgeUp?"Sites and apps open on your PC when you press \u2726."
+            :window._vdBridgeErr==="down"?"The StudyOS helper isn\u2019t answering on this PC, so only the AI site opened."
+            :window._vdBridgeErr?"Your browser stopped TaskHub from opening the sites and apps on this PC."
+            :"Checking the StudyOS helper on this PC\u2026"),
+          RC("button",{type:"button",style:btn(true),onClick:()=>window._vdPrepOpenLocal(kit.apps||[],(kit.sites||[]).map(x=>x.url))},"Open sites & apps")),
+        window._vdBridgeErr&&window._vdBridgeErr!=="down"&&RC("div",{style:{fontSize:12,color:TXD,lineHeight:1.55}},
+          "One-time fix: click the icon just left of the address bar \u2192 Site settings \u2192 set \u201cApps on this device\u201d (Brave may call it \u201cLocalhost access\u201d or \u201cLocal network access\u201d) to Allow for this site. Then press Open sites & apps. If your browser shows an \u201cAllow access to apps on this device?\u201d popup, choose Allow."),
+        window._vdBridgeErr==="down"&&RC("div",{style:{fontSize:12,color:TXD,lineHeight:1.55}},"Start it from the Startup folder (\u201cStudyOS Bridge\u201d) or restart the PC, then press Open sites & apps. The links below still work.")),
       kit&&fresh&&kit.sites&&kit.sites.length>0&&RC("div",null,
         RC("div",{style:lbl},"Sites"),
         RC("div",{style:{display:"flex",flexDirection:"column",gap:6}},kit.sites.map((s,i)=>RC("a",{key:i,href:s.url,target:"_blank",rel:"noopener noreferrer",style:{...box,padding:"8px 12px",color:A,fontWeight:700,textDecoration:"none",display:"block",wordBreak:"break-word"}},s.label)))),
@@ -43357,6 +43369,7 @@ window._sosResUseBrowser = function(on){
     return bridgeFetch('/api/apps', { method: 'GET' }, 3000).then(function(j){
       if (!j || !j.ok || !Array.isArray(j.apps)) throw new Error('no apps');
       window._vdBridgeUp = true;
+      window._vdBridgeErr = '';
       var apps = j.apps.filter(function(a){ return a && a.id && a.name; })
         .map(function(a){ return { id: String(a.id), name: String(a.name) }; });
       if (window._vdPcAppsLoaded && appsSig(apps) !== appsSig(window._vdPcApps) && window._fbSaveVdPcApps) {
@@ -43366,18 +43379,48 @@ window._sosResUseBrowser = function(on){
       window.dispatchEvent(new CustomEvent('vd-prep-update'));
       return true;
     }).catch(function(){
-      if (window._vdBridgeUp) { window._vdBridgeUp = false; window.dispatchEvent(new CustomEvent('vd-prep-update')); }
-      return false;
+      window._vdBridgeUp = false;
+      return noteFailure().then(function(){ return false; });
     });
   };
 
   // Open app ids + web urls on the PC. Resolves to the bridge's answer, or null.
+  // MEASURED (2026-10-03): from https://anthonyn99.github.io every call to the
+  // bridge failed with corsError "LocalNetworkAccessPermissionDenied". Chromium
+  // (Brave/Chrome/Edge) makes a public site ask permission before it may reach
+  // 127.0.0.1, and the permission that governs loopback is "loopback-network"
+  // (granting "local-network-access" alone did NOT unblock it). Until she allows
+  // it once for the site, the sites/apps never open and the fetch error looks
+  // exactly like "bridge not running". So the state is checked, recorded in
+  // _vdBridgeErr, and the Prep panel tells her which one it is and how to fix it.
+  window._vdBridgePerm = function(){
+    var q = function(name){
+      try { return navigator.permissions.query({ name: name }).then(function(r){ return r.state; }, function(){ return null; }); }
+      catch(e){ return Promise.resolve(null); }
+    };
+    if (!navigator.permissions || !navigator.permissions.query) return Promise.resolve('unknown');
+    return q('loopback-network').then(function(st){ return st || q('local-network-access'); })
+      .then(function(st){ return st || 'unknown'; });
+  };
+  window._vdBridgeErr = window._vdBridgeErr || '';     // '' | 'blocked' | 'down'
+  var noteFailure = function(){
+    return window._vdBridgePerm().then(function(st){
+      window._vdBridgeErr = st === 'denied' ? 'blocked' : (st === 'prompt' ? 'blocked-or-down' : 'down');
+      window.dispatchEvent(new CustomEvent('vd-prep-update'));
+    });
+  };
+
   window._vdPrepOpenLocal = function(appIds, urls){
     if (!onWindows()) return Promise.resolve(null);
     var body = JSON.stringify({ apps: appIds || [], urls: urls || [] });
     return bridgeFetch('/api/launch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body }, 8000)
-      .then(function(j){ window._vdBridgeUp = !!(j && j.ok); return j; })
-      .catch(function(){ window._vdBridgeUp = false; return null; });
+      .then(function(j){
+        window._vdBridgeUp = !!(j && j.ok);
+        window._vdBridgeErr = window._vdBridgeUp ? '' : 'down';
+        window.dispatchEvent(new CustomEvent('vd-prep-update'));
+        return j;
+      })
+      .catch(function(){ window._vdBridgeUp = false; return noteFailure().then(function(){ return null; }); });
   };
 
   window._vdPrepRequest = function(item, dateKey){

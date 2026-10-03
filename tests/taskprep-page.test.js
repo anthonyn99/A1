@@ -41,7 +41,8 @@ function sandbox(opts) {
   const ctx = {
     console: { warn() {}, log() {} },
     Date, JSON, Promise, encodeURIComponent, setTimeout, clearTimeout, AbortController,
-    navigator: { userAgent: opts.ua || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+    navigator: Object.assign({ userAgent: opts.ua || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+      opts.perms ? { permissions: { query: ({ name }) => (name in opts.perms ? Promise.resolve({ state: opts.perms[name] }) : Promise.reject(new TypeError('unknown permission'))) } } : {}),
     localStorage: { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: k => { delete store[k]; } },
     CustomEvent: function (type, init) { this.type = type; this.detail = init && init.detail; },
     location: {},
@@ -203,6 +204,25 @@ section('request');
     W._vdBridgeUp = true;
     const r = await W._vdPrepOpenLocal(['w1'], []);
     t('bridge down: resolves null and marks it down', r === null && W._vdBridgeUp === false);
+    t('no permission info: reported as not running', W._vdBridgeErr === 'down');
+  }
+  {
+    // MEASURED: the real failure from github.io was LocalNetworkAccessPermissionDenied.
+    const { W, events } = sandbox({ fetch: () => Promise.reject(new TypeError('Failed to fetch')), perms: { 'loopback-network': 'denied' } });
+    await W._vdPrepOpenLocal([], ['https://studentaid.gov']);
+    t('browser blocked loopback: reported as blocked, not as bridge down', W._vdBridgeErr === 'blocked');
+    t('and the panel is told to repaint', events.some(x => x.type === 'vd-prep-update'));
+  }
+  {
+    const { W } = sandbox({ fetch: () => Promise.reject(new TypeError('Failed to fetch')), perms: { 'local-network-access': 'denied' } });
+    await W._vdPrepOpenLocal([], ['https://studentaid.gov']);
+    t('older browsers: local-network-access is the fallback permission', W._vdBridgeErr === 'blocked');
+  }
+  {
+    const { W } = sandbox({ fetch: () => Promise.resolve({ json: () => Promise.resolve({ ok: true, opened: ['x'] }) }) });
+    W._vdBridgeErr = 'blocked';
+    await W._vdPrepOpenLocal([], ['https://studentaid.gov']);
+    t('a later success clears the error', W._vdBridgeErr === '' && W._vdBridgeUp === true);
   }
 
   section('bridge probe → veda_pc_apps');
