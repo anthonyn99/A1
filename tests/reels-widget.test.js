@@ -171,9 +171,19 @@ t("the host's uppercase/mono/radius tokens are honoured",
 
 // ── Cloud only ──────────────────────────────────────────────────────────────
 console.log('\nnothing local');
-t('no localhost bridge anywhere in the page',
-  !html.includes('127.0.0.1:8781'),
+t('the reels widget never calls the localhost bridge',
+  !blk.includes('127.0.0.1:8781') && !surface.includes('127.0.0.1:8781'),
   'the widget must read the cloud so the phone behaves like the PC');
+// One deliberate exception, and only one: AI task prep (the VD-PREP block)
+// opens PC apps through the bridge, which by definition only exists on the PC.
+// Any OTHER reference — reels creeping back to a local sync included — fails.
+{
+  const pb = html.indexOf('VD-PREP-BEGIN'), pe = html.indexOf('<!-- VD-PREP-END -->');
+  const outside = html.slice(0, pb) + html.slice(pe);
+  t('the bridge address appears nowhere but the AI prep block',
+    pb > 0 && pe > pb && !outside.includes('127.0.0.1:8781'),
+    'only AI prep may talk to the PC bridge');
+}
 t('no local sync function remains', !html.includes('window._reelsSync'));
 t('the Firestore listener drops cached snapshots',
   html.includes('snap.metadata && snap.metadata.fromCache'),

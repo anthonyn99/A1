@@ -7,8 +7,8 @@
  * - A kit is rebuilt only when its sig changes. If the sig missed a field, an
  *   edited note would keep serving the old draft. If it changed on every
  *   render, the free-tier key would be drained re-prepping the same task.
- * - The ✨ click must open the assistant tab BEFORE any shieldopen: navigation.
- *   A click buys one tab, and the protocol dialog ends the gesture.
+ * - The ✨ click must open the assistant tab first (a click buys one tab), and
+ *   hand the kit's apps and sites to the StudyOS bridge, never to Shield.
  * - Veda's Modal rebuilds the item on save. If the AI fields were missing from
  *   any branch, editing a task would silently unflag it.
  * - This is Veda's side only. Tony's Modal and rows must never get it.
@@ -40,7 +40,7 @@ function sandbox(opts) {
   const order = [];
   const ctx = {
     console: { warn() {}, log() {} },
-    Date, JSON, Promise, encodeURIComponent, setTimeout, clearTimeout,
+    Date, JSON, Promise, encodeURIComponent, setTimeout, clearTimeout, AbortController,
     navigator: { userAgent: opts.ua || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
     localStorage: { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: k => { delete store[k]; } },
     CustomEvent: function (type, init) { this.type = type; this.detail = init && init.detail; },
@@ -144,42 +144,101 @@ section('request');
     t('ids that are not safe field paths are never sent', calls === 1);
   }
 
-  section('launch');
+  section('launch (StudyOS bridge, no Shield)');
+  // fetch that records into the same order list as window.open, so the
+  // assistant-tab-first rule is checked across both.
+  const recFetch = (order, answer) => (u, o) => {
+    order.push('fetch:' + (o && o.method || 'GET') + ' ' + u + (o && o.body ? ' ' + o.body : ''));
+    return Promise.resolve({ json: () => Promise.resolve(answer || { ok: true, opened: [] }) });
+  };
   {
-    const { W, order, events } = sandbox();
-    W._vdPcAppsAt = 1;
+    const order = [];
+    const { W, events } = sandbox({ fetch: recFetch(order) });
+    const origOpen = W.open; W.open = (u) => { order.push('open:' + u); return null; };
     const item = { id: 'a1', title: 'Email Kim', aiPrep: true };
-    W._vdPrepKits.a1 = { sig: W._vdPrepSig(item, '2026-10-04'), prompt: 'THE PROMPT', sites: [{ label: 'G', url: 'https://x.com' }], apps: [] };
+    W._vdPrepKits.a1 = { sig: W._vdPrepSig(item, '2026-10-04'), prompt: 'THE PROMPT', sites: [{ label: 'G', url: 'https://x.com' }], apps: ['w1'] };
     W._vdPrepLaunch(item, '2026-10-04');
-    t('assistant tab opens FIRST, then Shield', order.length === 2 && order[0].startsWith('open:https://www.perplexity.ai/search?q=THE%20PROMPT') && order[1] === 'nav:shieldopen:kit/a1', JSON.stringify(order));
+    await new Promise(r => setTimeout(r, 0));
+    t('assistant tab opens FIRST, then the bridge gets the kit',
+      order.length === 2 && order[0].startsWith('open:https://www.perplexity.ai/search?q=THE%20PROMPT')
+      && order[1] === 'fetch:POST http://127.0.0.1:8781/api/launch {"apps":["w1"],"urls":["https://x.com"]}', JSON.stringify(order));
     t('the panel is opened', events.some(x => x.type === 'vd-prep-open' && x.detail.id === 'a1'));
+    t('no shieldopen anywhere', !order.some(o => o.includes('shieldopen')));
+    W.open = origOpen;
   }
   {
-    const { W, order } = sandbox();
+    const order = [];
+    const { W } = sandbox({ fetch: recFetch(order), ua: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)' });
+    W.open = (u) => { order.push('open:' + u); return null; };
     const item = { id: 'a1', title: 'Email Kim', aiPrep: true };
-    W._vdPrepKits.a1 = { sig: W._vdPrepSig(item, '2026-10-04'), prompt: 'P', sites: [{ label: 'G', url: 'https://x.com' }], apps: [] };
+    W._vdPrepKits.a1 = { sig: W._vdPrepSig(item, '2026-10-04'), prompt: 'P', sites: [{ label: 'G', url: 'https://x.com' }], apps: ['w1'] };
     W._vdPrepLaunch(item, '2026-10-04');
-    t('no shieldopen until Shield has published her apps', order.length === 1 && order[0].startsWith('open:'), JSON.stringify(order));
+    await new Promise(r => setTimeout(r, 0));
+    t('a phone never calls the bridge', order.length === 1 && order[0].startsWith('open:'), JSON.stringify(order));
   }
   {
-    const { W, order } = sandbox({ ua: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)' });
-    W._vdPcAppsAt = 1;
+    const order = [];
+    const { W } = sandbox({ fetch: recFetch(order) });
+    W.open = (u) => { order.push('open:' + u); return null; };
     const item = { id: 'a1', title: 'Email Kim', aiPrep: true };
-    W._vdPrepKits.a1 = { sig: W._vdPrepSig(item, '2026-10-04'), prompt: 'P', sites: [{ label: 'G', url: 'https://x.com' }], apps: [] };
+    W._vdPrepKits.a1 = { sig: W._vdPrepSig(item, '2026-10-04'), prompt: 'P', sites: [], apps: [] };
     W._vdPrepLaunch(item, '2026-10-04');
-    t('never on a phone', order.length === 1);
+    await new Promise(r => setTimeout(r, 0));
+    t('a kit with nothing to open does not call the bridge', order.length === 1);
   }
   {
-    let fetched = 0;
-    const { W, order } = sandbox({ fetch: () => { fetched++; return new Promise(() => {}); } });
-    W._vdPcAppsAt = 1;
+    const order = [];
+    const { W } = sandbox({ fetch: (u, o) => { order.push('fetch:' + u); return new Promise(() => {}); } });
+    W.open = (u) => { order.push('open:' + u); return null; };
     const item = { id: 'a1', title: 'Email Kim', aiPrep: true, aiNote: 'kim@ksu.edu' };
-    W._vdPrepKits.a1 = { sig: 'stale', prompt: 'OLD PROMPT', sites: [{ label: 'G', url: 'https://x.com' }], apps: [] };
+    W._vdPrepKits.a1 = { sig: 'stale', prompt: 'OLD PROMPT', sites: [{ label: 'G', url: 'https://x.com' }], apps: ['w1'] };
     W._vdPrepLaunch(item, '2026-10-04');
     const q = new URL(order[0].slice(5)).searchParams.get('q');
     t('a stale kit is not used: fallback prompt from title + note', !q.includes('OLD PROMPT') && q.includes('Email Kim') && q.includes('kim@ksu.edu'), q);
-    t('no shieldopen for a stale kit', order.length === 1);
-    t('and a fresh prep starts', fetched === 1);
+    t('a stale kit opens nothing on the PC, and a fresh prep starts',
+      order.length === 2 && order[1].endsWith('/taskhub/prep'), JSON.stringify(order));
+  }
+  {
+    const { W } = sandbox({ fetch: () => Promise.reject(new Error('ECONNREFUSED')) });
+    W._vdBridgeUp = true;
+    const r = await W._vdPrepOpenLocal(['w1'], []);
+    t('bridge down: resolves null and marks it down', r === null && W._vdBridgeUp === false);
+  }
+
+  section('bridge probe → veda_pc_apps');
+  {
+    const order = [];
+    const writes = [];
+    const { W } = sandbox({ fetch: recFetch(order, { ok: true, apps: [{ id: 'w1', name: 'Word' }, { id: 'z1', name: 'Zoom' }, { bad: 1 }] }) });
+    W._fbSaveVdPcApps = a => writes.push(a);
+    W._vdPcAppsLoaded = true;
+    W._vdPcApps = [];
+    const ok = await W._vdBridgeProbe();
+    t('GETs /api/apps from the bridge', ok === true && order[0] === 'fetch:GET http://127.0.0.1:8781/api/apps', JSON.stringify(order));
+    t('publishes names + ids only, junk dropped', writes.length === 1 && JSON.stringify(writes[0]) === '[{"id":"w1","name":"Word"},{"id":"z1","name":"Zoom"}]', JSON.stringify(writes));
+    t('marks the bridge up', W._vdBridgeUp === true);
+    await W._vdBridgeProbe();
+    t('an unchanged list is not rewritten', writes.length === 1);
+  }
+  {
+    const writes = [];
+    const { W } = sandbox({ fetch: recFetch([], { ok: true, apps: [{ id: 'w1', name: 'Word' }] }) });
+    W._fbSaveVdPcApps = a => writes.push(a);
+    W._vdPcApps = [];
+    await W._vdBridgeProbe();
+    t('nothing is written before the server copy has loaded', writes.length === 0);
+  }
+  {
+    let fetched = 0;
+    const { W } = sandbox({ fetch: () => { fetched++; return Promise.resolve({ json: () => Promise.resolve({ ok: true, apps: [] }) }); }, ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)' });
+    const ok = await W._vdBridgeProbe();
+    t('only probed on Windows', ok === false && fetched === 0);
+  }
+  {
+    const { W } = sandbox({ fetch: () => Promise.reject(new Error('ECONNREFUSED')) });
+    W._vdBridgeUp = true;
+    const ok = await W._vdBridgeProbe();
+    t('bridge down: probe says so', ok === false && W._vdBridgeUp === false);
   }
 
   section('Veda Modal and rows (static)');
@@ -204,6 +263,7 @@ section('request');
 
   section('Firestore');
   {
+    t('no Shield anywhere in AI prep', !/shieldopen:kit|_vdPrepShieldReady/.test(html));
     t('kits are written per field with merge', /setDoc\(vdPrepRef, \{ kits: \{ \[taskId\]: kit \}, savedAt: Date\.now\(\) \}, \{ merge: true \}\)/.test(html));
     t('kits are pruned with deleteField on safe ids only', html.includes('upd["kits." + id] = deleteField()') && html.includes("if (/^[A-Za-z0-9_-]+$/.test(id)) upd"));
     t('only a server read counts as loaded', html.includes('window._vdPrepKitsLoaded = window._vdPrepKitsLoaded || !(snap.metadata && snap.metadata.fromCache);'));

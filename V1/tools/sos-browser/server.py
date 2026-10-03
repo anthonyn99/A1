@@ -12,6 +12,8 @@ at http://127.0.0.1:8781 is the only client change needed.
   DELETE /api/ai/jobs/<id>
   GET    /api/ai/budget         always $0 — a subscription, not per-token
   GET    /health
+  GET    /api/apps          Veda's PC apps for TaskHub AI prep (origin-gated, see launcher.py)
+  POST   /api/launch        open a prep kit's apps + sites  (origin-gated)
 
 ── WHY A SEPARATE PROCESS AND NOT THE WORKER ─────────────────────────────────
 A Cloudflare Worker cannot drive a browser. The whole point of the browser route
@@ -55,6 +57,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import driver
+import launcher
 import pdfrender
 
 HERE = Path(__file__).resolve().parent
@@ -891,6 +894,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._send({"ok": True, "bridge": "sos-browser",
                                "driver": True, "jobs": len(_jobs),
                                "modes": list(MODES), "convert": True})
+        if p == "/api/apps":
+            if not launcher.origin_allowed(self.headers.get("Origin")):
+                return self._send({"ok": False, "error": "origin not allowed"}, 403)
+            return self._send({"ok": True, "apps": launcher.public_list()})
         if p == "/api/ai/budget":
             # A subscription, not per-token billing. Reported as zero spend with
             # no cap so the UI's budget line stays truthful rather than fake.
@@ -958,6 +965,15 @@ class Handler(BaseHTTPRequestHandler):
 
         if p == "/api/ai/jobs":
             return self._create(body)
+
+        if p == "/api/launch":
+            # Opens programs on this PC, so unlike the job routes it answers
+            # only TaskHub's own origin. See launcher.py.
+            if not launcher.origin_allowed(self.headers.get("Origin")):
+                return self._send({"ok": False, "error": "origin not allowed"}, 403)
+            if not isinstance(body, dict):
+                return self._send({"ok": False, "error": "bad body"}, 400)
+            return self._send(launcher.launch(body.get("apps"), body.get("urls")))
 
         if p == "/api/ai/jobs/adopt":
             return self._adopt(body)

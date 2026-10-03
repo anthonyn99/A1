@@ -10678,7 +10678,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _sosMirrorUnsub = null;   // StudyOS → TaskHub task mirror (read-only)
   let _sosAckUnsub    = null;   // our own done-flips, read back (see _sosMergeAck)
   let _vdPrepUnsub    = null;   // Veda AI task prep kits (see VD-PREP block)
-  let _vdPcAppsUnsub  = null;   // apps Shield found on Veda's PC (names + ids only)
+  let _vdPcAppsUnsub  = null;   // apps on Veda's PC, via the StudyOS bridge (names + ids only)
   let _plansUnsub     = null;   // Plans → both TaskHubs mirror (read-only)
   let _plansSaveTimer = null;
   let _ecUnsubscribe  = null;
@@ -11620,8 +11620,9 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // dashboards/veda_taskprep holds one kit per flagged task (see the VD-PREP
     // block). Written per FIELD with merge, never whole-doc: two devices prepping
     // different tasks at once must not erase each other's kits.
-    // dashboards/veda_pc_apps is written by Shield on her PC (names + opaque ids
-    // only, never paths) and read here so the worker can pick apps from it.
+    // dashboards/veda_pc_apps is published from her PC by _vdBridgeProbe (names
+    // + opaque ids from the StudyOS bridge, never paths) and read here so the
+    // worker can pick apps from it even when a kit is built on her phone.
     const vdPrepRef = doc(db, "dashboards/veda_taskprep");
     const vdPcAppsRef = doc(db, "dashboards/veda_pc_apps");
     if (_vdPrepUnsub) { _vdPrepUnsub(); _vdPrepUnsub = null; }
@@ -11635,15 +11636,22 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       window._vdPrepKitsLoaded = window._vdPrepKitsLoaded || !(snap.metadata && snap.metadata.fromCache);
       window.dispatchEvent(new CustomEvent("vd-prep-update"));
     }, (err) => { console.warn('[AI prep] onSnapshot error:', err && err.code); });
-    _vdPcAppsUnsub = onSnapshot(vdPcAppsRef, (snap) => {
+    _vdPcAppsUnsub = onSnapshot(vdPcAppsRef, { includeMetadataChanges: true }, (snap) => {
       const d = snap.exists() ? (snap.data() || {}) : {};
       window._vdPcApps = Array.isArray(d.apps) ? d.apps : [];
       window._vdPcAppsAt = d.savedAt || 0;
+      // The bridge probe compares against this before writing, so only a server
+      // read counts: a cached copy could make it rewrite an unchanged list.
+      window._vdPcAppsLoaded = window._vdPcAppsLoaded || !(snap.metadata && snap.metadata.fromCache);
       window.dispatchEvent(new CustomEvent("vd-prep-update"));
     }, (err) => { console.warn('[AI prep] pc apps onSnapshot error:', err && err.code); });
     window._fbSaveVdKit = (taskId, kit) => {
       setDoc(vdPrepRef, { kits: { [taskId]: kit }, savedAt: Date.now() }, { merge: true })
         .catch(e => console.warn('[AI prep] kit write failed:', e && e.code));
+    };
+    window._fbSaveVdPcApps = (apps) => {
+      setDoc(vdPcAppsRef, { apps: apps || [], savedAt: Date.now() })
+        .catch(e => console.warn('[AI prep] pc apps write failed:', e && e.code));
     };
     window._fbDropVdKits = (ids) => {
       const upd = { savedAt: Date.now() };
@@ -15785,8 +15793,8 @@ function VdPrepPanel({item,dateKey,onClose}){
         RC("div",{style:{display:"flex",flexDirection:"column",gap:6}},kit.sites.map((s,i)=>RC("a",{key:i,href:s.url,target:"_blank",rel:"noopener noreferrer",style:{...box,padding:"8px 12px",color:A,fontWeight:700,textDecoration:"none",display:"block",wordBreak:"break-word"}},s.label)))),
       kit&&fresh&&kit.apps&&kit.apps.length>0&&RC("div",null,
         RC("div",{style:lbl},"Apps on your PC"),
-        RC("div",{style:{display:"flex",gap:6,flexWrap:"wrap"}},kit.apps.map(id=>RC("span",{key:id,style:{...box,padding:"5px 10px",fontSize:12,fontWeight:700}},appName[id]||id))),
-        RC("div",{style:{fontSize:11,color:TXM,marginTop:6}},window._vdPrepShieldReady&&window._vdPrepShieldReady()?"Shield opens these with the sites when you press ✨.":"These open through Shield on your PC.")),
+        RC("div",{style:{display:"flex",gap:6,flexWrap:"wrap"}},kit.apps.map(id=>RC("button",{key:id,type:"button",title:"Open on your PC",onClick:()=>window._vdPrepOpenLocal([id],[]),style:{...box,padding:"5px 10px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",opacity:window._vdBridgeUp?1:.6}},appName[id]||"App"))),
+        RC("div",{style:{fontSize:11,color:TXM,marginTop:6}},window._vdBridgeUp?"\u2728 opens these and the sites on your PC. Click one to open just that app.":"Apps open on your PC when the StudyOS bridge is running there.")),
       RC("div",{style:{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",borderTop:"1px solid "+BD,paddingTop:12}},
         RC("span",{style:{fontSize:11,color:TXD,fontWeight:700}},"Default assistant:"),
         Object.keys(sites).map(k=>RC("button",{key:k,type:"button",onClick:()=>{window._vdPrepSetDefaultSite(k);setDefSite(k);},style:{...btn(defSite===k),padding:"4px 10px",fontSize:10}},sites[k].name)))));
@@ -16187,7 +16195,7 @@ function App(){
   // Background prep: debounced after any change, plus every 30 min so the
   // next day's tasks get prepped after midnight on a page left open.
   useEffect(()=>{
-    const go=()=>{if(!window._vdPrepRun)return;const d=new Date();const k=x=>dkey(x.getFullYear(),x.getMonth(),x.getDate());
+    const go=()=>{if(!window._vdPrepRun)return;if(window._vdBridgeProbe)window._vdBridgeProbe();const d=new Date();const k=x=>dkey(x.getFullYear(),x.getMonth(),x.getDate());
       const t1=new Date(d);t1.setDate(d.getDate()+1);const y1=new Date(d);y1.setDate(d.getDate()-1);
       window._vdPrepRun(vdRef.current.data,k(d),k(t1),k(y1));};
     const tm=setTimeout(go,3000);const iv=setInterval(go,30*60*1000);
@@ -43319,15 +43327,57 @@ window._sosResUseBrowser = function(on){
     return s.url(String(prompt || '').slice(0, URL_PROMPT_MAX));
   };
 
-  // Shield has the kit's apps and sites only once it has published her app list
-  // (Shield phase 3). Before that a shieldopen:kit/ link would resolve to nothing
-  // and just pop Shield to the front, so it is not sent at all.
-  window._vdPrepShieldReady = function(){
-    try {
-      if (!/Windows/i.test(navigator.userAgent || '')) return false;
-      if (localStorage.getItem('sosResLaunchMode') === 'browser') return false;
-    } catch(e){ return false; }
-    return !!(window._vdPcAppsAt);
+  // ── PC apps and sites through the StudyOS bridge ─────────────────────────
+  // A tab cannot start a desktop program and gets ONE new tab per click, so the
+  // kit's apps and sites go to the StudyOS bridge (V1/tools/sos-browser), which
+  // already runs on her PC from logon. It answers these two routes only for
+  // TaskHub's origin, and takes app ids from its own Start Menu scan, never a
+  // path (see launcher.py). No bridge (a phone, or it is not running) simply
+  // means the panel's links are the way in.
+  var BRIDGE = 'http://127.0.0.1:8781';
+  window._vdBridgeUp = window._vdBridgeUp || false;
+  var onWindows = function(){ try { return /Windows/i.test(navigator.userAgent || ''); } catch(e){ return false; } };
+  var bridgeFetch = function(path, opts, ms){
+    var ac = (typeof AbortController === 'function') ? new AbortController() : null;
+    var timer = ac ? setTimeout(function(){ ac.abort(); }, ms || 4000) : null;
+    return fetch(BRIDGE + path, Object.assign({}, opts || {}, ac ? { signal: ac.signal } : {}))
+      .then(function(r){ return r.json(); })
+      .then(function(j){ if (timer) clearTimeout(timer); return j; },
+            function(e){ if (timer) clearTimeout(timer); throw e; });
+  };
+  var appsSig = function(list){
+    return (list || []).map(function(a){ return a.id + '=' + a.name; }).sort().join('|');
+  };
+
+  // Ask the bridge for her installed apps and publish names + ids (never paths)
+  // to dashboards/veda_pc_apps, so a kit built on her PHONE can still pick PC
+  // apps. Written only when the list actually changed.
+  window._vdBridgeProbe = function(){
+    if (!onWindows()) return Promise.resolve(false);
+    return bridgeFetch('/api/apps', { method: 'GET' }, 3000).then(function(j){
+      if (!j || !j.ok || !Array.isArray(j.apps)) throw new Error('no apps');
+      window._vdBridgeUp = true;
+      var apps = j.apps.filter(function(a){ return a && a.id && a.name; })
+        .map(function(a){ return { id: String(a.id), name: String(a.name) }; });
+      if (window._vdPcAppsLoaded && appsSig(apps) !== appsSig(window._vdPcApps) && window._fbSaveVdPcApps) {
+        window._vdPcApps = apps;
+        window._fbSaveVdPcApps(apps);
+      }
+      window.dispatchEvent(new CustomEvent('vd-prep-update'));
+      return true;
+    }).catch(function(){
+      if (window._vdBridgeUp) { window._vdBridgeUp = false; window.dispatchEvent(new CustomEvent('vd-prep-update')); }
+      return false;
+    });
+  };
+
+  // Open app ids + web urls on the PC. Resolves to the bridge's answer, or null.
+  window._vdPrepOpenLocal = function(appIds, urls){
+    if (!onWindows()) return Promise.resolve(null);
+    var body = JSON.stringify({ apps: appIds || [], urls: urls || [] });
+    return bridgeFetch('/api/launch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body }, 8000)
+      .then(function(j){ window._vdBridgeUp = !!(j && j.ok); return j; })
+      .catch(function(){ window._vdBridgeUp = false; return null; });
   };
 
   window._vdPrepRequest = function(item, dateKey){
@@ -43417,9 +43467,9 @@ window._sosResUseBrowser = function(on){
     next(0);
   };
 
-  // The ✨ click. ORDER MATTERS: the assistant tab is opened first, because a
-  // click buys exactly one new tab (see _sosLaunchClass) and the protocol
-  // navigation after it can end the gesture.
+  // The ✨ click. The assistant tab is the one new tab the click allows, so it
+  // opens first and synchronously; the kit's apps and sites then go to the
+  // bridge, which is a fetch and needs no gesture.
   window._vdPrepLaunch = function(item, dateKey){
     var got = window._vdPrepKitFor(item, dateKey);
     var kit = got && got.kit;
@@ -43427,9 +43477,8 @@ window._sosResUseBrowser = function(on){
     // A stale kit was built for an older title or note, so its prompt is wrong now.
     var prompt = (kit && got.fresh && kit.prompt) || window._vdPrepFallbackPrompt(item, dateKey);
     try { window.open(window._vdPrepAssistantUrl(site, prompt), '_blank', 'noopener'); } catch(e){}
-    if (kit && got.fresh && ((kit.sites && kit.sites.length) || (kit.apps && kit.apps.length))
-        && window._vdPrepShieldReady()) {
-      try { location.href = 'shieldopen:kit/' + encodeURIComponent(item.id); } catch(e){}
+    if (kit && got.fresh && ((kit.sites && kit.sites.length) || (kit.apps && kit.apps.length))) {
+      window._vdPrepOpenLocal(kit.apps || [], (kit.sites || []).map(function(x){ return x.url; }));
     }
     if (!got || !got.fresh) window._vdPrepRequest(item, dateKey);
     window.dispatchEvent(new CustomEvent('vd-prep-open', { detail: { id: item.id, dateKey: dateKey } }));
