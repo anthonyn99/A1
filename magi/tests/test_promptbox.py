@@ -19,19 +19,32 @@ PAGE = (REPO / "magi.html").read_text(encoding="utf-8")
 # ── the grip is on all three boxes ──────────────────────────────────────────
 def test_the_council_composer_has_a_grip():
     assert 'id="composerGrip"' in PAGE
-    assert 'attachGrip($("composer"), $("composerGrip"), "composer", autosize);' in PAGE
+    assert 'magiGrip($("composer"), $("composerGrip"), "composer", autosize);' in PAGE
 
 
 @pytest.mark.parametrize("key", ["bstopic", "bsreply"])
 def test_both_brainstorm_boxes_have_a_grip(key):
-    assert f'attachGrip(ta, ' in PAGE and f'"{key}"' in PAGE, (
+    assert f'magiGrip(ta, ' in PAGE and f'"{key}"' in PAGE, (
         f"the {key} box lost its resize grip"
     )
 
 
+# The grip itself is the shared resizegrip.js (theme overhaul phase 11), one
+# copy of the code for every A1 program.
+GRIP = (REPO / "resizegrip.js").read_text(encoding="utf-8")
+
+
+def test_magi_uses_the_shared_grip():
+    assert '<script src="resizegrip.js"></script>' in PAGE
+    assert "function attachGrip(" not in PAGE and ".qbar-grip {" not in PAGE, (
+        "MAGI carries its own copy of the grip again"
+    )
+    assert 'class="a1-grip" id="composerGrip"' in PAGE
+
+
 def _grip_css() -> str:
-    css = PAGE[PAGE.index(".qbar-grip {"):]
-    return css[: css.index("}")]
+    css = GRIP[GRIP.index("'.a1-grip {',"):]
+    return css[: css.index("'}',")]
 
 
 def test_the_grip_is_usable_with_a_finger():
@@ -81,16 +94,19 @@ def test_autosize_leaves_a_hand_set_height_alone(fn):
 
 
 def test_a_hand_set_height_lifts_the_stylesheet_cap():
-    body = PAGE[PAGE.index("function attachGrip("):]
-    body = body[: body.index("\n}\n")]
-    assert "ta.style.maxHeight" in body, (
+    body = GRIP[GRIP.index("function attach("):]
+    assert "box.style.maxHeight" in body, (
         "the 45vh cap still applies, so a drag stops halfway down"
     )
 
 
 def test_the_height_is_remembered():
-    body = PAGE[PAGE.index("function attachGrip("):]
-    assert '"magi.h." + key' in body[: body.index("\n}\n")]
+    assert "STORE = 'a1.h.'" in GRIP
+    body = PAGE[PAGE.index("function magiGrip("):]
+    body = body[: body.index("\n}\n")]
+    # MAGI's own copy kept heights as magi.h.<box>: carried over, not lost.
+    assert '"magi.h." + key' in body and '"a1.h.magi." + key' in body
+    assert 'A1Resize.attach(ta, grip, key ? "magi." + key : null, onAuto)' in body
 
 
 # ── the two composer screens ────────────────────────────────────────────────
@@ -205,7 +221,7 @@ def test_dragging_a_control_down_does_not_pull_to_refresh():
     ptr = PAGE[PAGE.index("/* ══ PULL TO REFRESH"):]
     assert "if (ownedBy(e.target)) return;" in ptr
     owned = ptr[ptr.index("const OWNED = ["):ptr.index("].join")]
-    for sel in (".qbar-grip", "textarea", "button", "[contenteditable]"):
+    for sel in (".a1-grip", "textarea", "button", "[contenteditable]"):
         assert sel in owned, f"a pull can start on {sel} again"
     assert "gotpointercapture" in ptr, "a drag begun elsewhere no longer cancels a pull"
 

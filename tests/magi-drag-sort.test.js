@@ -1,6 +1,7 @@
-// Drag to reorder (2026-10-01): the agent order and both queues are dragged
-// by a grip instead of moved with arrows. Runs dropOrder (a dragged queue
-// row's new order number) for real and pins the wiring statically; the
+// Drag to reorder (2026-10-01): the agent order, both queues and the unit
+// chips are dragged instead of moved with arrows, with the shared dragsort.js
+// since theme phase 11. Runs A1Drag.order (a dragged queue row's new order
+// number) for real and pins the wiring statically; the
 // behaviour itself is proved with real pointer drags in
 // tests/live/magi-drag-sort.live.js.
 //
@@ -28,7 +29,12 @@ function lift(name) {
   throw new Error('unbalanced: ' + name);
 }
 
-const dropOrder = new Function(lift('dropOrder') + '\nreturn dropOrder;')();
+// The shared file: MAGI runs the same dragsort.js every A1 program does
+// (theme overhaul phase 11), so A1Drag.order is what a dropped queue row gets.
+const vm = require('vm');
+const ctx = { window: {}, document: { getElementById: () => null } };
+vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'dragsort.js'), 'utf8'), ctx);
+const dropOrder = ctx.window.A1Drag.order;
 
 console.log('\nA dragged row\'s new order number');
 const o = [1000, 2000, 3000, 4000];
@@ -47,38 +53,35 @@ ok('to the end: one step past the last', dropOrder(o, 1, 3) === 5000);
 ok('to the front: one step before the first', dropOrder(o, 3, 0) === 0);
 ok('nowhere to go: unchanged', dropOrder([7], 0, 0) === 7);
 
-console.log('\nThe arrows are gone; grips and drags in their place');
+console.log('\nOne copy of the code: MAGI uses the shared dragsort.js');
+ok('magi.html loads dragsort.js', /<script src="dragsort\.js"><\/script>/.test(MAGI));
+ok('...and carries no copy of its own',
+   !/function (dragSort|dragGrip|dropOrder|dragRefocus|unitDragStart)\(/.test(MAGI) && !/\bDSORT\b/.test(MAGI) && !/\.dsort-grip \{/.test(MAGI));
+ok('no grip dots anywhere (rows are taken by the row)', !/dragGrip\(|A1Drag\.grip\(|dsort-grip/.test(MAGI));
+
+console.log('\nThe arrows are gone; drags in their place');
 ok('no ↑/↓ buttons in the agent order', !/code-order-mv/.test(MAGI));
 ok('no ↑/↓ buttons on queue rows', !/queueMove\(it\.id/.test(MAGI) && !/"Move up"/.test(MAGI));
 const order = lift('openCodeOrder');
-ok('the agent order rows carry a grip', /dragGrip\(`Move \$\{m\.label\}/.test(order));
-ok('...and are dragSort-ed, keyboard included', /dragSort\(list, \{[\s\S]*onDrop:[\s\S]*onKey:/.test(order));
+ok('the agent order is A1Drag-ed, held 300ms on touch',
+   /A1Drag\.sort\(list, \{[\s\S]*row: "\.code-order-row"[\s\S]*hold: 300[\s\S]*onDrop:/.test(order));
 const rq = lift('renderQueue');
-ok('a queue row carries a grip, hidden on rows that cannot move',
-   /dragGrip\(/.test(rq) && /if \(it\.status !== "queued"\) \{ grip\.hidden = true;/.test(rq));
-ok('a redraw never lands under a drag', /if \(DSORT\.active\) \{ DSORT\.pending = renderQueue; return; \}/.test(rq));
+ok('a redraw never lands under a drag', /if \(A1Drag\.active\) \{ queueRenderLater\(\); return; \}/.test(rq));
 const init = lift('queueDragInit');
 ok('only a waiting row is draggable', /canDrag: \(r\) => r\.dataset\.status === "queued"/.test(init));
+ok('...held 300ms on touch', /hold: 300/.test(init));
 ok('wired once per list', /if \(box\.dataset\.dsort\) return;/.test(init));
 const mv = lift('queueMoveTo');
 ok('a drop changes only the moved row\'s number', (mv.match(/\.order =/g) || []).length === 1);
+ok('...via A1Drag.order', /it\.order = A1Drag\.order\(/.test(mv));
 ok('...trusting the id, not a stale index', /rows\.findIndex\(\(x\) => x\.id === id\)/.test(mv));
 
-console.log('\nHow it drags');
-const ds = lift('dragSort');
-ok('pointer events: mouse, touch and pen are one path', /addEventListener\("pointerdown"/.test(ds));
-ok('touch drags only from the grip (the list still scrolls)', /if \(e\.pointerType !== "mouse"\) return;/.test(ds));
-ok('a press on a control stays that control\'s', /closest\("button, a, input, select, textarea, \[contenteditable\]"\)/.test(ds));
-ok('moves by transform only (nothing laid out per frame)', /translate3d\(0, \$\{dy\}px, 0\)/.test(ds) && !/\.style\.top\s*=/.test(ds));
-ok('Escape cancels a drag, and is used up (the sheet stays open)',
-   /if \(ev\.key !== "Escape" \|\| !live\) return;\s*ev\.stopPropagation\(\);\s*ev\.preventDefault\(\);\s*cancelled = true;/.test(ds));
-ok('a mouse press on a row\'s text does not start a text selection', /e\.preventDefault\(\);\s*\}\s*begin\(e, r\);/.test(ds));
-ok('a row reaches the first and last slot (leading edge past the middle)',
-   /if \(top < boxes\[i\]\.top \+ boxes\[i\]\.h \/ 2\)/.test(ds) && /if \(bottom > boxes\[i\]\.top \+ boxes\[i\]\.h \/ 2\)/.test(ds));
-ok('the click after a drag is swallowed, and only that one',
-   /window\.addEventListener\("click", swallow, true\);\s*setTimeout\(\(\) => window\.removeEventListener\("click", swallow, true\), 0\)/.test(ds));
-ok('the grip cannot scroll the page under a finger', /\.dsort-grip \{[^}]*touch-action: none/.test(MAGI));
-ok('reduced motion turns the animation off', /prefers-reduced-motion: reduce\) \{\s*\.dsort > \*/.test(MAGI));
+console.log('\nThe unit chips');
+ok('chips are an A1Drag grid, held 300ms on touch',
+   /A1Drag\.sort\(\$\("unitChips"\), \{\s*row: "\.chip",\s*axis: "grid",\s*hold: 300,/.test(MAGI));
+const ruc = lift('renderUnitChips');
+ok('a chip redraw never lands under a drag', /if \(A1Drag\.active\) \{ unitChipsLater\(\); return; \}/.test(ruc));
+ok('a synced order is ignored mid-drag', /if \(ord && !A1Drag\.active &&/.test(MAGI));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

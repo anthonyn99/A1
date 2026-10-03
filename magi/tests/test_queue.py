@@ -95,7 +95,7 @@ def test_moving_a_row_changes_only_that_row():
     assert "QUEUE_STEP = 1000" in PAGE
     # A drag (2026-10-01) moves a row to any place; still one number.
     body = _fn("queueMoveTo")
-    assert "it.order = dropOrder(" in body
+    assert "it.order = A1Drag.order(" in body
     assert body.count(".order =") == 1, "a move rewrites more than one row"
     assert 'it.status !== "queued"' in body, "only a waiting row moves"
 
