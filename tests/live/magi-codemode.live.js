@@ -30,6 +30,21 @@ const waitFor = async (c, expr, ms = 20000) => {
   return false;
 };
 
+// One agent-order row dragged one place down with a real mouse (A1Drag; the
+// rows have no grip since theme phase 11).
+const dragRowDown = async (c, i) => {
+  const r = JSON.parse(await evalJs(c, `return JSON.stringify((() => { const rs = document.querySelectorAll(".code-order-row"); const a = rs[${i}].querySelector(".code-order-name").getBoundingClientRect(); return {x: a.left + a.width / 2, y: a.top + a.height / 2, step: rs[${i} + 1].getBoundingClientRect().top - rs[${i}].getBoundingClientRect().top}; })())`));
+  const dy = r.step + 4;
+  await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: r.x, y: r.y });
+  await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: r.x, y: r.y, button: 'left', clickCount: 1 });
+  for (let k = 1; k <= 10; k++) {
+    await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: r.x, y: r.y + (dy * k) / 10, button: 'left', buttons: 1 });
+    await sleep(16);
+  }
+  await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: r.x, y: r.y + dy, button: 'left', clickCount: 1 });
+  await sleep(320);
+};
+
 (async () => {
   const c = await connect();
   await c.send('Page.enable'); await c.send('Runtime.enable');
@@ -115,8 +130,8 @@ const waitFor = async (c, expr, ms = 20000) => {
   console.log('\nOrder sheet');
   await evalJs(c, 'openCodeOrder(); return 1;'); await sleep(300);
   ok('lists every member', await evalJs(c, 'document.querySelectorAll(".code-order-row").length') === chips.length);
-  // Move codex (row 2) down: its grip, then the down arrow key (dragSort).
-  await evalJs(c, 'const g = document.querySelectorAll(".code-order-row .dsort-grip")[1]; g.focus(); g.dispatchEvent(new KeyboardEvent("keydown", {key: "ArrowDown", bubbles: true})); return 1;');
+  // Move codex (row 2) down: dragged by the row (A1Drag).
+  await dragRowDown(c, 1);
   ok('moving changes the chain order', (await evalJs(c, 'codeMembers()[1].id')) !== 'codex-cli');
   await shot(c, 'coderun-phone-order');
   await evalJs(c, '[...document.querySelectorAll(".sheet .btn")].find(b=>b.textContent==="Default order").click(); return 1;');

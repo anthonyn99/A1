@@ -27,6 +27,21 @@ const waitFor = async (c, expr, ms = 20000) => {
   return false;
 };
 
+// One agent-order row dragged one place down with a real mouse (A1Drag; the
+// rows have no grip since theme phase 11).
+const dragRowDown = async (c, i) => {
+  const r = JSON.parse(await evalJs(c, `return JSON.stringify((() => { const rs = document.querySelectorAll(".code-order-row"); const a = rs[${i}].querySelector(".code-order-name").getBoundingClientRect(); return {x: a.left + a.width / 2, y: a.top + a.height / 2, step: rs[${i} + 1].getBoundingClientRect().top - rs[${i}].getBoundingClientRect().top}; })())`));
+  const dy = r.step + 4;
+  await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: r.x, y: r.y });
+  await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: r.x, y: r.y, button: 'left', clickCount: 1 });
+  for (let k = 1; k <= 10; k++) {
+    await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: r.x, y: r.y + (dy * k) / 10, button: 'left', buttons: 1 });
+    await sleep(16);
+  }
+  await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: r.x, y: r.y + dy, button: 'left', clickCount: 1 });
+  await sleep(320);
+};
+
 (async () => {
   const c = await connect();
   await c.send('Page.enable'); await c.send('Runtime.enable');
@@ -57,8 +72,7 @@ const waitFor = async (c, expr, ms = 20000) => {
 
   // Reorder and confirm numbers follow the new positions, not the agent.
   const firstName = await evalJs(c, 'document.querySelector(".code-order-name").textContent');
-  await evalJs(c, 'const g = document.querySelector(".code-order-row .dsort-grip"); g.focus(); g.dispatchEvent(new KeyboardEvent("keydown", {key: "ArrowDown", bubbles: true})); return 1;');
-  await sleep(150);
+  await dragRowDown(c, 0);
   const rows = JSON.parse(await evalJs(c,
     'return JSON.stringify([...document.querySelectorAll(".code-order-row")].map(r=>({n:r.querySelector(".code-order-num").textContent,name:r.querySelector(".code-order-name").textContent})));'));
   ok('after moving row 1 down, it now shows 2', rows[1].name === firstName && rows[1].n === '2', JSON.stringify(rows.slice(0,2)));
