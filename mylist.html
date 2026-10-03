@@ -826,13 +826,18 @@ body:not([data-profile=veda]) .manual-toggle,
 body:not([data-profile=veda]) #manual-body,
 body:not([data-profile=veda]) .pw-row{border-color:var(--hair);}
 body:not([data-profile=veda]) .pw-row.open{border-color:var(--accent);}
-/* Numbers: IBM Plex Mono. */
+/* Numbers: A1's one face, Inter 500 with tabular figures (columns line up). */
+body:not([data-profile=veda]),
+body:not([data-profile=veda]) input,
+body:not([data-profile=veda]) select,
+body:not([data-profile=veda]) textarea,
+body:not([data-profile=veda]) button{font-variant-numeric:tabular-nums;}
 body:not([data-profile=veda]) .list-chip .cnt,
 body:not([data-profile=veda]) .item .qty-tag,
 body:not([data-profile=veda]) .pw-price,
 body:not([data-profile=veda]) .pw-bd-price,
 body:not([data-profile=veda]) .pw-hist-price,
-body:not([data-profile=veda]) .pw-variant-price{font-family:'IBM Plex Mono',ui-monospace,monospace;}
+body:not([data-profile=veda]) .pw-variant-price{font-family:'Inter',system-ui,-apple-system,sans-serif;font-weight:500;}
 /* Gold only where it means something: the busy (amber) sync dot. */
 body:not([data-profile=veda]) .sync-pill.busy .sync-dot{background:var(--gold);}
 /* No washes: the best-price row and the price-drop banner are solid. */
