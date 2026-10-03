@@ -178,6 +178,7 @@ const orderNames = (c) => evalJs(c, 'return JSON.stringify([...document.querySel
         ];
         renderQueue(); return 1;`);
       ok('the queue is drawn, without grips', await waitFor(c, 'document.querySelectorAll("#queueRows .q-row").length === 4 && !document.querySelector("#queueRows .dsort-grip")', 5000));
+      await sleep(400);   // the drawer settles before rows are measured
       const q = (s) => `document.querySelector('#queueRows .q-row[data-dkey="${s}"]')`;
       const qStep = (await rect(c, q('dq2'))).t - (await rect(c, q('dq1'))).t;
       const ids = () => evalJs(c, `return JSON.stringify(queueSorted(QUEUES[${JSON.stringify(lane)}]).map(x => x.id));`).then(JSON.parse);

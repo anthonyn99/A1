@@ -78,9 +78,12 @@ pixel-diff her views.
     10/10. Codemode was not run: it starts a real coding run.
   - `magi/tests/test_promptbox.py` and `test_queue.py` point at the shared
     files. MAGI pytest: 1644 pass. `npm test`: 64 suites pass.
-- **A finding, not changed:** MAGI's first press on a page builds its
-  AudioContext (`unlockAudio`), a ~270ms stall, on the old code too. The
-  drag test's frame clock now times only frames while a row is lifted.
+- **Fixed right after (Tony's ask):** MAGI's first press on a page opened
+  the audio device inside the gesture (`unlockAudio`), a ~270ms freeze, on
+  the old code too. `unlockAudio` now makes the AudioContext once input has
+  been quiet for 1.5s (idle callback, never mid-drag); a later press only
+  resumes a suspended one (iOS). The live drag test times every frame from
+  the first press again (33ms worst) and checks the context then runs.
 - **Veda's shots** (index veda, mobile, settings, confirm, lock): identical
   except the quote band and the lock field's blinking caret.
 

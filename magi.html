@@ -3684,25 +3684,15 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 }
 .nav-collapsed .sidebar .prof-btn { display: none; }
 
-/* The engine chip, and the rows inside its picker. A dot carries the state
-   -- connected, seen recently, cold -- because a row that spells it out in
-   words is a row that no longer fits a phone. */
-.eng-btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  height: 26px; padding: 0 10px;
-  background: none; border: 1px solid var(--bd); border-radius: 999px;
-  color: var(--txd); font: inherit; font-size: 11px; cursor: pointer;
-  max-width: 100%; min-width: 0;
-}
-.eng-btn:hover { border-color: var(--ac); color: var(--tx); }
-.eng-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The rows of the Engines sheet. A dot carries the state -- connected, seen
+   recently, cold -- because a row that spells it out in words is a row that
+   no longer fits a phone. */
 .eng-dot {
   width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%;
   background: var(--txm); opacity: .5;
 }
 .eng-dot.on { background: var(--grn); opacity: 1; }
 .eng-dot.warm { background: var(--amber); opacity: .9; }
-.nav-collapsed .sidebar .eng-btn { display: none; }
 .eng-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
 .eng-row {
   display: flex; align-items: center; gap: 10px;
@@ -5120,6 +5110,9 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
   letter-spacing: 2px; text-transform: uppercase; color: var(--acl);
   margin-bottom: 4px;
 }
+/* The second heading of the Engines sheet: the token belongs to the engine in
+   use, so it sits under the list, ruled off from it. */
+.sheet-hd2 { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--bd); }
 .sheet-sub { color: var(--txd); font-size: 11.5px; line-height: 1.6; margin-bottom: 14px; }
 .sheet-lbl {
   display: block; color: var(--txm); font-size: 9px; font-weight: 700;
@@ -5967,9 +5960,6 @@ window._mailRelay = window._mailRelay || async function (res) {
         <!-- Whose MAGI this is. Always visible, because the one thing you must
              never have to guess is which person's history you are looking at. -->
         <button type="button" class="prof-btn" id="profBtn" title="Switch profile"></button>
-        <!-- Which machine MAGI is running on. Hidden until there is more
-             than one, because with one engine there is nothing to pick. -->
-        <button type="button" class="eng-btn" id="engineBtn" hidden></button>
         <button type="button" class="lock-btn" id="helpBtn" title="How MAGI works"></button>
         <button type="button" class="lock-btn" id="lockBtn" title="Lock MAGI"></button>
         <!-- LifeHub app switcher (LifeHub/lifehub.js) — hidden while #lockScreen is up. -->
@@ -6600,14 +6590,12 @@ function engRename(id, label) {
   if (!e) return;
   e.label = (label || "").trim();
   engSave();
-  syncEngineBtn();
 }
 
 function engForget(id) {
   ENG.list = ENG.list.filter((e) => e.id !== id);
   if (ENG.activeId === id) ENG.activeId = "";
   engSave();
-  syncEngineBtn();
 }
 
 /** Add an engine by its token. The rest it tells us when it first answers. */
@@ -6931,7 +6919,7 @@ async function connect(quiet = false) {
   const here = await findHere();
   if (here) {
     const r = await connectTo(here, quiet);
-    if (online()) { syncEngineBtn(); return r; }
+    if (online()) return r;
   }
   // Active first, then the rest in registry order.
   const order = [];
@@ -6943,10 +6931,9 @@ async function connect(quiet = false) {
   let last = null;
   for (const eng of order) {
     const r = await connectTo(eng, quiet || order.indexOf(eng) > 0);
-    if (online()) { syncEngineBtn(); return r; }
+    if (online()) return r;
     last = r;
   }
-  syncEngineBtn();
   return last;
 }
 
@@ -7392,9 +7379,10 @@ function openHow() {
    Both are offered as buttons. Neither exists to be clever -- they exist so
    that "I typed in the wrong box" is a five-second problem. */
 /* ── the engine picker ─────────────────────────────────────────────────────
-   Only appears once there is a choice to make. With one engine -- which is
-   most people, most of the time -- there is nothing to pick and the control
-   stays out of the way; the status row already says where MAGI is running. */
+   The top half of the Engines sheet (openSetup), which the status row at the
+   bottom of the sidebar opens on every profile. It used to be a chip in the
+   header that appeared with a second engine, and on Tony's rail that chip
+   pushed the LifeHub button off the end of the row. */
 /** "4m", "3h", "2d" -- short enough for a one-line row. */
 function engAgo(ms) {
   const m = Math.max(0, Math.round((Date.now() - ms) / 60000));
@@ -7405,22 +7393,10 @@ function engAgo(ms) {
   return Math.round(h / 24) + "d ago";
 }
 
-function syncEngineBtn() {
-  const b = $("engineBtn");
-  if (!b) return;
-  const many = ENG.list.filter((e) => e.id).length > 1;
-  b.hidden = !many;
-  if (!many) return;
-  const e = engActive();
-  b.textContent = "";
-  b.append(el("span", "eng-dot" + (online() ? " on" : "")), el("span", "eng-name", engLabel(e)));
-  b.title = "Running on " + engLabel(e) + " — click to choose another";
-}
-
-function openEnginePicker() {
+/** Appends the engine list and the add row to `box`. `done` closes the sheet,
+ *  `reopen` repaints it after a change to the list. */
+function engineSection(box, done, reopen) {
   engLoad();
-  const sheet = el("div", "sheet");
-  const box = el("div", "sheet-box");
   box.append(el("div", "sheet-hd", "Engines"));
   box.append(el("div", "sheet-sub",
     "MAGI runs on the machine holding your signed-in browser sessions. "
@@ -7461,7 +7437,7 @@ function openEnginePicker() {
     use.onclick = async () => {
       ENG.activeId = e.id;
       engSave();
-      close();
+      done();
       setLink("seeking", "locating engine…");
       await connect();
       boot();
@@ -7479,8 +7455,7 @@ function openEnginePicker() {
         "Forget");
       if (!yes) return;
       engForget(e.id);
-      close();
-      openEnginePicker();
+      reopen();
     };
     row.append(rm);
     list.append(row);
@@ -7499,29 +7474,22 @@ function openEnginePicker() {
     const t = addIn.value.trim();
     if (!t) return;
     engAdd(t);
-    close();
+    done();
     setLink("seeking", "locating engine…");
     await connect();
     boot();
   };
   addWrap.append(addIn, addBtn);
   box.append(addWrap);
-
-  const done = el("button", "lock-link", "Close");
-  done.onclick = () => close();
-  box.append(done);
-
-  sheet.append(box);
-  document.body.append(sheet);
-  function close() { sheet.remove(); }
-  dismissOnBackdrop(sheet, close);
 }
 
 function openSetup() {
   const sheet = el("div", "sheet");
   const box = el("div", "sheet-box");
+  const done = () => sheet.remove();
+  engineSection(box, done, () => { done(); openSetup(); });
   box.append(
-    el("div", "sheet-hd", "Connect to the engine"),
+    el("div", "sheet-hd sheet-hd2", "Connect to the engine"),
     el("div", "sheet-sub",
       "MAGI's council runs on one device — it drives real logged-in Chrome " +
       "profiles, which cannot leave that machine. The API token is a password " +
@@ -7562,7 +7530,6 @@ function openSetup() {
   bar.append(save, revert, retry, restart, el("span", "qbar-spacer"), close);
   box.append(bar, msg);
 
-  const done = () => sheet.remove();
   close.onclick = done;
   dismissOnBackdrop(sheet, done);
 
@@ -18351,7 +18318,7 @@ $("navHistory").onclick = () => setView(S.view === "history" ? "council" : "hist
 $("navDoctor").onclick = runDoctor;
 $("navAudio").onclick = () => { S.muted = !S.muted; applyMute(); applyAudioNav(); if (!S.muted) beepUnit(); };
 $("navHalt").onclick = cancelRun;
-$("linkBtn").onclick = () => (sameOrigin ? connect().then(boot) : openSetup());
+$("linkBtn").onclick = openSetup;
 
 $("btnSend").onclick = start;
 $("btnRefine").onclick = refine;
@@ -25973,7 +25940,6 @@ async function cloudWatch() {
       if (d) usageFromCloud(d.usageAlerts);
 
       if (d && Array.isArray(d.engines) && engMerge(d.engines)) {
-        syncEngineBtn();
         // Worth a look right away only if we are currently stranded: the
         // machine that just appeared may be the one that is actually awake.
         if (!online() && PROFILE.unlocked) connect(true).then(() => { if (online()) boot(); });
@@ -27133,7 +27099,6 @@ $("chairBtn").onclick = openChairPicker;
 $("lockBtn").onclick = lockBtnClick;
 $("lockBtnM").onclick = lockBtnClick;
 $("profBtn").onclick = openProfilePicker;
-$("engineBtn").onclick = openEnginePicker;
 $("profBtnM").onclick = openProfilePicker;
 syncProfileBtn();
 // Paints the header and the composer placeholder from the mode this browser
