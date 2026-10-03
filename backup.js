@@ -880,6 +880,32 @@
     return { at: pick, docs: out };
   }
 
+  // Every local snapshot, decrypted, limited to the paths that match `re`.
+  // Objects are content-addressed, so each distinct version is decrypted once
+  // and snapshots refer to it by id. Read-only: backup-export.html calls this
+  // so a restore needs no passphrase typed — only a browser that still holds it.
+  async function exportDocs(re) {
+    re = re || /^dashboards\/(main|vedasdash)(_archive_\d+)?$/;
+    var snaps = await listSnapshots(), out = { device: deviceSlug(), snapshots: [], objects: {} };
+    for (var i = 0; i < snaps.length; i++) {
+      var man = await vGet('snapshots', String(snaps[i]));
+      if (!man) continue;
+      var docs = {};
+      for (var p in man.docs) {
+        if (!re.test(p)) continue;
+        var h = man.docs[p];
+        docs[p] = h;
+        if (out.objects[h] !== undefined) continue;
+        try {
+          var env = await vGet('objects', h);
+          out.objects[h] = env ? JSON.parse(await decryptEnv(env)) : null;
+        } catch (e) { out.objects[h] = { _error: String(e && e.message || e) }; }
+      }
+      out.snapshots.push({ at: snaps[i], docs: docs });
+    }
+    return out;
+  }
+
   async function verify() {
     var r = await restoreSnapshot();
     var n = Object.keys(r.docs).length;
@@ -1699,6 +1725,7 @@
     capture: captureNow,            // force a snapshot now
     snapshots: listSnapshots,
     restore: restoreSnapshot,       // decrypt a snapshot back to plain objects
+    exportDocs: exportDocs,         // every snapshot's TaskHub docs, for backup-export.html
     verify: verify,                 // prove the passphrase and integrity still work
     status: status,
     kill: function (on) {

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Backup Export</title>
+<!-- Saves this browser's TaskHub backups (decrypted with the passphrase the
+     browser already holds) to Downloads, so a restore never needs the
+     passphrase typed. Read-only: no Firebase, so a stale browser opening this
+     can never write old TaskHub state back to the cloud. -->
+<style>
+  :root { --bg: #18181b; --fg: #ececf1; --muted: #a1a1aa; --accent: #c0aeea; --bad: #f08a8a; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg);
+         color: var(--fg); font: 17px/1.5 system-ui, sans-serif; padding: 0 16px; }
+  main { max-width: 520px; }
+  h1 { font-size: 22px; margin: 0 0 8px; }
+  #st { color: var(--muted); white-space: pre-line; }
+  .ok { color: var(--accent) !important; } .bad { color: var(--bad) !important; }
+</style>
+<script src="backup.js"></script>
+</head>
+<body>
+<main><h1>TaskHub backup export</h1><div id="st">Reading this browser's backups…</div></main>
+<script>
+(async function () {
+  var st = document.getElementById('st');
+  function say(t, cls) { st.textContent = t; st.className = cls || ''; }
+  try {
+    if (!window.A1Backup) return say('Backup code did not load. Reload this page.', 'bad');
+    if (!A1Backup.isSetUp()) return say('Backups are not switched on in this browser, so there is nothing to export here. Try another browser or device.', 'bad');
+    var out = await A1Backup.exportDocs();
+    out.exportedAt = Date.now();
+    if (!out.snapshots.length) return say('Backups are on here, but no snapshots are stored in this browser.', 'bad');
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(out)], { type: 'application/json' }));
+    a.download = 'taskhub-restore-' + out.device + '-' + out.exportedAt + '.json';
+    document.body.appendChild(a); a.click();
+    var first = new Date(out.snapshots[out.snapshots.length - 1].at), last = new Date(out.snapshots[0].at);
+    say('Done — ' + out.snapshots.length + ' backups saved to Downloads (' +
+        first.toLocaleString() + ' to ' + last.toLocaleString() + ').\nYou can close this tab.', 'ok');
+  } catch (e) {
+    say('Export failed: ' + (e && e.message || e), 'bad');
+  }
+})();
+</script>
+</body>
+</html>
