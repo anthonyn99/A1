@@ -5326,7 +5326,9 @@ function TBWatchlistEditor({watchlist=[],onChange,onToast,onTrashTickers,trashCo
         <div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>Watchlist</div>
         <div style={{fontSize:13,color:'var(--txm)',marginTop:2,lineHeight:1.5}}>{watchlist.length} ticker{watchlist.length!==1?'s':''} · drives News &amp; Catalysts</div>
       </div>
-      <div style={{display:'flex',gap:8,flexShrink:0,flexWrap:'wrap'}}>
+      {/* Shrinkable so the buttons wrap: with flexShrink:0 this row stayed one
+          line wide on a phone and pushed Trash off the screen. */}
+      <div style={{display:'flex',gap:8,flex:'1 1 auto',minWidth:0,flexWrap:'wrap',justifyContent:'flex-end'}}>
         <button onClick={setAsDefault} disabled={!watchlist.length} title="Save the current watchlist as your default — this is what Reset to default restores"
           style={{padding:'7px 14px',borderRadius:100,border:'1px solid var(--bd)',background:'transparent',color:'var(--txd)',fontSize:12,fontWeight:700,cursor:watchlist.length?'pointer':'default',opacity:watchlist.length?1:0.4,transition:'all .15s'}}
           onMouseEnter={e=>{if(!watchlist.length)return;e.currentTarget.style.borderColor='var(--ac)';e.currentTarget.style.color='var(--ac)';}}
