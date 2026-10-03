@@ -75,6 +75,22 @@ N = 1, 1b, 2, 3, 4, 5, 6.
   charge renamed from "Paramount Accept Vasafit" to "Vasa Fitness" had shown
   the paid bill as Missing; "fitness" alone would have merged it into Planet
   Fitness. The live test seeds both cases.
+- **Recurring made robust (Tony: "any and all bills, now and future"):**
+  - `cadenceOf(gaps)` replaces `freqForGap(median)`: a gap may span 2–3
+    skipped cycles, but half the gaps must be one cycle (a skipped month no
+    longer drops the bill).
+  - Pending charges are candidates: never used for the cadence, but a newer
+    pending charge is this cycle, paid ("(pending)" on the row).
+  - `matchStray`: a charge no bill claimed pays a late bill when it lands in
+    its next window at its price (named: within 10%, 30% if variable); with no
+    word in common it must be the EXACT price near the expected date. The row
+    says `as "<name>"`. Each charge pays one bill.
+  - `statusOf`: a new "Due" step. A bill gets max(3 days, its own date
+    jitter) past its date before it is Late; grace widens by the same.
+  - Live test: Hulu renamed "HLU*SVC LA", Disney pending, Adobe with a skipped
+    month, iCloud 2 days behind, Crunchyroll missing next to a same-price
+    Corner Store charge (must stay Missing). 56 checks; the four bug cases
+    fail on the commit before.
 - **Noticed, not changed:** the Recurring click handler reads
   `row.dataset.ovKey`, but the attribute is `data-ovkey` (dataset
   `ovkey`), so a Keep/Remove decision is always saved under the group's

@@ -414,7 +414,7 @@
 
   /* Recurring status chips + the missing-payment prompt. */
   .chip.st-ontime  { color: var(--ok);      border-color: rgba(164,185,134,.4); }
-  .chip.st-duesoon { color: var(--gold); border-color: rgba(224,184,116,.4); }
+  .chip.st-duesoon, .chip.st-due { color: var(--gold); border-color: rgba(224,184,116,.4); }
   .chip.st-late    { color: #e0b57c;        border-color: rgba(224,181,124,.4); }
   .chip.st-missing { color: var(--danger);  border-color: rgba(214,138,124,.45); }
   .recprompt {
@@ -2382,15 +2382,14 @@ window._mailRelay = window._mailRelay || async function (res) {
   // rediscovered automatically. (Manual entries you add stay too.)
   const DAY = 86400000;
   const FREQS = [
-    { unit: 'week',     days: 7,   label: 'Weekly',         lo: 5,   hi: 9,   perMonth: 4.345 },
-    { unit: 'biweek',   days: 14,  label: 'Every 2 weeks',  lo: 11,  hi: 18,  perMonth: 2.1725 },
-    { unit: 'month',    days: 30,  label: 'Monthly',        lo: 24,  hi: 38,  perMonth: 1 },
-    { unit: '2month',   days: 61,  label: 'Every 2 months', lo: 52,  hi: 74,  perMonth: 0.5 },
-    { unit: 'quarter',  days: 91,  label: 'Quarterly',      lo: 80,  hi: 100, perMonth: 1 / 3 },
-    { unit: 'halfyear', days: 182, label: 'Every 6 months', lo: 160, hi: 200, perMonth: 1 / 6 },
-    { unit: 'year',     days: 365, label: 'Yearly',         lo: 330, hi: 400, perMonth: 1 / 12 }
+    { unit: 'week',     days: 7,   label: 'Weekly',         perMonth: 4.345 },
+    { unit: 'biweek',   days: 14,  label: 'Every 2 weeks',  perMonth: 2.1725 },
+    { unit: 'month',    days: 30,  label: 'Monthly',        perMonth: 1 },
+    { unit: '2month',   days: 61,  label: 'Every 2 months', perMonth: 0.5 },
+    { unit: 'quarter',  days: 91,  label: 'Quarterly',      perMonth: 1 / 3 },
+    { unit: 'halfyear', days: 182, label: 'Every 6 months', perMonth: 1 / 6 },
+    { unit: 'year',     days: 365, label: 'Yearly',         perMonth: 1 / 12 }
   ];
-  const freqForGap = g => FREQS.find(f => g >= f.lo && g <= f.hi) || null;
   const dayNum = s => Math.floor(new Date(s + 'T12:00:00').getTime() / DAY);
   const todayDn = () => Math.floor(Date.now() / DAY);
   function median(a) { const b = [...a].sort((x, y) => x - y); const m = b.length >> 1; return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2; }
@@ -2404,11 +2403,33 @@ window._mailRelay = window._mailRelay || async function (res) {
   }
   const isoOf = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-  // Expense charges eligible to be a subscription (money out, settled, not a
-  // transfer or card-bill payment).
+  // The billing cadence that best explains the gaps between charges. A gap
+  // may span a skipped cycle or two (a month with no charge is a 61-day gap,
+  // not a different bill), but at least half the gaps must be a single
+  // cycle, so a monthly bill never reads as "every 2 weeks". The longest
+  // cadence that fits wins ties.
+  function cadenceOf(gaps) {
+    let best = null;
+    for (const f of FREQS) {
+      const tol = Math.max(4, f.days * 0.35);
+      let fit = 0, single = 0;
+      for (const g of gaps) {
+        const k = Math.round(g / f.days);
+        if (k < 1 || k > 3 || Math.abs(g - k * f.days) > tol * (k === 1 ? 1 : 1.5)) continue;
+        fit++; if (k === 1) single++;
+      }
+      if (fit / gaps.length < 0.6 || single / gaps.length < 0.5) continue;
+      if (!best || fit > best.fit || (fit === best.fit && f.days > best.f.days)) best = { f, fit };
+    }
+    return best && best.f;
+  }
+
+  // Expense charges that can belong to a subscription (money out, not a
+  // transfer or card-bill payment). Pending charges are in: they never shape
+  // the cadence, but a bill that is pending has been paid.
   function recurCandidates() {
     return allTxs().filter(t =>
-      typeof t.amount === 'number' && t.amount > 0 && !t.pending && !txSignal(t) && (t.merchant || t.name));
+      typeof t.amount === 'number' && t.amount > 0 && !txSignal(t) && (t.merchant || t.name));
   }
 
   // Greedy fuzzy clustering on the normalised merchant name (nameSim ≥ 0.5).
@@ -2437,6 +2458,7 @@ window._mailRelay = window._mailRelay || async function (res) {
   function analyzeCluster(cluster) {
     const byDay = new Map();   // collapse same-day double-posts, keep newest
     for (const t of cluster.txs) {
+      if (t.pending) continue;
       const dn = dayNum(t.date);
       const cur = byDay.get(dn);
       if (!cur || (t.updatedAt || 0) > (cur.updatedAt || 0)) byDay.set(dn, t);
@@ -2448,10 +2470,11 @@ window._mailRelay = window._mailRelay || async function (res) {
 
     const gaps = [];
     for (let i = 1; i < items.length; i++) gaps.push(items[i].dn - items[i - 1].dn);
-    const freq = freqForGap(median(gaps));
-    if (!freq) return null;
-    const tol = Math.max(4, freq.days * 0.35);
-    if (gaps.filter(g => Math.abs(g - freq.days) <= tol).length / gaps.length < 0.6) return null;   // irregular → not recurring
+    const freq = cadenceOf(gaps);
+    if (!freq) return null;   // irregular → not recurring
+    // How far this bill's dates wander from its cycle (weekends, holidays,
+    // a card retried a few days later): the slack it gets before it is Late.
+    const jitter = Math.max(0, ...gaps.map(g => { const k = Math.max(1, Math.round(g / freq.days)); return Math.abs(g - k * freq.days) / k; }));
 
     const amounts = items.map(i => i.amount);
     const avg = amounts.reduce((s, x) => s + x, 0) / amounts.length;
@@ -2466,11 +2489,49 @@ window._mailRelay = window._mailRelay || async function (res) {
     const display = Object.entries(raw).sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)[0]?.[0] || items[items.length - 1].name;
 
     const last = items[items.length - 1];
-    return {
-      key: cluster.key, display, freq, variable, count: items.length,
-      latestAmount: last.amount, lastDate: last.date, lastDn: last.dn,
+    const g = {
+      key: cluster.key, display, freq, variable, jitter, count: items.length, txs: cluster.txs,
+      latestAmount: last.amount, lastDate: last.date, lastDn: last.dn, lastPending: false, lastAs: null,
       monthlyEquiv: last.amount * freq.perMonth
     };
+    // A pending charge newer than the last settled one is this cycle, paid.
+    const pend = cluster.txs.filter(t => t.pending && dayNum(t.date) > last.dn + freq.days * 0.4)
+      .sort((x, y) => dayNum(y.date) - dayNum(x.date))[0];
+    if (pend) takeCharge(g, pend, true);
+    return g;
+  }
+
+  function takeCharge(g, t, pending) {
+    g.lastDate = t.date; g.lastDn = dayNum(t.date); g.lastPending = !!pending;
+    g.latestAmount = t.amount; g.monthlyEquiv = t.amount * g.freq.perMonth;
+    const nm = (t.merchant || t.name || '').trim();
+    g.lastAs = normName(nm) !== normName(g.display) ? nm : null;
+  }
+
+  // A charge that belongs to a bill but didn't cluster with it: the
+  // merchant renamed itself past recognition ("Paramount Accept Vasafit" →
+  // "Vasa Fitness"), or posted under a processor's name. It must land in this
+  // bill's next window (from 40% of the cycle after the last charge to today)
+  // and cost what the bill costs; with no word in common with the bill, it
+  // must cost EXACTLY that and land near the expected date. The closest one
+  // to the expected date wins, and each charge pays one bill only.
+  function matchStray(g, strays) {
+    const expected = Math.floor(addUnit(g.lastDate, g.freq.unit).getTime() / DAY);
+    const near = Math.max(5, g.freq.days * 0.25) + g.jitter;
+    let best = null, bestD = Infinity;
+    for (const t of strays) {
+      if (t._used) continue;
+      const dn = dayNum(t.date);
+      if (dn <= g.lastDn + g.freq.days * 0.4 || dn > todayDn()) continue;
+      const diff = Math.abs(t.amount - g.latestAmount);
+      const exact = diff < 0.01;
+      const named = nameSim(t.merchant || t.name, g.key) > 0 || nameSim(t.merchant || t.name, g.display) > 0;
+      const close = diff <= g.latestAmount * (g.variable ? 0.3 : 0.1);
+      if (!(named ? close : exact && Math.abs(dn - expected) <= near)) continue;
+      const d = Math.abs(dn - expected) - (named ? 0.5 : 0);   // a named match wins a tie
+      if (d < bestD) { bestD = d; best = t; }
+    }
+    return best;
   }
 
   // Find a saved decision for a group — exact key, else best fuzzy match, so a
@@ -2485,20 +2546,38 @@ window._mailRelay = window._mailRelay || async function (res) {
   function statusOf(g) {
     const expected = addUnit(g.lastDate, g.freq.unit);
     const daysUntil = Math.floor(expected.getTime() / DAY) - todayDn();
-    const grace = Math.max(4, Math.round(g.freq.days * 0.25));
+    // A bill isn't Late the morning after its date: it gets the slack its own
+    // history shows (at least 3 days) before it is.
+    const slack = Math.max(3, Math.ceil(g.jitter));
+    const grace = Math.max(4, Math.round(g.freq.days * 0.25)) + slack;
     let status;
     if (daysUntil > 4) status = 'ontime';
     else if (daysUntil >= 0) status = 'duesoon';
+    else if (daysUntil >= -slack) status = 'due';
     else if (daysUntil >= -grace) status = 'late';
     else if (daysUntil >= -(g.freq.days + grace)) status = 'missing';
     else status = 'gone';   // two cycles missed → auto-clean
     return { status, expectedDate: isoOf(expected), daysUntil };
   }
-  const STATUS_LABEL = { ontime: 'On time', duesoon: 'Due soon', late: 'Late', missing: 'Missing', gone: 'Missing' };
+  const STATUS_LABEL = { ontime: 'On time', duesoon: 'Due soon', due: 'Due', late: 'Late', missing: 'Missing', gone: 'Missing' };
 
   // The rendered list: detected groups reconciled against saved decisions.
   function recurringModel() {
-    const groups = clusterByMerchant(recurCandidates()).map(analyzeCluster).filter(Boolean);
+    const cands = recurCandidates();
+    const groups = clusterByMerchant(cands).map(analyzeCluster).filter(Boolean);
+    // Charges no bill claimed, for bills whose next payment hasn't shown up.
+    const claimed = new Set(groups.flatMap(g => g.txs));
+    const strays = cands.filter(t => !claimed.has(t));
+    for (const g of groups) {
+      for (let i = 0; i < 4 && statusOf(g).status !== 'ontime'; i++) {
+        const t = matchStray(g, strays);
+        if (!t) break;
+        t._used = true;
+        takeCharge(g, t, t.pending);
+      }
+    }
+    for (const t of strays) delete t._used;
+
     const out = [];
     for (const g of groups) {
       const { key: ovKey, ov } = matchDecision(g.key);
@@ -2516,7 +2595,7 @@ window._mailRelay = window._mailRelay || async function (res) {
     }
     // Your manual drag order wins; anything you haven't placed (a new
     // detection) falls to the end, ordered by urgency then next-due date.
-    const rank = { missing: 0, late: 1, duesoon: 2, ontime: 3 };
+    const rank = { missing: 0, late: 1, due: 2, duesoon: 3, ontime: 4 };
     const pos = k => { const i = recurringOrder.indexOf(k); return i < 0 ? Infinity : i; };
     out.sort((a, b) => (pos(a.key) - pos(b.key)) || (rank[a.status] - rank[b.status]) ||
       (dayNum(a.expectedDate) - dayNum(b.expectedDate)) || (b.monthlyEquiv - a.monthlyEquiv));
@@ -2539,7 +2618,7 @@ window._mailRelay = window._mailRelay || async function (res) {
           <div class="txsub">
             <span class="chip st-${g.status}">${STATUS_LABEL[g.status]}${g.pinned ? ' · tracking' : ''}</span>
             <span class="chip">${g.freq.label}${g.variable ? ' · variable' : ''}</span>
-            <span>last ${esc(fmtDate(g.lastDate))} · next ${esc(fmtDate(g.expectedDate))}</span>
+            <span>last ${esc(fmtDate(g.lastDate))}${g.lastPending ? ' (pending)' : ''}${g.lastAs ? ` as “${esc(g.lastAs)}”` : ''} · next ${esc(fmtDate(g.expectedDate))}</span>
           </div>
           ${g.prompt ? `
           <div class="recprompt">

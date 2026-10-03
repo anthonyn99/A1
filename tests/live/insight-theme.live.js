@@ -44,6 +44,23 @@ const PLAID = [];
 // the bill On time, not Missing.
 [42, 72, 102].forEach((d, i) => PLAID.push({ id: 'v' + i, merchant: 'Paramount Accept Vasafit', name: 'Paramount Accept Vasafit', amount: 9.99, date: daysAgo(d), account_id: 'a1', category: 'Personal Care' }));
 PLAID.push({ id: 'v9', merchant: 'Vasa Fitness', name: 'Vasa Fitness', amount: 9.99, date: daysAgo(11), account_id: 'a1', category: 'Personal Care' });
+// Every way a paid bill used to read Late or Missing (Tony, 2026-10-02):
+const monthsAgo = (m, extraDays = 0) => { const d = new Date(); d.setMonth(d.getMonth() - m); d.setDate(d.getDate() - extraDays); return ymd(d); };
+const bill = (id, name, amount, dates, extra = {}) => dates.forEach((date, i) => PLAID.push({ id: id + i, merchant: name, name, amount, date, account_id: 'a1', category: 'Entertainment', ...extra }));
+//  - renamed with no word in common, same price, on schedule
+bill('h', 'Hulu', 7.99, [daysAgo(40), daysAgo(70), daysAgo(100)]);
+bill('hx', 'HLU*SVC LA', 7.99, [daysAgo(10)]);
+//  - this cycle's charge is still pending
+bill('d', 'Disney Plus', 13.99, [daysAgo(35), daysAgo(65), daysAgo(95)]);
+bill('dp', 'Disney Plus', 13.99, [daysAgo(4)], { pending: true });
+//  - one skipped month in a short history (gaps 30 + 61)
+bill('a', 'Adobe Creative Cloud', 20.99, [daysAgo(12), daysAgo(42), daysAgo(103)]);
+//  - two days behind its date: Due, not Late
+bill('i', 'iCloud Storage', 2.99, [monthsAgo(1, 2), monthsAgo(2, 2), monthsAgo(3, 2)]);
+//  - really missing; a same-price charge from elsewhere, far from its date,
+//    must NOT pay it
+bill('c', 'Crunchyroll', 9.49, [daysAgo(50), daysAgo(80), daysAgo(110)]);
+bill('cx', 'Corner Store', 9.49, [daysAgo(2)]);
 PLAID.push({ id: 'x1', merchant: 'Corner Cafe', name: 'Corner Cafe', amount: 6.4, date: daysAgo(1), account_id: 'a1', category: 'Food' });
 PLAID.push({ id: 'x2', merchant: 'Payroll', name: 'ACME PAYROLL', amount: -2400, date: daysAgo(2), account_id: 'a1', category: 'Income' });
 const SEED = {
@@ -236,7 +253,20 @@ async function shot(c, name) {
   console.log('recurring');
   await scan('recurring');
   const a0 = await autos(c);
-  ok('four auto-detected rows', a0.length === 4, JSON.stringify(a0));
+  ok('nine auto-detected bills', a0.length === 9, JSON.stringify(a0));
+  const billRow = (re) => evalJs(c, `var r=[...document.querySelectorAll('#recAuto > .txrow')].filter(r=>${re}.test(r.querySelector('.txname').textContent)); return JSON.stringify(r.map(x=>({st:x.querySelector('.chip').textContent, sub:x.querySelector('.txsub').textContent})));`).then(JSON.parse);
+  {
+    const h = await billRow('/hulu/i');
+    ok('a renamed charge on schedule at the same price pays its bill', h.length === 1 && /^On time/.test(h[0].st) && /HLU\*SVC LA/.test(h[0].sub), JSON.stringify(h));
+    const d = await billRow('/disney/i');
+    ok('a pending charge counts as paid', d.length === 1 && /^On time/.test(d[0].st) && /pending/.test(d[0].sub), JSON.stringify(d));
+    const a = await billRow('/adobe/i');
+    ok('a skipped month does not lose the bill', a.length === 1 && /Monthly/.test(a[0].sub) && /^On time/.test(a[0].st), JSON.stringify(a));
+    const i = await billRow('/icloud/i');
+    ok('two days behind is Due, not Late', i.length === 1 && /^Due/.test(i[0].st) && !/Due soon/.test(i[0].st), JSON.stringify(i));
+    const cr = await billRow('/crunchyroll/i');
+    ok('a same-price charge from elsewhere does not pay a missing bill', cr.length === 1 && /^Missing/.test(cr[0].st) && !/Corner/.test(cr[0].sub), JSON.stringify(cr));
+  }
   {
     const v = JSON.parse(await evalJs(c, "var r=[...document.querySelectorAll('#recAuto > .txrow')].find(r=>/vasa/i.test(r.textContent)); return JSON.stringify(r?{n:r.querySelectorAll('.txname').length,st:r.querySelector('.chip').textContent,last:r.textContent}:null);"));
     ok('a renamed charge joins its bill (Vasafit = Vasa Fitness)', !!v && (await evalJs(c, "return [...document.querySelectorAll('#recAuto > .txrow')].filter(r=>/vasa/i.test(r.textContent)).length;")) === 1, JSON.stringify(v));
@@ -244,7 +274,9 @@ async function shot(c, name) {
   }
   ok('three manual rows', JSON.stringify(await manual(c)) === '["r1","r2","r3"]', JSON.stringify(await manual(c)));
   ok('rows show no grip', (await evalJs(c, "return !document.querySelector('#recList .dsort-grip')+'';")) === 'true');
+  const into = (id, block) => evalJs(c, `document.getElementById('${id}').scrollIntoView({block:'${block}'}); 1`).then(() => sleep(300));
   {
+    await into('recManual', 'center');
     const a = await rect(c, "document.querySelector('#recManual > .txrow[data-rid=r1] .txname')");
     const z = await rect(c, "document.querySelector('#recManual > .txrow[data-rid=r3]')");
     await mouseDrag(c, a.x, a.y, 0, z.y - a.y + z.h * 0.3);
@@ -254,22 +286,24 @@ async function shot(c, name) {
     ok('the manual order is saved', JSON.stringify((w || []).map((r) => r.id)) === '["r2","r3","r1"]', JSON.stringify(w));
   }
   {
-    const a = await rect(c, "document.querySelector('#recAuto > .txrow:last-child .txname')");
+    await into('recAuto', 'start');
+    const a = await rect(c, "document.querySelector('#recAuto > .txrow:nth-child(3) .txname')");
     const z = await rect(c, "document.querySelector('#recAuto > .txrow:first-child')");
     await mouseDrag(c, a.x, a.y, 0, z.y - a.y - z.h * 0.3);
-    const want = [a0[3], a0[0], a0[1], a0[2]];
+    const want = [a0[2], a0[0], a0[1], ...a0.slice(3)];
     ok('an auto row moves', JSON.stringify(await autos(c)) === JSON.stringify(want), JSON.stringify(await autos(c)));
     await sleep(200);
     ok('the auto order is saved', JSON.stringify(await lastWrite(c, 'dashboards/insight/meta/expenselog', 'recurringOrder')) === JSON.stringify(want));
   }
   {
-    // A manual row cannot be dropped among the auto rows.
+    // A manual row cannot be dropped among the auto rows above it.
+    await into('recManual', 'center');
     const a = await rect(c, "document.querySelector('#recManual > .txrow .txname')");
-    const z = await rect(c, "document.querySelector('#recAuto > .txrow:first-child')");
-    await mouseDrag(c, a.x, a.y, 0, z.y - a.y);
+    await mouseDrag(c, a.x, a.y, 0, -Math.min(300, a.y - 20));
     ok('a row stays in its own group', (await evalJs(c, "return document.querySelectorAll('#recAuto > .txrow[data-rid]').length;")) === 0 && (await manual(c)).length === 3);
   }
   {
+    await into('recManual', 'center');
     const e = await rect(c, "document.querySelector('#recManual > .txrow [data-act=edit]')");
     await mouseDrag(c, e.x, e.y, 0, 60);
     ok('a press on a row\'s button does not drag it', JSON.stringify(await manual(c)) === '["r2","r3","r1"]', JSON.stringify(await manual(c)));
