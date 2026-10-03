@@ -70,6 +70,20 @@
       "approved": "2026-09-29: Tony reviewed the full list and turned deletion on for every item"
     },
     {
+      "id": "tradehub-quick-height",
+      "store": "localStorage",
+      "program": "index",
+      "category": "unused",
+      "capDays": 0,
+      "exact": [
+        "tb_quick_prompt_h"
+      ],
+      "prefix": [],
+      "owner": "tradehub.html Analysis Quick Prompt grip (replaced 2026-10-02, theme overhaul phase 4)",
+      "reason": "The Quick Prompt box's old hand-rolled grip stored its height here. The box now uses resizegrip.js, which stores a1.h.th.quick instead. Same origin, so index's sweep reaches it.",
+      "delete": false
+    },
+    {
       "id": "myjournal-docs-doc",
       "store": "firestore",
       "program": "index",

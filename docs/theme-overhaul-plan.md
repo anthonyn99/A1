@@ -8,67 +8,82 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-10-02, at the end of **Phase 3** (OneInbox: theme,
-drag, resize grip; plus LifeHub's colours and the RiftIQ icon). Done,
-tested, pushed.
+**Last updated:** 2026-10-02, at the end of **Phase 4** (TradeHub: theme,
+drags, resize grips). Done, tested, pushed.
 **Tags:** phase 1 `theme-p1-start` → `theme-p1-end`; phase 1b
 `theme-p1b-start` → `theme-p1b-end`; phase 2 `theme-p2-start` →
-`theme-p2-end`; phase 3 `theme-p3-start` → `theme-p3-end`.
-**Next phase:** **Phase 4: TradeHub** (theme + its drags + its resize
-handles, no gradient fills; see §3, §4 "Phases 3–10"). Start it only when
-Tony says "continue theme" / "next theme phase".
+`theme-p2-end`; phase 3 `theme-p3-start` → `theme-p3-end`; phase 4
+`theme-p4-start` → `theme-p4-end`.
+**Next phase:** **Phase 5: MyList, Tony's profile only** (theme + its drags
++ its resize handles, no gradient fills; see §3, §4 "Phases 3–10"). MyList
+is SHARED with Veda: gate everything on her profile and pixel-diff her
+views. Start it only when Tony says "continue theme" / "next theme phase".
 
-**Phase 3, what shipped:**
-- **OneInbox is MAGI.** `:root` carries MAGI's tokens: `--ac`/`--acl`/`--acd`,
-  `--bd` (hairline), `--blue` (links, syncing), `--mono` (IBM Plex Mono for
-  counts and sizes). `--gold` is REAL gold now and is used only by the star
-  and the coupon category. The `--gold-*` glow/line tokens are gone.
-  - Fraunces is gone; `--font-accent` is Inter.
-  - `.btn` is MAGI's type (10px, 700, uppercase, 1px), bdl outline that turns
-    accent on hover, no glow, no CSS press (hoverfx does it). `.btn.gold` was
-    renamed `.btn.ac` (purple text). `.btn.solid` (Compose) is a SOLID purple
-    fill with a dark label.
-  - Selected states are solid: the active nav row is s2 with a 2px accent left
-    edge; an "on" filter chip is a solid fill (a category chip fills in its
-    own category colour) with a dark label. Chips and badges are radius 4.
-  - Fields: accent border + 3px ring at 16%. Focus: 2px accent outline.
-  - Dialogs: `rgba(0,0,0,.62)` + 2px blur, s1 box on a hairline, radius 8.
-  - Wordmark `#dbd0f5`; the list title is a MAGI panel title (Manrope 800,
-    uppercase, tracked, `acl`).
-  - "All accounts" dot was a gold→blue gradient; now solid purple.
-  - `<body data-hoverfx="magi">`.
-- **Drag:** the account list runs on `A1Drag.sort` (`wireAcctDrag()` in
-  `renderSidebar`, rows `.navitem[data-dkey]`). A drop is a splice of
-  `S.accounts`, then `syncAcctOrder` (localStorage + Firestore), as before.
-  - The hand-rolled pointer code (`acctDrag`, `acctDragJustEnded`, the svg
-    `.grip`, `.reordering`/`.dragging` CSS) is deleted.
-  - On a mouse the grip floats over the row's end (hidden until hover, so a
-    long address keeps its width); on touch it is in the row, always shown.
-  - A click on a grip never selects the account. `renderSidebar` and
-    `applyRemoteAcctOrder` defer with `A1Drag.later` while a row is lifted.
-- **Resize:** the per-account signature boxes have MAGI's corner grip
-  (`resizegrip.js`, key `a1.h.oi.sig`, one height for all). No other
-  OneInbox box had a handle (compose body is fixed by design).
-- **LifeHub (Tony's ask mid-phase):** lifehub.js's default Tony accent is
-  `#c0aeea` (was gold), so the current-app outline, the launcher diamond,
-  focus rings and the Edit/Done button are purple in every program. Veda's
-  `#A892B0` is unchanged. So phase 10's LifeHub item is DONE.
-- **RiftIQ icon (Tony's ask):** the grey hexagon is purple `#c0aeea`, the
-  tile `#1a1a1d` (was `#16161c`), the grip `#9a86c9`, in every copy:
-  riftiq.html (favicon, touch icon, manifest), LifeHub `ICONS`, the
-  `KC_APP_ICONS` twins (index.html, vault.html) and both extension popups
-  (Vault/popup.js, V1/Launcher/popup.js; reload the extensions to see it).
-- **Tests:** `tests/live/oneinbox-drag.live.js` (32 checks: theme, mouse drag
-  + saved/synced order, swallowed drop click, ↑/↓, grip click, touch row vs
-  grip, signature grip drag/toggle/reload). It FAKES OneInbox's worker and
-  Firebase (no-op modules recording `setDoc` in `window.__fsWrites`).
-  `--shots <label>` takes desktop / settings / LifeHub / phone / drawer
-  shots instead. Against `theme-p3-start` it fails 12+ checks.
-  - `tests/live/cdp.js` gained `connect({ mock })`: `mock.patterns` are URL
-    pattern STRINGS (objects broke `Fetch.enable` and silently served the
-    live GitHub Pages copy), `mock.handle(request)` returns `{status, json}`
-    or `{text, type}`.
-- OneInbox is Tony-only, so there is no Veda diff for this phase.
+**Phase 4, what shipped:**
+- **TradeHub is MAGI.** `TB_STYLES` `#tradeboard-root` carries MAGI's
+  tokens: `--ac` `#c0aeea`, `--acs` (accent text), `--acd` `#9a86c9`,
+  `--acp` `#dbd0f5` (panel titles), `--acl` (an accent LINE, borders only),
+  `--s3` `#34343a`, plus `--gold` (real gold) and `--blue`, and the
+  `--ds-ac`/`--ds-s2` tint for dragsort/resizegrip. `--acg` (a gold wash)
+  and the `:root` `--gold-*`/`--red-glow` tokens are gone.
+  - Fraunces and the DM Sans / DM Mono / Bebas link are gone;
+    `--font-accent` is Inter. Lora stays: it is a Playbook font choice.
+  - `.tb-btn-primary/-ghost/-danger` are MAGI's `.btn` (10px, 700,
+    uppercase, 1px; `font-size` is `!important` because ~25 call sites pass
+    an old inline `fontSize`). bdl outline, accent on hover, no glow, no CSS
+    press (hoverfx does it). `.tb-x-close` has no wash or halo.
+  - `.tb-section-label` is a MAGI panel title. Fields get the accent border
+    + 3px ring at 16%; buttons a 2px accent focus outline.
+  - Selected = solid: the AI-destination and MAGI-unit chips, the prompt
+    chips, the Playbook toolbar's active tool (solid purple, dark label);
+    the Playbook page list's active item is s2 with a 2px accent left edge;
+    selected Journal rows are s2 (was a gold wash). Every `#fff`/`#000`
+    label on a purple fill is `var(--bg)`.
+  - Gold stays only where it means something: the ★ favourite in the
+    prompt picker and the Playbook storage warning. The Playbook's text and
+    highlight colour palettes and `mark` are content, so unchanged.
+  - The News bear→bull tone track was a gradient; it is solid `--s3`.
+  - Category / importance colours (`TB_CAT_COLORS`, `TB_IMP`, the status
+    badges) are NOT themed, per the phase-1 rule.
+  - The whole-app lock (CSS + its JS button styles) and `uiModal` are
+    purple: no radial gradient, no glows, primary = solid purple; the modal
+    is MAGI's dialog (`rgba(0,0,0,.62)` + 2px blur, s1 box, hairline,
+    radius 8).
+  - Wordmark `#dbd0f5`. `<body data-hoverfx="magi">`.
+- **Drag (`dragsort.js`, now loaded in TradeHub's `<head>` with
+  `resizegrip.js`):**
+  - The page tabs (`TBNavBar`, desktop and phone) run on `A1Drag.sort`
+    (`row:'.tb-navtab', axis:'x', hold:300`). A drop hands the new id order
+    to `onReorderNav` (localStorage `tb_nav_order_v1` + Firebase), as before.
+    The hand-rolled pointer code (`liveIds`, `draggingRef`, `justDraggedRef`
+    …) is deleted.
+  - The Prompts tab's chips run on `A1Drag.sort` (`row:'.tb-pchip',
+    axis:'grid', hold:300`); a drop is a splice + `onSave`, the selection
+    follows its chip. The old `dragState`/`overIdx` code is deleted.
+  - React pattern used: `A1Drag.sort` re-wired in an effect every render
+    (same listeners, new options) with the live values in a ref; React never
+    owns `transform` on those rows.
+- **Resize (`resizegrip.js`):** three boxes have MAGI's corner grip:
+  - the Prompts tab preview (`a1.h.th.prompt`, was a hand-rolled ns-resize
+    corner),
+  - Analysis → Quick Prompt (`a1.h.th.quick`, was its own pointer grip; the
+    old `tb_quick_prompt_h` key is a NEW dry-run item in
+    `cleanup-rules.json`, `tradehub-quick-height`),
+  - the trade modal's Notes (`a1.h.th.trade-notes`, was native
+    `resize:vertical`), via a new `TBGripBox` wrapper component.
+  - **Gotcha:** a gripped box's default height must be a CSS class
+    (`.tb-prompt-render`, `.tb-quick-box`, `.tb-notes-box` in TB_STYLES),
+    never an inline React style: handing the box back to auto clears its
+    inline height/min/max.
+- **Tests:** `tests/live/tradehub-drag.live.js` (49 checks: theme, desktop tab
+  drag + saved order + swallowed drop click + reload, phone hold vs swipe,
+  prompt chips by mouse and by held finger, all three grips: drag, store,
+  reload, click toggles). Firebase stays blocked; prompts are seeded in
+  `tradeboard_prompts_v2`. `--shots <label>` takes every tab, the confirm
+  dialog and phone shots. Against `theme-p4-start` it fails from the first
+  theme check. TradeHub is Tony-only, so there is no Veda diff.
+- **Left for later:** status badges (OPEN/CLOSED/manual) still use their
+  translucent tinted backgrounds; they are status colours, not controls.
 
 **Start-of-session checklist**
 1. `git pull`, then `git tag theme-pN-start && git push origin theme-pN-start`.
@@ -374,8 +389,8 @@ wrap-up phase.
 | 1b | **`dragsort.js` (MAGI's DnD, shared) + index chrome drags (nav, dropdown, Settings rows); TaskHub's own DnD stays** | **done 2026-10-02** |
 | 2 | **Index B: MyJournal** (theme + its drags + resize handles) | **done 2026-10-02** |
 | 3 | **OneInbox** (theme + drags + resize; also LifeHub colours, RiftIQ icon) | **done 2026-10-02** |
-| 4 | TradeHub (theme + drags) | **next** |
-| 5 | MyList, Tony profile only (theme + drags) | |
+| 4 | **TradeHub** (theme + drags + resize grips) | **done 2026-10-02** |
+| 5 | MyList, Tony profile only (theme + drags) | **next** |
 | 6 | Insight (theme + drags) | |
 | 7 | Vault (Keychain) + **Vault extension** (theme + drags) | |
 | 8 | Solace (theme + drags) | |
@@ -579,6 +594,59 @@ end of phase 2):
   rail CSS).
 - **Scope:** OurJournal is a tab inside BOTH journals. Theme it only inside
   `#tj-root`.
+
+### Phase 3 — OneInbox (done 2026-10-02)
+**What shipped** (moved here from §0 at the end of phase 4):
+- **OneInbox is MAGI.** `:root` carries MAGI's tokens: `--ac`/`--acl`/`--acd`,
+  `--bd` (hairline), `--blue` (links, syncing), `--mono` (IBM Plex Mono for
+  counts and sizes). `--gold` is REAL gold now and is used only by the star
+  and the coupon category. The `--gold-*` glow/line tokens are gone.
+  - Fraunces is gone; `--font-accent` is Inter.
+  - `.btn` is MAGI's type (10px, 700, uppercase, 1px), bdl outline that turns
+    accent on hover, no glow, no CSS press (hoverfx does it). `.btn.gold` was
+    renamed `.btn.ac` (purple text). `.btn.solid` (Compose) is a SOLID purple
+    fill with a dark label.
+  - Selected states are solid: the active nav row is s2 with a 2px accent left
+    edge; an "on" filter chip is a solid fill (a category chip fills in its
+    own category colour) with a dark label. Chips and badges are radius 4.
+  - Fields: accent border + 3px ring at 16%. Focus: 2px accent outline.
+  - Dialogs: `rgba(0,0,0,.62)` + 2px blur, s1 box on a hairline, radius 8.
+  - Wordmark `#dbd0f5`; the list title is a MAGI panel title (Manrope 800,
+    uppercase, tracked, `acl`).
+  - "All accounts" dot was a gold→blue gradient; now solid purple.
+  - `<body data-hoverfx="magi">`.
+- **Drag:** the account list runs on `A1Drag.sort` (`wireAcctDrag()` in
+  `renderSidebar`, rows `.navitem[data-dkey]`). A drop is a splice of
+  `S.accounts`, then `syncAcctOrder` (localStorage + Firestore), as before.
+  - The hand-rolled pointer code (`acctDrag`, `acctDragJustEnded`, the svg
+    `.grip`, `.reordering`/`.dragging` CSS) is deleted.
+  - On a mouse the grip floats over the row's end (hidden until hover, so a
+    long address keeps its width); on touch it is in the row, always shown.
+  - A click on a grip never selects the account. `renderSidebar` and
+    `applyRemoteAcctOrder` defer with `A1Drag.later` while a row is lifted.
+- **Resize:** the per-account signature boxes have MAGI's corner grip
+  (`resizegrip.js`, key `a1.h.oi.sig`, one height for all). No other
+  OneInbox box had a handle (compose body is fixed by design).
+- **LifeHub (Tony's ask mid-phase):** lifehub.js's default Tony accent is
+  `#c0aeea` (was gold), so the current-app outline, the launcher diamond,
+  focus rings and the Edit/Done button are purple in every program. Veda's
+  `#A892B0` is unchanged. So phase 10's LifeHub item is DONE.
+- **RiftIQ icon (Tony's ask):** the grey hexagon is purple `#c0aeea`, the
+  tile `#1a1a1d` (was `#16161c`), the grip `#9a86c9`, in every copy:
+  riftiq.html (favicon, touch icon, manifest), LifeHub `ICONS`, the
+  `KC_APP_ICONS` twins (index.html, vault.html) and both extension popups
+  (Vault/popup.js, V1/Launcher/popup.js; reload the extensions to see it).
+- **Tests:** `tests/live/oneinbox-drag.live.js` (32 checks: theme, mouse drag
+  + saved/synced order, swallowed drop click, ↑/↓, grip click, touch row vs
+  grip, signature grip drag/toggle/reload). It FAKES OneInbox's worker and
+  Firebase (no-op modules recording `setDoc` in `window.__fsWrites`).
+  `--shots <label>` takes desktop / settings / LifeHub / phone / drawer
+  shots instead. Against `theme-p3-start` it fails 12+ checks.
+  - `tests/live/cdp.js` gained `connect({ mock })`: `mock.patterns` are URL
+    pattern STRINGS (objects broke `Fetch.enable` and silently served the
+    live GitHub Pages copy), `mock.handle(request)` returns `{status, json}`
+    or `{text, type}`.
+- OneInbox is Tony-only, so there is no Veda diff for this phase.
 
 ### Phases 3–10 (from the original survey; re-read each file before building)
 
