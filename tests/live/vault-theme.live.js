@@ -120,13 +120,13 @@ const row = (name) => `[...document.querySelectorAll('#kc-conns-list .kc-item-ro
   const th = JSON.parse(await evalJs(c, `var cs=function(s){var e=document.querySelector(s);return e?getComputedStyle(e):null;};
     var root=getComputedStyle(document.getElementById('kc-root'));
     return JSON.stringify({ ac: root.getPropertyValue('--ac').trim(), acp: root.getPropertyValue('--acp').trim(),
-      logo: cs('.kc-logo').color, title: cs('.kc-section-title').color, titleFont: cs('.kc-section-title').fontFamily, titleW: cs('.kc-section-title').fontWeight,
+      logo: cs('.kc-logo').color, logoText: (cs('.kc-logo .dot')||cs('.kc-logo')).color, title: cs('.kc-section-title').color, titleFont: cs('.kc-section-title').fontFamily, titleW: cs('.kc-section-title').fontWeight,
       hover: document.body.getAttribute('data-hoverfx'), hbtn: cs('.kc-hbtn').fontSize + ' ' + cs('.kc-hbtn').fontWeight + ' ' + cs('.kc-hbtn').textTransform,
       newBtn: cs('.kc-new-btn.accent').backgroundColor + ' ' + cs('.kc-new-btn.accent').color,
       num: getComputedStyle(document.body).fontVariantNumeric, btnNum: cs('.kc-hbtn').fontVariantNumeric, bodyFont: getComputedStyle(document.body).fontFamily,
       fraunces: !!document.querySelector('link[href*="Fraunces"]') });`));
   ok('MAGI purple accent', th.ac === '#c0aeea', th);
-  ok('wordmark is #dbd0f5', th.logo === 'rgb(219, 208, 245)', th.logo);
+  ok('wordmark is #dbd0f5', th.logo === 'rgb(219, 208, 245)' && th.logoText === th.logo, th);
   ok('section title is a MAGI panel title (Manrope 800, acl)', /Manrope/.test(th.titleFont) && th.titleW === '800' && th.title === 'rgb(219, 208, 245)', th);
   ok('buttons are MAGI\'s .btn type (10px, 700, uppercase)', th.hbtn === '10px 700 uppercase', th.hbtn);
   ok('New Connection (selected/primary) is solid purple with a dark label', th.newBtn === 'rgb(192, 174, 234) rgb(26, 26, 29)', th.newBtn);

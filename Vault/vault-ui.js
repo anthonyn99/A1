@@ -484,7 +484,7 @@
     // Rename "Keychain" → "Vault" in the logo + nav without editing index.html.
     try {
       var logo = document.querySelector('#kc-root .kc-logo');
-      if (logo && !logo._vaulted) { logo.innerHTML = '<span class="dot" style="color:var(--ac)">Vault</span>'; logo._vaulted = true; }
+      if (logo && !logo._vaulted) { logo.innerHTML = '<span class="dot">Vault</span>'; logo._vaulted = true; }
       document.querySelectorAll('[data-app="keychain"]').forEach(function (b) { if (/keychain/i.test(b.textContent)) b.textContent = 'Vault'; });
       document.querySelectorAll('option[value="keychain"]').forEach(function (o) { if (/keychain/i.test(o.textContent)) o.textContent = 'Vault'; });
     } catch (e) {}
