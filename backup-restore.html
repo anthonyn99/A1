@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Backup Restore</title>
+<!-- Puts both TaskHubs back to a backup taken before a reset, keeping what was
+     done since (backup-merge.js). Runs in a browser that still holds the backup
+     passphrase, so nothing has to be typed and no data leaves the browser.
+     ?good=<device> picks the pre-reset backup from Index Backups/ (default:
+     the newest one this passphrase opens). Nothing is written until Restore is
+     clicked, and the current state is copied to dashboards/<doc>_prerestore
+     first. Does not run TaskHub, so no stale local copy can write back. -->
+<style>
+  :root { --bg: #18181b; --fg: #ececf1; --muted: #a1a1aa; --accent: #c0aeea; --bad: #f08a8a; --line: #2e2e33; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 8px; } h2 { font-size: 17px; margin: 24px 0 6px; }
+  #st { color: var(--muted); white-space: pre-line; }
+  .ok { color: var(--accent) !important; } .bad { color: var(--bad) !important; }
+  ul { margin: 4px 0; padding-left: 20px; } li { color: var(--muted); } li b { color: var(--fg); font-weight: 500; }
+  button { font: inherit; padding: 12px 28px; border: 0; border-radius: 8px; background: #8D769A; color: #fff; cursor: pointer; margin-top: 24px; }
+  button:disabled { opacity: .5; cursor: default; }
+</style>
+<script src="backup.js"></script>
+<script src="backup-merge.js"></script>
+</head>
+<body>
+<main>
+  <h1>Restore TaskHubs from backup</h1>
+  <div id="st">Reading backups…</div>
+  <div id="plan"></div>
+  <button id="go" hidden>Restore both TaskHubs</button>
+</main>
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js';
+import { initializeAppCheck, ReCaptchaV3Provider } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js';
+import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js';
+import { getFirestore, doc, getDocFromServer, setDoc } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js';
+
+const st = document.getElementById('st'), plan = document.getElementById('plan'), go = document.getElementById('go');
+const say = (t, cls) => { st.textContent = t; st.className = cls || ''; };
+const DOCS = [['main', 'Tony'], ['vedasdash', 'Veda']];
+const when = (ms) => new Date(ms).toLocaleString();
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// Same project, config and App Check key as index.html.
+const app = initializeApp({
+  apiKey: 'AIzaSyC2aKunOKj5WS8NpgZhpyMzOYecBr5t2_4',
+  authDomain: 'task-dashboard-d2b53.firebaseapp.com',
+  projectId: 'task-dashboard-d2b53',
+  appId: '1:982539604706:web:e93da1aef499fcee2044bb'
+});
+initializeAppCheck(app, { provider: new ReCaptchaV3Provider('6LeUyAstAAAAAEciRypd1i4Akq6ueFUYfXLaLaUX'), isTokenAutoRefreshEnabled: true });
+const db = getFirestore(app);
+
+// Every device's latest repo copy this passphrase opens: [{device, at, docs:{name:data}}].
+async function repoSnapshots() {
+  const base = 'Index%20Backups/', dec = A1Backup._internals.decryptEnv, out = [];
+  const idx = await (await fetch(base + 'index.json', { cache: 'no-store' })).json();
+  for (const dev of idx.devices || []) {
+    try {
+      const dir = base + encodeURIComponent(dev.device) + '/';
+      const man = JSON.parse(await dec(await (await fetch(dir + 'snapshots/' + String(dev.iso).slice(0, 10) + '.enc.json', { cache: 'no-store' })).json()));
+      const docs = {};
+      for (const [name] of DOCS) {
+        const h = man.docs['dashboards/' + name];
+        if (h) docs[name] = JSON.parse(await dec(await (await fetch(dir + 'objects/' + h + '.enc.json', { cache: 'no-store' })).json()));
+      }
+      out.push({ device: dev.device, at: man.at || dev.at, docs });
+    } catch (e) { /* other passphrase, or not pulled */ }
+  }
+  return out;
+}
+
+function summarize(report) {
+  const vs = (x) => / vs .+ · /.test(x.title || '');
+  const lines = [];
+  const by = (op) => report.filter((x) => x.op === op);
+  const list = (label, xs, fmt) => {
+    if (!xs.length) return;
+    lines.push('<li>' + label + ':<ul>' + xs.slice(0, 40).map((x) => '<li><b>' + esc(fmt(x)) + '</b></li>').join('') +
+               (xs.length > 40 ? '<li>…and ' + (xs.length - 40) + ' more</li>' : '') + '</ul></li>');
+  };
+  const t = (x) => (x.title || x.where) + (x.where && x.where.startsWith('data/') ? '  (' + x.where.slice(5) + ')' : '');
+  list('Brought back', by('restored'), t);
+  list('Updated to last night’s version', by('updated').filter((x) => x.title), (x) => t(x) + (x.changes && x.changes.includes('done') ? ' — check-off restored' : ''));
+  const rm = by('removed'), rmVs = rm.filter(vs);
+  list('Removed again (deleted last night, brought back by the reset)', rm.filter((x) => !vs(x)), t);
+  if (rmVs.length) lines.push('<li>Removed again: <b>' + rmVs.length + ' esports match entries</b> (deleted last night, brought back by the reset)</li>');
+  list('Re-typed copies replaced by the original', by('dropped-copy'), (x) => x.title + '  →  ' + x.original);
+  const kept = by('kept-new');
+  if (kept.length) lines.push('<li>Kept from since the reset: <b>' + kept.filter((x) => !vs(x)).map((x) => esc(x.title)).join(', ') +
+    (kept.some(vs) ? (kept.filter((x) => !vs(x)).length ? ', ' : '') + kept.filter(vs).length + ' esports entries' : '') + '</b></li>');
+  if (by('updated').some((x) => x.where === 'hc')) lines.push('<li>Habit check-offs restored</li>');
+  return lines.length ? '<ul>' + lines.join('') + '</ul>' : '<ul><li>No differences — nothing to restore.</li></ul>';
+}
+
+(async () => {
+  try {
+    if (!A1Backup.isSetUp()) return say('Backups are not switched on in this browser, so it cannot open them. Use the browser where they are on.', 'bad');
+    await signInAnonymously(getAuth(app));
+
+    const repo = await repoSnapshots();
+    const local = await A1Backup.exportDocs(null, Date.now() - 72 * 3600000);
+    const localSnaps = local.snapshots.map((s) => ({ device: local.device, at: s.at, docs: Object.fromEntries(
+      DOCS.map(([n]) => [n, local.objects[s.docs['dashboards/' + n]]]).filter(([, v]) => v)) }));
+    const all = repo.concat(localSnaps);
+
+    const want = new URLSearchParams(location.search).get('good');
+    const good = want ? repo.find((r) => r.device === want) : repo.slice().sort((a, b) => b.at - a.at)[0];
+    if (!good) return say('Could not open the backup ' + (want || '') + ' with this browser’s passphrase.', 'bad');
+
+    const work = [];
+    for (const [name, who] of DOCS) {
+      const g = good.docs[name];
+      if (!g) continue;
+      const liveSnap = await getDocFromServer(doc(db, 'dashboards/' + name));
+      const live = liveSnap.data();
+      const cands = all.map((s) => s.docs[name]).filter((d) => d && d.savedAt < g.savedAt);
+      const pb = A1BackupMerge.pickBase(cands, live);
+      const r = A1BackupMerge.mergeDoc(pb.base || {}, g, live);
+      work.push({ name, who, live, merged: r.doc, report: r.report });
+      plan.insertAdjacentHTML('beforeend', '<h2>' + who + '’s TaskHub</h2><div style="color:var(--muted)">Backup from ' +
+        esc(when(g.savedAt)) + ' (' + esc(good.device) + '). It had been reset to the ' + esc(when(pb.base ? pb.base.savedAt : 0)) + ' state.</div>' + summarize(r.report));
+    }
+    if (!work.length) return say('That backup has no TaskHub data.', 'bad');
+    say('Nothing has been changed yet. Check the list below, then press Restore.');
+    go.hidden = false;
+    go.onclick = async () => {
+      go.disabled = true; say('Restoring…');
+      try {
+        for (const w of work) {
+          // Refuse if someone edited since this page read it — the merge would be stale.
+          const now = (await getDocFromServer(doc(db, 'dashboards/' + w.name))).data();
+          if (now.savedAt !== w.live.savedAt) throw new Error(w.who + '’s TaskHub changed while this page was open. Reload this page and try again.');
+          await setDoc(doc(db, 'dashboards/' + w.name + '_prerestore'), { at: Date.now(), doc: w.live });
+          await setDoc(doc(db, 'dashboards/' + w.name), Object.assign({}, w.merged, { savedAt: Date.now() }));
+        }
+        say('Restored. Reload TaskHub on every device (yours and Veda’s). The previous state was saved to dashboards/main_prerestore and vedasdash_prerestore.', 'ok');
+        go.hidden = true;
+        window.__restored = Date.now();
+      } catch (e) { say('Restore failed: ' + (e && e.message || e) + '\nNothing after this point was written.', 'bad'); go.disabled = false; }
+    };
+  } catch (e) { say('Could not prepare the restore: ' + (e && e.message || e), 'bad'); }
+})();
+</script>
+</body>
+</html>
