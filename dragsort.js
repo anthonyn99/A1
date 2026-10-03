@@ -23,6 +23,8 @@
  *                          to pick it up (0 = grip only; chip rows use 300)
  *     group,               lists with the same group take each other's rows
  *     canDrag(row),        false leaves a row where it is
+ *     ignore,              selector for parts of a row a press never drags
+ *                          (an open row's body, so its text stays selectable)
  *     onDrop(from, to, fromList, toList),
  *                          indexes in the rows as drawn; called only when
  *                          something moved (a same-list drop has to != from)
@@ -170,9 +172,14 @@
 
     list.addEventListener('pointerdown', function (e) {
       var po = me.o;
-      if (state.active || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      if (state.active || e.a1DragClaimed || (e.pointerType === 'mouse' && e.button !== 0)) return;
       var r = e.target.closest(po.row);
       if (!r || r.parentElement !== list || !po.canDrag(r)) return;
+      // A list inside a row of another list (links inside a card): the
+      // innermost list that takes the press keeps it.
+      e.a1DragClaimed = true;
+      var ig = po.ignore && e.target.closest(po.ignore);
+      if (ig && r.contains(ig)) return;
       if (!e.target.closest(po.grip)) {
         // A press on a control inside the row is that control's (the row
         // itself may be a button: a nav button is its own handle).

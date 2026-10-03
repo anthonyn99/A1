@@ -199,7 +199,50 @@ async function drag(target, from, to, kind) {
   ok('a list in another group is not a target', C.drops.length === 0 && A.drops.every((d) => d[3] !== C.list));
   A.list.remove(); B.list.remove(); C.list.remove();
 
+  console.log('\nNested lists and ignore');
+  // An outer list of one card (0-200 x 0-160) whose body is an inner list of rows.
+  const outer = doc.createElement('div'); outer.dataset.box = '0,0,200,320';
+  const cards = [0, 1].map((ci) => {
+    const card = doc.createElement('div'); card.className = 'card'; card.dataset.box = `0,${ci * 160},200,160`;
+    const head = doc.createElement('span'); head.className = 'head'; head.textContent = 'card ' + ci; card.appendChild(head);
+    const inner = doc.createElement('div'); inner.className = 'inner'; inner.dataset.box = `0,${ci * 160 + 40},200,120`;
+    for (let i = 0; i < 3; i++) {
+      const r = doc.createElement('div'); r.className = 'item'; r.dataset.box = `0,${ci * 160 + 40 + i * 40},200,40`;
+      const t = doc.createElement('span'); t.className = 'txt'; t.textContent = 'item ' + i; r.appendChild(t);
+      const body = doc.createElement('div'); body.className = 'body'; body.textContent = 'notes'; r.appendChild(body);
+      inner.appendChild(r);
+    }
+    card.appendChild(inner); outer.appendChild(card);
+    return card;
+  });
+  doc.body.appendChild(outer);
+  const cardDrops = [], itemDrops = [];
+  A1Drag.sort(outer, { row: '.card', onDrop: (...a) => cardDrops.push(a) });
+  cards.forEach((c) => A1Drag.sort(c.querySelector('.inner'), { row: '.item', ignore: '.body', onDrop: (...a) => itemDrops.push(a) }));
+  await drag(cards[0].querySelector('.item .txt'), [50, 60], [50, 145]);
+  ok('a row of an inner list drags that row, not the card around it', itemDrops.length === 1 && cardDrops.length === 0,
+     JSON.stringify({ itemDrops: itemDrops.length, cardDrops: cardDrops.length }));
+  await drag(cards[0].querySelector('.head'), [50, 10], [50, 300]);
+  ok('the card\'s own head still drags the card', cardDrops.length === 1 && itemDrops.length === 1);
+  await drag(cards[0].querySelector('.item .body'), [50, 70], [50, 300]);
+  ok('a press inside `ignore` is not a drag (of the row or the card)', itemDrops.length === 1 && cardDrops.length === 1);
+  outer.remove();
+
   console.log('\nWiring');
+  {
+    // Every copy of the file is the same file (extensions carry their own).
+    const copies = [];
+    const walk = (dir) => {
+      for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (ent.name === 'node_modules' || ent.name.startsWith('.')) continue;
+        const p = path.join(dir, ent.name);
+        if (ent.isDirectory()) walk(p);
+        else if (ent.name === 'dragsort.js') copies.push(p);
+      }
+    };
+    walk(path.join(__dirname, '..'));
+    ok('every dragsort.js copy is byte-identical', copies.length >= 1 && copies.every((p) => fs.readFileSync(p, 'utf8') === src), copies.join(', '));
+  }
   ok('CSS injected once, with MAGI fallbacks', doc.querySelectorAll('#a1-dragsort-css').length === 1 && /var\(--ds-ac, #c0aeea\)/.test(doc.getElementById('a1-dragsort-css').textContent));
   ok('the grip cannot scroll the page under a finger', /\.dsort-grip \{[^}]*touch-action: none/.test(doc.getElementById('a1-dragsort-css').textContent));
   ok('a lifted row\'s label is light on s2 (a selected chip\'s dark label went black)', /\.dsort-drag \{[^}]*color: var\(--ds-tx, #f4f3f0\) !important/.test(doc.getElementById('a1-dragsort-css').textContent));
