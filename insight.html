@@ -46,62 +46,41 @@
 <link rel="manifest" href="data:application/json,%7B%22name%22%3A%22Insight%22%2C%22short_name%22%3A%22Insight%22%2C%22display%22%3A%22standalone%22%2C%22id%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2Finsight.html%22%2C%22start_url%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2Finsight.html%22%2C%22background_color%22%3A%22%231a1a1d%22%2C%22theme_color%22%3A%22%231a1a1d%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%253D%2527http%253A%252F%252Fwww.w3.org%252F2000%252Fsvg%2527%2520viewBox%253D%25270%25200%252096%252096%2527%253E%253Crect%2520width%253D%252796%2527%2520height%253D%252796%2527%2520rx%253D%252722%2527%2520fill%253D%2527%25231a1a1d%2527%252F%253E%253Cg%2520fill%253D%2527none%2527%2520stroke%253D%2527%2523c0aeea%2527%2520stroke-width%253D%25275%2527%2520stroke-linecap%253D%2527round%2527%2520stroke-linejoin%253D%2527round%2527%253E%253Cpath%2520d%253D%2527M48%252024a24%252024%25200%25201%25200%252024%252024H48Z%2527%252F%253E%253Cpath%2520d%253D%2527M60%252020a20%252020%25200%25200%25201%252016%252016H60Z%2527%252F%253E%253C%252Fg%253E%253C%252Fsvg%253E%22%2C%22sizes%22%3A%22any%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%2C%22launch_handler%22%3A%7B%22client_mode%22%3A%22navigate-existing%22%7D%7D">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231a1a1d%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%23c0aeea%27%20stroke-width%3D%275%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M48%2024a24%2024%200%201%200%2024%2024H48Z%27%2F%3E%3Cpath%20d%3D%27M60%2020a20%2020%200%200%201%2016%2016H60Z%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231a1a1d%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%23c0aeea%27%20stroke-width%3D%275%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M48%2024a24%2024%200%201%200%2024%2024H48Z%27%2F%3E%3Cpath%20d%3D%27M60%2020a20%2020%200%200%201%2016%2016H60Z%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600..800&family=Inter:wght@400;500&family=Fraunces:opsz,wght@9..144,400..700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600..800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+<!-- MAGI's drag to reorder and corner resize grip (theme overhaul phase 6).
+     In <head> so both exist before the first render. -->
+<script src="dragsort.js"></script>
+<script src="resizegrip.js"></script>
 <style>
 /* ══════════════════════════════════════════════════════════════════════════
-   SUITE DESIGN TOKENS — mirrored from index.html. Two golds, one display face,
-   one accent face; every app in the ecosystem draws from the same values.
+   MAGI's look (theme overhaul phase 6, docs/theme-overhaul-plan.md §2):
+   magi.html's tokens, purple dominant, gold kept for money and warnings.
+   Inter for the UI, Manrope for headings and the wordmark, IBM Plex Mono for
+   figures. No gradient fills: selected is a solid fill or an accent outline.
    ══════════════════════════════════════════════════════════════════════════ */
-:root{
-  --gold-primary:#ecc78c;    /* borders, rings, active states, icons          */
-  --gold-secondary:#ecc78c;  /* champagne — accent text on dark surfaces      */
-  --gold-line:rgba(236,199,140,.36);
-  --gold-glow:0 0 8px rgba(236,199,140,0.40),0 0 0 1px rgba(236,199,140,0.15);
-  --suite-display:'Manrope',system-ui,-apple-system,sans-serif;
-  --font-accent:'Fraunces',Georgia,serif;
-}
-.suite-title{
-  font-family:var(--suite-display);
-  font-size:clamp(21px,2.6vw,28px);
-  font-weight:750;letter-spacing:-.4px;line-height:1.2;
-  color:var(--gold-primary);
-}
-.suite-accent{
-  font-family:var(--font-accent);
-  font-variation-settings:'opsz' 20,'SOFT' 0,'WONK' 0;
-  font-style:normal;letter-spacing:.1px;
-}
-
-  /* ═══════════ Insight — warm charcoal / tan-gold, editorial ═══════════ */
   :root {
     --bg: #1a1a1d;
     --surface: #232327;
     --surface-2: #2c2c31;
-    --surface-3: #37373d;
-    --border: #45454c;
-    --border-soft: #34343a;
+    --surface-3: #34343a;
+    --border: #45454c;                  /* bdl: a visible outline        */
+    --border-soft: rgba(255,255,255,.06);   /* the hairline cards sit on */
     --text: #f4f3f0;
     --muted: #adadb2;
     --faint: #8d8d94;
-    /* Tan-gold family. Four shades rather than one flat accent, so the metal
-       has range: pale sand for quiet labels, primary for rings and borders,
-       champagne for accent text, bronze for hover/pressed. */
-    --gold: #ecc78c;        /* primary — borders, rings, active states       */
-    --gold-soft: #ecc78c;   /* champagne — accent text on dark surfaces      */
-    --gold-deep: #ecc78c;   /* bronze — hover / pressed / secondary          */
-    --gold-pale: #ecc78c;   /* muted tan — low-emphasis labels and chips     */
-    --gold-line: rgba(236,199,140,.36);
-    --gold-wash: rgba(236,199,140,.10);
+    --ac: #c0aeea;          /* MAGI purple: rings, borders, selected fills  */
+    --acl: #dbd0f5;         /* wordmark, panel titles                       */
+    --acd: #9a86c9;         /* an accent line                               */
+    --gold: #e0b874;        /* money in, due soon, syncing                  */
     --danger: #d68a7c;
     --ok: #a4b986;
-    --radius: 9px;
+    --radius: 8px;
     --radius-sm: 6px;
-    /* Type system: Manrope for headings and titles, Inter for body, UI,
-       tables and forms. Figures are Inter Medium + tabular-nums so columns
-       of money stay aligned. */
     --display: 'Manrope', system-ui, -apple-system, sans-serif;
     --sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, monospace;
+    --font-accent: var(--sans);
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
@@ -118,10 +97,10 @@
     padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px));
     -webkit-font-smoothing: antialiased;
   }
-  a { color: var(--gold-soft); text-decoration: none; }
-  a:hover { color: var(--gold); }
-  ::selection { background: rgba(206,158,84,.25); color: var(--text); }
-  :focus-visible { outline: 1.5px solid var(--gold); outline-offset: 2px; }
+  a { color: var(--ac); text-decoration: none; }
+  a:hover { color: var(--acl); }
+  ::selection { background: rgba(192,174,234,.28); color: var(--text); }
+  :focus-visible { outline: 2px solid var(--ac); outline-offset: 1px; }
   .wrap { max-width: 920px; margin: 0 auto;
     padding: 0 max(22px, env(safe-area-inset-right, 0px)) 0 max(22px, env(safe-area-inset-left, 0px)); }
 
@@ -131,7 +110,7 @@
   .brand {
     font-family: var(--suite-display);
     font-size: clamp(21px,2.6vw,28px); font-weight: 750; line-height: 1.2; letter-spacing: -.4px;
-    padding: 0 2px 6px 6px; color:var(--gold-primary);}
+    padding: 0 2px 6px 6px; color: var(--acl); }
   .brandwrap { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .syncind {
     display: inline-flex; align-items: center; gap: 7px; margin-left: 8px;
@@ -149,29 +128,28 @@
 
   .syncmeta { display: flex; align-items: center; gap: 9px; font-size: 12px; color: var(--faint); flex-wrap: wrap; justify-content: flex-end; }
   .syncmeta #lastSync { letter-spacing: .2px; }
-  .syncmeta .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); }
+  .syncmeta .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ac); }
 
+  /* MAGI's .btn: a bdl outline at rest that turns accent under the cursor.
+     The hover lift and the press come from hoverfx.js (body[data-hoverfx=magi]),
+     so there is no glow and no CSS press here. .solid is the primary action:
+     a SOLID purple fill with a dark label. */
   .btn {
     appearance: none; border: 1px solid var(--border); background: transparent;
-    color: var(--text); font-family: var(--sans); font-size: 11.5px; font-weight: 500;
-    letter-spacing: .8px; text-transform: uppercase;
-    padding: 9px 16px; border-radius: var(--radius-sm); cursor: pointer;
+    color: var(--text); font-family: var(--sans); font-size: 10px; font-weight: 700;
+    letter-spacing: 1px; text-transform: uppercase;
+    padding: 9px 14px; border-radius: var(--radius-sm); cursor: pointer;
     display: inline-flex; align-items: center; gap: 7px; line-height: 1;
-    transition: border-color .18s, background .18s, color .18s, transform .05s;
+    box-shadow: none; transition: border-color .15s, background .15s, color .15s;
   }
-  /* Buttons rest quiet and light up only under the cursor, each in its own colour.
-     A ring that is always lit reads as an active state rather than a resting one. */
-  .btn { box-shadow: none; transition: border-color .18s, background .18s, color .18s, box-shadow .18s, transform .05s; }
-  .btn:hover { border-color: var(--muted); background: transparent; box-shadow: 0 0 8px rgba(244,243,240,.12), 0 0 0 1px rgba(244,243,240,.08); }
-  .btn:active { transform: translateY(1px); }
-  .btn.gold {
-    border-color: var(--gold-line); color: var(--gold-soft); background: transparent; box-shadow: none;
-  }
-  .btn.gold:hover { border-color: var(--gold); background: transparent; color: var(--gold-soft); box-shadow: var(--gold-glow); }
-  .btn.danger { color: var(--danger); border-color: rgba(214,138,124,.3); box-shadow: none; }
-  .btn.danger:hover { border-color: var(--danger); box-shadow: 0 0 8px rgba(214,138,124,.34), 0 0 0 1px rgba(214,138,124,.15); }
+  .btn:hover { border-color: var(--ac); background: transparent; }
+  .btn.solid { background: var(--ac); border-color: var(--ac); color: var(--bg); }
+  .btn.solid:hover { background: var(--ac); border-color: var(--ac); }
+  .btn.danger { color: var(--danger); border-color: var(--border); }
+  .btn.danger:hover { border-color: var(--danger); }
   .btn:disabled { opacity: .4; cursor: default; }
-  .btn:disabled:hover { border-color: var(--border); background: transparent; box-shadow: none; }
+  .btn:disabled:hover { border-color: var(--border); }
+  .btn.solid:disabled:hover { border-color: var(--ac); }
   .btn.icononly { padding: 9px 10px; }
   /* Refresh busy state: spin the icon in place instead of swapping in text. */
   #syncNowBtn.spinning svg { animation: iconspin .8s linear infinite; transform-origin: 50% 50%; }
@@ -187,49 +165,38 @@
     font-size: 10px; font-weight: 500; letter-spacing: .6px;
     color: var(--faint); vertical-align: middle; margin-left: 5px;
   }
-  /* Tabs are draggable to reorder; keep vertical scrolling natural on touch. */
-  /* `manipulation` keeps the browser's own panning (so the strip still scrolls
-     horizontally on touch) while dropping the 300ms double-tap delay. Reorder
-     drags start from a long press and suppress scrolling only once armed. */
+  /* Tabs drag to reorder (dragsort.js: a mouse after 4px, a finger after a
+     300ms hold). `manipulation` keeps the strip's own horizontal panning while
+     dropping the double-tap delay. */
   .tab { touch-action: manipulation; }
-  .tab.navdrag {
-    z-index: 5; cursor: grabbing; opacity: .97;
-    border-color: var(--gold); color: var(--gold-soft); background: transparent;
-    box-shadow: 0 10px 26px rgba(0,0,0,.34);
-  }
 
   #displayModeBtn { white-space: nowrap; }
   #displayModeBtn[aria-pressed="true"] {
-    border-color: var(--gold); color: var(--gold-soft); background: transparent;
+    border-color: var(--ac); color: var(--bg); background: var(--ac);
   }
 
   .env-badge {
-    font-size: 9.5px; font-weight: 500; letter-spacing: 1.4px; text-transform: uppercase;
-    color: var(--gold); border: 1px solid var(--gold-line); border-radius: 4px;
+    font-size: 9px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase;
+    color: var(--ac); border: 1px solid var(--acd); border-radius: 4px;
     padding: 3px 9px; background: transparent;
   }
 
-  /* ── Nav — editorial underline ── */
+  /* ── Nav: MAGI's nav buttons; the current view is a solid purple fill ── */
   nav {
-    display: flex; gap: 4px; margin: 26px 0 30px;
+    display: flex; gap: 6px; margin: 26px 0 30px; padding-bottom: 12px;
     border-bottom: 1px solid var(--border-soft);
     overflow-x: auto; scrollbar-width: none;
   }
   nav::-webkit-scrollbar { display: none; }
   .tab {
-    flex-shrink: 0; padding: 12px 16px; cursor: pointer; user-select: none;
-    font-size: 11.5px; font-weight: 500; letter-spacing: 1.6px; text-transform: uppercase;
-    color: var(--muted); position: relative; white-space: nowrap;
-    transition: color .18s;
+    flex-shrink: 0; padding: 9px 14px; cursor: pointer; user-select: none;
+    font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    color: var(--muted); position: relative; white-space: nowrap; line-height: 1;
+    border: 1px solid transparent; border-radius: var(--radius-sm);
+    transition: color .15s, border-color .15s, background .15s;
   }
-  .tab::after {
-    content: ''; position: absolute; left: 16px; right: 16px; bottom: -1px; height: 1.5px;
-    background: var(--gold); transform: scaleX(0); transform-origin: center;
-    transition: transform .22s ease;
-  }
-  .tab:hover { color: var(--text); }
-  .tab.active { color: var(--gold-soft); }
-  .tab.active::after { transform: scaleX(1); }
+  .tab:hover { color: var(--text); border-color: var(--ac); }
+  .tab.active { color: var(--bg); background: var(--ac); border-color: var(--ac); }
   .tab .soon { font-size: 8.5px; color: var(--faint); font-weight: 500; margin-left: 5px; letter-spacing: .6px; }
 
   /* ── Summary strip ── */
@@ -238,9 +205,9 @@
     background: var(--surface); border: 1px solid var(--border-soft);
     border-radius: var(--radius); padding: 17px 20px;
   }
-  .stat .lbl { font-size: 10px; font-weight: 500; letter-spacing: 1.6px; text-transform: uppercase; color: var(--faint); margin-bottom: 7px; }
-  .stat .val { font-family: var(--sans); font-size: 29px; font-weight: 500; line-height: 1.1; font-variant-numeric: tabular-nums; letter-spacing: -.4px; }
-  .stat .val.gold { color: var(--gold-soft); }
+  .stat .lbl { font-size: 9px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint); margin-bottom: 7px; }
+  .stat .val { font-family: var(--mono); font-size: 27px; font-weight: 500; line-height: 1.1; font-variant-numeric: tabular-nums; letter-spacing: -.6px; }
+  .stat .val.gold { color: var(--gold); }
   .stat .val.neg { color: var(--danger); }
 
   /* ── Monthly history ──
@@ -256,13 +223,13 @@
   .mhist summary {
     display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none;
     padding: 13px 18px; list-style: none;
-    font-size: 10px; font-weight: 500; letter-spacing: 1.6px; text-transform: uppercase;
-    color: var(--faint); transition: color .18s;
+    font-family: var(--display); font-size: 11px; font-weight: 800; letter-spacing: 1.8px; text-transform: uppercase;
+    color: var(--muted); transition: color .15s;
   }
   .mhist summary::-webkit-details-marker { display: none; }
-  .mhist summary:hover { color: var(--muted); }
-  .mhist[open] summary { color: var(--gold-soft); border-bottom: 1px solid var(--border-soft); }
-  .mh-hint { letter-spacing: 1px; color: var(--faint); font-weight: 500; }
+  .mhist summary:hover { color: var(--text); }
+  .mhist[open] summary { color: var(--acl); border-bottom: 1px solid var(--border-soft); }
+  .mh-hint { font-family: var(--sans); font-size: 9px; letter-spacing: 1px; color: var(--faint); font-weight: 700; }
   .mh-chev { width: 15px; height: 15px; margin-left: auto; flex-shrink: 0; transition: transform .22s ease; }
   .mhist[open] .mh-chev { transform: rotate(180deg); }
   .mh-body {
@@ -279,18 +246,18 @@
     gap: 14px; align-items: baseline; padding: 10px 18px;
   }
   .mh-row.head {
-    font-size: 9.5px; font-weight: 500; letter-spacing: 1.4px; text-transform: uppercase;
+    font-size: 9px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase;
     color: var(--faint); padding-bottom: 6px;
   }
   .mh-row:not(.head):not(.total):hover { background: var(--surface-2); }
   .mh-row .mo { font-size: 13.5px; font-weight: 500; white-space: nowrap; }
-  .mh-row .amt { text-align: right; font-size: 13.5px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .mh-row .amt.in { color: var(--gold-soft); }
+  .mh-row .amt { text-align: right; font-family: var(--mono); font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .mh-row .amt.in { color: var(--gold); }
   .mh-row .amt.neg { color: var(--danger); }
-  .mh-row.head .amt { text-align: right; font-size: 9.5px; }
+  .mh-row.head .amt { text-align: right; font-family: var(--sans); font-size: 9px; }
   .mh-row.total { border-top: 1px solid var(--border-soft); margin-top: 4px; padding-top: 13px; }
   .mh-row.total .mo, .mh-row.total .amt { color: var(--muted); }
-  .mh-row.total .amt.in { color: var(--gold-soft); }
+  .mh-row.total .amt.in { color: var(--gold); }
   .mh-row.total .amt.neg { color: var(--danger); }
   .mh-sofar {
     font-size: 9.5px; font-weight: 500; letter-spacing: .8px; text-transform: uppercase;
@@ -306,7 +273,7 @@
     transition: border-color .18s;
   }
   .filters input[type=search] { flex: 1; min-width: 160px; }
-  .filters input:focus, .filters select:focus, .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--gold); }
+  .filters input:focus, .filters select:focus, .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--ac); box-shadow: 0 0 0 3px rgba(192,174,234,.16); }
   /* Amounts typed into forms line up with the figures they'll become. */
   .field input[type=number], .filters input[type=search] { font-variant-numeric: tabular-nums; }
   .filters select { color: var(--muted); cursor: pointer; }
@@ -314,10 +281,10 @@
 
   /* ── Feed ── */
   .datehdr {
-    font-size: 10px; font-weight: 500; letter-spacing: 2px; text-transform: uppercase;
+    font-size: 9px; font-weight: 700; letter-spacing: 1.8px; text-transform: uppercase;
     color: var(--faint); margin: 28px 2px 12px; display: flex; align-items: center; gap: 14px;
   }
-  .datehdr::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--border), transparent 85%); }
+  .datehdr::after { content: ''; flex: 1; height: 1px; background: var(--border-soft); }
   .txrow {
     display: flex; align-items: center; gap: 14px;
     background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius);
@@ -325,9 +292,9 @@
   }
   .txrow:hover { border-color: var(--border); }
   .txbadge {
-    width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
+    width: 40px; height: 40px; border-radius: var(--radius); flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
-    font-family: var(--display); font-size: 17px; font-weight: 600; color: var(--gold-soft);
+    font-family: var(--display); font-size: 17px; font-weight: 700; color: var(--ac);
     background: var(--surface-2); border: 1px solid var(--border); overflow: hidden;
   }
   .txbadge img { width: 100%; height: 100%; object-fit: cover; }
@@ -335,29 +302,29 @@
   .txname { font-weight: 500; font-size: 14.5px; letter-spacing: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .txsub { display: flex; gap: 8px; align-items: center; font-size: 11.5px; color: var(--faint); margin-top: 3px; flex-wrap: wrap; }
   .chip {
-    font-size: 10.5px; font-weight: 500; letter-spacing: .2px; padding: 3px 9px; border-radius: 5px;
+    font-size: 10.5px; font-weight: 500; letter-spacing: .2px; padding: 3px 9px; border-radius: 4px;
     background: transparent; border: 1px solid var(--border); color: var(--muted); white-space: nowrap;
     font-variant-numeric: tabular-nums;   /* recurring "$11.99/mo" chips */
   }
   /* Soft pastel label colours — outline + text only, no interior fill. */
-  .chip.manual { color: var(--gold-soft); border-color: var(--gold-line); }
+  .chip.manual { color: var(--ac); border-color: var(--acd); }
   .chip.pending { color: #d3c2e0; border-color: rgba(197,178,220,.32); }
   .chip.xfer { color: #aed0da; border-color: rgba(158,196,208,.32); }
   .chip.cardpay { color: #cabfe4; border-color: rgba(184,170,216,.32); }
   /* Transfer-tagged rows that DO count: a deposit from outside, or money that
      left your accounts for good. Clickable — one press flips the verdict. */
-  .chip.deposit { color: var(--gold-soft); border-color: var(--gold-line); }
+  .chip.deposit { color: var(--ac); border-color: var(--acd); }
   .chip.sentout { color: #e2b9ad; border-color: rgba(214,138,124,.34); }
   .chip.treat { font: inherit; font-size: 10.5px; font-weight: 500; letter-spacing: .2px; cursor: pointer; }
-  .chip.treat:hover { border-color: var(--gold-line); color: var(--gold-soft); }
+  .chip.treat:hover { border-color: var(--ac); color: var(--ac); }
   .chip.treat.mine::after { content: ' ✓'; opacity: .55; }   /* your own decision */
   .txamt.xfer { color: var(--faint); font-weight: 500; }
   .recnote {
     font-size: 12.5px; color: var(--muted); margin-top: 7px; white-space: pre-wrap; line-height: 1.5;
     display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
   }
-  .txamt { font-variant-numeric: tabular-nums; font-weight: 500; font-size: 15px; letter-spacing: 0; white-space: nowrap; }
-  .txamt.in { color: var(--gold-soft); }
+  .txamt { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 500; font-size: 14.5px; letter-spacing: -.2px; white-space: nowrap; }
+  .txamt.in { color: var(--gold); }
   .txacts { display: flex; gap: 2px; }
   .iconbtn {
     background: none; border: none; color: var(--faint); cursor: pointer;
@@ -365,31 +332,31 @@
     display: flex; align-items: center; justify-content: center;
   }
   .iconbtn svg { display: block; width: 16px; height: 16px; }
-  .iconbtn:hover { color: var(--gold-soft); background: transparent; }
+  .iconbtn:hover { color: var(--ac); background: transparent; }
   .iconbtn.lock { cursor: default; color: var(--faint); }
   .iconbtn.lock:hover { color: var(--faint); background: transparent; }
 
   /* ── Accounts ── */
   .instgroup { margin-bottom: 32px; }
-  .insthdr { font-family: var(--display); font-size: 19px; font-weight: 600; color: var(--gold-soft); letter-spacing: -.2px; margin: 0 2px 14px; }
+  .insthdr { font-family: var(--display); font-size: 12px; font-weight: 800; color: var(--acl); letter-spacing: 1.8px; text-transform: uppercase; margin: 0 2px 14px; }
   .acctgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
   .acct {
     background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius);
     padding: 18px 20px; position: relative; overflow: hidden; transition: border-color .18s;
   }
-  .acct:hover { border-color: var(--gold-line); }
+  .acct:hover { border-color: var(--acd); }
   .acct .aname { font-weight: 500; font-size: 14px; letter-spacing: 0; }
-  .acct .asub { font-size: 11px; color: var(--faint); margin: 3px 0 14px; text-transform: uppercase; letter-spacing: 1px; }
-  .acct .abal { font-family: var(--sans); font-size: 26px; font-weight: 500; line-height: 1.1; font-variant-numeric: tabular-nums; letter-spacing: -.4px; }
+  .acct .asub { font-size: 9px; font-weight: 700; color: var(--faint); margin: 3px 0 14px; text-transform: uppercase; letter-spacing: 1.4px; }
+  .acct .abal { font-family: var(--mono); font-size: 25px; font-weight: 500; line-height: 1.1; font-variant-numeric: tabular-nums; letter-spacing: -.4px; }
   .acct .abal.debt { color: var(--danger); }
   .networth { margin-bottom: 28px; }
 
   /* ── Panels / forms / modal ── */
   .panel { background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius); padding: 26px; margin-bottom: 18px; }
-  .panel h3 { font-family: var(--display); font-size: 21px; font-weight: 600; letter-spacing: -.2px; margin-bottom: 8px; }
+  .panel h3 { font-family: var(--display); font-size: 12px; font-weight: 800; letter-spacing: 1.8px; text-transform: uppercase; color: var(--acl); margin-bottom: 10px; }
   .panel p.help { color: var(--muted); font-size: 13.5px; margin-bottom: 18px; max-width: 62ch; }
   .modalback {
-    position: fixed; inset: 0; background: rgba(14,14,16,.66); backdrop-filter: blur(5px);
+    position: fixed; inset: 0; background: rgba(0,0,0,.62); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
     /* Above #lockScreen (200) — otherwise confirmations raised from the lock
        screen open behind it and look like nothing happened. */
     display: none; align-items: flex-start; justify-content: center; z-index: 300;
@@ -397,36 +364,20 @@
   }
   .modalback.open { display: flex; }
   .modal {
-    background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
-    width: 100%; max-width: 460px; padding: 28px; box-shadow: 0 30px 70px rgba(0,0,0,.48);
+    background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius);
+    width: 100%; max-width: 460px; padding: 26px; box-shadow: 0 30px 70px rgba(0,0,0,.48);
   }
-  .modal h3 { font-family: var(--display); font-size: 22px; font-weight: 600; letter-spacing: -.2px; margin-bottom: 20px; }
+  .modal h3 { font-family: var(--display); font-size: 12px; font-weight: 800; letter-spacing: 1.8px; text-transform: uppercase; color: var(--acl); margin-bottom: 20px; }
   .field { margin-bottom: 15px; }
-  .field label { display: block; font-size: 10px; font-weight: 500; letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint); margin-bottom: 7px; }
+  .field label { display: block; font-size: 9px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint); margin-bottom: 7px; }
   .field input, .field select, .field textarea { width: 100%; }
   .field textarea { resize: vertical; min-height: 60px; max-height: 180px; font-family: var(--sans); line-height: 1.5; }
 
   /* ── Notes resize grip ──
-     The native corner resizer is ~15px and doesn't exist at all on mobile
-     browsers. Each notes field gets a real handle instead: a generous target
-     (34px, 44px on touch) driving the same vertical resize. */
+     MAGI's corner grip (resizegrip.js, makeResizable): the wrap positions it,
+     the field leaves room under its last line for the hatch. */
   .ta-wrap { position: relative; display: block; }
-  .ta-wrap textarea { resize: none; display: block; padding-bottom: 20px; }
-  .ta-grip {
-    position: absolute; right: 1px; bottom: 1px; width: 34px; height: 34px;
-    display: flex; align-items: flex-end; justify-content: flex-end; padding: 6px 7px;
-    cursor: ns-resize; touch-action: none; color: var(--faint);
-    background: var(--surface); border-radius: 0 0 var(--radius-sm) 0;
-    -webkit-tap-highlight-color: transparent; user-select: none;
-    transition: color .15s;
-  }
-  .ta-grip:hover { color: var(--gold-soft); }
-  .ta-grip.dragging { color: var(--gold); }
-  .ta-grip svg { width: 14px; height: 14px; display: block; }
-  @media (pointer: coarse) {
-    .ta-grip { width: 44px; height: 44px; padding: 8px 9px; }
-    .ta-grip svg { width: 16px; height: 16px; }
-  }
+  .ta-wrap textarea { display: block; padding-bottom: 20px; }
 
   /* Amount fields stay numeric but lose the browser's up/down spinners. */
   input[type=number] { -moz-appearance: textfield; appearance: textfield; }
@@ -437,38 +388,33 @@
   .seg { display: flex; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 3px; }
   .seg button {
     flex: 1; border: none; background: none; color: var(--muted);
-    font-family: var(--sans); font-size: 11.5px; font-weight: 500; letter-spacing: 1px; text-transform: uppercase;
+    font-family: var(--sans); font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
     padding: 9px; border-radius: 4px; cursor: pointer; transition: color .15s, background .15s;
   }
-  .seg button.on { background: transparent; color: var(--gold-soft); box-shadow: inset 0 0 0 1px var(--gold); }
+  .seg button.on { background: var(--ac); color: var(--bg); }
   .modalacts { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
 
   /* ── Import review ── */
   .dupe { border: 1px solid var(--border-soft); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 11px; background: var(--surface); }
   .dupe .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 13px; }
-  .dupe .side .tag { font-size: 9px; font-weight: 500; letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint); margin-bottom: 5px; }
+  .dupe .side .tag { font-size: 9px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint); margin-bottom: 5px; }
   .dupe .side .nm { font-weight: 500; font-size: 13.5px; }
   .dupe .side .dt { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 2px; }
   .dupe .acts { display: flex; gap: 9px; }
   .dupe.decided { opacity: .4; }
   .importstat { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin: 14px 0; }
-  .importstat b { color: var(--gold-soft); font-variant-numeric: tabular-nums; }
+  .importstat b { color: var(--ac); font-family: var(--mono); font-weight: 500; font-variant-numeric: tabular-nums; }
   .filedrop {
     border: 1px dashed var(--border); border-radius: var(--radius); padding: 40px 20px;
     text-align: center; color: var(--muted); cursor: pointer; transition: border-color .18s, background .18s;
     font-size: 13.5px; letter-spacing: .2px;
   }
   .filedrop svg { width: 30px; height: 30px; }
-  .filedrop:hover, .filedrop.drag { border-color: var(--gold); background: transparent; }
+  .filedrop:hover, .filedrop.drag { border-color: var(--ac); background: transparent; }
 
-  /* ── Drag to reorder (recurring) ──
-     No grip: the whole row is the target. Mouse arms on a few pixels of
-     movement, touch on a long press so ordinary swipes still scroll. */
-  /* Text selection and the long-press callout are suppressed so a press-and-
-     hold on a phone starts a drag instead of a selection magnifier. */
   /* Recurring status chips + the missing-payment prompt. */
   .chip.st-ontime  { color: var(--ok);      border-color: rgba(164,185,134,.4); }
-  .chip.st-duesoon { color: var(--gold-soft); border-color: var(--gold-line); }
+  .chip.st-duesoon { color: var(--gold); border-color: rgba(224,184,116,.4); }
   .chip.st-late    { color: #e0b57c;        border-color: rgba(224,181,124,.4); }
   .chip.st-missing { color: var(--danger);  border-color: rgba(214,138,124,.45); }
   .recprompt {
@@ -480,22 +426,10 @@
   .recprompt-acts .btn { padding: 8px 13px; font-size: 11px; }
   .recrow .txamt { align-self: flex-start; }
   .recsubhead { display: flex; align-items: center; justify-content: flex-end; margin: 2px 0 20px; }
-  /* Rows drag to reorder (auto amongst auto, manual amongst manual). Text
-     selection and the long-press callout are suppressed so a press-and-hold
-     starts a drag rather than a selection magnifier on mobile. */
-  #recList .txrow {
-    cursor: grab; user-select: none; -webkit-user-select: none;
-    -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
-  }
-  #recList .txrow:active { cursor: grabbing; }
-  #recList .txrow button { cursor: pointer; }
-  .txrow.dragging {
-    position: relative; z-index: 30; cursor: grabbing;
-    border-color: var(--gold-line);
-    box-shadow: 0 18px 40px rgba(0,0,0,.45);
-    background: var(--surface-2);
-  }
-  .txrow.dropping { transition: transform .18s cubic-bezier(.2,.8,.3,1); }
+  /* Rows drag to reorder (dragsort.js; auto amongst auto, manual amongst
+     manual). No long-press callout, so a held finger picks the row up. */
+  .reclist > .txrow { cursor: grab; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+  .reclist > .txrow button { cursor: pointer; }
 
   /* ── Cash controls ── */
   .cashctl { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; align-items: center; }
@@ -504,8 +438,8 @@
     color: var(--text); font-family: var(--sans); font-size: 15px; font-weight: 500; padding: 12px 15px; outline: none;
     width: 160px; text-align: center; font-variant-numeric: tabular-nums; transition: border-color .18s;
   }
-  .cashctl input:focus { border-color: var(--gold); }
-  .btn.deduct { color: var(--danger); border-color: rgba(214,138,124,.3); }
+  .cashctl input:focus { border-color: var(--ac); box-shadow: 0 0 0 3px rgba(192,174,234,.16); }
+  .btn.deduct { color: var(--danger); border-color: var(--border); }
   .btn.deduct:hover { border-color: var(--danger); background: transparent; }
   .cashsetrow { margin-top: 18px; font-size: 12px; color: var(--faint); letter-spacing: .3px; }
   .cashsetrow span { cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
@@ -513,25 +447,25 @@
 
   /* ── CSV import mapping / preview ── */
   .impmap { background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius); padding: 17px 19px; margin-top: 16px; }
-  .impmap h4 { font-size: 10px; font-weight: 500; letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint); margin-bottom: 12px; }
+  .impmap h4 { font-size: 9px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint); margin-bottom: 12px; }
   .impmap .row { display: flex; gap: 11px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
   .impmap .row label { font-size: 12.5px; color: var(--muted); }
   .impmap input[type=text], .impmap select {
     background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text);
     font-family: var(--sans); font-size: 13px; font-weight: 500; padding: 9px 12px; outline: none;
   }
-  .impmap input[type=text]:focus, .impmap select:focus { border-color: var(--gold); }
+  .impmap input[type=text]:focus, .impmap select:focus { border-color: var(--ac); box-shadow: 0 0 0 3px rgba(192,174,234,.16); }
   .impcols { font-size: 12px; color: var(--faint); line-height: 1.8; }
-  .impcols b { color: var(--gold-soft); font-weight: 500; }
+  .impcols b { color: var(--ac); font-weight: 500; }
   .imppreview { margin-top: 13px; border-top: 1px solid var(--border-soft); padding-top: 13px; }
   .imppreview .prow { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; padding: 4px 0; }
   .imppreview .prow .nm { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .imppreview .prow .am { font-variant-numeric: tabular-nums; font-weight: 500; white-space: nowrap; }
-  .imppreview .prow .am.in { color: var(--gold-soft); }
+  .imppreview .prow .am { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 500; white-space: nowrap; }
+  .imppreview .prow .am.in { color: var(--gold); }
   .bulkacts { display: flex; gap: 10px; flex-wrap: wrap; margin: 4px 0 14px; }
 
   .empty { text-align: center; color: var(--faint); padding: 56px 20px; }
-  .empty .big { font-family: var(--display); font-size: 21px; font-weight: 600; color: var(--muted); margin-bottom: 8px; letter-spacing: -.2px; }
+  .empty .big { font-family: var(--display); font-size: 12px; font-weight: 800; color: var(--muted); margin-bottom: 10px; letter-spacing: 1.8px; text-transform: uppercase; }
   .toast {
     position: fixed; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%) translateY(90px);
     background: var(--surface-3); border: 1px solid var(--border); color: var(--text);
@@ -539,7 +473,7 @@
     box-shadow: 0 12px 38px rgba(0,0,0,.42); transition: transform .28s ease; z-index: 90; max-width: 92vw;
   }
   .toast.show { transform: translateX(-50%) translateY(0); }
-  .toast.gold { border-color: var(--gold-line); }
+  .toast.good { border-color: var(--acd); }
   .view { display: none; }
   .view.active { display: block; }
 
@@ -547,25 +481,24 @@
   #lockScreen {
     position: fixed; inset: 0; z-index: 200;
     background: var(--bg);
-    background-image: radial-gradient(120% 50% at 50% -10%, rgba(236,199,140,.065), transparent 70%);
     display: flex; align-items: center; justify-content: center;
     padding: max(20px, env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px));
   }
   /* Bordered lock card — the suite's shared authentication surface. */
   .lockbox {
     width: 100%; max-width: 360px; text-align: center;
-    background: var(--surface); border: 1px solid rgba(236,199,140,.22);
-    border-radius: 18px; padding: 32px 28px 22px;
+    background: var(--surface); border: 1px solid var(--acd);
+    border-radius: var(--radius); padding: 32px 28px 22px;
     box-shadow: 0 32px 80px rgba(0,0,0,.7);
   }
   .lockbox .brand { font-size: 40px; display: inline-block; margin-bottom: 4px; padding-bottom: 8px; }
-  .lockbox .sub { color: var(--faint); font-size: 10.5px; letter-spacing: 2.4px; text-transform: uppercase; margin-bottom: 26px; }
+  .lockbox .sub { color: var(--faint); font-size: 9px; font-weight: 700; letter-spacing: 2.4px; text-transform: uppercase; margin-bottom: 26px; }
   .lockbox input {
     width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
     color: var(--text); font-family: var(--sans); font-size: 15px; font-weight: 500; padding: 14px 16px; outline: none;
     text-align: center; margin-bottom: 12px; transition: border-color .18s;
   }
-  .lockbox input:focus { border-color: var(--gold); }
+  .lockbox input:focus { border-color: var(--ac); box-shadow: 0 0 0 3px rgba(192,174,234,.16); }
   /* Show/hide toggle sits inside the field; the text stays optically centred
      by reserving the same space on both sides. */
   .pw-wrap { position: relative; }
@@ -578,11 +511,11 @@
     color: var(--faint); border-radius: var(--radius-sm);
     transition: color .15s; -webkit-tap-highlight-color: transparent;
   }
-  .pw-eye:hover { color: var(--gold-soft); }
+  .pw-eye:hover { color: var(--ac); }
   .pw-eye svg { width: 17px; height: 17px; display: block; }
   /* Lock-screen actions read as sentences, not shouted labels. */
   .lockbox .btn {
-    width: 100%; padding: 14px; font-size: 13.5px; justify-content: center;
+    width: 100%; padding: 14px; font-size: 13px; font-weight: 600; justify-content: center;
     text-transform: none; letter-spacing: .2px;
   }
   #lockBio { margin-top: 9px; }
@@ -590,7 +523,7 @@
   #lockMenu { display: flex; flex-direction: column; gap: 8px; }
   #lockMenu .btn { margin: 0; }
   .lockmsg { min-height: 20px; font-size: 12.5px; color: var(--danger); margin: 12px 0 0; }
-  .lockmsg.ok { color: var(--gold-soft); }
+  .lockmsg.ok { color: var(--ok); }
   /* Ruled footer — secondary/dismiss actions sit apart from the form. */
   .locklinks { display: flex; gap: 20px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
   .locklinks:not(:empty) { padding-top: 14px; border-top: 1px solid var(--border-soft); }
@@ -600,8 +533,7 @@
   @keyframes lockshake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-7px)} 75%{transform:translateX(7px)} }
   .lockbox.shake { animation: lockshake .3s; }
   /* Phones: the card fills the width, and the manage menu scrolls inside its
-     own card rather than running off a short screen. .btn already lights its
-     outline on hover, so nothing extra is needed for the desktop glow. */
+     own card rather than running off a short screen. */
   @media (max-width: 520px) {
     .lockbox {
       max-width: none; padding: 26px 20px 18px;
@@ -730,7 +662,7 @@ window._mailRelay = window._mailRelay || async function (res) {
 };
 </script>
 </head>
-<body>
+<body data-hoverfx="magi">
 
 <!-- ═══ App lock — same PBKDF2 system as the suite's app locks ═══ -->
 <!-- ══════════════ Biometric auth (WebAuthn / platform passkeys) ══════════════
@@ -812,7 +744,7 @@ window._mailRelay = window._mailRelay || async function (res) {
     <input type="password" id="lockPw1" placeholder="Password" autocomplete="current-password">
     <input type="password" id="lockPw2" placeholder="Confirm password" style="display:none" autocomplete="new-password">
     <input type="text" id="lockHintIn" placeholder="Hint (optional)" style="display:none" autocomplete="off">
-    <button class="btn gold" id="lockGo">Unlock</button>
+    <button class="btn solid" id="lockGo">Unlock</button>
     <!-- Manage menu. The header's lock button no longer locks on the spot: it
          opens this, so locking the device is a choice rather than a
          side-effect of reaching for the settings you actually wanted. -->
@@ -820,7 +752,7 @@ window._mailRelay = window._mailRelay || async function (res) {
     <!-- Biometric unlock — sits under the password button and only ever runs
          when it is pressed; nothing fires on load. -->
     <div id="lockBio" style="display:none">
-      <button class="btn gold" id="bioBtn"></button>
+      <button class="btn solid" id="bioBtn"></button>
     </div>
     <div class="lockmsg" id="lockMsg"></div>
     <div class="locklinks" id="lockLinks"></div>
@@ -887,7 +819,7 @@ window._mailRelay = window._mailRelay || async function (res) {
         <option value="manual">Manual</option>
         <option value="csv">CSV import</option>
       </select>
-      <button class="btn gold" id="addManualBtn">+ Add entry</button>
+      <button class="btn solid" id="addManualBtn">+ Add entry</button>
     </div>
     <div id="feed"></div>
   </section>
@@ -913,7 +845,7 @@ window._mailRelay = window._mailRelay || async function (res) {
         already have is flagged for review — nothing merges silently.
       </p>
       <div class="filedrop" id="fileDrop">
-        <div style="margin-bottom:12px;color:var(--gold)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="30" height="30"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg></div>
+        <div style="margin-bottom:12px;color:var(--ac)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="30" height="30"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg></div>
         Drop a CSV here or click to browse
         <input type="file" id="fileInput" accept=".csv,text/csv" style="display:none">
       </div>
@@ -926,7 +858,7 @@ window._mailRelay = window._mailRelay || async function (res) {
       <div id="dupeList"></div>
       <div class="modalacts" id="importActs" style="display:none">
         <button class="btn" id="importCancel">Cancel</button>
-        <button class="btn gold" id="importCommit">Import</button>
+        <button class="btn solid" id="importCommit">Import</button>
       </div>
     </div>
   </section>
@@ -940,7 +872,7 @@ window._mailRelay = window._mailRelay || async function (res) {
         server never see them, and the connection is read-only by design (transactions and balances;
         no ability to move money).
       </p>
-      <button class="btn gold" id="linkBtn" title="Connect a new institution">Connect</button>
+      <button class="btn solid" id="linkBtn" title="Connect a new institution">Connect</button>
       <span id="linkStatus" style="margin-left:12px;color:var(--muted);font-size:13px"></span>
     </div>
     <div class="panel">
@@ -965,12 +897,12 @@ window._mailRelay = window._mailRelay || async function (res) {
   <section class="view" id="view-cash">
     <div class="panel" style="text-align:center;padding:40px 22px">
       <div class="stat" style="border:none;background:none;padding:0">
-        <div class="lbl" style="font-size:11px;font-weight:500;letter-spacing:1.6px;text-transform:uppercase;color:var(--faint)">Cash on hand</div>
-        <div class="val gold" id="cashAmt" style="font-family:var(--sans);font-size:54px;font-weight:500;margin:10px 0 20px;font-variant-numeric:tabular-nums;line-height:1.05;letter-spacing:-1.4px">—</div>
+        <div class="lbl" style="font-size:9px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--faint)">Cash on hand</div>
+        <div class="val gold" id="cashAmt" style="font-family:var(--mono);font-size:50px;font-weight:500;margin:10px 0 20px;font-variant-numeric:tabular-nums;line-height:1.05;letter-spacing:-1.6px">—</div>
       </div>
       <div class="cashctl">
         <input type="number" id="cashInput" min="0" step="0.01" placeholder="Amount" inputmode="decimal">
-        <button class="btn gold" id="cashAdd">+ Cash add</button>
+        <button class="btn solid" id="cashAdd">+ Cash add</button>
         <button class="btn deduct" id="cashDeduct">− Cash deduction</button>
       </div>
       <div class="cashsetrow"><span id="cashSetLink">Set exact balance instead</span></div>
@@ -999,7 +931,7 @@ window._mailRelay = window._mailRelay || async function (res) {
     <div class="field"><label>Note <span style="text-transform:none;letter-spacing:0;color:var(--faint)">(optional)</span></label><textarea id="mNote" rows="2"></textarea></div>
     <div class="modalacts">
       <button class="btn" id="mCancel">Cancel</button>
-      <button class="btn gold" id="mSave">Save</button>
+      <button class="btn solid" id="mSave">Save</button>
     </div>
   </div>
 </div>
@@ -1017,7 +949,7 @@ window._mailRelay = window._mailRelay || async function (res) {
     <div class="field"><label>Notes <span style="text-transform:none;letter-spacing:0;color:var(--faint)">(optional)</span></label><textarea id="rNotes" rows="3" placeholder="Renewal date, account used, cancellation link…"></textarea></div>
     <div class="modalacts">
       <button class="btn" id="rCancel">Cancel</button>
-      <button class="btn gold" id="rSave">Save</button>
+      <button class="btn solid" id="rSave">Save</button>
     </div>
   </div>
 </div>
@@ -1029,7 +961,7 @@ window._mailRelay = window._mailRelay || async function (res) {
     <p id="cMsg" style="color:var(--muted);font-size:13.5px;line-height:1.55;margin:0 0 4px"></p>
     <div class="modalacts">
       <button class="btn" id="cNo">Cancel</button>
-      <button class="btn gold" id="cYes">Delete</button>
+      <button class="btn solid" id="cYes">Delete</button>
     </div>
   </div>
 </div>
@@ -1316,7 +1248,7 @@ window._mailRelay = window._mailRelay || async function (res) {
   }
   function renderManageMenu() {
     const m = lockEl('lockMenu'); m.innerHTML = '';
-    menuBtn(m, 'gold', MI.lock + '<span>Lock this device now</span>', lockNow);
+    menuBtn(m, 'solid', MI.lock + '<span>Lock this device now</span>', lockNow);
     const changeBtn = menuBtn(m, '', MI.key + '<span>Change password</span>', () => lockView('change'));
     menuBtn(m, '', '<span>Cancel</span>', closeManager);
     // Biometrics lands above "Change password" once the platform has answered.
@@ -1325,7 +1257,7 @@ window._mailRelay = window._mailRelay || async function (res) {
       if (bioRegistered())
         menuBtn(m, '', MI.user + '<span>Remove ' + Bio.label() + '</span>', forgetBio, changeBtn);
       else
-        menuBtn(m, 'gold', MI.user + '<span>Register ' + Bio.label() + '</span>', registerBioNow, changeBtn);
+        menuBtn(m, 'solid', MI.user + '<span>Register ' + Bio.label() + '</span>', registerBioNow, changeBtn);
     });
   }
   async function registerBioNow() {
@@ -1557,54 +1489,18 @@ window._mailRelay = window._mailRelay || async function (res) {
   })();
 
   // ── Notes resize handles ─────────────────────────────────────────────────
-  // Replaces the tiny native corner resizer (which mobile browsers don't even
-  // render) with a large pointer-driven grip. Behaviour is unchanged: drag
-  // down/up to grow or shrink the field vertically, clamped to the same limits.
+  // MAGI's corner grip (resizegrip.js): drag it to size the field, click it to
+  // expand or hand it back to its natural height. Each field remembers its
+  // height on this device (a1.h.ins.<id>).
   function makeResizable(ta) {
-    if (!ta || ta.dataset.grip) return;
-    ta.dataset.grip = '1';
-    const cs = getComputedStyle(ta);
-    const min = parseFloat(cs.minHeight) || 60;
-    const max = parseFloat(cs.maxHeight) || 400;
-
+    if (!ta || !window.A1Resize || ta.parentElement.classList.contains('ta-wrap')) return;
     const wrap = document.createElement('div');
     wrap.className = 'ta-wrap';
     ta.parentNode.insertBefore(wrap, ta);
     wrap.appendChild(ta);
-
-    const grip = document.createElement('div');
-    grip.className = 'ta-grip';
-    grip.setAttribute('role', 'separator');
-    grip.setAttribute('aria-label', 'Resize notes field');
-    grip.setAttribute('aria-orientation', 'horizontal');
-    grip.setAttribute('tabindex', '0');
-    grip.innerHTML = '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">' +
-      '<line x1="13" y1="4" x2="4" y2="13"/><line x1="13" y1="9" x2="9" y2="13"/></svg>';
+    const grip = A1Resize.grip('the notes field');
     wrap.appendChild(grip);
-
-    const setH = px => { ta.style.height = Math.max(min, Math.min(max, px)) + 'px'; };
-    let st = null;
-
-    grip.addEventListener('pointerdown', e => {
-      e.preventDefault();
-      st = { y: e.clientY, h: ta.getBoundingClientRect().height, id: e.pointerId };
-      try { grip.setPointerCapture(e.pointerId); } catch {}
-      grip.classList.add('dragging');
-    });
-    grip.addEventListener('pointermove', e => {
-      if (!st || e.pointerId !== st.id) return;
-      e.preventDefault();
-      setH(st.h + (e.clientY - st.y));
-    });
-    const end = () => { st = null; grip.classList.remove('dragging'); };
-    grip.addEventListener('pointerup', end);
-    grip.addEventListener('pointercancel', end);
-    // Keyboard-resizable too, since the grip is focusable.
-    grip.addEventListener('keydown', e => {
-      const step = e.shiftKey ? 40 : 16;
-      if (e.key === 'ArrowDown') { e.preventDefault(); setH(ta.getBoundingClientRect().height + step); }
-      if (e.key === 'ArrowUp') { e.preventDefault(); setH(ta.getBoundingClientRect().height - step); }
-    });
+    A1Resize.attach(ta, grip, 'ins.' + ta.id);
   }
   document.querySelectorAll('.field textarea').forEach(makeResizable);
 
@@ -1707,11 +1603,11 @@ window._mailRelay = window._mailRelay || async function (res) {
     return sign ? (n < 0 ? '+' + f : '−' + f) : f;   // Plaid sign: positive = money OUT
   };
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const toast = (msg, gold) => {
+  const toast = (msg, good) => {
     const t = $('toast'); t.textContent = msg;
     // Toasts only ever quote cash or per-transaction figures, both of which
     // stay visible in display mode — so nothing to hide here.
-    t.className = 'toast show' + (gold ? ' gold' : '');
+    t.className = 'toast show' + (good ? ' good' : '');
     clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 3200);
   };
 
@@ -1875,7 +1771,6 @@ window._mailRelay = window._mailRelay || async function (res) {
   // ── Nav ──────────────────────────────────────────────────────────────────
   $('nav').addEventListener('click', e => {
     const tab = e.target.closest('.tab'); if (!tab) return;
-    if (navSuppressClick) { navSuppressClick = false; return; }   // finished a drag
     activeView = tab.dataset.view;
     document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === tab));
     document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + activeView));
@@ -1893,9 +1788,9 @@ window._mailRelay = window._mailRelay || async function (res) {
   const NAV_DEFAULT = Object.keys(NAV_LABELS);
   const prefsRef = doc(db, ROOT, 'meta', 'prefs');
   let navOrder = NAV_DEFAULT.slice();
-  let navSuppressClick = false;
 
   function renderNav() {
+    if (A1Drag.active) return A1Drag.later(renderNav);   // never redraw under a drag
     const nav = $('nav');
     // Unknown/missing keys are healed so a stale saved order can't hide a tab.
     const order = navOrder.filter(k => NAV_LABELS[k]);
@@ -1922,145 +1817,19 @@ window._mailRelay = window._mailRelay || async function (res) {
     await synced(setDoc(prefsRef, { navOrder, savedAt: Date.now() }, { merge: true }));
   }
 
-  // Pointer-based horizontal reorder. On touch a long-press starts the drag so
-  // an ordinary swipe still scrolls the tab strip; with a mouse a few pixels of
-  // movement is enough.
-  (function enableNavDrag() {
-    const nav = $('nav');
-    let d = null, holdTimer = null, autoRaf = null;
-
-    // FLIP measured in LAYOUT coordinates (offsetLeft), not viewport rects.
-    // On mobile the strip is scrolled and scrollLeft shifts as tabs are
-    // reordered; viewport-based deltas then include the scroll jump, which is
-    // what made neighbours streak in from the edges. offsetLeft is immune to
-    // scrolling, so each tab only animates the distance it actually moved.
-    function flipX(mutate, exclude) {
-      const kids = [...nav.children];
-      const before = new Map(kids.map(k => [k, k.offsetLeft]));
-      mutate();
-      for (const k of kids) {
-        if (k === exclude) continue;
-        const dx = before.get(k) - k.offsetLeft;
-        if (!dx || Math.abs(dx) > nav.clientWidth * 2) continue;   // sanity guard
-        k.style.transition = 'none';
-        k.style.transform = `translateX(${dx}px)`;
-        requestAnimationFrame(() => {
-          k.style.transition = 'transform .16s cubic-bezier(.2,.8,.3,1)';
-          k.style.transform = '';
-        });
-      }
-    }
-
-    // Keep the lifted tab exactly under the finger, compensating for any
-    // scrolling that happened since the drag began.
-    function follow(x) {
-      d.tab.style.transform = `translateX(${(x - d.grabX) + (nav.scrollLeft - d.grabScroll)}px)`;
-    }
-
-    function checkSwap(x) {
-      for (const other of nav.children) {
-        if (other === d.tab) continue;
-        const r = other.getBoundingClientRect();
-        if (x < r.left || x > r.right) continue;
-        const mid = r.left + r.width / 2;
-        const otherIsBefore = !!(d.tab.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_PRECEDING);
-        if (x < mid && otherIsBefore) flipX(() => nav.insertBefore(d.tab, other), d.tab);
-        else if (x > mid && !otherIsBefore) flipX(() => nav.insertBefore(d.tab, other.nextSibling), d.tab);
-        else continue;
-        // Re-anchor so the tab stays put under the pointer after the reflow.
-        d.grabX = x;
-        d.grabScroll = nav.scrollLeft;
-        d.tab.style.transform = 'translateX(0px)';
-        break;
-      }
-    }
-
-    // Dragging toward either end scrolls the strip, so tabs off-screen on a
-    // phone are still reachable without dropping and re-grabbing.
-    function autoScroll() {
-      if (!d || !d.dragging) { autoRaf = null; return; }
-      const r = nav.getBoundingClientRect();
-      const EDGE = 44, SPEED = 9;
-      let step = 0;
-      if (d.lastX < r.left + EDGE) step = -SPEED;
-      else if (d.lastX > r.right - EDGE) step = SPEED;
-      if (step) {
-        const was = nav.scrollLeft;
-        nav.scrollLeft = Math.max(0, Math.min(d.maxScroll, was + step));
-        if (nav.scrollLeft !== was) { follow(d.lastX); checkSwap(d.lastX); }
-      }
-      autoRaf = requestAnimationFrame(autoScroll);
-    }
-
-    function startDrag(e) {
-      d.dragging = true;
-      d.grabX = e.clientX;
-      d.grabScroll = nav.scrollLeft;
-      // Measured now, while the lifted tab is still untransformed. A translated
-      // child extends the strip's scrollable area, so once the drag starts
-      // scrollWidth grows with every pixel we scroll — reading it inside
-      // autoScroll() made the right edge run away forever. Reordering never
-      // changes the total width, so this figure stays valid for the whole drag.
-      d.maxScroll = Math.max(0, nav.scrollWidth - nav.clientWidth);
-      d.lastX = e.clientX;
-      d.tab.style.transition = '';        // never lag behind the finger
-      d.tab.classList.add('navdrag');
-      try { d.tab.setPointerCapture(d.id); } catch {}
-      if (!autoRaf) autoRaf = requestAnimationFrame(autoScroll);
-    }
-
-    function cleanup() {
-      if (!d) return;
-      const tab = d.tab;
-      // Settle back into the slot rather than snapping.
-      tab.style.transition = 'transform .16s cubic-bezier(.2,.8,.3,1)';
-      tab.style.transform = '';
-      setTimeout(() => { tab.style.transition = ''; }, 180);
-      tab.classList.remove('navdrag');
-      clearTimeout(holdTimer); holdTimer = null;
-      if (autoRaf) { cancelAnimationFrame(autoRaf); autoRaf = null; }
-      d = null;
-    }
-
-    nav.addEventListener('pointerdown', e => {
-      const tab = e.target.closest('.tab');
-      if (!tab || e.button > 0) return;
-      d = { tab, id: e.pointerId, startX: e.clientX, startY: e.clientY, lastX: e.clientX,
-            dragging: false, touch: e.pointerType === 'touch' };
-      if (d.touch) holdTimer = setTimeout(() => { holdTimer = null; if (d) startDrag(e); }, 320);
-    });
-
-    nav.addEventListener('pointermove', e => {
-      if (!d || e.pointerId !== d.id) return;
-      if (!d.dragging) {
-        const dx = Math.abs(e.clientX - d.startX), dy = Math.abs(e.clientY - d.startY);
-        if (d.touch) { if (dx > 8 || dy > 8) cleanup(); return; }   // a swipe: let it scroll
-        if (dx < 5) return;
-        startDrag(e);
-      }
-      d.moved = true;
-      d.lastX = e.clientX;
-      follow(e.clientX);
-      checkSwap(e.clientX);
-    });
-
-    // Non-passive so an active drag can stop the strip from scrolling itself.
-    nav.addEventListener('touchmove', e => { if (d && d.dragging) e.preventDefault(); }, { passive: false });
-
-    async function endDrag(e) {
-      if (!d || (e && e.pointerId !== d.id)) return;
-      const wasDrag = d.dragging && d.moved;
-      cleanup();
-      if (!wasDrag) return;
-      navSuppressClick = true;                      // don't switch views on drop
-      setTimeout(() => { navSuppressClick = false; }, 50);
-      const next = [...nav.querySelectorAll('.tab')].map(t => t.dataset.view);
-      if (next.join() === navOrder.join()) return;
+  // Drag a tab to reorder (dragsort.js, MAGI's drag): a mouse takes it after
+  // 4px, a finger after a 300ms hold, so a swipe still scrolls the strip. The
+  // drop's click is swallowed, so dropping never switches the view.
+  A1Drag.sort($('nav'), {
+    row: '.tab', axis: 'x', hold: 300,
+    async onDrop(from, to) {
+      const next = navOrder.slice();
+      next.splice(to, 0, next.splice(from, 1)[0]);
       navOrder = next;
+      renderNav();
       try { await saveNavOrder(); } catch { toast('Could not save the new tab order'); }
     }
-    nav.addEventListener('pointerup', endDrag);
-    nav.addEventListener('pointercancel', endDrag);
+  });
   })();
 
   // ── Unified feed ─────────────────────────────────────────────────────────
@@ -2777,7 +2546,7 @@ window._mailRelay = window._mailRelay || async function (res) {
           <div class="recprompt">
             <div class="recprompt-msg">This payment didn't appear this billing cycle. Is it still active?</div>
             <div class="recprompt-acts">
-              <button class="btn gold" data-act="active">Yes, still active</button>
+              <button class="btn solid" data-act="active">Yes, still active</button>
               <button class="btn" data-act="dismiss">No, remove</button>
             </div>
           </div>` : ''}
@@ -2808,21 +2577,24 @@ window._mailRelay = window._mailRelay || async function (res) {
   }
 
   function renderRecurring() {
+    if (A1Drag.active) return A1Drag.later(renderRecurring);   // a sync mid-drag waits for the drop
     const auto = recurringModel();
     const monthly = auto.reduce((s, g) => s + g.monthlyEquiv, 0) + recurring.reduce((s, r) => s + manualMonthly(r), 0);
     $('recMo').textContent = fmt$(monthly);
     $('recAn').textContent = fmt$(monthly * 12);
 
     let html = '';
-    if (auto.length) html += auto.map(recRowHTML).join('');
+    if (auto.length) html += `<div class="reclist" id="recAuto">${auto.map(recRowHTML).join('')}</div>`;
     if (recurring.length) {
       html += `<div class="datehdr" style="margin-top:${auto.length ? '24px' : '4px'}">Manually added</div>`;
-      html += recurring.map(manualRowHTML).join('');
+      html += `<div class="reclist" id="recManual">${recurring.map(manualRowHTML).join('')}</div>`;
     }
     if (!auto.length && !recurring.length) {
       html = `<div class="empty"><div class="big">No recurring payments yet</div>They appear here automatically as your transaction history builds. You can also add one manually.</div>`;
     }
     $('recList').innerHTML = html;
+    if ($('recAuto')) recDrag($('recAuto'), auto.map(g => g.key), 'auto');
+    if ($('recManual')) recDrag($('recManual'), recurring.map(r => r.id), 'manual');
   }
 
   // Row actions: the missing-payment prompt (auto rows) and edit/delete (manual).
@@ -2857,125 +2629,24 @@ window._mailRelay = window._mailRelay || async function (res) {
   });
 
   // ── Drag to reorder (auto amongst auto, manual amongst manual) ────────────
-  // Same pointer-based interaction as before — mouse arms after a few pixels,
-  // touch after a long press so an ordinary swipe still scrolls. A row can
-  // only be dropped among siblings of its own group; the new order is written
-  // to Firebase (auto → recurringOrder of keys, manual → the recurring array),
-  // which drives the Syncing / Synced indicator under the title.
-  (function enableRecDrag() {
-    const list = $('recList');
-    let drag = null, holdTimer = null;
-
-    const sibs = group => [...list.querySelectorAll(`.txrow[data-group="${group}"]`)];
-    const orderOf = group => sibs(group).map(r => group === 'auto' ? r.dataset.key : r.dataset.rid);
-
-    function flipMove(mutate, exclude) {
-      const rows = [...list.children];
-      const before = new Map(rows.map(r => [r, r.getBoundingClientRect().top]));
-      mutate();
-      for (const r of rows) {
-        if (r === exclude) continue;
-        const delta = before.get(r) - r.getBoundingClientRect().top;
-        if (!delta) continue;
-        r.style.transition = 'none';
-        r.style.transform = `translateY(${delta}px)`;
-        requestAnimationFrame(() => { r.style.transition = 'transform .18s cubic-bezier(.2,.8,.3,1)'; r.style.transform = ''; });
+  // dragsort.js (MAGI's drag): a mouse takes a row anywhere but its buttons, a
+  // finger after a 300ms hold, so a swipe still scrolls. Each group is its own
+  // list, so a row never leaves it. The new order goes to Firebase (auto →
+  // recurringOrder of keys, manual → the recurring array), which drives the
+  // Syncing / Synced indicator under the title.
+  function recDrag(list, ids, group) {
+    A1Drag.sort(list, {
+      row: '.txrow', hold: 300,
+      async onDrop(from, to) {
+        const next = ids.slice();
+        next.splice(to, 0, next.splice(from, 1)[0]);
+        if (group === 'manual') recurring = next.map(id => recurring.find(r => r.id === id)).filter(Boolean);
+        else recurringOrder = next;
+        renderRecurring();
+        await saveExpenselog();
       }
-    }
-
-    function armDrag(e, row) {
-      drag.dragging = true;
-      drag.startOrder = orderOf(drag.group).join('|');
-      drag.pointerStart = e.clientY;
-      drag.ty = 0;
-      // The finger tracks the row from wherever its top sits right now; the
-      // rendered top should then move 1:1 with the finger for the whole drag,
-      // regardless of how the DOM reshuffles underneath.
-      row.style.transition = 'none';
-      drag.baseTop = row.getBoundingClientRect().top;   // natural top at grab (transform is 0)
-      // Capture on the LIST, not the row: reordering moves the row in the DOM,
-      // and capturing the row would fire lostpointercapture on every swap. The
-      // list never moves, so capture only releases on a real pointer-up.
-      try { list.setPointerCapture(drag.id); } catch {}
-      row.classList.add('dragging');
-    }
-
-    list.addEventListener('pointerdown', e => {
-      if (e.button > 0 || e.target.closest('button')) return;   // buttons keep their taps
-      const row = e.target.closest('.txrow'); if (!row) return;
-      drag = { row, group: row.dataset.group, id: e.pointerId, grabY: e.clientY,
-               startY: e.clientY, startX: e.clientX, dragging: false, touch: e.pointerType === 'touch' };
-      if (drag.touch) holdTimer = setTimeout(() => { holdTimer = null; if (drag) armDrag(e, row); }, 320);
-      else e.preventDefault();
     });
-
-    list.addEventListener('pointermove', e => {
-      if (!drag || e.pointerId !== drag.id) return;
-      if (!drag.dragging) {
-        const dx = Math.abs(e.clientX - drag.startX), dy = Math.abs(e.clientY - drag.startY);
-        if (drag.touch) { if (dx > 8 || dy > 8) { clearTimeout(holdTimer); holdTimer = null; drag = null; } return; }
-        if (dy < 4) return;
-        armDrag(e, drag.row);
-      }
-      // Where the row's top should be rendered — moves exactly with the finger
-      // and never depends on the DOM order.
-      const wantTop = drag.baseTop + (e.clientY - drag.pointerStart);
-
-      // Reorder when the finger crosses a same-group neighbour's midpoint. Only
-      // the DISPLACED neighbour animates (FLIP); the dragged row is pinned to
-      // the finger below, so it never jumps to a slot.
-      for (const other of sibs(drag.group)) {
-        if (other === drag.row) continue;
-        const r = other.getBoundingClientRect();
-        if (e.clientY < r.top || e.clientY > r.bottom) continue;
-        const mid = r.top + r.height / 2;
-        const otherIsBefore = !!(drag.row.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_PRECEDING);
-        if (e.clientY < mid && otherIsBefore) flipMove(() => list.insertBefore(drag.row, other), drag.row);
-        else if (e.clientY > mid && !otherIsBefore) flipMove(() => list.insertBefore(drag.row, other.nextSibling), drag.row);
-        else continue;
-        break;
-      }
-
-      // Pin the row to the finger. Its natural top may have shifted (a swap
-      // moved it to a new slot); recompute the transform so the rendered top
-      // stays at wantTop — no snap, ever.
-      const naturalTop = drag.row.getBoundingClientRect().top - drag.ty;
-      drag.ty = wantTop - naturalTop;
-      drag.row.style.transform = `translateY(${drag.ty}px)`;
-    });
-
-    list.addEventListener('touchmove', e => { if (drag && drag.dragging) e.preventDefault(); }, { passive: false });
-    list.addEventListener('contextmenu', e => { if (drag && drag.dragging) e.preventDefault(); });
-
-    async function endDrag(e) {
-      if (!drag || (e && e.pointerId !== drag.id)) return;
-      const { row, dragging, group, startOrder } = drag;
-      drag = null;
-      clearTimeout(holdTimer); holdTimer = null;
-      // Drop the inline transition:none so the .dropping class can animate the
-      // row settling from its held position into its slot.
-      row.style.transition = '';
-      row.classList.remove('dragging');
-      row.classList.add('dropping');
-      row.style.transform = '';
-      setTimeout(() => { row.classList.remove('dropping'); row.style.transition = ''; }, 190);
-      if (!dragging) return;
-
-      const nextOrder = orderOf(group);
-      if (nextOrder.join('|') === startOrder) return;   // no actual change → no write
-
-      if (group === 'manual') {
-        recurring = nextOrder.map(id => recurring.find(r => r.id === id)).filter(Boolean);
-      } else {
-        recurringOrder = nextOrder;   // keys in the new visual order
-      }
-      await saveExpenselog();         // synced() → Syncing / Synced indicator
-    }
-    list.addEventListener('pointerup', endDrag);
-    list.addEventListener('pointercancel', endDrag);
-    // Safety net: if capture is lost without a pointerup (rare), still settle
-    // the row so it can never stay stuck in the dragging state.
-    list.addEventListener('lostpointercapture', e => { if (drag && e.pointerId === drag.id) endDrag(e); });
+  }
   })();
 
   function openRec(r) {
@@ -3420,8 +3091,8 @@ window._mailRelay = window._mailRelay || async function (res) {
           </div>
         </div>
         <div class="acts">
-          <button class="btn ${f.decision === 'skip' ? 'gold' : ''}" data-d="skip">Duplicate — skip it</button>
-          <button class="btn ${f.decision === 'keep' ? 'gold' : ''}" data-d="keep">Keep both</button>
+          <button class="btn ${f.decision === 'skip' ? 'solid' : ''}" data-d="skip">Duplicate — skip it</button>
+          <button class="btn ${f.decision === 'keep' ? 'solid' : ''}" data-d="keep">Keep both</button>
         </div>
       </div>`).join('') + (s.fuzzy.length > shown.length
         ? `<div style="font-size:12.5px;color:var(--faint);padding:6px 2px">
