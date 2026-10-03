@@ -1748,6 +1748,7 @@
       bytesOf: bytesOf, gzipBytes: gzipBytes,
       // Phase 1 pieces that can be tested without a browser.
       encryptStr: encryptStr, decryptEnv: decryptEnv, objId: objId,
+      decryptEnvWith: decryptEnvWith,   // backup-restore.html: a typed passphrase, never stored
       sha256Hex: sha256Hex, shrinkOk: shrinkOk,
       gatesOpen: gatesOpen, killed: killed
     }
