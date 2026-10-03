@@ -1,7 +1,8 @@
 /* resizegrip.js — MAGI's corner resize grip, for every A1 program (window.A1Resize).
  *
- * A port of magi.html's attachGrip / gripButton and its .qbar-grip CSS (theme
- * overhaul, docs/theme-overhaul-plan.md §2 "Resize handles"). It replaces the
+ * Began as a port of magi.html's own prompt-box grip and its CSS (theme
+ * overhaul, docs/theme-overhaul-plan.md §2 "Resize handles"); since phase 11
+ * MAGI loads this file too, so it is the one copy. It replaces the
  * native `resize:` corner, which is ~14px on a desktop and absent on a phone.
  *
  * The grip is a real button pinned over the box's bottom-right corner: 38px

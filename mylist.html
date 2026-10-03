@@ -442,7 +442,7 @@ body:not([data-profile=veda]) .wordmark{
 #sel-bar .cnt{font-size:15px;font-weight:800;color:var(--text);font-family:var(--font-btn);white-space:nowrap;width:100%;text-align:center;}
 #sel-bar .btn{padding:10px 15px;font-size:14px;border-radius:20px;}
 
-/* drag to reorder (Veda's engine; Tony's is dragsort.js) — MAGI's dragSort model. The row itself moves (transform
+/* drag to reorder (Veda's engine; Tony's is dragsort.js) — MAGI's drag model. The row itself moves (transform
    only, so nothing is laid out per frame); the rows it passes slide aside; on
    release it glides into its slot. The lifted row must NOT inherit a row's own
    transition (.item has "all .15s") or it trails the pointer. */
@@ -3323,7 +3323,7 @@ function renderViewSwitch(){
   mlTabsDrag($('view-switch'), '.vs-tab', 'viewtab');
 }
 
-// ════════ DRAG & DROP — Veda's (MAGI's dragSort model: the row itself moves) ════════
+// ════════ DRAG & DROP — Veda's (MAGI's drag model: the row itself moves) ════════
 // Tony's drags run on the shared dragsort.js (A1Drag, see mlTabsDrag /
 // mlItemDrop below); this engine is Veda's, untouched by the theme overhaul.
 // The same feel as MAGI's agent order / queues. The row you pick up moves

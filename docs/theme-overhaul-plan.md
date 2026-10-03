@@ -8,57 +8,81 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-10-03, at the end of **Phase 10** (the numbers
-sweep). Done, tested, pushed.
+**Last updated:** 2026-10-03, at the end of **Phase 11** (the wrap-up).
+**THE OVERHAUL IS DONE.** Every phase in §3 is built, tested and pushed.
 **Tags:** phase N is bracketed by `theme-pN-start` → `theme-pN-end`, for
-N = 1, 1b, 2, 3, 4, 5, 6, 7, 8, 9, 10.
-**Next phase:** **Phase 11: Wrap-up**, the last one: the PriceWatch
-extension (MAGI's colours, fonts, buttons, hover and numbers, like the Vault
-extension in phase 7), MAGI onto `dragsort.js`/`resizegrip.js` (one copy of
-the code), a sweep for gold doing an identity job, and the memories (see §3
-and §4 "11."). Start it only when Tony says "continue theme" / "next theme
-phase".
+N = 1, 1b, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11.
+**Next phase:** none. If Tony says "continue theme", tell him it is finished
+and ask what he wants changed. A new theme ask is a one-off: follow §2 (the
+spec, also in memory `magi-theme-spec`), keep Veda's side unchanged, and
+pixel-diff her views.
 
-**Phase 10, what shipped (numbers = Inter 500, tabular, on Tony's side):**
-- **Tony's TaskHub + chrome (index.html):** `body[data-th-profile="tony"]`
-  and its controls are `tabular-nums` (rule after the `#root{--suite-glow`
-  block), which also reaches his overlays on `<body>`. The TaskHub was already
-  Inter; the Plans' figures face `PLAN_PAL_TONY.MONO` is now Inter.
-  `PLAN_PAL_VEDA` keeps Plex Mono.
-- **MyJournal:** `#tj-root` version, empty hint and char count moved off
-  `--font-mono` (version and count are weight 500). Mono stays for the editor's
-  `code`/`pre`. Brainstorm (`#bj-root`, Veda's) is untouched.
-- **OneInbox:** a new `--num` token (Inter); folder counts and attachment
-  sizes use it at 500; body + controls tabular. Coupon, tracking and
-  confirmation CODES (`.afield .v.mono`) stay Plex Mono: they are codes.
-- **TradeHub:** all 68 inline `'IBM Plex Mono'` figure styles became
-  `fontFamily:TB_NUM` (a global at the top of the babel block) +
-  `tabular-nums`, at weight 500. **Tickers/symbols keep their own weight**
-  (700/800); they are labels. `#tradeboard-root` + controls are tabular.
-  Plex Mono is left only on the two markdown `code` rules.
-- **MyList (Tony):** the old "Numbers: IBM Plex Mono" block is now Inter 500,
-  plus body + controls tabular, all behind `body:not([data-profile=veda])`.
-  Veda's `--font-btn` Plex Mono is untouched.
-- **RiftIQ (WarRoom AND ProView):** both programs read figures from the one
-  `--mono` token, which is now Inter (the token name is kept so its ~200 call
-  sites resolve). Every `--mono` rule or inline style WITHOUT a weight got 500
-  (75 CSS rules, 43 inline); ones with a weight keep it. ProView's W-L record
-  (the one inline Plex Mono) is Inter 500. html/body + controls tabular. The
-  uiModal's Plex Mono error/button TEXT is not a number and stays.
-- **MAGI:** body + controls tabular. The "faces by meaning" rule is split:
-  `.node-meta, .core-count, .verdict-quorum, .node-sub, .slide-count,
-  .bs-council-meta, .v-table` are Inter 500 tabular; code, paths, SHAs,
-  tokens, diffs and the quiz letters stay mono. A `══ NUMBERS` block at the
-  end of the main `<style>` moves 17 figure classes (`.sd-count`,
-  `.repo-num`, `.code-auto-cd`, `.br-step-n`, `.au-line-time`, …) to Inter
-  500. Studio Video's canvas `VID.mono` is rendered video content: unchanged.
-- **Tests:** `tests/live/numbers-sweep.live.js` (52 checks across the seven
-  programs: body/controls tabular, a probe per moved figure class, a scan for
-  any visible figure in Plex Mono, codes still mono, Veda's index + MyList
-  unchanged, TradeHub's source has Plex Mono only on code). Against
-  `theme-p10-start` it fails 35 of 52. `npm test`: 63 suites pass.
-- **Veda's shots** (index veda + journals, MyList's 15 Veda views):
-  pixel-identical except the quote band and the fading "Synced" pill.
+**Phase 11, what shipped:**
+- **PriceWatch extension** (`PriceWatch/popup.html`, its only UI: no content
+  script draws anything): MAGI tokens, Inter/Manrope (Google Fonts link, like
+  the Vault popup), the wordmark solid `acl` (was gold gradient text), panel
+  titles Manrope 800 uppercase in `acl`, buttons MAGI's `.btn` (10px / 700 /
+  uppercase / 1px, `bdl` outline turning purple), the switch and select in
+  purple with the 3px focus ring, numbers Inter 500 tabular (the log's times
+  were `ui-monospace`), `<body data-hoverfx="magi">`. The unused
+  `button.solid` rule went. Reload the extension in `chrome://extensions` to
+  see it.
+- **MAGI onto the shared files: one copy of the code.** magi.html loads
+  `dragsort.js` + `resizegrip.js` in `<head>`; its own `dragSort`,
+  `dragGrip`, `dropOrder`, `dragRefocus`, `DSORT`, the unit chips'
+  `unitDragStart/Move/End` + `DRAG`, `attachGrip`, `gripButton` and their CSS
+  are deleted.
+  - Agent order and both queues: `A1Drag.sort(…, {hold: 300})`. **No grip
+    dots** (Tony's no-grip rule now covers MAGI too), so the ↑/↓ arrow keys
+    on a focused grip went with them, as on every other page.
+  - Unit chips: `A1Drag.sort($("unitChips"), {row: ".chip", axis: "grid",
+    hold: 300})`; `onDrop` saves the order (local + cloud) and redraws. The
+    old "justDragged" click guard is A1Drag's swallowed release click.
+  - A redraw never lands under a drag: `renderQueue` and `renderUnitChips`
+    defer through `A1Drag.later` (deduped), and a synced unit order is
+    ignored while `A1Drag.active`.
+  - Resize grips (composer, brainstorm topic + reply, the queue editor):
+    `A1Resize.grip(label)` + `magiGrip()`, a thin wrapper that carries an old
+    `magi.h.<box>` height over to `a1.h.magi.<box>` once, then calls
+    `A1Resize.attach`. `#composerGrip` is an `.a1-grip` in the markup.
+  - `:root` sets `--ds-*` from MAGI's own tokens; `.dsort-drag:not(.chip)`
+    keeps MAGI's button radius; the grip keeps each box's corner radius.
+- **Gold sweep (gold doing an identity job on Tony's side):** two left, both
+  in index.html, both fixed Tony-only:
+  - the TaskHub banner's action button (`th-banner-action`, e.g. "Enable" on
+    the notifications banner) was inline gold for both profiles: Tony's is
+    now MAGI's `.btn` in purple (`body[data-th-profile="tony"]` rule);
+  - MyJournal's page sheet (`#tj-root .docx-sheet`) had a 10% gold edge: now
+    purple. Brainstorm's (`#bj-root`) is unchanged.
+  - Everything else gold is meaning, not identity: stars/favourites, warnings
+    and amber states (sync "busy", expiry, due soon, low progress), money in,
+    rune/rank colours in RiftIQ, user-picked highlight/text colours. RiftIQ's
+    and MyJournal's `--gold` tokens are already purple. MAGI is the spec's
+    source, so its golds define the rule.
+- **Memories:** new `magi-theme-spec`; `ui-width-cap-2000` (MAGI is capped
+  too), `in-ui-modal-system` (eight copies, Tony's side is MAGI's dialog),
+  `theme-overhaul-phases` (done).
+- **Tests:**
+  - `tests/live/pricewatch-theme.live.js`, new, 15 checks: tokens, fonts,
+    wordmark, buttons, switch, numbers, no gold or gradient anywhere,
+    hover/press, the button still works, 330px fit. Against
+    `theme-p11-start` it fails 11 of 15.
+  - `tests/magi-drag-sort.test.js`: rewritten for A1Drag, 21 checks (runs
+    `A1Drag.order` from dragsort.js). Fails 10 of 21 against the start tag.
+  - `tests/live/magi-drag-sort.live.js`: 42 checks. Touch is a 300ms hold
+    (no grips). New: unit chips by mouse and touch hold (moved, not toggled,
+    saved), and the composer grip (old height carried over, an 80px drag,
+    stored, survives a reload, a click hands it back to auto).
+  - `magi-order-numbers.live.js` and `magi-codemode.live.js` drag the row
+    with the mouse instead of arrow-keying the grip. Order-numbers passes
+    10/10. Codemode was not run: it starts a real coding run.
+  - `magi/tests/test_promptbox.py` and `test_queue.py` point at the shared
+    files. MAGI pytest: 1644 pass. `npm test`: 64 suites pass.
+- **A finding, not changed:** MAGI's first press on a page builds its
+  AudioContext (`unlockAudio`), a ~270ms stall, on the old code too. The
+  drag test's frame clock now times only frames while a row is lifted.
+- **Veda's shots** (index veda, mobile, settings, confirm, lock): identical
+  except the quote band and the lock field's blinking caret.
 
 **Start-of-session checklist**
 1. `git pull`, then `git tag theme-pN-start && git push origin theme-pN-start`.
@@ -70,6 +94,7 @@ phase".
 5. `npm test` (all suites), then take "after" shots and pixel-diff Veda's.
 6. Show Tony before/after, tag `theme-pN-end`, push it, and rewrite this §0.
 7. End the report to Tony with how many phases are left (Tony, 2026-10-02).
+   None are left now.
 
 **Done after phase 1, same day (2026-10-02, Tony's asks):**
 - **Every A1 app icon is purple-on-charcoal now** (was gold). That covers:
@@ -249,12 +274,9 @@ a see-through tint or soft halo that reads as one.
 - **Plain CSS programs:** copy MAGI's rules with the program's own selectors.
 
 ### Drag and drop (added 2026-10-02): MAGI's, everywhere
-**The source is magi.html:**
-- `dragSort()`, `dragGrip()`, `dropOrder()`, `dragRefocus()` (search
-  `══ drag to reorder`, ~line 15215).
-- Its CSS (search `drag to reorder (dragSort)`, ~4650).
-- The unit chips' hold-to-pick-up (`unitDragStart`/`Move`/`End`, ~18565).
-- The `.chip.dragged` CSS (~690).
+**The source is `dragsort.js` at the A1 root.** It began as a port of
+magi.html's own drag code; since phase 11 MAGI loads it too, so there is one
+copy.
 
 **What "MAGI's DnD" means, all of it required:**
 - **NO GRIP DOTS (Tony, 2026-10-02).** Never draw a ⋮⋮ grip (no
@@ -285,7 +307,7 @@ a see-through tint or soft halo that reads as one.
   - The click a release fires is swallowed (only that one).
   - Escape or pointercancel puts the row back.
 - **Reduced motion:** no transitions.
-- **Synced lists:** new order numbers come from `dropOrder()` (the midpoint of
+- **Synced lists:** new order numbers come from `A1Drag.order()` (the midpoint of
   the new neighbours), so only the moved item changes. That keeps Firestore
   merges simple.
 
@@ -310,8 +332,8 @@ a see-through tint or soft halo that reads as one.
 - A phase's drag work is verified on desktop AND phone width over CDP. Use
   `Input.dispatchMouseEvent` for the mouse, and `Input.dispatchTouchEvent` for
   the hold-then-drag. Assert the persisted order.
-- MAGI itself switches to `dragsort.js` in the wrap-up phase, so there is one
-  copy of the code.
+- MAGI itself switched to `dragsort.js` in phase 11, so there is one copy of
+  the code.
 
 ### Resize handles (added 2026-10-02): MAGI's, EXACTLY, everywhere
 Tony: every box with a drag-to-resize / expand handle (TradeHub has them,
@@ -319,14 +341,14 @@ other programs too) must look and work EXACTLY like MAGI's prompt box, on
 desktop AND mobile. That includes Tony's TaskHub: the "keep its own drag"
 exception is for reordering only, not resizing. Veda's side keeps hers.
 
-**The source is magi.html:**
-- CSS `.qbar-grip` (search `A corner resize handle`, ~470): a 38px invisible
-  hit area over the bottom-right corner, the two diagonal hatch strokes (11px
-  and 6px), `cursor: nwse-resize`, `touch-action: none`. Colour `txd` at
-  rest, `tx` on hover/focus, `ac` while held or while a hand-chosen height is
-  set (`.on`). Focus: a 1px accent outline at -4px offset.
-- JS `attachGrip(ta, grip, key, resize)` + `gripButton()` (search
-  `Resize by dragging the grip`, ~9975).
+**The source is `resizegrip.js` at the A1 root** (MAGI's prompt-box grip,
+ported; MAGI loads it too since phase 11):
+- CSS `.a1-grip`: a 38px invisible hit area over the bottom-right corner, the
+  two diagonal hatch strokes (11px and 6px), `cursor: nwse-resize`,
+  `touch-action: none`. Colour `txd` at rest, `tx` on hover/focus, `ac` while
+  held or while a hand-chosen height is set (`.on`). Focus: a 1px accent
+  outline at -4px offset.
+- JS `A1Resize.attach(box, grip, key, onAuto)` + `A1Resize.grip(label)`.
 
 **What "MAGI's resize" means, all of it required:**
 - The grip is a real `<button>` (title "Drag to resize. Click to expand or
@@ -352,8 +374,8 @@ parent must be positioned (wrap the box, as MyJournal's `docxTonyGrip`
 does); heights are stored as `a1.h.<key>`; a hand-sized box carries
 `data-user-h` for any auto-grow code to respect. `tests/resizegrip.test.js`
 covers the jsdom behaviour and checks that every copy is byte-identical
-(extensions get a copy when a phase needs one). MAGI moves onto it in the
-wrap-up phase.
+(extensions get a copy when a phase needs one). MAGI moved onto it in phase
+11.
 
 ### Per-profile gating in a shared page (index.html)
 - `goTony()` / `goVeda()` / `showProfile()` call `_markProfile(who)`:
@@ -395,7 +417,7 @@ wrap-up phase.
 | 8 | **Solace (theme + drags + resize grips + numbers)** | **done 2026-10-02** |
 | 9 | **Shield + Shield (HTML) (theme + numbers; it has no drags or grips)** | **done 2026-10-03** |
 | 10 | **Numbers sweep** (§2 "NUMBERS"): Tony's TaskHub + chrome, MyJournal, OneInbox, TradeHub, MyList (Tony), **RiftIQ: WarRoom AND ProView**, MAGI | **done 2026-10-03** |
-| 11 | Wrap-up: **PriceWatch extension**, MAGI onto dragsort.js, sweep (LifeHub colours done in 3) | **next** |
+| 11 | **Wrap-up: PriceWatch extension, MAGI onto dragsort.js + resizegrip.js, gold sweep, memories** (LifeHub colours done in 3) | **done 2026-10-03** |
 
 **From phase 2 on, every phase = theme + that program's drag and drop + its resize handles (no gradient fills).** From phase 7 on it also applies the NUMBERS rule (§2).
 The drag half:
@@ -1099,7 +1121,17 @@ history of this file, tag `theme-p10-end`). Decisions worth keeping:
 - Where a program funnels figures through one token (RiftIQ `--mono`,
   Plans `P.MONO`), the token changed, not its call sites.
 
-### Phases 3–10 (from the original survey; re-read each file before building)
+### Phase 11 — Wrap-up (done 2026-10-03)
+
+The record is §0 above (the last hand-off). Decisions worth keeping:
+- MAGI follows the no-grip rule like every other page: rows are taken by the
+  row (`hold:300`), and the arrow-key moves on a focused grip are gone.
+- A page that adopts the shared resize grip keeps the user's old heights by
+  copying its old storage key to `a1.h.<key>` once (MAGI: `magiGrip`).
+- A gold value is a bug only if it is doing the accent's job. Check what a
+  token is set to before calling it gold (several `--gold` tokens are purple).
+
+### Phases 3–11 (from the original survey; re-read each file before building)
 
 **3. OneInbox:**
 - All `:root` tokens (lines 54–101), about 6 stray JS hex values, and class
