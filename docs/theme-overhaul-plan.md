@@ -8,81 +8,58 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-10-02, at the end of **Phase 8** (Solace: theme, drags,
-resize grips, NUMBERS). Done, tested, pushed.
+**Last updated:** 2026-10-03, at the end of **Phase 9** (Shield + the
+offline Shield page: theme + NUMBERS). Done, tested, pushed.
 **Tags:** phase N is bracketed by `theme-pN-start` → `theme-pN-end`, for
-N = 1, 1b, 2, 3, 4, 5, 6, 7, 8.
-**Next phase:** **Phase 9: Shield + Shield (HTML)** (theme + its drags + its
-resize handles + the §2 NUMBERS rule, no gradient fills; see §3, §4 "Phases
-3–10"). Shield HAS a Veda profile: every change is gated to Tony's, and
-Veda's shots must stay pixel-identical. Start it only when Tony says
-"continue theme" / "next theme phase".
+N = 1, 1b, 2, 3, 4, 5, 6, 7, 8, 9.
+**Next phase:** **Phase 10: Numbers sweep** (§2 "NUMBERS" in Tony's TaskHub
++ chrome, MyJournal, OneInbox, TradeHub, MyList (Tony), RiftIQ WarRoom AND
+ProView, MAGI; see §3 and §4 "10."). Veda's sides stay pixel-identical.
+Start it only when Tony says "continue theme" / "next theme phase".
 
-**Phase 8, what shipped (Solace is Tony-only, so no Veda diff):**
-- **Tokens** (solace.html `body{}`): `--accent` `#c0aeea`, `--acl`
-  `#dbd0f5` (wordmark, panel/dialog titles: `.modal-title`, `.rec-mbox h3`,
-  `.rec-sec`, the timer's circuit name, "Add Module"/"Modules"), `--accent-deep`
-  `#9a86c9` (accent LINES: lock card, `.badge-accent`, Run, a routine group's
-  left edge), `--border` is now the hairline `rgba(255,255,255,.06)` and
-  `--border2` `#45454c` every control's resting outline, `--s3`, `--gold`
-  (only the busy sync dot and the timer ring's last half), `--ring`, radius 8,
-  `--ds-ac`/`--ds-s2`. `--accent-pale` is `txm` (field labels). The old suite
-  block (`--gold-*`, `.suite-title`), `--accent-soft`/`--accent-line`, the
-  Recipe dialog's brighter-gold token override, and Fraunces / DM Sans /
-  Bebas Neue (fonts link and every use) are gone; `--font-accent` is Inter.
-- **MotionCore (`#mc-root`) is tokenised**: its ~56 hard-coded colours are
-  the tokens above. Its `.btn` family is MAGI's `.btn` (10px / 700 /
-  uppercase / 1px, radius 6, bdl → accent on hover, no glow/lift/wash);
-  `.btn-primary` solid purple, `.btn-danger` a red outline (was a red wash).
-  Cards radius 8 on a hairline; badges radius 4. The Circuits/Routines switch,
-  the section rail (Fitness/Nutrition: was an underline with a gold glow) and
-  the subtabs are MAGI nav buttons, current = solid purple, dark label.
-- **Recipes**: shared `.btn` is MAGI's; `.btn.solid` (New recipe, Save, Go)
-  solid purple. Category pills keep their own colours (phase-1 rule).
-  Picked mic row: s2 + accent outline (was a gold wash). The live caption, mic
-  picker and voice bar sit on bdl outlines.
-- **Dialogs** (circuit/routine, recipe, confirm, mic picker, uiModal):
-  `rgba(0,0,0,.62)` + 2px blur, s1 box on a hairline, radius 8. uiModal is
-  Vault's (OK solid purple; danger = red outline, was a red fill). The lock:
-  no radial glow, `acd` card, solid-purple Unlock/Set Password and accent
-  menu rows, no hover glows.
-- **NUMBERS**: body + controls `tabular-nums`. Module numbers and seconds, the
-  builder's numbers, the timer's seconds/progress/next, badges, routine
-  quantities, recipe quantities and step numbers are Inter 500 tabular (were
-  Bebas Neue / bold). The timer's exercise name is Manrope 800 (was Bebas).
-- **Timer ring**: purple, gold in the last half (amber state), pastel red in
-  the last quarter (was gold / `#e8b62a` / `#dc4650`, with a gold halo).
-- `<body data-hoverfx="magi">`; `dragsort.js` + `resizegrip.js` in `<head>`.
-- **Drag (A1Drag, `hold:300`, no grips):**
-  - MotionCore: circuits (`.circuit-card`), routines (`.routine-card`) and
-    the circuit dialog's modules (`.module-builder-item`), via
-    `mcDrag(listId, row, getArr, setArr, redraw, save)`. A drop splices the
-    array, `mcSave()` (not for the dialog's modules: they save with "Save
-    Circuit"), redraws. `mcRenderCircuits`/`mcRenderRoutines` defer with
-    `A1Drag.later`. Deleted: `mcInitDragList` (placeholder + ghost),
-    `MC_GRIP`, the `.drag-handle` ⋮⋮ grips and their CSS, `touch-action:none`
-    on module rows.
-  - Recipes: the book (`.rec-row`) and a recipe's steps (`.rec-step`) via
-    `recDrag(list, kind)` → `applyDrop(kind, from, to)` (undo + save +
-    renumber as before). The book only drags while no search/filter is on
-    (`canDrag`; the old engine stayed wired after a search, a latent bug).
-    `renderRecipes` defers with `A1Drag.later`. Deleted: MyList's ghost +
-    insertion-line engine (`enableDrag`, `beginDrag`, `dnd*`), its CSS and
-    the `dndLastEnd` click guard (A1Drag swallows the drop's click).
-- **Resize (`resizegrip.js`, `solGrip(ta, key, label, grow)`):** the recipe
-  instructions box (`a1.h.sol.rec-instr`) and a step's editor
-  (`a1.h.sol.rec-step`), both auto-grown (`autoGrow` skips `data-user-h`;
-  handing back re-runs it); the circuit description (`a1.h.sol.circuit-desc`)
-  and the routine's workout box (`a1.h.sol.routine`), which were native
-  `resize:vertical` corners. The old `.resize-grip` ns-resize handle, its
-  document-level pointer code and `dataset.manual` are gone.
-- **Tests:** `tests/live/solace-theme.live.js` (69 checks): it fakes Firebase
-  (seeded `getDoc`/`onSnapshot`, `setDoc` → `window.__fsWrites`). Theme, no
-  old fonts, no gradients, no gold, no grip dots, numbers, magi hover;
-  circuits/routines/modules/recipes/steps by mouse with SAVED orders, the
-  drop's click, a press on a button, no drag while searching; all four grips;
-  every dialog and the lock; phone: swipe vs a held finger. `--shots <label>`
-  shots 16 views. Against `theme-p8-start` it fails 52 of 63.
+**Phase 9, what shipped (Shield has a Veda profile: her 11 views are
+pixel-identical; only the fading "Synced" label differs by timing):**
+- **No drags, no grips: Shield has nothing to reorder and no resizable box**
+  (its only pointer code is the drawn scrollbar and the hold-to-fire button,
+  neither a reorder). So no `dragsort.js`/`resizegrip.js` here.
+- **Tokens** (the `body,body[data-profile="tony"]` block, which also paints
+  the chooser): `--ac`/`--acs` `#c0aeea`; `--acl` is now the solid deep line
+  `#9a86c9` (was a 36% gold); `--acx` `#dbd0f5` (wordmark, `.sec-title`);
+  `--acbg` is s2 (no wash); `--bd` the hairline, `--bdl` every control's
+  resting outline; `--s3` `#34343a`; `--amber` is the suite gold (warnings
+  only); `--errbg` is an opaque dark red (the hold-to-fire fill); `--ring`
+  for fields; radius 8/6. `--gold-primary` is gone.
+- **The MAGI block** (end of the main `<style>`, `/* ══ MAGI — Tony's
+  side`): every rule behind `body:not([data-profile="veda"])`. MAGI's `.btn`
+  type (10/700/1px, radius 6, bdl → accent, no glow, no CSS press); the nav
+  pill and picker tab are solid purple + dark label when current (the old
+  Tony glow-outline `.pill.on` rule is deleted); the sub-tabs, set chips and
+  picked rows are accent outlines; toggles solid purple; fields accent + 3px
+  ring; `.sec-title` Manrope 800 / 1.8px / acx; Close Apps on an acd line;
+  no hover glows anywhere; the emergency takeover's radial glow is gone.
+- **Dialogs:** uiModal `rgba(0,0,0,.62)` + 2px blur, s1 box, radius 8; its
+  OK is solid purple for Tony (set in JS at render time:
+  `data-profile!=='veda'`), danger stays a red outline; Veda's OK is her
+  mauve outline as before. The lock: acd card radius 8, solid purple
+  Unlock/Set Password, menu rows go accent on hover with no glow.
+- **NUMBERS:** body + controls `tabular-nums` (Inter is already Tony's face);
+  set-chip counts and the iOS wizard's step numbers are Inter 500. Mono stays
+  only for paths/match strings, keyboard chords and the guard link.
+- **Chooser:** Tony's card is purple (no glow), the mark's T half is purple,
+  the "Shield" wordmark `#dbd0f5`; the favourite star stays gold.
+- `themeFor` sets `body[data-hoverfx="magi"]` for Tony and removes it for
+  Veda; `goProfileSelect` removes it.
+- **Offline page** (`desktop/shield/ui/index.html`): purple accent, `#dbd0f5`
+  title, purple T half, hairline + radius 8, tabular numbers,
+  `data-hoverfx="magi"`. It ships inside the desktop app, so it shows only
+  after a `desktop/shield/build.ps1` rebuild (not done; the live page, which
+  the app loads when online, is already themed).
+- **Tests:** `tests/live/shield-theme.live.js` (44 checks: Tony's theme,
+  numbers, no gradients, no identity gold, dialogs, lock, takeover, chooser,
+  Veda unchanged, phone width). Fakes Firebase incl. `updateDoc`/`deleteField`
+  and freezes `Date.now` so shots match across runs. `--shots <label>` takes
+  the chooser + 12 views per profile. Against `theme-p9-start` it fails 26
+  of 44.
 
 **Start-of-session checklist**
 1. `git pull`, then `git tag theme-pN-start && git push origin theme-pN-start`.
@@ -417,8 +394,8 @@ wrap-up phase.
 | 6 | **Insight (theme + drags + resize grips)** | **done 2026-10-02** |
 | 7 | **Vault (Keychain) + Vault extension (theme + drags + resize + numbers)** | **done 2026-10-02** |
 | 8 | **Solace (theme + drags + resize grips + numbers)** | **done 2026-10-02** |
-| 9 | Shield + Shield (HTML) (theme + drags + numbers) | **next** |
-| 10 | **Numbers sweep** (§2 "NUMBERS"): Tony's TaskHub + chrome, MyJournal, OneInbox, TradeHub, MyList (Tony), **RiftIQ: WarRoom AND ProView**, MAGI | |
+| 9 | **Shield + Shield (HTML) (theme + numbers; it has no drags or grips)** | **done 2026-10-03** |
+| 10 | **Numbers sweep** (§2 "NUMBERS"): Tony's TaskHub + chrome, MyJournal, OneInbox, TradeHub, MyList (Tony), **RiftIQ: WarRoom AND ProView**, MAGI | **next** |
 | 11 | Wrap-up: **PriceWatch extension**, MAGI onto dragsort.js, sweep (LifeHub colours done in 3) | |
 
 **From phase 2 on, every phase = theme + that program's drag and drop + its resize handles (no gradient fills).** From phase 7 on it also applies the NUMBERS rule (§2).
@@ -997,6 +974,74 @@ Tony-only, so no Veda diff):
   on a phone (the group was `flexShrink:0`, pushing Trash off the screen).
   `tests/live/tradehub-mobile-fit.live.js` checks every TradeHub page at
   360/390/430px for anything off the screen (commit `39ea0a2`).
+
+### Phase 8 — Solace (done 2026-10-02)
+**What shipped** (moved here from §0 at the end of phase 9; Solace is
+Tony-only, so no Veda diff):
+- **Tokens** (solace.html `body{}`): `--accent` `#c0aeea`, `--acl`
+  `#dbd0f5` (wordmark, panel/dialog titles: `.modal-title`, `.rec-mbox h3`,
+  `.rec-sec`, the timer's circuit name, "Add Module"/"Modules"), `--accent-deep`
+  `#9a86c9` (accent LINES: lock card, `.badge-accent`, Run, a routine group's
+  left edge), `--border` is now the hairline `rgba(255,255,255,.06)` and
+  `--border2` `#45454c` every control's resting outline, `--s3`, `--gold`
+  (only the busy sync dot and the timer ring's last half), `--ring`, radius 8,
+  `--ds-ac`/`--ds-s2`. `--accent-pale` is `txm` (field labels). The old suite
+  block (`--gold-*`, `.suite-title`), `--accent-soft`/`--accent-line`, the
+  Recipe dialog's brighter-gold token override, and Fraunces / DM Sans /
+  Bebas Neue (fonts link and every use) are gone; `--font-accent` is Inter.
+- **MotionCore (`#mc-root`) is tokenised**: its ~56 hard-coded colours are
+  the tokens above. Its `.btn` family is MAGI's `.btn` (10px / 700 /
+  uppercase / 1px, radius 6, bdl → accent on hover, no glow/lift/wash);
+  `.btn-primary` solid purple, `.btn-danger` a red outline (was a red wash).
+  Cards radius 8 on a hairline; badges radius 4. The Circuits/Routines switch,
+  the section rail (Fitness/Nutrition: was an underline with a gold glow) and
+  the subtabs are MAGI nav buttons, current = solid purple, dark label.
+- **Recipes**: shared `.btn` is MAGI's; `.btn.solid` (New recipe, Save, Go)
+  solid purple. Category pills keep their own colours (phase-1 rule).
+  Picked mic row: s2 + accent outline (was a gold wash). The live caption, mic
+  picker and voice bar sit on bdl outlines.
+- **Dialogs** (circuit/routine, recipe, confirm, mic picker, uiModal):
+  `rgba(0,0,0,.62)` + 2px blur, s1 box on a hairline, radius 8. uiModal is
+  Vault's (OK solid purple; danger = red outline, was a red fill). The lock:
+  no radial glow, `acd` card, solid-purple Unlock/Set Password and accent
+  menu rows, no hover glows.
+- **NUMBERS**: body + controls `tabular-nums`. Module numbers and seconds, the
+  builder's numbers, the timer's seconds/progress/next, badges, routine
+  quantities, recipe quantities and step numbers are Inter 500 tabular (were
+  Bebas Neue / bold). The timer's exercise name is Manrope 800 (was Bebas).
+- **Timer ring**: purple, gold in the last half (amber state), pastel red in
+  the last quarter (was gold / `#e8b62a` / `#dc4650`, with a gold halo).
+- `<body data-hoverfx="magi">`; `dragsort.js` + `resizegrip.js` in `<head>`.
+- **Drag (A1Drag, `hold:300`, no grips):**
+  - MotionCore: circuits (`.circuit-card`), routines (`.routine-card`) and
+    the circuit dialog's modules (`.module-builder-item`), via
+    `mcDrag(listId, row, getArr, setArr, redraw, save)`. A drop splices the
+    array, `mcSave()` (not for the dialog's modules: they save with "Save
+    Circuit"), redraws. `mcRenderCircuits`/`mcRenderRoutines` defer with
+    `A1Drag.later`. Deleted: `mcInitDragList` (placeholder + ghost),
+    `MC_GRIP`, the `.drag-handle` ⋮⋮ grips and their CSS, `touch-action:none`
+    on module rows.
+  - Recipes: the book (`.rec-row`) and a recipe's steps (`.rec-step`) via
+    `recDrag(list, kind)` → `applyDrop(kind, from, to)` (undo + save +
+    renumber as before). The book only drags while no search/filter is on
+    (`canDrag`; the old engine stayed wired after a search, a latent bug).
+    `renderRecipes` defers with `A1Drag.later`. Deleted: MyList's ghost +
+    insertion-line engine (`enableDrag`, `beginDrag`, `dnd*`), its CSS and
+    the `dndLastEnd` click guard (A1Drag swallows the drop's click).
+- **Resize (`resizegrip.js`, `solGrip(ta, key, label, grow)`):** the recipe
+  instructions box (`a1.h.sol.rec-instr`) and a step's editor
+  (`a1.h.sol.rec-step`), both auto-grown (`autoGrow` skips `data-user-h`;
+  handing back re-runs it); the circuit description (`a1.h.sol.circuit-desc`)
+  and the routine's workout box (`a1.h.sol.routine`), which were native
+  `resize:vertical` corners. The old `.resize-grip` ns-resize handle, its
+  document-level pointer code and `dataset.manual` are gone.
+- **Tests:** `tests/live/solace-theme.live.js` (69 checks): it fakes Firebase
+  (seeded `getDoc`/`onSnapshot`, `setDoc` → `window.__fsWrites`). Theme, no
+  old fonts, no gradients, no gold, no grip dots, numbers, magi hover;
+  circuits/routines/modules/recipes/steps by mouse with SAVED orders, the
+  drop's click, a press on a button, no drag while searching; all four grips;
+  every dialog and the lock; phone: swipe vs a held finger. `--shots <label>`
+  shots 16 views. Against `theme-p8-start` it fails 52 of 63.
 
 ### Phases 3–10 (from the original survey; re-read each file before building)
 
