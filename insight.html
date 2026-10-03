@@ -96,7 +96,12 @@
     padding-top: env(safe-area-inset-top, 0px);
     padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px));
     -webkit-font-smoothing: antialiased;
+    /* A1's numbers face (Tony, 2026-10-02): Inter with tabular figures, so
+       every digit is the same width wherever a number appears. Controls
+       don't inherit it, so they get it explicitly. */
+    font-variant-numeric: tabular-nums;
   }
+  input, select, textarea, button { font-variant-numeric: tabular-nums; }
   a { color: var(--ac); text-decoration: none; }
   a:hover { color: var(--acl); }
   ::selection { background: rgba(192,174,234,.28); color: var(--text); }

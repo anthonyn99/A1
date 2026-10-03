@@ -13,7 +13,7 @@ drags, resize grips). Done, tested, pushed.
 **Tags:** phase N is bracketed by `theme-pN-start` → `theme-pN-end`, for
 N = 1, 1b, 2, 3, 4, 5, 6.
 **Next phase:** **Phase 7: Vault (Keychain) + the Vault extension** (theme
-+ its drags + its resize handles, no gradient fills; see §3, §4 "Phases
++ its drags + its resize handles + the §2 NUMBERS rule, no gradient fills; see §3, §4 "Phases
 3–10"; Vault/*.test.js are run by hand). Start it only when Tony says
 "continue theme" / "next theme phase".
 
@@ -27,6 +27,11 @@ N = 1, 1b, 2, 3, 4, 5, 6.
   8, `--mono` IBM Plex Mono. The old suite block (`--gold-primary`,
   `--gold-glow`, `.suite-title`, `.suite-accent`, all unused) and Fraunces
   are gone; `--font-accent` is Inter.
+- **NEW standing rule, NUMBERS (Tony, 2026-10-02):** Insight's numbers face
+  (Inter 500, tabular-nums) for every number in A1 on Tony's side, RiftIQ's
+  WarRoom and ProView included. §2 "NUMBERS"; phases 7–9 apply it as they
+  go, new phase 10 sweeps everything already done; wrap-up is now 11.
+  Insight itself: `body` + controls are `tabular-nums`.
 - **Insight keeps its OWN TYPE (Tony, 2026-10-02, right after the phase):**
   Manrope headings, Inter body, figures in Inter Medium + tabular-nums, at
   their old sizes, weights, tracking and case. Only the colours, shapes,
@@ -197,9 +202,28 @@ Everything else that was gold is purple.
 **App icons:** MAGI purple `#c0aeea` strokes on the `#1a1a1d` tile, for every
 program (done 2026-10-02, see §0).
 
+**NUMBERS: ONE FACE ACROSS A1 (Tony, 2026-10-02).** Every number on Tony's
+side of every program (amounts, prices, counts, dates, times, percentages,
+stats, scores, KDA, timers, badges) uses Insight's numbers face: **Inter,
+weight 500 (Medium), `font-variant-numeric: tabular-nums`**, so every digit
+is the same width and columns line up. NOT IBM Plex Mono, NOT a serif/
+display face for figures. How:
+- Set `font-variant-numeric: tabular-nums` on the page's (or Tony root's)
+  body, plus `input, select, textarea, button` (controls don't inherit it).
+- Anything that names a mono or display face just for figures
+  (`var(--mono)`, `'IBM Plex Mono'`, `'DM Mono'`, `'Bebas Neue'`, Fraunces
+  numerals) switches to Inter 500 tabular. Mono stays only for real code/
+  monospace content (MAGI's code view, diffs, tokens, keys).
+- Veda's side keeps hers (standing rule). Each phase from 7 on does this for
+  its program; phase 10 sweeps the programs already done + RiftIQ.
+- Verify: computed `fontVariantNumeric` is `tabular-nums` and the font is
+  Inter on a sample of numbers (the live test of each program checks it, as
+  `tests/live/insight-theme.live.js` does).
+
 **Fonts:**
-- Inter is the UI face, Manrope is for headings and wordmarks, and IBM Plex
-  Mono is for numbers and tracked labels.
+- Inter is the UI face, Manrope is for headings and wordmarks. Numbers: see
+  the rule above. (IBM Plex Mono was the figures face in phases 1–5; phase
+  10 replaces it.)
 - No serif on Tony's side: Fraunces goes. In index.html `#root` redefines
   `--font-accent` to Inter.
 - Fonts a user picks inside the DOCX editor are content, so they stay.
@@ -409,12 +433,13 @@ wrap-up phase.
 | 4 | **TradeHub** (theme + drags + resize grips) | **done 2026-10-02** |
 | 5 | **MyList, Tony profile only (theme + drags + resize grips)** | **done 2026-10-02** |
 | 6 | **Insight (theme + drags + resize grips)** | **done 2026-10-02** |
-| 7 | Vault (Keychain) + **Vault extension** (theme + drags) | **next** |
-| 8 | Solace (theme + drags) | |
-| 9 | Shield + Shield (HTML) (theme + drags) | |
-| 10 | Wrap-up: **PriceWatch extension**, MAGI onto dragsort.js, sweep (LifeHub colours done in 3) | |
+| 7 | Vault (Keychain) + **Vault extension** (theme + drags + numbers) | **next** |
+| 8 | Solace (theme + drags + numbers) | |
+| 9 | Shield + Shield (HTML) (theme + drags + numbers) | |
+| 10 | **Numbers sweep** (§2 "NUMBERS"): Tony's TaskHub + chrome, MyJournal, OneInbox, TradeHub, MyList (Tony), **RiftIQ: WarRoom AND ProView**, MAGI | |
+| 11 | Wrap-up: **PriceWatch extension**, MAGI onto dragsort.js, sweep (LifeHub colours done in 3) | |
 
-**From phase 2 on, every phase = theme + that program's drag and drop + its resize handles (no gradient fills).**
+**From phase 2 on, every phase = theme + that program's drag and drop + its resize handles (no gradient fills).** From phase 7 on it also applies the NUMBERS rule (§2).
 The drag half:
 1. Inventory every reorder/move in the program (grep `draggable`,
    `dragstart`, `touchstart`, `pointerdown`, `reorder`, `dnd`, `grip`).
@@ -857,7 +882,24 @@ end of phase 2):
 - `themeFor('tony')` sets `data-hoverfx="magi"`.
 - Leave the `.ico` files unless Tony asks (they need a Rust rebuild).
 
-**10. Wrap-up:**
+**10. Numbers sweep (Tony, 2026-10-02):** the §2 NUMBERS rule in every
+program finished before it was made. Known Plex Mono / mono-figure sites:
+- index.html (~33 Plex Mono refs: TaskHub stats, weekly bars, timers,
+  Tesla/weather widgets, catalysts; MyJournal date strip/counts), Tony's
+  side only (Veda's block untouched);
+- tradehub.html (~70 refs: prices, P/L, Journal, News, Analysis);
+- mylist.html (`--mono` numbers on Tony's profile only), oneinbox.html
+  (`--mono` counts/sizes);
+- **riftiq.html: BOTH programs, WarRoom and ProView** (`--mono` at ~477 and
+  inline `fontFamily` Plex Mono on records like `rec.w+'-'+rec.l` ~12651;
+  KDA, CS, gold, timers, LP, win rates, schedules). The uiModal's Plex Mono
+  error/button TEXT is not a number: it follows the theme, not this rule;
+- magi.html: numbers in Inter tabular; Plex Mono stays for code, diffs and
+  tokens.
+Each program's live test gains a "numbers are Inter tabular" check; Veda
+diffs stay pixel-identical.
+
+**11. Wrap-up:**
 - ~~LifeHub's Tony default accent becomes purple~~ DONE in phase 3
   (lifehub.js default `#c0aeea`; Veda's `#A892B0` stays).
 - **PriceWatch extension (Tony, 2026-10-02):** MAGI's colours, fonts,

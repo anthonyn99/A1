@@ -201,6 +201,8 @@ async function shot(c, name) {
   ok('wordmark is #dbd0f5', (await css(c, 'header .brand', 'color')) === 'rgb(219, 208, 245)');
   ok('UI face is Inter', /Inter/.test(await css(c, 'body', 'fontFamily')));
   ok('figures are Inter, not a mono face', /^"?Inter/.test(await css(c, '#statIn', 'fontFamily')) && !/Plex/.test(await css(c, '.txamt', 'fontFamily')));
+  ok('every number is tabular (the A1 numbers face)', (await css(c, 'body', 'fontVariantNumeric')) === 'tabular-nums' && (await css(c, '#lastSync', 'fontVariantNumeric')) === 'tabular-nums'
+    && (await css(c, '#fSearch', 'fontVariantNumeric')) === 'tabular-nums');
   ok('headings are Manrope at their old size', /Manrope/.test(await css(c, 'header .brand', 'fontFamily')) && (await css(c, '.tab', 'fontSize')) === '11.5px');
   ok('money in stays gold', (await css(c, '#statIn', 'color')) === 'rgb(224, 184, 116)');
   ok('no Fraunces is loaded', (await evalJs(c, "return !/Fraunces/.test([...document.querySelectorAll('link')].map(l=>l.href).join())+'';")) === 'true');
