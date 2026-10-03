@@ -94,6 +94,7 @@ views. Start it only when Tony says "continue theme" / "next theme phase".
 4. Build. Use the recipe in §2. Keep Veda's side byte-for-byte unchanged.
 5. `npm test` (all suites), then take "after" shots and pixel-diff Veda's.
 6. Show Tony before/after, tag `theme-pN-end`, push it, and rewrite this §0.
+7. End the report to Tony with how many phases are left (Tony, 2026-10-02).
 
 **Done after phase 1, same day (2026-10-02, Tony's asks):**
 - **Every A1 app icon is purple-on-charcoal now** (was gold). That covers:
