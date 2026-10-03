@@ -10677,6 +10677,8 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _tjUnsubscribe  = null;
   let _sosMirrorUnsub = null;   // StudyOS → TaskHub task mirror (read-only)
   let _sosAckUnsub    = null;   // our own done-flips, read back (see _sosMergeAck)
+  let _vdPrepUnsub    = null;   // Veda AI task prep kits (see VD-PREP block)
+  let _vdPcAppsUnsub  = null;   // apps Shield found on Veda's PC (names + ids only)
   let _plansUnsub     = null;   // Plans → both TaskHubs mirror (read-only)
   let _plansSaveTimer = null;
   let _ecUnsubscribe  = null;
@@ -11612,6 +11614,42 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         try { await setDoc(sosAckRef, { done: _sosAckPending, savedAt: at, app: 'taskhub' }); }
         catch (e) { console.warn('[StudyOS mirror] ack write failed:', e && e.code); }
       }, 600);
+    };
+
+    // ── AI task prep kits (Veda) ───────────────────────────────────────────────
+    // dashboards/veda_taskprep holds one kit per flagged task (see the VD-PREP
+    // block). Written per FIELD with merge, never whole-doc: two devices prepping
+    // different tasks at once must not erase each other's kits.
+    // dashboards/veda_pc_apps is written by Shield on her PC (names + opaque ids
+    // only, never paths) and read here so the worker can pick apps from it.
+    const vdPrepRef = doc(db, "dashboards/veda_taskprep");
+    const vdPcAppsRef = doc(db, "dashboards/veda_pc_apps");
+    if (_vdPrepUnsub) { _vdPrepUnsub(); _vdPrepUnsub = null; }
+    if (_vdPcAppsUnsub) { _vdPcAppsUnsub(); _vdPcAppsUnsub = null; }
+    _vdPrepUnsub = onSnapshot(vdPrepRef, { includeMetadataChanges: true }, (snap) => {
+      const d = snap.exists() ? (snap.data() || {}) : {};
+      const kits = Object.assign({}, d.kits || {});
+      window._vdPrepKits = kits;
+      // Only a server read counts as loaded: pruning or re-prepping against a cached
+      // copy would delete or redo kits another device has already written.
+      window._vdPrepKitsLoaded = window._vdPrepKitsLoaded || !(snap.metadata && snap.metadata.fromCache);
+      window.dispatchEvent(new CustomEvent("vd-prep-update"));
+    }, (err) => { console.warn('[AI prep] onSnapshot error:', err && err.code); });
+    _vdPcAppsUnsub = onSnapshot(vdPcAppsRef, (snap) => {
+      const d = snap.exists() ? (snap.data() || {}) : {};
+      window._vdPcApps = Array.isArray(d.apps) ? d.apps : [];
+      window._vdPcAppsAt = d.savedAt || 0;
+      window.dispatchEvent(new CustomEvent("vd-prep-update"));
+    }, (err) => { console.warn('[AI prep] pc apps onSnapshot error:', err && err.code); });
+    window._fbSaveVdKit = (taskId, kit) => {
+      setDoc(vdPrepRef, { kits: { [taskId]: kit }, savedAt: Date.now() }, { merge: true })
+        .catch(e => console.warn('[AI prep] kit write failed:', e && e.code));
+    };
+    window._fbDropVdKits = (ids) => {
+      const upd = { savedAt: Date.now() };
+      (ids || []).forEach(id => { if (/^[A-Za-z0-9_-]+$/.test(id)) upd["kits." + id] = deleteField(); });
+      if (Object.keys(upd).length < 2) return;
+      updateDoc(vdPrepRef, upd).catch(e => console.warn('[AI prep] kit prune failed:', e && e.code));
     };
 
     // ── Brainstorm Journal ─────────────────────────────────────────────────────
@@ -13317,6 +13355,8 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     if (_tjUnsubscribe)  { _tjUnsubscribe();  _tjUnsubscribe  = null; }
     if (_sosMirrorUnsub) { _sosMirrorUnsub(); _sosMirrorUnsub = null; }
     if (_sosAckUnsub)    { _sosAckUnsub();    _sosAckUnsub    = null; }
+    if (_vdPrepUnsub)    { _vdPrepUnsub();    _vdPrepUnsub    = null; }
+    if (_vdPcAppsUnsub)  { _vdPcAppsUnsub();  _vdPcAppsUnsub  = null; }
     if (_plansUnsub)     { _plansUnsub();     _plansUnsub     = null; }
     if (_ecUnsubscribe)  { _ecUnsubscribe();  _ecUnsubscribe  = null; }
     _crUnsubs.forEach(u => { try { u(); } catch (e) {} }); _crUnsubs = [];
@@ -15566,13 +15606,15 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
   const[notifyDate,setNotifyDate]=useState("");const[notifyTime,setNotifyTime]=useState("");
   const[notifyRepeat,setNotifyRepeat]=useState("none");const[notifyRepeatDays,setNotifyRepeatDays]=useState([]);
   const[altSeqTitles,setAltSeqTitles]=useState(["","",""]);
+  const[aiPrep,setAiPrep]=useState(false);const[aiNote,setAiNote]=useState("");const[aiSite,setAiSite]=useState("");
   useEffect(()=>{if(open){setType(initial?.type||"task");setTitle(initial?.title||"");setCat(initial?.category||"");setTime(thToLocalHHMM(initial?.time,initial?.tz,startDateKey)||"");
     setRepeat(initial?.altSeqId?"altSeq":(initial?.repeat||"none"));setRepeatDays(initial?.repeatDays||[]);
     if(initial?.altSeqTitles)setAltSeqTitles(initial.altSeqTitles.length>=2?[...initial.altSeqTitles]:["","",""].map((v,i)=>initial.altSeqTitles[i]||""));
     else setAltSeqTitles(["","",""]);
     if(startDateKey){const p=startDateKey.split("-");const sd=new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));sd.setDate(sd.getDate()+14);setEndDate(initial?.repeatEndDate||initial?.altSeqEndDate||{month:sd.getMonth(),day:sd.getDate(),year:sd.getFullYear()});}
     if(initial?.notifyAt){const nd=new Date(initial.notifyAt);const pad=n=>String(n).padStart(2,"0");setNotifyDate(nd.getFullYear()+"-"+pad(nd.getMonth()+1)+"-"+pad(nd.getDate()));setNotifyTime(pad(nd.getHours())+":"+pad(nd.getMinutes()));}else{setNotifyDate("");setNotifyTime("");}
-    setNotifyRepeat(initial?.notifyRepeat||"none");setNotifyRepeatDays(initial?.notifyRepeatDays||[]);}},[open,initial,startDateKey]);
+    setNotifyRepeat(initial?.notifyRepeat||"none");setNotifyRepeatDays(initial?.notifyRepeatDays||[]);
+    setAiPrep(!!initial?.aiPrep);setAiNote(initial?.aiNote||"");setAiSite(initial?.aiSite||"");}},[open,initial,startDateKey]);
   useScrollLock(open);
   if(!open)return null;
   const mi={background:BG,border:"1px solid "+BDL,borderRadius:5,color:TX,fontSize:14,padding:"9px 11px",fontFamily:"inherit",fontWeight:600,outline:"none",width:"100%",boxSizing:"border-box"};
@@ -15580,6 +15622,8 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
   const lbl={fontSize:10,color:TXD,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:5};
   const save=()=>{
     if(!title.trim()&&repeat!=="altSeq")return;
+    // AI prep fields ride on the item itself (plain keys: _-prefixed ones are stripped on save).
+    const aiF=aiPrep?{aiPrep:true,aiNote:aiNote.trim(),aiSite}:{};
     if(repeat==="altSeq"){
       const validTitles=altSeqTitles.map(s=>s.trim()).filter(Boolean);
       if(validTitles.length<2){alert("Alternating sequence needs at least 2 steps.");return;}
@@ -15587,15 +15631,15 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
       const isEdit=!!(initial?.altSeqId);
       const notifyFields=notifyDate&&notifyTime?{notifyAt:new Date(notifyDate+"T"+notifyTime+":00").toISOString(),notifyRepeat,notifyRepeatDays:notifyRepeat==="weekly"?notifyRepeatDays:[],notifyRepeatId:initial?.notifyRepeatId||findSeriesNotifyIdFor("td_data",initial)||(notifyRepeat!=="none"?uid():null)}:{notifyAt:null,notifyRepeat:"none",notifyRepeatId:null};
       if(isEdit){
-        const item={id:initial.id,type,title:initial.title,category:cat,done:initial?.done||false,...(type==="event"&&time?{time,tz:Intl.DateTimeFormat().resolvedOptions().timeZone}:{}),altSeqId:initial.altSeqId,altSeqIdx:initial.altSeqIdx,altSeqTitles:validTitles,altSeqEndDate:{year:endDate.year,month:endDate.month,day:endDate.day},...notifyFields};
+        const item={id:initial.id,type,title:initial.title,category:cat,done:initial?.done||false,...(type==="event"&&time?{time,tz:Intl.DateTimeFormat().resolvedOptions().timeZone}:{}),altSeqId:initial.altSeqId,altSeqIdx:initial.altSeqIdx,altSeqTitles:validTitles,altSeqEndDate:{year:endDate.year,month:endDate.month,day:endDate.day},...notifyFields,...aiF};
         onSave(startDateKey,item,"altSeqEdit");onClose();
       } else {
-        const baseItem={id:initial?.id||uid(),type,title:"",category:cat,done:false,...(type==="event"&&time?{time,tz:Intl.DateTimeFormat().resolvedOptions().timeZone}:{}),altSeqTitles:validTitles,altSeqEndDate:{year:endDate.year,month:endDate.month,day:endDate.day},...notifyFields};
+        const baseItem={id:initial?.id||uid(),type,title:"",category:cat,done:false,...(type==="event"&&time?{time,tz:Intl.DateTimeFormat().resolvedOptions().timeZone}:{}),altSeqTitles:validTitles,altSeqEndDate:{year:endDate.year,month:endDate.month,day:endDate.day},...notifyFields,...aiF};
         onSave(startDateKey,baseItem,{mode:"altSeq",titles:validTitles,endDate});onClose();
       }
       return;
     }
-    const item={id:initial?.id||uid(),type,title:title.trim(),category:cat,done:initial?.done||false,...(type==="event"?{time,tz:time?Intl.DateTimeFormat().resolvedOptions().timeZone:null}:{}),...(repeat!=="none"?{repeat,repeatDays,repeatEndDate:endDate,repeatId:initial?.repeatId||uid()}:{repeat:"none"}),...(notifyDate&&notifyTime?{notifyAt:new Date(notifyDate+"T"+notifyTime+":00").toISOString(),notifyRepeat,notifyRepeatDays:notifyRepeat==="weekly"?notifyRepeatDays:[],notifyRepeatId:initial?.notifyRepeatId||(notifyRepeat!=="none"?uid():null)}:{notifyAt:null,notifyRepeat:"none",notifyRepeatId:null})};
+    const item={id:initial?.id||uid(),type,title:title.trim(),category:cat,done:initial?.done||false,...(type==="event"?{time,tz:time?Intl.DateTimeFormat().resolvedOptions().timeZone:null}:{}),...(repeat!=="none"?{repeat,repeatDays,repeatEndDate:endDate,repeatId:initial?.repeatId||uid()}:{repeat:"none"}),...(notifyDate&&notifyTime?{notifyAt:new Date(notifyDate+"T"+notifyTime+":00").toISOString(),notifyRepeat,notifyRepeatDays:notifyRepeat==="weekly"?notifyRepeatDays:[],notifyRepeatId:initial?.notifyRepeatId||(notifyRepeat!=="none"?uid():null)}:{notifyAt:null,notifyRepeat:"none",notifyRepeatId:null}),...aiF};
     // A repeating task must keep its reminder on EVERY future occurrence. If the
     // user didn't set an explicit notify repeat, the reminder inherits the task's
     // own cadence so the push series is pre-expanded for every date (and each
@@ -15615,6 +15659,10 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
     else if(typeChanged){onSave(startDateKey,item,"titleEditChoice");}
     else if(repeat==="none"||!endDate||initial?.id){onSave(startDateKey,item,null);}
     else{onSave(startDateKey,item,{mode:repeat,days:repeatDays,endDate});}
+    // A flagged task is prepped as soon as it is saved, whatever its date; the
+    // background run only covers today and tomorrow. Skipped when the kit is
+    // already current, so re-saving an unchanged task costs nothing.
+    if(item.aiPrep&&!typeChanged&&window._vdPrepRequest){const _g=window._vdPrepKitFor(item,startDateKey);if(!_g||!_g.fresh)setTimeout(()=>window._vdPrepRequest(item,startDateKey),0);}
     // Reschedule if still set; otherwise cancel so a removed reminder's
     // occurrence docs are deleted and never fire at the original time.
     if(item.notifyAt&&window.thScheduleNotif){window.thScheduleNotif({...item,dashboard:'veda'});}
@@ -15660,6 +15708,16 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
             altSeqTitles.length>2&&RC("button",{type:"button",style:{background:"transparent",border:"1px solid rgba(248,81,73,.4)",borderRadius:4,color:"#f85149",cursor:"pointer",fontSize:14,fontWeight:700,padding:"4px 8px",flexShrink:0},onClick:()=>setAltSeqTitles(altSeqTitles.filter((_,j)=>j!==i))},"×"))),
           RC("button",{type:"button",style:{...tb(false,false),marginTop:4},onClick:()=>setAltSeqTitles([...altSeqTitles,""])},"+ Add Step")),
         (repeat==="daily"||repeat==="weekly"||repeat==="monthly"||repeat==="annually"||repeat==="altSeq")&&RC(DatePicker,{value:endDate,onChange:setEndDate,label:"Until (max "+thRepeatMaxYears(repeat)+(thRepeatMaxYears(repeat)===1?" year":" years")+")",maxYears:thRepeatMaxYears(repeat)})),
+      RC("div",{style:{marginBottom:12,borderTop:"1px solid "+BD,paddingTop:12,marginTop:4}},
+        RC("label",{style:{...lbl,display:"flex",alignItems:"center",gap:7,cursor:"pointer",marginBottom:aiPrep?8:0}},
+          RC("input",{type:"checkbox",checked:aiPrep,onChange:e=>setAiPrep(e.target.checked),style:{accentColor:A,margin:0,cursor:"pointer"}}),
+          RC("span",{style:{width:11,height:11,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.sparkle}}),"AI prep"),
+        aiPrep&&RC(React.Fragment,null,
+          RC("div",{style:{fontSize:11,color:TXD,marginBottom:8,lineHeight:1.5}},"An AI gets this ready ahead of time: a draft, the sites and apps you’ll need, and a prompt for your assistant. Press ✨ on the task to open it all. Nothing is ever sent for you."),
+          RC("textarea",{style:{...mi,minHeight:64,resize:"vertical",fontWeight:500,fontSize:13,lineHeight:1.45},value:aiNote,onChange:e=>setAiNote(e.target.value),placeholder:"Details for the AI: who it’s for, email address, what to say, links…"}),
+          RC("div",{style:{display:"flex",gap:6,marginTop:8,flexWrap:"wrap",alignItems:"center"}},
+            RC("span",{style:{fontSize:11,color:TXD,fontWeight:700,marginRight:2}},"Assistant"),
+            [["","Default"],["perplexity","Perplexity"],["chatgpt","ChatGPT"],["claude","Claude"]].map(([v,l])=>RC("button",{key:v||"def",type:"button",onClick:()=>setAiSite(v),style:tb(aiSite===v)},l))))),
       RC("div",{style:{marginBottom:14,borderTop:"1px solid "+BD,paddingTop:14,marginTop:4}},
         RC("div",{style:{fontSize:10,color:TXD,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:6,display:"flex",alignItems:"center",gap:5}},RC("span",{style:{width:11,height:11,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bell}}),"Remind me"),
         RC("div",{style:{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}},
@@ -15675,6 +15733,64 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
       RC("div",{style:{display:"flex",marginTop:16,gap:10}},
         RC("button",{style:{background:A,color:BG,border:"none",borderRadius:5,padding:"9px 26px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1},onClick:save},"Save"),
         RC("button",{style:{background:"transparent",border:"1px solid "+BDL,borderRadius:5,padding:"9px 20px",fontSize:13,fontWeight:600,color:TXD,cursor:"pointer",fontFamily:"inherit"},onClick:onClose},"Cancel")))));}
+
+// ─── AI TASK PREP PANEL (Veda) ───────────────────────────────────────────────
+// What ✨ opens next to the assistant tab: the kit the worker built ahead of
+// time (see the VD-PREP block). Everything here is a copy button or a link she
+// clicks herself; nothing is sent on her behalf.
+function VdPrepPanel({item,dateKey,onClose}){
+  const[copied,setCopied]=useState("");
+  const[defSite,setDefSite]=useState(()=>window._vdPrepDefaultSite?window._vdPrepDefaultSite():"perplexity");
+  useScrollLock(!!item);
+  if(!item)return null;
+  const got=window._vdPrepKitFor?window._vdPrepKitFor(item,dateKey):null;
+  const kit=got&&got.kit;const fresh=!!(got&&got.fresh);
+  const busy=!!(window._vdPrepBusy&&window._vdPrepBusy[item.id]);
+  const sites=window._vdPrepSites||{};
+  const site=window._vdPrepSite(item);const siteName=(sites[site]||{}).name||"Perplexity";
+  const prompt=(kit&&fresh&&kit.prompt)||window._vdPrepFallbackPrompt(item,dateKey);
+  const appName={};(window._vdPcApps||[]).forEach(a=>{if(a&&a.id)appName[a.id]=a.name;});
+  const copy=(key,txt)=>{try{navigator.clipboard.writeText(String(txt||""));setCopied(key);setTimeout(()=>setCopied(c=>c===key?"":c),1400);}catch(e){}};
+  const lbl={fontSize:10,color:TXD,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:6};
+  const box={background:BG,border:"1px solid "+BDL,borderRadius:6,padding:"10px 12px",fontSize:13,color:TX,lineHeight:1.5};
+  const btn=(primary)=>({fontSize:11,fontWeight:700,padding:"7px 14px",borderRadius:5,cursor:"pointer",fontFamily:"inherit",background:primary?A:"transparent",color:primary?BG:TXD,border:"1px solid "+(primary?A:BDL),whiteSpace:"nowrap"});
+  const copyBtn=(key,txt)=>RC("button",{type:"button",style:{...btn(false),padding:"3px 9px",fontSize:10},onClick:()=>copy(key,txt)},copied===key?"Copied":"Copy");
+  const d=kit&&fresh?kit.draft:null;
+  const status=busy?"Preparing… this takes about 15 seconds."
+    :!kit?"Not prepared yet."
+    :!fresh?"The task changed since this was prepared. Press Re-prep for a new kit."
+    :kit.helpful===false?"Nothing much to prepare for this one.":"";
+  return RC("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000},onClick:onClose},
+    RC("div",{style:{background:S1,border:"1px solid "+BDL,borderRadius:10,padding:22,width:520,maxWidth:"94vw",maxHeight:"90vh",overflowY:"auto",overscrollBehavior:"contain",display:"flex",flexDirection:"column",gap:14},onClick:e=>e.stopPropagation()},
+      RC("div",{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12}},
+        RC("div",{style:{minWidth:0}},
+          RC("div",{style:{fontSize:12,fontWeight:700,color:A,textTransform:"uppercase",letterSpacing:1,display:"flex",alignItems:"center",gap:6}},RC("span",{style:{width:13,height:13,display:"inline-flex"},dangerouslySetInnerHTML:{__html:TNI.sparkle}}),"AI prep"),
+          RC("div",{style:{fontSize:16,fontWeight:700,color:TX,marginTop:4,wordBreak:"break-word"}},item.title)),
+        RC("button",{type:"button",title:"Close",onClick:onClose,style:{...btn(false),padding:"4px 10px"}},"Close")),
+      status&&RC("div",{style:{fontSize:12,color:busy?A:TXD,fontWeight:600}},status),
+      kit&&fresh&&kit.summary&&RC("div",{style:{fontSize:13,color:TX,lineHeight:1.5}},kit.summary),
+      RC("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
+        RC("button",{type:"button",style:btn(true),onClick:()=>{try{window.open(window._vdPrepAssistantUrl(site,prompt),"_blank","noopener");}catch(e){}}},"Open in "+siteName),
+        RC("button",{type:"button",style:btn(false),onClick:()=>copy("prompt",prompt)},copied==="prompt"?"Copied":"Copy prompt"),
+        RC("button",{type:"button",style:{...btn(false),opacity:busy?.5:1},disabled:busy,onClick:()=>window._vdPrepRequest(item,dateKey)},kit?"Re-prep":"Prepare now")),
+      d&&d.kind!=="none"&&d.body&&RC("div",null,
+        RC("div",{style:lbl},d.kind==="email"?"Email draft":d.kind==="message"?"Message draft":"Draft"),
+        d.kind==="email"&&(d.to||d.subject)&&RC("div",{style:{display:"flex",flexDirection:"column",gap:6,marginBottom:8}},
+          d.to&&RC("div",{style:{display:"flex",alignItems:"center",gap:8,fontSize:12,color:TXD}},RC("span",{style:{fontWeight:700,minWidth:52}},"To"),RC("span",{style:{color:TX,flex:1,minWidth:0,wordBreak:"break-all"}},d.to),copyBtn("to",d.to)),
+          d.subject&&RC("div",{style:{display:"flex",alignItems:"center",gap:8,fontSize:12,color:TXD}},RC("span",{style:{fontWeight:700,minWidth:52}},"Subject"),RC("span",{style:{color:TX,flex:1,minWidth:0}},d.subject),copyBtn("subject",d.subject))),
+        RC("div",{style:{...box,whiteSpace:"pre-wrap",maxHeight:260,overflowY:"auto"}},d.body),
+        RC("div",{style:{marginTop:6}},copyBtn("body",d.body))),
+      kit&&fresh&&kit.sites&&kit.sites.length>0&&RC("div",null,
+        RC("div",{style:lbl},"Sites"),
+        RC("div",{style:{display:"flex",flexDirection:"column",gap:6}},kit.sites.map((s,i)=>RC("a",{key:i,href:s.url,target:"_blank",rel:"noopener noreferrer",style:{...box,padding:"8px 12px",color:A,fontWeight:700,textDecoration:"none",display:"block",wordBreak:"break-word"}},s.label)))),
+      kit&&fresh&&kit.apps&&kit.apps.length>0&&RC("div",null,
+        RC("div",{style:lbl},"Apps on your PC"),
+        RC("div",{style:{display:"flex",gap:6,flexWrap:"wrap"}},kit.apps.map(id=>RC("span",{key:id,style:{...box,padding:"5px 10px",fontSize:12,fontWeight:700}},appName[id]||id))),
+        RC("div",{style:{fontSize:11,color:TXM,marginTop:6}},window._vdPrepShieldReady&&window._vdPrepShieldReady()?"Shield opens these with the sites when you press ✨.":"These open through Shield on your PC.")),
+      RC("div",{style:{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",borderTop:"1px solid "+BD,paddingTop:12}},
+        RC("span",{style:{fontSize:11,color:TXD,fontWeight:700}},"Default assistant:"),
+        Object.keys(sites).map(k=>RC("button",{key:k,type:"button",onClick:()=>{window._vdPrepSetDefaultSite(k);setDefSite(k);},style:{...btn(defSite===k),padding:"4px 10px",fontSize:10}},sites[k].name)))));
+}
 
 function playAlarm(){const ctx=new(window.AudioContext||window.webkitAudioContext)();if(ctx.state==="suspended")ctx.resume();const notes=[523.25,659.25,783.99,659.25,783.99,1046.5,783.99,1046.5,783.99,659.25];const dur=0.45,gap=0.05;notes.forEach((freq,i)=>{const osc=ctx.createOscillator();const gain=ctx.createGain();const t=ctx.currentTime+i*(dur+gap);osc.type="sine";osc.frequency.setValueAtTime(freq,t);const osc2=ctx.createOscillator();osc2.type="triangle";osc2.frequency.setValueAtTime(freq*2,t);const g2=ctx.createGain();g2.gain.setValueAtTime(0.08,t);osc2.connect(g2);g2.connect(ctx.destination);osc2.start(t);osc2.stop(t+dur);gain.gain.setValueAtTime(0,t);gain.gain.linearRampToValueAtTime(0.18,t+0.05);gain.gain.setValueAtTime(0.18,t+dur*0.6);gain.gain.linearRampToValueAtTime(0,t+dur);osc.connect(gain);gain.connect(ctx.destination);osc.start(t);osc.stop(t+dur);});setTimeout(()=>ctx.close(),6000);}
 const workerBlob=new Blob([`let iv=null,end=0;onmessage=function(e){if(e.data.cmd==="start"){clearInterval(iv);end=Date.now()+e.data.secs*1000;iv=setInterval(function(){const rem=Math.round((end-Date.now())/1000);if(rem<=0){clearInterval(iv);iv=null;postMessage({type:"done"});}else postMessage({type:"tick",left:rem});},250);}else if(e.data.cmd==="stop"){clearInterval(iv);iv=null;}};`],{type:"application/javascript"});
@@ -16060,6 +16176,22 @@ function App(){
   // Wrapped setters — update ref + push to Firebase synchronously, exactly like TaskHub
   const data=dataState;
   const habits=habitsState;
+  // ── AI task prep (see the VD-PREP block) ──────────────────────────────────
+  // Kits live in window._vdPrepKits (fed by the veda_taskprep listener); this
+  // tick only makes rows and the panel repaint when one lands or starts.
+  const[vdPrepTick,setVdPrepTick]=useState(0);
+  const[vdPrepOpen,setVdPrepOpen]=useState(null);   // {id,dateKey} | null
+  useEffect(()=>{const u=()=>setVdPrepTick(x=>x+1);const o=e=>setVdPrepOpen(e.detail||null);
+    window.addEventListener("vd-prep-update",u);window.addEventListener("vd-prep-open",o);
+    return()=>{window.removeEventListener("vd-prep-update",u);window.removeEventListener("vd-prep-open",o);};},[]);
+  // Background prep: debounced after any change, plus every 30 min so the
+  // next day's tasks get prepped after midnight on a page left open.
+  useEffect(()=>{
+    const go=()=>{if(!window._vdPrepRun)return;const d=new Date();const k=x=>dkey(x.getFullYear(),x.getMonth(),x.getDate());
+      const t1=new Date(d);t1.setDate(d.getDate()+1);const y1=new Date(d);y1.setDate(d.getDate()-1);
+      window._vdPrepRun(vdRef.current.data,k(d),k(t1),k(y1));};
+    const tm=setTimeout(go,3000);const iv=setInterval(go,30*60*1000);
+    return()=>{clearTimeout(tm);clearInterval(iv);};},[data,vdPrepTick]);
   const hc=hcState;
   const mg=mgState;
   const mgMonthly=mgMonthlyState;
@@ -17002,6 +17134,10 @@ function App(){
   // aligned rather than centred, which is what read as "glitched". These give the
   // icon a real square box, centre it on both axes, and let the SVG fill it.
   const vdIcoBtn=(col)=>({background:"transparent",border:"none",color:col||TXD,cursor:"pointer",padding:0,width:22,height:22,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0,lineHeight:0,fontFamily:"inherit",borderRadius:5,transition:"color .15s, background .15s"});
+  const vdPrepBtn=(t,k)=>{const g=window._vdPrepKitFor?window._vdPrepKitFor(t,k):null;const ready=!!(g&&g.fresh);
+    const busy=!!(window._vdPrepBusy&&window._vdPrepBusy[t.id]);const nm=((window._vdPrepSites||{})[window._vdPrepSite?window._vdPrepSite(t):""]||{}).name||"your assistant";
+    return RC("button",{type:"button",title:busy?"AI prep: preparing…":ready?"AI prep ready — opens "+nm+" with everything prepared":"AI prep: opens "+nm+" (kit not ready yet)",
+      style:{...vdIcoBtn(A),opacity:ready?1:.5},onClick:ev=>{ev.stopPropagation();window._vdPrepLaunch&&window._vdPrepLaunch(t,k);}},vdIco(TNI.sparkle,12));};
   const vdIco=(svg,px)=>RC("span",{style:{width:px||15,height:px||15,fontSize:px||15,lineHeight:0,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0},dangerouslySetInnerHTML:{__html:svg}});
   // Hairline pair bracketing the current weekday's column in Daily Habits, from
   // the header through the last habit row — a quiet "you are here" gutter.
@@ -17190,6 +17326,7 @@ function App(){
                   t.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85*dimA,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},RC("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}}),"\u202f"+fmtNotif(t.notifyAt))),
                 RC("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?TXM:dayTX,textDecoration:t.done?"line-through":"none",lineHeight:1.4,...vdTitleFit}},t.title)),
                 !edit&&sosResFor(t)&&RC("button",{type:"button",title:sosResTitle(sosResFor(t)),style:vdIcoBtn(sosPastel(t._sosClassColor)||A),onClick:ev3=>{ev3.stopPropagation();window._sosLaunchClassClick&&window._sosLaunchClassClick(t._sosClassId,t._sosClassName);}},vdIco(TNI.play,12)),
+                !edit&&t.aiPrep&&!t._sosId&&vdPrepBtn(t,k),
                 edit&&RC("button",{type:"button",title:"Edit",style:vdIcoBtn(TXD),onClick:()=>{setEi(t);setMdt(k);setMo(true);}},vdIco(TNI.pencil)),
                 edit&&RC("button",{type:"button",title:"Delete",style:vdIcoBtn("#f85149"),onClick:()=>del(k,t.id)},vdIco(TNI.x)))),
               ev.map(e=>RC("div",{key:e.id,...taskRowP(e.id),...(edit?taskTouchH(k,e.id):{}),draggable:edit,onDragStart:edit?ev2=>vOnDragStartTask(ev2,k,e.id):null,onDragOver:edit?ev2=>vOnDragOverTask(ev2,e.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?ev2=>vOnDropTask(ev2,k,e.id):null,style:vdndRowStyle(e.id,{...vdEventCard(e.category,vdEvtPassed(e,k)),...vdSosSpine(e,vdEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:7,marginBottom:4,opacity:vdEvtPassed(e,k)?0.5:dimA,cursor:edit?"grab":"default"})},
@@ -17202,6 +17339,7 @@ function App(){
                   !edit&&e.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},RC("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}})," "+fmtNotif(e.notifyAt)))),
                 RC("span",{style:{fontSize:14,fontWeight:600,color:"#C3B2D0",lineHeight:1.4,...vdTitleFit}},e.title)),
                 !edit&&sosResFor(e)&&RC("button",{type:"button",title:sosResTitle(sosResFor(e)),style:vdIcoBtn(sosPastel(e._sosClassColor)||A),onClick:ev3=>{ev3.stopPropagation();window._sosLaunchClassClick&&window._sosLaunchClassClick(e._sosClassId,e._sosClassName);}},vdIco(TNI.play,12)),
+                !edit&&e.aiPrep&&!e._sosId&&vdPrepBtn(e,k),
                 edit&&RC("button",{type:"button",title:"Edit",style:vdIcoBtn(TXD),onClick:()=>{setEi(e);setMdt(k);setMo(true);}},vdIco(TNI.pencil)),
                 edit&&RC("button",{type:"button",title:"Delete",style:vdIcoBtn("#f85149"),onClick:()=>del(k,e.id)},vdIco(TNI.x)))),
               !it.length&&!(mcByDay[k]||[]).length&&!(crByDay[k]||[]).length&&!edit&&RC("div",{style:{fontSize:11,fontWeight:600,color:TXM,textAlign:"center",padding:"24px 0"}},"—"),
@@ -17247,6 +17385,7 @@ function App(){
                   t.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85*dimA,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},RC("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}}),"\u202f"+fmtNotif(t.notifyAt))),
                 RC("span",{style:{fontSize:12,fontWeight:t.done?500:700,color:t.done?TXM:dayTX,textDecoration:t.done?"line-through":"none",lineHeight:1.35,...vdTitleFit}},t.title)),
                 !edit&&sosResFor(t)&&RC("button",{type:"button",title:sosResTitle(sosResFor(t)),style:vdIcoBtn(sosPastel(t._sosClassColor)||A),onClick:ev3=>{ev3.stopPropagation();window._sosLaunchClassClick&&window._sosLaunchClassClick(t._sosClassId,t._sosClassName);}},vdIco(TNI.play,12)),
+                !edit&&t.aiPrep&&!t._sosId&&vdPrepBtn(t,k),
                 edit&&RC("button",{type:"button",title:"Edit",style:vdIcoBtn(TXD),onClick:()=>{setEi(t);setMdt(k);setMo(true);}},vdIco(TNI.pencil)),
                 edit&&RC("button",{type:"button",title:"Delete",style:vdIcoBtn("#f85149"),onClick:()=>del(k,t.id)},vdIco(TNI.x)))),
               ev.map(e=>RC("div",{key:e.id,...taskRowP(e.id),...(edit?taskTouchH(k,e.id):{}),draggable:edit,onDragStart:edit?ev2=>vOnDragStartTask(ev2,k,e.id):null,onDragOver:edit?ev2=>vOnDragOverTask(ev2,e.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?ev2=>vOnDropTask(ev2,k,e.id):null,style:vdndRowStyle(e.id,{...vdEventCard(e.category,vdEvtPassed(e,k)),...vdSosSpine(e,vdEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:6,marginBottom:4,opacity:vdEvtPassed(e,k)?0.5:dimA,cursor:edit?"grab":"default"})},
@@ -17259,6 +17398,7 @@ function App(){
                   !edit&&e.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},RC("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}})," "+fmtNotif(e.notifyAt)))),
                 RC("span",{style:{fontSize:12,fontWeight:600,color:"#C3B2D0",lineHeight:1.35,...vdTitleFit}},e.title)),
                 !edit&&sosResFor(e)&&RC("button",{type:"button",title:sosResTitle(sosResFor(e)),style:vdIcoBtn(sosPastel(e._sosClassColor)||A),onClick:ev3=>{ev3.stopPropagation();window._sosLaunchClassClick&&window._sosLaunchClassClick(e._sosClassId,e._sosClassName);}},vdIco(TNI.play,12)),
+                !edit&&e.aiPrep&&!e._sosId&&vdPrepBtn(e,k),
                 edit&&RC("button",{type:"button",title:"Edit",style:vdIcoBtn(TXD),onClick:()=>{setEi(e);setMdt(k);setMo(true);}},vdIco(TNI.pencil)),
                 edit&&RC("button",{type:"button",title:"Delete",style:vdIcoBtn("#f85149"),onClick:()=>del(k,e.id)},vdIco(TNI.x)))),
               !it.length&&!(mcByDay[k]||[]).length&&!(crByDay[k]||[]).length&&!edit&&RC("div",{style:{fontSize:11,fontWeight:600,color:TXM,textAlign:"center",padding:"30px 0"}},"—"),
@@ -17326,7 +17466,7 @@ function App(){
         (()=>{const lst=goalTab==="short"?mgMonthly:mg;const dn=lst.filter(g=>g.done).length,pct=lst.length?Math.round(dn/lst.length*100):0;return lst.length>0&&RC("div",{style:{marginTop:8,flexShrink:0}},RC("div",{style:{fontSize:11,fontWeight:700,color:TXD,marginBottom:3}},dn+"/"+lst.length+" · "+pct+"%"),RC("div",{style:{width:"100%",height:4,background:BD,borderRadius:2,overflow:"hidden"}},RC("div",{style:{width:pct+"%",height:"100%",background:pct===100?GRN:"linear-gradient(90deg,"+AD+","+AL+")",borderRadius:2,transition:"width .35s"}})));})()
         )),
 
-  ),RC(Modal,{open:mo,onClose:()=>{setMo(false);setEi(null);},onSave:savItem,initial:ei,startDateKey:mdt,dateLabel:mdt?(()=>{const p=mdt.split("-");return MOS[parseInt(p[1])-1]+" "+parseInt(p[2]);})():""}),
+  ),vdPrepOpen&&RC(VdPrepPanel,{item:(data[vdPrepOpen.dateKey]||[]).find(x=>x.id===vdPrepOpen.id),dateKey:vdPrepOpen.dateKey,onClose:()=>setVdPrepOpen(null)}),RC(Modal,{open:mo,onClose:()=>{setMo(false);setEi(null);},onSave:savItem,initial:ei,startDateKey:mdt,dateLabel:mdt?(()=>{const p=mdt.split("-");return MOS[parseInt(p[1])-1]+" "+parseInt(p[2]);})():""}),
     RC(ConfirmDeleteModal,{open:!!delConfirm,onClose:()=>setDelConfirm(null),onConfirm:delAllFuture,onThis:delThisOnly,isAltSeq:!!(delConfirm?.item?.altSeqId)}),
     RC(VdConfirmEditTitleModal,{open:!!titleEditConfirm,onClose:()=>setTitleEditConfirm(null),onThisOnly:titleEditThisOnly,onAllFuture:titleEditAllFuture,isAltSeq:!!(titleEditConfirm?.isAltSeq)}),
     // Lifted clear of the backup chip on a phone -- see the same note on Tony's
@@ -43104,6 +43244,199 @@ window._sosResUseBrowser = function(on){
   return on === false ? 'shield' : 'browser';
 };
 </script>
+
+<!-- ── AI task prep (Veda's TaskHub only) ─────────────────────────────────────
+     Veda flags a task "AI prep" in the editor. Ahead of time the personal-ai
+     worker (/taskhub/prep) turns it into a KIT — a ready prompt for her chosen
+     assistant, a first draft, sites, PC apps — stored in dashboards/veda_taskprep
+     (NOT in td_data: her localStorage is near its quota, and a kit is a few KB).
+     The ✨ button opens the assistant with the prompt typed in and shows the kit.
+
+     PREPARE, NEVER ACT. Nothing here sends anything; the Gmail link is a compose
+     window she presses Send in herself.
+
+     Plain script (no JSX, no module) so tests/taskprep-page.test.js can lift the
+     block out between the markers and run it in a sandbox.
+     VD-PREP-BEGIN ── -->
+<script>
+(function(){
+  var WORKER = 'https://personal-ai.av1.workers.dev/taskhub/prep';
+  var SITES = {
+    perplexity: { name: 'Perplexity', url: function(q){ return 'https://www.perplexity.ai/search?q=' + encodeURIComponent(q); } },
+    chatgpt:    { name: 'ChatGPT',    url: function(q){ return 'https://chatgpt.com/?q=' + encodeURIComponent(q); } },
+    claude:     { name: 'Claude',     url: function(q){ return 'https://claude.ai/new?q=' + encodeURIComponent(q); } }
+  };
+  // The prompt rides in a query string. Past ~6k characters some of these sites
+  // drop the request outright, so a long one is cut rather than lost.
+  var URL_PROMPT_MAX = 6000;
+  var RETRY_AFTER_MS = 10 * 60 * 1000;   // a failed prep is not retried sooner
+
+  window._vdPrepSites = SITES;
+  window._vdPrepKits = window._vdPrepKits || {};
+  window._vdPrepBusy = window._vdPrepBusy || {};     // taskId -> true while in flight
+  var failedAt = {};                                 // taskId|sig -> ms
+
+  window._vdPrepDefaultSite = function(){
+    var s = null;
+    try { s = localStorage.getItem('vdAiSite'); } catch(e){}
+    return SITES[s] ? s : 'perplexity';
+  };
+  window._vdPrepSetDefaultSite = function(s){
+    try { if (SITES[s]) localStorage.setItem('vdAiSite', s); } catch(e){}
+  };
+  window._vdPrepSite = function(item){
+    return (item && SITES[item.aiSite]) ? item.aiSite : window._vdPrepDefaultSite();
+  };
+
+  // Everything the kit was built from. A kit whose sig no longer matches is
+  // stale (title, note, date, time or assistant changed) and is rebuilt.
+  window._vdPrepSig = function(item, dateKey){
+    var s = [item.title || '', dateKey || '', item.time || '', item.type || 'task',
+             item.aiNote || '', window._vdPrepSite(item)].join('\u0001');
+    var h = 5381;
+    for (var i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+    return h.toString(36);
+  };
+
+  window._vdPrepKitFor = function(item, dateKey){
+    var k = item && window._vdPrepKits[item.id];
+    if (!k) return null;
+    return { kit: k, fresh: k.sig === window._vdPrepSig(item, dateKey) };
+  };
+
+  // Used when the kit is not ready yet, so the button still does something useful.
+  window._vdPrepFallbackPrompt = function(item, dateKey){
+    var lines = ['I need help getting this task done: "' + (item.title || '') + '"'
+      + (dateKey ? ' (due ' + dateKey + (item.time ? ' at ' + item.time : '') + ')' : '') + '.'];
+    if (item.aiNote) lines.push('Details: ' + item.aiNote);
+    lines.push('Prepare everything you can for me: draft any email or message in full, '
+      + 'list the exact steps left, and link the websites I will need.');
+    return lines.join('\n\n');
+  };
+
+  window._vdPrepAssistantUrl = function(site, prompt){
+    var s = SITES[site] || SITES.perplexity;
+    return s.url(String(prompt || '').slice(0, URL_PROMPT_MAX));
+  };
+
+  // Shield has the kit's apps and sites only once it has published her app list
+  // (Shield phase 3). Before that a shieldopen:kit/ link would resolve to nothing
+  // and just pop Shield to the front, so it is not sent at all.
+  window._vdPrepShieldReady = function(){
+    try {
+      if (!/Windows/i.test(navigator.userAgent || '')) return false;
+      if (localStorage.getItem('sosResLaunchMode') === 'browser') return false;
+    } catch(e){ return false; }
+    return !!(window._vdPcAppsAt);
+  };
+
+  window._vdPrepRequest = function(item, dateKey){
+    if (!item || !item.id || window._vdPrepBusy[item.id]) return Promise.resolve(null);
+    if (!/^[A-Za-z0-9_-]+$/.test(item.id)) return Promise.resolve(null);   // used as a field path
+    var sig = window._vdPrepSig(item, dateKey);
+    var site = window._vdPrepSite(item);
+    window._vdPrepBusy[item.id] = true;
+    window.dispatchEvent(new CustomEvent('vd-prep-update'));
+    var now = new Date();
+    var body = {
+      profile: 'veda',
+      task: { title: item.title, date: dateKey, time: item.time || '', type: item.type || 'task', category: item.category || '' },
+      note: item.aiNote || '',
+      site: site,
+      today: now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0'),
+      weekday: now.toLocaleDateString('en-US', { weekday: 'long' }),
+      apps: Array.isArray(window._vdPcApps) ? window._vdPcApps : []
+    };
+    return fetch(WORKER, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if (!j || !j.ok || !j.kit) throw new Error((j && j.error) || 'prep failed');
+        var kit = Object.assign({}, j.kit, { sig: sig, site: site, date: dateKey, at: Date.now() });
+        window._vdPrepKits[item.id] = kit;   // shown at once; the listener confirms
+        if (window._fbSaveVdKit) window._fbSaveVdKit(item.id, kit);
+        return kit;
+      })
+      .catch(function(e){
+        failedAt[item.id + '|' + sig] = Date.now();
+        console.warn('[AI prep]', item.title, e && e.message);
+        return null;
+      })
+      .then(function(kit){
+        delete window._vdPrepBusy[item.id];
+        window.dispatchEvent(new CustomEvent('vd-prep-update'));
+        return kit;
+      });
+  };
+
+  // Which flagged tasks need a kit now: today's and tomorrow's, unfinished,
+  // with no kit or a stale one, and not recently failed. Pure, for the tests.
+  window._vdPrepDue = function(data, todayKey, tomorrowKey, kits, nowMs){
+    var out = [];
+    [todayKey, tomorrowKey].forEach(function(k){
+      ((data && data[k]) || []).forEach(function(t){
+        if (!t || !t.aiPrep || t.done || t._sosId || t._planId) return;
+        var sig = window._vdPrepSig(t, k);
+        var have = kits[t.id];
+        if (have && have.sig === sig) return;
+        var f = failedAt[t.id + '|' + sig];
+        if (f && nowMs - f < RETRY_AFTER_MS) return;
+        out.push({ item: t, dateKey: k });
+      });
+    });
+    return out;
+  };
+
+  // Kits nobody can use any more: the task is gone, unflagged, or its day is
+  // more than a day past. Pure, for the tests.
+  window._vdPrepStale = function(data, kits, yesterdayKey){
+    var live = {};
+    Object.keys(data || {}).forEach(function(k){
+      if (k < yesterdayKey) return;
+      (data[k] || []).forEach(function(t){ if (t && t.aiPrep) live[t.id] = true; });
+    });
+    return Object.keys(kits || {}).filter(function(id){ return !live[id]; });
+  };
+
+  var running = false;
+  window._vdPrepRun = function(data, todayKey, tomorrowKey, yesterdayKey){
+    if (!window._vdCloudLoaded || !window._vdPrepKitsLoaded) return;
+    var stale = window._vdPrepStale(data, window._vdPrepKits, yesterdayKey);
+    if (stale.length && window._fbDropVdKits) {
+      stale.forEach(function(id){ delete window._vdPrepKits[id]; });
+      window._fbDropVdKits(stale);
+    }
+    if (running) return;
+    var due = window._vdPrepDue(data, todayKey, tomorrowKey, window._vdPrepKits, Date.now());
+    if (!due.length) return;
+    running = true;
+    // One at a time: these run on a free-tier key, and nobody is waiting on them.
+    var next = function(i){
+      if (i >= due.length) { running = false; return; }
+      window._vdPrepRequest(due[i].item, due[i].dateKey).then(function(){ next(i + 1); });
+    };
+    next(0);
+  };
+
+  // The ✨ click. ORDER MATTERS: the assistant tab is opened first, because a
+  // click buys exactly one new tab (see _sosLaunchClass) and the protocol
+  // navigation after it can end the gesture.
+  window._vdPrepLaunch = function(item, dateKey){
+    var got = window._vdPrepKitFor(item, dateKey);
+    var kit = got && got.kit;
+    var site = window._vdPrepSite(item);
+    // A stale kit was built for an older title or note, so its prompt is wrong now.
+    var prompt = (kit && got.fresh && kit.prompt) || window._vdPrepFallbackPrompt(item, dateKey);
+    try { window.open(window._vdPrepAssistantUrl(site, prompt), '_blank', 'noopener'); } catch(e){}
+    if (kit && got.fresh && ((kit.sites && kit.sites.length) || (kit.apps && kit.apps.length))
+        && window._vdPrepShieldReady()) {
+      try { location.href = 'shieldopen:kit/' + encodeURIComponent(item.id); } catch(e){}
+    }
+    if (!got || !got.fresh) window._vdPrepRequest(item, dateKey);
+    window.dispatchEvent(new CustomEvent('vd-prep-open', { detail: { id: item.id, dateKey: dateKey } }));
+  };
+})();
+</script>
+<!-- VD-PREP-END -->
 
 <!-- ── Where a built-in program opens ─────────────────────────────────────────
      Settings ▸ External links lets these URLs be edited now, so each opener asks

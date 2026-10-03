@@ -1579,6 +1579,7 @@ function buildPrepPrompt({ task, note, site, today, weekday, apps }) {
     `You PREPARE only. Never claim anything was sent, booked or submitted.`,
     ``,
     `TODAY: ${today}${weekday ? ' (' + weekday + ')' : ''}`,
+    `Anything dated before TODAY is in the past: never suggest deadlines, seasons or programs that have already passed.`,
     `TASK: ${task.title}`,
     task.date ? `TASK DATE: ${task.date}${task.time ? ' at ' + task.time : ''}` : '',
     task.type === 'event' ? `This is an EVENT (something happening at a time), not a to-do.` : '',
