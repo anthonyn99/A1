@@ -6,6 +6,7 @@
 //
 //   POST /list/parse      (was mylist-api /parse)     — voice/text → typed lists (shopping, packing, itinerary, to-do, reminders, other)
 //   POST /taskhub/parse   (was taskhub-voice /parse)  — voice/text → TaskHub actions
+//   POST /taskhub/prep    — one flagged task → AI prep kit (prompt, draft, sites, apps)
 //   POST /journal/format  (was journal-ai /format)    — messy text → clean HTML
 //   GET  /health          — status (which keys are configured)
 //
@@ -1478,6 +1479,220 @@ async function handleTaskhub(body, env) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// FEATURE 2b — TaskHub AI task prep  (POST /taskhub/prep)
+// ════════════════════════════════════════════════════════════════════════════
+// Veda flags a task ("AI prep") and TaskHub asks this route, ahead of time, for
+// a KIT: a ready-to-paste prompt for her chosen assistant, a first draft (the
+// email itself, a message, notes), the websites worth opening and the PC apps
+// worth opening. Clicking the task's ✨ button then opens the assistant with
+// the prompt typed in, and Shield opens the sites and apps.
+//
+// PREPARE, NEVER ACT: nothing here sends, books or submits anything. The Gmail
+// link is a compose window she still has to press Send in.
+//
+// Two things are enforced here rather than trusted to the model:
+//   · apps — only ids from the list the client sent (Shield's installed-app
+//     list). A made-up id would resolve to nothing on the PC at best.
+//   · sites — http(s) only. Shield opens these with the OS, so a file: or
+//     javascript: URL must never get through.
+// The Gmail compose link is BUILT here from the draft fields, never written by
+// the model — models mis-encode query strings, and a half-encoded body loses
+// everything after its first '&'.
+const PREP_SITES = { perplexity: 'Perplexity', chatgpt: 'ChatGPT', claude: 'Claude' };
+const PREP_DRAFT_KINDS = ['email', 'message', 'document', 'none'];
+
+const PREP_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    helpful: { type: 'BOOLEAN' },
+    summary: { type: 'STRING' },
+    prompt: { type: 'STRING' },
+    draft: {
+      type: 'OBJECT',
+      properties: {
+        kind: { type: 'STRING', enum: PREP_DRAFT_KINDS },
+        to: { type: 'STRING' },
+        subject: { type: 'STRING' },
+        body: { type: 'STRING' },
+      },
+      required: ['kind'],
+    },
+    sites: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: { label: { type: 'STRING' }, url: { type: 'STRING' } },
+        required: ['label', 'url'],
+      },
+    },
+    apps: { type: 'ARRAY', items: { type: 'STRING' } },
+  },
+  required: ['helpful', 'summary', 'prompt', 'draft', 'sites', 'apps'],
+};
+
+const PREP_MAX_APPS_IN = 400;   // names sent to the model
+const PREP_MAX_SITES = 4;
+const PREP_MAX_APPS = 3;
+const PREP_PROMPT_MAX = 6000;   // the prompt rides in a URL query string
+
+function prepCleanApps(list) {
+  if (!Array.isArray(list)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const a of list) {
+    if (!a || typeof a !== 'object') continue;
+    const id = String(a.id || '').trim();
+    const name = String(a.name || '').trim().slice(0, 80);
+    if (!id || !name || id.length > 64 || seen.has(id)) continue;
+    seen.add(id);
+    out.push({ id, name });
+    if (out.length >= PREP_MAX_APPS_IN) break;
+  }
+  return out;
+}
+
+function prepIsWebUrl(u) {
+  try {
+    const p = new URL(String(u));
+    return (p.protocol === 'https:' || p.protocol === 'http:') && !!p.hostname;
+  } catch (e) { return false; }
+}
+
+function prepGmailUrl(d) {
+  const q = ['view=cm', 'fs=1'];
+  if (d.to) q.push('to=' + encodeURIComponent(d.to));
+  if (d.subject) q.push('su=' + encodeURIComponent(d.subject));
+  if (d.body) q.push('body=' + encodeURIComponent(d.body));
+  return 'https://mail.google.com/mail/?' + q.join('&');
+}
+
+function buildPrepPrompt({ task, note, site, today, weekday, apps }) {
+  const siteName = PREP_SITES[site] || 'Perplexity';
+  const appLines = apps.length
+    ? apps.map(a => `${a.id}: ${a.name}`).join('\n')
+    : '(none reported — return an empty apps list)';
+  return [
+    `You are Veda's task-prep assistant. Veda is a university student. She flagged one task on her planner`,
+    `and wants everything ready before she starts it, so she does as little manual work as possible.`,
+    `You PREPARE only. Never claim anything was sent, booked or submitted.`,
+    ``,
+    `TODAY: ${today}${weekday ? ' (' + weekday + ')' : ''}`,
+    `TASK: ${task.title}`,
+    task.date ? `TASK DATE: ${task.date}${task.time ? ' at ' + task.time : ''}` : '',
+    task.type === 'event' ? `This is an EVENT (something happening at a time), not a to-do.` : '',
+    task.category ? `CATEGORY: ${task.category}` : '',
+    note ? `HER NOTES FOR YOU (trust these; they hold names, addresses, details): ${note}` : `HER NOTES: none.`,
+    ``,
+    `Return JSON with:`,
+    `- helpful: false ONLY if there is nothing to prepare (e.g. "gym", "laundry", "sleep early"). Then keep the rest minimal.`,
+    `- summary: 1-2 short sentences telling Veda what you prepared and what is left for her to do.`,
+    `- prompt: a complete, self-contained message Veda will paste into ${siteName}. Write it in her voice ("I need to…"),`,
+    `  include every detail from the task and notes, and ask for the concrete finished output (the full email, a`,
+    `  comparison with links, a step-by-step plan, etc.). ${siteName === 'Perplexity' ? 'Perplexity searches the web, so ask it to cite sources and current info where that helps.' : ''}`,
+    `  The assistant knows nothing else about her, so the prompt must stand alone. Max ~1200 words.`,
+    `- draft: your own best first draft of the deliverable, so she has something even before opening ${siteName}.`,
+    `  kind "email" when the task is to email/write to someone: fill to (only an address that appears in her notes,`,
+    `  else empty), subject, and body (complete, polite, signed "Veda", placeholders like [date] only where a fact`,
+    `  is genuinely unknown). kind "message" for a text/DM, "document" for notes/outlines/lists, "none" if no draft fits.`,
+    `- sites: up to ${PREP_MAX_SITES} websites she will actually need for THIS task (the real https URL of the`,
+    `  specific service: a booking page, a portal, a form, docs). Do NOT include Gmail (it is added automatically`,
+    `  for email drafts), the AI assistant itself, or generic search pages. Empty when none clearly fit.`,
+    `- apps: up to ${PREP_MAX_APPS} ids from the list below of apps installed on her PC, only ones she would`,
+    `  open for this task (Word for an essay, Excel for a budget, Zoom for a call, Spotify for nothing). Use the ids`,
+    `  exactly. Empty when none clearly fit.`,
+    ``,
+    `APPS ON HER PC (id: name):`,
+    appLines,
+  ].filter(l => l !== '').join('\n');
+}
+
+// Shape whatever the model returned into a kit the client can trust.
+function cleanPrepKit(v, apps) {
+  v = (v && typeof v === 'object') ? v : {};
+  const known = new Set(apps.map(a => a.id));
+  const d = (v.draft && typeof v.draft === 'object') ? v.draft : {};
+  const kind = PREP_DRAFT_KINDS.includes(d.kind) ? d.kind : 'none';
+  const draft = {
+    kind,
+    to: kind === 'email' ? String(d.to || '').trim().slice(0, 200) : '',
+    subject: kind === 'email' ? String(d.subject || '').trim().slice(0, 200) : '',
+    body: kind === 'none' ? '' : String(d.body || '').trim().slice(0, 8000),
+  };
+  if (draft.kind !== 'none' && !draft.body) draft.kind = 'none';
+  if (draft.to && !/^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/.test(draft.to)) draft.to = '';
+
+  const sites = [];
+  const seenUrl = new Set();
+  if (draft.kind === 'email') {
+    const g = prepGmailUrl(draft);
+    sites.push({ label: 'Gmail draft', url: g });
+    seenUrl.add(g);
+  }
+  (Array.isArray(v.sites) ? v.sites : []).forEach(s => {
+    if (!s || sites.length >= PREP_MAX_SITES + (draft.kind === 'email' ? 1 : 0)) return;
+    const url = String(s.url || '').trim();
+    if (!prepIsWebUrl(url) || seenUrl.has(url)) return;
+    if (/^https?:\/\/mail\.google\.com\//i.test(url)) return;   // ours is the only Gmail link
+    seenUrl.add(url);
+    sites.push({ label: String(s.label || '').trim().slice(0, 60) || new URL(url).hostname, url });
+  });
+
+  const outApps = [];
+  (Array.isArray(v.apps) ? v.apps : []).forEach(id => {
+    id = String(id || '').trim();
+    if (known.has(id) && !outApps.includes(id) && outApps.length < PREP_MAX_APPS) outApps.push(id);
+  });
+
+  return {
+    helpful: v.helpful !== false,
+    summary: String(v.summary || '').trim().slice(0, 600),
+    prompt: String(v.prompt || '').trim().slice(0, PREP_PROMPT_MAX),
+    draft,
+    sites,
+    apps: outApps,
+  };
+}
+
+async function handleTaskPrep(body, env) {
+  const profile = body.profile === 'veda' ? 'veda' : 'tony';
+  const t = (body.task && typeof body.task === 'object') ? body.task : {};
+  const task = {
+    title: String(t.title || '').trim().slice(0, 300),
+    date: String(t.date || '').slice(0, 10),
+    time: String(t.time || '').slice(0, 10),
+    type: t.type === 'event' ? 'event' : 'task',
+    category: String(t.category || '').slice(0, 30),
+  };
+  if (!task.title) return json({ ok: false, error: 'no task title' }, 400);
+  const note = String(body.note || '').trim().slice(0, 2000);
+  const site = PREP_SITES[body.site] ? body.site : 'perplexity';
+  const apps = prepCleanApps(body.apps);
+  const today = String(body.today || new Date().toISOString().slice(0, 10)).slice(0, 10);
+  const weekday = String(body.weekday || '').slice(0, 12);
+
+  const key = keyFor(env, profile);
+  if (!key) return json({ ok: false, error: `no Gemini key configured for ${profile}` }, 500);
+
+  const prompt = buildPrepPrompt({ task, note, site, today, weekday, apps });
+  try {
+    // Nobody is waiting on this (it runs ahead of time), so quality leads.
+    const { value, model, tried } = await runModelChain(TASKHUB_BULK_MODELS, key, {
+      prompt,
+      schema: PREP_SCHEMA,
+      maxOutputTokens: 8192,
+      feature: 'taskprep',
+      timeoutMs: 30000,
+      deadlineMs: 60000,
+      hedgeAfterMs: 15000,
+      validate: v => !!(v && typeof v.prompt === 'string' && v.prompt.trim()),
+    });
+    return json({ ok: true, kit: cleanPrepKit(value, apps), site, model, tried });
+  } catch (e) {
+    return json({ ok: false, error: (e && e.message) || 'all models failed', tried: (e && e.tried) || [] }, 502);
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // FEATURE 3 — Journal "AI Format"  (POST /journal/format)
 // ════════════════════════════════════════════════════════════════════════════
 // The editable default prompt (the front-end shows/stores its own copy per journal;
@@ -2917,8 +3132,8 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 19, // bump when verifying a deploy went live
-        features: ['list', 'recipe', 'taskhub', 'journal', 'watch', 'watch-ingest', 'cloud-search'],
+        version: 20, // bump when verifying a deploy went live
+        features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search'],
         models: MODELS,
         listModels: LIST_MODELS,
         listDictationModels: LIST_DICTATION_MODELS,
@@ -2945,6 +3160,7 @@ export default {
       if (path === '/list/parse')     return handleList(body, env);
       if (path === '/recipe/parse')   return handleRecipe(body, env);
       if (path === '/taskhub/parse')  return handleTaskhub(body, env);
+      if (path === '/taskhub/prep')   return handleTaskPrep(body, env);
       if (path === '/journal/format') return handleFormat(body, env);
       if (path === '/watch/check')    return handleWatchCheck(body, env);
       if (path === '/watch/resolve')  return handleWatchResolve(body, env);
