@@ -68,6 +68,9 @@
   --red:#d68a7c;         /* suite "bad"     */
   --amber:#e0b874; --gold:#e0b874; --blue:#8fa6d8;
   --shadow:rgba(0,0,0,.5);
+  /* dragsort.js / resizegrip.js read these. */
+  --ds-ac:var(--ac); --ds-s2:var(--s2); --ds-tx:var(--tx);
+  --ds-txd:var(--txd); --ds-txm:var(--txm); --ds-shadow:var(--shadow);
 
   /* RiftIQ's three faces, and the reason there are three: Manrope carries
      headings, Inter every piece of running UI, IBM Plex Mono every NUMBER.
@@ -459,41 +462,10 @@ input, select, textarea, button { font-variant-numeric: tabular-nums; }
                 padding: 2px 30px 0 2px; }
 .qbar-spacer { flex: 1; }
 
-/* The resize grip, in the box's actual bottom-right CORNER.
-   Taken out of the flow and pinned there, because that is where a resize
-   handle belongs and where a hand goes looking for one -- in the toolbar row
-   it was merely near the corner, one control among four.
-   Its bottom-right radius matches the box's own 16px minus the 4px inset, so
-   it nests into the curve instead of cutting across it.
-   32px square, not the ~14px of a native textarea corner, which on a phone is
-   a control you stab at rather than grab. `touch-action: none` is what makes
-   the drag work on a touch screen at all; without it the browser claims the
-   gesture as a page scroll. */
-/* A corner resize handle -- the diagonal hatch a textarea draws for itself,
-   because that is the shape people already read as "drag this corner".
-   The mark is small; the target is not. 38px of invisible hit area sits over
-   the corner so it is grabbed rather than aimed at, and on a phone, where no
-   browser offers a native handle at all, it is the only way to resize. */
-.qbar-grip {
-  position: absolute; right: 0; bottom: 0;
-  width: 38px; height: 38px; padding: 0;
-  background: transparent; border: 0; border-radius: 0 0 16px 0;
-  color: var(--txd); cursor: nwse-resize; touch-action: none;
-  display: block;
-  transition: color .15s;
-}
-.qbar-grip::before {
-  content: ""; position: absolute; right: 7px; bottom: 7px;
-  width: 11px; height: 11px;
-  /* Two diagonal strokes, bottom-right, like the native handle. */
-  background:
-    linear-gradient(135deg, transparent 45%, currentColor 45%, currentColor 55%, transparent 55%) no-repeat right bottom / 11px 11px,
-    linear-gradient(135deg, transparent 45%, currentColor 45%, currentColor 55%, transparent 55%) no-repeat right bottom / 6px 6px;
-}
-.qbar-grip:hover, .qbar-grip:focus-visible { color: var(--tx); }
-.qbar-grip.on { color: var(--ac); }
-.qbar-grip:active { color: var(--ac); }
-.qbar-grip:focus-visible { outline: 1px solid var(--ac); outline-offset: -4px; border-radius: 8px; }
+/* The resize grip (resizegrip.js, .a1-grip) sits in the box's actual
+   bottom-right CORNER: the box is its positioned frame and the toolbar
+   leaves the corner free. Its bottom-right radius nests into the box's. */
+.qbar .a1-grip, .bs-start .a1-grip { border-radius: 0 0 16px 0; }
 
 /* The caption under the units. --txd, not --txm: it is the dimmest text on
    the screen on purpose. */
@@ -691,14 +663,6 @@ input, select, textarea, button { font-variant-numeric: tabular-nums; }
    the row is rearrangeable at all; touch-action keeps the browser from
    claiming the gesture before the hold completes. */
 .chip { cursor: grab; touch-action: pan-x; -webkit-user-select: none; user-select: none; }
-.chips-drag .chip, .chip.dragged { cursor: grabbing; }
-.chip.dragged {
-  /* Lifted: brighter, slightly larger, and above its neighbours so it reads
-     as being carried rather than swapped. */
-  transform: scale(1.06);
-  box-shadow: 0 6px 18px var(--shadow);
-  position: relative; z-index: 3;
-}
 /* The chair's star sits INSIDE the chip, top-right, out of the way of both
    labels. Absolute so it cannot change what the flex row measures -- a chip
    that grew when it became the chair would shove the whole row sideways. */
@@ -4653,29 +4617,8 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .code-order-name { font-size: 12px; font-weight: 600; flex: 1 1 auto; min-width: 0; }
 .code-order-note { font-size: 10.5px; color: var(--txm); }
 .code-order-row { min-height: 44px; }
-/* ── drag to reorder (dragSort) ──────────────────────────────────────────
-   Only transforms move while dragging, so nothing is laid out per frame. */
-.dsort > * { transition: transform .17s cubic-bezier(.2, .8, .2, 1); }
-.dsort-on > .dsort-drag {
-  transition: none; position: relative; z-index: 5; cursor: grabbing;
-  box-shadow: 0 10px 28px -8px var(--shadow), 0 0 0 1px color-mix(in srgb, var(--ac) 55%, transparent);
-  background: var(--s2); border-radius: var(--r-btn);
-}
-.dsort > .dsort-settle { transition: transform .17s cubic-bezier(.2, .8, .2, 1), box-shadow .17s; }
-.dsort-on > :not(.dsort-drag) { pointer-events: none; }
-html.dsort-grabbing, html.dsort-grabbing * { cursor: grabbing !important; user-select: none !important; }
-.dsort-grip {
-  flex: 0 0 auto; width: 28px; height: 36px; margin: -4px 0 -4px -4px; padding: 0;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: none; border: 0; border-radius: 7px; color: var(--txm); fill: currentColor;
-  cursor: grab; touch-action: none;
-}
-.dsort-grip:hover, .dsort-grip:focus-visible { color: var(--tx); background: var(--s2); outline: none; }
-.dsort-grip:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--ac) 60%, transparent); }
-.dsort-grip[hidden] { display: inline-flex; visibility: hidden; }
-@media (prefers-reduced-motion: reduce) {
-  .dsort > *, .dsort > .dsort-settle { transition: none; }
-}
+/* ── drag to reorder (dragsort.js injects the rest) ──────────────────── */
+.dsort-drag:not(.chip) { border-radius: var(--r-btn); }
 .acc-sec {
   max-width: 720px; margin: 22px auto 9px; color: var(--txd);
   font-size: 11px; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase;
@@ -5239,7 +5182,7 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
 /* Our handle, not the browser's: two handles in one corner is one too many,
    and a phone has no native one. */
 .qedit-text { resize: none; }
-.qedit-textwrap .qbar-grip { border-radius: 0 0 12px 0; }
+.qedit-textwrap .a1-grip { border-radius: 0 0 12px 0; }
 .qedit.drag {
   border-color: var(--ac); border-style: dashed;
   background: color-mix(in srgb, var(--ac) 6%, var(--s1));
@@ -5816,6 +5759,10 @@ window._mailRelay = window._mailRelay || async function (res) {
   } catch (e) { return false; }
 };
 </script>
+<!-- MAGI's drag to reorder and corner resize grip, shared with every A1
+     program (theme overhaul phase 11): one copy of the code, at the root. -->
+<script src="dragsort.js"></script>
+<script src="resizegrip.js"></script>
 </head>
 <body>
 
@@ -6145,7 +6092,7 @@ window._mailRelay = window._mailRelay || async function (res) {
         <button class="btn active qbar-send" id="btnSend">Convene</button>
         <button type="button" class="btn qbar-queue" id="btnQueue"
                 title="Add this prompt to the queue instead of running it now">Queue</button>
-        <button type="button" class="qbar-grip" id="composerGrip"
+        <button type="button" class="a1-grip" id="composerGrip"
                 title="Drag to resize. Click to expand or compress."
                 aria-label="Resize the prompt box"></button>
       </div>
@@ -9993,93 +9940,28 @@ function cleanSynthError(raw) {
  *  could only ever grow, never shrink back after a clear. */
 function autosize() {
   const t = $("composer");
-  if (t.dataset.userH) return;   // sized by hand -- see attachGrip
+  if (t.dataset.userH) return;   // sized by hand -- see magiGrip
   t.style.height = "auto";
   t.style.height = `${t.scrollHeight}px`;
 }
 
-/* Resize by dragging the grip; expand or compress by clicking it.
- *
- *  Both, because they answer different needs with the same control: a click
- *  is "give me room" without aiming, and a drag is "give me exactly this
- *  much". A click on a corner you can only drag is a dead press, and a drag
- *  on a button that only toggles is a fight with the page.
- *
- *  While a height has been chosen by hand, autosize stops touching the box:
- *  a box you sized is a box you decided about, and having it spring back on
- *  the next keystroke is the thing that makes handles feel broken. Clicking
- *  the grip while it is tall hands it back to auto-grow.
- */
-const GRIP_MIN = 26;
-function gripCap() { return Math.max(160, Math.round(innerHeight * 0.6)); }
-
-/** The grip button itself, for the panels that build their bars in script. */
-function gripButton() {
-  const g = el("button", "qbar-grip");
-  g.type = "button";
-  g.title = "Drag to resize. Click to expand or compress.";
-  g.setAttribute("aria-label", "Resize the prompt box");
-  return g;
-}
-
-function attachGrip(ta, grip, key, resize) {
+/* The prompt boxes resize with resizegrip.js (A1Resize): drag the corner
+ * grip for a height, click it to expand or compress. While a height is
+ * chosen by hand the box carries data-user-h and autosize leaves it alone.
+ * Heights are kept as a1.h.magi.<box>; MAGI's own copy kept them as
+ * magi.h.<box>, carried over once here. */
+function magiGrip(ta, grip, key, onAuto) {
   if (!ta || !grip) return;
-  const store = key ? "magi.h." + key : null;
-
-  const apply = (h) => {
-    ta.style.height = h ? `${h}px` : "auto";
-    // The stylesheet caps these boxes at 45vh so a pasted essay cannot push
-    // Convene off the screen. That cap has to give way to a height asked for
-    // by hand, or the box stops halfway through the drag and the grip looks
-    // broken -- gripCap() is the ceiling instead.
-    ta.style.maxHeight = h ? `${h}px` : "";
-    ta.dataset.userH = h ? String(h) : "";
-    grip.classList.toggle("on", !!h);
-    if (!h && resize) resize();
-    try { if (store) h ? localStorage.setItem(store, String(h))
-                       : localStorage.removeItem(store); } catch {}
-  };
-
-  // A height chosen on an earlier visit is still the height that was wanted.
-  try {
-    const saved = store ? parseInt(localStorage.getItem(store) || "", 10) : NaN;
-    if (Number.isFinite(saved) && saved > GRIP_MIN) apply(Math.min(saved, gripCap()));
-  } catch {}
-
-  let id = null, y0 = 0, h0 = 0, moved = 0;
-  grip.addEventListener("pointerdown", (e) => {
-    id = e.pointerId; y0 = e.clientY; moved = 0;
-    h0 = Math.round(ta.getBoundingClientRect().height);
-    grip.setPointerCapture(id);
-    e.preventDefault();
-  });
-  grip.addEventListener("pointermove", (e) => {
-    if (e.pointerId !== id) return;
-    const dy = e.clientY - y0;
-    moved = Math.max(moved, Math.abs(dy));
-    if (moved < 3) return;                      // not a drag yet, just a press
-    apply(Math.max(GRIP_MIN, Math.min(h0 + dy, gripCap())));
-  });
-  const end = (e) => {
-    if (e.pointerId !== id) return;
-    try { grip.releasePointerCapture(id); } catch {}
-    id = null;
-    // A press that went nowhere is a click: toggle instead of resize.
-    if (moved < 3) {
-      if (ta.dataset.userH) apply(0);
-      else apply(Math.min(gripCap(), Math.max(h0 + 120, 260)));
-    }
-  };
-  grip.addEventListener("pointerup", end);
-  grip.addEventListener("pointercancel", end);
-  // Keyboard reach: the grip is a button, so Enter and Space must do the
-  // thing the button says it does.
-  grip.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter" && e.key !== " ") return;
-    e.preventDefault();
-    if (ta.dataset.userH) apply(0);
-    else apply(Math.min(gripCap(), 260));
-  });
+  if (key) {
+    try {
+      const old = localStorage.getItem("magi.h." + key);
+      if (old !== null) {
+        if (localStorage.getItem("a1.h.magi." + key) === null) localStorage.setItem("a1.h.magi." + key, old);
+        localStorage.removeItem("magi.h." + key);
+      }
+    } catch {}
+  }
+  A1Resize.attach(ta, grip, key ? "magi." + key : null, onAuto);
 }
 
 function setQuestion(v) {
@@ -15242,209 +15124,14 @@ function openCodeBrowse(start = "~", onPick = null) {
 }
 
 /* ══ drag to reorder ═══════════════════════════════════════════════════════
-   One behaviour for every reorderable list (the agent order, both queues),
-   replacing the up/down arrows (Tony, 2026-10-01).
-
-   Pointer events, so mouse, touch and pen are one code path. The lifted row
-   follows the pointer with a transform only -- nothing is laid out while you
-   drag, which is what keeps it smooth -- and the rows it passes slide out of
-   its way; on release it glides into its slot and the list is redrawn once.
-   On touch only the grip starts a drag, so the list still scrolls under a
-   finger; a mouse can also take the row by any part that is not a control.
-   The grip is a real button: focus it and ↑/↓ move the row one place.
-
-   dragSort(list, {row, grip, canDrag(row), onDrop(from, to), onKey(row, dir)})
-   `from`/`to` are indexes in the list's rows as drawn; nothing moves when
-   they are equal. */
-const DSORT = { active: false, pending: null };
-const DSORT_HOLD_PX = 4;          // movement before a press becomes a drag
-const DSORT_SETTLE_MS = 170;      // the glide into place; matches the CSS
-
-/** The new order number for a row moved from `from` to `to` among rows whose
- *  order numbers are `orders` (sorted): the midpoint of its new neighbours,
- *  so only the moved row changes -- what keeps a synced list's merge simple. */
-function dropOrder(orders, from, to, step = 1000) {
-  const rest = orders.filter((_, i) => i !== from);
-  const prev = rest[to - 1], next = rest[to];
-  if (prev !== undefined && next !== undefined) return (prev + next) / 2;
-  if (prev !== undefined) return prev + step;
-  if (next !== undefined) return next - step;
-  return orders[from];
-}
-
-/** A grip: the handle a finger can drag, and the focus stop ↑/↓ act on. */
-function dragGrip(label) {
-  const g = el("button", "dsort-grip");
-  g.type = "button";
-  g.setAttribute("aria-label", label);
-  g.title = "Drag to reorder (or focus and press ↑ / ↓)";
-  g.innerHTML = '<svg viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">'
-    + '<circle cx="2.5" cy="3" r="1.4"/><circle cx="7.5" cy="3" r="1.4"/>'
-    + '<circle cx="2.5" cy="8" r="1.4"/><circle cx="7.5" cy="8" r="1.4"/>'
-    + '<circle cx="2.5" cy="13" r="1.4"/><circle cx="7.5" cy="13" r="1.4"/></svg>';
-  return g;
-}
-
-function dragSort(list, { row: rowSel, grip: gripSel = ".dsort-grip",
-                          canDrag = () => true, onDrop, onKey }) {
-  list.classList.add("dsort");
-  list.addEventListener("keydown", (e) => {
-    if (!onKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
-    const g = e.target.closest(gripSel);
-    const r = g && g.closest(rowSel);
-    if (!r || !canDrag(r)) return;
-    e.preventDefault();
-    onKey(r, e.key === "ArrowUp" ? -1 : 1);
-  });
-  list.addEventListener("pointerdown", (e) => {
-    if (DSORT.active || (e.pointerType === "mouse" && e.button !== 0)) return;
-    const r = e.target.closest(rowSel);
-    if (!r || !list.contains(r) || !canDrag(r)) return;
-    if (!e.target.closest(gripSel)) {
-      // A finger anywhere but the grip is scrolling the list, and a press on
-      // a control is that control's.
-      if (e.pointerType !== "mouse") return;
-      if (e.target.closest("button, a, input, select, textarea, [contenteditable]")) return;
-      // Or the first pixels of a drag start selecting the row's text.
-      e.preventDefault();
-    }
-    begin(e, r);
-  });
-
-  function scroller(n) {
-    for (let p = n.parentElement; p; p = p.parentElement) {
-      const s = getComputedStyle(p).overflowY;
-      if ((s === "auto" || s === "scroll") && p.scrollHeight > p.clientHeight) return p;
-    }
-    return document.scrollingElement;
-  }
-
-  function begin(e, row) {
-    const rows = [...list.querySelectorAll(rowSel)];
-    const from = rows.indexOf(row);
-    const top0 = list.getBoundingClientRect().top;
-    // Positions relative to the list, so scrolling mid-drag cannot skew them.
-    const boxes = rows.map((r) => { const b = r.getBoundingClientRect(); return { top: b.top - top0, h: b.height }; });
-    const gap = rows.length > 1 ? Math.max(0, boxes[1].top - (boxes[0].top + boxes[0].h)) : 0;
-    const shift = boxes[from].h + gap;
-    const y0 = e.clientY - top0;
-    const pid = e.pointerId, touch = e.pointerType !== "mouse";
-    const sc = scroller(list);
-    let live = false, to = from, lastY = e.clientY, raf = 0, cancelled = false;
-
-    const place = () => {
-      const listTop = list.getBoundingClientRect().top;
-      const lo = boxes[0].top - boxes[from].top;
-      const hi = boxes[rows.length - 1].top + boxes[rows.length - 1].h - (boxes[from].top + boxes[from].h);
-      const dy = Math.max(lo, Math.min(hi, (lastY - listTop) - y0));
-      row.style.transform = `translate3d(0, ${dy}px, 0)`;
-      // A neighbour gives way once the dragged row's LEADING edge passes its
-      // middle -- by the dragged row's own middle, the first and last slots
-      // were out of reach at the list's clamped ends.
-      const top = boxes[from].top + dy, bottom = top + boxes[from].h;
-      let t = from;
-      for (let i = 0; i < from; i++) if (top < boxes[i].top + boxes[i].h / 2) { t = i; break; }
-      if (t === from) for (let i = rows.length - 1; i > from; i--) if (bottom > boxes[i].top + boxes[i].h / 2) { t = i; break; }
-      if (t !== to) {
-        to = t;
-        rows.forEach((r, i) => {
-          if (r === row) return;
-          const s = from < to && i > from && i <= to ? -shift : from > to && i >= to && i < from ? shift : 0;
-          r.style.transform = s ? `translate3d(0, ${s}px, 0)` : "";
-        });
-      }
-    };
-    // Near the top or bottom of what scrolls, scroll -- a long queue on a
-    // phone is taller than the screen.
-    const edge = () => {
-      raf = 0;
-      if (!live) return;
-      const b = sc === document.scrollingElement ? { top: 0, bottom: innerHeight } : sc.getBoundingClientRect();
-      const zone = 48;
-      const v = lastY < b.top + zone ? -(b.top + zone - lastY) : lastY > b.bottom - zone ? lastY - (b.bottom - zone) : 0;
-      if (v) { sc.scrollTop += Math.max(-16, Math.min(16, v / 3)); place(); raf = requestAnimationFrame(edge); }
-    };
-    const start = () => {
-      live = true;
-      DSORT.active = true;
-      row.classList.add("dsort-drag");
-      list.classList.add("dsort-on");
-      document.documentElement.classList.add("dsort-grabbing");
-      try { row.setPointerCapture(pid); } catch {}
-      if (touch && navigator.vibrate) { try { navigator.vibrate(8); } catch {} }
-    };
-    const move = (ev) => {
-      if (ev.pointerId !== pid) return;
-      lastY = ev.clientY;
-      if (!live) {
-        if (Math.abs(ev.clientY - (y0 + top0)) < DSORT_HOLD_PX) return;
-        start();
-      }
-      ev.preventDefault();
-      place();
-      if (!raf) raf = requestAnimationFrame(edge);
-    };
-    // Escape puts the row back -- and is used up doing it, or the sheet the
-    // list sits in would close too.
-    const key = (ev) => {
-      if (ev.key !== "Escape" || !live) return;
-      ev.stopPropagation();
-      ev.preventDefault();
-      cancelled = true;
-      up(ev);
-    };
-    const up = (ev) => {
-      if (ev.pointerId !== undefined && ev.pointerId !== pid) return;
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      window.removeEventListener("pointercancel", up);
-      window.removeEventListener("keydown", key, true);
-      if (raf) cancelAnimationFrame(raf);
-      if (!live) return;                                  // a click, not a drag
-      if (ev.type === "pointercancel") cancelled = true;
-      if (cancelled) to = from;
-      // The click a drag's release may fire is not a click on the row. Only
-      // that one: released on the next tick, or a drag ending off the row
-      // (no click at all) would eat your next real click.
-      const swallow = (c) => { c.stopPropagation(); c.preventDefault(); };
-      window.addEventListener("click", swallow, true);
-      setTimeout(() => window.removeEventListener("click", swallow, true), 0);
-      // Into its slot: relative to its own place in the list, which moves
-      // with the list if it scrolled meanwhile.
-      const land = to === from ? 0 : to > from
-        ? (boxes[to].top + boxes[to].h) - (boxes[from].top + boxes[from].h)
-        : boxes[to].top - boxes[from].top;
-      row.classList.add("dsort-settle");
-      row.style.transform = `translate3d(0, ${land}px, 0)`;
-      if (to === from) rows.forEach((r) => { if (r !== row) r.style.transform = ""; });
-      setTimeout(() => {
-        rows.forEach((r) => { r.style.transform = ""; r.classList.remove("dsort-drag", "dsort-settle"); });
-        list.classList.remove("dsort-on");
-        document.documentElement.classList.remove("dsort-grabbing");
-        DSORT.active = false;
-        if (to !== from) onDrop(from, to);
-        const later = DSORT.pending;
-        DSORT.pending = null;
-        if (later) later();
-      }, DSORT_SETTLE_MS);
-    };
-    window.addEventListener("pointermove", move, { passive: false });
-    window.addEventListener("pointerup", up);
-    window.addEventListener("pointercancel", up);
-    window.addEventListener("keydown", key, true);
-  }
-}
-
-/** Focus a row's grip again after the list was redrawn (keyboard moves). */
-function dragRefocus(list, key) {
-  requestAnimationFrame(() => {
-    const g = list.querySelector(`[data-dkey="${CSS.escape(key)}"] .dsort-grip`);
-    if (g) g.focus();
-  });
-}
+   dragsort.js (A1Drag), shared with every A1 program: the agent order, both
+   queues and the unit chips. Pointer events, so mouse, touch and pen are
+   one path; a mouse takes a row by any part that is not a control, a finger
+   by holding it still for 300ms (moving first is a scroll). No grip dots
+   (theme overhaul: Tony, 2026-10-02). */
 
 /** The chain order: which agent is tried first, and who picks up when it
- *  runs out. Dragged by its grip (dragSort); ↑/↓ on a focused grip too. */
+ *  runs out. Dragged by the row (A1Drag), a 300ms hold on touch. */
 function openCodeOrder() {
   const sheet = el("div", "sheet");
   const box = el("div", "sheet-box");
@@ -15479,20 +15166,16 @@ function openCodeOrder() {
       // now" is the question you are answering when you build a chain.
       const num = el("span", "code-order-num", String(i + 1));
       num.style.setProperty("--na", m.accent);
-      row.append(dragGrip(`Move ${m.label} (position ${i + 1} of ${ms.length})`), num,
+      row.append(num,
                  el("span", "code-order-name", m.label + (m.kind === "cli" ? " CLI" : "")),
                  el("span", "code-order-note", codeMemberNote(m).txt));
       list.append(row);
     });
   };
-  dragSort(list, {
+  A1Drag.sort(list, {
     row: ".code-order-row",
+    hold: 300,
     onDrop: (from, to) => move(from, to),
-    onKey: (row, dir) => {
-      const i = [...list.children].indexOf(row);
-      const id = move(i, i + dir);
-      if (id) dragRefocus(list, id);
-    },
   });
   draw();
   box.append(list);
@@ -17838,6 +17521,8 @@ function renderUnitChips() {
   // drawn from whatever was known before it, so they are redrawn with it.
   if (typeof renderQueue === "function") queueMicrotask(renderQueue);
   const box = $("unitChips");
+  // Never under a drag: the lifted chip would be torn out of your hand.
+  if (A1Drag.active) { unitChipsLater(); return; }
   box.textContent = "";
   for (const p of orderedProviders()) {
     const on = S.selected.has(p.id);
@@ -17866,16 +17551,14 @@ function renderUnitChips() {
       b.append(st);
       b.classList.add("is-chair");
     }
+    // A drag's release click is swallowed by A1Drag, so a moved chip is not
+    // toggled off.
     b.onclick = () => {
-      // A drag ends with a click on the chip you were holding. Toggling the
-      // unit off because you moved it would be maddening.
-      if (DRAG.justDragged) return;
       S.selected.has(p.id) ? S.selected.delete(p.id) : S.selected.add(p.id);
       saveUnitPicks();
       renderUnitChips();
       updateEnabled();
     };
-    b.onpointerdown = (e) => unitDragStart(e, p.id);
     box.append(b);
   }
   updateEnabled();
@@ -18592,96 +18275,32 @@ async function unitResetsSave(id, change) {
   refreshUnitResets();
 }
 
-const DRAG = {
-  id: null, startX: 0, startY: 0, kind: "mouse", pointerId: null,
-  target: null, timer: 0, active: false, justDragged: false, ids: null,
-};
-
-function unitDragStart(e, id) {
-  if (e.button != null && e.button !== 0) return;   // primary button only
-  const kind = e.pointerType || "mouse";
-  Object.assign(DRAG, {
-    id, kind, startX: e.clientX, startY: e.clientY,
-    pointerId: e.pointerId, target: e.currentTarget,
-    ids: orderedProviders().map((p) => p.id),
-  });
-  clearTimeout(DRAG.timer);
-  if (kind !== "mouse") {
-    // Hold to pick up. Without this, every attempt to scroll the row sideways
-    // would reorder it.
-    DRAG.timer = setTimeout(() => {
-      DRAG.timer = 0;
-      if (DRAG.id === id && !DRAG.active) unitDragBegin();
-    }, 300);
-  }
+/* The unit chips reorder like every A1 list (A1Drag): a mouse drags a chip
+   straight away, a finger holds it 300ms first (moving first scrolls). */
+let unitChipsWaiting = false;
+function unitChipsLater() {
+  if (unitChipsWaiting) return;
+  unitChipsWaiting = true;
+  A1Drag.later(() => { unitChipsWaiting = false; renderUnitChips(); });
 }
 
-function unitDragBegin() {
-  DRAG.active = true;
-  $("unitChips").classList.add("dragging");
-  $("unitBar").classList.add("chips-drag");
-  const el0 = $("unitChips").querySelector(`[data-unit="${DRAG.id}"]`);
-  if (el0) el0.classList.add("dragged");
-  try { DRAG.target.setPointerCapture(DRAG.pointerId); } catch {}
-  try { navigator.vibrate && navigator.vibrate(12); } catch {}
-}
-
-function unitDragMove(e) {
-  if (!DRAG.id) return;
-  if (!DRAG.active) {
-    const dx = Math.abs(e.clientX - DRAG.startX), dy = Math.abs(e.clientY - DRAG.startY);
-    if (DRAG.kind === "mouse") { if (dx > 5 || dy > 5) unitDragBegin(); }
-    else if ((dx > 8 || dy > 8) && DRAG.timer) {
-      // Moved before the hold completed: that was a scroll, not a drag.
-      clearTimeout(DRAG.timer); DRAG.timer = 0; DRAG.id = null;
-    }
-    if (!DRAG.active) return;
-  }
-  const box = $("unitChips");
-  const without = DRAG.ids.filter((x) => x !== DRAG.id);
-  let insert = without.length;
-  for (let k = 0; k < without.length; k++) {
-    const n = box.querySelector(`[data-unit="${without[k]}"]`);
-    if (!n) continue;
-    const r = n.getBoundingClientRect();
-    if (e.clientX < r.left + r.width / 2) { insert = k; break; }
-  }
-  const next = without.slice();
-  next.splice(insert, 0, DRAG.id);
-  if (next.join("|") === DRAG.ids.join("|")) return;
-  DRAG.ids = next;
-  S.unitOrder = next.slice();
-  renderUnitChips();
-  const moved = box.querySelector(`[data-unit="${DRAG.id}"]`);
-  if (moved) moved.classList.add("dragged");
-}
-
-function unitDragEnd() {
-  clearTimeout(DRAG.timer);
-  DRAG.timer = 0;
-  const was = DRAG.active;
-  DRAG.active = false;
-  DRAG.id = null;
-  $("unitChips").classList.remove("dragging");
-  $("unitBar").classList.remove("chips-drag");
-  for (const n of $("unitChips").querySelectorAll(".dragged")) n.classList.remove("dragged");
-  if (!was) return;
-  // Swallow the click that a drag always ends with.
-  DRAG.justDragged = true;
-  setTimeout(() => { DRAG.justDragged = false; }, 60);
-  saveUnitOrder(DRAG.ids || []);
-  cloudSaveUnitOrder();
-}
+A1Drag.sort($("unitChips"), {
+  row: ".chip",
+  axis: "grid",
+  hold: 300,
+  onDrop: (from, to) => {
+    const ids = [...$("unitChips").querySelectorAll(".chip")].map((n) => n.dataset.unit);
+    const [id] = ids.splice(from, 1);
+    ids.splice(to, 0, id);
+    S.unitOrder = ids.slice();
+    saveUnitOrder(ids);
+    cloudSaveUnitOrder();
+    renderUnitChips();
+  },
+});
 
 S.unitOrder = loadUnitOrder();
 
-document.addEventListener("pointermove", unitDragMove);
-document.addEventListener("pointerup", unitDragEnd);
-document.addEventListener("pointercancel", unitDragEnd);
-// Only while actually dragging, so a plain swipe still scrolls the row.
-$("unitChips").addEventListener("touchmove", (e) => {
-  if (DRAG.active) e.preventDefault();
-}, { passive: false });
 
 /* ══ wiring ════════════════════════════════════════════════════════════════ */
 function applyNav() {
@@ -22433,7 +22052,7 @@ function bsDetails(summaryText, bodyText) {
  *  the box this runs on is younger than any id lookup done before the render.
  */
 function bsAutosize(ta) {
-  if (!ta || ta.dataset.userH) return;   // sized by hand -- see attachGrip
+  if (!ta || ta.dataset.userH) return;   // sized by hand -- see magiGrip
   ta.style.height = "auto";
   ta.style.height = `${ta.scrollHeight}px`;
 }
@@ -22762,10 +22381,10 @@ function renderBsView() {
       startBrainstorm(t);
     };
     bar.append(begin);
-    const bsGrip = gripButton();
+    const bsGrip = A1Resize.grip("the topic box");
     bar.append(bsGrip);
     start.append(bar);
-    attachGrip(ta, bsGrip, "bstopic", () => bsAutosize(ta));
+    magiGrip(ta, bsGrip, "bstopic", () => bsAutosize(ta));
     root.append(start);
     syncBsStartBar();
 
@@ -23020,11 +22639,11 @@ function renderBsView() {
     fin.disabled = !bs.rounds.length;
     fin.onclick = bsFinalize;
     tools.append(next, fin);
-    const rGrip = gripButton();
+    const rGrip = A1Resize.grip("the reply box");
     tools.append(rGrip);
     qbar.append(tools);
     root.append(qbar);
-    attachGrip(ta, rGrip, "bsreply", () => bsAutosize(ta));
+    magiGrip(ta, rGrip, "bsreply", () => bsAutosize(ta));
   } else {
     const halt = el("div", "qbar-toolbar bs-halt");
     halt.append(el("span", "qbar-spacer"));
@@ -24621,7 +24240,7 @@ function queueEdit(id) {
   ta.value = text;
   ta.rows = 6;
   ta.oninput = () => { text = ta.value; sync(); };
-  const taGrip = gripButton();
+  const taGrip = A1Resize.grip("the prompt");
   taWrap.append(ta, taGrip);
   box.append(taWrap);
 
@@ -24840,13 +24459,13 @@ function queueEdit(id) {
 
   sheet.append(box);
   document.body.append(sheet);
-  attachGrip(ta, taGrip, null, null);
+  magiGrip(ta, taGrip, null, null);
   sync();
   ta.focus();
   ta.setSelectionRange(ta.value.length, ta.value.length);
 }
 /** Move one row from `from` to `to` (indexes as drawn) by changing only its
- *  own order number -- the midpoint of its new neighbours (dropOrder), so a
+ *  own order number -- the midpoint of its new neighbours (A1Drag.order), so a
  *  move on one device and an edit on another merge without a fight. */
 function queueMoveTo(id, from, to) {
   const [L] = queueFind(id);
@@ -24857,7 +24476,7 @@ function queueMoveTo(id, from, to) {
   if (i < 0 || to < 0 || to >= rows.length || i === to) return;
   const it = rows[i];
   if (it.status !== "queued") return;
-  it.order = dropOrder(rows.map((x) => x.order || 0), i, to, QUEUE_STEP);
+  it.order = A1Drag.order(rows.map((x) => x.order || 0), i, to, QUEUE_STEP);
   queueChanged(L);
 }
 
@@ -25510,27 +25129,28 @@ function queuesFromCloud(d) {
   if (drew) renderQueue();
 }
 
-/** Drag a waiting row to reorder its queue (dragSort), wired once: the rows
+/** Drag a waiting row to reorder its queue (A1Drag), wired once: the rows
  *  are redrawn on every change, the list element is not. */
 function queueDragInit(box) {
   if (box.dataset.dsort) return;
   box.dataset.dsort = "1";
   const idOf = (r) => r.dataset.dkey;
-  dragSort(box, {
+  A1Drag.sort(box, {
     row: ".q-row",
+    hold: 300,
     canDrag: (r) => r.dataset.status === "queued",
     onDrop: (from, to) => {
       const ids = [...box.querySelectorAll(".q-row")].map(idOf);
       queueMoveTo(ids[from], from, to);
     },
-    onKey: (r, dir) => {
-      const ids = [...box.querySelectorAll(".q-row")].map(idOf);
-      const i = ids.indexOf(idOf(r));
-      if (i + dir < 0 || i + dir >= ids.length) return;
-      queueMoveTo(idOf(r), i, i + dir);
-      dragRefocus(box, idOf(r));
-    },
   });
+}
+
+let queueRenderWaiting = false;
+function queueRenderLater() {
+  if (queueRenderWaiting) return;
+  queueRenderWaiting = true;
+  A1Drag.later(() => { queueRenderWaiting = false; renderQueue(); });
 }
 
 /** The queue of the mode on screen, drawn -- the council's on the council
@@ -25540,7 +25160,7 @@ function renderQueue() {
   if (!drawer) return;
   // Never under a drag: the dragged row would be torn out of your hand (a
   // synced edit can arrive mid-drag). Drawn the moment it lands.
-  if (DSORT.active) { DSORT.pending = renderQueue; return; }
+  if (A1Drag.active) { queueRenderLater(); return; }
   const L = queueViewLane();
   const isCodeLane = L === QUEUES.code;
   const rows = queueSorted(L);
@@ -25592,11 +25212,6 @@ function renderQueue() {
     const row = el("div", `q-row ${it.status}${isCode ? " code" : ""}`);
     row.dataset.dkey = it.id;
     row.dataset.status = it.status;
-    // Only a waiting row moves; the others keep the grip's room, unseen, so
-    // every row's text starts at the same place.
-    const grip = dragGrip(`Move this ${noun} (position ${rows.indexOf(it) + 1} of ${rows.length})`);
-    if (it.status !== "queued") { grip.hidden = true; grip.tabIndex = -1; }
-    row.append(grip);
     const main = el("div", "q-main");
     main.append(el("div", "q-text", it.q));
 
@@ -26321,7 +25936,7 @@ async function cloudWatch() {
       // A reorder on another device lands here. Ignored mid-drag, so a
       // snapshot cannot yank a chip out from under the finger holding it.
       const ord = d && Array.isArray(d.unitOrder) ? d.unitOrder : null;
-      if (ord && !DRAG.active && (S.unitOrder || []).join("|") !== ord.join("|")) {
+      if (ord && !A1Drag.active && (S.unitOrder || []).join("|") !== ord.join("|")) {
         saveUnitOrder(ord);
         if (typeof renderUnitChips === "function" && S.providers.length) renderUnitChips();
       }
@@ -27521,7 +27136,7 @@ applyAudioNav();
 paintIcons();
 applyMute();
 autosize();
-attachGrip($("composer"), $("composerGrip"), "composer", autosize);
+magiGrip($("composer"), $("composerGrip"), "composer", autosize);
 $("btnQueue").onclick = queueAdd;
 $("backToLive").onclick = backToLive;
 loadQueueLocal();
@@ -27757,8 +27372,8 @@ async function hardReload() {
     // lose when that happens.
     "button",
     "[contenteditable]", "[draggable='true']", "[role='slider']",
-    ".qbar-grip", ".qbar", ".qedit-textwrap", ".bs-start",
-    // Unit chips reorder on a hold-and-drag (unitDragStart) -- theirs.
+    ".a1-grip", ".qbar", ".qedit-textwrap", ".bs-start",
+    // Unit chips reorder on a hold-and-drag (A1Drag) -- theirs.
     "#unitChips [data-unit]",
     ".sheet", ".sheet-box", "audio", "video", "canvas",
   ].join(",");
@@ -27817,7 +27432,7 @@ async function hardReload() {
     if (d <= 0) { pulling = false; reset(); return; }
     // The page scrolled after all (momentum, an inner scroller handing off).
     if (page.scrollTop > 0) { pulling = false; reset(); return; }
-    if (DRAG.active) { pulling = false; reset(); return; }
+    if (A1Drag.active) { pulling = false; reset(); return; }
     // Half-rate resistance, like the browser's own: the indicator trails the
     // finger rather than tracking it 1:1 off the top of the screen.
     setPull(d * RATE);
