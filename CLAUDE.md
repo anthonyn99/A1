@@ -7,6 +7,10 @@
   "run the Veda check", "check MAGI is separate"), on Veda's PC: follow
   [docs/magi-veda-isolation-check.md](docs/magi-veda-isolation-check.md)
   start to finish.
+- **Retiring the old "tony" engine on Veda's PC** ("read the retire plan",
+  "retire the old engine", "do the Veda engine cleanup"), on Veda's PC:
+  follow [docs/magi-veda-retire-old-engine.md](docs/magi-veda-retire-old-engine.md)
+  start to finish.
 - **Orca refinement** ("continue Orca", "next Orca phase", "go"): Orca lives
   at `C:\Users\antho\Desktop\ORCA` (Veda's repo, branch `accounts`), not in
   A1. Read §0 of `C:\Users\antho\Desktop\ORCA\docs\refine-plan.md`, build
