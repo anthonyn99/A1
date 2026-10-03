@@ -352,6 +352,7 @@ Brave).
 { fileId, classId, moduleId, sourceName,
   status: 'running'|'ready'|'partial'|'failed'|'removed', error,
   provider, model, rev, listedAt, updatedAt, runningOn?, topicsJobId?, topicsJobId2?, syncError?,
+  instructions?: { text, promptId, moduleId, name } | null,
   checks?: { pages, content, asked, dropped: [title], added, gaps, figuresSkipped, pdfMissed,
             pdfSent: { topics } } | { skipped },
   topics: [{ id, title, summary, style: 'concept'|'procedure'|'applied'|'definitions',
@@ -370,6 +371,16 @@ Brave).
 - **`check.answer` is always one of `choices`, verbatim** — `validateQuestions`
   matches the model's answer loosely and stores the choice's exact text, so
   grading is `===`.
+- **`instructions`** is Veda's own prompt for this document (added 2026-10-02),
+  picked from a class `prompts` module in the Break down sheet and optionally
+  edited for this document; `{{variables}}` are filled before it is stored. It
+  is ADDED to every topics / lesson / gap-fill ask just before the reply format
+  (`instructionsBlock`), never in place of the built-in prompt — the coverage
+  rules and the checks against the PDF stay on. Retry, "Write the rest" and
+  `resume()` reuse it; "Redo with another prompt" removes the breakdown and
+  re-runs. Its hash is in the bridge cache key. `null`, not deleted, when
+  cleared, so a merged remote write clears it too. The last module/prompt
+  picked per class is remembered in localStorage `studyos_bd_prefs_v1`.
 - **`runningOn`** is this device's `studyos_device_id`. `resume()` only
   continues breakdowns this device started: two runners on one document would
   pay for every lesson twice.

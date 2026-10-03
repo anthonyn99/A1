@@ -121,6 +121,8 @@ const seeded = await evalJs(`(function(){
     { id:'${FID}', name:'Ch 2 Keys.pdf', size: 12, mime:'application/pdf', fileId:'${FID}' },
     { id:'${FID}x', name:'Ch 2.pptx', size: 12, mime:'application/vnd.openxmlformats-officedocument.presentationml.presentation', fileId:'${FID}x' },
   ]});
+  cls.modules.push({ id:'bdp1', name:'Breakdown prompts', type:'prompts', files:[], notes:[],
+    prompts:[{ id:'pp1', text:'Explain it like I am new to {{course_code}}.' }] });
   classes.push(cls);
   return window._sosBridge.revealModule('bd1', 'bdm1');
 })()`);
@@ -157,8 +159,32 @@ const sheet = await evalJs(`(function(){
 })()`);
 t('the start sheet names the provider and model', sheet && /OpenAI-compatible/.test(sheet.text) && /test-model/.test(sheet.text), sheet && sheet.text.slice(0, 300));
 t('...and what it will cost', sheet && /1 \+ one per topic/.test(sheet.text));
+
+console.log('\nher prompt');
+const picked = await evalJs(`(function(){
+  var el = document.querySelector('.sos-ai-sheet.open');
+  var mod = el.querySelector('#sos-bd-pmod'), ta = el.querySelector('#sos-bd-text');
+  var opts = Array.from(mod.options).map(o => o.textContent);
+  mod.value = 'bdp1'; mod.dispatchEvent(new Event('change'));
+  var pre = ta.value;
+  ta.value = pre + ' Focus on keys.'; ta.dispatchEvent(new Event('input'));
+  var edited = el.querySelector('#sos-bd-edited').textContent;
+  var vars = el.querySelector('#sos-bd-vars').textContent;
+  el.querySelector('#sos-bd-save').click();
+  var after = classes.find(c => c.id === 'bd1').modules.find(m => m.id === 'bdp1').prompts;
+  return { opts, pre, edited, vars, saved: after.length, last: after[after.length - 1].text,
+           selected: el.querySelector('#sos-bd-prompt').value === after[after.length - 1].id };
+})()`);
+t('the picker lists the class\'s prompts modules', picked.opts.some((o) => /Breakdown prompts \(1\)/.test(o)) && /None/.test(picked.opts[0]), picked.opts);
+t('choosing a prompt fills the editable box', picked.pre === 'Explain it like I am new to {{course_code}}.', picked.pre);
+t('editing it marks it edited for this document', /edited/.test(picked.edited), picked);
+t('its variables are shown, resolved', /course_code/.test(picked.vars) && !/no value/.test(picked.vars), picked.vars);
+t('"Save as a new prompt" adds it to the module and selects it',
+  picked.saved === 2 && picked.last === 'Explain it like I am new to {{course_code}}. Focus on keys.' && picked.selected, picked);
 await evalJs(`document.querySelector('#sos-bd-go').click(); true;`);
 await wait(3000);
+const mine = await evalJs(`window.__aiCalls.map(b => b.messages.find(m=>m.role==='user').content.map(p=>p.text||'').join('').includes('Explain it like I am new to CS 3410. Focus on keys.'))`);
+t('every ask carried her prompt, variables filled', mine.length === 3 && mine.every(Boolean), mine);
 
 console.log('\nthe breakdown');
 const calls = await evalJs('window.__aiCalls.map(b => ({ file: b.messages.find(m=>m.role==="user").content.some(p=>p.type==="file"), fmt: b.response_format && b.response_format.type }))');
@@ -177,6 +203,8 @@ t('the topics appear under the document', panel.hidden === false && panel.rows =
 t('in the document\'s order', panel.titles.join('|') === 'Candidate keys|Inner joins', panel.titles);
 t('each shows its card count', panel.badges.join('|') === '3 cards|1 cards', panel.badges);
 t('the row button now reads Topics · 2', panel.label === 'Topics · 2', panel.label);
+t('the status line names the prompt used', /prompt: Explain it like I am new/.test(panel.status || ''), panel.status);
+t('...and offers a redo with another one', await evalJs(`!!document.querySelector('[data-bd-panel="${FID}"] [data-redo]')`));
 t('the cards joined the review deck', (await evalJs(`window.SOS.deck.byNotePrefix('bd1','topic_${FID}_').length`)) === 4);
 t('the breakdown synced to its own doc', await evalJs(`(window.__docSaves||[]).some(s => s.path === 'studyos_topics/${FID}')`));
 t('the file carries its summary', await evalJs(`(function(){

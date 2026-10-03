@@ -13,6 +13,7 @@ import { sheet, toast } from './pipeline-ui.js';
 import { ensureStyle } from './study-style.js';
 import { escapeHtml as esc } from './md.js';
 import { isBreakable, isSlidesFile } from './pipeline.js';
+import * as prompts from './prompts.js';
 const _open = new Set();              // fileIds whose topic list is expanded
 
 /** A row's label, from the freshest thing known: the loaded doc, else the
@@ -68,12 +69,163 @@ export function decorate(item, cls, mod, f) {
   });
 }
 
+// ── Her prompt ───────────────────────────────────────────────────────────
+/* Breakdown prompts live in a prompts module she makes in the class, like the
+ * deck sheet's. What she picks is ADDED to the built-in prompt (breakdown.js
+ * instructionsBlock), and she can edit it for this one document first. */
+const PREFS_KEY = 'studyos_bd_prefs_v1';
+const NEW_MODULE = '__new__';
+function prefsOf(classId) {
+  try { return (JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') || {})[classId] || {}; }
+  catch (e) { return {}; }
+}
+function savePrefs(classId, prefs) {
+  try {
+    const all = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') || {};
+    all[classId] = prefs;
+    localStorage.setItem(PREFS_KEY, JSON.stringify(all));
+  } catch (e) { /* quota full: remembered for nothing, nothing lost */ }
+}
+const firstLine = (text) => {
+  const l = String(text || '').trim().split('\n')[0] || 'Untitled prompt';
+  return l.length > 70 ? l.slice(0, 67) + '…' : l;
+};
+
+function promptPickerHtml() {
+  return `
+    <div class="field" style="margin-top:14px">
+      <label>Your prompt <span style="color:var(--text3);font-weight:400">— optional, added to the built-in one</span></label>
+      <select id="sos-bd-pmod"></select>
+      <input id="sos-bd-newpm" placeholder="New module name" value="Breakdown prompts" style="display:none;margin-top:6px">
+      <select id="sos-bd-prompt" style="margin-top:6px"></select>
+      <textarea id="sos-bd-text" rows="5" style="margin-top:6px;width:100%;font-size:12.5px;line-height:1.5"
+        placeholder="e.g. My exam is multiple choice — stress the distinctions between similar terms, and give a worked example for every formula."></textarea>
+      <div id="sos-bd-vars"></div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
+        <button class="btn" id="sos-bd-save" style="padding:3px 10px;font-size:11px">Save as a new prompt</button>
+        <span id="sos-bd-edited" style="font-size:11px;color:var(--text3);font-family:var(--mono)"></span>
+      </div>
+      <div style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:6px;line-height:1.5">
+        Edits here apply to this document only, unless you save them. Your prompt steers what to
+        emphasise and how to explain; covering the whole document and the checks against it stay on.
+      </div>
+    </div>`;
+}
+
+/** Wire the picker. Returns () => the instructions to run with (null = none). */
+function wirePicker(root, cls, preset) {
+  const B = window._sosBridge;
+  const live = () => (window.SOS && window.SOS.store && window.SOS.store.getClass(cls.id)) || cls;
+  const promptMods = () => (live().modules || []).filter((m) => m.type === 'prompts');
+  const $ = (sel) => root.querySelector(sel);
+  const pmodSel = $('#sos-bd-pmod'), promptSel = $('#sos-bd-prompt'), newPm = $('#sos-bd-newpm');
+  const ta = $('#sos-bd-text'), varsEl = $('#sos-bd-vars'), saveBtn = $('#sos-bd-save'), editedEl = $('#sos-bd-edited');
+
+  const pmOf = (id) => promptMods().find((m) => m.id === id);
+  const current = () => {
+    const m = pmOf(pmodSel.value);
+    return (m && (m.prompts || []).find((p) => p.id === promptSel.value)) || null;
+  };
+  const showVars = () => {
+    const used = prompts.variablesIn(ta.value);
+    if (!used.length) { varsEl.innerHTML = ''; return; }
+    const unresolved = prompts.variablesIn(prompts.interpolate(ta.value, { cls: live() }));
+    varsEl.innerHTML = `<div style="font-size:11px;font-family:var(--mono);color:var(--text3);margin-top:4px">Variables: ${
+      used.map((v) => {
+        const bad = unresolved.includes(v);
+        return `<span style="color:${bad ? '#f0bd86' : 'var(--text2)'}">{{${esc(v)}}}${bad ? ' — no value' : ''}</span>`;
+      }).join(' · ')}</div>`;
+  };
+  const sync = () => {
+    const p = current();
+    const text = ta.value.trim();
+    const edited = !!p && text !== String(p.text || '').trim();
+    editedEl.textContent = edited ? 'edited for this document' : '';
+    saveBtn.style.display = text && (!p || edited) ? '' : 'none';
+    showVars();
+  };
+  const fillModules = (preferId) => {
+    const mods = promptMods();
+    pmodSel.innerHTML = `<option value="">None — built-in prompt only</option>` +
+      mods.map((m) => `<option value="${esc(m.id)}">${esc(m.name || 'Untitled')} (${(m.prompts || []).length})</option>`).join('') +
+      `<option value="${NEW_MODULE}">New prompts module…</option>`;
+    pmodSel.value = preferId && (preferId === NEW_MODULE || pmOf(preferId)) ? preferId : '';
+  };
+  const fillPrompts = (preferId, keepText) => {
+    const isNew = pmodSel.value === NEW_MODULE;
+    newPm.style.display = isNew ? '' : 'none';
+    const m = pmOf(pmodSel.value);
+    const ps = (m && m.prompts) || [];
+    promptSel.innerHTML = ps.map((p) => `<option value="${esc(p.id)}">${esc(p.name || firstLine(p.text))}</option>`).join('');
+    promptSel.style.display = ps.length ? '' : 'none';
+    if (preferId && ps.some((p) => p.id === preferId)) promptSel.value = preferId;
+    if (!keepText) { const p = current(); ta.value = p ? p.text : ''; }
+    sync();
+  };
+
+  const remembered = preset || prefsOf(cls.id);
+  fillModules(remembered.moduleId);
+  fillPrompts(remembered.promptId, false);
+  if (preset && preset.text != null) { ta.value = preset.text; sync(); }
+
+  pmodSel.addEventListener('change', () => { fillPrompts(null, false); if (pmodSel.value === NEW_MODULE) newPm.focus(); });
+  promptSel.addEventListener('change', () => fillPrompts(promptSel.value, false));
+  ta.addEventListener('input', sync);
+
+  saveBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    const text = ta.value.trim();
+    if (!text || !B || !B.addPromptTo) return;
+    let modId = pmodSel.value;
+    if (!modId) {
+      // "None" has nowhere to save to: point at a module (or a new one) first.
+      const first = promptMods()[0];
+      pmodSel.value = first ? first.id : NEW_MODULE;
+      fillPrompts(null, true);
+      if (!first) { newPm.focus(); newPm.select(); }
+      toast('ℹ️', first ? `Save it to “${first.name}”?` : 'Name the new prompts module', 'Then press Save again.');
+      return;
+    }
+    if (modId === NEW_MODULE) {
+      const name = newPm.value.trim();
+      if (!name) { newPm.focus(); return; }
+      modId = B.addModule && B.addModule(cls.id, name, 'prompts');
+      if (!modId) { toast('⚠️', 'Could not create the module', name); return; }
+    }
+    const id = B.addPromptTo(cls.id, modId, text);
+    if (!id) { toast('⚠️', 'Could not save the prompt', ''); return; }
+    fillModules(modId);
+    fillPrompts(id, true);
+    toast('✅', 'Prompt saved', (pmOf(modId) || {}).name || '');
+  });
+
+  return () => {
+    const raw = ta.value.trim();
+    const p = current();
+    const modId = pmodSel.value === NEW_MODULE ? '' : pmodSel.value;
+    savePrefs(cls.id, { moduleId: modId, promptId: p ? p.id : '' });
+    if (!raw) return null;
+    const edited = !p || raw !== String(p.text || '').trim();
+    const base = p ? (p.name || firstLine(p.text)) : 'Custom prompt';
+    return {
+      text: prompts.interpolate(raw, { cls: live() }),
+      promptId: p ? p.id : '', moduleId: modId,
+      name: p && edited ? base + ' (edited)' : base,
+    };
+  };
+}
+
 // ── Start ────────────────────────────────────────────────────────────────
-function openStart(cls, mod, f) {
+/** @param {{redo?: object}} opts  redo: re-run a finished breakdown from
+ *  scratch, the picker preset to the prompt it last used. */
+function openStart(cls, mod, f, { redo } = {}) {
   const a = ai.active();
   const bridge = a.id === 'bridge';
-  const s = sheet('Break down into topics', `
+  const s = sheet(redo ? 'Redo the breakdown' : 'Break down into topics', `
     <div style="font-size:12px;color:var(--text3);font-family:var(--mono);margin-bottom:12px">${esc(f.name)}</div>
+    ${redo ? `<div style="font-size:12.5px;color:#f0bd86;line-height:1.5;margin-bottom:10px">
+      Re-lists the topics and rewrites every lesson under the prompt below. Cards you have
+      already reviewed keep their scheduling.</div>` : ''}
     <div style="font-size:13.5px;color:var(--text2);line-height:1.6">
       Lists every topic in this document, then writes each one a lesson — explained
       simply, nothing left out — followed by its flashcards. The cards join your
@@ -89,20 +241,27 @@ function openStart(cls, mod, f) {
              ? ' — Claude Pro messages, a few minutes per topic'
              : ' — billed to your API key'}. It runs in the background; keep studying.`}
       <div style="margin-top:6px"><a href="#" data-ai-settings style="color:var(--accent2);font-size:11px;font-family:var(--mono)">Change the AI model →</a></div>
-    </div>`, { wide: true });
+    </div>
+    ${promptPickerHtml()}`, { wide: true });
   s.overlay.querySelector('[data-ai-settings]').addEventListener('click', (e) => {
     e.preventDefault(); s.close(); window.switchView && window.switchView('ai');
   });
+  const instructions = wirePicker(s.overlay, cls, redo || null);
   const cancel = document.createElement('button');
   cancel.className = 'btn'; cancel.textContent = 'Cancel'; cancel.onclick = s.close;
   s.footer.append(cancel);
   if (a.problem) return;
   const go = document.createElement('button');
-  go.className = 'btn primary'; go.textContent = 'Break it down'; go.id = 'sos-bd-go';
-  go.onclick = () => {
+  go.className = 'btn primary'; go.textContent = redo ? 'Redo it' : 'Break it down'; go.id = 'sos-bd-go';
+  go.onclick = async () => {
+    const chosen = instructions();
     s.close();
     _open.add(f.id);
-    start(cls, mod, f);
+    // A redo clears the old run the way "Remove breakdown" does (unreviewed
+    // cards go, reviewed ones keep their scheduling), so topics the new list
+    // no longer has don't leave orphan cards behind.
+    if (redo) await bd.remove(f.id);
+    start(cls, mod, f, { instructions: chosen });
   };
   s.footer.append(go);
 }
@@ -140,7 +299,9 @@ async function renderPanel(panel, cls, mod, f) {
     const status = running
       ? `Writing lessons — ${ready.length} of ${topics.length} done.`
       : doc.error ? doc.error : `${topics.length} topics · ${cards} flashcards${checksNote(doc.checks)}`;
-    html.push(`<div class="bd-status${doc.error && !running ? ' err' : ''}">${esc(status)}${doc.syncError ? ` · ${esc(doc.syncError)}` : ''}</div>`);
+    const ins = doc.instructions && doc.instructions.text ? doc.instructions : null;
+    html.push(`<div class="bd-status${doc.error && !running ? ' err' : ''}">${esc(status)}${doc.syncError ? ` · ${esc(doc.syncError)}` : ''}${
+      ins ? ` · <span title="${esc(ins.text)}" style="cursor:help;border-bottom:1px dotted currentColor">prompt: ${esc(ins.name || 'custom')}</span>` : ''}</div>`);
     topics.forEach((t, i) => {
       const ok = t.status === 'ready';
       const done = ok && t.progress && t.progress.done;
@@ -165,6 +326,7 @@ async function renderPanel(panel, cls, mod, f) {
   html.push(`<div class="bd-actions">
     ${cards ? `<button data-review>Review this document’s cards</button>` : ''}
     ${!running && (unfinished || (!topics.length && doc.status === 'failed')) ? `<button data-continue>${topics.length ? 'Write the rest' : 'Try again'}</button>` : ''}
+    ${!running && topics.length ? `<button data-redo>Redo with another prompt</button>` : ''}
     ${!running ? `<button class="quiet" data-remove>Remove breakdown</button>` : ''}
   </div>`);
   panel.innerHTML = html.join('');
@@ -186,6 +348,11 @@ async function renderPanel(panel, cls, mod, f) {
   });
   const cont = panel.querySelector('[data-continue]');
   if (cont) cont.addEventListener('click', () => start(cls, mod, f));
+  const redo = panel.querySelector('[data-redo]');
+  if (redo) redo.addEventListener('click', () => {
+    const ins = doc.instructions || {};
+    openStart(cls, mod, f, { redo: { moduleId: ins.moduleId || '', promptId: ins.promptId || '', text: ins.text || '' } });
+  });
   const rm = panel.querySelector('[data-remove]');
   if (rm) rm.addEventListener('click', async () => {
     if (!confirm(`Remove the topics and lessons for "${f.name}"?\n\nFlashcards you have already reviewed are kept; the rest are removed.`)) return;

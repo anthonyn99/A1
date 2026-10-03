@@ -187,6 +187,24 @@ console.log('\nprompts');
   const pf = bd.lessonPrompt({ className: '', sourceName: 'L4.pdf', topic: all[0], index: 0, all, figurePages: [3, 6] });
   t('with figure pages, the lesson is told which pages to show or redraw',
     /"page": a figure page/.test(pf) && /has a figure on pages 3, 6 of this topic/.test(pf) && /the page you are redrawing/.test(pf));
+
+  // Her own prompt is ADDED before the reply format, never in place of it.
+  const MINE = 'Stress the distinctions; my exam is multiple choice.';
+  const tp = bd.topicsPrompt({ sourceName: 'x' });
+  const gp = bd.gapsPrompt({ sourceName: 'x', topic: all[0], missing: [{ page: 1, text: 'a line' }] });
+  const withMine = [
+    bd.topicsPrompt({ sourceName: 'x', instructions: MINE }),
+    bd.lessonPrompt({ className: 'CS 3410', sourceName: 'L4.pdf', topic: all[0], index: 0, all, instructions: MINE }),
+    bd.gapsPrompt({ sourceName: 'x', topic: all[0], missing: [{ page: 1, text: 'a line' }], instructions: MINE }),
+  ];
+  t('no prompt of her own: every prompt is unchanged',
+    !/STUDENT'S OWN/.test(tp + p + gp)
+    && tp === bd.topicsPrompt({ sourceName: 'x', instructions: '  ' })
+    && p === bd.lessonPrompt({ className: 'CS 3410', sourceName: 'L4.pdf', topic: all[0], index: 0, all, instructions: '' }));
+  t('her prompt reaches the topics, lesson and gap-fill prompts', withMine.every((x) => x.includes(MINE)));
+  t('...just before the reply format',
+    withMine.every((x) => x.indexOf(MINE) > 0 && x.indexOf(MINE) < x.indexOf('Reply with ONE JSON object')));
+  t('...which stay in full', /Cover the whole document with no gaps/.test(withMine[0]) && /Complete coverage/.test(withMine[1]));
 }
 
 console.log('\nmergeDocs');
@@ -252,6 +270,32 @@ t('a finished breakdown makes no requests', calls.length === 0, calls.length);
 console.log('\nprogress');
 bd.setProgress('f1', doc.topics[0].id, { block: 3, done: true });
 t('progress is saved on the topic', bd.peek('f1').topics[0].progress.done === true);
+
+console.log('\nher prompt, per document');
+{
+  const MINE = 'Explain it like I am new to databases.';
+  const F = { id: 'f5', name: 'L6.pdf', mime: 'application/pdf' };
+  classes[0].modules[0].files.push(F);
+  const textOf = (c) => c.body.messages.find((m) => m.role === 'user').content.map((x) => x.text || '').join('');
+  calls = [];
+  const d = await bd.run('c1', 'm1', F, { instructions: { text: MINE, promptId: 'p1', moduleId: 'pm1', name: 'Beginner' } });
+  t('the breakdown finished under her prompt', d.status === 'ready', { s: d.status, e: d.error });
+  t('it is saved on the document', d.instructions && d.instructions.text === MINE && d.instructions.name === 'Beginner');
+  t('every ask carried it (topics + each lesson)', calls.length === 3 && calls.every((c) => textOf(c).includes(MINE)), calls.map(textOf).map((x) => x.includes(MINE)));
+  const synced = docsSaved.filter((x) => x.path === 'studyos_topics/f5').pop();
+  t('it syncs with the breakdown', synced && synced.payload.instructions.text === MINE);
+
+  calls = [];
+  await bd.regenerate('f5', d.topics[0].id, F);
+  t('a retried topic is rewritten under the same prompt', calls.length >= 1 && calls.every((c) => textOf(c).includes(MINE)), calls.length);
+
+  const F6 = { id: 'f6', name: 'L7.pdf', mime: 'application/pdf' };
+  classes[0].modules[0].files.push(F6);
+  calls = [];
+  const d6 = await bd.run('c1', 'm1', F6);
+  t('a document run without one gets the built-in prompt only',
+    !d6.instructions && calls.length > 0 && calls.every((c) => !/STUDENT'S OWN/.test(textOf(c))));
+}
 
 console.log('\na bad key stops the run');
 const FILE2 = { id: 'f2', name: 'L5.pdf', mime: 'application/pdf' };

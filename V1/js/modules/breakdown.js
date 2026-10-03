@@ -101,7 +101,22 @@ ${source}
 </document>`;
 }
 
-export function topicsPrompt({ className, sourceName, source = '', attached = true, feedback = '' }) {
+/** Her own prompt from a prompts module, ADDED to the built-in one, just
+ *  before the reply format — never in place of it. The rules it cannot
+ *  override are the ones the checks against the PDF depend on. Empty →
+ *  nothing, so a plain breakdown's prompt is unchanged. */
+function instructionsBlock(instructions) {
+  const text = String(instructions || '').trim();
+  if (!text) return '';
+  return `
+THE STUDENT'S OWN INSTRUCTIONS — follow them for what to emphasise and how to explain. They never override the rules above about covering the whole document, staying faithful to it, or the reply format.
+<instructions>
+${text}
+</instructions>
+`;
+}
+
+export function topicsPrompt({ className, sourceName, source = '', attached = true, feedback = '', instructions = '' }) {
   return `${sourceIntro(sourceName, className, source, attached)}
 
 Break it into the TOPICS a student must learn, so that studying every topic covers the ENTIRE document.
@@ -125,7 +140,7 @@ RULES
     applied      using knowledge on realistic problems or scenarios
     definitions  a set of terms and distinctions to get exactly right
 - Skip course logistics (syllabus, grading, office hours) unless that is the whole document.
-
+${instructionsBlock(instructions)}
 Reply with ONE JSON object and nothing else:
 {"topics": [{"title": "...", "summary": "...", "style": "concept", "key_points": ["..."], "pages": "1-4"}]}`;
 }
@@ -167,7 +182,7 @@ function figureGuide(figurePages) {
   white background. Every label uses the document's own terms and values — nothing the source does not say.`;
 }
 
-export function lessonPrompt({ className, sourceName, topic, index, all, source = '', attached = true, figures = [], figurePages = [] }) {
+export function lessonPrompt({ className, sourceName, topic, index, all, source = '', attached = true, figures = [], figurePages = [], instructions = '' }) {
   const others = all.filter((t) => t.id !== topic.id).map((t) => `  - ${t.title}`).join('\n');
   const checklist = (topic.key_points || []).map((k) => `  - ${k}`).join('\n') || '  - (use the summary)';
   return `Write ONE lesson from ${source ? 'the course material below' : 'the attached course material'}${className ? ` for a student in ${className}` : ''}.
@@ -228,14 +243,14 @@ FLASHCARDS — then write this topic's flashcards:
 - Atomic: one idea per card. Front: a specific question (never just "Explain X"). Back: the answer,
   at most two sentences.
 - No duplicates, no yes/no fronts, no card whose answer is on its front.
-
+${instructionsBlock(instructions)}
 Reply with ONE JSON object and nothing else:
 {"blocks": [{"kind": "read", "title": "...", "markdown": "...", "steps": [], "questions": [], "points": [], "page": 0, "svg": ""}],
  "flashcards": [{"front": "...", "back": "..."}]}`;
 }
 
 /** The follow-up for a lesson that left source lines out. */
-export function gapsPrompt({ className, sourceName, topic, missing, source = '' }) {
+export function gapsPrompt({ className, sourceName, topic, missing, source = '', instructions = '' }) {
   const lines = missing.map((m) => `  - [page ${m.page}] ${m.text}`).join('\n');
   return `You wrote the lesson "${topic.title}" from "${sourceName}"${className ? ` (${className})` : ''}. Checked line by line against the document, it leaves out the source lines below — material a student could be examined on.
 
@@ -252,7 +267,7 @@ Do not repeat what the lesson already teaches. No recap block.
 Every block has a short "title". Fields a block's kind does not use are empty ("" or []).
 Check questions: {"q", "choices": 3-5 plausible choices, "answer": exactly one of the choices, "explanation"}.
 Flashcards: atomic, one idea each; front a specific question, back at most two sentences.
-
+${instructionsBlock(instructions)}
 Reply with ONE JSON object and nothing else:
 {"blocks": [{"kind": "read", "title": "...", "markdown": "...", "steps": [], "questions": [], "points": [], "page": 0, "svg": ""}],
  "flashcards": [{"front": "...", "back": "..."}]}`;
@@ -853,7 +868,17 @@ export function run(classId, moduleId, file, opts = {}) {
   return p;
 }
 
-async function runInner(classId, moduleId, file, { fresh = false } = {}) {
+/** Her prompt for this document, kept on the doc so "Write the rest", Retry
+ *  and resume() keep writing under the one she chose. */
+const instructionsOf = (doc) => (doc.instructions && doc.instructions.text) || '';
+// In the bridge cache key, so an answer written under one prompt is never
+// handed back for another.
+const instrKey = (doc) => (instructionsOf(doc) ? ':i' + ai.hash(instructionsOf(doc)).slice(1, 7) : '');
+
+/** opts.instructions: {text, promptId, moduleId, name} sets her prompt for
+ *  this document, null clears it, undefined (resume, "Write the rest") keeps
+ *  the one already saved. */
+async function runInner(classId, moduleId, file, { fresh = false, instructions } = {}) {
   const active = ai.active();
   if (active.problem) throw new ai.AIError(active.problem, { kind: 'setup' });
 
@@ -865,6 +890,13 @@ async function runInner(classId, moduleId, file, { fresh = false } = {}) {
     };
   }
   doc.rev = doc.rev || 1;
+  if (instructions !== undefined) {
+    const text = instructions && String(instructions.text || '').trim();
+    if (text) {
+      doc.instructions = { text, promptId: instructions.promptId || '', moduleId: instructions.moduleId || '',
+        name: String(instructions.name || '').slice(0, 120) };
+    } else doc.instructions = null;   // null, not delete: a merged remote write must clear it too
+  }
   Object.assign(doc, { classId, moduleId, status: 'running', error: '',
     provider: active.id, model: active.model, runningOn: deviceId() });
   save(doc);
@@ -937,10 +969,10 @@ async function listTopics(doc, pdf, className, ctx) {
   const ask = (feedback, attempt) => withFallback((withFile) => ai.generateJSON({
     system: SYSTEM,
     prompt: topicsPrompt({ className, sourceName: doc.sourceName, source: ctx.source,
-      attached: ctx.attached || withFile, feedback }),
+      attached: ctx.attached || withFile, feedback, instructions: instructionsOf(doc) }),
     pdf, docText: ctx.textOnly ? '' : undefined, attachFile: withFile,
     schema: TOPICS_SCHEMA, validate: validateTopics, maxTokens: 32000,
-    key: `bd:${doc.fileId}:r${doc.rev}:topics${attempt ? ':g' + attempt : ''}${withFile ? ':file' : ''}`, fileId: doc.fileId,
+    key: `bd:${doc.fileId}:r${doc.rev}:topics${attempt ? ':g' + attempt : ''}${withFile ? ':file' : ''}${instrKey(doc)}`, fileId: doc.fileId,
     resumeJobId: attempt ? doc.topicsJobId2 : doc.topicsJobId,
     onJob: (id, main) => { if (main) { doc[attempt ? 'topicsJobId2' : 'topicsJobId'] = id; save(doc); } },
   }), ctx.sendsFile, 'the topic list');
@@ -1013,12 +1045,12 @@ async function writeTopic(doc, topic, pdf, className, ctx) {
         system: SYSTEM,
         prompt: lessonPrompt({ className, sourceName: doc.sourceName, topic,
           index: doc.topics.indexOf(topic), all: doc.topics, source: src, attached: ctx.attached || withFile,
-          figures: imgs.map((i) => i.n), figurePages: figPages }),
+          figures: imgs.map((i) => i.n), figurePages: figPages, instructions: instructionsOf(doc) }),
         // Text-only: the topic's pages are in the prompt; without them, send the whole text.
         pdf, docText: ctx.textOnly ? (src ? '' : ctx.source) : undefined,
         attachFile: withFile, images: imgs.map((i) => i.url),
         schema: LESSON_SCHEMA, validate: (o) => validateLesson(o, { figurePages: figPages, allowFigures: true }), maxTokens: 64000,
-        key: `bd:${doc.fileId}:r${doc.rev}:${topic.id}:v${topic.rev || 0}${withAtt ? ':att' : ''}`, fileId: doc.fileId,
+        key: `bd:${doc.fileId}:r${doc.rev}:${topic.id}:v${topic.rev || 0}${withAtt ? ':att' : ''}${instrKey(doc)}`, fileId: doc.fileId,
         resumeJobId: topic.jobId,
         onJob: (id, main) => { if (main) { topic.jobId = id; save(doc); } },
       });
@@ -1131,11 +1163,11 @@ async function askGaps(doc, topic, items, className, ctx) {
   const { data } = await ai.generateJSON({
     system: SYSTEM,
     prompt: gapsPrompt({ className, sourceName: doc.sourceName, topic, missing: items.slice(0, 80),
-      source: span.length ? sourceText(ctx.model, span) : '' }),
+      source: span.length ? sourceText(ctx.model, span) : '', instructions: instructionsOf(doc) }),
     // The missing lines are in the prompt, verbatim: no need to send the PDF again.
     pdf: null, docText: '',
     schema: LESSON_SCHEMA, validate: validateLesson, maxTokens: 64000,
-    key: `bd:${doc.fileId}:r${doc.rev}:${topic.id}:v${topic.rev || 0}:gaps`, fileId: doc.fileId,
+    key: `bd:${doc.fileId}:r${doc.rev}:${topic.id}:v${topic.rev || 0}:gaps${instrKey(doc)}`, fileId: doc.fileId,
     resumeJobId: topic.gapJobId,
     onJob: (id, main) => { if (main) { topic.gapJobId = id; save(doc); } },
   });
