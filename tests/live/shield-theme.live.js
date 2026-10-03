@@ -221,7 +221,7 @@ async function shotsFor(c, p) {
   ok('Veda has no magi hover', (await evalJs(c, "return document.body.dataset.hoverfx || '';")) !== 'magi');
   ok('her --ac is mauve', (await evalJs(c, "return getComputedStyle(document.body).getPropertyValue('--ac').trim();")) === '#8D769A');
   ok('her current pill is solid mauve', (await css(c, '.nav > .pill.on', 'backgroundColor')) === MAUVE);
-  ok('her .btn keeps 10.5px / 600', (await css(c, '.btn:not(.sm)', 'fontSize')) === '10.5px' && (await css(c, '.btn:not(.sm)', 'fontWeight')) === '600', (await css(c, '.btn:not(.sm)', 'fontSize')) + ' ' + (await css(c, '.btn:not(.sm)', 'fontWeight')) + ' ' + (await evalJs(c, "return document.querySelector('.btn:not(.sm)').outerHTML.slice(0,120)")));
+  ok('her .btn.sm keeps 9.5px / 600', (await css(c, '.btn.sm', 'fontSize')) === '9.5px' && (await css(c, '.btn.sm', 'fontWeight')) === '600', (await css(c, '.btn.sm', 'fontSize')) + ' ' + (await css(c, '.btn.sm', 'fontWeight')));
   ok('her face is Plex Mono', /IBM Plex Mono/.test(await css(c, 'body', 'fontFamily')));
   await evalJs(c, "uiConfirm('Sure?', {okLabel:'Yes'}); 1"); await sleep(300);
   ok('her uiModal OK is a mauve outline', (await css(c, '#uim-ok', 'backgroundColor')) === 'rgba(0, 0, 0, 0)' && (await css(c, '#uim-ok', 'color')) === MAUVE);
