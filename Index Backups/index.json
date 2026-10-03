@@ -1,46 +1,76 @@
 {
   "what": "Encrypted backups of the Index app. Ciphertext only; unreadable without the passphrase.",
-  "generatedAt": "2026-09-07T16:28:21.348Z",
+  "generatedAt": "2026-10-03T14:34:07.803Z",
   "worker": "https://index-backups.av1-2.workers.dev",
   "devices": [
     {
       "device": "android-no8fj5",
-      "at": 1788781106324,
-      "iso": "2026-09-07T11:38:26.324Z",
-      "ageHours": 4.8,
-      "docs": 14,
-      "objects": 14,
-      "bytes": 1441,
+      "at": 1791029912491,
+      "iso": "2026-10-03T12:18:32.491Z",
+      "ageHours": 2.3,
+      "docs": 15,
+      "objects": 15,
+      "bytes": 1512,
       "stale": false
+    },
+    {
+      "device": "iphone-o2vk7k",
+      "at": 1790281651545,
+      "iso": "2026-09-24T20:27:31.545Z",
+      "ageHours": 210.1,
+      "docs": 16,
+      "objects": 16,
+      "bytes": 1591,
+      "stale": true
+    },
+    {
+      "device": "iphone-tiny1a",
+      "at": 1789784945521,
+      "iso": "2026-09-19T02:29:05.521Z",
+      "ageHours": 348.1,
+      "docs": 16,
+      "objects": 16,
+      "bytes": 1587,
+      "stale": true
     },
     {
       "device": "iphone-z6wyb1",
       "at": 1788312833737,
       "iso": "2026-09-02T01:33:53.737Z",
-      "ageHours": 134.9,
+      "ageHours": 757,
       "docs": 14,
       "objects": 14,
       "bytes": 1441,
       "stale": true
     },
     {
-      "device": "pc-1cw70x",
-      "at": 1788797162202,
-      "iso": "2026-09-07T16:06:02.202Z",
-      "ageHours": 0.4,
+      "device": "mac-r2hw3a",
+      "at": 1789498925223,
+      "iso": "2026-09-15T19:02:05.223Z",
+      "ageHours": 427.5,
       "docs": 14,
       "objects": 14,
-      "bytes": 1437,
+      "bytes": 1445,
+      "stale": true
+    },
+    {
+      "device": "pc-1cw70x",
+      "at": 1790995493927,
+      "iso": "2026-10-03T02:44:53.927Z",
+      "ageHours": 11.8,
+      "docs": 17,
+      "objects": 17,
+      "bytes": 1666,
       "stale": false
     },
     {
       "device": "pc-qxjzhk",
-      "at": 1788796355784,
-      "iso": "2026-09-07T15:52:35.784Z",
-      "ageHours": 0.6,
-      "docs": 14,
-      "objects": 14,
-      "bytes": 1441,
+      "at": 1791005357271,
+      "iso": "2026-10-03T05:29:17.271Z",
+      "ageHours": 9.1,
+      "docs": 15,
+      "objects": 15,
+      "bytes": 1504,
       "stale": false
     }
   ]

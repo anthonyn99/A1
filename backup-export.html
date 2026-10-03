@@ -32,10 +32,39 @@
     var hours = Number(new URLSearchParams(location.search).get('hours')) || 36;
     var out = await A1Backup.exportDocs(null, Date.now() - hours * 3600000);
     out.exportedAt = Date.now();
+    // Also every device's latest copy from the repo (Index Backups/, pulled by
+    // tools/pull-backups.mjs) — other devices' history, opened with this
+    // browser's passphrase where it matches.
+    out.repo = [];
+    try {
+      var base = 'Index%20Backups/', dec = A1Backup._internals.decryptEnv;
+      var re = /^dashboards\/(main|vedasdash)(_archive_\d+)?$/;
+      var idx = await (await fetch(base + 'index.json', { cache: 'no-store' })).json();
+      for (var d = 0; d < (idx.devices || []).length; d++) {
+        var dev = idx.devices[d], r = { device: dev.device, at: dev.at };
+        try {
+          var dir = base + encodeURIComponent(dev.device) + '/';
+          var man = JSON.parse(await dec(await (await fetch(dir + 'snapshots/' +
+                    String(dev.iso).slice(0, 10) + '.enc.json', { cache: 'no-store' })).json()));
+          var docs = {};
+          for (var p in man.docs) {
+            if (!re.test(p)) continue;
+            var h = man.docs[p]; docs[p] = h;
+            if (out.objects[h] === undefined) {
+              out.objects[h] = JSON.parse(await dec(await (await fetch(dir + 'objects/' + h +
+                               '.enc.json', { cache: 'no-store' })).json()));
+            }
+          }
+          out.snapshots.push({ at: man.at || dev.at, device: dev.device, docs: docs });
+          r.ok = true;
+        } catch (e) { r.error = String(e && e.message || e); }
+        out.repo.push(r);
+      }
+    } catch (e) { out.repo.push({ error: String(e && e.message || e) }); }
     if (!out.snapshots.length) return say('Backups are on here, but none from the last ' + hours + ' hours.', 'bad');
     // Built in parts so no single string has to hold the whole export.
     var parts = ['{"device":', JSON.stringify(out.device), ',"exportedAt":', String(out.exportedAt),
-                 ',"snapshots":', JSON.stringify(out.snapshots), ',"objects":{'];
+                 ',"repo":', JSON.stringify(out.repo), ',"snapshots":', JSON.stringify(out.snapshots), ',"objects":{'];
     Object.keys(out.objects).forEach(function (h, i) {
       parts.push((i ? ',' : '') + JSON.stringify(h) + ':', JSON.stringify(out.objects[h]));
     });
