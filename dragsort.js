@@ -144,7 +144,12 @@
     list._a1drag = me;
     injectCss();
     list.classList.add('dsort');
-    if (o.group) (groups[o.group] = groups[o.group] || []).push(me);
+    // A page that redraws its lists registers new ones every render; the old
+    // ones leave the group as they leave the page.
+    if (o.group) {
+      groups[o.group] = (groups[o.group] || []).filter(function (g) { return g.list.isConnected; });
+      groups[o.group].push(me);
+    }
 
     var keys = me.o.axis === 'x' ? ['ArrowLeft', 'ArrowRight'] : ['ArrowUp', 'ArrowDown'];
     list.addEventListener('keydown', function (e) {
@@ -203,8 +208,10 @@
       window.addEventListener('pointercancel', end);
     }
 
+    // What scrolls under a drag: the list itself when it is the scroller (a
+    // tab strip), else the nearest scrolling ancestor, else the page.
     function scroller(n, axis) {
-      for (var p = n.parentElement; p; p = p.parentElement) {
+      for (var p = n; p; p = p.parentElement) {
         var cs = getComputedStyle(p);
         var s = axis === 'x' ? cs.overflowX : cs.overflowY;
         var big = axis === 'x' ? p.scrollWidth > p.clientWidth : p.scrollHeight > p.clientHeight;
@@ -213,13 +220,14 @@
       return document.scrollingElement || document.documentElement;
     }
 
-    // Boxes relative to the list, so scrolling mid-drag cannot skew them.
+    // Boxes relative to the list's CONTENT (its own scroll added back), so
+    // scrolling mid-drag -- the page's or the list's own -- cannot skew them.
     function measure(l, sel) {
       var rs = rowsOf(l, sel);
       var lb = l.getBoundingClientRect();
       var bx = rs.map(function (r) {
         var b = r.getBoundingClientRect();
-        return { x: b.left - lb.left, y: b.top - lb.top, w: b.width, h: b.height };
+        return { x: b.left - lb.left + l.scrollLeft, y: b.top - lb.top + l.scrollTop, w: b.width, h: b.height };
       });
       return { list: l, rows: rs, boxes: bx };
     }
@@ -236,7 +244,7 @@
       };
       var shift = boxes[from][S] + gap(boxes);
       var lb0 = list.getBoundingClientRect();
-      var px0 = e.clientX - lb0.left, py0 = e.clientY - lb0.top;   // pointer, list-relative
+      var px0 = e.clientX - lb0.left + list.scrollLeft, py0 = e.clientY - lb0.top + list.scrollTop;   // pointer, in list content
       var pid = e.pointerId, touch = e.pointerType !== 'mouse';
       var sc = scroller(list, X ? 'x' : 'y');
       var live = false, to = from, lastX = e.clientX, lastY = e.clientY, raf = 0, cancelled = false;
@@ -249,7 +257,7 @@
       // Where the dragged row would sit, list-relative, unclamped.
       var drag = function () {
         var lb = list.getBoundingClientRect();
-        return { dx: (lastX - lb.left) - px0, dy: (lastY - lb.top) - py0 };
+        return { dx: (lastX - lb.left + list.scrollLeft) - px0, dy: (lastY - lb.top + list.scrollTop) - py0 };
       };
 
       var groupLists = function () {
@@ -319,6 +327,13 @@
         var bx = m.boxes;
         if (k < bx.length) return coord(bx[k]);
         if (!bx.length) {
+          // An empty list: under whatever it already holds (a group's header).
+          var kids = m.list.children, lastKid = kids[kids.length - 1];
+          if (lastKid) {
+            var kb = lastKid.getBoundingClientRect(), mb = m.list.getBoundingClientRect();
+            return X ? { x: kb.right - mb.left + m.list.scrollLeft + (parseFloat(getComputedStyle(lastKid).marginRight) || 0), y: kb.top - mb.top + m.list.scrollTop }
+              : { x: kb.left - mb.left + m.list.scrollLeft, y: kb.bottom - mb.top + m.list.scrollTop + (parseFloat(getComputedStyle(lastKid).marginBottom) || 0) };
+          }
           var cs = getComputedStyle(m.list);
           return { x: parseFloat(cs.paddingLeft) || 0, y: parseFloat(cs.paddingTop) || 0 };
         }
@@ -343,7 +358,7 @@
         var d = drag();
         row.style.transform = pos2(d.dx, d.dy);
         var tb = tgt.list.getBoundingClientRect();
-        var cx = lastX - tb.left, cy = lastY - tb.top;
+        var cx = lastX - tb.left + tgt.list.scrollLeft, cy = lastY - tb.top + tgt.list.scrollTop;
         var k = slotIn(tgt, cx, cy);
         if (k === tTo && tgt._placed) return;
         tTo = k; tgt._placed = true;
@@ -401,7 +416,7 @@
         lastX = ev.clientX; lastY = ev.clientY;
         if (!live) {
           var lb = list.getBoundingClientRect();
-          var dd = Math.max(Math.abs(ev.clientX - (px0 + lb.left)), Math.abs(ev.clientY - (py0 + lb.top)));
+          var dd = Math.max(Math.abs(ev.clientX - (px0 - list.scrollLeft + lb.left)), Math.abs(ev.clientY - (py0 - list.scrollTop + lb.top)));
           if (dd < HOLD_PX) return;
           start();
         }
@@ -440,7 +455,8 @@
         if (cross) {
           var sp = slotPos(tgt, tTo);
           var tb = tgt.list.getBoundingClientRect(), lb = list.getBoundingClientRect();
-          land = pos2(sp.x + tb.left - (boxes[from].x + lb.left), sp.y + tb.top - (boxes[from].y + lb.top));
+          land = pos2(sp.x - tgt.list.scrollLeft + tb.left - (boxes[from].x - list.scrollLeft + lb.left),
+            sp.y - tgt.list.scrollTop + tb.top - (boxes[from].y - list.scrollTop + lb.top));
         } else if (grid) {
           land = to === from || to < 0 ? '' : pos2(boxes[to].x - boxes[from].x, boxes[to].y - boxes[from].y);
         } else {

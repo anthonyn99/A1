@@ -188,20 +188,20 @@ async function mouseDrag(c, x, y, x2, y2, { steps = 16, cancel = false, mid = nu
   await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: a.x, y: a.y, button: 'left', clickCount: 1 });
   await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: a.x, y: a.y + 6, button: 'left', buttons: 1 });
   await sleep(60);
-  const pick = await evalJs(c, `const r=document.querySelector('#items-container .dnd-src'); return r ? r.getBoundingClientRect().top : null`);
+  const pick = await evalJs(c, `const r=document.querySelector('#items-container .dsort-drag'); return r ? r.getBoundingClientRect().top : null`);
   ok('pick-up does not jump: the row stays under the pointer', pick !== null && Math.abs(pick - (top0 + 6)) <= 2, top0 + ' → ' + pick);
   let slid = null;
   const ty = z.y - 2;                      // inside the list (the row is held within it, as in MAGI)
   for (let i = 1; i <= 16; i++) { await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: a.x, y: a.y + 6 + ((ty - a.y - 6) * i) / 16, button: 'left', buttons: 1 }); await sleep(18); }
   await sleep(60);
-  slid = await evalJs(c, `return JSON.stringify({copies:document.querySelectorAll('body > .item, body > .list-chip').length, src:(()=>{const r=document.querySelector('#items-container .dnd-src'); if(!r) return null; const b=r.getBoundingClientRect(); return Math.round(b.top+b.height/2);})(), live:document.getElementById('items-container').classList.contains('dnd-live'), moved:[...document.querySelectorAll('#items-container > :not(.dnd-src)')].filter(e=>e.style.transform).length})`);
+  slid = await evalJs(c, `return JSON.stringify({copies:document.querySelectorAll('body > .item, body > .list-chip').length, src:(()=>{const r=document.querySelector('#items-container .dsort-drag'); if(!r) return null; const b=r.getBoundingClientRect(); return Math.round(b.top+b.height/2);})(), live:!!document.querySelector('#items-container .dsort-on'), moved:[...document.querySelectorAll('#items-container .item:not(.dsort-drag)')].filter(e=>e.style.transform).length})`);
   const sj = JSON.parse(slid);
   ok('while dragging: the real row follows the pointer (no copy), neighbours slide aside', sj.copies === 0 && sj.live && sj.moved > 0 && Math.abs(sj.src - ty) <= 3, slid + ' pointer=' + Math.round(ty));
   await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: a.x, y: ty, button: 'left', clickCount: 1 });
   await sleep(400);
   const after = await evalJs(c, order);
   ok('drop reorders: Union Station after Larimer', after.indexOf('Larimer') < after.indexOf('Union Station') && after !== before, after);
-  ok('drag leaves no transforms behind', await evalJs(c, `!document.querySelector('.dnd-src') && ![...document.querySelectorAll('#items-container > *')].some(e=>e.style.transform)`));
+  ok('drag leaves no transforms behind', await evalJs(c, `!document.querySelector('.dsort-drag') && ![...document.querySelectorAll('#items-container .item')].some(e=>e.style.transform)`));
   // into another group: drag "Show 16th St Mall" up under the Saturday header
   const s = await rect(c, `[...document.querySelectorAll('#items-container .item')].find(e=>e.textContent.includes('16th'))`);
   const h = await rect(c, `document.querySelector('.store-group-h')`);
@@ -271,12 +271,13 @@ async function mouseDrag(c, x, y, x2, y2, { steps = 16, cancel = false, mid = nu
   await sleep(300);
   ok('a quick touch swipe on a row does not drag it', (await evalJs(c, order)) === io);
   const i2 = await rect(c, `document.querySelectorAll('#items-container .item')[2]`);
-  await c.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: i0.x - 40, y: i0.y }] });
-  await sleep(300);
-  for (let i = 1; i <= 12; i++) { await c.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: i0.x - 40, y: i0.y + ((i2.y + 12 - i0.y) * i) / 12 }] }); await sleep(18); }
+  const g0 = await rect(c, `document.querySelectorAll('#items-container .item')[0].querySelector('.dsort-grip')`);
+  await c.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: g0.x, y: g0.y }] });
+  await sleep(40);
+  for (let i = 1; i <= 12; i++) { await c.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: g0.x, y: g0.y + ((i2.y + 12 - g0.y) * i) / 12 }] }); await sleep(18); }
   await c.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await sleep(450);
-  ok('hold-then-drag on a row reorders it on touch', (await evalJs(c, order)) !== io, await evalJs(c, order));
+  ok('a finger on a row\'s grip reorders it on touch', (await evalJs(c, order)) !== io, await evalJs(c, order));
   // picker at phone width = bottom sheet, 2 columns, fits
   await evalJs(c, `document.getElementById('new-list-btn').click(); return 1`);
   await sleep(250);
