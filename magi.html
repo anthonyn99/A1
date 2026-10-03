@@ -7858,14 +7858,32 @@ function audio() {
    tone. A run can start with no gesture at all -- the queue, a retry, a
    handoff from TradeHub -- and a context first created then is born
    suspended, so the opening tones had nowhere to go. Creating it silently on
-   the first gesture means it is already running when the council starts. */
-function unlockAudio() {
-  window.removeEventListener("pointerdown", unlockAudio, true);
-  window.removeEventListener("keydown", unlockAudio, true);
-  audio();
+   the first gesture means it is already running when the council starts.
+
+   But not INSIDE that gesture: opening the audio device blocks the page for
+   ~260ms on Windows, so the first click or drag of every visit froze. It is
+   made once input has been quiet for a moment (the page has been interacted
+   with by then, so the browser lets it run); a tone needed sooner makes it on
+   the spot, as before. Once it exists, each press only resumes it if it was
+   suspended -- iOS will only resume inside a gesture. */
+let audioWarmTimer = 0;
+function warmAudioSoon() {
+  clearTimeout(audioWarmTimer);
+  audioWarmTimer = setTimeout(() => {
+    const go = () => {
+      if (actx) return;
+      if (window.A1Drag && A1Drag.active) return warmAudioSoon();
+      audio();
+    };
+    if (window.requestIdleCallback) requestIdleCallback(go, { timeout: 1000 }); else go();
+  }, 1500);
 }
-window.addEventListener("pointerdown", unlockAudio, true);
-window.addEventListener("keydown", unlockAudio, true);
+function unlockAudio() {
+  if (!actx) { warmAudioSoon(); return; }
+  if (actx.state === "suspended") actx.resume().catch(() => {});
+}
+window.addEventListener("pointerdown", unlockAudio, { capture: true, passive: true });
+window.addEventListener("keydown", unlockAudio, { capture: true, passive: true });
 
 /** One struck tone.
  *

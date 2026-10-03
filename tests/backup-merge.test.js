@@ -37,6 +37,14 @@ ok(doc.savedAt === 3, 'savedAt is left for the writer to stamp');
 ok(report.some((r) => r.op === 'dropped-copy'), 'report names the dropped copy');
 ok(!M.looksRetyped({ title: 'Cook' }, { title: 'Dishes' }), 'unrelated titles are not treated as copies');
 
+const rb = M.rollbackDoc(base, good, live);
+ok(rb.doc.goals.length === 2 && !titles(rb.doc.goals).includes('Fix the reset'), 'rollback: exactly the backup, post-reset items dropped');
+ok(titles(rb.doc.data['2026-10-02']).includes('Bring cold medicine on car ride') &&
+   !titles(rb.doc.data['2026-10-02']).includes('Medicine car ride'), 'rollback: day lists are the backup’s');
+ok(!('2026-10-01' in rb.doc.data), 'rollback: an archived day is not re-added');
+ok(rb.report.some((r) => r.op === 'removed' && r.title === 'Fix the reset'), 'rollback report names what it removes');
+ok(rb.doc.savedAt === 3, 'rollback leaves savedAt for the writer');
+
 const pb = M.pickBase([good, base], live);
 ok(pb.base === base, 'pickBase finds the state live was reset to');
 

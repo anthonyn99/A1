@@ -163,6 +163,36 @@
     return { doc: out, report: report };
   }
 
+  // Full rollback: the backup exactly as it was, except days archived since
+  // (in base and gone from live) — those live in the sidecars now and must not
+  // re-enter the main doc. The report lists what differs from live.
+  function rollbackDoc(base, good, live) {
+    base = base || {}; good = good || {}; live = live || {};
+    var bd = base.data || {}, ld = live.data || {}, out = {}, report = [];
+    Object.keys(good).forEach(function (k) { if (k !== 'data' && k !== 'savedAt') out[k] = good[k]; });
+    out.data = {};
+    Object.keys(good.data || {}).forEach(function (day) {
+      if (!(day in ld) && (day in bd)) return;
+      out.data[day] = good.data[day];
+    });
+    out.savedAt = live.savedAt;
+    var a = itemMap(live), b = itemMap(out), titleAt = {};
+    var index = function (doc) {
+      LISTS.forEach(function (f) { ((doc || {})[f] || []).forEach(function (x, i) { titleAt[f + '|' + (idOf(x) || i)] = { where: f, title: titleOf(x) }; }); });
+      Object.keys((doc || {}).data || {}).forEach(function (d) {
+        (doc.data[d] || []).forEach(function (x, i) { titleAt['data/' + d + '|' + (idOf(x) || i)] = { where: 'data/' + d, title: titleOf(x) }; });
+      });
+    };
+    index(live); index(out);
+    Object.keys(b).forEach(function (k) {
+      if (!(k in a)) report.push(Object.assign({ op: 'restored' }, titleAt[k]));
+      else if (a[k] !== b[k]) report.push(Object.assign({ op: 'updated', changes: diffKeys(JSON.parse(a[k]), JSON.parse(b[k])) }, titleAt[k]));
+    });
+    Object.keys(a).forEach(function (k) { if (!(k in b)) report.push(Object.assign({ op: 'removed' }, titleAt[k])); });
+    if (!same(live.hc, out.hc)) report.push({ op: 'updated', where: 'hc' });
+    return { doc: out, report: report };
+  }
+
   // Which backup did live get reset TO? The candidate it differs from least.
   // That is the right `base`: anything live changed relative to it was done
   // after the reset and must be kept.
@@ -192,7 +222,7 @@
     return { base: best, distance: bestD };
   }
 
-  var api = { mergeDoc: mergeDoc, pickBase: pickBase, distance: distance, mergeList: mergeList, looksRetyped: looksRetyped, _norm: norm };
+  var api = { mergeDoc: mergeDoc, rollbackDoc: rollbackDoc, pickBase: pickBase, distance: distance, mergeList: mergeList, looksRetyped: looksRetyped, _norm: norm };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.A1BackupMerge = api;
 })(this);
