@@ -5,12 +5,17 @@
 //   1. Agent order, mouse: lift a row by its body, pass two rows (they slide
 //      aside while it moves), drop -> it sits there, numbers 1..N; frames
 //      stay smooth during the drag; dragged back.
-//   2. Agent order, touch at 390px: a finger on the GRIP drags; a finger on
-//      the row's text does not (the list scrolls instead).
+//   2. Agent order, touch at 390px: a finger that moves at once does not
+//      drag (the list scrolls); a 300ms hold, then a move, does. No grips.
 //   3. Queue (Deliberation and Code Mode lanes): a waiting row dragged to the
 //      top lands there, only its own order number changes; a finished row
 //      will not lift.
 //   4. Escape mid-drag puts it back; the first click after a drop works.
+//   5. Unit chips: a mouse drag moves a chip and does not toggle it; a touch
+//      hold moves it too; the order is saved.
+//   6. The prompt box's corner grip (resizegrip.js): drag, click toggle, the
+//      height survives a reload, and an old magi.h.* height is carried over.
+// Since theme phase 11 all of it is the shared dragsort.js / resizegrip.js.
 // The test browser's own profile; its queue rows are put back after.
 'use strict';
 const { connect, evalJs, sleep, shotPath } = require('./cdp.js');
@@ -51,16 +56,18 @@ async function mouseDrag(c, x, y, dy, { steps = 14, mid = null, cancel = false }
   await sleep(320);
 }
 
-async function touchDrag(c, x, y, dy, steps = 14) {
+async function touchDrag(c, x, y, dy, steps = 14, holdMs = 0, dx = 0) {
   await c.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+  if (holdMs) await sleep(holdMs);
   for (let i = 1; i <= steps; i++) {
-    await c.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y + (dy * i) / steps }] });
+    await c.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x + (dx * i) / steps, y: y + (dy * i) / steps }] });
     await sleep(16);
   }
   await c.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await sleep(320);
 }
 
+let window_saved_units = null;
 const orderNames = (c) => evalJs(c, 'return JSON.stringify([...document.querySelectorAll(".code-order-row")].map(r => r.querySelector(".code-order-name").textContent));').then(JSON.parse);
 
 (async () => {
@@ -138,18 +145,17 @@ const orderNames = (c) => evalJs(c, 'return JSON.stringify([...document.querySel
     await evalJs(c, 'openCodeOrder(); return 1;');
     await waitFor(c, '!!document.querySelector(".code-order-row")');
     const tStep = (await rect(c, 'document.querySelectorAll(".code-order-row")[1]')).t - (await rect(c, 'document.querySelectorAll(".code-order-row")[0]')).t;
-    const g0 = await rect(c, 'document.querySelectorAll(".code-order-row")[0].querySelector(".dsort-grip")');
-    ok('the grip is a real touch target (≥ 28 x 36)', g0.w >= 27 && g0.h >= 35, `${g0.w}x${g0.h}`);
+    ok('no grip dots on the rows', await evalJs(c, '!document.querySelector(".code-order .dsort-grip")'));
     const txt = await rect(c, 'document.querySelectorAll(".code-order-row")[0].querySelector(".code-order-name")');
     await touchDrag(c, txt.x, txt.y, tStep * 2);
-    ok('a finger on the row text does not drag (it scrolls)', JSON.stringify(await orderNames(c)) === JSON.stringify(before));
-    await touchDrag(c, g0.x, g0.y, tStep + 4);
+    ok('a finger that moves at once does not drag (it scrolls)', JSON.stringify(await orderNames(c)) === JSON.stringify(before));
+    await touchDrag(c, txt.x, txt.y, tStep + 4, 14, 420);
     const tAfter = await orderNames(c);
-    ok('a finger on the grip drags it one place down', tAfter[1] === before[0] && tAfter[0] === before[1], JSON.stringify(tAfter.slice(0, 2)));
+    ok('a 300ms hold, then a move, drags it one place down', tAfter[1] === before[0] && tAfter[0] === before[1], JSON.stringify(tAfter.slice(0, 2)));
     await shot(c, 'drag-agent-phone');
     ok('no horizontal scroll at 390', await evalJs(c, 'document.documentElement.scrollWidth <= innerWidth + 1'));
-    const g1 = await rect(c, 'document.querySelectorAll(".code-order-row")[1].querySelector(".dsort-grip")');
-    await touchDrag(c, g1.x, g1.y, -(tStep + 4));
+    const g1 = await rect(c, 'document.querySelectorAll(".code-order-row")[1].querySelector(".code-order-name")');
+    await touchDrag(c, g1.x, g1.y, -(tStep + 4), 14, 420);
     ok('and back', JSON.stringify(await orderNames(c)) === JSON.stringify(before));
     await evalJs(c, 'document.querySelector(".sheet") && document.querySelector(".sheet").remove(); return 1;');
     await c.send('Emulation.setTouchEmulationEnabled', { enabled: false });
@@ -167,11 +173,11 @@ const orderNames = (c) => evalJs(c, 'return JSON.stringify([...document.querySel
           { id: "dq4", q: "third waiting", status: "queued", order: 4000, units: [], agents: [], pid: "", rw: "read" },
         ];
         renderQueue(); return 1;`);
-      ok('the queue is drawn with grips', await waitFor(c, 'document.querySelectorAll("#queueRows .q-row .dsort-grip").length === 4', 5000));
+      ok('the queue is drawn, without grips', await waitFor(c, 'document.querySelectorAll("#queueRows .q-row").length === 4 && !document.querySelector("#queueRows .dsort-grip")', 5000));
       const q = (s) => `document.querySelector('#queueRows .q-row[data-dkey="${s}"]')`;
       const qStep = (await rect(c, q('dq2'))).t - (await rect(c, q('dq1'))).t;
       const ids = () => evalJs(c, `return JSON.stringify(queueSorted(QUEUES[${JSON.stringify(lane)}]).map(x => x.id));`).then(JSON.parse);
-      const g4 = await rect(c, q('dq4') + '.querySelector(".dsort-grip")');
+      const g4 = await rect(c, q('dq4') + '.querySelector(".q-text")');
       await mouseDrag(c, g4.x, g4.y, -(qStep * 3 + 6));
       const got = await ids();
       ok('the last waiting row dragged to the top lands first', got[0] === 'dq4', JSON.stringify(got));
@@ -184,12 +190,80 @@ const orderNames = (c) => evalJs(c, 'return JSON.stringify([...document.querySel
       await shot(c, `drag-queue-${lane}`);
       await evalJs(c, `QUEUES[${JSON.stringify(lane)}].items = JSON.parse(window.__savedQ); queueChanged(QUEUES[${JSON.stringify(lane)}]); renderQueue(); return 1;`);
     }
+
+    // ── 5. unit chips ───────────────────────────────────────────────────
+    console.log('\n5. Unit chips');
+    await evalJs(c, 'setMode("deliberation"); setView("council"); return 1;');
+    ok('chips drawn', await waitFor(c, 'document.querySelectorAll("#unitChips .chip").length >= 3', 15000));
+    const chipIds = () => evalJs(c, 'return JSON.stringify([...document.querySelectorAll("#unitChips .chip")].map(n => n.dataset.unit));').then(JSON.parse);
+    const picked = () => evalJs(c, 'return JSON.stringify([...S.selected].sort());');
+    window_saved_units = await evalJs(c, 'return JSON.stringify(S.unitOrder || []);');
+    const c0 = await chipIds();
+    const sel0 = await picked();
+    const a = await rect(c, 'document.querySelector("#unitChips .chip")');
+    const b2 = await rect(c, 'document.querySelectorAll("#unitChips .chip")[2]');
+    // A horizontal mouse drag: chip 0 past chip 1.
+    await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: a.x, y: a.y });
+    await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: a.x, y: a.y, button: 'left', clickCount: 1 });
+    let chipMid = null;
+    for (let i = 1; i <= 14; i++) {
+      await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: a.x + ((b2.x - a.x) * i) / 14, y: a.y, button: 'left', buttons: 1 });
+      await sleep(16);
+    }
+    chipMid = await evalJs(c, '!!document.querySelector("#unitChips .chip.dsort-drag")');
+    await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: b2.x, y: a.y, button: 'left', clickCount: 1 });
+    await sleep(350);
+    ok('a mouse lifts the chip (dsort-drag)', chipMid);
+    const c1 = await chipIds();
+    ok('the chip moved right', c1.indexOf(c0[0]) > 0, JSON.stringify(c1));
+    ok('...and was not toggled by the release click', (await picked()) === sel0);
+    ok('...and the order is saved', await evalJs(c, `JSON.stringify(S.unitOrder.filter(x => ${JSON.stringify(c1)}.includes(x))) === ${JSON.stringify(JSON.stringify(c1))}`));
+    // Back with a touch hold at phone width.
+    await c.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+    await c.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
+    await sleep(300);
+    const m0 = await rect(c, `document.querySelector('#unitChips .chip[data-unit="${c0[0]}"]')`);
+    const first = await rect(c, 'document.querySelector("#unitChips .chip")');
+    await touchDrag(c, m0.x, m0.y, first.y - m0.y, 14, 0, first.l - m0.x - 6);
+    ok('a finger that moves at once does not move a chip', JSON.stringify(await chipIds()) === JSON.stringify(c1));
+    await touchDrag(c, m0.x, m0.y, first.y - m0.y, 14, 420, first.l - m0.x - 6);
+    ok('a 300ms hold, then a move, puts it back first', (await chipIds())[0] === c0[0], JSON.stringify(await chipIds()));
+    ok('...still not toggled', (await picked()) === sel0);
+    await shot(c, 'drag-chips-phone');
+    await c.send('Emulation.setTouchEmulationEnabled', { enabled: false });
+    await c.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+
+    // ── 6. the prompt box's corner grip ─────────────────────────────────
+    console.log('\n6. Resize grip');
+    await evalJs(c, 'localStorage.removeItem("a1.h.magi.composer"); localStorage.setItem("magi.h.composer", "222"); return 1;');
+    await c.send('Page.navigate', { url: URL });
+    ok('reloaded', await waitFor(c, '!!document.getElementById("composerGrip") && !!window.A1Resize', 20000));
+    ok('an old magi.h height is carried over', await evalJs(c, 'document.getElementById("composer").style.height === "222px" && localStorage.getItem("a1.h.magi.composer") === "222" && localStorage.getItem("magi.h.composer") === null'));
+    const gr = await rect(c, 'document.getElementById("composerGrip")');
+    ok('the grip is the shared one, 38px', await evalJs(c, 'document.getElementById("composerGrip").classList.contains("a1-grip")') && Math.round(gr.w) === 38, `${gr.w}`);
+    const h0 = await evalJs(c, 'Math.round(document.getElementById("composer").getBoundingClientRect().height)');
+    await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: gr.x, y: gr.y, button: 'left', clickCount: 1 });
+    for (let i = 1; i <= 8; i++) { await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: gr.x, y: gr.y + 10 * i, button: 'left', buttons: 1 }); await sleep(16); }
+    await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: gr.x, y: gr.y + 80, button: 'left', clickCount: 1 });
+    await sleep(100);
+    const h1 = await evalJs(c, 'Math.round(document.getElementById("composer").getBoundingClientRect().height)');
+    ok('a drag of 80px grows the box 80px', Math.abs(h1 - (h0 + 80)) <= 2, `${h0} -> ${h1}`);
+    ok('...stored as a1.h.magi.composer', await evalJs(c, 'localStorage.getItem("a1.h.magi.composer")') === String(h1));
+    await c.send('Page.navigate', { url: URL });
+    await waitFor(c, '!!document.getElementById("composerGrip") && !!window.A1Resize', 20000);
+    ok('the height survives a reload', await evalJs(c, 'Math.round(document.getElementById("composer").getBoundingClientRect().height)') === h1);
+    const gr2 = await rect(c, 'document.getElementById("composerGrip")');
+    await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: gr2.x, y: gr2.y, button: 'left', clickCount: 1 });
+    await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: gr2.x, y: gr2.y, button: 'left', clickCount: 1 });
+    await sleep(100);
+    ok('a click hands a sized box back to auto', await evalJs(c, '!document.getElementById("composer").dataset.userH && localStorage.getItem("a1.h.magi.composer") === null'));
   } catch (e) {
     fail++;
     console.log('  FAIL  crashed: ' + (e.stack || e));
   } finally {
     try {
       await evalJs(c, `CODE.order = ${savedOrder}; lsWrite(CODE_ORDER_KEY, CODE.order); document.querySelectorAll(".sheet").forEach(s => s.remove()); return 1;`);
+      if (window_saved_units) await evalJs(c, `S.unitOrder = ${window_saved_units}; saveUnitOrder(S.unitOrder); renderUnitChips(); return 1;`);
     } catch {}
     ok('no page errors', errs.length === 0, errs.join(' | '));
     try { c.close && c.close(); } catch {}
