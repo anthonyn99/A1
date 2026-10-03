@@ -64,40 +64,26 @@
 <link rel="manifest" href="data:application/json,%7B%22name%22%3A%22TradeHub%22%2C%22short_name%22%3A%22TradeHub%22%2C%22display%22%3A%22standalone%22%2C%22id%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2Ftradehub.html%22%2C%22start_url%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2Ftradehub.html%22%2C%22background_color%22%3A%22%231a1a1d%22%2C%22theme_color%22%3A%22%231a1a1d%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%253D%2527http%253A%252F%252Fwww.w3.org%252F2000%252Fsvg%2527%2520viewBox%253D%25270%25200%252096%252096%2527%253E%253Crect%2520width%253D%252796%2527%2520height%253D%252796%2527%2520rx%253D%252722%2527%2520fill%253D%2527%25231a1a1d%2527%252F%253E%253Cg%2520fill%253D%2527none%2527%2520stroke%253D%2527%2523c0aeea%2527%2520stroke-width%253D%25275%2527%2520stroke-linecap%253D%2527round%2527%2520stroke-linejoin%253D%2527round%2527%253E%253Cpath%2520d%253D%2527M24%252022v50a2%25202%25200%25200%25200%25202%25202h48%2527%252F%253E%253Cpath%2520d%253D%2527M34%252062l12-14%252010%25209%252016-21%2527%252F%253E%253Cpath%2520d%253D%2527M60%252036h12v12%2527%252F%253E%253C%252Fg%253E%253C%252Fsvg%253E%22%2C%22sizes%22%3A%22any%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%2C%22launch_handler%22%3A%7B%22client_mode%22%3A%22navigate-existing%22%7D%7D">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231a1a1d%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%23c0aeea%27%20stroke-width%3D%275%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M24%2022v50a2%202%200%200%200%202%202h48%27%2F%3E%3Cpath%20d%3D%27M34%2062l12-14%2010%209%2016-21%27%2F%3E%3Cpath%20d%3D%27M60%2036h12v12%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231a1a1d%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%23c0aeea%27%20stroke-width%3D%275%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M24%2022v50a2%202%200%200%200%202%202h48%27%2F%3E%3Cpath%20d%3D%27M34%2062l12-14%2010%209%2016-21%27%2F%3E%3Cpath%20d%3D%27M60%2036h12v12%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600..800&family=Lora:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Fraunces:opsz,wght@9..144,400..700&display=swap" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600..800&family=Lora:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 /* ══════════════════════════════════════════════════════════════════════════
-   SUITE DESIGN TOKENS — mirrored from index.html. Two golds, one display face,
-   one accent face; every app in the ecosystem draws from the same values.
+   SUITE DESIGN TOKENS — MAGI's look, as on Tony's side of every A1 program
+   (docs/theme-overhaul-plan.md §2). The app's own palette is TB_STYLES below.
+   No serif: --font-accent is Inter.
    ══════════════════════════════════════════════════════════════════════════ */
 :root{
-  --gold-primary:#e0b874;    /* borders, rings, active states, icons          */
-  --gold-secondary:#e0b874;  /* champagne — accent text on dark surfaces      */
-  --gold-line:rgba(224,184,116,.36);
-  --gold-glow:0 0 8px rgba(224,184,116,0.40),0 0 0 1px rgba(224,184,116,0.15);
-  /* Same shape as the gold glow, in the destructive red — for close/dismiss
-     affordances, where gold would read as "confirm". */
-  --red-glow:0 0 8px rgba(214,138,124,0.45),0 0 0 1px rgba(214,138,124,0.18);
   --suite-display:'Manrope',system-ui,-apple-system,sans-serif;
-  --font-accent:'Fraunces',Georgia,serif;
+  --font-accent:'Inter',system-ui,-apple-system,sans-serif;
 }
 .suite-title{
   font-family:var(--suite-display);
   font-size:clamp(21px,2.6vw,28px);
   font-weight:750;letter-spacing:-.4px;line-height:1.2;
-  color:var(--gold-primary);
+  color:#c0aeea;
 }
-/* The wordmark sits alone at the top of the page with nothing to lean on, so it
-   takes the same lighter gold Tony's TaskHub wordmark uses (index.html
-   .suite-title.th-wordmark) rather than the deeper --gold-primary the borders
-   and icons are tuned for. Mirrored value: keep the two in step. */
-.suite-title.th-wordmark{color:#eecb92;}
-.suite-accent{
-  font-family:var(--font-accent);
-  font-variation-settings:'opsz' 20,'SOFT' 0,'WONK' 0;
-  font-style:normal;letter-spacing:.1px;
-}
+/* The wordmark takes MAGI's light purple, the same as Tony's TaskHub wordmark
+   (index.html .suite-title.th-wordmark). Mirrored value: keep the two in step. */
+.suite-title.th-wordmark{color:#dbd0f5;}
 
   html,body{margin:0;padding:0;background:#1a1a1d;}
   body{font-family:'Inter',system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased;}
@@ -113,25 +99,24 @@
   ::-webkit-scrollbar{display:none;width:0;height:0;}
 
   /* ── App Lock overlay (mirrors index.html applock) ── */
-  #applock-overlay{position:fixed;inset:0;z-index:2147483000;background:#1a1a1d;background-image:radial-gradient(120% 50% at 50% -10%,rgba(224,184,116,.065),transparent 70%);display:none;align-items:center;justify-content:center;font-family:'Inter',system-ui,-apple-system,sans-serif;}
+  #applock-overlay{position:fixed;inset:0;z-index:2147483000;background:#1a1a1d;display:none;align-items:center;justify-content:center;font-family:'Inter',system-ui,-apple-system,sans-serif;}
   /* Bordered lock card — same surface the whole suite authenticates through. */
-  #applock-box{display:flex;flex-direction:column;align-items:center;gap:18px;padding:34px 30px 22px;background:#232327;border:1px solid rgba(224,184,116,.22);border-radius:18px;width:350px;max-width:calc(100vw - 32px);box-shadow:0 32px 80px rgba(0,0,0,.7);position:relative;}
+  #applock-box{display:flex;flex-direction:column;align-items:center;gap:18px;padding:34px 30px 22px;background:#232327;border:1px solid rgba(192,174,234,.32);border-radius:8px;width:350px;max-width:calc(100vw - 32px);box-shadow:0 32px 80px rgba(0,0,0,.7);position:relative;}
   #applock-head{text-align:center;display:flex;flex-direction:column;gap:5px;}
   #applock-form{width:100%;display:flex;flex-direction:column;gap:10px;}
   #applock-links{display:flex;flex-direction:column;align-items:center;gap:5px;}
   #applock-foot{width:100%;padding-top:14px;border-top:1px solid #34343a;display:flex;justify-content:center;}
   @keyframes applock-shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
   #applock-box.shake{animation:applock-shake 0.4s ease;}
-  #applock-icon{line-height:0;color:#e0b874;}
+  #applock-icon{line-height:0;color:#c0aeea;}
   #applock-icon svg{width:30px;height:30px;display:block;}
   #applock-title{font-family:var(--suite-display);font-size:25px;font-weight:750;letter-spacing:-.4px;color:#f4f3f0;}
   #applock-sub{font-size:10.5px;letter-spacing:2.4px;text-transform:uppercase;color:#8d8d94;text-align:center;}
   #applock-pw{background:#232327;border:1px solid #45454c;border-radius:6px;color:#f4f3f0;font-size:15px;font-weight:500;padding:14px 16px;font-family:'Inter',system-ui,-apple-system,sans-serif;outline:none;width:100%;text-align:center;letter-spacing:4px;box-sizing:border-box;transition:border-color .18s;}
-  #applock-pw:focus{border-color:#e0b874;}
+  #applock-pw:focus{border-color:#c0aeea;}
   #applock-pw.error{border-color:#d68a7c;}
   #applock-err{font-size:12.5px;color:#d68a7c;font-weight:500;text-align:center;min-height:16px;}
-  #applock-submit{background:transparent;color:#e0b874;border:1px solid rgba(224,184,116,.36);border-radius:6px;padding:14px 0;font-size:13.5px;font-weight:500;letter-spacing:.2px;cursor:pointer;font-family:'Inter',system-ui,-apple-system,sans-serif;width:100%;transition:border-color .18s,opacity .18s;}
-  #applock-submit:hover:not(:disabled){border-color:#e0b874;}
+  #applock-submit{background:#c0aeea;color:#1a1a1d;border:1px solid #c0aeea;border-radius:6px;padding:14px 0;font-size:13.5px;font-weight:700;letter-spacing:.2px;cursor:pointer;font-family:'Inter',system-ui,-apple-system,sans-serif;width:100%;transition:border-color .18s,opacity .18s;}
   #applock-submit:disabled{opacity:0.4;cursor:default;}
   #applock-cancel{background:transparent;border:none;color:#8d8d94;font-size:13px;cursor:pointer;font-family:'Inter',system-ui,-apple-system,sans-serif;padding:2px 10px;text-decoration:underline;text-underline-offset:3px;transition:color .15s;}
   #applock-forgot{background:transparent;border:none;color:#8d8d94;font-size:12px;cursor:pointer;font-family:'Inter',system-ui,-apple-system,sans-serif;padding:0;text-decoration:underline;text-underline-offset:3px;transition:color .15s;}
@@ -141,18 +126,17 @@
   /* ── Lock-manager hover + touch sizing ───────────────────────────────────
      The menu buttons are built in JS with an inline `border` shorthand, so a
      plain stylesheet hover can never win against it — hence !important on the
-     border-color. The glow is what actually marks the target on desktop; it is
-     gated behind hover/fine pointers so a phone never paints a "stuck" hover
-     after a tap. `.al-ac` = accent rows (unlock / lock this device),
+     border-color. The outline is what marks the target on desktop (no glow:
+     MAGI's look); it is gated behind hover/fine pointers so a phone never
+     paints a "stuck" hover after a tap. `.al-ac` = accent rows (unlock / lock this device),
      `.al-dg` = the destructive row. */
   #applock-bio button,#al-menu-btns button{transition:border-color .18s,box-shadow .18s,color .18s;}
   @media (hover:hover) and (pointer:fine){
-    #applock-bio button:hover,#al-menu-btns button:hover{border-color:#adadb2 !important;box-shadow:0 0 11px rgba(173,173,178,.30);}
-    #al-menu-btns button.al-ac:hover{border-color:#e0b874 !important;box-shadow:0 0 12px rgba(224,184,116,.34);}
-    #al-menu-btns button.al-dg:hover{border-color:#d68a7c !important;box-shadow:0 0 12px rgba(214,138,124,.32);}
-    #applock-submit:hover:not(:disabled){box-shadow:0 0 12px rgba(224,184,116,.30);}
+    #applock-bio button:hover,#al-menu-btns button:hover{border-color:#adadb2 !important;}
+    #al-menu-btns button.al-ac:hover{border-color:#c0aeea !important;}
+    #al-menu-btns button.al-dg:hover{border-color:#d68a7c !important;}
   }
-  #applock-pw:focus{box-shadow:0 0 11px rgba(224,184,116,.24);}
+  #applock-pw:focus{box-shadow:0 0 0 3px rgba(192,174,234,.16);}
   #applock-submit,#applock-pw{transition:border-color .18s,box-shadow .18s,opacity .18s;}
   /* Phones: full-bleed card, comfortable 46px tap targets, and a scrolling
      body so a menu with biometrics + every action still fits a short screen. */
@@ -164,6 +148,9 @@
   }
 </style>
 
+<!-- MAGI's drag to reorder and corner resize grip, shared by every A1 program -->
+<script src="dragsort.js"></script>
+<script src="resizegrip.js"></script>
 <!-- React / ReactDOM / Babel (same CDN builds as the main suite) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
@@ -235,7 +222,7 @@ window._mailRelay = window._mailRelay || async function (res) {
 };
 </script>
 </head>
-<body>
+<body data-hoverfx="magi">
 
 <div id="tradeboard-root" style="display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden;font-family:'Inter',system-ui,-apple-system,sans-serif;"></div>
 
@@ -1467,12 +1454,21 @@ function tbPnlBg(n){return n>=0?'rgba(164,185,134,0.1)':'rgba(214,138,124,0.1)';
 /* ── CSS vars injected into tradeboard-root ── */
 const TB_STYLES=`
 #tradeboard-root{
-  --bg:#1a1a1d;--s1:#232327;--s2:#2c2c31;--s3:#37373d;
+  /* MAGI's palette (magi.html :root; docs/theme-overhaul-plan.md §2).
+     --ac MAGI purple; --acs accent text; --acd its deep shade; --acp the light
+     one (panel titles); --acl an accent LINE (borders only, never a fill).
+     --gold is real gold and only means something: the ★ favourite, warnings.
+     Selected = a SOLID --ac fill with a dark (--bg) label, or an --ac outline.
+     No gradients, no see-through washes, no glows. */
+  --bg:#1a1a1d;--s1:#232327;--s2:#2c2c31;--s3:#34343a;
   --bd:#34343a;--bdl:#45454c;
   --tx:#f4f3f0;--txd:#adadb2;--txm:#8d8d94;
-  --ac:#e0b874;--acd:#e0b874;--acs:#e0b874;--acp:#e0b874;--acl:rgba(224,184,116,.36);--acg:rgba(224,184,116,0.07);
+  --ac:#c0aeea;--acd:#9a86c9;--acs:#c0aeea;--acp:#dbd0f5;--acl:rgba(192,174,234,.36);
+  --gold:#e0b874;--blue:#8fa6d8;
   --tbb:#a4b986;--tbr:#d68a7c;--tbw:#e0b57c;--tbe:#d68a7c;
   --info:#a8c4e0;
+  /* dragsort.js / resizegrip.js tint */
+  --ds-ac:#c0aeea;--ds-s2:#2c2c31;
   --shadow:rgba(0,0,0,0.5);
   /* Inherited default for anything that doesn't set its own colour. Without it
      the fallback was the document's black, which is invisible on --bg — icons
@@ -1488,17 +1484,17 @@ const TB_STYLES=`
 #tradeboard-root ::-webkit-scrollbar{display:none;width:0;height:0;}
 #tradeboard-root ::-webkit-scrollbar-track{background:transparent;}
 #tradeboard-root ::-webkit-scrollbar-thumb{background:rgba(128,128,128,0.2);border-radius:4px;}
-#tradeboard-root .tb-card{background:var(--s1);border:1px solid var(--bd);border-radius:9px;padding:20px 22px;box-shadow:none;transition:border-color .18s;}
+#tradeboard-root .tb-card{background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:20px 22px;box-shadow:none;transition:border-color .18s;}
 #tradeboard-root .tb-card:hover{border-color:var(--bdl);}
 /* ── Per-tab lock manager ────────────────────────────────────────────────────
    Its buttons carry inline "border" shorthands from JSX, which a plain hover
-   rule cannot override — hence !important on border-color. The glow is desktop
-   only (hover/fine) so a tap on a phone never leaves a row looking stuck. */
+   rule cannot override — hence !important on border-color. The outline is
+   desktop only (hover/fine) so a tap on a phone never leaves a row looking stuck. */
 #tradeboard-root .tb-tablock-card button,#tradeboard-root .tb-tablock-gate button{transition:border-color .18s,box-shadow .18s,color .18s;}
 @media (hover:hover) and (pointer:fine){
-  #tradeboard-root .tb-tablock-card button:hover,#tradeboard-root .tb-tablock-gate button:hover{border-color:var(--bdl) !important;box-shadow:0 0 11px rgba(173,173,178,.26);}
-  #tradeboard-root .tb-tablock-card button.al-ac:hover,#tradeboard-root .tb-tablock-gate button.al-ac:hover{border-color:var(--ac) !important;box-shadow:0 0 12px var(--acl);}
-  #tradeboard-root .tb-tablock-card button.al-dg:hover{border-color:var(--tbr) !important;box-shadow:0 0 12px rgba(214,138,124,.34);}
+  #tradeboard-root .tb-tablock-card button:hover,#tradeboard-root .tb-tablock-gate button:hover{border-color:var(--txd) !important;}
+  #tradeboard-root .tb-tablock-card button.al-ac:hover,#tradeboard-root .tb-tablock-gate button.al-ac:hover{border-color:var(--ac) !important;}
+  #tradeboard-root .tb-tablock-card button.al-dg:hover{border-color:var(--tbr) !important;}
 }
 /* Underlined text links inside the card keep their plain treatment. */
 #tradeboard-root .tb-tablock-card button[style*="underline"]:hover,#tradeboard-root .tb-tablock-gate button[style*="underline"]:hover{border-color:transparent !important;box-shadow:none;color:var(--txd);}
@@ -1509,25 +1505,25 @@ const TB_STYLES=`
 }
 #tradeboard-root .tb-ico{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;line-height:0;vertical-align:-2px;}
 #tradeboard-root .tb-ico svg{width:100%;height:100%;display:block;}
-#tradeboard-root .tb-btn-primary{display:inline-flex;align-items:center;gap:7px;background:transparent;color:var(--acs);border:1px solid var(--acl);border-radius:6px;padding:9px 16px;font-size:11.5px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;box-shadow:none;transition:border-color .18s,color .18s,box-shadow .18s;}
-/* Nothing glows at rest; hover lights each button's own colour. */
-#tradeboard-root .tb-btn-primary:hover{border-color:var(--ac);box-shadow:var(--gold-glow);}
-#tradeboard-root .tb-btn-primary:active{transform:translateY(1px);}
-#tradeboard-root .tb-btn-primary:disabled{opacity:.4;cursor:not-allowed;transform:none;}
-#tradeboard-root .tb-btn-ghost{display:inline-flex;align-items:center;gap:7px;background:transparent;color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:9px 16px;font-size:11.5px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;box-shadow:none;transition:border-color .18s,color .18s,box-shadow .18s;}
-#tradeboard-root .tb-btn-ghost:hover{border-color:var(--acd);color:var(--acs);box-shadow:var(--gold-glow);}
-/* News Summary button. .is-ready tints the border when a digest is already warm,
-   but it must never survive a hover — the hover has to be the SAME gold glow the
-   Refresh button gets. Both rules carry the extra class so they outrank
+/* MAGI's .btn: 10px, 700, uppercase, 1px tracking, radius 6, a --bdl outline
+   at rest that turns accent on hover. The size is !important because many call
+   sites still pass an inline fontSize from the old 11.5-13px buttons. No glow
+   and no CSS press: hoverfx.js (data-hoverfx="magi") lifts and presses. */
+#tradeboard-root .tb-btn-primary,#tradeboard-root .tb-btn-ghost,#tradeboard-root .tb-btn-danger{display:inline-flex;align-items:center;gap:7px;background:transparent;border:1px solid var(--bdl);border-radius:6px;padding:9px 16px;font-size:10px !important;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;box-shadow:none;transition:border-color .15s,color .15s;}
+#tradeboard-root .tb-btn-primary{color:var(--acs);}
+#tradeboard-root .tb-btn-primary:hover,#tradeboard-root .tb-btn-ghost:hover{border-color:var(--ac);}
+#tradeboard-root .tb-btn-primary:disabled{opacity:.4;cursor:not-allowed;}
+#tradeboard-root .tb-btn-ghost{color:var(--tx);}
+/* News Summary button. .is-ready outlines it in the accent when a digest is
+   already warm; a hover keeps that outline. The extra class outranks
    .tb-btn-ghost:hover instead of tying with it and losing on source order.
    (No backticks in here: this whole stylesheet is a JS template literal.) */
 #tradeboard-root .nh-sum-btn.is-ready{border-color:var(--acl);}
-#tradeboard-root .nh-sum-btn.is-ready:hover{border-color:var(--acd);color:var(--acs);box-shadow:var(--gold-glow);}
+#tradeboard-root .nh-sum-btn.is-ready:hover{border-color:var(--ac);}
 /* Shared modal close (X). Red on hover — dismissing is the destructive action
-   here, so it must not borrow the gold "confirm" glow every other control uses. */
-#tradeboard-root .tb-x-close{background:transparent;border:1px solid transparent;border-radius:6px;color:var(--txm);cursor:pointer;padding:5px;line-height:0;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;transition:color .18s,border-color .18s,box-shadow .18s,background .18s;}
-#tradeboard-root .tb-x-close:hover{color:var(--tbr);border-color:rgba(214,138,124,.45);background:rgba(214,138,124,.08);box-shadow:var(--red-glow);}
-#tradeboard-root .tb-x-close:active{transform:translateY(1px);}
+   here, so it must not borrow the accent every confirming control uses. */
+#tradeboard-root .tb-x-close{background:transparent;border:1px solid transparent;border-radius:6px;color:var(--txm);cursor:pointer;padding:5px;line-height:0;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;transition:color .15s,border-color .15s;}
+#tradeboard-root .tb-x-close:hover{color:var(--tbr);border-color:rgba(214,138,124,.45);}
 /* Scroll chaining: hitting the end of ANY overlay must not start scrolling the
    page behind it.
    ONLY the elements that actually scroll are listed. The inner cards are handled
@@ -1542,10 +1538,20 @@ const TB_STYLES=`
 #tradeboard-root .tb-star-on svg path{fill:currentColor;}
 #tradeboard-root .tb-star-hit{width:28px;height:28px;}
 @media (max-width:768px){#tradeboard-root .tb-star-hit{width:38px;height:38px;}}
-#tradeboard-root .tb-btn-ghost:active,#tradeboard-root .tb-btn-danger:active{transform:translateY(1px);}
-#tradeboard-root .tb-btn-danger{display:inline-flex;align-items:center;gap:7px;background:transparent;color:var(--tbe);border:1px solid rgba(214,138,124,.3);border-radius:6px;padding:9px 16px;font-size:11.5px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;box-shadow:none;transition:border-color .18s,box-shadow .18s;}
-#tradeboard-root .tb-btn-danger:hover{border-color:var(--tbe);box-shadow:0 0 8px rgba(214,138,124,.34),0 0 0 1px rgba(214,138,124,.15);}
-#tradeboard-root .tb-section-label{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:1.6px;color:var(--acp,#e0b874);opacity:.85;}
+#tradeboard-root .tb-btn-danger{color:var(--tbe);border-color:rgba(214,138,124,.3);}
+#tradeboard-root .tb-btn-danger:hover{border-color:var(--tbe);}
+/* MAGI's panel title: Manrope 800, uppercase, tracked, light purple. */
+#tradeboard-root .tb-section-label{font-family:'Manrope',system-ui,-apple-system,sans-serif;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.8px;color:var(--acp);}
+/* Fields: an accent border plus a 3px ring at 16%. Focus: a 2px accent outline. */
+#tradeboard-root input:focus,#tradeboard-root textarea:focus,#tradeboard-root select:focus{border-color:var(--ac) !important;box-shadow:0 0 0 3px rgba(192,174,234,.16);}
+#tradeboard-root .tb-pb-doc:focus,#tradeboard-root input[type=range]:focus{box-shadow:none;}
+#tradeboard-root button:focus-visible,#tradeboard-root [role=button]:focus-visible{outline:2px solid var(--ac);outline-offset:1px;}
+/* Resizable boxes (resizegrip.js): their default heights live here, not in an
+   inline style, because handing a box back to auto clears its inline height. */
+#tradeboard-root .tb-prompt-render{min-height:80px;max-height:500px;}
+#tradeboard-root .tb-notes-box{min-height:120px;}
+#tradeboard-root .tb-quick-box{height:96px;}
+#tradeboard-root .a1-grip-wrap{position:relative;}
 #tradeboard-root .tb-badge-bull{background:transparent;color:#a4b986;border:1px solid rgba(164,185,134,0.25);border-radius:5px;padding:3px 9px;font-size:10.5px;font-weight:500;letter-spacing:.2px;}
 #tradeboard-root .tb-badge-bear{background:transparent;color:#d68a7c;border:1px solid rgba(214,138,124,0.25);border-radius:5px;padding:3px 9px;font-size:10.5px;font-weight:500;letter-spacing:.2px;}
 #tradeboard-root .tb-badge-warn{background:transparent;color:#e0b57c;border:1px solid rgba(251,191,36,0.25);border-radius:5px;padding:3px 9px;font-size:10.5px;font-weight:500;letter-spacing:.2px;}
@@ -1585,7 +1591,7 @@ const TB_STYLES=`
 #tradeboard-root .tb-pb-doc strong,#tradeboard-root .tb-pb-doc b{color:var(--tx);font-weight:700;}
 #tradeboard-root .tb-pb-doc em,#tradeboard-root .tb-pb-doc i{font-style:italic;}
 #tradeboard-root .tb-pb-doc a{color:var(--ac);text-decoration:underline;text-underline-offset:2px;}
-#tradeboard-root .tb-pb-doc blockquote{margin:14px 0;padding:12px 18px;border-left:3px solid var(--ac);background:var(--acg);border-radius:0 8px 8px 0;color:var(--txd);font-style:italic;}
+#tradeboard-root .tb-pb-doc blockquote{margin:14px 0;padding:12px 18px;border-left:3px solid var(--ac);background:var(--s2);border-radius:0 8px 8px 0;color:var(--txd);font-style:italic;}
 #tradeboard-root .tb-pb-doc blockquote p{margin:4px 0;}
 #tradeboard-root .tb-pb-doc hr{border:none;border-top:1px solid var(--bd);margin:24px 0;}
 #tradeboard-root .tb-pb-doc code{font-family:'IBM Plex Mono',monospace;font-size:13px;background:var(--s2);padding:2px 6px;border-radius:4px;color:var(--ac);}
@@ -1607,7 +1613,7 @@ const TB_STYLES=`
 #tradeboard-root .tb-pb-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:2px;padding:7px 4px 0;border-top:1px solid var(--bd);margin-top:8px;}
 #tradeboard-root .tb-pb-tool{display:inline-flex;align-items:center;justify-content:center;gap:3px;min-width:30px;height:30px;padding:0 7px;background:transparent;border:1px solid transparent;border-radius:7px;color:var(--txd);font-size:13px;font-weight:600;cursor:pointer;transition:background .12s,color .12s,border-color .12s;white-space:nowrap;}
 #tradeboard-root .tb-pb-tool:hover{background:var(--s2);color:var(--tx);}
-#tradeboard-root .tb-pb-tool.active{background:transparent;border-color:var(--ac);color:var(--acs);}
+#tradeboard-root .tb-pb-tool.active{background:var(--ac);border-color:var(--ac);color:var(--bg);}
 #tradeboard-root .tb-pb-tool .tb-pb-caret{font-size:8px;opacity:.6;margin-left:1px;}
 #tradeboard-root .tb-pb-div{width:1px;align-self:stretch;background:var(--bd);margin:4px 4px;}
 #tradeboard-root .tb-pb-menuwrap{position:relative;display:inline-flex;}
@@ -1685,7 +1691,7 @@ const TB_STYLES=`
 #tradeboard-root .tb-pb-head{position:sticky;top:0;z-index:3;background:var(--bg);padding-top:10px;padding-bottom:10px;}
 #tradeboard-root .tb-pb-item{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:transparent;border:1px solid transparent;border-radius:9px;padding:9px 11px;cursor:pointer;color:var(--txd);font-size:13.5px;font-weight:600;transition:background .15s,color .15s,border-color .15s;}
 #tradeboard-root .tb-pb-item:hover{background:var(--s2);color:var(--tx);}
-#tradeboard-root .tb-pb-item.active{background:transparent;border-color:var(--ac);color:var(--acs);font-weight:500;}
+#tradeboard-root .tb-pb-item.active{background:var(--s2);border-color:transparent;box-shadow:inset 2px 0 0 var(--ac);border-radius:0 8px 8px 0;color:var(--tx);font-weight:600;}
 /* mobile bottom nav removed — tab nav in TBMobileHeader */
 #tradeboard-root .tb-mobile-header{display:none;background:var(--bg);border-bottom:1px solid var(--bd);flex-shrink:0;position:relative;z-index:50;}
 @media(max-width:768px){
@@ -1786,6 +1792,21 @@ const TB_STYLES=`
 #tradeboard-root details summary::-webkit-details-marker{display:none;}
 #tradeboard-root .tb-fade-in{animation:tb-fadeIn .3s ease both;}
 `;
+
+/* ── MAGI's resize grip for a React box (resizegrip.js) ──────────────────────
+   Wraps one box (a textarea or a scrolling div) and pins the grip over its
+   bottom-right corner. The box's default height must come from a CSS class,
+   not an inline style: handing the box back to auto clears its inline height.
+   `k` names the stored height (a1.h.<k>). */
+function TBGripBox({k,label,children}){
+  const wrap=React.useRef(null),grip=React.useRef(null);
+  React.useEffect(()=>{
+    const box=wrap.current&&wrap.current.firstElementChild;
+    if(window.A1Resize&&box&&grip.current)window.A1Resize.attach(box,grip.current,k);
+  },[]);
+  return <div ref={wrap} className="a1-grip-wrap">{children}
+    <button ref={grip} type="button" className="a1-grip" title="Drag to resize. Click to expand or compress." aria-label={'Resize '+label}/></div>;
+}
 
 /* ── Inject styles ── */
 (function(){
@@ -3687,7 +3708,7 @@ function TBTradeModal({entry,onClose,onSave,onDel}){
                 <input type="range" min="0" max="10" value={confidence} onChange={e=>setConf(e.target.value)} style={{width:'100%',accentColor:'var(--ac)',cursor:'pointer'}}/>
                 <div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:'var(--txm)',marginTop:2}}><span>0</span><span>5</span><span>10</span></div>
               </div>
-              <div><span style={TB_LS}>Notes</span><textarea style={{...TB_IS,fontFamily:'Manrope,system-ui,sans-serif',lineHeight:1.75,resize:'vertical',minHeight:120}} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Setup rationale, execution notes, lessons…"/></div>
+              <div><span style={TB_LS}>Notes</span><TBGripBox k="th.trade-notes" label="the trade notes"><textarea className="tb-notes-box" style={{...TB_IS,fontFamily:'Manrope,system-ui,sans-serif',lineHeight:1.75,resize:'none'}} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Setup rationale, execution notes, lessons…"/></TBGripBox></div>
             </div>
           )}
           {err&&<div style={{marginTop:12,fontSize:12,color:'var(--tbe)',background:'rgba(212,122,106,0.08)',borderRadius:8,padding:'8px 14px'}}>{err}</div>}
@@ -4540,7 +4561,7 @@ function TBJournalPage(){
               const tExitDate=tSellDates.length?new Date(Math.max(...tSellDates.map(d=>d.getTime()))):null;
               const entryDate=tExitDate||(buyLegs[0]?.datetime?new Date(buyLegs[0].datetime):(t.date?new Date(t.date):null));
               const isLong=t.direction==='LONG'||(!t.direction);
-              return(<div key={t.id} onClick={()=>selectMode?toggleSelect(t.id):setModal(t)} style={{padding:'12px 14px',borderBottom:`1px solid ${selected.has(t.id)?'var(--ac)':'var(--bd)'}`,cursor:'pointer',transition:'background .1s',background:selected.has(t.id)?'rgba(224,184,116,0.08)':'transparent'}} onTouchStart={e=>{if(!selectMode)e.currentTarget.style.background='var(--s2)';}} onTouchEnd={e=>{if(!selectMode)e.currentTarget.style.background='transparent';}}>
+              return(<div key={t.id} onClick={()=>selectMode?toggleSelect(t.id):setModal(t)} style={{padding:'12px 14px',borderBottom:`1px solid ${selected.has(t.id)?'var(--ac)':'var(--bd)'}`,cursor:'pointer',transition:'background .1s',background:selected.has(t.id)?'var(--s2)':'transparent'}} onTouchStart={e=>{if(!selectMode)e.currentTarget.style.background='var(--s2)';}} onTouchEnd={e=>{if(!selectMode)e.currentTarget.style.background='transparent';}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:5}}>
                   <div style={{display:'flex',alignItems:'center',gap:8}}>
                     {selectMode&&<div style={{width:18,height:18,borderRadius:4,border:`2px solid ${selected.has(t.id)?'var(--ac)':'var(--bdl)'}`,background:selected.has(t.id)?'var(--ac)':'transparent',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,color:'#fff'}}>{selected.has(t.id)?'✓':''}</div>}
@@ -4576,7 +4597,7 @@ function TBJournalPage(){
                 <SH ch="Ent Tot" r/><SH ch="Ext Tot" r/><SH ch="Hold" r/>
                 <Th k="netPnL" ch="Realized P&L" r/><SH ch="P&L %" r/><SH ch="Setup"/><SH ch="Notes"/>
               </tr></thead>
-              <tbody>{filtered.map(t=>(<tr key={t.id} onClick={()=>selectMode?toggleSelect(t.id):setModal(t)} style={{borderBottom:'1px solid var(--bd)',background:selected.has(t.id)?'rgba(224,184,116,0.07)':'transparent',cursor:'pointer',transition:'background .1s'}} onMouseEnter={e=>{if(!selected.has(t.id))e.currentTarget.style.background='var(--s2)';}} onMouseLeave={e=>{e.currentTarget.style.background=selected.has(t.id)?'rgba(224,184,116,0.07)':'transparent';}}>
+              <tbody>{filtered.map(t=>(<tr key={t.id} onClick={()=>selectMode?toggleSelect(t.id):setModal(t)} style={{borderBottom:'1px solid var(--bd)',background:selected.has(t.id)?'var(--s2)':'transparent',cursor:'pointer',transition:'background .1s'}} onMouseEnter={e=>{if(!selected.has(t.id))e.currentTarget.style.background='var(--s2)';}} onMouseLeave={e=>{e.currentTarget.style.background=selected.has(t.id)?'var(--s2)':'transparent';}}>
                 {selectMode&&<td style={{padding:'0 10px',textAlign:'center'}} onClick={e=>{e.stopPropagation();toggleSelect(t.id);}}><div style={{width:18,height:18,borderRadius:4,border:`2px solid ${selected.has(t.id)?'var(--ac)':'var(--bdl)'}`,background:selected.has(t.id)?'var(--ac)':'transparent',cursor:'pointer',margin:'0 auto',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,color:'#fff'}}>{selected.has(t.id)?'✓':''}</div></td>}
                 <TBTradeRow trade={t} asFragment/>
               </tr>))}</tbody>
@@ -4836,7 +4857,7 @@ function TBPortfolioPage(){
       <div style={{fontFamily:'Manrope,system-ui,sans-serif',fontSize:isMobile?22:26,fontWeight:700,color:'var(--tx)'}}>Portfolio Offline</div>
       <div style={{fontSize:14,color:'var(--txm)',lineHeight:1.7}}>Tap the button below to automatically connect to your Webull account via Cloudflare.</div>
       {/* ── Big connect button ── */}
-      <button onClick={handleConnect} disabled={connecting} style={{background:connecting?'var(--s3)':'var(--ac)',color:'#fff',border:'none',borderRadius:14,padding:'16px 40px',fontSize:17,fontWeight:800,cursor:connecting?'not-allowed':'pointer',width:'100%',maxWidth:340,transition:'all .2s',boxShadow:connecting?'none':'0 4px 20px rgba(224,184,116,0.4)',letterSpacing:.3}}>
+      <button onClick={handleConnect} disabled={connecting} style={{background:connecting?'var(--s3)':'var(--ac)',color:'var(--bg)',border:'none',borderRadius:8,padding:'16px 40px',fontSize:17,fontWeight:800,cursor:connecting?'not-allowed':'pointer',width:'100%',maxWidth:340,transition:'all .2s',letterSpacing:.3}}>
         {connecting?<span><TBIcon n="refresh" size={15}/> Connecting…</span>:<span><TBIcon n="bolt" size={15}/> Connect to Webull</span>}
       </button>
       {/* Status message */}
@@ -5114,7 +5135,7 @@ function TBTrashButton({count=0,onClick,style,block}){
     onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--ac)';e.currentTarget.style.color='var(--ac)';}}
     onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--bd)';e.currentTarget.style.color='var(--txd)';}}>
     <TBIcon n="trash"/> Trash
-    {count>0&&<span style={{marginLeft:2,background:'var(--ac)',color:'#101014',borderRadius:9,
+    {count>0&&<span style={{marginLeft:2,background:'var(--ac)',color:'var(--bg)',borderRadius:9,
       padding:'0 7px',fontWeight:800,fontSize:10,lineHeight:'16px'}}>{count}</span>}
   </button>);
 }
@@ -5439,7 +5460,7 @@ function TBPromptEditorModal({name,text,onName,onText,onSave,onClose,dirty,savin
         <textarea ref={taRef} className="tb-scroll-thin" value={text} onChange={e=>onText(e.target.value)} autoFocus
           spellCheck={false}
           style={{flex:1,minHeight:0,width:'100%',display:'block',background:'var(--s2)',border:'none',color:'var(--tx)',
-                  fontFamily:"'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",
+                  fontFamily:"'Inter',system-ui,-apple-system,sans-serif",
                   fontSize:isMobile?15:15,lineHeight:1.8,letterSpacing:'0.1px',
                   padding:isMobile?'16px 14px':'20px 24px',outline:'none',resize:'none',
                   boxSizing:'border-box',WebkitOverflowScrolling:'touch',overflowY:'auto'}}/>
@@ -5545,72 +5566,36 @@ function TBPromptPage({prompts,onSave,onToast,onTrash,trashCount=0,onOpenTrash})
     onToast&&onToast('Moved to Trash','trash');
   };
 
-  const promptAreaH=useRef(null);
-  const resize=useRef(null);
-  /* Resize targets the inner textarea or pre element — allows both expand AND compress */
+  /* The preview's height: MAGI's corner grip (resizegrip.js, theme overhaul
+     phase 4). Drag it, or click it to expand / hand back to auto; the height
+     is remembered as a1.h.th.prompt. */
+  const previewRef=useRef(null);
+  const previewGrip=useRef(null);
   useEffect(()=>{
-    const handle=resize.current;if(!handle)return;
-    let startY=0,startH=0,dragging=false;
-    const getInner=()=>promptAreaH.current?.querySelector('textarea,.tb-prompt-render');
-    const down=e=>{
-      const inner=getInner();if(!inner)return;
-      e.preventDefault();dragging=true;
-      startY=(e.touches?e.touches[0].clientY:e.clientY)||0;
-      startH=inner.offsetHeight;
-      document.addEventListener('mousemove',move);document.addEventListener('mouseup',up);
-      document.addEventListener('touchmove',move,{passive:false});document.addEventListener('touchend',up);
-    };
-    const move=e=>{
-      if(!dragging)return;
-      if(e.cancelable)e.preventDefault();
-      const inner=getInner();if(!inner)return;
-      const y=(e.touches?e.touches[0].clientY:e.clientY)||0;
-      const newH=Math.max(80,startH+(y-startY));
-      inner.style.minHeight=newH+'px';inner.style.height=newH+'px';
-    };
-    const up=()=>{dragging=false;document.removeEventListener('mousemove',move);document.removeEventListener('mouseup',up);document.removeEventListener('touchmove',move);document.removeEventListener('touchend',up);};
-    handle.addEventListener('mousedown',down);handle.addEventListener('touchstart',down,{passive:false});
-    return()=>{handle.removeEventListener('mousedown',down);handle.removeEventListener('touchstart',down);};
+    if(window.A1Resize&&previewRef.current&&previewGrip.current)
+      window.A1Resize.attach(previewRef.current,previewGrip.current,'th.prompt');
   },[]);
 
-  /* ── Drag-to-reorder prompt chips (pointer events → works mouse + touch) ── */
-  const arrMove=(arr,from,to)=>{const a=arr.slice();const [x]=a.splice(from,1);a.splice(to,0,x);return a;};
-  const dragState=useRef(null);
-  const chipRefs=useRef([]);
-  const [dragIdx,setDragIdx]=useState(-1);
-  const [overIdx,setOverIdx]=useState(-1);
-  const onChipDown=(i,e)=>{
-    dragState.current={from:i,pointerId:e.pointerId,startX:e.clientX,startY:e.clientY,moved:false};
-    try{e.currentTarget.setPointerCapture(e.pointerId);}catch(_){}
+  /* Reordering the chips: MAGI's drag (dragsort.js). A mouse takes a chip after
+     4px; a finger holds it 300ms first, so a swipe still scrolls the page. The
+     chips as drawn are `prompts` in order, so a drop is a splice and one save.
+     Refs, because A1Drag keeps the options of the last render it was given. */
+  const chipsRef=useRef(null);
+  const live=useRef({});
+  live.current={prompts,selected,onSave};
+  const movePrompt=(from,to)=>{
+    const {prompts:list,selected:sel,onSave:save}=live.current;
+    if(from===to||!list[from]||to<0||to>=list.length)return;
+    const curId=(list[sel]||{}).id;
+    const next=list.slice();const [x]=next.splice(from,1);next.splice(to,0,x);
+    save(next);
+    const ni=next.findIndex(p=>p.id===curId);setSelected(ni>=0?ni:to);
   };
-  const onChipMove=(e)=>{
-    const ds=dragState.current;if(!ds)return;
-    const dx=e.clientX-ds.startX,dy=e.clientY-ds.startY;
-    if(!ds.moved&&(dx*dx+dy*dy)<49)return; // ~7px threshold before it's a drag
-    ds.moved=true;if(dragIdx!==ds.from)setDragIdx(ds.from);
-    let target=ds.from;
-    for(let j=0;j<chipRefs.current.length;j++){
-      const el=chipRefs.current[j];if(!el)continue;
-      const r=el.getBoundingClientRect();
-      if(e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom){target=j;break;}
-    }
-    if(target!==overIdx)setOverIdx(target);
-  };
-  const onChipUp=(e)=>{
-    const ds=dragState.current;dragState.current=null;
-    try{e.currentTarget.releasePointerCapture(ds&&ds.pointerId);}catch(_){}
-    if(ds&&ds.moved){
-      const from=ds.from,to=(overIdx>=0?overIdx:from);
-      if(from!==to){
-        const curId=(prompts[selected]||{}).id;
-        const next=arrMove(prompts,from,to);
-        onSave(next);
-        const ni=next.findIndex(p=>p.id===curId);setSelected(ni>=0?ni:to);
-      }
-    }else if(ds){ setSelected(ds.from);setEditing(false);setAddingNew(false); }
-    setDragIdx(-1);setOverIdx(-1);
-  };
-  const onChipCancel=()=>{dragState.current=null;setDragIdx(-1);setOverIdx(-1);};
+  useEffect(()=>{
+    if(!window.A1Drag||!chipsRef.current)return;
+    window.A1Drag.sort(chipsRef.current,{row:'.tb-pchip',axis:'grid',hold:300,
+      canDrag:()=>live.current.prompts.length>1,onDrop:movePrompt});
+  });
 
   return(<div className="tb-fade-in tb-prompt-wrap tb-card" style={{display:'flex',flexDirection:'column',gap:16,padding:'clamp(16px,4vw,24px)',maxWidth:900,margin:'0 auto',width:'100%',boxSizing:'border-box'}}>
     <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
@@ -5618,22 +5603,19 @@ function TBPromptPage({prompts,onSave,onToast,onTrash,trashCount=0,onOpenTrash})
       {fbSaving&&<span style={{fontSize:13,color:'var(--txm)',display:'inline-flex',alignItems:'center',gap:6}}><TBIcon n="refresh"/> Saving…</span>}
       {onOpenTrash&&<TBTrashButton count={trashCount} onClick={()=>onOpenTrash('prompts')}/>}
     </div>
-    {/* Chips row: drag to reorder (mouse + touch), tap to select */}
-    <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
+    {/* Chips row: drag to reorder (A1Drag, mouse + touch), tap to select.
+        Selected = a solid accent fill with a dark label. */}
+    <div ref={chipsRef} style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
       {prompts.map((p,i)=>{
-        const isSel=i===selected,isDrag=i===dragIdx,isOver=i===overIdx&&dragIdx!==-1&&overIdx!==dragIdx;
-        return(<button key={p.id||i}
-          ref={el=>chipRefs.current[i]=el}
-          onPointerDown={e=>onChipDown(i,e)} onPointerMove={onChipMove} onPointerUp={onChipUp} onPointerCancel={onChipCancel}
+        const isSel=i===selected;
+        return(<button key={p.id||i} className="tb-pchip" data-dkey={p.id||i}
+          onClick={()=>{setSelected(i);setEditing(false);setAddingNew(false);}}
           style={{display:'inline-flex',alignItems:'center',gap:7,padding:'7px 16px',borderRadius:100,
-            border:`1.5px solid ${(isOver||isSel)?'var(--ac)':'var(--bd)'}`,
-            background:'transparent',
-            color:isSel?'var(--ac)':'var(--tx)',fontSize:14,fontWeight:700,cursor:'grab',
-            opacity:isDrag?0.45:1,transition:'opacity .12s,border-color .15s,box-shadow .15s',
-            /* Selected and drop-target both read as a glow on the outline — the
-               pill itself is never filled in. */
-            boxShadow:isOver?'0 0 0 3px rgba(224,184,116,0.18)':isSel?'var(--gold-glow)':'none',
-            touchAction:'none',userSelect:'none'}}>
+            border:`1.5px solid ${isSel?'var(--ac)':'var(--bd)'}`,
+            background:isSel?'var(--ac)':'transparent',
+            color:isSel?'var(--bg)':'var(--tx)',fontSize:14,fontWeight:700,cursor:'pointer',
+            transition:'border-color .15s,background .15s,color .15s',
+            userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none'}}>
           {p.name}
         </button>);
       })}
@@ -5648,7 +5630,7 @@ function TBPromptPage({prompts,onSave,onToast,onTrash,trashCount=0,onOpenTrash})
           <button className="tb-btn-primary" onClick={addPrompt} style={{fontSize:13,padding:'7px 14px'}}>Add</button>
           <button className="tb-btn-ghost" onClick={()=>{setAddingNew(false);setNewName('');}} style={{fontSize:13,padding:'7px 14px'}}><TBIcon n="x"/></button>
         </div>
-      :<button onClick={()=>setAddingNew(true)} style={{padding:'7px 18px',borderRadius:100,border:'1.5px solid var(--ac)',background:'transparent',color:'var(--ac)',fontSize:13,fontWeight:700,cursor:'pointer',transition:'all .15s',width:'fit-content'}} onMouseEnter={e=>e.currentTarget.style.boxShadow='var(--gold-glow)'} onMouseLeave={e=>e.currentTarget.style.boxShadow='none'}>＋ New Prompt</button>
+      :<button onClick={()=>setAddingNew(true)} style={{padding:'7px 18px',borderRadius:100,border:'1.5px solid var(--ac)',background:'transparent',color:'var(--ac)',fontSize:13,fontWeight:700,cursor:'pointer',transition:'all .15s',width:'fit-content'}}>＋ New Prompt</button>
     }
     <div className="tb-card" style={{padding:0,overflow:'hidden'}}>
       {/* Editing happens in a modal now, so this header only ever shows the
@@ -5682,12 +5664,10 @@ function TBPromptPage({prompts,onSave,onToast,onTrash,trashCount=0,onOpenTrash})
           </div>
         </div>
       ,document.getElementById('tradeboard-root')||document.body)}
-      <div ref={promptAreaH} style={{position:'relative',background:'var(--s2)'}}>
+      <div className="a1-grip-wrap" style={{background:'var(--s2)'}}>
         {/* Always the rendered preview — the textarea lives in the modal now. */}
-        <div className="tb-pb-doc tb-prompt-render tb-scroll-thin" dangerouslySetInnerHTML={{__html:tbSanitizeHtml(tbMdToHtml(cur?.text||''),{dropColor:true})}} style={{wordBreak:'break-word',padding:'20px 50px 20px 20px',background:'var(--s2)',boxSizing:'border-box',minHeight:80,maxHeight:500,overflowY:'auto',overscrollBehavior:'contain',WebkitOverflowScrolling:'touch'}}/>
-        <div ref={resize} style={{position:'absolute',bottom:0,right:0,width:40,height:40,cursor:'ns-resize',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--txm)',borderRadius:'0 0 12px 0',userSelect:'none',zIndex:2,touchAction:'none',transition:'color .15s,background .15s'}} onMouseEnter={e=>{e.currentTarget.style.color='var(--ac)';e.currentTarget.style.background='rgba(224,184,116,0.12)';}} onMouseLeave={e=>{e.currentTarget.style.color='var(--txm)';e.currentTarget.style.background='transparent';}}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M15 1L1 15M15 8L8 15M15 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-        </div>
+        <div ref={previewRef} className="tb-pb-doc tb-prompt-render tb-scroll-thin" dangerouslySetInnerHTML={{__html:tbSanitizeHtml(tbMdToHtml(cur?.text||''),{dropColor:true})}} style={{wordBreak:'break-word',padding:'20px 50px 20px 20px',background:'var(--s2)',boxSizing:'border-box',overflowY:'auto',overscrollBehavior:'contain',WebkitOverflowScrolling:'touch'}}/>
+        <button ref={previewGrip} type="button" className="a1-grip" title="Drag to resize. Click to expand or compress." aria-label="Resize the prompt preview"/>
       </div>
     </div>
 
@@ -5753,8 +5733,7 @@ function TBPromptSelect({prompts,value,onChange,onGoToPrompts,onQuickLaunch}){
         onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();setFav(p);}}}
         style={{display:"inline-flex",alignItems:"center",borderRadius:100,
           border:`1.5px solid ${lit?"var(--ac)":"var(--bd)"}`,background:"transparent",
-          boxShadow:lit?"0 0 8px rgba(224,184,116,0.34),0 0 0 1px rgba(224,184,116,0.14)":"none",
-          cursor:"pointer",transition:"border-color .15s,box-shadow .15s,color .15s",maxWidth:250,
+          cursor:"pointer",transition:"border-color .15s,color .15s",maxWidth:250,
           touchAction:"manipulation",userSelect:"none",WebkitTapHighlightColor:"transparent",outline:"none"}}>
         {/* ★ = the prompt Launch Analysis (and the morning deploy) sends. Its own
             hit target, big enough for a fingertip, and it commits immediately. */}
@@ -5763,7 +5742,7 @@ function TBPromptSelect({prompts,value,onChange,onGoToPrompts,onQuickLaunch}){
           onClick={e=>{e.stopPropagation();setFav(p);}}
           onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.stopPropagation();e.preventDefault();setFav(p);}}}
           style={{display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0,
-            marginLeft:3,borderRadius:100,color:on?"var(--ac)":"var(--txm)",cursor:"pointer",
+            marginLeft:3,borderRadius:100,color:on?"var(--gold)":"var(--txm)",cursor:"pointer",
             touchAction:"manipulation",transition:"color .15s"}}>
           <TBIcon n="star" size={13}/>
         </span>
@@ -5869,7 +5848,7 @@ function TBTabLockPrompt({tabId,tabLabel,onUnlocked}){
     {showPw&&<input type="password" value={pw} autoFocus onChange={e=>{setPw(e.target.value);setErr('');}} onKeyDown={e=>{if(e.key==='Enter')submit();}}
       placeholder="Password" style={{width:'100%',background:'var(--s2)',border:`1px solid ${err?'var(--tbr)':'var(--bd)'}`,borderRadius:6,color:'var(--tx)',fontSize:15,fontWeight:500,padding:'14px 16px',textAlign:'center',letterSpacing:4,outline:'none',boxSizing:'border-box'}}/>}
     {err&&<div style={{fontSize:12,color:'var(--tbr)',fontWeight:700,minHeight:14}}>{err}</div>}
-    {showPw&&<button onClick={submit} disabled={busy} style={{width:'100%',background:'var(--ac)',color:'#fff',border:'none',borderRadius:8,padding:'12px 0',fontSize:14,fontWeight:700,cursor:busy?'default':'pointer',opacity:busy?0.6:1}}>{busy?'Checking…':'Unlock'}</button>}
+    {showPw&&<button onClick={submit} disabled={busy} style={{width:'100%',background:'var(--ac)',color:'var(--bg)',border:'none',borderRadius:8,padding:'12px 0',fontSize:14,fontWeight:700,cursor:busy?'default':'pointer',opacity:busy?0.6:1}}>{busy?'Checking…':'Unlock'}</button>}
     {showPw&&<button onClick={forgot} style={{background:'transparent',border:'none',color:'var(--txm)',fontSize:12,cursor:'pointer',textDecoration:'underline'}}>{hintMsg||'Forgot password?'}</button>}
     {showPw&&<button onClick={reset} style={{background:'transparent',border:'none',color:'var(--txm)',fontSize:12,cursor:'pointer',textDecoration:'underline',marginTop:-8}}>{resetMsg||'Reset password via email'}</button>}
   </div>;
@@ -6028,10 +6007,10 @@ function tbOrderedNav(order){
 }
 
 /* ── Shared reorderable nav bar (desktop + mobile) ──────────────────────────
-   • Desktop: click-drag a tab to reorder; a plain click still navigates.
-   • Mobile/tablet: HOLD (~300ms long-press) to pick a tab up, then drag; a plain
-     swipe still scrolls the header horizontally (native), and a tap navigates.
-   Self-contained (Pointer Events), no libraries. Order changes bubble via onReorder. */
+   MAGI's drag (dragsort.js, theme overhaul phase 4): a mouse takes a tab after
+   4px; a finger holds it 300ms first, so a swipe still scrolls the header. A
+   plain click navigates, and the click a drop fires is swallowed by A1Drag.
+   The tabs as drawn are `items` in order; a drop hands the new id order up. */
 function TBNavBar({items,page,onNav,onReorder,variant}){
   const isDesktop=variant==='desktop';
   /* Which tabs have a job running right now — the dot next to a tab's label is
@@ -6039,115 +6018,48 @@ function TBNavBar({items,page,onNav,onReorder,variant}){
      still going. */
   const jobs=useTBJobs();
   const containerRef=useRef(null);
-  const byId=useMemo(()=>{const m={};(items||[]).forEach(i=>m[i.id]=i);return m;},[items]);
-  const [liveIds,setLiveIds]=useState(()=>(items||[]).map(i=>i.id));
-  const liveIdsRef=useRef(liveIds);
-  useEffect(()=>{ liveIdsRef.current=liveIds; },[liveIds]);
-  const [dragId,setDragId]=useState(null);
-  const draggingRef=useRef(false);
-  const dragRef=useRef(null);        // {id,startX,startY,pointerType,pointerId,target}
-  const timerRef=useRef(null);
-  const justDraggedRef=useRef(false);
-
-  // Adopt external order changes only when NOT mid-drag (don't fight the user).
-  useEffect(()=>{ if(!draggingRef.current) setLiveIds((items||[]).map(i=>i.id)); },[items]);
-
-  // Block native scroll ONLY while actively dragging, so plain swipes still scroll.
+  /* A1Drag keeps the options of the last render it was given; refs keep them current. */
+  const live=useRef({});
+  live.current={items,onReorder};
   useEffect(()=>{
-    const el=containerRef.current; if(!el) return;
-    const onTM=(ev)=>{ if(draggingRef.current) ev.preventDefault(); };
-    el.addEventListener('touchmove',onTM,{passive:false});
-    return ()=>el.removeEventListener('touchmove',onTM);
-  },[]);
+    if(!window.A1Drag||!containerRef.current)return;
+    window.A1Drag.sort(containerRef.current,{row:'.tb-navtab',axis:'x',hold:300,
+      onDrop:(from,to)=>{
+        const ids=(live.current.items||[]).map(i=>i.id);
+        if(!ids[from])return;
+        const [x]=ids.splice(from,1);ids.splice(to,0,x);
+        if(live.current.onReorder)live.current.onReorder(ids);
+      }});
+  });
 
-  const clearTimer=()=>{ if(timerRef.current){ clearTimeout(timerRef.current); timerRef.current=null; } };
-  const beginDrag=()=>{
-    const dr=dragRef.current; if(!dr) return;
-    draggingRef.current=true; setDragId(dr.id);
-    try{ dr.target&&dr.target.setPointerCapture&&dr.target.setPointerCapture(dr.pointerId); }catch(_){}
-    try{ if(navigator.vibrate) navigator.vibrate(12); }catch(_){}
-  };
-  const reorderTo=(clientX)=>{
-    const dr=dragRef.current, cont=containerRef.current; if(!dr||!cont) return;
-    setLiveIds(prev=>{
-      const without=prev.filter(x=>x!==dr.id);
-      let insert=without.length;
-      for(let k=0;k<without.length;k++){
-        const el=cont.querySelector('[data-navid="'+without[k]+'"]'); if(!el) continue;
-        const r=el.getBoundingClientRect();
-        if(clientX < r.left + r.width/2){ insert=k; break; }
-      }
-      const next=without.slice(); next.splice(insert,0,dr.id);
-      return next.join('|')===prev.join('|')?prev:next;
-    });
-  };
-  const onPointerDown=(e,id)=>{
-    if(e.button!=null && e.button!==0) return;      // left/primary only
-    const pt=e.pointerType||'mouse';
-    // Capture the values we need now — don't hold the (possibly-recycled) event.
-    dragRef.current={id,startX:e.clientX,startY:e.clientY,pointerType:pt,pointerId:e.pointerId,target:e.currentTarget};
-    clearTimer();
-    if(pt!=='mouse'){                                // touch/pen → require a hold
-      timerRef.current=setTimeout(()=>{
-        timerRef.current=null;
-        if(dragRef.current && dragRef.current.id===id && !draggingRef.current) beginDrag();
-      },300);
-    }
-  };
-  const onPointerMove=(e)=>{
-    const dr=dragRef.current; if(!dr) return;
-    if(!draggingRef.current){
-      const dx=Math.abs(e.clientX-dr.startX), dy=Math.abs(e.clientY-dr.startY);
-      if(dr.pointerType==='mouse'){ if(dx>5||dy>5) beginDrag(); }          // desktop: small move starts drag
-      else if((dx>8||dy>8) && timerRef.current){ clearTimer(); dragRef.current=null; }  // touch moved before hold → let it scroll
-      if(!draggingRef.current) return;
-    }
-    reorderTo(e.clientX);
-  };
-  const endDrag=()=>{
-    clearTimer();
-    const wasDragging=draggingRef.current;
-    draggingRef.current=false; dragRef.current=null; setDragId(null);
-    if(wasDragging){
-      justDraggedRef.current=true;
-      setTimeout(()=>{ justDraggedRef.current=false; },60);   // swallow the click that follows a drag
-      if(onReorder && liveIdsRef.current) onReorder(liveIdsRef.current.slice());
-    }
-  };
-
-  const renderBtn=(id)=>{
-    const item=byId[id]; if(!item) return null;
+  const renderBtn=(item)=>{
     const isActive=page===item.id;
-    const isDrag=dragId===item.id;
     const tabLocked=window._tbTabLock&&window._tbTabLock.isLocked(item.id);
     const jobLabel=jobs.label(item.id);
     const base = isDesktop
       ? {display:'flex',alignItems:'center',gap:7,padding:'0 16px',height:'100%',fontSize:12}
       : {flex:'0 0 auto',display:'flex',alignItems:'center',justifyContent:'center',gap:5,padding:'8px 16px',fontSize:12};
-    return <button key={id} data-navid={id}
-      onPointerDown={e=>onPointerDown(e,id)} onPointerMove={onPointerMove} onPointerUp={endDrag} onPointerCancel={endDrag}
-      onClick={e=>{ if(justDraggedRef.current){ e.preventDefault(); e.stopPropagation(); return; } onNav(item.id); }}
+    return <button key={item.id} data-navid={item.id} className="tb-navtab" onClick={()=>onNav(item.id)}
       style={{...base,border:'none',borderBottom:`2px solid ${isActive?'var(--ac)':'transparent'}`,fontWeight:isActive?800:600,
-        background:isDrag?'var(--s2)':'transparent',color:isActive?'var(--ac)':'var(--txd)',cursor:isDrag?'grabbing':'pointer',
-        whiteSpace:'nowrap',transition:isDrag?'none':'background .15s,color .15s',transform:isDrag?'scale(1.05)':'none',
-        boxShadow:isDrag?'0 6px 18px rgba(0,0,0,0.28)':'none',borderRadius:isDrag?8:0,zIndex:isDrag?5:'auto',opacity:isDrag?0.95:1,
+        background:'transparent',color:isActive?'var(--ac)':'var(--txd)',cursor:'pointer',
+        whiteSpace:'nowrap',transition:'color .15s',
         touchAction:'pan-x',userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none'}}>
       {isDesktop&&item.icon?<TBIcon n={item.icon} size={13}/>:null}
       <span>{item.label}</span>
       {jobLabel?<span title={jobLabel} style={{width:6,height:6,borderRadius:'50%',background:'var(--ac)',flexShrink:0,
-        boxShadow:'0 0 0 3px rgba(224,184,116,0.16)',animation:'tb-pulse 1.4s ease-in-out infinite'}}/>:null}
+        animation:'tb-pulse 1.4s ease-in-out infinite'}}/>:null}
       {tabLocked?<TBIcon n="lock" size={isDesktop?11:10} style={{opacity:.75}}/>:null}
-      {item.badge?<span style={{fontSize:isDesktop?8:7,background:'rgba(164,185,134,0.18)',color:'var(--tbb)',border:'1px solid rgba(164,185,134,0.35)',borderRadius:isDesktop?4:3,padding:'1px 5px',fontWeight:800,marginLeft:2}}>{item.badge}</span>:null}
+      {item.badge?<span style={{fontSize:isDesktop?8:7,background:'transparent',color:'var(--tbb)',border:'1px solid var(--tbb)',borderRadius:4,padding:'1px 5px',fontWeight:800,marginLeft:2}}>{item.badge}</span>:null}
     </button>;
   };
 
   const wrapStyle = isDesktop
-    ? {display:'flex',alignItems:'stretch',height:42,gap:0,flex:1,overflowX:'auto',scrollbarWidth:'none',touchAction:dragId?'none':'pan-x'}
-    : {display:'flex',alignItems:'stretch',borderTop:'1px solid var(--bd)',overflowX:'auto',WebkitOverflowScrolling:'touch',scrollbarWidth:'none',touchAction:dragId?'none':'pan-x'};
+    ? {display:'flex',alignItems:'stretch',height:42,gap:0,flex:1,overflowX:'auto',scrollbarWidth:'none',touchAction:'pan-x'}
+    : {display:'flex',alignItems:'stretch',borderTop:'1px solid var(--bd)',overflowX:'auto',WebkitOverflowScrolling:'touch',scrollbarWidth:'none',touchAction:'pan-x'};
 
   return isDesktop
-    ? <nav ref={containerRef} style={wrapStyle}>{liveIds.map(renderBtn)}</nav>
-    : <div ref={containerRef} style={wrapStyle}>{liveIds.map(renderBtn)}</div>;
+    ? <nav ref={containerRef} style={wrapStyle}>{(items||[]).map(renderBtn)}</nav>
+    : <div ref={containerRef} style={wrapStyle}>{(items||[]).map(renderBtn)}</div>;
 }
 
 /* TBTonyNavBar removed — global #tony-app-nav handles cross-app nav */
@@ -6983,37 +6895,15 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
      the prompt chips send on click for exactly this reason. */
   const sendQuick=()=>{const t=quickText.trim();if(!t)return;handleQuickLaunch({text:t,name:'Quick prompt'});};
 
-  /* The box is resized by our own grip rather than the browser's native corner:
-     a UA resizer is ~15px square and effectively ungrabbable with a fingertip,
-     and its size can't be changed from CSS. This one is a real touch target on a
-     phone and behaves identically with a mouse. Height is remembered next to the
-     draft text. */
-  const QUICK_H_KEY='tb_quick_prompt_h', QUICK_H_MIN=70, QUICK_H_MAX=560;
-  const [quickH,setQuickH]=React.useState(()=>{
-    const n=parseInt((()=>{try{return localStorage.getItem(QUICK_H_KEY);}catch(e){return '';}})()||'',10);
-    return (n>=QUICK_H_MIN&&n<=QUICK_H_MAX)?n:96;
-  });
-  const quickDrag=React.useRef(null);
-  /* The height as of the last move, not as of the last render: a pointerup that
-     lands in the same batch as its final pointermove would otherwise save the
-     height from one move ago. */
-  const quickHNow=React.useRef(quickH);
-  const gripDown=(e)=>{
-    e.preventDefault();
-    quickDrag.current={y:e.clientY,h:quickH};
-    try{e.currentTarget.setPointerCapture(e.pointerId);}catch(err){}
-  };
-  const gripMove=(e)=>{
-    const d=quickDrag.current;if(!d)return;
-    const next=Math.max(QUICK_H_MIN,Math.min(QUICK_H_MAX,Math.round(d.h+(e.clientY-d.y))));
-    quickHNow.current=next;
-    setQuickH(next);
-  };
-  const gripUp=()=>{
-    if(!quickDrag.current)return;
-    quickDrag.current=null;
-    try{localStorage.setItem(QUICK_H_KEY,String(quickHNow.current));}catch(e){}
-  };
+  /* The box is resized by MAGI's corner grip (resizegrip.js), not the
+     browser's native corner, which is ~15px and ungrabbable with a fingertip.
+     The height is remembered as a1.h.th.quick. */
+  const quickRef=React.useRef(null);
+  const quickGrip=React.useRef(null);
+  React.useEffect(()=>{
+    if(window.A1Resize&&quickRef.current&&quickGrip.current)
+      window.A1Resize.attach(quickRef.current,quickGrip.current,'th.quick');
+  },[]);
 
   // Deploy the ENTIRE Trading Auto Launch (reminder gate → WeBull → TaskHub →
   // windows → AI site + searches). Because TradeHub is already open here, the native
@@ -7054,8 +6944,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
             const on=s.id===aiSite.id;
             return(<button key={s.id} onClick={()=>saveCfg({...cfg,aiSite:s.id})} title={s.url||s.label}
               style={{padding:'6px 14px',borderRadius:100,border:`1.5px solid ${on?'var(--ac)':'var(--bd)'}`,
-                background:'transparent',color:on?'var(--ac)':'var(--tx)',
-                boxShadow:on?'var(--gold-glow)':'none',
+                background:on?'var(--ac)':'transparent',color:on?'var(--bg)':'var(--tx)',
                 fontSize:13,fontWeight:700,cursor:'pointer',transition:'all .15s'}}>{s.label}</button>);
           })}
         </div>
@@ -7072,8 +6961,8 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
                 return(<button key={u.id} onClick={()=>toggleMagiUnit(u.id)} title={u.code}
                   aria-pressed={on}
                   style={{display:'inline-flex',alignItems:'center',gap:6,padding:'6px 13px',borderRadius:100,
-                    border:`1.5px solid ${on?'var(--ac)':'var(--bd)'}`,background:'transparent',
-                    color:on?'var(--ac)':'var(--txm)',boxShadow:on?'var(--gold-glow)':'none',
+                    border:`1.5px solid ${on?'var(--ac)':'var(--bd)'}`,background:on?'var(--ac)':'transparent',
+                    color:on?'var(--bg)':'var(--txm)',
                     fontSize:13,fontWeight:700,cursor:'pointer',transition:'all .15s'}}>
                   <span style={{display:'inline-flex',width:12,flexShrink:0,justifyContent:'center'}}>{on?<TBIcon n="check" size={12}/>:null}</span>
                   {u.label}
@@ -7124,31 +7013,19 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
     {/* Quick prompt — the one you reach for without any setup */}
     <TBAnalysisCard icon="pencil" title="Quick Prompt" sub="A one-off, sent exactly like a saved prompt.">
       <div style={{display:'flex',flexDirection:'column',gap:10}}>
-        <div style={{position:'relative'}}>
-          <textarea value={quickText} onChange={e=>setQuick(e.target.value)}
+        <div className="a1-grip-wrap">
+          <textarea ref={quickRef} className="tb-quick-box" value={quickText} onChange={e=>setQuick(e.target.value)}
             onKeyDown={e=>{if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){e.preventDefault();sendQuick();}}}
             placeholder="Type a one-off prompt…" spellCheck={true}
-            style={{width:'100%',height:quickH,display:'block',background:'var(--bg)',border:'1px solid var(--bd)',borderRadius:6,color:'var(--tx)',
-              fontSize:13,lineHeight:1.55,padding:'10px',paddingBottom:isMobile?24:14,boxSizing:'border-box',fontFamily:'inherit',resize:'none',outline:'none'}}
-            onFocus={e=>e.target.style.borderColor='var(--ac)'} onBlur={e=>e.target.style.borderColor='var(--bd)'}/>
-          {/* Drag grip — padding IS the hit target, so the diagonal stays small
-              while the grabbable area is finger-sized on a phone. */}
-          <span role="separator" aria-label="Drag to resize" title="Drag to resize"
-            onPointerDown={gripDown} onPointerMove={gripMove} onPointerUp={gripUp} onPointerCancel={gripUp}
-            style={{position:'absolute',right:1,bottom:1,display:'flex',alignItems:'flex-end',justifyContent:'flex-end',
-              padding:isMobile?'14px 12px 8px 18px':'8px 6px 5px 10px',cursor:'ns-resize',touchAction:'none',
-              color:'var(--txm)',opacity:.75,userSelect:'none',WebkitTapHighlightColor:'transparent'}}>
-            <svg width={isMobile?16:12} height={isMobile?16:12} viewBox="0 0 12 12" fill="none"
-              stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-              <path d="M11 5 5 11M11 9l-2 2"/>
-            </svg>
-          </span>
+            style={{width:'100%',display:'block',background:'var(--bg)',border:'1px solid var(--bd)',borderRadius:6,color:'var(--tx)',
+              fontSize:13,lineHeight:1.55,padding:'10px',paddingBottom:14,boxSizing:'border-box',fontFamily:'inherit',resize:'none',outline:'none'}}/>
+          <button ref={quickGrip} type="button" className="a1-grip" title="Drag to resize. Click to expand or compress." aria-label="Resize the quick prompt"/>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
           <button onClick={sendQuick} disabled={!quickSendable}
             style={{display:'inline-flex',alignItems:'center',gap:7,borderRadius:8,padding:'9px 18px',fontSize:13,fontWeight:800,
               border:quickSendable?'none':'1.5px solid var(--bd)',background:quickSendable?'var(--ac)':'transparent',
-              color:quickSendable?'#000':'var(--txd)',cursor:quickSendable?'pointer':'not-allowed',opacity:quickSendable?1:.5,
+              color:quickSendable?'var(--bg)':'var(--txd)',cursor:quickSendable?'pointer':'not-allowed',opacity:quickSendable?1:.5,
               transition:'all .15s',touchAction:'manipulation'}}>
             <TBIcon n="bolt" size={14}/> {aiSite.id==='none'?'Copy prompt':`Send to ${aiSite.label}`}
           </button>
@@ -7244,7 +7121,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
     <TBAnalysisCard icon="bolt" title="Launch"
       sub={aiSite.magi?<>Opens your searches, then convenes MAGI on the prompt above{magiUnits.length?<> — {unitWord(magiUnits.length)}</>:''}.</>:'Sends the prompt above, then opens your searches.'}>
       <button onMouseDown={handleLaunch} disabled={isEmpty}
-        style={{display:'inline-flex',alignItems:'center',justifyContent:'center',gap:8,background:isEmpty?'transparent':'var(--ac)',color:isEmpty?'var(--txd)':'#000',border:isEmpty?'1.5px solid var(--bd)':'none',borderRadius:8,padding:'12px 28px',fontSize:15,fontWeight:800,cursor:isEmpty?'not-allowed':'pointer',transition:'all .15s',opacity:isEmpty?.5:1,alignSelf:'stretch'}}>
+        style={{display:'inline-flex',alignItems:'center',justifyContent:'center',gap:8,background:isEmpty?'transparent':'var(--ac)',color:isEmpty?'var(--txd)':'var(--bg)',border:isEmpty?'1.5px solid var(--bd)':'none',borderRadius:8,padding:'12px 28px',fontSize:15,fontWeight:800,cursor:isEmpty?'not-allowed':'pointer',transition:'all .15s',opacity:isEmpty?.5:1,alignSelf:'stretch'}}>
         <TBIcon n="bolt" size={15}/> Launch Analysis
       </button>
       <div style={{borderTop:'1px solid var(--bd)',paddingTop:14,display:'flex',flexDirection:'column',gap:8}}>
@@ -7272,8 +7149,7 @@ function TBAnalysisPage({cfg={},onSave,prompts=[],onGoToPrompts}){
             {r.btn&&<button onClick={r.btn.onClick}
               style={{marginLeft:'auto',flexShrink:0,padding:'6px 14px',borderRadius:100,border:'1.5px solid var(--ac)',
                 background:'transparent',color:'var(--ac)',fontSize:12,fontWeight:700,cursor:'pointer',touchAction:'manipulation'}}
-              onMouseEnter={e=>e.currentTarget.style.boxShadow='var(--gold-glow)'}
-              onMouseLeave={e=>e.currentTarget.style.boxShadow='none'}>{r.btn.label}</button>}
+>{r.btn.label}</button>}
           </div>
         ))}
       </div>
@@ -7749,7 +7625,7 @@ function TBNewsSummaryOverlay({onClose,summary,loading,error,generatedAt,eventCo
                 {/* Where the net read sits between bearish and bullish. */}
                 <div style={{display:'flex',alignItems:'center',gap:9,marginTop:13}}>
                   <span style={{fontSize:9,fontWeight:800,color:'var(--tbr)',letterSpacing:.5,flexShrink:0}}>BEAR</span>
-                  <div style={{flex:1,height:4,borderRadius:100,position:'relative',background:'linear-gradient(90deg,rgba(214,138,124,.5),rgba(141,141,148,.35),rgba(164,185,134,.5))'}}>
+                  <div style={{flex:1,height:4,borderRadius:100,position:'relative',background:'var(--s3)'}}>
                     <div style={{position:'absolute',top:-3,left:`calc(${((S.toneScore+1)/2*100).toFixed(1)}% - 5px)`,width:10,height:10,borderRadius:'50%',
                                  background:nhToneColor(S.tone),border:'2px solid var(--s1)',boxShadow:'0 1px 4px rgba(0,0,0,.5)'}}/>
                   </div>
@@ -8432,7 +8308,7 @@ function TBNewsPage({watchlist:sharedWatchlist=NH_DEFAULT_TICKERS}){
   /* ── Styles (TB tokens) ── */
   const segWrap={display:'flex',flexWrap:'wrap',background:'var(--s2)',border:'1px solid var(--bd)',borderRadius:8,padding:3,gap:2};
   const segBtn=(on,col)=>({fontFamily:'inherit',fontSize:11,fontWeight:on?800:600,border:'none',background:on?'var(--s1)':'transparent',color:on?(col||'var(--tx)'):'var(--txd)',padding:'6px 10px',borderRadius:6,cursor:'pointer',transition:'all .15s',display:'inline-flex',alignItems:'center',whiteSpace:'nowrap',boxShadow:on?'0 1px 3px var(--shadow)':'none'});
-  const chip=(on,faded)=>({fontFamily:"'IBM Plex Mono',monospace",fontSize:11,fontWeight:700,padding:'5px 10px',borderRadius:100,cursor:'pointer',border:'1px solid '+(on?'var(--ac)':'var(--bd)'),background:on?'var(--ac)':'var(--s1)',color:on?'#fff':'var(--txd)',transition:'all .15s',userSelect:'none',display:'inline-flex',alignItems:'center',gap:4,opacity:faded?0.4:1,letterSpacing:0.3});
+  const chip=(on,faded)=>({fontFamily:"'IBM Plex Mono',monospace",fontSize:11,fontWeight:700,padding:'5px 10px',borderRadius:100,cursor:'pointer',border:'1px solid '+(on?'var(--ac)':'var(--bd)'),background:on?'var(--ac)':'var(--s1)',color:on?'var(--bg)':'var(--txd)',transition:'all .15s',userSelect:'none',display:'inline-flex',alignItems:'center',gap:4,opacity:faded?0.4:1,letterSpacing:0.3});
   const lbl={fontSize:10,fontWeight:900,textTransform:'uppercase',letterSpacing:1.5,color:'var(--txm)',flexShrink:0,whiteSpace:'nowrap'};
 
   return(<div className="tb-fade-in tb-page-content nh-page" style={{maxWidth:1100,margin:'0 auto'}}>
@@ -9982,9 +9858,9 @@ function TBPlaybookPage({pages,onSavePages,onToast,onTrashPage,trashCount=0,onOp
         plenty of room for a normal playbook, but pages pasted in with heavy
         formatting add up, and the failure mode is silent: saves simply stop. */}
     {storageWarn&&<div style={{display:'flex',alignItems:'flex-start',gap:9,padding:'10px 13px',marginBottom:4,
-      borderRadius:9,background:'rgba(224,184,116,0.09)',border:'1px solid rgba(224,184,116,0.3)',
+      borderRadius:8,background:'var(--s1)',border:'1px solid var(--gold)',
       fontSize:12.5,lineHeight:1.55,color:'var(--txd)'}}>
-      <TBIcon n="alert" size={14} style={{color:'var(--ac)',flexShrink:0,marginTop:2}}/>
+      <TBIcon n="alert" size={14} style={{color:'var(--gold)',flexShrink:0,marginTop:2}}/>
       <span>These pages are using about <strong style={{color:'var(--tx)'}}>{storageWarn.pct}%</strong> of the
       space the Playbook can sync. Shortening or deleting a long page keeps everything saving —
       the Trash frees its share as soon as an item is deleted forever.</span>
@@ -10695,7 +10571,7 @@ var AL_WORKER  = 'https://taskhub-reminders.av1.workers.dev';
 var AL_JOURNAL = 'applock';
 var AL_EMAIL   = 'anthonypn99@gmail.com';
 var APPID      = 'tony_tradehub_standalone';
-var AC         = '#e0b874';
+var AC         = '#c0aeea';
 
 function _el(id){ return document.getElementById(id); }
 
@@ -10856,7 +10732,7 @@ function alBioRender(mode){
     box.style.display='flex'; box.style.flexDirection='column'; box.style.gap='8px';
     var b=document.createElement('button');
     b.innerHTML=KCI.unlock+'<span>Unlock with '+window.Bio.label()+'</span>';
-    b.style.cssText="border:1px solid rgba(224,184,116,.36);border-radius:6px;padding:14px 0;font-size:13.5px;font-weight:500;letter-spacing:.2px;cursor:pointer;font-family:'Inter',system-ui,-apple-system,sans-serif;width:100%;background:transparent;color:#e0b874;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:border-color .18s;";
+    b.style.cssText="border:1px solid rgba(192,174,234,.36);border-radius:6px;padding:14px 0;font-size:13.5px;font-weight:500;letter-spacing:.2px;cursor:pointer;font-family:'Inter',system-ui,-apple-system,sans-serif;width:100%;background:transparent;color:#c0aeea;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:border-color .18s;";
     b.onclick=function(){ alBioUnlock(); };
     box.appendChild(b);
     var link=document.createElement('button');
@@ -10943,7 +10819,7 @@ function alShowManageMenu(){
     var ub=document.createElement('button');
     ub.innerHTML=KCI.unlock+'<span>Unlock this device</span>';
     ub.className='al-ac';
-    ub.style.cssText=s+'color:#e0b874;border-color:rgba(224,184,116,.36);';
+    ub.style.cssText=s+'color:#c0aeea;border-color:rgba(192,174,234,.36);';
     ub.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alShowOverlay('unlock'); };
     menu.appendChild(ub);
   } else {
@@ -10955,7 +10831,7 @@ function alShowManageMenu(){
     var lb=document.createElement('button');
     lb.innerHTML=KCI.lock+'<span>Lock this device now</span>';
     lb.className='al-ac';
-    lb.style.cssText=s+'color:#e0b874;border-color:rgba(224,184,116,.36);';
+    lb.style.cssText=s+'color:#c0aeea;border-color:rgba(192,174,234,.36);';
     lb.onclick=function(){
       menu.remove();
       alMarkLocked();
@@ -11289,21 +11165,21 @@ window._tbTabLock = {
 <script>
 (function(){
   if (window.uiModal) return;
-  var ACCENT = '#e0b874';
+  var ACCENT = '#c0aeea';
   var CSS =
-    '#uim-overlay{position:fixed;inset:0;z-index:2147483000;display:none;align-items:center;justify-content:center;background:rgba(14,14,16,.66);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);padding:20px;box-sizing:border-box;}'
+    '#uim-overlay{position:fixed;inset:0;z-index:2147483000;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.62);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);padding:20px;box-sizing:border-box;}'
   + '#uim-overlay.show{display:flex;}'
-  + '#uim-box{width:100%;max-width:370px;background:#2c2c31;border:1px solid #45454c;border-radius:9px;padding:26px 24px;box-shadow:0 30px 70px rgba(0,0,0,.48);box-sizing:border-box;font-family:\'Inter\',system-ui,-apple-system,sans-serif;animation:uimIn .16s ease;}'
+  + '#uim-box{width:100%;max-width:370px;background:#232327;border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:26px 24px;box-shadow:0 30px 70px rgba(0,0,0,.48);box-sizing:border-box;font-family:\'Inter\',system-ui,-apple-system,sans-serif;animation:uimIn .16s ease;}'
   + '@keyframes uimIn{from{transform:translateY(8px) scale(.98);opacity:0}to{transform:none;opacity:1}}'
   + '#uim-title{font-family:\'Manrope\',system-ui,sans-serif;font-size:20px;font-weight:600;letter-spacing:-.2px;color:#f4f3f0;margin-bottom:8px;line-height:1.25;}'
   + '#uim-msg{font-size:13.5px;color:#adadb2;line-height:1.55;white-space:pre-wrap;margin-bottom:16px;}'
   + '.uim-field{display:block;margin-bottom:14px;}'
-  + '.uim-label{display:block;font-size:10px;font-weight:500;letter-spacing:1.4px;text-transform:uppercase;color:#8d8d94;margin:0 0 7px;}'
+  + '.uim-label{display:block;font-size:9px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#8d8d94;margin:0 0 7px;}'
   + '.uim-input{width:100%;box-sizing:border-box;background:#232327;border:1px solid #45454c;border-radius:6px;color:#f4f3f0;font-size:13.5px;font-weight:500;padding:10px 13px;outline:none;font-family:inherit;transition:border-color .18s;}'
-  + '.uim-input:focus{border-color:#e0b874;}'
+  + '.uim-input:focus{border-color:#c0aeea;box-shadow:0 0 0 3px rgba(192,174,234,.16);}'
   + '#uim-err{font-size:12.5px;color:#d68a7c;font-weight:500;min-height:15px;margin-bottom:4px;}'
   + '#uim-btns{display:flex;gap:10px;margin-top:20px;justify-content:flex-end;}'
-  + '#uim-btns button{border:1px solid #45454c;background:transparent;border-radius:6px;padding:9px 16px;font-size:11.5px;font-weight:500;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;font-family:inherit;transition:border-color .18s,color .18s;}'
+  + '#uim-btns button{border:1px solid #45454c;background:transparent;border-radius:6px;padding:9px 16px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;font-family:inherit;transition:border-color .15s,color .15s;}'
   + '#uim-cancel{color:#f4f3f0;}'
   + '#uim-cancel:hover{border-color:#adadb2;}';
   var queue=[], active=null;
@@ -11337,9 +11213,9 @@ window._tbTabLock = {
     el('uim-err').textContent='';
     var ok=el('uim-ok'), ca=el('uim-cancel');
     ok.textContent=cfg.okLabel||'OK';
-    ok.style.background='transparent';
-    ok.style.color=cfg.danger?'#d68a7c':'#e0b874';
-    ok.style.borderColor=cfg.danger?'rgba(214,138,124,.45)':'rgba(224,184,116,.36)';
+    ok.style.background=cfg.danger?'transparent':'#c0aeea';
+    ok.style.color=cfg.danger?'#d68a7c':'#1a1a1d';
+    ok.style.borderColor=cfg.danger?'rgba(214,138,124,.45)':'#c0aeea';
     ca.textContent=cfg.cancelLabel||'Cancel'; ca.style.display=(cfg.kind==='alert')?'none':'';
     el('uim-overlay').classList.add('show');
     setTimeout(function(){ var fi=fw.querySelector('input'); if(fi){ fi.focus(); try{fi.select();}catch(e){} } else ok.focus(); }, 40);
