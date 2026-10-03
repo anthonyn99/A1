@@ -3,78 +3,79 @@
 <head>
 <meta charset="utf-8">
 <title>PriceWatch</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@700;800&display=swap">
 <style>
-  /* Insight design system — warm charcoal greys + a tan-gold family.
-     Matches vault.html / mylist.html so the extension reads as part of the
-     same suite. Controls are outline-only: emphasis comes from a gold border
-     and gold text, never a filled interior. */
+  /* MAGI's theme (magi.html :root), like the Vault extension: charcoal
+     surfaces, MAGI purple as the accent, gold kept for warnings only.
+     Buttons are MAGI's .btn: a bdl outline at rest that turns accent on
+     hover; hoverfx.js (data-hoverfx="magi") adds the lift, press and focus. */
   :root{
-    --bg:#1a1a1d; --s1:#232327; --s2:#2c2c31; --s3:#37373d;
-    --bd:#34343a; --bdl:#45454c;
+    --bg:#1a1a1d; --s1:#232327; --s2:#2c2c31; --s3:#34343a;
+    --bd:rgba(255,255,255,.06); --bdl:#45454c;
     --tx:#f4f3f0; --txd:#adadb2; --txm:#8d8d94;
-    --ac:#d4a659;        /* primary  — borders, rings          */
-    --acs:#edc884;       /* champagne — accent text            */
-    --acd:#b08d4a;       /* bronze   — hover / pressed         */
-    --acp:#c8b489;       /* pale tan — quiet section labels    */
-    --acl:rgba(212,166,89,.36);
-    --radius:9px; --radius-sm:6px;
+    --ac:#c0aeea; --acl:#dbd0f5; --acd:#9a86c9; --gold:#e0b874;
+    --ring:0 0 0 3px rgba(192,174,234,.16);
+    --radius:8px; --radius-sm:6px;
     --sans:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
     --display:'Manrope',system-ui,-apple-system,sans-serif;
   }
   *{box-sizing:border-box}
   body{margin:0;width:330px;background:var(--bg);color:var(--tx);
-       font-family:var(--sans);font-size:13px;-webkit-font-smoothing:antialiased}
+       font-family:var(--sans);font-size:13px;-webkit-font-smoothing:antialiased;
+       font-variant-numeric:tabular-nums}
+  input,select,textarea,button{font-variant-numeric:tabular-nums}
 
   header{display:flex;align-items:center;gap:10px;padding:16px 16px 13px;border-bottom:1px solid var(--bd)}
   header img{width:22px;height:22px;border-radius:6px}
-  /* Wordmark: full gold gradient, upright — the suite's title treatment. */
-  h1{font-family:var(--display);font-size:19px;font-weight:750;letter-spacing:-.3px;margin:0;flex:1;
-     background:linear-gradient(180deg,#f4d795 0%,#d4a659 90%);
-     -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:var(--acs)}
-  .ver{font-size:10px;color:var(--txm);font-family:ui-monospace,monospace;letter-spacing:.3px}
+  /* Wordmark: Manrope in acl, solid (no gradient text). */
+  h1{font-family:var(--display);font-size:19px;font-weight:800;letter-spacing:-.3px;margin:0;flex:1;color:var(--acl)}
+  .ver{font-size:10px;color:var(--txm);font-weight:500;letter-spacing:.3px}
 
   section{padding:15px 16px;border-bottom:1px solid var(--bd)}
-  .lbl{font-size:10px;font-weight:500;letter-spacing:1.6px;text-transform:uppercase;
-       color:var(--acp);opacity:.85;margin-bottom:10px}
+  /* Panel titles: Manrope 800, uppercase, tracked, in acl. */
+  .lbl{font-family:var(--display);font-size:11px;font-weight:800;letter-spacing:1.8px;text-transform:uppercase;
+       color:var(--acl);margin-bottom:10px}
   .row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
   .row:last-child{margin-bottom:0}
   .row span.k{color:var(--txd);flex:1;font-size:12.5px}
 
   select{background:var(--s1);border:1px solid var(--bdl);color:var(--tx);border-radius:var(--radius-sm);
          padding:7px 9px;font-size:12.5px;font-weight:500;font-family:inherit;outline:none;
-         transition:border-color .18s}
-  select:focus,select:hover{border-color:var(--ac)}
+         transition:border-color .15s,box-shadow .15s}
+  select:hover{border-color:var(--ac)}
+  select:focus{border-color:var(--ac);box-shadow:var(--ring)}
 
-  /* Switch: transparent track with a gold ring when on, and the knob itself
-     carries the gold. No filled interior. */
+  /* Switch: an outline track; on = accent outline and a solid accent knob. */
   .sw{position:relative;width:38px;height:21px;flex:none}
   .sw input{opacity:0;width:0;height:0;position:absolute}
   .sw i{position:absolute;inset:0;background:transparent;border:1px solid var(--bdl);border-radius:11px;
-        cursor:pointer;transition:border-color .18s}
+        cursor:pointer;transition:border-color .15s}
   .sw i:before{content:"";position:absolute;width:13px;height:13px;left:3px;top:3px;background:var(--txm);
-        border-radius:50%;transition:transform .18s,background .18s}
+        border-radius:50%;transition:transform .15s,background .15s}
   .sw input:checked+i{background:transparent;border-color:var(--ac)}
   .sw input:checked+i:before{transform:translateX(17px);background:var(--ac)}
+  .sw input:focus-visible+i{outline:2px solid var(--ac);outline-offset:1px}
 
-  button{width:100%;border:1px solid var(--bd);background:transparent;color:var(--tx);
-         border-radius:var(--radius-sm);padding:10px 0;font-size:11px;font-weight:500;
-         letter-spacing:.8px;text-transform:uppercase;font-family:inherit;cursor:pointer;margin-top:9px;
-         transition:border-color .18s,color .18s}
-  button:hover{border-color:var(--acd);color:var(--acs)}
-  button.solid{background:transparent;border-color:var(--acl);color:var(--acs)}
-  button.solid:hover{border-color:var(--ac)}
+  /* MAGI's .btn: 10px / 700 / uppercase / 1px tracking, radius 6. */
+  button{width:100%;border:1px solid var(--bdl);background:transparent;color:var(--tx);
+         border-radius:var(--radius-sm);padding:10px 0;font-size:10px;font-weight:700;
+         letter-spacing:1px;text-transform:uppercase;font-family:inherit;cursor:pointer;margin-top:9px;
+         transition:border-color .15s,color .15s}
+  button:hover{border-color:var(--ac)}
+  button:focus-visible{outline:2px solid var(--ac);outline-offset:1px}
   button:disabled{opacity:.4;cursor:default}
-  button:disabled:hover{border-color:var(--bd);color:var(--tx)}
+  button:disabled:hover{border-color:var(--bdl)}
 
   .chips{display:flex;flex-wrap:wrap;gap:6px}
-  .chip{background:transparent;border:1px solid var(--bd);border-radius:5px;padding:3px 9px;
+  .chip{background:var(--s2);border:1px solid var(--bd);border-radius:4px;padding:3px 9px;
         font-size:10.5px;font-weight:500;letter-spacing:.2px;color:var(--txd)}
   .note{font-size:11.5px;color:var(--txm);line-height:1.55;margin-top:10px}
-  .note b{color:var(--acs);font-weight:500}
+  .note b{color:var(--acl);font-weight:600}
   .log{max-height:132px;overflow-y:auto;font-size:11.5px;line-height:1.6;color:var(--txd)}
   .log div{padding:4px 0;border-bottom:1px solid var(--bd);word-break:break-word}
   .log div:last-child{border-bottom:none}
-  .log time{color:var(--txm);font-family:ui-monospace,monospace;margin-right:7px}
+  /* Times are numbers: Inter 500 tabular (§2 NUMBERS), not mono. */
+  .log time{color:var(--txm);font-weight:500;margin-right:7px}
   .empty{color:var(--txm)}
 
   ::-webkit-scrollbar{width:9px}
@@ -83,7 +84,7 @@
   ::-webkit-scrollbar-thumb:hover{background:var(--acd)}
 </style>
 </head>
-<body>
+<body data-hoverfx="magi">
 <header>
   <img src="icons/icon48.png" alt="">
   <h1>PriceWatch</h1>
