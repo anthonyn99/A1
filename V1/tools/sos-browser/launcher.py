@@ -51,6 +51,22 @@ _SKIP_WORDS = ("uninstall", "readme", "read me", "help", "website", "release not
                "support", "repair", "reset ")
 
 
+LOG_FILE = Path(__file__).resolve().parent / "launch.log"
+
+
+def log(event: str, origin: str | None, detail) -> None:
+    """One line per request to launch.log (gitignored), so "the button did
+    nothing" can be answered: did the request arrive, from which origin, and
+    what opened. Never raises — a log failure must not break a launch."""
+    try:
+        line = json.dumps({"t": time.strftime("%Y-%m-%d %H:%M:%S"), "event": event,
+                           "origin": origin or "", "detail": detail}, ensure_ascii=False)
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except Exception:
+        pass
+
+
 def origin_allowed(origin: str | None) -> bool:
     if not origin:
         return False

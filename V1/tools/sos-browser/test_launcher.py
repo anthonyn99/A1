@@ -39,6 +39,7 @@ import atexit  # noqa: E402
 atexit.register(lambda: _shutil.rmtree(_tmp_jobs, ignore_errors=True))
 
 launcher.LAUNCH_GAP_S = 0
+launcher.LOG_FILE = _tmp_jobs / "launch.log"     # never append test traffic to the real log
 started: list[str] = []
 launcher._start = lambda target: started.append(target)
 

@@ -896,8 +896,11 @@ class Handler(BaseHTTPRequestHandler):
                                "modes": list(MODES), "convert": True})
         if p == "/api/apps":
             if not launcher.origin_allowed(self.headers.get("Origin")):
+                launcher.log("apps-refused", self.headers.get("Origin"), None)
                 return self._send({"ok": False, "error": "origin not allowed"}, 403)
-            return self._send({"ok": True, "apps": launcher.public_list()})
+            listed = launcher.public_list()
+            launcher.log("apps", self.headers.get("Origin"), len(listed))
+            return self._send({"ok": True, "apps": listed})
         if p == "/api/ai/budget":
             # A subscription, not per-token billing. Reported as zero spend with
             # no cap so the UI's budget line stays truthful rather than fake.
@@ -970,10 +973,14 @@ class Handler(BaseHTTPRequestHandler):
             # Opens programs on this PC, so unlike the job routes it answers
             # only TaskHub's own origin. See launcher.py.
             if not launcher.origin_allowed(self.headers.get("Origin")):
+                launcher.log("launch-refused", self.headers.get("Origin"), None)
                 return self._send({"ok": False, "error": "origin not allowed"}, 403)
             if not isinstance(body, dict):
                 return self._send({"ok": False, "error": "bad body"}, 400)
-            return self._send(launcher.launch(body.get("apps"), body.get("urls")))
+            res = launcher.launch(body.get("apps"), body.get("urls"))
+            launcher.log("launch", self.headers.get("Origin"),
+                         {"asked": {"apps": body.get("apps"), "urls": body.get("urls")}, **res})
+            return self._send(res)
 
         if p == "/api/ai/jobs/adopt":
             return self._adopt(body)
