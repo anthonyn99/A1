@@ -495,7 +495,8 @@
    tap/click leaves behind is dropped. */
 * { -webkit-tap-highlight-color: transparent; }
 :focus:not(:focus-visible) { outline: none; }
-html, body { height: 100%; background: var(--bg); color: var(--tx); font-family: var(--body); font-size: 14px; overflow: hidden; letter-spacing: 0.01em; }
+html, body { height: 100%; background: var(--bg); color: var(--tx); font-family: var(--body); font-size: 14px; overflow: hidden; letter-spacing: 0.01em; font-variant-numeric: tabular-nums; }
+input, select, textarea, button { font-variant-numeric: tabular-nums; }
 @media (max-width: 900px) {
   html, body { overflow: auto; height: auto; }
   #app { height: auto; min-height: 100vh; min-height: 100dvh; }
@@ -12648,7 +12649,7 @@ function matchCard(T,ev,league){
       lineHeight:1.2,wordBreak:'break-word',overflowWrap:'anywhere',minWidth:0,
       textAlign:alignRight?'right':'left'},t.name||t.code||'TBD'));
     const rec=pvRecordFor(league&&league.id,t);
-    if(rec) col.appendChild(S({fontSize:11,fontWeight:700,color:T.txm,letterSpacing:'.3px',
+    if(rec) col.appendChild(S({fontSize:11,color:T.txm,letterSpacing:'.3px',
       fontFamily:"'Inter',system-ui,-apple-system,sans-serif",fontWeight:500,fontVariantNumeric:"tabular-nums"},rec.w+'-'+rec.l));
     return col;
   }
