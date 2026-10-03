@@ -46,7 +46,7 @@
 <link rel="manifest" href="data:application/json,%7B%22name%22%3A%22Insight%22%2C%22short_name%22%3A%22Insight%22%2C%22display%22%3A%22standalone%22%2C%22id%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2Finsight.html%22%2C%22start_url%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2Finsight.html%22%2C%22background_color%22%3A%22%231a1a1d%22%2C%22theme_color%22%3A%22%231a1a1d%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%253D%2527http%253A%252F%252Fwww.w3.org%252F2000%252Fsvg%2527%2520viewBox%253D%25270%25200%252096%252096%2527%253E%253Crect%2520width%253D%252796%2527%2520height%253D%252796%2527%2520rx%253D%252722%2527%2520fill%253D%2527%25231a1a1d%2527%252F%253E%253Cg%2520fill%253D%2527none%2527%2520stroke%253D%2527%2523c0aeea%2527%2520stroke-width%253D%25275%2527%2520stroke-linecap%253D%2527round%2527%2520stroke-linejoin%253D%2527round%2527%253E%253Cpath%2520d%253D%2527M48%252024a24%252024%25200%25201%25200%252024%252024H48Z%2527%252F%253E%253Cpath%2520d%253D%2527M60%252020a20%252020%25200%25200%25201%252016%252016H60Z%2527%252F%253E%253C%252Fg%253E%253C%252Fsvg%253E%22%2C%22sizes%22%3A%22any%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%2C%22launch_handler%22%3A%7B%22client_mode%22%3A%22navigate-existing%22%7D%7D">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231a1a1d%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%23c0aeea%27%20stroke-width%3D%275%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M48%2024a24%2024%200%201%200%2024%2024H48Z%27%2F%3E%3Cpath%20d%3D%27M60%2020a20%2020%200%200%201%2016%2016H60Z%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231a1a1d%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%23c0aeea%27%20stroke-width%3D%275%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M48%2024a24%2024%200%201%200%2024%2024H48Z%27%2F%3E%3Cpath%20d%3D%27M60%2020a20%2020%200%200%201%2016%2016H60Z%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600..800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600..800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
 <!-- MAGI's drag to reorder and corner resize grip (theme overhaul phase 6).
      In <head> so both exist before the first render. -->
@@ -56,8 +56,10 @@
 /* ══════════════════════════════════════════════════════════════════════════
    MAGI's look (theme overhaul phase 6, docs/theme-overhaul-plan.md §2):
    magi.html's tokens, purple dominant, gold kept for money and warnings.
-   Inter for the UI, Manrope for headings and the wordmark, IBM Plex Mono for
-   figures. No gradient fills: selected is a solid fill or an accent outline.
+   No gradient fills: selected is a solid fill or an accent outline.
+   Insight keeps its own type (Tony, 2026-10-02): Manrope for headings and
+   titles, Inter for body, UI, tables and forms, figures in Inter Medium with
+   tabular-nums so columns of money stay aligned.
    ══════════════════════════════════════════════════════════════════════════ */
   :root {
     --bg: #1a1a1d;
@@ -79,8 +81,6 @@
     --radius-sm: 6px;
     --display: 'Manrope', system-ui, -apple-system, sans-serif;
     --sans: 'Inter', system-ui, -apple-system, sans-serif;
-    --mono: 'IBM Plex Mono', ui-monospace, monospace;
-    --font-accent: var(--sans);
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
@@ -108,7 +108,7 @@
   header { padding: 20px 0 12px; }
   .brandrow { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
   .brand {
-    font-family: var(--suite-display);
+    font-family: var(--display);
     font-size: clamp(21px,2.6vw,28px); font-weight: 750; line-height: 1.2; letter-spacing: -.4px;
     padding: 0 2px 6px 6px; color: var(--acl); }
   .brandwrap { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
@@ -130,15 +130,15 @@
   .syncmeta #lastSync { letter-spacing: .2px; }
   .syncmeta .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ac); }
 
-  /* MAGI's .btn: a bdl outline at rest that turns accent under the cursor.
+  /* MAGI's .btn (in Insight's own type): a bdl outline at rest that turns accent under the cursor.
      The hover lift and the press come from hoverfx.js (body[data-hoverfx=magi]),
      so there is no glow and no CSS press here. .solid is the primary action:
      a SOLID purple fill with a dark label. */
   .btn {
     appearance: none; border: 1px solid var(--border); background: transparent;
-    color: var(--text); font-family: var(--sans); font-size: 10px; font-weight: 700;
-    letter-spacing: 1px; text-transform: uppercase;
-    padding: 9px 14px; border-radius: var(--radius-sm); cursor: pointer;
+    color: var(--text); font-family: var(--sans); font-size: 11.5px; font-weight: 500;
+    letter-spacing: .8px; text-transform: uppercase;
+    padding: 9px 16px; border-radius: var(--radius-sm); cursor: pointer;
     display: inline-flex; align-items: center; gap: 7px; line-height: 1;
     box-shadow: none; transition: border-color .15s, background .15s, color .15s;
   }
@@ -176,7 +176,7 @@
   }
 
   .env-badge {
-    font-size: 9px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase;
+    font-size: 9.5px; font-weight: 500; letter-spacing: 1.4px; text-transform: uppercase;
     color: var(--ac); border: 1px solid var(--acd); border-radius: 4px;
     padding: 3px 9px; background: transparent;
   }
@@ -190,7 +190,7 @@
   nav::-webkit-scrollbar { display: none; }
   .tab {
     flex-shrink: 0; padding: 9px 14px; cursor: pointer; user-select: none;
-    font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    font-size: 11.5px; font-weight: 500; letter-spacing: 1.6px; text-transform: uppercase;
     color: var(--muted); position: relative; white-space: nowrap; line-height: 1;
     border: 1px solid transparent; border-radius: var(--radius-sm);
     transition: color .15s, border-color .15s, background .15s;
@@ -205,8 +205,8 @@
     background: var(--surface); border: 1px solid var(--border-soft);
     border-radius: var(--radius); padding: 17px 20px;
   }
-  .stat .lbl { font-size: 9px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint); margin-bottom: 7px; }
-  .stat .val { font-family: var(--mono); font-size: 27px; font-weight: 500; line-height: 1.1; font-variant-numeric: tabular-nums; letter-spacing: -.6px; }
+  .stat .lbl { font-size: 10px; font-weight: 500; letter-spacing: 1.6px; text-transform: uppercase; color: var(--faint); margin-bottom: 7px; }
+  .stat .val { font-family: var(--sans); font-size: 29px; font-weight: 500; line-height: 1.1; font-variant-numeric: tabular-nums; letter-spacing: -.4px; }
   .stat .val.gold { color: var(--gold); }
   .stat .val.neg { color: var(--danger); }
 
@@ -223,13 +223,13 @@
   .mhist summary {
     display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none;
     padding: 13px 18px; list-style: none;
-    font-family: var(--display); font-size: 11px; font-weight: 800; letter-spacing: 1.8px; text-transform: uppercase;
+    font-size: 10px; font-weight: 500; letter-spacing: 1.6px; text-transform: uppercase;
     color: var(--muted); transition: color .15s;
   }
   .mhist summary::-webkit-details-marker { display: none; }
   .mhist summary:hover { color: var(--text); }
   .mhist[open] summary { color: var(--acl); border-bottom: 1px solid var(--border-soft); }
-  .mh-hint { font-family: var(--sans); font-size: 9px; letter-spacing: 1px; color: var(--faint); font-weight: 700; }
+  .mh-hint { letter-spacing: 1px; color: var(--faint); font-weight: 500; }
   .mh-chev { width: 15px; height: 15px; margin-left: auto; flex-shrink: 0; transition: transform .22s ease; }
   .mhist[open] .mh-chev { transform: rotate(180deg); }
   .mh-body {
@@ -246,15 +246,15 @@
     gap: 14px; align-items: baseline; padding: 10px 18px;
   }
   .mh-row.head {
-    font-size: 9px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase;
+    font-size: 9.5px; font-weight: 500; letter-spacing: 1.4px; text-transform: uppercase;
     color: var(--faint); padding-bottom: 6px;
   }
   .mh-row:not(.head):not(.total):hover { background: var(--surface-2); }
   .mh-row .mo { font-size: 13.5px; font-weight: 500; white-space: nowrap; }
-  .mh-row .amt { text-align: right; font-family: var(--mono); font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .mh-row .amt { text-align: right; font-size: 13.5px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .mh-row .amt.in { color: var(--gold); }
   .mh-row .amt.neg { color: var(--danger); }
-  .mh-row.head .amt { text-align: right; font-family: var(--sans); font-size: 9px; }
+  .mh-row.head .amt { text-align: right; font-size: 9.5px; }
   .mh-row.total { border-top: 1px solid var(--border-soft); margin-top: 4px; padding-top: 13px; }
   .mh-row.total .mo, .mh-row.total .amt { color: var(--muted); }
   .mh-row.total .amt.in { color: var(--gold); }
@@ -281,7 +281,7 @@
 
   /* ── Feed ── */
   .datehdr {
-    font-size: 9px; font-weight: 700; letter-spacing: 1.8px; text-transform: uppercase;
+    font-size: 10px; font-weight: 500; letter-spacing: 2px; text-transform: uppercase;
     color: var(--faint); margin: 28px 2px 12px; display: flex; align-items: center; gap: 14px;
   }
   .datehdr::after { content: ''; flex: 1; height: 1px; background: var(--border-soft); }
@@ -294,7 +294,7 @@
   .txbadge {
     width: 40px; height: 40px; border-radius: var(--radius); flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
-    font-family: var(--display); font-size: 17px; font-weight: 700; color: var(--ac);
+    font-family: var(--display); font-size: 17px; font-weight: 600; color: var(--ac);
     background: var(--surface-2); border: 1px solid var(--border); overflow: hidden;
   }
   .txbadge img { width: 100%; height: 100%; object-fit: cover; }
@@ -323,7 +323,7 @@
     font-size: 12.5px; color: var(--muted); margin-top: 7px; white-space: pre-wrap; line-height: 1.5;
     display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
   }
-  .txamt { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 500; font-size: 14.5px; letter-spacing: -.2px; white-space: nowrap; }
+  .txamt { font-variant-numeric: tabular-nums; font-weight: 500; font-size: 15px; letter-spacing: 0; white-space: nowrap; }
   .txamt.in { color: var(--gold); }
   .txacts { display: flex; gap: 2px; }
   .iconbtn {
@@ -338,7 +338,7 @@
 
   /* ── Accounts ── */
   .instgroup { margin-bottom: 32px; }
-  .insthdr { font-family: var(--display); font-size: 12px; font-weight: 800; color: var(--acl); letter-spacing: 1.8px; text-transform: uppercase; margin: 0 2px 14px; }
+  .insthdr { font-family: var(--display); font-size: 19px; font-weight: 600; color: var(--acl); letter-spacing: -.2px; margin: 0 2px 14px; }
   .acctgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
   .acct {
     background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius);
@@ -346,14 +346,14 @@
   }
   .acct:hover { border-color: var(--acd); }
   .acct .aname { font-weight: 500; font-size: 14px; letter-spacing: 0; }
-  .acct .asub { font-size: 9px; font-weight: 700; color: var(--faint); margin: 3px 0 14px; text-transform: uppercase; letter-spacing: 1.4px; }
-  .acct .abal { font-family: var(--mono); font-size: 25px; font-weight: 500; line-height: 1.1; font-variant-numeric: tabular-nums; letter-spacing: -.4px; }
+  .acct .asub { font-size: 11px; color: var(--faint); margin: 3px 0 14px; text-transform: uppercase; letter-spacing: 1px; }
+  .acct .abal { font-family: var(--sans); font-size: 26px; font-weight: 500; line-height: 1.1; font-variant-numeric: tabular-nums; letter-spacing: -.4px; }
   .acct .abal.debt { color: var(--danger); }
   .networth { margin-bottom: 28px; }
 
   /* ── Panels / forms / modal ── */
   .panel { background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius); padding: 26px; margin-bottom: 18px; }
-  .panel h3 { font-family: var(--display); font-size: 12px; font-weight: 800; letter-spacing: 1.8px; text-transform: uppercase; color: var(--acl); margin-bottom: 10px; }
+  .panel h3 { font-family: var(--display); font-size: 21px; font-weight: 600; letter-spacing: -.2px; color: var(--acl); margin-bottom: 8px; }
   .panel p.help { color: var(--muted); font-size: 13.5px; margin-bottom: 18px; max-width: 62ch; }
   .modalback {
     position: fixed; inset: 0; background: rgba(0,0,0,.62); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
@@ -367,9 +367,9 @@
     background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius);
     width: 100%; max-width: 460px; padding: 26px; box-shadow: 0 30px 70px rgba(0,0,0,.48);
   }
-  .modal h3 { font-family: var(--display); font-size: 12px; font-weight: 800; letter-spacing: 1.8px; text-transform: uppercase; color: var(--acl); margin-bottom: 20px; }
+  .modal h3 { font-family: var(--display); font-size: 22px; font-weight: 600; letter-spacing: -.2px; color: var(--acl); margin-bottom: 20px; }
   .field { margin-bottom: 15px; }
-  .field label { display: block; font-size: 9px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint); margin-bottom: 7px; }
+  .field label { display: block; font-size: 10px; font-weight: 500; letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint); margin-bottom: 7px; }
   .field input, .field select, .field textarea { width: 100%; }
   .field textarea { resize: vertical; min-height: 60px; max-height: 180px; font-family: var(--sans); line-height: 1.5; }
 
@@ -388,7 +388,7 @@
   .seg { display: flex; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 3px; }
   .seg button {
     flex: 1; border: none; background: none; color: var(--muted);
-    font-family: var(--sans); font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    font-family: var(--sans); font-size: 11.5px; font-weight: 500; letter-spacing: 1px; text-transform: uppercase;
     padding: 9px; border-radius: 4px; cursor: pointer; transition: color .15s, background .15s;
   }
   .seg button.on { background: var(--ac); color: var(--bg); }
@@ -397,13 +397,13 @@
   /* ── Import review ── */
   .dupe { border: 1px solid var(--border-soft); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 11px; background: var(--surface); }
   .dupe .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 13px; }
-  .dupe .side .tag { font-size: 9px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint); margin-bottom: 5px; }
+  .dupe .side .tag { font-size: 9px; font-weight: 500; letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint); margin-bottom: 5px; }
   .dupe .side .nm { font-weight: 500; font-size: 13.5px; }
   .dupe .side .dt { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 2px; }
   .dupe .acts { display: flex; gap: 9px; }
   .dupe.decided { opacity: .4; }
   .importstat { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin: 14px 0; }
-  .importstat b { color: var(--ac); font-family: var(--mono); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .importstat b { color: var(--ac); font-variant-numeric: tabular-nums; }
   .filedrop {
     border: 1px dashed var(--border); border-radius: var(--radius); padding: 40px 20px;
     text-align: center; color: var(--muted); cursor: pointer; transition: border-color .18s, background .18s;
@@ -447,7 +447,7 @@
 
   /* ── CSV import mapping / preview ── */
   .impmap { background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius); padding: 17px 19px; margin-top: 16px; }
-  .impmap h4 { font-size: 9px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint); margin-bottom: 12px; }
+  .impmap h4 { font-size: 10px; font-weight: 500; letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint); margin-bottom: 12px; }
   .impmap .row { display: flex; gap: 11px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
   .impmap .row label { font-size: 12.5px; color: var(--muted); }
   .impmap input[type=text], .impmap select {
@@ -460,12 +460,12 @@
   .imppreview { margin-top: 13px; border-top: 1px solid var(--border-soft); padding-top: 13px; }
   .imppreview .prow { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; padding: 4px 0; }
   .imppreview .prow .nm { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .imppreview .prow .am { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 500; white-space: nowrap; }
+  .imppreview .prow .am { font-variant-numeric: tabular-nums; font-weight: 500; white-space: nowrap; }
   .imppreview .prow .am.in { color: var(--gold); }
   .bulkacts { display: flex; gap: 10px; flex-wrap: wrap; margin: 4px 0 14px; }
 
   .empty { text-align: center; color: var(--faint); padding: 56px 20px; }
-  .empty .big { font-family: var(--display); font-size: 12px; font-weight: 800; color: var(--muted); margin-bottom: 10px; letter-spacing: 1.8px; text-transform: uppercase; }
+  .empty .big { font-family: var(--display); font-size: 21px; font-weight: 600; color: var(--muted); margin-bottom: 8px; letter-spacing: -.2px; }
   .toast {
     position: fixed; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%) translateY(90px);
     background: var(--surface-3); border: 1px solid var(--border); color: var(--text);
@@ -492,7 +492,7 @@
     box-shadow: 0 32px 80px rgba(0,0,0,.7);
   }
   .lockbox .brand { font-size: 40px; display: inline-block; margin-bottom: 4px; padding-bottom: 8px; }
-  .lockbox .sub { color: var(--faint); font-size: 9px; font-weight: 700; letter-spacing: 2.4px; text-transform: uppercase; margin-bottom: 26px; }
+  .lockbox .sub { color: var(--faint); font-size: 10.5px; letter-spacing: 2.4px; text-transform: uppercase; margin-bottom: 26px; }
   .lockbox input {
     width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
     color: var(--text); font-family: var(--sans); font-size: 15px; font-weight: 500; padding: 14px 16px; outline: none;
@@ -515,7 +515,7 @@
   .pw-eye svg { width: 17px; height: 17px; display: block; }
   /* Lock-screen actions read as sentences, not shouted labels. */
   .lockbox .btn {
-    width: 100%; padding: 14px; font-size: 13px; font-weight: 600; justify-content: center;
+    width: 100%; padding: 14px; font-size: 13.5px; justify-content: center;
     text-transform: none; letter-spacing: .2px;
   }
   #lockBio { margin-top: 9px; }
@@ -897,8 +897,8 @@ window._mailRelay = window._mailRelay || async function (res) {
   <section class="view" id="view-cash">
     <div class="panel" style="text-align:center;padding:40px 22px">
       <div class="stat" style="border:none;background:none;padding:0">
-        <div class="lbl" style="font-size:9px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--faint)">Cash on hand</div>
-        <div class="val gold" id="cashAmt" style="font-family:var(--mono);font-size:50px;font-weight:500;margin:10px 0 20px;font-variant-numeric:tabular-nums;line-height:1.05;letter-spacing:-1.6px">—</div>
+        <div class="lbl" style="font-size:11px;font-weight:500;letter-spacing:1.6px;text-transform:uppercase;color:var(--faint)">Cash on hand</div>
+        <div class="val gold" id="cashAmt" style="font-family:var(--sans);font-size:54px;font-weight:500;margin:10px 0 20px;font-variant-numeric:tabular-nums;line-height:1.05;letter-spacing:-1.4px">—</div>
       </div>
       <div class="cashctl">
         <input type="number" id="cashInput" min="0" step="0.01" placeholder="Amount" inputmode="decimal">
@@ -2784,12 +2784,23 @@ window._mailRelay = window._mailRelay || async function (res) {
   function normName(s) {
     return String(s || '').toLowerCase().replace(/paypal|\*|inst xfer|des:|indn:/g, ' ').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
   }
+  // Share of the shorter name's words found in the other name. A word also
+  // counts when it starts a longer word of 4+ letters: the same gym posts as
+  // "Paramount Accept Vasafit" one month and "Vasa Fitness" the next, and
+  // without this the second charge never joined the first, so a paid bill
+  // showed as Missing. Generic words never count: "fitness" alone would
+  // merge Vasa Fitness with Planet Fitness.
+  const NAME_FILLER = new Set(['fitness', 'gym', 'club', 'payment', 'pmt', 'online', 'store', 'inc', 'llc',
+    'com', 'www', 'bill', 'autopay', 'purchase', 'debit', 'card', 'recurring', 'subscription', 'membership',
+    'monthly', 'the', 'and', 'accept', 'pos', 'ach']);
+  const nameWords = s => new Set(normName(s).split(' ').filter(w => w.length > 2 && !NAME_FILLER.has(w)));
   function nameSim(a, b) {
-    const A = new Set(normName(a).split(' ').filter(w => w.length > 2));
-    const B = new Set(normName(b).split(' ').filter(w => w.length > 2));
+    let A = nameWords(a), B = nameWords(b);
     if (!A.size || !B.size) return 0;
-    let hit = 0; for (const w of A) if (B.has(w)) hit++;
-    return hit / Math.min(A.size, B.size);
+    if (A.size > B.size) [A, B] = [B, A];
+    const has = w => B.has(w) || (w.length >= 4 && [...B].some(x => x.length > w.length && x.startsWith(w)));
+    let hit = 0; for (const w of A) if (has(w)) hit++;
+    return hit / A.size;
   }
 
   // ── Universal CSV parsing ────────────────────────────────────────────────

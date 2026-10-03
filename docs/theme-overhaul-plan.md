@@ -27,15 +27,21 @@ N = 1, 1b, 2, 3, 4, 5, 6.
   8, `--mono` IBM Plex Mono. The old suite block (`--gold-primary`,
   `--gold-glow`, `.suite-title`, `.suite-accent`, all unused) and Fraunces
   are gone; `--font-accent` is Inter.
-- `.btn` is MAGI's (10px/700/uppercase/1px, bdl → accent on hover, no glow,
-  no CSS press). `.btn.gold` was renamed `.btn.solid` (solid purple, dark
+- **Insight keeps its OWN TYPE (Tony, 2026-10-02, right after the phase):**
+  Manrope headings, Inter body, figures in Inter Medium + tabular-nums, at
+  their old sizes, weights, tracking and case. Only the colours, shapes,
+  drags and grips are MAGI's. The Plex Mono / panel-title / 10px-700 type
+  below was reverted in the commit after `theme-p6-end`. (Ask before
+  assuming the other programs want the same; so far only Insight does.)
+- `.btn` has MAGI's mechanics (bdl → accent on hover, no glow, no CSS
+  press) in Insight's own type. `.btn.gold` was renamed `.btn.solid` (solid purple, dark
   label) in the markup and in JS (`menuBtn`, the import dupes' chosen
   decision, the missing-payment "Yes"). `toast(msg, good)` → `.toast.good`.
 - Selected = solid: the current tab (the editorial underline is gone; tabs
   are MAGI nav buttons), the expense/income segment, display mode on.
-- Panel titles (Manrope 800, uppercase, 1.8px, `acl`): panel and dialog
-  h3s, institution headers, Monthly history when open, empty states. Labels
-  9px/700. Figures (stats, balances, amounts, history, cash) in Plex Mono.
+- Panel and dialog h3s and institution headers are `acl` (in their old
+  Manrope type). The wordmark names `var(--display)` (phase 6 first left it
+  on a deleted `--suite-display`, so it fell back to the default face).
 - Fields: accent border + 3px ring at 16%; focus 2px accent outline.
   Dialogs: `rgba(0,0,0,.62)` + 2px blur, s1 box on a hairline.
 - Gradients removed: the date headers' fading rule (solid hairline) and
@@ -54,7 +60,7 @@ N = 1, 1b, 2, 3, 4, 5, 6.
 - **Resize:** both notes fields (`#mNote`, `#rNotes`) have MAGI's corner
   grip (`makeResizable` → `A1Resize`, keys `a1.h.ins.mNote` /
   `a1.h.ins.rNotes`). The old `.ta-grip` ns-resize handle is deleted.
-- **Tests:** `tests/live/insight-theme.live.js` (48 checks): it fakes
+- **Tests:** `tests/live/insight-theme.live.js` (51 checks): it fakes
   Firebase (seeded `onSnapshot`, `setDoc` → `window.__fsWrites`), the
   insight-api and lock workers and Plaid's script. Theme, no gradients and
   none of the old tan-gold on three screens, magi hover/press, tab drag +
@@ -63,6 +69,12 @@ N = 1, 1b, 2, 3, 4, 5, 6.
   back), and phone: swipe vs held finger on a row and a tab. `--shots
   <label>` shots every view, the recurring dialog, the lock manager and the
   phone. Against `theme-p6-start` it fails from the first drag check.
+- **Recurring fix (Tony's ask, same session):** `nameSim` now counts a word
+  that starts a longer word of 4+ letters ("vasa" ~ "vasafit") and ignores
+  generic words (`NAME_FILLER`: fitness, gym, payment, accept, …). A Vasa
+  charge renamed from "Paramount Accept Vasafit" to "Vasa Fitness" had shown
+  the paid bill as Missing; "fitness" alone would have merged it into Planet
+  Fitness. The live test seeds both cases.
 - **Noticed, not changed:** the Recurring click handler reads
   `row.dataset.ovKey`, but the attribute is `data-ovkey` (dataset
   `ovkey`), so a Keep/Remove decision is always saved under the group's

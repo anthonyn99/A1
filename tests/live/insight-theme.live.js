@@ -7,8 +7,8 @@
 // are faked: Firebase is a module whose onSnapshot answers seeded documents
 // and whose setDoc records into window.__fsWrites. Nothing leaves the machine.
 //
-//   1. theme: MAGI tokens, solid purple primary + current tab, purple
-//      wordmark, Inter / Plex Mono, no gradients, no old gold, magi hover
+//   1. theme: MAGI colours, solid purple primary + current tab, purple
+//      wordmark, Insight's own type, no gradients, no old gold, magi hover
 //   2. desktop: mouse-drag a tab (saved order, the drop's click does not
 //      switch the view, a plain click does)
 //   3. Recurring: mouse-drag a manual row and an auto row (saved orders), a
@@ -39,6 +39,11 @@ const PLAID = [];
 [['Netflix', 15.49, 3], ['Spotify Premium', 11.99, 6], ['Planet Fitness', 24.99, 9]].forEach(([m, a, off], k) => {
   for (let i = 0; i < 4; i++) PLAID.push({ id: 'p' + k + i, merchant: m, name: m, amount: a, date: daysAgo(off + 30 * i), account_id: 'a1', category: 'Subscriptions' });
 });
+// The same gym under two names (Tony, 2026-10-02): three months as
+// "Paramount Accept Vasafit", then "Vasa Fitness". The last charge must keep
+// the bill On time, not Missing.
+[42, 72, 102].forEach((d, i) => PLAID.push({ id: 'v' + i, merchant: 'Paramount Accept Vasafit', name: 'Paramount Accept Vasafit', amount: 9.99, date: daysAgo(d), account_id: 'a1', category: 'Personal Care' }));
+PLAID.push({ id: 'v9', merchant: 'Vasa Fitness', name: 'Vasa Fitness', amount: 9.99, date: daysAgo(11), account_id: 'a1', category: 'Personal Care' });
 PLAID.push({ id: 'x1', merchant: 'Corner Cafe', name: 'Corner Cafe', amount: 6.4, date: daysAgo(1), account_id: 'a1', category: 'Food' });
 PLAID.push({ id: 'x2', merchant: 'Payroll', name: 'ACME PAYROLL', amount: -2400, date: daysAgo(2), account_id: 'a1', category: 'Income' });
 const SEED = {
@@ -173,11 +178,13 @@ async function shot(c, name) {
   ok('lock screen is out of the way', (await css(c, '#lockScreen', 'display')) === 'none');
   ok('"+ Add entry" is a solid purple fill', (await css(c, '#addManualBtn', 'backgroundColor')) === 'rgb(192, 174, 234)');
   ok('its label is dark', (await css(c, '#addManualBtn', 'color')) === 'rgb(26, 26, 29)');
-  ok('buttons use MAGI type (10px, 700)', (await css(c, '#addManualBtn', 'fontSize')) === '10px' && (await css(c, '#addManualBtn', 'fontWeight')) === '700');
+  // Insight keeps its own type (Tony, 2026-10-02): only the colours are MAGI's.
+  ok("buttons keep Insight's type (11.5px, 500)", (await css(c, '#addManualBtn', 'fontSize')) === '11.5px' && (await css(c, '#addManualBtn', 'fontWeight')) === '500');
   ok('the current tab is solid purple', (await css(c, '#nav .tab.active', 'backgroundColor')) === 'rgb(192, 174, 234)');
   ok('wordmark is #dbd0f5', (await css(c, 'header .brand', 'color')) === 'rgb(219, 208, 245)');
   ok('UI face is Inter', /Inter/.test(await css(c, 'body', 'fontFamily')));
-  ok('figures are IBM Plex Mono', /IBM Plex Mono/.test(await css(c, '#statIn', 'fontFamily')));
+  ok('figures are Inter, not a mono face', /^"?Inter/.test(await css(c, '#statIn', 'fontFamily')) && !/Plex/.test(await css(c, '.txamt', 'fontFamily')));
+  ok('headings are Manrope at their old size', /Manrope/.test(await css(c, 'header .brand', 'fontFamily')) && (await css(c, '.tab', 'fontSize')) === '11.5px');
   ok('money in stays gold', (await css(c, '#statIn', 'color')) === 'rgb(224, 184, 116)');
   ok('no Fraunces is loaded', (await evalJs(c, "return !/Fraunces/.test([...document.querySelectorAll('link')].map(l=>l.href).join())+'';")) === 'true');
   const scan = async (label) => {
@@ -229,7 +236,12 @@ async function shot(c, name) {
   console.log('recurring');
   await scan('recurring');
   const a0 = await autos(c);
-  ok('three auto-detected rows', a0.length === 3, JSON.stringify(a0));
+  ok('four auto-detected rows', a0.length === 4, JSON.stringify(a0));
+  {
+    const v = JSON.parse(await evalJs(c, "var r=[...document.querySelectorAll('#recAuto > .txrow')].find(r=>/vasa/i.test(r.textContent)); return JSON.stringify(r?{n:r.querySelectorAll('.txname').length,st:r.querySelector('.chip').textContent,last:r.textContent}:null);"));
+    ok('a renamed charge joins its bill (Vasafit = Vasa Fitness)', !!v && (await evalJs(c, "return [...document.querySelectorAll('#recAuto > .txrow')].filter(r=>/vasa/i.test(r.textContent)).length;")) === 1, JSON.stringify(v));
+    ok('so the paid bill is On time, not Missing', !!v && /On time/.test(v.st), v && v.st);
+  }
   ok('three manual rows', JSON.stringify(await manual(c)) === '["r1","r2","r3"]', JSON.stringify(await manual(c)));
   ok('rows show no grip', (await evalJs(c, "return !document.querySelector('#recList .dsort-grip')+'';")) === 'true');
   {
@@ -245,7 +257,7 @@ async function shot(c, name) {
     const a = await rect(c, "document.querySelector('#recAuto > .txrow:last-child .txname')");
     const z = await rect(c, "document.querySelector('#recAuto > .txrow:first-child')");
     await mouseDrag(c, a.x, a.y, 0, z.y - a.y - z.h * 0.3);
-    const want = [a0[2], a0[0], a0[1]];
+    const want = [a0[3], a0[0], a0[1], a0[2]];
     ok('an auto row moves', JSON.stringify(await autos(c)) === JSON.stringify(want), JSON.stringify(await autos(c)));
     await sleep(200);
     ok('the auto order is saved', JSON.stringify(await lastWrite(c, 'dashboards/insight/meta/expenselog', 'recurringOrder')) === JSON.stringify(want));
@@ -294,6 +306,7 @@ async function shot(c, name) {
   await load(c, 400, 860, true);
   await go(c, 'recurring');
   {
+    await evalJs(c, "document.getElementById('recManual').scrollIntoView({block:'center'}); 1"); await sleep(300);
     const a = await rect(c, "document.querySelector('#recManual > .txrow[data-rid=r1] .txname')");
     await touchDrag(c, a.x, a.y, 0, 140, 8, 0);
     ok('a quick swipe on a row does not drag it', JSON.stringify(await manual(c)) === '["r1","r2","r3"]', JSON.stringify(await manual(c)));
@@ -309,7 +322,8 @@ async function shot(c, name) {
     const t0 = await tabs(c);
     const a = await rect(c, "document.querySelector('#nav .tab[data-view=transactions]')");
     const b = await rect(c, "document.querySelector('#nav .tab[data-view=accounts]')");
-    await touchDrag(c, a.x, a.y, b.x - a.x + b.w * 0.3, 0, 16, 450);
+    // dragsort swaps once the dragged tab's LEADING edge passes a neighbour's middle.
+    await touchDrag(c, a.x, a.y, b.left + b.w * 0.6 - (a.left + a.w), 0, 16, 450);
     const t1 = await tabs(c);
     ok('a held finger drags a tab', t1[0] === 'accounts' && t1[1] === 'transactions', JSON.stringify(t0) + ' -> ' + JSON.stringify(t1));
   }
