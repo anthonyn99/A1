@@ -12988,6 +12988,29 @@ async function codeLoad(force) {
   if (codeMode()) renderCodeView();
   if (S.view === "accounts") renderAccounts();
   codeReattach();
+  codeSandboxFollow();
+}
+
+/** Codex's protected sandbox being set up (the engine is waiting on a
+ *  Windows prompt, or has not asked yet): read /agents again every 15 s,
+ *  at most 24 times (6 min, just over the engine's 5-minute wait), so the
+ *  chip turns ready by itself once Yes is clicked. Stops the moment the
+ *  answer is known; one follower at a time. */
+let _sbFollow = 0;
+function codeSandboxFollow(tries = 0) {
+  const cx = ((CODE.agents && CODE.agents.cli) || []).find((c) => c.agent === "codex");
+  const pending = cx && cx.installed && (!cx.sandbox || cx.sandbox.ok === null);
+  if (!pending || tries >= 24 || (tries === 0 && _sbFollow)) return;
+  _sbFollow = setTimeout(async () => {
+    _sbFollow = 0;
+    if (!online()) return;
+    try {
+      const ag = await codeGet("/agents");
+      if (ag && ag.ok !== false) CODE.agents = ag;
+    } catch { return; }
+    if (codeMode()) renderCodeView();
+    codeSandboxFollow(tries + 1);
+  }, 15000);
 }
 
 /* ── keeping the percentages true while you work ─────────────────────────
@@ -13101,6 +13124,8 @@ function codeMembers() {
       capped: signed.length && !free.length && signed.every((s) => s.capped && s.capped.until > now),
       // Codex only: its protected sandbox is not set up on the engine's PC.
       sandbox: c.sandbox && c.sandbox.ok === false ? c.sandbox.why || "sandbox not set up" : "",
+      // ...or being set up right now (Windows may be showing its prompt).
+      sandboxChecking: c.sandbox && c.sandbox.ok === null ? c.sandbox.why || "" : "",
     });
   }
   for (const b of a.browser || []) {
@@ -13175,6 +13200,7 @@ function codeMemberNote(m) {
     if (!m.installed) return { txt: "not installed", bad: true };
     if (!m.signed) return { txt: "sign in", bad: true };
     if (m.sandbox) return { txt: "sandbox not set up", bad: true, why: m.sandbox };
+    if (m.sandboxChecking) return { txt: "setting up sandbox…", why: m.sandboxChecking };
     if (m.back) return { txt: `${m.capped ? "capped · " : ""}back ${resetWhen(m.back)}`, bad: true };
     const s = m.slots.find((x) => x.signed_in) || {};
     const parts = usageParts(s.usage);

@@ -552,7 +552,7 @@ async def list_agents() -> dict[str, Any]:
             from .agents import codex_sandbox as _csb, models as _cm
             ver = _cm.codex_cli_version() or "?"
             row["sandbox"] = _csb.state(ver)
-            if row["sandbox"] is None and _slots.list_slots("codex"):
+            if _slots.list_slots("codex"):        # a no-op while the answer stands
                 _csb.check_soon(_slots.cli_path("codex"),
                                 _slots.env_for("codex", _slots.list_slots("codex")[0]), ver)
         cli.append(row)

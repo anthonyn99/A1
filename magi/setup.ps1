@@ -165,7 +165,7 @@ if (Have "codex") {
     $sb = (& codex sandbox -c windows.sandbox=elevated -- cmd /c echo magi-sandbox-ok 2>&1) -join " "
     $ErrorActionPreference = $old
     if ($sb -match "magi-sandbox-ok") { Ok "Codex's protected sandbox is set up" }
-    else { Note "Codex's protected sandbox is NOT set up -- MAGI will not use Codex until it is. Run: codex sandbox -c windows.sandbox=elevated -- cmd /c echo ready   (and choose Yes)" }
+    else { Note "Codex's protected sandbox is NOT set up -- MAGI will not use Codex until it is. Double-click magi\Codex sandbox setup.cmd and click Yes." }
 }
 
 # ── 5. onboard ───────────────────────────────────────────────────────────────

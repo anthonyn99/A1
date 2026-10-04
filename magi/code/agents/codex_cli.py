@@ -335,8 +335,8 @@ class CodexCLIAgent(CodingAgent):
         # Only in the elevated sandbox (codex_sandbox.py): checked once per
         # Codex version, a minute at most, never a fallback to unelevated.
         ok, why = await loop.run_in_executor(
-            None, codex_sandbox.ready, slots.cli_path("codex"), slots.env_for("codex", self.slot),
-            models.codex_cli_version() or "?")
+            None, codex_sandbox.ready_for_task, slots.cli_path("codex"),
+            slots.env_for("codex", self.slot), models.codex_cli_version() or "?")
         if not ok:
             return False, why
         return True, st.detail or ""

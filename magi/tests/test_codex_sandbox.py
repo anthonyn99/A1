@@ -49,7 +49,7 @@ def test_a_check_that_hangs_ends_and_says_how_to_set_it_up(tmp_path):
     t0 = time.monotonic()
     ok, why = S._probe(exe, None, timeout=2)
     took = time.monotonic() - t0
-    assert not ok and S.SETUP_COMMAND in why and "waited" in why
+    assert not ok and S.SETUP_FILE in why and "Nobody answered" in why
     assert took < 30, took
 
 
@@ -59,7 +59,7 @@ def test_a_check_that_answers_passes_and_one_that_fails_says_why(tmp_path):
     (tmp_path / "bad").mkdir()
     bad = _fake_exe(tmp_path / "bad", "import sys\nprint('setup refused by user')\nsys.exit(1)\n")
     ok, why = S._probe(bad, None, timeout=20)
-    assert not ok and "setup refused by user" in why and S.SETUP_COMMAND in why
+    assert not ok and "setup refused by user" in why and S.SETUP_FILE in why
 
 
 def test_results_are_remembered_per_codex_version(monkeypatch):
@@ -78,6 +78,45 @@ def test_results_are_remembered_per_codex_version(monkeypatch):
     S.forget()
 
 
+def test_nothing_queues_behind_a_check_waiting_on_the_windows_prompt(monkeypatch):
+    S.forget()
+    assert S._lock.acquire()
+    try:
+        t0 = time.monotonic()
+        assert S.ready("x", {}, "7.0") == (False, S.CHECKING)
+        assert S.state("7.0") == {"ok": None, "why": S.CHECKING}
+        assert S.ready_for_task("x", {}, "7.0", within=0.5) == (False, S.CHECKING)
+        assert time.monotonic() - t0 < 3, "a task never waits on the prompt"
+    finally:
+        S._lock.release()
+        S.forget()
+
+
+def test_a_task_gets_a_quick_answer_from_a_set_up_pc(monkeypatch):
+    S.forget()
+    monkeypatch.setattr(S, "_probe", lambda exe, env: (True, ""))
+    assert S.ready_for_task("x", {}, "8.0", within=5) == (True, "")
+    assert S.state("8.0") == {"ok": True, "why": ""}
+    S.forget()
+
+
+def test_a_setup_done_since_a_no_is_noticed_at_once(monkeypatch, tmp_path):
+    S.forget()
+    marker = tmp_path / "setup_marker.json"
+    monkeypatch.setattr(S, "MARKER", marker)
+    S._cache["6.0"] = (False, "no", time.time() - 5)
+    assert not S._valid(S._cache["6.0"]) is False          # still a fresh No
+    marker.write_text("{}")                                # the setup just finished
+    assert S._valid(S._cache["6.0"]) is False, "the No is stale: ask again now"
+    S.forget()
+
+
+def test_the_double_click_setup_file_runs_the_same_check():
+    f = Path(S.__file__).resolve().parents[2] / "Codex sandbox setup.cmd"
+    text = f.read_text(encoding="utf-8")
+    assert "windows.sandbox=elevated" in text and S._MARK in text and "click Yes" in text
+
+
 def test_the_console_reads_what_is_known_and_never_waits(monkeypatch):
     """/agents shows the sandbox state from memory; an unknown one is
     checked in the background, once."""
@@ -93,6 +132,7 @@ def test_the_console_reads_what_is_known_and_never_waits(monkeypatch):
         def start(self):
             self.go()
     monkeypatch.setattr(S.threading, "Thread", T)
+    monkeypatch.setattr(S, "MARKER", Path("Z:/nowhere/setup_marker.json"))
     S.check_soon("x", {}, "9.9")
     assert started == ["9.9"]
     S._cache["9.9"] = (False, "no", time.time())
@@ -108,10 +148,10 @@ def test_codex_is_unavailable_with_the_reason_when_the_sandbox_is_not_ready(monk
     monkeypatch.setattr(CX.models, "cap_block", lambda a, s: (None, ""))
     monkeypatch.setattr(CX.limits, "blocked_until", lambda a, s: None)
     monkeypatch.setattr(CX.models, "plan_used_up", lambda a, s: None)
-    monkeypatch.setattr(S, "ready", lambda exe, env, v: (False, S.SETUP_HINT))
+    monkeypatch.setattr(S, "ready_for_task", lambda exe, env, v: (False, S.SETUP_HINT))
     ok, why = asyncio.run(CX.CodexCLIAgent("codex1").available())
-    assert ok is False and S.SETUP_COMMAND in why
-    monkeypatch.setattr(S, "ready", lambda exe, env, v: (True, ""))
+    assert ok is False and S.SETUP_FILE in why
+    monkeypatch.setattr(S, "ready_for_task", lambda exe, env, v: (True, ""))
     assert asyncio.run(CX.CodexCLIAgent("codex1").available())[0] is True
 
 
