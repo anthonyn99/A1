@@ -83,6 +83,12 @@ _STOP = {
     "identify", "support", "verify", "correctly", "relevant", "included", "under",
 }
 _NEED = re.compile(r"^\s*(?:[-*]\s*)?`?NEED:\s*`?(.+?)`?\s*$", re.I | re.M)
+# Track V: "FIND: text" (or "FIND: /regex/") searches every file, like a CLI
+# agent's Grep. Answered as path:line: text, capped.
+_FINDLINE = re.compile(r"^\s*(?:[-*]\s*)?`?FIND:\s*(.+?)\s*$", re.I | re.M)
+FIND_PREFIX = "FIND:"
+FIND_MAX_HITS = 80
+FIND_MAX_CHARS = 12_000
 _RANGE = re.compile(r"^(.+?):(\d+)\s*-\s*(\d+)$")
 
 
@@ -378,10 +384,18 @@ def parse_needs(reply: str) -> list[str] | None:
     """The paths a reply asks for, if the reply IS a request -- NEED lines and
     at most a sentence or two besides. An answer that happens to mention a
     NEED line is still an answer."""
-    reqs = [m.strip() for m in _NEED.findall(reply or "")]
+    reqs = []
+    for line in (reply or "").splitlines():
+        m = _NEED.match(line)
+        if m:
+            reqs.append(m.group(1).strip())
+            continue
+        m = _FINDLINE.match(line)
+        if m and m.group(1).strip("`").strip():
+            reqs.append(FIND_PREFIX + m.group(1).strip("`").strip())
     if not reqs:
         return None
-    rest = _NEED.sub("", reply).strip()
+    rest = _FINDLINE.sub("", _NEED.sub("", reply)).strip()
     if len(rest) > 400 or len([l for l in rest.splitlines() if l.strip()]) > 3:
         return None
     seen, out = set(), []
@@ -424,7 +438,7 @@ def missing_mentions(reply: str, files: list[str], shown: set[str]) -> list[str]
 class Request:
     asked: str
     rel: str = ""
-    kind: str = "refused"     # "file" | "range" | "dir" | "refused"
+    kind: str = "refused"     # "file" | "range" | "dir" | "find" | "refused"
     text: str = ""            # the file, the lines, or the folder's listing
     start: int = 0
     end: int = 0
@@ -437,8 +451,58 @@ class Request:
             else (self.rel or self.asked)
 
 
+def find(root: Path, pattern: str, files: list[str]) -> Request:
+    """A FIND request: every line in the project's text files that matches.
+    Plain text matches case-insensitively; /.../ is a regular expression.
+    Secrets and huge files are skipped, as everywhere else here.
+    `start` = how many files matched, `total` = how many lines."""
+    asked = FIND_PREFIX + pattern
+    pat = pattern.strip()
+    if len(pat) < 2:
+        return Request(asked, why="too short to search for")
+    try:
+        if len(pat) > 2 and pat.startswith("/") and pat.endswith("/"):
+            rx = re.compile(pat[1:-1], re.I)
+        else:
+            rx = re.compile(re.escape(pat), re.I)
+    except re.error as e:
+        return Request(asked, why=f"not a usable pattern ({e})")
+    rootr = root.resolve()
+    hits: list[str] = []
+    n_hits = in_files = size = 0
+    for rel in files:
+        p = rootr / rel
+        if is_secret(p) or not _texty(p):
+            continue
+        try:
+            if p.stat().st_size > SCAN_LIMIT:
+                continue
+            text = p.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        found = False
+        for i, line in enumerate(text.splitlines(), 1):
+            if rx.search(line):
+                n_hits += 1
+                found = True
+                if len(hits) < FIND_MAX_HITS and size < FIND_MAX_CHARS:
+                    row = f"{rel}:{i}: {line.strip()[:200]}"
+                    hits.append(row)
+                    size += len(row) + 1
+        in_files += found
+    if not n_hits:
+        return Request(asked, rel=pat, kind="find", text="(no matches)")
+    more = n_hits - len(hits)
+    body = "\n".join(hits) + (f"\n... {more} more matches not shown: FIND something more "
+                              "specific, or NEED: the file" if more > 0 else "")
+    return Request(asked, rel=pat, kind="find", text=body, total=n_hits, start=in_files)
+
+
 def resolve_request(root: Path, asked: str, files: list[str] | None = None) -> Request:
     rootr = root.resolve()
+    if asked.startswith(FIND_PREFIX):
+        return find(rootr, asked[len(FIND_PREFIX):],
+                    files if files is not None else listing(rootr))
     req = asked.strip().strip("`'\"").replace("\\", "/")
     start = end = 0
     m = _RANGE.match(req)
@@ -553,6 +617,9 @@ def compose(root: Path, pl: Plan, requests: list[Request], *, upload: bool,
             notes.append(f"- {r.asked}: {r.why}")
         elif r.kind == "dir":
             add(f"\n===== FOLDER: {r.rel} =====\n{r.text}\n")
+        elif r.kind == "find":
+            add(f"\n===== FIND: {r.rel} ({r.total} matching lines in {r.start} files) =====\n"
+                f"{r.text}\n===== END FIND =====\n")
         elif r.kind == "range":
             add(f"\n===== FILE: {r.rel} (lines {r.start}-{r.end} of {r.total}) =====\n"
                 f"{r.text}\n===== END lines {r.start}-{r.end} of {r.rel} =====\n")
