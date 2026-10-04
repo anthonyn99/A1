@@ -670,6 +670,14 @@ copy: `sandbox.snapshot` drops them before `add -A`, and `sandbox._remove`
 drops **every** link and junction under the copy before anything deletes
 it, so a recursive delete can never follow one into your real folder.
 
+**Nothing here can hang a task.** Every new search and walk has a ceiling
+and says when it stopped: `ref_list`/`ref_find` walk at most 50,000 files
+and `ref_find` searches for at most 30 s; a unit's FIND stops at 20 s; a
+regex with nested repetition (`(a+)+`, which backtracks exponentially and
+Python cannot time out) is refused, and lines are searched only to 2,000
+characters. `run_check` stops at 25 minutes with its process tree killed;
+link-making has a 20 s timeout; listings stop at 20 s / 20,000 files.
+
 **Tested on the real Claude CLI without an account**
 (`magi/tests/test_claude_cli_offline.py`): a fake Messages API on loopback,
 a throwaway `CLAUDE_CONFIG_DIR` and a dummy key, MAGI's exact argv. It
