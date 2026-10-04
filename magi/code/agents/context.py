@@ -494,7 +494,7 @@ def find(root: Path, pattern: str, files: list[str], refs: Refs | None = None) -
     stopped = False
     for base, label, names in places:
         for rel in names:
-            if time.monotonic() > deadline:
+            if time.monotonic() >= deadline:
                 stopped = True
                 break
             got = _find_in(base / rel, label + rel, rx)

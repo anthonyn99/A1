@@ -370,7 +370,7 @@ class Server:
             files = [(top, f"@{name}/" + top.relative_to(base).as_posix())] if top.is_file() \
                 else self._ref_files(name, base, top)
             for p, rel in files:
-                if time.monotonic() > deadline:
+                if time.monotonic() >= deadline:
                     stopped = f"stopped after {int(REF_FIND_S)} s"
                     break
                 try:

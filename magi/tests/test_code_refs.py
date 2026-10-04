@@ -308,3 +308,40 @@ def test_a_browser_edit_to_a_ref_is_refused_not_made_as_a_folder(tmp_path):
     assert not (root / "@orca").exists()
     # Without refs, an "@x" folder is just a folder (npm scopes are real).
     assert edits.apply(root, [edits.Edit("@scope/pkg.js", "", "y")])[1] == []
+
+
+# ── nothing hangs: every search and walk is bounded ──────────────────────
+
+def test_ref_find_refuses_a_pattern_that_could_backtrack_forever(tmp_path, ref):
+    (ref / "evil.txt").write_text("a" * 5000 + "!\n")
+    s, _ = _srv(tmp_path, ref)
+    for pat in ("(a+)+$", "(x*)*", "([a-z]+){2,}"):
+        text, err = s.call("ref_find", {"pattern": pat})
+        assert err and "Nested repetition" in text, pat
+    text, err = s.call("ref_find", {"pattern": "(foo|bar)+"})
+    assert not err
+
+
+def test_ref_search_and_listing_stop_at_their_limits_and_say_so(tmp_path, ref, monkeypatch):
+    s, _ = _srv(tmp_path, ref)
+    monkeypatch.setattr(W, "REF_FIND_S", 0.0)
+    text, err = s.call("ref_find", {"pattern": "handler"})
+    assert not err and "search stopped after 0 s" in text
+    monkeypatch.setattr(W, "REF_FIND_S", 30.0)
+    monkeypatch.setattr(W, "REF_WALK_MAX", 1)
+    text, _ = s.call("ref_find", {"pattern": "zzz-nothing"})
+    assert "stopped after 1 files" in text
+    text, _ = s.call("ref_list", {"path": "@orca"})
+    assert len(text.splitlines()) == 1
+
+
+def test_units_find_is_bounded_too(tmp_path, monkeypatch):
+    root = tmp_path / "p"
+    root.mkdir()
+    (root / "a.txt").write_text("a" * 5000 + "!\n")
+    files = context.listing(root)
+    r = context.resolve_request(root, "FIND:/(a+)+$/", files)
+    assert r.kind == "refused" and "nested repetition" in r.why
+    monkeypatch.setattr(context, "FIND_MAX_S", 0.0)
+    r = context.resolve_request(root, "FIND:aaa", files)
+    assert "search stopped after 0 s" in r.text
