@@ -210,8 +210,17 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                 await emit({"k": "note", "text": "Agents edit the copy; your folder is not "
                             f"touched unless you approve the diff (copy includes your "
                             f"uncommitted edits{extra})."})
-            mcp = await loop.run_in_executor(None, write_mcp_config, t.id, project_id,
-                                             root, github)
+            # Track V: in write mode Claude also gets the workspace tools
+            # (ws_mcp.py) -- move, copy, delete, make folder -- and the
+            # project's check, if you let agents run it.
+            ws = None
+            if sb is not None:
+                ck = t.check_cfg if t.check_cfg.get("agents") else {}
+                ws = {"root": str(sb.cwd), "real": str(root),
+                      "check": ({"command": ck["command"], "timeout_min": ck.get("timeout_min")}
+                                if ck.get("command") else None)}
+            mcp = await loop.run_in_executor(
+                None, lambda: write_mcp_config(t.id, project_id, root, github, workspace=ws))
             # A question about sizes or rankings: measured here, handed over
             # (inventory.py). From the real folder, which the copy mirrors.
             inv = ""
@@ -224,6 +233,8 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
             task = Task(id=t.id, prompt=prompt, root=sb.cwd if sb else root,
                         mode=Mode.WRITE if sb else Mode.READ,
                         progress=sb.changed_files if sb else None, mcp_config=mcp,
+                        mcp_servers=mcp_servers_in(mcp),
+                        agent_check=(ws or {}).get("check", {}) and ws["check"]["command"] or "",
                         attachments=t.attachments, images=t.images, inventory=inv)
             if session is not None:
                 task.session_turns = session.turns
@@ -270,6 +281,7 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
             if sb is not None:
                 await loop.run_in_executor(None, sb.remove)
             _mcp_path(t.id).unlink(missing_ok=True)
+            _ws_path(t.id).unlink(missing_ok=True)
             t.done = True
             await publish(t, {"k": "end", "result": t.result})
             for q in list(t.viewers):
@@ -297,12 +309,24 @@ def _mcp_path(task_id: str) -> Path:
     return data_dir() / "code" / "mcp" / f"{task_id}.json"
 
 
-def write_mcp_config(task_id: str, project_id: str, root: Path, login: str) -> Path | None:
-    """The --mcp-config that gives the Claude CLI read-only GitHub tools for
-    this project -- only when the folder's remote is on GitHub and the
-    project names an account to read it as. The file names a script, a port
-    and a project id; nothing in it is a secret. Removed when the task ends.
-    """
+def _ws_path(task_id: str) -> Path:
+    return _mcp_path(task_id).with_name(f"{task_id}.ws.json")
+
+
+def mcp_servers_in(cfg: Path | None) -> tuple[str, ...]:
+    """The server names an --mcp-config file declares, in order."""
+    if cfg is None:
+        return ()
+    import json
+    try:
+        return tuple((json.loads(cfg.read_text(encoding="utf-8")).get("mcpServers") or {}).keys())
+    except (OSError, ValueError, AttributeError):
+        return ()
+
+
+def _github_server(project_id: str, root: Path, login: str) -> dict | None:
+    """Read-only GitHub tools for this project -- only when the folder's
+    remote is on GitHub and the project names an account to read it as."""
     if not login:
         return None
     try:
@@ -312,22 +336,50 @@ def write_mcp_config(task_id: str, project_id: str, root: Path, login: str) -> P
         return None
     if remote.get("host") != "github.com" or not remote.get("owner"):
         return None
-    import json
-    import sys
     from .. import ident
-    from .agents.claude_cli import MCP_SERVER
+    script = Path(__file__).resolve().parents[1] / "github" / "mcp_server.py"
+    port = int(ident.engine_identity().get("port") or 8000)
+    return {"type": "stdio", "command": _quiet_python(),
+            "args": ["-I", str(script), "--port", str(port), "--project", project_id]}
+
+
+def _quiet_python() -> str:
+    import sys
     exe = Path(sys.executable)
     # pythonw where there is one: no console window flashes up when the CLI
     # starts the server, and stdio pipes work the same.
     quiet = exe.with_name("pythonw.exe")
-    script = Path(__file__).resolve().parents[1] / "github" / "mcp_server.py"
-    port = int(ident.engine_identity().get("port") or 8000)
-    cfg = {"mcpServers": {MCP_SERVER: {
-        "type": "stdio", "command": str(quiet if quiet.exists() else exe),
-        "args": ["-I", str(script), "--port", str(port), "--project", project_id]}}}
+    return str(quiet if quiet.exists() else exe)
+
+
+def write_mcp_config(task_id: str, project_id: str, root: Path, login: str,
+                     workspace: dict | None = None) -> Path | None:
+    """The --mcp-config for the Claude CLI: read-only GitHub tools for this
+    project (when it is on GitHub with an account), and -- `workspace`, write
+    mode only -- the workspace tools for the task's private copy
+    (code/ws_mcp.py; `{"root", "real", "check"}`, written to a file of its
+    own beside this one so the server reads it, not argv). Nothing in either
+    file is a secret; both are outside the copy, so the agent cannot change
+    them, and both are removed when the task ends. None = no servers.
+    """
+    import json
+    from .agents.claude_cli import MCP_SERVER, WS_SERVER
+    servers: dict[str, dict] = {}
+    gh = _github_server(project_id, root, login)
+    if gh:
+        servers[MCP_SERVER] = gh
     f = _mcp_path(task_id)
+    if workspace and workspace.get("root"):
+        wf = _ws_path(task_id)
+        wf.parent.mkdir(parents=True, exist_ok=True)
+        wf.write_text(json.dumps(workspace, indent=1), encoding="utf-8")
+        script = Path(__file__).resolve().parent / "ws_mcp.py"
+        servers[WS_SERVER] = {"type": "stdio", "command": _quiet_python(),
+                              "args": ["-I", str(script), "--config", str(wf)]}
+    if not servers:
+        return None
     f.parent.mkdir(parents=True, exist_ok=True)
-    f.write_text(json.dumps(cfg, indent=1), encoding="utf-8")
+    f.write_text(json.dumps({"mcpServers": servers}, indent=1), encoding="utf-8")
     return f
 
 
