@@ -14,6 +14,9 @@ same:
   make_dir    make a folder
   run_check   run the project's check command and read its real output --
               only when you switched "Agents may run it" on for the project
+  ref_list    \
+  ref_read     } READ the task's reference folders (other workspaces you
+  ref_find    /  ticked under "Also read"): paths like @orca/src/app.py
 
 What keeps it safe is the same as everything else in Write mode: it works on
 the task's PRIVATE COPY (sandbox.py), and nothing reaches your folder unless
@@ -25,6 +28,11 @@ you approve the diff. On top of that, this server refuses on its own:
     own `.git` file is what ties it to its repository);
   * a folder tree that holds a link or a junction (deleting or copying
     through one would reach outside the copy).
+
+The reference tools only read. There is no tool that writes to a reference
+folder, so nothing here can change one; they refuse a path that resolves
+outside its folder (`..`, a link), the denied folders, and secret files
+(the same names context.py never sends a chat unit).
 
 The config file is written by MAGI (tasks.write_mcp_config) into the
 engine's data folder, outside the copy, so the agent cannot change which
@@ -67,6 +75,19 @@ OUTPUT_TAIL = 8000
 # The CLI is stopped after 30 minutes without output (_proc.STALL_S), and a
 # tool call produces none: a run_check is kept well inside that.
 MAX_RUN_S = 25 * 60
+# Reading a reference folder (ref_*): what is skipped and how much comes back.
+_SECRET_NAMES = re.compile(
+    r"(^|[\\/])(\.env(\..*)?|.*\.pem|.*\.key|id_rsa.*|id_ed25519.*|\.npmrc|\.pypirc|"
+    r"credentials(\.json)?|\.credentials\.json|auth\.json|secrets?\.(json|ya?ml|toml)|"
+    r".*\.p12|.*\.pfx|\.git-credentials|token\.txt)$", re.I)
+HEAVY_DIRS = {"node_modules", ".venv", "venv", "env", "__pycache__", ".mypy_cache",
+              ".pytest_cache", ".next", ".cache", ".tox", "dist", "build", "target"}
+REF_LIST_MAX = 2000
+REF_READ_LINES = 2000
+REF_READ_CHARS = 120_000
+REF_FILE_MAX = 2_000_000
+REF_FIND_HITS = 150
+REF_FIND_CHARS = 20_000
 _ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07")
 _SECRET_ENV = re.compile(r"(^MAGI_API_TOKEN$|API_KEY|_TOKEN$|SECRET|PASSWORD)", re.I)
 
@@ -95,6 +116,30 @@ TOOLS = [
      "inputSchema": {"type": "object", "properties": {"path": _PATH}, "required": ["path"]},
      "annotations": {"destructiveHint": False, "openWorldHint": False}},
 ]
+_REF_PATH = {"type": "string",
+             "description": "@name, or a path inside it, e.g. @orca/src/app.py"}
+REF_TOOLS = [
+    {"name": "ref_list",
+     "description": "List the files in a reference folder (read-only), or in a folder inside "
+                    "it. Dependency and build folders are skipped.",
+     "inputSchema": {"type": "object", "properties": {"path": _REF_PATH}, "required": ["path"]},
+     "annotations": {"readOnlyHint": True, "openWorldHint": False}},
+    {"name": "ref_read",
+     "description": "Read a text file in a reference folder (read-only), with line numbers. "
+                    "Long files come in parts: pass offset (first line) and limit.",
+     "inputSchema": {"type": "object", "properties": {
+         "path": _REF_PATH, "offset": {"type": "integer"}, "limit": {"type": "integer"}},
+         "required": ["path"]},
+     "annotations": {"readOnlyHint": True, "openWorldHint": False}},
+    {"name": "ref_find",
+     "description": "Search the text files of the reference folders (all of them, or one "
+                    "folder given as path) for a regular expression, case-insensitively. "
+                    "Answers path:line: text.",
+     "inputSchema": {"type": "object", "properties": {
+         "pattern": {"type": "string"}, "path": _REF_PATH}, "required": ["pattern"]},
+     "annotations": {"readOnlyHint": True, "openWorldHint": False}},
+]
+
 RUN_CHECK = {
     "name": "run_check",
     "description": "",          # filled in with the command (Server.tools)
@@ -180,10 +225,145 @@ def _rel(root: Path, p: Path) -> str:
 
 
 class Server:
-    def __init__(self, root: Path, check: dict | None = None, real: Path | None = None):
+    def __init__(self, root: Path, check: dict | None = None, real: Path | None = None,
+                 refs: list | None = None):
         self.root = Path(root)
         self.check = check if check and check.get("command") else None
         self.real = Path(real) if real else None
+        # {"orca": Path("C:/.../ORCA")} -- only folders MAGI wrote here.
+        self.refs: dict[str, Path] = {}
+        for r in refs or []:
+            if isinstance(r, dict) and r.get("name") and r.get("root"):
+                self.refs[str(r["name"])] = Path(r["root"])
+
+    # ── the reference folders: read only ──────────────────────────────────
+
+    def ref_resolve(self, path) -> tuple[str, Path, Path]:
+        """'@orca/src/x.py' -> (name, folder, target), or ToolError."""
+        if not isinstance(path, str) or not path.strip():
+            raise ToolError("A path is required, like @name/src/app.py.")
+        s = path.strip().replace("\\", "/")
+        if not s.startswith("@"):
+            raise ToolError(f"{path}: reference paths start with @ -- one of "
+                            + ", ".join("@" + n for n in self.refs) + ".")
+        name, _, rest = s[1:].partition("/")
+        base = self.refs.get(name)
+        if base is None:
+            raise ToolError(f"No reference folder @{name}. There are: "
+                            + ", ".join("@" + n for n in self.refs) + ".")
+        parts = [p for p in rest.split("/") if p not in ("", ".")]
+        for part in parts:
+            if part == ".." or ":" in part:
+                raise ToolError(f"{path}: stays inside @{name}.")
+            if part.lower() in DENY_DIRS:
+                raise ToolError(f"{path}: inside {part}/, which is not read here.")
+        target = base.joinpath(*parts)
+        try:
+            inside = target.resolve().relative_to(base.resolve())
+        except (ValueError, OSError):
+            raise ToolError(f"{path}: outside @{name} once links are followed.")
+        for part in inside.parts:
+            if part.lower() in DENY_DIRS:
+                raise ToolError(f"{path}: inside {part}/, which is not read here.")
+        if parts and _SECRET_NAMES.search(parts[-1]):
+            raise ToolError(f"{path}: a secret or key file; never read here.")
+        return name, base, target
+
+    def _ref_files(self, name: str, base: Path, top: Path):
+        """Files under `top`, as '@name/rel', skipping heavy and denied folders."""
+        for d, dirs, names in os.walk(top, followlinks=False):
+            dirs[:] = sorted(x for x in dirs if x.lower() not in DENY_DIRS
+                             and x not in HEAVY_DIRS and not _is_link(Path(d) / x))
+            for n in sorted(names):
+                p = Path(d) / n
+                if _SECRET_NAMES.search(n) or _is_link(p):
+                    continue
+                yield p, f"@{name}/" + p.relative_to(base).as_posix()
+
+    def ref_list(self, a: dict) -> str:
+        name, base, top = self.ref_resolve(a.get("path"))
+        if top.is_file():
+            return f"@{name}/{top.relative_to(base).as_posix()} is a file ({top.stat().st_size} bytes)."
+        if not top.is_dir():
+            raise ToolError(f"{a.get('path')}: no such folder.")
+        rows, more = [], 0
+        for _, rel in self._ref_files(name, base, top):
+            if len(rows) < REF_LIST_MAX:
+                rows.append(rel)
+            else:
+                more += 1
+        if not rows:
+            return "(no files)"
+        return "\n".join(rows) + (f"\n… {more} more files: list a folder inside it" if more else "")
+
+    def ref_read(self, a: dict) -> str:
+        name, base, p = self.ref_resolve(a.get("path"))
+        if not p.is_file():
+            raise ToolError(f"{a.get('path')}: no such file.")
+        if p.stat().st_size > REF_FILE_MAX:
+            raise ToolError(f"{a.get('path')}: over {REF_FILE_MAX // 1_000_000} MB; not read here.")
+        raw = p.read_bytes()
+        if b"\x00" in raw[:8192]:
+            raise ToolError(f"{a.get('path')}: a binary file.")
+        lines = raw.decode("utf-8", "replace").splitlines()
+        try:
+            start = max(1, int(a.get("offset") or 1))
+            limit = max(1, min(REF_READ_LINES, int(a.get("limit") or REF_READ_LINES)))
+        except (TypeError, ValueError):
+            raise ToolError("offset and limit are whole numbers.")
+        out, size, i = [], 0, start
+        for i in range(start, min(len(lines), start + limit - 1) + 1):
+            row = f"{i:6}\t{lines[i - 1]}"
+            if size + len(row) > REF_READ_CHARS:
+                i -= 1
+                break
+            out.append(row)
+            size += len(row) + 1
+        if not out and lines:
+            return f"(nothing at line {start}: the file has {len(lines)} lines)"
+        last = start + len(out) - 1
+        tail = (f"\n[lines {start}-{last} of {len(lines)}; read on with offset={last + 1}]"
+                if last < len(lines) else "")
+        return ("\n".join(out) or "(empty file)") + tail
+
+    def ref_find(self, a: dict) -> str:
+        pat = a.get("pattern")
+        if not isinstance(pat, str) or len(pat.strip()) < 2:
+            raise ToolError("Give a pattern of at least two characters.")
+        try:
+            rx = re.compile(pat, re.I)
+        except re.error as e:
+            raise ToolError(f"Not a usable regular expression: {e}")
+        if a.get("path"):
+            name, base, top = self.ref_resolve(a.get("path"))
+            places = [(name, base, top)]
+        else:
+            places = [(n, b, b) for n, b in self.refs.items()]
+        hits, n_hits, size = [], 0, 0
+        for name, base, top in places:
+            files = [(top, f"@{name}/" + top.relative_to(base).as_posix())] if top.is_file() \
+                else self._ref_files(name, base, top)
+            for p, rel in files:
+                try:
+                    if p.stat().st_size > REF_FILE_MAX // 2:
+                        continue
+                    raw = p.read_bytes()
+                except OSError:
+                    continue
+                if b"\x00" in raw[:4096]:
+                    continue
+                for i, line in enumerate(raw.decode("utf-8", "replace").splitlines(), 1):
+                    if rx.search(line):
+                        n_hits += 1
+                        if len(hits) < REF_FIND_HITS and size < REF_FIND_CHARS:
+                            row = f"{rel}:{i}: {line.strip()[:200]}"
+                            hits.append(row)
+                            size += len(row) + 1
+        if not n_hits:
+            return "(no matches)"
+        more = n_hits - len(hits)
+        return "\n".join(hits) + (f"\n… {more} more matches: narrow the pattern or the path"
+                                  if more else "")
 
     # ── the file tools ────────────────────────────────────────────────────
 
@@ -347,6 +527,8 @@ class Server:
 
     def tools(self) -> list[dict]:
         out = [dict(t) for t in TOOLS]
+        if self.refs:
+            out += [dict(t) for t in REF_TOOLS]
         if self.check:
             t = dict(RUN_CHECK)
             t["description"] = (
@@ -360,8 +542,10 @@ class Server:
     def call(self, name: str, args: dict) -> tuple[str, bool]:
         fn = {"move_path": self.move_path, "copy_path": self.copy_path,
               "delete_path": self.delete_path, "make_dir": self.make_dir,
-              "run_check": self.run_check}.get(name)
-        if fn is None or (name == "run_check" and not self.check):
+              "run_check": self.run_check, "ref_list": self.ref_list,
+              "ref_read": self.ref_read, "ref_find": self.ref_find}.get(name)
+        if fn is None or (name == "run_check" and not self.check) or \
+                (name.startswith("ref_") and not self.refs):
             return f"Unknown tool {name!r}.", True
         try:
             return fn(args if isinstance(args, dict) else {}), False
@@ -414,7 +598,8 @@ def from_config(path: Path) -> Server:
     root = Path(cfg["root"])
     if not root.is_dir():
         raise SystemExit(f"no such folder: {root}")
-    return Server(root, cfg.get("check"), Path(cfg["real"]) if cfg.get("real") else None)
+    return Server(root, cfg.get("check"), Path(cfg["real"]) if cfg.get("real") else None,
+                  cfg.get("refs"))
 
 
 def main(argv: list[str] | None = None) -> None:

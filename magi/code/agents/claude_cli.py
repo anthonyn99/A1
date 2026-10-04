@@ -95,6 +95,13 @@ def build_argv(exe: str, task: Task, model: str | None = None,
             "--tools", WRITE_TOOLS if write else READ_TOOLS]
     if images:
         argv += ["--input-format", "stream-json"]
+    if not write:
+        # Track V: reference folders, readable by Read/Glob/Grep. Read mode
+        # only: there the tools cannot write anything anywhere. In write
+        # mode acceptEdits would approve edits inside an added directory,
+        # so references are read through ws_mcp's ref_* tools instead.
+        for _, folder in task.refs:
+            argv += ["--add-dir", str(folder)]
     if task.mcp_config is not None:
         # MAGI's own MCP servers, from a config file MAGI wrote (never JSON
         # through a .cmd shim's argv), each allowed by server name: the
@@ -132,6 +139,15 @@ def write_frame(task: Task) -> str | None:
             "to. When you finish, your changes are shown to the user as a diff, and nothing "
             "reaches the real project unless they approve it. Keep the change focused on the "
             "task. " + run + "Finish with a short summary of what you changed and why.")
+
+
+def refs_how(task: Task) -> str:
+    """How Claude reads the reference folders in this mode."""
+    if task.mode == Mode.WRITE:
+        return ("Read them with the magi_workspace tools ref_list, ref_read and ref_find, "
+                "naming paths like @" + (task.refs[0][0] if task.refs else "name")
+                + "/src/app.py. Your file tools and edits reach only the project folder.")
+    return "Read, Glob and Grep work on those paths."
 
 
 def stdin_for(prompt: str, images: list[Image]) -> str:
@@ -331,7 +347,7 @@ class ClaudeCLIAgent(CodingAgent):
         model needs usage credits, "cli:<version>" when this Claude Code is
         too old for it -- the two refusals run() retries once."""
         resume = task.resume_for(self.id)
-        prompt = task.prompt_for(self.id, frame=write_frame(task))
+        prompt = task.prompt_for(self.id, frame=write_frame(task), refs_how=refs_how(task))
         images = task.images_for(self.id)
         try:
             s = Stream(build_argv(exe, task, pick.get("model"), pick.get("effort"), resume,

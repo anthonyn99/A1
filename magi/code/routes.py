@@ -78,7 +78,8 @@ async def code_state() -> dict[str, Any]:
         # files silently dropped by an engine that ignores the field.
         # Track F: `followup` = POST /tasks takes `session`; `steer` =
         # POST /tasks/{id}/message exists.
-        "features": ["attachments", "auto_approve", "followup", "steer", "images"],
+        # Track V: `refs` = POST /tasks takes `refs` (other workspaces to read).
+        "features": ["attachments", "auto_approve", "followup", "steer", "images", "refs"],
     }
 
 
@@ -757,6 +758,44 @@ def _task_images(raw: Any, room: int = MAX_TASK_ATTACHMENTS) -> tuple[list, str]
     return out, ""
 
 
+MAX_TASK_REFS = 8
+
+
+async def _task_refs(raw: Any, main_id: str, eng: str) -> tuple[list, str]:
+    """[project_id] from the console -> ([(name, folder)], refusal or "").
+
+    Only workspaces registered on this engine, by id, with a folder here --
+    never a path from the request: the tunnel can post a task, and a path
+    from it could name any folder on this PC. The name is the project's,
+    made safe to write as @name."""
+    import re
+    from pathlib import Path
+    if not raw:
+        return [], ""
+    if not isinstance(raw, list) or len(raw) > MAX_TASK_REFS:
+        return [], f"At most {MAX_TASK_REFS} folders to read alongside."
+    out: list[tuple[str, Path]] = []
+    seen: set[str] = set()
+    for pid in raw:
+        pid = str(pid or "")
+        if pid == main_id or pid in seen:
+            continue
+        seen.add(pid)
+        p = await _db().code_project(pid, eng)
+        here = next((b for b in (p or {}).get("bindings") or [] if b.get("here")), None)
+        if not p or not here:
+            return [], "A workspace to read alongside has no folder on this machine."
+        root = Path(here["root"])
+        if not root.is_dir():
+            return [], f"{p['name']}'s folder is not there any more."
+        base = re.sub(r"[^A-Za-z0-9._-]+", "-", p["name"]).strip("-.").lower() or "ref"
+        name, i = base[:40], 2
+        while any(n == name for n, _ in out):
+            name, i = f"{base[:37]}-{i}", i + 1
+        out.append((name, root))
+    return out, ""
+
+
 @router.post("/tasks")
 async def start_task(body: dict = Body(...)) -> dict[str, Any]:
     """Run a task through the chain.
@@ -808,6 +847,9 @@ async def start_task(body: dict = Body(...)) -> dict[str, Any]:
         session = _followup.parse_session(body.get("session"))
     except ValueError as e:
         return {"ok": False, "error": "session", "message": str(e)}
+    refs, why = await _task_refs(body.get("refs"), p["id"], eng)
+    if why:
+        return {"ok": False, "error": "refs", "message": why}
     order = [str(x) for x in (body.get("agents") or _chain.DEFAULT_ORDER)]
     from . import check as _check
     t = await _tasks.start(project_id=p["id"], root=root, prompt=prompt[:20000],
@@ -815,7 +857,7 @@ async def start_task(body: dict = Body(...)) -> dict[str, Any]:
                            github=str((p.get("prefs") or {}).get("github") or ""),
                            attachments=atts, images=images, check=_check.get(p["id"]),
                            approve="auto" if body.get("approve") == "auto" else "manual",
-                           session=session)
+                           session=session, refs=refs)
     await _db().touch_code_binding(p["id"], eng)
     return {"ok": True, "task": t.summary()}
 

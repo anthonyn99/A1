@@ -92,6 +92,8 @@ class TaskState:
     # A revision asked for at the card, until the chain runs again: more
     # messages in that gap join the same revision.
     revising: bool = False
+    # Track V: other workspaces this task may read, as (name, folder).
+    refs: list[tuple[str, str]] = field(default_factory=list)
 
     @property
     def checking(self) -> bool:
@@ -164,12 +166,14 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                 images: list | None = None,
                 check: dict[str, Any] | None = None,
                 approve: str = "manual",
-                session: followup.Session | None = None) -> TaskState:
+                session: followup.Session | None = None,
+                refs: list[tuple[str, Path]] | None = None) -> TaskState:
     t = TaskState(id=uuid.uuid4().hex[:12], project_id=project_id,
                   prompt=prompt, mode=mode, root=str(root), github=github,
                   attachments=list(attachments or []), images=list(images or []),
                   check_cfg=dict(check or {}) if mode == "write" else {},
                   approve="auto" if approve == "auto" else "manual")
+    t.refs = [(n, str(p)) for n, p in refs or []]
     t.session_id = session.id if session else t.id
     t.turn = session.turn if session else 1
     TASKS[t.id] = t
@@ -188,6 +192,7 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                               "approve": t.approve,
                               "session_id": t.session_id, "turn": t.turn,
                               "attachments": [n for n, _ in t.attachments] + [im.name for im in t.images],
+                              "refs": [n for n, _ in t.refs],
                               "chain": [{"id": a.id, "label": a.label, "kind": a.kind}
                                         for a in agents]})
             pulled = await _pull_first(t, root)
@@ -218,7 +223,11 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                 ck = t.check_cfg if t.check_cfg.get("agents") else {}
                 ws = {"root": str(sb.cwd), "real": str(root),
                       "check": ({"command": ck["command"], "timeout_min": ck.get("timeout_min")}
-                                if ck.get("command") else None)}
+                                if ck.get("command") else None),
+                      "refs": [{"name": n, "root": p} for n, p in t.refs]}
+            if t.refs:
+                await emit({"k": "note", "text": "Also reading, never changing: "
+                            + ", ".join("@" + n for n, _ in t.refs) + "."})
             mcp = await loop.run_in_executor(
                 None, lambda: write_mcp_config(t.id, project_id, root, github, workspace=ws))
             # A question about sizes or rankings: measured here, handed over
@@ -235,7 +244,8 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                         progress=sb.changed_files if sb else None, mcp_config=mcp,
                         mcp_servers=mcp_servers_in(mcp),
                         agent_check=((ws or {}).get("check") or {}).get("command", ""),
-                        attachments=t.attachments, images=t.images, inventory=inv)
+                        attachments=t.attachments, images=t.images, inventory=inv,
+                        refs=[(n, Path(p)) for n, p in t.refs])
             if session is not None:
                 task.session_turns = session.turns
                 task.state_note = followup.state_note(session.turns)
