@@ -27,6 +27,12 @@ confines the file tools to the working directory -- verified live: a Write to
 C:\\Users\\<you>\\x.txt comes back as a `permission_denied` event -- and even an
 edit that stayed inside only reaches your folder as a diff you approved.
 
+Track V adds, in write mode only, MAGI's workspace tools (code/ws_mcp.py,
+allowed by name beside the GitHub ones): move, copy, delete, make a folder --
+what Edit/Write cannot do -- confined to the copy by the server itself, and
+run_check, the project's own check command, when you let agents run it.
+Still no Bash: on Windows a shell has no boundary that keeps it in the copy.
+
 The prompt goes in on stdin, not argv: the CLI is a .cmd shim on Windows, and
 passing arbitrary prose through cmd.exe's quoting is how a prompt containing
 `&` or `%` turns into a different command.
