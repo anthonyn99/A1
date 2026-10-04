@@ -148,6 +148,14 @@ async def publish(t: TaskState, ev: dict[str, Any]) -> None:
     for base in (t.sandbox_root, t.root):
         if base and isinstance(ev.get("target"), str):
             ev["target"] = _rel(ev["target"], base)
+    # A reference folder's file reads as @name/path, the way the agent was
+    # told to name it.
+    for name, base in t.refs:
+        tgt = ev.get("target")
+        if isinstance(tgt, str):
+            rel = _rel(tgt, base)
+            if rel != tgt:
+                ev["target"] = f"@{name}" + ("" if rel == "." else "/" + rel)
     if len(t.events) < MAX_EVENTS:
         t.events.append(ev)
     for q in list(t.viewers):
