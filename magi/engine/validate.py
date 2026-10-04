@@ -249,11 +249,17 @@ _STOP = {
 
 # A question that asks for a bare word, number or yes/no. Narrow on purpose:
 # only these phrasings lift the truncation rule (see validate_answer).
+_TERSE_NOUN = r"(?:number|name|word|answer|string|value|code|id|path|result|letter)"
 _ASKS_FOR_BREVITY = re.compile(
     r"\b(?:(?:in\s+)?(?:one|a\s+single|single)[\s-]+(?:word|number|digit|letter)"
     r"|yes\s+or\s+no"
-    r"|just\s+(?:the|a)\s+(?:number|name|word|answer)"
-    r"|only\s+the\s+(?:number|name|word))\b",
+    rf"|just\s+(?:the|a)\s+{_TERSE_NOUN}"
+    rf"|only\s+the\s+{_TERSE_NOUN}"
+    # "Reply with the string only." (Track V, live: Gemini's correct
+    # "PLUM-6734" was called cut off.) Narrow on purpose: Code Mode validates
+    # against the whole framed prompt, which itself says "reply with ONLY
+    # lines of the form ..." and "... and nothing else" -- neither may count.
+    r"|(?:reply|answer|respond)\s+with\s+(?:the|a|an|its)\s+[\w-]+(?:\s+[\w-]+)?\s+only)\b",
     re.IGNORECASE,
 )
 

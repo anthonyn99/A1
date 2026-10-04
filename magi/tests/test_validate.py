@@ -129,8 +129,28 @@ def test_a_one_word_answer_to_a_one_word_question_is_kept():
         ("Capital of France? Just the name.", "Paris"),
         ("How many legs does a spider have? Answer in a single word.", "Eight"),
         ("Pick one-word: best editor?", "Neovim"),
+        # Track V, live: "Reply with the string only." -> Gemini's correct
+        # value was called cut off.
+        ("What does zebra_quux return? Reply with the string only.", "PLUM-6734"),
+        ("Which fruit did I name? Answer with the fruit only.", "Kiwi"),
+        ("What is the port? Just the number.", "8000"),
+        ("Which file holds it? Only the path.", "magi/app.py"),
     ):
         assert validate_answer(a, q).ok, (q, a)
+
+
+def test_code_modes_own_frame_never_counts_as_asking_for_brevity():
+    """The browser unit's prompt is validated whole, and MAGI's frame says
+    "reply with ONLY lines of the form NEED: ..." and "... and nothing else".
+    A two-word stub to a real question must still be TRUNCATED under it."""
+    from magi.code.agents import browser as B, edits as E
+    from magi.code.agents.base import Mode, Task
+    from pathlib import Path
+    t = Task("t", "Explain how the scheduler decides what runs next.", Path("."), Mode.WRITE,
+             refs=[("orca", Path("."))])
+    prompt = B.BrowserUnitAgent("gemini", "Gemini", None).build_prompt(t, "FILE INDEX: a.py")
+    assert E.FORMAT_HELP in prompt and "nothing else" in prompt
+    assert validate_answer("The scheduler", prompt).reason is Rejection.TRUNCATED
 
 
 def test_brevity_exemption_stays_narrow():
