@@ -40,7 +40,18 @@ def _sources():
             continue
         if path.name == "proc.py":
             continue
+        # The workspace MCP server runs as `python -I` inside the agents'
+        # job and may import nothing of MAGI's; it passes CREATE_NO_WINDOW
+        # itself (checked below).
+        if path.name == "ws_mcp.py":
+            continue
         yield path
+
+
+def test_the_workspace_mcp_server_hides_its_windows_too():
+    src = (PKG / "code" / "ws_mcp.py").read_text(encoding="utf-8")
+    calls = DIRECT_CALL.findall(src)
+    assert calls and src.count("CREATE_NO_WINDOW") >= len(calls)
 
 
 def test_no_module_calls_subprocess_directly():
