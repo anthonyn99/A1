@@ -54,6 +54,11 @@ READ_TOOLS = "Read,Glob,Grep"
 WRITE_TOOLS = "Read,Glob,Grep,Edit,Write"
 MCP_SERVER = "magi_github"
 MCP_ALLOW = f"mcp__{MCP_SERVER}"
+# Track V: move/copy/delete/make folder (and run_check, if you allow it) in
+# the task's private copy -- code/ws_mcp.py. Write mode only.
+WS_SERVER = "magi_workspace"
+_WS_NAMES = {"move_path": "Move", "copy_path": "Copy", "delete_path": "Delete",
+             "make_dir": "Make folder", "run_check": "Run check"}
 
 _UNAUTH = re.compile(r"please run /login|not logged in|invalid api key|"
                      r"authentication_error|oauth token (has )?expired|401", re.I)
@@ -85,10 +90,13 @@ def build_argv(exe: str, task: Task, model: str | None = None,
     if images:
         argv += ["--input-format", "stream-json"]
     if task.mcp_config is not None:
-        # Read-only GitHub tools for this project, from a config file MAGI
-        # wrote (never JSON through a .cmd shim's argv). Allowed by server
-        # name: every tool on it only reads, through the engine.
-        argv += ["--mcp-config", str(task.mcp_config), "--allowedTools", MCP_ALLOW]
+        # MAGI's own MCP servers, from a config file MAGI wrote (never JSON
+        # through a .cmd shim's argv), each allowed by server name: the
+        # GitHub one only reads, through the engine; the workspace one only
+        # touches the task's private copy (write mode).
+        names = task.mcp_servers or (MCP_SERVER,)
+        argv += ["--mcp-config", str(task.mcp_config),
+                 "--allowedTools", ",".join(f"mcp__{n}" for n in names)]
     if model:
         argv += ["--model", model]
     if effort:
@@ -96,6 +104,28 @@ def build_argv(exe: str, task: Task, model: str | None = None,
     if resume:
         argv += ["--resume", resume]
     return argv
+
+
+def write_frame(task: Task) -> str | None:
+    """Claude's write-mode framing when it has the workspace tools -- the
+    plain WRITE_FRAME tells an agent it cannot move, delete or run anything,
+    which stops being true here. None = use the plain one."""
+    if task.mode != Mode.WRITE or WS_SERVER not in task.mcp_servers:
+        return None
+    run = (f"You can run the project's check command (`{task.agent_check}`) with the "
+           "run_check tool and read its real exit code and output: use it to verify your "
+           "change, and fix what it reports. It is the only command you can run; report "
+           "what it said, and do not claim to have run anything else. "
+           if task.agent_check else
+           "Running the project's commands or tests is not part of this mode; do not claim "
+           "to have run any. ")
+    return ("You are working in a private copy of the project. Edit files directly to "
+            "carry out the task. Besides your file tools, the magi_workspace tools move or "
+            "rename (move_path), copy (copy_path) and delete (delete_path) files and "
+            "folders, and make folders (make_dir) -- use them rather than asking the person "
+            "to. When you finish, your changes are shown to the user as a diff, and nothing "
+            "reaches the real project unless they approve it. Keep the change focused on the "
+            "task. " + run + "Finish with a short summary of what you changed and why.")
 
 
 def stdin_for(prompt: str, images: list[Image]) -> str:
@@ -134,6 +164,8 @@ def env_for_task(slot: str, task: Task) -> dict[str, str]:
 
 
 def _target(inp: dict[str, Any]) -> str:
+    if inp.get("from") and inp.get("to"):
+        return f"{inp['from']} → {inp['to']}"
     for k in ("file_path", "path", "pattern", "glob", "query"):
         v = inp.get(k)
         if v:
@@ -176,7 +208,9 @@ def parse_line(line: str) -> dict[str, Any] | None:
             if b.get("type") == "text" and b.get("text"):
                 out.append({"k": "text", "text": b["text"]})
             elif b.get("type") == "tool_use":
-                out.append({"k": "tool", "name": b.get("name", ""),
+                name = b.get("name", "")
+                ws = name.removeprefix(f"mcp__{WS_SERVER}__")
+                out.append({"k": "tool", "name": _WS_NAMES.get(ws, name) if ws != name else name,
                             "target": _target(b.get("input") or {})})
         return {"k": "batch", "events": out} if out else None
     if t == "result":
@@ -291,7 +325,7 @@ class ClaudeCLIAgent(CodingAgent):
         model needs usage credits, "cli:<version>" when this Claude Code is
         too old for it -- the two refusals run() retries once."""
         resume = task.resume_for(self.id)
-        prompt = task.prompt_for(self.id)
+        prompt = task.prompt_for(self.id, frame=write_frame(task))
         images = task.images_for(self.id)
         try:
             s = Stream(build_argv(exe, task, pick.get("model"), pick.get("effort"), resume,
