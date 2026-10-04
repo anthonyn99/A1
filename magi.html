@@ -12532,19 +12532,8 @@ function renderCodeStrip() {
   strip.append(CODE.rw === "write"
     ? codePill("Access", "edits, after approval", "warn")
     : codePill("Access", "read only", "muted"));
-  // Track V: other workspaces the agents may read beside this one.
-  if (proj && codeCanRefs()) {
-    const refs = codeRefs(proj.id);
-    const pill = codePill("Also read", refs.length ? refs.map((p) => p.name).join(", ") : "none",
-      refs.length ? "ok" : "muted");
-    pill.classList.add("is-btn");
-    pill.setAttribute("role", "button");
-    pill.tabIndex = 0;
-    pill.title = "Other workspaces the agents may read (never change) while they work here";
-    pill.onclick = () => codeRefsSheet(proj);
-    pill.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pill.click(); } };
-    strip.append(pill);
-  }
+  const refsPill = codeRefsPill(proj);
+  if (refsPill) strip.append(refsPill);
   const lead = codeChain()[0];
   if (lead) strip.append(codePill("Lead", lead.label + (lead.kind === "cli" ? " CLI" : ""), ""));
   // The real switches (Phase 12), and a countdown while a commit waits.
@@ -12624,6 +12613,22 @@ function codeRefsBody(pid) {
   if (!codeCanRefs()) return {};
   const ids = codeRefs(pid).map((p) => p.id);
   return ids.length ? { refs: ids } : {};
+}
+
+/** Track V: the strip's "Also read" pill -- a button that opens the sheet.
+ *  None when there is no project or the engine does not take refs. */
+function codeRefsPill(proj) {
+  if (!proj || !codeCanRefs()) return null;
+  const refs = codeRefs(proj.id);
+  const pill = codePill("Also read", refs.length ? refs.map((p) => p.name).join(", ") : "none",
+    refs.length ? "ok" : "muted");
+  pill.classList.add("is-btn");
+  pill.setAttribute("role", "button");
+  pill.tabIndex = 0;
+  pill.title = "Other workspaces the agents may read (never change) while they work here";
+  pill.onclick = () => codeRefsSheet(proj);
+  pill.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pill.click(); } };
+  return pill;
 }
 
 function codeRefsSheet(proj) {
