@@ -884,6 +884,21 @@ reachable from the internet.
 
 ### Waiting on Tony
 
+* **RESOLVED 2026-10-04 (same day): confirmed and fixed.** Re-run cleanly
+  on scratch files: in `unelevated`, read-only AND workspace-write, a
+  sandboxed `del`, `Remove-Item` and `rmdir /s` outside the folder all went
+  through, including a file on the Desktop; writes and renames were denied.
+  In `elevated` every one is "Access is denied", reads outside still work,
+  writes in the copy work. MAGI now runs Codex ONLY elevated
+  (`agents/codex_sandbox.py`: `IMPL`, `ready()` = one sandboxed echo, 60 s
+  max, whole tree killed, cached per Codex version; never a fallback). Not
+  ready -> Codex unavailable with `SETUP_HINT`, the chain hands on, the
+  Codex chip says *sandbox not set up* (`/agents` `sandbox`, checked in the
+  background). Tony's PC was already set up (2026-09-24). **Veda's PC:
+  docs/magi-veda-codex-sandbox.md** (one UAC Yes if not set up; CLAUDE.md
+  trigger "Veda Codex fix"). setup.ps1 now does it for new installs.
+  `test_codex_sandbox.py` (8; the real-delete test fails with unelevated).
+  The original note follows.
 * **(Track V, 2026-10-04) Codex's Windows sandbox may let a shell DELETE
   outside its folder.** In the V1 spike, a `del ..\keep.txt` run through
   `codex sandbox` with `sandbox_mode=workspace-write` (and

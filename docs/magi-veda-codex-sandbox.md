@@ -60,15 +60,17 @@ her chain. Nothing hangs: the engine's check gives up after a minute.
    .venv\Scripts\python -m pytest tests/test_codex_sandbox.py -q
    ```
 
-   All pass (7). The two `real_sandbox` tests delete-test a scratch file in
+   All pass (8). The two `real_sandbox` tests delete-test a scratch file in
    `%TEMP%`; if they are *skipped*, the sandbox is still not set up: go back
    to step 3.
 
 6. **Prove Codex works in MAGI again.** Restart her engine (step 2's
-   command) so it re-checks, then:
-   `curl http://127.0.0.1:<port>/api/code/agents` and confirm the Codex
-   slot is available (no "protected sandbox is not set up" text). Optional,
-   spends two small Codex requests on her account:
+   command) so it re-checks, then call
+   `curl http://127.0.0.1:<port>/api/code/agents` twice, a few seconds
+   apart: the Codex entry's `"sandbox"` must end up `{"ok": true, ...}`
+   (the first call may say `null` while the engine checks in the
+   background). In the console the Codex CLI chip no longer says *sandbox
+   not set up*. Optional, spends two small Codex requests on her account:
    `node tests\live\magi-guard.live.js` against her port.
 
 7. **Tell Veda it's done** in one line, and tell Tony the result of step 5.

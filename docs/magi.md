@@ -510,8 +510,12 @@ your folder ──git stash create──► worktree in %TEMP%\magi-sandbox\<pro
   the transcript shows. The env scrub is **dropped in write mode**: found
   live, it makes acceptEdits refuse every edit as "not granted", and write
   mode has no shell for it to protect. Codex runs with
-  `--sandbox workspace-write` plus `windows.sandbox=unelevated` (without it,
-  workspace-write is silently read-only on Windows), temp-dir exemptions off
+  `--sandbox workspace-write` plus `windows.sandbox=elevated` (without a
+  `windows.sandbox`, workspace-write is silently read-only on Windows; and
+  **since 2026-10-04 only `elevated`**: in `unelevated` a command could
+  delete files anywhere you can -- `agents/codex_sandbox.py` checks the
+  elevated sandbox is set up before Codex is used; Veda's PC:
+  docs/magi-veda-codex-sandbox.md), temp-dir exemptions off
   and network off. Tested live: a write to `%USERPROFILE%` or `%TEMP%` is
   denied. Codex keeps its shell, because that is how it reads files, but only
   inside that OS sandbox -- and **that sandbox does not keep it off
