@@ -447,6 +447,8 @@ class Request:
 
     @property
     def key(self) -> str:
+        if self.asked.startswith(FIND_PREFIX):
+            return self.asked
         return f"{self.rel or self.asked}:{self.start}-{self.end}" if self.kind == "range" \
             else (self.rel or self.asked)
 

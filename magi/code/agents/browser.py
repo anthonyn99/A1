@@ -59,6 +59,8 @@ _READ_FRAME = (
     "NEED: path/to/file\n"
     "NEED: path/to/file:START-END   (a range of lines)\n"
     "NEED: path/to/folder/          (its full file list)\n"
+    "FIND: some text                (every line in the project containing it;\n"
+    "                               FIND: /regex/ for a regular expression)\n"
     "-- up to 10, and nothing else. You will be sent them and asked again. "
     "Asking is expected, not a failure: if your answer would depend on a file "
     "you have not been given, ask for it FIRST instead of inferring what it "
@@ -243,11 +245,14 @@ class BrowserUnitAgent(CodingAgent):
                         target = r.rel or r.asked
                         if r.kind == "range":
                             target += f" (lines {r.start}-{r.end})"
+                        elif r.kind == "find":
+                            target += f" ({r.total} matching lines)"
                         elif r.kind == "refused":
                             target += f" -- {r.why}"
-                        await emit({"k": "tool", "name": "Read", "target": target})
-                    if "Read" not in tools:
-                        tools.append("Read")
+                        name = "Search" if r.asked.startswith(context.FIND_PREFIX) else "Read"
+                        await emit({"k": "tool", "name": name, "target": target})
+                        if name not in tools:
+                            tools.append(name)
                     # Newest requests first: they are what the unit is
                     # waiting on, and the first to be sent when room is short.
                     requests = new + requests
