@@ -142,9 +142,14 @@ def resolve(root: Path, rel, *, must_exist: bool = False) -> Path:
             break
     target = root.joinpath(*parts)
     try:
-        target.resolve().relative_to(root.resolve())
+        inside = target.resolve().relative_to(root.resolve())
     except (ValueError, OSError):
         raise ToolError(f"{rel}: outside the project folder.")
+    # Again on the resolved name: Windows' short names ("GIT~1") resolve to
+    # the long one, which the string check above never saw.
+    for part in inside.parts:
+        if part.lower() in DENY_DIRS:
+            raise ToolError(f"{rel}: inside {part}/, which agents may not touch.")
     if must_exist and not os.path.lexists(target):
         raise ToolError(f"{rel}: no such file or folder.")
     return target
