@@ -500,7 +500,21 @@ export async function ocrPages(b64, onProgress) {
     while (next < count) {
       const n = ++next;
       const [img] = await pdfPageImages(b64, [n]);
-      const text = String(await ADAPTERS.orca(a, { prompt: OCR_PROMPT, attachPdf: true, images: [img.url], maxTokens: 2048 })).trim();
+      // ORCA's own OCR endpoint: no chat model is involved, so a busy browser
+      // model or a provider's rate limit cannot stop it.
+      let res;
+      try {
+        res = await fetch(a.baseUrl + '/ocr', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + a.key },
+          body: JSON.stringify({ image: img.url }),
+        });
+      } catch (e) {
+        throw new AIError(`Could not reach ${a.baseUrl}: ${(e && e.message) || e}`, { kind: 'network', retryable: true });
+      }
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw httpError('ORCA (reading page ' + n + ')', res.status, body, false);
+      const text = String((body && body.text) || '').trim();
       pages[n - 1] = {
         n, figure: false,
         lines: text.split(/\r?\n/).map((t) => ({ text: t.replace(/\s+/g, ' ').trim(), h: 0, bullet: false })).filter((l) => l.text),
