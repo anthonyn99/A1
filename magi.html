@@ -12532,6 +12532,19 @@ function renderCodeStrip() {
   strip.append(CODE.rw === "write"
     ? codePill("Access", "edits, after approval", "warn")
     : codePill("Access", "read only", "muted"));
+  // Track V: other workspaces the agents may read beside this one.
+  if (proj && codeCanRefs()) {
+    const refs = codeRefs(proj.id);
+    const pill = codePill("Also read", refs.length ? refs.map((p) => p.name).join(", ") : "none",
+      refs.length ? "ok" : "muted");
+    pill.classList.add("is-btn");
+    pill.setAttribute("role", "button");
+    pill.tabIndex = 0;
+    pill.title = "Other workspaces the agents may read (never change) while they work here";
+    pill.onclick = () => codeRefsSheet(proj);
+    pill.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pill.click(); } };
+    strip.append(pill);
+  }
   const lead = codeChain()[0];
   if (lead) strip.append(codePill("Lead", lead.label + (lead.kind === "cli" ? " CLI" : ""), ""));
   // The real switches (Phase 12), and a countdown while a commit waits.
@@ -12580,6 +12593,89 @@ function renderCodeStrip() {
       strip.append(pill);
     }
   }
+}
+
+/* ── Also read (Track V): other workspaces a task may read, never change ──
+   Which ones, per workspace, is kept on this device. The engine takes only
+   workspace ids registered on it (routes._task_refs), never a path. */
+const CODE_REFS_KEY = lsKey("code.refs");
+const CODE_REFS_MAX = 8;
+const codeCanRefs = () => ((CODE.state && CODE.state.features) || []).includes("refs");
+
+/** The workspaces ticked to read beside `pid`: only ones that still exist
+ *  and have a folder on this engine. */
+function codeRefs(pid) {
+  const all = lsRead(CODE_REFS_KEY, {}) || {};
+  const ids = Array.isArray(all[pid]) ? all[pid] : [];
+  const projs = (CODE.state && CODE.state.projects) || [];
+  return ids.map((id) => projs.find((p) => p.id === id))
+    .filter((p) => p && p.id !== pid && codeRoot(p)).slice(0, CODE_REFS_MAX);
+}
+
+function codeSetRefs(pid, ids) {
+  const all = { ...(lsRead(CODE_REFS_KEY, {}) || {}) };
+  if (ids.length) all[pid] = ids.slice(0, CODE_REFS_MAX);
+  else delete all[pid];
+  lsWrite(CODE_REFS_KEY, all);
+}
+
+/** `refs` for POST /tasks, or nothing when the engine does not take them. */
+function codeRefsBody(pid) {
+  if (!codeCanRefs()) return {};
+  const ids = codeRefs(pid).map((p) => p.id);
+  return ids.length ? { refs: ids } : {};
+}
+
+function codeRefsSheet(proj) {
+  const others = ((CODE.state && CODE.state.projects) || []).filter((p) => p.id !== proj.id);
+  const picked = new Set(codeRefs(proj.id).map((p) => p.id));
+  const sheet = el("div", "sheet");
+  const box = el("div", "sheet-box sheet-wide refs-sheet");
+  const close = () => sheet.remove();
+  box.append(el("div", "sheet-hd", `Also read · ${proj.name}`));
+  const body = el("div");
+  box.append(body);
+  const bar = el("div", "sheet-bar");
+  const save = el("button", "btn active", "Save");
+  const no = el("button", "btn", "Close");
+  bar.append(save, el("span", "qbar-spacer"), no);
+  box.append(bar);
+  no.onclick = close;
+  dismissOnBackdrop(sheet, close);
+  sheet.append(box);
+  document.body.append(sheet);
+  const draw = () => {
+    body.textContent = "";
+    body.append(el("div", "sheet-sub",
+      `Other workspaces the agents may read while they work on ${proj.name} — to compare, `
+      + `port, or follow how something is done there. They are never changed: edits only ever `
+      + `reach ${proj.name}.`));
+    if (!others.length) {
+      body.append(el("div", "sheet-note", "There is no other workspace yet. Add one from the "
+        + "Workspace list, then tick it here."));
+      save.disabled = true;
+      return;
+    }
+    const list = el("div", "ac-win refs-list");
+    for (const p of others) {
+      const here = !!codeRoot(p);
+      const on = picked.has(p.id);
+      const b = el("button", `code-git-act ${on ? "on" : ""}`, p.name);
+      b.type = "button";
+      b.setAttribute("role", "checkbox");
+      b.setAttribute("aria-checked", String(on));
+      b.disabled = !here || (!on && picked.size >= CODE_REFS_MAX);
+      if (!here) b.title = "No folder on this engine’s PC";
+      b.onclick = () => { if (on) picked.delete(p.id); else picked.add(p.id); draw(); };
+      list.append(b);
+    }
+    body.append(list);
+    body.append(el("div", "sheet-note",
+      "Claude reads them with its own tools, Codex at their folders, and every other unit by "
+      + "asking MAGI for @name/… files. Remembered on this device, for this workspace."));
+  };
+  save.onclick = () => { codeSetRefs(proj.id, [...picked]); close(); renderCodeView(); };
+  draw();
 }
 
 /* ── the check command (magi/code/check.py) ─────────────────────────────── */
@@ -14023,7 +14119,8 @@ async function codeStartTurn(q, { followup = false, auto = false } = {}) {
   const agents = codeChain().map((m) => m.id);
   if (!proj || !agents.length || codeBusy()) return false;
   const sess = followup ? CODE.session : codeNewSession(proj.id);
-  const base = { project_id: proj.id, prompt: q, agents, mode: CODE.rw, approve: CODE.ap };
+  const base = { project_id: proj.id, prompt: q, agents, mode: CODE.rw, approve: CODE.ap,
+    ...codeRefsBody(proj.id) };
   if (followup) base.session = codeSessionBody(sess, codeEngineId());
   const { atts, imgs } = codeSplitAtts(auto ? [] : CODE.attachments);
   let d;
@@ -25454,7 +25551,7 @@ async function codeQueueRun(it, files, gen, onStart) {
   try {
     d = await codePost("/tasks", codeTaskBody(
       { project_id: it.pid, prompt: it.q, agents: it.agents || [], mode: it.rw || "read",
-        approve: it.ap === "auto" ? "auto" : "manual" }, atts, imgs));
+        approve: it.ap === "auto" ? "auto" : "manual", ...codeRefsBody(it.pid) }, atts, imgs));
   } catch (e) {
     return { ok: false, error: (e && e.message) || "could not start" };
   }
