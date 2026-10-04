@@ -244,14 +244,16 @@ async def get_check(project_id: str, request: Request) -> dict[str, Any]:
 
 @router.post("/projects/{project_id}/check")
 async def set_check(project_id: str, request: Request, body: dict = Body(...)) -> dict[str, Any]:
-    """`{"command", "auto", "timeout_min"}`. An empty command removes it."""
+    """`{"command", "auto", "timeout_min", "agents"}`. An empty command
+    removes it. `agents` (true only, never truthy) lets the coding agents run
+    it themselves while they work."""
     _local_only(request)
     from . import check as C
     if not await _db().code_project(project_id, _engine_id()):
         return {"ok": False, "error": "no_project", "message": "No such project."}
     try:
         c = C.put(project_id, body.get("command"), body.get("auto"),
-                  body.get("timeout_min", C.DEFAULT_TIMEOUT_MIN))
+                  body.get("timeout_min", C.DEFAULT_TIMEOUT_MIN), body.get("agents", False))
     except C.CheckError as e:
         return {"ok": False, "error": "bad_command", "message": e.message}
     return {"ok": True, "check": c}

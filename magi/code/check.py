@@ -88,13 +88,17 @@ def _read() -> dict[str, Any]:
 
 
 def get(project_id: str) -> dict[str, Any]:
-    """{"command", "auto", "timeout_min"} -- command "" means no check."""
+    """{"command", "auto", "timeout_min", "agents"} -- command "" means no
+    check. `agents`: the coding agents may run it themselves while they work
+    (ws_mcp.py's run_check), in the task's private copy."""
     raw = _read().get(project_id) or {}
     return clean(raw.get("command", ""), raw.get("auto", False),
-                 raw.get("timeout_min", DEFAULT_TIMEOUT_MIN), strict=False)
+                 raw.get("timeout_min", DEFAULT_TIMEOUT_MIN), strict=False,
+                 agents=raw.get("agents", False))
 
 
-def clean(command: Any, auto: Any, timeout_min: Any, strict: bool = True) -> dict[str, Any]:
+def clean(command: Any, auto: Any, timeout_min: Any, strict: bool = True,
+          agents: Any = False) -> dict[str, Any]:
     """Validated. `strict` raises on a bad command; reading a stored one
     tolerates it (and treats it as no check) rather than crashing a task."""
     cmd = str(command or "").strip()
@@ -112,12 +116,13 @@ def clean(command: Any, auto: Any, timeout_min: Any, strict: bool = True) -> dic
     except (TypeError, ValueError):
         t = DEFAULT_TIMEOUT_MIN
     return {"command": cmd, "auto": bool(auto) and bool(cmd),
-            "timeout_min": max(1, min(MAX_TIMEOUT_MIN, t))}
+            "timeout_min": max(1, min(MAX_TIMEOUT_MIN, t)),
+            "agents": agents is True and bool(cmd)}
 
 
 def put(project_id: str, command: Any, auto: Any = False,
-        timeout_min: Any = DEFAULT_TIMEOUT_MIN) -> dict[str, Any]:
-    c = clean(command, auto, timeout_min)
+        timeout_min: Any = DEFAULT_TIMEOUT_MIN, agents: Any = False) -> dict[str, Any]:
+    c = clean(command, auto, timeout_min, agents=agents)
     d = _read()
     if c["command"]:
         d[project_id] = c
