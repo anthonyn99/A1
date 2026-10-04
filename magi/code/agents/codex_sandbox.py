@@ -47,7 +47,7 @@ def probe_argv(exe: str) -> list[str]:
 
 
 def _probe(exe: str, env: dict, timeout: float | None = None) -> tuple[bool, str]:
-    """Never longer than the timeout plus a few seconds. Not subprocess.run:
+    """Never longer than the timeout plus a few seconds. Not a plain run():
     on a timeout it kills only the .cmd shim, and then waits for ever on a
     pipe the grandchild (node, codex.exe) still holds. Here the whole tree
     is killed and every wait after that is bounded."""
