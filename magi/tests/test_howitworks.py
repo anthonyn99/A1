@@ -367,6 +367,22 @@ def test_the_workspace_tools_claims_still_hold():
     assert "Agents may run it" in PAGE and "timeout_min: mins, agents }" in PAGE
 
 
+def test_the_also_read_claims_still_hold():
+    """Track V: reference folders are read, never changed."""
+    import inspect
+    from magi.code import routes as RT, ws_mcp as W
+    from magi.code.agents import claude_cli as CC
+    assert "Also read other workspaces" in HOW
+    # "never changed": no reference tool writes, and Write mode adds no --add-dir.
+    assert all(t["annotations"].get("readOnlyHint") for t in W.REF_TOOLS)
+    assert "if not write:" in inspect.getsource(CC.build_argv)
+    # "Only workspaces you added, with a folder on the engine's PC".
+    src = inspect.getsource(RT._task_refs)
+    assert "code_project(pid, eng)" in src and 'b.get("here")' in src
+    # "the choice is kept on each device": localStorage, not the synced field.
+    assert 'const CODE_REFS_KEY = lsKey("code.refs");' in PAGE
+
+
 def test_the_sync_claims_still_hold():
     """Phase 13: what travels, what never does, one write per change, no
     listener of its own, nothing while a task runs, A1 still off."""
