@@ -11,6 +11,10 @@
   "retire the old engine", "do the Veda engine cleanup"), on Veda's PC:
   follow [docs/magi-veda-retire-old-engine.md](docs/magi-veda-retire-old-engine.md)
   start to finish.
+- **Codex's protected sandbox on Veda's PC** ("set up Codex's sandbox",
+  "do the Codex sandbox fix", "Veda Codex fix"), on Veda's PC: follow
+  [docs/magi-veda-codex-sandbox.md](docs/magi-veda-codex-sandbox.md)
+  start to finish.
 - **Orca refinement** ("continue Orca", "next Orca phase", "go"): Orca lives
   at `C:\Users\antho\Desktop\ORCA` (Veda's repo, branch `accounts`), not in
   A1. Read §0 of `C:\Users\antho\Desktop\ORCA\docs\refine-plan.md`, build

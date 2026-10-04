@@ -155,6 +155,18 @@ foreach ($c in @("claude", "codex")) {
     if (Have $c) { Ok "$c $((& $c --version 2>$null | Select-Object -First 1))" }
     else { Note "$c not on PATH yet -- open a new terminal and re-run if Code Mode does not list it" }
 }
+# Codex runs only in its ELEVATED sandbox (magi\code\agents\codex_sandbox.py:
+# the unelevated one let a command delete files anywhere). Its one-time setup
+# shows a Windows admin prompt -- answer Yes. Here, while someone is at the PC,
+# rather than later inside the windowless engine.
+if (Have "codex") {
+    Note "Codex's protected sandbox: if Windows asks for permission, choose Yes"
+    $old = $ErrorActionPreference; $ErrorActionPreference = "Continue"
+    $sb = (& codex sandbox -c windows.sandbox=elevated -- cmd /c echo magi-sandbox-ok 2>&1) -join " "
+    $ErrorActionPreference = $old
+    if ($sb -match "magi-sandbox-ok") { Ok "Codex's protected sandbox is set up" }
+    else { Note "Codex's protected sandbox is NOT set up -- MAGI will not use Codex until it is. Run: codex sandbox -c windows.sandbox=elevated -- cmd /c echo ready   (and choose Yes)" }
+}
 
 # ── 5. onboard ───────────────────────────────────────────────────────────────
 Step 5 "Onboard the '$Who' engine"
