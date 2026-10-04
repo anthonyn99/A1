@@ -113,6 +113,10 @@ class Sandbox:
 
     def snapshot(self) -> str:
         """The tree as it is now, including new files. Idempotent."""
+        # A dependency link left by a run_check whose agent was killed mid-run
+        # (ws_mcp.py links node_modules/.venv in for the run): never part of
+        # the change, and `add -A` must not walk into the real folder.
+        drop_links(self.cwd, names=DEP_LINK_NAMES)
         git(self.path, "add", "-A")
         return _out(self.path, "write-tree")
 
@@ -143,7 +147,58 @@ class Sandbox:
         _remove(self.repo, self.path, self.marker)
 
 
+# check.DEP_DIRS / ws_mcp.DEP_DIRS: what a check links in from the real folder.
+DEP_LINK_NAMES = ("node_modules", ".venv", "venv", "env", "vendor")
+
+
+def drop_links(top: Path, names: tuple[str, ...] | None = None) -> list[str]:
+    """Remove links and junctions under `top` -- the LINK, never what it
+    points at -- before anything walks or deletes the copy. A junction to
+    your real node_modules inside the copy (a check that was killed before
+    it could unlink it) would otherwise be followed by a recursive delete.
+    `names`: only links with these names directly in `top`. -> removed."""
+    out: list[str] = []
+    if not top.is_dir():
+        return out
+
+    def is_link(e: os.DirEntry) -> bool:
+        try:
+            return e.is_symlink() or bool(getattr(e, "is_junction", lambda: False)())
+        except OSError:
+            return False
+
+    stack = [top]
+    while stack:
+        d = stack.pop()
+        try:
+            it = os.scandir(d)
+        except OSError:
+            continue
+        with it:
+            for e in it:
+                if names is not None and e.name not in names:
+                    continue
+                if is_link(e):
+                    try:
+                        try:
+                            os.rmdir(e.path)          # a junction or a link to a folder
+                        except OSError:
+                            os.unlink(e.path)         # a link to a file
+                        out.append(e.path)
+                    except OSError:
+                        pass
+                    continue
+                if names is None:
+                    try:
+                        if e.is_dir(follow_symlinks=False):
+                            stack.append(Path(e.path))
+                    except OSError:
+                        pass
+    return out
+
+
 def _remove(repo: Path, path: Path, marker: Path | None) -> None:
+    drop_links(path)
     try:
         git(repo, "worktree", "remove", "--force", str(path), check=False, timeout=60)
     except Exception:

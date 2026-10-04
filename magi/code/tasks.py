@@ -234,7 +234,7 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                         mode=Mode.WRITE if sb else Mode.READ,
                         progress=sb.changed_files if sb else None, mcp_config=mcp,
                         mcp_servers=mcp_servers_in(mcp),
-                        agent_check=(ws or {}).get("check", {}) and ws["check"]["command"] or "",
+                        agent_check=((ws or {}).get("check") or {}).get("command", ""),
                         attachments=t.attachments, images=t.images, inventory=inv)
             if session is not None:
                 task.session_turns = session.turns
