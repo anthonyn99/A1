@@ -453,11 +453,17 @@ class Request:
             else (self.rel or self.asked)
 
 
-def find(root: Path, pattern: str, files: list[str]) -> Request:
-    """A FIND request: every line in the project's text files that matches.
-    Plain text matches case-insensitively; /.../ is a regular expression.
-    Secrets and huge files are skipped, as everywhere else here.
-    `start` = how many files matched, `total` = how many lines."""
+# Track V: reference folders -- other workspaces a task may read -- as
+# {name: (folder, its listing)}. Asked for as "@name/path"; never written.
+Refs = dict
+
+
+def find(root: Path, pattern: str, files: list[str], refs: Refs | None = None) -> Request:
+    """A FIND request: every line in the project's text files that matches
+    -- and in the reference folders', named @name/path. Plain text matches
+    case-insensitively; /.../ is a regular expression. Secrets and huge
+    files are skipped, as everywhere else here. `start` = how many files
+    matched, `total` = how many lines."""
     asked = FIND_PREFIX + pattern
     pat = pattern.strip()
     if len(pat) < 2:
@@ -469,29 +475,20 @@ def find(root: Path, pattern: str, files: list[str]) -> Request:
             rx = re.compile(re.escape(pat), re.I)
     except re.error as e:
         return Request(asked, why=f"not a usable pattern ({e})")
-    rootr = root.resolve()
+    places = [(root.resolve(), "", files)]
+    places += [(Path(b).resolve(), f"@{n}/", fs) for n, (b, fs) in (refs or {}).items()]
     hits: list[str] = []
     n_hits = in_files = size = 0
-    for rel in files:
-        p = rootr / rel
-        if is_secret(p) or not _texty(p):
-            continue
-        try:
-            if p.stat().st_size > SCAN_LIMIT:
-                continue
-            text = p.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        found = False
-        for i, line in enumerate(text.splitlines(), 1):
-            if rx.search(line):
+    for base, label, names in places:
+        for rel in names:
+            got = _find_in(base / rel, label + rel, rx)
+            if got:
+                in_files += 1
+            for row in got:
                 n_hits += 1
-                found = True
                 if len(hits) < FIND_MAX_HITS and size < FIND_MAX_CHARS:
-                    row = f"{rel}:{i}: {line.strip()[:200]}"
                     hits.append(row)
                     size += len(row) + 1
-        in_files += found
     if not n_hits:
         return Request(asked, rel=pat, kind="find", text="(no matches)")
     more = n_hits - len(hits)
@@ -500,11 +497,41 @@ def find(root: Path, pattern: str, files: list[str]) -> Request:
     return Request(asked, rel=pat, kind="find", text=body, total=n_hits, start=in_files)
 
 
-def resolve_request(root: Path, asked: str, files: list[str] | None = None) -> Request:
+def _find_in(p: Path, label: str, rx: re.Pattern) -> list[str]:
+    """`label:line: text` for each matching line of one file; [] if it is a
+    secret, not text, too big or unreadable."""
+    if is_secret(p) or not _texty(p):
+        return []
+    try:
+        if p.stat().st_size > SCAN_LIMIT:
+            return []
+        text = p.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+    return [f"{label}:{i}: {line.strip()[:200]}"
+            for i, line in enumerate(text.splitlines(), 1) if rx.search(line)]
+
+
+def resolve_request(root: Path, asked: str, files: list[str] | None = None,
+                    refs: Refs | None = None) -> Request:
     rootr = root.resolve()
     if asked.startswith(FIND_PREFIX):
         return find(rootr, asked[len(FIND_PREFIX):],
-                    files if files is not None else listing(rootr))
+                    files if files is not None else listing(rootr), refs)
+    # "@name/path": a reference folder's file, folder or lines -- the same
+    # rules as the project's own, answered under its @name.
+    want = asked.strip().strip("`'\"").replace("\\", "/")
+    if want.startswith("@") and refs:
+        name, _, rest = want[1:].partition("/")
+        if name in refs:
+            base, fs = refs[name]
+            r = resolve_request(Path(base), rest or "./", fs)
+            r.asked = asked
+            if r.rel:
+                r.rel = f"@{name}/" + ("" if r.rel == "./" else r.rel)
+            if r.kind == "dir":
+                r.text = "\n".join(f"@{name}/{x}" for x in r.text.splitlines())
+            return r
     req = asked.strip().strip("`'\"").replace("\\", "/")
     start = end = 0
     m = _RANGE.match(req)
@@ -576,7 +603,7 @@ def _piece_block(rel: str, body: str, budget: int) -> str:
 
 def compose(root: Path, pl: Plan, requests: list[Request], *, upload: bool,
             budget: int, max_uploads: int = 10, upload_bytes: int = 600_000,
-            last: bool = False) -> Composed:
+            last: bool = False, refs: Refs | None = None) -> Composed:
     """The context block, plus (in upload mode) the files to attach.
 
     Order of priority: what the unit asked for, then what the task names, then
@@ -598,6 +625,11 @@ def compose(root: Path, pl: Plan, requests: list[Request], *, upload: bool,
     # Uploads leave the composer to the index; pasting shares it with files.
     idx = file_index(pl.files, int(budget * (0.6 if upload else INDEX_SHARE)))
     add(f"\nFILE INDEX (every file in the workspace, {len(pl.files)} in all):\n{idx}\n")
+    # Track V: the reference folders' own indexes, smaller, read-only.
+    for name, (_, fs) in (refs or {}).items():
+        ridx = file_index(fs, int(budget * 0.12 / max(1, len(refs))))
+        add(f"\nREFERENCE FOLDER @{name} (read-only; {len(fs)} files; ask `NEED: @{name}/path`):"
+            f"\n{ridx}\n")
 
     uploads: list[tuple[str, str]] = []
     up_bytes = 0

@@ -191,9 +191,10 @@ class _View:
     """The folder as the blocks so far leave it: disk, plus what is staged.
     `staged[path]` is the file's new bytes, or None for deleted."""
 
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, readonly: tuple[str, ...] = ()):
         self.root = root.resolve()
         self.staged: dict[Path, bytes | None] = {}
+        self.readonly = {"@" + n.lower() for n in readonly}
 
     def target(self, rel: str) -> tuple[Path | None, str]:
         rel = rel.replace("\\", "/").strip()
@@ -202,6 +203,8 @@ class _View:
         rel = rel.rstrip("/")
         if not [x for x in rel.split("/") if x not in ("", ".")]:
             return None, "that is the project folder itself"
+        if rel.split("/", 1)[0].lower() in self.readonly:
+            return None, "a reference folder, which is read-only"
         why = security.check_path(rel, root=self.root)
         if why:
             return None, why
@@ -250,13 +253,16 @@ class _View:
         return isinstance(got, list) and bool(got)
 
 
-def apply(root: Path, edits: list[Edit]) -> tuple[list[str], list[str]]:
+def apply(root: Path, edits: list[Edit],
+          readonly: tuple[str, ...] = ()) -> tuple[list[str], list[str]]:
     """Apply into `root` (the sandbox). -> (files changed, problems).
+    `readonly`: the task's reference folder names; an edit to @name/... is
+    refused rather than written into the project as a folder called @name.
 
     If there is any problem, nothing is written.
     """
     problems: list[str] = []
-    v = _View(root)
+    v = _View(root, readonly)
     for e in edits:
         src, why = v.target(e.path)
         if src is None:
