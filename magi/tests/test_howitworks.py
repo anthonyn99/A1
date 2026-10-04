@@ -349,6 +349,24 @@ def test_the_engine_guard_claims_still_hold():
     assert "http://127.0.0.1:8000/" in HOW
 
 
+def test_the_workspace_tools_claims_still_hold():
+    """Track V: what each agent can do in Write."""
+    from magi.code import ws_mcp as W
+    from magi.code.agents import browser as B, claude_cli as CC, edits as E
+    assert "What each agent can do in Write" in HOW
+    # "moves, renames, copies and deletes files and folders ... no shell".
+    assert {t["name"] for t in W.TOOLS} == {"move_path", "copy_path", "delete_path", "make_dir"}
+    assert "Bash" not in CC.WRITE_TOOLS and "Bash" not in CC.READ_TOOLS
+    # "DELETE, MOVE and COPY lines" and "a FIND across the whole project".
+    for w in ("DELETE: ", "MOVE: ", "COPY: "):
+        assert w in E.FORMAT_HELP
+    assert "FIND: " in B._READ_FRAME
+    # "that one command, never another": run_check takes no arguments.
+    assert W.RUN_CHECK["inputSchema"]["properties"] == {}
+    # The switch exists in the sheet and is what is sent.
+    assert "Agents may run it" in PAGE and "timeout_min: mins, agents }" in PAGE
+
+
 def test_the_sync_claims_still_hold():
     """Phase 13: what travels, what never does, one write per change, no
     listener of its own, nothing while a task runs, A1 still off."""

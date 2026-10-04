@@ -7281,6 +7281,7 @@ const HOW = [
       "<b>Manual or Auto</b> (shown while Write is on), like Claude Code&rsquo;s approvals. <b>Manual</b> is the card above: every change waits for you. <b>Auto</b> applies a change to your folder without asking &mdash; the diff is still in the transcript to read afterwards. Auto skips the question, never the rules: a file MAGI&rsquo;s review refuses is still refused, and if the project&rsquo;s automatic check fails the card comes back and asks. In A1, Auto means a change ships to main within minutes. Like Read/Write, a new page opens in Manual.",
       "<b>Some changes are never offered.</b> A diff that reaches into <code>.git</code>, a key or env file, a credentials folder or an agent&rsquo;s own settings folder, or that leaves the folder through <code>..</code> or a link, is refused before you are asked. Write needs a git repository. Approved edits are applied but not committed until you say so. <b>A1 is writable too, but never committed or pushed from here</b>: A1&rsquo;s own auto-commit records every change and pushes it to main within minutes, so approving a change in A1 ships it &mdash; the card says so, and names anything that deploys. MAGI only fetches A1, never pulls, and refuses edits under <code>.github/</code>. A change to the engine&rsquo;s own code under <code>magi/</code> says so too: it does nothing until the engine restarts.",
       "<b>A check beside the diff.</b> Tap the <b>Check</b> pill to give a project a command that exits 0 when it is healthy &mdash; its tests, a build &mdash; picked from what MAGI finds in the folder, with <b>Try it now</b> to see it work. For a Write task it runs in the task&rsquo;s <i>private copy</i> (never your folder), with the folder&rsquo;s <code>node_modules</code> or <code>.venv</code> linked in for the run and removed after, and its pass or fail and output sit on the approval card. It informs Approve; it never decides it. By default you press <b>Run check</b> on the card, after reading the diff, and the approval clock waits while it runs, then gives you the full __APPROVE_MIN__ minutes again. <b>Automatically</b> runs it before the card appears &mdash; that runs the agent&rsquo;s code before anyone has looked at it, so the setting says so. The command stays on the engine PC, can only be set from that PC, never syncs, and runs in the same Windows job as the agents, so it cannot drive MAGI.",
+      "<b>What each agent can do in Write.</b> <b>Claude</b> edits and creates files with its own tools, and moves, renames, copies and deletes files and folders with MAGI&rsquo;s workspace tools &mdash; all in the private copy, with no shell. <b>Codex</b> does the same through its own sandboxed shell. <b>Every other unit</b> sends its changes as blocks MAGI applies: SEARCH/REPLACE edits plus <code>DELETE</code>, <code>MOVE</code> and <code>COPY</code> lines. Before answering, any unit can ask for a file, a folder, a range of lines, or a <code>FIND</code> across the whole project. A move shows on the card as the old file deleted and the new one added, and nothing reaches your folder until you approve. In the <b>Check</b> sheet, <b>Agents may run it</b> lets Claude run the project&rsquo;s check itself while it works and fix what it reports &mdash; that one command, never another, and only in the copy.",
       "<b>Sizes and rankings are measured, not guessed.</b> Agents in Read mode have no shell, so none of their tools can tell how big a file is. When a task asks about sizes, lines, the largest, or ranking and comparing, MAGI measures the folder itself &mdash; every file git knows about, with exact bytes and line counts, totals per folder and per type, and the top-level files (in A1, the programs) &mdash; and hands that to whichever agent runs. Name a type (&ldquo;the .html files&rdquo;) and every file of it is listed in full. Ignored folders (node_modules, virtualenvs, browser profiles) and secret files are left out. The transcript shows it as an <b>Inventory</b> line.",
       "<b>A silent agent is stopped.</b> An agent that produces no output at all for 30 minutes is ended and the task handed to the next agent in the chain; a slow one that is still working is never cut off, because any output resets the clock. One still going after 4 hours is ended regardless. A hung agent would otherwise hold the whole queue behind it.",
       "<b>Every code block has its own Copy</b>, which copies exactly the command &mdash; ready to paste into PowerShell &mdash; and an answer&rsquo;s <b>Copy</b> takes the agent&rsquo;s own markdown, tables and all.",
@@ -12567,7 +12568,8 @@ function renderCodeStrip() {
     if (!ck) codeCheckLoad(proj.id);
     if (ck && ck.data) {
       const c = ck.data.check || {};
-      const pill = codePill("Check", !c.command ? "off" : c.auto ? "automatic" : "on the card",
+      const pill = codePill("Check", !c.command ? "off"
+        : (c.auto ? "automatic" : "on the card") + (c.agents ? " · agents" : ""),
         c.command ? "ok" : "muted");
       pill.classList.add("is-btn");
       pill.setAttribute("role", "button");
@@ -12605,6 +12607,10 @@ function codeCheckSheet(proj) {
   let cmd = cur.command || "";
   let auto = !!cur.auto;
   let mins = cur.timeout_min || 10;
+  // Track V: the agents may run it themselves while they work. Offered only
+  // by an engine that knows the setting (its check carries the key).
+  const hasAgents = "agents" in cur;
+  let agents = !!cur.agents;
   let busy = "", err = "", tried = null;
 
   const sheet = el("div", "sheet");
@@ -12681,6 +12687,27 @@ function codeCheckSheet(proj) {
         + "your files. Choose it only for projects and agents you trust."
       : "You press Run check on the card, after you have read the diff. The approval clock "
         + "waits while it runs."));
+    if (hasAgents) {
+      body.append(el("label", "sheet-lbl", "While agents work"));
+      const aw = el("div", "ac-win");
+      aw.setAttribute("role", "radiogroup");
+      for (const [v, label] of [[false, "Only you run it"], [true, "Agents may run it"]]) {
+        const b = el("button", `code-git-act ${agents === v ? "on" : ""}`, label);
+        b.type = "button";
+        b.setAttribute("role", "radio");
+        b.setAttribute("aria-checked", String(agents === v));
+        b.disabled = !local || !!busy;
+        b.onclick = () => { agents = v; draw(); };
+        aw.append(b);
+      }
+      body.append(aw);
+      body.append(el("div", agents ? "sheet-err" : "sheet-note", agents
+        ? "Claude can run this command in the task’s private copy while it works, read the "
+          + "result and fix what fails, as often as it needs. That runs code the agent just wrote, "
+          + "with your rights, before anyone has looked at it. It cannot reach the engine, but it "
+          + "can reach your files. It is still only this command, and only in the copy."
+        : "Agents edit and finish; the check runs when you choose, as set above."));
+    }
     body.append(el("label", "sheet-lbl", "Stop it after"));
     const tw = el("div", "ac-win");
     for (const m of [5, 10, 20, 30, 60]) {
@@ -12733,7 +12760,7 @@ function codeCheckSheet(proj) {
     busy = "save"; err = ""; draw();
     try {
       const d = await codePost(`/projects/${encodeURIComponent(proj.id)}/check`,
-        { command, auto, timeout_min: mins });
+        { command, auto, timeout_min: mins, agents });
       if (!d.ok) throw new Error(d.message || "The engine refused it.");
       busy = "";
       await codeCheckLoad(proj.id, true);
