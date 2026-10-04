@@ -8,13 +8,15 @@
 //   find      a browser unit (Gemini) answers from a reference folder, via
 //             NEED @name/... or FIND, and the transcript names it @name/...
 //   codex     Codex answers from a reference folder at its path
+//   codexwrite Codex in Write mode (elevated sandbox) reads a reference
+//             folder and writes into its copy; the card is then denied
 //   ops       a browser unit renames + deletes with MOVE/DELETE blocks; the card
 //             shows deleted + added; approved, the real folder has the move
 //   ui        the console: Also read pill + sheet, what Run sends, the Check
 //             sheet's "While agents work", 390px. POST /tasks is stubbed here.
 // Claude is NOT used (it may be at your cap; its side is proven offline by
 // magi/tests/test_claude_cli_offline.py on the real CLI). Spends a few small
-// requests on Gemini and one on Codex. LIVE_ONLY=refused,check,find,codex,ops,ui
+// requests on Gemini and two on Codex. LIVE_ONLY=refused,check,find,codex,codexwrite,ops,ui
 'use strict';
 const fs = require('fs');
 const os = require('os');
@@ -148,6 +150,22 @@ const tools = (evs) => evs.filter((e) => e.k === 'tool').map((e) => `${e.name} $
       ok('it answered', x.result && x.result.outcome === 'ok', x.result && (x.result.detail || x.result.outcome));
       ok('with the value from the reference folder', said.includes(SECRET), said.slice(0, 200));
       console.log('        tools: ' + tools(x.events).slice(0, 8).join(' | '));
+    }
+
+    if (want('codexwrite')) {
+      console.log('\nCodex, Write, in its elevated sandbox: copies from a reference folder');
+      let card = null;
+      const x = await run({ project_id: MPID, mode: 'write', agents: ['codex-cli'], refs: [RPID],
+        prompt: 'Copy the zebra_quux function from the reference folder into a new file zebra.py '
+          + 'in this project, unchanged. Change nothing else.' },
+      async (ev, task) => {
+        if (ev.k === 'approval') { card = ev; await api(`/tasks/${task.id}/approve`, { approve: false }); }
+      });
+      ok('a card came up', !!card, x.result && (x.result.detail || x.result.outcome));
+      const f = card && card.files.find((y) => y.path === 'zebra.py');
+      ok('it adds zebra.py with the value read from the reference folder',
+        !!f && f.status === 'added' && (f.diff || '').includes(SECRET), card && card.files.map((y) => y.path).join(','));
+      ok('the reference folder is untouched', git(REF, 'status', '--porcelain') === '');
     }
 
     if (want('ops')) {
