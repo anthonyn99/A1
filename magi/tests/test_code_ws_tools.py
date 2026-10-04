@@ -67,7 +67,8 @@ def ws(tmp_path):
     ("src/.claude/settings.json", ".claude/"),
     (".codex/config.toml", ".codex/"),
     ("nul.txt", "not a valid Windows file name"),
-    ("a:stream", "not a valid Windows file name"),
+    ("ab:stream", "not a valid Windows file name"),
+    ("a:stream", "relative"),
     ("x\x00y", "not a usable path"),
     (42, "required"),
 ])
@@ -434,10 +435,14 @@ def test_drop_links_removes_the_link_never_its_target(tmp_path):
 
 
 def test_removing_a_sandbox_with_a_left_over_junction_keeps_the_real_folder(repo, tmp_path):
+    (repo / ".gitignore").write_text("node_modules/\n")
+    _git(repo, "add", ".gitignore")
+    _git(repo, "commit", "-qm", "ignore deps")
     real_nm = repo / "node_modules"
     real_nm.mkdir()
     (real_nm / "pkg.js").write_text("pkg\n")
     sb = SB.create(repo, "tjunc", "test")
+    assert not os.path.lexists(sb.cwd / "node_modules"), "ignored folders are not copied"
     try:
         _junction(sb.cwd / "node_modules", real_nm)      # a killed run_check left it
         assert sb.snapshot() == sb.base_tree, "the link is not part of the change"
