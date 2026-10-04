@@ -42,7 +42,7 @@ from pathlib import Path
 from typing import Any
 
 from .base import CodingAgent, EventFn, Mode, Outcome, Result, Task, stage_images
-from . import limits, models, slots
+from . import codex_sandbox, limits, models, slots
 from ._proc import Stream
 
 _UNAUTH = re.compile(r"401 unauthorized|missing bearer|not logged in|"
@@ -69,7 +69,10 @@ DISABLED_FEATURES = ("browser_use", "browser_use_external", "computer_use",
 # environment rejected the directory listing command"). Verified live: with
 # `unelevated`, read-only lists and reads files and a write is still "Access
 # denied". Values are unquoted: see WRITE_CONFIG.
-SANDBOX_CONFIG = ("windows.sandbox=unelevated",)
+# Since 2026-10-04 the ELEVATED sandbox, never `unelevated`: in `unelevated`
+# a command could DELETE files anywhere you can (codex_sandbox.py). Elevated
+# needs a one-time setup per PC; `available()` checks it first.
+SANDBOX_CONFIG = (f"windows.sandbox={codex_sandbox.IMPL}",)
 
 # Write mode on Windows. Without `windows.sandbox`, workspace-write silently
 # degrades to read-only ("writing is blocked by read-only sandbox"). And by
@@ -79,7 +82,7 @@ SANDBOX_CONFIG = ("windows.sandbox=unelevated",)
 # came back UnauthorizedAccessException). Values are unquoted on purpose: `-c`
 # parses TOML and falls back to a plain string, and quotes would have to
 # survive codex.cmd's cmd.exe parsing.
-WRITE_CONFIG = ("windows.sandbox=unelevated",
+WRITE_CONFIG = (f"windows.sandbox={codex_sandbox.IMPL}",
                 "sandbox_workspace_write.exclude_tmpdir_env_var=true",
                 "sandbox_workspace_write.exclude_slash_tmp=true",
                 "sandbox_workspace_write.network_access=false",
@@ -325,9 +328,18 @@ class CodexCLIAgent(CodingAgent):
         cr = models.credits("codex", self.slot)
         if used_up and not (cr.get("enabled") and not cr.get("exhausted")):
             return False, f"Plan limit reached until {_when(used_up)}; no ChatGPT credits to carry on"
-        st = await asyncio.get_running_loop().run_in_executor(
-            None, slots.status, "codex", self.slot)
-        return (st.signed_in, st.detail or ("" if st.signed_in else "Not signed in."))
+        loop = asyncio.get_running_loop()
+        st = await loop.run_in_executor(None, slots.status, "codex", self.slot)
+        if not st.signed_in:
+            return False, st.detail or "Not signed in."
+        # Only in the elevated sandbox (codex_sandbox.py): checked once per
+        # Codex version, a minute at most, never a fallback to unelevated.
+        ok, why = await loop.run_in_executor(
+            None, codex_sandbox.ready, slots.cli_path("codex"), slots.env_for("codex", self.slot),
+            models.codex_cli_version() or "?")
+        if not ok:
+            return False, why
+        return True, st.detail or ""
 
     def _pick(self, task: Task) -> dict:
         if self.model:
