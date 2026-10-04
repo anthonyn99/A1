@@ -36,9 +36,10 @@ def store(tmp_path, monkeypatch):
 
 
 def test_a_command_is_stored_validated_and_removed(store):
-    assert C.get("p1") == {"command": "", "auto": False, "timeout_min": 10}
+    assert C.get("p1") == {"command": "", "auto": False, "timeout_min": 10, "agents": False}
     c = C.put("p1", "  npm test  ", True, 999)
-    assert c == {"command": "npm test", "auto": True, "timeout_min": C.MAX_TIMEOUT_MIN}
+    assert c == {"command": "npm test", "auto": True, "timeout_min": C.MAX_TIMEOUT_MIN,
+                 "agents": False}
     assert C.get("p1") == c
     assert C.put("p1", "npm test", True, 0)["timeout_min"] == 1
     assert C.put("p1", "npm test", "yes", "x")["timeout_min"] == C.DEFAULT_TIMEOUT_MIN
@@ -56,9 +57,22 @@ def test_auto_without_a_command_is_off(store):
     assert C.clean("", True, 10)["auto"] is False
 
 
+def test_letting_agents_run_it_is_stored_and_needs_a_real_true(store):
+    """Track V: `agents` lets the coding agents run the check themselves.
+    Only a JSON true switches it on -- "yes", 1 and "false" do not -- and
+    never without a command."""
+    assert C.put("p1", "npm test", False, 10, True)["agents"] is True
+    assert C.get("p1")["agents"] is True
+    for v in ("yes", 1, "false", None):
+        assert C.put("p1", "npm test", False, 10, v)["agents"] is False
+    assert C.clean("", False, 10, agents=True)["agents"] is False
+    assert C.put("p1", "npm test")["agents"] is False      # the default
+
+
 def test_a_hand_edited_bad_store_reads_as_no_check(store):
-    store.write_text(json.dumps({"p1": {"command": "a\nb", "auto": True}}), encoding="utf-8")
-    assert C.get("p1") == {"command": "", "auto": False, "timeout_min": 10}
+    store.write_text(json.dumps({"p1": {"command": "a\nb", "auto": True, "agents": True}}),
+                     encoding="utf-8")
+    assert C.get("p1") == {"command": "", "auto": False, "timeout_min": 10, "agents": False}
     store.write_text("not json", encoding="utf-8")
     assert C.get("p1")["command"] == ""
 
