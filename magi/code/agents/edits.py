@@ -306,9 +306,6 @@ def apply(root: Path, edits: list[Edit]) -> tuple[list[str], list[str]]:
                 continue
             for f in under:
                 nf = dst / f.relative_to(src)
-                if not str(nf.resolve()).startswith(str(v.root)):
-                    problems.append(f"{label}: outside the project")
-                    break
                 v.staged[nf] = v.read(f)
                 if e.op == "move":
                     v.staged[f] = None

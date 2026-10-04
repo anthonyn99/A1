@@ -312,9 +312,18 @@ class BrowserUnitAgent(CodingAgent):
             await emit({"k": "note", "text": "Could not apply the edits: " + "; ".join(problems[:4])})
             return Result(Outcome.UNAVAILABLE, text=text,
                           detail="Edits did not apply: " + "; ".join(problems[:4]))
-        for path in changed:
-            await emit({"k": "tool", "name": "Edit", "target": path})
-        return Result(Outcome.OK, text=text, tools_used=tools + ["Edit"])
+        names = {"delete": "Delete", "move": "Move", "copy": "Copy"}
+        edited: list[str] = []
+        for b in blocks:
+            if b.op in names:
+                await emit({"k": "tool", "name": names[b.op],
+                            "target": f"{b.path} → {b.to}" if b.to else b.path})
+                if names[b.op] not in tools:
+                    tools.append(names[b.op])
+            elif b.path not in edited:
+                edited.append(b.path)
+                await emit({"k": "tool", "name": "Edit", "target": b.path})
+        return Result(Outcome.OK, text=text, tools_used=tools + (["Edit"] if edited else []))
 
     def _failed(self, ans) -> Result:
         outcome = _map_failure(ans.failure)
