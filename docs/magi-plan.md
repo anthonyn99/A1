@@ -9,7 +9,12 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-10-01: five of the six post-Track-F offers built
+**Last updated:** 2026-10-04: **Track V (Code Mode as the main coding
+environment) -- V1 and V2 done**: every agent can move, copy, delete and
+search; Claude can run the project's check when you allow it; any task can
+also READ other workspaces. See §8 "Track V" and "What exists" › "Track V".
+Next in Track V is Tony's call (V3–V7 offered in §8).
+Before that, 2026-10-01: five of the six post-Track-F offers built
 (page-load stall, Gemini's glued paragraphs, effort/thinking in the pick,
 the chairman's model; Grok still limited) plus Brief/Text on earlier turns
 -- see "What exists" › "After Track F". 2026-09-30: **F4 done — Track F is
@@ -19,9 +24,9 @@ ALL of Track S (**S1**, **S2**, **S3**, **U1**, **U2**, **U3**, **U4**), and
 ALL of Track F (**F1**, **F2**, **F3**, **F4**). Follow-ups, mid-run
 messages and continue-from-History are live in both Deliberation and Code
 Mode.
-**Next phase:** none agreed. It is Tony's call -- offer the list under
-"After Track S — waiting on Tony" and "Waiting on Tony", do not start one
-unasked. Nothing is half-built.
+**Next phase:** none agreed. It is Tony's call -- offer Track V's V3–V7
+(§8 "Track V") and the lists under "After Track S — waiting on Tony" and
+"Waiting on Tony"; do not start one unasked. Nothing is half-built.
 
 **If a fresh session touches Code Mode follow-ups**, the map is "What
 exists" › "Code Mode follow-ups, console (F4)" and docs/magi.md "Code Mode
@@ -75,6 +80,9 @@ One phase per session.
 | ~~F2~~ | ~~Follow-ups: Deliberation console~~ | **done 2026-09-30** | | |
 | ~~F3~~ | ~~Follow-ups: Code Mode engine~~ | **done 2026-09-30** (engine only; invisible until F4) | | |
 | ~~F4~~ | ~~Follow-ups: Code Mode console~~ | **done 2026-09-30** (+ the three open bugs) | | |
+| ~~V1~~ | ~~Every agent's file tools~~ | **done 2026-10-04** (Track V, §8) | | |
+| ~~V2~~ | ~~Also read (multi-folder)~~ | **done 2026-10-04** | | |
+| V3–V7 | Multi-repo writes, Git/PRs, units' check loop, named commands, project map | **offered, not agreed** (§8 Track V) | | |
 
 ### Start-of-session checklist (do these in order)
 
@@ -523,6 +531,20 @@ One phase per session.
   `tests/live/magi-drag-sort.live.js` 27/27.
   Also (Tony, same day): **earlier turns of a deliberation have the Brief /
   Text switch** (`verdictViewSeg`, one choice for every verdict on screen).
+* **Track V (2026-10-04), V1 + V2** -- §8 "Track V" and docs/magi.md
+  "Every agent's file tools, Also read, and agents running the check".
+  `magi/code/ws_mcp.py` (Claude's workspace MCP server: move/copy/delete/
+  make_dir, `run_check` when `checks.json` has `agents: true`, `ref_list/
+  ref_read/ref_find`), `tasks.write_mcp_config(workspace=)` +
+  `mcp_servers_in`, `Task.mcp_servers/agent_check/refs/refs_block`,
+  `claude_cli.WS_SERVER/write_frame/refs_how` (+ `--add-dir` in Read mode
+  only), `edits` ops (`DELETE/MOVE/COPY`, fenced only, ordered, `readonly=`),
+  `context.find` + `Refs` (`NEED: @name/...`), `browser.REFS_HOW`,
+  `routes._task_refs` (`refs` feature), `check` `agents`, `sandbox.drop_links`
+  (in `snapshot` and `_remove`). Console: `codeRefs`, `codeRefsBody`,
+  `codeRefsPill`, `codeRefsSheet`, the Check sheet's *While agents work*.
+  **To test Claude's flags without spending anything, use
+  `magi/tests/test_claude_cli_offline.py`'s fake-API pattern.**
 * **Units recon (Track S, U1)**: read-only, no engine change. Each site
   block in `selectors.yaml` ends with a "Models and limits" section:
   `model_button/option/selected/label` (+ `model_label_from`
@@ -861,6 +883,26 @@ reachable from the internet.
   2026-09-24.
 
 ### Waiting on Tony
+
+* **(Track V, 2026-10-04) Codex's Windows sandbox may let a shell DELETE
+  outside its folder.** In the V1 spike, a `del ..\keep.txt` run through
+  `codex sandbox` with `sandbox_mode=workspace-write` (and
+  `windows.sandbox=unelevated`, as MAGI runs Codex) printed no "Access is
+  denied" while the two WRITES outside were denied, and `keep.txt` was gone
+  afterwards. Seen once; the follow-up probe was stopped by the session's
+  safety classifier, so it is NOT confirmed. If true, a prompt-injected
+  Codex write task could delete files outside its copy (not inside the
+  engine -- the agent guard holds). Options: confirm it by hand on a
+  scratch folder; if confirmed, run Codex write tasks with
+  `windows.sandbox=elevated` (needs the admin setup helper, failed in
+  Phase 14) or report it upstream. V6 waits on this.
+* **(Track V) Claude's live run with the workspace tools** waits on your
+  weekly cap resetting (Claude is capped at 90%; MAGI correctly sends it
+  nothing). The real CLI is covered offline. When it resets, one
+  `node tests/live/magi-write.live.js` and a write task that renames a file
+  will show it live.
+* **(Track V) "Agents may run it" is off for every project** until you
+  switch it on in a project's Check sheet (engine PC only).
 
 * **(F3, still true at F4) Claude is over your own weekly cap** (cap 90%;
   the console says it resets 10:59 PM 2026-09-30), so MAGI sends Claude
@@ -2981,6 +3023,61 @@ More found during the build get fixed in the phase that touches them and listed 
 - The phase's live test via `tests/live/cdp.js` (`PAGES_URL`, fake Firestore write
   counter proves nothing is written mid-run), desktop + 390px screenshots reviewed.
 - Regression live tests listed in each phase.
+
+## Track V — Code Mode as the main coding environment (Tony, 2026-10-04)
+
+### The brief
+Tony: Code Mode should be able to **replace Claude Code in VS Code**. Full
+practical project access for every agent: read, create, edit, rename, move,
+copy and delete files and folders; work across multiple folders and
+projects; search; run the project's tools where supported; Git and GitHub.
+Claude and Codex get the strongest coding; every other unit gets full
+project understanding, and codes too where it can. "Do not artificially
+restrict -- but respect explicit security boundaries and user
+authorization; if a capability needs a permission, say so rather than
+silently giving less." Design for the end goal, not a prototype.
+
+### The boundaries that stay (they ARE the explicit security boundaries)
+- Every write still goes through the private copy, the diff review and your
+  approval (or Auto, which skips only the question). No exceptions for any
+  new tool.
+- **No shell for Claude.** On Windows nothing keeps a shell inside the copy:
+  `--restricted` confines Claude's FILE tools, not Bash. Commands come in
+  as named, engine-owned things (the check now; V6 for more).
+- **Codex's Windows sandbox is not a boundary for deletes** -- see "Waiting
+  on Tony" (one observation during the V1 spike; the probe was stopped
+  there). Until that is settled, nothing new is built on Codex's sandbox.
+- Anything an agent may run is set on the engine PC only and never syncs
+  (check.py's rules).
+- Reference folders are by registered workspace id only, never a path.
+
+### Phases
+| # | Phase | What it adds | Status |
+|---|---|---|---|
+| V1 | Every agent's file tools | Claude: workspace MCP server (move/copy/delete/make folder, `run_check` if allowed). Browser units: `DELETE`/`MOVE`/`COPY` blocks, `FIND` search. Check sheet: *Agents may run it*. Link scrub before the copy is walked or deleted. | **done 2026-10-04** |
+| V2 | Also read (multi-folder) | Other registered workspaces readable by every agent (`--add-dir` in Read, `ref_*` tools in Write, paths for Codex, `@name/` + FIND for units); strip pill + sheet. | **done 2026-10-04** |
+| V3 | Multi-repo writes | One task edits two or more workspaces: a copy per workspace, one card with a section per repository, applied together or not at all; A1's ships-banner per section. | offered |
+| V4 | Git and GitHub, end to end | Agents propose a branch name and the commit message on the card; **Open a pull request** from the card / Repository panel (GitHub REST as the project's account, still your press); create/switch branch from the repository line. | offered |
+| V5 | The check for browser units | When *Agents may run it* is on, MAGI runs the check in the copy after a unit's edits and sends a failure back for another round (max 2), so units close the loop the way Claude does. | offered |
+| V6 | Named commands | Per project, on the engine PC: a short list of commands (build, lint, one test file with an argument pattern) agents may run like `run_check`; Claude via MCP, units via a `RUN:` request. Needs Tony's call on Codex (Waiting on Tony). | offered |
+| V7 | Project map for analysis units | A symbol outline (classes/functions per file, cached by mtime) in the context, so units understand a large project's structure without having every file uploaded. | offered |
+
+### V1 + V2 -- what was built (2026-10-04)
+See docs/magi.md "Every agent's file tools, Also read, and agents running
+the check (Track V)". Tests: `test_code_ws_tools.py` (54; 7 mutants killed
+in memory), `test_code_refs.py` (20; 4 mutants killed),
+`test_claude_cli_offline.py` (4: the REAL Claude CLI against a fake API --
+no account, no request), `test_validate.py` (2 new), `test_howitworks.py`
+(2 new), `test_code_check.py` (1 new), `test_proc.py` (1 new). Live
+`tests/live/magi-code-v.live.js` 9 + 11 + 23 on 2026-10-04 (Gemini
+and Codex; Claude was at your cap, so its side is the offline test).
+
+Bug found and fixed on the way: the answer validator called Gemini's
+correct one-word reply to "Reply with the string only." *cut off*
+(`validate._ASKS_FOR_BREVITY` now knows "reply/answer with the X only" and
+more nouns after "just the" / "only the"; kept narrow because Code Mode
+validates against the whole framed prompt, which itself says "reply with
+ONLY lines ..." and "... nothing else" -- a test pins that).
 
 ---
 

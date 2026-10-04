@@ -505,7 +505,7 @@ your folder ──git stash create──► worktree in %TEMP%\magi-sandbox\<pro
   `core.hooksPath`; a worktree shares the real repo's hooks.
 - **One gate for every agent.** Claude CLI runs with
   `--permission-mode acceptEdits --tools Read,Glob,Grep,Edit,Write` (no
-  Bash). `--restricted` confines its file tools to the copy; tested live, a
+  Bash), plus MAGI's workspace tools since Track V (below). `--restricted` confines its file tools to the copy; tested live, a
   write to the home folder comes back as a `permission_denied` event, which
   the transcript shows. The env scrub is **dropped in write mode**: found
   live, it makes acceptEdits refuse every edit as "not granted", and write
@@ -578,6 +578,114 @@ format, flags, and the task runner with fake agents: approve, deny, timeout,
 Halt, refused, a hand-off in the same copy), `tests/magi-code-approval.test.js`
 (console), and `tests/live/magi-write.live.js` (a real scratch repo with
 Claude, Codex and ChatGPT; `LIVE_ONLY=` and `LIVE_TIMEOUT=1` pick sections).
+
+#### Every agent's file tools, Also read, and agents running the check (Track V, 2026-10-04)
+
+Tony's brief: Code Mode should be able to replace Claude Code in VS Code, so
+every agent gets as much of the project as its tools allow -- files, folders,
+other workspaces, the project's own check -- without loosening anything the
+diff-and-approve gate stands for. What each kind of agent can do now:
+
+| | Read the project | Change files | Move / copy / delete / make folder | Search | Other workspaces | Run the check |
+|---|---|---|---|---|---|---|
+| **Claude CLI** | Read, Glob, Grep | Edit, Write (in the copy) | MAGI's workspace tools (write mode) | Grep | Read mode: `--add-dir`; write mode: `ref_*` tools | `run_check`, if you allow it |
+| **Codex CLI** | its shell, in its sandbox | its shell, in the copy | its shell, in the copy | its shell | at their paths (prompt) | its shell can run commands in the copy |
+| **Browser units** | MAGI sends the index + files; `NEED:` any file, folder, line range | `SEARCH/REPLACE` blocks | `DELETE:` / `MOVE:` / `COPY:` lines | `FIND: text` or `FIND: /regex/` | indexes in the context; `NEED: @name/...`; FIND covers them | no (planned: V5) |
+
+**Claude's workspace tools** (`magi/code/ws_mcp.py`, an MCP server MAGI
+writes the config for, write mode only): `move_path`, `copy_path`,
+`delete_path`, `make_dir`, and `run_check` when allowed. The config
+(`data/<p>/code/mcp/<task>.json` + `<task>.ws.json`, both outside the copy,
+both deleted when the task ends) names the copy, the real folder (for the
+check's dependency links) and the check command; the agent cannot change
+any of it. The server runs as `python -I` (nothing from the workspace is
+importable), is started by the Claude CLI so it is inside the agents' job,
+and refuses on its own: anything absolute, `..`, a path through a link or a
+junction (checked on disk), the denied folders (also by their resolved
+name, so `GIT~1` is `.git`), a folder tree holding a link (deleting or
+copying through it would reach outside), and overwriting (a move or copy
+never replaces; delete first). The worktree's own `.git` file is denied
+like the folder. Still **no Bash**: on Windows a shell has no boundary that
+keeps it in the copy. Both servers are allowed by name with one
+`--allowedTools mcp__magi_github,mcp__magi_workspace`. The transcript shows
+them as `Move a.py → b/a.py`, `Delete x`, `Run check`.
+
+**Browser units' operations** (`agents/edits.py`): one line each, inside a
+fenced code block (`DELETE: path`, `MOVE: a -> b`, `RENAME:` is the same,
+`COPY: a -> b`; `→` and `=>` also read). A line of prose outside a code
+block is never acted on. Blocks apply in the order written, against a
+picture of the folder as the earlier blocks leave it, so `MOVE a -> b` then
+an edit of `b` works; all or nothing as before; binary files move byte for
+byte; a folder a move emptied is removed from the copy.
+
+**FIND** (`context.find`): a request line like `NEED:`. Plain text matches
+case-insensitively, `/.../` is a regex; answered as `path:line: text`, at most
+80 lines / 12 KB with a count of the rest. Secrets are skipped by
+`find()` itself, not only by the listing it is handed.
+
+**On the card**, whoever made it, a move is the old file deleted and the new
+one added (the diff is `--no-renames`), and nothing reaches your folder
+until you approve. Verified live 2026-10-04: Gemini, asked to rename and
+delete, sent `MOVE`/`DELETE` blocks; the card said *added docs/notes.md,
+deleted notes.txt, deleted old.txt*; approved, the folder had the move.
+
+**Also read** (reference folders). The strip's **Also read** pill opens a
+sheet of your other workspaces; the ticks are kept per workspace on that
+device (`magi.<profile>.code.refs`, never synced) and sent as `refs:
+[project_id]` with every task and queued task (`codeRefsBody`). The engine
+(`routes._task_refs`) takes **only ids of workspaces registered on it with a
+folder here** -- never a path, since the tunnel can post a task -- at most
+8, names made safe as `@name`. `/state` advertises `refs` in `features`.
+How each agent reads them:
+
+- Claude, Read mode: `--add-dir <folder>`; its tools there cannot write.
+- Claude, Write mode: **not** `--add-dir`, because `acceptEdits` approves
+  edits inside an added directory (the mutation test proves it: with
+  `--add-dir` in write mode the real CLI edits the reference folder).
+  Instead `ref_list`, `ref_read` (numbered lines, paged by `offset`/`limit`)
+  and `ref_find` on the workspace server, all read-only, refusing secrets,
+  `..`, and links that lead out. The file tools refuse `@name/...` paths.
+- Codex: the folders' paths in the prompt (its sandbox reads anywhere,
+  writes only in the copy). Live: answered from the reference folder.
+- Browser units: each folder's index in the context (12% of the budget
+  between them), `NEED: @name/path` (file, folder, lines), FIND covers them;
+  an edit to `@name/...` is refused, never made as a folder called `@name`.
+  Live: Gemini asked for `@vtrack-ref/lib/zebra.py` and answered from it.
+
+The transcript says "Also reading, never changing: @name", and a reference
+file shows as `@name/path`.
+
+**Agents may run the check.** The Check sheet's new row **While agents
+work**: *Only you run it* (default) or *Agents may run it* (`agents: true`
+in `checks.json`; only a JSON `true` switches it on, never without a
+command). On, Claude's `run_check` runs that one command -- it takes no
+arguments -- in the task's copy, with `node_modules`/`.venv` linked in for
+the run and unlinked after, secrets and `CLAUDE_CODE_*` out of its
+environment, at most 25 minutes (inside the 30-minute stall watchdog), and
+gets the exit code and the end of the output. Like *Automatically*, it runs
+code the agent just wrote, with your rights, before anyone has looked; the
+sheet says so in red. Settable from the engine PC only, like the command.
+If a task is killed mid-check, the dependency links could be left in the
+copy: `sandbox.snapshot` drops them before `add -A`, and `sandbox._remove`
+drops **every** link and junction under the copy before anything deletes
+it, so a recursive delete can never follow one into your real folder.
+
+**Tested on the real Claude CLI without an account**
+(`magi/tests/test_claude_cli_offline.py`): a fake Messages API on loopback,
+a throwaway `CLAUDE_CONFIG_DIR` and a dummy key, MAGI's exact argv. It
+scripts the model's tool calls and checks what the CLI offers, what runs
+without a prompt, and what comes back. Use it before any change to Claude's
+flags; it costs nothing and MAGI updates the CLI by itself.
+
+Files: `magi/code/ws_mcp.py`, `agents/edits.py`, `agents/context.py`
+(`find`, `Refs`), `agents/browser.py` (`REFS_HOW`), `agents/claude_cli.py`
+(`WS_SERVER`, `write_frame`, `refs_how`, `--add-dir`), `agents/base.py`
+(`mcp_servers`, `agent_check`, `refs`, `refs_block`), `tasks.py`
+(`write_mcp_config(workspace=)`, `mcp_servers_in`, refs), `routes.py`
+(`_task_refs`), `check.py` (`agents`), `sandbox.py` (`drop_links`). Console:
+`codeRefs*`, the Check sheet. Tests: `test_code_ws_tools.py`,
+`test_code_refs.py`, `test_claude_cli_offline.py`, two in
+`test_howitworks.py`; live `tests/live/magi-code-v.live.js`.
 
 #### Git: pull before work, the repository line, commit
 
