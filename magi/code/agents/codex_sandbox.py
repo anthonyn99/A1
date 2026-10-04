@@ -88,6 +88,22 @@ def ready(exe: str, env: dict, version: str) -> tuple[bool, str]:
         return ok, why
 
 
+def state(version: str) -> dict | None:
+    """What is known for this Codex version, without checking: {"ok", "why"}
+    or None (not checked yet). For the console, which must never wait."""
+    with _lock:
+        hit = _cache.get(version)
+    return {"ok": hit[0], "why": hit[1]} if hit else None
+
+
+def check_soon(exe: str, env: dict, version: str) -> None:
+    """Check in the background if nothing is known yet; the next /agents
+    shows the answer. At most one such check at a time."""
+    if state(version) is not None or _lock.locked():
+        return
+    threading.Thread(target=ready, args=(exe, env, version), daemon=True).start()
+
+
 def forget() -> None:
     with _lock:
         _cache.clear()

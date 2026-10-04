@@ -543,8 +543,19 @@ async def list_agents() -> dict[str, Any]:
     cli = []
     for agent in _slots.AGENTS:
         rows = await _asyncio.gather(*(one(agent, sl) for sl in _slots.list_slots(agent)))
-        cli.append({"agent": agent, "label": "Claude" if agent == "claude" else "Codex",
-                    "installed": bool(_slots.cli_path(agent)), "slots": list(rows)})
+        row = {"agent": agent, "label": "Claude" if agent == "claude" else "Codex",
+               "installed": bool(_slots.cli_path(agent)), "slots": list(rows)}
+        if agent == "codex" and row["installed"]:
+            # Codex runs only in its elevated sandbox (codex_sandbox.py). What
+            # is known about it, never waited for: unknown starts a check in
+            # the background, and the next /agents carries the answer.
+            from .agents import codex_sandbox as _csb, models as _cm
+            ver = _cm.codex_cli_version() or "?"
+            row["sandbox"] = _csb.state(ver)
+            if row["sandbox"] is None and _slots.list_slots("codex"):
+                _csb.check_soon(_slots.cli_path("codex"),
+                                _slots.env_for("codex", _slots.list_slots("codex")[0]), ver)
+        cli.append(row)
 
     enabled = set(s.enabled_site_ids())
     browser = [{"id": uid, "label": s.site(uid).display_name, "accent": s.site(uid).accent,
