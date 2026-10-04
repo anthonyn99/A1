@@ -761,7 +761,15 @@ console.log('\na PDF with no text');
   bd.setPageReader(async () => [{ n: 1, lines: [] }]);
   let threw = null;
   try { await bd.run('c1', 'm1', { id: 'scan', name: 'scan.pdf', mime: 'application/pdf' }); } catch (e) { threw = e; }
-  t('ORCA (text only) refuses a scan clearly', threw && threw.kind === 'bad_input' && /no selectable text/.test(threw.message), threw && threw.message);
+  bd.setPageOcr(async () => [{ n: 1, lines: [] }]);
+  try { await bd.run('c1', 'm1', { id: 'scan', name: 'scan.pdf', mime: 'application/pdf' }); } catch (e) { threw = e; }
+  t('ORCA (text only) says so when even OCR finds nothing', threw && threw.kind === 'bad_input' && /could not read any text/.test(threw.message), threw && threw.message);
+  bd.setPageOcr(async () => [{ n: 1, lines: [{ text: 'Cells are the unit of life and divide by mitosis.', h: 0, bullet: false }] }]);
+  let ocrErr = null;
+  try { await bd.run('c1', 'm1', { id: 'scan-ocr', name: 'scan.pdf', mime: 'application/pdf' }); } catch (e) { ocrErr = e; }
+  // Past reading the document: the mock's topics just don't match the fake page.
+  t('ORCA reads a scan through OCR instead of refusing', !ocrErr || ocrErr.kind === 'ungrounded', ocrErr && ocrErr.message);
+  bd.setPageOcr(null);
   ai.saveSettings({ provider: 'openai', keys: { openai: 'sk' }, models: { openai: 'm' }, baseUrl: { openai: 'https://x.test/v1' } });
   calls = [];
   responder = (body) => reply(/Break it into the TOPICS/.test(userText(body)) ? TOPICS : lessonFor('Keys'));

@@ -70,7 +70,7 @@ export function render() {
         <input id="ais-model" value="${esc(draft.models[p] || def.defaultModel || '')}" placeholder="${esc(MODEL_HINT[p] || '')}" spellcheck="false" autocomplete="off"></div>
       <div class="ais-note">Your key is stored <b>in this browser only</b> — it is never synced to your other
         devices or saved to the cloud, so add it on each device you break documents down from.
-        ${p === 'orca' ? 'ORCA models read the document as extracted text, so scanned PDFs will not work.' : 'The model has to read PDFs.'}</div>`}
+        ${p === 'orca' ? 'ORCA models read the document as extracted text; scanned PDFs and images are read by ORCA with OCR first (slower).' : 'The model has to read PDFs.'}</div>`}
 
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn primary" data-save>Save</button>

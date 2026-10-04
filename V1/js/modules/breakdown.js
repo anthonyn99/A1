@@ -783,6 +783,10 @@ const MAX_PROMPT_SOURCE = 150000;
 let _readPages = (b64) => ai.pdfPages(b64);
 export function setPageReader(fn) { _readPages = fn || ((b64) => ai.pdfPages(b64)); }
 
+/* A scan read by ORCA (page pictures -> text). The tests swap it. */
+let _ocrPages = (b64) => ai.ocrPages(b64);
+export function setPageOcr(fn) { _ocrPages = fn || ((b64) => ai.ocrPages(b64)); }
+
 /* Pictures of pages, for a text-only provider: its models cannot read the
  * PDF, so a slide's diagram would otherwise never reach them. The tests swap
  * the renderer (it needs a canvas). */
@@ -817,7 +821,16 @@ async function contextOf(pdf, active) {
   catch (e) { why = 'its text could not be read'; }
   if (pages && !pages.some((p) => (p.lines || []).length)) { pages = null; why = 'it has no selectable text (a scan?)'; }
   if (!pages && textOnly) {
-    throw new ai.AIError(`This PDF cannot be read as text — ${why}. ${active.label} models read text only.`, { kind: 'bad_input' });
+    // A scan: ORCA reads a picture of every page (its Worker transcribes them).
+    try { pages = await _ocrPages(pdf.b64); }
+    catch (e) {
+      if (e && e.kind) throw e;
+      throw new ai.AIError(`This PDF cannot be read as text — ${why} — and ORCA could not read its pages as pictures: ${(e && e.message) || e}`, { kind: 'bad_input' });
+    }
+    if (!pages.some((p) => (p.lines || []).length)) {
+      throw new ai.AIError(`ORCA could not read any text from this PDF (${why}).`, { kind: 'bad_input' });
+    }
+    why = '';
   }
   const model = pages ? sourceModel(pages) : null;
   const full = model ? sourceText(model) : '';

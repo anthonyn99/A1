@@ -474,6 +474,44 @@ export async function pdfPageImages(b64, pageNums, { width = 1280, quality = 0.8
   }
 }
 
+const MAX_OCR_PAGES = 60;
+const OCR_PROMPT = 'This is one page of a scanned document. Transcribe it: all text verbatim in reading order, tables as Markdown tables, '
+  + 'then describe any diagram, chart or picture on it (parts, labels, arrows, values). Output only that, no preamble.';
+
+/**
+ * Pages of a scanned PDF (no selectable text) read by ORCA: each page is
+ * rendered to a picture and sent to ORCA, whose Worker transcribes it with a
+ * vision model for any text-only backend. Resolves the same shape as
+ * pdfPages: [{ n, lines, figure }].
+ */
+export async function ocrPages(b64, onProgress) {
+  const a = active();
+  if (a.id !== 'orca') throw new AIError('Only ORCA reads scanned pages this way.', { kind: 'setup' });
+  const lib = await pdfjs();
+  const task = lib.getDocument({ data: pdfBytes(b64) });
+  let count;
+  try { count = (await task.promise).numPages; } finally { await task.destroy(); }
+  if (count > MAX_OCR_PAGES) {
+    throw new AIError(`This scan has ${count} pages; ORCA reads up to ${MAX_OCR_PAGES} scanned pages at a time. Split the PDF and try again.`, { kind: 'too_large' });
+  }
+  const pages = new Array(count);
+  let done = 0, next = 0;
+  const worker = async () => {
+    while (next < count) {
+      const n = ++next;
+      const [img] = await pdfPageImages(b64, [n]);
+      const text = String(await ADAPTERS.orca(a, { prompt: OCR_PROMPT, attachPdf: true, images: [img.url], maxTokens: 2048 })).trim();
+      pages[n - 1] = {
+        n, figure: false,
+        lines: text.split(/\r?\n/).map((t) => ({ text: t.replace(/\s+/g, ' ').trim(), h: 0, bullet: false })).filter((l) => l.text),
+      };
+      if (onProgress) onProgress(++done, count);
+    }
+  };
+  await Promise.all([worker(), worker(), worker()]);
+  return pages;
+}
+
 /** The text of a base64 PDF, page by page, for models that cannot read the file. */
 export async function pdfText(b64) {
   return (await pdfPages(b64)).map((p) => `--- page ${p.n} ---\n${pageText(p)}`).join('\n\n');
@@ -494,7 +532,12 @@ async function viaOpenAI(a, spec) {
       else {
         try { doc = (await pdfText(spec.pdf.b64)).trim(); }
         catch (e) { throw new AIError('Could not read the text of this PDF: ' + ((e && e.message) || e), { kind: 'bad_input' }); }
-        if (!doc) throw new AIError('This PDF has no selectable text (a scan?) — ORCA models cannot read it.', { kind: 'bad_input' });
+        if (!doc) {
+          // A scan: ORCA reads the page pictures itself.
+          const pages = await ocrPages(spec.pdf.b64);
+          doc = pages.map((p) => `--- page ${p.n} ---\n${pageText(p)}`).join('\n\n').trim();
+          if (!doc) throw new AIError('ORCA could not read any text from this scanned PDF.', { kind: 'bad_input' });
+        }
       }
     }
     content = (doc ? `The source document (${spec.pdf.name || 'source.pdf'}), as extracted text:\n\n${doc}\n\n` : '') + spec.prompt;
@@ -595,4 +638,4 @@ export function hash(text) {
   return 'h' + h.toString(36);
 }
 
-export default { pdfText, pdfPages, pdfPageImages, pageText, linesFromItems, PROVIDERS, settings, saveSettings, active, generateJSON, testConnection, extractJSON, repairPrompt, hash, AIError };
+export default { ocrPages, pdfText, pdfPages, pdfPageImages, pageText, linesFromItems, PROVIDERS, settings, saveSettings, active, generateJSON, testConnection, extractJSON, repairPrompt, hash, AIError };
