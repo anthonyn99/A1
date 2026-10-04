@@ -151,7 +151,7 @@ def test_codex_write_mode_is_contained_to_the_worktree():
     argv = codex_cli.build_argv("codex", Task("t", "q", Path("C:/sb"), Mode.WRITE))
     assert argv[argv.index("--sandbox") + 1] == "workspace-write"
     cfg = [argv[i + 1] for i, a in enumerate(argv) if a == "-c"]
-    assert "windows.sandbox=unelevated" in cfg, "without it, workspace-write is read-only on Windows"
+    assert "windows.sandbox=elevated" in cfg, "without it, workspace-write is read-only on Windows"
     assert "sandbox_workspace_write.exclude_tmpdir_env_var=true" in cfg
     assert "sandbox_workspace_write.network_access=false" in cfg
     assert argv[argv.index("-C") + 1] == str(Path("C:/sb"))
@@ -164,7 +164,7 @@ def test_codex_read_mode_names_a_windows_sandbox_so_its_shell_runs():
     argv = codex_cli.build_argv("codex", Task("t", "q", Path("C:/p"), Mode.READ))
     assert argv[argv.index("--sandbox") + 1] == "read-only"
     cfg = [argv[i + 1] for i, a in enumerate(argv) if a == "-c"]
-    assert "windows.sandbox=unelevated" in cfg
+    assert "windows.sandbox=elevated" in cfg
     assert not any(c.startswith("sandbox_workspace_write.") for c in cfg)
 
 
@@ -177,7 +177,7 @@ def test_codex_network_features_are_off_in_every_mode():
     # Read mode's only setting is the Windows sandbox that lets its shell run;
     # nothing that widens it (network, web search, temp-dir writes).
     cfg = [read[i + 1] for i, a in enumerate(read) if a == "-c"]
-    assert cfg == ["windows.sandbox=unelevated"]
+    assert cfg == ["windows.sandbox=elevated"]
 
 
 def test_every_disabled_codex_feature_exists_in_the_installed_cli():
