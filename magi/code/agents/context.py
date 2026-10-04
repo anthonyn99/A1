@@ -37,6 +37,7 @@ from __future__ import annotations
 import math
 import os
 import re
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -90,6 +91,12 @@ FIND_PREFIX = "FIND:"
 FIND_MAX_HITS = 80
 FIND_MAX_CHARS = 12_000
 FIND_MAX_S = 20.0          # a search never holds the task longer than this
+# A regex from an agent must not be able to hang a search: Python's re has
+# no timeout, and nested repetition -- "(a+)+$" -- backtracks exponentially
+# on one long line. Refused, and every line is searched only so far.
+_NESTED_REPEAT = re.compile(r"\((?:\\.|[^()\\])*[*+}](?:\\.|[^()\\])*\)\s*[*+{]")
+SEARCH_LINE_MAX = 2000
+
 _RANGE = re.compile(r"^(.+?):(\d+)\s*-\s*(\d+)$")
 
 
@@ -471,6 +478,9 @@ def find(root: Path, pattern: str, files: list[str], refs: Refs | None = None) -
         return Request(asked, why="too short to search for")
     try:
         if len(pat) > 2 and pat.startswith("/") and pat.endswith("/"):
+            if _NESTED_REPEAT.search(pat[1:-1]):
+                return Request(asked, why="nested repetition like (a+)+ is not searched; "
+                               "simplify the pattern")
             rx = re.compile(pat[1:-1], re.I)
         else:
             rx = re.compile(re.escape(pat), re.I)
@@ -519,7 +529,8 @@ def _find_in(p: Path, label: str, rx: re.Pattern) -> list[str]:
     except OSError:
         return []
     return [f"{label}:{i}: {line.strip()[:200]}"
-            for i, line in enumerate(text.splitlines(), 1) if rx.search(line)]
+            for i, line in enumerate(text.splitlines(), 1)
+            if rx.search(line[:SEARCH_LINE_MAX])]
 
 
 def resolve_request(root: Path, asked: str, files: list[str] | None = None,

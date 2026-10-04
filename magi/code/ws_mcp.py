@@ -93,6 +93,12 @@ REF_FIND_CHARS = 20_000
 # say so -- the agent narrows the path instead of the task hanging.
 REF_WALK_MAX = 50_000
 REF_FIND_S = 30.0
+# A regex from an agent must not be able to hang a search: Python's re has
+# no timeout, and nested repetition -- "(a+)+$" -- backtracks exponentially
+# on one long line. Refused, and every line is searched only so far.
+_NESTED_REPEAT = re.compile(r"\((?:\\.|[^()\\])*[*+}](?:\\.|[^()\\])*\)\s*[*+{]")
+SEARCH_LINE_MAX = 2000
+
 _ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07")
 _SECRET_ENV = re.compile(r"(^MAGI_API_TOKEN$|API_KEY|_TOKEN$|SECRET|PASSWORD)", re.I)
 
@@ -343,6 +349,8 @@ class Server:
         pat = a.get("pattern")
         if not isinstance(pat, str) or len(pat.strip()) < 2:
             raise ToolError("Give a pattern of at least two characters.")
+        if _NESTED_REPEAT.search(pat):
+            raise ToolError("Nested repetition like (a+)+ is not searched; simplify the pattern.")
         try:
             rx = re.compile(pat, re.I)
         except re.error as e:
@@ -355,6 +363,7 @@ class Server:
         hits, n_hits, size = [], 0, 0
         deadline = time.monotonic() + REF_FIND_S
         stopped = ""
+        self.walk_cut = False
         for name, base, top in places:
             if stopped:
                 break
@@ -373,7 +382,7 @@ class Server:
                 if b"\x00" in raw[:4096]:
                     continue
                 for i, line in enumerate(raw.decode("utf-8", "replace").splitlines(), 1):
-                    if rx.search(line):
+                    if rx.search(line[:SEARCH_LINE_MAX]):
                         n_hits += 1
                         if len(hits) < REF_FIND_HITS and size < REF_FIND_CHARS:
                             row = f"{rel}:{i}: {line.strip()[:200]}"
