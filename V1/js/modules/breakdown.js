@@ -940,8 +940,9 @@ async function runInner(classId, moduleId, file, { fresh = false, instructions }
     } catch (e) { return fail(doc, e); }
   }
 
-  // 2. Lessons. The bridge runs one ask at a time anyway; an API gets two.
-  const width = active.id === 'bridge' ? 1 : 2;
+  // 2. Lessons. The bridge, and ORCA (whose models run in one browser window
+  // each), take one ask at a time anyway; an API gets two.
+  const width = active.id === 'bridge' || active.id === 'orca' ? 1 : 2;
   let fatal = null;
   const pool = async (items, fn) => {
     const todo = [...items];
