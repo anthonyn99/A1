@@ -114,7 +114,13 @@ class Task:
     progress: Callable[[], list[str]] | None = None
     # Phase 11: an --mcp-config file giving the Claude CLI read-only GitHub
     # tools for this project (magi/github/mcp_server.py). None = no tools.
+    # Track V: the same file also names the workspace tools (code/ws_mcp.py)
+    # in write mode. `mcp_servers` = the server names in it, each allowed.
     mcp_config: Path | None = None
+    mcp_servers: tuple[str, ...] = ()
+    # Track V: the project's check command when the agents may run it
+    # (ws_mcp.py run_check). "" = they may not.
+    agent_check: str = ""
     # Files the person attached in the console, as (name, text). Text only:
     # they are pasted into the prompt, never written anywhere an agent (or
     # the sandbox diff) could mistake them for part of the project.
@@ -189,13 +195,15 @@ class Task:
             return []
         return self.images
 
-    def full_prompt(self, budget: int | None = None) -> str:
+    def full_prompt(self, budget: int | None = None, frame: str | None = None) -> str:
         """What a CLI agent is sent fresh: framing, what is in the folder, the
-        session so far, any hand-off, then the task and what was added."""
+        session so far, any hand-off, then the task and what was added.
+        `frame`: the agent's own write-mode framing, if it has tools the
+        plain WRITE_FRAME says it lacks."""
         from ..followup import CLI_BUDGET, NEW_MESSAGE, added_block
         parts = []
         if self.mode == Mode.WRITE:
-            parts.append(WRITE_FRAME)
+            parts.append(frame or WRITE_FRAME)
         if self.state_note:
             parts.append(self.state_note)
         hist = self.history(CLI_BUDGET if budget is None else budget)
@@ -214,7 +222,7 @@ class Task:
             parts.append(self.inventory)
         return "\n\n---\n\n".join(parts)
 
-    def resumed_prompt(self) -> str:
+    def resumed_prompt(self, frame: str | None = None) -> str:
         """What a CLI agent is sent when it resumes its own session: only
         what it does not already have. No SESSION SO FAR -- it remembers."""
         from ..followup import NEW_MESSAGE, added_block
@@ -235,7 +243,7 @@ class Task:
             return f"{head}\n\nMESSAGE FROM THE PERSON:\n{msgs}"
         parts = []
         if self.mode == Mode.WRITE:
-            parts.append(WRITE_FRAME)
+            parts.append(frame or WRITE_FRAME)
         if self.state_note:
             parts.append(self.state_note)
         parts.append(NEW_MESSAGE + self.prompt)
@@ -249,8 +257,9 @@ class Task:
             parts.append(self.inventory)
         return "\n\n---\n\n".join(parts)
 
-    def prompt_for(self, agent_id: str) -> str:
-        return self.resumed_prompt() if self.resume_for(agent_id) else self.full_prompt()
+    def prompt_for(self, agent_id: str, frame: str | None = None) -> str:
+        return (self.resumed_prompt(frame) if self.resume_for(agent_id)
+                else self.full_prompt(frame=frame))
 
 
 # Said to every agent in write mode. True, and useful to it: an agent that
