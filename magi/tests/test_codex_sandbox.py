@@ -78,6 +78,30 @@ def test_results_are_remembered_per_codex_version(monkeypatch):
     S.forget()
 
 
+def test_the_console_reads_what_is_known_and_never_waits(monkeypatch):
+    """/agents shows the sandbox state from memory; an unknown one is
+    checked in the background, once."""
+    S.forget()
+    assert S.state("9.9") is None
+    started = []
+    monkeypatch.setattr(S, "ready", lambda exe, env, v: started.append(v) or (False, "no"))
+
+    class T:
+        def __init__(self, target, args, daemon):
+            self.go = lambda: target(*args)
+
+        def start(self):
+            self.go()
+    monkeypatch.setattr(S.threading, "Thread", T)
+    S.check_soon("x", {}, "9.9")
+    assert started == ["9.9"]
+    S._cache["9.9"] = (False, "no", time.time())
+    S.check_soon("x", {}, "9.9")
+    assert started == ["9.9"], "a known answer is not checked again from here"
+    assert S.state("9.9") == {"ok": False, "why": "no"}
+    S.forget()
+
+
 def test_codex_is_unavailable_with_the_reason_when_the_sandbox_is_not_ready(monkeypatch):
     monkeypatch.setattr(slots, "cli_path", lambda a: "codex")
     monkeypatch.setattr(slots, "status", lambda a, s: type("St", (), {"signed_in": True, "detail": ""})())

@@ -282,6 +282,17 @@ async function ui(MPID, RPID) {
     // A queued task sends them too.
     ok('a queued task carries them', await evalJs(c, `JSON.stringify(codeRefsBody(${JSON.stringify(MPID)}))`) === JSON.stringify({ refs: [RPID] }));
 
+    // Codex's chip when its protected sandbox is not set up (set in-page).
+    const sb = await evalJs(c, `return (() => {
+      const cx = CODE.agents.cli.find((x) => x.agent === "codex");
+      const keep = cx.sandbox; cx.sandbox = { ok: false, why: "Codex's protected sandbox is not set up" };
+      const m = codeMembers().find((x) => x.id === "codex-cli"); const n = codeMemberNote(m);
+      cx.sandbox = keep; return JSON.stringify(n); })();`);
+    ok('an unset Codex sandbox shows on its chip, in red, with the reason',
+      /sandbox not set up/.test(sb) && /"bad":true/.test(sb) && /protected sandbox/.test(sb), sb);
+    ok('this PC\'s Codex sandbox is set up', await evalJs(c,
+      'JSON.stringify((CODE.agents.cli.find((x) => x.agent === "codex") || {}).sandbox)') !== JSON.stringify({ ok: false }));
+
     // The Check sheet's new switch (the real engine's GET; nothing saved).
     const ck = '[...document.querySelectorAll("#codeStrip .code-pill")].find((p) => /Check/.test(p.textContent))';
     ok('a Check pill', await waitFor(`!!${ck}`));
