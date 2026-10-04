@@ -575,11 +575,14 @@ def test_find_searches_every_text_file_and_skips_secrets(tmp_path):
     (root / "src" / "a.py").write_text("def total(xs):\n    return sum(xs)\n")
     (root / "src" / "b.js").write_text("// TOTAL is computed elsewhere\n")
     (root / ".env").write_text("TOTAL_SECRET=1\n")
+    (root / "secrets.json").write_text('{"total": "hunter2"}\n')
     files = context.listing(root)
-    r = context.resolve_request(root, "FIND:total", files)
+    assert "secrets.json" not in files
+    # find() refuses secrets itself too, whatever file list it is handed.
+    r = context.resolve_request(root, "FIND:total", files + ["secrets.json", ".env"])
     assert r.kind == "find" and r.total == 2 and r.start == 2
     assert "src/a.py:1: def total(xs):" in r.text and "src/b.js:1:" in r.text
-    assert ".env" not in r.text
+    assert ".env" not in r.text and "hunter2" not in r.text
     rx = context.resolve_request(root, "FIND:/^def \\w+\\(/", files)
     assert rx.total == 1
     assert context.resolve_request(root, "FIND:nowhere", files).text == "(no matches)"
