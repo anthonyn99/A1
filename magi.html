@@ -13273,7 +13273,7 @@ function renderCodeView() {
     else { b.style.color = m.accent; b.style.borderColor = m.accent + "66"; }
     b.append(el("span", "chip-model", m.label + (m.kind === "cli" ? " CLI" : "")));
     b.append(el("span", "chip-unit", note.txt));
-    b.title = m.kind === "cli"
+    b.title = note.why ? note.why : m.kind === "cli"
       ? `${m.label} through its own CLI: reads and searches the folder itself.`
         + (note.bad ? " Set it up in Accounts." : "")
       : `${m.label} through its browser session: MAGI hands it the relevant files.`;
