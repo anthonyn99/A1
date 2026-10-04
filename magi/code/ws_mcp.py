@@ -367,9 +367,18 @@ class Server:
 
     # ── the file tools ────────────────────────────────────────────────────
 
+    def _mine(self, rel, must_exist: bool = False) -> Path:
+        """resolve(), plus: "@name/..." names a reference folder, which the
+        file tools never touch -- not a folder to create called "@name"."""
+        if isinstance(rel, str) and self.refs:
+            head = rel.strip().replace("\\", "/").split("/", 1)[0]
+            if head.startswith("@") and head[1:].lower() in {n.lower() for n in self.refs}:
+                raise ToolError(f"{rel}: {head} is a reference folder, which is read-only.")
+        return resolve(self.root, rel, must_exist=must_exist)
+
     def move_path(self, a: dict) -> str:
-        src = resolve(self.root, a.get("from"), must_exist=True)
-        dst = resolve(self.root, a.get("to"))
+        src = self._mine(a.get("from"), must_exist=True)
+        dst = self._mine(a.get("to"))
         if os.path.lexists(dst):
             raise ToolError(f"{a.get('to')}: already exists. Delete it first if you mean to replace it.")
         if src.is_dir():
@@ -384,8 +393,8 @@ class Server:
         return f"Moved {_rel(self.root, src)} to {_rel(self.root, dst)}."
 
     def copy_path(self, a: dict) -> str:
-        src = resolve(self.root, a.get("from"), must_exist=True)
-        dst = resolve(self.root, a.get("to"))
+        src = self._mine(a.get("from"), must_exist=True)
+        dst = self._mine(a.get("to"))
         if os.path.lexists(dst):
             raise ToolError(f"{a.get('to')}: already exists.")
         dst.parent.mkdir(parents=True, exist_ok=True)
@@ -404,7 +413,7 @@ class Server:
         return f"Copied {_rel(self.root, src)} to {_rel(self.root, dst)}."
 
     def delete_path(self, a: dict) -> str:
-        p = resolve(self.root, a.get("path"), must_exist=True)
+        p = self._mine(a.get("path"), must_exist=True)
         if p.is_dir():
             n, _ = _tree_ok(p)
             shutil.rmtree(p)
@@ -413,7 +422,7 @@ class Server:
         return f"Deleted {_rel(self.root, p)}."
 
     def make_dir(self, a: dict) -> str:
-        p = resolve(self.root, a.get("path"))
+        p = self._mine(a.get("path"))
         if os.path.lexists(p) and not p.is_dir():
             raise ToolError(f"{a.get('path')}: a file of that name exists.")
         p.mkdir(parents=True, exist_ok=True)

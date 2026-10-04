@@ -118,13 +118,15 @@ class FakeAPI:
 
 
 def _run(task: Task, api: FakeAPI, cfgdir: Path):
+    # (the prompt goes in exactly as ClaudeCLIAgent sends it)
     env = {k: v for k, v in os.environ.items() if not k.startswith(("ANTHROPIC_", "CLAUDE_"))}
     env.update({"CLAUDE_CONFIG_DIR": str(cfgdir), "ANTHROPIC_API_KEY": "sk-ant-offline-test",
                 "ANTHROPIC_BASE_URL": api.url, "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
                 "DISABLE_AUTOUPDATER": "1"})
     argv = CC.build_argv(EXE, task, model="claude-haiku-4-5")
     r = subprocess.run(argv, cwd=str(task.root), env=env, capture_output=True, text=True,
-                       input=task.prompt_for("claude:system", frame=CC.write_frame(task)),
+                       input=task.prompt_for("claude:system", frame=CC.write_frame(task),
+                                             refs_how=CC.refs_how(task)),
                        encoding="utf-8", errors="replace", timeout=240)
     evs = [e for e in (CC.parse_line(ln) for ln in r.stdout.splitlines()) if e]
     return r, evs
@@ -183,6 +185,48 @@ def test_claude_moves_deletes_and_runs_the_check_through_magis_server(setup):
     assert (ws / "docs" / "notes.md").exists() and not (ws / "dead.txt").exists()
     assert (ws / "old2" / "a.txt").exists()
     assert (outside / "keep.txt").read_text() == "keep\n"
+
+
+def test_read_mode_reads_a_reference_folder_through_add_dir(setup):
+    ws, outside, cfg = setup
+    task = Task("t3", "compare", ws, Mode.READ, refs=[("ref", outside)])
+    api = FakeAPI([("Read", {"file_path": str(outside / "keep.txt")}),
+                   ("Grep", {"pattern": "keep", "path": str(outside), "output_mode": "content"}),
+                   ("Write", {"file_path": str(outside / "new.txt"), "content": "x"})])
+    try:
+        r, _ = _run(task, api, cfg)
+    finally:
+        api.srv.shutdown()
+    assert r.returncode == 0, r.stderr[-1500:]
+    res = api.result_texts()
+    assert res[0][0] is False and "keep" in res[0][1]
+    assert res[1][0] is False and "keep" in res[1][1]
+    assert res[2][0] is True and not (outside / "new.txt").exists()
+    assert "@ref: " in api.log[0]["first"] and "Read, Glob and Grep" in api.log[0]["first"]
+
+
+def test_write_mode_reads_a_reference_folder_and_cannot_edit_it(setup):
+    ws, outside, cfg = setup
+    f = T.write_mcp_config("t4", "p", ws, "", workspace={
+        "root": str(ws), "real": None, "check": None,
+        "refs": [{"name": "ref", "root": str(outside)}]})
+    task = Task("t4", "port it", ws, Mode.WRITE, mcp_config=f, mcp_servers=T.mcp_servers_in(f),
+                refs=[("ref", outside)])
+    api = FakeAPI([("mcp__magi_workspace__ref_read", {"path": "@ref/keep.txt"}),
+                   ("Write", {"file_path": str(outside / "new.txt"), "content": "x"}),
+                   ("Edit", {"file_path": str(outside / "keep.txt"), "old_string": "keep",
+                             "new_string": "changed"}),
+                   ("mcp__magi_workspace__delete_path", {"path": "@ref/keep.txt"})])
+    try:
+        r, _ = _run(task, api, cfg)
+    finally:
+        api.srv.shutdown()
+    assert r.returncode == 0, r.stderr[-1500:]
+    res = api.result_texts()
+    assert res[0][0] is False and "keep" in res[0][1]
+    assert [err for err, _ in res[1:]] == [True, True, True]
+    assert (outside / "keep.txt").read_text() == "keep\n" and not (outside / "new.txt").exists()
+    assert "ref_read" in api.log[0]["first"]
 
 
 def test_read_mode_offers_no_workspace_tools_and_cannot_edit(setup):
