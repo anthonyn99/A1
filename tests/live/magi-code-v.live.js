@@ -281,7 +281,10 @@ async function ui(MPID, RPID) {
     ok('390px: nothing overflows', await evalJs(c, 'document.documentElement.scrollWidth <= innerWidth + 1'));
     await evalJs(c, `${pill}.click(); return 1;`);
     ok('390px: the sheet opens', await waitFor('!!document.querySelector(".refs-sheet")'));
-    ok('390px: the sheet fits', await evalJs(c, '(() => { const r = document.querySelector(".refs-sheet").getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth + 1; })()'));
+    await sleep(700);             // the sheet's opening animation scales it
+    const box = 'document.querySelector(".refs-sheet").getBoundingClientRect()';
+    ok('390px: the sheet fits', await evalJs(c, `return (() => { const r = ${box}; return r.left >= 0 && r.right <= innerWidth + 1; })();`),
+      await evalJs(c, `return (() => { const r = ${box}; return Math.round(r.left) + ".." + Math.round(r.right) + " of " + innerWidth; })();`));
     ok('390px: the buttons are fingertip-sized', await evalJs(c, `${btn}.getBoundingClientRect().height >= 28`),
       await evalJs(c, `${btn}.getBoundingClientRect().height`));
     await shot('v-refs-sheet-390');
