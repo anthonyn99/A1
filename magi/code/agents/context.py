@@ -89,6 +89,7 @@ _FINDLINE = re.compile(r"^\s*(?:[-*]\s*)?`?FIND:\s*(.+?)\s*$", re.I | re.M)
 FIND_PREFIX = "FIND:"
 FIND_MAX_HITS = 80
 FIND_MAX_CHARS = 12_000
+FIND_MAX_S = 20.0          # a search never holds the task longer than this
 _RANGE = re.compile(r"^(.+?):(\d+)\s*-\s*(\d+)$")
 
 
@@ -479,8 +480,13 @@ def find(root: Path, pattern: str, files: list[str], refs: Refs | None = None) -
     places += [(Path(b).resolve(), f"@{n}/", fs) for n, (b, fs) in (refs or {}).items()]
     hits: list[str] = []
     n_hits = in_files = size = 0
+    deadline = time.monotonic() + FIND_MAX_S
+    stopped = False
     for base, label, names in places:
         for rel in names:
+            if time.monotonic() > deadline:
+                stopped = True
+                break
             got = _find_in(base / rel, label + rel, rx)
             if got:
                 in_files += 1
@@ -489,11 +495,15 @@ def find(root: Path, pattern: str, files: list[str], refs: Refs | None = None) -
                 if len(hits) < FIND_MAX_HITS and size < FIND_MAX_CHARS:
                     hits.append(row)
                     size += len(row) + 1
+        if stopped:
+            break
+    cut = (f"\n(search stopped after {int(FIND_MAX_S)} s; not every file was searched)"
+           if stopped else "")
     if not n_hits:
-        return Request(asked, rel=pat, kind="find", text="(no matches)")
+        return Request(asked, rel=pat, kind="find", text="(no matches)" + cut)
     more = n_hits - len(hits)
     body = "\n".join(hits) + (f"\n... {more} more matches not shown: FIND something more "
-                              "specific, or NEED: the file" if more > 0 else "")
+                              "specific, or NEED: the file" if more > 0 else "") + cut
     return Request(asked, rel=pat, kind="find", text=body, total=n_hits, start=in_files)
 
 

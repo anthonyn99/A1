@@ -88,6 +88,11 @@ REF_READ_CHARS = 120_000
 REF_FILE_MAX = 2_000_000
 REF_FIND_HITS = 150
 REF_FIND_CHARS = 20_000
+# Nothing here may run unbounded: a reference folder can be huge. A walk
+# stops after this many files, a search after this many seconds, and both
+# say so -- the agent narrows the path instead of the task hanging.
+REF_WALK_MAX = 50_000
+REF_FIND_S = 30.0
 _ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07")
 _SECRET_ENV = re.compile(r"(^MAGI_API_TOKEN$|API_KEY|_TOKEN$|SECRET|PASSWORD)", re.I)
 
@@ -270,14 +275,21 @@ class Server:
         return name, base, target
 
     def _ref_files(self, name: str, base: Path, top: Path):
-        """Files under `top`, as '@name/rel', skipping heavy and denied folders."""
+        """Files under `top`, as '@name/rel', skipping heavy and denied
+        folders; at most REF_WALK_MAX of them (self.walk_cut says if cut)."""
+        self.walk_cut = False
+        n = 0
         for d, dirs, names in os.walk(top, followlinks=False):
             dirs[:] = sorted(x for x in dirs if x.lower() not in DENY_DIRS
                              and x not in HEAVY_DIRS and not _is_link(Path(d) / x))
-            for n in sorted(names):
-                p = Path(d) / n
-                if _SECRET_NAMES.search(n) or _is_link(p):
+            for fn in sorted(names):
+                p = Path(d) / fn
+                if _SECRET_NAMES.search(fn) or _is_link(p):
                     continue
+                n += 1
+                if n > REF_WALK_MAX:
+                    self.walk_cut = True
+                    return
                 yield p, f"@{name}/" + p.relative_to(base).as_posix()
 
     def ref_list(self, a: dict) -> str:
@@ -294,7 +306,8 @@ class Server:
                 more += 1
         if not rows:
             return "(no files)"
-        return "\n".join(rows) + (f"\n… {more} more files: list a folder inside it" if more else "")
+        more_s = f"{more}{'+' if self.walk_cut else ''}"
+        return "\n".join(rows) + (f"\n… {more_s} more files: list a folder inside it" if more else "")
 
     def ref_read(self, a: dict) -> str:
         name, base, p = self.ref_resolve(a.get("path"))
@@ -340,10 +353,17 @@ class Server:
         else:
             places = [(n, b, b) for n, b in self.refs.items()]
         hits, n_hits, size = [], 0, 0
+        deadline = time.monotonic() + REF_FIND_S
+        stopped = ""
         for name, base, top in places:
+            if stopped:
+                break
             files = [(top, f"@{name}/" + top.relative_to(base).as_posix())] if top.is_file() \
                 else self._ref_files(name, base, top)
             for p, rel in files:
+                if time.monotonic() > deadline:
+                    stopped = f"stopped after {int(REF_FIND_S)} s"
+                    break
                 try:
                     if p.stat().st_size > REF_FILE_MAX // 2:
                         continue
@@ -359,11 +379,15 @@ class Server:
                             row = f"{rel}:{i}: {line.strip()[:200]}"
                             hits.append(row)
                             size += len(row) + 1
+            if not stopped and getattr(self, "walk_cut", False):
+                stopped = f"stopped after {REF_WALK_MAX} files"
+        tail = (f"\n[search {stopped}: give a narrower path to search the rest]"
+                if stopped else "")
         if not n_hits:
-            return "(no matches)"
+            return "(no matches)" + tail
         more = n_hits - len(hits)
         return "\n".join(hits) + (f"\n… {more} more matches: narrow the pattern or the path"
-                                  if more else "")
+                                  if more else "") + tail
 
     # ── the file tools ────────────────────────────────────────────────────
 
