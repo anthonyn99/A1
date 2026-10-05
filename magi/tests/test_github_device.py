@@ -166,3 +166,46 @@ def test_clone_really_clones(tmp_path, monkeypatch):
     out.mkdir()
     dest = G.clone(out, "me", "proj", None)
     assert (dest / ".git").is_dir()
+
+
+def _clone_at(path, url):
+    path.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(path)], check=True)
+    subprocess.run(["git", "-C", str(path), "remote", "add", "origin", url], check=True)
+
+
+def test_clone_opens_an_existing_clone_of_the_same_repo(tmp_path, monkeypatch):
+    # Cloned earlier by VS Code: same repo, any case, ssh or https.
+    _clone_at(tmp_path / "ORCA", "https://github.com/VedaCPatel/ORCA.git")
+    _clone_at(tmp_path / "notes", "git@github.com:me/notes.git")
+    ran = []
+    real = G._run
+    monkeypatch.setattr(G, "_run", lambda cwd, *a, **kw: (ran.append(a) if a[:1] == ("clone",) else None)
+                        or real(cwd, *a, **kw))
+    assert G.clone(tmp_path, "vedacpatel", "orca", None) == tmp_path / "ORCA"
+    assert G.clone(tmp_path, "me", "notes", None) == tmp_path / "notes"
+    assert not ran
+    # A different repo in that folder is still refused, by name.
+    with pytest.raises(G.GitError) as e:
+        G.clone(tmp_path, "someone", "notes", None)
+    assert e.value.code == "exists" and "not a clone of someone/notes" in e.value.message
+    # A subfolder of a repo is not a clone of it.
+    (tmp_path / "ORCA" / "inner").mkdir()
+    assert not G.is_clone_of(tmp_path / "ORCA" / "inner", "VedaCPatel", "ORCA")
+
+
+def test_find_repos_lists_clones_in_the_usual_folders(tmp_path, monkeypatch):
+    from magi.code import workspace as W
+    desk = tmp_path / "Desktop"
+    _clone_at(desk / "ORCA", "https://github.com/VedaCPatel/ORCA.git")
+    _clone_at(desk / "local-only", "C:/somewhere/else")
+    (desk / "not-a-repo").mkdir()
+    other = tmp_path / "elsewhere"
+    _clone_at(other / "A1", "https://tok:x@github.com/anthonyn99/A1")
+    monkeypatch.setattr(W, "_home_parents", lambda: [desk, desk, tmp_path / "missing"])
+    got = {r["name"]: r for r in W.find_repos([other])}
+    assert set(got) == {"ORCA", "local-only", "A1"}
+    assert got["ORCA"]["github"] == "VedaCPatel/ORCA"
+    assert got["local-only"]["github"] == ""
+    assert got["A1"]["github"] == "anthonyn99/A1"
+    assert "tok" not in str(got)

@@ -16027,7 +16027,18 @@ async function codeCloneSheet() {
   const here = codeRoot(codeProject() || {}) || "";
   let parent = here ? here.replace(/[\\/][^\\/]+[\\/]?$/, "") : "~";
   let login = accts[0].login, repos = null, pick = "", q = "";
-  const sync = () => { go.disabled = !pick; };
+  // Clones already on the engine PC, by owner/repo (lower case).
+  let local = {};
+  codeGet("/local-repos").then((d) => {
+    for (const r of (d && d.ok && d.repos) || []) if (r.github) local[r.github.toLowerCase()] = r;
+    if (sheet.isConnected && repos) draw();
+  }).catch(() => {});
+  const here0 = () => pick && local[pick.toLowerCase()];
+  const sync = () => {
+    go.disabled = !pick;
+    const h = here0();
+    go.textContent = !h ? "Clone" : h.project ? "Open" : "Add";
+  };
 
   const load = async () => {
     repos = null;
@@ -16078,6 +16089,8 @@ async function codeCloneSheet() {
         const b = el("button", `gh-clone-row ${pick === r.full_name ? "on" : ""}`);
         b.type = "button";
         b.append(el("span", "gh-clone-n", r.full_name));
+        const h = local[r.full_name.toLowerCase()];
+        if (h) b.append(el("span", "model-badge", h.project ? "workspace" : "on this PC"));
         if (r.private) b.append(el("span", "model-badge", "private"));
         b.onclick = () => { pick = r.full_name; draw(); };
         list.append(b);
@@ -16085,12 +16098,18 @@ async function codeCloneSheet() {
     };
     drawList();
     const dest = el("div", "gh-clone-dest");
-    dest.append(el("span", "use-caps-l", "Into"), el("span", "gh-clone-path",
-      pick ? `${parent}${parent.endsWith("\\") || parent.endsWith("/") ? "" : "\\"}${pick.split("/")[1]}` : parent));
-    const ch = el("button", "code-git-act", "Change");
-    ch.type = "button";
-    ch.onclick = () => openCodeBrowse(parent, (p) => { parent = p; if (sheet.isConnected) draw(); });
-    dest.append(ch);
+    const h = here0();
+    if (h) {
+      dest.append(el("span", "use-caps-l", h.project ? "Workspace" : "Already at"),
+                  el("span", "gh-clone-path", h.path));
+    } else {
+      dest.append(el("span", "use-caps-l", "Into"), el("span", "gh-clone-path",
+        pick ? `${parent}${parent.endsWith("\\") || parent.endsWith("/") ? "" : "\\"}${pick.split("/")[1]}` : parent));
+      const ch = el("button", "code-git-act", "Change");
+      ch.type = "button";
+      ch.onclick = () => openCodeBrowse(parent, (p) => { parent = p; if (sheet.isConnected) draw(); });
+      dest.append(ch);
+    }
     body.append(dest);
     sync();
   };
@@ -16098,13 +16117,21 @@ async function codeCloneSheet() {
   go.onclick = async () => {
     if (!pick) return;
     go.disabled = true;
-    go.textContent = "Cloning…";
     err.hidden = true;
+    const h = here0();
+    if (h && h.project) { codeSetProject(h.project); close(); codeLoad(true); return; }
+    if (h) {
+      go.textContent = "Adding…";
+      const d = await codeAddLocal(h, login);
+      if (d.ok) { close(); return; }
+      err.hidden = false; err.textContent = d.message || "Refused."; sync(); return;
+    }
+    go.textContent = "Cloning…";
     let d;
     try { d = await codePost("/github/clone", { account: login, full_name: pick, parent }); }
     catch (e) { d = { ok: false, message: `Could not reach the engine: ${e.message || e}` }; }
-    go.textContent = "Clone";
-    if (!d.ok) { err.hidden = false; err.textContent = d.message || "The clone was refused."; go.disabled = false; return; }
+    sync();
+    if (!d.ok) { err.hidden = false; err.textContent = d.message || "The clone was refused."; return; }
     codeSetProject(d.project.id);
     close();
     codeLoad(true);
