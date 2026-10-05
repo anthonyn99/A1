@@ -1,5 +1,7 @@
 # MAGI — retire the old "tony" engine on Veda's PC (run ON VEDA'S PC)
 
+**DONE 2026-10-05** — old engine was not running and its tasks (`MAGI Cloud`, `MAGI Watchdog`, Downloads copy) were already Disabled; moved `Downloads\MAGI`, `magi\data\tony`, `magi\profiles\tony` to `%USERPROFILE%\MAGI-retired\tony-engine-2026-10-05\`. Note: :8000 on her PC is now ORCA's `orch serve` and its tunnel, not MAGI — leave them alone.
+
 **For Claude.** If someone said *"read the retire plan"*, *"retire the old
 engine"* or *"do the Veda engine cleanup"*, this file is the whole job. Do it
 start to finish; ask Veda only the one question marked **ASK**. Nothing here

@@ -1069,6 +1069,7 @@ Run per docs/magi-veda-isolation-check.md, on Veda's PC against HER engine
   (`eng_f2a5dcf41f29` "VedaHPENVY - tony", her older MAGI;
   `magi/data/tony/engine.json` exists), so a plain `magi\restart.ps1`
   here restarts THAT one. Use `-Profile veda` on this PC.
+  Retired 2026-10-05: tasks disabled, files in %USERPROFILE%\MAGI-retired\.
 
 ### (Done) Phase 14b — what it was
 
