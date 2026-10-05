@@ -120,6 +120,25 @@ async def code_browse(path: str = "") -> dict[str, Any]:
         return _fail(e)
 
 
+@router.get("/local-repos")
+async def local_repos() -> dict[str, Any]:
+    """Git repositories already on this machine -- cloned by VS Code, a
+    terminal, anything -- each with the workspace it already is, if any."""
+    import os
+    from pathlib import Path
+    bound: dict[str, str] = {}
+    for p in await _db().code_projects(_engine_id()):
+        for b in p.get("bindings") or []:
+            if b.get("here") and b.get("root"):
+                bound[os.path.normcase(str(Path(b["root"])))] = p["id"]
+    extra = [Path(r).parent for r in bound]
+    loop = _asyncio.get_running_loop()
+    repos = await loop.run_in_executor(None, W.find_repos, extra)
+    for r in repos:
+        r["project"] = bound.get(os.path.normcase(r["path"]))
+    return {"ok": True, "repos": repos}
+
+
 @router.post("/projects")
 async def create_project(body: dict = Body(...)) -> dict[str, Any]:
     """Register a project, and bind it to a folder on this machine.
@@ -1083,6 +1102,7 @@ async def gh_clone(body: dict = Body(...)) -> dict[str, Any]:
     except W.WorkspaceError as e:
         return _fail(e)
     loop = _asyncio.get_running_loop()
+    existed = (parent / repo).exists() if repo else False
     try:
         dest = await loop.run_in_executor(None, G.clone, parent, owner, repo, auth)
     except G.GitError as e:
@@ -1091,12 +1111,18 @@ async def gh_clone(body: dict = Body(...)) -> dict[str, Any]:
         root = W.resolve_root(str(dest))
     except W.WorkspaceError as e:
         return _fail(e)
+    # Already a workspace here: open that one, never a second copy of it.
+    import os
+    for p in await _db().code_projects(_engine_id()):
+        if any(b.get("here") and os.path.normcase(str(b.get("root"))) == os.path.normcase(str(root))
+               for b in p.get("bindings") or []):
+            return {"ok": True, "existed": True, "project": p}
     pid = W.new_project_id()
     prefs = _AC.guard_prefs({**W.DEFAULT_PREFS, "github": login}, root)
     await _db().save_code_project(W.Project(id=pid, name=name, aliases=[], prefs=prefs,
                                             notes="").to_row())
     await _db().save_code_binding(pid, _engine_id(), str(root), allow_remote=True)
-    return {"ok": True, "project": await _db().code_project(pid, _engine_id())}
+    return {"ok": True, "existed": existed, "project": await _db().code_project(pid, _engine_id())}
 
 
 async def _project_here(project_id: str):

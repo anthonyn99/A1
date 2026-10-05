@@ -305,6 +305,71 @@ def browse(raw: str | None) -> dict[str, Any]:
     }
 
 
+# ── repositories already on this machine ─────────────────────────────────
+
+def _home_parents() -> list[Path]:
+    """Where people clone to: the folders VS Code, GitHub Desktop and a
+    terminal default to, and the Desktop (OneDrive moves it on Windows)."""
+    h = Path.home()
+    out = [h, h / "Desktop", h / "OneDrive" / "Desktop", h / "Documents",
+           h / "Documents" / "GitHub", h / "source" / "repos", h / "repos",
+           h / "GitHub", h / "code", h / "Code", h / "projects", h / "Projects",
+           h / "dev", h / "src"]
+    od = os.environ.get("OneDrive")
+    if od:
+        out += [Path(od) / "Desktop", Path(od) / "Documents"]
+    return out
+
+
+_ORIGIN_URL = re.compile(r'\[remote "origin"\][^\[]*?^\s*url\s*=\s*(\S+)', re.M | re.S)
+
+
+def _origin(repo: Path) -> str:
+    """origin's URL from .git/config, read as a file: no git process per
+    folder, so a look across a dozen folders stays instant."""
+    try:
+        cfg = (repo / ".git" / "config").read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    m = _ORIGIN_URL.search(cfg)
+    return m.group(1) if m else ""
+
+
+def find_repos(extra_parents: list[Path] = (), cap: int = 80) -> list[dict[str, Any]]:
+    """Git repositories one level inside the usual clone folders (and inside
+    `extra_parents`, the folders existing workspaces sit in) -- so a repo
+    cloned by VS Code or a terminal can be added in one click.
+
+    Names, paths and the GitHub owner/repo only. Folders MAGI would refuse as
+    a workspace are left out rather than offered and then refused."""
+    from .git import remote_info
+    seen: set[str] = set()
+    found: list[dict[str, Any]] = []
+    for parent in [*_home_parents(), *extra_parents]:
+        try:
+            kids = sorted(Path(parent).iterdir(), key=lambda x: x.name.lower())
+        except OSError:
+            continue
+        for e in kids:
+            if len(found) >= cap:
+                return found
+            try:
+                if e.name.startswith(".") or e.name in _SKIP_DIRS or not (e / ".git").exists():
+                    continue
+                p = resolve_root(str(e))
+            except (OSError, WorkspaceError):
+                continue
+            key = os.path.normcase(str(p))
+            if key in seen:
+                continue
+            seen.add(key)
+            info = remote_info(_origin(p))
+            full = (f"{info['owner']}/{info['repo']}"
+                    if info["host"] == "github.com" and info["owner"] else "")
+            found.append({"name": p.name, "path": str(p), "github": full})
+    return found
+
+
 # ── the records ────────────────────────────────────────────────────────────
 
 _NAME_OK = re.compile(r"^[^\x00-\x1f]{1,60}$")

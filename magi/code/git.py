@@ -627,12 +627,28 @@ def clone(parent: Path, owner: str, repo: str, auth: Auth | None) -> Path:
             raise GitError("bad_repo", "That is not a GitHub repository name.")
     dest = parent / repo
     if dest.exists():
-        raise GitError("exists", f"{dest} already exists. Use “Add a folder” to open it.")
+        # Already cloned there (by VS Code, a terminal, anything): open it
+        # rather than refuse -- the clone it would make is the one it found.
+        if is_clone_of(dest, owner, repo):
+            return dest
+        raise GitError("exists", f"{dest} already exists and is not a clone of {owner}/{repo}. "
+                       "Choose another folder with “Change”.")
     r = _run(parent, "clone", "--", f"https://github.com/{owner}/{repo}.git", str(dest),
              auth=auth, timeout=900)
     if r.returncode != 0:
         raise GitError("clone", f"git clone failed: {_err(r)}")
     return dest
+
+
+def is_clone_of(folder: Path, owner: str, repo: str) -> bool:
+    """`folder` is the top of a work tree whose remote is
+    github.com/<owner>/<repo> (any case, any scheme)."""
+    top = toplevel(folder)
+    if top is None or os.path.normcase(str(top.resolve())) != os.path.normcase(str(Path(folder).resolve())):
+        return False
+    g = github_of(top)
+    return (g["host"] == "github.com" and g["owner"].lower() == owner.lower()
+            and g["repo"].lower() == repo.lower())
 
 
 def _remote_of(top: Path, branch: str) -> str:
