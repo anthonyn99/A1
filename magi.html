@@ -4558,6 +4558,7 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .code-proj-name { font-weight: 700; font-size: 12.5px; }
 .code-proj-path { color: var(--txm); font-family: var(--font-mono); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+.code-found > .use-caps-l { display: block; margin: 10px 0 6px; }
 .code-browse { max-width: 520px; }
 .code-crumb { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0 8px; }
 .code-crumb-b {
@@ -15183,6 +15184,33 @@ function openCodeProjects() {
     list.append(row);
   }
   box.append(list);
+  // Repositories already cloned on the engine PC (VS Code, a terminal...)
+  // that are not workspaces yet: one click each.
+  const found = el("div", "code-found");
+  box.append(found);
+  codeGet("/local-repos").then((d) => {
+    const fresh = ((d && d.ok && d.repos) || []).filter((r) => !r.project);
+    if (!fresh.length || !sheet.isConnected) return;
+    found.append(el("div", "use-caps-l", "Already on this PC"));
+    const fl = el("div", "eng-list");
+    for (const r of fresh) {
+      const row = el("button", "code-proj");
+      row.type = "button";
+      row.title = `Add ${r.path} as a workspace`;
+      row.append(el("span", "code-proj-name", r.github || r.name),
+                 el("span", "code-proj-path", r.path));
+      row.onclick = async () => {
+        row.disabled = true;
+        const d2 = await codeAddLocal(r);
+        if (!d2.ok) { row.disabled = false; ferr.hidden = false; ferr.textContent = d2.message || "Refused."; return; }
+        close();
+      };
+      fl.append(row);
+    }
+    const ferr = el("div", "sheet-err");
+    ferr.hidden = true;
+    found.append(fl, ferr);
+  }).catch(() => {});
   const bar = el("div", "sheet-bar");
   const add = el("button", "btn active", "Add a folder");
   add.onclick = () => { close(); openCodeBrowse(); };
@@ -15213,6 +15241,21 @@ function openCodeProjects() {
   dismissOnBackdrop(sheet, close);
   sheet.append(box);
   document.body.append(sheet);
+}
+
+/** A repository found on the engine PC becomes a workspace, named after
+ *  its folder, pushing as the GitHub sign-in that owns it when there is one. */
+async function codeAddLocal(r, login = "") {
+  if (!login && r.github) {
+    const accts = ((CODE.gh && CODE.gh.accounts) || []).filter((a) => a.stored);
+    const own = accts.find((a) => a.login.toLowerCase() === r.github.split("/")[0].toLowerCase());
+    login = (own || (accts.length === 1 ? accts[0] : {})).login || "";
+  }
+  let d;
+  try { d = await codePost("/projects", { name: r.name, root: r.path, ...(login ? { prefs: { github: login } } : {}) }); }
+  catch (e) { d = { ok: false, message: String(e.message || e) }; }
+  if (d.ok) { codeSetProject(d.project.id); codeLoad(true); }
+  return d;
 }
 
 /** MAGI's own folder picker: the engine lists folder NAMES, one level at a
