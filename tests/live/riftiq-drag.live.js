@@ -109,7 +109,7 @@ async function load(c, w, h, mobile) {
     ok('build cards: three drawn', await evalJs(c, "return document.querySelectorAll('.build-card-row').length;") === 3);
     ok('build cards are not HTML5-draggable', await evalJs(c, "return !document.querySelector('.build-card-row[draggable]');"));
     const b0 = await rect(c, '.build-card-row', 0);
-    await drag(b0.x, b0.t + 10, 0, b0.h * 1.7);
+    await drag(b0.x, b0.t + 10, 0, b0.h * 1.1);
     ok('Builds: dragging the first build card down moves it', await evalJs(c, "return builds.Ahri.map(b => b.name).join();") === 'A2,A1,A3', await evalJs(c, "return builds.Ahri.map(b => b.name).join();"));
 
     // ── Build editor: chips + picker ─────────────────────────────────────
