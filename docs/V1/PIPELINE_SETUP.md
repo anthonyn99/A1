@@ -158,9 +158,59 @@ read it. Its cards join your reviews.
 | Anthropic API | an API key | Official SDK, vendored at `vendor/anthropic-sdk-0.129.0/` (StudyOS has no bundler). Default model `claude-opus-5-5`. |
 | OpenAI-compatible | key + model (+ base URL) | OpenAI, OpenRouter, Groq… The model must read PDFs. |
 | Google Gemini | key + model | The model must read PDFs. |
+| ORCA | an `orca_sk_` key (one per picked model) | Any model ORCA drives: Claude, ChatGPT, DeepSeek, Gemini, Perplexity. See below. |
 
 Keys are stored **in that browser only** (`studyos_ai_v1`) — add them on each
 device. **Test connection** sends one tiny request.
+
+### ORCA: Auto, or one model
+
+ORCA's router ignores the `model` a request names, so **choosing a model means
+choosing a key**:
+
+- **Auto** uses your ordinary ORCA key, and ORCA sends each request to whichever
+  model is free.
+- **Claude / ChatGPT / DeepSeek / Gemini / Perplexity**: each needs its own key.
+  On ORCA → **Keys**, make a new key, set **Backends** to that one model, and paste
+  it into AI → ORCA with that model picked:
+
+  | Model | Backend |
+  |---|---|
+  | Claude | `claude/free` |
+  | ChatGPT | `chatgpt/free` |
+  | DeepSeek | `deepseek/free` |
+  | Gemini | `gemini_web/free` |
+  | Perplexity | `perplexity/free` |
+
+  **Test connection** says which model answered. If a model other than the one
+  you picked answered, the key's Backends aren't limited correctly.
+- **If it's busy:** *wait for it*, or *use Auto*, which needs the Auto key too.
+
+What StudyOS does so that every chat site works (`ai.js`, ORCA path):
+
+- **Reply format.** StudyOS sends no `response_format`. Instead it asks for ONE
+  fenced `json` block, and no web search. ORCA's own line for a
+  `response_format` says "no markdown fences". The site would then render the
+  JSON as Markdown, which ORCA reads back as display text: `\"` loses its
+  backslash, `<svg>` is stripped, `**` disappears.
+- **Long text goes as files.** An ask over 12,000 characters attaches its
+  `<document>` / `<source>` / `<partial>` / `<broken>` blocks as `.txt` files
+  and types only the instructions. ORCA inlines the files again for a model
+  that can't read files.
+- **Cut-off replies.** A reply that opens a JSON object and never closes it gets
+  up to 2 continuation asks. The pieces are joined before any repair ask.
+- **Busy models.** On 503/429, StudyOS waits as long as `Retry-After` says (up
+  to 10 minutes per step), and the topic row shows "waiting · until …".
+- **ORCA's 404 (`no_eligible_backend`):**
+  - If the only problem is attachments, the step is asked again with text only.
+  - If a model is signed out, switched off, or outside the key's scope, the run
+    stops once, quoting ORCA's reason.
+- **Retry pass.** Topics that failed for a temporary reason are written once
+  more before the run ends.
+- **Which model wrote what.** Each topic records the model that wrote it
+  (`servedBy`), and the status line says "written by DeepSeek ×5, …".
+- **Closing the tab.** ORCA has no job id to resume, so closing the tab while a
+  step is running costs that one request again on resume.
 
 **The bridge's `ask` mode** (`server.py _run_ask_job`) is deliberately dumb: it
 sends the prompt, attaches the source when the job has one, and returns the raw
