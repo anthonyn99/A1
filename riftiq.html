@@ -459,6 +459,9 @@
   --tx2:    #adadb2;
   --tx3:    #8d8d94;
   --gold:   #c0aeea;   /* identity accent (ProView purple) */
+  /* dragsort.js reads these: MAGI's drag, tinted with RiftIQ's own tokens. */
+  --ds-ac: var(--gold); --ds-s2: var(--bg4); --ds-tx: var(--tx);
+  --ds-txm: var(--tx3); --ds-shadow: rgba(0,0,0,.55);
   --gold2:  #dbd0f5;
   --blue:   #8fa6d8;   /* blue side / Diamond */
   --red:    #d68a7c;   /* suite "bad"         */
@@ -1295,15 +1298,10 @@ html.lk-open, body.lk-open {
 .syncind.failed { color: var(--red); }
 @keyframes wrsyncpulse { 0%,100% { opacity:.45; } 50% { opacity:1; } }
 
-/* Drag-to-reorder on the tab strip. `manipulation` keeps the browser's own
-   horizontal panning on touch while dropping the 300ms tap delay; a reorder
-   only arms on a long press, so an ordinary swipe still scrolls the strip. */
+/* Drag-to-reorder on the tab strip is dragsort.js (MAGI's drag): a long press
+   on touch, a few pixels with a mouse. `manipulation` keeps the strip's own
+   horizontal panning while dropping the 300ms tap delay. */
 .tab-btn { touch-action: manipulation; }
-.tab-btn.navdrag {
-  z-index: 5; cursor: grabbing; opacity: .97;
-  border-color: var(--gold) !important; color: var(--gold2) !important;
-  box-shadow: 0 10px 26px rgba(0,0,0,.45);
-}
 .setup-input, .tag-input-wrap, .setup-select { box-sizing: border-box; }
 .setup-input, .setup-select { height: 46px; }
 .tag-input-wrap { height: 46px; }
@@ -2120,7 +2118,7 @@ html.lk-open, body.lk-open {
 
 /* A tile you can pick up. `manipulation` keeps the grid scrolling under an
    ordinary swipe while dropping the 300ms tap delay — the drag arms on a long
-   press instead (see beEnableTouchDrag), so both gestures coexist. */
+   press instead (dragsort.js), so both gestures coexist. */
 .bld-drag { touch-action: manipulation; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 /* The ✕ on a chip already in a zone. It was a 15px dot: fine under a mouse,
    under a thumb it is smaller than the icon it sits on. */
@@ -2137,25 +2135,15 @@ html.lk-open, body.lk-open {
      each badge lands on top of its neighbour. */
   #be-items-zone, #be-spells-zone { gap: 13px 14px !important; padding: 12px 10px !important; }
 }
-/* A chip already in a zone owns the SIDEWAYS gesture - that is a reorder - and
-   leaves the vertical one to the pane, which still has to scroll. Once the drag
-   arms, the touchmove handler takes both axes. */
-#be-items-zone .bld-drag, #be-spells-zone .bld-drag { touch-action: pan-y; }
 /* The picker's selected portraits double as their own remove buttons. */
 @media (pointer: coarse) {
   .bld-selchip img { width: 34px !important; height: 34px !important; }
   .bld-selchip > div { width: 16px !important; height: 16px !important; top: -5px !important; right: -5px !important; }
 }
-.bld-drag.bld-lifted { opacity: .35; }
-/* The chip a finger is currently over during a reorder - the drop lands here. */
-.bld-drag.bld-target { outline: 2px solid var(--gold); outline-offset: 3px; border-radius: 8px; }
-.bld-dropzone.bld-over { border-color: var(--gold) !important; background: rgba(192,174,234,.10) !important; }
-.bld-ghost {
-  position: fixed; left: 0; top: 0; z-index: 4000; pointer-events: none;
-  border-radius: 8px; border: 2px solid var(--gold);
-  box-shadow: 0 10px 26px rgba(0,0,0,.6); opacity: .93;
-  will-change: transform;
-}
+/* dragsort.js slides the neighbours with a transform transition; the ID-level
+   hover transitions above would otherwise replace it. (The lifted tile and the
+   settling glide carry their own !important.) */
+#builds-panel .dsort > * { transition: transform .17s cubic-bezier(.2,.8,.2,1), border-color .18s, box-shadow .18s, color .18s, background .18s; }
 
 @media (max-width: 900px) {
   /* `height:100%` resolves against nothing here — #content is height:auto below
@@ -3587,6 +3575,7 @@ window._mailRelay = window._mailRelay || async function (res) {
   } catch (e) { return false; }
 };
 </script>
+<script src="dragsort.js"></script>
 </head>
 <body>
 
@@ -4279,7 +4268,6 @@ else document.addEventListener('DOMContentLoaded', wrWatchChrome);
 // ends, so every signed-in device re-orders live through _fbOnSnap.
 var WR_TAB_DEFAULT = ['profile','builds','champions','items','runes','spells','leaderboard','spectate','live'];
 var wrTabOrder = WR_TAB_DEFAULT.slice();
-var wrSuppressTabClick = false;
 
 function wrApplyTabOrder(order){
   var nav = document.getElementById('topbar-tabs');
@@ -4317,160 +4305,25 @@ function wrWatchRemote(){
   }, function(e){ console.warn('[WarRoom] snapshot error:', e && e.message); wrSetSync('failed'); });
 }
 
-// Pointer-based horizontal reorder — the same interaction Insight uses. On
-// touch a LONG PRESS starts the drag so an ordinary swipe still scrolls the
-// strip; with a mouse a few pixels of movement is enough.
+// MAGI's drag (dragsort.js), sideways: a long press on touch so an ordinary
+// swipe still scrolls the strip, a few pixels with a mouse. The strip scrolls
+// itself near its ends, and the click a drop fires never reaches the tab.
 function wrEnableTabDrag(){
   var nav = document.getElementById('topbar-tabs');
   if (!nav || nav._wrDragOn) return;
   nav._wrDragOn = true;
-  var d = null, holdTimer = null, autoRaf = null;
-
-  // FLIP measured in LAYOUT coordinates (offsetLeft), not viewport rects: the
-  // strip scrolls, and scrollLeft shifts as tabs are reordered, so viewport
-  // deltas would fold that scroll jump into the animation and make neighbours
-  // streak in from the edges.
-  function flipX(mutate, exclude){
-    var kids = [].slice.call(nav.children);
-    var before = kids.map(function(k){ return k.offsetLeft; });
-    mutate();
-    kids.forEach(function(k, i){
-      if (k === exclude) return;
-      var dx = before[i] - k.offsetLeft;
-      if (!dx || Math.abs(dx) > nav.clientWidth * 2) return;
-      k.style.transition = 'none';
-      k.style.transform = 'translateX(' + dx + 'px)';
-      requestAnimationFrame(function(){
-        k.style.transition = 'transform .16s cubic-bezier(.2,.8,.3,1)';
-        k.style.transform = '';
-      });
-    });
-  }
-
-  function follow(x){ d.tab.style.transform = 'translateX(' + ((x - d.grabX) + (nav.scrollLeft - d.grabScroll)) + 'px)'; }
-
-  function checkSwap(x){
-    for (var i = 0; i < nav.children.length; i++){
-      var other = nav.children[i];
-      if (other === d.tab) continue;
-      var r = other.getBoundingClientRect();
-      if (x < r.left || x > r.right) continue;
-      var mid = r.left + r.width / 2;
-      var otherIsBefore = !!(d.tab.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_PRECEDING);
-      if (x < mid && otherIsBefore) flipX(makeMove(other, false), d.tab);
-      else if (x > mid && !otherIsBefore) flipX(makeMove(other, true), d.tab);
-      else continue;
-      // Re-anchor so the tab stays under the pointer after the reflow.
-      d.grabX = x; d.grabScroll = nav.scrollLeft;
-      d.tab.style.transform = 'translateX(0px)';
-      break;
+  // A long press is a context menu to the browser otherwise.
+  document.addEventListener('contextmenu', function(e){ if (A1Drag.active) e.preventDefault(); });
+  A1Drag.sort(nav, {
+    row: '.tab-btn', axis: 'x', hold: 300,
+    onDrop: function(from, to){
+      var next = wrReadTabOrder();
+      next.splice(to, 0, next.splice(from, 1)[0]);
+      if (next.join() === wrTabOrder.join()) return;
+      wrApplyTabOrder(next);
+      wrSaveTabOrder().catch(function(){});
     }
-  }
-  function makeMove(other, after){
-    return function(){
-      nav.insertBefore(d.tab, after ? other.nextSibling : other);
-      // insertBefore on an already-attached node is a REMOVE followed by an
-      // insert, and removing a node releases its pointer capture. Losing it
-      // mid-drag is what made a release outside the strip go unnoticed — the
-      // tab kept following the pointer until the next click, which then also
-      // fired the button underneath. Re-take it after every reorder.
-      try { d.tab.setPointerCapture(d.id); } catch(_e) {}
-    };
-  }
-
-  // Dragging toward either end scrolls the strip, so a tab that is off-screen
-  // on a phone is still reachable without dropping and re-grabbing.
-  function autoScroll(){
-    if (!d || !d.dragging) { autoRaf = null; return; }
-    var r = nav.getBoundingClientRect(), EDGE = 44, SPEED = 9, step = 0;
-    if (d.lastX < r.left + EDGE) step = -SPEED;
-    else if (d.lastX > r.right - EDGE) step = SPEED;
-    if (step){
-      var was = nav.scrollLeft;
-      nav.scrollLeft = Math.max(0, Math.min(d.maxScroll, was + step));
-      if (nav.scrollLeft !== was){ follow(d.lastX); checkSwap(d.lastX); }
-    }
-    autoRaf = requestAnimationFrame(autoScroll);
-  }
-
-  function startDrag(e){
-    d.dragging = true;
-    d.grabX = e.clientX; d.grabScroll = nav.scrollLeft; d.lastX = e.clientX;
-    // Measured now, while the lifted tab is still untransformed: a translated
-    // child extends the scrollable area, so reading scrollWidth mid-drag makes
-    // the right edge run away forever. Reordering never changes total width.
-    d.maxScroll = Math.max(0, nav.scrollWidth - nav.clientWidth);
-    d.tab.style.transition = '';
-    d.tab.classList.add('navdrag');
-    try { d.tab.setPointerCapture(d.id); } catch(_e) {}
-    if (!autoRaf) autoRaf = requestAnimationFrame(autoScroll);
-  }
-
-  function cleanup(){
-    if (!d) return;
-    var tab = d.tab;
-    tab.style.transition = 'transform .16s cubic-bezier(.2,.8,.3,1)';
-    tab.style.transform = '';
-    setTimeout(function(){ tab.style.transition = ''; }, 180);
-    tab.classList.remove('navdrag');
-    clearTimeout(holdTimer); holdTimer = null;
-    if (autoRaf){ cancelAnimationFrame(autoRaf); autoRaf = null; }
-    d = null;
-  }
-
-  nav.addEventListener('pointerdown', function(e){
-    var tab = e.target.closest ? e.target.closest('.tab-btn') : null;
-    if (!tab || e.button > 0) return;
-    d = { tab: tab, id: e.pointerId, startX: e.clientX, startY: e.clientY, lastX: e.clientX,
-          dragging: false, moved: false, touch: e.pointerType === 'touch' };
-    if (d.touch) holdTimer = setTimeout(function(){ holdTimer = null; if (d) startDrag(e); }, 320);
   });
-
-  window.addEventListener('pointermove', function(e){
-    if (!d || e.pointerId !== d.id) return;
-    if (!d.dragging){
-      var dx = Math.abs(e.clientX - d.startX), dy = Math.abs(e.clientY - d.startY);
-      if (d.touch){ if (dx > 8 || dy > 8) cleanup(); return; }   // a swipe: let it scroll
-      if (dx < 5) return;
-      startDrag(e);
-    }
-    d.moved = true; d.lastX = e.clientX;
-    follow(e.clientX); checkSwap(e.clientX);
-  });
-
-  // Non-passive so an armed drag can stop the strip scrolling itself.
-  nav.addEventListener('touchmove', function(e){ if (d && d.dragging) e.preventDefault(); }, { passive: false });
-
-  function endDrag(e){
-    if (!d) return;
-    if (e && e.pointerId != null && e.pointerId !== d.id) return;
-    var wasDrag = d.dragging && d.moved;
-    cleanup();
-    if (!wasDrag) return;
-    wrSuppressTabClick = true;                    // don't switch tabs on drop
-    setTimeout(function(){ wrSuppressTabClick = false; }, 60);
-    var next = wrReadTabOrder();
-    if (next.join() === wrTabOrder.join()) return;
-    wrTabOrder = next;
-    wrSaveTabOrder().catch(function(){});
-  }
-  // Bound on the WINDOW, not the strip: even with the capture re-taken above,
-  // a pointer released over the page BELOW the tab bar would never bubble a
-  // pointerup through #topbar-tabs, so the drag could not end. The window sees
-  // every release, and endDrag no-ops unless a drag is actually in flight.
-  window.addEventListener('pointerup', endDrag, true);
-  window.addEventListener('pointercancel', endDrag, true);
-  // Safety nets: a dropped capture, or the tab/window losing focus entirely.
-  window.addEventListener('lostpointercapture', function(e){
-    if (d && d.dragging && e.pointerId === d.id) endDrag(e);
-  }, true);
-  window.addEventListener('blur', function(){ if (d) endDrag(null); });
-
-  // A drop must not also fire the tab's own switch handler. Capture phase, so
-  // this runs before the inline onclick on the button itself.
-  nav.addEventListener('click', function(e){
-    if (wrSuppressTabClick){ e.stopPropagation(); e.preventDefault(); }
-  }, true);
 }
 
 // ══════════════════════════════════════
@@ -7306,6 +7159,7 @@ async function initBuildsTab() {
 
 // ── Home: champ list ──
 function renderBuildsHome() {
+  if (A1Drag.active) { A1Drag.later(renderBuildsHome); return; }   // never redraw under a drag
   var el = document.getElementById('builds-panel');
   var champIds = buildsOrder.filter(function(k){ return builds[k]; });
   el.innerHTML =
@@ -7327,8 +7181,7 @@ function renderBuildsHome() {
     row.className = 'champ-home-row';
     row.dataset.cid = cid;
     row.dataset.ci = ci;
-    row.draggable = true;
-    row.style.cssText = 'display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--bg3);border:1px solid var(--bd);border-radius:8px;margin-bottom:8px;cursor:pointer;transition:border-color 0.15s;user-select:none;touch-action:manipulation;';
+    row.style.cssText = 'display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--bg3);border:1px solid var(--bd);border-radius:8px;margin-bottom:8px;cursor:pointer;user-select:none;touch-action:manipulation;';
     row.addEventListener('click', function(){ openChampBuilds(this.dataset.cid); });
     row.onmouseover = function(){ this.style.borderColor='var(--bd2)'; };
     row.onmouseout = function(){ this.style.borderColor='var(--bd)'; };
@@ -7353,38 +7206,20 @@ function renderBuildsHome() {
 }
 
 
+// MAGI's drag (dragsort.js): a press and a few pixels with a mouse, a long press
+// on touch. buildsOrder is the source of truth for the order.
 function attachChampListDrag() {
   var list = document.getElementById('builds-home-list');
   if (!list) return;
-  var dragCi = null;
-  var rows = list.querySelectorAll('.champ-home-row');
-  rows.forEach(function(row) {
-    row.addEventListener('dragstart', function(e) {
-      if (e.target.tagName === 'BUTTON') { e.preventDefault(); return; }
-      dragCi = parseInt(this.dataset.ci);
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('champ-reorder', '1');
-      var self = this;
-      setTimeout(function(){ self.style.opacity='0.4'; }, 0);
-    });
-    row.addEventListener('dragend', function(){ this.style.opacity='1'; this.style.outline=''; });
-    row.addEventListener('dragover', function(e) { e.preventDefault(); if(dragCi!==null) this.style.outline='2px solid var(--gold)'; });
-    row.addEventListener('dragleave', function(){ this.style.outline=''; });
-    row.addEventListener('drop', function(e) {
-      e.preventDefault();
-      this.style.outline='';
-      if (dragCi===null || e.dataTransfer.getData('champ-reorder')!=='1') return;
-      var overCi = parseInt(this.dataset.ci);
-      if (overCi === dragCi) return;
-      // Reorder buildsOrder array directly (source of truth for order)
+  A1Drag.sort(list, {
+    row: '.champ-home-row', hold: 300,
+    onDrop: function(from, to) {
       var orderedKeys = buildsOrder.filter(function(k){ return builds[k]; });
-      var moved = orderedKeys.splice(dragCi, 1)[0];
-      orderedKeys.splice(overCi, 0, moved);
+      orderedKeys.splice(to, 0, orderedKeys.splice(from, 1)[0]);
       buildsOrder = orderedKeys;
-      dragCi = null;
       saveBuildsToFirestore();
       renderBuildsHome();
-    });
+    }
   });
 }
 
@@ -7499,6 +7334,7 @@ function openChampBuilds(cid) {
 }
 
 function renderChampBuildPage(cid) {
+  if (A1Drag.active) { A1Drag.later(function(){ renderChampBuildPage(cid); }); return; }   // never redraw under a drag
   var champ = allChamps[cid];
   var champBuilds = builds[cid] || [];
   var el = document.getElementById('builds-panel');
@@ -7521,7 +7357,6 @@ function renderChampBuildPage(cid) {
     var card = document.createElement('div');
     card.className = 'build-card-row';
     card.dataset.bi = i;
-    card.draggable = true;
     card.style.cssText = 'cursor:default;margin-bottom:12px;';
     card.innerHTML = renderBuildCard(cid, b, i);
     listEl.appendChild(card);
@@ -7533,30 +7368,14 @@ function renderChampBuildPage(cid) {
 function attachBuildListDrag(cid) {
   var list = document.getElementById('champ-builds-list');
   if (!list) return;
-  var dragBi = null;
-  list.querySelectorAll('.build-card-row').forEach(function(row) {
-    row.addEventListener('dragstart', function(e) {
-      if (e.target.tagName==='BUTTON' || e.target.tagName==='IMG') { e.preventDefault(); return; }
-      dragBi = parseInt(this.dataset.bi);
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('build-reorder','1');
-      var self=this; setTimeout(function(){ self.style.opacity='0.5'; },0);
-    });
-    row.addEventListener('dragend', function(){ this.style.opacity='1'; this.style.boxShadow=''; });
-    row.addEventListener('dragover', function(e){ e.preventDefault(); if(dragBi!==null) this.style.boxShadow='0 0 0 2px var(--gold)'; });
-    row.addEventListener('dragleave', function(){ this.style.boxShadow=''; });
-    row.addEventListener('drop', function(e) {
-      e.preventDefault(); this.style.boxShadow='';
-      if (dragBi===null || e.dataTransfer.getData('build-reorder')!=='1') return;
-      var overBi = parseInt(this.dataset.bi);
-      if (overBi===dragBi) return;
+  A1Drag.sort(list, {
+    row: '.build-card-row', hold: 300,
+    onDrop: function(from, to) {
       var arr = builds[cid];
-      var moved = arr.splice(dragBi,1)[0];
-      arr.splice(overBi,0,moved);
-      dragBi=null;
+      arr.splice(to, 0, arr.splice(from, 1)[0]);
       saveBuildsToFirestore();
       renderChampBuildPage(cid);
-    });
+    }
   });
 }
 
@@ -7770,9 +7589,6 @@ function openBuildEditor() {
   itemsZone.className = 'bld-dropzone';
   itemsZone.dataset.zone = 'items';
   itemsZone.style.cssText = 'min-height:56px;padding:8px;background:var(--bg3);border:2px solid var(--bd2);border-radius:8px;display:flex;gap:9px;flex-wrap:wrap;transition:border-color 0.15s,background 0.15s;';
-  itemsZone.addEventListener('dragover', function(e){ e.preventDefault(); this.style.borderColor='var(--gold)'; });
-  itemsZone.addEventListener('dragleave', function(){ this.style.borderColor='var(--bd2)'; });
-  itemsZone.addEventListener('drop', function(e){ e.preventDefault(); this.style.borderColor='var(--bd2)'; dropOnBuild(e,'items'); });
   itemsSection.appendChild(itemsZone);
   left.appendChild(itemsSection);
 
@@ -7784,9 +7600,6 @@ function openBuildEditor() {
   spellsZone.className = 'bld-dropzone';
   spellsZone.dataset.zone = 'spells';
   spellsZone.style.cssText = 'min-height:50px;padding:8px;background:var(--bg3);border:2px solid var(--bd2);border-radius:8px;display:flex;gap:9px;flex-wrap:wrap;transition:border-color 0.15s,background 0.15s;';
-  spellsZone.addEventListener('dragover', function(e){ e.preventDefault(); this.style.borderColor='var(--gold)'; });
-  spellsZone.addEventListener('dragleave', function(){ this.style.borderColor='var(--bd2)'; });
-  spellsZone.addEventListener('drop', function(e){ e.preventDefault(); this.style.borderColor='var(--bd2)'; dropOnBuild(e,'spells'); });
   spellsSection.appendChild(spellsZone);
   left.appendChild(spellsSection);
 
@@ -7878,7 +7691,6 @@ function openBuildEditor() {
   renderMatchupDisplay();
   refreshBuildZones();
   showBuildPanel('items');
-  beEnableTouchDrag();
   beEnableSplitResize();
   beEnableNotesResize();
 
@@ -8129,29 +7941,26 @@ function renderRuneBuilderZone(b) {
   return html;
 }
 
-// A finger, not a mouse — decides the wording of the drop-zone hints.
-function _beCoarse() {
-  return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
-}
-
 function refreshBuildZones() {
+  if (A1Drag.active) { A1Drag.later(refreshBuildZones); return; }   // never redraw under a drag
   var iz = document.getElementById('be-items-zone');
+  var sz = document.getElementById('be-spells-zone');
+  // Both zones take drops from the moment the editor opens, even while empty.
+  if (iz) beSortZone(iz, 'items');
+  if (sz) beSortZone(sz, 'spells');
   if (iz) {
     var items = buildEditorData.items || [];
     iz.innerHTML = '';
     if (!items.length) {
       var hint = document.createElement('span');
       hint.style.cssText = 'font-family:var(--mono);font-size:12px;color:var(--tx3);align-self:center;padding:4px;';
-      hint.innerHTML = _beCoarse() ? ('Tap items to add '+wrIco('arrowR',12)) : ('Drag or click items '+wrIco('arrowR',12));
+      hint.innerHTML = 'Drag or tap items '+wrIco('arrowR',12);
       iz.appendChild(hint);
     } else {
-      items.forEach(function(id, i) {
+      items.forEach(function(id) {
         var wrap = document.createElement('div');
         wrap.className = 'bld-drag';
-        wrap.style.cssText = 'position:relative;cursor:grab;transition:opacity 0.15s;flex-shrink:0;';
-        wrap.draggable = true;
-        wrap.dataset.zone = 'items';
-        wrap.dataset.idx = i;
+        wrap.style.cssText = 'position:relative;cursor:grab;flex-shrink:0;';
         var img = document.createElement('img');
         img.src = DDRAGON + '/img/item/' + id + '.png';
         img.style.cssText = 'width:44px;height:44px;border-radius:6px;display:block;';
@@ -8165,30 +7974,25 @@ function refreshBuildZones() {
         wrap.appendChild(img); wrap.appendChild(xBtn);
         iz.appendChild(wrap);
       });
-      attachZoneDrag(iz, 'items');
     }
     var cnt = document.getElementById('be-items-count');
     if (cnt) { cnt.textContent = items.length+'/7'; cnt.style.color = items.length>=7?'var(--green)':'var(--tx3)'; }
   }
-  var sz = document.getElementById('be-spells-zone');
   if (sz) {
     var spells = buildEditorData.spells || [];
     sz.innerHTML = '';
     if (!spells.length) {
       var hint2 = document.createElement('span');
       hint2.style.cssText = 'font-family:var(--mono);font-size:12px;color:var(--tx3);align-self:center;padding:4px;';
-      hint2.innerHTML = _beCoarse() ? ('Tap spells to add '+wrIco('arrowR',12)) : ('Drag or click spells '+wrIco('arrowR',12));
+      hint2.innerHTML = 'Drag or tap spells '+wrIco('arrowR',12);
       sz.appendChild(hint2);
     } else {
-      spells.forEach(function(sid, i) {
+      spells.forEach(function(sid) {
         var sp = (allSummonerSpells||[]).find(function(s){ return s.id===sid; });
         if (!sp) return;
         var wrap = document.createElement('div');
         wrap.className = 'bld-drag';
-        wrap.style.cssText = 'position:relative;cursor:grab;transition:opacity 0.15s;flex-shrink:0;';
-        wrap.draggable = true;
-        wrap.dataset.zone = 'spells';
-        wrap.dataset.idx = i;
+        wrap.style.cssText = 'position:relative;cursor:grab;flex-shrink:0;';
         var img = document.createElement('img');
         img.src = DDRAGON + '/img/spell/' + sp.image.full;
         img.style.cssText = 'width:40px;height:40px;border-radius:6px;display:block;';
@@ -8201,267 +8005,34 @@ function refreshBuildZones() {
         wrap.appendChild(img); wrap.appendChild(xBtn);
         sz.appendChild(wrap);
       });
-      attachZoneDrag(sz, 'spells');
     }
   }
 }
 
 
-// Attach drag-to-reorder to an items/spells zone
-function attachZoneDrag(container, zone) {
-  var dragIdx = null;
-  Array.from(container.querySelectorAll('[data-zone]')).forEach(function(el) {
-    el.addEventListener('dragstart', function(e) {
-      dragIdx = parseInt(this.dataset.idx);
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('zone-reorder', zone);
-      var self = this;
-      setTimeout(function(){ self.style.opacity='0.4'; }, 0);
-    });
-    el.addEventListener('dragend', function(){ this.style.opacity='1'; this.style.outline=''; });
-    el.addEventListener('dragover', function(e) {
-      e.preventDefault(); e.stopPropagation();
-      if (dragIdx !== null) this.style.outline = '2px solid var(--gold)';
-    });
-    el.addEventListener('dragleave', function(){ this.style.outline=''; });
-    el.addEventListener('drop', function(e) {
-      e.preventDefault(); e.stopPropagation();
-      this.style.outline = '';
-      var overIdx = parseInt(this.dataset.idx);
-      if (dragIdx === null || overIdx === dragIdx) return;
-      if (e.dataTransfer.getData('zone-reorder') !== zone) return;
-      var arr = zone==='items' ? buildEditorData.items : buildEditorData.spells;
-      var moved = arr.splice(dragIdx, 1)[0];
-      arr.splice(overIdx, 0, moved);
-      dragIdx = null;
-      refreshBuildZones();
-    });
-  });
+// MAGI's drag (dragsort.js) for the build editor. The chips already in a zone
+// reorder; the tiles in the item/spell picker are carried as a copy and added
+// where they land. Every list of a kind shares a group, so a tile can be dropped
+// into the gap you want. Same gesture on both: a few pixels with a mouse, a long
+// press on touch (a tap still adds the tile).
+function beSortZone(zone, kind) {
+  A1Drag.sort(zone, { row: '.bld-drag', axis: 'grid', hold: 300, group: 'bld-' + kind, onDrop: beDrop });
 }
 
-
-// ══════════════════════════════════════
-// TOUCH DRAG-AND-DROP — build editor
-// ══════════════════════════════════════
-// HTML5 drag events (dragstart/drop) never fire from a finger, so on a phone
-// the item and spell selectors could only be TAPPED into a zone — the drag the
-// desktop has simply did not exist. This is that same gesture on touch: a
-// LONG PRESS arms it (the interaction the tab strip already uses, so an
-// ordinary swipe still scrolls the grid), a ghost then follows the finger, and
-// the release drops on whatever zone is under it.
-//
-// Mouse is left entirely to the native handlers above — this bails on
-// pointerType 'mouse' — so desktop behaviour is untouched.
-var _beTd = null;          // the live gesture, or null
-var _beTdHold = null;      // long-press timer
-var _beTdRaf = null;       // edge auto-scroll frame
-var _beTdSuppress = false; // swallow the click a drop would otherwise fire
-var _beTdWired = false;    // window listeners are wired exactly once
-
-function _beTdZoneAt(x, y) {
-  var el = document.elementFromPoint(x, y);
-  return el && el.closest ? el.closest('.bld-dropzone') : null;
-}
-
-function _beTdChipAt(x, y) {
-  var el = document.elementFromPoint(x, y);
-  var chip = el && el.closest ? el.closest('.bld-drag[data-zone]') : null;
-  return chip;
-}
-
-// Nearest ancestor that actually scrolls, so dragging to a pane's edge can
-// bring the rest of it into view instead of dead-ending the gesture.
-function _beTdScroller(x, y) {
-  var el = document.elementFromPoint(x, y);
-  while (el && el !== document.body && el !== document.documentElement) {
-    var oy = getComputedStyle(el).overflowY;
-    if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight + 2) return el;
-    el = el.parentElement;
-  }
-  return null;
-}
-
-function _beTdAutoScroll() {
-  var d = _beTd;
-  if (!d || !d.dragging) { _beTdRaf = null; return; }
-  var sc = _beTdScroller(d.x, d.y);
-  if (sc) {
-    var r = sc.getBoundingClientRect(), EDGE = 56, SPEED = 11, step = 0;
-    if (d.y < r.top + EDGE) step = -SPEED;
-    else if (d.y > r.bottom - EDGE) step = SPEED;
-    if (step) sc.scrollTop = Math.max(0, Math.min(sc.scrollHeight - sc.clientHeight, sc.scrollTop + step));
-  }
-  _beTdRaf = requestAnimationFrame(_beTdAutoScroll);
-}
-
-function _beTdFollow() {
-  var d = _beTd;
-  if (!d || !d.ghost) return;
-  d.ghost.style.transform = 'translate(-50%,-50%) translate(' + d.x + 'px,' + d.y + 'px)';
-}
-
-function _beTdHighlight() {
-  var d = _beTd, zone = _beTdZoneAt(d.x, d.y);
-  if (zone !== d.overZone) {
-    if (d.overZone) d.overZone.classList.remove('bld-over');
-    // Only light up a zone this payload can actually land in, so the highlight
-    // is a promise the drop keeps.
-    d.overZone = (zone && zone.dataset.zone === d.zone) ? zone : null;
-    if (d.overZone) {
-      d.overZone.classList.add('bld-over');
-      try { navigator.vibrate(8); } catch(_e) {}
-    }
-  }
-  // Reordering is aimed at ONE chip, so mark the one the release would swap
-  // with. Without it the whole zone lights up and you are guessing.
-  var chip = _beTdChipAt(d.x, d.y);
-  var next = (chip && chip !== d.src && chip.dataset.zone === d.zone) ? chip : null;
-  if (next !== d.overChip) {
-    if (d.overChip) d.overChip.classList.remove('bld-target');
-    d.overChip = next;
-    if (d.overChip) d.overChip.classList.add('bld-target');
-  }
-}
-
-function _beTdStart() {
-  var d = _beTd;
-  d.dragging = true;
-  var srcImg = d.src.querySelector('img');
-  var g = document.createElement('img');
-  g.className = 'bld-ghost';
-  if (srcImg) g.src = srcImg.src;
-  var box = srcImg ? Math.max(44, Math.min(64, srcImg.offsetWidth || 48)) : 48;
-  g.style.width = box + 'px';
-  g.style.height = box + 'px';
-  document.body.appendChild(g);
-  d.ghost = g;
-  d.src.classList.add('bld-lifted');
-  try { d.src.setPointerCapture(d.id); } catch(_e) {}
-  try { navigator.vibrate(18); } catch(_e) {}
-  _beTdFollow();
-  _beTdHighlight();
-  if (!_beTdRaf) _beTdRaf = requestAnimationFrame(_beTdAutoScroll);
-}
-
-function _beTdCleanup() {
-  var d = _beTd;
-  clearTimeout(_beTdHold); _beTdHold = null;
-  if (_beTdRaf) { cancelAnimationFrame(_beTdRaf); _beTdRaf = null; }
-  if (!d) return;
-  if (d.ghost && d.ghost.parentNode) d.ghost.parentNode.removeChild(d.ghost);
-  if (d.overZone) d.overZone.classList.remove('bld-over');
-  if (d.overChip) d.overChip.classList.remove('bld-target');
-  if (d.src) d.src.classList.remove('bld-lifted');
-  _beTd = null;
-}
-
-function _beTdDown(e) {
-  if (e.pointerType === 'mouse' || e.button > 0) return;   // mouse keeps native dnd
-  if (!e.target.closest) return;
-  if (e.target.closest('button')) return;                  // the ✕ is a tap, not a grip
-  var src = e.target.closest('.bld-drag');
-  if (!src) return;
-  var inZone = src.dataset.zone || null;
-  // On touch a tile in the SELECTOR is a tap, never a drag. Dragging one out of
-  // a grid that scrolls under the same finger was a gesture fighting itself,
-  // and the tap that already added it is the one people reach for. Dragging
-  // survives only INSIDE a zone, where it means reorder. Mouse never gets here
-  // - _beTdDown bails on pointerType 'mouse' above - so desktop drag-to-add is
-  // exactly as it was.
-  if (!inZone) return;
-  _beTd = {
-    src: src, id: e.pointerId, dragging: false, overZone: null, overChip: null, ghost: null,
-    x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY,
-    from: 'zone',
-    zone: inZone,
-    itemId: src.dataset.id || null,
-    idx: parseInt(src.dataset.idx, 10)
-  };
-  // Short, because a chip has nothing else a press could mean; a sideways move
-  // arms it sooner still (_beTdMove).
-  _beTdHold = setTimeout(function(){ _beTdHold = null; if (_beTd) _beTdStart(); }, 200);
-}
-
-function _beTdMove(e) {
-  var d = _beTd;
-  if (!d || e.pointerId !== d.id) return;
-  d.x = e.clientX; d.y = e.clientY;
-  if (!d.dragging) {
-    var dx = Math.abs(d.x - d.startX), dy = Math.abs(d.y - d.startY);
-    // Sideways off a chip is a reorder and nothing else, so it arms at once
-    // rather than waiting the press out — that wait is what made reordering by
-    // finger feel like it did not work.
-    if (dx > 8 && dx > dy) {
-      clearTimeout(_beTdHold); _beTdHold = null;
-      _beTdStart();
-      return;
-    }
-    // Straight down before the press landed — that is a scroll, not a grab.
-    if (dy > 9) _beTdCleanup();
-    return;
-  }
-  _beTdFollow();
-  _beTdHighlight();
-}
-
-function _beTdUp(e) {
-  var d = _beTd;
-  if (!d) return;
-  if (e && e.pointerId != null && e.pointerId !== d.id) return;
-  var dropped = d.dragging ? d.overZone : null;
-  var from = d.from, zone = d.zone, fromIdx = d.idx;
-  var x = d.x, y = d.y;
-  var wasDrag = d.dragging;
-  _beTdCleanup();
-  if (!wasDrag) return;
-  // The press became a drag, so the click it would otherwise fire on release
-  // would add the item a SECOND time. Swallow it.
-  _beTdSuppress = true;
-  setTimeout(function(){ _beTdSuppress = false; }, 350);
+function beDrop(from, to, fromList, toList) {
   if (!buildEditorData) return;
-
-  if (from !== 'zone' || !dropped) return;
-  // Reorder inside the zone. Deliberately the SAME two splices attachZoneDrag
-  // makes on a mouse drop, index for index — a finger and a mouse landing on
-  // the same chip must produce the same order, and a subtly different rule for
-  // touch is the kind of thing you only notice by never trusting either.
-  var arr = zone === 'items' ? buildEditorData.items : buildEditorData.spells;
-  if (!arr || fromIdx < 0 || fromIdx >= arr.length) return;
-  var overChip = _beTdChipAt(x, y);
-  var toIdx = (overChip && overChip.dataset.zone === zone)
-    ? parseInt(overChip.dataset.idx, 10)
-    : arr.length - 1;                       // released over bare zone: send to the end
-  if (isNaN(toIdx) || toIdx === fromIdx) return;
-  var moved = arr.splice(fromIdx, 1)[0];
-  arr.splice(Math.max(0, Math.min(arr.length, toIdx)), 0, moved);
+  var kind = toList.dataset.zone;                       // 'items' | 'spells'
+  var arr = kind === 'items' ? buildEditorData.items : buildEditorData.spells;
+  if (!arr) return;
+  if (fromList === toList) {
+    arr.splice(to, 0, arr.splice(from, 1)[0]);
+  } else {
+    var tile = Array.prototype.filter.call(fromList.children, function(n){ return n.classList.contains('bld-drag'); })[from];
+    var id = tile && tile.dataset.id;
+    if (!id || arr.indexOf(id) >= 0 || arr.length >= (kind === 'items' ? 7 : 2)) return;
+    arr.splice(Math.min(to, arr.length), 0, id);
+  }
   refreshBuildZones();
-}
-
-// Called once per editor render — #be-split is rebuilt each time, so its own
-// listeners come fresh, while the window-level ones are wired only once.
-function beEnableTouchDrag() {
-  var split = document.getElementById('be-split');
-  if (!split) return;
-  split.addEventListener('pointerdown', _beTdDown);
-  // A long press is a context menu / text selection to the browser otherwise.
-  split.addEventListener('contextmenu', function(e){ if (_beTd) e.preventDefault(); });
-  // Capture phase, so a drop never also reaches the tile's own onclick.
-  split.addEventListener('click', function(e){
-    if (_beTdSuppress) { e.stopPropagation(); e.preventDefault(); }
-  }, true);
-  if (_beTdWired) return;
-  _beTdWired = true;
-  window.addEventListener('pointermove', _beTdMove);
-  window.addEventListener('pointerup', _beTdUp, true);
-  window.addEventListener('pointercancel', _beTdUp, true);
-  window.addEventListener('lostpointercapture', function(e){
-    if (_beTd && _beTd.dragging && e.pointerId === _beTd.id) _beTdUp(e);
-  }, true);
-  window.addEventListener('blur', function(){ if (_beTd) _beTdUp(null); });
-  // Non-passive: once the drag is armed the page must NOT scroll under it.
-  document.addEventListener('touchmove', function(e){
-    if (_beTd && _beTd.dragging && e.cancelable) e.preventDefault();
-  }, { passive: false });
 }
 
 
@@ -8652,9 +8223,9 @@ function renderBuildPanelContent(q, cat) {
     });
     if (q) list = list.filter(function(i){ return i.name.toLowerCase().includes(q.toLowerCase()); });
     list.sort(function(a,b){ return a.name.localeCompare(b.name); });
-    el.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(66px,1fr));gap:6px;">' +
+    el.innerHTML = '<div class="bp-grid" data-palette="items" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(66px,1fr));gap:6px;">' +
       list.map(function(item) {
-        return '<div class="bld-drag" draggable="true" data-id="' + item.id + '" data-src="items" ondragstart="dragBuildItem(event,\'items\',this.dataset.id)" onclick="addToBuild(\'items\',this.dataset.id)" title="' + item.name + '" style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 4px;background:var(--bg3);border:1px solid var(--bd);border-radius:8px;cursor:grab;transition:border-color 0.1s;">' +
+        return '<div class="bld-drag" data-id="' + item.id + '" onclick="addToBuild(\'items\',this.dataset.id)" title="' + item.name + '" style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 4px;background:var(--bg3);border:1px solid var(--bd);border-radius:8px;cursor:grab;">' +
           '<img src="' + DDRAGON + '/img/item/' + (item.image&&item.image.full||'') + '" style="width:44px;height:44px;border-radius:6px;" onerror="this.style.opacity=0.3">' +
           '<span style="font-family:var(--body);font-size:12px;font-weight:600;color:var(--tx);text-align:center;word-break:break-word;line-height:1.2;width:100%;">' + item.name + '</span>' +
         '</div>';
@@ -8663,13 +8234,17 @@ function renderBuildPanelContent(q, cat) {
   } else if (_bpTab === 'spells') {
     const STANDARD = ['SummonerHeal','SummonerHaste','SummonerBarrier','SummonerExhaust','SummonerFlash','SummonerTeleport','SummonerSmite','SummonerBoost','SummonerDot'];
     const list = (allSummonerSpells||[]).filter(function(s){ return STANDARD.includes(s.id); }).sort(function(a,b){ return a.name.localeCompare(b.name); });
-    el.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;">' +
+    el.innerHTML = '<div class="bp-grid" data-palette="spells" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;">' +
       list.map(function(s) {
-        return '<div class="bld-drag" draggable="true" data-id="' + s.id + '" data-src="spells" ondragstart="dragBuildItem(event,\'spells\',this.dataset.id)" onclick="addToBuild(\'spells\',this.dataset.id)" title="' + s.name + '" style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:8px 6px;background:var(--bg3);border:1px solid var(--bd);border-radius:8px;cursor:grab;transition:border-color 0.1s;">' +
+        return '<div class="bld-drag" data-id="' + s.id + '" onclick="addToBuild(\'spells\',this.dataset.id)" title="' + s.name + '" style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:8px 6px;background:var(--bg3);border:1px solid var(--bd);border-radius:8px;cursor:grab;">' +
           '<img src="' + DDRAGON + '/img/spell/' + s.image.full + '" style="width:48px;height:48px;border-radius:8px;">' +
           '<span style="font-family:var(--body);font-size:12px;font-weight:700;color:var(--tx);text-align:center;">' + s.name + '</span>' +
         '</div>';
       }).join('') + '</div>';
+  }
+  var grid = el.firstElementChild;
+  if (grid && grid.dataset.palette) {
+    A1Drag.sort(grid, { row: '.bld-drag', axis: 'grid', hold: 300, copy: true, group: 'bld-' + grid.dataset.palette, onDrop: beDrop });
   }
 }
 
@@ -8785,25 +8360,6 @@ function filterBuildPanel(q) {
 }
 
 
-
-// Drag and drop
-function dragBuildItem(event, type, id) {
-  event.dataTransfer.setData('type', type);
-  event.dataTransfer.setData('id', id);
-  event.dataTransfer.setData('source', 'panel');
-}
-function dragFromBuild(event, type, id) {
-  event.dataTransfer.setData('type', type);
-  event.dataTransfer.setData('id', id);
-  event.dataTransfer.setData('source', 'build');
-}
-function dropOnBuild(event, zone) {
-  event.preventDefault();
-  const type = event.dataTransfer.getData('type');
-  const id = event.dataTransfer.getData('id');
-  if (type !== zone) return;
-  addToBuild(zone, id);
-}
 
 function toggleLiveWatch() {
   if (liveWatching) stopLiveWatch();
@@ -12198,166 +11754,28 @@ const BI=(sty,icon,label,fn,iconStyle)=>{
 const IMG=(src,s)=>{const i=mk('img',{style:s,alt:''});i.src=src;i.onerror=()=>{i.style.display='none';};return i;};
 
 // ── League pill reorder ────────────────────────────────────────────────────
-// The exact interaction WarRoom's tab strip uses (see wrEnableTabDrag): the
-// pill you grabbed IS the thing that moves, and its neighbours FLIP out of the
-// way live, so you drop it where you can already see it. The old version lifted
-// a floating clone and only highlighted a target, which meant the row you were
-// looking at never matched the order you were about to get — and it behaved
-// differently under a mouse than under a finger. One function now, one feel.
-//
-// Touch arms on a LONG PRESS so an ordinary swipe still scrolls the strip; a
-// mouse arms after a few pixels of travel.
-var _pvDrag=null,_pvDragHold=null,_pvDragRaf=null,_pvDragSuppress=false,_pvDragWired=false;
-
-// FLIP in LAYOUT coordinates (offsetLeft), not viewport rects: the strip
-// scrolls, and scrollLeft shifts as pills are reordered, so viewport deltas
-// would fold that jump into the animation.
-function _pvFlipX(nav,mutate,exclude){
-  var kids=[].slice.call(nav.children);
-  var before=kids.map(function(k){return k.offsetLeft;});
-  mutate();
-  kids.forEach(function(k,i){
-    if(k===exclude) return;
-    var dx=before[i]-k.offsetLeft;
-    if(!dx||Math.abs(dx)>nav.clientWidth*2) return;
-    k.style.transition='none';
-    k.style.transform='translateX('+dx+'px)';
-    requestAnimationFrame(function(){
-      k.style.transition='transform .16s cubic-bezier(.2,.8,.3,1)';
-      k.style.transform='';
-    });
-  });
-}
-function _pvFollow(x){
-  var d=_pvDrag;
-  d.tab.style.transform='translateX('+((x-d.grabX)+(d.nav.scrollLeft-d.grabScroll))+'px)';
-}
-function _pvMakeMove(other,after){
-  return function(){
-    var d=_pvDrag;
-    d.nav.insertBefore(d.tab,after?other.nextSibling:other);
-    // insertBefore on an attached node is a remove + insert, and removing a node
-    // releases its pointer capture. Re-take it after every reorder or a release
-    // outside the strip goes unnoticed.
-    try{ d.tab.setPointerCapture(d.id); }catch(_e){}
-  };
-}
-function _pvCheckSwap(x){
-  var d=_pvDrag,nav=d.nav;
-  for(var i=0;i<nav.children.length;i++){
-    var other=nav.children[i];
-    if(other===d.tab) continue;
-    var r=other.getBoundingClientRect();
-    if(x<r.left||x>r.right) continue;
-    var mid=r.left+r.width/2;
-    var otherIsBefore=!!(d.tab.compareDocumentPosition(other)&Node.DOCUMENT_POSITION_PRECEDING);
-    if(x<mid&&otherIsBefore) _pvFlipX(nav,_pvMakeMove(other,false),d.tab);
-    else if(x>mid&&!otherIsBefore) _pvFlipX(nav,_pvMakeMove(other,true),d.tab);
-    else continue;
-    // Re-anchor so the pill stays under the pointer after the reflow.
-    d.grabX=x; d.grabScroll=nav.scrollLeft;
-    d.tab.style.transform='translateX(0px)';
-    break;
-  }
-}
-// Dragging toward either end scrolls the strip, so a league that is off-screen
-// on a phone is still reachable without dropping and re-grabbing.
-function _pvAutoScroll(){
-  var d=_pvDrag;
-  if(!d||!d.dragging){ _pvDragRaf=null; return; }
-  var r=d.nav.getBoundingClientRect(),EDGE=44,SPEED=9,step=0;
-  if(d.lastX<r.left+EDGE) step=-SPEED;
-  else if(d.lastX>r.right-EDGE) step=SPEED;
-  if(step){
-    var was=d.nav.scrollLeft;
-    d.nav.scrollLeft=Math.max(0,Math.min(d.maxScroll,was+step));
-    if(d.nav.scrollLeft!==was){ _pvFollow(d.lastX); _pvCheckSwap(d.lastX); }
-  }
-  _pvDragRaf=requestAnimationFrame(_pvAutoScroll);
-}
-function _pvStartDrag(e){
-  var d=_pvDrag;
-  d.dragging=true;
-  d.grabX=e.clientX; d.grabScroll=d.nav.scrollLeft; d.lastX=e.clientX;
-  // Measured while the lifted pill is still untransformed: a translated child
-  // extends the scrollable area, so reading scrollWidth mid-drag makes the
-  // right edge run away forever. Reordering never changes total width.
-  d.maxScroll=Math.max(0,d.nav.scrollWidth-d.nav.clientWidth);
-  d.tab.style.transition='';
-  d.tab.classList.add('pv-pilldrag');
-  try{ d.tab.setPointerCapture(d.id); }catch(_e){}
-  try{ navigator.vibrate(18); }catch(_e){}
-  if(!_pvDragRaf) _pvDragRaf=requestAnimationFrame(_pvAutoScroll);
-}
-function _pvDragCleanup(){
-  var d=_pvDrag;
-  if(!d) return;
-  var tab=d.tab;
-  tab.style.transition='transform .16s cubic-bezier(.2,.8,.3,1)';
-  tab.style.transform='';
-  setTimeout(function(){ tab.style.transition=''; },180);
-  tab.classList.remove('pv-pilldrag');
-  clearTimeout(_pvDragHold); _pvDragHold=null;
-  if(_pvDragRaf){ cancelAnimationFrame(_pvDragRaf); _pvDragRaf=null; }
-  _pvDrag=null;
-}
-function _pvPillDown(e){
-  var nav=e.currentTarget;
-  var tab=e.target&&e.target.closest?e.target.closest('.pv-lg-pill'):null;
-  if(!tab||e.button>0) return;
-  _pvDrag={nav:nav,tab:tab,id:e.pointerId,startX:e.clientX,startY:e.clientY,lastX:e.clientX,
-           dragging:false,moved:false,touch:e.pointerType!=='mouse'};
-  if(_pvDrag.touch) _pvDragHold=setTimeout(function(){ _pvDragHold=null; if(_pvDrag) _pvStartDrag(e); },320);
-}
-function _pvPillMove(e){
-  var d=_pvDrag;
-  if(!d||e.pointerId!==d.id) return;
-  if(!d.dragging){
-    var dx=Math.abs(e.clientX-d.startX),dy=Math.abs(e.clientY-d.startY);
-    if(d.touch){ if(dx>8||dy>8) _pvDragCleanup(); return; }  // a swipe: let it scroll
-    if(dx<5) return;
-    _pvStartDrag(e);
-  }
-  d.moved=true; d.lastX=e.clientX;
-  _pvFollow(e.clientX); _pvCheckSwap(e.clientX);
-}
-function _pvPillUp(e){
-  var d=_pvDrag;
-  if(!d) return;
-  if(e&&e.pointerId!=null&&e.pointerId!==d.id) return;
-  var nav=d.nav,wasDrag=d.dragging&&d.moved;
-  _pvDragCleanup();
-  if(!wasDrag) return;
-  _pvDragSuppress=true;                       // don't switch leagues on drop
-  setTimeout(function(){ _pvDragSuppress=false; },60);
-  var order=[].map.call(nav.querySelectorAll('.pv-lg-pill'),function(b){return b.dataset.lgid;});
-  var byId={}; _cfg.leagues.forEach(function(l){ byId[l.id]=l; });
-  var seen={},next=[];
-  order.forEach(function(id){ if(byId[id]&&!seen[id]){ seen[id]=1; next.push(byId[id]); } });
-  _cfg.leagues.forEach(function(l){ if(!seen[l.id]){ seen[l.id]=1; next.push(l); } });
-  var was=_cfg.leagues.map(function(l){return l.id;}).join();
-  if(next.map(function(l){return l.id;}).join()===was) return;
-  _cfg.leagues=next;
-  saveCfg();
-}
+// MAGI's drag (dragsort.js), the same one WarRoom's tab strip uses: the pill you
+// grab is the thing that moves and its neighbours slide out of the way. Touch
+// arms on a LONG PRESS so an ordinary swipe still scrolls the strip; a mouse
+// arms after a few pixels of travel. render() builds a fresh strip every pass,
+// so this is called per strip.
 function pvEnablePillDrag(nav){
-  nav.addEventListener('pointerdown',_pvPillDown);
-  // Non-passive so an armed drag can stop the strip scrolling itself.
-  nav.addEventListener('touchmove',function(e){ if(_pvDrag&&_pvDrag.dragging&&e.cancelable) e.preventDefault(); },{passive:false});
-  // Capture phase, so a drop never reaches the pill's own switch handler.
-  nav.addEventListener('click',function(e){ if(_pvDragSuppress){ e.stopPropagation(); e.preventDefault(); } },true);
-  // render() builds a fresh strip every pass, so the WINDOW listeners are wired
-  // exactly once — a release over the page below the strip would otherwise never
-  // bubble back and the drag could not end.
-  if(_pvDragWired) return;
-  _pvDragWired=true;
-  window.addEventListener('pointermove',_pvPillMove);
-  window.addEventListener('pointerup',_pvPillUp,true);
-  window.addEventListener('pointercancel',_pvPillUp,true);
-  window.addEventListener('lostpointercapture',function(e){
-    if(_pvDrag&&_pvDrag.dragging&&e.pointerId===_pvDrag.id) _pvPillUp(e);
-  },true);
-  window.addEventListener('blur',function(){ if(_pvDrag) _pvPillUp(null); });
+  A1Drag.sort(nav,{
+    row:'.pv-lg-pill',axis:'x',hold:300,
+    onDrop:function(from,to){
+      var ls=_cfg.leagues.slice();
+      ls.splice(to,0,ls.splice(from,1)[0]);
+      _cfg.leagues=ls;
+      saveCfg();
+      // The pills are redrawn in their new order; keep the page and the strip
+      // where they were rather than jumping back to the start.
+      var top=_el.scrollTop,left=nav.scrollLeft;
+      render();
+      _el.scrollTop=top;
+      var p=_el.querySelector('.pv-lg-pill');
+      if(p&&p.parentNode) p.parentNode.scrollLeft=left;
+    }
+  });
 }
 
 // ── Render entry ───────────────────────────────────────────────────────────
@@ -12447,9 +11865,8 @@ function render(){
   hrow1.appendChild(_lgB);
   hdr.appendChild(hrow1);
 
-  // Row 2: league pills — scrollable, and drag-to-reorder with the same live
-  // FLIP interaction WarRoom's tab strip uses. Identical on desktop and touch:
-  // see pvEnablePillDrag above.
+  // Row 2: league pills — scrollable, and drag-to-reorder with the same drag
+  // WarRoom's tab strip uses (dragsort.js). See pvEnablePillDrag above.
   if(_cfg.leagues.length){
     const hrow2=D({display:'flex',alignItems:'center',gap:6,
       height:'44px',overflowX:'auto',flexShrink:0});
@@ -12464,9 +11881,8 @@ function render(){
         borderRadius:20,padding:'0 14px',height:'34px',fontSize:11,
         fontWeight:700,cursor:'grab',whiteSpace:'nowrap',flexShrink:0,
         userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none',
-      },lg.name,()=>{if(_pvDragSuppress)return;_activeLeague=lg.id;render();fetchLeagueData(lg.id).then(()=>{publishCards();render();});});
+      },lg.name,()=>{_activeLeague=lg.id;render();fetchLeagueData(lg.id).then(()=>{publishCards();render();});});
       pill.className='pv-lg-pill';
-      pill.draggable=false;
       pill.dataset.lgid=lg.id;
       pill.addEventListener('contextmenu',e=>e.preventDefault());
       hrow2.appendChild(pill);
@@ -12949,13 +12365,11 @@ setInterval(()=>{
       '}'+
       /* League pills: `manipulation` keeps the browser's own horizontal panning
          while dropping the 300ms tap delay — a reorder only arms on a long
-         press, so an ordinary swipe still scrolls the strip. */
+         press (dragsort.js), so an ordinary swipe still scrolls the strip. */
       '.pv-lg-pill{touch-action:manipulation;}'+
-      /* The lifted pill keeps its own ink — recolouring the ACTIVE one would
-         wash its label out against its own accent fill. */
-      '.pv-lg-pill.pv-pilldrag{z-index:5;cursor:grabbing;opacity:.97;'+
-        'border-color:#c0aeea!important;'+
-        'box-shadow:0 10px 26px rgba(0,0,0,.45),0 0 0 1px rgba(192,174,234,.45);}'+
+      /* dragsort.js slides the neighbours with a transform transition; the
+         button rule below would otherwise replace it. */
+      '#pv-root .dsort>*{transition:transform .17s cubic-bezier(.2,.8,.2,1),border-color .18s,color .18s,box-shadow .18s,background .18s;}'+
       /* pv-hglow was being applied to three buttons but had never been DEFINED,
          so none of them actually glowed. Every ProView button now answers the
          pointer with the same lit outline WarRoom uses — one hover language
