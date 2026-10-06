@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Launcher",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Veda's Links in the toolbar. Open one link or launch a whole group as a named tab group — synced both ways with the Links program.",
   "permissions": [
     "tabs",
@@ -13,6 +13,13 @@
   "host_permissions": [
     "https://keychain-sync.av1.workers.dev/*",
     "https://anthonyn99.github.io/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://anthonyn99.github.io/*"],
+      "js": ["lifehub-bridge.js"],
+      "run_at": "document_idle"
+    }
   ],
   "action": {
     "default_popup": "popup.html",

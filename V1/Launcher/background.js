@@ -235,6 +235,9 @@ ensureAlarm();
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message) return;
 
+  // LifeHub asks, ahead of its "Open all" click, whether tab groups are possible.
+  if (message.action === "aiLaunchCapability") { sendResponse({ ok: true }); return true; }
+
   if (message.action === "openLinks") {
     const urls = (message.urls || []).map(normalize).filter(Boolean);
     if (!urls.length) { sendResponse({ ok: false, opened: 0 }); return true; }
