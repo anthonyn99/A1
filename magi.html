@@ -737,6 +737,10 @@ input, select, textarea, button { font-variant-numeric: tabular-nums; }
 .unit-lim-state.unknown { color: var(--txm); font-weight: 600; }
 .unit-lim-sub { flex: 1 1 100%; color: var(--txm); font-size: 10.5px; line-height: 1.5; overflow-wrap: anywhere; }
 .unit-lim-sub.warn { color: var(--amber); }
+.unit-lim-note { flex: 1 1 100%; display: flex; align-items: center; gap: 6px 10px; min-width: 0; }
+.unit-lim-note .unit-lim-sub { flex: 1 1 0; min-width: 0; }
+.unit-lim-note .unit-lim-check { flex: none; white-space: nowrap; }
+@media (max-width: 340px) { .unit-lim-note { flex-wrap: wrap; } .unit-lim-note .unit-lim-sub { flex-basis: 100%; } }
 .unit-lim-bars { flex: 1 1 100%; display: flex; flex-direction: column; gap: 4px; margin-top: 1px; }
 .unit-lim-bar { display: grid; grid-template-columns: 58px 1fr 34px; gap: 6px; align-items: center; font-size: 10px; color: var(--txm); }
 .unit-lim-bar i { display: block; height: 4px; border-radius: 2px; background: var(--bd); overflow: hidden; }
@@ -17984,13 +17988,19 @@ function unitLimBox(id) {
   chk.append(document.createTextNode(busy ? "Checking…" : "Check now"));
   chk.title = "Open this unit's site now (signed in as you, nothing sent) and read what it shows";
   chk.onclick = () => unitCheckNow(id);
-  box.append(chk);
-  if (!u) return box;
+  if (!u) { box.append(chk); return box; }
 
+  // The button shares the row with the site's own words when there are some
+  // (long text wraps inside its own column, the button stays put); alone, it
+  // sits at the end of the state line.
   const lim = u.limit;
   if (lim && lim.detail) {
     const said = lim.detail.replace(/^The site said:\s*/, "");
-    box.append(el("div", "unit-lim-sub", `“${said}”`));
+    const note = el("div", "unit-lim-note");
+    note.append(el("div", "unit-lim-sub", `“${said}”`), chk);
+    box.append(note);
+  } else {
+    box.append(chk);
   }
   if (u.state === "fallback" && u.model_fallback) {
     box.append(el("div", "unit-lim-sub warn", u.model_fallback));
