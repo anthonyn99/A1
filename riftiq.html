@@ -492,7 +492,7 @@
 /* -- TOUCH: no browser-blue on tap --
    Chrome on Android paints its own translucent blue box over whatever a finger
    lands on. It fell on runes, item tiles, pills and cards, and read as a
-   selection state WarRoom never designed - the accent glow is the only
+   selection state WarRoom never designed - the accent outline is the only
    interaction feedback this program has. Killed everywhere; a KEYBOARD focus
    ring still lands, because :focus-visible is left alone and only the ring a
    tap/click leaves behind is dropped. */
@@ -656,7 +656,6 @@ body.wr-locked #pv-root,
 body.wr-locked #wr-progbar { display: none !important; }
 
 #applock-overlay{position:fixed;inset:0;z-index:2147483000;background:var(--bg);
-  background-image:radial-gradient(120% 50% at 50% -10%,rgba(192,174,234,.09),transparent 70%);
   display:none;align-items:center;justify-content:center;font-family:var(--body);}
 /* The manage menu injects up to four more buttons, which overflows a short
    screen (a phone in landscape). Scroll inside the card, never the backdrop. */
@@ -692,8 +691,8 @@ body.wr-locked #wr-progbar { display: none !important; }
 #applock-bio button svg,#al-menu-btns button svg{width:15px;height:15px;display:block;flex-shrink:0;}
 /* ── Lock-manager hover + touch sizing ───────────────────────────────────────
    The menu rows are built in JS with an inline `border` shorthand, so a plain
-   stylesheet hover cannot beat it — hence !important on border-color. The glow
-   is what marks the target on desktop, and it is gated behind hover/fine
+   stylesheet hover cannot beat it — hence !important on border-color. The accent
+   outline is what marks the target on desktop, and it is gated behind hover/fine
    pointers so a tap on a phone never leaves a row stuck looking hovered.
    `.al-ac` = accent rows (unlock / lock this device now), `.al-dg` = the
    destructive row. */
@@ -725,14 +724,12 @@ body.wr-locked #wr-progbar { display: none !important; }
 }
 #program-picker.on { display: flex; }
 
-/* Soft rift of light behind the wordmark — the only ornament on the screen. */
+/* The picker's backdrop ornament, retired with the gradients (MAGI: no gradient
+   fills, no glow). The element stays in the markup, drawn as nothing. */
 .pp-glow {
   position: absolute; top: -34%; left: 50%; transform: translateX(-50%);
   width: min(1100px, 150vw); height: 620px; pointer-events: none;
-  background:
-    radial-gradient(closest-side, rgba(192,174,234,.15), transparent 72%),
-    radial-gradient(closest-side, rgba(143,166,216,.08), transparent 70%);
-  filter: blur(6px);
+  display: none;
 }
 
 .pp-inner { position: relative; width: 100%; max-width: 720px; }
@@ -744,7 +741,7 @@ body.wr-locked #wr-progbar { display: none !important; }
 }
 .pp-w1 { color: var(--tx); }
 .pp-w2 {
-  background: linear-gradient(135deg, var(--gold), var(--gold2));
+  background: var(--gold);
   -webkit-background-clip: text; background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -777,7 +774,7 @@ body.wr-locked #wr-progbar { display: none !important; }
 /* A thin accent bar that wipes across the top edge on hover. */
 .pp-card::before {
   content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-  background: linear-gradient(90deg, var(--gold), var(--gold2));
+  background: var(--gold);
   transform: scaleX(0); transform-origin: left; transition: transform .28s ease;
 }
 .pp-card:hover, .pp-card:focus-visible {
@@ -843,15 +840,15 @@ body.wr-locked #wr-progbar { display: none !important; }
 #wr-progbar-mark {
   font-family: var(--wordmark); font-size: 20px; font-weight: 800;
   letter-spacing: -0.5px; white-space: nowrap; line-height: 1;
-  /* Same lit halo WarRoom's #topbar-logo carries — one identity treatment, so
-     swapping programs does not change how the wordmark sits on the bar. */
+  /* Solid like WarRoom's #topbar-logo — one identity treatment, so swapping
+     programs does not change how the wordmark sits on the bar. */
   color: var(--gold);
   text-shadow: none;
 }
-/* 'Pro' takes the gradient, 'View' stays solid — the mirror of WarRoom, where
-   'War' glows and 'Room' does not. Same treatment, same size, opposite half. */
+/* 'Pro' takes the accent, 'View' stays light — the mirror of WarRoom, where
+   'War' does and 'Room' does not. Same treatment, same size, opposite half. */
 #wr-progbar-mark .pv-w1 {
-  background: linear-gradient(135deg,#c0aeea,#dbd0f5);
+  background: var(--gold);
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
 }
 #wr-progbar-mark .pv-w2 { color: var(--tx); }
@@ -939,7 +936,7 @@ body.wr-locked #wr-progbar { display: none !important; }
   font-size: 48px;
   font-weight: 900;
   letter-spacing: -1px;
-  background: linear-gradient(135deg, #c0aeea, #dbd0f5);
+  background: var(--gold);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -1151,7 +1148,7 @@ html.lk-open, body.lk-open {
   border-color: var(--gold); color: var(--gold);
   box-shadow: none;
 }
-/* Removing is destructive, so it glows in its own colour - the same split the
+/* Removing is destructive, so it lights in its own colour - the same split the
    rest of the program makes between a primary action and a deletion. */
 .lk-act-del:hover:not(:disabled) {
   border-color: var(--red); color: var(--red);
@@ -1236,12 +1233,12 @@ html.lk-open, body.lk-open {
 
 /* ══ BUTTONS ══════════════════════════════════════════════════════════════
    ONE rule for the whole program: a button is an outline. Selected and primary
-   states differ by how brightly that outline GLOWS, never by filling the button
+   states differ by how strongly that outline is drawn, never by filling the button
    with accent colour. A filled purple block next to the accent-purple text and
    accent-purple borders everywhere else read as a different design language,
    and on the item-category row it made the selected chip the loudest thing on
-   a screen full of item art. Glow carries the same signal at a fraction of the
-   visual weight, and it works identically on both themes of surface. */
+   a screen full of item art. An outline carries the same signal at a fraction of
+   the visual weight (MAGI's buttons work the same way). */
 .wr-cta, .btn-primary {
   background: transparent !important;
   border: 1px solid rgba(192,174,234,.45) !important;
@@ -1255,8 +1252,8 @@ html.lk-open, body.lk-open {
 }
 .wr-cta:disabled, .btn-primary:disabled { opacity: .45; box-shadow: none; cursor: default; }
 
-/* Every interactive chrome element picks up the same glow on hover, so the
-   whole program answers the pointer the same way. */
+/* Every interactive chrome element answers a hover the same way (MAGI's: the
+   outline turns accent; hoverfx.js lifts and presses it). */
 .profile-action-btn, .wr-swap-btn, .btn-ghost, .filter-chip, .lb-pill,
 .setup-shortcut, .setup-shortcut-add, #patch-notes-link, #wr-lock-btn, .tab-btn {
   transition: border-color .18s, box-shadow .18s, color .18s, background .18s;
@@ -1280,7 +1277,7 @@ html.lk-open, body.lk-open {
 #topbar-logo { display: flex; flex-direction: column; gap: 2px; justify-content: center; }
 #topbar-logo .tb-word { line-height: 1; white-space: nowrap; }
 #topbar-logo .tb-w1 {
-  background: linear-gradient(135deg,#c0aeea,#dbd0f5);
+  background: var(--gold);
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
   font-weight: 800; letter-spacing: -.5px; font-size: 20px;
 }
@@ -1336,7 +1333,7 @@ html.lk-open, body.lk-open {
   cursor: pointer; transition: all 0.15s;
   margin-top: 6px;
 }
-/* Hover lights the button in its own accent; nothing glows at rest. */
+/* Hover turns the outline accent; hoverfx.js (MAGI mode) does the lift. */
 .btn-primary:hover { box-shadow: none; }
 .setup-error { color: var(--red); font-family: var(--mono); font-weight: 500; font-size: 12px; margin-top: 10px; display: none; }
 
@@ -2070,9 +2067,9 @@ html.lk-open, body.lk-open {
 
 /* == BUILDS - one hover language ==========================================
    Every interactive control in this tab answers a pointer the way the rest of
-   WarRoom does: the outline lights up and glows. It is gated behind a REAL
+   WarRoom does: the outline turns accent. It is gated behind a REAL
    pointer, because on touch :hover sticks after the tap and would leave half
-   the screen glowing at whatever was last pressed. */
+   the screen lit at whatever was last pressed. */
 @media (hover: hover) and (pointer: fine) {
   #builds-panel button, #builds-panel .bld-pill, #builds-panel .bld-tile,
   #builds-panel .bld-drag, .bld-modal button, .bld-modal .bld-pill,
@@ -2087,7 +2084,7 @@ html.lk-open, body.lk-open {
     border-color: var(--gold) !important;
     box-shadow: none;
   }
-  /* Destructive controls glow in their OWN colour - a delete that lights up
+  /* Destructive controls light in their OWN colour - a delete that lights up
      purple like a save is the one place consistency would mislead. They carry
      .bld-danger and the rule above excludes it, so which one wins is decided by
      the markup rather than by which rule happens to come last. */
@@ -2095,7 +2092,7 @@ html.lk-open, body.lk-open {
     border-color: var(--red) !important;
     box-shadow: none;
   }
-  /* The two selector tabs are underlines, not pills: a box glow around one
+  /* The two selector tabs are underlines, not pills: a box outline around one
      would fight the 3px bar that already says which is active. */
   #builds-panel .bp-tab:hover { color: var(--tx); border-bottom-color: rgba(192,174,234,.5); }
 }
@@ -2462,7 +2459,7 @@ html.lk-open, body.lk-open {
 }
 .filter-chip:hover { border-color: var(--gold); color: var(--gold2); }
 /* Selected reads as a filled chip, exactly like the Champions tab's Class row:
-   solid accent, white label, no halo. The lit-outline treatment belongs to the
+   solid accent, dark label. The outline treatment belongs to the
    chrome buttons; using it here made "selected" look like "hovered". */
 .filter-chip.active {
   background: var(--gold); border-color: var(--gold); color: #1f1930;
@@ -2653,7 +2650,7 @@ html.lk-open, body.lk-open {
 
 /* ── LIVE GAME ── */
 .live-game-banner {
-  background: linear-gradient(135deg, rgba(164,185,134,0.08), rgba(143,166,216,0.05));
+  background: rgba(164,185,134,0.08);
   border: 1px solid rgba(164,185,134,0.25);
   border-radius: 10px; padding: 14px 20px;
   display: flex; align-items: center; gap: 14px;
@@ -2662,7 +2659,7 @@ html.lk-open, body.lk-open {
 }
 .live-game-banner:hover {
   border-color: rgba(164,185,134,0.5);
-  background: linear-gradient(135deg, rgba(164,185,134,0.12), rgba(143,166,216,0.07));
+  background: rgba(164,185,134,0.12);
 }
 .live-pulse {
   width: 10px; height: 10px; border-radius: 50%;
@@ -3430,7 +3427,7 @@ body.wr-scrolllocked {
 
 /* Queue and tier are category filters, the same kind of control as the Items
    categories and the Champions Class row — so they are the same chip, down to
-   the metrics. Selected is a solid fill, not a lit outline: the halo reads as
+   the metrics. Selected is a solid fill, not a lit outline: an outline reads as
    "hovered" and left no way to tell the two states apart at a glance. */
 .lb-pill {
   display: inline-flex; align-items: center; justify-content: center;
@@ -10618,7 +10615,7 @@ if (!window.__wrGateBlocked) window.warRoomBoot();
   + '#uim-err{font-family:\'IBM Plex Mono\',ui-monospace,monospace;font-size:12px;color:#d68a7c;min-height:15px;margin-bottom:4px;}'
   + '#uim-btns{display:flex;gap:10px;margin-top:20px;justify-content:flex-end;}'
   // A button is an OUTLINE in this program, and primary vs destructive differ
-  // by which colour that outline GLOWS - never by filling it in. A solid purple
+  // by which colour that outline turns - never by filling it in. A solid purple
   // block in the dialog would be the one control in RiftIQ that reads that way.
   + '#uim-btns button{flex:0 0 auto;min-height:38px;border:1px solid #45454c;background:transparent;border-radius:8px;padding:0 18px;font-family:\'IBM Plex Mono\',ui-monospace,monospace;font-size:12px;font-weight:700;letter-spacing:.2px;cursor:pointer;transition:border-color .18s,color .18s,box-shadow .18s;}'
   + '#uim-cancel{color:#adadb2;}'
@@ -12313,14 +12310,13 @@ setInterval(()=>{
       /* dragsort.js slides the neighbours with a transform transition; the
          button rule below would otherwise replace it. */
       '#pv-root .dsort>*{transition:transform .17s cubic-bezier(.2,.8,.2,1),border-color .18s,color .18s,box-shadow .18s,background .18s;}'+
-      /* pv-hglow was being applied to three buttons but had never been DEFINED,
-         so none of them actually glowed. Every ProView button now answers the
-         pointer with the same lit outline WarRoom uses — one hover language
-         across both programs. */
+      /* Every ProView button answers the pointer with the same accent outline
+         WarRoom uses (plus hoverfx.js's lift) — one hover language across both
+         programs. */
       '#pv-root button{transition:border-color .18s,color .18s,box-shadow .18s,background .18s;}'+
       /* Filled chips keep their dark ink on hover — recolouring it to light
          lavender would make the label vanish into its own accent fill. They
-         still take the glow below. */
+         still take the accent outline below. */
       '#pv-root button, .pv-modal button{transition:border-color .18s,color .18s,box-shadow .18s,background .18s;}'+
       '#pv-root button:hover:not(:disabled), .pv-modal button:hover:not(:disabled){'+
         'border-color:#c0aeea!important;'+
