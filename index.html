@@ -4815,27 +4815,13 @@ var CAR={
   }
 };
 function carSvg(hex,sedan,charging){
-  // Default illustration: a flat, dark, deliberately minimal side-on car — body,
-  // one glass cutout, two wheels. Paint colour is ignored on purpose; the hero
-  // sits on a dark card and a quiet silhouette beats a detailed render there.
-  var body='M30 138C30 126 40 120 66 116L128 102C156 80 188 66 232 64C278 64 314 76 338 100L376 108C392 112 398 122 398 138L398 150L30 150Z';
-  var glass='M146 102C166 84 192 74 228 73L228 102Z M236 73C268 74 296 82 318 102L236 102Z';
-  var axles=[100,328];
+  // Default illustration: a sleek graphite sedan in side profile. Paint colour is
+  // ignored on purpose — it sits on a dark card and one tuned finish looks better
+  // than a tinted render. Static markup (ids are unique to this one instance).
+  var art="<defs><clipPath id=\"thtsC\"><path d=\"M20 136C20 124 26 116 42 112L118 98C148 92 172 76 204 63C226 56 262 54 292 60C322 67 344 82 360 95C378 99 396 104 402 118C406 128 405 136 403 143Q402 149 395 149L28 149Q20 149 20 142Z\"/></clipPath><linearGradient id=\"thtsB\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#5a606b\"/><stop offset=\".38\" stop-color=\"#363a42\"/><stop offset=\".78\" stop-color=\"#22252b\"/><stop offset=\"1\" stop-color=\"#15171b\"/></linearGradient><linearGradient id=\"thtsG\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#3b434e\"/><stop offset=\"1\" stop-color=\"#0c0e11\"/></linearGradient><linearGradient id=\"thtsR\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#9aa0a9\"/><stop offset=\".55\" stop-color=\"#4b5058\"/><stop offset=\"1\" stop-color=\"#2a2d33\"/></linearGradient><linearGradient id=\"thtsS\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"0\"><stop offset=\"0\" stop-color=\"#fff\" stop-opacity=\"0\"/><stop offset=\".5\" stop-color=\"#fff\" stop-opacity=\".5\"/><stop offset=\"1\" stop-color=\"#fff\" stop-opacity=\"0\"/></linearGradient><radialGradient id=\"thtsH\"><stop offset=\"0\" stop-color=\"#000\" stop-opacity=\".65\"/><stop offset=\"1\" stop-color=\"#000\" stop-opacity=\"0\"/></radialGradient></defs><ellipse cx=\"212\" cy=\"170\" rx=\"190\" ry=\"9\" fill=\"url(#thtsH)\"/><path id=\"thtsBody\" d=\"M20 136C20 124 26 116 42 112L118 98C148 92 172 76 204 63C226 56 262 54 292 60C322 67 344 82 360 95C378 99 396 104 402 118C406 128 405 136 403 143Q402 149 395 149L28 149Q20 149 20 142Z\" fill=\"url(#thtsB)\"/><path d=\"M20 136C20 124 26 116 42 112L118 98C148 92 172 76 204 63C226 56 262 54 292 60C322 67 344 82 360 95C378 99 396 104 402 118\" fill=\"none\" stroke=\"#8a919c\" stroke-opacity=\".55\" stroke-width=\"1.3\" stroke-linejoin=\"round\"/><path d=\"M150 96C172 80 194 68 220 65L220 96Z\" fill=\"url(#thtsG)\"/><path d=\"M229 65C258 64 288 69 312 82C322 87 332 92 342 96L229 96Z\" fill=\"url(#thtsG)\"/><path d=\"M158 94C176 82 194 72 214 68\" stroke=\"#fff\" stroke-opacity=\".28\" stroke-width=\"2\" fill=\"none\" stroke-linecap=\"round\"/><path d=\"M236 68C262 68 288 72 308 82\" stroke=\"#fff\" stroke-opacity=\".18\" stroke-width=\"2\" fill=\"none\" stroke-linecap=\"round\"/><path d=\"M44 114C130 108 250 104 358 106\" stroke=\"url(#thtsS)\" stroke-width=\"2.2\" fill=\"none\" stroke-linecap=\"round\" opacity=\".7\"/><path d=\"M222 98L222 138M130 100L132 138M326 96L330 138\" stroke=\"#0d0e11\" stroke-opacity=\".5\" stroke-width=\"1.2\" fill=\"none\"/><rect x=\"190\" y=\"104\" width=\"22\" height=\"3.6\" rx=\"1.8\" fill=\"#0d0e11\" opacity=\".7\"/><rect x=\"280\" y=\"103\" width=\"22\" height=\"3.6\" rx=\"1.8\" fill=\"#0d0e11\" opacity=\".7\"/><path d=\"M26 122C32 119 42 117 54 116\" stroke=\"#f4f1e8\" stroke-width=\"2.6\" fill=\"none\" stroke-linecap=\"round\"/><path d=\"M398 116C402 122 404 128 403 134\" stroke=\"#d9524a\" stroke-width=\"3\" fill=\"none\" stroke-linecap=\"round\"/><path d=\"M30 141L394 141L394 149L30 149Z\" fill=\"#0d0e11\" opacity=\".5\" clip-path=\"url(#thtsC)\"/><g clip-path=\"url(#thtsC)\" fill=\"#07080a\"><circle cx=\"100\" cy=\"139\" r=\"37\"/><circle cx=\"328\" cy=\"139\" r=\"37\"/></g><g transform=\"translate(100,139)\"><circle r=\"29\" fill=\"#0b0c0e\"/><circle r=\"29\" fill=\"none\" stroke=\"#2a2d33\" stroke-width=\"1.5\"/><circle r=\"21\" fill=\"url(#thtsR)\"/><g stroke=\"#1b1d21\" stroke-width=\"3\" stroke-linecap=\"round\"><path d=\"M0 -6V-18M5.7 -1.9L17.1 -5.6M3.5 4.9L10.6 14.6M-3.5 4.9L-10.6 14.6M-5.7 -1.9L-17.1 -5.6\"/></g><circle r=\"7\" fill=\"#2a2d33\"/><circle r=\"2.6\" fill=\"#a0a6af\"/></g><g transform=\"translate(328,139)\"><circle r=\"29\" fill=\"#0b0c0e\"/><circle r=\"29\" fill=\"none\" stroke=\"#2a2d33\" stroke-width=\"1.5\"/><circle r=\"21\" fill=\"url(#thtsR)\"/><g stroke=\"#1b1d21\" stroke-width=\"3\" stroke-linecap=\"round\"><path d=\"M0 -6V-18M5.7 -1.9L17.1 -5.6M3.5 4.9L10.6 14.6M-3.5 4.9L-10.6 14.6M-5.7 -1.9L-17.1 -5.6\"/></g><circle r=\"7\" fill=\"#2a2d33\"/><circle r=\"2.6\" fill=\"#a0a6af\"/></g>";
+  var port=charging?'<circle cx="352" cy="108" r="5" fill="#a4b986"><animate attributeName="opacity" values=".35;1;.35" dur="1.6s" repeatCount="indefinite"/></circle>':'';
   return h('svg',{className:'thts-car',viewBox:'0 0 420 190',role:'img',
-      'aria-label':'Vehicle illustration'},
-    h('ellipse',{key:'sh',cx:214,cy:176,rx:170,ry:7,fill:'#000',opacity:.35}),
-    h('path',{key:'body',d:body,fill:'#2b2e35',stroke:'#3d424b',strokeWidth:1.5,strokeLinejoin:'round'}),
-    h('path',{key:'glass',d:glass,fill:'#14161a'}),
-    h('g',{key:'wells',fill:'#0b0c0e'},axles.map(function(cx,i){
-      return h('path',{key:i,d:'M'+(cx-38)+' 150a38 38 0 0 1 76 0Z'});})),
-    h('g',{key:'wheels'},axles.map(function(cx){
-      return h('g',{key:cx,transform:'translate('+cx+',146)'},
-        h('circle',{key:'t',r:30,fill:'#0e0f11',stroke:'#3d424b',strokeWidth:1.5}),
-        h('circle',{key:'h',r:13,fill:'#2b2e35'}),
-        h('circle',{key:'c',r:4,fill:'#50555d'}));
-    })),
-    charging?h('circle',{key:'cp',cx:352,cy:112,r:5,fill:'#a4b986'},
-      h('animate',{attributeName:'opacity',values:'.35;1;.35',dur:'1.6s',repeatCount:'indefinite'})):null);
+    'aria-label':'Vehicle illustration',dangerouslySetInnerHTML:{__html:art+port}});
 }
 
 // Compact-bar glyph: the same measured body+glass silhouette as the hero,
