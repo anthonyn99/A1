@@ -117,7 +117,7 @@ const CSS = `
 .ais-prov button.on { border-color: var(--accent); background: rgba(141,118,154,.12); color: var(--text); }
 .ais-field { margin-bottom: 14px; }
 .ais-field label { display: block; font-size: 11px; font-family: var(--mono); color: var(--text3); letter-spacing: .4px; margin-bottom: 5px; text-transform: uppercase; }
-.ais-field input { width: 100%; box-sizing: border-box; background: var(--bg2); border: 1px solid var(--border2); color: var(--text);
+.ais-field input, .ais-field select { width: 100%; box-sizing: border-box; background: var(--bg2); border: 1px solid var(--border2); color: var(--text);
   border-radius: 6px; padding: 9px 11px; font-size: 13px; font-family: var(--mono); }
 .ais-keyrow { display: flex; gap: 6px; }
 .ais-keyrow input { flex: 1; }

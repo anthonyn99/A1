@@ -852,6 +852,25 @@ async function contextOf(pdf, active) {
  * ask once more with the text alone. The lesson is still worth writing.
  * `make(withAttachments)` builds the ask. Resolves `{ data, attached }`.
  */
+/* While ORCA's models are busy, the step waits (ai.js) — and says so on the
+ * topic row instead of sitting at "writing…". In memory only: a wait is not
+ * worth a cloud write, and a stale one must never sync. */
+const _waits = new Map();          // `${fileId}:${topicId}` ('' = the topic list) -> {until, why}
+const waitOn = (doc, topic) => (w) => {
+  const k = `${doc.fileId}:${topic ? topic.id : ''}`;
+  if (w) _waits.set(k, { until: w.until, why: String(w.why || '').slice(0, 200) });
+  else _waits.delete(k);
+  emit(doc.fileId);
+};
+/** The wait a step of this document is in, or null. */
+export const waitingOf = (fileId, topicId = '') => _waits.get(`${fileId}:${topicId}`) || null;
+
+/* A topic that failed for a reason that passes — busy, cut off, a reply
+ * that did not parse or validate — is worth one more try at the end of the
+ * run; a key or setup problem is not. */
+const PASSING = new Set(['rate', 'network', 'bad_json', 'too_long', 'no_backend', 'invalid', 'bridge', 'timeout']);
+const passes = (e) => !!(e && (e.retryable || PASSING.has(e.kind)) && e.kind !== 'setup' && e.kind !== 'auth');
+
 async function withFallback(make, hasAttachments, what) {
   if (!hasAttachments) return { ...(await make(false)), attached: false };
   try {
@@ -961,6 +980,15 @@ async function runInner(classId, moduleId, file, { fresh = false, instructions }
   };
   await pool(doc.topics.filter((t) => t.status !== 'ready'), (topic) => writeTopic(doc, topic, pdf, className, ctx));
 
+  // 2b. One more try for topics that failed for a reason that passes (a busy
+  // model, a cut-off or unusable reply), as a new version: a bridge cache
+  // would otherwise hand the same failed answer back.
+  const again = fatal ? [] : doc.topics.filter((t) => t.status === 'failed' && t.retryable);
+  if (again.length) {
+    again.forEach((t) => { t.rev = (t.rev || 0) + 1; });
+    await pool(again, (topic) => writeTopic(doc, topic, pdf, className, ctx));
+  }
+
   // 3. What the lessons left out of the document — one follow-up per topic.
   if (!fatal) await fillGaps(doc, className, ctx, pool);
 
@@ -990,9 +1018,11 @@ async function listTopics(doc, pdf, className, ctx) {
     key: `bd:${doc.fileId}:r${doc.rev}:topics${attempt ? ':g' + attempt : ''}${withFile ? ':file' : ''}${instrKey(doc)}`, fileId: doc.fileId,
     resumeJobId: attempt ? doc.topicsJobId2 : doc.topicsJobId,
     onJob: (id, main) => { if (main) { doc[attempt ? 'topicsJobId2' : 'topicsJobId'] = id; save(doc); } },
+    onWait: waitOn(doc, null),
   }), ctx.sendsFile, 'the topic list');
   const listed = await ask('', 0);
   let { data } = listed;
+  if (listed.servedBy) doc.listedBy = listed.servedBy;
   const pdfSent = { topics: listed.attached };
   if (!ctx.model) return { topics: data.topics, checks: { skipped: ctx.why || 'no text', pdfSent } };
 
@@ -1041,7 +1071,8 @@ const pagesOf = (topic, ctx) => (ctx.model ? parsePages(topic.pages, ctx.model.m
 async function writeTopic(doc, topic, pdf, className, ctx) {
   topic.status = 'writing';
   topic.error = '';
-  topic.updatedAt = Date.now();
+  delete topic.retryable;
+  topic.startedAt = topic.updatedAt = Date.now();
   save(doc);
   try {
     const span = pagesOf(topic, ctx);
@@ -1068,9 +1099,11 @@ async function writeTopic(doc, topic, pdf, className, ctx) {
         key: `bd:${doc.fileId}:r${doc.rev}:${topic.id}:v${topic.rev || 0}${withAtt ? ':att' : ''}${instrKey(doc)}`, fileId: doc.fileId,
         resumeJobId: topic.jobId,
         onJob: (id, main) => { if (main) { topic.jobId = id; save(doc); } },
+        onWait: waitOn(doc, topic),
       });
     };
-    const { data, attached } = await withFallback(ask, images.length > 0 || ctx.sendsFile, 'the lesson');
+    const { data, attached, servedBy } = await withFallback(ask, images.length > 0 || ctx.sendsFile, 'the lesson');
+    topic.servedBy = servedBy || '';
     topic.pdfSent = attached && ctx.sendsFile;
     topic.figures = attached ? images.map((i) => i.n) : [];
     topic.figuresSkipped = figs.filter((n) => !topic.figures.includes(n));
@@ -1093,9 +1126,11 @@ async function writeTopic(doc, topic, pdf, className, ctx) {
   } catch (e) {
     topic.status = 'failed';
     topic.error = (e && e.message) || String(e);
+    topic.retryable = passes(e);
     delete topic.jobId;
     throw e;
   } finally {
+    _waits.delete(`${doc.fileId}:${topic.id}`);
     topic.updatedAt = Date.now();
     save(doc);
   }
@@ -1185,6 +1220,7 @@ async function askGaps(doc, topic, items, className, ctx) {
     key: `bd:${doc.fileId}:r${doc.rev}:${topic.id}:v${topic.rev || 0}:gaps${instrKey(doc)}`, fileId: doc.fileId,
     resumeJobId: topic.gapJobId,
     onJob: (id, main) => { if (main) { topic.gapJobId = id; save(doc); } },
+    onWait: waitOn(doc, topic),
   });
   delete topic.gapJobId;
   const blocks = topic.lesson.blocks;
@@ -1298,5 +1334,5 @@ export default {
   validateTopics, validateLesson, validateQuestions, cleanSvg, placeFigures, mergeDocs,
   tokensOf, parsePages, pageItems, sourceModel, sourceText, groundTopics, fallbackTopics, lessonText, itemMissing,
   lessonRecall, setPageReader, setPageRenderer,
-  load, peek, run, regenerate, remove, setProgress, resume, isRunning, noteIdFor, notePrefixFor,
+  load, peek, run, regenerate, remove, setProgress, resume, isRunning, waitingOf, noteIdFor, notePrefixFor,
 };

@@ -240,7 +240,9 @@ function openStart(cls, mod, f, { redo } = {}) {
            is asked for once more. About <b style="color:var(--text2)">1 + one per topic</b> requests (usually 6–13),
            plus a follow-up for a lesson that missed something${bridge
              ? ' — Claude Pro messages, a few minutes per topic'
-             : ' — billed to your API key'}. It runs in the background; keep studying.`}
+             : a.id === 'orca'
+               ? ' — messages from your ORCA chat accounts, a few minutes per topic; a busy model is waited for, not skipped'
+               : ' — billed to your API key'}. It runs in the background; keep studying.`}
       <div style="margin-top:6px"><a href="#" data-ai-settings style="color:var(--accent2);font-size:11px;font-family:var(--mono)">Change the AI model →</a></div>
     </div>
     ${promptPickerHtml()}`, { wide: true });
@@ -293,13 +295,15 @@ async function renderPanel(panel, cls, mod, f) {
   const cards = topics.reduce((n, t) => n + (t.status === 'ready' ? (t.cardCount || 0) : 0), 0);
   const html = [];
   if (!topics.length) {
+    const w = running && bd.waitingOf(f.id);
     html.push(`<div class="bd-status${doc.status === 'failed' ? ' err' : ''}">${
       doc.status === 'failed' ? esc(doc.error || 'Could not list the topics.')
-        : `Listing topics with ${esc(doc.provider === 'bridge' ? 'Claude Pro' : doc.model || 'the AI')}…`}</div>`);
+        : w ? esc(`Waiting for a free model until ${clock(w.until)}${w.why ? ` — ${w.why}` : ''}…`)
+        : `Listing topics with ${esc(providerName(doc))}…`}</div>`);
   } else {
     const status = running
       ? `Writing lessons — ${ready.length} of ${topics.length} done.`
-      : doc.error ? doc.error : `${topics.length} topics · ${cards} flashcards${checksNote(doc.checks)}`;
+      : doc.error ? doc.error : `${topics.length} topics · ${cards} flashcards${writtenBy(topics)}${checksNote(doc.checks)}`;
     const ins = doc.instructions && doc.instructions.text ? doc.instructions : null;
     html.push(`<div class="bd-status${doc.error && !running ? ' err' : ''}">${esc(status)}${doc.syncError ? ` · ${esc(doc.syncError)}` : ''}${
       ins ? ` · <span title="${esc(ins.text)}" style="cursor:help;border-bottom:1px dotted currentColor">prompt: ${esc(ins.name || 'custom')}</span>` : ''}</div>`);
@@ -307,9 +311,11 @@ async function renderPanel(panel, cls, mod, f) {
       const ok = t.status === 'ready';
       const done = ok && t.progress && t.progress.done;
       const gaps = ok && t.gaps ? t.gaps.length : 0;
+      const w = running && t.status === 'writing' && bd.waitingOf(f.id, t.id);
       const badge = ok ? `${t.cardCount || 0} cards${gaps ? ` · ⚠ ${gaps}` : ''}`
-        : t.status === 'writing' ? 'writing…'
-        : t.status === 'failed' ? 'failed'
+        : w ? `waiting · until ${clock(w.until)}`
+        : t.status === 'writing' ? `writing…${running && t.startedAt ? ' ' + minutes(t.startedAt) : ''}`
+        : t.status === 'failed' ? (running && t.retryable ? 'retrying later' : 'failed')
         : running ? 'queued' : 'not written';
       html.push(`
         <div class="bd-row${ok ? '' : ' off'}" data-topic="${esc(t.id)}" ${ok ? 'role="button" tabindex="0"' : ''}>
@@ -363,6 +369,26 @@ async function renderPanel(panel, cls, mod, f) {
   });
 }
 
+const providerName = (doc) => (doc.provider === 'bridge' ? 'Claude Pro'
+  : doc.provider === 'orca' ? `ORCA${doc.model && doc.model !== 'Auto' ? ' · ' + doc.model : ''}` : doc.model || 'the AI');
+const clock = (ms) => new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+const minutes = (since) => {
+  const m = Math.floor((Date.now() - since) / 60000);
+  return m < 1 ? '' : `${m} min`;
+};
+
+/** " · written by DeepSeek ×5, ChatGPT ×3" — which ORCA models wrote it. */
+function writtenBy(topics) {
+  const n = new Map();
+  for (const t of topics) {
+    if (t.status !== 'ready' || !t.servedBy) continue;
+    const who = ai.servedName(t.servedBy);
+    n.set(who, (n.get(who) || 0) + 1);
+  }
+  if (!n.size) return '';
+  return ' · written by ' + [...n].sort((a, b) => b[1] - a[1]).map(([who, c]) => `${who} ×${c}`).join(', ');
+}
+
 /** What the breakdown was checked against, for the status line. */
 function checksNote(c) {
   if (!c) return '';
@@ -404,5 +430,9 @@ window.addEventListener('sos-breakdown', (e) => {
   const id = e && e.detail && e.detail.fileId;
   if (id) refresh(id);
 });
+
+// A browser model takes minutes per topic: keep "writing… 3 min" moving
+// on the open lists of running breakdowns.
+setInterval(() => { for (const id of _open) if (bd.isRunning(id)) refresh(id); }, 30000);
 
 export default { decorate, findFile };

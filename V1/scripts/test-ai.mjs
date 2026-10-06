@@ -234,14 +234,14 @@ t('the system prompt stays a system message', calls[0].body.messages[0].role ===
 t('no model named: ORCA routes', !('model' in calls[0].body));
 calls = [];
 await ai.generateJSON({ system: 's', prompt: 'Only this.', pdf: PDF, schema: SCHEMA, docText: '' });
-t('docText "" sends the prompt alone (it already holds the pages)', calls[0].body.messages[1].content === 'Only this.', calls[0].body.messages[1].content);
+t('docText "" sends the prompt alone (it already holds the pages)', calls[0].body.messages[1].content.startsWith('Only this.\n\nReply with ONE fenced code block tagged json'), calls[0].body.messages[1].content);
 
 calls = [];
 await ai.generateJSON({ system: 's', prompt: 'Teach the figure.', pdf: PDF, schema: SCHEMA, docText: '',
   images: ['data:image/jpeg;base64,AAAA', 'data:image/jpeg;base64,BBBB'] });
 const figUser = calls[0].body.messages[1].content;
 t('figures go as standard image_url parts after the text', Array.isArray(figUser) && figUser[0].type === 'text'
-  && figUser[0].text === 'Teach the figure.' && figUser.slice(1).map((p) => p.image_url.url).join() === 'data:image/jpeg;base64,AAAA,data:image/jpeg;base64,BBBB', figUser);
+  && figUser[0].text.startsWith('Teach the figure.') && figUser.slice(1).map((p) => p.image_url.url).join() === 'data:image/jpeg;base64,AAAA,data:image/jpeg;base64,BBBB', figUser);
 n = 0;
 calls = [];
 responder = () => json({ choices: [{ message: { content: n++ === 0 ? '{"x": 1,, oops' : '{"x": 2}' }, finish_reason: 'stop' }] });
@@ -259,6 +259,123 @@ t('the PDF goes as an OpenAI file part, between the text and the images',
 calls = [];
 await ai.generateJSON({ system: 's', prompt: 'p', pdf: PDF, schema: SCHEMA, docText: '' });
 t('without attachFile ORCA still gets one plain string', typeof calls[0].body.messages[1].content === 'string');
+
+// ── ORCA on any chat site ─────────────────────────────────────────────────
+/* Every browser model ORCA drives (Claude, ChatGPT, DeepSeek, Gemini,
+ * Perplexity) gets the same request and is read the same way. These pin the
+ * things that broke on the non-Claude sites: ORCA's own "no fences" line (the
+ * site then renders the JSON as Markdown and \" loses its backslash), a long
+ * document typed into a chat box, a reply cut off mid-JSON, and a busy model
+ * failing every topic in turn. */
+console.log('\norca on any site');
+{
+  ai.saveSettings({ provider: 'orca', keys: { orca: 'orca_sk_auto' }, baseUrl: { orca: 'https://orca.test/v1' }, orcaPick: 'auto' });
+  const waits = [];
+  ai.setSleep(async (ms) => { waits.push(ms); });
+  const reply = (content, model = 'deepseek-web', status = 200, headers = {}) =>
+    new Response(JSON.stringify(status === 200 ? { model, choices: [{ message: { content }, finish_reason: 'stop' }] }
+      : { error: { message: content } }), { status, headers: { 'Content-Type': 'application/json', ...headers } });
+
+  calls = [];
+  responder = () => reply('{"x": 1}');
+  let r = await ai.generateJSON({ system: 's', prompt: 'p', pdf: PDF, schema: SCHEMA, docText: '' });
+  t('no response_format goes to ORCA (its "no fences" line would follow)', !('response_format' in calls[0].body), calls[0].body);
+  t('no model goes to ORCA (it routes; a pick is a key)', !('model' in calls[0].body));
+  t('StudyOS asks for one fenced json block, and no web search', /ONE fenced code block tagged json/.test(calls[0].body.messages[1].content)
+    && /Do not search the web/.test(calls[0].body.messages[1].content));
+  t('the model ORCA routed to is reported', r.servedBy === 'deepseek-web', r);
+  t('servedName turns a site id into a name', ai.servedName('deepseek-web') === 'DeepSeek' && ai.servedName('gemini-web') === 'Gemini'
+    && ai.servedName('claude-web') === 'Claude' && ai.servedName('perplexity-web') === 'Perplexity' && ai.servedName('gpt-4o-mini') === 'ChatGPT');
+
+  // What chat sites put around a code block, read back as display text.
+  responder = () => reply('json\nCopy code\n{"x": 7}');
+  r = await ai.generateJSON({ system: 's', prompt: 'p', pdf: PDF, schema: SCHEMA, docText: '' });
+  t('ChatGPT\'s "json / Copy code" header is read past', r.data.x === 7, r);
+  responder = () => reply('{"x": 8}\n\nSources\n[1] example.com — Lecture notes\n[2] wikipedia.org');
+  r = await ai.generateJSON({ system: 's', prompt: 'p', pdf: PDF, schema: SCHEMA, docText: '' });
+  t('Perplexity\'s sources list after the JSON is ignored', r.data.x === 8, r);
+
+  // A long document: attached as a .txt file, the instructions typed.
+  const longDoc = '--- page 1 ---\n' + 'The von Neumann machine stores programs in memory. '.repeat(500);
+  calls = [];
+  responder = () => reply('{"x": 2}');
+  await ai.generateJSON({ system: 's', prompt: 'List the topics.', pdf: PDF, schema: SCHEMA, docText: longDoc });
+  const parts = calls[0].body.messages[1].content;
+  const txt = Array.isArray(parts) && parts.find((p) => p.type === 'file' && p.file.filename === 'document.txt');
+  const decoded = txt && Buffer.from(txt.file.file_data.split(',')[1], 'base64').toString('utf8');
+  t('a long document goes as document.txt, not typed', !!txt && decoded === longDoc.trim(), parts && parts.map && parts.map((p) => p.type + ':' + (p.file ? p.file.filename : '')));
+  t('the typed text points at the file and keeps the request + reply format', parts[0].type === 'text'
+    && parts[0].text.length < 2000 && /attached file document\.txt/.test(parts[0].text)
+    && /List the topics\./.test(parts[0].text) && /fenced code block/.test(parts[0].text), parts[0].text);
+  // The same for a <source> block inside a lesson prompt, and a whole-ask spill.
+  const sp = ai.spillText('Write ONE lesson.\n<source>\n' + 'x'.repeat(15000) + '\n</source>\nRules.');
+  t('a long <source> block goes as source.txt', sp.files.length === 1 && sp.files[0].file.filename === 'source.txt'
+    && /Write ONE lesson\.[\s\S]*source\.txt[\s\S]*Rules\./.test(sp.text), sp.text);
+  const whole = ai.spillText('y'.repeat(20000));
+  t('a long ask with no block to move goes whole, as request.txt', whole.files.length === 1 && whole.files[0].file.filename === 'request.txt'
+    && /request\.txt/.test(whole.text) && whole.text.length < 300, whole.text);
+  t('a short ask stays typed', ai.spillText('short').files.length === 0);
+
+  // A reply cut off mid-JSON: the rest is asked for, and the two are joined.
+  calls = [];
+  let k = 0;
+  const pad = 'The cache sits between the CPU and main memory, holding recent data.';
+  const full = '{"x": 42, "pad": "' + pad + '"}';
+  responder = () => reply(k++ === 0 ? full.slice(0, 60) : '```json\n' + full.slice(50) + '\n```', 'gemini-web');
+  r = await ai.generateJSON({ system: 's', prompt: 'Teach it.', pdf: PDF, schema: { type: 'object' }, docText: '', attachFile: true });
+  t('a cut-off reply is continued and joined (overlap removed)', r.data && r.data.x === 42 && r.data.pad === pad, r);
+  t('...in ONE continuation ask, not a repair', calls.length === 2 && /<partial>/.test(JSON.stringify(calls[1].body)) && !/malformed JSON/.test(JSON.stringify(calls[1].body)));
+  t('...that never re-sends the PDF', !JSON.stringify(calls[1].body).includes('application/pdf'));
+  t('...and asks for the continuation only', /ONLY the continuation text/.test(JSON.stringify(calls[1].body)));
+  t('looksCutOff: closed is not cut off', !ai.looksCutOff('{"x": 1}') && ai.looksCutOff('{"blocks": [{"kind": "read", "markdown": "abc def ghi jkl'));
+
+  // Busy: wait as long as ORCA says, then ask again — the same step.
+  calls = []; waits.length = 0;
+  const seen = [];
+  k = 0;
+  responder = () => (k++ === 0 ? reply('every model is rate-limited until 5:00 PM', '', 503, { 'Retry-After': '90' }) : reply('{"x": 3}'));
+  r = await ai.generateJSON({ system: 's', prompt: 'p', pdf: PDF, schema: SCHEMA, docText: '', onWait: (w) => seen.push(w) });
+  t('a 503 with Retry-After waits that long, then succeeds', r.data.x === 3 && waits[0] === 90000 && calls.length === 2, { waits, n: calls.length });
+  t('the wait is reported, then cleared', seen.length === 2 && seen[0] && /rate-limited/.test(seen[0].why) && seen[1] === null, seen);
+  // Busy past the limit: a `rate` error (retried later), not a setup stop.
+  responder = () => reply('busy', '', 503, { 'Retry-After': '900' });
+  let err = null;
+  try { await ai.generateJSON({ system: 's', prompt: 'p', pdf: PDF, schema: SCHEMA, docText: '' }); } catch (e) { err = e; }
+  t('busy past 10 minutes fails as rate (retryable), not setup', err && err.kind === 'rate' && err.retryable, err && { kind: err.kind, m: err.message });
+
+  // 404s: attachments only → not fatal; signed out → setup, with ORCA's words.
+  responder = () => reply('chatgpt/free: missing capabilities: input_modality:file; claude/free: missing capabilities: input_modality:file', '', 404);
+  err = null;
+  try { await ai.generateJSON({ system: 's', prompt: 'p', pdf: PDF, schema: SCHEMA, docText: '' }); } catch (e) { err = e; }
+  t('404 for attachments only is no_backend (the caller retries text-only)', err && err.kind === 'no_backend', err && err.kind);
+  responder = () => reply('deepseek/free: account veda is not signed in: sign in again', '', 404);
+  err = null;
+  try { await ai.generateJSON({ system: 's', prompt: 'p', pdf: PDF, schema: SCHEMA, docText: '' }); } catch (e) { err = e; }
+  t('404 for a signed-out account is setup, in ORCA\'s words', err && err.kind === 'setup' && /not signed in/.test(err.message), err && err.message);
+
+  // Picking a model = its own key; "if busy, use Auto" switches key.
+  ai.saveSettings({ orcaPick: 'deepseek', orcaKeys: { deepseek: '' } });
+  t('a pick without its key says which key to add', /ORCA key for DeepSeek[\s\S]*deepseek\/free/.test(ai.active().problem), ai.active());
+  ai.saveSettings({ orcaPick: 'deepseek', orcaKeys: { deepseek: 'orca_sk_ds' }, orcaBusy: 'auto' });
+  t('a pick uses its own key', ai.active().key === 'orca_sk_ds' && ai.active().model === 'DeepSeek' && !ai.active().problem, ai.active());
+  calls = []; k = 0;
+  responder = () => (k++ === 0 ? reply('busy', '', 429, { 'Retry-After': '30' }) : reply('{"x": 4}', 'claude-web'));
+  r = await ai.generateJSON({ system: 's', prompt: 'p', pdf: PDF, schema: SCHEMA, docText: '' });
+  t('busy pick + "use Auto": asked again through the auto key, no wait', r.data.x === 4 && calls[0].headers.authorization === 'Bearer orca_sk_ds'
+    && calls[1].headers.authorization === 'Bearer orca_sk_auto', calls.map((c) => c.headers.authorization));
+  t('keys stay in the one settings entry', [...mem.keys()].every((x) => x === 'studyos_ai_v1'), [...mem.keys()]);
+
+  // Test connection names who answered, and catches a key not limited to its pick.
+  ai.saveSettings({ orcaBusy: 'wait' });
+  responder = () => reply('OK', 'deepseek-web');
+  t('Test names the model that answered', /DeepSeek replied/.test(await ai.testConnection()));
+  responder = () => reply('OK', 'gpt-4o-mini');
+  err = null;
+  try { await ai.testConnection(); } catch (e) { err = e; }
+  t('Test catches a DeepSeek key answered by ChatGPT', err && /answered by ChatGPT, not DeepSeek/.test(err.message), err && err.message);
+  ai.saveSettings({ orcaPick: 'auto' });
+  ai.setSleep(null);
+}
 
 // ── Text out of a PDF page ────────────────────────────────────────────────
 /* Items as pdf.js gives them for slide 7 of Chapter1-Introduction.pdf: the

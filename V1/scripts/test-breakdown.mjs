@@ -658,6 +658,51 @@ console.log('\nrun — an invented lesson is not saved');
   t('its cards were not added', deck.byNotePrefix('c1', bd.noteIdFor('ch1c', org.id)).length === 0);
 }
 
+// ── Any ORCA model: busy models are waited for, failures retried once ────
+/* On free chat accounts a model is often busy (ORCA: 503 + Retry-After) and a
+ * reply can come back unusable. Neither may leave a "partial" breakdown with
+ * most topics failed: the step waits, and a topic that failed for a reason
+ * that passes is written again before the run ends. Which model wrote each
+ * topic is kept, for the status line. */
+console.log('\nrun — on any ORCA model: waits, one retry pass, who wrote it');
+{
+  const F = { id: 'ch1w', name: 'Chapter1-Introduction.pdf', mime: 'application/pdf' };
+  classes[0].modules[0].files.push(F);
+  const waits = [];
+  ai.setSleep(async (ms) => { waits.push(ms); });
+  const replyAs = (obj, model) => new Response(JSON.stringify({ model, choices: [{ message: { content: typeof obj === 'string' ? obj : JSON.stringify(obj) }, finish_reason: 'stop' }] }), { status: 200 });
+  const busy = () => new Response(JSON.stringify({ error: { message: 'every model is rate-limited' } }), { status: 503, headers: { 'Retry-After': '45' } });
+  calls = [];
+  let unitsAsks = 0, orgAsks = 0;
+  const seenWaits = [];
+  const onEvt = () => { if (bd.waitingOf('ch1w', bd.peek('ch1w') && bd.peek('ch1w').topics[1] && bd.peek('ch1w').topics[1].id)) seenWaits.push(1); };
+  window.addEventListener('sos-breakdown', onEvt);
+  responder = (body) => {
+    const text = userText(body);
+    if (/Break it into the TOPICS/.test(text)) return replyAs(REAL, 'gemini-web');
+    if (/title: Units of speed and capacity/.test(text) && unitsAsks++ === 0) return busy();
+    // "Computer organization" is unusable four times: with the PDF, its repair,
+    // text-only (withFallback), its repair. The retry pass then writes it.
+    if (/title: Computer organization/.test(text) || (/malformed JSON/.test(JSON.stringify(body)) && orgAsks < 4)) {
+      if (orgAsks++ < 4) return replyAs('Sorry, I could not do that.', 'chatgpt-web');
+    }
+    return replyAs(echoLesson(text), /title: Computer organization/.test(text) ? 'claude-web' : 'deepseek-web');
+  };
+  const d = await bd.run('c1', 'm1', F);
+  window.removeEventListener('sos-breakdown', onEvt);
+  const org = d.topics.find((x) => x.title.startsWith('Computer organization'));
+  const units = d.topics.find((x) => x.title.startsWith('Units'));
+  t('the run finished with every topic written', d.status === 'ready' && d.topics.every((x) => x.status === 'ready'),
+    { status: d.status, topics: d.topics.map((x) => [x.title, x.status, x.error]) });
+  t('a busy model was waited for (Retry-After), not failed', waits.includes(45000) && units.status === 'ready', waits);
+  t('the wait showed on the topic while it lasted', seenWaits.length > 0 && !bd.waitingOf('ch1w', units.id));
+  t('an unusable lesson was written again in the retry pass', org.status === 'ready' && org.rev === 1 && !org.retryable, { rev: org.rev, err: org.error });
+  t('each topic records which model wrote it', units.servedBy === 'deepseek-web' && org.servedBy === 'claude-web', d.topics.map((x) => x.servedBy));
+  t('...and the topic list too', d.listedBy === 'gemini-web', d.listedBy);
+  t('the wait itself is never saved', !JSON.stringify(d).includes('rate-limited'));
+  ai.setSleep(null);
+}
+
 // ── Figures: ORCA's models read text, so slides' pictures go as images ────
 /* ORCA now takes standard image parts (its browser models attach them). A
  * figure page in a topic's span is rendered and sent with that lesson's ask;

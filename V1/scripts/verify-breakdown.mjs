@@ -506,6 +506,38 @@ t('the other provider\'s key is kept', saved.kept === 'sk-test', saved);
 t('the save is confirmed on screen', /Saved/.test(saved.msg), saved.msg);
 t('the key is in no synced data', saved.leaked === false);
 
+// ORCA: pick a model = give it its own key (ORCA's router ignores `model`).
+await evalJs(`document.querySelector('#sos-ai-root [data-prov="orca"]').click(); true;`);
+await wait(150);
+const o1 = await evalJs(`(function(){
+  var s = document.getElementById('ais-pick');
+  return { opts: s ? [...s.options].map(o => o.value) : null, model: !!document.getElementById('ais-model') };
+})()`);
+t('ORCA offers Auto + Claude, ChatGPT, DeepSeek, Gemini, Perplexity', o1.opts && o1.opts.join() === 'auto,claude,chatgpt,deepseek,gemini,perplexity', o1);
+t('...instead of a free-text model ORCA would ignore', o1.model === false, o1);
+await evalJs(`(function(){ document.getElementById('ais-key').value = 'orca_sk_auto_v';
+  var s = document.getElementById('ais-pick'); s.value = 'deepseek'; s.dispatchEvent(new Event('change')); })(); true;`);
+await wait(150);
+const o2 = await evalJs(`(function(){
+  var r = document.getElementById('sos-ai-root');
+  return { label: (r.querySelector('label[for="ais-key"]')||{}).textContent, key: document.getElementById('ais-key').value,
+           busy: !!document.getElementById('ais-busy'), help: r.textContent };
+})()`);
+t('picking DeepSeek asks for its own key', /ORCA key for DeepSeek/.test(o2.label) && o2.key === '', o2);
+t('...says how to make it (Backends: deepseek/free)', /deepseek\/free/.test(o2.help));
+t('...and what to do when it is busy', o2.busy === true);
+await evalJs(`document.getElementById('ais-key').value = 'orca_sk_ds_v'; document.querySelector('#sos-ai-root [data-save]').click(); true;`);
+await wait(200);
+const o3 = await evalJs(`(function(){
+  var s = JSON.parse(localStorage.getItem('studyos_ai_v1'));
+  var synced = JSON.stringify(classes) + (window.__docSaves||[]).map(x => x.json).join('');
+  return { pick: s.orcaPick, ds: s.orcaKeys && s.orcaKeys.deepseek, auto: s.keys.orca,
+           msg: document.getElementById('ais-msg').textContent, leaked: /orca_sk_(ds|auto)_v/.test(synced) };
+})()`);
+t('both keys saved, DeepSeek picked', o3.pick === 'deepseek' && o3.ds === 'orca_sk_ds_v' && o3.auto === 'orca_sk_auto_v', o3);
+t('the save names ORCA · DeepSeek', /ORCA · DeepSeek/.test(o3.msg), o3.msg);
+t('no ORCA key in synced data', o3.leaked === false);
+
 const errs = events
   .filter(e => e.method === 'Runtime.exceptionThrown')
   .map(e => e.params.exceptionDetails?.exception?.description || e.params.exceptionDetails?.text || '?')

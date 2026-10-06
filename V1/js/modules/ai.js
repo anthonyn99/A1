@@ -37,6 +37,25 @@ export const PROVIDERS = {
                defaultBase: 'https://orca.vedapatel05.workers.dev/v1' },
 };
 
+/* The models behind ORCA she can pick. ORCA's router ignores a request's
+ * `model`, so a pick is a KEY: one made on ORCA → Keys with Backends limited
+ * to that model. `served` matches the `model` ORCA's reply names (the site's
+ * provider_model_id), to tell a key that is not limited from one that is. */
+export const ORCA_MODELS = {
+  claude:     { label: 'Claude',     backend: 'claude/free',     served: /claude/i },
+  chatgpt:    { label: 'ChatGPT',    backend: 'chatgpt/free',    served: /gpt|chatgpt|openai|o\d/i },
+  deepseek:   { label: 'DeepSeek',   backend: 'deepseek/free',   served: /deepseek/i },
+  gemini:     { label: 'Gemini',     backend: 'gemini_web/free', served: /gemini/i },
+  perplexity: { label: 'Perplexity', backend: 'perplexity/free', served: /perplexity|sonar/i },
+};
+
+/** "deepseek-web" → "DeepSeek"; anything else as ORCA named it. */
+export function servedName(model) {
+  const m = String(model || '');
+  const hit = Object.values(ORCA_MODELS).find((x) => x.served.test(m));
+  return hit ? hit.label : m;
+}
+
 // Base64 inflates by a third, and the Claude API caps a request at 32 MB.
 const MAX_PDF_BYTES = 24 * 1024 * 1024;
 
@@ -55,6 +74,12 @@ function defaults() {
     keys: { anthropic: '', openai: '', gemini: '', orca: '' },
     models: { anthropic: PROVIDERS.anthropic.defaultModel, openai: '', gemini: '', orca: '' },
     baseUrl: { openai: PROVIDERS.openai.defaultBase, orca: PROVIDERS.orca.defaultBase },
+    // ORCA: 'auto' (keys.orca, ORCA picks) or one of ORCA_MODELS, whose key
+    // is orcaKeys[pick]. orcaBusy: 'wait' for a busy pick, or 'auto' = ask
+    // through the auto key instead.
+    orcaPick: 'auto',
+    orcaKeys: Object.fromEntries(Object.keys(ORCA_MODELS).map((k) => [k, ''])),
+    orcaBusy: 'wait',
   };
 }
 
@@ -68,6 +93,9 @@ export function settings() {
       keys: { ...d.keys, ...(s.keys || {}) },
       models: { ...d.models, ...(s.models || {}) },
       baseUrl: { ...d.baseUrl, ...(s.baseUrl || {}) },
+      orcaPick: s.orcaPick === 'auto' || ORCA_MODELS[s.orcaPick] ? s.orcaPick : d.orcaPick,
+      orcaKeys: { ...d.orcaKeys, ...(s.orcaKeys || {}) },
+      orcaBusy: s.orcaBusy === 'auto' ? 'auto' : 'wait',
     };
   } catch (e) { return d; }
 }
@@ -95,6 +123,20 @@ export function saveSettings(next) {
 export function active() {
   const s = settings();
   const id = s.provider;
+  if (id === 'orca') {
+    const pick = s.orcaPick;
+    const m = ORCA_MODELS[pick];
+    const key = m ? s.orcaKeys[pick] || '' : s.keys.orca || '';
+    return {
+      id, label: PROVIDERS.orca.label, model: m ? m.label : 'Auto', pick, key,
+      // A busy pick may go through the auto key instead, when she said so.
+      fallbackKey: m && s.orcaBusy === 'auto' ? s.keys.orca || '' : '',
+      baseUrl: (s.baseUrl.orca || PROVIDERS.orca.defaultBase).replace(/\/+$/, ''),
+      problem: key ? '' : m
+        ? `Add the ORCA key for ${m.label} in AI settings (ORCA → Keys, Backends: ${m.backend}).`
+        : 'Add your ORCA key in AI settings.',
+    };
+  }
   const model = id === 'bridge' ? 'claude.ai' : (s.models[id] || PROVIDERS[id].defaultModel || '');
   let problem = '';
   if (id === 'bridge') {
@@ -162,6 +204,67 @@ const INLINE_RULE =
   'inline in the chat — do NOT create an artifact, a file, or a document, and ' +
   'do not add commentary before or after the block.';
 
+/* What a chat site behind ORCA is told about the reply. ORCA's own line for a
+ * response_format says "no markdown fences" — and a chat site RENDERS an
+ * unfenced reply as Markdown, which ORCA then reads back as display text:
+ * \" loses its backslash (the JSON breaks), an <svg> is stripped, **bold**
+ * loses its stars. Inside a code block the text is shown exactly as written,
+ * on every site. So StudyOS sends no response_format and says this instead. */
+const CHAT_JSON_RULE = INLINE_RULE +
+  ' Do not search the web: everything you need is in this message and its attachments.';
+
+/* A continuation's reply: the rest of a cut-off answer, not a new object. */
+const CONT_RULE =
+  'Reply with ONE fenced code block holding ONLY the continuation text, written ' +
+  'inline in the chat — no artifact, file or canvas, nothing before or after it, ' +
+  'and do not search the web.';
+
+/** Whether an answer opens a JSON object it never closes: cut off. */
+export function looksCutOff(text) {
+  const s = String(text || '');
+  const i = s.indexOf('{');
+  return i >= 0 && !balancedObject(s.slice(i)) && s.length - i > 40;
+}
+
+/** The text of a continuation reply: its last fence's body, or the reply
+ *  without the labels a site prints over a code block ("json", "Copy code"). */
+export function continuationText(reply) {
+  const src = String(reply || '');
+  const fences = [...src.matchAll(/```[\w-]*[^\n]*\n([\s\S]*?)(?:```|$)/g)];
+  if (fences.length) return fences[fences.length - 1][1];
+  const lines = src.replace(/^\s+/, '').split('\n');
+  let k = 0;
+  while (k < Math.min(3, lines.length) && /^\s*(json|javascript|js|text|plaintext|copy|copy code|code)\s*$/i.test(lines[k])) k++;
+  return lines.slice(k).join('\n');
+}
+
+/** A cut-off answer + its continuation, as one text. A model that repeats
+ *  the last few characters before continuing has the overlap removed. */
+export function stitch(partial, more) {
+  let a = String(partial || '');
+  const i = a.indexOf('{');
+  if (i > 0) a = a.slice(i);
+  a = a.replace(/\s+$/, '');
+  let b = String(more || '').replace(/^\s*\n/, '');
+  const lead = b.replace(/^\s+/, '');
+  for (let k = Math.min(400, a.length, lead.length); k >= 8; k--) {
+    if (a.endsWith(lead.slice(0, k))) { b = lead.slice(k); break; }
+  }
+  return a + b;
+}
+
+export function continuationPrompt(original, partial) {
+  return `${original}
+
+---
+YOUR PREVIOUS REPLY TO THE REQUEST ABOVE WAS CUT OFF before it finished. This is everything you wrote, verbatim:
+<partial>
+${partial}
+</partial>
+Continue it from EXACTLY where it stops — the very next character onward. Do not repeat anything already written and do not start over: what you write is appended directly to the text above, to complete that one JSON object.`;
+}
+const MAX_CONTINUATIONS = 2;
+
 export function repairPrompt(error, answer, schemaHint) {
   return 'The text below was meant to be a single valid JSON object but it could not be ' +
     `used (${error}). Fix it and return ONLY the corrected JSON. Keep every item; ` +
@@ -192,13 +295,35 @@ export async function generateJSON(o) {
     throw new AIError('This PDF is over 24 MB — too large to send to a model in one piece.', { kind: 'too_large' });
   }
 
-  const call = (spec) => ADAPTERS[a.id](a, spec);
+  // An adapter answers with its text, or { text, servedBy } when it knows
+  // which model wrote it (ORCA names the site it routed to).
+  let servedBy = '';
+  const call = async (spec) => {
+    const r = await ADAPTERS[a.id](a, spec);
+    if (r && typeof r === 'object') { if (r.servedBy) servedBy = r.servedBy; return r.text || ''; }
+    return r || '';
+  };
+  const done = (data) => ({ data, provider: a.id, model: a.model, servedBy });
   const schemaHint = JSON.stringify(o.schema);
-  const text = await call({ ...o, attachPdf: true });
+  let text = await call({ ...o, attachPdf: true });
 
   let firstErr;
-  try { return { data: checked(extractJSON(text), o.validate), provider: a.id, model: a.model }; }
+  try { return done(checked(extractJSON(text), o.validate)); }
   catch (e) { firstErr = e; }
+
+  // A chat site that stopped mid-answer: ask for the REST and join the two.
+  // A repair cannot do this — it only has the half that was written.
+  for (let n = 1; n <= MAX_CONTINUATIONS && looksCutOff(text); n++) {
+    const more = await call({
+      system: o.system, prompt: continuationPrompt(o.prompt, text.slice(Math.max(0, text.indexOf('{')))),
+      replyRule: CONT_RULE, maxTokens: o.maxTokens,
+      key: o.key ? `${o.key}:cont${n}` : '', fileId: o.fileId, attachPdf: false,
+      onJob: o.onJob, onWait: o.onWait,
+    });
+    text = stitch(text, continuationText(more));
+    try { return done(checked(extractJSON(text), o.validate)); }
+    catch (e) { firstErr = e; }
+  }
 
   // ONE repair ask, WITHOUT the source: the content is already there and only
   // its shape is wrong. Cheaper and far more reliable than regenerating.
@@ -207,9 +332,9 @@ export async function generateJSON(o) {
     prompt: repairPrompt(firstErr.message, text, schemaHint),
     schema: o.schema, maxTokens: o.maxTokens,
     key: o.key ? o.key + ':repair' : '', fileId: o.fileId, attachPdf: false,
-    onJob: o.onJob,
+    onJob: o.onJob, onWait: o.onWait,
   });
-  try { return { data: checked(extractJSON(fixed), o.validate), provider: a.id, model: a.model }; }
+  try { return done(checked(extractJSON(fixed), o.validate)); }
   catch (e) {
     throw new AIError(`The answer was unusable even after a repair ask (${e.message}).`, { kind: 'bad_json', retryable: true });
   }
@@ -232,9 +357,18 @@ export async function testConnection() {
     if (!(h.modes || []).includes('ask')) throw new AIError('The bridge is out of date — restart it to load the "ask" mode.');
     return 'Bridge is running.';
   }
-  const text = await ADAPTERS[a.id](a, {
+  const r = await ADAPTERS[a.id](a, {
     system: '', prompt: 'Reply with the single word OK.', maxTokens: 256, attachPdf: false, test: true,
   });
+  const text = r && typeof r === 'object' ? r.text : r;
+  if (a.id === 'orca') {
+    const who = servedName(r && r.servedBy) || 'a model';
+    const want = ORCA_MODELS[a.pick];
+    if (want && r.servedBy && !want.served.test(r.servedBy)) {
+      throw new AIError(`This key was answered by ${who}, not ${want.label} — on ORCA → Keys, limit the key's Backends to ${want.backend} only.`, { kind: 'setup' });
+    }
+    return `Connected — ${who} replied “${String(text).trim().slice(0, 40)}” through ORCA.`;
+  }
   return `Connected — ${a.model || a.label} replied “${String(text).trim().slice(0, 40)}”.`;
 }
 
@@ -242,7 +376,7 @@ export async function testConnection() {
 const ADAPTERS = { bridge: viaBridge, anthropic: viaAnthropic, openai: viaOpenAI, gemini: viaGemini, orca: viaOpenAI };
 
 async function viaBridge(a, spec) {
-  const prompt = (spec.system ? spec.system + '\n\n' : '') + spec.prompt + '\n\n' + INLINE_RULE;
+  const prompt = (spec.system ? spec.system + '\n\n' : '') + spec.prompt + '\n\n' + (spec.replyRule || INLINE_RULE);
   let job = null;
 
   // Re-attach to a job this step already started (the tab was closed mid-run).
@@ -554,7 +688,13 @@ async function viaOpenAI(a, spec) {
         }
       }
     }
-    content = (doc ? `The source document (${spec.pdf.name || 'source.pdf'}), as extracted text:\n\n${doc}\n\n` : '') + spec.prompt;
+    content = (doc ? `The source document (${spec.pdf.name || 'source.pdf'}), as extracted text:\n<document>\n${doc}\n</document>\n\n` : '') + spec.prompt;
+    // The reply format, from StudyOS (see CHAT_JSON_RULE) — a test ask has none.
+    const rule = spec.replyRule || (spec.schema && !spec.test ? CHAT_JSON_RULE : '');
+    // A long text goes as attached .txt files, not typed into the chat box:
+    // see spillText. The reply format is always typed, last.
+    const spilled = spillText(content);
+    if (rule) { content += '\n\n' + rule; spilled.text += '\n\n' + rule; }
     // The PDF itself (OpenAI's file part) and pictures of figure pages, when
     // the caller sends them. ORCA routes such a request only to models that
     // take files / images -- and the text above rides along regardless.
@@ -562,8 +702,8 @@ async function viaOpenAI(a, spec) {
     const file = spec.attachPdf && spec.attachFile && spec.pdf
       ? [{ type: 'file', file: { filename: spec.pdf.name || 'source.pdf', file_data: 'data:application/pdf;base64,' + spec.pdf.b64 } }]
       : [];
-    if (images.length || file.length) {
-      content = [{ type: 'text', text: content }, ...file,
+    if (images.length || file.length || spilled.files.length) {
+      content = [{ type: 'text', text: spilled.text }, ...spilled.files, ...file,
         ...images.map((url) => ({ type: 'image_url', image_url: { url } }))];
     }
   } else {
@@ -577,31 +717,114 @@ async function viaOpenAI(a, spec) {
     ...(spec.system ? [{ role: 'system', content: spec.system }] : []),
     { role: 'user', content },
   ];
-  const post = (response_format) => fetch(a.baseUrl + '/chat/completions', {
+  const orca = a.id === 'orca';
+  const post = (response_format, key = a.key) => fetch(a.baseUrl + '/chat/completions', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + a.key },
-    body: JSON.stringify({ ...(a.model && !/^(any|auto)$/i.test(a.model) ? { model: a.model } : {}), messages, ...(response_format ? { response_format } : {}) }),
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+    // ORCA's router ignores `model` (a pick is its own key), and gets no
+    // response_format: see CHAT_JSON_RULE.
+    body: JSON.stringify({ ...(!orca && a.model && !/^(any|auto)$/i.test(a.model) ? { model: a.model } : {}), messages, ...(response_format ? { response_format } : {}) }),
   });
 
   let res;
   try {
-    res = await post(spec.schema && !spec.test
+    res = await post(spec.schema && !spec.test && !orca
       ? { type: 'json_schema', json_schema: { name: 'result', strict: true, schema: spec.schema } }
       : null);
     // Not every OpenAI-compatible host takes a JSON Schema; json_object is the
     // near-universal fallback, and validation catches the rest.
-    if (res.status === 400 && spec.schema && !spec.test) res = await post({ type: 'json_object' });
+    if (res.status === 400 && spec.schema && !spec.test && !orca) res = await post({ type: 'json_object' });
+    // ORCA busy: every model rate-limited, or the PC away (503/429 with
+    // Retry-After). Wait it out — failing would only move on to the next
+    // topic, which fails the same way — or go through the auto key, when a
+    // picked model may fall back to any.
+    if (orca) {
+      const deadline = Date.now() + MAX_BUSY_WAIT_MS;
+      let key = a.key;
+      while (res.status === 503 || res.status === 429) {
+        if (a.fallbackKey && key !== a.fallbackKey) {
+          key = a.fallbackKey;
+          res = await post(null, key);
+          continue;
+        }
+        const wait = retryAfterMs(res);
+        if (Date.now() + wait > deadline) break;
+        const body = await res.clone().json().catch(() => null);
+        if (spec.onWait) spec.onWait({ until: Date.now() + wait, why: errorDetail(body) });
+        await _sleep(wait);
+        if (spec.onWait) spec.onWait(null);
+        res = await post(null, key);
+      }
+    }
   } catch (e) {
     throw new AIError(`Could not reach ${a.baseUrl}: ${(e && e.message) || e}`, { kind: 'network', retryable: true });
   }
   const body = await res.json().catch(() => null);
-  if (!res.ok) throw httpError('the provider', res.status, body, spec.attachPdf);
+  if (!res.ok) throw httpError(orca ? 'ORCA' : 'the provider', res.status, body, spec.attachPdf);
   const choice = body && body.choices && body.choices[0];
   if (choice && choice.finish_reason === 'length' && !spec.test) {
     throw new AIError('The answer hit the length limit before it finished.', { kind: 'too_long', retryable: true });
   }
   const c = choice && choice.message && choice.message.content;
-  return Array.isArray(c) ? c.map(p => p.text || '').join('') : (c || '');
+  const text = Array.isArray(c) ? c.map(p => p.text || '').join('') : (c || '');
+  return orca ? { text, servedBy: (body && body.model) || '' } : text;
+}
+
+// ── ORCA: waiting, and long text as files ─────────────────────────────────
+const MAX_BUSY_WAIT_MS = 10 * 60 * 1000;
+let _sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/** Tests replace the clock's waiting. */
+export function setSleep(fn) { _sleep = fn || ((ms) => new Promise((r) => setTimeout(r, ms))); }
+
+function retryAfterMs(res) {
+  const h = res.headers && res.headers.get && res.headers.get('Retry-After');
+  const n = Number(h);
+  if (Number.isFinite(n) && n >= 0) return Math.max(5, Math.min(n, 15 * 60)) * 1000;
+  const at = h ? Date.parse(h) : NaN;
+  if (Number.isFinite(at)) return Math.max(5000, at - Date.now());
+  return 60 * 1000;
+}
+
+const errorDetail = (body) => String((body && ((body.error && (body.error.message || body.error)) || body.message)) || '');
+
+/* A chat site's composer is not a place for 100 KB of text: ORCA types it in
+ * line by line and then checks it landed, some sites cap a message, and some
+ * turn a long paste into an attachment chip that the check never finds. Every
+ * site ORCA drives reads attached text files (and ORCA inlines them again for
+ * a model that does not), so a long ask types its instructions and attaches
+ * its big blocks — <document>, <source>, <partial>, <broken> — as .txt files. */
+export const SPILL_CHARS = 12000;
+const SPILL_TAGS = ['document', 'source', 'partial', 'broken'];
+
+export function spillText(text) {
+  const src = String(text || '');
+  if (src.length <= SPILL_CHARS) return { text: src, files: [] };
+  const files = [];
+  const asFile = (name, body) => {
+    files.push({ type: 'file', file: { filename: name, file_data: 'data:text/plain;base64,' + b64utf8(body) } });
+  };
+  let out = src;
+  for (const tag of SPILL_TAGS) {
+    const re = new RegExp(`<${tag}>\\n?([\\s\\S]*?)\\n?</${tag}>`);
+    const m = out.match(re);
+    if (!m || m[1].length < 2000) continue;
+    const name = `${tag}.txt`;
+    asFile(name, m[1]);
+    out = out.replace(m[0], `<${tag}>\n(in the attached file ${name} — read ALL of it)\n</${tag}>`);
+  }
+  if (out.length > SPILL_CHARS) {
+    // No big block to move (or still too long): the whole ask goes as a file.
+    asFile('request.txt', out);
+    out = 'Your complete task is in the attached file request.txt. Read ALL of it, then do exactly what it says — including its reply format.';
+  }
+  return { text: out, files };
+}
+
+function b64utf8(s) {
+  const bytes = new TextEncoder().encode(s);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
 }
 
 async function viaGemini(a, spec) {
@@ -636,12 +859,32 @@ async function viaGemini(a, spec) {
 function httpError(who, status, body, hadPdf) {
   const detail = (body && ((body.error && (body.error.message || body.error)) || body.message)) || '';
   if (status === 401 || status === 403) return new AIError(`${who} rejected the key (${status}).`, { kind: 'auth' });
+  if (who === 'ORCA' && (status === 404 || status === 503 || status === 429)) return orcaRefusal(status, String(detail));
   if (status === 404) return new AIError(`${who}: model not found (${detail || 404}).`, { kind: 'setup' });
   if (status === 429) return new AIError(`${who} rate-limited the request — try again shortly.`, { kind: 'rate', retryable: true });
   const pdfHint = hadPdf && /pdf|file|document|mime|unsupported/i.test(String(detail))
     ? ' This model may not read PDFs — pick one that does.' : '';
   return new AIError(`${who} error ${status}: ${String(detail).slice(0, 300)}${pdfHint}`,
     { kind: 'api', retryable: status >= 500 });
+}
+
+/* ORCA's "nothing can take this" (404 no_eligible_backend) lists each model's
+ * reason. Only images/files nobody reads → not fatal: the caller retries with
+ * text alone. A model signed out, switched off or outside the key's scope is
+ * the same for every topic → `setup`, which stops the run once with ORCA's
+ * own words. Still busy after the wait (503/429) → `rate`, retried later. */
+function orcaRefusal(status, detail) {
+  const said = detail.slice(0, 400);
+  if (status !== 404) {
+    return new AIError(`ORCA's models are all busy or rate-limited (${said || status}) — waited, then gave up on this step.`,
+      { kind: 'rate', retryable: true });
+  }
+  const reasons = said.split(/;\s*/);
+  if (reasons.length && reasons.every((r) => /input_modality|missing capabilities/i.test(r))) {
+    return new AIError(`No ORCA model free right now reads attachments (${said}).`, { kind: 'no_backend', retryable: true });
+  }
+  return new AIError(`ORCA has no model it can use for this: ${said || 'no eligible backend'}. Check ORCA → Accounts (signed in?) and the key's Backends on ORCA → Keys.`,
+    { kind: 'setup' });
 }
 
 /** FNV-1a — the prompt text as a cache version (same as the deck sheet's). */
@@ -652,4 +895,5 @@ export function hash(text) {
   return 'h' + h.toString(36);
 }
 
-export default { ocrPages, pdfText, pdfPages, pdfPageImages, pageText, linesFromItems, PROVIDERS, settings, saveSettings, active, generateJSON, testConnection, extractJSON, repairPrompt, hash, AIError };
+export default { ocrPages, pdfText, pdfPages, pdfPageImages, pageText, linesFromItems, PROVIDERS, ORCA_MODELS, servedName, settings, saveSettings, active, generateJSON, testConnection, extractJSON, repairPrompt, hash, AIError,
+  looksCutOff, continuationText, stitch, continuationPrompt, spillText, setSleep };
