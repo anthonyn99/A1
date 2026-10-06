@@ -1245,23 +1245,32 @@
     if (D) endDrag(true);
     if (ui.view === 'ed') closeEditor(true);
     ui.open = false;
-    launchers.forEach(function (l) { if (l._btn) l._btn.setAttribute('aria-expanded', 'false'); });
-    window.removeEventListener('resize', queuePlace);
-    window.removeEventListener('scroll', queuePlace, true);
-    document.removeEventListener('keydown', onDocKey, true);
     // Focus goes back to the launcher only for keyboard users; after a tap it
     // is pointless work (and on some phones a visible focus flash).
     var hadFocus = !byPointer && ui.root.activeElement != null;
     ui.holdBd = !!byPointer;
     if (ui.holdBd) setTimeout(function () { ui.holdBd = false; settleClose(); }, 1500);
+    // The slide goes first: this frame must only start the animation. Touching
+    // the host page (aria on its launcher buttons) invalidates ITS styles, which
+    // on a heavy page costs a frame or two — felt as a hitch at the start of
+    // the dismiss. That bookkeeping now waits until the first frame is out.
     if (instant === true || document.visibilityState !== 'visible') {
       ui.holdBd = false;
       ui.host.style.display = 'none';
+      afterClose(hadFocus);
     } else {
       ui.animDone = false;
       ui.wrap.classList.add('closing');
       ui.closeT = setTimeout(function () { ui.animDone = true; settleClose(); }, 190);
+      requestAnimationFrame(function () { setTimeout(function () { afterClose(hadFocus); }, 0); });
     }
+  }
+  function afterClose(hadFocus) {
+    if (ui.open) return;   // reopened before this ran: those listeners are live again
+    launchers.forEach(function (l) { if (l._btn) l._btn.setAttribute('aria-expanded', 'false'); });
+    window.removeEventListener('resize', queuePlace);
+    window.removeEventListener('scroll', queuePlace, true);
+    document.removeEventListener('keydown', onDocKey, true);
     if (hadFocus && ui.anchor && ui.anchor._btn && ui.anchor.isConnected && !ui.anchor.hidden) {
       try { ui.anchor._btn.focus({ preventScroll: true }); } catch (e) {}
     }
