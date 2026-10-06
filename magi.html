@@ -353,8 +353,15 @@ input, select, textarea, button { font-variant-numeric: tabular-nums; }
 .turn { display: flex; flex-direction: column; gap: 8px; min-width: 0;
         padding-bottom: 14px; border-bottom: 1px solid var(--bdl); }
 .turn-now { border-bottom: 0; padding-bottom: 0; }
+.turn-qrow { align-self: flex-end; display: flex; align-items: flex-end; gap: 6px;
+             max-width: min(680px, 94%); min-width: 0; }
+.turn-q-copy { margin-left: 0; padding: 0; width: 28px; justify-content: center;
+               opacity: .55; }
+.turn-q-copy span:last-child { display: none; }
+.turn-qrow:hover .turn-q-copy, .turn-q-copy:focus-visible, .turn-q-copy.done { opacity: 1; }
+@media (hover: none) { .turn-q-copy { opacity: .8; width: 36px; min-height: 36px; } }
 .turn-q {
-  align-self: flex-end; max-width: min(640px, 88%); min-width: 0;
+  align-self: flex-end; max-width: 100%; min-width: 0; flex: 0 1 auto;
   background: color-mix(in srgb, var(--ac) 12%, var(--s2));
   border: 1px solid color-mix(in srgb, var(--ac) 30%, transparent);
   border-radius: 14px 14px 4px 14px; padding: 8px 12px;
@@ -413,7 +420,7 @@ input, select, textarea, button { font-variant-numeric: tabular-nums; }
   box-shadow: 0 -14px 22px -10px var(--bg), 0 8px 22px -6px var(--shadow);
 }
 @media (max-width: 760px) {
-  .turn-q, .turn-note { max-width: 94%; }
+  .turn-note { max-width: 94%; }
   .turn-verdict { padding: 8px 10px; }
 }
 
@@ -10665,7 +10672,14 @@ function qBubble(q) {
   const b = el("div", "turn-q clamped", String(q || ""));
   b.title = "Click to show all of it";
   b.onclick = () => b.classList.toggle("clamped");
-  return b;
+  // Copy sits beside the bubble, icon only: the prompt exactly as sent (it
+  // can be a long markdown template, so it is copied raw, never re-rendered).
+  const copy = copyButton(() => ({ md: String(q || "") }),
+                          { cls: "turn-q-copy", plain: true });
+  copy.title = "Copy this prompt";
+  const row = el("div", "turn-qrow");
+  row.append(copy, b);
+  return row;
 }
 
 /** An earlier turn, compact: question, notes, verdict, and its units folded. */
