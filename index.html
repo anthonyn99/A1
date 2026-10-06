@@ -16054,7 +16054,21 @@ function App(){
     // back into the live doc — re-uploading them would re-create the oversize
     // document whose prune archived them in the first place.
     const sanitizeData=d=>{const out={};Object.entries(d).forEach(([dk,arr])=>{if(vdArchivedRef.current[dk])return;out[dk]=Array.isArray(arr)?arr.map(sanitizeItem):arr;});return out;};
-    return{data:sanitizeData(vdRef.current.data),habits:vdRef.current.habits,hc:vdRef.current.hc,goals:vdRef.current.goals,monthlyGoals:vdRef.current.monthlyGoals,goalPrefs:vdRef.current.goalPrefs||{...GOAL_PREFS_DEF},rules:vdRef.current.rules||[],rulesDaily:vdRef.current.rulesDaily||{...RULES_DAILY_DEF},weekKey:getMondayKey(new Date()),savedAt:Date.now()};
+    // THE BUG THIS FIXES: this used to write `rules: vdRef.current.rules||[]`. Undo
+    // (vxApply) rebuilt vdRef without a `rules` key, so the next save uploaded an
+    // EMPTY list, every device's applyRemote took that [] as authoritative, and the
+    // rules vanished everywhere — "they get erased after a while". The wipe guard
+    // never noticed: a handful of rules is noise next to hundreds of tasks.
+    // A missing value is "unknown", never "empty": fall back to the last list this
+    // device persisted (setRules/applyRemote always write td_rules alongside vdRef),
+    // and if even that is gone, leave the field OUT — applyRemote keeps the local
+    // list for an absent field. Only a real array (a deliberate delete-all) sends [].
+    const rl=Array.isArray(vdRef.current.rules)?vdRef.current.rules:loadJ(SK.rules,null);
+    const rdRaw=vdRef.current.rulesDaily&&typeof vdRef.current.rulesDaily==="object"?vdRef.current.rulesDaily:loadJ(SK.rulesDaily,null);
+    const out={data:sanitizeData(vdRef.current.data),habits:vdRef.current.habits,hc:vdRef.current.hc,goals:vdRef.current.goals,monthlyGoals:vdRef.current.monthlyGoals,goalPrefs:vdRef.current.goalPrefs||{...GOAL_PREFS_DEF},weekKey:getMondayKey(new Date()),savedAt:Date.now()};
+    if(Array.isArray(rl))out.rules=rl;
+    if(rdRaw&&typeof rdRaw==="object")out.rulesDaily={...RULES_DAILY_DEF,...rdRaw};
+    return out;
   },[]);
 
   // savedAt of the newest state this device has applied or written. Anything older
@@ -16133,7 +16147,7 @@ function App(){
   const[vxRedo,setVxRedo]=useState(false);
   const[vxRec,setVxRec]=useState(false);
   const vxBtns=useCallback(()=>{const h=vxHist.current;setVxUndo(h.past.length>0);setVxRedo(h.future.length>0);},[]);
-  const vxApply=useCallback((s)=>{vxHist.current.applying=true;const d=vdGraftPlanItems(s.data,vdRef.current.data);setDataState(d);setHabitsState(s.habits);setHcState(s.hc);setMgState(s.goals);setMgMonthlyState(s.monthlyGoals);vdRef.current={data:d,habits:s.habits,hc:s.hc,goals:s.goals,monthlyGoals:s.monthlyGoals,goalPrefs:vdRef.current.goalPrefs};saveJ(SK.data,d);saveJ(SK.habits,s.habits);saveJ(SK.hc,s.hc);saveJ(SK.goals,s.goals);saveJ(SK.mgoals,s.monthlyGoals);vdFbPush();},[vdFbPush,vdGraftPlanItems]);
+  const vxApply=useCallback((s)=>{vxHist.current.applying=true;const d=vdGraftPlanItems(s.data,vdRef.current.data);setDataState(d);setHabitsState(s.habits);setHcState(s.hc);setMgState(s.goals);setMgMonthlyState(s.monthlyGoals);/* MERGE, never replace: undo history holds only data/habits/hc/goals, and rebuilding vdRef from scratch here dropped rules+rulesDaily — the next save then uploaded rules:[] and erased Veda's rules on every device. */vdRef.current={...vdRef.current,data:d,habits:s.habits,hc:s.hc,goals:s.goals,monthlyGoals:s.monthlyGoals};saveJ(SK.data,d);saveJ(SK.habits,s.habits);saveJ(SK.hc,s.hc);saveJ(SK.goals,s.goals);saveJ(SK.mgoals,s.monthlyGoals);vdFbPush();},[vdFbPush,vdGraftPlanItems]);
   const vxFlush=useCallback(()=>{const h=vxHist.current;clearTimeout(h.timer);const cur=vxSnap();if(h.base!=null&&cur!==h.base){h.past.push(h.base);if(h.past.length>100)h.past.shift();h.base=cur;h.future=[];vxBtns();}},[vxSnap,vxBtns]);
   const vxDoUndo=useCallback(()=>{const h=vxHist.current;vxFlush();if(!h.past.length)return false;h.future.push(vxSnap());const prev=h.past.pop();h.base=prev;vxApply(JSON.parse(prev));vxBtns();return true;},[vxFlush,vxSnap,vxApply,vxBtns]);
   const vxDoRedo=useCallback(()=>{const h=vxHist.current;if(!h.future.length)return false;h.past.push(vxSnap());const nxt=h.future.pop();h.base=nxt;vxApply(JSON.parse(nxt));vxBtns();return true;},[vxSnap,vxApply,vxBtns]);
