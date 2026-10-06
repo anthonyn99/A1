@@ -113,6 +113,9 @@ def _snapshot_limit(artifacts_json: str | None, patterns: list[re.Pattern],
         # every element on its own line, so the quote is the notice itself and
         # not the prompt sitting in the element beside it.
         html = re.sub(r"<(script|style)[^>]*>.*?</\1>", "\n", html, flags=re.S | re.I)
+        # Inline tags stay on their line: Claude's free-cap notice put
+        # "11:40 AM" in a <span> and the quote lost the time.
+        html = re.sub(r"</?(?:span|a|b|i|em|strong|code|small|time)\b[^>]*>", " ", html, flags=re.I)
         lines = [
             re.sub(r"\s+", " ", ln).strip()
             for ln in re.sub(r"<[^>]+>", "\n", html).split("\n")
