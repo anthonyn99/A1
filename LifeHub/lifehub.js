@@ -1009,13 +1009,14 @@
     '@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}';
 
   var SVG_PENCIL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+  var SVG_OPENALL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 4.5H6.5A2 2 0 0 0 4.5 6.5V16"/></svg>';
   var SVG_BACK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>';
   var SVG_REFRESH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5A8 8 0 1 0 17.7 17.2"/><path d="M20 4.5v7h-7"/></svg>';
   var SVG_PLUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
 
   var ui = {
     host: null, root: null, wrap: null, pop: null, sc: null, grid: null, ed: null, ft: null,
-    ttl: null, st: null, btnEdit: null, btnDone: null, btnBack: null, btnRetry: null,
+    ttl: null, st: null, btnEdit: null, btnAll: null, btnDone: null, btnBack: null, btnRetry: null,
     open: false, edit: false, view: 'grid', anchor: null, tiles: {}, addTile: null,
     closeT: 0, noClickUntil: 0, lastFocus: null, placeRaf: 0
   };
@@ -1037,6 +1038,7 @@
             '<button class="ib back" type="button" aria-label="Back" hidden>' + SVG_BACK + '</button>' +
             '<div class="ttl">LifeHub</div><span class="st" aria-live="polite"></span>' +
             '<button class="ib rf" type="button" aria-label="Retry connection" title="Retry now" hidden>' + SVG_REFRESH + '</button>' +
+            '<button class="ib openall-btn" type="button" aria-label="Open all apps" title="Open all apps">' + SVG_OPENALL + '</button>' +
             '<button class="ib edit-btn" type="button" aria-label="Edit apps" title="Edit apps">' + SVG_PENCIL + '</button>' +
             '<button class="done" type="button" hidden>Done</button>' +
           '</div>' +
@@ -1058,6 +1060,8 @@
     ui.btnRetry = root.querySelector('.rf');
     ui.btnRetry.addEventListener('click', function () { retry(S, true); });
     ui.btnEdit = root.querySelector('.edit-btn');
+    ui.btnAll = root.querySelector('.openall-btn');
+    ui.btnAll.addEventListener('click', openAll);
     ui.btnDone = root.querySelector('.done');
     ui.btnBack = root.querySelector('.back');
 
@@ -1182,6 +1186,7 @@
     ui.lastFocus = document.activeElement;
     ui.host.style.display = '';
     ui.open = true;
+    pingExt();
     launchers.forEach(function (l) { if (l._btn) l._btn.setAttribute('aria-expanded', l === ui.anchor ? 'true' : 'false'); });
     // Every opening re-reads each web app's logo (see iconNode): forget what was
     // read last time and repaint, so a changed logo appears now.
@@ -1240,6 +1245,7 @@
     if (ui.view === 'ed' && !quiet) closeEditor(true);
     ui.wrap.classList.toggle('edit', ui.edit);
     ui.btnEdit.hidden = ui.edit || ui.view === 'ed';
+    ui.btnAll.hidden = ui.btnEdit.hidden;
     ui.btnDone.hidden = !ui.edit || ui.view === 'ed';
     ui.ft.hidden = !ui.edit || ui.view === 'ed';
     ui.ttl.textContent = ui.edit ? 'Edit apps' : 'LifeHub';
@@ -1442,6 +1448,42 @@
         an.href = url; an.target = tabName(key);
         document.body.appendChild(an); an.click(); document.body.removeChild(an);
       } catch (e) {}
+    }
+    close(true);
+  }
+
+  /* ── Open all ─────────────────────────────────────────────────────────────
+     Every visible web app, in grid order (left to right, top down — S.apps IS
+     that order, so a rearrange reorders this too). Programs on this PC and the
+     page you are already on are skipped. With the Vault extension (desktop) the
+     tabs land as one purple tab group, through the same bridge Vault's "Open
+     all" uses; a page can't make a tab group itself. Without it — every phone,
+     any browser lacking the extension — they open as separate tabs. Whether the
+     extension is there is learned ahead of the click (its answer is async, and
+     a plain window.open is only allowed inside the click itself). */
+  var extOk = false;
+  window.addEventListener('message', function (e) {
+    var d = e.data;
+    if (e.source === window && d && d.source === 'vault-extension' && d.action === 'aiLaunchPong') extOk = !!d.ok;
+  });
+  function pingExt() {
+    try { window.postMessage({ source: 'tradehub-vault', action: 'aiLaunchPing' }, location.origin); } catch (e) {}
+  }
+  function openAll() {
+    var items = S.apps.filter(function (a) { return !a.hidden; }).map(function (a) {
+      return { a: a, url: normUrl(a.url) };
+    }).filter(function (x) { return x.url && isWeb(x.url) && !isHere(x.url); });
+    if (!items.length) { close(); return; }
+    if (extOk) {
+      try {
+        window.postMessage({ source: 'vault-page', action: 'openLinkGroup', urls: items.map(function (x) { return x.url; }),
+          name: 'LifeHub', color: '#a855f7' }, location.origin);
+      } catch (e) {}
+    } else {
+      items.forEach(function (x) {
+        var key = x.a.tab || ('lh_' + x.a.id);
+        try { openTab(x.url, key); } catch (e) {}
+      });
     }
     close(true);
   }
@@ -1794,6 +1836,7 @@
     ui.btnBack.hidden = false;
     ui.btnRetry.hidden = true;
     ui.btnEdit.hidden = true;
+    ui.btnAll.hidden = true;
     ui.btnDone.hidden = true;
     ui.ttl.textContent = a ? 'Edit app' : 'Add app';
     ui.sc.scrollTop = 0;
