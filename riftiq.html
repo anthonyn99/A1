@@ -461,7 +461,7 @@
   --gold:   #c0aeea;   /* identity accent (ProView purple) */
   /* dragsort.js reads these: MAGI's drag, tinted with RiftIQ's own tokens. */
   --ds-ac: var(--gold); --ds-s2: var(--bg4); --ds-tx: var(--tx);
-  --ds-txm: var(--tx3); --ds-shadow: rgba(0,0,0,.55);
+  --ds-txm: var(--tx3); --ds-txd: var(--tx2); --ds-shadow: rgba(0,0,0,.55);
   --gold2:  #dbd0f5;
   --blue:   #8fa6d8;   /* blue side / Diamond */
   --red:    #d68a7c;   /* suite "bad"         */
@@ -1975,25 +1975,10 @@ html.lk-open, body.lk-open {
 .bld-row-del:hover { border-color: var(--red); color: var(--red); }
 @media (pointer: coarse) { .bld-row-del { width: 38px; height: 38px; } }
 
-/* The Notes box resizes by a HANDLE, not by the browser's 7px corner grippy -
-   which is invisible under a fingertip and fiddly under a mouse. `resize:none`
-   on the textarea hands the job to #be-notes-grip below. */
+/* The Notes box resizes by MAGI's corner grip (resizegrip.js), not the browser's
+   7px corner. `resize:none` on the textarea and the extra bottom padding keep
+   text clear of the grip. */
 #be-notes-wrap { position: relative; }
-#be-notes-grip {
-  position: absolute; right: 4px; bottom: 4px;
-  width: 26px; height: 26px; border-radius: 6px;
-  background: var(--bg4); border: 1px solid var(--bd2); color: var(--tx3);
-  display: flex; align-items: center; justify-content: center;
-  cursor: ns-resize; touch-action: none; padding: 0;
-  transition: border-color .15s, color .15s, box-shadow .15s;
-}
-#be-notes-grip:hover, #be-notes-grip.bld-resizing { border-color: var(--gold); color: var(--gold2); }
-#be-notes-grip svg { pointer-events: none; }
-@media (pointer: coarse) {
-  #be-notes-grip { width: 36px; height: 36px; right: 5px; bottom: 5px; }
-  /* The handle is taller under a thumb, so the text has to clear more of it. */
-  #be-notes { padding-bottom: 46px !important; }
-}
 
 /* The matchup picker's "N selected" strip. With 73 champions picked it grew
    without limit, pushed the confirm row off the sheet and buried the grid you
@@ -3576,6 +3561,7 @@ window._mailRelay = window._mailRelay || async function (res) {
 };
 </script>
 <script src="dragsort.js"></script>
+<script src="resizegrip.js"></script>
 </head>
 <body>
 
@@ -7622,20 +7608,16 @@ function openBuildEditor() {
   notesTA.id = 'be-notes';
   notesTA.placeholder = 'Strategy, combos...';
   // resize:none — the browser's own corner grippy is a 7px target no thumb can
-  // find. #be-notes-grip below does the job at a size both a finger and a
-  // cursor can land on, and the extra padding keeps text clear of it.
+  // find. MAGI's grip (resizegrip.js, wired below) does the job, and the extra
+  // padding keeps text clear of it.
   notesTA.style.cssText = 'width:100%;height:110px;min-height:80px;padding:10px 10px 34px;background:var(--bg3);border:1px solid var(--bd2);border-radius:6px;color:var(--tx);font-family:var(--body);font-size:12px;outline:none;resize:none;box-sizing:border-box;display:block;';
   notesTA.value = b.notes || '';
   notesTA.onfocus = function(){ this.style.borderColor='var(--gold)'; };
   notesTA.onblur = function(){ this.style.borderColor='var(--bd2)'; };
-  var notesGrip = document.createElement('button');
-  notesGrip.id = 'be-notes-grip';
-  notesGrip.type = 'button';
-  notesGrip.setAttribute('aria-label', 'Resize notes');
-  notesGrip.title = 'Drag to resize';
-  notesGrip.innerHTML = wrIco('grip', 15);
+  var notesGrip = A1Resize.grip('notes');
   notesWrap.appendChild(notesTA);
   notesWrap.appendChild(notesGrip);
+  A1Resize.attach(notesTA, notesGrip, 'riftiq.buildnotes');
   notesSection.appendChild(notesWrap);
   left.appendChild(notesSection);
 
@@ -7692,7 +7674,6 @@ function openBuildEditor() {
   refreshBuildZones();
   showBuildPanel('items');
   beEnableSplitResize();
-  beEnableNotesResize();
 
   // Matchup picker modal
   if (!document.getElementById('matchup-picker-modal')) {
@@ -8153,44 +8134,6 @@ function beEnableSplitResize() {
     });
   }
 }
-
-// ── Notes resize handle ──
-// Same pointer contract as the divider, with a floor and a ceiling so the box
-// can neither vanish nor swallow the pane it lives in.
-var _beNr = null;
-
-function _beNrMove(e) {
-  var ta = document.getElementById('be-notes');
-  if (!_beNr || !ta) return;
-  ta.style.height = Math.max(80, Math.min(700, _beNr.startH + (e.clientY - _beNr.startY))) + 'px';
-  if (e.cancelable) e.preventDefault();
-}
-
-function _beNrEnd() {
-  var grip = document.getElementById('be-notes-grip');
-  if (grip) grip.classList.remove('bld-resizing');
-  _beNr = null;
-  window.removeEventListener('pointermove', _beNrMove);
-  window.removeEventListener('pointerup', _beNrEnd, true);
-  window.removeEventListener('pointercancel', _beNrEnd, true);
-}
-
-function beEnableNotesResize() {
-  var grip = document.getElementById('be-notes-grip');
-  var ta = document.getElementById('be-notes');
-  if (!grip || !ta) return;
-  grip.addEventListener('pointerdown', function(e) {
-    if (e.button > 0) return;
-    _beNr = { id: e.pointerId, startY: e.clientY, startH: ta.offsetHeight };
-    grip.classList.add('bld-resizing');
-    try { grip.setPointerCapture(e.pointerId); } catch(_e) {}
-    window.addEventListener('pointermove', _beNrMove, { passive: false });
-    window.addEventListener('pointerup', _beNrEnd, true);
-    window.addEventListener('pointercancel', _beNrEnd, true);
-    e.preventDefault();
-  });
-}
-
 
 function showBuildPanel(tab) {
   _bpTab = tab; _bpCat = 'All';

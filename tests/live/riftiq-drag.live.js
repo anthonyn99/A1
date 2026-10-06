@@ -164,6 +164,17 @@ async function load(c, w, h, mobile) {
       ok('phone: a quick swipe on a tile is a scroll, not a drag', await evalJs(c, "return buildEditorData.items.join();") === before);
     }
 
+    // Notes: MAGI's corner grip (resizegrip.js), not the old square handle.
+    ok('notes: the box carries the MAGI grip and no old handle', await evalJs(c, "return !!document.querySelector('#be-notes-wrap .a1-grip') && !document.getElementById('be-notes-grip');"));
+    await evalJs(c, "document.getElementById('be-notes').scrollIntoView({block:'center'}); return 1;");
+    const gr = await rect(c, '#be-notes-wrap .a1-grip');
+    const h0 = await evalJs(c, "return document.getElementById('be-notes').offsetHeight;");
+    if (dev.mobile) await touchDrag(c, gr.x, gr.y, 0, 60, 0);
+    else await mouseDrag(c, gr.x, gr.y, 0, 60);
+    const h1 = await evalJs(c, "return document.getElementById('be-notes').offsetHeight;");
+    ok('notes: dragging the grip down makes the box taller', h1 > h0 + 40, h0 + ' -> ' + h1);
+    ok('notes: the hand-chosen height is remembered', await evalJs(c, "return !!localStorage.getItem('a1.h.riftiq.buildnotes');"));
+
     // Spells: a tile can only go where it fits (2 max).
     await evalJs(c, "showBuildPanel('spells'); return 1;");
     await sleep(300);
