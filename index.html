@@ -4049,11 +4049,7 @@ window.THRL={
   scrollbar-width:thin;scrollbar-color:var(--ts-bdl) transparent;}
 .thts-panel-b::-webkit-scrollbar{width:5px;}
 .thts-panel-b::-webkit-scrollbar-thumb{background:var(--ts-bdl);border-radius:3px;}
-/* Grabber — the affordance for swipe-down dismiss, phones only. */
-.thts-grab{display:none;}
 @media (max-width:640px){
-  .thts-grab{display:block;flex-shrink:0;width:38px;height:4px;border-radius:2px;
-    background:var(--ts-bdl);margin:7px auto 0;}
   /* Bottom sheet, not a dropdown.
      Anchored to the CARD (position:absolute + top:100%) the panel ran to 1001px
      on a 390x844 phone — 157px past the fold. Opening locks body scroll, so that
@@ -4288,7 +4284,7 @@ window.THRL={
 
 /* ── Narrow-screen art sizing — deliberately placed HERE, after the base
    .thts-car/.thts-photo rules.
-   The earlier @media block near .thts-grab also sets these, but it appears
+   The earlier phone @media block near .thts-panel also sets these, but it appears
    BEFORE the base rules in source order, so at equal specificity the base
    max-width:330px won every time and the art rendered full size on a phone.
    The measured symptom was the hero image running under the photo controls
@@ -4967,7 +4963,7 @@ function Widget(props){
   // drawn fallback pinned even after the path is corrected.
   useEffect(function(){setPhotoErr(false);},[photoSrc]);
   var box=useRef(null),panel=useRef(null),bodyRef=useRef(null),
-      drag=useRef(null),swipe=useRef(null),openRef=useRef(false);
+      drag=useRef(null),openRef=useRef(false);
 
   useEffect(function(){return subscribe(set);},[]);
   useEffect(function(){openRef.current=open;},[open]);
@@ -5456,40 +5452,17 @@ function Widget(props){
       'aria-label':'Close vehicle status',
       onClick:function(e){e.stopPropagation();setOpen(false);}},ico('x',15)));
 
-  // Swipe down to dismiss — armed only from the top of the scroll region, so
-  // the gesture can never fight the panel's own scrolling.
-  function swipeY(e){return (e.touches&&e.touches[0])?e.touches[0].clientY:null;}
-  // Every touch that starts inside the sheet is OURS — stop it before it
+  // Every touch that starts inside the sheet is OURS - stop it before it
   // reaches the document-level listeners. TaskHub's pull-to-refresh arms on any
   // touchstart while window.scrollY is 0, and opening this popup locks body
   // scroll at exactly 0, so without this a downward drag inside the sheet
   // preventDefault()s our scrolling and kicks off a full profile refresh
   // instead. Stopping propagation here fixes it without editing that handler.
+  // There is no swipe-to-dismiss: like the weather panel, it closes only from
+  // the X or a tap on the backdrop.
   var touch={
-    onTouchStart:function(e){
-      e.stopPropagation();
-      if(bodyRef.current&&bodyRef.current.scrollTop>0){swipe.current=null;return;}
-      var y=swipeY(e);
-      swipe.current=(y==null)?null:{y0:y,dy:0};
-    },
-    onTouchMove:function(e){
-      e.stopPropagation();
-      if(!swipe.current||!panel.current)return;
-      var y=swipeY(e);if(y==null)return;
-      swipe.current.dy=Math.max(0,y-swipe.current.y0);
-      var dy=swipe.current.dy;
-      panel.current.style.transform=dy?'translateY('+dy+'px)':'';
-      panel.current.style.opacity=dy?String(Math.max(.35,1-dy/320)):'';
-    },
-    onTouchEnd:function(){
-      var s=swipe.current;swipe.current=null;
-      if(!s||!panel.current)return;
-      var el=panel.current;
-      el.style.transition='transform .2s ease-out,opacity .2s ease-out';
-      el.style.transform='';el.style.opacity='';
-      setTimeout(function(){if(el)el.style.transition='';},210);
-      if(s.dy>70)setOpen(false);
-    }
+    onTouchStart:function(e){e.stopPropagation();},
+    onTouchMove:function(e){e.stopPropagation();}
   };
 
   // Scrim: covers the whole page and takes the click that closes the popup.
@@ -5504,7 +5477,7 @@ function Widget(props){
   return h('div',{className:'thts thts-open',style:vars,ref:box},compact,scrim,
     h('div',Object.assign({key:'p',ref:panel,className:'thts-panel',role:'dialog',
         'aria-label':'Tesla vehicle status'},touch),
-      h('div',{key:'g',className:'thts-grab'}),head,body));
+      head,body));
 }
 
 // ── Public API ───────────────────────────────────────────────────────────
