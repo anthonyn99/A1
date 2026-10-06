@@ -92,9 +92,7 @@ async function load(c, w, h, mobile) {
       builds = { Ahri: [{name:'A1',items:['1001','1002'],spells:['SummonerFlash'],matchupChamps:[],notes:''},{name:'A2',items:[],spells:[],matchupChamps:[],notes:''},{name:'A3',items:[],spells:[],matchupChamps:[],notes:''}],
                  Lux: [], Zed: [] };
       buildsOrder = ['Ahri','Lux','Zed'];
-      document.getElementById('app').style.display='none';
-      const bp = document.getElementById('builds-panel'); bp.classList.add('active'); bp.style.display='flex';
-      renderBuildsHome(); return 1;`);
+      switchTab('builds'); renderBuildsHome(); return 1;`);
     await sleep(300);
     ok('champion rows are not HTML5-draggable', await evalJs(c, "return !document.querySelector('.champ-home-row[draggable]');"));
     const c0 = await rect(c, '.champ-home-row', 0);
@@ -179,22 +177,22 @@ async function load(c, w, h, mobile) {
     console.log('\nProView, ' + dev.name);
     await load(c, dev.w, dev.h, dev.mobile);
     await evalJs(c, `
-      _cfg.leagues = [{id:'l1',name:'LCK'},{id:'l2',name:'LPL'},{id:'l3',name:'LEC'},{id:'l4',name:'LCS'}];
-      _activeLeague = 'l1';
-      window.__cfgSaved = 0;
-      saveCfg = () => { window.__cfgSaved++; };
-      _el = document.getElementById('pv-root'); _pvActive = true; _el.style.display = 'flex';
-      render(); return 1;`);
+      localStorage.setItem('pv_cfg_v1', JSON.stringify({ leagues: [{id:'l1',name:'LCK'},{id:'l2',name:'LPL'},{id:'l3',name:'LEC'},{id:'l4',name:'LCS'}], favorites: [], favLeagues: [] }));
+      document.getElementById('app').style.display = 'none';
+      openProgram('proview'); return 1;`);
+    await sleep(6500);
+    await evalJs(c, "var l = document.querySelector('.pv-lg-pill'); if (l && l.click) { /* make l1 the active league */ l.click(); } return 1;");
     await sleep(400);
-    const ids = () => evalJs(c, "return _cfg.leagues.map(l => l.id).join();");
+    const ids = () => evalJs(c, "return JSON.parse(localStorage.getItem('pv_cfg_v1')).leagues.map(l => l.id).join();");
     ok('pills are an A1Drag list', await evalJs(c, "return document.querySelector('.pv-lg-pill').parentNode.classList.contains('dsort');"));
     const p0 = await rect(c, '.pv-lg-pill', 0);
     const p1 = await rect(c, '.pv-lg-pill', 1);
     if (dev.mobile) await touchDrag(c, p0.x, p0.y, p1.x - p0.x + p1.w * 0.4, 0, 380);
     else await mouseDrag(c, p0.x, p0.y, p1.x - p0.x + p1.w * 0.4, 0);
     ok('ProView: dragging the first league past the second swaps them', await ids() === 'l2,l1,l3,l4', await ids());
-    ok('ProView: the order is saved and the pills redrawn in it', await evalJs(c, "return window.__cfgSaved >= 1 && [...document.querySelectorAll('.pv-lg-pill')].map(p => p.dataset.lgid).join() === 'l2,l1,l3,l4';"));
-    ok('ProView: a drop did not switch league', await evalJs(c, "return _activeLeague === 'l1';"));
+    ok('ProView: the order is saved and the pills redrawn in it', await evalJs(c, "return [...document.querySelectorAll('.pv-lg-pill')].map(p => p.dataset.lgid).join() === 'l2,l1,l3,l4';"));
+    const act = () => evalJs(c, "return [...document.querySelectorAll('.pv-lg-pill')].map(p => p.dataset.lgid + ':' + (getComputedStyle(p).color === 'rgb(31, 25, 48)' ? 'on' : 'off')).join();");
+    ok('ProView: a drop did not switch league', (await act()).includes('l1:on'), await act());
     // A plain click on a pill still switches (desktop; a phone tap is the same click).
     const pk = await rect(c, '.pv-lg-pill', 2);
     if (dev.mobile) {
@@ -205,7 +203,7 @@ async function load(c, w, h, mobile) {
       await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: pk.x, y: pk.y, button: 'left', clickCount: 1 });
     }
     await sleep(300);
-    ok('ProView: a plain tap on a pill still switches league', await evalJs(c, "return _activeLeague === 'l3';"), await evalJs(c, 'return _activeLeague;'));
+    ok('ProView: a plain tap on a pill still switches league', (await act()).includes('l3:on'), await act());
   }
 
   console.log('\nPage errors: ' + (errs.length ? errs.slice(0, 5).join(' | ') : 'none'));
