@@ -354,7 +354,7 @@ console.log('\norca on any site');
   t('404 for a signed-out account is setup, in ORCA\'s words', err && err.kind === 'setup' && /not signed in/.test(err.message), err && err.message);
 
   // One key; ORCA's own list says which models it can use.
-  const LIST = { models: [
+  const LIST = { object: 'list', data: [
     { backend_key: 'groq/gpt-oss-20b', provider_id: 'groq', backend_type: 'http', enabled: true, routable: true,
       provider_model_id: 'openai/gpt-oss-20b', display_name: 'GPT-OSS 20B' },
     { backend_key: 'deepseek/free', provider_id: 'deepseek', backend_type: 'browser', enabled: true, routable: true,
@@ -367,7 +367,7 @@ console.log('\norca on any site');
   calls = [];
   responder = () => json(LIST);
   const found = await ai.detectOrcaModels();
-  t('detection asks ORCA\'s /admin/models with the same key', calls[0].url === 'https://orca.test/admin/models'
+  t('detection asks ORCA\'s /v1/models (CORS-open) with the same key', calls[0].url === 'https://orca.test/v1/models'
     && calls[0].headers.authorization === 'Bearer orca_sk_auto', calls[0]);
   t('usable models first, browser sites before API models', found.map((m) => m.backend_key).join() === 'deepseek/free,groq/gpt-oss-20b,grok/free,perplexity/free', found.map((m) => m.backend_key));
   t('an unusable one says why', found[3].why === 'not signed in on ORCA → Accounts' && found[2].why === 'switched off in ORCA', found.slice(2));

@@ -506,15 +506,15 @@ t('the other provider\'s key is kept', saved.kept === 'sk-test', saved);
 t('the save is confirmed on screen', /Saved/.test(saved.msg), saved.msg);
 t('the key is in no synced data', saved.leaked === false);
 
-// ORCA: one key; its models come from ORCA's own list (/admin/models), stubbed
+// ORCA: one key; its models come from ORCA's own list (/v1/models), stubbed
 // here so nothing reaches the real ORCA.
 await evalJs(`(function(){
   var real = window.fetch;
   window.__orcaAsked = [];
   window.fetch = function(url, init){
-    if (String(url).indexOf('/admin/models') >= 0) {
+    if (String(url).indexOf('/v1/models') >= 0) {
       window.__orcaAsked.push({ url: String(url), auth: init && init.headers && init.headers.Authorization });
-      return Promise.resolve(new Response(JSON.stringify({ models: [
+      return Promise.resolve(new Response(JSON.stringify({ object: 'list', data: [
         { backend_key: 'claude/free', backend_type: 'browser', enabled: true, routable: true, provider_model_id: 'claude-web', display_name: 'Claude free (browser)' },
         { backend_key: 'deepseek/free', backend_type: 'browser', enabled: true, routable: true, provider_model_id: 'deepseek-web', display_name: 'DeepSeek (browser)' },
         { backend_key: 'perplexity/free', backend_type: 'browser', enabled: true, routable: false, provider_model_id: 'perplexity-web', display_name: 'Perplexity (browser)' },
@@ -539,7 +539,7 @@ const o2 = await evalJs(`(function(){
   return { opts: [...s.options].map(o => [o.value, o.disabled, o.textContent.trim()]), asked: window.__orcaAsked,
            note: (document.getElementById('ais-detected')||{}).textContent };
 })()`);
-t('Detect asks ORCA with the key', o2.asked.length === 1 && /\/admin\/models$/.test(o2.asked[0].url) && o2.asked[0].auth === 'Bearer orca_sk_v', o2.asked);
+t('Detect asks ORCA with the key', o2.asked.length === 1 && /\/v1\/models$/.test(o2.asked[0].url) && o2.asked[0].auth === 'Bearer orca_sk_v', o2.asked);
 t('...and lists its models, usable first', o2.opts.map((o) => o[0]).join() === 'auto,claude/free,deepseek/free,perplexity/free', o2.opts);
 t('...an unusable one greyed, saying why', o2.opts[3][1] === true && /not signed in/.test(o2.opts[3][2]), o2.opts[3]);
 t('...and how many are usable', /2 of 3 models usable/.test(o2.note), o2.note);

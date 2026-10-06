@@ -387,16 +387,21 @@ export async function detectOrcaModels() {
   const s = settings();
   const key = s.keys.orca;
   if (!key) throw new AIError('Add your ORCA key first.', { kind: 'setup' });
-  const base = (s.baseUrl.orca || PROVIDERS.orca.defaultBase).replace(/\/+$/, '').replace(/\/v1$/, '');
+  // /v1/models, not /admin/models: only /v1 lets a browser page call it (CORS).
+  const base = (s.baseUrl.orca || PROVIDERS.orca.defaultBase).replace(/\/+$/, '');
   let res;
-  try { res = await fetch(base + '/admin/models', { headers: { Authorization: 'Bearer ' + key } }); }
-  catch (e) { throw new AIError(`Could not reach ORCA at ${base}: ${(e && e.message) || e}`, { kind: 'network', retryable: true }); }
+  try { res = await fetch(base + '/models', { headers: { Authorization: 'Bearer ' + key } }); }
+  catch (e) {
+    throw new AIError(`Could not reach ORCA at ${base} (${(e && e.message) || e}). If ORCA was just updated, give it a few minutes and try again.`,
+      { kind: 'network', retryable: true });
+  }
   const body = await res.json().catch(() => null);
   if (res.status === 401 || res.status === 403) throw new AIError(`ORCA rejected the key (${res.status}).`, { kind: 'auth' });
-  if (!res.ok || !body || !Array.isArray(body.models)) {
+  const rows = body && (Array.isArray(body.data) ? body.data : body.models);
+  if (!res.ok || !Array.isArray(rows)) {
     throw new AIError(`ORCA could not list its models (${res.status}${errorDetail(body) ? ': ' + errorDetail(body) : ''}).`, { kind: 'api' });
   }
-  const list = body.models.map((m) => {
+  const list = rows.map((m) => {
     const browser = m.backend_type === 'browser';
     const why = m.routable ? '' : !m.enabled ? 'switched off in ORCA'
       : browser ? 'not signed in on ORCA → Accounts' : 'no API key on ORCA → Accounts';
