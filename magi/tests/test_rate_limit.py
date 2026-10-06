@@ -87,6 +87,15 @@ def test_a_quota_wall_is_detected(page):
     assert "5:00 PM" in found
 
 
+def test_the_free_message_cap_modal_is_detected(page):
+    """claude-timeout-20261006-160222: the free cap is a Pro-upsell modal."""
+    found = _check(page, """
+<div role="dialog"><h1>Keep chatting with Claude Pro</h1>
+  <p>Your free messages return at <span>11:40 AM</span>, or keep going now with Pro.</p></div>
+<div contenteditable="true" class="ProseMirror"></div>""")
+    assert "11:40 AM" in found
+
+
 def test_a_healthy_page_is_not_a_quota_wall(page):
     """Over-detection would report a working member as rate limited.
 
