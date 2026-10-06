@@ -634,7 +634,7 @@
      — the panel is open on this profile, there are unsaved changes, or a host
      is watching the list (the Shield agent) — so an idle program never polls. */
   var RETRY_MS = [2000, 5000, 15000, 30000, 60000];
-  function wanted(st) { return (ui.open && st === S) || st.ops.length > 0 || st.needSeed || st.watched; }
+  function wanted(st) { return (ui.open && st === S) || st.ops.length > 0 || st.needSeed || !!st.defPending || st.watched; }
   function goOffline(st) {
     setStatus(st, 'offline');
     clearTimeout(st.retryT);
@@ -991,7 +991,6 @@
     '.empty{padding:28px 12px;text-align:center;color:var(--dim);font-size:12.5px;grid-column:1/-1}' +
     '.ft{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:8px 16px 14px;border-top:1px solid var(--bd);color:var(--dim);font-size:11.5px}' +
     '.ft .hint{flex:1 1 100%;min-width:0}.fb{display:flex;gap:8px;flex:1 1 100%}.fb .b{flex:1;justify-content:center}.b.sm{height:32px;padding:0 12px;font-size:12.5px}.b.warn{color:var(--bad);border-color:rgba(214,138,124,.5)}' +
-    '.lnk{all:unset;cursor:pointer;color:var(--dim);font-size:11.5px;padding:4px 2px;border-radius:4px}.lnk:hover{color:var(--tx)}.lnk.warn{color:var(--bad)}' +
     '.ed{display:flex;flex-direction:column;gap:14px;padding:2px 6px 6px}' +
     '.fld{display:flex;flex-direction:column;gap:6px}' +
     '.lbl{font-size:10.5px;font-weight:600;letter-spacing:1.1px;text-transform:uppercase;color:var(--dim)}' +
