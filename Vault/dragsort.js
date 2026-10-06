@@ -279,7 +279,7 @@
       };
 
       var groupLists = function () {
-        return me.o.group ? (groups[me.o.group] || []).filter(function (g) { return g.list !== list && g.list.isConnected; }) : [];
+        return me.o.group ? (groups[me.o.group] || []).filter(function (g) { return g.list !== list && g.list.isConnected && !g.o.copy; }) : [];
       };
       var over = function () {
         var gl = groupLists();
