@@ -112,8 +112,9 @@ def test_the_preamble_says_there_is_no_second_turn():
     a person, worthless here. Nobody is watching that tab to say yes, and the
     other three units simply looked the data up."""
     p = DIRECT_ANSWER_PREAMBLE.lower()
-    assert "single turn" in p
-    assert "no follow-up" in p
+    assert "single turn" not in p      # the user CAN follow up in MAGI now
+    assert "no follow-up" not in p
+    assert "do not ask clarifying questions" in p
     assert "look things up" in p
 
 

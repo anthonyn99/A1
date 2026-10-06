@@ -49,8 +49,9 @@ from .base import (
 # The second paragraph exists for the same failure one step later. With the
 # artifact fixed, Claude came back with "Should I: 1. Search the web for
 # today's data? 2. Wait for you to provide it?" -- a perfectly reasonable
-# thing to ask a person, and worthless here. A council turn is ONE turn: there
-# is no conversation, nobody is watching that tab, and a member that spends
+# thing to ask a person, and worthless here. A council turn is answered unattended: nobody
+# is watching that tab to reply (the user can follow up LATER, but not inside
+# the turn), and a member that spends
 # its turn asking has contributed nothing. The other three units simply looked
 # the data up, which is why they answered and Claude did not.
 #
@@ -70,8 +71,9 @@ DIRECT_ANSWER_PREAMBLE = (
     "Reply with your full answer in this chat message. Do not create an "
     "artifact, canvas, document, file or app to hold it, and do not "
     "offer to build one.\n"
-    "This is a single turn and there is no follow-up: nobody will read a "
-    "clarifying question or reply to an offer. Answer with what you have, "
+    "Do not ask clarifying questions or offer next steps: nobody is "
+    "watching this chat to reply to them, and the person may follow up with "
+    "you later themselves. Answer with what you have, "
     "state any assumption you had to make, and look things up if you need "
     "current information: web search is available in this chat, so use it "
     "rather than saying you lack live data.\n\n"
