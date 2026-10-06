@@ -494,11 +494,18 @@ async function placeLabel(env, lat, lon) {
 // by then it is genuinely unreachable (underground, no signal) and the caller
 // falls back to cache rather than hanging.
 async function wakeVehicle(env, t) {
-  try {
-    await postJson(`${env.TESLA_API_BASE}/api/1/vehicles/${t.vehicle_id}/wake_up`, t.access_token, {});
-  } catch (e) { /* the poll below is the real check */ }
-  for (let i = 0; i < 9; i++) {
-    await new Promise(r => setTimeout(r, 2000));
+  const wake = async () => {
+    try {
+      await postJson(`${env.TESLA_API_BASE}/api/1/vehicles/${t.vehicle_id}/wake_up`, t.access_token, {});
+    } catch (e) { /* the poll below is the real check */ }
+  };
+  await wake();
+  // ~36s of polling (12 x 3s, ~14 subrequests — well under the 50 cap). A car
+  // that was fully offline (doors open, no sleep yet) can take 20s+ to answer,
+  // and the first wake_up is sometimes dropped, so it is re-sent halfway.
+  for (let i = 0; i < 12; i++) {
+    if (i === 6) await wake();
+    await new Promise(r => setTimeout(r, 3000));
     const list = await getJson(`${env.TESLA_API_BASE}/api/1/vehicles`, t.access_token);
     const me = list.ok && Array.isArray(list.body.response)
       ? list.body.response.find(x => (x.id_s || String(x.id)) === t.vehicle_id)
