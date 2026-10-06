@@ -95,6 +95,15 @@ async function load(c, w, h, mobile) {
       switchTab('builds'); renderBuildsHome(); return 1;`);
     await sleep(300);
     ok('champion rows are not HTML5-draggable', await evalJs(c, "return !document.querySelector('.champ-home-row[draggable]');"));
+    // MAGI's button language: hover lifts (filter), presses sink, and nothing glows.
+    if (!dev.mobile) {
+      const nb = await rect(c, '#new-champ-btn');
+      await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: nb.x, y: nb.y });
+      await sleep(300);
+      const hv = await J(c, "const b = document.getElementById('new-champ-btn'); return JSON.stringify({ f: b.style.filter, s: getComputedStyle(b).boxShadow });");
+      ok('buttons: hover lifts with brightness (hoverfx magi) and has no glow', /brightness\(1\.1/.test(hv.f) && hv.s === 'none', JSON.stringify(hv));
+      await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 5, y: 5 });
+    }
     const c0 = await rect(c, '.champ-home-row', 0);
     await drag(c0.x, c0.y, 0, c0.h * 1.6);
     ok('Builds: dragging the first champion down moves it', await evalJs(c, 'return JSON.stringify(buildsOrder);') === '["Lux","Ahri","Zed"]', await evalJs(c, 'return JSON.stringify(buildsOrder);'));
