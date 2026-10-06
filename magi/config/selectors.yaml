@@ -282,6 +282,12 @@ sites:
       # time ("Limits will reset at 5:00 PM"), which is the one fact the user
       # actually needs, so it is listed first.
       - "text=/Limits will reset/i"
+      # VERIFIED against magi/artifacts/tony/claude-timeout-20261006-160222.html
+      # -- the FREE account's message cap is a "Keep chatting with Claude Pro"
+      # modal: "Your free messages return at 11:40 AM, or keep going now with
+      # Pro." None of the rules above matched it, so every run sat out the
+      # whole stall timer and reported a timeout.
+      - "text=/Your free messages return/i"
       - "text=/you've hit your limit/i"
       - "text=/reached your .{0,30}limit/i"
       - 'text=/Need more usage\?/i'
