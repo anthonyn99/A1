@@ -33,6 +33,15 @@ and `wrEnableTabDrag`'s old FLIP code are gone. Test:
 `tests/live/riftiq-drag.live.js` (mouse + touch over CDP, 54 checks) and the
 copy cases in `tests/dragsort.test.js`. The build editor's split divider and
 notes grip are resizes, not reorders, and were left as they are.
+**Same day, RiftIQ part 2:** the Builds notes box now takes `resizegrip.js`
+(key `riftiq.buildnotes`; the old square handle and `_beNr*` are gone; the pane
+divider `#be-resizer` stays, it is a splitter, not a box height). Button
+language is MAGI's: `<body data-hoverfx="magi">`, every glow (`0 0 16px` box
+shadows, wordmark text-shadow, status-dot halo) removed, field focus is the 3px
+16% ring. Palette: white ink on pastel fills became plum `#1f1930`, `#ef4444`
+/ `#e0a0a0` became `#d68a7c`, `#888` became `#8d8d94`, and the decorative
+gradients (wordmark halves, picker wash, chip fills) went solid. Kept: the image
+scrim, the tab-strip fade mask, rune/rank colours.
 
 **Phase 11, what shipped:**
 - **PriceWatch extension** (`PriceWatch/popup.html`, its only UI: no content
