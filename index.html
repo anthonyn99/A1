@@ -5243,8 +5243,17 @@ function Widget(props){
   }
   function clearPhoto(e){
     e.preventDefault();e.stopPropagation();
-    configure({photo:null});
-    flash('Photo removed',false);
+    // The suite's themed in-UI dialog (desktop modal / mobile sheet) — never
+    // remove the photo on a single tap.
+    Promise.resolve(window.uiConfirm
+      ?window.uiConfirm('This will remove your custom photo from the Tesla panel. You can upload another any time.',
+          {title:'Remove photo?',okLabel:'Remove',cancelLabel:'Keep',danger:true})
+      :false)
+    .then(function(ok){
+      if(!ok)return;
+      configure({photo:null});
+      flash('Photo removed',false);
+    });
   }
 
   var hero=h('div',{key:'hero',className:heroCls+(dropping?' is-drop':''),
