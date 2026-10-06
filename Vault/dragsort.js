@@ -24,6 +24,10 @@
  *                          to pick it up (0 = grip only; chip rows use 300)
  *     group,               lists with the same group take each other's rows
  *     canDrag(row),        false leaves a row where it is
+ *     copy,                true: the row stays put and a floating copy is what
+ *                          is carried (a palette of things to add to another
+ *                          list of the group); it never reorders its own list,
+ *                          and a drop on it changes nothing
  *     ignore,              selector for parts of a row a press never drags
  *                          (an open row's body, so its text stays selectable)
  *     onDrop(from, to, fromList, toList),
@@ -75,6 +79,7 @@
     // trailed the pointer by 6% of the distance dragged.
     '.dsort-settle { transition: transform .17s cubic-bezier(.2, .8, .2, 1), box-shadow .17s !important; }',
     '.dsort-on > :not(.dsort-drag) { pointer-events: none; }',
+    '.dsort-src { opacity: .4; }',
     'html.dsort-grabbing, html.dsort-grabbing * { cursor: grabbing !important; -webkit-user-select: none !important; user-select: none !important; }',
     '.dsort-grip {',
     '  flex: 0 0 auto; width: 28px; height: 36px; margin: -4px 0 -4px -4px; padding: 0;',
@@ -259,6 +264,7 @@
       var sc = scroller(list, X ? 'x' : 'y');
       var live = false, to = from, lastX = e.clientX, lastY = e.clientY, raf = 0, cancelled = false;
       var tgt = null, tTo = 0;     // cross-list: the list hovered and the slot in it
+      var copy = !!me.o.copy, ghost = null, r0 = null;   // copy: the floating copy and where the row sat
 
       var coord = function (b) { return { x: b.x, y: b.y }; };
       var pos1 = function (r, v) { return X ? 'translate3d(' + v + 'px, 0, 0)' : 'translate3d(0, ' + v + 'px, 0)'; };
@@ -267,6 +273,7 @@
 
       // Where the dragged row would sit, list-relative, unclamped.
       var drag = function () {
+        if (copy) return { dx: lastX - e.clientX, dy: lastY - e.clientY };
         var lb = list.getBoundingClientRect();
         return { dx: (lastX - lb.left + list.scrollLeft) - px0, dy: (lastY - lb.top + list.scrollTop) - py0 };
       };
@@ -286,6 +293,11 @@
       // Same-list placement: MAGI's, along the axis; nearest slot in a grid.
       var placeHome = function () {
         var d = drag(), t = from;
+        if (copy) {
+          ghost.style.transform = lift(pos2(d.dx, d.dy));
+          if (to !== from || tgt) { to = from; rows.forEach(function (r) { r.style.transform = ''; }); }
+          return;
+        }
         if (grid) {
           row.style.transform = lift(pos2(d.dx, d.dy));
           var cx = boxes[from].x + boxes[from].w / 2 + d.dx, cy = boxes[from].y + boxes[from].h / 2 + d.dy, best = Infinity;
@@ -359,7 +371,7 @@
           tgt.o = g.o;
           tgt.list.classList.add('dsort-on');
           // The source closes the gap the row left.
-          rows.forEach(function (r, i) {
+          if (!copy) rows.forEach(function (r, i) {
             if (r === row) return;
             if (grid) r.style.transform = i > from ? pos2(boxes[i - 1].x - boxes[i].x, boxes[i - 1].y - boxes[i].y) : '';
             else r.style.transform = i > from ? pos1(r, -shift) : '';
@@ -367,7 +379,7 @@
           to = -1;
         }
         var d = drag();
-        row.style.transform = lift(pos2(d.dx, d.dy));
+        (copy ? ghost : row).style.transform = lift(pos2(d.dx, d.dy));
         var tb = tgt.list.getBoundingClientRect();
         var cx = lastX - tb.left + tgt.list.scrollLeft, cy = lastY - tb.top + tgt.list.scrollTop;
         var k = slotIn(tgt, cx, cy);
@@ -415,8 +427,24 @@
       var start = function () {
         live = true;
         state.active = true;
-        row.classList.add('dsort-drag');
-        if (me.o.axis !== 'y') row.classList.add('dsort-chip');
+        if (copy) {
+          r0 = row.getBoundingClientRect();
+          ghost = row.cloneNode(true);
+          ghost.removeAttribute('id');
+          ghost.classList.add('dsort-ghost');
+          var gs = ghost.style;
+          gs.setProperty('position', 'fixed', 'important');
+          gs.setProperty('z-index', '2147483000', 'important');
+          gs.setProperty('margin', '0', 'important');
+          gs.setProperty('pointer-events', 'none', 'important');
+          gs.left = r0.left + 'px'; gs.top = r0.top + 'px';
+          gs.width = r0.width + 'px'; gs.height = r0.height + 'px';
+          gs.boxSizing = 'border-box';
+          document.body.appendChild(ghost);
+          row.classList.add('dsort-src');
+        }
+        (copy ? ghost : row).classList.add('dsort-drag');
+        if (me.o.axis !== 'y') (copy ? ghost : row).classList.add('dsort-chip');
         list.classList.add('dsort-on');
         document.documentElement.classList.add('dsort-grabbing');
         try { row.setPointerCapture(pid); } catch (err) {}
@@ -466,8 +494,12 @@
         if (cross) {
           var sp = slotPos(tgt, tTo);
           var tb = tgt.list.getBoundingClientRect(), lb = list.getBoundingClientRect();
-          land = pos2(sp.x - tgt.list.scrollLeft + tb.left - (boxes[from].x - list.scrollLeft + lb.left),
-            sp.y - tgt.list.scrollTop + tb.top - (boxes[from].y - list.scrollTop + lb.top));
+          land = copy
+            ? pos2(sp.x - tgt.list.scrollLeft + tb.left - r0.left, sp.y - tgt.list.scrollTop + tb.top - r0.top)
+            : pos2(sp.x - tgt.list.scrollLeft + tb.left - (boxes[from].x - list.scrollLeft + lb.left),
+              sp.y - tgt.list.scrollTop + tb.top - (boxes[from].y - list.scrollTop + lb.top));
+        } else if (copy) {
+          land = '';
         } else if (grid) {
           land = to === from || to < 0 ? '' : pos2(boxes[to].x - boxes[from].x, boxes[to].y - boxes[from].y);
         } else {
@@ -477,13 +509,15 @@
           land = pos1(row, v);
         }
         if (to < 0 && !cross) to = from;
-        row.classList.add('dsort-settle');
-        row.classList.remove('dsort-chip');
-        row.style.transform = land || '';
+        var mover = copy ? ghost : row;
+        mover.classList.add('dsort-settle');
+        mover.classList.remove('dsort-chip');
+        mover.style.transform = land || '';
         if (!cross && to === from) rows.forEach(function (r) { if (r !== row) r.style.transform = ''; });
         var tl = cross ? tgt : null, tk = tTo, onDrop = me.o.onDrop;
         setTimeout(function () {
-          rows.forEach(function (r) { r.style.transform = ''; r.classList.remove('dsort-drag', 'dsort-settle', 'dsort-chip'); });
+          rows.forEach(function (r) { r.style.transform = ''; r.classList.remove('dsort-drag', 'dsort-settle', 'dsort-chip', 'dsort-src'); });
+          if (ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
           if (tl) { tl.rows.forEach(function (r) { r.style.transform = ''; }); tl.list.classList.remove('dsort-on'); }
           list.classList.remove('dsort-on');
           document.documentElement.classList.remove('dsort-grabbing');

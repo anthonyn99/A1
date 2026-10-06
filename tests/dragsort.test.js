@@ -200,6 +200,26 @@ async function drag(target, from, to, kind) {
   ok('a list in another group is not a target', C.drops.length === 0 && A.drops.every((d) => d[3] !== C.list));
   A.list.remove(); B.list.remove(); C.list.remove();
 
+  console.log('\nCopy (a palette: the row stays, a floating copy is carried)');
+  const P = vlist(3, 0, { group: 'cp', copy: true });
+  const Q = vlist(2, 300, { group: 'cp' });
+  const nBody = doc.body.children.length;
+  ptr('pointerdown', P.rows[1].querySelector('.txt'), 50, 60);
+  ptr('pointermove', window, 200, 60);
+  ptr('pointermove', window, 350, 50);
+  const gh = doc.querySelector('.dsort-ghost');
+  ok('a fixed floating copy is carried; the original stays and is dimmed',
+     !!gh && gh !== P.rows[1] && doc.body.children.length === nBody + 1 && P.rows[1].classList.contains('dsort-src') && !P.rows[1].style.transform);
+  ok('the other palette rows do not move', P.rows.every((r) => !r.style.transform));
+  ptr('pointerup', window, 350, 50);
+  await wait(SETTLE);
+  ok('dropped on the other list: onDrop(from, to, fromList, toList), original still there',
+     P.drops.length === 1 && P.drops[0][0] === 1 && P.drops[0][1] === 1 && P.drops[0][2] === P.list && P.drops[0][3] === Q.list && P.list.children.length === 3);
+  ok('the copy is gone and the palette is put back', !doc.querySelector('.dsort-ghost') && doc.body.children.length === nBody && P.rows.every((r) => !r.style.transform && !r.classList.contains('dsort-src')));
+  await drag(P.rows[0].querySelector('.txt'), [50, 20], [50, 100]);
+  ok('dropped within its own list: nothing happens', P.drops.length === 1, JSON.stringify(P.drops.map((d) => d.slice(0, 2))));
+  P.list.remove(); Q.list.remove();
+
   console.log('\nNested lists and ignore');
   // An outer list of one card (0-200 x 0-160) whose body is an inner list of rows.
   const outer = doc.createElement('div'); outer.dataset.box = '0,0,200,320';
