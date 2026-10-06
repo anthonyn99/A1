@@ -4813,103 +4813,27 @@ var CAR={
   }
 };
 function carSvg(hex,sedan,charging){
-  var C=sedan?CAR.sedan:CAR.suv;
-  var top=shade(hex,.20),low=shade(hex,-.36),deep=shade(hex,-.62);
-  // Glass is fixed, not derived from the paint: car glass reads near-black from
-  // outside whatever colour the body is, and deriving it left a silver car with
-  // a cabin the same value as its own doors, so the roof looked detached.
-  var glassHi='#39414b',glassLo='#151a21';
-  var wy=C.ground-C.wheel;                  // axle height
-  var uid='thts';                           // one instance on the page; ids are stable
-
-  function arch(cx){
-    return 'M'+(cx-C.arch[0])+' '+C.sill+'a'+C.arch[0]+' '+C.arch[1]+' 0 0 1 '+(C.arch[0]*2)+' 0Z';
-  }
+  // Default illustration: a flat, dark, deliberately minimal side-on car — body,
+  // one glass cutout, two wheels. Paint colour is ignored on purpose; the hero
+  // sits on a dark card and a quiet silhouette beats a detailed render there.
+  var body='M30 138C30 126 40 120 66 116L128 102C156 80 188 66 232 64C278 64 314 76 338 100L376 108C392 112 398 122 398 138L398 150L30 150Z';
+  var glass='M146 102C166 84 192 74 228 73L228 102Z M236 73C268 74 296 82 318 102L236 102Z';
+  var axles=[100,328];
   return h('svg',{className:'thts-car',viewBox:'0 0 420 190',role:'img',
       'aria-label':'Vehicle illustration'},
-    h('defs',{key:'d'},
-      h('linearGradient',{id:uid+'Body',x1:'0',y1:'0',x2:'0',y2:'1'},
-        h('stop',{key:'a',offset:'0%',stopColor:top}),
-        h('stop',{key:'b',offset:'42%',stopColor:hex}),
-        h('stop',{key:'c',offset:'100%',stopColor:low})),
-      h('linearGradient',{id:uid+'Glass',x1:'0',y1:'0',x2:'0',y2:'1'},
-        h('stop',{key:'a',offset:'0%',stopColor:glassHi}),
-        h('stop',{key:'b',offset:'100%',stopColor:glassLo})),
-      h('radialGradient',{id:uid+'Shade'},
-        h('stop',{key:'a',offset:'0%',stopColor:'rgba(0,0,0,.6)'}),
-        h('stop',{key:'b',offset:'100%',stopColor:'rgba(0,0,0,0)'}))),
-
-    // Contact shadow first, so the car floats above it.
-    h('ellipse',{key:'sh',cx:C.mid,cy:C.ground+6,rx:178,ry:10,fill:'url(#'+uid+'Shade)'}),
-
-    h('path',{key:'body',d:C.body,fill:'url(#'+uid+'Body)'}),
-    // Rim light. Without it a Midnight Silver or Solid Black car sits at almost
-    // the same value as the hero backdrop and its nose and tail dissolve; this
-    // keeps the silhouette legible for every paint code.
-    h('path',{key:'rim',d:C.body,fill:'none',stroke:shade(hex,.45),strokeWidth:1.3,opacity:.55}),
-    // Panoramic glass: windshield → roof → hatch in one unbroken run.
-    h('path',{key:'glass',d:C.glass,fill:'url(#'+uid+'Glass)'}),
-    h('rect',{key:'pil',x:C.pillar[0],y:C.pillar[1],width:C.pillar[2],height:C.pillar[3],
-      fill:low,opacity:.9}),
-    h('path',{key:'mir',d:C.mirror,fill:deep}),
-
-    // Shut lines and the door crease — the line work that stops it reading as a blob.
-    h('g',{key:'cuts',stroke:deep,strokeWidth:1.3,strokeLinecap:'round',opacity:.45,fill:'none'},
-      C.cuts.map(function(d2,i){return h('path',{key:i,d:d2});})),
-    h('path',{key:'crease',d:C.crease,stroke:deep,strokeWidth:1.6,fill:'none',opacity:.3,
-      strokeLinecap:'round'}),
-    // Specular shoulder — what makes paint look like paint rather than fill.
-    h('path',{key:'spec',d:C.spec,stroke:shade(hex,.5),strokeWidth:2.2,fill:'none',
-      opacity:.32,strokeLinecap:'round'}),
-
-    // Flush door handles.
-    h('g',{key:'hnd',fill:deep,opacity:.85},C.handles.map(function(p,i){
-      return h('rect',{key:i,x:p[0],y:p[1],width:20,height:4,rx:2});
+    h('ellipse',{key:'sh',cx:214,cy:176,rx:170,ry:7,fill:'#000',opacity:.35}),
+    h('path',{key:'body',d:body,fill:'#2b2e35',stroke:'#3d424b',strokeWidth:1.5,strokeLinejoin:'round'}),
+    h('path',{key:'glass',d:glass,fill:'#14161a'}),
+    h('g',{key:'wells',fill:'#0b0c0e'},axles.map(function(cx,i){
+      return h('path',{key:i,d:'M'+(cx-38)+' 150a38 38 0 0 1 76 0Z'});})),
+    h('g',{key:'wheels'},axles.map(function(cx){
+      return h('g',{key:cx,transform:'translate('+cx+',146)'},
+        h('circle',{key:'t',r:30,fill:'#0e0f11',stroke:'#3d424b',strokeWidth:1.5}),
+        h('circle',{key:'h',r:13,fill:'#2b2e35'}),
+        h('circle',{key:'c',r:4,fill:'#50555d'}));
     })),
-
-    h('path',{key:'intake',d:C.intake,fill:'#0e1013',opacity:.26}),
-    // Lights are a dark lens carrying a thin LED signature, not a bright blob —
-    // that strip is what a modern Tesla actually reads as from the side.
-    h('path',{key:'hl',d:C.headLens,fill:'#2c323b',opacity:.95}),
-    h('path',{key:'hd',d:C.headLed,stroke:'#f6ecd6',strokeWidth:2.4,fill:'none',
-      strokeLinecap:'round',opacity:.95}),
-    h('path',{key:'tl',d:C.tailLens,fill:'#4b262c',opacity:.95}),
-    h('path',{key:'td',d:C.tailLed,stroke:'#d9524a',strokeWidth:2.6,fill:'none',
-      strokeLinecap:'round',opacity:.95}),
-
-    // Wheel wells cut into the body, then the wheels laid on top.
-    h('g',{key:'wells',fill:'#0b0c0e'},
-      C.axles.map(function(cx,i){return h('path',{key:i,d:arch(cx)});})),
-    h('g',{key:'wheels'},C.axles.map(function(cx){
-      return h('g',{key:cx,transform:'translate('+cx+','+wy+')'},
-        h('circle',{key:'t',r:C.wheel,fill:'#0e0f11'}),
-        h('circle',{key:'w',r:C.wheel-3.5,fill:'none',stroke:'#1b1d20',strokeWidth:2}),
-        // Aero-cover face: a near-solid disc broken by turbine slots, which is
-        // what Gemini/Induction wheels read as at this size.
-        h('circle',{key:'r',r:19,fill:'#4a4e55'}),
-        h('g',{key:'s',stroke:'#202327',strokeWidth:3.4,strokeLinecap:'round'},
-          [0,36,72,108,144,180,216,252,288,324].map(function(a){
-            var rad=a*Math.PI/180;
-            return h('line',{key:a,
-              x1:(Math.cos(rad)*8).toFixed(1),y1:(Math.sin(rad)*8).toFixed(1),
-              x2:(Math.cos(rad)*17).toFixed(1),y2:(Math.sin(rad)*17).toFixed(1)});
-          })),
-        h('circle',{key:'h',r:5.5,fill:'#2a2d32'}),
-        h('circle',{key:'c',r:2,fill:'#80858c'}));
-    })),
-
-    // Charge port on the rear quarter, alive only while current is flowing.
-    charging?h('g',{key:'cp'},
-      h('circle',{key:'c',cx:C.port[0],cy:C.port[1],r:5,fill:'#a4b986',opacity:.95},
-        h('animate',{attributeName:'opacity',values:'.35;1;.35',dur:'1.6s',repeatCount:'indefinite'})),
-      [0,1,2].map(function(i){
-        return h('circle',{key:i,cx:C.port[0],cy:C.port[1],r:2,fill:'#a4b986'},
-          h('animate',{key:'y',attributeName:'cy',
-            values:C.port[1]+';'+(C.port[1]-26),dur:'1.6s',
-            begin:(i*0.53)+'s',repeatCount:'indefinite'}),
-          h('animate',{key:'o',attributeName:'opacity',values:'1;0',dur:'1.6s',
-            begin:(i*0.53)+'s',repeatCount:'indefinite'}));
-      })):null);
+    charging?h('circle',{key:'cp',cx:352,cy:112,r:5,fill:'#a4b986'},
+      h('animate',{attributeName:'opacity',values:'.35;1;.35',dur:'1.6s',repeatCount:'indefinite'})):null);
 }
 
 // Compact-bar glyph: the same measured body+glass silhouette as the hero,
