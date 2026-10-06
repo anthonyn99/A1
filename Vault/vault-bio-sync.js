@@ -123,9 +123,9 @@
         {
           action: 'openLinks',
           urls: urls,
-          group: urls.length > 1,
+          group: urls.length > 1 || d.adoptPos != null,
           groupName: d.name || 'Links',
-          groupColor: d.color || '',
+          groupColor: d.color || '', adoptPos: typeof d.adoptPos === 'number' ? d.adoptPos : null,
         },
         function () { void chrome.runtime.lastError; }
       );

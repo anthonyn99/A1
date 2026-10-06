@@ -63,13 +63,14 @@ function nearestGroupColor(hex) {
 //     groupId), then the rest are folded into that groupId. One tabs.group()
 //     call spanning the whole batch is what lets the browser absorb them into a
 //     neighbouring group instead of making a new one.
-async function openLinksAsGroup(urls, groupName, colorHex) {
+async function openLinksAsGroup(urls, groupName, colorHex, adopt) {
   let win;
   try { win = await chrome.windows.getCurrent(); } catch (_) { win = null; }
-  const windowId = win ? win.id : undefined;
+  const windowId = adopt && adopt.windowId != null ? adopt.windowId : (win ? win.id : undefined);
 
   const existing = await chrome.tabs.query(windowId != null ? { windowId } : { currentWindow: true });
   let nextIndex = existing.length;
+  const firstNew = nextIndex;
 
   const ids = [];
   for (let i = 0; i < urls.length; i++) {
@@ -77,6 +78,23 @@ async function openLinksAsGroup(urls, groupName, colorHex) {
     if (windowId != null) createProps.windowId = windowId;
     const tab = await chrome.tabs.create(createProps);
     if (tab && tab.id != null) ids.push(tab.id);
+  }
+
+  // "Open all" pressed from inside a program: that program's own tab joins the
+  // group too, moved to where its app sits in the grid (adopt = {tabId, windowId, pos}).
+  let adopted = false;
+  if (adopt && adopt.tabId != null) {
+    try {
+      const me = await chrome.tabs.get(adopt.tabId);
+      if (!me.pinned) {
+        if (me.groupId != null && me.groupId !== -1 && chrome.tabs.ungroup) await chrome.tabs.ungroup([me.id]);
+        const pos = Math.max(0, Math.min(adopt.pos | 0, ids.length));
+        // The tab leaves the strip ahead of the new ones, so they all shift down one.
+        await chrome.tabs.move(me.id, { windowId: me.windowId, index: firstNew - 1 + pos });
+        ids.splice(pos, 0, me.id);
+        adopted = true;
+      }
+    } catch (_) { /* tab gone — group the rest */ }
   }
 
   if (chrome.tabs.group && ids.length) {
@@ -99,7 +117,7 @@ async function openLinksAsGroup(urls, groupName, colorHex) {
     } catch (_) { /* grouping unsupported — tabs already opened */ }
   }
 
-  if (ids.length) { try { await chrome.tabs.update(ids[0], { active: true }); } catch (_) {} }
+  if (ids.length && !adopted) { try { await chrome.tabs.update(ids[0], { active: true }); } catch (_) {} }
   return ids.length;
 }
 
@@ -232,7 +250,7 @@ chrome.alarms.onAlarm.addListener(a => { if (a && a.name === REFRESH_ALARM) refr
 // its alarm; creating an existing alarm is a no-op.
 ensureAlarm();
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message) return;
 
   // LifeHub asks, ahead of its "Open all" click, whether tab groups are possible.
@@ -241,7 +259,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.action === "openLinks") {
     const urls = (message.urls || []).map(normalize).filter(Boolean);
     if (!urls.length) { sendResponse({ ok: false, opened: 0 }); return true; }
-    (message.group ? openLinksAsGroup(urls, message.groupName, message.groupColor) : openPlainTabs(urls))
+    const adopt = message.adoptPos != null && sender && sender.tab ? { tabId: sender.tab.id, windowId: sender.tab.windowId, pos: message.adoptPos } : null;
+    (message.group ? openLinksAsGroup(urls, message.groupName, message.groupColor, adopt) : openPlainTabs(urls))
       .then(n => sendResponse({ ok: true, opened: n }))
       .catch(e => sendResponse({ ok: false, error: String(e && e.message || e) }));
     return true;   // async response

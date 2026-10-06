@@ -1506,14 +1506,20 @@
     try { window.postMessage({ source: 'tradehub-vault', action: 'aiLaunchPing' }, location.origin); } catch (e) {}
   }
   function openAll() {
-    var items = S.apps.filter(function (a) { return !a.hidden; }).map(function (a) {
+    var all = S.apps.filter(function (a) { return !a.hidden; }).map(function (a) {
       return { a: a, url: normUrl(a.url) };
-    }).filter(function (x) { return x.url && isWeb(x.url) && !isHere(x.url); });
-    if (!items.length) { close(); return; }
+    }).filter(function (x) { return x.url && isWeb(x.url); });
+    // The program you're on is already open: with the extension it is pulled
+    // into the group at its grid position; without, it is just left alone.
+    var items = [], adoptPos = null;
+    all.forEach(function (x) {
+      if (isHere(x.url)) { if (adoptPos === null) adoptPos = items.length; } else items.push(x);
+    });
+    if (!items.length && (!extOk || adoptPos === null)) { close(); return; }
     if (extOk) {
       try {
         window.postMessage({ source: 'vault-page', action: 'openLinkGroup', urls: items.map(function (x) { return x.url; }),
-          name: 'LifeHub', color: '#a855f7' }, location.origin);
+          name: 'LifeHub', color: '#a855f7', adoptPos: adoptPos }, location.origin);
       } catch (e) {}
     } else {
       items.forEach(function (x) {
