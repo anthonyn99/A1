@@ -536,7 +536,7 @@ body { cursor: default; }
   letter-spacing: 0.5px;
   color: var(--gold);
   margin-right: 32px;
-  text-shadow: 0 0 20px rgba(192,174,234,0.35);
+  text-shadow: none;
   flex-shrink: 0;
 }
 .tab-btn {
@@ -699,12 +699,12 @@ body.wr-locked #wr-progbar { display: none !important; }
    destructive row. */
 #applock-bio button,#al-menu-btns button{transition:border-color .18s,box-shadow .18s,color .18s;}
 @media (hover:hover) and (pointer:fine){
-  #applock-bio button:hover,#al-menu-btns button:hover{border-color:var(--tx3) !important;box-shadow:0 0 11px rgba(141,141,148,.30);}
-  #al-menu-btns button.al-ac:hover,#applock-bio button:hover{border-color:#c0aeea !important;box-shadow:0 0 12px rgba(192,174,234,.38);}
-  #al-menu-btns button.al-dg:hover{border-color:#d68a7c !important;box-shadow:0 0 12px rgba(214,138,124,.32);}
-  #applock-submit:hover:not(:disabled){box-shadow:0 0 12px rgba(192,174,234,.34);}
+  #applock-bio button:hover,#al-menu-btns button:hover{border-color:var(--tx3) !important;box-shadow:none;}
+  #al-menu-btns button.al-ac:hover,#applock-bio button:hover{border-color:#c0aeea !important;box-shadow:none;}
+  #al-menu-btns button.al-dg:hover{border-color:#d68a7c !important;box-shadow:none;}
+  #applock-submit:hover:not(:disabled){box-shadow:none;}
 }
-#applock-pw:focus{box-shadow:0 0 11px rgba(192,174,234,.26);}
+#applock-pw:focus{box-shadow:0 0 0 3px rgba(192,174,234,.16);}
 #applock-submit,#applock-pw{transition:border-color .18s,box-shadow .18s,opacity .18s;}
 /* Phones: full-bleed card with 46px tap targets, and a scrolling body so a menu
    carrying biometrics plus every action still fits a short screen. */
@@ -846,7 +846,7 @@ body.wr-locked #wr-progbar { display: none !important; }
   /* Same lit halo WarRoom's #topbar-logo carries — one identity treatment, so
      swapping programs does not change how the wordmark sits on the bar. */
   color: var(--gold);
-  text-shadow: 0 0 20px rgba(192,174,234,0.35);
+  text-shadow: none;
 }
 /* 'Pro' takes the gradient, 'View' stays solid — the mirror of WarRoom, where
    'War' glows and 'Room' does not. Same treatment, same size, opposite half. */
@@ -878,7 +878,7 @@ body.wr-locked #wr-progbar { display: none !important; }
 }
 #wr-progbar-lock:hover {
   opacity: 1; color: var(--gold2); border-color: var(--gold);
-  box-shadow: 0 0 0 1px rgba(192,174,234,.45), 0 0 16px rgba(192,174,234,.45);
+  box-shadow: none;
 }
 #wr-progbar-lock svg { width: 13px; height: 13px; display: block; }
 @media (max-width: 700px) {
@@ -1149,13 +1149,13 @@ html.lk-open, body.lk-open {
 }
 .lk-act:hover:not(:disabled) {
   border-color: var(--gold); color: var(--gold);
-  box-shadow: 0 0 0 1px rgba(192,174,234,.4), 0 0 12px rgba(192,174,234,.35);
+  box-shadow: none;
 }
 /* Removing is destructive, so it glows in its own colour - the same split the
    rest of the program makes between a primary action and a deletion. */
 .lk-act-del:hover:not(:disabled) {
   border-color: var(--red); color: var(--red);
-  box-shadow: 0 0 0 1px rgba(214,138,124,.45), 0 0 12px rgba(214,138,124,.4);
+  box-shadow: none;
 }
 .lk-act:disabled { opacity: .5; cursor: default; box-shadow: none; }
 .lk-act-busy { border-color: var(--gold); color: var(--gold); opacity: 1; }
@@ -1174,7 +1174,7 @@ html.lk-open, body.lk-open {
   letter-spacing: 0.3px; cursor: pointer;
   transition: border-color .15s, box-shadow .15s;
 }
-.lk-undo:hover { border-color: var(--gold); box-shadow: 0 0 10px rgba(192,174,234,.4); }
+.lk-undo:hover { border-color: var(--gold); box-shadow: none; }
 @media (pointer: coarse) { .lk-undo { height: 28px; padding: 0 12px; font-size: 11px; } }
 
 /* Rename notice. Bottom-right so it never covers the profile header that the
@@ -1251,7 +1251,7 @@ html.lk-open, body.lk-open {
 .wr-cta:hover, .btn-primary:hover,
 .wr-cta:focus-visible, .btn-primary:focus-visible {
   border-color: var(--gold) !important;
-  box-shadow: 0 0 0 1px rgba(192,174,234,.45), 0 0 16px rgba(192,174,234,.45);
+  box-shadow: none;
 }
 .wr-cta:disabled, .btn-primary:disabled { opacity: .45; box-shadow: none; cursor: default; }
 
@@ -1266,7 +1266,7 @@ html.lk-open, body.lk-open {
 #wr-lock-btn:hover {
   border-color: var(--gold) !important;
   color: var(--gold2);
-  box-shadow: 0 0 0 1px rgba(192,174,234,.45), 0 0 16px rgba(192,174,234,.45);
+  box-shadow: none;
 }
 
 /* The setup screen's two fields are one control visually, so they must be the
@@ -1337,7 +1337,7 @@ html.lk-open, body.lk-open {
   margin-top: 6px;
 }
 /* Hover lights the button in its own accent; nothing glows at rest. */
-.btn-primary:hover { box-shadow: 0 0 0 1px rgba(192,174,234,.45), 0 0 16px rgba(192,174,234,.45); }
+.btn-primary:hover { box-shadow: none; }
 .setup-error { color: var(--red); font-family: var(--mono); font-weight: 500; font-size: 12px; margin-top: 10px; display: none; }
 
 /* ── LOADING SPINNER ── */
@@ -2058,7 +2058,7 @@ html.lk-open, body.lk-open {
 }
 #be-resizer:hover::before, #be-resizer:focus-visible::before,
 #be-resizer.bld-resizing::before {
-  background: var(--gold); box-shadow: 0 0 10px rgba(192,174,234,.55);
+  background: var(--gold); box-shadow: none;
 }
 #be-resizer:focus-visible { outline: none; }
 #be-resizer.bld-resizing { background: var(--bg3); }
@@ -2085,7 +2085,7 @@ html.lk-open, body.lk-open {
   .bld-modal button:not(:disabled):not(.bld-danger):hover, .bld-modal .bld-pill:hover,
   .bld-modal .bld-tile:hover {
     border-color: var(--gold) !important;
-    box-shadow: 0 0 0 1px rgba(192,174,234,.45), 0 0 16px rgba(192,174,234,.45);
+    box-shadow: none;
   }
   /* Destructive controls glow in their OWN colour - a delete that lights up
      purple like a save is the one place consistency would mislead. They carry
@@ -2093,7 +2093,7 @@ html.lk-open, body.lk-open {
      the markup rather than by which rule happens to come last. */
   #builds-panel .bld-danger:hover, .bld-modal .bld-danger:hover {
     border-color: var(--red) !important;
-    box-shadow: 0 0 0 1px rgba(214,138,124,.5), 0 0 14px rgba(214,138,124,.45);
+    box-shadow: none;
   }
   /* The two selector tabs are underlines, not pills: a box glow around one
      would fight the 3px bar that already says which is active. */
@@ -2110,7 +2110,7 @@ html.lk-open, body.lk-open {
 .bld-chip-x {
   position: absolute; top: -6px; right: -6px;
   width: 17px; height: 17px; border-radius: 50%;
-  background: var(--red); border: none; color: #fff; cursor: pointer;
+  background: var(--red); border: none; color: #1f1930; cursor: pointer;
   padding: 0; line-height: 0;
   display: flex; align-items: center; justify-content: center;
 }
@@ -2188,7 +2188,7 @@ html.lk-open, body.lk-open {
   letter-spacing: 0.3px;
   cursor: pointer; transition: background 0.15s;
 }
-.builds-champ-hdr .add-build-btn:hover { border-color: var(--gold); box-shadow: 0 0 0 1px rgba(192,174,234,.45), 0 0 16px rgba(192,174,234,.45); }
+.builds-champ-hdr .add-build-btn:hover { border-color: var(--gold); box-shadow: none; }
 
 .build-card {
   background: var(--bg3); border: 1px solid var(--bd);
@@ -2279,7 +2279,7 @@ html.lk-open, body.lk-open {
   font-weight: 600; letter-spacing: 0.2px;
   cursor: pointer; transition: all 0.15s;
 }
-.btn-cancel:hover { border-color: var(--tx2); color: var(--tx); box-shadow: 0 0 8px rgba(244,243,240,.12), 0 0 0 1px rgba(244,243,240,.08); }
+.btn-cancel:hover { border-color: var(--tx2); color: var(--tx); box-shadow: none; }
 .btn-save {
   flex: 2; height: 38px; background: transparent;
   border: 1px solid rgba(192,174,234,.45); border-radius: 4px;
@@ -2287,7 +2287,7 @@ html.lk-open, body.lk-open {
   font-weight: 700; letter-spacing: 0.3px;
   cursor: pointer; transition: background 0.15s;
 }
-.btn-save:hover { box-shadow: 0 0 0 1px rgba(192,174,234,.45), 0 0 16px rgba(192,174,234,.45); }
+.btn-save:hover { box-shadow: none; }
 
 /* Item search in modal */
 .item-search-wrap { position: relative; }
@@ -2465,7 +2465,7 @@ html.lk-open, body.lk-open {
    solid accent, white label, no halo. The lit-outline treatment belongs to the
    chrome buttons; using it here made "selected" look like "hovered". */
 .filter-chip.active {
-  background: var(--gold); border-color: var(--gold); color: #fff;
+  background: var(--gold); border-color: var(--gold); color: #1f1930;
   box-shadow: none;
 }
 .items-grid {
@@ -2583,7 +2583,7 @@ html.lk-open, body.lk-open {
 /* The splash normally pushes this well clear of the close button, but it
    collapses to the header's min-height when the art 404s. */
 .co-header-info.ovl-head { padding-right: 52px; }
-.co-name { font-family: var(--head); font-size: 44px; font-weight: 800; letter-spacing: -1px; color: #fff; }
+.co-name { font-family: var(--head); font-size: 44px; font-weight: 800; letter-spacing: -1px; color: var(--tx); }
 .co-title { font-family: var(--body); font-size: 14px; color: rgba(255,255,255,0.6); margin-top: 2px; text-transform: capitalize; }
 .co-tags { display: flex; gap: 6px; margin-top: 8px; }
 .co-tag {
@@ -2842,7 +2842,7 @@ input:-webkit-autofill:active {
 .profile-action-btn:hover {
   border-color: var(--gold);
   color: var(--gold);
-  box-shadow: 0 0 0 1px rgba(192,174,234,.45), 0 0 16px rgba(192,174,234,.45);
+  box-shadow: none;
 }
 
 /* Items + Champions panels: no padding so sticky bar touches header */
@@ -2853,7 +2853,7 @@ input:-webkit-autofill:active {
 /* ── MISC ── */
 .error-msg { font-family: var(--mono); font-weight: 500; font-size: 12px; color: var(--red); padding: 20px; }
 .btn-ghost { transition: border-color 0.15s, color 0.15s, box-shadow 0.15s; box-shadow: none; }
-.btn-ghost:hover { border-color: var(--gold) !important; color: var(--gold2) !important; box-shadow: 0 0 0 1px rgba(192,174,234,.45), 0 0 16px rgba(192,174,234,.45); }
+.btn-ghost:hover { border-color: var(--gold) !important; color: var(--gold2) !important; box-shadow: none; }
 
 .tab-btn, #topbar-logo { font-feature-settings: "liga" 0, "calt" 0; }
 
@@ -2953,7 +2953,7 @@ body.wr-scrolllocked {
 }
 #mastery-overlay-close:hover {
   border-color: var(--gold); color: var(--gold2);
-  box-shadow: 0 0 0 1px rgba(192,174,234,.45), 0 0 16px rgba(192,174,234,.45);
+  box-shadow: none;
 }
 #mastery-overlay-body {
   overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
@@ -3366,7 +3366,7 @@ body.wr-scrolllocked {
 }
 .lb-refresh-btn:hover {
   color: var(--gold2); border-color: var(--gold);
-  box-shadow: 0 0 0 1px rgba(192,174,234,.45), 0 0 16px rgba(192,174,234,.45);
+  box-shadow: none;
 }
 .lb-refresh-btn svg { display: block; width: 12px; height: 12px; }
 /* Sized to match the header controls, and exempt from the touch floor for the
@@ -3441,7 +3441,7 @@ body.wr-scrolllocked {
 }
 .lb-pill:hover { border-color: var(--gold); color: var(--gold2); }
 .lb-pill.active {
-  background: var(--gold); border-color: var(--gold); color: #fff;
+  background: var(--gold); border-color: var(--gold); color: #1f1930;
   box-shadow: none;
 }
 
@@ -3563,7 +3563,7 @@ window._mailRelay = window._mailRelay || async function (res) {
 <script src="dragsort.js"></script>
 <script src="resizegrip.js"></script>
 </head>
-<body>
+<body data-hoverfx="magi">
 
 <!-- ══ PROGRAM PICKER ═══════════════════════════════════════════════════════
      RiftIQ hosts two programs. This is the front door: pick one, and the
@@ -3941,7 +3941,7 @@ window._mailRelay = window._mailRelay || async function (res) {
           <div style="font-family:var(--head);font-size:15px;font-weight:800;color:var(--tx);">Live Game</div>
           <div id="live-state-text" style="font-family:var(--mono);font-weight:500;font-size:10px;color:var(--tx3);">Starting...</div>
         </div>
-        <button id="live-toggle-btn" onclick="toggleLiveWatch()" style="height:34px;padding:0 18px;background:var(--green);border:none;border-radius:7px;color:#fff;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;letter-spacing:0.2px;flex-shrink:0;">▶ Start</button>
+        <button id="live-toggle-btn" onclick="toggleLiveWatch()" style="height:34px;padding:0 18px;background:var(--green);border:none;border-radius:7px;color: #1f1930;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;letter-spacing:0.2px;flex-shrink:0;">▶ Start</button>
       </div>
       <div id="live-cert-warning" style="display:none;margin-bottom:12px;padding:10px 14px;background:rgba(192,174,234,0.08);border:1px solid rgba(192,174,234,0.2);border-radius:8px;font-family:var(--mono);font-weight:500;font-size:11px;color:var(--tx2);line-height:1.7;">
         <span style="color:var(--gold);">&#9888;</span> No live data. One-time setup: double-click <code style="color:var(--gold2);">setup-live-link.bat</code> once (needs <a href="https://nodejs.org" target="_blank" style="color:var(--gold);">Node.js</a>). Live Link then runs hidden at every login — no window, never again.<br>
@@ -4489,7 +4489,7 @@ async function fetchServerStatus() {
       if (badge) badge.title = 'Scheduled maintenance in progress';
     } else {
       dot.style.background  = 'var(--green)';
-      dot.style.boxShadow   = '0 0 7px rgba(164,185,134,0.7)';
+      dot.style.boxShadow   = 'none';
       txt.style.color       = 'var(--tx2)';
       if (badge) badge.style.borderColor = 'rgba(164,185,134,0.25)';
       if (badge) badge.title = 'All systems operational';
@@ -6121,7 +6121,7 @@ function renderProfile(_sumData, ranked, mastery, matches, leagueHistory=[]) {
     rankedQueues.forEach(r => {
       const qName = r.queueType === 'RANKED_SOLO_5x5' ? 'Ranked Solo / Duo' : 'Ranked Flex';
       const tierUpper = r.tier?.toUpperCase() || 'IRON';
-      const tierColor = TIER_COLORS[tierUpper] || '#888';
+      const tierColor = TIER_COLORS[tierUpper] || '#8d8d94';
       const emblem = TIER_EMBLEMS[tierUpper];
       const emblemUrl = emblem ? 'https://ddragon.leagueoflegends.com/cdn/img/ranked-emblems/' + emblem : '';
       const wrPct = Math.round(r.wins / (r.wins + r.losses) * 100);
@@ -7735,13 +7735,13 @@ function openMatchupPicker() {
       sp.dataset.val = val;
       sp.dataset.type = ri===0 ? 'class' : 'res';
       sp.className = 'bld-pill';
-      sp.style.cssText = 'padding:3px 10px;border-radius:20px;cursor:pointer;font-family:var(--mono);font-size:12px;font-weight:600;background:'+(val==='All'?col:'var(--bg3)')+';color:'+(val==='All'?'#fff':'var(--tx2)')+';border:1px solid '+(val==='All'?col:'var(--bd2)')+';transition:all 0.1s;';
+      sp.style.cssText = 'padding:3px 10px;border-radius:20px;cursor:pointer;font-family:var(--mono);font-size:12px;font-weight:600;background:'+(val==='All'?col:'var(--bg3)')+';color:'+(val==='All'?'#1f1930':'var(--tx2)')+';border:1px solid '+(val==='All'?col:'var(--bd2)')+';transition:all 0.1s;';
       sp.addEventListener('click', function() {
         var isClass = this.dataset.type==='class';
         var container = document.getElementById(isClass?'mq-class-chips':'mq-res-chips');
         container.querySelectorAll('span').forEach(function(c){
           var a = c.dataset.val===val;
-          c.style.background=a?col:'var(--bg3)'; c.style.color=a?'#fff':'var(--tx2)'; c.style.border='1px solid '+(a?col:'var(--bd2)');
+          c.style.background=a?col:'var(--bg3)'; c.style.color=a?'#1f1930':'var(--tx2)'; c.style.border='1px solid '+(a?col:'var(--bd2)');
         });
         if (isClass) window._mqClassFilter = val; else window._mqResFilter = val;
         var q = document.getElementById('matchup-search');
@@ -7807,7 +7807,7 @@ function renderMatchupSelectedRow() {
     img.src = DDRAGON + '/img/champion/' + cid + '.png';
     img.style.cssText = 'width:28px;height:28px;border-radius:4px;border:2px solid var(--gold);display:block;';
     var x = document.createElement('div');
-    x.style.cssText = 'position:absolute;top:-4px;right:-4px;width:13px;height:13px;border-radius:50%;background:var(--red);color:#fff;display:flex;align-items:center;justify-content:center;';
+    x.style.cssText = 'position:absolute;top:-4px;right:-4px;width:13px;height:13px;border-radius:50%;background:var(--red);color: #1f1930;display:flex;align-items:center;justify-content:center;';
     x.innerHTML = wrIco('close',9);
     wrap.appendChild(img);
     wrap.appendChild(x);
@@ -8288,7 +8288,7 @@ function renderBuildPanelCats(tab) {
   else if (tab === 'runes') cats = [];
   chips.innerHTML = cats.map(function(c) {
     const active = c === _bpCat;
-    return '<span class="bld-pill" onclick="setBpCat(\'' + c + '\')" style="padding:3px 10px;border-radius:20px;cursor:pointer;font-family:var(--mono);font-size:12px;font-weight:600;background:' + (active?'var(--gold)':'var(--bg3)') + ';color:' + (active?'#fff':'var(--tx2)') + ';border:1px solid ' + (active?'var(--gold)':'var(--bd2)') + ';">' + c + '</span>';
+    return '<span class="bld-pill" onclick="setBpCat(\'' + c + '\')" style="padding:3px 10px;border-radius:20px;cursor:pointer;font-family:var(--mono);font-size:12px;font-weight:600;background:' + (active?'var(--gold)':'var(--bg3)') + ';color:' + (active?'#1f1930':'var(--tx2)') + ';border:1px solid ' + (active?'var(--gold)':'var(--bd2)') + ';">' + c + '</span>';
   }).join('');
 }
 
@@ -9060,13 +9060,13 @@ function renderChampionsGrid(list) {
     CLASSES.forEach(function(cls) {
       var sp = document.createElement('span');
       sp.textContent = cls;
-      sp.style.cssText = 'padding:4px 12px;border-radius:20px;cursor:pointer;font-family:var(--mono);font-size:12px;font-weight:600;background:'+(cls==='All'?'var(--gold)':'var(--bg3)')+';color:'+(cls==='All'?'#fff':'var(--tx2)')+';border:1px solid '+(cls==='All'?'var(--gold)':'var(--bd2)')+';transition:all 0.15s;';
+      sp.style.cssText = 'padding:4px 12px;border-radius:20px;cursor:pointer;font-family:var(--mono);font-size:12px;font-weight:600;background:'+(cls==='All'?'var(--gold)':'var(--bg3)')+';color:'+(cls==='All'?'#1f1930':'var(--tx2)')+';border:1px solid '+(cls==='All'?'var(--gold)':'var(--bd2)')+';transition:all 0.15s;';
       sp.addEventListener('click', function() {
         _champClassFilter = cls;
         classChips.querySelectorAll('span').forEach(function(c){
           var a = c.textContent === cls;
           c.style.background = a?'var(--gold)':'var(--bg3)';
-          c.style.color = a?'#fff':'var(--tx2)';
+          c.style.color = a?'#1f1930':'var(--tx2)';
           c.style.border = '1px solid '+(a?'var(--gold)':'var(--bd2)');
         });
         updateChampsGrid();
@@ -9078,13 +9078,13 @@ function renderChampionsGrid(list) {
     RESOURCES.forEach(function(res) {
       var sp = document.createElement('span');
       sp.textContent = res;
-      sp.style.cssText = 'padding:4px 12px;border-radius:20px;cursor:pointer;font-family:var(--mono);font-size:12px;font-weight:600;background:'+(res==='All'?'var(--blue)':'var(--bg3)')+';color:'+(res==='All'?'#fff':'var(--tx2)')+';border:1px solid '+(res==='All'?'var(--blue)':'var(--bd2)')+';transition:all 0.15s;';
+      sp.style.cssText = 'padding:4px 12px;border-radius:20px;cursor:pointer;font-family:var(--mono);font-size:12px;font-weight:600;background:'+(res==='All'?'var(--blue)':'var(--bg3)')+';color:'+(res==='All'?'#1f1930':'var(--tx2)')+';border:1px solid '+(res==='All'?'var(--blue)':'var(--bd2)')+';transition:all 0.15s;';
       sp.addEventListener('click', function() {
         _champResourceFilter = res;
         resChips.querySelectorAll('span').forEach(function(c){
           var a = c.textContent === res;
           c.style.background = a?'var(--blue)':'var(--bg3)';
-          c.style.color = a?'#fff':'var(--tx2)';
+          c.style.color = a?'#1f1930':'var(--tx2)';
           c.style.border = '1px solid '+(a?'var(--blue)':'var(--bd2)');
         });
         updateChampsGrid();
@@ -10624,10 +10624,10 @@ if (!window.__wrGateBlocked) window.warRoomBoot();
   + '#uim-cancel{color:#adadb2;}'
   + '#uim-cancel:hover{border-color:#adadb2;color:#f4f3f0;}'
   + '#uim-ok{border-color:rgba(192,174,234,.45);color:#dbd0f5;}'
-  + '#uim-ok:hover{border-color:#c0aeea;box-shadow:0 0 0 1px rgba(192,174,234,.45),0 0 16px rgba(192,174,234,.45);}'
+  + '#uim-ok:hover{border-color:#c0aeea;box-shadow:none;}'
   + '#uim-ok.uim-danger{border-color:rgba(214,138,124,.5);color:#d68a7c;}'
-  + '#uim-ok.uim-danger:hover{border-color:#d68a7c;box-shadow:0 0 0 1px rgba(214,138,124,.5),0 0 16px rgba(214,138,124,.45);}'
-  + '#uim-box button:focus-visible{outline:none;border-color:#c0aeea;box-shadow:0 0 0 1px rgba(192,174,234,.45),0 0 16px rgba(192,174,234,.45);}'
+  + '#uim-ok.uim-danger:hover{border-color:#d68a7c;box-shadow:none;}'
+  + '#uim-box button:focus-visible{outline:none;border-color:#c0aeea;box-shadow:0 0 0 3px rgba(192,174,234,.16);}'
   // Touch: real targets, and 16px on the input because anything smaller makes
   // iOS zoom the page the moment it is focused.
   + '@media (pointer: coarse){#uim-btns button{min-height:46px;padding:0 20px;font-size:13px;}.uim-input{padding:13px;font-size:16px;}}'
@@ -11881,7 +11881,7 @@ function buildSchedule(T,league,ld){
     else if(failed) msg='Could not reach the schedule service. Retrying on the next refresh.';
     else msg='Select a league or wait for data…';
     panel.appendChild(D({display:'flex',alignItems:'center',justifyContent:'center',
-      padding:'60px',color:failed?'#e0a0a0':T.txd,fontSize:13,textAlign:'center'}, msg));
+      padding:'60px',color:failed?'#d68a7c':T.txd,fontSize:13,textAlign:'center'}, msg));
     return panel;
   }
 
@@ -11930,7 +11930,7 @@ function buildSchedule(T,league,ld){
     const b=B({background:'transparent',
       color:on?T.acl:T.txd,
       border:'1px solid '+(on?'#c0aeea':T.bd),
-      boxShadow:on?'0 0 0 1px rgba(192,174,234,.45),0 0 16px rgba(192,174,234,.45)':'none',
+      boxShadow:on?'none':'none',
       borderRadius:20,padding:'0 14px',height:'30px',fontSize:11,fontWeight:700,
       letterSpacing:'0.3px',cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,
       fontFamily:"'Inter',system-ui,-apple-system,sans-serif",transition:'all .15s'},
@@ -11991,9 +11991,9 @@ function matchCard(T,ev,league){
   if(_boLabel) r1.appendChild(S({fontSize:9,fontWeight:700,color:T.txd,
     background:T.s2,border:'1px solid '+T.bd,
     padding:'1px 6px',borderRadius:3,letterSpacing:'0.5px',whiteSpace:'nowrap'},_boLabel));
-  if(isLive) r1.appendChild(S({fontSize:9,fontWeight:800,color:'#ef4444',
+  if(isLive) r1.appendChild(S({fontSize:9,fontWeight:800,color:'#d68a7c',
     letterSpacing:'1px',textTransform:'uppercase',
-    background:'rgba(239,68,68,.1)',padding:'1px 6px',borderRadius:3},'LIVE'));
+    background:'rgba(214,138,124,.12)',padding:'1px 6px',borderRadius:3},'LIVE'));
   if(_blockName) r1.appendChild(S({fontSize:11,fontWeight:700,color:T.ac,opacity:.9,marginLeft:'auto',textTransform:'uppercase',letterSpacing:'0.5px',whiteSpace:'nowrap'},_blockName));
   card.appendChild(r1);
 
@@ -12324,9 +12324,9 @@ setInterval(()=>{
       '#pv-root button, .pv-modal button{transition:border-color .18s,color .18s,box-shadow .18s,background .18s;}'+
       '#pv-root button:hover:not(:disabled), .pv-modal button:hover:not(:disabled){'+
         'border-color:#c0aeea!important;'+
-        'box-shadow:0 0 0 1px rgba(192,174,234,.45),0 0 16px rgba(192,174,234,.45);}'+
+        'box-shadow:none;}'+
       '.pv-hglow:hover{border-color:#c0aeea!important;color:#dbd0f5!important;'+
-        'box-shadow:0 0 0 1px rgba(192,174,234,.45),0 0 16px rgba(192,174,234,.45);}'+
+        'box-shadow:none;}'+
       /* The Select Leagues header sits in its own darker panel so the list below
          reads as content rather than as more header. */
       '.pv-mgr-head{background:#1c1c1f;border-bottom:1px solid #2f2f35;'+
