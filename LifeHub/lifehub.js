@@ -374,6 +374,9 @@
     if (!stores[p]) stores[p] = makeStore(p);
     return stores[p];
   }
+  // The list Reset returns to: the one Tony/Veda saved with "Set as default"
+  // (kept in the same doc as `defaults`), else the built-in A1 list.
+  function defsOf(st) { return st.userDef || st.defaults; }
   function makeStore(p) {
     var P = PROFILES[p];
     var st = {
@@ -382,13 +385,16 @@
       busy: 0, stale: false, needSeed: false,
       inflight: false, again: false, wt: 0,
       unsub: null, subscribing: false, gen: 0, status: '',
-      retryT: 0, retryN: 0, watched: false
+      retryT: 0, retryN: 0, watched: false,
+      userDef: null, defPending: null
     };
     var c = null;
     try { c = JSON.parse(localStorage.getItem(st.lsKey) || 'null'); } catch (e) { c = null; }
     var base = c && cleanList(c.base);
     var apps = c && cleanList(c.apps);
-    st.base = base || clone(st.defaults);
+    st.userDef = (c && cleanList(c.ud)) || null;
+    if (c && c.udPending && st.userDef) st.defPending = clone(st.userDef);
+    st.base = base || clone(defsOf(st));
     st.apps = apps || clone(st.base);
     // Edits made while offline that never reached the server survive a reload
     // as one "make it look like this" operation.
@@ -398,7 +404,7 @@
 
   function saveCache(st) {
     try {
-      localStorage.setItem(st.lsKey, JSON.stringify({ base: st.base, apps: st.apps, pending: st.ops.length > 0 }));
+      localStorage.setItem(st.lsKey, JSON.stringify({ base: st.base, apps: st.apps, pending: st.ops.length > 0, ud: st.userDef, udPending: !!st.defPending }));
     } catch (e) {}
   }
 
@@ -608,6 +614,8 @@
       if (!snap.metadata.fromCache) { st.needSeed = true; scheduleWrite(st); }
       return;
     }
+    var ud = cleanList((snap.data() || {}).defaults);
+    if (ud && !st.defPending && !same(ud, st.userDef)) { st.userDef = ud; saveCache(st); }
     var list = cleanList((snap.data() || {}).apps);
     if (!list) return;
     if (!same(list, st.base)) receiveBase(st, list);
@@ -650,13 +658,13 @@
     // re-sync while online: the button spins, no label.
     setStatus(st, st.status === 'offline' || st.status === 'retry' ? 'retry' : 'refresh');
     ensureSync(st);
-    if (st.ops.length || st.needSeed) scheduleWrite(st);
+    if (st.ops.length || st.needSeed || st.defPending) scheduleWrite(st);
   }
   function retryAllOffline() {
     Object.keys(stores).forEach(function (p) {
       var st = stores[p];
       if (st.status === 'offline' && wanted(st)) retry(st);
-      else if (st.ops.length || st.needSeed) scheduleWrite(st);
+      else if (st.ops.length || st.needSeed || st.defPending) scheduleWrite(st);
     });
   }
 
@@ -667,11 +675,11 @@
 
   async function flush(st) {
     st.wt = 0;
-    if (!st.ops.length && !st.needSeed) return;
+    if (!st.ops.length && !st.needSeed && !st.defPending) return;
     if (st.inflight) { st.again = true; return; }
     st.inflight = true;
     setStatus(st, 'saving');
-    var n = st.ops.length, ops = st.ops.slice(0, n), fallback = clone(st.base), failed = false;
+    var n = st.ops.length, ops = st.ops.slice(0, n), fallback = clone(st.base), pdef = st.defPending ? clone(st.defPending) : null, failed = false;
     try {
       var c = await connect();
       var ref = docRef(c, st);
@@ -682,10 +690,14 @@
         var server = (exists && cleanList((snap.data() || {}).apps)) || fallback;
         var next = replay(ops, server);
         result = next;
-        if (exists && same(next, server)) return;   // nothing to write
-        tx.set(ref, { v: 1, apps: next, rev: Date.now(), by: CLIENT });
+        if (exists && same(next, server) && !pdef) return;   // nothing to write
+        var data = { v: 1, apps: next, rev: Date.now(), by: CLIENT };
+        if (pdef) data.defaults = pdef;
+        // merge: the saved defaults live in this doc and must survive an ordinary save
+        tx.set(ref, data, { merge: true });
       });
       st.ops.splice(0, n);
+      if (pdef && same(pdef, st.defPending)) st.defPending = null;
       st.needSeed = false;
       st.retryN = 0;
       setStatus(st, '');
@@ -977,8 +989,8 @@
     'box-shadow:0 18px 40px -8px rgba(0,0,0,.65),0 0 0 1px var(--bd2);transition:box-shadow .15s;will-change:transform}' +
     '.dragging .t:not(.ph){cursor:grabbing}' +
     '.empty{padding:28px 12px;text-align:center;color:var(--dim);font-size:12.5px;grid-column:1/-1}' +
-    '.ft{flex:none;display:flex;align-items:center;gap:10px;padding:8px 16px 14px;border-top:1px solid var(--bd);color:var(--dim);font-size:11.5px}' +
-    '.ft .hint{flex:1;min-width:0}' +
+    '.ft{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:8px 16px 14px;border-top:1px solid var(--bd);color:var(--dim);font-size:11.5px}' +
+    '.ft .hint{flex:1 1 100%;min-width:0}.fb{display:flex;gap:8px;flex:1 1 100%}.fb .b{flex:1;justify-content:center}.b.sm{height:32px;padding:0 12px;font-size:12.5px}.b.warn{color:var(--bad);border-color:rgba(214,138,124,.5)}' +
     '.lnk{all:unset;cursor:pointer;color:var(--dim);font-size:11.5px;padding:4px 2px;border-radius:4px}.lnk:hover{color:var(--tx)}.lnk.warn{color:var(--bad)}' +
     '.ed{display:flex;flex-direction:column;gap:14px;padding:2px 6px 6px}' +
     '.fld{display:flex;flex-direction:column;gap:6px}' +
@@ -1009,7 +1021,7 @@
     '@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}';
 
   var SVG_PENCIL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
-  var SVG_OPENALL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9.5v8a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2H12L10.5 5H5.5a2 2 0 0 0-2 2z"/><path d="M3.5 9.5h17"/></svg>';
+  var SVG_OPENALL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>';
   var SVG_BACK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>';
   var SVG_REFRESH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5A8 8 0 1 0 17.7 17.2"/><path d="M20 4.5v7h-7"/></svg>';
   var SVG_PLUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
@@ -1043,7 +1055,7 @@
             '<button class="done" type="button" hidden>Done</button>' +
           '</div>' +
           '<div class="sc"><div class="grid"></div><div class="ed" hidden></div></div>' +
-          '<div class="ft" hidden><span class="hint">Drag to reorder · tap to edit · v' + VERSION + '</span><button class="lnk reset" type="button">Reset</button></div>' +
+          '<div class="ft" hidden><span class="hint">Drag to reorder · tap to edit · v' + VERSION + '</span><div class="fb"><button class="b sm setdef" type="button">Set as default</button><button class="b sm reset" type="button">Reset</button></div></div>' +
         '</div>' +
       '</div>';
     document.body.appendChild(host);
@@ -1097,12 +1109,28 @@
     var reset = root.querySelector('.reset');
     reset.addEventListener('click', function () {
       if (!reset.classList.contains('warn')) {
-        reset.classList.add('warn'); reset.textContent = 'Reset to A1 defaults?';
+        reset.classList.add('warn'); reset.textContent = 'Reset to defaults?';
         setTimeout(function () { reset.classList.remove('warn'); reset.textContent = 'Reset'; }, 3500);
         return;
       }
       reset.classList.remove('warn'); reset.textContent = 'Reset';
-      commit(S, replaceOp(S.defaults));
+      commit(S, replaceOp(defsOf(S)));
+    });
+
+    var setdef = root.querySelector('.setdef');
+    setdef.addEventListener('click', function () {
+      if (!setdef.classList.contains('pri')) {
+        setdef.classList.add('pri'); setdef.textContent = 'Use current apps?';
+        setTimeout(function () { setdef.classList.remove('pri'); setdef.textContent = 'Set as default'; }, 3500);
+        return;
+      }
+      setdef.classList.remove('pri');
+      S.userDef = clone(S.apps);
+      S.defPending = clone(S.userDef);
+      saveCache(S);
+      scheduleWrite(S);
+      setdef.textContent = 'Default saved';
+      setTimeout(function () { setdef.textContent = 'Set as default'; }, 1800);
     });
 
     ui.pop.addEventListener('keydown', onKey);
