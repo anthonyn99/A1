@@ -363,15 +363,18 @@ console.log('\norca on any site');
       provider_model_id: 'perplexity-web', display_name: 'Perplexity (browser)' },
     { backend_key: 'grok/free', provider_id: 'grok', backend_type: 'browser', enabled: false, routable: false,
       provider_model_id: 'grok-web', display_name: 'Grok (browser)' },
+    { backend_key: 'chatgpt/free', provider_id: 'chatgpt', backend_type: 'browser', enabled: true, routable: false, in_key_scope: false,
+      provider_model_id: 'gpt-4o-mini', display_name: 'ChatGPT Free (browser)' },
   ] };
   calls = [];
   responder = () => json(LIST);
   const found = await ai.detectOrcaModels();
   t('detection asks ORCA\'s /v1/models (CORS-open) with the same key', calls[0].url === 'https://orca.test/v1/models'
     && calls[0].headers.authorization === 'Bearer orca_sk_auto', calls[0]);
-  t('usable models first, browser sites before API models', found.map((m) => m.backend_key).join() === 'deepseek/free,groq/gpt-oss-20b,grok/free,perplexity/free', found.map((m) => m.backend_key));
-  t('an unusable one says why', found[3].why === 'not signed in on ORCA → Accounts' && found[2].why === 'switched off in ORCA', found.slice(2));
-  t('the list is kept for the picker and labels', ai.settings().orcaModels.list.length === 4 && ai.servedName('deepseek-web') === 'DeepSeek (browser)');
+  t('usable models first, browser sites before API models', found.map((m) => m.backend_key).join() === 'deepseek/free,groq/gpt-oss-20b,chatgpt/free,grok/free,perplexity/free', found.map((m) => m.backend_key));
+  t('an unusable one says why', found[4].why === 'not signed in on ORCA → Accounts' && found[3].why === 'switched off in ORCA', found.slice(2));
+  t('a model outside the key\'s Backends says so', /not allowed for this key/.test(found[2].why), found[2]);
+  t('the list is kept for the picker and labels', ai.settings().orcaModels.list.length === 5 && ai.servedName('deepseek-web') === 'DeepSeek (browser)');
   responder = () => json({ detail: 'no' }, 401);
   err = null;
   try { await ai.detectOrcaModels(); } catch (e) { err = e; }
@@ -403,6 +406,9 @@ console.log('\norca on any site');
   ai.saveSettings({ orcaBusy: 'wait' });
   responder = () => reply('OK', 'deepseek-web');
   t('Test names the model that answered', /DeepSeek \(browser\) replied/.test(await ai.testConnection()));
+  // Live, ORCA names a picked model's reply by its backend key, not the site id.
+  responder = () => reply('OK', 'deepseek/free');
+  t('...also when ORCA names it by its backend key', /DeepSeek \(browser\) replied/.test(await ai.testConnection()));
   responder = () => reply('OK', 'openai/gpt-oss-20b');
   err = null;
   try { await ai.testConnection(); } catch (e) { err = e; }

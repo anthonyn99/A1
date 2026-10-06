@@ -52,7 +52,9 @@ export const ORCA_MODELS = {
  *  short site name, else the id as ORCA gave it. */
 export function servedName(model) {
   const m = String(model || '');
-  const known = (settings().orcaModels.list || []).find((x) => x.provider_model_id && x.provider_model_id === m);
+  // ORCA names a picked model's reply by its backend key ("claude/free"), an
+  // auto-routed one by the site's id ("claude-web"): either finds the row.
+  const known = (settings().orcaModels.list || []).find((x) => m && (x.backend_key === m || x.provider_model_id === m));
   if (known) return known.display_name;
   const hit = Object.values(ORCA_MODELS).find((x) => x.served.test(m));
   return hit ? hit.label : m;
@@ -368,7 +370,7 @@ export async function testConnection() {
   const text = r && typeof r === 'object' ? r.text : r;
   if (a.id === 'orca') {
     const who = servedName(r && r.servedBy) || 'a model';
-    if (a.pick !== 'auto' && a.pickServes && r.servedBy && r.servedBy !== a.pickServes) {
+    if (a.pick !== 'auto' && r.servedBy && r.servedBy !== a.pick && (!a.pickServes || r.servedBy !== a.pickServes)) {
       throw new AIError(`You picked ${a.model}, but ${who} answered — this ORCA does not honour a picked model yet. Update ORCA (it updates itself within a few minutes of a push).`, { kind: 'setup' });
     }
     return `Connected — ${who} replied “${String(text).trim().slice(0, 40)}” through ORCA.`;
@@ -403,7 +405,8 @@ export async function detectOrcaModels() {
   }
   const list = rows.map((m) => {
     const browser = m.backend_type === 'browser';
-    const why = m.routable ? '' : !m.enabled ? 'switched off in ORCA'
+    const why = m.routable ? '' : m.in_key_scope === false ? 'not allowed for this key (ORCA → Keys → Backends)'
+      : !m.enabled ? 'switched off in ORCA'
       : browser ? 'not signed in on ORCA → Accounts' : 'no API key on ORCA → Accounts';
     return {
       backend_key: String(m.backend_key || ''),
