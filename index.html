@@ -4639,6 +4639,7 @@ function summarise(sessions,given){
 
 // ── Loader ───────────────────────────────────────────────────────────────
 var inflight=null;
+var confirming=false;                     // photo-removal dialog is up
 function load(force,wake){
   if(!CFG.endpoint){
     // Not linked → no network, ever. Anything already pushed in via ingest()
@@ -5044,8 +5045,11 @@ function Widget(props){
     document.addEventListener('visibilitychange',onFocus);
     var prevOverflow=document.body.style.overflow;
     document.body.style.overflow='hidden';
-    function down(e){if(box.current&&!box.current.contains(e.target))setOpen(false);}
-    function key(e){if(e.key==='Escape')setOpen(false);}
+    // The themed confirm dialog (#uim-overlay) lives outside this popup, so a click
+    // on it — or Escape dismissing it — is not a click "outside" the widget.
+    function dlg(){var o=document.getElementById('uim-overlay');return !!(o&&o.style.display&&o.style.display!=='none')||confirming;}
+    function down(e){if(dlg()||(e.target&&e.target.closest&&e.target.closest('#uim-overlay')))return;if(box.current&&!box.current.contains(e.target))setOpen(false);}
+    function key(e){if(e.key==='Escape'&&!dlg())setOpen(false);}
     document.addEventListener('mousedown',down);
     document.addEventListener('touchstart',down,{passive:true});
     document.addEventListener('keydown',key);
@@ -5169,11 +5173,15 @@ function Widget(props){
     e.preventDefault();e.stopPropagation();
     // The suite's themed in-UI dialog (desktop modal / mobile sheet) — never
     // remove the photo on a single tap.
+    confirming=true;
     Promise.resolve(window.uiConfirm
       ?window.uiConfirm('This will remove your custom photo from the Tesla panel. You can upload another any time.',
           {title:'Remove photo?',okLabel:'Remove',cancelLabel:'Keep',danger:true})
       :false)
     .then(function(ok){
+      // Hold the flag a beat so the click/Escape that closed the dialog can't
+      // reach the outside-click handler and shut the panel too.
+      setTimeout(function(){confirming=false;},300);
       if(!ok)return;
       configure({photo:null});
       flash('Photo removed',false);
