@@ -19271,12 +19271,10 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     var item=document.createElement('div');
     item.style.cssText='background:#2a2a2e;border:1px solid #555;border-radius:6px;padding:12px 14px;box-shadow:0 6px 24px rgba(0,0,0,.6);display:flex;align-items:center;gap:10px;font-family:Nunito,sans-serif;animation:th-in .25s ease;flex-shrink:0;';
     var safe=String(title).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    // This engine is shared by BOTH dashboards, so the bell is swapped for the
-    // SVG only while Veda's profile is the one on screen — Tony's banner keeps
-    // the glyph it has always rendered, byte for byte.
-    var bell=(window._activeProfile==='veda'&&window.VDI)
-      ? '<span style="display:inline-flex;align-items:center;color:#8D769A;font-size:14px;margin-right:2px;">'+window.VDI.bell+'</span>'
-      : '🔔 ';
+    // Same solid SVG bell as the reminder chips in the weekly view
+    // (TNI.bellFill), in the on-screen profile's accent — never the 🔔 emoji,
+    // on either dashboard.
+    var bell='<span style="display:inline-flex;align-items:center;color:'+(window._activeProfile==='veda'?'#8D769A':'#c0aeea')+';font-size:15px;margin-right:2px;">'+window.TNI.bellFill+'</span>';
     item.innerHTML='<div style="flex:1;min-width:0;font-size:13px;font-weight:700;color:#e8e8ec;line-height:1.4;display:flex;align-items:center;gap:6px;">'+bell+'<span style="flex:1;min-width:0;">'+safe+'</span></div><button style="background:transparent;border:none;color:#888;font-size:20px;cursor:pointer;padding:0;line-height:1;flex-shrink:0">×</button>';
     item.querySelector('button').onclick=function(){item.style.opacity='0';item.style.transition='opacity .2s';setTimeout(function(){try{item.remove();if(stack&&!stack.children.length)stack.remove();}catch(e){}},220);};
     stack.appendChild(item);
