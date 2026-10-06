@@ -124,6 +124,10 @@ sites:
       # promotional content ("Take a 5-Minute IQ Test..."), which would end up
       # inside the answer and then inside the synthesis. Always prefer the
       # inner markdown node.
+      # 2026-10-06: the shell dropped [data-assistant-markdown] and every
+      # data-message-*-role attribute; the answer body is now marked by
+      # data-markdown-text-style (the user bubble is data-user-message-bubble).
+      - "[data-markdown-text-style='assistant-message']"
       - "[data-assistant-markdown]"
       - "[data-message-role='assistant'] .markdown"
       - "[data-message-role='assistant']"
