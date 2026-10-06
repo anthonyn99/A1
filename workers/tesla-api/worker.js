@@ -190,6 +190,12 @@ const VEHICLE_DATA_ENDPOINTS =
   'charge_state;climate_state;drive_state;location_data;vehicle_state;vehicle_config;gui_settings';
 
 const CACHE_FRESH_MS = 60 * 1000;         // matches the widget's own POLL_AWAKE
+// KV allows 1000 writes/day on this account and the vehicle cache used to be
+// PUT on every fresh fetch (up to 1440/day with the panel open). The 60s dedupe
+// now lives in isolate memory; KV only holds the "last known" fallback and is
+// rewritten at most this often.
+const KV_CACHE_WRITE_MS = 15 * 60 * 1000;
+let MEM_CACHE = null;                     // {body, kvAt} — per-isolate, free
 const TOKEN_REFRESH_SKEW_MS = 5 * 60 * 1000; // refresh 5 min before actual expiry
 
 export default {
@@ -421,7 +427,7 @@ async function handleVehicle(env, cors, wake) {
   // An explicit wake-refresh must not be answered from the 60s cache — the
   // whole point of it is to go and get the current truth.
   if (!wakeTried) {
-    const fresh = await env.TESLA_KV.get(KV_VEHICLE_CACHE, 'json');
+    const fresh = (MEM_CACHE && MEM_CACHE.body) || await env.TESLA_KV.get(KV_VEHICLE_CACHE, 'json');
     if (fresh && fresh._fetchedAt && Date.now() - fresh._fetchedAt < CACHE_FRESH_MS) {
       return j(slimVehicle(fresh, t.display_name), 200, cors);
     }
@@ -449,7 +455,15 @@ async function handleVehicle(env, cors, wake) {
     response: { ...vd.body.response, state: 'online', place },
     _fetchedAt: Date.now(),
   };
-  await env.TESLA_KV.put(KV_VEHICLE_CACHE, JSON.stringify(body));
+  // Memory serves the 60s dedupe; KV is only the long-lived fallback, so it is
+  // rewritten rarely (or immediately if this isolate has never written it).
+  const now = Date.now();
+  if (!MEM_CACHE || now - MEM_CACHE.kvAt >= KV_CACHE_WRITE_MS) {
+    await env.TESLA_KV.put(KV_VEHICLE_CACHE, JSON.stringify(body));
+    MEM_CACHE = { body, kvAt: now };
+  } else {
+    MEM_CACHE.body = body;
+  }
   // Cache keeps the full body (placeLabel may need coords again); only what
   // LEAVES the Worker is slimmed.
   // Fallback chain for the name: the list call, then vehicle_state.vehicle_name

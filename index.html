@@ -4639,6 +4639,7 @@ function summarise(sessions,given){
 
 // ── Loader ───────────────────────────────────────────────────────────────
 var inflight=null;
+var lastTry=0;                            // last network attempt, success or not
 var confirming=false;                     // photo-removal dialog is up
 function load(force,wake){
   if(!CFG.endpoint){
@@ -4653,7 +4654,7 @@ function load(force,wake){
   // current truth. Background polling never sets it, so a sleeping car is
   // still never disturbed on its own.
   var url=CFG.endpoint+(wake?((CFG.endpoint.indexOf('?')>=0?'&':'?')+'wake=1'):'');
-  S.loading=true;S.waking=!!wake;emit();
+  S.loading=true;S.waking=!!wake;lastTry=Date.now();emit();
   inflight=fetch(url,{headers:{Accept:'application/json'},cache:'no-store'})
     .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
     .then(function(j){
@@ -5008,7 +5009,7 @@ function Widget(props){
     function wake(){
       if(document.hidden)return;
       if(openRef.current)return;                     // open-state effect owns polling
-      if(Date.now()-S.at<CLOSED_REFRESH_MS)return;
+      if(Date.now()-Math.max(S.at,lastTry)<CLOSED_REFRESH_MS)return;
       load(true);
     }
     window.addEventListener('focus',wake);
@@ -5038,9 +5039,12 @@ function Widget(props){
       tid=setTimeout(run,(S.data&&S.data.awake)?POLL_AWAKE:POLL_ASLEEP);
     }
     function run(){if(stopped)return;load(true).then(schedule,schedule);}
-    run();
+    // Opening the panel reuses a reading under FRESH_MS old instead of re-polling.
+    if(S.data&&Date.now()-S.at<FRESH_MS){schedule();}else run();
     var clock=setInterval(function(){setTick(function(n){return n+1;});},30000);
-    function onFocus(){if(!document.hidden)load(true);}
+    // Focus/visibility fire constantly (alt-tab, dialogs, devtools); only refresh
+    // if the last attempt — failed ones included — is a full poll interval old.
+    function onFocus(){if(!document.hidden&&Date.now()-Math.max(S.at,lastTry)>=POLL_AWAKE)load(true);}
     window.addEventListener('focus',onFocus);
     document.addEventListener('visibilitychange',onFocus);
     var prevOverflow=document.body.style.overflow;
