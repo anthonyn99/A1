@@ -353,27 +353,65 @@ console.log('\norca on any site');
   try { await ai.generateJSON({ system: 's', prompt: 'p', pdf: PDF, schema: SCHEMA, docText: '' }); } catch (e) { err = e; }
   t('404 for a signed-out account is setup, in ORCA\'s words', err && err.kind === 'setup' && /not signed in/.test(err.message), err && err.message);
 
-  // Picking a model = its own key; "if busy, use Auto" switches key.
-  ai.saveSettings({ orcaPick: 'deepseek', orcaKeys: { deepseek: '' } });
-  t('a pick without its key says which key to add', /ORCA key for DeepSeek[\s\S]*deepseek\/free/.test(ai.active().problem), ai.active());
-  ai.saveSettings({ orcaPick: 'deepseek', orcaKeys: { deepseek: 'orca_sk_ds' }, orcaBusy: 'auto' });
-  t('a pick uses its own key', ai.active().key === 'orca_sk_ds' && ai.active().model === 'DeepSeek' && !ai.active().problem, ai.active());
-  calls = []; k = 0;
-  responder = () => (k++ === 0 ? reply('busy', '', 429, { 'Retry-After': '30' }) : reply('{"x": 4}', 'claude-web'));
-  r = await ai.generateJSON({ system: 's', prompt: 'p', pdf: PDF, schema: SCHEMA, docText: '' });
-  t('busy pick + "use Auto": asked again through the auto key, no wait', r.data.x === 4 && calls[0].headers.authorization === 'Bearer orca_sk_ds'
-    && calls[1].headers.authorization === 'Bearer orca_sk_auto', calls.map((c) => c.headers.authorization));
-  t('keys stay in the one settings entry', [...mem.keys()].every((x) => x === 'studyos_ai_v1'), [...mem.keys()]);
+  // One key; ORCA's own list says which models it can use.
+  const LIST = { models: [
+    { backend_key: 'groq/gpt-oss-20b', provider_id: 'groq', backend_type: 'http', enabled: true, routable: true,
+      provider_model_id: 'openai/gpt-oss-20b', display_name: 'GPT-OSS 20B' },
+    { backend_key: 'deepseek/free', provider_id: 'deepseek', backend_type: 'browser', enabled: true, routable: true,
+      provider_model_id: 'deepseek-web', display_name: 'DeepSeek (browser)' },
+    { backend_key: 'perplexity/free', provider_id: 'perplexity', backend_type: 'browser', enabled: true, routable: false,
+      provider_model_id: 'perplexity-web', display_name: 'Perplexity (browser)' },
+    { backend_key: 'grok/free', provider_id: 'grok', backend_type: 'browser', enabled: false, routable: false,
+      provider_model_id: 'grok-web', display_name: 'Grok (browser)' },
+  ] };
+  calls = [];
+  responder = () => json(LIST);
+  const found = await ai.detectOrcaModels();
+  t('detection asks ORCA\'s /admin/models with the same key', calls[0].url === 'https://orca.test/admin/models'
+    && calls[0].headers.authorization === 'Bearer orca_sk_auto', calls[0]);
+  t('usable models first, browser sites before API models', found.map((m) => m.backend_key).join() === 'deepseek/free,groq/gpt-oss-20b,grok/free,perplexity/free', found.map((m) => m.backend_key));
+  t('an unusable one says why', found[3].why === 'not signed in on ORCA → Accounts' && found[2].why === 'switched off in ORCA', found.slice(2));
+  t('the list is kept for the picker and labels', ai.settings().orcaModels.list.length === 4 && ai.servedName('deepseek-web') === 'DeepSeek (browser)');
+  responder = () => json({ detail: 'no' }, 401);
+  err = null;
+  try { await ai.detectOrcaModels(); } catch (e) { err = e; }
+  t('a rejected key is said plainly', err && err.kind === 'auth', err && err.message);
 
-  // Test connection names who answered, and catches a key not limited to its pick.
+  // A pick is the request's `model`, through the one key.
+  ai.saveSettings({ orcaPick: 'deepseek/free', orcaBusy: 'wait' });
+  t('a pick needs no key of its own', ai.active().key === 'orca_sk_auto' && ai.active().model === 'DeepSeek (browser)' && !ai.active().problem, ai.active());
+  calls = [];
+  responder = () => reply('{"x": 5}', 'deepseek-web');
+  await ai.generateJSON({ system: 's', prompt: 'p', pdf: PDF, schema: SCHEMA, docText: '' });
+  t('the pick goes as model', calls[0].body.model === 'deepseek/free', calls[0].body.model);
+  // "If busy, use whichever is free": the same ask again, naming no model.
+  ai.saveSettings({ orcaBusy: 'auto' });
+  calls = []; k = 0;
+  responder = () => (k++ === 0 ? reply('deepseek/free: rate-limited until 5:00 PM', '', 429, { 'Retry-After': '30' }) : reply('{"x": 4}', 'claude-web'));
+  r = await ai.generateJSON({ system: 's', prompt: 'p', pdf: PDF, schema: SCHEMA, docText: '' });
+  t('busy pick + "use whichever is free": asked again without a model, no wait', r.data.x === 4
+    && calls[0].body.model === 'deepseek/free' && !('model' in calls[1].body) && calls.length === 2, calls.map((c) => c.body.model));
+  t('keys stay in the one settings entry', [...mem.keys()].every((x) => x === 'studyos_ai_v1'), [...mem.keys()]);
+  // ORCA's 404 for a pick lists the others as "not the requested model":
+  // that must not hide an attachments-only refusal.
+  responder = () => reply('deepseek/free: missing capabilities: input_modality:file; 3 other backend(s) are not the requested model', '', 404);
+  err = null;
+  try { await ai.generateJSON({ system: 's', prompt: 'p', pdf: PDF, schema: SCHEMA, docText: '' }); } catch (e) { err = e; }
+  t('a pick\'s attachments-only 404 is still no_backend', err && err.kind === 'no_backend', err && err.kind);
+
+  // Test connection names who answered, and catches an ORCA that ignores the pick.
   ai.saveSettings({ orcaBusy: 'wait' });
   responder = () => reply('OK', 'deepseek-web');
-  t('Test names the model that answered', /DeepSeek replied/.test(await ai.testConnection()));
-  responder = () => reply('OK', 'gpt-4o-mini');
+  t('Test names the model that answered', /DeepSeek \(browser\) replied/.test(await ai.testConnection()));
+  responder = () => reply('OK', 'openai/gpt-oss-20b');
   err = null;
   try { await ai.testConnection(); } catch (e) { err = e; }
-  t('Test catches a DeepSeek key answered by ChatGPT', err && /answered by ChatGPT, not DeepSeek/.test(err.message), err && err.message);
+  t('Test catches an ORCA that did not honour the pick', err && /picked DeepSeek \(browser\), but GPT-OSS 20B answered/.test(err.message), err && err.message);
   ai.saveSettings({ orcaPick: 'auto' });
+  calls = [];
+  responder = () => reply('{"x": 6}');
+  await ai.generateJSON({ system: 's', prompt: 'p', pdf: PDF, schema: SCHEMA, docText: '' });
+  t('Auto names no model', !('model' in calls[0].body));
   ai.setSleep(null);
 }
 

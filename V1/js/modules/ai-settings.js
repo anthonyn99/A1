@@ -32,6 +32,7 @@ const MODEL_HINT = {
 };
 
 let draft = null;
+let _autoDetected = false;      // one automatic model listing per visit
 
 export function render() {
   ensureStyle();
@@ -87,11 +88,9 @@ export function render() {
     const k = root.querySelector('#ais-key'), m = root.querySelector('#ais-model'), b = root.querySelector('#ais-base');
     const busy = root.querySelector('#ais-busy');
     if (p === 'orca') {
-      // The key field is the key of the model picked: auto's, or that pick's own.
-      if (k) {
-        if (draft.orcaPick === 'auto') draft.keys = { ...draft.keys, orca: k.value.trim() };
-        else draft.orcaKeys = { ...draft.orcaKeys, [draft.orcaPick]: k.value.trim() };
-      }
+      const pk = root.querySelector('#ais-pick');
+      if (k) draft.keys = { ...draft.keys, orca: k.value.trim() };
+      if (pk) draft.orcaPick = pk.value || 'auto';
       if (busy) draft.orcaBusy = busy.value === 'auto' ? 'auto' : 'wait';
     } else {
       if (k) draft.keys = { ...draft.keys, [p]: k.value.trim() };
@@ -112,11 +111,40 @@ export function render() {
     render();
   }));
   const pick = root.querySelector('#ais-pick');
-  if (pick) pick.addEventListener('change', () => {
-    collect();
-    draft.orcaPick = pick.value;
-    render();
-  });
+  if (pick) pick.addEventListener('change', () => { collect(); render(); });
+  // A press saves what is on screen first (like Test); the automatic listing
+  // uses the key already saved and never saves a half-edited form.
+  const detect = async (quiet) => {
+    if (!quiet && !save()) return;
+    const btn = root.querySelector('[data-detect]');
+    if (btn) btn.disabled = true;
+    if (!quiet) msg('Asking ORCA for its models…');
+    try {
+      await ai.detectOrcaModels();
+      if (!root.isConnected || draft.provider !== 'orca') return;
+      collect();                       // keep whatever she typed meanwhile
+      draft = { ...draft, orcaModels: ai.settings().orcaModels };
+      render();
+      if (!quiet) {
+        const list = draft.orcaModels.list;
+        root.querySelector('#ais-msg').textContent = `Found ${list.filter((m) => m.routable).length} usable model${list.length === 1 ? '' : 's'}.`;
+        root.querySelector('#ais-msg').className = 'ais-msg ok';
+      }
+    } catch (err) {
+      if (!quiet) msg((err && err.message) || String(err), false);
+    } finally {
+      const b = root.querySelector('[data-detect]');
+      if (b) b.disabled = false;
+    }
+  };
+  const det = root.querySelector('[data-detect]');
+  if (det) det.addEventListener('click', () => detect(false));
+  // Opening ORCA with a key and no list (or a day-old one) lists them by itself.
+  if (p === 'orca' && ai.settings().keys.orca && !_autoDetected
+      && (!(draft.orcaModels.list || []).length || Date.now() - (draft.orcaModels.detectedAt || 0) > 864e5)) {
+    _autoDetected = true;
+    detect(true);
+  }
   const show = root.querySelector('[data-show]');
   if (show) show.addEventListener('click', () => {
     const k = root.querySelector('#ais-key');
@@ -140,40 +168,44 @@ export function render() {
   });
 }
 
-/* ORCA: which model, and that model's key. ORCA's router ignores a request's
- * `model`, so "use DeepSeek" is a key made on ORCA → Keys whose Backends are
- * deepseek/free alone. Auto is her ordinary key: ORCA picks. */
+/* ORCA: one key, and the model it should use. The list is ORCA's own
+ * (ai.detectOrcaModels → /admin/models), so a model added to ORCA shows up
+ * here by itself. Auto = ORCA picks whichever is free. */
 function orcaHtml() {
   const pick = draft.orcaPick;
-  const m = ai.ORCA_MODELS[pick];
-  const key = m ? draft.orcaKeys[pick] || '' : draft.keys.orca || '';
-  const has = (id) => !!(id === 'auto' ? draft.keys.orca : draft.orcaKeys[id]);
-  const opt = (id, label) => `<option value="${id}"${id === pick ? ' selected' : ''}>${esc(label)}${has(id) ? '' : ' — no key yet'}</option>`;
+  const list = (draft.orcaModels && draft.orcaModels.list) || [];
+  const row = list.find((m) => m.backend_key === pick);
+  const label = row ? row.display_name : pick;
+  const opt = (m) => `<option value="${esc(m.backend_key)}"${m.backend_key === pick ? ' selected' : ''}${m.routable ? '' : ' disabled'}>${
+    esc(m.display_name)}${m.routable ? '' : ` — ${esc(m.why)}`}</option>`;
+  const usable = list.filter((m) => m.routable).length;
   return `
-      <div class="ais-field"><label for="ais-pick">Model</label>
-        <select id="ais-pick">
-          ${opt('auto', 'Auto — ORCA picks any free model')}
-          ${Object.entries(ai.ORCA_MODELS).map(([id, x]) => opt(id, x.label)).join('')}
-        </select></div>
-      <div class="ais-field"><label for="ais-key">${m ? `ORCA key for ${esc(m.label)}` : 'ORCA key'}</label>
+      <div class="ais-field"><label for="ais-key">ORCA key</label>
         <div class="ais-keyrow">
-          <input id="ais-key" type="password" value="${esc(key)}" placeholder="${esc(KEY_HINT.orca)}" spellcheck="false" autocomplete="off">
+          <input id="ais-key" type="password" value="${esc(draft.keys.orca || '')}" placeholder="${esc(KEY_HINT.orca)}" spellcheck="false" autocomplete="off">
           <button class="btn" data-show type="button">Show</button>
         </div></div>
-      ${m ? `
-      <div class="ais-note">To use ${esc(m.label)} only: on ORCA → <b>Keys</b>, make a new key, set its
-        <b>Backends</b> to <code>${esc(m.backend)}</code> and nothing else, and paste it here.
-        <b>Test connection</b> then checks that ${esc(m.label)} is the one answering.</div>
-      <div class="ais-field"><label for="ais-busy">If ${esc(m.label)} is busy or rate-limited</label>
+      <div class="ais-field"><label for="ais-pick">Model</label>
+        <div class="ais-keyrow">
+          <select id="ais-pick">
+            <option value="auto"${pick === 'auto' ? ' selected' : ''}>Auto — whichever model is free</option>
+            ${list.map(opt).join('')}
+            ${pick !== 'auto' && !row ? `<option value="${esc(pick)}" selected>${esc(pick)} — not in ORCA's list</option>` : ''}
+          </select>
+          <button class="btn" data-detect type="button" title="Ask ORCA which models this key can use">Detect models</button>
+        </div>
+        <div class="ais-note" id="ais-detected" style="margin-top:6px">${list.length
+          ? `${usable} of ${list.length} models usable now${draft.orcaModels.detectedAt ? ` · checked ${esc(new Date(draft.orcaModels.detectedAt).toLocaleString())}` : ''}.`
+          : 'Press <b>Detect models</b> to list the models your ORCA key can use.'}</div></div>
+      ${pick !== 'auto' ? `
+      <div class="ais-field"><label for="ais-busy">If ${esc(label)} is busy or rate-limited</label>
         <select id="ais-busy">
           <option value="wait"${draft.orcaBusy !== 'auto' ? ' selected' : ''}>Wait for it (up to 10 minutes per step)</option>
-          <option value="auto"${draft.orcaBusy === 'auto' ? ' selected' : ''}${draft.keys.orca ? '' : ' disabled'}>Use Auto instead${draft.keys.orca ? '' : ' (add the Auto key first)'}</option>
-        </select></div>` : `
-      <div class="ais-note">Any ORCA model can write a breakdown — Claude, ChatGPT, DeepSeek, Gemini,
-        Perplexity. To always use one, pick it above and give it its own key.</div>`}`;
+          <option value="auto"${draft.orcaBusy === 'auto' ? ' selected' : ''}>Use whichever model is free instead</option>
+        </select></div>` : ''}`;
 }
 
 /** Forget unsaved edits, so the next visit shows what is actually stored. */
-export function reset() { draft = null; }
+export function reset() { draft = null; _autoDetected = false; }
 
 export default { render, reset };

@@ -37,21 +37,23 @@ export const PROVIDERS = {
                defaultBase: 'https://orca.vedapatel05.workers.dev/v1' },
 };
 
-/* The models behind ORCA she can pick. ORCA's router ignores a request's
- * `model`, so a pick is a KEY: one made on ORCA → Keys with Backends limited
- * to that model. `served` matches the `model` ORCA's reply names (the site's
- * provider_model_id), to tell a key that is not limited from one that is. */
+/* Short names for the chat sites ORCA drives, matched against the `model` a
+ * reply names (the site's provider_model_id, e.g. "deepseek-web") — used when
+ * the detected list (settings.orcaModels) does not name it. */
 export const ORCA_MODELS = {
-  claude:     { label: 'Claude',     backend: 'claude/free',     served: /claude/i },
-  chatgpt:    { label: 'ChatGPT',    backend: 'chatgpt/free',    served: /gpt|chatgpt|openai|o\d/i },
-  deepseek:   { label: 'DeepSeek',   backend: 'deepseek/free',   served: /deepseek/i },
-  gemini:     { label: 'Gemini',     backend: 'gemini_web/free', served: /gemini/i },
-  perplexity: { label: 'Perplexity', backend: 'perplexity/free', served: /perplexity|sonar/i },
+  claude:     { label: 'Claude',     served: /claude/i },
+  chatgpt:    { label: 'ChatGPT',    served: /gpt|chatgpt|openai|o\d/i },
+  deepseek:   { label: 'DeepSeek',   served: /deepseek/i },
+  gemini:     { label: 'Gemini',     served: /gemini/i },
+  perplexity: { label: 'Perplexity', served: /perplexity|sonar/i },
 };
 
-/** "deepseek-web" → "DeepSeek"; anything else as ORCA named it. */
+/** "deepseek-web" → "DeepSeek (browser)" from the detected list, else a
+ *  short site name, else the id as ORCA gave it. */
 export function servedName(model) {
   const m = String(model || '');
+  const known = (settings().orcaModels.list || []).find((x) => x.provider_model_id && x.provider_model_id === m);
+  if (known) return known.display_name;
   const hit = Object.values(ORCA_MODELS).find((x) => x.served.test(m));
   return hit ? hit.label : m;
 }
@@ -74,11 +76,12 @@ function defaults() {
     keys: { anthropic: '', openai: '', gemini: '', orca: '' },
     models: { anthropic: PROVIDERS.anthropic.defaultModel, openai: '', gemini: '', orca: '' },
     baseUrl: { openai: PROVIDERS.openai.defaultBase, orca: PROVIDERS.orca.defaultBase },
-    // ORCA: 'auto' (keys.orca, ORCA picks) or one of ORCA_MODELS, whose key
-    // is orcaKeys[pick]. orcaBusy: 'wait' for a busy pick, or 'auto' = ask
-    // through the auto key instead.
+    // ORCA, one key (keys.orca): orcaPick is 'auto' (ORCA picks) or a model
+    // key from ORCA's own list ("deepseek/free"), sent as the request's
+    // `model`. orcaModels: that list as last detected (not secret).
+    // orcaBusy: 'wait' for a busy pick, or 'auto' = let ORCA pick instead.
     orcaPick: 'auto',
-    orcaKeys: Object.fromEntries(Object.keys(ORCA_MODELS).map((k) => [k, ''])),
+    orcaModels: { list: [], detectedAt: 0 },
     orcaBusy: 'wait',
   };
 }
@@ -93,8 +96,8 @@ export function settings() {
       keys: { ...d.keys, ...(s.keys || {}) },
       models: { ...d.models, ...(s.models || {}) },
       baseUrl: { ...d.baseUrl, ...(s.baseUrl || {}) },
-      orcaPick: s.orcaPick === 'auto' || ORCA_MODELS[s.orcaPick] ? s.orcaPick : d.orcaPick,
-      orcaKeys: { ...d.orcaKeys, ...(s.orcaKeys || {}) },
+      orcaPick: typeof s.orcaPick === 'string' && s.orcaPick.trim() ? s.orcaPick.trim() : d.orcaPick,
+      orcaModels: s.orcaModels && Array.isArray(s.orcaModels.list) ? s.orcaModels : d.orcaModels,
       orcaBusy: s.orcaBusy === 'auto' ? 'auto' : 'wait',
     };
   } catch (e) { return d; }
@@ -125,16 +128,18 @@ export function active() {
   const id = s.provider;
   if (id === 'orca') {
     const pick = s.orcaPick;
-    const m = ORCA_MODELS[pick];
-    const key = m ? s.orcaKeys[pick] || '' : s.keys.orca || '';
+    const picked = pick !== 'auto';
+    const row = picked ? (s.orcaModels.list || []).find((x) => x.backend_key === pick) : null;
+    const key = s.keys.orca || '';
     return {
-      id, label: PROVIDERS.orca.label, model: m ? m.label : 'Auto', pick, key,
-      // A busy pick may go through the auto key instead, when she said so.
-      fallbackKey: m && s.orcaBusy === 'auto' ? s.keys.orca || '' : '',
+      id, label: PROVIDERS.orca.label, pick, key,
+      model: picked ? (row && row.display_name) || pick : 'Auto',
+      // What a reply from the pick names as its `model`, to check it was honoured.
+      pickServes: (row && row.provider_model_id) || '',
+      // A busy pick may be handed to whichever model is free, when she said so.
+      busyToAuto: picked && s.orcaBusy === 'auto',
       baseUrl: (s.baseUrl.orca || PROVIDERS.orca.defaultBase).replace(/\/+$/, ''),
-      problem: key ? '' : m
-        ? `Add the ORCA key for ${m.label} in AI settings (ORCA → Keys, Backends: ${m.backend}).`
-        : 'Add your ORCA key in AI settings.',
+      problem: key ? '' : 'Add your ORCA key in AI settings.',
     };
   }
   const model = id === 'bridge' ? 'claude.ai' : (s.models[id] || PROVIDERS[id].defaultModel || '');
@@ -363,13 +368,49 @@ export async function testConnection() {
   const text = r && typeof r === 'object' ? r.text : r;
   if (a.id === 'orca') {
     const who = servedName(r && r.servedBy) || 'a model';
-    const want = ORCA_MODELS[a.pick];
-    if (want && r.servedBy && !want.served.test(r.servedBy)) {
-      throw new AIError(`This key was answered by ${who}, not ${want.label} — on ORCA → Keys, limit the key's Backends to ${want.backend} only.`, { kind: 'setup' });
+    if (a.pick !== 'auto' && a.pickServes && r.servedBy && r.servedBy !== a.pickServes) {
+      throw new AIError(`You picked ${a.model}, but ${who} answered — this ORCA does not honour a picked model yet. Update ORCA (it updates itself within a few minutes of a push).`, { kind: 'setup' });
     }
     return `Connected — ${who} replied “${String(text).trim().slice(0, 40)}” through ORCA.`;
   }
   return `Connected — ${a.model || a.label} replied “${String(text).trim().slice(0, 40)}”.`;
+}
+
+/**
+ * The models her ORCA key can reach, from ORCA's own list (GET /admin/models,
+ * which takes the same orca_sk_ key): usable ones first — browser chat sites
+ * before API models — then the rest with why they are not usable. Saved to
+ * settings.orcaModels so the picker and labels work without asking again.
+ * Resolves [{ backend_key, display_name, provider_model_id, routable, why, browser }].
+ */
+export async function detectOrcaModels() {
+  const s = settings();
+  const key = s.keys.orca;
+  if (!key) throw new AIError('Add your ORCA key first.', { kind: 'setup' });
+  const base = (s.baseUrl.orca || PROVIDERS.orca.defaultBase).replace(/\/+$/, '').replace(/\/v1$/, '');
+  let res;
+  try { res = await fetch(base + '/admin/models', { headers: { Authorization: 'Bearer ' + key } }); }
+  catch (e) { throw new AIError(`Could not reach ORCA at ${base}: ${(e && e.message) || e}`, { kind: 'network', retryable: true }); }
+  const body = await res.json().catch(() => null);
+  if (res.status === 401 || res.status === 403) throw new AIError(`ORCA rejected the key (${res.status}).`, { kind: 'auth' });
+  if (!res.ok || !body || !Array.isArray(body.models)) {
+    throw new AIError(`ORCA could not list its models (${res.status}${errorDetail(body) ? ': ' + errorDetail(body) : ''}).`, { kind: 'api' });
+  }
+  const list = body.models.map((m) => {
+    const browser = m.backend_type === 'browser';
+    const why = m.routable ? '' : !m.enabled ? 'switched off in ORCA'
+      : browser ? 'not signed in on ORCA → Accounts' : 'no API key on ORCA → Accounts';
+    return {
+      backend_key: String(m.backend_key || ''),
+      display_name: String(m.display_name || m.backend_key || ''),
+      provider_model_id: String(m.provider_model_id || ''),
+      routable: !!m.routable, why, browser,
+    };
+  }).filter((m) => m.backend_key)
+    .sort((x, y) => (y.routable - x.routable) || (y.browser - x.browser) || x.display_name.localeCompare(y.display_name));
+  const r = saveSettings({ orcaModels: { list, detectedAt: Date.now() } });
+  if (!r.ok) console.warn('[ai] the ORCA model list was not saved:', r.error);
+  return list;
 }
 
 // ── Adapters: (active, spec) → answer text ────────────────────────────────
@@ -718,12 +759,13 @@ async function viaOpenAI(a, spec) {
     { role: 'user', content },
   ];
   const orca = a.id === 'orca';
-  const post = (response_format, key = a.key) => fetch(a.baseUrl + '/chat/completions', {
+  // ORCA: the pick ("deepseek/free") is the request's `model`; Auto names
+  // none. ORCA gets no response_format: see CHAT_JSON_RULE.
+  let model = orca ? (a.pick && a.pick !== 'auto' ? a.pick : '') : (a.model && !/^(any|auto)$/i.test(a.model) ? a.model : '');
+  const post = (response_format) => fetch(a.baseUrl + '/chat/completions', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
-    // ORCA's router ignores `model` (a pick is its own key), and gets no
-    // response_format: see CHAT_JSON_RULE.
-    body: JSON.stringify({ ...(!orca && a.model && !/^(any|auto)$/i.test(a.model) ? { model: a.model } : {}), messages, ...(response_format ? { response_format } : {}) }),
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + a.key },
+    body: JSON.stringify({ ...(model ? { model } : {}), messages, ...(response_format ? { response_format } : {}) }),
   });
 
   let res;
@@ -734,17 +776,16 @@ async function viaOpenAI(a, spec) {
     // Not every OpenAI-compatible host takes a JSON Schema; json_object is the
     // near-universal fallback, and validation catches the rest.
     if (res.status === 400 && spec.schema && !spec.test && !orca) res = await post({ type: 'json_object' });
-    // ORCA busy: every model rate-limited, or the PC away (503/429 with
-    // Retry-After). Wait it out — failing would only move on to the next
-    // topic, which fails the same way — or go through the auto key, when a
-    // picked model may fall back to any.
+    // ORCA busy: the pick (or every model) rate-limited, or the PC away
+    // (503/429 with Retry-After). Wait it out — failing would only move on to
+    // the next topic, which fails the same way — or, when she allowed it,
+    // hand the step to whichever model is free.
     if (orca) {
       const deadline = Date.now() + MAX_BUSY_WAIT_MS;
-      let key = a.key;
       while (res.status === 503 || res.status === 429) {
-        if (a.fallbackKey && key !== a.fallbackKey) {
-          key = a.fallbackKey;
-          res = await post(null, key);
+        if (a.busyToAuto && model) {
+          model = '';
+          res = await post(null);
           continue;
         }
         const wait = retryAfterMs(res);
@@ -753,7 +794,7 @@ async function viaOpenAI(a, spec) {
         if (spec.onWait) spec.onWait({ until: Date.now() + wait, why: errorDetail(body) });
         await _sleep(wait);
         if (spec.onWait) spec.onWait(null);
-        res = await post(null, key);
+        res = await post(null);
       }
     }
   } catch (e) {
@@ -879,7 +920,9 @@ function orcaRefusal(status, detail) {
     return new AIError(`ORCA's models are all busy or rate-limited (${said || status}) — waited, then gave up on this step.`,
       { kind: 'rate', retryable: true });
   }
-  const reasons = said.split(/;\s*/);
+  // Models the request did not ask for, or the key may not use, say nothing
+  // about why the rest refused.
+  const reasons = said.split(/;\s*/).filter((r) => r && !/not the requested model|outside key|not scoped/i.test(r));
   if (reasons.length && reasons.every((r) => /input_modality|missing capabilities/i.test(r))) {
     return new AIError(`No ORCA model free right now reads attachments (${said}).`, { kind: 'no_backend', retryable: true });
   }
@@ -895,5 +938,5 @@ export function hash(text) {
   return 'h' + h.toString(36);
 }
 
-export default { ocrPages, pdfText, pdfPages, pdfPageImages, pageText, linesFromItems, PROVIDERS, ORCA_MODELS, servedName, settings, saveSettings, active, generateJSON, testConnection, extractJSON, repairPrompt, hash, AIError,
+export default { ocrPages, pdfText, pdfPages, pdfPageImages, pageText, linesFromItems, PROVIDERS, ORCA_MODELS, servedName, detectOrcaModels, settings, saveSettings, active, generateJSON, testConnection, extractJSON, repairPrompt, hash, AIError,
   looksCutOff, continuationText, stitch, continuationPrompt, spillText, setSleep };

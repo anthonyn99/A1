@@ -506,36 +506,56 @@ t('the other provider\'s key is kept', saved.kept === 'sk-test', saved);
 t('the save is confirmed on screen', /Saved/.test(saved.msg), saved.msg);
 t('the key is in no synced data', saved.leaked === false);
 
-// ORCA: pick a model = give it its own key (ORCA's router ignores `model`).
-await evalJs(`document.querySelector('#sos-ai-root [data-prov="orca"]').click(); true;`);
+// ORCA: one key; its models come from ORCA's own list (/admin/models), stubbed
+// here so nothing reaches the real ORCA.
+await evalJs(`(function(){
+  var real = window.fetch;
+  window.__orcaAsked = [];
+  window.fetch = function(url, init){
+    if (String(url).indexOf('/admin/models') >= 0) {
+      window.__orcaAsked.push({ url: String(url), auth: init && init.headers && init.headers.Authorization });
+      return Promise.resolve(new Response(JSON.stringify({ models: [
+        { backend_key: 'claude/free', backend_type: 'browser', enabled: true, routable: true, provider_model_id: 'claude-web', display_name: 'Claude free (browser)' },
+        { backend_key: 'deepseek/free', backend_type: 'browser', enabled: true, routable: true, provider_model_id: 'deepseek-web', display_name: 'DeepSeek (browser)' },
+        { backend_key: 'perplexity/free', backend_type: 'browser', enabled: true, routable: false, provider_model_id: 'perplexity-web', display_name: 'Perplexity (browser)' },
+      ] }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    }
+    return real.apply(this, arguments);
+  };
+  document.querySelector('#sos-ai-root [data-prov="orca"]').click();
+})(); true;`);
 await wait(150);
 const o1 = await evalJs(`(function(){
   var s = document.getElementById('ais-pick');
-  return { opts: s ? [...s.options].map(o => o.value) : null, model: !!document.getElementById('ais-model') };
+  return { opts: s ? [...s.options].map(o => o.value) : null, model: !!document.getElementById('ais-model'),
+           detect: !!document.querySelector('#sos-ai-root [data-detect]') };
 })()`);
-t('ORCA offers Auto + Claude, ChatGPT, DeepSeek, Gemini, Perplexity', o1.opts && o1.opts.join() === 'auto,claude,chatgpt,deepseek,gemini,perplexity', o1);
-t('...instead of a free-text model ORCA would ignore', o1.model === false, o1);
-await evalJs(`(function(){ document.getElementById('ais-key').value = 'orca_sk_auto_v';
-  var s = document.getElementById('ais-pick'); s.value = 'deepseek'; s.dispatchEvent(new Event('change')); })(); true;`);
-await wait(150);
+t('ORCA: one key, Auto, and a Detect models button', o1.opts && o1.opts.join() === 'auto' && o1.detect, o1);
+t('...no free-text model field', o1.model === false, o1);
+await evalJs(`(function(){ document.getElementById('ais-key').value = 'orca_sk_v'; document.querySelector('#sos-ai-root [data-detect]').click(); })(); true;`);
+await wait(400);
 const o2 = await evalJs(`(function(){
-  var r = document.getElementById('sos-ai-root');
-  return { label: (r.querySelector('label[for="ais-key"]')||{}).textContent, key: document.getElementById('ais-key').value,
-           busy: !!document.getElementById('ais-busy'), help: r.textContent };
+  var s = document.getElementById('ais-pick');
+  return { opts: [...s.options].map(o => [o.value, o.disabled, o.textContent.trim()]), asked: window.__orcaAsked,
+           note: (document.getElementById('ais-detected')||{}).textContent };
 })()`);
-t('picking DeepSeek asks for its own key', /ORCA key for DeepSeek/.test(o2.label) && o2.key === '', o2);
-t('...says how to make it (Backends: deepseek/free)', /deepseek\/free/.test(o2.help));
-t('...and what to do when it is busy', o2.busy === true);
-await evalJs(`document.getElementById('ais-key').value = 'orca_sk_ds_v'; document.querySelector('#sos-ai-root [data-save]').click(); true;`);
+t('Detect asks ORCA with the key', o2.asked.length === 1 && /\/admin\/models$/.test(o2.asked[0].url) && o2.asked[0].auth === 'Bearer orca_sk_v', o2.asked);
+t('...and lists its models, usable first', o2.opts.map((o) => o[0]).join() === 'auto,claude/free,deepseek/free,perplexity/free', o2.opts);
+t('...an unusable one greyed, saying why', o2.opts[3][1] === true && /not signed in/.test(o2.opts[3][2]), o2.opts[3]);
+t('...and how many are usable', /2 of 3 models usable/.test(o2.note), o2.note);
+await evalJs(`(function(){ var s = document.getElementById('ais-pick'); s.value = 'deepseek/free'; s.dispatchEvent(new Event('change')); })(); true;`);
+await wait(150);
+t('picking one offers what to do when it is busy', await evalJs(`!!document.getElementById('ais-busy')`));
+await evalJs(`document.querySelector('#sos-ai-root [data-save]').click(); true;`);
 await wait(200);
 const o3 = await evalJs(`(function(){
   var s = JSON.parse(localStorage.getItem('studyos_ai_v1'));
   var synced = JSON.stringify(classes) + (window.__docSaves||[]).map(x => x.json).join('');
-  return { pick: s.orcaPick, ds: s.orcaKeys && s.orcaKeys.deepseek, auto: s.keys.orca,
-           msg: document.getElementById('ais-msg').textContent, leaked: /orca_sk_(ds|auto)_v/.test(synced) };
+  return { pick: s.orcaPick, key: s.keys.orca, old: 'orcaKeys' in s,
+           msg: document.getElementById('ais-msg').textContent, leaked: /orca_sk_v/.test(synced) };
 })()`);
-t('both keys saved, DeepSeek picked', o3.pick === 'deepseek' && o3.ds === 'orca_sk_ds_v' && o3.auto === 'orca_sk_auto_v', o3);
-t('the save names ORCA · DeepSeek', /ORCA · DeepSeek/.test(o3.msg), o3.msg);
+t('saved: one key, DeepSeek picked', o3.pick === 'deepseek/free' && o3.key === 'orca_sk_v' && !o3.old, o3);
+t('the save names ORCA · DeepSeek (browser)', /ORCA · DeepSeek \(browser\)/.test(o3.msg), o3.msg);
 t('no ORCA key in synced data', o3.leaked === false);
 
 const errs = events

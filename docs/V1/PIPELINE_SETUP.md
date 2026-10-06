@@ -165,26 +165,28 @@ device. **Test connection** sends one tiny request.
 
 ### ORCA: Auto, or one model
 
-ORCA's router ignores the `model` a request names, so **choosing a model means
-choosing a key**:
+**One ORCA key does it all.** In AI → ORCA:
 
-- **Auto** uses your ordinary ORCA key, and ORCA sends each request to whichever
-  model is free.
-- **Claude / ChatGPT / DeepSeek / Gemini / Perplexity**: each needs its own key.
-  On ORCA → **Keys**, make a new key, set **Backends** to that one model, and paste
-  it into AI → ORCA with that model picked:
+1. Paste your `orca_sk_` key.
+2. Press **Detect models**. This also happens on its own when the view opens
+   and the saved list is missing or more than a day old. StudyOS asks ORCA's
+   `GET /admin/models` with the same key and lists:
+   - every model that is usable now, browser chat sites first;
+   - the rest, greyed out with the reason ("not signed in on ORCA → Accounts",
+     "switched off in ORCA").
 
-  | Model | Backend |
-  |---|---|
-  | Claude | `claude/free` |
-  | ChatGPT | `chatgpt/free` |
-  | DeepSeek | `deepseek/free` |
-  | Gemini | `gemini_web/free` |
-  | Perplexity | `perplexity/free` |
+   A model added to ORCA later just shows up in the list.
+3. Pick **Auto** (whichever model is free) or one model. A picked model goes as
+   the request's `model` (`deepseek/free`). ORCA's router uses only that model,
+   matching a backend key, a model key or a provider id (ORCA `38065c6`; before
+   that, `model` was ignored). A name ORCA doesn't have still routes anywhere, so
+   other OpenAI-SDK clients are unaffected.
+4. **If it's busy:** *wait for it* (up to 10 minutes per step), or *use whichever
+   model is free*, which sends the same request again without a `model`.
 
-  **Test connection** says which model answered. If a model other than the one
-  you picked answered, the key's Backends aren't limited correctly.
-- **If it's busy:** *wait for it*, or *use Auto*, which needs the Auto key too.
+**Test connection** says which model answered. If you picked a model and a
+different one answered, the ORCA you're talking to doesn't honour picks yet;
+it updates itself within a few minutes of a push.
 
 What StudyOS does so that every chat site works (`ai.js`, ORCA path):
 
