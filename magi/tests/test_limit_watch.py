@@ -23,12 +23,12 @@ def test_sleeps_until_just_after_the_reset():
 
 
 def test_probes_once_the_reset_has_passed():
-    assert lw.next_wait(_entry(-30), NOW, None, True) == (0.0, True)
+    assert lw.next_wait(_entry(-120), NOW, None, True) == (0.0, True)
 
 
 def test_never_probes_twice_inside_the_gap():
     last = NOW - timedelta(seconds=60)
-    wait, go = lw.next_wait(_entry(-30), NOW, last, True)
+    wait, go = lw.next_wait(_entry(-120), NOW, last, True)
     assert not go and wait == lw.MIN_GAP_S - 60
 
 
