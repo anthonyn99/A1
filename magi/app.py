@@ -143,9 +143,16 @@ async def lifespan(app: FastAPI):
     if not os.environ.get("PYTEST_CURRENT_TEST") and not os.environ.get("MAGI_NO_RESETS_PUSH"):
         from .engine import claude_resets as _resets
         resets = asyncio.create_task(_resets.auto_loop())
+    # Claude (free)'s message cap, watched without a tap (engine/limit_watch.py).
+    capwatch = None
+    if not os.environ.get("PYTEST_CURRENT_TEST") and not os.environ.get("MAGI_NO_LIMIT_WATCH"):
+        from .engine import limit_watch as _limit_watch
+        capwatch = asyncio.create_task(_limit_watch.auto_loop(settings, build_providers))
     try:
         yield
     finally:
+        if capwatch:
+            capwatch.cancel()
         if auto_update:
             auto_update.cancel()
         if kick:

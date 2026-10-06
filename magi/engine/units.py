@@ -37,6 +37,9 @@ CHECKS_FILE = "unit_checks.json"
 
 # The only unit whose allowance MAGI can read as a number.
 PRO_UNIT = "claude-pro"
+# Sites whose cap is on the page at a plain load, so a later check that finds
+# no notice means the cap is gone (engine/limit_watch.py).
+SHOWS_CAP_ON_LOAD = frozenset({"claude"})
 
 HEADLINE = {
     "limited": "Limited",
@@ -215,7 +218,9 @@ def summarize(*, provider_id: str, display_name: str, recent: dict, facts: dict,
     # 3. A limit a run hit, not answered past and not past its reset time.
     if not limit:
         for i in issues:
-            if i.get("limit") and not i.get("cleared") and not i.get("reset_passed"):
+            if (i.get("limit") and not i.get("cleared") and not i.get("reset_passed")
+                    and not (provider_id in SHOWS_CAP_ON_LOAD and check.get("reachable")
+                             and not check.get("limit") and _after(checked_at, i.get("at")))):
                 limit = {"source": "run", "detail": i.get("detail") or "",
                          "at": i.get("at"), "resets_at": i.get("resets_at")}
                 break

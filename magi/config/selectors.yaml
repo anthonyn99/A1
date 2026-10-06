@@ -281,6 +281,10 @@ sites:
       # a real 5-hour-limit wall captured mid-run. The toast carries the reset
       # time ("Limits will reset at 5:00 PM"), which is the one fact the user
       # actually needs, so it is listed first.
+      # VERIFIED live 2026-10-06: the same cap is on the page at a plain load,
+      # nothing sent -- engine/limit_watch.py reads it that way.
+      - "text=/You are out of free messages/i"
+      - "text=/5-hour message limit/i"
       - "text=/Limits will reset/i"
       # VERIFIED against magi/artifacts/tony/claude-timeout-20261006-160222.html
       # -- the FREE account's message cap is a "Keep chatting with Claude Pro"
