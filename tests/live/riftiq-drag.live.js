@@ -45,6 +45,9 @@ async function load(c, w, h, mobile) {
   await c.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile });
   await c.send('Emulation.setTouchEmulationEnabled', { enabled: mobile, maxTouchPoints: mobile ? 5 : 0 });
   await c.send('Page.navigate', { url: URL_ });
+  await sleep(500);
+  await evalJs(c, 'localStorage.clear(); return 1;');   // a remembered notes height from an earlier run would reflow the editor
+  await c.send('Page.navigate', { url: URL_ });
   await sleep(3500);
   await evalJs(c, `
     const lk = document.getElementById('applock-overlay'); if (lk) lk.remove();
