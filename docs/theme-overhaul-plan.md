@@ -17,6 +17,23 @@ and ask what he wants changed. A new theme ask is a one-off: follow §2 (the
 spec, also in memory `magi-theme-spec`), keep Veda's side unchanged, and
 pixel-diff her views.
 
+**Follow-up 2026-10-05 (RiftIQ drag, Tony's ask):** phase 10 had only done
+RiftIQ's numbers; its drags were still its own. All of them now run on
+`dragsort.js`, no grips, desktop and phone: WarRoom's tab strip (`axis:'x'`,
+saves `tabOrder`), ProView's league pills (`axis:'x'`, redraws), Builds'
+champion list, the build cards, the build editor's item/spell chips
+(`axis:'grid'`), and the item/spell picker tiles. Picker tiles use the new
+**`copy: true`** option (dragsort.js, also `Vault/dragsort.js`): the tile stays
+in the picker, a fixed floating copy is carried (the picker scrolls, so a
+moved tile would be clipped), the zones open a gap, and `beDrop` adds the id at
+that slot; a copy list is never a drop target. RiftIQ ships the `--ds-*` tokens
+in `:root` and ID-level `.dsort > *` transition rules (its hover rules would
+otherwise replace the neighbours' slide). Native HTML5 DnD, `_beTd*`, `_pvDrag`
+and `wrEnableTabDrag`'s old FLIP code are gone. Test:
+`tests/live/riftiq-drag.live.js` (mouse + touch over CDP, 54 checks) and the
+copy cases in `tests/dragsort.test.js`. The build editor's split divider and
+notes grip are resizes, not reorders, and were left as they are.
+
 **Phase 11, what shipped:**
 - **PriceWatch extension** (`PriceWatch/popup.html`, its only UI: no content
   script draws anything): MAGI tokens, Inter/Manrope (Google Fonts link, like
