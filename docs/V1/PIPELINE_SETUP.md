@@ -170,7 +170,7 @@ device. **Test connection** sends one tiny request.
 1. Paste your `orca_sk_` key.
 2. Press **Detect models**. This also happens on its own when the view opens
    and the saved list is missing or more than a day old. StudyOS asks ORCA's
-   `GET /admin/models` with the same key and lists:
+   `GET /v1/models` with the same key (under `/v1`, the only ORCA path a browser page may call) and lists:
    - every model that is usable now, browser chat sites first;
    - the rest, greyed out with the reason ("not signed in on ORCA → Accounts",
      "switched off in ORCA").
