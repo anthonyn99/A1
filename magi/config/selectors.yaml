@@ -95,7 +95,8 @@ sites:
     # The wm-* selectors stay as fallbacks -- ChatGPT does serve that shell on
     # narrow viewports and to signed-out sessions.
     input:
-      - "div#prompt-textarea[contenteditable='true']"   # desktop shell (signed in)
+      - "div.ProseMirror[contenteditable='true'][aria-label='Ask ChatGPT']"  # 2026-10 shell
+      - "div#prompt-textarea[contenteditable='true']"   # desktop shell (pre 2026-10)
       - "div.ProseMirror[contenteditable='true']"
       - "textarea.wm-composer-textarea"                 # wm-* shell (signed out)
       - "textarea[data-mobile-composer-prompt]"
@@ -103,7 +104,8 @@ sites:
     submit:
       # Note: this is ONE button that transforms between send and stop
       # (data-send-label / data-stop-label), it does not get swapped out.
-      - "button[data-testid='send-button']"             # desktop shell
+      - "form[data-chatgpt-composer] button[type='submit'][aria-label='Send']"  # 2026-10 shell
+      - "button[data-testid='send-button']"             # desktop shell (pre 2026-10)
       - "button[data-composer-submit]"
       - "button.wm-composer-submitButton"
       - "button[aria-label='Send message']"
@@ -145,7 +147,8 @@ sites:
       - "button[data-testid='copy-turn-action-button']"
       - "button[aria-label*='Copy' i]"
     ready_selector:
-      - "div#prompt-textarea"                           # desktop shell
+      - "form[data-chatgpt-composer] div.ProseMirror"   # 2026-10 shell
+      - "div#prompt-textarea"                           # desktop shell (pre 2026-10)
       - "textarea.wm-composer-textarea"                 # wm-* shell
       - "[data-conversation-transcript]"
     login_selectors:
