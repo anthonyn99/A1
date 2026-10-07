@@ -230,6 +230,7 @@ import base64
 import ctypes
 import ctypes.wintypes as wt
 import json
+import math
 import re
 import socket
 import subprocess
@@ -2009,14 +2010,24 @@ def _show_reminder_dialog(title: str, markdown: str, notice: str = "") -> bool:
     # in pixels and eased: each notch adds a distance (~100px) to a pending
     # total, and a ~120 Hz loop eats a fraction of what's left, so motion
     # glides in and settles instead of jumping a line at a time.
-    sc = {"pending": 0.0, "carry": 0.0, "job": None}
+    # Time-based, not step-based: each frame advances by how much real time has
+    # passed (exponential ease, ~60ms time constant), so uneven timer ticks don't
+    # show up as stutter. ~60 fps; timeBeginPeriod(1) below gives Windows timers
+    # the 1ms resolution that makes a 16ms tick actually land on 16ms.
+    sc = {"pending": 0.0, "carry": 0.0, "job": None, "t": 0.0}
+    try:
+        ctypes.windll.winmm.timeBeginPeriod(1)
+    except Exception:
+        pass
 
     def glide():
         sc["job"] = None
-        step = sc["pending"] * 0.2
-        if abs(step) < 1.0:
-            step = 1.0 if sc["pending"] > 0 else -1.0
-        step = min(step, sc["pending"]) if sc["pending"] > 0 else max(step, sc["pending"])
+        now = time.perf_counter()
+        dt = min(0.05, now - sc["t"])
+        sc["t"] = now
+        step = sc["pending"] * (1.0 - math.exp(-dt / 0.06))
+        if abs(sc["pending"]) < 2.0:                 # finish the last pixels
+            step = sc["pending"]
         sc["pending"] -= step
         sc["carry"] += step
         whole = int(sc["carry"])
@@ -2024,10 +2035,10 @@ def _show_reminder_dialog(title: str, markdown: str, notice: str = "") -> bool:
         before = txt.yview()
         if whole:
             txt.yview_scroll(whole, "pixels")
-        if txt.yview() == before and whole:      # hit the top/bottom: drop the rest
-            sc["pending"] = 0.0
+            if txt.yview() == before:                # hit the top/bottom: drop the rest
+                sc["pending"] = 0.0
         if abs(sc["pending"]) >= 0.5:
-            sc["job"] = txt.after(8, glide)
+            sc["job"] = txt.after(16, glide)
         else:
             sc["pending"] = sc["carry"] = 0.0
 
@@ -2035,6 +2046,7 @@ def _show_reminder_dialog(title: str, markdown: str, notice: str = "") -> bool:
         sc["pending"] += px
         sbar.wake()
         if sc["job"] is None:
+            sc["t"] = time.perf_counter() - 0.016
             glide()
 
     def stop_glide():
@@ -2161,6 +2173,10 @@ def _show_reminder_dialog(title: str, markdown: str, notice: str = "") -> bool:
     ok_lab.focus_set()
 
     root.mainloop()
+    try:
+        ctypes.windll.winmm.timeEndPeriod(1)
+    except Exception:
+        pass
     return result["confirmed"]
 
 
