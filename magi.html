@@ -10678,6 +10678,25 @@ function pendingBubble(p, sess) {
   return b;
 }
 
+/** Attached file NAMES per run. The engine keeps the files, not their names,
+ *  so the names ride the run's cloud document (what another device reads) and
+ *  this local copy (what this device shows before that document exists). */
+const RUN_FILES = {
+  key: "magi.runfiles",
+  all() { try { return JSON.parse(localStorage.getItem(this.key) || "{}"); } catch { return {}; } },
+  get(id) { const v = this.all()[id]; return Array.isArray(v) ? v : []; },
+  set(id, names) {
+    if (!id || !names.length) return;
+    try {
+      const m = this.all();
+      m[id] = names;
+      const ids = Object.keys(m);
+      for (const k of ids.slice(0, Math.max(0, ids.length - 300))) delete m[k];
+      localStorage.setItem(this.key, JSON.stringify(m));
+    } catch {}
+  },
+};
+
 /** The question, as a bubble: plain text, clamped, a click shows it all. */
 function qBubble(q, files) {
   const b = el("div", "turn-q clamped", String(q || ""));
@@ -10996,6 +11015,7 @@ function runOne({ question, units, files = [], attachTo = null, session = null }
   }
   S.runId = showingLive() ? runId : S.runId;
   S.live.runId = runId;
+  RUN_FILES.set(runId, fileNames);
   // Written before a single frame has arrived, because the gap this closes is
   // at the START of a run: the seconds between the engine accepting it and
   // anything appearing are exactly when someone wanders off to another
@@ -11647,7 +11667,8 @@ function turnFromRecord(data, id, local) {
   const notes = run.notes && typeof run.notes === "object" ? run.notes : {};
   return {
     runId: id, q: run.question || "", turn: run.turn || 1, local,
-    files: Array.isArray(run.files) ? run.files.map((f) => String(f && f.name || f)) : [],
+    files: Array.isArray(data.files) && data.files.length ? data.files.map(String)
+      : RUN_FILES.get(id),
     status: run.status || "", created_at: run.created_at || "",
     panels: answers.map((a) => ({
       id: a.provider_id,
@@ -26428,10 +26449,14 @@ async function cloudPushRun(runId, quiet) {
     } catch {}
 
     const { serverTimestamp, setDoc } = CLOUD.fs;
+    const names = RUN_FILES.get(runId);
+    // merge: a backfill from a device that never saw the files must not wipe
+    // the names the originating device already wrote.
     await setDoc(_runDoc(runId), {
       run, answers: data.answers || [], synthesis: data.synthesis || null,
       studio, device: navigator.platform || "pc", at: serverTimestamp(),
-    });
+      ...(names.length ? { files: names } : {}),
+    }, { merge: true });
 
     const row = {
       id: runId,
