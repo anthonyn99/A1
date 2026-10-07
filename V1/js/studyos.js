@@ -1347,6 +1347,10 @@ function openClassDetail(id) {
   renderModules(cls);
   renderClassEvents(cls);
   renderClassResources(cls);
+  // The class's flashcards (deck tree, exam banner) — an ES module, so a hook.
+  if (window.sosDecorateClass) {
+    try { window.sosDecorateClass(cls); } catch (e) { console.warn('[StudyOS] cards section failed:', e); }
+  }
 }
 
 function renderClassEvents(cls) {

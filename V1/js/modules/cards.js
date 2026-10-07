@@ -469,9 +469,14 @@ export function withContent(card, patch) {
   if (Array.isArray(patch.tags)) next.tags = [...new Set(patch.tags.map((t) => String(t).replace(/^#/, '').trim()).filter(Boolean))];
   if (patch.priority === 1 || patch.priority === 2) next.priority = patch.priority;
   if (patch.deckId !== undefined) { if (patch.deckId) next.deckId = patch.deckId; else delete next.deckId; }
-  next.kind = hasCloze(next.q) ? KIND.CLOZE : (patch.kind || (next.kind === KIND.CLOZE ? KIND.QA : next.kind) || KIND.QA);
-  if (next.kind === 'reverse-pair' && !next.a) next.kind = KIND.QA;
-  next.fp = fingerprint(next.kind, next.q, next.a);
+  // Kind and fp follow the CONTENT only: a tag or deck change must leave the
+  // fingerprint alone, or re-extracting her note would re-add the card.
+  const changed = next.q !== card.q || next.a !== card.a || (patch.kind && patch.kind !== card.kind);
+  if (changed) {
+    next.kind = hasCloze(next.q) ? KIND.CLOZE : (patch.kind || (next.kind === KIND.CLOZE ? KIND.QA : next.kind) || KIND.QA);
+    if (next.kind === 'reverse-pair' && !next.a) next.kind = KIND.QA;
+    next.fp = fingerprint(next.kind, next.q, next.a);
+  }
   // Tags typed in the content (#tag) join the field.
   const inline = (String(next.q) + ' ' + String(next.a)).match(/(^|\s)#([a-z][\w-]{1,30})\b/gi) || [];
   if (inline.length) next.tags = [...new Set([...(next.tags || []), ...inline.map((t) => t.trim().slice(1).toLowerCase())])];

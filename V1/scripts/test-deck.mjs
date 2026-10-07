@@ -286,5 +286,61 @@ console.log('\nstudy queue in units');
   localStorage.removeItem('studyos_cards_settings_v1');
 }
 
+// ── Decks, tags, appending, leeches (overhaul §5.3, §5.7) ────────────────
+console.log('\ndecks');
+{
+  const tree = deck.deckTree('c1', (fileId) => (fileId === 'f9' ? { doc: 'Lecture 9', topics: { tabc: 'The cap topic' }, order: ['tabc'] } : null));
+  const doc = tree.children.find((n) => n.kind === 'doc' && n.id === 'f9');
+  t('documents are decks, named from the breakdown', doc && doc.name === 'Lecture 9', tree.children.map((n) => [n.kind, n.name]));
+  t('topics nest under their document', doc && doc.children[0].name === 'The cap topic' && doc.children[0].path.join('/') === 'c1/f9/tabc');
+  t('note cards get their own group', tree.children.some((n) => n.kind === 'notes' && n.cards.length >= 1));
+  t('the class deck holds every card', tree.cards.length === deck.forClass('c1').length);
+  const parent = deck.createDeck('c1', 'Midterm');
+  const child = deck.createDeck('c1', 'Week 3', parent.id);
+  const someIds = deck.forClass('c1').slice(0, 2).map((c) => c.id);
+  t('cards move into a deck', deck.moveCards([someIds[0]], child.id) === 1 && deck.get(someIds[0]).deckId === child.id);
+  t('a parent deck includes its sub-decks\' cards', deck.deckTree('c1').children.find((n) => n.id === parent.id).cards.some((c) => c.id === someIds[0]));
+  t('...and so does studying it', deck.cramUnits({ classId: 'c1', userDeck: parent.id }).some((u) => u.id === someIds[0]));
+  t('decks sync in the class meta', deck.metaOf('c1').decks.length === 2);
+  const sched = JSON.stringify(deck.get(someIds[0]).sched);
+  t('deleting a deck keeps its cards', deck.deleteDeck('c1', parent.id) === 1 && !!deck.get(someIds[0]) && !deck.get(someIds[0]).deckId);
+  t('...and their schedules', JSON.stringify(deck.get(someIds[0]).sched) === sched);
+  t('...and its sub-decks go with it', deck.userDecks('c1').length === 0);
+  const remoteDeck = { id: 'dk_remote', name: 'From the phone', updatedAt: Date.now() };
+  deck.applyRemote('c1', deck.rawForClass('c1'), { v: 2, decks: [remoteDeck] });
+  t('a deck made on another device arrives', deck.userDecks('c1').some((d) => d.id === 'dk_remote'));
+}
+
+console.log('\ntags');
+{
+  const ids = deck.forClass('c1').slice(0, 3).map((c) => c.id);
+  const fp = deck.get(ids[0]).fp;
+  t('tags are added in bulk', deck.tagCards(ids, '#Exam') === 3 && deck.get(ids[0]).tags.includes('exam'));
+  t('a tag change leaves the fingerprint alone', deck.get(ids[0]).fp === fp);
+  t('tags are listed for filters', deck.tagsOf('c1')[0] === 'exam');
+  t('a tag scopes a study queue', deck.cramUnits({ classId: 'c1', tag: 'exam' }).every((u) => ids.includes(u.id)));
+}
+
+console.log('\naddCards appends, never reconciles');
+{
+  const before = deck.forClass('c1').filter((c) => c.sourceNoteId === 'topic_f9_tabc').length;
+  const added = deck.addCards('c1', [{ front: 'Why is the cap global, not per class?', back: 'So two classes cannot double a day.' },
+    { front: '', back: 'bad' }], { noteId: 'topic_f9_tabc', title: 'Cap', readAt: 1 });
+  t('one good card is added, the bad one skipped', added.length === 1 && added[0].readAt === 1);
+  t('the topic\'s other cards are all still there', deck.forClass('c1').filter((c) => c.sourceNoteId === 'topic_f9_tabc').length === before + 1);
+  t('the same content twice is skipped', deck.addCards('c1', [{ front: 'Why is the cap global, not per class?', back: 'So two classes cannot double a day.' }], { noteId: 'x' }).length === 0);
+}
+
+console.log('\nleeches');
+{
+  const c = deck.addCards('c1', [{ front: 'What are the three normal forms in order?', back: '1NF, 2NF, 3NF.' }], { noteId: 'lee' })[0];
+  let now = Date.now();
+  deck.gradeCard(c.id, 3, now);
+  for (let k = 0; k < 6; k++) { now += 3 * 86400000; deck.gradeCard(c.id, 1, now); now += 3600000; deck.gradeCard(c.id, 3, now); }
+  const l = deck.get(c.id);
+  t('six lapses tag a card as a leech', l.sched.lapses >= 6 && l.tags.includes('leech'), { lapses: l.sched.lapses, tags: l.tags });
+  t('the review log is kept, trimmed', Array.isArray(l.log) && l.log.length === 13 && l.log.length <= 50);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

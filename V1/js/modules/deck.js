@@ -407,6 +407,36 @@ export function addExternal(classId, moduleId, items, src = {}) {
   return { added, kept, dropped };
 }
 
+/**
+ * Append cards — a card she made, a "＋ Card" from a lesson, a leech's
+ * rewrite. Unlike addExternal this reconciles NOTHING: adding one card to a
+ * topic must never drop that topic's other cards. A card whose content the
+ * class already has is skipped.
+ * @param items [{front, back, extra, kind, priority, status, tags, deckId}]
+ * @param src   { noteId, title, moduleId }
+ */
+export function addCards(classId, items, src = {}) {
+  if (!classId) return [];
+  load();
+  const fresh = cards.fromItems(items, { classId, moduleId: src.moduleId || '', noteId: src.noteId || 'manual', title: src.title || '' });
+  fresh.forEach((c) => {
+    const it = (items || [])[c.order];         // fromItems skips bad items: map by the item's index
+    if (!it) return;
+    if (Array.isArray(it.tags) && it.tags.length) c.tags = it.tags.map((t) => String(t).replace(/^#/, '').toLowerCase());
+    if (it.deckId) c.deckId = it.deckId;
+    if (src.readAt) c.readAt = src.readAt;
+    c.source = src.kind || 'manual';
+  });
+  const existing = _mem.get(classId) || [];
+  const have = new Set(existing.filter(isLive).map((c) => c.fp));
+  const added = fresh.filter((c) => !have.has(c.fp));
+  if (added.length) {
+    _mem.set(classId, [...existing, ...added]);
+    persist(classId);
+  }
+  return added;
+}
+
 /** Cards whose sourceNoteId starts with `prefix` — e.g. every topic of one
  *  document ('topic_<fileId>_'). */
 export function byNotePrefix(classId, prefix) {
@@ -549,6 +579,12 @@ export function gradeCard(cardId, grade, now = Date.now(), opts = {}) {
     ? { ...card, subSched: { ...(card.subSched || {}), [sub]: next } }
     : { ...card, sched: next };
   if (!card.introducedAt && (!prev || prev.state === fsrs.STATE.NEW)) updated.introducedAt = now;
+  // A card that keeps slipping is badly made, not badly learned: tag it, and
+  // the review offers to rewrite it (overhaul §5.7).
+  if (next.lapses >= LEECH_LAPSES && !(card.tags || []).includes('leech')) {
+    updated.tags = [...(card.tags || []), 'leech'];
+    updated.updatedAt = now;
+  }
   // A trimmed review log: what a future per-user FSRS optimiser would need.
   const log = (card.log || []).concat([{ t: now, g: grade, s: sub || undefined }]);
   updated.log = log.slice(-50);
@@ -601,10 +637,12 @@ function scoped(scope) {
   if (scope.tag) pool = pool.filter((c) => (c.tags || []).includes(scope.tag));
   if (scope.deck) {
     const want = scope.deck;
-    pool = pool.filter((c) => {
-      const p = c.deckPath || cards.deckPathOf(c);
-      return want.every((x, i) => p[i] === x) || (c.deckId && c.deckId === want[want.length - 1]);
-    });
+    if (want[1] === ':notes') pool = pool.filter((c) => c.classId === want[0] && cards.deckPathOf(c).length !== 3);
+    else pool = pool.filter((c) => { const p = cards.deckPathOf(c); return want.every((x, i) => p[i] === x); });
+  }
+  if (scope.userDeck && scope.classId) {
+    const fam = deckFamily(scope.classId, scope.userDeck);
+    pool = pool.filter((c) => c.deckId && fam.has(c.deckId));
   }
   return pool;
 }
@@ -789,6 +827,150 @@ export function topicBreakdown(classId, now = Date.now()) {
   return out.sort((a, b) => a.pct - b.pct);
 }
 
+// ── Decks (overhaul §5.3) ───────────────────────────────────────────────────
+/* Two kinds, one tree:
+ *   auto  Class ▸ Document ▸ Topic, from each card's source — nothing stored
+ *   user  hers: { id, name, parentId } in the class's synced meta; a card
+ *         joins one by its `deckId`
+ * A deck "path" (scope.deck) is [classId, fileId?, topicId?]; a user deck is
+ * scope.userDeck = id (with its sub-decks). */
+
+/** Her decks of a class, live ones only. */
+export function userDecks(classId) {
+  return metaOf(classId).decks.filter((d) => !d.deletedAt);
+}
+
+export function createDeck(classId, name, parentId = null) {
+  const n = String(name || '').trim().slice(0, 80);
+  if (!classId || !n) return null;
+  const d = { id: 'dk_' + cards.newId().slice(3), name: n, parentId: parentId || null, updatedAt: Date.now() };
+  setMeta(classId, { decks: [...metaOf(classId).decks, d] });
+  return d;
+}
+
+export function renameDeck(classId, id, name) {
+  const n = String(name || '').trim().slice(0, 80);
+  if (!n) return false;
+  setMeta(classId, { decks: metaOf(classId).decks.map((d) => (d.id === id ? { ...d, name: n, updatedAt: Date.now() } : d)) });
+  return true;
+}
+
+/** Delete a deck (and its sub-decks). Its cards are kept — they just leave it. */
+export function deleteDeck(classId, id) {
+  const all = metaOf(classId).decks;
+  const gone = new Set([id]);
+  let grew = true;
+  while (grew) { grew = false; for (const d of all) if (d.parentId && gone.has(d.parentId) && !gone.has(d.id)) { gone.add(d.id); grew = true; } }
+  const now = Date.now();
+  setMeta(classId, { decks: all.map((d) => (gone.has(d.id) ? { id: d.id, deletedAt: now, updatedAt: now } : d)) });
+  const ids = forClass(classId).filter((c) => c.deckId && gone.has(c.deckId)).map((c) => c.id);
+  ids.forEach((cid) => edit(cid, { deckId: null }));
+  return ids.length;
+}
+
+/** A user deck and every deck under it. */
+export function deckFamily(classId, id) {
+  const all = userDecks(classId);
+  const fam = new Set([id]);
+  let grew = true;
+  while (grew) { grew = false; for (const d of all) if (d.parentId && fam.has(d.parentId) && !fam.has(d.id)) { fam.add(d.id); grew = true; } }
+  return fam;
+}
+
+/** Move cards into a user deck (null: out of any). */
+export function moveCards(cardIds, deckId) {
+  return (Array.isArray(cardIds) ? cardIds : [cardIds]).filter((id) => edit(id, { deckId: deckId || null })).length;
+}
+
+/** Add (or with remove: take off) a tag on cards. */
+export function tagCards(cardIds, tag, remove = false) {
+  const t = String(tag || '').replace(/^#/, '').trim().toLowerCase();
+  if (!t) return 0;
+  let n = 0;
+  for (const id of Array.isArray(cardIds) ? cardIds : [cardIds]) {
+    const c = get(id);
+    if (!c) continue;
+    const tags = new Set(c.tags || []);
+    if (remove ? !tags.delete(t) : tags.has(t)) continue;
+    if (!remove) tags.add(t);
+    edit(id, { tags: [...tags] });
+    n++;
+  }
+  return n;
+}
+
+/** Every tag in a class, most used first. */
+export function tagsOf(classId) {
+  const n = new Map();
+  for (const c of forClass(classId)) for (const t of c.tags || []) n.set(t, (n.get(t) || 0) + 1);
+  return [...n].sort((a, b) => b[1] - a[1]).map(([t]) => t);
+}
+
+/**
+ * The auto deck tree of a class:
+ *   { id, name, kind: 'class'|'doc'|'topic'|'notes'|'user', path|userDeck, cards[], children[] }
+ * `names(fileId) -> {doc, topics: {topicId: title}}` supplies the document
+ * and topic names (from the breakdown docs) — this module knows only cards.
+ */
+export function deckTree(classId, names = () => null) {
+  const cls = store.getClass(classId);
+  const root = { id: classId, name: cls ? cls.name : 'Class', kind: 'class', path: [classId], cards: [], children: [] };
+  const docs = new Map();
+  const notes = { id: classId + ':notes', name: 'From your notes', kind: 'notes', path: [classId, ':notes'], cards: [], children: [] };
+  for (const c of forClass(classId)) {
+    root.cards.push(c);
+    const p = cards.deckPathOf(c);
+    if (p.length === 3) {
+      if (!docs.has(p[1])) {
+        const nm = names(p[1]) || {};
+        docs.set(p[1], { id: p[1], name: nm.doc || c.sourceTitle || 'Document', kind: 'doc', path: [classId, p[1]],
+          cards: [], children: [], _topics: new Map(), _names: nm.topics || {}, _order: nm.order || [] });
+      }
+      const d = docs.get(p[1]);
+      d.cards.push(c);
+      if (!d._topics.has(p[2])) {
+        d._topics.set(p[2], { id: p[2], name: d._names[p[2]] || c.topic || 'Topic', kind: 'topic', path: [classId, p[1], p[2]], cards: [], children: [] });
+      }
+      d._topics.get(p[2]).cards.push(c);
+    } else notes.cards.push(c);
+  }
+  for (const d of docs.values()) {
+    const order = d._order;
+    d.children = [...d._topics.values()].sort((a, b) => {
+      const ia = order.indexOf(a.id), ib = order.indexOf(b.id);
+      return (ia < 0 ? 1e9 : ia) - (ib < 0 ? 1e9 : ib);
+    });
+    delete d._topics; delete d._names; delete d._order;
+    root.children.push(d);
+  }
+  if (notes.cards.length) root.children.push(notes);
+  // Her decks, nested.
+  const ud = userDecks(classId);
+  const node = (d) => ({
+    id: d.id, name: d.name, kind: 'user', userDeck: d.id,
+    cards: forClass(classId).filter((c) => c.deckId && deckFamily(classId, d.id).has(c.deckId)),
+    children: ud.filter((x) => x.parentId === d.id).map(node),
+  });
+  root.children.push(...ud.filter((d) => !d.parentId || !ud.some((x) => x.id === d.parentId)).map(node));
+  return root;
+}
+
+/** New · due · archived · mastery of a set of cards (a deck row). */
+export function deckCounts(list, now = Date.now()) {
+  const gated = cardSettings().onlyReadLessons;
+  let fresh = 0, due = 0, archived = 0, suggested = 0, waiting = 0;
+  for (const c of list) {
+    const st = statusOf(c);
+    if (st === 'archived') { archived++; continue; }
+    if (st === 'suggested') { suggested++; continue; }
+    if (isUnseen(c)) { if (gated && !fromReadLesson(c)) waiting++; else fresh++; }
+    else if (fsrs.isDue(c.sched, now)) due++;
+  }
+  return { new: fresh, due, archived, suggested, waiting, mastery: masteryOf(list, now).pct, total: list.length };
+}
+
+export const LEECH_LAPSES = 6;
+
 /** Replace a class's whole list (the migration's apply step). */
 export function replaceClass(classId, list) {
   load();
@@ -799,8 +981,9 @@ export function replaceClass(classId, list) {
 export default {
   load, applyRemote, mergeCard, mergeLists, metaOf, setMeta, mergeMeta, forClass, rawForClass, all, get, countsFor,
   introducedToday, newRemaining, isLive, isActive, statusOf, isUnseen, isReviewed, tombstone,
-  generateFromNote, generateFromSelection, addExternal, byNotePrefix, remove, setStatus, edit, restoreCard,
+  generateFromNote, generateFromSelection, addExternal, addCards, byNotePrefix, remove, setStatus, edit, restoreCard,
   gradeCard, previewCard, restoreSched, schedOf, buildQueue, cramQueue, newOrder,
   studyQueue, cramUnits, markLessonRead, fromReadLesson,
+  userDecks, createDeck, renameDeck, deleteDeck, deckFamily, moveCards, tagCards, tagsOf, deckTree, deckCounts, LEECH_LAPSES,
   mastery, masteryOf, retrievabilityOf, topicBreakdown, nextExamFor, replaceClass,
 };

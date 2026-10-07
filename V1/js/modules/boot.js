@@ -59,6 +59,18 @@ window.SOS.store = store;
   window.sosStudy = (classId, extra) => reviewUi.startReview({ classId, ...(extra || {}) });
   window.sosStudyAll = () => reviewUi.startReview({});
   window.sosLearnNew = (scope, extra) => reviewUi.startReview(scope || {}, { mode: 'learn', ...(extra || {}) });
+  // The class page's Flashcards section (deck tree, browse, editor).
+  import('./cards-ui.js').then((cardsUi) => {
+    window.SOS.cardsUi = cardsUi;
+    window.sosDecorateClass = (cls) => cardsUi.decorateClass(cls);
+    // A class page already open when this loaded gets its section now.
+    // currentClassId is studyos.js's global (a classic-script `let`).
+    let id = null;
+    try { id = currentClassId; } catch (e) { id = null; }   // eslint-disable-line no-undef
+    const view = document.getElementById('view-class');
+    const cls = id && store.getClass(id);
+    if (cls && view && view.classList.contains('active')) cardsUi.decorateClass(cls);
+  }).catch((e) => console.warn('[StudyOS] cards section failed to load:', e));
   window.sosCram = (scope, extra) => reviewUi.startReview(scope || {}, { mode: 'cram', ...(extra || {}) });
   window.sosMakeCards = (classId, moduleId, noteId, isHtml) => {
     const cls = store.getClass(classId);

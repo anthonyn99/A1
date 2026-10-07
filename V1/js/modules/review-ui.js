@@ -299,6 +299,8 @@ export function startReview(scope = {}, opts = {}) {
           ${typing ? '<input class="sos-review-type" data-type placeholder="Type the hidden text, then Enter" autocomplete="off" spellcheck="false">' : ''}
           ${typedHtml}${answerHtml}
           ${revealed && f.extra ? `<div class="sos-review-extra">${renderCard(f.extra)}</div>` : ''}
+          ${revealed && (card.tags || []).includes('leech') ? `<div class="sos-review-extra" data-leech>This card keeps slipping.
+            <button class="sos-review-x" data-act="rewrite" style="min-width:0;padding:4px 10px;font-size:12px;margin-left:6px">Rewrite it with AI</button></div>` : ''}
           ${!revealed && !typing ? '<div class="sos-review-hint">tap or Space to reveal</div>' : ''}
         </div>
       </div>
@@ -451,6 +453,18 @@ export function startReview(scope = {}, opts = {}) {
     if (act === 'skip') { revealed = false; typed = null; i++; return render(); }
     if (act === 'src') return openSource(card);
     if (act === 'edit') return edit(card);
+    if (act === 'rewrite') {
+      const C = window.SOS && window.SOS.cardsUi;
+      const box = body.querySelector('[data-leech]');
+      if (!C) return;
+      snapshot('rewrite');
+      if (box) box.textContent = 'Rewriting…';
+      C.rewriteLeech(card).then((r) => {
+        if (i < queue.length && unit().id === card.id) render();
+        toast(r.added.length ? `Rewritten as ${r.added.length + 1} cards.` : 'Rewritten.');
+      }, (err) => { if (box) box.textContent = 'Could not rewrite: ' + ((err && err.message) || err); });
+      return;
+    }
     if (act === 'archive') {
       snapshot('archive');
       deck.setStatus(card.id, 'archived');
