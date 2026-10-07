@@ -368,6 +368,17 @@ input, select, textarea, button { font-variant-numeric: tabular-nums; }
   font-size: 13.5px; line-height: 1.5; color: var(--tx);
   white-space: pre-wrap; overflow-wrap: anywhere; cursor: pointer;
 }
+.turn-qwrap { align-self: flex-end; display: flex; flex-direction: column;
+              align-items: flex-end; gap: 6px; max-width: min(680px, 94%); min-width: 0; }
+.turn-qwrap .turn-qrow { max-width: 100%; }
+.turn-files { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px;
+              max-width: 100%; max-height: 132px; overflow-y: auto; }
+.turn-file { display: inline-flex; align-items: baseline; min-width: 0; max-width: 100%;
+             padding: 3px 9px; border-radius: 8px; font-size: 12px; line-height: 1.4;
+             background: var(--s2); border: 1px solid var(--bdl); color: var(--txd); }
+.turn-file-n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.turn-file-x { flex: none; color: var(--txm); white-space: nowrap; }
+@media (max-width: 600px) { .turn-file { font-size: 11.5px; max-width: 100%; } }
 .turn-q.clamped { display: -webkit-box; -webkit-line-clamp: 4;
                   -webkit-box-orient: vertical; overflow: hidden; }
 .turn-tag { display: flex; align-items: center; gap: 6px; align-self: flex-end;
@@ -10668,7 +10679,7 @@ function pendingBubble(p, sess) {
 }
 
 /** The question, as a bubble: plain text, clamped, a click shows it all. */
-function qBubble(q) {
+function qBubble(q, files) {
   const b = el("div", "turn-q clamped", String(q || ""));
   b.title = "Click to show all of it";
   b.onclick = () => b.classList.toggle("clamped");
@@ -10679,14 +10690,31 @@ function qBubble(q) {
   copy.title = "Copy this prompt";
   const row = el("div", "turn-qrow");
   row.append(copy, b);
-  return row;
+  const names = (files || []).filter(Boolean);
+  if (!names.length) return row;
+  // Attached files sit under the prompt as a wrapped, right-aligned list of
+  // chips: full name with extension, every one shown, long names ellipsised.
+  const wrap = el("div", "turn-qwrap");
+  const list = el("div", "turn-files");
+  list.setAttribute("aria-label", `${names.length} attached file${names.length === 1 ? "" : "s"}`);
+  for (const nm of names) {
+    const dot = nm.lastIndexOf(".");
+    const ext = dot > 0 && nm.length - dot <= 8 ? nm.slice(dot) : "";
+    const chip = el("span", "turn-file");
+    chip.title = nm;
+    chip.append(el("span", "turn-file-n", ext ? nm.slice(0, dot) : nm));
+    if (ext) chip.append(el("span", "turn-file-x", ext));
+    list.append(chip);
+  }
+  wrap.append(row, list);
+  return wrap;
 }
 
 /** An earlier turn, compact: question, notes, verdict, and its units folded. */
 function turnCard(t) {
   const c = el("div", "turn");
   c.dataset.run = t.runId || "";
-  c.append(qBubble(t.q));
+  c.append(qBubble(t.q, t.files));
   for (const n of t.notes || []) c.append(noteBubble(n, null));
   if (t.gone) {
     c.append(el("div", "turn-gone",
@@ -10773,7 +10801,7 @@ function renderThread() {
         sess.turns.length ? `turn ${sess.turns.length + 1} · running` : "running"));
       box.append(tag);
     }
-    box.append(qBubble(q));
+    box.append(qBubble(q, liveHere ? S.live.files : (cur && cur.files)));
     const notes = liveHere ? S.live.notes.filter((x) => x.applied !== "followup")
       : (cur && cur.notes) || [];
     for (const x of notes) box.append(noteBubble(x, null));
@@ -10914,7 +10942,8 @@ function runOne({ question, units, files = [], attachTo = null, session = null }
   // rather than through S.panels, which the user may replace at any moment by
   // opening something from History or from the queue.
   const livePanels = S.panels;
-  S.live = { panels: livePanels, runId: null, verdict: null, question,
+  const fileNames = files.map((f) => f.name);
+  S.live = { panels: livePanels, runId: null, verdict: null, question, files: fileNames,
              sess, turn: sess.turns.length + 1, notes: [] };
   const live = S.live;
   const showingLive = () => S.panels === livePanels;
@@ -11082,7 +11111,7 @@ function runOne({ question, units, files = [], attachTo = null, session = null }
       ];
       sess.turns = sess.turns.filter((t) => t.runId !== runId);
       sess.turns.push({
-        runId, q: question || "", verdict: msg, panels: livePanels,
+        runId, q: question || "", files: live.files, verdict: msg, panels: livePanels,
         notes: noteList, turn: msg.turn || live.turn, local: true,
       });
       const carry = carriedNotes(live, msg, !!attachTo);
@@ -11618,6 +11647,7 @@ function turnFromRecord(data, id, local) {
   const notes = run.notes && typeof run.notes === "object" ? run.notes : {};
   return {
     runId: id, q: run.question || "", turn: run.turn || 1, local,
+    files: Array.isArray(run.files) ? run.files.map((f) => String(f && f.name || f)) : [],
     status: run.status || "", created_at: run.created_at || "",
     panels: answers.map((a) => ({
       id: a.provider_id,
