@@ -76,9 +76,23 @@ export function fingerprint(kind, question, answer) {
   return h.toString(36);
 }
 
+/** A card id. STABLE: never derived from content, so editing a card's text
+ *  keeps its id (and its schedule, and every reference to it). Cards made
+ *  before this kept their old 'cd_<fp>' ids — those are just strings now. */
+export function newId() {
+  let r = '';
+  try {
+    const b = new Uint8Array(8);
+    (globalThis.crypto || {}).getRandomValues(b);
+    r = Array.from(b, (x) => x.toString(36).padStart(2, '0')).join('').slice(0, 12);
+  } catch (e) { r = ''; }
+  if (!r || /^0+$/.test(r)) r = Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+  return 'cd_' + r;
+}
+
 function mkCard(kind, question, answer, src, extra = {}) {
   return {
-    id: 'cd_' + fingerprint(kind, question, answer),
+    id: newId(),
     fp: fingerprint(kind, question, answer),
     kind,
     q: question.trim(),
@@ -357,19 +371,136 @@ export function mergeCards(existing, fresh) {
  */
 export function fromItems(items, src = {}) {
   const out = [];
-  for (const it of items || []) {
-    const q = tidy(it && it.front), a = String((it && it.back) || '').trim();
-    if (q.length < 4 || q.length > 400 || !a || a.length > 800) continue;
-    if (a.toLowerCase() === q.toLowerCase()) continue;
-    out.push(mkCard(KIND.QA, q, a, src, {
+  (items || []).forEach((it, order) => {
+    if (!it) return;
+    const cloze = it.kind === 'cloze' || hasCloze(it.front);
+    // A front keeps its own line breaks: a code or table card is Markdown.
+    const q = String(it.front || '').trim(), a = String(it.back || '').trim();
+    const extra = String(it.extra || '').trim();
+    if (q.length < 4 || q.length > 600 || a.length > 800) return;
+    if (cloze ? !hasCloze(q) : (!a || a.toLowerCase() === q.toLowerCase())) return;
+    const card = mkCard(cloze ? KIND.CLOZE : KIND.QA, q, cloze ? '' : a, src, {
       topic: tidy(it.topic) || src.title || '',
       slide: Number.isInteger(it.slide) ? it.slide : null,
-    }));
-  }
+    });
+    if (extra) card.extra = extra.slice(0, 600);
+    if (it.priority === 1 || it.priority === 2) card.priority = it.priority;
+    if (it.status === 'suggested' || it.status === 'archived') card.status = it.status;
+    card.order = order;
+    out.push(card);
+  });
   return dedupe(out);
+}
+
+// ── Card content (Mochi's model, stored as sides) ──────────────────────────
+/* Mochi keeps a card as ONE Markdown string, sides split on a `---` line.
+ * Stored here as its sides — q (front), a (back), extra (an optional third
+ * "why / example" side) — which IS that string, split: contentOf() joins it,
+ * withContent() splits an edit back. Storing the sides means the 2,000 cards
+ * she already has need no rewrite, and an old tab still reads every card.
+ *
+ * Cloze: the front holds {{hidden}} / {{1::hidden}} / {{1::hidden::hint}};
+ * each NUMBER is its own review unit with its own schedule (unitsOf). The
+ * old extractor's clozes ("[...] eliminates X" / "3NF") have no braces and
+ * stay plain front/back cards. */
+const CLOZE_RE = /\{\{(?:(\d+)::)?([\s\S]+?)(?:::([\s\S]*?))?\}\}/g;
+export const hasCloze = (s) => /\{\{[\s\S]+?\}\}/.test(String(s || ''));
+export const SIDE_SPLIT = /\n-{3,}\n/;
+
+/** The distinct cloze numbers of a text, ascending. An unnumbered blank is 1. */
+export function clozeNumbers(text) {
+  const out = new Set();
+  for (const m of String(text || '').matchAll(CLOZE_RE)) out.add(m[1] ? Number(m[1]) : 1);
+  return [...out].sort((x, y) => x - y);
+}
+
+/** A cloze text with blank `n` hidden (`[…]` or `[hint]`) and every other
+ *  blank shown plainly. reveal: show blank `n`, marked with ⟦ ⟧ for the
+ *  renderer to highlight. n = 0 hides every blank. */
+export function clozeText(text, n = 1, reveal = false) {
+  return String(text || '').replace(CLOZE_RE, (_, num, body, hint) => {
+    const k = num ? Number(num) : 1;
+    if (n !== 0 && k !== n) return body;
+    return reveal ? `⟦${body}⟧` : `[${hint ? hint.trim() : '…'}]`;
+  });
+}
+
+/** The hidden answer(s) of blank `n`, joined. */
+export function clozeAnswer(text, n = 1) {
+  const out = [];
+  for (const m of String(text || '').matchAll(CLOZE_RE)) if ((m[1] ? Number(m[1]) : 1) === n || n === 0) out.push(m[2]);
+  return out.join(' · ');
+}
+
+export const isClozeCard = (c) => !!c && hasCloze(c.q);
+
+/** The card as one Markdown string, Mochi-style. */
+export function contentOf(c) {
+  if (!c) return '';
+  const parts = [c.q || ''];
+  if (c.a || c.extra) parts.push(c.a || '');
+  if (c.extra) parts.push(c.extra);
+  return parts.join('\n---\n');
+}
+
+/** Split a content string into sides. */
+export function sidesOf(content) {
+  return String(content || '').replace(/\r\n/g, '\n').split(SIDE_SPLIT).map((x) => x.trim());
+}
+
+/**
+ * The card with new content. Accepts {content} (a Markdown string to split)
+ * or {q, a, extra}, plus kind/tags/priority. The id, schedule and source stay;
+ * `fp` follows the content, so a later extraction does not re-add the old text.
+ */
+export function withContent(card, patch) {
+  const next = { ...card };
+  if (typeof patch.content === 'string') {
+    const [q = '', a = '', ...rest] = sidesOf(patch.content);
+    next.q = q; next.a = a;
+    const extra = rest.join('\n\n').trim();
+    if (extra) next.extra = extra; else delete next.extra;
+  }
+  for (const k of ['q', 'a']) if (typeof patch[k] === 'string') next[k] = patch[k].trim();
+  if (typeof patch.extra === 'string') { if (patch.extra.trim()) next.extra = patch.extra.trim(); else delete next.extra; }
+  if (Array.isArray(patch.tags)) next.tags = [...new Set(patch.tags.map((t) => String(t).replace(/^#/, '').trim()).filter(Boolean))];
+  if (patch.priority === 1 || patch.priority === 2) next.priority = patch.priority;
+  if (patch.deckId !== undefined) { if (patch.deckId) next.deckId = patch.deckId; else delete next.deckId; }
+  next.kind = hasCloze(next.q) ? KIND.CLOZE : (patch.kind || (next.kind === KIND.CLOZE ? KIND.QA : next.kind) || KIND.QA);
+  if (next.kind === 'reverse-pair' && !next.a) next.kind = KIND.QA;
+  next.fp = fingerprint(next.kind, next.q, next.a);
+  // Tags typed in the content (#tag) join the field.
+  const inline = (String(next.q) + ' ' + String(next.a)).match(/(^|\s)#([a-z][\w-]{1,30})\b/gi) || [];
+  if (inline.length) next.tags = [...new Set([...(next.tags || []), ...inline.map((t) => t.trim().slice(1).toLowerCase())])];
+  return next;
+}
+
+/**
+ * The review units of a card: what gets scheduled on its own.
+ *   basic      [''] — the card's own `sched`
+ *   cloze      one per blank number; the FIRST uses `sched`, others 'c<n>'
+ *   reverse    ['', 'r'] — front→back, and back→front
+ */
+export function unitsOf(c) {
+  if (!c) return [];
+  if (isClozeCard(c)) {
+    const nums = clozeNumbers(c.q);
+    return nums.map((n, i) => ({ key: i === 0 ? '' : 'c' + n, cloze: n }));
+  }
+  if (c.kind === 'reverse-pair' && c.a) return [{ key: '' }, { key: 'r', reverse: true }];
+  return [{ key: '' }];
+}
+
+/** A card's auto deck: [classId, fileId, topicId] for a breakdown topic,
+ *  [classId, noteId] for anything else. */
+export function deckPathOf(c) {
+  const m = /^topic_(.+)_(t[0-9a-z]+)$/.exec(String(c.sourceNoteId || ''));
+  if (m) return [c.classId || '', m[1], m[2]];
+  return [c.classId || '', c.sourceNoteId || ''];
 }
 
 export default {
   KIND, fromPlainText, fromHtml, fromSelection, fromItems,
-  dedupe, mergeCards, fingerprint,
+  dedupe, mergeCards, fingerprint, newId,
+  hasCloze, clozeNumbers, clozeText, clozeAnswer, isClozeCard, contentOf, sidesOf, withContent, unitsOf, deckPathOf,
 };

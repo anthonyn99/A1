@@ -215,11 +215,11 @@ const panel = await evalJs(`(function(){
 })()`);
 t('the topics appear under the document', panel.hidden === false && panel.rows === 2, panel);
 t('in the document\'s order', panel.titles.join('|') === 'Candidate keys|Inner joins', panel.titles);
-t('each shows its card count', panel.badges.join('|') === '3 cards|1 cards', panel.badges);
+t('each shows its card count (the yes/no card was filtered out)', panel.badges.join('|') === '2 cards|1 cards', panel.badges);
 t('the row button now reads Topics · 2', panel.label === 'Topics · 2', panel.label);
 t('the status line names the prompt used', /prompt: Explain it like I am new/.test(panel.status || ''), panel.status);
 t('...and offers a redo with another one', await evalJs(`!!document.querySelector('[data-bd-panel="${FID}"] [data-redo]')`));
-t('the cards joined the review deck', (await evalJs(`window.SOS.deck.byNotePrefix('bd1','topic_${FID}_').length`)) === 4);
+t('the cards joined the review deck', (await evalJs(`window.SOS.deck.byNotePrefix('bd1','topic_${FID}_').length`)) === 3);
 t('the breakdown synced to its own doc', await evalJs(`(window.__docSaves||[]).some(s => s.path === 'studyos_topics/${FID}')`));
 t('the file carries its summary', await evalJs(`(function(){
   var f = classes.find(c=>c.id==='bd1').modules[0].files.find(x=>x.id==='${FID}');
@@ -296,7 +296,7 @@ const cards = await evalJs(`(function(){
   return { count: r.querySelector('.sl-count span').textContent, flip: f && f.textContent, h: (r.querySelector('.sl-card h2')||{}).textContent,
            nextTopic: !!r.querySelector('.sl-nav [data-topic]') };
 })()`);
-t('the last screen is the flashcards', cards.count === '5 of 5' && /Flashcards · 3/.test(cards.h), cards);
+t('the last screen is the flashcards', cards.count === '5 of 5' && /Flashcards · 2/.test(cards.h), cards);
 t('it shows a question first', /Question/.test(cards.flip), cards.flip);
 t('and offers the next topic', cards.nextTopic);
 await evalJs(`document.querySelector('#sos-lesson-root .sl-flip').click(); true;`);
@@ -310,7 +310,7 @@ const rv = await evalJs(`(function(){
   return o ? { count: (o.querySelector('[data-count]')||{}).textContent } : null;
 })()`);
 t('"Review these now" opens a review', !!rv, rv);
-t('...of this topic\'s 3 cards only', rv && /\/3\b/.test(rv.count), rv);
+t('...of this topic\'s 2 cards only', rv && /\/2\b/.test(rv.count), rv);
 await evalJs(`window.SOS.review.closeReview && window.SOS.review.closeReview(); true;`);
 await wait(2200);
 

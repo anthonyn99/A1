@@ -91,13 +91,13 @@ window.SOS.store = store;
       if (!window._fbLoadCards) break;
       _deckLoaded.add(cls.id);
       window._fbLoadCards(cls.id)
-        .then(list => { if (Array.isArray(list) && list.length) deck.applyRemote(cls.id, list); })
+        .then(list => { if (Array.isArray(list) && (list.length || list.meta)) deck.applyRemote(cls.id, list, list.meta); })
         .catch(() => {});
     }
   });
   window.addEventListener('fb-cards-remote', (e) => {
     const d = (e && e.detail) || {};
-    if (d.classId && Array.isArray(d.cards)) deck.applyRemote(d.classId, d.cards);
+    if (d.classId && Array.isArray(d.cards)) deck.applyRemote(d.classId, d.cards, d.meta);
   });
 
   console.info('[StudyOS] active recall ready.');
@@ -132,6 +132,21 @@ window.SOS.store = store;
     if (_resuming || Date.now() - _resumeAt < 60000) return;
     _resuming = true; _resumeAt = Date.now();
     breakdown.resume().catch(() => {}).finally(() => { _resuming = false; });
+  });
+  // The one-time card cleanup (overhaul §8). Late, so the server's copy of
+  // every class's cards and breakdowns has arrived first: a plan made from a
+  // stale local copy would miss the other device's cards.
+  let _migrateQueued = false;
+  store.onReady(() => {
+    if (_migrateQueued || window.__sosNoCardMigration) return;
+    _migrateQueued = true;
+    setTimeout(async () => {
+      try {
+        const [mig, pui] = await Promise.all([import('./migrate-cards-v2.js'), import('./pipeline-ui.js')]);
+        window.SOS.migrateCards = mig;
+        await mig.maybeRun({ sheet: pui.sheet });
+      } catch (e) { console.warn('[StudyOS] card cleanup skipped:', e && e.message); }
+    }, 8000);
   });
   console.info('[StudyOS] topic breakdown ready.');
 })().catch(e => console.warn('[StudyOS] topic breakdown failed to start:', e));

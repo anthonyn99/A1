@@ -4108,11 +4108,13 @@ function showNotif(icon, title, body) {
   const container = _sosEl('notif-container');
   const notif = document.createElement('div');
   notif.className = 'notif';
+  // Title and body are TEXT (class and file names reach here raw — "&
+  // Architecture" parsed as HTML rendered as "& amp"); only the icon is markup.
   notif.innerHTML = `
     <div class="notif-icon">${icon}</div>
     <div>
-      <div class="notif-title">${title}</div>
-      <div class="notif-body">${body}</div>
+      <div class="notif-title">${escHtml(title)}</div>
+      <div class="notif-body">${escHtml(body)}</div>
     </div>
     <div class="notif-close" onclick="this.parentElement.remove()">×</div>
   `;
@@ -4199,7 +4201,7 @@ function updateStats() {
   const cardsEl = _sosEl('stat-cards');
   if (cardsEl && window.SOS && window.SOS.deck) {
     try {
-      const n = window.SOS.deck.countsFor(null).dueNow;
+      const n = window.SOS.deck.countsFor(null).toStudy;
       cardsEl.textContent = n;
       cardsEl.style.color = n > 0 ? 'var(--accent2)' : 'var(--text3)';
       const tile = _sosEl('stat-card-cards');
@@ -4480,7 +4482,7 @@ window.sosStartSession = function (minutes) {
 
   if (!top) {
     // Nothing due is not nothing to do: due cards are still worth the minutes.
-    if (window.SOS && window.SOS.deck && window.SOS.deck.countsFor(null).dueNow > 0) {
+    if (window.SOS && window.SOS.deck && window.SOS.deck.countsFor(null).toStudy > 0) {
       return window.sosStudyAll && window.sosStudyAll();
     }
     showNotif(SOI.check, 'Nothing queued', 'No work due in the next 30 days.');

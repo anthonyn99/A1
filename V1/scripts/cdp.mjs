@@ -100,5 +100,10 @@ export async function connect() {
     { urlPattern: '*://127.0.0.1:8781/*' }, { urlPattern: '*://localhost:8781/*' },
   ] });
 
+  // The one-time card cleanup (migrate-cards-v2) opens a modal a few seconds
+  // after boot; a suite's fixture classes must not trigger it mid-test.
+  // A suite that tests the migration calls it directly.
+  await send('Page.addScriptToEvaluateOnNewDocument', { source: 'window.__sosNoCardMigration = true;' }).catch(() => {});
+
   return { send, evalJs, events, close: () => ws.close() };
 }

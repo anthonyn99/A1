@@ -129,6 +129,13 @@ t('validation failure after repair is an error', threw && /unusable/.test(threw.
 t('...after exactly one repair', calls.length === 2, calls.length);
 
 calls = [];
+responder = () => json({ choices: [{ message: { content: 'Sorry, I cannot help with that.' }, finish_reason: 'stop' }] });
+threw = null;
+try { await ai.generateJSON({ system: 's', prompt: 'p', pdf: PDF, schema: SCHEMA }); } catch (e) { threw = e; }
+t('an answer with no JSON is never sent to a repair (it could only invent one)',
+  threw && threw.kind === 'bad_json' && threw.retryable === true && calls.length === 1, { calls: calls.length, msg: threw && threw.message });
+
+calls = [];
 responder = () => json({ error: { message: 'bad key' } }, 401);
 threw = null;
 try { await ai.generateJSON({ system: 's', prompt: 'p', pdf: PDF, schema: SCHEMA }); } catch (e) { threw = e; }

@@ -85,7 +85,9 @@ console.log('\ncounts');
   t('counts the whole deck', c.total === deck.forClass('c1').length);
   t('all cards start unseen', c.unseen === c.total, c);
   t('none are "due" before a first review', c.due === 0);
-  t('but all are studiable now', c.dueNow === c.total);
+  t('unseen cards are not counted as due', !('dueNow' in c));
+  t('new available is capped by the daily limit', c.newAvailable === Math.min(c.unseen, 15), c);
+  t('toStudy = due + new available', c.toStudy === c.due + c.newAvailable);
 }
 
 // ── Grading + exam awareness ──────────────────────────────────────────────
@@ -201,6 +203,65 @@ console.log('\nrobustness');
   t('a corrupt local store does not throw', Array.isArray(deck.forClass('c1')) || true);
   t('generating from a null note is safe', deck.generateFromNote('c1', 'm1', null).added.length === 0);
   t('generating for an unknown class is safe', deck.generateFromNote(null, null, NOTE).added.length === 0);
+}
+
+// ── Daily new-card cap ────────────────────────────────────────────────────
+console.log('\nnew-card cap');
+{
+  localStorage.setItem('studyos_cards_settings_v1', JSON.stringify({ newPerDay: 2 }));
+  const many = Array.from({ length: 8 }, (_, i) => ({ front: `What does term number ${i} mean here?`, back: `Meaning ${i} of it` }));
+  deck.addExternal('c1', 'm1', many, { noteId: 'topic_f9_tabc', title: 'Cap' });
+  const before = deck.introducedToday();
+  const q = deck.buildQueue({ classId: 'c1', noteId: 'topic_f9_tabc' });
+  t('a queue holds at most the remaining cap of new cards', q.length <= Math.max(0, 2 - before), { len: q.length, before });
+  const fresh = deck.forClass('c1').filter(c => c.sourceNoteId === 'topic_f9_tabc');
+  deck.gradeCard(fresh[0].id, 3);
+  t('a first review stamps introducedAt', !!deck.get(fresh[0].id).introducedAt);
+  t('introducedToday counts it', deck.introducedToday() === before + 1);
+  t('suggested cards never enter a queue', (() => {
+    deck.setStatus(fresh[1].id, 'suggested');
+    localStorage.setItem('studyos_cards_settings_v1', JSON.stringify({ newPerDay: 100 }));
+    return !deck.buildQueue({ classId: 'c1' }).some(c => c.id === fresh[1].id);
+  })());
+  t('archived cards are out of mastery', (() => {
+    const m0 = deck.mastery('c1').total;
+    deck.setStatus(fresh[2].id, 'archived');
+    return deck.mastery('c1').total === m0 - 1;
+  })());
+  localStorage.removeItem('studyos_cards_settings_v1');
+}
+
+// ── Tombstones: a deleted card never comes back ──────────────────────────
+console.log('\ntombstones');
+{
+  const victim = deck.forClass('c1').find(c => c.sourceNoteId === 'topic_f9_tabc' && !c.sched);
+  const stale = JSON.parse(JSON.stringify(victim));          // device B's old copy
+  deck.remove('c1', victim.id);
+  t('removed from the live deck', !deck.get(victim.id));
+  t('kept as a tombstone', deck.rawForClass('c1').some(c => c.id === victim.id && c.deletedAt));
+  deck.applyRemote('c1', [stale]);
+  t('a stale remote copy does not resurrect it', !deck.get(victim.id));
+  const editedLater = { ...stale, q: stale.q + ' (edited)', updatedAt: Date.now() + 60000 };
+  deck.applyRemote('c1', [editedLater]);
+  t('an edit made AFTER the delete wins', !!deck.get(victim.id));
+}
+
+// ── Edit keeps id and schedule; content and schedule merge independently ─
+console.log('\nedit + merge');
+{
+  const card = deck.forClass('c1').find(c => c.sched && c.sched.reps);
+  const sched = JSON.stringify(card.sched);
+  const e = deck.edit(card.id, { content: 'A brand new front?\n---\nA brand new back' });
+  t('edit keeps the id', e.id === card.id);
+  t('edit keeps the schedule byte-for-byte', JSON.stringify(e.sched) === sched);
+  t('edit changes content and fp', e.q === 'A brand new front?' && e.fp !== card.fp);
+  // Device B reviewed the OLD content later; device A edited. Both survive.
+  const remote = { ...card, sched: { ...card.sched, reps: 42, lastReview: Date.now() + 5000 }, updatedAt: 1 };
+  deck.applyRemote('c1', [remote]);
+  const m = deck.get(card.id);
+  t('the edit survived the remote review', m.q === 'A brand new front?');
+  t('the remote review survived the edit', m.sched.reps === 42);
+  t('restoreCard undoes an edit', deck.restoreCard(card).q === card.q && deck.get(card.id).q === card.q);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

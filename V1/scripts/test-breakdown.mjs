@@ -180,7 +180,8 @@ console.log('\nprompts');
   t('the style decides the shape', p.includes(bd.STYLE_GUIDE.procedure));
   t('the checklist is in the prompt', p.includes('find the closure'));
   t('the other topics are named so they are not taught twice', p.includes('- Joins'));
-  t('flashcard rules are in the prompt', /Complete coverage/.test(p));
+  t('flashcard rules are in the prompt, with a budget', /cards worth remembering/.test(p) && /Budget: between \d+ and \d+ cards/.test(p), p.slice(p.indexOf('FLASHCARDS'), p.indexOf('FLASHCARDS') + 120));
+  t('the gap-fill prompt asks for no flashcards', /No flashcards/.test(bd.gapsPrompt({ sourceName: 'x', topic: all[0], missing: [{ page: 1, text: 'a line' }] })));
   t('the topics prompt asks for full coverage', /Cover the whole document with no gaps/.test(bd.topicsPrompt({ sourceName: 'x' })));
   t('without figure pages, a lesson may still draw — but is offered no page to show',
     /Draw a diagram/.test(p) && !/"page": a figure page/.test(p) && !/has a figure on page/.test(p));
@@ -204,7 +205,7 @@ console.log('\nprompts');
   t('her prompt reaches the topics, lesson and gap-fill prompts', withMine.every((x) => x.includes(MINE)));
   t('...just before the reply format',
     withMine.every((x) => x.indexOf(MINE) > 0 && x.indexOf(MINE) < x.indexOf('Reply with ONE JSON object')));
-  t('...which stay in full', /Cover the whole document with no gaps/.test(withMine[0]) && /Complete coverage/.test(withMine[1]));
+  t('...which stay in full', /Cover the whole document with no gaps/.test(withMine[0]) && /cards worth remembering/.test(withMine[1]));
 }
 
 console.log('\nmergeDocs');
@@ -237,7 +238,7 @@ responder = (body) => {
   const text = body.messages.find((m) => m.role === 'user').content.map((p) => p.text || '').join('');
   if (/Break it into the TOPICS/.test(text)) return reply(TOPICS);
   if (/malformed|could not be used/.test(text)) return reply(lessonFor('Joins'));
-  if (/title: Joins/.test(text) && !broke) { broke = true; return reply('{"blocks": [oops'); }
+  if (/title: Joins/.test(text) && !broke) { broke = true; return reply('{"blocks": [oops, this answer is broken JSON but long enough to be worth a repair]}'); }
   const m = text.match(/title: (\w+)/);
   return reply(lessonFor(m ? m[1] : 'X'));
 };
@@ -566,7 +567,7 @@ const echoLesson = (text, drop) => {
   return {
     blocks: [{ kind: 'read', title: 'The material', markdown: lines.join('\n\n'), steps: [], questions: [], points: [] },
       { kind: 'recap', title: 'Recap', markdown: '', steps: [], questions: [], points: ['Know it.'] }],
-    flashcards: lines.slice(0, 3).map((l, i) => ({ front: `Question ${i} about the slide?`, back: l.slice(0, 200) })),
+    flashcards: lines.slice(0, 3).map((l) => ({ front: `What should you know about ${l.split(/\s+/).slice(0, 3).join(' ')}?`, back: l.slice(0, 200) })),
   };
 };
 const userText = (body) => {
@@ -622,7 +623,9 @@ console.log('\nrun — invented topics are rejected, then the real list is used'
   t('the extra blocks go in before the recap', units.lesson.blocks.map((b) => b.kind).join() === 'read,example,recap', units.lesson.blocks.map((b) => b.kind));
   t('nothing is left untaught', d.topics.every((x) => x.gapChecked && x.gaps.length === 0), d.topics.map((x) => x.gaps));
   const cardsNow = deck.forClass('c1').filter((c) => c.sourceNoteId === bd.noteIdFor('ch1', units.id));
-  t('the follow-up\'s cards join the topic\'s, none lost', cardsNow.length === 4 && units.cardCount === 4, cardsNow.map((c) => c.q));
+  t('the follow-up adds lesson blocks but no cards (it completes the lesson, not the deck)',
+    cardsNow.length >= 1 && cardsNow.length === units.cardCount && !cardsNow.some((c) => /one cycle at 133MHz/.test(c.q)),
+    cardsNow.map((c) => c.q));
   t('the checks are recorded', d.checks && d.checks.pages === 8 && d.checks.content === 4 && d.checks.gaps === 0 && d.checks.added === 1, d.checks);
   t('1 + 1 topic asks, 3 lessons, 1 follow-up', calls.length === 6, calls.length);
 }
@@ -681,11 +684,10 @@ console.log('\nrun — on any ORCA model: waits, one retry pass, who wrote it');
     const text = userText(body);
     if (/Break it into the TOPICS/.test(text)) return replyAs(REAL, 'gemini-web');
     if (/title: Units of speed and capacity/.test(text) && unitsAsks++ === 0) return busy();
-    // "Computer organization" is unusable four times: with the PDF, its repair,
-    // text-only (withFallback), its repair. The retry pass then writes it.
-    if (/title: Computer organization/.test(text) || (/malformed JSON/.test(JSON.stringify(body)) && orgAsks < 4)) {
-      if (orgAsks++ < 4) return replyAs('Sorry, I could not do that.', 'chatgpt-web');
-    }
+    // "Computer organization" is unusable twice: with the PDF, then text-only
+    // (withFallback). A reply that short is never sent to a repair ask —
+    // there is nothing to repair. The retry pass then writes it.
+    if (/title: Computer organization/.test(text) && orgAsks++ < 2) return replyAs('Sorry, I could not do that.', 'chatgpt-web');
     return replyAs(echoLesson(text), /title: Computer organization/.test(text) ? 'claude-web' : 'deepseek-web');
   };
   const d = await bd.run('c1', 'm1', F);
@@ -821,6 +823,149 @@ console.log('\na PDF with no text');
   const d = await bd.run('c1', 'm1', { id: 'scan2', name: 'scan.pdf', mime: 'application/pdf' });
   t('a provider that reads the PDF runs unchecked, and says so', d.status === 'ready' && d.checks && /no selectable text/.test(d.checks.skipped), d.checks);
   bd.setPageReader(async () => null);
+}
+
+// ── Fewer, better cards (overhaul §6) ─────────────────────────────────────
+/* Fixtures are cards that were really in her deck (audit §3.1). */
+console.log('\ncard budget');
+{
+  t('a small topic gets at least 4', bd.cardBudget({ key_points: ['a'] }).max === 4);
+  t('a big topic is capped at 12', bd.cardBudget({ key_points: Array(40).fill('x') }).max === 12);
+  t('5 key points -> 6 cards', bd.cardBudget({ key_points: Array(5).fill('x') }).max === 6);
+  t('definitions get +2', bd.cardBudget({ key_points: Array(5).fill('x'), style: 'definitions' }).max === 8);
+  t('a boilerplate topic gets none', bd.cardBudget({ boilerplate: true, key_points: ['x'] }).max === 0);
+  t('min is at most 3', bd.cardBudget({ key_points: [] }).min === 3);
+}
+
+console.log('\nmeta and trivia cards');
+{
+  const meta = [
+    'What is the heading on page 3?',
+    'What explanatory text appears beneath the heading on the supplied page 4?',
+    'What is the exact presentation copyright line?',
+    'Which organization is named in the presentation copyright line?',
+    'How should dates ending in "present" be interpreted in this lesson?',
+    'Which textbook are these slides from?',
+  ];
+  t('every audited meta card is caught', meta.every(bd.isMetaCard), meta.filter((f) => !bd.isMetaCard(f)));
+  const real = [
+    'What causes a page fault?',
+    'What does the page table map?',
+    'Which OSI layer is the presentation layer?',
+    'How does a document database store records?',
+    'What is the range of 8-bit two\'s complement?',
+    'Why does a sliding window protocol need sequence numbers?',
+  ];
+  t('subject terms that look like meta words are kept', real.every((f) => !bd.isMetaCard(f)), real.filter(bd.isMetaCard));
+}
+
+console.log('\nfilterCards');
+{
+  const kilo = [
+    { kind: 'basic', front: 'What named amount does Kilo- stand for?', back: 'One thousand.', priority: 2 },
+    { kind: 'basic', front: 'What power of ten is Kilo-?', back: '10^3.', priority: 2 },
+    { kind: 'basic', front: 'What power of two is Kilo-?', back: '2^10.', priority: 2 },
+  ];
+  const cards = [
+    { kind: 'basic', front: 'What is the heading on page 3?', back: 'Computer Organization and Architecture.', priority: 1 },
+    { kind: 'basic', front: 'Is a DBMS software?', back: 'Yes.', priority: 1 },
+    { kind: 'basic', front: 'What does DBMS stand for?', back: 'Database management system.', priority: 1 },
+    { kind: 'basic', front: 'What does the acronym DBMS stand for?', back: 'Database management system', priority: 2 },
+    { kind: 'cloze', front: 'A relation is in 3NF if it is in 2NF and has no {{1::transitive dependencies}}.', back: '', priority: 1 },
+    { kind: 'basic', front: 'Why does two\'s complement have one more negative value than positive?', back: 'Because zero takes one of the non-negative patterns.', priority: 1 },
+    ...kilo,
+  ];
+  const r = bd.filterCards(cards, { budget: { max: 4 } });
+  t('meta dropped', r.dropped.meta === 1 && !r.active.concat(r.suggested).some((c) => /heading/.test(c.front)), r.dropped);
+  t('yes/no dropped', r.dropped.yesno === 1, r.dropped);
+  t('a near-duplicate dropped, keeping the higher priority', r.dropped.dup >= 1
+    && r.active.concat(r.suggested).filter((c) => /DBMS stand for/.test(c.front)).length === 1
+    && r.active.concat(r.suggested).find((c) => /DBMS stand for/.test(c.front)).priority === 1, r);
+  t('at most the budget is active', r.active.length === 4, r.active.map((c) => c.front));
+  t('priority-1 cards are active first', r.active.filter((c) => c.priority === 1).length === 3, r.active.map((c) => [c.priority, c.front]));
+  t('the rest become suggestions, not lost', r.suggested.length >= 1 && r.suggested.length <= 4, r.suggested.map((c) => c.front));
+  t('the cloze card survives', r.active.some((c) => c.kind === 'cloze'));
+  const against = bd.filterCards([{ kind: 'basic', front: 'What does DBMS stand for?', back: 'Database management system.', priority: 1 }],
+    { budget: { max: 4 }, existing: [{ q: 'What does DBMS stand for?', a: 'Database management system' }] });
+  t('a card the class already has is dropped', against.active.length === 0 && against.dropped.dup === 1, against);
+  const self = bd.filterCards([{ kind: 'basic', front: 'What is a primary key, the unique identifier?', back: 'The unique identifier', priority: 1 }], { budget: { max: 4 } });
+  t('a card whose answer is on its front is dropped', self.active.length === 0 && self.dropped.self === 1, self.dropped);
+}
+
+console.log('\ncleanLesson');
+{
+  const blocks = [
+    { kind: 'read', title: 'A', markdown: 'Databases store data [1]. They are fast.[2][3] The supplied page does not explain indexes. Use `arr[1]` and array[1] = 5 here.' },
+    { kind: 'read', title: 'B', markdown: 'A short follow-up.' },
+    { kind: 'recap', title: 'Recap', points: ['Know it [4].'] },
+    { kind: 'read', title: 'C', markdown: 'Text after the recap that is long enough to stand alone. '.repeat(10) },
+  ];
+  const r = bd.cleanLesson(blocks);
+  const all = r.blocks.map((b) => b.markdown || (b.points || []).join(' ')).join(' ');
+  t('citation markers are stripped', !/\[\d\]/.test(all.replace('`arr[1]`', '').replace('array[1] = 5', '')), all);
+  t('code and real indexes are kept', all.includes('`arr[1]`') && all.includes('array[1] = 5'), all);
+  t('meta sentences are dropped', !/supplied page/.test(all) && r.stripped === 1, all);
+  t('short consecutive reads merge', r.blocks[0].markdown.includes('A short follow-up.') && r.blocks.filter((b) => b.kind === 'read').length === 2, r.blocks.map((b) => b.title));
+  t('the recap is moved last', r.blocks[r.blocks.length - 1].kind === 'recap', r.blocks.map((b) => b.kind));
+  const many = Array.from({ length: 30 }, (_, i) => ({ kind: 'example', title: 'E' + i, markdown: 'Example ' + i }));
+  const capped = bd.cleanLesson([...many, { kind: 'recap', title: 'R', points: ['p'] }]);
+  t('at most 18 blocks, the recap kept', capped.blocks.length === 18 && capped.blocks[17].kind === 'recap');
+  const v = bd.validateLesson({ blocks, flashcards: [{ front: 'Why are databases fast [1]?', back: 'Indexes [2].', priority: 1 }] });
+  t('validateLesson cleans too', !/\[\d\]/.test(v.value.flashcards[0].front + v.value.flashcards[0].back) && v.value.blocks[v.value.blocks.length - 1].kind === 'recap', v.value);
+  const gaps = bd.validateLesson({ blocks: [{ kind: 'read', title: 'x', markdown: 'more' }] }, { cards: false });
+  t('a gap follow-up needs no cards', !gaps.error && gaps.value.flashcards.length === 0);
+}
+
+console.log('\nthe sanity gate (the placeholder lesson)');
+{
+  const placeholder = [{ kind: 'read', title: 'Intro', markdown: 'No malformed JSON was provided to repair, so this is a placeholder matching the exact schema requirements.' }];
+  t('placeholder text is rejected', /filler/.test(bd.sanityProblem(placeholder, { pages: 1 })));
+  t('a lesson too short for its pages is rejected', /too short/.test(bd.sanityProblem([{ kind: 'read', title: 'x', markdown: 'Tiny.' }], { pages: 3, sourceChars: 4000 })));
+  t('a real lesson passes', bd.sanityProblem([{ kind: 'read', title: 'x', markdown: 'Real teaching. '.repeat(60) }], { pages: 3, sourceChars: 4000 }) === '');
+  t('a sparse slide needs less', bd.sanityProblem([{ kind: 'read', title: 'x', markdown: 'Short but fine. '.repeat(8) }], { pages: 2, sourceChars: 200 }) === '');
+}
+
+console.log('\nboilerplate pages');
+{
+  t('the objectives slide is boilerplate, not material', M.boilerplate.has(2) && !M.content.includes(2));
+  t('...and its bullets become learning objectives', M.objectives.some((o) => /units of measure/.test(o)), M.objectives);
+  const copy = bd.sourceModel([
+    { n: 1, lines: [T('Recursion'), L('A function that calls itself, with a base case that stops it and a step toward it.')] },
+    { n: 2, lines: [T('Copyright'), L('Copyright © 2019 Pearson Education, Inc. All Rights Reserved')] },
+    { n: 3, lines: [T('Acknowledgements'), L('These slides are adapted from material by the textbook authors')] },
+    { n: 4, lines: [T('Questions?'), L('Thank you for listening today')] },
+  ]);
+  t('copyright, acknowledgements and closing slides are not material', copy.content.join() === '1', { content: copy.content, bp: [...copy.boilerplate] });
+  t('a real slide titled with a boilerplate word but full of content stays',
+    bd.sourceModel([{ n: 1, lines: [T('Outline of the algorithm'), ...Array.from({ length: 6 }, (_, i) => L(`Step ${i}: compare the key with element ${i} and swap when it is smaller than the pivot value`))] }]).content.join() === '1');
+}
+
+console.log('\nfallback topics merge short runs into a neighbour');
+{
+  const topics = [{ title: 'The Measures of Speed and Capacity', key_points: ['Kilo Mega Giga powers of ten and two'], pages: '5' }];
+  const add = bd.fallbackTopics([6], M, topics);
+  t('a one-page run that belongs with the topic next to it joins it', add.length === 0 && topics[0].pages === '5, 6'
+    && topics[0].key_points.some((k) => /133MHz/.test(k)), { add, topics });
+  const far = [{ title: 'Computer organization versus architecture', key_points: ['organization', 'architecture'], pages: '3' }];
+  t('a run with no fitting neighbour still gets its own topic', bd.fallbackTopics([7], M, far).length === 1);
+}
+
+console.log('\nitemMissing ignores heading fragments');
+{
+  t('a one-word fragment is never a gap', !bd.itemMissing({ page: 1, text: 'Examples', title: false }, bd.tokensOf('')));
+  t('a fragment with a number still is', bd.itemMissing({ page: 1, text: 'Giga 10^9', title: false }, bd.tokensOf('')));
+}
+
+console.log('\nan empty answer is never "repaired" into a lesson');
+{
+  calls = [];
+  responder = () => reply('');
+  let threw = null;
+  try {
+    await ai.generateJSON({ system: 's', prompt: 'go', schema: bd.LESSON_SCHEMA, validate: bd.validateLesson, key: 'x:empty' });
+  } catch (e) { threw = e; }
+  t('it fails as retryable bad_json', threw && threw.kind === 'bad_json' && threw.retryable === true, threw && threw.message);
+  t('no repair ask was sent', calls.length === 1 && !calls.some((c) => /malformed JSON/.test(JSON.stringify(c.body))), calls.length);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

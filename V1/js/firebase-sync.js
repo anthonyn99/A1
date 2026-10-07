@@ -558,14 +558,15 @@ if (!window.STUDYOS_CONFIG_READY || !window.STUDYOS_CONFIG_READY('firebase')) {
       if (snap.metadata && snap.metadata.hasPendingWrites) return;   // our own echo
       const data = snap.data() || {};
       window.dispatchEvent(new CustomEvent('fb-cards-remote', {
-        detail: { classId, cards: Array.isArray(data.cards) ? data.cards : [] },
+        detail: { classId, cards: Array.isArray(data.cards) ? data.cards : [], meta: data.meta || null },
       }));
     }, (err) => console.warn('[StudyOS Cards] onSnapshot error:', classId, err && err.code));
   }
 
-  window._fbSaveCards = (classId, list) => {
+  // `meta`: the card-model version and her own decks (deck.js metaOf).
+  window._fbSaveCards = (classId, list, meta) => {
     if (!classId) return;
-    _cardsPendingPayload[classId] = { cards: list || [], savedAt: Date.now() };
+    _cardsPendingPayload[classId] = { cards: list || [], meta: meta || {}, savedAt: Date.now() };
     if (_cardsSaveTimers[classId]) clearTimeout(_cardsSaveTimers[classId]);
     _cardsSaveTimers[classId] = setTimeout(() => {
       _cardsWhenServerSeen(classId, () => _cardsDoSave(classId));
@@ -580,7 +581,10 @@ if (!window.STUDYOS_CONFIG_READY || !window.STUDYOS_CONFIG_READY('firebase')) {
       if (snap && snap.metadata && snap.metadata.fromCache === false) _cardsMarkServerSeen(classId);
       if (snap && snap.exists()) {
         const d = snap.data() || {};
-        return Array.isArray(d.cards) ? d.cards : [];
+        const list = Array.isArray(d.cards) ? d.cards : [];
+        // The meta rides on the array, so callers that only want the list still work.
+        if (d.meta) Object.defineProperty(list, 'meta', { value: d.meta, enumerable: false });
+        return list;
       }
       // A class with no deck yet is a legitimate empty state, and confirming
       // that from the server is what unblocks the first write.

@@ -38,6 +38,10 @@ export const STYLES = ['concept', 'procedure', 'applied', 'definitions'];
 export const KINDS = ['read', 'example', 'steps', 'check', 'recap', 'figure'];
 const MAX_TOPICS = 15;
 const MAX_BLOCKS = 16;
+const MAX_BLOCKS_FILLED = 18;      // after the gap follow-up adds its blocks
+// In every bridge cache key: an answer written under the old prompts (one
+// card per fact) is never handed back for the new ones.
+export const PROMPT_V = 2;
 const MAX_QUESTIONS = 6;
 const MAX_DRAWN = 2;                // drawn figures per lesson
 const MAX_SVG = 12 * 1024;
@@ -77,16 +81,25 @@ export const LESSON_SCHEMA = obj({
     page: { type: 'integer' },
     svg: str,
   }) },
-  flashcards: { type: 'array', items: obj({ front: str, back: str }) },
+  flashcards: { type: 'array', items: obj({
+    kind: { type: 'string', enum: ['basic', 'cloze'] },
+    front: str, back: str, extra: str,
+    priority: { type: 'integer' },
+  }) },
 });
+
+/** The gap follow-up writes lesson blocks only — never cards (§6.5): the
+ *  lesson must be complete, the deck must not. */
+export const GAPS_SCHEMA = obj({ blocks: LESSON_SCHEMA.properties.blocks });
 
 // ── Prompts ──────────────────────────────────────────────────────────────
 const SYSTEM =
   'You are an expert university tutor. You turn course material into study ' +
   'material that is complete — nothing examinable left out — and easy to ' +
   'understand. You write in plain, direct language for a student who is ' +
-  'seeing the material for the first time, and you stay faithful to the ' +
-  'document: its notation, its terms, its examples.';
+  'seeing the material for the first time, and you use the document\'s ' +
+  'notation, terms and examples. You teach the subject itself: you never ' +
+  'talk about the document, its pages or its slides.';
 
 /** How the document reaches the model: its page text in the prompt (always,
  *  for text-only providers), and/or the PDF attached. */
@@ -128,7 +141,8 @@ List the topics of THIS document only, from its text above.
 RULES
 - Cover the whole document with no gaps, in the order it presents the material. Every section, definition, formula, algorithm and worked example belongs to exactly one topic.
 - Only what is IN the document. Never add a topic the document does not teach.${source ? `
-- Every page with teaching content belongs to a topic. A title page, a repeated agenda/objectives slide and a closing slide need no topic of their own.` : ''}
+- Every page with teaching content belongs to a topic.` : ''}
+- NO topic for: title slides, agenda / objectives / outline / learning-goals slides, review-question slides with no answers, references, acknowledgements, copyright or publisher notices, "thank you" / closing slides, or course logistics. Those pages are not material.
 - 3 to ${MAX_TOPICS} topics. Each topic is one sitting of study (10-25 minutes): big enough to be worth a lesson, small enough to master in one go. Split a long chapter; merge slides that only make sense together.
 - Titles are concrete and specific. "Converting an ER diagram to tables" is a topic; "Databases" is not.
 - summary: one or two sentences saying exactly what the topic covers.
@@ -182,17 +196,24 @@ function figureGuide(figurePages) {
   white background. Every label uses the document's own terms and values — nothing the source does not say.`;
 }
 
-export function lessonPrompt({ className, sourceName, topic, index, all, source = '', attached = true, figures = [], figurePages = [], instructions = '' }) {
+export function lessonPrompt({ className, sourceName, topic, index, all, source = '', attached = true, figures = [], figurePages = [], instructions = '',
+  budget = cardBudget(topic), written = [], carded = [], objectives = [] }) {
   const others = all.filter((t) => t.id !== topic.id).map((t) => `  - ${t.title}`).join('\n');
   const checklist = (topic.key_points || []).map((k) => `  - ${k}`).join('\n') || '  - (use the summary)';
+  const owned = written.filter((t) => t.id !== topic.id)
+    .map((t) => `  - ${t.title}${(t.key_points || []).length ? ': ' + t.key_points.slice(0, 8).join('; ') : ''}`).join('\n');
+  const already = carded.slice(0, 60).map((f) => `  - ${String(f).slice(0, 160)}`).join('\n');
   return `Write ONE lesson from ${source ? 'the course material below' : 'the attached course material'}${className ? ` for a student in ${className}` : ''}.
 ${source ? `
 SOURCE — this topic's pages of "${sourceName}", verbatim${attached ? ' (the whole PDF is attached too, for its diagrams)' : ''}:
 <source>
 ${source}
 </source>
-EVERY line of the source must be taught in this lesson: every fact, number, unit, term, example and list item.
-You may add explanation, intuition and examples; you may never drop or shorten a detail from the source.
+Teach every idea in the source a student could be examined on: every fact, number, unit, term, rule and worked example.
+You may add explanation, intuition and examples. Skip decoration: slide headers, repeated titles, publisher and copyright lines, decorative images.
+` : ''}${objectives.length ? `
+LEARNING OBJECTIVES the course states — make sure the lesson lets the student do the ones that belong to this topic:
+${objectives.slice(0, 20).map((o) => `  - ${o}`).join('\n')}
 ` : ''}${figures.length ? `
 FIGURES — ${figures.length === 1 ? `page ${figures[0]} is` : `pages ${figures.join(', ')} are`} attached as ${figures.length === 1 ? 'an image' : 'images, in that order'}. They are part of the source: teach what each one shows (a diagram's parts, labels and arrows; a table's contents; what a picture illustrates), not only the text around it.
 ` : ''}
@@ -235,18 +256,35 @@ WRITING RULES
 - Markdown bodies may use ### headings, **bold**, lists, \`code\`, fenced code blocks and tables.
   Put formulas, SQL and code in code formatting.
 - Write to the reader as "you". No filler, no "in today's world", no restating the title.
+- Teach the subject, not the document. Never mention pages, slides, "the document", "the source",
+  "this lesson", the textbook, its publisher or copyright. Never include citation markers like [1].
 - Finish with a recap block.
 
-FLASHCARDS — then write this topic's flashcards:
-- Complete coverage: one card for every definition, fact, formula, rule, step, distinction and
-  cause-and-effect in the lesson. A student who knows every card knows the topic.
-- Atomic: one idea per card. Front: a specific question (never just "Explain X"). Back: the answer,
-  at most two sentences.
-- No duplicates, no yes/no fronts, no card whose answer is on its front.
+FLASHCARDS — then write the cards worth remembering for the exam, not one per line.
+- Budget: between ${budget.min} and ${budget.max} cards for this topic. Fewer is better if the topic is small.
+- Each card tests ONE idea a student would be examined on: a definition that matters, a formula and when to
+  use it, a key distinction between confusable terms, a step of a procedure people get wrong, a cause→effect, a "why".
+- NEVER write cards about: slide or page titles and headings, what a page "says" or "shows", the textbook,
+  authors, publisher, copyright, dates of the slides, course logistics, how to read the lesson, or trivia
+  nobody is examined on (the exact wording of a list heading).
+- Prefer understanding over recall of wording: a "why" or "how" card beats a card that asks for a phrase.
+- Group tightly related atomic facts: a set of prefixes or units is ONE card with a small Markdown table,
+  or one cloze card with numbered blanks — never one card per item per property.
+- Use cloze for a fact embedded in a sentence or formula: kind "cloze", front like
+  "A relation is in 3NF if it is in 2NF and has no {{1::transitive dependencies}}.", back "".
+- Code, SQL and formulas go in Markdown code formatting.
+- front: a specific question or cloze sentence (at most 200 characters). back: the answer in at most two
+  sentences. extra: optional one-line "why" or example ("" if none).
+- priority: 1 = core (must know), 2 = useful detail. At least half are priority 1.
+- No duplicates, no yes/no fronts, no card whose answer is on its front.${owned ? `
+- Do not repeat a concept another topic of this document owns:
+${owned}` : ''}${already ? `
+- These cards already exist in this class. Do not write cards that duplicate them:
+${already}` : ''}
 ${instructionsBlock(instructions)}
 Reply with ONE JSON object and nothing else:
 {"blocks": [{"kind": "read", "title": "...", "markdown": "...", "steps": [], "questions": [], "points": [], "page": 0, "svg": ""}],
- "flashcards": [{"front": "...", "back": "..."}]}`;
+ "flashcards": [{"kind": "basic", "front": "...", "back": "...", "extra": "", "priority": 1}]}`;
 }
 
 /** The follow-up for a lesson that left source lines out. */
@@ -262,15 +300,14 @@ SOURCE — the topic's pages, verbatim, for context:
 ${source}
 </source>
 ` : ''}
-Write ADDITIONAL lesson blocks that teach the missing lines — "read", "example", "steps" or "check" blocks, the same shapes as before — plus a flashcard for every fact in them.
-Do not repeat what the lesson already teaches. No recap block.
+Write ADDITIONAL lesson blocks that teach the missing lines — "read", "example", "steps" or "check" blocks, the same shapes as before. No flashcards.
+Do not repeat what the lesson already teaches. No recap block. Fewer, fuller blocks beat many one-line ones.
+Teach the subject, not the document: never mention pages, slides or "the document", and no citation markers like [1].
 Every block has a short "title". Fields a block's kind does not use are empty ("" or []).
 Check questions: {"q", "choices": 3-5 plausible choices, "answer": exactly one of the choices, "explanation"}.
-Flashcards: atomic, one idea each; front a specific question, back at most two sentences.
 ${instructionsBlock(instructions)}
 Reply with ONE JSON object and nothing else:
-{"blocks": [{"kind": "read", "title": "...", "markdown": "...", "steps": [], "questions": [], "points": [], "page": 0, "svg": ""}],
- "flashcards": [{"front": "...", "back": "..."}]}`;
+{"blocks": [{"kind": "read", "title": "...", "markdown": "...", "steps": [], "questions": [], "points": [], "page": 0, "svg": ""}]}`;
 }
 
 // ── Validation (the model's output is untrusted) ─────────────────────────
@@ -330,7 +367,7 @@ export function cleanSvg(v) {
  * the only pages a figure may show or redraw. Without `allowFigures` every
  * figure block is dropped (a gap follow-up never adds one).
  */
-export function validateLesson(o, { figurePages = [], allowFigures = false } = {}) {
+export function validateLesson(o, { figurePages = [], allowFigures = false, cards = true, max = MAX_BLOCKS } = {}) {
   const blocks = [];
   const figSeen = new Set();
   let drawn = 0;
@@ -364,24 +401,224 @@ export function validateLesson(o, { figurePages = [], allowFigures = false } = {
       const points = arr(b.points).map((p) => s(p, 500)).filter(Boolean).slice(0, 24);
       if (points.length) blocks.push({ ...base, points });
     }
-    if (blocks.length >= MAX_BLOCKS) break;
+    if (blocks.length >= max) break;
   }
-  if (!blocks.length) return { error: 'the lesson had no usable blocks' };
+  const cleaned = cleanLesson(blocks, { max });
+  if (!cleaned.blocks.length) return { error: 'the lesson had no usable blocks' };
   // "All quiz and no teaching" — SOLO's rule. A lesson must explain something.
-  if (!blocks.some((b) => b.kind === 'read' || b.kind === 'example' || b.kind === 'steps')) {
+  if (!cleaned.blocks.some((b) => b.kind === 'read' || b.kind === 'example' || b.kind === 'steps')) {
     return { error: 'the lesson had checks but no teaching' };
   }
+  if (!cards) return { value: { blocks: cleaned.blocks, flashcards: [], stripped: cleaned.stripped } };
   const seen = new Set();
   const flashcards = [];
   for (const c of arr(o && o.flashcards)) {
-    const front = s(c && c.front, 400), back = s(c && c.back, 800);
+    const front = s(c && c.front, 400);
+    const cloze = (c && c.kind === 'cloze') || /\{\{[\s\S]+?\}\}/.test(front);
+    const back = cloze ? s(c && c.back, 800) : s(c && c.back, 800);
     const key = front.toLowerCase();
-    if (!front || !back || seen.has(key) || front.toLowerCase() === back.toLowerCase()) continue;
+    if (!front || seen.has(key)) continue;
+    if (cloze ? !/\{\{[\s\S]+?\}\}/.test(front) : (!back || key === back.toLowerCase())) continue;
     seen.add(key);
-    flashcards.push({ front, back });
+    flashcards.push({
+      kind: cloze ? 'cloze' : 'basic', front: stripCitations(front), back: stripCitations(back),
+      extra: stripCitations(s(c && c.extra, 600)),
+      priority: c && (c.priority === 1 || c.priority === '1') ? 1 : 2,
+    });
   }
   if (!flashcards.length) return { error: 'the lesson came with no flashcards' };
-  return { value: { blocks, flashcards } };
+  return { value: { blocks: cleaned.blocks, flashcards, stripped: cleaned.stripped } };
+}
+
+// ── Lesson hygiene (§6.2) ────────────────────────────────────────────────
+/* What the model writes ABOUT the document instead of teaching the subject:
+ * Perplexity's [1] citations, and "the supplied page says…" sentences. Run on
+ * every lesson, whatever the prompt asked — ORCA's models ignore instructions
+ * the most. */
+const META_SENTENCE = /\b(the (supplied|attached|provided|given) (page|pages|document|slide|slides|pdf|material)|these (pages|slides)|this (page|slide) (says|shows|states|does not)|course document|this lesson (preserves|does not|keeps)|the document (does not|doesn't|says|states|shows|explains|preserves)|(the|this) source (does not|doesn't|says|states|shows))\b/i;
+
+/** `[1]`, `[2, 3]`, `[1][4]` citation markers, never `arr[1]` or `A[0]`: a
+ *  marker follows a space, punctuation or a whole word (4+ letters), and ends
+ *  before a space or punctuation. Code spans and fences are left alone. */
+export function stripCitations(text) {
+  const MARK = '((?:\\[\\d{1,3}(?:\\s*[,–-]\\s*\\d{1,3})*\\])+)';
+  return mapProse(text, (p) => p
+    // after a space: "… databases [1]." (the space goes too)
+    .replace(new RegExp(`[ \\t]+${MARK}(?=[\\s.,;:!?)]|$)`, 'gm'), '')
+    // after punctuation: "… process.[2][3]"
+    .replace(new RegExp(`(?<=[.,;:!?)])${MARK}(?=[\\s.,;:!?)]|$)`, 'gm'), '')
+    // glued to a word, only right before punctuation or a line end — so
+    // "array[1] = 5" written without backticks survives
+    .replace(new RegExp(`([A-Za-z]{4})${MARK}(?=[.,;:!?)]|$)`, 'gm'), '$1'));
+}
+
+/** Apply `fn` to the prose of a Markdown text, skipping code spans and fences. */
+function mapProse(text, fn) {
+  const src = String(text || '');
+  return src.split(/(```[\s\S]*?```|`[^`\n]*`)/g).map((part, i) => (i % 2 ? part : fn(part))).join('');
+}
+
+/** Drop the sentences that talk about the document. Returns [text, count]. */
+export function stripMeta(text) {
+  let n = 0;
+  const out = mapProse(text, (p) => p.split('\n').map((line) => {
+    if (!META_SENTENCE.test(line)) return line;
+    const kept = line.split(/(?<=[.!?])\s+/).filter((sen) => {
+      if (META_SENTENCE.test(sen)) { n++; return false; }
+      return true;
+    });
+    return kept.join(' ');
+  }).join('\n'));
+  return [out.replace(/\n{3,}/g, '\n\n').trim(), n];
+}
+
+/**
+ * A lesson, cleaned: citation markers and meta sentences stripped, short
+ * consecutive `read` blocks merged, the recap last (several recaps become
+ * one), and at most `max` blocks. Pure; returns { blocks, stripped }.
+ */
+export function cleanLesson(blocks, { max = MAX_BLOCKS_FILLED } = {}) {
+  let stripped = 0;
+  const clean = (t) => { const [v, n] = stripMeta(stripCitations(t)); stripped += n; return v; };
+  const out = [];
+  const recaps = [];
+  for (const b0 of blocks || []) {
+    const b = { ...b0 };
+    if (b.markdown) b.markdown = clean(b.markdown);
+    if (b.steps) b.steps = b.steps.map((x) => ({ ...x, body: clean(x.body) })).filter((x) => x.title || x.body);
+    if (b.points) b.points = b.points.map(clean).filter(Boolean);
+    if (b.questions) b.questions = b.questions.map((q) => ({ ...q, explanation: stripCitations(q.explanation) }));
+    if ((b.kind === 'read' || b.kind === 'example') && !b.markdown) continue;
+    if (b.kind === 'steps' && !(b.steps || []).length) continue;
+    if (b.kind === 'recap') { if ((b.points || []).length) recaps.push(b); continue; }
+    const prev = out[out.length - 1];
+    if (b.kind === 'read' && prev && prev.kind === 'read' && b.markdown.length < 400) {
+      prev.markdown = `${prev.markdown}\n\n${b.title && b.title !== prev.title ? `### ${b.title}\n\n` : ''}${b.markdown}`;
+      continue;
+    }
+    out.push(b);
+  }
+  let recap = null;
+  if (recaps.length) {
+    recap = { ...recaps[0], points: [...new Set(recaps.flatMap((r) => r.points))].slice(0, 24) };
+  }
+  const room = max - (recap ? 1 : 0);
+  const body = out.slice(0, Math.max(1, room));
+  return { blocks: recap ? [...body, recap] : body, stripped };
+}
+
+// ── Flashcards: budget, quality, priority (§6.3) ─────────────────────────
+/** How many cards a topic is worth. Boilerplate topics get none. */
+export function cardBudget(topic) {
+  if (!topic || topic.boilerplate) return { min: 0, max: 0 };
+  const k = (topic.key_points || []).length;
+  let max = Math.min(12, Math.max(4, Math.round(2 + 0.8 * k)));
+  if (topic.style === 'definitions') max = Math.min(12, max + 2);
+  return { min: Math.min(3, max), max };
+}
+
+/* A card ABOUT the document, not the subject: "What is the heading on page 3?",
+ * "Which organization is named in the copyright line?". The words that also
+ * name real subject matter — a page table, the presentation layer, a document
+ * database — are allowed back in. */
+const META_CARD = /\b(page|pages|slide|slides|heading|headings|title slide|textbook|author|authors|publisher|copyright|presentation|lesson|supplied|document|chapter objectives?)\b/i;
+const META_ALLOW = /\b(page (table|fault|frame|size|replacement|number|offset|walk|hit|miss)s?|pages? (of|in) memory|paging|virtual pages?|presentation layer|document (database|store|model|oriented|object)s?|(web|html) (page|document)s?|slide(s)? (rule|window)|sliding window)\b/i;
+
+export function isMetaCard(front) {
+  const f = String(front || '');
+  if (!META_CARD.test(f)) return false;
+  return !META_ALLOW.test(f) || META_CARD.test(f.replace(new RegExp(META_ALLOW.source, 'gi'), ''));
+}
+
+const YESNO_FRONT = /^(is|are|does|do|did|can|could|was|were|has|have|had|will|would|should|must)\b/i;
+const plain = (c) => `${String(c.front || '').replace(/\{\{(?:\d+::)?([\s\S]+?)(?:::[\s\S]*?)?\}\}/g, '$1')} ${c.back || ''}`;
+const frontWords = (c) => tokensOf(String(c.front || '').replace(/\{\{(?:\d+::)?([\s\S]+?)(?:::[\s\S]*?)?\}\}/g, '$1')).words;
+const jaccard = (a, b) => {
+  if (!a.size || !b.size) return 0;
+  let n = 0;
+  a.forEach((w) => { if (b.has(w)) n++; });
+  return n / (a.size + b.size - n);
+};
+
+/** Two cards that test the same thing: the fronts mostly share words, or
+ *  the whole cards do. */
+export function nearDuplicate(a, b) {
+  if (jaccard(frontWords(a), frontWords(b)) >= 0.7) return true;
+  return jaccard(tokensOf(plain(a)).words, tokensOf(plain(b)).words) >= 0.75;
+}
+
+/** How good a card looks, for ranking within a priority. */
+function cardScore(c) {
+  let s = 0;
+  if (/\b(is|are|means|refers to|defined as|=|equals)\b|`/.test(c.back || '') || c.kind === 'cloze') s += 1;
+  if (/^(why|how)\b/i.test(c.front || '')) s += 1;
+  s -= (String(c.front || '').length + String(c.back || '').length) / 400;
+  return s;
+}
+
+/**
+ * The model's cards, filtered — runs whatever the prompt said:
+ *   1. meta/trivia cards dropped (about pages, slides, the textbook…)
+ *   2. yes/no cards, and cards whose answer is on their front, dropped
+ *   3. near-duplicates dropped, within the topic and against `existing`
+ *      (the class's other cards: {front, back} or {q, a})
+ *   4. ranked by priority then score: the best `budget.max` are active, up
+ *      to `budget.max` more are suggestions, the rest are dropped.
+ * @returns {{ active, suggested, dropped: {meta, yesno, self, dup, over} }}
+ */
+export function filterCards(list, { budget = { max: 12 }, existing = [] } = {}) {
+  const dropped = { meta: 0, yesno: 0, self: 0, dup: 0, over: 0 };
+  const prior = existing.map((c) => ({ front: c.front ?? c.q ?? '', back: c.back ?? c.a ?? '' }));
+  const kept = [];
+  for (const c of list || []) {
+    const front = String(c.front || ''), back = String(c.back || '');
+    if (isMetaCard(front)) { dropped.meta++; continue; }
+    if (c.kind !== 'cloze' && YESNO_FRONT.test(front) && /^(yes|no)\b/i.test(back)) { dropped.yesno++; continue; }
+    if (c.kind !== 'cloze' && back.trim().length >= 3) {
+      const nb = back.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+      const nf = front.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ');
+      if (nb.length >= 3 && nf.includes(nb)) { dropped.self++; continue; }
+    }
+    const twin = kept.findIndex((k) => nearDuplicate(k, c));
+    if (twin >= 0) {
+      dropped.dup++;
+      // Keep the higher priority; on a tie, the shorter.
+      const k = kept[twin];
+      if ((c.priority || 2) < (k.priority || 2)
+        || ((c.priority || 2) === (k.priority || 2) && plain(c).length < plain(k).length)) kept[twin] = c;
+      continue;
+    }
+    if (prior.some((p) => nearDuplicate(p, c))) { dropped.dup++; continue; }
+    kept.push(c);
+  }
+  const max = Math.max(0, budget.max || 0);
+  const ranked = kept.map((c, i) => ({ c, i, p: c.priority === 1 ? 1 : 2, sc: cardScore(c) }))
+    .sort((a, b) => a.p - b.p || b.sc - a.sc || a.i - b.i);
+  // Within each tier, the cards stay in the order the lesson taught them.
+  const pick = (xs) => xs.sort((a, b) => a.i - b.i).map((x) => x.c);
+  const active = pick(ranked.slice(0, max));
+  const suggested = pick(ranked.slice(max, max * 2));
+  dropped.over = Math.max(0, ranked.length - max * 2);
+  return { active, suggested, dropped };
+}
+
+// ── The content sanity gate (§6.4) ───────────────────────────────────────
+/* The case: a repair ask that received nothing returned schema-valid filler —
+ * "No malformed JSON was provided to repair, so this is a placeholder…" — and
+ * it was saved as a lesson, with economics topics for a computer-architecture
+ * chapter. Shape checks cannot catch that; these can. */
+const FILLER = /placeholder|malformed json|no (json|content|document|text) (was|were|has been) (provided|supplied|given)|as an ai\b|\bI (cannot|can't|am unable to) (access|see|read|view|open)|lorem ipsum/i;
+
+/** Why a lesson must not be saved, or ''. */
+export function sanityProblem(blocks, { pages = 0, sourceChars = Infinity } = {}) {
+  const all = lessonText(blocks, []);
+  if (FILLER.test(all)) return 'the answer was filler, not a lesson';
+  const teaching = (blocks || []).filter((b) => b.kind === 'read' || b.kind === 'example' || b.kind === 'steps')
+    .map((b) => (b.markdown || '') + (b.steps || []).map((x) => x.body || '').join(' ')).join(' ');
+  // 600 characters, or half the pages' own text when they are sparser than that.
+  const floor = Math.min(600, sourceChars * 0.5);
+  if (pages >= 2 && teaching.replace(/\s+/g, ' ').length < floor) return 'the lesson is too short to teach its pages';
+  return '';
 }
 
 /** Every figure page of the topic is in its lesson: a page no figure block
@@ -485,7 +722,8 @@ export function pageItems(page) {
  *   words     every word stem in the document
  */
 export function sourceModel(pages) {
-  const m = { pages, items: new Map(), content: [], dupOf: new Map(), words: new Set(), max: pages.length };
+  const m = { pages, items: new Map(), content: [], dupOf: new Map(), words: new Set(), max: pages.length,
+    boilerplate: new Set(), objectives: [] };
   const seen = new Map();
   for (const p of pages) {
     const items = pageItems(p);
@@ -495,6 +733,14 @@ export function sourceModel(pages) {
     const key = [...tk.words].sort().join(' ') + '|' + [...tk.nums].sort().join(' ');
     if (seen.has(key)) { m.dupOf.set(p.n, seen.get(key)); continue; }
     seen.set(key, p.n);
+    const bp = boilerplateKind(items, tk.words.size);
+    if (bp) {
+      m.boilerplate.add(p.n);
+      // An objectives slide is not material, but it IS a checklist: its
+      // bullets go to the lessons as what the course says she should be able to do.
+      if (bp === 'objectives') m.objectives.push(...items.filter((i) => !i.title).map((i) => i.text).slice(0, 20));
+      continue;
+    }
     // A picture teaches too: a slide that is only a title and a diagram is material.
     if (tk.words.size >= 4 || p.figure) m.content.push(p.n);
   }
@@ -502,7 +748,27 @@ export function sourceModel(pages) {
   // each section — not material of its own; its first showing included.
   const repeated = new Set(m.dupOf.values());
   m.content = m.content.filter((n) => !repeated.has(n));
+  m.objectives = [...new Set(m.objectives)].slice(0, 30);
   return m;
+}
+
+/* A page that names or frames the material rather than teaching it: a
+ * copyright notice, acknowledgements, an objectives / agenda / outline slide,
+ * references, "Questions?", "Thank you". A matched slide TITLE is enough when
+ * the page is short; anywhere on the page counts only for the legal notices.
+ * The copyright slide that became a 34-card topic is why this exists. */
+const BOILER_TITLE = /^\s*(chapter\s+\d+\s+)?((learning\s+)?(objectives?|goals|outcomes)|agenda|outline|overview of (the )?(chapter|lecture)|contents|table of contents|references|bibliography|further reading|acknowledge?ments?|credits|questions\s*\??|any questions\s*\??|q\s*&\s*a|thank\s*you\.?|the end|copyright( notice)?)\s*[:.!]?\s*$/i;
+const BOILER_ANY = /copyright\s*(©|\(c\)|\d{4})|©\s*\d{4}|all rights reserved|acknowledg(e)?ments?\b/i;
+
+export function boilerplateKind(items, uniqueWords) {
+  if (!items.length) return '';
+  const title = (items.find((i) => i.title) || items[0]).text;
+  const text = items.map((i) => i.text).join(' ');
+  if (BOILER_TITLE.test(title) && uniqueWords < 80) {
+    return /objective|goal|outcome/i.test(title) ? 'objectives' : 'frame';
+  }
+  if (BOILER_ANY.test(text) && uniqueWords < 45) return 'legal';
+  return '';
 }
 
 /** The prompt text of some pages ("--- page N ---" markers); a repeated
@@ -561,15 +827,27 @@ function pageList(nums) {
 
 /** Topics for pages no topic covered: one per run of adjacent content pages,
  *  holding those pages' items as its checklist — so the whole document is
- *  always taught, even when the model's list skipped some of it. */
-export function fallbackTopics(uncovered, model) {
+ *  always taught, even when the model's list skipped some of it.
+ *  With `topics` (the model's list), a run of 1-2 pages that shares
+ *  vocabulary with the topic right next to it joins THAT topic instead (its
+ *  pages and checklist grow): a one-slide topic is a lesson of one slide. */
+export function fallbackTopics(uncovered, model, topics = null) {
   const runs = [];
   const order = model.content;
   for (const n of uncovered) {
     const last = runs[runs.length - 1];
     if (last && order.indexOf(n) === order.indexOf(last[last.length - 1]) + 1) last.push(n); else runs.push([n]);
   }
-  return runs.map((run) => {
+  const own = [];
+  for (const run of runs) {
+    const host = topics && run.length <= 2 ? neighbour(run, model, topics) : null;
+    if (!host) { own.push(run); continue; }
+    const items = run.flatMap((n) => model.items.get(n) || []).filter((i) => !i.title);
+    host.pages = [host.pages, run.length === 1 ? String(run[0]) : `${run[0]}-${run[run.length - 1]}`].filter(Boolean).join(', ');
+    host.key_points = [...(host.key_points || []), ...items.map((i) => i.text)].slice(0, 40);
+    host.absorbed = (host.absorbed || 0) + run.length;
+  }
+  return own.map((run) => {
     const items = run.flatMap((n) => model.items.get(n) || []);
     const head = items.find((i) => i.title) || items[0];
     const name = String(head ? head.text : 'More material').replace(/\s*\(?['‘’]?\s*cont\.?\)?\s*$/i, '').slice(0, 120);
@@ -582,6 +860,29 @@ export function fallbackTopics(uncovered, model) {
       added: true,
     };
   });
+}
+
+/** The topic right before or after a run of pages that the run belongs
+ *  with: it shares a fifth of the run's words, or the run is too thin to be
+ *  a lesson of its own. Null when neither neighbour fits. */
+function neighbour(run, model, topics) {
+  const a = run[0], b = run[run.length - 1];
+  const words = tokensOf(run.flatMap((n) => model.items.get(n) || []).map((i) => i.text).join('\n')).words;
+  const spanOf = (t) => parsePages(t.pages, model.max).pages;
+  let best = null, bestScore = -1;
+  for (const t of topics) {
+    const span = spanOf(t);
+    if (!span.length) continue;
+    const gap = Math.min(...span.map((n) => (n < a ? a - n : n > b ? n - b : 0)));
+    if (gap > 2) continue;                        // not adjacent
+    const tw = tokensOf([t.title, ...(t.key_points || [])].join('\n')).words;
+    let hit = 0;
+    words.forEach((w) => { if (tw.has(w)) hit++; });
+    const score = words.size ? hit / words.size : 0;
+    if (score > bestScore) { bestScore = score; best = t; }
+  }
+  if (!best) return null;
+  return bestScore >= 0.2 || words.size < 20 ? best : null;
 }
 
 /** Everything a lesson says, as one text: blocks, checks, recap, cards. */
@@ -603,6 +904,9 @@ export function itemMissing(item, lessonTokens) {
   if (item.title) return false;
   const tk = tokensOf(item.text);
   if (!tk.words.size && !tk.nums.size) return false;
+  // A heading fragment ("Kilo-", "Examples") is not worth a follow-up ask:
+  // only lines with 4+ meaningful words, or any number, can be gaps.
+  if (!tk.nums.size && tk.words.size < 4) return false;
   for (const n of tk.nums) if (!lessonTokens.nums.has(n)) return true;
   if (!tk.words.size) return false;
   let hit = 0;
@@ -1015,7 +1319,7 @@ async function listTopics(doc, pdf, className, ctx) {
       attached: ctx.attached || withFile, feedback, instructions: instructionsOf(doc) }),
     pdf, docText: ctx.textOnly ? '' : undefined, attachFile: withFile,
     schema: TOPICS_SCHEMA, validate: validateTopics, maxTokens: 32000,
-    key: `bd:${doc.fileId}:r${doc.rev}:topics${attempt ? ':g' + attempt : ''}${withFile ? ':file' : ''}${instrKey(doc)}`, fileId: doc.fileId,
+    key: `bd${PROMPT_V}:${doc.fileId}:r${doc.rev}:topics${attempt ? ':g' + attempt : ''}${withFile ? ':file' : ''}${instrKey(doc)}`, fileId: doc.fileId,
     resumeJobId: attempt ? doc.topicsJobId2 : doc.topicsJobId,
     onJob: (id, main) => { if (main) { doc[attempt ? 'topicsJobId2' : 'topicsJobId'] = id; save(doc); } },
     onWait: waitOn(doc, null),
@@ -1039,12 +1343,14 @@ async function listTopics(doc, pdf, className, ctx) {
       if (e && (e.kind === 'setup' || e.kind === 'auth')) throw e;
     }
   }
+  // Any invented topic is dropped; a list that is more than 30% invention is
+  // not trusted at all — the model most likely never saw the document.
   const real = data.topics.filter((t) => !g.invented.includes(t));
-  if (!real.length || g.invented.length * 2 > data.topics.length) {
+  if (!real.length || g.invented.length > data.topics.length * 0.3) {
     throw new ai.AIError(`The topics ${ctx.who} listed don't match this document — the model probably never ` +
       'received its text. Nothing was saved and no cards were added.', { kind: 'ungrounded' });
   }
-  const added = fallbackTopics(g.uncovered, ctx.model);
+  const added = fallbackTopics(g.uncovered, ctx.model, real);
   // Document order: each added topic goes before the first topic that starts after it.
   const first = (t) => { const p = parsePages(t.pages, ctx.model.max).pages; return p.length ? p[0] : Infinity; };
   const topics = [...real];
@@ -1055,6 +1361,7 @@ async function listTopics(doc, pdf, className, ctx) {
   return { topics, checks: {
     pages: ctx.model.max, content: ctx.model.content.length, asked,
     dropped: g.invented.map((t) => t.title), added: added.length, pdfSent,
+    boilerplate: ctx.model.boilerplate.size,
   } };
 }
 
@@ -1084,6 +1391,12 @@ async function writeTopic(doc, topic, pdf, className, ctx) {
       try { images = await _renderPages(pdf.b64, figs); }
       catch (e) { console.warn('[breakdown] could not render figures:', e && e.message); images = []; }
     }
+    const budget = cardBudget(topic);
+    const noteId = noteIdFor(doc.fileId, topic.id);
+    // What the rest of the class already has cards for — the model is told,
+    // and filterCards drops near-copies whatever the model does.
+    const existing = deck.forClass(doc.classId).filter((c) => c.sourceNoteId !== noteId);
+    const written = doc.topics.filter((t) => t.status === 'ready' && t.id !== topic.id);
     const ask = (withAtt) => {
       const imgs = withAtt ? images : [];
       const withFile = withAtt && ctx.sendsFile;
@@ -1091,12 +1404,14 @@ async function writeTopic(doc, topic, pdf, className, ctx) {
         system: SYSTEM,
         prompt: lessonPrompt({ className, sourceName: doc.sourceName, topic,
           index: doc.topics.indexOf(topic), all: doc.topics, source: src, attached: ctx.attached || withFile,
-          figures: imgs.map((i) => i.n), figurePages: figPages, instructions: instructionsOf(doc) }),
+          figures: imgs.map((i) => i.n), figurePages: figPages, instructions: instructionsOf(doc),
+          budget, written, carded: existing.filter(deck.isActive).map((c) => c.q).slice(-60),
+          objectives: (ctx.model && ctx.model.objectives) || [] }),
         // Text-only: the topic's pages are in the prompt; without them, send the whole text.
         pdf, docText: ctx.textOnly ? (src ? '' : ctx.source) : undefined,
         attachFile: withFile, images: imgs.map((i) => i.url),
         schema: LESSON_SCHEMA, validate: (o) => validateLesson(o, { figurePages: figPages, allowFigures: true }), maxTokens: 64000,
-        key: `bd:${doc.fileId}:r${doc.rev}:${topic.id}:v${topic.rev || 0}${withAtt ? ':att' : ''}${instrKey(doc)}`, fileId: doc.fileId,
+        key: `bd${PROMPT_V}:${doc.fileId}:r${doc.rev}:${topic.id}:v${topic.rev || 0}${withAtt ? ':att' : ''}${instrKey(doc)}`, fileId: doc.fileId,
         resumeJobId: topic.jobId,
         onJob: (id, main) => { if (main) { topic.jobId = id; save(doc); } },
         onWait: waitOn(doc, topic),
@@ -1107,17 +1422,35 @@ async function writeTopic(doc, topic, pdf, className, ctx) {
     topic.pdfSent = attached && ctx.sendsFile;
     topic.figures = attached ? images.map((i) => i.n) : [];
     topic.figuresSkipped = figs.filter((n) => !topic.figures.includes(n));
+    const contentPages = span.filter((n) => ctx.model && ctx.model.content.includes(n));
+    const sourceChars = ctx.model
+      ? contentPages.flatMap((n) => ctx.model.items.get(n) || []).reduce((k, i) => k + i.text.length, 0) : Infinity;
+    const insane = sanityProblem(data.blocks, { pages: contentPages.length, sourceChars });
+    if (insane) {
+      throw new ai.AIError(`The lesson was not saved: ${insane}.`, { kind: 'ungrounded', retryable: true });
+    }
     if (span.length) {
       const recall = lessonRecall(ctx.model, span, tokensOf(lessonText(data.blocks, data.flashcards)));
+      topic.recall = Math.round(recall * 100) / 100;
       if (recall < UNGROUNDED_BELOW) {
         throw new ai.AIError(`The lesson does not match ${pageList(span)} of the document (it uses ${Math.round(recall * 100)}% ` +
           'of their words), so it was not saved.', { kind: 'ungrounded', retryable: true });
       }
     }
-    const r = deck.addExternal(doc.classId, doc.moduleId, data.flashcards,
-      { noteId: noteIdFor(doc.fileId, topic.id), title: topic.title });
+    // The best cards join reviews; the next best wait as suggestions; the
+    // rest — meta, duplicates, over budget — are not kept (§6.3).
+    const picked = filterCards(data.flashcards, { budget, existing });
+    const items = [
+      ...picked.active.map((c) => ({ ...c, status: 'active' })),
+      ...picked.suggested.map((c) => ({ ...c, status: 'suggested' })),
+    ];
+    const r = deck.addExternal(doc.classId, doc.moduleId, items, { noteId, title: topic.title });
     topic.lesson = { blocks: placeFigures(data.blocks, figPages) };
-    topic.cardCount = data.flashcards.length;
+    const held = deck.forClass(doc.classId).filter((c) => c.sourceNoteId === noteId);
+    topic.cardCount = held.filter(deck.isActive).length;
+    topic.suggested = held.filter((c) => deck.statusOf(c) === 'suggested').length;
+    topic.cardsDropped = picked.dropped;
+    topic.stripped = data.stripped || 0;
     topic.cardsAdded = r.added.length;
     topic.gapChecked = false;
     topic.gaps = [];
@@ -1216,27 +1549,22 @@ async function askGaps(doc, topic, items, className, ctx) {
       source: span.length ? sourceText(ctx.model, span) : '', instructions: instructionsOf(doc) }),
     // The missing lines are in the prompt, verbatim: no need to send the PDF again.
     pdf: null, docText: '',
-    schema: LESSON_SCHEMA, validate: validateLesson, maxTokens: 64000,
-    key: `bd:${doc.fileId}:r${doc.rev}:${topic.id}:v${topic.rev || 0}:gaps${instrKey(doc)}`, fileId: doc.fileId,
+    schema: GAPS_SCHEMA, validate: (o) => validateLesson(o, { cards: false }), maxTokens: 64000,
+    key: `bd${PROMPT_V}:${doc.fileId}:r${doc.rev}:${topic.id}:v${topic.rev || 0}:gaps${instrKey(doc)}`, fileId: doc.fileId,
     resumeJobId: topic.gapJobId,
     onJob: (id, main) => { if (main) { topic.gapJobId = id; save(doc); } },
     onWait: waitOn(doc, topic),
   });
   delete topic.gapJobId;
+  // Lesson blocks only: the gap pass completes the LESSON, never the deck.
+  // A missing line worth a card is one click away in the reader.
   const blocks = topic.lesson.blocks;
   const add = data.blocks.filter((b) => b.kind !== 'recap');
   const recap = blocks.findIndex((b) => b.kind === 'recap');
-  topic.lesson = { blocks: recap < 0 ? [...blocks, ...add] : [...blocks.slice(0, recap), ...add, ...blocks.slice(recap)] };
-  const seen = new Set();
-  const cards = [...cardsOf(doc, topic), ...data.flashcards].filter((c) => {
-    const k = String(c.front).toLowerCase();
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
-  const r = deck.addExternal(doc.classId, doc.moduleId, cards, { noteId: noteIdFor(doc.fileId, topic.id), title: topic.title });
-  topic.cardCount = cards.length;
-  topic.cardsAdded = (topic.cardsAdded || 0) + r.added.length;
+  const joined = recap < 0 ? [...blocks, ...add] : [...blocks.slice(0, recap), ...add, ...blocks.slice(recap)];
+  const cleaned = cleanLesson(joined, { max: MAX_BLOCKS_FILLED });
+  topic.lesson = { blocks: cleaned.blocks };
+  topic.stripped = (topic.stripped || 0) + cleaned.stripped;
 }
 
 /** doc.checks: what was checked, for the status line. */
@@ -1322,17 +1650,47 @@ export async function resume() {
       for (const f of mod.files || []) {
         if (!f || !f.study || f.study.status !== 'running' || _running.has(f.id)) continue;
         const doc = await load(f.id);
-        if (!doc || doc.runningOn !== me) continue;
-        run(cls.id, mod.id, f).catch((e) => console.warn('[breakdown] resume failed:', f.name, e && e.message));
+        if (!doc) continue;
+        if (doc.runningOn === me) {
+          run(cls.id, mod.id, f).catch((e) => console.warn('[breakdown] resume failed:', f.name, e && e.message));
+        } else if (Date.now() - (doc.updatedAt || 0) > ORPHANED_MS) {
+          // The device running it has been silent for hours: it is not coming
+          // back for this one. Hand it over — "Continue" on any device finishes it.
+          delete doc.runningOn;
+          doc.status = 'partial';
+          doc.error = 'The breakdown was interrupted. Continue to finish it.';
+          save(doc);
+        }
       }
     }
   }
 }
 
+/** Save a breakdown doc (size-guarded, synced) — for the card migration. */
+export function saveDoc(doc) { save(doc); }
+
+const STALE_MS = 20 * 60 * 1000;
+const ORPHANED_MS = 2 * 60 * 60 * 1000;
+
+/** A breakdown that says "running" but is not running here, and has not
+ *  changed for 20 minutes: show "Interrupted — Continue", not "Writing 13/16"
+ *  forever. */
+export function isStale(doc, now = Date.now()) {
+  return !!doc && doc.status === 'running' && !_running.has(doc.fileId) && now - (doc.updatedAt || 0) > STALE_MS;
+}
+
+/** The card count a breakdown will likely produce, for the start sheet. */
+export function estimateCards(topicCount) {
+  const n = Math.max(1, topicCount || 8);
+  return { min: n * 4, max: n * 10 };
+}
+
 export default {
-  STYLES, KINDS, TOPICS_SCHEMA, LESSON_SCHEMA, topicsPrompt, lessonPrompt, gapsPrompt, STYLE_GUIDE,
+  STYLES, KINDS, TOPICS_SCHEMA, LESSON_SCHEMA, GAPS_SCHEMA, PROMPT_V, topicsPrompt, lessonPrompt, gapsPrompt, STYLE_GUIDE,
   validateTopics, validateLesson, validateQuestions, cleanSvg, placeFigures, mergeDocs,
-  tokensOf, parsePages, pageItems, sourceModel, sourceText, groundTopics, fallbackTopics, lessonText, itemMissing,
+  tokensOf, parsePages, pageItems, sourceModel, boilerplateKind, sourceText, groundTopics, fallbackTopics, lessonText, itemMissing,
   lessonRecall, setPageReader, setPageRenderer,
-  load, peek, run, regenerate, remove, setProgress, resume, isRunning, waitingOf, noteIdFor, notePrefixFor,
+  cleanLesson, stripCitations, stripMeta, cardBudget, filterCards, isMetaCard, nearDuplicate, sanityProblem,
+  load, peek, run, regenerate, remove, setProgress, resume, isRunning, isStale, estimateCards, waitingOf, noteIdFor, notePrefixFor,
+  saveDoc,
 };

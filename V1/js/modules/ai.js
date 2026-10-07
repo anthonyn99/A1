@@ -295,6 +295,8 @@ export function repairPrompt(error, answer, schemaHint) {
  * @param {(id:string)=>void} [o.onJob]  told the bridge job id once queued
  * @returns {Promise<{ data:object, provider:string, model:string }>}
  */
+const MIN_REPAIRABLE = 50;
+
 export async function generateJSON(o) {
   const a = active();
   if (a.problem) throw new AIError(a.problem, { kind: 'setup' });
@@ -330,6 +332,16 @@ export async function generateJSON(o) {
     text = stitch(text, continuationText(more));
     try { return done(checked(extractJSON(text), o.validate)); }
     catch (e) { firstErr = e; }
+  }
+
+  // An answer with no JSON in it — empty, or a short refusal like "Sorry, I
+  // can't" — has no content to repair: a repair ask could only INVENT one.
+  // That is how "No malformed JSON was provided to repair, so this is a
+  // placeholder…" was once saved as a lesson. Fail it as a retryable step.
+  const body = String(text || '').trim();
+  if (!body || (!/[{[]/.test(body) && body.length < MIN_REPAIRABLE * 4)) {
+    throw new AIError(body ? `The model answered without any JSON ("${body.slice(0, 60)}"), so there was nothing to repair.`
+      : 'The model sent back an empty answer, so there was nothing to repair.', { kind: 'bad_json', retryable: true });
   }
 
   // ONE repair ask, WITHOUT the source: the content is already there and only

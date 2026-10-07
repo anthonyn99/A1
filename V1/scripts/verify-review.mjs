@@ -86,8 +86,9 @@ t('cards were generated', gen.added >= 3, gen);
 t('several kinds produced', gen.kinds.length >= 2, gen.kinds);
 t('stored against the class', gen.total === gen.added);
 
-t('counts report them as studiable', (await evalJs(
-  'window.SOS.deck.countsFor("rv1").dueNow')) === gen.added);
+t('counts report them as studiable, capped by the daily new-card limit', (await evalJs(
+  'window.SOS.deck.countsFor("rv1").newAvailable')) === Math.min(gen.added, 15));
+t('unseen cards are not "due"', (await evalJs('window.SOS.deck.countsFor("rv1").due')) === 0);
 
 // ── Open the review surface ───────────────────────────────────────────────
 console.log('\nreview surface opens');

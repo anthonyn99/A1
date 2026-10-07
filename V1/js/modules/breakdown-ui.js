@@ -228,8 +228,9 @@ function openStart(cls, mod, f, { redo } = {}) {
       already reviewed keep their scheduling.</div>` : ''}
     <div style="font-size:13.5px;color:var(--text2);line-height:1.6">
       Lists every topic in this document, then writes each one a lesson — explained
-      simply, nothing left out — followed by its flashcards. The cards join your
-      reviews automatically.
+      simply, nothing left out — with a few key flashcards. Only the cards worth
+      remembering join your reviews (${(() => { const e = bd.estimateCards(8); return `about ${e.min}–${e.max} for a typical lecture`; })()});
+      the next best wait as suggestions you can add.
     </div>
     <div class="ais-note" style="font-size:12px;color:var(--text3);line-height:1.55;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin:14px 0 0">
       ${a.problem
@@ -286,6 +287,7 @@ async function renderPanel(panel, cls, mod, f) {
   const doc = await bd.load(f.id);
   if (!panel.isConnected) return;
   const running = bd.isRunning(f.id);
+  const stale = !running && bd.isStale(doc);
   if (!doc || doc.status === 'removed') {
     panel.innerHTML = `<div class="bd-status">${running ? 'Listing topics…' : 'No breakdown yet.'}</div>`;
     return;
@@ -301,9 +303,11 @@ async function renderPanel(panel, cls, mod, f) {
         : w ? esc(`Waiting for a free model until ${clock(w.until)}${w.why ? ` — ${w.why}` : ''}…`)
         : `Listing topics with ${esc(providerName(doc))}…`}</div>`);
   } else {
+    const suggested = topics.reduce((n, t) => n + (t.status === 'ready' ? (t.suggested || 0) : 0), 0);
     const status = running
       ? `Writing lessons — ${ready.length} of ${topics.length} done.`
-      : doc.error ? doc.error : `${topics.length} topics · ${cards} flashcards${writtenBy(topics)}${checksNote(doc.checks)}`;
+      : stale ? `Interrupted at ${ready.length} of ${topics.length}. Continue to finish it.`
+      : doc.error ? doc.error : `${topics.length} topics · ${cards} cards${suggested ? ` · ${suggested} suggested` : ''}${writtenBy(topics)}${checksNote(doc.checks)}`;
     const ins = doc.instructions && doc.instructions.text ? doc.instructions : null;
     html.push(`<div class="bd-status${doc.error && !running ? ' err' : ''}">${esc(status)}${doc.syncError ? ` · ${esc(doc.syncError)}` : ''}${
       ins ? ` · <span title="${esc(ins.text)}" style="cursor:help;border-bottom:1px dotted currentColor">prompt: ${esc(ins.name || 'custom')}</span>` : ''}</div>`);
@@ -314,6 +318,7 @@ async function renderPanel(panel, cls, mod, f) {
       const w = running && t.status === 'writing' && bd.waitingOf(f.id, t.id);
       const badge = ok ? `${t.cardCount || 0} cards${gaps ? ` · ⚠ ${gaps}` : ''}`
         : w ? `waiting · until ${clock(w.until)}`
+        : t.status === 'writing' && !running ? 'interrupted'
         : t.status === 'writing' ? `writing…${running && t.startedAt ? ' ' + minutes(t.startedAt) : ''}`
         : t.status === 'failed' ? (running && t.retryable ? 'retrying later' : 'failed')
         : running ? 'queued' : 'not written';
