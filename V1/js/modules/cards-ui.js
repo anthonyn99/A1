@@ -17,6 +17,7 @@ import * as deck from './deck.js';
 import * as cards from './cards.js';
 import { renderCard, escapeHtml as esc } from './md.js';
 import { store } from './store.js';
+import { cardSettings } from './card-settings.js';
 
 const LEECH_SYSTEM = 'You rewrite flashcards a student keeps forgetting, so they become easy to remember.';
 
@@ -139,7 +140,7 @@ export function decorateClass(cls) {
         <button class="sc-btn" data-newdeck title="Make a deck of your own">+ Deck</button>
         <button class="sc-btn" data-browse="${esc(JSON.stringify({ classId: cls.id }))}">Browse</button>
         <button class="sc-btn primary" data-study="${esc(JSON.stringify({ classId: cls.id }))}" ${total.due + total.new ? '' : 'disabled'}>
-          Study${total.due + Math.min(total.new, deck.newRemaining()) ? ` · ${total.due + Math.min(total.new, deck.newRemaining())}` : ''}</button>
+          Study${total.due + Math.min(total.new, deck.newRemaining(Date.now(), cls.id)) ? ` · ${total.due + Math.min(total.new, deck.newRemaining(Date.now(), cls.id))}` : ''}</button>
       </div>
       <div class="sc-meta" style="margin:0 0 6px 4px">${countsText(total)}</div>
       ${tree.children.map((n) => rowHtml(n, cls.id, 0)).join('')}
@@ -214,9 +215,157 @@ function wire(mount, cls, tree) {
   mount.querySelectorAll('[data-exam]').forEach((b) => b.addEventListener('click', () => examAction(cls, b.dataset.exam)));
 }
 
-// ── Exam mode (Phase 4 fills this in) ─────────────────────────────────────
-function examBanner() { return ''; }
-function examAction() {}
+// ── Exam mode (overhaul §7.6) ─────────────────────────────────────────────
+const DAY = 86400000;
+const EXAM_WINDOW_DAYS = 30;
+
+/** The next exam or quiz of a class: { name, type, at, days }, or null. */
+export function nextExam(classId, now = Date.now()) {
+  const today = new Date(now).toISOString().slice(0, 10);
+  let best = null;
+  for (const e of store.getEvents() || []) {
+    if (!e || e.classId !== classId || (e.type !== 'exam' && e.type !== 'quiz') || !e.date || e.date < today) continue;
+    const at = new Date(e.date + 'T09:00:00').getTime();
+    if (!best || at < best.at) best = { name: e.name || e.title || (e.type === 'quiz' ? 'Quiz' : 'Exam'), type: e.type, at };
+  }
+  if (!best) return null;
+  best.days = Math.max(0, Math.ceil((best.at - now) / DAY));
+  return best;
+}
+
+/** Check questions she got wrong in a lesson, due for a retry (the day after). */
+export function retriesOf(cls, now = Date.now()) {
+  const bd = window.SOS && window.SOS.breakdown;
+  if (!bd) return [];
+  const today = new Date(now); today.setHours(0, 0, 0, 0);
+  const out = [];
+  for (const mod of cls.modules || []) {
+    for (const f of mod.files || []) {
+      const doc = f && f.study && bd.peek(f.id);
+      if (!doc) continue;
+      for (const t of doc.topics || []) {
+        const p = t.progress || {};
+        if ((p.wrong || []).length && (p.wrongAt || 0) < today.getTime()) out.push({ fileId: f.id, topicId: t.id, title: t.title, n: p.wrong.length });
+      }
+    }
+  }
+  return out;
+}
+
+function examBanner(cls) {
+  const ex = nextExam(cls.id);
+  const retries = retriesOf(cls);
+  const bits = [];
+  if (ex && ex.days <= EXAM_WINDOW_DAYS) {
+    const m = deck.mastery(cls.id);
+    const plan = deck.planOf(cls.id);
+    const when = ex.days === 0 ? 'today' : ex.days === 1 ? 'tomorrow' : `in ${ex.days} days`;
+    bits.push(`<div class="sc-banner" data-exam-banner>
+      <span><b>${esc(ex.name)}</b> ${when}: ${m.total} card${m.total === 1 ? '' : 's'}, ${m.pct}% mastered${
+        plan ? ` · plan: ${plan.perDay} new a day until ${new Date(plan.until).toLocaleDateString([], { month: 'short', day: 'numeric' })}` : ''}</span>
+      <button class="sc-btn" data-exam="cram" title="Review your 30 weakest cards, schedule ignored">Cram weakest 30</button>
+      <button class="sc-btn" data-exam="${plan ? 'unplan' : 'plan'}" title="Spread the remaining new cards over the days left">${plan ? 'Stop the plan' : 'Plan'}</button>
+    </div>`);
+  }
+  if (retries.length) {
+    const n = retries.reduce((k, r) => k + r.n, 0);
+    bits.push(`<div class="sc-banner"><span>${n} check question${n === 1 ? '' : 's'} you missed — try ${n === 1 ? 'it' : 'them'} again.</span>
+      <button class="sc-btn" data-exam="retry">Retry</button></div>`);
+  }
+  return bits.join('');
+}
+
+function examAction(cls, act) {
+  const R = window.SOS && window.SOS.review;
+  if (act === 'cram') { if (R) R.startReview({ classId: cls.id }, { mode: 'cram', limit: 30 }); return; }
+  if (act === 'retry') {
+    const r = retriesOf(cls)[0];
+    const L = window.SOS && window.SOS.lessonUi;
+    if (r && L) L.open(r.fileId, r.topicId);
+    return;
+  }
+  if (act === 'unplan') { deck.setPlan(cls.id, null); decorateClass(cls); return; }
+  if (act === 'plan') {
+    const ex = nextExam(cls.id);
+    if (!ex) return;
+    const c = deck.countsFor(cls.id);
+    const unseen = c.unseen;
+    // Two days of margin before the exam, like the scheduler's compression.
+    const days = Math.max(1, ex.days - 2);
+    const perDay = Math.ceil(unseen / days);
+    const global = cardSettings().newPerDay;
+    if (!unseen) { toast('Nothing to plan', 'Every card of this class is already in your reviews.'); return; }
+    if (perDay <= global) {
+      toast('Already on track', `Your ${global} new cards a day cover the ${unseen} left before ${ex.name}.`);
+      return;
+    }
+    deck.setPlan(cls.id, { perDay, until: ex.at - 2 * DAY, examAt: ex.at });
+    toast('Plan set', `${perDay} new cards a day for ${cls.name} until ${new Date(ex.at - 2 * DAY).toLocaleDateString([], { month: 'short', day: 'numeric' })}.`);
+    decorateClass(cls);
+  }
+}
+
+function toast(title, body) {
+  try { if (window.showNotif) window.showNotif('🗓️', title, body); } catch (e) {}
+}
+
+// ── Suggested cards: triage, one at a time (overhaul §7.3) ────────────────
+/** Add (A) / Skip (S) / Edit (E) each suggestion of a scope. */
+export function openTriage(scope = {}) {
+  styleOnce();
+  const ids = scopeIds(scope);
+  const list = (scope.classId ? deck.forClass(scope.classId) : deck.all())
+    .filter((c) => (ids === null || ids.has(c.id)) && deck.statusOf(c) === 'suggested');
+  if (!list.length) { toast('No suggestions', 'This topic has no suggested cards left.'); return null; }
+  let i = 0, added = 0;
+  const el = document.createElement('div');
+  el.className = 'sc-ov';
+  document.body.appendChild(el);
+  const close = () => { document.removeEventListener('keydown', onKey, true); el.remove(); rerenderOpen(); if (scope.onClose) scope.onClose(added); };
+  const paint = () => {
+    if (i >= list.length) {
+      el.innerHTML = `<div style="margin:auto;text-align:center;padding:30px">
+        <div style="font-size:22px;font-family:Lora,serif;color:var(--accent);margin-bottom:10px">All sorted</div>
+        <div style="color:var(--text2);font-size:14px;margin-bottom:18px">${added} added to your reviews.</div>
+        <button class="sc-btn primary" data-close>Close</button></div>`;
+      el.querySelector('[data-close]').onclick = close;
+      return;
+    }
+    const c = deck.get(list[i].id) || list[i];
+    const front = cards.isClozeCard(c) ? cards.clozeText(c.q, 0, false, { marks: true }) : c.q;
+    const back = cards.isClozeCard(c) ? cards.clozeText(c.q, 0, true, { marks: true }) : c.a;
+    el.innerHTML = `
+      <div class="sc-ov-top"><h3>Suggested cards · ${i + 1} of ${list.length}</h3>
+        <button class="sc-btn" data-close title="Close (Esc)">✕</button></div>
+      <div style="flex:1;overflow:auto;display:flex;justify-content:center;padding:28px 20px">
+        <div style="width:100%;max-width:640px">
+          <div style="font-size:20px;line-height:1.5">${renderCard(front)}</div>
+          <div style="font-size:16px;line-height:1.6;border-top:1px solid var(--border);margin-top:18px;padding-top:18px;color:var(--text2)">${renderCard(back || '')}</div>
+          ${c.extra ? `<div style="font-size:14px;color:var(--text3);margin-top:12px">${renderCard(c.extra)}</div>` : ''}
+        </div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px));max-width:680px;width:100%;margin:0 auto">
+        <button class="sc-btn" data-skip style="min-height:52px">Skip <small style="color:var(--text3)">S</small></button>
+        <button class="sc-btn" data-edit style="min-height:52px">Edit <small style="color:var(--text3)">E</small></button>
+        <button class="sc-btn primary" data-add style="min-height:52px">Add <small>A</small></button>
+      </div>`;
+    el.querySelector('[data-close]').onclick = close;
+    el.querySelector('[data-skip]').onclick = () => { i++; paint(); };
+    el.querySelector('[data-add]').onclick = () => { deck.setStatus(c.id, 'active'); added++; i++; paint(); };
+    el.querySelector('[data-edit]').onclick = () => openEditor({ card: c, onSave: () => paint() });
+  };
+  const onKey = (e) => {
+    if (document.querySelector('.sc-ed')) return;
+    const k = e.key.toLowerCase();
+    if (k === 'escape') { e.preventDefault(); return close(); }
+    if (i >= list.length) return;
+    if (k === 'a') { e.preventDefault(); el.querySelector('[data-add]').click(); }
+    if (k === 's') { e.preventDefault(); el.querySelector('[data-skip]').click(); }
+    if (k === 'e') { e.preventDefault(); el.querySelector('[data-edit]').click(); }
+  };
+  document.addEventListener('keydown', onKey, true);
+  paint();
+  return { close, el };
+}
 
 // ── Browse ────────────────────────────────────────────────────────────────
 let _browse = null;
@@ -547,4 +696,4 @@ window.addEventListener('sos-changed', (e) => {
   }
 });
 
-export default { decorateClass, openBrowse, openEditor, rewriteLeech };
+export default { decorateClass, openBrowse, openEditor, openTriage, rewriteLeech, nextExam, retriesOf };

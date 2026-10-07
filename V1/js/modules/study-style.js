@@ -25,6 +25,13 @@ const CSS = `
 .sos-topics .bd-sum { font-size: 12px; color: var(--text3); line-height: 1.45; margin-top: 2px; }
 .sos-topics .bd-badge { flex-shrink: 0; font-size: 10.5px; font-family: var(--mono); color: var(--text3); padding-top: 3px; white-space: nowrap; }
 .sos-topics .bd-badge.fail { color: #ef9f9f; }
+.sos-topics .bd-ring { display: inline-flex; align-items: center; gap: 6px; }
+.sos-topics .bd-ring svg { flex-shrink: 0; }
+.sos-topics .bd-chip { background: none; border: 1px solid var(--border); color: var(--text2); border-radius: 999px; font: 10.5px var(--mono);
+  padding: 2px 8px; cursor: pointer; margin-left: 6px; }
+.sos-topics .bd-chip:hover { color: var(--accent2); border-color: var(--accent2); }
+.sos-topics .bd-info { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 12px; padding: 0 4px; }
+.sos-topics .bd-detail { font-size: 11px; color: var(--text3); line-height: 1.55; margin: 4px 0 8px; }
 .sos-topics .bd-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 0 4px; }
 .sos-topics .bd-actions button, .sos-topics .bd-row button { font-size: 11px; font-family: var(--mono); padding: 4px 10px;
   border-radius: 4px; border: 1px solid var(--border2); background: none; color: var(--text2); cursor: pointer; }
@@ -93,10 +100,9 @@ const CSS = `
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: inherit; }
 .sl-topicnav button:last-child { text-align: right; }
 .sl-topicnav button:hover { color: var(--accent2); }
-.sl-flip { background: var(--bg3); border: 1px solid var(--border2); border-radius: 10px; min-height: 170px; padding: 24px; cursor: pointer;
-  display: flex; flex-direction: column; justify-content: center; text-align: center; font-size: 17px; line-height: 1.55; color: var(--text); }
-.sl-flip .side { font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text3); font-family: var(--mono); margin-bottom: 10px; }
-.sl-flip.back { border-color: var(--accent); }
+.sl-add { text-decoration: none !important; opacity: .45; margin-left: 4px; white-space: nowrap; }
+li:hover > .sl-add, .sl-add:focus { opacity: 1; }
+@media (hover: none) { .sl-add { opacity: .7; } }
 .sl-muted { font-size: 12px; color: var(--text3); line-height: 1.5; }
 .sl-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
 .sl-link { background: none; border: none; color: var(--text3); font-size: 11px; font-family: var(--mono); cursor: pointer; text-decoration: underline; padding: 0; }

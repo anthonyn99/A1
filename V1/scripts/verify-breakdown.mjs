@@ -229,6 +229,15 @@ t('the file carries its summary', await evalJs(`(function(){
 console.log('\nthe lesson reader');
 await evalJs(`document.querySelector('[data-bd-panel="${FID}"] .bd-row').click(); true;`);
 await wait(600);
+const warm = await evalJs(`(function(){
+  var r = document.getElementById('sos-lesson-root');
+  return { count: (r.querySelector('.sl-count span')||{}).textContent, label: (r.querySelectorAll('.sl-count span')[1]||{}).textContent,
+           qs: r.querySelectorAll('.sl-q').length, next: (r.querySelector('[data-next]')||{}).textContent };
+})()`);
+t('a first open starts with a warm-up: two of the lesson\'s questions, before it', warm.count === '1 of 6' && /Warm up/.test(warm.label) && warm.qs === 2, warm);
+t('...which can be skipped', /Skip/.test(warm.next), warm.next);
+await evalJs(`document.querySelector('#sos-lesson-root [data-next]').click(); true;`);
+await wait(200);
 const l1 = await evalJs(`(function(){
   var v = document.getElementById('view-lesson');
   var r = document.getElementById('sos-lesson-root');
@@ -238,7 +247,7 @@ const l1 = await evalJs(`(function(){
            crumb: (r.querySelector('.sl-crumb')||{}).textContent };
 })()`);
 t('opens in the full-page reader', l1.active && l1.title === 'Candidate keys', l1);
-t('one screen of five (4 blocks + flashcards)', l1.count === '1 of 5', l1.count);
+t('then the lesson: six screens (warm-up + 4 blocks + key cards)', l1.count === '2 of 6', l1.count);
 t('says where it is: class and topic N of M', /CS 3410/.test(l1.crumb) && /Topic 1 of 2/.test(l1.crumb), l1.crumb);
 t('markdown renders', l1.strong, l1);
 await wait(300);
@@ -262,7 +271,7 @@ const onCheck = await evalJs(`(function(){
   return { count: document.querySelector('#sos-lesson-root .sl-count span').textContent, disabled: b && b.disabled,
            choices: document.querySelectorAll('#sos-lesson-root .sl-choice').length };
 })()`);
-t('the arrow key moved to the check', onCheck.count === '3 of 5', onCheck);
+t('the arrow key moved to the check', onCheck.count === '4 of 6', onCheck);
 t('Check waits until every question is answered', onCheck.disabled === true, onCheck);
 await evalJs(`(function(){
   var cs = Array.from(document.querySelectorAll('#sos-lesson-root .sl-choice'));
@@ -292,25 +301,25 @@ await evalJs(`document.querySelector('#sos-lesson-root [data-next]').click(); tr
 await wait(200);
 const cards = await evalJs(`(function(){
   var r = document.getElementById('sos-lesson-root');
-  var f = r.querySelector('.sl-flip');
-  return { count: r.querySelector('.sl-count span').textContent, flip: f && f.textContent, h: (r.querySelector('.sl-card h2')||{}).textContent,
+  return { count: r.querySelector('.sl-count span').textContent, h: (r.querySelector('.sl-card h2')||{}).textContent,
+           learn: !!r.querySelector('[data-learn]'), add: r.querySelectorAll('.sl-add').length,
            nextTopic: !!r.querySelector('.sl-nav [data-topic]') };
 })()`);
-t('the last screen is the flashcards', cards.count === '5 of 5' && /Flashcards · 2/.test(cards.h), cards);
-t('it shows a question first', /Question/.test(cards.flip), cards.flip);
+t('the last screen is "Learn the key cards" — not a flip-through of every card', cards.count === '6 of 6' && /Learn the key cards \(2\)/.test(cards.h) && cards.learn, cards);
 t('and offers the next topic', cards.nextTopic);
-await evalJs(`document.querySelector('#sos-lesson-root .sl-flip').click(); true;`);
-await wait(100);
-t('tap flips to the answer', /Answer/.test(await evalJs(`document.querySelector('#sos-lesson-root .sl-flip').textContent`)));
+t('the missed check question is kept for a retry (no card made)', await evalJs(`(function(){
+  var p = window.SOS.breakdown.peek('${FID}').topics[0].progress;
+  return !!(p && p.wrong && p.wrong.length === 1 && p.wrong[0].q === 0);
+})()`));
 
-await evalJs(`document.querySelector('#sos-lesson-root [data-review]').click(); true;`);
+await evalJs(`document.querySelector('#sos-lesson-root [data-learn]').click(); true;`);
 await wait(500);
 const rv = await evalJs(`(function(){
   var o = document.querySelector('.sos-review');
-  return o ? { count: (o.querySelector('[data-count]')||{}).textContent } : null;
+  return o ? { count: (o.querySelector('[data-count]')||{}).textContent, mode: (o.querySelector('.sos-review-mode')||{}).textContent } : null;
 })()`);
-t('"Review these now" opens a review', !!rv, rv);
-t('...of this topic\'s 2 cards only', rv && /\/ ?2\b/.test(rv.count), rv);
+t('"Learn" opens the learn flow', !!rv && /New card/i.test(rv.mode || ''), rv);
+t('...of this topic\'s 2 key cards only', rv && /\/ ?2\b/.test(rv.count), rv);
 await evalJs(`window.SOS.review.closeReview && window.SOS.review.closeReview(); true;`);
 await wait(2200);
 
@@ -318,6 +327,53 @@ t('finishing the lesson is remembered', await evalJs(`(function(){
   var d = window.SOS.breakdown.peek('${FID}');
   return !!(d && d.topics[0].progress && d.topics[0].progress.done);
 })()`));
+
+console.log('\nthe next day: missed checks come back; a card from a selection');
+const retry = await evalJs(`(async function(){
+  var bd = window.SOS.breakdown;
+  var p = bd.peek('${FID}').topics[0].progress;
+  bd.setProgress('${FID}', bd.peek('${FID}').topics[0].id, { wrongAt: Date.now() - 2 * 86400000 });
+  await window.SOS.lessonUi.open('${FID}', bd.peek('${FID}').topics[0].id);
+  await new Promise(r => setTimeout(r, 300));
+  var r = document.getElementById('sos-lesson-root');
+  var out = { label: (r.querySelectorAll('.sl-count span')[1]||{}).textContent, qs: r.querySelectorAll('.sl-q').length };
+  // Answer it right this time: the retry clears it.
+  var right = Array.from(r.querySelectorAll('.sl-choice')).find(b => b.dataset.choice === 'Candidate key');
+  right.click();
+  await new Promise(r => setTimeout(r, 100));
+  document.querySelector('#sos-lesson-root [data-check]').click();
+  await new Promise(r => setTimeout(r, 200));
+  out.cleared = (bd.peek('${FID}').topics[0].progress.wrong || []).length === 0;
+  return out;
+})()`);
+t('a lesson opened the day after starts with the question she missed', /Retry/.test(retry.label || '') && retry.qs === 1, retry);
+t('answering it right clears it', retry.cleared === true, retry);
+
+const sel = await evalJs(`(async function(){
+  var r = document.getElementById('sos-lesson-root');
+  document.querySelector('#sos-lesson-root [data-next]').click();          // to the first lesson block
+  await new Promise(x => setTimeout(x, 200));
+  var strong = document.querySelector('#sos-lesson-root .sl-prose strong');
+  var range = document.createRange();
+  range.selectNodeContents(strong);
+  var s = window.getSelection(); s.removeAllRanges(); s.addRange(range);
+  document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+  await new Promise(x => setTimeout(x, 100));
+  var bar = document.querySelector('.sl-selbar');
+  if (!bar) return { bar: false };
+  bar.querySelector('[data-sel="cloze"]').click();
+  await new Promise(x => setTimeout(x, 200));
+  var ta = document.querySelector('.sc-ed textarea');
+  var prefill = ta && ta.value;
+  document.querySelector('.sc-ed [data-save]').click();
+  await new Promise(x => setTimeout(x, 200));
+  var noteId = window.SOS.breakdown.noteIdFor('${FID}', window.SOS.breakdown.peek('${FID}').topics[0].id);
+  var made = window.SOS.deck.forClass('bd1').find(c => c.sourceNoteId === noteId && /\\{\\{1::superkey\\}\\}/.test(c.q));
+  return { bar: true, prefill: prefill, made: !!made, kind: made && made.kind };
+})()`);
+t('selecting text offers ＋ Card / ＋ Cloze', sel.bar === true, sel);
+t('＋ Cloze pre-fills the sentence with the selection as the blank', /\{\{1::superkey\}\}/.test(sel.prefill || ''), sel);
+t('the card is filed under this topic, as a cloze', sel.made && sel.kind === 'cloze', sel);
 
 console.log('\nback to the document');
 await evalJs(`document.querySelector('#sos-lesson-root .sl-back').click(); true;`);

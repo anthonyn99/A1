@@ -201,6 +201,58 @@ await evalJs(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape
 await W(200);
 t('Esc closes Browse', (await evalJs('!document.querySelector(".sc-ov")')) === true);
 
+console.log('\nsuggested cards: triage');
+const tri = await evalJs(`(async () => {
+  const w = (ms) => new Promise(r => setTimeout(r, ms));
+  const D = window.SOS.deck;
+  const two = D.forClass('dk1').filter(c => c.sourceNoteId === 'topic_fileA_t11aa').slice(0, 2);
+  D.setStatus(two.map(c => c.id), 'suggested');
+  window.SOS.cardsUi.openTriage({ classId: 'dk1', noteId: 'topic_fileA_t11aa' });
+  await w(200);
+  const head = document.querySelector('.sc-ov h3').textContent;
+  const fire = (k) => document.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true }));
+  fire('a'); await w(120);
+  fire('s'); await w(120);
+  const done = /All sorted/.test(document.querySelector('.sc-ov').textContent);
+  fire('Escape'); await w(120);
+  return { head, done, a: D.statusOf(D.get(two[0].id)), b: D.statusOf(D.get(two[1].id)), closed: !document.querySelector('.sc-ov') };
+})()`);
+t('triage shows suggestions one at a time', /1 of 2/.test(tri.head), tri);
+t('A adds, S skips (it stays a suggestion)', tri.a === 'active' && tri.b === 'suggested', tri);
+t('it says when everything is sorted, and Esc closes', tri.done && tri.closed, tri);
+
+console.log('\nexam mode');
+const ex = await evalJs(`(async () => {
+  const w = (ms) => new Promise(r => setTimeout(r, ms));
+  const D = window.SOS.deck;
+  localStorage.setItem('studyos_cards_settings_v1', JSON.stringify({ newPerDay: 1 }));
+  const date = new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10);
+  events.push({ id: 'dkx', classId: 'dk1', type: 'exam', name: 'Midterm', date });
+  D.addCards('dk1', Array.from({ length: 16 }, (_, i) => ({ front: 'What is fact number ' + i + ' of the unit?', back: 'Fact ' + i + ' explained.' })), { noteId: 'manual', readAt: 1 });
+  window.sosDecorateClass(classes.find(c => c.id === 'dk1'));
+  await w(150);
+  const banner = document.querySelector('#class-cards [data-exam-banner]');
+  const text = banner && banner.textContent.replace(/\\s+/g, ' ');
+  document.querySelector('#class-cards [data-exam="plan"]').click();
+  await w(200);
+  const plan = D.planOf('dk1');
+  const after = (document.querySelector('#class-cards [data-exam-banner]') || {}).textContent || '';
+  const allowance = D.newRemaining(Date.now(), 'dk1');
+  document.querySelector('#class-cards [data-exam="cram"]').click();
+  await w(250);
+  const cram = { open: !!document.querySelector('.sos-review'), mode: (document.querySelector('.sos-review-mode') || {}).textContent };
+  window.SOS.review.closeReview();
+  localStorage.removeItem('studyos_cards_settings_v1');
+  events.splice(events.findIndex(e => e.id === 'dkx'), 1);
+  D.setPlan('dk1', null);
+  return { text, plan, after: after.replace(/\\s+/g, ' '), allowance, cram };
+})()`);
+t('the class page names the exam, its cards and mastery', ex.text && /Midterm in 1[01] days: \d+ cards, \d+% mastered/.test(ex.text), ex.text);
+t('Plan spreads the remaining new cards over the days left', ex.plan && ex.plan.perDay >= 2 && ex.plan.until < Date.now() + 10 * 86400000, ex.plan);
+t('...raising this class\'s daily allowance past the global cap of 1', ex.allowance > 1, ex.allowance);
+t('...and the banner says so', /plan: \d+ new a day/.test(ex.after), ex.after);
+t('Cram weakest 30 opens a cram session', ex.cram.open && /Cram/.test(ex.cram.mode || ''), ex.cram);
+
 const errs = events
   .filter((e) => e.method === 'Runtime.exceptionThrown')
   .map((e) => e.params.exceptionDetails?.exception?.description || '?')

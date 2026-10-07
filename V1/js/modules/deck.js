@@ -151,10 +151,11 @@ export function load() {
 export function metaOf(classId) {
   load();
   const m = _meta.get(classId) || {};
-  return { v: m.v || 1, decks: Array.isArray(m.decks) ? m.decks : [] };
+  return { v: m.v || 1, decks: Array.isArray(m.decks) ? m.decks : [], ...(m.plan ? { plan: m.plan } : {}) };
 }
 
-/** Merge meta from two devices: the higher version; decks by id, newest wins. */
+/** Merge meta from two devices: the higher version; decks by id and the
+ *  exam plan, newest wins. */
 export function mergeMeta(a, b) {
   const A = a || {}, B = b || {};
   const byId = new Map();
@@ -163,7 +164,10 @@ export function mergeMeta(a, b) {
     const p = byId.get(d.id);
     if (!p || (d.updatedAt || 0) > (p.updatedAt || 0)) byId.set(d.id, d);
   }
-  return { v: Math.max(A.v || 1, B.v || 1), decks: [...byId.values()] };
+  const out = { v: Math.max(A.v || 1, B.v || 1), decks: [...byId.values()] };
+  const plan = [A.plan, B.plan].filter(Boolean).sort((x, y) => (y.updatedAt || 0) - (x.updatedAt || 0))[0];
+  if (plan) out.plan = plan;
+  return out;
 }
 
 export function setMeta(classId, patch) {
@@ -286,18 +290,37 @@ export function get(cardId) {
 /** Local midnight of `now`'s day. */
 function dayStart(now) { const d = new Date(now); d.setHours(0, 0, 0, 0); return d.getTime(); }
 
-/** New cards introduced today, across every class (the cap is global).
- *  Derived from the cards, so every device agrees once they have synced. */
-export function introducedToday(now = Date.now()) {
+/** New cards introduced today, across every class (the cap is global), or
+ *  in one class. Derived from the cards, so every device agrees once synced. */
+export function introducedToday(now = Date.now(), classId = null) {
   const from = dayStart(now);
   let n = 0;
-  for (const c of all()) if ((c.introducedAt || 0) >= from && (c.introducedAt || 0) <= now + DAY) n++;
+  for (const c of classId ? forClass(classId) : all()) if ((c.introducedAt || 0) >= from && (c.introducedAt || 0) <= now + DAY) n++;
   return n;
 }
 
-/** How many more new cards today's cap lets in. */
-export function newRemaining(now = Date.now()) {
-  return Math.max(0, cardSettings().newPerDay - introducedToday(now));
+/** A class's exam plan, while it lasts: { perDay, until, examAt }. */
+export function planOf(classId, now = Date.now()) {
+  if (!classId) return null;
+  const p = metaOf(classId).plan;
+  return p && p.until > now && p.perDay > 0 ? p : null;
+}
+
+/** Set (or with perDay 0: clear) a class's exam plan. */
+export function setPlan(classId, plan) {
+  setMeta(classId, { plan: plan && plan.perDay > 0 ? { ...plan, updatedAt: Date.now() } : { perDay: 0, until: 0, updatedAt: Date.now() } });
+}
+
+/**
+ * How many more new cards today lets in. The daily cap is global; a class
+ * with an exam plan gets its own daily allowance on top (the plan spreads
+ * the class's remaining new cards over the days before the exam).
+ */
+export function newRemaining(now = Date.now(), classId = null) {
+  const global = Math.max(0, cardSettings().newPerDay - introducedToday(now));
+  const plan = planOf(classId, now);
+  if (!plan) return global;
+  return Math.max(global, plan.perDay - introducedToday(now, classId));
 }
 
 /**
@@ -319,7 +342,7 @@ export function countsFor(classId, now = Date.now()) {
     else if (fsrs.isDue(c.sched, now)) due++;
   }
   // `waiting`: new cards held until she opens their lesson.
-  const newAvailable = Math.min(ready, newRemaining(now));
+  const newAvailable = Math.min(ready, newRemaining(now, classId));
   return { total: list.length, active, due, unseen, waiting: unseen - ready, newAvailable, archived, suggested,
     toStudy: due + newAvailable };
 }
@@ -694,7 +717,7 @@ export function studyQueue(scope = {}, opts = {}) {
   load();
   const now = opts.now ?? Date.now();
   const mode = opts.mode || 'study';
-  const maxNew = opts.maxNew ?? newRemaining(now);
+  const maxNew = opts.maxNew ?? newRemaining(now, scope.classId);
   const limit = opts.limit ?? cardSettings().reviewsPerDay;
   const due = [], fresh = [];
   for (const card of scoped(scope)) {
@@ -980,7 +1003,7 @@ export function replaceClass(classId, list) {
 
 export default {
   load, applyRemote, mergeCard, mergeLists, metaOf, setMeta, mergeMeta, forClass, rawForClass, all, get, countsFor,
-  introducedToday, newRemaining, isLive, isActive, statusOf, isUnseen, isReviewed, tombstone,
+  introducedToday, newRemaining, planOf, setPlan, isLive, isActive, statusOf, isUnseen, isReviewed, tombstone,
   generateFromNote, generateFromSelection, addExternal, addCards, byNotePrefix, remove, setStatus, edit, restoreCard,
   gradeCard, previewCard, restoreSched, schedOf, buildQueue, cramQueue, newOrder,
   studyQueue, cramUnits, markLessonRead, fromReadLesson,

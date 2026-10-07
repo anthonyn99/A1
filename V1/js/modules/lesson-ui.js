@@ -19,7 +19,8 @@ import { ensureStyle } from './study-style.js';
 import { findFile } from './breakdown-ui.js';
 
 const LABEL = { read: 'Read', example: 'Worked example', steps: 'Step by step', check: 'Check yourself', recap: 'Recap',
-  figure: 'Figure', source: 'From the document', cards: 'Flashcards' };
+  figure: 'Figure', source: 'From the document', cards: 'Key cards', pretest: 'Warm up', retry: 'Retry' };
+const addBtn = (text) => `<button class="sl-link sl-add" data-addcard="${esc(text)}" title="Make a flashcard from this">＋ card</button>`;
 
 // ── Figures: the document's pages, re-rendered from the source PDF ─────────
 /* Only {page} is stored with a lesson; the picture is drawn from the PDF on
@@ -102,7 +103,33 @@ function lessonBlocks(topic) {
   return gaps.length ? [...blocks, { kind: 'source', title: 'Also in the document', lines: gaps }] : blocks;
 }
 
-let S = null;          // { fileId, topicId, screen, answers, checked, shown, card, flipped }
+/* Screens BEFORE the lesson (overhaul §7.4, §7.8), fixed when it opens:
+ *   retry    check questions she got wrong in an earlier sitting, the day after
+ *   pretest  the first time: two of the lesson's own check questions, to try
+ *            before learning — a guess primes what the lesson then answers.
+ *            Never graded, never recorded.
+ * Progress is saved in LESSON block numbers (screen − pre-screens), so a
+ * pre-screen appearing or not never shifts where she resumes. */
+function preScreens(topic, now = Date.now()) {
+  const blocks = topic.lesson.blocks;
+  const p = topic.progress || {};
+  const today = new Date(now); today.setHours(0, 0, 0, 0);
+  if ((p.wrong || []).length && (p.wrongAt || 0) < today.getTime()) {
+    const questions = p.wrong.map((w) => {
+      const b = blocks[w.b];
+      const q = b && b.kind === 'check' && b.questions[w.q];
+      return q ? { ...q, _ref: w } : null;
+    }).filter(Boolean);
+    if (questions.length) return [{ kind: 'retry', title: 'Questions you missed last time', questions }];
+  }
+  if (!topic.progress) {
+    const chk = blocks.find((b) => b.kind === 'check' && (b.questions || []).length >= 2);
+    if (chk) return [{ kind: 'pretest', title: 'Warm up — guess before you learn', questions: chk.questions.slice(0, 2) }];
+  }
+  return [];
+}
+
+let S = null;          // { fileId, topicId, screen, answers, checked, shown, orig, pre, preScreens, openedAt }
 let _saveTimer = null;
 
 export async function open(fileId, topicId, opts = {}) {
@@ -124,7 +151,11 @@ export async function open(fileId, topicId, opts = {}) {
     blocks.forEach((b, k) => { if (b.kind === 'figure' && b.page && b.page <= opts.page) at = k; });
     if (at >= 0) resumeAt = at;
   }
-  S = { fileId, topicId, screen: resumeAt, answers: {}, checked: {}, shown: {}, orig: {}, card: 0, flipped: false };
+  const pre = opts.block != null || opts.page != null ? [] : preScreens(topic);
+  // A retry starts the sitting; a warm-up only ever shows on a first open.
+  const screen = pre.length ? 0 : resumeAt;
+  S = { fileId, topicId, screen, answers: {}, checked: {}, shown: {}, orig: {}, pre: pre.length, preScreens: pre,
+    openedAt: Date.now(), logged: false };
   prefetchFigures(fileId, figurePagesOf(topic).filter((n) => blocks.some((b) => b.kind === 'figure' && b.page === n && !b.svg)));
   // A topic is opened from the list inside the module popup. Switching views
   // does not close a popup, so without this the lesson would open BEHIND it.
@@ -142,7 +173,7 @@ export function leave() { flush(); }
 function cur() {
   const doc = S && bd.peek(S.fileId);
   const topic = doc && doc.topics.find((t) => t.id === S.topicId);
-  return topic ? { doc, topic, blocks: lessonBlocks(topic) } : null;
+  return topic ? { doc, topic, blocks: [...(S.preScreens || []), ...lessonBlocks(topic)] } : null;
 }
 
 function topicCards(doc) {
@@ -150,12 +181,15 @@ function topicCards(doc) {
   return deck.forClass(doc.classId).filter((c) => c.sourceNoteId === id);
 }
 
+/** A lesson block number from a screen number (pre-screens come first). */
+const blockOf = (screen) => screen - (S.pre || 0);
+
 function render() {
   const root = document.getElementById('sos-lesson-root');
   const c = cur();
   if (!root || !c) return;
   const { doc, topic, blocks } = c;
-  const total = blocks.length + 1;                    // + the flashcards screen
+  const total = blocks.length + 1;                    // + the key-cards screen
   const screen = Math.min(S.screen, total - 1);
   const block = blocks[screen];
   const kind = block ? block.kind : 'cards';
@@ -177,7 +211,8 @@ function render() {
     <div class="sl-card ${kind}">${block ? blockHtml(block, screen, doc) : cardsHtml(doc)}</div>
     <div class="sl-nav">
       <button data-prev ${screen === 0 ? 'disabled' : ''}>← Back</button>
-      ${block ? `<button class="primary" data-next>${screen === blocks.length - 1 ? 'Flashcards →' : 'Next →'}</button>`
+      ${block ? `<button class="primary" data-next>${screen === blocks.length - 1 ? 'Key cards →'
+                : block.kind === 'pretest' || block.kind === 'retry' ? (S.checked[screen] ? 'Start the lesson →' : 'Skip →') : 'Next →'}</button>`
               : (nextT ? `<button class="primary" data-topic="${esc(nextT.id)}">Next topic →</button>`
                        : `<button class="primary" data-back>Back to the document</button>`)}
     </div>
@@ -191,8 +226,22 @@ function render() {
 
   wire(root, c, screen, total);
   fillFigures(root, blocks);
-  // Reaching the flashcards is finishing the lesson.
-  queueSave({ block: screen, ...(block ? {} : { done: true }) });
+  // Reaching the key cards is finishing the lesson. A pre-screen is not a
+  // place in the lesson, so it never moves the saved position.
+  if (block && (block.kind === 'pretest' || block.kind === 'retry')) return;
+  if (!block) logLesson(doc);
+  queueSave({ block: Math.max(0, blockOf(screen)), ...(block ? {} : { done: true }) });
+}
+
+/** Reading a lesson is studying: it counts toward the day, like a review
+ *  (overhaul §7.9). Once per sitting, when she reaches its end. */
+function logLesson(doc) {
+  if (!S || S.logged) return;
+  S.logged = true;
+  try {
+    const sessions = window.SOS && window.SOS.sessions;
+    if (sessions) sessions.log('lesson', { classId: doc.classId, startedAt: S.openedAt, durationMs: Date.now() - S.openedAt, completed: true });
+  } catch (e) {}
 }
 
 function blockHtml(b, i, doc) {
@@ -213,10 +262,10 @@ function blockHtml(b, i, doc) {
   }
   if (b.kind === 'source') {
     return `${title}<div class="sl-muted" style="margin-bottom:10px">The lesson above does not fully teach these lines of the document, so here they are exactly as the document has them.</div>
-      <div class="sl-prose"><ul>${b.lines.map((g) => `<li><span class="sl-muted">p.${esc(String(g.page))}</span> ${esc(g.text)}</li>`).join('')}</ul></div>`;
+      <div class="sl-prose"><ul>${b.lines.map((g) => `<li><span class="sl-muted">p.${esc(String(g.page))}</span> ${esc(g.text)} ${addBtn(g.text)}</li>`).join('')}</ul></div>`;
   }
   if (b.kind === 'recap') {
-    return `${title || '<h2>Recap</h2>'}<div class="sl-prose"><ul>${b.points.map((p) => `<li>${inline(esc(p))}</li>`).join('')}</ul></div>`;
+    return `${title || '<h2>Recap</h2>'}<div class="sl-prose"><ul>${b.points.map((p) => `<li>${inline(esc(p))} ${addBtn(p)}</li>`).join('')}</ul></div>`;
   }
   if (b.kind === 'steps') {
     const shown = S.shown[i] || 1;
@@ -234,7 +283,10 @@ function blockHtml(b, i, doc) {
       : '';
     return `${title}${steps}${more}`;
   }
-  if (b.kind === 'check') {
+  if (b.kind === 'check' || b.kind === 'pretest' || b.kind === 'retry') {
+    const intro = b.kind === 'pretest'
+      ? '<div class="sl-muted" style="margin-bottom:12px">Two questions from this lesson, before you read it. Guess — it is not graded, and trying first makes the answers stick.</div>'
+      : b.kind === 'retry' ? '<div class="sl-muted" style="margin-bottom:12px">You got these wrong last time. Try them again before the lesson.</div>' : '';
     const picks = S.answers[i] || {};
     const checked = !!S.checked[i];
     const qs = b.questions.map((q, qi) => {
@@ -256,35 +308,66 @@ function blockHtml(b, i, doc) {
          <button class="sl-link" data-retry style="margin-left:8px">try again</button></div>`
       : `<div class="sl-row"><button class="sl-inline-btn primary" data-check ${answered ? '' : 'disabled'}>Check answers</button>
          <span class="sl-muted">${answered ? '' : 'Answer every question to check.'}</span></div>`;
-    return `${title || '<h2>Check yourself</h2>'}${qs}${foot}`;
+    return `${title || '<h2>Check yourself</h2>'}${intro}${qs}${foot}`;
   }
   return '';
 }
 
+/** The topic's cards that a "Learn the key cards" step introduces: its core
+ *  (priority 1) unseen cards, or every unseen active one when none is marked. */
+function keyCards(list) {
+  const fresh = list.filter((c) => deck.statusOf(c) === 'active' && deck.isUnseen(c));
+  const core = fresh.filter((c) => c.priority === 1);
+  return core.length ? core : fresh;
+}
+
+/** The end of a lesson: move what she just understood into memory now —
+ *  not a flip-through of 80 cards (overhaul §7.1). */
 function cardsHtml(doc) {
-  const cards = topicCards(doc);
-  if (!cards.length) return `<h2>Flashcards</h2><div class="sl-muted">No flashcards for this topic.</div>`;
-  const i = Math.min(S.card, cards.length - 1);
-  const c = cards[i];
+  const list = topicCards(doc);
+  const key = keyCards(list);
+  const c = deck.deckCounts(list);
+  const inReviews = list.filter((x) => deck.statusOf(x) === 'active' && !deck.isUnseen(x)).length;
+  const sugg = list.filter((x) => deck.statusOf(x) === 'suggested').length;
   return `
-    <h2>Flashcards · ${cards.length}</h2>
-    <div class="sl-muted" style="margin-bottom:12px">These are already in your reviews — they come back on a spaced schedule.
-      Flip through them now, or start a review to rate yourself.</div>
-    <div class="sl-flip${S.flipped ? ' back' : ''}" data-flip role="button" tabindex="0">
-      <div class="side">${S.flipped ? 'Answer' : 'Question'} · ${i + 1} / ${cards.length}</div>
-      <div>${inline(esc(S.flipped ? c.a : c.q))}</div>
+    <h2>${key.length ? `Learn the key cards (${key.length})` : 'Key cards'}</h2>
+    <div class="sl-muted" style="margin-bottom:14px">${key.length
+      ? 'You just learned this topic. Lock in what matters most: flip each card, then add it to your reviews — they come back on a spaced schedule.'
+      : list.length ? 'Every key card of this topic is already in your reviews.' : 'This topic has no flashcards yet. Make one from anything in the lesson: select text, or use ＋ card on the recap.'}</div>
+    <div class="sl-row" style="flex-wrap:wrap;gap:8px">
+      ${key.length ? `<button class="sl-inline-btn primary" data-learn>Learn ${key.length} card${key.length === 1 ? '' : 's'} now</button>` : ''}
+      ${c.due ? `<button class="sl-inline-btn" data-due>Review ${c.due} due</button>` : ''}
+      ${sugg ? `<button class="sl-inline-btn" data-triage title="Cards held back — add the ones you want">${sugg} suggested</button>` : ''}
+      <button class="sl-inline-btn" data-newcard>＋ Card</button>
+      ${list.length ? `<button class="sl-link" data-browse>see all ${list.length}</button>` : ''}
     </div>
-    <div class="sl-row" style="justify-content:space-between">
-      <div class="sl-row" style="margin:0">
-        <button class="sl-inline-btn" data-card="-1" ${i === 0 ? 'disabled' : ''}>‹</button>
-        <button class="sl-inline-btn" data-card="1" ${i === cards.length - 1 ? 'disabled' : ''}>›</button>
-      </div>
-      <button class="sl-inline-btn primary" data-review>Review these now</button>
-    </div>`;
+    ${inReviews ? `<div class="sl-muted" style="margin-top:12px">${inReviews} in your reviews · ${c.mastery}% mastered</div>` : ''}`;
+}
+
+/** Record the check questions she got wrong (and clear the ones now right),
+ *  so they come back as a retry the next day — no cards made. */
+function recordChecks(c, screen) {
+  const b = c.blocks[screen];
+  if (!b || b.kind === 'pretest') return;
+  const picks = S.answers[screen] || {};
+  const prev = (c.topic.progress && c.topic.progress.wrong) || [];
+  let wrong = prev.slice();
+  if (b.kind === 'retry') {
+    b.questions.forEach((q, qi) => {
+      if (picks[qi] === q.answer) wrong = wrong.filter((w) => !(w.b === q._ref.b && w.q === q._ref.q));
+    });
+  } else {
+    const bi = blockOf(screen);
+    b.questions.forEach((q, qi) => {
+      wrong = wrong.filter((w) => !(w.b === bi && w.q === qi));
+      if (picks[qi] !== q.answer) wrong.push({ b: bi, q: qi });
+    });
+  }
+  bd.setProgress(S.fileId, S.topicId, { wrong: wrong.slice(-20), wrongAt: Date.now() });
 }
 
 function wire(root, c, screen, total) {
-  const go = (n) => { S.screen = Math.max(0, Math.min(total - 1, n)); S.card = 0; S.flipped = false; render(); window.scrollTo && window.scrollTo(0, 0); };
+  const go = (n) => { S.screen = Math.max(0, Math.min(total - 1, n)); render(); window.scrollTo && window.scrollTo(0, 0); };
   const on = (sel, fn) => root.querySelectorAll(sel).forEach((el) => el.addEventListener('click', fn));
 
   on('[data-prev]', () => go(screen - 1));
@@ -299,14 +382,21 @@ function wire(root, c, screen, total) {
     (S.answers[screen] || (S.answers[screen] = {}))[b.dataset.q] = b.dataset.choice;
     render();
   });
-  on('[data-check]', () => { S.checked[screen] = true; render(); });
+  on('[data-check]', () => { S.checked[screen] = true; recordChecks(c, screen); render(); });
   on('[data-retry]', () => { S.checked[screen] = false; S.answers[screen] = {}; render(); });
-  on('[data-flip]', () => { S.flipped = !S.flipped; render(); });
-  on('[data-card]', (e) => { S.card += Number(e.currentTarget.dataset.card); S.flipped = false; render(); });
-  on('[data-review]', () => {
-    const R = window.SOS && window.SOS.review;
-    if (R) R.startReview({ classId: c.doc.classId, noteId: bd.noteIdFor(c.doc.fileId, c.topic.id) });
+  const noteId = bd.noteIdFor(c.doc.fileId, c.topic.id);
+  const R = () => window.SOS && window.SOS.review;
+  const C = () => window.SOS && window.SOS.cardsUi;
+  on('[data-learn]', () => {
+    // She chose to learn these now: the topic's key cards, past today's cap.
+    const n = keyCards(topicCards(c.doc)).length;
+    if (R()) R().startReview({ classId: c.doc.classId, noteId }, { mode: 'learn', anyNew: true, maxNew: n });
   });
+  on('[data-due]', () => { if (R()) R().startReview({ classId: c.doc.classId, noteId }, { mode: 'review' }); });
+  on('[data-triage]', () => { if (C()) C().openTriage({ classId: c.doc.classId, noteId, onClose: () => render() }); });
+  on('[data-browse]', () => { if (C()) C().openBrowse({ classId: c.doc.classId, noteId, title: c.topic.title }); });
+  on('[data-newcard]', () => newCard(c, ''));
+  on('[data-addcard]', (e) => { e.stopPropagation(); newCard(c, e.currentTarget.dataset.addcard + '\n---\n'); });
   on('[data-rewrite]', async () => {
     if (!confirm('Write this lesson again from the document? It replaces the current one (one more AI request). Flashcards you have reviewed keep their schedule.')) return;
     const where = findFile(c.doc.fileId);
@@ -317,6 +407,72 @@ function wire(root, c, screen, total) {
     catch (e) { window.showNotif && window.showNotif('⚠️', 'Rewrite failed', (e && e.message) || String(e)); }
   });
 }
+
+/** The card editor, filed under this topic. */
+function newCard(c, prefill) {
+  const C = window.SOS && window.SOS.cardsUi;
+  if (!C) return;
+  C.openEditor({ classId: c.doc.classId, noteId: bd.noteIdFor(c.doc.fileId, c.topic.id), title: c.topic.title, prefill,
+    onSave: (card) => {
+      if (card) window.showNotif && window.showNotif('🃏', 'Card added', 'It joins your reviews with today\'s new cards.');
+      render();
+    } });
+}
+
+// ── "＋ Card" / "＋ Cloze" on a selection in the reader (overhaul §7.2) ────
+/* Select any text in a lesson: a small bar offers a card (the selection as
+ * its front, to finish) or a cloze (the sentence around it, with the
+ * selection as the blank). */
+let _selBar = null;
+function hideSelBar() { if (_selBar) { _selBar.remove(); _selBar = null; } }
+
+function selectionInLesson() {
+  const sel = window.getSelection && window.getSelection();
+  if (!sel || sel.isCollapsed || !sel.rangeCount) return null;
+  const text = String(sel).replace(/\s+/g, ' ').trim();
+  if (text.length < 2 || text.length > 400) return null;
+  const range = sel.getRangeAt(0);
+  const host = range.commonAncestorContainer.nodeType === 1 ? range.commonAncestorContainer : range.commonAncestorContainer.parentElement;
+  const card = host && host.closest && host.closest('#sos-lesson-root .sl-card');
+  if (!card) return null;
+  const block = host.closest('p, li, td, th, blockquote, .sl-step, .sl-q-stem, .sl-expl') || host;
+  return { text, rect: range.getBoundingClientRect(), context: String(block.textContent || '').replace(/\s+/g, ' ').trim() };
+}
+
+/** The sentence of `context` that holds `text`, with `text` as blank 1. */
+export function clozeFrom(context, text) {
+  const sentences = String(context || '').split(/(?<=[.!?])\s+/);
+  const s = sentences.find((x) => x.includes(text)) || context || text;
+  const at = s.indexOf(text);
+  return at < 0 ? `{{1::${text}}}` : `${s.slice(0, at)}{{1::${text}}}${s.slice(at + text.length)}`;
+}
+
+function onSelect() {
+  if (!S) return;
+  const view = document.getElementById('view-lesson');
+  if (!view || !view.classList.contains('active')) return hideSelBar();
+  const s = selectionInLesson();
+  if (!s) return hideSelBar();
+  hideSelBar();
+  const bar = document.createElement('div');
+  bar.className = 'sl-selbar';
+  bar.style.cssText = `position:fixed;z-index:9000;left:${Math.max(8, Math.min(window.innerWidth - 190, s.rect.left))}px;` +
+    `top:${Math.max(8, s.rect.top - 44)}px;display:flex;gap:4px;background:var(--bg4,#2e2f33);border:1px solid var(--border,rgba(255,255,255,.09));` +
+    'border-radius:8px;padding:4px;box-shadow:0 4px 14px rgba(0,0,0,.35)';
+  bar.innerHTML = '<button data-sel="card" class="sl-inline-btn" style="padding:6px 10px">＋ Card</button><button data-sel="cloze" class="sl-inline-btn" style="padding:6px 10px">＋ Cloze</button>';
+  bar.addEventListener('mousedown', (e) => e.preventDefault());       // keep the selection
+  bar.querySelectorAll('[data-sel]').forEach((b) => b.addEventListener('click', () => {
+    const c = cur();
+    hideSelBar();
+    if (!c) return;
+    newCard(c, b.dataset.sel === 'cloze' ? clozeFrom(s.context, s.text) : `${s.text}\n---\n`);
+  }));
+  document.body.appendChild(bar);
+  _selBar = bar;
+}
+document.addEventListener('mouseup', () => setTimeout(onSelect, 0));
+document.addEventListener('touchend', () => setTimeout(onSelect, 250));
+document.addEventListener('scroll', hideSelBar, true);
 
 function backToDocument(doc) {
   flush();

@@ -182,7 +182,7 @@ export function startReview(scope = {}, opts = {}) {
     const c = deck.countsFor(scope.classId || null);
     const why = c.waiting && mode !== 'review'
       ? `${c.waiting} new card${c.waiting === 1 ? ' waits' : 's wait'} in lessons you haven't opened yet.`
-      : mode === 'learn' && !deck.newRemaining() ? 'You have learned today\'s new cards. More tomorrow.'
+      : mode === 'learn' && !deck.newRemaining(Date.now(), scope.classId) ? 'You have learned today\'s new cards. More tomorrow.'
       : 'No cards are waiting for this selection.';
     try { window.showNotif && window.showNotif('✅', 'Nothing to study', why); } catch (e) {}
     return null;

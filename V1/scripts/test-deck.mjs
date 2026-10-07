@@ -331,6 +331,21 @@ console.log('\naddCards appends, never reconciles');
   t('the same content twice is skipped', deck.addCards('c1', [{ front: 'Why is the cap global, not per class?', back: 'So two classes cannot double a day.' }], { noteId: 'x' }).length === 0);
 }
 
+console.log('\nexam plan');
+{
+  localStorage.setItem('studyos_cards_settings_v1', JSON.stringify({ newPerDay: 0 }));
+  t('with no plan, a zero cap lets nothing in', deck.newRemaining(Date.now(), 'c1') === 0);
+  deck.setPlan('c1', { perDay: 7, until: Date.now() + 5 * 86400000, examAt: Date.now() + 7 * 86400000 });
+  t('a plan gives its class its own daily allowance', deck.newRemaining(Date.now(), 'c1') === 7 - deck.introducedToday(Date.now(), 'c1'));
+  t('...and only its class', deck.newRemaining(Date.now(), 'other') === 0);
+  t('a plan ends on its date', deck.planOf('c1', Date.now() + 6 * 86400000) === null);
+  const older = { ...deck.metaOf('c1').plan, perDay: 99, updatedAt: 1 };
+  t('the newest plan wins a merge', deck.mergeMeta(deck.metaOf('c1'), { plan: older }).plan.perDay === 7);
+  deck.setPlan('c1', null);
+  t('stopping the plan clears it', deck.planOf('c1') === null);
+  localStorage.removeItem('studyos_cards_settings_v1');
+}
+
 console.log('\nleeches');
 {
   const c = deck.addCards('c1', [{ front: 'What are the three normal forms in order?', back: '1NF, 2NF, 3NF.' }], { noteId: 'lee' })[0];
