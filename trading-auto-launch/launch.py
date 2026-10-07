@@ -1830,6 +1830,7 @@ class _RdOverlayScrollbar:
         self.hover = self.drag = False
         self.grab = 0.0                  # where inside the thumb it was grabbed
         self._idle = self._fade = None
+        self.on_grab = lambda: None      # set by the dialog: stops a running glide
         cv = self.cv
         cv.bind("<Enter>", lambda e: self._hover(True))
         cv.bind("<Leave>", lambda e: self._hover(False))
@@ -1906,6 +1907,7 @@ class _RdOverlayScrollbar:
     def _press(self, e):
         if self._fits():
             return
+        self.on_grab()
         h, top, length = self._geom()
         if top <= e.y <= top + length:
             self.grab = e.y - top
@@ -1987,11 +1989,62 @@ def _show_reminder_dialog(title: str, markdown: str, notice: str = "") -> bool:
 
     _rd_render_markdown(txt, markdown)
 
-    # Read-only, but keep the keyboard/wheel scrolling that state="disabled" leaves intact.
-    def wheel(e):
-        txt.yview_scroll(int(-1 * (e.delta / 120)), "units")
+    # Read-only, but keep wheel/keyboard scrolling. Like a browser, scrolling is
+    # in pixels and eased: each notch adds a distance (~100px) to a pending
+    # total, and a ~120 Hz loop eats a fraction of what's left, so motion
+    # glides in and settles instead of jumping a line at a time.
+    sc = {"pending": 0.0, "carry": 0.0, "job": None}
+
+    def glide():
+        sc["job"] = None
+        step = sc["pending"] * 0.2
+        if abs(step) < 1.0:
+            step = 1.0 if sc["pending"] > 0 else -1.0
+        step = min(step, sc["pending"]) if sc["pending"] > 0 else max(step, sc["pending"])
+        sc["pending"] -= step
+        sc["carry"] += step
+        whole = int(sc["carry"])
+        sc["carry"] -= whole
+        before = txt.yview()
+        if whole:
+            txt.yview_scroll(whole, "pixels")
+        if txt.yview() == before and whole:      # hit the top/bottom: drop the rest
+            sc["pending"] = 0.0
+        if abs(sc["pending"]) >= 0.5:
+            sc["job"] = txt.after(8, glide)
+        else:
+            sc["pending"] = sc["carry"] = 0.0
+
+    def nudge(px):
+        sc["pending"] += px
         sbar.wake()
+        if sc["job"] is None:
+            glide()
+
+    def stop_glide():
+        if sc["job"]:
+            txt.after_cancel(sc["job"])
+        sc.update(pending=0.0, carry=0.0, job=None)
+    sbar.on_grab = stop_glide           # grabbing the thumb takes over from the glide
+
+    def wheel(e):
+        nudge(-e.delta / 120 * 100)
         return "break"
+
+    def key(px=None, page=None, to=None):
+        def go(e):
+            if to is not None:
+                stop_glide()
+                txt.yview_moveto(to)
+                sbar.wake()
+            else:
+                nudge(px if px is not None else page * txt.winfo_height() * 0.9)
+            return "break"
+        return go
+    for k, kw in (("<Down>", dict(px=60)), ("<Up>", dict(px=-60)),
+                  ("<Next>", dict(page=1)), ("<Prior>", dict(page=-1)),
+                  ("<Home>", dict(to=0.0)), ("<End>", dict(to=1.0))):
+        root.bind(k, key(**kw))
     txt.bind("<MouseWheel>", wheel)
     sbar.cv.bind("<MouseWheel>", wheel)
 
