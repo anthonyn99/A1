@@ -365,7 +365,15 @@ async function renderPanel(panel, cls, mod, f) {
   }));
   panel.querySelectorAll('[data-cards]').forEach((b) => b.addEventListener('click', (e) => {
     e.stopPropagation();
-    window.SOS && window.SOS.review && window.SOS.review.startReview({ classId: doc.classId, noteId: bd.noteIdFor(f.id, b.dataset.cards) });
+    const D = window.SOS && window.SOS.deck, R = window.SOS && window.SOS.review;
+    if (!D || !R) return;
+    const scope = { classId: doc.classId, noteId: bd.noteIdFor(f.id, b.dataset.cards) };
+    // Something to learn or review today → a normal session (it schedules),
+    // even before the lesson is opened: she picked this topic on purpose.
+    // Otherwise go through every card anyway as practice — cram leaves the
+    // schedule alone, so it never "Nothing to study"s her.
+    if (D.studyQueue(scope, {}).length) R.startReview(scope, { anyNew: true });
+    else R.startReview(scope, { mode: 'cram' });
   }));
   panel.querySelectorAll('[data-retry]').forEach((b) => b.addEventListener('click', (e) => {
     e.stopPropagation();

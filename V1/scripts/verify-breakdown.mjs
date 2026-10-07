@@ -217,18 +217,33 @@ const panel = await evalJs(`(function(){
 t('the topics appear under the document', panel.hidden === false && panel.rows === 2, panel);
 t('in the document\'s order', panel.titles.join('|') === 'Candidate keys|Inner joins', panel.titles);
 t('each topic shows a Lesson box and a Flashcards box', panel.boxes.join('|') === 'Lesson+Flashcards|Lesson+Flashcards', panel.boxes);
-t('...and no card counts', panel.counts === false, panel);const topicStudy = await evalJs(`(async () => {
-  const seen = [];
-  const prev = window.showNotif;
-  window.showNotif = (i, title, body) => seen.push(title + ': ' + body);
-  document.querySelector('[data-bd-panel="${FID}"] [data-cards]').click();
-  await new Promise(r => setTimeout(r, 300));
-  window.showNotif = prev;
-  const out = { open: !!document.querySelector('.sos-review'), seen };
-  if (out.open) window.SOS.review.closeReview();
-  return out;
+t('...and no card counts', panel.counts === false, panel);
+const topicStudy = await evalJs(`(async () => {
+  const w = (ms) => new Promise(r => setTimeout(r, ms));
+  const D = window.SOS.deck;
+  const scheds = () => JSON.stringify(D.byNotePrefix('bd1', 'topic_${FID}_').map(c => c.sched || null));
+  const open = async () => {
+    document.querySelector('[data-bd-panel="${FID}"] [data-cards]').click();
+    await w(300);
+    const n = document.querySelector('.sos-review [data-count]');
+    const out = { open: !!document.querySelector('.sos-review'), count: n && n.textContent,
+                  mode: (document.querySelector('.sos-review-mode') || {}).textContent || '' };
+    window.SOS.review.closeReview();
+    await w(100);
+    return out;
+  };
+  const first = await open();
+  // Nothing left for today (the new-card cap is spent): it still opens, as cram.
+  localStorage.setItem('studyos_cards_settings_v1', JSON.stringify({ newPerDay: 0 }));
+  const before = scheds();
+  const again = await open();
+  const after = scheds();
+  localStorage.removeItem('studyos_cards_settings_v1');
+  return { first, again, schedKept: before === after };
 })()`);
-t('the Flashcards box, before the lesson is opened, says its cards wait for the lesson', !topicStudy.open && topicStudy.seen.some((s) => /lessons you haven't opened/.test(s)), topicStudy);
+t('the Flashcards box opens the topic\'s cards even before the lesson is read', topicStudy.first.open && /\/ 2$/.test(topicStudy.first.count || ''), topicStudy.first);
+t('...and with nothing to study today it still opens them, as cram', topicStudy.again.open && /Cram/.test(topicStudy.again.mode) && /\/ 2$/.test(topicStudy.again.count || ''), topicStudy.again);
+t('...which leaves the schedule alone', topicStudy.schedKept, topicStudy);
 t('the row button now reads Topics · 2', panel.label === 'Topics · 2', panel.label);
 t('the status line names the prompt used', /prompt: Explain it like I am new/.test(panel.status || ''), panel.status);
 t('...and offers a redo with another one', await evalJs(`!!document.querySelector('[data-bd-panel="${FID}"] [data-redo]')`));
