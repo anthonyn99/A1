@@ -1643,12 +1643,46 @@ def _fetch_daily_reminder(attempts: int = DAILY_REMINDER_FETCH_ATTEMPTS, delay: 
     return None
 
 
-# Dialog palette — mirrors the suite's Insight theme (warm charcoal + tan gold)
-# so the morning gate feels like the app it launches.
+# Dialog palette — mirrors TradeHub's MAGI theme (tradehub.html #tradeboard-root):
+# charcoal surfaces and the pastel MAGI purple. Gold is NOT used here: in the
+# theme it only ever means a favourite or a warning, never "this is the accent".
 _RD_BG, _RD_SURF, _RD_BORDER = "#1a1a1d", "#232327", "#34343a"
-_RD_TX, _RD_DIM, _RD_ACCENT  = "#f4f3f0", "#adadb2", "#d4a659"
-_RD_ACCENT_SOFT = "#edc884"   # gold-soft — accent text on the dark surface
-_RD_MUTED       = "#8d8d94"   # faint — least prominent copy
+_RD_BDL                      = "#45454c"   # outline at rest (--bdl)
+_RD_TX, _RD_DIM              = "#f4f3f0", "#adadb2"
+_RD_ACCENT      = "#c0aeea"   # --ac MAGI purple
+_RD_ACCENT_SOFT = "#dbd0f5"   # --acp light purple: titles and accent text
+_RD_MUTED       = "#8d8d94"   # faint, least prominent copy
+_RD_SB          = "#9898a8"   # scrollbar thumb (the web's rgba(152,152,168,..))
+
+
+def _rd_ui_font(root) -> str:
+    """The theme's face is Inter. Use it when it's installed; otherwise the
+    nearest Windows UI face, so the dialog never falls back to Tk's default."""
+    import tkinter.font as tkfont
+    have = set(tkfont.families(root))
+    for name in ("Inter", "Segoe UI Variable Text", "Segoe UI"):
+        if name in have:
+            return name
+    return "Segoe UI"
+
+
+def _rd_mix(fg: str, bg: str, a: float) -> str:
+    """fg over bg at alpha `a`. Tk has no alpha, so fades are blended by hand."""
+    f = [int(fg[i:i + 2], 16) for i in (1, 3, 5)]
+    b = [int(bg[i:i + 2], 16) for i in (1, 3, 5)]
+    return "#%02x%02x%02x" % tuple(round(b[i] + (f[i] - b[i]) * a) for i in range(3))
+
+
+def _rd_shade(c: str, k: float) -> str:
+    """CSS brightness(k): the filter MAGI's hover (1.15) and press (.94) use."""
+    return "#%02x%02x%02x" % tuple(min(255, round(int(c[i:i + 2], 16) * k)) for i in (1, 3, 5))
+
+
+def _rd_track(s: str) -> str:
+    """Uppercase with a hair space between letters: Tk has no letter-spacing, and
+    MAGI's .btn is tracked 1px."""
+    return "\u200a".join(s.upper())
+
 
 # Inline markdown: bold / italic / code / links. Split-capturing, so the text
 # between matches survives in the same pass.
@@ -1773,6 +1807,124 @@ def _rd_render_markdown(t, md: str):
     t.configure(state="disabled")
 
 
+class _RdOverlayScrollbar:
+    """A scrollbar drawn INSIDE the text area, over its right padding, so it is
+    part of the surface instead of a column of its own. Invisible when the
+    content fits; fades in on any scroll, hover or drag, and fades back out once
+    things go still. The thumb is grabbable, and a click on the track jumps
+    there (and keeps dragging)."""
+
+    W, THUMB, THUMB_HOT = 14, 6, 8       # strip width; thumb width at rest / hovered
+    IDLE_MS, FADE_STEPS, FADE_MS = 900, 10, 22
+    REST_ALPHA = 0.5                     # the web's --tb-sb-a when shown
+
+    def __init__(self, text):
+        import tkinter as tk
+        self.text = text
+        self.cv = tk.Canvas(text, width=self.W, bg=_RD_SURF, bd=0,
+                            highlightthickness=0, cursor="arrow")
+        self.cv.place(relx=1.0, x=-4, rely=0.0, y=6, anchor="ne",
+                      relheight=1.0, height=-12)
+        self.first, self.last = 0.0, 1.0
+        self.alpha = 0.0
+        self.hover = self.drag = False
+        self.grab = 0.0                  # where inside the thumb it was grabbed
+        self._idle = self._fade = None
+        cv = self.cv
+        cv.bind("<Enter>", lambda e: self._hover(True))
+        cv.bind("<Leave>", lambda e: self._hover(False))
+        cv.bind("<ButtonPress-1>", self._press)
+        cv.bind("<B1-Motion>", self._move)
+        cv.bind("<ButtonRelease-1>", self._release)
+        cv.bind("<Configure>", lambda e: self._draw())
+        text.configure(yscrollcommand=self.set)
+
+    # Text's yscrollcommand: fires on every change of view, however it came about.
+    def set(self, first, last):
+        self.first, self.last = float(first), float(last)
+        if self._fits():
+            self._cancel()
+            self.alpha = 0.0
+        else:
+            self.wake()
+        self._draw()
+
+    def _fits(self):
+        return self.first <= 0.0 and self.last >= 1.0
+
+    def _cancel(self):
+        for k in ("_idle", "_fade"):
+            job = getattr(self, k)
+            if job:
+                self.cv.after_cancel(job)
+                setattr(self, k, None)
+
+    def wake(self):
+        """Show now, and (re)start the countdown to fading out."""
+        if self._fits():
+            return
+        self._cancel()
+        self.alpha = 1.0
+        self._draw()
+        if not (self.hover or self.drag):
+            self._idle = self.cv.after(self.IDLE_MS, self._fade_out)
+
+    def _fade_out(self, step=0):
+        self._idle = self._fade = None
+        if self.hover or self.drag or self._fits():
+            return
+        step += 1
+        self.alpha = max(0.0, 1.0 - step / self.FADE_STEPS)
+        self._draw()
+        if step < self.FADE_STEPS:
+            self._fade = self.cv.after(self.FADE_MS, self._fade_out, step)
+
+    def _hover(self, on):
+        self.hover = on
+        self.wake()                      # on leave this restarts the idle countdown
+
+    def _geom(self):
+        h = max(1, self.cv.winfo_height())
+        length = max(36.0, (self.last - self.first) * h)
+        top = min(self.first * h, h - length)
+        return h, top, length
+
+    def _draw(self):
+        cv = self.cv
+        cv.delete("all")
+        if self._fits() or self.alpha <= 0:
+            return
+        h, top, length = self._geom()
+        hot = self.hover or self.drag
+        base = _RD_ACCENT if self.drag else _RD_SB
+        a = self.alpha * (1.0 if self.drag else 0.75 if hot else self.REST_ALPHA)
+        w = self.THUMB_HOT if hot else self.THUMB
+        x = self.W / 2
+        cv.create_line(x, top + w / 2, x, top + length - w / 2, width=w,
+                       capstyle="round", fill=_rd_mix(base, _RD_SURF, a))
+
+    def _press(self, e):
+        if self._fits():
+            return
+        h, top, length = self._geom()
+        if top <= e.y <= top + length:
+            self.grab = e.y - top
+        else:                            # track click: centre the thumb there, then drag on
+            self.grab = length / 2
+            self._move(e)
+        self.drag = True
+        self.wake()
+
+    def _move(self, e):
+        h, top, length = self._geom()
+        frac = min(1.0, max(0.0, (e.y - self.grab) / max(1.0, h - length)))
+        self.text.yview_moveto(frac * (1.0 - (self.last - self.first)))
+
+    def _release(self, e):
+        self.drag = False
+        self.wake()
+
+
 def _show_reminder_dialog(title: str, markdown: str, notice: str = "") -> bool:
     """Show the reminder and BLOCK until the user answers. True only on Confirm.
 
@@ -1784,6 +1936,7 @@ def _show_reminder_dialog(title: str, markdown: str, notice: str = "") -> bool:
     root = tk.Tk()
     root.title("Daily Reminder — TradeHub")
     root.configure(bg=_RD_BG)
+    UI = _rd_ui_font(root)
 
     # Centre on the primary monitor's work area. On the 5120-wide ultrawide a
     # full-width dialog would be unreadable, so it stays a comfortable column.
@@ -1797,46 +1950,50 @@ def _show_reminder_dialog(title: str, markdown: str, notice: str = "") -> bool:
     head = tk.Frame(root, bg=_RD_BG)
     head.pack(fill="x", padx=28, pady=(22, 0))
     tk.Label(head, text=title or "Daily Reminder", bg=_RD_BG, fg=_RD_ACCENT_SOFT,
-             font=("Segoe UI Semibold", 22), anchor="w").pack(fill="x")
+             font=(UI, 20, "bold"), anchor="w").pack(fill="x")
     # Uppercase, letter-spaced sub-label — the suite's section-label voice.
     tk.Label(head, text="R E V I E W   B E F O R E   T H E   S E S S I O N",
-             bg=_RD_BG, fg=_RD_MUTED, font=("Segoe UI", 8), anchor="w").pack(fill="x", pady=(6, 0))
+             bg=_RD_BG, fg=_RD_MUTED, font=(UI, 8, "bold"), anchor="w").pack(fill="x", pady=(6, 0))
     if notice:
-        tk.Label(head, text=notice, bg=_RD_BG, fg=_RD_DIM, font=("Segoe UI", 9),
+        tk.Label(head, text=notice, bg=_RD_BG, fg=_RD_DIM, font=(UI, 9),
                  anchor="w", justify="left", wraplength=w - 70).pack(fill="x", pady=(9, 0))
     tk.Frame(head, bg=_RD_BORDER, height=1).pack(fill="x", pady=(16, 0))
 
-    # ── scrollable body ──
+    # ── body: the text fills the whole card; the scrollbar floats inside it ──
     body = tk.Frame(root, bg=_RD_BG)
     body.pack(fill="both", expand=True, padx=28, pady=(14, 0))
-    scroll = tk.Scrollbar(body)
-    scroll.pack(side="right", fill="y")
     txt = tk.Text(body, bg=_RD_SURF, fg=_RD_DIM, bd=0, highlightthickness=1,
                   highlightbackground=_RD_BORDER, highlightcolor=_RD_BORDER,
-                  wrap="word", padx=24, pady=20, spacing1=2, spacing3=5,
-                  yscrollcommand=scroll.set, cursor="arrow")
-    txt.pack(side="left", fill="both", expand=True)
-    scroll.config(command=txt.yview)
+                  wrap="word", padx=28, pady=20, spacing1=2, spacing3=5,
+                  cursor="arrow", insertwidth=0)
+    txt.pack(fill="both", expand=True)
+    sbar = _RdOverlayScrollbar(txt)
 
-    # Body text is Arial to match the Playbook editor; headings use the UI face.
-    txt.tag_configure("body",   font=("Arial", 11),               foreground=_RD_DIM,    lmargin1=2, lmargin2=2)
-    txt.tag_configure("h1",     font=("Segoe UI", 16, "bold"),    foreground=_RD_TX,     spacing1=10, spacing3=4)
-    txt.tag_configure("h2",     font=("Segoe UI", 14, "bold"),    foreground=_RD_TX,     spacing1=9,  spacing3=3)
-    txt.tag_configure("h3",     font=("Segoe UI", 12, "bold"),    foreground=_RD_TX,     spacing1=7,  spacing3=2)
-    txt.tag_configure("quote",  font=("Arial", 11, "italic"),     foreground=_RD_ACCENT_SOFT, lmargin1=6, lmargin2=28)
-    txt.tag_configure("quotebar", font=("Segoe UI", 11),          foreground=_RD_ACCENT, lmargin1=6)
-    txt.tag_configure("bullet", font=("Arial", 11),               foreground=_RD_ACCENT)
+    # One face throughout, as in the app; headings differ by size and weight.
+    txt.tag_configure("body",   font=(UI, 11),                foreground=_RD_DIM,    lmargin1=2, lmargin2=2)
+    txt.tag_configure("h1",     font=(UI, 16, "bold"),        foreground=_RD_ACCENT_SOFT, spacing1=10, spacing3=4)
+    txt.tag_configure("h2",     font=(UI, 14, "bold"),        foreground=_RD_TX,     spacing1=9,  spacing3=3)
+    txt.tag_configure("h3",     font=(UI, 12, "bold"),        foreground=_RD_TX,     spacing1=7,  spacing3=2)
+    txt.tag_configure("quote",  font=(UI, 11, "italic"),      foreground=_RD_ACCENT_SOFT, lmargin1=6, lmargin2=28)
+    txt.tag_configure("quotebar", font=(UI, 11),              foreground=_RD_ACCENT, lmargin1=6)
+    txt.tag_configure("bullet", font=(UI, 11),                foreground=_RD_ACCENT)
     txt.tag_configure("hr",     foreground=_RD_BORDER)
-    txt.tag_configure("code",   font=("Consolas", 10),            foreground=_RD_TX,     lmargin1=12, lmargin2=12)
+    txt.tag_configure("code",   font=("Consolas", 10),        foreground=_RD_TX,     lmargin1=12, lmargin2=12)
     # Created AFTER the block tags so they win Tk's tag-priority contest.
-    txt.tag_configure("b",        font=("Arial", 11, "bold"),   foreground=_RD_TX)
-    txt.tag_configure("i",        font=("Arial", 11, "italic"))
-    txt.tag_configure("codespan", font=("Consolas", 10),        foreground=_RD_ACCENT_SOFT)
-    txt.tag_configure("link",     font=("Arial", 11, "underline"), foreground=_RD_ACCENT_SOFT)
+    txt.tag_configure("b",        font=(UI, 11, "bold"),      foreground=_RD_TX)
+    txt.tag_configure("i",        font=(UI, 11, "italic"))
+    txt.tag_configure("codespan", font=("Consolas", 10),      foreground=_RD_ACCENT_SOFT)
+    txt.tag_configure("link",     font=(UI, 11, "underline"), foreground=_RD_ACCENT)
 
     _rd_render_markdown(txt, markdown)
+
     # Read-only, but keep the keyboard/wheel scrolling that state="disabled" leaves intact.
-    txt.bind("<MouseWheel>", lambda e: (txt.yview_scroll(int(-1 * (e.delta / 120)), "units"), "break")[1])
+    def wheel(e):
+        txt.yview_scroll(int(-1 * (e.delta / 120)), "units")
+        sbar.wake()
+        return "break"
+    txt.bind("<MouseWheel>", wheel)
+    sbar.cv.bind("<MouseWheel>", wheel)
 
     # ── footer ──
     foot = tk.Frame(root, bg=_RD_BG)
@@ -1851,22 +2008,64 @@ def _show_reminder_dialog(title: str, markdown: str, notice: str = "") -> bool:
         root.destroy()
 
     tk.Label(foot, text="Closing without confirming cancels the launch.",
-             bg=_RD_BG, fg=_RD_MUTED, font=("Segoe UI", 9)).pack(side="left")
-    # Outline-only buttons — the suite uses a gold border and gold text for the
-    # primary action rather than a solid fill. Tk has no border-radius, so a 1px
-    # highlight ring stands in for the 6px rounded outline the web apps use.
-    btn = tk.Button(foot, text="  CONFIRM — I'VE READ THIS  ", command=confirm,
-                    bg=_RD_BG, fg=_RD_ACCENT_SOFT,
-                    activebackground=_RD_BG, activeforeground=_RD_ACCENT_SOFT,
-                    bd=0, relief="flat", highlightthickness=1,
-                    highlightbackground=_RD_ACCENT, highlightcolor=_RD_ACCENT,
-                    font=("Segoe UI", 9, "bold"), cursor="hand2", padx=18, pady=10)
-    btn.pack(side="right")
-    tk.Button(foot, text="  NOT NOW  ", command=cancel, bg=_RD_BG, fg=_RD_DIM,
-              activebackground=_RD_BG, activeforeground=_RD_TX,
-              bd=0, relief="flat", highlightthickness=1,
-              highlightbackground=_RD_BORDER, highlightcolor=_RD_BORDER,
-              font=("Segoe UI", 9), cursor="hand2", padx=14, pady=10).pack(side="right", padx=(0, 10))
+             bg=_RD_BG, fg=_RD_MUTED, font=(UI, 9)).pack(side="left")
+
+    # MAGI's .btn: 10px / 700 / uppercase / tracked, a 1px --bdl outline at rest
+    # that turns accent on hover, no fill. Hover LIFTS (brightness 1.15); a press
+    # sinks it (brightness .94 and 1px down) until the pointer lets go: the same
+    # mechanics hoverfx.js gives the web side. The outer Frame's colour is the 1px
+    # outline, since Tk has no border-radius.
+    kbd = {"on": False}                  # focus ring is keyboard-only, like :focus-visible
+    root.bind_all("<KeyPress>", lambda e: kbd.update(on=True), add="+")
+    root.bind_all("<ButtonPress>", lambda e: kbd.update(on=False), add="+")
+
+    def themed_button(parent, label, command, ink):
+        ring = tk.Frame(parent, bg=_RD_BDL)
+        lab = tk.Label(ring, text=_rd_track(label), bg=_RD_BG, fg=ink,
+                       font=(UI, 8, "bold"), cursor="hand2", takefocus=1)
+        lab.pack(padx=1, pady=(1, 1), ipadx=18, ipady=10)
+        st = {"hover": False, "down": False, "focus": False}
+
+        def paint():
+            k = 0.94 if st["down"] else 1.15 if st["hover"] else 1.0
+            lit = st["hover"] or st["down"] or st["focus"]
+            ring.configure(bg=_rd_shade(_RD_ACCENT, k) if lit else _RD_BDL)
+            lab.configure(bg=_rd_shade(_RD_BG, k), fg=_rd_shade(ink, k))
+            lab.pack_configure(pady=(2, 0) if st["down"] else (1, 1))
+
+        def enter(e):
+            st["hover"] = True
+            paint()
+
+        def leave(e):
+            st["hover"] = False
+            paint()
+
+        def down(e):
+            st["down"] = True
+            lab.focus_set()
+            paint()
+
+        def up(e):
+            was = st["down"]
+            st["down"] = False
+            paint()
+            if was and 0 <= e.x < lab.winfo_width() and 0 <= e.y < lab.winfo_height() + 2:
+                command()
+
+        lab.bind("<Enter>", enter)
+        lab.bind("<Leave>", leave)
+        lab.bind("<ButtonPress-1>", down)
+        lab.bind("<ButtonRelease-1>", up)
+        lab.bind("<FocusIn>", lambda e: (st.update(focus=kbd["on"]), paint()))
+        lab.bind("<FocusOut>", lambda e: (st.update(focus=False), paint()))
+        lab.bind("<space>", lambda e: command())
+        return ring, lab
+
+    ok_ring, ok_lab = themed_button(foot, "Confirm — I've read this", confirm, _RD_ACCENT)
+    ok_ring.pack(side="right")
+    no_ring, _ = themed_button(foot, "Not now", cancel, _RD_TX)
+    no_ring.pack(side="right", padx=(0, 10))
 
     # The X and Escape mean "not now" — deliberately NOT a confirm. Enter is left
     # unbound so a stray keypress can't dismiss the gate you're meant to read.
@@ -1886,7 +2085,7 @@ def _show_reminder_dialog(title: str, markdown: str, notice: str = "") -> bool:
             _focus_window(int(frame, 16))
     except Exception:
         pass
-    btn.focus_set()
+    ok_lab.focus_set()
 
     root.mainloop()
     return result["confirmed"]
