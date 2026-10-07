@@ -68,54 +68,26 @@ await W(600);
 
 const sec = await evalJs(`(() => {
   const m = document.getElementById('class-cards');
-  return { html: !!m && m.innerHTML.length > 0, rows: m.querySelectorAll('.sc-row').length,
-    meta: (m.querySelector('.sc-meta') || {}).textContent, title: (m.querySelector('h2') || {}).textContent };
+  return { empty: !m || m.innerHTML === '', shown: !!m && m.offsetParent !== null };
 })()`);
-t('the class page has a Flashcards section', sec.html && /Flashcards/.test(sec.title), sec);
-t('it says what is new, due and mastered', /new/.test(sec.meta) && /due/.test(sec.meta) && /mastered/.test(sec.meta), sec.meta);
-t('suggestions are counted apart, not as new', /1 suggested/.test(sec.meta), sec.meta);
-t('cards waiting for an unopened lesson say so', /1 waiting for their lesson/.test(sec.meta), sec.meta);
+t('the class page has no Flashcards box (cards are studied from each topic)', sec.empty && !sec.shown, sec);
 t('the class name renders as text (no "& amp")', (await evalJs('document.getElementById("detail-title").textContent')) === 'Computer Organization & Architecture');
 
-console.log('\nthe deck tree');
-const tree = await evalJs(`(async () => {
-  const m = document.getElementById('class-cards');
-  const docRow = m.querySelector('.sc-row');
-  const caret = docRow.querySelector('[data-toggle]');
-  caret.click();
-  await new Promise(r => setTimeout(r, 200));
-  const rows = Array.from(document.querySelectorAll('#class-cards .sc-row')).map(r => r.querySelector('.sc-name').textContent.trim());
-  return { rows };
-})()`);
-t('a document row expands into its topics', tree.rows.length >= 3 && tree.rows.some((r) => /Two's complement/.test(r)) && tree.rows.some((r) => /Number bases/.test(r)), tree.rows);
-
+console.log('\na topic\'s cards');
 const study = await evalJs(`(async () => {
-  const row = Array.from(document.querySelectorAll('#class-cards .sc-row')).find(r => /Two's complement/.test(r.textContent));
-  row.querySelector('[data-study]').click();
+  window.SOS.review.startReview({ classId: 'dk1', noteId: 'topic_fileA_t11aa' });
   await new Promise(r => setTimeout(r, 300));
   const n = document.querySelector('.sos-review [data-count]');
   const out = { open: !!document.querySelector('.sos-review'), count: n && n.textContent };
   window.SOS.review.closeReview();
   return out;
 })()`);
-t('clicking a topic studies just that deck (2 active, the suggestion stays out)', study.open && /\/ 2$/.test(study.count || ''), study);
-
-console.log('\nmy own decks');
-const ud = await evalJs(`(async () => {
-  const D = window.SOS.deck;
-  const d = D.createDeck('dk1', 'Midterm 1');
-  D.moveCards(D.forClass('dk1').filter(c => /radix/.test(c.q)).map(c => c.id), d.id);
-  window.sosDecorateClass(classes.find(c => c.id === 'dk1'));
-  await new Promise(r => setTimeout(r, 200));
-  const row = Array.from(document.querySelectorAll('#class-cards .sc-row')).find(r => /Midterm 1/.test(r.textContent));
-  return { row: !!row, meta: row && row.querySelector('.sc-meta').textContent };
-})()`);
-t('a deck of her own appears with its cards counted (this one waits for its lesson)', ud.row && /1 waiting/.test(ud.meta || ''), ud);
+t('a topic review studies just that topic (2 active, the suggestion stays out)', study.open && /\/ 2$/.test(study.count || ''), study);
 
 console.log('\nbrowse');
 const br = await evalJs(`(async () => {
   const w = (ms) => new Promise(r => setTimeout(r, ms));
-  document.querySelector('#class-cards .sc-head [data-browse]').click();
+  window.SOS.cardsUi.openBrowse({ classId: 'dk1' });
   await w(250);
   const ov = document.querySelector('.sc-ov');
   const all = ov.querySelectorAll('.sc-item').length;
@@ -220,38 +192,6 @@ const tri = await evalJs(`(async () => {
 t('triage shows suggestions one at a time', /1 of 2/.test(tri.head), tri);
 t('A adds, S skips (it stays a suggestion)', tri.a === 'active' && tri.b === 'suggested', tri);
 t('it says when everything is sorted, and Esc closes', tri.done && tri.closed, tri);
-
-console.log('\nexam mode');
-const ex = await evalJs(`(async () => {
-  const w = (ms) => new Promise(r => setTimeout(r, ms));
-  const D = window.SOS.deck;
-  localStorage.setItem('studyos_cards_settings_v1', JSON.stringify({ newPerDay: 1 }));
-  const date = new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10);
-  events.push({ id: 'dkx', classId: 'dk1', type: 'exam', name: 'Midterm', date });
-  D.addCards('dk1', Array.from({ length: 16 }, (_, i) => ({ front: 'What is fact number ' + i + ' of the unit?', back: 'Fact ' + i + ' explained.' })), { noteId: 'manual', readAt: 1 });
-  window.sosDecorateClass(classes.find(c => c.id === 'dk1'));
-  await w(150);
-  const banner = document.querySelector('#class-cards [data-exam-banner]');
-  const text = banner && banner.textContent.replace(/\\s+/g, ' ');
-  document.querySelector('#class-cards [data-exam="plan"]').click();
-  await w(200);
-  const plan = D.planOf('dk1');
-  const after = (document.querySelector('#class-cards [data-exam-banner]') || {}).textContent || '';
-  const allowance = D.newRemaining(Date.now(), 'dk1');
-  document.querySelector('#class-cards [data-exam="cram"]').click();
-  await w(250);
-  const cram = { open: !!document.querySelector('.sos-review'), mode: (document.querySelector('.sos-review-mode') || {}).textContent };
-  window.SOS.review.closeReview();
-  localStorage.removeItem('studyos_cards_settings_v1');
-  events.splice(events.findIndex(e => e.id === 'dkx'), 1);
-  D.setPlan('dk1', null);
-  return { text, plan, after: after.replace(/\\s+/g, ' '), allowance, cram };
-})()`);
-t('the class page names the exam, its cards and mastery', ex.text && /Midterm in 1[01] days: \d+ cards, \d+% mastered/.test(ex.text), ex.text);
-t('Plan spreads the remaining new cards over the days left', ex.plan && ex.plan.perDay >= 2 && ex.plan.until < Date.now() + 10 * 86400000, ex.plan);
-t('...raising this class\'s daily allowance past the global cap of 1', ex.allowance > 1, ex.allowance);
-t('...and the banner says so', /plan: \d+ new a day/.test(ex.after), ex.after);
-t('Cram weakest 30 opens a cram session', ex.cram.open && /Cram/.test(ex.cram.mode || ''), ex.cram);
 
 const errs = events
   .filter((e) => e.method === 'Runtime.exceptionThrown')

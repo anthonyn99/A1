@@ -1,9 +1,8 @@
 /* ============================================================================
  * StudyOS — decks, browse and the card editor  (overhaul §5.3, §5.7)
  * ============================================================================
- * The class page's "Flashcards" section: a deck tree — Class ▸ Document ▸
- * Topic, built from the cards themselves, plus her own decks — with New · Due
- * · mastery per row and Study / Learn / Cram / Browse.
+ * The class page has no Flashcards section any more (Veda removed it): each
+ * topic's Flashcards box under its document starts that topic's review.
  *
  * Browse is a searchable list of a deck's cards with filters (status, tag,
  * never reviewed, leeches) and bulk Archive / Delete / Move / Tag. The editor
@@ -17,7 +16,6 @@ import * as deck from './deck.js';
 import * as cards from './cards.js';
 import { renderCard, escapeHtml as esc } from './md.js';
 import { store } from './store.js';
-import { cardSettings } from './card-settings.js';
 
 const LEECH_SYSTEM = 'You rewrite flashcards a student keeps forgetting, so they become easy to remember.';
 
@@ -27,29 +25,11 @@ function styleOnce() {
   el.id = 'sos-cards-css';
   el.textContent = `
 #class-cards:empty { display:none; }
-.sc-sec { background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:12px 14px; margin-bottom:22px; }
-.sc-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px; }
-.sc-head h2 { font-size:15px; margin:0; flex:1; min-width:120px; }
 .sc-btn { background:var(--bg2); border:1px solid var(--border); color:var(--text2); border-radius:6px; padding:6px 11px;
   font:600 12px var(--sans, inherit); cursor:pointer; min-height:32px; }
 .sc-btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
 .sc-btn:disabled { opacity:.4; cursor:default; }
-.sc-row { display:flex; align-items:center; gap:8px; padding:7px 4px; border-top:1px solid var(--border); font-size:13px; }
-.sc-row:first-of-type { border-top:none; }
-.sc-caret { width:18px; color:var(--text3); cursor:pointer; text-align:center; flex-shrink:0; background:none; border:none; font-size:11px; }
-.sc-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; color:var(--text); }
-.sc-name:hover { color:var(--accent2, var(--accent)); }
-.sc-meta { font-family:var(--mono); font-size:11px; color:var(--text3); white-space:nowrap; }
-.sc-meta b { color:var(--text2); font-weight:600; }
-.sc-acts { display:flex; gap:2px; }
-.sc-acts button { background:none; border:none; color:var(--text3); font-family:var(--mono); font-size:11px; cursor:pointer; padding:4px 6px; border-radius:4px; }
-.sc-acts button:hover { color:var(--text2); background:var(--bg2); }
-.sc-kids { margin-left:18px; }
 .sc-empty { font-size:12.5px; color:var(--text3); padding:6px 4px; }
-.sc-banner { display:flex; align-items:center; gap:10px; flex-wrap:wrap; background:rgba(141,118,154,.14); border:1px solid rgba(141,118,154,.35);
-  border-radius:6px; padding:10px 12px; margin-bottom:10px; font-size:13px; }
-.sc-banner span { flex:1; min-width:180px; }
-@media (max-width:600px) { .sc-acts { display:none; } .sc-row.open .sc-acts, .sc-row:focus-within .sc-acts { display:flex; } }
 
 .sc-ov { --bg:#1B1C1E; --bg2:#1f2022; --bg3:#26272A; --bg4:#2e2f33; --border:rgba(255,255,255,0.09);
   --text:#ECECEE; --text2:#AFB0B5; --text3:#76777C; --accent:#8D769A; --mono:'IBM Plex Mono',monospace; --sans:'Nunito',sans-serif;
@@ -94,7 +74,7 @@ function namesFor(fileId) {
   if (!doc) {
     if (bd && !_loading.has(fileId)) {
       _loading.add(fileId);
-      bd.load(fileId).then(() => rerenderOpen()).catch(() => {});
+      bd.load(fileId).catch(() => {});
     }
     return null;
   }
@@ -104,120 +84,17 @@ function namesFor(fileId) {
 }
 
 // ── The class page section ────────────────────────────────────────────────
-let _cls = null;
-const _expanded = new Set();
-
-function rerenderOpen() {
-  if (!_cls) return;
-  const view = document.getElementById('view-class');
-  if (!view || !view.classList.contains('active')) return;
-  const cls = store.getClass(_cls);
-  if (cls) decorateClass(cls);
-}
-
-/** Paint the Flashcards section of a class page. */
+/** The class page no longer has a Flashcards section: cards are studied from
+ *  each topic's Flashcards box under its document. This only clears the old
+ *  mount (it hides itself when empty). */
 export function decorateClass(cls) {
   styleOnce();
   const mount = document.getElementById('class-cards');
-  if (!mount || !cls) return;
-  _cls = cls.id;
-  const tree = deck.deckTree(cls.id, namesFor);
-  const total = deck.deckCounts(tree.cards);
-  const banner = examBanner(cls, tree);
-  if (!tree.cards.length && !deck.userDecks(cls.id).length) {
-    mount.innerHTML = `<div class="sc-sec"><div class="sc-head"><h2>Flashcards</h2>
-      <button class="sc-btn" data-new>+ Card</button></div>
-      <div class="sc-empty">No cards yet. Break down a document below, or add a card yourself.</div></div>`;
-    wire(mount, cls, tree);
-    return;
-  }
-  mount.innerHTML = `
-    <div class="sc-sec">
-      ${banner}
-      <div class="sc-head">
-        <h2>Flashcards</h2>
-        <button class="sc-btn" data-new title="Make a card">+ Card</button>
-        <button class="sc-btn" data-newdeck title="Make a deck of your own">+ Deck</button>
-        <button class="sc-btn" data-browse="${esc(JSON.stringify({ classId: cls.id }))}">Browse</button>
-        <button class="sc-btn primary" data-study="${esc(JSON.stringify({ classId: cls.id }))}" ${total.due + total.new ? '' : 'disabled'}>
-          Study${total.due + Math.min(total.new, deck.newRemaining(Date.now(), cls.id)) ? ` · ${total.due + Math.min(total.new, deck.newRemaining(Date.now(), cls.id))}` : ''}</button>
-      </div>
-      <div class="sc-meta" style="margin:0 0 6px 4px">${countsText(total)}</div>
-      ${tree.children.map((n) => rowHtml(n, cls.id, 0)).join('')}
-    </div>`;
-  wire(mount, cls, tree);
-}
-
-function countsText(c) {
-  const bits = [`<b>${c.new}</b> new`, `<b>${c.due}</b> due`, `${c.mastery}% mastered`];
-  if (c.waiting) bits.push(`${c.waiting} waiting for their lesson`);
-  if (c.suggested) bits.push(`${c.suggested} suggested`);
-  if (c.archived) bits.push(`${c.archived} archived`);
-  return bits.join(' · ');
-}
-
-function scopeOf(node, classId) {
-  if (node.kind === 'user') return { classId, userDeck: node.userDeck };
-  return { classId, deck: node.path };
-}
-
-function rowHtml(node, classId, depth) {
-  const c = deck.deckCounts(node.cards);
-  const key = node.kind + ':' + node.id;
-  const open = _expanded.has(key);
-  const kids = node.children || [];
-  const scope = esc(JSON.stringify(scopeOf(node, classId)));
-  const label = node.kind === 'user' ? `▣ ${esc(node.name)}` : esc(node.name);
-  return `
-    <div class="sc-row" data-key="${esc(key)}">
-      ${kids.length ? `<button class="sc-caret" data-toggle="${esc(key)}" aria-label="Expand">${open ? '▾' : '▸'}</button>` : '<span class="sc-caret"></span>'}
-      <span class="sc-name" data-study="${scope}" title="Study this deck">${label}</span>
-      <span class="sc-meta"><b>${c.new}</b> new · <b>${c.due}</b> due · ${c.mastery}%${
-        c.waiting ? ` · <span title="New cards wait until you open their lesson">${c.waiting} waiting</span>` : ''}${c.suggested ? ` · ${c.suggested} sugg.` : ''}</span>
-      <span class="sc-acts">
-        ${c.new ? `<button data-learn="${scope}" title="Learn new cards">learn</button>` : ''}
-        <button data-cram="${scope}" title="Review everything, schedule ignored">cram</button>
-        <button data-browse="${scope}">browse</button>
-        ${node.kind === 'user' ? `<button data-rename="${esc(node.id)}">rename</button><button data-deldeck="${esc(node.id)}">delete</button>` : ''}
-      </span>
-    </div>
-    ${kids.length && open ? `<div class="sc-kids">${kids.map((k) => rowHtml(k, classId, depth + 1)).join('')}</div>` : ''}`;
-}
-
-function wire(mount, cls, tree) {
-  const parse = (s) => { try { return JSON.parse(s); } catch (e) { return null; } };
-  const R = () => window.SOS && window.SOS.review;
-  mount.querySelectorAll('[data-toggle]').forEach((b) => b.addEventListener('click', () => {
-    const k = b.dataset.toggle;
-    if (_expanded.has(k)) _expanded.delete(k); else _expanded.add(k);
-    decorateClass(cls);
-  }));
-  mount.querySelectorAll('[data-study]').forEach((b) => b.addEventListener('click', () => R() && R().startReview(parse(b.dataset.study))));
-  mount.querySelectorAll('[data-learn]').forEach((b) => b.addEventListener('click', () => R() && R().startReview(parse(b.dataset.learn), { mode: 'learn' })));
-  mount.querySelectorAll('[data-cram]').forEach((b) => b.addEventListener('click', () => R() && R().startReview(parse(b.dataset.cram), { mode: 'cram' })));
-  mount.querySelectorAll('[data-browse]').forEach((b) => b.addEventListener('click', () => openBrowse(parse(b.dataset.browse))));
-  mount.querySelectorAll('[data-new]').forEach((b) => b.addEventListener('click', () => openEditor({ classId: cls.id, onSave: () => decorateClass(cls) })));
-  const nd = mount.querySelector('[data-newdeck]');
-  if (nd) nd.addEventListener('click', () => {
-    const name = prompt('Name of the new deck:');
-    if (name && deck.createDeck(cls.id, name)) decorateClass(cls);
-  });
-  mount.querySelectorAll('[data-rename]').forEach((b) => b.addEventListener('click', () => {
-    const d = deck.userDecks(cls.id).find((x) => x.id === b.dataset.rename);
-    const name = d && prompt('Rename the deck:', d.name);
-    if (name && deck.renameDeck(cls.id, d.id, name)) decorateClass(cls);
-  }));
-  mount.querySelectorAll('[data-deldeck]').forEach((b) => b.addEventListener('click', () => {
-    if (!confirm('Delete this deck? Its cards are kept — they just leave the deck.')) return;
-    deck.deleteDeck(cls.id, b.dataset.deldeck);
-    decorateClass(cls);
-  }));
-  mount.querySelectorAll('[data-exam]').forEach((b) => b.addEventListener('click', () => examAction(cls, b.dataset.exam)));
+  if (mount) mount.innerHTML = '';
 }
 
 // ── Exam mode (overhaul §7.6) ─────────────────────────────────────────────
 const DAY = 86400000;
-const EXAM_WINDOW_DAYS = 30;
 
 /** The next exam or quiz of a class: { name, type, at, days }, or null. */
 export function nextExam(classId, now = Date.now()) {
@@ -252,59 +129,6 @@ export function retriesOf(cls, now = Date.now()) {
   return out;
 }
 
-function examBanner(cls) {
-  const ex = nextExam(cls.id);
-  const retries = retriesOf(cls);
-  const bits = [];
-  if (ex && ex.days <= EXAM_WINDOW_DAYS) {
-    const m = deck.mastery(cls.id);
-    const plan = deck.planOf(cls.id);
-    const when = ex.days === 0 ? 'today' : ex.days === 1 ? 'tomorrow' : `in ${ex.days} days`;
-    bits.push(`<div class="sc-banner" data-exam-banner>
-      <span><b>${esc(ex.name)}</b> ${when}: ${m.total} card${m.total === 1 ? '' : 's'}, ${m.pct}% mastered${
-        plan ? ` · plan: ${plan.perDay} new a day until ${new Date(plan.until).toLocaleDateString([], { month: 'short', day: 'numeric' })}` : ''}</span>
-      <button class="sc-btn" data-exam="cram" title="Review your 30 weakest cards, schedule ignored">Cram weakest 30</button>
-      <button class="sc-btn" data-exam="${plan ? 'unplan' : 'plan'}" title="Spread the remaining new cards over the days left">${plan ? 'Stop the plan' : 'Plan'}</button>
-    </div>`);
-  }
-  if (retries.length) {
-    const n = retries.reduce((k, r) => k + r.n, 0);
-    bits.push(`<div class="sc-banner"><span>${n} check question${n === 1 ? '' : 's'} you missed — try ${n === 1 ? 'it' : 'them'} again.</span>
-      <button class="sc-btn" data-exam="retry">Retry</button></div>`);
-  }
-  return bits.join('');
-}
-
-function examAction(cls, act) {
-  const R = window.SOS && window.SOS.review;
-  if (act === 'cram') { if (R) R.startReview({ classId: cls.id }, { mode: 'cram', limit: 30 }); return; }
-  if (act === 'retry') {
-    const r = retriesOf(cls)[0];
-    const L = window.SOS && window.SOS.lessonUi;
-    if (r && L) L.open(r.fileId, r.topicId);
-    return;
-  }
-  if (act === 'unplan') { deck.setPlan(cls.id, null); decorateClass(cls); return; }
-  if (act === 'plan') {
-    const ex = nextExam(cls.id);
-    if (!ex) return;
-    const c = deck.countsFor(cls.id);
-    const unseen = c.unseen;
-    // Two days of margin before the exam, like the scheduler's compression.
-    const days = Math.max(1, ex.days - 2);
-    const perDay = Math.ceil(unseen / days);
-    const global = cardSettings().newPerDay;
-    if (!unseen) { toast('Nothing to plan', 'Every card of this class is already in your reviews.'); return; }
-    if (perDay <= global) {
-      toast('Already on track', `Your ${global} new cards a day cover the ${unseen} left before ${ex.name}.`);
-      return;
-    }
-    deck.setPlan(cls.id, { perDay, until: ex.at - 2 * DAY, examAt: ex.at });
-    toast('Plan set', `${perDay} new cards a day for ${cls.name} until ${new Date(ex.at - 2 * DAY).toLocaleDateString([], { month: 'short', day: 'numeric' })}.`);
-    decorateClass(cls);
-  }
-}
-
 function toast(title, body) {
   try { if (window.showNotif) window.showNotif('🗓️', title, body); } catch (e) {}
 }
@@ -321,7 +145,7 @@ export function openTriage(scope = {}) {
   const el = document.createElement('div');
   el.className = 'sc-ov';
   document.body.appendChild(el);
-  const close = () => { document.removeEventListener('keydown', onKey, true); el.remove(); rerenderOpen(); if (scope.onClose) scope.onClose(added); };
+  const close = () => { document.removeEventListener('keydown', onKey, true); el.remove(); if (scope.onClose) scope.onClose(added); };
   const paint = () => {
     if (i >= list.length) {
       el.innerHTML = `<div style="margin:auto;text-align:center;padding:30px">
@@ -382,7 +206,6 @@ export function openBrowse(scope = {}) {
   const close = () => {
     document.removeEventListener('keydown', onKey, true);
     el.remove(); _browse = null;
-    rerenderOpen();
   };
   const onKey = (e) => {
     if (e.key === 'Escape' && !document.querySelector('.sc-ed')) { e.preventDefault(); close(); }
@@ -688,12 +511,5 @@ Reply with ONE JSON object and nothing else:
     { noteId: card.sourceNoteId, title: card.topic || card.sourceTitle || '', readAt: Date.now(), kind: 'rewrite' }) : [];
   return { replaced, added };
 }
-
-window.addEventListener('sos-changed', (e) => {
-  if (e && e.detail && e.detail.entity === 'cards' && !_browse) {
-    clearTimeout(rerenderOpen._t);
-    rerenderOpen._t = setTimeout(rerenderOpen, 300);
-  }
-});
 
 export default { decorateClass, openBrowse, openEditor, openTriage, rewriteLeech, nextExam, retriesOf };

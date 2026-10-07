@@ -25,11 +25,14 @@ const CSS = `
 .sos-topics .bd-sum { font-size: 12px; color: var(--text3); line-height: 1.45; margin-top: 2px; }
 .sos-topics .bd-badge { flex-shrink: 0; font-size: 10.5px; font-family: var(--mono); color: var(--text3); padding-top: 3px; white-space: nowrap; }
 .sos-topics .bd-badge.fail { color: #ef9f9f; }
-.sos-topics .bd-ring { display: inline-flex; align-items: center; gap: 6px; }
-.sos-topics .bd-ring svg { flex-shrink: 0; }
-.sos-topics .bd-chip { background: none; border: 1px solid var(--border); color: var(--text2); border-radius: 999px; font: 10.5px var(--mono);
-  padding: 2px 8px; cursor: pointer; margin-left: 6px; }
-.sos-topics .bd-chip:hover { color: var(--accent2); border-color: var(--accent2); }
+.sos-topics .bd-boxes { flex-shrink: 0; display: flex; gap: 6px; align-items: center; }
+.sos-topics .bd-row .bd-box { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 4px 12px;
+  border-radius: 6px; background: var(--bg2); font-family: var(--sans, inherit); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.sos-topics .bd-row .bd-box svg { flex-shrink: 0; }
+.sos-topics .bd-row .bd-box:disabled { opacity: .4; cursor: default; border-color: var(--border2); color: var(--text2); }
+.sos-topics .bd-row .bd-sugg { padding: 4px 9px; color: var(--text3); }
+.sos-topics .bd-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent2, var(--accent)); }
+@media (max-width: 600px) { .sos-topics .bd-row { flex-wrap: wrap; } .sos-topics .bd-boxes { margin-left: 32px; } }
 .sos-topics .bd-info { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 12px; padding: 0 4px; }
 .sos-topics .bd-detail { font-size: 11px; color: var(--text3); line-height: 1.55; margin: 4px 0 8px; }
 .sos-topics .bd-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 0 4px; }

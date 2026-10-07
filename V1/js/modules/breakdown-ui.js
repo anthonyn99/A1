@@ -303,11 +303,10 @@ async function renderPanel(panel, cls, mod, f) {
         : w ? esc(`Waiting for a free model until ${clock(w.until)}${w.why ? ` — ${w.why}` : ''}…`)
         : `Listing topics with ${esc(providerName(doc))}…`}</div>`);
   } else {
-    const suggested = topics.reduce((n, t) => n + (t.status === 'ready' ? (t.suggested || 0) : 0), 0);
     const status = running
       ? `Writing lessons — ${ready.length} of ${topics.length} done.`
       : stale ? `Interrupted at ${ready.length} of ${topics.length}. Continue to finish it.`
-      : doc.error ? doc.error : `${topics.length} topics · ${cards} cards${suggested ? ` · ${suggested} suggested` : ''}`;
+      : doc.error ? doc.error : `${topics.length} topics`;
     // The detail — who wrote it, what was checked — is one tap away, not a
     // wall of text on every document (overhaul §3.4).
     const detail = [writtenBy(topics).replace(/^ · /, ''), checksNote(doc.checks).replace(/^ · /, ''), doc.syncError || '']
@@ -324,7 +323,7 @@ async function renderPanel(panel, cls, mod, f) {
       const gaps = ok && t.gaps ? t.gaps.length : 0;
       const w = running && t.status === 'writing' && bd.waitingOf(f.id, t.id);
       const tc = ok ? topicCounts(doc, t) : null;
-      const badge = ok ? `${tc.due ? `${tc.due} due · ` : ''}${tc.active} cards${gaps ? ` · ⚠ ${gaps}` : ''}`
+      const badge = ok ? ''
         : w ? `waiting · until ${clock(w.until)}`
         : t.status === 'writing' && !running ? 'interrupted'
         : t.status === 'writing' ? `writing…${running && t.startedAt ? ' ' + minutes(t.startedAt) : ''}`
@@ -337,9 +336,11 @@ async function renderPanel(panel, cls, mod, f) {
             <div class="bd-title">${esc(t.title)}</div>
             <div class="bd-sum">${esc(t.status === 'failed' ? (t.error || 'failed') : t.summary || '')}</div>
           </div>
-          <div class="bd-badge${t.status === 'failed' ? ' fail' : ''}"${gaps ? ` title="${gaps} line${gaps === 1 ? '' : 's'} of the document not fully taught — shown at the end of the lesson"` : ''}>${
-            ok ? `<span class="bd-ring" title="${tc.mastery}% mastered">${ring(tc.mastery)}<span>${esc(badge)}</span></span>` : esc(badge)}${
-            ok && tc.suggested ? `<button class="bd-chip" data-triage="${esc(t.id)}" title="Cards held back — add the ones you want">${tc.suggested} suggested</button>` : ''}</div>
+          ${ok ? `<div class="bd-boxes">
+            <button class="bd-box" data-lesson="${esc(t.id)}" title="${gaps ? `${gaps} line${gaps === 1 ? '' : 's'} of the document not fully taught — shown at the end of the lesson` : 'Open the lesson'}">Lesson</button>
+            <button class="bd-box" data-cards="${esc(t.id)}" ${tc.active ? '' : 'disabled'} title="${tc.active ? `Study this topic’s cards · ${tc.mastery}% mastered` : 'No cards in your reviews yet'}">${ring(tc.mastery)}Flashcards${tc.due ? '<span class="bd-dot" aria-label="cards due"></span>' : ''}</button>
+            ${tc.suggested ? `<button class="bd-box bd-sugg" data-triage="${esc(t.id)}" title="${tc.suggested} suggested card${tc.suggested === 1 ? '' : 's'} held back — add the ones you want">+</button>` : ''}
+          </div>` : `<div class="bd-badge${t.status === 'failed' ? ' fail' : ''}">${esc(badge)}</div>`}
           ${t.status === 'failed' && !running ? `<button data-retry="${esc(t.id)}">Retry</button>` : ''}
         </div>`);
     });
@@ -358,6 +359,14 @@ async function renderPanel(panel, cls, mod, f) {
     row.addEventListener('click', (e) => { if (!e.target.closest('button')) open(); });
     row.addEventListener('keydown', (e) => { if (e.key === 'Enter') open(); });
   });
+  panel.querySelectorAll('[data-lesson]').forEach((b) => b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    window.SOS && window.SOS.lessonUi && window.SOS.lessonUi.open(f.id, b.dataset.lesson);
+  }));
+  panel.querySelectorAll('[data-cards]').forEach((b) => b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    window.SOS && window.SOS.review && window.SOS.review.startReview({ classId: doc.classId, noteId: bd.noteIdFor(f.id, b.dataset.cards) });
+  }));
   panel.querySelectorAll('[data-retry]').forEach((b) => b.addEventListener('click', (e) => {
     e.stopPropagation();
     b.disabled = true;

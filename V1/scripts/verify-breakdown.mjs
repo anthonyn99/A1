@@ -210,12 +210,25 @@ const panel = await evalJs(`(function(){
   var b = document.querySelector('[data-act="breakdown"]');
   return { hidden: p && p.hidden, rows: p ? p.querySelectorAll('.bd-row').length : 0,
            titles: p ? Array.from(p.querySelectorAll('.bd-title')).map(e => e.textContent) : [],
-           badges: p ? Array.from(p.querySelectorAll('.bd-badge')).map(e => e.textContent) : [],
+           boxes: p ? Array.from(p.querySelectorAll('.bd-row')).map(r => Array.from(r.querySelectorAll('.bd-box:not(.bd-sugg)')).map(e => e.textContent.trim()).join('+')) : [],
+           counts: p ? /\\d+ cards?/.test(p.textContent) : null,
            label: b && b.textContent, status: p && (p.querySelector('.bd-status')||{}).textContent };
 })()`);
 t('the topics appear under the document', panel.hidden === false && panel.rows === 2, panel);
 t('in the document\'s order', panel.titles.join('|') === 'Candidate keys|Inner joins', panel.titles);
-t('each shows its card count (the yes/no card was filtered out)', panel.badges.join('|') === '2 cards|1 cards', panel.badges);
+t('each topic shows a Lesson box and a Flashcards box', panel.boxes.join('|') === 'Lesson+Flashcards|Lesson+Flashcards', panel.boxes);
+t('...and no card counts', panel.counts === false, panel);const topicStudy = await evalJs(`(async () => {
+  const seen = [];
+  const prev = window.showNotif;
+  window.showNotif = (i, title, body) => seen.push(title + ': ' + body);
+  document.querySelector('[data-bd-panel="${FID}"] [data-cards]').click();
+  await new Promise(r => setTimeout(r, 300));
+  window.showNotif = prev;
+  const out = { open: !!document.querySelector('.sos-review'), seen };
+  if (out.open) window.SOS.review.closeReview();
+  return out;
+})()`);
+t('the Flashcards box, before the lesson is opened, says its cards wait for the lesson', !topicStudy.open && topicStudy.seen.some((s) => /lessons you haven't opened/.test(s)), topicStudy);
 t('the row button now reads Topics · 2', panel.label === 'Topics · 2', panel.label);
 t('the status line names the prompt used', /prompt: Explain it like I am new/.test(panel.status || ''), panel.status);
 t('...and offers a redo with another one', await evalJs(`!!document.querySelector('[data-bd-panel="${FID}"] [data-redo]')`));
