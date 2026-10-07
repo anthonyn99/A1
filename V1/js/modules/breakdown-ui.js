@@ -313,9 +313,12 @@ async function renderPanel(panel, cls, mod, f) {
       .filter(Boolean).join(' · ');
     const ins = doc.instructions && doc.instructions.text ? doc.instructions : null;
     const infoOpen = _info.has(f.id);
-    html.push(`<div class="bd-status${doc.error && !running ? ' err' : ''}">${esc(status)}${
+    const D = window.SOS && window.SOS.deck;
+    const important = D ? D.byNotePrefix(doc.classId, bd.notePrefixFor(f.id)).filter((c) => c.important && D.isActive(c)).length : 0;
+    html.push(`<div class="bd-head"><div class="bd-status${doc.error && !running ? ' err' : ''}">${esc(status)}${
       ins ? ` · <span title="${esc(ins.text)}" style="cursor:help;border-bottom:1px dotted currentColor">prompt: ${esc(ins.name || 'custom')}</span>` : ''}${
       detail && !running ? ` <button class="bd-info" data-info title="How it was written and checked" aria-expanded="${infoOpen}">ⓘ</button>` : ''}</div>${
+      important ? `<button class="bd-box bd-imp" data-important title="${important} card${important === 1 ? '' : 's'} you forgot — review them">★ Important</button>` : ''}</div>${
       detail && infoOpen && !running ? `<div class="bd-detail">${esc(detail)}</div>` : ''}`);
     topics.forEach((t, i) => {
       const ok = t.status === 'ready';
@@ -375,6 +378,11 @@ async function renderPanel(panel, cls, mod, f) {
     if (D.studyQueue(scope, {}).length) R.startReview(scope, { anyNew: true });
     else R.startReview(scope, { mode: 'cram' });
   }));
+  const imp = panel.querySelector('[data-important]');
+  if (imp) imp.addEventListener('click', () => {
+    const R = window.SOS && window.SOS.review;
+    if (R) R.startReview({ classId: doc.classId, notePrefix: bd.notePrefixFor(f.id) }, { important: true });
+  });
   panel.querySelectorAll('[data-retry]').forEach((b) => b.addEventListener('click', (e) => {
     e.stopPropagation();
     b.disabled = true;
@@ -490,6 +498,15 @@ export function findFile(fileId) {
 window.addEventListener('sos-breakdown', (e) => {
   const id = e && e.detail && e.detail.fileId;
   if (id) refresh(id);
+});
+
+// A review changes the rings, the due dots and the Important pile: repaint
+// the open lists once the burst of card writes settles.
+let _cardsTimer = null;
+window.addEventListener('sos-changed', (e) => {
+  if (!(e && e.detail && e.detail.entity === 'cards') || !_open.size) return;
+  clearTimeout(_cardsTimer);
+  _cardsTimer = setTimeout(() => { for (const id of _open) refresh(id); }, 300);
 });
 
 // A browser model takes minutes per topic: keep "writing… 3 min" moving

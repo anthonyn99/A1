@@ -534,6 +534,19 @@ export function edit(cardId, patch) {
   return writeAt(at, { ...next, updatedAt: Date.now() });
 }
 
+/** Mark a card important (she forgot it) or take it out again (she
+ *  remembered it in an Important session). A flag, not a copy: the card keeps
+ *  one schedule and shows in both places. Returns the card, or null if unchanged. */
+export function setImportant(cardId, on) {
+  const at = locate(cardId);
+  if (!at || !isLive(at.list[at.i])) return null;
+  const prev = at.list[at.i];
+  if (!!prev.important === !!on) return null;
+  const next = { ...prev, updatedAt: Date.now() };
+  if (on) next.important = true; else delete next.important;
+  return writeAt(at, next);
+}
+
 /** Put a card back exactly as a snapshot had it — undo for edit, archive and
  *  delete. The snapshot's own timestamps are bumped so the restore syncs. */
 export function restoreCard(snapshot) {
@@ -658,6 +671,7 @@ function scoped(scope) {
   if (scope.notePrefix) pool = pool.filter((c) => String(c.sourceNoteId || '').startsWith(scope.notePrefix));
   if (scope.ids) { const ids = new Set(scope.ids); pool = pool.filter((c) => ids.has(c.id)); }
   if (scope.tag) pool = pool.filter((c) => (c.tags || []).includes(scope.tag));
+  if (scope.important) pool = pool.filter((c) => c.important);
   if (scope.deck) {
     const want = scope.deck;
     if (want[1] === ':notes') pool = pool.filter((c) => c.classId === want[0] && cards.deckPathOf(c).length !== 3);
@@ -1004,7 +1018,7 @@ export function replaceClass(classId, list) {
 export default {
   load, applyRemote, mergeCard, mergeLists, metaOf, setMeta, mergeMeta, forClass, rawForClass, all, get, countsFor,
   introducedToday, newRemaining, planOf, setPlan, isLive, isActive, statusOf, isUnseen, isReviewed, tombstone,
-  generateFromNote, generateFromSelection, addExternal, addCards, byNotePrefix, remove, setStatus, edit, restoreCard,
+  generateFromNote, generateFromSelection, addExternal, addCards, byNotePrefix, remove, setStatus, setImportant, edit, restoreCard,
   gradeCard, previewCard, restoreSched, schedOf, buildQueue, cramQueue, newOrder,
   studyQueue, cramUnits, markLessonRead, fromReadLesson,
   userDecks, createDeck, renameDeck, deleteDeck, deckFamily, moveCards, tagCards, tagsOf, deckTree, deckCounts, LEECH_LAPSES,

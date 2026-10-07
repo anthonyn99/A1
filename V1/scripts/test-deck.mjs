@@ -357,5 +357,25 @@ console.log('\nleeches');
   t('the review log is kept, trimmed', Array.isArray(l.log) && l.log.length === 13 && l.log.length <= 50);
 }
 
+console.log('\nimportant (cards she forgot)');
+{
+  const [a, b] = deck.addCards('c1', [{ front: 'What does a foreign key reference?', back: 'A key of another table.' },
+    { front: 'What does NULL mean in SQL?', back: 'Unknown or missing.' }], { noteId: 'topic_fimp_t1', readAt: 1 });
+  t('a new card is not important', !deck.get(a.id).important);
+  const sched = JSON.stringify(deck.get(a.id).sched || null);
+  t('marking it important changes it', deck.setImportant(a.id, true) && deck.get(a.id).important === true);
+  t('...without touching its schedule', JSON.stringify(deck.get(a.id).sched || null) === sched);
+  t('marking it again is a no-op', deck.setImportant(a.id, true) === null);
+  const pile = deck.cramUnits({ classId: 'c1', notePrefix: 'topic_fimp_', important: true });
+  t('an important scope holds only the flagged card', pile.length === 1 && pile[0].id === a.id, pile);
+  deck.setImportant(a.id, false);
+  t('remembering takes it out (the key is gone, not false)', !('important' in deck.get(a.id)));
+  t('...and the pile is empty', deck.cramUnits({ classId: 'c1', notePrefix: 'topic_fimp_', important: true }).length === 0);
+  deck.setImportant(b.id, true);
+  const older = { ...deck.get(b.id), important: undefined, updatedAt: 1 };
+  delete older.important;
+  t('the newer copy wins a merge, flag and all', deck.mergeCard(deck.get(b.id), older).important === true);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

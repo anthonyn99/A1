@@ -25,6 +25,12 @@ const CSS = `
 .sos-topics .bd-sum { font-size: 12px; color: var(--text3); line-height: 1.45; margin-top: 2px; }
 .sos-topics .bd-badge { flex-shrink: 0; font-size: 10.5px; font-family: var(--mono); color: var(--text3); padding-top: 3px; white-space: nowrap; }
 .sos-topics .bd-badge.fail { color: #ef9f9f; }
+.sos-topics .bd-head { display: flex; align-items: flex-start; gap: 10px; }
+.sos-topics .bd-head .bd-status { flex: 1; min-width: 0; }
+.sos-topics .bd-head .bd-imp { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 4px 12px; margin-bottom: 6px;
+  border-radius: 6px; border: 1px solid var(--accent); background: var(--bg2); color: var(--accent2, var(--accent));
+  font-family: var(--sans, inherit); font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.sos-topics .bd-head .bd-imp:hover { background: var(--accent); color: #fff; }
 .sos-topics .bd-boxes { flex-shrink: 0; display: flex; gap: 6px; align-items: center; }
 .sos-topics .bd-row .bd-box { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 4px 12px;
   border-radius: 6px; background: var(--bg2); font-family: var(--sans, inherit); font-size: 12px; font-weight: 600; white-space: nowrap; }

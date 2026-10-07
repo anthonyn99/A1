@@ -13,6 +13,9 @@
  *           short interval), Forgot commits Again (relearning).
  *           "Advanced grading" in settings brings back Again/Hard/Good/Easy.
  *   cram    any deck, schedule ignored, nothing written (exam mode).
+ *   important  (opts.important) a document's Important pile: every card she
+ *           ever marked Forgot, due or not, graded for real. Remembered there
+ *           takes a card out of the pile until she forgets it again.
  *   study   (the default) due cards, then new ones within today's cap.
  *
  * Every action is one key: E edit, A archive, Del delete, U undo (any of
@@ -169,6 +172,12 @@ const fmt = (d) => (d == null ? '' : d === 0 ? 'now' : d === 1 ? '1d' : d < 30 ?
 export function startReview(scope = {}, opts = {}) {
   if (_open) return _open;                 // never stack two sessions
   styleOnce();
+  // Important: every card she forgot, due or not, graded for real — so it is
+  // cram's queue with its writes on. Remembered here takes a card out again.
+  if (opts.important) {
+    scope = { ...scope, important: true };
+    opts = { ...opts, mode: 'cram', cramWrites: true };
+  }
   const set = cardSettings();
   const mode = opts.mode || 'study';
   const cram = mode === 'cram';
@@ -257,7 +266,7 @@ export function startReview(scope = {}, opts = {}) {
     const left = deck.countsFor(scope.classId || null);
     body.innerHTML = `
       <div class="sos-review-recap">
-        <h2>${cram ? 'Cram done' : 'Done'}</h2>
+        <h2>${opts.important ? 'Important — done' : cram ? 'Cram done' : 'Done'}</h2>
         ${stats.learned ? `<div class="sos-review-stat">${stats.learned} new learned</div>` : ''}
         ${stats.reviewed ? `<div class="sos-review-stat">${stats.reviewed} reviewed · ${acc}% remembered</div>` : ''}
         <div class="sos-review-stat">${mins} min</div>
@@ -284,7 +293,7 @@ export function startReview(scope = {}, opts = {}) {
     bar.style.width = Math.round((i / queue.length) * 100) + '%';
     crumbEl.textContent = crumb(card);
     const typing = set.typeCloze && f.cloze && !revealed;
-    const label = cram ? 'Cram' : isLearn ? 'New card' : u.rereview ? 'Again — try once more' : 'Review';
+    const label = cram ? (opts.important ? 'Important' : 'Cram') : isLearn ? 'New card' : u.rereview ? 'Again — try once more' : 'Review';
     const answerHtml = !revealed ? '' : f.cloze
       ? `${f.note ? `<div class="sos-review-a">${renderCard(f.note)}</div>` : ''}`
       : `<div class="sos-review-a">${renderCard(f.back)}</div>`;
@@ -383,6 +392,11 @@ export function startReview(scope = {}, opts = {}) {
       else return;
       return next();
     }
+    // Any Forgot puts the card in its document's Important pile; only a
+    // Remembered inside an Important session takes it out. The snapshot above
+    // already holds the flag, so undo puts it back too.
+    if (a === 'forgot' || a === 'g1') deck.setImportant(u.id, true);
+    else if (opts.important && (a === 'remembered' || /^g[234]$/.test(a))) deck.setImportant(u.id, false);
     if (cram) {
       if (a === 'forgot') {
         stats.reviewed++; stats.forgot++;
