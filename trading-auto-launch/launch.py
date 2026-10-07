@@ -1678,6 +1678,22 @@ def _rd_shade(c: str, k: float) -> str:
     return "#%02x%02x%02x" % tuple(min(255, round(int(c[i:i + 2], 16) * k)) for i in (1, 3, 5))
 
 
+def _rd_theme_titlebar(root):
+    """Paint the native title bar in the dialog's charcoal (Windows 11 DWM
+    attributes: dark mode, caption colour, caption text, border). Older Windows
+    just ignores them and keeps its stock bar."""
+    import ctypes
+    from ctypes import wintypes
+    def bgr(c):
+        return int(c[5:7] + c[3:5] + c[1:3], 16)
+    root.update_idletasks()
+    hwnd = int(root.wm_frame(), 16)
+    dwm = ctypes.windll.dwmapi
+    for attr, val in ((20, 1), (35, bgr(_RD_BG)), (36, bgr(_RD_TX)), (34, bgr(_RD_BORDER))):
+        v = ctypes.c_int(val)
+        dwm.DwmSetWindowAttribute(wintypes.HWND(hwnd), attr, ctypes.byref(v), ctypes.sizeof(v))
+
+
 def _rd_track(s: str) -> str:
     """Uppercase with a hair space between letters: Tk has no letter-spacing, and
     MAGI's .btn is tracked 1px."""
@@ -2131,6 +2147,10 @@ def _show_reminder_dialog(title: str, markdown: str, notice: str = "") -> bool:
     root.attributes("-topmost", True)
     root.update_idletasks()
     root.lift()
+    try:
+        _rd_theme_titlebar(root)
+    except Exception:
+        pass                         # cosmetic only
     try:
         root.focus_force()
         frame = root.wm_frame()
