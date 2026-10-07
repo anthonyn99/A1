@@ -9,6 +9,7 @@
 import * as ai from './ai.js';
 import { ensureStyle } from './study-style.js';
 import { escapeHtml as esc } from './md.js';
+import { cardSettings, saveCardSettings } from './card-settings.js';
 
 const BLURB = {
   bridge: 'Your Claude Pro plan, through the bridge on this PC. No key.',
@@ -77,7 +78,9 @@ export function render() {
       <button class="btn primary" data-save>Save</button>
       <button class="btn" data-test title="Sends one tiny request">Test connection</button>
     </div>
-    <div class="ais-msg" id="ais-msg"></div>`;
+    <div class="ais-msg" id="ais-msg"></div>
+    ${cardsHtml()}`;
+  wireCards(root);
 
   const msg = (text, ok) => {
     const el = root.querySelector('#ais-msg');
@@ -203,6 +206,51 @@ function orcaHtml() {
           <option value="wait"${draft.orcaBusy !== 'auto' ? ' selected' : ''}>Wait for it (up to 10 minutes per step)</option>
           <option value="auto"${draft.orcaBusy === 'auto' ? ' selected' : ''}>Use whichever model is free instead</option>
         </select></div>` : ''}`;
+}
+
+/* Flashcards: how many new cards a day, and how reviews feel. Saved on
+ * change — there is nothing to test. Per device, like the AI keys. */
+function cardsHtml() {
+  const s = cardSettings();
+  const chk = (id, on, label, note) => `
+    <label class="ais-check" style="display:flex;gap:10px;align-items:flex-start;margin:10px 0;cursor:pointer">
+      <input type="checkbox" id="${id}" ${on ? 'checked' : ''} style="margin-top:3px">
+      <span>${label}<br><small style="color:var(--text3)">${note}</small></span></label>`;
+  return `
+    <h2 class="ais-h" style="font-size:20px;margin-top:34px">Flashcards</h2>
+    <div class="ais-lead">How many new cards you meet each day, and how reviewing feels. Saved on this device.</div>
+    <div class="ais-field"><label for="cs-new">New cards per day</label>
+      <input id="cs-new" type="number" min="0" max="500" value="${s.newPerDay}" style="max-width:120px">
+      <div class="ais-note" style="margin-top:6px">A handful a day adds up: 15 a day is about 450 a month.</div></div>
+    <div class="ais-field"><label for="cs-rev">Reviews per day (at most)</label>
+      <input id="cs-rev" type="number" min="10" max="5000" value="${s.reviewsPerDay}" style="max-width:120px"></div>
+    <div class="ais-field"><label for="cs-ret">Target retention</label>
+      <select id="cs-ret" style="max-width:220px">
+        ${[0.8, 0.85, 0.9, 0.93, 0.95].map((r) => `<option value="${r}"${Math.abs(r - s.retention) < 0.001 ? ' selected' : ''}>${Math.round(r * 100)}%${r === 0.9 ? ' (default)' : ''}</option>`).join('')}
+      </select>
+      <div class="ais-note" style="margin-top:6px">Higher remembers more, at the cost of more reviews.</div></div>
+    ${chk('cs-read', s.onlyReadLessons, 'Only introduce cards from lessons I’ve read', 'A breakdown’s cards wait until you open their lesson.')}
+    ${chk('cs-adv', s.advancedGrading, 'Advanced grading', 'Again / Hard / Good / Easy instead of Forgot / Remembered.')}
+    ${chk('cs-type', s.typeCloze, 'Type the answer on cloze cards', 'Type the hidden text before it is revealed.')}
+    <div class="ais-msg" id="cs-msg"></div>`;
+}
+
+function wireCards(root) {
+  const val = (id) => root.querySelector('#' + id);
+  const save = () => {
+    const r = saveCardSettings({
+      newPerDay: Number(val('cs-new').value), reviewsPerDay: Number(val('cs-rev').value),
+      retention: Number(val('cs-ret').value), onlyReadLessons: val('cs-read').checked,
+      advancedGrading: val('cs-adv').checked, typeCloze: val('cs-type').checked,
+    });
+    const m = val('cs-msg');
+    m.textContent = r.ok ? 'Saved.' : 'Not saved — the browser did not keep it.';
+    m.className = 'ais-msg ' + (r.ok ? 'ok' : 'err');
+  };
+  ['cs-new', 'cs-rev', 'cs-ret', 'cs-read', 'cs-adv', 'cs-type'].forEach((id) => {
+    const el = val(id);
+    if (el) el.addEventListener('change', save);
+  });
 }
 
 /** Forget unsaved edits, so the next visit shows what is actually stored. */

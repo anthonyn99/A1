@@ -105,14 +105,25 @@ function lessonBlocks(topic) {
 let S = null;          // { fileId, topicId, screen, answers, checked, shown, card, flipped }
 let _saveTimer = null;
 
-export async function open(fileId, topicId) {
+export async function open(fileId, topicId, opts = {}) {
   ensureStyle();
   const doc = await bd.load(fileId);
   const topic = doc && doc.topics.find((t) => t.id === topicId);
   if (!topic || topic.status !== 'ready') return false;
   flush();
+  // Opening the lesson is what lets its cards be introduced ("only introduce
+  // cards from lessons I've read"): understanding first, then memory.
+  deck.markLessonRead(doc.classId, bd.noteIdFor(fileId, topicId));
   const blocks = lessonBlocks(topic);
-  const resumeAt = topic.progress && !topic.progress.done ? Math.min(topic.progress.block || 0, blocks.length) : 0;
+  let resumeAt = topic.progress && !topic.progress.done ? Math.min(topic.progress.block || 0, blocks.length) : 0;
+  if (opts.block != null) resumeAt = Math.max(0, Math.min(blocks.length - 1, opts.block));
+  else if (opts.page != null) {
+    // The block nearest a source page: the figure block of that page, or the
+    // last figure before it. Lessons carry no other page marks.
+    let at = -1;
+    blocks.forEach((b, k) => { if (b.kind === 'figure' && b.page && b.page <= opts.page) at = k; });
+    if (at >= 0) resumeAt = at;
+  }
   S = { fileId, topicId, screen: resumeAt, answers: {}, checked: {}, shown: {}, orig: {}, card: 0, flipped: false };
   prefetchFigures(fileId, figurePagesOf(topic).filter((n) => blocks.some((b) => b.kind === 'figure' && b.page === n && !b.svg)));
   // A topic is opened from the list inside the module popup. Switching views

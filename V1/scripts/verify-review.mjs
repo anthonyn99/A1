@@ -91,81 +91,74 @@ t('counts report them as studiable, capped by the daily new-card limit', (await 
 t('unseen cards are not "due"', (await evalJs('window.SOS.deck.countsFor("rv1").due')) === 0);
 
 // ── Open the review surface ───────────────────────────────────────────────
-console.log('\nreview surface opens');
-await evalJs(`window.sosStudy('rv1'); true;`);
-await new Promise(r => setTimeout(r, 500));
+console.log('\nreview surface opens (new cards: the learn flow)');
+const W = (ms) => new Promise(r => setTimeout(r, ms));
+await evalJs(`localStorage.removeItem('studyos_cards_settings_v1'); window.sosStudy('rv1'); true;`);
+await W(500);
 
 t('overlay mounted', (await evalJs('document.querySelectorAll(".sos-review").length')) === 1);
 t('it is on top of everything', (await evalJs(
   'parseInt(getComputedStyle(document.querySelector(".sos-review")).zIndex,10) >= 10300')));
 t('a question is shown', (await evalJs(
   '!!document.querySelector(".sos-review-q") && document.querySelector(".sos-review-q").textContent.length > 5')));
-t('the answer is hidden before reveal', (await evalJs(
-  'document.querySelectorAll(".sos-review-a").length')) === 0);
-t('progress shows position', (await evalJs(
-  'document.querySelector("[data-count]").textContent.indexOf("1/") === 0')),
+t('the answer is hidden before reveal', (await evalJs('document.querySelectorAll(".sos-review-a").length')) === 0);
+t('a new card says so — she is not asked to rate it', /New card/i.test(await evalJs('document.querySelector(".sos-review-mode").textContent')));
+t('progress shows position', (await evalJs('document.querySelector("[data-count]").textContent.indexOf("1 / ") === 0')),
   await evalJs('document.querySelector("[data-count]").textContent'));
+t('a breadcrumb names the class', /CS 4400/.test(await evalJs('document.querySelector("[data-crumb]").textContent')));
 t('starting a second session does not stack', (await evalJs(
   'window.sosStudy("rv1"); document.querySelectorAll(".sos-review").length')) === 1);
 
-// ── Reveal ────────────────────────────────────────────────────────────────
-console.log('\nreveal');
+console.log('\nlearn: reveal, Again, Add to reviews');
 await evalJs(`document.querySelector('.sos-review-face').click(); true;`);
-await new Promise(r => setTimeout(r, 250));
+await W(250);
 t('answer revealed on tap', (await evalJs('document.querySelectorAll(".sos-review-a").length')) === 1);
-t('four grade buttons appear', (await evalJs('document.querySelectorAll(".sos-review-grade").length')) === 4);
-t('each names its next interval', (await evalJs(
-  'Array.from(document.querySelectorAll(".sos-review-grade small")).every(s=>s.textContent.trim().length>0)')),
-  await evalJs('Array.from(document.querySelectorAll(".sos-review-grade small")).map(s=>s.textContent)'));
-
-// Phone-first: the spec's killer feature depends on these being thumb-sized.
-const sizes = await evalJs(`Array.from(document.querySelectorAll('.sos-review-grade'))
+t('two buttons: Again and Add to reviews', (await evalJs(
+  'Array.from(document.querySelectorAll(".sos-review-btn")).map(b=>b.querySelector("span").textContent).join("|")')) === 'Again|Add to reviews');
+const sizes = await evalJs(`Array.from(document.querySelectorAll('.sos-review-btn'))
   .map(b => { const r = b.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height) }; })`);
-t('grade buttons are thumb-sized (>=44px tall)', sizes.every(s => s.h >= 44), sizes);
-t('the whole face is the reveal target', (await evalJs(`(() => {
-  const f = document.querySelector('.sos-review-face').getBoundingClientRect();
-  return f.height > 150 && f.width > 200;
-})()`)));
-
-// ── Grading ───────────────────────────────────────────────────────────────
-console.log('\ngrading');
-const beforeGrade = await evalJs(`(() => {
-  const c = window.SOS.deck.forClass('rv1').find(c => !c.sched || c.sched.state === 'new');
-  return { id: c && c.id, reps: c && c.sched ? c.sched.reps : 0 };
+t('buttons are thumb-sized (>=44px tall)', sizes.every(s => s.h >= 44), sizes);
+const again = await evalJs(`(async () => {
+  const id = window.SOS.review.isOpen() && document.querySelector('[data-count]').textContent;
+  const total = () => parseInt(document.querySelector('[data-count]').textContent.split('/')[1], 10);
+  const before = total();
+  const sched = JSON.stringify(window.SOS.deck.forClass('rv1').map(c => c.sched));
+  document.querySelector('[data-a="again"]').click();
+  await new Promise(r => setTimeout(r, 200));
+  return { before, after: total(), untouched: sched === JSON.stringify(window.SOS.deck.forClass('rv1').map(c => c.sched)) };
 })()`);
-await evalJs(`document.querySelector('.sos-review-grade[data-g="3"]').click(); true;`);
-await new Promise(r => setTimeout(r, 300));
-t('a card was scheduled', (await evalJs(
-  `window.SOS.deck.forClass('rv1').filter(c => c.sched && c.sched.reps > 0).length`)) >= 1);
-t('advanced to the next card', (await evalJs(
-  'document.querySelector("[data-count]").textContent')) !== '1/' + gen.added,
-  await evalJs('document.querySelector("[data-count]").textContent'));
-t('the next card is unrevealed', (await evalJs('document.querySelectorAll(".sos-review-a").length')) === 0);
-
-// ── Undo ──────────────────────────────────────────────────────────────────
-console.log('\nundo restores the exact previous schedule');
-await evalJs(`document.querySelector('.sos-review-face').click(); true;`);
-await new Promise(r => setTimeout(r, 200));
-const undoTest = await evalJs(`(async () => {
-  const count = document.querySelector('[data-count]').textContent;
-  const cardsBefore = JSON.stringify(window.SOS.deck.forClass('rv1').map(c => [c.id, c.sched && c.sched.reps]));
-  document.querySelector('.sos-review-grade[data-g="4"]').click();
-  await new Promise(r => setTimeout(r, 250));
+t('Again keeps the new card in this session', again.after === again.before + 1, again);
+t('...without scheduling anything', again.untouched === true);
+const add = await evalJs(`(async () => {
   document.querySelector('.sos-review-face').click();
   await new Promise(r => setTimeout(r, 150));
+  document.querySelector('[data-a="add"]').click();
+  await new Promise(r => setTimeout(r, 200));
+  const c = window.SOS.deck.forClass('rv1').filter(c => c.sched && c.sched.reps > 0);
+  return { n: c.length, intro: c.every(x => !!x.introducedAt), state: c[0] && c[0].sched.state };
+})()`);
+t('Add to reviews schedules the card (Good)', add.n === 1 && add.state === 'review', add);
+t('...and counts it toward today\'s new cards', add.intro === true);
+
+console.log('\nundo restores the exact previous schedule');
+const undoTest = await evalJs(`(async () => {
+  const count = document.querySelector('[data-count]').textContent;
+  const before = JSON.stringify(window.SOS.deck.forClass('rv1').map(c => [c.id, c.sched, c.introducedAt || 0]));
+  document.querySelector('.sos-review-face').click();
+  await new Promise(r => setTimeout(r, 150));
+  document.querySelector('[data-a="add"]').click();
+  await new Promise(r => setTimeout(r, 200));
   const undoBtn = document.querySelector('[data-act="undo"]');
   const enabled = undoBtn && !undoBtn.disabled;
   if (enabled) undoBtn.click();
-  await new Promise(r => setTimeout(r, 250));
-  const cardsAfter = JSON.stringify(window.SOS.deck.forClass('rv1').map(c => [c.id, c.sched && c.sched.reps]));
-  return { enabled, restored: cardsBefore === cardsAfter, count,
-           countAfter: document.querySelector('[data-count]').textContent };
+  await new Promise(r => setTimeout(r, 200));
+  const after = JSON.stringify(window.SOS.deck.forClass('rv1').map(c => [c.id, c.sched, c.introducedAt || 0]));
+  return { enabled, restored: before === after, count, countAfter: document.querySelector('[data-count]').textContent };
 })()`);
-t('undo is offered after a grade', undoTest.enabled === true);
+t('undo is offered after an answer', undoTest.enabled === true);
 t('undo restores the previous scheduling state', undoTest.restored === true, undoTest);
 t('and steps back to that card', undoTest.countAfter === undoTest.count, undoTest);
 
-// ── Keyboard ──────────────────────────────────────────────────────────────
 console.log('\nkeyboard (desktop)');
 const kb = await evalJs(`(async () => {
   const fire = (k) => document.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true }));
@@ -173,35 +166,158 @@ const kb = await evalJs(`(async () => {
   await new Promise(r => setTimeout(r, 200));
   const revealed = document.querySelectorAll('.sos-review-a').length === 1;
   const before = document.querySelector('[data-count]').textContent;
-  fire('3');
+  fire(' ');
   await new Promise(r => setTimeout(r, 250));
   return { revealed, moved: document.querySelector('[data-count]').textContent !== before };
 })()`);
 t('Space reveals', kb.revealed === true);
-t('a number key grades', kb.moved === true, kb);
+t('Space again adds it to reviews', kb.moved === true, kb);
+await evalJs(`window.SOS.review.closeReview(); true;`);
 
-// ── Again re-queues within the session ────────────────────────────────────
-console.log('\nAgain comes back this session');
-const againTest = await evalJs(`(async () => {
+// ── Due cards: Forgot / Remembered, with Mochi's re-review ────────────────
+console.log('\nreview: Forgot / Remembered and the re-review step');
+const due = await evalJs(`(async () => {
+  const D = window.SOS.deck;
+  // Two reviewed cards, both due now.
+  const [a, b] = D.forClass('rv1').filter(c => c.sched && c.sched.reps > 0);
+  for (const c of [a, b]) D.restoreSched(c.id, { ...c.sched, due: Date.now() - 1000, lastReview: Date.now() - 5 * 86400000 });
+  window.SOS.review.startReview({ classId: 'rv1' }, { mode: 'review' });
+  await new Promise(r => setTimeout(r, 300));
+  const total = () => parseInt(document.querySelector('[data-count]').textContent.split('/')[1], 10);
+  const first = total();
   document.querySelector('.sos-review-face').click();
+  await new Promise(r => setTimeout(r, 150));
+  const labels = Array.from(document.querySelectorAll('.sos-review-btn span')).map(s => s.textContent).join('|');
+  const cur = () => D.get(window.SOS.review.isOpen() && document.querySelector('[data-count]') && D.forClass('rv1').find(c => c.sched && c.sched.reps > 0 && document.querySelector('.sos-review-q').textContent.indexOf(c.q.slice(0, 12)) >= 0).id);
+  const c1 = cur();
+  const s1 = JSON.stringify(c1.sched);
+  document.querySelector('[data-a="forgot"]').click();               // first Forgot: no lapse yet
   await new Promise(r => setTimeout(r, 200));
-  const before = parseInt(document.querySelector('[data-count]').textContent.split('/')[1], 10);
-  document.querySelector('.sos-review-grade[data-g="1"]').click();
-  await new Promise(r => setTimeout(r, 250));
-  const after = parseInt(document.querySelector('[data-count]').textContent.split('/')[1], 10);
-  return { before, after };
+  const afterForgot = { grew: total() === first + 1, untouched: JSON.stringify(D.get(c1.id).sched) === s1 };
+  // Walk to the re-review copy and remember it.
+  for (let k = 0; k < 10; k++) {
+    if (document.querySelector('.sos-review-mode').textContent.indexOf('once more') >= 0) break;
+    document.querySelector('.sos-review-face').click();
+    await new Promise(r => setTimeout(r, 120));
+    document.querySelector('[data-a="remembered"]').click();
+    await new Promise(r => setTimeout(r, 150));
+  }
+  const reMode = document.querySelector('.sos-review-mode') && document.querySelector('.sos-review-mode').textContent;
+  document.querySelector('.sos-review-face').click();
+  await new Promise(r => setTimeout(r, 150));
+  document.querySelector('[data-a="remembered"]').click();
+  await new Promise(r => setTimeout(r, 200));
+  const after = D.get(c1.id).sched;
+  window.SOS.review.closeReview();
+  return { labels, afterForgot, reMode, lapses: after.lapses, reps: after.reps, prevReps: JSON.parse(s1).reps,
+           interval: after.lastInterval };
 })()`);
-t('the queue grows so the card returns', againTest.after === againTest.before + 1, againTest);
+t('two buttons: Forgot and Remembered', due.labels === 'Forgot|Remembered', due.labels);
+t('the first Forgot brings it back later in the session', due.afterForgot.grew === true, due);
+t('...without committing a lapse', due.afterForgot.untouched === true, due);
+t('the re-review copy is labelled', /once more/.test(due.reMode || ''), due.reMode);
+t('Remembered on re-review commits (Hard, a short interval) — no lapse', due.reps === due.prevReps + 1 && due.lapses === 0, due);
+
+const twice = await evalJs(`(async () => {
+  const D = window.SOS.deck;
+  const c = D.forClass('rv1').find(c => c.sched && c.sched.reps > 0);
+  D.restoreSched(c.id, { ...c.sched, due: Date.now() - 1000 });
+  window.SOS.review.startReview({ ids: [c.id] }, { mode: 'review' });
+  await new Promise(r => setTimeout(r, 300));
+  for (let k = 0; k < 2; k++) {
+    document.querySelector('.sos-review-face').click();
+    await new Promise(r => setTimeout(r, 120));
+    document.querySelector('[data-a="forgot"]').click();
+    await new Promise(r => setTimeout(r, 180));
+  }
+  const after = D.get(c.id).sched;
+  const recap = !!document.querySelector('.sos-review-recap');
+  window.SOS.review.closeReview();
+  return { lapses: after.lapses, state: after.state, recap };
+})()`);
+t('Forgot twice commits the lapse (relearning)', twice.lapses === 1 && twice.state === 'relearning', twice);
+
+// ── Edit, archive, delete — each one key, each undoable ───────────────────
+console.log('\nedit / archive / delete');
+const tools = await evalJs(`(async () => {
+  const D = window.SOS.deck, w = (ms) => new Promise(r => setTimeout(r, ms));
+  const fire = (k, o) => document.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, ...(o || {}) }));
+  const c = D.forClass('rv1').find(c => c.sched && c.sched.reps > 0);
+  D.restoreSched(c.id, { ...c.sched, due: Date.now() - 1000 });
+  const sched = JSON.stringify(D.get(c.id).sched);
+  window.SOS.review.startReview({ ids: [c.id] }, { mode: 'review' });
+  await w(300);
+  fire('e'); await w(150);
+  const ta = document.querySelector('.sos-review-edit textarea');
+  const editorOpen = !!ta;
+  ta.value = 'What does **3NF** forbid?\\n---\\nTransitive dependencies on the key.';
+  ta.dispatchEvent(new Event('input'));
+  await w(50);
+  const preview = document.querySelector('.sos-review-edit .pv').innerHTML;
+  ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true }));
+  await w(200);
+  const e1 = D.get(c.id);
+  const edited = { sameId: !!e1, q: e1.q, sameSched: JSON.stringify(e1.sched) === sched, bold: /<strong>3NF<\\/strong>/.test(document.querySelector('.sos-review-q').innerHTML) };
+  fire('u'); await w(200);
+  const undoneEdit = D.get(c.id).q === c.q;
+  fire('a'); await w(200);
+  const archived = D.statusOf(D.get(c.id)) === 'archived';
+  fire('u'); await w(200);
+  const unarchived = D.statusOf(D.get(c.id)) === 'active';
+  fire('Delete'); await w(200);
+  const deleted = !D.get(c.id) && D.rawForClass('rv1').some(x => x.id === c.id && x.deletedAt);
+  fire('u'); await w(200);
+  const restored = !!D.get(c.id) && JSON.stringify(D.get(c.id).sched) === sched;
+  window.SOS.review.closeReview();
+  return { editorOpen, preview: /3NF/.test(preview), edited, undoneEdit, archived, unarchived, deleted, restored };
+})()`);
+t('E opens the editor with a live preview', tools.editorOpen && tools.preview, tools);
+t('saving keeps the id and the schedule', tools.edited.sameId && tools.edited.sameSched && /3NF/.test(tools.edited.q), tools.edited);
+t('the edited card renders its Markdown', tools.edited.bold === true, tools.edited);
+t('U undoes the edit', tools.undoneEdit === true);
+t('A archives', tools.archived === true);
+t('U restores it to reviews', tools.unarchived === true);
+t('Del deletes (a tombstone)', tools.deleted === true);
+t('U brings it back with its schedule', tools.restored === true, tools);
+
+// ── Markdown and cloze ────────────────────────────────────────────────────
+console.log('\nMarkdown and cloze render');
+const md = await evalJs(`(async () => {
+  const D = window.SOS.deck, w = (ms) => new Promise(r => setTimeout(r, ms));
+  D.addExternal('rv1', 'rm1', [
+    { front: 'What does this **SQL** return?\\n\\n\`\`\`sql\\nSELECT name FROM t;\\n\`\`\`', back: '| col | value |\\n|---|---|\\n| name | each row |' },
+    { kind: 'cloze', front: 'A relation is in 3NF if it is in 2NF and has no {{1::transitive dependencies}}.', back: '' },
+  ], { noteId: 'md_fixture', title: 'Markdown' });
+  const ids = D.forClass('rv1').filter(c => c.sourceNoteId === 'md_fixture').map(c => c.id);
+  window.SOS.review.startReview({ ids }, { mode: 'learn', anyNew: true, maxNew: 10 });
+  await w(300);
+  const q1 = document.querySelector('.sos-review-q').innerHTML;
+  document.querySelector('.sos-review-face').click(); await w(150);
+  const a1 = document.querySelector('.sos-review-a').innerHTML;
+  document.querySelector('[data-a="add"]').click(); await w(200);
+  const q2 = document.querySelector('.sos-review-q').innerHTML;
+  document.querySelector('.sos-review-face').click(); await w(150);
+  const q2r = document.querySelector('.sos-review-q').innerHTML;
+  window.SOS.review.closeReview();
+  return { bold: /<strong>SQL<\\/strong>/.test(q1), code: /<pre><code>SELECT name FROM t;/.test(q1), table: /<table>/.test(a1),
+           hole: /cz-hole/.test(q2) && !/transitive dependencies/.test(q2), shown: /cz-ans">transitive dependencies/.test(q2r) };
+})()`);
+t('bold renders', md.bold, md);
+t('fenced code renders', md.code, md);
+t('a table renders', md.table, md);
+t('a cloze hides its blank', md.hole, md);
+t('...and reveals it highlighted', md.shown, md);
 
 // ── Finish and recap ──────────────────────────────────────────────────────
 console.log('\nrecap');
 const recap = await evalJs(`(async () => {
-  for (let i = 0; i < 40; i++) {
+  window.SOS.review.startReview({ classId: 'rv1' }, { mode: 'learn', anyNew: true, maxNew: 3 });
+  await new Promise(r => setTimeout(r, 300));
+  for (let i = 0; i < 20; i++) {
     if (document.querySelector('.sos-review-recap')) break;
-    const face = document.querySelector('.sos-review-face');
-    if (face) face.click();
+    document.querySelector('.sos-review-face').click();
     await new Promise(r => setTimeout(r, 90));
-    const g = document.querySelector('.sos-review-grade[data-g="3"]');
+    const g = document.querySelector('[data-a="add"]');
     if (g) g.click();
     await new Promise(r => setTimeout(r, 120));
   }
@@ -209,11 +325,11 @@ const recap = await evalJs(`(async () => {
   return el ? { shown: true, text: el.textContent.replace(/\\s+/g, ' ').trim() } : { shown: false };
 })()`);
 t('a recap is shown at the end', recap.shown === true, recap);
-t('it reports cards and time', recap.shown && /card/.test(recap.text) && /min/.test(recap.text), recap.text);
+t('it reports cards learned and time', recap.shown && /new learned/.test(recap.text) && /min/.test(recap.text), recap.text);
 t('it reports mastery', recap.shown && /mastered/.test(recap.text), recap.text);
 
-await evalJs(`(document.querySelector('.sos-review-recap button')||{click(){}}).click(); true;`);
-await new Promise(r => setTimeout(r, 300));
+await evalJs(`(document.querySelector('.sos-review-recap [data-close]')||{click(){}}).click(); true;`);
+await W(300);
 t('closing removes the overlay', (await evalJs('document.querySelectorAll(".sos-review").length')) === 0);
 
 // ── Dashboard tile ────────────────────────────────────────────────────────

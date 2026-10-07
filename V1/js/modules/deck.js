@@ -308,17 +308,20 @@ export function newRemaining(now = Date.now()) {
  */
 export function countsFor(classId, now = Date.now()) {
   const list = classId ? forClass(classId) : all();
-  let due = 0, unseen = 0, archived = 0, suggested = 0, active = 0;
+  const gated = cardSettings().onlyReadLessons;
+  let due = 0, unseen = 0, ready = 0, archived = 0, suggested = 0, active = 0;
   for (const c of list) {
     const st = statusOf(c);
     if (st === 'archived') { archived++; continue; }
     if (st === 'suggested') { suggested++; continue; }
     active++;
-    if (isUnseen(c)) unseen++;
+    if (isUnseen(c)) { unseen++; if (!gated || fromReadLesson(c)) ready++; }
     else if (fsrs.isDue(c.sched, now)) due++;
   }
-  const newAvailable = Math.min(unseen, newRemaining(now));
-  return { total: list.length, active, due, unseen, newAvailable, archived, suggested, toStudy: due + newAvailable };
+  // `waiting`: new cards held until she opens their lesson.
+  const newAvailable = Math.min(ready, newRemaining(now));
+  return { total: list.length, active, due, unseen, waiting: unseen - ready, newAvailable, archived, suggested,
+    toStudy: due + newAvailable };
 }
 
 // ── Extraction ──────────────────────────────────────────────────────────────
@@ -639,6 +642,87 @@ export function buildQueue(scope = {}, opts = {}) {
   return [...fsrs.sortForStudy(due, now), ...newOrder(unseen).slice(0, maxNew)].slice(0, limit);
 }
 
+/**
+ * The study queue in REVIEW UNITS — what the review surface walks. A basic
+ * card is one unit; a cloze card with blanks 1 and 2 is two, each with its
+ * own schedule; a reverse pair is front→back and back→front.
+ *   mode 'study'  due units, then new ones within today's cap (default)
+ *   mode 'learn'  only new units
+ *   mode 'review' only due units
+ * A unit: { id, sub, cloze, reverse, isNew }.
+ * opts.eligible(card) gates NEW cards (e.g. lessons she has read).
+ */
+export function studyQueue(scope = {}, opts = {}) {
+  load();
+  const now = opts.now ?? Date.now();
+  const mode = opts.mode || 'study';
+  const maxNew = opts.maxNew ?? newRemaining(now);
+  const limit = opts.limit ?? cardSettings().reviewsPerDay;
+  const due = [], fresh = [];
+  for (const card of scoped(scope)) {
+    if (statusOf(card) !== 'active') continue;
+    const units = cards.unitsOf(card);
+    units.forEach((u, k) => {
+      const s = schedOf(card, u.key);
+      const item = { id: card.id, sub: u.key, cloze: u.cloze || 0, reverse: !!u.reverse };
+      if (!s || s.state === fsrs.STATE.NEW) {
+        if (!opts.eligible || opts.eligible(card)) fresh.push({ ...item, isNew: true, _card: card, _k: k });
+      } else if (fsrs.isDue(s, now)) due.push({ ...item, isNew: false, sched: s });
+    });
+  }
+  const order = new Map(newOrder([...new Set(fresh.map((x) => x._card))]).map((c, i) => [c, i]));
+  fresh.sort((a, b) => order.get(a._card) - order.get(b._card) || a._k - b._k);
+  // The cap counts CARDS: a card's second blank is not a second new card.
+  const allowed = new Set();
+  const newUnits = [];
+  for (const x of fresh) {
+    if (!allowed.has(x.id)) { if (allowed.size >= maxNew) continue; allowed.add(x.id); }
+    const { _card, _k, ...unit } = x;
+    newUnits.push(unit);
+  }
+  const dueUnits = fsrs.sortForStudy(due, now).map(({ sched, ...u }) => u);
+  const out = mode === 'learn' ? newUnits : mode === 'review' ? dueUnits : [...dueUnits, ...newUnits];
+  return out.slice(0, limit);
+}
+
+/** Cram: every unit of a scope, schedule ignored, weakest first. Archived and
+ *  suggested cards stay out — cram is the material she chose. */
+export function cramUnits(scope = {}, opts = {}) {
+  const now = opts.now ?? Date.now();
+  const list = [];
+  for (const card of scoped(scope)) {
+    if (statusOf(card) !== 'active') continue;
+    for (const u of cards.unitsOf(card)) {
+      list.push({ id: card.id, sub: u.key, cloze: u.cloze || 0, reverse: !!u.reverse, isNew: false, sched: schedOf(card, u.key) || {} });
+    }
+  }
+  const sorted = fsrs.sortForStudy(list, now).map(({ sched, ...u }) => u);
+  return opts.limit ? sorted.slice(0, opts.limit) : sorted;
+}
+
+/** Mark a topic's cards as coming from a lesson she has opened — the gate
+ *  for "only introduce cards from lessons I've read". One write. */
+export function markLessonRead(classId, noteId, now = Date.now()) {
+  load();
+  const list = _mem.get(classId) || [];
+  let n = 0;
+  const next = list.map((c) => {
+    if (c.sourceNoteId !== noteId || !isLive(c) || c.readAt) return c;
+    n++;
+    return { ...c, readAt: now };
+  });
+  if (!n) return 0;
+  _mem.set(classId, next);
+  persist(classId);
+  return n;
+}
+
+/** May a NEW card be introduced? Not a breakdown card, or one whose lesson
+ *  she has opened. */
+export function fromReadLesson(card) {
+  return !/^topic_/.test(String(card.sourceNoteId || '')) || !!card.readAt;
+}
+
 /** Every card of a scope regardless of schedule — cram mode. Weakest first. */
 export function cramQueue(scope = {}, opts = {}) {
   const pool = scoped(scope).filter((c) => statusOf(c) !== 'suggested');
@@ -717,5 +801,6 @@ export default {
   introducedToday, newRemaining, isLive, isActive, statusOf, isUnseen, isReviewed, tombstone,
   generateFromNote, generateFromSelection, addExternal, byNotePrefix, remove, setStatus, edit, restoreCard,
   gradeCard, previewCard, restoreSched, schedOf, buildQueue, cramQueue, newOrder,
+  studyQueue, cramUnits, markLessonRead, fromReadLesson,
   mastery, masteryOf, retrievabilityOf, topicBreakdown, nextExamFor, replaceClass,
 };

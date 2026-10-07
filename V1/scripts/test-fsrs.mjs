@@ -145,7 +145,7 @@ console.log('\nexam-aware compression');
   const out = F.review(card, 3, { now, dueBefore: exam });
   t('compressed to fit before the exam', out.lastInterval < uncompressed, out.lastInterval);
   t('due strictly before the exam', out.due < exam, { due: out.due, exam });
-  t('leaves at least a day of margin', exam - out.due >= DAY);
+  t('leaves two days of margin', exam - out.due >= 2 * DAY, (exam - out.due) / DAY);
 
   // A short interval must NOT be stretched just because an exam is far away.
   const near = F.newCard(NOW);

@@ -58,6 +58,8 @@ window.SOS.store = store;
   // classic script and cannot import these.
   window.sosStudy = (classId, extra) => reviewUi.startReview({ classId, ...(extra || {}) });
   window.sosStudyAll = () => reviewUi.startReview({});
+  window.sosLearnNew = (scope, extra) => reviewUi.startReview(scope || {}, { mode: 'learn', ...(extra || {}) });
+  window.sosCram = (scope, extra) => reviewUi.startReview(scope || {}, { mode: 'cram', ...(extra || {}) });
   window.sosMakeCards = (classId, moduleId, noteId, isHtml) => {
     const cls = store.getClass(classId);
     const mod = cls && (cls.modules || []).find(m => m.id === moduleId);
@@ -132,6 +134,17 @@ window.SOS.store = store;
     if (_resuming || Date.now() - _resumeAt < 60000) return;
     _resuming = true; _resumeAt = Date.now();
     breakdown.resume().catch(() => {}).finally(() => { _resuming = false; });
+  });
+  // A lesson she opened before cards were gated on it still counts as read:
+  // whenever a breakdown loads, its opened topics release their cards.
+  window.addEventListener('sos-breakdown', (e) => {
+    const id = e && e.detail && e.detail.fileId;
+    const doc = id && breakdown.peek(id);
+    const D = window.SOS.deck;
+    if (!doc || !doc.classId || !D) return;
+    for (const t of doc.topics || []) {
+      if (t.progress) D.markLessonRead(doc.classId, breakdown.noteIdFor(doc.fileId, t.id));
+    }
   });
   // The one-time card cleanup (overhaul §8). Late, so the server's copy of
   // every class's cards and breakdowns has arrived first: a plan made from a

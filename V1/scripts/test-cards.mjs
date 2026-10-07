@@ -194,5 +194,44 @@ console.log('\ndedupe');
   t('dedupe of nothing is safe', C.dedupe(null).length === 0);
 }
 
+// ── Mochi's card model (overhaul §5) ──────────────────────────────────────
+console.log('\nstable ids');
+{
+  const a = C.fromItems([{ front: 'What is a superkey?', back: 'A set of attributes that identifies a row.' }], SRC)[0];
+  const b = C.fromItems([{ front: 'What is a superkey?', back: 'A set of attributes that identifies a row.' }], SRC)[0];
+  t('the same content gets the same fp…', a.fp === b.fp);
+  t('…but its own random id (an id is never derived from content)', a.id !== b.id && /^cd_[0-9a-z]+$/.test(a.id), [a.id, b.id]);
+  const e = C.withContent(a, { content: 'What is a superkey, exactly?\n---\nAny attribute set that identifies a row.\n---\nA candidate key is a minimal one.' });
+  t('an edit keeps the id', e.id === a.id);
+  t('an edit splits the sides', e.q === 'What is a superkey, exactly?' && e.a === 'Any attribute set that identifies a row.' && e.extra === 'A candidate key is a minimal one.', e);
+  t('an edit moves the fp with the content', e.fp !== a.fp);
+  t('contentOf joins the sides back', C.contentOf(e) === 'What is a superkey, exactly?\n---\nAny attribute set that identifies a row.\n---\nA candidate key is a minimal one.');
+  t('#tags typed in the content join the tags', C.withContent(a, { content: 'Q? #exam\n---\nA' }).tags.includes('exam'));
+}
+
+console.log('\ncloze');
+{
+  const text = 'In {{1::3NF}}, no non-key attribute depends {{2::transitively::how?}} on the key; {{1::BCNF}} is stricter.';
+  t('numbers are found', C.clozeNumbers(text).join() === '1,2');
+  t('an unnumbered blank is 1', C.clozeNumbers('A {{blank}} here').join() === '1');
+  t('blank 1 hidden, blank 2 shown plainly', C.clozeText(text, 1) === 'In […], no non-key attribute depends transitively on the key; […] is stricter.', C.clozeText(text, 1));
+  t('a hint shows in place of the blank', C.clozeText(text, 2) === 'In 3NF, no non-key attribute depends [how?] on the key; BCNF is stricter.', C.clozeText(text, 2));
+  t('reveal shows the hidden text', C.clozeText(text, 2, true) === 'In 3NF, no non-key attribute depends transitively on the key; BCNF is stricter.');
+  t('the answer of a blank', C.clozeAnswer(text, 1) === '3NF · BCNF');
+  const card = C.fromItems([{ kind: 'cloze', front: text, back: '' }], SRC)[0];
+  t('a cloze item becomes a cloze card with no back', card && card.kind === 'cloze' && card.a === '', card);
+  const units = C.unitsOf(card);
+  t('each blank number is its own review unit', units.length === 2 && units[0].key === '' && units[1].key === 'c2' && units[1].cloze === 2, units);
+  t('a basic card is one unit', C.unitsOf({ q: 'Q?', a: 'A' }).length === 1);
+  t('a reverse pair is two', C.unitsOf({ q: 'Q?', a: 'A', kind: 'reverse-pair' }).map((u) => u.key).join() === ',r');
+  t('the old extractor\'s "[...]" clozes stay plain cards', !C.isClozeCard({ q: '[...] eliminates transitive dependencies', a: '3NF' }));
+  t('a cloze without braces is rejected', C.fromItems([{ kind: 'cloze', front: 'No blanks here at all', back: '' }], SRC).length === 0);
+  t('priority and status pass through', (() => {
+    const c = C.fromItems([{ front: 'What is a view?', back: 'A stored query.', priority: 1, status: 'suggested', extra: 'Why: reuse.' }], SRC)[0];
+    return c.priority === 1 && c.status === 'suggested' && c.extra === 'Why: reuse.';
+  })());
+  t('a breakdown card knows its deck path', C.deckPathOf({ classId: 'c1', sourceNoteId: 'topic_sf_123_abc_t1x2y3' }).join('/') === 'c1/sf_123_abc/t1x2y3');
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

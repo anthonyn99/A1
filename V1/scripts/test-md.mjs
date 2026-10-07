@@ -59,5 +59,19 @@ console.log('\ninline');
   t('multiplication is not emphasis', !inline('2 * 3 * 4').includes('<em>'), inline('2 * 3 * 4'));
 }
 
+console.log('\ncard sides');
+{
+  const { renderCard, closeEnough } = await import(new URL('../js/modules/md.js', import.meta.url).href);
+  const h = renderCard('In ⟪…⟫, rows are <b>unique</b> and ⟦BCNF⟧ is **stricter**.');
+  t('a hidden blank becomes a styled hole', h.includes('<span class="cz-hole">[…]</span>'), h);
+  t('a revealed blank is highlighted', h.includes('<mark class="cz-ans">BCNF</mark>'), h);
+  t('model HTML stays escaped', h.includes('&lt;b&gt;unique&lt;/b&gt;') && !h.includes('<b>'), h);
+  t('Markdown still renders', h.includes('<strong>stricter</strong>'));
+  t('typed answers: case and punctuation do not matter', closeEnough('transitive dependencies!', 'Transitive dependencies'));
+  t('a typo is forgiven', closeEnough('transitve dependencies', 'transitive dependencies'));
+  t('a wrong answer is not', !closeEnough('functional dependencies', 'transitive dependencies'));
+  t('nothing typed is wrong', !closeEnough('', 'x'));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

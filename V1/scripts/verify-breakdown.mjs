@@ -310,7 +310,7 @@ const rv = await evalJs(`(function(){
   return o ? { count: (o.querySelector('[data-count]')||{}).textContent } : null;
 })()`);
 t('"Review these now" opens a review', !!rv, rv);
-t('...of this topic\'s 2 cards only', rv && /\/2\b/.test(rv.count), rv);
+t('...of this topic\'s 2 cards only', rv && /\/ ?2\b/.test(rv.count), rv);
 await evalJs(`window.SOS.review.closeReview && window.SOS.review.closeReview(); true;`);
 await wait(2200);
 

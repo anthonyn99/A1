@@ -15,6 +15,7 @@ export const DEFAULTS = Object.freeze({
   retention: 0.9,         // FSRS target retention
   advancedGrading: false, // 4 buttons (Again/Hard/Good/Easy) instead of Forgot/Remembered
   onlyReadLessons: true,  // only introduce breakdown cards from lessons she has opened
+  typeCloze: false,       // type the hidden text of a cloze before revealing
 });
 
 const clamp = (v, lo, hi, d) => (Number.isFinite(+v) ? Math.min(hi, Math.max(lo, +v)) : d);
@@ -29,6 +30,7 @@ export function cardSettings() {
     retention: clamp(s.retention, 0.7, 0.98, DEFAULTS.retention),
     advancedGrading: typeof s.advancedGrading === 'boolean' ? s.advancedGrading : DEFAULTS.advancedGrading,
     onlyReadLessons: typeof s.onlyReadLessons === 'boolean' ? s.onlyReadLessons : DEFAULTS.onlyReadLessons,
+    typeCloze: typeof s.typeCloze === 'boolean' ? s.typeCloze : DEFAULTS.typeCloze,
   };
 }
 

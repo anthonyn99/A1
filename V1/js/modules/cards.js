@@ -415,13 +415,16 @@ export function clozeNumbers(text) {
 }
 
 /** A cloze text with blank `n` hidden (`[…]` or `[hint]`) and every other
- *  blank shown plainly. reveal: show blank `n`, marked with ⟦ ⟧ for the
- *  renderer to highlight. n = 0 hides every blank. */
-export function clozeText(text, n = 1, reveal = false) {
+ *  blank shown plainly. reveal: show blank `n`. n = 0 hides every blank.
+ *  marks: wrap the blank in ⟪hidden⟫ / ⟦revealed⟧ for md.renderCard to style
+ *  (they survive its escaping; plain text never contains them). */
+export function clozeText(text, n = 1, reveal = false, { marks = false } = {}) {
   return String(text || '').replace(CLOZE_RE, (_, num, body, hint) => {
     const k = num ? Number(num) : 1;
     if (n !== 0 && k !== n) return body;
-    return reveal ? `⟦${body}⟧` : `[${hint ? hint.trim() : '…'}]`;
+    if (reveal) return marks ? `⟦${body}⟧` : body;
+    const shown = hint ? hint.trim() : '…';
+    return marks ? `⟪${shown}⟫` : `[${shown}]`;
   });
 }
 

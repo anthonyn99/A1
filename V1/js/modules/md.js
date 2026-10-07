@@ -109,4 +109,34 @@ export function renderMarkdown(source) {
   return html.join('');
 }
 
-export default { renderMarkdown, escapeHtml, inline };
+/**
+ * A flashcard side: the same escape-first Markdown, plus cloze blanks. The
+ * cloze text arrives with ⟪hidden⟫ / ⟦revealed⟧ marks (cards.clozeText); the
+ * marks are not HTML, so they pass escaping untouched and become spans here.
+ * A card is short, so a lone line is a paragraph like any other.
+ */
+export function renderCard(text) {
+  return renderMarkdown(text)
+    .replace(/⟪([^⟫]*)⟫/g, '<span class="cz-hole">[$1]</span>')
+    .replace(/⟦([^⟧]*)⟧/g, '<mark class="cz-ans">$1</mark>');
+}
+
+/** Loose answer check for "type the answer": case, spacing, punctuation and
+ *  a typo or two (≤ 20% edits) do not matter. */
+export function closeEnough(typed, want) {
+  const n = (s) => String(s || '').toLowerCase().replace(/[`*_]/g, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  const a = n(typed), b = n(want);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const d = [];
+  for (let i = 0; i <= a.length; i++) d[i] = [i];
+  for (let j = 0; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+  }
+  return d[a.length][b.length] <= Math.max(1, Math.floor(b.length * 0.2));
+}
+
+export default { renderMarkdown, renderCard, closeEnough, escapeHtml, inline };

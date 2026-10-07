@@ -264,5 +264,27 @@ console.log('\nedit + merge');
   t('restoreCard undoes an edit', deck.restoreCard(card).q === card.q && deck.get(card.id).q === card.q);
 }
 
+// ── Review units: each cloze blank on its own schedule ───────────────────
+console.log('\nstudy queue in units');
+{
+  localStorage.setItem('studyos_cards_settings_v1', JSON.stringify({ newPerDay: 50 }));
+  deck.addExternal('c1', 'm1', [{ kind: 'cloze', front: 'In {{1::3NF}} nothing depends {{2::transitively}} on the key.', back: '' }],
+    { noteId: 'topic_f7_tcz', title: 'Cloze' });
+  const cz = deck.forClass('c1').find((c) => c.sourceNoteId === 'topic_f7_tcz');
+  const q = deck.studyQueue({ ids: [cz.id] }, { mode: 'learn' });
+  t('a two-blank cloze is two new units', q.length === 2 && q[0].cloze === 1 && q[1].cloze === 2 && q[1].sub === 'c2', q);
+  deck.gradeCard(cz.id, 3, { sub: 'c2' });
+  const c2 = deck.get(cz.id);
+  t('grading blank 2 schedules ONLY blank 2', !c2.sched && c2.subSched.c2 && c2.subSched.c2.reps === 1, c2);
+  t('blank 1 is still new', deck.studyQueue({ ids: [cz.id] }, { mode: 'learn' }).map((u) => u.cloze).join() === '1');
+  t('the cap counts cards, not blanks', deck.studyQueue({ ids: [cz.id] }, { mode: 'learn', maxNew: 1 }).length === 1);
+  const unread = deck.studyQueue({ ids: [cz.id] }, { mode: 'learn', eligible: deck.fromReadLesson });
+  t('a breakdown card waits until its lesson is opened', unread.length === 0);
+  deck.markLessonRead('c1', 'topic_f7_tcz');
+  t('...and is introduced once it is', deck.studyQueue({ ids: [cz.id] }, { mode: 'learn', eligible: deck.fromReadLesson }).length === 1);
+  t('cram covers every unit, schedule ignored', deck.cramUnits({ ids: [cz.id] }).length === 2);
+  localStorage.removeItem('studyos_cards_settings_v1');
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

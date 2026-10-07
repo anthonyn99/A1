@@ -168,10 +168,13 @@ export function review(card, grade, opts = {}) {
 
   // Exam-aware compression (R-2). When the card's topic has an exam coming up,
   // never schedule past it: a card first seen again the day AFTER the exam was
-  // not studied at all. Compressed to land a day early, and to at least
-  // tomorrow so it doesn't collapse into today's queue and cause churn.
+  // not studied at all. Compressed to land two days early — a review the
+  // night before is a cram, not spacing — and to at least tomorrow so it
+  // doesn't collapse into today's queue and cause churn. An exam too close
+  // for two days of margin gets one.
   if (opts.dueBefore) {
-    const maxDays = Math.floor((opts.dueBefore - now) / DAY) - 1;
+    const days = Math.floor((opts.dueBefore - now) / DAY);
+    const maxDays = days - 2 >= 1 ? days - 2 : days - 1;
     if (maxDays >= 1 && interval > maxDays) interval = maxDays;
   }
 
