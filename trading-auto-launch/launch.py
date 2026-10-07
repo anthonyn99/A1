@@ -2102,17 +2102,22 @@ def _show_reminder_dialog(title: str, markdown: str, notice: str = "") -> bool:
 
     def themed_button(parent, label, command, ink):
         ring = tk.Frame(parent, bg=_RD_BDL)
-        lab = tk.Label(ring, text=_rd_track(label), bg=_RD_BG, fg=ink,
+        # The outline is a fixed 1px of `ring` on every side (the inner frame); only
+        # the label inside moves for the press, so the bottom edge never clips.
+        face = tk.Frame(ring, bg=_RD_BG, cursor="hand2")
+        face.pack(padx=1, pady=1)
+        lab = tk.Label(face, text=_rd_track(label), bg=_RD_BG, fg=ink,
                        font=(UI, 8, "bold"), cursor="hand2", takefocus=1)
-        lab.pack(padx=1, pady=(1, 1), ipadx=18, ipady=10)
+        lab.pack(padx=18, pady=(10, 10))
         st = {"hover": False, "down": False, "focus": False}
 
         def paint():
             k = 0.94 if st["down"] else 1.15 if st["hover"] else 1.0
             lit = st["hover"] or st["down"] or st["focus"]
             ring.configure(bg=_rd_shade(_RD_ACCENT, k) if lit else _RD_BDL)
+            face.configure(bg=_rd_shade(_RD_BG, k))
             lab.configure(bg=_rd_shade(_RD_BG, k), fg=_rd_shade(ink, k))
-            lab.pack_configure(pady=(2, 0) if st["down"] else (1, 1))
+            lab.pack_configure(pady=(11, 9) if st["down"] else (10, 10))
 
         def enter(e):
             st["hover"] = True
@@ -2131,13 +2136,19 @@ def _show_reminder_dialog(title: str, markdown: str, notice: str = "") -> bool:
             was = st["down"]
             st["down"] = False
             paint()
-            if was and 0 <= e.x < lab.winfo_width() and 0 <= e.y < lab.winfo_height() + 2:
+            rx, ry = ring.winfo_rootx(), ring.winfo_rooty()
+            if was and 0 <= e.x_root - rx < ring.winfo_width() and 0 <= e.y_root - ry < ring.winfo_height():
                 command()
 
-        lab.bind("<Enter>", enter)
-        lab.bind("<Leave>", leave)
-        lab.bind("<ButtonPress-1>", down)
-        lab.bind("<ButtonRelease-1>", up)
+        # Label and face share one bindtag, so the whole button (padding included)
+        # is hot, not just the text.
+        tag = "RdBtn%d" % id(ring)
+        for wdg in (lab, face):
+            wdg.bindtags((tag,) + wdg.bindtags())
+        root.bind_class(tag, "<Enter>", enter)
+        root.bind_class(tag, "<Leave>", leave)
+        root.bind_class(tag, "<ButtonPress-1>", down)
+        root.bind_class(tag, "<ButtonRelease-1>", up)
         lab.bind("<FocusIn>", lambda e: (st.update(focus=kbd["on"]), paint()))
         lab.bind("<FocusOut>", lambda e: (st.update(focus=False), paint()))
         lab.bind("<space>", lambda e: command())
