@@ -629,3 +629,20 @@ def test_the_named_commands_claims_still_hold():
             raise AssertionError(bad)
         except CMD.CommandError:
             pass
+
+
+def test_the_project_map_claims_still_hold():
+    """Track V7: names with line numbers, relevant first, cached until a file changes."""
+    import inspect
+    from magi.code.agents import context as CX, symbols as SM
+    assert "A map of the project for every unit." in HOW
+    # "each with its line number".
+    assert SM.outline_text("def f():\n    pass\n", "py") == [("f", 1)]
+    # "the names that match your words first".
+    assert "terms" in inspect.getsource(SM.render) and "pick(" in inspect.getsource(SM.render)
+    # "until the file changes": the cache key is (mtime, size).
+    assert "st.st_mtime_ns, st.st_size" in inspect.getsource(SM.outline)
+    # Every language the panel names has a pattern.
+    assert {"py", "js", "go", "rs", "java", "rb", "php", "sh", "md"} <= set(SM._PATTERNS)
+    assert SM.kind_of("a.html") == "js" and SM.kind_of("a.cs") == "java" and SM.kind_of("a.kt") == "java"
+    assert "PROJECT MAP" in inspect.getsource(CX.compose)

@@ -800,6 +800,35 @@ equal. Write mode only: in Read mode there is no copy. Tests:
 `test_code_commands.py` (9; 4 mutants killed), one in `test_howitworks.py`;
 live `tests/live/magi-code-v6.live.js`.
 
+#### The project map for browser units (Track V7, 2026-10-08)
+
+Browser units now get a **PROJECT MAP** after the FILE INDEX: per file, its
+classes, functions, types (and Markdown headings), each as `name@line`, so a
+unit can ask `NEED: path:START-END` for exactly the code it needs
+(`agents/symbols.py`; `context.plan` builds it, `context.compose` adds it).
+
+- **What is found:** regexes per language -- Python (top level, and methods
+  as `Class.method`), JS/TS/JSX and the scripts in HTML/Vue/Svelte
+  (functions, classes, arrow-function consts, interfaces/types at indent <= 2),
+  Go, Rust, Java/C#/Kotlin/Swift/Dart/Scala, Ruby, PHP, shell/PowerShell,
+  Markdown `#`-`###`. Up to 600 per file kept; files over 2 MB skipped.
+- **What is shown:** at most `MAP_SHARE = 15%` of the composer's budget. The
+  plan's ranked files first (60 symbols each for the top 6, 16 for the rest);
+  in a crowded file the symbols naming the task's words come first
+  (`symbols.pick`), shown in file order with `(+N more)`. Then "... N more
+  files not shown".
+- **Cache:** `data/<profile>/code/maps/<hash of the folder>.json`, keyed per
+  file by `(mtime_ns, size)`: a second task re-reads only files that changed
+  (A1: ~7 s cold, ~1 s warm). The 40 most recently used maps are kept
+  (`KEEP_MAPS`); outlining stops after 8 s on a cold, huge project. A map
+  failure never stops a task (the plan just has none). Tests keep the cache
+  in a temp folder (`magi/tests/conftest.py`).
+
+Found on the way: the first version never wrote its cache (a missing cache
+file set the path to None) -- fixed, with a test. Tests:
+`test_code_symbols.py` (10; 3 mutants killed), one in `test_howitworks.py`;
+live `tests/live/magi-code-v7.live.js`.
+
 #### Git: pull before work, the repository line, commit
 
 **MAGI performs git itself; agents never get git.** They edit a sandbox and

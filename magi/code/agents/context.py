@@ -47,6 +47,7 @@ from .. import workspace as W
 BUDGET = 48_000          # default bytes of pasted context, total
 MAX_FILES = 8            # files a task names, taken at most
 INDEX_SHARE = 0.30       # of a paste budget, the most the index may take
+MAP_SHARE = 0.15         # Track V7: of any budget, the most the project map may take
 MAX_READ = 2_000_000     # a "text" file bigger than this is data, not source
 SCAN_LIMIT = 1_000_000   # files bigger than this are not scanned for ranking
 COMMON = 0.15            # a word in more than this share of files is noise
@@ -290,6 +291,8 @@ class Plan:
     ranked: list[Path]                     # most relevant first
     terms: list[tuple[str, float]] = field(default_factory=list)
     lines: dict[str, list[str]] = field(default_factory=dict)   # rel -> hits
+    # Track V7: the project map, {rel: [(symbol, line)]} (symbols.py).
+    symbols: dict[str, list] = field(default_factory=dict)
 
 
 def _scan(root: Path, files: list[str]) -> dict[str, str]:
@@ -383,7 +386,14 @@ def plan(root: Path, text: str) -> Plan:
                     break
         if hits:
             lines[f] = hits
-    return Plan(head=head, files=files, ranked=ranked, terms=terms, lines=lines)
+    # Track V7: what is defined where -- cached by mtime, so a second task on
+    # the same project reads only files that changed. Never fatal.
+    from . import symbols as S
+    try:
+        syms = S.outline(rootr, files, bodies)
+    except Exception:  # noqa: BLE001 -- a map is a help, not a requirement
+        syms = {}
+    return Plan(head=head, files=files, ranked=ranked, terms=terms, lines=lines, symbols=syms)
 
 
 # ── requests from the unit ─────────────────────────────────────────────────
@@ -646,6 +656,13 @@ def compose(root: Path, pl: Plan, requests: list[Request], *, upload: bool,
     # Uploads leave the composer to the index; pasting shares it with files.
     idx = file_index(pl.files, int(budget * (0.6 if upload else INDEX_SHARE)))
     add(f"\nFILE INDEX (every file in the workspace, {len(pl.files)} in all):\n{idx}\n")
+    if pl.symbols:
+        # Track V7: the map, most relevant files first.
+        from . import symbols as S
+        pmap = S.render(pl.symbols, [_rel(rootr, p) for p in pl.ranked], int(budget * MAP_SHARE),
+                        [w for w, _ in pl.terms])
+        add("\nPROJECT MAP (what is defined where, as name@line; ask `NEED: path:START-END` "
+            f"for just those lines):\n{pmap}\n")
     # Track V: the reference folders' own indexes, smaller, read-only.
     for name, (_, fs) in (refs or {}).items():
         ridx = file_index(fs, int(budget * 0.12 / max(1, len(refs))))

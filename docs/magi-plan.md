@@ -9,13 +9,19 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-10-08: **Track V6 done** -- named commands agents may
+**Last updated:** 2026-10-08: **Track V is COMPLETE (V1–V7).** V7 = the
+project map: browser units get every file's classes/functions/headings with
+line numbers (relevant first, cached by mtime). Live: DeepSeek found
+`pkg/area4/mod34.py:93` among 60 files from the map alone. **Next phase: none
+agreed** -- it is Tony's call; offer the lists under "Waiting on Tony" and
+"After Track S". Nothing is half-built.
+Before that, **Track V6 done** -- named commands agents may
 run (Check › Commands agents may run…; Claude `run_command`, units `RUN:`).
 Live: DeepSeek and Claude each ran `build`, read the error, fixed it. That
 run also found that **every Claude Write task had crashed since V3**
 (`writes_how` read `task.writes[0]` with no other workspaces; IndexError in
 0.2 s, handed on) -- fixed and pushed at once (1707f68), regression test in
-`test_code_multi_write.py`. **Next: V7.**
+`test_code_multi_write.py`.
 Before that, **Track V5 done** -- browser units close the
 check loop: with "Agents may run it" on, MAGI runs the project's check after
 a unit's edits and sends a failure back (at most 2 more rounds). Live:
@@ -52,7 +58,7 @@ ALL of Track S (**S1**, **S2**, **S3**, **U1**, **U2**, **U3**, **U4**), and
 ALL of Track F (**F1**, **F2**, **F3**, **F4**). Follow-ups, mid-run
 messages and continue-from-History are live in both Deliberation and Code
 Mode.
-**Next phase:** **V7**, the last of Track V (agreed 2026-10-08; §8 "Track V").
+**Next phase:** none agreed. Track V is complete; ask Tony.
 Nothing is half-built.
 
 **If a fresh session touches Code Mode follow-ups**, the map is "What
@@ -113,7 +119,7 @@ One phase per session.
 | ~~V4~~ | ~~Branches and pull requests~~ | **done 2026-10-08** | | |
 | ~~V5~~ | ~~Units' check loop~~ | **done 2026-10-08** | | |
 | ~~V6~~ | ~~Named commands~~ | **done 2026-10-08** | | |
-| V7 | Project map | **agreed 2026-10-08, next** (§8 Track V) | | |
+| ~~V7~~ | ~~Project map~~ | **done 2026-10-08** -- Track V complete | | |
 
 ### Start-of-session checklist (do these in order)
 
@@ -3107,7 +3113,7 @@ silently giving less." Design for the end goal, not a prototype.
 | V4 | Git and GitHub, end to end | Agents propose a branch name and the commit message on the card; **Open a pull request** from the card / Repository panel (GitHub REST as the project's account, still your press); create/switch branch from the repository line. | **done 2026-10-08** |
 | V5 | The check for browser units | When *Agents may run it* is on, MAGI runs the check in the copy after a unit's edits and sends a failure back for another round (max 2), so units close the loop the way Claude does. | **done 2026-10-08** |
 | V6 | Named commands | Per project, on the engine PC: a short list of commands (build, lint, one test file with an argument pattern) agents may run like `run_check`; Claude via MCP, units via a `RUN:` request. Codex's sandbox question was settled 2026-10-04 (elevated only), so it is unblocked. | **done 2026-10-08** |
-| V7 | Project map for analysis units | A symbol outline (classes/functions per file, cached by mtime) in the context, so units understand a large project's structure without having every file uploaded. | agreed, next |
+| V7 | Project map for analysis units | A symbol outline (classes/functions per file, cached by mtime) in the context, so units understand a large project's structure without having every file uploaded. | **done 2026-10-08** |
 
 ### V1 + V2 -- what was built (2026-10-04)
 See docs/magi.md "Every agent's file tools, Also read, and agents running
@@ -3202,6 +3208,20 @@ the commands. Console: Check sheet › "Commands agents may run…" opens
 `codeCommandsSheet`. Tests: `test_code_commands.py` (10; 4 mutants killed),
 one HOW contract; live `tests/live/magi-code-v6.live.js` (DeepSeek and
 Claude both ran `build` and fixed util.py; the real build passes).
+
+### V7 -- what was built (2026-10-08)
+*Status:* done. See docs/magi.md "The project map for browser units (Track
+V7)". `agents/symbols.py` (`outline_text` per language, `outline` with the
+mtime/size cache in `data/<p>/code/maps/`, `KEEP_MAPS = 40`, `pick`,
+`render`); `context.Plan.symbols`, `context.MAP_SHARE`; `magi/tests/conftest.py`
+keeps tests' maps in a temp folder. Found on the way: the cache was never
+written on a first run (fixed, tested). Tests: `test_code_symbols.py` (10; 3
+mutants killed), one HOW contract; live `tests/live/magi-code-v7.live.js` 4/4.
+
+### Track V -- the write-up for Tony and Veda
+A short page explaining V3–V7 for both of them was published as a Claude
+Docs document on 2026-10-08 (link in that session's last message). The
+source of truth stays docs/magi.md.
 
 ---
 
