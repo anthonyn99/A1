@@ -535,7 +535,8 @@ class Server:
         env = {k: v for k, v in os.environ.items()
                if not _SECRET_ENV.search(k) and not k.startswith("CLAUDE_CODE_")}
         env.update({"CI": "1", "NO_COLOR": "1", "FORCE_COLOR": "0", "PAGER": "cat",
-                    "GIT_PAGER": "cat", "PYTHONUNBUFFERED": "1"})
+                    "GIT_PAGER": "cat", "PYTHONUNBUFFERED": "1",
+                    "PYTHONDONTWRITEBYTECODE": "1"})  # check.py _env: no stale pyc
         argv = (f'cmd.exe /d /s /c "{cmd}"' if os.name == "nt" else ["/bin/sh", "-c", cmd])
         tail: collections.deque[str] = collections.deque()
         size = [0]

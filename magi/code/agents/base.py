@@ -121,6 +121,13 @@ class Task:
     # Track V: the project's check command when the agents may run it
     # (ws_mcp.py run_check). "" = they may not.
     agent_check: str = ""
+    # Track V5: how long that check may run, and the real folder (for the
+    # node_modules/.venv links a check run borrows) -- browser units' loop.
+    agent_check_min: int = 0
+    real_root: Path | None = None
+    # Track V5: set while a browser unit is asked to fix what the check
+    # reported (browser.CHECK_FIX); "" otherwise.
+    check_feedback: str = ""
     # Track V: other registered workspaces this task may READ, as
     # (name, folder). Never written: each agent is told how to read them
     # (refs_block), and nothing that writes can reach them.

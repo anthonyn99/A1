@@ -601,3 +601,13 @@ def test_the_branch_and_pull_request_claims_still_hold():
     assert "default_branch" in inspect.getsource(TK.open_pull)
     # The Repository panel itself stays read-only (its own HOW claim).
     assert "Open a pull request for" in PAGE and '`/projects/${pid}/pr`' in PAGE
+
+
+def test_the_units_check_loop_claims_still_hold():
+    """Track V5: units' edits are checked by MAGI; at most two more rounds."""
+    import inspect
+    from magi.code.agents import browser as BR
+    assert "Every other unit gets the same loop from MAGI" in HOW and "at most two more rounds" in HOW
+    assert BR.CHECK_FIXES == 2
+    # "that one command": the unit never names one; MAGI runs task.agent_check.
+    assert "C.run(task.agent_check, task.root" in inspect.getsource(BR.BrowserUnitAgent._check)

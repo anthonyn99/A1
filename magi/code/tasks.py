@@ -310,6 +310,8 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                         mcp_config=mcp,
                         mcp_servers=mcp_servers_in(mcp),
                         agent_check=((ws or {}).get("check") or {}).get("command", ""),
+                        agent_check_min=int(((ws or {}).get("check") or {}).get("timeout_min") or 0),
+                        real_root=root,
                         attachments=t.attachments, images=t.images, inventory=inv,
                         refs=[(n, Path(p)) for n, p in t.refs],
                         writes=[(w.name, Path(w.copy)) for w in t.writes])

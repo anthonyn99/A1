@@ -750,6 +750,32 @@ Files: `code/git.py` (`check_branch`, `suggest_branch`, `branch_exists`,
 `test_code_branches.py`, one in `test_howitworks.py`; live
 `tests/live/magi-code-v4.live.js`.
 
+#### Browser units close the check loop (Track V5, 2026-10-08)
+
+With **Agents may run it** on in a project's Check sheet, Claude already ran
+the check itself (`run_check`). Now every browser unit gets the same loop,
+run by MAGI (`browser.BrowserUnitAgent.run`):
+
+1. The unit is told up front that its edits will be checked (the command is named).
+2. Its blocks are applied in the copy as always. If it changed anything,
+   MAGI runs the check there (`_check` -> `check.run`: inside the agents'
+   job, the copy's `node_modules`/`.venv` linked in for the run, the
+   project's time limit). The transcript shows *Run check* and the result.
+3. A failure goes back to the SAME unit (`check_feedback`): the exit code,
+   the end of the output, and the files it changed attached as they are now;
+   it answers with more blocks. At most `CHECK_FIXES = 2` extra rounds.
+4. Still failing, or the unit cannot answer: its edits so far are the change,
+   and the card shows them (and, if the project's check is Automatic, the
+   check result) as usual. A pass ends the loop.
+
+Nothing about what may run changes: the one command set on the engine PC,
+never one the unit names. Found while testing: a same-size edit within the
+same second made Python read a STALE `__pycache__` and fail a fixed file, so
+every check run now sets `PYTHONDONTWRITEBYTECODE=1` (`check._env`, and
+`ws_mcp` for Claude's `run_check`). Tests: `test_code_check_loop.py` (5; 3
+mutants killed), one in `test_howitworks.py`; live
+`tests/live/magi-code-v5.live.js`.
+
 #### Git: pull before work, the repository line, commit
 
 **MAGI performs git itself; agents never get git.** They edit a sandbox and

@@ -194,7 +194,12 @@ def _env() -> dict[str, str]:
     # Test runners that would otherwise wait for a keypress (jest --watch),
     # colour their output, or open a pager.
     env.update({"CI": "1", "NO_COLOR": "1", "FORCE_COLOR": "0", "PAGER": "cat",
-                "GIT_PAGER": "cat", "PYTHONUNBUFFERED": "1"})
+                "GIT_PAGER": "cat", "PYTHONUNBUFFERED": "1",
+                # The copy is edited and re-checked within seconds (V5): a
+                # same-size edit in the same second reads back a STALE
+                # __pycache__ (pyc stamps are whole seconds), and the check
+                # fails on code that is no longer there. No cache, no lie.
+                "PYTHONDONTWRITEBYTECODE": "1"})
     return env
 
 
