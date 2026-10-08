@@ -262,7 +262,9 @@ def test_refs_reach_the_agent_and_read_as_at_names(repo, ref, mode):
     if mode == "write":
         assert a.side["refs"] == [{"name": "orca", "root": str(ref)}]
     else:
-        assert a.side is None
+        # Track W2: where the sandboxed shell is available, Read mode gets a
+        # READ-ONLY workspace server (shell + reference tools, no file tools).
+        assert a.side is None or (a.side.get("readonly") is True and not a.side.get("writes"))
 
 
 # ── browser units ─────────────────────────────────────────────────────────
