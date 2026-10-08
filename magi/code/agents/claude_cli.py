@@ -63,7 +63,7 @@ MCP_ALLOW = f"mcp__{MCP_SERVER}"
 # Track V: move/copy/delete/make folder (and run_check, if you allow it) in
 # the task's private copy -- code/ws_mcp.py. Write mode only.
 WS_SERVER = "magi_workspace"
-_WS_NAMES = {"move_path": "Move", "copy_path": "Copy", "delete_path": "Delete",
+_WS_NAMES = {"move_path": "Move", "copy_path": "Copy", "delete_path": "Delete", "run_command": "Run",
              "make_dir": "Make folder", "run_check": "Run check"}
 
 _UNAUTH = re.compile(r"please run /login|not logged in|invalid api key|"
@@ -139,6 +139,13 @@ def write_frame(task: Task) -> str | None:
            if task.agent_check else
            "Running the project's commands or tests is not part of this mode; do not claim "
            "to have run any. ")
+    if task.agent_commands:
+        # Track V6: the project's named commands, through run_command.
+        run = (run if task.agent_check else "") + (
+                "You can run these named project commands with the run_command tool -- "
+                "the only other commands you can run: "
+                + ", ".join(c["name"] + (" <path>" if c.get("arg") else "")
+                            for c in task.agent_commands) + ". ")
     return ("You are working in a private copy of the project. Edit files directly to "
             "carry out the task. Besides your file tools, the magi_workspace tools move or "
             "rename (move_path), copy (copy_path) and delete (delete_path) files and "

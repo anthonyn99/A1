@@ -128,6 +128,10 @@ class Task:
     # Track V5: set while a browser unit is asked to fix what the check
     # reported (browser.CHECK_FIX); "" otherwise.
     check_feedback: str = ""
+    # Track V6: the project's named commands agents may run (commands.py),
+    # write mode only; and, for a browser unit, what its RUN: lines returned.
+    agent_commands: list[dict] = field(default_factory=list)
+    run_results: str = ""
     # Track V: other registered workspaces this task may READ, as
     # (name, folder). Never written: each agent is told how to read them
     # (refs_block), and nothing that writes can reach them.

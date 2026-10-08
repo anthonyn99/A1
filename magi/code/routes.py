@@ -81,8 +81,9 @@ async def code_state() -> dict[str, Any]:
         # Track V: `refs` = POST /tasks takes `refs` (other workspaces to read);
         # V3: `writes` = and `writes` (other workspaces to change, write mode).
         # V4: `branches` = commit on a branch, switch branch, open a pull request.
+        # V6: `commands` = named commands agents may run (Check sheet).
         "features": ["attachments", "auto_approve", "followup", "steer", "images", "refs",
-                     "writes", "branches"],
+                     "writes", "branches", "commands"],
     }
 
 
@@ -214,7 +215,9 @@ async def unbind_project(project_id: str) -> dict[str, Any]:
 async def delete_project(project_id: str) -> dict[str, Any]:
     await _db().delete_code_project(project_id)
     from . import check as _check
+    from . import commands as _cmds
     _check.forget(project_id)
+    _cmds.forget(project_id)
     return {"ok": True}
 
 
@@ -282,6 +285,42 @@ async def set_check(project_id: str, request: Request, body: dict = Body(...)) -
     return {"ok": True, "check": c}
 
 
+@router.get("/projects/{project_id}/commands")
+async def get_commands(project_id: str, request: Request) -> dict[str, Any]:
+    """Track V6: the named commands agents may run, and suggestions from the
+    folder (its package.json scripts). Readable from anywhere; `local` says
+    whether THIS request may change them."""
+    from ..app import _arrived_over_the_tunnel
+    from . import commands as CM
+    p = await _db().code_project(project_id, _engine_id())
+    if not p:
+        return {"ok": False, "error": "no_project", "message": "No such project."}
+    here = next((b for b in p.get("bindings") or [] if b.get("here")), None)
+    from pathlib import Path
+    root = Path(here["root"]) if here else None
+    loop = _asyncio.get_running_loop()
+    sug = await loop.run_in_executor(None, CM.suggest, root) if root and root.is_dir() else []
+    return {"ok": True, "commands": CM.get(project_id), "suggestions": sug,
+            "local": not _arrived_over_the_tunnel(request),
+            "limits": {"max_commands": CM.MAX_COMMANDS, "max_command": CM.MAX_COMMAND}}
+
+
+@router.post("/projects/{project_id}/commands")
+async def set_commands(project_id: str, request: Request, body: dict = Body(...)) -> dict[str, Any]:
+    """`{"commands": [{name, command, arg, timeout_min}]}` -- the whole list;
+    [] removes them. From the engine PC only: these are command lines this PC
+    will run for an agent."""
+    _local_only(request)
+    from . import commands as CM
+    if not await _db().code_project(project_id, _engine_id()):
+        return {"ok": False, "error": "no_project", "message": "No such project."}
+    try:
+        c = CM.put(project_id, (body or {}).get("commands"))
+    except CM.CommandError as e:
+        return {"ok": False, "error": "bad_command", "message": e.message}
+    return {"ok": True, "commands": c}
+
+
 @router.post("/projects/{project_id}/check/try")
 async def try_check(project_id: str, request: Request, body: dict = Body(default={})) -> dict[str, Any]:
     """Run a command once in the project's REAL folder and return what it did
@@ -341,6 +380,8 @@ async def sync_apply(body: dict = Body(...)) -> dict[str, Any]:
         _AC.cancel(pid)
         await _db().delete_code_project(pid, deleted_at=at)
         _check.forget(pid)
+        from . import commands as _cmds
+        _cmds.forget(pid)
     for pid, at in plan["tomb"]:
         await _db().note_code_deleted(pid, at)
     for row, at in plan["save"]:

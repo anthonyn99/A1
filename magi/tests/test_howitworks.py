@@ -611,3 +611,21 @@ def test_the_units_check_loop_claims_still_hold():
     assert BR.CHECK_FIXES == 2
     # "that one command": the unit never names one; MAGI runs task.agent_check.
     assert "C.run(task.agent_check, task.root" in inspect.getsource(BR.BrowserUnitAgent._check)
+
+
+def test_the_named_commands_claims_still_hold():
+    """Track V6: named, set on the engine PC, never a command line from an agent."""
+    import inspect
+    from magi.code import commands as CMD, routes as RT, sync as SY
+    assert "Commands agents may run." in HOW
+    # "Set on the engine's PC only".
+    assert "_local_only(request)" in inspect.getsource(RT.set_commands)
+    # "never synced": the sync view knows nothing of them.
+    assert "command" not in inspect.getsource(SY).lower()
+    # "no spaces, no .., nothing starting with -".
+    for bad in ("a b", "../x", "-x"):
+        try:
+            CMD.check_arg(bad)
+            raise AssertionError(bad)
+        except CMD.CommandError:
+            pass

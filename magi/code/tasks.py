@@ -283,13 +283,17 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
             # (ws_mcp.py) -- move, copy, delete, make folder -- and the
             # project's check, if you let agents run it.
             ws = None
+            # Track V6: the named commands agents may run, set on this PC.
+            from . import commands as _cmds
+            cmds = _cmds.get(project_id) if sb is not None else []
             if sb is not None:
                 ck = t.check_cfg if t.check_cfg.get("agents") else {}
                 ws = {"root": str(sb.cwd), "real": str(root),
                       "check": ({"command": ck["command"], "timeout_min": ck.get("timeout_min")}
                                 if ck.get("command") else None),
                       "refs": [{"name": n, "root": p} for n, p in t.refs],
-                      "writes": [{"name": w.name, "root": w.copy} for w in t.writes]}
+                      "writes": [{"name": w.name, "root": w.copy} for w in t.writes],
+                      "commands": cmds}
             if t.refs:
                 await emit({"k": "note", "text": "Also reading, never changing: "
                             + ", ".join("@" + n for n, _ in t.refs) + "."})
@@ -311,7 +315,7 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                         mcp_servers=mcp_servers_in(mcp),
                         agent_check=((ws or {}).get("check") or {}).get("command", ""),
                         agent_check_min=int(((ws or {}).get("check") or {}).get("timeout_min") or 0),
-                        real_root=root,
+                        real_root=root, agent_commands=cmds,
                         attachments=t.attachments, images=t.images, inventory=inv,
                         refs=[(n, Path(p)) for n, p in t.refs],
                         writes=[(w.name, Path(w.copy)) for w in t.writes])

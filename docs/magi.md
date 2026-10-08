@@ -776,6 +776,30 @@ every check run now sets `PYTHONDONTWRITEBYTECODE=1` (`check._env`, and
 mutants killed), one in `test_howitworks.py`; live
 `tests/live/magi-code-v5.live.js`.
 
+#### Named commands agents may run (Track V6, 2026-10-08)
+
+Beyond the check: a per-project list of up to 8 named commands (build,
+lint, one test file), set in **Check › Commands agents may run…** on the
+engine PC only (`POST /projects/{id}/commands` is local-only, like the
+check's), kept in `data/<profile>/code/commands.json`, never synced
+(`code/commands.py`). Suggestions come from the folder's `package.json`
+scripts.
+
+| | How it runs |
+|---|---|
+| Claude | `run_command {name, arg?}` on the workspace server (`ws_mcp.py`), listed in the tool's description and in its Write framing. Same runner as `run_check`: in the copy, dependency links borrowed, secrets out of the environment, at most 25 minutes. |
+| Browser units | A reply of `RUN: name` / `RUN: name some/path` lines (up to 3, alone or with NEED/FIND lines) is a request: MAGI runs them in the copy (`browser._run_commands` -> `check.run`, in the agents' job) and sends the exit codes and output tails with the next ask. An answer that merely mentions `RUN:` is still an answer. |
+| Codex | Unchanged: it already has a shell inside its elevated sandbox. |
+
+An agent only names a command; MAGI builds the line. An argument is allowed
+only for a command marked **takes a path**, and only a plain relative path or
+word (`commands.ARG`: letters, digits, `._/-@+=`; not starting with `-` or
+`/`; no `..`), put where `{arg}` is (else appended), quoted. ws_mcp restates
+that rule (it imports nothing from MAGI); `test_code_commands.py` keeps them
+equal. Write mode only: in Read mode there is no copy. Tests:
+`test_code_commands.py` (9; 4 mutants killed), one in `test_howitworks.py`;
+live `tests/live/magi-code-v6.live.js`.
+
 #### Git: pull before work, the repository line, commit
 
 **MAGI performs git itself; agents never get git.** They edit a sandbox and

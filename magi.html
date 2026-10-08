@@ -3868,6 +3868,12 @@ button.code-git-br {
 }
 button.code-git-br:hover, button.code-git-br:focus-visible { border-color: var(--ac); outline: none; }
 .br-list { display: flex; flex-direction: column; max-height: 42vh; overflow-y: auto; }
+/* Track V6: the Commands sheet -- name, command line, takes-a-path, remove. */
+.cmd-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.cmd-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.cmd-row .cmd-name { flex: 0 1 120px; min-width: 90px; font-family: var(--font-mono); }
+.cmd-row .cmd-line { flex: 1 1 220px; min-width: 0; font-family: var(--font-mono); }
+.cmd-row .code-git-act { min-height: 32px; }
 .br-row {
   display: flex; align-items: center; gap: 8px; padding: 7px 0; min-height: 40px;
   border-bottom: 1px solid var(--bd); font-size: 12px;
@@ -7339,6 +7345,7 @@ const HOW = [
       "<b>A check beside the diff.</b> Tap the <b>Check</b> pill to give a project a command that exits 0 when it is healthy &mdash; its tests, a build &mdash; picked from what MAGI finds in the folder, with <b>Try it now</b> to see it work. For a Write task it runs in the task&rsquo;s <i>private copy</i> (never your folder), with the folder&rsquo;s <code>node_modules</code> or <code>.venv</code> linked in for the run and removed after, and its pass or fail and output sit on the approval card. It informs Approve; it never decides it. By default you press <b>Run check</b> on the card, after reading the diff, and the approval clock waits while it runs, then gives you the full __APPROVE_MIN__ minutes again. <b>Automatically</b> runs it before the card appears &mdash; that runs the agent&rsquo;s code before anyone has looked at it, so the setting says so. The command stays on the engine PC, can only be set from that PC, never syncs, and runs in the same Windows job as the agents, so it cannot drive MAGI.",
       "<b>What each agent can do in Write.</b> <b>Claude</b> edits and creates files with its own tools, and moves, renames, copies and deletes files and folders with MAGI&rsquo;s workspace tools &mdash; all in the private copy, with no shell. <b>Codex</b> does the same through its own sandboxed shell. <b>Every other unit</b> sends its changes as blocks MAGI applies: SEARCH/REPLACE edits plus <code>DELETE</code>, <code>MOVE</code> and <code>COPY</code> lines. Before answering, any unit can ask for a file, a folder, a range of lines, or a <code>FIND</code> across the whole project. A move shows on the card as the old file deleted and the new one added, and nothing reaches your folder until you approve. In the <b>Check</b> sheet, <b>Agents may run it</b> lets Claude run the project&rsquo;s check itself while it works and fix what it reports &mdash; that one command, never another, and only in the copy. Every other unit gets the same loop from MAGI: after its edits are applied in the copy, MAGI runs the check, and if it fails, sends the unit the output and the files it changed for another try &mdash; at most two more rounds, then the card shows the diff as it is.",
       "<b>Also read other workspaces.</b> Tap <b>Also read</b> on the strip to tick other workspaces the agents may read while they work on this one &mdash; to compare, port, or follow how something is done there. They are read, never changed: Claude reads them with its own tools in Read mode and through read-only MAGI tools in Write mode, Codex at their folders, and every other unit by asking for <code>@name/&hellip;</code> files, with <code>FIND</code> searching them too. Only workspaces you added, with a folder on the engine&rsquo;s PC, can be picked; the choice is kept on each device.",
+      "<b>Commands agents may run.</b> Besides the check, a project can list a few named commands &mdash; build, lint, one test file &mdash; under <b>Check &rsaquo; Commands agents may run</b>. In a Write task an agent may run them in its private copy and read the result: Claude with its <code>run_command</code> tool, every other unit by asking MAGI with a <code>RUN: name</code> line. An agent only ever names one; it never writes a command line. A command marked <b>takes a path</b> accepts one plain relative path (a test file, say) and nothing else &mdash; no spaces, no <code>..</code>, nothing starting with <code>-</code>. Set on the engine&rsquo;s PC only, never synced; like the check, they run code with your rights.",
       "<b>Branches and pull requests.</b> Every Write task ends with the agent proposing a commit subject and a branch name; the commit form starts with that subject, and offers <b>On a new branch</b> with the name filled in (or stay on the branch you are on). After you push a branch that is not the default one, <b>Open pull request</b> proposes it for the default branch on GitHub, as the project&rsquo;s account &mdash; title from the commit, text from the agent&rsquo;s summary; pressing again shows the one already open. Tap the branch name on the repository line to switch branch, make one from where you are, or open a pull request for the branch you are on. A switch takes your uncommitted changes along, the way git always does, and if any of them would be overwritten nothing changes. Each of these is its own press. Never in A1: A1 stays on its branch, because every session and its auto-commit work there.",
       "<b>Change other workspaces too.</b> In the same sheet, set a workspace to <b>Change</b> instead of <b>Read</b>, and a Write task may edit it as well as this one &mdash; a fix that spans a site and its worker, or a library and the app that uses it. Each one gets its own private copy, so nothing reaches any real folder until you approve. You get <b>one card</b> with a section per workspace, and one decision: approved, every part is applied together or none of it is &mdash; if one workspace&rsquo;s part cannot go on (you edited the same lines meanwhile), nothing is applied anywhere. Commit then makes one commit in each repository with the same message, and Push pushes each as its own project&rsquo;s GitHub account. Up to 4, each in a git repository of its own. In Read mode they are only read. A1 can be one of them; its part ships on approval like any A1 change.",
       "<b>Sizes and rankings are measured, not guessed.</b> Agents in Read mode have no shell, so none of their tools can tell how big a file is. When a task asks about sizes, lines, the largest, or ranking and comparing, MAGI measures the folder itself &mdash; every file git knows about, with exact bytes and line counts, totals per folder and per type, and the top-level files (in A1, the programs) &mdash; and hands that to whichever agent runs. Name a type (&ldquo;the .html files&rdquo;) and every file of it is listed in full. Ignored folders (node_modules, virtualenvs, browser profiles) and secret files are left out. The transcript shows it as an <b>Inventory</b> line.",
@@ -12979,7 +12986,8 @@ function codeCheckSheet(proj) {
       body.append(aw);
       body.append(el("div", agents ? "sheet-err" : "sheet-note", agents
         ? "Claude can run this command in the task’s private copy while it works, read the "
-          + "result and fix what fails, as often as it needs. That runs code the agent just wrote, "
+          + "result and fix what fails, as often as it needs; for every other unit MAGI runs it "
+          + "after their edits and sends a failure back, at most twice. That runs code the agent just wrote, "
           + "with your rights, before anyone has looked at it. It cannot reach the engine, but it "
           + "can reach your files. It is still only this command, and only in the copy."
         : "Agents edit and finish; the check runs when you choose, as set above."));
@@ -12994,6 +13002,14 @@ function codeCheckSheet(proj) {
       tw.append(b);
     }
     body.append(tw);
+    if (codeEngineHas("commands")) {
+      // Track V6: more named commands agents may run, in their own sheet.
+      body.append(el("label", "sheet-lbl", "Other commands"));
+      const cb = el("button", "code-git-act", "Commands agents may run…");
+      cb.type = "button";
+      cb.onclick = () => { close(); codeCommandsSheet(proj); };
+      body.append(cb);
+    }
 
     const tryRow = el("div", "ck-try");
     const tryB = el("button", "navitem", busy === "try" ? "Running…" : "Try it now");
@@ -13053,6 +13069,113 @@ function codeCheckSheet(proj) {
   clear.onclick = () => put("");
   draw();
   if (local) input.focus();
+}
+
+/* ── named commands agents may run (Track V6) ────────────────────────────
+   A short list per project -- build, lint, one test file -- set on the
+   engine's PC only and never synced. An agent names one (Claude's
+   run_command, a unit's RUN: line); it never writes a command line, and an
+   argument is allowed only where you tick "takes a path". */
+async function codeCommandsSheet(proj) {
+  const sheet = el("div", "sheet");
+  const box = el("div", "sheet-box sheet-wide cmd-sheet");
+  const close = () => sheet.remove();
+  box.append(el("div", "sheet-hd", `Commands · ${proj.name}`));
+  const body = el("div");
+  box.append(body);
+  const bar = el("div", "sheet-bar");
+  const save = el("button", "btn active", "Save");
+  const no = el("button", "btn", "Close");
+  bar.append(save, el("span", "qbar-spacer"), no);
+  box.append(bar);
+  no.onclick = close;
+  dismissOnBackdrop(sheet, close);
+  sheet.append(box);
+  document.body.append(sheet);
+  const pid = encodeURIComponent(proj.id);
+  let rows = [], sug = [], local = true, max = 8, err = "", busy = false, loaded = false;
+  try {
+    const d = await codeGet(`/projects/${pid}/commands`);
+    if (d.ok) {
+      rows = (d.commands || []).map((c) => ({ ...c }));
+      sug = d.suggestions || []; local = d.local !== false;
+      max = (d.limits && d.limits.max_commands) || 8;
+    } else err = d.message || "Could not read them.";
+  } catch (e) { err = `Could not reach the engine: ${e.message || e}`; }
+  loaded = true;
+  const field = (cls, value, ph, on, label) => {
+    const i = el("input", `sheet-in ${cls}`);
+    i.value = value || ""; i.placeholder = ph; i.spellcheck = false; i.autocomplete = "off";
+    i.setAttribute("aria-label", label);
+    i.disabled = !local || busy;
+    i.oninput = () => on(i.value);
+    i.onkeydown = (e) => e.stopPropagation();
+    return i;
+  };
+  const draw = () => {
+    body.textContent = "";
+    body.append(el("div", "sheet-sub",
+      "Commands the agents may run in a Write task’s private copy, by name — Claude with its "
+      + "run_command tool, every other unit by asking MAGI. Never your real folder, never a "
+      + "command line an agent wrote. Like the check, they run code with your rights."));
+    if (!local) body.append(el("div", "sheet-err", "Set these from the engine’s PC: they are "
+      + "commands that PC will run, so the engine only takes them from its own screen."));
+    if (!loaded) body.append(el("div", "sheet-note", "Reading…"));
+    const list = el("div", "cmd-rows");
+    rows.forEach((r, i) => {
+      const row = el("div", "cmd-row");
+      row.append(field("cmd-name", r.name, "name", (v) => { r.name = v; }, "Command name"),
+                 field("cmd-line", r.command, "npm run lint", (v) => { r.command = v; }, "Command line"));
+      const arg = el("button", `code-git-act ${r.arg ? "on" : ""}`, "takes a path");
+      arg.type = "button";
+      arg.setAttribute("aria-pressed", String(!!r.arg));
+      arg.title = "Let agents add one relative path, e.g. a test file. {arg} in the command marks where it goes.";
+      arg.disabled = !local || busy;
+      arg.onclick = () => { r.arg = !r.arg; draw(); };
+      const rm = el("button", "code-git-act", "Remove");
+      rm.type = "button";
+      rm.disabled = !local || busy;
+      rm.onclick = () => { rows.splice(i, 1); draw(); };
+      row.append(arg, rm);
+      list.append(row);
+    });
+    body.append(list);
+    const add = el("button", "code-git-act", "Add a command");
+    add.type = "button";
+    add.disabled = !local || busy || rows.length >= max;
+    add.onclick = () => { rows.push({ name: "", command: "", arg: false }); draw(); };
+    body.append(add);
+    const fresh = sug.filter((s) => !rows.some((r) => r.name === s.name || r.command === s.command));
+    if (fresh.length && local) {
+      body.append(el("label", "sheet-lbl", "Found in this folder"));
+      const sl = el("div", "ac-win");
+      for (const s of fresh) {
+        const b = el("button", "code-git-act", s.name);
+        b.type = "button";
+        b.title = s.command;
+        b.disabled = busy || rows.length >= max;
+        b.onclick = () => { rows.push({ ...s }); draw(); };
+        sl.append(b);
+      }
+      body.append(sl);
+    }
+    body.append(el("div", "sheet-note", `At most ${max}. A path argument may only be a plain `
+      + "relative path or word: no spaces, no .., nothing starting with - or /."));
+    if (err) body.append(el("div", "sheet-err", err));
+    save.disabled = !local || busy || !loaded;
+    save.textContent = busy ? "Saving…" : "Save";
+  };
+  save.onclick = async () => {
+    busy = true; err = ""; draw();
+    try {
+      const keep = rows.filter((r) => (r.name || "").trim() || (r.command || "").trim());
+      const d = await codePost(`/projects/${pid}/commands`, { commands: keep });
+      if (d.ok) { close(); return; }
+      err = d.message || "The engine refused them.";
+    } catch (e) { err = `Could not reach the engine: ${e.message || e}`; }
+    busy = false; if (sheet.isConnected) draw();
+  };
+  draw();
 }
 
 /* ── workspaces, the agent chain, and one task at a time ─────────────────

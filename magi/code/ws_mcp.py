@@ -156,6 +156,22 @@ REF_TOOLS = [
      "annotations": {"readOnlyHint": True, "openWorldHint": False}},
 ]
 
+# Track V6: the project's named commands (code/commands.py), set on the
+# engine PC. The agent names one; it never writes a command line.
+RUN_COMMAND = {
+    "name": "run_command",
+    "description": "",          # filled in with the list (Server.tools)
+    "inputSchema": {"type": "object", "properties": {
+        "name": {"type": "string", "description": "One of the listed command names"},
+        "arg": {"type": "string", "description": "Only for commands marked <path>: a relative "
+                "path or word (letters, digits, ._/-@+=)"}},
+        "required": ["name"]},
+    "annotations": {"destructiveHint": False, "openWorldHint": False},
+}
+# commands.ARG and its rules, restated: this server imports nothing from MAGI
+# (it runs with -I). test_code_commands.py keeps the two in step.
+_CMD_ARG = re.compile(r"^[A-Za-z0-9._/@+=-]{1,200}$")
+
 RUN_CHECK = {
     "name": "run_check",
     "description": "",          # filled in with the command (Server.tools)
@@ -242,8 +258,12 @@ def _rel(root: Path, p: Path) -> str:
 
 class Server:
     def __init__(self, root: Path, check: dict | None = None, real: Path | None = None,
-                 refs: list | None = None, writes: list | None = None):
+                 refs: list | None = None, writes: list | None = None,
+                 commands: list | None = None):
         self.root = Path(root)
+        # Track V6: [{name, command, arg, timeout_min}] -- only what MAGI wrote.
+        self.commands = [c for c in (commands or []) if isinstance(c, dict)
+                         and c.get("name") and c.get("command")]
         # Track V3: {"orca": Path(<its private copy>)} -- only copies MAGI made.
         self.writes: dict[str, Path] = {}
         for w in writes or []:
@@ -530,8 +550,31 @@ class Server:
     def run_check(self, a: dict) -> str:
         if not self.check:
             raise ToolError("This project has no check that agents may run.")
-        cmd = self.check["command"]
-        limit = min(MAX_RUN_S, max(60, int(self.check.get("timeout_min") or 10) * 60))
+        return self._run(self.check["command"], self.check.get("timeout_min"), "Check")
+
+    def run_command(self, a: dict) -> str:
+        """Track V6: one of the project's named commands, in the copy."""
+        name = str(a.get("name") or "").strip().lower()
+        c = next((x for x in self.commands if x["name"] == name), None)
+        if c is None:
+            raise ToolError(f"No command called {name or '(none)'}. There are: "
+                            + (", ".join(x["name"] for x in self.commands) or "none") + ".")
+        line = c["command"]
+        arg = str(a.get("arg") or "").strip().replace("\\", "/")
+        if arg:
+            if not c.get("arg"):
+                raise ToolError(f"{name} takes no argument.")
+            if (not _CMD_ARG.match(arg) or arg.startswith(("-", "/"))
+                    or ".." in arg.split("/")):
+                raise ToolError("The argument must be a plain relative path or word: letters, "
+                                "digits and ._/-@+=, not starting with - or /, and no '..'.")
+            line = line.replace("{arg}", f'"{arg}"') if "{arg}" in line else f'{line} "{arg}"'
+        elif "{arg}" in line:
+            raise ToolError(f"{name} needs an argument.")
+        return self._run(line, c.get("timeout_min"), f"Command {name}:")
+
+    def _run(self, cmd: str, timeout_min, label: str) -> str:
+        limit = min(MAX_RUN_S, max(60, int(timeout_min or 10) * 60))
         env = {k: v for k, v in os.environ.items()
                if not _SECRET_ENV.search(k) and not k.startswith("CLAUDE_CODE_")}
         env.update({"CI": "1", "NO_COLOR": "1", "FORCE_COLOR": "0", "PAGER": "cat",
@@ -585,9 +628,9 @@ class Server:
             out = "…" + out[-OUTPUT_TAIL:]
         secs = round(time.monotonic() - t0, 1)
         if timed_out:
-            head = f"Check `{cmd}` stopped: still running after {round(limit / 60)} min."
+            head = f"{label} `{cmd}` stopped: still running after {round(limit / 60)} min."
         else:
-            head = (f"Check `{cmd}` " + ("PASSED" if p.returncode == 0 else
+            head = (f"{label} `{cmd}` " + ("PASSED" if p.returncode == 0 else
                                          f"FAILED (exit {p.returncode})") + f" in {secs}s.")
         return head + "\n\n" + (out or "(no output)")
 
@@ -605,14 +648,24 @@ class Server:
                 "see whether your change works, and fix what it reports. It is the only "
                 "command you can run.")
             out.append(t)
+        if self.commands:
+            t = dict(RUN_COMMAND)
+            t["description"] = (
+                "Run one of this project's commands in the project folder and get its exit code "
+                "and the end of its output. These are the only commands you can run:\n"
+                + "\n".join(f"- {c['name']}" + (" <path>" if c.get("arg") else "")
+                            + f": `{c['command']}`" for c in self.commands))
+            out.append(t)
         return out
 
     def call(self, name: str, args: dict) -> tuple[str, bool]:
         fn = {"move_path": self.move_path, "copy_path": self.copy_path,
               "delete_path": self.delete_path, "make_dir": self.make_dir,
-              "run_check": self.run_check, "ref_list": self.ref_list,
+              "run_check": self.run_check, "run_command": self.run_command,
+              "ref_list": self.ref_list,
               "ref_read": self.ref_read, "ref_find": self.ref_find}.get(name)
         if fn is None or (name == "run_check" and not self.check) or \
+                (name == "run_command" and not self.commands) or \
                 (name.startswith("ref_") and not self.refs):
             return f"Unknown tool {name!r}.", True
         try:
@@ -667,7 +720,7 @@ def from_config(path: Path) -> Server:
     if not root.is_dir():
         raise SystemExit(f"no such folder: {root}")
     return Server(root, cfg.get("check"), Path(cfg["real"]) if cfg.get("real") else None,
-                  cfg.get("refs"), cfg.get("writes"))
+                  cfg.get("refs"), cfg.get("writes"), cfg.get("commands"))
 
 
 def main(argv: list[str] | None = None) -> None:
