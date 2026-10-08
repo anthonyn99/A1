@@ -329,3 +329,15 @@ def test_terse_but_finished_answers_still_pass():
     ):
         v = validate_answer(good, question=q, display_name="X")
         assert v.ok, f"rejected a legitimate terse answer: {good!r} ({v.detail})"
+
+
+def test_a_one_token_value_is_an_answer_not_a_cut_off():
+    """Veda's PC, 2026-10-08: ChatGPT answered "What string is assigned on
+    the line I have selected?" with the right token and it was called cut
+    off, on every retry. A value is finished; a prose fragment is not."""
+    q = "What string is assigned on the line I have selected?"
+    for body in ("tok-3184bf6c", "src/other.py", "42", "`PLUM-6734`", '"tok-1"', "v2.1.281"):
+        assert validate_answer(body, q, display_name="ChatGPT").ok, body
+    for body in ("The function", "Thinking", "Reading", "hello there"):
+        v = validate_answer(body, q, display_name="ChatGPT")
+        assert not v.ok and v.reason == Rejection.TRUNCATED, body

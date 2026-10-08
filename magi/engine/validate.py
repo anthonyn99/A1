@@ -263,6 +263,11 @@ _ASKS_FOR_BREVITY = re.compile(
     re.IGNORECASE,
 )
 
+# One token that is plainly a value -- a number, an id, a path, a quoted
+# string: digits, or a separator inside it, or wrapped in quotes/backticks.
+_VALUE_TOKEN = re.compile(
+    r"[`'\"“”]?(?:[\w.]*\d[\w./:@-]*|[\w]+(?:[-_./:@][\w]+)+)[`'\"“”]?")
+
 # The sites' own "still working" labels. A capture that is one of these is a
 # spinner, never an answer, whatever the question asked for.
 _LOADING_LABEL = re.compile(
@@ -376,6 +381,15 @@ def validate_answer(
         and not (
             _ASKS_FOR_BREVITY.search(question or "")
             and len(body.split()) <= 2
+            and not _LOADING_LABEL.match(body)
+        )
+        # A value, not a stalled sentence: "tok-3184bf6c", "src/other.py",
+        # "42", "`PLUM-6734`" (Veda's PC, 2026-10-08: ChatGPT's correct
+        # one-token answer was called cut off on every retry). A stream that
+        # stops mid-air stops in prose, not inside an identifier.
+        and not (
+            len(body.split()) <= 2
+            and all(_VALUE_TOKEN.fullmatch(w) for w in body.split())
             and not _LOADING_LABEL.match(body)
         )
     ):
