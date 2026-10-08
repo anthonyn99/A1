@@ -525,19 +525,36 @@
         var tl = cross ? tgt : null, tk = tTo, onDrop = me.o.onDrop;
         setTimeout(function () {
           var nt = [list]; if (tl) nt.push(tl.list);
+          var moved = !!tl || to !== from;
           nt.forEach(function (l) { l.classList.add('dsort-nt'); });
-          rows.forEach(function (r) { r.style.transform = ''; r.classList.remove('dsort-drag', 'dsort-settle', 'dsort-chip', 'dsort-src'); });
           if (ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
-          if (tl) { tl.rows.forEach(function (r) { r.style.transform = ''; }); tl.list.classList.remove('dsort-on'); }
+          if (tl) tl.list.classList.remove('dsort-on');
           list.classList.remove('dsort-on');
           document.documentElement.classList.remove('dsort-grabbing');
           state.active = false;
+          // The rows keep their settled offsets until the caller's redraw has
+          // actually reordered the DOM (a framework may render a task later,
+          // slower on a phone). Clearing them first showed the OLD order for a
+          // frame or two, then jumped: the bounce. A mutation of the list is
+          // that redraw; the timer is only for callers that never reorder.
+          var done = false, obs = [], cleanup = function () {
+            if (done) return;
+            done = true;
+            obs.forEach(function (o) { o.disconnect(); });
+            rows.forEach(function (r) { r.style.transform = ''; r.classList.remove('dsort-drag', 'dsort-settle', 'dsort-chip', 'dsort-src'); });
+            if (tl) tl.rows.forEach(function (r) { r.style.transform = ''; });
+            // Transitions come back only after the new order has painted.
+            requestAnimationFrame(function () { requestAnimationFrame(function () { nt.forEach(function (l) { l.classList.remove('dsort-nt'); }); }); });
+          };
+          if (moved && window.MutationObserver) {
+            nt.forEach(function (l) { var o = new MutationObserver(cleanup); o.observe(l, { childList: true }); obs.push(o); });
+            setTimeout(cleanup, 600);
+          }
           try {
             if (tl) { if (onDrop) onDrop(from, tk, list, tl.list); }
             else if (to !== from && onDrop) onDrop(from, to, list, list);
           } finally {
-            // Transitions come back only after the redraw has painted.
-            requestAnimationFrame(function () { requestAnimationFrame(function () { nt.forEach(function (l) { l.classList.remove('dsort-nt'); }); }); });
+            if (!moved || !obs.length) cleanup();
             var q = state.pending.splice(0);
             q.forEach(function (fn) { try { fn(); } catch (err) { console.error(err); } });
           }
