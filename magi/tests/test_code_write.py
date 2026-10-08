@@ -597,7 +597,7 @@ def test_git_auth_is_none_for_an_unknown_or_blank_login(monkeypatch):
 
 def test_the_engine_repo_policy_is_write_only():
     assert SB.ENGINE_REPO == {"write": True, "commit": False, "push": False,
-                              "pull": False, "auto": False}
+                              "pull": False, "auto": False, "branch": False}
 
 
 def test_a1_takes_a_write_task_and_leaves_it_for_the_hook(repo, monkeypatch):

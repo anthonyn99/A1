@@ -103,6 +103,10 @@ class TaskState:
     # Track V3: other workspaces this task may CHANGE (write mode), each in
     # its own private copy -- as Part, below. The main workspace is not here.
     writes: list["Part"] = field(default_factory=list)
+    # Track V4: what the agent proposed (its COMMIT: and BRANCH: lines).
+    suggest_subject: str = ""
+    suggest_branch: str = ""
+    opening_pr: bool = False
 
     @property
     def checking(self) -> bool:
@@ -319,12 +323,14 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                                 "from the last turn."})
             res = await chain.run_chain(task, agents, emit=emit, cancel=t.cancel, steer=t.steer)
             t.result = res.to_dict()
+            _take_suggestions(t)
             while sb is not None:
                 if res.outcome == Outcome.OK and not t.cancel.is_set():
                     out = await _review_and_apply(t, sb)
                     if out.get("write") == "revised" and not t.cancel.is_set():
                         res = await _revise(t, task, agents, res, sb, emit)
                         t.result = res.to_dict()
+                        _take_suggestions(t)
                         continue
                     t.result.update(out)
                 else:
@@ -703,12 +709,14 @@ async def _apply(t: TaskState, reviews: list) -> dict[str, Any]:
         None, sandbox.apply, sb, files, sandbox.patch_dir(data_dir()))
     if res.ok:
         t.repo = str(sb.repo)
-        draft = G.draft_message(t.prompt, (t.result or {}).get("text", ""))
+        draft = G.draft_message(t.prompt, (t.result or {}).get("text", ""), t.suggest_subject)
         # A1 (Phase 14b): applied, and left for its Stop hook to commit.
         hook = not await loop.run_in_executor(None, sandbox.engine_repo_allows, sb.repo, "commit")
         await publish(t, {"k": "applied", "files": res.files, "how": res.how,
-                          "draft": draft, **({"by_hook": True} if hook else {})})
-        out = {"write": "applied", "files": res.files, "draft": draft}
+                          "draft": draft, **({"by_hook": True} if hook else {}),
+                          **({"branch": t.suggest_branch} if t.suggest_branch else {})})
+        out = {"write": "applied", "files": res.files, "draft": draft,
+               **({"branch": t.suggest_branch} if t.suggest_branch else {})}
         # Phase 12: where auto commit is on, the commit is MAGI's to make
         # after the project's window -- the stream says when.
         pend = await autocommit.on_applied(project_id=t.project_id, repo=t.repo,
@@ -747,7 +755,7 @@ async def _apply_parts(t: TaskState, reviews: list) -> dict[str, Any]:
                           "files": [w.label(p) if w else p for p in r.conflicts],
                           "saved": r.saved_patch})
         return {"write": "conflict", "detail": where + r.message, "saved": r.saved_patch}
-    draft = G.draft_message(t.prompt, (t.result or {}).get("text", ""))
+    draft = G.draft_message(t.prompt, (t.result or {}).get("text", ""), t.suggest_subject)
     repos, flat, hook_any = [], [], False
     for (w, psb, _), r in zip(reviews, results):
         hook = not await loop.run_in_executor(
@@ -762,10 +770,12 @@ async def _apply_parts(t: TaskState, reviews: list) -> dict[str, Any]:
     t.repo = main["repo"]
     how = "merged" if any(r.how == "merged" for r in results) else "clean"
     await publish(t, {"k": "applied", "files": flat, "how": how, "draft": draft,
+                      **({"branch": t.suggest_branch} if t.suggest_branch else {}),
                       "repos": [{k: x[k] for k in ("name", "main", "files", "by_hook")}
                                 for x in repos],
                       **({"by_hook": True} if all(x["by_hook"] for x in repos) else {})})
-    out = {"write": "applied", "files": flat, "draft": draft, "repos": repos}
+    out = {"write": "applied", "files": flat, "draft": draft, "repos": repos,
+           **({"branch": t.suggest_branch} if t.suggest_branch else {})}
     for x in repos:
         if x["by_hook"]:
             continue
@@ -845,8 +855,41 @@ def decide(t: TaskState, approve: bool) -> tuple[bool, str]:
     return True, ""
 
 
-async def commit(t: TaskState, message: str) -> dict[str, Any]:
+def _take_suggestions(t: TaskState) -> None:
+    """Track V4: the agent's COMMIT:/BRANCH: lines, kept on the task and taken
+    out of the summary (a later revision without them keeps the earlier)."""
+    if t.mode != "write" or not t.result:
+        return
+    subject, branch, rest = G.suggestions(t.result.get("text") or "")
+    if subject:
+        t.suggest_subject = subject
+    if branch:
+        t.suggest_branch = branch
+    t.result["text"] = rest
+
+
+async def _to_branch(top: Path, branch: str) -> dict[str, Any] | None:
+    """Switch `top` to `branch` before committing -- made from where you are
+    when it is new. None when there is nothing to do; a refusal dict if not."""
+    if not branch:
+        return None
+    loop = asyncio.get_running_loop()
+    if not await loop.run_in_executor(None, sandbox.engine_repo_allows, top, "branch"):
+        return {"ok": False, "error": "read_only_project", "message": sandbox.ENGINE_REPO_WHY["branch"]}
+    try:
+        name = G.check_branch(branch)
+        exists = await loop.run_in_executor(None, G.branch_exists, top, name)
+        await loop.run_in_executor(None, G.switch, top, name, not exists)
+    except G.GitError as e:
+        return {"ok": False, "error": e.code, "message": e.message}
+    return None
+
+
+async def commit(t: TaskState, message: str, branch: str = "") -> dict[str, Any]:
     """Commit exactly the files this task applied. Once; never pushed.
+    `branch` (Track V4): on that branch -- made from where you are if it is
+    new, switched to if it exists; your other uncommitted changes come along
+    as they do with any `git switch`.
 
     Only the applied paths are staged (git.commit uses `--only`), so anything
     else you had staged or changed stays out of it. The repository's own hooks
@@ -857,7 +900,7 @@ async def commit(t: TaskState, message: str) -> dict[str, Any]:
         return {"ok": False, "error": "not_applied",
                 "message": "Only a change that was applied to your folder can be committed."}
     if r.get("repos"):
-        return await _commit_parts(t, r, message)
+        return await _commit_parts(t, r, message, branch)
     if not await asyncio.get_running_loop().run_in_executor(
             None, sandbox.engine_repo_allows, Path(t.repo), "commit"):
         return {"ok": False, "error": "read_only_project",
@@ -869,20 +912,24 @@ async def commit(t: TaskState, message: str) -> dict[str, Any]:
         return {"ok": False, "error": "busy", "message": "Already committing."}
     t.committing = True
     try:
+        moved = await _to_branch(Path(t.repo), branch)
+        if moved:
+            return moved
         c = await asyncio.get_running_loop().run_in_executor(
             None, G.commit, Path(t.repo), list(r.get("files") or []), message)
     except G.GitError as e:
         return {"ok": False, "error": e.code, "message": e.message}
     finally:
         t.committing = False
-    r["commit"] = c.to_dict()
+    r["commit"] = {**c.to_dict(), **({"branch": branch} if branch else {})}
     # Committed by hand: this task is no longer the pending auto commit's.
     autocommit.forget_task(t.project_id, t.id, c.files)
-    await publish(t, {"k": "committed", **c.to_dict()})
-    return {"ok": True, "commit": c.to_dict()}
+    await publish(t, {"k": "committed", **r["commit"]})
+    return {"ok": True, "commit": r["commit"]}
 
 
-async def _commit_parts(t: TaskState, r: dict[str, Any], message: str) -> dict[str, Any]:
+async def _commit_parts(t: TaskState, r: dict[str, Any], message: str,
+                        branch: str = "") -> dict[str, Any]:
     """Track V3: one Commit press commits each repository the change was
     applied to -- exactly its files, the same message, its own hooks. A1 is
     skipped (it commits itself) and says so. Nothing is pushed."""
@@ -898,6 +945,10 @@ async def _commit_parts(t: TaskState, r: dict[str, Any], message: str) -> dict[s
         for x in r["repos"]:
             if x.get("commit") or x.get("by_hook") or not x.get("files"):
                 continue
+            moved = await _to_branch(Path(x["repo"]), branch)
+            if moved:
+                where = "" if x["main"] else f"@{x['name']}: "
+                return {**moved, "message": where + moved["message"]}
             try:
                 c = await loop.run_in_executor(
                     None, G.commit, Path(x["repo"]), list(x["files"]), message)
@@ -908,8 +959,8 @@ async def _commit_parts(t: TaskState, r: dict[str, Any], message: str) -> dict[s
                                  for y in r["repos"] if y.get("commit"))
                 return {"ok": False, "error": e.code, "message": where + e.message
                         + (f" (already committed: {done})" if done else "")}
-            x["commit"] = c.to_dict()
-            commits.append({**c.to_dict(), "name": x["name"], "main": x["main"]})
+            x["commit"] = {**c.to_dict(), **({"branch": branch} if branch else {})}
+            commits.append({**x["commit"], "name": x["name"], "main": x["main"]})
             autocommit.forget_task(x["project_id"], t.id, c.files)
     finally:
         t.committing = False
@@ -1013,6 +1064,89 @@ async def _push_parts(t: TaskState, r: dict[str, Any], login: str) -> dict[str, 
             **({} if ok else {"error": bad.get("code") or "push",
                               "message": (f"@{bad['name']}: " if not bad["main"] else "")
                               + (bad.get("text") or "Push failed.")})}
+
+
+def open_pull(top: Path, login: str, title: str, body: str) -> dict[str, Any]:
+    """Open a pull request on GitHub from the branch `top` is on into the
+    repository's default branch, as `login`. Blocking (run it in an executor).
+    -> {"ok", "pr": {...}} or a refusal in words."""
+    from ..github import accounts as A
+    from ..github import client as C
+    from ..github import pulls as P
+    from ..github import repos as RP
+    head = G.out(top, "branch", "--show-current")
+    if not head:
+        return {"ok": False, "error": "detached", "message": "HEAD is detached; there is no branch to propose."}
+    remote = G.github_of(top, head)
+    if remote.get("host") != "github.com" or not remote.get("owner"):
+        return {"ok": False, "error": "not_github", "message": "This repository's remote is not on GitHub."}
+    if not login:
+        return {"ok": False, "error": "no_account", "message": (
+            f"Choose which GitHub account this project uses (the Repository pill) to open a "
+            f"pull request on {remote['owner']}/{remote['repo']}.")}
+    owner, name = remote["owner"], remote["repo"]
+    try:
+        gh = A.client(login)
+        base = RP.repo_info(gh, owner, name).get("default_branch") or G.default_branch(top)
+        if head == base:
+            return {"ok": False, "error": "default_branch", "message": (
+                f"{head} is the default branch, so there is nothing to propose. Commit on a new "
+                "branch (the commit form offers one), push it, then open the pull request.")}
+        pr = P.create(gh, owner, name, head=head, base=base, title=title, body=body)
+    except A.AccountError as e:
+        return {"ok": False, "error": e.code, "message": e.message}
+    except C.GitHubError as e:
+        if e.kind == C.Kind.FORBIDDEN:
+            return {"ok": False, "error": "forbidden", "message": (
+                f"{login}'s token may not open pull requests on {owner}/{name}. On GitHub, give "
+                "the token \"Pull requests: Read and write\" for this repository (Settings → "
+                "Developer settings → Fine-grained tokens), then press again.")}
+        if e.kind == C.Kind.INVALID and "no commits between" in e.message.lower():
+            return {"ok": False, "error": "nothing", "message": (
+                f"{head} has nothing that {base} does not -- push it first, or there is "
+                "nothing to propose.")}
+        return e.to_dict()
+    return {"ok": True, "pr": {**pr, "repo": f"{owner}/{name}", "base": base, "head": head,
+                               "by": login}}
+
+
+async def open_pr(t: TaskState, title: str = "", body: str = "") -> dict[str, Any]:
+    """Track V4: Open a pull request for what this task pushed -- in each
+    repository it pushed to (V3). A fourth, separate press; as each project's
+    own account; never for the default branch."""
+    r = t.result or {}
+    loop = asyncio.get_running_loop()
+    if t.opening_pr:
+        return {"ok": False, "error": "busy", "message": "Already opening it."}
+    commit_ = r.get("commit") or {}
+    title = title or commit_.get("subject") or G.draft_message(t.prompt, "").splitlines()[0]
+    body = body or (r.get("text") or "")
+    targets = ([(x, Path(x["repo"]), x.get("github") or "") for x in r["repos"]
+                if (x.get("push") or {}).get("ok")] if r.get("repos")
+               else ([(None, Path(t.repo), t.github)] if (r.get("push") or {}).get("ok") else []))
+    if not targets:
+        return {"ok": False, "error": "not_pushed",
+                "message": "Push the branch first; a pull request proposes what is on GitHub."}
+    t.opening_pr = True
+    prs: list[dict[str, Any]] = []
+    try:
+        for x, top, login in targets:
+            if x is not None and x.get("pr"):
+                prs.append({**x["pr"], "name": x["name"], "main": x["main"]})
+                continue
+            got = await loop.run_in_executor(None, open_pull, top, login, title, body)
+            if not got.get("ok"):
+                where = "" if x is None or x["main"] else f"@{x['name']}: "
+                return {**got, "message": where + str(got.get("message") or ""), "prs": prs}
+            if x is not None:
+                x["pr"] = got["pr"]
+            prs.append({**got["pr"], **({"name": x["name"], "main": x["main"]} if x else {})})
+    finally:
+        t.opening_pr = False
+    r["pr"] = prs[0]
+    r["prs"] = prs
+    await publish(t, {"k": "pr", **prs[0], "prs": prs})
+    return {"ok": True, "pr": prs[0], "prs": prs}
 
 
 async def stream(t: TaskState):

@@ -155,7 +155,7 @@ def test_the_code_mode_write_claims_still_hold():
     from magi.code import sandbox as SB
     assert "A1 is writable too, but never committed or pushed from here" in HOW
     assert SB.ENGINE_REPO == {"write": True, "commit": False, "push": False,
-                              "pull": False, "auto": False}
+                              "pull": False, "auto": False, "branch": False}
     src = inspect.getsource(tasks)
     assert src.count("engine_repo_allows") >= 4       # pull, apply, commit, push
     # "A change to the engine's own code under magi/ says so on the card",
@@ -577,3 +577,27 @@ def test_the_change_other_workspaces_claims_still_hold():
     # "one commit in each repository" / "each as its own project's account".
     assert "G.commit, Path(x[\"repo\"])" in inspect.getsource(TK._commit_parts)
     assert 'x.get("github")' in inspect.getsource(TK._push_parts)
+
+
+def test_the_branch_and_pull_request_claims_still_hold():
+    """Track V4: the agent proposes, you press; never in A1; never forced."""
+    import inspect
+    from magi.code import git as G, routes as RT, sandbox as SB, tasks as TK
+    from magi.code.agents import base as BA
+    from magi.github import pulls as P
+    assert "Branches and pull requests." in HOW
+    # "the agent proposing a commit subject and a branch name".
+    assert "COMMIT:" in BA.WRITE_FRAME and "BRANCH:" in BA.WRITE_FRAME
+    # "Never in A1".
+    assert SB.ENGINE_REPO["branch"] is False
+    assert 'engine_repo_allows, root, "branch"' in inspect.getsource(RT.project_switch)
+    assert 'sandbox.engine_repo_allows, top, "branch"' in inspect.getsource(TK._to_branch)
+    # "if any of them would be overwritten nothing changes": no forcing flags.
+    sw = inspect.getsource(G.switch)
+    assert "--force" not in sw and "--discard-changes" not in sw and '"-f"' not in sw
+    # "pressing again shows the one already open".
+    assert "already exists" in inspect.getsource(P.create) and "find_open" in inspect.getsource(P.create)
+    # "for the default branch": never from it.
+    assert "default_branch" in inspect.getsource(TK.open_pull)
+    # The Repository panel itself stays read-only (its own HOW claim).
+    assert "Open a pull request for" in PAGE and '`/projects/${pid}/pr`' in PAGE

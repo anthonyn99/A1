@@ -1,4 +1,5 @@
-"""Pull requests, read-only, with the checks on their head commit."""
+"""Pull requests, with the checks on their head commit. Reading, plus one
+write since Track V4: `create`, which only ever runs on your press."""
 
 from __future__ import annotations
 
@@ -26,6 +27,33 @@ def list_pulls(gh: GitHub, owner: str, name: str, state: str = "open",
                   {"state": state, "per_page": max(1, min(n, 100)), "sort": "updated",
                    "direction": "desc"}).data
     return [row(p) for p in (data if isinstance(data, list) else []) if isinstance(p, dict)]
+
+
+def find_open(gh: GitHub, owner: str, name: str, head: str) -> dict[str, Any] | None:
+    """The open pull request from branch `head` of this repository, if any."""
+    data = gh.get(f"/repos/{owner}/{name}/pulls",
+                  {"state": "open", "head": f"{owner}:{head}", "per_page": 5}).data
+    rows = [row(p) for p in (data if isinstance(data, list) else []) if isinstance(p, dict)]
+    return rows[0] if rows else None
+
+
+def create(gh: GitHub, owner: str, name: str, *, head: str, base: str, title: str,
+           body: str = "") -> dict[str, Any]:
+    """Open a pull request from `head` into `base`. -> its row, plus
+    `existing: True` when one was already open for that branch (GitHub's 422
+    "A pull request already exists"), so pressing twice is harmless."""
+    title = " ".join(str(title or "").split())[:256] or head
+    try:
+        d = gh.post(f"/repos/{owner}/{name}/pulls",
+                    {"title": title, "head": head, "base": base,
+                     "body": str(body or "")[:BODY_MAX], "maintainer_can_modify": True}).data
+    except GitHubError as e:
+        if e.kind == Kind.INVALID and "already exists" in e.message.lower():
+            got = find_open(gh, owner, name, head)
+            if got:
+                return {**got, "existing": True}
+        raise
+    return {**row(d or {}), "existing": False}
 
 
 def checks(gh: GitHub, owner: str, name: str, sha: str) -> dict[str, Any]:

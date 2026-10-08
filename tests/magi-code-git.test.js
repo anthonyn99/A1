@@ -70,8 +70,10 @@ ok('it says exactly which files, that hooks run, that nothing is pushed',
    /exactly the ones applied/.test(commit) && /hooks run/.test(commit) && /Nothing is pushed/.test(commit));
 ok('a committed change shows its sha and says not pushed', /done\.short/.test(commit) && /Not pushed\./.test(commit));
 const cc = fn('async function codeCommit(t)');
-ok('only the message is sent -- the engine picks the files',
-   /codePost\(`\/tasks\/\$\{t\.id\}\/commit`, \{ message \}\)/.test(cc));
+// Track V4: and the branch to commit on, when "On a new branch" is chosen.
+ok('only the message (and a branch) is sent -- the engine picks the files',
+   /codePost\(`\/tasks\/\$\{t\.id\}\/commit`, \{ message, \.\.\.\(branch \? \{ branch \} : \{\}\) \}\)/.test(cc)
+   && !/files/.test(cc));
 ok('it cannot be sent twice', /if \(t\.committing\) return;/.test(cc));
 ok('an empty message is not sent', /if \(!message\) return;/.test(cc));
 ok('codeCommit is only called from the commit field', (MAGI.match(/codeCommit\(t\)/g) || []).length === 3);

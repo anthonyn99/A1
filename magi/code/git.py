@@ -399,10 +399,112 @@ def commit(top: Path, paths: list[str], message: str) -> Commit:
     return Commit(sha=sha, subject=msg.splitlines()[0][:200], files=names)
 
 
+# ── branches (Track V4) ───────────────────────────────────────────────────
+
+def check_branch(name: Any) -> str:
+    """A branch name git accepts, or GitError. Asked of git itself
+    (`check-ref-format --branch`), plus: no leading "-" (it would read as an
+    option), no "@{" shorthand, at most 100 characters."""
+    n = str(name or "").strip()
+    if not n or len(n) > 100 or n.startswith("-") or "@{" in n or n.upper() == "HEAD":
+        raise GitError("bad_branch", "That is not a usable branch name.")
+    r = proc.run(["git", "check-ref-format", "--branch", n], capture_output=True,
+                 timeout=30, env=_env())
+    if r.returncode != 0:
+        raise GitError("bad_branch", f"git does not accept {n!r} as a branch name.")
+    return n
+
+
+def suggest_branch(raw: str) -> str:
+    """An agent's BRANCH: suggestion made safe to offer: lowercase words and
+    hyphens (one "/" allowed), at most 60 characters. "" if nothing is left."""
+    s = re.sub(r"[^a-z0-9/._-]+", "-", str(raw or "").strip().lower())
+    s = re.sub(r"-{2,}", "-", s).strip("-./")
+    if s.count("/") > 1:
+        head, _, rest = s.partition("/")
+        s = head + "/" + rest.replace("/", "-")
+    s = s[:60].rstrip("-./")
+    if not s or ".." in s or s.endswith(".lock"):
+        return ""
+    return s
+
+
+def branch_exists(top: Path, name: str) -> bool:
+    return _run(top, "rev-parse", "--verify", "--quiet", f"refs/heads/{name}",
+                timeout=30).returncode == 0
+
+
+def switch(root: Path, name: str, create: bool = False) -> dict[str, Any]:
+    """Check out branch `name` -- a new one from where you are (`create`), or
+    an existing one. Your uncommitted changes come along, as git always
+    does; if one would be overwritten, git refuses and nothing changes.
+    Nothing is ever discarded or forced."""
+    top = toplevel(root)
+    if top is None:
+        raise GitError("not_git", "This folder is not a git repository.")
+    name = check_branch(name)
+    with lock(top):
+        busy = in_progress(top)
+        if busy:
+            raise GitError("in_progress", f"The repository is in the middle of a {busy}. "
+                           "Finish or abort it before switching branch.")
+        here = out(top, "branch", "--show-current")
+        exists = branch_exists(top, name)
+        if create and exists:
+            raise GitError("exists", f"There is already a branch called {name}.")
+        if not create and not exists:
+            raise GitError("no_branch", f"There is no branch called {name} here.")
+        if name == here:
+            return {"ok": True, "branch": name, "created": False, "from": here}
+        r = _run(top, "switch", *(["-c", name] if create else [name]), timeout=120)
+        if r.returncode != 0:
+            e = _err(r)
+            if "would be overwritten" in e:
+                raise GitError("dirty", f"Switching to {name} would overwrite changes you have "
+                               "not committed. Commit or stash them first; nothing was changed.")
+            raise GitError("switch", f"git could not switch to {name}: {e.splitlines()[-1] if e else 'failed'}")
+    return {"ok": True, "branch": name, "created": create, "from": here}
+
+
+def default_branch(top: Path) -> str:
+    """The remote's default branch as of the last fetch ("main" when it
+    cannot tell): `refs/remotes/<remote>/HEAD`, else main / master."""
+    br = out(top, "branch", "--show-current")
+    remote = _remote_of(top, br) or "origin"
+    r = _run(top, "symbolic-ref", "--quiet", "--short", f"refs/remotes/{remote}/HEAD", timeout=30)
+    ref = r.stdout.decode("utf-8", "replace").strip() if r.returncode == 0 else ""
+    if ref.startswith(remote + "/"):
+        return ref[len(remote) + 1:]
+    for cand in ("main", "master"):
+        if (_run(top, "rev-parse", "--verify", "--quiet", f"refs/remotes/{remote}/{cand}",
+                 timeout=30).returncode == 0 or branch_exists(top, cand)):
+            return cand
+    return "main"
+
+
+# What an agent is asked to end a Write-mode summary with (base.WRITE_FRAME).
+_SUGGEST = re.compile(r"^\s*[*_`]*(COMMIT|BRANCH)[*_`]*\s*:\s*[*_`]*(.+?)[*_`]*\s*$", re.I | re.M)
+
+
+def suggestions(text: str) -> tuple[str, str, str]:
+    """(commit subject, branch, the text without those lines) from an
+    agent's summary. Only the LAST of each counts (an earlier one may be
+    quoted), and both lines are taken out of what is shown and remembered."""
+    subject = branch = ""
+    for m in _SUGGEST.finditer(text or ""):
+        if m.group(1).upper() == "COMMIT":
+            subject = re.sub(r"\s+", " ", m.group(2)).strip().strip("\"'").rstrip(".")[:100]
+        else:
+            branch = suggest_branch(m.group(2))
+    rest = _SUGGEST.sub("", text or "")
+    rest = re.sub(r"\n{3,}", "\n\n", rest).strip()
+    return subject, branch, rest
+
+
 _FENCE = re.compile(r"```.*?```", re.S)
 
 
-def draft_message(prompt: str, summary: str) -> str:
+def draft_message(prompt: str, summary: str, subject: str = "") -> str:
     """A commit message to start from; the console lets you edit it.
 
     The subject is what you ASKED for -- that is the intent a commit subject
@@ -410,7 +512,9 @@ def draft_message(prompt: str, summary: str) -> str:
     says it did, minus any code blocks (a browser unit's reply carries its
     SEARCH/REPLACE blocks, which the diff already records).
     """
-    first = next((ln.strip() for ln in (prompt or "").splitlines() if ln.strip()), "")
+    # Track V4: the agent's own COMMIT: line, when it gave one -- it knows
+    # what it changed; else the first line of what you asked.
+    first = subject or next((ln.strip() for ln in (prompt or "").splitlines() if ln.strip()), "")
     subject = re.sub(r"\s+", " ", first).rstrip(" .")
     if len(subject) > 72:
         cut = subject[:71]

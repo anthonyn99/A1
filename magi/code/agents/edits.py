@@ -83,7 +83,10 @@ FORMAT_HELP = (
     "shown, or create new ones. Blocks apply in the order you write them, so "
     "you may MOVE a file and then edit it at its new path; a MOVE or COPY never "
     "overwrites, so DELETE the destination first if you mean to replace it. "
-    "After the blocks, add a short summary of what you changed and why.")
+    "After the blocks, add a short summary of what you changed and why, then "
+    "two last lines, outside any code block: COMMIT: <a commit subject, "
+    "imperative, under 72 characters> and BRANCH: <a short branch name, "
+    "lowercase-with-hyphens>.")
 
 
 @dataclass

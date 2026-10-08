@@ -315,7 +315,16 @@ WRITE_FRAME = (
     "the change focused on the task. Running the project's commands or tests is "
     "not part of this mode; do not claim to have run any. Finish with a short "
     "summary of what "
-    "you changed and why.")
+    "you changed and why." + " ")
+
+# Track V4: the last two lines of every Write-mode summary -- what the person
+# is offered as the commit subject and as a branch to commit on. MAGI takes
+# them out of the summary it shows (git.suggestions).
+SUGGEST_LINES = (
+    "Then end with exactly two lines: `COMMIT: <a commit subject for this change, "
+    "imperative, under 72 characters>` and `BRANCH: <a short branch name for it, "
+    "lowercase-with-hyphens>`.")
+WRITE_FRAME = WRITE_FRAME + SUGGEST_LINES
 
 
 @dataclass

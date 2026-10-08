@@ -726,6 +726,30 @@ Files: `tasks.py` (`Part`, `_changed`, `_card_files`, `_apply_parts`,
 `codeApprovalSections`. Tests: `test_code_multi_write.py`, one in
 `test_howitworks.py`; live `tests/live/magi-code-v3.live.js`.
 
+#### Branches and pull requests (Track V4, 2026-10-08)
+
+Each step is its own press, as before: Approve, Commit, Push, and now **Open
+pull request**. Nothing here runs by itself, and none of it ever happens in
+A1 (`sandbox.ENGINE_REPO["branch"] = False`: every session and A1's
+auto-commit work on its checkout).
+
+| | What happens |
+|---|---|
+| The agent proposes | Every Write frame (`base.SUGGEST_LINES`, Claude's `write_frame`, units' `FORMAT_HELP`) asks for two last lines, `COMMIT: <subject>` and `BRANCH: <name>`. `git.suggestions` reads the LAST of each, makes the branch safe (`suggest_branch`: lowercase-hyphens, one `/`, 60 chars) and takes both lines out of the summary that is shown and remembered (`tasks._take_suggestions`; a revision without them keeps the earlier ones). |
+| Commit form | Starts from the agent's subject (`draft_message(subject=)`), and offers **On <branch>** or **On a new branch** with the name filled in. `POST /tasks/{id}/commit {message, branch}`: the branch is checked by git (`check_branch`), made from where you are if new or switched to if it exists (`git switch`, never forced: a change that would be overwritten is refused and nothing moves), then the commit. Across workspaces (V3), the same branch in each repository. |
+| Push | Unchanged: the first push of a new branch sets its upstream. |
+| Open pull request | `POST /tasks/{id}/pr` (card) or `POST /projects/{id}/pr` (repository line, for the branch you are on): `tasks.open_pull` asks GitHub for the default branch, refuses to propose the default branch itself, and `pulls.create` POSTs head into base as the project's account. Title: the commit subject; text: the agent's summary. A 422 "already exists" returns the open one (`existing`). A 403 says which token permission is missing. The only GitHub write MAGI makes (`client.post`: never cached, never retried). |
+| Branch sheet | Tap the branch name on the repository line: the local branches (`GET /projects/{id}/branches`), **Switch**, **Make and switch**, and **Open a pull request for <branch>** when the branch is not main/master and has an upstream. `POST /projects/{id}/branch {name, create}` refuses while a task is working on the project. The Repository panel itself stays read-only. |
+
+Files: `code/git.py` (`check_branch`, `suggest_branch`, `branch_exists`,
+`switch`, `default_branch`, `suggestions`), `code/tasks.py`
+(`_take_suggestions`, `_to_branch`, `open_pull`, `open_pr`), `code/routes.py`
+(`/tasks/{id}/pr`, `/projects/{id}/branches|branch|pr`), `github/client.py`
+(`post`, 422 `errors`), `github/pulls.py` (`create`, `find_open`). Console:
+`codeBranchSheet`, the commit form's branch row, `renderCodePr`. Tests:
+`test_code_branches.py`, one in `test_howitworks.py`; live
+`tests/live/magi-code-v4.live.js`.
+
 #### Git: pull before work, the repository line, commit
 
 **MAGI performs git itself; agents never get git.** They edit a sandbox and

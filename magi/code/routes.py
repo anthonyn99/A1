@@ -80,8 +80,9 @@ async def code_state() -> dict[str, Any]:
         # POST /tasks/{id}/message exists.
         # Track V: `refs` = POST /tasks takes `refs` (other workspaces to read);
         # V3: `writes` = and `writes` (other workspaces to change, write mode).
+        # V4: `branches` = commit on a branch, switch branch, open a pull request.
         "features": ["attachments", "auto_approve", "followup", "steer", "images", "refs",
-                     "writes"],
+                     "writes", "branches"],
     }
 
 
@@ -1002,7 +1003,20 @@ async def commit_task(task_id: str, body: dict = Body(...)) -> dict[str, Any]:
     t = _tasks.TASKS.get(task_id)
     if t is None:
         return {"ok": False, "error": "no_task", "message": "No such task."}
-    return await _tasks.commit(t, str(body.get("message") or ""))
+    # Track V4: `branch` -- commit on that branch (made from where you are if new).
+    return await _tasks.commit(t, str(body.get("message") or ""), str(body.get("branch") or ""))
+
+
+@router.post("/tasks/{task_id}/pr")
+async def pr_task(task_id: str, body: dict = Body(default={})) -> dict[str, Any]:
+    """Track V4: open a pull request for what this task pushed, as the
+    project's account, into the repository's default branch. `{"title",
+    "body"}` optional (the commit subject and the agent's summary)."""
+    t = _tasks.TASKS.get(task_id)
+    if t is None:
+        return {"ok": False, "error": "no_task", "message": "No such task."}
+    return await _tasks.open_pr(t, str((body or {}).get("title") or "")[:256],
+                                str((body or {}).get("body") or "")[:8000])
 
 
 @router.post("/tasks/{task_id}/message")
@@ -1269,6 +1283,75 @@ async def push_project(project_id: str, body: dict = Body(default={})) -> dict[s
         return {"ok": False, "error": e.code, "message": e.message}
     d = res.to_dict()
     return {"ok": res.ok, "push": d, **({} if res.ok else {"error": res.code, "message": res.text})}
+
+
+# ── branches (Track V4): local, so they work for any remote ───────────────
+
+def _busy_with(project_id: str) -> bool:
+    return any(t.project_id == project_id or any(w.project_id == project_id for w in t.writes)
+               for t in _tasks.running())
+
+
+@router.get("/projects/{project_id}/branches")
+async def project_branches(project_id: str) -> dict[str, Any]:
+    """Local branches, newest first, and which one is checked out."""
+    p, root, err = await _project_here(project_id)
+    if err:
+        return err
+    from . import git as G
+    from .sandbox import engine_repo_allows
+    loop = _asyncio.get_running_loop()
+    try:
+        rows = await loop.run_in_executor(None, G.branches, root)
+    except G.GitError as e:
+        return {"ok": False, "error": e.code, "message": e.message}
+    can = await loop.run_in_executor(None, engine_repo_allows, root, "branch")
+    return {"ok": True, "branches": rows[:200], "switch": can}
+
+
+@router.post("/projects/{project_id}/branch")
+async def project_switch(project_id: str, body: dict = Body(...)) -> dict[str, Any]:
+    """Switch the project's folder to a branch: `{"name", "create": bool}`.
+    Your uncommitted changes come along; git refuses if one would be
+    overwritten. Never while a task is working on it, never in A1."""
+    p, root, err = await _project_here(project_id)
+    if err:
+        return err
+    from . import git as G
+    from .sandbox import ENGINE_REPO_WHY, engine_repo_allows
+    loop = _asyncio.get_running_loop()
+    if not await loop.run_in_executor(None, engine_repo_allows, root, "branch"):
+        return {"ok": False, "error": "read_only_project", "message": ENGINE_REPO_WHY["branch"]}
+    if _busy_with(p["id"]):
+        return {"ok": False, "error": "busy",
+                "message": "A task is working on this project; switch branch when it ends."}
+    try:
+        out = await loop.run_in_executor(None, G.switch, root, str((body or {}).get("name") or ""),
+                                         (body or {}).get("create") is True)
+    except G.GitError as e:
+        return {"ok": False, "error": e.code, "message": e.message}
+    return out
+
+
+@router.post("/projects/{project_id}/pr")
+async def project_open_pull(project_id: str, body: dict = Body(default={})) -> dict[str, Any]:
+    """Track V4, from the repository line: open a pull request from the
+    branch the folder is on (already pushed) into the default branch, as the
+    project's account. `{"title", "body"}`; the title defaults to the
+    branch's last commit subject."""
+    p, root, err = await _project_here(project_id)
+    if err:
+        return err
+    from . import git as G
+    loop = _asyncio.get_running_loop()
+    top = await loop.run_in_executor(None, G.toplevel, root)
+    if top is None:
+        return {"ok": False, "error": "not_git", "message": "This folder is not a git repository."}
+    title = str((body or {}).get("title") or "").strip()[:256] or \
+        await loop.run_in_executor(None, G.out, top, "log", "-1", "--format=%s")
+    login = str((p.get("prefs") or {}).get("github") or "")
+    return await loop.run_in_executor(None, _tasks.open_pull, top, login, title,
+                                      str((body or {}).get("body") or "")[:8000])
 
 
 # ── the Repository panel (Phase 11): read-only GitHub, per project ───────

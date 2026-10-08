@@ -9,11 +9,21 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-10-04: **Track V (Code Mode as the main coding
+**Last updated:** 2026-10-08: **Track V3 done** (Tony, 2026-10-08: "Next
+code mode phase go" -- he asked for ALL of V3–V7, one after another, with a
+"what is manual" note after each and a write-up for him and Veda at the end).
+V3 = one Write task changes several workspaces: Also read sheet is
+Off | Read | Change; a private copy each; one card with a section per
+workspace; applied together or not at all; commit/push per repository. See
+§8 "Track V" › "V3 -- what was built". Same day, two unit fixes: Gemini's
+"Something went wrong (1099)" is now a fast **Site error** (Google-side
+outage since ~10-06), and ChatGPT's new pre-less code blocks keep their
+lines (every ChatGPT edit was unreadable). **Next: V4** (Git and GitHub end
+to end), then V5, V6, V7, in that order -- agreed, build them.
+2026-10-04: **Track V (Code Mode as the main coding
 environment) -- V1 and V2 done**: every agent can move, copy, delete and
 search; Claude can run the project's check when you allow it; any task can
 also READ other workspaces. See §8 "Track V" and "What exists" › "Track V".
-Next in Track V is Tony's call (V3–V7 offered in §8).
 Before that, 2026-10-01: five of the six post-Track-F offers built
 (page-load stall, Gemini's glued paragraphs, effort/thinking in the pick,
 the chairman's model; Grok still limited) plus Brief/Text on earlier turns
@@ -24,9 +34,8 @@ ALL of Track S (**S1**, **S2**, **S3**, **U1**, **U2**, **U3**, **U4**), and
 ALL of Track F (**F1**, **F2**, **F3**, **F4**). Follow-ups, mid-run
 messages and continue-from-History are live in both Deliberation and Code
 Mode.
-**Next phase:** none agreed. It is Tony's call -- offer Track V's V3–V7
-(§8 "Track V") and the lists under "After Track S — waiting on Tony" and
-"Waiting on Tony"; do not start one unasked. Nothing is half-built.
+**Next phase:** **V4**, then V5, V6, V7 (agreed 2026-10-08; §8 "Track V").
+Nothing is half-built.
 
 **If a fresh session touches Code Mode follow-ups**, the map is "What
 exists" › "Code Mode follow-ups, console (F4)" and docs/magi.md "Code Mode
@@ -82,7 +91,8 @@ One phase per session.
 | ~~F4~~ | ~~Follow-ups: Code Mode console~~ | **done 2026-09-30** (+ the three open bugs) | | |
 | ~~V1~~ | ~~Every agent's file tools~~ | **done 2026-10-04** (Track V, §8) | | |
 | ~~V2~~ | ~~Also read (multi-folder)~~ | **done 2026-10-04** | | |
-| V3–V7 | Multi-repo writes, Git/PRs, units' check loop, named commands, project map | **offered, not agreed** (§8 Track V) | | |
+| ~~V3~~ | ~~Multi-repo writes~~ | **done 2026-10-08** | | |
+| V4–V7 | Git/PRs, units' check loop, named commands, project map | **agreed 2026-10-08, next: V4** (§8 Track V) | | |
 
 ### Start-of-session checklist (do these in order)
 
@@ -3072,11 +3082,11 @@ silently giving less." Design for the end goal, not a prototype.
 |---|---|---|---|
 | V1 | Every agent's file tools | Claude: workspace MCP server (move/copy/delete/make folder, `run_check` if allowed). Browser units: `DELETE`/`MOVE`/`COPY` blocks, `FIND` search. Check sheet: *Agents may run it*. Link scrub before the copy is walked or deleted. | **done 2026-10-04** |
 | V2 | Also read (multi-folder) | Other registered workspaces readable by every agent (`--add-dir` in Read, `ref_*` tools in Write, paths for Codex, `@name/` + FIND for units); strip pill + sheet. | **done 2026-10-04** |
-| V3 | Multi-repo writes | One task edits two or more workspaces: a copy per workspace, one card with a section per repository, applied together or not at all; A1's ships-banner per section. | offered |
-| V4 | Git and GitHub, end to end | Agents propose a branch name and the commit message on the card; **Open a pull request** from the card / Repository panel (GitHub REST as the project's account, still your press); create/switch branch from the repository line. | offered |
-| V5 | The check for browser units | When *Agents may run it* is on, MAGI runs the check in the copy after a unit's edits and sends a failure back for another round (max 2), so units close the loop the way Claude does. | offered |
-| V6 | Named commands | Per project, on the engine PC: a short list of commands (build, lint, one test file with an argument pattern) agents may run like `run_check`; Claude via MCP, units via a `RUN:` request. Needs Tony's call on Codex (Waiting on Tony). | offered |
-| V7 | Project map for analysis units | A symbol outline (classes/functions per file, cached by mtime) in the context, so units understand a large project's structure without having every file uploaded. | offered |
+| V3 | Multi-repo writes | One task edits two or more workspaces: a copy per workspace, one card with a section per repository, applied together or not at all; A1's ships-banner per section. | **done 2026-10-08** |
+| V4 | Git and GitHub, end to end | Agents propose a branch name and the commit message on the card; **Open a pull request** from the card / Repository panel (GitHub REST as the project's account, still your press); create/switch branch from the repository line. | agreed, next |
+| V5 | The check for browser units | When *Agents may run it* is on, MAGI runs the check in the copy after a unit's edits and sends a failure back for another round (max 2), so units close the loop the way Claude does. | agreed |
+| V6 | Named commands | Per project, on the engine PC: a short list of commands (build, lint, one test file with an argument pattern) agents may run like `run_check`; Claude via MCP, units via a `RUN:` request. Codex's sandbox question was settled 2026-10-04 (elevated only), so it is unblocked. | agreed |
+| V7 | Project map for analysis units | A symbol outline (classes/functions per file, cached by mtime) in the context, so units understand a large project's structure without having every file uploaded. | agreed |
 
 ### V1 + V2 -- what was built (2026-10-04)
 See docs/magi.md "Every agent's file tools, Also read, and agents running
@@ -3094,6 +3104,39 @@ correct one-word reply to "Reply with the string only." *cut off*
 more nouns after "just the" / "only the"; kept narrow because Code Mode
 validates against the whole framed prompt, which itself says "reply with
 ONLY lines ..." and "... nothing else" -- a test pins that).
+
+### V3 -- what was built (2026-10-08)
+*Status:* done. See docs/magi.md "Changing several workspaces in one task
+(Track V3)". `POST /tasks` `writes: [project_id]` (registered ids, at most
+4, a repository each; Read mode reads them); `tasks.Part` per workspace, its
+own sandbox (`<task>-2`...); `sandbox.apply_all` plans every part before
+writing any and puts back what it wrote if a later write fails; the card's
+`sections`; `_commit_parts` / `_push_parts`. Agents: Claude `--add-dir` on
+the copies (Write only) + ws_mcp `@name/` paths; Codex `--add-dir` (probed:
+the elevated sandbox honours it, an unlisted sibling still refuses writes
+and deletes); units edit `@name/...` with their blocks (`edits.apply(writable=)`).
+Console: the Also read sheet's Off | Read | Change rows (`CODE_WRITES_KEY`,
+per device), the card's section heads, commit/push lines per repository.
+Tests: `test_code_multi_write.py` (12; 3 mutants killed in memory), one in
+`test_howitworks.py`; live `tests/live/magi-code-v3.live.js` 15 + 5 + 18
+on 2026-10-08 (Codex both repos approved and committed; DeepSeek `@name/`
+edit denied; the console), and `magi-code-v.live.js` 29/29 on the new sheet.
+
+Found on the way and fixed the same day:
+- **Gemini** failed 8 of 9 runs since ~10-06: Google's servers refuse the
+  send ("Something went wrong (1099)" / "(1155)" toast, prompt put back in
+  the box) -- signed in or out, headless or not, even from a plain Chrome
+  only attached over CDP -- or it answers "I'm having a hard time
+  fulfilling your request". Not fixable here. New `FailureKind.SITE_ERROR`,
+  selector key `send_error`, checked every second during the wait
+  (`completion.SEND_ERROR_CHECK_S`; the toast lives ~5 s) and while a send
+  is retried: the unit now fails in seconds as "Site error" instead of a
+  120 s timeout or a straggler cut-off.
+- **ChatGPT's code blocks** lost their line breaks: it now renders a
+  `<code class="whitespace-pre! block">` with no `<pre>`, which the
+  serializer read as inline code, so every ChatGPT edit block came back
+  unreadable. `markdown.py` `preless()`; fixture
+  `fixtures/units/chatgpt-code-block.html`.
 
 ---
 

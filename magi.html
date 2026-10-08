@@ -3861,6 +3861,23 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 }
 .code-git-br { font-family: var(--font-mono); font-weight: 700; color: var(--tx); overflow-wrap: anywhere; }
 .code-git-br::before { content: "⎇ "; color: var(--txm); font-weight: 400; }
+/* Track V4: the branch name is a button that opens the Branch sheet. */
+button.code-git-br {
+  font-size: inherit; background: none; border: 1px solid transparent; border-radius: 999px;
+  padding: 1px 8px; margin-left: -8px; cursor: pointer;
+}
+button.code-git-br:hover, button.code-git-br:focus-visible { border-color: var(--ac); outline: none; }
+.br-list { display: flex; flex-direction: column; max-height: 42vh; overflow-y: auto; }
+.br-row {
+  display: flex; align-items: center; gap: 8px; padding: 7px 0; min-height: 40px;
+  border-bottom: 1px solid var(--bd); font-size: 12px;
+}
+.br-row:last-child { border-bottom: 0; }
+.br-name { font-family: var(--font-mono); font-weight: 600; color: var(--tx); overflow-wrap: anywhere; min-width: 0; flex: 1 1 auto; }
+.br-meta { color: var(--txm); font-size: 10.5px; flex: 0 0 auto; }
+.code-pr-link { color: var(--acl); font-weight: 700; }
+.code-commit-br { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.code-commit-br .sheet-in { flex: 1 1 180px; min-width: 0; font-family: var(--font-mono); }
 .code-git-ab { font-family: var(--font-mono); }
 .code-git-on { color: var(--acl); }
 .code-git-warn { color: var(--amber); font-weight: 700; }
@@ -7322,6 +7339,7 @@ const HOW = [
       "<b>A check beside the diff.</b> Tap the <b>Check</b> pill to give a project a command that exits 0 when it is healthy &mdash; its tests, a build &mdash; picked from what MAGI finds in the folder, with <b>Try it now</b> to see it work. For a Write task it runs in the task&rsquo;s <i>private copy</i> (never your folder), with the folder&rsquo;s <code>node_modules</code> or <code>.venv</code> linked in for the run and removed after, and its pass or fail and output sit on the approval card. It informs Approve; it never decides it. By default you press <b>Run check</b> on the card, after reading the diff, and the approval clock waits while it runs, then gives you the full __APPROVE_MIN__ minutes again. <b>Automatically</b> runs it before the card appears &mdash; that runs the agent&rsquo;s code before anyone has looked at it, so the setting says so. The command stays on the engine PC, can only be set from that PC, never syncs, and runs in the same Windows job as the agents, so it cannot drive MAGI.",
       "<b>What each agent can do in Write.</b> <b>Claude</b> edits and creates files with its own tools, and moves, renames, copies and deletes files and folders with MAGI&rsquo;s workspace tools &mdash; all in the private copy, with no shell. <b>Codex</b> does the same through its own sandboxed shell. <b>Every other unit</b> sends its changes as blocks MAGI applies: SEARCH/REPLACE edits plus <code>DELETE</code>, <code>MOVE</code> and <code>COPY</code> lines. Before answering, any unit can ask for a file, a folder, a range of lines, or a <code>FIND</code> across the whole project. A move shows on the card as the old file deleted and the new one added, and nothing reaches your folder until you approve. In the <b>Check</b> sheet, <b>Agents may run it</b> lets Claude run the project&rsquo;s check itself while it works and fix what it reports &mdash; that one command, never another, and only in the copy.",
       "<b>Also read other workspaces.</b> Tap <b>Also read</b> on the strip to tick other workspaces the agents may read while they work on this one &mdash; to compare, port, or follow how something is done there. They are read, never changed: Claude reads them with its own tools in Read mode and through read-only MAGI tools in Write mode, Codex at their folders, and every other unit by asking for <code>@name/&hellip;</code> files, with <code>FIND</code> searching them too. Only workspaces you added, with a folder on the engine&rsquo;s PC, can be picked; the choice is kept on each device.",
+      "<b>Branches and pull requests.</b> Every Write task ends with the agent proposing a commit subject and a branch name; the commit form starts with that subject, and offers <b>On a new branch</b> with the name filled in (or stay on the branch you are on). After you push a branch that is not the default one, <b>Open pull request</b> proposes it for the default branch on GitHub, as the project&rsquo;s account &mdash; title from the commit, text from the agent&rsquo;s summary; pressing again shows the one already open. Tap the branch name on the repository line to switch branch, make one from where you are, or open a pull request for the branch you are on. A switch takes your uncommitted changes along, the way git always does, and if any of them would be overwritten nothing changes. Each of these is its own press. Never in A1: A1 stays on its branch, because every session and its auto-commit work there.",
       "<b>Change other workspaces too.</b> In the same sheet, set a workspace to <b>Change</b> instead of <b>Read</b>, and a Write task may edit it as well as this one &mdash; a fix that spans a site and its worker, or a library and the app that uses it. Each one gets its own private copy, so nothing reaches any real folder until you approve. You get <b>one card</b> with a section per workspace, and one decision: approved, every part is applied together or none of it is &mdash; if one workspace&rsquo;s part cannot go on (you edited the same lines meanwhile), nothing is applied anywhere. Commit then makes one commit in each repository with the same message, and Push pushes each as its own project&rsquo;s GitHub account. Up to 4, each in a git repository of its own. In Read mode they are only read. A1 can be one of them; its part ships on approval like any A1 change.",
       "<b>Sizes and rankings are measured, not guessed.</b> Agents in Read mode have no shell, so none of their tools can tell how big a file is. When a task asks about sizes, lines, the largest, or ranking and comparing, MAGI measures the folder itself &mdash; every file git knows about, with exact bytes and line counts, totals per folder and per type, and the top-level files (in A1, the programs) &mdash; and hands that to whichever agent runs. Name a type (&ldquo;the .html files&rdquo;) and every file of it is listed in full. Ignored folders (node_modules, virtualenvs, browser profiles) and secret files are left out. The transcript shows it as an <b>Inventory</b> line.",
       "<b>A silent agent is stopped.</b> An agent that produces no output at all for 30 minutes is ended and the task handed to the next agent in the chain; a slow one that is still working is never cut off, because any output resets the clock. One still going after 4 hours is ended regardless. A hung agent would otherwise hold the whole queue behind it.",
@@ -13733,7 +13751,17 @@ function renderCodeGit(proj) {
     return row;
   }
   const d = g.data;
-  row.append(el("span", "code-git-br", d.detached ? `detached at ${d.head}` : d.branch || "no branch"));
+  const brText = d.detached ? `detached at ${d.head}` : d.branch || "no branch";
+  if (codeEngineHas("branches") && proj.write && proj.write.ok && proj.write.push !== false) {
+    // Track V4: switch or make a branch, open a pull request (never in A1).
+    const b = el("button", "code-git-br", brText);
+    b.type = "button";
+    b.title = "Switch branch, make one, or open a pull request";
+    b.onclick = () => codeBranchSheet(proj);
+    row.append(b);
+  } else {
+    row.append(el("span", "code-git-br", brText));
+  }
   if (d.state) row.append(el("span", "code-git-bad", `${d.state} in progress`));
   if (d.upstream) {
     const ab = el("span", "code-git-ab");
@@ -13752,6 +13780,107 @@ function renderCodeGit(proj) {
   codeGitPushBits(proj, d, row);
   codeAutoBits(proj, row);
   return row;
+}
+
+/* ── branches (Track V4) ──────────────────────────────────────────────────
+   Switch to a branch, make one from where you are, or open a pull request
+   for the branch you are on. Uncommitted work comes along on a switch, as
+   git always does; git refuses if any of it would be overwritten. */
+async function codeBranchSheet(proj) {
+  const sheet = el("div", "sheet");
+  const box = el("div", "sheet-box sheet-wide br-sheet");
+  const close = () => sheet.remove();
+  box.append(el("div", "sheet-hd", `Branch · ${proj.name}`));
+  const body = el("div");
+  box.append(body);
+  const bar = el("div", "sheet-bar");
+  const no = el("button", "btn", "Close");
+  no.onclick = close;
+  bar.append(el("span", "qbar-spacer"), no);
+  box.append(bar);
+  dismissOnBackdrop(sheet, close);
+  sheet.append(box);
+  document.body.append(sheet);
+  const st = { rows: null, err: "", busy: "", pr: null };
+  const pid = encodeURIComponent(proj.id);
+  const load = async () => {
+    try {
+      const d = await codeGet(`/projects/${pid}/branches`);
+      if (d.ok) st.rows = d.branches || []; else st.err = d.message || "Could not read the branches.";
+    } catch (e) { st.err = `Could not reach the engine: ${e.message || e}`; }
+    draw();
+  };
+  const act = async (label, path, payload, after) => {
+    st.busy = label; st.err = ""; draw();
+    try {
+      const d = await codePost(path, payload);
+      if (d.ok) await after(d); else st.err = d.message || "Refused.";
+    } catch (e) { st.err = `Could not reach the engine: ${e.message || e}`; }
+    st.busy = ""; draw();
+  };
+  const switchTo = (name, create) => act(create ? "Making it…" : "Switching…",
+    `/projects/${pid}/branch`, { name, create }, async () => {
+      await codeGitLoad(proj.id, true); renderCodeView(); await load();
+    });
+  const draw = () => {
+    body.textContent = "";
+    body.append(el("div", "sheet-sub",
+      "Your uncommitted changes come with you when you switch, the way git always does; if any "
+      + "would be overwritten, nothing changes and you are told."));
+    const cur = (st.rows || []).find((b) => b.current);
+    body.append(el("label", "sheet-lbl", "New branch from here"));
+    const r = el("div", "sheet-row");
+    const inp = el("input", "sheet-in");
+    inp.placeholder = "short-name-with-hyphens";
+    inp.setAttribute("aria-label", "New branch name");
+    inp.autocapitalize = "off"; inp.spellcheck = false;
+    const mk = el("button", "btn active", st.busy === "Making it…" ? "Making it…" : "Make and switch");
+    mk.disabled = !!st.busy;
+    mk.onclick = () => { const v = inp.value.trim(); if (v) switchTo(v, true); };
+    inp.onkeydown = (e) => { e.stopPropagation(); if (e.key === "Enter") mk.click(); };
+    r.append(inp, mk);
+    body.append(r);
+    body.append(el("label", "sheet-lbl", "Branches here"));
+    if (!st.rows && !st.err) body.append(el("div", "sheet-note", "Reading branches…"));
+    const list = el("div", "br-list");
+    for (const b of st.rows || []) {
+      const row = el("div", "br-row");
+      row.append(el("span", "br-name", b.name));
+      row.append(el("span", "br-meta", b.current ? "you are here"
+        : b.upstream ? `↑${b.ahead} ↓${b.behind}` : "local only"));
+      if (!b.current) {
+        const sw = el("button", "code-git-act", "Switch");
+        sw.type = "button";
+        sw.disabled = !!st.busy;
+        sw.onclick = () => switchTo(b.name, false);
+        row.append(sw);
+      }
+      list.append(row);
+    }
+    body.append(list);
+    if (cur && !/^(main|master)$/.test(cur.name) && cur.upstream) {
+      body.append(el("label", "sheet-lbl", "Pull request"));
+      if (st.pr) {
+        const line = el("div", "sheet-ok");
+        const a = el("a", "code-pr-link", `#${st.pr.number} ${st.pr.title}`);
+        a.href = st.pr.url; a.target = "_blank"; a.rel = "noopener";
+        line.append(document.createTextNode(st.pr.existing ? "Already open: " : "Opened: "), a);
+        body.append(line);
+      } else {
+        const go = el("button", "code-git-act is-push", st.busy === "Opening…" ? "Opening…"
+          : `Open a pull request for ${cur.name}`);
+        go.type = "button";
+        go.disabled = !!st.busy;
+        go.onclick = () => act("Opening…", `/projects/${pid}/pr`, {}, async (d) => { st.pr = d.pr; });
+        body.append(go);
+        body.append(el("div", "sheet-note", "Into the repository’s default branch, as this "
+          + "project’s GitHub account. Push the branch first."));
+      }
+    }
+    if (st.err) body.append(el("div", "sheet-err", st.err));
+  };
+  draw();
+  load();
 }
 
 /* ── pushing from the repository line ─────────────────────────────────────
@@ -14441,6 +14570,7 @@ async function codeLoadTurn(r) {
     if (st && Array.isArray(st.attachments) && st.attachments.length) t.atts = st.attachments;
     t.committed = [...ev].reverse().find((e) => e.k === "committed") || null;
     t.pushed = [...ev].reverse().find((e) => e.k === "pushed") || null;
+    t.pr = [...ev].reverse().find((e) => e.k === "pr") || null;
     return t;
   };
   const onEngine = CODE_HIST.engineFrom === link.api && online()
@@ -14549,6 +14679,7 @@ function codeAttach(id, prompt, { projectId = null, at = null, fromHistory = fal
     }
     if (ev.k === "committed") t.committed = ev;
     if (ev.k === "pushed") t.pushed = ev;
+    if (ev.k === "pr") t.pr = ev;
     // A usage frame updates the chips as the work happens rather than
     // waiting for the task to finish to admit what it spent.
     if (ev.k === "usage") codeApplyUsageEvent(ev);
@@ -15222,6 +15353,39 @@ function renderCodeCommit(t, applied, done) {
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); codeCommit(t); }
   };
   box.append(ta);
+  if (codeEngineHas("branches")) {
+    // Track V4: on the branch you are on, or a new one -- the agent's
+    // proposed name filled in.
+    const g = CODE.git && CODE.git.pid === t.projectId ? CODE.git.data : null;
+    const here = (g && g.branch) || "this branch";
+    if (t.commitBrMode == null) t.commitBrMode = "here";
+    if (t.commitBr == null) t.commitBr = applied.branch || "";
+    const brow = el("div", "code-commit-br");
+    const sw = el("div", "code-rw-sw");
+    sw.setAttribute("role", "radiogroup");
+    sw.setAttribute("aria-label", "Commit on which branch");
+    for (const [v, label] of [["here", `On ${here}`], ["new", "On a new branch"]]) {
+      const b = el("button", `code-rw-b${t.commitBrMode === v ? " on" : ""}`, label);
+      b.type = "button";
+      b.setAttribute("role", "radio");
+      b.setAttribute("aria-checked", String(t.commitBrMode === v));
+      b.disabled = !!t.committing;
+      b.onclick = () => { t.commitBrMode = v; renderCodeView(); };
+      sw.append(b);
+    }
+    brow.append(sw);
+    if (t.commitBrMode === "new") {
+      const bi = el("input", "sheet-in code-commit-brname");
+      bi.value = t.commitBr;
+      bi.placeholder = "branch-name";
+      bi.setAttribute("aria-label", "New branch name");
+      bi.autocapitalize = "off"; bi.spellcheck = false;
+      bi.oninput = () => { t.commitBr = bi.value; };
+      bi.onkeydown = (e) => e.stopPropagation();
+      brow.append(bi);
+    }
+    box.append(brow);
+  }
   const reps = (applied.repos || []).filter((r) => !r.by_hook);
   box.append(el("div", "code-commit-note",
     `${applied.files.length} file${applied.files.length === 1 ? "" : "s"}, exactly the ones applied`
@@ -15250,7 +15414,9 @@ async function codeCommit(t) {
   t.commitErr = "";
   renderCodeView();
   try {
-    const d = await codePost(`/tasks/${t.id}/commit`, { message });
+    const branch = t.commitBrMode === "new" ? (t.commitBr || "").trim() : "";
+    if (t.commitBrMode === "new" && !branch) throw new Error("name the new branch first");
+    const d = await codePost(`/tasks/${t.id}/commit`, { message, ...(branch ? { branch } : {}) });
     if (d.ok || d.error === "already") {
       t.committed = d.commits ? { ...d.commit, commits: d.commits } : d.commit;
       t.commitOpen = false;
@@ -15279,11 +15445,12 @@ function renderCodePush(t, pushed) {
       box.append(el("div", `code-appr-out ${p.ok ? "is-ok" : "is-bad"}`,
         `${p.main ? codeProjName(t.projectId) : "@" + p.name}: ${p.text || (p.ok ? "Pushed." : "Not pushed.")}`));
     }
-    if (pushes.every((p) => p.ok)) return box;
+    if (pushes.every((p) => p.ok)) { box.append(renderCodePr(t, pushes[0])); return box; }
     pushed = null;
   }
   if (pushed) {
     box.append(el("div", "code-appr-out is-ok", pushed.text || "Pushed."));
+    box.append(renderCodePr(t, pushed));
     // The Actions watch that push started, in the transcript it belongs to.
     const proj = ((CODE.state && CODE.state.projects) || []).find((p) => p.id === t.projectId);
     const w = CODE.watch && CODE.watch.taskId === t.id ? renderCodeWatch(proj) : null;
@@ -15324,6 +15491,52 @@ function renderCodePush(t, pushed) {
   acts.append(go);
   box.append(acts);
   return box;
+}
+
+/* Track V4: after a push, the fourth press -- Open a pull request (never for
+   main/master; the engine also refuses the repository's default branch). */
+function renderCodePr(t, pushed) {
+  const wrap = el("div", "code-push");
+  const pr = t.pr || (t.result && t.result.pr);
+  const prs = (pr && pr.prs) || (t.result && t.result.prs) || (pr ? [pr] : []);
+  if (prs.length) {
+    for (const p of prs) {
+      const line = el("div", "code-appr-out is-ok");
+      const a = el("a", "code-pr-link", `#${p.number} ${p.title || ""}`.trim());
+      a.href = p.url; a.target = "_blank"; a.rel = "noopener";
+      line.append(document.createTextNode((p.existing ? "Pull request already open: " : "Pull request opened: ")
+        + (p.name ? `@${p.name} ` : "")), a);
+      wrap.append(line);
+    }
+    return wrap;
+  }
+  if (!codeEngineHas("branches") || !pushed || !pushed.branch || /^(main|master)$/.test(pushed.branch)) return wrap;
+  if (t.prErr) wrap.append(el("div", "code-appr-out is-bad", t.prErr));
+  const acts = el("div", "code-appr-acts");
+  const go = el("button", "code-approve", t.prBusy ? "Opening…" : "Open pull request");
+  go.type = "button";
+  go.disabled = !!t.prBusy;
+  go.onclick = () => codeOpenPr(t);
+  acts.append(go);
+  wrap.append(el("div", "code-commit-note", `Propose ${pushed.branch} for the default branch, as this `
+    + "project’s GitHub account. Title: the commit subject; text: the agent’s summary."));
+  wrap.append(acts);
+  return wrap;
+}
+
+async function codeOpenPr(t) {
+  if (t.prBusy) return;
+  t.prBusy = true; t.prErr = "";
+  renderCodeView();
+  try {
+    const d = await codePost(`/tasks/${t.id}/pr`, {});
+    if (d.ok) t.pr = { ...d.pr, prs: d.prs };
+    else t.prErr = d.message || "GitHub refused it.";
+  } catch (e) {
+    t.prErr = `Could not reach the engine: ${e.message || e}`;
+  }
+  t.prBusy = false;
+  renderCodeView();
 }
 
 async function codePushTask(t) {

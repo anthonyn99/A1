@@ -527,7 +527,11 @@ def patch_dir(profile_data: Path) -> Path:
 #   pull    no:  fetch only -- a rebase under live sessions and the hook is
 #                worse than a stale answer.
 #   auto    no:  auto commit/push, for the same reason as commit.
-ENGINE_REPO = {"write": True, "commit": False, "push": False, "pull": False, "auto": False}
+#   branch  no:  (Track V4) A1's checkout is the one every session and its
+#                auto-commit work on; switching it would ship their next
+#                commit to some other branch, or take main away from them.
+ENGINE_REPO = {"write": True, "commit": False, "push": False, "pull": False, "auto": False,
+               "branch": False}
 
 ENGINE_REPO_WHY = {
     "commit": "A1 commits itself: its auto-commit records every change and pushes it "
@@ -535,6 +539,8 @@ ENGINE_REPO_WHY = {
     "push": "A1 pushes itself (its auto-commit, and the Stop hook); Code Mode does not "
             "push A1.",
     "write": "MAGI's own repository is read-only to Code Mode.",
+    "branch": "A1 stays on its branch: every session and its auto-commit work there. "
+              "Code Mode does not switch or make branches in A1.",
 }
 
 # A1 SHIPS what is applied: its always-on auto-commit pushes every change to

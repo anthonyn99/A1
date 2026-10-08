@@ -171,6 +171,12 @@ class GitHub:
         except ValueError:
             body = {}
         msg = self._scrub(str((body or {}).get("message") or r.reason_phrase or "")).strip()
+        # A 422's reason is in `errors` ("A pull request already exists for
+        # o:branch"); the top message only says "Validation Failed".
+        errs = [str(e.get("message") or "") for e in ((body or {}).get("errors") or [])
+                if isinstance(e, dict) and e.get("message")]
+        if errs:
+            msg = self._scrub(f"{msg}: {'; '.join(errs)}"[:500])
         st = r.status_code
         remaining = r.headers.get("x-ratelimit-remaining")
         retry = _int(r.headers.get("retry-after"))
@@ -288,6 +294,28 @@ class GitHub:
                               + self._scrub(type(e).__name__)) from None
         body = r.content[-max_bytes:]
         return self._scrub(body.decode("utf-8", "replace"))
+
+    def post(self, path: str, body: dict[str, Any]) -> Response:
+        """One write (Track V4: opening a pull request). Never cached, never
+        retried: a POST that timed out may still have happened, and a second
+        one would make a second pull request."""
+        url = self._url(path)
+        try:
+            with httpx.Client(transport=self._transport, timeout=self.timeout,
+                              follow_redirects=False) as c:
+                r = c.post(url, headers={**self._headers(), "Content-Type": "application/json"},
+                           json=body)
+        except httpx.HTTPError as e:
+            raise GitHubError(Kind.NETWORK, "Could not reach GitHub: "
+                              + self._scrub(type(e).__name__)) from None
+        self._record_rate(r)
+        if r.status_code >= 300:
+            raise self._fail(r)
+        try:
+            data = r.json()
+        except ValueError:
+            data = {}
+        return Response(data, r.status_code)
 
     def paginate(self, path: str, params: dict[str, Any] | None = None,
                  max_pages: int = MAX_PAGES) -> tuple[list[Any], bool]:

@@ -52,7 +52,7 @@ import re
 import time
 from typing import Any
 
-from .base import CodingAgent, EventFn, Image, Mode, Outcome, Result, Task
+from .base import SUGGEST_LINES, CodingAgent, EventFn, Image, Mode, Outcome, Result, Task
 from . import limits, models, slots
 from ._proc import Stream
 
@@ -145,7 +145,8 @@ def write_frame(task: Task) -> str | None:
             "folders, and make folders (make_dir) -- use them rather than asking the person "
             "to. When you finish, your changes are shown to the user as a diff, and nothing "
             "reaches the real project unless they approve it. Keep the change focused on the "
-            "task. " + run + "Finish with a short summary of what you changed and why.")
+            "task. " + run + "Finish with a short summary of what you changed and why. "
+            + SUGGEST_LINES)
 
 
 def refs_how(task: Task) -> str:
