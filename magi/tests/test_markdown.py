@@ -288,3 +288,25 @@ def test_gemini_real_answer_keeps_its_paragraphs(page):
     from magi.engine import session
     mem = session.answer_section(out)
     assert mem.startswith("The sky appears blue") and "NOTES" not in mem and "HIGH" not in mem
+
+
+def test_chatgpt_code_block_without_pre_keeps_its_lines(page):
+    """Captured 2026-10-08: ChatGPT's code block is now a
+    <code class="whitespace-pre! block ..."> under a "Code" header, no <pre>.
+    It arrived as "`alpha beta gamma`", so every edit block ChatGPT sent in
+    Code Mode was unreadable."""
+    from pathlib import Path
+    html = (Path(__file__).parent / "fixtures" / "units" / "chatgpt-code-block.html").read_text(encoding="utf-8")
+    md = render(page, html)
+    assert "```\nalpha\nbeta\ngamma\n```" in md, md
+    assert "Code" not in md.replace("```", ""), "the header is chrome, not content"
+
+
+def test_preless_code_block_takes_its_language_from_the_header(page):
+    html = ("<p>Here:</p><div><div>Python<button>Copy</button></div><div>"
+            "<code class='whitespace-pre! block'>x = 1\ny = 2</code></div></div><p>Done.</p>")
+    assert render(page, html) == "Here:\n\n```python\nx = 1\ny = 2\n```\n\nDone."
+
+
+def test_inline_code_is_still_inline(page):
+    assert render(page, "<p>Run <code>make test</code> first.</p>") == "Run `make test` first."

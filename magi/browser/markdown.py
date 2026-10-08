@@ -32,7 +32,12 @@ _SKIP = """
   // Deliberately excludes P and DIV: almost every wrapper contains one, so
   // including them would recurse into everything and split single paragraphs
   // apart at arbitrary boundaries.
-  const BLOCK_SEL = 'table,ul,ol,pre,blockquote,h1,h2,h3,h4,h5,h6';
+  // ChatGPT's code block since ~2026-10: no <pre> at all, a
+  // <code class="whitespace-pre! block ..."> in a pane under a "Code" /
+  // "Plain text" header. Read as inline code, its lines ran together
+  // ("`alpha beta gamma`") and every edit block it sent was unreadable.
+  const CODE_BLOCK_SEL = 'code[class*="whitespace-pre"]';
+  const BLOCK_SEL = 'table,ul,ol,pre,blockquote,h1,h2,h3,h4,h5,h6,' + CODE_BLOCK_SEL;
   const hasBlockInside = (n) => !!(n.querySelector && n.querySelector(BLOCK_SEL));
   // A <p> anywhere inside DOES make a container a block, though: flattened,
   // its paragraphs run together with no break at all. Gemini wraps a plain
@@ -142,6 +147,21 @@ DOM_TO_MARKDOWN_JS = """
   // Block content. `depth` drives list indentation; two spaces per level is
   // what the verdict parser treats as one nesting step.
   const cls = (n) => n.classList || { contains: () => false };
+
+  // A code block with no <pre> (CODE_BLOCK_SEL): `n` is one when it holds
+  // exactly one such <code>, no other block, and nothing else but a short
+  // header and buttons. -> [code, header text] or null.
+  const preless = (n) => {
+    if (!n.querySelectorAll || n.tagName === 'PRE' || n.closest('pre')) return null;
+    if (n.matches(CODE_BLOCK_SEL)) return [n, ''];
+    const codes = [...n.querySelectorAll(CODE_BLOCK_SEL)].filter((k) => !k.closest('pre'));
+    if (codes.length !== 1 || n.querySelector('table,ul,ol,pre,blockquote,h1,h2,h3,h4,h5,h6,p')) return null;
+    const chrome = n.cloneNode(true);
+    for (const k of chrome.querySelectorAll('code, button')) k.remove();
+    const head = (chrome.textContent || '').trim();
+    return head.length <= 40 ? [codes[0], head] : null;
+  };
+
   const block = (node, depth) => {
     const out = [];
     for (const c of node.childNodes) {
@@ -153,6 +173,20 @@ DOM_TO_MARKDOWN_JS = """
       if (c.nodeType !== 1) continue;
       const tag = c.tagName;
       if (SKIP.has(tag)) continue;
+
+      const pl = tag === 'CODE' || tag === 'DIV' ? preless(c) : null;
+      if (pl) {
+        // The source's own newlines first: innerText only keeps them while
+        // the site's "whitespace-pre" CSS is in force.
+        const raw = clean(pl[0].textContent || '');
+        const t = (/\\n/.test(raw) ? raw : (pl[0].innerText || raw)).replace(/\\s+$/, '');
+        // The header's first word is the language, unless it is just "Code"
+        // or "Plain text".
+        const w = (pl[1].split(/\\s+/)[0] || '').toLowerCase();
+        const lang = /^[\\w+#.-]{1,20}$/.test(w) && !/^(code|plain|text)$/.test(w) ? w : '';
+        if (t.trim()) out.push('```' + lang + '\\n' + t + '\\n```');
+        continue;
+      }
 
       if (/^H[1-6]$/.test(tag)) {
         const t = inline(c).replace(/\\u0000/g, ' ').trim();
