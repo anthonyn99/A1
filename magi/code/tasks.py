@@ -298,7 +298,7 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
             if shcfg["enabled"]:
                 ok, why = await loop.run_in_executor(None, lambda: _shell.availability(wait=True))
                 if ok:
-                    scratch = sandbox._profile_dir(_profile()) / f"{t.id}-shell"
+                    scratch = _shell.scratch_for(t.id)
                     t.shell_scratch = str(scratch)
                     sh = await loop.run_in_executor(None, lambda: _shell.spec(
                         cwd=sb.cwd if sb is not None else root, scratch=scratch,

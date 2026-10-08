@@ -741,9 +741,11 @@ class Server:
 
     def shell_run(self, a: dict) -> str:
         out = self._shell_run(a)
-        if out.split("\n\n", 1)[-1].lstrip().lower().startswith("windows sandbox failed"):
-            # The sandbox itself could not start (not the command): once more.
-            time.sleep(2)
+        for wait in (3, 6):
+            if not out.split("\n\n", 1)[-1].lstrip().lower().startswith("windows sandbox failed"):
+                break
+            # The sandbox itself could not start (not the command): again.
+            time.sleep(wait)
             out = self._shell_run(a)
         return out
 
@@ -802,11 +804,14 @@ class Server:
         p, job = self._popen(command)
         self.procs[pid_name] = _Proc(pid_name, command, p, job)
         time.sleep(1.5)
-        x = self.procs[pid_name]
-        if x.p.poll() is not None and x.text().lstrip().lower().startswith("windows sandbox failed"):
-            # The sandbox itself could not start: once more.
+        for wait in (3, 6):
+            x = self.procs[pid_name]
+            if not (x.p.poll() is not None
+                    and x.text().lstrip().lower().startswith("windows sandbox failed")):
+                break
+            # The sandbox itself could not start: again.
             x.job.close()
-            time.sleep(2)
+            time.sleep(wait)
             p, job = self._popen(command)
             self.procs[pid_name] = _Proc(pid_name, command, p, job)
             time.sleep(1.5)

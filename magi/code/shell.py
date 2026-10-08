@@ -140,11 +140,42 @@ def _codex_slot() -> str:
     return have[0] if have else slots.SYSTEM_SLOT
 
 
-def cache_dir() -> Path:
+def _home() -> Path:
     from ..settings import active_profile
-    d = Path(tempfile.gettempdir()) / "magi-shell-cache" / (active_profile() or "default")
+    return Path(tempfile.gettempdir()) / "magi-shell" / (active_profile() or "default")
+
+
+def cache_dir() -> Path:
+    """The package cache (npm, pip), kept between tasks."""
+    d = _home() / "cache"
     d.mkdir(parents=True, exist_ok=True)
     return d
+
+
+def work_dir() -> Path:
+    """Where each task's scratch folder lives. The SAME folder every time,
+    granted to the sandbox once: a brand-new writable folder per task made
+    the sandbox's setup step run each time, and now and then it failed
+    ("windows sandbox failed: orchestrator_helper_incomplete", 2026-10-08)."""
+    d = _home() / "work"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def scratch_for(task_id: str) -> Path:
+    return work_dir() / task_id
+
+
+def sweep() -> int:
+    """Remove scratch folders left by tasks that ended without cleaning up
+    (an engine restart). Call when no task runs."""
+    n = 0
+    w = _home() / "work"
+    if w.is_dir():
+        for d in w.iterdir():
+            shutil.rmtree(d, ignore_errors=True)
+            n += 1
+    return n
 
 
 def spec(*, cwd: Path, scratch: Path, write: bool, internet: bool,
@@ -155,7 +186,9 @@ def spec(*, cwd: Path, scratch: Path, write: bool, internet: bool,
     scratch.mkdir(parents=True, exist_ok=True)
     (scratch / "tmp").mkdir(exist_ok=True)
     cache = cache_dir()
-    writable = [str(scratch), str(cache)] + [str(p) for p in extra_writable or []]
+    # The stable parents, not the per-task folders (see work_dir).
+    root = scratch.parent if scratch.parent == work_dir() else scratch
+    writable = [str(root), str(cache)] + [str(p) for p in extra_writable or []]
     return {"codex": slots.cli_path("codex") or "", "bash": bash_path(), "cwd": str(cwd),
             "write": bool(write), "internet": bool(internet), "scratch": str(scratch),
             "cache": str(cache), "writable": writable}
@@ -294,9 +327,11 @@ async def run(sp: dict[str, Any], command: str, timeout_s: float = RUN_TIMEOUT_S
     it started is killed when it returns. -> {ok, code, timed_out, secs, output}.
     A sandbox that could not START is tried once more."""
     res = await _run_once(sp, command, timeout_s, stop)
-    if (not res["ok"] and not res["timed_out"]
-            and res["output"].lstrip().lower().startswith(SANDBOX_START_FAILED)):
-        await asyncio.sleep(2)
+    for wait in (3, 6):
+        if (res["ok"] or res["timed_out"]
+                or not res["output"].lstrip().lower().startswith(SANDBOX_START_FAILED)):
+            break
+        await asyncio.sleep(wait)
         res = await _run_once(sp, command, timeout_s, stop)
     return res
 

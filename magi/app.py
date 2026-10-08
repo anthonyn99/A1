@@ -108,6 +108,9 @@ async def lifespan(app: FastAPI):
         from .code import sandbox as _sandbox
         await asyncio.get_running_loop().run_in_executor(
             None, _sandbox.sweep, active_profile())
+        # Track W2: the agents' shell scratch folders, the same way.
+        from .code import shell as _shell
+        await asyncio.get_running_loop().run_in_executor(None, _shell.sweep)
     except Exception:
         pass
     # The A1 self-cleanup's disk items (cleanup-rules.json): old failure
