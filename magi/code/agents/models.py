@@ -351,7 +351,9 @@ def cli_version(agent: str, *, fresh: bool = False) -> str:
             r = proc.run([exe, "--version"], capture_output=True, text=True, timeout=20,
                          stdin=subprocess.DEVNULL, encoding="utf-8", errors="replace")
             m = re.search(r"(\d+\.\d+\.\d+)", r.stdout or "")
-            v = m.group(1) if m else ""
+            # A CLI that crashes on start prints Node's own version on its way
+            # out ("Node.js v24.15.0"): only a clean exit is a version.
+            v = m.group(1) if m and r.returncode == 0 else ""
         except Exception:  # noqa: BLE001 -- a version is a nicety, not a need
             v = ""
     _cli_ver[agent] = (time.time(), v)

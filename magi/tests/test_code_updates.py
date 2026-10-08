@@ -68,9 +68,10 @@ def test_status_says_how_far_behind(world):
 def test_the_latest_version_is_asked_of_npm_at_most_every_few_hours(world):
     U.latest("codex")
     U.latest("codex")
-    assert sum(1 for c in world.calls if c[1:2] == ["view"]) == 1
+    asks = lambda: sum(1 for c in world.calls if c[1:3] == ["view", "@openai/codex"])  # noqa: E731
+    assert asks() == 1
     U.latest("codex", force=True)
-    assert sum(1 for c in world.calls if c[1:2] == ["view"]) == 2
+    assert asks() == 2
 
 
 def test_a_model_waiting_on_the_cli_is_named(world):
@@ -94,7 +95,8 @@ def test_update_claude_with_its_own_updater(world, monkeypatch):
 def test_update_codex_through_npm(world):
     job = U.start("codex", wait=True)
     assert job.state == "done" and job.after == "0.156.1"
-    assert ["C:/node/npm.cmd", "install", "-g", "@openai/codex@latest"] in world.calls
+    # The exact version that has a build for this PC -- never "@latest".
+    assert ["C:/node/npm.cmd", "install", "-g", "@openai/codex@0.156.1"] in world.calls
 
 
 def test_a_failed_update_says_why(world):
@@ -165,3 +167,49 @@ def test_the_switch_is_validated(world):
     with pytest.raises(ValueError):
         M.set_auto_update("yes")
     assert M.prefs()["auto_update"] is True
+
+
+
+def test_a_codex_version_with_no_build_for_this_pc_is_never_installed(world, monkeypatch):
+    """Found 2026-10-08: Codex 0.162.0 shipped with no Windows build; npm
+    installed it without complaint and Codex crashed on every start."""
+    run = U.proc.run
+
+    def no_build(argv, **kw):
+        if argv[1:2] == ["view"] and argv[2].endswith("-" + U._platform_tag()):
+            return SimpleNamespace(returncode=1, stdout="", stderr="npm error 404")
+        return run(argv, **kw)
+    monkeypatch.setattr(U.proc, "run", no_build)
+    import magi.proc as P
+    monkeypatch.setattr(P, "run", no_build)
+    st = U.status("codex", check=True)
+    assert st["latest"] == "" and st["outdated"] is False, "not offered at all"
+    U.start("codex", wait=True)
+    assert not any(c[1:3] == ["install", "-g"] and "latest" in c[3] for c in world.calls)
+
+
+def test_an_update_that_leaves_codex_unable_to_start_is_undone(world, monkeypatch):
+    run = U.proc.run
+
+    def broken(argv, **kw):
+        if argv[1:] == ["--version"] and "codex" in argv[0] and world.installed["codex"] == "0.156.1":
+            return SimpleNamespace(returncode=1, stdout="", stderr="Error: Missing optional dependency. Node.js v24.15.0")
+        if argv[1:3] == ["install", "-g"] and argv[3] == "@openai/codex@0.155.1":
+            world.calls.append(list(argv))
+            world.installed["codex"] = "0.155.1"
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+        return run(argv, **kw)
+    monkeypatch.setattr(U.proc, "run", broken)
+    import magi.proc as P
+    monkeypatch.setattr(P, "run", broken)
+    job = U.start("codex", wait=True)
+    assert job.state == "failed" and "Codex 0.155.1 was put back" in job.text
+    assert ["C:/node/npm.cmd", "install", "-g", "@openai/codex@0.155.1"] in world.calls
+    assert M.cli_version("codex", fresh=True) == "0.155.1"
+
+
+def test_a_crashing_cli_has_no_version(world, monkeypatch):
+    import magi.proc as P
+    monkeypatch.setattr(P, "run", lambda argv, **kw: SimpleNamespace(
+        returncode=1, stdout="Node.js v24.15.0", stderr=""))
+    assert M.cli_version("codex", fresh=True) == ""

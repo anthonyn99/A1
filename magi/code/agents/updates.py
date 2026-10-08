@@ -8,7 +8,7 @@ updates it -- when you press **Update now**, or by itself when
 `auto_update` is on (the default).
 
     Claude Code   claude update                      (its own updater)
-    Codex         npm install -g @openai/codex@latest
+    Codex         npm install -g @openai/codex@<newest version with a build for this PC>
 
 Rules that keep an update from ever getting in the way:
 
@@ -21,6 +21,14 @@ Rules that keep an update from ever getting in the way:
     model is waiting on a newer version.
   * **Nothing here touches a login.** Sign-ins live in the slot folders
     (slots.py), not in the install; an update keeps every account signed in.
+  * **Never a version without a build for this PC.** Found 2026-10-08:
+    Codex 0.162.0 was published with no Windows build (`@openai/codex@
+    0.162.0-win32-x64` 404), npm skipped the missing "optional" package
+    without an error, and the installed Codex crashed on every start
+    ("Missing optional dependency @openai/codex-win32-x64"). So `latest`
+    counts a Codex version only once its build for this platform exists,
+    the update installs that exact version, and an update after which the
+    CLI no longer starts is undone (the version before is put back).
   * The install is the one on PATH (`slots.cli_path`) -- the copy MAGI runs.
     The Claude desktop app and the VS Code extension carry their own.
 """
@@ -76,8 +84,30 @@ def _npm() -> str | None:
     return None
 
 
+def _platform_tag() -> str:
+    """Codex's platform package suffix for this PC ("win32-x64")."""
+    import platform
+    import sys
+    arch = {"amd64": "x64", "x86_64": "x64", "arm64": "arm64", "aarch64": "arm64"}.get(
+        platform.machine().lower(), "x64")
+    osn = "win32" if sys.platform == "win32" else ("darwin" if sys.platform == "darwin" else "linux")
+    return f"{osn}-{arch}"
+
+
+def _has_build(npm: str, version: str) -> bool:
+    """Is Codex `version` published for this PC (its platform package)?"""
+    try:
+        r = proc.run([npm, "view", f"{PACKAGE['codex']}@{version}-{_platform_tag()}", "version"],
+                     capture_output=True, text=True, timeout=60, stdin=subprocess.DEVNULL,
+                     encoding="utf-8", errors="replace")
+    except Exception:  # noqa: BLE001
+        return False
+    return r.returncode == 0 and bool((r.stdout or "").strip())
+
+
 def latest(agent: str, *, force: bool = False) -> str:
-    """The newest published version (`npm view`), cached 6 hours."""
+    """The newest published version (`npm view`), cached 6 hours -- for
+    Codex, the newest that has a build for this PC."""
     hit = _latest.get(agent)
     if hit and not force and time.time() - hit[0] < LATEST_TTL:
         return hit[1]
@@ -90,6 +120,8 @@ def latest(agent: str, *, force: bool = False) -> str:
             out = (r.stdout or "").strip().splitlines()
             cand = out[-1].strip() if out else ""
             v = cand if models._ver(cand) and r.returncode == 0 else ""
+            if v and agent == "codex" and not _has_build(npm, v):
+                v = ""          # not for this PC yet: keep the last usable answer
         except Exception:  # noqa: BLE001 -- no answer is "unknown", not an error
             v = ""
     _latest[agent] = (time.time(), v if v else (hit[1] if hit else ""))
@@ -127,7 +159,11 @@ def _argv(agent: str) -> list[str] | None:
         exe = slots.cli_path("claude")
         return [exe, "update"] if exe else None
     npm = _npm()
-    return [npm, "install", "-g", f"{PACKAGE['codex']}@latest"] if npm else None
+    # Never "@latest": that is how a version with no build for this PC got in.
+    want = latest("codex") or models.cli_version("codex")
+    if not want:
+        return None
+    return [npm, "install", "-g", f"{PACKAGE['codex']}@{want}"] if npm else None
 
 
 def _env() -> dict[str, str]:
@@ -150,6 +186,17 @@ def _run(job: Job) -> None:
             job.state = "failed"
             tail = out[-400:] or f"exited {r.returncode}"
             job.text = f"The update did not finish: {tail}"
+            if job.agent == "codex" and job.before and not job.after:
+                # It no longer starts: put the version that did back.
+                npm = _npm()
+                if npm:
+                    proc.run([npm, "install", "-g", f"{PACKAGE['codex']}@{job.before}"],
+                             capture_output=True, text=True, timeout=UPDATE_TIMEOUT, env=_env(),
+                             stdin=subprocess.DEVNULL, encoding="utf-8", errors="replace")
+                    back = models.cli_version("codex", fresh=True)
+                    job.text += (f" Codex {job.before} was put back." if back == job.before else
+                                 f" Putting Codex {job.before} back did not work either; "
+                                 f"reinstall it: npm install -g {PACKAGE['codex']}@{job.before}")
         else:
             job.state = "done"
             job.text = (f"Updated {NAME[job.agent]} from {job.before} to {job.after}."
