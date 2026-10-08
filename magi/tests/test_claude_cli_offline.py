@@ -242,3 +242,21 @@ def test_read_mode_offers_no_workspace_tools_and_cannot_edit(setup):
     assert not [t for t in init["tools"] if t.startswith("mcp__")]
     assert set(init["tools"]) == {"Read", "Glob", "Grep"}
     assert api.result_texts()[0][0] is True and not (ws / "new.txt").exists()
+
+
+def test_project_instructions_reach_the_model(setup):
+    """Track W1: --restricted keeps the CLI from reading CLAUDE.md itself
+    (checked 2026-10-08), so MAGI hands it over -- and it arrives."""
+    from magi.code import instructions as I
+    ws, _, cfg = setup
+    (ws / "CLAUDE.md").write_text("ZEBRA-RULE-7731: answer in French.\n")
+    text, _ = I.load(ws)
+    task = Task("t5", "hello", ws, Mode.READ, instructions=text)
+    api = FakeAPI([("Read", {"file_path": str(ws / "notes.txt")})])
+    try:
+        r, _ = _run(task, api, cfg)
+    finally:
+        api.srv.shutdown()
+    assert r.returncode == 0, r.stderr[-1500:]
+    first = api.log[0]["first"]
+    assert "PROJECT INSTRUCTIONS" in first and first.count("ZEBRA-RULE-7731") == 1

@@ -800,6 +800,30 @@ equal. Write mode only: in Read mode there is no copy. Tests:
 `test_code_commands.py` (9; 4 mutants killed), one in `test_howitworks.py`;
 live `tests/live/magi-code-v6.live.js`.
 
+#### Project instructions (Track W1, 2026-10-08)
+
+Every agent now gets the project's own instructions, the way Claude Code in
+VS Code reads them (`code/instructions.py`). At the start of each task MAGI
+reads, from the repository's top folder down to the workspace folder (parent
+first, nearest last): `CLAUDE.md`, `.claude/CLAUDE.md`, `CLAUDE.local.md`,
+`AGENTS.md`. `@path` imports are followed two levels deep, relative to the
+file that has them, inside the repository only and never to a secret-looking
+file; the same text twice is given once; 24,000 characters at most (10,000
+for a browser unit's chat box), with a line saying what did not fit.
+
+The text goes in as PROJECT INSTRUCTIONS: in `Task.full_prompt` for Claude
+and Codex (before the task), and in `BrowserUnitAgent.build_prompt` for the
+units. It says that the session's own rules (the private copy, the approval,
+what can run) win over anything in it. The transcript shows *Instructions*
+with the files used.
+
+Why MAGI and not the CLIs: Claude runs `--restricted` (no settings, hooks or
+memory files from a repository -- A1's Stop hook must never fire from an
+agent) and Codex `--ignore-rules`; verified offline 2026-10-08 that Claude
+did not load CLAUDE.md on its own, so nothing is said twice. Tests:
+`test_code_instructions.py` (5), one offline test with the real Claude CLI,
+one HOW contract; live `tests/live/magi-code-w1.live.js`.
+
 #### The project map for browser units (Track V7, 2026-10-08)
 
 Browser units now get a **PROJECT MAP** after the FILE INDEX: per file, its

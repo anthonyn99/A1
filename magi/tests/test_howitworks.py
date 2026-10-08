@@ -646,3 +646,16 @@ def test_the_project_map_claims_still_hold():
     assert {"py", "js", "go", "rs", "java", "rb", "php", "sh", "md"} <= set(SM._PATTERNS)
     assert SM.kind_of("a.html") == "js" and SM.kind_of("a.cs") == "java" and SM.kind_of("a.kt") == "java"
     assert "PROJECT MAP" in inspect.getsource(CX.compose)
+
+
+def test_the_project_instructions_claims_still_hold():
+    """Track W1: CLAUDE.md and kin, every agent, imports two deep inside the repo."""
+    import inspect
+    from magi.code import instructions as IN, tasks as TK
+    from magi.code.agents import base as BA, browser as BR
+    assert "Project instructions." in HOW
+    assert IN.NAMES == ("CLAUDE.md", ".claude/CLAUDE.md", "CLAUDE.local.md", "AGENTS.md")
+    assert IN.IMPORT_DEPTH == 2 and "_inside(top, p)" in inspect.getsource(IN._expand)
+    assert "instructions_block" in inspect.getsource(BA.Task.full_prompt)
+    assert "instructions_block" in inspect.getsource(BR.BrowserUnitAgent.build_prompt)
+    assert '"name": "Instructions"' in inspect.getsource(TK.start)
