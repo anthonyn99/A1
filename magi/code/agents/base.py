@@ -142,6 +142,10 @@ class Task:
     # Track W3: the project's Problems as of the task's start (problems.block),
     # given to every agent; "" when nothing is known.
     problems: str = ""
+    # Track W4: the file open in Code Mode's viewer and the selected lines
+    # (editor.block), given to every agent with the message; "" = none.
+    editor: str = ""
+    editor_path: str = ""
     # Track V: other registered workspaces this task may READ, as
     # (name, folder). Never written: each agent is told how to read them
     # (refs_block), and nothing that writes can reach them.
@@ -191,7 +195,7 @@ class Task:
         me exactly what you see" names nothing at all: the first turn is
         what the session is about."""
         first = self.session_turns[0].get("prompt", "") if len(self.session_turns) > 2 else ""
-        parts = [first, self.prompt, *self.added]
+        parts = [first, self.prompt, *self.added, self.editor_path]
         parts += [t.get("prompt", "") for t in self.session_turns[-2:]]
         return "\n".join(p for p in parts if p)
 
@@ -273,6 +277,8 @@ class Task:
         parts.append((NEW_MESSAGE if hist else "") + self.prompt)
         if self.added:
             parts.append(added_block(self.added))
+        if self.editor:
+            parts.append(self.editor)
         if self.attachments:
             parts.append(self.attachments_block())
         if self.images:
@@ -313,6 +319,8 @@ class Task:
         parts.append(NEW_MESSAGE + self.prompt)
         if self.added:
             parts.append(added_block(self.added))
+        if self.editor:
+            parts.append(self.editor)
         if self.attachments:
             parts.append(self.attachments_block())
         if self.images:

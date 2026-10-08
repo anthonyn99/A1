@@ -83,7 +83,7 @@ async def code_state() -> dict[str, Any]:
         # V4: `branches` = commit on a branch, switch branch, open a pull request.
         # V6: `commands` = named commands agents may run (Check sheet).
         "features": ["attachments", "auto_approve", "followup", "steer", "images", "refs",
-                     "writes", "branches", "commands", "shell", "problems"],
+                     "writes", "branches", "commands", "shell", "problems", "editor"],
     }
 
 
@@ -297,6 +297,30 @@ async def project_problems(project_id: str, refresh: bool = False) -> dict[str, 
         return err
     from . import problems as PR
     return await PR.for_folder(p["id"], root, refresh)
+
+
+@router.get("/projects/{project_id}/files")
+async def project_files(project_id: str) -> dict[str, Any]:
+    """Track W4: every file the viewer may open (secrets left out), from the
+    folder on this machine."""
+    p, root, err = await _project_here(project_id)
+    if err:
+        return err
+    from . import editor as E
+    files = await _asyncio.get_running_loop().run_in_executor(None, E.files, root)
+    return {"ok": True, "files": files}
+
+
+@router.get("/projects/{project_id}/file")
+async def project_file(project_id: str, path: str = "") -> dict[str, Any]:
+    """Track W4: one file's text for the viewer -- your real folder, read
+    only, by the same rules an agent's NEED: line meets (inside the folder,
+    never a secret, text only)."""
+    p, root, err = await _project_here(project_id)
+    if err:
+        return err
+    from . import editor as E
+    return await _asyncio.get_running_loop().run_in_executor(None, E.read, root, path)
 
 
 @router.get("/projects/{project_id}/shell")
@@ -1017,6 +1041,12 @@ async def start_task(body: dict = Body(...)) -> dict[str, Any]:
     if why:
         return {"ok": False, "error": "refs", "message": why}
     refs = [(n, r) for n, r, _ in refs]
+    # Track W4: the file open in the console's viewer, and its selection.
+    from . import editor as _editor
+    try:
+        open_ = _editor.clean(body.get("open"))
+    except ValueError as e:
+        return {"ok": False, "error": "open", "message": str(e)}
     order = [str(x) for x in (body.get("agents") or _chain.DEFAULT_ORDER)]
     from . import check as _check
     t = await _tasks.start(project_id=p["id"], root=root, prompt=prompt[:20000],
@@ -1024,7 +1054,7 @@ async def start_task(body: dict = Body(...)) -> dict[str, Any]:
                            github=str((p.get("prefs") or {}).get("github") or ""),
                            attachments=atts, images=images, check=_check.get(p["id"]),
                            approve="auto" if body.get("approve") == "auto" else "manual",
-                           session=session, refs=refs, writes=writes)
+                           session=session, refs=refs, writes=writes, open_=open_)
     await _db().touch_code_binding(p["id"], eng)
     return {"ok": True, "task": t.summary()}
 

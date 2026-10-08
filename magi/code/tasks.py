@@ -111,6 +111,8 @@ class TaskState:
     # Track W3: the project's checkers (problems.detect), when this task can run them.
     problem_checkers: list = field(default_factory=list)
     problems_after: dict | None = None
+    # Track W4: the file open in the console's viewer ({path, start, end}).
+    open: dict | None = None
     opening_pr: bool = False
 
     @property
@@ -212,13 +214,15 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                 approve: str = "manual",
                 session: followup.Session | None = None,
                 refs: list[tuple[str, Path]] | None = None,
-                writes: list[Part] | None = None) -> TaskState:
+                writes: list[Part] | None = None,
+                open_: dict[str, Any] | None = None) -> TaskState:
     t = TaskState(id=uuid.uuid4().hex[:12], project_id=project_id,
                   prompt=prompt, mode=mode, root=str(root), github=github,
                   attachments=list(attachments or []), images=list(images or []),
                   check_cfg=dict(check or {}) if mode == "write" else {},
                   approve="auto" if approve == "auto" else "manual")
     t.refs = [(n, str(p)) for n, p in refs or []]
+    t.open = open_
     # Read mode changes nothing anywhere: a workspace ticked to change is
     # only read there (routes passes it as a ref instead).
     t.writes = list(writes or []) if mode == "write" else []
@@ -242,6 +246,7 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                               "attachments": [n for n, _ in t.attachments] + [im.name for im in t.images],
                               "refs": [n for n, _ in t.refs],
                               "writes": [w.name for w in t.writes],
+                              **({"open": t.open} if t.open else {}),
                               "chain": [{"id": a.id, "label": a.label, "kind": a.kind}
                                         for a in agents]})
             pulled = await _pull_first(t, root)
@@ -340,6 +345,17 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                                   if sh is not None and sb is not None else [])
             if t.problem_checkers and ws is not None:
                 ws["problems"] = t.problem_checkers
+            # Track W4: the file open in the viewer, and its selected lines,
+            # from your real folder as it is now.
+            from . import editor as _editor
+            ed_block, ed = await loop.run_in_executor(None, _editor.block, root, t.open)
+            if ed:
+                await emit({"k": "tool", "name": "Open in editor", "target": ed["path"] + (
+                    "" if not ed["start"] else f":{ed['start']}" if ed["start"] == ed["end"]
+                    else f":{ed['start']}-{ed['end']}")})
+            elif t.open:
+                await emit({"k": "note", "text": f"{t.open['path']} (open in the viewer) could "
+                            "not be read, so the agents are not told about it."})
             if t.refs:
                 await emit({"k": "note", "text": "Also reading, never changing: "
                             + ", ".join("@" + n for n, _ in t.refs) + "."})
@@ -363,6 +379,7 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                         agent_check_min=int(((ws or {}).get("check") or {}).get("timeout_min") or 0),
                         real_root=root, agent_commands=cmds, instructions=instr,
                         shell=sh, shell_why=sh_why, problems=prob_block,
+                        editor=ed_block, editor_path=(ed or {}).get("path", ""),
                         attachments=t.attachments, images=t.images, inventory=inv,
                         refs=[(n, Path(p)) for n, p in t.refs],
                         writes=[(w.name, Path(w.copy)) for w in t.writes])

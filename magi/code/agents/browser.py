@@ -265,6 +265,8 @@ class BrowserUnitAgent(CodingAgent):
                      + "\n>>>\n\n")
         if task.added:
             body += added_block(task.added) + "\n\n"
+        if task.editor:
+            body += task.editor + "\n\n"
         if task.attachments:
             body += task.attachments_block() + "\n\n"
         if task.images:

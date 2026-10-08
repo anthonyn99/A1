@@ -3868,6 +3868,24 @@ button.code-git-br {
 }
 button.code-git-br:hover, button.code-git-br:focus-visible { border-color: var(--ac); outline: none; }
 .br-list { display: flex; flex-direction: column; max-height: 42vh; overflow-y: auto; }
+/* Track W4: the file viewer -- a filter + list, then the file with a line gutter. */
+.vw-sheet { max-width: 920px; }
+.vw-find { width: 100%; box-sizing: border-box; margin: 6px 0; }
+.vw-files { display: flex; flex-direction: column; max-height: 50vh; overflow-y: auto; }
+.vw-file { text-align: left; background: none; border: 0; border-radius: 6px; padding: 4px 8px; font-family: var(--font-mono); font-size: 11.5px; color: var(--txd); cursor: pointer; overflow-wrap: anywhere; }
+.vw-file:hover, .vw-file:focus-visible { background: var(--s1); color: var(--tx); outline: none; }
+.vw-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; margin: 6px 0; }
+.vw-path { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--tx); overflow-wrap: anywhere; }
+.vw-sel { font-size: 11px; color: var(--ac); }
+.vw-code { max-height: 58vh; overflow: auto; border: 1px solid var(--bd); border-radius: 8px; background: var(--s1); font-family: var(--font-mono); font-size: 11.5px; line-height: 1.5; }
+.vw-row { display: flex; min-width: max-content; }
+.vw-row.is-sel { background: color-mix(in srgb, var(--ac) 16%, transparent); }
+.vw-ln { flex: none; width: 4.5em; padding-right: 10px; text-align: right; color: var(--txm); cursor: pointer; user-select: none; border-right: 1px solid var(--bd); }
+.vw-ln:hover { color: var(--ac); }
+.vw-tx { white-space: pre; padding-left: 10px; color: var(--txd); }
+.chipfile.is-open { border-color: var(--ac); }
+.pr-row.is-link { cursor: pointer; }
+.pr-row.is-link:hover .pr-msg { color: var(--tx); }
 /* Track W3: Problems -- a file head, then position · message · source. */
 .pr-list { display: flex; flex-direction: column; max-height: 50vh; overflow-y: auto; margin: 6px 0; }
 .pr-file { font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; color: var(--tx); margin: 8px 0 2px; overflow-wrap: anywhere; }
@@ -7356,6 +7374,7 @@ const HOW = [
       "<b>What each agent can do in Write.</b> <b>Claude</b> edits and creates files with its own tools, and moves, renames, copies and deletes files and folders with MAGI&rsquo;s workspace tools &mdash; all in the private copy &mdash; and runs commands with the sandboxed shell (below). <b>Codex</b> does the same through its own sandboxed shell. <b>Every other unit</b> sends its changes as blocks MAGI applies: SEARCH/REPLACE edits plus <code>DELETE</code>, <code>MOVE</code> and <code>COPY</code> lines. Before answering, any unit can ask for a file, a folder, a range of lines, or a <code>FIND</code> across the whole project. A move shows on the card as the old file deleted and the new one added, and nothing reaches your folder until you approve. In the <b>Check</b> sheet, <b>Agents may run it</b> lets Claude run the project&rsquo;s check itself while it works and fix what it reports &mdash; that one command, never another, and only in the copy. Every other unit gets the same loop from MAGI: after its edits are applied in the copy, MAGI runs the check, and if it fails, sends the unit the output and the files it changed for another try &mdash; at most two more rounds, then the card shows the diff as it is.",
       "<b>Also read other workspaces.</b> Tap <b>Also read</b> on the strip to tick other workspaces the agents may read while they work on this one &mdash; to compare, port, or follow how something is done there. They are read, never changed: Claude reads them with its own tools in Read mode and through read-only MAGI tools in Write mode, Codex at their folders, and every other unit by asking for <code>@name/&hellip;</code> files, with <code>FIND</code> searching them too. Only workspaces you added, with a folder on the engine&rsquo;s PC, can be picked; the choice is kept on each device.",
       "<b>Problems, like VS Code&rsquo;s.</b> The <b>Problems</b> pill runs the project&rsquo;s own checkers &mdash; the TypeScript compiler and ESLint from its <code>node_modules</code>, Ruff or Pyright, or Python&rsquo;s syntax check &mdash; read-only in the agents&rsquo; sandbox, and lists what they report by file and line. Every agent is given the latest list with the task; Claude can re-run them on its copy with its <code>problems</code> tool; and the approval card says how the change moved them (&ldquo;Problems: 3 &rarr; 0 &middot; 3 fixed&rdquo;, with any new ones listed). <b>Ask an agent to fix them</b> puts the list in the box. Nothing is installed to do this: only checkers the project already has are run.",
+      "<b>What&rsquo;s open, like VS Code&rsquo;s editor.</b> The <b>File</b> pill opens a viewer: pick a file in the workspace and read it with line numbers. Tap a line number to select it, shift-tap another for a range, or just select text. The file, and the lines you selected, go with every message to every agent until you close it &mdash; so &ldquo;what does this do?&rdquo; or &ldquo;make these lines faster&rdquo; means what you are looking at, the way Claude Code in VS Code is told your open file and selection. It is read from your folder as it is when the task starts, and the transcript shows it as <b>Open in editor</b>. A chip by the box shows what is open; its &#10005; closes it. Tapping a problem in the Problems sheet opens its file at that line. The viewer opens only what an agent could be shown: files inside the workspace, text, and never a secret or key file. Which file is open is kept per workspace on each device.",
       "<b>A shell for every agent, in a sandbox.</b> Agents can run commands the way Claude Code does &mdash; tests, builds, scripts, <code>git</code>, installing packages, starting a dev server and checking it. Every command runs in Git Bash inside Codex&rsquo;s locked-down Windows sandbox, as its own Windows user: in Write mode it can write only in the task&rsquo;s private copy (and a scratch folder), in Read mode nowhere at all, and it cannot reach the MAGI engine. Claude has <code>shell</code> plus background processes (start, read output, stop); every other unit asks with <code>SHELL: command</code> lines. Anything still running stops when the task ends. Per project, in the <b>Check</b> sheet on the engine&rsquo;s PC: the shell on or off (on by default), and <b>internet in the sandbox</b> (off by default; turn it on to install packages). It needs Codex&rsquo;s sandbox set up on that PC (one Windows Yes); without it, agents simply have no shell.",
       "<b>Project instructions.</b> If a project has a <code>CLAUDE.md</code> (or <code>.claude/CLAUDE.md</code>, <code>CLAUDE.local.md</code>, <code>AGENTS.md</code>) &mdash; in the workspace folder or any folder above it up to the repository&rsquo;s top &mdash; every agent is given it with the task, Claude, Codex and every other unit alike, the way Claude Code in VS Code reads it. <code>@file</code> imports inside it are followed two levels deep, inside the repository only. The transcript says which files were used. Where they disagree with how Code Mode works (the private copy, your approval), Code Mode wins.",
       "<b>A map of the project for every unit.</b> Units other than Claude and Codex cannot look around a project themselves, so with the file list MAGI now sends a <b>project map</b>: the classes, functions, types and headings in each file, each with its line number &mdash; the most relevant files first, and in a crowded file the names that match your words first. A unit can then ask for exactly the lines it needs instead of guessing where things live. It covers Python, JavaScript/TypeScript (and the scripts inside HTML), Go, Rust, Java/C#/Kotlin, Ruby, PHP, shell and Markdown. MAGI remembers each file&rsquo;s map until the file changes, so a second task on the same project starts fast.",
@@ -10151,7 +10170,26 @@ function renderChips() {
   // up attached to a coding task is the mix-up MODE.drafts exists to prevent.
   const coding = typeof codeMode === "function" && codeMode();
   const list = coding ? CODE.attachments : S.attachments;
-  show(box, list.length > 0);
+  // Track W4: the file open in the viewer goes with the message too.
+  const proj = coding && typeof codeProject === "function" ? codeProject() : null;
+  const open = proj && codeEngineHas("editor") ? codeOpen(proj.id) : null;
+  show(box, list.length > 0 || !!open);
+  if (open) {
+    const c = el("div", "chipfile is-open");
+    c.title = "Open in the viewer: it goes with your messages. Tap to look at it.";
+    c.append(el("span", "chipfile-icon", "▦"));
+    const info = el("span", "chipfile-info");
+    info.append(el("span", "chipfile-name", open.path.split("/").pop()),
+                el("span", "chipfile-size", codeSelLabel(open) || "open file"));
+    info.style.cursor = "pointer";
+    info.onclick = () => codeViewerSheet(proj, { path: open.path });
+    const x = el("button", "chipfile-x", "✕");
+    x.type = "button";
+    x.setAttribute("aria-label", `Close ${open.path}`);
+    x.onclick = () => codeSetOpen(proj.id, null);
+    c.append(info, x);
+    box.append(c);
+  }
   for (const a of list) {
     const c = el("div", "chipfile");
     if (a.file.type.startsWith("image/")) {
@@ -12727,6 +12765,22 @@ function renderCodeStrip() {
       pill.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pill.click(); } };
       strip.append(pill);
     }
+    // Track W4: what's open -- the file viewer, like VS Code's editor.
+    // The composer's chip follows the workspace (another one has its own file).
+    const sig = JSON.stringify(codeEngineHas("editor") ? [proj.id, codeOpen(proj.id)] : null);
+    if (sig !== CODE.openSig) { CODE.openSig = sig; renderChips(); }
+    if (codeEngineHas("editor")) {
+      const o = codeOpen(proj.id);
+      const pill = codePill("File", o ? o.path.split("/").pop() + codeSelLabel(o, ":") : "none", o ? "ok" : "muted");
+      pill.classList.add("is-btn");
+      pill.setAttribute("role", "button");
+      pill.tabIndex = 0;
+      pill.title = o ? `${o.path} goes with your messages${o.start ? ` (${codeSelLabel(o)} selected)` : ""}`
+        : "Open a file to look at; it and the lines you select go with your messages";
+      pill.onclick = () => codeViewerSheet(proj, o ? { path: o.path } : null);
+      pill.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pill.click(); } };
+      strip.append(pill);
+    }
   }
 }
 
@@ -12785,6 +12839,12 @@ function codeProblemsSheet(proj) {
         row.append(el("span", "pr-pos", `${r.line}:${r.col}`),
                    el("span", "pr-msg", r.message + (r.code ? ` [${r.code}]` : "")),
                    el("span", "pr-src", r.source));
+        if (codeEngineHas("editor")) {
+          // Track W4: a problem opens its file at its line, selected.
+          row.classList.add("is-link");
+          row.title = "Open the file at this line";
+          row.onclick = () => { close(); codeViewerSheet(proj, { path: r.file, line: r.line }); };
+        }
         list.append(row);
       }
       if (!(d.problems || []).length) list.append(el("div", "sheet-ok", "No problems."));
@@ -12811,6 +12871,201 @@ function codeProblemsSheet(proj) {
   const pr = CODE.problems && CODE.problems.pid === proj.id ? CODE.problems : null;
   if (!pr || (!pr.data && !pr.loading)) codeProblemsLoad(proj.id, false);
   draw();
+}
+
+/* ── What's open (Track W4) ───────────────────────────────────────────────
+   A file viewer, like VS Code's editor: the file you open, and the lines you
+   select (tap a line number, shift-tap another, or select text), go with
+   every message until you close it -- as OPEN IN THE EDITOR, read from your
+   real folder when the task starts. Which file, per workspace, is kept on
+   this device. The engine reads only what an agent's file request could
+   (inside the folder, no secret or key files, text). */
+const CODE_OPEN_KEY = lsKey("code.open");
+
+/** {path, start, end} open in workspace `pid`, or null. start 0 = no selection. */
+function codeOpen(pid) {
+  const o = pid && (lsRead(CODE_OPEN_KEY, {}) || {})[pid];
+  return o && typeof o.path === "string" && o.path ? { path: o.path, start: +o.start || 0, end: +o.end || 0 } : null;
+}
+
+function codeSetOpen(pid, o) {
+  const all = { ...(lsRead(CODE_OPEN_KEY, {}) || {}) };
+  if (o && o.path) all[pid] = { path: o.path, start: o.start || 0, end: o.end || 0 };
+  else delete all[pid];
+  lsWrite(CODE_OPEN_KEY, all);
+  renderChips();
+  renderCodeView();
+}
+
+/** "lines 3–7" / "line 3" (sep ":" -> ":3-7"), "" with no selection. Pure. */
+function codeSelLabel(o, sep = "") {
+  if (!o || !o.start) return "";
+  if (sep) return o.start === o.end ? `${sep}${o.start}` : `${sep}${o.start}-${o.end}`;
+  return o.start === o.end ? `line ${o.start}` : `lines ${o.start}–${o.end}`;
+}
+
+/** The `open` field of POST /tasks: {} when nothing is open or the engine
+ *  cannot take it. */
+function codeOpenBody(pid) {
+  const o = codeEngineHas("editor") ? codeOpen(pid) : null;
+  return o ? { open: o } : {};
+}
+
+/** The viewer. `at` = {path, line?}: open that file (at that line, selected). */
+function codeViewerSheet(proj, at = null) {
+  const sheet = el("div", "sheet");
+  const box = el("div", "sheet-box sheet-wide vw-sheet");
+  let tick = 0;
+  const close = () => { sheet.remove(); clearInterval(tick); };
+  box.append(el("div", "sheet-hd", `File · ${proj.name}`));
+  const body = el("div");
+  box.append(body);
+  const bar = el("div", "sheet-bar");
+  const pick = el("button", "btn", "Another file");
+  const unsel = el("button", "btn", "Clear selection");
+  const shut = el("button", "btn", "Close file");
+  const no = el("button", "btn active", "Done");
+  bar.append(pick, unsel, shut, el("span", "qbar-spacer"), no);
+  box.append(bar);
+  no.onclick = close;
+  dismissOnBackdrop(sheet, close);
+  sheet.append(box);
+  document.body.append(sheet);
+  let files = null;     // the folder's files, once listed
+  let doc = null;       // {path, text, lines} on screen
+
+  const sub = (t) => body.append(el("div", "sheet-sub", t));
+  const showList = async () => {
+    doc = null;
+    body.textContent = "";
+    sub("Open a file to look at. It, and the lines you select, go with your messages to every "
+      + "agent until you close it, like the open file and selection in VS Code.");
+    const find = el("input", "vw-find");
+    find.type = "search";
+    find.placeholder = "Filter files…";
+    const list = el("div", "vw-files");
+    body.append(find, list);
+    pick.disabled = unsel.disabled = true;
+    shut.disabled = !codeOpen(proj.id);
+    if (!files) {
+      list.append(el("div", "sheet-note", "Listing the files…"));
+      try {
+        const d = await codeGet(`/projects/${encodeURIComponent(proj.id)}/files`);
+        if (!d.ok) throw new Error(d.message || "could not list the files");
+        files = d.files || [];
+      } catch (e) {
+        list.textContent = "";
+        list.append(el("div", "sheet-err", `Could not list the files: ${e.message || e}`));
+        return;
+      }
+    }
+    const draw = () => {
+      list.textContent = "";
+      const words = find.value.toLowerCase().split(/\s+/).filter(Boolean);
+      const hits = files.filter((f) => words.every((w) => f.toLowerCase().includes(w)));
+      for (const f of hits.slice(0, 300)) {
+        const b = el("button", "vw-file", f);
+        b.type = "button";
+        b.onclick = () => openFile(f);
+        list.append(b);
+      }
+      if (hits.length > 300) list.append(el("div", "sheet-note", `… ${hits.length - 300} more; filter to find them`));
+      if (!hits.length) list.append(el("div", "sheet-note", "No file matches."));
+    };
+    find.oninput = draw;
+    draw();
+    find.focus();
+  };
+
+  const openFile = async (path, line = 0) => {
+    body.textContent = "";
+    body.append(el("div", "sheet-note", `Opening ${path}…`));
+    let d;
+    try {
+      d = await codeGet(`/projects/${encodeURIComponent(proj.id)}/file?path=${encodeURIComponent(path)}`);
+    } catch (e) {
+      d = { ok: false, message: `Could not reach the engine: ${e.message || e}` };
+    }
+    if (!d.ok) {
+      body.textContent = "";
+      body.append(el("div", "sheet-err", d.message || "Could not open it."));
+      pick.disabled = false;
+      shut.disabled = !codeOpen(proj.id);
+      return;
+    }
+    doc = d;
+    const was = codeOpen(proj.id);
+    const keep = was && was.path === d.path && !line ? was : null;
+    const n = Math.min(line, d.lines);
+    codeSetOpen(proj.id, { path: d.path, start: keep ? keep.start : n, end: keep ? keep.end : n });
+    drawDoc(n);
+  };
+
+  const drawDoc = (scrollTo = 0) => {
+    body.textContent = "";
+    const head = el("div", "vw-head");
+    const selEl = el("span", "vw-sel");
+    head.append(el("span", "vw-path", doc.path), el("span", "sheet-note", `${doc.lines} lines`), selEl);
+    const code = el("div", "vw-code");
+    body.append(head, code);
+    const frag = document.createDocumentFragment();
+    const rows = [];
+    const lines = doc.text.split(/\r\n|\r|\n/);
+    if (lines.length > doc.lines) lines.length = Math.max(doc.lines, 1);
+    lines.forEach((tx, i) => {
+      const row = el("div", "vw-row");
+      row.dataset.n = String(i + 1);
+      const ln = el("span", "vw-ln", String(i + 1));
+      ln.onclick = (e) => {
+        const o = codeOpen(proj.id) || { path: doc.path, start: 0, end: 0 };
+        const n = i + 1;
+        if (e.shiftKey && o.start) setSel(Math.min(o.start, n), Math.max(o.end, n), o.start);
+        else if (o.start === n && o.end === n) setSel(0, 0);
+        else setSel(n, n);
+      };
+      row.append(ln, el("span", "vw-tx", tx || " "));
+      rows.push(row);
+      frag.append(row);
+    });
+    code.append(frag);
+    const paint = () => {
+      const o = codeOpen(proj.id);
+      const s = o && o.path === doc.path ? o.start : 0;
+      const e = o && o.path === doc.path ? o.end : 0;
+      rows.forEach((r, i) => r.classList.toggle("is-sel", !!s && i + 1 >= s && i + 1 <= e));
+      selEl.textContent = s ? `${codeSelLabel(o)} selected · goes with your messages` : "goes with your messages";
+      unsel.disabled = !s;
+    };
+    const setSel = (s, e) => {
+      codeSetOpen(proj.id, { path: doc.path, start: s, end: e });
+      paint();
+    };
+    // Selecting text selects the lines it touches.
+    code.onmouseup = code.ontouchend = () => setTimeout(() => {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !code.contains(sel.anchorNode) || !code.contains(sel.focusNode)) return;
+      const rowOf = (node) => { const r = (node.nodeType === 1 ? node : node.parentElement).closest(".vw-row"); return r ? +r.dataset.n : 0; };
+      const a = rowOf(sel.anchorNode), b = rowOf(sel.focusNode);
+      if (a && b) setSel(Math.min(a, b), Math.max(a, b));
+    }, 0);
+    paint();
+    pick.disabled = false;
+    shut.disabled = false;
+    if (scrollTo && rows[scrollTo - 1]) {
+      requestAnimationFrame(() => { code.scrollTop = Math.max(0, rows[scrollTo - 1].offsetTop - code.clientHeight / 3); });
+    }
+  };
+
+  pick.onclick = () => showList();
+  unsel.onclick = () => { const o = codeOpen(proj.id); if (o && doc) { codeSetOpen(proj.id, { ...o, start: 0, end: 0 }); drawDoc(); } };
+  shut.onclick = () => { codeSetOpen(proj.id, null); showList(); };
+  // The open file's selection is also shown on the chip; keep the sheet's
+  // buttons in step if the chip's ✕ closes it meanwhile.
+  tick = setInterval(() => { if (!sheet.isConnected) clearInterval(tick); else if (doc && !codeOpen(proj.id)) showList(); }, 1000);
+  const o = codeOpen(proj.id);
+  if (at && at.path) openFile(at.path, at.line || 0);
+  else if (o) openFile(o.path);
+  else showList();
 }
 
 /* ── Also read (Track V): other workspaces a task may read, never change ──
@@ -14738,7 +14993,7 @@ async function codeStartTurn(q, { followup = false, auto = false } = {}) {
   if (!proj || !agents.length || codeBusy()) return false;
   const sess = followup ? CODE.session : codeNewSession(proj.id);
   const base = { project_id: proj.id, prompt: q, agents, mode: CODE.rw, approve: CODE.ap,
-    ...codeRefsBody(proj.id) };
+    ...codeRefsBody(proj.id), ...(auto ? {} : codeOpenBody(proj.id)) };
   if (followup) base.session = codeSessionBody(sess, codeEngineId());
   const { atts, imgs } = codeSplitAtts(auto ? [] : CODE.attachments);
   let d;

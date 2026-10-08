@@ -691,3 +691,20 @@ def test_the_problems_claims_still_hold():
     assert "problems=prob_block" in inspect.getsource(TK.start)
     assert '"problems": prob' in inspect.getsource(TK._review_and_apply)
     assert "codeProblemsSheet" in PAGE and "Ask an agent to fix them" in PAGE
+
+
+def test_the_whats_open_claims_still_hold():
+    """Track W4: the viewer's file and selection, every agent, real folder, no secrets."""
+    import inspect
+    from magi.code import editor as ED, routes as RT, tasks as TK
+    from magi.code.agents import base as BA, browser as BR
+    assert "What&rsquo;s open, like VS Code&rsquo;s editor." in HOW
+    # "by the same rules an agent's file requests meet".
+    assert "context.read_whole" in inspect.getsource(ED.read)
+    assert "self.editor" in inspect.getsource(BA.Task.full_prompt)
+    assert "self.editor" in inspect.getsource(BA.Task.resumed_prompt)
+    assert "task.editor" in inspect.getsource(BR.BrowserUnitAgent.build_prompt)
+    # "from your folder as it is now": read when the task starts, from the real root.
+    assert "_editor.block, root, t.open" in inspect.getsource(TK.start)
+    assert "_editor.clean(" in inspect.getsource(RT.start_task)
+    assert "codeViewerSheet" in PAGE and "codeOpenBody" in PAGE
