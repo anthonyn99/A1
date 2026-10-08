@@ -64,7 +64,7 @@ ALL of Track S (**S1**, **S2**, **S3**, **U1**, **U2**, **U3**, **U4**), and
 ALL of Track F (**F1**, **F2**, **F3**, **F4**). Follow-ups, mid-run
 messages and continue-from-History are live in both Deliberation and Code
 Mode.
-**Next phase:** Track W, in order W1 → W4 (§8 "Track W").
+**Next phase:** W2, then W3, W4 (§8 "Track W"); W1 is done.
 Nothing is half-built.
 
 **If a fresh session touches Code Mode follow-ups**, the map is "What
@@ -3237,8 +3237,8 @@ try things), the editor's Problems, and what file/selection is open.
 
 | # | Phase | What it adds | Status |
 |---|---|---|---|
-| W1 | Project instructions | CLAUDE.md / .claude/CLAUDE.md / CLAUDE.local.md / AGENTS.md from the repository top down to the workspace, `@path` imports (2 levels, inside the repo), capped; given to EVERY agent as PROJECT INSTRUCTIONS. Verified offline 2026-10-08: MAGI's Claude (`--restricted`) did NOT load CLAUDE.md itself, so nothing is doubled. | next |
-| W2 | A sandboxed shell | `shell` + background processes (start / output / stop) for Claude (workspace server) and units (`SHELL:` lines), every command run through Codex's ELEVATED Windows sandbox: writes only in the task's copy (verified 2026-10-08: unlisted folders refuse writes and deletes), the agents' job + engine guard as before. Internet inside it is a per-project switch on the engine PC (off by default). Needs the Codex CLI + its sandbox set up on that PC; without it, the shell says so and nothing else changes. | planned |
+| W1 | Project instructions | CLAUDE.md / .claude/CLAUDE.md / CLAUDE.local.md / AGENTS.md from the repository top down to the workspace, `@path` imports (2 levels, inside the repo), capped; given to EVERY agent as PROJECT INSTRUCTIONS. Verified offline 2026-10-08: MAGI's Claude (`--restricted`) did NOT load CLAUDE.md itself, so nothing is doubled. | **done 2026-10-08** (`code/instructions.py`; `test_code_instructions.py` 5, offline real-CLI test, HOW contract; live `magi-code-w1.live.js` 9/9: DeepSeek, Claude, Codex each followed a rule reached through an `@import`) |
+| W2 | A sandboxed shell | `shell` + background processes (start / output / stop) for Claude (workspace server) and units (`SHELL:` lines), every command run through Codex's ELEVATED Windows sandbox: writes only in the task's copy (verified 2026-10-08: unlisted folders refuse writes and deletes), the agents' job + engine guard as before. Internet inside it is a per-project switch on the engine PC (off by default). Needs the Codex CLI + its sandbox set up on that PC; without it, the shell says so and nothing else changes. | next |
 | W3 | Problems | Diagnostics like VS Code's Problems panel: TypeScript, ESLint, Ruff, Pyright, py_compile (detected) or the project's own, parsed to file:line:message; shown in the console; given to agents before their work and re-run after their edits. | planned |
 | W4 | What's open | A file viewer in Code Mode: the file you are looking at and any lines you select go with your message ("OPEN IN THE EDITOR"), like VS Code's open file and selection. | planned |
 
