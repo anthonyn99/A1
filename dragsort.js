@@ -79,6 +79,12 @@
     // trailed the pointer by 6% of the distance dragged.
     '.dsort-settle { transition: transform .17s cubic-bezier(.2, .8, .2, 1), box-shadow .17s !important; }',
     '.dsort-on > :not(.dsort-drag) { pointer-events: none; }',
+    // Rows being moved get their own layer, so a drag is compositor work only.
+    '.dsort-on > * { will-change: transform; }',
+    // Held for the instant the transforms are cleared and the caller redraws the
+    // new order: without it each row EASED from its settled offset back to 0 and
+    // visibly bounced after it had landed.
+    '.dsort.dsort-nt > *, .dsort.dsort-nt > .dsort-settle { transition: none !important; }',
     '.dsort-src { opacity: .4; }',
     'html.dsort-grabbing, html.dsort-grabbing * { cursor: grabbing !important; -webkit-user-select: none !important; user-select: none !important; }',
     '.dsort-grip {',
@@ -262,7 +268,7 @@
       var px0 = e.clientX - lb0.left + list.scrollLeft, py0 = e.clientY - lb0.top + list.scrollTop;   // pointer, in list content
       var pid = e.pointerId, touch = e.pointerType !== 'mouse';
       var sc = scroller(list, X ? 'x' : 'y');
-      var live = false, to = from, lastX = e.clientX, lastY = e.clientY, raf = 0, cancelled = false;
+      var live = false, to = from, lastX = e.clientX, lastY = e.clientY, raf = 0, pl = 0, cancelled = false;
       var tgt = null, tTo = 0;     // cross-list: the list hovered and the slot in it
       var copy = !!me.o.copy, ghost = null, r0 = null;   // copy: the floating copy and where the row sat
 
@@ -460,7 +466,8 @@
           start();
         }
         ev.preventDefault();
-        place();
+        // One placement per frame: a 1000Hz mouse would otherwise relayout 16x.
+        if (!pl) pl = requestAnimationFrame(function () { pl = 0; if (live) place(); });
         if (!raf) raf = requestAnimationFrame(edge);
       };
       // Escape puts the row back -- and is used up doing it, or the sheet the
@@ -480,6 +487,7 @@
         window.removeEventListener('keydown', key, true);
         if (raf) cancelAnimationFrame(raf);
         if (!live) return;                                  // a click, not a drag
+        if (pl) { cancelAnimationFrame(pl); pl = 0; if (!cancelled && ev.type !== 'pointercancel') place(); }
         if (ev.type === 'pointercancel') cancelled = true;
         if (cancelled) { clearTarget(); to = from; }
         // The click a drag's release may fire is not a click on the row. Only
@@ -516,6 +524,8 @@
         if (!cross && to === from) rows.forEach(function (r) { if (r !== row) r.style.transform = ''; });
         var tl = cross ? tgt : null, tk = tTo, onDrop = me.o.onDrop;
         setTimeout(function () {
+          var nt = [list]; if (tl) nt.push(tl.list);
+          nt.forEach(function (l) { l.classList.add('dsort-nt'); });
           rows.forEach(function (r) { r.style.transform = ''; r.classList.remove('dsort-drag', 'dsort-settle', 'dsort-chip', 'dsort-src'); });
           if (ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
           if (tl) { tl.rows.forEach(function (r) { r.style.transform = ''; }); tl.list.classList.remove('dsort-on'); }
@@ -526,6 +536,8 @@
             if (tl) { if (onDrop) onDrop(from, tk, list, tl.list); }
             else if (to !== from && onDrop) onDrop(from, to, list, list);
           } finally {
+            // Transitions come back only after the redraw has painted.
+            requestAnimationFrame(function () { requestAnimationFrame(function () { nt.forEach(function (l) { l.classList.remove('dsort-nt'); }); }); });
             var q = state.pending.splice(0);
             q.forEach(function (fn) { try { fn(); } catch (err) { console.error(err); } });
           }

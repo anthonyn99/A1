@@ -8381,7 +8381,16 @@ function OI_byDay(cards,showOther){
 function TgScrollBox(props){
   const boxRef=React.useRef(null), trackRef=React.useRef(null);
   const [sb,setSb]=React.useState({h:0,top:0,show:false});
+  // The thumb only shows while the page is moving, hovered or held: it fades out
+  // ~0.9s after scrolling stops, so a still page has no bar at all.
+  const [act,setAct]=React.useState(false);
+  const actT=React.useRef(0), holdRef=React.useRef(false), hovRef=React.useRef(false);
   const T=props.theme||{};
+  const wake=React.useCallback(function(){
+    setAct(true); clearTimeout(actT.current);
+    actT.current=setTimeout(function(){ if(!holdRef.current&&!hovRef.current) setAct(false); },900);
+  },[]);
+  React.useEffect(function(){ return function(){ clearTimeout(actT.current); }; },[]);
 
   const sync=React.useCallback(function(){
     const el=boxRef.current, tr=trackRef.current;
@@ -8414,12 +8423,14 @@ function TgScrollBox(props){
       if(ev.cancelable) ev.preventDefault();
     }
     function up(){
+      holdRef.current=false; wake();
       window.removeEventListener('pointermove',move);
       window.removeEventListener('pointerup',up);
       window.removeEventListener('pointercancel',up);
       document.body.style.userSelect='';
     }
     document.body.style.userSelect='none';
+    holdRef.current=true; setAct(true);
     window.addEventListener('pointermove',move,{passive:false});
     window.addEventListener('pointerup',up);
     window.addEventListener('pointercancel',up);
@@ -8443,19 +8454,20 @@ function TgScrollBox(props){
 
   const pad=props.trackInset||6;
   return React.createElement("div",{style:{position:"relative",flex:1,minHeight:0,display:"flex",flexDirection:"column"}},
-    React.createElement("div",{ref:boxRef,onScroll:sync,className:"tg-scrollbox",
+    React.createElement("div",{ref:boxRef,onScroll:function(){ sync(); wake(); },className:"tg-scrollbox",
       style:Object.assign({flex:1,minHeight:0,overflowY:"auto",overscrollBehavior:"contain",WebkitOverflowScrolling:"touch",scrollbarWidth:"none"},props.style||{})},
       props.children),
+    // No track of its own: an invisible hit strip with a slim thumb floating on
+    // the page background. Still click-to-jump and drag with mouse or finger.
     React.createElement("div",{ref:trackRef,onPointerDown:onTrackDown,
-      style:{position:"absolute",top:pad,bottom:pad,right:3,width:10,borderRadius:6,
-        background:sb.show?"rgba(255,255,255,.05)":"transparent",
-        opacity:sb.show?1:0,pointerEvents:sb.show?"auto":"none",
-        touchAction:"none",transition:"opacity .2s"}},
+      onMouseEnter:function(){ hovRef.current=true; if(sb.show) setAct(true); },
+      onMouseLeave:function(){ hovRef.current=false; wake(); },
+      style:{position:"absolute",top:pad,bottom:pad,right:2,width:14,
+        pointerEvents:sb.show?"auto":"none",touchAction:"none"}},
       React.createElement("div",{onPointerDown:onThumbDown,
-        style:{position:"absolute",left:1,width:8,height:sb.h,top:sb.top,borderRadius:5,
-          background:T.TXD||"rgba(255,255,255,.34)",opacity:.55,cursor:"grab",touchAction:"none"},
-        onMouseEnter:function(e){e.currentTarget.style.opacity=".85";},
-        onMouseLeave:function(e){e.currentTarget.style.opacity=".55";}})));
+        style:{position:"absolute",right:3,width:4,height:sb.h,top:sb.top,borderRadius:2,
+          background:T.TXD||"rgba(255,255,255,.34)",opacity:(sb.show&&act)?.5:0,transition:"opacity .35s ease",
+          cursor:"grab",touchAction:"none",willChange:"opacity"}})));
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
