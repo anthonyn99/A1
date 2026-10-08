@@ -109,7 +109,7 @@ const tools = (evs) => evs.filter((e) => e.k === 'tool').map((e) => `${e.name} $
         console.log(`\n${a}: the selected line (CODE_${k}, line ${lineOf(k)})`);
         const x = await run({ project_id: pid, mode: 'read', agents: [a],
           open: { path: 'src/codes.py', start: lineOf(k), end: lineOf(k) },
-          prompt: 'What string is assigned on the line I have selected? Reply with just that string, nothing else.' });
+          prompt: 'What string is assigned on the line I have selected? Answer in one short sentence that quotes it.' });
         const text = ((x.result && x.result.text) || '').trim();
         console.log('        tools: ' + tools(x.events).join(' | ').slice(0, 300));
         if (x.refused || (x.result && x.result.outcome !== 'ok')) console.log('        result: ' + JSON.stringify(x.refused || x.result).slice(0, 400));
@@ -122,7 +122,7 @@ const tools = (evs) => evs.filter((e) => e.k === 'tool').map((e) => `${e.name} $
       const a = AGENTS[AGENTS.length - 1];
       console.log(`\n${a}: no selection, which file is open`);
       const x = await run({ project_id: pid, mode: 'read', agents: [a], open: { path: 'src/other.py' },
-        prompt: 'Which file do I have open right now? Reply with just its path.' });
+        prompt: 'Which file do I have open right now? Answer in one short sentence that gives its path.' });
       const text = ((x.result && x.result.text) || '').trim();
       ok('answered src/other.py', /src[\\/]other\.py/.test(text), text.slice(0, 200));
     }

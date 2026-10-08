@@ -9,7 +9,12 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-10-08 (later): **Track W agreed and started** --
+**Last updated:** 2026-10-08 (evening): **Track W COMPLETE.** W3 (Problems)
+was finished and live-tested on Veda's PC after Tony's session hit its limit
+mid-test; W4 (What's open: File viewer, selection to every agent) built and
+live-tested there too. Tony's engine updates itself; its live run is his
+(§8 "Track W" › what's manual).
+Earlier, 2026-10-08 (later): **Track W agreed and started** --
 Tony: "make project instructions (md) enabled on MAGI. Also make ... install
 packages, start servers, try things freely, see what opens in your editor
 and its errors ... doable. Put it on the level of Claude Code VSC." Phases
@@ -64,7 +69,8 @@ ALL of Track S (**S1**, **S2**, **S3**, **U1**, **U2**, **U3**, **U4**), and
 ALL of Track F (**F1**, **F2**, **F3**, **F4**). Follow-ups, mid-run
 messages and continue-from-History are live in both Deliberation and Code
 Mode.
-**Next phase:** W3, then W4 (§8 "Track W"); W1 and W2 are done.
+**Next phase:** none agreed -- **Track W is complete** (W1-W4; see §8 "Track W"
+for what's manual and the two unit issues found). Tony's call what comes next.
 Nothing is half-built.
 
 **If a fresh session touches Code Mode follow-ups**, the map is "What
@@ -3239,12 +3245,34 @@ try things), the editor's Problems, and what file/selection is open.
 |---|---|---|---|
 | W1 | Project instructions | CLAUDE.md / .claude/CLAUDE.md / CLAUDE.local.md / AGENTS.md from the repository top down to the workspace, `@path` imports (2 levels, inside the repo), capped; given to EVERY agent as PROJECT INSTRUCTIONS. Verified offline 2026-10-08: MAGI's Claude (`--restricted`) did NOT load CLAUDE.md itself, so nothing is doubled. | **done 2026-10-08** (`code/instructions.py`; `test_code_instructions.py` 5, offline real-CLI test, HOW contract; live `magi-code-w1.live.js` 9/9: DeepSeek, Claude, Codex each followed a rule reached through an `@import`) |
 | W2 | A sandboxed shell | `shell` + background processes (start / output / stop) for Claude (workspace server) and units (`SHELL:` lines), every command run through Codex's ELEVATED Windows sandbox: writes only in the task's copy (verified 2026-10-08: unlisted folders refuse writes and deletes), the agents' job + engine guard as before. Internet inside it is a per-project switch on the engine PC (off by default). Needs the Codex CLI + its sandbox set up on that PC; without it, the shell says so and nothing else changes. | **done 2026-10-08** (`code/shell.py`, ws_mcp shell/start/output/stop, units `SHELL:`, Check sheet switches; `test_code_shell.py` 13, two offline real-CLI tests, HOW contract; live `magi-code-w2.live.js` 14/14 incl. the engine refusing the shell's /api/token call with 403). Found on the way: a plain kill misses sandbox-user processes (jobs with kill-on-close); plan mode refuses MCP tools (Read mode uses default with a shell); git's dubious-ownership refusal (safe.directory via env); Codex 0.162.0 shipped with no Windows build and MAGI's updater installed it (updater now checks the platform build and rolls back). |
-| W3 | Problems | Diagnostics like VS Code's Problems panel: TypeScript, ESLint, Ruff, Pyright, py_compile (detected) or the project's own, parsed to file:line:message; shown in the console; given to agents before their work and re-run after their edits. | next |
-| W4 | What's open | A file viewer in Code Mode: the file you are looking at and any lines you select go with your message ("OPEN IN THE EDITOR"), like VS Code's open file and selection. | planned |
+| W3 | Problems | Diagnostics like VS Code's Problems panel: TypeScript, ESLint, Ruff, Pyright, py_compile (detected) or the project's own, parsed to file:line:message; shown in the console; given to agents before their work and re-run after their edits. | **done 2026-10-08** (`code/problems.py`, Problems pill + sheet, PROBLEMS block, Claude's `problems` tool, the card's before -> after; `test_code_problems.py` 8, HOW contract; live `magi-code-w3.live.js` on Veda's engine: folder 8/8 (TypeScript found TS2322 at line 2 read-only, the cache, Python syntax), and the fix 5/5 with BOTH Claude (used its `problems` tool) and Codex: the card said 1 -> 0, applied, folder clean). Finished on Veda's PC after Tony's session hit its limit mid-test; the live test was rebuilt there. |
+| W4 | What's open | A file viewer in Code Mode: the file you are looking at and any lines you select go with your message ("OPEN IN THE EDITOR"), like VS Code's open file and selection. | **done 2026-10-08** (`code/editor.py`, `GET /projects/{id}/files` and `/file`, `open` on POST /tasks, OPEN IN THE EDITOR block in full/resumed/browser prompts, File pill + viewer sheet + composer chip, Problems rows open their line; `test_code_editor.py` 14, HOW contract; live `magi-code-w4.live.js` on Veda's engine: viewer 10/10 (secrets, climbs, binaries refused), the selected line among 60 alike answered by Claude and Codex, ChatGPT named the open file. See "What's manual" below.) |
 
 Boundaries that stay: every change still goes through the private copy and
 your approval; nothing runs in your real folder; nothing that runs code is
 settable over the tunnel; A1's rules (ENGINE_REPO) unchanged.
+
+**Track W is COMPLETE (W1-W4), 2026-10-08.**
+
+What's manual after W3/W4 (for Tony and Veda):
+- Problems only run checkers the project already has: `npm install` the
+  project (for tsc/eslint) or put ruff/pyright in its .venv. Nothing is
+  installed for you. They need the Codex sandbox on that engine PC (W2).
+- Problems are checked when you press **Check now** (or before an approval
+  card); the list agents get is the last one checked.
+- The File viewer is read-only: you still edit through agents (or your own
+  editor). Which file is open is per device, per workspace.
+- Tony's engine was NOT live-tested from Veda's PC: its token is only on
+  Tony's PC (the MAGI_API_TOKEN on Veda's PC is the retired "tony" engine's;
+  magi-link has no record for it). Tony's engine picks W3/W4 up by itself
+  when idle (selfupdate). On Tony's PC: `node tests/live/magi-code-w3.live.js`
+  (AGENT=codex-cli while Claude is over its 80% cap) and
+  `node tests/live/magi-code-w4.live.js`.
+- Found while testing on Veda's engine, NOT W4: DeepSeek gives "No new answer
+  appeared within 120s" on every task (a plain one too) -- her DeepSeek login
+  or its selectors; and ChatGPT's reply to "quote the selected string" twice
+  "stayed empty for 120s" (a reply-reading issue; a bare one-word answer is
+  rejected as "cut off"). Both are unit issues for a later look.
 
 ---
 

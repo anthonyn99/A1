@@ -801,6 +801,39 @@ equal. Write mode only: in Read mode there is no copy. Tests:
 `test_code_commands.py` (9; 4 mutants killed), one in `test_howitworks.py`;
 live `tests/live/magi-code-v6.live.js`.
 
+#### What's open (Track W4, 2026-10-08)
+
+Claude Code in VS Code is told the editor's open file and selection; Code
+Mode now has the same (`code/editor.py`).
+
+- **Console:** the strip's **File** pill opens a viewer: a filtered list of
+  the workspace's files (`GET /projects/{id}/files`, `context.listing`,
+  secrets left out), then the file with a line gutter
+  (`GET /projects/{id}/file?path=`). Tap a line number to select it,
+  shift-tap for a range, or select text. **Close file**, **Clear selection**,
+  **Another file**. A chip by the box shows what is open (✕ closes it).
+  Tapping a problem in the Problems sheet opens its file at that line.
+  Which file is open, per workspace, is kept on the device
+  (`lsKey("code.open")`), never synced.
+- **The task:** `POST /tasks` takes `open: {path, start, end}` (0 = no
+  selection; `editor.clean`, a malformed one is refused). When the task
+  starts, the file is read from your REAL folder (`editor.block`) and every
+  agent is given an **OPEN IN THE EDITOR** block after the message: the path,
+  its line count, and the selected lines numbered (at most 400 lines /
+  30,000 characters). Claude and Codex get it in `full_prompt` and
+  `resumed_prompt`, browser units in `build_prompt`, and the open file's path
+  joins `gather_text` so a unit's context starts with it. The transcript
+  shows **Open in editor** `path:lines`. A file that cannot be read is left
+  out (a note says so), never guessed.
+- **What can be opened:** exactly what an agent's NEED: line could be shown
+  (`context.read_whole`): inside the folder with links followed first, a
+  text/source file of at most 2 MB (the viewer: 1,000,000 characters), never
+  a secret or key file. Reading is not local-only: like a Read task, it works
+  over the tunnel for a signed-in console.
+
+Tests: `test_code_editor.py` (14), one HOW contract; live
+`tests/live/magi-code-w4.live.js`.
+
 #### Problems (Track W3, 2026-10-08)
 
 What VS Code's Problems panel shows -- the project's own checkers --
