@@ -286,3 +286,13 @@ def test_the_engine_says_it_takes_writes():
     assert '"writes"' in src
     start = inspect.getsource(R.start_task)
     assert 'mode == "write" and raw_writes' in start, "Read mode only reads them"
+
+
+def test_claude_write_prompt_without_other_workspaces_does_not_crash(tmp_path):
+    """Found live in V6: writes_how read task.writes[0] on every Write task,
+    so every Claude write task died at once with IndexError."""
+    w = Task("t", "q", tmp_path, Mode.WRITE, mcp_servers=(CC.WS_SERVER,))
+    assert CC.writes_how(w) == ""
+    p = w.prompt_for("claude:system", frame=CC.write_frame(w), refs_how=CC.refs_how(w),
+                     writes_how=CC.writes_how(w))
+    assert "OTHER WORKSPACES" not in p

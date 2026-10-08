@@ -166,7 +166,10 @@ def refs_how(task: Task) -> str:
 
 
 def writes_how(task: Task) -> str:
-    """How Claude changes the other workspaces this task writes to (V3)."""
+    """How Claude changes the other workspaces this task writes to (V3).
+    "" when there are none -- it is asked for on every Write task."""
+    if not task.writes:
+        return ""
     ws = (" The magi_workspace tools take @" + task.writes[0][0] + "/... paths there for "
           "moving, copying, deleting and making folders." if WS_SERVER in task.mcp_servers
           else "")
