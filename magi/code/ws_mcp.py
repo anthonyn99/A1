@@ -697,6 +697,15 @@ class Server:
                     "YARN_CACHE_FOLDER": os.path.join(cache, "yarn"),
                     "PNPM_HOME": os.path.join(cache, "pnpm"),
                     "PIP_DISABLE_PIP_VERSION_CHECK": "1", "npm_config_update_notifier": "false"})
+        # code/shell.py _git_trust: git refuses a repository owned by another
+        # user ("dubious ownership"); trusted for these runs only.
+        try:
+            n = int(env.get("GIT_CONFIG_COUNT") or 0)
+        except ValueError:
+            n = 0
+        env[f"GIT_CONFIG_KEY_{n}"] = "safe.directory"
+        env[f"GIT_CONFIG_VALUE_{n}"] = "*"
+        env["GIT_CONFIG_COUNT"] = str(n + 1)
         return env
 
     def _script(self, command: str) -> str:
@@ -731,6 +740,14 @@ class Server:
         return command
 
     def shell_run(self, a: dict) -> str:
+        out = self._shell_run(a)
+        if out.split("\n\n", 1)[-1].lstrip().lower().startswith("windows sandbox failed"):
+            # The sandbox itself could not start (not the command): once more.
+            time.sleep(2)
+            out = self._shell_run(a)
+        return out
+
+    def _shell_run(self, a: dict) -> str:
         command = self._need_shell(a.get("command"))
         try:
             limit = max(1, min(SHELL_MAX_S, int(a.get("timeout_s") or SHELL_TIMEOUT_S)))
@@ -785,6 +802,14 @@ class Server:
         p, job = self._popen(command)
         self.procs[pid_name] = _Proc(pid_name, command, p, job)
         time.sleep(1.5)
+        x = self.procs[pid_name]
+        if x.p.poll() is not None and x.text().lstrip().lower().startswith("windows sandbox failed"):
+            # The sandbox itself could not start: once more.
+            x.job.close()
+            time.sleep(2)
+            p, job = self._popen(command)
+            self.procs[pid_name] = _Proc(pid_name, command, p, job)
+            time.sleep(1.5)
         return (f"Started {pid_name}. " + self._state(self.procs[pid_name])
                 + "\nRead it with process_output, stop it with stop_process.")
 

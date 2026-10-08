@@ -200,3 +200,20 @@ def test_the_transcript_names_shell_calls_by_what_they_ran():
     assert CC._WS_NAMES["shell"] == "Shell" and CC._WS_NAMES["start_process"] == "Start"
     assert CC._target({"command": "npm test"}) == "npm test"
     assert CC._target({"id": "web-1"}) == "web-1"
+
+
+def test_git_works_on_your_repository_from_the_sandbox(sandbox_dirs):
+    """Found live: git refused ('dubious ownership') -- the sandbox is
+    another Windows user. Trusted through git's env config, for these runs."""
+    import subprocess
+    base, copy, real = sandbox_dirs
+    subprocess.run(["git", "init", "-q", str(real)], check=True)
+    subprocess.run(["git", "-C", str(real), "-c", "user.name=x", "-c", "user.email=x@x", "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(real), "-c", "user.name=x", "-c", "user.email=x@x",
+                    "commit", "-qm", "one"], check=True)
+    sp = SH.spec(cwd=real, scratch=base / "scratch", write=False, internet=False)
+    r = asyncio.run(SH.run(sp, "git rev-list --count HEAD"))
+    assert r["ok"] and r["output"].strip().endswith("1"), r["output"]
+    s = W.Server(real, shell=sp, readonly=True)
+    txt, err = s.call("shell", {"command": "git log --oneline | wc -l"})
+    assert not err and txt.strip().endswith("1"), txt

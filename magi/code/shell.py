@@ -197,7 +197,27 @@ def env_for(sp: dict[str, Any]) -> dict[str, str]:
                 "npm_config_cache": str(cache / "npm"), "PIP_CACHE_DIR": str(cache / "pip"),
                 "YARN_CACHE_FOLDER": str(cache / "yarn"), "PNPM_HOME": str(cache / "pnpm"),
                 "PIP_DISABLE_PIP_VERSION_CHECK": "1", "npm_config_update_notifier": "false"})
+    _git_trust(env)
     return env
+
+
+# What the sandbox says when IT could not start (not the command failing):
+# seen once on 2026-10-08 right after Codex was reinstalled -- worth one retry.
+SANDBOX_START_FAILED = "windows sandbox failed"
+
+
+def _git_trust(env: dict) -> None:
+    """The sandbox runs as another Windows user, so git refuses a repository
+    owned by you ("dubious ownership", exit 128). Trusted for these runs
+    only, through git's environment config -- never written to any file."""
+    n = 0
+    try:
+        n = int(env.get("GIT_CONFIG_COUNT") or 0)
+    except ValueError:
+        n = 0
+    env[f"GIT_CONFIG_KEY_{n}"] = "safe.directory"
+    env[f"GIT_CONFIG_VALUE_{n}"] = "*"
+    env["GIT_CONFIG_COUNT"] = str(n + 1)
 
 
 def write_script(sp: dict[str, Any], command: str) -> str:
@@ -271,7 +291,18 @@ class Job:
 async def run(sp: dict[str, Any], command: str, timeout_s: float = RUN_TIMEOUT_S,
               stop: asyncio.Event | None = None) -> dict[str, Any]:
     """Run one command to the end (or `timeout_s`) in the sandbox. Everything
-    it started is killed when it returns. -> {ok, code, timed_out, secs, output}."""
+    it started is killed when it returns. -> {ok, code, timed_out, secs, output}.
+    A sandbox that could not START is tried once more."""
+    res = await _run_once(sp, command, timeout_s, stop)
+    if (not res["ok"] and not res["timed_out"]
+            and res["output"].lstrip().lower().startswith(SANDBOX_START_FAILED)):
+        await asyncio.sleep(2)
+        res = await _run_once(sp, command, timeout_s, stop)
+    return res
+
+
+async def _run_once(sp: dict[str, Any], command: str, timeout_s: float,
+                    stop: asyncio.Event | None) -> dict[str, Any]:
     from .. import agent_guard
     from .. import proc
     t0 = time.monotonic()
