@@ -6068,7 +6068,7 @@ window._mailRelay = window._mailRelay || async function (res) {
 <!-- MAGI's drag to reorder and corner resize grip, shared by every program
      (theme overhaul, phases 1b and 2). In the head, so they exist before any
      list first draws: MyJournal's sidebar renders while the body is parsing. -->
-<script src="dragsort.js?v=20261008b"></script>
+<script src="dragsort.js?v=20261008c"></script>
 <script src="resizegrip.js"></script>
 </head>
 <body>
@@ -9935,7 +9935,7 @@ function App(){
     React.createElement("div",{style:{maxWidth:2200,margin:"0 auto",padding:"clamp(8px,1.8vw,16px) clamp(10px,2vw,22px) clamp(8px,1.8vw,16px)",boxSizing:"border-box",lineHeight:1.5,display:"flex",flexDirection:"column",gap:"clamp(6px,1.2vw,10px)",overflowX:"hidden"}},
 
     // Inspirational Quote + View All Modal
-    tgShowAll&&React.createElement("div",{"data-modal-open":"1",onClick:()=>setTgShowAll(false),style:{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,.45)",backdropFilter:"blur(7px) saturate(.9)",WebkitBackdropFilter:"blur(7px) saturate(.9)",animation:"thwx-fade .15s ease-out",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-start",paddingTop:"calc(env(safe-area-inset-top, 0px) + 72px)",paddingBottom:"calc(env(safe-area-inset-bottom, 0px) + clamp(16px,4vw,24px))",paddingLeft:"clamp(10px,3vw,24px)",paddingRight:"clamp(10px,3vw,24px)",boxSizing:"border-box",overflow:"hidden"}},
+    tgShowAll&&React.createElement("div",{"data-modal-open":"1",onClick:()=>setTgShowAll(false),style:{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,.62)",backdropFilter:"blur(2px)",WebkitBackdropFilter:"blur(2px)",animation:"thwx-fade .15s ease-out",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-start",paddingTop:"calc(env(safe-area-inset-top, 0px) + 72px)",paddingBottom:"calc(env(safe-area-inset-bottom, 0px) + clamp(16px,4vw,24px))",paddingLeft:"clamp(10px,3vw,24px)",paddingRight:"clamp(10px,3vw,24px)",boxSizing:"border-box",overflow:"hidden"}},
       React.createElement("div",{onClick:e=>e.stopPropagation(),style:{background:T.BG,border:"1px solid "+T.BD,borderRadius:12,width:"100%",maxWidth:640,boxSizing:"border-box",flex:1,minHeight:0,display:"flex",flexDirection:"column",overflow:"hidden",wordBreak:"break-word",overflowWrap:"break-word"}},
         React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"clamp(14px,3vw,20px) clamp(16px,4vw,28px)",borderBottom:"1px solid "+T.BD,flexShrink:0,background:T.BG,borderRadius:"12px 12px 0 0"}},
           React.createElement("span",{style:{fontFamily:"'Manrope',system-ui,sans-serif",fontSize:"clamp(15px,1.6vw,18px)",fontWeight:700,color:T.TX,letterSpacing:0.3}},"All Quotes"),
