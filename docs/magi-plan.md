@@ -9,12 +9,17 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-10-08: **Track V4 done** -- branches and pull
+**Last updated:** 2026-10-08: **Track V5 done** -- browser units close the
+check loop: with "Agents may run it" on, MAGI runs the project's check after
+a unit's edits and sends a failure back (at most 2 more rounds). Live:
+DeepSeek added mul(), the check failed on an existing add() bug, DeepSeek
+fixed it from the output, the check passed. **Next: V6.**
+Before that, **Track V4 done** -- branches and pull
 requests: agents propose COMMIT:/BRANCH:, the commit form offers "On a new
 branch", Open pull request after a push or from the Branch sheet (tap the
 branch name on the repository line). Live: a REAL pull request opened on
 anthonyn99/magi-push-test, then closed and its branch deleted. See §8
-"Track V" › "V4 -- what was built". **Next: V5.**
+"Track V" › "V4 -- what was built".
 Earlier the same day: **Track V3 done** (Tony, 2026-10-08: "Next
 code mode phase go" -- he asked for ALL of V3–V7, one after another, with a
 "what is manual" note after each and a write-up for him and Veda at the end).
@@ -40,7 +45,7 @@ ALL of Track S (**S1**, **S2**, **S3**, **U1**, **U2**, **U3**, **U4**), and
 ALL of Track F (**F1**, **F2**, **F3**, **F4**). Follow-ups, mid-run
 messages and continue-from-History are live in both Deliberation and Code
 Mode.
-**Next phase:** **V5**, then V6, V7 (agreed 2026-10-08; §8 "Track V").
+**Next phase:** **V6**, then V7 (agreed 2026-10-08; §8 "Track V").
 Nothing is half-built.
 
 **If a fresh session touches Code Mode follow-ups**, the map is "What
@@ -99,7 +104,8 @@ One phase per session.
 | ~~V2~~ | ~~Also read (multi-folder)~~ | **done 2026-10-04** | | |
 | ~~V3~~ | ~~Multi-repo writes~~ | **done 2026-10-08** | | |
 | ~~V4~~ | ~~Branches and pull requests~~ | **done 2026-10-08** | | |
-| V5–V7 | Units' check loop, named commands, project map | **agreed 2026-10-08, next: V5** (§8 Track V) | | |
+| ~~V5~~ | ~~Units' check loop~~ | **done 2026-10-08** | | |
+| V6–V7 | Named commands, project map | **agreed 2026-10-08, next: V6** (§8 Track V) | | |
 
 ### Start-of-session checklist (do these in order)
 
@@ -3091,8 +3097,8 @@ silently giving less." Design for the end goal, not a prototype.
 | V2 | Also read (multi-folder) | Other registered workspaces readable by every agent (`--add-dir` in Read, `ref_*` tools in Write, paths for Codex, `@name/` + FIND for units); strip pill + sheet. | **done 2026-10-04** |
 | V3 | Multi-repo writes | One task edits two or more workspaces: a copy per workspace, one card with a section per repository, applied together or not at all; A1's ships-banner per section. | **done 2026-10-08** |
 | V4 | Git and GitHub, end to end | Agents propose a branch name and the commit message on the card; **Open a pull request** from the card / Repository panel (GitHub REST as the project's account, still your press); create/switch branch from the repository line. | **done 2026-10-08** |
-| V5 | The check for browser units | When *Agents may run it* is on, MAGI runs the check in the copy after a unit's edits and sends a failure back for another round (max 2), so units close the loop the way Claude does. | agreed, next |
-| V6 | Named commands | Per project, on the engine PC: a short list of commands (build, lint, one test file with an argument pattern) agents may run like `run_check`; Claude via MCP, units via a `RUN:` request. Codex's sandbox question was settled 2026-10-04 (elevated only), so it is unblocked. | agreed |
+| V5 | The check for browser units | When *Agents may run it* is on, MAGI runs the check in the copy after a unit's edits and sends a failure back for another round (max 2), so units close the loop the way Claude does. | **done 2026-10-08** |
+| V6 | Named commands | Per project, on the engine PC: a short list of commands (build, lint, one test file with an argument pattern) agents may run like `run_check`; Claude via MCP, units via a `RUN:` request. Codex's sandbox question was settled 2026-10-04 (elevated only), so it is unblocked. | agreed, next |
 | V7 | Project map for analysis units | A symbol outline (classes/functions per file, cached by mtime) in the context, so units understand a large project's structure without having every file uploaded. | agreed |
 
 ### V1 + V2 -- what was built (2026-10-04)
@@ -3164,6 +3170,17 @@ files); live `tests/live/magi-code-v4.live.js` 17 + 9 + 19 (Codex proposed
 `raise-max-items-limit` / "Raise MAX_ITEMS limit to 25"; PR #1 on
 magi-push-test opened, re-found, closed, branch deleted). The project's
 account is an OAuth sign-in with `repo` scope, which covers pull requests.
+
+### V5 -- what was built (2026-10-08)
+*Status:* done. See docs/magi.md "Browser units close the check loop (Track
+V5)". `BrowserUnitAgent.run` = `_run_once` + check (`_check`, check.py's
+runner in the agents' job) + up to `CHECK_FIXES = 2` fix rounds with
+`check_feedback` (exit code, output tail, the changed files attached as they
+are now). Task fields `agent_check_min`, `real_root`, `check_feedback`.
+`check._env` / ws_mcp now set `PYTHONDONTWRITEBYTECODE=1` (a stale pyc
+failed a fixed file in testing). Tests: `test_code_check_loop.py` (5; 3
+mutants killed), one HOW contract; live `tests/live/magi-code-v5.live.js`
+7/7 on DeepSeek.
 
 ---
 
