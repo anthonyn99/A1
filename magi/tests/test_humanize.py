@@ -227,3 +227,41 @@ async def test_an_ignored_enter_is_pressed_again_until_the_prompt_leaves(monkeyp
     composer = FakeComposer(None, page=page, busy_enters=2)
     await humanize.send(page, None, "Enter", pacing, composer=composer)
     assert page.keyboard.pressed == ["Enter"] * 3, "stops as soon as the send lands"
+
+
+@pytest.mark.asyncio
+async def test_a_send_the_server_refused_is_not_pressed_again(monkeypatch):
+    """Gemini 2026-10-08: every send came back as "Something went wrong
+    (1099)" with the prompt left in the box. Each Enter was one more refusal,
+    and the run said "timeout" two minutes later. Now: stop, and say it."""
+    monkeypatch.setattr(humanize, "_composer_emptied", _never_emptied)
+    page, pacing = FakePage(), Pacing(pre_send_pause_s=(0, 0))
+    submit = FakeSubmit(inert=True)
+    asked = []
+
+    async def refused():
+        asked.append(1)
+        return "Something went wrong (1099)"
+
+    got = await humanize.send(page, submit, "Enter", pacing,
+                              composer=FakeComposer(submit, page=page), refused=refused)
+    assert got == "Something went wrong (1099)"
+    assert page.keyboard.pressed == [], "a refused send is not retried"
+    assert asked
+
+
+@pytest.mark.asyncio
+async def test_a_send_that_lands_never_asks_about_refusal():
+    page, pacing = FakePage(), Pacing(pre_send_pause_s=(0, 0))
+    submit = FakeSubmit()
+
+    async def refused():
+        raise AssertionError("asked although the prompt left the box")
+
+    got = await humanize.send(page, submit, "Enter", pacing,
+                              composer=FakeComposer(submit), refused=refused)
+    assert got == ""
+
+
+async def _never_emptied(_composer, timeout_s: float = 2.5) -> bool:
+    return False

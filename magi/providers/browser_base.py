@@ -107,6 +107,13 @@ def fallback_note(before: str, after: str, notice: str = "") -> str:
     return ""
 
 
+
+def site_error_detail(name: str, said: str) -> str:
+    """What a SITE_ERROR says: the site's own words, and whose problem it is."""
+    said = " ".join((said or "").split())[:160] or "an error"
+    return (f"{name}'s servers refused the message: \"{said}\". This is on "
+            f"{name}'s side, not MAGI's; it was not sent.")
+
 class BrowserProvider(Provider):
     kind = "browser"
 
@@ -472,7 +479,7 @@ class BrowserProvider(Provider):
                     except Exception:
                         pass
 
-                await humanize.send(
+                refused = await humanize.send(
                     page,
                     submit.locator.first if submit else None,
                     site.send_key,
@@ -481,7 +488,16 @@ class BrowserProvider(Provider):
                     # send button reports a successful click while leaving the
                     # prompt in the box, and the fallback Enter never ran.
                     composer=box.locator.first,
+                    # The site's servers refusing the send, in its own toast
+                    # (Gemini's "Something went wrong (1099)"): said now, as
+                    # what it is, not as a timeout two minutes from now.
+                    refused=(lambda: resolve.notice(page, site.send_error, prompt=sent))
+                    if site.send_error else None,
                 )
+                if refused:
+                    artifacts = await self._save_artifacts(page, "site-error")
+                    return fail(FailureKind.SITE_ERROR, site_error_detail(
+                        self.display_name, refused))
                 await self._emit(on_event, ProviderState.WAITING, started=t0)
 
                 # -- wait ------------------------------------------------------
@@ -530,6 +546,11 @@ class BrowserProvider(Provider):
                             FailureKind.PROMPT_TOO_LONG,
                             f"{self.display_name} says: {too_long}",
                         )
+                    refused = await resolve.notice(page, site.send_error, prompt=sent)
+                    if refused:
+                        artifacts = await self._save_artifacts(page, "site-error")
+                        return fail(FailureKind.SITE_ERROR, site_error_detail(
+                            self.display_name, refused))
                     artifacts = await self._save_artifacts(page, str(e.kind))
                     raise
 

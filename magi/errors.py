@@ -31,6 +31,11 @@ class FailureKind(StrEnum):
     # nothing) and from TIMEOUT, which is what three of these were logged as
     # on 2026-09-25 -- with the remedy "raise hard_timeout_s".
     PROMPT_TOO_LONG = "prompt_too_long"
+    # The site took the message and its own servers refused it, saying so
+    # (Gemini, 2026-10-06 on: "Something went wrong (1099)" / "(1155)", the
+    # prompt left in the box). Neither a quota nor our selectors: logged as a
+    # TIMEOUT 120s later, or as the straggler "cut off", until this.
+    SITE_ERROR = "site_error"
     NAVIGATION = "navigation"
     EMPTY_RESPONSE = "empty_response"
     BROWSER_CRASH = "browser_crash"
@@ -95,6 +100,12 @@ EXPLANATIONS: dict[FailureKind, tuple[str, str]] = {
     FailureKind.CANCELLED: (
         "The run was cancelled.",
         "",
+    ),
+    FailureKind.SITE_ERROR: (
+        "The site's own servers refused the message and said so (for Gemini, "
+        "\"Something went wrong\" with a number).",
+        "Nothing to change in MAGI: it is on the site's side. Try the site in your "
+        "own browser; if it fails there too, wait for it to recover.",
     ),
     FailureKind.UNKNOWN: (
         "An unexpected error occurred.",

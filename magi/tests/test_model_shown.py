@@ -286,3 +286,40 @@ def test_every_state_event_carries_the_model():
     assert src.count('"model": ev.model,') == 3
     assert src.count('prov["model"] = ev.model') == 3
     assert '"model": a.model,' in src
+
+
+# ── Gemini's servers refusing the send (2026-10-08) ──────────────────────
+
+@pytest.mark.asyncio
+async def test_gemini_send_error_toast_is_read():
+    """Captured live: every send got 'Something went wrong (1099)' and the
+    run waited 120s and said 'timeout' (or was cut off as the straggler)."""
+    site = load_settings().site("gemini")
+    assert site.send_error
+    [got] = await _on_pages([_fixture("gemini-send-error")],
+                            lambda pg: resolve.notice(pg, site.send_error,
+                                                      prompt="Reply with the word pong"))
+    assert "Something went wrong (1099)" in got
+
+
+@pytest.mark.asyncio
+async def test_the_words_in_the_composer_are_not_a_send_error():
+    site = load_settings().site("gemini")
+    html = ("<div class='cdk-overlay-container'></div><rich-textarea><div class='ql-editor' "
+            "contenteditable='true'><p>Why does Something went wrong (1099) appear?</p>"
+            "</div></rich-textarea>")
+    [got] = await _on_pages([html], lambda pg: resolve.notice(
+        pg, site.send_error, prompt="Why does Something went wrong (1099) appear?"))
+    assert got == ""
+
+
+def test_site_error_says_whose_problem_it_is():
+    from magi.providers.browser_base import site_error_detail
+    cause, remedy = explain(FailureKind.SITE_ERROR)
+    assert "refused" in cause and "site's side" in remedy
+    assert "selectors" not in remedy and "hard_timeout_s" not in remedy
+    d = site_error_detail("Gemini", "Something went wrong (1099)")
+    assert "Something went wrong (1099)" in d and "Gemini's side" in d
+    # The console recognises it from the live frame's message.
+    page = (Path(__file__).resolve().parents[2] / "magi.html").read_text(encoding="utf-8")
+    assert 'site_error: "Site error"' in page and "servers refused the message" in page

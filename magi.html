@@ -10916,6 +10916,7 @@ function settleFromState(p, message) {
     if (message) p.error_detail = message;
     if (message && /rate.?limit|limit is gone|reached your/i.test(message)) p.failure = "rate_limited";
     else if (message && /characters over the limit/i.test(message)) p.failure = "prompt_too_long";
+    else if (message && /servers refused the message/i.test(message)) p.failure = "site_error";
   } else if (p.state === "launching" || p.state === "navigating") {
     // A retry after a refusal starts over; the earlier verdict no longer
     // holds. Not on "waiting": the chairman announces itself with that, and
@@ -11877,6 +11878,7 @@ function syncDoctorNav() {
 const DOC_KIND = {
   rate_limited: "Usage limit",
   prompt_too_long: "Prompt too long",
+  site_error: "Site error",
   timeout: "Timed out",
   empty_response: "Empty response",
   not_logged_in: "Signed out",

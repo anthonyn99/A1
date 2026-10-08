@@ -310,7 +310,7 @@ U1_LIST_KEYS = (
     "model_button", "model_option", "model_selected", "model_locked",
     "model_more", "effort_open", "effort_option", "think_toggle", "think_confirm",
     "model_label", "downgrade_notice", "limit_notice", "usage_readout",
-    "prompt_too_long", "model_known",
+    "prompt_too_long", "model_known", "send_error",
 )
 
 
@@ -396,6 +396,9 @@ class SiteSelectors:
     # The models U1 saw in the picker, "id | name" (Phase U4). What the
     # Units sheet offers until "Refresh models" reads the account's own list.
     model_known: list[str] = field(default_factory=list)
+    # The site's servers refusing a message just sent, in its own words
+    # (Gemini's "Something went wrong (1099)" toast). -> FailureKind.SITE_ERROR.
+    send_error: list[str] = field(default_factory=list)
 
     poll_ms: int = 400
     stability_samples: int = 7

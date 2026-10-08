@@ -436,6 +436,13 @@ sites:
     challenge_selectors:
       - "text=/unusual traffic/i"
       - "form#captcha-form"
+    # VERIFIED 2026-10-08: Gemini's servers refusing the send. A snack-bar
+    # toast "Something went wrong (1099)" (or 1155) in the CDK overlay, the
+    # prompt left in the composer. Every send failed this way from ~10-06,
+    # signed in or out, headless or not, even from a plain Chrome only
+    # attached over CDP. Error 1099 is Google's own "session-state" fault.
+    send_error:
+      - ".cdk-overlay-container :text-matches('Something went wrong', 'i')"
     # ── Models and limits (Phase U1 recon, 2026-09-28, read-only) ─────────
     # VERIFIED: a real picker ("mode picker"). Its aria-label names the
     # current mode: "Open mode picker, currently Gemini Flash". 42 of 43

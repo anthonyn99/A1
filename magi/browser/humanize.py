@@ -183,7 +183,8 @@ async def send(
     send_key: str,
     pacing: Pacing,
     composer: Locator | None = None,
-) -> None:
+    refused=None,
+) -> str:
     """Submit the prompt, preferring a real click on the send button.
 
     Enter is the fallback: on several of these sites Enter inserts a newline
@@ -203,29 +204,52 @@ async def send(
     send this path had been leaning on, and Gemini started timing out. So the
     click is now CONFIRMED against the composer emptying, and Enter still runs
     when it did not.
+
+    `refused`: an async () -> str reading the site's own "your message failed"
+    notice (Gemini's "Something went wrong (1099)" toast, 2026-10-08). Asked
+    whenever the prompt is still in the box: a send the SERVER refused is not
+    one more key press away, every press is another refusal, and the toast is
+    gone in seconds. Returns that notice's text, or "" once sent (or unknown).
     """
+    async def said_no() -> str:
+        if refused is None:
+            return ""
+        try:
+            return await refused() or ""
+        except Exception:
+            return ""
+
     await asyncio.sleep(pacing.sample_pre_send())
     if submit is not None:
         try:
             await submit.click(timeout=5000)
             if composer is None or await _composer_emptied(composer):
-                return
+                return ""
             # Click landed but the prompt is still sitting there -- fall through.
         except Exception:
             pass  # fall through to the key press
+        no = await said_no()
+        if no:
+            return no
     await page.keyboard.press(send_key)
     if composer is None:
-        return
+        return ""
     # A site that is still uploading an attachment ignores the send: DeepSeek
     # (2026-09-16) sat with the image and the prompt in its box until the 45s
     # stall timeout. The prompt still being there is proof nothing was sent, so
     # pressing again cannot double-send; stop the moment the box empties.
     for _ in range(6):
         if await _composer_emptied(composer):
-            return
+            return ""
+        no = await said_no()
+        if no:
+            return no
         await asyncio.sleep(2.0)
         try:
             await composer.focus()
         except Exception:
             pass
         await page.keyboard.press(send_key)
+    if await _composer_emptied(composer):
+        return ""
+    return await said_no()
