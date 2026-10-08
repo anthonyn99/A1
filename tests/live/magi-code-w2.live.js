@@ -26,10 +26,17 @@ const ok = (n, c, d) => {
   if (c) { pass++; console.log('  PASS  ' + n + (d !== undefined ? '  [' + String(d).slice(0, 300) + ']' : '')); }
   else { fail++; console.log('  FAIL  ' + n + (d !== undefined ? '  [' + String(d).slice(0, 700) + ']' : '')); }
 };
-const api = async (p, body, method) => {
-  const r = await fetch(API + p, { method: method || (body ? 'POST' : 'GET'),
-    headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
-  return r.json().catch(() => ({}));
+const api = async (p, body, method, again = true) => {
+  try {
+    const r = await fetch(API + p, { method: method || (body ? 'POST' : 'GET'),
+      headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    return r.json().catch(() => ({}));
+  } catch (e) {
+    // A kept-alive socket the engine closed after 5 s idle (uvicorn's
+    // keep-alive) can be reused just as it closes: ECONNRESET. Once more.
+    if (again && /ECONNRESET|other side closed/.test(String(e.cause || e))) return api(p, body, method, false);
+    throw e;
+  }
 };
 const git = (cwd, ...a) => execFileSync('git', ['-C', cwd, ...a], { encoding: 'utf8' }).trim();
 const BASE = path.join(os.tmpdir(), 'magi-sandbox');
@@ -112,7 +119,7 @@ async function project(name, files, ignore = 'node_modules/\n.venv/\n') {
       await api(`/projects/${pid}/shell`, { enabled: true, internet: true });
       let card = null;
       const x = await run({ project_id: pid, mode: 'write', agents: [CLAUDE],
-        prompt: 'Install the npm package left-pad (as a dependency), then create pad.js that prints leftPad("5", 3, "0") using it. Run pad.js to check it prints 005.' },
+        prompt: 'Use your shell to run `npm install left-pad` (it adds the dependency), then create pad.js that prints leftPad("5", 3, "0") using it. Run pad.js to check it prints 005.' },
       async (ev, task) => { if (ev.k === 'approval') { card = ev; await api(`/tasks/${task.id}/approve`, { approve: true }); } });
       show(x);
       ok('it used the shell', tools(x.events).some((t) => /^Shell /.test(t)), tools(x.events).join(' | ').slice(0, 300));
@@ -166,7 +173,7 @@ async function project(name, files, ignore = 'node_modules/\n.venv/\n') {
       ok(`and answered ${count}`, new RegExp(`\\b${count}\\b`).test(text), text.slice(0, 200));
     }
   } catch (e) {
-    fail++; console.log('  FAIL  crashed: ' + (e && e.stack || e));
+    fail++; console.log('  FAIL  crashed: ' + (e && e.stack || e) + (e && e.cause ? '  CAUSE: ' + (e.cause.stack || e.cause) : ''));
   } finally {
     for (const [pid, dir] of made) {
       await api(`/projects/${pid}/shell`, { enabled: true, internet: false }).catch(() => {});
