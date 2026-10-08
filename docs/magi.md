@@ -801,6 +801,39 @@ equal. Write mode only: in Read mode there is no copy. Tests:
 `test_code_commands.py` (9; 4 mutants killed), one in `test_howitworks.py`;
 live `tests/live/magi-code-v6.live.js`.
 
+#### Problems (Track W3, 2026-10-08)
+
+What VS Code's Problems panel shows -- the project's own checkers --
+for Code Mode (`code/problems.py`). Only checkers the project already has
+run (nothing is installed): TypeScript (`node_modules/.bin/tsc --noEmit`,
+with a tsconfig.json), ESLint (`node_modules/.bin/eslint . -f json`, with a
+config), Ruff (`check --output-format concise`) and Pyright (`--outputjson`)
+from the project's .venv or PATH, and -- for Python files when neither is
+there -- Python's own `ast.parse` over every file. Each output format is
+parsed into `{source, file, line, col, severity, code, message}`.
+
+They always run in the agents' sandboxed shell (W2): ESLint's config is
+JavaScript, so a checker can run project code. On your folder they run
+read-only.
+
+- **Console:** the strip's **Problems** pill (errors, warnings, or "no
+  checkers") opens a sheet grouped by file; **Check now** runs them
+  (`GET /projects/{id}/problems?refresh=1`; cached on the engine
+  otherwise); **Ask an agent to fix them** puts the list in the box and
+  switches to Write.
+- **Every agent** is given the latest list with the task (PROBLEMS block,
+  `Task.problems`), as of when it was checked.
+- **Claude** has a `problems` tool in Write mode: the checkers on its copy as
+  it is now (node_modules/.venv linked in from your folder, as for the check).
+- **The approval card** says how the change moved them: the checkers run in
+  the copy before the card opens (`tasks._problems_after`) and are compared
+  with your folder's last result (`problems.compare`: matched by file, tool,
+  code and message, not line, so moved lines are not "new") -- "Problems:
+  3 → 0 · 3 fixed", or the new ones listed.
+
+Tests: `test_code_problems.py` (8; the real-run ones use the sandbox), one
+HOW contract; live `tests/live/magi-code-w3.live.js`.
+
 #### A shell for the agents (Track W2, 2026-10-08)
 
 Agents can now run commands the way Claude Code in VS Code does: tests,

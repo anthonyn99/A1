@@ -3868,6 +3868,16 @@ button.code-git-br {
 }
 button.code-git-br:hover, button.code-git-br:focus-visible { border-color: var(--ac); outline: none; }
 .br-list { display: flex; flex-direction: column; max-height: 42vh; overflow-y: auto; }
+/* Track W3: Problems -- a file head, then position · message · source. */
+.pr-list { display: flex; flex-direction: column; max-height: 50vh; overflow-y: auto; margin: 6px 0; }
+.pr-file { font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; color: var(--tx); margin: 8px 0 2px; overflow-wrap: anywhere; }
+.pr-row { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: baseline; padding: 3px 0 3px 8px; font-size: 11.5px; border-left: 2px solid var(--bd); }
+.pr-row.is-error { border-left-color: var(--red); }
+.pr-row.is-warning { border-left-color: var(--amber); }
+.pr-pos { font-family: var(--font-mono); color: var(--txm); font-size: 10.5px; }
+.pr-msg { color: var(--txd); min-width: 0; overflow-wrap: anywhere; }
+.pr-src { color: var(--txm); font-size: 10px; }
+.pr-new { max-height: 30vh; }
 /* Track V6: the Commands sheet -- name, command line, takes-a-path, remove. */
 .cmd-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
 .cmd-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -7345,6 +7355,7 @@ const HOW = [
       "<b>A check beside the diff.</b> Tap the <b>Check</b> pill to give a project a command that exits 0 when it is healthy &mdash; its tests, a build &mdash; picked from what MAGI finds in the folder, with <b>Try it now</b> to see it work. For a Write task it runs in the task&rsquo;s <i>private copy</i> (never your folder), with the folder&rsquo;s <code>node_modules</code> or <code>.venv</code> linked in for the run and removed after, and its pass or fail and output sit on the approval card. It informs Approve; it never decides it. By default you press <b>Run check</b> on the card, after reading the diff, and the approval clock waits while it runs, then gives you the full __APPROVE_MIN__ minutes again. <b>Automatically</b> runs it before the card appears &mdash; that runs the agent&rsquo;s code before anyone has looked at it, so the setting says so. The command stays on the engine PC, can only be set from that PC, never syncs, and runs in the same Windows job as the agents, so it cannot drive MAGI.",
       "<b>What each agent can do in Write.</b> <b>Claude</b> edits and creates files with its own tools, and moves, renames, copies and deletes files and folders with MAGI&rsquo;s workspace tools &mdash; all in the private copy &mdash; and runs commands with the sandboxed shell (below). <b>Codex</b> does the same through its own sandboxed shell. <b>Every other unit</b> sends its changes as blocks MAGI applies: SEARCH/REPLACE edits plus <code>DELETE</code>, <code>MOVE</code> and <code>COPY</code> lines. Before answering, any unit can ask for a file, a folder, a range of lines, or a <code>FIND</code> across the whole project. A move shows on the card as the old file deleted and the new one added, and nothing reaches your folder until you approve. In the <b>Check</b> sheet, <b>Agents may run it</b> lets Claude run the project&rsquo;s check itself while it works and fix what it reports &mdash; that one command, never another, and only in the copy. Every other unit gets the same loop from MAGI: after its edits are applied in the copy, MAGI runs the check, and if it fails, sends the unit the output and the files it changed for another try &mdash; at most two more rounds, then the card shows the diff as it is.",
       "<b>Also read other workspaces.</b> Tap <b>Also read</b> on the strip to tick other workspaces the agents may read while they work on this one &mdash; to compare, port, or follow how something is done there. They are read, never changed: Claude reads them with its own tools in Read mode and through read-only MAGI tools in Write mode, Codex at their folders, and every other unit by asking for <code>@name/&hellip;</code> files, with <code>FIND</code> searching them too. Only workspaces you added, with a folder on the engine&rsquo;s PC, can be picked; the choice is kept on each device.",
+      "<b>Problems, like VS Code&rsquo;s.</b> The <b>Problems</b> pill runs the project&rsquo;s own checkers &mdash; the TypeScript compiler and ESLint from its <code>node_modules</code>, Ruff or Pyright, or Python&rsquo;s syntax check &mdash; read-only in the agents&rsquo; sandbox, and lists what they report by file and line. Every agent is given the latest list with the task; Claude can re-run them on its copy with its <code>problems</code> tool; and the approval card says how the change moved them (&ldquo;Problems: 3 &rarr; 0 &middot; 3 fixed&rdquo;, with any new ones listed). <b>Ask an agent to fix them</b> puts the list in the box. Nothing is installed to do this: only checkers the project already has are run.",
       "<b>A shell for every agent, in a sandbox.</b> Agents can run commands the way Claude Code does &mdash; tests, builds, scripts, <code>git</code>, installing packages, starting a dev server and checking it. Every command runs in Git Bash inside Codex&rsquo;s locked-down Windows sandbox, as its own Windows user: in Write mode it can write only in the task&rsquo;s private copy (and a scratch folder), in Read mode nowhere at all, and it cannot reach the MAGI engine. Claude has <code>shell</code> plus background processes (start, read output, stop); every other unit asks with <code>SHELL: command</code> lines. Anything still running stops when the task ends. Per project, in the <b>Check</b> sheet on the engine&rsquo;s PC: the shell on or off (on by default), and <b>internet in the sandbox</b> (off by default; turn it on to install packages). It needs Codex&rsquo;s sandbox set up on that PC (one Windows Yes); without it, agents simply have no shell.",
       "<b>Project instructions.</b> If a project has a <code>CLAUDE.md</code> (or <code>.claude/CLAUDE.md</code>, <code>CLAUDE.local.md</code>, <code>AGENTS.md</code>) &mdash; in the workspace folder or any folder above it up to the repository&rsquo;s top &mdash; every agent is given it with the task, Claude, Codex and every other unit alike, the way Claude Code in VS Code reads it. <code>@file</code> imports inside it are followed two levels deep, inside the repository only. The transcript says which files were used. Where they disagree with how Code Mode works (the private copy, your approval), Code Mode wins.",
       "<b>A map of the project for every unit.</b> Units other than Claude and Codex cannot look around a project themselves, so with the file list MAGI now sends a <b>project map</b>: the classes, functions, types and headings in each file, each with its line number &mdash; the most relevant files first, and in a crowded file the names that match your words first. A unit can then ask for exactly the lines it needs instead of guessing where things live. It covers Python, JavaScript/TypeScript (and the scripts inside HTML), Go, Rust, Java/C#/Kotlin, Ruby, PHP, shell and Markdown. MAGI remembers each file&rsquo;s map until the file changes, so a second task on the same project starts fast.",
@@ -12699,7 +12710,107 @@ function renderCodeStrip() {
       pill.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pill.click(); } };
       strip.append(pill);
     }
+    // Track W3: Problems, like VS Code's -- the project's own checkers.
+    if (codeEngineHas("problems")) {
+      const pr = CODE.problems && CODE.problems.pid === proj.id ? CODE.problems : null;
+      const d = pr && pr.data;
+      const val = !pr || pr.loading ? (pr && pr.loading ? "checking…" : "—")
+        : !d ? "unavailable" : d.none ? "no checkers"
+        : d.errors ? `${d.errors} error${d.errors === 1 ? "" : "s"}`
+        : d.warnings ? `${d.warnings} warning${d.warnings === 1 ? "" : "s"}` : "none";
+      const pill = codePill("Problems", val, d && d.errors ? "warn" : d && !d.none ? "ok" : "muted");
+      pill.classList.add("is-btn");
+      pill.setAttribute("role", "button");
+      pill.tabIndex = 0;
+      pill.title = "What the project's own checkers report (TypeScript, ESLint, Ruff, Pyright, Python syntax)";
+      pill.onclick = () => codeProblemsSheet(proj);
+      pill.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pill.click(); } };
+      strip.append(pill);
+    }
   }
+}
+
+/* ── Problems (Track W3) ──────────────────────────────────────────────────
+   The project's own checkers, run read-only in the agents' sandbox on the
+   real folder -- only when asked (Refresh), since a type check can take a
+   while. The latest list also goes to every agent with the task. */
+async function codeProblemsLoad(pid, refresh) {
+  CODE.problems = { pid, loading: true, data: CODE.problems && CODE.problems.pid === pid ? CODE.problems.data : null };
+  renderCodeView();
+  try {
+    const d = await codeGet(`/projects/${encodeURIComponent(pid)}/problems${refresh ? "?refresh=1" : ""}`);
+    CODE.problems = { pid, data: d.ok ? d : null, err: d.ok ? "" : d.message || "Could not check." };
+  } catch (e) {
+    CODE.problems = { pid, data: null, err: `Could not reach the engine: ${e.message || e}` };
+  }
+  renderCodeView();
+}
+
+function codeProblemsSheet(proj) {
+  const sheet = el("div", "sheet");
+  const box = el("div", "sheet-box sheet-wide pr-sheet");
+  const close = () => { sheet.remove(); clearInterval(tick); };
+  box.append(el("div", "sheet-hd", `Problems · ${proj.name}`));
+  const body = el("div");
+  box.append(body);
+  const bar = el("div", "sheet-bar");
+  const refresh = el("button", "btn active", "Check now");
+  const fix = el("button", "btn", "Ask an agent to fix them");
+  const no = el("button", "btn", "Close");
+  bar.append(refresh, fix, el("span", "qbar-spacer"), no);
+  box.append(bar);
+  no.onclick = close;
+  dismissOnBackdrop(sheet, close);
+  sheet.append(box);
+  document.body.append(sheet);
+  const draw = () => {
+    const pr = CODE.problems && CODE.problems.pid === proj.id ? CODE.problems : null;
+    const d = pr && pr.data;
+    body.textContent = "";
+    body.append(el("div", "sheet-sub", "What the project’s own checkers report about your folder, "
+      + "like VS Code’s Problems panel. They run in the agents’ sandbox, read-only."));
+    if (pr && pr.loading) body.append(el("div", "sheet-note", "Checking… (a type check can take a minute)"));
+    if (pr && pr.err) body.append(el("div", "sheet-err", pr.err));
+    if (d && d.none) body.append(el("div", "sheet-note", "This project has no checkers MAGI can run "
+      + "(TypeScript or ESLint in node_modules, Ruff or Pyright, or Python files)."));
+    if (d && !d.none) {
+      body.append(el("div", "sheet-note", `${d.errors} errors, ${d.warnings} warnings · `
+        + (d.ran || []).map((r) => `${r.name}${r.timed_out ? " (stopped)" : ""}`).join(", ")
+        + ` · checked ${engAgo((d.at || 0) * 1000)}`));
+      const list = el("div", "pr-list");
+      let last = "";
+      for (const r of d.problems || []) {
+        if (r.file !== last) { list.append(el("div", "pr-file", r.file)); last = r.file; }
+        const row = el("div", `pr-row is-${r.severity}`);
+        row.append(el("span", "pr-pos", `${r.line}:${r.col}`),
+                   el("span", "pr-msg", r.message + (r.code ? ` [${r.code}]` : "")),
+                   el("span", "pr-src", r.source));
+        list.append(row);
+      }
+      if (!(d.problems || []).length) list.append(el("div", "sheet-ok", "No problems."));
+      body.append(list);
+      if (d.total > (d.problems || []).length) body.append(el("div", "sheet-note", `… ${d.total - d.problems.length} more not shown`));
+    }
+    refresh.disabled = !!(pr && pr.loading);
+    fix.disabled = !(d && (d.problems || []).length);
+  };
+  refresh.onclick = () => codeProblemsLoad(proj.id, true);
+  fix.onclick = () => {
+    const d = CODE.problems && CODE.problems.data;
+    const rows = ((d && d.problems) || []).slice(0, 40)
+      .map((r) => `- ${r.file}:${r.line}:${r.col} ${r.severity}: ${r.message}${r.code ? ` [${r.code}]` : ""}`);
+    $("composer").value = "Fix these problems the project's checkers report:\n" + rows.join("\n");
+    // Fixing is a Write task, where the project allows one.
+    if (proj.write && proj.write.ok) CODE.rw = "write";
+    renderCodeView();
+    updateEnabled();
+    close();
+    $("composer").focus();
+  };
+  const tick = setInterval(() => { if (sheet.isConnected) draw(); }, 1000);
+  const pr = CODE.problems && CODE.problems.pid === proj.id ? CODE.problems : null;
+  if (!pr || (!pr.data && !pr.loading)) codeProblemsLoad(proj.id, false);
+  draw();
 }
 
 /* ── Also read (Track V): other workspaces a task may read, never change ──
@@ -15388,6 +15499,25 @@ function renderCodeApproval(t, ev, evs = t.events) {
     for (const f of inSec) list.append(fileRow(f));
   }
   box.append(list);
+  if (ev.problems) {
+    // Track W3: how this change moves the project's Problems.
+    const p = ev.problems;
+    const moved = p.before == null ? `${p.errors} errors, ${p.warnings} warnings after this change`
+      : `Problems: ${p.before} → ${p.after}` + (p.new.length ? ` · ${p.new.length} new` : "")
+        + (p.fixed ? ` · ${p.fixed} fixed` : "");
+    const line = el("div", `code-appr-out ${p.new.length ? "is-warn" : "is-ok"}`, moved
+      + ` (${(p.tools || []).join(", ")})`);
+    box.append(line);
+    if (p.new.length) {
+      const nl = el("div", "pr-list pr-new");
+      for (const r of p.new.slice(0, 10)) {
+        const row = el("div", `pr-row is-${r.severity}`);
+        row.append(el("span", "pr-pos", `${r.file}:${r.line}`), el("span", "pr-msg", r.message), el("span", "pr-src", r.source));
+        nl.append(row);
+      }
+      box.append(nl);
+    }
+  }
   const chk = codeCheckEl(t, ev, open, evs);
   if (chk) box.append(chk);
   if (ev.ships && open) {

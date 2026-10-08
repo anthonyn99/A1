@@ -385,7 +385,7 @@ class Server:
     def __init__(self, root: Path, check: dict | None = None, real: Path | None = None,
                  refs: list | None = None, writes: list | None = None,
                  commands: list | None = None, shell: dict | None = None,
-                 readonly: bool = False):
+                 readonly: bool = False, problems: list | None = None):
         self.root = Path(root)
         # Track V6: [{name, command, arg, timeout_min}] -- only what MAGI wrote.
         self.commands = [c for c in (commands or []) if isinstance(c, dict)
@@ -395,6 +395,8 @@ class Server:
         self.shell = shell if isinstance(shell, dict) and shell.get("codex") and shell.get("bash") else None
         self.readonly = bool(readonly)
         self.procs: dict[str, _Proc] = {}
+        # Track W3: the project's checkers ({name, command}), run in the copy.
+        self.checkers = [c for c in (problems or []) if isinstance(c, dict) and c.get("command")]
         # Track V3: {"orca": Path(<its private copy>)} -- only copies MAGI made.
         self.writes: dict[str, Path] = {}
         for w in writes or []:
@@ -846,6 +848,20 @@ class Server:
             pass
         return f"Stopped {x.id}."
 
+    def problems(self, a: dict) -> str:
+        """Track W3: the project's checkers in the copy -- what an editor's
+        Problems panel would show for the files as they are now."""
+        if not self.shell or not self.checkers:
+            raise ToolError("This project has no checkers MAGI can run here.")
+        if self.real and not getattr(self, "_deps_linked", False):
+            self._deps = self._link_deps()
+            self._deps_linked = True
+        parts = []
+        for c in self.checkers:
+            out = self._shell_run({"command": c["command"], "timeout_s": 150})
+            parts.append(f"=== {c['name']} ===\n{out}")
+        return "\n\n".join(parts)
+
     def list_processes(self, a: dict) -> str:
         self._need_shell("x")
         return "\n".join(self._state(x) + f" -- {x.command[:120]}" for x in self.procs.values()) \
@@ -966,6 +982,15 @@ class Server:
                         + ". Install packages locally, never globally. Default timeout 120s; for "
                         "servers use start_process. Returns the exit code and the end of the output.")
                 out.append(t)
+        if self.shell and self.checkers and not self.readonly:
+            out.append({"name": "problems",
+                        "description": "Run the project's own checkers ("
+                                       + ", ".join(c["name"] for c in self.checkers)
+                                       + ") on the copy as it is now -- what an editor's Problems "
+                                       "panel would show. Use it after editing; fix what your change "
+                                       "introduced.",
+                        "inputSchema": {"type": "object", "properties": {}},
+                        "annotations": {"readOnlyHint": True, "openWorldHint": False}})
         if self.readonly:
             out += [dict(t) for t in REF_TOOLS] if self.refs else []
             return out
@@ -995,13 +1020,14 @@ class Server:
               "run_check": self.run_check, "run_command": self.run_command,
               "shell": self.shell_run, "start_process": self.start_process,
               "process_output": self.process_output, "stop_process": self.stop_process,
-              "list_processes": self.list_processes,
+              "list_processes": self.list_processes, "problems": self.problems,
               "ref_list": self.ref_list,
               "ref_read": self.ref_read, "ref_find": self.ref_find}.get(name)
         if fn is None or (name == "run_check" and not self.check) or \
                 (name == "run_command" and not self.commands) or \
                 (name in ("shell", "start_process", "process_output", "stop_process",
                           "list_processes") and not self.shell) or \
+                (name == "problems" and not (self.shell and self.checkers)) or \
                 (self.readonly and name in ("move_path", "copy_path", "delete_path",
                                             "make_dir", "run_check", "run_command")) or \
                 (name.startswith("ref_") and not self.refs):
@@ -1064,7 +1090,7 @@ def from_config(path: Path) -> Server:
         raise SystemExit(f"no such folder: {root}")
     return Server(root, cfg.get("check"), Path(cfg["real"]) if cfg.get("real") else None,
                   cfg.get("refs"), cfg.get("writes"), cfg.get("commands"),
-                  cfg.get("shell"), cfg.get("readonly", False))
+                  cfg.get("shell"), cfg.get("readonly", False), cfg.get("problems"))
 
 
 def main(argv: list[str] | None = None) -> None:

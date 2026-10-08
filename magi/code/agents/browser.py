@@ -216,6 +216,8 @@ class BrowserUnitAgent(CodingAgent):
                     "\n[... more project instructions did not fit; ask for CLAUDE.md with NEED: "
                     "if you need them.]")
             body += instructions_block(text) + "\n\n"
+        if task.problems:
+            body += task.problems + "\n\n"
         if task.mode == Mode.WRITE:
             body += edits.FORMAT_HELP + "\n\n"
             if task.agent_check:

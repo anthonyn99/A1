@@ -139,6 +139,9 @@ class Task:
     # why there is none ("" = there is one).
     shell: dict | None = None
     shell_why: str = ""
+    # Track W3: the project's Problems as of the task's start (problems.block),
+    # given to every agent; "" when nothing is known.
+    problems: str = ""
     # Track V: other registered workspaces this task may READ, as
     # (name, folder). Never written: each agent is told how to read them
     # (refs_block), and nothing that writes can reach them.
@@ -258,6 +261,8 @@ class Task:
             parts.append(frame or WRITE_FRAME)
         if self.instructions:
             parts.append(instructions_block(self.instructions))
+        if self.problems:
+            parts.append(self.problems)
         if self.state_note:
             parts.append(self.state_note)
         hist = self.history(CLI_BUDGET if budget is None else budget)

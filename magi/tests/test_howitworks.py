@@ -676,5 +676,18 @@ def test_the_shell_claims_still_hold():
     assert "self.close()" in inspect.getsource(WM.Server.serve)
     assert "0x2000" in inspect.getsource(SH.Job) and "0x2000" in inspect.getsource(WM._Job)
     # "in Read mode nowhere at all": the copy is writable only as the working folder in Write.
-    assert 'sp["cwd"] if sp["write"] else sp["scratch"]' in inspect.getsource(SH.run)
+    assert 'sp["cwd"] if sp["write"] else sp["scratch"]' in inspect.getsource(SH._run_once)
     assert "write=sb is not None" in inspect.getsource(TK.start)
+
+
+def test_the_problems_claims_still_hold():
+    """Track W3: the project's own checkers, read-only, to every agent, on the card."""
+    import inspect
+    from magi.code import problems as PB, tasks as TK
+    assert "Problems, like VS Code" in HOW
+    src = inspect.getsource(PB.for_folder)
+    assert "write=False" in src, "read-only on your folder"
+    assert "_bin(root" in inspect.getsource(PB.detect), "only what the project already has"
+    assert "problems=prob_block" in inspect.getsource(TK.start)
+    assert '"problems": prob' in inspect.getsource(TK._review_and_apply)
+    assert "codeProblemsSheet" in PAGE and "Ask an agent to fix them" in PAGE

@@ -83,7 +83,7 @@ async def code_state() -> dict[str, Any]:
         # V4: `branches` = commit on a branch, switch branch, open a pull request.
         # V6: `commands` = named commands agents may run (Check sheet).
         "features": ["attachments", "auto_approve", "followup", "steer", "images", "refs",
-                     "writes", "branches", "commands", "shell"],
+                     "writes", "branches", "commands", "shell", "problems"],
     }
 
 
@@ -285,6 +285,18 @@ async def set_check(project_id: str, request: Request, body: dict = Body(...)) -
     except C.CheckError as e:
         return {"ok": False, "error": "bad_command", "message": e.message}
     return {"ok": True, "check": c}
+
+
+@router.get("/projects/{project_id}/problems")
+async def project_problems(project_id: str, refresh: bool = False) -> dict[str, Any]:
+    """Track W3: the project's Problems -- its own checkers (TypeScript,
+    ESLint, Ruff, Pyright, Python syntax) run read-only in the agents'
+    sandbox on your real folder. Cached; `refresh=1` runs them now."""
+    p, root, err = await _project_here(project_id)
+    if err:
+        return err
+    from . import problems as PR
+    return await PR.for_folder(p["id"], root, refresh)
 
 
 @router.get("/projects/{project_id}/shell")

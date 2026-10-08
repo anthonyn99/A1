@@ -108,6 +108,9 @@ class TaskState:
     suggest_branch: str = ""
     # Track W2: the shell's scratch folder (scripts, TMP), removed at the end.
     shell_scratch: str = ""
+    # Track W3: the project's checkers (problems.detect), when this task can run them.
+    problem_checkers: list = field(default_factory=list)
+    problems_after: dict | None = None
     opening_pr: bool = False
 
     @property
@@ -330,6 +333,13 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
             if instr_files:
                 await emit({"k": "tool", "name": "Instructions",
                             "target": ", ".join(instr_files)})
+            # Track W3: the project's Problems, as last checked on this engine.
+            from . import problems as _prob
+            prob_block = _prob.block(_prob.CACHE.get(project_id))
+            t.problem_checkers = (await loop.run_in_executor(None, _prob.detect, root)
+                                  if sh is not None and sb is not None else [])
+            if t.problem_checkers and ws is not None:
+                ws["problems"] = t.problem_checkers
             if t.refs:
                 await emit({"k": "note", "text": "Also reading, never changing: "
                             + ", ".join("@" + n for n, _ in t.refs) + "."})
@@ -352,7 +362,7 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                         agent_check=((ws or {}).get("check") or {}).get("command", ""),
                         agent_check_min=int(((ws or {}).get("check") or {}).get("timeout_min") or 0),
                         real_root=root, agent_commands=cmds, instructions=instr,
-                        shell=sh, shell_why=sh_why,
+                        shell=sh, shell_why=sh_why, problems=prob_block,
                         attachments=t.attachments, images=t.images, inventory=inv,
                         refs=[(n, Path(p)) for n, p in t.refs],
                         writes=[(w.name, Path(w.copy)) for w in t.writes])
@@ -559,6 +569,11 @@ async def _review_and_apply(t: TaskState, sb: sandbox.Sandbox) -> dict[str, Any]
         await publish(t, {"k": "nochange", "text": "The agent made no changes."})
         return {"write": "none"}
 
+    # Track W3: how the change moves the project's Problems -- the checkers
+    # run in the copy before the card opens (the copy borrows node_modules /
+    # .venv from your folder for the run, as the check does).
+    prob = await _problems_after(t, sb)
+
     # The check command (check.py). Automatic: it runs now, before the card,
     # so the card opens with the result on it and its clock starts after.
     # Otherwise the card offers Run check once you have seen the diff.
@@ -618,6 +633,7 @@ async def _review_and_apply(t: TaskState, sb: sandbox.Sandbox) -> dict[str, Any]
                 a1.setdefault(k, []).extend(
                     sec[k] if sec["main"] else [f"@{sec['name']}/{p}" for p in sec[k]])
     await publish(t, {"k": "approval", "files": files, **a1,
+                      **({"problems": prob} if prob else {}),
                       **({"sections": sections} if t.writes else {}),
                       "adds": sum(f["adds"] for f in files),
                       "dels": sum(f["dels"] for f in files),
@@ -667,6 +683,36 @@ async def _review_and_apply(t: TaskState, sb: sandbox.Sandbox) -> dict[str, Any]
     if not approved:
         return {"write": why}
     return await _apply(t, reviews)
+
+
+async def _problems_after(t: TaskState, sb: sandbox.Sandbox) -> dict[str, Any] | None:
+    """Run the project's checkers in the copy and compare with your folder's
+    last result (run now if there is none). None when there are none."""
+    if not t.problem_checkers:
+        return None
+    from . import check as C
+    from . import problems as PR
+    from . import shell as SH
+    loop = asyncio.get_running_loop()
+    await publish(t, {"k": "note", "text": "Checking Problems after the change ("
+                      + ", ".join(c["name"] for c in t.problem_checkers) + ")…"})
+    before = PR.CACHE.get(t.project_id)
+    if before is None:
+        got = await PR.for_folder(t.project_id, Path(t.root))
+        before = got if got.get("ok") else None
+    links = await loop.run_in_executor(None, C.link_deps, Path(t.root), sb.cwd)
+    try:
+        sp = await loop.run_in_executor(None, lambda: SH.spec(
+            cwd=sb.cwd, scratch=SH.scratch_for(t.id) / "problems", write=True, internet=False))
+        after = await PR.run(sp, Path(t.root), t.problem_checkers)
+    finally:
+        await loop.run_in_executor(None, C.unlink_deps, links)
+    cmp = PR.compare(before, after)
+    out = {**cmp, "errors": after["errors"], "warnings": after["warnings"],
+           "tools": [r["name"] for r in after["ran"]]}
+    t.problems_after = out
+    await publish(t, {"k": "problems", **out})
+    return out
 
 
 def _card_files(reviews: list) -> list[dict[str, Any]]:
