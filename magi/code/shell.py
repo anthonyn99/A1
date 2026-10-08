@@ -191,7 +191,23 @@ def spec(*, cwd: Path, scratch: Path, write: bool, internet: bool,
     writable = [str(root), str(cache)] + [str(p) for p in extra_writable or []]
     return {"codex": slots.cli_path("codex") or "", "bash": bash_path(), "cwd": str(cwd),
             "write": bool(write), "internet": bool(internet), "scratch": str(scratch),
-            "cache": str(cache), "writable": writable}
+            "cache": str(cache), "writable": writable, "path_first": python_dirs()}
+
+
+def python_dirs() -> list[str]:
+    """A Python the sandbox user can run, put first on its PATH. Found on
+    Tony's PC 2026-10-08: `python` was the Microsoft Store's Python Install
+    Manager, whose program lives under C:\\Program Files\\WindowsApps --
+    "Permission denied" for the sandbox user, so every `python` an agent ran
+    (and the Python Problems checker) failed. The interpreter MAGI itself is
+    built on is an ordinary install, readable by anyone."""
+    base = Path(getattr(sys, "_base_executable", "") or sys.executable)
+    if not base.is_file() or "windowsapps" in [p.lower() for p in base.parts]:
+        return []
+    out = [str(base.parent)]
+    if (base.parent / "Scripts").is_dir():
+        out.append(str(base.parent / "Scripts"))
+    return out
 
 
 def toml_list(paths: list[str]) -> str:
@@ -222,8 +238,9 @@ def env_for(sp: dict[str, Any]) -> dict[str, str]:
     # under a WindowsApps folder, so those PATH entries only produce
     # "Access is denied" instead of finding the real program.
     for k in [k for k in env if k.upper() == "PATH"]:
-        env[k] = os.pathsep.join(x for x in env[k].split(os.pathsep)
-                                 if "windowsapps" not in _re.split(r"[\/]", x.lower()))
+        env[k] = os.pathsep.join(list(sp.get("path_first") or []) + [
+            x for x in env[k].split(os.pathsep)
+            if "windowsapps" not in _re.split(r"[\\/]", x.lower())])
     tmp = str(Path(sp["scratch"]) / "tmp")
     cache = Path(sp["cache"])
     env.update({"TMP": tmp, "TEMP": tmp, "TMPDIR": tmp,

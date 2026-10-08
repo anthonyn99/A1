@@ -217,3 +217,19 @@ def test_git_works_on_your_repository_from_the_sandbox(sandbox_dirs):
     s = W.Server(real, shell=sp, readonly=True)
     txt, err = s.call("shell", {"command": "git log --oneline | wc -l"})
     assert not err and txt.strip().endswith("1"), txt
+
+
+def test_the_sandbox_path_drops_windowsapps_and_puts_a_real_python_first(monkeypatch, tmp_path):
+    """Found on Tony's PC: `python` was the Store's Python Install Manager
+    under C:\Program Files\WindowsApps -- "Permission denied" in the sandbox.
+    And the WindowsApps filter only split on '/', so it never matched."""
+    monkeypatch.setenv("PATH", r"C:\Program Files\WindowsApps\Py_1.0\bin;C:\Users\x\AppData\Local\Microsoft\WindowsApps;C:\keep")
+    sp = {"scratch": str(tmp_path), "cache": str(tmp_path), "path_first": [r"C:\RealPython"],
+          "codex": "c", "bash": "b", "cwd": str(tmp_path), "write": True, "internet": False, "writable": []}
+    path = next(v for k, v in SH.env_for(sp).items() if k.upper() == "PATH").split(";")
+    assert path[0] == r"C:\RealPython" and r"C:\keep" in path
+    assert not any("windowsapps" in p.lower() for p in path)
+    s = W.Server(tmp_path, shell=sp)
+    path2 = next(v for k, v in s._shell_env().items() if k.upper() == "PATH").split(";")
+    assert path2[0] == r"C:\RealPython" and not any("windowsapps" in p.lower() for p in path2)
+    assert all("windowsapps" not in p.lower() for p in SH.python_dirs())

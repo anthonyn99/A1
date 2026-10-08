@@ -687,8 +687,10 @@ class Server:
         env = {k: v for k, v in os.environ.items()
                if not _SECRET_ENV.search(k) and not k.startswith("CLAUDE_CODE_")}
         for k in [k for k in env if k.upper() == "PATH"]:
-            env[k] = os.pathsep.join(x for x in env[k].split(os.pathsep)
-                                     if "windowsapps" not in re.split(r"[\\/]", x.lower()))
+            # code/shell.py python_dirs(): a Python the sandbox user can run, first.
+            env[k] = os.pathsep.join(list(sp.get("path_first") or []) + [
+                x for x in env[k].split(os.pathsep)
+                if "windowsapps" not in re.split(r"[\\/]", x.lower())])
         tmp = os.path.join(sp["scratch"], "tmp")
         cache = sp["cache"]
         env.update({"CI": "1", "NO_COLOR": "1", "FORCE_COLOR": "0", "PAGER": "cat",
