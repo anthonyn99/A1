@@ -168,6 +168,131 @@ RUN_COMMAND = {
         "required": ["name"]},
     "annotations": {"destructiveHint": False, "openWorldHint": False},
 }
+# Track W2: the agents' shell (code/shell.py), restated here -- this server
+# imports nothing from MAGI. test_code_shell.py keeps the two equal.
+SHELL_TOOLS = [
+    {"name": "shell",
+     "description": "",          # filled in (Server.tools): where it runs, internet or not
+     "inputSchema": {"type": "object", "properties": {
+         "command": {"type": "string", "description": "A bash command line (Git Bash)"},
+         "timeout_s": {"type": "integer", "description": "Seconds before it is stopped (default 120, at most 600)"}},
+         "required": ["command"]},
+     "annotations": {"destructiveHint": True, "openWorldHint": False}},
+    {"name": "start_process",
+     "description": "Start a long-running command in the background -- a dev server, a watcher -- in "
+                    "the same sandbox, and get an id. Read its output with process_output; stop it "
+                    "with stop_process. Everything still running is stopped when the task ends.",
+     "inputSchema": {"type": "object", "properties": {
+         "command": {"type": "string"}, "name": {"type": "string"}}, "required": ["command"]},
+     "annotations": {"destructiveHint": True, "openWorldHint": False}},
+    {"name": "process_output",
+     "description": "A background process's state and output so far (the end of it).",
+     "inputSchema": {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]},
+     "annotations": {"readOnlyHint": True, "openWorldHint": False}},
+    {"name": "stop_process",
+     "description": "Stop a background process and everything it started.",
+     "inputSchema": {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]},
+     "annotations": {"destructiveHint": True, "openWorldHint": False}},
+    {"name": "list_processes",
+     "description": "The background processes of this task, running or ended.",
+     "inputSchema": {"type": "object", "properties": {}},
+     "annotations": {"readOnlyHint": True, "openWorldHint": False}},
+]
+SHELL_TIMEOUT_S = 120
+SHELL_MAX_S = 600
+MAX_PROCESSES = 4
+
+
+def _shell_argv(sp: dict, script: str) -> list:
+    """code/shell.py argv(), restated."""
+    roots = "[" + ", ".join("'" + p.replace("\\", "/") + "'" for p in sp["writable"]) + "]"
+    return [sp["codex"], "sandbox",
+            "-c", "sandbox_mode=workspace-write",
+            "-c", "windows.sandbox=elevated",
+            "-c", "sandbox_workspace_write.exclude_tmpdir_env_var=true",
+            "-c", "sandbox_workspace_write.exclude_slash_tmp=true",
+            "-c", f"sandbox_workspace_write.network_access={'true' if sp['internet'] else 'false'}",
+            "-c", f"sandbox_workspace_write.writable_roots={roots}",
+            "--", sp["bash"], "--noprofile", "--norc", script]
+
+
+class _Job:
+    """A Windows job with kill-on-close (code/shell.py Job, restated)."""
+
+    def __init__(self) -> None:
+        self.h = None
+        if os.name != "nt":
+            return
+        import ctypes
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        k32.CreateJobObjectW.restype = ctypes.c_void_p
+        self._c, self._k = ctypes, k32
+        h = k32.CreateJobObjectW(None, None)
+        if not h:
+            return
+
+        class _Basic(ctypes.Structure):
+            _fields_ = [("a", ctypes.c_int64), ("b", ctypes.c_int64), ("LimitFlags", ctypes.c_uint32),
+                        ("c", ctypes.c_size_t), ("d", ctypes.c_size_t), ("e", ctypes.c_uint32),
+                        ("f", ctypes.c_size_t), ("g", ctypes.c_uint32), ("h", ctypes.c_uint32)]
+
+        class _Ext(ctypes.Structure):
+            _fields_ = [("Basic", _Basic), ("Io", ctypes.c_uint64 * 6), ("p1", ctypes.c_size_t),
+                        ("p2", ctypes.c_size_t), ("p3", ctypes.c_size_t), ("p4", ctypes.c_size_t)]
+        info = _Ext()
+        info.Basic.LimitFlags = 0x2000            # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        k32.SetInformationJobObject.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_uint32]
+        k32.SetInformationJobObject(h, 9, ctypes.byref(info), ctypes.sizeof(info))
+        self.h = h
+
+    def add(self, pid: int) -> bool:
+        if not self.h:
+            return False
+        k, c = self._k, self._c
+        k.OpenProcess.restype = c.c_void_p
+        hp = k.OpenProcess(0x1F0FFF, False, pid)
+        if not hp:
+            return False
+        k.AssignProcessToJobObject.argtypes = [c.c_void_p, c.c_void_p]
+        ok = bool(k.AssignProcessToJobObject(self.h, hp))
+        k.CloseHandle.argtypes = [c.c_void_p]
+        k.CloseHandle(hp)
+        return ok
+
+    def close(self) -> None:
+        if self.h:
+            self._k.TerminateJobObject.argtypes = [self._c.c_void_p, self._c.c_uint]
+            self._k.TerminateJobObject(self.h, 1)
+            self._k.CloseHandle.argtypes = [self._c.c_void_p]
+            self._k.CloseHandle(self.h)
+            self.h = None
+
+
+class _Proc:
+    def __init__(self, pid_name: str, command: str, popen, job: "_Job"):
+        self.id, self.command, self.p, self.job = pid_name, command, popen, job
+        self.out: collections.deque = collections.deque()
+        self.size = 0
+        self.started = time.monotonic()
+        self.read_to = 0          # characters already returned by process_output
+        self.total = 0
+        threading.Thread(target=self._pump, daemon=True).start()
+
+    def _pump(self) -> None:
+        try:
+            for line in self.p.stdout:
+                self.out.append(line)
+                self.size += len(line)
+                self.total += len(line)
+                while self.size > OUTPUT_TAIL * 3 and len(self.out) > 1:
+                    self.size -= len(self.out.popleft())
+        except (OSError, ValueError):
+            pass
+
+    def text(self) -> str:
+        return _ANSI.sub("", "".join(self.out)).replace("\r\n", "\n")
+
+
 # commands.ARG and its rules, restated: this server imports nothing from MAGI
 # (it runs with -I). test_code_commands.py keeps the two in step.
 _CMD_ARG = re.compile(r"^[A-Za-z0-9._/@+=-]{1,200}$")
@@ -259,11 +384,17 @@ def _rel(root: Path, p: Path) -> str:
 class Server:
     def __init__(self, root: Path, check: dict | None = None, real: Path | None = None,
                  refs: list | None = None, writes: list | None = None,
-                 commands: list | None = None):
+                 commands: list | None = None, shell: dict | None = None,
+                 readonly: bool = False):
         self.root = Path(root)
         # Track V6: [{name, command, arg, timeout_min}] -- only what MAGI wrote.
         self.commands = [c for c in (commands or []) if isinstance(c, dict)
                          and c.get("name") and c.get("command")]
+        # Track W2: the sandboxed shell (code/shell.py spec), and Read mode's
+        # server, which offers no tool that changes files.
+        self.shell = shell if isinstance(shell, dict) and shell.get("codex") and shell.get("bash") else None
+        self.readonly = bool(readonly)
+        self.procs: dict[str, _Proc] = {}
         # Track V3: {"orca": Path(<its private copy>)} -- only copies MAGI made.
         self.writes: dict[str, Path] = {}
         for w in writes or []:
@@ -547,6 +678,154 @@ class Server:
             except OSError:
                 pass
 
+    # ── the shell (Track W2) ──────────────────────────────────────────────
+
+    def _shell_env(self) -> dict:
+        sp = self.shell
+        env = {k: v for k, v in os.environ.items()
+               if not _SECRET_ENV.search(k) and not k.startswith("CLAUDE_CODE_")}
+        for k in [k for k in env if k.upper() == "PATH"]:
+            env[k] = os.pathsep.join(x for x in env[k].split(os.pathsep)
+                                     if "windowsapps" not in re.split(r"[\\/]", x.lower()))
+        tmp = os.path.join(sp["scratch"], "tmp")
+        cache = sp["cache"]
+        env.update({"CI": "1", "NO_COLOR": "1", "FORCE_COLOR": "0", "PAGER": "cat",
+                    "GIT_PAGER": "cat", "PYTHONUNBUFFERED": "1", "PYTHONDONTWRITEBYTECODE": "1",
+                    "TMP": tmp, "TEMP": tmp, "TMPDIR": tmp,
+                    "npm_config_cache": os.path.join(cache, "npm"),
+                    "PIP_CACHE_DIR": os.path.join(cache, "pip"),
+                    "YARN_CACHE_FOLDER": os.path.join(cache, "yarn"),
+                    "PNPM_HOME": os.path.join(cache, "pnpm"),
+                    "PIP_DISABLE_PIP_VERSION_CHECK": "1", "npm_config_update_notifier": "false"})
+        return env
+
+    def _script(self, command: str) -> str:
+        d = os.path.join(self.shell["scratch"], "scripts")
+        os.makedirs(d, exist_ok=True)
+        p = os.path.join(d, f"c{time.time_ns()}.sh")
+        cwd = self.shell["cwd"].replace("\\", "/")
+        with open(p, "w", encoding="utf-8", newline="\n") as f:
+            f.write(f"cd '{cwd}' || exit 99\n{command}\n")
+        return p
+
+    def _popen(self, command: str):
+        sp = self.shell
+        os.makedirs(os.path.join(sp["scratch"], "tmp"), exist_ok=True)
+        p = subprocess.Popen(_shell_argv(sp, self._script(command)),
+                             cwd=sp["cwd"] if sp.get("write") else sp["scratch"],
+                             env=self._shell_env(), stdin=subprocess.DEVNULL,
+                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                             encoding="utf-8", errors="replace", bufsize=1,
+                             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        job = _Job()
+        job.add(p.pid)
+        return p, job
+
+    def _need_shell(self, command) -> str:
+        if not self.shell:
+            raise ToolError("There is no shell in this task.")
+        if not isinstance(command, str) or not command.strip():
+            raise ToolError("A command is required.")
+        if len(command) > 20_000 or "\x00" in command:
+            raise ToolError("That command is too long.")
+        return command
+
+    def shell_run(self, a: dict) -> str:
+        command = self._need_shell(a.get("command"))
+        try:
+            limit = max(1, min(SHELL_MAX_S, int(a.get("timeout_s") or SHELL_TIMEOUT_S)))
+        except (TypeError, ValueError):
+            limit = SHELL_TIMEOUT_S
+        t0 = time.monotonic()
+        p, job = self._popen(command)
+        tail: collections.deque = collections.deque()
+        size = [0]
+
+        def pump() -> None:
+            try:
+                for line in p.stdout:
+                    tail.append(line)
+                    size[0] += len(line)
+                    while size[0] > OUTPUT_TAIL * 2 and len(tail) > 1:
+                        size[0] -= len(tail.popleft())
+            except (OSError, ValueError):
+                pass
+        reader = threading.Thread(target=pump, daemon=True)
+        reader.start()
+        timed_out = False
+        try:
+            p.wait(timeout=limit)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+        finally:
+            job.close()                 # the command and anything it left behind
+            try:
+                p.wait(timeout=15)
+            except subprocess.TimeoutExpired:
+                pass
+        reader.join(5)
+        out = _ANSI.sub("", "".join(tail)).replace("\r\n", "\n").strip()
+        if len(out) > OUTPUT_TAIL:
+            out = "…" + out[-OUTPUT_TAIL:]
+        secs = round(time.monotonic() - t0, 1)
+        if timed_out:
+            head = (f"Stopped after {limit}s, still running. For a server or a watcher use "
+                    "start_process.")
+        else:
+            head = f"Exit code {p.returncode} ({secs}s)."
+        return head + "\n\n" + (out or "(no output)")
+
+    def start_process(self, a: dict) -> str:
+        command = self._need_shell(a.get("command"))
+        live = [x for x in self.procs.values() if x.p.poll() is None]
+        if len(live) >= MAX_PROCESSES:
+            raise ToolError(f"{MAX_PROCESSES} background processes are already running; stop one first.")
+        name = re.sub(r"[^A-Za-z0-9_-]+", "-", str(a.get("name") or "proc"))[:20].strip("-") or "proc"
+        pid_name = f"{name}-{len(self.procs) + 1}"
+        p, job = self._popen(command)
+        self.procs[pid_name] = _Proc(pid_name, command, p, job)
+        time.sleep(1.5)
+        return (f"Started {pid_name}. " + self._state(self.procs[pid_name])
+                + "\nRead it with process_output, stop it with stop_process.")
+
+    def _state(self, x: "_Proc") -> str:
+        rc = x.p.poll()
+        up = round(time.monotonic() - x.started)
+        return (f"{x.id}: running for {up}s" if rc is None else f"{x.id}: ended with exit code {rc}")
+
+    def _proc(self, a: dict) -> "_Proc":
+        self._need_shell("x")
+        x = self.procs.get(str(a.get("id") or ""))
+        if x is None:
+            raise ToolError("No such process. There are: " + (", ".join(self.procs) or "none") + ".")
+        return x
+
+    def process_output(self, a: dict) -> str:
+        x = self._proc(a)
+        text = x.text()
+        if len(text) > OUTPUT_TAIL:
+            text = "…" + text[-OUTPUT_TAIL:]
+        return self._state(x) + "\n\n" + (text.strip() or "(no output yet)")
+
+    def stop_process(self, a: dict) -> str:
+        x = self._proc(a)
+        x.job.close()
+        try:
+            x.p.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            pass
+        return f"Stopped {x.id}."
+
+    def list_processes(self, a: dict) -> str:
+        self._need_shell("x")
+        return "\n".join(self._state(x) + f" -- {x.command[:120]}" for x in self.procs.values()) \
+            or "(none)"
+
+    def close(self) -> None:
+        """The task is over (the CLI closed our stdin): stop everything."""
+        for x in self.procs.values():
+            x.job.close()
+
     def run_check(self, a: dict) -> str:
         if not self.check:
             raise ToolError("This project has no check that agents may run.")
@@ -637,7 +916,29 @@ class Server:
     # ── MCP ───────────────────────────────────────────────────────────────
 
     def tools(self) -> list[dict]:
-        out = [dict(t) for t in TOOLS]
+        # Read mode (Track W2): the shell and the reference tools only.
+        out = [] if self.readonly else [dict(t) for t in TOOLS]
+        if self.shell:
+            for t in SHELL_TOOLS:
+                t = dict(t)
+                if t["name"] == "shell":
+                    sp = self.shell
+                    t["description"] = (
+                        "Run a bash command (Git Bash on Windows) in "
+                        + ("the project's private copy" if sp.get("write") else
+                           "the project folder, READ-ONLY (Read mode: nothing can be changed)")
+                        + ", inside a Windows sandbox: it can write only "
+                        + ("in the copy and a scratch folder" if sp.get("write") else "in a scratch folder")
+                        + " -- never elsewhere on this PC. Internet: "
+                        + ("ON (installs work: npm install, pip install into a .venv in the "
+                           "project)" if sp.get("internet") else
+                           "OFF (installing from the internet will fail; say so if a task needs it)")
+                        + ". Install packages locally, never globally. Default timeout 120s; for "
+                        "servers use start_process. Returns the exit code and the end of the output.")
+                out.append(t)
+        if self.readonly:
+            out += [dict(t) for t in REF_TOOLS] if self.refs else []
+            return out
         if self.refs:
             out += [dict(t) for t in REF_TOOLS]
         if self.check:
@@ -662,10 +963,17 @@ class Server:
         fn = {"move_path": self.move_path, "copy_path": self.copy_path,
               "delete_path": self.delete_path, "make_dir": self.make_dir,
               "run_check": self.run_check, "run_command": self.run_command,
+              "shell": self.shell_run, "start_process": self.start_process,
+              "process_output": self.process_output, "stop_process": self.stop_process,
+              "list_processes": self.list_processes,
               "ref_list": self.ref_list,
               "ref_read": self.ref_read, "ref_find": self.ref_find}.get(name)
         if fn is None or (name == "run_check" and not self.check) or \
                 (name == "run_command" and not self.commands) or \
+                (name in ("shell", "start_process", "process_output", "stop_process",
+                          "list_processes") and not self.shell) or \
+                (self.readonly and name in ("move_path", "copy_path", "delete_path",
+                                            "make_dir", "run_check", "run_command")) or \
                 (name.startswith("ref_") and not self.refs):
             return f"Unknown tool {name!r}.", True
         try:
@@ -700,18 +1008,23 @@ class Server:
     def serve(self, fin=None, fout=None) -> None:
         fin = fin or sys.stdin
         fout = fout or sys.stdout
-        for line in fin:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                msg = json.loads(line)
-            except ValueError:
-                continue
-            reply = self.handle(msg) if isinstance(msg, dict) else None
-            if reply is not None:
-                fout.write(json.dumps(reply) + "\n")
-                fout.flush()
+        try:
+            for line in fin:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    msg = json.loads(line)
+                except ValueError:
+                    continue
+                reply = self.handle(msg) if isinstance(msg, dict) else None
+                if reply is not None:
+                    fout.write(json.dumps(reply) + "\n")
+                    fout.flush()
+        finally:
+            # The CLI is gone: nothing this task started keeps running.
+            # (Killed outright, the jobs' kill-on-close does the same.)
+            self.close()
 
 
 def from_config(path: Path) -> Server:
@@ -720,7 +1033,8 @@ def from_config(path: Path) -> Server:
     if not root.is_dir():
         raise SystemExit(f"no such folder: {root}")
     return Server(root, cfg.get("check"), Path(cfg["real"]) if cfg.get("real") else None,
-                  cfg.get("refs"), cfg.get("writes"), cfg.get("commands"))
+                  cfg.get("refs"), cfg.get("writes"), cfg.get("commands"),
+                  cfg.get("shell"), cfg.get("readonly", False))
 
 
 def main(argv: list[str] | None = None) -> None:

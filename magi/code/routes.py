@@ -83,7 +83,7 @@ async def code_state() -> dict[str, Any]:
         # V4: `branches` = commit on a branch, switch branch, open a pull request.
         # V6: `commands` = named commands agents may run (Check sheet).
         "features": ["attachments", "auto_approve", "followup", "steer", "images", "refs",
-                     "writes", "branches", "commands"],
+                     "writes", "branches", "commands", "shell"],
     }
 
 
@@ -218,6 +218,8 @@ async def delete_project(project_id: str) -> dict[str, Any]:
     from . import commands as _cmds
     _check.forget(project_id)
     _cmds.forget(project_id)
+    from . import shell as _shell
+    _shell.forget(project_id)
     return {"ok": True}
 
 
@@ -283,6 +285,31 @@ async def set_check(project_id: str, request: Request, body: dict = Body(...)) -
     except C.CheckError as e:
         return {"ok": False, "error": "bad_command", "message": e.message}
     return {"ok": True, "check": c}
+
+
+@router.get("/projects/{project_id}/shell")
+async def get_shell(project_id: str, request: Request) -> dict[str, Any]:
+    """Track W2: the agents' sandboxed shell for this project -- on/off,
+    internet on/off -- and whether this PC can give one at all."""
+    from ..app import _arrived_over_the_tunnel
+    from . import shell as SH
+    if not await _db().code_project(project_id, _engine_id()):
+        return {"ok": False, "error": "no_project", "message": "No such project."}
+    ok, why = await _asyncio.get_running_loop().run_in_executor(None, SH.availability)
+    return {"ok": True, "shell": SH.get(project_id), "available": ok, "why": why,
+            "local": not _arrived_over_the_tunnel(request)}
+
+
+@router.post("/projects/{project_id}/shell")
+async def set_shell(project_id: str, request: Request, body: dict = Body(...)) -> dict[str, Any]:
+    """`{"enabled": bool, "internet": bool}`. From the engine PC only: it
+    decides what agent-written commands may do on this PC."""
+    _local_only(request)
+    from . import shell as SH
+    if not await _db().code_project(project_id, _engine_id()):
+        return {"ok": False, "error": "no_project", "message": "No such project."}
+    b = body or {}
+    return {"ok": True, "shell": SH.put(project_id, b.get("enabled", True), b.get("internet", False))}
 
 
 @router.get("/projects/{project_id}/commands")
@@ -382,6 +409,8 @@ async def sync_apply(body: dict = Body(...)) -> dict[str, Any]:
         _check.forget(pid)
         from . import commands as _cmds
         _cmds.forget(pid)
+        from . import shell as _shell
+        _shell.forget(pid)
     for pid, at in plan["tomb"]:
         await _db().note_code_deleted(pid, at)
     for row, at in plan["save"]:

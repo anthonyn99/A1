@@ -659,3 +659,22 @@ def test_the_project_instructions_claims_still_hold():
     assert "instructions_block" in inspect.getsource(BA.Task.full_prompt)
     assert "instructions_block" in inspect.getsource(BR.BrowserUnitAgent.build_prompt)
     assert '"name": "Instructions"' in inspect.getsource(TK.start)
+
+
+def test_the_shell_claims_still_hold():
+    """Track W2: sandboxed, copy-only in Write, nothing in Read, stops at the end."""
+    import inspect
+    from magi.code import routes as RT, shell as SH, tasks as TK, ws_mcp as WM
+    assert "A shell for every agent, in a sandbox." in HOW
+    a = SH.argv({"codex": "c", "bash": "b", "internet": False, "writable": ["s"]}, "x")
+    assert "windows.sandbox=elevated" in a and "sandbox_workspace_write.network_access=false" in a
+    # "on by default", "internet ... off by default".
+    assert SH.DEFAULTS == {"enabled": True, "internet": False}
+    # "on the engine's PC".
+    assert "_local_only(request)" in inspect.getsource(RT.set_shell)
+    # "Anything still running stops when the task ends".
+    assert "self.close()" in inspect.getsource(WM.Server.serve)
+    assert "0x2000" in inspect.getsource(SH.Job) and "0x2000" in inspect.getsource(WM._Job)
+    # "in Read mode nowhere at all": the copy is writable only as the working folder in Write.
+    assert 'sp["cwd"] if sp["write"] else sp["scratch"]' in inspect.getsource(SH.run)
+    assert "write=sb is not None" in inspect.getsource(TK.start)

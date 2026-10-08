@@ -135,6 +135,10 @@ class Task:
     # Track W1: the project's CLAUDE.md / AGENTS.md text (code/instructions.py),
     # given to every agent; "" when the project has none.
     instructions: str = ""
+    # Track W2: the agents' sandboxed shell (code/shell.py spec) or None, and
+    # why there is none ("" = there is one).
+    shell: dict | None = None
+    shell_why: str = ""
     # Track V: other registered workspaces this task may READ, as
     # (name, folder). Never written: each agent is told how to read them
     # (refs_block), and nothing that writes can reach them.

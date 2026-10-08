@@ -116,6 +116,10 @@ def build_argv(exe: str, task: Task, model: str | None = None,
     for f in DISABLED_FEATURES:
         argv += ["--disable", f]
     for c in (WRITE_CONFIG if task.mode == Mode.WRITE else SANDBOX_CONFIG):
+        if c.endswith("network_access=false") and (task.shell or {}).get("internet"):
+            # Track W2: the project's "internet in the sandbox" switch, the
+            # same one the agents' shell follows (set on the engine PC).
+            c = "sandbox_workspace_write.network_access=true"
         argv += ["-c", c]
     if model:
         argv += ["-m", model]

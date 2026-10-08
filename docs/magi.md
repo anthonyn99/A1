@@ -609,8 +609,9 @@ junction (checked on disk), the denied folders (also by their resolved
 name, so `GIT~1` is `.git`), a folder tree holding a link (deleting or
 copying through it would reach outside), and overwriting (a move or copy
 never replaces; delete first). The worktree's own `.git` file is denied
-like the folder. Still **no Bash**: on Windows a shell has no boundary that
-keeps it in the copy. Both servers are allowed by name with one
+like the folder. Claude's own Bash tool stays off; since Track W2 its shell
+is the workspace server's `shell` tool, run in Codex's elevated sandbox (see
+"A shell for the agents"). Both servers are allowed by name with one
 `--allowedTools mcp__magi_github,mcp__magi_workspace`. The transcript shows
 them as `Move a.py → b/a.py`, `Delete x`, `Run check`.
 
@@ -799,6 +800,30 @@ that rule (it imports nothing from MAGI); `test_code_commands.py` keeps them
 equal. Write mode only: in Read mode there is no copy. Tests:
 `test_code_commands.py` (9; 4 mutants killed), one in `test_howitworks.py`;
 live `tests/live/magi-code-v6.live.js`.
+
+#### A shell for the agents (Track W2, 2026-10-08)
+
+Agents can now run commands the way Claude Code in VS Code does: tests,
+builds, scripts, git, package installs, a dev server and a `curl` against it
+(`code/shell.py`, `ws_mcp.py`). The boundary is Codex's ELEVATED Windows
+sandbox -- the one Codex's own tasks run in -- not a promise in a prompt.
+
+| | |
+|---|---|
+| How a command runs | Written as a Git Bash script to the task's scratch folder (never argv: Codex re-quotes it and cmd misreads the quotes), then `codex sandbox -c sandbox_mode=workspace-write -c windows.sandbox=elevated ... -- bash --noprofile --norc <script>`, as the sandbox's own Windows user. |
+| What it can write | Write mode: the task's copy (its working folder), the scratch folder (TMP, scripts) and the shared package cache `%TEMP%\magi-shell-cache\<profile>` (npm, pip). Read mode: the working folder is the scratch folder and the script `cd`s into your real folder, which stays read-only. Verified on this PC 2026-10-08: anything else is "Permission denied", deletes included. |
+| Internet | A per-project switch, off by default (`sandbox_workspace_write.network_access`). Off: Node's https gets EACCES. On: `npm install` and `pip install` into a `.venv` in the copy work. Git Bash's own `curl` cannot do HTTPS in the sandbox (schannel, exit 35); npm, pip and Node can. Codex's own tasks follow the same switch. |
+| The engine | Every process is in the agents' job; a sandbox-user process cannot even be asked by the engine guard, and while an agent runs, "cannot be asked" is refused -- fail closed. |
+| Stopping | A plain kill does NOT reach a sandbox-user process (found 2026-10-08: `taskkill /T` left a server listening). Every command and background process is in a job of its own with kill-on-close: a command's job is terminated when it returns (anything it left running goes with it), a background process's on `stop_process`, and all of them when the task ends -- the workspace server closes them as its stdin closes, and if it is killed outright, Windows closes the jobs. |
+| Claude | `shell {command, timeout_s}` (120 s default, 600 at most), `start_process`, `process_output`, `stop_process`, `list_processes` (4 at once) on the workspace server. In Read mode the server is read-only (shell + reference tools, no file tools) and Claude runs `--permission-mode default` instead of `plan`, because plan mode refuses every MCP tool (found offline); `--tools` stays Read,Glob,Grep. |
+| Browser units | `SHELL: <command>` request lines (up to 3), run with the same runner; output tails come back with the next ask. |
+| Settings | Check sheet › Agents' shell: On, sandboxed (default) / Off; Internet in the sandbox: Off (default) / On. `GET/POST /projects/{id}/shell` (POST local-only), `data/<p>/code/shell.json`, never synced. |
+| Needs | Git for Windows (bash), the Codex CLI, and its sandbox set up (one Windows Yes; `codex_sandbox.py`). Without them the task says "No shell for the agents in this task: <why>" and everything else is as before. |
+
+Tests: `test_code_shell.py` (11; the sandbox ones run the real `codex sandbox`;
+4 mutants killed, one of them -- internet always on -- only after
+`test_internet_off_means_off` was added), two offline real-CLI tests (both
+modes), one HOW contract; live `tests/live/magi-code-w2.live.js`.
 
 #### Project instructions (Track W1, 2026-10-08)
 

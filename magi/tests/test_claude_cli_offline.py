@@ -260,3 +260,52 @@ def test_project_instructions_reach_the_model(setup):
     assert r.returncode == 0, r.stderr[-1500:]
     first = api.log[0]["first"]
     assert "PROJECT INSTRUCTIONS" in first and first.count("ZEBRA-RULE-7731") == 1
+
+
+def _shell_spec(tmp_path, cwd, write):
+    from magi.code import shell as SH
+    ok, why = SH.availability(wait=True)
+    if not ok:
+        pytest.skip(f"no sandboxed shell on this PC: {why}")
+    return SH.spec(cwd=cwd, scratch=tmp_path / "scratch", write=write, internet=False)
+
+
+@pytest.mark.parametrize("mode", [Mode.READ, Mode.WRITE])
+def test_claude_runs_the_sandboxed_shell_in_both_modes(setup, tmp_path, mode):
+    """Track W2: the shell tool runs under MAGI's exact flags -- including
+    Read mode's `--permission-mode plan` -- and a write outside is refused."""
+    import shutil
+    import tempfile
+    _, outside, cfg = setup
+    # Not pytest's tmp_path: Python makes it readable by this account only,
+    # and the sandbox user could not even enter it. A real project folder
+    # (and MAGI's copies) are ordinary folders.
+    ws = Path(tempfile.gettempdir()) / "magi-sandbox" / f"offline-shell-{mode.value}"
+    shutil.rmtree(ws, ignore_errors=True)
+    ws.mkdir(parents=True)
+    (ws / "notes.txt").write_text("notes" + chr(10))
+    sp = _shell_spec(tmp_path, ws, mode == Mode.WRITE)
+    f = T.write_mcp_config("t6", "p", ws, "", workspace=(
+        {"root": str(ws), "real": None, "shell": sp} if mode == Mode.WRITE else
+        {"root": str(ws), "readonly": True, "shell": sp}))
+    task = Task("t6", "try it", ws, mode, mcp_config=f, mcp_servers=T.mcp_servers_in(f), shell=sp)
+    target = str(outside / "nope.txt").replace("\\", "/")
+    api = FakeAPI([("mcp__magi_workspace__shell", {"command": "echo SHELL-OK; python -c 'print(6*7)'"}),
+                   ("mcp__magi_workspace__shell", {"command": f"echo x > '{target}'; echo rc=$?"}),
+                   ("mcp__magi_workspace__shell", {"command": "echo y > made.txt; echo rc=$?"})])
+    try:
+        r, evs = _run(task, api, cfg)
+    finally:
+        api.srv.shutdown()
+    assert r.returncode == 0, r.stderr[-1500:]
+    res = api.result_texts()
+    assert len(res) == 3 and not any(err for err, _ in res), res
+    assert "SHELL-OK" in res[0][1] and "42" in res[0][1]
+    assert "rc=1" in res[1][1] and not (outside / "nope.txt").exists(), "never outside"
+    try:
+        if mode == Mode.WRITE:
+            assert "rc=0" in res[2][1] and (ws / "made.txt").exists()
+        else:
+            assert "rc=1" in res[2][1] and not (ws / "made.txt").exists(), "Read mode changes nothing"
+    finally:
+        shutil.rmtree(ws, ignore_errors=True)

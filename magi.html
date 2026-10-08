@@ -7343,8 +7343,9 @@ const HOW = [
       "<b>Manual or Auto</b> (shown while Write is on), like Claude Code&rsquo;s approvals. <b>Manual</b> is the card above: every change waits for you. <b>Auto</b> applies a change to your folder without asking &mdash; the diff is still in the transcript to read afterwards. Auto skips the question, never the rules: a file MAGI&rsquo;s review refuses is still refused, and if the project&rsquo;s automatic check fails the card comes back and asks. In A1, Auto means a change ships to main within minutes. Like Read/Write, a new page opens in Manual.",
       "<b>Some changes are never offered.</b> A diff that reaches into <code>.git</code>, a key or env file, a credentials folder or an agent&rsquo;s own settings folder, or that leaves the folder through <code>..</code> or a link, is refused before you are asked. Write needs a git repository. Approved edits are applied but not committed until you say so. <b>A1 is writable too, but never committed or pushed from here</b>: A1&rsquo;s own auto-commit records every change and pushes it to main within minutes, so approving a change in A1 ships it &mdash; the card says so, and names anything that deploys. MAGI only fetches A1, never pulls, and refuses edits under <code>.github/</code>. A change to the engine&rsquo;s own code under <code>magi/</code> says so too: it does nothing until the engine restarts.",
       "<b>A check beside the diff.</b> Tap the <b>Check</b> pill to give a project a command that exits 0 when it is healthy &mdash; its tests, a build &mdash; picked from what MAGI finds in the folder, with <b>Try it now</b> to see it work. For a Write task it runs in the task&rsquo;s <i>private copy</i> (never your folder), with the folder&rsquo;s <code>node_modules</code> or <code>.venv</code> linked in for the run and removed after, and its pass or fail and output sit on the approval card. It informs Approve; it never decides it. By default you press <b>Run check</b> on the card, after reading the diff, and the approval clock waits while it runs, then gives you the full __APPROVE_MIN__ minutes again. <b>Automatically</b> runs it before the card appears &mdash; that runs the agent&rsquo;s code before anyone has looked at it, so the setting says so. The command stays on the engine PC, can only be set from that PC, never syncs, and runs in the same Windows job as the agents, so it cannot drive MAGI.",
-      "<b>What each agent can do in Write.</b> <b>Claude</b> edits and creates files with its own tools, and moves, renames, copies and deletes files and folders with MAGI&rsquo;s workspace tools &mdash; all in the private copy, with no shell. <b>Codex</b> does the same through its own sandboxed shell. <b>Every other unit</b> sends its changes as blocks MAGI applies: SEARCH/REPLACE edits plus <code>DELETE</code>, <code>MOVE</code> and <code>COPY</code> lines. Before answering, any unit can ask for a file, a folder, a range of lines, or a <code>FIND</code> across the whole project. A move shows on the card as the old file deleted and the new one added, and nothing reaches your folder until you approve. In the <b>Check</b> sheet, <b>Agents may run it</b> lets Claude run the project&rsquo;s check itself while it works and fix what it reports &mdash; that one command, never another, and only in the copy. Every other unit gets the same loop from MAGI: after its edits are applied in the copy, MAGI runs the check, and if it fails, sends the unit the output and the files it changed for another try &mdash; at most two more rounds, then the card shows the diff as it is.",
+      "<b>What each agent can do in Write.</b> <b>Claude</b> edits and creates files with its own tools, and moves, renames, copies and deletes files and folders with MAGI&rsquo;s workspace tools &mdash; all in the private copy &mdash; and runs commands with the sandboxed shell (below). <b>Codex</b> does the same through its own sandboxed shell. <b>Every other unit</b> sends its changes as blocks MAGI applies: SEARCH/REPLACE edits plus <code>DELETE</code>, <code>MOVE</code> and <code>COPY</code> lines. Before answering, any unit can ask for a file, a folder, a range of lines, or a <code>FIND</code> across the whole project. A move shows on the card as the old file deleted and the new one added, and nothing reaches your folder until you approve. In the <b>Check</b> sheet, <b>Agents may run it</b> lets Claude run the project&rsquo;s check itself while it works and fix what it reports &mdash; that one command, never another, and only in the copy. Every other unit gets the same loop from MAGI: after its edits are applied in the copy, MAGI runs the check, and if it fails, sends the unit the output and the files it changed for another try &mdash; at most two more rounds, then the card shows the diff as it is.",
       "<b>Also read other workspaces.</b> Tap <b>Also read</b> on the strip to tick other workspaces the agents may read while they work on this one &mdash; to compare, port, or follow how something is done there. They are read, never changed: Claude reads them with its own tools in Read mode and through read-only MAGI tools in Write mode, Codex at their folders, and every other unit by asking for <code>@name/&hellip;</code> files, with <code>FIND</code> searching them too. Only workspaces you added, with a folder on the engine&rsquo;s PC, can be picked; the choice is kept on each device.",
+      "<b>A shell for every agent, in a sandbox.</b> Agents can run commands the way Claude Code does &mdash; tests, builds, scripts, <code>git</code>, installing packages, starting a dev server and checking it. Every command runs in Git Bash inside Codex&rsquo;s locked-down Windows sandbox, as its own Windows user: in Write mode it can write only in the task&rsquo;s private copy (and a scratch folder), in Read mode nowhere at all, and it cannot reach the MAGI engine. Claude has <code>shell</code> plus background processes (start, read output, stop); every other unit asks with <code>SHELL: command</code> lines. Anything still running stops when the task ends. Per project, in the <b>Check</b> sheet on the engine&rsquo;s PC: the shell on or off (on by default), and <b>internet in the sandbox</b> (off by default; turn it on to install packages). It needs Codex&rsquo;s sandbox set up on that PC (one Windows Yes); without it, agents simply have no shell.",
       "<b>Project instructions.</b> If a project has a <code>CLAUDE.md</code> (or <code>.claude/CLAUDE.md</code>, <code>CLAUDE.local.md</code>, <code>AGENTS.md</code>) &mdash; in the workspace folder or any folder above it up to the repository&rsquo;s top &mdash; every agent is given it with the task, Claude, Codex and every other unit alike, the way Claude Code in VS Code reads it. <code>@file</code> imports inside it are followed two levels deep, inside the repository only. The transcript says which files were used. Where they disagree with how Code Mode works (the private copy, your approval), Code Mode wins.",
       "<b>A map of the project for every unit.</b> Units other than Claude and Codex cannot look around a project themselves, so with the file list MAGI now sends a <b>project map</b>: the classes, functions, types and headings in each file, each with its line number &mdash; the most relevant files first, and in a crowded file the names that match your words first. A unit can then ask for exactly the lines it needs instead of guessing where things live. It covers Python, JavaScript/TypeScript (and the scripts inside HTML), Go, Rust, Java/C#/Kotlin, Ruby, PHP, shell and Markdown. MAGI remembers each file&rsquo;s map until the file changes, so a second task on the same project starts fast.",
       "<b>Commands agents may run.</b> Besides the check, a project can list a few named commands &mdash; build, lint, one test file &mdash; under <b>Check &rsaquo; Commands agents may run</b>. In a Write task an agent may run them in its private copy and read the result: Claude with its <code>run_command</code> tool, every other unit by asking MAGI with a <code>RUN: name</code> line. An agent only ever names one; it never writes a command line. A command marked <b>takes a path</b> accepts one plain relative path (a test file, say) and nothing else &mdash; no spaces, no <code>..</code>, nothing starting with <code>-</code>. Set on the engine&rsquo;s PC only, never synced; like the check, they run code with your rights.",
@@ -12897,6 +12898,21 @@ function codeCheckSheet(proj) {
   const hasAgents = "agents" in cur;
   let agents = !!cur.agents;
   let busy = "", err = "", tried = null;
+  // Track W2: the shell's setting, read when the sheet opens.
+  let shellSt = null, shellBusy = false;
+  const putShell = async (v) => {
+    shellBusy = true; err = ""; draw();
+    try {
+      const d = await codePost(`/projects/${encodeURIComponent(proj.id)}/shell`, v);
+      if (d.ok) shellSt = { ...shellSt, shell: d.shell }; else err = d.message || "Refused.";
+    } catch (e) { err = String(e.message || e); }
+    shellBusy = false; if (sheet.isConnected) draw();
+  };
+  if (codeEngineHas("shell")) {
+    codeGet(`/projects/${encodeURIComponent(proj.id)}/shell`).then((d) => {
+      if (d && d.ok) { shellSt = d; if (sheet.isConnected) draw(); }
+    }).catch(() => {});
+  }
 
   const sheet = el("div", "sheet");
   const box = el("div", "sheet-box sheet-wide ck-sheet");
@@ -13004,6 +13020,52 @@ function codeCheckSheet(proj) {
       tw.append(b);
     }
     body.append(tw);
+    if (codeEngineHas("shell")) {
+      // Track W2: the agents' sandboxed shell -- on/off, internet on/off.
+      body.append(el("label", "sheet-lbl", "Agents' shell"));
+      if (!shellSt) {
+        body.append(el("div", "sheet-note", "Reading…"));
+      } else {
+        const sw = el("div", "ac-win");
+        sw.setAttribute("role", "radiogroup");
+        for (const [v, label] of [[true, "On, sandboxed"], [false, "Off"]]) {
+          const b = el("button", `code-git-act ${shellSt.shell.enabled === v ? "on" : ""}`, label);
+          b.type = "button";
+          b.setAttribute("role", "radio");
+          b.setAttribute("aria-checked", String(shellSt.shell.enabled === v));
+          b.disabled = !local || !!busy || shellBusy;
+          b.onclick = () => putShell({ ...shellSt.shell, enabled: v });
+          sw.append(b);
+        }
+        body.append(sw);
+        if (shellSt.shell.enabled) {
+          body.append(el("label", "sheet-lbl", "Internet in the sandbox"));
+          const nw = el("div", "ac-win");
+          nw.setAttribute("role", "radiogroup");
+          for (const [v, label] of [[false, "Off"], [true, "On (to install packages)"]]) {
+            const b = el("button", `code-git-act ${shellSt.shell.internet === v ? "on" : ""}`, label);
+            b.type = "button";
+            b.setAttribute("role", "radio");
+            b.setAttribute("aria-checked", String(shellSt.shell.internet === v));
+            b.disabled = !local || !!busy || shellBusy;
+            b.onclick = () => putShell({ ...shellSt.shell, internet: v });
+            nw.append(b);
+          }
+          body.append(nw);
+        }
+        body.append(el("div", shellSt.shell.enabled && shellSt.shell.internet ? "sheet-err" : "sheet-note",
+          !shellSt.available && shellSt.available !== null
+            ? `Not available on this PC: ${shellSt.why}`
+            : !shellSt.shell.enabled
+              ? "Agents can run only the check and the commands you list."
+              : "Agents can run any command — tests, builds, servers — inside a Windows sandbox "
+                + "that can write only in the task’s private copy (nothing at all in Read mode)."
+                + (shellSt.shell.internet
+                  ? " With internet on, a command can also send what it can read on this PC "
+                    + "out to the internet. Turn it on for projects you trust, when they need installs."
+                  : " Internet is off, so installing from the internet fails.")));
+      }
+    }
     if (codeEngineHas("commands")) {
       // Track V6: more named commands agents may run, in their own sheet.
       body.append(el("label", "sheet-lbl", "Other commands"));

@@ -106,6 +106,8 @@ class TaskState:
     # Track V4: what the agent proposed (its COMMIT: and BRANCH: lines).
     suggest_subject: str = ""
     suggest_branch: str = ""
+    # Track W2: the shell's scratch folder (scripts, TMP), removed at the end.
+    shell_scratch: str = ""
     opening_pr: bool = False
 
     @property
@@ -286,6 +288,27 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
             # Track V6: the named commands agents may run, set on this PC.
             from . import commands as _cmds
             cmds = _cmds.get(project_id) if sb is not None else []
+            # Track W2: the agents' sandboxed shell, if this PC can give one
+            # and the project has it on. Write: in the copy; Read: your real
+            # folder, read-only.
+            from . import shell as _shell
+            shcfg = _shell.get(project_id)
+            sh = None
+            sh_why = ""
+            if shcfg["enabled"]:
+                ok, why = await loop.run_in_executor(None, lambda: _shell.availability(wait=True))
+                if ok:
+                    scratch = sandbox._profile_dir(_profile()) / f"{t.id}-shell"
+                    t.shell_scratch = str(scratch)
+                    sh = await loop.run_in_executor(None, lambda: _shell.spec(
+                        cwd=sb.cwd if sb is not None else root, scratch=scratch,
+                        write=sb is not None, internet=shcfg["internet"],
+                        extra_writable=[Path(w.copy) for w in t.writes if w.copy]))
+                else:
+                    sh_why = why
+                    await emit({"k": "note", "text": f"No shell for the agents in this task: {why}"})
+            else:
+                sh_why = "switched off for this project (Check sheet)"
             if sb is not None:
                 ck = t.check_cfg if t.check_cfg.get("agents") else {}
                 ws = {"root": str(sb.cwd), "real": str(root),
@@ -293,7 +316,12 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                                 if ck.get("command") else None),
                       "refs": [{"name": n, "root": p} for n, p in t.refs],
                       "writes": [{"name": w.name, "root": w.copy} for w in t.writes],
-                      "commands": cmds}
+                      "commands": cmds, "shell": sh}
+            elif sh is not None:
+                # Read mode: a server with the shell only (and the reference
+                # tools) -- nothing on it changes a file.
+                ws = {"root": str(root), "readonly": True, "shell": sh,
+                      "refs": [{"name": n, "root": p} for n, p in t.refs]}
             # Track W1: the project's own instructions, for every agent.
             from . import instructions as _instr
             top = await loop.run_in_executor(None, G.toplevel, root)
@@ -324,6 +352,7 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                         agent_check=((ws or {}).get("check") or {}).get("command", ""),
                         agent_check_min=int(((ws or {}).get("check") or {}).get("timeout_min") or 0),
                         real_root=root, agent_commands=cmds, instructions=instr,
+                        shell=sh, shell_why=sh_why,
                         attachments=t.attachments, images=t.images, inventory=inv,
                         refs=[(n, Path(p)) for n, p in t.refs],
                         writes=[(w.name, Path(w.copy)) for w in t.writes])
@@ -378,6 +407,10 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                     await loop.run_in_executor(None, w.sb.remove)
             _mcp_path(t.id).unlink(missing_ok=True)
             _ws_path(t.id).unlink(missing_ok=True)
+            if t.shell_scratch:
+                # Scripts and temp files; the package cache is kept (shell.cache_dir).
+                import shutil as _sh
+                await loop.run_in_executor(None, lambda: _sh.rmtree(t.shell_scratch, ignore_errors=True))
             t.done = True
             await publish(t, {"k": "end", "result": t.result})
             for q in list(t.viewers):

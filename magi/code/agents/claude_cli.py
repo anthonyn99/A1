@@ -91,7 +91,12 @@ def build_argv(exe: str, task: Task, model: str | None = None,
     write = task.mode == Mode.WRITE
     argv = [exe, "-p", "--output-format", "stream-json", "--verbose",
             "--restricted", "--strict-mcp-config",
-            "--permission-mode", "acceptEdits" if write else "plan",
+            # Track W2: plan mode refuses every MCP tool ("Cannot call ... while
+            # in plan mode", found offline 2026-10-08), the read-only shell
+            # included. With a shell, Read mode runs in default mode instead:
+            # still only Read/Glob/Grep (--tools) and the allowed MAGI tools,
+            # so nothing can edit -- the shell itself is read-only there.
+            "--permission-mode", "acceptEdits" if write else ("default" if task.shell else "plan"),
             "--tools", WRITE_TOOLS if write else READ_TOOLS]
     if images:
         argv += ["--input-format", "stream-json"]
@@ -126,6 +131,25 @@ def build_argv(exe: str, task: Task, model: str | None = None,
     return argv
 
 
+def shell_how(task: Task) -> str:
+    """Track W2: what Claude is told about its shell, in either mode."""
+    sp = task.shell
+    if not sp:
+        return ""
+    where = ("the private copy" if task.mode == Mode.WRITE
+             else "the project folder, read-only (nothing can be changed in Read mode)")
+    net = ("Internet is ON in it: install what you need locally (npm install, a .venv + pip)."
+           if sp.get("internet") else
+           "Internet is OFF in it: installs from the internet will fail -- say so if the task needs one.")
+    return ("You have a shell: the magi_workspace `shell` tool runs bash commands (Git Bash) in "
+            + where + ", inside a Windows sandbox that can write nowhere else on this PC. "
+            + net + " Use it to run tests, builds, scripts and git commands, and to try "
+            "things. For a dev server or a watcher use start_process, then check it with "
+            "`curl http://127.0.0.1:<port>` through `shell` and process_output; stop it when "
+            "done (everything is stopped when the task ends). Report what commands actually "
+            "printed. ")
+
+
 def write_frame(task: Task) -> str | None:
     """Claude's write-mode framing when it has the workspace tools -- the
     plain WRITE_FRAME tells an agent it cannot move, delete or run anything,
@@ -139,7 +163,13 @@ def write_frame(task: Task) -> str | None:
            if task.agent_check else
            "Running the project's commands or tests is not part of this mode; do not claim "
            "to have run any. ")
-    if task.agent_commands:
+    if task.shell:
+        # Track W2: a real shell -- the check and the named commands become
+        # shortcuts, not the only things it can run.
+        run = shell_how(task) + (
+            f"The project's check is `{task.agent_check}` (run_check runs it). "
+            if task.agent_check else "")
+    elif task.agent_commands:
         # Track V6: the project's named commands, through run_command.
         run = (run if task.agent_check else "") + (
                 "You can run these named project commands with the run_command tool -- "
@@ -378,6 +408,9 @@ class ClaudeCLIAgent(CodingAgent):
         resume = task.resume_for(self.id)
         prompt = task.prompt_for(self.id, frame=write_frame(task), refs_how=refs_how(task),
                                  writes_how=writes_how(task))
+        if task.mode != Mode.WRITE and task.shell and not task.resume_for(self.id):
+            # Track W2: Read mode has no write frame to carry it.
+            prompt = shell_how(task).strip() + "\n\n---\n\n" + prompt
         images = task.images_for(self.id)
         try:
             s = Stream(build_argv(exe, task, pick.get("model"), pick.get("effort"), resume,
