@@ -8576,6 +8576,13 @@ function App(){
   const[mgMonthly,setMgMonthlyState]=useState(init.monthlyGoals||[]);
   const[goalPrefs,setGoalPrefsState]=useState(()=>({...GOAL_PREFS_DEF,...(init.goalPrefs||{})}));
   const[goalTab,setGoalTab]=useState("short");
+  // Quotes the user has edited, added to, deleted or reordered. null = still the
+  // built-in list (TONY_INSPIRE); the first change stores the whole list, in
+  // order, on the dashboard doc as `quotes`. Kept in its own ref rather than
+  // stateRef because vxApply/applyRemote rebuild stateRef wholesale and would drop it.
+  const tgQValid=a=>Array.isArray(a)?a.filter(q=>q&&typeof q.id==="string"&&typeof q.text==="string"&&q.text.trim()):null;
+  const[tgCustom,setTgCustomState]=useState(()=>tgQValid(loadJ("td6_quotes",null)));
+  const tgCustomRef=useRef(tgCustom);
   useEffect(()=>{window._goalTabHover=(tab)=>{setGoalTab(tab);};return()=>{delete window._goalTabHover;};},[]);
   const[marketCal,setMarketCal]=useState([]);
 
@@ -8616,6 +8623,7 @@ function App(){
       goals:stateRef.current.goals,
       monthlyGoals:stateRef.current.monthlyGoals,
       goalPrefs:stateRef.current.goalPrefs||{...GOAL_PREFS_DEF},
+      ...(tgCustomRef.current?{quotes:tgCustomRef.current}:{}),
       weekKey:getMondayKey(new Date()),
       savedAt:Date.now()
     };
@@ -8683,6 +8691,7 @@ function App(){
   const setMg=useCallback(fn=>{setMgState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(T_SK.goals,next);stateRef.current={...stateRef.current,goals:next};fbPush();return next;});},[fbPush]);
   const setMgMonthly=useCallback(fn=>{setMgMonthlyState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(T_SK.mgoals,next);stateRef.current={...stateRef.current,monthlyGoals:next};fbPush();return next;});},[fbPush]);
   const setGoalPrefs=useCallback(fn=>{setGoalPrefsState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(T_SK.goalPrefs,next);stateRef.current={...stateRef.current,goalPrefs:next};fbPush();return next;});},[fbPush]);
+  const setTgQuotes=useCallback(next=>{tgCustomRef.current=next;setTgCustomState(next);saveJ("td6_quotes",next);fbPush();},[fbPush]);
 
   // ── Voice control: undo/redo history (covers BOTH manual edits and AI/voice changes) + button state ──
   const vxHist=useRef({past:[],future:[],base:null,timer:null,applying:false});
@@ -8766,6 +8775,9 @@ function App(){
     const gm=pruneDoneGoals(Array.isArray(remote.monthlyGoals)?remote.monthlyGoals:(stateRef.current.monthlyGoals||[]));
     const gp=remote.goalPrefs?{...GOAL_PREFS_DEF,...remote.goalPrefs}:{...stateRef.current.goalPrefs};
     setDataState(d);setHabitsState(h);setHcState(hcD);setMgState(g);setMgMonthlyState(gm);setGoalPrefsState(gp);
+    // Absent `quotes` = no news (older doc / older build); a present array wins.
+    const rq=tgQValid(remote.quotes);
+    if(rq){tgCustomRef.current=rq;setTgCustomState(rq);saveJ("td6_quotes",rq);}
     stateRef.current={data:d,habits:h,hc:hcD,goals:g,monthlyGoals:gm,goalPrefs:gp};
     saveJ(T_SK.data,d);saveJ(T_SK.habits,h);saveJ(T_SK.hc,hcD);saveJ(T_SK.goals,g);saveJ(T_SK.mgoals,gm);saveJ(T_SK.goalPrefs,gp);
     localStorage.setItem(T_SK.seeded,"1");localStorage.setItem(T_SK.weekKey,cw);
@@ -9278,11 +9290,58 @@ function App(){
   ];
 
   // Shuffled queue — cycles all quotes in random order before repeating
-  function tgShuffled(){const a=[...TONY_INSPIRE.map((_,i)=>i)];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+  // The queue holds quote IDS, never positions, so dragging the All Quotes list
+  // around (or editing a quote) cannot change what rotates or what shows now.
+  const tgQuotes=tgCustom||TONY_INSPIRE.map((q,i)=>({...q,id:"d"+i}));
+  const tgQuotesRef=useRef(tgQuotes);tgQuotesRef.current=tgQuotes;
+  const tgIdsKey=tgQuotes.map(q=>q.id).join("|");
+  function tgShuffled(){const a=tgQuotesRef.current.map(q=>q.id);for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
   const[tgState,setTgState]=useState(()=>{const q=tgShuffled();const qi=Math.floor(Math.random()*q.length);return{q,qi};});
-  const tgLesson=TONY_INSPIRE[tgState.q[tgState.qi]];
+  const tgLesson=tgQuotes.find(q=>q.id===tgState.q[tgState.qi])||tgQuotes[0]||null;
   const tgNext=()=>{setTgState(prev=>{let ni=prev.qi+1,q=prev.q;if(ni>=q.length){q=tgShuffled();ni=0;}return{q,qi:ni};});};
+  // Quotes added/deleted/synced in: drop the gone ones from the queue and slip
+  // each new one into a random spot in the part not yet shown. The quote on
+  // screen stays put unless it was the one deleted. A pure reorder or text edit
+  // leaves the same id set, so nothing happens.
+  useEffect(()=>{setTgState(prev=>{
+    const ids=tgQuotesRef.current.map(q=>q.id),set=new Set(ids);
+    if(prev.q.length===ids.length&&prev.q.every(id=>set.has(id)))return prev;
+    const curId=prev.q[prev.qi];
+    const q=prev.q.filter(id=>set.has(id));
+    let qi=curId&&set.has(curId)?q.indexOf(curId):Math.min(prev.q.slice(0,prev.qi).filter(id=>set.has(id)).length,Math.max(0,q.length-1));
+    const have=new Set(q);
+    ids.filter(id=>!have.has(id)).forEach(id=>{q.splice(qi+1+Math.floor(Math.random()*(q.length-qi)),0,id);});
+    return{q,qi};
+  });},[tgIdsKey]);
   const[tgShowAll,setTgShowAll]=useState(false);
+  const[tgEdit,setTgEdit]=useState(null);   // {id:"new"|quoteId,text,author}
+  const tgListRef=useRef(null);
+  const tgSaveEdit=()=>{
+    if(!tgEdit)return;const text=tgEdit.text.trim(),author=(tgEdit.author||"").trim();
+    if(!text)return;
+    const mk=id=>author?{id,text,author}:{id,text};
+    if(tgEdit.id==="new")setTgQuotes([mk("u"+Date.now().toString(36)+Math.random().toString(36).slice(2,6)),...tgQuotes]);
+    else setTgQuotes(tgQuotes.map(q=>q.id===tgEdit.id?mk(q.id):q));
+    setTgEdit(null);
+  };
+  const tgDelete=async q=>{
+    const t=q.text.length>90?q.text.slice(0,90).trim()+"…":q.text;
+    const msg="Delete “"+t+"”? This can’t be undone.";
+    const ok=window.uiConfirm?await window.uiConfirm(msg,{title:"Delete quote",okLabel:"Delete",cancelLabel:"Cancel",danger:true}):window.confirm(msg);
+    if(!ok)return;
+    if(tgEdit&&tgEdit.id===q.id)setTgEdit(null);
+    setTgQuotes(tgQuotesRef.current.filter(x=>x.id!==q.id));
+  };
+  // Drag to reorder: the same A1Drag every other A1 list uses — a mouse takes a
+  // row anywhere, a finger after a 300ms hold, no grip. Display order only; the
+  // rotation queue is keyed by id (above) and never looks at this order.
+  useEffect(()=>{
+    if(!tgShowAll||!window.A1Drag||!tgListRef.current)return;
+    window.A1Drag.sort(tgListRef.current,{row:".tgq-row",hold:300,
+      canDrag:r=>r.getAttribute("data-editing")!=="1",
+      onDrop:(from,to)=>{const a=[...tgQuotesRef.current];const[m]=a.splice(from,1);a.splice(to,0,m);setTgQuotes(a);}});
+  },[tgShowAll,setTgQuotes]);
+  useEffect(()=>{if(!tgShowAll)setTgEdit(null);},[tgShowAll]);
 
   const[mo,setMo]=useState(false);const[mdt,setMdt]=useState(null);const[ei,setEi]=useState(null);
   // How many shared plans are waiting on this profile right now. Surfaced on the
@@ -9751,6 +9810,17 @@ function App(){
   const stt={fontFamily:"'Manrope',system-ui,sans-serif",fontSize:11.5,fontWeight:800,color:T.ACL,marginBottom:10,borderBottom:"1px solid "+T.BD,paddingBottom:8,letterSpacing:1.6,textTransform:"uppercase"};
   const inp={background:T.S2,border:"1px solid "+T.BDL,borderRadius:6,color:T.TX,fontSize:14,fontWeight:600,padding:"7px 11px",fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"};
   const dbtn={background:"transparent",border:"none",color:T.ERR,cursor:"pointer",fontSize:15,padding:"0 4px",lineHeight:1,fontFamily:"inherit",fontWeight:700};
+  // Add / edit form for the All Quotes popup: a plain function (not a component)
+  // so React keeps the same inputs — and focus — across re-renders.
+  const tgQForm=()=>{
+    const ok=!!(tgEdit.text||"").trim();
+    return React.createElement("div",{style:{padding:"clamp(12px,2vw,16px) 0",display:"flex",flexDirection:"column",gap:8},onKeyDown:e=>{if(e.key==="Escape"){e.stopPropagation();setTgEdit(null);}else if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();tgSaveEdit();}}},
+      React.createElement("textarea",{autoFocus:true,rows:3,value:tgEdit.text,placeholder:"Quote",onChange:e=>{const v=e.target.value;setTgEdit(p=>({...p,text:v}));},style:{...inp,fontSize:14,fontWeight:500,resize:"vertical",lineHeight:1.5,minHeight:70}}),
+      React.createElement("input",{type:"text",value:tgEdit.author,placeholder:"Author (optional)",onChange:e=>{const v=e.target.value;setTgEdit(p=>({...p,author:v}));},style:{...inp,fontSize:13,fontWeight:500}}),
+      React.createElement("div",{style:{display:"flex",justifyContent:"flex-end",gap:8}},
+        React.createElement("button",{type:"button",onClick:()=>setTgEdit(null),style:{...hbtn(false),color:T.TXM,border:"1px solid "+T.BD},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD},"Cancel"),
+        React.createElement("button",{type:"button",disabled:!ok,onClick:tgSaveEdit,style:{...hbtn(false),background:T.AC,color:T.BG,border:"1px solid "+T.AC,opacity:ok?1:0.4,cursor:ok?"pointer":"default"}},"Save")));
+  };
   const ebtn={background:"transparent",border:"none",color:T.TXD,cursor:"pointer",fontSize:12,padding:"0 3px",lineHeight:1,fontFamily:"inherit"};
   // Today and the day you are standing on are both marked with a bright
   // outline. In this theme T.ACL and T.AC are the SAME gold, so marking both in
@@ -9857,11 +9927,23 @@ function App(){
       React.createElement("div",{onClick:e=>e.stopPropagation(),style:{background:T.BG,border:"1px solid "+T.BD,borderRadius:12,width:"100%",maxWidth:640,boxSizing:"border-box",flex:1,minHeight:0,display:"flex",flexDirection:"column",overflow:"hidden",wordBreak:"break-word",overflowWrap:"break-word"}},
         React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"clamp(14px,3vw,20px) clamp(16px,4vw,28px)",borderBottom:"1px solid "+T.BD,flexShrink:0,background:T.BG,borderRadius:"12px 12px 0 0"}},
           React.createElement("span",{style:{fontFamily:"'Manrope',system-ui,sans-serif",fontSize:"clamp(15px,1.6vw,18px)",fontWeight:700,color:T.TX,letterSpacing:0.3}},"All Quotes"),
+          React.createElement("span",{style:{marginLeft:10,marginRight:"auto",fontSize:10,fontWeight:600,whiteSpace:"nowrap",visibility:syncStatus==="saving"||syncStatus==="saved"||syncStatus==="error"?"visible":"hidden",color:syncStatus==="saving"?T.TXM:syncStatus==="error"?T.ERR:T.GRN}},syncStatus==="saving"?"Syncing…":syncStatus==="error"?"Sync failed":"Synced"),
+          React.createElement("button",{type:"button",onClick:()=>setTgEdit({id:"new",text:"",author:""}),title:"Add a quote",style:{...hbtn(false),marginRight:8,color:T.AC,border:"1px solid "+T.BD},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD},"+ Add"),
           React.createElement("button",{type:"button",onClick:()=>setTgShowAll(false),style:{background:"transparent",border:"1px solid "+T.BD,borderRadius:5,cursor:"pointer",padding:"4px 12px",color:T.TXD,fontSize:18,lineHeight:1,fontFamily:"inherit",transition:"all .15s",flexShrink:0},onMouseEnter:e=>{e.currentTarget.style.borderColor=T.AC;e.currentTarget.style.color=T.AC;},onMouseLeave:e=>{e.currentTarget.style.borderColor=T.BD;e.currentTarget.style.color=T.TXD;}},"×")),
         React.createElement(TgScrollBox,{theme:T,trackInset:8,style:{padding:"0 clamp(22px,4vw,34px) 0 clamp(16px,4vw,28px)",boxSizing:"border-box"}},
-          TONY_INSPIRE.map((q,i)=>React.createElement("div",{key:i,style:{padding:"clamp(12px,2vw,16px) 0",borderBottom:"1px solid "+T.BD,display:"flex",flexDirection:"column",gap:6}},
-            React.createElement("p",{style:{fontFamily:"var(--font-accent)",fontSize:"clamp(13px,1.3vw,15px)",color:T.TX,lineHeight:1.65,margin:0}},"\u201c"+q.text+"\u201d"),
-            React.createElement("span",{style:{fontFamily:"'Manrope',system-ui,sans-serif",fontSize:11,color:T.TXD,letterSpacing:0.3,alignSelf:"flex-end"}},q.author?"— "+q.author:null)))),
+          React.createElement("div",null,
+            tgEdit&&tgEdit.id==="new"&&tgQForm(),
+            React.createElement("div",{ref:tgListRef},
+              tgQuotes.map(q=>tgEdit&&tgEdit.id===q.id
+                ?React.createElement("div",{key:q.id,className:"tgq-row","data-editing":"1",style:{borderBottom:"1px solid "+T.BD}},tgQForm())
+                :React.createElement("div",{key:q.id,className:"tgq-row",style:{padding:"clamp(12px,2vw,16px) 0",borderBottom:"1px solid "+T.BD,display:"flex",alignItems:"flex-start",gap:10,userSelect:"none",WebkitUserSelect:"none",WebkitTouchCallout:"none"}},
+                  React.createElement("div",{style:{flex:1,minWidth:0,display:"flex",flexDirection:"column",gap:6}},
+                    React.createElement("p",{style:{fontFamily:"var(--font-accent)",fontSize:"clamp(13px,1.3vw,15px)",color:T.TX,lineHeight:1.65,margin:0}},"“"+q.text+"”"),
+                    q.author?React.createElement("span",{style:{fontFamily:"'Manrope',system-ui,sans-serif",fontSize:11,color:T.TXD,letterSpacing:0.3,alignSelf:"flex-end"}},"— "+q.author):null),
+                  React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:6,flexShrink:0}},
+                    [["edit","Edit quote",TNI.pencil,T.AC,()=>setTgEdit({id:q.id,text:q.text,author:q.author||""})],["del","Delete quote",TNI.trash,T.ERR,()=>tgDelete(q)]].map(b=>
+                      React.createElement("button",{key:b[0],type:"button",title:b[1],"aria-label":b[1],onClick:b[4],style:{width:30,height:30,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"transparent",border:"1px solid "+T.BD,borderRadius:6,cursor:"pointer",color:T.TXM,padding:0,opacity:0.7,transition:"all .15s"},onMouseEnter:e=>{e.currentTarget.style.opacity="1";e.currentTarget.style.borderColor=b[3];e.currentTarget.style.color=b[3];},onMouseLeave:e=>{e.currentTarget.style.opacity="0.7";e.currentTarget.style.borderColor=T.BD;e.currentTarget.style.color=T.TXM;}},React.createElement("span",{style:{width:14,height:14,display:"inline-flex"},dangerouslySetInnerHTML:{__html:b[2]}}))))))),
+            !tgQuotes.length&&!tgEdit&&React.createElement("p",{style:{color:T.TXD,fontSize:13,textAlign:"center",margin:"28px 0"}},"No quotes yet — tap + Add to write one."))),
         React.createElement("div",{style:{height:"clamp(8px,2vw,16px)",flexShrink:0}}))),
 
     // Weather bar + Quote Banner + Tesla card share ONE horizontal band, so the
@@ -9875,12 +9957,12 @@ function App(){
         BG:T.BG,S1:T.S1,BD:T.BD,BDL:T.BDL,TX:T.TX,TXD:T.TXD,TXM:T.TXM,AC:T.AC,ACG:T.ACG,
         hov:T.S2,radius:8,font:"'Inter',system-ui,-apple-system,sans-serif"}}),
     React.createElement("div",{className:"thwx-bq",style:{flexDirection:"column",justifyContent:"center",alignItems:"stretch",position:"relative"}},
-      React.createElement("p",{className:"thwx-bq-line",style:{color:T.TXD}},"“"+tgLesson.text+"”"),
+      React.createElement("p",{className:"thwx-bq-line",style:{color:T.TXD}},tgLesson?"“"+tgLesson.text+"”":""),
       // Attribution and controls sit centred directly beneath the quote. They
       // used to be flushed right, which parked them under the Tesla card rather
       // than under the line they belong to.
       React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,gap:4}},
-        React.createElement("span",{style:{fontFamily:"var(--font-accent)",fontSize:11,color:T.TXM,letterSpacing:0.3,textAlign:"center"}},tgLesson.author?"— "+tgLesson.author:""),
+        React.createElement("span",{style:{fontFamily:"var(--font-accent)",fontSize:11,color:T.TXM,letterSpacing:0.3,textAlign:"center"}},tgLesson&&tgLesson.author?"— "+tgLesson.author:""),
         React.createElement("button",{type:"button",onClick:tgNext,title:"Next quote",style:{background:"transparent",border:"1px solid "+T.BD,borderRadius:6,cursor:"pointer",padding:"1px 7px",color:T.TXM,fontSize:10,fontWeight:700,lineHeight:"18px",letterSpacing:0.5,opacity:0.6,transition:"all .15s",fontFamily:"inherit"},onMouseEnter:function(e){e.currentTarget.style.opacity="1";e.currentTarget.style.borderColor=T.AC;e.currentTarget.style.color=T.AC;},onMouseLeave:function(e){e.currentTarget.style.opacity="0.6";e.currentTarget.style.borderColor=T.BD;e.currentTarget.style.color=T.TXM;}},React.createElement("span",{style:{width:13,height:13,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.refresh}})),
         React.createElement("button",{type:"button",onClick:()=>setTgShowAll(true),title:"View all quotes",style:{background:"transparent",border:"1px solid "+T.BD,borderRadius:6,cursor:"pointer",padding:"1px 7px",color:T.TXM,fontSize:10,fontWeight:700,lineHeight:"18px",fontFamily:"inherit",letterSpacing:0.5,opacity:0.6,transition:"all .15s"},onMouseEnter:function(e){e.currentTarget.style.opacity="1";e.currentTarget.style.borderColor=T.AC;e.currentTarget.style.color=T.AC;},onMouseLeave:function(e){e.currentTarget.style.opacity="0.6";e.currentTarget.style.borderColor=T.BD;e.currentTarget.style.color=T.TXM;}},React.createElement("span",{style:{width:13,height:13,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.notes}})))),
       // Tesla — Tony's only. Same token contract the weather widget takes, so
