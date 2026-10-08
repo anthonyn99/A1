@@ -294,6 +294,14 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                       "refs": [{"name": n, "root": p} for n, p in t.refs],
                       "writes": [{"name": w.name, "root": w.copy} for w in t.writes],
                       "commands": cmds}
+            # Track W1: the project's own instructions, for every agent.
+            from . import instructions as _instr
+            top = await loop.run_in_executor(None, G.toplevel, root)
+            instr, instr_files = await loop.run_in_executor(
+                None, lambda: _instr.load(root, top))
+            if instr_files:
+                await emit({"k": "tool", "name": "Instructions",
+                            "target": ", ".join(instr_files)})
             if t.refs:
                 await emit({"k": "note", "text": "Also reading, never changing: "
                             + ", ".join("@" + n for n, _ in t.refs) + "."})
@@ -315,7 +323,7 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                         mcp_servers=mcp_servers_in(mcp),
                         agent_check=((ws or {}).get("check") or {}).get("command", ""),
                         agent_check_min=int(((ws or {}).get("check") or {}).get("timeout_min") or 0),
-                        real_root=root, agent_commands=cmds,
+                        real_root=root, agent_commands=cmds, instructions=instr,
                         attachments=t.attachments, images=t.images, inventory=inv,
                         refs=[(n, Path(p)) for n, p in t.refs],
                         writes=[(w.name, Path(w.copy)) for w in t.writes])

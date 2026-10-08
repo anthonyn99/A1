@@ -132,6 +132,9 @@ class Task:
     # write mode only; and, for a browser unit, what its RUN: lines returned.
     agent_commands: list[dict] = field(default_factory=list)
     run_results: str = ""
+    # Track W1: the project's CLAUDE.md / AGENTS.md text (code/instructions.py),
+    # given to every agent; "" when the project has none.
+    instructions: str = ""
     # Track V: other registered workspaces this task may READ, as
     # (name, folder). Never written: each agent is told how to read them
     # (refs_block), and nothing that writes can reach them.
@@ -245,9 +248,12 @@ class Task:
         plain WRITE_FRAME says it lacks. `refs_how`: how it reads the
         reference folders."""
         from ..followup import CLI_BUDGET, NEW_MESSAGE, added_block
+        from ..instructions import block as instructions_block
         parts = []
         if self.mode == Mode.WRITE:
             parts.append(frame or WRITE_FRAME)
+        if self.instructions:
+            parts.append(instructions_block(self.instructions))
         if self.state_note:
             parts.append(self.state_note)
         hist = self.history(CLI_BUDGET if budget is None else budget)

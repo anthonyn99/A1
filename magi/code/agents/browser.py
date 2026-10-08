@@ -192,6 +192,16 @@ class BrowserUnitAgent(CodingAgent):
             body += _SUPPLIED
         if last:
             body += _LAST_ROUND
+        if task.instructions:
+            # Track W1: the project's own CLAUDE.md / AGENTS.md, within a
+            # unit's share of its chat box.
+            from ..instructions import UNIT_CHARS, block as instructions_block
+            text = task.instructions
+            if len(text) > UNIT_CHARS:
+                text = text[:UNIT_CHARS].rsplit("\n", 1)[0] + (
+                    "\n[... more project instructions did not fit; ask for CLAUDE.md with NEED: "
+                    "if you need them.]")
+            body += instructions_block(text) + "\n\n"
         if task.mode == Mode.WRITE:
             body += edits.FORMAT_HELP + "\n\n"
             if task.agent_check:

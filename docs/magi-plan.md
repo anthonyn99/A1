@@ -9,7 +9,13 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-10-08: **Track V is COMPLETE (V1–V7).** V7 = the
+**Last updated:** 2026-10-08 (later): **Track W agreed and started** --
+Tony: "make project instructions (md) enabled on MAGI. Also make ... install
+packages, start servers, try things freely, see what opens in your editor
+and its errors ... doable. Put it on the level of Claude Code VSC." Phases
+W1-W4 in §8 "Track W", built in order in the same session, each with a
+"what's manual" note. Track V is complete:
+**Track V is COMPLETE (V1–V7).** V7 = the
 project map: browser units get every file's classes/functions/headings with
 line numbers (relevant first, cached by mtime). Live: DeepSeek found
 `pkg/area4/mod34.py:93` among 60 files from the map alone. **Next phase: none
@@ -58,7 +64,7 @@ ALL of Track S (**S1**, **S2**, **S3**, **U1**, **U2**, **U3**, **U4**), and
 ALL of Track F (**F1**, **F2**, **F3**, **F4**). Follow-ups, mid-run
 messages and continue-from-History are live in both Deliberation and Code
 Mode.
-**Next phase:** none agreed. Track V is complete; ask Tony.
+**Next phase:** Track W, in order W1 → W4 (§8 "Track W").
 Nothing is half-built.
 
 **If a fresh session touches Code Mode follow-ups**, the map is "What
@@ -3222,6 +3228,23 @@ mutants killed), one HOW contract; live `tests/live/magi-code-v7.live.js` 4/4.
 A short page explaining V3–V7 for both of them was published as a Claude
 Docs document on 2026-10-08 (link in that session's last message). The
 source of truth stays docs/magi.md.
+
+## Track W — the rest of the way to Claude Code in VS Code (Tony, 2026-10-08)
+
+What Claude Code in VS Code had that Code Mode did not (Tony was told,
+2026-10-08): project instructions, a shell (install packages, start servers,
+try things), the editor's Problems, and what file/selection is open.
+
+| # | Phase | What it adds | Status |
+|---|---|---|---|
+| W1 | Project instructions | CLAUDE.md / .claude/CLAUDE.md / CLAUDE.local.md / AGENTS.md from the repository top down to the workspace, `@path` imports (2 levels, inside the repo), capped; given to EVERY agent as PROJECT INSTRUCTIONS. Verified offline 2026-10-08: MAGI's Claude (`--restricted`) did NOT load CLAUDE.md itself, so nothing is doubled. | next |
+| W2 | A sandboxed shell | `shell` + background processes (start / output / stop) for Claude (workspace server) and units (`SHELL:` lines), every command run through Codex's ELEVATED Windows sandbox: writes only in the task's copy (verified 2026-10-08: unlisted folders refuse writes and deletes), the agents' job + engine guard as before. Internet inside it is a per-project switch on the engine PC (off by default). Needs the Codex CLI + its sandbox set up on that PC; without it, the shell says so and nothing else changes. | planned |
+| W3 | Problems | Diagnostics like VS Code's Problems panel: TypeScript, ESLint, Ruff, Pyright, py_compile (detected) or the project's own, parsed to file:line:message; shown in the console; given to agents before their work and re-run after their edits. | planned |
+| W4 | What's open | A file viewer in Code Mode: the file you are looking at and any lines you select go with your message ("OPEN IN THE EDITOR"), like VS Code's open file and selection. | planned |
+
+Boundaries that stay: every change still goes through the private copy and
+your approval; nothing runs in your real folder; nothing that runs code is
+settable over the tunnel; A1's rules (ENGINE_REPO) unchanged.
 
 ---
 
