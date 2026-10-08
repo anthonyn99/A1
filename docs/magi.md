@@ -699,6 +699,33 @@ Files: `magi/code/ws_mcp.py`, `agents/edits.py`, `agents/context.py`
 `test_code_refs.py`, `test_claude_cli_offline.py`, two in
 `test_howitworks.py`; live `tests/live/magi-code-v.live.js`.
 
+#### Changing several workspaces in one task (Track V3, 2026-10-08)
+
+The Also read sheet offers **Off / Read / Change** for each other workspace
+(when the engine lists `writes` in `features`). **Change** means a Write task
+may edit that workspace as well as the one it runs in: a site and its worker,
+a library and the app that uses it.
+
+| | What happens |
+|---|---|
+| Sent | `POST /tasks` `writes: [project_id]` beside `refs`. Ids of workspaces registered here only, never a path (`routes._task_writes`); at most 4; each must be in a git repository of its own (two folders in one repository would be two copies of it applied over each other: work on the folder that holds both). In Read mode they join `refs` and are only read. |
+| Pull | Every workspace is pulled first, each as its own project's GitHub account (A1 fetch-only, as always). |
+| Copies | One private copy each (`sandbox.create(..., "<task>-2")`, `-3`...), removed when the task ends. |
+| Agents | Told under OTHER WORKSPACES YOU MAY CHANGE. Claude: `--add-dir <copy>` in Write mode (acceptEdits on a copy is the point; never a reference folder, never a real one) and the workspace tools take `@name/...` (`ws_mcp.Server(writes=)`). Codex: `--add-dir <copy>` (verified on the elevated sandbox: a listed root is writable, an unlisted sibling still refuses writes and deletes). Browser units: the copy's index like a reference folder, and the same blocks with `@name/...` paths (`edits.apply(writable=)`); a move or copy may cross between workspaces. |
+| Card | One card. Files from another workspace read `@name/path` with `ws`; `sections` gives each workspace's paths, counts and A1 flags. One refused file anywhere refuses the whole change. |
+| Apply | `sandbox.apply_all`: every part is planned first (re-review, `git apply --check`, or a three-way merge in memory); nothing is written unless all can go on. A write that still fails puts back every part already written, byte for byte. The result's `repos` lists each repository and its files. |
+| Commit / Push | One Commit press = one commit per repository (its files only, same message, its hooks); A1's part is left to A1's auto-commit. Push pushes each committed repository as its own project's account; a refused one says so and can be pushed again. |
+| Check | The project's check runs in the main workspace's copy, as before. |
+
+Files: `tasks.py` (`Part`, `_changed`, `_card_files`, `_apply_parts`,
+`_commit_parts`, `_push_parts`), `sandbox.py` (`_plan`, `_execute`,
+`apply_all`), `routes.py` (`_task_writes`), `agents/base.py` (`writes`,
+`writes_block`), `agents/claude_cli.py` (`writes_how`), `agents/codex_cli.py`,
+`agents/browser.py` (`WRITES_HOW`), `agents/edits.py`, `ws_mcp.py`. Console:
+`codeWrites`, `CODE_WRITES_KEY` (per device, never synced), the sheet's rows,
+`codeApprovalSections`. Tests: `test_code_multi_write.py`, one in
+`test_howitworks.py`; live `tests/live/magi-code-v3.live.js`.
+
 #### Git: pull before work, the repository line, commit
 
 **MAGI performs git itself; agents never get git.** They edit a sandbox and

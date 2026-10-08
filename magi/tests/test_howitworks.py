@@ -557,3 +557,23 @@ def test_the_code_followup_claims_still_hold():
     assert "for (const id of ids) {\n      CLOUD.fs.deleteDoc(_codeTaskDoc(id))" in PAGE.replace("\r\n", "\n")
     # "it says so instead of quietly starting a new session"
     assert "has no folder on this engine" in PAGE
+
+
+def test_the_change_other_workspaces_claims_still_hold():
+    """Track V3: one card, a copy each, whole or not at all, up to 4."""
+    import inspect
+    from magi.code import routes as RT, sandbox as SB, tasks as TK
+    assert "Change other workspaces too" in HOW
+    # "Up to 4, each in a git repository of its own".
+    assert RT.MAX_TASK_WRITES == 4 and "same repository" in inspect.getsource(RT._task_writes)
+    assert "const CODE_WRITES_MAX = 4;" in PAGE
+    # "its own private copy": one sandbox per workspace.
+    assert "sandbox.create, Path(w.root)" in inspect.getsource(TK.start)
+    # "every part is applied together or none of it is".
+    src = inspect.getsource(SB.apply_all)
+    assert "_restore(sb, saved)" in src and '"held"' in src
+    # "In Read mode they are only read".
+    assert 'mode == "write" and raw_writes' in inspect.getsource(RT.start_task)
+    # "one commit in each repository" / "each as its own project's account".
+    assert "G.commit, Path(x[\"repo\"])" in inspect.getsource(TK._commit_parts)
+    assert 'x.get("github")' in inspect.getsource(TK._push_parts)

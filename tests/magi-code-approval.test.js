@@ -58,7 +58,7 @@ const decide = lift('async function codeDecide(t, approve)', 900);
 ok('the answer is posted to /approve', /codePost\(`\/tasks\/\$\{t\.id\}\/approve`, \{ approve \}\)/.test(decide));
 ok('it cannot be sent twice', /if \(t\.deciding != null\) return;/.test(decide));
 ok('another device answering first is not an error', /d\.error !== "not_waiting"/.test(decide));
-const card = lift('function renderCodeApproval(t, ev', 4200);
+const card = lift('function renderCodeApproval(t, ev', 6500);
 ok('Approve and Deny are the only callers', (MAGI.match(/codeDecide\(t, (true|false)\)/g) || []).length === 2);
 ok('both disable while the answer is in flight', /deny\.disabled = ok\.disabled = t\.deciding != null/.test(card));
 ok('no native dialog in the write path',
@@ -85,7 +85,7 @@ ok('while waiting, the status says nothing has changed yet',
 
 console.log('\nA1 (Phase 14b): writable; it commits and pushes itself');
 {
-  const whole = lift('function renderCodeApproval(t, ev', 7000);
+  const whole = lift('function renderCodeApproval(t, ev', 9500);
   const hookAt = whole.indexOf('if (applied.by_hook)');
   ok('an A1 change says A1 commits and pushes it itself', hookAt > 0 && /auto-commit records it and "\s*\+ "pushes it to main/.test(whole));
   ok('...and returns before the Commit button is drawn',

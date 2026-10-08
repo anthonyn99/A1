@@ -490,9 +490,9 @@ async def _review_and_apply(t: TaskState, sb: sandbox.Sandbox) -> dict[str, Any]
         # Checked against the REAL repository: a link that is harmless in the
         # copy may point out of the folder the change is about to be applied to.
         rv = await loop.run_in_executor(
-            None, lambda p=patch, s=psb: security.review(
-                p.decode("utf-8", "replace"), root=s.repo, prefix=s.prefix,
-                deny=sandbox.review_deny(s.repo)))
+            None, lambda p=patch, sb=psb: security.review(
+                p.decode("utf-8", "replace"), root=sb.repo, prefix=sb.prefix,
+                deny=sandbox.review_deny(sb.repo)))
         if not rv.ok:
             # One workspace's change refused is the whole change refused: the
             # card is one decision, never a part of one.

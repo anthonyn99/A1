@@ -261,9 +261,10 @@ async function ui(MPID, RPID) {
     ok('it says none', /Also readnone/.test(await evalJs(c, `${pill}.textContent`)));
     await evalJs(c, `${pill}.click(); return 1;`);
     ok('the sheet opens', await waitFor('!!document.querySelector(".refs-sheet")'));
-    const btn = `[...document.querySelectorAll(".refs-sheet .code-git-act")].find((b) => b.textContent === "vtrack-ref")`;
+    // Since V3 each workspace is a row: Off | Read | Change. "Read" is [1].
+    const btn = `[...document.querySelectorAll(".refs-sheet .refs-row")].find((r) => r.querySelector(".refs-row-name").textContent === "vtrack-ref").querySelectorAll(".code-rw-b")[1]`;
     ok('it lists the other workspace', await evalJs(c, `!!${btn}`));
-    ok('but not this one', await evalJs(c, '![...document.querySelectorAll(".refs-sheet .code-git-act")].some((b) => b.textContent === "vtrack-main")'));
+    ok('but not this one', await evalJs(c, '![...document.querySelectorAll(".refs-sheet .refs-row-name")].some((b) => b.textContent.startsWith("vtrack-main"))'));
     await evalJs(c, `${btn}.click(); return 1;`);
     ok('ticking it marks it', await evalJs(c, `${btn}.getAttribute("aria-checked")`) === 'true');
     await shot('v-refs-sheet');

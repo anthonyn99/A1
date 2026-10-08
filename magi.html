@@ -4416,6 +4416,22 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 .code-del { color: var(--red); }
 .code-appr-cd { margin-left: auto; color: var(--amber); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .code-files { display: flex; flex-direction: column; gap: 4px; }
+/* Track V3: one card, a section per workspace the change reaches. */
+.code-appr-sec {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; margin-top: 6px;
+  font-size: 11.5px; font-weight: 700; color: var(--txd); overflow-wrap: anywhere;
+}
+.code-appr-sec:first-child { margin-top: 0; }
+.code-appr-sec .code-appr-n { font-weight: 500; }
+/* The Also read sheet: Off | Read | Change per workspace. */
+.refs-rows { display: flex; flex-direction: column; }
+.refs-row {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--bd);
+}
+.refs-row:last-child { border-bottom: 0; }
+.refs-row-name { min-width: 0; font-size: 12px; font-weight: 600; color: var(--tx); overflow-wrap: anywhere; }
+.refs-row .code-rw-b { padding: 5px 12px; min-height: 30px; font-size: 11px; }
 .code-file { border: 1px solid var(--bd); border-radius: var(--r-btn); background: var(--bg); min-width: 0; }
 .code-file > summary {
   list-style: none; cursor: pointer; display: flex; gap: 8px; align-items: center;
@@ -7306,6 +7322,7 @@ const HOW = [
       "<b>A check beside the diff.</b> Tap the <b>Check</b> pill to give a project a command that exits 0 when it is healthy &mdash; its tests, a build &mdash; picked from what MAGI finds in the folder, with <b>Try it now</b> to see it work. For a Write task it runs in the task&rsquo;s <i>private copy</i> (never your folder), with the folder&rsquo;s <code>node_modules</code> or <code>.venv</code> linked in for the run and removed after, and its pass or fail and output sit on the approval card. It informs Approve; it never decides it. By default you press <b>Run check</b> on the card, after reading the diff, and the approval clock waits while it runs, then gives you the full __APPROVE_MIN__ minutes again. <b>Automatically</b> runs it before the card appears &mdash; that runs the agent&rsquo;s code before anyone has looked at it, so the setting says so. The command stays on the engine PC, can only be set from that PC, never syncs, and runs in the same Windows job as the agents, so it cannot drive MAGI.",
       "<b>What each agent can do in Write.</b> <b>Claude</b> edits and creates files with its own tools, and moves, renames, copies and deletes files and folders with MAGI&rsquo;s workspace tools &mdash; all in the private copy, with no shell. <b>Codex</b> does the same through its own sandboxed shell. <b>Every other unit</b> sends its changes as blocks MAGI applies: SEARCH/REPLACE edits plus <code>DELETE</code>, <code>MOVE</code> and <code>COPY</code> lines. Before answering, any unit can ask for a file, a folder, a range of lines, or a <code>FIND</code> across the whole project. A move shows on the card as the old file deleted and the new one added, and nothing reaches your folder until you approve. In the <b>Check</b> sheet, <b>Agents may run it</b> lets Claude run the project&rsquo;s check itself while it works and fix what it reports &mdash; that one command, never another, and only in the copy.",
       "<b>Also read other workspaces.</b> Tap <b>Also read</b> on the strip to tick other workspaces the agents may read while they work on this one &mdash; to compare, port, or follow how something is done there. They are read, never changed: Claude reads them with its own tools in Read mode and through read-only MAGI tools in Write mode, Codex at their folders, and every other unit by asking for <code>@name/&hellip;</code> files, with <code>FIND</code> searching them too. Only workspaces you added, with a folder on the engine&rsquo;s PC, can be picked; the choice is kept on each device.",
+      "<b>Change other workspaces too.</b> In the same sheet, set a workspace to <b>Change</b> instead of <b>Read</b>, and a Write task may edit it as well as this one &mdash; a fix that spans a site and its worker, or a library and the app that uses it. Each one gets its own private copy, so nothing reaches any real folder until you approve. You get <b>one card</b> with a section per workspace, and one decision: approved, every part is applied together or none of it is &mdash; if one workspace&rsquo;s part cannot go on (you edited the same lines meanwhile), nothing is applied anywhere. Commit then makes one commit in each repository with the same message, and Push pushes each as its own project&rsquo;s GitHub account. Up to 4, each in a git repository of its own. In Read mode they are only read. A1 can be one of them; its part ships on approval like any A1 change.",
       "<b>Sizes and rankings are measured, not guessed.</b> Agents in Read mode have no shell, so none of their tools can tell how big a file is. When a task asks about sizes, lines, the largest, or ranking and comparing, MAGI measures the folder itself &mdash; every file git knows about, with exact bytes and line counts, totals per folder and per type, and the top-level files (in A1, the programs) &mdash; and hands that to whichever agent runs. Name a type (&ldquo;the .html files&rdquo;) and every file of it is listed in full. Ignored folders (node_modules, virtualenvs, browser profiles) and secret files are left out. The transcript shows it as an <b>Inventory</b> line.",
       "<b>A silent agent is stopped.</b> An agent that produces no output at all for 30 minutes is ended and the task handed to the next agent in the chain; a slow one that is still working is never cut off, because any output resets the clock. One still going after 4 hours is ended regardless. A hung agent would otherwise hold the whole queue behind it.",
       "<b>Every code block has its own Copy</b>, which copies exactly the command &mdash; ready to paste into PowerShell &mdash; and an answer&rsquo;s <b>Copy</b> takes the agent&rsquo;s own markdown, tables and all.",
@@ -12663,6 +12680,27 @@ function renderCodeStrip() {
 const CODE_REFS_KEY = lsKey("code.refs");
 const CODE_REFS_MAX = 8;
 const codeCanRefs = () => ((CODE.state && CODE.state.features) || []).includes("refs");
+/* Track V3: workspaces a Write task may also CHANGE, kept the same way. */
+const CODE_WRITES_KEY = lsKey("code.writes");
+const CODE_WRITES_MAX = 4;
+const codeCanWrites = () => ((CODE.state && CODE.state.features) || []).includes("writes");
+
+/** The workspaces ticked to change beside `pid` (same rules as codeRefs). */
+function codeWrites(pid) {
+  if (!codeCanWrites()) return [];
+  const all = lsRead(CODE_WRITES_KEY, {}) || {};
+  const ids = Array.isArray(all[pid]) ? all[pid] : [];
+  const projs = (CODE.state && CODE.state.projects) || [];
+  return ids.map((id) => projs.find((p) => p.id === id))
+    .filter((p) => p && p.id !== pid && codeRoot(p)).slice(0, CODE_WRITES_MAX);
+}
+
+function codeSetWrites(pid, ids) {
+  const all = { ...(lsRead(CODE_WRITES_KEY, {}) || {}) };
+  if (ids.length) all[pid] = ids.slice(0, CODE_WRITES_MAX);
+  else delete all[pid];
+  lsWrite(CODE_WRITES_KEY, all);
+}
 
 /** The workspaces ticked to read beside `pid`: only ones that still exist
  *  and have a folder on this engine. */
@@ -12681,11 +12719,14 @@ function codeSetRefs(pid, ids) {
   lsWrite(CODE_REFS_KEY, all);
 }
 
-/** `refs` for POST /tasks, or nothing when the engine does not take them. */
+/** `refs` (and, V3, `writes`) for POST /tasks, or nothing when the engine
+ *  does not take them. Sent whatever the mode: in Read the engine only reads
+ *  a workspace ticked to change. */
 function codeRefsBody(pid) {
   if (!codeCanRefs()) return {};
   const ids = codeRefs(pid).map((p) => p.id);
-  return ids.length ? { refs: ids } : {};
+  const ws = codeWrites(pid).map((p) => p.id);
+  return { ...(ids.length ? { refs: ids } : {}), ...(ws.length ? { writes: ws } : {}) };
 }
 
 /** Track V: the strip's "Also read" pill -- a button that opens the sheet.
@@ -12693,12 +12734,15 @@ function codeRefsBody(pid) {
 function codeRefsPill(proj) {
   if (!proj || !codeCanRefs()) return null;
   const refs = codeRefs(proj.id);
-  const pill = codePill("Also read", refs.length ? refs.map((p) => p.name).join(", ") : "none",
-    refs.length ? "ok" : "muted");
+  const ws = codeWrites(proj.id);
+  const names = refs.map((p) => p.name)
+    .concat(ws.map((p) => `${p.name} (${CODE.rw === "write" ? "changes" : "read in Read mode"})`));
+  const pill = codePill("Also read", names.length ? names.join(", ") : "none",
+    ws.length && CODE.rw === "write" ? "warn" : names.length ? "ok" : "muted");
   pill.classList.add("is-btn");
   pill.setAttribute("role", "button");
   pill.tabIndex = 0;
-  pill.title = "Other workspaces the agents may read (never change) while they work here";
+  pill.title = "Other workspaces the agents may read, or change in Write mode, while they work here";
   pill.onclick = () => codeRefsSheet(proj);
   pill.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pill.click(); } };
   return pill;
@@ -12707,6 +12751,8 @@ function codeRefsPill(proj) {
 function codeRefsSheet(proj) {
   const others = ((CODE.state && CODE.state.projects) || []).filter((p) => p.id !== proj.id);
   const picked = new Set(codeRefs(proj.id).map((p) => p.id));
+  const change = new Set(codeWrites(proj.id).map((p) => p.id));
+  const canChange = codeCanWrites();
   const sheet = el("div", "sheet");
   const box = el("div", "sheet-box sheet-wide refs-sheet");
   const close = () => sheet.remove();
@@ -12724,19 +12770,50 @@ function codeRefsSheet(proj) {
   document.body.append(sheet);
   const draw = () => {
     body.textContent = "";
-    body.append(el("div", "sheet-sub",
-      `Other workspaces the agents may read while they work on ${proj.name} — to compare, `
-      + `port, or follow how something is done there. They are never changed: edits only ever `
-      + `reach ${proj.name}.`));
+    body.append(el("div", "sheet-sub", canChange
+      ? `Other workspaces the agents may use while they work on ${proj.name}. Read: to compare, `
+        + `port, or follow how something is done there; never changed. Change (Write mode): `
+        + `edited in a private copy too, on the same approval card, applied together with `
+        + `${proj.name} or not at all.`
+      : `Other workspaces the agents may read while they work on ${proj.name} — to compare, `
+        + `port, or follow how something is done there. They are never changed: edits only ever `
+        + `reach ${proj.name}.`));
     if (!others.length) {
       body.append(el("div", "sheet-note", "There is no other workspace yet. Add one from the "
         + "Workspace list, then tick it here."));
       save.disabled = true;
       return;
     }
-    const list = el("div", "ac-win refs-list");
+    const list = el("div", canChange ? "refs-rows" : "ac-win refs-list");
     for (const p of others) {
       const here = !!codeRoot(p);
+      if (canChange) {
+        // Off | Read | Change: one choice per workspace.
+        const now = change.has(p.id) ? "change" : picked.has(p.id) ? "read" : "off";
+        const row = el("div", "refs-row");
+        row.append(el("span", "refs-row-name", p.name + (here ? "" : " — no folder on the engine’s PC")));
+        const sw = el("div", "code-rw-sw");
+        sw.setAttribute("role", "radiogroup");
+        sw.setAttribute("aria-label", `${p.name}: off, read or change`);
+        for (const [v, label] of [["off", "Off"], ["read", "Read"], ["change", "Change"]]) {
+          const b = el("button", `code-rw-b${now === v ? " on" : ""}${v === "change" ? " is-write" : ""}`, label);
+          b.type = "button";
+          b.setAttribute("role", "radio");
+          b.setAttribute("aria-checked", String(now === v));
+          b.disabled = !here || (now !== v && ((v === "read" && picked.size >= CODE_REFS_MAX)
+            || (v === "change" && change.size >= CODE_WRITES_MAX)));
+          b.onclick = () => {
+            picked.delete(p.id); change.delete(p.id);
+            if (v === "read") picked.add(p.id);
+            if (v === "change") change.add(p.id);
+            draw();
+          };
+          sw.append(b);
+        }
+        row.append(sw);
+        list.append(row);
+        continue;
+      }
       const on = picked.has(p.id);
       const b = el("button", `code-git-act ${on ? "on" : ""}`, p.name);
       b.type = "button";
@@ -12750,9 +12827,16 @@ function codeRefsSheet(proj) {
     body.append(list);
     body.append(el("div", "sheet-note",
       "Claude reads them with its own tools, Codex at their folders, and every other unit by "
-      + "asking MAGI for @name/… files. Remembered on this device, for this workspace."));
+      + "asking MAGI for @name/… files."
+      + (canChange ? " Change works only in Write mode, at most " + CODE_WRITES_MAX
+        + ", each in its own git repository; in Read mode it is only read." : "")
+      + " Remembered on this device, for this workspace."));
   };
-  save.onclick = () => { codeSetRefs(proj.id, [...picked]); close(); renderCodeView(); };
+  save.onclick = () => {
+    codeSetRefs(proj.id, [...picked]);
+    if (canChange) codeSetWrites(proj.id, [...change]);
+    close(); renderCodeView();
+  };
   draw();
 }
 
@@ -14954,7 +15038,7 @@ function renderCodeApproval(t, ev, evs = t.events) {
   // view once a minute, and snapping your diff shut mid-read is not OK).
   t.openFiles = t.openFiles || new Set(n === 1 ? [ev.files[0].path] : []);
   const list = el("div", "code-files");
-  for (const f of ev.files) {
+  const fileRow = (f) => {
     const d = el("details", "code-file");
     d.open = t.openFiles.has(f.path);
     d.ontoggle = () => { d.open ? t.openFiles.add(f.path) : t.openFiles.delete(f.path); };
@@ -14967,15 +15051,34 @@ function renderCodeApproval(t, ev, evs = t.events) {
     s.append(fn);
     s.title = f.path;
     d.append(s, codeDiffEl(f));
-    list.append(d);
+    return d;
+  };
+  // Track V3: a change across workspaces lists each under its own head, the
+  // main workspace first. The decision below is one for all of them.
+  const secs = codeApprovalSections(ev);
+  if (!secs) for (const f of ev.files) list.append(fileRow(f));
+  for (const s of secs || []) {
+    const inSec = ev.files.filter((f) => (s.main ? !f.ws : f.ws === s.name));
+    const pname = s.main ? codeProjName(t.projectId || s.project_id) : `@${s.name}`;
+    const head = el("div", "code-appr-sec");
+    head.append(el("span", null, `${pname} · ${inSec.length} file${inSec.length === 1 ? "" : "s"}`));
+    const c2 = el("span", "code-appr-n");
+    c2.append(el("span", "code-add", `+${s.adds}`), document.createTextNode(" "),
+              el("span", "code-del", `−${s.dels}`));
+    head.append(c2);
+    list.append(head);
+    for (const f of inSec) list.append(fileRow(f));
   }
   box.append(list);
   const chk = codeCheckEl(t, ev, open, evs);
   if (chk) box.append(chk);
   if (ev.ships && open) {
     // A1 (Phase 14b): approving is shipping -- its auto-commit pushes.
+    const a1sec = (codeApprovalSections(ev) || []).find((x) => x.ships);
     box.append(el("div", "code-appr-out is-warn",
-      "Approving ships this: A1’s auto-commit pushes it to main within minutes, and GitHub "
+      (a1sec ? `Approving ships the ${a1sec.main ? codeProjName(t.projectId) : "@" + a1sec.name} part: `
+        : "Approving ships this: ")
+      + "A1’s auto-commit pushes it to main within minutes, and GitHub "
       + "Pages serves it."
       + (ev.deploy_files && ev.deploy_files.length
         ? ` ${ev.deploy_files.length === 1 ? ev.deploy_files[0] + " deploys" : ev.deploy_files.length
@@ -15022,6 +15125,17 @@ function renderCodeApproval(t, ev, evs = t.events) {
         + "pushes it to main within minutes; Code Mode does not commit here."));
       return box;
     }
+    if (applied.repos && applied.repos.length > 1 && !applied.by_hook) {
+      // Track V3: one change, several repositories.
+      const a1 = applied.repos.filter((r) => r.by_hook);
+      box.append(el("div", "code-appr-out is-ok", how + ` ${applied.repos.length} workspaces: `
+        + applied.repos.map((r) => `${r.main ? codeProjName(t.projectId) : "@" + r.name} `
+          + `(${r.files.length} file${r.files.length === 1 ? "" : "s"})`).join(", ") + "."
+        + (a1.length ? " A1’s part is committed and pushed by A1 itself." : "")
+        + (done ? "" : " Nothing is staged or committed.")));
+      box.append(renderCodeCommit(t, applied, done));
+      return box;
+    }
     if (auto && !done) {
       // Auto commit is on here: the commit is the engine's to make, and the
       // repository line counts it down (Commit now / Cancel live there).
@@ -15043,6 +15157,18 @@ function renderCodeApproval(t, ev, evs = t.events) {
   return box;
 }
 
+/** Track V3: the card's sections when the change reaches more than the
+ *  main workspace, else null (one workspace reads as it always did). */
+function codeApprovalSections(ev) {
+  const s = ev.sections || [];
+  return s.length > 1 || s.some((x) => !x.main) ? s : null;
+}
+
+function codeProjName(pid) {
+  const p = ((CODE.state && CODE.state.projects) || []).find((x) => x.id === pid);
+  return (p && p.name) || "This workspace";
+}
+
 /* ── committing what was applied ─────────────────────────────────────────
    A second, separate press after Approve: applying a change and recording it
    in history are two decisions. The engine stages exactly the applied files
@@ -15054,8 +15180,18 @@ function renderCodeCommit(t, applied, done) {
   if (done) {
     const pushed = t.pushed || (t.result && t.result.push);
     const line = el("div", "code-appr-out is-ok");
-    line.append(document.createTextNode("Committed "), el("code", null, done.short),
-                document.createTextNode(` — ${done.subject}${/[.…!?]$/.test(done.subject) ? "" : "."}`
+    const many = (done.commits || []).length > 1 ? done.commits : null;
+    line.append(document.createTextNode("Committed "));
+    if (many) {
+      many.forEach((c, i) => {
+        if (i) line.append(document.createTextNode(", "));
+        line.append(el("code", null, c.short),
+                    document.createTextNode(` (${c.main ? codeProjName(t.projectId) : "@" + c.name})`));
+      });
+    } else {
+      line.append(el("code", null, done.short));
+    }
+    line.append(document.createTextNode(` — ${done.subject}${/[.…!?]$/.test(done.subject) ? "" : "."}`
                                         + (pushed ? "" : " Not pushed.")));
     box.append(line);
     box.append(renderCodePush(t, pushed));
@@ -15086,9 +15222,12 @@ function renderCodeCommit(t, applied, done) {
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); codeCommit(t); }
   };
   box.append(ta);
+  const reps = (applied.repos || []).filter((r) => !r.by_hook);
   box.append(el("div", "code-commit-note",
-    `${applied.files.length} file${applied.files.length === 1 ? "" : "s"}, exactly the ones applied. `
-    + "Your repository's own hooks run. Nothing is pushed."));
+    `${applied.files.length} file${applied.files.length === 1 ? "" : "s"}, exactly the ones applied`
+    + (reps.length > 1 ? `, one commit in each of the ${reps.length} repositories with this message. `
+      + "Their own hooks run. " : ". Your repository's own hooks run. ")
+    + "Nothing is pushed."));
   if (t.commitErr) box.append(el("div", "code-appr-out is-bad", t.commitErr));
   const acts = el("div", "code-appr-acts");
   const cancel = el("button", "navitem", "Cancel");
@@ -15113,7 +15252,7 @@ async function codeCommit(t) {
   try {
     const d = await codePost(`/tasks/${t.id}/commit`, { message });
     if (d.ok || d.error === "already") {
-      t.committed = d.commit;
+      t.committed = d.commits ? { ...d.commit, commits: d.commits } : d.commit;
       t.commitOpen = false;
       if (t.projectId) codeGitLoad(t.projectId);
     } else {
@@ -15133,6 +15272,16 @@ async function codeCommit(t) {
    exactly that. */
 function renderCodePush(t, pushed) {
   const box = el("div", "code-push");
+  const pushes = pushed && pushed.pushes;
+  if (pushes) {
+    // Track V3: one line per repository; any refused one can be pushed again.
+    for (const p of pushes) {
+      box.append(el("div", `code-appr-out ${p.ok ? "is-ok" : "is-bad"}`,
+        `${p.main ? codeProjName(t.projectId) : "@" + p.name}: ${p.text || (p.ok ? "Pushed." : "Not pushed.")}`));
+    }
+    if (pushes.every((p) => p.ok)) return box;
+    pushed = null;
+  }
   if (pushed) {
     box.append(el("div", "code-appr-out is-ok", pushed.text || "Pushed."));
     // The Actions watch that push started, in the transcript it belongs to.
@@ -15151,6 +15300,10 @@ function renderCodePush(t, pushed) {
     box.append(el("div", "code-commit-note",
       `Pushing to ${target} needs a GitHub account for this project. MAGI does not push as `
       + "whatever login this PC happens to remember."));
+  } else if (((t.result && t.result.repos) || []).filter((r) => !r.by_hook).length > 1) {
+    box.append(el("div", "code-commit-note",
+      "Push each repository to its own remote, each as its own project’s GitHub account. "
+      + "Never forced."));
   } else {
     box.append(el("div", "code-commit-note",
       `Push ${g && g.branch ? g.branch : "this branch"} to ${target}`
@@ -15180,7 +15333,8 @@ async function codePushTask(t) {
   renderCodeView();
   try {
     const d = await codePost(`/tasks/${t.id}/push`, {});
-    if (d.ok || d.error === "already") t.pushed = d.push;
+    if (d.ok || d.error === "already") t.pushed = d.pushes ? { ...d.push, pushes: d.pushes } : d.push;
+    else if (d.pushes) t.pushed = { ...d.push, pushes: d.pushes };
     else t.pushErr = d.message || "The push was refused.";
     const proj = ((CODE.state && CODE.state.projects) || []).find((p) => p.id === t.projectId);
     if (d.ok && proj && d.push && d.push.sha) {
