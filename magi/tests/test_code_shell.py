@@ -194,3 +194,9 @@ def test_internet_off_means_off(sandbox_dirs):
     (copy / "net.js").write_text(js)
     r = asyncio.run(SH.run(sp, "node net.js", timeout_s=30))
     assert "NETERR" in r["output"] and "STATUS" not in r["output"], r["output"]
+
+
+def test_the_transcript_names_shell_calls_by_what_they_ran():
+    assert CC._WS_NAMES["shell"] == "Shell" and CC._WS_NAMES["start_process"] == "Start"
+    assert CC._target({"command": "npm test"}) == "npm test"
+    assert CC._target({"id": "web-1"}) == "web-1"

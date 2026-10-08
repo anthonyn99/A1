@@ -64,6 +64,8 @@ MCP_ALLOW = f"mcp__{MCP_SERVER}"
 # the task's private copy -- code/ws_mcp.py. Write mode only.
 WS_SERVER = "magi_workspace"
 _WS_NAMES = {"move_path": "Move", "copy_path": "Copy", "delete_path": "Delete", "run_command": "Run",
+             "shell": "Shell", "start_process": "Start", "process_output": "Output",
+             "stop_process": "Stop", "list_processes": "Processes",
              "make_dir": "Make folder", "run_check": "Run check"}
 
 _UNAUTH = re.compile(r"please run /login|not logged in|invalid api key|"
@@ -247,7 +249,7 @@ def _target(inp: dict[str, Any]) -> str:
     if inp.get("name") and set(inp) <= {"name", "arg"}:
         # run_command (Track V6): "build", "test tests/test_x.py".
         return f"{inp['name']} {inp.get('arg') or ''}".strip()
-    for k in ("file_path", "path", "pattern", "glob", "query"):
+    for k in ("file_path", "path", "pattern", "glob", "query", "command", "id"):
         v = inp.get(k)
         if v:
             return str(v)
