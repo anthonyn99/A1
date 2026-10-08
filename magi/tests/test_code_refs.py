@@ -77,7 +77,7 @@ def test_refs_are_registered_workspaces_by_id_with_safe_unique_names(tmp_path, m
     run = lambda raw: asyncio.run(R._task_refs(raw, "p_main", "eng"))
     assert run(None) == ([], "") and run([]) == ([], "")
     got, why = run(["p1", "p_main", "p1", "p2"])          # main and repeats dropped
-    assert why == "" and got == [("orca-repo", a), ("orca-repo-2", b)]
+    assert why == "" and [(n, r) for n, r, _ in got] == [("orca-repo", a), ("orca-repo-2", b)]
     assert run(["away"])[1] and run(["gone"])[1] and run(["nobody"])[1]
     assert run("p1")[1] and run(["p"] * (R.MAX_TASK_REFS + 1))[1]
     # A path is not an id: it names no registered project.

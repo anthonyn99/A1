@@ -373,6 +373,17 @@ def apply(sb: Sandbox, files: list[dict[str, Any]], save_dir: Path) -> ApplyResu
     """Put the approved patch on the real tree -- all of it, or none of it."""
     if not sb.patch:
         return ApplyResult(True, "clean", message="Nothing to apply.")
+    plan = _plan(sb, files, save_dir)
+    if isinstance(plan, ApplyResult):
+        return plan
+    _execute(sb, plan)
+    return ApplyResult(True, plan[0], [f["path"] for f in files])
+
+
+def _plan(sb: Sandbox, files: list[dict[str, Any]], save_dir: Path):
+    """How the patch would go on, decided WITHOUT writing anything:
+    ("clean", None) for a plain `git apply`, ("merged", [(path, bytes|None)])
+    for a per-file three-way merge, or an ApplyResult saying why not."""
     # Reviewed again NOW, against the real tree as it is at approval: the card
     # can wait five minutes, and a link or folder made in the real tree
     # meanwhile would change where an already-approved path lands.
@@ -382,13 +393,11 @@ def apply(sb: Sandbox, files: list[dict[str, Any]], save_dir: Path) -> ApplyResu
     if not rv.ok:
         return ApplyResult(False, "refused", conflicts=[p for p, _ in rv.refused],
                            message=rv.message)
-    names = [f["path"] for f in files]
     chk = proc.run(["git", "-c", f"core.hooksPath={_nohooks()}", "-C", str(sb.repo),
                     "apply", "--check", "--whitespace=nowarn", "-"],
                    input=sb.patch, capture_output=True, timeout=120)
     if chk.returncode == 0:
-        git(sb.repo, "apply", "--whitespace=nowarn", "-", input=sb.patch)
-        return ApplyResult(True, "clean", names)
+        return ("clean", None)
 
     # The real tree moved while the agent worked. Merge file by file against
     # the tree the agent was given, and write only if every file is clean.
@@ -420,7 +429,14 @@ def apply(sb: Sandbox, files: list[dict[str, Any]], save_dir: Path) -> ApplyResu
             f"{len(conflicts)} file(s) changed on disk while the agent worked, in the "
             f"same places: {', '.join(conflicts[:6])}. Nothing was applied. The change "
             f"is saved as {saved} (git apply it by hand, or run the task again)."))
+    return ("merged", writes)
 
+
+def _execute(sb: Sandbox, plan) -> None:
+    how, writes = plan
+    if how == "clean":
+        git(sb.repo, "apply", "--whitespace=nowarn", "-", input=sb.patch)
+        return
     for p, data in writes:
         target = sb.repo / p
         if data is None:
@@ -428,7 +444,73 @@ def apply(sb: Sandbox, files: list[dict[str, Any]], save_dir: Path) -> ApplyResu
         else:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)
-    return ApplyResult(True, "merged", names)
+
+
+def _backup(sb: Sandbox, files: list[dict[str, Any]]) -> dict[str, bytes | None]:
+    """Each file the change touches, as it is on disk now (None = absent)."""
+    out: dict[str, bytes | None] = {}
+    for f in files:
+        t = sb.repo / f["path"]
+        try:
+            out[f["path"]] = t.read_bytes() if t.is_file() else None
+        except OSError:
+            out[f["path"]] = None
+    return out
+
+
+def _restore(sb: Sandbox, saved: dict[str, bytes | None]) -> None:
+    for p, data in saved.items():
+        t = sb.repo / p
+        try:
+            if data is None:
+                t.unlink(missing_ok=True)
+            else:
+                t.parent.mkdir(parents=True, exist_ok=True)
+                t.write_bytes(data)
+        except OSError:
+            pass
+
+
+def apply_all(parts: list[tuple["Sandbox", list[dict[str, Any]]]],
+              save_dir: Path) -> list[ApplyResult]:
+    """Track V3: several workspaces' changes from ONE task, applied together
+    or not at all. Every part is planned first (re-reviewed, `git apply
+    --check`, or merged in memory), and nothing is written unless every one
+    can go on. Then each is written in turn; should a write still fail, the
+    parts already written are put back byte for byte, so a half-applied task
+    is never left behind. -> one result per part, in order."""
+    plans = []
+    for sb, files in parts:
+        if not sb.patch:
+            plans.append(None)
+            continue
+        plan = _plan(sb, files, save_dir)
+        if isinstance(plan, ApplyResult):
+            # This part cannot go on, so none of them do; the others say why.
+            held = ApplyResult(False, "held", message=(
+                "Not applied: another workspace in this change could not be, and a "
+                "change across workspaces goes on whole or not at all."))
+            return [plan if osb is sb else held for osb, _ in parts]
+        plans.append(plan)
+    done: list[tuple[Sandbox, dict[str, bytes | None]]] = []
+    try:
+        for (sb, files), plan in zip(parts, plans):
+            if plan is None:
+                continue
+            saved = _backup(sb, files)
+            done.append((sb, saved))
+            _execute(sb, plan)
+    except Exception as e:  # noqa: BLE001 -- put back everything written so far
+        for sb, saved in reversed(done):
+            _restore(sb, saved)
+        msg = getattr(e, "message", None) or str(e)
+        return [ApplyResult(False, "", message=(
+            f"Applying stopped part-way ({msg[:200]}), so everything written was put "
+            "back. Nothing was applied.")) for _ in parts]
+    return [ApplyResult(True, plan[0] if plan else "clean",
+                        [f["path"] for f in files] if plan else [],
+                        message="" if plan else "Nothing to apply.")
+            for (sb, files), plan in zip(parts, plans)]
 
 
 def patch_dir(profile_data: Path) -> Path:

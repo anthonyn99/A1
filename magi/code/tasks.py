@@ -26,7 +26,13 @@ Write mode (Phase 8) wraps the chain in a sandbox (sandbox.py):
         ─► (only if you press it) commit exactly the applied files
 
 A refused diff never reaches the card, and nothing reaches the real folder
-without an explicit Approve. Nothing is committed without a second, separate
+without an explicit Approve.
+
+Track V3: a write task can also CHANGE other registered workspaces
+(`writes`). Each gets its own private copy, its changes are diffed and
+reviewed like the main one's, and they share ONE card -- a section per
+workspace -- and one decision: applied together or not at all
+(sandbox.apply_all). Nothing is committed without a second, separate
 press, and nothing is pushed without a third (Phase 10): Push, as the GitHub
 account the project names, never forced.
 """
@@ -94,6 +100,9 @@ class TaskState:
     revising: bool = False
     # Track V: other workspaces this task may read, as (name, folder).
     refs: list[tuple[str, str]] = field(default_factory=list)
+    # Track V3: other workspaces this task may CHANGE (write mode), each in
+    # its own private copy -- as Part, below. The main workspace is not here.
+    writes: list["Part"] = field(default_factory=list)
 
     @property
     def checking(self) -> bool:
@@ -118,6 +127,20 @@ class TaskState:
 
 
 TASKS: dict[str, TaskState] = {}
+
+
+@dataclass
+class Part:
+    """One workspace a write task changes besides the main one (Track V3)."""
+    name: str                 # @name, as the agents and the card call it
+    project_id: str
+    root: str                 # the real folder
+    github: str = ""
+    sb: sandbox.Sandbox | None = None
+    copy: str = ""            # the private copy's workspace folder, once made
+
+    def label(self, path: str) -> str:
+        return f"@{self.name}/{path}"
 
 
 def _rel(target: str, root: str) -> str:
@@ -145,12 +168,16 @@ async def publish(t: TaskState, ev: dict[str, Any]) -> None:
     # of prefix in front of the one part you are reading for.
     # The sandbox first: in write mode the agent reports paths in the copy,
     # which you want to read as the same path in your project.
-    for base in (t.sandbox_root, t.root):
-        if base and isinstance(ev.get("target"), str):
-            ev["target"] = _rel(ev["target"], base)
-    # A reference folder's file reads as @name/path, the way the agent was
-    # told to name it.
-    for name, base in t.refs:
+    tgt = ev.get("target")
+    if isinstance(tgt, str) and not any(
+            b and _rel(tgt, b) != tgt for w in t.writes for b in (w.copy, w.root)):
+        for base in (t.sandbox_root, t.root):
+            if base and isinstance(ev.get("target"), str):
+                ev["target"] = _rel(ev["target"], base)
+    # A reference folder's file -- or one in another workspace this task
+    # changes (its copy first, then its real folder) -- reads as @name/path,
+    # the way the agent was told to name it.
+    for name, base in [(w.name, b) for w in t.writes for b in (w.copy, w.root) if b] + t.refs:
         tgt = ev.get("target")
         if isinstance(tgt, str):
             rel = _rel(tgt, base)
@@ -175,13 +202,17 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                 check: dict[str, Any] | None = None,
                 approve: str = "manual",
                 session: followup.Session | None = None,
-                refs: list[tuple[str, Path]] | None = None) -> TaskState:
+                refs: list[tuple[str, Path]] | None = None,
+                writes: list[Part] | None = None) -> TaskState:
     t = TaskState(id=uuid.uuid4().hex[:12], project_id=project_id,
                   prompt=prompt, mode=mode, root=str(root), github=github,
                   attachments=list(attachments or []), images=list(images or []),
                   check_cfg=dict(check or {}) if mode == "write" else {},
                   approve="auto" if approve == "auto" else "manual")
     t.refs = [(n, str(p)) for n, p in refs or []]
+    # Read mode changes nothing anywhere: a workspace ticked to change is
+    # only read there (routes passes it as a ref instead).
+    t.writes = list(writes or []) if mode == "write" else []
     t.session_id = session.id if session else t.id
     t.turn = session.turn if session else 1
     TASKS[t.id] = t
@@ -201,9 +232,14 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                               "session_id": t.session_id, "turn": t.turn,
                               "attachments": [n for n, _ in t.attachments] + [im.name for im in t.images],
                               "refs": [n for n, _ in t.refs],
+                              "writes": [w.name for w in t.writes],
                               "chain": [{"id": a.id, "label": a.label, "kind": a.kind}
                                         for a in agents]})
             pulled = await _pull_first(t, root)
+            for w in t.writes:
+                if not pulled.ok:
+                    break
+                pulled = await _pull_first(t, Path(w.root), w.github, name=w.name)
             if not pulled.ok:
                 t.result = {"outcome": "pull_failed", "text": "", "detail": pulled.text,
                             "conflicts": pulled.conflicts, "attempts": []}
@@ -223,6 +259,22 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                 await emit({"k": "note", "text": "Agents edit the copy; your folder is not "
                             f"touched unless you approve the diff (copy includes your "
                             f"uncommitted edits{extra})."})
+                # Track V3: a private copy of each other workspace it changes.
+                for i, w in enumerate(t.writes, 2):
+                    try:
+                        w.sb = await loop.run_in_executor(
+                            None, sandbox.create, Path(w.root), f"{t.id}-{i}", _profile())
+                    except sandbox.SandboxError as e:
+                        await emit({"k": "error", "text": f"@{w.name}: {e.message}"})
+                        t.result = {"outcome": "unavailable", "text": "", "write": "refused",
+                                    "detail": f"@{w.name}: {e.message}", "attempts": []}
+                        return
+                    w.copy = str(w.sb.cwd)
+                if t.writes:
+                    await emit({"k": "note", "text": "Also changing, each in its own private "
+                                "copy: " + ", ".join("@" + w.name for w in t.writes)
+                                + ". One card covers every workspace, applied together or "
+                                "not at all."})
             # Track V: in write mode Claude also gets the workspace tools
             # (ws_mcp.py) -- move, copy, delete, make folder -- and the
             # project's check, if you let agents run it.
@@ -232,7 +284,8 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                 ws = {"root": str(sb.cwd), "real": str(root),
                       "check": ({"command": ck["command"], "timeout_min": ck.get("timeout_min")}
                                 if ck.get("command") else None),
-                      "refs": [{"name": n, "root": p} for n, p in t.refs]}
+                      "refs": [{"name": n, "root": p} for n, p in t.refs],
+                      "writes": [{"name": w.name, "root": w.copy} for w in t.writes]}
             if t.refs:
                 await emit({"k": "note", "text": "Also reading, never changing: "
                             + ", ".join("@" + n for n, _ in t.refs) + "."})
@@ -249,11 +302,13 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                                 "target": f"{n} files measured by MAGI"})
             task = Task(id=t.id, prompt=prompt, root=sb.cwd if sb else root,
                         mode=Mode.WRITE if sb else Mode.READ,
-                        progress=sb.changed_files if sb else None, mcp_config=mcp,
+                        progress=(lambda: _changed(sb, t.writes)) if sb else None,
+                        mcp_config=mcp,
                         mcp_servers=mcp_servers_in(mcp),
                         agent_check=((ws or {}).get("check") or {}).get("command", ""),
                         attachments=t.attachments, images=t.images, inventory=inv,
-                        refs=[(n, Path(p)) for n, p in t.refs])
+                        refs=[(n, Path(p)) for n, p in t.refs],
+                        writes=[(w.name, Path(w.copy)) for w in t.writes])
             if session is not None:
                 task.session_turns = session.turns
                 task.state_note = followup.state_note(session.turns)
@@ -274,7 +329,7 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
                     t.result.update(out)
                 else:
                     t.result["write"] = "discarded"
-                    if await loop.run_in_executor(None, sb.changed_files):
+                    if await loop.run_in_executor(None, _changed, sb, t.writes):
                         await emit({"k": "note", "text": "The task did not finish, so its "
                                     "partial edits were discarded. Your folder is unchanged."})
                 break
@@ -298,6 +353,9 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
             await _stop_check(t)
             if sb is not None:
                 await loop.run_in_executor(None, sb.remove)
+            for w in t.writes:
+                if w.sb is not None:
+                    await loop.run_in_executor(None, w.sb.remove)
             _mcp_path(t.id).unlink(missing_ok=True)
             _ws_path(t.id).unlink(missing_ok=True)
             t.done = True
@@ -309,17 +367,31 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
     return t
 
 
-async def _pull_first(t: TaskState, root: Path) -> G.Pull:
-    """The §7A rule: pull before anything reads the folder, and say so."""
+async def _pull_first(t: TaskState, root: Path, github: str | None = None,
+                      name: str = "") -> G.Pull:
+    """The §7A rule: pull before anything reads the folder, and say so.
+    `name`: another workspace this task changes (Track V3), pulled as its
+    own project's account and named in the transcript."""
     loop = asyncio.get_running_loop()
     pull = await loop.run_in_executor(None, sandbox.engine_repo_allows, root, "pull")
-    auth = await loop.run_in_executor(None, git_auth, t.github)
+    auth = await loop.run_in_executor(None, git_auth, t.github if github is None else github)
     try:
         p = await loop.run_in_executor(None, G.pull if pull else G.fetch_only, root, auth)
     except G.GitError as e:
         p = G.Pull(False, text=f"Could not pull: {e.message}")
-    await publish(t, {"k": "pull", **p.to_dict()})
+    await publish(t, {"k": "pull", **p.to_dict(), **({"ws": name} if name else {})})
     return p
+
+
+def _changed(sb: sandbox.Sandbox, writes: list[Part]) -> list[str]:
+    """Files changed so far in every copy, the others' as @name/path."""
+    out = sb.changed_files()
+    for w in writes:
+        if w.sb is not None:
+            for ln in w.sb.changed_files():
+                st, _, path = ln.partition(" ")
+                out.append(f"{st} {w.label(path)}")
+    return out[:60]
 
 
 def _mcp_path(task_id: str) -> Path:
@@ -407,23 +479,32 @@ def _profile() -> str:
 
 
 async def _review_and_apply(t: TaskState, sb: sandbox.Sandbox) -> dict[str, Any]:
-    """Diff the copy, check it, ask, apply. Returns fields for the result."""
+    """Diff the copy (copies, Track V3), check, ask, apply. Returns fields
+    for the result."""
     loop = asyncio.get_running_loop()
-    patch = await loop.run_in_executor(None, sb.diff)
-    if not patch:
+    reviews: list[tuple[Part | None, sandbox.Sandbox, Any]] = []
+    for w, psb in [(None, sb)] + [(w, w.sb) for w in t.writes if w.sb is not None]:
+        patch = await loop.run_in_executor(None, psb.diff)
+        if not patch:
+            continue
+        # Checked against the REAL repository: a link that is harmless in the
+        # copy may point out of the folder the change is about to be applied to.
+        rv = await loop.run_in_executor(
+            None, lambda p=patch, s=psb: security.review(
+                p.decode("utf-8", "replace"), root=s.repo, prefix=s.prefix,
+                deny=sandbox.review_deny(s.repo)))
+        if not rv.ok:
+            # One workspace's change refused is the whole change refused: the
+            # card is one decision, never a part of one.
+            text = (f"@{w.name}: " if w else "") + rv.message
+            await publish(t, {"k": "refused", "text": text,
+                              "refused": [{"path": w.label(p) if w else p, "why": why}
+                                          for p, why in rv.refused]})
+            return {"write": "refused", "detail": text}
+        reviews.append((w, psb, rv))
+    if not reviews:
         await publish(t, {"k": "nochange", "text": "The agent made no changes."})
         return {"write": "none"}
-
-    # Checked against the REAL repository: a link that is harmless in the
-    # copy may point out of the folder the change is about to be applied to.
-    rv = await loop.run_in_executor(
-        None, lambda: security.review(patch.decode("utf-8", "replace"),
-                                      root=sb.repo, prefix=sb.prefix,
-                                      deny=sandbox.review_deny(sb.repo)))
-    if not rv.ok:
-        await publish(t, {"k": "refused", "text": rv.message,
-                          "refused": [{"path": p, "why": w} for p, w in rv.refused]})
-        return {"write": "refused", "detail": rv.message}
 
     # The check command (check.py). Automatic: it runs now, before the card,
     # so the card opens with the result on it and its clock starts after.
@@ -444,12 +525,13 @@ async def _review_and_apply(t: TaskState, sb: sandbox.Sandbox) -> dict[str, Any]
     # Auto: no card. But a check that ran and FAILED is exactly the "key
     # change" Manual exists for, so that one still asks.
     failed_check = t.check_result is not None and not t.check_result.get("ok")
+    files = _card_files(reviews)
     if t.approve == "auto" and not failed_check:
         await publish(t, {"k": "decision", "approved": True, "why": "auto",
-                          "files": [f.to_dict() for f in rv.files],
-                          "adds": sum(f.adds for f in rv.files),
-                          "dels": sum(f.dels for f in rv.files)})
-        return await _apply(t, sb, rv)
+                          "files": files,
+                          "adds": sum(f["adds"] for f in files),
+                          "dels": sum(f["dels"] for f in files)})
+        return await _apply(t, reviews)
     if t.approve == "auto":
         await publish(t, {"k": "note", "text": "Auto mode, but the check failed — "
                           "asking before anything is applied."})
@@ -460,15 +542,32 @@ async def _review_and_apply(t: TaskState, sb: sandbox.Sandbox) -> dict[str, Any]
     # a bad one can stop it starting. Said on the card; never restarted here.
     # And in A1 everything approved SHIPS within minutes (its auto-commit
     # pushes), some of it as a deploy: the card says which.
-    own = await loop.run_in_executor(None, sandbox.is_engine_repo, sb.repo)
-    paths = [f.path.replace("\\", "/") for f in rv.files]
-    a1 = {"ships": True,
-          "engine_files": [p for p in paths if p.startswith("magi/")],
-          "deploy_files": [p for p in paths if p.startswith(sandbox.ENGINE_REPO_DEPLOYS)]} \
-        if own else {}
-    await publish(t, {"k": "approval", "files": [f.to_dict() for f in rv.files], **a1,
-                      "adds": sum(f.adds for f in rv.files),
-                      "dels": sum(f.dels for f in rv.files),
+    sections = []
+    for w, psb, prv in reviews:
+        own = await loop.run_in_executor(None, sandbox.is_engine_repo, psb.repo)
+        paths = [f.path.replace("\\", "/") for f in prv.files]
+        a1 = {"ships": True,
+              "engine_files": [p for p in paths if p.startswith("magi/")],
+              "deploy_files": [p for p in paths if p.startswith(sandbox.ENGINE_REPO_DEPLOYS)]} \
+            if own else {}
+        sections.append({"name": w.name if w else "", "main": w is None,
+                         "project_id": w.project_id if w else t.project_id,
+                         "paths": [w.label(p) if w else p for p in paths],
+                         "adds": sum(f.adds for f in prv.files),
+                         "dels": sum(f.dels for f in prv.files), **a1})
+    # The card's top-level A1 flags: any section that ships (labelled paths),
+    # so a console that predates sections still says so.
+    a1 = {}
+    for sec in sections:
+        if sec.get("ships"):
+            a1["ships"] = True
+            for k in ("engine_files", "deploy_files"):
+                a1.setdefault(k, []).extend(
+                    sec[k] if sec["main"] else [f"@{sec['name']}/{p}" for p in sec[k]])
+    await publish(t, {"k": "approval", "files": files, **a1,
+                      **({"sections": sections} if t.writes else {}),
+                      "adds": sum(f["adds"] for f in files),
+                      "dels": sum(f["dels"] for f in files),
                       "expires_at": t.approval_deadline,
                       "timeout": APPROVAL_TIMEOUT,
                       **({"check": {"command": t.check_cfg["command"],
@@ -514,7 +613,21 @@ async def _review_and_apply(t: TaskState, sb: sandbox.Sandbox) -> dict[str, Any]
     await _stop_check(t)
     if not approved:
         return {"write": why}
-    return await _apply(t, sb, rv)
+    return await _apply(t, reviews)
+
+
+def _card_files(reviews: list) -> list[dict[str, Any]]:
+    """Every changed file for the card, in order: the main workspace's as
+    they are, another workspace's as @name/path with `ws` naming it."""
+    out = []
+    for w, _, rv in reviews:
+        for f in rv.files:
+            d = f.to_dict()
+            if w is not None:
+                d["path"] = w.label(d["path"])
+                d["ws"] = w.name
+            out.append(d)
+    return out
 
 
 async def _revise(t: TaskState, task: Task, agents: list, res: chain.ChainResult,
@@ -577,8 +690,12 @@ async def message(t: TaskState, text: str) -> dict[str, Any]:
     return {"ok": True, "accepted": how}
 
 
-async def _apply(t: TaskState, sb: sandbox.Sandbox, rv) -> dict[str, Any]:
-    """Apply an approved (or Auto) diff to the real folder."""
+async def _apply(t: TaskState, reviews: list) -> dict[str, Any]:
+    """Apply an approved (or Auto) diff to the real folder -- or, across
+    workspaces (Track V3), every part of it or none (sandbox.apply_all)."""
+    if t.writes:
+        return await _apply_parts(t, reviews)
+    _, sb, rv = reviews[0]
     loop = asyncio.get_running_loop()
     from ..settings import data_dir
     files = [f.to_dict() for f in rv.files]
@@ -608,6 +725,59 @@ async def _apply(t: TaskState, sb: sandbox.Sandbox, rv) -> dict[str, Any]:
     await publish(t, {"k": "conflict", "text": res.message, "files": res.conflicts,
                       "saved": res.saved_patch})
     return {"write": "conflict", "detail": res.message, "saved": res.saved_patch}
+
+
+async def _apply_parts(t: TaskState, reviews: list) -> dict[str, Any]:
+    """Track V3's apply: several repositories, one decision."""
+    loop = asyncio.get_running_loop()
+    from ..settings import data_dir
+    parts = [(psb, [f.to_dict() for f in rv.files]) for _, psb, rv in reviews]
+    results = await loop.run_in_executor(
+        None, sandbox.apply_all, parts, sandbox.patch_dir(data_dir()))
+    bad = [(w, r) for (w, _, _), r in zip(reviews, results) if not r.ok and r.how != "held"]
+    if bad:
+        w, r = bad[0]
+        where = f"@{w.name}: " if w else ""
+        if r.how == "refused":
+            await publish(t, {"k": "refused", "text": where + r.message,
+                              "refused": [{"path": w.label(p) if w else p, "why": ""}
+                                          for p in r.conflicts]})
+            return {"write": "refused", "detail": where + r.message}
+        await publish(t, {"k": "conflict", "text": where + r.message,
+                          "files": [w.label(p) if w else p for p in r.conflicts],
+                          "saved": r.saved_patch})
+        return {"write": "conflict", "detail": where + r.message, "saved": r.saved_patch}
+    draft = G.draft_message(t.prompt, (t.result or {}).get("text", ""))
+    repos, flat, hook_any = [], [], False
+    for (w, psb, _), r in zip(reviews, results):
+        hook = not await loop.run_in_executor(
+            None, sandbox.engine_repo_allows, psb.repo, "commit")
+        hook_any = hook_any or hook
+        repos.append({"name": w.name if w else "", "main": w is None,
+                      "project_id": w.project_id if w else t.project_id,
+                      "repo": str(psb.repo), "files": r.files,
+                      "github": w.github if w else t.github, "by_hook": hook})
+        flat += [w.label(p) if w else p for p in r.files]
+    main = next((x for x in repos if x["main"]), repos[0])
+    t.repo = main["repo"]
+    how = "merged" if any(r.how == "merged" for r in results) else "clean"
+    await publish(t, {"k": "applied", "files": flat, "how": how, "draft": draft,
+                      "repos": [{k: x[k] for k in ("name", "main", "files", "by_hook")}
+                                for x in repos],
+                      **({"by_hook": True} if all(x["by_hook"] for x in repos) else {})})
+    out = {"write": "applied", "files": flat, "draft": draft, "repos": repos}
+    for x in repos:
+        if x["by_hook"]:
+            continue
+        pend = await autocommit.on_applied(project_id=x["project_id"], repo=x["repo"],
+                                           files=x["files"], draft=draft, task_id=t.id)
+        if pend is not None:
+            x["auto"] = pend
+            await publish(t, {"k": "autocommit", **pend,
+                              **({} if x["main"] else {"ws": x["name"]})})
+            if x["main"]:
+                out["auto"] = pend
+    return out
 
 
 async def _run_check(t: TaskState) -> dict[str, Any]:
@@ -686,6 +856,8 @@ async def commit(t: TaskState, message: str) -> dict[str, Any]:
     if not t.done or r.get("write") != "applied" or not t.repo:
         return {"ok": False, "error": "not_applied",
                 "message": "Only a change that was applied to your folder can be committed."}
+    if r.get("repos"):
+        return await _commit_parts(t, r, message)
     if not await asyncio.get_running_loop().run_in_executor(
             None, sandbox.engine_repo_allows, Path(t.repo), "commit"):
         return {"ok": False, "error": "read_only_project",
@@ -708,6 +880,46 @@ async def commit(t: TaskState, message: str) -> dict[str, Any]:
     autocommit.forget_task(t.project_id, t.id, c.files)
     await publish(t, {"k": "committed", **c.to_dict()})
     return {"ok": True, "commit": c.to_dict()}
+
+
+async def _commit_parts(t: TaskState, r: dict[str, Any], message: str) -> dict[str, Any]:
+    """Track V3: one Commit press commits each repository the change was
+    applied to -- exactly its files, the same message, its own hooks. A1 is
+    skipped (it commits itself) and says so. Nothing is pushed."""
+    if r.get("commit"):
+        return {"ok": False, "error": "already", "message": "Already committed.",
+                "commit": r["commit"]}
+    if t.committing:
+        return {"ok": False, "error": "busy", "message": "Already committing."}
+    loop = asyncio.get_running_loop()
+    t.committing = True
+    commits: list[dict[str, Any]] = []
+    try:
+        for x in r["repos"]:
+            if x.get("commit") or x.get("by_hook") or not x.get("files"):
+                continue
+            try:
+                c = await loop.run_in_executor(
+                    None, G.commit, Path(x["repo"]), list(x["files"]), message)
+            except G.GitError as e:
+                where = "" if x["main"] else f"@{x['name']}: "
+                # What went in before stays in: say which, and what did not.
+                done = ", ".join((y["name"] or "this workspace") + " " + y["commit"]["short"]
+                                 for y in r["repos"] if y.get("commit"))
+                return {"ok": False, "error": e.code, "message": where + e.message
+                        + (f" (already committed: {done})" if done else "")}
+            x["commit"] = c.to_dict()
+            commits.append({**c.to_dict(), "name": x["name"], "main": x["main"]})
+            autocommit.forget_task(x["project_id"], t.id, c.files)
+    finally:
+        t.committing = False
+    if not commits:
+        return {"ok": False, "error": "read_only_project",
+                "message": sandbox.ENGINE_REPO_WHY["commit"]}
+    r["commit"] = commits[0]
+    r["commits"] = commits
+    await publish(t, {"k": "committed", **commits[0], "commits": commits})
+    return {"ok": True, "commit": commits[0], "commits": commits}
 
 
 def git_auth(login: str) -> G.Auth | None:
@@ -736,6 +948,8 @@ async def push(t: TaskState, login: str = "") -> dict[str, Any]:
     if not r.get("commit") or not t.repo:
         return {"ok": False, "error": "not_committed",
                 "message": "Commit the change first; only a commit can be pushed."}
+    if r.get("repos"):
+        return await _push_parts(t, r, login)
     if (r.get("push") or {}).get("ok"):
         return {"ok": False, "error": "already", "message": "Already pushed.", "push": r["push"]}
     if not await asyncio.get_running_loop().run_in_executor(
@@ -759,6 +973,46 @@ async def push(t: TaskState, login: str = "") -> dict[str, Any]:
         await publish(t, {"k": "pushed", **d})
     return {"ok": res.ok, "push": d,
             **({} if res.ok else {"error": res.code, "message": res.text})}
+
+
+async def _push_parts(t: TaskState, r: dict[str, Any], login: str) -> dict[str, Any]:
+    """Track V3: push each repository this task committed to, each as its
+    own project's GitHub account (`login` overrides only the main one's).
+    Never forced; one that is refused is said, the others still go."""
+    if t.pushing:
+        return {"ok": False, "error": "busy", "message": "Already pushing."}
+    loop = asyncio.get_running_loop()
+    t.pushing = True
+    pushes: list[dict[str, Any]] = []
+    try:
+        for x in r["repos"]:
+            if not x.get("commit") or (x.get("push") or {}).get("ok"):
+                continue
+            if not await loop.run_in_executor(
+                    None, sandbox.engine_repo_allows, Path(x["repo"]), "push"):
+                continue
+            try:
+                auth = await loop.run_in_executor(
+                    None, git_auth, (login if x["main"] and login else x.get("github") or ""))
+                res = await loop.run_in_executor(None, G.push, Path(x["repo"]), auth)
+            except G.GitError as e:
+                res = G.Push(False, e.code, e.message)
+            x["push"] = res.to_dict()
+            pushes.append({**res.to_dict(), "name": x["name"], "main": x["main"]})
+    finally:
+        t.pushing = False
+    if not pushes:
+        return {"ok": False, "error": "already", "message": "Nothing left to push."}
+    ok = all(p["ok"] for p in pushes)
+    if ok:
+        r["push"] = pushes[0]
+    r["pushes"] = pushes
+    await publish(t, {"k": "pushed", **pushes[0], "ok": ok, "pushes": pushes})
+    bad = next((p for p in pushes if not p["ok"]), None)
+    return {"ok": ok, "push": pushes[0], "pushes": pushes,
+            **({} if ok else {"error": bad.get("code") or "push",
+                              "message": (f"@{bad['name']}: " if not bad["main"] else "")
+                              + (bad.get("text") or "Push failed.")})}
 
 
 async def stream(t: TaskState):

@@ -191,27 +191,52 @@ class _View:
     """The folder as the blocks so far leave it: disk, plus what is staged.
     `staged[path]` is the file's new bytes, or None for deleted."""
 
-    def __init__(self, root: Path, readonly: tuple[str, ...] = ()):
+    def __init__(self, root: Path, readonly: tuple[str, ...] = (),
+                 writable: dict[str, Path] | None = None):
         self.root = root.resolve()
         self.staged: dict[Path, bytes | None] = {}
         self.readonly = {"@" + n.lower() for n in readonly}
+        # Track V3: "@name" -> (name, the private copy of that workspace).
+        self.others = {"@" + n.lower(): (n, Path(p).resolve())
+                       for n, p in (writable or {}).items()}
 
     def target(self, rel: str) -> tuple[Path | None, str]:
         rel = rel.replace("\\", "/").strip()
         while rel.startswith("./"):
             rel = rel[2:]
         rel = rel.rstrip("/")
+        base, what = self.root, "the project"
+        head, _, rest = rel.partition("/")
+        if head.lower() in self.others:
+            # Another workspace this task changes: the same rules, inside
+            # ITS copy -- never a folder called @name in this one.
+            what = head
+            base, rel = self.others[head.lower()][1], rest
+            while rel.startswith("./"):
+                rel = rel[2:]
         if not [x for x in rel.split("/") if x not in ("", ".")]:
-            return None, "that is the project folder itself"
-        if rel.split("/", 1)[0].lower() in self.readonly:
+            return None, ("that is the project folder itself" if base == self.root
+                          else f"that is the {what} folder itself")
+        if base == self.root and head.lower() in self.readonly:
             return None, "a reference folder, which is read-only"
-        why = security.check_path(rel, root=self.root)
+        why = security.check_path(rel, root=base)
         if why:
             return None, why
-        t = context.contained(self.root, Path(rel))
+        t = context.contained(base, Path(rel))
         if t is None:
-            return None, "outside the project"
+            return None, f"outside {what}"
         return t, ""
+
+    def base_of(self, p: Path) -> tuple[str, Path]:
+        """("@name/" or "", the copy) that file `p` is in."""
+        for key, (n, b) in self.others.items():
+            if b == p or b in p.parents:
+                return f"@{n}/", b
+        return "", self.root
+
+    def show(self, p: Path) -> str:
+        pre, b = self.base_of(p)
+        return pre + p.relative_to(b).as_posix()
 
     def is_file(self, p: Path) -> bool:
         if p in self.staged:
@@ -233,7 +258,7 @@ class _View:
             for dp, dirs, names in os.walk(d, followlinks=False):
                 for n in dirs + names:
                     if _is_link(Path(dp) / n):
-                        return f"{(Path(dp) / n).relative_to(self.root).as_posix()} is a link"
+                        return f"{self.show(Path(dp) / n)} is a link"
                 out.update(Path(dp) / n for n in names)
                 if len(out) > MAX_OP_FILES:
                     return f"more than {MAX_OP_FILES} files"
@@ -254,15 +279,19 @@ class _View:
 
 
 def apply(root: Path, edits: list[Edit],
-          readonly: tuple[str, ...] = ()) -> tuple[list[str], list[str]]:
+          readonly: tuple[str, ...] = (),
+          writable: dict[str, Path] | None = None) -> tuple[list[str], list[str]]:
     """Apply into `root` (the sandbox). -> (files changed, problems).
     `readonly`: the task's reference folder names; an edit to @name/... is
     refused rather than written into the project as a folder called @name.
+    `writable` (Track V3): {name: private copy} of the other workspaces this
+    task changes; an edit to @name/... goes into that copy, and comes back
+    in the list as @name/path. A move or copy may cross between them.
 
     If there is any problem, nothing is written.
     """
     problems: list[str] = []
-    v = _View(root, readonly)
+    v = _View(root, readonly, writable)
     for e in edits:
         src, why = v.target(e.path)
         if src is None:
@@ -353,7 +382,7 @@ def apply(root: Path, edits: list[Edit],
     changed = []
     gone: list[Path] = []
     for target, data in v.staged.items():
-        rel = target.relative_to(v.root).as_posix()
+        rel = v.show(target)
         if data is None:
             if target.is_file():
                 target.unlink()
@@ -366,7 +395,8 @@ def apply(root: Path, edits: list[Edit],
     # Folders a DELETE or MOVE emptied: git does not track folders, but an
     # empty one left behind is litter in the copy the next agent reads.
     for p in sorted({g.parent for g in gone}, key=lambda x: len(x.parts), reverse=True):
-        while p != v.root and v.root in p.parents:
+        top = v.base_of(p)[1]
+        while p != top and top in p.parents:
             try:
                 p.rmdir()
             except OSError:

@@ -106,6 +106,13 @@ def build_argv(exe: str, task: Task, model: str | None = None,
     argv += ["--json", "--sandbox", sandbox, "--skip-git-repo-check",
             "--ignore-user-config", "--ignore-rules",
             "-C", str(task.root)]
+    if task.mode == Mode.WRITE:
+        # Track V3: the private copies of the other workspaces this task
+        # changes, writable beside -C. Verified 2026-10-08 on the ELEVATED
+        # sandbox: a listed extra root is writable, an unlisted sibling still
+        # refuses writes and deletes ("Access is denied").
+        for _, copy in task.writes:
+            argv += ["--add-dir", str(copy)]
     for f in DISABLED_FEATURES:
         argv += ["--disable", f]
     for c in (WRITE_CONFIG if task.mode == Mode.WRITE else SANDBOX_CONFIG):

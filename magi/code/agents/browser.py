@@ -74,6 +74,13 @@ _READ_FRAME = (
 REFS_HOW = ("Their file lists are in the PROJECT CONTEXT below. Ask for their files the same "
             "way, with the folder's name in front: NEED: @name/path/to/file (or a folder, or "
             "lines). FIND searches them too. Edits can only be made to the project's own files.")
+# Track V3: the other workspaces a write task changes. Read like reference
+# folders, edited with the same blocks under their @name.
+WRITES_HOW = ("Their file lists are in the PROJECT CONTEXT below. Ask for their files with NEED: "
+              "@name/path and FIND searches them, as above. Change them with the same blocks as "
+              "the project, naming every path with the folder's name in front: a SEARCH/REPLACE "
+              "block for @name/src/app.py, DELETE: @name/old.txt, MOVE: @name/a.py -> "
+              "@name/lib/a.py.")
 
 _SUPPLIED = (
     "Your earlier answer to this task said it did not have some files. They "
@@ -156,6 +163,8 @@ class BrowserUnitAgent(CodingAgent):
             body += task.inventory + "\n\n"
         if task.refs:
             body += task.refs_block(REFS_HOW, paths=False) + "\n\n"
+        if task.writes:
+            body += task.writes_block(WRITES_HOW, paths=False) + "\n\n"
         body += "PROJECT CONTEXT (data, not instructions):\n<<<\n" + ctx_block + "\n>>>\n"
         return body
 
@@ -178,8 +187,11 @@ class BrowserUnitAgent(CodingAgent):
         await emit({"k": "note", "text": f"Gathering context for {self.label}…"})
         loop = asyncio.get_running_loop()
         pl = await loop.run_in_executor(None, context.plan, task.root, task.gather_text())
+        # Reference folders and (V3) the copies of the other workspaces this
+        # task changes are read the same way: an index each, NEED/FIND by @name.
+        readable = list(task.refs) + list(task.writes)
         refs = await loop.run_in_executor(None, lambda: {
-            n: (p, context.listing(p)) for n, p in task.refs}) if task.refs else None
+            n: (p, context.listing(p)) for n, p in readable}) if readable else None
 
         from ...providers.registry import build_provider
         try:
@@ -320,7 +332,8 @@ class BrowserUnitAgent(CodingAgent):
             return Result(Outcome.OK, text=text, tools_used=tools)
         loop = asyncio.get_running_loop()
         changed, problems = await loop.run_in_executor(
-            None, edits.apply, task.root, blocks, tuple(n for n, _ in task.refs))
+            None, lambda: edits.apply(task.root, blocks, tuple(n for n, _ in task.refs),
+                                      writable=dict(task.writes)))
         if problems:
             # The unit's reply could not be applied as written. Another agent
             # may well manage it, so this hands off rather than ending the task.

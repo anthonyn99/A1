@@ -125,6 +125,10 @@ class Task:
     # (name, folder). Never written: each agent is told how to read them
     # (refs_block), and nothing that writes can reach them.
     refs: list[tuple[str, Path]] = field(default_factory=list)
+    # Track V3: other workspaces this task may CHANGE, as (name, the folder of
+    # its PRIVATE COPY). Write mode only; edited like the project's own copy
+    # and shown on the same card (writes_block says how, per agent).
+    writes: list[tuple[str, Path]] = field(default_factory=list)
     # Files the person attached in the console, as (name, text). Text only:
     # they are pasted into the prompt, never written anywhere an agent (or
     # the sandbox diff) could mistake them for part of the project.
@@ -202,6 +206,18 @@ class Task:
                 "them -- only the project folder is yours to edit):\n" + rows + "\n"
                 + (how or "Read them at those paths with your usual tools."))
 
+    def writes_block(self, how: str | None = None, paths: bool = True) -> str:
+        """The other workspaces this task changes, and how THIS agent edits
+        them. Empty if none."""
+        if not self.writes:
+            return ""
+        rows = "\n".join(f"- @{n}" + (f": {p}" if paths else "") for n, p in self.writes)
+        return ("OTHER WORKSPACES YOU MAY CHANGE (each is a private copy too, like the "
+                "project folder; every change in them is shown in the same diff and "
+                "nothing reaches the real folders unless the person approves it):\n"
+                + rows + "\n"
+                + (how or "Edit them at those paths with your usual tools."))
+
     def images_for(self, agent_id: str) -> list[Image]:
         """The images `agent_id` is sent this run: all of them, unless it is
         resuming its own session to be told about an interruption or a
@@ -211,7 +227,7 @@ class Task:
         return self.images
 
     def full_prompt(self, budget: int | None = None, frame: str | None = None,
-                    refs_how: str | None = None) -> str:
+                    refs_how: str | None = None, writes_how: str | None = None) -> str:
         """What a CLI agent is sent fresh: framing, what is in the folder, the
         session so far, any hand-off, then the task and what was added.
         `frame`: the agent's own write-mode framing, if it has tools the
@@ -239,9 +255,12 @@ class Task:
             parts.append(self.inventory)
         if self.refs:
             parts.append(self.refs_block(refs_how))
+        if self.writes:
+            parts.append(self.writes_block(writes_how))
         return "\n\n---\n\n".join(parts)
 
-    def resumed_prompt(self, frame: str | None = None, refs_how: str | None = None) -> str:
+    def resumed_prompt(self, frame: str | None = None, refs_how: str | None = None,
+                       writes_how: str | None = None) -> str:
         """What a CLI agent is sent when it resumes its own session: only
         what it does not already have. No SESSION SO FAR -- it remembers."""
         from ..followup import NEW_MESSAGE, added_block
@@ -276,12 +295,14 @@ class Task:
             parts.append(self.inventory)
         if self.refs:
             parts.append(self.refs_block(refs_how))
+        if self.writes:
+            parts.append(self.writes_block(writes_how))
         return "\n\n---\n\n".join(parts)
 
     def prompt_for(self, agent_id: str, frame: str | None = None,
-                   refs_how: str | None = None) -> str:
-        return (self.resumed_prompt(frame, refs_how) if self.resume_for(agent_id)
-                else self.full_prompt(frame=frame, refs_how=refs_how))
+                   refs_how: str | None = None, writes_how: str | None = None) -> str:
+        return (self.resumed_prompt(frame, refs_how, writes_how) if self.resume_for(agent_id)
+                else self.full_prompt(frame=frame, refs_how=refs_how, writes_how=writes_how))
 
 
 # Said to every agent in write mode. True, and useful to it: an agent that

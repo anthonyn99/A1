@@ -29,6 +29,11 @@ you approve the diff. On top of that, this server refuses on its own:
   * a folder tree that holds a link or a junction (deleting or copying
     through one would reach outside the copy).
 
+Track V3: a task that also CHANGES other workspaces gives this server their
+private copies too ("writes" in the config). The file tools take paths like
+@name/src/app.py there, with the same refusals, inside THAT copy; a move or
+copy may cross from one copy to another. Nothing else is reachable.
+
 The reference tools only read. There is no tool that writes to a reference
 folder, so nothing here can change one; they refuse a path that resolves
 outside its folder (`..`, a link), the denied folders, and secret files
@@ -237,8 +242,13 @@ def _rel(root: Path, p: Path) -> str:
 
 class Server:
     def __init__(self, root: Path, check: dict | None = None, real: Path | None = None,
-                 refs: list | None = None):
+                 refs: list | None = None, writes: list | None = None):
         self.root = Path(root)
+        # Track V3: {"orca": Path(<its private copy>)} -- only copies MAGI made.
+        self.writes: dict[str, Path] = {}
+        for w in writes or []:
+            if isinstance(w, dict) and w.get("name") and w.get("root") and Path(w["root"]).is_dir():
+                self.writes[str(w["name"])] = Path(w["root"])
         self.check = check if check and check.get("command") else None
         self.real = Path(real) if real else None
         # {"orca": Path("C:/.../ORCA")} -- only folders MAGI wrote here.
@@ -402,12 +412,27 @@ class Server:
 
     def _mine(self, rel, must_exist: bool = False) -> Path:
         """resolve(), plus: "@name/..." names a reference folder, which the
-        file tools never touch -- not a folder to create called "@name"."""
-        if isinstance(rel, str) and self.refs:
-            head = rel.strip().replace("\\", "/").split("/", 1)[0]
-            if head.startswith("@") and head[1:].lower() in {n.lower() for n in self.refs}:
-                raise ToolError(f"{rel}: {head} is a reference folder, which is read-only.")
+        file tools never touch -- not a folder to create called "@name" --
+        or (V3) another workspace this task changes, resolved in ITS copy."""
+        if isinstance(rel, str):
+            head, _, rest = rel.strip().replace("\\", "/").partition("/")
+            if head.startswith("@"):
+                base = next((b for n, b in self.writes.items() if n.lower() == head[1:].lower()),
+                            None)
+                if base is not None:
+                    return resolve(base, rest, must_exist=must_exist)
+                if head[1:].lower() in {n.lower() for n in self.refs}:
+                    raise ToolError(f"{rel}: {head} is a reference folder, which is read-only.")
         return resolve(self.root, rel, must_exist=must_exist)
+
+    def _show(self, p: Path) -> str:
+        """How a path reads back to the agent: as given, @name/... included."""
+        for n, b in self.writes.items():
+            try:
+                return f"@{n}/" + p.relative_to(b).as_posix()
+            except ValueError:
+                continue
+        return _rel(self.root, p)
 
     def move_path(self, a: dict) -> str:
         src = self._mine(a.get("from"), must_exist=True)
@@ -423,7 +448,7 @@ class Server:
                 pass
         dst.parent.mkdir(parents=True, exist_ok=True)
         os.rename(src, dst)
-        return f"Moved {_rel(self.root, src)} to {_rel(self.root, dst)}."
+        return f"Moved {self._show(src)} to {self._show(dst)}."
 
     def copy_path(self, a: dict) -> str:
         src = self._mine(a.get("from"), must_exist=True)
@@ -441,25 +466,25 @@ class Server:
             if size > MAX_COPY_BYTES:
                 raise ToolError(f"That folder holds {size // 1_000_000} MB; too much to copy here.")
             shutil.copytree(src, dst, symlinks=True)
-            return f"Copied {_rel(self.root, src)}/ ({n} files) to {_rel(self.root, dst)}/."
+            return f"Copied {self._show(src)}/ ({n} files) to {self._show(dst)}/."
         shutil.copy2(src, dst)
-        return f"Copied {_rel(self.root, src)} to {_rel(self.root, dst)}."
+        return f"Copied {self._show(src)} to {self._show(dst)}."
 
     def delete_path(self, a: dict) -> str:
         p = self._mine(a.get("path"), must_exist=True)
         if p.is_dir():
             n, _ = _tree_ok(p)
             shutil.rmtree(p)
-            return f"Deleted {_rel(self.root, p)}/ ({n} files)."
+            return f"Deleted {self._show(p)}/ ({n} files)."
         p.unlink()
-        return f"Deleted {_rel(self.root, p)}."
+        return f"Deleted {self._show(p)}."
 
     def make_dir(self, a: dict) -> str:
         p = self._mine(a.get("path"))
         if os.path.lexists(p) and not p.is_dir():
             raise ToolError(f"{a.get('path')}: a file of that name exists.")
         p.mkdir(parents=True, exist_ok=True)
-        return f"Folder {_rel(self.root, p)}/ is there."
+        return f"Folder {self._show(p)}/ is there."
 
     # ── the project's check ───────────────────────────────────────────────
 
@@ -641,7 +666,7 @@ def from_config(path: Path) -> Server:
     if not root.is_dir():
         raise SystemExit(f"no such folder: {root}")
     return Server(root, cfg.get("check"), Path(cfg["real"]) if cfg.get("real") else None,
-                  cfg.get("refs"))
+                  cfg.get("refs"), cfg.get("writes"))
 
 
 def main(argv: list[str] | None = None) -> None:

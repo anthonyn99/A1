@@ -78,8 +78,10 @@ async def code_state() -> dict[str, Any]:
         # files silently dropped by an engine that ignores the field.
         # Track F: `followup` = POST /tasks takes `session`; `steer` =
         # POST /tasks/{id}/message exists.
-        # Track V: `refs` = POST /tasks takes `refs` (other workspaces to read).
-        "features": ["attachments", "auto_approve", "followup", "steer", "images", "refs"],
+        # Track V: `refs` = POST /tasks takes `refs` (other workspaces to read);
+        # V3: `writes` = and `writes` (other workspaces to change, write mode).
+        "features": ["attachments", "auto_approve", "followup", "steer", "images", "refs",
+                     "writes"],
     }
 
 
@@ -789,23 +791,28 @@ def _task_images(raw: Any, room: int = MAX_TASK_ATTACHMENTS) -> tuple[list, str]
 
 
 MAX_TASK_REFS = 8
+MAX_TASK_WRITES = 4
 
 
-async def _task_refs(raw: Any, main_id: str, eng: str) -> tuple[list, str]:
-    """[project_id] from the console -> ([(name, folder)], refusal or "").
+async def _task_refs(raw: Any, main_id: str, eng: str, taken: list[str] | None = None,
+                     skip: set[str] | None = None, what: str = "read alongside",
+                     limit: int = MAX_TASK_REFS) -> tuple[list, str]:
+    """[project_id] from the console -> ([(name, folder, project)], refusal or "").
 
     Only workspaces registered on this engine, by id, with a folder here --
     never a path from the request: the tunnel can post a task, and a path
     from it could name any folder on this PC. The name is the project's,
-    made safe to write as @name."""
+    made safe to write as @name, and unique among `taken` (names already
+    given to this task). `skip`: ids already chosen another way."""
     import re
     from pathlib import Path
     if not raw:
         return [], ""
-    if not isinstance(raw, list) or len(raw) > MAX_TASK_REFS:
-        return [], f"At most {MAX_TASK_REFS} folders to read alongside."
-    out: list[tuple[str, Path]] = []
-    seen: set[str] = set()
+    if not isinstance(raw, list) or len(raw) > limit:
+        return [], f"At most {limit} folders to {what}."
+    out: list[tuple[str, Path, dict]] = []
+    names = list(taken or [])
+    seen: set[str] = set(skip or ())
     for pid in raw:
         pid = str(pid or "")
         if pid == main_id or pid in seen:
@@ -814,16 +821,49 @@ async def _task_refs(raw: Any, main_id: str, eng: str) -> tuple[list, str]:
         p = await _db().code_project(pid, eng)
         here = next((b for b in (p or {}).get("bindings") or [] if b.get("here")), None)
         if not p or not here:
-            return [], "A workspace to read alongside has no folder on this machine."
+            return [], f"A workspace to {what} has no folder on this machine."
         root = Path(here["root"])
         if not root.is_dir():
             return [], f"{p['name']}'s folder is not there any more."
         base = re.sub(r"[^A-Za-z0-9._-]+", "-", p["name"]).strip("-.").lower() or "ref"
         name, i = base[:40], 2
-        while any(n == name for n, _ in out):
+        while name in names:
             name, i = f"{base[:37]}-{i}", i + 1
-        out.append((name, root))
+        names.append(name)
+        out.append((name, root, p))
     return out, ""
+
+
+async def _task_writes(raw: Any, main_id: str, main_root, eng: str) -> tuple[list, str]:
+    """Track V3: [project_id] the task may also CHANGE -> ([tasks.Part], why).
+
+    The same rule as _task_refs (registered ids only, never a path), plus:
+    each must be writable to Code Mode, and in a repository of its own --
+    two workspaces in one repository would be two copies of it applied over
+    each other; pick the folder that holds both instead."""
+    parts, why = await _task_refs(raw, main_id, eng, what="change alongside",
+                                  limit=MAX_TASK_WRITES)
+    if why or not parts:
+        return [], why
+    from .sandbox import SandboxError, engine_repo_allows, repo_of
+    loop = _asyncio.get_running_loop()
+    tops: dict[str, str] = {}
+    for label, root in [("this workspace", main_root)] + [(p["name"], r) for _, r, p in parts]:
+        try:
+            top, _ = await loop.run_in_executor(None, repo_of, root)
+        except SandboxError as e:
+            return [], f"{label}: {e.message}"
+        key = str(top.resolve()).lower()
+        if key in tops:
+            return [], (f"{label} is in the same repository as {tops[key]}. Work on the "
+                        "folder that holds both instead, or change them one at a time.")
+        tops[key] = label
+    for _, r, p in parts:
+        if not await loop.run_in_executor(None, engine_repo_allows, r, "write"):
+            return [], f"{p['name']} is read-only to Code Mode."
+    return [_tasks.Part(name=n, project_id=p["id"], root=str(r),
+                        github=str((p.get("prefs") or {}).get("github") or ""))
+            for n, r, p in parts], ""
 
 
 @router.post("/tasks")
@@ -877,9 +917,23 @@ async def start_task(body: dict = Body(...)) -> dict[str, Any]:
         session = _followup.parse_session(body.get("session"))
     except ValueError as e:
         return {"ok": False, "error": "session", "message": str(e)}
-    refs, why = await _task_refs(body.get("refs"), p["id"], eng)
+    # Track V3: workspaces to change too (write mode). In Read mode they are
+    # only read, so they join the references instead.
+    raw_writes = body.get("writes") or []
+    raw_refs = list(body.get("refs") or []) if isinstance(body.get("refs") or [], list) \
+        else body.get("refs")
+    writes = []
+    if mode == "write" and raw_writes:
+        writes, why = await _task_writes(raw_writes, p["id"], root, eng)
+        if why:
+            return {"ok": False, "error": "writes", "message": why}
+    elif raw_writes and isinstance(raw_refs, list) and isinstance(raw_writes, list):
+        raw_refs = raw_refs + [x for x in raw_writes if x not in raw_refs]
+    refs, why = await _task_refs(raw_refs, p["id"], eng, taken=[w.name for w in writes],
+                                 skip={w.project_id for w in writes})
     if why:
         return {"ok": False, "error": "refs", "message": why}
+    refs = [(n, r) for n, r, _ in refs]
     order = [str(x) for x in (body.get("agents") or _chain.DEFAULT_ORDER)]
     from . import check as _check
     t = await _tasks.start(project_id=p["id"], root=root, prompt=prompt[:20000],
@@ -887,7 +941,7 @@ async def start_task(body: dict = Body(...)) -> dict[str, Any]:
                            github=str((p.get("prefs") or {}).get("github") or ""),
                            attachments=atts, images=images, check=_check.get(p["id"]),
                            approve="auto" if body.get("approve") == "auto" else "manual",
-                           session=session, refs=refs)
+                           session=session, refs=refs, writes=writes)
     await _db().touch_code_binding(p["id"], eng)
     return {"ok": True, "task": t.summary()}
 
