@@ -410,11 +410,18 @@ async function handleClaudeResets(request, env, origin) {
   const now = Date.now();
   const enabled = body.enabled !== false;
   const notify = enabled && body.notify !== false;
-  const resets = claudeResetList(profile, body, now);
   const docUrl = `${base}/dashboards/claude_resets_${profile}`;
 
   // Every reminder an earlier post made, so the ones not wanted now can go.
   const prev = await fetch(docUrl, { headers: ah }).then(r => (r.ok ? r.json() : null)).catch(() => null);
+  // Resets the person removed in TaskHub's edit mode (id -> the reset's
+  // instant). They are dropped from the list and never get a reminder; the
+  // next reset has a new id, so it posts as usual.
+  const dismissed = {};
+  for (const [id, v] of Object.entries(prev?.fields?.dismissed?.mapValue?.fields || {})) {
+    dismissed[id] = Number(v.integerValue || v.doubleValue || 0);
+  }
+  const resets = claudeResetList(profile, body, now).filter(r => !dismissed[r.id]);
   // One that is already due is left to the cron: the engine posts moments
   // after a reset passes, and deleting it then could beat the tick that sends
   // it. Fired docs are swept by cleanupFiredReminders like any other.
@@ -449,7 +456,9 @@ async function handleClaudeResets(request, env, origin) {
     }
   }
 
-  const w = await fetch(docUrl, { method: 'PATCH', headers: ah, body: JSON.stringify({ fields: {
+  // Field-masked, so a removal the person makes mid-post is not overwritten.
+  const mask = ['enabled', 'notify', 'updatedAt', 'resets'].map(f => `updateMask.fieldPaths=${f}`).join('&');
+  const w = await fetch(`${docUrl}?${mask}`, { method: 'PATCH', headers: ah, body: JSON.stringify({ fields: {
     enabled: { booleanValue: enabled }, notify: { booleanValue: notify },
     updatedAt: { integerValue: String(now) },
     resets: { arrayValue: { values: resets.map(r => ({ mapValue: { fields: {
@@ -457,6 +466,15 @@ async function handleClaudeResets(request, env, origin) {
     } } })) } },
   } }) });
   if (!w.ok) return json({ ok: false, error: `doc write failed (${w.status})` }, origin, 502);
+
+  // Forget removals whose reset is long past, so the map cannot grow forever.
+  const stale = Object.keys(dismissed).filter(id => dismissed[id] < now - 24 * 60 * 60 * 1000);
+  if (stale.length) {
+    const keepD = Object.entries(dismissed).filter(([id]) => !stale.includes(id));
+    await fetch(`${docUrl}?updateMask.fieldPaths=dismissed`, { method: 'PATCH', headers: ah, body: JSON.stringify({ fields: {
+      dismissed: { mapValue: { fields: Object.fromEntries(keepD.map(([id, at]) => [id, { integerValue: String(at) }])) } },
+    } }) }).catch(() => {});
+  }
 
   // A brand-new reminder is invisible to the cron's cached lookahead.
   if (created.length && env.TOKEN_CACHE) {

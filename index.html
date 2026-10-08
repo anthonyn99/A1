@@ -8473,7 +8473,10 @@ function TgScrollBox(props){
    zone and the event moves with you. The notification is a separate reminder
    doc the worker writes, so it fires with this page closed. Turning the
    feature off in MAGI (Units → Claude) empties the doc and deletes the
-   reminder. Names are CR_-prefixed: both babel blocks share one scope.
+   reminder. In edit mode each reset has a × (window._crDismiss): it adds the
+   id to the doc's `dismissed` map and deletes that reminder, and the worker
+   then never re-arms it; the next reset has a new id and arrives as usual.
+   Names are CR_-prefixed: both babel blocks share one scope.
    ══════════════════════════════════════════════════════════════════════════ */
 const CR_COLOR="#d97757";
 const CR_TITLE={five_hour:"Claude resets",seven_day:"Claude weekly reset"};
@@ -8498,7 +8501,7 @@ function CR_useResets(profile){
   const now=Date.now();
   const list=(doc&&doc.enabled!==false&&Array.isArray(doc.resets)?doc.resets:[])
     .map(r=>({...r,at:Number(r.at)}))
-    .filter(r=>r&&r.id&&CR_TITLE[r.kind]&&r.at>now);
+    .filter(r=>r&&r.id&&CR_TITLE[r.kind]&&r.at>now&&!(doc.dismissed&&doc.dismissed[r.id]));
   // A passed reset leaves the week on its own, even with no new push yet.
   const soonest=list.reduce((m,r)=>Math.min(m,r.at),Infinity);
   useEffect(()=>{
@@ -8527,7 +8530,10 @@ function CR_rows(list,o){
           React.createElement("span",{style:{fontSize:o.compact?10:11,fontWeight:600,color:o.tx,opacity:0.65,whiteSpace:"nowrap"}},time),
           r.notify&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",fontSize:10,color:o.ac,opacity:0.85},"aria-label":"Notifies at reset"},
             React.createElement("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}}))),
-        React.createElement("span",{style:{fontSize:o.compact?13:14,fontWeight:600,color:o.tx,lineHeight:o.compact?1.35:1.4,...(o.fit||{})}},CR_TITLE[r.kind])));
+        React.createElement("span",{style:{fontSize:o.compact?13:14,fontWeight:600,color:o.tx,lineHeight:o.compact?1.35:1.4,...(o.fit||{})}},CR_TITLE[r.kind])),
+      // Edit mode: the same × as any task. It hides this one reset and cancels
+      // its push; the next reset arrives as usual (see _crDismiss).
+      o.edit&&o.dbtn&&React.createElement("button",{type:"button",style:{...o.dbtn,padding:"0 6px"},title:"Remove this reset"+(r.notify?" and its notification":""),onClick:()=>{if(window._crDismiss)window._crDismiss(o.profile,r.id);}},"×"));
   });
 }
 
@@ -9930,7 +9936,7 @@ function App(){
 ),
               tasks.length>0&&React.createElement("div",{style:{width:"100%",height:3,background:T.BD,borderRadius:2,marginBottom:10,overflow:"hidden"}},React.createElement("div",{style:{width:p+"%",height:"100%",background:p===100?T.GRN:wkBarFill,borderRadius:2,transition:"width .35s"}})),
               mcRender(mcDay,dayTX),
-              CR_rows(crByDay[k],{card:wkEventCard(null,false),tx:T.TXD,ac:T.AC,dim:dimA,fit:wkTitleFit}),
+              CR_rows(crByDay[k],{card:wkEventCard(null,false),profile:"tony",edit:edit,dbtn:dbtn,tx:T.TXD,ac:T.AC,dim:dimA,fit:wkTitleFit}),
               /* OneInbox packages / bills / travel due on THIS day. Each card is
                  keyed by the shipment or the obligation, not by the email, so a
                  revised ETA moves the existing card to its new day instead of
@@ -10021,7 +10027,7 @@ function App(){
               ),
               tasks.length>0&&React.createElement("div",{style:{width:"100%",height:3,background:T.BD,borderRadius:2,marginBottom:8,overflow:"hidden"}},React.createElement("div",{style:{width:p+"%",height:"100%",background:p===100?T.GRN:wkBarFill,borderRadius:2,transition:"width .35s"}})),
               mcRender(mcDay,dayTX),
-              CR_rows(crByDay[k],{card:wkEventCard(null,false),tx:T.TXD,ac:T.AC,dim:dimA,fit:wkTitleFit,compact:true}),
+              CR_rows(crByDay[k],{card:wkEventCard(null,false),profile:"tony",edit:edit,dbtn:dbtn,tx:T.TXD,ac:T.AC,dim:dimA,fit:wkTitleFit,compact:true}),
               /* OneInbox packages / bills / travel due on THIS day. Each card is
                  keyed by the shipment or the obligation, not by the email, so a
                  revised ETA moves the existing card to its new day instead of
@@ -12973,6 +12979,21 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       window._crResets[p] = data;
       window.dispatchEvent(new CustomEvent('cr-resets-update', { detail: { profile: p, data } }));
     }, (err) => { console.warn('[ClaudeResets] onSnapshot error:', err); }));
+
+    // Remove one Claude reset (edit-mode ×). The id goes in the doc's
+    // `dismissed` map, which the worker reads on its next post so the reset is
+    // never re-armed, and its push reminder is deleted now. The next reset has
+    // a new id, so it comes through as usual.
+    window._crDismiss = async (p, id) => {
+      if (!/^[a-z]+$/.test(p || '') || !/^[\w-]+$/.test(id || '')) return;
+      const cur = (window._crResets || {})[p];
+      const at = ((cur && cur.resets) || []).find(r => r && r.id === id);
+      try {
+        await setDoc(doc(db, 'dashboards/claude_resets_' + p),
+          { dismissed: { [id]: at ? Number(at.at) : Date.now() + 86400000 } }, { merge: true });
+      } catch (e) { console.warn('[ClaudeResets] dismiss failed:', e); return; }
+      try { await deleteDoc(doc(db, 'reminders', id)); } catch (e) {}
+    };
 
     // ── AppLock locked-set sync — which apps are locked, shared across ALL devices ──
     const alDocRef = doc(db, "dashboards/applock");
@@ -17222,7 +17243,7 @@ function App(){
                 ts.length>0&&RC("span",{style:{fontSize:10,fontWeight:700,color:l===0?GRN:A,background:l===0?"rgba(86,211,100,.1)":ABG,borderRadius:3,padding:"2px 7px",flexShrink:0}},l===0?RC("span",{style:{display:"inline-flex",alignItems:"center",gap:3}},RC("span",{style:{width:9,height:9,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.check}}),"Done"):l+" left")),
               ts.length>0&&RC("div",{style:{width:"100%",height:3,background:BD,borderRadius:2,marginBottom:8,overflow:"hidden"}},RC("div",{style:{width:p+"%",height:"100%",background:p===100?GRN:"linear-gradient(90deg,"+AD+","+AL+")",borderRadius:2,transition:"width .35s"}})),
               mcRender(mcByDay[k]||[],dayTX),
-              CR_rows(crByDay[k],{card:vdEventCard(null,false),tx:"#C3B2D0",ac:A,dim:dimA,fit:vdTitleFit}),
+              CR_rows(crByDay[k],{card:vdEventCard(null,false),profile:"veda",edit:edit,dbtn:dbtn,tx:"#C3B2D0",ac:A,dim:dimA,fit:vdTitleFit}),
               ts.map(t=>t._planId
               /* ── Shared plan ──────────────────────────────────────────────
                  Owned by dashboards/plans, so its CONTENT is inert here: no
@@ -17286,7 +17307,7 @@ function App(){
                 ts.length>0&&RC("span",{style:{fontSize:10,fontWeight:700,color:l===0?GRN:A,background:l===0?"rgba(86,211,100,.1)":ABG,borderRadius:3,padding:"2px 7px"}},l===0?RC("span",{style:{display:"inline-flex",alignItems:"center",gap:3}},RC("span",{style:{width:9,height:9,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.check}}),"Done"):l+" left")),
               ts.length>0&&RC("div",{style:{width:"100%",height:3,background:BD,borderRadius:2,marginBottom:7,overflow:"hidden"}},RC("div",{style:{width:p+"%",height:"100%",background:p===100?GRN:"linear-gradient(90deg,"+AD+","+AL+")",borderRadius:2,transition:"width .35s"}})),
               mcRender(mcByDay[k]||[],dayTX),
-              CR_rows(crByDay[k],{card:vdEventCard(null,false),tx:"#C3B2D0",ac:A,dim:dimA,fit:vdTitleFit,compact:true}),
+              CR_rows(crByDay[k],{card:vdEventCard(null,false),profile:"veda",edit:edit,dbtn:dbtn,tx:"#C3B2D0",ac:A,dim:dimA,fit:vdTitleFit,compact:true}),
               ts.map(t=>t._planId
               /* Shared plan — content inert, position draggable; same rule as the
                  single-day list. */

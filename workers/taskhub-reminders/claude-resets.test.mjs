@@ -30,7 +30,12 @@ globalThis.fetch = async (url, opts = {}) => {
   LOG.push(method + ' ' + path);
   if (method === 'GET') return DOCS.has(path) ? ok({ fields: DOCS.get(path) }) : ok({}, 404);
   if (method === 'DELETE') { DOCS.delete(path); return ok({}); }
-  if (method === 'PATCH') { DOCS.set(path, JSON.parse(opts.body).fields); return ok({}); }
+  if (method === 'PATCH') {
+    const f = JSON.parse(opts.body).fields, mask = q.getAll('updateMask.fieldPaths');
+    // With a mask only those fields change, as in Firestore; without, the doc is replaced.
+    DOCS.set(path, mask.length ? { ...(DOCS.get(path) || {}), ...Object.fromEntries(mask.map(k => [k, f[k]])) } : f);
+    return ok({});
+  }
   if (method === 'POST') {
     const full = path + '/' + q.get('documentId');
     if (DOCS.has(full)) return ok({ error: { status: 'ALREADY_EXISTS' } }, 409);
@@ -97,6 +102,23 @@ r = await call({ profile: 'tony', token: 'tony-secret', notify: false, resets: [
 assert.deepEqual(reminders(), []);
 assert.equal(DOCS.get('dashboards/claude_resets_tony').resets.arrayValue.values.length, 1);
 assert.equal(DOCS.get('dashboards/claude_resets_tony').notify.booleanValue, false);
+
+// A reset removed in TaskHub (edit-mode ×): its reminder is gone, and a re-post
+// of the same reset neither re-arms it nor shows it again. The next one is normal.
+r = await call({ profile: 'tony', token: 'tony-secret', notify: true, resets: [{ kind: 'five_hour', at: B }] });
+assert.deepEqual(reminders(), ['reminders/' + idB]);
+DOCS.delete('reminders/' + idB);   // what the client's _crDismiss does
+DOCS.get('dashboards/claude_resets_tony').dismissed = { mapValue: { fields: { [idB]: { integerValue: String(B) } } } };
+r = await call({ profile: 'tony', token: 'tony-secret', notify: true, resets: [{ kind: 'five_hour', at: B }] });
+assert.deepEqual(reminders(), [], 'a removed reset is not re-armed');
+assert.equal((DOCS.get('dashboards/claude_resets_tony').resets.arrayValue.values || []).length, 0);
+assert.ok(DOCS.get('dashboards/claude_resets_tony').dismissed.mapValue.fields[idB], 'the removal is kept');
+const C = B + 5 * H;
+r = await call({ profile: 'tony', token: 'tony-secret', notify: true, resets: [{ kind: 'five_hour', at: C }] });
+assert.deepEqual(reminders(), [`reminders/claude_tony_five_hour_${C / 1000}`], 'the next reset arms normally');
+DOCS.delete(reminders()[0]);
+delete DOCS.get('dashboards/claude_resets_tony').dismissed;
+r = await call({ profile: 'tony', token: 'tony-secret', notify: false, resets: [{ kind: 'five_hour', at: B }] });
 
 // Veda's go to Veda's dash, and leave Tony's alone.
 r = await call({ profile: 'veda', token: 'veda-secret', resets: [{ kind: 'five_hour', at: A }, { kind: 'seven_day', at: now + 3 * 24 * H }] });
