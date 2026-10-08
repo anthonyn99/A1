@@ -323,3 +323,28 @@ def test_site_error_says_whose_problem_it_is():
     # The console recognises it from the live frame's message.
     page = (Path(__file__).resolve().parents[2] / "magi.html").read_text(encoding="utf-8")
     assert 'site_error: "Site error"' in page and "servers refused the message" in page
+
+
+class ToastPage(FakePage):
+    def locator(self, selector):
+        if selector == "TOAST":
+            f = self._current()
+            return FakeLocator([f["toast"]] if f.get("toast") else [])
+        return super().locator(selector)
+
+
+@pytest.mark.asyncio
+async def test_completion_stops_on_the_sites_refusal_toast(monkeypatch):
+    """Gemini clears the box on send and puts the prompt back when its server
+    refuses; the toast comes during the wait and is gone in ~5 s. Before
+    this the run sat out its 120 s stall timeout and said "timeout"."""
+    monkeypatch.setattr(completion, "SEND_ERROR_CHECK_S", 0.0)
+    page = ToastPage([{"turns": []}, {"turns": [], "toast": "Something went wrong (1099)"}])
+    site = make_site(send_error=["TOAST"], stall_timeout_s=3, hard_timeout_s=5)
+    import time
+    t0 = time.monotonic()
+    with pytest.raises(ProviderError) as e:
+        await completion.wait_for_completion(
+            page, site, baseline=completion.Baseline(turns=0, last_text=""), prompt="q")
+    assert e.value.kind == FailureKind.SITE_ERROR and "1099" in e.value.detail
+    assert time.monotonic() - t0 < 1.5

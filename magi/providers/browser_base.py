@@ -529,6 +529,9 @@ class BrowserProvider(Provider):
                     if e.kind == FailureKind.PROMPT_TOO_LONG:
                         artifacts = await self._save_artifacts(page, "prompt-too-long")
                         return fail(e.kind, f"{self.display_name} says: {e.detail}")
+                    if e.kind == FailureKind.SITE_ERROR:
+                        artifacts = await self._save_artifacts(page, "site-error")
+                        return fail(e.kind, site_error_detail(self.display_name, e.detail))
                     limit = await resolve.rate_limited(
                         page, site.limit_rules,
                         prompt=sent, answer=site.assistant_turn,

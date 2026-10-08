@@ -41,6 +41,12 @@ from .markdown import DOM_TO_MARKDOWN_JS
 
 
 LIMIT_CHECK_S = 5.0
+# The site's own "your message failed" toast (site.send_error). Checked far
+# more often than the limits: Gemini's lives about five seconds (measured
+# 2026-10-08: visible 1.1 s to 6.0 s after the click), and it comes AFTER the
+# composer has cleared -- Gemini empties the box on send, then puts the
+# prompt back when its server refuses -- so the send itself looks fine.
+SEND_ERROR_CHECK_S = 1.0
 CANNED_SETTLE_S = 15.0
 CANNED_MAX_CHARS = 600
 
@@ -235,6 +241,7 @@ async def wait_for_completion(
     # A stock error line that has stopped changing (see Gate 1b).
     canned_text, canned_since = "", 0.0
     last_limit_check = start
+    last_send_error_check = start
 
     while True:
         if cancel is not None and cancel.is_set():
@@ -305,6 +312,13 @@ async def wait_for_completion(
             too_long = await resolve.notice(page, site.prompt_too_long, prompt=prompt)
             if too_long:
                 raise ProviderError(FailureKind.PROMPT_TOO_LONG, too_long)
+
+        if (site.send_error
+                and time.monotonic() - last_send_error_check >= SEND_ERROR_CHECK_S):
+            last_send_error_check = time.monotonic()
+            refused = await resolve.notice(page, site.send_error, prompt=prompt)
+            if refused:
+                raise ProviderError(FailureKind.SITE_ERROR, refused)
 
         # Gate 1: don't read anything until this is demonstrably a NEW answer.
         #
