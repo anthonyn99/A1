@@ -81,9 +81,15 @@ async function run(body, onEvent, ms = 900000) {
     console.log('        tools: ' + tools.join(' | '));
     for (const n of notes.filter((t) => /Check|check/.test(t))) console.log('        note: ' + n);
     ok('MAGI ran the check on the unit\'s edits', tools.some((t) => t.startsWith('Run check')));
-    ok('the first check failed', notes.some((t) => /^Check FAILED/.test(t)));
-    ok('the failure went back to the unit', notes.some((t) => /The check failed; sending/.test(t)));
-    ok('and the fixed change passed', notes.some((t) => /^Check passed/.test(t)), notes.slice(-3).join(' / '));
+    // Since Track W a unit can run the check itself (SHELL:) and often fixes
+    // the hidden add() bug in its first answer: then there is nothing to send
+    // back. Either way the last check must pass; a failure must go back.
+    const failedFirst = notes.some((t) => /^Check FAILED/.test(t));
+    console.log('        first check: ' + (failedFirst ? 'failed (the loop ran)' : 'passed at once'));
+    ok('a failed check went back to the unit',
+      !failedFirst || notes.some((t) => /The check failed; sending/.test(t)));
+    ok('and the final change passed', notes.filter((t) => /^Check (passed|FAILED)/.test(t)).slice(-1)
+      .some((t) => /^Check passed/.test(t)), notes.slice(-3).join(' / '));
     ok('a card came up and was applied', !!card && x.result && x.result.write === 'applied', x.result && (x.result.write || x.result.detail));
     const out = execFileSync(PY, ['check.py'], { cwd: DIR, encoding: 'utf8' }).trim();
     ok('the real folder now passes the check', /all good/.test(out), out);
