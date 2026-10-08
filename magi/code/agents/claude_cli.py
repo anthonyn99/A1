@@ -214,6 +214,9 @@ def env_for_task(slot: str, task: Task) -> dict[str, str]:
 def _target(inp: dict[str, Any]) -> str:
     if inp.get("from") and inp.get("to"):
         return f"{inp['from']} → {inp['to']}"
+    if inp.get("name") and set(inp) <= {"name", "arg"}:
+        # run_command (Track V6): "build", "test tests/test_x.py".
+        return f"{inp['name']} {inp.get('arg') or ''}".strip()
     for k in ("file_path", "path", "pattern", "glob", "query"):
         v = inp.get(k)
         if v:

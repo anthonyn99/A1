@@ -140,3 +140,9 @@ def test_an_answer_that_mentions_run_is_still_an_answer():
     rest = browser._RUN.sub("", long)
     assert browser._parse_runs(long) == [("build", "")] and not browser._is_request(rest)
     assert browser._parse_runs("RUN: test tests/a.py\nRUN: test tests/a.py") == [("test", "tests/a.py")]
+
+
+def test_claude_s_run_command_reads_as_the_command_name_in_the_transcript():
+    assert CC._target({"name": "build"}) == "build"
+    assert CC._target({"name": "test", "arg": "tests/a.py"}) == "test tests/a.py"
+    assert CC._target({"path": "x.py"}) == "x.py"
