@@ -213,3 +213,31 @@ def test_a_crashing_cli_has_no_version(world, monkeypatch):
     monkeypatch.setattr(P, "run", lambda argv, **kw: SimpleNamespace(
         returncode=1, stdout="Node.js v24.15.0", stderr=""))
     assert M.cli_version("codex", fresh=True) == ""
+
+
+def test_a_codex_that_no_longer_starts_is_repaired(world, monkeypatch):
+    """A broken install has no version, so it never looks behind: repaired
+    by reinstalling the newest version that has a build for this PC."""
+    monkeypatch.setattr(U, "_last_repair", {})
+    run = U.proc.run
+    state = {"broken": True}
+
+    def r(argv, **kw):
+        if argv[1:] == ["--version"] and "codex" in argv[0] and state["broken"]:
+            return SimpleNamespace(returncode=1, stdout="", stderr="Missing optional dependency")
+        if argv[1:3] == ["install", "-g"] and "codex" in argv[3]:
+            state["broken"] = False
+        return run(argv, **kw)
+    monkeypatch.setattr(U.proc, "run", r)
+    import magi.proc as P
+    monkeypatch.setattr(P, "run", r)
+    started = U.auto_tick(now=1_000_000)
+    assert "codex" in started
+    U.JOBS["codex"]._thread_join = None
+    for _ in range(50):
+        if U.JOBS["codex"].state != "running":
+            break
+        import time as _t
+        _t.sleep(0.05)
+    assert ["C:/node/npm.cmd", "install", "-g", "@openai/codex@0.156.1"] in world.calls
+    assert U.auto_tick(now=1_000_100) == [], "not again within 30 minutes"

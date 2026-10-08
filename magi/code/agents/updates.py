@@ -235,6 +235,8 @@ def start(agent: str, *, auto: bool = False, wait: bool = False) -> Job:
 
 
 _last_auto: dict[str, float] = {}
+_last_repair: dict[str, float] = {}
+REPAIR_EVERY = 30 * 60
 
 
 def auto_tick(now: float | None = None) -> list[str]:
@@ -246,6 +248,19 @@ def auto_tick(now: float | None = None) -> list[str]:
     started = []
     for agent in PACKAGE:
         if not slots.cli_path(agent) or updating(agent):
+            continue
+        if agent == "codex" and not models.cli_version(agent, fresh=True):
+            # Installed but it does not start -- e.g. a version with no build
+            # for this PC got in before the check that now keeps it out. No
+            # version means it never looks "behind", so it is repaired here:
+            # the newest version that has a build for this PC, every 30 min.
+            if now - _last_repair.get(agent, 0) >= REPAIR_EVERY and latest(agent, force=True):
+                _last_repair[agent] = now
+                try:
+                    start(agent, auto=True)
+                    started.append(agent)
+                except ValueError:
+                    pass
             continue
         waiting = bool(models.waiting_on_cli(agent))
         # Ask npm at most every LATEST_TTL -- sooner when a model is waiting.
