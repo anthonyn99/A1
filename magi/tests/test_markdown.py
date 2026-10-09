@@ -310,3 +310,23 @@ def test_preless_code_block_takes_its_language_from_the_header(page):
 
 def test_inline_code_is_still_inline(page):
     assert render(page, "<p>Run <code>make test</code> first.</p>") == "Run `make test` first."
+
+
+def test_deepseek_banner_outside_the_pre_is_not_a_paragraph(page):
+    """2026-10-08: DeepSeek puts the language and Copy/Download in a banner
+    BESIDE the <pre>. It arrived as a paragraph -- "text" above every code
+    block, and in every commit message drafted from the reply."""
+    banner = ("<div class='md-code-block'><div class='md-code-block-banner-wrap'>"
+              "<div class='md-code-block-banner'><span>{lang}</span>"
+              "<div><button>Copy</button><div role='button'><span>Download</span></div></div>"
+              "</div></div><pre>{code}</pre></div>")
+    md = render(page, "<p>Here:</p>" + banner.format(lang="text", code="CODE_9 = 1")
+                + "<p>Done.</p>")
+    assert md == "Here:\n\n```\nCODE_9 = 1\n```\n\nDone.", md
+    md = render(page, banner.format(lang="python", code="x = 1"))
+    assert md == "```python\nx = 1\n```", md
+
+
+def test_a_sentence_beside_a_pre_is_kept(page):
+    md = render(page, "<div>Run this first:<pre>make test</pre></div>")
+    assert "Run this first:" in md and "```\nmake test\n```" in md, md

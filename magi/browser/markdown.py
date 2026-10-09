@@ -162,6 +162,46 @@ DOM_TO_MARKDOWN_JS = """
     return head.length <= 40 ? [codes[0], head] : null;
   };
 
+  // A <pre> whose header sits OUTSIDE it: DeepSeek wraps each code block as
+  // a banner (language, Copy, Download) beside the <pre>. Recursed into, the
+  // banner arrived as a paragraph -- "text" above every code block, and in
+  // every commit message (2026-10-08). `n` is one when it holds exactly one
+  // <pre>, no other block, and outside it only a language word and buttons.
+  // -> [pre, language] or null.
+  const preWrap = (n) => {
+    if (!n.querySelectorAll || n.closest('pre')) return null;
+    const pres = n.querySelectorAll('pre');
+    if (pres.length !== 1 || n.querySelector('table,ul,ol,blockquote,h1,h2,h3,h4,h5,h6,p')) return null;
+    const chrome = n.cloneNode(true);
+    for (const k of chrome.querySelectorAll('pre, button, [role="button"]')) k.remove();
+    const words = (chrome.textContent || '').trim().split(/\\s+/)
+      .filter((w) => w && !/^(copy|download|run|edit|复制|下载|运行)$/i.test(w));
+    if (words.length !== 1 || !/^[\\w+#.-]{1,20}$/.test(words[0])) return null;
+    return [pres[0], words[0].toLowerCase()];
+  };
+
+  // A <pre> as a fenced block. `head` is a language found outside it.
+  const fencePre = (c, head) => {
+    // The <code> inside, when there is one: ChatGPT puts a "Python" label
+    // and a Copy button in the same <pre>, and reading the whole <pre>
+    // made the label the first line of the code.
+    const code = c.querySelector('code');
+    const t = ((code || c).innerText || (code || c).textContent || '').replace(/\\s+$/, '');
+    let lang = '';
+    const m = code && (code.className || '').match(/language-([\\w+#.-]+)/);
+    if (m) lang = m[1];
+    if (!lang && code) {
+      // Whatever text the <pre> holds OUTSIDE the code and its buttons is
+      // the header, and its first word is the language.
+      const chrome = c.cloneNode(true);
+      for (const k of chrome.querySelectorAll('code, button')) k.remove();
+      const w = (chrome.textContent || '').trim().split(/\\s+/)[0] || '';
+      if (/^[\\w+#.-]{1,20}$/.test(w)) lang = w.toLowerCase();
+    }
+    if (!lang && head && !/^(code|plain|text|plaintext)$/.test(head)) lang = head;
+    return t.trim() ? '```' + lang + '\\n' + t + '\\n```' : '';
+  };
+
   const block = (node, depth) => {
     const out = [];
     for (const c of node.childNodes) {
@@ -185,6 +225,12 @@ DOM_TO_MARKDOWN_JS = """
         const w = (pl[1].split(/\\s+/)[0] || '').toLowerCase();
         const lang = /^[\\w+#.-]{1,20}$/.test(w) && !/^(code|plain|text)$/.test(w) ? w : '';
         if (t.trim()) out.push('```' + lang + '\\n' + t + '\\n```');
+        continue;
+      }
+      const pw = tag === 'DIV' ? preWrap(c) : null;
+      if (pw) {
+        const f = fencePre(pw[0], pw[1]);
+        if (f) out.push(f);
         continue;
       }
 
@@ -247,23 +293,8 @@ DOM_TO_MARKDOWN_JS = """
           out.push(lines.join('\\n'));
         }
       } else if (tag === 'PRE') {
-        // The <code> inside, when there is one: ChatGPT puts a "Python" label
-        // and a Copy button in the same <pre>, and reading the whole <pre>
-        // made the label the first line of the code.
-        const code = c.querySelector('code');
-        const t = ((code || c).innerText || (code || c).textContent || '').replace(/\\s+$/, '');
-        let lang = '';
-        const m = code && (code.className || '').match(/language-([\\w+#.-]+)/);
-        if (m) lang = m[1];
-        if (!lang && code) {
-          // Whatever text the <pre> holds OUTSIDE the code and its buttons is
-          // the header, and its first word is the language.
-          const chrome = c.cloneNode(true);
-          for (const k of chrome.querySelectorAll('code, button')) k.remove();
-          const head = (chrome.textContent || '').trim().split(/\\s+/)[0] || '';
-          if (/^[\\w+#.-]{1,20}$/.test(head)) lang = head.toLowerCase();
-        }
-        if (t.trim()) out.push('```' + lang + '\\n' + t + '\\n```');
+        const f = fencePre(c, '');
+        if (f) out.push(f);
       } else if (c.matches && c.matches('section[data-footnotes], .footnotes')) {
         // Footnote definitions, in the form they were written.
         for (const li of c.querySelectorAll('li')) {
