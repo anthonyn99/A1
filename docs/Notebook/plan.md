@@ -8,13 +8,25 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-10-09. **Phase 0 is done** (baseline + safety net, no product
-change). The "before" state is the git tag **`notebook-p0`**: every later phase must
-make `node tests/live/notebook-baseline.live.js` pass against it.
+**Last updated:** 2026-10-09. **Phases 0 and 1 are done.** The shared engines live in
+`Notebook/` and index.html loads them in place (§4 Phase 1 says how). The "before"
+state is still the git tag **`notebook-p0`**: every phase must make
+`node tests/live/notebook-baseline.live.js` pass against it.
 
-**Next: Phase 1** — move the shared engines (DOCX, OurJournal engine, VizEngine,
-JGuard, touch-drag helper) out of index.html into `Notebook/core/`, verbatim, loaded
-in place by `Notebook/notebook.js`. See §4 Phase 1 and the cut list in §3.
+**Next: Phase 2.** Move Brainstorm Journal into `Notebook/apps/brainstorm.js` (+ .css).
+See §4 Phase 2 and the cut list in §3. Line numbers in §3 are from `notebook-p0`. Phase 1
+removed about 8,800 lines above the journals, so grep for each identifier. Things to
+know first:
+- `Notebook.registerDocx('bj', …)` sits in index.html just before `Notebook.load('docx')`.
+  It moves into brainstorm.js. Registering bj before tj changes `Object.keys(APPS)`
+  order in core/docx.js (init order). That should be harmless, and the baseline will
+  show it.
+- New files under `Notebook/` go into a `GROUPS` list in `notebook.js`. The wiring test
+  fails on an orphan file. The pre-commit hook re-stamps hosts by itself, and
+  `node tools/notebook-stamp.js` does the same by hand.
+- The auto-commit watcher pushes every minute or so, so an edit is live almost at once.
+  Make the cut in one scripted step (Phase 1 used a scratch Node script with asserted
+  anchors), then verify at once.
 
 Before starting any phase: `git pull`; run `node tests/run-all.js`; then
 `node tests/live/notebook-baseline.live.js` (about 10 minutes; it must already
@@ -202,7 +214,7 @@ stays as host config):
   - tablet and phone sizes, reload
 - This plan, the cut list (§3) and a CLAUDE.md pointer.
 
-### Phase 1 — Shared engines out, verbatim
+### Phase 1 — Shared engines out, verbatim ✅ 2026-10-09
 - Move DOCX (CSS + IIFE), OurJournal engine + `oj-css`, VizEngine + CSS, JGuard and
   the touch-drag helper into `Notebook/core/*` and `notebook.css`, byte for byte.
   `notebook.js` loads them synchronously at the same spot.
@@ -212,6 +224,45 @@ stays as host config):
   `_bjBindImg`/`_tjBindImg` today).
 - Add the stamp tool and a first `tests/notebook-wiring.test.js`. Update the
   index-grepping tests.
+
+How it was built:
+- **Loading.** `notebook.js` uses `document.write` while the page parses (a classic
+  external script, same origin, so Chrome's write intervention does not apply). Its
+  tags are therefore parsed next, blocking and in order, right where the old blocks
+  were. After parsing, it appends ordered `async=false` elements instead.
+  - Two groups: `core` loads by itself where the touch-drag helper sat (jguard.js,
+    viz.css, viz.js, oj.css, oj.js, fb.js). `docx` loads where `docx-css-tony` sat,
+    via `Notebook.load('docx')` (notebook.css, core/docx.js). That keeps every sheet's
+    cascade position.
+  - The four DOCX/shell `<style>` blocks became one `notebook.css`. Nothing referenced
+    their ids.
+- **Firestore accessors.** `_fbViz`/`_fbOJ` double as "Firebase ready" signals:
+  VizEngine's `fbReady()` and OJ's `fb()` test whether they exist. So fb.js only
+  defines `Notebook.fb.install(api)`, and index's Firebase `init()` calls it at the
+  spot the accessors were built.
+  - `db` is passed as a getter, because a teardown swaps `db` without re-running
+    init(). The old closures saw the new one, and so must these.
+- **DOCX registry.** `Notebook.docxApps` is core/docx.js's `APPS`. Each config gains
+  `bindImg: '_tjBindImg'`/`'_bjBindImg'`, and both hardcoded binder pairs route
+  through it (`_docxRebindImages` and `wireImageDelegation`).
+  - An app registered after DOMContentLoaded initialises on arrival
+    (`Notebook._docxInitApp`).
+  - core/docx.js still has `app === 'tj'` branches: AI tools/prompt savers, sync
+    setter, saved/error event names, the journal name, A1Resize and the rename target.
+    Phase 4 moves them into the config.
+- **Stamp.** `tools/notebook-stamp.js` hashes `Notebook/` into every host's `?v=`.
+  `.githooks/pre-commit` re-stamps automatically when `Notebook/` is staged, and the
+  wiring test fails on a stale stamp.
+  - `syntax-check.js` parses every `Notebook/**/*.js`.
+  - viz-board and undo-history now read `Notebook/`.
+- **Harness fix.** Even on a clean checkout, the baseline's screenshots were not
+  byte-repeatable: Veda's nav button borders drift up to 2 levels per channel on
+  about 150 px between runs. Screenshots now match within ±2 per channel, the drift
+  is printed as `near …`, and a real difference still fails (checked with a
+  swapped shot).
+- Verified: the baseline matches `notebook-p0` (writes, requests, storage, every step,
+  20 shots, no new page errors). A headless smoke check covered the engines,
+  accessors, registry and stylesheet order. Pages serves `Notebook/`.
 
 ### Phase 2 — Brainstorm Journal into `apps/brainstorm.js`
 - Move the bj CSS, HTML (the app builds `#bj-root` on mount), app IIFE, Firebase
@@ -306,8 +357,12 @@ difference in this file and adds a rule to the suite's `EXPECTED` list for it.
 - `node tests/run-all.js` and `node tests/syntax-check.js`.
 - `node tests/live/notebook-baseline.live.js`. It compares against tag `notebook-p0`;
   `--ref <ref>` compares against anything else. Exit 0 means the writes, requests,
-  storage, every step snapshot and every screenshot match. Shots and recordings are
-  in `%TEMP%\magi-live-shots\nb-*`.
+  storage and every step snapshot match, and every screenshot matches within ±2 per
+  channel (headless Chrome drift, see Phase 1). Shots and recordings are in
+  `%TEMP%\magi-live-shots\nb-*`.
+  `... compare before after` re-diffs two existing recordings without recording again.
+- `node tests/notebook-wiring.test.js` (part of run-all) checks the stamp, the loader
+  and that moved code lives in `Notebook/` exactly once.
 - The `/verify` skill before each commit.
 - Never mutate source in place to prove a test can fail; monkeypatch instead.
 
