@@ -133,8 +133,7 @@ const turnOf = (prompt, mode, r, files) => ({
     }
 
     if (want('midrun')) {
-      console.log('
-2. A message mid-run joins the running turn, nothing is stopped');
+      console.log('\n2. A message mid-run joins the running turn, nothing is stopped');
       let sent = null;
       const r = await run({ project_id: PID, mode: 'read',
         prompt: 'Read README.md, then read app.py, then describe this project in two sentences.' },
