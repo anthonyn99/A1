@@ -8,30 +8,25 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-10-09. **Phases 0, 1 and 2 are done.** The shared engines live in
-`Notebook/core/`, and Brainstorm Journal is the Notebook app `Notebook/apps/brainstorm.*`
-that index.html mounts (§4 Phases 1 and 2 say how). The "before" state is still the git
-tag **`notebook-p0`**: every phase must make `node tests/live/notebook-baseline.live.js`
-pass against it, with each on-purpose difference listed in the suite's `EXPECTED`.
+**Last updated:** 2026-10-09. **Phases 0–3 are done.** Both journals are Notebook apps
+(`Notebook/apps/brainstorm.*`, `Notebook/apps/myjournal.*`) that index.html mounts, and
+their Firestore layer is `Notebook/core/fb.js`, installed from index's `init()`. index.html
+has no journal code left; `tests/notebook-wiring.test.js` enforces that. The "before" state
+is still the git tag **`notebook-p0`**, and every on-purpose difference is a rule in the
+baseline suite's `EXPECTED`.
 
-**Next: Phase 3.** Move MyJournal into `Notebook/apps/myjournal.js` (+ .css), the same way
-Phase 2 moved Brainstorm, **plus both journals' Firestore blocks into `core/fb.js`**
-(Phase 2 left Brainstorm's in index.html on purpose, see §4 Phase 2). Line numbers in §3
-are from `notebook-p0`; grep for each identifier. Things to know first:
-- Copy Phase 2's method: a scratch Node script with asserted anchors does the whole cut
-  in one step (the auto-commit watcher pushes every minute). Move verbatim first, run
-  the baseline, commit; only then make the bug fixes and run it again.
-- `Notebook.mount({ app, key, store })` loads a GROUPS entry in place (notebook.js).
-  The app script builds its markup right before its own <script> tag
-  (`insertAdjacentHTML('beforebegin')`), so parse-time `getElementById` calls still work.
-- MyJournal has the same lock bugs Brainstorm had, and more: its locked-delete also calls
-  lock-only helpers from the sidebar. Phase 2's fix (the `_bjLock` hand-out,
-  `blErrText`, one `set-lock` with `current`, `_bjFileTooBig`) is the template.
-- The baseline already scripts `change-pw` and `locked-delete` for both journals (steps
-  21 and 22). tj's steps match `notebook-p0` today, so after the tj fixes, add tj rules
-  next to the Phase 2 ones.
-- Write any scratch script with the Write tool, not a bash heredoc (escapes get mangled),
-  and expect CRLF in some test files.
+**Next: Phase 4** (host-agnostic, see §4). The hardcoded spots to parameterise:
+- core/docx.js `app === 'tj'` branches (~1732–1742, 2120, 2155, 2828): sync setter, AI
+  tools/prompt savers, journal name, event names, rename target. Move them into each
+  app's `registerDocx` config.
+- core/fb.js is written per journal (`_bj*` / `_tj*` twins, with `BJ_DOC_PATH`/`TJ_DOC_PATH`).
+  A third store (TradeHub's `tradehub_playbook`) needs it keyed by `store`/`key`. Do it
+  without changing what bj and tj write (the baseline checks every write).
+- myjournal.js reads `STORAGE_KEY = 'tony_journal_v3'`, `tj-` ids, the lock namespace `tj`.
+  These come from the mount config, and the defaults must stay what they are today.
+Method: the same as Phases 2–3. One scripted, asserted step, then the baseline, then commit.
+Write scratch scripts with the Write tool (bash heredocs mangle escapes), and expect CRLF in
+some test files. Wrap every long command in `timeout`.
 
 Before starting any phase: `git pull`; run `node tests/run-all.js`; then
 `node tests/live/notebook-baseline.live.js` (about 10 minutes; it must already
@@ -318,7 +313,7 @@ How it was built:
   (trash-purge-guard, viz-board). The wiring test checks the mount, the moved pieces
   and that `_pwReset` stays the host's.
 
-### Phase 3 — MyJournal into `apps/myjournal.js`
+### Phase 3 — MyJournal into `apps/myjournal.js` ✅ 2026-10-09
 - Same move for tj, plus MJDocsUI. The TaskHub-owned functions in §3 stay in index.
 - Both journals' Firestore blocks (§3 11650–13034, and the `_bj/_tjServerSeen` guards)
   move into `core/fb.js` (deferred from Phase 2), behind the host adapter.
@@ -335,6 +330,40 @@ How it was built:
   `_fbRehydrateMyJournalImages`, the `#th-app-switcher`/`#tj-app-switcher` refs.
   `dashboards/myjournal` is already a cleanup-rules item.
 - After this phase the "no journal code in index.html" test is switched on.
+
+How it was built:
+- **UI.** The same mount as Brainstorm: `{app:'myjournal', key:'tj', store:'tony_journal'}`.
+  MJDocsUI (the sidebar rail) is appended to myjournal.js. Its CSS (`mjd-css`) goes last in
+  notebook.css, because at 1100–1180px its `--sidebar-w: 300px` must still beat
+  notebook.css's 224px. The `#tj-root{position:fixed…}` root rule and the `.tji` sizing
+  open myjournal.css.
+- **Host-owned, in index.** `_updateTonyNavActive`, `_hideTonyNav`, `_tonyNav`,
+  `showTonyJournal`, `hideTonyJournal` and `tjSwitchTo` are one host `<script>` placed just
+  *before* the mount (MJDocsUI wraps `showTonyJournal` while parsing; the app lock and theme
+  wrap it later). `_fbFlushAll` and its pagehide/hidden listeners are host too, in the
+  next script, and call `Notebook.flushAll()` (each mounted key's `_<key>PersistNow`). The
+  multi-root rules (hover glow, fonts, the 2000px cap) are host config. The settings-gear
+  padding fix went to each app's CSS, because it only beats that app's `* ` reset.
+- **Firestore → core/fb.js, verbatim.** The module-level state (paths, timers, listener
+  handles, own-save stamps, both stale-overwrite guards) is fb.js's top level, so it
+  outlives a re-init as before. Everything init() built is `install(F)`, still called from
+  init() where the accessor install was, with every SDK function and host helper in `F`
+  (a parser-checked free-variable list: no free names remain in fb.js). `db` is a live
+  getter (`doc(db(), …)`), as in Phase 1. `_fbWriteRetry`/`_fbUpsert` stay index's (the
+  Plans mirror uses them) and are passed in. index's teardown calls
+  `Notebook.fb.unsubscribe()` and `Notebook.fb.rearm()` at the lines that used to do it,
+  and `_a1SweepFirestore.ready` reads `Notebook.fb.serverSeen('tj')` (unchanged meaning,
+  rather than the plan's `_thServerSeen`).
+- **Fixes** (myjournal.js): `_tjLock = { post, errText }` for the locked delete; set/remove/
+  change through `tlAuthPost`; change-password is one `set-lock` with `current`; passkey
+  rpName "MyJournal"; Journal Entries link uses `uiPrompt`; `_tjFileTooBig` (650 KB) on the
+  page chip and the drop path, chip name through `_tjEsc`; the PDF prints in neutral ink;
+  the sync pill's idle label says "Synced" until this session saves (`_tjSavedOnce`).
+- **Dead code removed:** `fb-tj-canvas-saved` (and bj's twin), `_fbRehydrateMyJournalImages`
+  (no caller; backup.js still backs up `dashboards/myjournal`), every
+  `th-app-switcher`/`tj-app-switcher` ref in index (vault.html still has its own).
+- **Baseline:** the tj lock steps, the trash and the pill label are Phase 3 `EXPECTED` rules.
+  Screenshots tj-open, tj-reload and tj-locked-again differ only by the pill.
 
 Each bug fix changes behaviour on purpose. The baseline comparison then shows
 exactly that difference and nothing else. The phase records each expected

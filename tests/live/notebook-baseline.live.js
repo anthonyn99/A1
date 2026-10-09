@@ -370,6 +370,14 @@ async function capture(label) {
 // the recording (e.g. /^tj\.steps\[\d+\]\.snap\.sync$/). Nothing else may differ.
 // Screenshots a rule allows to differ go in `shots` (file-name regex).
 const EXPECTED = [
+  // Phase 3, MyJournal: the same lock fixes as Brainstorm's (steps 21 and 22)...
+  { phase: 3, why: 'MyJournal change password: one set-lock call with current', path: /^tj\.steps\[21\]\.reqs/ },
+  { phase: 3, why: 'MyJournal: deleting a locked entry works (TJ_AUTH was out of scope, so it said "Network error")', path: /^tj\.steps\[22\]\./ },
+  { phase: 3, why: '...so the entry ends in the trash', path: /^tj\.store\.(fs\.dashboards\/tony_journal\.(e_e_ID1\.(trashed|trashChangedAt|updated)|activeId|savedAt)|cache\.(entries\[\d+\]\.(trashed|trashChangedAt|updated)|activeId))$/ },
+  // ...and the sync pill no longer says "Saved" before this session saved anything:
+  // it says "Synced" (wider, so the toolbar beside it shifts by a few pixels).
+  { phase: 3, why: 'MyJournal sync pill reads "Synced", not "Saved", until something is saved',
+    path: /^tj\.steps\[\d+\]\.snap\.(sync|box\.(sync-pill|entry-title-input|btn-edit|btn-lock|tags-row)\.[xw])$/, shots: /-tj-(open|reload|locked-again)\.png$/ },
   // Phase 2, Brainstorm lock fixes. Steps 21 and 22 are change-pw and locked-delete.
   { phase: 2, why: 'change password rotates in one set-lock call with current (was remove-lock, then set-lock)', path: /^bj\.steps\[21\]\.reqs/ },
   { phase: 2, why: 'deleting a locked entry works (it threw a ReferenceError and did nothing)', path: /^bj\.steps\[22\]\./ },
