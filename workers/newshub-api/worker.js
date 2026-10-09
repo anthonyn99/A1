@@ -1129,38 +1129,44 @@ function entitySourceAllowed(name){
   if (!n) return false;
   return ENTITY_SOURCE_ALLOW.some(a => n.includes(a));
 }
+// Source: Yahoo Finance headline RSS for the entities' OWN listings, one request.
+// This used to be a Google News search, but news.google.com answers Cloudflare's
+// egress IPs with a 503 "Sorry…" bot page (verified 2026-10-08), so the feed had
+// silently returned nothing on every build. Yahoo serves Workers fine, and its RSS
+// takes several symbols at once: TSMC, Broadcom, Samsung Electronics (Korea),
+// SK hynix (Korea) and Kioxia (Tokyo). Attribution is unchanged — a story only
+// counts when it NAMES one of those companies (ENTITY_MAP), so a generic market
+// piece that merely rode along in the feed is dropped.
+const ENTITY_SYMBOLS = ['TSM', 'AVGO', '005930.KS', '000660.KS', '285A.T'];
 async function fetchEntityNews(env, wl, cutoff){
   try {
     const wlSet = new Set(wl.map(t => t.toUpperCase()));
     // Skip the request entirely if none of the mapped tickers are on this list.
     const active = ENTITY_MAP.filter(m => m.tickers.some(t => wlSet.has(t)));
     if (!active.length) return [];
-    const url = `https://news.google.com/rss/search?q=${encodeURIComponent(ENTITY_QUERY)}&hl=en-US&gl=US&ceid=US:en`;
+    const url = `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${encodeURIComponent(ENTITY_SYMBOLS.join(','))}&region=US&lang=en-US`;
     const r = await fetch(url, { headers:{ 'User-Agent':'Mozilla/5.0 (compatible; tradehub-newshub/1.0)' } });
     if (!r.ok) return [];
     const xml = await r.text();
+    const pick = (block, tag) => gnDecode((block.match(new RegExp('<' + tag + '(?:\\s[^>]*)?>([\\s\\S]*?)</' + tag + '>')) || [])[1] || '').trim();
     const out = [];
     for (const block of xml.split('<item>').slice(1)){
-      const title = gnDecode((block.match(/<title>([\s\S]*?)<\/title>/)||[])[1] || '').trim();
-      if (!title) continue;
-      const link = gnDecode((block.match(/<link>([\s\S]*?)<\/link>/)||[])[1] || '').trim();
-      const pub  = (block.match(/<pubDate>([\s\S]*?)<\/pubDate>/)||[])[1] || '';
-      const ts   = pub ? Date.parse(pub) : Date.now();
+      const headline = pick(block, 'title');
+      if (!headline) continue;
+      const pub = pick(block, 'pubDate');
+      const ts = pub ? Date.parse(pub) : 0;
       if (!ts || ts < cutoff) continue;
-      const srcName = gnDecode((block.match(/<source[^>]*>([\s\S]*?)<\/source>/)||[])[1] || 'Google News').trim();
-      // Drop low-tier reprints — keep only allowlisted quality/trade publishers.
-      if (!entitySourceAllowed(srcName)) continue;
-      // Google News titles read "Headline - Publisher" — strip the trailing source.
-      let headline = title;
-      if (srcName && headline.endsWith(' - ' + srcName)) headline = headline.slice(0, -(srcName.length + 3)).trim();
-      // Attribute via the entity name in the headline; skip if it maps to nothing
-      // on this watchlist (avoids misattributing off-topic hits).
+      const summary = pick(block, 'description').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      // Headline first; the summary only when the headline names no entity
+      // ("Chipmaker's quarter beats" → summary says TSMC).
       const tix = new Set();
       for (const m of active){ if (m.re.test(headline)){ for (const t of m.tickers) if (wlSet.has(t)) tix.add(t); } }
+      if (!tix.size) for (const m of active){ if (m.re.test(summary)){ for (const t of m.tickers) if (wlSet.has(t)) tix.add(t); } }
       if (!tix.size) continue;
+      const link = pick(block, 'link') || '#';
       for (const t of tix){
         out.push({ feed:'gn', ticker:t, theme:true,
-          headline, summary:'', url: link || '#', source: srcName || 'Google News', ts });
+          headline, summary: summary.slice(0, 400), url: link, source: 'Yahoo Finance', ts });
       }
     }
     return out;
