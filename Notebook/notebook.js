@@ -272,10 +272,10 @@ window.Notebook = {
   mount: function (cfg) {
     if (!cfg || !GROUPS[cfg.app] || !NATIVE[cfg.app] || !cfg.key || !/^[a-z]{2,8}$/.test(cfg.key)) throw new Error('Notebook.mount: bad config');
     if (this.mounts[cfg.key]) return this.mounts[cfg.key]._ready;
-    this.mounts[cfg.key] = cfg;
-    if (NATIVE[cfg.app] === cfg.key) { load(cfg.app); return (cfg._ready = Promise.resolve(cfg)); }
+    if (NATIVE[cfg.app] === cfg.key) { this.mounts[cfg.key] = cfg; load(cfg.app); return (cfg._ready = Promise.resolve(cfg)); }
     if (cfg.app !== 'myjournal') throw new Error('Notebook.mount: only myjournal can take another key');
     if (!cfg.store || !/^[a-z0-9_]+$/.test(cfg.store) || cfg.store === 'tony_journal' || cfg.store === 'journal') throw new Error('Notebook.mount: an instance needs its own store');
+    this.mounts[cfg.key] = cfg;
     cfg.mode = cfg.mode || 'inline';
     cfg.features = Object.assign({ ourjournal: false, locks: false }, cfg.features || {});
     return (cfg._ready = instantiate(cfg));
