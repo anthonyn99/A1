@@ -539,6 +539,9 @@ class Orchestrator:
         # No await between this snapshot and the decision below: a note is
         # in the verdict or held for the follow-up, never both or neither.
         additions = steer.close_gather() if steer else []
+        # Interrupt now is for the members. The chairman's ask must not see
+        # it -- set, it would stop before sending and fail every chair.
+        ctx = dc_replace(ctx, interrupt=None)
 
         responded = [a for a in answers if a.ok and a.text.strip()]
         # Members that answered but whose text failed validation. Tracked
