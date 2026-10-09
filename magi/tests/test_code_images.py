@@ -104,9 +104,9 @@ def test_staged_names_are_safe_and_unique(tmp_path):
 # ── Claude Code: an image block on stdin ────────────────────────────────────
 def test_claude_takes_images_as_stream_json():
     t = _task(images=[Image("a.png", "image/png", PNG)])
-    argv = claude_cli.build_argv("claude", t, images=True)
+    argv = claude_cli.build_argv("claude", t)
+    # Always stream-json now: stdin stays open for messages typed mid-run.
     assert argv[argv.index("--input-format") + 1] == "stream-json"
-    assert "--input-format" not in claude_cli.build_argv("claude", t)
 
     line = claude_cli.stdin_for("PROMPT", t.images)
     assert line.endswith("\n") and line.count("\n") == 1, "one JSON message per line"
@@ -115,7 +115,8 @@ def test_claude_takes_images_as_stream_json():
     text, img = msg["message"]["content"]
     assert text == {"type": "text", "text": "PROMPT"}
     assert img["source"] == {"type": "base64", "media_type": "image/png", "data": _b64(PNG)}
-    assert claude_cli.stdin_for("PROMPT", []) == "PROMPT", "no images: unchanged"
+    plain = json.loads(claude_cli.stdin_for("PROMPT", []))
+    assert plain["message"]["content"] == [{"type": "text", "text": "PROMPT"}], "no images: text only"
 
 
 # ── Codex: --image ──────────────────────────────────────────────────────────
@@ -150,7 +151,7 @@ def test_codex_stages_then_removes_the_files(tmp_path, monkeypatch):
             seen["existed"] = [Path(p).read_bytes() for p in imgs]
             self.stderr_tail, self.stalled = [], ""
 
-        async def lines(self, cancel):
+        async def lines(self, cancel, wake=None):
             for ev in ({"type": "thread.started", "thread_id": "th"},
                        {"type": "item.completed", "item": {"type": "agent_message",
                                                            "text": "Red and blue."}},
@@ -168,6 +169,7 @@ def test_codex_stages_then_removes_the_files(tmp_path, monkeypatch):
 
     monkeypatch.setattr(settings, "data_dir", lambda: tmp_path / "data")
     monkeypatch.setattr(codex_cli, "Stream", FakeStream)
+    monkeypatch.setattr(codex_cli.AS, "usable", lambda home, ver: (False, "test"))
     monkeypatch.setattr(codex_cli.slots, "cli_path", lambda a: "codex")
     monkeypatch.setattr(codex_cli.slots, "env_for", lambda a, s: {})
     monkeypatch.setattr(codex_cli.models, "cap_watch", no_watch)

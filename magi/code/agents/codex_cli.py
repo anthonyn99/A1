@@ -1,8 +1,15 @@
 """Codex, through the Codex CLI, signed in with a ChatGPT account.
 
+    codex app-server ...                 (first choice: codex_appserver.py)
     codex exec --json --sandbox read-only --skip-git-repo-check
                --ignore-user-config --ignore-rules -C <root> -
     codex exec <the same flags> resume <thread id> -     (a follow-up, Track F)
+
+A run goes through the app server when it can, because that takes a message
+you type mid-run into the running turn (`turn/steer`) -- `exec` cannot, so
+on `exec` such a message stops the run and resumes the thread with it. The
+app server is held to exactly the containment below; anything that keeps it
+from starting a turn sends the run to `exec`, before the model saw anything.
 
 Runs on whatever ChatGPT account its slot is signed into -- including a Free
 one, which covers local coding tasks on a rolling five-hour window plus weekly
@@ -42,8 +49,8 @@ from pathlib import Path
 from typing import Any
 
 from .base import CodingAgent, EventFn, Mode, Outcome, Result, Task, stage_images
-from . import codex_sandbox, limits, models, slots
-from ._proc import Stream
+from . import codex_appserver as AS, codex_sandbox, limits, models, slots
+from ._proc import WAKE, Stream
 
 _UNAUTH = re.compile(r"401 unauthorized|missing bearer|not logged in|"
                      r"please (log|sign) in|unauthori[sz]ed|token (is )?expired", re.I)
@@ -385,6 +392,13 @@ class CodexCLIAgent(CodingAgent):
         prompt = task.prompt_for(self.id)
         if task.mode == Mode.READ:
             prompt = f"{READ_HINT}\n\n{prompt}"
+        # The app server first: it takes what you type mid-run without
+        # stopping (codex_appserver.py). None = it could not start a turn
+        # here, before anything reached the model -- `exec` instead.
+        res = await self._run_app(exe, task, images, pick, resume, prompt,
+                                  emit=emit, cancel=cancel)
+        if res is not None:
+            return res
         try:
             s = Stream(build_argv(exe, task, pick.get("model"), pick.get("effort"), resume,
                                   images),
@@ -469,6 +483,231 @@ class CodexCLIAgent(CodingAgent):
         outcome = classify_failure(why)
         if outcome == Outcome.TASK_FAILED and not texts and not tools:
             # Nothing happened at all -- the run never got as far as the task.
+            outcome = Outcome.UNAVAILABLE
+        resets = None
+        if outcome == Outcome.LIMITED:
+            resets = limits.mark("codex", self.slot, parse_reset(why), "codex")
+        return Result(outcome, text=text, detail=why[-600:], resets_at=resets,
+                      session_id=session, tools_used=tools)
+
+
+    async def _run_app(self, exe: str, task: Task, images: list[Path], pick: dict,
+                       resume: str, prompt: str, *, emit: EventFn,
+                       cancel: asyncio.Event) -> Result | None:
+        """One run on `codex app-server` (codex_appserver.py), steered as it
+        goes. None when it cannot start a turn here: the caller runs `exec`."""
+        ver = models.codex_cli_version() or "?"
+        ok, why = AS.usable(slots.slot_dir("codex", self.slot), ver)
+        if not ok:
+            return None
+        try:
+            s = Stream(AS.build_argv(exe, task), cwd=task.root,
+                       env=slots.env_for("codex", self.slot), keep_stdin=True)
+        except OSError:
+            return None
+        sess = AS.Session()
+        steer = task.steer
+        texts: list[str] = []
+        errors: list[str] = []
+        tools: list[str] = []
+        session = ""
+        failed = ""
+        info = ""
+        finished = False
+        turn_on = False         # a turn is running now
+        started = False         # the first turn started: no going back to exec
+        no_steer = False        # this Codex refused turn/steer: next turn instead
+        carry: list[str] = []   # delivered, but refused by turn/steer
+        steering: dict[int, list[str]] = {}
+        seen_usage: dict[str, float] = {}
+        capped: list[str] = []
+        p = models.prefs()
+
+        def trip(why: str) -> None:
+            if not capped:
+                capped.append(why)
+                s.kill()
+        watch = asyncio.ensure_future(models.cap_watch("codex", self.slot, trip))
+
+        async def deliver() -> None:
+            """At a tool call: what you typed goes into this very turn."""
+            if steer is None or not turn_on or not sess.turn or no_steer:
+                return
+            msgs = steer.deliver()
+            if not msgs:
+                return
+            s.write_line(sess.req("turn/steer", {
+                "threadId": sess.thread, "expectedTurnId": sess.turn,
+                "input": [{"type": "text", "text": AS.steer_text(msgs)}]}))
+            steering[sess.next_id] = msgs
+            task.added += [m for m in msgs if m not in task.added]
+            await emit({"k": "note", "text": f"{self.label} takes your message at its next step."})
+
+        # A server that never gets as far as a turn is not waited on: `exec`.
+        boot = asyncio.get_running_loop().call_later(AS.BOOT_S, s.kill)
+
+        def start_turn(text: str, pics: list[Path] | None = None) -> None:
+            s.write_line(sess.req("turn/start", AS.turn_params(
+                sess.thread, task, text, pics, pick.get("effort"))))
+
+        s.write_line(sess.req("initialize", {"clientInfo": {
+            "name": "magi", "title": "MAGI", "version": "1"}}))
+        try:
+            async for raw in s.lines(cancel, steer.wake if steer is not None else None):
+                if raw is WAKE:
+                    if steer is not None and steer.now.is_set() and turn_on and sess.turn:
+                        steer.now.clear()
+                        s.write_line(sess.req("turn/interrupt", {
+                            "threadId": sess.thread, "turnId": sess.turn}))
+                        await emit({"k": "note", "text": f"Interrupting {self.label}…"})
+                    continue
+                ev = AS.parse(raw)
+                if not ev:
+                    continue
+                k = ev["k"]
+                if k == "server":
+                    s.write_line(AS.answer_server(ev["raw"]))
+                elif k == "resp":
+                    what = sess.what(ev["id"])
+                    if ev["error"]:
+                        if what == "turn/steer":
+                            # Too late for that turn, or a Codex without it:
+                            # the message starts the next turn instead.
+                            carry += steering.pop(ev["id"], [])
+                            if "method" in ev["error"].lower() or "unknown" in ev["error"].lower():
+                                no_steer = True
+                            continue
+                        if not started:
+                            s.kill()
+                            if what == "thread/resume" and resume:
+                                return Result(Outcome.RESUME_MISS, detail="Codex no longer "
+                                              "has that session.")
+                            AS.mark_broken(ver)
+                            await emit({"k": "note", "text": "Codex's app server could not "
+                                        f"start ({ev['error'][:120]}); using codex exec."})
+                            return None
+                        errors.append(ev["error"])
+                        failed = failed or ev["error"]
+                        s.close_stdin()
+                        break
+                    res = ev["result"] or {}
+                    if what == "initialize":
+                        s.write_line(AS.notify("initialized"))
+                        params = AS.thread_params(task, pick.get("model"))
+                        s.write_line(sess.req("thread/resume", {**params, "threadId": resume})
+                                     if resume else sess.req("thread/start", params))
+                    elif what in ("thread/start", "thread/resume"):
+                        sess.thread = (res.get("thread") or {}).get("id", "") or resume
+                        session = sess.thread
+                        start_turn(prompt, images)
+                    elif what == "turn/start":
+                        sess.turn = (res.get("turn") or {}).get("id", "") or sess.turn
+                        turn_on = True
+                        if not started:
+                            started = True
+                            boot.cancel()
+                            if steer is not None:
+                                steer.go_live()
+                            await emit({"k": "note", "text": f"Codex ({self.slot}) is " + (
+                                "editing a sandbox copy of the workspace."
+                                if task.mode == Mode.WRITE else "reading the workspace.")})
+                    elif what == "turn/steer":
+                        steering.pop(ev["id"], None)
+                elif k == "init":
+                    session = ev["session_id"] or session
+                elif k == "turn":
+                    sess.turn, turn_on = ev["id"] or sess.turn, True
+                elif k == "tool":
+                    tools.append(ev["name"])
+                    await emit({"k": "tool", "name": ev["name"], "target": ev["target"]})
+                    if ev.get("step"):
+                        await deliver()
+                elif k == "step":
+                    await deliver()
+                elif k == "text":
+                    texts.append(ev["text"])
+                    await emit(ev)
+                elif k == "error":
+                    errors.append(ev["text"])
+                    info = str(ev.get("info") or "") or info
+                    if _UNAUTH.search(ev["text"]) or info == "unauthorized":
+                        s.kill()
+                        break
+                elif k == "limits":
+                    for win, w in ev["windows"].items():
+                        util = w["utilization"]
+                        if seen_usage.get(win) != util:
+                            seen_usage[win] = util
+                            limits.note_usage("codex", self.slot, win, util, w["resets_at"])
+                            await emit({"k": "usage", "agent": "codex", "slot": self.slot,
+                                        "window": win, "utilization": util,
+                                        "resets_at": w["resets_at"]})
+                        cap = models.cap_crossed("codex", win, util, p)
+                        if cap:
+                            trip(f"Stopped at your {cap}% cap on the "
+                                 f"{models.window_label(win)} limit ({round(util * 100)}% used)")
+                elif k == "done":
+                    turn_on = False
+                    if ev["status"] == "failed":
+                        failed = ev["text"] or "\n".join(errors[-3:]) or "the turn failed"
+                        s.close_stdin()
+                        break
+                    # Completed or interrupted: anything typed meanwhile is the
+                    # next turn, same thread, same process.
+                    msgs = carry + (steer.deliver() if steer is not None else [])
+                    carry = []
+                    if msgs:
+                        task.added += [m for m in msgs if m not in task.added]
+                        start_turn(AS.steer_text(msgs, interrupted=ev["status"] == "interrupted"))
+                        await emit({"k": "note", "text": f"{self.label} continues with your "
+                                    "message."})
+                        continue
+                    finished = True
+                    s.close_stdin()
+                    break
+        finally:
+            watch.cancel()
+            boot.cancel()
+            if not cancel.is_set():
+                # Its stdin is closed; give it a moment to write its rollout
+                # (a follow-up resumes from it), then make sure it is gone.
+                try:
+                    await asyncio.wait_for(s.wait(), 10)
+                except (asyncio.TimeoutError, Exception):  # noqa: BLE001
+                    s.kill()
+
+        text = "\n\n".join(t for t in texts if t).strip()
+        if cancel.is_set():
+            return Result(Outcome.CANCELLED, text=text, session_id=session, tools_used=tools)
+        if s.stalled:
+            await emit({"k": "note", "text": f"Codex {s.stalled} — stopped it."})
+            return Result(Outcome.UNAVAILABLE, text=text, detail=f"Codex {s.stalled}.",
+                          session_id=session, tools_used=tools)
+        if capped:
+            return Result(Outcome.LIMITED, text=text, detail=capped[0], session_id=session,
+                          tools_used=tools)
+        if not started:
+            # Died before a turn began (EOF, an unanswered request): nothing
+            # reached the model, so `exec` gets the run.
+            AS.mark_broken(ver)
+            return None
+        if finished and not failed:
+            limits.clear("codex", self.slot)
+            if task.mode == Mode.READ and gave_up(text, tools):
+                await emit({"k": "note", "text": "Codex said it could not read the workspace "
+                            "without trying to — handing on."})
+                return Result(Outcome.UNAVAILABLE, text=text,
+                              detail="Codex answered without reading the workspace.",
+                              session_id=session, tools_used=tools)
+            return Result(Outcome.OK, text=text, session_id=session, tools_used=tools)
+        why = failed or "\n".join(errors[-3:]) or "\n".join(s.stderr_tail)
+        if info in ("usageLimitExceeded", "rateLimitExceeded"):
+            outcome = Outcome.LIMITED
+        elif info == "unauthorized":
+            outcome = Outcome.UNAUTHED
+        else:
+            outcome = classify_failure(why)
+        if outcome == Outcome.TASK_FAILED and not texts and not tools:
             outcome = Outcome.UNAVAILABLE
         resets = None
         if outcome == Outcome.LIMITED:

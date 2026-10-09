@@ -408,14 +408,14 @@ class FakeStream:
     scripts: list[list[str]] = []
     argvs: list[list[str]] = []
 
-    def __init__(self, argv, *, cwd, env, stdin_text=None):
+    def __init__(self, argv, *, cwd, env, stdin_text=None, keep_stdin=False):
         FakeStream.argvs.append(argv)
         self._lines = FakeStream.scripts.pop(0)
         self.killed = False
         self.stderr_tail: list[str] = []
         self.stalled = ""
 
-    async def lines(self, cancel):
+    async def lines(self, cancel, wake=None):
         for ln in self._lines:
             if self.killed:
                 return
@@ -429,6 +429,12 @@ class FakeStream:
 
     def kill(self):
         self.killed = True
+
+    def write_line(self, text):
+        pass
+
+    def close_stdin(self):
+        pass
 
     async def wait(self):
         return 0
@@ -455,6 +461,7 @@ def fake_cli(home, monkeypatch):
     FakeStream.scripts, FakeStream.argvs = [], []
     monkeypatch.setattr(CC, "Stream", FakeStream)
     monkeypatch.setattr(CX, "Stream", FakeStream)
+    monkeypatch.setattr(CX.AS, "usable", lambda home, ver: (False, "test"))
     monkeypatch.setattr(slots, "cli_path", lambda a: a)
     return FakeStream
 

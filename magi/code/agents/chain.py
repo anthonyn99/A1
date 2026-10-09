@@ -20,9 +20,12 @@ the previous one did, so a limit that trips halfway costs the rest of the task
 rather than the part already done.
 
 Two things send the SAME agent round again instead (Track F): a message you
-typed while it worked (a CLI agent is stopped and resumes its own session
-with the message; a browser unit gets it after its reply), and a follow-up's
-native resume that missed (retried once from the session's transcript).
+typed while it worked that it could not take as it went (a Codex without
+app-server steering is stopped and resumes its own session with it; a browser
+unit gets it after its reply, or at once with Interrupt now -- the Claude CLI
+and an app-server Codex take it at their next step and are never stopped),
+and a follow-up's native resume that missed (retried once from the session's
+transcript).
 """
 
 from __future__ import annotations
@@ -190,6 +193,9 @@ async def run_chain(task: Task, agents: list[CodingAgent], *, emit: EventFn,
     either taken by this chain or answered "follow-up" -- never lost between.
     """
     steer = steer if steer is not None else Steer()
+    # The agents see it too: a CLI that takes messages without stopping
+    # delivers them itself, and a browser unit watches for Interrupt now.
+    task.steer = steer
     attempts: list[Attempt] = []
     partial: list[str] = []
 
@@ -221,6 +227,8 @@ async def run_chain(task: Task, agents: list[CodingAgent], *, emit: EventFn,
             # into the prompt, no interrupt needed.
             task.added += steer.take()
             stop = asyncio.Event()
+            # Only a CLI that cannot take a message while it runs is ever
+            # stopped for one (Steer.go_live turns that off for the rest).
             link = asyncio.ensure_future(
                 _link(stop, cancel, steer.interrupt if agent.kind == "cli" else None))
             steer.running(agent.kind)

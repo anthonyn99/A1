@@ -418,7 +418,7 @@ async def start(*, project_id: str, root: Path, prompt: str, order: list[str],
             # Halt or a failure) goes back to the console to send as one.
             t.steer.close()
             t.revising = False
-            left = t.steer.take()
+            left = t.steer.take("unsent")
             if left:
                 t.result = {**(t.result or {}), "unsent_messages": left}
             if t.approval is not None and not t.approval.done():
@@ -778,32 +778,78 @@ async def message(t: TaskState, text: str) -> dict[str, Any]:
     Where it goes depends on where the task is, decided with no await in
     between, so it lands in exactly one place:
       prompt       nothing running yet -- the next agent's prompt has it
-      interrupt    a CLI agent is working -- stopped, then resumed with it
+      queued       a CLI agent is working -- it takes it at its next step,
+                   without stopping (claude_cli / codex_appserver)
+      interrupt    a Codex on `exec` is working -- stopped, then resumed
+                   with it
       after_reply  a browser unit is working -- sent after its reply
       revise       the approval card is up -- nothing applied, same agent
                    revises, a new card
       followup     applying, committing, ended -- the console sends it as
                    the next turn
     """
+    if t.steer.on_deliver is None:
+        # Every viewer hears when a queued message stops being editable.
+        def delivered(ids: list[str], how: str) -> None:
+            asyncio.ensure_future(publish(t, {"k": "msg_sent", "ids": ids, "how": how}))
+        t.steer.on_deliver = delivered
+    mid = ""
     try:
         if t.done or not (t.steer.open or t.awaiting_approval or t.revising):
             text = followup.Steer.check_text(text)
             how = "followup"
         elif t.awaiting_approval or t.revising:
             text = t.steer.hold(text)
+            mid = t.steer.last_id
             how = REVISE
             if t.awaiting_approval:
                 t.revising = True
                 t.approval.set_result(REVISE)
         else:
             how = t.steer.add(text)
-            text = t.steer.pending[-1]
+            text, mid = t.steer.pending[-1], t.steer.last_id
     except OverflowError as e:
         return {"ok": False, "error": "too_many", "message": str(e)}
     except ValueError as e:
         return {"ok": False, "error": "bad_message", "message": str(e)}
-    await publish(t, {"k": "user", "text": text, "how": how})
-    return {"ok": True, "accepted": how}
+    await publish(t, {"k": "user", "text": text, "how": how, **({"id": mid} if mid else {})})
+    return {"ok": True, "accepted": how, **({"id": mid} if mid else {})}
+
+
+_GONE = {"ok": False, "error": "delivered",
+         "message": "That message has already gone to the agent."}
+
+
+async def edit_message(t: TaskState, mid: str, text: Any) -> dict[str, Any]:
+    """Change a message that is still queued (POST /message/{mid}/edit)."""
+    try:
+        if t.done or not t.steer.edit(mid, text):
+            return _GONE
+    except ValueError as e:
+        return {"ok": False, "error": "bad_message", "message": str(e)}
+    text = next(i["text"] for i in t.steer.items if i["id"] == mid)
+    await publish(t, {"k": "msg_edit", "id": mid, "text": text})
+    return {"ok": True, "text": text}
+
+
+async def remove_message(t: TaskState, mid: str) -> dict[str, Any]:
+    """Take back a message that is still queued (POST /message/{mid}/remove)."""
+    if t.done or not t.steer.remove(mid):
+        return _GONE
+    await publish(t, {"k": "msg_drop", "id": mid})
+    return {"ok": True}
+
+
+async def interrupt(t: TaskState) -> dict[str, Any]:
+    """Interrupt now (POST /interrupt): the agent stops its current step --
+    a CLI turn, a browser unit's reply -- and carries on with what is
+    queued. Not a Halt: the task goes on."""
+    how = "" if t.done else t.steer.interrupt_now()
+    if not how:
+        return {"ok": False, "error": "nothing",
+                "message": "Nothing to interrupt: your message goes in with the next prompt."}
+    await publish(t, {"k": "note", "text": "Interrupting — your message goes in next."})
+    return {"ok": True, "how": how}
 
 
 async def _apply(t: TaskState, reviews: list) -> dict[str, Any]:

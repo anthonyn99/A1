@@ -37,10 +37,17 @@ The prompt goes in on stdin, not argv: the CLI is a .cmd shim on Windows, and
 passing arbitrary prose through cmd.exe's quoting is how a prompt containing
 `&` or `%` turns into a different command.
 
-Attached images ride the same stdin, as `--input-format stream-json`: one user
-message whose content is the prompt and then an image block per picture.
-Verified live on 2.1.286, fresh and with --resume: the model sees the image,
-and the run ends when stdin closes, as a text prompt's does.
+Stdin is `--input-format stream-json` and stays OPEN while the agent works:
+the prompt is the first user message (its content the text, then an image
+block per attached picture), and a message you type mid-run is one more,
+written at the agent's next tool call. The CLI folds it into the running turn
+("The user sent a new message while you were working"), exactly as Claude
+Code in VS Code does; nothing is stopped. `--replay-user-messages` echoes each
+one back (isReplay) the moment it is taken. "Interrupt now" is the SDK's own
+`control_request` interrupt: the turn ends (`error_during_execution`) and the
+message starts the next turn in the same process. The run ends when MAGI
+closes stdin, after a result with nothing queued or untaken. Verified offline
+on 2.1.295 (tests/test_claude_cli_offline.py); images on 2.1.286.
 """
 
 from __future__ import annotations
@@ -54,7 +61,7 @@ from typing import Any
 
 from .base import SUGGEST_LINES, CodingAgent, EventFn, Image, Mode, Outcome, Result, Task
 from . import limits, models, slots
-from ._proc import Stream
+from ._proc import WAKE, Stream
 
 READ_TOOLS = "Read,Glob,Grep"
 WRITE_TOOLS = "Read,Glob,Grep,Edit,Write"
@@ -79,13 +86,16 @@ _CREDITS = re.compile(r"requires usage credits|usage credits (are )?(required|of
 # 2.1.278 does not support this model; version 2.1.280 or newer is
 # required"). Not the task's failure and not the account's: the model's.
 _TOO_OLD = re.compile(r"does not support this model; version (\d+(?:\.\d+)+) or newer", re.I)
+# A message written mid-run is echoed when the CLI takes it. After a result,
+# one still unechoed gets this long to start its turn before stdin closes.
+ECHO_GRACE_S = 20.0
+
 _LIMIT = re.compile(r"usage limit|limit reached|hit your limit|rate.?limit|"
                     r"limits? will reset|out of (extra )?usage|429", re.I)
 
 
 def build_argv(exe: str, task: Task, model: str | None = None,
-               effort: str | None = None, resume: str = "",
-               images: bool = False) -> list[str]:
+               effort: str | None = None, resume: str = "") -> list[str]:
     """`resume`: a Claude session id to continue (Track F). Verified live on
     this exact argv: a different cwd needs nothing extra -- the CLI finds the
     session wherever it was saved, even after that folder is gone -- and the
@@ -99,9 +109,9 @@ def build_argv(exe: str, task: Task, model: str | None = None,
             # still only Read/Glob/Grep (--tools) and the allowed MAGI tools,
             # so nothing can edit -- the shell itself is read-only there.
             "--permission-mode", "acceptEdits" if write else ("default" if task.shell else "plan"),
-            "--tools", WRITE_TOOLS if write else READ_TOOLS]
-    if images:
-        argv += ["--input-format", "stream-json"]
+            "--tools", WRITE_TOOLS if write else READ_TOOLS,
+            # Always: stdin stays open for the messages you type mid-run.
+            "--input-format", "stream-json", "--replay-user-messages"]
     if not write:
         # Track V: reference folders, readable by Read/Glob/Grep. Read mode
         # only: there the tools cannot write anything anywhere. In write
@@ -208,17 +218,27 @@ def writes_how(task: Task) -> str:
     return "Read and edit them with your file tools at those paths." + ws
 
 
-def stdin_for(prompt: str, images: list[Image]) -> str:
-    """What goes on stdin: the prompt as it is, or -- with images -- the one
-    stream-json user message build_argv(images=True) has the CLI expect."""
-    if not images:
-        return prompt
+def stdin_for(prompt: str, images: list[Image] | None = None) -> str:
+    """One stream-json user message: the text, then an image block per
+    picture. The first one is the prompt; each later one is a message you
+    typed while the agent worked."""
     content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
     content += [{"type": "image", "source": {"type": "base64", "media_type": im.media_type,
                                              "data": base64.b64encode(im.data).decode()}}
-                for im in images]
+                for im in images or []]
     return json.dumps({"type": "user",
                        "message": {"role": "user", "content": content}}) + "\n"
+
+
+def interrupt_line(n: int) -> str:
+    """The SDK's interrupt, on stdin: the current turn ends at once."""
+    return json.dumps({"type": "control_request", "request_id": f"magi-int-{n}",
+                       "request": {"subtype": "interrupt"}}) + "\n"
+
+
+def steer_text(msgs: list[str]) -> str:
+    """Messages typed mid-run, as one user message."""
+    return "\n\n".join(msgs)
 
 
 # A resume of a session this CLI no longer has: `result` subtype
@@ -269,6 +289,11 @@ def parse_line(line: str) -> dict[str, Any] | None:
     except ValueError:
         return None
     t = d.get("type")
+    if t == "user" and d.get("isReplay"):
+        # A message of ours taken by the CLI (--replay-user-messages): the
+        # prompt, or one typed mid-run. Tool results are user events too,
+        # never replays.
+        return {"k": "echo"}
     if t == "system" and d.get("subtype") == "init":
         return {"k": "init", "model": d.get("model", ""),
                 "session_id": d.get("session_id", ""), "tools": d.get("tools") or []}
@@ -415,10 +440,9 @@ class ClaudeCLIAgent(CodingAgent):
             prompt = shell_how(task).strip() + "\n\n---\n\n" + prompt
         images = task.images_for(self.id)
         try:
-            s = Stream(build_argv(exe, task, pick.get("model"), pick.get("effort"), resume,
-                                  images=bool(images)),
+            s = Stream(build_argv(exe, task, pick.get("model"), pick.get("effort"), resume),
                        cwd=task.root, env=env_for_task(self.slot, task),
-                       stdin_text=stdin_for(prompt, images))
+                       stdin_text=stdin_for(prompt, images), keep_stdin=True)
         except OSError as exc:
             return Result(Outcome.UNAVAILABLE, detail=f"Could not start Claude Code: {exc}"), ""
 
@@ -430,6 +454,14 @@ class ClaudeCLIAgent(CodingAgent):
         credits_required = False
         capped: list[str] = []          # the sentence, once a cap trips
         p = models.prefs()
+        steer = task.steer
+        if steer is not None:
+            steer.go_live()
+        # User messages written (the prompt is the first) and taken (echoed).
+        written, taken = 1, 0
+        interrupts = 0
+        turns = 0
+        grace: asyncio.TimerHandle | None = None
 
         def trip(why: str) -> None:
             if not capped:
@@ -437,12 +469,41 @@ class ClaudeCLIAgent(CodingAgent):
                 s.kill()
         watch = asyncio.ensure_future(models.cap_watch("claude", self.slot, trip))
 
+        async def send_queued() -> bool:
+            """Write what you typed as the next user message. True if any."""
+            nonlocal written
+            msgs = steer.deliver() if steer is not None else []
+            if not msgs:
+                return False
+            s.write_line(stdin_for(steer_text(msgs)))
+            written += 1
+            task.added += [m for m in msgs if m not in task.added]
+            await emit({"k": "note", "text": f"{self.label} takes your message "
+                        + ("at its next step." if len(msgs) == 1 else
+                           f"s ({len(msgs)}) at its next step.")})
+            return True
+
         try:
-            async for raw in s.lines(cancel):
+            async for raw in s.lines(cancel, steer.wake if steer is not None else None):
+                if raw is WAKE:
+                    if steer is not None and steer.now.is_set() and result is None:
+                        # Interrupt now: the turn ends at once, and the
+                        # queued message starts the next one (at `result`).
+                        steer.now.clear()
+                        interrupts += 1
+                        s.write_line(interrupt_line(interrupts))
+                        await emit({"k": "note", "text": f"Interrupting {self.label}…"})
+                    continue
                 ev = parse_line(raw)
                 if not ev:
                     continue
                 k = ev["k"]
+                if k == "echo":
+                    taken += 1
+                    if taken >= written and grace is not None:
+                        grace.cancel()
+                        grace = None
+                    continue
                 if k == "init":
                     session = ev["session_id"]
                     await emit({"k": "note", "text": f"Claude ({ev['model']}) is "
@@ -469,16 +530,45 @@ class ClaudeCLIAgent(CodingAgent):
                         # else is the wall, remembered with the CLI's reset time.
                         limited_at = ev["resets_at"]
                 elif k == "batch":
+                    result = None
                     for e in ev["events"]:
                         if e["k"] == "tool":
                             tools.append(e["name"])
                         elif e["k"] == "text":
                             texts.append(e["text"])
                         await emit(e)
+                    if any(e["k"] == "tool" for e in ev["events"]):
+                        # A tool is about to run: the CLI folds a message
+                        # written now into this same turn, after the tool.
+                        await send_queued()
                 elif k == "result":
                     result = ev
+                    turns += ev.get("turns") or 0
+                    # A turn ended. Typed meanwhile, or interrupted for: the
+                    # next turn, same process. Written but not yet taken: the
+                    # CLI runs it itself. Otherwise the run is over. A turn
+                    # that FAILED (a limit, an error) takes nothing more: what
+                    # is queued stays queued for whoever the chain asks next.
+                    goes_on = ev["ok"] or (interrupts and ev["subtype"] == "error_during_execution")
+                    if not (goes_on and await send_queued()):
+                        if taken >= written or not goes_on:
+                            s.close_stdin()
+                        elif grace is None:
+                            # Written, never echoed: do not wait forever for
+                            # a turn the CLI may never start.
+                            grace = asyncio.get_running_loop().call_later(
+                                ECHO_GRACE_S, s.close_stdin)
         finally:
             watch.cancel()
+            if grace is not None:
+                grace.cancel()
+        if result is not None:
+            result = {**result, "turns": turns or result["turns"]}
+            if interrupts and not result["ok"] and not result["text"] \
+                    and result.get("subtype") == "error_during_execution":
+                # Interrupted, and the message was removed before it went
+                # in: what it had said is the answer, not an error.
+                result = {**result, "ok": True, "text": texts[-1] if texts else ""}
 
         if cancel.is_set():
             # Halt -- or an interrupt for a message (the chain tells them

@@ -331,7 +331,7 @@ class BrowserUnitAgent(CodingAgent):
                                              preload=[c for c in changed if not c.startswith("@")])
             finally:
                 task.check_feedback = ""
-            if again.outcome == Outcome.CANCELLED:
+            if again.outcome in (Outcome.CANCELLED, Outcome.INTERRUPTED):
                 return again
             if again.outcome != Outcome.OK:
                 # Its earlier edits are still in the copy, and still the
@@ -465,10 +465,18 @@ class BrowserUnitAgent(CodingAgent):
 
                 await emit({"k": "note", "text": f"Asking {self.label}…"})
                 ctx = RunContext(run_id=f"code-{task.id}-{uuid.uuid4().hex[:6]}",
-                                 question=prompt, attachments=files)
+                                 question=prompt, attachments=files,
+                                 interrupt=task.steer.now if task.steer is not None else None)
                 ans = await provider.ask(prompt, ctx=ctx, cancel=cancel)
                 if cancel.is_set():
                     return Result(Outcome.CANCELLED)
+                if getattr(ans, "interrupted", False):
+                    # Interrupt now: its reply was stopped part-way, so none of
+                    # it is applied (an edit block may be cut in half). The
+                    # chain asks it again with your message and this text.
+                    await emit({"k": "note", "text": f"Stopped {self.label}'s reply."})
+                    return Result(Outcome.INTERRUPTED, text=ans.text or "",
+                                  tools_used=tools)
 
                 if upload and files and _attach_failed(ans) and pics:
                     await emit({"k": "note", "text": f"{self.label} could not take "

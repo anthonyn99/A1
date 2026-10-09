@@ -239,16 +239,22 @@ class FakeStream:
     argvs: list[list[str]] = []
     prompts: list[str] = []
 
-    def __init__(self, argv, *, cwd, env, stdin_text=None):
+    def __init__(self, argv, *, cwd, env, stdin_text=None, keep_stdin=False):
         FakeStream.argvs.append(argv)
         FakeStream.prompts.append(stdin_text)
         self._lines, self.stderr_tail = FakeStream.scripts.pop(0)
         self.stalled = ""
 
-    async def lines(self, cancel):
+    async def lines(self, cancel, wake=None):
         for ln in self._lines:
             yield ln
             await asyncio.sleep(0)
+
+    def write_line(self, text):
+        pass
+
+    def close_stdin(self):
+        pass
 
     def kill(self):
         pass
@@ -266,6 +272,8 @@ def fake_cli(tmp_path, monkeypatch):
     FakeStream.scripts, FakeStream.argvs, FakeStream.prompts = [], [], []
     monkeypatch.setattr(CC, "Stream", FakeStream)
     monkeypatch.setattr(CX, "Stream", FakeStream)
+    # These script `codex exec`; the app server has its own tests.
+    monkeypatch.setattr(CX.AS, "usable", lambda home, ver: (False, "test"))
     monkeypatch.setattr(slots, "cli_path", lambda a: a)
     return FakeStream
 
@@ -293,7 +301,8 @@ def test_claude_resumes_the_session_it_is_given(fake_cli):
     res, _ = _agent_run(CC.ClaudeCLIAgent("system", model="haiku"), t)
     assert res.outcome == Outcome.OK and res.session_id == "s-1"
     assert fake_cli.argvs[0][-2:] == ["--resume", "s-1"]
-    assert fake_cli.prompts[0].startswith("NEW MESSAGE:")
+    first = json.loads(fake_cli.prompts[0])["message"]["content"][0]["text"]
+    assert first.startswith("NEW MESSAGE:")
 
 
 def test_claude_reports_a_resume_miss(fake_cli):

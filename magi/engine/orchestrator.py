@@ -17,6 +17,7 @@ import asyncio
 import contextlib
 import time
 import uuid
+from dataclasses import replace as dc_replace
 from pathlib import Path
 
 from ..db import Database
@@ -330,6 +331,7 @@ class Orchestrator:
         cancel: asyncio.Event | None,
         on_answer=None,
         floor_chars: int | None = None,
+        reask=None,
     ) -> list[Answer]:
         """Ask every member, honouring the pacing -- one fan-out for everyone.
 
@@ -351,6 +353,20 @@ class Orchestrator:
         def prompt_for(p: Provider) -> str:
             return prompts[p.id] if isinstance(prompts, dict) else prompts
 
+        async def ask(p: Provider, ev) -> Answer:
+            a = await self._ask(p, prompt_for(p), ctx, ev, cancel)
+            # Interrupt now (RunContext.interrupt): asked once more, in a
+            # fresh chat, with what it had written and the notes. `reask`
+            # gives that prompt (None = keep the stopped answer). The second
+            # ask cannot be interrupted again.
+            stopped = getattr(a, "interrupted", False) and not (cancel and cancel.is_set())
+            if stopped and reask is not None:
+                again = reask(p, prompt_for(p), a)
+                if again:
+                    return await self._ask(p, again, dc_replace(ctx, interrupt=None),
+                                           ev, cancel)
+            return a
+
         t0 = time.monotonic()
         answers: list[Answer] = []
         pacing = self.settings.pacing
@@ -361,7 +377,7 @@ class Orchestrator:
                     break
                 if i > 0:
                     await asyncio.sleep(pacing.sample_inter_provider())
-                a = await self._ask(p, prompt_for(p), ctx, emit, cancel)
+                a = await ask(p, emit)
                 answers.append(a)
                 if on_answer:
                     await on_answer(a)
@@ -399,7 +415,7 @@ class Orchestrator:
         async def one(p: Provider, delay: float) -> Answer:
             await asyncio.sleep(delay)
             async with sem:
-                return await self._ask(p, prompt_for(p), ctx, tracked, cancel)
+                return await ask(p, tracked)
 
         # Cumulative stagger, sampled per provider -- provider N waits for
         # the sum of N gaps, not N x one fixed gap.
@@ -474,6 +490,7 @@ class Orchestrator:
         ctx = RunContext(
             run_id=run_id, question=question, attachments=attachments or [],
             reference=session_mod.reference(question, context) if context else "",
+            interrupt=steer.interrupt if steer else None,
         )
         t0 = time.monotonic()
 
@@ -500,9 +517,13 @@ class Orchestrator:
                 )
                 for p in providers
             }
+        def reask(p: Provider, prompt: str, a: Answer) -> str | None:
+            notes = steer.notes if steer else []
+            return session_mod.reask_prompt(prompt, a.text, notes) if notes else None
+
         answers = await self.gather(
             providers, prompts, ctx, emit, cancel, on_answer=save,
-            floor_chars=len(question),
+            floor_chars=len(question), reask=reask,
         )
         # No await between this snapshot and the decision below: a note is
         # in the verdict or held for the follow-up, never both or neither.

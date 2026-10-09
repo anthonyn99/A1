@@ -103,6 +103,10 @@ class Answer:
     # the model the chat started on ("" = no fallback seen).
     model: str = ""
     model_fallback: str = ""
+    # Stopped on purpose mid-answer ("Interrupt now", RunContext.interrupt):
+    # `text` is what it had written by then -- partial, never validated, and
+    # never a finished answer to count or apply.
+    interrupted: bool = False
 
     @classmethod
     def failed(
@@ -243,6 +247,10 @@ class RunContext:
     # `question`: a follow-up's reference also carries the conversation it
     # follows (engine/session.py `reference`). Empty = use the question.
     reference: str = ""
+    # "Interrupt now": a browser member that sees it set stops its reply --
+    # the site's Stop button -- and returns what it had (Answer.interrupted).
+    # A provider that cannot ignores it.
+    interrupt: asyncio.Event | None = None
 
 
 ProgressFn = Callable[[ProviderEvent], Awaitable[None]]

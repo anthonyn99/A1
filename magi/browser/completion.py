@@ -85,6 +85,7 @@ class CompletionReason(StrEnum):
     STALL_TIMEOUT = "stall_timeout"  # degraded: no growth, gave up
     HARD_TIMEOUT = "hard_timeout"    # degraded: absolute ceiling hit
     CANNED_LINE = "canned_line"      # a stock error/refusal line that settled
+    INTERRUPTED = "interrupted"      # stopped on purpose ("Interrupt now")
 
 
 # Reasons we consider trustworthy enough not to caveat in the UI.
@@ -203,6 +204,30 @@ MIN_QUIET_SAMPLES = 3
 # the long fixed window exists to prevent.
 ADAPTIVE_MIN_GROWTHS = 6
 
+# After pressing Stop, how long the page gets to render the stopped reply.
+STOP_SETTLE_S = 1.0
+
+
+async def stop_reply(page: Page, site: SiteSelectors, baseline: Baseline,
+                     start: float) -> CompletionResult:
+    """Interrupt now: press the site's Stop button (if it has one and it is
+    up), let the page settle, and take what the reply says. A site without a
+    Stop selector (DeepSeek) is only read -- its browser closes after."""
+    stop = await resolve.resolve(page, site.stop_button) if site.stop_button else None
+    if stop is not None:
+        try:
+            await stop.locator.first.click(timeout=3000)
+        except Exception:  # noqa: BLE001 -- it may have finished meanwhile
+            pass
+        await asyncio.sleep(STOP_SETTLE_S)
+    text, turns_now = await _read_latest(page, site)
+    if _is_status_only(text) or (text == baseline.last_text and turns_now <= baseline.turns):
+        text = ""   # nothing new yet: the reply had not started
+    elapsed = time.monotonic() - start
+    return CompletionResult(text=text, reason=CompletionReason.INTERRUPTED,
+                            elapsed_ms=int(elapsed * 1000), chars=len(text),
+                            turns_before=baseline.turns, turns_after=turns_now)
+
 
 async def wait_for_completion(
     page: Page,
@@ -213,8 +238,13 @@ async def wait_for_completion(
     on_progress=None,
     cancel: asyncio.Event | None = None,
     prompt: str = "",
+    interrupt: asyncio.Event | None = None,
 ) -> CompletionResult:
     """Block until the answer is complete. Raises ProviderError on failure.
+
+    `interrupt` ("Interrupt now") ends the wait early on purpose: the site's
+    Stop button is pressed if it has one, and what the reply says by then
+    comes back as INTERRUPTED -- not an error, and not a finished answer.
 
     Pass `baseline` (from capture_baseline) so fill-style UIs are handled.
     `turns_before` is the older count-only form, kept for callers that only
@@ -246,6 +276,8 @@ async def wait_for_completion(
     while True:
         if cancel is not None and cancel.is_set():
             raise ProviderError(FailureKind.CANCELLED, "Cancelled by user.")
+        if interrupt is not None and interrupt.is_set():
+            return await stop_reply(page, site, baseline, start)
 
         elapsed = time.monotonic() - start
         if elapsed > site.hard_timeout_s:

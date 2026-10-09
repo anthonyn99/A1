@@ -8,13 +8,17 @@ follow-up; this module turns them into the block, trimmed to fit.
 
 It also holds the notes typed WHILE a run is going (`Steer`): a note that
 lands before synthesis starts is handed to the chairman and folded into the
-verdict; one that lands after is held for the next follow-up.
+verdict (editable and removable until then, and "Interrupt now" re-asks the
+members still answering with it); one that lands after is held for the next
+follow-up.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
+from typing import Callable
 
 from .chairman import _fit, prompt_budget
 from .validate import MAX_REFERENCE_WORDS, _STOP
@@ -225,30 +229,96 @@ class Steer:
     in before `close_gather()` snapshots the list or after it -- never both,
     never neither. The orchestrator calls `close_gather()` with no `await`
     between it and the moment synthesis starts.
+
+    A note for the verdict has an id and can be edited or removed until that
+    snapshot. "Interrupt now" (`interrupt_now`, once per run) stops the
+    members still answering -- the site's Stop button -- and asks each once
+    more with what it had written and the notes; finished members keep
+    their answers (orchestrator.gather `reask`).
     """
 
     def __init__(self) -> None:
         self.phase = "gather"  # gather | synth | done
-        self.notes: list[str] = []  # for the verdict
+        self.items: list[dict[str, str]] = []  # for the verdict, {id, text}
         self.followup: list[str] = []  # arrived too late: the next follow-up
+        # Interrupt now: every member's RunContext.interrupt.
+        self.interrupt = asyncio.Event()
+        # Told when the notes stop being editable (synthesis starts).
+        self.on_close: Callable[[], None] | None = None
+        self._seq = 0
 
-    def add(self, text: str) -> str:
+    @property
+    def notes(self) -> list[str]:
+        return [i["text"] for i in self.items]
+
+    @property
+    def last_id(self) -> str:
+        return self.items[-1]["id"] if self.items else ""
+
+    @staticmethod
+    def check(text: str) -> str:
         text = (text or "").strip()
         if not text:
             raise ValueError("note is empty")
         if len(text) > MAX_NOTE_CHARS:
             raise ValueError(f"note is over {MAX_NOTE_CHARS:,} characters")
-        if len(self.notes) + len(self.followup) >= MAX_NOTES:
+        return text
+
+    def add(self, text: str) -> str:
+        text = self.check(text)
+        if len(self.items) + len(self.followup) >= MAX_NOTES:
             raise OverflowError(f"at most {MAX_NOTES} notes per run")
         if self.phase == "gather":
-            self.notes.append(text)
+            self._seq += 1
+            self.items.append({"id": f"n{self._seq}", "text": text})
             return "verdict"
         self.followup.append(text)
         return "followup"
 
+    def edit(self, nid: str, text: str) -> bool:
+        """Change a note the verdict has not taken yet."""
+        text = self.check(text)
+        if self.phase != "gather":
+            return False
+        for i in self.items:
+            if i["id"] == nid:
+                i["text"] = text
+                return True
+        return False
+
+    def remove(self, nid: str) -> bool:
+        if self.phase != "gather":
+            return False
+        n = len(self.items)
+        self.items = [i for i in self.items if i["id"] != nid]
+        return len(self.items) < n
+
+    def interrupt_now(self) -> bool:
+        """Stop the members still answering and re-ask them with the notes.
+        Once per run, only while they are answering, only with a note."""
+        if self.phase != "gather" or not self.items or self.interrupt.is_set():
+            return False
+        self.interrupt.set()
+        return True
+
     def close_gather(self) -> list[str]:
         self.phase = "synth"
+        if self.on_close is not None:
+            self.on_close()
         return list(self.notes)
 
     def finish(self) -> None:
         self.phase = "done"
+
+
+def reask_prompt(prompt: str, partial: str, notes: list[str]) -> str:
+    """A member stopped by Interrupt now, asked again in a fresh chat: the
+    question as it was, what it had written, and the person's notes."""
+    out = [prompt.rstrip(), "",
+           "---",
+           "You had started answering this when the person stopped you to add the "
+           "note(s) below. Answer the question again, in full, taking them into account."]
+    if partial.strip():
+        out += ["", "WHAT YOU HAD WRITTEN SO FAR (unfinished):", partial.strip()[-4000:]]
+    out += ["", "NOTES FROM THE PERSON:"] + [f"- {n}" for n in notes]
+    return "\n".join(out)

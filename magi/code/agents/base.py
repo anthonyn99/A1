@@ -177,6 +177,10 @@ class Task:
     # current continuation is about.
     added: list[str] = field(default_factory=list)
     interrupt_msgs: list[str] = field(default_factory=list)
+    # The chain's followup.Steer while it runs (None outside one): a CLI
+    # agent that can take a message without stopping delivers what is queued
+    # at its own steps; a browser unit watches its `now` (Interrupt now).
+    steer: Any = None
 
     def resume_for(self, agent_id: str) -> str:
         """The CLI session id `agent_id` should resume, or ""."""

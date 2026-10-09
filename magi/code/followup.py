@@ -14,11 +14,14 @@ A Code Mode task used to be a one-shot. Now it can be turn n of a session:
   * **Ground truth.** Native memory remembers every edit the agent MADE,
     including the ones you denied. `state_note` says what actually reached the
     folder, turn by turn, and is sent on every follow-up, resumed or not.
-  * **Mid-run messages** (`Steer`): typed while a task runs. Before the agent
-    starts they join its first prompt; while a CLI agent runs they interrupt
-    it and it continues, same session, same sandbox; a browser unit gets them
-    right after its current reply; at the approval card they ask for a
-    revision (tasks.py). After that they are the next follow-up.
+  * **Mid-run messages** (`Steer`): typed while a task runs, and queued --
+    editable and removable -- until delivered. Before the agent starts they
+    join its first prompt; a CLI agent takes them at its next step without
+    stopping (Claude's stream-json stdin, Codex's app-server `turn/steer`;
+    a Codex that cannot is stopped and resumed instead); a browser unit gets
+    them right after its current reply. "Interrupt now" stops the current
+    step or reply first. At the approval card they ask for a revision
+    (tasks.py). After that they are the next follow-up.
 """
 
 from __future__ import annotations
@@ -26,7 +29,7 @@ from __future__ import annotations
 import asyncio
 import re
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 from ..engine.session import build_context, valid_session_id
 
@@ -196,20 +199,42 @@ class Steer:
     """Messages typed while a task runs, and where each one goes.
 
     Synchronous methods only, so under the one event loop a message is either
-    in `pending` before the chain `close()`s the steer or it is a follow-up --
+    pending before the chain `close()`s the steer or it is a follow-up --
     never both, never neither.
 
+    Every message has an id and stays QUEUED -- editable, removable -- until
+    something delivers it: the next prompt, a live agent at its next step
+    (`deliver`), or a continuation (`take`). `on_deliver(ids, how)` hears
+    about each delivery, so every viewer's bubble stops offering Edit.
+
     `kind` is what is running now: None (nothing yet, or between agents: the
-    next prompt takes it), "cli" (interrupt it), "browser" (after its reply).
+    next prompt takes it), "cli", "browser" (after its reply). A CLI agent
+    that can take messages without stopping (`go_live`: Claude's stream-json
+    stdin, Codex's app-server) delivers them itself at its next step; one
+    that cannot is stopped and resumed (`interrupt`, after BATCH_S).
+    `now` is "Interrupt now": a live agent stops its current step, a browser
+    unit stops its reply, and a non-live CLI is stopped at once.
     """
 
     def __init__(self) -> None:
-        self.pending: list[str] = []
+        self.items: list[dict[str, str]] = []
         self.count = 0
         self.open = True
         self.kind: str | None = None
+        self.live = False
         self.interrupt = asyncio.Event()
+        self.now = asyncio.Event()
+        # Set whenever a live agent should look again (a message, Interrupt
+        # now); the agent clears it.
+        self.wake = asyncio.Event()
+        self.on_deliver: Callable[[list[str], str], None] | None = None
         self._timer: asyncio.TimerHandle | None = None
+        self._seq = 0
+
+    @property
+    def pending(self) -> list[str]:
+        """The queued texts, oldest first."""
+        return [i["text"] for i in self.items]
 
     @staticmethod
     def check_text(text: Any) -> str:
@@ -228,14 +253,23 @@ class Steer:
             raise OverflowError(f"At most {MAX_MESSAGES} messages per task; "
                                 "send it as a follow-up.")
         self.count += 1
-        self.pending.append(text)
+        self._seq += 1
+        self.items.append({"id": f"m{self._seq}", "text": text})
         return text
+
+    @property
+    def last_id(self) -> str:
+        return self.items[-1]["id"] if self.items else ""
 
     def add(self, text: Any) -> str:
         """Queue a message for the running chain. Returns how it will land:
-        "prompt" | "interrupt" | "after_reply". Call only while `open`."""
+        "prompt" | "queued" | "interrupt" | "after_reply". Call only while
+        `open`."""
         self.hold(text)
         if self.kind == "cli":
+            if self.live:
+                self.wake.set()
+                return "queued"
             if self._timer is None:
                 # Batched: a second message typed right after the first
                 # rides the same interrupt instead of causing another.
@@ -243,29 +277,94 @@ class Steer:
             return "interrupt"
         return "after_reply" if self.kind == "browser" else "prompt"
 
+    def edit(self, mid: str, text: Any) -> bool:
+        """Change a queued message. False once it has been delivered."""
+        text = self.check_text(text)
+        for i in self.items:
+            if i["id"] == mid:
+                i["text"] = text
+                return True
+        return False
+
+    def remove(self, mid: str) -> bool:
+        """Drop a queued message (it no longer counts against the cap).
+        False once it has been delivered."""
+        for n, i in enumerate(self.items):
+            if i["id"] == mid:
+                del self.items[n]
+                self.count -= 1
+                if not self.items and self._timer is not None:
+                    self._timer.cancel()
+                    self._timer = None
+                return True
+        return False
+
+    def interrupt_now(self) -> str:
+        """"Interrupt now": what it does depends on what is running.
+        "live" | "browser" | "stopped" (a non-live CLI, stopped at once) |
+        "" (nothing to interrupt -- the message joins the next prompt)."""
+        if not self.items or self.kind is None:
+            return ""
+        if self.kind == "cli" and not self.live:
+            if self._timer is not None:
+                self._timer.cancel()
+                self._timer = None
+            self.interrupt.set()
+            return "stopped"
+        self.now.set()
+        self.wake.set()
+        return "live" if self.kind == "cli" else "browser"
+
+    def go_live(self) -> None:
+        """The running CLI agent takes messages without stopping: it calls
+        `deliver` at its own steps, so no interrupt is timed for it."""
+        self.live = True
+        if self._timer is not None:
+            self._timer.cancel()
+            self._timer = None
+        if self.items:
+            self.wake.set()
+
     def _fire(self) -> None:
         self._timer = None
-        if self.pending and self.kind == "cli":
+        if self.items and self.kind == "cli" and not self.live:
             self.interrupt.set()
 
     def running(self, kind: str | None) -> None:
         self.kind = kind
-        if kind == "cli" and self.pending and self._timer is None:
+        self.live = False
+        if kind is None:
+            self.now.clear()
+            self.wake.clear()
+        if kind == "cli" and self.items and self._timer is None:
             self._timer = asyncio.get_running_loop().call_later(BATCH_S, self._fire)
 
-    def take(self) -> list[str]:
-        """Everything pending, now delivered."""
-        out, self.pending = self.pending, []
+    def _taken(self, how: str) -> list[dict[str, str]]:
+        out, self.items = self.items, []
         if self._timer is not None:
             self._timer.cancel()
             self._timer = None
-        self.interrupt.clear()
+        if out and self.on_deliver is not None:
+            self.on_deliver([i["id"] for i in out], how)
         return out
+
+    def deliver(self) -> list[str]:
+        """A live agent takes everything queued, at one of its steps."""
+        return [i["text"] for i in self._taken("live")]
+
+    def take(self, how: str = "taken") -> list[str]:
+        """Everything pending, now delivered ("unsent": handed back to the
+        console instead, the task having ended)."""
+        out = self._taken(how)
+        self.interrupt.clear()
+        return [i["text"] for i in out]
 
     def close(self) -> None:
         """The chain is finishing: later messages are follow-ups."""
         self.open = False
         self.kind = None
+        self.live = False
+        self.now.clear()
         if self._timer is not None:
             self._timer.cancel()
             self._timer = None

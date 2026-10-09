@@ -115,7 +115,7 @@ NEEDS_YOU = (
     "|date of birth|enter your birthday', 'i')",
     # Not every site marks its modal as a dialog. Checked on a fresh chat,
     # before anything is typed, so no prompt or answer can be what matched.
-    "text=/When were you born\?|Verify your age|Confirm your age/i",
+    r"text=/When were you born\?|Verify your age|Confirm your age/i",
 )
 
 
@@ -237,6 +237,16 @@ class BrowserProvider(Provider):
         # The model chosen for this unit in the Units sheet (Phase U4).
         picked: picker.Picked | None = None
 
+        def stopped(text: str, reason: str) -> Answer:
+            """Interrupt now: what the reply said when it was stopped."""
+            return Answer(
+                provider_id=self.id, display_name=self.display_name, text=text,
+                ok=False, state=ProviderState.DONE, completion_reason=reason,
+                started_at=started_at, ended_at=datetime.now(timezone.utc),
+                latency_ms=int((time.monotonic() - t0) * 1000), chars=len(text),
+                provider_kind=self.kind, model=model_before, interrupted=True,
+            )
+
         def fail(kind: FailureKind, detail: str) -> Answer:
             a = Answer.failed(
                 self.id,
@@ -273,6 +283,9 @@ class BrowserProvider(Provider):
 
                 if cancel is not None and cancel.is_set():
                     return fail(FailureKind.CANCELLED, "Cancelled before sending.")
+                if ctx.interrupt is not None and ctx.interrupt.is_set():
+                    # Interrupted before anything was typed: nothing to keep.
+                    return stopped("", "interrupted")
 
                 # -- bot challenge -------------------------------------------
                 if await resolve.is_challenge_page(page, site.challenge_selectors):
@@ -544,6 +557,7 @@ class BrowserProvider(Provider):
                     result = await completion.wait_for_completion(
                         page, site, baseline=baseline,
                         on_progress=on_progress, cancel=cancel, prompt=sent,
+                        interrupt=ctx.interrupt,
                     )
                 except ProviderError as e:
                     # A quota notice can appear DURING a run -- the limit is
@@ -586,6 +600,10 @@ class BrowserProvider(Provider):
                 # Strip UI chrome (citation pills, injected ads) before this text
                 # can reach the synthesis prompt.
                 cleaned = extract.clean(result.text, site.strip_patterns)
+                if result.reason == completion.CompletionReason.INTERRUPTED:
+                    # Partial on purpose: no validation, no "empty" failure.
+                    await self._emit(on_event, ProviderState.DONE, text=cleaned, started=t0)
+                    return stopped(cleaned, str(result.reason))
 
                 # The model that answered, read again now it has: ChatGPT's
                 # slug only exists on a finished turn, and a site that moved

@@ -82,8 +82,12 @@ async def code_state() -> dict[str, Any]:
         # V3: `writes` = and `writes` (other workspaces to change, write mode).
         # V4: `branches` = commit on a branch, switch branch, open a pull request.
         # V6: `commands` = named commands agents may run (Check sheet).
+        # `steer_live` = a CLI agent takes a message at its next step without
+        # stopping, and /tasks/{id}/interrupt exists; `msg_edit` = a queued
+        # message can be edited or removed (/message/{mid}/edit, /remove).
         "features": ["attachments", "auto_approve", "followup", "steer", "images", "refs",
-                     "writes", "branches", "commands", "shell", "problems", "editor"],
+                     "writes", "branches", "commands", "shell", "problems", "editor",
+                     "steer_live", "msg_edit"],
     }
 
 
@@ -1126,11 +1130,41 @@ async def pr_task(task_id: str, body: dict = Body(default={})) -> dict[str, Any]
 async def message_task(task_id: str, body: dict = Body(...)) -> dict[str, Any]:
     """A message typed while the task runs. `{"text": "..."}`, at most 4,000
     characters and 20 per task. `accepted` says where it went: "prompt",
-    "interrupt", "after_reply", "revise" or "followup" (tasks.message)."""
+    "queued", "interrupt", "after_reply", "revise" or "followup"
+    (tasks.message); `id` names it while it is queued."""
     t = _tasks.TASKS.get(task_id)
     if t is None:
         return {"ok": False, "error": "no_task", "message": "No such task."}
     return await _tasks.message(t, (body or {}).get("text"))
+
+
+@router.post("/tasks/{task_id}/message/{mid}/edit")
+async def edit_task_message(task_id: str, mid: str, body: dict = Body(...)) -> dict[str, Any]:
+    """Change a message still queued: `{"text": "..."}`. Refused once the
+    agent has taken it (error "delivered")."""
+    t = _tasks.TASKS.get(task_id)
+    if t is None:
+        return {"ok": False, "error": "no_task", "message": "No such task."}
+    return await _tasks.edit_message(t, mid, (body or {}).get("text"))
+
+
+@router.post("/tasks/{task_id}/message/{mid}/remove")
+async def remove_task_message(task_id: str, mid: str) -> dict[str, Any]:
+    """Take back a message still queued."""
+    t = _tasks.TASKS.get(task_id)
+    if t is None:
+        return {"ok": False, "error": "no_task", "message": "No such task."}
+    return await _tasks.remove_message(t, mid)
+
+
+@router.post("/tasks/{task_id}/interrupt")
+async def interrupt_task(task_id: str) -> dict[str, Any]:
+    """Interrupt now: the agent stops its current step and carries on with
+    what is queued. Not a Halt."""
+    t = _tasks.TASKS.get(task_id)
+    if t is None:
+        return {"ok": False, "error": "no_task", "message": "No such task."}
+    return await _tasks.interrupt(t)
 
 
 @router.post("/tasks/{task_id}/cancel")

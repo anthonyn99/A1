@@ -361,7 +361,10 @@ async def health():
         # What this engine can do that an older one cannot, so the console
         # can offer it or say "update the engine". Track F: follow-ups carry
         # the conversation; notes can be added to a run in flight.
-        "features": ["followup", "steer"],
+        # `note_edit`: a note can be edited or removed until synthesis;
+        # `note_interrupt`: POST /api/runs/{id}/interrupt re-asks the members
+        # still answering with the notes.
+        "features": ["followup", "steer", "note_edit", "note_interrupt"],
         "power": KEEP_AWAKE.state(),
         "providers": settings.enabled_site_ids(),
         "pacing": {
@@ -768,16 +771,78 @@ async def add_run_note(run_id: str, request: Request):
         raise HTTPException(400, "text is required")
     if state.get("done") or state["cancel"].is_set():
         return {"applied": "followup", "text": text.strip()}
+    steer = state["steer"]
+    if steer.on_close is None:
+        # Every viewer hears when the notes stop being editable.
+        steer.on_close = lambda: asyncio.ensure_future(
+            state["queue"].put({"type": "notes_closed"}))
     try:
-        applied = state["steer"].add(text)
+        applied = steer.add(text)
     except OverflowError as e:
         raise HTTPException(429, str(e)) from None
     except ValueError as e:
         raise HTTPException(400, str(e)) from None
     note = {"text": text.strip(), "applied": applied}
+    if applied == "verdict":
+        note["id"] = steer.last_id
     state["notes"].append(note)
     await state["queue"].put({"type": "note", **note})
     return note
+
+
+def _run_note(run_id: str) -> dict:
+    state = _runs.get(run_id)
+    if state is None:
+        raise HTTPException(404, "unknown run")
+    return state
+
+
+@app.post("/api/runs/{run_id}/note/{nid}/edit")
+async def edit_run_note(run_id: str, nid: str, request: Request):
+    """Change a note the verdict has not taken yet: `{text}`. 409 once
+    synthesis has started (the chairman has it)."""
+    state = _run_note(run_id)
+    try:
+        body = await request.json()
+    except ValueError:
+        raise HTTPException(400, "body must be JSON {text}") from None
+    text = body.get("text") if isinstance(body, dict) else None
+    if not isinstance(text, str):
+        raise HTTPException(400, "text is required")
+    try:
+        ok = state["steer"].edit(nid, text)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from None
+    if not ok:
+        raise HTTPException(409, "That note has already gone to the chairman.")
+    text = text.strip()
+    for n in state["notes"]:
+        if n.get("id") == nid:
+            n["text"] = text
+    await state["queue"].put({"type": "note_edit", "id": nid, "text": text})
+    return {"id": nid, "text": text}
+
+
+@app.post("/api/runs/{run_id}/note/{nid}/remove")
+async def remove_run_note(run_id: str, nid: str):
+    state = _run_note(run_id)
+    if not state["steer"].remove(nid):
+        raise HTTPException(409, "That note has already gone to the chairman.")
+    state["notes"] = [n for n in state["notes"] if n.get("id") != nid]
+    await state["queue"].put({"type": "note_drop", "id": nid})
+    return {"id": nid, "removed": True}
+
+
+@app.post("/api/runs/{run_id}/interrupt")
+async def interrupt_run(run_id: str):
+    """Interrupt now: the members still answering stop (each site's Stop
+    button) and are asked once more with the notes. Once per run."""
+    state = _run_note(run_id)
+    if state.get("done") or not state["steer"].interrupt_now():
+        raise HTTPException(409, "Nothing to interrupt now: add a note while units "
+                                 "are still answering (once per run).")
+    await state["queue"].put({"type": "interrupt"})
+    return {"interrupted": True}
 
 
 @app.get("/api/runs/{run_id}/stream")
@@ -798,6 +863,10 @@ async def stream_run(run_id: str):
                 "providers": list(state["providers"].values()),
                 **_session_of(state),
                 "notes": list(state.get("notes", [])),
+                # Whether those notes can still be edited, and whether
+                # Interrupt now was used (session.Steer).
+                "notes_open": state["steer"].phase == "gather",
+                "interrupted": state["steer"].interrupt.is_set(),
             })
             if state["result"]:
                 yield _sse(state["result"])
