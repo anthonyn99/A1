@@ -17,7 +17,7 @@
 //   4. revise   a message at the approval card: accepted "revise", nothing
 //               applied, a second card with the revised diff, approved.
 // Spends about eight small requests on the chosen agent (Codex by default).
-// LIVE_ONLY=resume,midrun,now,denied,revise.
+// LIVE_ONLY=resume,midrun,now,unit,denied,revise. (unit: UNIT=grok by default)
 'use strict';
 const fs = require('fs');
 const os = require('os');
@@ -175,6 +175,29 @@ const turnOf = (prompt, mode, r, files) => ({
       ok('the agent said it was interrupting', r.events.some((e) => e.k === 'note' && /Interrupting/.test(e.text || '')));
       const attempts = ((r.result || {}).attempts || []).map((a) => a.outcome);
       ok('one attempt, same process', attempts.join(',') === 'ok', attempts.join(','));
+      ok('the answer follows the message', /PELICAN/.test((r.result || {}).text || ''), (r.result || {}).text);
+    }
+
+    if (want('unit')) {
+      const UNIT = process.env.UNIT || 'grok';
+      console.log(`\n2c. Interrupt now on a browser unit (${UNIT}): its reply stops, it is asked again`);
+      let sent = null, intr = null;
+      const r = await run({ project_id: PID, mode: 'read', agents: [UNIT],
+        prompt: 'Without reading any files, write a 600-word essay on why READMEs matter, '
+          + 'in six paragraphs.' },
+      async (ev, task) => {
+        if (!sent && ev.k === 'note' && /^Asking /.test(ev.text || '')) {
+          sent = 'pending';
+          await new Promise((res) => setTimeout(res, 15000));
+          sent = await api(`/tasks/${task.id}/message`,
+            { text: 'Stop the essay. Instead reply with exactly one word: PELICAN' });
+          intr = await api(`/tasks/${task.id}/interrupt`, {});
+        }
+      }, 600000);
+      ok('queued after its reply, then Interrupt now',
+        sent && sent.accepted === 'after_reply' && intr && intr.how === 'browser', JSON.stringify([sent, intr]));
+      ok('its reply was stopped', r.events.some((e) => e.k === 'note' && /^Stopped /.test(e.text || '')));
+      ok('it was asked again with the message', r.events.some((e) => e.k === 'interrupt'));
       ok('the answer follows the message', /PELICAN/.test((r.result || {}).text || ''), (r.result || {}).text);
     }
 
