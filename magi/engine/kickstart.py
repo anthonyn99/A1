@@ -350,11 +350,25 @@ async def tick(force: bool = False) -> dict | None:
     """Decide, and send if that is the decision. Returns the panel."""
     if available():
         async with _lock:
-            await _tick(force)
+            sent = await _tick(force)
+        if sent:
+            await push_resets()
     return panel()
 
 
-async def _tick(force: bool) -> None:
+async def push_resets() -> None:
+    """The send just opened a window and stored its reset time, so put it on
+    TaskHub now. Left to its own 5-minute loop, the reset reached TaskHub
+    minutes after MAGI said "Sent", and looked like it never would."""
+    try:
+        from . import claude_resets
+        await claude_resets.tick()
+    except Exception:  # noqa: BLE001 -- its own loop retries anyway
+        pass
+
+
+async def _tick(force: bool) -> bool:
+    """One pass. -> True when a message was sent."""
     from ..code.agents import limits, updates
     slot = pro_slot()
     now = _local_now()
@@ -399,6 +413,7 @@ async def _tick(force: bool) -> None:
         if d["status"] == "already":
             mine["window_resets_at"] = d["until"]
     _put_state(mine)
+    return mine.get("status") == "sent" and d["act"] == "send"
 
 
 def next_sleep(now: float | None = None) -> float:

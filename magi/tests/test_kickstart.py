@@ -236,6 +236,27 @@ def test_tick_sends_when_the_claim_is_ours(monkeypatch, tmp_path):
     assert sent == ["k"] and ks.state()["status"] == "sent"
 
 
+def test_a_send_pushes_the_reset_to_taskhub_at_once(monkeypatch, tmp_path):
+    """Not on the resets loop's next tick: that left TaskHub empty for minutes
+    after MAGI said "Sent". A pass that sends nothing pushes nothing."""
+    import asyncio
+    from magi.engine import claude_resets
+    pushed = []
+
+    async def fake_resets_tick(force=False):
+        pushed.append(force)
+    monkeypatch.setattr(claude_resets, "tick", fake_resets_tick)
+    monkeypatch.setattr(ks, "available", lambda: True)
+    monkeypatch.setattr(ks, "panel", lambda: None)
+    sent = _tick_env(monkeypatch, tmp_path, claim_by="tony")
+    asyncio.run(ks.tick())
+    assert sent == [] and pushed == []
+    ks._put_state({})
+    _tick_env(monkeypatch, tmp_path, claim_by=None)
+    asyncio.run(ks.tick())
+    assert ks.state()["status"] == "sent" and pushed == [False]
+
+
 def test_a_day_already_done_still_holds_the_claim(monkeypatch, tmp_path):
     """An engine restarted after today's send must still keep the other
     profile's engine on this PC from sending on the same account."""
