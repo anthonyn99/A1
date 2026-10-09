@@ -29068,13 +29068,18 @@ window.hideBrainstormJournal = function() {
     if (resetBtn) resetBtn.style.display = show ? '' : 'none';
     if (show) setTimeout(function() { pwInput.focus(); }, 60);
   }
+  var _blBioSeq = 0;   // newest render wins: two quick opens used to draw the buttons twice
   function blBioRender() {
     if (!bioEl) return; bioEl.innerHTML = ''; bioEl.style.display = 'none';
+    var seq = ++_blBioSeq;
     if (!window.Bio || blMode !== 'unlock') return;
     var id = state.activeId; if (!id) return;
     window.Bio.available().then(function(avail) {
       if (blMode !== 'unlock' || state.activeId !== id) return;
-      if (!(avail && window.Bio.isRegistered('bj', id))) return;
+      if (seq !== _blBioSeq) return;
+      bioEl.innerHTML = '';
+      var had = window.Bio.isRegistered('bj', id);
+      if (!(avail && window.Bio.isRegistered('bj', id, blLockVersion(id)))) { if (avail && had) blBioStaleMsg(); return; }
       bioEl.style.display = 'flex'; bioEl.style.flexDirection = 'column'; bioEl.style.gap = '8px'; bioEl.style.marginBottom = '10px';
       var b = document.createElement('button'); b.className = 'tl-btn';
       b.innerHTML = TNI.unlock + '<span>Unlock with ' + window.Bio.label() + '</span>';
@@ -29088,15 +29093,30 @@ window.hideBrainstormJournal = function() {
   function blBioUnlock() {
     errEl.textContent = '';
     var id = state.activeId; if (!id || !window.Bio) return;
-    window.Bio.authenticate('bj', id).then(function(r) {
+    window.Bio.authenticate('bj', id, { v: blLockVersion(id) }).then(function(r) {
       if (r.ok) {
         if (_blRemoveBioId === id) { blDoRemoveBio(id); return; }
         blMarkUnlocked(id); blHideOverlay(); blUpdateLockBtn(); try { loadActiveEntry(); renderSidebar(); } catch(e) {}
       }
+      else if (r.error === 'stale') { blBioStaleMsg(); }
       else if (r.error === 'notregistered') { blBioShowInput(true); }
       else { errEl.textContent = 'Biometric check failed — use your password.'; blBioShowInput(true); }
     });
   }
+  // The password changed since this device enrolled, so its biometric no longer
+  // opens the entry (Bio drops it): say why, and fall back to the password.
+  function blBioStaleMsg() {
+    if (bioEl) { bioEl.innerHTML = ''; bioEl.style.display = 'none'; }
+    errEl.textContent = 'The password changed — enter the new one. ' + window.Bio.label() + ' needs registering again on this device.';
+    blBioShowInput(true);
+  }
+  // After the password proves who this is: if a password change dropped this
+  // device's biometric (or this device just changed it), offer to enrol again.
+  function blBioAfterPw(id, hadBio) {
+    if (!window.Bio) return;
+    if (window.Bio.takeStale('bj', id) || hadBio) blMaybeOfferBio(id);
+  }
+  function blHadBio(id) { return !!(window.Bio && window.Bio.isRegistered('bj', id)); }
   // Verify identity (biometric OR password) before removing this entry's biometric.
   function blBioRemovePrompt(id) {
     blShowOverlay('unlock');
@@ -29112,7 +29132,7 @@ window.hideBrainstormJournal = function() {
   }
   function blBioRegister(id, closeAfter) {
     if (!window.Bio) return;
-    window.Bio.register('bj', id, { rpName: 'Brainstorm Journal', userName: 'bj-' + id, displayName: 'Journal entry — Brainstorm Journal' }).then(function(r) {
+    window.Bio.register('bj', id, { rpName: 'Brainstorm Journal', userName: 'bj-' + id, displayName: 'Journal entry — Brainstorm Journal', v: blLockVersion(id) }).then(function(r) {
       if (r.ok) { blMarkUnlocked(id); if (closeAfter) { blHideOverlay(); blUpdateLockBtn(); try { loadActiveEntry(); renderSidebar(); } catch(e) {} } alert('Biometrics registered on this device. You can now unlock this entry with ' + window.Bio.label() + '.'); }
       else if (!(r.error === 'cancelled' || r.error === 'NotAllowedError')) alert('Could not register biometrics on this device.');
     });
@@ -29120,7 +29140,7 @@ window.hideBrainstormJournal = function() {
   function blMaybeOfferBio(id) {
     if (!window.Bio) return;
     window.Bio.available().then(function(avail) {
-      if (!avail || window.Bio.isRegistered('bj', id)) return;
+      if (!avail || window.Bio.isRegistered('bj', id, blLockVersion(id))) return;
       window.uiConfirm('Register ' + window.Bio.label() + ' to unlock this entry on this device? Your password still works as a fallback.', { title: 'Register ' + window.Bio.label(), okLabel: 'Register' }).then(function(ok) { if (ok) blBioRegister(id, false); });
     });
   }
@@ -29223,7 +29243,7 @@ window.hideBrainstormJournal = function() {
     _blMenuBtn(m, 'Close', 'ghost', function() { blDismiss(); });
     if (window.Bio) window.Bio.available().then(function(avail) {
       if (!avail || state.activeId !== entry.id) return;
-      if (window.Bio.isRegistered('bj', entry.id))
+      if (window.Bio.isRegistered('bj', entry.id, blLockVersion(entry.id)))
         _blMenuBtn(m, TNI.user + '<span>Remove biometrics</span>', 'ghost', function() { blBioRemovePrompt(entry.id); }, changeBtn);
       else
         _blMenuBtn(m, TNI.user + '<span>Register ' + window.Bio.label() + '</span>', '', function() { blBioRegister(entry.id, true); }, changeBtn);
@@ -29358,7 +29378,7 @@ window.hideBrainstormJournal = function() {
               body: JSON.stringify({ journal: 'bj', entryId: entry.id, password: np.trim(), hint: nh })
             });
             var sd = await s.json();
-            if (sd.ok) { blSetLock(entry.id); blMarkUnlocked(entry.id); blHideOverlay(); blUpdateLockBtn(); renderSidebar(); }
+            if (sd.ok) { var hadBio = blHadBio(entry.id); blSetLock(entry.id); blMarkUnlocked(entry.id); blHideOverlay(); blUpdateLockBtn(); renderSidebar(); blBioAfterPw(entry.id, hadBio); }
             else errEl.textContent = 'Failed to set new password.';
           } else errEl.textContent = 'New password empty.';
         } else blLockErr('Wrong password.');
@@ -29367,7 +29387,7 @@ window.hideBrainstormJournal = function() {
         var data4 = await blAuthPost('/auth/journal/verify', { journal: 'bj', entryId: entry.id, password: pw });
         if (data4.ok) {
           if (_blRemoveBioId === entry.id) { blDoRemoveBio(entry.id); }
-          else { blMarkUnlocked(entry.id); blHideOverlay(); blUpdateLockBtn(); try { loadActiveEntry(); renderSidebar(); } catch(e) {} }
+          else { blMarkUnlocked(entry.id); blHideOverlay(); blUpdateLockBtn(); try { loadActiveEntry(); renderSidebar(); } catch(e) {} blBioAfterPw(entry.id, false); }
         } else if (data4.noLock) {
           blDropStaleLock(entry);
         } else blLockErr('Wrong password.');
@@ -29447,7 +29467,9 @@ window.hideBrainstormJournal = function() {
       appName: 'Brainstorm Journal',
       label: 'entry "' + (entry.title || 'Untitled') + '"',
       onSuccess: function() {
+        var hadBio = blHadBio(entry.id);
         blSetLock(entry.id); blMarkUnlocked(entry.id); blHideOverlay(); blUpdateLockBtn();
+        blBioAfterPw(entry.id, hadBio);
         try { loadActiveEntry(); renderSidebar(); } catch(e) {}
       }
     });
@@ -34357,14 +34379,19 @@ window.tjSwitchTo = function(app) {
     if (resetBtn) resetBtn.style.display = show ? '' : 'none';
     if (show) setTimeout(function() { pwInput.focus(); }, 60);
   }
+  var _tlBioSeq = 0;   // newest render wins: two quick opens used to draw the buttons twice
   function tlBioRender() {
     if (!bioEl) return; bioEl.innerHTML = ''; bioEl.style.display = 'none';
+    var seq = ++_tlBioSeq;
     if (!window.Bio || tlMode !== 'unlock') return;
     var entry = getActive(); if (!entry) return; var id = entry.id;
     window.Bio.available().then(function(avail) {
       var cur = getActive();
       if (tlMode !== 'unlock' || !cur || cur.id !== id) return;
-      if (!(avail && window.Bio.isRegistered('tj', id))) return;
+      if (seq !== _tlBioSeq) return;
+      bioEl.innerHTML = '';
+      var had = window.Bio.isRegistered('tj', id);
+      if (!(avail && window.Bio.isRegistered('tj', id, tlLockVersion(id)))) { if (avail && had) tlBioStaleMsg(); return; }
       bioEl.style.display = 'flex'; bioEl.style.flexDirection = 'column'; bioEl.style.gap = '8px'; bioEl.style.marginBottom = '10px';
       var b = document.createElement('button'); b.className = 'tl-btn';
       b.innerHTML = TNI.unlock + '<span>Unlock with ' + window.Bio.label() + '</span>';
@@ -34378,15 +34405,30 @@ window.tjSwitchTo = function(app) {
   function tlBioUnlock() {
     errEl.textContent = '';
     var entry = getActive(); if (!entry || !window.Bio) return; var id = entry.id;
-    window.Bio.authenticate('tj', id).then(function(r) {
+    window.Bio.authenticate('tj', id, { v: tlLockVersion(id) }).then(function(r) {
       if (r.ok) {
         if (_tlRemoveBioId === id) { tlDoRemoveBio(id); return; }
         tlMarkUnlocked(id); tlHideOverlay(); tlUpdateLockBtn(); try { loadActiveEntry(); renderSidebar(); } catch(e) {}
       }
+      else if (r.error === 'stale') { tlBioStaleMsg(); }
       else if (r.error === 'notregistered') { tlBioShowInput(true); }
       else { errEl.textContent = 'Biometric check failed — use your password.'; tlBioShowInput(true); }
     });
   }
+  // The password changed since this device enrolled, so its biometric no longer
+  // opens the entry (Bio drops it): say why, and fall back to the password.
+  function tlBioStaleMsg() {
+    if (bioEl) { bioEl.innerHTML = ''; bioEl.style.display = 'none'; }
+    errEl.textContent = 'The password changed — enter the new one. ' + window.Bio.label() + ' needs registering again on this device.';
+    tlBioShowInput(true);
+  }
+  // After the password proves who this is: if a password change dropped this
+  // device's biometric (or this device just changed it), offer to enrol again.
+  function tlBioAfterPw(id, hadBio) {
+    if (!window.Bio) return;
+    if (window.Bio.takeStale('tj', id) || hadBio) tlMaybeOfferBio(id);
+  }
+  function tlHadBio(id) { return !!(window.Bio && window.Bio.isRegistered('tj', id)); }
   // Verify identity (biometric OR password) before removing this entry's biometric.
   function tlBioRemovePrompt(id) {
     tlShowOverlay('unlock');
@@ -34402,7 +34444,7 @@ window.tjSwitchTo = function(app) {
   }
   function tlBioRegister(id, closeAfter) {
     if (!window.Bio) return;
-    window.Bio.register('tj', id, { rpName: 'Trade Journal', userName: 'tj-' + id, displayName: 'Journal entry — Trade Journal' }).then(function(r) {
+    window.Bio.register('tj', id, { rpName: 'Trade Journal', userName: 'tj-' + id, displayName: 'Journal entry — Trade Journal', v: tlLockVersion(id) }).then(function(r) {
       if (r.ok) { tlMarkUnlocked(id); if (closeAfter) { tlHideOverlay(); tlUpdateLockBtn(); try { loadActiveEntry(); renderSidebar(); } catch(e) {} } alert('Biometrics registered on this device. You can now unlock this entry with ' + window.Bio.label() + '.'); }
       else if (!(r.error === 'cancelled' || r.error === 'NotAllowedError')) alert('Could not register biometrics on this device.');
     });
@@ -34410,7 +34452,7 @@ window.tjSwitchTo = function(app) {
   function tlMaybeOfferBio(id) {
     if (!window.Bio) return;
     window.Bio.available().then(function(avail) {
-      if (!avail || window.Bio.isRegistered('tj', id)) return;
+      if (!avail || window.Bio.isRegistered('tj', id, tlLockVersion(id))) return;
       window.uiConfirm('Register ' + window.Bio.label() + ' to unlock this entry on this device? Your password still works as a fallback.', { title: 'Register ' + window.Bio.label(), okLabel: 'Register' }).then(function(ok) { if (ok) tlBioRegister(id, false); });
     });
   }
@@ -34510,7 +34552,7 @@ window.tjSwitchTo = function(app) {
     if (window.Bio) window.Bio.available().then(function(avail) {
       var cur = getActive();
       if (!avail || !cur || cur.id !== entry.id) return;
-      if (window.Bio.isRegistered('tj', entry.id))
+      if (window.Bio.isRegistered('tj', entry.id, tlLockVersion(entry.id)))
         _tlMenuBtn(m, TNI.user + '<span>Remove biometrics</span>', 'ghost', function() { tlBioRemovePrompt(entry.id); }, changeBtn);
       else
         _tlMenuBtn(m, TNI.user + '<span>Register ' + window.Bio.label() + '</span>', '', function() { tlBioRegister(entry.id, true); }, changeBtn);
@@ -34647,7 +34689,7 @@ window.tjSwitchTo = function(app) {
               body: JSON.stringify({ journal: 'tj', entryId: entry.id, password: np.trim(), hint: nh })
             });
             var sd = await s.json();
-            if (sd.ok) { tlSetLock(entry.id); tlMarkUnlocked(entry.id); tlHideOverlay(); tlUpdateLockBtn(); renderSidebar(); }
+            if (sd.ok) { var hadBio = tlHadBio(entry.id); tlSetLock(entry.id); tlMarkUnlocked(entry.id); tlHideOverlay(); tlUpdateLockBtn(); renderSidebar(); tlBioAfterPw(entry.id, hadBio); }
             else errEl.textContent = 'Failed to set new password.';
           } else errEl.textContent = 'New password empty.';
         } else tlLockErr('Wrong password.');
@@ -34655,7 +34697,7 @@ window.tjSwitchTo = function(app) {
         var data4 = await tlAuthPost('/auth/journal/verify', { journal: 'tj', entryId: entry.id, password: pw });
         if (data4.ok) {
           if (_tlRemoveBioId === entry.id) { tlDoRemoveBio(entry.id); }
-          else { tlMarkUnlocked(entry.id); tlHideOverlay(); tlUpdateLockBtn(); try { loadActiveEntry(); renderSidebar(); } catch(e) {} }
+          else { tlMarkUnlocked(entry.id); tlHideOverlay(); tlUpdateLockBtn(); try { loadActiveEntry(); renderSidebar(); } catch(e) {} tlBioAfterPw(entry.id, false); }
         } else if (data4.noLock) {
           tlDropStaleLock(entry);
         } else tlLockErr('Wrong password.');
@@ -34735,7 +34777,9 @@ window.tjSwitchTo = function(app) {
       appName: 'MyJournal',
       label: 'entry "' + (entry.title || 'Untitled') + '"',
       onSuccess: function() {
+        var hadBio = tlHadBio(entry.id);
         tlSetLock(entry.id); tlMarkUnlocked(entry.id); tlHideOverlay(); tlUpdateLockBtn();
+        tlBioAfterPw(entry.id, hadBio);
         try { loadActiveEntry(); renderSidebar(); } catch(e) {}
       }
     });
