@@ -943,7 +943,6 @@ window.addEventListener('fb-bj-saved', function(ev) {
   });
 });
 window.addEventListener('fb-bj-synced', function() { _bjSetSync('synced'); });
-window.addEventListener('fb-bj-canvas-saved', function() { _bjSetSync('synced'); });
 window.addEventListener('fb-bj-error', function() { _bjSetSync('error'); });
 window.addEventListener('fb-bj-prompt-saved', function() { _bjSetSync('synced'); });
 window._bjSetSync = _bjSetSync;   // exposed so the AI-prompt save can drive the sync pill

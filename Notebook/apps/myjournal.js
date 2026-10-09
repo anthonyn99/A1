@@ -387,6 +387,7 @@ let saveTimer = null;
 let _tjDomOwner  = null;
 let _tjUserEdited = false;
 let tjSyncStatus = 'idle'; // idle | saving | saved | error
+let _tjSavedOnce = false;   // idle reads "Saved" only after this session saved something
 
 function _tjSetSync(status) {
   tjSyncStatus = status;
@@ -395,7 +396,9 @@ function _tjSetSync(status) {
   var bb   = document.getElementById('tj-bb-saved');
   if (!pill || !txt) return;
   pill.className = 'tj-sync-pill tj-sync-' + status;
-  var labels = { idle:'Saved', syncing:'Saving…', synced:'Synced', error:'Sync Failed' };
+  if (status === 'syncing') _tjSavedOnce = true;
+  // Before anything was saved here, idle only means the screen matches the cloud.
+  var labels = { idle: _tjSavedOnce ? 'Saved' : 'Synced', syncing:'Saving…', synced:'Synced', error:'Sync Failed' };
   txt.textContent = labels[status] || status;
   // Bottom bar indicator on mobile
   if (bb) {
@@ -844,7 +847,6 @@ window.addEventListener('fb-tj-saved', function(ev) {
   });
 });
 window.addEventListener('fb-tj-synced', function() { _tjSetSync('synced'); });
-window.addEventListener('fb-tj-canvas-saved', function() { _tjSetSync('synced'); });
 window.addEventListener('fb-tj-error', function() { _tjSetSync('error'); });
 window.addEventListener('fb-tj-prompt-saved', function() { _tjSetSync('synced'); });
 window._tjSetSync = _tjSetSync;   // exposed so the AI-prompt save can drive the sync pill
@@ -1127,21 +1129,16 @@ function renderSidebar() {
         if (!alreadyUnlocked) {
           var pw = await window.uiPrompt('This entry is locked. Enter password to delete:', {title:'Locked entry', password:true});
           if (pw === null) return;
+          // The lock's worker calls live inside the lock code below; it hands
+          // them out through _tjLock.
           try {
-            var res = await fetch(TJ_AUTH + '/auth/journal/verify', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ journal: 'tj', entryId: entry.id, password: pw })
-            });
-            var data = await res.json();
+            var data = await _tjLock.post('/auth/journal/verify', { journal: 'tj', entryId: entry.id, password: pw });
             if (!data.ok) { await window.uiAlert('Incorrect password. Entry not deleted.'); return; }
             if (await window.uiConfirm('Delete "' + (entry.title || 'Untitled') + '"?', {danger:true, okLabel:'Delete'})) {
-              await fetch(TJ_AUTH + '/auth/journal/remove-lock', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ journal: 'tj', entryId: entry.id, password: pw })
-              }).catch(function(){});
+              await _tjLock.post('/auth/journal/remove-lock', { journal: 'tj', entryId: entry.id, password: pw }).catch(function(){});
               deleteEntry(entry.id);
             }
-          } catch(e) { await window.uiAlert('Network error. Try again.'); }
+          } catch(e) { await window.uiAlert(_tjLock.errText(e)); }
           return;
         }
       }
@@ -1827,11 +1824,26 @@ document.getElementById('tj-page-img-file').addEventListener('change', function(
   this.value = '';
 });
 
+// A file is kept as a data URL inside a Firestore document (a page's file chip
+// in its own image document, an attachment inside the journal's), and a
+// document over 1 MiB can never be written: the entry's every later save
+// failed with no clear cause. So a file over 650 KB (about 870 KB once
+// encoded, under the 900 KB write guard) is refused up front, saying why.
+var TJ_FILE_MAX = 650 * 1024;
+function _tjFileTooBig(name, dataURL) {
+  var s = String(dataURL || '');
+  var bytes = Math.floor((s.length - s.indexOf(',') - 1) * 3 / 4);
+  if (bytes <= TJ_FILE_MAX) return false;
+  window.uiAlert('"' + name + '" is ' + (bytes / 1048576).toFixed(1) + ' MB. Files up to 650 KB can be attached, so it was not added.', { title: 'File too large' });
+  return true;
+}
+
 // Insert non-image file as downloadable chip in page editor
 function _tjPageInsertFileChip(name, dataURL, mimeType) {
+  if (_tjFileTooBig(name, dataURL)) return;
   const ed = document.getElementById('tj-page-editor');
   ed.focus();
-  const escaped = name.replace(/"/g,'&quot;');
+  const escaped = _tjEsc(name);
   const clip = (window._docxPaperclipSVG || window.TNI.clip);
   const html = '<a class="tj-file-chip" href="' + dataURL + '" download="' + escaped + '" contenteditable="false" style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;background:var(--card2);border:1px solid var(--border);border-radius:4px;text-decoration:none;color:var(--text2);font-size:11px;font-weight:600;margin:2px 3px;cursor:pointer;">' + clip + '<span class="tj-file-name">' + escaped + '</span></a>';
   document.execCommand('insertHTML', false, html);
@@ -1917,6 +1929,7 @@ function _tjPageInsertFileChip(name, dataURL, mimeType) {
   window._tjAddAttachment = function(name, mime, data) {
     var entry = (typeof getActive === 'function') ? getActive() : null;
     if (!entry) return;
+    if (_tjFileTooBig(name, data)) return;
     if (!entry.data.attachments) entry.data.attachments = [];
     var id = 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2);
     entry.data.attachments.push({ id: id, name: name, mime: mime, data: data });
@@ -2535,9 +2548,13 @@ document.getElementById('tj-pt-clear').addEventListener('click', async () => {
   document.getElementById('tj-je-pt-alignL')   && document.getElementById('tj-je-pt-alignL').addEventListener('click', function() { jeCmd('justifyLeft'); });
   document.getElementById('tj-je-pt-alignC')   && document.getElementById('tj-je-pt-alignC').addEventListener('click', function() { jeCmd('justifyCenter'); });
   document.getElementById('tj-je-pt-alignR')   && document.getElementById('tj-je-pt-alignR').addEventListener('click', function() { jeCmd('justifyRight'); });
-  document.getElementById('tj-je-pt-link')     && document.getElementById('tj-je-pt-link').addEventListener('click', function() {
-    var url = prompt('URL:', 'https://');
-    if (url) jeCmd('createLink', url);
+  document.getElementById('tj-je-pt-link')     && document.getElementById('tj-je-pt-link').addEventListener('click', async function() {
+    // Read the selection first: the dialog takes focus and would lose it.
+    var sel = window.getSelection(), range = sel && sel.rangeCount ? sel.getRangeAt(0).cloneRange() : null;
+    var url = await window.uiPrompt('Enter URL:', {title:'Insert link', placeholder:'https://…'});
+    if (!url) return;
+    if (range) { sel.removeAllRanges(); sel.addRange(range); }
+    jeCmd('createLink', url);
   });
   document.getElementById('tj-je-pt-hr')       && document.getElementById('tj-je-pt-hr').addEventListener('click', function() {
     jeEd.focus(); document.execCommand('insertHTML', false, '<hr>');
@@ -2853,22 +2870,6 @@ window._tjPersistNow = function() {
   try { clearTimeout(autoTimer); if (getActive()) saveCurrentEntry(); } catch(e) {}
   try { return _tjFbFlush(); } catch(e) {}
 };
-// ── Global persistence safety net (wired once) ────────────────────────────────
-// On tab hide / close / mobile suspend, synchronously flush every pending debounced
-// write (both journals + the TaskHub) so anything typed in the last instant is saved.
-if (!window._fbUnloadFlushWired) {
-  window._fbUnloadFlushWired = true;
-  window._fbFlushAll = function() {
-    try { if (window._bjPersistNow) window._bjPersistNow(); } catch(e) {}
-    try { if (window._tjPersistNow) window._tjPersistNow(); } catch(e) {}
-    try { if (window._fbFlush) window._fbFlush(); } catch(e) {}      // Tony TaskHub
-    try { if (window._fbFlushVeda) window._fbFlushVeda(); } catch(e) {}  // Veda TaskHub
-  };
-  window.addEventListener('pagehide', window._fbFlushAll);
-  document.addEventListener('visibilitychange', function() {
-    if (document.visibilityState === 'hidden') window._fbFlushAll();
-  });
-}
 document.getElementById('tj-entry-title-input').addEventListener('input', autoSave);
 document.getElementById('tj-page-editor').addEventListener('input', autoSave);
 // Journal Entries editor (contenteditable) — must listen for input to catch paste, typing, etc.
@@ -3351,18 +3352,18 @@ function exportEntryAsPDF(entry) {
 
   var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + _tjEsc(_tjPdfName(title)) + '</title><style>'
     + 'body{font-family:Georgia,serif;max-width:750px;margin:32px auto;color:#1a1a2e;font-size:14px;line-height:1.7;padding:0 24px;}'
-    + 'h1{font-size:22px;font-weight:700;margin:0 0 6px;color:#2d1b4e;}'
+    + 'h1{font-size:22px;font-weight:700;margin:0 0 6px;color:#1a1a1d;}'
     + '.meta{font-size:11px;color:#888;font-family:sans-serif;margin-bottom:20px;}'
-    + '.tag{background:#ede9f4;color:#6b4fa0;border-radius:4px;padding:2px 8px;margin-left:4px;font-size:10px;font-weight:700;}'
+    + '.tag{background:#f0f0f2;color:#45454c;border-radius:4px;padding:2px 8px;margin-left:4px;font-size:10px;font-weight:700;}'
     + '.section{margin-bottom:18px;}'
-    + '.section-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#9b7ec8;margin-bottom:6px;font-family:sans-serif;border-bottom:1px solid #ede9f4;padding-bottom:4px;}'
+    + '.section-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#6b6b73;margin-bottom:6px;font-family:sans-serif;border-bottom:1px solid #e4e4e8;padding-bottom:4px;}'
     + '.section-body{white-space:pre-wrap;word-break:break-word;}'
     + '.page-content{line-height:1.7;}'
-    + 'table{border-collapse:collapse;width:100%;margin:10px 0;}th,td{border:1px solid #d8d0e8;padding:6px 10px;text-align:left;}th{background:#f3effa;}'
+    + 'table{border-collapse:collapse;width:100%;margin:10px 0;}th,td{border:1px solid #dcdce0;padding:6px 10px;text-align:left;}th{background:#f5f5f7;}'
     + 'ul.docx-checklist{list-style:none;padding-left:8px;}li.docx-cl-item{list-style:none;}.docx-cl-box{margin-right:8px;}li.docx-cl-item.done .docx-cl-text{text-decoration:line-through;opacity:.6;}'
     + 'hr.docx-pagebreak{page-break-after:always;break-after:page;border:none;margin:0;}'
-    + '.je-date-label{font-family:sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#9b7ec8;margin-bottom:14px;}'
-    + 'hr{border:none;border-top:1px solid #ede9f4;margin:20px 0;}'
+    + '.je-date-label{font-family:sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#6b6b73;margin-bottom:14px;}'
+    + 'hr{border:none;border-top:1px solid #e4e4e8;margin:20px 0;}'
     + '@media print{body{margin:0;padding:16px;}}'
     + '</style>'
     + ((entry.template === 'page' && window._docxExportPageCss) ? '<style>' + window._docxExportPageCss('tj') + '</style>' : '')
@@ -3387,6 +3388,8 @@ function _tjEsc(s) {
 // ══════════════════════════════════════════
 // TJ LOCK SYSTEM
 // ══════════════════════════════════════════
+// What the rest of the app needs from the lock code (the sidebar's delete).
+var _tjLock = null;
 (function() {
   // Lock data stored on entry.lock = {hash, plain} → syncs to Firebase via saveState()
   // Per-device unlock session stored in localStorage (not synced — each device must unlock once)
@@ -3551,7 +3554,7 @@ function _tjEsc(s) {
   }
   function tlBioRegister(id, closeAfter) {
     if (!window.Bio) return;
-    window.Bio.register('tj', id, { rpName: 'Trade Journal', userName: 'tj-' + id, displayName: 'Journal entry — Trade Journal', v: tlLockVersion(id) }).then(function(r) {
+    window.Bio.register('tj', id, { rpName: 'MyJournal', userName: 'tj-' + id, displayName: 'Journal entry — MyJournal', v: tlLockVersion(id) }).then(function(r) {
       if (r.ok) { tlMarkUnlocked(id); if (closeAfter) { tlHideOverlay(); tlUpdateLockBtn(); try { loadActiveEntry(); renderSidebar(); } catch(e) {} } alert('Biometrics registered on this device. You can now unlock this entry with ' + window.Bio.label() + '.'); }
       else if (!(r.error === 'cancelled' || r.error === 'NotAllowedError')) alert('Could not register biometrics on this device.');
     });
@@ -3739,7 +3742,14 @@ function _tjEsc(s) {
     var txt = await res.text();
     try { return JSON.parse(txt); }
     catch (e) { var srvErr = new Error('bad response'); srvErr._status = res.status; throw srvErr; }
+  }  // The message for a lock call that threw (see tlAuthPost).
+  function tlErrText(e) {
+    return e && e._offline
+      ? 'No connection. Check your network and try again.'
+      : (e && e._status ? 'Lock server error (' + e._status + '). Try again.' : 'Could not reach the lock server. Try again.');
   }
+  _tjLock = { post: tlAuthPost, errText: tlErrText };
+
   // The server is the source of truth for locks. If it reports no lock for this
   // entry, the local marker is stale (typically the entry was deleted and
   // re-synced) — clear it and let the user in rather than trapping them behind
@@ -3760,42 +3770,24 @@ function _tjEsc(s) {
     try {
       if (!lock || tlMode === 'setpw') {
         var hint = (await window.uiPrompt('Optional: enter a password hint (sent in the recovery email, never the password). Leave blank to skip.', {title:'Password hint'})) || '';
-        var res = await fetch(TJ_AUTH + '/auth/journal/set-lock', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ journal: 'tj', entryId: entry.id, password: pw, hint: hint })
-        });
-        var data = await res.json();
+        var data = await tlAuthPost('/auth/journal/set-lock', { journal: 'tj', entryId: entry.id, password: pw, hint: hint });
         if (data.ok) { tlSetLock(entry.id); tlMarkUnlocked(entry.id); tlHideOverlay(); tlUpdateLockBtn(); renderSidebar(); tlMaybeOfferBio(entry.id); }
         else errEl.textContent = 'Failed to set lock. Try again.';
       } else if (tlMode === 'remove') {
-        var res2 = await fetch(TJ_AUTH + '/auth/journal/remove-lock', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ journal: 'tj', entryId: entry.id, password: pw })
-        });
-        var data2 = await res2.json();
+        var data2 = await tlAuthPost('/auth/journal/remove-lock', { journal: 'tj', entryId: entry.id, password: pw });
         if (data2.ok) { tlRemoveLock(entry.id); tlMarkLocked(entry.id); tlHideOverlay(); tlUpdateLockBtn(); renderSidebar(); }
         else tlLockErr('Wrong password.');
       } else if (tlMode === 'changepw') {
-        var res3 = await fetch(TJ_AUTH + '/auth/journal/verify', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ journal: 'tj', entryId: entry.id, password: pw })
-        });
-        var data3 = await res3.json();
+        var data3 = await tlAuthPost('/auth/journal/verify', { journal: 'tj', entryId: entry.id, password: pw });
         if (data3.ok) {
           var chg = await window.uiForm({ title:'Change password', okLabel:'Change password',
             fields:[ {name:'password',label:'New password',type:'password',required:true}, {name:'hint',label:'New password hint (optional)'} ] });
           var np = chg ? chg.password : '';
           if (np && np.trim()) {
             var nh = (chg.hint) || '';
-            await fetch(TJ_AUTH + '/auth/journal/remove-lock', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ journal: 'tj', entryId: entry.id, password: pw })
-            });
-            var s = await fetch(TJ_AUTH + '/auth/journal/set-lock', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ journal: 'tj', entryId: entry.id, password: np.trim(), hint: nh })
-            });
-            var sd = await s.json();
+            // One call: the worker checks `current` and swaps the password, so
+            // the entry is never left without one if the new password fails.
+            var sd = await tlAuthPost('/auth/journal/set-lock', { journal: 'tj', entryId: entry.id, password: np.trim(), hint: nh, current: pw });
             if (sd.ok) { var hadBio = tlHadBio(entry.id); tlSetLock(entry.id); tlMarkUnlocked(entry.id); tlHideOverlay(); tlUpdateLockBtn(); renderSidebar(); tlBioAfterPw(entry.id, hadBio); }
             else errEl.textContent = 'Failed to set new password.';
           } else errEl.textContent = 'New password empty.';
@@ -3810,9 +3802,7 @@ function _tjEsc(s) {
         } else tlLockErr('Wrong password.');
       }
     } catch(e) {
-      errEl.textContent = e && e._offline
-        ? 'No connection. Check your network and try again.'
-        : (e && e._status ? 'Lock server error (' + e._status + '). Try again.' : 'Could not reach the lock server. Try again.');
+      errEl.textContent = tlErrText(e);
     }
     submitBtn.disabled = false; submitBtn.textContent = _prev;
   });

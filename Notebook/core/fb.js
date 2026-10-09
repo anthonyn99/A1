@@ -817,28 +817,7 @@ function install(F) {
     installAccessors(Object.assign({}, F, { imgGet: _jImgGet }));
 
 
-    window._fbRehydrateMyJournalImages = async (html) => {
-      if (!html || !html.includes('mj-fbimg://')) return html;
-      // A <template> is inert: unlike a detached <div>, assigning innerHTML
-      // does not make the browser try to fetch every src it finds — which is
-      // what produced ERR_UNKNOWN_URL_SCHEME for our own placeholders.
-      const div = document.createElement('template');
-      div.innerHTML = html;
-      const imgs = Array.from(div.content.querySelectorAll('img[src^="mj-fbimg://"]'));
-      await Promise.all(imgs.map(async (img) => {
-        const imgKey = img.getAttribute('src').replace('mj-fbimg://', '');
-        try {
-          const imgRef = doc(db(), 'dashboards', imgKey);
-          const snap = await (typeof _jImgGet === 'function' ? _jImgGet(imgRef) : getDoc(imgRef));
-          if (snap.exists() && snap.data().img) {
-            img.setAttribute('src', snap.data().img);
-          }
-        } catch(err) {
-          console.warn('MJ image rehydrate failed:', imgKey, err.message);
-        }
-      }));
-      return div.innerHTML;
-    };
+
 
     // ── Tony's Brainstorm Journal Firebase ───────────────────────────────────────
     const tjDocRef = doc(db(), TJ_DOC_PATH);

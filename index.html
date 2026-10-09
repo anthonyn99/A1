@@ -16394,7 +16394,6 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     var _tjt=document.getElementById('tj-nav-title');if(_tjt)_tjt.parentNode.removeChild(_tjt);
     const root=document.getElementById("root");
     if(root)root.style.display="";
-        const sw=document.getElementById("th-app-switcher");if(sw)sw.value="taskhub";
     // Restore Tony body bg from saved theme
     document.body.style.background="#1a1a1d";document.documentElement.style.background="#1a1a1d"; // light mode removed — always dark
     // Show Tony nav bar
@@ -19220,7 +19219,7 @@ window.PlansCore={
      OurJournal) and their Firestore adapters, loaded in place by notebook.js.
      MyJournal itself still lives below until Phase 3
      (docs/Notebook/plan.md). ── -->
-<script src="Notebook/notebook.js?v=e6323a1966"></script>
+<script src="Notebook/notebook.js?v=31fee24ba3"></script>
 
 <!-- ── Brainstorm Journal: Notebook's brainstorm app (Notebook/apps/brainstorm.*). ── -->
 <script>Notebook.mount({ app: 'brainstorm', key: 'bj', store: 'journal' });</script>
@@ -19339,7 +19338,6 @@ window._tonyNav = function(app) {
   if(app==='taskhub') {
     var r=document.getElementById('root');
     if(r) r.style.display='';
-    var sw=document.getElementById('th-app-switcher');if(sw)sw.value='taskhub';
   } else if(app==='brainstormjournal' && window.showTonyJournal) {
     window.showTonyJournal();
     return; // showTonyJournal handles its own display; active update below
@@ -19354,8 +19352,6 @@ window.showTonyJournal = function() {
   if(!tj) return;
   tj.style.position='fixed'; tj.style.inset='0'; tj.style.zIndex='9999';
   tj.style.display='flex'; tj.style.flexDirection='column';
-  var sw = document.getElementById('tj-app-switcher');
-  if(sw) sw.value='brainstormjournal';
   if(window._updateTonyNavActive) window._updateTonyNavActive('brainstormjournal');
   // Inject MyJournal title into tony-app-nav left side
   var tni = document.getElementById('tony-app-nav-inner');
@@ -19380,8 +19376,6 @@ window.hideTonyJournal = function() {
   var te = document.getElementById('tj-nav-title'); if(te) te.parentNode.removeChild(te);
   var root = document.getElementById('root');
   if(root) root.style.display = '';
-  var sw = document.getElementById('th-app-switcher');
-  if(sw) sw.value = 'taskhub';
   if(window._updateTonyNavActive) window._updateTonyNavActive('taskhub');
 };
 window.tjSwitchTo = function(app) {
@@ -19389,13 +19383,30 @@ window.tjSwitchTo = function(app) {
   var tj=document.getElementById('tj-root');if(tj)tj.style.display='none';
   var te=document.getElementById('tj-nav-title');if(te)te.parentNode.removeChild(te);
   if(window._updateTonyNavActive) window._updateTonyNavActive(app);
-  if(app==='taskhub'){var r=document.getElementById('root');if(r)r.style.display='';var sw=document.getElementById('th-app-switcher');if(sw)sw.value='taskhub';}
+  if(app==='taskhub'){var r=document.getElementById('root');if(r)r.style.display='';}
   else if(app==='keychain'&&window._kcSwitchTo){window._kcSwitchTo('keychain');}
-  else{var r=document.getElementById('root');if(r)r.style.display='';var sw=document.getElementById('th-app-switcher');if(sw)sw.value='taskhub';}
+  else{var r=document.getElementById('root');if(r)r.style.display='';}
 };
 </script>
 
 <!-- ── MyJournal: Notebook's myjournal app (Notebook/apps/myjournal.*). ── -->
+<script>
+// ── Global persistence safety net (wired once) ────────────────────────────────
+// On tab hide / close / mobile suspend, synchronously flush every pending debounced
+// write (both journals + the TaskHub) so anything typed in the last instant is saved.
+if (!window._fbUnloadFlushWired) {
+  window._fbUnloadFlushWired = true;
+  window._fbFlushAll = function() {
+    try { window.Notebook.flushAll(); } catch(e) {}                     // both journals
+    try { if (window._fbFlush) window._fbFlush(); } catch(e) {}      // Tony TaskHub
+    try { if (window._fbFlushVeda) window._fbFlushVeda(); } catch(e) {}  // Veda TaskHub
+  };
+  window.addEventListener('pagehide', window._fbFlushAll);
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'hidden') window._fbFlushAll();
+  });
+}
+</script>
 <script>Notebook.mount({ app: 'myjournal', key: 'tj', store: 'tony_journal' });</script>
 
 
@@ -23829,12 +23840,6 @@ if(document.readyState==='loading'){
   align-items:center;justify-content:center;cursor:pointer;color:#8D769A;
   flex-shrink:0;touch-action:manipulation;transition:all .15s;
 }
-/* Both journals carry a `#xx-root * { margin:0; padding:0 }` reset, and an id in the
-   selector outranks this bare class -- which stripped the gear's side padding and
-   collapsed its outline onto the icon (31px wide in TaskHub, 17px in the Journal).
-   Restate the box at a specificity the reset cannot beat. */
-#bj-root .vd-settings-gear,
-#tj-root .vd-settings-gear{padding:0 7px;height:28px;}
 .vd-settings-gear:hover{border-color:#8D769A;}
 .vd-settings-gear svg{transition:transform .25s;}
 .vd-settings-gear:hover svg{transform:rotate(35deg);}

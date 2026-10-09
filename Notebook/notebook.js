@@ -77,6 +77,13 @@ window.Notebook = {
   // object as its APPS registry; an app registered after the editor has
   // initialised is initialised on arrival.
   docxApps: {},
+  // Persist every mounted journal's pending edit right now (the host's
+  // pagehide / hidden-tab safety net calls this). Mount order: bj, then tj.
+  flushAll: function () {
+    Object.keys(this.mounts).forEach(function (key) {
+      try { var f = window['_' + key + 'PersistNow']; if (f) f(); } catch (e) {}
+    });
+  },
   registerDocx: function (app, cfg) {
     this.docxApps[app] = cfg;
     if (this._docxInitApp) this._docxInitApp(app);

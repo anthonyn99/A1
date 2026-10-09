@@ -102,9 +102,8 @@ writers.forEach((w) => {
     HTML.includes("'" + w.scheme + "' + imgKey"));
 });
 // dashboards/myjournal has no writer any more (its saver was dead code and went
-// in the MyJournal strip), but its images are still backed up and rehydrated.
-t("index.html still rehydrates legacy 'mj-fbimg://' placeholders",
-  HTML.includes("img[src^=\"mj-fbimg://\"]") && HTML.includes("replace('mj-fbimg://', '')"));
+// in the MyJournal strip). Its images are still backed up; nothing reads them back
+// (the rehydrator had no caller and went in Notebook Phase 3).
 t('the rehydrator reads the placeholder value as the document id, unprefixed',
   (HTML.match(/const imgRef = doc\(db(\(\))?, 'dashboards', imgKey\);/g) || []).length >= 2,
   'If this ever gains a prefix, backup.js must change with it.');

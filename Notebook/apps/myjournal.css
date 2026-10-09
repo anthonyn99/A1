@@ -1289,3 +1289,9 @@
     padding-top: 0 !important;
   }
 }
+
+/* TaskHub's settings gear (.vd-settings-gear, styled in index.html) inside this
+   journal: the `#tj-root * { margin:0; padding:0 }` reset above outranks its bare
+   class, which stripped its side padding and collapsed its outline onto the icon.
+   Restate the box at a specificity the reset cannot beat. */
+#tj-root .vd-settings-gear{padding:0 7px;height:28px;}

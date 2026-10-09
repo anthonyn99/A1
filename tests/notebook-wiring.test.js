@@ -166,5 +166,26 @@ ok('the host\'s teardown drops the journal listeners and re-arms their guards',
   /window\.Notebook\.fb\.unsubscribe\(\);/.test(TD) && /window\.Notebook\.fb\.rearm\(\);/.test(TD)
   && /rearm: function \(\) \{\s*_bjServerSeen = false;\s*_tjServerSeen = false;/.test(fbSrc));
 
+console.log('No journal code left in index.html (Notebook Phase 3 end state)');
+// Code only: comments may still name the engines (the loader's comment does).
+const idxCode = idx.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+for (const [name, re] of [
+  ['the journals\' remote-apply', /_(tj|bj)ApplyRemote\b/],
+  ['the OurJournal engine', /window\.OJ\s*=/],
+  ['VizEngine', /\bVizEngine\b/],
+  ['JGuard', /\bJGuard\b/],
+  ['the DOCX module', /_docxRebindImages|\.docx-sheet\b/],
+  ['a journal Firestore path', /dashboards\/(journal|tony_journal)\b|['"](journal|tony_journal)_img_/],
+  ['a journal stale-overwrite guard', /_(tj|bj)(ServerSeen|WhenServerSeen|MarkServerSeen)\b/],
+  ['journal markup', /id="(tj|bj)-(root|sidebar|main|body)"/],
+]) ok('index.html: no ' + name, !re.test(idxCode), (idxCode.match(re) || [])[0]);
+// Style rules that name ONLY a journal root belong to the app's stylesheet. A
+// rule listing several app roots (the hover glow, the fonts, the 2000px cap, the
+// settings gear) is host config, like hoverfx's data-roots list.
+const styles = (idx.match(/<style[^>]*>[\s\S]*?<\/style>/g) || []).join('\n').replace(/\/\*[\s\S]*?\*\//g, '');
+const journalOnly = (styles.match(/[^{}]+\{/g) || []).map((s) => s.slice(0, -1).trim())
+  .filter((sel) => /#(tj|bj)-root\b/.test(sel) && !/#(root|veda-root|wr-root|tradeboard-root|cooking-view|tony-app-nav-inner)\b/.test(sel));
+ok('index.html has no style rule for a journal root alone', journalOnly.length === 0, journalOnly.slice(0, 5).join(' | '));
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
