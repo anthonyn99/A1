@@ -1318,6 +1318,12 @@ let lockSession = null, lockMode = 'unlock', lockHint = '', lockSetupNeeded = fa
 
 const el = id => document.getElementById(id);
 const bioRegistered = () => !!(window.Bio && Bio.isRegistered(BIO_APP, BIO_ID));
+// The server refusing this device's session means the password changed (the
+// token is stamped with the password's fingerprint). The biometric enrolled
+// under the OLD password goes with it, on every device, so learning the
+// password once is never enough to keep a fingerprint that outlives it; the
+// next password unlock offers to enrol again.
+const dropBio = () => { if (bioRegistered()) Bio.unregister(BIO_APP, BIO_ID); };
 const isLockedFlag  = () => { try { return localStorage.getItem(LOCKED_LS) === '1'; } catch { return false; } };
 const setLockedFlag = on => { try { on ? localStorage.setItem(LOCKED_LS,'1') : localStorage.removeItem(LOCKED_LS); } catch {} };
 const persistSession = () => { try { localStorage.setItem(LOCK_LS, JSON.stringify(lockSession)); } catch {} };
@@ -1537,8 +1543,8 @@ async function bioUnlock(){
     const chk = await fetch(API + '/lock/check', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token: s.token }) }).then(x=>x.json());
     if (!chk.ok){
       try { localStorage.removeItem(LOCK_LS); } catch {}
-      lockSession = null; el('lockBio').style.display='none';
-      lockMsg('The password was changed — enter the new one.'); return;
+      lockSession = null; dropBio(); el('lockBio').style.display='none';
+      lockMsg('The password was changed — enter the new one. ' + Bio.label() + ' needs registering again on this device.'); return;
     }
   } catch { /* offline: trust the local token */ }
   lockSession = s; setLockedFlag(false); hideLock();
@@ -1608,7 +1614,9 @@ async function lockSubmit(){
       return;
     }
     lockHint = hint;
-    if (await openSession(p1)){ hideLock(); toast('Password changed', true); }
+    const hadBio = bioRegistered();
+    dropBio();
+    if (await openSession(p1)){ hideLock(); toast('Password changed — biometric unlock needs registering again on every device', true); if (hadBio) maybeOfferBio(); }
     else lockMsg('Password changed, but this device could not reopen — reload and unlock.');
     return;
   }
@@ -1629,6 +1637,7 @@ async function lockSubmit(){
       return;
     }
     lockHint = hint;
+    dropBio();
     if (await openSession(p1)){ hideLock(); toast("Password reset — you're unlocked", true); maybeOfferBio(); }
   }
 }
@@ -1660,7 +1669,7 @@ async function confirmDeviceTrust(){
     if (!r.ok){
       lockSession = null;
       try { localStorage.removeItem(LOCK_LS); } catch {}
-      setLockedFlag(false); showLock();
+      setLockedFlag(false); dropBio(); showLock();
       lockMsg('The password was changed — enter the new one.');
     }
   } catch { /* offline: keep trusting the local token */ }
