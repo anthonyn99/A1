@@ -152,8 +152,8 @@ const T2 = T1 + 86400000;          // a password change, a day later
       setV: (v) => `window._alApplyRemoteLocks({ shield_x: { locked: true, v: ${v} } });`,
       open: `window.AL.gate('shield_x', function(){});` },
     { file: 'mylist.html', key: 'bio_cred_mylist_tony', box: 'lock-bio', err: 'lock-err',
-      setV: (v) => `state.locks.tony = true; state.lockV.tony = ${v};`,
-      open: `showLock('tony', 'unlock');` },
+      setV: (v) => `window.dispatchEvent(new CustomEvent('ml-remote-update', { detail: { tony: { lists: [] }, veda: { lists: [] }, locks: { tony: true }, lockV: { tony: ${v} } } }));`,
+      open: `ML.chooseProfile('tony');` },
   ];
   for (const O of OTHERS) {
     console.log('\n' + O.file + ' (lock screen)');
