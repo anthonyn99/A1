@@ -10738,29 +10738,37 @@ function noteBubble(n, sess, live = null) {
   if (!live || n.applied !== "verdict" || !n.id || live.notesOpen === false
       || !engineHas("note_edit")) return b;
   const acts = el("div", "turn-note-acts");
-  const edit = el("button", null, "Edit");
   const drop = el("button", null, "✕");
-  edit.type = drop.type = "button";
+  drop.type = "button";
   drop.title = "Take this back";
   drop.setAttribute("aria-label", "Take this back");
-  drop.onclick = () => noteAct(live, n, "remove");
-  edit.onclick = () => {
+  drop.onclick = () => { live.editing = null; noteAct(live, n, "remove"); };
+  if (live.editing && live.editing.id === n.id) {
+    // Kept on the run, not in the textarea: another viewer's note redraws
+    // the thread, and the draft must survive it.
+    const ed = live.editing;
     const ta = el("textarea");
-    ta.value = n.text;
+    ta.value = ed.draft;
     ta.maxLength = MAX_NOTE_CHARS;
+    ta.oninput = () => { ed.draft = ta.value; };
     const save = el("button", null, "Save");
     save.type = "button";
     save.onclick = () => {
       const v = ta.value.trim();
+      live.editing = null;
       if (!v) noteAct(live, n, "remove");
       else if (v !== n.text) noteAct(live, n, "edit", v);
       else renderThread();
     };
     body.replaceWith(ta);
-    acts.textContent = "";
     acts.append(save, drop);
-    ta.focus();
-  };
+    b.append(acts);
+    requestAnimationFrame(() => { if (live.editing === ed) ta.focus(); });
+    return b;
+  }
+  const edit = el("button", null, "Edit");
+  edit.type = "button";
+  edit.onclick = () => { live.editing = { id: n.id, draft: n.text }; renderThread(); };
   acts.append(edit, drop);
   if (engineHas("note_interrupt") && !live.interrupted && liveStillAnswering(live)) {
     const now = el("button", null, "Interrupt now");
