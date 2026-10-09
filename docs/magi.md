@@ -2001,9 +2001,11 @@ items, Diagnose and a reload's reattach are sessions of their own.
   discarded -- "NOT in the project".
 - **A message while it runs**: `POST /api/code/tasks/{id}/message {text}`
   (4,000 characters, 20 per task). `accepted` says where it went:
-  `prompt` (no agent running yet: joins its prompt), `interrupt` (a CLI agent:
-  stopped -- messages within 1.5 s are one interrupt -- and resumed in its
-  own session with "The person interrupted you…", edits kept),
+  `prompt` (no agent running yet: joins its prompt), `queued` (a CLI agent
+  that steers live takes it at its next step -- see Live steering below),
+  `interrupt` (a Codex on `exec`: stopped -- messages within 1.5 s are one
+  interrupt -- and resumed in its own session with "The person interrupted
+  you…", edits kept),
   `after_reply` (a browser unit: its reply finishes, then it continues with
   the message), `revise` (the approval card is up: nothing is applied, the
   agent that made the diff revises it in the same copy, a new card follows),
@@ -2016,6 +2018,75 @@ items, Diagnose and a reload's reattach are sessions of their own.
   result's `unsent_messages`.
 - `/api/code/state` lists `features` `followup` and `steer`; the task's
   `start` event and summary carry `session_id` and `turn`.
+
+### Live steering, like Claude Code in VS Code (2026-10-09)
+
+A message typed while a CLI agent works no longer stops it. It joins the
+turn the agent is already running, at its next step, in the same process --
+and until then it is **queued**: Edit, ✕ and **Interrupt now** sit on its
+bubble. Every unit gets the queue; only the CLIs can take a message without
+stopping, because a chat website accepts nothing while it is writing.
+
+- **Claude CLI** (`claude_cli.py`): always `--input-format stream-json
+  --replay-user-messages`, stdin kept open (`_proc.Stream(keep_stdin=True)`,
+  `write_line`, `close_stdin`). A queued message is written as one more user
+  message the moment a `tool_use` appears; the CLI folds it into the running
+  turn after that tool ("The user sent a new message while you were
+  working"), and echoes it (`isReplay`) when taken. Interrupt now is the SDK's
+  `control_request {subtype: interrupt}`: the turn ends
+  (`error_during_execution`) and the message starts the next turn, same
+  process. Stdin closes -- ending the run -- after a result with nothing
+  queued and nothing untaken (an unechoed message gets `ECHO_GRACE_S`).
+  A FAILED result (a limit, an error) takes nothing more: what is queued
+  stays queued for the next agent in the chain. Verified offline on 2.1.295
+  (`tests/test_claude_cli_offline.py`, the real CLI and the real agent).
+- **Codex CLI** (`codex_appserver.py`): runs on `codex app-server` (stdio
+  JSON-RPC) instead of `codex exec` when it can: `thread/start|resume` ->
+  `turn/start`; a queued message goes in as `turn/steer` (expectedTurnId) when
+  an item that runs a tool starts; one left at `turn/completed` is the next
+  `turn/start` on the same thread; Interrupt now is `turn/interrupt`. Held to
+  `exec`'s containment, checked live on 0.162 (2026-10-09): the same
+  `--disable` features and `-c` sandbox config (elevated), the thread's
+  `sandbox` and every turn's `sandboxPolicy` (read-only, or workspace-write
+  with the task's copies as the only writable roots), `approvalPolicy:
+  never` with every approval the server asks for DECLINED, and
+  `projects={}` so no project's `.codex` config, hooks or exec policies load
+  (a hostile `.codex/` was refused, the write denied). `usable()` sends a run
+  to `exec` if MAGI's CODEX_HOME ever sets a config key beyond `projects` or
+  holds a rules file, or `MAGI_CODEX_EXEC` is set. Anything that fails before
+  the first turn (a refused thread, an older Codex, no answer in `BOOT_S`)
+  falls back to `exec` before the model saw anything, and that Codex version
+  stays on `exec` until the engine restarts. A refused `turn/steer` becomes
+  the next turn. On `exec`, a message still stops the run and resumes the
+  thread (the 1.5 s batch). Live rate limits arrive as
+  `account/rateLimits/updated` and feed the usage chips and caps.
+- **Browser units** (`completion.wait_for_completion(interrupt=)`,
+  `RunContext.interrupt`, `Answer.interrupted`): a queued message goes in after
+  the reply, as before. Interrupt now presses the site's Stop button (none on
+  DeepSeek: read only), keeps what the reply said (`CompletionReason.
+  INTERRUPTED`), and the unit is asked again with that text and the message
+  (`prepare_continuation`). Nothing from a stopped reply is applied.
+- **Engine**: `followup.Steer` messages have ids (`m1`...) and stay queued
+  until delivered (`deliver` by a live agent, `take` by the chain);
+  `on_deliver` publishes `{k:"msg_sent", ids, how}` (`live` | `taken` |
+  `unsent`). `POST /tasks/{id}/message` answers `accepted: "queued"` and the
+  `id`; `/message/{mid}/edit {text}` and `/message/{mid}/remove` work only
+  while queued (`error: "delivered"` after) and publish `msg_edit` /
+  `msg_drop`; `POST /tasks/{id}/interrupt` is Interrupt now. Features
+  `steer_live` and `msg_edit`.
+- **Deliberations** (`engine/session.Steer`): a note for the verdict has an id
+  (`n1`...) and `POST /api/runs/{id}/note/{nid}/edit|remove` work until
+  synthesis takes the notes (409 after; a `notes_closed` stream event says
+  when). `POST /api/runs/{id}/interrupt` (once per run, needs a note) sets
+  every member's `RunContext.interrupt`: members still answering stop and
+  are asked once more in a fresh chat with their partial answer and the
+  notes (`gather(reask=)`, `session.reask_prompt`); finished members keep
+  their answers; the notes still reach the chairman. Features `note_edit`,
+  `note_interrupt`.
+- **Console**: `codeMsgState` reads a message's state off the stream; a
+  queued bubble has Edit (inline), ✕, and Interrupt now (`steer_live`). A
+  running deliberation's verdict notes have the same, while `notesOpen`.
+  Gated on the features, so an older engine shows the old bubbles.
 
 ## Opening the console from somewhere else
 
