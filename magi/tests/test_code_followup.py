@@ -711,3 +711,129 @@ def test_a_bad_message_is_refused_not_published():
     assert r["ok"] is False and r["error"] == "bad_message" and t.events == []
     r = asyncio.run(T.message(t, 42))
     assert r["error"] == "bad_message"
+
+
+# ── live steering: queued, editable, delivered without a stop ──────────────
+
+def test_a_queued_message_can_be_edited_or_removed_until_it_is_delivered():
+    async def go():
+        s = F.Steer()
+        sent = []
+        s.on_deliver = lambda ids, how: sent.append((ids, how))
+        s.running("cli")
+        s.go_live()
+        assert s.add("use pytest") == "queued" and s.wake.is_set()
+        assert s.add("and the README") == "queued"
+        assert s.edit("m1", "use pytest, not unittest")
+        assert s.remove("m2") and s.count == 1, "a removed message frees its place"
+        assert s.deliver() == ["use pytest, not unittest"] and sent == [(["m1"], "live")]
+        assert not s.edit("m1", "too late") and not s.remove("m1")
+        assert not s.interrupt.is_set(), "a live agent is never stopped for a message"
+        with pytest.raises(ValueError):
+            s.add("x") and s.edit(s.last_id, "   ")
+    asyncio.run(go())
+
+
+def test_interrupt_now_depends_on_what_is_running():
+    async def go():
+        s = F.Steer()
+        assert s.interrupt_now() == "", "nothing queued"
+        s.add("x")
+        assert s.interrupt_now() == "", "nothing running: it joins the next prompt"
+        s.running("cli")
+        s.go_live()
+        assert s.interrupt_now() == "live" and s.now.is_set() and s.wake.is_set()
+        s.running(None)
+        assert not s.now.is_set(), "a stale Interrupt now does not outlive its agent"
+        s.running("browser")
+        assert s.interrupt_now() == "browser"
+        s.running("cli")      # a Codex on exec: stopped at once, no batch wait
+        assert s.interrupt_now() == "stopped" and s.interrupt.is_set()
+    asyncio.run(go())
+
+
+def test_a_live_cli_agent_is_never_stopped_and_takes_the_message_itself(fast_batch):
+    class Live(Worker):
+        async def run(self, task, *, emit, cancel):
+            task.steer.go_live()
+            self.started.set()
+            await asyncio.sleep(0.15)          # well past the batch window
+            assert not cancel.is_set(), "never interrupted"
+            self.taken = task.steer.deliver()
+            return Result(Outcome.OK, text="done", session_id="s")
+
+    async def go():
+        a = Live("claude:system", [])
+        steer = F.Steer()
+        job = asyncio.ensure_future(_chain(Task("t", "x", Path(".")), [a], steer))
+        await a.started.wait()
+        assert steer.add("also the docs") == "queued"
+        res, ev = await job
+        return a, res, ev
+    a, res, ev = asyncio.run(go())
+    assert res.outcome == Outcome.OK and a.taken == ["also the docs"]
+    assert [x.outcome for x in res.attempts] == ["ok"], "no interrupt, no second run"
+    assert not any(e["k"] == "interrupt" for e in ev)
+
+
+def test_interrupt_now_on_a_browser_unit_reasks_it_with_its_partial_reply(fast_batch):
+    class Unit(Worker):
+        kind = "browser"
+
+        async def run(self, task, *, emit, cancel):
+            self.prompts.append(task.prompt_for(self.id))
+            if len(self.prompts) == 1:
+                self.started.set()
+                await task.steer.now.wait()
+                return Result(Outcome.INTERRUPTED, text="Half of my first answer")
+            return Result(Outcome.OK, text="the new answer")
+
+    async def go():
+        u = Unit("browser:grok", [], sid="")
+        steer = F.Steer()
+        job = asyncio.ensure_future(_chain(Task("t", "x", Path(".")), [u], steer))
+        await u.started.wait()
+        assert steer.add("in French") == "after_reply"
+        assert steer.interrupt_now() == "browser"
+        res, _ = await job
+        return u, res
+    u, res = asyncio.run(go())
+    assert res.outcome == Outcome.OK and res.text == "the new answer"
+    assert "in French" in u.prompts[1] and "Half of my first answer" in u.prompts[1]
+
+
+def test_routes_edit_remove_and_interrupt_a_queued_message(repo):
+    class Slow(Editor):
+        async def run(self, task, *, emit, cancel):
+            task.steer.go_live()
+            self.started = True
+            for _ in range(100):
+                if task.steer.now.is_set():
+                    break
+                await asyncio.sleep(0.01)
+            self.taken = task.steer.deliver()
+            return await super().run(task, emit=emit, cancel=cancel)
+
+    a = Slow([{"app.py": "x = 2\n"}])
+    out = {}
+
+    async def on(t, ev, seen):
+        if ev["k"] == "agent":
+            r = await T.message(t, "first")
+            assert r == {"ok": True, "accepted": "queued", "id": "m1"}
+            assert (await T.message(t, "second"))["id"] == "m2"
+            out["edit"] = await T.edit_message(t, "m1", "first, edited")
+            out["drop"] = await T.remove_message(t, "m2")
+            out["int"] = await T.interrupt(t)
+        if ev["k"] == "approval":
+            out["late"] = await T.edit_message(t, "m1", "too late")
+            T.decide(t, False)
+    t, seen = asyncio.run(_task_run(repo, [a], on))
+    assert out["edit"] == {"ok": True, "text": "first, edited"}
+    assert out["drop"] == {"ok": True} and out["int"]["how"] == "live"
+    assert out["late"]["error"] == "delivered"
+    assert a.taken == ["first, edited"]
+    kinds = [e["k"] for e in seen]
+    assert "msg_edit" in kinds and "msg_drop" in kinds
+    sent = next(e for e in seen if e["k"] == "msg_sent")
+    assert sent["ids"] == ["m1"] and sent["how"] == "live"

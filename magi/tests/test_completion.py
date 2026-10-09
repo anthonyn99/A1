@@ -482,3 +482,69 @@ async def test_hard_timeout_still_bounds_a_stuck_stop_button(monkeypatch):
         await completion.wait_for_completion(page, site, turns_before=0)
     assert ei.value.kind == FailureKind.TIMEOUT
     assert "hard timeout" in str(ei.value)
+
+
+# ── Interrupt now: press Stop, keep what it had written ────────────────────
+
+class StopPage(FakePage):
+    """Sets `interrupt` once the reply has started streaming, and records
+    clicks on the Stop button."""
+
+    def __init__(self, frames, interrupt, at=2):
+        super().__init__(frames)
+        self.interrupt, self.at, self.clicks = interrupt, at, 0
+
+    def locator(self, selector):
+        loc = super().locator(selector)
+        if selector == "CHALLENGE" and self.i >= self.at:
+            self.interrupt.set()
+        if selector == "STOP":
+            page = self
+
+            class Clickable(FakeLocator):
+                @property
+                def first(self):
+                    return self
+
+                async def click(self, **kw):
+                    page.clicks += 1
+            return Clickable(loc._texts)
+        return loc
+
+
+@pytest.mark.asyncio
+async def test_interrupt_presses_stop_and_returns_the_partial_reply(monkeypatch):
+    monkeypatch.setattr(completion, "STOP_SETTLE_S", 0)
+    interrupt = asyncio.Event()
+    page = StopPage([{"turns": ["old"]},
+                     {"turns": ["old", "The first"], "stop": True},
+                     {"turns": ["old", "The first half of it"], "stop": True}], interrupt)
+    r = await completion.wait_for_completion(page, make_site(), turns_before=1,
+                                             interrupt=interrupt)
+    assert r.reason == CompletionReason.INTERRUPTED
+    assert r.text.startswith("The first") and page.clicks == 1
+    assert not r.is_clean
+
+
+@pytest.mark.asyncio
+async def test_interrupt_on_a_site_without_a_stop_selector_still_returns_the_text(monkeypatch):
+    monkeypatch.setattr(completion, "STOP_SETTLE_S", 0)
+    interrupt = asyncio.Event()
+    page = StopPage([{"turns": ["old"]}, {"turns": ["old", "Half an answer"]}], interrupt)
+    r = await completion.wait_for_completion(page, make_site(stop_button=[]), turns_before=1,
+                                             interrupt=interrupt)
+    assert r.reason == CompletionReason.INTERRUPTED and r.text == "Half an answer"
+    assert page.clicks == 0
+
+
+@pytest.mark.asyncio
+async def test_interrupt_before_the_reply_starts_returns_nothing(monkeypatch):
+    monkeypatch.setattr(completion, "STOP_SETTLE_S", 0)
+    interrupt = asyncio.Event()
+    interrupt.set()
+    page = StopPage([{"turns": ["old"]}], interrupt, at=0)
+    # The baseline a real ask takes (capture_baseline): the turn already there.
+    r = await completion.wait_for_completion(
+        page, make_site(), baseline=completion.Baseline(turns=1, last_text="old"),
+        interrupt=interrupt)
+    assert r.reason == CompletionReason.INTERRUPTED and r.text == ""

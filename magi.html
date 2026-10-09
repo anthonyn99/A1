@@ -10665,6 +10665,7 @@ async function addNote(text) {
     }));
     const d = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error((d && d.detail) || `HTTP ${res.status}`);
+    if (d.id) entry.id = d.id;
     noteLanded(live, entry, d.applied);
   } catch (e) {
     live.notes = live.notes.filter((x) => x !== entry);
@@ -10722,7 +10723,7 @@ function sendCarried(sess, texts, ids, auto) {
 
 /** Where a turn's notes are shown: the ones the verdict used, and the ones
  *  that arrived too late (held for the next turn) or were never applied. */
-function noteBubble(n, sess) {
+function noteBubble(n, sess, live = null) {
   const held = n.applied === "followup";
   const lost = n.applied === "unapplied";
   const b = el("div", "turn-note" + (held ? " held" : lost ? " lost" : ""));
@@ -10730,8 +10731,74 @@ function noteBubble(n, sess) {
     : held ? (sess ? "held · sent as the next follow-up" : "arrived after the verdict started")
     : lost ? "not applied — the verdict did not land"
     : "added · the verdict uses this";
-  b.append(el("span", "turn-note-tag", tag), document.createTextNode(n.text));
+  const body = el("div", null, n.text);
+  b.append(el("span", "turn-note-tag", tag), body);
+  // A note the chairman has not taken yet is still yours to change, on an
+  // engine that allows it; Interrupt now re-asks the units still answering.
+  if (!live || n.applied !== "verdict" || !n.id || live.notesOpen === false
+      || !engineHas("note_edit")) return b;
+  const acts = el("div", "turn-note-acts");
+  const edit = el("button", null, "Edit");
+  const drop = el("button", null, "✕");
+  edit.type = drop.type = "button";
+  drop.title = "Take this back";
+  drop.setAttribute("aria-label", "Take this back");
+  drop.onclick = () => noteAct(live, n, "remove");
+  edit.onclick = () => {
+    const ta = el("textarea");
+    ta.value = n.text;
+    ta.maxLength = MAX_NOTE_CHARS;
+    const save = el("button", null, "Save");
+    save.type = "button";
+    save.onclick = () => {
+      const v = ta.value.trim();
+      if (!v) noteAct(live, n, "remove");
+      else if (v !== n.text) noteAct(live, n, "edit", v);
+      else renderThread();
+    };
+    body.replaceWith(ta);
+    acts.textContent = "";
+    acts.append(save, drop);
+    ta.focus();
+  };
+  acts.append(edit, drop);
+  if (engineHas("note_interrupt") && !live.interrupted && liveStillAnswering(live)) {
+    const now = el("button", null, "Interrupt now");
+    now.type = "button";
+    now.title = "Stop the units still answering and ask them again with your notes";
+    now.onclick = () => { now.disabled = true; noteAct(live, n, "interrupt"); };
+    acts.append(now);
+  }
+  b.append(acts);
   return b;
+}
+
+/** Any member of this run still at work (Interrupt now has someone to stop). */
+function liveStillAnswering(live) {
+  const busy = new Set(["queued", "launching", "navigating", "typing", "waiting", "streaming"]);
+  return (live.panels || []).some((p) => busy.has(p.state));
+}
+
+/** Edit, remove or Interrupt now on a running deliberation's note. */
+async function noteAct(live, n, act, text) {
+  setErr("refineError", null);
+  const path = act === "interrupt" ? `/api/runs/${live.runId}/interrupt`
+    : `/api/runs/${live.runId}/note/${n.id}/${act}`;
+  try {
+    const res = await fetch(`${link.api}${path}`, authed({
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(act === "edit" ? { text } : {}),
+    }));
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((d && d.detail) || `HTTP ${res.status}`);
+    if (act === "edit") n.text = d.text || text;
+    if (act === "remove") live.notes = live.notes.filter((x) => x !== n);
+    if (act === "interrupt") live.interrupted = true;
+  } catch (e) {
+    setErr("refineError", `Could not ${act === "interrupt" ? "interrupt" : act + " that note"}: ${e.message || e}`);
+  }
+  renderThread();
+  updateEnabled();
 }
 
 /** A held note, editable until it goes. */
@@ -10917,7 +10984,7 @@ function renderThread() {
     box.append(qBubble(q, liveHere ? S.live.files : (cur && cur.files)));
     const notes = liveHere ? S.live.notes.filter((x) => x.applied !== "followup")
       : (cur && cur.notes) || [];
-    for (const x of notes) box.append(noteBubble(x, null));
+    for (const x of notes) box.append(noteBubble(x, null, liveHere ? S.live : null));
     for (const p of sess.pending) box.append(pendingBubble(p, sess));
     n.append(box);
   }
@@ -11135,9 +11202,11 @@ function runOne({ question, units, files = [], attachTo = null, session = null }
         sess.filling = true;
         sessionBackfill(sess, runId).then(() => { if (S.session === sess) renderThread(); });
       }
+      if (msg.notes_open === false) live.notesOpen = false;
+      if (msg.interrupted) live.interrupted = true;
       if (attachTo && Array.isArray(msg.notes) && !live.notes.length) {
         for (const x of msg.notes) {
-          const entry = { text: x.text, applied: x.applied };
+          const entry = { text: x.text, applied: x.applied, id: x.id };
           live.notes.push(entry);
           noteLanded(live, entry, x.applied);
         }
@@ -11189,13 +11258,24 @@ function runOne({ question, units, files = [], attachTo = null, session = null }
       // Every viewer hears every note. Ours is already on screen; this is its
       // echo, and may be the first word of which bucket it went to.
       const mine = live.notes.find((x) => x.mine && !x.echoed && x.text === msg.text);
-      if (mine) { mine.echoed = true; noteLanded(live, mine, msg.applied); }
+      if (mine) { mine.echoed = true; if (msg.id) mine.id = msg.id; noteLanded(live, mine, msg.applied); }
       else {
-        const entry = { text: msg.text, applied: msg.applied, echoed: true };
+        const entry = { text: msg.text, applied: msg.applied, echoed: true, id: msg.id };
         live.notes.push(entry);
         noteLanded(live, entry, msg.applied);
       }
       if (S.session === sess) { renderThread(); updateEnabled(); }
+    } else if (msg.type === "note_edit" || msg.type === "note_drop") {
+      // A note changed or taken back -- here or on another viewer.
+      const n = live.notes.find((x) => x.id && x.id === msg.id);
+      if (n && msg.type === "note_edit") n.text = msg.text;
+      if (n && msg.type === "note_drop") live.notes = live.notes.filter((x) => x !== n);
+      if (S.session === sess) { renderThread(); updateEnabled(); }
+    } else if (msg.type === "notes_closed" || msg.type === "interrupt") {
+      // The chairman has the notes now / Interrupt now was used (once a run).
+      if (msg.type === "notes_closed") live.notesOpen = false;
+      else live.interrupted = true;
+      if (S.session === sess) renderThread();
     } else if (msg.type === "done") {
       loadUnitsUsage();   // what this run saw: limits, models (U3)
       for (const a of msg.answers) {
@@ -14782,10 +14862,13 @@ function codeTaskUsesBrowser() {
 /* ── follow-ups (Track F, F4) ─────────────────────────────────────────────
    A Code Mode task is a turn of a SESSION, the way a deliberation is (F2):
    the box follows up with the session's memory, and while a task runs it
-   MESSAGES it (POST /tasks/{id}/message) -- a CLI agent is stopped and
-   resumed with the message, a browser unit gets it after its reply, and at
-   the approval card it asks for a revised diff. The engine (F3) builds the
-   memory from what this sends; nothing here is remembered by an engine.
+   MESSAGES it (POST /tasks/{id}/message) -- the way Claude Code in VS Code
+   does: a CLI agent takes it at its next step without stopping, a browser
+   unit gets it after its reply, and at the approval card it asks for a
+   revised diff. Until the agent takes it the message is queued: Edit, ✕
+   and "Interrupt now" (stop the current step, a site's reply, and carry on
+   with it) sit on its bubble. The engine (F3) builds the memory from what
+   this sends; nothing here is remembered by an engine.
 
    CODE.session = { id, projectId, turns, pending }
      id         the FIRST task's id -- a task from before follow-ups is a
@@ -14923,7 +15006,7 @@ function codeSendNow() {
 }
 
 const codeMsgCount = (t) => t.events.filter((e) => e.k === "user").length
-  + (t.sending || []).length;
+  - t.events.filter((e) => e.k === "msg_drop").length + (t.sending || []).length;
 
 /** A task's events cut into rounds at each revision asked for at the card:
  *  each round is its own log, answer and diff. Pure. */
@@ -15162,23 +15245,104 @@ function codeReplay(id, ms = 15000) {
   });
 }
 
-/** Where a message typed during a task went, said on its bubble. */
+/** Where a message typed during a task went, said on its bubble. A queued
+ *  one (it has an id and no msg_sent yet) can still be edited or removed. */
 const CODE_MSG_HOW = {
-  prompt: "added · the agent starts with this",
-  interrupt: "sent · the agent stops and carries on with it",
-  after_reply: "sent · after its current reply",
-  revise: "sent · revising the diff",
+  prompt: "queued · the agent starts with this",
+  queued: "queued · goes in at the agent's next step",
+  interrupt: "queued · the agent stops and carries on with it",
+  after_reply: "queued · after its current reply",
+  revise: "queued · revising the diff",
   followup: "arrived after the work ended",
 };
+const CODE_MSG_SENT = {
+  live: "sent · the agent took it without stopping",
+  taken: "sent",
+  unsent: "not sent · back in the box",
+};
+
+/** A message's state now, from the stream: its text as last edited,
+ *  whether it was removed, and how it was delivered ("" = still queued).
+ *  Pure. */
+function codeMsgState(events, id) {
+  const st = { text: null, dropped: false, sent: "" };
+  if (!id) return st;
+  for (const e of events || []) {
+    if (e.k === "msg_edit" && e.id === id) st.text = e.text;
+    else if (e.k === "msg_drop" && e.id === id) st.dropped = true;
+    else if (e.k === "msg_sent" && (e.ids || []).includes(id)) st.sent = e.how || "taken";
+  }
+  return st;
+}
+
+/** Is a message still the person's to change? Queued, on an engine that
+ *  takes edits, on a task that is still running. */
+const codeMsgOpen = (t, ev, st) => !!(ev.id && !st.sent && !st.dropped && !t.done
+  && ev.how !== "followup" && codeEngineHas("msg_edit"));
+
+async function codeMsgAct(t, path, body, what) {
+  CODE.err = "";
+  try {
+    const d = await codePost(`/tasks/${t.id}${path}`, body);
+    if (!d.ok) throw new Error(d.message || "the engine refused it");
+  } catch (e) {
+    CODE.err = `Could not ${what}: ${e.message || e}`;
+  }
+  renderCodeView();
+}
 
 function codeUserBubble(t, ev) {
+  const st = codeMsgState(t.events, ev.id);
+  const text = st.text != null ? st.text : ev.text;
   const held = ev.how === "followup" && (t.held || []).includes(ev.text);
+  const open = codeMsgOpen(t, ev, st);
   const b = el("div", "turn-note code-user" + (held ? " held" : ""));
   b.append(el("span", "turn-note-tag", held
     ? (t.carried && t.carried.has(ev.text) ? "held · sent as the next follow-up"
       : "held · goes out as the next follow-up")
+    : st.sent ? CODE_MSG_SENT[st.sent] || "sent"
+    // An engine from before queued messages: no id, and nothing to change.
+    : !ev.id ? (CODE_MSG_HOW[ev.how] || "sent").replace(/^queued/, "sent")
     : CODE_MSG_HOW[ev.how] || "sent"));
-  b.append(document.createTextNode(ev.text));
+  const body = el("div", null, text);
+  b.append(body);
+  if (!open) return b;
+  // Queued: yours to change until the agent takes it (VS Code's queue).
+  const acts = el("div", "turn-note-acts");
+  const edit = el("button", null, "Edit");
+  const drop = el("button", null, "✕");
+  edit.type = drop.type = "button";
+  drop.title = "Do not send this";
+  drop.setAttribute("aria-label", "Do not send this");
+  drop.onclick = () => codeMsgAct(t, `/message/${ev.id}/remove`, {}, "remove it");
+  edit.onclick = () => {
+    const ta = el("textarea");
+    ta.value = text;
+    ta.maxLength = MAX_TASK_MESSAGE_CHARS;
+    const save = el("button", null, "Save");
+    save.type = "button";
+    save.onclick = () => {
+      const v = ta.value.trim();
+      if (!v) codeMsgAct(t, `/message/${ev.id}/remove`, {}, "remove it");
+      else if (v !== text) codeMsgAct(t, `/message/${ev.id}/edit`, { text: v }, "change it");
+      else renderCodeView();
+    };
+    body.replaceWith(ta);
+    acts.textContent = "";
+    acts.append(save, drop);
+    ta.focus();
+  };
+  acts.append(edit, drop);
+  if (codeEngineHas("steer_live") && ev.how !== "revise" && ev.how !== "prompt") {
+    // VS Code's Esc: stop the current step (a CLI turn, a site's reply)
+    // and carry on with this now. Not a Halt.
+    const now = el("button", null, "Interrupt now");
+    now.type = "button";
+    now.title = "Stop the agent's current step and give it this now";
+    now.onclick = () => { now.disabled = true; codeMsgAct(t, "/interrupt", {}, "interrupt"); };
+    acts.append(now);
+  }
+  b.append(acts);
   return b;
 }
 
@@ -15414,8 +15578,9 @@ function renderCodeTask(t, { earlier = false } = {}) {
   let answer = "";
   for (const ev of evs) {
     if (ev.k === "user") {
-      // A message typed while it ran, where it landed in the work.
-      log.append(codeUserBubble(t, ev));
+      // A message typed while it ran, where it landed in the work -- unless
+      // it was taken back while still queued.
+      if (!codeMsgState(t.events, ev.id).dropped) log.append(codeUserBubble(t, ev));
     } else if (ev.k === "interrupt") {
       log.append(el("div", "code-ev is-handoff", ev.finished
         ? `${ev.label || "The agent"} had just finished — continuing with your message`

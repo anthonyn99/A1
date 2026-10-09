@@ -453,3 +453,73 @@ def test_the_live_twin_keys_on_the_session(api):
 def test_health_advertises_the_features(api):
     client, _ = api
     assert {"followup", "steer"} <= set(client.get("/api/health").json()["features"])
+
+
+# ── notes: edit, remove, Interrupt now ─────────────────────────────────────
+
+
+def test_a_note_can_be_edited_or_removed_until_synthesis_takes_it():
+    s = session.Steer()
+    closed = []
+    s.on_close = lambda: closed.append(1)
+    s.add("in metric")
+    s.add("and briefly")
+    assert s.edit("n1", "in metric units") and s.remove("n2")
+    assert s.notes == ["in metric units"]
+    assert s.close_gather() == ["in metric units"] and closed == [1]
+    assert not s.edit("n1", "x") and not s.remove("n1"), "the chairman has it"
+
+
+def test_interrupt_now_needs_a_note_and_works_once():
+    s = session.Steer()
+    assert not s.interrupt_now(), "no note to re-ask with"
+    s.add("in French")
+    assert s.interrupt_now() and s.interrupt.is_set()
+    assert not s.interrupt_now(), "once per run"
+
+
+def test_interrupt_now_reasks_only_the_members_still_answering():
+    """`a` had finished; `b` was stopped mid-answer and is asked again, once,
+    with what it had written and the note -- which also reaches the chair."""
+    steer = session.Steer()
+
+    class Stoppable(Unit):
+        async def ask(self, question, *, ctx=None, on_event=None, cancel=None):
+            if question.startswith("You are the chairman") or len(self.prompts):
+                return await super().ask(question, ctx=ctx, on_event=on_event, cancel=cancel)
+            self.prompts.append(question)
+            self.ctxs.append(ctx)
+            steer.add("in French")
+            assert steer.interrupt_now()
+            assert ctx.interrupt is steer.interrupt
+            a = _ok(self.id, "Uranus has thir")
+            a.ok, a.interrupted = False, True
+            return a
+
+    a, b = Unit("a"), Stoppable("b")
+    out = asyncio.run(_orch().run("Does Uranus have rings?", [a, b], steer=steer))
+    assert len(a.prompts) == 1, "a finished member is not asked again"
+    assert len(b.prompts) == 2
+    assert "Uranus has thir" in b.prompts[1] and "- in French" in b.prompts[1]
+    assert b.ctxs[1].interrupt is None, "the re-ask cannot be interrupted again"
+    assert out["responded"] == 2 and "in French" in a.chair_prompts[0]
+
+
+def test_note_routes_edit_remove_and_interrupt(api):
+    client, app_mod = api
+    st = _live(app_mod, "r1")
+    assert client.post("/api/runs/r1/interrupt").status_code == 409, "no note yet"
+    nid = client.post("/api/runs/r1/note", json={"text": "in French"}).json()["id"]
+    r = client.post(f"/api/runs/r1/note/{nid}/edit", json={"text": "in German"})
+    assert r.status_code == 200 and st["notes"][0]["text"] == "in German"
+    assert client.post("/api/runs/r1/interrupt").json() == {"interrupted": True}
+    assert st["steer"].interrupt.is_set()
+    assert client.post("/api/runs/r1/interrupt").status_code == 409, "once per run"
+    nid2 = client.post("/api/runs/r1/note", json={"text": "drop me"}).json()["id"]
+    assert client.post(f"/api/runs/r1/note/{nid2}/remove").status_code == 200
+    assert [n["text"] for n in st["notes"]] == ["in German"]
+    st["steer"].close_gather()
+    assert client.post(f"/api/runs/r1/note/{nid}/edit", json={"text": "x"}).status_code == 409
+    assert client.post(f"/api/runs/r1/note/{nid}/remove").status_code == 409
+    feats = set(client.get("/api/health").json()["features"])
+    assert {"note_edit", "note_interrupt"} <= feats

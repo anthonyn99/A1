@@ -774,8 +774,13 @@ async def add_run_note(run_id: str, request: Request):
     steer = state["steer"]
     if steer.on_close is None:
         # Every viewer hears when the notes stop being editable.
-        steer.on_close = lambda: asyncio.ensure_future(
-            state["queue"].put({"type": "notes_closed"}))
+        def closed() -> None:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                return
+            loop.create_task(state["queue"].put({"type": "notes_closed"}))
+        steer.on_close = closed
     try:
         applied = steer.add(text)
     except OverflowError as e:
