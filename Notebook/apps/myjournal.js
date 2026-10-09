@@ -3948,7 +3948,8 @@ Notebook.registerDocx('tj', {
   ],
   mainToolbar: 'tj-toolbar', syncPill: 'tj-sync-pill', newBtn: 'tj-new-entry-btn',
   exportBtn: 'tj-btn-export-pdf', sidebarBtn: 'tj-fullscreen-btn', trashAPI: '_tjTrashAPI',
-  aiProfile: 'tony', bindImg: '_tjBindImg'
+  aiProfile: 'tony', bindImg: '_tjBindImg',
+  name: 'MyJournal', side: 'tony'
 });
 
 /* ══════════════════════════════════════════════════════════════════════════

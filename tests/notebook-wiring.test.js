@@ -58,7 +58,7 @@ ok('during parsing, the core group is written in place, in one write', b.written
 ok('every file it writes is stamped with notebook.js\'s own ?v=', files.every((f) => f.endsWith('?v=abc123')), files.join(' '));
 ok('...and resolved next to notebook.js', files.every((f) => f.startsWith('https://anthonyn99.github.io/A1/Notebook/')));
 ok('the engines load in their original order (jguard, viz, oj) and fb.js last',
-  files.map((f) => f.replace(/^.*\/Notebook\//, '').replace(/\?.*/, '')).join(',') === 'core/jguard.js,core/viz.css,core/viz.js,core/oj.css,core/oj.js,core/fb.js', files.join(' '));
+  files.map((f) => f.replace(/^.*\/Notebook\//, '').replace(/\?.*/, '')).join(',') === 'core/jguard.js,core/viz.css,core/viz.js,core/oj.css,core/oj.js,core/fb.js,core/md.js', files.join(' '));
 ok('scripts are plain parser-blocking tags (no async/defer)', !/\b(async|defer)\b/.test(b.written[0]));
 b.win.Notebook.load('docx');
 ok('Notebook.load(\'docx\') writes the stylesheet before the module',
@@ -67,7 +67,7 @@ b.win.Notebook.load('docx');
 ok('a group loads once', b.written.length === 2);
 const late = boot('complete');
 ok('after parsing it appends ordered (async=false) elements instead of writing',
-  !late.written.length && late.appended.length === 6 && late.appended.filter((e) => e.tag === 'script').every((e) => e.async === false));
+  !late.written.length && late.appended.length === 7 && late.appended.filter((e) => e.tag === 'script').every((e) => e.async === false));
 const groupFiles = new Set((nbSrc('notebook.js').match(/'(?:(?:core|apps)\/[\w.]+|notebook\.css)'/g) || []).map((s) => s.slice(1, -1)));
 ok('every file the loader names exists', [...groupFiles].every((f) => nbFiles.includes(f)), [...groupFiles].filter((f) => !nbFiles.includes(f)).join(', '));
 ok('every Notebook file is loaded by some group (no orphans)',

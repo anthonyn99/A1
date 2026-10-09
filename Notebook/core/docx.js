@@ -237,7 +237,7 @@ function mathEditPop(mathEl) {
   document.body.appendChild(overlay);
   var ta = overlay.querySelector('.docx-matheditor-ta');
   var prev = overlay.querySelector('.docx-matheditor-prev');
-  if (window.docxTonyGrip) window.docxTonyGrip(ta, mathEl.closest('#tj-root') ? 'tj' : 'bj', 'mj.math', 'the LaTeX box');
+  if (window.docxTonyGrip) window.docxTonyGrip(ta, _docxAppOf(mathEl) || 'bj', 'mj.math', 'the LaTeX box');
   ta.value = _mathTex(mathEl);
   function renderPreview() {
     var tex = ta.value.trim();
@@ -1483,10 +1483,10 @@ window._docxOpenTrash = function(app) {
         row.className = 'docx-trash-row';
         row.innerHTML =
           '<input type="checkbox" ' + (selected[e.id] ? 'checked' : '') + '>' +
-          // The Trash modal is shared by both journals, so the lock badge is
-          // swapped for the SVG only for Veda's ('bj') — Tony's list keeps the
+          // The Trash modal is shared by every journal, so the lock badge is
+          // swapped for the SVG only on Veda's side — Tony's list keeps the
           // glyph it already renders.
-          '<div class="t"><div class="n">' + esc(e.title || 'Untitled') + (e.lock ? (app === 'bj' ? ' <span class="docx-lock-badge">' + window.TNI.lock + '</span>' : ' 🔒') : '') + '</div>' +
+          '<div class="t"><div class="n">' + esc(e.title || 'Untitled') + (e.lock ? (!_docxTony(app) ? ' <span class="docx-lock-badge">' + window.TNI.lock + '</span>' : ' 🔒') : '') + '</div>' +
           '<div class="m">' + (TMAP[e.template] || 'NOTE') + ' · deleted ' + new Date(e.trashed).toLocaleDateString() + ' · auto-deletes in ' + days + 'd</div></div>' +
           '<div class="b"><button class="res">Restore</button><button class="del">Delete forever</button></div>';
         row.querySelector('input').addEventListener('change', function() {
@@ -1729,9 +1729,9 @@ function aiToolsStore(app) {
 // store to Firebase and drives the header sync pill Saving… → Synced / Sync Failed.
 function aiToolsSave(app, store) {
   lsSet('docx_aitools_' + app, store);
-  var setSync = app === 'tj' ? window._tjSetSync : window._bjSetSync;
+  var setSync = window['_' + app + 'SetSync'];
   if (typeof setSync === 'function') setSync('syncing');
-  var fn = app === 'tj' ? window._fbSaveTJTools : window._fbSaveBJTools;
+  var fn = window['_fbSave' + app.toUpperCase() + 'Tools'];
   if (typeof fn === 'function') fn(JSON.stringify(store));
   else if (typeof setSync === 'function') setSync('synced');
   // Keep the legacy per-journal prompt doc current too, so a device still running
@@ -1739,7 +1739,7 @@ function aiToolsSave(app, store) {
   var fmt = store.prompts && store.prompts.format;
   if (typeof fmt === 'string') {
     lsSet('docx_aiprompt_' + app, fmt);
-    var legacyFn = app === 'tj' ? window._fbSaveTJPrompt : window._fbSaveBJPrompt;
+    var legacyFn = window['_fbSave' + app.toUpperCase() + 'Prompt'];
     if (typeof legacyFn === 'function') legacyFn(fmt);
   }
   window.dispatchEvent(new CustomEvent('docx-aitools-changed', { detail: { app: app } }));
@@ -2117,13 +2117,20 @@ function aiRunSelection(ctx, range, tool) {
   });
 }
 
-function aiJournalName(app) { return app === 'tj' ? 'MyJournal' : 'Brainstorm Journal'; }
+function aiJournalName(app) { return (APPS[app] && APPS[app].name) || 'Brainstorm Journal'; }
+// Tony's side (MAGI's look) or Veda's: each app's config says which.
+function _docxTony(app) { return !!(APPS[app] && APPS[app].side === 'tony'); }
+// The registered app whose root holds this element.
+function _docxAppOf(el) {
+  for (var k in APPS) { var r = APPS[k].root && document.getElementById(APPS[k].root); if (r && r.contains(el)) return k; }
+  return null;
+}
 // MyJournal's resizable boxes take MAGI's corner grip (resizegrip.js, theme
 // overhaul phase 2); Brainstorm Journal keeps the native corner. The box is
 // wrapped so the grip can sit over its bottom-right corner. Call it after the
 // box is in its parent.
 function docxTonyGrip(ta, app, key, label) {
-  if (app !== 'tj' || !window.A1Resize || !ta || !ta.parentNode) return;
+  if (!_docxTony(app) || !window.A1Resize || !ta || !ta.parentNode) return;
   var wrap = document.createElement('div');
   wrap.className = 'docx-ta-wrap';
   ta.parentNode.insertBefore(wrap, ta);
@@ -2152,8 +2159,8 @@ function aiToolsModal(app, focusId) {
   }
   // Report what Firebase actually did rather than assuming the write landed:
   // the same events that drive the header sync pill drive this label.
-  var savedEvt = app === 'tj' ? 'fb-tj-prompt-saved' : 'fb-bj-prompt-saved';
-  var errEvt   = app === 'tj' ? 'fb-tj-error' : 'fb-bj-error';
+  var savedEvt = 'fb-' + app + '-prompt-saved';
+  var errEvt   = 'fb-' + app + '-error';
   var onSaved = function() { if (!dirty) setStatus('Saved & synced', 'ok'); };
   var onErr   = function() { setStatus('Sync failed — saved on this device, will retry', 'err'); };
   window.addEventListener(savedEvt, onSaved);
@@ -2825,7 +2832,7 @@ function buildMenubar(ctx) {
   }
   menu('File', function(p) {
     p.appendChild(mi('New entry', function() { var nb = $(cfg.newBtn); if (nb) nb.click(); }));
-    p.appendChild(mi('Rename document', function() { var t = $(app === 'tj' ? 'tj-entry-title-input' : 'bj-entry-title-input'); if (t) { t.focus(); t.select(); } }));
+    p.appendChild(mi('Rename document', function() { var t = $(app + '-entry-title-input'); if (t) { t.focus(); t.select(); } }));
     p.appendChild(msep());
     p.appendChild(mi('Print / Export PDF', function() { var eb = $(cfg.exportBtn); if (eb) eb.click(); }, 'Ctrl+P'));
     p.appendChild(msep());

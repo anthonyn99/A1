@@ -25,7 +25,7 @@ var STAMP = (src.match(/[?&]v=([^&#]+)/) || [])[1] || '';
 
 // What each group loads, in order. Stylesheets keep their cascade position.
 var GROUPS = {
-  core: ['core/jguard.js', 'core/viz.css', 'core/viz.js', 'core/oj.css', 'core/oj.js', 'core/fb.js'],
+  core: ['core/jguard.js', 'core/viz.css', 'core/viz.js', 'core/oj.css', 'core/oj.js', 'core/fb.js', 'core/md.js'],
   docx: ['notebook.css', 'core/docx.js'],
   // Apps: Notebook.mount({ app }) loads one where the host calls it.
   brainstorm: ['apps/brainstorm.css', 'apps/brainstorm.js'],
