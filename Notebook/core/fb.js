@@ -29,15 +29,10 @@ let doc, getDoc, getDocFromCache, setDoc, updateDoc, deleteDoc, deleteField, onS
 
 // ── State that outlives a re-init (it lived at index.html's module level) ──
   const BJ_DOC_PATH   = "dashboards/journal";
-  const TJ_DOC_PATH   = "dashboards/tony_journal";
   let _bjSaveTimer   = null;
-  let _tjSaveTimer   = null;
   let _bjUnsubscribe  = null;
-  let _tjUnsubscribe  = null;
   let _bjLastOwnSaveAt   = 0;
   let _bjLastWrittenSavedAt = 0;   // exact savedAt value we wrote — used to skip own-echo in onSnapshot
-  let _tjLastOwnSaveAt   = 0;
-  let _tjLastWrittenSavedAt = 0;   // same pattern for TonyJournal
 
   // ── Stale-overwrite guard for the two journals (MyJournal=tj, Brainstorm=bj) ──
   // ROOT CAUSE this fixes: on a hard refresh where the server read times out, the
@@ -52,7 +47,6 @@ let doc, getDoc, getDocFromCache, setDoc, updateDoc, deleteDoc, deleteField, onS
   // merged — so a stale-cache-only session can never clobber fresh remote data, and
   // no genuine local edit is ever lost.
   let _bjServerSeen = false, _bjPendingWrites = [], _bjLastAppliedSavedAt = 0;
-  let _tjServerSeen = false, _tjPendingWrites = [], _tjLastAppliedSavedAt = 0;
   function _bjMarkServerSeen() {
     if (_bjServerSeen) return;
     _bjServerSeen = true;
@@ -68,6 +62,16 @@ let doc, getDoc, getDocFromCache, setDoc, updateDoc, deleteDoc, deleteField, onS
     _fbWatchStall('journal', 'Brainstorm Journal', () => _bjServerSeen);
     return Promise.resolve();
   }
+
+  // ── MyJournal (tj). Between the @nb-store markers is the template a new key's
+  // Firestore layer is made from (Notebook.mount with another key/store). ──
+  // @nb-store {
+  const TJ_DOC_PATH   = "dashboards/tony_journal";
+  let _tjSaveTimer   = null;
+  let _tjUnsubscribe  = null;
+  let _tjLastOwnSaveAt   = 0;
+  let _tjLastWrittenSavedAt = 0;   // exact savedAt value we wrote
+  let _tjServerSeen = false, _tjPendingWrites = [], _tjLastAppliedSavedAt = 0;
   function _tjMarkServerSeen() {
     if (_tjServerSeen) return;
     _tjServerSeen = true;
@@ -83,6 +87,7 @@ let doc, getDoc, getDocFromCache, setDoc, updateDoc, deleteDoc, deleteField, onS
     _fbWatchStall('tony_journal', 'MyJournal', () => _tjServerSeen);
     return Promise.resolve();
   }
+  // @nb-store }
 
 // ── The boards' and OurJournal's document accessors ──
 function installAccessors(F) {
@@ -208,6 +213,7 @@ function install(F) {
       return v;
     };
 
+    // @nb-shared {
     // ── Journal image documents: upload once, read from cache ──────────────
     // The extractors run on EVERY save of a page, and every image on the page
     // used to be re-uploaded each time — one Firestore write per image per
@@ -233,6 +239,7 @@ function install(F) {
       if (snap && snap.exists() && snap.data().img) _jImgMark(ref.id, snap.data().img);
       return snap;
     };
+    // @nb-shared }
 
     // Extract inline data: images from an HTML string into their own docs. The
     // bj-fbimg:// placeholder is written ONLY after the image is confirmed saved
@@ -460,6 +467,7 @@ function install(F) {
      * touched — republishing a stale order is its own known way to lose a
      * journal's entry list.
      * ==================================================================== */
+    // @nb-shared {
     const _IMG_URI_RE = /data:[a-z]+\/[a-z0-9.+-]+;base64,/i;
 
     // Where a data: URI survived extraction, so we know whether the extractor
@@ -599,6 +607,7 @@ function install(F) {
                   '   moved ' + done + (failed ? ', failed ' + failed : ''));
       return { moved: done, failed, before, after };
     }
+    // @nb-shared }
 
     window._bjCompactImages = (opts) => _compactImages({
       ref: bjDocRef, label: 'Brainstorm Journal',
@@ -819,6 +828,7 @@ function install(F) {
 
 
 
+    // @nb-store {
     // ── Tony's Brainstorm Journal Firebase ───────────────────────────────────────
     const tjDocRef = doc(db(), TJ_DOC_PATH);
     _stallRetry['tony_journal'] = async () => { const sn = await _freshGet(tjDocRef); if (_fbIsServerSnap(sn)) _tjMarkServerSeen(); };
@@ -1218,6 +1228,7 @@ function install(F) {
         window.dispatchEvent(new CustomEvent('docx-aitools-updated', { detail: { app: 'tj' } }));
       });
     } catch(e) {}
+    // @nb-store }
 }
 
 window.Notebook.fb = {
