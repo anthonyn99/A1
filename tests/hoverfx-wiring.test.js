@@ -80,7 +80,9 @@ ok('index.html: <body> turns magi only for Tony (goTony → _markProfile)',
 // Until MyJournal's own phase (2) it must opt back out of the magi <body>.
 // Theme phase 2: MyJournal takes MAGI's hover from Tony's <body>, so it must
 // not opt itself back out.
-ok('index.html: MyJournal inherits magi (no classic opt-out)', /<div id="tj-root">/.test(idx) && !/id="tj-root"[^>]*data-hoverfx/.test(idx));
+// MyJournal's markup is built by Notebook/apps/myjournal.js inside index.html.
+const tjApp = fs.readFileSync(path.join(ROOT, 'Notebook', 'apps', 'myjournal.js'), 'utf8');
+ok('index.html: MyJournal inherits magi (no classic opt-out)', /<div id="tj-root">/.test(tjApp) && !/id="tj-root"[^>]*data-hoverfx/.test(tjApp + idx));
 ok('index.html: Veda\'s roots never declare magi',
    !/id="veda-root"[^>]*data-hoverfx="magi"/.test(idx) && !/id="bj-root"[^>]*data-hoverfx="magi"/.test(idx));
 

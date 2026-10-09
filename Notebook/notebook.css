@@ -926,3 +926,47 @@ body.tj-drawer-open #tony-app-nav, body.bj-drawer-open #tony-app-nav {
     max-height: 88dvh; overflow-y: auto; overscroll-behavior: contain;
   }
 }
+
+/* ── MyJournal sidebar rail (MJDocsUI, apps/myjournal.js). Last in this sheet,
+   as it was last in index.html: at 1100-1180px its --sidebar-w must win. ── */
+#tj-root #mjd-nav { padding: 12px 12px 2px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
+
+#tj-root .mjd-rail { display: flex; gap: 6px; }
+#tj-root .mjd-rail-btn {
+  flex: 1 1 0; min-width: 0;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text3);
+  font-family: var(--font); font-size: 10px; font-weight: 700;
+  letter-spacing: 1px; text-transform: uppercase;
+  padding: 9px 6px; cursor: pointer; white-space: nowrap;
+  transition: border-color .16s, color .16s, background .16s;
+  position: relative;
+}
+#tj-root .mjd-rail-btn svg { width: 13px; height: 13px; flex-shrink: 0; opacity: .9; }
+#tj-root .mjd-rail-btn:hover { color: var(--text2); border-color: var(--border2); }
+/* Selected = MAGI's: a solid accent fill with a dark label, no glow. */
+#tj-root .mjd-rail-btn.on,
+#tj-root .mjd-rail-btn.on:hover {
+  background: var(--ac); color: #1a1a1d; border-color: var(--ac); box-shadow: none;
+}
+/* Never shown. It stays because OurJournal's tab code checks it. */
+#tj-root #mjd-panel { display: none; }
+
+/* Wider sidebar on roomy screens: the title is the point, give it room. */
+@media (min-width: 1100px) { #tj-root { --sidebar-w: 300px; } }
+
+/* Tablet: touch sizing. */
+@media (max-width: 900px) {
+  #tj-root .mjd-rail-btn { padding: 11px 7px; font-size: 10.5px; }
+}
+
+/* Phone: the rail becomes icons. */
+@media (max-width: 600px) {
+  #tj-root #mjd-nav { padding: 10px 10px 2px; gap: 7px; }
+  #tj-root .mjd-rail-btn span.mjd-lbl { display: none; }
+  #tj-root .mjd-rail-btn { padding: 12px 6px; }
+  #tj-root .mjd-rail-btn svg { width: 16px; height: 16px; }
+}

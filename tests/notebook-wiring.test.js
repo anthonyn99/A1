@@ -108,6 +108,18 @@ const MOVED = [
   ['Brainstorm\'s icon sizing', /#bj-root \.bji\{/],
   ['Brainstorm\'s lock', /BJ LOCK SYSTEM/],
   ['the bj DOCX config', /Notebook\.registerDocx\('bj'/],
+  ['the MyJournal app', /const STORAGE_KEY = 'tony_journal_v3';/],
+  ['MyJournal\'s markup', /<div id="tj-root">/],
+  ['MyJournal\'s CSS', /#tj-root #tj-sidebar-header \{/],
+  ['MyJournal\'s icon sizing', /#tj-root \.tji\{/],
+  ['MyJournal\'s lock', /TJ LOCK SYSTEM/],
+  ['the tj DOCX config', /Notebook\.registerDocx\('tj'/],
+  ['the MyJournal sidebar rail', /window\.MJDocsUI = /],
+  ['the rail\'s CSS', /#tj-root #mjd-nav \{/],
+  ['the journals\' Firestore loaders', /window\._fbLoadTonyJournal = /],
+  ['Brainstorm\'s Firestore loader', /window\._fbLoadJournal = /],
+  ['the journals\' stale-overwrite guards', /function _tjWhenServerSeen\(fn\)/],
+  ['the journal image documents', /const _jImgGet = /],
 ];
 for (const [name, re] of MOVED) {
   const inNb = nbFiles.filter((f) => re.test(nbSrc(f)));
@@ -120,15 +132,21 @@ ok('loads notebook.js once', tags.length === 1, tags.join(' | '));
 ok('...as a classic, blocking script', tags.length && !/\b(async|defer|type=)/.test(tags[0]), tags[0]);
 const at = (s) => idx.indexOf(s);
 const bjMount = at("Notebook.mount({ app: 'brainstorm', key: 'bj', store: 'journal' });");
+const tjMount = at("Notebook.mount({ app: 'myjournal', key: 'tj', store: 'tony_journal' });");
 ok('...before Brainstorm and MyJournal (they use JGuard, VizEngine and OJ while booting)',
-  at('Notebook/notebook.js') > 0 && at('Notebook/notebook.js') < bjMount && bjMount < at('<div id="tj-root">'));
-ok('Brainstorm is mounted once, where its markup used to sit (before MyJournal)',
-  bjMount > 0 && idx.indexOf('Notebook.mount(', bjMount + 1) === -1);
+  at('Notebook/notebook.js') > 0 && at('Notebook/notebook.js') < bjMount && bjMount < tjMount);
+ok('each journal is mounted once, where its markup used to sit (Brainstorm, then MyJournal)',
+  bjMount > 0 && tjMount > bjMount && (idx.match(/Notebook\.mount\(/g) || []).length === 2);
+ok('the host\'s MyJournal nav (showTonyJournal, _tonyNav) is defined before MyJournal mounts (its rail wraps showTonyJournal)',
+  at('window.showTonyJournal = function') > 0 && at('window.showTonyJournal = function') < tjMount && at('window._tonyNav = function') < tjMount
+  && !nbFiles.some((f) => /window\.(hideTonyJournal|_tonyNav|_updateTonyNavActive|tjSwitchTo) = function/.test(nbSrc(f))));
 ok('_pwReset stays the host\'s (the app lock uses it): defined once, in index.html',
   (idx.match(/window\._pwReset = /g) || []).length === 1 && !nbFiles.some((f) => /window\._pwReset = /.test(nbSrc(f))));
 ok('the DOCX group loads after both journals, where its sheets used to be (cascade order)',
-  at("Notebook.load('docx')") > at('window._tjApplyTheme = tjApplyTheme;') && at("Notebook.load('docx')") < at('TaskHub Voice Control'));
-for (const [k, src] of [['tj', idx], ['bj', nbSrc('apps/brainstorm.js')]]) {
+  at("Notebook.load('docx')") > tjMount && at("Notebook.load('docx')") < at('TaskHub Voice Control'));
+ok('the rail\'s CSS is last in notebook.css (at 1100-1180px its --sidebar-w must win)',
+  nbSrc('notebook.css').lastIndexOf('--sidebar-w') === nbSrc('notebook.css').indexOf('#tj-root { --sidebar-w: 300px; }') + 11);
+for (const [k, src] of [['tj', nbSrc('apps/myjournal.js')], ['bj', nbSrc('apps/brainstorm.js')]]) {
   const m = src.match(new RegExp("Notebook\\.registerDocx\\('" + k + "', (\\{[\\s\\S]*?\\n\\})\\);"));
   let cfg = null; try { cfg = m && vm.runInNewContext('(' + m[1] + ')'); } catch (e) {}
   ok(k + ' registers its DOCX config, with the image binder it used to be hardcoded to',
@@ -137,10 +155,16 @@ for (const [k, src] of [['tj', idx], ['bj', nbSrc('apps/brainstorm.js')]]) {
 ok('the image re-binder routes through the registry, not a hardcoded pair',
   /var bind = APPS\[app\] && window\[APPS\[app\]\.bindImg\];/.test(nbSrc('core/docx.js')) && !/_bjBindImg|_tjBindImg/.test(nbSrc('core/docx.js')));
 const install = idx.match(/window\.Notebook\.fb\.install\(\{([\s\S]*?)\}\);/);
-ok('Firebase init() installs the accessors, with db as a live getter', install && /db: \(\) => db\b/.test(install[1]), install && install[1]);
+ok('Firebase init() installs the journal layer, with db as a live getter', install && /db: \(\) => db\b/.test(install[1]), install && install[1]);
 const initStart = idx.indexOf('async function init() {');
 ok('...from inside init() (re-installed on every re-init)', install && initStart > 0 && idx.indexOf(install[0]) > initStart);
-ok('fb.js only defines the accessors when installed', !/^window\._fb(Viz|OJ)\s*=/m.test(nbSrc('core/fb.js')) && /install: function \(F\)/.test(nbSrc('core/fb.js')));
+const fbSrc = nbSrc('core/fb.js');
+ok('fb.js only defines the accessors when installed', !/^window\._fb(Viz|OJ)\s*=/m.test(fbSrc) && /^function install\(F\) \{/m.test(fbSrc) && /^  install: install,/m.test(fbSrc));
+ok('...and every Firestore call goes to the live db (no db captured at install)', !/doc\(db,/.test(fbSrc) && /const db = \(\) => _H\.db\(\);/.test(fbSrc));
+const TD = (() => { const a = idx.indexOf('async function _teardown()'); return a < 0 ? '' : idx.slice(a, idx.indexOf('function _startIdleTimer', a)); })();
+ok('the host\'s teardown drops the journal listeners and re-arms their guards',
+  /window\.Notebook\.fb\.unsubscribe\(\);/.test(TD) && /window\.Notebook\.fb\.rearm\(\);/.test(TD)
+  && /rearm: function \(\) \{\s*_bjServerSeen = false;\s*_tjServerSeen = false;/.test(fbSrc));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

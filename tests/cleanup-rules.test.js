@@ -118,8 +118,8 @@ const snapSrc = fbs.slice(snapAt, fbs.indexOf('}, (err) =>', snapAt));
 ok('firebase-sync.js: StudyOS unlocks writes only AFTER emitting the server data',
   snapSrc.indexOf('_sosEmitRemote(') > 0 && snapSrc.indexOf('_sosEmitRemote(') < snapSrc.indexOf('_sosMarkServerSeen()'));
 const index = read('index.html');
-ok('index.html: the Firestore adapter waits for the MyJournal write guard',
-  /window\._a1SweepFirestore = \{\s*ready: \(\) => _tjServerSeen,\s*del: \(path\) => deleteDoc\(doc\(db, path\)\),\s*\};/.test(index));
+ok('index.html: the Firestore adapter waits for the MyJournal write guard (Notebook.fb)',
+  /window\._a1SweepFirestore = \{\s*ready: \(\) => window\.Notebook\.fb\.serverSeen\('tj'\),\s*del: \(path\) => deleteDoc\(doc\(db, path\)\),\s*\};/.test(index));
 ok('index.html: the old per-load mjd purge is gone (the registry owns it)', !/purgeLeftovers/.test(index));
 
 ok('sweep.js makes no Firestore read of any kind',

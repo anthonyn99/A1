@@ -40,7 +40,9 @@ function t(name, cond, detail) {
 function section(s) { console.log('\n' + s); }
 
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'backup.js'), 'utf8');
-const HTML = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+// The journals' Firestore layer lives in Notebook/core/fb.js (Notebook Phase 3).
+const HTML = ['index.html', 'Notebook/core/fb.js']
+  .map((f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).join('\n');
 
 // Load the SHIPPED file in a sandbox and use its own functions. Lifting them
 // out by brace matching (as the older suites do) is unreliable here: imageKeys
@@ -104,7 +106,7 @@ writers.forEach((w) => {
 t("index.html still rehydrates legacy 'mj-fbimg://' placeholders",
   HTML.includes("img[src^=\"mj-fbimg://\"]") && HTML.includes("replace('mj-fbimg://', '')"));
 t('the rehydrator reads the placeholder value as the document id, unprefixed',
-  (HTML.match(/const imgRef = doc\(db, 'dashboards', imgKey\);/g) || []).length >= 2,
+  (HTML.match(/const imgRef = doc\(db(\(\))?, 'dashboards', imgKey\);/g) || []).length >= 2,
   'If this ever gains a prefix, backup.js must change with it.');
 
 // ───────────────────────── derivation from a journal doc ───────────────────

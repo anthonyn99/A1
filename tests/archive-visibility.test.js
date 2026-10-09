@@ -51,7 +51,9 @@ function t(name, cond, detail) {
 }
 function section(s) { console.log('\n' + s); }
 
-const HTML = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+// The journals live in Notebook/ (apps + the Firestore layer in core/fb.js).
+const HTML = ['index.html', 'Notebook/core/fb.js', 'Notebook/apps/brainstorm.js', 'Notebook/apps/myjournal.js']
+  .map((f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).join('\n');
 
 section('Static: archived days stay visible and stay out of writes');
 

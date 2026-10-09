@@ -27,9 +27,8 @@
 const fs = require('fs');
 const path = require('path');
 
-// MyJournal is still in index.html (until Notebook Phase 3); Brainstorm is a
-// Notebook app. Read both, in page order.
-const html = ['index.html', 'Notebook/apps/brainstorm.js']
+// Both journals are Notebook apps. Read them in page order.
+const html = ['Notebook/apps/brainstorm.js', 'Notebook/apps/myjournal.js']
   .map((f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).join('\n');
 
 let pass = 0, fail = 0;

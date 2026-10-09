@@ -30,6 +30,10 @@ function section(s) { console.log('\n' + s); }
 
 // ───────────────────────── Part 1: static guards ─────────────────────────
 const HTML = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+// The journals' Firestore layer (their guards and listeners) is Notebook/core/fb.js,
+// which index.html installs from init() and drives from its teardown.
+const FB = fs.readFileSync(path.join(__dirname, '..', 'Notebook', 'core', 'fb.js'), 'utf8');
+const FB_REARM = (FB.match(/rearm: function \(\) \{([\s\S]*?)\}/) || [])[1] || '';
 
 section('Static: write-path guards present in index.html');
 
@@ -85,8 +89,11 @@ t('_teardown() body was located',
 
 for (const flag of ['_thServerSeen', '_vdServerSeen', '_bjServerSeen', '_tjServerSeen',
                     '_noServerSeen']) {
+  // The journals' flags are re-armed by Notebook.fb.rearm(), which the teardown calls.
+  const journal = flag === '_bjServerSeen' || flag === '_tjServerSeen';
   t('teardown re-arms ' + flag,
-    new RegExp(flag + '\\s*=\\s*false;').test(TEARDOWN),
+    journal ? /window\.Notebook\.fb\.rearm\(\);/.test(TEARDOWN) && new RegExp(flag + '\\s*=\\s*false;').test(FB_REARM)
+            : new RegExp(flag + '\\s*=\\s*false;').test(TEARDOWN),
     'Losing the connection must invalidate "we have seen server state" for EVERY writer, '
     + 'or that writer can clobber the doc on resume.');
 }
@@ -135,7 +142,7 @@ for (const [label, ref] of [
 ]) {
   t(label + ' listener requests metadata changes',
     new RegExp('onSnapshot\\(' + ref.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      + ',\\s*\\{\\s*includeMetadataChanges:\\s*true').test(HTML),
+      + ',\\s*\\{\\s*includeMetadataChanges:\\s*true').test(HTML + FB),
     'Otherwise the gate can never open and writes are held indefinitely.');
 }
 

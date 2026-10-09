@@ -28,7 +28,8 @@ var GROUPS = {
   core: ['core/jguard.js', 'core/viz.css', 'core/viz.js', 'core/oj.css', 'core/oj.js', 'core/fb.js'],
   docx: ['notebook.css', 'core/docx.js'],
   // Apps: Notebook.mount({ app }) loads one where the host calls it.
-  brainstorm: ['apps/brainstorm.css', 'apps/brainstorm.js']
+  brainstorm: ['apps/brainstorm.css', 'apps/brainstorm.js'],
+  myjournal: ['apps/myjournal.css', 'apps/myjournal.js']
 };
 var loaded = {};
 

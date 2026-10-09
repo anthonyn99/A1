@@ -30,7 +30,9 @@ function t(name, cond, detail) {
 }
 function section(s) { console.log('\n' + s); }
 
-const HTML = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+// The journals' Firestore layer lives in Notebook/core/fb.js (Notebook Phase 3).
+const HTML = ['index.html', 'Notebook/core/fb.js']
+  .map((f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).join('\n');
 
 // Lift a function by brace matching from its declaration.
 function grab(startMarker) {
@@ -140,7 +142,7 @@ if (jsdom) {
     }),
     setDoc: async (ref, val) => { store[ref.id] = val; },
     _fbWriteRetry: async (fn) => fn(),
-    db: {},
+    db: () => ({}),   // fb.js reads the host's live Firestore through a getter
     window: {},
   };
   vm.createContext(sandbox);
