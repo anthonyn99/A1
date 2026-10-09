@@ -149,12 +149,12 @@ function makeRepo() {
     if (want('midrun')) {
       // -- 3. a real mid-run message ---------------------------------------------
       console.log('\n3. A message while it runs');
-      await type(c, 'Without reading any files, write a 500-word essay on why READMEs matter, in five paragraphs.');
+      await type(c, 'Without reading any files, write a 1500-word essay on why READMEs matter, in twelve paragraphs.');
       await send(c);
       ok('turn 3 starts', await waitFor(c, '!!CODE.task && !CODE.task.done && CODE.task.turn === 3', 20000));
       ok('the agent is working', await waitFor(c,
         'CODE.task.events.some(e => e.k === "note" && /is reading the workspace/.test(e.text || ""))', 60000));
-      await sleep(3000);
+      await sleep(500);
       await type(c, 'Stop the essay. Instead reply with exactly one word: PELIKAN');
       ok('the button says Send', (await label(c)) === 'Send');
       await send(c);
