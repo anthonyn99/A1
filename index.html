@@ -20370,7 +20370,7 @@ window.PlansCore={
      OurJournal) and their Firestore adapters, loaded in place by notebook.js.
      The journals themselves still live below until Phases 2 and 3
      (docs/Notebook/plan.md). ── -->
-<script src="Notebook/notebook.js?v=1c1cc7c8f2"></script>
+<script src="Notebook/notebook.js?v=e1f3c6f79a"></script>
 
 <!-- ── Brainstorm Journal (embedded) ── -->
 <style>
@@ -21706,7 +21706,7 @@ window.PlansCore={
       <span class="empty-hint">Click "New Entry" to get started</span>
     </div>
 
-    <!-- WHITEBOARD — Excalidraw, wired by the VizEngine block above.
+    <!-- WHITEBOARD — Excalidraw, wired by VizEngine (Notebook/core/viz.js).
          The shell keeps its old id so showTemplate() and the lock/edit-mode
          plumbing that reference it are untouched; everything inside it is new. -->
     <div id="bj-wb-canvas-wrap" class="viz-shell">
@@ -21964,7 +21964,7 @@ let _bjOJState  = null;   // the shared collection (window.OJ.state('bj'))
 let _bjHidden   = false;  // a remote update is being applied to the collection NOT on screen
 function _bjIsOJ() { return !!_bjOJState && state === _bjOJState; }
 let saveTimer = null;
-// ── Anti-regression state — the MyJournal twins, same reasons (see JGuard above) ──
+// ── Anti-regression state — the MyJournal twins, same reasons (see Notebook/core/jguard.js) ──
 // _bjDomOwner: the entry id the editor DOM was last PAINTED for. Every template
 //   shares one set of nodes, so this is the only way saveCurrentEntry can tell "the
 //   content on screen is this entry's" from "it belongs to the entry we just left,
@@ -27769,7 +27769,7 @@ let _tjOJState  = null;
 let _tjHidden   = false;
 function _tjIsOJ() { return !!_tjOJState && state === _tjOJState; }
 let saveTimer = null;
-// ── Anti-regression state (see the JGuard block above) ────────────────────────
+// ── Anti-regression state (see JGuard, Notebook/core/jguard.js) ──────────────
 // _tjDomOwner: the entry id the editor DOM was last PAINTED for. The templates
 //   share one set of nodes — a single #tj-page-editor serves every page entry —
 //   so this is the only way saveCurrentEntry can tell "the

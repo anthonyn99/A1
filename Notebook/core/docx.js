@@ -4022,7 +4022,7 @@ function _docxDropAtPoint(ed, node, x, y) {
 // is rebuilt, plus float-wrap (double-click) + drag-to-place. Uses the app's own binder.
 function wireImageDelegation(ctx) {
   var ed = ctx.edEl;
-  var binder = ctx.app === 'tj' ? window._tjBindImg : window._bjBindImg;
+  var binder = APPS[ctx.app] && window[APPS[ctx.app].bindImg];
   function setImgFloat(w, dir) {
     w.style.float = dir === 'none' ? '' : dir;
     w.style.margin = dir === 'left' ? '4px 16px 8px 0' : (dir === 'right' ? '4px 0 8px 16px' : '8px 0');

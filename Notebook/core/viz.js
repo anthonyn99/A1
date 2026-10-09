@@ -34,9 +34,8 @@
 
 /* ── VizEngine core: local cache, CDN loaders, chunked board documents ────────
  *
- * Deliberately free of any journal-specific reference. Everything above this
- * line in the file (Firebase, JGuard, the journals themselves) is untouched by
- * it; everything it needs arrives through window._fbViz — the thin Firestore
+ * Deliberately free of any journal-specific reference. Nothing else (Firebase,
+ * JGuard, the journals themselves) is touched by it; everything it needs arrives through window._fbViz — the thin Firestore
  * accessor the Firebase module installs — or through a config object.
  * ========================================================================== */
 (function () {
@@ -110,7 +109,7 @@ function idbPut(key, val) {
 /* ── CDN loaders ─────────────────────────────────────────────────────────────
  * Both editors are real npm libraries with no build step available to us —
  * index.html ships as-is — so they load from jsdelivr at EXACT pinned versions,
- * the same lazy-on-first-use pattern KaTeX already uses in this file. Nothing
+ * the same lazy-on-first-use pattern KaTeX already uses in core/docx.js. Nothing
  * is fetched until someone actually opens a visual template, so the other
  * templates and TaskHub pay nothing for them.
  *
