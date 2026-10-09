@@ -16,6 +16,10 @@ const ok = (name, cond, extra) => {
 };
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const SETTLE = 220;
+// After a move the landed rows stay put until the caller's redraw reorders the
+// list (that stopped the bounce on slow phones); a caller that never reorders,
+// like these stub onDrops, is released by a 600ms fallback.
+const HOLD = 600;
 
 const src = fs.readFileSync(path.join(__dirname, '..', 'dragsort.js'), 'utf8');
 const dom = new JSDOM('<!doctype html><body></body>', { runScripts: 'outside-only', pretendToBeVisual: true });
@@ -76,8 +80,16 @@ async function drag(target, from, to, kind) {
   await drag(L.rows[0].querySelector('.txt'), [50, 20], [50, 105]);
   ok('down: row 0 to slot 2 (leading edge past the middle)', JSON.stringify(L.drops.map((d) => d.slice(0, 2))) === '[[0,2]]', JSON.stringify(L.drops.map((d) => d.slice(0, 2))));
   ok('onDrop gets the list as fromList and toList', L.drops[0][2] === L.list && L.drops[0][3] === L.list);
+  ok('the landed rows are held until the redraw', L.rows.some((r) => r.style.transform));
+  await wait(HOLD);
   ok('rows are put back after the glide', L.rows.every((r) => !r.style.transform && !r.classList.contains('dsort-drag')));
   ok('the list is not left in drag mode', !L.list.classList.contains('dsort-on') && !doc.documentElement.classList.contains('dsort-grabbing'));
+  L.list.remove();
+
+  // A caller that redraws (reorders the DOM) releases the rows at once.
+  L = vlist(4, 0, { onDrop: (f, t, fl) => fl.insertBefore(fl.children[f], fl.children[t + 1] || null) });
+  await drag(L.rows[0].querySelector('.txt'), [50, 20], [50, 105]);
+  ok('a redraw that reorders the list releases the rows at once', L.rows.every((r) => !r.style.transform && !r.classList.contains('dsort-drag')));
   L.list.remove();
 
   L = vlist(4);
@@ -190,6 +202,7 @@ async function drag(target, from, to, kind) {
   ok('a row dropped on another list in the group: onDrop(from, to, fromList, toList)',
      A.drops.length === 1 && A.drops[0][0] === 1 && A.drops[0][1] === 1 && A.drops[0][2] === A.list && A.drops[0][3] === B.list,
      JSON.stringify(A.drops.map((d) => d.slice(0, 2))));
+  await wait(HOLD);
   ok('both lists are put back', [...A.rows, ...B.rows].every((r) => !r.style.transform) && !B.list.classList.contains('dsort-on'));
   // B is 2 rows (0-80px); 75px is inside it, past its last row's middle.
   await drag(A.rows[0].querySelector('.txt'), [50, 20], [350, 75]);
@@ -212,7 +225,7 @@ async function drag(target, from, to, kind) {
      !!gh && gh !== P.rows[1] && doc.body.children.length === nBody + 1 && P.rows[1].classList.contains('dsort-src') && !P.rows[1].style.transform);
   ok('the other palette rows do not move', P.rows.every((r) => !r.style.transform));
   ptr('pointerup', window, 350, 50);
-  await wait(SETTLE);
+  await wait(SETTLE + HOLD);
   ok('dropped on the other list: onDrop(from, to, fromList, toList), original still there',
      P.drops.length === 1 && P.drops[0][0] === 1 && P.drops[0][1] === 1 && P.drops[0][2] === P.list && P.drops[0][3] === Q.list && P.list.children.length === 3);
   ok('the copy is gone and the palette is put back', !doc.querySelector('.dsort-ghost') && doc.body.children.length === nBody && P.rows.every((r) => !r.style.transform && !r.classList.contains('dsort-src')));
