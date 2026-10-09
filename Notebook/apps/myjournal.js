@@ -978,6 +978,7 @@ function _tjForgetDeleted(ids) {
 }
 // Permanent delete — used by the Trash UI and the 30-day auto-purge
 function hardDeleteEntry(id) {
+  if (_tjIsPinned(id)) return;
   _tjForgetDeleted([id]);
   _tjFbDelete(id);
   state.entries = state.entries.filter(e => e.id !== id);
@@ -1151,7 +1152,7 @@ function renderSidebar() {
       </div>
       <button class="entry-delete" data-id="${entry.id}" title="Move to Trash">${window.TNI.x}</button>
     `;
-    if (_tjIsPinned(entry.id)) { div.classList.add('nb-pinned'); div.querySelector('.entry-delete').remove(); }
+    if (_tjIsPinned(entry.id)) { div.classList.add('nb-pinned'); div.querySelector('.entry-delete').style.setProperty('display', 'none', 'important'); }
     div.addEventListener('click', e => {
       if (e.target.closest('.entry-delete')) return;
       // Flush the just-edited entry BEFORE changing activeId — see BJ sidebar handler.

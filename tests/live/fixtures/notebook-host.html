@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notebook test host</title>
+<!-- A throwaway host for tests/live/notebook-host.live.js: a program that is not
+     index.html mounts MyJournal under its own key and store, inline. It has its
+     own (fake) Firebase and its own dialogs, and none of index's helpers. -->
+<script src="../../../Notebook/notebook.js?v=5569f490d5"></script>
+<style>
+  html, body { margin: 0; height: 100%; background: #1a1a1d; color: #f4f3f0; font-family: Inter, system-ui, sans-serif; }
+  #bar { height: 40px; display: flex; align-items: center; padding: 0 16px; border-bottom: 1px solid #45454c; }
+  #host { position: absolute; top: 41px; left: 0; right: 0; bottom: 0; }
+</style>
+</head>
+<body>
+<div id="bar">Test host</div>
+<div id="host"></div>
+<script>
+  // The host's own in-UI dialogs, which Notebook borrows; recorded for the test.
+  window.__dialogs = [];
+  window.uiAlert = function (m) { __dialogs.push(['alert', String(m)]); return Promise.resolve(); };
+  window.uiConfirm = function (m) { __dialogs.push(['confirm', String(m)]); return Promise.resolve(true); };
+  window.uiPrompt = function (m) { __dialogs.push(['prompt', String(m)]); return Promise.resolve(window.__promptAnswer || null); };
+</script>
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js';
+  import * as fs from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js';
+  const app = initializeApp({ projectId: 'notebook-test' });
+  const db = fs.initializeFirestore(app, { localCache: fs.memoryLocalCache() });
+  window.NotebookFirebase = () => ({ db, fs });
+  window.__saved = [];
+  window.__mount = (extra) => Notebook.mount(Object.assign({
+    app: 'myjournal', key: 'nb', store: 'nb_test', title: 'Test Notebook',
+    container: document.getElementById('host'), templates: ['page'],
+    pinned: [{ id: 'daily-reminder', title: 'Daily Reminder' }],
+    onSave: (e) => window.__saved.push(e.id),
+    onReady: () => { window.__ready = true; }
+  }, extra || {}));
+  window.__hostReady = true;
+</script>
+</body>
+</html>
