@@ -157,8 +157,7 @@ const turnOf = (prompt, mode, r, files) => ({
     }
 
     if (want('now')) {
-      console.log('
-2b. Interrupt now stops the turn and the message goes next');
+      console.log('\n2b. Interrupt now stops the turn and the message goes next');
       let sent = null, intr = null;
       const r = await run({ project_id: PID, mode: 'read',
         prompt: 'Without reading any files, write a 600-word essay on why READMEs matter, '
