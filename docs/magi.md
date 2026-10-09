@@ -2082,7 +2082,12 @@ stopping, because a chat website accepts nothing while it is writing.
   are asked once more in a fresh chat with their partial answer and the
   notes (`gather(reask=)`, `session.reask_prompt`); finished members keep
   their answers; the notes still reach the chairman. Features `note_edit`,
-  `note_interrupt`.
+  `note_interrupt`. The re-ask is validated against the question AND the
+  notes ("answer in two sentences" changes what a good answer looks like),
+  and the chairman's context is stripped of the interrupt -- found live:
+  sharing it, every chair saw it set, stopped before sending, and failed.
+  A stopped member shows "stopped — asking again with your notes", not a
+  FAILED card.
 - **Console**: `codeMsgState` reads a message's state off the stream; a
   queued bubble has Edit (inline), ✕, and Interrupt now (`steer_live`). A
   running deliberation's verdict notes have the same, while `notesOpen`.
