@@ -52,6 +52,18 @@ async function throws(name, fn, msg) {
   ok('new password unlocks the SAME vault (item still decrypts)', JSON.stringify(await VC.decrypt(dekN, blob)) === JSON.stringify(item));
   ok('recovery key still valid after password change', await VC.verify(changed, await VC.unlockWithRecovery(changed, recoveryCode)));
 
+  console.log('\n── a new password revokes every biometric slot ──');
+  // Learning the password once must not buy a fingerprint that outlives it.
+  const enrolled = await VC.addBiometricSlot(config, dek, 'stranger-phone', { label: 'Face ID' });
+  const rotated = await VC.changeMasterPassword(enrolled.config, dek, 'Rotated-PW-7!');
+  ok('change drops the slot', !rotated.biometrics['stranger-phone'] && Object.keys(rotated.biometrics).length === 0);
+  await throws('the old device key no longer unlocks', () => VC.unlockWithBiometric(rotated, 'stranger-phone', enrolled.deviceKeyB64));
+  const viaRecovery = await VC.resetMasterPasswordWithRecovery(enrolled.config, recoveryCode, 'Recovered-PW-8!');
+  ok('a recovery reset drops it too', Object.keys(viaRecovery.config.biometrics).length === 0);
+  const weak = { ...enrolled.config, master: { ...enrolled.config.master, kdf: { ...enrolled.config.master.kdf, iterations: 1 } } };
+  const upgraded = await VC.upgradeKdf(weak, dek, 'Correct-Horse-Battery-Staple-9!');
+  ok('a KDF upgrade (same password) keeps it', !!upgraded.biometrics['stranger-phone']);
+
   console.log('\n── rotate recovery key ──');
   const rot = await VC.rotateRecoveryKey(config, dek);
   ok('new recovery code differs', rot.recoveryCode !== recoveryCode);

@@ -280,16 +280,25 @@
 
   // ── Master-password / recovery rotation ───────────────────────────────────
   // Requires a live DEK (i.e. the vault is already unlocked). Only re-wraps the
-  // small key; the encrypted items are untouched. Any existing biometric slots
-  // stay valid because they wrap the same DEK.
+  // small key; the encrypted items are untouched.
+  //
+  // A NEW password drops every device's biometric slot. The slots wrap the same
+  // DEK, so leaving them meant anyone who learned the old password once, and
+  // enrolled their own fingerprint with it, kept opening the vault however
+  // often the password changed. Each device now has to unlock with the new
+  // password before it can enrol again. opts.keepBiometrics is for re-wraps
+  // under the SAME password (upgradeKdf), which change nobody's access.
+  //
   // `hint` is tri-state on purpose: undefined leaves the stored hint untouched
   // (so upgradeKdf and other internal re-wraps never clobber it), while any
   // string — including '' — replaces it.
-  async function changeMasterPassword(config, dek, newPassword, hint) {
+  async function changeMasterPassword(config, dek, newPassword, hint, opts) {
     const salt = randomBytes(KDF.saltBytes);
     const kek = await deriveKEK(newPassword, salt, KDF);
+    const keep = !!(opts && opts.keepBiometrics);
     return {
       ...config,
+      biometrics: keep ? { ...(config.biometrics || {}) } : {},
       master: { kdf: { ...KDF }, salt: bytesToB64(salt), wrap: await wrapDEK(dek, kek) },
       hint: hint === undefined ? String(config.hint || '') : String(hint || ''),
       securityStamp: bytesToB64(randomBytes(16)), // force other sessions to re-lock
@@ -302,7 +311,7 @@
   // DEK, exactly as unlockWithRecovery does, so this is no weaker than an unlock:
   // whoever holds the key can already read the vault. Throws 'bad-recovery' on a
   // wrong key. The recovery key itself is NOT rotated (the caller can offer that
-  // separately), and every biometric slot stays valid — same DEK throughout.
+  // separately). Every biometric slot is dropped, as for any new password.
   async function resetMasterPasswordWithRecovery(config, recoveryCode, newPassword, hint) {
     if (!newPassword || String(newPassword).length < 1)
       throw new Error('master password required');
@@ -330,7 +339,7 @@
   // are older — transparent forward-migration. Needs the plaintext password.
   async function upgradeKdf(config, dek, masterPassword) {
     if ((config.master.kdf && config.master.kdf.iterations) >= KDF.iterations) return config;
-    return changeMasterPassword(config, dek, masterPassword);
+    return changeMasterPassword(config, dek, masterPassword, undefined, { keepBiometrics: true });
   }
 
   global.VaultCrypto = {

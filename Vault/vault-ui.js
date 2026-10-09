@@ -1638,7 +1638,7 @@
         overlay.remove();
         // Re-lock this device too — you'll unlock again with the new password.
         session.lock(); renderLock(true);
-        toast('Master password changed — please unlock with your new password');
+        toast('Master password changed — unlock with the new one. Biometric unlock was turned off on every device; turn it back on in Settings.');
       } catch (e) {
         err.textContent = e.message === 'bad-password' ? 'Current password is incorrect.' : ('Failed: ' + e.message);
         save.disabled = false; save.textContent = 'Change password';
