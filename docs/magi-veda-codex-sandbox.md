@@ -25,8 +25,11 @@ is opened.
    *"Please click Yes on the Windows prompt."* It ends with **Done** (or says
    to run it again). If it says Done with no prompt, it was already set up.
 4. **Prove it** (no account, nothing spent):
-   `cd magi; $env:PYTHONPATH = (Resolve-Path ..).Path; .venv\Scripts\python -m pytest tests/test_codex_sandbox.py -q`.
-   All pass; the two `real_sandbox` tests must PASS, not be skipped.
+   `cd magi; $env:PYTHONPATH = (Resolve-Path ..).Path; .venv\Scripts\python -c "from magi.settings import set_active_profile; set_active_profile('veda'); import pytest, sys; sys.exit(pytest.main(['tests/test_codex_sandbox.py', '-q', '-rs']))"`.
+   All pass; the two `real_sandbox` tests must PASS, not be skipped. (A plain
+   `pytest` runs as Tony's profile, whose Codex folder does not exist on
+   Veda's PC, so those two skip with "not set up" even when it is -- found
+   2026-10-08.)
 5. **Confirm MAGI sees it.** In her MAGI console, Code Mode: the Codex CLI
    chip no longer says *sandbox not set up* (it updates by itself within a
    minute).
