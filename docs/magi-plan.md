@@ -3268,11 +3268,17 @@ What's manual after W3/W4 (for Tony and Veda):
   when idle (selfupdate). On Tony's PC: `node tests/live/magi-code-w3.live.js`
   (AGENT=codex-cli while Claude is over its 80% cap) and
   `node tests/live/magi-code-w4.live.js`.
-- Found while testing on Veda's engine, NOT W4: DeepSeek gives "No new answer
-  appeared within 120s" on every task (a plain one too) -- her DeepSeek login
-  or its selectors; and ChatGPT's reply to "quote the selected string" twice
-  "stayed empty for 120s" (a reply-reading issue; a bare one-word answer is
-  rejected as "cut off"). Both are unit issues for a later look.
+- Found while testing on Veda's engine, NOT W4: DeepSeek gave "No new answer
+  appeared within 120s" on every task although signed in. FIXED 2026-10-08:
+  `magi doctor deepseek --profile veda` showed DeepSeek's age-verification
+  modal ("When were you born?") covering the composer; Veda answered it once
+  in her MAGI DeepSeek profile (Chrome with --user-data-dir on
+  magi\profiles\veda\deepseek). Then W4 live with DeepSeek 4/4. It needs her
+  own birth date, so MAGI must never auto-dismiss it; if it returns on any
+  profile, the doctor note names it.
+- Still open, a unit issue: ChatGPT's reply to "quote the selected string"
+  twice "stayed empty for 120s" (a reply-reading issue; a bare one-word answer
+  is rejected as "cut off"). ChatGPT did answer the W4 questions correctly.
 
 ---
 
