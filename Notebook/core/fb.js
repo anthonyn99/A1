@@ -1231,19 +1231,37 @@ function install(F) {
     // @nb-store }
 }
 
+// Stores instanced under another key (Notebook.mount with a key/store of its
+// own; notebook.js builds each from the @nb-store template above).
+const _extras = {};
 window.Notebook.fb = {
-  install: install,
+  // The host's init(): bj, tj and the accessors, then every instanced store.
+  install: function (F) {
+    install(F);
+    Object.keys(_extras).forEach(function (k) { _extras[k].install(F); });
+  },
+  // An instanced store joins the host's Firestore when it has one (index.html),
+  // or takes the F a Firebase-borrowing host built for it (Notebook.mount).
+  addStore: function (key, st, F) {
+    _extras[key] = st;
+    if (_H) st.install(_H); else if (F) st.install(F);
+  },
   // The host's teardown: drop both journals' listeners...
   unsubscribe: function () {
     if (_bjUnsubscribe)  { _bjUnsubscribe();  _bjUnsubscribe  = null; }
     if (_tjUnsubscribe)  { _tjUnsubscribe();  _tjUnsubscribe  = null; }
+    Object.keys(_extras).forEach(function (k) { _extras[k].unsubscribe(); });
   },
   // ...and re-arm their stale-overwrite guards: that connection is gone, so
   // "we have seen server state" is no longer true (see the guard above).
   rearm: function () {
     _bjServerSeen = false;
     _tjServerSeen = false;
+    Object.keys(_extras).forEach(function (k) { _extras[k].rearm(); });
   },
-  serverSeen: function (key) { return key === 'bj' ? _bjServerSeen : key === 'tj' ? _tjServerSeen : false; }
+  serverSeen: function (key) {
+    if (_extras[key]) return _extras[key].serverSeen();
+    return key === 'bj' ? _bjServerSeen : key === 'tj' ? _tjServerSeen : false;
+  }
 };
 })();

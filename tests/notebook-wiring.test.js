@@ -159,7 +159,7 @@ ok('Firebase init() installs the journal layer, with db as a live getter', insta
 const initStart = idx.indexOf('async function init() {');
 ok('...from inside init() (re-installed on every re-init)', install && initStart > 0 && idx.indexOf(install[0]) > initStart);
 const fbSrc = nbSrc('core/fb.js');
-ok('fb.js only defines the accessors when installed', !/^window\._fb(Viz|OJ)\s*=/m.test(fbSrc) && /^function install\(F\) \{/m.test(fbSrc) && /^  install: install,/m.test(fbSrc));
+ok('fb.js only defines the accessors when installed', !/^window\._fb(Viz|OJ)\s*=/m.test(fbSrc) && /^function install\(F\) \{/m.test(fbSrc) && /^  install: function \(F\) \{\r?\n    install\(F\);/m.test(fbSrc));
 ok('...and every Firestore call goes to the live db (no db captured at install)', !/doc\(db,/.test(fbSrc) && /const db = \(\) => _H\.db\(\);/.test(fbSrc));
 const TD = (() => { const a = idx.indexOf('async function _teardown()'); return a < 0 ? '' : idx.slice(a, idx.indexOf('function _startIdleTimer', a)); })();
 ok('the host\'s teardown drops the journal listeners and re-arms their guards',

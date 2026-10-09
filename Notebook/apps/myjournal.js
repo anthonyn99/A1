@@ -363,6 +363,28 @@ else document.body.insertAdjacentHTML('beforeend', html);
 (function(){
 'use strict';
 const STORAGE_KEY = 'tony_journal_v3';
+// ── The host's mount config (Notebook.mount; docs/Notebook/README.md) ──
+// features: ourjournal / locks (both on unless a host turns them off).
+// pinned:   [{ id, title, html }] pages kept first in the list, never trashed,
+//           dragged or locked; created empty (updated 0, so the cloud copy wins)
+//           when the store does not have them yet.
+// onSave(entry) after the cloud confirms a save; onReady() after the first load.
+const _tjCfg = (window.Notebook && window.Notebook.mounts && window.Notebook.mounts.tj) || {};
+const _tjFeat = Object.assign({ ourjournal: true, locks: true }, _tjCfg.features || {});
+const _tjPinned = Array.isArray(_tjCfg.pinned) ? _tjCfg.pinned : [];
+function _tjIsPinned(id) { return _tjPinned.some(function (p) { return p.id === id; }); }
+// Make every pinned page exist, out of the trash, at the top in its given order.
+function _tjPinFirst() {
+  if (!_tjPinned.length || _tjIsOJ()) return;
+  var head = [];
+  _tjPinned.forEach(function (p) {
+    var e = state.entries.find(function (x) { return x.id === p.id; });
+    if (!e) e = { id: p.id, title: p.title || 'Untitled', template: 'page', created: 0, updated: 0, tags: [], data: { html: p.html || '', attachments: [] }, rev: 0 };
+    delete e.trashed; delete e.trashChangedAt;
+    head.push(e);
+  });
+  state.entries = head.concat(state.entries.filter(function (x) { return head.indexOf(x) < 0; }));
+}
 const TJ_CANVAS_KEY = (id) => 'tj_canvas_' + id;
 let state = { entries: [], activeId: null, deletedIds: [] };
 // ── OurJournal (see the OJ engine) ───────────────────────────────────────────
@@ -834,6 +856,12 @@ function _tjApplyRemote(remote) {
   if (window._tjLockCheck && !_tjHidden) window._tjLockCheck();
 }
 
+// The host's onSave: called with the entry the cloud just confirmed.
+if (typeof _tjCfg.onSave === 'function') window.addEventListener('fb-tj-saved', function(ev) {
+  var _sid = ev && ev.detail && ev.detail.id;
+  var e = _sid && state.entries.find(function(x){ return x.id === _sid; });
+  if (e) { try { _tjCfg.onSave(e); } catch (err) { console.warn('[Notebook] onSave failed:', err); } }
+});
 // Listen for Firebase sync events
 window.addEventListener('fb-tj-saved', function(ev) {
   _tjSetSync('synced');
@@ -875,7 +903,14 @@ function _tjInitFirebase() {
   // The merge comes from the authoritative resync — a forced SERVER read applied as
   // the truth — so a cold launch shows the current document instead of this device's
   // cached memory of it. Safe to call repeatedly; that is the point.
-  if (window._fbResyncTonyJournal) window._fbResyncTonyJournal();
+  if (window._fbResyncTonyJournal) {
+    var _rs = window._fbResyncTonyJournal();
+    if (typeof _tjCfg.onReady === 'function' && !_tjCfg._readyFired && _rs && _rs.then) _rs.then(function () {
+      if (_tjCfg._readyFired) return;
+      _tjCfg._readyFired = true;
+      try { _tjCfg.onReady(); } catch (err) { console.warn('[Notebook] onReady failed:', err); }
+    });
+  }
 }
 // Re-run on EVERY fb-ready, not just the first. The connection is torn down whenever
 // the tab is hidden or the phone suspends the app, and re-established on the way
@@ -908,7 +943,7 @@ function createEntry(template) {
 const TJ_TRASH_TTL = 30 * 24 * 60 * 60 * 1000;
 function deleteEntry(id) {
   const entry = state.entries.find(e => e.id === id);
-  if (!entry) return;
+  if (!entry || _tjIsPinned(id)) return;
   var _bjDelTs = Date.now();
   entry.trashed = _bjDelTs;
   entry.trashChangedAt = _bjDelTs;   // trash-action clock (drives cross-device delete sync)
@@ -1077,6 +1112,7 @@ function renderSidebar() {
   if (_tjHidden) return;
   // A redraw never lands under a row that is being dragged.
   if (window.A1Drag && window.A1Drag.active) { window.A1Drag.later(renderSidebar); return; }
+  _tjPinFirst();
   const list = document.getElementById('tj-entries-list');
   const search = document.getElementById('tj-search-box').value.toLowerCase().trim();
   const live = state.entries.filter(e => !e.trashed);
@@ -1115,6 +1151,7 @@ function renderSidebar() {
       </div>
       <button class="entry-delete" data-id="${entry.id}" title="Move to Trash">${window.TNI.x}</button>
     `;
+    if (_tjIsPinned(entry.id)) { div.classList.add('nb-pinned'); div.querySelector('.entry-delete').remove(); }
     div.addEventListener('click', e => {
       if (e.target.closest('.entry-delete')) return;
       // Flush the just-edited entry BEFORE changing activeId — see BJ sidebar handler.
@@ -1156,13 +1193,14 @@ function renderSidebar() {
       const [moved] = state.entries.splice(fi, 1);
       const ti = state.entries.findIndex(x => x.id === entries[to].id);
       state.entries.splice(to > from ? ti + 1 : ti, 0, moved);
+      _tjPinFirst();
       saveState(); renderSidebar(); _tjFbOrder();
     };
     // A row: a mouse takes it anywhere, a finger after a 300ms hold (no grip: Tony, 2026-10-02).
     window.A1Drag.sort(list, {
       row: '.entry-item',
       hold: 300,
-      canDrag: () => isDraggable,
+      canDrag: (row) => isDraggable && !_tjIsPinned(row.dataset.entryId),
       onDrop: move,
     });
   }
@@ -3108,7 +3146,7 @@ function _tjOJLeave() {
 }
 window._tjOJ = { enter: _tjOJEnter, leave: _tjOJLeave, active: _tjIsOJ };
 (function() {
-  if (!window.OJ) return;
+  if (!window.OJ || !_tjFeat.ourjournal) return;
   _tjOJState = window.OJ.register('tj', {
     shown: function() { return _tjIsOJ(); },
     render: function() { if (_tjIsOJ()) renderSidebar(); },
@@ -3689,7 +3727,7 @@ var _tjLock = null;
 
   function tlUpdateLockBtn() {
     var entry = getActive();
-    if (!entry) {
+    if (!entry || !_tjFeat.locks || _tjIsPinned(entry.id)) {
       lockBtn.style.display = 'none';
       if (mobileLockBtn) mobileLockBtn.style.display = 'none';
       return;
@@ -3963,6 +4001,9 @@ Notebook.registerDocx('tj', {
 (function () {
   'use strict';
   if (window.MJDocsUI) return;
+  // The rail exists for OurJournal's tab; a host without OurJournal has no rail.
+  var _cfg = (window.Notebook && window.Notebook.mounts && window.Notebook.mounts.tj) || {};
+  if (_cfg.features && _cfg.features.ourjournal === false) return;
 
   // MyJournal and OurJournal still read this flag. Nothing sets it any more.
   window._tjCloudMode = false;
