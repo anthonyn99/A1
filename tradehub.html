@@ -249,7 +249,28 @@ window._mailRelay = window._mailRelay || async function (res) {
     return PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(function(v){return !!v;}).catch(function(){return false;});
   }
   function stored(app,id){ try{ return JSON.parse(localStorage.getItem(keyOf(app,id))||'null'); }catch(e){ return null; } }
-  function isRegistered(app,id){ var r=stored(app,id); return !!(r&&r.id); }
+  function isRegistered(app,id,curV){ return current(app,id,curV); }
+  // ── Password binding ──────────────────────────────────────────────────────
+  // A credential is only as good as the password it was enrolled under. Every
+  // lock carries a version that moves when its password is set, changed or
+  // reset; the credential records the version it was enrolled at, and once the
+  // lock's version is newer it is dropped. Without this, anyone who learned the
+  // password ONCE could enrol their own fingerprint and keep walking in after
+  // the password changed. A credential from before this binding existed has no
+  // version: its enrolment time stands in when versions are timestamps, and
+  // anything else is treated as stale.
+  function boundV(r,curV){ return r.v!=null ? (+r.v||0) : (curV>1e12 ? (+r.created||0) : 0); }
+  function current(app,id,curV){
+    var r=stored(app,id); if(!(r&&r.id)) return false;
+    curV=+curV||0;
+    if(!curV || boundV(r,curV)>=curV) return true;
+    unregister(app,id);
+    try{ localStorage.setItem(NS+'stale_'+app+'_'+id,'1'); }catch(e){}
+    return false;
+  }
+  // True ONCE after a password change dropped this device's credential, so the
+  // next password unlock can offer to enrol again.
+  function takeStale(app,id){ var k=NS+'stale_'+app+'_'+id, s=null; try{ s=localStorage.getItem(k); localStorage.removeItem(k); }catch(e){} return s==='1'; }
   function unregister(app,id){ try{ localStorage.removeItem(keyOf(app,id)); }catch(e){} }
   function label(){
     var ua=navigator.userAgent||'';
@@ -271,12 +292,14 @@ window._mailRelay = window._mailRelay || async function (res) {
       timeout: 60000, attestation:'none'
     }}).then(function(cred){
       if(!cred) return {ok:false,error:'cancelled'};
-      localStorage.setItem(keyOf(app,id), JSON.stringify({ id:b64u(cred.rawId), created:Date.now(), label:opts.displayName||opts.userName||id }));
+      try{ localStorage.removeItem(NS+'stale_'+app+'_'+id); }catch(e){}
+      localStorage.setItem(keyOf(app,id), JSON.stringify({ id:b64u(cred.rawId), created:Date.now(), v:+(opts.v)||0, label:opts.displayName||opts.userName||id }));
       return {ok:true};
     }).catch(function(e){ return {ok:false, error:(e&&e.name)||'error', message:(e&&e.message)||'' }; });
   }
-  function authenticate(app,id){
+  function authenticate(app,id,opts){
     if(!supported()) return Promise.resolve({ok:false,error:'unsupported'});
+    if(opts&&opts.v!=null&&!current(app,id,opts.v)) return Promise.resolve({ok:false,error:'stale'});
     var rec=stored(app,id);
     if(!rec||!rec.id) return Promise.resolve({ok:false,error:'notregistered'});
     return navigator.credentials.get({publicKey:{
@@ -288,7 +311,7 @@ window._mailRelay = window._mailRelay || async function (res) {
       return {ok:true};
     }).catch(function(e){ return {ok:false, error:(e&&e.name)||'error', message:(e&&e.message)||'' }; });
   }
-  window.Bio = { supported:supported, available:available, isRegistered:isRegistered, register:register, authenticate:authenticate, unregister:unregister, label:label };
+  window.Bio = { supported:supported, available:available, isRegistered:isRegistered, register:register, authenticate:authenticate, unregister:unregister, label:label, takeStale:takeStale };
 })();
 </script>
 
@@ -5822,15 +5845,20 @@ function TBTabLockPrompt({tabId,tabLabel,onUnlocked}){
   const [showPw,setShowPw]=useState(true);
   useEffect(()=>{
     let alive=true;
-    if(window.Bio && window.Bio.isRegistered('tradehub-tab',tabId)){
-      window.Bio.available().then(a=>{ if(alive&&a) setBioReady(true); });
+    if(window.Bio){
+      // Enrolled under an older password? Bio drops it — say so, password only.
+      const had=window.Bio.isRegistered('tradehub-tab',tabId);
+      if(window.Bio.isRegistered('tradehub-tab',tabId,window._tbTabLock.version(tabId))){
+        window.Bio.available().then(a=>{ if(alive&&a) setBioReady(true); });
+      } else if(had) setErr('The password changed — enter the new one. '+window.Bio.label()+' needs registering again.');
     }
     return ()=>{alive=false;};
   },[tabId]);
   const bioUnlock=async()=>{
     setErr('');
-    const r=await window.Bio.authenticate('tradehub-tab',tabId);
+    const r=await window.Bio.authenticate('tradehub-tab',tabId,{v:window._tbTabLock.version(tabId)});
     if(r.ok){ window._tbTabLock.markUnlocked(tabId); onUnlocked(); }
+    else if(r.error==='stale'){ setShowPw(true); setBioReady(false); setErr('The password changed — enter the new one. '+window.Bio.label()+' needs registering again.'); }
     else if(r.error==='notregistered'){ setShowPw(true); setBioReady(false); }
     else { setErr('Biometric check failed — use your password.'); setShowPw(true); }
   };
@@ -5846,6 +5874,7 @@ function TBTabLockPrompt({tabId,tabLabel,onUnlocked}){
         window._tbTabLock.markUnlocked(tabId);
         console.log('[TabLock] after markUnlocked → mustBlock?', window._tbTabLock.mustBlock(tabId), '| isUnlocked?', window._tbTabLock.isUnlocked(tabId));
         onUnlocked();
+        window._tbTabLock.bioAfterPw(tabId,tabLabel,false);
       }
       else setErr(d&&d.error?('Error: '+d.error):'Wrong password.');
     }catch(e){ console.error('[TabLock] verify threw', e); setErr('Network error.'); }
@@ -5900,7 +5929,7 @@ function TBTabLockManager({tabId,tabLabel,onClose}){
   const [busy,setBusy]=useState(false);
   // Biometrics: register/remove a device credential for this tab (password stays as fallback).
   const [bioAvail,setBioAvail]=useState(false);
-  const [bioReg,setBioReg]=useState(window.Bio?window.Bio.isRegistered('tradehub-tab',tabId):false);
+  const [bioReg,setBioReg]=useState(window.Bio&&window._tbTabLock?window.Bio.isRegistered('tradehub-tab',tabId,window._tbTabLock.version(tabId)):false);
   useEffect(()=>{ let a=true; if(window.Bio) window.Bio.available().then(v=>{if(a)setBioAvail(!!v);}); return ()=>{a=false;}; },[]);
   // Locked on the account, but is THIS device still holding an unlock?
   const deviceUnlocked = !!(isLocked && window._tbTabLock && window._tbTabLock.isUnlocked(tabId));
@@ -5908,14 +5937,14 @@ function TBTabLockManager({tabId,tabLabel,onClose}){
   // device are untouched. The gate re-renders through _tbTabLock's notify.
   const lockThisDevice=()=>{ window._tbTabLock.markLocked(tabId); onClose(); };
   const bioRegister=async()=>{
-    const r=await window.Bio.register('tradehub-tab',tabId,{rpName:'TradeHub',userName:'tradehub-tab-'+tabId,displayName:tabLabel+' — TradeHub'});
+    const r=await window.Bio.register('tradehub-tab',tabId,{rpName:'TradeHub',userName:'tradehub-tab-'+tabId,displayName:tabLabel+' — TradeHub',v:window._tbTabLock.version(tabId)});
     if(r.ok){ window._tbTabLock.markUnlocked(tabId); setBioReg(true); onClose(); }
     else if(!(r.error==='cancelled'||r.error==='NotAllowedError')) setErr('Could not register biometrics.');
   };
   // Removing biometrics requires re-verifying identity — biometric OR password.
   const bioVerifyRemove=async()=>{
     setErr('');
-    const r=await window.Bio.authenticate('tradehub-tab',tabId);
+    const r=await window.Bio.authenticate('tradehub-tab',tabId,{v:window._tbTabLock.version(tabId)});
     if(r.ok){ window.Bio.unregister('tradehub-tab',tabId); setBioReg(false); onClose(); }
     else if(!(r.error==='cancelled'||r.error==='NotAllowedError')) setErr('Biometric check failed — use your password.');
   };
@@ -5929,7 +5958,7 @@ function TBTabLockManager({tabId,tabLabel,onClose}){
         console.log('[TabLock] set-lock response for', tabId, ':', JSON.stringify(d));
         const ok = d && (d.ok===true || d.success===true || d.set===true);
         if(ok){ window._tbTabLock.setLock(tabId); window._tbTabLock.markUnlocked(tabId);
-          if(window.Bio && bioAvail && !window.Bio.isRegistered('tradehub-tab',tabId)){
+          if(window.Bio && bioAvail && !window.Bio.isRegistered('tradehub-tab',tabId,window._tbTabLock.version(tabId))){
             setBusy(false);
             const okReg=await window.uiConfirm('Register '+window.Bio.label()+' to unlock '+tabLabel+' on this device? Your password still works as a fallback.',{title:'Register '+window.Bio.label(),okLabel:'Register'});
             if(okReg){ await bioRegister(); return; }
@@ -5955,7 +5984,7 @@ function TBTabLockManager({tabId,tabLabel,onClose}){
             const nh=(chg.hint)||'';
             const rem=await window._tbTabLock.removePw(tabId,p);
             if(rem.ok){ const set=await window._tbTabLock.setPw(tabId,np.trim(),nh);
-              if(set.ok){ window._tbTabLock.setLock(tabId); window._tbTabLock.markUnlocked(tabId); onClose(); }
+              if(set.ok){ const hadBio=!!(window.Bio&&window.Bio.isRegistered('tradehub-tab',tabId)); window._tbTabLock.setLock(tabId); window._tbTabLock.markUnlocked(tabId); onClose(); window._tbTabLock.bioAfterPw(tabId,tabLabel,hadBio); }
               else setErr('Failed to set new password.'); }
             else setErr('Error removing old lock.');
           } else setErr('New password empty — not changed.');
@@ -10775,12 +10804,21 @@ function alBioShowPw(show){
   if (_el('applock-reset')) _el('applock-reset').style.display = show ? '' : 'none';
   if (show) setTimeout(function(){ _el('applock-pw').focus(); }, 60);
 }
+var _alBioSeq = 0;   // newest alBioRender wins; see the note inside
 function alBioRender(mode){
   var box=_el('applock-bio'); if(!box) return; box.innerHTML=''; box.style.display='none';
+  var seq = ++_alBioSeq;
   if(!window.Bio || mode!=='unlock') return;
   window.Bio.available().then(function(avail){
-    if(_alMode!=='unlock') return;
-    if(!(avail && window.Bio.isRegistered('tradehub', APPID))) return;
+    // The overlay can be opened twice in quick succession (the gate, then a
+    // lock snapshot from Firebase). Each open cleared the box synchronously and
+    // then BOTH async callbacks appended their buttons, so the phone showed two
+    // "Unlock with…" and two "Use password instead". Only the latest render may
+    // draw, and it clears the box itself first.
+    if(seq!==_alBioSeq || _alMode!=='unlock') return;
+    box.innerHTML='';
+    var had=window.Bio.isRegistered('tradehub', APPID);
+    if(!(avail && window.Bio.isRegistered('tradehub', APPID, alLockVersion()))){ if(avail&&had) alBioStaleMsg(); return; }
     box.style.display='flex'; box.style.flexDirection='column'; box.style.gap='8px';
     var b=document.createElement('button');
     b.innerHTML=KCI.unlock+'<span>Unlock with '+window.Bio.label()+'</span>';
@@ -10798,11 +10836,12 @@ function alBioRender(mode){
 function alBioUnlock(){
   _el('applock-err').textContent='';
   if(!window.Bio) return;
-  window.Bio.authenticate('tradehub', APPID).then(function(r){
+  window.Bio.authenticate('tradehub', APPID, { v:alLockVersion() }).then(function(r){
     if(r.ok){
       if(_alRemoveBio){ alDoRemoveBio(); return; }
       alMarkUnlocked(); _alAttempts=0; alShowRoot(); alHideOverlay(); alUpdateLockBtns();
     }
+    else if(r.error==='stale'){ alBioStaleMsg(); }
     else if(r.error==='notregistered'){ alBioShowPw(true); }
     else { _el('applock-err').textContent='Biometric check failed — use your password.'; alBioShowPw(true); }
   });
@@ -10822,7 +10861,7 @@ function alDoRemoveBio(){
 }
 function alBioRegister(closeAfter){
   if(!window.Bio) return;
-  window.Bio.register('tradehub', APPID, { rpName:'TradeHub', userName:'tradehub', displayName:'TradeHub' }).then(function(r){
+  window.Bio.register('tradehub', APPID, { rpName:'TradeHub', userName:'tradehub', displayName:'TradeHub', v:alLockVersion() }).then(function(r){
     if(r.ok){ alMarkUnlocked(); if(closeAfter) alHideOverlay(); alUpdateLockBtns(); alert('Biometrics registered on this device. You can now unlock TradeHub with '+window.Bio.label()+'.'); }
     else if(r.error==='cancelled' || r.error==='NotAllowedError'){ /* user backed out */ }
     else alert('Could not register biometrics on this device.');
@@ -10831,9 +10870,22 @@ function alBioRegister(closeAfter){
 function alMaybeOfferBio(){
   if(!window.Bio) return;
   window.Bio.available().then(function(avail){
-    if(!avail || window.Bio.isRegistered('tradehub', APPID)) return;
+    if(!avail || window.Bio.isRegistered('tradehub', APPID, alLockVersion())) return;
     window.uiConfirm('Register '+window.Bio.label()+' to unlock TradeHub on this device? Your password still works as a fallback.', {title:'Register '+window.Bio.label(), okLabel:'Register'}).then(function(ok){ if(ok) alBioRegister(false); });
   });
+}
+// The password changed since this device enrolled, so its biometric no longer
+// opens TradeHub (Bio drops it): say why, and fall back to the password.
+function alBioStaleMsg(){
+  var box=_el('applock-bio'); if(box){ box.innerHTML=''; box.style.display='none'; }
+  _el('applock-err').textContent='The password changed — enter the new one. '+window.Bio.label()+' needs registering again on this device.';
+  alBioShowPw(true);
+}
+// After the password proves who this is: if a password change dropped this
+// device's biometric (or this device just changed it), offer to enrol again.
+function alBioAfterPw(hadBio){
+  if(!window.Bio) return;
+  if(window.Bio.takeStale('tradehub', APPID) || hadBio) alMaybeOfferBio();
 }
 
 // ── MANAGE MENU (triggered by the lock button) ──────────────────────────────
@@ -10903,7 +10955,7 @@ function alShowManageMenu(){
   if (window.Bio) window.Bio.available().then(function(avail){
     if(!avail) return;
     var bb=document.createElement('button');
-    if(window.Bio.isRegistered('tradehub', APPID)){
+    if(window.Bio.isRegistered('tradehub', APPID, alLockVersion())){
       bb.innerHTML=KCI.user+'<span>Remove biometrics</span>';
       bb.style.cssText=s+'color:#adadb2;';
       bb.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alBioRemovePrompt(); };
@@ -10965,7 +11017,7 @@ _el('applock-submit').addEventListener('click', async function(){
           if (remD.ok){
             var set=await fetch(AL_WORKER+'/auth/journal/set-lock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID,password:np.trim(),hint:nh})});
             var setD=await set.json();
-            if (setD.ok){ alSetLock(); alMarkUnlocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); alert('Password changed!'); }
+            if (setD.ok){ var hadBio=!!(window.Bio&&window.Bio.isRegistered('tradehub', APPID)); alSetLock(); alMarkUnlocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); await window.uiAlert('Password changed! Biometric unlock now needs registering again on every device.'); alBioAfterPw(hadBio); }
             else { _el('applock-err').textContent='Failed to set new password.'; }
           } else { _el('applock-err').textContent='Error removing old lock. Try again.'; }
         }
@@ -10977,7 +11029,7 @@ _el('applock-submit').addEventListener('click', async function(){
       if (d4.ok){
         _alAttempts=0;
         if(_alRemoveBio){ alDoRemoveBio(); }
-        else { alMarkUnlocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); }
+        else { alMarkUnlocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); alBioAfterPw(false); }
       }
       else { _alAttempts++; if(_alAttempts>=5)_alCooldown=Date.now()+30000; _alPwErr('Wrong password.'); }
     }
@@ -11074,7 +11126,7 @@ _el('applock-reset') && _el('applock-reset').addEventListener('click', async fun
     form:'https://formspree.io/f/xeedkebo',
     appName:'TradeHub',
     label:'TradeHub',
-    onSuccess:function(){ alSetLock(); alMarkUnlocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); }
+    onSuccess:function(){ var hadBio=!!(window.Bio&&window.Bio.isRegistered('tradehub', APPID)); alSetLock(); alMarkUnlocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); alBioAfterPw(hadBio); }
   });
   _el('applock-reset').textContent=prev; _el('applock-reset').disabled=false;
 });
@@ -11179,7 +11231,23 @@ window._alApplyRemoteLocks = function(remoteLocks){
   tabNotify();
 };
 
+// After a password unlock: if a password change dropped this device's biometric
+// for the tab (or this device just changed it), offer to enrol again.
+function tabBioAfterPw(tabId, tabLabel, hadBio){
+  if(!window.Bio) return;
+  if(!(window.Bio.takeStale('tradehub-tab', tabId) || hadBio)) return;
+  window.Bio.available().then(function(avail){
+    if(!avail || window.Bio.isRegistered('tradehub-tab', tabId, tabLockVersion(tabId))) return;
+    window.uiConfirm('The password changed, so '+window.Bio.label()+' no longer unlocks '+(tabLabel||'this tab')+' on this device. Register it again?', {title:'Register '+window.Bio.label(), okLabel:'Register'}).then(function(ok){
+      if(!ok) return;
+      window.Bio.register('tradehub-tab', tabId, {rpName:'TradeHub', userName:'tradehub-tab-'+tabId, displayName:(tabLabel||tabId)+' — TradeHub', v:tabLockVersion(tabId)});
+    });
+  });
+}
+
 window._tbTabLock = {
+  version: tabLockVersion,
+  bioAfterPw: tabBioAfterPw,
   isLocked: tabIsLocked,
   isUnlocked: tabIsUnlocked,
   mustBlock: tabMustBlock,
@@ -11203,7 +11271,7 @@ window._tbTabLock = {
       form: 'https://formspree.io/f/xeedkebo',
       appName: 'TradeHub',
       label: 'the "' + (tabLabel || 'tab') + '" tab',
-      onSuccess: function(){ tabSetLock(tabId); tabMarkUnlocked(tabId); }
+      onSuccess: function(){ var hadBio=!!(window.Bio&&window.Bio.isRegistered('tradehub-tab', tabId)); tabSetLock(tabId); tabMarkUnlocked(tabId); tabBioAfterPw(tabId, tabLabel, hadBio); }
     });
   },
   onChange: function(cb){ _tabLockSubs.push(cb); return function(){ _tabLockSubs = _tabLockSubs.filter(function(f){return f!==cb;}); }; },

@@ -41731,7 +41731,28 @@ body[data-th-profile="tony"] #applock-submit:hover:not(:disabled) { box-shadow: 
     return PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(function(v){return !!v;}).catch(function(){return false;});
   }
   function stored(app,id){ try{ return JSON.parse(localStorage.getItem(keyOf(app,id))||'null'); }catch(e){ return null; } }
-  function isRegistered(app,id){ var r=stored(app,id); return !!(r&&r.id); }
+  function isRegistered(app,id,curV){ return current(app,id,curV); }
+  // ── Password binding ──────────────────────────────────────────────────────
+  // A credential is only as good as the password it was enrolled under. Every
+  // lock carries a version that moves when its password is set, changed or
+  // reset; the credential records the version it was enrolled at, and once the
+  // lock's version is newer it is dropped. Without this, anyone who learned the
+  // password ONCE could enrol their own fingerprint and keep walking in after
+  // the password changed. A credential from before this binding existed has no
+  // version: its enrolment time stands in when versions are timestamps, and
+  // anything else is treated as stale.
+  function boundV(r,curV){ return r.v!=null ? (+r.v||0) : (curV>1e12 ? (+r.created||0) : 0); }
+  function current(app,id,curV){
+    var r=stored(app,id); if(!(r&&r.id)) return false;
+    curV=+curV||0;
+    if(!curV || boundV(r,curV)>=curV) return true;
+    unregister(app,id);
+    try{ localStorage.setItem(NS+'stale_'+app+'_'+id,'1'); }catch(e){}
+    return false;
+  }
+  // True ONCE after a password change dropped this device's credential, so the
+  // next password unlock can offer to enrol again.
+  function takeStale(app,id){ var k=NS+'stale_'+app+'_'+id, s=null; try{ s=localStorage.getItem(k); localStorage.removeItem(k); }catch(e){} return s==='1'; }
   function unregister(app,id){ try{ localStorage.removeItem(keyOf(app,id)); }catch(e){} }
   function label(){
     var ua=navigator.userAgent||'';
@@ -41768,8 +41789,9 @@ body[data-th-profile="tony"] #applock-submit:hover:not(:disabled) { box-shadow: 
       if(!cred) return {ok:false,error:'cancelled'};
       var ext = {}; try { ext = cred.getClientExtensionResults() || {}; } catch(e) {}
       var prfOk = !!(ext.prf && ext.prf.enabled);
+      try{ localStorage.removeItem(NS+'stale_'+app+'_'+id); }catch(e){}
       localStorage.setItem(keyOf(app,id), JSON.stringify({
-        id:b64u(cred.rawId), created:Date.now(),
+        id:b64u(cred.rawId), created:Date.now(), v:+(opts.v)||0,
         label:opts.displayName||opts.userName||id,
         prf:prfOk, prfSalt:b64u(salt)
       }));
@@ -41780,6 +41802,7 @@ body[data-th-profile="tony"] #applock-submit:hover:not(:disabled) { box-shadow: 
   function authenticate(app,id,opts){
     opts=opts||{};
     if(!supported()) return Promise.resolve({ok:false,error:'unsupported'});
+    if(opts&&opts.v!=null&&!current(app,id,opts.v)) return Promise.resolve({ok:false,error:'stale'});
     var rec=stored(app,id);
     if(!rec||!rec.id) return Promise.resolve({ok:false,error:'notregistered'});
     var want = !!(opts.withPrf && rec.prf && rec.prfSalt);
@@ -41816,7 +41839,7 @@ body[data-th-profile="tony"] #applock-submit:hover:not(:disabled) { box-shadow: 
         .catch(function(){ return false; });
     } catch(e){ return Promise.resolve(false); }
   }
-  window.Bio = { supported:supported, available:available, isRegistered:isRegistered, register:register, authenticate:authenticate, unregister:unregister, label:label, hasPrf:hasPrf, prfCapable:prfCapable };
+  window.Bio = { supported:supported, available:available, isRegistered:isRegistered, register:register, authenticate:authenticate, unregister:unregister, label:label, takeStale:takeStale, hasPrf:hasPrf, prfCapable:prfCapable };
 })();
 </script>
 
@@ -42190,13 +42213,20 @@ function alBioShowPw(show) {
   if (_el('applock-reset')) _el('applock-reset').style.display = show ? '' : 'none';
   if (show) setTimeout(function() { _el('applock-pw').focus(); }, 60);
 }
+var _alBioSeq = 0;   // newest alBioRender wins; see the note inside
 function alBioRender(appId) {
   var box = _el('applock-bio'); if (!box) return;
   box.innerHTML = ''; box.style.display = 'none';
+  var seq = ++_alBioSeq;
   if (!window.Bio || _alMode !== 'unlock') return;
   window.Bio.available().then(function(avail) {
-    if (_alPendingAppId !== appId || _alMode !== 'unlock') return;
-    if (!(avail && window.Bio.isRegistered('applock', appId))) return;
+    // Two quick opens (the gate, then a lock snapshot) each cleared the box and
+    // then BOTH async callbacks drew into it, doubling the buttons. Only the
+    // latest render draws, and it clears the box first.
+    if (seq !== _alBioSeq || _alPendingAppId !== appId || _alMode !== 'unlock') return;
+    box.innerHTML = '';
+    var had = window.Bio.isRegistered('applock', appId);
+    if (!(avail && window.Bio.isRegistered('applock', appId, alLockVersion(appId)))) { if (avail && had) alBioStaleMsg(); return; }
     var meta = AL_LABELS[appId] || { color: '#e0b874' };
     box.style.display = 'flex'; box.style.flexDirection = 'column'; box.style.gap = '8px';
     var b = document.createElement('button');
@@ -42212,7 +42242,7 @@ function alBioRender(appId) {
 function alBioUnlock(appId) {
   _el('applock-err').textContent = '';
   if (!window.Bio) return;
-  window.Bio.authenticate('applock', appId).then(function(r) {
+  window.Bio.authenticate('applock', appId, { v: alLockVersion(appId) }).then(function(r) {
     if (r.ok) {
       // Identity verified: either finish removing biometrics, or unlock as usual.
       if (_alRemoveBioFor === appId) { alDoRemoveBio(appId); return; }
@@ -42220,10 +42250,25 @@ function alBioUnlock(appId) {
       var cb = _alPendingCb; alHideOverlay(); alUpdateTonyLockBtn(); alUpdateVedaLockBtns();
       if (window._alProfileRefreshBtns) window._alProfileRefreshBtns();
       if (cb) cb();
-    } else if (r.error === 'notregistered') { alBioShowPw(true); }
+    } else if (r.error === 'stale') { alBioStaleMsg(); }
+    else if (r.error === 'notregistered') { alBioShowPw(true); }
     else { _el('applock-err').textContent = 'Biometric check failed — use your password.'; alBioShowPw(true); }
   });
 }
+// The password changed since this device enrolled, so its biometric no longer
+// opens this app (Bio drops it): say why, and fall back to the password.
+function alBioStaleMsg() {
+  var box = _el('applock-bio'); if (box) { box.innerHTML = ''; box.style.display = 'none'; }
+  _el('applock-err').textContent = 'The password changed — enter the new one. ' + window.Bio.label() + ' needs registering again on this device.';
+  alBioShowPw(true);
+}
+// After the password proves who this is: if a password change dropped this
+// device's biometric (or this device just changed it), offer to enrol again.
+function alBioAfterPw(appId, hadBio) {
+  if (!window.Bio) return;
+  if (window.Bio.takeStale('applock', appId) || hadBio) alMaybeOfferBio(appId);
+}
+function alHadBio(appId) { return !!(window.Bio && window.Bio.isRegistered('applock', appId)); }
 // Verify identity (biometric OR password) before removing this app's biometric.
 function alBioRemovePrompt(appId) {
   _alRemoveBioFor = appId;
@@ -42243,7 +42288,7 @@ function alDoRemoveBio(appId) {
 function alBioRegister(appId, closeAfter) {
   if (!window.Bio) return;
   var meta = AL_LABELS[appId] || { label: appId };
-  window.Bio.register('applock', appId, { rpName: 'Index', userName: 'index-' + appId, displayName: (meta.label) + (meta.isProfile ? ' profile' : '') + ' — Index' }).then(function(r) {
+  window.Bio.register('applock', appId, { rpName: 'Index', userName: 'index-' + appId, displayName: (meta.label) + (meta.isProfile ? ' profile' : '') + ' — Index', v: alLockVersion(appId) }).then(function(r) {
     if (r.ok) {
       alMarkUnlocked(appId); if (closeAfter) alHideOverlay();
       alUpdateTonyLockBtn(); alUpdateVedaLockBtns(); if (window._alProfileRefreshBtns) window._alProfileRefreshBtns();
@@ -42255,7 +42300,7 @@ function alBioRegister(appId, closeAfter) {
 function alMaybeOfferBio(appId) {
   if (!window.Bio) return;
   window.Bio.available().then(function(avail) {
-    if (!avail || window.Bio.isRegistered('applock', appId)) return;
+    if (!avail || window.Bio.isRegistered('applock', appId, alLockVersion(appId))) return;
     var meta = AL_LABELS[appId] || { label: appId };
     window.uiConfirm('Register ' + window.Bio.label() + ' to unlock ' + meta.label + ' on this device? Your password still works as a fallback.', { title: 'Register ' + window.Bio.label(), okLabel: 'Register' }).then(function(ok) { if (ok) alBioRegister(appId, false); });
   });
@@ -42456,7 +42501,7 @@ function alShowManageMenu(appId) {
   if (window.Bio) window.Bio.available().then(function(avail) {
     if (!avail || _alPendingAppId !== appId) return;
     var bb = document.createElement('button');
-    if (window.Bio.isRegistered('applock', appId)) {
+    if (window.Bio.isRegistered('applock', appId, alLockVersion(appId))) {
       bb.innerHTML = TNI.user + '<span>Remove biometrics</span>';
       bb.style.cssText = s + 'background:transparent;color:#adadb2;border:1px solid #45454c;';
       bb.onclick = function() { menu.remove(); _el('applock-submit').style.display=''; alBioRemovePrompt(appId); };
@@ -42525,7 +42570,7 @@ function alShowManageMenu(appId) {
             if (remD.ok) {
               var set = await fetch(AL_WORKER+'/auth/journal/set-lock', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:appId,password:np.trim(),hint:nh})});
               var setD = await set.json();
-              if (setD.ok) { alSetLock(appId); alMarkUnlocked(appId); alHideOverlay(); alUpdateTonyLockBtn(); alUpdateVedaLockBtns(); if (window._alProfileRefreshBtns) window._alProfileRefreshBtns(); alert('Password changed!'); }
+              if (setD.ok) { var hadBio = alHadBio(appId); alSetLock(appId); alMarkUnlocked(appId); alHideOverlay(); alUpdateTonyLockBtn(); alUpdateVedaLockBtns(); if (window._alProfileRefreshBtns) window._alProfileRefreshBtns(); await window.uiAlert('Password changed! Biometric unlock now needs registering again on every device.'); alBioAfterPw(appId, hadBio); }
               else { _el('applock-err').textContent = 'Failed to set new password.'; }
             } else { _el('applock-err').textContent = 'Error removing old lock. Try again.'; }
           }
@@ -42537,7 +42582,7 @@ function alShowManageMenu(appId) {
         if (d4.ok) {
           _alAttempts[appId]=0;
           if (_alRemoveBioFor === appId) { alDoRemoveBio(appId); }
-          else { alMarkUnlocked(appId); var cb=_alPendingCb; alHideOverlay(); alUpdateTonyLockBtn(); alUpdateVedaLockBtns(); if(cb) cb(); }
+          else { alMarkUnlocked(appId); var cb=_alPendingCb; alHideOverlay(); alUpdateTonyLockBtn(); alUpdateVedaLockBtns(); if(cb) cb(); alBioAfterPw(appId, false); }
         }
         else { _alAttempts[appId]=(_alAttempts[appId]||0)+1; if(_alAttempts[appId]>=5)_alCooldowns[appId]=Date.now()+30000; _alPwErr('Wrong password.'); }
       }
@@ -42598,9 +42643,11 @@ function alShowManageMenu(appId) {
       appName: meta.isProfile ? (meta.label + ' profile') : meta.label,
       label: meta.isProfile ? (meta.label + "'s profile") : ('the ' + meta.label + ' app'),
       onSuccess: function() {
+        var hadBio = alHadBio(appId3);
         alSetLock(appId3); alMarkUnlocked(appId3); alHideOverlay();
         alUpdateTonyLockBtn(); alUpdateVedaLockBtns();
         if (window._alProfileRefreshBtns) window._alProfileRefreshBtns();
+        alBioAfterPw(appId3, hadBio);
       }
     });
     _el('applock-reset').textContent = prev; _el('applock-reset').disabled = false;

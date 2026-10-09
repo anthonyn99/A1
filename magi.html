@@ -5991,7 +5991,28 @@ window._mailRelay = window._mailRelay || async function (res) {
     return PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(function(v){return !!v;}).catch(function(){return false;});
   }
   function stored(app,id){ try{ return JSON.parse(localStorage.getItem(keyOf(app,id))||'null'); }catch(e){ return null; } }
-  function isRegistered(app,id){ var r=stored(app,id); return !!(r&&r.id); }
+  function isRegistered(app,id,curV){ return current(app,id,curV); }
+  // ── Password binding ──────────────────────────────────────────────────────
+  // A credential is only as good as the password it was enrolled under. Every
+  // lock carries a version that moves when its password is set, changed or
+  // reset; the credential records the version it was enrolled at, and once the
+  // lock's version is newer it is dropped. Without this, anyone who learned the
+  // password ONCE could enrol their own fingerprint and keep walking in after
+  // the password changed. A credential from before this binding existed has no
+  // version: its enrolment time stands in when versions are timestamps, and
+  // anything else is treated as stale.
+  function boundV(r,curV){ return r.v!=null ? (+r.v||0) : (curV>1e12 ? (+r.created||0) : 0); }
+  function current(app,id,curV){
+    var r=stored(app,id); if(!(r&&r.id)) return false;
+    curV=+curV||0;
+    if(!curV || boundV(r,curV)>=curV) return true;
+    unregister(app,id);
+    try{ localStorage.setItem(NS+'stale_'+app+'_'+id,'1'); }catch(e){}
+    return false;
+  }
+  // True ONCE after a password change dropped this device's credential, so the
+  // next password unlock can offer to enrol again.
+  function takeStale(app,id){ var k=NS+'stale_'+app+'_'+id, s=null; try{ s=localStorage.getItem(k); localStorage.removeItem(k); }catch(e){} return s==='1'; }
   function unregister(app,id){ try{ localStorage.removeItem(keyOf(app,id)); }catch(e){} }
   function label(){
     var ua=navigator.userAgent||'';
@@ -6013,12 +6034,14 @@ window._mailRelay = window._mailRelay || async function (res) {
       timeout: 60000, attestation:'none'
     }}).then(function(cred){
       if(!cred) return {ok:false,error:'cancelled'};
-      localStorage.setItem(keyOf(app,id), JSON.stringify({ id:b64u(cred.rawId), created:Date.now(), label:opts.displayName||opts.userName||id }));
+      try{ localStorage.removeItem(NS+'stale_'+app+'_'+id); }catch(e){}
+      localStorage.setItem(keyOf(app,id), JSON.stringify({ id:b64u(cred.rawId), created:Date.now(), v:+(opts.v)||0, label:opts.displayName||opts.userName||id }));
       return {ok:true};
     }).catch(function(e){ return {ok:false, error:(e&&e.name)||'error', message:(e&&e.message)||'' }; });
   }
-  function authenticate(app,id){
+  function authenticate(app,id,opts){
     if(!supported()) return Promise.resolve({ok:false,error:'unsupported'});
+    if(opts&&opts.v!=null&&!current(app,id,opts.v)) return Promise.resolve({ok:false,error:'stale'});
     var rec=stored(app,id);
     if(!rec||!rec.id) return Promise.resolve({ok:false,error:'notregistered'});
     return navigator.credentials.get({publicKey:{
@@ -6030,7 +6053,7 @@ window._mailRelay = window._mailRelay || async function (res) {
       return {ok:true};
     }).catch(function(e){ return {ok:false, error:(e&&e.name)||'error', message:(e&&e.message)||'' }; });
   }
-  window.Bio = { supported:supported, available:available, isRegistered:isRegistered, register:register, authenticate:authenticate, unregister:unregister, label:label };
+  window.Bio = { supported:supported, available:available, isRegistered:isRegistered, register:register, authenticate:authenticate, unregister:unregister, label:label, takeStale:takeStale };
 })();
 </script>
 
