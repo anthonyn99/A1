@@ -1045,6 +1045,12 @@ window._mailRelay = window._mailRelay || async function (res) {
   const BIO_APP = 'insight', BIO_ID = 'tony';
   const LOCKED_LS = 'insight_locked';   // set while manually locked
   const bioRegistered = () => !!(window.Bio && Bio.isRegistered(BIO_APP, BIO_ID));
+  // The server refusing this device's session means the password changed (the
+  // token is stamped with the password's fingerprint). The biometric enrolled
+  // under the OLD password goes with it, on every device, so learning the
+  // password once is never enough to keep a fingerprint that outlives it; the
+  // next password unlock offers to enrol again.
+  const dropBio = () => { if (bioRegistered()) Bio.unregister(BIO_APP, BIO_ID); };
 
   function persistSession() {
     try { localStorage.setItem(LOCK_LS, JSON.stringify(lockSession)); } catch {}
@@ -1099,8 +1105,9 @@ window._mailRelay = window._mailRelay || async function (res) {
       if (!chk.ok) {
         try { localStorage.removeItem(LOCK_LS); } catch {}
         lockSession = null;
+        dropBio();
         lockEl('lockBio').style.display = 'none';
-        lockMsg('The password was changed — enter the new one.');
+        lockMsg(`The password was changed — enter the new one. ${Bio.label()} needs registering again on this device.`);
         return;
       }
     } catch { /* offline: trust the local token */ }
@@ -1422,7 +1429,12 @@ window._mailRelay = window._mailRelay || async function (res) {
         return;
       }
       lockHint = hint;
-      if (await openSession(p1)) { hideLock(); toast('Password changed', true); }
+      const hadBio = bioRegistered();
+      dropBio();
+      if (await openSession(p1)) {
+        hideLock(); toast('Password changed — biometric unlock needs registering again on every device', true);
+        if (hadBio) maybeOfferBio();
+      }
       else lockMsg('Password changed, but this device could not reopen — reload and unlock.');
       return;
     }
@@ -1443,6 +1455,7 @@ window._mailRelay = window._mailRelay || async function (res) {
         return;
       }
       lockHint = hint;
+      dropBio();
       if (await openSession(p1)) { hideLock(); toast('Password reset — you\'re unlocked', true); maybeOfferBio(); }
     }
   }
@@ -1491,6 +1504,7 @@ window._mailRelay = window._mailRelay || async function (res) {
         lockSession = null;
         try { localStorage.removeItem(LOCK_LS); } catch {}
         setLockedFlag(false);
+        dropBio();
         showLock();
         lockMsg('The password was changed — enter the new one.');
       }
