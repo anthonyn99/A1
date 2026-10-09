@@ -32,7 +32,14 @@ try { babelParse = require('@babel/parser').parse; } catch (e) { /* optional */ 
 // inline, so the HTML scanner below never sees them — a syntax error here is
 // just as fatal (backup.js runs on every page load) and would otherwise ship
 // unnoticed.
-const ROOT_SCRIPTS = ['backup.js', 'dragsort.js', 'hoverfx.js', 'resizegrip.js', 'tabsync.js', path.join('LifeHub', 'lifehub.js')];
+const ROOT_SCRIPTS = ['backup.js', 'dragsort.js', 'hoverfx.js', 'resizegrip.js', 'tabsync.js', path.join('LifeHub', 'lifehub.js'),
+  // Notebook (the journals): every .js in the folder, so a new file is checked the day it lands.
+  ...(function nb(dir) {
+    const abs = path.join(__dirname, '..', dir);
+    if (!fs.existsSync(abs)) return [];
+    return fs.readdirSync(abs, { withFileTypes: true }).flatMap((d) =>
+      d.isDirectory() ? nb(path.join(dir, d.name)) : d.name.endsWith('.js') ? [path.join(dir, d.name)] : []);
+  })('Notebook')];
 
 // Cloudflare Worker entrypoints. These were unchecked for a long time and it
 // cost a silent outage: a worker.js with a literal newline inside a quoted

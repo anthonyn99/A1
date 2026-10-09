@@ -1,7 +1,8 @@
 #!/bin/sh
-# Pre-commit guards. Two independent sections:
+# Pre-commit guards. Three independent sections:
 #   1. Repository integrity  — always runs, never blocks.
-#   2. index.html test gate  — runs only for commits touching index.html/tests.
+#   2. index.html test gate  — runs only for commits touching index.html/tests/Notebook.
+#   3. Notebook stamp        — re-stamps the hosts when Notebook/ changes (runs first).
 #
 # Enable once per clone:   git config core.hooksPath .githooks
 # Bypass in an emergency:  git commit --no-verify
@@ -64,7 +65,17 @@ fi
 # protect against silent DATA LOSS (the "my edits reverted" bug), which is why
 # they are checked here and not only in CI. This section DOES block.
 
-if git diff --cached --name-only | grep -qE '^(index\.html|tests/)'; then
+# ── 3. Notebook stamp ──────────────────────────────────────────────────────
+# Hosts load Notebook/notebook.js?v=<hash of Notebook/>. A commit that changes
+# Notebook/ re-stamps every host in the same commit, so Pages' 10-minute cache
+# never mixes old and new files (tests/notebook-wiring.test.js checks it too).
+if git diff --cached --name-only | grep -qE '^Notebook/' && command -v node >/dev/null 2>&1; then
+  node tools/notebook-stamp.js >/dev/null && \
+    node -e "console.log(require('./tools/notebook-stamp.js').hosts().map(f=>require('path').relative('.',f)).join('\n'))" | \
+    while IFS= read -r h; do git add -- "$h"; done
+fi
+
+if git diff --cached --name-only | grep -qE '^(index\.html|tests/|Notebook/)'; then
   command -v node >/dev/null 2>&1 || {
     echo "pre-commit: node not found; skipping sync-guard tests." >&2
     exit 0
