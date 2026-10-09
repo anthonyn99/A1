@@ -15326,7 +15326,13 @@ function codeUserBubble(t, ev) {
     ta.maxLength = MAX_TASK_MESSAGE_CHARS;
     ta.dataset.msgEdit = ev.id;
     ta.oninput = () => { ed.draft = ta.value; ed.pos = ta.selectionStart; };
-    ta.onkeyup = ta.onclick = () => { ed.pos = ta.selectionStart; };
+    ta.onkeyup = ta.onclick = () => { ed.pos = ta.selectionStart; ed.focus = true; };
+    // A redraw removes this textarea (focus falls to <body>): keep the caret
+    // here. Clicking somewhere else is a real blur: stop pulling focus back.
+    ta.onblur = () => setTimeout(() => {
+      const a = document.activeElement;
+      if (a && a !== document.body && !(a.dataset && a.dataset.msgEdit)) ed.focus = false;
+    }, 0);
     const save = el("button", null, "Save");
     save.type = "button";
     save.onclick = () => {
