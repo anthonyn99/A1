@@ -1,0 +1,28 @@
+# ── TradeBoard News Worker (Veda's account) ───────────────────────────────────
+# Veda's own copy of A1's newshub-api, serving TradeBoard's News + Control tabs.
+# Deploys with every other V1 worker via .github/workflows/deploy-v1-workers.yml
+# (any V1/workers/* folder with a wrangler config is picked up automatically).
+#
+# Secrets live in Cloudflare only (wrangler secret put …), never in this repo:
+#   GEMINI_KEY  — Veda's Gemini key (AI scoring, summaries, sector detection)
+#   ADMIN_KEY   — unlocks the operator routes (?admin=…)
+#   Optional: FINNHUB_KEY, MARKETAUX_KEY, STOCKDATA_KEY, ALPHAVANTAGE_KEY,
+#   NVIDIA_API_KEY. Without them the worker uses its keyless sources.
+
+name = "tradeboard-news"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+# No cron trigger: Veda's Cloudflare account is at the free plan's limit of 5
+# cron triggers (2026-10-08), and a [triggers] block here would fail every
+# deploy. TradeBoard's morning check builds the day's news from the browser
+# instead. To restore the 6am pre-warm, free a slot and add back:
+#   [triggers]
+#   crons = ["0 12 * * *"]   # 06:00 MDT / 05:00 MST
+
+[[kv_namespaces]]
+binding = "NEWSHUB_CACHE"
+id = "9ea6832f2646479c880fb9c250937d3b"
+
+[vars]
+WORKER_ORIGIN = "https://tradeboard-news.vedapatel05.workers.dev"

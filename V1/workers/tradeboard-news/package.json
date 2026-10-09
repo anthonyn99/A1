@@ -1,0 +1,14 @@
+{
+  "name": "tradeboard-news",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Veda's TradeBoard News worker (copy of A1 newshub-api, her own keys, KV and cron).",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

@@ -23,6 +23,12 @@ service cloud.firestore {
     match /tradeboard/UboRGuQZT5QlGhJa1U4zMSd7Sm12 {
       allow read, write: if request.auth != null;
     }
+    // TradeBoard News (added 2026-10-08). The news feed is tens of KB and is
+    // rewritten on every build, so it gets its own pinned document instead of
+    // sharing the 1 MiB main doc with the journal. Same boundary as above.
+    match /tradeboard/UboRGuQZT5QlGhJa1U4zMSd7Sm12_news {
+      allow read, write: if request.auth != null;
+    }
 
     // ── Finance ───────────────────────────────────────────────────────────
     // Finance stores far more than one document (transactions, accounts,
@@ -35,6 +41,20 @@ service cloud.firestore {
     // service account is already fully privileged. These rules therefore govern
     // only browser clients.
     match /finance/{document=**} {
+      allow read, write: if request.auth != null;
+    }
+
+    // ── FFP (added 2026-08-10) ────────────────────────────────────────────
+    // FFP is an independent deployment of the Finance program (see the FFP
+    // repo). It is isolated from the live app: its own Cloudflare KV namespace
+    // and its own Firestore subtree, so the two never share a document.
+    //
+    // Same boundary as /finance/ above, and the same division of labour: the
+    // ffp-api Worker writes here with a service account, which bypasses these
+    // rules entirely, so this block governs only the BROWSER. Without it the
+    // browser's reads are refused by the catch-all below and FFP loads but
+    // stays permanently empty — while the Worker's sync reports success.
+    match /ffp/{document=**} {
       allow read, write: if request.auth != null;
     }
 

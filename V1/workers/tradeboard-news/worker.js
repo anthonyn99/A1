@@ -1,0 +1,4838 @@
+// ============================================================================
+// tradeboard-news — Cloudflare Worker (VEDA'S account)
+//
+// Veda's own copy of Tony's newshub-api (workers/newshub-api/worker.js in A1),
+// powering the News + Control tabs of TradeBoard (V1/TradeBoard/tradeboard.html).
+// Same pipeline — fetch → cluster → AI-score → cache per watchlist — but fully
+// separate: its own KV, its own daily force-fresh budget, its own 6am cron
+// pre-warm of HER watchlist, and HER Gemini key. Nothing here talks to Tony's
+// worker or his Firebase project.
+//
+// Differences from newshub-api, all deliberate:
+//   • Default WATCHLIST is Veda's list (and the static sector/alias tables
+//     cover it), so the cron-warmed 'events:v1' key is the one her app reads.
+//   • Runs WITHOUT a Finnhub/Marketaux/etc. key: any source whose key is not
+//     set is skipped (it used to burn one of Cloudflare's 50 subrequests per
+//     call for a 401), and keyless sources fill in — Yahoo Finance RSS (bulk),
+//     Google News RSS per ticker, TickerTick, SEC EDGAR. Quotes for Top Movers
+//     come from Yahoo's bulk spark endpoint when there's no Finnhub key. Adding
+//     FINNHUB_KEY later switches those back on with no code change.
+//   • The cron pre-warms News only (TradeBoard has no Catalysts tab).
+//   • The Firebase REST pushes are no-ops (they targeted Tony's project).
+//   • Operator routes need ?admin=<ADMIN_KEY> instead of Tony's App Check.
+//
+// Secrets (wrangler secret put): GEMINI_KEY (required), ADMIN_KEY (operator
+// routes), optional FINNHUB_KEY / MARKETAUX_KEY / STOCKDATA_KEY /
+// ALPHAVANTAGE_KEY / NVIDIA_API_KEY.  KV binding: NEWSHUB_CACHE.
+// ============================================================================
+
+// ── Admin-only routes ──────────────────────────────────────────────────────
+// Tony's newshub-api gates its operator routes with App Check against HIS
+// Firebase project, which TradeBoard cannot mint tokens for. Here the routes the
+// app never calls (diagnostics, cache wipes, AI test calls that spend Veda's
+// Gemini quota) need ?admin=<ADMIN_KEY> instead — a Worker secret, never in the
+// page. Everything the app calls (/news /summary /sectors /quotes /rate-status
+// /watchlist) stays open, as it is on Tony's worker.
+function requireAdmin(url, env){
+  const want = env.ADMIN_KEY || '';
+  if (want && url.searchParams.get('admin') === want) return null;
+  return new Response(JSON.stringify({ ok:false, error:'forbidden' }),
+    { status: 403, headers: { 'Content-Type':'application/json', 'Access-Control-Allow-Origin':'*' } });
+}
+// ── Canonical default watchlist — Veda's list ─────────────────────────────
+// MUST hold the same MEMBERS as TradeBoard's TBW_DEFAULT (order doesn't matter,
+// see wlHash). A request for exactly this set reads the cron-warmed 'events:v1'
+// key; any other list gets its own per-list key.
+const WATCHLIST = ['VMC','MMM','AAPL','COF','WMT','PLTR','LMND','GOOGL','TSLA','SCCO','BABA','FOX','AMZN','FRO','NVDA','SMH','CRDO','MU','SNDK','INTC','BE'];
+
+// Sector inference table (mirrors client TB_TICKER_SECTORS). Unknown → 'Diversified'
+// so news still surfaces for tickers not listed here.
+const SECTOR_LOOKUP = {
+  SNDK:'Storage', MU:'Semiconductor/Memory', WDC:'Storage', INTC:'Semiconductor',
+  AMD:'Semiconductor', CRDO:'Semiconductor', MRVL:'AI/Semiconductor', DRAM:'Semiconductor/Memory',
+  SKHY:'Semiconductor/Memory', // SK Hynix ADR — Nasdaq-listed Jul 2026 (HBM/DRAM/NAND leader)
+  LMT:'Defense', CRWD:'Cybersecurity', NET:'Cybersecurity', BE:'Clean Energy',
+  GOOGL:'Tech/Mega-Cap', AAPL:'Tech/Mega-Cap', MSFT:'Tech/Mega-Cap',
+  PLTR:'AI/Software', NVDA:'AI/Semiconductor', TSLA:'EV/Auto', SPCX:'Space/SPAC',
+  SCCO:'Copper/Mining', ERO:'Copper/Mining', WMT:'Retail', AMZN:'Tech/Retail',
+  BABA:'China/Tech', LMND:'InsurTech', EXPE:'Travel', NVS:'Pharma', MS:'Financials',
+  XOM:'Energy', CVX:'Energy', VLO:'Refining', CNQ:'Energy',
+  COF:'Financials', FCX:'Copper/Mining', MMM:'Industrials', SMH:'Semiconductor',
+  VMC:'Materials/Construction',
+  FOX:'Media', FRO:'Shipping/Tankers',
+};
+// Runtime overlay: AI-derived sectors hydrated from KV (meta:TICKER) for tickers
+// not in the static table above. Merged via hydrateMeta() before each build so
+// inferSector() and the Gemini prompt see real sectors for newly-added tickers.
+const SECTOR_DERIVED = {};
+function inferSector(t){ return SECTOR_LOOKUP[t] || SECTOR_DERIVED[t] || 'Diversified'; }
+
+// Company-name aliases so headline matching catches articles that name the
+// company but not the ticker. Extend freely — unknown tickers match on symbol.
+// Aliases include: company names, key CEOs/execs, major products, and sub-brands.
+// More aliases = more legitimate headlines caught when ticker symbol isn't in headline.
+const ALIASES = {
+  DRAM:['dram'],
+  SKHY:['sk hynix','hynix','sk hynix inc','skhynix'],
+  SNDK:['sandisk'],
+  MU:['micron','sanjay mehrotra','hbm3','hbm4'],
+  INTC:['intel','pat gelsinger','lip-bu tan','gaudi','foundry','18a'],
+  WDC:['western digital'],
+  AMD:['advanced micro','lisa su','epyc','ryzen','instinct','mi300','mi325','mi350','rocm'],
+  CRWD:['crowdstrike','falcon platform','george kurtz'],
+  BE:['bloom energy','kr sridhar','fuel cell'],
+  LMT:['lockheed','lockheed martin','f-35','jim taiclet','sikorsky','skunk works'],
+  GOOGL:['google','alphabet','sundar pichai','youtube','waymo','deepmind','gemini model','android','pixel','google cloud','search ads'],
+  PLTR:['palantir','alex karp','foundry platform','gotham','aip'],
+  NVDA:['nvidia','jensen huang','blackwell','h100','h200','b100','b200','gb200','gb300','rubin','cuda','dgx','grace hopper','hopper gpu'],
+  CRDO:['credo','credo technology','seet','active electrical cable'],
+  TSLA:['tesla','elon musk','cybertruck','model y','model 3','model s','model x','robotaxi','cybercab','fsd','full self-driving','optimus','dojo','gigafactory','semi truck'],
+  SPCX:['spacex','starship','starlink','falcon 9','dragon capsule'],
+  AAPL:['apple','tim cook','iphone','ipad','macbook','vision pro','app store','apple silicon','m4 chip','apple intelligence','aapl'],
+  MSFT:['microsoft','satya nadella','azure','copilot','xbox','activision','openai partnership','dynamics 365'],
+  NET:['cloudflare','matthew prince','workers ai','r2 storage','warp client'],
+  SCCO:['southern copper','grupo mexico','buenavista'],
+  ERO:['ero copper','caraiba','tucuma','xavantina'],
+  WMT:['walmart','doug mcmillon','sam\'s club','walmart+','flipkart'],
+  AMZN:['amazon','aws','bezos','andy jassy','prime day','rufus','bedrock','anthropic deal','kuiper','whole foods','twitch'],
+  BABA:['alibaba','jack ma','daniel zhang','eddie wu','taobao','tmall','aliexpress','alicloud','ant group','cainiao'],
+  MRVL:['marvell'],
+  LMND:['lemonade','daniel schreiber','shai wininger'],
+  EXPE:['expedia','vrbo','hotels.com','trivago','ariane gorin'],
+  NVS:['novartis','vas narasimhan','kisqali','entresto','pluvicto','cosentyx'],
+  MS:['morgan stanley','ted pick','james gorman','wealth management'],
+  XOM:['exxon','exxonmobil','darren woods','permian basin','pioneer natural'],
+  CVX:['chevron','mike wirth','hess corp','tengizchevroil'],
+  VLO:['valero','valero energy','lane riggs','crack spread'],
+  CNQ:['canadian natural','canadian natural resources','tim mckay','oil sands'],
+  COF:['capital one','richard fairbank','discover financial','venture x'],
+  FCX:['freeport','freeport-mcmoran','freeport mcmoran','grasberg','kathleen quirk'],
+  MMM:['3m','3m company','william brown','post-it','scotch tape','solventum'],
+  SMH:['vaneck semiconductor','semiconductor etf','soxx','philadelphia semiconductor','sox index'],
+  VMC:['vulcan materials','vulcan','aggregates','crushed stone','tom hill'],
+  FOX:['fox corp','fox corporation','fox news','lachlan murdoch','tubi','fox sports','fox one'],
+  FRO:['frontline','frontline plc','lars barstad','vlcc','suezmax'],
+};
+// AI-derived aliases (from KV meta:TICKER) merged in at build time by hydrateMeta().
+const ALIASES_DERIVED = {};
+function aliasesFor(t){ return ALIASES[t] || ALIASES_DERIVED[t] || []; }
+
+// ── Industry / supply-chain THEME attribution ──────────────────────────────
+// isRelevant() only catches articles that name a ticker or its company alias.
+// But the BIGGEST moves often come from news that names NONE of our companies:
+// a rival's capex cut, an industry supply glut, a commodity swing, an export
+// control. "SK Hynix slows memory expansion" / "Korea memory output cut" tanks
+// SNDK/MU/WDC without naming any of them — so the old filter dropped it.
+//
+// THEMES bridges that gap. If an article hits a theme's keywords it is
+// attributed to every watchlist ticker that theme affects. Clustering then
+// folds the multi-attribution into one event and the AI scores its impact.
+// Keep keywords SPECIFIC (industry/supply/pricing/policy terms) so we widen
+// coverage of real sector news without dragging in generic noise.
+const THEMES = [
+  // Memory / NAND / DRAM / HBM supply + pricing (SKHY, SNDK, MU, WDC)
+  { tickers:['SKHY','SNDK','MU','WDC'], kw:[
+    /\bsk[\s-]?hynix\b/, /\bhynix\b/, /\bkioxia\b/, /\bymtc\b/, /\bmicron\b/,
+    /\bnand\b/, /\bdram\b/, /\bhbm\d?e?\b/, /\bflash memory\b/, /\bnand flash\b/,
+    /\bmemory (chip|chips|price|prices|pricing|market|glut|shortage|demand|supply|capex|expansion|output|production|oversupply|undersupply)\b/,
+    /\bchip (glut|oversupply|shortage)\b/, /\bssd (price|pricing|shortage)\b/,
+    /\bsamsung (electronics|memory|semiconductor|semiconductors|chip|chips)\b/,
+  ] },
+  // HBM / advanced-packaging — the AI-accelerator memory bottleneck. The memory
+  // theme above maps HBM news to the memory MAKERS (SNDK/MU/WDC); this maps the
+  // SAME supply signal through to the accelerator / interconnect names, so
+  // "SK Hynix qualifies HBM4 at Nvidia" or a CoWoS capacity crunch reads through
+  // to NVDA/AMD/MRVL/CRDO instead of only tagging the memory suppliers.
+  { tickers:['NVDA','AMD','MRVL','CRDO'], kw:[
+    /\bhbm\d?e?\b/, /\bhigh[- ]bandwidth memory\b/, /\bcowos\b/,
+    /\badvanced packaging\b/, /\bchip[- ]on[- ]wafer\b/,
+  ] },
+  // Broad semiconductor supply / equipment / trade policy (semis on the list).
+  // SMH is the VanEck semis ETF — broad semi news moves it directly.
+  { tickers:['SKHY','INTC','AMD','NVDA','CRDO','MU','MRVL','SMH'], kw:[
+    /\btsmc\b/, /\btaiwan semiconductor\b/, /\basml\b/, /\bapplied materials\b/,
+    /\bchip (export|exports|tariff|tariffs|ban|bans|curb|curbs|control|controls)\b/,
+    /\bsemiconductor (tariff|tariffs|export|exports|subsid|shortage|glut)\b/,
+    /\bchips act\b/, /\beuv\b/, /\bwafer (fab|price|prices|shortage)\b/,
+    /\bfoundry (capacity|price|prices|demand|utilization)\b/, /\bsemiconductor index\b/,
+  ] },
+  // Copper / industrial metals (SCCO, ERO, FCX)
+  { tickers:['SCCO','ERO','FCX'], kw:[
+    /\bcopper (price|prices|demand|supply|market|futures|inventories|smelter|smelting|output)\b/,
+    /\blme copper\b/, /\bcodelco\b/, /\bfreeport\b/, /\bcomex copper\b/,
+  ] },
+  // Crude / refining (XOM, CVX, VLO, CNQ)
+  { tickers:['XOM','CVX','VLO','CNQ'], kw:[
+    /\bopec\b/, /\bopec\+/, /\bcrude oil\b/, /\bbrent crude\b/, /\bwti crude\b/,
+    /\boil price\b/, /\boil prices\b/, /\brefining margin\b/, /\bcrack spread\b/,
+    /\b(oil|crude) (output|supply|production) cut\b/,
+  ] },
+  // Defense spending (LMT)
+  { tickers:['LMT'], kw:[
+    /\bpentagon budget\b/, /\bdefense (budget|spending|appropriation|appropriations)\b/,
+    /\bndaa\b/, /\bdefense contract\b/, /\bmissile (order|deal|defense)\b/,
+  ] },
+  // ── Veda's list ──────────────────────────────────────────────────────────
+  // Crude tankers (FRO): freight rates and chokepoints move it, rarely named.
+  { tickers:['FRO'], kw:[
+    /\btanker (rates?|market|demand|fleet|stocks?)\b/, /\bvlccs?\b/, /\bsuezmax\b/,
+    /\bfreight rates?\b/, /\bstrait of hormuz\b/, /\bred sea (shipping|attacks?)\b/,
+    /\bopec\b/, /\bopec\+/, /\boil (exports?|sanctions?)\b/, /\bshadow fleet\b/,
+  ] },
+  // Media / advertising / sports rights (FOX)
+  { tickers:['FOX'], kw:[
+    /\b(tv|television|linear tv|political) ad(vertising)? (market|spending|revenue)\b/,
+    /\bnfl (rights|media rights|broadcast)\b/, /\bcord[- ]cutting\b/, /\bcable news ratings?\b/,
+  ] },
+  // Consumer credit (COF)
+  { tickers:['COF'], kw:[
+    /\bcredit card (delinquenc\w*|charge[- ]offs?|debt|rate cap|interest cap)\b/,
+    /\bconsumer credit\b/, /\bcfpb\b/, /\bswipe fees?\b/, /\binterchange fees?\b/,
+  ] },
+  // US consumer spending / retail (WMT, AMZN)
+  { tickers:['WMT','AMZN'], kw:[
+    /\bretail sales\b/, /\bconsumer (spending|confidence|sentiment)\b/,
+    /\bholiday (shopping|sales|season)\b/, /\bimport tariffs?\b/,
+  ] },
+  // China tech / US-China policy (BABA)
+  { tickers:['BABA'], kw:[
+    /\bchina (stimulus|tech crackdown|consumer|retail sales|e-?commerce)\b/,
+    /\bhang seng tech\b/, /\bdelist\w*\b.*\bchinese\b/, /\bus[- ]china (trade|talks|tariffs?|tensions?)\b/,
+  ] },
+  // AI infrastructure spending (NVDA, SMH, CRDO, PLTR, GOOGL, AMZN)
+  { tickers:['NVDA','SMH','CRDO','GOOGL','AMZN'], kw:[
+    /\b(ai|data[- ]center) (capex|spending|build[- ]?out|investment)\b/, /\bhyperscalers?\b/,
+    /\bstargate\b/, /\bai chip (export|exports|ban|curbs?)\b/,
+  ] },
+  // Construction / infrastructure (VMC, MMM)
+  { tickers:['VMC','MMM'], kw:[
+    /\binfrastructure (bill|spending|act)\b/, /\bhousing starts\b/, /\bconstruction spending\b/,
+    /\bism manufacturing\b/, /\bindustrial production\b/,
+  ] },
+  // EV / autos (TSLA)
+  { tickers:['TSLA'], kw:[
+    /\bev (sales|demand|tax credits?|subsid\w*|price war)\b/, /\belectric vehicle (sales|demand|tax credits?)\b/,
+    /\brobotaxis?\b/, /\bauto tariffs?\b/,
+  ] },
+  // Fuel cells / power for data centers (BE)
+  { tickers:['BE'], kw:[
+    /\bfuel cells?\b/, /\bdata center power\b/, /\bpower demand\b.*\bai\b/, /\bhydrogen (tax credit|hub)\b/,
+  ] },
+  // Insurance (LMND)
+  { tickers:['LMND'], kw:[
+    /\binsurtech\b/, /\bhomeowners insurance\b/, /\bcatastrophe losses\b/, /\bhurricane (losses|damage)\b/,
+  ] },
+];
+// AI-derived per-ticker theme keywords (compiled regexes), hydrated from KV
+// meta:TICKER by hydrateMeta(). Mirrors the static THEMES above but keyed by a
+// single ticker, so a newly-added ticker gets industry/supply-chain read-through
+// (a rival's capex, a commodity swing, a policy shift) with no hardcoding.
+const THEME_KW_DERIVED = {};
+// Turn an AI keyword phrase into a safe whole-phrase regex. Rejects too-short /
+// too-long / un-compilable strings so noise keywords can't broaden everything.
+function kwToRegex(s){
+  s = String(s||'').toLowerCase().trim();
+  if (s.length < 3 || s.length > 60) return null;
+  const esc = s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  try { return new RegExp('\\b' + esc + '\\b'); } catch(e){ return null; }
+}
+// Return the set of watchlist tickers an article maps to via theme keywords.
+function themeTickers(text, wl){
+  if (!text) return [];
+  const lo = text.toLowerCase();
+  const hits = new Set();
+  for (const th of THEMES){
+    if (th.kw.some(re => re.test(lo))){
+      for (const t of th.tickers) if (wl.includes(t)) hits.add(t);
+    }
+  }
+  // AI-derived per-ticker themes — only for tickers in this watchlist.
+  for (const t of wl){
+    if (hits.has(t)) continue;
+    const res = THEME_KW_DERIVED[t];
+    if (res && res.some(re => re.test(lo))) hits.add(t);
+  }
+  return [...hits];
+}
+// Broaden a fetched batch: for each article, emit extra copies tagged to any
+// theme-linked watchlist ticker it didn't already carry. Marked theme:true so
+// clustering/finalize can give sector news a NONE-reject safety net.
+function broadenByTheme(articles, wl){
+  const extra = [];
+  for (const a of articles){
+    const tix = themeTickers((a.headline||'') + ' ' + (a.summary||''), wl);
+    for (const t of tix){
+      if (t === a.ticker) continue;
+      extra.push({ ...a, ticker:t, theme:true });
+    }
+  }
+  return extra;
+}
+
+// ── Dynamic watchlist support ─────────────────────────────────────────────
+// On-demand /news may pass ?tickers=A,B,C — the whole pipeline runs against the
+// caller's list. A request whose list equals WATCHLIST (order-independent) is
+// treated as the default so it shares the cron cache.
+//
+// Sanitize an incoming ?tickers= list → uppercase, A-Z0-9./- only, deduped, capped.
+function parseTickers(raw){
+  if (!raw) return null;
+  const out = [];
+  const seen = new Set();
+  for (let t of raw.split(',')){
+    t = t.trim().toUpperCase().replace(/[^A-Z0-9.\-]/g,'');
+    if (t && t.length <= 6 && !seen.has(t)){ seen.add(t); out.push(t); }
+  }
+  return out.length ? out.slice(0, 40) : null;
+}
+// Build a sector map for an arbitrary watchlist.
+function sectorsFor(wl){
+  const m = {};
+  for (const t of wl) m[t] = inferSector(t);
+  return m;
+}
+// Stable cache-key suffix for a given watchlist (order-independent).
+function wlHash(wl){
+  return [...wl].sort().join(',');
+}
+// Default sector map, computed once from the canonical watchlist.
+const SECTORS = sectorsFor(WATCHLIST);
+
+// ── AI sector auto-derivation ──────────────────────────────────────────────
+// Any ticker NOT in the static SECTOR_LOOKUP gets classified by Gemini ONCE,
+// then cached in KV (meta:TICKER, 30d). This is what lets a freshly-added ticker
+// flow through the WHOLE system — UI chip, News sector filter + Gemini prompt,
+// alias matching — without anyone hardcoding it. The Control tab calls
+// GET /sectors on add; the news pipeline calls hydrateMeta() to overlay the
+// cached results before building.
+const META_TTL = 30 * 24 * 3600;          // 30 days — sector/company identity is stable
+const SECTOR_VOCAB = [
+  'Semiconductor','AI/Semiconductor','Semiconductor/Memory','Storage','AI/Software',
+  'Tech/Mega-Cap','Tech/Retail','Cybersecurity','Clean Energy','EV/Auto','Space/SPAC',
+  'Copper/Mining','Materials/Construction','Industrials','Energy','Refining','Retail',
+  'Financials','InsurTech','China/Tech','Pharma','Travel','Defense','Media',
+  'Shipping/Tankers','Diversified',
+];
+// Ask Gemini to classify a batch of unknown tickers.
+// Returns { TICKER:{sector,name,aliases[],themeKw[]} }.
+async function aiClassifyTickers(tickers, env){
+  if (!tickers.length || !env.GEMINI_KEY) return {};
+  const prompt = `You are a stock-market reference engine. For each US-listed ticker below, return its GICS-style sector label, official company/fund name, search aliases, and industry "theme" keywords.
+Tickers: ${tickers.join(', ')}
+Pick the "sector" from this controlled vocabulary when one fits; otherwise return a concise 1-2 word sector of your own:
+${SECTOR_VOCAB.join(', ')}
+"aliases": 3-7 lowercase strings a news headline might use instead of the ticker — company short name, CEO last name, flagship product/brand, common nicknames. No generic words.
+"themeKw": 4-8 lowercase industry/supply-chain phrases that MOVE THIS STOCK even when the company is NOT named — e.g. a key commodity ("copper prices"), a rival/supplier ("tsmc"), an end-market or policy term ("data center capex", "auto tariffs"), a pricing/supply term ("memory glut"). Be SPECIFIC — these are matched as whole phrases in news text, so generic words like "market" or "stock" cause false positives and must be avoided. For a sector ETF, use the broad terms that move the whole sector.
+If a ticker is an ETF, set sector to the sector it tracks (e.g. a semiconductor ETF -> "Semiconductor").
+Return ONLY a JSON array; each element: {"ticker","sector","name","aliases","themeKw"}.`;
+  const body = JSON.stringify({
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: {
+      temperature: 0,
+      maxOutputTokens: 2048,
+      responseMimeType: 'application/json',
+      responseSchema: { type:'ARRAY', items:{ type:'OBJECT', properties:{
+        ticker:{type:'STRING'}, sector:{type:'STRING'}, name:{type:'STRING'},
+        aliases:{ type:'ARRAY', items:{type:'STRING'} },
+        themeKw:{ type:'ARRAY', items:{type:'STRING'} },
+      }, required:['ticker','sector'] } },
+      thinkingConfig: { thinkingBudget: 0 },
+    },
+  });
+  const clean = arr => Array.isArray(arr)
+    ? arr.map(a=>String(a).toLowerCase().trim()).filter(a=>a&&a.length>=3&&a.length<=40).slice(0,8)
+    : [];
+  const out = {};
+  for (const model of ['gemini-2.5-flash-lite','gemini-2.5-flash','gemini-2.0-flash']){
+    try {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_KEY}`,
+        { method:'POST', headers:{'Content-Type':'application/json'}, body });
+      if (!r.ok) continue;
+      const j = await r.json();
+      let text = j.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      text = text.replace(/^```(?:json)?\s*/i,'').replace(/\s*```\s*$/,'').trim();
+      const arr = JSON.parse(text);
+      if (!Array.isArray(arr)) continue;
+      for (const e of arr){
+        const t = (e.ticker||'').toUpperCase().trim();
+        if (!t || !e.sector) continue;
+        out[t] = {
+          sector: String(e.sector).slice(0,40),
+          name: String(e.name||'').slice(0,80),
+          aliases: clean(e.aliases).slice(0,7),
+          themeKw: clean(e.themeKw),
+        };
+      }
+      if (Object.keys(out).length) return out;
+    } catch(e){ /* try next model */ }
+  }
+  return out;
+}
+// Resolve sector/meta for a list of tickers: static table → KV cache → AI (cached).
+// Returns { TICKER:{sector,name,aliases} } for everything resolvable. Tickers that
+// stay unresolved (AI down) simply fall back to 'Diversified' downstream.
+async function resolveMeta(tickers, env){
+  const result = {};
+  const missing = [];
+  for (const t of tickers){
+    if (SECTOR_LOOKUP[t]){ result[t] = { sector: SECTOR_LOOKUP[t], name:'', aliases: ALIASES[t]||[] }; continue; }
+    let cached = null;
+    try { cached = await env.NEWSHUB_CACHE.get('meta:'+t, 'json'); } catch(e){}
+    if (cached && cached.sector){ result[t] = cached; continue; }
+    missing.push(t);
+  }
+  if (missing.length){
+    const ai = await aiClassifyTickers(missing, env);
+    for (const t of missing){
+      const m = ai[t];
+      if (m && m.sector){
+        result[t] = m;
+        try { await env.NEWSHUB_CACHE.put('meta:'+t, JSON.stringify(m), { expirationTtl: META_TTL }); } catch(e){}
+      }
+    }
+  }
+  return result;
+}
+// Overlay cached/derived sectors + aliases into the runtime maps so inferSector(),
+// the Gemini prompt, and isRelevant() all see real values for added tickers.
+// Read-only against KV (NO AI calls) — keeps the build hot path cheap; the AI
+// classification happens up front via the /sectors endpoint when a ticker is added.
+async function hydrateMeta(wl, env){
+  for (const t of wl){
+    if (SECTOR_LOOKUP[t]) continue;
+    if (SECTOR_DERIVED[t]) continue;            // already hydrated this isolate
+    let cached = null;
+    try { cached = await env.NEWSHUB_CACHE.get('meta:'+t, 'json'); } catch(e){}
+    if (cached && cached.sector){
+      SECTOR_DERIVED[t] = cached.sector;
+      if (Array.isArray(cached.aliases) && cached.aliases.length) ALIASES_DERIVED[t] = cached.aliases;
+      if (Array.isArray(cached.themeKw) && cached.themeKw.length){
+        const res = cached.themeKw.map(kwToRegex).filter(Boolean);
+        if (res.length) THEME_KW_DERIVED[t] = res;
+      }
+    }
+  }
+}
+// Hydrate then build the sector map — use in build entry points so custom lists
+// with newly-added tickers get their real (AI-derived) sectors, not 'Diversified'.
+async function sectorsForLive(wl, env){
+  await hydrateMeta(wl, env);
+  return sectorsFor(wl);
+}
+
+const HOURS = 72;   // news lookback = 3 days.
+// Fallback chain: tries in order. If one returns 429 (quota), worker skips to next.
+// Quota-exhaustion state lives in KV for 1 hour so we don't waste retries.
+// Unified AI fallback chain — tried in order, first available wins.
+// Gemini uses Google's API; NIM entries use NVIDIA's OpenAI-compatible endpoint.
+// Format: { provider: 'gemini'|'nim', model: '...' }
+// ── AI fallback chain — tried in order, strongest-RELIABLE first ────────────
+// The first pass throws EVERY batch at avail[0], so the primary MUST return full
+// 8-event batches fast. gemini-3.5-flash is the flagship but a THINKING model:
+// even at thinkingLevel:low it spends ~10s+ and its thinking tokens eat the output
+// budget → it returns EMPTY on this rapid structured-batch task (verified via
+// /test-ai: 0/8 in 10.4s, vs 3.1-flash-lite 8/8 in 4s, 2.5-flash 8/8 in 5s). So it
+// is DEMOTED to a late gemini fallback; the fast, high-throughput models lead. Only
+// when a model is genuinely quota-exhausted (429) do we drop to the next.
+const AI_CHAIN = [
+  { provider:'gemini', model:'gemini-3.1-flash-lite' },       // PRIMARY: newest-gen Flash, full 8-event batches in ~4s, HIGHEST free daily quota — carries the load
+  { provider:'gemini', model:'gemini-2.5-flash' },            // proven full Flash — strong, ~5s/batch
+  { provider:'gemini', model:'gemini-2.5-flash-lite' },       // high-RPD lite fallback
+  { provider:'gemini', model:'gemini-2.0-flash' },            // older Gemini fallback
+  { provider:'gemini', model:'gemini-3.5-flash' },            // flagship but slow/thinky here → LAST-RESORT gemini (given extra output budget in geminiBody so it's usable when reached)
+  { provider:'nim',    model:'meta/llama-3.1-8b-instruct' },  // cross-provider fallback: live NIM, fast (~8b), separate quota — immune to Gemini 503/daily-cap
+  { provider:'nim',    model:'meta/llama-3.1-70b-instruct' }, // bigger NIM fallback
+  { provider:'nim',    model:'meta/llama-3.3-70b-instruct', slow:true }, // salvage only — ~107s/batch
+];
+// Keep these for /health display
+const GEMINI_CHAIN = AI_CHAIN.filter(e=>e.provider==='gemini').map(e=>e.model);
+const NIM_CHAIN    = AI_CHAIN.filter(e=>e.provider==='nim').map(e=>e.model);
+const QUOTA_COOLDOWN = 3600; // 1h before retrying a model that hit 429
+// How long build diagnostics (stage:aistats / stage:lasterror) live. These used to
+// expire after 30 min, which made them useless for the failure that matters most:
+// the 6am cron build. By the time anyone opens TradeHub and notices the feed is
+// stale, the only two keys that say WHY the AI phase failed are long gone. Matches
+// the cron:lastrun / cron:lastnews retention so /_stage-debug tells one whole story.
+const DIAG_TTL = 7*86400;
+const BATCH_SIZE = 8;        // 8 events/batch — best balance: model returns most
+                             // of them, and 5 batches finish fast in one wave.
+const MAX_EVENTS = 56;       // 7 batches of 8. Raised from 40 once the strong-
+                             // primary-first AI pass made batches reliable (each
+                             // first-pass call returns its full batch), so more
+                             // events get analyzed without extra salvage churn.
+const PER_TICKER_CAP = 6;    // max events per ticker in the top-N, so one noisy
+                             // ticker (e.g. AMZN) can't crowd out the rest of the
+                             // watchlist — every ticker/sector gets its top news.
+                             // 6 (was 4) keeps more depth on a heavy-news ticker
+                             // (earnings day) while breadth fill still runs after.
+// Per-ticker Finnhub company-news is the richest per-company source but costs one
+// subrequest each, so it dominates the 50/invocation budget. Cap it; the always-on
+// multi-symbol sources (Marketaux/StockData/AlphaVantage/TickerTick) cover any
+// overflow tickers on larger custom watchlists. The default WL (29) is under this.
+// 27, not 34: fetch and AI share ONE invocation (staging is off), so this cap is
+// really "how much of Cloudflare's 50 may the fetch phase take". 27 per-ticker +
+// FETCH_WIRE_SUBREQUESTS leaves the AI phase its floor (see aiSubBudgetFor) with
+// margin to spare. At 34 a full-length watchlist put fetch+AI at 57 and the build
+// was hard-killed before writing anything — the exact failure the staged
+// orchestrator was built for, still latent after staging was disabled.
+const FINNHUB_PER_TICKER_CAP = 27;
+// The non-per-ticker wires in a rich build, 1 subrequest each: Marketaux,
+// StockData, AlphaVantage, Finnhub general, TickerTick bulk, SEC EDGAR, entity
+// news. Tiingo is disabled. Counted so the AI budget can be derived rather than
+// guessed.
+const FETCH_WIRE_SUBREQUESTS = 7;
+const AI_CALL_TIMEOUT = 12000; // ms — MUST be < AI_PHASE_BUDGET_MS. A single call
+                               // hanging near a 35s timeout blew the 20s phase
+                               // budget (deadline only stops NEW calls, not
+                               // in-flight ones) → most batches left raw → false
+                               // degraded. 12s kills a stuck call early so the
+                               // batch can salvage/fallback within budget.
+                             // headroom without letting a slow model stall the build.
+const AI_CONCURRENCY = 12;   // fire all ~10 small batches in one parallel wave
+                             // now bounded by AI_PHASE_BUDGET_MS, so 4-wide parallel
+                             // helps the whole build finish inside the Worker budget.
+const CACHE_TTL = 21600;     // 6 hours — pre-warm cache survives between cron runs, so regular Refresh = free cache hit (no quota / rate-token burn)
+// How long a Force fresh request will hold its response open waiting for its own
+// build (see the /news dispatch). A rich build measures ~47s end to end, so this
+// covers the normal case with margin; past it the client falls back to polling.
+const FRESH_WAIT_MS = 60000;
+// Hard wall-clock budget for the AI phase of a build. Cloudflare Workers have a
+// limited CPU/duration budget; under a Gemini 503 storm, per-batch retries can
+// pile up and run the whole build past the limit → the build is killed and only
+// raw gets cached. We stop launching NEW retries/calls once this elapses and
+// just accept whatever finished, so a partial-but-analyzed result still caches.
+const AI_PHASE_BUDGET_MS = 25000; // one ~12s wave + one ~12s salvage wave
+                                  // runs in a background waitUntil with a limited
+                                  // wall-clock; a 45s budget meant the build got
+                                  // killed before writing cache (→ stuck "Building").
+                                  // 20s + ~10s fetch fits comfortably.
+
+// Set at the start of each build's AI phase. callGemini/callNIM stop launching
+// NEW retry attempts once Date.now() passes this, so a 503 storm can't run the
+// build past the Worker budget. 0 = no deadline (e.g. /ai-test single calls).
+let _aiDeadline = 0;
+function aiBudgetLeft(){ return _aiDeadline === 0 || Date.now() < _aiDeadline; }
+
+// HARD subrequest budget for the AI phase. Cloudflare caps each invocation at 50
+// subrequests TOTAL. The fetch phase is now in separate staged invocations, so
+// the AI invocation starts fresh — but a 503/RPM retry storm across ~9 batches
+// can still pile up past 50 HTTP calls and get the build KILLED (→ no cache → the
+// "AI quota exhausted / RAW" symptom). We count every AI HTTP call and stop
+// launching new ones past this ceiling; any unanalyzed batches fall back to raw
+// individually. Ceiling < 50 leaves headroom for KV + the next-stage kick.
+let _aiSubrequests = 0;
+// Total AI HTTP calls one build may make. Sized against the fetch phase, which
+// shares this invocation (staging is off — see fitsOneInvocation) and spends
+// roughly watchlist-length + 7 of Cloudflare's 50: ~31 on the default 23-ticker
+// rich build, leaving ~19. 16 puts the whole build near 47, safely under the cap.
+//
+// This was 12, and that is what filled the 2026-08-21 06:00 build with RAW cards.
+// The first pass is 7 batches = 7 calls, but free-tier RPM 429s made callGemini
+// retry, and the pass spent all 12 — so the OMISSION-RETRY pass below, which is
+// gated on aiCallBudgetLeft() and is the ONLY thing that re-asks events a model
+// silently skipped, never fired at all. 16 of 52 events ended with no verdict and
+// fell through to raw, on a morning when every model was healthy and 7/7 batches
+// "succeeded" (stage:aistats: batches 7, failed 0, subrequestsUsed 12,
+// enrichedAI 36, rawFallback 16). Nothing was quota-exhausted.
+const AI_SUBREQUEST_CEILING = 16;
+// ...of which this many are RESERVED for the omission-retry pass. Raising the
+// ceiling alone does NOT fix the above: a retry storm expands to fill whatever it
+// is given, and the pass that actually rescues dropped events runs last. So the
+// first pass and its salvage rounds may only spend budget - RESERVE; the reserve
+// is unlocked for the omission pass, which is where raw cards are won back.
+const AI_OMISSION_RESERVE = 5;
+// The least the AI phase can work with: one call per batch for a full-size first
+// pass, plus the reserve. Below this the phase is structurally broken, not merely
+// tight — some batch never gets asked at all.
+const AI_SUBREQUEST_FLOOR = Math.ceil(MAX_EVENTS / BATCH_SIZE) + AI_OMISSION_RESERVE;
+// Cloudflare's hard limit is 50 per invocation; build to 46 and keep 4 for the
+// odd extra KV/self call so we are never deciding this at the edge.
+const BUILD_SUBREQUEST_CAP = 46;
+// Derived per build rather than hardcoded. A hardcoded budget is only ever right
+// for one watchlist length — at 34 tickers the old constants summed to 57 and the
+// invocation was killed outright — so take what the fetch phase will actually
+// need and give the AI the rest, clamped to a workable range.
+function aiSubBudgetFor(wl){
+  const fetchEst = Math.min((wl||[]).length, FINNHUB_PER_TICKER_CAP) + FETCH_WIRE_SUBREQUESTS;
+  return Math.max(AI_SUBREQUEST_FLOOR, Math.min(AI_SUBREQUEST_CEILING, BUILD_SUBREQUEST_CAP - fetchEst));
+}
+let _aiSubBudget = AI_SUBREQUEST_CEILING;
+// Flipped on for the duration of the omission-retry pass so it — and only it —
+// may dip into the reserve. Same module-level-flag pattern as _aiDeadline.
+let _aiUseReserve = false;
+function aiCallBudgetLeft(){
+  return _aiSubrequests < (_aiSubBudget - (_aiUseReserve ? 0 : AI_OMISSION_RESERVE));
+}
+function countAICall(){ _aiSubrequests++; }
+
+// ─── Per-API daily budgets ────────────────────────────────────────────────
+// Free tier daily caps. We track usage in KV and stop calling an API before
+// it 429s, so quotas last all day. Reserve headroom (cap below true limit).
+const API_BUDGETS = {
+  marketaux:    { limit: 90,  key: 'budget:marketaux' },   // true 100/day
+  stockdata:    { limit: 90,  key: 'budget:stockdata' },   // true 100/day
+  alphavantage: { limit: 22,  key: 'budget:alphavantage' },// true 25/day
+  finnhub:      { limit: 9999,key: 'budget:finnhub' },     // 60/min, effectively unlimited daily
+  polygon:      { limit: 9999,key: 'budget:polygon' },     // 5/min free tier; per-ticker, no hard daily cap we track
+  tiingo:       { limit: 45,  key: 'budget:tiingo' },      // ~50/hour free tier — one multi-symbol call per build
+};
+
+function budgetDayKey(api){
+  return API_BUDGETS[api].key + ':' + new Date().toISOString().slice(0,10);
+}
+async function getBudgetUsed(env, api){
+  try { return parseInt(await env.NEWSHUB_CACHE.get(budgetDayKey(api)) || '0', 10); }
+  catch(e){ return 0; }
+}
+async function bumpBudget(env, api, n){
+  n = n || 1;
+  const k = budgetDayKey(api);
+  const used = await getBudgetUsed(env, api) + n;
+  const now = new Date();
+  const secsToMidnight = 86400 - (now.getUTCHours()*3600 + now.getUTCMinutes()*60 + now.getUTCSeconds());
+  try { await env.NEWSHUB_CACHE.put(k, String(used), { expirationTtl: secsToMidnight + 60 }); } catch(e){}
+  return used;
+}
+async function budgetAvailable(env, api){
+  const used = await getBudgetUsed(env, api);
+  return used < API_BUDGETS[api].limit;
+}
+
+// ─── utils ────────────────────────────────────────────────────────────────
+function cors() {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Firebase-AppCheck',
+    // Cross-origin JS can't read a response header unless it's exposed here. The
+    // News tab reads X-Cache to tell a finished build from a still-building one;
+    // without this it always read null, so a completed build never auto-displayed.
+    'Access-Control-Expose-Headers': 'X-Cache, X-Building, X-Rate-Limited',
+  };
+}
+function ymd(d){ return d.toISOString().slice(0,10); }
+function normKey(s){ return (s||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim(); }
+function stripUrl(u){
+  if (!u) return '';
+  try { const x = new URL(u); return (x.hostname + x.pathname).toLowerCase().replace(/\/+$/,''); }
+  catch(e) { return (u||'').toLowerCase().split('?')[0].split('#')[0]; }
+}
+// A bare symbol used to match case-INSENSITIVELY, so any headline containing the
+// word "be" counted as Bloom Energy news, "net income" as Cloudflare, and "fox"
+// as Fox Corp. Finnhub's general feed attributes through this check, which
+// pinned unrelated market-wide stories to those tickers. Now: a symbol that is
+// also an ordinary word needs a real symbol form ($BE, (NYSE: BE), (BE)); one
+// that only collides in lowercase (FOX, FRO) must appear in CAPITALS; anything
+// else matches as before. Aliases still catch "Bloom Energy" / "Fox News".
+const RELEVANT_CASE_SENSITIVE = new Set(['FOX','FRO','COF','MMM','VMC','WMT','BABA','LMND','SCCO']);
+function isRelevant(ticker, text){
+  if (!text) return false;
+  const sym = String(ticker||'').toUpperCase();
+  const esc = sym.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&');
+  if (XATTR_WORD_SYMBOLS.has(sym)){
+    if (xattrSymRe(sym).test(text)) return true;
+  } else if (RELEVANT_CASE_SENSITIVE.has(sym) || sym.length <= 3){
+    if (new RegExp('\\b'+esc+'\\b').test(text)) return true;
+  } else if (new RegExp('\\b'+esc+'\\b','i').test(text)) return true;
+  const lo = text.toLowerCase();
+  for (const a of aliasesFor(sym)) if (lo.includes(a)) return true;
+  return false;
+}
+
+// ─── Cross-ticker attribution: which WATCHLIST names does this TEXT mention? ──
+// candidateTickers used to come ONLY from feed attribution — the ticker whose API
+// wire an article arrived on. So "Marvell's deal with Google indicates custom
+// silicon is 'advantageous,' Wedbush says", pulled in on GOOGL's company-news
+// feed, carried candidateTickers ['GOOGL'] and nothing ever read the word
+// "Marvell". The AI is then told point-blank that primaryTicker must come from
+// that list, so MRVL — a watchlist name the story is half about — could not be
+// tagged. This scans the actual article text for EVERY watchlist ticker.
+//
+// Precision matters more than recall here: this runs against every article, not
+// just the one whose feed it came from, and a wrong ticker on a card is worse than
+// a missing one. So the matcher is deliberately STRICTER than isRelevant():
+//   • a symbol must look like a symbol — $MRVL, (NASDAQ:MRVL), (MRVL), or a
+//     standalone UPPERCASE word — never a lowercase English-word collision;
+//   • symbols that are also ordinary words or industry terms (BE, MU, NET, DRAM…)
+//     need the $ or exchange-prefixed form — "DRAM prices surge" is about the
+//     commodity, and an all-caps headline would match the rest;
+//   • aliases match on word boundaries, not substrings, so "Apple Intelligence"
+//     no longer reads as Intel;
+//   • generic industry terms are excluded — they describe a sector, not a
+//     company, and would stamp DRAM on every memory story.
+const XATTR_WEAK_ALIASES = new Set([
+  'dram','foundry','fuel cell','aggregates','crushed stone','oil sands',
+  'crack spread','wealth management','semiconductor etf','sox index',
+  'philadelphia semiconductor','active electrical cable','search ads','android',
+]);
+const XATTR_WORD_SYMBOLS = new Set([
+  'BE','MU','MS','NET','ALL','ON','IT','SO','AT','GO','KEY','CAR','LOW','NOW',
+  'RUN','SEE','BIG','EAT','PLAY','REAL','WORK','LIFE','HOPE','FAST','WELL','TAP',
+  // Industry terms that are also symbols — the word in a headline almost always
+  // means the technology/index, not the security.
+  'DRAM','SMH','SOXX','AI','EV','GDP','CPI','FED','SEC','ETF','IPO','CEO','CFO',
+]);
+// Most candidates any one event may carry. A "top 10 AI stocks" roundup names the
+// whole watchlist; without a ceiling it would balloon the AI prompt and match
+// every ticker filter at once.
+const XATTR_MAX_CANDIDATES = 8;
+const _xattrSymRe = new Map(), _xattrAliasRe = new Map();
+function xattrSymRe(sym){
+  let re = _xattrSymRe.get(sym);
+  if (!re){
+    const s = sym.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&');
+    re = new RegExp('\\$'+s+'\\b|\\b(?:NASDAQ|NYSE|NYSEARCA|AMEX|OTC|CBOE)\\s*:\\s*'+s+'\\b|\\(\\s*'+s+'\\s*\\)', 'i');
+    _xattrSymRe.set(sym, re);
+  }
+  return re;
+}
+function xattrAliasRe(a){
+  let re = _xattrAliasRe.get(a);
+  if (!re){
+    re = new RegExp('\\b'+a.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?:\u2019s|\'s|s)?\\b', 'i');
+    _xattrAliasRe.set(a, re);
+  }
+  return re;
+}
+function mentionedTickers(text, wl){
+  if (!text) return [];
+  const out = [];
+  for (const raw of (wl||[])){
+    const sym = (raw||'').toUpperCase();
+    if (!sym) continue;
+    if (xattrSymRe(sym).test(text)){ out.push(sym); continue; }
+    // Bare uppercase symbol — case-SENSITIVE on purpose, and only for symbols
+    // that aren't ordinary English words.
+    if (sym.length >= 3 && !XATTR_WORD_SYMBOLS.has(sym) &&
+        new RegExp('\\b'+sym.replace(/[.\-]/g,'\\$&')+'\\b').test(text)){ out.push(sym); continue; }
+    for (const a of aliasesFor(sym)){
+      if (a.length < 4 || XATTR_WEAK_ALIASES.has(a)) continue;
+      if (xattrAliasRe(a).test(text)){ out.push(sym); break; }
+    }
+  }
+  return out;
+}
+
+// ─── source fetchers ──────────────────────────────────────────────────────
+// Finnhub per-ticker with date range — but we run it AFTER other sources
+// and only for tickers that need more coverage. Real article URLs returned
+// so cross-ticker dedup works cleanly in clustering.
+async function fetchFinnhub(ticker, env, fromD, toD){
+  try {
+    const r = await fetch(`https://finnhub.io/api/v1/company-news?symbol=${ticker}&from=${fromD}&to=${toD}&token=${env.FINNHUB_KEY}`);
+    if (!r.ok) return [];
+    const arr = await r.json();
+    if (!Array.isArray(arr)) return [];
+    // Filter to articles that actually mention this ticker/company
+    return arr
+      .filter(a => a.headline && isRelevant(ticker, (a.headline||'') + ' ' + (a.summary||'')))
+      .map(a => ({
+        feed:'fh', ticker,
+        headline: a.headline||'', summary: a.summary||'',
+        url: a.url||'#', source: a.source||'Finnhub',
+        ts: (a.datetime||0)*1000,
+      }));
+  } catch(e){ return []; }
+}
+// TickerTick ALLOWLIST — only pass financial/business news sources.
+// Flip from blocklist to allowlist: much more reliable given TickerTick indexes everything.
+const TT_ALLOWLIST = [
+  // Major financial / business news
+  'reuters','bloomberg','wsj','ft.com','financialtimes',
+  'cnbc','marketwatch','barrons','seekingalpha','fool.com','motleyfool',
+  'benzinga','thestreet','investorplace','zacks','nasdaq.com',
+  'finance.yahoo','yahoo.com/finance','yahoo.com/news',
+  'businesswire','prnewswire','globenewswire','accesswire','businessinsider',
+  'forbes','fortune','economist','bloombergtax',
+  // Stock/trading analysis
+  'stockanalysis','macrotrends','wisesheets','simply wall','gurufocus',
+  'chartmill','marketbeat','tipranks','stocknews','barchart',
+  // Wire/breaking stock news (added — these are pure stock-catalyst goldmines)
+  'streetinsider','thefly','briefing.com','morningstar',
+  'investors.com','investing.com','schaeffersresearch','quiverquant',
+  'finbold','simplywall','sharewise',
+  // "Why the stock moved" explainer desks — exactly the catchy Robinhood-style
+  // headlines ("Why Sandisk Stock Just Dropped", "What's Behind the Memory Split").
+  // 247wallst + wccftech are TickerTick-indexed but were missing from this list.
+  '247wallst','wccftech','kiplinger','marketrealist',
+  // Financial institutions / research
+  'sec.gov','edgar','irs.gov','federalreserve',
+  // Tech but business-focused
+  'techcrunch','axios','theinfo','theinformation','arstechnica',
+  'venturebeat','wired','cnet.com/tech',
+  // Broad news with financial sections
+  'apnews','bbc.com/business','nytimes.com/business','washingtonpost.com/business',
+  'foxbusiness','cbsnews.com/money',
+];
+function isTTAllowed(url, site){
+  const check = ((url||'') + '|' + (site||'')).toLowerCase();
+  return TT_ALLOWLIST.some(a => check.includes(a));
+}
+
+// Extract Finnhub's internal story ID from its redirect URL for cross-ticker dedup
+function finnhubId(url){
+  if (!url) return '';
+  const m = url.match(/[?&]id=([a-f0-9]+)/i);
+  return m ? m[1] : '';
+}
+
+async function fetchTickerTick(ticker, cutoff){
+  try {
+    const r = await fetch(`https://api.tickertick.com/feed?q=tt:${ticker.toLowerCase()}&n=20`);
+    if (!r.ok) return [];
+    const j = await r.json();
+    return (j.stories||[])
+      .filter(s => (s.time||0) >= cutoff && isTTAllowed(s.url, s.site))
+      .map(s => ({
+        feed:'tt', ticker,
+        headline:s.title||'', summary:s.description||'',
+        url:s.url||'#', source:s.site||'TickerTick', ts:s.time||0,
+      }));
+  } catch(e){ return []; }
+}
+// TickerTick BULK — one query for the whole watchlist via its (or tt:a tt:b…)
+// syntax instead of one call per ticker. Free, no key. Stories arrive tagged with
+// their ticker(s); we keep only allowlisted financial publishers within the window
+// and attribute each to its first watchlist ticker. ≤30 tickers/query → the
+// default 29-ticker WL is a SINGLE subrequest (vs 29 in the old per-ticker path).
+async function fetchTickerTickBulk(wl, cutoff){
+  const wlSet = new Set(wl.map(t => t.toUpperCase()));
+  const out = [];
+  const CHUNK = 30;
+  for (let i=0; i<wl.length; i+=CHUNK){
+    const terms = wl.slice(i, i+CHUNK).map(t => 'tt:' + t.toLowerCase());
+    const q = terms.length === 1 ? terms[0] : `(or ${terms.join(' ')})`;
+    try {
+      const r = await fetch(`https://api.tickertick.com/feed?q=${encodeURIComponent(q)}&n=150`);
+      if (!r.ok) continue;
+      const j = await r.json();
+      for (const s of (j.stories||[])){
+        if ((s.time||0) < cutoff) continue;
+        if (!isTTAllowed(s.url, s.site)) continue;
+        const tk = (s.tickers||[]).map(x => (x||'').toUpperCase()).find(x => wlSet.has(x));
+        if (!tk) continue;
+        out.push({
+          feed:'tt', ticker:tk,
+          headline:s.title||'', summary:s.description||'',
+          url:s.url||'#', source:s.site||'TickerTick', ts:s.time||0,
+        });
+      }
+    } catch(e){}
+  }
+  return out;
+}
+
+// ─── SEC EDGAR 8-K material filings (free, no key) ─────────────────────────────
+// 8-Ks are the canonical source of MATERIAL corporate events (earnings, M&A, exec
+// changes, restatements, bankruptcies). One market-wide "getcurrent" atom call
+// returns the most recent filings WITH their item codes in the summary, so we get
+// descriptive headlines and event types from a SINGLE subrequest — no per-filing
+// fetches. We map each filing's CIK back to a watchlist ticker via SEC's
+// ticker→CIK table (cached in KV for a week; one cold fetch ~weekly).
+const EDGAR_HEADERS = { 'User-Agent': 'tradeboard-news research https://tradeboard-news.vedapatel05.workers.dev', 'Accept-Encoding':'gzip, deflate' };
+const EDGAR_8K_ITEMS = {
+  '1.01':'Material Definitive Agreement','1.02':'Termination of Material Agreement',
+  '1.03':'Bankruptcy or Receivership','1.05':'Material Cybersecurity Incident',
+  '2.01':'Completion of Acquisition/Disposition','2.02':'Results of Operations (Earnings)',
+  '2.03':'Material Financial Obligation','2.04':'Triggering Event on Financial Obligation',
+  '2.05':'Costs from Exit/Disposal','2.06':'Material Impairment',
+  '3.01':'Delisting / Listing-Standard Notice','3.02':'Unregistered Equity Sale',
+  '3.03':'Modification of Security-Holder Rights','4.01':'Change in Accountant',
+  '4.02':'Non-Reliance on Prior Financials (Restatement)','5.01':'Change in Control',
+  '5.02':'Executive/Director Change','5.03':'Bylaw/Charter Amendment',
+  '5.07':'Shareholder Vote Results','7.01':'Reg FD Disclosure',
+  '8.01':'Other Material Event','9.01':'Financial Statements & Exhibits',
+};
+// ticker(UPPER) → CIK(int). KV-cached 7 days; rebuilt from SEC on miss.
+async function loadCikMap(env){
+  try { const c = await env.NEWSHUB_CACHE.get('edgar:cikmap'); if (c) return JSON.parse(c); } catch(e){}
+  try {
+    const r = await fetch('https://www.sec.gov/files/company_tickers.json', { headers: EDGAR_HEADERS });
+    if (!r.ok) return {};
+    const j = await r.json();
+    const map = {};
+    for (const k in j){ const row = j[k]; if (row && row.ticker) map[String(row.ticker).toUpperCase()] = row.cik_str; }
+    await env.NEWSHUB_CACHE.put('edgar:cikmap', JSON.stringify(map), { expirationTtl: 7*86400 }).catch(()=>{});
+    return map;
+  } catch(e){ return {}; }
+}
+async function fetchEdgar8K(env, wl, cutoff){
+  try {
+    const cikMap = await loadCikMap(env);
+    const cik2tk = {};                       // "CIK without leading zeros" → ticker
+    for (const t of wl){ const c = cikMap[t.toUpperCase()]; if (c != null) cik2tk[String(c)] = t.toUpperCase(); }
+    if (!Object.keys(cik2tk).length) return [];
+    const r = await fetch('https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&company=&dateb=&owner=include&count=100&output=atom', { headers: EDGAR_HEADERS });
+    if (!r.ok) return [];
+    const xml = await r.text();
+    const out = [];
+    for (const e of xml.split('<entry>').slice(1)){
+      const title = ((e.match(/<title>([\s\S]*?)<\/title>/)||[])[1] || '').trim();
+      const cikM = title.match(/\((\d{4,10})\)/);
+      if (!cikM) continue;
+      const tk = cik2tk[String(parseInt(cikM[1], 10))];
+      if (!tk) continue;                     // not a watchlist filer
+      const upd = (e.match(/<updated>([^<]+)<\/updated>/)||[])[1];
+      const ts = upd ? Date.parse(upd) : Date.now();
+      if (ts < cutoff) continue;
+      const href = (e.match(/href="([^"]+)"/)||[])[1] || 'https://www.sec.gov';
+      const summaryRaw = (e.match(/<summary[^>]*>([\s\S]*?)<\/summary>/)||[])[1] || '';
+      const items = [...summaryRaw.matchAll(/Item\s+(\d+\.\d+)/g)].map(m => m[1]);
+      const labels = items.map(c => EDGAR_8K_ITEMS[c] || ('Item ' + c));
+      const company = title.replace(/^8-K\s*-\s*/,'').replace(/\s*\(\d{4,10}\)\s*\(Filer\)\s*$/,'').trim();
+      out.push({
+        feed:'ec', ticker:tk,
+        headline:`${company} filed SEC 8-K — ${labels.length ? labels.join('; ') : 'material event'}`,
+        summary:`Official SEC 8-K filing. Items: ${items.length ? items.map((c,i)=>`${c} (${labels[i]})`).join(', ') : 'unspecified'}.`,
+        url:href, source:'SEC EDGAR', ts,
+      });
+    }
+    return out;
+  } catch(e){ return []; }
+}
+async function fetchMarketaux(symbols, env, isoFrom){
+  try {
+    const r = await fetch(`https://api.marketaux.com/v1/news/all?symbols=${symbols.join(',')}&filter_entities=true&language=en&published_after=${isoFrom}&limit=3&api_token=${env.MARKETAUX_KEY}`);
+    if (!r.ok) return [];
+    const j = await r.json();
+    const out = [];
+    (j.data||[]).forEach(item => {
+      const ent = (item.entities||[]).filter(e=>e.symbol&&symbols.includes(e.symbol))
+        .sort((a,b)=>(b.match_score||0)-(a.match_score||0))[0];
+      if (!ent) return;
+      out.push({
+        feed:'mx', ticker:ent.symbol,
+        headline:item.title||'', summary:item.description||'',
+        url:item.url||'#', source:item.source||'Marketaux',
+        ts:item.published_at?Date.parse(item.published_at):Date.now(),
+        apiSentiment:ent.sentiment_score
+      });
+    });
+    return out;
+  } catch(e){ return []; }
+}
+async function fetchStockData(symbols, env, isoFrom){
+  try {
+    const r = await fetch(`https://api.stockdata.org/v1/news/all?symbols=${symbols.join(',')}&filter_entities=true&language=en&published_after=${isoFrom}&limit=50&api_token=${env.STOCKDATA_KEY}`);
+    if (!r.ok) return [];
+    const j = await r.json();
+    const out = [];
+    (j.data||[]).forEach(item => {
+      const ent = (item.entities||[]).filter(e=>e.symbol&&symbols.includes(e.symbol))
+        .sort((a,b)=>(b.match_score||0)-(a.match_score||0))[0];
+      if (!ent) return;
+      out.push({
+        feed:'sd', ticker:ent.symbol,
+        headline:item.title||'', summary:item.description||'',
+        url:item.url||'#', source:item.source||'StockData',
+        ts:item.published_at?Date.parse(item.published_at):Date.now(),
+        apiSentiment:ent.sentiment_score
+      });
+    });
+    return out;
+  } catch(e){ return []; }
+}
+async function fetchAlphaVantage(symbols, env, hours){
+  try {
+    const since = new Date(Date.now() - hours*3600*1000);
+    const iso = since.toISOString();
+    const timeFrom = iso.slice(0,4)+iso.slice(5,7)+iso.slice(8,10)+'T'+iso.slice(11,13)+iso.slice(14,16);
+    const r = await fetch(`https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers=${symbols.slice(0,50).join(',')}&time_from=${timeFrom}&limit=200&apikey=${env.ALPHAVANTAGE_KEY}`);
+    if (!r.ok) return [];
+    const j = await r.json();
+    const out = [];
+    (j.feed||[]).forEach(item => {
+      const cands = (item.ticker_sentiment||[]).filter(t=>symbols.includes(t.ticker))
+        .sort((a,b)=>parseFloat(b.relevance_score||0)-parseFloat(a.relevance_score||0));
+      if (!cands.length) return;
+      const tk = cands[0];
+      let ts = Date.now();
+      if (item.time_published){
+        const s = item.time_published;
+        ts = Date.UTC(+s.slice(0,4), +s.slice(4,6)-1, +s.slice(6,8), +s.slice(9,11), +s.slice(11,13), +s.slice(13,15));
+      }
+      const sc = parseFloat(tk.ticker_sentiment_score);
+      out.push({
+        feed:'av', ticker:tk.ticker,
+        headline:item.title||'', summary:item.summary||'',
+        url:item.url||'#', source:item.source||'AlphaVantage', ts,
+        apiSentiment: isNaN(sc)?undefined:sc,
+      });
+    });
+    return out;
+  } catch(e){ return []; }
+}
+
+// ─── Polygon.io news (free tier ~5 req/min). Per-ticker; carries publisher +
+// insights sentiment. Requires POLYGON_KEY secret. ───────────────────────────
+async function fetchPolygon(ticker, env, isoFrom){
+  if (!env.POLYGON_KEY) return [];
+  try {
+    const r = await fetch(`https://api.polygon.io/v2/reference/news?ticker=${ticker}&published_utc.gte=${isoFrom}Z&order=desc&limit=10&sort=published_utc&apiKey=${env.POLYGON_KEY}`);
+    if (!r.ok) return [];
+    const j = await r.json();
+    return (j.results||[]).map(item => {
+      // Polygon "insights" sometimes carry a per-ticker sentiment label.
+      const ins = (item.insights||[]).find(x => x.ticker === ticker);
+      let apiSentiment;
+      if (ins?.sentiment === 'positive') apiSentiment = 0.5;
+      else if (ins?.sentiment === 'negative') apiSentiment = -0.5;
+      return {
+        feed:'pg', ticker,
+        headline: item.title||'', summary: item.description||'',
+        url: item.article_url||'#', source: item.publisher?.name||'Polygon',
+        ts: item.published_utc ? Date.parse(item.published_utc) : Date.now(),
+        apiSentiment,
+      };
+    });
+  } catch(e){ return []; }
+}
+
+// ─── Tiingo news — DISABLED. Free tier returns 403 on /tiingo/news (the News
+// API is a paid "Power" add-on). Kept here so it's trivial to re-enable if you
+// ever upgrade: set TIINGO_ENABLED and the fetcher + wiring already exist. ─────
+async function fetchTiingo(symbols, env, isoFrom){
+  if (!env.TIINGO_KEY || !env.TIINGO_ENABLED) return [];
+  try {
+    const startDate = isoFrom.slice(0,10);
+    const r = await fetch(`https://api.tiingo.com/tiingo/news?tickers=${symbols.slice(0,50).join(',').toLowerCase()}&startDate=${startDate}&limit=100&sortBy=publishedDate`, {
+      headers: { 'Authorization': 'Token ' + env.TIINGO_KEY, 'Content-Type': 'application/json' },
+    });
+    if (!r.ok) return [];
+    const j = await r.json();
+    if (!Array.isArray(j)) return [];
+    const upper = symbols.map(s=>s.toUpperCase());
+    const out = [];
+    for (const item of j){
+      // Pick the first article ticker that's on our watchlist.
+      const t = (item.tickers||[]).map(x=>(x||'').toUpperCase()).find(x=>upper.includes(x));
+      if (!t) continue;
+      out.push({
+        feed:'tg', ticker:t,
+        headline: item.title||'', summary: item.description||'',
+        url: item.url||'#', source: item.source||'Tiingo',
+        ts: item.publishedDate ? Date.parse(item.publishedDate) : Date.now(),
+      });
+    }
+    return out;
+  } catch(e){ return []; }
+}
+
+// ─── Finnhub MARKET-WIDE general news (uses existing FINNHUB_KEY, no extra key).
+// One global call; we attribute each story to any watchlist ticker it mentions. ─
+async function fetchFinnhubGeneral(env, wl, cutoff){
+  try {
+    const r = await fetch(`https://finnhub.io/api/v1/news?category=general&token=${env.FINNHUB_KEY}`);
+    if (!r.ok) return [];
+    const arr = await r.json();
+    if (!Array.isArray(arr)) return [];
+    const out = [];
+    for (const a of arr){
+      const ts = (a.datetime||0)*1000;
+      if (ts < cutoff) continue;
+      const text = (a.headline||'') + ' ' + (a.summary||'');
+      // Attribute to every watchlist ticker the story actually mentions.
+      for (const t of wl){
+        if (isRelevant(t, text)){
+          out.push({
+            feed:'fg', ticker:t,
+            headline:a.headline||'', summary:a.summary||'',
+            url:a.url||'#', source:a.source||'Finnhub', ts,
+          });
+        }
+      }
+    }
+    return out;
+  } catch(e){ return []; }
+}
+
+// ─── Google News entity search (free, no key) ─────────────────────────────────
+// The biggest catalysts for our memory / AI-semi names often come from companies
+// that are NOT watchlist tickers: SK Hynix + Samsung Electronics (memory), Kioxia
+// (NAND), TSMC (foundry), Broadcom (AI silicon). Finnhub general only surfaces
+// them opportunistically. This does ONE Google News RSS search (1 subrequest) for
+// those entities in a semiconductor context, then attributes each story to the
+// affected watchlist tickers via ENTITY_MAP — so a Korea/Taiwan supply story that
+// names none of our companies still surfaces (tagged theme:true → NONE-reject
+// safety net). Fails open (→ []) so a Google hiccup never breaks a build.
+const ENTITY_MAP = [
+  { re:/\bsk[\s-]?hynix\b|\bhynix\b/i,           tickers:['SKHY','MU','SNDK','WDC','NVDA'] },
+  { re:/\bsamsung\b/i,                            tickers:['MU','SNDK','WDC'] },
+  { re:/\bkioxia\b/i,                             tickers:['SNDK','WDC','MU'] },
+  { re:/\btsmc\b|\btaiwan semiconductor\b/i,      tickers:['NVDA','AMD','INTC','MU','CRDO','MRVL'] },
+  { re:/\bbroadcom\b|\bavgo\b/i,                  tickers:['NVDA','AMD','MRVL','CRDO'] },
+];
+const ENTITY_QUERY = '("SK Hynix" OR "Samsung Electronics" OR Kioxia OR TSMC OR "Taiwan Semiconductor" OR Broadcom) (semiconductor OR memory OR chip OR HBM OR DRAM OR NAND OR foundry OR wafer OR earnings OR capex)';
+function gnDecode(s){
+  return (s||'')
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g,'$1')
+    .replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"')
+    .replace(/&#0?39;/g,"'").replace(/&apos;/g,"'").replace(/&amp;/g,'&');
+}
+// Publisher allowlist for the entity feed — Google News surfaces a lot of low-tier
+// reprints (local papers, crypto blogs, AOL syndication). Reuses the TickerTick
+// quality tier PLUS the chip/foundry/Asia trade press entity search legitimately
+// turns up (Tom's Hardware, Taipei Times, DigiTimes, Korea Herald…). Matched as a
+// substring of the publisher name with spaces/punct stripped. Kept deliberately
+// broad on trade/Asia press so real memory scoops (e.g. HBM expansion) survive.
+const ENTITY_SOURCE_ALLOW = [
+  'reuters','bloomberg','wsj','wallstreetjournal','financialtimes','cnbc','marketwatch',
+  'barrons','seekingalpha','motleyfool','fool','benzinga','thestreet','investorplace',
+  'zacks','nasdaq','yahoo','businesswire','prnewswire','globenewswire','businessinsider',
+  'forbes','fortune','economist','morningstar','investing','investors','ibd',
+  'investorsbusinessdaily','streetinsider','thefly','marketbeat','tipranks','barchart',
+  '247wallst','wccftech','kiplinger','techcrunch','axios','theinformation','arstechnica',
+  'venturebeat','wired','apnews','bbc','nytimes','washingtonpost',
+  'tomshardware','theregister','digitimes','nikkei','semafor','taipeitimes','koreaherald',
+  'koreajoongangdaily','koreaeconomicdaily','kedglobal','chosunbiz','businesskorea','yonhap',
+  'trendforce','anandtech','servethehome','datacenterdynamics',
+];
+function entitySourceAllowed(name){
+  const n = (name||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+  if (!n) return false;
+  return ENTITY_SOURCE_ALLOW.some(a => n.includes(a));
+}
+async function fetchEntityNews(env, wl, cutoff){
+  try {
+    const wlSet = new Set(wl.map(t => t.toUpperCase()));
+    // Skip the request entirely if none of the mapped tickers are on this list.
+    const active = ENTITY_MAP.filter(m => m.tickers.some(t => wlSet.has(t)));
+    if (!active.length) return [];
+    const url = `https://news.google.com/rss/search?q=${encodeURIComponent(ENTITY_QUERY)}&hl=en-US&gl=US&ceid=US:en`;
+    const r = await fetch(url, { headers:{ 'User-Agent':'Mozilla/5.0 (compatible; tradehub-newshub/1.0)' } });
+    if (!r.ok) return [];
+    const xml = await r.text();
+    const out = [];
+    for (const block of xml.split('<item>').slice(1)){
+      const title = gnDecode((block.match(/<title>([\s\S]*?)<\/title>/)||[])[1] || '').trim();
+      if (!title) continue;
+      const link = gnDecode((block.match(/<link>([\s\S]*?)<\/link>/)||[])[1] || '').trim();
+      const pub  = (block.match(/<pubDate>([\s\S]*?)<\/pubDate>/)||[])[1] || '';
+      const ts   = pub ? Date.parse(pub) : Date.now();
+      if (!ts || ts < cutoff) continue;
+      const srcName = gnDecode((block.match(/<source[^>]*>([\s\S]*?)<\/source>/)||[])[1] || 'Google News').trim();
+      // Drop low-tier reprints — keep only allowlisted quality/trade publishers.
+      if (!entitySourceAllowed(srcName)) continue;
+      // Google News titles read "Headline - Publisher" — strip the trailing source.
+      let headline = title;
+      if (srcName && headline.endsWith(' - ' + srcName)) headline = headline.slice(0, -(srcName.length + 3)).trim();
+      // Attribute via the entity name in the headline; skip if it maps to nothing
+      // on this watchlist (avoids misattributing off-topic hits).
+      const tix = new Set();
+      for (const m of active){ if (m.re.test(headline)){ for (const t of m.tickers) if (wlSet.has(t)) tix.add(t); } }
+      if (!tix.size) continue;
+      for (const t of tix){
+        out.push({ feed:'gn', ticker:t, theme:true,
+          headline, summary:'', url: link || '#', source: srcName || 'Google News', ts });
+      }
+    }
+    return out;
+  } catch(e){ return []; }
+}
+
+// ─── Keyless sources (Veda's worker) ───────────────────────────────────────
+// This worker runs on a Gemini key alone, so the per-company depth Finnhub gives
+// Tony comes from Yahoo Finance's headline RSS, one feed per ticker, in the same
+// per-ticker slot Finnhub would use (so the subrequest math is unchanged). A
+// single-symbol feed is mostly about that company but not entirely ("3 Value
+// Stocks We Steer Clear Of" shows up under FOX), so every item must still pass
+// isRelevant() for its ticker.
+// Google News per ticker was tried first and dropped: news.google.com answers
+// Cloudflare's egress IPs with a 503 "Sorry…" bot page (verified 2026-10-08).
+const YAHOO_UA = 'Mozilla/5.0 (compatible; tradeboard-news/1.0)';
+function rssItems(xml){
+  const out = [];
+  for (const block of String(xml||'').split('<item>').slice(1)){
+    const pick = tag => gnDecode((block.match(new RegExp('<'+tag+'(?:\\s[^>]*)?>([\\s\\S]*?)</'+tag+'>'))||[])[1] || '').trim();
+    out.push({ title: pick('title'), link: pick('link'), desc: pick('description').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim(),
+               pub: pick('pubDate') });
+  }
+  return out;
+}
+async function fetchYahooTicker(t, cutoff){
+  try {
+    const r = await fetch(`https://feeds.finance.yahoo.com/rss/2.0/headline?s=${encodeURIComponent(t)}&region=US&lang=en-US`,
+      { headers:{ 'User-Agent': YAHOO_UA } });
+    if (!r.ok) return [];
+    const out = [];
+    for (const it of rssItems(await r.text())){
+      const ts = it.pub ? Date.parse(it.pub) : 0;
+      if (!it.title || !ts || ts < cutoff) continue;
+      if (!isRelevant(t, it.title + ' ' + it.desc)) continue;
+      out.push({ feed:'yh', ticker:t, headline:it.title, summary:it.desc.slice(0,400),
+                 url: it.link || '#', source:'Yahoo Finance', ts });
+    }
+    return out;
+  } catch(e){ return []; }
+}
+// Bulk quotes from Yahoo's spark endpoint (20 symbols per call), mapped to the
+// Finnhub quote shape the client already reads: c = price, dp = % change, pc =
+// previous close, d = $ change.
+async function fetchQuotesYahoo(wl){
+  const out = {};
+  const chunks = [];
+  for (let i=0; i<wl.length; i+=20) chunks.push(wl.slice(i, i+20));
+  await Promise.all(chunks.map(async chunk => {
+    try {
+      const r = await fetch(`https://query1.finance.yahoo.com/v7/finance/spark?symbols=${encodeURIComponent(chunk.join(','))}&range=1d&interval=1d`,
+        { headers:{ 'User-Agent': YAHOO_UA } });
+      if (!r.ok) return;
+      const j = await r.json();
+      for (const res of (j && j.spark && j.spark.result) || []){
+        const m = res && res.response && res.response[0] && res.response[0].meta;
+        if (!m || !isFinite(m.regularMarketPrice)) continue;
+        const c = m.regularMarketPrice, pc = m.chartPreviousClose ?? m.previousClose;
+        const dp = isFinite(m.regularMarketChangePercent) ? m.regularMarketChangePercent
+                 : (isFinite(pc) && pc ? (c - pc) / pc * 100 : null);
+        out[String(res.symbol).toUpperCase()] = { c, d: isFinite(pc) ? +(c - pc).toFixed(4) : null, dp,
+          h: m.regularMarketDayHigh ?? null, l: m.regularMarketDayLow ?? null, o: null, pc: pc ?? null, t: m.regularMarketTime ?? null };
+      }
+    } catch(e){}
+  }));
+  return out;
+}
+
+// ─── Finnhub real-time quotes (free, 60/min). One call per ticker; the /quotes
+// route KV-caches the whole map ~60s so repeated News opens don't re-hit the API.
+// Powers the client's "Top Movers" strip + per-card % change (price-move
+// correlation). Returns null for invalid/empty symbols so they're skipped. ─────
+async function fetchQuote(ticker, env){
+  try {
+    const r = await fetch(`https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${env.FINNHUB_KEY}`);
+    if (!r.ok) return null;
+    const j = await r.json();
+    if (!j || (j.c === 0 && j.pc === 0)) return null; // no data / bad symbol
+    return { c:j.c, d:j.d, dp:j.dp, h:j.h, l:j.l, o:j.o, pc:j.pc, t:j.t };
+  } catch(e){ return null; }
+}
+async function fetchQuotes(wl, env){
+  if (!env.FINNHUB_KEY) return fetchQuotesYahoo(wl);
+  const out = {};
+  const queue = [...wl];
+  async function worker(){
+    while (queue.length){
+      const t = queue.shift();
+      const q = await fetchQuote(t, env);
+      if (q) out[t] = q;
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(8, wl.length || 1) }, worker));
+  return out;
+}
+
+// Source tiers (all 1 subrequest each unless noted), tuned to pack maximum
+// coverage under Cloudflare's 50-subrequest/invocation cap:
+//   ALWAYS-ON (every build): Finnhub general + per-ticker Finnhub, TickerTick
+//     (bulk, free), SEC EDGAR 8-K (free), Marketaux + StockData (generous ~90/day
+//     caps, budget-gated). These give broad multi-ticker + material-filing coverage
+//     even on a normal cache-miss refresh — no more "Finnhub-only" blind spot.
+//   RICH-ONLY (useLimitedAPIs = force-fresh / cron rich tick): AlphaVantage (scarce
+//     25/day) + Tiingo (paid, disabled), reserved so their tiny quotas survive.
+async function fetchAllSources(env, useLimitedAPIs, wl){
+  wl = wl || WATCHLIST;
+  const now = new Date();
+  const cutoff = now.getTime() - HOURS*3600*1000;
+  const from = new Date(cutoff);
+  const fromD = ymd(from), toD = ymd(now);
+  const isoFrom = from.toISOString().slice(0,19);
+
+  let mx=[], sd=[], av=[], tg=[], fg=[], tt=[], ec=[], gn=[];
+  const tasks = [];
+  // ── Broad multi-symbol wires — run on EVERY build, budget-gated. ──
+  // A source with no key is skipped outright: calling it only spends one of the
+  // invocation's 50 subrequests on a 401 (and books a fake use of its budget).
+  const [mxOk, sdOk] = await Promise.all([
+    env.MARKETAUX_KEY ? budgetAvailable(env,'marketaux') : false,
+    env.STOCKDATA_KEY ? budgetAvailable(env,'stockdata') : false ]);
+  if (mxOk){ tasks.push(fetchMarketaux(wl, env, isoFrom).then(r=>{mx=r;return bumpBudget(env,'marketaux');})); }
+  if (sdOk){ tasks.push(fetchStockData(wl, env, isoFrom).then(r=>{sd=r;return bumpBudget(env,'stockdata');})); }
+  // ── Scarce-quota wires — only on rich/force-fresh builds. ──
+  if (useLimitedAPIs){
+    const [avOk, tgOk] = await Promise.all([ env.ALPHAVANTAGE_KEY ? budgetAvailable(env,'alphavantage') : false, budgetAvailable(env,'tiingo') ]);
+    if (avOk){ tasks.push(fetchAlphaVantage(wl, env, HOURS).then(r=>{av=r;return bumpBudget(env,'alphavantage');})); }
+    if (tgOk && env.TIINGO_KEY && env.TIINGO_ENABLED){ tasks.push(fetchTiingo(wl, env, isoFrom).then(r=>{tg=r;return bumpBudget(env,'tiingo');})); }
+  }
+  // ── Free always-on breadth + canonical filings (each 1 subrequest). ──
+  if (env.FINNHUB_KEY) tasks.push(fetchFinnhubGeneral(env, wl, cutoff).then(r=>{fg=r;}));   // market-wide, attributed
+  tasks.push(fetchTickerTickBulk(wl, cutoff).then(r=>{tt=r;}));        // 1 bulk OR-query for the WL
+  tasks.push(fetchEdgar8K(env, wl, cutoff).then(r=>{ec=r;}));          // SEC 8-K material events
+  tasks.push(fetchEntityNews(env, wl, cutoff).then(r=>{gn=r;}));       // supply-chain entities (SK hynix/Samsung/TSMC/Kioxia/Broadcom)
+  await Promise.all(tasks);
+
+  // ── Per-ticker Finnhub company-news (richest per-company source). One
+  // subrequest each, so it dominates the budget — capped at FINNHUB_PER_TICKER_CAP;
+  // the multi-symbol wires + TickerTick above cover any overflow on big custom
+  // watchlists. The default 29-ticker WL is under the cap (all fetched).
+  // Without a Finnhub key the same per-ticker slot goes to Yahoo's RSS instead.
+  const fhTickers = wl.slice(0, FINNHUB_PER_TICKER_CAP);
+  const perTicker = [];
+  const queue = [...fhTickers];
+  async function worker(){
+    while (queue.length){
+      const t = queue.shift();
+      const fh = env.FINNHUB_KEY ? await fetchFinnhub(t, env, fromD, toD) : await fetchYahooTicker(t, cutoff);
+      perTicker.push(...fh);
+    }
+  }
+  await Promise.all(Array.from({length:6}, worker));
+
+  const all = [...mx, ...sd, ...av, ...tg, ...fg, ...tt, ...ec, ...gn, ...perTicker]
+    .filter(a => a.headline && a.ts >= cutoff);
+  // Theme broadening: re-attribute sector/supply-chain articles to every
+  // affected watchlist ticker (e.g. an SK-Hynix memory story → SNDK+MU+WDC),
+  // so big industry news that names none of our companies still surfaces.
+  return [...all, ...broadenByTheme(all, wl)];
+}
+
+// ─── STAGED FETCH: fetch ONE slice of work, well under the 50-subrequest cap ──
+// Cloudflare caps each Worker invocation at 50 subrequests. A full build needs
+// ~87 per-ticker fetches (29 tickers × fh+tt+pg) + limited sources + AI calls,
+// which blows the cap and kills the AI phase (the "quota exhausted / RAW" bug).
+// The orchestrator runs this once per ticker-slice in SEPARATE self-invocations,
+// each with its own fresh 50 budget, and stages the articles in KV. Quality is
+// identical — same sources, same tickers — just spread across invocations.
+//
+// opts = { tickers:[...slice], includeGeneral:bool, includeLimited:bool }
+// Subrequest cost = tickers.length*3 (+1 general) (+~3 limited) — keep tickers ≤14.
+async function fetchSlice(env, wl, opts){
+  const { tickers, includeGeneral, includeLimited } = opts;
+  const now = new Date();
+  const cutoff = now.getTime() - HOURS*3600*1000;
+  const from = new Date(cutoff);
+  const fromD = ymd(from), toD = ymd(now);
+  const isoFrom = from.toISOString().slice(0,19);
+
+  let mx=[], sd=[], av=[], tg=[], fg=[], gn=[];
+
+  // Limited-quota sources (multi-symbol, 1 subrequest each) — only on the slice
+  // flagged includeLimited, and only on force-fresh. Scoped to the FULL watchlist
+  // (these APIs take all symbols in one call) so we don't lose cross-ticker news.
+  if (includeLimited){
+    const [mxOk, sdOk, avOk, tgOk] = await Promise.all([
+      budgetAvailable(env,'marketaux'),
+      budgetAvailable(env,'stockdata'),
+      budgetAvailable(env,'alphavantage'),
+      budgetAvailable(env,'tiingo'),
+    ]);
+    const tasks = [];
+    if (mxOk){ tasks.push(fetchMarketaux(wl, env, isoFrom).then(r=>{mx=r;return bumpBudget(env,'marketaux');})); }
+    if (sdOk){ tasks.push(fetchStockData(wl, env, isoFrom).then(r=>{sd=r;return bumpBudget(env,'stockdata');})); }
+    if (avOk){ tasks.push(fetchAlphaVantage(wl, env, HOURS).then(r=>{av=r;return bumpBudget(env,'alphavantage');})); }
+    if (tgOk && env.TIINGO_KEY && env.TIINGO_ENABLED){ tasks.push(fetchTiingo(wl, env, isoFrom).then(r=>{tg=r;return bumpBudget(env,'tiingo');})); }
+    await Promise.all(tasks);
+  }
+
+  // Finnhub general (1 subrequest, market-wide) — runs on the slice flagged
+  // includeGeneral, attributed to any FULL-watchlist ticker it mentions.
+  if (includeGeneral){
+    fg = await fetchFinnhubGeneral(env, wl, cutoff);
+    gn = await fetchEntityNews(env, wl, cutoff);   // supply-chain entity search (1 subrequest)
+  }
+
+  // Per-ticker for THIS slice only (fh+tt+pg = 3 subrequests/ticker).
+  const perTicker = [];
+  const queue = [...tickers];
+  async function worker(){
+    while (queue.length){
+      const t = queue.shift();
+      const [fh, tt, pg] = await Promise.all([
+        fetchFinnhub(t, env, fromD, toD),
+        fetchTickerTick(t, cutoff),
+        fetchPolygon(t, env, isoFrom),
+      ]);
+      perTicker.push(...fh, ...tt, ...pg);
+    }
+  }
+  await Promise.all(Array.from({length:6}, worker));
+
+  const all = [...mx, ...sd, ...av, ...tg, ...fg, ...gn, ...perTicker]
+    .filter(a => a.headline && a.ts >= cutoff);
+  return [...all, ...broadenByTheme(all, wl)];
+}
+
+// Split a watchlist into slices small enough to stay under the subrequest cap.
+// 13 tickers × 3 = 39 subrequests; slice 0 also runs general (1) + limited
+// sources (~3) = ~43, safely under the 50 cap. Fewer slices = shorter chain.
+const TICKERS_PER_SLICE = 13;
+function sliceTickers(wl){
+  const out = [];
+  for (let i=0; i<wl.length; i+=TICKERS_PER_SLICE) out.push(wl.slice(i, i+TICKERS_PER_SLICE));
+  return out;
+}
+
+// ─── clustering: dedupe + merge same-event articles ───────────────────────
+// Strategy:
+//   Step 0 — pre-dedupe within each ticker by normalized headline (kills Finnhub
+//             repetition where the same Yahoo story appears 6× under AMZN).
+//   Step 1 — cluster cross-source by non-Finnhub URL (reliable canonical URL).
+//   Step 2 — cluster by ticker+headline-sig (first 60 chars of norm headline).
+//   Step 3 — merge URL clusters whose headline matches a sig cluster.
+//   Cap sourceCount at 10 for display; real count stored separately.
+
+const MAX_SOURCES_PER_EVENT = 10;
+
+// ── Step 4 helper: semantic merge of near-duplicate events ─────────────────
+// Lexical clustering (URL / first-60-char headline) leaves many differently-
+// worded takes on the SAME big story as separate cards (e.g. 8 "SK Hynix $26.5B
+// US IPO" variants). This second pass folds them by salient-token overlap, GATED
+// on (a) a shared candidate ticker and (b) a shared STRONG token (proper noun or
+// number) — so genuinely distinct stories about the same company (SK Hynix IPO vs
+// SK Hynix HBM deal) and different analyst actions (Goldman $640 vs Stifel) stay
+// apart, while pure rewordings of one event collapse into a single multi-source card.
+const MERGE_STOP = new Set('the a an to in on of for and or at as is are its it has have had will be was were this that with from by up over into out new than more after before ahead amid set say says said could may can not no but how why what when who their they you your his her our we he she them then so if off per via'.split(' '));
+const MERGE_GENERIC = new Set('raises raised rises rise raise shares share record demand memory market markets price prices pricing chip chips stock stocks sector target targets billion million trillion offering deal deals report reports earnings growth giant firm maker makers plan plans launch launches company unveils buy sell hold rating ratings analyst analysts surge surges soar soars jump jumps fall falls drop drops gain gains debut open opens opening close closes week day quarter year years high low big data chipmaker semiconductor'.split(' '));
+function nhTokens(text){
+  const out = new Set();
+  const parts = (text||'').toLowerCase().replace(/[^a-z0-9.\s$%]/g,' ').split(/\s+/);
+  for (let t of parts){
+    t = t.replace(/^\$+/,'').replace(/[.%]+$/,'');
+    if (!t) continue;
+    const m = t.match(/^(\d[\d.]*)(bn|b|m|k|billion|million|trillion|t)?$/); // fold $26.5bn/26.5b/26.5billion → 26.5
+    if (m) t = m[1].replace(/\.+$/,'');
+    if (!t) continue;
+    if (MERGE_STOP.has(t)) continue;
+    if (/[a-z]/.test(t) && t.length < 3) continue; // drop tiny words, keep numeric tokens
+    out.add(t);
+  }
+  return out;
+}
+function isStrongTok(t){ return /\d/.test(t) || (t.length >= 4 && !MERGE_GENERIC.has(t)); }
+function nhEventTokens(ev){ return nhTokens((ev.sources||[]).slice(0,3).map(s=>s.headline||'').join(' ')); }
+function mergeSimilarEvents(events){
+  const n = events.length;
+  if (n < 2) return events;
+  const toks   = events.map(nhEventTokens);
+  const strong = toks.map(s => new Set([...s].filter(isStrongTok)));
+  const tset   = events.map(e => new Set((e.candidateTickers||[]).filter(t => t && t !== 'NONE')));
+  const parent = Array.from({length:n}, (_,i)=>i);
+  const find = x => { while(parent[x]!==x){ parent[x]=parent[parent[x]]; x=parent[x]; } return x; };
+  const union = (a,b)=>{ const ra=find(a), rb=find(b); if(ra!==rb) parent[rb]=ra; };
+  const WIN = 36*3600*1000;                       // don't merge takes >36h apart
+  for (let i=0;i<n;i++){
+    for (let j=i+1;j<n;j++){
+      if (Math.abs((events[i].ts||0)-(events[j].ts||0)) > WIN) continue;
+      let shareTk=false; for (const t of tset[i]){ if (tset[j].has(t)){ shareTk=true; break; } }
+      if (!shareTk) continue;                      // must be about a common ticker
+      const a=toks[i], b=toks[j];
+      const small = a.size<=b.size ? a : b, big = a.size<=b.size ? b : a;
+      let shared=0, strongShared=0;
+      for (const t of small){ if (big.has(t)){ shared++; if (strong[i].has(t)&&strong[j].has(t)) strongShared++; } }
+      if (shared < 3 || strongShared < 1) continue; // need real + distinctive overlap
+      if (shared / Math.max(1, small.size) < 0.45) continue;
+      union(i,j);
+    }
+  }
+  const groups = new Map();
+  for (let i=0;i<n;i++){ const r=find(i); if(!groups.has(r)) groups.set(r,[]); groups.get(r).push(i); }
+  const merged = [];
+  for (const idxs of groups.values()){
+    if (idxs.length === 1){ merged.push(events[idxs[0]]); continue; }
+    // Representative = most-sourced, then newest — its summary/shape leads the card.
+    idxs.sort((x,y)=> (events[y].sourceCount||0)-(events[x].sourceCount||0) || (events[y].ts||0)-(events[x].ts||0));
+    const rep = events[idxs[0]];
+    const tix=new Set(), srcs=[], seen=new Set(); let ts=0, themed=false;
+    for (const i of idxs){
+      const e = events[i];
+      (e.candidateTickers||[]).forEach(t=>tix.add(t));
+      themed = themed || !!e.themed;
+      ts = Math.max(ts, e.ts||0);
+      for (const s of (e.sources||[])){
+        const key = (s.url && !s.url.includes('finnhub.io/api/news') ? stripUrl(s.url) : '') || normKey(s.headline).slice(0,70);
+        if (seen.has(key)) continue; seen.add(key); srcs.push(s);
+      }
+    }
+    srcs.sort((a,b)=>(b.ts||0)-(a.ts||0));
+    merged.push({ ...rep, candidateTickers:[...tix], themed, sources:srcs.slice(0,MAX_SOURCES_PER_EVENT), sourceCount:srcs.length, ts });
+  }
+  merged.sort((a,b)=>(b.ts||0)-(a.ts||0));
+  return merged.map((e,i)=>({ ...e, id:'evt_'+i })); // re-id so the AI batch mapping stays 1:1
+}
+
+function clusterArticles(articles, wl){
+  wl = wl || WATCHLIST;
+  articles.sort((a,b) => b.ts - a.ts);
+
+  // ── Step 0a: per-ticker dedupe by headline ─────────────────────────────
+  // Kills Finnhub repeating the same Yahoo article 6x under the same ticker.
+  const seenPerTicker = new Set();
+  const pass1 = [];
+  for (const a of articles){
+    const k = a.ticker + '|' + normKey(a.headline).slice(0,70);
+    if (seenPerTicker.has(k)) continue;
+    seenPerTicker.add(k);
+    pass1.push(a);
+  }
+
+  // ── Accumulate every ticker seen per URL / per headline-sig BEFORE dedup ──
+  // Step 0b drops same-URL duplicates (keeping one feed), which would otherwise
+  // erase the multi-ticker attribution that theme broadening + general news
+  // create. We stash the full ticker set per URL and per headline so the final
+  // event can reclaim ALL affected tickers (so a memory story surfaces as
+  // SNDK+MU+WDC, not just whichever copy survived dedup).
+  const urlTix = new Map(), sigTix = new Map();
+  const themedKeys = new Set();   // url/sig keys that came from a theme match
+  for (const a of pass1){
+    const uk = a.url && !a.url.includes('finnhub.io/api/news') ? stripUrl(a.url) : '';
+    const sg = normKey(a.headline).slice(0,60);
+    if (uk){ if(!urlTix.has(uk)) urlTix.set(uk,new Set()); urlTix.get(uk).add(a.ticker); if(a.theme) themedKeys.add('u:'+uk); }
+    if (sg && sg.length>=8){ if(!sigTix.has(sg)) sigTix.set(sg,new Set()); sigTix.get(sg).add(a.ticker); if(a.theme) themedKeys.add('s:'+sg); }
+  }
+
+  // ── Step 0b: cross-ticker dedupe by URL + headline ────────────────────────
+  // Precedence: mx/sd/av (relevance-scored) > tt (allowlist filtered) > fh
+  pass1.sort((a,b) => {
+    const p = {ec:0, mx:0, sd:0, av:0, tg:1, pg:1, tt:2, fh:3, fg:4};
+    return (p[a.feed]??3) - (p[b.feed]??3) || b.ts - a.ts;
+  });
+  const seenGlobal = new Set();
+  const deduped = [];
+  for (const a of pass1){
+    const urlKey = a.url && !a.url.includes('finnhub.io/api/news') ? stripUrl(a.url) : '';
+    const hlKey  = normKey(a.headline).slice(0,70);
+
+    if (urlKey && seenGlobal.has('u:'+urlKey)) continue;
+    if (hlKey.length > 12 && seenGlobal.has('h:'+hlKey)) continue;
+
+    if (urlKey)            seenGlobal.add('u:'+urlKey);
+    if (hlKey.length > 12) seenGlobal.add('h:'+hlKey);
+    deduped.push(a);
+  }
+
+  // ── Step 1: cluster by canonical URL (non-Finnhub) ────────────────────
+  const events  = new Map();
+  const claimed = new Set();
+  const urlBuckets = new Map();
+
+  for (let i=0; i<deduped.length; i++){
+    const a = deduped[i];
+    if (!a.url || a.url.includes('finnhub.io/api/news')) continue;
+    const u = stripUrl(a.url);
+    if (!u || u.length < 10) continue;
+    if (urlBuckets.has(u)){
+      urlBuckets.get(u).articles.push(a);
+      urlBuckets.get(u).tickers.add(a.ticker);
+      claimed.add(i);
+    } else if (!claimed.has(i)){
+      const ev = { articles:[a], tickers:new Set([a.ticker]) };
+      urlBuckets.set(u, ev);
+      events.set('u:'+u, ev);
+      claimed.add(i);
+    }
+  }
+
+  // ── Step 2: cluster remaining by headline sig (cross-ticker now ok since deduped) ──
+  const sigBuckets = new Map();
+  for (let i=0; i<deduped.length; i++){
+    if (claimed.has(i)) continue;
+    const a = deduped[i];
+    const sig = normKey(a.headline).slice(0,60);
+    if (!sig || sig.length < 8) continue;
+    if (sigBuckets.has(sig)){
+      sigBuckets.get(sig).articles.push(a);
+      sigBuckets.get(sig).tickers.add(a.ticker);
+      claimed.add(i);
+    } else {
+      const ev = { articles:[a], tickers:new Set([a.ticker]) };
+      sigBuckets.set(sig, ev);
+      events.set('s:'+sig, ev);
+      claimed.add(i);
+    }
+  }
+
+  // ── Step 3: merge URL clusters into sig clusters ──────────────────────
+  for (const [k, ev] of events){
+    if (!k.startsWith('u:')) continue;
+    const sig = normKey(ev.articles[0].headline).slice(0,60);
+    if (sigBuckets.has(sig)){
+      const other = sigBuckets.get(sig);
+      if (other !== ev){
+        ev.articles.push(...other.articles);
+        other.tickers.forEach(t => ev.tickers.add(t));
+        events.delete('s:'+sig);
+      }
+    }
+  }
+
+  // ── Singletons ────────────────────────────────────────────────────────
+  for (let i=0; i<deduped.length; i++){
+    if (claimed.has(i)) continue;
+    const a = deduped[i];
+    events.set('lone:'+i, { articles:[a], tickers:new Set([a.ticker]) });
+  }
+
+  const clustered = [...events.values()].map((ev, idx) => {
+    ev.articles.sort((a,b) => b.ts - a.ts);
+    const realCount = ev.articles.length;
+    // Reclaim every ticker this event's URLs/headlines were attributed to
+    // pre-dedup, and flag the event as themed if any contributing copy was a
+    // theme (sector) match.
+    const tix = new Set(ev.tickers);
+    let themed = false;
+    for (const a of ev.articles){
+      const uk = a.url && !a.url.includes('finnhub.io/api/news') ? stripUrl(a.url) : '';
+      const sg = normKey(a.headline).slice(0,60);
+      if (uk && urlTix.has(uk)){ urlTix.get(uk).forEach(t=>tix.add(t)); if(themedKeys.has('u:'+uk)) themed=true; }
+      if (sg && sigTix.has(sg)){ sigTix.get(sg).forEach(t=>tix.add(t)); if(themedKeys.has('s:'+sg)) themed=true; }
+    }
+    // Cross-attribution: union in every watchlist name the article TEXT mentions,
+    // not just the wire it arrived on — see mentionedTickers(). Added AFTER the
+    // feed-attributed ones so candidateTickers[0] (the per-ticker cap key in
+    // selectTopEvents, and the raw-fallback primary) still reflects the source.
+    if (tix.size < XATTR_MAX_CANDIDATES){
+      const scanText = ev.articles.slice(0, 4)
+        .map(a => (a.headline||'') + '. ' + (a.summary||'')).join('\n');
+      for (const t of mentionedTickers(scanText, wl)){
+        if (tix.size >= XATTR_MAX_CANDIDATES) break;
+        tix.add(t);
+      }
+    }
+    return {
+      id: 'evt_' + idx,
+      candidateTickers: [...tix],
+      themed,
+      sources: ev.articles.slice(0, MAX_SOURCES_PER_EVENT).map(a => ({
+        name: a.source, url: a.url, headline: a.headline,
+        summary: (a.summary||'').slice(0,500), feed: a.feed,
+        apiSentiment: a.apiSentiment, ts: a.ts,
+      })),
+      sourceCount: realCount,
+      ts: ev.articles[0].ts,
+    };
+  });
+  // Step 4: fold differently-worded takes on the same big story into one card.
+  return mergeSimilarEvents(clustered);
+}
+
+// ─── Gemini analyze (batched) ─────────────────────────────────────────────
+// ─── mark a model as quota-blocked for QUOTA_COOLDOWN seconds ────────────
+async function markModelBlocked(env, model, ctx){
+  try {
+    ctx.waitUntil(env.NEWSHUB_CACHE.put('quota_block:'+model, '1', { expirationTtl: QUOTA_COOLDOWN }));
+  } catch(e){}
+}
+
+function buildGeminiPrompt(events, wl, sectors){
+  wl = wl || WATCHLIST; sectors = sectors || SECTORS;
+  return `You are a stock market intelligence analyst for an active trader monitoring this watchlist: ${wl.join(', ')}.
+
+Sector map: ${Object.entries(sectors).map(([t,s])=>`${t}=${s}`).join(', ')}
+
+TASK: For each news event below, assign the watchlist ticker it is MOST about, write a trader summary, and score its market impact.
+
+RULES:
+1. If the headline/summary is directly about a watchlist company → assign that ticker.
+2. If multiple watchlist tickers are mentioned, pick the one most central to the story as primaryTicker — and put EVERY OTHER watchlist ticker the story materially affects in additionalTickers. A story is rarely about one name only: a partnership, supply deal, lawsuit, or analyst note names both sides, and BOTH trade on it. Example: "Marvell's deal with Google validates custom silicon" → primaryTicker GOOGL or MRVL, additionalTickers MUST contain the other. Never leave additionalTickers empty when a second watchlist company is named or is a direct party to the event.
+2b. candidateTickers is a HINT from our scanner, not a limit on additionalTickers — if the text names a watchlist company that candidateTickers missed, still list it in additionalTickers.
+3. INDUSTRY / SUPPLY-CHAIN / COMPETITOR / COMMODITY / MACRO news counts as RELEVANT even when it names NONE of the watchlist companies. A rival's capex cut, a supply glut or shortage, a commodity price swing, an export control, or a sector-wide pricing move directly drives our names — assign it to the affected watchlist ticker(s) in candidateTickers, do NOT mark it NONE. Example: "SK Hynix slows memory expansion" / "Korea memory output cut" → assign MU/SNDK/WDC, it is the REASON those stocks moved.
+4. When candidateTickers is non-empty, primaryTicker MUST be one of them unless the story has truly zero connection to any. Only use "NONE" for genuine off-watchlist noise.
+5. Analyst upgrades/downgrades, price target changes, earnings previews, product news — ALL keep their ticker even if minor.
+6. Be INCLUSIVE — minor relevant article (impactScore 10-20) is better than dropping it.
+7. SCORE BY REAL MARKET IMPACT, not by whether the company is named. A sector-wide supply/pricing/policy shift that is actively moving the stock is major-to-critical (impactScore 70-95), even if our company is not in the headline. Do not under-score industry news just because it is indirect.
+
+SUMMARY FORMAT — 2-3 concise sentences, trader-focused:
+(1) What happened — key numbers, price targets, % moves, dollar amounts.
+(2) Why it matters + near-term price direction (e.g. "+2-5% pop", "modest pressure", "neutral until earnings").
+
+Return a JSON array. Each element MUST have: id, summary, sentiment ("bull"|"neutral"|"bear"), sentimentScore, impactScore, eventType, primaryTicker, additionalTickers, sectors, relevanceConfidence.
+
+CRITICAL: Return EXACTLY one object for EVERY event id below — never skip or omit any. If an event is irrelevant, still include it with primaryTicker "NONE". The array length MUST equal the number of events provided.
+
+Events:
+${JSON.stringify(events.map(ev => ({
+  id: ev.id,
+  candidateTickers: ev.candidateTickers,
+  sources: ev.sources.slice(0,3).map(s => ({
+    source: s.name,
+    headline: s.headline,
+    summary: (s.summary||'').slice(0,400),
+  }))
+})), null, 2)}`;
+}
+
+function buildNIMPrompt(events, wl, sectors){
+  wl = wl || WATCHLIST; sectors = sectors || SECTORS;
+  const lines = events.map(ev => {
+    const src = ev.sources.slice(0,2).map(s => `  - [${s.name}] ${s.headline}. ${(s.summary||'').slice(0,200)}`).join('\n');
+    return `EVENT_ID: ${ev.id}\nTICKERS: ${ev.candidateTickers.join(', ')}\nSOURCES:\n${src}`;
+  }).join('\n\n---\n\n');
+
+  return `Watchlist: ${wl.join(', ')}
+Sector map: ${Object.entries(sectors).map(([t,s])=>`${t}=${s}`).join(', ')}
+
+Analyze each news event below. INDUSTRY / SUPPLY-CHAIN / COMPETITOR / COMMODITY / MACRO news is RELEVANT even when it names none of the watchlist companies — a rival's capex cut, a supply glut/shortage, a commodity move, or an export control drives our names directly. If candidateTickers (TICKERS) is non-empty, primaryTicker MUST be one of them unless there is zero connection; only use "NONE" for true off-watchlist noise. Score by REAL market impact: a sector-wide shift actively moving the stock is major-to-critical (70-95) even if indirect. For EACH event output one JSON object with EXACTLY these fields:
+- id: the EVENT_ID string
+- summary: 2-3 concise sentences — (1) what happened with key numbers/PTs, (2) why it matters + near-term price direction
+- sentiment: "bull", "neutral", or "bear"
+- sentimentScore: number from -1.0 to 1.0
+- impactScore: integer 0-100 (90+=critical, 75+=major, 60+=important, 40+=notable, 10+=minor)
+- eventType: one of earnings/guidance/upgrade/downgrade/merger/regulatory/product/personnel/macro/valuation/other
+- primaryTicker: the single most relevant watchlist ticker, or "NONE"
+- additionalTickers: EVERY OTHER watchlist ticker the story materially affects — a partnership, supply deal, lawsuit or analyst note names both sides and BOTH trade on it, so list them. Do not leave this empty when a second watchlist company is named or is a direct party. candidateTickers (TICKERS) is a hint, not a limit — include a watchlist name it missed.
+- sectors: array of affected sectors
+- relevanceConfidence: number 0.0-1.0
+
+Output ONLY a JSON array containing one object per event. No markdown. No explanation. Start with [ end with ].
+
+CRITICAL: You MUST return EXACTLY ${events.length} objects — one for every EVENT_ID listed below, in the same order. Do not skip, merge, or omit any event. If an event seems irrelevant, still include it with primaryTicker "NONE". The array length MUST equal ${events.length}.
+
+EVENTS:
+${lines}`;
+}
+
+// Build the Gemini request body. v1beta REST needs camelCase keys.
+// 2.5 models are *thinking* models — without thinkingBudget:0 they burn the
+// output-token budget on reasoning and return MAX_TOKENS with empty content.
+// ── Calendar config ─────────────────────────────────────────────────────────
+const CAL_TTL        = 12 * 3600;   // 12h cache — macro/earnings calendar barely moves
+const CAL_LOCK_TTL   = 120;         // build-lock auto-expiry
+// The CRON holds the calendar lock for its WHOLE invocation — news pre-warm, the
+// pause, the calendar build and its retry — not just the build. A client that opens
+// TradeHub at 6:01 would otherwise find no lock and no cache and start its own
+// calendar build straight into the news pre-warm's Finnhub fan-out, starving both.
+// While the lock is held, /calendar answers 202 "building" (or a STALE hit) and the
+// client polls / retries on its next tick instead of competing. Auto-expires, so a
+// cron that dies mid-flight can't wedge the endpoint.
+const CAL_CRON_LOCK_TTL = 600;      // 10 min — comfortably covers news + calendar + retry
+const CAL_DAYS_MAX   = 31;          // clamp the lookahead window (front-end asks for 30)
+// Grounded-search calendar. gemini-3.5-flash is a thinking model that 429s (low
+// grounding quota) or lets thinking eat the small output budget → empty, so it is
+// DEMOTED to a trailing fallback; lead with the reliable 2.5-flash. (See the News
+// AI_CHAIN note — same lesson applied program-wide.)
+const CAL_MACRO_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-3.5-flash'];
+
+// Only these macro releases are accepted (whitelist kills hallucinated junk).
+// [regex, category]. First match wins.
+const MACRO_WHITELIST = [
+  [/\bcpi\b|consumer price/i,                         'inflation'],
+  [/\bppi\b|producer price/i,                         'inflation'],
+  [/\bpce\b|personal consumption/i,                   'inflation'],
+  // Fed. Speaker events used to need the literal word "Fed"/"Federal Reserve" or
+  // a title, so a perfectly normal AI phrasing like "Christopher Waller Speech"
+  // or "Waller at Reuters NEXT Newsmaker Event" was silently rejected here and
+  // never reached the calendar — only Powell and Warsh were known by surname.
+  // Now: sitting Board members and reserve-bank presidents are matched by
+  // surname, and the set of speaking-event words is much wider (panels, fireside
+  // chats, newsmaker appearances — not just "speech"). FED_SPEAKERS needs a look
+  // whenever the Board or a reserve bank changes hands; ambiguous surnames that
+  // collide with well-known non-Fed names (Cook, Barr, Williams) are deliberately
+  // left out and still rely on the "Fed"/title path.
+  [/\bfomc\b|fed(eral)? (reserve|funds)|rate decision|powell|warsh|interest rate decision|fomc minutes|jackson hole|semiannual monetary policy|monetary policy report|beige book|(fed|federal reserve|fomc|board of governors)[^.]*(speech|remarks|testimony|speaks|speaking|keynote|panel|discussion|interview|appearance|newsmaker|fireside|town hall|economic outlook)|(chair|vice chair|governor|president)[^.]*(speech|remarks|testimony|speaks|speaking|keynote|panel|discussion|interview|appearance|newsmaker|fireside|town hall)|\b(waller|jefferson|bowman|kugler|miran|logan|goolsbee|musalem|schmid|hammack|collins|bostic|barkin|daly|kashkari|harker|mester|bullard)\b[^.]*(speech|remarks|testimony|speaks|speaking|keynote|panel|discussion|interview|appearance|newsmaker|fireside|town hall|economic outlook)/i, 'fed'],
+  [/nonfarm|non-farm|\bnfp\b|jobs report|payroll|unemployment rate/i, 'jobs'],
+  [/\bjolts\b|job openings|labor turnover/i,           'jobs'],
+  [/\badp\b|adp (national )?employment/i,              'jobs'],
+  [/jobless claims|initial claims|continuing claims/i, 'jobs'],
+  [/\bgdp\b|gross domestic/i,                          'growth'],
+  [/retail sales/i,                                    'growth'],
+  [/\bism\b|\bpmi\b|manufacturing index|services index|chicago business barometer/i, 'growth'],
+  [/durable goods/i,                                   'growth'],
+  [/consumer confidence|conference board/i,            'sentiment'],
+  [/michigan|consumer sentiment/i,                     'sentiment'],
+  [/housing starts|building permits|existing home|new home sales|home sales/i, 'housing'],
+  [/trade balance|trade deficit|international trade/i, 'trade'],
+];
+function macroCategory(name){
+  for (const [re, cat] of MACRO_WHITELIST) if (re.test(name)) return cat;
+  return null; // not whitelisted → reject
+}
+
+// Market-impact tier for a macro release, by standard consensus (Forex Factory /
+// Investing.com-style). high = can move indices; medium = watched; low = minor.
+// Order matters: FOMC Minutes (medium) must be tested before FOMC decision (high).
+function macroImportance(name){
+  const n = name || '';
+  if (/fomc minutes/i.test(n)) return 'medium';
+  if (/\bcpi\b|consumer price|nonfarm|non-farm|\bnfp\b|jobs report|\bfomc\b|rate decision|powell|\bpce\b|personal consumption|\bgdp\b|gross domestic|\becb\b|european central bank|jackson hole|semiannual|monetary policy report|humphrey/i.test(n)) return 'high';
+  if (/\bppi\b|producer price|retail sales|\bjolts\b|job openings|\bism\b|\badp\b|jobless claims|initial claims|consumer confidence|flash pmi|s&p global flash|beige book/i.test(n)) return 'medium';
+  // A sitting Chair/Vice-Chair/Governor on the record between meetings routinely
+  // repositions the rate path — a single Waller speech moved September hike odds
+  // from ~65-70% to ~50% — so these read Med, not the Low they used to.
+  if (/chair|vice chair|governor|\bfed\b|federal reserve|waller|jefferson|bowman|kugler|miran/i.test(n)) return 'medium';
+  return 'low'; // michigan, chicago pmi, durable goods, housing, home sales, trade, regional-president remarks
+}
+
+// ── AUTHORITATIVE macro release calendar ─────────────────────────────────────
+// Hardcoded from OFFICIAL published schedules (BLS, BEA, Federal Reserve) so
+// dates are CONCRETE and correct — never AI-guessed. This is the source of truth;
+// grounded Gemini is only a supplement for anything not covered here.
+// Sources:
+//   CPI/PPI/Jobs → bls.gov/schedule  •  PCE/GDP → bea.gov + PFEI 2026 schedule
+//   FOMC → federalreserve.gov  (decision day = 2nd day of each meeting)
+// Each entry: 'YYYY-MM-DD': releases that day. `m` = reference-month label helper.
+// NOTE: maintained for 2026; update when the agencies publish 2027.
+const MACRO_RELEASES_2026 = {
+  // Employment Situation / Jobs report (NFP) — BLS
+  jobs: ['2026-01-09','2026-02-11','2026-03-06','2026-04-03','2026-05-08','2026-06-05','2026-07-02','2026-08-07','2026-09-04','2026-10-02','2026-11-06','2026-12-04'],
+  // CPI — BLS
+  cpi:  ['2026-01-13','2026-02-13','2026-03-11','2026-04-10','2026-05-12','2026-06-10','2026-07-14','2026-08-12','2026-09-11','2026-10-14','2026-11-10','2026-12-10'],
+  // PPI — BLS (official 2026 dates per OMB PFEI schedule / bls.gov/schedule)
+  ppi:  ['2026-01-15','2026-02-19','2026-03-12','2026-04-14','2026-05-14','2026-06-11','2026-07-15','2026-08-13','2026-09-10','2026-10-15','2026-11-13','2026-12-15'],
+  // Personal Income & Outlays = PCE — BEA (PFEI 2026)
+  pce:  ['2026-01-29','2026-02-26','2026-03-27','2026-04-30','2026-05-28','2026-06-25','2026-07-30','2026-08-26','2026-09-30','2026-10-29','2026-11-25','2026-12-23'],
+  // GDP — BEA (advance/2nd/3rd estimates, PFEI 2026)
+  gdp:  ['2026-01-29','2026-02-26','2026-03-27','2026-04-30','2026-05-28','2026-06-25','2026-07-30','2026-08-26','2026-09-30','2026-10-29','2026-11-25','2026-12-23'],
+  // Retail Sales — Census Advance Monthly Retail (official 2026 dates per OMB PFEI)
+  retail: ['2026-01-16','2026-02-17','2026-03-16','2026-04-15','2026-05-15','2026-06-16','2026-07-16','2026-08-14','2026-09-16','2026-10-15','2026-11-17','2026-12-16'],
+  // FOMC rate decision (2nd day of meeting) — Federal Reserve
+  fomc: ['2026-01-28','2026-03-18','2026-04-29','2026-06-17','2026-07-29','2026-09-16','2026-10-28','2026-12-09'],
+  // JOLTS (Job Openings & Labor Turnover) — BLS. Released ~10am ET, reports the
+  // month from ~2 months prior. 2026 schedule is irregular (shutdown-shifted in
+  // H1); forward dates confirmed via BLS/TradingCalendar. Past months left sparse
+  // since only the forward 30-day window is ever surfaced.
+  jolts: ['2026-02-03','2026-05-05','2026-06-02','2026-06-30','2026-08-04','2026-09-01','2026-09-29','2026-11-03','2026-12-01'],
+  // S&P Global US Flash PMI (Manufacturing + Services + Composite) — the EARLIEST
+  // read on the CURRENT month's economy (~3 wks before ISM covers it). Official
+  // S&P Global Market Intelligence release-dates schedule (pmi.spglobal.com). The
+  // release day-of-week VARIES month to month (no fixed rule), so dates are
+  // hardcoded and cross-checked against multiple calendars.
+  flashpmi: ['2026-01-23','2026-02-20','2026-03-24','2026-04-23','2026-05-21','2026-06-23','2026-07-24','2026-08-21','2026-09-23','2026-10-23','2026-11-23','2026-12-16'],
+};
+const MON_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+// Set of years we have hardcoded (auto-derived from the table above, so adding a
+// new year's dates anywhere in MACRO_RELEASES_2026 automatically marks that year
+// as "trusted" — no other code to touch). Years NOT in this set fall back to AI.
+const HARDCODED_YEARS = new Set(
+  Object.values(MACRO_RELEASES_2026).flat().map(d => String(d).slice(0,4))
+);
+
+// ── Non-US central bank + marquee Fed events ─────────────────────────────────
+// Kept in SEPARATE tables (NOT inside MACRO_RELEASES_2026) on purpose: that
+// object auto-derives HARDCODED_YEARS, which gates the grounded-AI fallback for
+// the US series. ECB spans 2026–2027; letting 2027 leak into HARDCODED_YEARS
+// would mark 2027 "trusted" and DROP the AI fallback for every not-yet-hardcoded
+// 2027 US release (CPI, jobs, FOMC…). These tables are emitted directly by
+// authoritativeMacro regardless of HARDCODED_YEARS, so they never affect it.
+//
+// ECB Governing Council MONETARY POLICY meeting decision days (the 2nd/final day,
+// when the rate is announced at 14:15 CET). 8 meetings/year, ~6 weeks apart.
+// Source: ECB press calendar (ecb.europa.eu/press/calendars). Non-US, but a major
+// driver of US rates, USD and global risk sentiment. Maintained by year.
+const ECB_DECISIONS = [
+  // 2026 — forward only (H1 meetings already passed; only a 30-day window surfaces)
+  '2026-07-23','2026-09-10','2026-10-29','2026-12-17',
+  // 2027 — full year, per the ECB's published calendar
+  '2027-02-04','2027-03-18','2027-04-29','2027-06-10','2027-07-22','2027-09-09','2027-10-28','2027-12-16',
+];
+// Marquee, pre-scheduled Fed-Chair events with FIXED dates that reliably move
+// markets — distinct from ad-hoc FOMC-member speeches (grounded Gemini supplies
+// those best-effort). The FOMC press conference (where the Chair speaks) is
+// already covered by the FOMC Rate Decision entries, so it's not repeated here.
+//   • Jackson Hole = Fed Chair keynote day (Fri) of the KC Fed symposium.
+//   • Testimony = semiannual Monetary Policy Report to Congress (House + Senate).
+// NOTE: the Fed Chair from May 2026 is Warsh (not Powell) — names kept generic.
+// Maintained by year; testimony dates are set ~2 wks ahead by the committees, so
+// only confirmed ones are listed and future years fall back to grounded AI.
+const FED_CHAIR_EVENTS = [
+  { date:'2026-07-14', name:'Fed Chair Semiannual Testimony (House)' },
+  { date:'2026-07-15', name:'Fed Chair Semiannual Testimony (Senate)' },
+  { date:'2026-08-28', name:'Jackson Hole Symposium — Fed Chair Keynote' },
+];
+// Reference month label: most reports cover the PRIOR month; GDP covers a quarter.
+function prevMonthLabel(dateStr){
+  const m = parseInt(dateStr.slice(5,7),10) - 1; // 0-based this month
+  const pm = (m + 11) % 12; // previous month
+  return MON_NAMES[pm];
+}
+function gdpQuarterLabel(dateStr){
+  // BEA releases a given quarter's estimates over the following ~3 months.
+  const m = parseInt(dateStr.slice(5,7),10); const y = parseInt(dateStr.slice(0,4),10);
+  if (m>=1 && m<=3)  return `Q4 ${y-1}`;
+  if (m>=4 && m<=6)  return `Q1 ${y}`;
+  if (m>=7 && m<=9)  return `Q2 ${y}`;
+  return `Q3 ${y}`;
+}
+// ── Date helpers for rule-based (computed) releases ──────────────────────────
+// UTC-safe (worker runs UTC; all calendar dates are bare YYYY-MM-DD ET dates).
+function addDaysIso(iso, n){ const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0,10); }
+function isoDow(iso){ return new Date(iso + 'T00:00:00Z').getUTCDay(); } // 0=Sun … 6=Sat
+
+// Federal holidays (BLS/Census/Conference Board are closed these days, which is
+// what shifts business-day-anchored releases — NOT the NYSE calendar, which
+// differs on Columbus/Veterans Day & Good Friday). Reuses the nth-weekday and
+// Sat→Fri / Sun→Mon observance helpers defined for the market-holiday block.
+const _fedHolCache = {};
+function fedHolidaySet(Y){
+  if (_fedHolCache[Y]) return _fedHolCache[Y];
+  const s = new Set();
+  const ny = mktObserve(Y,1,1,false); if (ny) s.add(ny);          // New Year's Day
+  s.add(mktIso(Y,1,  mktNthDow(Y,1,1,3)));                         // MLK — 3rd Mon Jan
+  s.add(mktIso(Y,2,  mktNthDow(Y,2,1,3)));                         // Washington — 3rd Mon Feb
+  s.add(mktIso(Y,5,  mktLastDow(Y,5,1)));                          // Memorial — last Mon May
+  s.add(mktObserve(Y,6,19,false));                                // Juneteenth
+  s.add(mktObserve(Y,7,4,false));                                 // Independence Day
+  s.add(mktIso(Y,9,  mktNthDow(Y,9,1,1)));                         // Labor — 1st Mon Sep
+  s.add(mktIso(Y,10, mktNthDow(Y,10,1,2)));                        // Columbus — 2nd Mon Oct
+  s.add(mktObserve(Y,11,11,false));                               // Veterans Day
+  s.add(mktIso(Y,11, mktNthDow(Y,11,4,4)));                        // Thanksgiving — 4th Thu Nov
+  s.add(mktObserve(Y,12,25,false));                               // Christmas Day
+  return (_fedHolCache[Y] = s);
+}
+function isFedBiz(Y,M,d,hol){ const w = mktDow(Y,M,d); return w>=1 && w<=5 && !hol.has(mktIso(Y,M,d)); }
+function nthBusinessDay(Y,M,n){ const hol = fedHolidaySet(Y); const dim = new Date(Date.UTC(Y,M,0)).getUTCDate(); let c=0; for (let d=1; d<=dim; d++){ if (isFedBiz(Y,M,d,hol) && ++c===n) return mktIso(Y,M,d); } return null; }
+function lastBusinessDay(Y,M){ const hol = fedHolidaySet(Y); const dim = new Date(Date.UTC(Y,M,0)).getUTCDate(); for (let d=dim; d>=1; d--){ if (isFedBiz(Y,M,d,hol)) return mktIso(Y,M,d); } return null; }
+
+// Rule-based macro releases that follow a fixed scheduling rule (so they're exact
+// by construction — no hand-maintained date table needed). Only emitted for years
+// we treat as hardcoded (matches the CPI/jobs table); 2027+ falls back to grounded
+// Gemini + the "hardcode next year" banner, same as the rest of the calendar.
+function computedMacro(fromD, toD){
+  const out = [];
+  const inWin = d => d && d >= fromD && d <= toD;
+  const add = (date, name, category) => { if (inWin(date)) out.push({ kind:'macro', ticker:null, name, date, category }); };
+  const y0 = +fromD.slice(0,4), y1 = +toD.slice(0,4);
+  for (let Y=y0; Y<=y1; Y++){
+    if (!HARDCODED_YEARS.has(String(Y))) continue;
+    const m0 = (Y===y0) ? +fromD.slice(5,7) : 1;
+    const m1 = (Y===y1) ? +toD.slice(5,7)   : 12;
+    for (let M=m0; M<=m1; M++){
+      const lbl = MON_NAMES[M-1];
+      const prevLbl = MON_NAMES[(M+10)%12];
+      add(nthBusinessDay(Y,M,1), `${prevLbl} ISM Manufacturing PMI`, 'growth');  // 1st business day
+      add(nthBusinessDay(Y,M,3), `${prevLbl} ISM Services PMI`,      'growth');  // 3rd business day
+      add(mktIso(Y,M,mktLastDow(Y,M,2)), `${lbl} Consumer Confidence`, 'sentiment'); // last Tue
+      add(mktIso(Y,M,mktNthDow(Y,M,5,2)), `${lbl} Michigan Sentiment (Prelim)`, 'sentiment'); // 2nd Fri
+      add(mktIso(Y,M,mktLastDow(Y,M,5)),  `${lbl} Michigan Sentiment (Final)`,  'sentiment'); // last Fri
+      add(lastBusinessDay(Y,M), `${lbl} Chicago PMI`, 'growth'); // last business day
+    }
+  }
+  // ADP National Employment — the Wednesday immediately preceding each NFP
+  // (usually 2 days before a Friday NFP; 1 day before in holiday-shifted weeks).
+  for (const d of MACRO_RELEASES_2026.jobs){ let adp = addDaysIso(d, -1); while (isoDow(adp) !== 3) adp = addDaysIso(adp, -1); add(adp, `${prevMonthLabel(d)} ADP Employment`, 'jobs'); }
+  // FOMC Minutes — released exactly 3 weeks after each rate decision (a Wednesday).
+  for (const d of MACRO_RELEASES_2026.fomc){ add(addDaysIso(d, 21), 'FOMC Minutes', 'fed'); }
+  // Initial Jobless Claims — every Thursday in the window.
+  for (let d = fromD; d <= toD; d = addDaysIso(d, 1)){ if (isoDow(d)===4) add(d, 'Initial Jobless Claims', 'jobs'); }
+  return out;
+}
+
+// Build authoritative events that fall within [fromD, toD].
+function authoritativeMacro(fromD, toD){
+  const out = [];
+  const inWin = d => d >= fromD && d <= toD;
+  const add = (date, name, category) => { if (inWin(date)) out.push({ kind:'macro', ticker:null, name, date, category }); };
+  for (const d of MACRO_RELEASES_2026.jobs)   add(d, `${prevMonthLabel(d)} Jobs Report (NFP)`, 'jobs');
+  for (const d of MACRO_RELEASES_2026.cpi)    add(d, `${prevMonthLabel(d)} CPI Report`, 'inflation');
+  for (const d of MACRO_RELEASES_2026.ppi)    add(d, `${prevMonthLabel(d)} PPI Report`, 'inflation');
+  for (const d of MACRO_RELEASES_2026.pce)    add(d, `${prevMonthLabel(d)} PCE Report`, 'inflation');
+  for (const d of MACRO_RELEASES_2026.gdp)    add(d, `${gdpQuarterLabel(d)} GDP`, 'growth');
+  for (const d of MACRO_RELEASES_2026.retail) add(d, `${prevMonthLabel(d)} Retail Sales`, 'growth');
+  for (const d of MACRO_RELEASES_2026.fomc)   add(d, 'FOMC Rate Decision', 'fed');
+  // JOLTS — released ~5-6 weeks after its reference month; label that month.
+  for (const d of MACRO_RELEASES_2026.jolts)  add(d, `${MON_NAMES[+addDaysIso(d,-38).slice(5,7)-1]} JOLTS Job Openings`, 'jobs');
+  // Flash PMI reports the CURRENT month (preliminary), so label with the RELEASE month.
+  for (const d of MACRO_RELEASES_2026.flashpmi) add(d, `${MON_NAMES[+d.slice(5,7)-1]} S&P Global Flash PMI`, 'growth');
+  // ECB rate decisions (non-US) and marquee Fed-Chair events — own tables, emitted
+  // directly (see the note by ECB_DECISIONS on why they're not in the US table).
+  for (const d of ECB_DECISIONS)              add(d, 'ECB Rate Decision', 'ecb');
+  for (const e of FED_CHAIR_EVENTS)           add(e.date, e.name, 'fed');
+  // Rule-based releases (ISM, Consumer Confidence, Michigan, Chicago PMI, ADP,
+  // FOMC Minutes, jobless claims) — computed, exact by construction.
+  out.push(...computedMacro(fromD, toD));
+  return out;
+}
+
+// Today / +N days as YYYY-MM-DD in America/New_York (worker runs UTC).
+function etDateStr(offsetDays = 0){
+  const now = new Date(Date.now() + offsetDays * 86400000);
+  // en-CA gives YYYY-MM-DD
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).format(now);
+}
+
+// ── Earnings via Finnhub /calendar/earnings ──────────────────────────────────
+// PER-SYMBOL queries (not one bulk call). The bulk /calendar/earnings response is
+// hard-capped at ~1500 rows, so for a 30-day window across ALL US names our
+// watchlist tickers fall past the cap and silently vanish (this is exactly why
+// newly-added names like TSM returned NO earnings). Querying &symbol=<ticker>
+// returns only that name's report and is immune to the cap, so ANY ticker in the
+// Control watchlist gets its earnings fetched. Bounded concurrency keeps us under
+// Finnhub's 60 req/min; the whole endpoint is cached 12h so this runs rarely.
+async function fetchEarningsCalendar(wl, env, fromD, toD, diag){
+  if (!env.FINNHUB_KEY){ diag&&diag.push('finnhub: NO KEY'); return []; }
+  const out = [];
+  const CONC = 6;
+  let idx = 0, httpErr = 0;
+  async function drain(){
+    while (idx < wl.length){
+      const sym = wl[idx++];
+      try {
+        const r = await fetch(`https://finnhub.io/api/v1/calendar/earnings?from=${fromD}&to=${toD}&symbol=${encodeURIComponent(sym)}&token=${env.FINNHUB_KEY}`);
+        if (!r.ok){ httpErr++; continue; }
+        const j = await r.json();
+        const rows = Array.isArray(j.earningsCalendar) ? j.earningsCalendar : [];
+        for (const e of rows){
+          const esym = (e.symbol || sym).toUpperCase();
+          if (esym !== sym) continue;                       // symbol-scoped, but guard anyway
+          if (!e.date || e.date < fromD || e.date > toD) continue;
+          // hour: 'bmo' before-open | 'amc' after-close | 'dmh' during
+          const when = (e.hour || '').toLowerCase();
+          out.push({
+            kind: 'earnings',
+            ticker: sym,
+            name: `${sym} Earnings`,
+            date: e.date,
+            category: 'earnings',
+            when: when || null,
+            epsEst: (e.epsEstimate ?? null),
+          });
+        }
+      } catch(e){ httpErr++; }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(CONC, wl.length) }, drain));
+  diag&&diag.push('finnhub: '+out.length+' earnings across '+wl.length+' symbols (per-symbol'+(httpErr?', '+httpErr+' errs':'')+')');
+  return out;
+}
+
+// ── Earnings cross-check via AlphaVantage EARNINGS_CALENDAR ───────────────────
+// Second independent source. Returns a bulk CSV of expected report dates for the
+// next ~3 months; we filter to the watchlist + window. Used to CONFIRM Finnhub
+// dates (both sources agree → confirmed) and to fill tickers Finnhub misses.
+// Free tier is ~25 req/day — fine since /calendar is cached 12h.
+async function fetchEarningsAlphaVantage(wl, env, fromD, toD, diag){
+  if (!env.ALPHAVANTAGE_KEY){ diag&&diag.push('av-earn: NO KEY'); return []; }
+  try {
+    const r = await fetch(`https://www.alphavantage.co/query?function=EARNINGS_CALENDAR&horizon=3month&apikey=${env.ALPHAVANTAGE_KEY}`);
+    if (!r.ok){ diag&&diag.push('av-earn: HTTP '+r.status); return []; }
+    const csv = await r.text();
+    // Rate-limit / info responses come back as JSON, not CSV.
+    if (csv.trimStart().startsWith('{')){ diag&&diag.push('av-earn: non-csv (rate/info)'); return []; }
+    const set = new Set(wl);
+    const out = [];
+    const lines = csv.split('\n');
+    for (let i = 1; i < lines.length; i++){       // skip header row
+      const line = lines[i];
+      const c = line.indexOf(',');
+      if (c < 0) continue;
+      const sym = line.slice(0, c).trim().toUpperCase();
+      if (!set.has(sym)) continue;
+      // First YYYY-MM-DD on the line is reportDate (name field may contain commas).
+      const m = line.match(/\d{4}-\d{2}-\d{2}/);
+      const date = m ? m[0] : null;
+      if (!date || date < fromD || date > toD) continue;
+      out.push({ ticker: sym, date });
+    }
+    diag&&diag.push('av-earn: '+out.length+' in-window matches');
+    return out;
+  } catch(e){ diag&&diag.push('av-earn: EXC '+e.message); return []; }
+}
+
+// ── Earnings via Nasdaq calendar (covers foreign ADRs Finnhub/AV miss) ────────
+// Finnhub + AlphaVantage are US-domestic-focused and OMIT foreign ADRs that file
+// a 6-K instead of a 10-Q — TSM, BABA, NVS, etc. returned NO earnings from either.
+// Nasdaq's public earnings calendar DOES list them. It's per-DATE (no range, no
+// symbol filter), so we scan the weekdays in the window and filter to the
+// watchlist. No API key — just needs a User-Agent. Bounded concurrency; the whole
+// /calendar endpoint is 12h-cached so this scan runs rarely. If Nasdaq blocks the
+// request the source simply returns [] and Finnhub/AV still stand.
+async function fetchEarningsNasdaq(wl, env, fromD, toD, diag){
+  const set = new Set(wl);
+  const dates = [];
+  for (let t = Date.parse(fromD+'T00:00:00Z'); t <= Date.parse(toD+'T00:00:00Z'); t += 86400000){
+    const dow = new Date(t).getUTCDay();
+    if (dow === 0 || dow === 6) continue;                 // markets closed → no reports
+    dates.push(new Date(t).toISOString().slice(0,10));
+  }
+  const out = [];
+  const CONC = 6;
+  let idx = 0, ok = 0, err = 0;
+  async function drain(){
+    while (idx < dates.length){
+      const date = dates[idx++];
+      try {
+        const r = await fetch(`https://api.nasdaq.com/api/calendar/earnings?date=${date}`, {
+          headers: { 'User-Agent': 'tradehub-newshub/1.0', 'Accept': 'application/json' },
+          signal: AbortSignal.timeout(8000),
+        });
+        if (!r.ok){ err++; continue; }
+        const j = await r.json();
+        const rows = ((j && j.data) || {}).rows || [];
+        ok++;
+        for (const row of rows){
+          const sym = (row.symbol || '').toUpperCase();
+          if (!set.has(sym)) continue;
+          const tm = (row.time || '').toLowerCase();
+          const when = tm.includes('pre-market') ? 'bmo' : tm.includes('after-hours') ? 'amc' : null;
+          const epsRaw = String(row.epsForecast || '').replace(/[^0-9.\-]/g,'');
+          out.push({ ticker: sym, date, when, epsEst: epsRaw ? parseFloat(epsRaw) : null });
+        }
+      } catch(e){ err++; }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(CONC, dates.length) }, drain));
+  diag&&diag.push('nasdaq: '+out.length+' earnings across '+ok+'/'+dates.length+' dates'+(err?', '+err+' errs':''));
+  return out;
+}
+
+// ── Macro via grounded Gemini (Google Search) ────────────────────────────────
+// Grounding can't be combined with responseSchema, so we ask for a JSON array in
+// the text and parse + salvage it, then hard-filter against the whitelist+window.
+async function fetchMacroCalendar(env, fromD, toD, diag){
+  const prompt =
+`You are a financial calendar API. Using Google Search, list scheduled US macroeconomic data releases and Federal Reserve events between ${fromD} and ${toD} (inclusive), US Eastern dates.
+
+Include ONLY these release types if they fall in the window: CPI, PPI, PCE, FOMC rate decision / Fed meeting, FOMC Minutes, Nonfarm Payrolls (jobs report), ADP Employment, JOLTS Job Openings, weekly Initial Jobless Claims, GDP, Retail Sales, ISM/PMI, S&P Global Flash PMI, Durable Goods, Consumer Confidence, Michigan Consumer Sentiment, Housing Starts, Building Permits, Existing Home Sales, New Home Sales, Trade Balance, officially-scheduled Federal Reserve Chair/Vice-Chair/Governor speeches and testimony (incl. semiannual Monetary Policy Report to Congress and the Jackson Hole symposium).
+
+Federal Reserve speaking events count even when they are one-off appearances announced only days ahead — conference keynotes, moderated panels, fireside chats and newsmaker interviews, not just formal speeches and Congressional testimony. Include every sitting Governor and reserve-bank President, not only the Chair.
+
+Name every Fed speaking event in exactly this form so it is machine-readable: "Fed <Title> <Surname> Speech" — for example "Fed Governor Waller Speech", "Fed Chair Warsh Testimony", "Fed President Williams Remarks". Never return a Fed speaker event under a bare personal name.
+
+Return ONLY a JSON array, no prose, no markdown fences. Each item:
+{"name":"<official release name incl. month/period, e.g. 'May CPI Report'>","date":"YYYY-MM-DD"}
+
+Use the real published schedule. If unsure of an exact date, omit that item. Dates must be within ${fromD}..${toD}.`;
+
+  for (const model of CAL_MACRO_MODELS){
+    const blocked = await env.NEWSHUB_CACHE.get('quota_block:'+model).catch(()=>null);
+    if (blocked){ diag&&diag.push(model+': KV-blocked'); continue; }
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_KEY}`;
+      // Minimize thinking so the JSON isn't starved (3.x → thinkingLevel low; 2.5 →
+      // thinkingBudget 0). gemini-3.5-flash still thinks heavily, so give it a much
+      // larger output budget when reached so it doesn't return empty.
+      const gc = { temperature: 0.1, maxOutputTokens: model === 'gemini-3.5-flash' ? 8192 : 2048 };
+      if (model.startsWith('gemini-3')) gc.thinkingConfig = { thinkingLevel: 'low' };
+      else if (model.startsWith('gemini-2.5')) gc.thinkingConfig = { thinkingBudget: 0 };
+      const body = JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        tools: [{ google_search: {} }],            // grounding
+        generationConfig: gc,
+      });
+      const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body, signal: AbortSignal.timeout(20000) });
+      if (r.status === 429){
+        await env.NEWSHUB_CACHE.put('quota_block:'+model, '1', { expirationTtl: QUOTA_COOLDOWN }).catch(()=>{});
+        diag&&diag.push(model+': 429 quota');
+        continue;
+      }
+      if (!r.ok){ const eb=(await r.text()).slice(0,300); diag&&diag.push(model+': HTTP '+r.status+' '+eb); continue; }
+      const j = await r.json();
+      let text = j.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('') || '';
+      text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+      diag&&diag.push(model+': raw='+text.slice(0,400));
+      let arr = null;
+      try { arr = JSON.parse(text); } catch(e){ arr = salvageJsonArray(text); }
+      if (!Array.isArray(arr) || !arr.length){ diag&&diag.push(model+': 0 items'); continue; }
+
+      const seen = new Set();
+      const out = [];
+      for (const it of arr){
+        const name = (it && it.name || '').toString().trim();
+        const date = (it && it.date || '').toString().trim();
+        if (!name || !/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+        if (date < fromD || date > toD) continue;     // window clamp
+        const cat = macroCategory(name);
+        if (!cat) continue;                            // whitelist gate
+        const k = name.toLowerCase()+'|'+date;
+        if (seen.has(k)) continue; seen.add(k);
+        out.push({ kind:'macro', ticker:null, name, date, category:cat });
+      }
+      diag&&diag.push(model+': kept '+out.length);
+      if (out.length) return out;
+    } catch(e){ diag&&diag.push(model+': EXC '+e.message); }
+  }
+  return [];
+}
+
+// ── US market holidays (NYSE/Nasdaq) — COMPUTED, never needs updating ─────────
+// Full closures + half-days (1 PM ET early close), derived from NYSE rules:
+// nth-weekday-of-month, Easter computus for Good Friday, and Sat→Fri / Sun→Mon
+// observance (New Year is NOT observed when it lands on a Saturday). Surfaced as
+// calendar events so Catalysts + both TaskHubs show which days the market is
+// closed and why. Mirror of the same logic in tradehub.html (market clock).
+function mktDow(y,m,d){return new Date(Date.UTC(y,m-1,d)).getUTCDay();}
+function mktNthDow(y,m,wd,n){let c=0;for(let d=1;d<=31;d++){if(mktDow(y,m,d)===wd&&++c===n)return d;}return null;}
+function mktLastDow(y,m,wd){const dim=new Date(Date.UTC(y,m,0)).getUTCDate();for(let d=dim;d>=1;d--)if(mktDow(y,m,d)===wd)return d;}
+function mktIso(y,m,d){return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;}
+function mktEaster(Y){const a=Y%19,b=Math.floor(Y/100),c=Y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451);return [Math.floor((h+l-7*m+114)/31),((h+l-7*m+114)%31)+1];}
+function mktObserve(y,m,d,isNY){const w=mktDow(y,m,d);if(w===6)return isNY?null:mktIso(y,m,d-1);if(w===0)return mktIso(y,m,d+1);return mktIso(y,m,d);}
+function mktComputeYear(Y){
+  const H={},HD={};
+  const ny=mktObserve(Y,1,1,true); if(ny)H[ny]="New Year's Day";
+  H[mktIso(Y,1,mktNthDow(Y,1,1,3))]='MLK Jr. Day';
+  H[mktIso(Y,2,mktNthDow(Y,2,1,3))]="Presidents' Day";
+  const [em,ed]=mktEaster(Y); const gf=new Date(Date.UTC(Y,em-1,ed)); gf.setUTCDate(gf.getUTCDate()-2);
+  H[mktIso(gf.getUTCFullYear(),gf.getUTCMonth()+1,gf.getUTCDate())]='Good Friday';
+  H[mktIso(Y,5,mktLastDow(Y,5,1))]='Memorial Day';
+  if(Y>=2022)H[mktObserve(Y,6,19,false)]='Juneteenth';
+  H[mktObserve(Y,7,4,false)]='Independence Day';
+  H[mktIso(Y,9,mktNthDow(Y,9,1,1))]='Labor Day';
+  const tg=mktNthDow(Y,11,4,4); H[mktIso(Y,11,tg)]='Thanksgiving Day';
+  const xm=mktObserve(Y,12,25,false); H[xm]='Christmas Day';
+  HD[mktIso(Y,11,tg+1)]='Day after Thanksgiving';
+  const j4=mktDow(Y,7,4); if(j4>=2&&j4<=5)HD[mktIso(Y,7,3)]='Independence Day Eve';
+  const d24=mktDow(Y,12,24); if(d24>=1&&d24<=5&&xm!==mktIso(Y,12,24))HD[mktIso(Y,12,24)]='Christmas Eve';
+  return {H,HD};
+}
+const _mktHolCache={};
+function mktHolYear(Y){return _mktHolCache[Y]||(_mktHolCache[Y]=mktComputeYear(Y));}
+
+// Holiday/half-day events within [fromD, toD] (inclusive). Computed across the
+// years the window spans, so only the next ~30 days surface.
+function marketHolidayEvents(fromD, toD, diag){
+  const out = [];
+  for (let Y = +fromD.slice(0,4); Y <= +toD.slice(0,4); Y++){
+    const { H, HD } = mktHolYear(Y);
+    for (const [date, name] of Object.entries(H)){
+      if (date < fromD || date > toD) continue;
+      out.push({ kind:'holiday', ticker:null, category:'holiday', date, name:`${name} — Market Closed` });
+    }
+    for (const [date, name] of Object.entries(HD)){
+      if (date < fromD || date > toD) continue;
+      out.push({ kind:'holiday', ticker:null, category:'holiday', date, name:`${name} — Early Close (1 PM ET)` });
+    }
+  }
+  diag && diag.push('holidays: '+out.length+' in window');
+  return out;
+}
+
+// Deterministic id so re-fetch overwrites (never dupes) downstream in Firestore.
+function calEventId(ev){
+  const t = ev.kind === 'earnings' ? `earnings_${ev.ticker}`
+          : ev.kind === 'holiday'  ? 'holiday'
+          : `macro_${ev.category}_${ev.name.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40)}`;
+  return `mc_${t}_${ev.date}`;
+}
+
+// Live watchlist resolver for CRON builds. The front-end pushes TB_WL (the
+// Control-tab list) to POST /watchlist → stored at KV 'wl:current'. Cron reads
+// it and replicates the /news + /calendar key logic EXACTLY, so the warmed
+// cache lands on the same key the app will request. Falls back to WATCHLIST.
+async function resolveCronWatchlist(env){
+  let saved = null;
+  try {
+    const raw = await env.NEWSHUB_CACHE.get('wl:current');
+    if (raw){ const j = JSON.parse(raw);
+      if (Array.isArray(j) && j.length) saved = j;
+      else if (Array.isArray(j?.tickers) && j.tickers.length) saved = j.tickers; }
+  } catch(e){}
+  const isCustom = !!saved && wlHash(saved) !== wlHash(WATCHLIST);
+  const wl = isCustom ? saved : WATCHLIST;
+  return {
+    wl,
+    sectors:  isCustom ? await sectorsForLive(wl, env) : SECTORS,
+    cacheKey: isCustom ? 'events:v1:' + wlHash(wl) : 'events:v1',
+    lockKey:  isCustom ? 'build:lock:' + wlHash(wl): 'build:lock',
+  };
+}
+
+// Cron helper: build the Catalysts calendar and write it to the SAME cache key
+// the /calendar endpoint reads, so the tab loads instantly on open (Wed/Sun).
+// Uses the live TB_WL (wl:current) + days=30 — the front-end requests days=30,
+// so the pre-warm key MUST use the same window or the warmed cache is never hit.
+async function prewarmCalendar(env){
+  const { wl } = await resolveCronWatchlist(env);
+  const days   = 30;
+  const calKey = `cal:v1:${wlHash(wl)}:${etDateStr(0)}:${days}`;
+  const calLock= `cal:lock:${wlHash(wl)}`;
+  // Long TTL: the retry below can push this build past the 120s client-facing lock.
+  await env.NEWSHUB_CACHE.put(calLock, '1', { expirationTtl: CAL_CRON_LOCK_TTL });
+  try {
+    let result = await buildCalendar(wl, env, days);
+    // RETRY a build that lost its earnings. This build runs seconds behind the news
+    // pre-warm, which has just spent the invocation's ~6 outbound connections and
+    // most of Finnhub's 60/min on its own fan-out — so the calendar's three earnings
+    // sources are exactly what gets starved (observed 2026-07-31: 9 earnings, 1
+    // confirmed; and again on 2026-08-04, where the morning calendar reached every
+    // device with no earnings dates at all). Whatever the cron caches is what every
+    // device publishes to the shared doc, so this is the one build worth paying a
+    // minute to get right. Mirrors the same retry cronPrewarmNews does for news.
+    if (result && result.degraded){
+      console.warn(`[cron] calendar degraded (${result.earningsCount || 0} earnings) — pausing for the Finnhub window, then retrying.`);
+      await new Promise(r => setTimeout(r, 65000));   // clear Finnhub's per-minute cap
+      const retry = await buildCalendar(wl, env, days).catch(e => { console.warn('[cron] calendar retry failed:', e.message); return null; });
+      if (retry && (retry.earningsCount || 0) > (result.earningsCount || 0)) result = retry;
+    }
+    // Only a HEALTHY build gets cached: the key lives 12h, so caching an
+    // earnings-less calendar would hand the same broken answer to every device all
+    // day. Leaving it unwritten makes the first real request rebuild instead.
+    if (result && result.events && result.events.length && !result.degraded){
+      await env.NEWSHUB_CACHE.put(calKey, JSON.stringify(result), { expirationTtl: CAL_TTL });
+      // Push to Firebase so TaskHub weekly view updates without needing TradeHub open.
+      // Writes to dashboards/market_calendar — same doc the TradeHub Catalysts tab writes.
+      // (See the App Check note above pushMarketCalToFirebase: this has never actually
+      // succeeded from a Worker. The browser-side orchestrator is what really publishes.)
+      await pushMarketCalToFirebase(result).catch(e => console.warn('[cron] firebase push failed:', e.message));
+    } else if (result) {
+      console.warn(`[cron] calendar still degraded after retry (${result.earningsCount || 0} earnings) — NOT cached, so the first client request rebuilds.`);
+    }
+    return result;
+  } finally {
+    await env.NEWSHUB_CACHE.delete(calLock);
+  }
+}
+
+// Firestore REST write — no SDK needed, just fetch().
+// Public API key + project (same values embedded in the front-end).
+const FB_PROJECT  = 'task-dashboard-d2b53';
+const FB_API_KEY  = 'AIzaSyC2aKunOKj5WS8NpgZhpyMzOYecBr5t2_4';
+const FB_DOC_PATH = 'dashboards/market_calendar';
+const FB_NEWS_PATH = 'dashboards/tradeboard_news';   // the doc the News tab reads
+
+// ⚠ THE PUSHES BELOW CANNOT SUCCEED FROM A WORKER — verified 2026-07-21.
+// This project enforces Firebase App Check on Firestore, and App Check tokens come
+// from reCAPTCHA v3 in a real browser, so REST from here is rejected no matter what
+// credential is attached. Measured: anonymous signUp returns 200 and a valid ID
+// token, but the very next Firestore REST call still returns 403 PERMISSION_DENIED
+// (with or without a bearer token). So every "push to Firebase so the client
+// auto-displays" call below has ALWAYS failed silently into its .catch.
+// Consequence for the front-end: it must NEVER depend on a worker push to display a
+// finished build. TradeHub now polls the worker cache itself (News tab) and pulls +
+// publishes the morning build from the app-level orchestrator, which runs in the
+// browser where App Check works. Leave these calls in place (harmless, one-line
+// warn) — but if you're debugging "the build finished and nothing showed up", this
+// is not the mechanism to fix. Re-enabling it needs an App Check debug/service
+// token, or the rules relaxed for this specific doc.
+function encodeFirestoreValue(v){
+  if(v === null || v === undefined) return { nullValue: null };
+  if(typeof v === 'boolean') return { booleanValue: v };
+  if(typeof v === 'number' && Number.isInteger(v)) return { integerValue: String(v) };
+  if(typeof v === 'number') return { doubleValue: v };
+  if(typeof v === 'string') return { stringValue: v };
+  if(Array.isArray(v)) return { arrayValue: { values: v.map(encodeFirestoreValue) } };
+  if(typeof v === 'object'){
+    const fields = {};
+    for(const [k,val] of Object.entries(v)){ if(val != null) fields[k] = encodeFirestoreValue(val); }
+    return { mapValue: { fields } };
+  }
+  return { stringValue: String(v) };
+}
+
+async function pushMarketCalToFirebase(result){
+  return;   // Veda's copy: FB_PROJECT is Tony's. TradeBoard publishes from the browser.
+  const now = Date.now();
+  const events = result.events || [];
+  const fields = {
+    events:      encodeFirestoreValue(events),
+    generatedAt: { integerValue: String(now) },
+    savedAt:     { integerValue: String(now) },
+  };
+  const url = `https://firestore.googleapis.com/v1/projects/${FB_PROJECT}/databases/(default)/documents/${FB_DOC_PATH}?key=${FB_API_KEY}`;
+  const r = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields }),
+    signal: AbortSignal.timeout(12000),
+  });
+  if(!r.ok){ const t = await r.text().catch(()=>''); throw new Error(`Firestore ${r.status}: ${t.slice(0,120)}`); }
+  console.log(`[cron] pushed ${events.length} calendar events to Firebase`);
+}
+
+// Push a finished NEWS build to the same Firestore doc the client's News tab reads.
+// The client subscribes to this doc at module level (onSnapshot, always active), so
+// this makes a completed build AUTO-DISPLAY — live when the News tab is open, and
+// already-loaded when the user returns to it — with no dependence on client polling.
+// Mirrors pushMarketCalToFirebase, but uses an updateMask so the user's saved filter
+// `settings` on the doc are preserved (a maskless PATCH would delete them).
+async function pushNewsToFirebase(result){
+  return;   // Veda's copy: FB_PROJECT is Tony's. TradeBoard publishes from the browser.
+  const now = Date.now();
+  const events = result.events || [];
+  const fields = {
+    events:      encodeFirestoreValue(events),
+    generatedAt: { integerValue: String(now) },
+    degraded:    { booleanValue: !!result.degraded },
+    savedAt:     { integerValue: String(now) },
+  };
+  const mask = ['events','generatedAt','degraded','savedAt'].map(f => 'updateMask.fieldPaths=' + f).join('&');
+  const url = `https://firestore.googleapis.com/v1/projects/${FB_PROJECT}/databases/(default)/documents/${FB_NEWS_PATH}?key=${FB_API_KEY}&${mask}`;
+  const r = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields }),
+    signal: AbortSignal.timeout(12000),
+  });
+  if(!r.ok){ const t = await r.text().catch(()=>''); throw new Error(`Firestore news ${r.status}: ${t.slice(0,120)}`); }
+  console.log(`[news] pushed ${events.length} events to Firebase`);
+}
+
+async function buildCalendar(wl, env, days, diag){
+  const fromD = etDateStr(0);
+  const toD   = etDateStr(Math.min(days, CAL_DAYS_MAX));
+
+  // 1) AUTHORITATIVE macro from hardcoded official schedules (CONCRETE dates).
+  const authMacro = authoritativeMacro(fromD, toD);
+  diag && diag.push('authoritative macro: ' + authMacro.length + ' events');
+
+  // 2) Earnings from THREE independent sources — Finnhub + Nasdaq + AlphaVantage —
+  //    plus Gemini macro (supplement only). Nasdaq covers foreign ADRs (TSM, BABA,
+  //    NVS…) that the other two omit, so ANY watchlist ticker gets its date.
+  const [earn, aiMacro, avEarn, nasEarn] = await Promise.all([
+    fetchEarningsCalendar(wl, env, fromD, toD, diag),
+    fetchMacroCalendar(env, fromD, toD, diag),
+    fetchEarningsAlphaVantage(wl, env, fromD, toD, diag),
+    fetchEarningsNasdaq(wl, env, fromD, toD, diag),
+  ]);
+
+  // 2b) Merge earnings across all three sources by ticker+date. Finnhub & Nasdaq
+  //     carry the report time + EPS estimate; we keep the richest value seen. A
+  //     (ticker,date) confirmed by ≥2 independent sources drops the "EST" tag;
+  //     single-source dates stay flagged estimated on the front-end.
+  const earnMap   = new Map();   // ticker|date → merged event
+  const dateVotes = new Map();   // ticker|date → Set(source)
+  const addEarn = (src, ev) => {
+    if (!ev || !ev.ticker || !ev.date) return;
+    const key = ev.ticker + '|' + ev.date;
+    if (!dateVotes.has(key)) dateVotes.set(key, new Set());
+    dateVotes.get(key).add(src);
+    const prev = earnMap.get(key);
+    if (!prev){
+      earnMap.set(key, { kind:'earnings', ticker:ev.ticker, name:`${ev.ticker} Earnings`, date:ev.date, category:'earnings', when:ev.when||null, epsEst:(ev.epsEst ?? null) });
+    } else {
+      if (!prev.when && ev.when) prev.when = ev.when;
+      if (prev.epsEst == null && ev.epsEst != null) prev.epsEst = ev.epsEst;
+    }
+  };
+  for (const e of earn)    addEarn('finnhub', e);
+  for (const e of nasEarn) addEarn('nasdaq',  e);
+  for (const a of avEarn)  addEarn('av',      a);
+  const earnOut = [];
+  for (const [key, ev] of earnMap){ ev.confirmed = (dateVotes.get(key) || new Set()).size >= 2; earnOut.push(ev); }
+  diag && diag.push('earnings: '+earnOut.filter(e=>e.confirmed).length+' confirmed / '+earnOut.length+' total (3 sources)');
+
+  // 3) Merge: authoritative wins. The hardcoded table only covers certain YEARS
+  //    (see HARDCODED_YEARS). For those years, AI guesses of hardcoded release
+  //    types are DROPPED (real date wins). For years we DON'T hardcode yet (e.g.
+  //    2027+), we KEEP the AI's macro so the calendar still works automatically —
+  //    but we flag those as approximate so they're visibly not-yet-verified.
+  // Release types we provide authoritatively (hardcoded dates OR computed rules).
+  // AI versions of these are dropped in hardcoded years so our exact ones win.
+  // NOT listed (so AI's real-dated versions survive): durable goods, housing
+  // starts/permits, home sales, trade balance — those have no fixed rule and
+  // aren't hardcoded, so grounded Gemini supplies them.
+  const HARDCODED_NAME = /\bcpi\b|\bppi\b|\bpce\b|personal consumption|\bgdp\b|gross domestic|nonfarm|non-farm|\bnfp\b|jobs report|\bfomc\b|rate decision|powell|retail sales|\bjolts\b|job openings|\badp\b|\bism\b|chicago pmi|chicago business|consumer confidence|consumer sentiment|michigan|jobless claims|initial claims|flash pmi|s&p global flash|jackson hole|semiannual|monetary policy report/i;
+  const authKey = new Set(authMacro.map(e => e.category + '|' + e.date));
+  const extraMacro = [];
+  for (const e of aiMacro){
+    const yr = e.date.slice(0,4);
+    const yearIsHardcoded = HARDCODED_YEARS.has(yr);
+    // For a hardcoded year, drop AI's version of any release type we hardcode.
+    if (yearIsHardcoded && HARDCODED_NAME.test(e.name)) continue;
+    // Already covered exactly. Keyed by category+date, which is right for data
+    // releases (one CPI per day) but wrong for speakers: officials talk ON macro
+    // days, so an FOMC Minutes or rate-decision entry would swallow every Fed
+    // speech sharing that date. Speaker events are exempt from the collision.
+    const isSpeaker = /speech|remarks|testimony|speaks|speaking|keynote|panel|discussion|interview|appearance|newsmaker|fireside|town hall/i.test(e.name);
+    if (!isSpeaker && authKey.has(e.category + '|' + e.date)) continue;
+    // Flag AI-sourced events in non-hardcoded years as approximate.
+    if (!yearIsHardcoded && HARDCODED_NAME.test(e.name)) {
+      extraMacro.push({ ...e, approx: true, name: /\(approx\)/i.test(e.name) ? e.name : (e.name + ' (approx)') });
+    } else {
+      extraMacro.push(e); // durable goods / housing / home sales / trade — AI-sourced every year
+    }
+  }
+
+  const macro = [...authMacro, ...extraMacro];
+  // 4) Market holidays / half-days in-window — so Catalysts + both TaskHubs show
+  //    which upcoming days the market is closed (and why).
+  const holidays = marketHolidayEvents(fromD, toD, diag);
+  const events = [...earnOut, ...macro, ...holidays]
+    .map(ev => ({ ...ev, id: calEventId(ev), ...(ev.kind === 'macro' ? { importance: macroImportance(ev.name) } : {}) }))
+    .sort((a,b) => a.date.localeCompare(b.date));
+  // DEGRADED means "do not trust this build enough to cache it or overwrite a good
+  // one". Macro is generated from a HARDCODED release schedule, so it shows up even
+  // when every network call failed — which is why `!events.length` alone was a
+  // useless health check: a run where Finnhub was rate-limited, Nasdaq's 8s scan
+  // aborted and AlphaVantage was out of quota still returned a full-looking macro
+  // calendar with degraded:false. It then got cached for 12h and published over the
+  // real one, wiping every earnings date until someone pressed Force. A watchlist
+  // this size ALWAYS has earnings in a 30-day window, so zero earnings is a failed
+  // build, not a quiet quarter.
+  const degraded = !events.length || (wl.length > 0 && !earnOut.length);
+  return { events, generatedAt: Date.now(), from: fromD, to: toD, earningsCount: earnOut.length, degraded };
+}
+
+
+function geminiBody(model, prompt){
+  const gc = {
+    temperature: 0.2,
+    // gemini-3.5-flash is a heavy THINKING model — its thinking tokens count
+    // against maxOutputTokens, so an 8k budget gets fully consumed thinking and it
+    // returns EMPTY (finishReason=MAX_TOKENS). Give it much more room so the JSON
+    // survives. Other models don't think heavily and only generate what they need,
+    // so the larger cap is harmless for them (kept at 8192 to bound latency).
+    maxOutputTokens: model === 'gemini-3.5-flash' ? 24576 : 8192,
+    responseMimeType: 'application/json',
+    responseSchema: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          id:                   { type: 'STRING' },
+          summary:              { type: 'STRING' },
+          sentiment:            { type: 'STRING', enum: ['bull','neutral','bear'] },
+          sentimentScore:       { type: 'NUMBER' },
+          impactScore:          { type: 'INTEGER' },
+          eventType:            { type: 'STRING' },
+          primaryTicker:        { type: 'STRING' },
+          additionalTickers:    { type: 'ARRAY', items: { type: 'STRING' } },
+          sectors:              { type: 'ARRAY', items: { type: 'STRING' } },
+          relevanceConfidence:  { type: 'NUMBER' },
+        },
+        required: ['id','summary','sentiment','impactScore','primaryTicker']
+      }
+    }
+  };
+  // Keep thinking minimal so fast structured output isn't truncated. Gemini 3.x
+  // uses thinkingLevel (can't fully disable → "low"); 2.5 uses thinkingBudget:0.
+  if (model.startsWith('gemini-3')) gc.thinkingConfig = { thinkingLevel: 'low' };
+  else if (model.startsWith('gemini-2.5')) gc.thinkingConfig = { thinkingBudget: 0 };
+  return { contents: [{ parts: [{ text: prompt }] }], generationConfig: gc };
+}
+
+async function callGemini(model, prompt, env, ctx, blockKey){
+  // Two transient failure classes get retried (NOT dropped):
+  //  • 429 RPM — per-minute rate (free tier). Brief backoff, retry. Only a DAILY
+  //    quota 429 earns the long KV block.
+  //  • 503/500/502/504 — Google-side overload ("model experiencing high demand").
+  //    Very common on flash-lite under load; these used to fall straight through
+  //    to `!r.ok → null` and silently drop the batch → whole build went RAW.
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_KEY}`;
+  const body = JSON.stringify(geminiBody(model, prompt));
+  let r, lastBody = '';
+  for (let attempt = 0; attempt < 4; attempt++){
+    if (!aiCallBudgetLeft()) return null; // hard subrequest cap reached — don't fire
+    countAICall();
+    r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body });
+    if (r.status === 429){
+      lastBody = (await r.text()).slice(0, 500);
+      const isDaily = /per day|PerDay|daily limit|quota.*exhaust|FreeTier.*Day/i.test(lastBody);
+      if (isDaily){
+        console.warn(`Gemini ${model} 429 DAILY quota — blocking ${QUOTA_COOLDOWN}s`);
+        await env.NEWSHUB_CACHE.put('quota_block:'+model, '1', { expirationTtl: QUOTA_COOLDOWN }).catch(()=>{});
+        return null;
+      }
+      if (!aiBudgetLeft() || !aiCallBudgetLeft()) return null; // out of build/subrequest budget — don't retry
+      console.warn(`Gemini ${model} 429 RPM (attempt ${attempt+1}/4) — backing off`);
+      await new Promise(res => setTimeout(res, 1000 * (attempt + 1))); // 1s,2s,3s
+      continue;
+    }
+    if (r.status === 503 || r.status === 500 || r.status === 502 || r.status === 504){
+      if (!aiBudgetLeft() || !aiCallBudgetLeft()) return null; // out of build/subrequest budget — don't retry
+      console.warn(`Gemini ${model} ${r.status} overload (attempt ${attempt+1}/4) — backing off`);
+      await new Promise(res => setTimeout(res, 1000 * (attempt + 1))); // 1s,2s,3s
+      continue;
+    }
+    break; // success or a non-retryable error
+  }
+  if (r.status === 429){ console.warn(`Gemini ${model} 429 persisted — dropping batch`); return null; }
+  if (r.status >= 500){ console.warn(`Gemini ${model} ${r.status} overload persisted — dropping batch`); return null; }
+  if (!r.ok){ console.error(`Gemini ${model} HTTP ${r.status}:`, (await r.text()).slice(0,300)); return null; }
+  const j = await r.json();
+  const cand = j.candidates?.[0];
+  const finish = cand?.finishReason;
+  let text = cand?.content?.parts?.[0]?.text || '';
+  if (!text){ console.error(`Gemini ${model} empty content, finishReason=${finish}`); return null; }
+  if (finish && finish !== 'STOP') console.warn(`Gemini ${model} finishReason=${finish} (may be truncated)`);
+  text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+  try { return JSON.parse(text); }
+  catch(e){
+    // Salvage a truncated array: keep whole objects up to the last complete one.
+    // Truncation (finishReason=MAX_TOKENS) used to drop the entire batch to null
+    // and risk the whole build going RAW. Recovering the complete leading objects
+    // means most of the batch still gets analyzed.
+    const salvaged = salvageJsonArray(text);
+    if (salvaged && salvaged.length){
+      console.warn(`Gemini ${model} salvaged ${salvaged.length} objs from truncated JSON (finish=${finish})`);
+      return salvaged;
+    }
+    console.error(`Gemini ${model} JSON parse failed (finish=${finish}):`, text.slice(0,200));
+    return null;
+  }
+}
+
+// Best-effort recovery of a truncated JSON array of objects. Finds the last
+// top-level "}," boundary and closes the array there. Returns [] if nothing
+// usable can be recovered.
+function salvageJsonArray(text){
+  if (!text) return [];
+  const start = text.indexOf('[');
+  if (start === -1) return [];
+  let depth = 0, lastObjEnd = -1, inStr = false, esc = false;
+  for (let i = start; i < text.length; i++){
+    const c = text[i];
+    if (esc){ esc = false; continue; }
+    if (c === '\\'){ esc = true; continue; }
+    if (c === '"'){ inStr = !inStr; continue; }
+    if (inStr) continue;
+    if (c === '{') depth++;
+    else if (c === '}'){ depth--; if (depth === 0) lastObjEnd = i; }
+  }
+  if (lastObjEnd === -1) return [];
+  try { return JSON.parse(text.slice(start, lastObjEnd + 1) + ']'); }
+  catch(e){ return []; }
+}
+
+async function callNIM(model, prompt, env, ctx, blockKey){
+  const nimBody = JSON.stringify({
+    model,
+    messages: [
+      { role: 'system', content: 'You are a financial analyst. Respond with valid JSON array only — no markdown, no code fences, no explanation.' },
+      { role: 'user', content: prompt },
+    ],
+    temperature: 0.1,
+    max_tokens: 6000,
+    stream: false,
+  });
+  let r;
+  for (let attempt = 0; attempt < 3; attempt++){
+    if (!aiCallBudgetLeft()) return null; // hard subrequest cap reached — don't fire
+    countAICall();
+    r = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.NVIDIA_API_KEY}` },
+      body: nimBody,
+    });
+    if (r.status === 429){
+      console.warn(`NIM ${model} 429 — blocking for ${QUOTA_COOLDOWN}s`);
+      await env.NEWSHUB_CACHE.put(blockKey, '1', { expirationTtl: QUOTA_COOLDOWN }).catch(()=>{});
+      return null;
+    }
+    if (r.status >= 500){ // transient overload — back off and retry
+      if (!aiBudgetLeft() || !aiCallBudgetLeft()) return null;
+      console.warn(`NIM ${model} ${r.status} overload (attempt ${attempt+1}/3) — backing off`);
+      await new Promise(res => setTimeout(res, 1000 * (attempt + 1)));
+      continue;
+    }
+    break;
+  }
+  if (r.status >= 500){ console.warn(`NIM ${model} 5xx persisted — dropping batch`); return null; }
+  if (!r.ok){ console.error(`NIM ${model} ${r.status}:`, (await r.text()).slice(0,200)); return null; }
+  const j = await r.json();
+  let text = j.choices?.[0]?.message?.content || '';
+  if (!text){ console.error(`NIM ${model} empty content`); return null; }
+  // Strip markdown fences if the model added them anyway
+  text = text.replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'').trim();
+  const arrStart = text.indexOf('['), arrEnd = text.lastIndexOf(']');
+  if (arrStart === -1 || arrEnd === -1){
+    // Model echoed the prompt or returned prose — treat as failure (advance
+    // chain) rather than throwing, so callers handle it uniformly.
+    console.error(`NIM ${model} no JSON array (echo/prose?):`, text.slice(0,160));
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(text.slice(arrStart, arrEnd+1));
+    if (Array.isArray(parsed)) return parsed;
+    return parsed && typeof parsed === 'object' ? [parsed] : null;
+  } catch(e){
+    console.error(`NIM ${model} JSON parse failed:`, text.slice(0,160));
+    return null;
+  }
+}
+
+function impactTier(score){
+  if (score >= 90) return 'critical';
+  if (score >= 75) return 'major';
+  if (score >= 60) return 'important';
+  if (score >= 40) return 'notable';
+  return 'minor';
+}
+
+// Race a promise against a timeout. On timeout resolves null (the underlying
+// fetch is abandoned). Keeps one hung AI call from stalling the whole build.
+function withTimeout(promise, ms, label){
+  let to;
+  const timeout = new Promise(res => { to = setTimeout(() => { console.warn(`${label} timed out (${ms}ms)`); res(null); }, ms); });
+  return Promise.race([ Promise.resolve(promise).finally(() => clearTimeout(to)), timeout ]);
+}
+
+// Run fn over items with a max concurrency (so we don't fire all batches at the
+// AI provider at once and trip its concurrency limit). Preserves order.
+async function mapLimit(items, limit, fn){
+  const results = new Array(items.length);
+  let next = 0;
+  async function worker(){
+    while (next < items.length){
+      const i = next++;
+      results[i] = await fn(items[i], i);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
+// Call ONE chain entry on ONE batch. Returns a validated array tagged with
+// __model, or null on any failure (quota / bad schema / timeout / no key).
+async function callModel(entry, batch, env, ctx, wl, sectors){
+  const { provider, model } = entry;
+  const blockKey = provider === 'nim'
+    ? 'quota_block:nim:' + model.replace('/','_')
+    : 'quota_block:' + model;
+  let parsed;
+  try {
+    if (provider === 'gemini'){
+      parsed = await withTimeout(callGemini(model, buildGeminiPrompt(batch, wl, sectors), env, ctx, blockKey), AI_CALL_TIMEOUT, `gemini/${model}`);
+    } else {
+      if (!env.NVIDIA_API_KEY){ console.error('NVIDIA_API_KEY not set — skipping NIM'); return null; }
+      parsed = await withTimeout(callNIM(model, buildNIMPrompt(batch, wl, sectors), env, ctx, blockKey), AI_CALL_TIMEOUT, `nim/${model}`);
+    }
+  } catch(e){ console.error(`callModel ${provider}/${model} threw:`, e.message); return null; }
+  if (!parsed || !parsed.length) return null;
+  const required = ['id','summary','sentiment','impactScore','primaryTicker'];
+  // Validate PER-ELEMENT and keep the good ones. Previously we checked only
+  // parsed[0] and nuked the ENTIRE batch if that single element was incomplete —
+  // so one malformed first item dropped 6 good events to raw, causing the
+  // intermittent "0 enriched → degraded" runs. Now a bad item is skipped while
+  // the rest survive.
+  const valid = parsed.filter(o => o && required.every(k => k in o));
+  if (!valid.length){
+    console.error(`${provider}/${model} no valid items (sample missing: [${parsed[0]?required.filter(k=>!(k in parsed[0])).join(','):'empty'}])`);
+    return null;
+  }
+  valid.__model = (provider === 'nim' ? 'nim:' : '') + model;
+  return valid;
+}
+
+// Importance heuristic used to pick which events reach the AI (and to seed
+// pre-AI ordering). Favors corroboration, recency, and catalyst language.
+const IMPORTANT_KW = /(upgrade|downgrade|price target|raises|cuts guidance|guidance|earnings|beats|misses|acquir|merger|lawsuit|\bsec\b|investigation|recall|partnership|contract|launch|approval|\bfda\b|deal|buyback|dividend|surge|plunge|soar|tumble|record high|all-time|breakout|guides|tariff|antitrust|\bdoj\b|export ban|export control|sanction|chip ban|layoff|restructur|bankrupt|spinoff|stock split|\bipo\b|delist|short report|hindenburg|citron|muddy waters|insider sell|insider buy|\b13f\b|breach|cyberattack|ransomware|outage|capex|production cut|opec|barrel|inventory build|pre-announce|warns|profit warning|halts|halted|suspension|class action|whistleblower|subpoena|raid|patent|infringement|spinout|stake|activist|elliott|carl icahn|buffett|berkshire)/i;
+function scoreImportance(ev){
+  let s = (ev.sourceCount || 1) * 12;                  // multi-source = market-moving
+  const ageH = (Date.now() - (ev.ts || 0)) / 3600000;
+  s += Math.max(0, 36 - ageH);                          // recency bonus (≤36h)
+  const hl = ev.sources?.[0]?.headline || '';
+  if (IMPORTANT_KW.test(hl)) s += 25;                   // catalyst keywords
+  if (/\$\d|\d+\s?%/.test(hl)) s += 10;                 // concrete numbers / PT / %
+  // SEC 8-K filings are material by definition — make sure they survive selection
+  // even when phrased without catalyst keywords. Earnings/M&A/exec/restatement
+  // items get a bigger bump than routine disclosures.
+  if ((ev.sources||[]).some(s => s.feed === 'ec')){
+    const ehl = (ev.sources||[]).find(s=>s.feed==='ec')?.headline || hl;
+    s += /Earnings|Acquisition|Director|Bankruptcy|Restatement|Control|Delisting|Cybersecurity|Material Definitive/i.test(ehl) ? 35 : 18;
+  }
+  return s;
+}
+
+// Pick top events with PER-TICKER COVERAGE. Pass 1: take the best events but cap
+// each ticker so no single ticker dominates. Pass 2: fill any remaining slots
+// ignoring the cap. Guarantees breadth across the whole watchlist.
+function selectTopEvents(events, max, perTickerCap){
+  const scored = events
+    .map(e => ({ e, s: scoreImportance(e) }))
+    .sort((a,b) => b.s - a.s);
+  const out = []; const perT = {}; const used = new Set();
+  const tickerOf = e => e.candidateTickers?.[0] || '?';
+
+  // Pass 1 — GUARANTEE COVERAGE: take the single highest-importance event for
+  // EACH ticker first, so every watchlist name that has news appears in the feed.
+  // Without this, on a big list (e.g. 29 tickers) the ~10 hottest megacaps fill
+  // all `max` slots in importance order and freshly-added / quieter tickers
+  // (COF, FCX, MMM, SMH, VMC…) get nothing. This is the fix for "force-fresh
+  // didn't pick up the new tickers."
+  for (const { e } of scored){
+    const t = tickerOf(e);
+    if (t === '?' || perT[t]) continue;     // already have this ticker's best
+    perT[t] = 1; out.push(e); used.add(e.id);
+    if (out.length >= max) return out;
+  }
+  // Pass 2 — fill remaining slots by importance, up to perTickerCap per ticker.
+  for (const { e } of scored){
+    if (used.has(e.id)) continue;
+    const t = tickerOf(e);
+    if ((perT[t] || 0) >= perTickerCap) continue;
+    perT[t] = (perT[t] || 0) + 1; out.push(e); used.add(e.id);
+    if (out.length >= max) return out;
+  }
+  // Pass 3 — top off the budget with anything left (cap relaxed).
+  for (const { e } of scored){
+    if (used.has(e.id)) continue;
+    out.push(e);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+async function runPipeline(env, ctx, useLimitedAPIs, wl, sectors, prefetchedArticles){
+  wl = wl || WATCHLIST; sectors = sectors || SECTORS;
+  const wlSet = new Set(wl);
+  // prefetchedArticles: when the staged orchestrator already gathered articles in
+  // separate invocations, skip fetching here (we'd blow the subrequest cap again).
+  const articles = prefetchedArticles || await fetchAllSources(env, useLimitedAPIs, wl);
+  let events = clusterArticles(articles, wl);
+
+  // Rank by importance with per-ticker coverage; cap to control AI cost + time.
+  events = selectTopEvents(events, MAX_EVENTS, PER_TICKER_CAP);
+
+  // Split into batches.
+  const batches = [];
+  for (let i=0; i<events.length; i+=BATCH_SIZE) batches.push(events.slice(i, i+BATCH_SIZE));
+
+  // ── DISTRIBUTE: spread batches across ALL available models (round-robin) ──
+  // The old design locked ONE model and threw every batch at it — fatal on
+  // free-tier per-minute (RPM) limits, where 9 rapid calls to a single model
+  // 429 after the first one or two. Instead we fan batches out across every
+  // non-blocked model in the chain, so each model only sees ~1-2 calls and stays
+  // under its RPM. Effective throughput = sum of all models' RPM.
+  const outputs = new Array(batches.length).fill(null);
+  const blockKeyFor = (entry) => entry.provider === 'nim'
+    ? 'quota_block:nim:' + entry.model.replace('/','_')
+    : 'quota_block:' + entry.model;
+
+  // Figure out which models are currently usable (not KV-blocked, key present).
+  // Slow models (e.g. 70B at ~107s/batch) are excluded from the primary pool and
+  // only used in the salvage fallback below.
+  const avail = [];
+  for (const entry of AI_CHAIN){
+    if (entry.slow) continue;
+    if (entry.provider === 'nim' && !env.NVIDIA_API_KEY) continue;
+    try { if (await env.NEWSHUB_CACHE.get(blockKeyFor(entry))) continue; } catch(e){}
+    avail.push(entry);
+  }
+
+  if (batches.length && avail.length){
+    // Start the AI-phase clock — retries/salvage stop launching past this.
+    _aiDeadline = Date.now() + AI_PHASE_BUDGET_MS;
+    _aiSubrequests = 0; // reset the hard subrequest counter for this build's AI phase
+    _aiUseReserve = false;  // the omission pass opens the reserve; start closed
+    _aiSubBudget = aiSubBudgetFor(wl);
+    // ── First pass: send EVERY batch to the STRONGEST available model. ──
+    // The old design round-robined batches across the WHOLE chain
+    // (avail[i % avail.length]), so 4 of every 5 batches landed on weak fallback
+    // models (flash-lite / 2.0-flash / 1.5-flash / 8B-NIM) that truncate or
+    // mis-id the 8-event JSON → only the one batch that hit the strong primary
+    // came back complete, leaving ~8/40 events analyzed and the rest stuck as RAW.
+    // The strong primary returns all 8 verdicts per batch reliably (~7s each), and
+    // a handful of parallel calls stay under its RPM, so first-pass coverage jumps
+    // to ~full. Weak models are now reserved for the salvage passes below, applied
+    // only to batches the primary actually dropped.
+    const primary = avail[0];
+    const jobs = batches.map((b, i) => ({ b, i }));
+    const ran = await mapLimit(
+      jobs, AI_CONCURRENCY,
+      j => callModel(primary, j.b, env, ctx, wl, sectors).catch(() => null)
+    );
+    ran.forEach((out, k) => { if (out){ outputs[jobs[k].i] = out; } });
+
+    // ── Salvage pass: retry any dropped batches on the FALLBACK models.
+    // Cycle through the rest of the chain (avail[round], avail[round+1]…) so a
+    // batch the primary dropped (503/RPM blip) still gets a different model.
+    // Stops early if we're out of build budget (a 503 storm shouldn't run us past
+    // the Worker limit — better to cache a partial-analyzed result than be killed).
+    let dropped = batches.map((b, i) => ({ b, i })).filter(x => !outputs[x.i]);
+    for (let round = 1; round <= 2 && dropped.length && avail.length > 1 && aiBudgetLeft(); round++){
+      const retried = await mapLimit(
+        dropped, AI_CONCURRENCY,
+        x => callModel(avail[(x.i + round) % avail.length], x.b, env, ctx, wl, sectors).catch(() => null)
+      );
+      retried.forEach((out, k) => { if (out){ outputs[dropped[k].i] = out; } });
+      dropped = batches.map((b, i) => ({ b, i })).filter(x => !outputs[x.i]);
+    }
+
+    // ── Omission-retry pass ──────────────────────────────────────────────────
+    // Models routinely return a verdict for only SOME events in a batch and
+    // silently omit the rest, leaving real news stuck as RAW even though the batch
+    // "succeeded". Collect every event that has no verdict yet, re-batch them, and
+    // re-run on a DIFFERENT model. We skip events already resolved (enriched OR
+    // returned as NONE) so we don't burn the budget re-asking noise.
+    //
+    // This is the single highest-value pass in the phase — omission, not failure,
+    // is what actually produces RAW cards on a healthy day — so it gets its own
+    // reserved slice of the subrequest budget (see AI_OMISSION_RESERVE). Before
+    // that reserve existed the first pass's RPM retries could spend the whole
+    // ceiling and this block was skipped outright.
+    _aiUseReserve = true;
+    let omitMissing = 0, omitRecovered = 0, omitRounds = 0, omitSkip = null;
+    for (let round = 0; round < 2; round++){
+      if (!aiBudgetLeft()){ omitSkip = omitSkip || 'deadline'; break; }
+      if (!aiCallBudgetLeft()){ omitSkip = omitSkip || 'subrequests'; break; }
+      const haveVerdict = new Set();
+      for (const bi of Object.keys(outputs)){
+        const out = outputs[bi]; if (!out) continue;
+        for (const o of out) haveVerdict.add(o.id); // NONE verdicts count → not re-asked
+      }
+      const missing = events.filter(ev => !haveVerdict.has(ev.id));
+      if (round === 0) omitMissing = missing.length;
+      if (!missing.length) break;
+      omitRounds++;
+      const retryBatches = [];
+      for (let i=0;i<missing.length;i+=BATCH_SIZE) retryBatches.push(missing.slice(i,i+BATCH_SIZE));
+      // A different model each round: the one that just dropped these events is
+      // the least likely to return them on a re-ask.
+      const model = avail[(2 + round) % avail.length];
+      const retried = await mapLimit(retryBatches, AI_CONCURRENCY,
+        b => callModel(model, b, env, ctx, wl, sectors).catch(()=>null));
+      let gained = 0;
+      retryBatches.forEach((b, k) => {
+        const idx = batches.length;
+        batches.push(b);
+        if (retried[k] && retried[k].length){ outputs[idx] = retried[k]; gained += retried[k].length; }
+      });
+      omitRecovered += gained;
+      if (!gained) break; // model isn't returning these — a third ask won't either
+    }
+    _aiUseReserve = false;
+
+    _aiDeadline = 0; // reset
+    const aiSubUsed = _aiSubrequests;
+    _aiSubrequests = 0; // reset
+    // Breadcrumb: how the AI phase actually went (visible via /_stage-debug).
+    const succeeded = Object.keys(outputs).length;
+    // Capture a real sample of what the AI returned + the event ids we expected,
+    // so an id-mismatch (AI echoes wrong ids → merge finds nothing → all raw) is
+    // visible.
+    let dbgSample = null, dbgExpectedIds = null, dbgReturnedIds = null;
+    try {
+      const firstKey = Object.keys(outputs)[0];
+      if (firstKey != null && outputs[firstKey]){
+        dbgSample = outputs[firstKey].slice(0,2);
+        dbgReturnedIds = outputs[firstKey].map(o=>o.id).slice(0,5);
+        dbgExpectedIds = (batches[firstKey]||[]).map(e=>e.id).slice(0,5);
+      }
+    } catch(e){}
+    await env.NEWSHUB_CACHE.put('stage:aistats', JSON.stringify({
+      availModels: avail.map(a=>a.model||a.provider), batches: batches.length,
+      succeeded, failed: batches.length - succeeded, subrequestsUsed: aiSubUsed,
+      subrequestBudget: _aiSubBudget, omissionReserve: AI_OMISSION_RESERVE,
+      budgetMs: AI_PHASE_BUDGET_MS, concurrency: AI_CONCURRENCY, at: Date.now(),
+      // Why events ended up RAW. A healthy build shows failed:0 AND
+      // omittedAfterFirstPass ≈ omissionRecovered. omissionSkipped tells you the
+      // pass never ran — 'subrequests' means the first pass ate the whole budget
+      // (the 2026-08-21 failure), 'deadline' means the phase ran out of wall clock.
+      // None of these are API quota exhaustion; that shows up as failed > 0 plus a
+      // 'cooling-down' entry in /health modelStatus.
+      omittedAfterFirstPass: omitMissing, omissionRecovered: omitRecovered,
+      omissionRounds: omitRounds, omissionSkipped: omitSkip,
+      dbgSample, dbgExpectedIds, dbgReturnedIds,
+    }), { expirationTtl: DIAG_TTL }).catch(()=>{});
+  }
+
+  // ── Merge AI output back onto events ─────────────────────────────────────
+  const enriched = [];
+  const modelsUsed = new Set();
+  const aiRejectedIds = new Set();   // events the AI SAW and judged not relevant (NONE)
+  const aiProcessedBatch = new Set(); // batch indices the AI actually returned output for
+  for (let bi=0; bi<batches.length; bi++){
+    const out = outputs[bi];
+    if (!out || !out.length) continue;
+    aiProcessedBatch.add(bi);
+    if (out.__model) modelsUsed.add(out.__model);
+    const map = new Map(out.map(o => [o.id, o]));
+    for (const ev of batches[bi]){
+      const ai = map.get(ev.id);
+      if (!ai) continue; // AI didn't return this id — leave for raw fallback
+      if (!ai.primaryTicker || ai.primaryTicker === 'NONE'){
+        // Safety net: a THEME-matched (sector/supply-chain) event the AI mislabels
+        // as NONE is exactly the big industry news we must not drop. Reclaim it
+        // with its first valid watchlist candidate and a real impact floor.
+        const themedCand = ev.themed ? (ev.candidateTickers||[]).find(t=>wlSet.has(t)) : null;
+        if (!themedCand){
+          aiRejectedIds.add(ev.id); // genuine off-watchlist noise → drop
+          continue;
+        }
+        const floor = Math.max(ai.impactScore || 0, 60);
+        enriched.push({
+          id: ev.id,
+          primaryTicker: themedCand,
+          additionalTickers: mergeAddlTickers(ai.additionalTickers, ev, themedCand, wlSet),
+          sectors: (ai.sectors||[]).filter(Boolean),
+          eventType: ai.eventType || 'macro',
+          summary: ai.summary || (ev.sources?.[0]?.headline || ''),
+          sentiment: { label: ai.sentiment || 'neutral', score: ai.sentimentScore || 0 },
+          impact: { score: floor, tier: impactTier(floor) },
+          relevanceConfidence: ai.relevanceConfidence ?? 0.6,
+          ts: ev.ts,
+          sources: ev.sources.map(s => ({ name:s.name, url:s.url, headline:s.headline, feed:s.feed, ts:s.ts })),
+          sourceCount: ev.sourceCount,
+          aiAnalyzed: true,
+        });
+        continue;
+      }
+      // Use the AI's ticker if it's a watchlist ticker the article actually
+      // mentioned. If the AI picked a ticker NOT in this event's candidates (a
+      // hallucination — e.g. tagging a Lucid story as TSLA), fall back to the
+      // article's own primary candidate so the analysis attaches to the RIGHT
+      // stock instead of a made-up one.
+      const candList = ev.candidateTickers || [];
+      let primaryTicker = ai.primaryTicker;
+      if (!candList.includes(primaryTicker)){
+        const realCand = candList.find(t => wlSet.has(t));
+        if (!realCand){ aiRejectedIds.add(ev.id); continue; } // nothing valid → drop
+        primaryTicker = realCand;
+      }
+      if (!wlSet.has(primaryTicker)){ aiRejectedIds.add(ev.id); continue; }
+      enriched.push({
+        id: ev.id,
+        primaryTicker: primaryTicker,
+        additionalTickers: mergeAddlTickers(ai.additionalTickers, ev, primaryTicker, wlSet),
+        sectors: (ai.sectors||[]).filter(Boolean),
+        eventType: ai.eventType || 'other',
+        summary: ai.summary || '',
+        sentiment: { label: ai.sentiment || 'neutral', score: ai.sentimentScore || 0 },
+        impact: { score: ai.impactScore || 0, tier: impactTier(ai.impactScore || 0) },
+        relevanceConfidence: ai.relevanceConfidence ?? 1,
+        ts: ev.ts,
+        sources: ev.sources.map(s => ({ name:s.name, url:s.url, headline:s.headline, feed:s.feed, ts:s.ts })),
+        sourceCount: ev.sourceCount,
+        aiAnalyzed: true,
+      });
+    }
+  }
+
+  // ── Per-batch raw fallback ───────────────────────────────────────────────
+  // Raw-fill any event that didn't get an AI verdict — whether its batch failed
+  // entirely OR the AI returned the batch but omitted this event. EXCEPT events
+  // the AI explicitly rejected as off-watchlist noise (NONE), which we drop.
+  const enrichedIds = new Set(enriched.map(e => e.id));
+  let rawCount = 0;
+  for (let bi=0; bi<batches.length; bi++){
+    for (const ev of batches[bi]){
+      if (enrichedIds.has(ev.id)) continue;     // already AI-enriched
+      if (aiRejectedIds.has(ev.id)) continue;    // AI said off-watchlist → drop
+      const primary = ev.candidateTickers?.[0] || '';
+      if (!primary || !wlSet.has(primary)) continue;
+      const headline = ev.sources?.[0]?.headline || '';
+      const rawScore = Math.min(50, 20 + (ev.sourceCount||1)*5);
+      enriched.push({
+        id: ev.id,
+        primaryTicker: primary,
+        additionalTickers: (ev.candidateTickers||[]).slice(1).filter(t=>wlSet.has(t)),
+        sectors: [],
+        eventType: 'other',
+        summary: headline,
+        sentiment: { label: 'neutral', score: 0 },
+        impact: { score: rawScore, tier: impactTier(rawScore) },
+        relevanceConfidence: 0.5,
+        ts: ev.ts,
+        sources: (ev.sources||[]).map(s => ({ name:s.name, url:s.url, headline:s.headline, feed:s.feed, ts:s.ts })),
+        sourceCount: ev.sourceCount,
+        aiAnalyzed: false,
+      });
+      rawCount++;
+    }
+  }
+
+  enriched.sort((a,b) => b.impact.score - a.impact.score || b.ts - a.ts);
+  // Degraded means the AI phase genuinely failed to run (all models blocked /
+  // timed out → nothing analyzed). If even a handful of events got real AI
+  // verdicts, the pipeline worked — the rest being raw is just the low-signal
+  // tail or AI-rejected noise, NOT a degraded build. Banner only shows when the
+  // AI produced essentially nothing.
+  const aiCount = enriched.filter(e=>e.aiAnalyzed).length;
+  const degraded = aiCount < 3;
+  // Append merge results to the AI stats breadcrumb.
+  try {
+    const sampleOut = outputs[0] ? outputs[0].slice(0,2) : null;
+    const sampleEvIds = (batches[0]||[]).slice(0,2).map(e=>e.id);
+    const prev = JSON.parse(await env.NEWSHUB_CACHE.get('stage:aistats') || '{}');
+    prev.enrichedAI = aiCount; prev.rawFallback = rawCount; prev.totalOut = enriched.length;
+    prev.sampleAiOutput = sampleOut; prev.sampleEventIds = sampleEvIds;
+    await env.NEWSHUB_CACHE.put('stage:aistats', JSON.stringify(prev), { expirationTtl: DIAG_TTL });
+  } catch(e){}
+  // articleCount is the fetch phase's raw yield. A build with 0 events AND 0
+  // articles failed at fetch (sources blocked/starved); 0 events with articles > 0
+  // means clustering/AI dropped everything. Without it the two are indistinguishable
+  // from outside, which is what made the 6am zero-event builds so hard to diagnose.
+  return { events: enriched, modelsUsed: [...modelsUsed], degraded, articleCount: articles.length };
+}
+
+// ── Windowed AI analysis (for staged AI sub-stages) ───────────────────────
+// Analyzes a SUBSET of pre-clustered events (one window's worth) and returns the
+// AI-enriched results. Mirrors runPipeline's analyze+merge, but scoped to a few
+// batches so each invocation stays within the Worker CPU/wall + subrequest budget.
+// The full event set is clustered ONCE in the prep stage and stored in KV, so ids
+// are stable across window invocations.
+async function aiAnalyzeWindow(env, ctx, eventsSubset, wl, sectors){
+  const wlSet = new Set(wl);
+  const batches = [];
+  for (let i=0; i<eventsSubset.length; i+=BATCH_SIZE) batches.push(eventsSubset.slice(i, i+BATCH_SIZE));
+  const outputs = {};
+
+  const avail = [];
+  for (const entry of AI_CHAIN){
+    if (entry.slow) continue;
+    if (entry.provider === 'nim' && !env.NVIDIA_API_KEY) continue;
+    try { if (await env.NEWSHUB_CACHE.get(blockKeyFor(entry))) continue; } catch(e){}
+    avail.push(entry);
+  }
+
+  if (batches.length && avail.length){
+    _aiDeadline = Date.now() + AI_PHASE_BUDGET_MS;
+    _aiSubrequests = 0; _aiUseReserve = false; _aiSubBudget = aiSubBudgetFor(wl);
+    // First pass on the STRONGEST model (see runPipeline note): round-robin onto
+    // weak fallbacks left most events RAW; the strong primary returns full batches.
+    const primary = avail[0];
+    const jobs = batches.map((b, i) => ({ b, i }));
+    const ran = await mapLimit(jobs, AI_CONCURRENCY,
+      j => callModel(primary, j.b, env, ctx, wl, sectors).catch(() => null));
+    ran.forEach((out, k) => { if (out){ outputs[jobs[k].i] = out; } });
+    // One salvage round on a fallback model for dropped batches.
+    let dropped = batches.map((b, i) => ({ b, i })).filter(x => !outputs[x.i]);
+    if (dropped.length && avail.length > 1 && aiBudgetLeft()){
+      const retried = await mapLimit(dropped, AI_CONCURRENCY,
+        x => callModel(avail[(x.i + 1) % avail.length], x.b, env, ctx, wl, sectors).catch(() => null));
+      retried.forEach((out, k) => { if (out){ outputs[dropped[k].i] = out; } });
+    }
+    _aiDeadline = 0; _aiSubrequests = 0;
+  }
+
+  const enriched = [];
+  const modelsUsed = new Set();
+  for (let bi=0; bi<batches.length; bi++){
+    const out = outputs[bi];
+    if (!out || !out.length) continue;
+    if (out.__model) modelsUsed.add(out.__model);
+    const map = new Map(out.map(o => [o.id, o]));
+    for (const ev of batches[bi]){
+      const ai = map.get(ev.id);
+      if (ai && ai.primaryTicker && ai.primaryTicker !== 'NONE' && wlSet.has(ai.primaryTicker)){
+        enriched.push({
+          id: ev.id,
+          primaryTicker: ai.primaryTicker,
+          additionalTickers: mergeAddlTickers(ai.additionalTickers, ev, ai.primaryTicker, wlSet),
+          sectors: (ai.sectors||[]).filter(Boolean),
+          eventType: ai.eventType || 'other',
+          summary: ai.summary || '',
+          sentiment: { label: ai.sentiment || 'neutral', score: ai.sentimentScore || 0 },
+          impact: { score: ai.impactScore || 0, tier: impactTier(ai.impactScore || 0) },
+          relevanceConfidence: ai.relevanceConfidence ?? 1,
+          ts: ev.ts,
+          sources: ev.sources.map(s => ({ name:s.name, url:s.url, headline:s.headline, feed:s.feed, ts:s.ts })),
+          sourceCount: ev.sourceCount,
+          aiAnalyzed: true,
+        });
+      }
+    }
+  }
+  return { enriched, modelsUsed: [...modelsUsed], availCount: avail.length };
+}
+
+// Build the final cached doc from clustered events + the AI-enriched results
+// collected across all windows. Any event the AI didn't cover falls back to raw.
+function finalizeEvents(events, enrichedList, wl){
+  const wlSet = new Set(wl);
+  const enriched = [...enrichedList];
+  const enrichedIds = new Set(enriched.map(e => e.id));
+  let rawCount = 0;
+  for (const ev of events){
+    if (enrichedIds.has(ev.id)) continue;
+    const primary = ev.candidateTickers?.[0] || '';
+    if (!primary || !wlSet.has(primary)) continue;
+    const headline = ev.sources?.[0]?.headline || '';
+    const rawScore = Math.min(50, 20 + (ev.sourceCount||1)*5);
+    enriched.push({
+      id: ev.id, primaryTicker: primary,
+      additionalTickers: (ev.candidateTickers||[]).slice(1).filter(t=>wlSet.has(t)),
+      sectors: [], eventType:'other', summary: headline,
+      sentiment: { label:'neutral', score:0 },
+      impact: { score: rawScore, tier: impactTier(rawScore) },
+      relevanceConfidence: 0.5, ts: ev.ts,
+      sources: (ev.sources||[]).map(s => ({ name:s.name, url:s.url, headline:s.headline, feed:s.feed, ts:s.ts })),
+      sourceCount: ev.sourceCount, aiAnalyzed: false,
+    });
+    rawCount++;
+  }
+  enriched.sort((a,b) => b.impact.score - a.impact.score || b.ts - a.ts);
+  const degraded = enriched.length > 0 && rawCount > enriched.length / 2;
+  return { events: enriched, degraded };
+}
+
+// The AI's additionalTickers alone is not enough. It routinely names a second
+// watchlist company in the summary and still returns additionalTickers: [] — which
+// is how "Marvell's deal with Google" shipped tagged GOOGL-only while the summary
+// discussed MRVL. candidateTickers is scanner-derived (mentionedTickers() reads the
+// real article text), so union the two and let the scanner backstop the model.
+function mergeAddlTickers(aiAddl, ev, primary, wlSet){
+  const out = [];
+  const seen = new Set([primary]);
+  for (const t of [...(aiAddl||[]), ...((ev && ev.candidateTickers)||[])]){
+    const u = (t||'').toUpperCase();
+    if (!u || seen.has(u) || !wlSet.has(u)) continue;
+    seen.add(u); out.push(u);
+  }
+  return out;
+}
+
+// Build raw (unanalyzed) events directly from staged articles — used as a last
+// resort if the AI stage throws, so the feed still shows headlines instead of
+// polling forever. Mirrors the per-event raw shape produced inside runPipeline.
+function rawFallbackEvents(articles, wl){
+  const wlSet = new Set(wl);
+  let events = clusterArticles(articles, wl);
+  events = selectTopEvents(events, MAX_EVENTS, PER_TICKER_CAP);
+  const out = [];
+  for (const ev of events){
+    const primary = ev.candidateTickers?.[0] || '';
+    if (!primary || !wlSet.has(primary)) continue;
+    const headline = ev.sources?.[0]?.headline || '';
+    const rawScore = Math.min(50, 20 + (ev.sourceCount||1)*5);
+    out.push({
+      id: ev.id,
+      primaryTicker: primary,
+      additionalTickers: (ev.candidateTickers||[]).slice(1).filter(t=>wlSet.has(t)),
+      sectors: [], eventType: 'other', summary: headline,
+      sentiment: { label:'neutral', score:0 },
+      impact: { score: rawScore, tier: impactTier(rawScore) },
+      relevanceConfidence: 0.5, ts: ev.ts,
+      sources: (ev.sources||[]).map(s => ({ name:s.name, url:s.url, headline:s.headline, feed:s.feed, ts:s.ts })),
+      sourceCount: ev.sourceCount, aiAnalyzed: false,
+    });
+  }
+  out.sort((a,b) => b.impact.score - a.impact.score || b.ts - a.ts);
+  return out;
+}
+
+// Cron variant: no inbound request, so origin is passed explicitly (env.WORKER_ORIGIN).
+// Builds the default watchlist into the default cache key.
+async function startStagedBuildCron(env, ctx, origin, useLimitedAPIs){
+  const cacheKey = 'events:v1', lockKey = 'build:lock';
+  // Respect an in-progress build (e.g. a user force-fresh) — don't double-build.
+  const existing = await env.NEWSHUB_CACHE.get(lockKey).catch(()=>null);
+  if (existing) { console.log('Cron skipped: build already in progress'); return; }
+  await env.NEWSHUB_CACHE.put(lockKey, '1', { expirationTtl: 600 });
+
+  const wl = WATCHLIST, sectors = SECTORS;
+  const buildId = cacheKey.replace(/[^a-zA-Z0-9]/g,'_') + '_' + Date.now().toString(36);
+  const slices = sliceTickers(wl);
+  const k = stageKeys(buildId);
+  await Promise.all([
+    env.NEWSHUB_CACHE.put(k.meta, JSON.stringify({
+      wl, sectors, useLimited: !!useLimitedAPIs, cacheKey, lockKey,
+      sliceCount: slices.length, nextSlice: 0,
+    }), { expirationTtl: STAGE_TTL }),
+    env.NEWSHUB_CACHE.put(k.articles, '[]', { expirationTtl: STAGE_TTL }),
+  ]);
+  await kickStage(env, origin, buildId, 'fetch', 0);
+}
+
+// ─── Build pipeline + write to KV ────────────────────────────────────────
+// prefetchedArticles: supplied by the staged orchestrator (articles already
+// gathered across separate invocations). When omitted, fetches inline — used by
+// the simple/legacy path and small custom watchlists that fit under the cap.
+async function buildAndCache(env, ctx, useLimitedAPIs, wl, sectors, cacheKey, lockKey, prefetchedArticles){
+  wl = wl || WATCHLIST; sectors = sectors || SECTORS;
+  cacheKey = cacheKey || 'events:v1';
+  lockKey = lockKey || 'build:lock';
+  let result;
+  try {
+    result = await runPipeline(env, ctx, useLimitedAPIs, wl, sectors, prefetchedArticles);
+  } catch(e){
+    // Capture WHY the build died (visible via /_stage-debug) and still write a
+    // result so the poller stops. Without this a throw leaves no cache → stuck
+    // "Building" forever.
+    const info = { stage:'inline-build', msg:e.message, stack:(e.stack||'').slice(0,1000), at:Date.now() };
+    await env.NEWSHUB_CACHE.put('stage:lasterror', JSON.stringify(info), { expirationTtl: DIAG_TTL }).catch(()=>{});
+    console.error('inline build threw:', e.message, e.stack);
+    result = { events: [], modelsUsed: [], degraded: true, articleCount: 0 };
+  }
+  const body = JSON.stringify({
+    events: result.events,
+    generatedAt: Date.now(),
+    watchlist: wl,
+    sectors: sectors,
+    modelsUsed: result.modelsUsed,
+    degraded: result.degraded || false,
+    articleCount: result.articleCount ?? null,
+  });
+  // ALWAYS write a result so the client poller terminates — it must be cached, or
+  // every poll re-kicks a fresh build → infinite "Building…" loop.
+  // A degraded (raw) build USED to get a 600s TTL, on the theory that a short life
+  // made it "self-heal soon". It doesn't: nothing rebuilds on a timer. Opening the
+  // News tab is a pure cacheOnly PEEK, and the cron runs once a day — so a degraded
+  // 6am build simply EVAPORATED at 6:10am and left an empty cache. The worker's
+  // Firebase push can't work either (App Check — see the note above
+  // pushMarketCalToFirebase), so the UI then fell all the way back to whatever the
+  // browser last wrote, i.e. "updated 18 hours ago" with no way to recover.
+  // Raw headlines with no AI summary still beat an empty feed, so a degraded build
+  // now survives the morning; any good build (or Force fresh, which bypasses cache)
+  // overwrites it.
+  const ttl = result.degraded ? 14400 : CACHE_TTL; // 4h for raw, 6h for good
+  // ...but a build that produced NOTHING must never overwrite a doc that has real
+  // news in it. That write is what turned a failed 6am build into a blank feed:
+  // yesterday's perfectly readable headlines were replaced by "events: []", so the
+  // News tab had nothing to show and Refresh was the only way out. Leaving the last
+  // good doc in place means a failed build is invisible — you keep reading the
+  // previous build until a later one succeeds. The client keeps its own generatedAt
+  // check, so it still knows this morning's build hasn't landed and keeps trying.
+  let keptPrevious = false;
+  if (!result.events.length){
+    try {
+      const prev = await env.NEWSHUB_CACHE.get(cacheKey);
+      if (prev){ const pj = JSON.parse(prev); keptPrevious = Array.isArray(pj.events) && pj.events.length > 0; }
+    } catch(e){}
+  }
+  if (!keptPrevious) await env.NEWSHUB_CACHE.put(cacheKey, body, { expirationTtl: ttl });
+  await env.NEWSHUB_CACHE.delete(lockKey); // release build lock
+  // Push to Firebase so the client's onSnapshot auto-displays the finished build
+  // (whether the News tab is open or not) — no polling needed. Only push non-empty
+  // results so a failed/empty build never wipes the last good news. Fire-and-forget;
+  // a Firestore hiccup must never fail the build.
+  if (result.events && result.events.length){
+    const p = pushNewsToFirebase(result).catch(e => console.warn('[news] firebase push failed:', e.message));
+    if (ctx && ctx.waitUntil) ctx.waitUntil(p);
+  }
+  console.log(`Pipeline done: ${result.events.length} events (${result.articleCount ?? '?'} articles), degraded=${result.degraded}, ttl=${ttl}, wl=${wl.length}${keptPrevious?' — EMPTY, kept previous cached doc':''}`);
+  return body;
+}
+
+// ─── STAGED BUILD ORCHESTRATION ───────────────────────────────────────────
+// Why: one invocation can't make all fetch+AI subrequests (50-cap). So we split:
+//   • N "fetch" invocations, each gathering one ticker-slice → append to KV stage
+//   • 1 "ai" invocation, reading the staged articles → cluster + AI + cache
+// Each invocation is triggered by the worker calling its OWN URL (self-fetch),
+// giving every stage a fresh 50-subrequest budget. State passes through KV.
+//
+// A build is identified by a buildId; staging keys are namespaced under it and
+// auto-expire so a crashed build leaves no litter.
+const STAGE_TTL = 900; // 15 min — must exceed the full staged chain (fetch slices + AI prep + windows + finalize, run sequentially)
+
+function stageKeys(buildId){
+  return {
+    meta:     'stage:'+buildId+':meta',     // { wl, sectors, useLimited, cacheKey, lockKey, slices, doneSlices }
+    articles: 'stage:'+buildId+':articles', // accumulated raw articles (JSON array)
+    events:   'stage:'+buildId+':events',   // clustered+selected events (fixed, ids stable)
+    enriched: 'stage:'+buildId+':enriched', // AI-enriched results accumulated across windows
+  };
+}
+// How many BATCHES of events each AI window invocation processes. Kept small so a
+// window (≈BATCH_SIZE*AI_WINDOW_BATCHES events of NIM calls) finishes well inside
+// the Worker CPU/wall budget. 9 batches → ~5 windows.
+const AI_WINDOW_BATCHES = 2;
+
+// Derive the worker's own origin from the inbound request so self-invocation
+// hits the same deployment.
+function selfOrigin(req){
+  try { return new URL(req.url).origin; } catch(e){ return null; }
+}
+
+// Kick a staged build. Writes meta + empty articles, then fires the FIRST fetch
+// stage. Returns immediately (caller already holds the build lock).
+async function startStagedBuild(env, ctx, req, useLimitedAPIs, wl, sectors, cacheKey, lockKey){
+  const buildId = cacheKey.replace(/[^a-zA-Z0-9]/g,'_') + '_' + Date.now().toString(36);
+  const slices = sliceTickers(wl);
+  const k = stageKeys(buildId);
+  await Promise.all([
+    env.NEWSHUB_CACHE.put(k.meta, JSON.stringify({
+      wl, sectors, useLimited: !!useLimitedAPIs, cacheKey, lockKey,
+      sliceCount: slices.length, nextSlice: 0,
+    }), { expirationTtl: STAGE_TTL }),
+    env.NEWSHUB_CACHE.put(k.articles, '[]', { expirationTtl: STAGE_TTL }),
+  ]);
+  // Fire the first fetch stage. Prefer the SELF binding; fall back to HTTP origin.
+  // Only if NEITHER exists do we inline-build (correct, but cap-bound).
+  const origin = selfOrigin(req) || env.WORKER_ORIGIN || null;
+  if (!env.SELF && !origin){
+    await buildAndCache(env, ctx, useLimitedAPIs, wl, sectors, cacheKey, lockKey);
+    return;
+  }
+  await kickStage(env, origin, buildId, 'fetch', 0);
+}
+
+// Fire one stage as a fresh self-invocation. Fire-and-forget: we don't await the
+// body, just the dispatch, so the current invocation can return.
+// Prefer the SELF service binding (worker → itself via RPC) — a plain fetch() to
+// our own workers.dev hostname loops back and 404s on many CF setups. The binding
+// dispatches a genuinely fresh invocation (own 50-subrequest budget) with no
+// hostname loopback. Falls back to HTTP self-fetch only if the binding is absent.
+async function kickStage(env, origin, buildId, stage, sliceIdx){
+  const path = `/_stage?build=${encodeURIComponent(buildId)}&stage=${stage}` +
+               (sliceIdx!=null ? `&slice=${sliceIdx}` : '') +
+               `&key=${encodeURIComponent(env.STAGE_SECRET||'')}`;
+  const url = (env.SELF && typeof env.SELF.fetch === 'function') ? ('https://self' + path)
+            : ((origin || env.WORKER_ORIGIN || '') + path);
+  const doFetch = (env.SELF && typeof env.SELF.fetch === 'function')
+    ? env.SELF.fetch(url, { method:'POST' })
+    : fetch(url, { method:'POST' });
+  // We only need the request to LAND (which starts the next invocation). We do
+  // NOT want to block until the entire downstream chain finishes — otherwise the
+  // first stage's invocation would stay alive for the whole multi-minute build and
+  // get reaped. Race the dispatch against a short delay: long enough for the
+  // subrequest to be sent, short enough not to hold this invocation.
+  try {
+    await Promise.race([
+      doFetch.then(r => r.text().catch(()=>{})).catch(e => console.error('kick fetch err:', e.message)),
+      new Promise(res => setTimeout(res, 1500)),
+    ]);
+  } catch(e){ console.error('kickStage dispatch failed:', e.message); }
+}
+
+// Stash a stage error so it's readable via /_stage-debug (CF runtime kills don't
+// throw, but real JS errors do — this captures those).
+async function stashStageError(env, stageLabel, buildId, e, count){
+  const info = { stage:stageLabel, buildId, msg:e.message, stack:(e.stack||'').slice(0,800), at:Date.now(), count };
+  console.error(`stage ${stageLabel} threw:`, e.message, e.stack);
+  await env.NEWSHUB_CACHE.put('stage:lasterror', JSON.stringify(info), { expirationTtl: DIAG_TTL }).catch(()=>{});
+}
+
+// Write a raw-degraded result so the client poller terminates + headlines show,
+// when the AI path fails. Accepts either staged articles (cluster fresh) or an
+// already-clustered events array.
+async function writeRawFallback(env, meta, articles, events){
+  try {
+    const rawEvents = events
+      ? finalizeEvents(events, [], meta.wl).events
+      : rawFallbackEvents(articles||[], meta.wl);
+    const body = JSON.stringify({ events: rawEvents, generatedAt: Date.now(), watchlist: meta.wl, sectors: meta.sectors, modelsUsed: [], degraded: true });
+    await env.NEWSHUB_CACHE.put(meta.cacheKey, body, { expirationTtl: 600 });
+  } catch(e){ console.error('raw fallback write failed:', e.message); }
+  await env.NEWSHUB_CACHE.delete(meta.lockKey).catch(()=>{});
+}
+
+// Delete all staging keys for a build.
+async function cleanupStage(env, k){
+  await Promise.all([
+    env.NEWSHUB_CACHE.delete(k.meta).catch(()=>{}),
+    env.NEWSHUB_CACHE.delete(k.articles).catch(()=>{}),
+    env.NEWSHUB_CACHE.delete(k.events).catch(()=>{}),
+    env.NEWSHUB_CACHE.delete(k.enriched).catch(()=>{}),
+  ]);
+}
+
+// Handle a single stage invocation. Returns a Response (the dispatcher ignores
+// the body — what matters is the side effects + the NEXT kickStage).
+async function handleStage(env, ctx, req, buildId, stage, sliceIdx){
+  const k = stageKeys(buildId);
+  const metaRaw = await env.NEWSHUB_CACHE.get(k.meta);
+  if (!metaRaw) return new Response(JSON.stringify({ error:'stage meta missing/expired', buildId }), { status:410, headers:{...cors(),'Content-Type':'application/json'} });
+  const meta = JSON.parse(metaRaw);
+  const wl = meta.wl, sectors = meta.sectors, useLimited = meta.useLimited;
+  // Each stage is a fresh invocation, so the derived alias/theme overlays start
+  // empty — re-hydrate from KV so isRelevant() and broadenByTheme() see AI-derived
+  // aliases + industry keywords during this slice's fetch.
+  await hydrateMeta(wl, env);
+  const slices = sliceTickers(wl);
+  const origin = selfOrigin(req);
+
+  if (stage === 'fetch'){
+    const i = sliceIdx|0;
+    const slice = slices[i] || [];
+    // Limited sources + general are gathered ONCE, on slice 0, against the full WL.
+    const got = await fetchSlice(env, wl, {
+      tickers: slice,
+      includeGeneral: i === 0,
+      includeLimited: i === 0 && useLimited,
+    });
+    // Append this slice's articles to the staged accumulator (last-write-wins is
+    // safe here because stages run strictly sequentially, one after the next).
+    const prevRaw = await env.NEWSHUB_CACHE.get(k.articles).catch(()=>'[]');
+    let prev = [];
+    try { prev = JSON.parse(prevRaw||'[]'); } catch(e){ prev = []; }
+    const merged = prev.concat(got);
+    await env.NEWSHUB_CACHE.put(k.articles, JSON.stringify(merged), { expirationTtl: STAGE_TTL });
+
+    const next = i + 1;
+    // Dispatch the next stage WITHOUT blocking on its completion. Earlier we
+    // awaited it, but env.SELF.fetch() resolves only when the callee RESPONDS —
+    // and since each stage awaited ITS successor, slice 0 ended up blocking on the
+    // entire downstream chain (all fetch slices + the full ~40s AI phase) in a
+    // single invocation, which blew the per-invocation wall-clock and got killed
+    // mid-AI → no cache written. Firing in waitUntil lets THIS invocation return
+    // immediately while the SELF binding spins up the next as its own invocation.
+    const nextStage = next < slices.length ? 'fetch' : 'ai';
+    const nextSlice = next < slices.length ? next : null;
+    ctx.waitUntil(kickStage(env, origin, buildId, nextStage, nextSlice));
+    return new Response(JSON.stringify({ ok:true, stage:'fetch', slice:i, gathered:got.length, total:merged.length }),
+      { headers:{...cors(),'Content-Type':'application/json'} });
+  }
+
+  // ── AI PREP: cluster + select events ONCE, store them, kick first window. ──
+  // Clustering happens a single time so event ids are stable across windows.
+  if (stage === 'ai'){
+    let articles = [];
+    try { articles = JSON.parse(await env.NEWSHUB_CACHE.get(k.articles) || '[]'); } catch(e){ articles = []; }
+    try {
+      let events = clusterArticles(articles, wl);
+      events = selectTopEvents(events, MAX_EVENTS, PER_TICKER_CAP);
+      await Promise.all([
+        env.NEWSHUB_CACHE.put(k.events, JSON.stringify(events), { expirationTtl: STAGE_TTL }),
+        env.NEWSHUB_CACHE.put(k.enriched, '[]', { expirationTtl: STAGE_TTL }),
+      ]);
+      ctx.waitUntil(kickStage(env, origin, buildId, 'aiwin', 0));
+      return new Response(JSON.stringify({ ok:true, stage:'ai-prep', events:events.length }),
+        { headers:{...cors(),'Content-Type':'application/json'} });
+    } catch(e){
+      await stashStageError(env, 'ai-prep', buildId, e, articles.length);
+      await writeRawFallback(env, meta, articles);
+      ctx.waitUntil(cleanupStage(env, k));
+      return new Response(JSON.stringify({ ok:false, stage:'ai-prep', err:e.message }),
+        { status:500, headers:{...cors(),'Content-Type':'application/json'} });
+    }
+  }
+
+  // ── AI WINDOW: analyze one slice of batches, append enriched, kick next. ──
+  if (stage === 'aiwin'){
+    const cursor = sliceIdx|0; // here sliceIdx = batch-window index
+    let events = [], enrichedSoFar = [];
+    try { events = JSON.parse(await env.NEWSHUB_CACHE.get(k.events) || '[]'); } catch(e){ events = []; }
+    try { enrichedSoFar = JSON.parse(await env.NEWSHUB_CACHE.get(k.enriched) || '[]'); } catch(e){ enrichedSoFar = []; }
+
+    const eventsPerWindow = AI_WINDOW_BATCHES * BATCH_SIZE;
+    const start = cursor * eventsPerWindow;
+    const windowEvents = events.slice(start, start + eventsPerWindow);
+    const totalWindows = Math.ceil(events.length / eventsPerWindow);
+
+    let winEnriched = 0, winAvail = -1;
+    try {
+      if (windowEvents.length){
+        const res = await aiAnalyzeWindow(env, ctx, windowEvents, wl, sectors);
+        winEnriched = res.enriched.length;
+        winAvail = res.availCount;
+        if (res.enriched.length){
+          enrichedSoFar = enrichedSoFar.concat(res.enriched);
+          await env.NEWSHUB_CACHE.put(k.enriched, JSON.stringify(enrichedSoFar), { expirationTtl: STAGE_TTL });
+        }
+      }
+    } catch(e){
+      // A window failing shouldn't kill the build — log + continue; missing events
+      // get raw fallback at finalize.
+      await stashStageError(env, 'aiwin:'+cursor, buildId, e, windowEvents.length);
+    }
+    // Status breadcrumb so /_stage-debug shows whether windows fire + why 0 enriched.
+    await env.NEWSHUB_CACHE.put('stage:winstatus', JSON.stringify({
+      buildId, window:cursor, windowEvents:windowEvents.length, availModels:winAvail,
+      windowEnriched:winEnriched, totalSoFar:enrichedSoFar.length, at:Date.now(),
+    }), { expirationTtl: DIAG_TTL }).catch(()=>{});
+
+    const next = cursor + 1;
+    if (next < totalWindows){
+      ctx.waitUntil(kickStage(env, origin, buildId, 'aiwin', next));
+    } else {
+      ctx.waitUntil(kickStage(env, origin, buildId, 'aifin', null));
+    }
+    return new Response(JSON.stringify({ ok:true, stage:'aiwin', window:cursor, totalWindows, windowEvents:windowEvents.length }),
+      { headers:{...cors(),'Content-Type':'application/json'} });
+  }
+
+  // ── AI FINALIZE: merge enriched + raw fallback → write cache, cleanup. ──
+  if (stage === 'aifin'){
+    let events = [], enrichedList = [];
+    try { events = JSON.parse(await env.NEWSHUB_CACHE.get(k.events) || '[]'); } catch(e){ events = []; }
+    try { enrichedList = JSON.parse(await env.NEWSHUB_CACHE.get(k.enriched) || '[]'); } catch(e){ enrichedList = []; }
+    try {
+      const { events: finalEvents, degraded } = finalizeEvents(events, enrichedList, wl);
+      const anyAnalyzed = enrichedList.some(e => e.aiAnalyzed);
+      const body = JSON.stringify({
+        events: finalEvents, generatedAt: Date.now(), watchlist: wl, sectors,
+        modelsUsed: anyAnalyzed ? ['nim/gemini'] : [], degraded,
+      });
+      const ttl = degraded ? 600 : CACHE_TTL;
+      await env.NEWSHUB_CACHE.put(meta.cacheKey, body, { expirationTtl: ttl });
+      await env.NEWSHUB_CACHE.delete(meta.lockKey).catch(()=>{});
+      // Push to Firebase so the client's onSnapshot AUTO-DISPLAYS the finished build
+      // with no polling. The staged path (large watchlists) usually outlasts the
+      // client's poll cap, so without this the News tab only updates on a tab
+      // remount. Mirrors buildAndCache; only push non-empty results so a failed
+      // build never wipes the last good news. Fire-and-forget.
+      if (finalEvents && finalEvents.length){
+        ctx.waitUntil(pushNewsToFirebase({ events: finalEvents, degraded })
+          .catch(e => console.warn('[news] staged firebase push failed:', e.message)));
+      }
+    } catch(e){
+      await stashStageError(env, 'aifin', buildId, e, enrichedList.length);
+      await writeRawFallback(env, meta, null, events);
+    }
+    ctx.waitUntil(cleanupStage(env, k));
+    return new Response(JSON.stringify({ ok:true, stage:'aifin', enriched:enrichedList.length, events:events.length }),
+      { headers:{...cors(),'Content-Type':'application/json'} });
+  }
+
+  return new Response(JSON.stringify({ error:'unknown stage', stage }), { status:400, headers:{...cors(),'Content-Type':'application/json'} });
+}
+
+// ─── NEWS DIGEST — the Summary overlay ────────────────────────────────────
+// ONE AI call that reads the finished build and writes the market read for it.
+//
+// ── Why this is cheap, and must stay cheap ─────────────────────────────────
+// The digest NEVER re-fetches articles and NEVER re-analyzes events. Its input
+// is the build's own output — events that already carry an AI summary, a
+// sentiment and an impact score — so the whole watchlist compresses to ~5k
+// tokens of one-line-per-event text. That is a single call against a model's
+// daily request quota, versus the 7-16 the analysis phase spends.
+//
+// It is also cached HARDER than the news itself: the KV key embeds the build's
+// generatedAt, so one digest is generated per BUILD, not per view. Opening the
+// Summary overlay ten times, on three devices, costs exactly zero after the
+// first. A new build mints a new key; the old digest just ages out.
+//
+// ── Why it does NOT run inside the build invocation ────────────────────────
+// It can't. A build already spends ~46 of Cloudflare's 50 subrequests per
+// invocation (see BUILD_SUBREQUEST_CAP and the note above FINNHUB_PER_TICKER_CAP
+// about a 34-ticker build hitting 57 and being killed before it wrote anything).
+// Adding an AI call to that budget risks exactly that failure, and a broken
+// build is a far worse outcome than a summary that arrives a few seconds later.
+// So the digest lives on its own endpoint with its own fresh 50-subrequest
+// budget, and the CLIENT warms it in the background the moment a build lands —
+// which is what makes it "already there" when the overlay opens.
+const SUMMARY_TTL = 7*86400; // 7 days. The key is pinned to one build's
+                             // generatedAt so it can never go stale, and the doc
+                             // is a few KB — so there is no reason for it to
+                             // expire before the build it describes stops being
+                             // the one on screen. It MUST outlive the 6h news
+                             // cache (CACHE_TTL) by a wide margin: the client
+                             // goes on showing a build from Firebase long after
+                             // the worker's copy of it is gone, and the digest
+                             // has to still be there when it does.
+const SUMMARY_LOCK_TTL = 90; // one generation is ~4-8s; this only stops two
+                             // devices opening Summary at once from both paying.
+
+// Digest model chain, DELIBERATELY led by a different model than AI_CHAIN.
+// The analysis phase pounds gemini-3.1-flash-lite (7-16 calls/build), so leading
+// the digest with the same model would make the two compete for one daily request
+// quota. gemini-2.5-flash is only a FALLBACK for analysis, so its quota is
+// essentially untouched — and it is the stronger synthesizer of the two, which is
+// what a once-per-build summarization call should be spending on.
+//
+// Every entry below was run against a real 56-event build before being listed
+// (via ?model=&nocache=1) — measured latency in the comments. gemini-2.0-flash is
+// deliberately ABSENT: it is in AI_CHAIN, but it failed this digest twice in a
+// row while /health showed it uncapped, so it cannot handle DIGEST_SCHEMA's
+// nested enum objects. Leaving it in would just spend a dead attempt on the way
+// to a model that works.
+const SUMMARY_CHAIN = [
+  { provider:'gemini', model:'gemini-2.5-flash' },       // PRIMARY ~5.9s — richest synthesis, and analysis only uses it as a fallback so the quotas stay separate
+  { provider:'gemini', model:'gemini-3.1-flash-lite' },  // ~4.9s — tight and fast, but shares its quota with the analysis phase's primary
+  { provider:'gemini', model:'gemini-2.5-flash-lite' },  // ~3.3s — fastest, thinner notes
+  { provider:'gemini', model:'gemini-3.5-flash' },       // ~8.3s — slow thinker, last Gemini resort
+  { provider:'nim',    model:'meta/llama-3.1-70b-instruct' }, // separate provider — survives a Gemini-wide daily cap
+];
+
+const DIGEST_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    headline:  { type:'STRING' },
+    tone:      { type:'STRING', enum:['bull','bear','mixed'] },
+    toneScore: { type:'NUMBER' },
+    overview:  { type:'STRING' },
+    keyPoints: { type:'ARRAY', items:{ type:'OBJECT', properties:{
+      text:    { type:'STRING' },
+      stance:  { type:'STRING', enum:['bull','bear','neutral'] },
+      tickers: { type:'ARRAY', items:{ type:'STRING' } },
+    }, required:['text','stance'] } },
+    tickers:   { type:'ARRAY', items:{ type:'OBJECT', properties:{
+      ticker: { type:'STRING' },
+      stance: { type:'STRING', enum:['bull','bear','neutral'] },
+      note:   { type:'STRING' },
+    }, required:['ticker','stance','note'] } },
+    themes:    { type:'ARRAY', items:{ type:'OBJECT', properties:{
+      name:   { type:'STRING' },
+      stance: { type:'STRING', enum:['bull','bear','neutral'] },
+      note:   { type:'STRING' },
+    }, required:['name','stance','note'] } },
+    risks:     { type:'ARRAY', items:{ type:'STRING' } },
+    watch:     { type:'ARRAY', items:{ type:'STRING' } },
+  },
+  required: ['headline','tone','overview','keyPoints','tickers','themes'],
+};
+
+// One line per event. This is the whole model input, so it is packed: no ids, no
+// urls, no source lists — none of that changes the market read, and all of it
+// would multiply the token count. Highest-impact first so a truncating model
+// still sees what matters.
+function buildDigestPrompt(events, wl){
+  const rows = events
+    .slice()
+    .sort((a,b) => (b.impact?.score||0) - (a.impact?.score||0))
+    .map(e => {
+      const tks = [e.primaryTicker, ...(e.additionalTickers||[])].filter(Boolean).join('+');
+      const s = e.sentiment || {};
+      const sc = typeof s.score === 'number' ? (s.score > 0 ? '+' : '') + s.score.toFixed(2) : '';
+      return `[${tks}] ${e.impact?.tier||'minor'}/${e.impact?.score||0} ${s.label||'neutral'}${sc} ${e.eventType||''} :: ${e.summary||''}`;
+    })
+    .join('\n');
+
+  return `You are a senior sell-side analyst writing the morning market read for ONE trader who holds/watches this exact list: ${wl.join(', ')}.
+
+Below are ${events.length} already-analyzed news events from the last 72 hours. Each line is:
+[tickers] impactTier/impactScore sentiment±score eventType :: summary
+
+EVENTS
+${rows}
+
+Write a concise, decision-useful digest of THIS news. Rules:
+- Synthesize across events. Connect related stories into one narrative; never restate the list.
+- Be specific and quantitative. Keep the real numbers ($96.2B, -1.96%, 12.9B deal) — they are why this is worth reading.
+- Weight by impactScore. Critical/major events drive the read; minor ones only matter if several point the same way.
+- "stance" is that item's directional read for the trader: bull, bear, or neutral. Judge it, do not average it.
+- Only name tickers that actually appear above.
+- No hedging filler, no "investors should consult", no restating these instructions.
+
+Fields:
+- headline: ONE sentence, under 110 chars — the single most important thing in this news.
+- tone / toneScore: the net read across everything. toneScore is -1 (max bearish) to 1 (max bullish).
+- overview: 2-3 sentences. The narrative tying the biggest stories together.
+- keyPoints: 4-6 items, ordered most to least important. Each ONE sentence with its concrete detail.
+- tickers: only names with news that MOVES them (max 8), ordered by importance. note = one clause, under 90 chars.
+- themes: 2-4 cross-cutting narratives (e.g. "AI capex cycle", "memory pricing"). note = one clause.
+- risks: 2-3 concrete things that could go wrong, drawn from this news.
+- watch: 2-3 specific things to watch next (a date, a print, a confirmation).
+
+Return JSON only.`;
+}
+
+// Standalone Gemini call for the digest. Deliberately NOT callGemini(): that one
+// is wired to the events-array schema and, more importantly, to the BUILD's
+// subrequest/deadline budget (aiCallBudgetLeft / aiBudgetLeft). The digest runs
+// in its own invocation with its own fresh budget, so borrowing those counters
+// would make it refuse to fire whenever a build had recently exhausted them.
+async function callGeminiDigest(model, prompt, env){
+  const gc = {
+    temperature: 0.3,   // a shade above the analysis pass — this is prose, not extraction
+    maxOutputTokens: model.startsWith('gemini-3.5') ? 16384 : 6144,
+    responseMimeType: 'application/json',
+    responseSchema: DIGEST_SCHEMA,
+  };
+  if (model.startsWith('gemini-3')) gc.thinkingConfig = { thinkingLevel: 'low' };
+  else if (model.startsWith('gemini-2.5')) gc.thinkingConfig = { thinkingBudget: 0 };
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_KEY}`;
+  const body = JSON.stringify({ contents:[{ parts:[{ text: prompt }] }], generationConfig: gc });
+
+  let r, lastBody = '';
+  for (let attempt = 0; attempt < 3; attempt++){
+    r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body, signal: AbortSignal.timeout(30000) });
+    if (r.status === 429){
+      lastBody = (await r.text()).slice(0, 500);
+      // Only a DAILY cap earns the shared cooldown block — the same key the
+      // analysis phase reads, so a capped model is skipped everywhere at once.
+      if (/per day|PerDay|daily limit|quota.*exhaust|FreeTier.*Day/i.test(lastBody)){
+        await env.NEWSHUB_CACHE.put('quota_block:'+model, '1', { expirationTtl: QUOTA_COOLDOWN }).catch(()=>{});
+        console.warn(`[digest] ${model} 429 DAILY — blocked ${QUOTA_COOLDOWN}s`);
+        return null;
+      }
+      await new Promise(res => setTimeout(res, 1200 * (attempt + 1)));
+      continue;
+    }
+    if (r.status >= 500){
+      await new Promise(res => setTimeout(res, 1200 * (attempt + 1)));
+      continue;
+    }
+    break;
+  }
+  if (!r || !r.ok){
+    if (r) console.warn(`[digest] ${model} HTTP ${r.status}:`, (await r.text().catch(()=>'')).slice(0,200));
+    return null;
+  }
+  const j = await r.json();
+  const cand = j.candidates?.[0];
+  let text = cand?.content?.parts?.[0]?.text || '';
+  if (!text){ console.warn(`[digest] ${model} empty, finishReason=${cand?.finishReason}`); return null; }
+  text = text.replace(/^```(?:json)?\s*/i,'').replace(/\s*```\s*$/,'').trim();
+  try { return JSON.parse(text); }
+  catch(e){ console.warn(`[digest] ${model} JSON parse failed:`, text.slice(0,200)); return null; }
+}
+
+// NIM fallback — reached only if every Gemini model is capped. Prompted for a
+// bare object since NIM has no responseSchema.
+async function callNimDigest(model, prompt, env){
+  if (!env.NVIDIA_API_KEY) return null;
+  const r = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${env.NVIDIA_API_KEY}` },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role:'system', content:'You are a senior sell-side analyst. Respond with a single valid JSON object only — no markdown, no code fences, no explanation.' },
+        { role:'user', content: prompt + `\n\nReturn ONE JSON object with keys: headline (string), tone ("bull"|"bear"|"mixed"), toneScore (number -1..1), overview (string), keyPoints (array of {text, stance, tickers}), tickers (array of {ticker, stance, note}), themes (array of {name, stance, note}), risks (array of strings), watch (array of strings). stance is "bull"|"bear"|"neutral".` },
+      ],
+      temperature: 0.3, max_tokens: 3000, stream: false,
+    }),
+    signal: AbortSignal.timeout(45000),
+  }).catch(()=>null);
+  if (!r || !r.ok) return null;
+  const j = await r.json().catch(()=>null);
+  let text = j?.choices?.[0]?.message?.content || '';
+  if (!text) return null;
+  text = text.replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'').trim();
+  const a = text.indexOf('{'), b = text.lastIndexOf('}');
+  if (a === -1 || b === -1) return null;
+  try { return JSON.parse(text.slice(a, b+1)); } catch(e){ return null; }
+}
+
+// Normalize whatever the model returned into the exact shape the UI renders, so
+// a model that drops a field or invents a stance can't break the overlay.
+function normalizeDigest(d){
+  if (!d || typeof d !== 'object') return null;
+  const stance = v => (v === 'bull' || v === 'bear') ? v : 'neutral';
+  const str = (v, cap) => typeof v === 'string' ? v.trim().slice(0, cap) : '';
+  const arr = v => Array.isArray(v) ? v : [];
+  const out = {
+    headline:  str(d.headline, 200),
+    tone:      (d.tone === 'bull' || d.tone === 'bear') ? d.tone : 'mixed',
+    toneScore: typeof d.toneScore === 'number' ? Math.max(-1, Math.min(1, d.toneScore)) : 0,
+    overview:  str(d.overview, 900),
+    keyPoints: arr(d.keyPoints).slice(0,8).map(k => ({
+      text: str(k && k.text, 400), stance: stance(k && k.stance),
+      tickers: arr(k && k.tickers).slice(0,6).map(t => String(t||'').toUpperCase()).filter(Boolean),
+    })).filter(k => k.text),
+    tickers:   arr(d.tickers).slice(0,10).map(t => ({
+      ticker: String((t && t.ticker) || '').toUpperCase(), stance: stance(t && t.stance), note: str(t && t.note, 200),
+    })).filter(t => t.ticker),
+    themes:    arr(d.themes).slice(0,6).map(t => ({
+      name: str(t && t.name, 80), stance: stance(t && t.stance), note: str(t && t.note, 200),
+    })).filter(t => t.name),
+    risks:     arr(d.risks).slice(0,4).map(s => str(s, 300)).filter(Boolean),
+    watch:     arr(d.watch).slice(0,4).map(s => str(s, 300)).filter(Boolean),
+  };
+  // Without a headline or any body there is nothing worth showing — treat it as
+  // a failed generation so the chain advances to the next model.
+  if (!out.headline && !out.overview && !out.keyPoints.length) return null;
+  return out;
+}
+
+// Walk the chain until a model returns something usable. `only` pins a single
+// model (used by ?model= when comparing models).
+async function generateDigest(events, wl, env, only){
+  const prompt = buildDigestPrompt(events, wl);
+  const chain = only ? [{ provider: only.startsWith('meta/') ? 'nim' : 'gemini', model: only }] : SUMMARY_CHAIN;
+  for (const entry of chain){
+    // Respect the cooldown the analysis phase sets — no point spending a call on
+    // a model we already know is capped today.
+    if (!only){
+      const bk = entry.provider === 'gemini' ? 'quota_block:'+entry.model : 'quota_block:nim:'+entry.model.replace('/','_');
+      try { if (await env.NEWSHUB_CACHE.get(bk)) continue; } catch(e){}
+    }
+    if (entry.provider === 'gemini' && !env.GEMINI_KEY) continue;
+    const t0 = Date.now();
+    let raw = null;
+    try {
+      raw = entry.provider === 'gemini'
+        ? await callGeminiDigest(entry.model, prompt, env)
+        : await callNimDigest(entry.model, prompt, env);
+    } catch(e){ console.warn(`[digest] ${entry.model} threw:`, e.message); }
+    const d = normalizeDigest(raw);
+    if (d){
+      d.model = entry.model;
+      d.ms = Date.now() - t0;
+      console.log(`[digest] built by ${entry.model} in ${d.ms}ms (${events.length} events)`);
+      return d;
+    }
+    console.warn(`[digest] ${entry.model} produced nothing — advancing chain`);
+  }
+  return null;
+}
+
+function summaryCacheKey(wl, generatedAt){
+  return `summary:v1:${wlHash(wl)}:${generatedAt}`;
+}
+
+// ─── Rate limit helpers ───────────────────────────────────────────────────
+// Free API quotas:
+//   Gemini 2.5-flash: 250 req/day  → ~15 calls/refresh → max 16 fresh/day
+//   AlphaVantage:     25 req/day   → 1 call/refresh    → max 25 fresh/day
+//   StockData:        100 req/day  → 1 call/refresh    → max 100 fresh/day
+//   Marketaux:        100 req/day  → 1 call/refresh    → max 100 fresh/day
+//   Finnhub:          60 req/min   → 22 calls/refresh  → throttled by concurrency
+//   TickerTick:       no hard limit (rate ~10/min per IP)
+// Binding constraint: Gemini at 16/day. We cap at 12 forced refreshes/day
+// (4 from cron warmups don't count against user quota).
+// Cache TTL = 4min, so within-cache hits are free.
+const DAILY_FRESH_LIMIT = 12;        // max force-fresh per calendar day
+const MIN_FRESH_INTERVAL = 5 * 60;  // min 5 minutes between forced refreshes (seconds)
+
+function utcDayKey(){
+  return 'rl:day:' + new Date().toISOString().slice(0,10); // e.g. rl:day:2026-06-15
+}
+
+async function checkRateLimit(env){
+  const dayKey = utcDayKey();
+  const lastKey = 'rl:last_fresh';
+  const [ countRaw, lastRaw ] = await Promise.all([
+    env.NEWSHUB_CACHE.get(dayKey),
+    env.NEWSHUB_CACHE.get(lastKey),
+  ]);
+  const count = parseInt(countRaw || '0', 10);
+  const lastTs = parseInt(lastRaw || '0', 10);
+  const nowSec = Math.floor(Date.now() / 1000);
+  const secSinceLast = nowSec - lastTs;
+
+  if (count >= DAILY_FRESH_LIMIT){
+    return { blocked: true, reason: `Daily refresh limit reached (${DAILY_FRESH_LIMIT}/day). Resets at midnight UTC.`, count, limit: DAILY_FRESH_LIMIT };
+  }
+  if (lastTs > 0 && secSinceLast < MIN_FRESH_INTERVAL){
+    const waitSec = MIN_FRESH_INTERVAL - secSinceLast;
+    return { blocked: true, reason: `Too soon — wait ${Math.ceil(waitSec/60)} more minute(s) before refreshing.`, waitSec };
+  }
+  return { blocked: false, count, secSinceLast };
+}
+
+// Clear all local quota_block cooldown flags. Called on explicit user Force
+// fresh so stale blocks (from a prior 503/429 storm, or re-set on every retry
+// of a still-capped model) can't keep the build stuck on degraded RAW after the
+// upstream daily quotas have actually reset. NOT called on normal cache-miss
+// builds — those should respect live blocks so we don't hammer capped providers.
+async function clearQuotaBlocks(env){
+  const deletes = [];
+  for (const m of GEMINI_CHAIN) deletes.push(env.NEWSHUB_CACHE.delete('quota_block:'+m).catch(()=>{}));
+  for (const m of NIM_CHAIN)    deletes.push(env.NEWSHUB_CACHE.delete('quota_block:nim:'+m.replace('/','_')).catch(()=>{}));
+  await Promise.all(deletes);
+}
+
+async function bumpRateLimit(env){
+  const dayKey = utcDayKey();
+  const lastKey = 'rl:last_fresh';
+  const countRaw = await env.NEWSHUB_CACHE.get(dayKey);
+  const count = parseInt(countRaw || '0', 10) + 1;
+  const nowSec = Math.floor(Date.now() / 1000);
+  // Day key expires at midnight UTC (seconds until midnight)
+  const now = new Date();
+  const secsUntilMidnight = 86400 - (now.getUTCHours()*3600 + now.getUTCMinutes()*60 + now.getUTCSeconds());
+  await Promise.all([
+    env.NEWSHUB_CACHE.put(dayKey, String(count), { expirationTtl: secsUntilMidnight + 60 }),
+    env.NEWSHUB_CACHE.put(lastKey, String(nowSec), { expirationTtl: MIN_FRESH_INTERVAL + 60 }),
+  ]);
+  return count;
+}
+
+// ─── Cron: News pre-warm ──────────────────────────────────────────────────
+// Runs ALONE in the cron invocation (see scheduled()) so it owns the outbound
+// connection budget. Awaited, not fire-and-forget, so the Catalysts pre-warm
+// cannot start until this finishes.
+async function cronPrewarmNews(env, ctx){
+  const richKey = 'cron:rich:' + new Date().toISOString().slice(0,13);
+  const already = await env.NEWSHUB_CACHE.get(richKey).catch(()=>null);
+  const useLimited = !already;                 // first tick of the hour → rich
+  if (!already) ctx.waitUntil(env.NEWSHUB_CACHE.put(richKey, '1', { expirationTtl: 7200 }));
+  const { wl, sectors, cacheKey, lockKey } = await resolveCronWatchlist(env);
+  // Breadcrumb: "did the 6am build actually run, and what came out?" was
+  // previously unanswerable — a cron that never fired and one whose build got
+  // killed mid-flight look identical from outside (both leave an empty cache,
+  // so opening TradeHub just starts a build). Recorded for a week; read it at
+  // /_stage-debug → cronLastRun / cronLastNews.
+  ctx.waitUntil(env.NEWSHUB_CACHE.put('cron:lastrun',
+    JSON.stringify({ at: Date.now(), rich: useLimited, wl: wl.length }),
+    { expirationTtl: 7*86400 }).catch(()=>{}));
+  try {
+    // Clear stale model cooldowns BEFORE building. Force-fresh has always done
+    // this (see /news), but the cron — the one build that runs cold at the top
+    // of the day — did not. A quota_block written by yesterday's 429 storm made
+    // the whole AI chain look unavailable, so every batch fell back to raw and
+    // the 6am build came out degraded with no AI summaries at all.
+    await clearQuotaBlocks(env);
+    let body = await buildAndCache(env, ctx, useLimited, wl, sectors, cacheKey, lockKey);
+    let events = 0, articles = null, degraded = null, retried = false;
+    try { const j = JSON.parse(body); events = (j.events||[]).length; articles = j.articleCount ?? null; degraded = !!j.degraded; } catch(e){}
+    // Retry once when the pass produced nothing usable — this is the ONE build of
+    // the day nobody is watching, so it must not leave a dead feed up until someone
+    // notices and hits Force fresh. Blocks are cleared again first: a transient 429
+    // during the failed pass re-arms the very cooldowns that would skip the retry.
+    if (degraded || !events){
+      retried = true;
+      await clearQuotaBlocks(env);
+      await env.NEWSHUB_CACHE.delete(lockKey).catch(()=>{}); // first pass may still hold it
+      // A pass that produced ZERO events failed in the FETCH phase, not the AI
+      // phase, so repeating it identically just fails the same way (exactly what
+      // happened on 2026-07-31: rich pass → 0 events, identical retry → 0 events,
+      // while the plain Finnhub-first build minutes later returned 56). Drop the
+      // scarce-quota wires and retry on the cheap configuration, which is the one
+      // that reliably fills the feed. A pass that DID find events but came back
+      // degraded really is an AI-phase miss — retry that one as-is.
+      const retryLimited = events > 0 ? useLimited : false;
+      body = await buildAndCache(env, ctx, retryLimited, wl, sectors, cacheKey, lockKey);
+      try { const j = JSON.parse(body); events = (j.events||[]).length; articles = j.articleCount ?? null; degraded = !!j.degraded; } catch(e){}
+    }
+    await env.NEWSHUB_CACHE.put('cron:lastnews',
+      JSON.stringify({ at: Date.now(), events, articles, degraded, retried, rich: useLimited }),
+      { expirationTtl: 7*86400 }).catch(()=>{});
+  } catch(e){
+    console.error('Cron news failed:', e.message);
+    await env.NEWSHUB_CACHE.put('cron:lastnews',
+      JSON.stringify({ at: Date.now(), error: String(e.message).slice(0,200) }),
+      { expirationTtl: 7*86400 }).catch(()=>{});
+  }
+}
+
+// ─── HTTP handler ─────────────────────────────────────────────────────────
+export default {
+  // Cron — pre-warms cache. Uses Finnhub+TickerTick every run (no daily cap),
+  // but only spends Marketaux/StockData/AlphaVantage quota a few times/day at
+  // staggered hours so they don't get exhausted.
+  async scheduled(event, env, ctx){
+    // Fires once daily at 12:00 UTC (= builds begin 06:00 MDT / 05:00 MST Mountain).
+    // Both pre-warms run EVERY day (Mon-Sun), not day/holiday-gated: world/company
+    // news doesn't stop on weekends, and forward earnings/macro dates shift daily
+    // while the client only ever surfaces the forward 30-day window.
+    //
+    // ── SEQUENTIAL, NEWS FIRST — do not "optimize" this back into two parallel
+    //    waitUntil()s. ────────────────────────────────────────────────────────
+    // Both pre-warms used to be kicked concurrently in this one invocation, and
+    // they starved each other:
+    //   • A Worker invocation may hold only ~6 simultaneous outbound connections.
+    //     Each build internally fans out at concurrency 6 assuming it owns them,
+    //     so together they queued ~100 fetches through one 6-lane pipe.
+    //   • Both hammer Finnhub — calendar 1/ticker + news 1/ticker + general — so
+    //     31 tickers meant ~63 Finnhub calls in a few seconds, past its 60/min cap.
+    //   • Nasdaq's earnings scan aborts at 8s (AbortSignal.timeout), so every one
+    //     of its ~22 date fetches died waiting in that queue.
+    // Observed on 2026-07-31: the calendar came out crippled (9 earnings, only 1
+    // confirmed by a 2nd source, foreign ADRs like BABA/SKHY missing entirely) and
+    // the news build fetched ZERO articles — twice, since the retry repeated the
+    // identical failing configuration. Standalone builds of each, minutes apart on
+    // the same data, came back healthy (56 news events; 22 earnings, 10 confirmed).
+    // Running them one after the other gives each build the full connection budget
+    // and keeps Finnhub under its per-minute cap. Cron invocations get ~15 min of
+    // wall clock; news (~90s) + calendar (~30s) fits with room to spare.
+    ctx.waitUntil((async () => {
+      // Claim the calendar build lock UP FRONT, before news — see CAL_CRON_LOCK_TTL.
+      // Anyone opening TradeHub while this runs waits for the cron's build instead of
+      // launching a competing one into the same Finnhub minute.
+      // Veda's copy: TradeBoard has no Catalysts tab, so News is the only pre-warm.
+      await cronPrewarmNews(env, ctx);
+    })());
+  },
+
+  async fetch(req, env, ctx){
+    if (req.method === 'OPTIONS')
+      return new Response(null, { headers: cors() });
+
+    const url = new URL(req.url);
+
+    // Operator / diagnostic routes the app never calls. Several spend Gemini or
+    // source quota (/ai-test, /test-ai, /nim-scan, /_stage-debug?trigger=1) or
+    // wipe state (/clear-cache, /reset-exhausted), and /calendar has no consumer
+    // in TradeBoard — so they need ?admin=<ADMIN_KEY>.
+    if (['/_stage-debug','/build-trace','/nim-scan','/ai-test','/reset-exhausted','/clear-cache','/test-ai','/calendar'].includes(url.pathname)){
+      const denied = requireAdmin(url, env);
+      if (denied) return denied;
+    }
+
+    // ── /watchlist (POST) — front-end pushes TB_WL (Control-tab list) so cron +
+    // builds use the exact same list the app requests. Stored at KV 'wl:current'.
+    if (url.pathname === '/watchlist'){
+      if (req.method === 'POST'){
+        let tickers = [];
+        try { const b = await req.json(); tickers = Array.isArray(b.tickers) ? b.tickers : []; } catch(e){}
+        tickers = tickers.map(t => String(t||'').trim().toUpperCase()).filter(Boolean).slice(0, 80);
+        if (!tickers.length)
+          return new Response(JSON.stringify({ ok:false, error:'no tickers' }), { status:400, headers:{ ...cors(), 'Content-Type':'application/json' } });
+        await env.NEWSHUB_CACHE.put('wl:current', JSON.stringify(tickers));
+        // Warm sector/alias classification for any non-static tickers in the
+        // background so the next cron/news build already has them cached.
+        const unknown = tickers.filter(t => !SECTOR_LOOKUP[t]);
+        if (unknown.length) ctx.waitUntil(resolveMeta(unknown, env).catch(()=>{}));
+        return new Response(JSON.stringify({ ok:true, count:tickers.length }), { headers:{ ...cors(), 'Content-Type':'application/json' } });
+      }
+      const cur = await resolveCronWatchlist(env);
+      return new Response(JSON.stringify({ ok:true, tickers:cur.wl, count:cur.wl.length }), { headers:{ ...cors(), 'Content-Type':'application/json' } });
+    }
+
+    // ── /sectors?tickers=A,B,C — AI sector auto-derivation for the Control tab.
+    // For each ticker: static table → KV cache → Gemini classify (then cache).
+    // Returns { sectors:{TICKER:label}, meta:{TICKER:{name,aliases}} }. This is
+    // what lets a newly-added ticker show its real sector everywhere instead of
+    // "Diversified", with zero hardcoding.
+    if (url.pathname === '/sectors'){
+      const tk = parseTickers(url.searchParams.get('tickers'));
+      if (!tk || !tk.length)
+        return new Response(JSON.stringify({ ok:false, error:'no tickers' }), { status:400, headers:{ ...cors(), 'Content-Type':'application/json' } });
+      const meta = await resolveMeta(tk, env);
+      const sectors = {};
+      for (const [t, m] of Object.entries(meta)) sectors[t] = m.sector;
+      return new Response(JSON.stringify({ ok:true, sectors, meta }), { headers:{ ...cors(), 'Content-Type':'application/json' } });
+    }
+
+    // ── /quotes?tickers=A,B,C — real-time Finnhub quotes for the watchlist,
+    // KV-cached ~60s. Powers the Top Movers strip + per-card % change (price-move
+    // correlation). Cheap: Finnhub quotes are 60/min, effectively unlimited daily.
+    // ?fresh=1 bypasses the cache. Returns { quotes:{T:{c,d,dp,h,l,o,pc}}, asOf }.
+    // Cache window for /quotes. Keep this >= the client's poll cadence in
+    // tradehub.html (5 min) — a TTL shorter than the poll guarantees a miss
+    // and a write on every single request.
+    const QUOTES_TTL = 300;
+    if (url.pathname === '/quotes'){
+      const tk = parseTickers(url.searchParams.get('tickers')) || WATCHLIST;
+      const ckey = 'quotes:' + wlHash(tk);
+      if (url.searchParams.get('fresh') !== '1'){
+        try {
+          const c = await env.NEWSHUB_CACHE.get(ckey, 'json');
+          if (c && c.quotes) return new Response(JSON.stringify({ ok:true, ...c, cached:true }), { headers:{ ...cors(), 'Content-Type':'application/json' } });
+        } catch(e){}
+      }
+      const quotes = await fetchQuotes(tk, env);
+      const payload = { quotes, asOf: Date.now() };
+      ctx.waitUntil(env.NEWSHUB_CACHE.put(ckey, JSON.stringify(payload), { expirationTtl: QUOTES_TTL }).catch(()=>{}));
+      return new Response(JSON.stringify({ ok:true, ...payload }), { headers:{ ...cors(), 'Content-Type':'application/json' } });
+    }
+
+    // ── /_stage — INTERNAL staged-build worker. Called by the worker on itself,
+    // once per fetch-slice + once for the AI phase, each in a fresh invocation so
+    // every stage gets its own 50-subrequest budget. Secret-gated so it can't be
+    // driven externally. Not for browser/client use.
+    if (url.pathname === '/_stage'){
+      const provided = url.searchParams.get('key') || '';
+      const expected = env.STAGE_SECRET || '';
+      if (!expected || provided !== expected){
+        return new Response(JSON.stringify({ error:'forbidden' }), { status:403, headers:{...cors(),'Content-Type':'application/json'} });
+      }
+      const buildId = url.searchParams.get('build') || '';
+      const stage   = url.searchParams.get('stage') || '';
+      const sliceP  = url.searchParams.get('slice');
+      const sliceIdx = sliceP == null ? null : parseInt(sliceP, 10);
+      if (!buildId || !stage) return new Response(JSON.stringify({ error:'missing build/stage' }), { status:400, headers:{...cors(),'Content-Type':'application/json'} });
+      return await handleStage(env, ctx, req, buildId, stage, sliceIdx);
+    }
+
+    // ── /_stage-status — read-only diagnostic: is staged build configured/active?
+    if (url.pathname === '/_stage-status'){
+      const lock = await env.NEWSHUB_CACHE.get('build:lock').catch(()=>null);
+      // List staging keys (best-effort; KV list may be eventually consistent).
+      let stageKeysFound = [];
+      try {
+        const ls = await env.NEWSHUB_CACHE.list({ prefix:'stage:' });
+        stageKeysFound = (ls.keys||[]).map(x=>x.name);
+      } catch(e){}
+      const out = {
+        stageSecretSet: !!env.STAGE_SECRET,
+        workerOriginSet: !!env.WORKER_ORIGIN,
+        workerOrigin: env.WORKER_ORIGIN || null,
+        selfOriginFromReq: selfOrigin(req),
+        tickersPerSlice: TICKERS_PER_SLICE,
+        watchlistLen: WATCHLIST.length,
+        expectedSlices: sliceTickers(WATCHLIST).length,
+        buildLockHeld: !!lock,
+        stagingKeys: stageKeysFound,
+        nvidiaKeyPresent: !!env.NVIDIA_API_KEY,
+        geminiKeyPresent: !!env.GEMINI_KEY,
+      };
+      return new Response(JSON.stringify(out, null, 2), { headers:{...cors(),'Content-Type':'application/json'} });
+    }
+
+    // ── /_stage-debug — inspect staged-build state (read-only, no secret). Shows
+    // lock, recent staging keys, and tests whether the worker can self-invoke.
+    if (url.pathname === '/_stage-debug'){
+      // ?trigger=1&key=SECRET → clear quota blocks + start a staged build for the
+      // default watchlist, WITHOUT burning the daily force-fresh budget. For testing.
+      if (url.searchParams.get('trigger') === '1'){
+        if ((url.searchParams.get('key')||'') !== (env.STAGE_SECRET||'')){
+          return new Response(JSON.stringify({ error:'forbidden' }), { status:403, headers:{...cors(),'Content-Type':'application/json'} });
+        }
+        const tickersParam = url.searchParams.get('tickers');
+        const tw = parseTickers(tickersParam) || WATCHLIST;
+        const isCustomT = wlHash(tw) !== wlHash(WATCHLIST);
+        const ck = isCustomT ? 'events:v1:' + wlHash(tw) : 'events:v1';
+        const lk = isCustomT ? 'build:lock:' + wlHash(tw) : 'build:lock';
+        const sc = isCustomT ? await sectorsForLive(tw, env) : SECTORS;
+        await clearQuotaBlocks(env);
+        await env.NEWSHUB_CACHE.delete(lk).catch(()=>{}); // clear any stale lock
+        await env.NEWSHUB_CACHE.put(lk, '1', { expirationTtl: 180 });
+        // AWAIT the build (don't background it): the request handler gets full
+        // wall-clock, unlike a waitUntil that gets reaped at ~30s. This tells us
+        // definitively whether the build completes + what it produces.
+        const t0 = Date.now();
+        let buildErr = null, evCount = 0, degraded = null;
+        try {
+          const bodyStr = await buildAndCache(env, ctx, true, tw, sc, ck, lk);
+          const parsed = JSON.parse(bodyStr);
+          evCount = (parsed.events||[]).length;
+          degraded = parsed.degraded;
+        } catch(e){ buildErr = e.message; await env.NEWSHUB_CACHE.delete(lk).catch(()=>{}); }
+        return new Response(JSON.stringify({
+          triggered:true, mode:'inline-sync', cacheKey:ck, tickers:tw.length,
+          ms: Date.now()-t0, events: evCount, degraded, err: buildErr,
+        }, null, 2), { headers:{...cors(),'Content-Type':'application/json'} });
+      }
+      const out = { config:{}, lock:null, stagingKeys:[], selfFetch:null };
+      out.config.stageSecretSet = !!env.STAGE_SECRET;
+      out.config.selfBindingPresent = !!(env.SELF && typeof env.SELF.fetch === 'function');
+      out.config.workerOrigin = env.WORKER_ORIGIN || null;
+      out.config.derivedOrigin = selfOrigin(req);
+      out.config.watchlistLen = WATCHLIST.length;
+      out.config.slices = sliceTickers(WATCHLIST).map(s=>s.length);
+      try { out.lock = await env.NEWSHUB_CACHE.get('build:lock'); } catch(e){ out.lock = 'err:'+e.message; }
+      try { const le = await env.NEWSHUB_CACHE.get('stage:lasterror'); out.lastError = le ? JSON.parse(le) : null; } catch(e){ out.lastError = 'err:'+e.message; }
+      try { const ws = await env.NEWSHUB_CACHE.get('stage:winstatus'); out.lastWindowStatus = ws ? JSON.parse(ws) : null; } catch(e){ out.lastWindowStatus = 'err'; }
+      try { const ai = await env.NEWSHUB_CACHE.get('stage:aistats'); out.aiStats = ai ? JSON.parse(ai) : null; } catch(e){ out.aiStats = 'err'; }
+      // Did the 6am cron fire, and what did its build produce? null on either line
+      // means that cron tick never ran at all (vs. ran and failed, which records
+      // an error). Kept 7 days.
+      try { const cr = await env.NEWSHUB_CACHE.get('cron:lastrun');  out.cronLastRun  = cr ? JSON.parse(cr) : null; } catch(e){ out.cronLastRun  = 'err'; }
+      try { const cn = await env.NEWSHUB_CACHE.get('cron:lastnews'); out.cronLastNews = cn ? JSON.parse(cn) : null; } catch(e){ out.cronLastNews = 'err'; }
+      // List every cached events:* key + size, so a cacheKey mismatch (build wrote
+      // one key, client reads another) is immediately visible.
+      try {
+        const evl = await env.NEWSHUB_CACHE.list({ prefix:'events:' });
+        out.eventCacheKeys = [];
+        for (const key of (evl.keys||[])){
+          let n = '?';
+          try { const v = await env.NEWSHUB_CACHE.get(key.name); const j = JSON.parse(v); n = (j.events||[]).length + (j.degraded?' (degraded)':''); } catch(e){ n='parse-err'; }
+          out.eventCacheKeys.push({ key:key.name, events:n });
+        }
+      } catch(e){ out.eventCacheKeys = ['err:'+e.message]; }
+      try {
+        const list = await env.NEWSHUB_CACHE.list({ prefix:'stage:' });
+        out.stagingKeys = (list.keys||[]).map(k=>k.name);
+        // Dump meta + article count for the most recent build to see chain progress.
+        const metaKey = out.stagingKeys.find(n=>n.endsWith(':meta'));
+        const artKey  = out.stagingKeys.find(n=>n.endsWith(':articles'));
+        if (metaKey){ try { out.meta = JSON.parse(await env.NEWSHUB_CACHE.get(metaKey)); } catch(e){ out.meta = 'err:'+e.message; } }
+        if (artKey){ try { const a = JSON.parse(await env.NEWSHUB_CACHE.get(artKey)||'[]'); out.articleCount = a.length; } catch(e){ out.articleCount = 'err:'+e.message; } }
+        const evKey  = out.stagingKeys.find(n=>n.endsWith(':events'));
+        const enKey  = out.stagingKeys.find(n=>n.endsWith(':enriched'));
+        if (evKey){ try { out.stagedEventCount = JSON.parse(await env.NEWSHUB_CACHE.get(evKey)||'[]').length; } catch(e){ out.stagedEventCount='err'; } }
+        if (enKey){ try { out.enrichedCount = JSON.parse(await env.NEWSHUB_CACHE.get(enKey)||'[]').length; } catch(e){ out.enrichedCount='err'; } }
+      } catch(e){ out.stagingKeys = ['err:'+e.message]; }
+      // Test self-invocation: can the worker fetch its own origin?
+      const origin = env.WORKER_ORIGIN || selfOrigin(req);
+      if (origin){
+        try {
+          const r = await fetch(origin + '/health', { method:'GET' });
+          out.selfFetch = { ok:r.ok, status:r.status, origin };
+        } catch(e){ out.selfFetch = { ok:false, threw:e.message, origin }; }
+      } else {
+        out.selfFetch = { ok:false, note:'no origin available' };
+      }
+      return new Response(JSON.stringify(out, null, 2), { headers:{...cors(),'Content-Type':'application/json'} });
+    }
+
+    // /health
+    if (url.pathname === '/' || url.pathname === '/health'){
+      const status = {};
+      for (const m of GEMINI_CHAIN){
+        try { const b = await env.NEWSHUB_CACHE.get('quota_block:'+m); status[m] = b ? 'cooling-down' : 'available'; }
+        catch(e){ status[m] = 'unknown'; }
+      }
+      const nimStatus = {};
+      for (const m of NIM_CHAIN){
+        const k = 'quota_block:nim:'+m.replace('/','_');
+        try { const b = await env.NEWSHUB_CACHE.get(k); nimStatus[m] = b ? 'cooling-down' : 'available'; }
+        catch(e){ nimStatus[m] = 'unknown'; }
+      }
+      let cachedEventCount = null;
+      try { const c = await env.NEWSHUB_CACHE.get('events:v1'); if(c){ const j=JSON.parse(c); cachedEventCount=j.events?.length??0; }} catch(e){}
+      // Rate limit status
+      const dayKey = utcDayKey();
+      const countRaw = await env.NEWSHUB_CACHE.get(dayKey).catch(()=>'0');
+      const lastRaw  = await env.NEWSHUB_CACHE.get('rl:last_fresh').catch(()=>null);
+      return new Response(JSON.stringify({
+        status:'ok', service:'newshub-api',
+        watchlist: WATCHLIST.length, cacheTTL: CACHE_TTL, cachedEventCount,
+        geminiChain: GEMINI_CHAIN, modelStatus: status,
+        nimChain: NIM_CHAIN, nimStatus,
+        rateLimit: { usedToday: parseInt(countRaw||'0'), limit: DAILY_FRESH_LIMIT, lastFreshAgo: lastRaw ? Math.max(0, Math.floor(Date.now()/1000)-parseInt(lastRaw)) : null },
+      }, null, 2), { headers: { ...cors(), 'Content-Type':'application/json' } });
+    }
+
+    // /build-trace — runs the REAL AI phase on actual fetched events, one batch
+    // at a time (concurrency 1), reporting per batch which model was tried and
+    // whether it succeeded. Caches NOTHING. Shows exactly what dies in a build.
+    if (url.pathname === '/build-trace'){
+      try {
+        const articles = await fetchAllSources(env, true, WATCHLIST);
+        let events = clusterArticles(articles, WATCHLIST);
+        events = selectTopEvents(events, MAX_EVENTS, PER_TICKER_CAP);
+        const batches = [];
+        for (let i=0;i<events.length;i+=BATCH_SIZE) batches.push(events.slice(i,i+BATCH_SIZE));
+        // Only trace the first 3 batches so we don't burn quota/time.
+        const trace = [];
+        const tryBatches = batches.slice(0, 3);
+        _aiDeadline = Date.now() + AI_PHASE_BUDGET_MS;
+        for (let bi=0; bi<tryBatches.length; bi++){
+          const batchTrace = { batch: bi, size: tryBatches[bi].length, attempts: [] };
+          for (const entry of AI_CHAIN){
+            if (entry.slow) continue;
+            if (entry.provider==='nim' && !env.NVIDIA_API_KEY) continue;
+            const t0 = Date.now();
+            let res, err;
+            try {
+              if (entry.provider==='gemini'){
+                res = await callGemini(entry.model, buildGeminiPrompt(tryBatches[bi], WATCHLIST, SECTORS), env, null, 'k');
+              } else {
+                res = await callNIM(entry.model, buildNIMPrompt(tryBatches[bi], WATCHLIST, SECTORS), env, null, 'k');
+              }
+            } catch(e){ err = e.message + ' | ' + (e.stack||'').slice(0,200); }
+            batchTrace.attempts.push({ model: entry.model, ok: !!res, count: res?res.length:0, ms: Date.now()-t0, err });
+            if (res) break;
+          }
+          trace.push(batchTrace);
+        }
+        _aiDeadline = 0;
+        return new Response(JSON.stringify({ totalBatches: batches.length, traced: trace.length, trace }, null, 2), { headers:{...cors(),'Content-Type':'application/json'} });
+      } catch(e){
+        return new Response(JSON.stringify({ error:e.message, stack:(e.stack||'').slice(0,400) }), { status:500, headers:{...cors(),'Content-Type':'application/json'} });
+      }
+    }
+
+    // /nim-scan — probe candidate NVIDIA NIM models, report which are live (200)
+    // vs dead (404). Lets us pick a current primary instead of guessing names.
+    if (url.pathname === '/nim-scan'){
+      const candidates = [
+        'mistralai/mixtral-8x22b-instruct-v0.1',
+        'mistralai/mistral-small-24b-instruct',
+        'mistralai/mistral-nemotron',
+        'meta/llama-3.1-8b-instruct',
+        'meta/llama-3.1-70b-instruct',
+        'meta/llama-3.3-70b-instruct',
+        'qwen/qwen2.5-7b-instruct',
+        'microsoft/phi-3.5-mini-instruct',
+        'google/gemma-2-9b-it',
+        'nvidia/llama-3.1-nemotron-70b-instruct',
+      ];
+      const results = {};
+      for (const m of candidates){
+        try {
+          const rr = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+            method:'POST',
+            headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${env.NVIDIA_API_KEY}` },
+            body: JSON.stringify({ model:m, messages:[{role:'user',content:'Reply OK.'}], max_tokens:5, stream:false }),
+          });
+          const t = await rr.text();
+          results[m] = { status: rr.status, ok: rr.ok, preview: rr.ok ? 'LIVE' : t.slice(0,120) };
+        } catch(e){ results[m] = { threw: e.message }; }
+      }
+      return new Response(JSON.stringify(results, null, 2), { headers:{...cors(),'Content-Type':'application/json'} });
+    }
+
+    // /ai-test — calls the REAL Gemini path on one tiny synthetic batch and
+    // returns the raw HTTP status + body. Lets us see WHY builds go fully raw
+    // when health shows everything available (auth? body? response shape?).
+    if (url.pathname === '/ai-test'){
+      const out = {};
+      const batch = [{
+        id:'t1', candidateTickers:['NVDA'], sourceCount:1, ts:Date.now(),
+        sources:[{ name:'Test', url:'#', headline:'Nvidia beats earnings, raises guidance', summary:'Test article.', feed:'fh', ts:Date.now() }],
+      }];
+      // Raw Gemini HTTP probe (flash-lite) — show status + first chunk of body.
+      try {
+        const model = 'gemini-3.1-flash-lite';
+        const r = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_KEY}`,
+          { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(geminiBody(model, buildGeminiPrompt(batch, WATCHLIST, SECTORS))) }
+        );
+        const txt = await r.text();
+        out.geminiRaw = { httpStatus:r.status, ok:r.ok, bodyPreview: txt.slice(0, 800) };
+      } catch(e){ out.geminiRaw = { threw: e.message }; }
+      // Full callModel path result (null = failed somewhere in parse/validate).
+      try {
+        const parsed = await callModel({provider:'gemini',model:'gemini-3.1-flash-lite'}, batch, env, null, WATCHLIST, SECTORS);
+        out.callModelResult = parsed ? { ok:true, count:parsed.length, sample:parsed[0] } : { ok:false, note:'callModel returned null' };
+      } catch(e){ out.callModelResult = { threw: e.message }; }
+      // Isolate: bare callGemini (no withTimeout wrapper).
+      try {
+        const bare = await callGemini('gemini-3.1-flash-lite', buildGeminiPrompt(batch, WATCHLIST, SECTORS), env, null, 'quota_block:gemini-3.1-flash-lite');
+        out.callGeminiBare = bare ? { ok:true, count:bare.length, sample:bare[0] } : { ok:false, note:'callGemini returned null' };
+      } catch(e){ out.callGeminiBare = { threw: e.message }; }
+      // Isolate: withTimeout around a trivially-resolving promise.
+      try {
+        const wt = await withTimeout(Promise.resolve([{id:'x',summary:'s',sentiment:'bull',impactScore:1,primaryTicker:'NVDA'}]), AI_CALL_TIMEOUT, 'selftest');
+        out.withTimeoutSelfTest = wt ? { ok:true, count:wt.length } : { ok:false, note:'withTimeout returned null on instant promise!' };
+      } catch(e){ out.withTimeoutSelfTest = { threw: e.message }; }
+      out.geminiKeyPresent = !!env.GEMINI_KEY;
+      // NIM probe — PRIMARY model now. Confirm it returns valid analysis JSON
+      // (8b models can be weak at structured output — verify before relying on it).
+      try {
+        const nim = await callNIM('meta/llama-3.1-8b-instruct', buildNIMPrompt(batch, WATCHLIST, SECTORS), env, null, 'quota_block:nim:meta_llama-3.1-8b-instruct');
+        out.nimPrimary = nim ? { ok:true, count:nim.length, sample:nim[0] } : { ok:false, note:'callNIM(llama-3.1-8b) returned null' };
+      } catch(e){ out.nimPrimary = { threw: e.message }; }
+      out.nvidiaKeyPresent = !!env.NVIDIA_API_KEY;
+      // Raw NIM HTTP probe — show the actual status/body so we know WHY Mixtral
+      // returns null (deprecated model name? auth? format?).
+      try {
+        const m = 'meta/llama-3.1-8b-instruct';
+        const rr = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${env.NVIDIA_API_KEY}` },
+          body: JSON.stringify({ model:m, messages:[{role:'user',content:'Reply with the word OK.'}], max_tokens:10, stream:false }),
+        });
+        const t = await rr.text();
+        out.nimRaw = { httpStatus: rr.status, ok: rr.ok, bodyPreview: t.slice(0, 600) };
+      } catch(e){ out.nimRaw = { threw: e.message }; }
+      return new Response(JSON.stringify(out, null, 2), { headers:{...cors(),'Content-Type':'application/json'} });
+    }
+
+    // /debug — source fetch only, no Gemini. Uses Finnhub+TickerTick only (no quota burn).
+    // Operator diagnostics: internal counts, feed breakdowns and API budgets.
+    // Nothing in any app calls these, so gating them costs nothing.
+    // /rate-status is read by the News header (refreshes left today), so it stays
+    // open; /debug spends source quota, so it is admin-only.
+    if (url.pathname === '/debug') {
+      const denied = requireAdmin(url, env);
+      if (denied) return denied;
+    }
+
+    if (url.pathname === '/debug'){
+      try {
+        const reqTickers = parseTickers(url.searchParams.get('tickers'));
+        const wl = reqTickers || WATCHLIST;
+        const articles = await fetchAllSources(env, true, wl);
+        const events = clusterArticles(articles, wl);
+        const byTicker = {};
+        const byFeed = {};
+        articles.forEach(a => {
+          byTicker[a.ticker] = (byTicker[a.ticker]||0)+1;
+          byFeed[a.feed] = (byFeed[a.feed]||0)+1;
+        });
+        return new Response(JSON.stringify({
+          rawArticles: articles.length, clusteredEvents: events.length,
+          byFeed,  // mx/sd/av/tg/fg/fh/tt/pg counts — confirms each source is live
+          byTicker,
+          topEvents: events.slice(0,10).map(e => ({ headline: e.sources[0]?.headline?.slice(0,80), tickers: e.candidateTickers, sourceCount: e.sourceCount })),
+        }, null, 2), { headers: { ...cors(), 'Content-Type':'application/json' } });
+      } catch(e){
+        return new Response(JSON.stringify({ error: e.message }), { status:500, headers: { ...cors(), 'Content-Type':'application/json' } });
+      }
+    }
+
+    // /rate-status — returns current rate limit state (cheap KV reads only)
+    if (url.pathname === '/rate-status'){
+      try {
+        const dayKey = utcDayKey();
+        const [ countRaw, lastRaw ] = await Promise.all([ env.NEWSHUB_CACHE.get(dayKey), env.NEWSHUB_CACHE.get('rl:last_fresh') ]);
+        const count = parseInt(countRaw||'0', 10);
+        const lastTs = parseInt(lastRaw||'0', 10);
+        const nowSec = Math.floor(Date.now()/1000);
+        const secSinceLast = nowSec - lastTs;
+        const cooldownRemaining = Math.max(0, MIN_FRESH_INTERVAL - secSinceLast);
+        const [mxU, sdU, avU] = await Promise.all([
+          getBudgetUsed(env,'marketaux'), getBudgetUsed(env,'stockdata'), getBudgetUsed(env,'alphavantage'),
+        ]);
+        return new Response(JSON.stringify({
+          usedToday: count, limit: DAILY_FRESH_LIMIT, remaining: DAILY_FRESH_LIMIT - count,
+          cooldownSec: cooldownRemaining, minIntervalSec: MIN_FRESH_INTERVAL,
+          apiBudgets: {
+            marketaux:    { used: mxU, limit: API_BUDGETS.marketaux.limit },
+            stockdata:    { used: sdU, limit: API_BUDGETS.stockdata.limit },
+            alphavantage: { used: avU, limit: API_BUDGETS.alphavantage.limit },
+          },
+        }), { headers: { ...cors(), 'Content-Type':'application/json' } });
+      } catch(e){
+        return new Response(JSON.stringify({ error: e.message }), { status:500, headers: { ...cors(), 'Content-Type':'application/json' } });
+      }
+    }
+
+    // /reset-exhausted — clears local quota_block cooldown flags (NOT Google's server-side daily quota)
+    if (url.pathname === '/reset-exhausted'){
+      try {
+        const deletes = [];
+        for (const m of GEMINI_CHAIN) deletes.push(env.NEWSHUB_CACHE.delete('quota_block:'+m).catch(()=>{}));
+        for (const m of NIM_CHAIN) deletes.push(env.NEWSHUB_CACHE.delete('quota_block:nim:'+m.replace('/','_')).catch(()=>{}));
+        await Promise.all(deletes);
+        return new Response(JSON.stringify({ ok: true, cleared: [...GEMINI_CHAIN, ...NIM_CHAIN] }), { headers: { ...cors(), 'Content-Type':'application/json' } });
+      } catch(e){
+        return new Response(JSON.stringify({ error: e.message }), { status:500, headers: { ...cors(), 'Content-Type':'application/json' } });
+      }
+    }
+
+    // /clear-cache — nukes the cached events doc so the next load forces a clean rebuild.
+    // ?tickers=A,B,C clears that specific watchlist's cache instead of the default.
+    if (url.pathname === '/clear-cache'){
+      try {
+        const ct = parseTickers(url.searchParams.get('tickers'));
+        const ck = ct ? 'events:v1:' + wlHash(ct) : 'events:v1';
+        const lk = ct ? 'build:lock:' + wlHash(ct) : 'build:lock';
+        await env.NEWSHUB_CACHE.delete(ck);
+        await env.NEWSHUB_CACHE.delete(lk);
+        return new Response(JSON.stringify({ ok: true, cleared: ck }), { headers: { ...cors(), 'Content-Type':'application/json' } });
+      } catch(e){
+        return new Response(JSON.stringify({ error: e.message }), { status:500, headers: { ...cors(), 'Content-Type':'application/json' } });
+      }
+    }
+
+    // /test-ai — fires ONE real analysis call (same schema/config as production) so we
+    // can see exactly what a provider returns. ?provider=gemini|nim & ?model=<name>
+    // & ?n=8 to test a realistic multi-event batch (THIS is what the build does —
+    // single-event tests hide truncation/timeout failures).
+    if (url.pathname === '/test-ai'){
+      try {
+        const provider = url.searchParams.get('provider') || 'gemini';
+        const model = url.searchParams.get('model') || (provider === 'nim' ? 'mistralai/mixtral-8x7b-instruct' : 'gemini-3.1-flash-lite');
+        const n = Math.min(20, Math.max(1, parseInt(url.searchParams.get('n') || '1', 10)));
+        const sampleTickers = ['NVDA','MU','AMD','TSLA','AAPL','MSFT','GOOGL','PLTR','WDC','SNDK'];
+        const testEvents = Array.from({ length: n }, (_, i) => ({
+          id: 't'+(i+1),
+          candidateTickers: [sampleTickers[i % sampleTickers.length]],
+          sources: [{ name:'Test', headline:`${sampleTickers[i % sampleTickers.length]} rises after analysts lift price target; strong demand drives upside`, summary:'Test event for batch sizing.' }],
+        }));
+        const blockKey = 'test_block_ignore';
+        const t0 = Date.now();
+        let parsed = null;
+        if (provider === 'gemini'){
+          parsed = await callGemini(model, buildGeminiPrompt(testEvents), env, {waitUntil:()=>{}}, blockKey);
+        } else {
+          parsed = await callNIM(model, buildNIMPrompt(testEvents), env, {waitUntil:()=>{}}, blockKey);
+        }
+        const ms = Date.now() - t0;
+        const required = ['id','summary','sentiment','impactScore','primaryTicker'];
+        const valid = parsed && parsed.length > 0 && required.every(k => k in parsed[0]);
+        const missing = parsed?.[0] ? required.filter(k=>!(k in parsed[0])) : required;
+        return new Response(JSON.stringify({
+          provider, model, eventsSent: n, eventsReturned: parsed?.length ?? 0, ms, valid, missing,
+          note: parsed === null ? 'NULL — call failed/empty/parse error (likely truncation or echo)' : 'ok',
+          sample: parsed?.[0] || null,
+        }, null, 2), { headers:{ ...cors(), 'Content-Type':'application/json' } });
+      } catch(e){
+        return new Response(JSON.stringify({ error: e.message }), { status:500, headers:{ ...cors(), 'Content-Type':'application/json' } });
+      }
+    }
+
+    // ── /calendar?tickers=A,B,C&days=10 ──────────────────────────────────────
+    // Earnings (Finnhub, filtered to tickers) + macro (grounded AI, whitelisted).
+    // Cached 12h per watchlist+date. ?fresh=1 forces a rebuild (counts vs daily cap).
+    if (url.pathname === '/calendar'){
+      const days     = Math.min(parseInt(url.searchParams.get('days') || '10', 10) || 10, CAL_DAYS_MAX);
+      const calFresh = url.searchParams.get('fresh') === '1';
+      const calWl    = parseTickers(url.searchParams.get('tickers')) || WATCHLIST;
+      const calKey   = `cal:v1:${wlHash(calWl)}:${etDateStr(0)}:${days}`;
+      const calLock  = `cal:lock:${wlHash(calWl)}`;
+
+      if (!calFresh){
+        try {
+          const cached = await env.NEWSHUB_CACHE.get(calKey);
+          if (cached) return new Response(cached, { headers:{ ...cors(), 'Content-Type':'application/json', 'X-Cache':'HIT' } });
+        } catch(e){}
+      }
+
+      if (calFresh){
+        const rl = await checkRateLimit(env);
+        if (rl.blocked){
+          try {
+            const cached = await env.NEWSHUB_CACHE.get(calKey);
+            if (cached){ const j = JSON.parse(cached); j._rateLimited = true; j._rateLimitReason = rl.reason;
+              return new Response(JSON.stringify(j), { headers:{ ...cors(), 'Content-Type':'application/json', 'X-Cache':'HIT', 'X-Rate-Limited':'1' } }); }
+          } catch(e){}
+          return new Response(JSON.stringify({ error:'rate_limited', reason: rl.reason }), { status:429, headers:{ ...cors(), 'Content-Type':'application/json' } });
+        }
+      }
+
+      const calBusy = await env.NEWSHUB_CACHE.get(calLock).catch(()=>null);
+      if (calBusy){
+        try { const cached = await env.NEWSHUB_CACHE.get(calKey);
+          if (cached) return new Response(cached, { headers:{ ...cors(), 'Content-Type':'application/json', 'X-Cache':'STALE', 'X-Building':'1' } });
+        } catch(e){}
+        return new Response(JSON.stringify({ status:'building', message:'Calendar building. Poll /calendar in 10s.' }),
+          { status:202, headers:{ ...cors(), 'Content-Type':'application/json' } });
+      }
+
+      if (url.searchParams.get('debug') === '1'){
+        const diag = [];
+        const result = await buildCalendar(calWl, env, days, diag);
+        return new Response(JSON.stringify({ ...result, _diag: diag, _wl: calWl }, null, 2), { headers:{ ...cors(), 'Content-Type':'application/json', 'X-Cache':'DEBUG' } });
+      }
+
+      if (calFresh) await bumpRateLimit(env);
+      await env.NEWSHUB_CACHE.put(calLock, '1', { expirationTtl: CAL_LOCK_TTL });
+
+      try {
+        const result = await buildCalendar(calWl, env, days);
+        // NEVER cache a degraded build. The key is per-DAY with a 12h TTL, so one
+        // earnings-less result used to poison every plain Refresh for the rest of the
+        // day — Force (fresh=1) was the only way out, which is exactly the symptom
+        // that made earnings vanish every so often. Leaving the key unwritten costs
+        // one extra rebuild and lets the very next request recover on its own.
+        if (result.events.length && !result.degraded)
+          ctx.waitUntil(env.NEWSHUB_CACHE.put(calKey, JSON.stringify(result), { expirationTtl: CAL_TTL }));
+        await env.NEWSHUB_CACHE.delete(calLock);
+        // And never hand a degraded build back when a healthy one is already cached —
+        // the caller publishes what it receives to the shared doc that TradeHub and
+        // both TaskHubs read, so returning the worse answer is actively destructive.
+        if (result.degraded){
+          try {
+            const cached = await env.NEWSHUB_CACHE.get(calKey);
+            if (cached){
+              const j = JSON.parse(cached);
+              if ((j.earningsCount || 0) > (result.earningsCount || 0))
+                return new Response(cached, { headers:{ ...cors(), 'Content-Type':'application/json', 'X-Cache':'HIT-KEPT' } });
+            }
+          } catch(e){}
+        }
+        return new Response(JSON.stringify(result), { headers:{ ...cors(), 'Content-Type':'application/json', 'X-Cache': calFresh ? 'FRESH' : 'MISS' } });
+      } catch(e){
+        await env.NEWSHUB_CACHE.delete(calLock);
+        return new Response(JSON.stringify({ error: e.message, events: [] }), { status:500, headers:{ ...cors(), 'Content-Type':'application/json' } });
+      }
+    }
+
+    // ── /summary?tickers=A,B,C — the Summary overlay's market read ──────────
+    // Reads the CACHED build and returns a digest of it. Never fetches articles,
+    // never starts a news build, never touches the force-fresh rate limit — the
+    // only thing it can spend is one AI call, and only when this exact build has
+    // not been digested yet (the KV key embeds the build's generatedAt).
+    //
+    //   ?peek=1    report whether a digest is ready WITHOUT generating one (free)
+    //   ?model=…   pin one model instead of walking SUMMARY_CHAIN (comparison)
+    //   ?nocache=1 force regeneration — costs a call, so it is gated on ?model=
+    if (url.pathname === '/summary'){
+      const sTickers = parseTickers(url.searchParams.get('tickers'));
+      const sCustom  = !!sTickers && wlHash(sTickers) !== wlHash(WATCHLIST);
+      const sWl      = sCustom ? sTickers : WATCHLIST;
+      const sNewsKey = sCustom ? 'events:v1:' + wlHash(sWl) : 'events:v1';
+      const jsonHead = (extra) => ({ ...cors(), 'Content-Type':'application/json', ...(extra||{}) });
+      const modelOverride = url.searchParams.get('model') || '';
+      const noCache = url.searchParams.get('nocache') === '1' && !!modelOverride;
+
+      // ── Serve a already-built digest WITHOUT needing the news doc ───────────
+      // The caller tells us which build it is looking at (?gen=), so the cached
+      // digest can be fetched by key directly.
+      //
+      // This is what stops a summary from "disappearing" on its own. Everything
+      // below derives sGen by READING the news doc — but that doc lives 6h
+      // (CACHE_TTL) while a digest lives far longer, and the client keeps showing
+      // its build from Firebase long after the worker's copy has expired. So a
+      // few hours after a Force fresh, with the news still on screen, this
+      // endpoint would fall straight through to "No build to summarize yet" and
+      // report that nothing had ever been built — while the digest sat in KV the
+      // whole time under a key nobody could compute any more.
+      const genParam = parseInt(url.searchParams.get('gen') || '0', 10) || 0;
+      if (genParam && !noCache){
+        try {
+          const pinned = await env.NEWSHUB_CACHE.get(summaryCacheKey(sWl, genParam));
+          if (pinned) return new Response(pinned, { headers: jsonHead({ 'X-Cache':'HIT-PINNED' }) });
+        } catch(e){}
+      }
+
+      // The build this digest describes.
+      let news = null;
+      try { const raw = await env.NEWSHUB_CACHE.get(sNewsKey); if (raw) news = JSON.parse(raw); } catch(e){}
+      const sEvents = (news && Array.isArray(news.events)) ? news.events : [];
+      if (!sEvents.length){
+        return new Response(JSON.stringify({ ok:false, unavailable:true, reason:'No build to summarize yet — refresh the news first.' }), { headers: jsonHead() });
+      }
+      // A degraded build is raw headlines with no AI verdicts, and it only ever
+      // happens because the AI chain was unavailable — so there is nothing good to
+      // summarize AND nothing to summarize it with. Say so rather than spending a
+      // call to produce a digest of headlines.
+      if (news.degraded || sEvents.every(e => e.aiAnalyzed === false)){
+        return new Response(JSON.stringify({ ok:false, unavailable:true, reason:'This build is raw headlines (AI analysis unavailable) — nothing to summarize. Try Force fresh.' }), { headers: jsonHead() });
+      }
+
+      const sGen = news.generatedAt || 0;
+      const sKey = summaryCacheKey(sWl, sGen);
+
+      if (!noCache){
+        try {
+          const hit = await env.NEWSHUB_CACHE.get(sKey);
+          if (hit) return new Response(hit, { headers: jsonHead({ 'X-Cache':'HIT' }) });
+        } catch(e){}
+      }
+
+      // Peek: the client's cheap "is it warm?" check. Must never generate.
+      if (url.searchParams.get('peek') === '1'){
+        return new Response(JSON.stringify({ ok:false, pending:true, generatedAt:sGen }), { headers: jsonHead({ 'X-Cache':'MISS' }) });
+      }
+
+      // One generation per build, even if two devices open Summary together.
+      const sLock = 'summary:lock:' + wlHash(sWl) + ':' + sGen;
+      if (!noCache){
+        let held = null;
+        try { held = await env.NEWSHUB_CACHE.get(sLock); } catch(e){}
+        if (held){
+          return new Response(JSON.stringify({ ok:false, building:true, message:'Summary is being written — retry shortly.' }),
+            { status:202, headers: jsonHead() });
+        }
+        await env.NEWSHUB_CACHE.put(sLock, '1', { expirationTtl: SUMMARY_LOCK_TTL }).catch(()=>{});
+      }
+
+      try {
+        const digest = await generateDigest(sEvents, sWl, env, modelOverride);
+        if (!digest){
+          await env.NEWSHUB_CACHE.delete(sLock).catch(()=>{});
+          // Don't assert a cause we haven't checked. A null here means the chain
+          // ran out, which is usually a daily cap but can equally be a model that
+          // won't produce the schema — saying "rate limited" either way sends the
+          // reader off to wait for a midnight reset that isn't the problem.
+          // Report which models are ACTUALLY on cooldown and let that speak.
+          let capped = [];
+          try {
+            const checks = await Promise.all(SUMMARY_CHAIN.map(async e => {
+              const bk = e.provider === 'gemini' ? 'quota_block:'+e.model : 'quota_block:nim:'+e.model.replace('/','_');
+              return (await env.NEWSHUB_CACHE.get(bk)) ? e.model : null;
+            }));
+            capped = checks.filter(Boolean);
+          } catch(e){}
+          const reason = modelOverride
+            ? `Model ${modelOverride} did not return a usable summary.`
+            : capped.length === SUMMARY_CHAIN.length
+              ? 'Every summary model is rate-limited. Quotas reset at midnight UTC.'
+              : `No summary model returned a usable result.${capped.length ? ' Rate-limited: ' + capped.join(', ') + '.' : ''} Try again shortly.`;
+          return new Response(JSON.stringify({ ok:false, unavailable:true, reason, cappedModels: capped }),
+            { status:503, headers: jsonHead() });
+        }
+        const payload = {
+          ok: true,
+          summary: digest,
+          generatedAt: sGen,          // the BUILD this describes — the client pins on it
+          builtAt: Date.now(),
+          eventCount: sEvents.length,
+          watchlist: sWl,
+        };
+        const bodyOut = JSON.stringify(payload);
+        // Only the canonical (non-override) digest is cached, so model comparison
+        // runs can never poison the copy everyone else reads.
+        if (!modelOverride){
+          await env.NEWSHUB_CACHE.put(sKey, bodyOut, { expirationTtl: SUMMARY_TTL }).catch(()=>{});
+        }
+        await env.NEWSHUB_CACHE.delete(sLock).catch(()=>{});
+        return new Response(bodyOut, { headers: jsonHead({ 'X-Cache':'MISS' }) });
+      } catch(e){
+        await env.NEWSHUB_CACHE.delete(sLock).catch(()=>{});
+        console.error('[digest] failed:', e.message);
+        return new Response(JSON.stringify({ ok:false, unavailable:true, reason:'Summary failed: ' + e.message }),
+          { status:500, headers: jsonHead() });
+      }
+    }
+
+    if (url.pathname !== '/news')
+      return new Response('Not found', { status: 404, headers: cors() });
+
+    const fresh = url.searchParams.get('fresh') === '1';
+
+    // Dynamic watchlist: ?tickers=A,B,C runs the pipeline against the caller's
+    // list. A list that EQUALS the canonical WATCHLIST (order-independent) is
+    // treated as the default → shares the cron-warmed 'events:v1' cache instead
+    // of being orphaned under a per-list key the cron never writes.
+    const customTickers = parseTickers(url.searchParams.get('tickers'));
+    const isCustom = !!customTickers && wlHash(customTickers) !== wlHash(WATCHLIST);
+    const wl       = isCustom ? customTickers : WATCHLIST;
+    const sectors  = isCustom ? await sectorsForLive(wl, env) : SECTORS;
+    const cacheKey = isCustom ? 'events:v1:' + wlHash(wl) : 'events:v1';
+    const lockKey  = isCustom ? 'build:lock:' + wlHash(wl) : 'build:lock';
+
+    // ── Read the cache once ────────────────────────────────────────────────
+    // buildAndCache ALWAYS writes a document, even when the pipeline threw or
+    // found nothing (that's deliberate — it terminates the client poller). So an
+    // "events: []" doc is a FAILED build sitting in KV for its whole 4h TTL, not
+    // news. It must never satisfy a plain Refresh: a 6am cron build that died
+    // used to pin the feed blank until 10am, with the morning auto-kick and the
+    // Refresh button both short-circuiting on it, and only Force fresh (which
+    // skips the cache entirely) able to escape. Empty = build again.
+    let cachedRaw = null, cachedHasEvents = false;
+    try {
+      cachedRaw = await env.NEWSHUB_CACHE.get(cacheKey);
+      if (cachedRaw){
+        try { const j = JSON.parse(cachedRaw); cachedHasEvents = Array.isArray(j.events) && j.events.length > 0; }
+        catch(e){ cachedHasEvents = false; }   // unparseable doc counts as failed
+      }
+    } catch(e){}
+
+    // Cache hit with REAL news → return immediately (free, no rate limit).
+    if (!fresh && cachedRaw && cachedHasEvents){
+      return new Response(cachedRaw, { headers: { ...cors(), 'Content-Type':'application/json', 'X-Cache':'HIT' } });
+    }
+
+    // ── Peek mode (?cacheOnly=1) → NEVER builds ───────────────────────────
+    // Used when simply opening the News tab, and by the client's build poller.
+    // It must not kick a build, take the lock, or spend any quota. An empty
+    // cached doc is still handed back verbatim (not as a miss) so a poller can
+    // see its generatedAt and stop, rather than spinning to the timeout.
+    const cacheOnly = url.searchParams.get('cacheOnly') === '1';
+    if (cacheOnly){
+      if (cachedRaw){
+        return new Response(cachedRaw, { headers: { ...cors(), 'Content-Type':'application/json', 'X-Cache': cachedHasEvents ? 'HIT' : 'HIT-EMPTY' } });
+      }
+      return new Response(JSON.stringify({ events: [], _cacheMiss: true }),
+        { headers: { ...cors(), 'Content-Type':'application/json', 'X-Cache':'MISS' } });
+    }
+
+    // ── Rate limit ONLY applies to force-fresh ────────────────────────────
+    // Force-fresh spends the limited-API daily budget, so it's capped. A regular
+    // cache-miss build (cheap Finnhub+TickerTick + no-cap NIM) must NOT drain the
+    // daily force-fresh budget — that was making normal browsing exhaust "12/day".
+    if (fresh){
+      const rl = await checkRateLimit(env);
+      if (rl.blocked){
+        try {
+          if (cachedRaw && cachedHasEvents){
+            const j = JSON.parse(cachedRaw);
+            j._rateLimited = true;
+            j._rateLimitReason = rl.reason;
+            return new Response(JSON.stringify(j), {
+              headers: { ...cors(), 'Content-Type':'application/json', 'X-Cache':'HIT', 'X-Rate-Limited':'1' }
+            });
+          }
+        } catch(e){}
+        return new Response(JSON.stringify({ error: 'rate_limited', reason: rl.reason, usedToday: rl.count, limit: DAILY_FRESH_LIMIT }),
+          { status: 429, headers: { ...cors(), 'Content-Type':'application/json' } });
+      }
+    }
+
+    // ── Check if a build is already in progress ────────────────────────────
+    // Force-fresh is an explicit user override: it steals any existing lock and
+    // rebuilds, so a stale/abandoned lock (crashed build) can't pin the feed on a
+    // degraded RAW doc for the full 180s lock TTL. Normal refresh still waits.
+    const buildLock = fresh ? null : await env.NEWSHUB_CACHE.get(lockKey).catch(()=>null);
+    if (buildLock){
+      // Real news to show while the build runs → hand it over, flagged building.
+      // An EMPTY cached doc is not worth showing: answer 202 instead, so the
+      // "a build is running, keep polling" signal is in the BODY and doesn't
+      // depend on the client being able to read the X-Building header.
+      if (cachedRaw && cachedHasEvents){
+        return new Response(cachedRaw, { headers: { ...cors(), 'Content-Type':'application/json', 'X-Cache':'STALE', 'X-Building':'1' } });
+      }
+      return new Response(JSON.stringify({ status:'building', message:'Pipeline is running. Poll /news in 15 seconds.' }),
+        { status: 202, headers: { ...cors(), 'Content-Type':'application/json' } });
+    }
+
+    // ── Kick off async build ───────────────────────────────────────────────
+    if (fresh){
+      await bumpRateLimit(env);     // only force-fresh counts against the daily cap
+      await clearQuotaBlocks(env);  // wipe stale model cooldowns so a real retry can use the full AI chain (fixes "quota exhausted / RAW" that survives past the upstream daily reset)
+    }
+    // Lock auto-expires if a build crashes. Staged builds run several sequential
+    // self-invocations, so they get a longer lease than a single inline build.
+    const fitsOneInvocationEarly = wl.length <= TICKERS_PER_SLICE;
+    const lockTtl = (env.STAGE_SECRET && !fitsOneInvocationEarly) ? 600 : 180;
+    await env.NEWSHUB_CACHE.put(lockKey, '1', { expirationTtl: lockTtl });
+
+    // Force-fresh spends the limited-API quota (full quality). Regular refresh
+    // uses Finnhub+TickerTick only to preserve quota.
+    const useLimited = fresh;
+
+    // ── Choose build mode ────────────────────────────────────────────────────
+    // Full watchlists (29 tickers × 3 sources = 87 subrequests) blow Cloudflare's
+    // 50-per-invocation cap, killing the AI phase → degraded RAW. The staged
+    // orchestrator splits fetch+AI across self-invocations so each stays under the
+    // cap. Small watchlists that already fit one invocation skip staging (faster,
+    // fewer moving parts). If STAGE_SECRET isn't configured, fall back to inline.
+    // Staging DISABLED: with per-ticker trimmed to Finnhub-only, the whole build
+    // (fetch + AI) fits in one invocation under the 50-subrequest cap. The staged
+    // self-invocation chain proved too fragile (handoffs between sub-stages failed
+    // unpredictably), so we run inline. Set STAGE_FORCE_ON=1 to re-enable staging.
+    const fitsOneInvocation = true;
+    const canStage = env.STAGE_FORCE_ON === '1' && !!env.STAGE_SECRET && (!!env.SELF || !!selfOrigin(req) || !!env.WORKER_ORIGIN);
+
+    if (canStage && !fitsOneInvocation){
+      ctx.waitUntil(
+        startStagedBuild(env, ctx, req, useLimited, wl, sectors, cacheKey, lockKey)
+          .catch(async(e) => { console.error('Staged build failed to start:', e.message); await env.NEWSHUB_CACHE.delete(lockKey); })
+      );
+    } else {
+      // Inline single-invocation build (small list, or staging unavailable).
+      const buildP = buildAndCache(env, ctx, useLimited, wl, sectors, cacheKey, lockKey)
+        .catch(async(e) => {
+          console.error('Build failed:', e.message);
+          await env.NEWSHUB_CACHE.delete(lockKey);
+          return null;
+        });
+      // Keep it alive if we answer before it lands.
+      ctx.waitUntil(buildP);
+
+      // ── Force fresh WAITS for its build ──────────────────────────────────
+      // It used to be pure fire-and-forget: respond 202 immediately, build in
+      // waitUntil. But waitUntil work is reaped not long after the response, and a
+      // rich build takes ~47s (measured: cron 12:00:03 → 12:00:50). So a Force
+      // fresh was routinely KILLED mid-pipeline — it wrote no events doc, no
+      // stage:aistats, and no stage:lasterror, leaving nothing behind at all. The
+      // client then polled for 4 minutes and blamed "quota may be exhausted",
+      // which was never the problem (2026-08-21: every model 'available', 0
+      // batches failed). The request handler gets real wall clock — that is why
+      // /_stage-debug?trigger=1 completes the identical build reliably — so await
+      // it here and hand back the finished feed.
+      //
+      // Bounded, so a genuinely stuck pipeline can't hang the tab: past the bound
+      // we fall through to the stale/202 + client-poll path exactly as before,
+      // with the build continuing in waitUntil having already done most of its
+      // work inside the request. Only force-fresh waits; a plain cache-miss
+      // refresh stays fire-and-forget.
+      if (fresh){
+        const done = await Promise.race([
+          buildP,
+          new Promise(res => setTimeout(() => res(undefined), FRESH_WAIT_MS)),
+        ]);
+        if (done){
+          try {
+            const j = JSON.parse(done);
+            if (Array.isArray(j.events) && j.events.length){
+              return new Response(done, { headers: { ...cors(), 'Content-Type':'application/json', 'X-Cache':'FRESH' } });
+            }
+          } catch(e){}
+        }
+      }
+    }
+
+    // Real stale news → show it while the fresh build runs in the background.
+    // Nothing (or an empty failed doc) → 202, so "building" is unmistakable in
+    // the body rather than only in a header.
+    if (cachedRaw && cachedHasEvents){
+      return new Response(cachedRaw, { headers: { ...cors(), 'Content-Type':'application/json', 'X-Cache':'STALE', 'X-Building':'1' } });
+    }
+
+    return new Response(JSON.stringify({ status:'building', message:'Pipeline started. Poll /news in 20 seconds.' }),
+      { status: 202, headers: { ...cors(), 'Content-Type':'application/json' } });
+  }
+};
