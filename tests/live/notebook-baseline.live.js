@@ -268,8 +268,11 @@ async function capture(label) {
     await click('#uim-ok');   // the optional hint prompt
     await step('lock-set');
 
-    await click(`#${K}-entries-list .entry-item[data-entry-id="${SEED_ENTRIES[1].id}"] .entry-item-title`);
-    await js(`localStorage.removeItem('${K}_unlocked_${SEED_ENTRIES[0].id}'); sessionStorage.clear(); ['${K}_unlocked_','${K}_unlockedv_','${K}_unlockedat_'].forEach(p=>{Object.keys(localStorage).filter(k=>k.startsWith(p)).forEach(k=>localStorage.removeItem(k)); Object.keys(sessionStorage).filter(k=>k.startsWith(p)).forEach(k=>sessionStorage.removeItem(k));}); 1`);
+    // A device that never unlocked it: unlocks are remembered per device, so
+    // forget this one's and reload.
+    await js(`['${K}_unlocked_','${K}_unlockedv_','${K}_unlockedat_'].forEach(p => [localStorage, sessionStorage].forEach(st =>
+      Object.keys(st).filter(k => k.startsWith(p)).forEach(k => st.removeItem(k)))); 1`);
+    await boot(J, false);
     await click(`#${K}-entries-list .entry-item[data-entry-id="${SEED_ENTRIES[0].id}"] .entry-item-title`);
     await step('locked-again', { wait: 800, shot: true });
     await js(`var p=document.getElementById('${K}-lock-pw'); p.value='pw-wrong'; 1`);
