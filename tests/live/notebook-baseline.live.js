@@ -348,6 +348,50 @@ async function capture(label) {
 const EXPECTED = [
   // { phase: 3, why: 'sync pill no longer says "Saved" before any save', path: /^tj\.steps\[0\]\.snap\.sync$/, shots: /tj-open/ },
 ];
+// Screenshots must match pixel for pixel, within this many levels per channel.
+// Headless Chrome is not perfectly repeatable: two recordings of the SAME
+// checkout differed by up to 2 levels on a few hundred pixels (the borders of
+// Veda's nav buttons). Anything a real change makes — a moved box, a different
+// colour or font — is far larger, and the per-step snapshots check computed
+// colours exactly anyway.
+const SHOT_TOLERANCE = 2;
+
+// Minimal PNG decoder for Chrome's screenshots (8-bit RGB/RGBA, no interlace).
+function pngPixels(buf) {
+  const zlib = require('zlib');
+  let p = 8, w = 0, h = 0, ct = 0; const idat = [];
+  while (p < buf.length) {
+    const len = buf.readUInt32BE(p), type = buf.toString('ascii', p + 4, p + 8), data = buf.subarray(p + 8, p + 8 + len);
+    if (type === 'IHDR') { w = data.readUInt32BE(0); h = data.readUInt32BE(4); ct = data[9]; if (data[8] !== 8 || data[12]) throw new Error('unsupported png'); }
+    else if (type === 'IDAT') idat.push(data);
+    else if (type === 'IEND') break;
+    p += 12 + len;
+  }
+  const bpp = ct === 6 ? 4 : ct === 2 ? 3 : 0; if (!bpp) throw new Error('unsupported png colour type ' + ct);
+  const raw = zlib.inflateSync(Buffer.concat(idat)), stride = w * bpp, px = Buffer.alloc(stride * h);
+  for (let y = 0; y < h; y++) {
+    const f = raw[y * (stride + 1)], src = y * (stride + 1) + 1, o = y * stride;
+    for (let i = 0; i < stride; i++) {
+      const a = i >= bpp ? px[o + i - bpp] : 0, b = y ? px[o - stride + i] : 0, c = i >= bpp && y ? px[o - stride + i - bpp] : 0;
+      let v = raw[src + i];
+      if (f === 1) v += a; else if (f === 2) v += b; else if (f === 3) v += (a + b) >> 1;
+      else if (f === 4) { const pa = Math.abs(b - c), pb = Math.abs(a - c), pc = Math.abs(a + b - 2 * c); v += pa <= pb && pa <= pc ? a : pb <= pc ? b : c; }
+      px[o + i] = v & 255;
+    }
+  }
+  return { w, h, bpp, px };
+}
+function pngDiff(A, B) {
+  const a = pngPixels(A), b = pngPixels(B);
+  if (a.w !== b.w || a.h !== b.h || a.bpp !== b.bpp) return { n: Infinity, max: 255 };
+  let n = 0, max = 0;
+  for (let i = 0; i < a.px.length; i += a.bpp) {
+    let m = 0; for (let k = 0; k < a.bpp; k++) m = Math.max(m, Math.abs(a.px[i + k] - b.px[i + k]));
+    if (m) { n++; if (m > max) max = m; }
+  }
+  return { n, max };
+}
+
 function diff(a, b, at, out) {
   if (out.length > 60) return;
   if (JSON.stringify(a) === JSON.stringify(b)) return;
@@ -373,11 +417,18 @@ function compare(la, lb) {
     if (out.length) fail++;
   }
   const shots = fs.readdirSync(OUT).filter((f) => f.startsWith(`nb-${la}-`) && f.endsWith('.png'));
+  const near = [];
   const bad = shots.filter((f) => !EXPECTED.some((r) => r.shots && r.shots.test(f))).filter((f) => {
     const g = path.join(OUT, f.replace(`nb-${la}-`, `nb-${lb}-`));
-    return !fs.existsSync(g) || !fs.readFileSync(g).equals(fs.readFileSync(path.join(OUT, f)));
+    if (!fs.existsSync(g)) return true;
+    const A = fs.readFileSync(path.join(OUT, f)), B = fs.readFileSync(g);
+    if (A.equals(B)) return false;
+    const d = pngDiff(A, B);
+    if (d.max <= SHOT_TOLERANCE) { near.push(`${f} (${d.n} px within ±${d.max})`); return false; }
+    return true;
   });
-  console.log(bad.length ? `  FAIL screenshots differ: ${bad.join(', ')}\n       (in ${OUT})` : `  ok   ${shots.length} screenshots identical`);
+  near.forEach((s) => console.log('  near ' + s));
+  console.log(bad.length ? `  FAIL screenshots differ: ${bad.join(', ')}\n       (in ${OUT})` : `  ok   ${shots.length} screenshots identical (±${SHOT_TOLERANCE})`);
   if (bad.length) fail++;
   const newErr = B.pageErrors.filter((e) => !A.pageErrors.includes(e));
   console.log(newErr.length ? `  FAIL new page errors: ${newErr.join(' | ')}` : `  ok   no new page errors (${B.pageErrors.length} known)`);

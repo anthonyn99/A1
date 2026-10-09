@@ -1,0 +1,54 @@
+/* Notebook — OurJournal tabs and shared-entry chrome. Moved verbatim from
+   index.html (docs/Notebook/plan.md, Phase 1). */
+/* ══════════════ OurJournal — tabs + shared-entry chrome (both journals) ══════════════
+   Every rule is root-prefixed: #bj-root * / #tj-root * zero padding at id
+   specificity, so an unprefixed class here would collapse. Colours come from each
+   app's own tokens, so the tab reads gold in MyJournal and purple in Brainstorm. */
+#bj-root .oj-rail, #tj-root .oj-rail { display: flex; gap: 6px; padding: 12px 12px 4px; flex-shrink: 0; }
+#bj-root .oj-tab, #tj-root .oj-rail .oj-tab {
+  flex: 1 1 0; min-width: 0;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  background: transparent; border: 1px solid var(--border); border-radius: 7px;
+  color: var(--text3); font-family: var(--font); font-size: 10.5px; font-weight: 600;
+  letter-spacing: .07em; text-transform: uppercase; padding: 9px 6px;
+  cursor: pointer; white-space: nowrap; transition: border-color .16s, color .16s, box-shadow .16s;
+}
+#bj-root .oj-tab svg, #tj-root .oj-tab svg { width: 13px; height: 13px; flex-shrink: 0; }
+#bj-root .oj-tab:hover, #tj-root .oj-rail .oj-tab:hover { color: var(--text2); border-color: var(--border2); }
+#bj-root .oj-tab.on, #tj-root .oj-tab.on {
+  color: var(--purple); border-color: var(--purple);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--purple) 22%, transparent), 0 0 10px color-mix(in srgb, var(--purple) 12%, transparent);
+}
+/* MyJournal: MAGI's selected state, a solid accent with a dark label (the
+   rail's Journal button, #mjd-css, matches). Brainstorm keeps the rule above. */
+#tj-root .oj-rail .oj-tab { border-radius: 6px; font-size: 10px; font-weight: 700; letter-spacing: 1px; }
+#tj-root .oj-tab.on, #tj-root .oj-rail .oj-tab.on:hover {
+  background: var(--ac); color: #1a1a1d; border-color: var(--ac); box-shadow: none;
+}
+/* MyJournal's rail (OurJournal · Journal) is a single row; .mjd-rail lays it out. */
+@media (max-width: 600px) {
+  #bj-root .oj-tab .oj-lbl, #tj-root .oj-rail .oj-tab .oj-lbl { font-size: 10px; }
+}
+/* Who created a shared entry. */
+#bj-root .entry-item-meta .oj-by, #tj-root .entry-item-meta .oj-by {
+  margin-left: auto; flex-shrink: 0;
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 600; letter-spacing: .04em; color: var(--text2);
+}
+#bj-root .entry-item-meta .oj-by::before, #tj-root .entry-item-meta .oj-by::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+}
+#bj-root .entry-item-meta .oj-by-tony::before { background: #e0b874; }
+#tj-root .entry-item-meta .oj-by-tony::before { background: #c0aeea; }
+#bj-root .entry-item-meta .oj-by-veda::before, #tj-root .entry-item-meta .oj-by-veda::before { background: #a98bbb; }
+/* Shared entries use only the templates both journals offer there (Page, Mind
+   Map, Whiteboard), and have no per-person password lock. MyJournal's own
+   collection has no boards: Whiteboard and Mind Map are OurJournal-only there. */
+#tj-root:not(.oj-on) .template-card[data-template="whiteboard"],
+#tj-root:not(.oj-on) .template-card[data-template="mindmap"],
+#bj-root.oj-on .template-card[data-template="notes"],
+#bj-root.oj-on .template-card[data-template="cornell"],
+#bj-root.oj-on .template-card[data-template="mindmap-legacy"],
+#tj-root.oj-on .template-card[data-template="journal-entries"],
+#bj-root.oj-on #bj-btn-lock, #bj-root.oj-on #bj-mobile-lock-btn,
+#tj-root.oj-on #tj-btn-lock, #tj-root.oj-on #tj-mobile-lock-btn { display: none !important; }
