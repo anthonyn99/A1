@@ -84,9 +84,9 @@ function cap(k) { return k.charAt(0).toUpperCase() + k.slice(1); }
 // The app's source, rewritten from its native key (tj) to the instance's.
 // The tj sources name everything by prefix: ids and classes (tj-), functions
 // and state (_tj, tjX, TJ_), the store (tony_journal, myjournal_ai...), the
-// loader names (_fbLoadTonyJournal) and the title (MyJournal). A rewrite to tj
-// itself is the identity; tests/notebook-instance.test.js holds that and that
-// nothing of tj's survives a rewrite to another key.
+// loader names (_fbLoadTonyJournal) and the title (MyJournal).
+// tests/notebook-instance.test.js holds that nothing of tj's survives a rewrite
+// to another key, and that the result still parses.
 function rewrite(text, cfg) {
   var K = cfg.key;
   return text
