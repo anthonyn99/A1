@@ -8,25 +8,24 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-10-09. **Phases 0–3 are done.** Both journals are Notebook apps
-(`Notebook/apps/brainstorm.*`, `Notebook/apps/myjournal.*`) that index.html mounts, and
-their Firestore layer is `Notebook/core/fb.js`, installed from index's `init()`. index.html
-has no journal code left; `tests/notebook-wiring.test.js` enforces that. The "before" state
-is still the git tag **`notebook-p0`**, and every on-purpose difference is a rule in the
-baseline suite's `EXPECTED`.
+**Last updated:** 2026-10-09. **Phases 0–4 are done.** Both journals are Notebook apps that
+index.html mounts, with no journal code left in index. Notebook can also mount MyJournal
+into any other program under its own key and store (an *instance*). The contract is
+[README.md](README.md). The "before" state is still the git tag **`notebook-p0`**, and
+every on-purpose difference is a rule in the baseline suite's `EXPECTED`.
 
-**Next: Phase 4** (host-agnostic, see §4). The hardcoded spots to parameterise:
-- core/docx.js `app === 'tj'` branches (~1732–1742, 2120, 2155, 2828): sync setter, AI
-  tools/prompt savers, journal name, event names, rename target. Move them into each
-  app's `registerDocx` config.
-- core/fb.js is written per journal (`_bj*` / `_tj*` twins, with `BJ_DOC_PATH`/`TJ_DOC_PATH`).
-  A third store (TradeHub's `tradehub_playbook`) needs it keyed by `store`/`key`. Do it
-  without changing what bj and tj write (the baseline checks every write).
-- myjournal.js reads `STORAGE_KEY = 'tony_journal_v3'`, `tj-` ids, the lock namespace `tj`.
-  These come from the mount config, and the defaults must stay what they are today.
-Method: the same as Phases 2–3. One scripted, asserted step, then the baseline, then commit.
-Write scratch scripts with the Write tool (bash heredocs mangle escapes), and expect CRLF in
-some test files. Wrap every long command in `timeout`.
+**Next: Phase 5** (TaskHub: MyJournal becomes an external program, see §4). Then Phase 6
+puts TradeHub's Playbook on a Notebook instance:
+`Notebook.mount({app:'myjournal', key:'pb', store:'tradehub_playbook', container, title:'Playbook',
+templates:['page'], pinned:[{id:'daily-reminder', title:'Daily Reminder'}], onSave})` plus
+`window.NotebookFirebase = () => ({ db, fs })`. The live test
+`tests/live/notebook-host.live.js` shows the whole shape on a throwaway host.
+
+Method, as in Phases 2–4: one scripted, asserted step, then the baseline, then commit.
+Write scratch scripts with the Write tool (bash heredocs mangle escapes, twice this
+session), expect CRLF in some test files, and wrap every long command in `timeout`. The
+baseline and the other live tests share one CDP browser (port 9333), so run them one at
+a time.
 
 Before starting any phase: `git pull`; run `node tests/run-all.js`; then
 `node tests/live/notebook-baseline.live.js` (about 10 minutes; it must already
@@ -369,7 +368,7 @@ Each bug fix changes behaviour on purpose. The baseline comparison then shows
 exactly that difference and nothing else. The phase records each expected
 difference in this file and adds a rule to the suite's `EXPECTED` list for it.
 
-### Phase 4 — Host-agnostic ("add Notebook to any program")
+### Phase 4 — Host-agnostic ("add Notebook to any program") ✅ 2026-10-09
 - Parameterise from `store`/`key`: the Firestore doc and `_img_`/`_viz_` prefixes,
   the localStorage prefix, the lock namespace (the taskhub-reminders worker accepts
   any `journal` string via `jKey`), and the AI profile.
@@ -382,6 +381,41 @@ difference in this file and adds a rule to the suite's `EXPECTED` list for it.
 - Write `docs/Notebook/README.md`, the contract (counterpart of
   docs/LifeHub/README.md). It covers adding Notebook to a program, the data
   layout, the Firebase cost table, and turning OurJournal on for another host.
+
+How it was built:
+- **An instance is MyJournal's own source, rewritten.** `Notebook.mount` with a key other
+  than the app's native one (tj) fetches `apps/myjournal.js/.css` and rewrites the
+  prefixes: `tj`→key, `TJ`→KEY, `Tony…`→`Key…`, `tony_journal`→store, `myjournal_ai`→`<store>_ai`,
+  `MyJournal`→title. It routes DOMContentLoaded and `fb-ready` to the instance's own
+  signals and runs the result as an inline script inside the host's container (the app
+  builds its markup right before its own script element). One source, so every MyJournal
+  change reaches every instance. This was chosen over parameterising 4,000 lines of
+  `tj-` ids by hand, which would have risked tj's byte-identity.
+- **Its Firestore layer** is made the same way from core/fb.js. Comment markers
+  (`@nb-store`, `@nb-shared`) bracket tj's state, guards and install block and the helpers
+  it shares with bj. `storeSource()` joins them into one self-contained store
+  `{install, unsubscribe, rearm, serverSeen}`, added with `Notebook.fb.addStore`. The host
+  hands over `window.NotebookFirebase() → {db, fs}`, and `hostF()` builds the rest of F
+  (retrying writes, upsert, server-confirmed reads, no-op stall/backup taps).
+- **CSS:** the instance gets myjournal.css plus only the rules of notebook.css that name
+  tj (`tjRules()`, @media kept), rewritten. Unscoped rules are never repeated over the
+  host's. `instanceCss()` makes it inline, hides locks, hides template cards not in
+  `templates`, and hides forgot-password when the host has no `_pwReset`.
+- **Index unchanged, refactors under the baseline:** TNI → root `tni.js` (index loads it at
+  the same spot), `_mdToHtml`/`_renderMdTables` → `core/md.js` (they sat in brainstorm.js
+  though MyJournal uses them), core/docx.js's `app === 'tj'` branches → by key
+  (`_<key>SetSync`, `_fbSave<KEY>Tools`, `fb-<key>-…`) and the config's `name`/`side`.
+- **myjournal.js reads its mount config:** `features` (ourjournal, locks), `pinned` (kept
+  first, created empty with `updated: 0`, never deleted/purged/dragged/locked, no date
+  until saved), `onSave(entry)` and `onReady()`. With index's config, every path is
+  unchanged.
+- Not done: `mode:'overlay'` for an instance is accepted but untested; OurJournal for
+  another host stays off (it is wired to tj/bj); boards in an instance are untested,
+  so the Playbook offers only pages.
+- Tests: `tests/notebook-instance.test.js` (rewrite leaves nothing of tj, parses, store
+  touches only its own docs) and `tests/live/notebook-host.live.js` (21 checks on a
+  throwaway host, fixture `tests/live/fixtures/notebook-host.html`, which the stamp tool
+  also re-stamps).
 
 ### Phase 5 — TaskHub: MyJournal becomes an external program
 - Take `brainstormjournal` out of `TONY_DEFAULT` and Internal Programs.
