@@ -35,5 +35,8 @@ is opened.
 ## If something goes wrong
 
 - She clicked No, or nothing happened: run step 3 again.
-- Step 3 says Codex is not installed: `npm install -g @openai/codex`, then step 3.
+- Step 3 says Codex is not installed, or `codex --version` crashes ("Missing optional
+  dependency @openai/codex-win32-x64" -- Codex 0.162.0 shipped with no Windows
+  build on 2026-10-08): `npm install -g @openai/codex@0.161.0`, then step 3.
+  MAGI's updater only moves to a newer version once its Windows build exists.
 - Never switch MAGI back to the old (`unelevated`) sandbox; that reopens the hole.
