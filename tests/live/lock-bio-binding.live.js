@@ -136,7 +136,105 @@ const T2 = T1 + 86400000;          // a password change, a day later
     ok('and offers to register the biometric again', /Register/.test(offer), offer);
   }
 
-  console.log('\n' + (fail ? 'FAILED ' + fail + ' of ' : 'ALL PASSED — ') + (pass + fail) + ' checks');
+  // ── The other lock screens: Index (program/profile lock), Shield, MyList ──
+  const errors = [];
+  c.ws.addEventListener('message', (ev) => {
+    const m = JSON.parse(ev.data);
+    if (m.method === 'Runtime.exceptionThrown') errors.push(m.params.exceptionDetails.exception
+      ? m.params.exceptionDetails.exception.description : m.params.exceptionDetails.text);
+  });
+  await c.send('Runtime.enable');
+  const OTHERS = [
+    { file: 'index.html', key: 'bio_cred_applock_tony_tradehub', box: 'applock-bio', err: 'applock-err',
+      setV: (v) => `window._alApplyRemoteLocks({ tony_tradehub: { locked: true, v: ${v} } });`,
+      open: `window.alGate('tony_tradehub', function(){});` },
+    { file: 'shield.html', key: 'bio_cred_shield_shield_x', box: 'applock-bio', err: 'applock-err',
+      setV: (v) => `window._alApplyRemoteLocks({ shield_x: { locked: true, v: ${v} } });`,
+      open: `window.AL.gate('shield_x', function(){});` },
+    { file: 'mylist.html', key: 'bio_cred_mylist_tony', box: 'lock-bio', err: 'lock-err',
+      setV: (v) => `state.locks.tony = true; state.lockV.tony = ${v};`,
+      open: `showLock('tony', 'unlock');` },
+  ];
+  for (const O of OTHERS) {
+    console.log('\n' + O.file + ' (lock screen)');
+    errors.length = 0;
+    await c.send('Page.navigate', { url: ORIGIN + '/A1/' + O.file + '?blank' }); await sleep(600);
+    await evalJs(c, `localStorage.clear(); sessionStorage.clear();
+      localStorage.setItem(${JSON.stringify(O.key)}, JSON.stringify({ id: 'AQIDBA', created: ${T1 + 5}, v: ${T1}, label: 'x' })); return 1;`);
+    await c.send('Page.navigate', { url: ORIGIN + '/A1/' + O.file }); await sleep(O.file === 'index.html' ? 6000 : 2500);
+    const count = () => evalJs(c, `
+      var box = document.getElementById(${JSON.stringify(O.box)});
+      return JSON.stringify({ n: box ? [...box.querySelectorAll('button')].filter(function(b){ return /^Unlock with/.test(b.textContent.trim()); }).length : -1,
+        err: (document.getElementById(${JSON.stringify(O.err)}) || {}).textContent || '',
+        cred: localStorage.getItem(${JSON.stringify(O.key)}) });`).then(JSON.parse);
+    await evalJs(c, O.setV(T1) + O.open + O.open + 'return 1;');
+    await sleep(700);
+    let r = await count();
+    ok('current credential: ONE "Unlock with" after two quick opens', r.n === 1, JSON.stringify(r));
+    await evalJs(c, O.setV(T2) + O.open + 'return 1;');
+    await sleep(700);
+    r = await count();
+    ok('after a password change: no biometric button', r.n === 0, JSON.stringify(r));
+    ok('says the password changed', /password changed/i.test(r.err), r.err);
+    ok('stale credential deleted', r.cred === null, r.cred);
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+  }
+
+  // ── The Bio helper itself, on every page that carries one ──
+  for (const f of ['index.html', 'insight.html', 'magi.html', 'mylist.html', 'oneinbox.html', 'riftiq.html', 'shield.html', 'solace.html', 'tradehub.html', 'vault.html']) {
+    await c.send('Page.navigate', { url: ORIGIN + '/A1/' + f + '?blank' }); await sleep(f === 'index.html' ? 3000 : 1200);
+    const r = JSON.parse(await evalJs(c, `
+      localStorage.removeItem('bio_cred_t_x');
+      var reg = await window.Bio.register('t', 'x', { v: 5 });
+      var out = { reg: reg.ok, cur: window.Bio.isRegistered('t', 'x', 5), any: window.Bio.isRegistered('t', 'x') };
+      var a = await window.Bio.authenticate('t', 'x', { v: 5 });
+      out.authCur = a.ok;
+      var s = await window.Bio.authenticate('t', 'x', { v: 6 });
+      out.authStale = s.error;
+      out.gone = localStorage.getItem('bio_cred_t_x') === null;
+      out.stale1 = window.Bio.takeStale('t', 'x'); out.stale2 = window.Bio.takeStale('t', 'x');
+      return JSON.stringify(out);`));
+    ok(f + ': Bio binds a credential to its password version',
+      r.reg && r.cur && r.any && r.authCur && r.authStale === 'stale' && r.gone && r.stale1 && !r.stale2, JSON.stringify(r));
+  }
+
+  // ── MAGI: no Firebase lock version; the lock service's `ver` fingerprint ──
+  console.log('\nmagi.html (lock service fingerprint)');
+  let liveVer = 'aaaaaaaaaaaaaaaa';
+  const magiMock = {
+    patterns: ['https://taskhub-reminders.av1.workers.dev/*'],
+    handle: (req) => {
+      if (/\/auth\/journal\/status/.test(req.url)) return { status: 200, json: { ok: true, hasLock: true, noLock: false, ver: liveVer } };
+      return { status: 200, json: { ok: true } };
+    },
+  };
   c.ws.close();
+  const m = await connect({ mock: magiMock });
+  await m.send('Page.enable');
+  await m.send('Page.addScriptToEvaluateOnNewDocument', { source: FAKE_AUTH });
+  const magiBoot = async (sessionVer, bioVer) => {
+    await m.send('Page.navigate', { url: ORIGIN + '/A1/magi.html?blank' }); await sleep(800);
+    await evalJs(m, `localStorage.clear();
+      localStorage.setItem('magi.tony.lock_session', JSON.stringify({ at: 1${sessionVer ? `, ver: ${JSON.stringify(sessionVer)}` : ''} }));
+      localStorage.setItem('bio_cred_magi_tony', JSON.stringify({ id: 'AQIDBA', created: ${T1}, label: 'MAGI' }));
+      ${bioVer ? `localStorage.setItem('magi.tony.bio_ver', ${JSON.stringify(bioVer)});` : ''}
+      return 1;`);
+    await m.send('Page.navigate', { url: ORIGIN + '/A1/magi.html' }); await sleep(4000);
+    return JSON.parse(await evalJs(m, `var s = document.getElementById('lockScreen');
+      return JSON.stringify({ locked: !!s && !s.hidden, session: localStorage.getItem('magi.tony.lock_session'),
+        cred: localStorage.getItem('bio_cred_magi_tony'), msg: (document.getElementById('lockMsg') || {}).textContent || '' });`));
+  };
+  let g = await magiBoot('aaaaaaaaaaaaaaaa', 'aaaaaaaaaaaaaaaa');
+  ok('session + biometric under the live password: opens, keeps the biometric', !g.locked && g.cred !== null, JSON.stringify(g));
+  g = await magiBoot('bbbbbbbbbbbbbbbb', 'bbbbbbbbbbbbbbbb');
+  ok('password changed elsewhere: locked on boot', g.locked, JSON.stringify(g));
+  ok('the old session is forgotten', g.session === null, g.session);
+  ok('the old biometric is deleted', g.cred === null, g.cred);
+  ok('says why', /password was changed/i.test(g.msg), g.msg);
+  g = await magiBoot(null, null);
+  ok('a session from before the fingerprint existed asks for the password once', g.locked && g.cred === null, JSON.stringify(g));
+  m.ws.close();
+
+  console.log('\n' + (fail ? 'FAILED ' + fail + ' of ' : 'ALL PASSED — ') + (pass + fail) + ' checks');
   process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
