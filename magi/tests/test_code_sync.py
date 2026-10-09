@@ -8,6 +8,7 @@ write counts) is tests/magi-code-sync.test.js and tests/live/magi-sync.live.js.
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -147,28 +148,40 @@ def test_a_project_only_the_cloud_knows_arrives_unbound(db):
     assert [b for b in st["projects"][0]["bindings"]] == []
 
 
-def test_a_synced_doc_cannot_turn_on_auto_commit_for_a1(db):
+def test_a_synced_doc_switches_auto_commit_for_a1_like_any_project(db):
+    """Since 2026-10-08 A1 is not special here: off travels, and on."""
     run(db.save_code_project({"id": "proj_a1", "name": "A1", "aliases": "[]",
                               "prefs": "{}", "notes": ""}, updated_at=EARLIER))
     run(db.save_code_binding("proj_a1", "eng_desk", str(A1)))
     d = run(RT.sync_apply({"projects": {"proj_a1": {
-        "name": "A1", "prefs": {"autoCommit": True, "autoPush": True},
+        "name": "A1", "prefs": {"autoCommit": False, "autoPush": False},
         "updatedAt": LATER}}}))
     prefs = d["projects"]["proj_a1"]["prefs"]
     assert prefs["autoCommit"] is False and prefs["autoPush"] is False
+    d = run(RT.sync_apply({"projects": {"proj_a1": {
+        "name": "A1", "prefs": {"autoCommit": True, "autoPush": True},
+        "updatedAt": (datetime.now(timezone.utc) + timedelta(minutes=90)).isoformat()}}}))
+    prefs = d["projects"]["proj_a1"]["prefs"]
+    assert prefs["autoCommit"] is True and prefs["autoPush"] is True
 
 
-def test_binding_later_regards_prefs_that_arrived_unbound(db, monkeypatch, tmp_path):
-    run(RT.sync_apply({"projects": {"proj_x": {
-        "name": "X", "prefs": {"autoCommit": True, "autoPush": True}, "updatedAt": LATER}}}))
-    assert run(RT.sync_state())["projects"]["proj_x"]["prefs"]["autoCommit"] is True
-    folder = tmp_path / "x"
-    folder.mkdir()
-    # Pretend this folder is MAGI's own repository.
-    monkeypatch.setattr(AC, "_engine_repo", lambda root: True)
-    d = run(RT.bind_project("proj_x", {"root": str(folder)}))
-    assert d["project"]["prefs"]["autoCommit"] is False
-    assert d["project"]["prefs"]["autoPush"] is False
+def test_auto_commit_is_switched_on_once_for_every_existing_project(db):
+    """2026-10-08: every project an engine held gets auto commit + push, no
+    wait, once. Turned off afterwards, it stays off."""
+    run(db.save_code_project({"id": "proj_1", "name": "P", "aliases": "[]", "notes": "",
+                              "prefs": json.dumps({"autoCommit": False, "autoPush": False,
+                                                   "batchWindowMin": 3, "github": "octo"})},
+                             updated_at=EARLIER))
+    assert run(db.auto_commit_everywhere_once()) == 1
+    p = run(db.code_project("proj_1", "eng_desk"))
+    assert p["prefs"] == {"autoCommit": True, "autoPush": True, "batchWindowMin": 0,
+                          "github": "octo"}
+    assert S.ts(p["updated_at"]) > S.ts(EARLIER), "newer, so it wins the cloud reconcile"
+    p["prefs"]["autoCommit"] = False
+    run(db.save_code_project({"id": "proj_1", "name": "P", "aliases": "[]", "notes": "",
+                              "prefs": json.dumps(p["prefs"])}))
+    assert run(db.auto_commit_everywhere_once()) == 0
+    assert run(db.code_project("proj_1", "eng_desk"))["prefs"]["autoCommit"] is False
 
 
 def test_stray_and_mistyped_prefs_are_dropped(db):
@@ -178,8 +191,8 @@ def test_stray_and_mistyped_prefs_are_dropped(db):
                   "github": "octo", "permissionMode": 7}}}}))
     prefs = d["projects"]["proj_1"]["prefs"]
     assert "evil" not in prefs
-    assert prefs["batchWindowMin"] == 3          # the string was ignored
-    assert prefs["autoCommit"] is False          # "yes" is not a bool
+    assert prefs["batchWindowMin"] == 0          # the string was ignored
+    assert prefs["autoCommit"] is True           # "yes" is not a bool: the default stands
     assert prefs["github"] == "octo"
     assert prefs["permissionMode"] == "plan"
 

@@ -150,12 +150,14 @@ def test_the_code_mode_write_claims_still_hold():
     for d in (".git", ".ssh", ".claude", ".codex"):
         assert d in security._DENY_DIRS, d
     assert security.check_path(".env") and security.check_path("../x")
-    # "A1 is writable too, but never committed or pushed from here ... MAGI
-    # only fetches it" (Phase 14b) -- one policy, asked by the engine.
+    # "Approved edits are committed and pushed right away ... A1 too ...
+    # MAGI only fetches A1" (Phase 14b, 2026-10-08) -- one policy, asked by
+    # the engine.
     from magi.code import sandbox as SB
-    assert "A1 is writable too, but never committed or pushed from here" in HOW
-    assert SB.ENGINE_REPO == {"write": True, "commit": False, "push": False,
-                              "pull": False, "auto": False, "branch": False}
+    assert "Approved edits are committed and pushed right away" in HOW
+    assert "<b>A1 too</b>" in HOW and "MAGI only fetches A1" in HOW
+    assert SB.ENGINE_REPO == {"write": True, "commit": True, "push": True,
+                              "pull": False, "auto": True, "branch": False}
     src = inspect.getsource(tasks)
     assert src.count("engine_repo_allows") >= 4       # pull, apply, commit, push
     # "A change to the engine's own code under magi/ says so on the card",
@@ -303,16 +305,16 @@ def test_the_cli_update_claims_still_hold():
 
 
 def test_the_auto_commit_claims_still_hold():
-    """Phase 12: off by default, magi: prefix, window, refusals, clean pull,
-    never A1."""
+    """Phase 12 (on everywhere since 2026-10-08): on by default with no
+    wait, A1 included, magi: prefix, refusals, clean pull, the PC's login."""
     import inspect
     from magi.code import autocommit as AC, workspace as W
-    assert "Auto commit and Auto push are off until you switch them on" in HOW
-    # "off until you switch them on".
-    assert W.DEFAULT_PREFS["autoCommit"] is False and W.DEFAULT_PREFS["autoPush"] is False
-    # "a “magi:” message" and "3 minutes unless you pick another".
-    assert AC.PREFIX == "magi: " and AC.DEFAULT_WINDOW_MIN == 3
-    assert W.DEFAULT_PREFS["batchWindowMin"] == 3
+    assert "Auto commit and Auto push are on</b> for every project, A1 included" in HOW
+    # "on for every project".
+    assert W.DEFAULT_PREFS["autoCommit"] is True and W.DEFAULT_PREFS["autoPush"] is True
+    # "a “magi:” message as soon as the task ends".
+    assert AC.PREFIX == "magi: " and AC.DEFAULT_WINDOW_MIN == 0
+    assert W.DEFAULT_PREFS["batchWindowMin"] == 0
     # "Commit now and Cancel" on the line.
     assert '"Commit now"' in PAGE and "/auto/${what}" in PAGE
     # "refused ... other files staged, a merge or rebase, HEAD detached".
@@ -321,10 +323,12 @@ def test_the_auto_commit_claims_still_hold():
     # "pushes only if the pull came back clean; never forced".
     push = inspect.getsource(AC._push)
     assert push.index("G.pull(") < push.index("G.push(") and "if not pl.ok" in push
-    # "Both stay off for A1": the guard and the route both check.
-    assert "_engine_repo(root)" in inspect.getsource(AC.guard_prefs)
+    # "A1 included": nothing turns it off there.
+    assert "_engine_repo" not in inspect.getsource(AC.guard_prefs)
     routes = (REPO / "magi" / "code" / "routes.py").read_text(encoding="utf-8")
-    assert "is_engine_repo" in routes.split("async def set_auto(")[1].split("@router")[0]
+    assert "is_engine_repo" not in routes.split("async def set_auto(")[1].split("@router")[0]
+    # "With no GitHub account chosen it pushes as the PC's own git login".
+    assert "machine=True" in push and "PC&rsquo;s own git login" in HOW
 
 def test_the_engine_guard_claims_still_hold():
     """Phase 14: agents are refused, except the GitHub tools; foreign pages

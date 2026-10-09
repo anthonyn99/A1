@@ -101,12 +101,12 @@ def _write_status(root: str) -> dict[str, Any]:
     if not SB.engine_repo_allows(r, "write"):
         return {"ok": False, "why": SB.ENGINE_REPO_WHY["write"]}
     if SB.is_engine_repo(r):
-        # Writable (Phase 14b); committing and pushing stay A1's own.
+        # Writable (Phase 14b); committed and pushed like any project since
+        # 2026-10-08, but never branched (sandbox.ENGINE_REPO).
         return {"ok": True, "why": "", "commit": SB.ENGINE_REPO["commit"],
-                "push": SB.ENGINE_REPO["push"],
-                "note": "A1 ships what you approve: its auto-commit pushes it to main within "
-                        "minutes, and workers/ changes deploy. Code Mode never commits or "
-                        "pushes here, and .github/ is refused."}
+                "push": SB.ENGINE_REPO["push"], "branch": SB.ENGINE_REPO["branch"],
+                "note": "A1 ships what you approve: auto commit and push send it to main "
+                        "right away, and workers/ changes deploy. .github/ is refused."}
     return {"ok": True, "why": ""}
 
 
@@ -471,8 +471,8 @@ _AC.prefs_source = _project_prefs
 
 
 async def _guarded(p: dict[str, Any], prefs: dict[str, Any]) -> dict[str, Any]:
-    """Prefs about to be stored, with the auto-commit rules applied against
-    the folder on THIS machine (autocommit.guard_prefs): never on for A1."""
+    """Prefs about to be stored, with the auto-commit rules applied
+    (autocommit.guard_prefs)."""
     from pathlib import Path
     here = next((b for b in p.get("bindings") or [] if b.get("here")), None)
     root = Path(here["root"]) if here else None
@@ -544,25 +544,16 @@ async def _auto_view(p: dict[str, Any], root) -> dict[str, Any]:
     """Phase 12: the project's auto commit/push switches, the pending commit
     (files, when it fires) and the last outcome -- which carries the pushed
     SHA the console starts the Actions watch on."""
-    from .sandbox import is_engine_repo
-    own = await _asyncio.get_running_loop().run_in_executor(None, is_engine_repo, root)
-    return _AC.view(p["id"], p.get("prefs") or {}, locked=(
-        "MAGI's own repository: its Stop hook already commits and pushes, so MAGI "
-        "never auto-commits here." if own else ""))
+    return _AC.view(p["id"], p.get("prefs") or {})
 
 
 @router.post("/projects/{project_id}/auto")
 async def set_auto(project_id: str, body: dict = Body(...)) -> dict[str, Any]:
     """`{"commit": bool, "push": bool, "window": minutes}` -- any subset.
-    Refused for A1 in words, not silently stored as off."""
+    `window` 0 = right after the task, like Claude Code's Stop hook."""
     p, root, err = await _project_here(project_id)
     if err:
         return err
-    from .sandbox import is_engine_repo
-    if await _asyncio.get_running_loop().run_in_executor(None, is_engine_repo, root):
-        return {"ok": False, "error": "read_only_project", "message": (
-            f"{p['name']} is MAGI's own repository. Its Stop hook already commits and pushes, "
-            "so auto commit stays off here.")}
     prefs = {**W.DEFAULT_PREFS, **(p.get("prefs") or {})}
     for k, key in (("commit", "autoCommit"), ("push", "autoPush"), ("window", "batchWindowMin")):
         if k in (body or {}):
@@ -1375,9 +1366,8 @@ async def set_project_github(project_id: str, body: dict = Body(...)) -> dict[st
 async def push_project(project_id: str, body: dict = Body(default={})) -> dict[str, Any]:
     """Push the project's current branch -- the repository line's ↑n.
 
-    As the project's GitHub account (or `{"account"}`), never forced, and
-    never for MAGI's own repository: A1's Stop hook is its one pusher
-    (sandbox.ENGINE_REPO).
+    As the project's GitHub account (or `{"account"}`), never forced
+    (sandbox.ENGINE_REPO says whether A1 may be pushed).
     """
     p, root, err = await _project_here(project_id)
     if err:

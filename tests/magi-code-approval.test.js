@@ -83,14 +83,11 @@ ok('a refusal lists every refused path', /for \(const r of ev\.refused\)/.test(l
 ok('while waiting, the status says nothing has changed yet',
    /Waiting for your approval — nothing has changed yet/.test(MAGI));
 
-console.log('\nA1 (Phase 14b): writable; it commits and pushes itself');
+console.log('\nA1 (Phase 14b): writable, and approving ships it');
 {
   const whole = lift('function renderCodeApproval(t, ev', 9500);
-  const hookAt = whole.indexOf('if (applied.by_hook)');
-  ok('an A1 change says A1 commits and pushes it itself', hookAt > 0 && /auto-commit records it and "\s*\+ "pushes it to main/.test(whole));
-  ok('...and returns before the Commit button is drawn',
-     hookAt > 0 && hookAt < whole.indexOf('renderCodeCommit(t, applied, done)')
-     && /Code Mode does not commit here\."\)\);\s*return box;/.test(whole));
+  ok('A1 is committed like any project (2026-10-08): no by_hook branch',
+     !/by_hook/.test(whole));
   ok('approving in A1 says it ships, and names what deploys',
      /if \(ev\.ships && open\)/.test(whole) && /Approving ships this/.test(whole) && /ev\.deploy_files/.test(whole));
   ok('a change under magi/ warns that the engine must restart',

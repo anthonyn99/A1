@@ -813,7 +813,7 @@ _AUTH_FAIL = re.compile(r"Authentication failed|Invalid username or (password|to
                         r"returned error: 40[13]", re.I)
 
 
-def push(root: Path, auth: Auth | None) -> Push:
+def push(root: Path, auth: Auth | None, machine: bool = False) -> Push:
     """Push the current branch to its remote branch -- never forced.
 
     Refused, with a sentence, when the repository is mid-merge/rebase, HEAD
@@ -821,8 +821,10 @@ def push(root: Path, auth: Auth | None) -> Push:
     here never rewrites anything on GitHub). An HTTPS remote needs an
     account (`auth`) on that remote's host; with no account nothing is
     pushed at all, rather than going out as whatever login this machine
-    happens to remember. A local path or SSH remote uses the machine's own
-    access and no token.
+    happens to remember -- unless `machine` (auto push only, 2026-10-08):
+    then no account means this PC's own git login, as Claude Code's Stop
+    hook pushes. A local path or SSH remote uses the machine's own access
+    and no token.
 
     The refspec is spelled out without a `+`, so no config on the remote
     (`remote.origin.push = +refs/...`) can turn this into a force push.
@@ -853,7 +855,7 @@ def push(root: Path, auth: Auth | None) -> Push:
                 "push with a credential it did not give — remove it from the URL first.")
             return res
         use: Auth | None = None
-        if info["scheme"] in ("https", "http"):
+        if info["scheme"] in ("https", "http") and not (auth is None and machine):
             if auth is None:
                 res.code, res.text = "no_account", (
                     f"Pick the GitHub account to push {repo or remote} as. MAGI does not push "

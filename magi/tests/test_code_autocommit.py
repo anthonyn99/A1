@@ -108,41 +108,63 @@ def _committed_files(repo, ref="HEAD"):
 
 # ── what may be switched on ────────────────────────────────────────────────
 
-def test_off_by_default_and_push_needs_commit():
+def test_on_by_default_with_no_wait_and_push_needs_commit():
     from magi.code import workspace as W
     g = AC.guard_prefs(W.DEFAULT_PREFS, None)
-    assert g["autoCommit"] is False and g["autoPush"] is False
+    assert g["autoCommit"] is True and g["autoPush"] is True and g["batchWindowMin"] == 0
     assert AC.guard_prefs({"autoCommit": False, "autoPush": True}, None)["autoPush"] is False
     assert AC.guard_prefs({"autoCommit": True, "autoPush": True}, None)["autoPush"] is True
 
 
 def test_the_window_is_clamped():
-    assert AC.guard_prefs({"batchWindowMin": 0}, None)["batchWindowMin"] == 3   # 0 = unset
-    assert AC.guard_prefs({"batchWindowMin": -5}, None)["batchWindowMin"] == 1
+    assert AC.guard_prefs({"batchWindowMin": 0}, None)["batchWindowMin"] == 0   # no wait
+    assert AC.guard_prefs({}, None)["batchWindowMin"] == 0
+    assert AC.guard_prefs({"batchWindowMin": 3}, None)["batchWindowMin"] == 3
+    assert AC.guard_prefs({"batchWindowMin": -5}, None)["batchWindowMin"] == 0
     assert AC.guard_prefs({"batchWindowMin": 999}, None)["batchWindowMin"] == 30
-    assert AC.guard_prefs({"batchWindowMin": "x"}, None)["batchWindowMin"] == 3
+    assert AC.guard_prefs({"batchWindowMin": "x"}, None)["batchWindowMin"] == 0
 
 
-def test_a1_is_never_switched_on_whatever_is_sent():
+def test_a1_may_be_switched_on():
+    """Since 2026-10-08 A1 is like any project (pure: nothing is written)."""
     from magi.settings import ROOT
     g = AC.guard_prefs({"autoCommit": True, "autoPush": True}, ROOT)
-    assert g["autoCommit"] is False and g["autoPush"] is False
-
-
-def test_a1_never_gets_a_pending_commit_even_with_prefs_on():
-    from magi.settings import ROOT
-    _on("a1", push=True)
-    out = asyncio.run(AC.on_applied(project_id="a1", repo=str(ROOT), files=["x.py"],
-                                    draft="Nope", task_id="t"))
-    assert out is None and "a1" not in AC.PENDING
-
-
-def test_the_route_guard_reads_the_binding_on_this_machine():
+    assert g["autoCommit"] is True and g["autoPush"] is True
     from magi.code import routes as R
-    from magi.settings import ROOT
     p = {"id": "a1", "bindings": [{"here": True, "root": str(ROOT)}]}
     g = asyncio.run(R._guarded(p, {"autoCommit": True, "autoPush": True}))
-    assert g["autoCommit"] is False and g["autoPush"] is False
+    assert g["autoCommit"] is True and g["autoPush"] is True
+
+
+def test_a1_gets_a_pending_commit_like_any_project(repo, monkeypatch):
+    monkeypatch.setattr(AC, "_engine_repo", lambda top: True)
+    _on(push=True)
+
+    async def go():
+        out = await _apply(repo, ["a.py"], "Edit a")
+        AC.cancel("p")          # never fired: `repo` only stands in for A1
+        return out
+    assert asyncio.run(go())["files"] == ["a.py"]
+
+
+def test_no_wait_commits_while_its_own_task_is_still_finishing(repo, monkeypatch):
+    """Window 0: the applying task is not done yet when the timer fires;
+    the commit must not wait for ITSELF (another task still would)."""
+    _on(window=0)
+
+    class Mine:
+        id, project_id, mode, done = "t1", "p", "write", False
+    monkeypatch.setitem(T.TASKS, "t1", Mine())
+
+    async def go():
+        await _apply(repo, ["a.py"], "Edit a", "t1")
+        for _ in range(50):
+            await asyncio.sleep(0.05)
+            if "p" in AC.LAST:
+                return AC.LAST["p"]
+    last = asyncio.run(go())
+    assert last and last["ok"], last
+    assert _log(repo) == "magi: Edit a"
 
 
 def test_off_means_nothing_is_scheduled(repo):
@@ -240,7 +262,7 @@ def test_a_write_task_still_running_postpones_the_commit(repo, monkeypatch):
     _on()
 
     class Busy:
-        project_id, mode, done = "p", "write", False
+        id, project_id, mode, done = "busy", "p", "write", False
     monkeypatch.setitem(T.TASKS, "busy", Busy())
 
     async def go():
@@ -424,16 +446,54 @@ def test_auto_push_off_commits_but_does_not_push(cloned):
     assert _git(cloned["bare"], "rev-parse", "main") == before
 
 
-def test_an_https_remote_with_no_account_is_not_pushed(cloned):
+def test_an_https_remote_with_no_account_auto_pushes_as_the_pcs_login(cloned, monkeypatch):
+    """Like Claude Code's Stop hook. The Push button (machine=False) still
+    refuses; the real push is not made here (it would reach GitHub)."""
     ours = cloned["ours"]
     _git(ours, "remote", "set-url", "--push", "origin", "https://github.com/o/r.git")
+    assert G.push(ours, None).code == "no_account"
+    calls = []
+
+    def spy(root, auth, machine=False):
+        calls.append((auth, machine))
+        return G.Push(True, "pushed", "Pushed 1 commit to o/r (main).")
+    monkeypatch.setattr(G, "push", spy)
     _on(push=True)
 
     async def go():
         await _apply(ours, ["app.py"], "Edit app")
         return await AC.fire("p")
     last = asyncio.run(go())
-    assert last["code"] == "committed" and last["push"]["code"] == "no_account"
+    assert last["code"] == "committed" and last["push"]["ok"]
+    assert calls == [(None, True)]
+
+
+def test_a1_is_pulled_only_when_its_tree_is_clean(cloned, monkeypatch):
+    """Other sessions' uncommitted edits in A1 are never autostashed: with
+    any, the pull is skipped and a push that is behind just waits."""
+    ours, other = cloned["ours"], cloned["other"]
+    monkeypatch.setattr(AC, "_engine_repo", lambda top: True)
+    _on(push=True)
+    (other / "shared.py").write_text("s = 2  # theirs\n")
+    _git(other, "commit", "-qam", "theirs")
+    _git(other, "push", "-q")
+    (ours / "session.py").write_text("a live session's edit\n")
+
+    async def go():
+        await _apply(ours, ["app.py"], "Edit app")
+        return await AC.fire("p")
+    last = asyncio.run(go())
+    assert last["code"] == "committed" and last["pull"]["skipped"]
+    assert last["push"]["ok"] is False and last["push"]["code"] == "behind"
+    assert (ours / "session.py").exists() and G.in_progress(ours) == ""
+
+    (ours / "session.py").unlink()
+
+    async def again():
+        await _apply(ours, ["app.py"], "Edit app again", "t2")
+        return await AC.fire("p")
+    last = asyncio.run(again())
+    assert last["pull"]["ok"] and not last["pull"].get("skipped") and last["push"]["ok"], last
 
 
 # ── wired into a real write task ───────────────────────────────────────────

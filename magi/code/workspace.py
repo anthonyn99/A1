@@ -396,12 +396,13 @@ DEFAULT_PREFS = {
     # Read-only until you say otherwise. A new project's first agent should
     # not be able to change anything.
     "permissionMode": "plan",
-    # Off, always. A1 already auto-commits through its own Stop hook, and two
-    # systems staging the same tree is how one silently absorbs the other.
-    "autoCommit": False,
-    "autoPush": False,
+    # On, with no wait (2026-10-08, Tony): an approved change is committed
+    # and pushed as soon as its task ends, like Claude Code's Stop hook.
+    # A1 included (autocommit.py). Either can be switched off per project.
+    "autoCommit": True,
+    "autoPush": True,
     "commitStyle": "summary",
-    "batchWindowMin": 3,
+    "batchWindowMin": 0,
     # The GitHub login this project pushes (and pulls) as -- a name, never a
     # token (magi/github/accounts.py). "" until you pick one.
     "github": "",

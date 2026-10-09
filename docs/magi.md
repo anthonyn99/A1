@@ -1314,12 +1314,16 @@ the sheet, a real cap enforced on a real task, the popup, 390 px;
 
 #### Auto commit and auto push (Phase 12)
 
-Two switches per project — **Auto commit** and **Auto push** — both **off by
-default** and **always off for A1** (its Stop hook already commits `auto:`
-and pushes; two systems staging one tree is how one silently absorbs the
-other). Tap either strip pill to open them: auto push needs auto commit, and
-the window is 1, 3 (default), 5 or 10 minutes (`prefs.batchWindowMin`,
-clamped 1–30).
+Two switches per project — **Auto commit** and **Auto push** — both **on by
+default, A1 included, with no wait** (Tony, 2026-10-08: "the same way as
+VS Code", where Claude Code's Stop hook commits and pushes at the end of a
+turn). Every project an engine already held was switched on once at startup
+(`db.auto_commit_everywhere_once`, flag `auto_all_v1`), so a switch turned
+off afterwards stays off. Tap either strip pill to open them: auto push needs
+auto commit, and the wait is None (default: as soon as the task ends), 1, 3,
+5 or 10 minutes (`prefs.batchWindowMin`, clamped 0–30). Auto push with no
+GitHub account chosen goes out as the PC's own git login, like the hook (the
+Push button still asks for an account).
 
 `magi/code/autocommit.py`, in memory like tasks:
 
@@ -1541,18 +1545,16 @@ pages, and pushes under `workers/`, `workers2/`, `V1/workers/` and
 | Action | In A1 | Why |
 |---|---|---|
 | **write** | yes -- sandbox, diff, your approval, applied | like any project |
-| commit | no (no *Commit these files*) | A1's auto-commit records it within minutes |
-| push | no (no *Push*, no *Push ↑n*) | A1 has its pushers already |
-| pull | no -- fetched only | a rebase under live sessions is worse than a stale answer |
-| auto commit / push | no (locked) | as commit and push |
+| commit | yes (since 2026-10-08) | only the applied files (`--only`), so a session's uncommitted work stays out |
+| push | yes (since 2026-10-08) | never forced, so MAGI and the Stop hook only ever add commits |
+| pull | no -- fetched only | a rebase under live sessions is worse than a stale answer; auto push pulls A1 only when its tree is clean |
+| auto commit / push | yes, on by default (since 2026-10-08) | as every project |
 
 **Approving in A1 is shipping**, and the card says so before you press
-Approve: "A1's auto-commit pushes it to main within minutes, and GitHub Pages
+Approve: "it is committed and pushed to main right away, and GitHub Pages
 serves it", naming any file that deploys (`deploy_files`). A change under
 `magi/` adds that it does nothing until the engine restarts, and a broken one
-can stop it starting; MAGI never restarts itself (`engine_files`). After
-Approve the card says A1's auto-commit records it -- there is no Commit
-button.
+can stop it starting; MAGI never restarts itself (`engine_files`).
 
 **`.github/` is refused in A1** (`ENGINE_REPO_DENY`, passed to
 `security.review` at diff time and again at approval): a workflow runs with the

@@ -97,6 +97,11 @@ def _stage_upload_name(original: str) -> str:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await db.init()
+    # Auto commit + push on for every existing project, once (db.py).
+    try:
+        await db.auto_commit_everywhere_once()
+    except Exception:
+        pass
     # A Studio job lives in this process's memory. One still "pending" in the
     # database at startup belonged to a previous process and will never finish;
     # left alone, its card spun for ever (one from 2026-09-10 still was).

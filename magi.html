@@ -7368,8 +7368,8 @@ const HOW = [
       "<b>Any unit can code.</b> <b>Claude</b> and <b>Codex</b> run through their own command-line tools and search and read the folder themselves; every other unit works through its browser session, with MAGI handing it the files that matter. Both CLIs use a signed-in account's own plan &mdash; Codex works on a free ChatGPT account &mdash; and no API key is used anywhere. Their accounts are set up in <b>Accounts</b>, separately from the browser units, and each can hold more than one.",
       "<b>The chips are the fallback chain.</b> The first ticked agent does the work. If it runs out of usage, is signed out or cannot start, the next one carries on, told what the previous one had worked out. A task that simply fails is not handed on &mdash; another author would fail it the same way. A limit is remembered until its reset time, so the chain does not walk into the same wall on every task. Tap <b>Agents</b> to change the order.",
       "<b>Read or Write.</b> A page opens in <b>Read</b>: agents can read and search the folder and change nothing. Switch to <b>Write</b> and it stays on for your next tasks until you switch back (the button then says <b>Run edits</b>) and the agents work on a <i>private copy</i> of the folder instead &mdash; your uncommitted edits included. When they finish you get the <b>diff</b>, file by file, with <b>Approve</b> and <b>Deny</b>. Nothing touches your folder unless you press Approve; no answer within __APPROVE_MIN__ minutes counts as No, and so does Halt. Any screen watching the task can answer.",
-      "<b>Manual or Auto</b> (shown while Write is on), like Claude Code&rsquo;s approvals. <b>Manual</b> is the card above: every change waits for you. <b>Auto</b> applies a change to your folder without asking &mdash; the diff is still in the transcript to read afterwards. Auto skips the question, never the rules: a file MAGI&rsquo;s review refuses is still refused, and if the project&rsquo;s automatic check fails the card comes back and asks. In A1, Auto means a change ships to main within minutes. Like Read/Write, a new page opens in Manual.",
-      "<b>Some changes are never offered.</b> A diff that reaches into <code>.git</code>, a key or env file, a credentials folder or an agent&rsquo;s own settings folder, or that leaves the folder through <code>..</code> or a link, is refused before you are asked. Write needs a git repository. Approved edits are applied but not committed until you say so. <b>A1 is writable too, but never committed or pushed from here</b>: A1&rsquo;s own auto-commit records every change and pushes it to main within minutes, so approving a change in A1 ships it &mdash; the card says so, and names anything that deploys. MAGI only fetches A1, never pulls, and refuses edits under <code>.github/</code>. A change to the engine&rsquo;s own code under <code>magi/</code> says so too: it does nothing until the engine restarts.",
+      "<b>Manual or Auto</b> (shown while Write is on), like Claude Code&rsquo;s approvals. <b>Manual</b> is the card above: every change waits for you. <b>Auto</b> applies a change to your folder without asking &mdash; the diff is still in the transcript to read afterwards. Auto skips the question, never the rules: a file MAGI&rsquo;s review refuses is still refused, and if the project&rsquo;s automatic check fails the card comes back and asks. In A1, Auto means a change ships to main right away. Like Read/Write, a new page opens in Manual.",
+      "<b>Some changes are never offered.</b> A diff that reaches into <code>.git</code>, a key or env file, a credentials folder or an agent&rsquo;s own settings folder, or that leaves the folder through <code>..</code> or a link, is refused before you are asked. Write needs a git repository. Approved edits are committed and pushed right away by Auto commit and Auto push (on unless you switch them off). <b>A1 too</b>: approving a change in A1 ships it to main &mdash; the card says so, and names anything that deploys. MAGI only fetches A1, never pulls, and refuses edits under <code>.github/</code>. A change to the engine&rsquo;s own code under <code>magi/</code> says so too: it does nothing until the engine restarts.",
       "<b>A check beside the diff.</b> Tap the <b>Check</b> pill to give a project a command that exits 0 when it is healthy &mdash; its tests, a build &mdash; picked from what MAGI finds in the folder, with <b>Try it now</b> to see it work. For a Write task it runs in the task&rsquo;s <i>private copy</i> (never your folder), with the folder&rsquo;s <code>node_modules</code> or <code>.venv</code> linked in for the run and removed after, and its pass or fail and output sit on the approval card. It informs Approve; it never decides it. By default you press <b>Run check</b> on the card, after reading the diff, and the approval clock waits while it runs, then gives you the full __APPROVE_MIN__ minutes again. <b>Automatically</b> runs it before the card appears &mdash; that runs the agent&rsquo;s code before anyone has looked at it, so the setting says so. The command stays on the engine PC, can only be set from that PC, never syncs, and runs in the same Windows job as the agents, so it cannot drive MAGI.",
       "<b>What each agent can do in Write.</b> <b>Claude</b> edits and creates files with its own tools, and moves, renames, copies and deletes files and folders with MAGI&rsquo;s workspace tools &mdash; all in the private copy &mdash; and runs commands with the sandboxed shell (below). <b>Codex</b> does the same through its own sandboxed shell. <b>Every other unit</b> sends its changes as blocks MAGI applies: SEARCH/REPLACE edits plus <code>DELETE</code>, <code>MOVE</code> and <code>COPY</code> lines. Before answering, any unit can ask for a file, a folder, a range of lines, or a <code>FIND</code> across the whole project. A move shows on the card as the old file deleted and the new one added, and nothing reaches your folder until you approve. In the <b>Check</b> sheet, <b>Agents may run it</b> lets Claude run the project&rsquo;s check itself while it works and fix what it reports &mdash; that one command, never another, and only in the copy. Every other unit gets the same loop from MAGI: after its edits are applied in the copy, MAGI runs the check, and if it fails, sends the unit the output and the files it changed for another try &mdash; at most two more rounds, then the card shows the diff as it is.",
       "<b>Also read other workspaces.</b> Tap <b>Also read</b> on the strip to tick other workspaces the agents may read while they work on this one &mdash; to compare, port, or follow how something is done there. They are read, never changed: Claude reads them with its own tools in Read mode and through read-only MAGI tools in Write mode, Codex at their folders, and every other unit by asking for <code>@name/&hellip;</code> files, with <code>FIND</code> searching them too. Only workspaces you added, with a folder on the engine&rsquo;s PC, can be picked; the choice is kept on each device.",
@@ -7387,8 +7387,8 @@ const HOW = [
       "<b>Every task starts by pulling.</b> Before any agent reads the folder, MAGI brings it up to date with its remote branch and says so as the first line of the transcript &mdash; an answer about stale code is a wrong answer. Your uncommitted edits are kept. If the pull clashes with your own commits it is undone, your folder is left as it was, and the task stops before any agent starts. A1 itself is only fetched, never pulled, because other sessions are working in it. The line under <b>Workspace</b> shows the branch, how far it is ahead of and behind its remote as of the last fetch, and how much is uncommitted.",
       "<b>Commit is a second press.</b> Once a change is applied, the card offers <b>Commit these files</b>: exactly the files that were applied, nothing else you had changed or staged, with a message drafted from what you asked and what the agent said it did. Edit it, press Commit, and your repository&rsquo;s own hooks run as they would for you. Nothing is pushed until you press Push (or switch on Auto push, below). MAGI does all of this itself &mdash; agents never get git, a shell or a credential.",
       "<b>Push is a third press.</b> After a commit the card offers <b>Push</b>, and whenever the branch is ahead the line under <b>Workspace</b> offers <b>Push &uarr;n</b>. It goes out as the <b>GitHub account</b> you chose for the project (tap the <b>Repository</b> pill), is <b>never forced</b>, and is refused with a reason if GitHub has commits you do not &mdash; the next task&rsquo;s pull brings them in. With no account chosen, an HTTPS remote is not pushed at all rather than going out as whatever login this PC remembers. A1 is never pushed from here.",
-      "<b>Auto commit and Auto push are off until you switch them on</b>, per project &mdash; tap either pill. With Auto commit on, a write task you approved is committed by MAGI with a &ldquo;magi:&rdquo; message once the project has been quiet for its window (3 minutes unless you pick another); a follow-up task folds into the same commit, and the line under <b>Workspace</b> counts it down with <b>Commit now</b> and <b>Cancel</b>. Only the applied files are committed, and it is refused &mdash; said on that line &mdash; when you have other files staged, a merge or rebase is in progress, or HEAD is detached. Auto push then pulls, and pushes only if the pull came back clean; never forced, and the Actions watch follows it. Both stay off for A1, whose own hook already commits and pushes.",
-      "<b>Your projects follow you between devices.</b> Their names, aliases, notes and switches (Auto commit, Auto push, the GitHub account), which engines hold a folder for them, your agent order and ticks, and a one-line record of each finished task travel in the same synced document as your deliberations &mdash; no extra listener, and one write per change however fast you tap. <b>Folder paths, tokens and logins never leave the PC</b>, and nothing is written while a task runs. Model choices and caps stay on each engine: they describe that PC&rsquo;s own CLIs. A change made on the engine&rsquo;s own page (127.0.0.1, which has no sync) reaches your other devices the next time a synced page connects to it; A1&rsquo;s switches stay off whatever a synced copy says. Open a session from Code Mode&rsquo;s <b>History</b> to read every turn&rsquo;s transcript, and continue it, on any device.",
+      "<b>Auto commit and Auto push are on</b> for every project, A1 included, the way Claude Code in VS Code commits and pushes at the end of its turn &mdash; tap either pill to switch them off for a project. A write task you approved is committed by MAGI with a &ldquo;magi:&rdquo; message as soon as the task ends, or after a wait you pick (a follow-up task then folds into the same commit, and the line under <b>Workspace</b> counts it down with <b>Commit now</b> and <b>Cancel</b>). Only the applied files are committed, and it is refused &mdash; said on that line &mdash; when you have other files staged, a merge or rebase is in progress, or HEAD is detached. Auto push then pulls, and pushes only if the pull came back clean; never forced, and the Actions watch follows it. With no GitHub account chosen it pushes as the PC&rsquo;s own git login.",
+      "<b>Your projects follow you between devices.</b> Their names, aliases, notes and switches (Auto commit, Auto push, the GitHub account), which engines hold a folder for them, your agent order and ticks, and a one-line record of each finished task travel in the same synced document as your deliberations &mdash; no extra listener, and one write per change however fast you tap. <b>Folder paths, tokens and logins never leave the PC</b>, and nothing is written while a task runs. Model choices and caps stay on each engine: they describe that PC&rsquo;s own CLIs. A change made on the engine&rsquo;s own page (127.0.0.1, which has no sync) reaches your other devices the next time a synced page connects to it; Open a session from Code Mode&rsquo;s <b>History</b> to read every turn&rsquo;s transcript, and continue it, on any device.",
       "<b>Coding agents cannot drive MAGI.</b> Codex needs a shell to read your files, and its sandbox cannot keep that shell away from the engine on this PC &mdash; so the engine refuses it instead: every agent runs in a Windows job, and any request from a process in that job is turned away, except Claude&rsquo;s read-only GitHub tools. An agent cannot approve its own change, push, or read your token. A web page from anywhere but MAGI&rsquo;s own is turned away too, before anything runs. To try a change to this page locally, open <b>http://127.0.0.1:8000/</b> &mdash; a copy opened straight from disk is no longer let in, because any website can pose as one.",
       "<b>GitHub tokens stay on the engine PC.</b> In <b>Accounts &rsaquo; GitHub</b>, <b>Sign in with GitHub</b> shows a short code: enter it at github.com/login/device on any device and approve, and MAGI can reach every repository the account can &mdash; new ones too, so <b>Workspaces &rsaquo; Clone from GitHub</b> opens any of them with no new token. A pasted token works the same way: MAGI checks it with GitHub, keeps it in the PC&rsquo;s credential store, and never shows it again &mdash; not on any screen, not in Firestore, not to an agent. Git is handed it only at the moment it asks, and only for github.com, so it never lands in the repository&rsquo;s config. A fine-grained token reaches only the repositories it lists.",
       "<b>The Repository pill opens the repository itself.</b> For a folder whose remote is on GitHub, the pill shows its branches (with how far each is ahead or behind), commits, pull requests with their checks, issues, Actions runs and releases &mdash; read as the project&rsquo;s GitHub account, fetched when you open a tab, and never on a timer. GitHub answers an unchanged question with &ldquo;nothing new&rdquo;, which costs none of the hourly limit. Nothing in it can change the repository.",
@@ -12708,24 +12708,22 @@ function renderCodeStrip() {
   const a = codeAuto(proj);
   const pend = a && a.pending;
   const ac = !a ? codePill("Auto commit", proj ? "…" : "off", "muted")
-    : a.locked ? codePill("Auto commit", "off · A1", "muted")
     : pend && pend.blocked ? codePill("Auto commit", "blocked", "warn")
     : pend && pend.due ? codePill("Auto commit", "", "warn")
     : codePill("Auto commit", a.commit ? "on" : "off", a.commit ? "ok" : "muted");
-  if (pend && pend.due && !pend.blocked && a && !a.locked) {
+  if (pend && pend.due && !pend.blocked && a) {
     const v = ac.querySelector(".code-pill-v");
     const cd = el("span", "code-auto-cd", codeAutoLeft(pend.due));
     cd.dataset.due = pend.due;
     v.append(document.createTextNode("in "), cd);
   }
-  const ap = codePill("Auto push", a && a.push && !a.locked ? "on" : a && a.locked ? "off · A1" : "off",
-    a && a.push && !a.locked ? "ok" : "muted");
+  const ap = codePill("Auto push", a && a.push ? "on" : "off", a && a.push ? "ok" : "muted");
   for (const pill of [ac, ap]) {
     if (!proj || !a) continue;
     pill.classList.add("is-btn");
     pill.setAttribute("role", "button");
     pill.tabIndex = 0;
-    pill.title = a.locked || "Auto commit and auto push for this project";
+    pill.title = "Auto commit and auto push for this project";
     pill.onclick = () => codeAutoSheet(proj);
     pill.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pill.click(); } };
   }
@@ -14226,14 +14224,13 @@ function codeAutoSheet(proj) {
   let busy = false;
   const draw = () => {
     body.textContent = "";
-    const a = codeAuto(proj) || { commit: false, push: false, window: 3, locked: "" };
+    const a = codeAuto(proj) || { commit: true, push: true, window: 0 };
     const g = CODE.git && CODE.git.pid === proj.id ? CODE.git.data : null;
     const acct = (proj.prefs || {}).github || "";
     body.append(el("div", "sheet-sub",
       "After a write task you approved, MAGI commits exactly the files it applied, with a "
-      + "“magi:” message, once the project has been quiet for the window below — a follow-up "
-      + "task folds into the same commit. Nothing else you changed is included."));
-    if (a.locked) body.append(el("div", "sheet-err", a.locked));
+      + "“magi:” message — right away, like Claude Code, or after the wait below, so a "
+      + "follow-up task folds into the same commit. Nothing else you changed is included."));
     const sw = (key, label, sub, on, disabled) => {
       const b = el("button", "ac-row");
       b.type = "button";
@@ -14249,21 +14246,21 @@ function codeAutoSheet(proj) {
     };
     sw("commit", "Auto commit", "Commit applied changes by themselves. Refused, and said so on the "
       + "repository line, when you have other files staged or a merge or rebase is in progress.",
-      a.commit, !!a.locked);
+      a.commit, false);
     const target = g && g.github && g.github.owner ? `${g.github.owner}/${g.github.repo}` : "its remote";
     sw("push", "Auto push", `Then pull, and only if that comes back clean, push to ${target}`
-      + (codeGhRemote(g) ? (acct ? ` as ${acct}` : " (choose a GitHub account first)") : "")
+      + (codeGhRemote(g) ? (acct ? ` as ${acct}` : " as this PC’s own git login") : "")
       + ". Never forced. The Actions watch follows it.",
-      a.push, !!a.locked || !a.commit);
+      a.push, !a.commit);
     body.append(el("label", "sheet-lbl", "Wait after the last applied change"));
     const win = el("div", "ac-win");
     win.setAttribute("role", "radiogroup");
-    for (const m of [1, 3, 5, 10]) {
-      const b = el("button", `code-git-act ${a.window === m ? "on" : ""}`, `${m} min`);
+    for (const m of [0, 1, 3, 5, 10]) {
+      const b = el("button", `code-git-act ${a.window === m ? "on" : ""}`, m ? `${m} min` : "None");
       b.type = "button";
       b.setAttribute("role", "radio");
       b.setAttribute("aria-checked", String(a.window === m));
-      b.disabled = !!a.locked || busy;
+      b.disabled = busy;
       b.onclick = () => save({ window: m });
       win.append(b);
     }
@@ -14305,7 +14302,8 @@ function renderCodeGit(proj) {
   }
   const d = g.data;
   const brText = d.detached ? `detached at ${d.head}` : d.branch || "no branch";
-  if (codeEngineHas("branches") && proj.write && proj.write.ok && proj.write.push !== false) {
+  if (codeEngineHas("branches") && proj.write && proj.write.ok && proj.write.branch !== false
+      && proj.write.push !== false) {
     // Track V4: switch or make a branch, open a pull request (never in A1).
     const b = el("button", "code-git-br", brText);
     b.type = "button";
@@ -14438,15 +14436,14 @@ async function codeBranchSheet(proj) {
 
 /* ── pushing from the repository line ─────────────────────────────────────
    ↑n is the push target: when the branch is ahead, the line offers Push.
-   Never for A1 (the engine refuses it too), never forced, and an HTTPS
-   remote goes out as the GitHub account the project names -- with none
-   chosen, the button is "Choose account" instead, because MAGI will not
-   push as whatever login the PC happens to remember. */
+   Never forced, and an HTTPS remote goes out as the GitHub account the
+   project names -- with none chosen, the button is "Choose account"
+   instead. (Auto push alone falls back to the PC's own git login, as
+   Claude Code's Stop hook does.) */
 const codeGhRemote = (d) => d && d.github && d.github.owner && (d.github.scheme === "https" || d.github.scheme === "http");
 
 function codeGitPushBits(proj, d, row) {
   const acct = (proj.prefs || {}).github || "";
-  // `push: false` is A1 (Phase 14b): writable, but its Stop hook pushes.
   const canWrite = !!(proj.write && proj.write.ok && proj.write.push !== false);
   const needsAcct = codeGhRemote(d);
   const p = CODE.push && CODE.push.pid === proj.id ? CODE.push : null;
@@ -14544,12 +14541,12 @@ function renderCodeRw(proj) {
   box.append(row);
   const auto = CODE.rw === "write" && CODE.ap === "auto" && canAuto;
   if (!w.ok && w.why) box.append(el("div", "code-rw-note", w.why));
-  // A1 (Phase 14b): writable, but its Stop hook commits and pushes.
+  // A1 (Phase 14b): approving ships it -- auto commit and push to main.
   // The engine's sentence is long; the switch says the part that matters.
   else if (w.ok && w.note) {
     const n = el("div", "code-rw-note", auto
-      ? "Auto in A1: changes ship without asking — its hook commits and pushes to main."
-      : "A1 ships on approval: its hook commits and pushes to main.");
+      ? "Auto in A1: changes ship without asking — committed and pushed to main."
+      : "A1 ships on approval: committed and pushed to main.");
     n.title = w.note;
     box.append(n);
   } else if (auto) {
@@ -15776,12 +15773,12 @@ function renderCodeApproval(t, ev, evs = t.events) {
   const chk = codeCheckEl(t, ev, open, evs);
   if (chk) box.append(chk);
   if (ev.ships && open) {
-    // A1 (Phase 14b): approving is shipping -- its auto-commit pushes.
+    // A1 (Phase 14b): approving is shipping -- auto commit and push.
     const a1sec = (codeApprovalSections(ev) || []).find((x) => x.ships);
     box.append(el("div", "code-appr-out is-warn",
       (a1sec ? `Approving ships the ${a1sec.main ? codeProjName(t.projectId) : "@" + a1sec.name} part: `
         : "Approving ships this: ")
-      + "A1’s auto-commit pushes it to main within minutes, and GitHub "
+      + "it is committed and pushed to main right away, and GitHub "
       + "Pages serves it."
       + (ev.deploy_files && ev.deploy_files.length
         ? ` ${ev.deploy_files.length === 1 ? ev.deploy_files[0] + " deploys" : ev.deploy_files.length
@@ -15822,20 +15819,12 @@ function renderCodeApproval(t, ev, evs = t.events) {
       box.append(el("div", "code-appr-out is-ok", how + (done ? ` Committed ${done.short}.` : "")));
       return box;
     }
-    if (applied.by_hook) {
-      // A1 (Phase 14b): no Commit button -- A1 commits and pushes itself.
-      box.append(el("div", "code-appr-out is-ok", how + " A1’s auto-commit records it and "
-        + "pushes it to main within minutes; Code Mode does not commit here."));
-      return box;
-    }
-    if (applied.repos && applied.repos.length > 1 && !applied.by_hook) {
+    if (applied.repos && applied.repos.length > 1) {
       // Track V3: one change, several repositories.
-      const a1 = applied.repos.filter((r) => r.by_hook);
       box.append(el("div", "code-appr-out is-ok", how + ` ${applied.repos.length} workspaces: `
         + applied.repos.map((r) => `${r.main ? codeProjName(t.projectId) : "@" + r.name} `
           + `(${r.files.length} file${r.files.length === 1 ? "" : "s"})`).join(", ") + "."
-        + (a1.length ? " A1’s part is committed and pushed by A1 itself." : "")
-        + (done ? "" : " Nothing is staged or committed.")));
+        + (done ? "" : auto ? " Auto commit records each part." : " Nothing is staged or committed.")));
       box.append(renderCodeCommit(t, applied, done));
       return box;
     }
@@ -15958,7 +15947,7 @@ function renderCodeCommit(t, applied, done) {
     }
     box.append(brow);
   }
-  const reps = (applied.repos || []).filter((r) => !r.by_hook);
+  const reps = applied.repos || [];
   box.append(el("div", "code-commit-note",
     `${applied.files.length} file${applied.files.length === 1 ? "" : "s"}, exactly the ones applied`
     + (reps.length > 1 ? `, one commit in each of the ${reps.length} repositories with this message. `
@@ -16039,7 +16028,7 @@ function renderCodePush(t, pushed) {
     box.append(el("div", "code-commit-note",
       `Pushing to ${target} needs a GitHub account for this project. MAGI does not push as `
       + "whatever login this PC happens to remember."));
-  } else if (((t.result && t.result.repos) || []).filter((r) => !r.by_hook).length > 1) {
+  } else if (((t.result && t.result.repos) || []).length > 1) {
     box.append(el("div", "code-commit-note",
       "Push each repository to its own remote, each as its own project’s GitHub account. "
       + "Never forced."));

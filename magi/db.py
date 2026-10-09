@@ -333,6 +333,35 @@ class Database:
             del dead[project_id]
             await self._set_meta(db, "deleted", dead)
 
+    async def auto_commit_everywhere_once(self) -> int:
+        """2026-10-08 (Tony): auto commit + auto push ON, no wait, for every
+        project this engine already holds -- A1 included. Once per database
+        (flag `auto_all_v1`), so a switch you turn off afterwards stays off.
+        Stored with a new updated_at, so this copy wins the cloud reconcile
+        over an older one that still says off. Returns how many changed."""
+        async with aiosqlite.connect(self.path) as db:
+            if await self._meta(db, "auto_all_v1", False):
+                return 0
+            cur = await db.execute("SELECT id, prefs FROM code_projects")
+            n, now = 0, _now()
+            for pid, raw in await cur.fetchall():
+                try:
+                    prefs = json.loads(raw or "{}")
+                except ValueError:
+                    prefs = {}
+                want = {"autoCommit": True, "autoPush": True, "batchWindowMin": 0}
+                if all(prefs.get(k) == v for k, v in want.items()):
+                    continue
+                prefs.update(want)
+                await db.execute("UPDATE code_projects SET prefs=?, updated_at=? WHERE id=?",
+                                 (json.dumps(prefs), now, pid))
+                n += 1
+            await self._set_meta(db, "auto_all_v1", True)
+            if n:
+                await self._bump_rev(db)
+            await db.commit()
+            return n
+
     async def code_sync_meta(self) -> dict:
         """{rev, deleted}: the two things beside the projects that a
         reconcile needs."""

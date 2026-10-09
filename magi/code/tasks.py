@@ -625,8 +625,8 @@ async def _review_and_apply(t: TaskState, sb: sandbox.Sandbox) -> dict[str, Any]
     t.approval_deadline = time.time() + APPROVAL_TIMEOUT
     # A change to the engine's own code does nothing until it restarts -- and
     # a bad one can stop it starting. Said on the card; never restarted here.
-    # And in A1 everything approved SHIPS within minutes (its auto-commit
-    # pushes), some of it as a deploy: the card says which.
+    # And in A1 everything approved SHIPS right away (auto commit and
+    # push), some of it as a deploy: the card says which.
     sections = []
     for w, psb, prv in reviews:
         own = await loop.run_in_executor(None, sandbox.is_engine_repo, psb.repo)
@@ -820,10 +820,8 @@ async def _apply(t: TaskState, reviews: list) -> dict[str, Any]:
     if res.ok:
         t.repo = str(sb.repo)
         draft = G.draft_message(t.prompt, (t.result or {}).get("text", ""), t.suggest_subject)
-        # A1 (Phase 14b): applied, and left for its Stop hook to commit.
-        hook = not await loop.run_in_executor(None, sandbox.engine_repo_allows, sb.repo, "commit")
         await publish(t, {"k": "applied", "files": res.files, "how": res.how,
-                          "draft": draft, **({"by_hook": True} if hook else {}),
+                          "draft": draft,
                           **({"branch": t.suggest_branch} if t.suggest_branch else {})})
         out = {"write": "applied", "files": res.files, "draft": draft,
                **({"branch": t.suggest_branch} if t.suggest_branch else {})}
@@ -866,29 +864,23 @@ async def _apply_parts(t: TaskState, reviews: list) -> dict[str, Any]:
                           "saved": r.saved_patch})
         return {"write": "conflict", "detail": where + r.message, "saved": r.saved_patch}
     draft = G.draft_message(t.prompt, (t.result or {}).get("text", ""), t.suggest_subject)
-    repos, flat, hook_any = [], [], False
+    repos, flat = [], []
     for (w, psb, _), r in zip(reviews, results):
-        hook = not await loop.run_in_executor(
-            None, sandbox.engine_repo_allows, psb.repo, "commit")
-        hook_any = hook_any or hook
         repos.append({"name": w.name if w else "", "main": w is None,
                       "project_id": w.project_id if w else t.project_id,
                       "repo": str(psb.repo), "files": r.files,
-                      "github": w.github if w else t.github, "by_hook": hook})
+                      "github": w.github if w else t.github})
         flat += [w.label(p) if w else p for p in r.files]
     main = next((x for x in repos if x["main"]), repos[0])
     t.repo = main["repo"]
     how = "merged" if any(r.how == "merged" for r in results) else "clean"
     await publish(t, {"k": "applied", "files": flat, "how": how, "draft": draft,
                       **({"branch": t.suggest_branch} if t.suggest_branch else {}),
-                      "repos": [{k: x[k] for k in ("name", "main", "files", "by_hook")}
-                                for x in repos],
-                      **({"by_hook": True} if all(x["by_hook"] for x in repos) else {})})
+                      "repos": [{k: x[k] for k in ("name", "main", "files")}
+                                for x in repos]})
     out = {"write": "applied", "files": flat, "draft": draft, "repos": repos,
            **({"branch": t.suggest_branch} if t.suggest_branch else {})}
     for x in repos:
-        if x["by_hook"]:
-            continue
         pend = await autocommit.on_applied(project_id=x["project_id"], repo=x["repo"],
                                            files=x["files"], draft=draft, task_id=t.id)
         if pend is not None:
@@ -1053,7 +1045,7 @@ async def _commit_parts(t: TaskState, r: dict[str, Any], message: str,
     commits: list[dict[str, Any]] = []
     try:
         for x in r["repos"]:
-            if x.get("commit") or x.get("by_hook") or not x.get("files"):
+            if x.get("commit") or not x.get("files"):
                 continue
             moved = await _to_branch(Path(x["repo"]), branch)
             if moved:

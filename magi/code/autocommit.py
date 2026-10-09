@@ -1,7 +1,10 @@
 """Auto commit / auto push (Phase 12): the two presses after Approve, made by
-MAGI on a timer -- only where you switched them on.
+MAGI on a timer. On for every project by default since 2026-10-08, with no
+wait: the same as Claude Code's Stop hook committing and pushing at the end
+of its turn. Either switch can still be turned off per project.
 
-    write task applied ─► pending commit of exactly its files (3 min)
+    write task applied ─► pending commit of exactly its files (window: 0 =
+                          as soon as the task ends)
         ─► another applied task on the same project: its files fold in and
            the timer starts again
         ─► timer ends ─► checks ─► git.commit (explicit paths, --only, hooks
@@ -11,11 +14,11 @@ MAGI on a timer -- only where you switched them on.
         ─► the console sees the pushed SHA on /projects/{id}/git and starts
            the Actions watch, as it does for a push you pressed
 
-Both switches are per project and off by default, and **both are always off
-for MAGI's own repository (A1)**: its Stop hook already commits and pushes
-everything, and two systems staging one tree is how one silently absorbs the
-other. That rule is kept here as well as in the route, so a stored pref from
-anywhere can never turn it on.
+MAGI's own repository (A1) included. Its Stop hook commits everything at
+the end of a Claude turn (`git add -A`); MAGI commits only the files it
+applied (`--only`), so neither takes the other's work, and its push pulls
+only when A1's tree is clean (a rebase under a live session's edits is what
+sandbox.ENGINE_REPO's `pull: no` is about).
 
 The checks are refusals, not repairs. A commit is not made -- and the line
 says why -- when the repository is mid-merge/rebase, HEAD is detached, one of
@@ -41,7 +44,7 @@ from typing import Any, Awaitable, Callable
 from . import git as G
 
 PREFIX = "magi: "        # distinct from the hook's `auto:` and `auto: claude code`
-DEFAULT_WINDOW_MIN = 3
+DEFAULT_WINDOW_MIN = 0
 BUSY_RETRY = 30          # seconds: a write task still running on the project
 LAST_SHOWN = 30 * 60     # how long an outcome stays on the repository line
 MINUTE = 60              # seconds in a window minute (tests shrink it)
@@ -79,19 +82,19 @@ def _engine_repo(top: Path) -> bool:
     return is_engine_repo(top)
 
 
-def guard_prefs(prefs: dict[str, Any], root: Path | None) -> dict[str, Any]:
-    """Prefs as stored: auto push needs auto commit, and neither is ever on
-    for MAGI's own repository, whatever was sent."""
+def guard_prefs(prefs: dict[str, Any], root: Path | None = None) -> dict[str, Any]:
+    """Prefs as stored: auto push needs auto commit; the window is 0-30
+    minutes (0 = as soon as the task ends). `root` is unused since A1 stopped
+    being special (2026-10-08); callers still pass it."""
     out = dict(prefs)
     out["autoCommit"] = bool(out.get("autoCommit"))
     out["autoPush"] = bool(out.get("autoPush")) and out["autoCommit"]
+    w = out.get("batchWindowMin")
     try:
-        w = int(out.get("batchWindowMin") or DEFAULT_WINDOW_MIN)
+        w = DEFAULT_WINDOW_MIN if w is None or w == "" or isinstance(w, bool) else int(w)
     except (TypeError, ValueError):
         w = DEFAULT_WINDOW_MIN
-    out["batchWindowMin"] = max(1, min(30, w))
-    if root is not None and _engine_repo(root):
-        out["autoCommit"] = out["autoPush"] = False
+    out["batchWindowMin"] = max(0, min(30, w))
     return out
 
 
@@ -133,10 +136,13 @@ def message(drafts: list[str]) -> str:
 
 # ── scheduling ────────────────────────────────────────────────────────────
 
-def _running_write(project_id: str) -> bool:
+def _running_write(project_id: str, mine: list[str] = ()) -> bool:
+    """A write task on the project is still running -- not counting the
+    ones this commit is for (`mine`): a 0-minute window fires while the task
+    that applied is finishing, and waiting for ITSELF would add 30 s."""
     from . import tasks as T
     return any(t.project_id == project_id and t.mode == "write" and not t.done
-               for t in T.TASKS.values())
+               and t.id not in mine for t in T.TASKS.values())
 
 
 async def on_applied(*, project_id: str, repo: str, files: list[str], draft: str,
@@ -148,7 +154,7 @@ async def on_applied(*, project_id: str, repo: str, files: list[str], draft: str
     top = Path(repo)
     loop = asyncio.get_running_loop()
     prefs = guard_prefs(prefs or {}, None)
-    if not prefs["autoCommit"] or await loop.run_in_executor(None, _engine_repo, top):
+    if not prefs["autoCommit"]:
         return None
     # One already committing is left to finish: these files wait in the
     # NEXT pending commit rather than joining one that has started. Its
@@ -222,7 +228,7 @@ async def fire(project_id: str, *, now: bool = False) -> dict[str, Any] | None:
     if p.timer is not None:
         p.timer.cancel()
         p.timer = None
-    if not now and _running_write(project_id):
+    if not now and _running_write(project_id, p.tasks):
         # A follow-up is being worked on; it will fold in when it applies.
         _arm(p, BUSY_RETRY)
         return None
@@ -269,8 +275,6 @@ FIXABLE = {"in_progress", "detached", "conflicts", "staged"}
 def check(top: Path, files: list[str]) -> tuple[str, str]:
     """("", "") when an auto commit of `files` may go ahead; otherwise
     (code, sentence). The refusals from the module docstring."""
-    if _engine_repo(top):
-        return "read_only_project", "MAGI's own repository is never auto-committed."
     st = G.status(top)
     if st.state:
         return "in_progress", (f"Not auto-committed: the repository is in the middle of a "
@@ -306,20 +310,30 @@ def _commit(p: Pending) -> dict[str, Any]:
 
 
 def _push(p: Pending, done: dict[str, Any], login: str) -> dict[str, Any]:
-    """Pull, and only on a clean pull, push. Never forced."""
+    """Pull, and only on a clean pull, push. Never forced.
+
+    As the project's GitHub account; with none chosen, as this PC's own git
+    login, the way Claude Code's Stop hook pushes (auto push only -- the
+    Push button still asks for an account). In A1 the pull happens only
+    when the tree is clean: other sessions' uncommitted edits are never
+    autostashed under them; a push refused as behind then waits for the
+    next one."""
     from .tasks import git_auth
     top = Path(p.top)
     auth = git_auth(login)
     head = done["text"]
-    try:
-        pl = G.pull(top, auth)
-    except G.GitError as e:
-        pl = G.Pull(False, text=e.message)
+    if _engine_repo(top) and G.status(top).entries:
+        pl = G.Pull(True, skipped=True, text="A1 has uncommitted work; not pulled.")
+    else:
+        try:
+            pl = G.pull(top, auth)
+        except G.GitError as e:
+            pl = G.Pull(False, text=e.message)
     if not pl.ok:
         return {**done, "push": {"ok": False, "code": "pull_failed", "text": pl.text},
                 "text": f"{head} Not pushed: {pl.text}"}
     try:
-        res = G.push(top, auth)
+        res = G.push(top, auth, machine=True)
     except G.GitError as e:
         res = G.Push(False, e.code, e.message)
     d = res.to_dict()
@@ -329,15 +343,14 @@ def _push(p: Pending, done: dict[str, Any], login: str) -> dict[str, Any]:
 
 # ── what the console reads ────────────────────────────────────────────────
 
-def view(project_id: str, prefs: dict[str, Any], *, locked: str = "") -> dict[str, Any]:
+def view(project_id: str, prefs: dict[str, Any]) -> dict[str, Any]:
     """The `auto` block of /projects/{id}/git."""
     g = guard_prefs(prefs or {}, None)
     p = PENDING.get(project_id)
     last = LAST.get(project_id)
     if last and time.time() - last["at"] > LAST_SHOWN:
         last = None
-    return {"commit": g["autoCommit"] and not locked, "push": g["autoPush"] and not locked,
-            "window": g["batchWindowMin"], "locked": locked,
+    return {"commit": g["autoCommit"], "push": g["autoPush"], "window": g["batchWindowMin"],
             "pending": p.to_dict() if p else None, "last": last}
 
 

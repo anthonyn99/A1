@@ -42,7 +42,7 @@ console.log('The strip');
 const strip = fn('function renderCodeStrip()');
 ok('the pills are no longer hard-coded off', !/codePill\("Auto commit", "off", "muted"\)\);\s*\n\s*strip\.append\(codePill\("Auto push", "off"/.test(strip));
 ok('they read the project\'s switches', /const a = codeAuto\(proj\)/.test(strip) && /a\.commit \? "on" : "off"/.test(strip));
-ok('A1 reads as locked', /a\.locked \? codePill\("Auto commit", "off · A1"/.test(strip));
+ok('A1 is not special any more (2026-10-08)', !/a\.locked/.test(strip) && !/off · A1/.test(strip));
 ok('a pending commit counts down', /code-auto-cd/.test(strip) && /dataset\.due = pend\.due/.test(strip));
 ok('tapping a pill opens the switches', /pill\.onclick = \(\) => codeAutoSheet\(proj\)/.test(strip));
 
@@ -50,10 +50,10 @@ console.log('\nThe switches');
 const sheet = fn('function codeAutoSheet(proj)');
 ok('drawn here, as role=switch buttons', /setAttribute\("role", "switch"\)/.test(sheet) && /aria-checked/.test(sheet));
 ok('no native checkbox anywhere in it', !/type = "checkbox"|input\[type=checkbox\]|"checkbox"/.test(sheet));
-ok('locked with the reason on A1', /if \(a\.locked\) body\.append\(el\("div", "sheet-err", a\.locked\)\)/.test(sheet)
-   && /a\.commit, !!a\.locked\)/.test(sheet));
-ok('auto push needs auto commit', /a\.push, !!a\.locked \|\| !a\.commit\)/.test(sheet));
-ok('the window choices', /\[1, 3, 5, 10\]/.test(sheet));
+ok('no lock on A1', !/a\.locked/.test(sheet) && /a\.commit, false\)/.test(sheet));
+ok('auto push needs auto commit', /a\.push, !a\.commit\)/.test(sheet));
+ok('the window choices, None first', /\[0, 1, 3, 5, 10\]/.test(sheet) && /m \? `\$\{m\} min` : "None"/.test(sheet));
+ok('no account: the PC own git login', /as this PC’s own git login/.test(sheet));
 ok('it saves through the engine route', /codePost\(`\/projects\/\$\{encodeURIComponent\(proj\.id\)\}\/auto`, change\)/.test(sheet));
 
 console.log('\nThe repository line');

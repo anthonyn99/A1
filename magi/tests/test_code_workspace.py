@@ -286,14 +286,14 @@ def test_nothing_resolves_to_nothing():
 
 # ── defaults ───────────────────────────────────────────────────────────────
 
-def test_a_new_project_starts_read_only_and_never_commits():
-    """A new project's first agent must not be able to change anything, and
-    auto-commit must never arrive switched on -- A1 already commits through
-    its own Stop hook, and two systems staging one tree is how one silently
-    absorbs the other."""
+def test_a_new_project_starts_read_only_and_auto_commits():
+    """A new project's first agent must not be able to change anything; what
+    you approve is committed and pushed right away, like Claude Code's Stop
+    hook (2026-10-08)."""
     assert W.DEFAULT_PREFS["permissionMode"] == "plan"
-    assert W.DEFAULT_PREFS["autoCommit"] is False
-    assert W.DEFAULT_PREFS["autoPush"] is False
+    assert W.DEFAULT_PREFS["autoCommit"] is True
+    assert W.DEFAULT_PREFS["autoPush"] is True
+    assert W.DEFAULT_PREFS["batchWindowMin"] == 0
 
 
 def test_project_ids_are_unique():

@@ -434,7 +434,9 @@ def test_a_bad_token_through_the_route_is_a_sentence(store, monkeypatch):
     assert "expired" in d["message"] and TOKEN not in json.dumps(d)
 
 
-def test_magis_own_repository_is_never_pushed(monkeypatch, tmp_path):
+def test_the_push_route_asks_the_engine_repo_policy(monkeypatch, tmp_path):
+    """A1 may be pushed since 2026-10-08; the gate stays, so closing
+    ENGINE_REPO["push"] again refuses it."""
     import asyncio
     from magi.code import routes as R
     from magi.code import sandbox as SB
@@ -443,6 +445,7 @@ def test_magis_own_repository_is_never_pushed(monkeypatch, tmp_path):
         return {"name": "A1", "prefs": {"github": "octo"}}, tmp_path, None
     monkeypatch.setattr(R, "_project_here", here)
     monkeypatch.setattr(SB, "is_engine_repo", lambda root: True)
+    monkeypatch.setitem(SB.ENGINE_REPO, "push", False)
     called = []
     monkeypatch.setattr("magi.code.git.push", lambda *a: called.append(a))
     d = asyncio.run(R.push_project("p", {}))

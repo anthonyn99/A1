@@ -521,35 +521,37 @@ def patch_dir(profile_data: Path) -> Path:
 # 2026-09-24 (Phase 14b), one answer per action -- each call site asks about
 # its own action, never "is this A1?", so opening one cannot open another:
 #   write   yes: sandbox -> diff -> your approval -> applied, like any project.
-#   commit  no:  A1's Stop hook commits (`auto:`) at the end of every Claude
-#                session, applied Code Mode changes included.
-#   push    no:  the Stop hook pushes; A1 keeps exactly one pusher.
+#   commit  yes: (2026-10-08, Tony) MAGI commits what it applied, like any
+#                project -- exactly those files (`--only`), so a Claude
+#                session's uncommitted work stays out; its Stop hook
+#                commits that at the end of its own turn.
+#   push    yes: as for commit. The Stop hook pushes too; a push never
+#                forces, so two pushers only ever add commits.
 #   pull    no:  fetch only -- a rebase under live sessions and the hook is
-#                worse than a stale answer.
-#   auto    no:  auto commit/push, for the same reason as commit.
+#                worse than a stale answer. (Auto push pulls A1 only when
+#                its tree is clean: autocommit._push.)
+#   auto    yes: auto commit/push, on by default like everywhere else.
 #   branch  no:  (Track V4) A1's checkout is the one every session and its
 #                auto-commit work on; switching it would ship their next
 #                commit to some other branch, or take main away from them.
-ENGINE_REPO = {"write": True, "commit": False, "push": False, "pull": False, "auto": False,
+ENGINE_REPO = {"write": True, "commit": True, "push": True, "pull": False, "auto": True,
                "branch": False}
 
 ENGINE_REPO_WHY = {
-    "commit": "A1 commits itself: its auto-commit records every change and pushes it "
-              "within minutes. Code Mode does not commit here.",
-    "push": "A1 pushes itself (its auto-commit, and the Stop hook); Code Mode does not "
-            "push A1.",
+    "commit": "Code Mode does not commit in MAGI's own repository.",
+    "push": "Code Mode does not push MAGI's own repository.",
     "write": "MAGI's own repository is read-only to Code Mode.",
     "branch": "A1 stays on its branch: every session and its auto-commit work there. "
               "Code Mode does not switch or make branches in A1.",
 }
 
-# A1 SHIPS what is applied: its always-on auto-commit pushes every change to
-# main within a minute or two, GitHub Pages serves the pages, and these paths
+# A1 SHIPS what is applied: auto commit/push sends every change to main
+# right away, GitHub Pages serves the pages, and these paths
 # deploy on push (.github/workflows). Said on the approval card, per file.
 ENGINE_REPO_DEPLOYS = ("workers/", "workers2/", "V1/workers/", "desktop/shield/")
 # Refused in A1 outright: a workflow runs with the repository's secrets, and
 # with the push automatic, approving the diff would be the only gate.
-ENGINE_REPO_DENY = {".github/": "A1 pushes itself within minutes and a workflow runs "
+ENGINE_REPO_DENY = {".github/": "A1 is pushed right away and a workflow runs "
                                 "with the repository's secrets; change workflows in a "
                                 "normal session, not through Code Mode"}
 
