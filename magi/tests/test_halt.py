@@ -135,7 +135,10 @@ def test_both_fan_out_paths_go_through_it():
     Brainstorm use; app.py must not grow a second one.
     """
     src = (REPO / "magi" / "engine" / "orchestrator.py").read_text(encoding="utf-8")
-    assert src.count("self._ask(p, prompt_for(p), ctx, ") == 2
+    # Both paths call the one `ask` helper, which goes through _ask (and
+    # through it again for a member re-asked after Interrupt now).
+    assert src.count("await ask(p, ") == 2
+    assert src.count("self._ask(p, prompt_for(p), ctx, ev, cancel)") == 1
     app = (REPO / "magi" / "app.py").read_text(encoding="utf-8")
     assert "await p.ask(" not in app and "_fan_out" not in app, (
         "Brainstorm fans out through orch.gather, not a copy of it"

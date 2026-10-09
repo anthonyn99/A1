@@ -15,20 +15,22 @@ acceptEdits; Bash is not offered and a call to it is refused.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import subprocess
 import sys
 import threading
+import time
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
 
-from magi.code import tasks as T
+from magi.code import followup as F, tasks as T
 from magi.code.agents import claude_cli as CC, slots
-from magi.code.agents.base import Mode, Task
+from magi.code.agents.base import Mode, Outcome, Task
 
 EXE = slots.cli_path("claude")
 pytestmark = pytest.mark.skipif(not EXE, reason="Claude Code CLI not installed")
@@ -117,16 +119,21 @@ class FakeAPI:
         return out
 
 
-def _run(task: Task, api: FakeAPI, cfgdir: Path):
-    # (the prompt goes in exactly as ClaudeCLIAgent sends it)
+def _env(api: FakeAPI, cfgdir: Path) -> dict:
     env = {k: v for k, v in os.environ.items() if not k.startswith(("ANTHROPIC_", "CLAUDE_"))}
     env.update({"CLAUDE_CONFIG_DIR": str(cfgdir), "ANTHROPIC_API_KEY": "sk-ant-offline-test",
                 "ANTHROPIC_BASE_URL": api.url, "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
                 "DISABLE_AUTOUPDATER": "1"})
+    return env
+
+
+def _run(task: Task, api: FakeAPI, cfgdir: Path):
+    # (the prompt goes in exactly as ClaudeCLIAgent sends it)
+    env = _env(api, cfgdir)
     argv = CC.build_argv(EXE, task, model="claude-haiku-4-5")
     r = subprocess.run(argv, cwd=str(task.root), env=env, capture_output=True, text=True,
-                       input=task.prompt_for("claude:system", frame=CC.write_frame(task),
-                                             refs_how=CC.refs_how(task)),
+                       input=CC.stdin_for(task.prompt_for("claude:system", frame=CC.write_frame(task),
+                                                          refs_how=CC.refs_how(task))),
                        encoding="utf-8", errors="replace", timeout=240)
     evs = [e for e in (CC.parse_line(ln) for ln in r.stdout.splitlines()) if e]
     return r, evs
@@ -309,3 +316,97 @@ def test_claude_runs_the_sandboxed_shell_in_both_modes(setup, tmp_path, mode):
             assert "rc=1" in res[2][1] and not (ws / "made.txt").exists(), "Read mode changes nothing"
     finally:
         shutil.rmtree(ws, ignore_errors=True)
+
+
+# ── live steering: a message typed mid-run, the real agent and Stream ──────
+
+def _slow(api: FakeAPI, delay: float) -> list[str]:
+    """Each model call takes `delay` seconds -- time to type into -- and
+    every request's messages are kept, as JSON."""
+    seen, orig = [], api._answer
+
+    def slow(h, body):
+        seen.append(json.dumps(body.get("messages")))
+        time.sleep(delay)
+        orig(h, body)
+    api._answer = slow
+    return seen
+
+
+def _live_agent(monkeypatch, tmp_path, api, cfg):
+    from magi.code.agents import limits, models
+    for mod in (limits, models):
+        monkeypatch.setattr(mod, "data_dir", lambda: tmp_path / "data")
+    monkeypatch.setattr(CC, "env_for_task", lambda slot, task: _env(api, cfg))
+    starts = []
+
+    class Counted(CC.Stream):
+        def __init__(self, *a, **k):
+            starts.append(a[0])
+            super().__init__(*a, **k)
+    monkeypatch.setattr(CC, "Stream", Counted)
+    return CC.ClaudeCLIAgent("system", model="claude-haiku-4-5"), starts
+
+
+async def _steered(agent, task, act, at):
+    events = []
+
+    async def emit(e):
+        events.append(e)
+    job = asyncio.ensure_future(agent.run(task, emit=emit, cancel=asyncio.Event()))
+    await asyncio.sleep(at)
+    act()
+    return await job, events
+
+
+def test_a_message_typed_mid_run_joins_the_running_turn(setup, tmp_path, monkeypatch):
+    """VS Code parity: no stop, no second process -- the CLI folds the
+    message into the turn it is running, after the tool it is on."""
+    ws, _, cfg = setup
+    api = FakeAPI([("Read", {"file_path": str(ws / "notes.txt")}),
+                   ("Read", {"file_path": str(ws / "dead.txt")})])
+    seen = _slow(api, 1.5)
+    agent, starts = _live_agent(monkeypatch, tmp_path, api, cfg)
+    task = Task("t7", "look", ws, Mode.READ)
+    steer = F.Steer()
+    task.steer = steer
+    steer.running("cli")
+    sent = []
+    steer.on_deliver = lambda ids, how: sent.append((ids, how))
+    hows = []
+    try:
+        res, events = asyncio.run(_steered(
+            agent, task, lambda: hows.append(steer.add("ZEBRA-STEER: count the lines")), 0.8))
+    finally:
+        api.srv.shutdown()
+    assert hows == ["queued"], "a live agent is never stopped for a message"
+    assert res.outcome == Outcome.OK, res
+    assert len(starts) == 1, "one process, start to finish"
+    assert sent == [(["m1"], "live")]
+    later = [m for m in seen if "ZEBRA-STEER" in m]
+    assert later and "while you were working" in later[0]
+    assert not any(e["k"] == "note" and "Interrupted" in e["text"] for e in events)
+
+
+def test_interrupt_now_stops_the_turn_and_the_message_starts_the_next(setup, tmp_path, monkeypatch):
+    ws, _, cfg = setup
+    api = FakeAPI([("Read", {"file_path": str(ws / "notes.txt")})])
+    seen = _slow(api, 2.0)
+    agent, starts = _live_agent(monkeypatch, tmp_path, api, cfg)
+    task = Task("t8", "look", ws, Mode.READ)
+    steer = F.Steer()
+    task.steer = steer
+    steer.running("cli")
+
+    def act():
+        steer.add("ZEBRA-NOW: stop and list the folder instead")
+        assert steer.interrupt_now() == "live"
+    try:
+        res, events = asyncio.run(_steered(agent, task, act, 0.8))
+    finally:
+        api.srv.shutdown()
+    assert res.outcome == Outcome.OK, res
+    assert len(starts) == 1
+    assert any("ZEBRA-NOW" in m for m in seen)
+    assert any(e["k"] == "note" and "Interrupting" in e["text"] for e in events)
+    assert not steer.items, "delivered"

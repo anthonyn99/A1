@@ -390,7 +390,11 @@ def test_the_check_reaches_the_tools_only_when_agents_may_run_it(repo):
     assert b.seen["side"]["real"] == str(repo)
 
 
-def test_read_mode_has_no_workspace_tools(repo):
+def test_read_mode_has_no_workspace_tools(repo, monkeypatch):
+    # Without the agents' shell (Track W2 gives read mode a shell-only
+    # server, on a PC that has one): nothing else reaches read mode.
+    from magi.code import shell as SH
+    monkeypatch.setattr(SH, "get", lambda pid: {"enabled": False, "internet": False})
     got = {}
 
     class Reader(CodingAgent):

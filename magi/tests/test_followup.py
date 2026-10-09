@@ -412,7 +412,7 @@ def test_a_note_route_applies_then_holds(api):
     client, app_mod = api
     st = _live(app_mod, "r1")
     r = client.post("/api/runs/r1/note", json={"text": "  in French  "})
-    assert r.status_code == 200 and r.json() == {"text": "in French", "applied": "verdict"}
+    assert r.status_code == 200 and r.json() == {"text": "in French", "applied": "verdict", "id": "n1"}
     st["steer"].close_gather()
     assert client.post("/api/runs/r1/note", json={"text": "later"}).json()["applied"] == "followup"
     assert [n["applied"] for n in st["notes"]] == ["verdict", "followup"]

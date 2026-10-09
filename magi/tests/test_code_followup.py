@@ -591,7 +591,7 @@ def test_a_message_at_the_card_revises_in_the_same_copy_and_asks_again(repo):
             cards.append(ev)
             if len(cards) == 1:
                 r = await T.message(t, "make it 3, not 2")
-                assert r == {"ok": True, "accepted": "revise"}
+                assert r == {"ok": True, "accepted": "revise", "id": "m1"}
                 assert T.decide(t, True) == (False, "Already answered.")
             else:
                 assert T.decide(t, True) == (True, "")
