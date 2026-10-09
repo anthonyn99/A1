@@ -27830,11 +27830,15 @@ function cloudOpenRun(id) { return openSession(historyGroupOf(id)); }
    your model quota. There is nothing to mint a token against, so a verified
    device is recorded locally.
 
-   The honest consequence: changing the password does NOT evict devices already
-   trusted, the way it does in Insight. Removing the lock does unlock them, and
-   "Lock now" revokes this device immediately. If eviction ever matters, the
-   fix is a fingerprint returned by /auth/journal/verify -- it returns only
-   {ok} today, which is why this is written down rather than assumed. */
+   Changing the password evicts every trusted device, and every enrolled
+   biometric with it. /auth/journal/status returns `ver`, a fingerprint of the
+   current password record (a hash of its salt, which every set, change and
+   reset replaces). A device's session and its biometric each remember the
+   `ver` they were made under; boot, a biometric unlock and coming back to the
+   tab all compare it with the live one, and a mismatch drops both, so the new
+   password has to be typed before a fingerprint can be enrolled again.
+   Without this, anyone who learned the password once could enrol their own
+   fingerprint and keep walking in however often it changed. */
 const AUTH_API = "https://taskhub-reminders.av1.workers.dev";
 /* Per profile, so Tony's password and Veda's are separate records on the same
    worker. Tony's entry id is unchanged from before profiles existed, which is
@@ -27846,12 +27850,15 @@ const LOCK_EMAIL = "anthonypn99@gmail.com";
 const LOCK_LS = lsKey("lock_session");
 const LOCKED_LS = lsKey("locked");
 const BIO_APP = "magi", BIO_ID = PROFILE.id;
+const BIO_VER_LS = lsKey("bio_ver");   // the password `ver` this device's biometric was enrolled under
 
 const LOCK = {
   mode: "unlock",      // unlock | setup | reset | change | manage
   session: null,       // { at } once this device is trusted
   hasLock: false,
   bioRemove: false,
+  ver: null,           // the live password fingerprint, once the lock service has said
+  bioDropped: false,   // a password change just revoked this device's biometric
   box: null,
   // Has lockBoot finished deciding? Whether this page is locked is a NETWORK
   // answer, and it can land well after the engine has listed its units -- so
@@ -27864,7 +27871,34 @@ const lockGet = () => { try { return JSON.parse(localStorage.getItem(LOCK_LS) ||
 const lockPut = (v) => { try { v ? localStorage.setItem(LOCK_LS, JSON.stringify(v)) : localStorage.removeItem(LOCK_LS); } catch {} };
 const lockedFlag = () => { try { return localStorage.getItem(LOCKED_LS) === "1"; } catch { return false; } };
 const setLockedFlag = (on) => { try { on ? localStorage.setItem(LOCKED_LS, "1") : localStorage.removeItem(LOCKED_LS); } catch {} };
-const bioReady = () => !!(window.Bio && Bio.isRegistered(BIO_APP, BIO_ID));
+const bioVerGet = () => { try { return localStorage.getItem(BIO_VER_LS) || ""; } catch { return ""; } };
+const bioVerPut = (v) => { try { v ? localStorage.setItem(BIO_VER_LS, v) : localStorage.removeItem(BIO_VER_LS); } catch {} };
+/** Forget this device's biometric: the password it was enrolled under is gone. */
+function bioDrop() {
+  if (window.Bio && Bio.isRegistered(BIO_APP, BIO_ID)) { Bio.unregister(BIO_APP, BIO_ID); LOCK.bioDropped = true; }
+  bioVerPut("");
+}
+/** Enrolled AND enrolled under the current password. One from before the
+ *  password changed (or from before `ver` existed) is dropped on sight. */
+const bioReady = () => {
+  if (!(window.Bio && Bio.isRegistered(BIO_APP, BIO_ID))) return false;
+  if (LOCK.ver && bioVerGet() !== LOCK.ver) { bioDrop(); return false; }
+  return true;
+};
+/** The live password fingerprint, or null when the lock service is unreachable. */
+async function freshVer() {
+  try { const st = await authPost("/auth/journal/status", {}); return (st && st.ver) || null; } catch { return null; }
+}
+/** The password changed under this device: forget its session and its
+ *  biometric, and ask for the new password. */
+function passwordChangedElsewhere() {
+  lockPut(null);
+  LOCK.session = null;
+  bioDrop();
+  lockNowAction();
+  lockMsg("The password was changed — enter the new one."
+    + (LOCK.bioDropped && window.Bio ? " " + Bio.label() + " needs enabling again on this device." : ""));
+}
 
 async function authPost(path, body) {
   const r = await fetch(AUTH_API + path, {
@@ -28277,13 +28311,19 @@ async function bioUnlock() {
     return;
   }
   if (!lockGet()) { lockMsg("Enter your password once on this device."); return; }
+  // The credential only releases a session. Make sure the password it was
+  // made under is still the password; offline, the boot-time answer stands.
+  const ver = await freshVer();
+  if (ver) LOCK.ver = ver;
+  if (LOCK.ver && (lockGet().ver !== LOCK.ver || bioVerGet() !== LOCK.ver)) { passwordChangedElsewhere(); return; }
   LOCK.session = lockGet();
   setLockedFlag(false);
   hideLock();
 }
 
 async function enrolBio() {
-  const r = await Bio.register(BIO_APP, BIO_ID, "MAGI");
+  const r = await Bio.register(BIO_APP, BIO_ID, { rpName: "MAGI", displayName: "MAGI" });
+  if (r && r.ok) { bioVerPut(LOCK.ver || ""); LOCK.bioDropped = false; }
   lockMsg(r && r.ok ? Bio.label() + " enabled on this device." : "Could not enable " + Bio.label() + ".", r && r.ok);
   if (r && r.ok) renderLock();
 }
@@ -28323,7 +28363,8 @@ async function lockSubmit() {
     if (!p1) return;
     const v = await authPost("/auth/journal/verify", { password: p1 });
     if (v && v.ok) {
-      LOCK.session = { at: Date.now() };
+      LOCK.ver = (await freshVer()) || LOCK.ver;
+      LOCK.session = { at: Date.now(), ver: LOCK.ver };
       lockPut(LOCK.session);
       setLockedFlag(false);
       hideLock();
@@ -28360,7 +28401,18 @@ async function lockSubmit() {
     // remove-then-set, the same two-step the rest of the suite uses.
     await authPost("/auth/journal/remove-lock", { password: p1 });
     const st = await authPost("/auth/journal/set-lock", { password: p2, hint });
-    if (st && st.ok) { lockMsg("Password changed.", true); LOCK.mode = "manage"; setTimeout(renderLock, 700); }
+    if (st && st.ok) {
+      // Every other device is evicted by the new `ver`; this one carries on
+      // under it, but its biometric belonged to the old password too.
+      const hadBio = !!(window.Bio && Bio.isRegistered(BIO_APP, BIO_ID));
+      LOCK.ver = await freshVer();
+      LOCK.session = { at: Date.now(), ver: LOCK.ver };
+      lockPut(LOCK.session);
+      bioDrop();
+      lockMsg("Password changed. Biometric unlock was turned off on every device.", true);
+      LOCK.mode = "manage";
+      setTimeout(() => { renderLock(); if (hadBio) maybeOfferBio(); }, 700);
+    }
     else lockMsg("Could not change the password.");
     return;
   }
@@ -28372,7 +28424,9 @@ async function lockSubmit() {
     const r = await authPost("/auth/journal/set-lock", { password: p1, hint });
     if (r && r.ok) {
       LOCK.hasLock = true;
-      LOCK.session = { at: Date.now() };
+      LOCK.ver = await freshVer();
+      bioDrop();
+      LOCK.session = { at: Date.now(), ver: LOCK.ver };
       lockPut(LOCK.session);
       setLockedFlag(false);
       hideLock(); syncLockBtn(); maybeOfferBio();
@@ -28388,10 +28442,14 @@ async function lockSubmit() {
     const r = await authPost("/auth/reset/confirm", { code, password: p1, hint });
     if (r && r.ok) {
       LOCK.hasLock = true;
-      LOCK.session = { at: Date.now() };
+      LOCK.ver = await freshVer();
+      const hadBio = !!(window.Bio && Bio.isRegistered(BIO_APP, BIO_ID));
+      bioDrop();
+      LOCK.session = { at: Date.now(), ver: LOCK.ver };
       lockPut(LOCK.session);
       setLockedFlag(false);
       hideLock(); syncLockBtn();
+      if (hadBio) maybeOfferBio();
       return;
     }
     lockShake();
@@ -28411,7 +28469,9 @@ function maybeOfferBio() {
     // like the browser interrupting rather than the app asking. The suite
     // replaced every one of these for the same reason.
     const yes = await window.uiConfirm(
-      "Enable " + Bio.label() + " to unlock MAGI on this device?",
+      LOCK.bioDropped
+        ? "The password changed, so " + Bio.label() + " was turned off on this device. Enable it again?"
+        : "Enable " + Bio.label() + " to unlock MAGI on this device?",
       { title: "Biometric unlock", okLabel: "Enable", cancelLabel: "Not now" });
     if (yes) enrolBio();
   });
@@ -28501,6 +28561,7 @@ async function lockBootDecide() {
     // /status, not /hint: this runs on every load and /hint MAILS the owner.
     const st = await authPost("/auth/journal/status", {});
     LOCK.hasLock = !!(st && st.hasLock);
+    LOCK.ver = (st && st.ver) || null;
   } catch {
     // Lock service unreachable. A device that has never been trusted must
     // stay shut -- failing OPEN here would mean a flaky network is a bypass.
@@ -28512,9 +28573,32 @@ async function lockBootDecide() {
   }
   syncLockBtn();
   if (!LOCK.hasLock) { LOCK.session = { at: Date.now() }; hideLock(); return; }
+  // Trusted under a password that is no longer the password (a session from
+  // before `ver` existed counts too: nothing says it is still current).
+  if (stored && LOCK.ver && stored.ver !== LOCK.ver) {
+    lockPut(null);
+    bioDrop();
+    showLock("unlock");
+    lockMsg("The password was changed — enter the new one."
+      + (LOCK.bioDropped && window.Bio ? " " + Bio.label() + " needs enabling again on this device." : ""));
+    return;
+  }
   if (stored && !wasLocked) { LOCK.session = stored; hideLock(); return; }
   showLock("unlock");
 }
+
+/* An open, unlocked tab finds out about a password change the next time it is
+   looked at, not at the next reload. At most one status call a minute. */
+let _lockVerCheckedAt = 0;
+document.addEventListener("visibilitychange", async () => {
+  if (document.hidden || !LOCK.booted || !LOCK.hasLock || !LOCK.session) return;
+  if (Date.now() - _lockVerCheckedAt < 60000) return;
+  _lockVerCheckedAt = Date.now();
+  const ver = await freshVer();
+  if (!ver) return;
+  LOCK.ver = ver;
+  if (LOCK.session && LOCK.session.ver !== ver) passwordChangedElsewhere();
+});
 
 async function lockBoot() {
   try {

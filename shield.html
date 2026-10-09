@@ -1938,14 +1938,18 @@ function showPwFields(show){
   el('applock-pw').style.display = show?'':'none';
   el('applock-submit').style.display = show?'':'none';
 }
+var _bioSeq = 0;   // newest render wins: two quick opens used to draw the buttons twice
 function renderBio(){
   var box = el('applock-bio'); if (!box) return;
   box.innerHTML=''; box.style.display='none';
+  var seq = ++_bioSeq;
   if (_mode!=='unlock') return;
   var id=_id;
   window.Bio.available().then(function(avail){
-    if (_mode!=='unlock' || _id!==id) return;
-    if (!(avail && window.Bio.isRegistered('shield', id))) return;
+    if (seq!==_bioSeq || _mode!=='unlock' || _id!==id) return;
+    box.innerHTML='';
+    var had = window.Bio.isRegistered('shield', id);
+    if (!(avail && window.Bio.isRegistered('shield', id, lockVersion(id)))){ if (avail && had) bioStaleMsg(); return; }
     box.style.display='flex'; box.style.flexDirection='column'; box.style.gap='8px';
     var b=document.createElement('button');
     b.innerHTML = ICON.unlock+'<span>Unlock with '+window.Bio.label()+'</span>';
@@ -1959,16 +1963,31 @@ function renderBio(){
 }
 function bioUnlock(){
   el('applock-err').textContent='';
-  window.Bio.authenticate('shield', _id).then(function(r){
+  window.Bio.authenticate('shield', _id, { v: lockVersion(_id) }).then(function(r){
     if (r.ok){
       if (_removeBio){ doRemoveBio(); return; }
       markUnlocked(_id); _attempts[_id]=0;
       var cb=_cb; hideOverlay(); if (cb) cb();
       if (window.SH && window.SH.onLockChange) window.SH.onLockChange();
-    } else if (r.error==='notregistered'){ showPwFields(true); }
+    } else if (r.error==='stale'){ bioStaleMsg(); }
+    else if (r.error==='notregistered'){ showPwFields(true); }
     else { el('applock-err').textContent='Biometric check failed — use your password.'; showPwFields(true); }
   });
 }
+// The password changed since this device enrolled, so its biometric no longer
+// opens Shield (Bio drops it): say why, and fall back to the password.
+function bioStaleMsg(){
+  var box = el('applock-bio'); if (box){ box.innerHTML=''; box.style.display='none'; }
+  el('applock-err').textContent='The password changed — enter the new one. '+window.Bio.label()+' needs registering again on this device.';
+  showPwFields(true);
+}
+// After the password proves who this is: if a password change dropped this
+// device's biometric (or this device just changed it), offer to enrol again.
+function bioAfterPw(id, hadBio){
+  if (!window.Bio) return;
+  if (window.Bio.takeStale('shield', id) || hadBio) maybeOfferBio(id);
+}
+function hadBioFor(id){ return !!(window.Bio && window.Bio.isRegistered('shield', id)); }
 function bioRemovePrompt(id){
   showOverlay(id, 'unlock');
   _removeBio = true;   // showOverlay resets it; re-set after
@@ -1983,7 +2002,7 @@ function doRemoveBio(){
   if (window.SH && window.SH.onLockChange) window.SH.onLockChange();
 }
 function bioRegister(id, closeAfter){
-  window.Bio.register('shield', id, { rpName:'Shield', label:'Shield' }).then(function(r){
+  window.Bio.register('shield', id, { rpName:'Shield', label:'Shield', v: lockVersion(id) }).then(function(r){
     if (r.ok){
       markUnlocked(id); if (closeAfter) hideOverlay();
       window.uiAlert('Biometrics registered. You can now unlock Shield with '+window.Bio.label()+' on this device.');
@@ -1994,7 +2013,7 @@ function bioRegister(id, closeAfter){
 }
 function maybeOfferBio(id){
   window.Bio.available().then(function(avail){
-    if (!avail || window.Bio.isRegistered('shield', id)) return;
+    if (!avail || window.Bio.isRegistered('shield', id, lockVersion(id))) return;
     window.uiConfirm('Register '+window.Bio.label()+' to unlock Shield on this device? Your password still works as a fallback.',
       { title:'Register '+window.Bio.label(), okLabel:'Register' }).then(function(ok){ if (ok) bioRegister(id, false); });
   });
@@ -2053,7 +2072,7 @@ function showManageMenu(id){
   window.Bio.available().then(function(avail){
     if (!avail) return;
     var bb=document.createElement('button');
-    if (window.Bio.isRegistered('shield', id)){
+    if (window.Bio.isRegistered('shield', id, lockVersion(id))){
       bb.innerHTML=ICON.user+'<span>Remove biometrics</span>';
       bb.style.cssText=s+'border:1px solid var(--bdl);color:var(--txd);';
       bb.onclick=function(){ menu.remove(); bioRemovePrompt(id); };
@@ -2121,10 +2140,12 @@ async function resetFlow(id){
   catch(e){ await window.uiAlert('Network error while confirming the reset. Please try again.'); return; }
 
   if (cf && cf.ok){
+    var hadBio = hadBioFor(id);
     setLock(id); markUnlocked(id); await writeOffline(id, np);
     hideOverlay();
     if (window.SH && window.SH.onLockChange) window.SH.onLockChange();
-    await window.uiAlert('Password reset. It now syncs to all your devices — this one is unlocked, others will ask for the new password once.');
+    await window.uiAlert('Password reset. It now syncs to all your devices — this one is unlocked, others will ask for the new password once. Biometric unlock needs registering again on every device.');
+    bioAfterPw(id, hadBio);
     return;
   }
   if (cf && cf.error==='badcode') await window.uiAlert('That code is not correct.'+(cf.remaining!=null?(' '+cf.remaining+' attempt(s) left before it expires.'):''));
@@ -2180,10 +2201,12 @@ function wire(){
             if (rem.ok){
               var set = await api(id, '/auth/journal/set-lock', { password:np, hint:(chg.hint||'') });
               if (set.ok){
+                var hadBio = hadBioFor(id);
                 setLock(id); markUnlocked(id); await writeOffline(id, np);   // fresh version → other devices re-enter once
                 hideOverlay();
                 if (window.SH && window.SH.onLockChange) window.SH.onLockChange();
-                await window.uiAlert('Password changed. Other devices will ask for the new password once.');
+                await window.uiAlert('Password changed. Other devices will ask for the new password once, and biometric unlock needs registering again on every device.');
+                bioAfterPw(id, hadBio);
               } else el('applock-err').textContent='Failed to set the new password.';
             } else el('applock-err').textContent='Error removing the old lock. Try again.';
           }
@@ -2198,6 +2221,7 @@ function wire(){
             markUnlocked(id);
             var cb2=_cb; hideOverlay(); if (cb2) cb2();
             if (window.SH && window.SH.onLockChange) window.SH.onLockChange();
+            bioAfterPw(id, false);
           }
         } else if (d4.offlineUnavailable){
           el('applock-err').textContent='Offline, and no local verifier on this device.';
