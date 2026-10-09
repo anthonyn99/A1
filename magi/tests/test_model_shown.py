@@ -348,3 +348,17 @@ async def test_completion_stops_on_the_sites_refusal_toast(monkeypatch):
             page, site, baseline=completion.Baseline(turns=0, last_text=""), prompt="q")
     assert e.value.kind == FailureKind.SITE_ERROR and "1099" in e.value.detail
     assert time.monotonic() - t0 < 1.5
+
+
+# ── a question only the person can answer (Veda's DeepSeek, 2026-10-08) ──
+
+@pytest.mark.asyncio
+async def test_an_age_check_is_named_not_waited_out():
+    from magi.providers.browser_base import NEEDS_YOU, needs_you_detail
+    modal = ("<textarea></textarea><div role='dialog'><h2>When were you born?</h2>"
+             "<select><option>Year</option></select><button>Confirm</button></div>")
+    plain = "<div><p>Hello</p></div><textarea></textarea>"
+    got = await _on_pages([modal, plain], lambda pg: resolve.notice(pg, list(NEEDS_YOU)))
+    assert "When were you born" in got[0] and got[1] == ""
+    d = needs_you_detail("DeepSeek", got[0])
+    assert "only you can answer" in d and "Accounts" in d and "DeepSeek" in d

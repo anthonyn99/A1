@@ -108,6 +108,23 @@ def fallback_note(before: str, after: str, notice: str = "") -> str:
 
 
 
+# Questions a site puts in front of everything that only the person can
+# answer (age checks). A site can add its own (`needs_you` in selectors.yaml).
+NEEDS_YOU = (
+    "[role=dialog] :text-matches('When were you born|verify your age|confirm your age"
+    "|date of birth|enter your birthday', 'i')",
+    # Not every site marks its modal as a dialog. Checked on a fresh chat,
+    # before anything is typed, so no prompt or answer can be what matched.
+    "text=/When were you born\?|Verify your age|Confirm your age/i",
+)
+
+
+def needs_you_detail(name: str, said: str) -> str:
+    said = " ".join((said or "").split())[:120] or "a question"
+    return (f"{name} is asking something only you can answer: \"{said}\". Open MAGI's "
+            f"Accounts, open {name}, answer it once in that window, then try again.")
+
+
 def site_error_detail(name: str, said: str) -> str:
     """What a SITE_ERROR says: the site's own words, and whose problem it is."""
     said = " ".join((said or "").split())[:160] or "an error"
@@ -399,6 +416,15 @@ class BrowserProvider(Provider):
                 # (Claude, Gemini, Grok; ChatGPT only names it on an answer).
                 # The page is open already, so this costs one DOM read.
                 model_before = await resolve.model_label(page, site)
+
+                # A question only YOU can answer, covering the page: DeepSeek's
+                # age check ("When were you born?") on Veda's profile made every
+                # task wait out 120 s as "no new answer" (2026-10-08). MAGI never
+                # answers it (it is your birth date); it says so at once.
+                asks = await resolve.notice(page, list(site.needs_you) + list(NEEDS_YOU))
+                if asks:
+                    artifacts = await self._save_artifacts(page, "needs-you")
+                    return fail(FailureKind.OVERLAY_BLOCKED, needs_you_detail(self.display_name, asks))
 
                 # -- type + send ----------------------------------------------
                 await self._emit(
