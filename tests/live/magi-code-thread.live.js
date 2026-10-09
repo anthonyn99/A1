@@ -7,8 +7,9 @@
 // seven small requests:
 //   1. turn 1 by Run: the box clears, the button becomes Send, the box docks
 //   2. turn 2 by Follow up: same session, its CLI session resumed, remembers
-//   3. a REAL mid-run message typed in the box: accepted as an interrupt, a
-//      bubble where it landed, the answer follows the message
+//   3. a REAL mid-run message typed in the box: queued (the agent is not
+//      stopped), edited through its bubble, then Interrupt now; the answer
+//      follows the edited message
 //   4. a Write turn: at the approval card, a message in the box = revise --
 //      the first card resolves "sent back", a second card, Approve applies it
 //   5. History: ONE entry, "n turns"; New session empties and undocks;
