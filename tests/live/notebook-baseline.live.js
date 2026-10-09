@@ -373,7 +373,7 @@ const EXPECTED = [
   // Phase 2, Brainstorm lock fixes. Steps 21 and 22 are change-pw and locked-delete.
   { phase: 2, why: 'change password rotates in one set-lock call with current (was remove-lock, then set-lock)', path: /^bj\.steps\[21\]\.reqs/ },
   { phase: 2, why: 'deleting a locked entry works (it threw a ReferenceError and did nothing)', path: /^bj\.steps\[22\]\./ },
-  { phase: 2, why: '...so the entry ends in the trash', path: /^bj\.store\.(fs\.dashboards\/journal\.(e_e_1791000000001_alpha00001\.(trashed|trashChangedAt|updated)|activeId|savedAt)|cache\.(entries\[0\]\.(trashed|trashChangedAt|updated)|activeId))$/ },
+  { phase: 2, why: '...so the entry ends in the trash', path: /^bj\.store\.(fs\.dashboards\/journal\.(e_e_ID1\.(trashed|trashChangedAt|updated)|activeId|savedAt)|cache\.(entries\[\d+\]\.(trashed|trashChangedAt|updated)|activeId))$/ },
   // { phase: 3, why: 'sync pill no longer says "Saved" before any save', path: /^tj\.steps\[0\]\.snap\.sync$/, shots: /tj-open/ },
 ];
 // Screenshots must match pixel for pixel, within this many levels per channel.
@@ -421,7 +421,9 @@ function pngDiff(A, B) {
 }
 
 function diff(a, b, at, out) {
-  if (out.length > 60) return;
+  // Collect every difference: a cap here once let differences past the 60th
+  // (the store, recorded last) pass unseen. Only the printing is capped.
+  if (out.length > 20000) return;
   if (JSON.stringify(a) === JSON.stringify(b)) return;
   if (a && b && typeof a === 'object' && typeof b === 'object' && Array.isArray(a) === Array.isArray(b)) {
     const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
@@ -439,9 +441,11 @@ function compare(la, lb) {
     diff(A.journals[K], B.journals[K], K, out);
     const head = (d) => d.split('\n')[0];
     const allowed = out.filter((d) => EXPECTED.some((r) => r.path && r.path.test(head(d))));
-    allowed.forEach((d) => console.log('  expected ' + head(d)));
+    const byRule = new Map();
+    allowed.forEach((d) => { const r = EXPECTED.find((x) => x.path && x.path.test(head(d))); byRule.set(r, (byRule.get(r) || 0) + 1); });
+    byRule.forEach((n, r) => console.log(`  expected (phase ${r.phase}, ${n} difference(s)): ${r.why}`));
     out.splice(0, out.length, ...out.filter((d) => !allowed.includes(d)));
-    console.log(out.length ? `  FAIL ${K}: ${out.length} difference(s)\n    ` + out.join('\n    ') : `  ok   ${K}: writes, requests, storage and every step match`);
+    console.log(out.length ? `  FAIL ${K}: ${out.length} difference(s)\n    ` + out.slice(0, 60).join('\n    ') + (out.length > 60 ? `\n    ... and ${out.length - 60} more` : '') : `  ok   ${K}: writes, requests, storage and every step match`);
     if (out.length) fail++;
   }
   const shots = fs.readdirSync(OUT).filter((f) => f.startsWith(`nb-${la}-`) && f.endsWith('.png'));

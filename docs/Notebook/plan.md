@@ -8,25 +8,30 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-10-09. **Phases 0 and 1 are done.** The shared engines live in
-`Notebook/` and index.html loads them in place (§4 Phase 1 says how). The "before"
-state is still the git tag **`notebook-p0`**: every phase must make
-`node tests/live/notebook-baseline.live.js` pass against it.
+**Last updated:** 2026-10-09. **Phases 0, 1 and 2 are done.** The shared engines live in
+`Notebook/core/`, and Brainstorm Journal is the Notebook app `Notebook/apps/brainstorm.*`
+that index.html mounts (§4 Phases 1 and 2 say how). The "before" state is still the git
+tag **`notebook-p0`**: every phase must make `node tests/live/notebook-baseline.live.js`
+pass against it, with each on-purpose difference listed in the suite's `EXPECTED`.
 
-**Next: Phase 2.** Move Brainstorm Journal into `Notebook/apps/brainstorm.js` (+ .css).
-See §4 Phase 2 and the cut list in §3. Line numbers in §3 are from `notebook-p0`. Phase 1
-removed about 8,800 lines above the journals, so grep for each identifier. Things to
-know first:
-- `Notebook.registerDocx('bj', …)` sits in index.html just before `Notebook.load('docx')`.
-  It moves into brainstorm.js. Registering bj before tj changes `Object.keys(APPS)`
-  order in core/docx.js (init order). That should be harmless, and the baseline will
-  show it.
-- New files under `Notebook/` go into a `GROUPS` list in `notebook.js`. The wiring test
-  fails on an orphan file. The pre-commit hook re-stamps hosts by itself, and
-  `node tools/notebook-stamp.js` does the same by hand.
-- The auto-commit watcher pushes every minute or so, so an edit is live almost at once.
-  Make the cut in one scripted step (Phase 1 used a scratch Node script with asserted
-  anchors), then verify at once.
+**Next: Phase 3.** Move MyJournal into `Notebook/apps/myjournal.js` (+ .css), the same way
+Phase 2 moved Brainstorm, **plus both journals' Firestore blocks into `core/fb.js`**
+(Phase 2 left Brainstorm's in index.html on purpose, see §4 Phase 2). Line numbers in §3
+are from `notebook-p0`; grep for each identifier. Things to know first:
+- Copy Phase 2's method: a scratch Node script with asserted anchors does the whole cut
+  in one step (the auto-commit watcher pushes every minute). Move verbatim first, run
+  the baseline, commit; only then make the bug fixes and run it again.
+- `Notebook.mount({ app, key, store })` loads a GROUPS entry in place (notebook.js).
+  The app script builds its markup right before its own <script> tag
+  (`insertAdjacentHTML('beforebegin')`), so parse-time `getElementById` calls still work.
+- MyJournal has the same lock bugs Brainstorm had, and more: its locked-delete also calls
+  lock-only helpers from the sidebar. Phase 2's fix (the `_bjLock` hand-out,
+  `blErrText`, one `set-lock` with `current`, `_bjFileTooBig`) is the template.
+- The baseline already scripts `change-pw` and `locked-delete` for both journals (steps
+  21 and 22). tj's steps match `notebook-p0` today, so after the tj fixes, add tj rules
+  next to the Phase 2 ones.
+- Write any scratch script with the Write tool, not a bash heredoc (escapes get mangled),
+  and expect CRLF in some test files.
 
 Before starting any phase: `git pull`; run `node tests/run-all.js`; then
 `node tests/live/notebook-baseline.live.js` (about 10 minutes; it must already
@@ -264,9 +269,9 @@ How it was built:
   20 shots, no new page errors). A headless smoke check covered the engines,
   accessors, registry and stylesheet order. Pages serves `Notebook/`.
 
-### Phase 2 — Brainstorm Journal into `apps/brainstorm.js`
-- Move the bj CSS, HTML (the app builds `#bj-root` on mount), app IIFE, Firebase
-  block and lock IIFE. `_pwReset` stays in index.
+### Phase 2 — Brainstorm Journal into `apps/brainstorm.js` ✅ 2026-10-09
+- Move the bj CSS, HTML (the app builds `#bj-root` on mount), app IIFE and lock IIFE.
+  `_pwReset` stays in index.
 - Index mounts `{app:'brainstorm', key:'bj', store:'journal'}`. Paths and keys are
   unchanged, and the screenshots must be byte-identical.
 - Identical bug fixes, approved by Tony:
@@ -277,8 +282,46 @@ How it was built:
   - native `prompt()` for Journal Entries links
   - attachment size guard and escaped file name, if the same code is present
 
+How it was built:
+- **Mount.** `Notebook.mount(cfg)` records the config under `Notebook.mounts[key]` and
+  loads the app's GROUPS entry with `load()`, so during parsing it is written in place
+  (stylesheet, then script) like the core group. `apps/brainstorm.js` first inserts
+  `#bj-root`'s markup before its own <script> tag, then runs the old IIFE unchanged.
+  `Notebook.registerDocx('bj', …)` moved to the end of brainstorm.js, so bj now
+  registers before tj. That turned out harmless.
+- **CSS.** The two bj `<style>` blocks became `apps/brainstorm.css`. The `.bji` icon-sizing
+  block from index's icon sheet goes first in it (no property collides). The mixed
+  selectors that also name other roots (lines 105/132/226, the 2000px cap, the settings
+  gear) stay in index until Phase 3.
+- **`_pwReset`** is now a small host `<script>` right after the mount.
+- **Not moved: Brainstorm's Firestore block.** It shares `_fbWriteRetry`, `_fbUpsert`,
+  the `_jImg*` image docs and `_compactImages` with MyJournal's, and its server-seen
+  guard with the teardown and the sync-guard tests. Moving it alone would have split
+  those helpers between two homes for one phase, so both blocks move together in Phase 3.
+- **Fixes**, all in brainstorm.js:
+  - The sidebar's locked delete called `blIsUnlocked` *and* `BJ_AUTH`, both inside the lock
+    IIFE, so the click threw before asking anything. The lock code now hands out
+    `_bjLock = { post, isUnlocked, errText }`.
+  - set, remove and change go through `blAuthPost`.
+  - Change-password is one `set-lock` with `current` (the worker verifies it), so there
+    is no moment with no lock.
+  - `_bjFileTooBig` refuses files over 650 KB with a clear dialog, in all three entry
+    points (page chip, attach input, drop). The page file chip now escapes its name with
+    `_bjEsc` (it only escaped `"`). Brainstorm had no native `prompt()`.
+- **Baseline.** It gained `change-pw` and `locked-delete` steps (21, 22) at the very end
+  of each journal's session, so a now-working delete changes no earlier step. Its three
+  Phase 2 `EXPECTED` rules are the only differences from `notebook-p0`.
+  - Harness fix: `diff()` stopped collecting after 60 differences, so differences past
+    that point (the store, recorded last) passed unseen. It now collects all of them
+    and caps only the printing.
+- Other tests that read Brainstorm code now read `Notebook/apps/brainstorm.js` too
+  (trash-purge-guard, viz-board). The wiring test checks the mount, the moved pieces
+  and that `_pwReset` stays the host's.
+
 ### Phase 3 — MyJournal into `apps/myjournal.js`
 - Same move for tj, plus MJDocsUI. The TaskHub-owned functions in §3 stay in index.
+- Both journals' Firestore blocks (§3 11650–13034, and the `_bj/_tjServerSeen` guards)
+  move into `core/fb.js` (deferred from Phase 2), behind the host adapter.
 - MyJournal bug fixes:
   - `TJ_AUTH` locked-delete (~31890)
   - change-password lock drop (34641)
