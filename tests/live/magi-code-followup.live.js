@@ -6,16 +6,18 @@
 //   1. resume   turn 1 (read) mentions a fact that is in no file; turn 2 is a
 //               follow-up with `session` + `native`: the agent resumes the SAME
 //               CLI session (same session id) and answers from it.
-//   2. midrun   a read task writing a long essay gets a message mid-run: it is
-//               accepted as "interrupt", the agent is stopped and resumed in its
-//               own session, and the final answer follows the message.
+//   2. midrun   a read task gets a message at its first tool call: it is
+//               "queued", the agent takes it WITHOUT stopping (msg_sent "live",
+//               no interrupt, one attempt), and the answer follows it.
+//   2b. now     a long essay gets a message and Interrupt now: the turn stops,
+//               the message starts the next one in the same run, one attempt.
 //   3. denied   a write task's diff is DENIED; the write follow-up (resumed)
 //               is told so and must not assume the edit exists: it says NO,
 //               and its new diff does not contain the denied line.
 //   4. revise   a message at the approval card: accepted "revise", nothing
 //               applied, a second card with the revised diff, approved.
 // Spends about eight small requests on the chosen agent (Codex by default).
-// LIVE_ONLY=resume,midrun,denied,revise.
+// LIVE_ONLY=resume,midrun,now,denied,revise.
 'use strict';
 const fs = require('fs');
 const os = require('os');
@@ -131,29 +133,50 @@ const turnOf = (prompt, mode, r, files) => ({
     }
 
     if (want('midrun')) {
-      console.log('\n2. A message mid-run interrupts and the run continues with it');
+      console.log('
+2. A message mid-run joins the running turn, nothing is stopped');
       let sent = null;
       const r = await run({ project_id: PID, mode: 'read',
-        prompt: 'Without reading any files, write a 500-word essay on why READMEs matter, '
-          + 'in five paragraphs.' },
+        prompt: 'Read README.md, then read app.py, then describe this project in two sentences.' },
       async (ev, task) => {
-        // The agent's own "is reading the workspace" note: it is running.
-        // Then a few seconds, so its CLI has reported a session id to
-        // resume (Codex's thread.started, Claude's init).
-        if (!sent && ev.k === 'note' && /is reading the workspace/.test(ev.text || '')) {
+        if (!sent && ev.k === 'tool') {
           sent = 'pending';
-          await new Promise((r) => setTimeout(r, 4000));
           sent = await api(`/tasks/${task.id}/message`,
-            { text: 'Stop the essay. Instead reply with exactly one word: PELICAN' });
+            { text: 'Also: end your final answer with the single word PELICAN.' });
         }
       });
-      ok('the message was accepted as an interrupt', sent && sent.accepted === 'interrupt', JSON.stringify(sent));
-      ok('every viewer saw it', r.events.some((e) => e.k === 'user' && e.how === 'interrupt'));
-      const intr = r.events.find((e) => e.k === 'interrupt');
-      ok('the agent was interrupted and resumed its own session', intr && intr.resumed === true, JSON.stringify(intr));
-      ok('one agent, no hand-off', !r.events.some((e) => e.k === 'handoff'));
+      ok('the message was queued, not an interrupt', sent && sent.accepted === 'queued' && sent.id, JSON.stringify(sent));
+      ok('every viewer saw it, with its id', r.events.some((e) => e.k === 'user' && e.how === 'queued' && e.id));
+      const got = r.events.find((e) => e.k === 'msg_sent');
+      ok('the agent took it live', got && got.how === 'live', JSON.stringify(got));
+      ok('nothing was interrupted', !r.events.some((e) => e.k === 'interrupt'));
       const attempts = ((r.result || {}).attempts || []).map((a) => a.outcome);
-      ok('attempts: interrupted, then ok', attempts.join(',') === 'interrupted,ok', attempts.join(','));
+      ok('one attempt', attempts.join(',') === 'ok', attempts.join(','));
+      ok('the answer follows the message', /PELICAN/.test((r.result || {}).text || ''), (r.result || {}).text);
+      const edit = await api(`/tasks/${r.task.id}/message/${(sent || {}).id}/edit`, { text: 'x' });
+      ok('a delivered message can no longer be edited', edit.error === 'delivered' || edit.error === 'no_task', JSON.stringify(edit));
+    }
+
+    if (want('now')) {
+      console.log('
+2b. Interrupt now stops the turn and the message goes next');
+      let sent = null, intr = null;
+      const r = await run({ project_id: PID, mode: 'read',
+        prompt: 'Without reading any files, write a 600-word essay on why READMEs matter, '
+          + 'in six paragraphs.' },
+      async (ev, task) => {
+        if (!sent && ev.k === 'note' && /is reading the workspace/.test(ev.text || '')) {
+          sent = 'pending';
+          await new Promise((res) => setTimeout(res, 3000));
+          sent = await api(`/tasks/${task.id}/message`,
+            { text: 'Stop the essay. Instead reply with exactly one word: PELICAN' });
+          intr = await api(`/tasks/${task.id}/interrupt`, {});
+        }
+      });
+      ok('queued, then Interrupt now', sent && sent.accepted === 'queued' && intr && intr.ok, JSON.stringify([sent, intr]));
+      ok('the agent said it was interrupting', r.events.some((e) => e.k === 'note' && /Interrupting/.test(e.text || '')));
+      const attempts = ((r.result || {}).attempts || []).map((a) => a.outcome);
+      ok('one attempt, same process', attempts.join(',') === 'ok', attempts.join(','));
       ok('the answer follows the message', /PELICAN/.test((r.result || {}).text || ''), (r.result || {}).text);
     }
 
