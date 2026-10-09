@@ -163,8 +163,9 @@ function makeRepo() {
         'CODE.task.events.some(e => e.k === "user" && e.how === "queued" && e.id)', 20000),
         await evalJs(c, 'JSON.stringify(CODE.task.events.filter(e => e.k === "user"))'));
       const BUB = 'document.querySelector(".code-thread .code-task:not(.is-earlier) .code-log .code-user")';
+      // (multi-line, so evalJs runs it as statements: it needs its return)
       ok('a queued bubble with Edit, ✕ and Interrupt now', await waitFor(c,
-        `(() => { const b = ${BUB}; return !!b && /queued/.test(b.textContent)
+        `return (() => { const b = ${BUB}; return !!b && /queued/.test(b.textContent)
           && [...b.querySelectorAll("button")].map(x => x.textContent).join("|") === "Edit|\\u2715|Interrupt now"; })()`, 5000),
         await evalJs(c, `(() => { const b = ${BUB}; return b ? b.textContent + " / " + [...b.querySelectorAll("button")].map(x => x.textContent).join("|") : "none"; })()`));
       await shot(c, 'code-thread-queued');
