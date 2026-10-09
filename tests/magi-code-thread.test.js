@@ -210,6 +210,35 @@ const del = lift('codeDeleteTask');
 ok('delete removes every turn\'s body', /for \(const id of ids\)[\s\S]{0,80}deleteDoc\(_codeTaskDoc\(id\)\)/.test(del));
 ok('marks are keyed by session', /const codePinned = \(r\) => CODE_PINS\.has\(codeSessKey\(r\)\)/.test(MAGI));
 
+// ── queued messages: edit, remove, delivered (live steering, 2026-10-09) ─
+console.log('\nA queued message, from the stream');
+const MS = new Function(lift('codeMsgState') + '\nreturn codeMsgState;')();
+const evs = [
+  { k: 'user', id: 'm1', text: 'use pytest', how: 'queued' },
+  { k: 'user', id: 'm2', text: 'and docs', how: 'queued' },
+  { k: 'msg_edit', id: 'm1', text: 'use pytest, not unittest' },
+  { k: 'msg_drop', id: 'm2' },
+  { k: 'msg_sent', ids: ['m1'], how: 'live' },
+];
+let ms = MS(evs, 'm1');
+ok('an edit is the text shown', ms.text === 'use pytest, not unittest');
+ok('delivered: no longer the person\'s to change', ms.sent === 'live' && !ms.dropped);
+ms = MS(evs, 'm2');
+ok('a removed one is dropped, never sent', ms.dropped && !ms.sent);
+ms = MS(evs.slice(0, 2), 'm1');
+ok('before delivery it is still queued', ms.sent === '' && ms.text === null);
+ok('an old engine\'s message (no id) is never open', MS(evs, undefined).sent === '' && MS(evs, '').text === null);
+const bub = lift('codeUserBubble');
+ok('the bubble offers Edit and remove only while open', /if \(!open\) return b;[\s\S]*"Edit"[\s\S]*"✕"/.test(bub));
+ok('Interrupt now only on an engine that steers live', /codeEngineHas\("steer_live"\)[\s\S]{0,80}"Interrupt now"|codeEngineHas\("steer_live"\)[\s\S]*Interrupt now/.test(bub));
+ok('a removed message is not drawn', /if \(!codeMsgState\(t\.events, ev\.id\)\.dropped\) log\.append\(codeUserBubble\(t, ev\)\)/.test(MAGI));
+ok('a removed message frees its place in the cap', /- t\.events\.filter\(\(e\) => e\.k === "msg_drop"\)\.length/.test(MAGI));
+const nb = lift('noteBubble');
+ok('a deliberation note is editable only until the chairman has it',
+   /live\.notesOpen === false/.test(nb) && /engineHas\("note_edit"\)/.test(nb));
+ok('Interrupt now on a note only once, while units still answer',
+   /!live\.interrupted && liveStillAnswering\(live\)/.test(nb));
+
 // ── parseVerdict: headings glued to a sentence (F4 step 6) ──────────────
 console.log('\nA verdict whose headings lost their line breaks');
 const PV = new Function([
