@@ -26,7 +26,9 @@ var STAMP = (src.match(/[?&]v=([^&#]+)/) || [])[1] || '';
 // What each group loads, in order. Stylesheets keep their cascade position.
 var GROUPS = {
   core: ['core/jguard.js', 'core/viz.css', 'core/viz.js', 'core/oj.css', 'core/oj.js', 'core/fb.js'],
-  docx: ['notebook.css', 'core/docx.js']
+  docx: ['notebook.css', 'core/docx.js'],
+  // Apps: Notebook.mount({ app }) loads one where the host calls it.
+  brainstorm: ['apps/brainstorm.css', 'apps/brainstorm.js']
 };
 var loaded = {};
 
@@ -60,6 +62,16 @@ window.Notebook = {
   version: STAMP,
   base: BASE,
   load: load,
+  // A host mounts an app where its markup should sit: { app, key, store }.
+  // key is the DOM/CSS/localStorage prefix (bj, tj, ...), store its Firestore
+  // document under dashboards/.
+  mounts: {},
+  mount: function (cfg) {
+    if (!cfg || !GROUPS[cfg.app] || !cfg.key) throw new Error('Notebook.mount: bad config');
+    if (this.mounts[cfg.key]) return;
+    this.mounts[cfg.key] = cfg;
+    load(cfg.app);
+  },
   // DOCX editor config per app key (tj, bj, ...). core/docx.js reads this
   // object as its APPS registry; an app registered after the editor has
   // initialised is initialised on arrival.
