@@ -1147,7 +1147,7 @@ async function handleAuth(path, request, env, origin) {
     const { journal, entryId } = body;
     if (!journal || !entryId) return json({ ok: false, error: 'missing fields' }, origin, 400);
     const rec = await getJSON(env, jKey(journal, entryId));
-    return json({ ok: true, hasLock: !!rec, noLock: !rec }, origin);
+    return json({ ok: true, hasLock: !!rec, noLock: !rec, ver: await lockVer(rec) }, origin);
   }
 
   // The hint is deliberately reachable without a password (that is the whole
@@ -1364,6 +1364,18 @@ async function pbkdf2(password, saltBytes, iter) {
   const km = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), { name: 'PBKDF2' }, false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: saltBytes, iterations: iter, hash: 'SHA-256' }, km, 256);
   return new Uint8Array(bits);
+}
+
+// A short, non-secret fingerprint of the CURRENT password record. Every set,
+// change and reset mints a fresh salt, so `ver` moves exactly when the password
+// does. A page with no Firebase-synced lock version of its own (MAGI) compares
+// it to the one it saw when this device last proved the password, and evicts
+// the device -- and its enrolled biometric -- the moment they differ. It is a
+// hash of the salt only, so it says nothing about the password itself.
+async function lockVer(rec) {
+  if (!rec || !rec.salt) return null;
+  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('lockver:' + rec.salt));
+  return [...new Uint8Array(d)].slice(0, 8).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 async function makeHash(password) {

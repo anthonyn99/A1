@@ -2140,12 +2140,17 @@ function mlShowPwArea(show){
   $('lock-reset').style.display = show?'':'none';
   if(show) setTimeout(function(){ $('lock-pw').focus(); }, 60);
 }
+var _mlBioSeq = 0;   // newest render wins: two quick opens used to draw the buttons twice
 function mlBioRender(){
   var box=$('lock-bio'); if(!box) return; box.innerHTML=''; box.style.display='none';
+  var seq = ++_mlBioSeq;
   var p=lockProfile; if(!p || !window.Bio || lockMode!=='unlock') return;
   Bio.available().then(function(avail){
+    if(seq!==_mlBioSeq || lockProfile!==p || lockMode!=='unlock') return;
     if($('lock-menu') && $('lock-menu').children.length) return;   // manage menu is showing → don't inject the unlock button
-    if(!(avail && Bio.isRegistered('mylist', mlBioKey(p)))) return;
+    box.innerHTML='';
+    var had=Bio.isRegistered('mylist', mlBioKey(p));
+    if(!(avail && Bio.isRegistered('mylist', mlBioKey(p), mlLockV(p)))){ if(avail&&had) mlBioStaleMsg(); return; }
     box.style.display='block'; box.style.margin='0 0 4px';
     var b=document.createElement('button');
     b.className='btn solid'; b.style.width='100%'; b.style.justifyContent='center'; b.style.marginBottom='8px';
@@ -2160,15 +2165,30 @@ function mlBioRender(){
 function mlBioUnlock(){
   var p=lockProfile; if(!p) return;
   $('lock-err').textContent='';
-  Bio.authenticate('mylist', mlBioKey(p)).then(function(r){
+  Bio.authenticate('mylist', mlBioKey(p), { v:mlLockV(p) }).then(function(r){
     if(r.ok){
       if(mlRemoveBioFor===p){ mlDoRemoveBio(p); return; }
       lockAttempts=0; mlMarkUnlocked(p); var cb=lockOnSuccess; hideLock(); updateLockBtn(); if(cb)cb();
     }
+    else if(r.error==='stale'){ mlBioStaleMsg(); }
     else if(r.error==='notregistered'){ mlShowPwArea(true); }
     else { $('lock-err').textContent='Biometric check failed — use your password.'; mlShowPwArea(true); }
   });
 }
+// The password changed since this device enrolled, so its biometric no longer
+// opens the lists (Bio drops it): say why, and fall back to the password.
+function mlBioStaleMsg(){
+  var box=$('lock-bio'); if(box){ box.innerHTML=''; box.style.display='none'; }
+  $('lock-err').textContent='The password changed — enter the new one. '+Bio.label()+' needs registering again on this device.';
+  mlShowPwArea(true);
+}
+// After the password proves who this is: if a password change dropped this
+// device's biometric (or this device just changed it), offer to enrol again.
+function mlBioAfterPw(p, hadBio){
+  if(!window.Bio) return;
+  if(Bio.takeStale('mylist', mlBioKey(p)) || hadBio) mlMaybeOfferBio(p);
+}
+function mlHadBio(p){ return !!(window.Bio && Bio.isRegistered('mylist', mlBioKey(p))); }
 // Verify identity (biometric OR password) before removing this profile's biometric.
 function mlBioRemovePrompt(p){
   showLock(p,'unlock');
@@ -2183,7 +2203,7 @@ function mlDoRemoveBio(p){
 }
 function mlBioRegister(p){
   if(!window.Bio) return;
-  Bio.register('mylist', mlBioKey(p), { rpName:'MyList', userName:'mylist-'+p, displayName:PROFILE_META[p].label+' — MyList' }).then(function(r){
+  Bio.register('mylist', mlBioKey(p), { rpName:'MyList', userName:'mylist-'+p, displayName:PROFILE_META[p].label+' — MyList', v:mlLockV(p) }).then(function(r){
     if(r.ok){ mlMarkUnlocked(p); toast(Bio.label()+' registered'); hideLock(); updateLockBtn(); }
     else if(r.error==='cancelled' || r.error==='NotAllowedError'){ toast('Registration cancelled', true); }
     else toast('Could not register biometrics', true);
@@ -2192,7 +2212,7 @@ function mlBioRegister(p){
 function mlMaybeOfferBio(p){
   if(!window.Bio) return;
   Bio.available().then(function(avail){
-    if(!avail || Bio.isRegistered('mylist', mlBioKey(p))) return;
+    if(!avail || Bio.isRegistered('mylist', mlBioKey(p), mlLockV(p))) return;
     confirmAsk('Register '+Bio.label()+' to unlock '+PROFILE_META[p].label+"'s lists on this device? Your password still works as a fallback.",
       function(){ mlBioRegister(p); }, 'Register');
   });
@@ -2221,7 +2241,7 @@ function manageLock(){
   // because mlMustBlock is false whenever this menu is reachable).
   if(window.Bio){ Bio.available().then(function(avail){
     if(!avail) return;
-    if(Bio.isRegistered('mylist', mlBioKey(p)))
+    if(Bio.isRegistered('mylist', mlBioKey(p), mlLockV(p)))
       addMenuBtn(m,MLI.user+'<span>Remove biometrics</span>','ghost',function(){ mlBioRemovePrompt(p); }, changeBtn);
     else
       addMenuBtn(m,MLI.user+'<span>Register '+Bio.label()+'</span>','solid',function(){ mlBioRegister(p); }, changeBtn);
@@ -2307,7 +2327,7 @@ async function lockSubmit(){
           var nh=(chg.hint)||'';
           await authFetch('/auth/journal/remove-lock',{ journal:AUTH_JOURNAL, entryId:entryId(p), password:pw });
           var s=await authFetch('/auth/journal/set-lock',{ journal:AUTH_JOURNAL, entryId:entryId(p), password:np.trim(), hint:nh });
-          if(s.ok){ state.locks[p]=true; state.lockV[p]=Date.now(); mlMarkUnlocked(p); persist(); hideLock(); updateLockBtn(); toast('Password changed'); }
+          if(s.ok){ var hadBio=mlHadBio(p); state.locks[p]=true; state.lockV[p]=Date.now(); mlMarkUnlocked(p); persist(); hideLock(); updateLockBtn(); toast('Password changed — biometric unlock needs registering again on every device'); mlBioAfterPw(p, hadBio); }
           else lockErr('Failed to set new password.');
         } else lockErr('New password empty.');
       } else { lockAttempts++; lockErr('Wrong password.'); }
@@ -2316,7 +2336,7 @@ async function lockSubmit(){
       if(r4.ok){
         lockAttempts=0;
         if(mlRemoveBioFor===p){ mlDoRemoveBio(p); }
-        else { mlMarkUnlocked(p); var cb=lockOnSuccess; hideLock(); updateLockBtn(); if(cb)cb(); }
+        else { mlMarkUnlocked(p); var cb=lockOnSuccess; hideLock(); updateLockBtn(); if(cb)cb(); mlBioAfterPw(p, false); }
       }
       else { lockAttempts++; lockErr('Wrong password.'); }
     }
@@ -2349,9 +2369,11 @@ async function lockReset(){
     appName:'MyList',
     label:(PROFILE_META[p].label)+"'s lists",
     onSuccess:function(){
+      var hadBio=mlHadBio(p);
       state.locks[p]=true; state.lockV[p]=Date.now(); mlMarkUnlocked(p);
       persist(); hideLock(); refreshProfileScreen(); updateLockBtn();
       var cb=lockOnSuccess; if(cb)cb();
+      mlBioAfterPw(p, hadBio);
     }
   });
   r.textContent=prev; r.disabled=false;

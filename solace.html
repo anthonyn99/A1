@@ -1538,12 +1538,21 @@ function alBioShowPw(show){
   if (_el('applock-reset')) _el('applock-reset').style.display = show ? '' : 'none';
   if (show) setTimeout(function(){ _el('applock-pw').focus(); }, 60);
 }
+var _alBioSeq = 0;   // newest alBioRender wins; see the note inside
 function alBioRender(mode){
   var box=_el('applock-bio'); if(!box) return; box.innerHTML=''; box.style.display='none';
+  var seq = ++_alBioSeq;
   if(!window.Bio || mode!=='unlock') return;
   window.Bio.available().then(function(avail){
-    if(_alMode!=='unlock') return;
-    if(!(avail && window.Bio.isRegistered(BIO_NS, APPID))) return;
+    // The overlay can be opened twice in quick succession (the gate, then a
+    // lock snapshot from Firebase). Each open cleared the box synchronously and
+    // then BOTH async callbacks appended their buttons, so the phone showed two
+    // "Unlock with..." and two "Use password instead". Only the latest render
+    // may draw, and it clears the box itself first.
+    if(seq!==_alBioSeq || _alMode!=='unlock') return;
+    box.innerHTML='';
+    var had=window.Bio.isRegistered(BIO_NS, APPID);
+    if(!(avail && window.Bio.isRegistered(BIO_NS, APPID, alLockVersion()))){ if(avail&&had) alBioStaleMsg(); return; }
     box.style.display='flex'; box.style.flexDirection='column'; box.style.gap='8px';
     var b=document.createElement('button');
     b.innerHTML=SLI.unlock+'<span>Unlock with '+window.Bio.label()+'</span>';
@@ -1561,11 +1570,12 @@ function alBioRender(mode){
 function alBioUnlock(){
   _el('applock-err').textContent='';
   if(!window.Bio) return;
-  window.Bio.authenticate(BIO_NS, APPID).then(function(r){
+  window.Bio.authenticate(BIO_NS, APPID, { v:alLockVersion() }).then(function(r){
     if(r.ok){
       if(_alRemoveBio){ alDoRemoveBio(); return; }
       alMarkUnlocked(); _alAttempts=0; alShowRoot(); alHideOverlay(); alUpdateLockBtns();
     }
+    else if(r.error==='stale'){ alBioStaleMsg(); }
     else if(r.error==='notregistered'){ alBioShowPw(true); }
     else { _el('applock-err').textContent='Biometric check failed — use your password.'; alBioShowPw(true); }
   });
@@ -1585,7 +1595,7 @@ function alDoRemoveBio(){
 }
 function alBioRegister(closeAfter){
   if(!window.Bio) return;
-  window.Bio.register(BIO_NS, APPID, { rpName:'Solace', userName:'solacelock', displayName:'Solace' }).then(function(r){
+  window.Bio.register(BIO_NS, APPID, { rpName:'Solace', userName:'solacelock', displayName:'Solace', v:alLockVersion() }).then(function(r){
     if(r.ok){ alMarkUnlocked(); if(closeAfter) alHideOverlay(); alUpdateLockBtns(); window.uiAlert('Biometrics registered on this device. You can now unlock Solace with '+window.Bio.label()+'.'); }
     else if(r.error==='cancelled' || r.error==='NotAllowedError'){ /* user backed out */ }
     else window.uiAlert('Could not register biometrics on this device.');
@@ -1594,11 +1604,25 @@ function alBioRegister(closeAfter){
 function alMaybeOfferBio(){
   if(!window.Bio) return;
   window.Bio.available().then(function(avail){
-    if(!avail || window.Bio.isRegistered(BIO_NS, APPID)) return;
+    if(!avail || window.Bio.isRegistered(BIO_NS, APPID, alLockVersion())) return;
     window.uiConfirm('Register '+window.Bio.label()+' to unlock Solace on this device? Your password still works as a fallback.',
       {title:'Register '+window.Bio.label(), okLabel:'Register'}).then(function(ok){ if(ok) alBioRegister(false); });
   });
 }
+// The password changed since this device enrolled, so its biometric no longer
+// opens the app (Bio drops it): say why, and fall back to the password.
+function alBioStaleMsg(){
+  var box=_el('applock-bio'); if(box){ box.innerHTML=''; box.style.display='none'; }
+  _el('applock-err').textContent='The password changed — enter the new one. '+window.Bio.label()+' needs registering again on this device.';
+  alBioShowPw(true);
+}
+// After the password proves who this is: if a password change dropped this
+// device's biometric (or this device just changed it), offer to enrol again.
+function alBioAfterPw(hadBio){
+  if(!window.Bio) return;
+  if(window.Bio.takeStale(BIO_NS, APPID) || hadBio) alMaybeOfferBio();
+}
+function alHadBio(){ return !!(window.Bio && window.Bio.isRegistered(BIO_NS, APPID)); }
 
 // ── MANAGE MENU (triggered by the header lock button) ───────────────────────
 function alManage(){
@@ -1666,7 +1690,7 @@ function alShowManageMenu(){
   if (window.Bio) window.Bio.available().then(function(avail){
     if(!avail) return;
     var bb=document.createElement('button');
-    if(window.Bio.isRegistered(BIO_NS, APPID)){
+    if(window.Bio.isRegistered(BIO_NS, APPID, alLockVersion())){
       bb.innerHTML=SLI.user+'<span>Remove biometrics</span>';
       bb.style.cssText=s+'color:#adadb2;';
       bb.onclick=function(){ menu.remove(); _el('applock-submit').style.display=''; alBioRemovePrompt(); };
@@ -1728,7 +1752,7 @@ _el('applock-submit').addEventListener('click', async function(){
           if (remD.ok){
             var set=await fetch(AL_WORKER+'/auth/journal/set-lock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:APPID,password:np.trim(),hint:nh})});
             var setD=await set.json();
-            if (setD.ok){ alSetLock(); alMarkUnlocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); window.uiAlert('Password changed!'); }
+            if (setD.ok){ var hadBio=alHadBio(); alSetLock(); alMarkUnlocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); await window.uiAlert('Password changed! Biometric unlock now needs registering again on every device.'); alBioAfterPw(hadBio); }
             else { _el('applock-err').textContent='Failed to set new password.'; }
           } else { _el('applock-err').textContent='Error removing old lock. Try again.'; }
         }
@@ -1740,7 +1764,7 @@ _el('applock-submit').addEventListener('click', async function(){
       if (d4.ok){
         _alAttempts=0;
         if(_alRemoveBio){ alDoRemoveBio(); }
-        else { alMarkUnlocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); }
+        else { alMarkUnlocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); alBioAfterPw(false); }
       }
       else { _alAttempts++; if(_alAttempts>=5)_alCooldown=Date.now()+30000; _alPwErr('Wrong password.'); }
     }
@@ -1837,7 +1861,7 @@ _el('applock-reset') && _el('applock-reset').addEventListener('click', async fun
     form:AL_FORM,
     appName:'Solace',
     label:'Solace',
-    onSuccess:function(){ alSetLock(); alMarkUnlocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); }
+    onSuccess:function(){ var hadBio=alHadBio(); alSetLock(); alMarkUnlocked(); alShowRoot(); alHideOverlay(); alUpdateLockBtns(); alBioAfterPw(hadBio); }
   });
   _el('applock-reset').textContent=prev; _el('applock-reset').disabled=false;
 });

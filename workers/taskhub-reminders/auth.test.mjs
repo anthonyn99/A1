@@ -71,6 +71,25 @@ t('overwrite WITH current password succeeds', r.body.ok === true, r.body);
 r = await call('/auth/journal/verify', { ...J, password: 'newpw' });
 t('new password active', r.body.ok === true, r.body);
 
+console.log('\n1b. status carries a password fingerprint that moves with the password');
+{
+  const VJ = { journal: 'applock', entryId: 'tony_magi_vertest' };
+  r = await call('/auth/journal/status', VJ);
+  t('no lock -> no ver', r.body.noLock === true && r.body.ver === null, r.body);
+  await call('/auth/journal/set-lock', { ...VJ, password: 'one' });
+  const v1 = (await call('/auth/journal/status', VJ)).body.ver;
+  t('a lock has a ver', typeof v1 === 'string' && v1.length === 16, v1);
+  t('ver is stable while the password is', (await call('/auth/journal/status', VJ)).body.ver === v1);
+  await call('/auth/journal/verify', { ...VJ, password: 'one' });
+  t('a verify does not move it', (await call('/auth/journal/status', VJ)).body.ver === v1);
+  await call('/auth/journal/set-lock', { ...VJ, password: 'two', current: 'one' });
+  const v2 = (await call('/auth/journal/status', VJ)).body.ver;
+  t('a change moves it', typeof v2 === 'string' && v2 !== v1, [v1, v2]);
+  await call('/auth/journal/remove-lock', { ...VJ, password: 'two' });
+  await call('/auth/journal/set-lock', { ...VJ, password: 'two' });
+  t("remove + set (the apps' change flow) moves it too", (await call('/auth/journal/status', VJ)).body.ver !== v2);
+}
+
 console.log('\n2. legacy change flow (verify -> remove -> set) still works');
 r = await call('/auth/journal/remove-lock', { ...J, password: 'newpw' });
 t('remove-lock with correct pw', r.body.ok === true, r.body);
