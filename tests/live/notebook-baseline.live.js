@@ -137,10 +137,18 @@ const SNAP = (key, probes) => `return (() => {
 // new code cannot fake a difference.
 function normalise(rec) {
   const ids = new Map();
-  const s = JSON.stringify(rec)
-    .replace(/\b(1[789]\d{11})_([a-z0-9]{5,})\b/g, (m) => { if (!ids.has(m)) ids.set(m, 'ID' + (ids.size + 1)); return ids.get(m); })
-    .replace(/\b(1[789]\d{11})\b/g, (m) => { const d = Math.round((+m - T0) / 1000); return d >= -604800 && d <= 86400 ? 'T' : m; });
-  return JSON.parse(s);
+  const isClock = (n) => n > 1.7e12 && n < 2e12 && Math.abs(n - T0) < 8 * 86400000;
+  const str = (s) => s
+    .replace(/(1[789]\d{11})_([a-z0-9]{5,})/g, (m) => { if (!ids.has(m)) ids.set(m, 'ID' + (ids.size + 1)); return ids.get(m); })
+    .replace(/(1[789]\d{11})/g, (m) => (isClock(+m) ? 'T' : m));
+  const walk = (v) => {
+    if (typeof v === 'number') return isClock(v) ? 'T' : v;
+    if (typeof v === 'string') return str(v);
+    if (Array.isArray(v)) return v.map(walk);
+    if (v && typeof v === 'object') { const o = {}; for (const k of Object.keys(v)) o[str(k)] = walk(v[k]); return o; }
+    return v;
+  };
+  return walk(rec);
 }
 
 // ── capture ─────────────────────────────────────────────────────────────────
