@@ -327,6 +327,30 @@ async function capture(label) {
     await boot(J, false);
     await step('reload', { shot: true });
 
+    // The lock fixes (Phase 2 for bj, Phase 3 for tj). Last, so a delete that
+    // now works cannot change any step above. Change the password (to the same
+    // one, so nothing depends on it), lock the entry on this device, then
+    // delete it from the sidebar.
+    const menuBtn = (text) => js(`var b=[...document.querySelectorAll('#${K}-lock-overlay button')].find(x=>x.innerText.trim()===${JSON.stringify(text)});
+      if(!b) return false; b.click(); return true;`);
+    const uim = (val) => js(`var o=document.getElementById('uim-overlay'); if(!o||!o.classList.contains('show')) return false;
+      var i=document.querySelector('#uim-fields input'); if(i&&${JSON.stringify(val)}!==null) i.value=${JSON.stringify(val)};
+      document.getElementById('uim-ok').click(); return true;`);
+    await click(`#${K}-entries-list .entry-item[data-entry-id="${SEED_ENTRIES[0].id}"] .entry-item-title`);
+    await click(`#${K}-btn-lock`);
+    await menuBtn('Change password'); await sleep(400);
+    await js(`var p=document.getElementById('${K}-lock-pw'); p.value='pw-right'; 1`);
+    await click(`#${K}-lock-submit`); await sleep(800);
+    await uim('pw-right'); await sleep(800);
+    await step('change-pw');
+
+    await click(`#${K}-btn-lock`);
+    await menuBtn('Lock this entry now'); await sleep(400);
+    await click(`#${K}-entries-list .entry-item[data-entry-id="${SEED_ENTRIES[0].id}"] .entry-delete`); await sleep(400);
+    await uim('pw-right'); await sleep(800);   // the password prompt
+    await uim(null); await sleep(400);         // "Delete …?"
+    await step('locked-delete');
+
     const store = JSON.parse(await js(`return JSON.stringify({
       fs: Object.fromEntries(Object.entries(__fakeFs.docs).filter(([p]) => /journal|ourjournal/.test(p))),
       lsKeys: Object.keys(localStorage).sort(),
@@ -346,6 +370,10 @@ async function capture(label) {
 // the recording (e.g. /^tj\.steps\[\d+\]\.snap\.sync$/). Nothing else may differ.
 // Screenshots a rule allows to differ go in `shots` (file-name regex).
 const EXPECTED = [
+  // Phase 2, Brainstorm lock fixes. Steps 21 and 22 are change-pw and locked-delete.
+  { phase: 2, why: 'change password rotates in one set-lock call with current (was remove-lock, then set-lock)', path: /^bj\.steps\[21\]\.reqs/ },
+  { phase: 2, why: 'deleting a locked entry works (it threw a ReferenceError and did nothing)', path: /^bj\.steps\[22\]\./ },
+  { phase: 2, why: '...so the entry ends in the trash', path: /^bj\.store\.(fs\.dashboards\/journal\.(e_e_1791000000001_alpha00001\.(trashed|trashChangedAt|updated)|activeId|savedAt)|cache\.(entries\[0\]\.(trashed|trashChangedAt|updated)|activeId))$/ },
   // { phase: 3, why: 'sync pill no longer says "Saved" before any save', path: /^tj\.steps\[0\]\.snap\.sync$/, shots: /tj-open/ },
 ];
 // Screenshots must match pixel for pixel, within this many levels per channel.

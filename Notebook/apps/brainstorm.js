@@ -1246,27 +1246,21 @@ function renderSidebar() {
     });
     div.querySelector('.entry-delete').addEventListener('click', async e => {
       e.stopPropagation();
-      // If entry is locked, require password before deleting
+      // If entry is locked, require password before deleting. The lock helpers
+      // live inside the lock code below; it hands them out through _bjLock.
       var lock = entry.lock;
       if (lock) {
-        if (!blIsUnlocked(entry.id)) {
+        if (!_bjLock.isUnlocked(entry.id)) {
           var pw = await window.uiPrompt('This entry is locked. Enter password to delete:', {title:'Locked entry', password:true});
           if (pw === null) return;
           try {
-            var res = await fetch(BJ_AUTH + '/auth/journal/verify', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ journal: 'bj', entryId: entry.id, password: pw })
-            });
-            var data = await res.json();
+            var data = await _bjLock.post('/auth/journal/verify', { journal: 'bj', entryId: entry.id, password: pw });
             if (!data.ok) { await window.uiAlert('Incorrect password. Entry not deleted.'); return; }
             if (await window.uiConfirm('Delete "' + (entry.title || 'Untitled') + '"?', {danger:true, okLabel:'Delete'})) {
-              await fetch(BJ_AUTH + '/auth/journal/remove-lock', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ journal: 'bj', entryId: entry.id, password: pw })
-              }).catch(function(){});
+              await _bjLock.post('/auth/journal/remove-lock', { journal: 'bj', entryId: entry.id, password: pw }).catch(function(){});
               deleteEntry(entry.id);
             }
-          } catch(e) { await window.uiAlert('Network error. Try again.'); }
+          } catch(e) { await window.uiAlert(_bjLock.errText(e)); }
           return;
         }
       }
@@ -2835,11 +2829,26 @@ document.getElementById('bj-page-img-file').addEventListener('change', function(
   this.value = '';
 });
 
+// A file is kept as a data URL inside a Firestore document (a page's file chip
+// in its own image document, an attachment inside the journal's), and a
+// document over 1 MiB can never be written: every later save of the entry
+// failed with no clear cause. So a file over 650 KB (about 870 KB once
+// encoded, under the 900 KB write guard) is refused up front, saying why.
+var BJ_FILE_MAX = 650 * 1024;
+function _bjFileTooBig(name, dataURL) {
+  var s = String(dataURL || '');
+  var bytes = Math.floor((s.length - s.indexOf(',') - 1) * 3 / 4);
+  if (bytes <= BJ_FILE_MAX) return false;
+  window.uiAlert('"' + name + '" is ' + (bytes / 1048576).toFixed(1) + ' MB. Files up to 650 KB can be attached, so it was not added.', { title: 'File too large' });
+  return true;
+}
+
 // Insert non-image file as downloadable chip in page editor
 function _bjPageInsertFileChip(name, dataURL, mimeType) {
+  if (_bjFileTooBig(name, dataURL)) return;
   const ed = document.getElementById('bj-page-editor');
   ed.focus();
-  const escaped = name.replace(/"/g,'&quot;');
+  const escaped = _bjEsc(name);
   const clip = (window._docxPaperclipSVG || window.TNI.clip);
   const html = '<a class="bj-file-chip" href="' + dataURL + '" download="' + escaped + '" contenteditable="false" style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;background:var(--card2);border:1px solid var(--border);border-radius:4px;text-decoration:none;color:var(--text2);font-size:11px;font-weight:600;margin:2px 3px;cursor:pointer;">' + clip + '<span class="tj-file-name">' + escaped + '</span></a>';
   document.execCommand('insertHTML', false, html);
@@ -2863,6 +2872,7 @@ function _bjPageInsertFileChip(name, dataURL, mimeType) {
   }
   function addAttachment(name, mime, data) {
     var entry = getActive(); if (!entry) return;
+    if (_bjFileTooBig(name, data)) return;
     if (!entry.data.attachments) entry.data.attachments = [];
     var id = 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2);
     entry.data.attachments.push({ id: id, name: name, mime: mime, data: data });
@@ -3105,6 +3115,7 @@ function _bjPageInsertFileChip(name, dataURL, mimeType) {
   window._bjAddAttachment = function(name, mime, data) {
     var entry = (typeof getActive === 'function') ? getActive() : null;
     if (!entry) return;
+    if (_bjFileTooBig(name, data)) return;
     if (!entry.data.attachments) entry.data.attachments = [];
     var id = 'att_' + Date.now() + '_' + Math.random().toString(36).slice(2);
     entry.data.attachments.push({ id: id, name: name, mime: mime, data: data });
@@ -3955,6 +3966,8 @@ window.hideBrainstormJournal = function() {
 // ══════════════════════════════════════════
 // BJ LOCK SYSTEM (Veda's Brainstorm Journal)
 // ══════════════════════════════════════════
+// What the rest of the app needs from the lock code (the sidebar's delete).
+var _bjLock = null;
 (function() {
   // Lock data stored on entry.lock = {hash, plain} → syncs to Firebase via saveState()
   // Per-device unlock session stored in localStorage (not synced — each device must unlock once)
@@ -4316,6 +4329,13 @@ window.hideBrainstormJournal = function() {
   // entry, the local marker is stale (typically the entry was deleted and
   // re-synced) — clear it and let the user in rather than trapping them behind
   // a password that nothing on the server can verify.
+  // The message for a lock call that threw (see blAuthPost).
+  function blErrText(e) {
+    return e && e._offline
+      ? 'No connection. Check your network and try again.'
+      : (e && e._status ? 'Lock server error (' + e._status + '). Try again.' : 'Could not reach the lock server. Try again.');
+  }
+  _bjLock = { post: blAuthPost, isUnlocked: blIsUnlocked, errText: blErrText };
   function blDropStaleLock(entry) {
     blRemoveLock(entry.id); blMarkUnlocked(entry.id);
     blHideOverlay(); blUpdateLockBtn();
@@ -4333,42 +4353,22 @@ window.hideBrainstormJournal = function() {
       if (!lock || blMode === 'setpw') {
         // Setting a new password — ask for hint first
         var hint = (await window.uiPrompt('Optional: enter a password hint (visible in the recovery email, never the password itself). Leave blank to skip.', {title:'Password hint'})) || '';
-        var res = await fetch(BJ_AUTH + '/auth/journal/set-lock', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ journal: 'bj', entryId: entry.id, password: pw, hint: hint })
-        });
-        var data = await res.json();
+        var data = await blAuthPost('/auth/journal/set-lock', { journal: 'bj', entryId: entry.id, password: pw, hint: hint });
         if (data.ok) { blSetLock(entry.id); blMarkUnlocked(entry.id); blHideOverlay(); blUpdateLockBtn(); renderSidebar(); blMaybeOfferBio(entry.id); }
         else errEl.textContent = 'Failed to set lock. Try again.';
       } else if (blMode === 'remove') {
-        var res2 = await fetch(BJ_AUTH + '/auth/journal/remove-lock', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ journal: 'bj', entryId: entry.id, password: pw })
-        });
-        var data2 = await res2.json();
+        var data2 = await blAuthPost('/auth/journal/remove-lock', { journal: 'bj', entryId: entry.id, password: pw });
         if (data2.ok) { blRemoveLock(entry.id); blMarkLocked(entry.id); blHideOverlay(); blUpdateLockBtn(); renderSidebar(); }
         else blLockErr('Wrong password.');
       } else if (blMode === 'changepw') {
-        var res3 = await fetch(BJ_AUTH + '/auth/journal/verify', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ journal: 'bj', entryId: entry.id, password: pw })
-        });
-        var data3 = await res3.json();
+        var data3 = await blAuthPost('/auth/journal/verify', { journal: 'bj', entryId: entry.id, password: pw });
         if (data3.ok) {
           var chg = await window.uiForm({ title:'Change password', okLabel:'Change password',
             fields:[ {name:'password',label:'New password',type:'password',required:true}, {name:'hint',label:'New password hint (optional)'} ] });
           var np = chg ? chg.password : '';
           if (np && np.trim()) {
             var nh = (chg.hint) || '';
-            await fetch(BJ_AUTH + '/auth/journal/remove-lock', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ journal: 'bj', entryId: entry.id, password: pw })
-            });
-            var s = await fetch(BJ_AUTH + '/auth/journal/set-lock', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ journal: 'bj', entryId: entry.id, password: np.trim(), hint: nh })
-            });
-            var sd = await s.json();
+            var sd = await blAuthPost('/auth/journal/set-lock', { journal: 'bj', entryId: entry.id, password: np.trim(), hint: nh, current: pw });
             if (sd.ok) { var hadBio = blHadBio(entry.id); blSetLock(entry.id); blMarkUnlocked(entry.id); blHideOverlay(); blUpdateLockBtn(); renderSidebar(); blBioAfterPw(entry.id, hadBio); }
             else errEl.textContent = 'Failed to set new password.';
           } else errEl.textContent = 'New password empty.';
@@ -4384,9 +4384,7 @@ window.hideBrainstormJournal = function() {
         } else blLockErr('Wrong password.');
       }
     } catch(e) {
-      errEl.textContent = e && e._offline
-        ? 'No connection. Check your network and try again.'
-        : (e && e._status ? 'Lock server error (' + e._status + '). Try again.' : 'Could not reach the lock server. Try again.');
+      errEl.textContent = blErrText(e);
     }
     submitBtn.disabled = false; submitBtn.textContent = _prev;
   });
