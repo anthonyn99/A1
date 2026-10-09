@@ -68,7 +68,7 @@ ok('a group loads once', b.written.length === 2);
 const late = boot('complete');
 ok('after parsing it appends ordered (async=false) elements instead of writing',
   !late.written.length && late.appended.length === 6 && late.appended.filter((e) => e.tag === 'script').every((e) => e.async === false));
-const groupFiles = new Set((nbSrc('notebook.js').match(/'(?:core\/[\w.]+|notebook\.css)'/g) || []).map((s) => s.slice(1, -1)));
+const groupFiles = new Set((nbSrc('notebook.js').match(/'(?:(?:core|apps)\/[\w.]+|notebook\.css)'/g) || []).map((s) => s.slice(1, -1)));
 ok('every file the loader names exists', [...groupFiles].every((f) => nbFiles.includes(f)), [...groupFiles].filter((f) => !nbFiles.includes(f)).join(', '));
 ok('every Notebook file is loaded by some group (no orphans)',
   nbFiles.filter((f) => f !== 'notebook.js' && !groupFiles.has(f)).length === 0,
@@ -79,6 +79,15 @@ ok('registerDocx before the editor initialises only records the config', reg.doc
 reg._docxInitApp = (a) => inits.push(a);
 reg.registerDocx('yy', {});
 ok('registerDocx after it initialises the app on arrival', inits.join() === 'yy');
+
+const mb = boot('loading'), mnb = mb.win.Notebook;
+mnb.mount({ app: 'brainstorm', key: 'bj', store: 'journal' });
+ok('Notebook.mount writes the app in place: its stylesheet, then its script',
+  /apps\/brainstorm\.css\?v=abc123"><script src="[^"]*apps\/brainstorm\.js\?v=abc123"><\/script>$/.test(mb.written[1] || ''), mb.written[1]);
+mnb.mount({ app: 'brainstorm', key: 'bj', store: 'journal' });
+ok('...once per key, and it records the config', mb.written.length === 2 && mnb.mounts.bj.store === 'journal');
+let threw = false; try { mnb.mount({ app: 'nope', key: 'zz' }); } catch (e) { threw = true; }
+ok('...and refuses an app it does not know', threw);
 
 console.log('Moved out of index.html, living in Notebook/ exactly once');
 const MOVED = [
@@ -93,6 +102,12 @@ const MOVED = [
   ['the journal shell responsive CSS', /#tj-root #tj-sidebar, #bj-root #bj-sidebar/],
   ['the board accessor', /window\._fbViz\s*=/],
   ['the OurJournal accessor', /window\._fbOJ\s*=/],
+  ['the Brainstorm app', /const STORAGE_KEY = 'brainstorm_journal_v3';/],
+  ['Brainstorm\'s markup', /<div id="bj-root">/],
+  ['Brainstorm\'s CSS', /#bj-root #bj-sidebar-header \{/],
+  ['Brainstorm\'s icon sizing', /#bj-root \.bji\{/],
+  ['Brainstorm\'s lock', /BJ LOCK SYSTEM/],
+  ['the bj DOCX config', /Notebook\.registerDocx\('bj'/],
 ];
 for (const [name, re] of MOVED) {
   const inNb = nbFiles.filter((f) => re.test(nbSrc(f)));
@@ -104,12 +119,17 @@ const tags = idx.match(/<script[^>]*Notebook\/notebook\.js[^>]*>/g) || [];
 ok('loads notebook.js once', tags.length === 1, tags.join(' | '));
 ok('...as a classic, blocking script', tags.length && !/\b(async|defer|type=)/.test(tags[0]), tags[0]);
 const at = (s) => idx.indexOf(s);
+const bjMount = at("Notebook.mount({ app: 'brainstorm', key: 'bj', store: 'journal' });");
 ok('...before Brainstorm and MyJournal (they use JGuard, VizEngine and OJ while booting)',
-  at('Notebook/notebook.js') > 0 && at('Notebook/notebook.js') < at('<!-- ── Brainstorm Journal (embedded) ── -->'));
+  at('Notebook/notebook.js') > 0 && at('Notebook/notebook.js') < bjMount && bjMount < at('<div id="tj-root">'));
+ok('Brainstorm is mounted once, where its markup used to sit (before MyJournal)',
+  bjMount > 0 && idx.indexOf('Notebook.mount(', bjMount + 1) === -1);
+ok('_pwReset stays the host\'s (the app lock uses it): defined once, in index.html',
+  (idx.match(/window\._pwReset = /g) || []).length === 1 && !nbFiles.some((f) => /window\._pwReset = /.test(nbSrc(f))));
 ok('the DOCX group loads after both journals, where its sheets used to be (cascade order)',
   at("Notebook.load('docx')") > at('window._tjApplyTheme = tjApplyTheme;') && at("Notebook.load('docx')") < at('TaskHub Voice Control'));
-for (const k of ['tj', 'bj']) {
-  const m = idx.match(new RegExp("Notebook\\.registerDocx\\('" + k + "', (\\{[\\s\\S]*?\\n\\})\\);"));
+for (const [k, src] of [['tj', idx], ['bj', nbSrc('apps/brainstorm.js')]]) {
+  const m = src.match(new RegExp("Notebook\\.registerDocx\\('" + k + "', (\\{[\\s\\S]*?\\n\\})\\);"));
   let cfg = null; try { cfg = m && vm.runInNewContext('(' + m[1] + ')'); } catch (e) {}
   ok(k + ' registers its DOCX config, with the image binder it used to be hardcoded to',
     cfg && cfg.root === k + '-root' && cfg.bindImg === '_' + k + 'BindImg' && cfg.trashAPI === '_' + k + 'TrashAPI', m && m[1]);
