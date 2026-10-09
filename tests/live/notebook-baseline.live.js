@@ -182,7 +182,11 @@ async function capture(label) {
     if (fresh) {
       await c.send('Storage.clearDataForOrigin', { origin: ORIGIN, storageTypes: 'all' });
       await c.send('Page.navigate', { url: BASE + 'LifeHub/lifehub.js' }); await sleep(500);   // a same-origin page that runs nothing
+      // A1Backup's first-run passphrase dialog would sit over every other dialog,
+      // and the daily sweep (TaskHub's, timing-dependent) would add stray writes.
       await js(`localStorage.clear(); sessionStorage.clear(); localStorage.setItem('td6_mainDash', '${J.who}');
+        localStorage.setItem('a1b_disabled', '1');
+        var d = new Date(); localStorage.setItem('a1_sweep_day:index', d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2));
         sessionStorage.setItem('__fakefs_docs', JSON.stringify({ '${J.doc}': ${JSON.stringify(seedDoc())} })); 1`);
     }
     await c.send('Page.navigate', { url: BASE + 'index.html' });
@@ -278,6 +282,7 @@ async function capture(label) {
     await click(`#${K}-entries-list .entry-item[data-entry-id="${SEED_ENTRIES[2].id}"] .entry-item-title`);
     if (!(await js(`return document.getElementById('${K}-page-editor').getAttribute('contenteditable')==='true';`))) await click(`#${K}-btn-edit`);
     await click(`#${K}-root .docx-ai-btn`);
+    await js("var m=[...document.querySelectorAll('.docx-mi')].find(x=>x.innerText.trim()==='AI Format'); if(m) m.click(); 1");
     await sleep(800);
     const veil = async () => js("return !!document.querySelector('.docx-ai-veil');");
     for (let i = 0; i < 20 && await veil(); i++) await sleep(500);
@@ -290,7 +295,9 @@ async function capture(label) {
       await click(`#${K}-root .template-card[data-template="page"]`);
       await caretEnd(K); await type('Shared line');
       await step('oj-new-page');
-      await click(`#${K}-root .oj-tab[data-oj="0"]`);
+      // Brainstorm has a second tab back to her own entries; MyJournal leaves
+      // through its rail's Journal button.
+      await click(K === 'tj' ? '#mjd-nav [data-sec]' : `#${K}-root .oj-tab[data-oj="0"]`);
       await step('oj-leave', { wait: 1500 });
     }
 
