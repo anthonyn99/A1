@@ -191,6 +191,9 @@
   .btn-danger { color: var(--red); border-color: var(--red-dim); }
   .btn-danger:hover { background: var(--red-dim); color: var(--red); border-color: var(--red); }
   .btn-sm { padding: 6px 11px; font-size: 11.5px; }
+  /* Disabled buttons read as disabled (Empty trash on an empty trash, Copy on an
+     empty list) instead of looking clickable and doing nothing. */
+  .btn:disabled, .btn-icon:disabled { opacity: 0.4; cursor: not-allowed; }
   .btn-icon { background: transparent; border: 1px solid var(--border); color: var(--muted);
     border-radius: 8px; font-size: 13px; padding: 4px 8px; line-height: 1; transition: var(--transition); }
   .btn-icon:hover { color: var(--text); border-color: var(--accent); }
