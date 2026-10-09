@@ -1,4 +1,4 @@
-// Undo-history delta encoding (index.html, docx_hist_*).
+// Undo-history delta encoding (the DOCX editor, Notebook/core/docx.js, docx_hist_*).
 //
 // The persisted undo window used to store five FULL copies of the document —
 // one real journal entry measured 759KB, and six such keys filled the origin's
@@ -11,12 +11,12 @@
 const fs = require('fs');
 const path = require('path');
 
-const src = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+const src = fs.readFileSync(path.join(__dirname, '..', 'Notebook', 'core', 'docx.js'), 'utf8');
 
 // Pull the three functions out of the page and evaluate them in isolation.
 function grab(name, startMarker) {
   const i = src.indexOf(startMarker);
-  if (i < 0) throw new Error('could not find ' + name + ' in index.html');
+  if (i < 0) throw new Error('could not find ' + name + ' in Notebook/core/docx.js');
   // walk braces from the first { after the marker
   let j = src.indexOf('{', i), depth = 0, k = j;
   for (; k < src.length; k++) {

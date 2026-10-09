@@ -33,7 +33,10 @@
 const fs = require('fs');
 const path = require('path');
 
-const src = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+// The engine lives in Notebook/ (core/viz.js, the accessor in core/fb.js, JGuard in core/jguard.js); the
+// journals that configure it are still in index.html until Notebook Phase 3.
+const src = ['index.html', 'Notebook/core/viz.js', 'Notebook/core/fb.js', 'Notebook/core/jguard.js']
+  .map((f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).join('\n');
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => {
