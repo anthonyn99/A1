@@ -267,7 +267,9 @@ class Orchestrator:
         # the WHOLE council finished: Grok sat on "awaiting response" for the
         # rest of a run after its rate limit had been read off the page. Say
         # so the moment it is known.
-        if emit and not a.ok and not a.degraded:
+        # A member stopped by Interrupt now has not failed: it is about to be
+        # asked again (gather `reask`), and a FAILED card would flash first.
+        if emit and not a.ok and not a.degraded and not getattr(a, "interrupted", False):
             with contextlib.suppress(Exception):
                 await emit(ProviderEvent(
                     provider_id=p.id, state=ProviderState.FAILED,
@@ -363,8 +365,14 @@ class Orchestrator:
             if stopped and reask is not None:
                 again = reask(p, prompt_for(p), a)
                 if again:
-                    return await self._ask(p, again, dc_replace(ctx, interrupt=None),
-                                           ev, cancel)
+                    # Checked against the question AND the notes: "answer in
+                    # French" makes a good answer share few words with the
+                    # question alone (validate's off-topic test).
+                    ref = "
+".join([ctx.reference or ctx.question, again.rsplit(
+                        "NOTES FROM THE PERSON:", 1)[-1]])
+                    return await self._ask(p, again, dc_replace(ctx, interrupt=None,
+                                                                reference=ref), ev, cancel)
             return a
 
         t0 = time.monotonic()
