@@ -343,7 +343,8 @@ Return ONLY a JSON array; each element: {"ticker","sector","name","aliases","the
     ? arr.map(a=>String(a).toLowerCase().trim()).filter(a=>a&&a.length>=3&&a.length<=40).slice(0,8)
     : [];
   const out = {};
-  for (const model of ['gemini-2.5-flash-lite','gemini-2.5-flash','gemini-2.0-flash']){
+  // Veda's key is new: gemini-2.5-flash-lite and gemini-2.0-flash answer 404 for it.
+  for (const model of ['gemini-3.1-flash-lite','gemini-2.5-flash','gemini-3.5-flash-lite']){
     try {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_KEY}`,
         { method:'POST', headers:{'Content-Type':'application/json'}, body });
@@ -437,8 +438,10 @@ const HOURS = 72;   // news lookback = 3 days.
 const AI_CHAIN = [
   { provider:'gemini', model:'gemini-3.1-flash-lite' },       // PRIMARY: newest-gen Flash, full 8-event batches in ~4s, HIGHEST free daily quota — carries the load
   { provider:'gemini', model:'gemini-2.5-flash' },            // proven full Flash — strong, ~5s/batch
-  { provider:'gemini', model:'gemini-2.5-flash-lite' },       // high-RPD lite fallback
-  { provider:'gemini', model:'gemini-2.0-flash' },            // older Gemini fallback
+  // Veda's copy: gemini-2.5-flash-lite / gemini-2.0-flash are closed to new API
+  // keys (404 "no longer available"), so her chain uses their successors.
+  { provider:'gemini', model:'gemini-3.5-flash-lite' },       // lite fallback (successor to 2.5-flash-lite)
+  { provider:'gemini', model:'gemini-3.8-flash' },            // newer Flash fallback
   { provider:'gemini', model:'gemini-3.5-flash' },            // flagship but slow/thinky here → LAST-RESORT gemini (given extra output budget in geminiBody so it's usable when reached)
   { provider:'nim',    model:'meta/llama-3.1-8b-instruct' },  // cross-provider fallback: live NIM, fast (~8b), separate quota — immune to Gemini 503/daily-cap
   { provider:'nim',    model:'meta/llama-3.1-70b-instruct' }, // bigger NIM fallback
@@ -1698,7 +1701,7 @@ const CAL_DAYS_MAX   = 31;          // clamp the lookahead window (front-end ask
 // grounding quota) or lets thinking eat the small output budget → empty, so it is
 // DEMOTED to a trailing fallback; lead with the reliable 2.5-flash. (See the News
 // AI_CHAIN note — same lesson applied program-wide.)
-const CAL_MACRO_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-3.5-flash'];
+const CAL_MACRO_MODELS = ['gemini-2.5-flash', 'gemini-3.8-flash', 'gemini-3.5-flash'];
 
 // Only these macro releases are accepted (whitelist kills hallucinated junk).
 // [regex, category]. First match wins.
@@ -3579,7 +3582,7 @@ const SUMMARY_LOCK_TTL = 90; // one generation is ~4-8s; this only stops two
 const SUMMARY_CHAIN = [
   { provider:'gemini', model:'gemini-2.5-flash' },       // PRIMARY ~5.9s — richest synthesis, and analysis only uses it as a fallback so the quotas stay separate
   { provider:'gemini', model:'gemini-3.1-flash-lite' },  // ~4.9s — tight and fast, but shares its quota with the analysis phase's primary
-  { provider:'gemini', model:'gemini-2.5-flash-lite' },  // ~3.3s — fastest, thinner notes
+  { provider:'gemini', model:'gemini-3.5-flash-lite' },  // fast lite fallback (2.5-flash-lite is closed to new keys)
   { provider:'gemini', model:'gemini-3.5-flash' },       // ~8.3s — slow thinker, last Gemini resort
   { provider:'nim',    model:'meta/llama-3.1-70b-instruct' }, // separate provider — survives a Gemini-wide daily cap
 ];
@@ -4807,9 +4810,12 @@ export default {
       // Bounded, so a genuinely stuck pipeline can't hang the tab: past the bound
       // we fall through to the stale/202 + client-poll path exactly as before,
       // with the build continuing in waitUntil having already done most of its
-      // work inside the request. Only force-fresh waits; a plain cache-miss
-      // refresh stays fire-and-forget.
-      if (fresh){
+      // work inside the request.
+      // Veda's copy: a plain cache-miss build waits too. With no cron here, every
+      // new watchlist's first build is one of these, and fire-and-forget ones were
+      // reaped mid-pipeline as soon as a list ran past ~30s (verified 2026-10-08:
+      // a 22-ticker build left no cache, no lock, no error — nothing at all).
+      {
         const done = await Promise.race([
           buildP,
           new Promise(res => setTimeout(() => res(undefined), FRESH_WAIT_MS)),

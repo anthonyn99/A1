@@ -138,18 +138,24 @@
   .brand-sub { font-family: var(--mono); font-size: 11px; color: var(--muted); }
 
   /* section nav (Portfolio / Journal / Strats) */
+  /* Seven tabs don't always fit beside the brand and status pills, so the nav
+     scrolls sideways (scrollbar hidden) instead of squeezing or wrapping. */
   .section-nav { display: flex; gap: 4px; background: var(--bg-inset);
-    padding: 4px; border-radius: 12px; border: 1px solid var(--border-soft); }
+    padding: 4px; border-radius: 12px; border: 1px solid var(--border-soft);
+    min-width: 0; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
+  .section-nav::-webkit-scrollbar { display: none; }
   .section-nav button {
     background: transparent; border: none; color: var(--text-2);
     font-size: 13px; font-weight: 600; padding: 7px 16px; border-radius: 9px;
     transition: var(--transition); letter-spacing: 0.01em;
+    white-space: nowrap; flex-shrink: 0;
   }
   .section-nav button:hover { color: var(--text); }
   .section-nav button.active {
     background: var(--accent); color: #1B1C1E; box-shadow: var(--shadow-sm);
   }
-  .topbar-right { display: flex; align-items: center; gap: 8px; }
+  .topbar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  @media (min-width: 721px) { .topbar > .brand { flex-shrink: 0; } }
 
   /* live sync pill */
   .live-pill {
@@ -620,6 +626,194 @@
   }
 
   /* ═══════════════════════════════════════════════════════════════════════
+     CONTROL — the watchlist that drives News (rebuilt from TradeHub's Control
+     tab, minus Prompts). NEWS — AI-curated news for that watchlist.
+     ═══════════════════════════════════════════════════════════════════════ */
+  .wl-card { padding: 18px 20px 20px; margin-bottom: 18px; }
+  .wl-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+    flex-wrap: wrap; margin-bottom: 16px; }
+  .wl-title { font-size: 17px; font-weight: 700; }
+  .wl-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .wl-sub b { color: var(--text-2); font-weight: 600; }
+  .wl-acts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; flex: 1 1 auto; min-width: 0; }
+  .wl-add { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .wl-add .form-input { flex: 1 1 240px; min-width: 0; font-family: var(--mono); font-weight: 600;
+    letter-spacing: 0.03em; text-transform: uppercase; }
+  .wl-add .form-input::placeholder { text-transform: none; letter-spacing: 0; font-family: var(--sans); font-weight: 400; }
+  .wl-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 20px; }
+  .wl-chip { display: inline-flex; align-items: center; gap: 7px; padding: 5px 5px 5px 11px;
+    border-radius: 9px; border: 1px solid var(--border-soft); background: var(--bg-inset); }
+  .wl-chip .sym { font-size: 13px; }
+  .wl-chip .sec { font-size: 10px; font-weight: 600; color: var(--muted); background: var(--bg-slot);
+    padding: 2px 7px; border-radius: 20px; white-space: nowrap; }
+  .wl-chip .sec.pending { font-style: italic; opacity: 0.7; }
+  .wl-chip .x { background: none; border: none; color: var(--muted); font-size: 16px; line-height: 1;
+    width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; }
+  .wl-chip .x:hover { color: var(--red); background: var(--red-dim); }
+  .wl-label { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 9px; }
+  .wl-copy { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 20px; flex-wrap: wrap; }
+  .wl-copy-box { flex: 1 1 240px; min-width: 0; font-family: var(--mono); font-size: 12px; color: var(--text-2);
+    background: var(--bg-inset); border: 1px solid var(--border-soft); border-radius: 9px; padding: 9px 12px;
+    word-break: break-word; line-height: 1.6; }
+  .wl-secs { display: flex; flex-wrap: wrap; gap: 6px; }
+  .wl-secs span { font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 6px;
+    border: 1px solid var(--border-soft); color: var(--text-2); }
+  .wl-empty { font-size: 12.5px; color: var(--muted); }
+  .trash-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border-soft); }
+  .trash-row:last-child { border-bottom: none; }
+  .trash-row .sym { font-size: 13px; min-width: 56px; }
+  .trash-row .meta { flex: 1; font-size: 11px; color: var(--muted); font-family: var(--mono); }
+
+  .nav-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--amber);
+    margin-left: 6px; vertical-align: middle; animation: livepulse 1.8s ease-in-out infinite; }
+  .section-nav button.active .nav-dot { background: #1B1C1E; }
+
+  .nh-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+  .nh-head-l { flex: 1; min-width: 0; }
+  .nh-title { font-size: 17px; font-weight: 700; }
+  .nh-meta { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 3px; }
+  .nh-meta .pill { font-family: var(--mono); font-size: 10.5px; background: var(--bg-slot); padding: 2px 8px;
+    border-radius: 5px; white-space: nowrap; }
+  .nh-meta .warn { color: var(--amber); }
+  .nh-btns { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+  .nh-btns-row { display: flex; gap: 6px; }
+  .nh-btns .btn { justify-content: center; }
+  .nh-btns .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .nh-sum-btn.ready { border-color: var(--accent); color: var(--accent-hover); }
+  .nh-sum-btn .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); margin-left: 6px; }
+  .nh-banner { padding: 12px 16px; margin-bottom: 14px; border-left: 3px solid var(--accent);
+    font-size: 12.5px; color: var(--text-2); display: flex; gap: 11px; align-items: flex-start; line-height: 1.55; }
+  .nh-banner.warn { border-left-color: var(--amber); }
+  .nh-banner b { color: var(--text); }
+  .nh-spin { animation: nhspin 1s linear infinite; display: inline-flex; }
+  @keyframes nhspin { to { transform: rotate(360deg); } }
+  .nh-label { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .nh-movers { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(200px, 1fr); gap: 10px;
+    overflow-x: auto; padding: 3px; margin: 8px -3px 16px; overscroll-behavior-x: contain; scrollbar-width: none; }
+  .nh-movers::-webkit-scrollbar { display: none; }
+  .nh-mover { padding: 11px 13px; cursor: pointer; border-left: 3px solid var(--muted); }
+  .nh-mover.sel { outline: 2px solid var(--text); }
+  .nh-mover .top { display: flex; align-items: baseline; gap: 8px; font-family: var(--mono); white-space: nowrap; min-width: 0; }
+  .nh-mover .t { font-weight: 600; font-size: 13.5px; color: var(--accent-hover); }
+  .nh-mover .px { margin-left: auto; font-size: 11.5px; color: var(--text-2); }
+  .nh-mover .hl { font-size: 11.5px; line-height: 1.4; color: var(--muted); margin-top: 6px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .nh-stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 12px; }
+  .nh-stat { padding: 7px 10px; display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+  .nh-stat .n { font-family: var(--mono); font-size: 16px; font-weight: 600; line-height: 1.1; flex-shrink: 0; }
+  .nh-stat .l { font-size: 9px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .nh-activebar { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-bottom: 12px; padding: 7px 12px;
+    border: 1px solid var(--border-soft); border-radius: 9px; font-size: 12px; color: var(--text-2); }
+  .nh-activebar b { color: var(--text); }
+  .nh-activebar .f { background: var(--bg-slot); padding: 2px 8px; border-radius: 20px; font-weight: 600; font-size: 11px; }
+  .nh-activebar .f button, .nh-activebar .clear { background: none; border: none; color: var(--muted); font-size: 12px; padding: 0 0 0 4px; }
+  .nh-activebar .clear { margin-left: auto; color: var(--accent-hover); font-weight: 700; }
+  .nh-filters { display: flex; flex-direction: column; gap: 9px; margin-bottom: 16px; }
+  .nh-frow { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .nh-frow .nh-label { min-width: 52px; }
+  .nh-fgrp { display: inline-flex; align-items: center; gap: 7px; }
+  .nh-fspacer { flex: 1; min-width: 6px; }
+  .nh-seg { display: inline-flex; flex-wrap: wrap; background: var(--bg-inset); border: 1px solid var(--border-soft);
+    border-radius: 9px; padding: 3px; gap: 2px; }
+  .nh-seg button { background: transparent; border: none; color: var(--text-2); font-size: 11.5px; font-weight: 600;
+    padding: 5px 10px; border-radius: 6px; white-space: nowrap; transition: var(--transition); }
+  .nh-seg button:hover { color: var(--text); }
+  .nh-seg button.on { background: var(--bg-slot); color: var(--text); box-shadow: var(--shadow-sm); }
+  .nh-seg button.on.bull { color: var(--green); } .nh-seg button.on.bear { color: var(--red); }
+  .nh-seg button.on.crit { color: var(--red); } .nh-seg button.on.maj { color: var(--accent-hover); }
+  .nh-seg button.on.imp { color: var(--amber); }
+  .nh-chip { font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border-soft);
+    background: var(--bg-inset); color: var(--text-2); transition: var(--transition); white-space: nowrap; }
+  .nh-chip.mono { font-family: var(--mono); }
+  .nh-chip:hover { border-color: var(--accent); }
+  .nh-chip.on { background: var(--accent); border-color: var(--accent); color: #1B1C1E; }
+  .nh-chip.faded { opacity: 0.4; }
+  .nh-chip .ct { font-size: 9px; opacity: 0.75; margin-left: 3px; }
+  .nh-list { display: flex; flex-direction: column; gap: 10px; }
+  .nh-ev { padding: 14px 16px; border-left: 3px solid var(--muted); }
+  .nh-ev-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .nh-ev-top .t { font-family: var(--mono); font-weight: 600; font-size: 13px; color: var(--accent-hover); }
+  .nh-ev-top .mv { font-family: var(--mono); font-size: 11px; }
+  .nh-ev-top .addl { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .nh-ev-top .sec { font-size: 11px; color: var(--muted); padding-left: 8px; border-left: 1px solid var(--border-soft); }
+  .nh-ev-top .ago { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .nh-tag { font-size: 9.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; padding: 2px 8px;
+    border-radius: 20px; border: 1px solid currentColor; white-space: nowrap; }
+  .nh-tag.solid { color: #fff !important; border-color: transparent; }
+  .nh-tag .sc { font-family: var(--mono); font-weight: 500; opacity: 0.8; margin-left: 3px; }
+  .nh-sum { font-size: 14.5px; line-height: 1.55; color: var(--text); font-weight: 500; margin-bottom: 10px; }
+  .nh-hls { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+  .nh-hls a { display: flex; gap: 8px; text-decoration: none; color: var(--text-2); font-size: 12.5px; line-height: 1.45; }
+  .nh-hls a:hover { color: var(--accent-hover); }
+  .nh-hls a .src { color: var(--muted); font-size: 10.5px; margin-left: 6px; }
+  .nh-hls .more { background: none; border: none; color: var(--accent-hover); font-size: 11px; font-weight: 700;
+    padding: 0; margin-left: 16px; text-align: left; }
+  .nh-srcs { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; padding-top: 9px;
+    border-top: 1px dashed var(--border-soft); font-size: 11px; color: var(--muted); }
+  .nh-srcs a { color: var(--muted); text-decoration: none; font-weight: 600; }
+  .nh-srcs a:hover { color: var(--accent-hover); }
+  .nh-empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+  .nh-empty h3 { color: var(--text); font-size: 17px; margin: 10px 0 6px; }
+  .nh-empty p { font-size: 12.5px; max-width: 380px; margin: 0 auto; line-height: 1.6; }
+
+  /* Summary overlay */
+  #nh-sum-modal .modal { width: 860px; padding: 0; }
+  .nhs-head { display: flex; align-items: center; gap: 10px; padding: 15px 22px; border-bottom: 1px solid var(--border-soft);
+    position: sticky; top: 0; background: var(--bg-card); z-index: 2; }
+  .nhs-head .ttl { font-size: 15px; font-weight: 700; }
+  .nhs-head .sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .nhs-tone { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 4px 10px;
+    border-radius: 20px; border: 1px solid currentColor; flex-shrink: 0; }
+  .nhs-body { padding: 18px 22px 22px; display: flex; flex-direction: column; gap: 20px; }
+  .nhs-hl { font-size: 20px; font-weight: 700; line-height: 1.3; }
+  .nhs-meter { display: flex; align-items: center; gap: 9px; margin-top: 12px; font-size: 9px; font-weight: 700; }
+  .nhs-meter .bar { flex: 1; height: 4px; border-radius: 4px; background: var(--bg-slot); position: relative; }
+  .nhs-meter .knob { position: absolute; top: -3px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--bg-card); }
+  .nhs-ov { font-size: 13.5px; line-height: 1.65; color: var(--text-2); border-left: 2px solid var(--border); padding-left: 14px; }
+  .nhs-sec { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+  .nhs-kp { display: flex; flex-direction: column; gap: 7px; }
+  .nhs-kp > div { padding: 9px 12px; border-radius: 8px; border-left: 3px solid var(--muted); background: var(--bg-inset);
+    font-size: 13px; line-height: 1.55; }
+  .nhs-kp .tix { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
+  .nhs-kp .tix span { font-family: var(--mono); font-size: 10px; color: var(--accent-hover); background: var(--bg-slot);
+    padding: 1px 6px; border-radius: 4px; }
+  .nhs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+  .nhs-grid > div { display: flex; gap: 9px; padding: 8px 11px; border-radius: 8px; background: var(--bg-inset);
+    font-size: 12px; line-height: 1.45; color: var(--text-2); min-width: 0; }
+  .nhs-grid .t { font-family: var(--mono); font-weight: 600; min-width: 44px; flex-shrink: 0; }
+  .nhs-list { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; line-height: 1.5; color: var(--text-2); }
+  .nhs-foot { font-size: 10.5px; color: var(--muted); border-top: 1px solid var(--border-soft); padding-top: 11px; }
+
+  @media (max-width: 900px) {
+    .nh-stats { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (max-width: 720px) {
+    .wl-card { padding: 14px 14px 16px; }
+    .wl-acts { justify-content: flex-start; }
+    .wl-acts .btn { flex: 1 1 auto; justify-content: center; }
+    .wl-add .btn { flex: 1 1 100%; justify-content: center; }
+    .wl-chip .x { width: 32px; height: 32px; }
+    .nh-head { flex-direction: column; align-items: stretch; gap: 10px; }
+    .nh-btns-row .btn { flex: 1; }
+    .nh-movers { grid-auto-columns: minmax(170px, 78%); }
+    .nh-frow .nh-label { min-width: 48px; }
+    .nh-fspacer { display: none; }
+    .nh-mover .top { gap: 6px; }
+    .nh-mover .px { font-size: 11px; }
+    .nh-seg button { padding: 8px 11px; font-size: 12px; }
+    .nh-chip { padding: 7px 11px; font-size: 12px; }
+    .nh-ev { padding: 12px 13px; }
+    .nh-sum { font-size: 14px; }
+    #nh-sum-modal .modal { padding: 0; }
+    .nhs-head { padding: 12px 16px; }
+    .nhs-body { padding: 14px 16px 18px; }
+    .nhs-hl { font-size: 17px; }
+    .nhs-grid { grid-template-columns: 1fr; }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════
      MOBILE CARD LIST — the phone replacement for wide data tables.
      Journal and Positions render BOTH a <table> and a .m-list; the media
      queries below decide which one is visible. Same data, no horiz scroll.
@@ -696,7 +890,7 @@
     .brand-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .topbar-right { order: 2; flex-shrink: 0; gap: 6px; }
     .section-nav { order: 3; width: 100%; }
-    .section-nav button { flex: 1; padding: 10px 8px; font-size: 13px; min-height: 42px; }
+    .section-nav button { flex: 1 0 auto; padding: 10px 12px; font-size: 13px; min-height: 42px; }
     .brand-sub { display: none; }
     .brand-mark { width: 30px; height: 30px; font-size: 14px; }
     .live-pill { font-size: 9.5px; padding: 3px 8px; }
@@ -850,7 +1044,7 @@
     #live-pill { display: none; }
     .wrap { padding-left: calc(env(safe-area-inset-left,0px) + 11px);
             padding-right: calc(env(safe-area-inset-right,0px) + 11px); }
-    .section-nav button { font-size: 12px; padding: 10px 4px; }
+    .section-nav button { font-size: 12px; padding: 10px 9px; }
     .brand-name { font-size: 14px; }
     .m-card-facts { gap: 3px 11px; font-size: 11px; }
   }
@@ -1071,9 +1265,11 @@
   <nav class="section-nav" id="section-nav">
     <button data-section="portfolio" class="active" onclick="TB.showSection('portfolio')">Portfolio</button>
     <button data-section="journal" onclick="TB.showSection('journal')">Journal</button>
+    <button data-section="news" onclick="TB.showSection('news')">News</button>
     <button data-section="strats" onclick="TB.showSection('strats')">Strats/Rules</button>
     <button data-section="rules" onclick="TB.showSection('rules')">Rules</button>
     <button data-section="apps" onclick="TB.showSection('apps')">Apps</button>
+    <button data-section="control" onclick="TB.showSection('control')">Control</button>
   </nav>
 
   <div class="topbar-right">
@@ -1201,6 +1397,13 @@
       <div class="m-list" id="jr-cards"></div>
     </div>
   </div>
+</section>
+
+<!-- ══════════════════════ NEWS ══════════════════════ -->
+<!-- Rendered entirely by TB.news (see the NEWS module). One host, so a filter
+     click re-renders the whole view in one pass. -->
+<section class="section-view" id="view-news">
+  <div class="wrap" style="max-width:1100px;"><div id="nh-host"></div></div>
 </section>
 
 <!-- ══════════════════════ STRATS / RULES ══════════════════════ -->
@@ -1342,6 +1545,11 @@
   </div>
 </section>
 
+<!-- ══════════════════════ CONTROL ══════════════════════ -->
+<section class="section-view" id="view-control">
+  <div class="wrap" style="max-width:920px;"><div id="wl-host"></div></div>
+</section>
+
 <!-- add / edit launch item modal -->
 <div class="modal-overlay" id="apps-modal">
   <div class="modal">
@@ -1466,6 +1674,25 @@
   </div>
 </div>
 
+<!-- Control: ticker trash can (30 days) -->
+<div class="modal-overlay" id="wl-trash-modal">
+  <div class="modal" style="width:460px;">
+    <div class="modal-title">Removed tickers</div>
+    <div style="font-size:12px;color:var(--muted);margin:-12px 0 12px;">Kept for 30 days, then deleted automatically.</div>
+    <div id="wl-trash-list"></div>
+    <div class="modal-actions">
+      <button class="btn btn-danger" id="wl-trash-empty" onclick="TB.wl.emptyTrash()">Empty trash</button>
+      <div style="flex:1"></div>
+      <button class="btn" onclick="TB.wl.closeTrash()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- News: AI market summary of the current build -->
+<div class="modal-overlay" id="nh-sum-modal">
+  <div class="modal"><div id="nh-sum-host"></div></div>
+</div>
+
 <div id="toast-host"></div>
 
 <script>
@@ -1490,6 +1717,10 @@ const TBStore = (() => {
     rulesDaily: NS + "rules.daily",        // Rules — {lastCompleted:"YYYY-MM-DD", enabled:bool}
     apps:       NS + "apps.items",         // Apps — array of LaunchItem (see TB.apps)
     appsLog:    NS + "apps.log",           // Apps — action history, newest first, capped
+    wlList:     NS + "watchlist.list",     // Control — the watchlist that drives News
+    wlDefault:  NS + "watchlist.default",  // Control — user-set default ("Reset" restores it)
+    wlTrash:    NS + "watchlist.trash",    // Control — removed tickers [{t, trashed}], 30 days
+    wlSectors:  NS + "watchlist.sectors",  // Control — AI-detected sectors {TICKER: label}
   };
   // Cloud mirror hook — TBCloud registers here once Firebase is ready. When set,
   // every local write is also pushed to Firestore. Kept as a plain function ref
@@ -1752,6 +1983,49 @@ const TBAuth = (() => {
    listen for remote changes; local writes mirror up. This makes the page open
    instantly, keep working offline, and converge across devices when online.
    ═══════════════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════════════════
+   TBSync — the one cloud status pill (#cloud-pill), shared by every writer:
+   TBCloud (journal, strats, rules, apps, watchlist…) and the News doc.
+     Syncing…    a write is queued or on the wire
+     Synced      every channel's last write landed
+     Sync failed some channel's last write failed (it is retried automatically,
+                 and the data stays on this device meanwhile)
+   Failures are tracked PER CHANNEL, so a later success on one channel can't
+   hide a failure still standing on another.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const TBSync = (() => {
+  const busy = new Map();        // channel -> in-flight count
+  const failed = new Set();      // channels whose last write failed
+  let connected = false;
+  function pill(state, text, title) {
+    const p = document.getElementById("cloud-pill");
+    if (!p) return;
+    p.className = "live-pill" + (state ? " " + state : "");
+    const t = document.getElementById("cloud-text");
+    if (t) t.textContent = text;
+    p.title = title || "";
+  }
+  function paint() {
+    if (failed.size) return pill("error", "Sync failed", "A change didn't reach the cloud. It's kept on this device and retried automatically.");
+    let n = 0; busy.forEach(v => { n += v; });
+    if (n > 0) return pill("syncing", "Syncing…", "Saving your changes to the cloud");
+    if (!connected) return pill("syncing", "Connecting…", "Connecting to the cloud");
+    pill("live", "Synced", "All changes saved — data syncs across your devices");
+  }
+  return {
+    connected() { connected = true; paint(); },
+    begin(ch) { busy.set(ch, (busy.get(ch) || 0) + 1); paint(); },
+    // ok=true clears this channel's failure; ok=false records one.
+    end(ch, ok) {
+      if (busy.has(ch)) { const v = busy.get(ch) - 1; v > 0 ? busy.set(ch, v) : busy.delete(ch); }
+      if (ok === false) failed.add(ch); else if (ok === true) failed.delete(ch);
+      paint();
+    },
+    paint,
+  };
+})();
+window.TBSync = TBSync;
+
 const TBCloud = (() => {
   // Firebase init + auth are owned by TBAuth. TBCloud waits for TBAuth.ready and
   // then syncs to the signed-in user's OWN document: tradeboard/{uid}. Firestore
@@ -1768,6 +2042,10 @@ const TBCloud = (() => {
     [TBStore.KEYS.rules]:        "rules",
     [TBStore.KEYS.rulesDaily]:   "rulesDaily",
     [TBStore.KEYS.apps]:         "apps",
+    [TBStore.KEYS.wlList]:       "watchlist",
+    [TBStore.KEYS.wlDefault]:    "watchlistDefault",
+    [TBStore.KEYS.wlTrash]:      "watchlistTrash",
+    [TBStore.KEYS.wlSectors]:    "watchlistSectors",
     // sync.meta is device-local (last_sync/source) — deliberately NOT mirrored.
     // apps.log is device-local too: the history records what THIS machine's shell
     // actually launched/closed, so merging another device's log would be a lie.
@@ -1780,26 +2058,38 @@ const TBCloud = (() => {
   let _flushTimer = null;
   let _applyingRemote = false;    // guard so remote-applied writes don't echo up
 
-  function _setPill(state, text, title) {
-    const pill = document.getElementById("cloud-pill");
-    if (!pill) return;
-    pill.className = "live-pill" + (state ? " " + state : "");
-    const t = document.getElementById("cloud-text");
-    if (t) t.textContent = text;
-    pill.title = title || "";
-  }
-
-  // Push all buffered fields as one debounced Firestore write.
+  // Push all buffered fields as one debounced Firestore write. This used to
+  // swallow a failed write into console.warn while the pill kept saying "Cloud
+  // synced" — the change was silently stuck on this device. Now the pill shows
+  // Syncing… / Synced / Sync failed, and a failed batch goes back into the queue
+  // (unless a newer edit to the same field superseded it) and is retried.
+  let _dirty = false, _retryN = 0, _retryTimer = null;
+  function _markDirty() { if (!_dirty) { _dirty = true; TBSync.begin("main"); } }
   function _flush() {
     _flushTimer = null;
     if (!ready || _pending.size === 0) return;
     const payload = {};
     for (const [field, raw] of _pending) payload[field] = raw; // store as JSON strings
+    const sent = new Map(_pending);
     _pending.clear();
     payload._updated = Date.now();
     _fs.setDoc(docRef, payload, { merge: true })
-      .catch(e => console.warn("cloud write failed:", e));
+      .then(() => {
+        _retryN = 0;
+        if (_pending.size) return;           // more edits queued meanwhile — stay "Syncing…"
+        _dirty = false; TBSync.end("main", true);
+      })
+      .catch(e => {
+        console.warn("cloud write failed:", e);
+        for (const [f, raw] of sent) if (!_pending.has(f)) _pending.set(f, raw);
+        _dirty = false; TBSync.end("main", false);
+        const wait = [2000, 5000, 15000, 45000, 120000][Math.min(_retryN++, 4)];
+        clearTimeout(_retryTimer);
+        _retryTimer = setTimeout(() => { if (_pending.size) { _markDirty(); _flush(); } }, wait);
+      });
   }
+  // Coming back online retries a stuck batch straight away.
+  window.addEventListener("online", () => { if (ready && _pending.size && !_flushTimer) { _markDirty(); _flush(); } });
 
   // Called by TBStore on every local write.
   function _onLocalWrite(lsKey, rawStr) {
@@ -1807,6 +2097,7 @@ const TBCloud = (() => {
     const field = FIELD[lsKey];
     if (!field) return;                    // unmapped key (e.g. sync.meta) — skip
     _pending.set(field, rawStr);
+    _markDirty();
     if (ready) { if (!_flushTimer) _flushTimer = setTimeout(_flush, 400); }
   }
 
@@ -1840,6 +2131,13 @@ const TBCloud = (() => {
         TB.apps && TB.apps._reload && TB.apps._reload();
         TB.apps && TB.apps._pushToShell && TB.apps._pushToShell();
       }
+      if (touched.has("watchlist") || touched.has("watchlistDefault") || touched.has("watchlistTrash") || touched.has("watchlistSectors")) {
+        TB.wl && TB.wl._reload();
+        TB.wl && TB.wl.render();
+        TB.news && TB.news.onWatchlistChanged();
+        TB.news && TB.news.renderIfActive();
+        TB.wl && TB.wl.resolveSectors();
+      }
       if (touched.has("rules") || touched.has("rulesDaily")) {
         TB.rules && TB.rules._reload && TB.rules._reload();
         // The load sweeps run long before this snapshot arrives, so they judged the
@@ -1860,7 +2158,7 @@ const TBCloud = (() => {
 
   async function init() {
     try {
-      _setPill("syncing", "Connecting…", "Waiting for sign-in");
+      TBSync.paint();   // "Connecting…" until the first snapshot lands
       // Block until TBAuth has a signed-in user. Firebase is already initialized
       // by TBAuth; we reuse its app/auth/db and sync to THIS user's own document.
       const ctx = await TBAuth.ready;
@@ -1902,6 +2200,7 @@ const TBCloud = (() => {
           // while we were connecting.
           if (!snap.exists()) _seedFromLocal();
           if (!_flushTimer && _pending.size) _flushTimer = setTimeout(_flush, 200);
+          TBSync.connected();
           // Cold-open backstop for the rules checklist. _applySnapshot() re-asks
           // only when a field actually CHANGED, so a doc with no rulesDaily yet
           // (or one already matching this cache) wouldn't reach it — but the load
@@ -1911,14 +2210,14 @@ const TBCloud = (() => {
           try { TB.rules && TB.rules.maybeShowDaily && TB.rules.maybeShowDaily(); }
           catch (e) { console.warn("rules checklist failed:", e); }
         }
-        _setPill("live", "Cloud synced", "Data syncs across your devices");
+        TBSync.end("listen", true);
       }, err => {
         console.warn("cloud listener error:", err);
-        _setPill("error", "Offline", "Cloud sync unavailable — using local data");
+        TBSync.end("listen", false);
       });
     } catch (e) {
       console.warn("TBCloud init failed (staying local):", e);
-      _setPill("error", "Local only", "Cloud sync failed to load");
+      TBSync.end("listen", false);
     }
   }
 
@@ -1930,7 +2229,10 @@ const TBCloud = (() => {
       const raw = TBStore.getRaw(lsKey);
       if (raw != null) payload[field] = raw;
     }
-    _fs.setDoc(docRef, payload, { merge: true }).catch(e => console.warn("seed failed:", e));
+    TBSync.begin("seed");
+    _fs.setDoc(docRef, payload, { merge: true })
+      .then(() => TBSync.end("seed", true))
+      .catch(e => { console.warn("seed failed:", e); TBSync.end("seed", false); });
   }
 
   // Force a one-off re-read of the cloud doc and apply it. The onSnapshot
@@ -2051,8 +2353,13 @@ const TBWebull = (() => {
    ═══════════════════════════════════════════════════════════════════════════ */
 const TB = {
   showSection(name) {
+    if (!document.getElementById("view-" + name)) name = "portfolio";
+    const prev = document.querySelector(".section-view.active");
+    if (prev && prev.id === "view-news" && name !== "news" && TB.news) TB.news.hide();
     document.querySelectorAll(".section-view").forEach(v => v.classList.remove("active"));
     document.getElementById("view-" + name).classList.add("active");
+    const navBtn = document.querySelector(`#section-nav button[data-section="${name}"]`);
+    if (navBtn && navBtn.scrollIntoView) navBtn.scrollIntoView({ block: "nearest", inline: "nearest" });
     document.querySelectorAll("#section-nav button").forEach(b =>
       b.classList.toggle("active", b.dataset.section === name));
     const s = TBStore.get(TBStore.KEYS.settings, {}); s.lastSection = name;
@@ -2063,11 +2370,14 @@ const TB = {
       window._tbSectionLock.renderGate(name);
       return;
     }
+    if (window._tbSectionLock) window._tbSectionLock.clearGate(name);
     if (name === "portfolio") TB.pf.render();
     if (name === "journal") TB.jr.render();
     if (name === "strats") TB.st.render();
     if (name === "rules") TB.rules.render();
     if (name === "apps") TB.apps.render();
+    if (name === "control") TB.wl.render();
+    if (name === "news") TB.news.show();
   },
   setLive(state, text, title) {
     const pill = document.getElementById("live-pill");
@@ -4191,6 +4501,1018 @@ TB.apps = {
   },
 };
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONTROL + NEWS — integrated from Tony's TradeHub (Control tab minus Prompts,
+   and the News tab), rebuilt for this page's vanilla JS and purple theme.
+
+   Data:
+     • The watchlist, its user-set default, its 30-day trash and the AI-derived
+       sectors live in TBStore keys mirrored into the main cloud doc (TBCloud).
+     • The news feed is tens of KB and is replaced on every build, so it gets its
+       OWN document (tradeboard/<TB_DOC_ID>_news, see firebase/firestore.rules)
+       instead of crowding the journal's 1 MiB doc.
+   Backend: Veda's own worker (V1/workers/tradeboard-news) — her Gemini key, her
+   KV cache, her daily force-fresh budget. Never Tony's newshub-api.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const TBN_WORKER = "https://tradeboard-news.vedapatel05.workers.dev";
+
+// Veda's watchlist. The worker's WATCHLIST holds the same members, so this exact
+// set reads the worker's shared default cache key.
+const TBW_DEFAULT = ["VMC","MMM","AAPL","COF","WMT","PLTR","LMND","GOOGL","TSLA","SCCO","BABA",
+                     "FOX","AMZN","FRO","NVDA","SMH","CRDO","MU","SNDK","INTC","BE"];
+const TBW_MAX = 40;                         // worker's parseTickers cap
+const TBW_TRASH_DAYS = 30;
+// Known sectors (TradeHub's table + Veda's FOX/FRO). Anything else is classified
+// by the worker's /sectors endpoint (Gemini, cached in KV) and kept in TB.wl.ai.
+const TBW_SECTORS = {DRAM:"AI/Semiconductor",MRVL:"Semiconductor",SPCX:"Space",SNDK:"Storage",MU:"Semiconductor",
+  WDC:"Storage",INTC:"Semiconductor",AMD:"Semiconductor",LMT:"Defense",CRWD:"Cybersecurity",BE:"Clean Energy",
+  GOOGL:"Tech/Mega-Cap",PLTR:"AI/Software",NVDA:"AI/Semiconductor",CRDO:"Semiconductor",TSLA:"EV/Auto",
+  AAPL:"Tech/Mega-Cap",MSFT:"Tech/Mega-Cap",NET:"Cybersecurity",SCCO:"Copper/Mining",ERO:"Copper/Mining",
+  WMT:"Retail",AMZN:"Tech/Retail",BABA:"China/Tech",LMND:"InsurTech",EXPE:"Travel",NVS:"Pharma",MS:"Financials",
+  XOM:"Energy",CVX:"Energy",VLO:"Refining",CNQ:"Energy",COF:"Financials",FCX:"Copper/Mining",MMM:"Industrials",
+  SMH:"Semiconductor",VMC:"Materials/Construction",FOX:"Media",FRO:"Shipping/Tankers"};
+
+const TBI_SVG = (d) => `<svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const TBICON = {
+  refresh: TBI_SVG('<path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/>'),
+  rotate:  TBI_SVG('<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>'),
+  sparkle: TBI_SVG('<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 17l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/>'),
+  alert:   TBI_SVG('<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/>'),
+  clock:   TBI_SVG('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+  star:    TBI_SVG('<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/>'),
+  copy:    TBI_SVG('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>'),
+  trash:   TBI_SVG('<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>'),
+  x:       TBI_SVG('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
+};
+
+/* ── shared helpers ── */
+function tbnSafeUrl(u) { return /^https?:\/\//i.test(String(u || "")) ? String(u) : "#"; }
+function tbnAgo(ts) {
+  if (!ts) return "";
+  const s = (Date.now() - ts) / 1000;
+  if (s < 60) return "now";
+  if (s < 3600) return Math.max(1, Math.round(s / 60)) + "m ago";
+  if (s < 86400) return Math.round(s / 3600) + "h ago";
+  return Math.round(s / 86400) + "d ago";
+}
+function tbnPct(dp) { return (dp == null || !isFinite(dp)) ? "" : (dp > 0 ? "+" : "") + (+dp).toFixed(2) + "%"; }
+function tbnPrice(c) { return (c == null || !isFinite(c)) ? "" : "$" + (+c).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function tbnMoveColor(dp) { return (dp == null || !isFinite(dp) || dp === 0) ? "var(--muted)" : dp > 0 ? "var(--green)" : "var(--red)"; }
+function tbnSig(list) { return (list || []).slice().sort().join(","); }
+// Most recent 6:00 AM on this device's clock, every day (weekends too) — the same
+// single refresh boundary TradeHub uses for its morning news.
+function tbnMorningSlot() {
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 6, 0, 0, 0);
+  if (d.getTime() > now.getTime()) d.setDate(d.getDate() - 1);
+  return d.getTime();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TB.wl — CONTROL tab: the single watchlist that drives News.
+   ═══════════════════════════════════════════════════════════════════════════ */
+TB.wl = {
+  list: [], def: null, trash: [], ai: {},
+  _inflight: new Set(),
+  _pushTimer: null, _pushedSig: "",
+
+  _init() {
+    TB.wl._reload();
+    // Purge trash older than 30 days. Only writes when something actually expired.
+    const cut = Date.now() - TBW_TRASH_DAYS * 86400000;
+    const kept = TB.wl.trash.filter(x => (x.trashed || 0) >= cut);
+    if (kept.length !== TB.wl.trash.length) { TB.wl.trash = kept; TBStore.set(TBStore.KEYS.wlTrash, kept); }
+    document.getElementById("wl-host").addEventListener("click", TB.wl._onClick);
+    document.getElementById("wl-trash-modal").addEventListener("click", e => {
+      if (e.target.id === "wl-trash-modal") return TB.wl.closeTrash();
+      const b = e.target.closest("[data-act]"); if (!b) return;
+      if (b.dataset.act === "restore") TB.wl.restore(b.dataset.t);
+      if (b.dataset.act === "purge") TB.wl.purge(b.dataset.t);
+    });
+    TB.wl.resolveSectors();
+  },
+  // Re-hydrate from TBStore (boot, and after a cloud pull). A list that has never
+  // been saved is the default — but it is NOT written back here: seeding a write
+  // before the first cloud snapshot would overwrite the list another device saved.
+  _reload() {
+    const l = TBStore.get(TBStore.KEYS.wlList, null);
+    TB.wl.list = Array.isArray(l) ? l.filter(Boolean) : TBW_DEFAULT.slice();
+    const d = TBStore.get(TBStore.KEYS.wlDefault, null);
+    TB.wl.def = (Array.isArray(d) && d.length) ? d : null;
+    const t = TBStore.get(TBStore.KEYS.wlTrash, null);
+    TB.wl.trash = Array.isArray(t) ? t.filter(x => x && x.t) : [];
+    const a = TBStore.get(TBStore.KEYS.wlSectors, null);
+    TB.wl.ai = (a && typeof a === "object") ? a : {};
+  },
+  defaultList() { return TB.wl.def ? TB.wl.def.slice() : TBW_DEFAULT.slice(); },
+  sector(t) { return TBW_SECTORS[t] || TB.wl.ai[t] || "Diversified"; },
+  knowsSector(t) { return !!(TBW_SECTORS[t] || TB.wl.ai[t]); },
+
+  // One write path for list + trash. Invariant: a ticker is live or trashed, never both.
+  _commit(list, trash) {
+    const live = list.slice(0, TBW_MAX);
+    const t = (trash || TB.wl.trash).filter(x => x && x.t && !live.includes(x.t));
+    TB.wl.list = live; TB.wl.trash = t;
+    TBStore.set(TBStore.KEYS.wlList, live);
+    TBStore.set(TBStore.KEYS.wlTrash, t);
+    TB.wl._changed();
+  },
+  // Everything downstream of a list change: repaint, classify new tickers, tell
+  // the worker, and let News pull coverage for the new list.
+  _changed() {
+    TB.wl.render();
+    TB.wl.resolveSectors();
+    TB.wl._pushToWorker();
+    TB.news && TB.news.onWatchlistChanged();
+  },
+  // The worker keeps the list it should pre-warm at KV 'wl:current' (used if its
+  // morning cron is ever re-enabled). Veda's worker only — never Tony's.
+  _pushToWorker() {
+    const list = TB.wl.list;
+    if (!list.length) return;
+    const sig = list.join(",");
+    if (sig === TB.wl._pushedSig) return;
+    clearTimeout(TB.wl._pushTimer);
+    TB.wl._pushTimer = setTimeout(() => {
+      TB.wl._pushedSig = sig;
+      fetch(TBN_WORKER + "/watchlist", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tickers: list }), keepalive: true }).catch(() => {});
+    }, 1500);
+  },
+  // AI sector detection for tickers outside the known table. The worker caches each
+  // answer for 30 days, and the result is synced, so each ticker is classified once.
+  // The same call also caches the ticker's aliases + theme keywords on the worker,
+  // which is what makes a newly-added ticker's news coverage work.
+  async resolveSectors() {
+    const need = TB.wl.list.filter(t => !TB.wl.knowsSector(t) && !TB.wl._inflight.has(t));
+    if (!need.length) return;
+    need.forEach(t => TB.wl._inflight.add(t));
+    try {
+      const r = await fetch(TBN_WORKER + "/sectors?tickers=" + encodeURIComponent(need.join(",")));
+      if (r.ok) {
+        const j = await r.json();
+        const map = (j && j.sectors) || {};
+        let changed = false;
+        const next = Object.assign({}, TB.wl.ai);
+        for (const [t, s] of Object.entries(map)) {
+          if (s && !TBW_SECTORS[t] && next[t] !== s) { next[t] = s; changed = true; }
+        }
+        if (changed) { TB.wl.ai = next; TBStore.set(TBStore.KEYS.wlSectors, next); }
+      }
+    } catch (e) { /* offline — chips stay "Detecting…" until the next change */ }
+    finally {
+      need.forEach(t => TB.wl._inflight.delete(t));
+      TB.wl.render();
+      if (TB.news) TB.news.renderIfActive();
+    }
+  },
+
+  _norm(raw) { return String(raw || "").trim().toUpperCase().replace(/[^A-Z0-9.\-]/g, "").slice(0, 6); },
+  // Accepts one or many — "NVDA, MU AMD" and "[NVDA AMD]" both work.
+  add(raw) {
+    const parts = String(raw || "").split(/[,\s\[\]]+/).map(TB.wl._norm).filter(Boolean);
+    if (!parts.length) return;
+    const next = TB.wl.list.slice();
+    const added = [];
+    parts.forEach(t => { if (!next.includes(t)) { next.push(t); added.push(t); } });
+    if (next.length > TBW_MAX) U.toast(`Watchlist holds up to ${TBW_MAX} tickers — the rest were not added.`, "err");
+    const input = document.getElementById("wl-input"); if (input) input.value = "";
+    if (!added.length) { U.toast("Already on your watchlist.", ""); return; }
+    TB.wl._commit(next);
+    U.toast(`Added ${added.slice(0, TBW_MAX).join(", ")}`, "ok");
+  },
+  // Removing is a soft delete into the 30-day trash, same as TradeHub.
+  remove(t) {
+    const ts = Date.now();
+    TB.wl._commit(TB.wl.list.filter(x => x !== t),
+      [{ t, trashed: ts }, ...TB.wl.trash.filter(x => x.t !== t)]);
+    U.toast(`${t} moved to trash.`, "ok");
+  },
+  setDefault() {
+    if (!TB.wl.list.length) return;
+    TB.wl.def = TB.wl.list.slice();
+    TBStore.set(TBStore.KEYS.wlDefault, TB.wl.def);   // synced — every device resets to the same list
+    TB.wl.render();
+    U.toast(`Saved ${TB.wl.def.length} tickers as your default watchlist.`, "ok");
+  },
+  async reset() {
+    const def = TB.wl.defaultList();
+    const dropped = TB.wl.list.filter(t => !def.includes(t));
+    if (tbnSig(def) === tbnSig(TB.wl.list)) { U.toast("Already on your default watchlist.", ""); return; }
+    const ok = await window.uiConfirm(
+      `Reset to your default watchlist (${def.length} tickers)?` + (dropped.length ? `\n\n${dropped.join(", ")} will move to the trash.` : ""),
+      { title: "Reset watchlist", okLabel: "Reset" });
+    if (!ok) return;
+    const ts = Date.now();
+    TB.wl._commit(def, [...dropped.map(t => ({ t, trashed: ts })), ...TB.wl.trash.filter(x => !dropped.includes(x.t))]);
+    U.toast("Watchlist reset to default.", "ok");
+  },
+  copy() {
+    const s = "[" + TB.wl.list.join(", ") + "]";
+    const done = () => U.toast(`Copied ${TB.wl.list.length} tickers.`, "ok");
+    const fallback = () => {
+      const ta = document.createElement("textarea"); ta.value = s; document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); } catch (e) {} ta.remove(); done();
+    };
+    try { navigator.clipboard.writeText(s).then(done, fallback); } catch (e) { fallback(); }
+  },
+
+  /* trash */
+  openTrash() { TB.wl.renderTrash(); document.getElementById("wl-trash-modal").classList.add("open"); },
+  closeTrash() { document.getElementById("wl-trash-modal").classList.remove("open"); },
+  restore(t) {
+    if (TB.wl.list.length >= TBW_MAX) { U.toast(`Watchlist is full (${TBW_MAX}).`, "err"); return; }
+    TB.wl._commit([...TB.wl.list, t], TB.wl.trash.filter(x => x.t !== t));
+    TB.wl.renderTrash(); U.toast(`${t} restored.`, "ok");
+  },
+  async purge(t) {
+    const ok = await window.uiConfirm(`Delete ${t} from the trash for good?`, { title: "Delete forever", okLabel: "Delete" });
+    if (!ok) return;
+    TB.wl.trash = TB.wl.trash.filter(x => x.t !== t);
+    TBStore.set(TBStore.KEYS.wlTrash, TB.wl.trash); TB.wl.renderTrash(); TB.wl.render();
+  },
+  async emptyTrash() {
+    if (!TB.wl.trash.length) return;
+    const ok = await window.uiConfirm(`Delete all ${TB.wl.trash.length} removed tickers for good?`, { title: "Empty trash", okLabel: "Delete all" });
+    if (!ok) return;
+    TB.wl.trash = []; TBStore.set(TBStore.KEYS.wlTrash, []); TB.wl.renderTrash(); TB.wl.render();
+  },
+  renderTrash() {
+    const host = document.getElementById("wl-trash-list");
+    const items = TB.wl.trash.slice().sort((a, b) => (b.trashed || 0) - (a.trashed || 0));
+    document.getElementById("wl-trash-empty").disabled = !items.length;
+    host.innerHTML = !items.length ? `<div class="wl-empty" style="padding:18px 0;">Trash is empty.</div>`
+      : items.map(x => {
+          const left = Math.max(0, Math.ceil(((x.trashed || 0) + TBW_TRASH_DAYS * 86400000 - Date.now()) / 86400000));
+          return `<div class="trash-row"><span class="sym">${U.esc(x.t)}</span>
+            <span class="meta">removed ${tbnAgo(x.trashed)} · ${left}d left</span>
+            <button class="btn btn-sm" data-act="restore" data-t="${U.esc(x.t)}">Restore</button>
+            <button class="btn-icon danger" title="Delete forever" aria-label="Delete ${U.esc(x.t)} forever" data-act="purge" data-t="${U.esc(x.t)}">${TBICON.trash}</button></div>`;
+        }).join("");
+  },
+
+  _onClick(e) {
+    const b = e.target.closest("[data-act]"); if (!b) return;
+    const a = b.dataset.act;
+    if (a === "add") TB.wl.add(document.getElementById("wl-input").value);
+    else if (a === "remove") TB.wl.remove(b.dataset.t);
+    else if (a === "default") TB.wl.setDefault();
+    else if (a === "reset") TB.wl.reset();
+    else if (a === "copy") TB.wl.copy();
+    else if (a === "trash") TB.wl.openTrash();
+  },
+  render() {
+    const host = document.getElementById("wl-host");
+    if (!host || !document.getElementById("view-control").classList.contains("active")) return;
+    if (host.querySelector(".sec-lock-gate")) return;
+    const L = TB.wl.list;
+    const typed = (document.getElementById("wl-input") || {}).value || "";
+    const focused = document.activeElement && document.activeElement.id === "wl-input";
+    const secs = [...new Set(L.map(TB.wl.sector))].sort();
+    const isDefault = tbnSig(L) === tbnSig(TB.wl.defaultList());
+    host.innerHTML = `
+      <div class="section-label"><span>Control</span><span class="meta">${TB.wl.def ? "custom default set" : ""}</span></div>
+      <div class="card wl-card">
+        <div class="wl-head">
+          <div>
+            <div class="wl-title">Watchlist</div>
+            <div class="wl-sub"><b>${L.length}</b> ticker${L.length === 1 ? "" : "s"} · drives News${isDefault ? " · default list" : ""}</div>
+          </div>
+          <div class="wl-acts">
+            <button class="btn btn-sm" data-act="default" ${L.length ? "" : "disabled"} title="Save the current list as the default — what Reset restores">${TBICON.star}<span>Set current as default</span></button>
+            <button class="btn btn-sm" data-act="reset" title="Go back to your default watchlist">${TBICON.rotate}<span>Reset to default</span></button>
+            <button class="btn btn-sm" data-act="trash" title="Removed tickers (kept 30 days)">${TBICON.trash}<span>Trash${TB.wl.trash.length ? " (" + TB.wl.trash.length + ")" : ""}</span></button>
+          </div>
+        </div>
+        <div class="wl-add">
+          <input id="wl-input" class="form-input" autocomplete="off" autocapitalize="characters" spellcheck="false"
+                 placeholder="Add tickers — comma or space separated (e.g. NVDA, MU, AMD)" value="${U.esc(typed)}">
+          <button class="btn btn-primary" data-act="add">+ Add</button>
+        </div>
+        <div class="wl-chips">
+          ${!L.length ? `<span class="wl-empty">No tickers — add some above or reset to default.</span>` :
+            L.slice().sort().map(t => `<span class="wl-chip">
+              <span class="sym">${U.esc(t)}</span>
+              <span class="sec${TB.wl.knowsSector(t) ? "" : " pending"}" title="Sector">${TB.wl.knowsSector(t) ? U.esc(TB.wl.sector(t)) : "Detecting…"}</span>
+              <button class="x" data-act="remove" data-t="${U.esc(t)}" title="Remove ${U.esc(t)}" aria-label="Remove ${U.esc(t)}">×</button>
+            </span>`).join("")}
+        </div>
+        <div class="wl-label">Copy list</div>
+        <div class="wl-copy">
+          <div class="wl-copy-box">[${U.esc(L.join(", "))}]</div>
+          <button class="btn btn-sm" data-act="copy" ${L.length ? "" : "disabled"}>${TBICON.copy}<span>Copy</span></button>
+        </div>
+        <div class="wl-label">Auto-detected sectors</div>
+        <div class="wl-secs">${secs.length ? secs.map(s => `<span>${U.esc(s)}</span>`).join("") : `<span class="wl-empty" style="border:none">—</span>`}</div>
+      </div>`;
+    const inp = document.getElementById("wl-input");
+    inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); TB.wl.add(inp.value); } });
+    if (focused) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+  },
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TB.news — NEWS tab. Port of TradeHub's TBNewsPage + its module-level build
+   manager. Lives at module level (not inside the view), so a build keeps being
+   watched across tab switches and lands even with News closed.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const TBN_DAILY_LIMIT = 12;              // worker DAILY_FRESH_LIMIT
+const TBN_POLL_MS = 15000;
+const TBN_MAX_POLLS = 16;                // ~4 min, longer than any healthy build
+const TBN_BREAKING_MS = 30 * 60 * 1000;
+const TBN_ESCALATE_COOLDOWN = 30 * 60 * 1000;
+const TBN_CACHE_LS = "tb.news.cache";    // device-local copy for an instant first paint
+const TBN_SUM_LS = "tb.news.summary";
+const TBN_SLOT_LS = "tb.news.slot";
+const TBN_TIER = {
+  critical:  { label: "Critical",  c: "var(--red)" },
+  major:     { label: "Major",     c: "var(--accent)" },
+  important: { label: "Important", c: "var(--amber)" },
+  notable:   { label: "Notable",   c: "var(--text-2)" },
+  minor:     { label: "Minor",     c: "var(--muted)" },
+};
+const TBN_SLABEL = { bull: "Bullish", bear: "Bearish", neutral: "Neutral" };
+const TBN_DEFAULT_SETTINGS = { hours: 72, sentFilter: "all", impFilter: "all", selTickers: [], selSectors: [], sortBy: "impact" };
+
+TB.news = {
+  events: [], generatedAt: 0, degraded: false,
+  f: Object.assign({}, TBN_DEFAULT_SETTINGS), fAt: 0,
+  kicking: false, building: false, timer: null, polls: 0, baseGen: 0,
+  notice: "",
+  quotes: {}, quotesAt: 0, _qTimer: null,
+  rlUsed: 0, rlCooldown: 0, _cdTimer: null,
+  sum: { gen: 0, data: null, loading: false, inflight: false, error: "", warmedGen: 0 }, sumOpen: false,
+  _openHl: new Set(),
+  _escalatedAt: 0, _kickedAt: 0, _wlSig: "", _wlTimer: null,
+  _cloud: { ref: null, fs: null, ready: false, timer: null, lastSavedAt: 0, failN: 0, retry: null },
+
+  tickers() { return TB.wl.list.slice(); },
+  active() { const v = document.getElementById("view-news"); return !!(v && v.classList.contains("active")); },
+
+  _init() {
+    try {
+      const c = JSON.parse(localStorage.getItem(TBN_CACHE_LS) || "null");
+      if (c && Array.isArray(c.events)) {
+        TB.news.events = c.events; TB.news.generatedAt = c.generatedAt || 0; TB.news.degraded = !!c.degraded;
+        if (c.settings) TB.news._applySettings(c.settings, c.fAt || 0);
+      }
+    } catch (e) {}
+    try {
+      const s = JSON.parse(localStorage.getItem(TBN_SUM_LS) || "null");
+      if (s && s.gen && s.data) { TB.news.sum.gen = s.gen; TB.news.sum.data = s.data; }
+    } catch (e) {}
+    TB.news._wlSig = tbnSig(TB.news.tickers());
+    document.getElementById("nh-host").addEventListener("click", TB.news._onClick);
+    document.getElementById("nh-sum-modal").addEventListener("click", e => {
+      if (e.target.id === "nh-sum-modal") TB.news.closeSummary();
+      const b = e.target.closest("[data-act]"); if (!b) return;
+      if (b.dataset.act === "sum-close") TB.news.closeSummary();
+      if (b.dataset.act === "sum-retry") { TB.news.sum.warmedGen = 0; TB.news.fetchSummary(TB.news.generatedAt, false); }
+    });
+    document.addEventListener("keydown", e => { if (e.key === "Escape" && TB.news.sumOpen) TB.news.closeSummary(); });
+    // A backgrounded tab's timers are throttled — poll the moment it's looked at again.
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState !== "visible") return;
+      if (TB.news.building && TB.news.timer) { clearTimeout(TB.news.timer); TB.news.timer = null; TB.news._poll(); }
+      if (TB.news.active()) TB.news._fetchQuotes();
+      TB.news._morning();
+    });
+    // 1-minute tick: "Breaking" badges and "x min ago" stay honest; every 5th
+    // tick re-runs the morning check (same cadence as TradeHub's orchestrator).
+    let n = 0;
+    setInterval(() => { TB.news.renderIfActive(); if (++n % 5 === 0) TB.news._morning(); }, 60000);
+    TB.news._cloudInit();
+  },
+
+  /* ── settings (filters) — synced with the feed ── */
+  _settings() { return Object.assign({}, TB.news.f); },
+  _applySettings(s, at) {
+    if (!s || typeof s !== "object") return;
+    const f = TB.news.f;
+    if ([24, 48, 72].includes(s.hours)) f.hours = s.hours;
+    if (["all", "bull", "neutral", "bear"].includes(s.sentFilter)) f.sentFilter = s.sentFilter;
+    if (["all", "critical", "major", "important", "notable"].includes(s.impFilter)) f.impFilter = s.impFilter;
+    if (Array.isArray(s.selTickers)) f.selTickers = s.selTickers.slice();
+    if (Array.isArray(s.selSectors)) f.selSectors = s.selSectors.slice();
+    if (s.sortBy === "time" || s.sortBy === "impact") f.sortBy = s.sortBy;
+    TB.news.fAt = at || TB.news.fAt;
+  },
+  setFilter(patch) {
+    Object.assign(TB.news.f, patch);
+    TB.news.fAt = Date.now();
+    TB.news._saveLocal();
+    TB.news._publish();
+    TB.news.render();
+  },
+
+  /* ── persistence: local cache + cloud doc ── */
+  _saveLocal() {
+    try {
+      localStorage.setItem(TBN_CACHE_LS, JSON.stringify({ events: TB.news.events, generatedAt: TB.news.generatedAt,
+        degraded: TB.news.degraded, settings: TB.news._settings(), fAt: TB.news.fAt }));
+    } catch (e) { /* full storage must never break News — the cloud copy still lands */ }
+  },
+  async _cloudInit() {
+    const C = TB.news._cloud;
+    try {
+      const ctx = await TBAuth.ready;
+      C.fs = ctx.fsMod;
+      C.ref = ctx.fsMod.doc(ctx.db, "tradeboard", ctx.uid + "_news");
+      let first = true;
+      ctx.fsMod.onSnapshot(C.ref, snap => {
+        if (snap.metadata && snap.metadata.hasPendingWrites) return;      // our own local echo
+        const d = snap.exists() ? snap.data() : null;
+        if (d && d.savedAt && d.savedAt === C.lastSavedAt) { if (first) { first = false; C.ready = true; TB.news._afterHydrate(); } return; }
+        if (d) TB.news._applyRemote(d);
+        if (first) { first = false; C.ready = true; TB.news._afterHydrate(); }
+      }, err => {
+        console.warn("news listener error:", err);
+        TBSync.end("news-listen", false);
+        if (first) { first = false; C.ready = true; TB.news._afterHydrate(); }
+      });
+    } catch (e) { console.warn("news cloud init failed:", e); }
+  },
+  _applyRemote(d) {
+    let evs = null, settings = null;
+    try { evs = typeof d.events === "string" ? JSON.parse(d.events) : (Array.isArray(d.events) ? d.events : null); } catch (e) {}
+    try { settings = typeof d.settings === "string" ? JSON.parse(d.settings) : d.settings; } catch (e) {}
+    let changed = false;
+    // A newer build from another device (or this device's other tab) wins; an
+    // older or empty one never replaces what is on screen.
+    if (Array.isArray(evs) && evs.length && (d.generatedAt || 0) > (TB.news.generatedAt || 0)) {
+      TB.news.events = evs; TB.news.generatedAt = d.generatedAt; TB.news.degraded = !!d.degraded;
+      if (TB.news.building) TB.news._stopWatch();
+      TB.news.kicking = false; TB.news.notice = "";
+      changed = true;
+    }
+    if (settings && (d.fAt || 0) > (TB.news.fAt || 0)) { TB.news._applySettings(settings, d.fAt); changed = true; }
+    if (changed) { TB.news._saveLocal(); TB.news.render(); TB.news._warmSummary(); TB.news._navDot(); }
+  },
+  // Full-document write (debounced), retried with backoff. An empty feed is
+  // never published: the write is an overwrite, so it would wipe the last good
+  // build off every other device.
+  _publish() {
+    const C = TB.news._cloud;
+    if (!C.timer) TBSync.begin("news");
+    clearTimeout(C.timer); clearTimeout(C.retry);
+    C.timer = setTimeout(() => TB.news._write(0), 900);
+  },
+  async _write(attempt) {
+    const C = TB.news._cloud;
+    C.timer = null;
+    if (!C.ref) {
+      try { await TBAuth.ready; } catch (e) {}
+      if (!C.ref) { C.timer = setTimeout(() => TB.news._write(attempt), 1500); return; }
+    }
+    const savedAt = Date.now();
+    const payload = { generatedAt: TB.news.generatedAt || 0, degraded: !!TB.news.degraded,
+      settings: JSON.stringify(TB.news._settings()), fAt: TB.news.fAt || 0, savedAt };
+    if (TB.news.events.length) payload.events = JSON.stringify(TB.news.events);
+    C.lastSavedAt = savedAt;
+    try {
+      await C.fs.setDoc(C.ref, payload, { merge: true });
+      TBSync.end("news", true);
+    } catch (e) {
+      console.warn("news save failed:", e);
+      TBSync.end("news", false);
+      if (attempt < 4) {
+        C.retry = setTimeout(() => { TBSync.begin("news"); TB.news._write(attempt + 1); }, [2000, 5000, 15000, 45000][attempt]);
+      }
+    }
+  },
+
+  /* ── first data in: cloud doc settled ── */
+  _afterHydrate() {
+    TB.news.render();
+    TB.news._warmSummary();
+    TB.news._peekOrBuild();
+    TB.news._morning();
+  },
+  // Show what is ALREADY built — opening the app must not spend a build when the
+  // worker's cache or the cloud doc has news. Build only if there is nothing.
+  async _peekOrBuild() {
+    const wl = TB.news.tickers();
+    if (!wl.length) return;
+    try {
+      const r = await fetch(TBN_WORKER + "/news?cacheOnly=1&tickers=" + encodeURIComponent(wl.join(",")));
+      if (r.ok) {
+        const j = await r.json().catch(() => ({}));
+        if (j && !j._cacheMiss && Array.isArray(j.events) && j.events.length) {
+          if ((j.generatedAt || 0) > (TB.news.generatedAt || 0)) {
+            TB.news._applyBuild(j); TB.news._publish();
+          }
+          return;
+        }
+      }
+    } catch (e) {}
+    if (!TB.news.events.length && !TB.news.building && !TB.news.kicking) TB.news.refresh(false);
+  },
+
+  // Morning check: once per 6am slot, make sure that morning's news is in.
+  // Veda's Cloudflare account has no free cron slot, so nothing builds overnight;
+  // the first open after 6am kicks a non-fresh (free) build in the background.
+  // The slot is marked done only once a build from after 6am is on screen.
+  async _morning() {
+    if (!TB.news._cloud.ready || TB.news.kicking || TB.news.building) return;
+    const wl = TB.news.tickers(); if (!wl.length) return;
+    const slot = tbnMorningSlot();
+    let done = 0; try { done = parseInt(localStorage.getItem(TBN_SLOT_LS) || "0", 10); } catch (e) {}
+    if (done >= slot) return;
+    const mark = () => { try { localStorage.setItem(TBN_SLOT_LS, String(slot)); } catch (e) {} };
+    if ((TB.news.generatedAt || 0) >= slot && TB.news.events.length) { mark(); TB.news._warmSummary(); return; }
+    if (Date.now() - TB.news._kickedAt < 10 * 60 * 1000) return;
+    let staleHit = false;
+    try {
+      const r = await fetch(TBN_WORKER + "/news?cacheOnly=1&tickers=" + encodeURIComponent(wl.join(",")));
+      if (r.ok) {
+        const j = await r.json().catch(() => null);
+        if (j && !j._cacheMiss && Array.isArray(j.events) && j.events.length) {
+          if ((j.generatedAt || 0) >= slot) { TB.news._applyBuild(j); TB.news._publish(); mark(); return; }
+          staleHit = true;   // real news, but from before 6am — only a fresh=1 build gets past it
+        }
+      }
+    } catch (e) { return; }
+    TB.news._kickedAt = Date.now();
+    TB.news._kick(staleHit);
+  },
+  // Start a build in the background and hand it to the watcher (no spinner on the
+  // Refresh button — this is the app's own morning work, not a click).
+  async _kick(fresh) {
+    const wl = TB.news.tickers();
+    fetch(TBN_WORKER + "/news?tickers=" + encodeURIComponent(wl.join(",")) + (fresh ? "&fresh=1" : ""))
+      .then(r => r.ok ? r.json() : null)
+      .then(j => {
+        // A force-fresh can come back already finished (the worker waits for it).
+        if (j && Array.isArray(j.events) && j.events.length && (j.generatedAt || 0) > TB.news.baseGen && !j.status) {
+          if ((j.generatedAt || 0) > (TB.news.generatedAt || 0)) { TB.news._stopWatch(); TB.news._applyBuild(j); TB.news._publish(); }
+        }
+      }).catch(() => {});
+    TB.news._watch(TB.news.generatedAt || 0);
+  },
+
+  /* ── the build watcher ── */
+  _watch(baseGen) {
+    if (TB.news.building) return;
+    TB.news.building = true; TB.news.polls = 0; TB.news.baseGen = baseGen || 0;
+    TB.news._buildSig = tbnSig(TB.news.tickers());
+    TB.news._navDot(); TB.news.renderIfActive();
+    TB.news.timer = setTimeout(TB.news._poll, TBN_POLL_MS);
+    // Seed baseGen from the cache: if it already holds a build newer than what we
+    // show, the first poll must not mistake THAT for the build we are waiting on.
+    const wl = TB.news.tickers();
+    fetch(TBN_WORKER + "/news?cacheOnly=1&tickers=" + encodeURIComponent(wl.join(",")))
+      .then(r => r.ok ? r.json() : null)
+      .then(j => { if (j && TB.news.building && TB.news.polls === 0 && (j.generatedAt || 0) > TB.news.baseGen) TB.news.baseGen = j.generatedAt; })
+      .catch(() => {});
+  },
+  _stopWatch() {
+    clearTimeout(TB.news.timer); TB.news.timer = null; TB.news.polls = 0; TB.news.building = false;
+    TB.news._navDot();
+  },
+  async _poll() {
+    TB.news.timer = null;
+    if (!TB.news.building) return;
+    try {
+      // cacheOnly=1 is a pure peek: polling must never kick another build.
+      const r = await fetch(TBN_WORKER + "/news?cacheOnly=1&tickers=" + encodeURIComponent(TB.news.tickers().join(",")));
+      const j = r.ok ? await r.json().catch(() => ({})) : { _cacheMiss: true };
+      const gen = j.generatedAt || 0;
+      if (!j._cacheMiss && Array.isArray(j.events) && gen > TB.news.baseGen) {
+        TB.news._stopWatch();
+        if (j.events.length) {
+          TB.news._applyBuild(j); TB.news._publish(); TB.news.notice = "";
+        } else {
+          TB.news.notice = "The build came back with no events — sources or the AI quota may be down. Try Force fresh shortly.";
+        }
+        TB.news._fetchRate(); TB.news.renderIfActive();
+        return;
+      }
+    } catch (e) { /* a failed poll is not a failed build — keep watching (capped) */ }
+    if (++TB.news.polls >= TBN_MAX_POLLS) {
+      TB.news._stopWatch();
+      TB.news.notice = "The build did not finish in time. Nothing was lost — the feed below is the last good build. Try Refresh in a minute.";
+      TB.news._fetchRate(); TB.news.renderIfActive();
+      return;
+    }
+    TB.news.timer = setTimeout(TB.news._poll, TBN_POLL_MS);
+  },
+  _applyBuild(j) {
+    const evs = Array.isArray(j.events) ? j.events : [];
+    TB.news.events = evs;
+    TB.news.generatedAt = j.generatedAt || Date.now();
+    TB.news.degraded = !!j.degraded || (evs.length > 0 && evs.every(e => e.aiAnalyzed === false));
+    TB.news._saveLocal();
+    TB.news._warmSummary();
+    TB.news.renderIfActive();
+  },
+
+  /* ── Refresh / Force fresh (the buttons) ── */
+  async refresh(force, escalated) {
+    const wl = TB.news.tickers();
+    if (!wl.length) { TB.news.notice = "Your watchlist is empty — add tickers in Control."; TB.news.render(); return; }
+    TB.news._stopWatch();
+    const baseGen = TB.news.generatedAt || 0;
+    TB.news.kicking = true; TB.news.notice = ""; TB.news._navDot(); TB.news.renderIfActive();
+    try {
+      const r = await fetch(TBN_WORKER + "/news?tickers=" + encodeURIComponent(wl.join(",")) + (force ? "&fresh=1" : ""));
+      if (r.status === 429) {
+        const j = await r.json().catch(() => ({}));
+        TB.news.notice = j.reason || "Daily refresh limit reached. Try again later.";
+        return;
+      }
+      const j = await r.json();
+      if (j._rateLimited) {
+        TB.news.notice = j._rateLimitReason || "Rate limited — showing cached news.";
+        if (Array.isArray(j.events) && j.events.length && (j.generatedAt || 0) > baseGen) TB.news._applyBuild(j);
+        return;
+      }
+      const bld = (() => { try { return r.headers.get("X-Building") === "1"; } catch (e) { return false; } })();
+      const freshDone = force && r.status === 200 && !bld && Array.isArray(j.events) && j.events.length && (j.generatedAt || 0) > baseGen;
+      if (!freshDone && (r.status === 202 || j.status === "building" || bld || force)) {
+        if (Array.isArray(j.events) && j.events.length && (j.generatedAt || 0) > baseGen) TB.news._applyBuild(j);
+        TB.news.kicking = false;
+        TB.news._watch(Math.max(baseGen, j.generatedAt || 0));
+        return;
+      }
+      const evs = j.events || [];
+      // An empty cache hit: spend ONE force-fresh rather than leave News blank
+      // (throttled, so a list with genuinely no news can't drain the budget).
+      if (!evs.length && !force && !escalated && Date.now() - TB.news._escalatedAt > TBN_ESCALATE_COOLDOWN) {
+        TB.news._escalatedAt = Date.now();
+        TB.news.kicking = false;
+        TB.news.notice = "Nothing in cache — running a full rebuild…";
+        return await TB.news.refresh(true, true);
+      }
+      if (evs.length) { TB.news._applyBuild(j); TB.news._publish(); }
+      else TB.news.notice = "The build returned no events — sources or the AI quota may be down. Try Force fresh shortly.";
+    } catch (e) {
+      TB.news.notice = "Couldn't reach the news service: " + e.message;
+    } finally {
+      TB.news.kicking = false; TB.news._navDot();
+      TB.news._fetchRate(); TB.news.renderIfActive();
+    }
+  },
+
+  /* ── watchlist changed (Control tab, or another device) ── */
+  onWatchlistChanged() {
+    const sig = tbnSig(TB.news.tickers());
+    if (sig === TB.news._wlSig) return;
+    TB.news._wlSig = sig;
+    const tset = new Set(TB.news.tickers());
+    // Prune right away so News never shows a removed ticker…
+    TB.news.events = TB.news.events.filter(e => tset.has(e.primaryTicker) || (e.additionalTickers || []).some(t => tset.has(t)));
+    TB.news.f.selTickers = TB.news.f.selTickers.filter(t => tset.has(t));
+    TB.news._saveLocal();
+    TB.news.renderIfActive();
+    // …and pull coverage for the new list once the edits settle (adding three
+    // tickers one by one is one build, not three). The worker caches per list, so
+    // this is a free cache read for a list it has built before.
+    clearTimeout(TB.news._wlTimer);
+    TB.news._wlTimer = setTimeout(() => {
+      if (!tset.size) return;
+      if (TB.news.active()) TB.news._fetchQuotes();
+      // Sectors for brand-new tickers must be on the worker BEFORE it builds —
+      // that call also caches their aliases + theme keywords, which is what makes
+      // their headlines match.
+      const unknown = TB.news.tickers().filter(t => !TB.wl.knowsSector(t));
+      const go = () => TB.news.refresh(false);
+      if (unknown.length) TB.wl.resolveSectors().then(go, go); else go();
+    }, 2500);
+  },
+
+  /* ── quotes (Top Movers + per-card move) — only while News is on screen ── */
+  _startQuotes() {
+    TB.news._fetchQuotes();
+    clearInterval(TB.news._qTimer);
+    TB.news._qTimer = setInterval(() => { if (!document.hidden) TB.news._fetchQuotes(); }, 300000);
+  },
+  _stopQuotes() { clearInterval(TB.news._qTimer); TB.news._qTimer = null; },
+  async _fetchQuotes() {
+    const wl = TB.news.tickers(); if (!wl.length) return;
+    try {
+      const r = await fetch(TBN_WORKER + "/quotes?tickers=" + encodeURIComponent(wl.join(",")));
+      if (!r.ok) return;
+      const j = await r.json();
+      if (j && j.quotes) { TB.news.quotes = j.quotes; TB.news.quotesAt = j.asOf || Date.now(); TB.news.renderIfActive(); }
+    } catch (e) {}
+  },
+  async _fetchRate() {
+    try {
+      const r = await fetch(TBN_WORKER + "/rate-status");
+      if (!r.ok) return;
+      const j = await r.json();
+      TB.news.rlUsed = j.usedToday || 0;
+      TB.news.rlCooldown = Math.max(0, j.cooldownSec || 0);
+      clearInterval(TB.news._cdTimer);
+      if (TB.news.rlCooldown > 0) {
+        TB.news._cdTimer = setInterval(() => {
+          TB.news.rlCooldown = Math.max(0, TB.news.rlCooldown - 1);
+          if (!TB.news.rlCooldown) clearInterval(TB.news._cdTimer);
+          if (TB.news.rlCooldown % 15 === 0 || !TB.news.rlCooldown) TB.news.renderIfActive();
+        }, 1000);
+      }
+      TB.news.renderIfActive();
+    } catch (e) {}
+  },
+
+  /* ── AI summary: one digest per build, keyed by generatedAt ── */
+  _warmSummary() {
+    const N = TB.news;
+    if (!N.generatedAt || !N.events.length || N.degraded) return;
+    N.fetchSummary(N.generatedAt, true);
+  },
+  async fetchSummary(gen, background) {
+    const S = TB.news.sum;
+    if (!gen) return;
+    if (S.data && S.gen === gen) return;
+    if (S.inflight) { if (!background && !S.loading) { S.loading = true; TB.news._renderSummary(); } return; }
+    if (background) { if (S.warmedGen === gen) return; S.warmedGen = gen; }
+    S.inflight = true; S.loading = !background; S.error = "";
+    if (!background) TB.news._renderSummary();
+    let keepLoading = false;
+    try {
+      const r = await fetch(TBN_WORKER + "/summary?gen=" + encodeURIComponent(String(gen)) + "&tickers=" + encodeURIComponent(TB.news.tickers().join(",")));
+      const j = await r.json().catch(() => null);
+      if (r.status === 202 || (j && j.building)) {
+        // Another device is writing this same digest — wait for it.
+        S.warmedGen = 0;
+        if (!background) { keepLoading = true; setTimeout(() => TB.news.fetchSummary(gen, false), 6000); }
+        return;
+      }
+      if (j && j.ok && j.summary) {
+        S.gen = j.generatedAt || gen; S.data = j.summary; S.error = "";
+        try { localStorage.setItem(TBN_SUM_LS, JSON.stringify({ gen: S.gen, data: S.data })); } catch (e) {}
+        return;
+      }
+      if (!background) S.error = (j && j.reason) || "Could not build a summary right now.";
+      else S.warmedGen = 0;
+    } catch (e) {
+      if (!background) S.error = "Summary fetch failed: " + e.message; else S.warmedGen = 0;
+    } finally {
+      S.inflight = false;
+      if (!keepLoading) S.loading = false;
+      TB.news._renderSummary();
+      TB.news.renderIfActive();
+    }
+  },
+  openSummary() {
+    TB.news.sumOpen = true;
+    document.getElementById("nh-sum-modal").classList.add("open");
+    const S = TB.news.sum;
+    if (!(S.data && S.gen === TB.news.generatedAt)) TB.news.fetchSummary(TB.news.generatedAt, false);
+    TB.news._renderSummary();
+  },
+  closeSummary() { TB.news.sumOpen = false; document.getElementById("nh-sum-modal").classList.remove("open"); },
+
+  /* ── rendering ── */
+  _navDot() {
+    const b = document.querySelector('#section-nav button[data-section="news"]');
+    if (!b) return;
+    const on = TB.news.building || TB.news.kicking;
+    let dot = b.querySelector(".nav-dot");
+    if (on && !dot) { dot = document.createElement("span"); dot.className = "nav-dot"; dot.title = "Building news…"; b.insertBefore(dot, b.querySelector(".navlock")); }
+    if (!on && dot) dot.remove();
+    TB.news.renderIfActive();
+  },
+  renderIfActive() { if (TB.news.active()) TB.news.render(); },
+  _derive() {
+    const N = TB.news, f = N.f;
+    const cutoff = Date.now() - f.hours * 3600000;
+    const windowed = N.events.filter(e => (e.ts || 0) >= cutoff);
+    const visible = windowed.filter(e => {
+      if (f.selTickers.length && !(f.selTickers.includes(e.primaryTicker) || (e.additionalTickers || []).some(t => f.selTickers.includes(t)))) return false;
+      if (f.selSectors.length && !(e.sectors || []).some(s => f.selSectors.includes(s))) return false;
+      if (f.sentFilter !== "all" && ((e.sentiment && e.sentiment.label) || "neutral") !== f.sentFilter) return false;
+      const tier = (e.impact && e.impact.tier) || "minor";
+      if (f.impFilter === "critical" && tier !== "critical") return false;
+      if (f.impFilter === "major" && !["critical", "major"].includes(tier)) return false;
+      if (f.impFilter === "important" && !["critical", "major", "important"].includes(tier)) return false;
+      if (f.impFilter === "notable" && tier === "minor") return false;
+      return true;
+    });
+    if (f.sortBy === "time") visible.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+    else visible.sort((a, b) => ((b.impact && b.impact.score) || 0) - ((a.impact && a.impact.score) || 0) || (b.ts || 0) - (a.ts || 0));
+    const tickerCounts = new Map(), sectorCounts = new Map(), topBy = {};
+    const evTickers = new Set(), evSectors = new Set();
+    N.events.forEach(e => { if (e.primaryTicker) evTickers.add(e.primaryTicker); (e.additionalTickers || []).forEach(t => evTickers.add(t)); (e.sectors || []).forEach(s => evSectors.add(s)); });
+    windowed.forEach(e => {
+      if (e.primaryTicker) tickerCounts.set(e.primaryTicker, (tickerCounts.get(e.primaryTicker) || 0) + 1);
+      (e.additionalTickers || []).forEach(t => tickerCounts.set(t, (tickerCounts.get(t) || 0) + 1));
+      (e.sectors || []).forEach(s => sectorCounts.set(s, (sectorCounts.get(s) || 0) + 1));
+      const t = e.primaryTicker;
+      if (t && (!topBy[t] || ((e.impact && e.impact.score) || 0) > ((topBy[t].impact && topBy[t].impact.score) || 0))) topBy[t] = e;
+    });
+    const tier = t => windowed.filter(e => e.impact && e.impact.tier === t).length;
+    const counts = { total: windowed.length, breaking: windowed.filter(e => (e.ts || 0) >= Date.now() - TBN_BREAKING_MS).length,
+      critical: tier("critical"), major: tier("major"),
+      bull: windowed.filter(e => e.sentiment && e.sentiment.label === "bull").length,
+      bear: windowed.filter(e => e.sentiment && e.sentiment.label === "bear").length };
+    const movers = TB.news.tickers().map(t => ({ t, q: N.quotes[t] })).filter(m => m.q && m.q.dp != null && isFinite(m.q.dp))
+      .sort((a, b) => Math.abs(b.q.dp) - Math.abs(a.q.dp)).slice(0, 6);
+    // Ticker chips: watchlist order for anything with news, so a quiet ticker
+    // doesn't sit in the filter row doing nothing.
+    const tickerChips = TB.news.tickers().filter(t => evTickers.has(t)).sort();
+    return { windowed, visible, counts, tickerCounts, sectorCounts, topBy, movers, tickerChips, sectorChips: [...evSectors].sort() };
+  },
+  _headlines(sources) {
+    const seen = new Set(), out = [];
+    for (const s of (sources || [])) {
+      const h = (s.headline || "").trim(); if (!h) continue;
+      const u = s.url || ""; if (!u || u === "#" || u.includes("finnhub.io/api/news")) continue;
+      const k = h.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim().slice(0, 60);
+      if (seen.has(k)) continue; seen.add(k); out.push(s);
+    }
+    const isWhy = h => /^(why\b|what'?s behind|here'?s why|what'?s driving)/i.test((h || "").trim());
+    return out.sort((a, b) => (isWhy(b.headline) - isWhy(a.headline)) || ((b.ts || 0) - (a.ts || 0)));
+  },
+  render() {
+    const host = document.getElementById("nh-host");
+    if (!host || !TB.news.active() || host.querySelector(".sec-lock-gate")) return;
+    const N = TB.news, f = N.f, D = N._derive();
+    const wl = N.tickers();
+    const rlLeft = Math.max(0, TBN_DAILY_LIMIT - N.rlUsed);
+    const busy = N.kicking || N.building;
+    const canForce = rlLeft > 0 && N.rlCooldown <= 0 && !busy && wl.length > 0;
+    const sumReady = !!(N.sum.data && N.generatedAt && N.sum.gen === N.generatedAt);
+    const mins = s => s < 60 ? s + "s" : Math.ceil(s / 60) + "m";
+    const seg = (key, opts) => `<div class="nh-seg">${opts.map(([v, l, cls]) =>
+      `<button class="${f[key] === v ? "on " : ""}${cls || ""}" data-act="f" data-k="${key}" data-v="${v}">${l}</button>`).join("")}</div>`;
+    let h = "";
+    h += `<div class="nh-head">
+      <div class="nh-head-l">
+        <div class="nh-title">News</div>
+        <div class="nh-meta">
+          ${N.building ? `<span class="warn" style="display:inline-flex;align-items:center;gap:5px;"><span class="nh-spin">${TBICON.refresh}</span>Building… checking every ${TBN_POLL_MS / 1000}s</span>`
+            : N.generatedAt && N.events.length ? `<span>Updated ${tbnAgo(N.generatedAt)} · ${N.events.length} events · ${wl.length} tickers</span>`
+            : `<span>No news loaded yet</span>`}
+          <span class="pill" title="Force fresh refreshes left today (resets midnight UTC)">${rlLeft}/${TBN_DAILY_LIMIT} left today</span>
+          ${N.rlCooldown > 0 ? `<span class="warn" style="display:inline-flex;align-items:center;gap:4px;">${TBICON.clock} ${mins(N.rlCooldown)}</span>` : ""}
+        </div>
+      </div>
+      <div class="nh-btns">
+        <div class="nh-btns-row">
+          <button class="btn btn-sm" data-act="force" ${canForce ? "" : "disabled"} title="${!rlLeft ? "Daily limit reached" : N.rlCooldown > 0 ? "Wait " + mins(N.rlCooldown) : "Full re-fetch with every source"}">${TBICON.rotate}<span>Force fresh</span></button>
+          <button class="btn btn-sm btn-primary" data-act="refresh" ${busy || !wl.length ? "disabled" : ""}>${N.kicking ? "Loading…" : N.building ? "Building…" : TBICON.refresh + "<span>Refresh</span>"}</button>
+        </div>
+        <button class="btn btn-sm nh-sum-btn${sumReady ? " ready" : ""}" data-act="summary" ${!N.events.length || N.degraded ? "disabled" : ""}
+          title="${N.degraded ? "Raw headlines — nothing analyzed to summarize" : !N.events.length ? "No news to summarize yet" : "AI summary of this build"}">${TBICON.sparkle}<span>AI Summary</span>${sumReady ? `<span class="dot"></span>` : ""}</button>
+      </div>
+    </div>`;
+    if (!wl.length) {
+      host.innerHTML = h + `<div class="nh-empty">${TBICON.sparkle.replace('class="tbi"', 'class="tbi" style="font-size:38px;margin:0 auto;"')}
+        <h3>Your watchlist is empty</h3><p>Add tickers in <a href="#" data-act="go-control">Control</a> and News will pull their coverage.</p></div>`;
+      return;
+    }
+    if (N.notice) h += `<div class="card nh-banner">${TBICON.alert}<div>${U.esc(N.notice)}</div></div>`;
+    if (N.building) h += `<div class="card nh-banner warn"><span class="nh-spin">${TBICON.refresh}</span><div><b>AI pipeline running</b><br>Fetching news for your ${wl.length} tickers and scoring every story with Gemini. Usually 30–90 seconds — it keeps going if you switch tabs.</div></div>`;
+    if (!N.building && N.degraded && N.events.length) h += `<div class="card nh-banner warn">${TBICON.alert}<div><b>AI unavailable for this build</b> — showing raw headlines without sentiment or impact scores. Force fresh retries the AI.</div></div>`;
+
+    if (D.movers.length) {
+      h += `<div style="display:flex;align-items:baseline;gap:8px;"><span class="nh-label">Top Movers</span>${N.quotesAt ? `<span style="font-size:10.5px;color:var(--muted);">quotes ${tbnAgo(N.quotesAt)}</span>` : ""}</div>
+        <div class="nh-movers">${D.movers.map(m => {
+          const ev = D.topBy[m.t];
+          const hl = ev ? ((N._headlines(ev.sources)[0] || {}).headline || ev.summary) : "";
+          const on = f.selTickers.length === 1 && f.selTickers[0] === m.t;
+          return `<div class="card nh-mover${on ? " sel" : ""}" data-act="mover" data-t="${U.esc(m.t)}" style="border-left-color:${tbnMoveColor(m.q.dp)}">
+            <div class="top"><span class="t">${U.esc(m.t)}</span><span style="color:${tbnMoveColor(m.q.dp)};font-size:12.5px;">${m.q.dp > 0 ? "▲" : "▼"} ${tbnPct(m.q.dp)}</span><span class="px">${tbnPrice(m.q.c)}</span></div>
+            <div class="hl">${hl ? U.esc(hl) : "No news in window"}</div></div>`;
+        }).join("")}</div>`;
+    }
+    if (N.events.length) {
+      h += `<div class="nh-stats">${[
+        [D.counts.total, "Events · " + f.hours + "h", "var(--text)"], [D.counts.breaking, "Breaking", "var(--amber)"],
+        [D.counts.critical, "Critical", "var(--red)"], [D.counts.major, "Major", "var(--accent-hover)"],
+        [D.counts.bull, "Bullish", "var(--green)"], [D.counts.bear, "Bearish", "var(--red)"],
+      ].map(([n, l, c]) => `<div class="card nh-stat"><div class="n" style="color:${c}">${n}</div><div class="l">${l}</div></div>`).join("")}</div>`;
+      const hasFilter = f.sentFilter !== "all" || f.impFilter !== "all" || f.selTickers.length || f.selSectors.length;
+      h += `<div class="nh-activebar"><span>Showing <b>${D.visible.length}</b> of ${D.windowed.length}</span>
+        ${f.sentFilter !== "all" ? `<span class="f">${TBN_SLABEL[f.sentFilter]}<button data-act="f" data-k="sentFilter" data-v="all" aria-label="Clear">×</button></span>` : ""}
+        ${f.impFilter !== "all" ? `<span class="f">${U.esc(f.impFilter)}+<button data-act="f" data-k="impFilter" data-v="all" aria-label="Clear">×</button></span>` : ""}
+        ${f.selSectors.map(s => `<span class="f">${U.esc(s)}<button data-act="sec" data-v="${U.esc(s)}" aria-label="Clear">×</button></span>`).join("")}
+        ${f.selTickers.map(t => `<span class="f mono">${U.esc(t)}<button data-act="tick" data-v="${U.esc(t)}" aria-label="Clear">×</button></span>`).join("")}
+        ${hasFilter ? `<button class="clear" data-act="clear">Clear all</button>` : ""}</div>`;
+    }
+    h += `<div class="nh-filters">
+      <div class="nh-frow"><span class="nh-fgrp"><span class="nh-label">Sort</span>${seg("sortBy", [["impact", "By impact"], ["time", "By time"]])}</span>
+        <span class="nh-fspacer"></span><span class="nh-fgrp"><span class="nh-label">Window</span>${seg("hours", [[24, "24h"], [48, "48h"], [72, "72h"]])}</span></div>
+      <div class="nh-frow"><span class="nh-label">View</span>${seg("sentFilter", [["all", "All"], ["bull", "Bullish", "bull"], ["neutral", "Neutral"], ["bear", "Bearish", "bear"]])}</div>
+      <div class="nh-frow"><span class="nh-label">Impact</span>${seg("impFilter", [["all", "All"], ["critical", "Critical", "crit"], ["major", "Major+", "maj"], ["important", "Important+", "imp"], ["notable", "Notable+"]])}</div>
+      ${D.sectorChips.length ? `<div class="nh-frow"><span class="nh-label">Sector</span>
+        <button class="nh-chip${f.selSectors.length ? "" : " on"}" data-act="secall">All</button>
+        ${D.sectorChips.map(s => { const ct = D.sectorCounts.get(s) || 0, on = f.selSectors.includes(s);
+          return `<button class="nh-chip${on ? " on" : ""}${!ct && !on ? " faded" : ""}" data-act="sec" data-v="${U.esc(s)}">${U.esc(s)}${ct ? `<span class="ct">${ct}</span>` : ""}</button>`; }).join("")}</div>` : ""}
+      ${D.tickerChips.length ? `<div class="nh-frow"><span class="nh-label">Ticker</span>
+        <button class="nh-chip${f.selTickers.length ? "" : " on"}" data-act="tickall">All</button>
+        ${D.tickerChips.map(t => { const ct = D.tickerCounts.get(t) || 0, on = f.selTickers.includes(t);
+          return `<button class="nh-chip mono${on ? " on" : ""}${!ct && !on ? " faded" : ""}" data-act="tick" data-v="${U.esc(t)}">${U.esc(t)}${ct ? `<span class="ct">${ct}</span>` : ""}</button>`; }).join("")}</div>` : ""}
+    </div>`;
+
+    if (N.kicking && !N.building && !N.events.length) {
+      h += `<div class="nh-empty"><span class="nh-spin" style="font-size:22px;">${TBICON.refresh}</span><h3>Checking for news…</h3></div>`;
+    } else if (!D.visible.length) {
+      h += `<div class="nh-empty">${TBICON.sparkle.replace('class="tbi"', 'class="tbi" style="font-size:38px;margin:0 auto;"')}
+        <h3>${N.events.length ? "No matches" : N.building ? "Building your news…" : "No news loaded yet"}</h3>
+        <p>${N.events.length ? "Adjust or clear the filters above." : N.building ? "The first build for a new watchlist takes about a minute." : "Hit Refresh to pull AI-curated news for your watchlist."}</p></div>`;
+    } else {
+      h += `<div class="nh-list">${D.visible.map(e => N._eventCard(e)).join("")}</div>`;
+    }
+    const y = host.closest(".section-view") ? host.closest(".section-view").scrollTop : 0;
+    host.innerHTML = h;
+    const sv = host.closest(".section-view"); if (sv) sv.scrollTop = y;
+  },
+  _eventCard(e) {
+    const N = TB.news;
+    const tier = (e.impact && e.impact.tier) || "minor", tm = TBN_TIER[tier] || TBN_TIER.minor;
+    const sl = (e.sentiment && e.sentiment.label) || "neutral", score = (e.sentiment && e.sentiment.score) || 0;
+    const q = N.quotes[e.primaryTicker], hasPct = q && q.dp != null && isFinite(q.dp);
+    const breaking = Date.now() - (e.ts || 0) < TBN_BREAKING_MS;
+    const hls = N._headlines(e.sources), open = N._openHl.has(e.id), CAP = 5;
+    const shownH = open ? hls : hls.slice(0, CAP), moreH = hls.length - shownH.length;
+    const outlets = []; const seenN = new Set();
+    for (const s of (e.sources || [])) { const nm = (s.name || "").trim().toLowerCase(); if (!nm || seenN.has(nm)) continue; seenN.add(nm); outlets.push(s); }
+    const sentColor = sl === "bull" ? "var(--green)" : sl === "bear" ? "var(--red)" : "var(--text-2)";
+    const solid = tier === "critical" || tier === "major";
+    return `<div class="card nh-ev" style="border-left-color:${breaking ? "var(--amber)" : tm.c}">
+      <div class="nh-ev-top">
+        ${breaking ? `<span class="nh-tag solid" style="background:var(--amber);">Breaking</span>` : ""}
+        <span class="t">${U.esc(e.primaryTicker || "")}</span>
+        ${hasPct ? `<span class="mv" style="color:${tbnMoveColor(q.dp)}" title="Today's move">${q.dp > 0 ? "▲" : "▼"} ${tbnPct(q.dp)}</span>` : ""}
+        ${(e.additionalTickers || []).length ? `<span class="addl">+ ${e.additionalTickers.map(U.esc).join(" · ")}</span>` : ""}
+        ${(e.sectors || []).length ? `<span class="sec">${U.esc(e.sectors[0])}</span>` : ""}
+        ${tier !== "minor" ? `<span class="nh-tag${solid ? " solid" : ""}" style="${solid ? "background:" + tm.c : "color:" + tm.c}">${tm.label}<span class="sc">${(e.impact && e.impact.score) || ""}</span></span>` : ""}
+        <span class="nh-tag" style="color:${sentColor}">${TBN_SLABEL[sl] || sl}${score ? `<span class="sc">${(score > 0 ? "+" : "") + (+score).toFixed(2)}</span>` : ""}</span>
+        ${e.eventType && e.eventType !== "other" ? `<span class="nh-tag" style="color:var(--muted)">${U.esc(e.eventType)}</span>` : ""}
+        ${e.aiAnalyzed === false ? `<span class="nh-tag" style="color:var(--amber)">Raw</span>` : ""}
+        <span class="ago">${tbnAgo(e.ts)}</span>
+      </div>
+      <div class="nh-sum">${U.esc(e.summary || "")}</div>
+      ${shownH.length ? `<div class="nh-hls">${shownH.map(s => `<a href="${U.esc(tbnSafeUrl(s.url))}" target="_blank" rel="noopener noreferrer"><span style="opacity:.5">›</span><span>${U.esc(s.headline)}<span class="src">${U.esc(s.name || "")}${s.ts ? " · " + tbnAgo(s.ts) : ""}</span></span></a>`).join("")}
+        ${moreH > 0 || open ? `<button class="more" data-act="hl" data-id="${U.esc(e.id)}">${open ? "Show less" : "+ " + moreH + " more headline" + (moreH === 1 ? "" : "s")}</button>` : ""}</div>` : ""}
+      ${outlets.length ? `<div class="nh-srcs"><span style="font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:9.5px;">Sources</span>
+        ${outlets.slice(0, 3).map(s => `<a href="${U.esc(tbnSafeUrl(s.url))}" target="_blank" rel="noopener noreferrer">${U.esc(s.name)}</a>`).join('<span style="opacity:.4">·</span>')}
+        ${outlets.length > 3 ? `<span>+ ${outlets.length - 3} more</span>` : ""}</div>` : ""}
+    </div>`;
+  },
+  _renderSummary() {
+    if (!TB.news.sumOpen) return;
+    const N = TB.news, S = N.sum;
+    const data = (S.data && N.generatedAt && S.gen === N.generatedAt) ? S.data : null;
+    const stance = s => s === "bull" ? "var(--green)" : s === "bear" ? "var(--red)" : "var(--text-2)";
+    const tone = t => t === "bull" ? "var(--green)" : t === "bear" ? "var(--red)" : "var(--accent-hover)";
+    let body = "";
+    if (!data && (S.loading || S.inflight)) {
+      body = `<div style="display:flex;gap:12px;align-items:center;padding:30px 4px;color:var(--muted);"><span class="nh-spin" style="font-size:18px;">${TBICON.refresh}</span>
+        <div><div style="color:var(--text);font-weight:700;font-size:13px;">Reading the build…</div><div style="font-size:12px;margin-top:2px;">Turning ${N.events.length} events into one market read — about 5–30 seconds.</div></div></div>`;
+    } else if (!data && S.error) {
+      body = `<div style="padding:22px 4px;"><div style="display:flex;gap:10px;color:var(--amber);">${TBICON.alert}<div style="color:var(--text-2);font-size:13px;">${U.esc(S.error)}</div></div>
+        <button class="btn btn-sm" style="margin-top:14px;" data-act="sum-retry">${TBICON.refresh}<span>Try again</span></button></div>`;
+    } else if (data) {
+      const ts = Math.max(-1, Math.min(1, +data.toneScore || 0));
+      body = `<div><div class="nhs-hl">${U.esc(data.headline || "")}</div>
+          <div class="nhs-meter"><span style="color:var(--red)">BEAR</span><div class="bar"><div class="knob" style="left:calc(${((ts + 1) / 2 * 100).toFixed(1)}% - 5px);background:${tone(data.tone)}"></div></div><span style="color:var(--green)">BULL</span>
+          <span style="font-family:var(--mono);color:${tone(data.tone)};min-width:38px;text-align:right;">${ts > 0 ? "+" : ""}${ts.toFixed(2)}</span></div></div>
+        ${data.overview ? `<div class="nhs-ov">${U.esc(data.overview)}</div>` : ""}
+        ${(data.keyPoints || []).length ? `<div><div class="nhs-sec">Key points</div><div class="nhs-kp">${data.keyPoints.map(k => `<div style="border-left-color:${stance(k.stance)}">${U.esc(k.text)}
+          ${(k.tickers || []).length ? `<div class="tix">${k.tickers.map(t => `<span>${U.esc(t)}</span>`).join("")}</div>` : ""}</div>`).join("")}</div></div>` : ""}
+        ${(data.tickers || []).length ? `<div><div class="nhs-sec">By ticker</div><div class="nhs-grid">${data.tickers.map(t => `<div><span class="t" style="color:${stance(t.stance)}">${U.esc(t.ticker)}</span><span>${U.esc(t.note)}</span></div>`).join("")}</div></div>` : ""}
+        ${(data.themes || []).length ? `<div><div class="nhs-sec">Themes</div><div class="nhs-list">${data.themes.map(t => `<div><b style="color:${stance(t.stance)}">${U.esc(t.name)}</b> — ${U.esc(t.note)}</div>`).join("")}</div></div>` : ""}
+        ${((data.risks || []).length || (data.watch || []).length) ? `<div class="nhs-grid" style="background:none;">
+          ${(data.risks || []).length ? `<div style="flex-direction:column;"><div class="nhs-sec" style="color:var(--red)">Risks</div><div class="nhs-list">${data.risks.map(r => `<div>▾ ${U.esc(r)}</div>`).join("")}</div></div>` : ""}
+          ${(data.watch || []).length ? `<div style="flex-direction:column;"><div class="nhs-sec" style="color:var(--accent-hover)">What to watch</div><div class="nhs-list">${data.watch.map(w => `<div>• ${U.esc(w)}</div>`).join("")}</div></div>` : ""}
+        </div>` : ""}
+        <div class="nhs-foot">AI summary of ${N.events.length} analyzed events${data.model ? " · " + U.esc(data.model) : ""} · rebuilt only when the news rebuilds</div>`;
+    } else {
+      body = `<div style="padding:26px 4px;color:var(--muted);font-size:13px;">No summary yet.</div>`;
+    }
+    document.getElementById("nh-sum-host").innerHTML = `
+      <div class="nhs-head">${TBICON.sparkle.replace('class="tbi"', 'class="tbi" style="color:var(--accent-hover);font-size:16px;"')}
+        <div style="flex:1;min-width:0;"><div class="ttl">Market Summary</div>${N.generatedAt ? `<div class="sub">${N.events.length} events · built ${tbnAgo(N.generatedAt)}</div>` : ""}</div>
+        ${data ? `<span class="nhs-tone" style="color:${tone(data.tone)}">${{ bull: "Bullish", bear: "Bearish", mixed: "Mixed" }[data.tone] || U.esc(data.tone || "")}</span>` : ""}
+        <button class="btn-icon" data-act="sum-close" aria-label="Close summary">${TBICON.x}</button>
+      </div>
+      <div class="nhs-body">${body}</div>`;
+  },
+  _onClick(e) {
+    const b = e.target.closest("[data-act]"); if (!b) return;
+    const N = TB.news, f = N.f, a = b.dataset.act, v = b.dataset.v;
+    if (a === "refresh") N.refresh(false);
+    else if (a === "force") N.refresh(true);
+    else if (a === "summary") N.openSummary();
+    else if (a === "go-control") { e.preventDefault(); TB.showSection("control"); }
+    else if (a === "f") N.setFilter({ [b.dataset.k]: b.dataset.k === "hours" ? +v : v });
+    else if (a === "tick") N.setFilter({ selTickers: f.selTickers.includes(v) ? f.selTickers.filter(x => x !== v) : [...f.selTickers, v] });
+    else if (a === "sec") N.setFilter({ selSectors: f.selSectors.includes(v) ? f.selSectors.filter(x => x !== v) : [...f.selSectors, v] });
+    else if (a === "tickall") N.setFilter({ selTickers: [] });
+    else if (a === "secall") N.setFilter({ selSectors: [] });
+    else if (a === "clear") N.setFilter({ selTickers: [], selSectors: [], sentFilter: "all", impFilter: "all" });
+    else if (a === "mover") { const t = b.dataset.t; const on = f.selTickers.length === 1 && f.selTickers[0] === t; N.setFilter({ selTickers: on ? [] : [t] }); }
+    else if (a === "hl") { const id = b.dataset.id; N._openHl.has(id) ? N._openHl.delete(id) : N._openHl.add(id); N.render(); }
+  },
+  // Section shown / hidden (from TB.showSection).
+  show() { TB.news.render(); TB.news._startQuotes(); TB.news._fetchRate(); },
+  hide() { TB.news._stopQuotes(); },
+};
+
 /* ── boot ──────────────────────────────────────────────────────────────────── */
 (function boot() {
   // Gate the app behind authentication BEFORE the first section renders.
@@ -4204,6 +5526,8 @@ TB.apps = {
   TB.st._init();
   TB.rules._init();
   TB.apps._init();
+  TB.wl._init();
+  TB.news._init();
 
   const settings = TBStore.get(TBStore.KEYS.settings, {});
   TB.showSection(settings.lastSection || "portfolio");
@@ -4394,7 +5718,7 @@ var AL_JOURNAL = 'applock';
 var APPID    = 'tradeboard_app';
 var SEC_PREFIX = 'tradeboard_sec_';
 var AC       = '#8D769A';
-var SECTIONS = { portfolio:'Portfolio', journal:'Journal', strats:'Strats/Rules', rules:'Rules', apps:'Apps' };
+var SECTIONS = { portfolio:'Portfolio', journal:'Journal', news:'News', strats:'Strats/Rules', rules:'Rules', apps:'Apps', control:'Control' };
 
 // Formspree submit — uses form-encoded (not JSON) so it works on the free plan,
 // which rejects JSON AJAX posts. Returns the fetch Response promise.
@@ -4693,14 +6017,25 @@ function updateLockBtn(){
 // ══ Section-lock API for TB.showSection ══
 window._tbSectionLock = {
   mustBlock: function(name){ return mustBlock(SEC_PREFIX+name); },
+  // The gate used to REPLACE the section's innerHTML, so after unlocking, the
+  // section's own markup (its list hosts, inputs, buttons) was gone and it stayed
+  // blank until a reload. Now the content is hidden and the gate laid over it;
+  // clearGate puts it back.
+  clearGate: function(name){
+    var view=document.getElementById('view-'+name); if(!view) return;
+    var g=view.querySelector(':scope > .sec-lock-gate'); if(g) g.remove();
+    Array.prototype.forEach.call(view.children, function(c){ if(c.dataset.gateHidden){ c.style.display=''; delete c.dataset.gateHidden; } });
+  },
   renderGate: function(name){
     var view=document.getElementById('view-'+name); if(!view) return;
     var lbl=SECTIONS[name]||name;
-    view.innerHTML='<div class="sec-lock-gate">'
+    window._tbSectionLock.clearGate(name);
+    Array.prototype.forEach.call(view.children, function(c){ c.dataset.gateHidden='1'; c.style.display='none'; });
+    view.insertAdjacentHTML('beforeend', '<div class="sec-lock-gate">'
       +'<div class="sl-icon"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>'
       +'<div class="sl-title">'+lbl+' is locked</div>'
       +'<div class="sl-sub">Enter the section password to view it.</div>'
-      +'<button id="sl-unlock-'+name+'">Unlock '+lbl+'</button></div>';
+      +'<button id="sl-unlock-'+name+'">Unlock '+lbl+'</button></div>');
     var btn=document.getElementById('sl-unlock-'+name);
     if(btn) btn.onclick=function(){ showOverlay('unlock', SEC_PREFIX+name, lbl); };
   }
