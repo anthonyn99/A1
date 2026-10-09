@@ -655,12 +655,24 @@ function stripUrl(u){
   try { const x = new URL(u); return (x.hostname + x.pathname).toLowerCase().replace(/\/+$/,''); }
   catch(e) { return (u||'').toLowerCase().split('?')[0].split('#')[0]; }
 }
+// A bare symbol used to match case-INSENSITIVELY, so any headline containing the
+// word "be" counted as Bloom Energy news and "net income" as Cloudflare — and
+// Finnhub's general feed attributes through this check, pinning unrelated
+// market-wide stories to those tickers. Now a symbol that is also an ordinary
+// word (XATTR_WORD_SYMBOLS) needs a real symbol form ($BE, (NYSE: BE), (BE)),
+// and short symbols must appear in CAPITALS. Aliases ("bloom energy", "micron",
+// "dram", "cloudflare") still match exactly as before, so coverage is kept.
 function isRelevant(ticker, text){
   if (!text) return false;
+  const sym = String(ticker||'').toUpperCase();
+  const esc = sym.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&');
+  if (XATTR_WORD_SYMBOLS.has(sym)){
+    if (xattrSymRe(sym).test(text)) return true;
+  } else if (sym.length <= 3){
+    if (new RegExp('\\b'+esc+'\\b').test(text)) return true;
+  } else if (new RegExp('\\b'+esc+'\\b','i').test(text)) return true;
   const lo = text.toLowerCase();
-  const re = new RegExp('\\b'+ticker.toLowerCase()+'\\b','i');
-  if (re.test(text)) return true;
-  for (const a of aliasesFor(ticker)) if (lo.includes(a)) return true;
+  for (const a of aliasesFor(sym)) if (lo.includes(a)) return true;
   return false;
 }
 
@@ -4760,9 +4772,13 @@ export default {
       // Bounded, so a genuinely stuck pipeline can't hang the tab: past the bound
       // we fall through to the stale/202 + client-poll path exactly as before,
       // with the build continuing in waitUntil having already done most of its
-      // work inside the request. Only force-fresh waits; a plain cache-miss
-      // refresh stays fire-and-forget.
-      if (fresh){
+      // work inside the request.
+      // A plain cache-miss build waits too (2026-10-08). That is what a watchlist
+      // change in Control kicks, and fire-and-forget builds were reaped once a
+      // list ran past ~30s — no cache, no lock, no error, and the tab sat on
+      // "Building…" until the poller gave up. Seen on TradeBoard's copy of this
+      // worker with a 22-ticker list; the same code path runs here.
+      {
         const done = await Promise.race([
           buildP,
           new Promise(res => setTimeout(() => res(undefined), FRESH_WAIT_MS)),

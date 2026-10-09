@@ -925,9 +925,10 @@ window._mailRelay = window._mailRelay || async function (res) {
         const data = snap.data();
         return {
           tickers: Array.isArray(data.tickers) ? data.tickers : null,
-          trash:   Array.isArray(data.trash)   ? data.trash   : []
+          trash:   Array.isArray(data.trash)   ? data.trash   : [],
+          defaultTickers: Array.isArray(data.defaultTickers) ? data.defaultTickers : null
         };
-      } catch(e) { console.warn('Firebase TBWatchlist load failed:', e); return null; }
+      } catch(e) { console.warn('Firebase TBWatchlist load failed:', e); return false; }   // false = read FAILED (null = no doc)
     };
     // Watchlist: save (800ms debounce). `trash` is optional — callers that know
     // nothing about the trash can (e.g. the one-time default-watchlist seed) omit
@@ -951,6 +952,25 @@ window._mailRelay = window._mailRelay || async function (res) {
           window.dispatchEvent(new CustomEvent('fb-tb-watchlist-error'));
         }
       }, 800);
+    };
+
+    // Watchlist default ("Set current as default" in Control). It used to live in
+    // localStorage only, so a default set on the desktop was unknown to the phone
+    // and "Reset to default" restored a different list on each device. It's a
+    // merge write into the watchlist doc — the live list and trash are untouched.
+    window._fbSaveTBWatchlistDefault = (tickers) => {
+      if (!Array.isArray(tickers) || !tickers.length) return;
+      _tbWatchlistLastOwnSaveAt = Date.now();
+      window.dispatchEvent(new CustomEvent('fb-tb-saving'));
+      const attempt = async () => {
+        if (window._fbAuthReady) { try { await window._fbAuthReady; } catch(e){} }
+        _tbWatchlistLastOwnSaveAt = Date.now();
+        await setDoc(doc(db, TB_WATCHLIST_PATH), { defaultTickers: JSON.parse(JSON.stringify(tickers)), savedAt: Date.now() }, { merge: true });
+      };
+      attempt()
+        .catch(() => new Promise(r => setTimeout(r, 1500)).then(attempt))
+        .then(() => { _tbWatchlistLastOwnSaveAt = Date.now(); window.dispatchEvent(new CustomEvent('fb-tb-watchlist-saved')); })
+        .catch(e => { console.warn('Firebase TBWatchlist default save failed:', e && e.message); window.dispatchEvent(new CustomEvent('fb-tb-watchlist-error')); });
     };
 
     // Playbook: load (pages of trading documentation — rules, strategies, checklists)
@@ -1141,9 +1161,10 @@ window._mailRelay = window._mailRelay || async function (res) {
       if (!snap.exists()) return;
       if (Date.now() - _tbWatchlistLastOwnSaveAt < 8000) return;
       const data = snap.data();
-      if (Array.isArray(data.tickers)) {
+      if (Array.isArray(data.tickers) || Array.isArray(data.defaultTickers)) {
         window.dispatchEvent(new CustomEvent('fb-tb-watchlist-remote', {
-          detail: { tickers: data.tickers, trash: Array.isArray(data.trash) ? data.trash : [] }
+          detail: { tickers: Array.isArray(data.tickers) ? data.tickers : null, trash: Array.isArray(data.trash) ? data.trash : [],
+                    defaultTickers: Array.isArray(data.defaultTickers) ? data.defaultTickers : null }
         }));
       }
     });
@@ -1886,7 +1907,7 @@ const TB_WATCHLIST=['DRAM','SNDK','MU','INTC','WDC','AMD','CRWD','BE','GOOGL','P
 // News fetch, report parsing, and sector inference. Defaults to TB_WATCHLIST
 // until the user customizes it; TBApp keeps this in sync via tbSetWatchlist().
 let TB_WL=[...TB_WATCHLIST];
-function tbSetWatchlist(arr){TB_WL=(Array.isArray(arr)&&arr.length)?arr.slice():[...TB_WATCHLIST];pushWatchlistToWorkers(TB_WL);tbResolveSectors(TB_WL);}
+function tbSetWatchlist(arr,opts){TB_WL=(Array.isArray(arr)&&arr.length)?arr.slice():[...TB_WATCHLIST];if(!(opts&&opts.noPush))pushWatchlistToWorkers(TB_WL);tbResolveSectors(TB_WL);}
 
 // Push TB_WL to the workers so their CRON pre-builds + on-demand builds use the
 // exact Control-tab list (News + Catalysts both read it). Debounced;
@@ -6176,8 +6197,15 @@ const TB_WATCHLIST_DEFAULT_KEY = 'td6_watchlist_default';
 function tbGetDefaultWatchlist(){
   try{const a=JSON.parse(localStorage.getItem(TB_WATCHLIST_DEFAULT_KEY)||'null');return (Array.isArray(a)&&a.length)?a:[...TB_WATCHLIST];}catch{return [...TB_WATCHLIST];}
 }
-function tbSetDefaultWatchlist(arr){try{if(Array.isArray(arr)&&arr.length)localStorage.setItem(TB_WATCHLIST_DEFAULT_KEY,JSON.stringify(arr));}catch{}}
-tbSetWatchlist(tbLoadWatchlistLocal()); // prime parser's active list before first parse
+function tbSetDefaultWatchlistLocal(arr){try{if(Array.isArray(arr)&&arr.length)localStorage.setItem(TB_WATCHLIST_DEFAULT_KEY,JSON.stringify(arr));}catch{}}
+/* Saving a default also syncs it (watchlist doc → defaultTickers), so every
+   device's "Reset to default" restores the same list. */
+function tbSetDefaultWatchlist(arr){tbSetDefaultWatchlistLocal(arr);if(Array.isArray(arr)&&arr.length&&window._fbSaveTBWatchlistDefault)window._fbSaveTBWatchlistDefault(arr);}
+/* Prime the parser's active list before first parse. Only PUSH it to the workers
+   when this device really has a saved list: on a fresh browser the local list is
+   just the hardcoded default, and pushing it overwrote the list the 6am cron
+   builds (wl:current) before the real one had even loaded from Firebase. */
+tbSetWatchlist(tbLoadWatchlistLocal(),{noPush:(()=>{try{return !localStorage.getItem(TB_WATCHLIST_KEY);}catch(e){return true;}})()});
 
 /* ── Shared Analysis URL helpers ── used by Launch Analysis, by a double-tapped
    prompt chip, by the quick prompt, and — through the worker push further down
@@ -10181,8 +10209,12 @@ function TBApp(){
         if(fa===false)_tbAnalysisReadFailed.current=true;
         else if(fa&&typeof fa==='object'){setAnalysisCfg(fa);try{localStorage.setItem(TB_ANALYSIS_KEY,JSON.stringify(fa));}catch{}}
       }
+      let fwHasList=false;
       if(window._fbLoadTBWatchlist){
         const fw=await window._fbLoadTBWatchlist();
+        fwHasList=!!(fw&&Array.isArray(fw.tickers)&&fw.tickers.length);
+        if(fw===false)fwHasList=true;   // read failed: never seed over a list we couldn't see
+        if(fw&&Array.isArray(fw.defaultTickers)&&fw.defaultTickers.length)tbSetDefaultWatchlistLocal(fw.defaultTickers);
         if(fw&&Array.isArray(fw.tickers)&&fw.tickers.length){
           setWatchlist(fw.tickers);tbSaveWatchlistLocal(fw.tickers);tbSetWatchlist(fw.tickers);
           if(Array.isArray(fw.trash)){
@@ -10204,10 +10236,15 @@ function TBApp(){
         else if(Array.isArray(fpb)&&fpb.length){ const n=tbPbNormalize(fpb); setPlaybook(n); tbSavePlaybookLocal(n); }
         else { const seed=tbPbNormalize(tbLoadPlaybookLocal()); setPlaybook(seed); tbSavePlaybookLocal(seed); if(window._fbSaveTBPlaybook) window._fbSaveTBPlaybook(seed); }
       }
-      /* One-time: force every device to the new canonical default watchlist. */
+      /* One-time: force every device to the new canonical default watchlist.
+         That migration is long done, and on a NEW device (fresh browser, cleared
+         storage) it did real damage: it reset the SHARED Firebase watchlist to the
+         hardcoded default, wiping the list every other device uses. Now a device
+         that finds a saved list in Firebase just records the seed as applied. */
       try{
         const seed=parseInt(localStorage.getItem(TB_WATCHLIST_SEED_KEY)||'0',10);
-        if(seed<TB_WATCHLIST_SEED){
+        if(seed<TB_WATCHLIST_SEED&&fwHasList){ localStorage.setItem(TB_WATCHLIST_SEED_KEY,String(TB_WATCHLIST_SEED)); }
+        else if(seed<TB_WATCHLIST_SEED){
           const def=[...TB_WATCHLIST];
           setWatchlist(def);tbSaveWatchlistLocal(def);tbSetWatchlist(def);
           // Anything the seed puts back on the live list leaves the trash can.
@@ -10241,6 +10278,7 @@ function TBApp(){
   useEffect(()=>{
     const onRemote=(e)=>{
       const d=e.detail;
+      if(d&&Array.isArray(d.defaultTickers)&&d.defaultTickers.length)tbSetDefaultWatchlistLocal(d.defaultTickers);
       if(!d||!Array.isArray(d.tickers)||!d.tickers.length)return;
       setWatchlist(d.tickers);tbSaveWatchlistLocal(d.tickers);tbSetWatchlist(d.tickers);
       if(Array.isArray(d.trash)){
@@ -10259,8 +10297,11 @@ function TBApp(){
     return()=>window.removeEventListener('fb-tb-playbook-remote',onRemote);
   },[]);
 
-  /* Keep the parser's active watchlist in lockstep with state. */
-  useEffect(()=>{tbSetWatchlist(watchlist);},[watchlist]);
+  /* Keep the parser's active watchlist in lockstep with state. The workers only
+     hear about it once Firebase has loaded: before that, `watchlist` on a fresh
+     browser is the hardcoded default, and pushing it replaced the list the 6am
+     cron builds. pushWatchlistToWorkers de-dupes, so this is one push per list. */
+  useEffect(()=>{tbSetWatchlist(watchlist,{noPush:!fbLoaded});},[watchlist,fbLoaded]);
 
   /* ── Watchlist edits propagate to Catalysts + News automatically ─────────────
      Editing the Control list already re-points every ON-DEMAND fetch at the new
