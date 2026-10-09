@@ -26,11 +26,15 @@ TradeBoard never calls Tony's `newshub-api`. In particular it never calls
   and the other operator routes (`?admin=…`). It is a random value that was not
   written down. Set a new one with `npx wrangler secret put ADMIN_KEY` in the
   worker folder.
-- Optional: `FINNHUB_KEY`, `MARKETAUX_KEY`, `STOCKDATA_KEY`,
-  `ALPHAVANTAGE_KEY`, `NVIDIA_API_KEY`. Without them the worker uses keyless
-  sources: Yahoo Finance RSS per ticker, TickerTick, SEC EDGAR, and Yahoo spark
-  for quotes. Google News answers Cloudflare IPs with a 503, so it can't be
-  used here.
+- `FINNHUB_KEY`: Veda's own Finnhub key (set 2026-10-08). It powers per-company
+  news, market-wide news and Top Movers quotes. Remove it and the worker falls
+  back to keyless sources: Yahoo Finance RSS per ticker, and Yahoo spark for
+  quotes.
+- Optional: `MARKETAUX_KEY`, `STOCKDATA_KEY`, `ALPHAVANTAGE_KEY`,
+  `NVIDIA_API_KEY`. Any source without a key is skipped.
+- TickerTick, SEC EDGAR and the semiconductor supply-chain feed (Yahoo RSS for
+  TSMC, Broadcom, Samsung, SK hynix and Kioxia) need no key. Google News
+  answers Cloudflare IPs with a 503, so it can't be used here.
 
 ## No cron
 
