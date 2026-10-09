@@ -153,19 +153,39 @@ function makeRepo() {
       ok('turn 3 starts', await waitFor(c, '!!CODE.task && !CODE.task.done && CODE.task.turn === 3', 20000));
       ok('the agent is working', await waitFor(c,
         'CODE.task.events.some(e => e.k === "note" && /is reading the workspace/.test(e.text || ""))', 60000));
-      await sleep(4000);     // so its CLI has reported a session to resume
-      await type(c, 'Stop the essay. Instead reply with exactly one word: PELICAN');
+      await sleep(3000);
+      await type(c, 'Stop the essay. Instead reply with exactly one word: PELIKAN');
       ok('the button says Send', (await label(c)) === 'Send');
       await send(c);
-      ok('the engine echoed it as an interrupt', await waitFor(c,
-        'CODE.task.events.some(e => e.k === "user" && e.how === "interrupt")', 20000),
+      // Live steering (2026-10-09): queued -- the agent is not stopped.
+      ok('the engine queued it', await waitFor(c,
+        'CODE.task.events.some(e => e.k === "user" && e.how === "queued" && e.id)', 20000),
         await evalJs(c, 'JSON.stringify(CODE.task.events.filter(e => e.k === "user"))'));
-      ok('a bubble shows where it landed', await evalJs(c, '!!document.querySelector(".code-thread .code-task:not(.is-earlier) .code-log .code-user")'));
+      const BUB = 'document.querySelector(".code-thread .code-task:not(.is-earlier) .code-log .code-user")';
+      ok('a queued bubble with Edit, ✕ and Interrupt now', await evalJs(c,
+        `(() => { const b = ${BUB}; return !!b && /queued/.test(b.textContent)
+          && [...b.querySelectorAll("button")].map(x => x.textContent).join("|") === "Edit|✕|Interrupt now"; })()`));
+      await shot(c, 'code-thread-queued');
+      // Edit it through the bubble: the typo becomes PELICAN.
+      await evalJs(c, `[...${BUB}.querySelectorAll("button")].find(x => x.textContent === "Edit").click(); return 1;`);
+      ok('Edit opens the text in place', await waitFor(c, `!!${BUB}.querySelector("textarea")`, 3000));
+      await evalJs(c, `(() => { const ta = ${BUB}.querySelector("textarea");
+        ta.value = "Stop the essay. Instead reply with exactly one word: PELICAN";
+        ta.dispatchEvent(new Event("input"));
+        [...${BUB}.querySelectorAll("button")].find(x => x.textContent === "Save").click(); return 1; })()`);
+      ok('the edit reached the engine', await waitFor(c,
+        'CODE.task.events.some(e => e.k === "msg_edit" && /PELICAN/.test(e.text))', 10000));
+      await evalJs(c, `[...${BUB}.querySelectorAll("button")].find(x => x.textContent === "Interrupt now").click(); return 1;`);
+      ok('Interrupt now stopped the current step', await waitFor(c,
+        'CODE.task.events.some(e => e.k === "note" && /Interrupting/.test(e.text || ""))', 15000));
+      ok('the bubble says it was sent', await waitFor(c,
+        `/sent/.test(${BUB}.querySelector(".turn-note-tag").textContent) && !${BUB}.querySelector("button")`, 30000));
       await shot(c, 'code-thread-message');
       ok('turn 3 lands', await waitFor(c, idle, 6 * 60000));
-      ok('the interrupt is on the log', await evalJs(c, 'CODE.task.events.some(e => e.k === "interrupt")'));
+      ok('no stop-and-resume: one attempt', await evalJs(c,
+        '!CODE.task.events.some(e => e.k === "interrupt") && (CODE.task.result.attempts || []).length === 1'));
       const a3 = await answer(c);
-      ok('the answer follows the message', /PELICAN/.test(a3) && a3.length < 400, a3.slice(0, 200));
+      ok('the answer follows the edited message', /PELICAN/.test(a3) && a3.length < 400, a3.slice(0, 200));
     }
 
     if (want('revise')) {
