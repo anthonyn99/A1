@@ -128,6 +128,33 @@ function storeSource(fb, cfg) {
     + 'serverSeen: function () { return _tjServerSeen; }\n};\n})()';
 }
 
+// The rules of a stylesheet that are tj's (a selector naming #tj-root or a tj-
+// id/class), @media blocks kept around them. notebook.css styles MyJournal under
+// #tj-root; an instance needs those rules under its own root, and none of the
+// unscoped rest again (the host already has them, earlier in its cascade).
+function tjRules(css) {
+  css = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  var out = [], i = 0, n = css.length;
+  function block(from) {          // index just past the } closing the block opened before `from`
+    var d = 1, j = from;
+    while (j < n && d) { if (css[j] === '{') d++; else if (css[j] === '}') d--; j++; }
+    return j;
+  }
+  while (i < n) {
+    var o = css.indexOf('{', i);
+    if (o < 0) break;
+    var head = css.slice(i, o).trim(), end = block(o + 1);
+    if (/^@media|^@supports/.test(head)) {
+      var inner = tjRules(css.slice(o + 1, end - 1));
+      if (inner) out.push(head + ' {\n' + inner + '\n}');
+    } else if (/#tj-root|(^|[^A-Za-z])tj-/.test(head) && !/^@/.test(head)) {
+      out.push(head + ' ' + css.slice(o, end));
+    }
+    i = end;
+  }
+  return out.join('\n');
+}
+
 function fetchText(f) {
   return fetch(url(f)).then(function (r) {
     if (!r.ok) throw new Error('Notebook: ' + f + ' ' + r.status);
@@ -233,11 +260,11 @@ function instantiate(cfg) {
   return helpers()
     .then(function () { return load('core'); })
     .then(function () { return load('docx'); })
-    .then(function () { return Promise.all([fetchText('apps/myjournal.css'), fetchText('apps/myjournal.js'), fetchText('core/fb.js')]); })
+    .then(function () { return Promise.all([fetchText('apps/myjournal.css'), fetchText('apps/myjournal.js'), fetchText('core/fb.js'), fetchText('notebook.css')]); })
     .then(function (t) {
       var st = document.createElement('style');
       st.setAttribute('data-notebook', K);
-      st.textContent = rewrite(t[0], cfg) + '\n' + instanceCss(cfg);
+      st.textContent = rewrite(tjRules(t[3]), cfg) + '\n' + rewrite(t[0], cfg) + '\n' + instanceCss(cfg);
       document.head.appendChild(st);
       // The app builds its markup right before its own script element, so the
       // element goes where the markup should: the host's container.
@@ -288,6 +315,7 @@ window.Notebook = {
   _rewrite: rewrite,
   _rewriteApp: rewriteApp,
   _storeSource: storeSource,
+  _tjRules: tjRules,
   // DOCX editor config per app key (tj, bj, ...). core/docx.js reads this
   // object as its APPS registry; an app registered after the editor has
   // initialised is initialised on arrival.

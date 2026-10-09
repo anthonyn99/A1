@@ -1140,7 +1140,8 @@ function renderSidebar() {
     div.dataset.entryId = entry.id;
     div.dataset.dkey = entry.id;
     const tmap = { whiteboard: 'BOARD', mindmap: 'MAP', page: 'PAGE', 'journal-entries': 'JOURNAL' };
-    const date = new Date(entry.updated).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    // A pinned page the store has not saved yet has no date (updated 0).
+    const date = entry.updated ? new Date(entry.updated).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
     const titleClass = entry.title ? '' : ' untitled';
     div.innerHTML = `
       <div class="entry-item-title${titleClass}">${_tjHlTitle(entry.title || 'Untitled', search)}</div>

@@ -46,6 +46,11 @@ ok('it registers its DOCX config as pb, on Tony\'s side', /Notebook\.registerDoc
 console.log('\nIts stylesheet');
 const css = N._rewrite(rd('apps/myjournal.css'), cfg);
 ok('every #tj-root rule is #pb-root\'s', !TJ_LEFT.test(css) && /#pb-root/.test(css), leftover(css));
+const shell = N._rewrite(N._tjRules(rd('notebook.css')), cfg);
+ok('the shell/DOCX rules notebook.css has for #tj-root come along as #pb-root\'s', /#pb-root \.docx-trash-btn/.test(shell) && !TJ_LEFT.test(shell), leftover(shell));
+ok('...and only those: no unscoped rule is repeated over the host\'s styles',
+  shell.split('}').filter((r) => r.includes('{') && !/^\s*@/.test(r)).every((r) => /#pb-root|pb-/.test(r.split('{')[0]) || /^\s*$/.test(r.split('{')[0]) || /@media/.test(r)));
+ok('...balanced braces', (shell.match(/\{/g) || []).length === (shell.match(/\}/g) || []).length);
 
 console.log('\nIts Firestore layer');
 const store = N._rewrite(N._storeSource(rd('core/fb.js'), cfg), cfg);
