@@ -3983,6 +3983,24 @@ export default {
 
     const url = new URL(req.url);
 
+    // ── /prewarm — the 6am pre-build without a cron slot ───────────────────
+    // Veda's account is at the free plan's 5-cron limit, so this worker has no
+    // [triggers]. finance-api's daily 11:00 UTC cron (05:00 MDT / 04:00 MST)
+    // calls this over its TB_NEWS service binding instead, and it runs the very
+    // same pre-warm the cron would (cronPrewarmNews, her live wl:current list).
+    // Awaited here rather than handed to waitUntil: a request handler gets real
+    // wall clock, a waitUntil build gets reaped (see /news). Gated by a secret
+    // header so nobody else can spend her quota on it.
+    if (url.pathname === '/prewarm'){
+      const want = env.PREWARM_KEY || '';
+      if (!want || req.headers.get('X-Prewarm-Key') !== want){
+        return new Response(JSON.stringify({ ok:false, error:'forbidden' }), { status:403, headers:{ 'Content-Type':'application/json' } });
+      }
+      await cronPrewarmNews(env, ctx);
+      const last = await env.NEWSHUB_CACHE.get('cron:lastnews').catch(() => null);
+      return new Response(JSON.stringify({ ok:true, last: last ? JSON.parse(last) : null }), { headers:{ 'Content-Type':'application/json' } });
+    }
+
     // Operator / diagnostic routes the app never calls. Several spend Gemini or
     // source quota (/ai-test, /test-ai, /nim-scan, /_stage-debug?trigger=1) or
     // wipe state (/clear-cache, /reset-exhausted), and /calendar has no consumer

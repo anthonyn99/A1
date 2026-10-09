@@ -14,11 +14,11 @@ main = "worker.js"
 compatibility_date = "2025-06-01"
 
 # No cron trigger: Veda's Cloudflare account is at the free plan's limit of 5
-# cron triggers (2026-10-08), and a [triggers] block here would fail every
-# deploy. TradeBoard's morning check builds the day's news from the browser
-# instead. To restore the 6am pre-warm, free a slot and add back:
-#   [triggers]
-#   crons = ["0 12 * * *"]   # 06:00 MDT / 05:00 MST
+# cron triggers, and a [triggers] block here would fail every deploy. Instead,
+# finance-api's daily 11:00 UTC cron (05:00 MDT / 04:00 MST) calls /prewarm on
+# this worker over a service binding (secret header PREWARM_KEY, which matches
+# finance-api's TB_NEWS_PREWARM_KEY), so the morning news is built before she
+# opens TradeBoard.
 
 [[kv_namespaces]]
 binding = "NEWSHUB_CACHE"

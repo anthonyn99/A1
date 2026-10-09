@@ -36,13 +36,17 @@ TradeBoard never calls Tony's `newshub-api`. In particular it never calls
   TSMC, Broadcom, Samsung, SK hynix and Kioxia) need no key. Google News
   answers Cloudflare IPs with a 503, so it can't be used here.
 
-## No cron
+## Morning pre-build (no cron of its own)
 
 Veda's Cloudflare account is at the free plan's limit of 5 cron triggers, so
-the worker has no 6am pre-warm. The first time TradeBoard is opened after 6am
-(device time), it builds that morning's news in the background (about 30
-seconds). Free a cron slot and add the `[triggers]` block shown in
-`wrangler.toml` to get the pre-warm back.
+`tradeboard-news` has no `[triggers]`. Her `finance-api` already runs daily at
+11:00 UTC (05:00 MDT / 04:00 MST). That run also calls `/prewarm` on the news
+worker through the `TB_NEWS` service binding, and the news worker builds the
+morning news for her current watchlist (`wl:current`, pushed by TradeBoard).
+The call carries a secret header: `PREWARM_KEY` on the news worker must match
+`TB_NEWS_PREWARM_KEY` on finance-api, and anything else gets a 403. If the
+pre-build ever fails, TradeBoard's own morning check still builds the news on
+first open.
 
 ## Builds
 

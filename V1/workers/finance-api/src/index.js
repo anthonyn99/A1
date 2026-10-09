@@ -576,5 +576,16 @@ export default {
     ctx.waitUntil(
       runSync(env).catch(e => console.log("cron sync failed:", e && e.message))
     );
+    // Also pre-build TradeBoard's morning news. The tradeboard-news worker has
+    // no cron of its own (the account is at the free plan's 5-trigger limit),
+    // so this existing daily run kicks it. Independent of the sync above: a
+    // failure here is logged and never affects finance data.
+    if (env.TB_NEWS && env.TB_NEWS_PREWARM_KEY) {
+      ctx.waitUntil(
+        env.TB_NEWS.fetch("https://tradeboard-news/prewarm", { headers: { "X-Prewarm-Key": env.TB_NEWS_PREWARM_KEY } })
+          .then(r => r.text().then(t => console.log("news prewarm:", r.status, t.slice(0, 200))))
+          .catch(e => console.log("news prewarm failed:", e && e.message))
+      );
+    }
   },
 };

@@ -43,6 +43,13 @@ PLAID_REDIRECT_URI = "https://tradeboard.vedapatel05.workers.dev/finance/"
 binding = "AUTH"
 service = "tradeboard-auth"
 
+# TradeBoard's news worker. The daily cron below also pre-builds the morning
+# news through this binding (tradeboard-news has no cron slot of its own).
+# Needs the TB_NEWS_PREWARM_KEY secret, matching tradeboard-news's PREWARM_KEY.
+[[services]]
+binding = "TB_NEWS"
+service = "tradeboard-news"
+
 # ── Workers KV ──────────────────────────────────────────────────────────────
 # Stores Plaid access_tokens, per-item sync cursors, and session tokens.
 # Created with `npx wrangler kv namespace create FINANCE`.
