@@ -359,21 +359,24 @@ class Orchestrator:
             a = await self._ask(p, prompt_for(p), ctx, ev, cancel)
             # Interrupt now (RunContext.interrupt): asked once more, in a
             # fresh chat, with what it had written and the notes. `reask`
-            # gives that prompt (None = keep the stopped answer). The second
-            # ask cannot be interrupted again.
+            # gives (that prompt, the notes), or None to keep the stopped
+            # answer. The second ask cannot be interrupted again.
             stopped = getattr(a, "interrupted", False) and not (cancel and cancel.is_set())
-            if stopped and reask is not None:
-                again = reask(p, prompt_for(p), a)
-                if again:
-                    # Checked against the question AND the notes: "answer in
-                    # French" makes a good answer share few words with the
-                    # question alone (validate's off-topic test).
-                    ref = "
-".join([ctx.reference or ctx.question, again.rsplit(
-                        "NOTES FROM THE PERSON:", 1)[-1]])
-                    return await self._ask(p, again, dc_replace(ctx, interrupt=None,
-                                                                reference=ref), ev, cancel)
-            return a
+            again = reask(p, prompt_for(p), a) if stopped and reask is not None else None
+            if not again:
+                return a
+            prompt, notes = again
+            # Checked against the question AND the notes: "answer in French"
+            # makes a good answer share few words with the question alone
+            # (validate's off-topic test).
+            ref = "\n".join([ctx.reference or ctx.question, *notes])
+            if ev:
+                with contextlib.suppress(Exception):
+                    await ev(ProviderEvent(
+                        provider_id=p.id, state=ProviderState.WAITING,
+                        message=f"{p.display_name} stopped — asking again with your notes"))
+            return await self._ask(p, prompt, dc_replace(ctx, interrupt=None, reference=ref),
+                                   ev, cancel)
 
         t0 = time.monotonic()
         answers: list[Answer] = []
@@ -525,9 +528,9 @@ class Orchestrator:
                 )
                 for p in providers
             }
-        def reask(p: Provider, prompt: str, a: Answer) -> str | None:
+        def reask(p: Provider, prompt: str, a: Answer) -> tuple[str, list[str]] | None:
             notes = steer.notes if steer else []
-            return session_mod.reask_prompt(prompt, a.text, notes) if notes else None
+            return (session_mod.reask_prompt(prompt, a.text, notes), notes) if notes else None
 
         answers = await self.gather(
             providers, prompts, ctx, emit, cancel, on_answer=save,

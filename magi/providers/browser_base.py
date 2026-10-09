@@ -601,8 +601,8 @@ class BrowserProvider(Provider):
                 # can reach the synthesis prompt.
                 cleaned = extract.clean(result.text, site.strip_patterns)
                 if result.reason == completion.CompletionReason.INTERRUPTED:
-                    # Partial on purpose: no validation, no "empty" failure.
-                    await self._emit(on_event, ProviderState.DONE, text=cleaned, started=t0)
+                    # Partial on purpose: no validation, no "empty" failure,
+                    # and not DONE -- whoever interrupted it says what next.
                     return stopped(cleaned, str(result.reason))
 
                 # The model that answered, read again now it has: ChatGPT's

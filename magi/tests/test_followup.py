@@ -502,6 +502,7 @@ def test_interrupt_now_reasks_only_the_members_still_answering():
     assert len(b.prompts) == 2
     assert "Uranus has thir" in b.prompts[1] and "- in French" in b.prompts[1]
     assert b.ctxs[1].interrupt is None, "the re-ask cannot be interrupted again"
+    assert "in French" in b.ctxs[1].reference, "checked against the notes too"
     assert out["responded"] == 2 and "in French" in a.chair_prompts[0]
 
 
