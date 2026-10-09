@@ -221,7 +221,17 @@ async function capture(label) {
     let logMark = 0, workerMark = workerLog.length;
     const step = async (name, opts) => {
       await sleep((opts && opts.wait) || 2600);   // autosave debounce + Firebase debounce
-      const snap = JSON.parse(await js(SNAP(K, PROBES)));
+      // Settle: record only once two snapshots 700ms apart agree, so a status
+      // that flips a moment later (the sync pill's SAVED -> SYNCED) cannot land
+      // on different sides of the snapshot in two runs.
+      let raw = await js(SNAP(K, PROBES));
+      for (let i = 0; i < 9; i++) {
+        await sleep(700);
+        const again = await js(SNAP(K, PROBES));
+        if (again === raw) break;
+        raw = again;
+      }
+      const snap = JSON.parse(raw);
       const writes = JSON.parse(await js(`return JSON.stringify(__fakeFs.log.slice(${logMark}).filter(l => /journal|ourjournal/.test(l.path)));`));
       logMark = await js('return __fakeFs.log.length;');
       const reqs = workerLog.slice(workerMark); workerMark = workerLog.length;
