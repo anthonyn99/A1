@@ -15306,31 +15306,53 @@ function codeUserBubble(t, ev) {
     : CODE_MSG_HOW[ev.how] || "sent"));
   const body = el("div", null, text);
   b.append(body);
-  if (!open) return b;
+  if (!open) {
+    if (t.editing && t.editing.id === ev.id) t.editing = null;
+    return b;
+  }
   // Queued: yours to change until the agent takes it (VS Code's queue).
   const acts = el("div", "turn-note-acts");
-  const edit = el("button", null, "Edit");
   const drop = el("button", null, "✕");
-  edit.type = drop.type = "button";
+  drop.type = "button";
   drop.title = "Do not send this";
   drop.setAttribute("aria-label", "Do not send this");
-  drop.onclick = () => codeMsgAct(t, `/message/${ev.id}/remove`, {}, "remove it");
-  edit.onclick = () => {
+  drop.onclick = () => { t.editing = null; codeMsgAct(t, `/message/${ev.id}/remove`, {}, "remove it"); };
+  if (t.editing && t.editing.id === ev.id) {
+    // Being edited. The view is redrawn on every event the agent sends, so
+    // the draft and the caret live on the task, not in this textarea.
+    const ed = t.editing;
     const ta = el("textarea");
-    ta.value = text;
+    ta.value = ed.draft;
     ta.maxLength = MAX_TASK_MESSAGE_CHARS;
+    ta.dataset.msgEdit = ev.id;
+    ta.oninput = () => { ed.draft = ta.value; ed.pos = ta.selectionStart; };
+    ta.onkeyup = ta.onclick = () => { ed.pos = ta.selectionStart; };
     const save = el("button", null, "Save");
     save.type = "button";
     save.onclick = () => {
       const v = ta.value.trim();
+      t.editing = null;
       if (!v) codeMsgAct(t, `/message/${ev.id}/remove`, {}, "remove it");
       else if (v !== text) codeMsgAct(t, `/message/${ev.id}/edit`, { text: v }, "change it");
       else renderCodeView();
     };
     body.replaceWith(ta);
-    acts.textContent = "";
     acts.append(save, drop);
-    ta.focus();
+    b.append(acts);
+    if (ed.focus) {
+      requestAnimationFrame(() => {
+        ta.focus();
+        const at = Math.min(ed.pos == null ? ta.value.length : ed.pos, ta.value.length);
+        ta.setSelectionRange(at, at);
+      });
+    }
+    return b;
+  }
+  const edit = el("button", null, "Edit");
+  edit.type = "button";
+  edit.onclick = () => {
+    t.editing = { id: ev.id, draft: text, pos: text.length, focus: true };
+    renderCodeView();
   };
   acts.append(edit, drop);
   if (codeEngineHas("steer_live") && ev.how !== "revise" && ev.how !== "prompt") {

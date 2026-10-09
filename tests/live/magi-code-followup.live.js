@@ -17,7 +17,7 @@
 //   4. revise   a message at the approval card: accepted "revise", nothing
 //               applied, a second card with the revised diff, approved.
 // Spends about eight small requests on the chosen agent (Codex by default).
-// LIVE_ONLY=resume,midrun,now,unit,denied,revise. (unit: UNIT=grok by default)
+// LIVE_ONLY=resume,midrun,now,unit,denied,revise. (unit: UNIT=chatgpt by default)
 'use strict';
 const fs = require('fs');
 const os = require('os');
@@ -179,7 +179,7 @@ const turnOf = (prompt, mode, r, files) => ({
     }
 
     if (want('unit')) {
-      const UNIT = process.env.UNIT || 'grok';
+      const UNIT = process.env.UNIT || 'chatgpt';
       console.log(`\n2c. Interrupt now on a browser unit (${UNIT}): its reply stops, it is asked again`);
       let sent = null, intr = null;
       const r = await run({ project_id: PID, mode: 'read', agents: [UNIT],
