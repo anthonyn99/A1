@@ -3262,7 +3262,7 @@ What's manual after W3/W4 (for Tony and Veda):
   card); the list agents get is the last one checked.
 - The File viewer is read-only: you still edit through agents (or your own
   editor). Which file is open is per device, per workspace.
-- Tony's engine was NOT live-tested from Veda's PC: its token is only on
+- (Since done -- see CLOSED below.) Tony's engine was NOT live-tested from Veda's PC: its token is only on
   Tony's PC (the MAGI_API_TOKEN on Veda's PC is the retired "tony" engine's;
   magi-link has no record for it). Tony's engine picks W3/W4 up by itself
   when idle (selfupdate). On Tony's PC: `node tests/live/magi-code-w3.live.js`
@@ -3276,9 +3276,17 @@ What's manual after W3/W4 (for Tony and Veda):
   magi\profiles\veda\deepseek). Then W4 live with DeepSeek 4/4. It needs her
   own birth date, so MAGI must never auto-dismiss it; if it returns on any
   profile, the doctor note names it.
-- Still open, a unit issue: ChatGPT's reply to "quote the selected string"
-  twice "stayed empty for 120s" (a reply-reading issue; a bare one-word answer
-  is rejected as "cut off"). ChatGPT did answer the W4 questions correctly.
+- CLOSED 2026-10-08 (Tony's PC): ChatGPT's bare one-word answer was rejected
+  as "cut off" (validate.py now takes a one-token VALUE -- an id, a path, a
+  number -- as finished, e105d9c), and the "empty for 120s" replies were the
+  retries that rejection caused: asked for the bare string 3 times on Tony's
+  engine, ChatGPT answered all 3 correctly.
+- CLOSED 2026-10-08: an age check like DeepSeek's no longer costs 120s per
+  task -- browser_base.NEEDS_YOU (+ a site's `needs_you`) fails the unit at once
+  with "only you can answer ... open Accounts > <unit>, answer it once".
+- CLOSED 2026-10-08: Tony's engine live-tested for W3 (Claude and Codex, after a
+  fix: `python` in the sandbox was the Store's Python Install Manager under
+  WindowsApps -- shell.python_dirs() now leads PATH) and W4 (17/17).
 
 ---
 
