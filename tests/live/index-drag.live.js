@@ -83,7 +83,7 @@ async function load(c, who, w, h, mobile) {
 
   // The nav must sit still under a resting cursor: a render loop once rebuilt
   // the buttons every ~100ms (hover flicker, clicks lost).
-  const mj = await rect(c, `document.querySelector('#tony-app-nav-inner .tn-btn[data-app="brainstormjournal"]')`);
+  const mj = await rect(c, `document.querySelector('#tony-app-nav-inner .tn-btn[data-app="custom:myjournal"]')`);
   await evalJs(c, "window._tnMut=0; new MutationObserver(function(m){ window._tnMut+=m.length; }).observe(document.getElementById('tony-app-nav-inner'),{childList:true}); 1");
   await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: mj.x, y: mj.y });
   await sleep(1500);

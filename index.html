@@ -6043,15 +6043,13 @@ try{ if(localStorage.getItem('td6_mainDash')==='veda') document.getElementById('
 <!-- ── Shared Tony App Nav Bar ── -->
 <div id="tony-app-nav">
   <div id="tony-app-nav-inner">
-  <select id="tn-mobile-select" onchange="if(this.value==='warroom'){window._wrClick&&window._wrClick();this.value=window._tnCurApp||'taskhub';}else if(this.value==='tradeboard'){window._thubClick&&window._thubClick();this.value=window._tnCurApp||'taskhub';}else if(this.value==='keychain'){window._vaultClick&&window._vaultClick();this.value=window._tnCurApp||'taskhub';}else{window._tonyNav&&window._tonyNav(this.value);}this.blur();">
+  <select id="tn-mobile-select" onchange="if(this.value==='warroom'){window._wrClick&&window._wrClick();this.value=window._tnCurApp||'taskhub';}else if(this.value==='tradeboard'){window._thubClick&&window._thubClick();this.value=window._tnCurApp||'taskhub';}else if(this.value==='keychain'){window._vaultClick&&window._vaultClick();this.value=window._tnCurApp||'taskhub';}else if(this.value.indexOf('custom:')===0){window._navOpenLink&&window._navOpenLink('tony',this.value.slice(7));this.value=window._tnCurApp==='brainstormjournal'?'custom:myjournal':(window._tnCurApp||'taskhub');}else{window._tonyNav&&window._tonyNav(this.value);}this.blur();">
     <option value="taskhub">Tony's TaskHub</option>
     <option value="tradeboard">TradeHub</option>
     <option value="keychain">Vault</option>
-    <option value="brainstormjournal">MyJournal</option>
     <option value="warroom">RiftIQ</option>
   </select>
   <button class="tn-btn" data-app="taskhub" onclick="window._tonyNav&&window._tonyNav('taskhub')">TaskHub</button>
-  <button class="tn-btn" data-app="brainstormjournal" onclick="window._tonyNav&&window._tonyNav('brainstormjournal')">MyJournal</button>
   <!-- TradeHub / Vault / WarRoom used to be hardcoded here — they're now seeded
        External-Links entries (see LEGACY_PROGRAMS below) so they live in Settings
        like any other custom button, while still opening through the SAME gated
@@ -19242,13 +19240,16 @@ window._updateTonyNavActive = function(app) {
   var star = nav.querySelector('.tn-star');
   if(star) { star.style.removeProperty('color'); star.style.removeProperty('border-color'); }
   var sel = document.getElementById('tn-mobile-select');
+  // MyJournal is an External-Link button (custom:myjournal) that opens in this
+  // page, so 'brainstormjournal' on screen lights that button.
+  var navKey = app === 'brainstormjournal' ? 'custom:myjournal' : app;
   if(sel) {
     sel.style.removeProperty('color'); sel.style.removeProperty('border-color');
-    sel.value = app;
+    sel.value = navKey;
   }
   var btns = nav.querySelectorAll('.tn-btn');
   btns.forEach(function(btn) {
-    btn.classList.toggle('tn-active', btn.dataset.app === app);
+    btn.classList.toggle('tn-active', btn.dataset.app === navKey);
     btn.style.removeProperty('background');
     btn.style.removeProperty('border-color');
     btn.style.removeProperty('color');
@@ -22704,13 +22705,13 @@ window.addEventListener('focus', _initNavTabGear);
 // buttons). They're now seeded into tonyLinks as legacy External Links instead
 // — see LEGACY_PROGRAMS — so they're not listed as default program keys here
 // anymore (that would duplicate them in the dropdown/overflow menu).
+// MyJournal left this list too (Notebook Phase 5): it is a LEGACY_PROGRAMS entry
+// that opens in this page. Its in-page app id is still 'brainstormjournal'.
 var TONY_DEFAULT = [
   {app:'taskhub',          label:'TaskHub'},
-  {app:'brainstormjournal',label:'MyJournal'},
 ];
 var TONY_SELECT_LABELS = {
-  taskhub:"Tony's TaskHub",
-  brainstormjournal:'MyJournal'
+  taskhub:"Tony's TaskHub"
 };
 
 var VEDA_DEFAULT = [
@@ -22785,8 +22786,13 @@ var LEGACY_PROGRAMS = [
   // helpers below default a missing `profiles` to ['tony'], which is what every
   // entry above it means, so nothing about those four changes.
   { id:'shield',   label:'Shield',   url:'https://anthonyn99.github.io/A1/shield.html',
-    profiles:['tony','veda'], lockIds:{ tony:'tony_shield', veda:'veda_shield' }, openFn:'_shieldClick' }
+    profiles:['tony','veda'], lockIds:{ tony:'tony_shield', veda:'veda_shield' }, openFn:'_shieldClick' },
+  // MyJournal (Notebook, docs/Notebook/README.md) is a program of its own now, but
+  // it opens INSIDE this page, never in a tab: its opener is the in-page nav
+  // (app-lock gated as before, on tony_myjournal). The url only identifies it.
+  { id:'myjournal', label:'MyJournal', url:'https://anthonyn99.github.io/A1/#myjournal', lockId:'tony_myjournal', openFn:'_myjournalClick' }
 ];
+window._myjournalClick = function(){ if (window._tonyNav) window._tonyNav('brainstormjournal'); };
 function _lpProfiles(p){ return (p && p.profiles) || ['tony']; }
 function _lpLockId(p, profile){ return (p.lockIds && p.lockIds[profile]) || p.lockId; }
 function _legacyProgram(id){
@@ -22876,6 +22882,16 @@ function seedLegacyProgramsOnce(){
 // Local-only pass so the header isn't missing TradeHub/Vault/WarRoom for the
 // instant before Firebase responds; applyRemote() below reconciles for real.
 var _seeded = seedLegacyProgramsOnce();
+// MyJournal's link, once per device, so its button does not wait for Firebase.
+// applyRemote replaces the links with the cloud's anyway, so a deliberate delete
+// still sticks; the flag only stops this device re-adding it on its own.
+try {
+  if (!linkById('tony','myjournal') && localStorage.getItem('nb_myjournal_link') !== '1') {
+    var _mjLp = _legacyProgram('myjournal');
+    tonyLinks.push({ id:_mjLp.id, label:_mjLp.label, url:_mjLp.url }); _seeded = true;
+  }
+  localStorage.setItem('nb_myjournal_link','1');
+} catch(e) {}
 if (migrateLegacyDefaults()) _seeded = true;
 var _stripped = _stripLegacyProgramColors();
 if (_seeded || _stripped) persistLinks();
@@ -23102,6 +23118,7 @@ function renderTonyDropdownPanel(){
   if(!_ddPanel) return;
   if(window.A1Drag&&A1Drag.active){ A1Drag.later(renderTonyDropdownPanel); return; }
   var cur=window._tnCurApp||'taskhub';
+  if(cur==='brainstormjournal') cur='custom:myjournal';
   _ddPanel.innerHTML='';
   tonyOrder.forEach(function(app){
     var item=document.createElement('div');
@@ -23550,6 +23567,19 @@ function applyRemote(data){
   // set, which is every device that has ever run this.
   if(migrateLegacyDefaults()){ changed=true; needsMigrationPush=true; }
   if(_stripLegacyProgramColors()){ changed=true; needsMigrationPush=true; }
+  // Notebook Phase 5: a saved order that still lists the built-in 'brainstormjournal'
+  // predates MyJournal becoming an External Link. It gets the MyJournal link (if
+  // the cloud has none) in the very same slot, pushed back once through the
+  // guarded save. An order without it is left alone, so a delete sticks.
+  if(Array.isArray(data.tony) && data.tony.indexOf('brainstormjournal')>=0){
+    if(!linkById('tony','myjournal')){
+      var _mj=_legacyProgram('myjournal');
+      tonyLinks.push({ id:_mj.id, label:_mj.label, url:_mj.url });
+    }
+    var _hasMj=data.tony.indexOf('custom:myjournal')>=0;
+    data.tony=data.tony.map(function(a){ return a==='brainstormjournal' ? (_hasMj ? null : 'custom:myjournal') : a; }).filter(Boolean);
+    changed=true; needsMigrationPush=true;
+  }
   if(changed){ persistLinks(); }
   registerLinks();
   if(Array.isArray(data.tony)&&data.tony.length>=2){
