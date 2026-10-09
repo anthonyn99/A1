@@ -90,8 +90,7 @@ section('Parsing is inert and fetches nothing');
 [['_bjExtractHtmlImages', 'const _bjExtractHtmlImages = async (html, e) => {'],
  ['_tjExtractHtmlImages', 'const _tjExtractHtmlImages = async (html, e, dateKey) => {'],
  ['_fbRehydratePageImages', 'window._fbRehydratePageImages = async (html) => {'],
- ['_fbRehydrateTonyPageImages', 'window._fbRehydrateTonyPageImages = async (html) => {'],
- ['_fbRehydrateMyJournalImages', 'window._fbRehydrateMyJournalImages = async (html) => {']
+ ['_fbRehydrateTonyPageImages', 'window._fbRehydrateTonyPageImages = async (html) => {']
 ].forEach(([name, marker]) => {
   const body = grab(marker);
   t(name + ': parses into an inert template',
@@ -104,12 +103,12 @@ section('Parsing is inert and fetches nothing');
 
 section('No rehydrator uses an attr it never defined');
 
-// My own edit put setAttribute(attr, ...) into the LEGACY myjournal rehydrator,
+// My own edit put setAttribute(attr, ...) into the LEGACY myjournal rehydrator (since
+// removed: it had no caller),
 // which selects img[src] only and defines no `attr` — a ReferenceError on any
 // legacy image. Same shape, opposite direction, in a function I was not even
 // changing on purpose.
 ['window._fbRehydratePageImages = async (html) => {',
- 'window._fbRehydrateMyJournalImages = async (html) => {',
  'window._fbRehydrateTonyPageImages = async (html) => {'].forEach((marker) => {
   const body = grab(marker);
   const name = marker.match(/window\.(\w+)/)[1];
