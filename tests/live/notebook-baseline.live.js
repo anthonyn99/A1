@@ -131,21 +131,23 @@ const SNAP = (key, probes) => `return (() => {
 })()`;
 
 // ── normalisation ───────────────────────────────────────────────────────────
-// Clock values become T±seconds from the run's own start (the clock is fixed,
-// so these agree unless the code times things differently), and generated ids
-// become ID1, ID2... by first appearance, so an extra Math.random() call in
-// new code cannot fake a difference.
+// Clock values become T (the clock is fixed, so they only differ by how long a
+// run took), and generated ids become ID1, ID2... by first appearance, so an
+// extra Math.random() call or a slower step in new code cannot fake a
+// difference. OurJournal's write tokens (w / pw, time-derived) become W1, W2...
 function normalise(rec) {
-  const ids = new Map();
+  const ids = new Map(), toks = new Map();
+  const ordinal = (map, prefix, m) => { if (!map.has(m)) map.set(m, prefix + (map.size + 1)); return map.get(m); };
   const isClock = (n) => n > 1.7e12 && n < 2e12 && Math.abs(n - T0) < 8 * 86400000;
   const str = (s) => s
-    .replace(/(1[789]\d{11})_([a-z0-9]{5,})/g, (m) => { if (!ids.has(m)) ids.set(m, 'ID' + (ids.size + 1)); return ids.get(m); })
-    .replace(/(1[789]\d{11})/g, (m) => (isClock(+m) ? 'T' : m));
-  const walk = (v) => {
+    .replace(/(?<![0-9])1[789][0-9]{11}_[a-z0-9]{5,}/g, (m) => ordinal(ids, 'ID', m))
+    .replace(/(?<![0-9])1[789][0-9]{11}(?![0-9])/g, (m) => (isClock(+m) ? 'T' : m));
+  const walk = (v, key) => {
+    if ((key === 'w' || key === 'pw') && typeof v === 'string' && v) return ordinal(toks, 'W', v);
     if (typeof v === 'number') return isClock(v) ? 'T' : v;
     if (typeof v === 'string') return str(v);
-    if (Array.isArray(v)) return v.map(walk);
-    if (v && typeof v === 'object') { const o = {}; for (const k of Object.keys(v)) o[str(k)] = walk(v[k]); return o; }
+    if (Array.isArray(v)) return v.map((x) => walk(x));
+    if (v && typeof v === 'object') { const o = {}; for (const k of Object.keys(v)) o[str(k)] = walk(v[k], k); return o; }
     return v;
   };
   return walk(rec);
@@ -165,6 +167,9 @@ async function capture(label) {
     if (m.method === 'Runtime.exceptionThrown') errs.push(m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text);
   });
   await c.send('Page.addScriptToEvaluateOnNewDocument', { source: DETERMINISM(Date.now() - T0) });
+  // NB_INJECT: extra page script for this recording only, e.g. to prove the
+  // comparison catches a change without editing the source (a monkeypatch).
+  if (process.env.NB_INJECT) await c.send('Page.addScriptToEvaluateOnNewDocument', { source: process.env.NB_INJECT });
   const js = (e) => evalJs(c, e);
   const rec = { label, journals: {} };
 
