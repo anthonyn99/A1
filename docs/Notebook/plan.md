@@ -1,0 +1,328 @@
+# Notebook — the journals as one independent program (living plan)
+
+> **This file is the hand-off between sessions.** Each phase is built in its own
+> Claude Code session. A new session starts by reading **§0 Hand-off** and ends by
+> rewriting it. Nothing needed to continue lives anywhere else.
+
+---
+
+## 0. Hand-off — read this first
+
+**Last updated:** 2026-10-09. **Phase 0 is done** (baseline + safety net, no product
+change). The "before" state is the git tag **`notebook-p0`**: every later phase must
+make `node tests/live/notebook-baseline.live.js` pass against it.
+
+**Next: Phase 1** — move the shared engines (DOCX, OurJournal engine, VizEngine,
+JGuard, touch-drag helper) out of index.html into `Notebook/core/`, verbatim, loaded
+in place by `Notebook/notebook.js`. See §4 Phase 1 and the cut list in §3.
+
+Before starting any phase: `git pull`; run `node tests/run-all.js`; then
+`node tests/live/notebook-baseline.live.js` (about 10 minutes; it must already
+pass on a clean checkout, otherwise fix the harness first).
+
+At the end of every phase: baseline suite passes, `node tests/run-all.js` passes,
+commit + push, rewrite this §0.
+
+---
+
+## 1. What Tony asked for (2026-10-09)
+
+- MyJournal out of index.html into its own folder, working like LifeHub: an
+  independent program that has **no page of its own** and only runs when a
+  program calls it. You can't open a notebook.html, but you can open it from
+  TaskHub and TradeHub.
+- Then he widened it: **Brainstorm Journal and OurJournal come out too**, as one
+  program called **Notebook**. Veda's side gets reconnected so it looks unchanged.
+- Each program that calls Notebook keeps **its own documents**, and every program
+  gets the same features. A change to Notebook reaches every program at once.
+- Tony's TaskHub keeps working exactly as now: memory, Firebase sync, everything.
+- TaskHub settings: MyJournal is no longer an internal program. It shows as an
+  external program but still opens inside TaskHub.
+- **TradeHub's Playbook tab** (the tab keeps its name) becomes a MyJournal holding
+  TradeHub's own documents. It covers the pinned **Daily Reminder** (keeps that
+  title) and every other playbook page, converted to MyJournal pages. The Daily
+  Reminder stays pinned at the top, can't be deleted, and keeps feeding the
+  morning auto-launch.
+- Adding Notebook to any future program must be easy, and OurJournal must be
+  ready to be offered to other programs later.
+- Fix bugs found along the way, including the identical ones in Brainstorm
+  (Tony approved). Don't break anything. Never restyle Veda's side.
+
+Answers Tony gave while planning:
+- One shared engine: Brainstorm moves into Notebook as well.
+- Fix the identical Brainstorm bugs.
+- Keep the title "Daily Reminder".
+
+## 2. Architecture
+
+```
+Notebook/
+  notebook.js        loader + public API (window.Notebook), host contract, version stamp
+  notebook.css       shared shell + DOCX CSS (still #tj-root/#bj-root scoped)
+  core/fb.js         journal Firebase layer: write guards, upsert/retry, images, per-store
+                     load/save/flush/order/delete/listen, _fbOJ/_fbViz adapters
+  core/docx.js       the DOCX editor module (APPS registry → register())
+  core/oj.js         OurJournal engine
+  core/viz.js        VizEngine (whiteboard/mind map)
+  core/jguard.js     JGuard + the journal touch-drag helper
+  core/lock.js       entry lock UI/flow per lock namespace (tj / bj / pb)
+  apps/myjournal.js  + .css   the tj app, parameterised by store
+  apps/brainstorm.js + .css  the bj app, unchanged behaviour
+```
+
+| Host | App | key | Store (Firestore) | OurJournal |
+|---|---|---|---|---|
+| index.html, Tony | myjournal | tj | `dashboards/tony_journal` (unchanged) | yes |
+| index.html, Veda | brainstorm | bj | `dashboards/journal` (unchanged) | yes |
+| tradehub.html, Playbook | myjournal | pb | `dashboards/tradehub_playbook` (new) | no |
+
+- **`key`** is the DOM/CSS/localStorage prefix, so tj and bj keep every id, rule and
+  saved key they have today (`tony_journal_v3`, `docx_*_tj`, `tj_unlockedat_*`,
+  `oj_cache_tj`, …). Nothing a device remembers is lost.
+- **Loading.** Hosts load `Notebook/notebook.js?v=<hash>` as a classic
+  **synchronous** script, placed where the journal code sits today. index.html's
+  execution order stays identical, which matters because app-lock, NavOrder and the
+  profile code call and wrap journal functions while the page parses. The `?v=`
+  stamp (the same trick as dragsort.js, commit da5004d) beats GitHub Pages' 10-minute
+  cache. `tools/notebook-stamp.js` rewrites every host's `?v=` from a hash of the
+  folder, and a test fails when a stamp is stale.
+- **Firebase.** Notebook borrows the host's app and Firestore: first
+  `window.NotebookFirebase()`, otherwise the `[DEFAULT]`-app discovery LifeHub uses
+  (`LifeHub/lifehub.js` openFirestore). Both hosts are on gstatic 12.12.0. Only with
+  neither does it start its own app.
+  - index.html keeps its own infrastructure, and Notebook takes it through a host
+    adapter: `_freshGet`/`_fbIsServerSnap` (server-confirmed reads),
+    `_fbWatchStall`/`_fbStopStall` (the stall popup), and `_a1b` (the A1Backup tap).
+    Notebook has small fallbacks for hosts without them (TradeHub).
+  - index's idle teardown (~13401, it resets `_tjServerSeen`/`_bjServerSeen`) calls
+    `Notebook.hostTeardown()`.
+- **Borrowed from the host if present, otherwise a fallback.** `uiAlert`/`uiConfirm`/
+  `uiPrompt`/`uiForm`, `TNI` icons, `Bio` (biometrics hidden if absent),
+  `_pwReset`/`_mailRelay` (forgot-password hidden if absent), `A1Drag`, `A1Resize`,
+  React (boards only).
+- **Standalone guard.** Nothing renders until a host calls `Notebook.mount()`.
+
+### End state of index.html
+
+After Phase 3 there is **no journal code in index.html**: no journal apps, DOCX,
+OurJournal, VizEngine, JGuard, journal Firebase functions, or journal CSS/HTML. That
+is roughly 23,000 of its 45,500 lines. What remains is the host side, about 40–60
+lines:
+- the script tag and two `Notebook.mount(...)` calls
+- the nav buttons that open it (`showTonyJournal`, `showBrainstormJournal`, now
+  calling `Notebook.show(key)`)
+- settings and app-lock rows
+- `_fbFlushAll` calling `Notebook.flushAll()`
+- the teardown hook
+- the host helpers TaskHub's own app lock also uses: `Bio`, `_pwReset`,
+  `_mailRelay`, the modals and `TNI`
+
+`tests/notebook-wiring.test.js` enforces this. It fails if a host defines
+`_tjApplyRemote`, `_bjApplyRemote`, `window.OJ =`, `VizEngine`, `JGuard`, the DOCX
+module, a `#tj-root`/`#bj-root` style rule, or a journal Firestore path. The
+`hoverfx.js data-roots` list is host config and is allowed.
+
+## 3. Cut list (index.html as of tag `notebook-p0`)
+
+Line numbers drift as the file changes, so grep the identifier before cutting.
+
+**Moves to Notebook (journal-owned):**
+
+| Lines | What | Goes to |
+|---|---|---|
+| 105, 132, 136, 222, 226 | `#tj-root`/`#bj-root` rules in the global sheet (glow, fixed root, font) | notebook.css / app css |
+| 5653–5741 | `.tji`/`.bji` icon sizing, bottom-bar width cap | app css |
+| 10696–10727 | `_bj/_tjServerSeen` write guards + queues | core/fb.js |
+| 11650–13034 | Firebase: Brainstorm block, `_fbWriteRetry`/`_fbUpsert` (journal-only), sanitize, image docs (`_jImg*`, `_compactImages`), `_fbViz`, `_fbOJ`, MyJournal block, AI prompt/tools docs | core/fb.js |
+| 20451–20563 | `_attachJournalTouchDrag` | core/jguard.js |
+| 20564–20902 | JGuard | core/jguard.js |
+| 20903–22793 | VizEngine CSS + core + boards | core/viz.js (+css) |
+| 22794–23759 | OurJournal `oj-css` + engine | core/oj.js |
+| 23761–29493 | Brainstorm Journal CSS, `#bj-root` HTML, app IIFE, lock IIFE | apps/brainstorm.* (except `_pwReset`, below) |
+| 29496–34798 | MyJournal CSS, `#tj-root` HTML, app IIFE, lock IIFE | apps/myjournal.* (except the TaskHub-owned parts, below) |
+| 34804–35730 | `docx-css-tony`, `docx-css`, responsive CSS, journal shell CSS | notebook.css / apps |
+| 35731–40357 | DOCX module | core/docx.js |
+| 41227–41340 | `mjd-css` + MJDocsUI rail (OurJournal plugs into it) | apps/myjournal.* |
+| 44861–44862 | `.vd-settings-gear` inside the journal roots | app css |
+
+**Stays in index.html (TaskHub's own, currently inside journal scripts):**
+- `_tonyNav`, `_updateTonyNavActive`, `_hideTonyNav`, `showTonyJournal`,
+  `hideTonyJournal`, `tjSwitchTo` (in the MyJournal script, ~34145–34256)
+- `window._fbFlushAll` (~33620). It is called by Brainstorm, both TaskHubs and
+  pagehide (13497, 41487), so it becomes a host function calling
+  `Notebook.flushAll()`.
+- `window._pwReset` (inside Brainstorm's lock IIFE, ~28992). App-lock uses it at
+  42593.
+- `_a1SweepFirestore.ready` (13527) switches from `_tjServerSeen` to
+  `_thServerSeen`. `tests/cleanup-rules.test.js:122` is updated.
+
+**Host-side references into journal code** (each becomes a Notebook API call or
+stays as host config):
+- 6095, 6099: Tony's nav button / option `brainstormjournal`
+- 14354–14364 (`_vedaNav`), 15864 (`showBrainstormJournal('veda')`)
+- 17622–17663: the profile switch hides `bj-root`/`tj-root` and removes `tj-nav-title`
+- 17836: `_tjApplyTheme`
+- 41180: `_MODAL_OVERLAYS` lists `bj-lock-overlay`/`tj-lock-overlay`
+- 42082–42084: `AL_APP_ROOTS`
+- 42288: `alNavAppToId`
+- 42342: `#bj-root` row check
+- 42681–42690: the app-lock wrap of `showTonyJournal`
+- 43785–43789: NavOrder `brainstormjournal`
+- 44270: `['#bj-root','journal']`
+- 45552: hoverfx `data-roots`
+
+**Tests that grep index.html for journal code** (they follow the code into Notebook/):
+- journal-images (`_tjExtractHtmlImages`)
+- viz-board
+- sync-guard (`_tjServerSeen`, `_bjServerSeen`)
+- cleanup-rules (`_a1SweepFirestore`)
+- archive-visibility (`_tjCompactImages`, `_tjStripEntry`)
+- trash-purge-guard
+- hoverfx-wiring
+- backup-measure
+- syntax-check `ROOT_SCRIPTS`
+- `backup.js` 135/150 lists `tony_journal`; the path is unchanged, so it stays
+
+## 4. Phases
+
+### Phase 0 — Baseline and safety net ✅ 2026-10-09
+- `tests/live/fake-firebase.js`: an in-memory Firestore served as the Firebase SDK
+  (real merge/update/deleteField/metadata semantics, a write log, survives reloads,
+  `__fakeFs.remote()` for "another device"). Reusable by any live test.
+- `tests/live/notebook-baseline.live.js`: one scripted session per journal (Tony →
+  MyJournal, Veda → Brainstorm), recorded from tag `notebook-p0` and from the
+  working copy, then diffed. It records every Firestore write, every lock/AI worker
+  request, the localStorage keys and caches, a per-step DOM/style snapshot, and 18
+  byte-compared screenshots. The session covers:
+  - open from the server, open an entry, edit and type, add a tag, search
+  - new page, trash, restore, a remote rename
+  - lock set (hint prompt), the lock re-showing on another device, wrong then
+    right password
+  - AI Format, OurJournal new page and leave
+  - tablet and phone sizes, reload
+- This plan, the cut list (§3) and a CLAUDE.md pointer.
+
+### Phase 1 — Shared engines out, verbatim
+- Move DOCX (CSS + IIFE), OurJournal engine + `oj-css`, VizEngine + CSS, JGuard and
+  the touch-drag helper into `Notebook/core/*` and `notebook.css`, byte for byte.
+  `notebook.js` loads them synchronously at the same spot.
+- Move `_fbOJ`/`_fbViz` into `core/fb.js` behind the host adapter.
+- Turn the DOCX `APPS` registry into `register(app, cfg)`. tj and bj register exactly
+  today's config. `_docxRebindImages` routes through the registry (it hardcodes
+  `_bjBindImg`/`_tjBindImg` today).
+- Add the stamp tool and a first `tests/notebook-wiring.test.js`. Update the
+  index-grepping tests.
+
+### Phase 2 — Brainstorm Journal into `apps/brainstorm.js`
+- Move the bj CSS, HTML (the app builds `#bj-root` on mount), app IIFE, Firebase
+  block and lock IIFE. `_pwReset` stays in index.
+- Index mounts `{app:'brainstorm', key:'bj', store:'journal'}`. Paths and keys are
+  unchanged, and the screenshots must be byte-identical.
+- Identical bug fixes, approved by Tony:
+  - locked-entry delete uses `BJ_AUTH` out of scope (~26214), so it always says
+    "Network error"
+  - change-password ignores the remove-lock result
+  - set/remove/change skip `tlAuthPost`
+  - native `prompt()` for Journal Entries links
+  - attachment size guard and escaped file name, if the same code is present
+
+### Phase 3 — MyJournal into `apps/myjournal.js`
+- Same move for tj, plus MJDocsUI. The TaskHub-owned functions in §3 stay in index.
+- MyJournal bug fixes:
+  - `TJ_AUTH` locked-delete (~31890)
+  - change-password lock drop (34641)
+  - `tlAuthPost` everywhere
+  - passkey label "Trade Journal" → "MyJournal" (34405)
+  - native `prompt()` (33298)
+  - attachment size guard + escaped chip name (32575–32683)
+  - PDF export using Veda's purple (34113)
+  - sync pill says "Saved" before any save
+- Dead code, removed per the delete-stale-comments rule: `fb-tj-canvas-saved`,
+  `_fbRehydrateMyJournalImages`, the `#th-app-switcher`/`#tj-app-switcher` refs.
+  `dashboards/myjournal` is already a cleanup-rules item.
+- After this phase the "no journal code in index.html" test is switched on.
+
+Each bug fix changes behaviour on purpose. The baseline comparison then shows
+exactly that difference and nothing else. The phase records each expected
+difference in this file and adds a rule to the suite's `EXPECTED` list for it.
+
+### Phase 4 — Host-agnostic ("add Notebook to any program")
+- Parameterise from `store`/`key`: the Firestore doc and `_img_`/`_viz_` prefixes,
+  the localStorage prefix, the lock namespace (the taskhub-reminders worker accepts
+  any `journal` string via `jKey`), and the AI profile.
+- Add `mode:'inline'` beside `'overlay'`.
+- Add `features` (ourjournal, boards, locks), `pinned` entries (top, undeletable,
+  untrashable, not draggable, not lockable), and the `onSave`/`onReady` hooks.
+- Add host Firebase borrowing with an own-app fallback, plus the helper fallbacks.
+- Add `tests/live/notebook-host.live.js`: a throwaway host with store `nb_test`
+  that gets its own documents and the same features.
+- Write `docs/Notebook/README.md`, the contract (counterpart of
+  docs/LifeHub/README.md). It covers adding Notebook to a program, the data
+  layout, the Firebase cost table, and turning OurJournal on for another host.
+
+### Phase 5 — TaskHub: MyJournal becomes an external program
+- Take `brainstormjournal` out of `TONY_DEFAULT` and Internal Programs.
+- Add a MyJournal row to `LEGACY_PROGRAMS` with its icon and
+  `lockId:'tony_myjournal'`. Its open action calls `showTonyJournal()` (in-page),
+  never `_tnOpenTab`.
+- Migrate saved `dashboards/navorder` in one guarded write, keeping order and
+  visibility.
+- App-lock wiring is kept. Veda's settings are unchanged.
+- Add a live test.
+
+### Phase 6 — TradeHub Playbook on Notebook
+- **Mount:** in `TBPlaybookPage` (~9846), add a host `<div>` whose `useEffect`
+  calls `Notebook.mount({app:'myjournal', key:'pb', store:'tradehub_playbook',
+  mode:'inline', features:{ourjournal:false}, pinned:[Daily Reminder]})`.
+  `TBTabGate` and the nav entry stay.
+- **Migration:** with the store empty, read `dashboards/tradeboard_playbook`
+  (falling back to `tb_playbook_v1`). Each page becomes a `template:'page'` entry
+  (`data.html = tbSanitizeHtml(body)`) with the same id, so the Daily Reminder keeps
+  `daily-reminder`. Trashed pages keep their stamp. This happens in one
+  transaction with a `_migratedFrom` marker. The old doc is left as a backup.
+- **Daily Reminder push:** `onSave` → `tbHtmlToMd` → POST `/daily-reminder`, keeping
+  the existing debounce and signature dedupe (~10372–10394). `tbHtmlToMd` learns
+  math (`$…$`), and images and file chips become placeholders.
+- **Remove** the old Playbook code:
+  - the editor, toolbar, menus, persistence and listener
+  - its Trash-can section
+  - its CSS
+  - `_fbLoad/SaveTBPlaybook`
+  - the onSnapshot at ~1172
+  Add `tb_playbook_v1` to `cleanup-rules.json` with `"delete": false`.
+- **Bugs:**
+  - gate POST `/daily-reminder` with App Check in
+    `workers2/trade-dashboard/worker.js`; GET stays open for launch.py
+  - launch.py: handle `~~strike~~`, and stop treating snake_case as italic (1707)
+- Add `tests/live/tradehub-playbook.live.js`.
+
+### Phase 7 — Wrap-up
+- Run every suite, both profiles, and TradeHub mobile-fit.
+- Update the memory notes (myjournal-docx-editor, ourjournal,
+  journal-localstorage-quota) and add a `notebook` memory.
+
+## 5. Verifying a phase
+
+- `node tests/run-all.js` and `node tests/syntax-check.js`.
+- `node tests/live/notebook-baseline.live.js`. It compares against tag `notebook-p0`;
+  `--ref <ref>` compares against anything else. Exit 0 means the writes, requests,
+  storage, every step snapshot and every screenshot match. Shots and recordings are
+  in `%TEMP%\magi-live-shots\nb-*`.
+- The `/verify` skill before each commit.
+- Never mutate source in place to prove a test can fail; monkeypatch instead.
+
+## 6. Bugs found, by phase
+
+| Where | Bug | Phase |
+|---|---|---|
+| MyJournal + Brainstorm | Deleting a locked entry always fails: `TJ_AUTH`/`BJ_AUTH` only exist inside the lock IIFE, so the ReferenceError reads as "Network error" | 3 / 2 |
+| MyJournal + Brainstorm | Change password: remove-lock result unchecked, so a failed set-lock leaves the entry unprotected | 3 / 2 |
+| MyJournal | Passkey prompt says "Trade Journal" | 3 |
+| MyJournal | Journal Entries link button uses the native `prompt()` | 3 |
+| MyJournal | No attachment size limit; an oversize chip blocks the whole entry's sync with no clear cause; chip name not `<`-escaped | 3 |
+| MyJournal | PDF export uses Veda's purple palette | 3 |
+| MyJournal | Sync pill says "Saved" before anything was saved | 3 |
+| TradeHub Playbook | Remote edits dropped within 8 s of a local save; focused editor writes stale DOM back on blur; whole-doc overwrite | 6 (replaced) |
+| TradeHub Playbook | Every blur writes even with no change; storage % banner wrong; link URL with `"` throws | 6 (replaced) |
+| trade-dashboard worker | POST `/daily-reminder` has no App Check, so anyone can rewrite the morning text | 6 |
+| launch.py | `~~strike~~` not rendered; snake_case italicised | 6 |

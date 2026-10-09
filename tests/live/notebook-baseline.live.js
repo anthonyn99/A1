@@ -326,6 +326,13 @@ async function capture(label) {
 }
 
 // ── compare ─────────────────────────────────────────────────────────────────
+// Differences a phase makes ON PURPOSE (a bug fix changes what the user sees).
+// Each rule names the phase and the fix, and matches the difference's path in
+// the recording (e.g. /^tj\.steps\[\d+\]\.snap\.sync$/). Nothing else may differ.
+// Screenshots a rule allows to differ go in `shots` (file-name regex).
+const EXPECTED = [
+  // { phase: 3, why: 'sync pill no longer says "Saved" before any save', path: /^tj\.steps\[0\]\.snap\.sync$/, shots: /tj-open/ },
+];
 function diff(a, b, at, out) {
   if (out.length > 60) return;
   if (JSON.stringify(a) === JSON.stringify(b)) return;
@@ -343,11 +350,15 @@ function compare(la, lb) {
   for (const K of Object.keys(A.journals)) {
     const out = [];
     diff(A.journals[K], B.journals[K], K, out);
+    const head = (d) => d.split('\n')[0];
+    const allowed = out.filter((d) => EXPECTED.some((r) => r.path && r.path.test(head(d))));
+    allowed.forEach((d) => console.log('  expected ' + head(d)));
+    out.splice(0, out.length, ...out.filter((d) => !allowed.includes(d)));
     console.log(out.length ? `  FAIL ${K}: ${out.length} difference(s)\n    ` + out.join('\n    ') : `  ok   ${K}: writes, requests, storage and every step match`);
     if (out.length) fail++;
   }
   const shots = fs.readdirSync(OUT).filter((f) => f.startsWith(`nb-${la}-`) && f.endsWith('.png'));
-  const bad = shots.filter((f) => {
+  const bad = shots.filter((f) => !EXPECTED.some((r) => r.shots && r.shots.test(f))).filter((f) => {
     const g = path.join(OUT, f.replace(`nb-${la}-`, `nb-${lb}-`));
     return !fs.existsSync(g) || !fs.readFileSync(g).equals(fs.readFileSync(path.join(OUT, f)));
   });
