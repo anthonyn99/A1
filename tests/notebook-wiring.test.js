@@ -140,8 +140,12 @@ ok('each journal is mounted once, where its markup used to sit (Brainstorm, then
 ok('the host\'s MyJournal nav (showTonyJournal, _tonyNav) is defined before MyJournal mounts (its rail wraps showTonyJournal)',
   at('window.showTonyJournal = function') > 0 && at('window.showTonyJournal = function') < tjMount && at('window._tonyNav = function') < tjMount
   && !nbFiles.some((f) => /window\.(hideTonyJournal|_tonyNav|_updateTonyNavActive|tjSwitchTo) = function/.test(nbSrc(f))));
-ok('_pwReset stays the host\'s (the app lock uses it): defined once, in index.html',
-  (idx.match(/window\._pwReset = /g) || []).length === 1 && !nbFiles.some((f) => /window\._pwReset = /.test(nbSrc(f))));
+// Entry locks are Guardian locks (Guardian/guardian.js): no journal keeps a
+// lock helper of its own, and the loader brings Guardian to a host without it.
+ok('no journal carries its own lock helpers (Bio, _mailRelay, _pwReset, worker password calls)',
+  !nbFiles.some((f) => /window\.Bio\b|_mailRelay|_pwReset|\/auth\/journal\/(verify|set-lock|remove-lock|hint)/.test(nbSrc(f))));
+ok('the loader brings Guardian, unpinned, to a host that lacks it',
+  nbSrc('notebook.js').includes("if (!w.Guardian) jobs.push(loadScript(BASE + '../Guardian/guardian.js'));"));
 ok('the DOCX group loads after both journals, where its sheets used to be (cascade order)',
   at("Notebook.load('docx')") > tjMount && at("Notebook.load('docx')") < at('TaskHub Voice Control'));
 ok('the rail\'s CSS is last in notebook.css (at 1100-1180px its --sidebar-w must win)',

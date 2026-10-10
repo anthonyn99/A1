@@ -33,10 +33,11 @@ const ok = (name, cond, extra) => {
 // up its lock surface, so the scan covers code that lives outside the page.
 const HOSTS = {
   'shield.html': [],
+  // MyJournal + Brainstorm entry locks run inside index (Notebook/).
+  'index.html': ['Notebook/apps/myjournal.js', 'Notebook/apps/brainstorm.js', 'Notebook/notebook.js'],
 };
 // Not migrated yet (shrinks phase by phase; must end empty).
 const PENDING = [
-  'index.html', 'Notebook/apps/myjournal.js', 'Notebook/apps/brainstorm.js',
   'mylist.html', 'oneinbox.html', 'magi.html',
   'tradehub.html', 'insight.html', 'vault.html', 'riftiq.html', 'solace.html',
 ];
