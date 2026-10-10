@@ -334,7 +334,9 @@ async function shot(c, name) {
   {
     await evalJs(c, "document.getElementById('lockNowBtn').click(); 1"); await sleep(600);
     await scan('lock manager');
-    ok('the lock card is outlined in purple', (await css(c, '#lockBox', 'borderTopColor')) === 'rgb(154, 134, 201)');
+    // The lock manager is Guardian's card (A1/Guardian/guardian.js): Tony's MAGI card.
+    ok('the lock manager is Guardian's MAGI card', await evalJs(c, "var s=document.querySelector('guardian-lock').shadowRoot, k=s&&s.querySelector('.card'); return !!k && getComputedStyle(k).backgroundColor==='rgb(35, 35, 39)' && /Lock settings/i.test(k.innerText);"));
+    await evalJs(c, 'Guardian.close(); 1');
   }
 
   // ── 5. phone ──
