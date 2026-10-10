@@ -350,6 +350,18 @@ function page(W, opts) {
     ok('worker never called', W.calls.length === 0, W.calls);
   }
 
+  console.log('\n12b. a lock removed elsewhere closes an open unlock card');
+  {
+    const W = fakeWorker(); W.set('applock:tony_r', 'pw');
+    const P = page(W, { storage: { 'gd.c.applock:tony_r': JSON.stringify({ h: true, v: 'vOld', t: 1 }) } });
+    P.G.define('tony_r', {});
+    const g = P.G.gate('tony_r'); await tick(10);
+    ok('asks from the cache', P.G.isOpen());
+    delete W.recs['applock:tony_r'];
+    await P.G.refresh(['tony_r']); await tick(10);
+    ok('the card closes and the gate opens', !P.G.isOpen() && (await g) === true);
+  }
+
   console.log('\n13. bio-only (Plans consent)');
   {
     const W = fakeWorker();
