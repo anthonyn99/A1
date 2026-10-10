@@ -10705,6 +10705,27 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     }, 10000);
   }
   let _vdServerSeen = false, _vdPendingWrites = [];
+  // ── Base check: a write must be built on the doc the server actually holds ──
+  // THE 2026-10-10 REVERT: a phone tab asleep since Oct 7 woke, took a tap before
+  // the fresh doc was applied, and that tap queued a WHOLE-document payload built
+  // from the 3-day-old state. It carried a brand-new savedAt and the current
+  // generation, and it was a user edit (not _bg), so every other guard passed. The
+  // server read then unlocked writes BEFORE the app applied the data, the stale
+  // payload went out, and applyRemote rejected the real doc as "older".
+  // Fix: each payload records `_base`, the exact savedAt of the doc its state was
+  // built on (persisted across reloads). If the server now holds a savedAt that is
+  // neither that base nor one of our own writes, someone else's newer data is up
+  // there and this payload would erase it. It is refused, and the server doc is
+  // force-applied. Comparing for EQUALITY, never order, keeps this clock-independent.
+  let _vdServerSavedAt = null, _vdServerDoc = null;
+  const VD_BASE_KEY = 'td_base_saved_at';
+  window._vdGetBase = () => { try { return Number(localStorage.getItem(VD_BASE_KEY)) || 0; } catch (e) { return 0; } };
+  window._vdSetBase = (sa) => { try { localStorage.setItem(VD_BASE_KEY, String(sa || 0)); } catch (e) {} };
+  function _vdNoteServer(d) { _vdServerDoc = d || null; _vdServerSavedAt = d ? (d.savedAt || 0) : 0; }
+  // Automated pushes (goal pruning, rollover) can be refused too; only tell her to
+  // redo something if she actually touched the page recently.
+  let _vdLastInputAt = 0;
+  ['pointerdown', 'keydown'].forEach(evt => document.addEventListener(evt, () => { _vdLastInputAt = Date.now(); }, { passive: true, capture: true }));
   // dashboards/navorder (header button order + the External Links list). Whole-doc
   // setDoc, and the in-memory order it serialises starts life as the hardcoded
   // DEFAULT order — so an ungated write before this connection has confirmed
@@ -11150,7 +11171,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // Same escape hatch as TaskHub's — see _stallRetry['main'].
     _stallRetry['vedasdash'] = async () => {
       const snap = await _freshGet(vdDocRef);
-      if (_fbIsServerSnap(snap)) _vdMarkServerSeen();
+      if (_fbIsServerSnap(snap)) { _vdNoteServer(snap.exists() ? snap.data() : null); _vdMarkServerSeen(); }
     };
 
     window._fbLoadVeda = async () => {
@@ -11162,7 +11183,9 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         // See the TaskHub loader — only a real server round-trip may unlock.
         const fromServer = _fbIsServerSnap(snap);
         const fromCache = !fromServer;
-        if (fromServer) _vdMarkServerSeen();
+        // Note what the server holds BEFORE unlocking: the unlock replays any parked
+        // write synchronously, and _doVedaSave's base check needs this to judge it.
+        if (fromServer) { _vdNoteServer(snap && snap.exists() ? snap.data() : null); _vdMarkServerSeen(); }
         if (snap && snap.exists()) {
           // Tag the origin. The caller MUST NOT repaint the UI from a cache-fallback
           // read that is older than what it already has: _freshGet falls back to the
@@ -11219,9 +11242,32 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
           return Promise.resolve();
         }
       }
+      // Base check — see the note at _vdServerSavedAt. Only judged once a server doc
+      // exists (nothing to clobber otherwise) and only for payloads that carry a base.
+      const base = _vdPendingPayload._base;
+      if (base !== undefined && _vdServerDoc && _vdServerSavedAt !== base
+          && !_vdOwnWrites.has(_vdServerSavedAt)) {
+        const userEdit = !_vdPendingPayload._bg && Date.now() - _vdLastInputAt < 60000;
+        console.warn('[Veda] refused a write built on an older copy (base ' + base
+          + ', server has ' + _vdServerSavedAt + ') — loading the cloud copy instead');
+        _vdPendingPayload = null; _vdSavePending = false; _vdDeferredRemote = null;
+        const fresh = { ..._vdServerDoc };
+        try { Object.defineProperty(fresh, '_rebase', { value: true, enumerable: false }); }
+        catch (_) { fresh._rebase = true; }
+        window.dispatchEvent(new CustomEvent("fb-vd-remote-update", { detail: fresh }));
+        if (userEdit) {
+          try {
+            alert("TaskHub (Veda): this screen was out of date, so your last change was NOT saved "
+              + "— saving it would have erased newer changes from another device.\n\n"
+              + "The latest copy is now loaded. Please redo that last change.");
+          } catch (_) {}
+        }
+        return Promise.resolve();
+      }
       const payload = _vdPendingPayload; _vdPendingPayload = null;
       delete payload._gen;                       // internal only — never persisted
       delete payload._bg;                        // internal only — never persisted
+      delete payload._base;                      // internal only — never persisted
       _vdLastWrittenSavedAt = payload.savedAt || Date.now();
       _vdOwnWrites.add(_vdLastWrittenSavedAt);
       if (_vdOwnWrites.size > 50) _vdOwnWrites.delete(_vdOwnWrites.values().next().value);
@@ -11236,6 +11282,9 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         try {
           _vdLastOwnSaveAt = Date.now();
           const ok = await _guardedWrite(vdDocRef, payload, 'Veda');
+          // Our write is now the doc the next payload builds on. Only on success: a
+          // failed write leaves the server on the old base, which must stay valid.
+          if (ok) window._vdSetBase(payload.savedAt);
           if (ok) _thbSnapshot('vedasdash', payload);   // best-effort, never awaited
           _vdLastOwnSaveAt = Date.now();
           window.dispatchEvent(new CustomEvent(ok ? "fb-vd-saved" : "fb-vd-error"));
@@ -11278,9 +11327,10 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     if (_vdUnsubscribe) { _vdUnsubscribe(); _vdUnsubscribe = null; }
     _vdUnsubscribe = onSnapshot(vdDocRef, { includeMetadataChanges: true }, (snap) => {
       const fromCache = snap.metadata && snap.metadata.fromCache;
-      if (!snap.exists()) { if (!fromCache) _vdMarkServerSeen(); return; }
+      if (!snap.exists()) { if (!fromCache) { _vdNoteServer(null); _vdMarkServerSeen(); } return; }
       if (fromCache) return;                 // cached echo, not remote news
       const d = snap.data();
+      _vdNoteServer(d);                      // before the unlock below replays parked writes
       // A PENDING LOCAL WRITE THAT IS OLDER THAN THE SERVER COPY MUST BE DROPPED.
       _a1b('dashboards/vedasdash', d);
       // This is the bug that reverted the desktop: on resume the phone had an
@@ -14900,6 +14950,9 @@ function App(){
   const vdFbPush=useCallback((bg)=>{
     if(!window._fbSaveVeda)return;
     const payload=buildVdPayload();
+    // The doc this state was built on — the Firebase layer refuses the write if the
+    // server has moved past it (see _vdServerSavedAt).
+    if(window._vdGetBase)payload._base=window._vdGetBase();
     if(bg)payload._bg=true;
     else setVdSync("saving");
     // Our own edit is now the newest state we know of — record it BEFORE the write
@@ -14910,7 +14963,7 @@ function App(){
 
   // See Tony's _thRebuildPayload — same contract, Veda's document.
   useEffect(()=>{
-    window._vdRebuildPayload=()=>{const pl=buildVdPayload();vdLastAppliedRef.current=pl.savedAt||Date.now();return pl;};
+    window._vdRebuildPayload=()=>{const pl=buildVdPayload();if(window._vdGetBase)pl._base=window._vdGetBase();vdLastAppliedRef.current=pl.savedAt||Date.now();return pl;};
     return()=>{delete window._vdRebuildPayload;};
   },[buildVdPayload]);
 
@@ -14990,7 +15043,10 @@ function App(){
     // carries no news. Dropping it is always safe — the live onSnapshot listener
     // delivers the real server state the moment it arrives.
     const rs=remote.savedAt||0, ls=vdLastAppliedRef.current||0;
-    if(rs&&ls&&rs<ls){
+    // _rebase: the Firebase layer refused our write because it was built on an older
+    // copy than the server's. Our local state is the stale one, so the server doc must
+    // land even though our refused payload carried a newer timestamp.
+    if(rs&&ls&&rs<ls&&!remote._rebase){
       console.warn("[Veda] ignoring stale doc (savedAt "+rs+" < applied "+ls+")"
         +(remote._fromCache?" [cache fallback]":""));
       return;
@@ -14998,7 +15054,9 @@ function App(){
     // A cache-fallback read that merely TIES the applied timestamp is also news-free;
     // applying it would clobber unsaved in-flight edits made since that snapshot.
     if(remote._fromCache&&rs&&ls&&rs===ls)return;
-    vdLastAppliedRef.current=rs||ls;
+    vdLastAppliedRef.current=remote._rebase?rs:(rs||ls);
+    // Whatever doc we apply is now what our state is built on.
+    if(window._vdSetBase)window._vdSetBase(rs);
     const now2=new Date(),cw=getMondayKey(now2);
     // Same rule as Tony's TaskHub: the weekly reset is destructive (it is saved
     // locally and re-uploaded on the next edit), so it may only run on trusted

@@ -279,7 +279,8 @@ t('Pending writes are flushed BEFORE teardown bumps the generation',
 // against a rejecting backend AND kept the stall watchdog from ever arming.
 t('Loader only unlocks on a genuine server read',
   (HTML.match(/const fromServer = _fbIsServerSnap\(snap\);/g) || []).length >= 2 &&
-  (HTML.match(/if \(fromServer\) _(th|vd)MarkServerSeen\(\);/g) || []).length >= 2 &&
+  /if \(fromServer\) _thMarkServerSeen\(\);/.test(HTML) &&
+  /if \(fromServer\) \{ _vdNoteServer\([^\n]*\); _vdMarkServerSeen\(\); \}/.test(HTML) &&
   /function _fbIsServerSnap\(snap\)/.test(HTML) &&
   /snap\[_FB_FROM_SERVER\] === true/.test(HTML),
   'A cache fallback must NOT count as confirmation.');
@@ -318,7 +319,9 @@ t('Loaders tag cache-fallback reads so the caller can tell them apart',
   'A cache read must be distinguishable from a genuine server read.');
 
 t('Both applyRemote implementations reject an older document',
-  (HTML.match(/if\(rs&&ls&&rs<ls\)\{/g) || []).length >= 2,
+  /if\(rs&&ls&&rs<ls\)\{/.test(HTML) &&
+  // Veda's has one exception: a doc force-applied after the base check refused our write.
+  /if\(rs&&ls&&rs<ls&&!remote\._rebase\)\{/.test(HTML),
   'savedAt older than what we already applied carries no news and must be dropped.');
 
 t('Both applyRemote implementations ignore a tie from the cache',
@@ -809,6 +812,60 @@ for (const [who, marker] of [['Tony', 6344], ['Veda', 12630]]) {
   t(who + ': a plan that moved day leaves the old day and appears on the new one',
     !(moved['2026-08-14'] || []).some(x => x._planId) &&
     (moved['2026-08-15'] || []).some(x => x._planId === 'p1'));
+}
+
+
+// ─────────────── 2026-10-10: write built on an older copy (base check) ───────────────
+// A phone tab asleep since Oct 7 woke, took a tap before the fresh doc was applied,
+// and pushed its 3-day-old state with a fresh savedAt over two days of edits.
+section('Static: Veda base check (2026-10-10 revert)');
+t('Every Veda payload carries the base it was built on',
+  /if\(window\._vdGetBase\)payload\._base=window\._vdGetBase\(\);/.test(HTML) &&
+  /_vdRebuildPayload=\(\)=>\{const pl=buildVdPayload\(\);if\(window\._vdGetBase\)pl\._base=window\._vdGetBase\(\);/.test(HTML),
+  'vdFbPush and _vdRebuildPayload must both stamp _base.');
+t('_doVedaSave refuses a payload whose base is not what the server holds',
+  /if \(base !== undefined && _vdServerDoc && _vdServerSavedAt !== base\s*&& !_vdOwnWrites\.has\(_vdServerSavedAt\)\)/.test(HTML),
+  'Compare by equality (clock-independent) and exempt our own writes.');
+t('Server doc is noted BEFORE every Veda unlock',
+  (HTML.match(/_vdNoteServer\([^\n]*\);?\s*_vdMarkServerSeen\(\)/g) || []).length >= 3 &&
+  /_vdNoteServer\(d\);\s*\/\/ before the unlock/.test(HTML),
+  'Loader, stall retry and listener must all note the server doc before unlocking.');
+t('Base advances only on a successful write',
+  /if \(ok\) window\._vdSetBase\(payload\.savedAt\);/.test(HTML));
+t('_base is stripped before the doc is written', /delete payload\._base;/.test(HTML));
+t('applyRemote records the applied doc as the new base',
+  /if\(window\._vdSetBase\)window\._vdSetBase\(rs\);/.test(HTML));
+
+section('Behavioural: resumed phone taps before the fresh doc lands');
+{
+  // Minimal model of the Veda write path with the base check.
+  function makeDevice(base) {
+    const dev = { base, own: new Set(), serverSeen: false, pending: null, applied: null, alerts: 0 };
+    dev.push = (state, now) => { dev.pending = { state, savedAt: now, _base: dev.base }; if (dev.serverSeen) dev.flush(); };
+    dev.flush = () => {
+      const pl = dev.pending; if (!pl) return; dev.pending = null;
+      const sv = server.doc;
+      if (pl._base !== undefined && sv && sv.savedAt !== pl._base && !dev.own.has(sv.savedAt)) {
+        dev.applied = sv; dev.base = sv.savedAt; dev.alerts++; return;   // refused → rebase
+      }
+      server.doc = { state: pl.state, savedAt: pl.savedAt }; dev.own.add(pl.savedAt); dev.base = pl.savedAt;
+    };
+    dev.serverRead = () => { dev.serverSeen = true; dev.flush(); if (!dev.applied || dev.applied !== server.doc) { dev.applied = server.doc; dev.base = server.doc.savedAt; } };
+    return dev;
+  }
+  const server = { doc: { state: 'oct7', savedAt: 100 } };
+  const phone = makeDevice(100);                       // last synced Oct 7
+  const pc = makeDevice(100); pc.serverSeen = true;
+  pc.push('oct9', 200);                                // two days of edits on the PC
+  t('PC edits reach the cloud', server.doc.state === 'oct9');
+  phone.push('oct7+tap', 300);                         // tap on the stale screen, parked
+  phone.serverRead();                                  // connection confirms → parked write replays
+  t('Stale phone write is refused — the cloud keeps the newer edits', server.doc.state === 'oct9');
+  t('Phone repaints with the cloud copy and tells the user', phone.applied.state === 'oct9' && phone.alerts === 1);
+  phone.push('oct9+tap', 400);
+  t('The redone tap on fresh state saves normally', server.doc.state === 'oct9+tap' && phone.alerts === 1);
+  pc.push('pc-again', 500);
+  t('PC (still built on its own last write) is now refused, not clobbering the phone', server.doc.state === 'oct9+tap');
 }
 
 // ───────────────────────────────── summary ─────────────────────────────────
