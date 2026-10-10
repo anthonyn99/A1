@@ -1153,6 +1153,21 @@ async function handleAuth(path, request, env, origin) {
     return json({ ok: true, hasLock: !!rec, noLock: !rec, ver: await lockVer(rec) }, origin);
   }
 
+  // Guardian (Guardian/guardian.js) asks for every lock a page declares in one
+  // round trip: {locks:[{journal,entryId},...]} → {ok, locks:{"<j>:<e>":{hasLock,ver}}}.
+  // Read-only (KV reads only, zero writes), capped so one call can't fan out.
+  if (path === '/auth/journal/status-many') {
+    const list = Array.isArray(body.locks) ? body.locks.slice(0, 60) : null;
+    if (!list) return json({ ok: false, error: 'missing fields' }, origin, 400);
+    const out = {};
+    await Promise.all(list.map(async (l) => {
+      if (!l || !l.journal || !l.entryId) return;
+      const rec = await getJSON(env, jKey(l.journal, l.entryId));
+      out[l.journal + ':' + l.entryId] = { hasLock: !!rec, ver: await lockVer(rec) };
+    }));
+    return json({ ok: true, locks: out }, origin);
+  }
+
   // The hint is deliberately reachable without a password (that is the whole
   // point of "forgot password?"), which used to mean it was readable by anyone
   // who asked. It is now MAILED to the owner instead of returned, so asking for
