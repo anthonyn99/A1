@@ -68,9 +68,11 @@ const URL_RE = /https:\/\/([a-z0-9-]+)\.(av1(?:-\d+)?)\.workers\.dev/g;
 
 section('Every worker URL in the client matches the account that worker is on');
 let refs = 0;
+// TradeHub, Insight, Vault and Vault/ live in ../A1-Priv (tests/moved.js).
+const M = require('./moved');
 for (const rel of CLIENT) {
-  const p = path.join(ROOT, rel);
-  if (!fs.existsSync(p)) continue;
+  const p = M.file(rel);
+  if (!fs.existsSync(p)) { if (M.isMoved(rel)) M.skipNote(rel); continue; }
   const text = fs.readFileSync(p, 'utf8');
   const seen = new Set();
   let m;
@@ -99,9 +101,9 @@ t('found references to check', refs > 0, refs + ' reference(s)');
 /* ── The App Check gate must cover its workers at their CURRENT hostname ─── */
 section('The App Check interceptor gates the workers it names');
 {
-  const th = fs.readFileSync(path.join(ROOT, 'tradehub.html'), 'utf8');
+  const th = M.has('tradehub.html') ? M.read('tradehub.html') : '';
   const m = th.match(/const _AC_GATED = (\/[^\n]+\/);/);
-  t('the gate regex was found', !!m);
+  if (th) t('the gate regex was found', !!m);
   if (m) {
     // eslint-disable-next-line no-eval
     const re = eval(m[1]);

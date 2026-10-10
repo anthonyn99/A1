@@ -31,8 +31,11 @@ const check = (name, pass, detail) => {
    level: `  const Name=({...})=>` or `  const Name=props=>`. */
 const NESTED = /^[ \t]+const ([A-Z][A-Za-z0-9]*)\s*=\s*(?:\([^)]*\)|[a-z][A-Za-z0-9]*)\s*=>/gm;
 
+// TradeHub lives in ../A1-Priv (tests/moved.js).
+const M = require('./moved');
 for (const page of PAGES) {
-  const src = fs.readFileSync(path.join(ROOT, page), 'utf8').replace(/\r\n/g, '\n');
+  if (M.isMoved(page) && !M.has(page)) { M.skipNote(page); continue; }
+  const src = M.read(page).replace(/\r\n/g, '\n');
   console.log('\n' + page);
   const bad = [];
   let m;
@@ -50,8 +53,8 @@ for (const page of PAGES) {
   check('no nested component wraps children or renders an input', bad.length === 0, bad.join(', '));
 }
 
-check('the Analysis card lives at top level',
-      /^function TBAnalysisCard\(/m.test(fs.readFileSync(path.join(ROOT, 'tradehub.html'), 'utf8')));
+if (M.has('tradehub.html')) check('the Analysis card lives at top level',
+      /^function TBAnalysisCard\(/m.test(M.read('tradehub.html')));
 
 console.log('');
 if (failures) { console.error(failures + ' check(s) failed.'); process.exit(1); }

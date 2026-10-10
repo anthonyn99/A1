@@ -29,7 +29,11 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
-const TRADEHUB = fs.readFileSync(path.join(ROOT, 'tradehub.html'), 'utf8');
+// TradeHub lives in ../A1-Priv since 2026-10-10 (tests/moved.js); the hand-off
+// is still tested end to end, against that checkout.
+const M = require('./moved');
+if (!M.has('tradehub.html')) { M.skipNote('tradehub.html'); process.exit(0); }
+const TRADEHUB = M.read('tradehub.html');
 const MAGI = fs.readFileSync(path.join(ROOT, 'magi.html'), 'utf8');
 // CRLF-normalised: with core.autocrlf the checkout is CRLF, and the patterns
 // below span lines with \n.

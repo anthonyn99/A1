@@ -21,7 +21,7 @@ const fs = require('fs');
 const path = require('path');
 
 const APPS = [
-  { file: 'vault.html', prefix: 'kc_' },
+  { file: 'vault.html', prefix: 'kc_' },
 ];
 
 let pass = 0, fail = 0;
@@ -31,7 +31,8 @@ const ok = (name, cond, extra) => {
 };
 
 for (const app of APPS) {
-  const p = path.join(__dirname, '..', app.file);
+  // vault.html lives in ../A1-Priv (tests/moved.js).
+  const p = require('./moved').file(app.file);
   if (!fs.existsSync(p)) { console.log('\n-- ' + app.file + ' (absent, skipped) --'); continue; }
   const src = fs.readFileSync(p, 'utf8');
   console.log('\n-- ' + app.file + ' --');

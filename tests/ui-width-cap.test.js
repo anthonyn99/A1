@@ -141,8 +141,11 @@ function findEscapingFixedBars(css, file) {
   }
 }
 
+// TradeHub, Insight and Vault live in ../A1-Priv (tests/moved.js).
+const M = require('./moved');
 for (const rel of PAGES) {
-  const css = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+  if (M.isMoved(rel) && !M.has(rel)) { M.skipNote(rel); continue; }
+  const css = M.read(rel);
   if (!/id="ui-cap-2000"/.test(css)) failures.push(rel + ': missing the ui-cap-2000 style block');
   bodyIsCapped(css, rel);
   findEscapingFixedBars(css, rel);

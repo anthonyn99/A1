@@ -21,6 +21,9 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
+// TradeHub, Insight, Vault and Vault/ live in ../A1-Priv now (tests/moved.js).
+const M = require('./moved');
+const LOADS = new RegExp('<script[^>]+src=["\']' + M.src('hoverfx.js') + '["\']');
 
 // Pages served from the repo root, which load the shared file directly.
 const PAGES = [
@@ -51,10 +54,11 @@ const src = fs.readFileSync(srcPath);
 // anything: it is loaded last on purpose, but a `defer`/`async` attribute would
 // also be fine. What must NOT happen is the tag going missing.
 for (const name of PAGES) {
-  const file = path.join(ROOT, name);
+  const file = M.file(name);
+  if (M.isMoved(name) && !M.has(name)) { M.skipNote(name); continue; }
   if (!fs.existsSync(file)) { ok(name + ' exists', false); continue; }
   const html = fs.readFileSync(file, 'utf8');
-  ok(name + ' loads hoverfx.js', /<script[^>]+src=["']hoverfx\.js["']/.test(html));
+  ok(name + ' loads hoverfx.js', LOADS.test(html));
 }
 
 // index.html is the one page that must pass data-roots: it hosts several
@@ -87,12 +91,13 @@ ok('index.html: Veda\'s roots never declare magi',
    !/id="veda-root"[^>]*data-hoverfx="magi"/.test(idx) && !/id="bj-root"[^>]*data-hoverfx="magi"/.test(idx));
 
 for (const [folder, page] of COPIES) {
-  const copy = path.join(ROOT, folder, 'hoverfx.js');
+  if (M.isMoved(path.join(folder, page)) && !M.has(path.join(folder, page))) { M.skipNote(folder); continue; }
+  const copy = M.file(path.join(folder, 'hoverfx.js'));
   const label = path.join(folder, 'hoverfx.js');
   if (!fs.existsSync(copy)) { ok(label + ' exists', false); continue; }
   ok(label + ' is identical to the root file', fs.readFileSync(copy).equals(src));
 
-  const file = path.join(ROOT, folder, page);
+  const file = M.file(path.join(folder, page));
   if (!fs.existsSync(file)) { ok(path.join(folder, page) + ' exists', false); continue; }
   const html = fs.readFileSync(file, 'utf8');
   ok(path.join(folder, page) + ' loads hoverfx.js',

@@ -82,7 +82,19 @@ function walk(dir, out) {
   }
   return out;
 }
-const live = walk(ROOT, []).map((p) => [path.relative(ROOT, p), fs.readFileSync(p, 'utf8')]);
+// The programs that moved to A1-Priv (tests/moved.js) still use these stores
+// and still load sweep.js from here, so their code counts as live too. Without
+// that checkout a rule could be "proven" dead while TradeHub still reads it.
+// A1\Vault is a junction into it, so skip that and read the real folder.
+const M = require('./moved');
+const priv = fs.existsSync(M.PRIV)
+  ? fs.readdirSync(M.PRIV).filter((f) => f.endsWith('.html')).map((f) => path.join(M.PRIV, f))
+      .concat(fs.readdirSync(path.join(M.PRIV, 'Vault')).filter((f) => /\.js$/.test(f) && !/\.test\.js$/.test(f)).map((f) => path.join(M.PRIV, 'Vault', f)))
+  : [];
+if (!priv.length) M.skipNote('the A1-Priv programs (their keys cannot be checked)');
+const live = walk(ROOT, []).filter((p) => !M.isMoved(path.relative(ROOT, p)))
+  .concat(priv)
+  .map((p) => [path.relative(ROOT, p), fs.readFileSync(p, 'utf8')]);
 const usedBy = (needle) => live.filter(([, src]) => src.includes(needle)).map(([p]) => p);
 for (const it of RULES.items.filter((i) => i.store === 'localStorage')) {
   for (const k of [...(it.exact || []), ...(it.prefix || [])]) {
@@ -102,9 +114,11 @@ const browserPrograms = new Set(RULES.items.filter((i) => ['localStorage', 'fire
 for (const prog of browserPrograms) {
   // Root pages load sweep.js beside them; V1 pages (StudyOS) load ../sweep.js.
   const page = fs.existsSync(path.join(ROOT, prog + '.html')) ? prog + '.html' : 'V1/' + prog + '.html';
-  const html = fs.existsSync(path.join(ROOT, page)) ? read(page) : '';
+  if (M.isMoved(page) && !M.has(page)) { M.skipNote(page); continue; }
+  const html = M.isMoved(page) ? M.read(page) : fs.existsSync(path.join(ROOT, page)) ? read(page) : '';
+  // A moved page loads it from A1's host by absolute URL.
   ok(`${page} loads sweep.js as data-program="${prog}"`,
-    new RegExp(`<script src="(\\.\\./)?sweep\\.js" data-program="${prog}" defer></script>`).test(html));
+    new RegExp(`<script src="(\\.\\./|https://anthonyn99\\.github\\.io/A1/)?sweep\\.js" data-program="${prog}" defer></script>`).test(html));
 }
 const sos = read('V1/js/studyos.js');
 ok('studyos.js: the orphan-file adapter waits for applied server state',

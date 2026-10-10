@@ -37,7 +37,11 @@ const vm = require('vm');
 // endings; the moment git rewrote it, a test of the journal's data-loss guards
 // stopped running at all. Reading the file is not the same as reading the bytes
 // git stores, and the markers must not care which one they got.
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'tradehub.html'), 'utf8')
+// TradeHub lives in ../A1-Priv since 2026-10-10 (tests/moved.js). Its journal's
+// data-loss guards are still tested here, against that checkout.
+const M = require('./moved');
+if (!M.has('tradehub.html')) { M.skipNote('tradehub.html'); process.exit(0); }
+const SRC = M.read('tradehub.html')
   .replace(/\r\n/g, '\n');
 
 let failures = 0;

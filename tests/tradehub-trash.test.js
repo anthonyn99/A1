@@ -27,7 +27,10 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'tradehub.html'), 'utf8');
+// TradeHub lives in ../A1-Priv since 2026-10-10 (tests/moved.js).
+const M = require('./moved');
+if (!M.has('tradehub.html')) { M.skipNote('tradehub.html'); process.exit(0); }
+const SRC = M.read('tradehub.html');
 
 let pass = 0, fail = 0;
 function check(name, ok, detail) {

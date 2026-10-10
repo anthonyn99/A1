@@ -61,9 +61,13 @@ ok('it is the only LifeHub file',
   fs.readdirSync(path.join(ROOT, 'LifeHub')));
 
 console.log('\nEvery host loads it, once, and places the launcher');
-const tagRe = /<script\b[^>]*\bsrc=["']LifeHub\/lifehub\.js["'][^>]*><\/script>/g;
+// TradeHub, Insight and Vault live in ../A1-Priv and load it by absolute URL
+// (tests/moved.js).
+const M = require('./moved');
+const tagRe = new RegExp('<script\\b[^>]*\\bsrc=["\']' + M.src('LifeHub/lifehub.js') + '["\'][^>]*><\\/script>', 'g');
 for (const [file, want] of Object.entries(HOSTS)) {
-  const html = read(file);
+  if (M.isMoved(file) && !M.has(file)) { M.skipNote(file); continue; }
+  const html = M.read(file);
   const tags = html.match(tagRe) || [];
   ok(file + ' loads LifeHub/lifehub.js exactly once', tags.length === 1, tags.length);
   const tag = tags[0] || '';
@@ -79,6 +83,36 @@ for (const [file, want] of Object.entries(HOSTS)) {
   }
   ok(file + (want.profile ? ' follows the Tony/Veda profile (data-profile-attr)' : ' is Tony-only, no profile attr needed'),
     want.profile ? /data-profile-attr=["']data-profile["']/.test(tag) : !/data-profile-attr/.test(tag), tag);
+}
+
+console.log('\nPrograms that moved to A1-Priv (docs/a1-priv-move-plan.md)');
+{
+  const moved = ['tradehub', 'insight', 'vault'];
+  for (const p of moved) {
+    ok(p + ' seeds on its new host', new RegExp("\\{ id: '" + p + "'[^}]*url: PRIV \\+ '" + p + "\\.html'").test(src));
+    ok(p + "'s old address is in LifeHub's MOVED map",
+      src.includes("'https://anthonyn99.github.io/a1/" + p + ".html': PRIV + '" + p + ".html'"));
+  }
+  ok("LifeHub's PRIV is the private host", /var PRIV = 'https:\/\/a1-priv\.av1\.workers\.dev\/';/.test(src));
+  ok('stored tiles are migrated by patch, once per sync', /if \(!st\.movedDone\)/.test(src) && /patchOp\(x\.id, \{ url: movedUrl\(x\.url\) \}\)/.test(src));
+  // Run the real movedUrl: keeps query + hash, ignores case, leaves others alone.
+  const body = /var MOVED = \{[\s\S]*?\n  function movedUrl\(u\) \{[\s\S]*?\n  \}/.exec(src);
+  let mv = null;
+  try { mv = new Function("var PRIV = 'https://a1-priv.av1.workers.dev/';\n" + body[0] + '\nreturn movedUrl;')(); } catch (e) {}
+  ok('movedUrl keeps the query and hash', mv && mv('https://anthonyn99.github.io/A1/vault.html?vaulttab=payments#x') === 'https://a1-priv.av1.workers.dev/vault.html?vaulttab=payments#x');
+  ok('movedUrl leaves programs that stayed alone', mv && mv('https://anthonyn99.github.io/A1/magi.html') === '');
+  // Index moves Tony's stored buttons the same way.
+  const idx = read('index.html');
+  for (const p of moved) ok("Index's MOVED_PROGRAMS has " + p, idx.includes("'https://anthonyn99.github.io/a1/" + p + ".html'") && idx.includes("'https://a1-priv.av1.workers.dev/" + p + ".html'"));
+  for (const p of ['tradehub', 'vault']) {
+    ok("Index's " + p + ' button is on the new host, old url in prevUrls',
+      new RegExp("\\{ id:'" + p + "',[^}]*url:'https://a1-priv\\.av1\\.workers\\.dev/" + p + "\\.html'[^}]*prevUrls:\\['https://anthonyn99\\.github\\.io/A1/" + p + "\\.html'\\]").test(idx));
+  }
+  for (const p of moved) {
+    const stub = read(p + '.html');
+    ok('A1/' + p + '.html is a stub that forwards query + hash',
+      stub.length < 4000 && stub.includes("location.replace('https://a1-priv.av1.workers.dev/" + p + ".html' + location.search + location.hash)"));
+  }
 }
 
 console.log('\nNowhere it does not belong');

@@ -56,9 +56,13 @@ const sync = fs.readFileSync(syncPath, 'utf8');
 const index = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 
 console.log('\nEvery A1 page answers for its tab');
+// TradeHub, Insight, Vault and Vault/ live in ../A1-Priv and load the shared
+// file by absolute URL (tests/moved.js).
+const M = require('./moved');
+const LOADS = new RegExp('<script[^>]+src=["\']' + M.src('tabsync.js') + '["\']');
 for (const p of PAGES) {
-  const html = fs.readFileSync(path.join(ROOT, p), 'utf8');
-  ok(p + ' loads tabsync.js', /<script[^>]+src=["']tabsync\.js["']/.test(html));
+  if (M.isMoved(p) && !M.has(p)) { M.skipNote(p); continue; }
+  ok(p + ' loads tabsync.js', LOADS.test(M.read(p)));
 }
 
 console.log('\nThe two sides speak the same protocol');
@@ -74,8 +78,11 @@ for (const [msg, who] of [['claim', 'the opener asks'], ['claimed', 'the tab ans
 }
 // The fourth message has a different opener: TradeHub, handing MAGI a prompt.
 // Focus alone would bring the console forward without the question it was sent.
-const tradehub = fs.readFileSync(path.join(ROOT, 'tradehub.html'), 'utf8');
-ok('"deliver" is handled on both ends (the opener hands over a url)',
+// Without the A1-Priv checkout there is no TradeHub to read; its checks skip.
+const HAS_TH = M.has('tradehub.html');
+const tradehub = HAS_TH ? M.read('tradehub.html') : '';
+if (!HAS_TH) M.skipNote('tradehub.html');
+if (HAS_TH) ok('"deliver" is handled on both ends (the opener hands over a url)',
   /t:'deliver'/.test(tradehub) && /d\.t === 'deliver'/.test(sync));
 ok('a delivered url must be same-origin', /function ownOrigin\(/.test(sync) && /ownOrigin\(d\.url\)/.test(sync));
 
@@ -92,6 +99,7 @@ ok('the key is sanitised the same way the tab will read it back',
 ok('the named-tab path never passes noopener', !/window\.open\('',\s*name,/.test(index));
 
 console.log('\nTradeHub opens MAGI through the same pairing');
+if (HAS_TH) {
 // Analysis sends its prompt to the console rather than to a chat site, so it is
 // a second opener for a tab TaskHub also opens. Two openers that disagree about
 // the key are two tabs.
@@ -107,6 +115,7 @@ ok('it claims the tab by name before opening anything',
 ok('a blank tab triggers the handover', /tbTabClaimed\([^)]*\)\)\{tbHandOverMagi\(/.test(openerFn), openerFn.slice(-400));
 ok('it reads the same heartbeat key tabsync writes', /'a1tab:'\+key/.test(tradehub));
 ok('the named-tab path never passes noopener', !/window\.open\('',\s*TB_MAGI_TAB_NAME,/.test(tradehub));
+}
 
 console.log('\nA tab that was not opened from TaskHub stays out of it');
 ok('no key means tabsync does nothing', /if \(!key\) return;/.test(sync));
@@ -116,7 +125,9 @@ ok('retiring gives up the key before trying to close',
   retire.indexOf("window.name = ''") > 0 && retire.indexOf("window.name = ''") < retire.indexOf('window.close()'));
 
 console.log('\nThe Vault extension opens the SAME tab, not a second one');
-const popup = fs.readFileSync(path.join(ROOT, 'Vault', 'popup.js'), 'utf8');
+const popup = M.has('Vault/popup.js') ? M.read('Vault/popup.js') : '';
+if (!popup) M.skipNote('Vault/popup.js');
+if (popup) {
 // The gear is the extension's only route into vault.html. A bare
 // chrome.tabs.create there is the whole bug: it always makes a new tab.
 const gear = popup.slice(popup.indexOf('gearEl.addEventListener("click"')).slice(0, 400);
@@ -136,6 +147,7 @@ ok('the extension names a tab key', !!vaultKey, vaultKey);
 ok("it is the key index.html uses for Vault ('" + vaultKey + "')",
   index.includes("_tnOpenTab(URL_VAULT, '" + vaultKey + "')"));
 ok('it travels as ?a1tab=', /a1tab=/.test(popup));
+}
 ok('tabsync reads that parameter', /params\.get\('a1tab'\)/.test(sync));
 // Left in the url it would survive into every later read of location.search,
 // and into anything the user bookmarks or shares.
@@ -147,7 +159,7 @@ console.log('\nA url key really does pair the tab (jsdom)');
 try {
   const { JSDOM } = require('jsdom');
   const dom = new JSDOM('<!doctype html><html><body></body></html>', {
-    url: 'https://anthonyn99.github.io/A1/vault.html?vaulttab=payments&a1tab=vault',
+    url: 'https://a1-priv.av1.workers.dev/vault.html?vaulttab=payments&a1tab=vault',
     runScripts: 'outside-only',
   });
   dom.window.eval(sync);
