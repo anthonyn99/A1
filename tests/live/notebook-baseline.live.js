@@ -140,7 +140,7 @@ const SNAP = (key, probes) => `return (() => {
   return JSON.stringify({ rows, visibleIds, box, ojTabs,
     title: ($('entry-title-input') || {}).value, html: ed ? ed.innerHTML : null, editable: ed ? ed.getAttribute('contenteditable') : null,
     tags, sync: ($('sync-text') || $('sync-pill') || {}).innerText || null, modeLabel: ($('mode-label') || {}).innerText || null,
-    lockShown: vis($('lock-overlay')), lockErr: ($('lock-err') || {}).innerText || '' });
+    ...(${SKIP_LOCK} ? {} : { lockShown: vis($('lock-overlay')), lockErr: ($('lock-err') || {}).innerText || '' }) });
 })()`;
 
 // ── normalisation ───────────────────────────────────────────────────────────
@@ -287,6 +287,7 @@ async function capture(label) {
     await js(`__fakeFs.remote('${J.doc}', { 'e_${SEED_ENTRIES[2].id}': Object.assign(${JSON.stringify(SEED_ENTRIES[2])}, { title: 'Charlie renamed elsewhere', updated: Date.now(), rev: 5 }), savedAt: Date.now() }, { merge: true }); 1`);
     await step('remote-rename');
 
+    if (!SKIP_LOCK) {
     await click(`#${K}-entries-list .entry-item[data-entry-id="${SEED_ENTRIES[0].id}"] .entry-item-title`);
     await click(`#${K}-btn-lock`);
     await step('lock-dialog', { wait: 600, shot: true });
@@ -309,6 +310,7 @@ async function capture(label) {
     await js(`var p=document.getElementById('${K}-lock-pw'); p.value='pw-right'; 1`);
     await click(`#${K}-lock-submit`);
     await step('right-pw');
+    }
 
     await click(`#${K}-entries-list .entry-item[data-entry-id="${SEED_ENTRIES[2].id}"] .entry-item-title`);
     if (!(await js(`return document.getElementById('${K}-page-editor').getAttribute('contenteditable')==='true';`))) await click(`#${K}-btn-edit`);
@@ -340,6 +342,7 @@ async function capture(label) {
     await boot(J, false);
     await step('reload', { shot: true });
 
+    if (!SKIP_LOCK) {
     // The lock fixes (Phase 2 for bj, Phase 3 for tj). Last, so a delete that
     // now works cannot change any step above. Change the password (to the same
     // one, so nothing depends on it), lock the entry on this device, then
@@ -363,10 +366,12 @@ async function capture(label) {
     await uim('pw-right'); await sleep(800);   // the password prompt
     await uim(null); await sleep(400);         // "Delete …?"
     await step('locked-delete');
+    }
 
     const store = JSON.parse(await js(`return JSON.stringify({
       fs: Object.fromEntries(Object.entries(__fakeFs.docs).filter(([p]) => /journal|ourjournal/.test(p))),
-      lsKeys: Object.keys(localStorage).sort(),
+      // Guardian's own keys (gd.*) are lock state, left out with the lock steps.
+      lsKeys: Object.keys(localStorage).filter(k => !(${SKIP_LOCK} && k.startsWith('gd.'))).sort(),
       cache: JSON.parse(localStorage.getItem('${J.cache}') || 'null'),
       ssKeys: Object.keys(sessionStorage).filter(k => k !== '__fakefs_docs').sort() });`));
     rec.journals[K] = { steps, store };
