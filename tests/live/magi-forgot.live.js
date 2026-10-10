@@ -21,7 +21,7 @@ const ORIGIN = 'https://anthonyn99.github.io';
     handle: (req) => {
       const path = new URL(req.url).pathname;
       if (/\/auth\/journal\/status/.test(path)) return { status: 200, json: { ok: true, hasLock: true, noLock: false, ver: 'vvvvvvvvvvvvvvvv' } };
-      if (req.method === 'OPTIONS') return { status: 204, json: {} };
+      if (req.method === 'OPTIONS') return { status: 200, text: '' };
       calls.push(path);
       return { status: 200, json: { ok: true, emailed: true } };
     },
