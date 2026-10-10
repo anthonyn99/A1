@@ -139,7 +139,8 @@ const worker = {
   ok('the closed page drawer does not peek in at the edge', await js(`var e=document.elementFromPoint(5, 300); return !(e && e.closest && e.closest('#pb-sidebar'));`),
     await js(`var e=document.elementFromPoint(5, 300); return e ? e.tagName + '#' + e.id : 'none';`));
   ok('no lock button (locks are off for the Playbook)', await js(`var b=document.getElementById('pb-mobile-lock-btn'); return !b || getComputedStyle(b).display === 'none';`));
-  ok('the phone header names the open page', await js(`var a=document.querySelector('#pb-entries-list .entry-item.active .entry-item-title'); return !!a && document.getElementById('pb-mobile-title').value === a.innerText;`),
+  await js(`document.querySelector('#pb-entries-list .entry-item[data-entry-id="pb_rules"] .entry-item-title').click(); 1`); await sleep(800);
+  ok('the phone header names the open page', await js(`var a=document.querySelector('#pb-entries-list .entry-item.active .entry-item-title'); return !!a && a.innerText === 'Rules' && document.getElementById('pb-mobile-title').value === 'Rules';`),
     await js(`return JSON.stringify([document.getElementById('pb-mobile-title').value, (document.querySelector('#pb-entries-list .entry-item.active .entry-item-title')||{}).innerText]);`));
   ok('the bottom bar sits inside the Playbook, not on the page', await js(`var b=document.getElementById('pb-bottom-bar'), r=document.getElementById('pb-root').getBoundingClientRect(), q=b.getBoundingClientRect(); return getComputedStyle(b).display === 'none' || (q.bottom <= r.bottom + 1 && q.top >= r.top);`));
   const s1 = await c.send('Page.captureScreenshot', { format: 'png' });
