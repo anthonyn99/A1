@@ -5983,6 +5983,9 @@ body { max-width: 2000px; margin-inline: auto; }
   window.ThAutoGrowTitle = ThAutoGrowTitle;
 })();
 </script>
+<!-- Guardian: the one A1 lock (docs/Guardian/README.md). Loaded before first
+     paint, unpinned, so every Guardian upgrade reaches this page. -->
+<script src="Guardian/guardian.js"></script>
 <script id="mail-relay">
 /* == Recovery-mail relay ===================================================
    The worker mints the reset code and the hint text, but it cannot always
@@ -20238,9 +20241,12 @@ window._THV={
   // all sit over the same scrollable content. One guard for all of them means a
   // new modal is protected the day it ships, and both profiles get the fix at
   // once — uiModal, useScrollLock and this list are all shared between them.
-  var _MODAL_OVERLAYS=['uim-overlay','applock-overlay','bj-lock-overlay',
+  var _MODAL_OVERLAYS=['uim-overlay','bj-lock-overlay',
                        'tj-lock-overlay','profile-overlay','thset-overlay'];
   function _openModalOverlay(){
+    // Guardian's lock card lives in a shadow root; its host element is what
+    // a gesture inside it targets, so that host is the overlay to allow.
+    if(window.Guardian&&window.Guardian.isOpen()){var gl=document.querySelector('guardian-lock');if(gl)return gl;}
     for(var i=0;i<_MODAL_OVERLAYS.length;i++){
       var o=document.getElementById(_MODAL_OVERLAYS[i]);
       if(!o)continue;
@@ -20514,137 +20520,6 @@ window._THV={
 
 
 
-<!-- ── APP LOCK SYSTEM ── -->
-<!-- Intercepts _tonyNav / _vedaNav / _wrClick to gate locked apps with the  -->
-<!-- same SHA-256 + Worker KV system used by journal entry locking.          -->
-<!-- KV namespace: journal='applock', entryId='tony_<app>' / 'veda_<app>'    -->
-<style>
-#applock-overlay {
-  position: fixed; inset: 0; z-index: 2147483000;
-  background: rgba(0,0,0,0.82);
-  display: none;
-  align-items: center; justify-content: center;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-}
-/* ── Lock card ──────────────────────────────────────────────────────────────
-   One authentication surface for the whole suite: a bordered card that holds
-   the mark, the prompt and the form on a single vertical rhythm. Cancel is no
-   longer squeezed beside "Forgot password?" — it sits alone in a ruled footer,
-   which is where a dismiss action belongs and what keeps the card balanced. */
-#applock-box {
-  display: flex; flex-direction: column; align-items: center; gap: 18px;
-  padding: 34px 30px 22px;
-  background: #232327;
-  border: 1px solid color-mix(in srgb, var(--al-glow, #e0b874) 22%, transparent);
-  border-radius: 18px;
-  width: 350px; max-width: calc(100vw - 32px);
-  box-shadow: 0 32px 80px rgba(0,0,0,0.7);
-  position: relative;
-}
-@keyframes applock-shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-8px)} 40%,80%{transform:translateX(8px)} }
-#applock-box.shake { animation: applock-shake 0.4s ease; }
-#applock-icon { font-size: 36px; line-height: 1; }
-#applock-head { text-align: center; display: flex; flex-direction: column; gap: 5px; }
-#applock-form { width: 100%; display: flex; flex-direction: column; gap: 10px; }
-#applock-links { display: flex; flex-direction: column; align-items: center; gap: 5px; }
-#applock-foot { width: 100%; padding-top: 14px; border-top: 1px solid #34343a; display: flex; justify-content: center; }
-#applock-title { font-family: var(--suite-display); font-size: 24px; font-weight: 750; letter-spacing: -.4px; color: #f4f3f0; }
-#applock-sub { font-family: var(--font-accent); font-size: 13px; line-height: 1.5; color: #8d8d94; text-align: center; }
-#applock-pw {
-  background: #1a1a1d; border: 1px solid #45454c; border-radius: 6px;
-  color: #f4f3f0; font-size: 16px; font-weight: 600;
-  padding: 13px 16px; font-family: 'Inter', system-ui, -apple-system, sans-serif; outline: none;
-  width: 100%; text-align: center; letter-spacing: 4px; box-sizing: border-box;
-  transition: border-color .18s;
-}
-#applock-pw:focus { border-color: var(--al-glow, #e0b874); }
-#applock-pw.error { border-color: #d68a7c; }
-#applock-err { font-size: 12px; color: #d68a7c; font-weight: 700; text-align: center; min-height: 16px; }
-#applock-submit {
-  background: var(--al-glow, #e0b874); color: #1a1a1d; border: 1px solid var(--al-glow, #e0b874); border-radius: 6px;
-  padding: 12px 0; font-size: 14px; font-weight: 700; cursor: pointer;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif; width: 100%; transition: opacity .15s;
-}
-#applock-submit:disabled { opacity: 0.55; cursor: default; }
-#applock-cancel {
-  background: transparent; border: none; color: #8d8d94;
-  font-size: 13px; cursor: pointer; font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  padding: 2px 10px; text-decoration: underline; text-underline-offset: 3px; transition: color .15s;
-}
-#applock-forgot {
-  background: transparent; border: none; color: #8d8d94;
-  font-size: 12px; cursor: pointer; font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  padding: 0; text-decoration: underline; text-underline-offset: 3px; transition: color .15s;
-}
-#applock-reset {
-  background: transparent; border: none; color: #8d8d94;
-  font-size: 12px; cursor: pointer; font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  padding: 0; text-decoration: underline; text-underline-offset: 3px; text-align: center; transition: color .15s;
-}
-#applock-cancel:hover, #applock-forgot:hover, #applock-reset:hover { color: #adadb2; }
-/* ── Lock-manager hover + touch sizing ───────────────────────────────────────
-   The manage-menu rows are built in JS with an inline `border` shorthand, which
-   no stylesheet hover can override without !important. The glow is what makes
-   the target obvious on a pointer device, and it is gated behind hover/fine so
-   a tap on a phone never leaves a row stuck looking hovered.
-   --al-glow / --al-glowl are set on the card from the lock's own profile colour
-   (gold for Tony, purple for Veda), so nothing profile-specific is written here.
-   `.al-ac` = accent rows (unlock / lock this device now), `.al-dg` = destructive. */
-#applock-box { --al-glow: #e0b874; --al-glowl: rgba(224,184,116,.34); }
-#applock-bio button, #al-menu-btns button {
-  transition: border-color .18s, box-shadow .18s, color .18s;
-}
-@media (hover: hover) and (pointer: fine) {
-  #applock-bio button:hover, #al-menu-btns button:hover {
-    border-color: #adadb2 !important; box-shadow: 0 0 11px rgba(173,173,178,.28);
-  }
-  #al-menu-btns button.al-ac:hover, #applock-bio button:hover {
-    border-color: var(--al-glow) !important; box-shadow: 0 0 12px var(--al-glowl);
-  }
-  #al-menu-btns button.al-dg:hover {
-    border-color: #d68a7c !important; box-shadow: 0 0 12px rgba(214,138,124,.32);
-  }
-  #applock-submit:hover:not(:disabled) { box-shadow: 0 0 12px var(--al-glowl); }
-}
-#applock-pw:focus { box-shadow: 0 0 11px var(--al-glowl); }
-/* Tony's profile: MAGI's gate card (magi.html .gate-card / .lock-in) — a
-   hairline card at radius 8, the accent ring on focus instead of a bloom, and
-   uppercase tracked buttons. The accent itself already comes from AL_LABELS. */
-body[data-th-profile="tony"] #applock-overlay { background: rgba(0,0,0,.62); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
-body[data-th-profile="tony"] #applock-box { border-color: rgba(255,255,255,.06); border-radius: 8px; box-shadow: 0 24px 64px rgba(0,0,0,.5); }
-body[data-th-profile="tony"] #applock-sub { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
-body[data-th-profile="tony"] #applock-pw:focus { border-color: #c0aeea; box-shadow: 0 0 0 3px rgba(192,174,234,.16); }
-body[data-th-profile="tony"] #applock-submit { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }
-body[data-th-profile="tony"] #applock-submit:hover:not(:disabled) { box-shadow: 0 0 0 3px rgba(192,174,234,.22); filter: brightness(1.12); }
-#applock-submit, #applock-pw { transition: border-color .18s, box-shadow .18s, opacity .18s; }
-/* Phones: full-bleed card with 46px tap targets, and a scrolling body so a menu
-   carrying biometrics plus every action still fits a short screen. */
-@media (max-width: 520px) {
-  #applock-overlay { padding: 14px; }
-  #applock-box {
-    width: 100%; max-width: none; padding: 28px 20px 18px;
-    max-height: calc(100vh - 28px); max-height: calc(100dvh - 28px);
-    overflow-y: auto; -webkit-overflow-scrolling: touch;
-  }
-  #applock-bio button, #al-menu-btns button { min-height: 46px; font-size: 14px; }
-  #applock-pw, #applock-submit { min-height: 48px; }
-}
-/* Lock icon on nav buttons */
-.tn-btn .applock-badge, .veda-nav-btn .applock-badge {
-  font-size: 10px; margin-left: 3px; opacity: 0.75; pointer-events: none;
-}
-/* Gear icon injected inside TradeHub / WarRoom nav buttons */
-.tn-gear {
-  font-size: 9px; margin-left: 4px; opacity: 0.45; cursor: pointer;
-  pointer-events: auto; line-height: 1; flex-shrink: 0;
-  transition: opacity .15s, transform .2s;
-  display: inline-flex; align-items: center;
-}
-.tn-gear:hover { opacity: 1; transform: rotate(30deg); }
-/* Hide gear on mobile — long-press handles it */
-@media(max-width:900px){ .tn-gear { display: none !important; } }
-</style>
-
 <!-- ══════════════ Biometric auth (WebAuthn / platform passkeys) ══════════════
      Shared, dependency-free helper. Primary auth = the device's own biometric
      (Face ID / Touch ID on iOS, fingerprint on Android/Samsung, Windows Hello on
@@ -20781,992 +20656,300 @@ body[data-th-profile="tony"] #applock-submit:hover:not(:disabled) { box-shadow: 
 })();
 </script>
 
-<div id="applock-overlay">
-  <div id="applock-box">
-    <div id="applock-icon"></div>
-    <div id="applock-head">
-      <div id="applock-title">Locked</div>
-      <div id="applock-sub">Enter your password to open this app.</div>
-    </div>
-    <div id="applock-form">
-      <div id="applock-bio"></div>
-      <input id="applock-pw" type="password" placeholder="Password" autocomplete="off" />
-      <div id="applock-err"></div>
-      <button id="applock-submit">Unlock</button>
-      <div id="applock-links">
-        <button id="applock-forgot">Forgot password?</button>
-        <button id="applock-reset">Reset password via email</button>
-      </div>
-    </div>
-    <div id="applock-foot">
-      <button id="applock-cancel">Cancel</button>
-    </div>
-  </div>
-</div>
-
+<!-- ── APP LOCK → Guardian ──────────────────────────────────────────────────────
+     Every program/profile/widget lock here is a Guardian lock
+     (Guardian/guardian.js, docs/Guardian/README.md): screens, passwords,
+     biometrics, hint/reset mail and the password-version rules all live there.
+     This block only DECLARES the locks (AL_LABELS) and keeps the small global
+     API the rest of index calls — alGate / alManage / alIsLocked / alIsUnlocked
+     / alMustBlock — so nav, profile chooser, Rules, Reels, custom links and
+     Settings are unchanged. KV: jlock:applock:<id> on taskhub-reminders.
+     dashboards/applock is kept only as a cross-device "bell": Guardian rings it
+     on set/change/reset/remove, and another device's snapshot makes Guardian
+     re-check the worker at once instead of on its next focus. -->
+<style>
+/* Lock icon on nav buttons */
+.tn-btn .applock-badge, .veda-nav-btn .applock-badge {
+  font-size: 10px; margin-left: 3px; opacity: 0.75; pointer-events: none;
+}
+/* Gear icon injected inside TradeHub / WarRoom nav buttons */
+.tn-gear {
+  font-size: 9px; margin-left: 4px; opacity: 0.45; cursor: pointer;
+  pointer-events: auto; line-height: 1; flex-shrink: 0;
+  transition: opacity .15s, transform .2s;
+  display: inline-flex; align-items: center;
+}
+.tn-gear:hover { opacity: 1; transform: rotate(30deg); }
+/* Hide gear on mobile — long-press handles it */
+@media(max-width:900px){ .tn-gear { display: none !important; } }
+</style>
 <script>
 (function() {
 'use strict';
+var G = window.Guardian;
 
-// ── CONFIG ────────────────────────────────────────────────────────────────────
-var AL_WORKER  = 'https://taskhub-reminders.av1.workers.dev';
-var AL_JOURNAL = 'applock';
-var AL_EMAIL   = { tony: 'anthonypn99@gmail.com', veda: 'vedaapatel1605@gmail.com' };
-var AL_FORM    = { tony: 'https://formspree.io/f/xeedkebo', veda: 'https://formspree.io/f/xzdlwaqg' };
-// Tony's locks wear MAGI purple since the theme overhaul (docs/theme-overhaul-plan.md).
-var AL_LABELS  = {
-  tony_taskhub:   { label: 'TaskHub',    profile: 'tony', color: '#c0aeea' },
-  tony_tradehub:  { label: 'TradeHub',   profile: 'tony', color: '#c0aeea' },
-  // Solace (solace.html) — Tony's health program: Fitness ▸ MotionCore and
-  // Nutrition ▸ Recipes. This entry locks its NAV BUTTON; the app itself carries
-  // its own independent lock on 'tony_solace_standalone', the same split Vault and
-  // TradeHub use between their button and their standalone page.
-  tony_solace:    { label: 'Solace',     profile: 'tony', color: '#c0aeea' },
-  tony_keychain:  { label: 'Vault',      profile: 'tony', color: '#c0aeea' },
-  tony_myjournal: { label: 'MyJournal',  profile: 'tony', color: '#c0aeea' },
-  tony_warroom:   { label: 'RiftIQ',     profile: 'tony', color: '#c0aeea' },
-  veda_taskhub:   { label: 'TaskHub',    profile: 'veda', color: '#8D769A' },
-  veda_gita:      { label: 'Gita',       profile: 'veda', color: '#8D769A' },
-  veda_journal:   { label: 'Journal',    profile: 'veda', color: '#8D769A' },
-  // Rules (Veda's TaskHub → RULES button) — locks the MANAGE view only, never
-  // the daily gate. The gate is the point of the program; making it need a
-  // password would mean a device that can't produce one simply never sees the
-  // checklist, and the day passes unreviewed. Locking only the authoring side
-  // is the integrity model: the rules still run, but they cannot be edited,
-  // deleted, reordered, or the daily prompt switched off in a weak moment.
-  // Deliberately absent from AL_APP_ROOTS — this gates a modal, not a page, so
-  // it must never blank veda-root the way an app-level lock does.
-  veda_rules:     { label: 'Rules',      profile: 'veda', color: '#8D769A' },
-  // Saved Reels (Veda's TaskHub widget) — same shape as Rules above: this gates
-  // OPENING the panel (the featured-card tap and the picker), never blanks the
-  // band card itself, and is deliberately absent from AL_APP_ROOTS for the same
-  // reason. A collection of saved reels is exactly the kind of thing worth a
-  // lock on a shared or borrowed device.
-  veda_reels:     { label: 'Reels',      profile: 'veda', color: '#8D769A' },
-  // Shield (shield.html) — the emergency closer / lockdown system, and the only
-  // program in the suite that both profiles run. Two independent locks, because
-  // one profile must never be able to open the other's emergency configuration.
-  // Shield's own page re-verifies this password live before it will disable
-  // Emergency Mode, deliberately ignoring the per-device unlock marker.
-  tony_shield:    { label: 'Shield',     profile: 'tony', color: '#c0aeea' },
-  veda_shield:    { label: 'Shield',     profile: 'veda', color: '#8D769A' },
-  // NOTE: Plans had its own 'shared_plans' lock while it was a standalone
-  // program. It lives inside both TaskHubs now (Weekly → Add → Plan), so it is
-  // covered by tony_taskhub / veda_taskhub and needs no lock of its own.
-  // ── Profile-entry locks (gate the whole Tony / Veda profile, not just one app).
-  //    Use the SAME app-lock machinery: worker KV hash, Firebase sync, version bump
-  //    → every device must re-enter on set/change. isProfile tweaks overlay copy &
-  //    routes the "forgot" hint (tony→email, veda→shown in her profile). ──
-  profile_tony:   { label: 'Tony',  profile: 'tony', color: '#c0aeea', isProfile: true },
-  profile_veda:   { label: 'Veda',  profile: 'veda', color: '#8D769A', isProfile: true },
+var AL_LABELS = {
+  tony_taskhub:   { label: 'TaskHub',    profile: 'tony' },
+  // The nav-BUTTON locks for programs that now live elsewhere. Each of those
+  // pages carries its own independent lock on '<id>_standalone' as well.
+  tony_tradehub:  { label: 'TradeHub',   profile: 'tony' },
+  tony_solace:    { label: 'Solace',     profile: 'tony' },
+  tony_keychain:  { label: 'Vault',      profile: 'tony' },
+  tony_myjournal: { label: 'MyJournal',  profile: 'tony' },
+  tony_warroom:   { label: 'RiftIQ',     profile: 'tony' },
+  // Same KV record as MAGI's own Tony lock (magi.html), so one password opens both.
+  tony_magi:      { label: 'MAGI',       profile: 'tony' },
+  veda_taskhub:   { label: 'TaskHub',    profile: 'veda' },
+  veda_gita:      { label: 'Gita',       profile: 'veda' },
+  veda_journal:   { label: 'Journal',    profile: 'veda' },
+  // Rules (Veda's TaskHub → RULES) locks the MANAGE view only, never the daily
+  // gate: the rules still run, but cannot be edited, deleted, reordered, or the
+  // daily prompt switched off in a weak moment. Not in AL_APP_ROOTS — it gates
+  // a modal, so it must never blank veda-root.
+  veda_rules:     { label: 'Rules',      profile: 'veda' },
+  // Saved Reels widget: gates OPENING the panel, never blanks the card itself.
+  veda_reels:     { label: 'Reels',      profile: 'veda' },
+  // Shield (shield.html): two independent locks, so one profile can never open
+  // the other's emergency configuration.
+  tony_shield:    { label: 'Shield',     profile: 'tony' },
+  veda_shield:    { label: 'Shield',     profile: 'veda' },
+  // Profile-entry locks gate the whole Tony / Veda profile.
+  profile_tony:   { label: 'Tony',  profile: 'tony', isProfile: true },
+  profile_veda:   { label: 'Veda',  profile: 'veda', isProfile: true },
 };
 
-// ── STATE ─────────────────────────────────────────────────────────────────────
-// _alLocks = which apps are LOCKED. Synced across ALL devices via Firebase
-// (dashboards/applock). localStorage holds a cached copy for instant startup.
-// Per-device UNLOCK ("opened on this device") persists in localStorage so each
-// device unlocks an app once and stays open until re-locked or browser data cleared.
-var _alLocks = {};
-try { _alLocks = JSON.parse(localStorage.getItem('al_locks') || '{}'); } catch(e) {}
-function alSaveLocks() {
-  try { localStorage.setItem('al_locks', JSON.stringify(_alLocks)); } catch(e) {}
-  if (window._fbSaveAppLocks) {
-    window._fbSaveAppLocks(_alLocks);
-    _alPendingPush = false;
-    _alUnsyncedIds = {};
-  } else {
-    // Firebase not ready: remember exactly which locks we changed locally so we
-    // can push them (and ONLY them) once ready — without resurrecting locks that
-    // were removed on other devices.
-    _alPendingPush = true;
-    _alUnsyncedIds = {};
-    Object.keys(_alLocks).forEach(function(id){ _alUnsyncedIds[id] = true; });
-  }
-}
-var _alPendingPush = false;
-var _alUnsyncedIds = {};
-function alFlushPendingPush() {
-  if (_alPendingPush && window._fbSaveAppLocks) {
-    window._fbSaveAppLocks(_alLocks);
-    _alPendingPush = false;
-    _alUnsyncedIds = {};
-  }
-}
-function alIsLocked(id)   { return !!_alLocks[id]; }
-function alLockVersion(id){ var e=_alLocks[id]; return (e&&e.v)||0; }
-
-// ── Per-device unlock: ONCE per device, forever, unless the password changes ──
-// The marker records the lock VERSION this device unlocked at, as a number, and
-// the comparison is MONOTONIC (unlocked-at >= current) rather than an exact match.
-// That distinction is the whole fix for the "sometimes asks again" bug: the lock
-// version is replicated through Firestore, so a device can momentarily observe a
-// stale, missing, or zero version (cached snapshot before the server one lands, a
-// legacy record with no `v`, an offline start). An exact match treated every one
-// of those as "different password → re-prompt". Monotonic treats them as "not
-// newer than what I already unlocked" and stays open. Only a genuine password
-// change — which stamps a strictly greater Date.now() version — locks up again.
-// Mirrored across localStorage + sessionStorage + memory so eviction of any one
-// store doesn't cost the user a re-entry.
-var _alUnlockedMem = {};
-function _alReadUnlockAt(id) {
-  var best = -1;
-  var read = function(store, key) {
-    try {
-      var raw = store.getItem(key);
-      if (raw === null) return;
-      // 'v<n>' is the historical format; a bare number is what we write now.
-      var n = parseInt(String(raw).charAt(0) === 'v' ? String(raw).slice(1) : raw, 10);
-      if (!isNaN(n) && n > best) best = n;
-      else if (isNaN(n) && best < 0) best = 0;   // legacy '1' flag → version 0
-    } catch(e) {}
-  };
-  if (_alUnlockedMem[id] !== undefined) best = _alUnlockedMem[id];
-  read(localStorage, 'al_unlockedat_' + id);
-  read(localStorage, 'al_unlockedv_'  + id);
-  try { if (localStorage.getItem('al_unlocked_' + id) === '1' && best < 0) best = 0; } catch(e) {}
-  read(sessionStorage, 'al_unlockedat_' + id);
-  return best;   // -1 = this device has never unlocked it
-}
-function alIsUnlocked(id) {
-  if(!alIsLocked(id)) return true;
-  var at = _alReadUnlockAt(id);
-  if (at < 0) return false;
-  return at >= alLockVersion(id);
-}
-function alMarkUnlocked(id) {
-  var v = alLockVersion(id);
-  // Never regress the recorded version: if this device already unlocked at a
-  // newer version than the one currently visible (stale snapshot), keep the newer.
-  var prev = _alReadUnlockAt(id);
-  if (prev > v) v = prev;
-  _alUnlockedMem[id] = v;
-  try { localStorage.setItem('al_unlockedat_' + id, String(v)); } catch(e) {}
-  try { sessionStorage.setItem('al_unlockedat_' + id, String(v)); } catch(e) {}
-  try { localStorage.setItem('al_unlockedv_' + id, 'v' + v); } catch(e) {}   // older builds still read this
-}
-function alMarkLocked(id)   {
-  delete _alUnlockedMem[id];
-  try { localStorage.removeItem('al_unlockedat_' + id); localStorage.removeItem('al_unlockedv_' + id); localStorage.removeItem('al_unlocked_' + id); } catch(e) {}
-  try { sessionStorage.removeItem('al_unlockedat_' + id); } catch(e) {}
-}
-function alSetLock(id, version)    { _alLocks[id] = { locked: true, v: version||Date.now() }; alSaveLocks(); }
-function alRemoveLock(id) { delete _alLocks[id]; alSaveLocks(); }
-
-// Apply a locked-set pushed from another device (called by Firebase onSnapshot).
-window._alApplyRemoteLocks = function(remoteLocks) {
-  remoteLocks = remoteLocks || {};
-  // NOTE: nothing here erases this device's unlock marker any more. It used to
-  // call alMarkLocked() whenever the incoming version differed from the cached
-  // one in any direction, which meant a stale or version-less snapshot silently
-  // threw away a good unlock and re-prompted for a password that hadn't changed.
-  // Re-locking is now decided by alIsUnlocked()'s monotonic comparison against the
-  // version below: a genuinely NEWER version (password changed elsewhere) locks
-  // this device out; an older/equal/absent one leaves it open. The marker itself
-  // is only ever removed by an explicit user action (remove lock / lock device).
-  _alLocks = {};
-  Object.keys(remoteLocks).forEach(function(id) {
-    var r = remoteLocks[id];
-    _alLocks[id] = { locked: true, v: (r && r.v) || 0 };
-  });
-  try { localStorage.setItem('al_locks', JSON.stringify(_alLocks)); } catch(e) {}
-  // SECURITY: if an app that just got locked remotely is open on this device and
-  // not unlocked here, hide it immediately and prompt (or bounce if no prompter yet).
-  var hidAny = false;
-  Object.keys(_alLocks).forEach(function(id) {
-    if (alMustBlock(id) && alIsAppVisible(id)) { alHideAppRoot(id); hidAny = true; }
-  });
-  if (hidAny) {
-    if (window._alEnforceVisible) window._alEnforceVisible();
-    else if (window._profileGoSelect) window._profileGoSelect();
-  }
-  if (typeof alUpdateTonyLockBtn === 'function') alUpdateTonyLockBtn();
-  if (typeof alUpdateVedaLockBtns === 'function') alUpdateVedaLockBtns();
-};
-
-// Is the app's content currently on screen?
-function alIsAppVisible(appId) {
-  var ids = AL_APP_ROOTS[appId]; if (!ids) return false;
-  return ids.some(function(rid){
-    var el = _el(rid);
-    return el && el.style.display !== 'none' && el.offsetParent !== null;
-  });
-}
-
-// On Firebase ready: first flush any lock changes made before init, THEN pull
-// the authoritative set. Flushing first prevents the pull from wiping locks that
-// this device set but hadn't yet written.
-function alOnFbReady() {
-  if (!window._fbLoadAppLocks) return;
-  // If this device has local locks not yet on the server, push them now.
-  alFlushPendingPush();
-  window._fbLoadAppLocks().then(function(remote) {
-    remote = remote || {};
-    // Only locks this device set-but-didn't-sync should be preserved/pushed.
-    // Everything else defers to the server (so removes on other devices win).
-    var unsynced = Object.keys(_alUnsyncedIds).filter(function(id){ return _alLocks[id]; });
-    var addToServer = unsynced.filter(function(id){ return !remote[id]; });
-    if (addToServer.length && window._fbSaveAppLocks) {
-      var merged = {};
-      Object.keys(remote).forEach(function(id){ var r=remote[id]; merged[id] = { locked: true, v:(r&&r.v)||0 }; });
-      unsynced.forEach(function(id){ merged[id] = { locked: true, v:(_alLocks[id]&&_alLocks[id].v)||Date.now() }; });
-      _alLocks = merged;
-      try { localStorage.setItem('al_locks', JSON.stringify(_alLocks)); } catch(e) {}
-      window._fbSaveAppLocks(_alLocks);
-      _alUnsyncedIds = {};
-      if (typeof alUpdateTonyLockBtn === 'function') alUpdateTonyLockBtn();
-      if (typeof alUpdateVedaLockBtns === 'function') alUpdateVedaLockBtns();
-    } else {
-      _alUnsyncedIds = {};
-      window._alApplyRemoteLocks(remote);
-    }
-  });
-}
-window.addEventListener('fb-ready', alOnFbReady);
-// If Firebase was already ready before this script ran, run now.
-if (window._fbReady && window._fbLoadAppLocks) { alOnFbReady(); }
-
-var _alCurrentAppId = null;
-var _alPendingAppId = null;
-var _alPendingCb    = null;
-var _alOnCancel     = null;   // where to send the user if they cancel a nav-gate unlock
-var _alWasVisibleOnOpen = false;
-var _alMode         = 'unlock';
-var _alAttempts     = {};
-var _alCooldowns    = {};
-var _alRemoveBioFor = null;   // when set to an appId, a successful unlock removes that app's biometric instead of unlocking
-
-// appId → DOM root element id(s) that render the app's content. Used to HIDE
-// content so a locked app is never visible before the password is entered.
-// (warroom opens a separate tab; gita is a React overlay handled via window fns.)
+// appId → DOM root(s) that render the app; hidden while it is locked here.
 var AL_APP_ROOTS = {
   tony_taskhub:   ['root'],
   tony_myjournal: ['tj-root'],
   veda_taskhub:   ['veda-root'],
   veda_journal:   ['bj-root']
 };
-
-// Hide an app's content roots immediately (security: never flash locked content).
+function _el(id) { return document.getElementById(id); }
+function alIsAppVisible(appId) {
+  var ids = AL_APP_ROOTS[appId]; if (!ids) return false;
+  return ids.some(function(rid){ var el = _el(rid); return el && el.style.display !== 'none' && el.offsetParent !== null; });
+}
 function alHideAppRoot(appId) {
-  var ids = AL_APP_ROOTS[appId]; if (!ids) return;
-  ids.forEach(function(rid){ var el = _el(rid); if (el) el.style.display = 'none'; });
+  (AL_APP_ROOTS[appId] || []).forEach(function(rid){ var el = _el(rid); if (el) el.style.display = 'none'; });
   if (appId === 'veda_gita' && window._vedaCloseGita) window._vedaCloseGita();
 }
-
-// True if this app must be blocked from view right now on this device.
-function alMustBlock(appId) { return alIsLocked(appId) && !alIsUnlocked(appId); }
-
-// DOM REFS (deferred — grabbed on first use)
-function _el(id) { return document.getElementById(id); }
-
-// Paint the card's glow tokens from the lock's own profile colour, so the
-// hover halo reads gold for Tony and purple for Veda with no colour written
-// into the stylesheet. Falls back to gold if a lock has no colour of its own.
-function alSetGlow(color) {
-  var box = _el('applock-box'); if (!box) return;
-  var hex = /^#([0-9a-f]{6})$/i.exec(color || '');
-  if (!hex) { color = '#e0b874'; hex = /^#([0-9a-f]{6})$/i.exec(color); }
-  var n = parseInt(hex[1], 16);
-  box.style.setProperty('--al-glow', color);
-  box.style.setProperty('--al-glowl', 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',.34)');
+// Unlocked from an access gate on load: re-show through the normal nav path.
+function alReNav(appId) {
+  return function() {
+    var prof = (AL_LABELS[appId] || {}).profile;
+    var nav = { tony_taskhub:'taskhub', veda_taskhub:'taskhub' }[appId];
+    if (prof === 'tony' && nav && window._tonyNav) window._tonyNav(nav);
+    else if (prof === 'veda' && nav && window._vedaNav) window._vedaNav(nav);
+  };
 }
+function goSelect() { if (window._profileGoSelect) window._profileGoSelect(); }
 
-// ── OVERLAY ───────────────────────────────────────────────────────────────────
-function alShowOverlay(appId, mode, cb, onCancel) {
-  _alPendingAppId = appId;
-  _alPendingCb    = cb || null;
-  _alOnCancel     = onCancel || null;
-  _alMode         = mode;
-  _alRemoveBioFor = null;   // stale remove-bio intent cleared; alBioRemovePrompt re-sets it after this returns
-  // If the app is ALREADY on screen, this is a voluntary "manage/unlock" of the
-  // current program — canceling must NOT hide it. If it's hidden, this is an
-  // access gate — canceling keeps it hidden. Used by the cancel handler.
-  _alWasVisibleOnOpen = alIsAppVisible(appId);
-  var meta = AL_LABELS[appId] || { label: appId, color: '#e0b874' };
-  _el('applock-err').textContent = '';
-  _el('applock-pw').value = '';
-  _el('applock-pw').classList.remove('error');
-  _el('applock-title').textContent = meta.label;
-  _el('applock-title').style.color = meta.color;
-  _el('applock-submit').style.background = meta.color;
-  alSetGlow(meta.color);
-  _el('applock-submit').style.display = '';
-  _el('applock-pw').style.display = '';   // restore in case a prior biometric prompt hid it
-  // Remove any manage menu leftover
-  var m = _el('al-menu-btns'); if (m) m.remove();
-  var _noun = meta.isProfile ? 'profile' : 'app';
-  if (mode === 'setpw') {
-    _el('applock-icon').innerHTML = TNI.shield;
-    _el('applock-sub').textContent   = meta.isProfile
-      ? 'Choose a password to lock this profile. Required on every device.'
-      : 'Choose a password to lock this app. Unlock once per session per device.';
-    _el('applock-submit').textContent= 'Set Password';
-    _el('applock-forgot').style.display = 'none';
-    _el('applock-cancel').style.display = '';
-  } else if (mode === 'remove') {
-    _el('applock-icon').innerHTML = TNI.unlock;
-    _el('applock-sub').textContent   = 'Enter password to remove the lock.';
-    _el('applock-submit').textContent= 'Remove Lock';
-    _el('applock-forgot').style.display = '';
-    _el('applock-cancel').style.display = '';
-  } else if (mode === 'changepw') {
-    _el('applock-icon').innerHTML = TNI.key;
-    _el('applock-sub').textContent   = 'Enter your current password first.';
-    _el('applock-submit').textContent= 'Verify & Continue';
-    _el('applock-forgot').style.display = '';
-    _el('applock-cancel').style.display = '';
+// ── Cross-device bell (dashboards/applock) ───────────────────────────────────
+var _alLocks = {};
+try { _alLocks = JSON.parse(localStorage.getItem('al_locks') || '{}') || {}; } catch(e) {}
+function ringBell(id, what) {
+  if (what === 'remove') delete _alLocks[id];
+  else if (what === 'set' || what === 'change' || what === 'reset') _alLocks[id] = { locked: true, v: Date.now() };
+  else return;
+  try { localStorage.setItem('al_locks', JSON.stringify(_alLocks)); } catch(e) {}
+  if (window._fbSaveAppLocks) window._fbSaveAppLocks(_alLocks);
+}
+window._alApplyRemoteLocks = function(remote) {
+  _alLocks = {};
+  Object.keys(remote || {}).forEach(function(id){ var r = remote[id]; _alLocks[id] = { locked: true, v: (r && r.v) || 0 }; });
+  try { localStorage.setItem('al_locks', JSON.stringify(_alLocks)); } catch(e) {}
+  G.refresh(Object.keys(AL_LABELS), true);
+};
+
+// ── A lock became required while this page is open (another device changed
+// the password, or "Lock this device now"): hide what it guards and ask. ─────
+function onBlock(id) {
+  var meta = AL_LABELS[id] || {};
+  if (meta.isProfile) {
+    if (window._activeProfile === meta.profile) { window._activeProfile = null; goSelect(); }
+  } else if (alIsAppVisible(id)) {
+    alHideAppRoot(id);
+    alGate(id, alReNav(id), goSelect);
   } else {
-    _el('applock-icon').innerHTML = TNI.lock;
-    _el('applock-sub').textContent   = meta.isProfile
-      ? 'Enter your password to open this profile.'
-      : 'Enter your password to open this app.';
-    _el('applock-submit').textContent= 'Unlock';
-    _el('applock-forgot').style.display = '';
-    _el('applock-cancel').style.display = '';
+    alHideAppRoot(id);   // a no-op without a root — but it is what closes Gita
   }
-  // Reset link mirrors the "Forgot password?" link's visibility (hidden while setting a new password).
-  if (_el('applock-reset')) _el('applock-reset').style.display = _el('applock-forgot').style.display;
-  _el('applock-overlay').style.display = 'flex';
-  setTimeout(function() { _el('applock-pw').focus(); }, 80);
-  alBioRender(appId);
+  refreshBtns();
 }
+function define(id) {
+  var m = AL_LABELS[id];
+  G.define(id, { owner: m.profile, label: m.label, kind: m.isProfile ? 'profile' : 'app', appName: 'TaskHub',
+    legacy: G.legacy.al(id, 'applock'), onChange: ringBell, onBlock: onBlock });
+}
+Object.keys(AL_LABELS).forEach(define);
 
-function alHideOverlay() {
-  _el('applock-overlay').style.display = 'none';
-  _alPendingAppId = null;
-  _alPendingCb    = null;
-  _alOnCancel     = null;
-  var m = _el('al-menu-btns'); if (m) m.remove();
-  var bio = _el('applock-bio'); if (bio) { bio.innerHTML = ''; bio.style.display = 'none'; }
-  _alRemoveBioFor = null;
-}
+function alIsLocked(id)   { return G.isLocked(id); }
+function alIsUnlocked(id) { return G.isUnlocked(id); }
+function alMustBlock(id)  { return G.mustBlock(id); }
 
-// ── BIOMETRICS (Face ID / Touch ID / fingerprint / Windows Hello) ──
-// Primary unlock; the password below always remains the fallback. Keyed per
-// appId, so each profile / app carries its own isolated device credential —
-// one profile's biometric can never unlock another (allowCredentials is scoped).
-function alBioShowPw(show) {
-  _el('applock-pw').style.display = show ? '' : 'none';
-  _el('applock-submit').style.display = show ? '' : 'none';
-  _el('applock-forgot').style.display = show ? '' : 'none';
-  if (_el('applock-reset')) _el('applock-reset').style.display = show ? '' : 'none';
-  if (show) setTimeout(function() { _el('applock-pw').focus(); }, 60);
-}
-var _alBioSeq = 0;   // newest alBioRender wins; see the note inside
-function alBioRender(appId) {
-  var box = _el('applock-bio'); if (!box) return;
-  box.innerHTML = ''; box.style.display = 'none';
-  var seq = ++_alBioSeq;
-  if (!window.Bio || _alMode !== 'unlock') return;
-  window.Bio.available().then(function(avail) {
-    // Two quick opens (the gate, then a lock snapshot) each cleared the box and
-    // then BOTH async callbacks drew into it, doubling the buttons. Only the
-    // latest render draws, and it clears the box first.
-    if (seq !== _alBioSeq || _alPendingAppId !== appId || _alMode !== 'unlock') return;
-    box.innerHTML = '';
-    var had = window.Bio.isRegistered('applock', appId);
-    if (!(avail && window.Bio.isRegistered('applock', appId, alLockVersion(appId)))) { if (avail && had) alBioStaleMsg(); return; }
-    var meta = AL_LABELS[appId] || { color: '#e0b874' };
-    box.style.display = 'flex'; box.style.flexDirection = 'column'; box.style.gap = '8px';
-    var b = document.createElement('button');
-    b.innerHTML = TNI.unlock + '<span>Unlock with ' + window.Bio.label() + '</span>';
-    b.style.cssText = "border:none;border-radius:4px;padding:12px 0;font-size:14px;font-weight:700;cursor:pointer;font-family:'Inter',system-ui,-apple-system,sans-serif;width:100%;background:" + meta.color + ";color:#fff;";
-    b.onclick = function() { alBioUnlock(appId); };
-    box.appendChild(b);
-    // The password field stays visible alongside it: biometrics run ONLY when
-    // this button is pressed, so either route is available at all times.
-    alBioShowPw(true);
-  });
-}
-function alBioUnlock(appId) {
-  _el('applock-err').textContent = '';
-  if (!window.Bio) return;
-  window.Bio.authenticate('applock', appId, { v: alLockVersion(appId) }).then(function(r) {
-    if (r.ok) {
-      // Identity verified: either finish removing biometrics, or unlock as usual.
-      if (_alRemoveBioFor === appId) { alDoRemoveBio(appId); return; }
-      alMarkUnlocked(appId); _alAttempts[appId] = 0;
-      var cb = _alPendingCb; alHideOverlay(); alUpdateTonyLockBtn(); alUpdateVedaLockBtns();
-      if (window._alProfileRefreshBtns) window._alProfileRefreshBtns();
-      if (cb) cb();
-    } else if (r.error === 'stale') { alBioStaleMsg(); }
-    else if (r.error === 'notregistered') { alBioShowPw(true); }
-    else { _el('applock-err').textContent = 'Biometric check failed — use your password.'; alBioShowPw(true); }
-  });
-}
-// The password changed since this device enrolled, so its biometric no longer
-// opens this app (Bio drops it): say why, and fall back to the password.
-function alBioStaleMsg() {
-  var box = _el('applock-bio'); if (box) { box.innerHTML = ''; box.style.display = 'none'; }
-  _el('applock-err').textContent = 'The password changed — enter the new one. ' + window.Bio.label() + ' needs registering again on this device.';
-  alBioShowPw(true);
-}
-// After the password proves who this is: if a password change dropped this
-// device's biometric (or this device just changed it), offer to enrol again.
-function alBioAfterPw(appId, hadBio) {
-  if (!window.Bio) return;
-  if (window.Bio.takeStale('applock', appId) || hadBio) alMaybeOfferBio(appId);
-}
-function alHadBio(appId) { return !!(window.Bio && window.Bio.isRegistered('applock', appId)); }
-// Verify identity (biometric OR password) before removing this app's biometric.
-function alBioRemovePrompt(appId) {
-  _alRemoveBioFor = appId;
-  alShowOverlay(appId, 'unlock');
-  _alRemoveBioFor = appId;   // alShowOverlay cleared it via alHideOverlay path; re-set
-  var meta = AL_LABELS[appId] || { label: appId };
-  _el('applock-icon').innerHTML = TNI.user;
-  _el('applock-sub').textContent = 'Verify with ' + window.Bio.label() + ' or your password to remove biometrics from this device.';
-}
-function alDoRemoveBio(appId) {
-  _alRemoveBioFor = null;
-  window.Bio.unregister('applock', appId);
-  alHideOverlay(); alUpdateTonyLockBtn(); alUpdateVedaLockBtns();
-  if (window._alProfileRefreshBtns) window._alProfileRefreshBtns();
-  window.uiAlert('Biometrics removed from this device.');
-}
-function alBioRegister(appId, closeAfter) {
-  if (!window.Bio) return;
-  var meta = AL_LABELS[appId] || { label: appId };
-  window.Bio.register('applock', appId, { rpName: 'Index', userName: 'index-' + appId, displayName: (meta.label) + (meta.isProfile ? ' profile' : '') + ' — Index', v: alLockVersion(appId) }).then(function(r) {
-    if (r.ok) {
-      alMarkUnlocked(appId); if (closeAfter) alHideOverlay();
-      alUpdateTonyLockBtn(); alUpdateVedaLockBtns(); if (window._alProfileRefreshBtns) window._alProfileRefreshBtns();
-      alert('Biometrics registered on this device. You can now unlock ' + meta.label + ' with ' + window.Bio.label() + '.');
-    } else if (r.error === 'cancelled' || r.error === 'NotAllowedError') { /* user backed out */ }
-    else alert('Could not register biometrics on this device.');
-  });
-}
-function alMaybeOfferBio(appId) {
-  if (!window.Bio) return;
-  window.Bio.available().then(function(avail) {
-    if (!avail || window.Bio.isRegistered('applock', appId, alLockVersion(appId))) return;
-    var meta = AL_LABELS[appId] || { label: appId };
-    window.uiConfirm('Register ' + window.Bio.label() + ' to unlock ' + meta.label + ' on this device? Your password still works as a fallback.', { title: 'Register ' + window.Bio.label(), okLabel: 'Register' }).then(function(ok) { if (ok) alBioRegister(appId, false); });
-  });
-}
-
-function alShake() {
-  var box = _el('applock-box');
-  box.classList.remove('shake');
-  void box.offsetWidth;
-  box.classList.add('shake');
-  setTimeout(function() { box.classList.remove('shake'); }, 500);
-}
-
-// ── GATE ──────────────────────────────────────────────────────────────────────
-// SECURITY: when blocked, hide the app's content roots FIRST (so nothing flashes),
-// then prompt. onCancel routes the user to a safe destination if they back out.
+// SECURITY: when blocked, hide the app's content FIRST, then prompt. onCancel
+// routes the user somewhere safe if they back out. Calls back synchronously
+// when nothing blocks, so an unlocked tap never flashes a password box.
 function alGate(appId, cb, onCancel) {
-  if (alMustBlock(appId)) {
-    alHideAppRoot(appId);
-    alShowOverlay(appId, 'unlock', cb, onCancel);
-  } else {
-    cb();
-  }
+  if (!G.mustBlock(appId)) { cb(); return; }
+  var wasVisible = alIsAppVisible(appId);
+  alHideAppRoot(appId);
+  G.gate(appId).then(function(ok) {
+    refreshBtns();
+    if (ok) { cb(); return; }
+    if (wasVisible) return;
+    if (onCancel) { try { onCancel(appId); } catch(e) {} }
+  });
+}
+function alManage(appId) {
+  if (!appId) appId = _alCurrentAppId || (window._tnCurApp ? alNavAppToId('tony', window._tnCurApp) : 'tony_taskhub');
+  G.manage(appId).then(refreshBtns);
 }
 
-// ── NAV MAP ───────────────────────────────────────────────────────────────────
+// ── Nav map + header buttons ─────────────────────────────────────────────────
 function alNavAppToId(profile, navApp) {
   var map = {
-    tony: { taskhub:'tony_taskhub', tradeboard:'tony_tradehub',
-            keychain:'tony_keychain', brainstormjournal:'tony_myjournal',
-            warroom:'tony_warroom' },
-    veda: { taskhub:'veda_taskhub', gita:'veda_gita',
-            journal:'veda_journal' }
+    tony: { taskhub:'tony_taskhub', tradeboard:'tony_tradehub', keychain:'tony_keychain', brainstormjournal:'tony_myjournal', warroom:'tony_warroom' },
+    veda: { taskhub:'veda_taskhub', gita:'veda_gita', journal:'veda_journal' }
   };
   return (map[profile] || {})[navApp] || null;
 }
-
-// ── BUTTON STATE ──────────────────────────────────────────────────────────────
-function alSetCurrentApp(appId) {
-  _alCurrentAppId = appId;
-  alUpdateTonyLockBtn();
-}
-
+var _alCurrentAppId = null;
+var LOCK_SVG = function(px, locked) {
+  return '<svg width="' + px + '" height="' + px + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="' + (locked ? 'M8 11V7a4 4 0 0 1 8 0v4' : 'M8 11V7a4 4 0 0 1 7.5-2') + '"/></svg>';
+};
 function alUpdateTonyLockBtn() {
-  var btn = _el('tn-lock-btn');
-  if (!btn) return;
+  var btn = _el('tn-lock-btn'); if (!btn) return;
   var appId = _alCurrentAppId || (window._tnCurApp ? alNavAppToId('tony', window._tnCurApp) : null);
   if (!appId || !AL_LABELS[appId]) { btn.style.display = 'none'; return; }
   btn.style.display = '';
   var locked = alIsLocked(appId);
-  btn.innerHTML = locked
-    ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>'
-    : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg>';
-  btn.style.color  = '#c0aeea';
+  btn.innerHTML = LOCK_SVG(14, locked);
+  btn.style.color = '#c0aeea';
   btn.style.opacity = locked ? '1' : '0.55';
   btn.title = locked ? 'Locked — click to manage' : 'Unlocked — click to lock';
   if (window._navTabGearRefresh) window._navTabGearRefresh();
 }
-
 function alUpdateVedaLockBtns() {
   ['veda_journal','veda_taskhub','veda_gita'].forEach(function(id) {
-    var btn = _el('al-btn-' + id);
-    if (!btn) return;
+    var btn = _el('al-btn-' + id); if (!btn) return;
     var locked = alIsLocked(id);
-    btn.innerHTML = locked
-      ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>'
-      : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg>';
-    btn.style.color  = '#8D769A';
+    btn.innerHTML = LOCK_SVG(13, locked);
+    btn.style.color = '#8D769A';
     btn.style.opacity = locked ? '1' : '0.55';
     btn.title = locked ? 'Locked — click to manage' : 'Unlocked — click to lock';
   });
 }
+function refreshBtns() {
+  alUpdateTonyLockBtn(); alUpdateVedaLockBtns();
+  if (window._alProfileRefreshBtns) window._alProfileRefreshBtns();
+}
+['guardian:status', 'guardian:change', 'guardian:unlock', 'guardian:lock'].forEach(function(ev) { window.addEventListener(ev, refreshBtns); });
 
-// ── REACT HEADER INJECTION ────────────────────────────────────────────────────
+// Veda's React headers (TaskHub / Gita) get a padlock beside the ✦ button.
 function alInjectReactBtns() {
   document.querySelectorAll('.veda-hbtns').forEach(function(row) {
-    if (row.querySelector('[id^="al-btn-"]')) return;  // already has btn
+    if (row.querySelector('[id^="al-btn-"]')) return;
     var profileBtn = null;
-    row.querySelectorAll('button').forEach(function(b) {
-      if (b.textContent.trim() === '✦') profileBtn = b;
-    });
-    if (!profileBtn) return;
-    // Only inject inside veda-root (not bj/vt/study which have static btns)
-    if (row.closest('#bj-root')) return;
-    var inVedaRoot = row.closest('#veda-root') || row.closest('.lessons-overlay');
-    if (!inVedaRoot) return;
-    // Determine app from active (filled) button
+    row.querySelectorAll('button').forEach(function(b) { if (b.textContent.trim() === '✦') profileBtn = b; });
+    if (!profileBtn || row.closest('#bj-root')) return;
+    if (!(row.closest('#veda-root') || row.closest('.lessons-overlay'))) return;
     var activeBtn = null;
     row.querySelectorAll('button').forEach(function(b) {
       var bg = b.style.background || '';
       if (bg && bg !== 'transparent' && b.textContent.trim() && b.textContent.trim() !== '✦') activeBtn = b;
     });
-    var label  = activeBtn ? activeBtn.textContent.trim().toLowerCase() : '';
-    var appId  = label === 'taskhub' ? 'veda_taskhub' : label === 'gita' ? 'veda_gita' : null;
+    var label = activeBtn ? activeBtn.textContent.trim().toLowerCase() : '';
+    var appId = label === 'taskhub' ? 'veda_taskhub' : label === 'gita' ? 'veda_gita' : null;
     if (!appId || _el('al-btn-' + appId)) return;
     var btn = document.createElement('button');
     btn.id = 'al-btn-' + appId;
     btn.title = 'App Lock';
     btn.style.cssText = 'background:transparent;border:1px solid rgba(141,118,154,0.45);border-radius:5px;padding:0 8px;height:28px;box-sizing:border-box;display:inline-flex;align-items:center;font-size:13px;cursor:pointer;transition:all .15s;color:#8D769A;opacity:0.55;flex-shrink:0;touch-action:manipulation;';
     (function(id) { btn.onclick = function() { alManage(id); }; })(appId);
-    // Insert BEFORE the profile (star) button
     row.insertBefore(btn, profileBtn);
     alUpdateVedaLockBtns();
   });
 }
 
-// ── MANAGE ────────────────────────────────────────────────────────────────────
-function alManage(appId) {
-  if (!appId) appId = _alCurrentAppId || (window._tnCurApp ? alNavAppToId('tony', window._tnCurApp) : 'tony_taskhub');
-  if (alIsLocked(appId)) {
-    alShowManageMenu(appId);
-  } else {
-    alShowOverlay(appId, 'setpw', function() { alUpdateTonyLockBtn(); alUpdateVedaLockBtns(); });
-  }
+// Sweep: hide + prompt for any visible app that is locked on this device.
+function alEnforceVisible() {
+  var blocked = null;
+  Object.keys(AL_APP_ROOTS).forEach(function(id) { if (!blocked && alMustBlock(id) && alIsAppVisible(id)) blocked = id; });
+  if (blocked) { alHideAppRoot(blocked); alGate(blocked, alReNav(blocked), goSelect); }
 }
-
-function alShowManageMenu(appId) {
-  var meta      = AL_LABELS[appId] || { label: appId, color: '#e0b874' };
-  var isUnlocked = alIsUnlocked(appId);
-  _alPendingAppId = appId;
-  _el('applock-err').textContent = '';
-  var _mbio = _el('applock-bio'); if (_mbio) { _mbio.innerHTML = ''; _mbio.style.display = 'none'; }
-  _el('applock-pw').value = '';
-  _el('applock-pw').classList.remove('error');
-  // Nothing in this menu reads the password box — every row that needs one
-  // opens its own prompt — so it sat there inert, inviting a password that
-  // went nowhere. alShowOverlay() puts it back for the modes that use it.
-  _el('applock-pw').style.display='none';
-  _el('applock-icon').innerHTML = TNI.lock;
-  _el('applock-title').textContent = meta.label;
-  _el('applock-title').style.color = meta.color;
-  alSetGlow(meta.color);
-  _el('applock-submit').style.display = 'none';
-  _el('applock-forgot').style.display = 'none';
-  if (_el('applock-reset')) _el('applock-reset').style.display = 'none';
-  _el('applock-cancel').style.display = '';
-  _el('applock-sub').textContent = isUnlocked ? 'This app is locked. Manage:' : 'This app is locked. Choose:';
-  var existing = _el('al-menu-btns'); if (existing) existing.remove();
-  var menu = document.createElement('div');
-  menu.id = 'al-menu-btns';
-  menu.style.cssText = 'display:flex;flex-direction:column;gap:8px;width:100%;';
-  var s = 'border:none;border-radius:4px;padding:10px 0;font-size:13px;font-weight:700;cursor:pointer;font-family:\'Inter\',system-ui,-apple-system,sans-serif;width:100%;';
-  if (!isUnlocked) {
-    var ub = document.createElement('button');
-    ub.innerHTML = TNI.unlock + '<span>Unlock this device</span>';
-    ub.className = 'al-ac';
-    ub.style.cssText = s + 'background:' + meta.color + ';color:#1a1a1d;';
-    ub.onclick = function() { menu.remove(); _el('applock-submit').style.display=''; alShowOverlay(appId,'unlock',function(){alUpdateTonyLockBtn();alUpdateVedaLockBtns();}); };
-    menu.appendChild(ub);
-  } else {
-    // The mirror of "Unlock this device". An unlock is remembered durably, so a
-    // device that has ever entered the password stays open — there was no way to
-    // hand this phone over, or put it down, and have the app ask again without
-    // removing the lock outright. This drops only THIS device's unlock record;
-    // the password and every other device are untouched.
-    //
-    // A profile lock has no app root to hide, so it bounces to the profile
-    // chooser instead — clicking the card there re-runs alGate and prompts.
-    var lb = document.createElement('button');
-    lb.innerHTML = TNI.lock + '<span>Lock this device now</span>';
-    lb.className = 'al-ac';
-    lb.style.cssText = s + 'background:' + meta.color + ';color:#1a1a1d;';
-    lb.onclick = function() {
-      menu.remove();
-      alMarkLocked(appId);
-      alUpdateTonyLockBtn(); alUpdateVedaLockBtns();
-      if (window._alProfileRefreshBtns) window._alProfileRefreshBtns();
-      _el('applock-submit').style.display = '';
-      if (meta.isProfile) {
-        alHideOverlay();
-        window._activeProfile = null;
-        if (window._profileGoSelect) window._profileGoSelect();
-      } else if (alIsAppVisible(appId)) {
-        // Its content is on screen right now, so re-gate it immediately.
-        alHideAppRoot(appId);
-        alShowOverlay(appId, 'unlock', function(){ alUpdateTonyLockBtn(); alUpdateVedaLockBtns(); },
-                      function(){ if (window._profileGoSelect) window._profileGoSelect(); });
-      } else {
-        // A nav-button lock (TradeHub / Vault / Shield / a custom link) or an
-        // app that isn't currently showing: nothing to gate here, and bouncing
-        // the user out of the app they ARE in would be wrong. The next click on
-        // that button hits alGate and asks for the password.
-        // Still call alHideAppRoot: it is a no-op for an id with no root, but
-        // it is also what closes Gita, which renders as an overlay rather than
-        // a root and so never reports itself visible above.
-        alHideAppRoot(appId);
-        alHideOverlay();
-      }
-    };
-    menu.appendChild(lb);
-  }
-  var cb = document.createElement('button');
-  cb.innerHTML = TNI.key + '<span>Change password</span>';
-  cb.style.cssText = s + 'background:#34343a;color:#f4f3f0;border:1px solid #45454c;';
-  cb.onclick = function() { menu.remove(); _el('applock-submit').style.display=''; alShowOverlay(appId,'changepw',null); };
-  menu.appendChild(cb);
-  // Register / remove biometrics for this app or profile (inserted above "Change password").
-  if (window.Bio) window.Bio.available().then(function(avail) {
-    if (!avail || _alPendingAppId !== appId) return;
-    var bb = document.createElement('button');
-    if (window.Bio.isRegistered('applock', appId, alLockVersion(appId))) {
-      bb.innerHTML = TNI.user + '<span>Remove biometrics</span>';
-      bb.style.cssText = s + 'background:transparent;color:#adadb2;border:1px solid #45454c;';
-      bb.onclick = function() { menu.remove(); _el('applock-submit').style.display=''; alBioRemovePrompt(appId); };
-    } else {
-      bb.innerHTML = TNI.user + '<span>Register ' + window.Bio.label() + '</span>';
-      bb.style.cssText = s + 'background:#34343a;color:#f4f3f0;border:1px solid #45454c;';
-      bb.onclick = function() { menu.remove(); _el('applock-submit').style.display=''; alBioRegister(appId, true); };
-    }
-    menu.insertBefore(bb, cb);
+// A profile that is open but locked on this device goes back to the chooser.
+function enforceProfiles() {
+  ['tony','veda'].forEach(function(who) {
+    if (alMustBlock('profile_' + who) && window._activeProfile === who) { window._activeProfile = null; goSelect(); }
   });
-  var rb = document.createElement('button');
-  rb.innerHTML = TNI.trash + '<span>Remove lock</span>';
-  rb.className = 'al-dg';
-  rb.style.cssText = s + 'background:transparent;color:#d68a7c;border:1px solid #d68a7c;';
-  rb.onclick = function() { menu.remove(); _el('applock-submit').style.display=''; alShowOverlay(appId,'remove',function(){alUpdateTonyLockBtn();alUpdateVedaLockBtns();}); };
-  menu.appendChild(rb);
-  // The menu belongs in the form column, above the ruled footer — never inline
-  // with Cancel, which is what used to leave the two crowding each other.
-  var form = _el('applock-form') || _el('applock-cancel').parentNode;
-  form.appendChild(menu);
-  _el('applock-overlay').style.display = 'flex';
+  if (window._alProfileRefreshBtns) window._alProfileRefreshBtns();
 }
-
-// ── SUBMIT HANDLER ────────────────────────────────────────────────────────────
-// Script runs after DOMContentLoaded has already fired (late in body), so attach listeners immediately.
-(function() {
-  _el('applock-submit').addEventListener('click', async function() {
-    var appId = _alPendingAppId;
-    if (!appId) return;
-    var pw = _el('applock-pw').value.trim();
-    if (!pw) { _el('applock-pw').classList.add('error'); _el('applock-err').textContent = 'Password required.'; return; }
-    var attempts = _alAttempts[appId] || 0;
-    if (attempts >= 5) {
-      var wait = Math.ceil(((_alCooldowns[appId]||0) - Date.now()) / 1000);
-      if (wait > 0) { _el('applock-err').textContent = 'Too many attempts. Wait ' + wait + 's.'; return; }
-      _alAttempts[appId] = 0;
-    }
-    _el('applock-submit').disabled = true;
-    _el('applock-submit').textContent = 'Checking…';
-    try {
-      if (_alMode === 'setpw') {
-        var hint = (await window.uiPrompt('Optional: enter a password hint for the recovery email. Leave blank to skip.', {title:'Password hint'})) || '';
-        var r1 = await fetch(AL_WORKER+'/auth/journal/set-lock', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:appId,password:pw,hint:hint})});
-        var d1 = await r1.json();
-        if (d1.ok) { alSetLock(appId); if (appId.indexOf('profile_')===0) alMarkUnlocked(appId); alHideOverlay(); alUpdateTonyLockBtn(); alUpdateVedaLockBtns(); if (window._alProfileRefreshBtns) window._alProfileRefreshBtns(); if (_alPendingCb) _alPendingCb(); alMaybeOfferBio(appId); }
-        else { _el('applock-err').textContent = 'Failed to set lock. Try again.'; }
-
-      } else if (_alMode === 'remove') {
-        var r2 = await fetch(AL_WORKER+'/auth/journal/remove-lock', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:appId,password:pw})});
-        var d2 = await r2.json();
-        if (d2.ok) { alRemoveLock(appId); alMarkLocked(appId); alHideOverlay(); alUpdateTonyLockBtn(); alUpdateVedaLockBtns(); if (window._alProfileRefreshBtns) window._alProfileRefreshBtns(); if (_alPendingCb) _alPendingCb(); }
-        else { _alAttempts[appId]=(_alAttempts[appId]||0)+1; if(_alAttempts[appId]>=5)_alCooldowns[appId]=Date.now()+30000; _alPwErr('Wrong password.'); }
-
-      } else if (_alMode === 'changepw') {
-        var r3 = await fetch(AL_WORKER+'/auth/journal/verify', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:appId,password:pw})});
-        var d3 = await r3.json();
-        if (d3.ok) {
-          var chg = await window.uiForm({ title:'Change password', okLabel:'Change password',
-            fields:[ {name:'password',label:'New password',type:'password',required:true}, {name:'hint',label:'New password hint (optional)'} ] });
-          var np = chg ? chg.password : '';
-          if (!np || !np.trim()) { _el('applock-err').textContent = 'New password empty — not changed.'; }
-          else {
-            var nh = (chg.hint) || '';
-            var rem = await fetch(AL_WORKER+'/auth/journal/remove-lock', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:appId,password:pw})});
-            var remD = await rem.json();
-            if (remD.ok) {
-              var set = await fetch(AL_WORKER+'/auth/journal/set-lock', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:appId,password:np.trim(),hint:nh})});
-              var setD = await set.json();
-              if (setD.ok) { var hadBio = alHadBio(appId); alSetLock(appId); alMarkUnlocked(appId); alHideOverlay(); alUpdateTonyLockBtn(); alUpdateVedaLockBtns(); if (window._alProfileRefreshBtns) window._alProfileRefreshBtns(); await window.uiAlert('Password changed! Biometric unlock now needs registering again on every device.'); alBioAfterPw(appId, hadBio); }
-              else { _el('applock-err').textContent = 'Failed to set new password.'; }
-            } else { _el('applock-err').textContent = 'Error removing old lock. Try again.'; }
-          }
-        } else { _alAttempts[appId]=(_alAttempts[appId]||0)+1; if(_alAttempts[appId]>=5)_alCooldowns[appId]=Date.now()+30000; _alPwErr('Wrong password.'); }
-
-      } else { // unlock
-        var r4 = await fetch(AL_WORKER+'/auth/journal/verify', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:appId,password:pw})});
-        var d4 = await r4.json();
-        if (d4.ok) {
-          _alAttempts[appId]=0;
-          if (_alRemoveBioFor === appId) { alDoRemoveBio(appId); }
-          else { alMarkUnlocked(appId); var cb=_alPendingCb; alHideOverlay(); alUpdateTonyLockBtn(); alUpdateVedaLockBtns(); if(cb) cb(); alBioAfterPw(appId, false); }
-        }
-        else { _alAttempts[appId]=(_alAttempts[appId]||0)+1; if(_alAttempts[appId]>=5)_alCooldowns[appId]=Date.now()+30000; _alPwErr('Wrong password.'); }
-      }
-    } catch(e) { _el('applock-err').textContent = 'Network error. Try again.'; }
-    _el('applock-submit').disabled = false;
-    _el('applock-submit').textContent = {setpw:'Set Password',remove:'Remove Lock',changepw:'Verify & Continue'}[_alMode] || 'Unlock';
-  });
-
-  _el('applock-pw').addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') _el('applock-submit').click();
-    if (e.key === 'Escape') { _el('applock-err').textContent=''; _el('applock-pw').classList.remove('error'); }
-  });
-
-  _el('applock-cancel').addEventListener('click', function() {
-    var m = _el('al-menu-btns'); if(m) m.remove();
-    _el('applock-submit').style.display = '';
-    var oc = _alOnCancel;
-    var blocked = _alPendingAppId;
-    var mode = _alMode;
-    alHideOverlay();
-    // Security: if user backed out of UNLOCKING, hide the locked app and send somewhere safe.
-    // For setpw/remove/changepw modes, the app is already open — just close the overlay.
-    if (mode === 'unlock') {
-      // Only re-hide if this was an access gate (app wasn't already showing).
-      // If you were viewing the app and chose to manage/unlock it, stay put.
-      if (blocked && !_alWasVisibleOnOpen) alHideAppRoot(blocked);
-      if (oc) { try { oc(blocked); } catch(e) {} }
-    }
-  });
-
-  _el('applock-forgot').addEventListener('click', async function() {
-    var appId2 = _alPendingAppId; if (!appId2) return;
-    var meta = AL_LABELS[appId2] || { label: appId2, profile: 'tony' };
-    _el('applock-forgot').textContent = 'Sending…'; _el('applock-forgot').disabled = true;
-    try {
-      // The worker mails the hint. `owner` comes from the lock's own metadata,
-      // so a Veda app-lock reaches Veda even though every app here shares one
-      // worker — no client-side form/address lookup involved any more.
-      var hr = await fetch(AL_WORKER+'/auth/journal/hint', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({journal:AL_JOURNAL,entryId:appId2,owner:meta.profile,appName:'TaskHub',label:meta.label})});
-      var hd = await hr.json();
-      if (hd.noLock) { _el('applock-err').textContent='No lock on server. Try re-locking.'; _el('applock-forgot').disabled=false; _el('applock-forgot').textContent='Forgot password?'; return; }
-      // `hd.ok` is not delivery -- see the mail-relay script in <head>.
-      if (await window._mailRelay(hd)) { _el('applock-forgot').textContent='Hint sent!'; setTimeout(function(){_el('applock-forgot').textContent='Forgot password?';_el('applock-forgot').disabled=false;},3000); }
-      else { _el('applock-forgot').textContent='Failed — try again'; _el('applock-forgot').disabled=false; }
-    } catch(e) { _el('applock-forgot').textContent='Failed — try again'; _el('applock-forgot').disabled=false; }
-  });
-
-  // Reset password via emailed security code (routes to the app owner's email/form).
-  _el('applock-reset') && _el('applock-reset').addEventListener('click', async function() {
-    var appId3 = _alPendingAppId; if (!appId3) return;
-    var meta = AL_LABELS[appId3] || { label: appId3, profile: 'tony' };
-    var prev = _el('applock-reset').textContent; _el('applock-reset').textContent = 'Sending code…'; _el('applock-reset').disabled = true;
-    await window._pwReset({
-      worker: AL_WORKER,
-      reqBody: { journal: AL_JOURNAL, entryId: appId3 },
-      email: AL_EMAIL[meta.profile] || AL_EMAIL.tony,
-      form: AL_FORM[meta.profile] || AL_FORM.tony,
-      appName: meta.isProfile ? (meta.label + ' profile') : meta.label,
-      label: meta.isProfile ? (meta.label + "'s profile") : ('the ' + meta.label + ' app'),
-      onSuccess: function() {
-        var hadBio = alHadBio(appId3);
-        alSetLock(appId3); alMarkUnlocked(appId3); alHideOverlay();
-        alUpdateTonyLockBtn(); alUpdateVedaLockBtns();
-        if (window._alProfileRefreshBtns) window._alProfileRefreshBtns();
-        alBioAfterPw(appId3, hadBio);
-      }
-    });
-    _el('applock-reset').textContent = prev; _el('applock-reset').disabled = false;
-  });
-
-  // Sweep: hide+prompt for any currently-visible app that's locked on this device.
-  // Uses the localStorage lock cache, so it works on load before Firebase responds.
-  function alEnforceVisible() {
-    var blocked = null;
-    Object.keys(AL_APP_ROOTS).forEach(function(id) {
-      if (!blocked && alMustBlock(id) && alIsAppVisible(id)) blocked = id;
-    });
-    if (blocked) {
-      alHideAppRoot(blocked);
-      alShowOverlay(blocked, 'unlock', function() {
-        var prof = (AL_LABELS[blocked] || {}).profile;
-        var nav  = { tony_taskhub:'taskhub', veda_taskhub:'taskhub' }[blocked];
-        if (prof === 'tony' && nav && window._tonyNav) window._tonyNav(nav);
-        else if (prof === 'veda' && nav && window._vedaNav) window._vedaNav(nav);
-      }, function(){ if (window._profileGoSelect) window._profileGoSelect(); });
-    }
-  }
-  window._alEnforceVisible = alEnforceVisible;
-
-  // Seed current Tony app on load
-  setTimeout(function() {
-    if (!_alCurrentAppId && window._tnCurApp) {
-      var s = alNavAppToId('tony', window._tnCurApp);
-      if (s) _alCurrentAppId = s;
-    }
-    alUpdateTonyLockBtn();
-    alUpdateVedaLockBtns();
-    alInjectReactBtns();
-    alEnforceVisible();
-  }, 500);
-  setTimeout(function() {
-    if (!_alCurrentAppId && window._tnCurApp) {
-      var s2 = alNavAppToId('tony', window._tnCurApp);
-      if (s2) _alCurrentAppId = s2;
-    }
-    alUpdateVedaLockBtns();
-    alInjectReactBtns();
-    alEnforceVisible();
-  }, 2500);
-})();
-
-function _alPwErr(msg) {
-  _el('applock-pw').classList.add('error');
-  _el('applock-pw').value = '';
-  _el('applock-err').textContent = (_alAttempts[_alPendingAppId]||0) >= 5 ? 'Too many attempts. Wait 30s.' : msg;
-  alShake();
-  setTimeout(function() { _el('applock-pw').classList.remove('error'); }, 400);
+function seed() {
+  if (!_alCurrentAppId && window._tnCurApp) { var s = alNavAppToId('tony', window._tnCurApp); if (s) _alCurrentAppId = s; }
+  refreshBtns(); alInjectReactBtns(); alEnforceVisible();
 }
+setTimeout(seed, 500);
+setTimeout(seed, 2500);
+setTimeout(enforceProfiles, 1200);
+G.refresh(null, false);
 
-// ── INTERCEPTS ────────────────────────────────────────────────────────────────
-// Safe cancel destination: profile chooser (never shows locked content).
-// Cancel destination. Prefer returning to an UNLOCKED app in the same profile
-// (so the user lands on real content, never a blank screen). Fall back to the
-// profile chooser only if nothing in that profile is openable.
-
-
-// _tonyNav gate
+// ── Intercepts ───────────────────────────────────────────────────────────────
 var _origTonyNav = window._tonyNav;
 window._tonyNav = function(app) {
   var appId = alNavAppToId('tony', app);
-  if (appId) { alGate(appId, function() { _origTonyNav(app); }); }
-  else { _origTonyNav(app); }
+  if (appId) alGate(appId, function() { _origTonyNav(app); }); else _origTonyNav(app);
 };
-
-// _vedaNav gate + badge refresh
 var _origVedaNav = window._vedaNav;
 window._vedaNav = function(target) {
   var appId = alNavAppToId('veda', target);
-  if (appId) { alGate(appId, function() { _origVedaNav(target); setTimeout(alInjectReactBtns,300); setTimeout(alUpdateVedaLockBtns,100); }); }
-  else { _origVedaNav(target); setTimeout(alInjectReactBtns,300); setTimeout(alUpdateVedaLockBtns,100); }
+  var go = function() { _origVedaNav(target); setTimeout(alInjectReactBtns, 300); setTimeout(alUpdateVedaLockBtns, 100); };
+  if (appId) alGate(appId, go); else go();
 };
-
-// showTonyJournal gate
 var _origShowTonyJournal = window.showTonyJournal;
-window.showTonyJournal = function() {
-  alGate('tony_myjournal', function() { _origShowTonyJournal(); });
-};
-
-// SECURITY: gate the direct in-app switch functions too (in-app dropdown switchers
-// call these directly, bypassing _tonyNav/_vedaNav). Each is wrapped so a locked
-// target is hidden + prompted before its content can render. Pure local check.
+window.showTonyJournal = function() { alGate('tony_myjournal', function() { _origShowTonyJournal(); }); };
+// In-app switchers call these directly, bypassing _tonyNav / _vedaNav.
 function _alWrapSwitch(fnName, appId) {
   var orig = window[fnName];
   if (typeof orig !== 'function') return;
-  window[fnName] = function() {
-    var args = arguments, self = this;
-    alGate(appId, function() { orig.apply(self, args); });
-  };
+  window[fnName] = function() { var args = arguments, self = this; alGate(appId, function() { orig.apply(self, args); }); };
 }
 _alWrapSwitch('_kcSwitchTo', 'tony_keychain');
-
-// WarRoom gate hook
 window._alGateWarRoom = function(origFn) { alGate('tony_warroom', origFn); };
-
-// Track current Tony app for the nav lock button
 var _origUpdateTonyNavActive = window._updateTonyNavActive;
 window._updateTonyNavActive = function(app) {
   if (_origUpdateTonyNavActive) _origUpdateTonyNavActive(app);
   var appId = alNavAppToId('tony', app);
-  if (appId) alSetCurrentApp(appId);
+  if (appId) { _alCurrentAppId = appId; alUpdateTonyLockBtn(); }
   var btn = _el('tn-lock-btn');
   if (btn) btn.style.display = (app === 'warroom') ? 'none' : '';
 };
 
-// ── GLOBALS ───────────────────────────────────────────────────────────────────
+// ── Globals the rest of index calls ──────────────────────────────────────────
 window.alManage       = alManage;
 window.alIsLocked     = alIsLocked;
 window.alIsUnlocked   = alIsUnlocked;
+window.alMustBlock    = alMustBlock;
+window.alGate         = alGate;
 window._alLabels      = AL_LABELS;
+window._alNavToId     = alNavAppToId;
+window._alEnforceVisible = alEnforceVisible;
 window._alManageCurrentApp = function() {
-  var appId = _alCurrentAppId || (window._tnCurApp ? alNavAppToId('tony', window._tnCurApp) : null) || 'tony_taskhub';
-  alManage(appId);
+  alManage(_alCurrentAppId || (window._tnCurApp ? alNavAppToId('tony', window._tnCurApp) : null) || 'tony_taskhub');
 };
-
-// SECURITY: called right after a profile lands on its default app (page load or
-// profile switch). If that landing app is locked & not unlocked here, hide it and
-// prompt. Cancel returns to the profile chooser. Pure local check — no Firebase read.
+// Right after a profile lands on its default app: locked here → hide + prompt,
+// Cancel → profile chooser.
 window._alEnforceOnLand = function(appId) {
-  if (!appId) return;
-  if (alMustBlock(appId)) {
-    alHideAppRoot(appId);
-    alShowOverlay(appId, 'unlock', function() {
-      // unlocked → re-show via the normal nav path
-      var prof = (AL_LABELS[appId] || {}).profile;
-      var navApp = null, map = { tony_taskhub:'taskhub', veda_taskhub:'taskhub' };
-      navApp = map[appId];
-      if (prof === 'tony' && navApp && window._tonyNav) window._tonyNav(navApp);
-      else if (prof === 'veda' && navApp && window._vedaNav) window._vedaNav(navApp);
-    }, function(){ if (window._profileGoSelect) window._profileGoSelect(); });
-  }
+  if (appId && alMustBlock(appId)) { alHideAppRoot(appId); alGate(appId, alReNav(appId), goSelect); }
 };
-window.alMustBlock = alMustBlock;
-window.alGate = alGate;
-window._alNavToId = alNavAppToId;
-
-// Custom header buttons can be locked too. NavOrder calls this for each custom
-// link so the lock overlay has a label/color/profile to display. Lock id form:
-// '<profile>_custom_<linkId>'. State syncs like any other lock (keyed by this id).
+// Custom header links can be locked too: '<profile>_custom_<linkId>'.
 window._alCustomLockId = function(profile, linkId){ return profile + '_custom_' + linkId; };
 window._alRegisterCustom = function(profile, linkId, label){
   var id = profile + '_custom_' + linkId;
-  AL_LABELS[id] = { label: label || 'Link', profile: profile, color: profile==='veda' ? '#8D769A' : '#c0aeea' };
+  AL_LABELS[id] = { label: label || 'Link', profile: profile };
+  define(id);
   return id;
 };
-
-})();
-</script>
-
-<!-- ── Profile-lock cross-device enforcement ──────────────────────────────────
-     When a profile password is set/changed/removed on ANY device, Firebase pushes
-     the new lock + version. This wraps the applock remote-apply so that if the
-     CURRENTLY OPEN profile just became locked (and isn't unlocked on this device),
-     the user is immediately bounced to the profile chooser and must re-enter. ── -->
-<script>
-(function(){
-'use strict';
-function enforceProfiles(){
-  ['tony','veda'].forEach(function(who){
-    var id = 'profile_' + who;
-    if (window.alMustBlock && window.alMustBlock(id)) {
-      // Open profile just got locked elsewhere → kick to chooser (will prompt on re-entry).
-      if (window._activeProfile === who && window._profileGoSelect) {
-        window._activeProfile = null;
-        window._profileGoSelect();
-      }
-    }
-  });
-  if (window._alProfileRefreshBtns) window._alProfileRefreshBtns();
-}
-var _orig = window._alApplyRemoteLocks;
-window._alApplyRemoteLocks = function(remote){
-  if (_orig) _orig(remote);
-  try { enforceProfiles(); } catch(e){}
-};
-// Also run once shortly after load in case a lock was pulled before this wrapper set.
-setTimeout(enforceProfiles, 1200);
 })();
 </script>
 
@@ -24582,4 +23765,4 @@ document.addEventListener('visibilitychange',function(){ if(!document.hidden) sw
      how a hover language stops reading as one language. -->
 <script src="tabsync.js"></script>
 <script src="sweep.js" data-program="index" defer></script>
-<script src="hoverfx.js" data-roots="#root,#veda-root,#tj-root,#bj-root,#wr-root,#thset-overlay,#uim-overlay,#applock-overlay,#profile-overlay,#thv-txt-overlay,#thv-dev-overlay"></script>
+<script src="hoverfx.js" data-roots="#root,#veda-root,#tj-root,#bj-root,#wr-root,#thset-overlay,#uim-overlay,#profile-overlay,#thv-txt-overlay,#thv-dev-overlay"></script>
