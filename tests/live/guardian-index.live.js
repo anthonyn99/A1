@@ -123,7 +123,7 @@ const mock = {
 
   console.log('\nNobody notices the switch (adoption from the old lock records)');
   await fresh({
-    al_locks: JSON.stringify({ profile_tony: { locked: true, v: 1700000000000 }, tony_myjournal: { locked: true, v: 1700000000000 } }),
+    al_locks: JSON.stringify({ profile_tony: { locked: true, v: 1700000000000 }, profile_veda: { locked: true, v: 1700000000000 }, tony_myjournal: { locked: true, v: 1700000000000 } }),
     al_unlockedat_profile_tony: '1700000000500',
     al_unlockedv_tony_myjournal: 'v1700000000000',
     bio_cred_applock_profile_tony: JSON.stringify({ id: 'AQID', created: 1700000000600, v: 1700000000000, label: 'x' }),

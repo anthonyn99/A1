@@ -20728,7 +20728,10 @@ var AL_APP_ROOTS = {
 function _el(id) { return document.getElementById(id); }
 function alIsAppVisible(appId) {
   var ids = AL_APP_ROOTS[appId]; if (!ids) return false;
-  return ids.some(function(rid){ var el = _el(rid); return el && el.style.display !== 'none' && el.offsetParent !== null; });
+  // getClientRects, not offsetParent: MyJournal's root is position:fixed, whose
+  // offsetParent is always null — so it used to never count as on screen, and a
+  // lock-now or a password change elsewhere never re-gated an open MyJournal.
+  return ids.some(function(rid){ var el = _el(rid); return el && el.style.display !== 'none' && el.getClientRects().length > 0; });
 }
 function alHideAppRoot(appId) {
   (AL_APP_ROOTS[appId] || []).forEach(function(rid){ var el = _el(rid); if (el) el.style.display = 'none'; });
