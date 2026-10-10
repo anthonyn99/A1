@@ -159,7 +159,9 @@ function adopt(d, c) {
 // Ready-made legacy readers for the shapes the old locks wrote.
 var legacy = {
   // index / Shield / TradeHub-style app locks: al_locks[id].v vs al_unlockedat_<id>.
-  al: function (id, bioNs) {
+  // bioId: when the old biometric was keyed differently from the lock
+  // (TradeHub's tab locks: bio_cred_tradehub-tab_<tabId>).
+  al: function (id, bioNs, bioId) {
     // The TradeHub-style pages (A1-Priv) mirrored every one of these keys into a
     // 400-day cookie (window.alDur), so a device whose localStorage was evicted
     // may hold them ONLY as cookies.
@@ -198,7 +200,7 @@ var legacy = {
         if (!L) return true;                       // the old system had no lock here → it opened
         var a = at(); return a >= 0 && a >= ((L && L.v) || 0);
       },
-      bio: function () { return legacy.bioRec(bioNs || 'applock', id, (locks()[id] || {}).v || 0); }
+      bio: function () { return legacy.bioRec(bioNs || 'applock', bioId || id, (locks()[id] || {}).v || 0); }
     };
   },
   // Monotonic "<prefix>unlockedat_<id>" markers against a version the host knows (journals).
