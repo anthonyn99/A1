@@ -16,7 +16,8 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const PRIV = path.join(ROOT, '..', 'A1-Priv');
+// A1_PRIV points the suites at another checkout (e.g. a git worktree under test).
+const PRIV = process.env.A1_PRIV ? path.resolve(process.env.A1_PRIV) : path.join(ROOT, '..', 'A1-Priv');
 const MOVED = /^(?:(?:tradehub|insight|vault|riftiq|solace)\.html$|Vault[\\/])/;
 
 const isMoved = (rel) => MOVED.test(String(rel));
