@@ -83,7 +83,8 @@ const worker = {
     await js(`var l=document.getElementById('th-boot-loader'); if(l) l.remove(); ${J.open}; 1`); await sleep(2500);
     const pane = () => js(`var p = document.getElementById('${K}-locked-pane'); return !!p && p.style.display !== 'none';`);
     const title = () => js(`return document.getElementById('${K}-entry-title-input').value;`);
-    const body = () => js(`return (document.getElementById('${K}-page-editor') || {}).innerText || '';`);
+    // What is ON SCREEN: a hidden editor (the load guard hides it behind the pane) shows nothing.
+    const body = () => js(`var e = document.getElementById('${K}-page-editor'); return e && e.getClientRects().length ? e.innerText : '';`);
 
     await click(`#${K}-entries-list .entry-item[data-entry-id="${LOCKED}"] .entry-item-title`); await sleep(800);
     let d = await dlg();
