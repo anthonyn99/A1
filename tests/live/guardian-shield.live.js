@@ -58,6 +58,7 @@ const mock = {
   let d = await dlg();
   ok('T asks for the Shield passcode, Tony theme', d.open && d.theme === 'tony' && /Shield/.test(d.text), JSON.stringify(d));
   ok('the card says T, never "Tony"', /T · LOCKED/i.test(d.text) && !/Tony/.test(d.text), d.text);
+  await sleep(800);   // LifeHub re-checks visibility twice a second
   ok('LifeHub launcher hides while the lock is up', await evalJs(c, `(() => { const e = document.querySelector('a1-lifehub'); return !e || getComputedStyle(e).display === 'none' || !e.getClientRects().length || e.hidden; })()`));
   await click('Cancel'); await sleep(400);
   ok('Cancel returns to the chooser', !(await dlg()).open && (await evalJs(c, `document.body.getAttribute('data-gate')`)) !== 'app');
