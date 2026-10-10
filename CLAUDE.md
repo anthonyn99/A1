@@ -32,11 +32,11 @@
   Tony's TaskHub. **All 11 phases are done (2026-10-03).** §0 of
   [docs/theme-overhaul-plan.md](docs/theme-overhaul-plan.md) says what to do
   with a new theme ask; §2 is the spec. Never change Veda's side.
-- **TradeHub, Insight, Vault and the Vault Launcher are NOT in A1** (moved
-  2026-10-10). They live in the private repo `C:\Users\antho\Desktop\A1-Priv`
+- **TradeHub, Insight, Vault, RiftIQ, Solace and the Vault Launcher are NOT
+  in A1** (moved 2026-10-10). They live in the private repo `C:\Users\antho\Desktop\A1-Priv`
   (anthonyn99/A1-Priv), served at `https://a1-priv.av1.workers.dev/<page>.html`.
   Edit them there; its own CLAUDE.md applies. A1's `tradehub.html`,
-  `insight.html` and `vault.html` are only redirect stubs, and `Vault/` is a
+  `insight.html`, `vault.html`, `riftiq.html` and `solace.html` are only redirect stubs, and `Vault/` is a
   junction into A1-Priv. Shared files (LifeHub, Notebook, tabsync, ...) and
   workers stay here. **Moving another program to A1-Priv** ("move X to the
   private repo"): follow

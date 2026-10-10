@@ -13,8 +13,6 @@ the Cloudflare Workers each have their own folder.
 | `index.html` | **TaskHub** — the suite shell and profile gate (Tony / Veda): weekly grid, daily habits, goals, MyJournal, ProView, Plans, Veda's Links and Rules |
 | `mylist.html` | **MyList** — shopping list with Price Watch |
 | `oneinbox.html` | **OneInbox** — unified mail inbox |
-| `solace.html` | **Solace** — fitness (MotionCore) and nutrition (recipes) |
-| `riftiq.html` | **RiftIQ** — WarRoom (League) + ProView (esports) (`dashboards/lol_warroom`, `dashboards/proview`) |
 | `wellness.html` | **Wellness** — Veda's tracker |
 | `shield.html` | **Shield** — front end for the desktop agent |
 | `magi.html` | **MAGI** — multi-model council: one question to ChatGPT/Claude/Gemini/DeepSeek, one synthesised verdict. The console only — the engine runs on Tony's PC (`magi/`, `docs/magi.md`) |
@@ -24,11 +22,11 @@ files and belong at the root.
 
 ### Private programs (A1-Priv)
 
-**TradeHub**, **Insight** and **Vault**, plus the Vault Launcher extension, live
+**TradeHub**, **Insight**, **Vault**, **RiftIQ** and **Solace**, plus the Vault Launcher extension, live
 in the private repo `anthonyn99/A1-Priv` (`Desktop\A1-Priv`). They are served
 from `https://a1-priv.av1.workers.dev/<page>.html` and still load this repo's
 shared files (LifeHub, Notebook, tabsync, ...) by URL. Here, `tradehub.html`,
-`insight.html` and `vault.html` are redirect stubs that keep old links working,
+`insight.html`, `vault.html`, `riftiq.html` and `solace.html` are redirect stubs that keep old links working,
 and `Vault/` is a git-ignored junction to `A1-Priv\Vault`, so Brave's unpacked
 extension keeps its path. See `docs/a1-priv-move-plan.md`, which also covers
 moving another program there.
