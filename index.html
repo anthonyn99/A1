@@ -22577,7 +22577,7 @@ window._legacyOpenUrl = function(profile, id, fallback){
 'use strict';
 
 window._wrClick = function(){
-  var URL_WR = _legacyOpenUrl('tony','warroom','https://anthonyn99.github.io/A1/riftiq.html');
+  var URL_WR = _legacyOpenUrl('tony','warroom','https://a1-priv.av1.workers.dev/riftiq.html');
   var w = window._tnOpenTab(URL_WR, 'warroom');
   if(!w || w.closed || typeof w.closed === 'undefined'){
     if(window.confirm('RiftIQ opens in a new tab, but your browser blocked the popup.\n\nPlease allow popups/redirects for this site, then press OK to try again.')){
@@ -22640,13 +22640,13 @@ window._vaultClick = function(){
   }
 };
 // ── Solace ──
-// Tony's health program at /A1/solace.html: Fitness ▸ MotionCore (which used to
+// Tony's health program at https://a1-priv.av1.workers.dev/solace.html (A1-Priv): Fitness ▸ MotionCore (which used to
 // be this page's #mc-root view) and Nutrition ▸ Recipes (which used to be a tab
 // in MyList). Opened exactly like TradeHub / Vault / WarRoom: a named tab so a
 // second click focuses the one already open, a popup-blocked fallback, and the
 // App Lock gate on 'tony_solace' in front of it.
 window._solaceClick = function(){
-  var URL_SOLACE = _legacyOpenUrl('tony','solace','https://anthonyn99.github.io/A1/solace.html');
+  var URL_SOLACE = _legacyOpenUrl('tony','solace','https://a1-priv.av1.workers.dev/solace.html');
   var w = window._tnOpenTab(URL_SOLACE, 'solace');
   if(!w || w.closed || typeof w.closed === 'undefined'){
     if(window.confirm('Solace opens in a new tab, but your browser blocked the popup.\n\nPlease allow popups/redirects for this site, then press OK to try again.')){
@@ -22835,15 +22835,17 @@ var LEGACY_PROGRAMS = [
   // prevUrls / prevLabels: what this entry shipped as before it was renamed.
   // A stored button still sitting on one of them is a stale copy of OUR default,
   // not a choice the user made, so migrateLegacyDefaults() below moves it on.
-  { id:'warroom',  label:'RiftIQ',   url:'https://anthonyn99.github.io/A1/riftiq.html',   lockId:'tony_warroom', openFn:'_wrClick',
-    prevUrls:['https://anthonyn99.github.io/A1/warroom.html'], prevLabels:['WarRoom'] },
+  // RiftIQ and Solace moved to the private repo's host on 2026-10-10 as well.
+  { id:'warroom',  label:'RiftIQ',   url:'https://a1-priv.av1.workers.dev/riftiq.html',   lockId:'tony_warroom', openFn:'_wrClick',
+    prevUrls:['https://anthonyn99.github.io/A1/warroom.html','https://anthonyn99.github.io/A1/riftiq.html'], prevLabels:['WarRoom'] },
   // Solace replaced the in-page MotionCore view (and MyList's Recipes tab), so it
   // joins this list rather than TONY_DEFAULT: it is a separate program in its own
   // tab, not a view of this page. seedLegacyProgramsOnce() is already spent on
   // Tony's devices, but _addMissingLegacyPrograms() runs unconditionally from
   // applyRemote(), so this entry appears as soon as the navorder doc syncs — and,
   // like the other three, a deliberate delete of the button then sticks.
-  { id:'solace',   label:'Solace',   url:'https://anthonyn99.github.io/A1/solace.html',   lockId:'tony_solace',  openFn:'_solaceClick' },
+  { id:'solace',   label:'Solace',   url:'https://a1-priv.av1.workers.dev/solace.html',   lockId:'tony_solace',  openFn:'_solaceClick',
+    prevUrls:['https://anthonyn99.github.io/A1/solace.html'] },
   { id:'magi',     label:'MAGI',     url:'https://anthonyn99.github.io/A1/magi.html',     lockId:'tony_magi',    openFn:'_magiClick' },
   // Shield is the first entry here that belongs to BOTH profiles, so it carries
   // `profiles` and a per-profile `lockIds` map instead of a single lockId. The
@@ -22886,7 +22888,10 @@ function _legacyUrl(profile, id, fallback){
 var MOVED_PROGRAMS = {
   'https://anthonyn99.github.io/a1/tradehub.html': 'https://a1-priv.av1.workers.dev/tradehub.html',
   'https://anthonyn99.github.io/a1/insight.html':  'https://a1-priv.av1.workers.dev/insight.html',
-  'https://anthonyn99.github.io/a1/vault.html':    'https://a1-priv.av1.workers.dev/vault.html'
+  'https://anthonyn99.github.io/a1/vault.html':    'https://a1-priv.av1.workers.dev/vault.html',
+  'https://anthonyn99.github.io/a1/riftiq.html':   'https://a1-priv.av1.workers.dev/riftiq.html',
+  'https://anthonyn99.github.io/a1/warroom.html':  'https://a1-priv.av1.workers.dev/riftiq.html',
+  'https://anthonyn99.github.io/a1/solace.html':   'https://a1-priv.av1.workers.dev/solace.html'
 };
 function _movedUrl(u){
   try { var x = new URL(u); var to = MOVED_PROGRAMS[(x.origin + x.pathname).toLowerCase()]; return to ? to + x.search + x.hash : ''; }

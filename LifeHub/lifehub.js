@@ -182,7 +182,11 @@
   var MOVED = {
     'https://anthonyn99.github.io/a1/tradehub.html': PRIV + 'tradehub.html',
     'https://anthonyn99.github.io/a1/insight.html': PRIV + 'insight.html',
-    'https://anthonyn99.github.io/a1/vault.html': PRIV + 'vault.html'
+    'https://anthonyn99.github.io/a1/vault.html': PRIV + 'vault.html',
+    'https://anthonyn99.github.io/a1/riftiq.html': PRIV + 'riftiq.html',
+    // RiftIQ's name before the rename, still on some saved tiles.
+    'https://anthonyn99.github.io/a1/warroom.html': PRIV + 'riftiq.html',
+    'https://anthonyn99.github.io/a1/solace.html': PRIV + 'solace.html'
   };
   function movedUrl(u) {
     try {
@@ -204,14 +208,14 @@
     { id: 'mylist', name: 'MyList', url: BASE + 'mylist.html', icon: 'a1:mylist', tab: 'mylist' },
     { id: 'insight', name: 'Insight', url: PRIV + 'insight.html', icon: 'a1:insight', tab: 'insight' },
     { id: 'vault', name: 'Vault', url: PRIV + 'vault.html', icon: 'a1:vault', tab: 'vault' },
-    { id: 'solace', name: 'Solace', url: BASE + 'solace.html', icon: 'a1:solace', tab: 'solace' },
+    { id: 'solace', name: 'Solace', url: PRIV + 'solace.html', icon: 'a1:solace', tab: 'solace' },
     // The desktop agent, by its installed path (per-user NSIS install). It is
     // a local program like any other: the click goes through shieldopen:lh:…,
     // and the agent starting its own exe is a second launch, which surfaces
     // the running agent's window (lib.rs single-instance handler).
     { id: 'shield', name: 'Shield', url: SHIELD_EXE.tony, icon: 'a1:shield-desktop', tab: 'shield_app' },
     { id: 'shield_html', name: 'Shield (HTML)', url: BASE + 'shield.html', icon: 'a1:shield', tab: 'shield_tony' },
-    { id: 'riftiq', name: 'RiftIQ', url: BASE + 'riftiq.html', icon: 'a1:riftiq', tab: 'warroom' },
+    { id: 'riftiq', name: 'RiftIQ', url: PRIV + 'riftiq.html', icon: 'a1:riftiq', tab: 'warroom' },
     { id: 'magi', name: 'MAGI', url: BASE + 'magi.html', icon: 'a1:magi', tab: 'magi' }
   ];
   // Veda's own list: the programs that carry a Veda profile. Tab keys follow
