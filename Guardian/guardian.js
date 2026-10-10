@@ -291,9 +291,16 @@ function mailRelay(res) {
 
 /* ── Status refresh ───────────────────────────────────────────────────────── */
 var LAST = {}, INFLIGHT = null;
-function applyStatus(d, h, v) {
+function applyStatus(d, h, v, held) {
   var old = cacheGet(d), m = markerGet(d), b = bioRec(d);
   cacheSet(d, { h: !!h, v: v || null, t: Date.now() });
+  // A server-session backend (ORCA) knows whether THIS device holds the lock;
+  // its answer replaces the local marker outright.
+  if (h && (held === true || held === false)) {
+    if (held) markerSet(d, v);
+    else if (m) { markerDel(d); blocked(d, 'session'); }
+    return;
+  }
   if (!h) {
     // The lock was removed (on another device) while this one was asking for
     // it: there is nothing left to ask for, so let the user straight in.
@@ -325,7 +332,7 @@ function refresh(ids, force) {
   })(own.slice(i, i + 60));
   custom.forEach(function (d) {
     if (!d.backend.status) return;
-    jobs.push(Promise.resolve(d.backend.status(d)).then(function (s) { if (s) applyStatus(d, s.hasLock, s.ver); })
+    jobs.push(Promise.resolve(d.backend.status(d)).then(function (s) { if (s) applyStatus(d, s.hasLock, s.ver, s.unlocked); })
       .catch(function () { LAST[d.key] = 0; }));
   });
   // A session lock (OneInbox, Insight) is also void once the server forgets its token.
@@ -383,6 +390,11 @@ function bioAvailable() {
   if (BIO_AVAIL) return BIO_AVAIL;
   if (!bioSupported() || !PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) return (BIO_AVAIL = Promise.resolve(false));
   return (BIO_AVAIL = PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(function (v) { return !!v; }).catch(function () { return false; }));
+}
+// Per lock: a backend may know better (ORCA refuses an IP-address host).
+function bioAvailFor(d) {
+  if (d.backend && d.backend.bio && d.backend.bio.available) return Promise.resolve(d.backend.bio.available(d)).then(function (v) { return !!v; }, function () { return false; });
+  return bioAvailable();
 }
 function bioLabel() {
   var ua = navigator.userAgent || '';
@@ -765,7 +777,7 @@ function scrUnlock(d, card, opts) {
   reset.onclick = function () { scrReset(d, card, opts); };
 
   // Biometric button: only when this device has a valid credential for this lock.
-  if (purpose !== 'verify') bioAvailable().then(function (avail) {
+  if (purpose !== 'verify') bioAvailFor(d).then(function (avail) {
     if (!OPEN || OPEN.card !== card) return;
     if (!avail) return;
     if (!bioIsRegistered(d.id)) {
@@ -987,7 +999,7 @@ function scrMenu(d, card) {
   fill(card, header(d, 'lock', 'Lock settings', open_ ? 'Unlocked on this device.' : 'Locked on this device.').concat([
     menu, footer('Cancel', function () { settle(false); })
   ]));
-  bioAvailable().then(function (avail) {
+  bioAvailFor(d).then(function (avail) {
     if (!avail || !OPEN || OPEN.card !== card) return;
     if (bioIsRegistered(d.id)) bioSlot.appendChild(B('ghost', 'bio', 'Remove ' + bioLabel(), function () { scrUnlock(d, card, { purpose: 'removeBio' }); }));
     else bioSlot.appendChild(B('', 'bio', 'Register ' + bioLabel(), function () {
@@ -1015,7 +1027,7 @@ function info(d, title, text, _unused, then) {
 
 /* After a password proves who this is, offer to (re-)enrol biometrics. */
 function offerBio(d) {
-  bioAvailable().then(function (avail) {
+  bioAvailFor(d).then(function (avail) {
     if (!avail || bioIsRegistered(d.id) || OPEN) return;
     open(d, function (dd, card) {
       OPEN.escapable = true;

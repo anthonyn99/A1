@@ -359,6 +359,24 @@ function page(W, opts) {
     ok('custom backend verified the password', seen[0] === 'verify' && (await g) === true);
     ok('worker never called', W.calls.length === 0, W.calls);
   }
+  {
+    // A server-session backend (ORCA) says whether THIS device holds the lock.
+    const W = fakeWorker(); const P = page(W); let held = true, bioOk = false;
+    const backend = {
+      status: async () => ({ hasLock: true, ver: 'o', unlocked: held }),
+      verify: async () => ({ ok: true }), set: async () => ({ ok: true }), remove: async () => ({ ok: false }),
+      hint: async () => ({ ok: true, emailed: true }), resetRequest: async () => ({ ok: true, emailed: true }), resetConfirm: async () => ({ ok: true }),
+      bio: { available: () => bioOk, registered: () => true, register: async () => ({ ok: true }), authenticate: async () => ({ ok: true }) },
+    };
+    P.G.define('tony_orca', { backend });
+    await P.G.refresh(['tony_orca']);
+    ok('held on the server → unlocked here', P.G.isUnlocked('tony_orca'));
+    held = false; await P.G.refresh(['tony_orca']);
+    ok('the server dropped the session → locked here', !P.G.isUnlocked('tony_orca'));
+    P.G.gate('tony_orca'); await tick(30);
+    ok('the backend can rule biometrics out on this host', P.G.isOpen() && !P.button('Unlock with Windows Hello') && !P.all('button').some((b) => /^Unlock with/.test(b.textContent.trim())));
+    P.G.close();
+  }
 
   console.log('\n12b. a lock removed elsewhere closes an open unlock card');
   {
