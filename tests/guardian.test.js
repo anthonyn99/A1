@@ -372,6 +372,22 @@ function page(W, opts) {
     ok('the card closes and the gate opens', !P.G.isOpen() && (await g) === true);
   }
 
+  console.log('\n12c. two gates at once: the second waits, never knocks the first away');
+  {
+    const W = fakeWorker(); W.set('applock:app_a', 'a'); W.set('applock:tab_b', 'b');
+    const P = page(W);
+    P.G.define('app_a', {}); P.G.define('tab_b', {});
+    await P.G.refresh(null, true);
+    const ga = P.G.gate('app_a'); await tick(5);
+    const gb = P.G.gate('tab_b'); await tick(5);
+    ok('the first card stays up', P.G.isOpen() && /app_a/.test(P.q('.title').textContent));
+    P.type('Password', 'a'); P.click('Unlock'); await tick(40);
+    ok('the first resolves', (await ga) === true);
+    ok('then the second card rises', P.G.isOpen() && /tab_b/.test(P.q('.title').textContent));
+    P.type('Password', 'b'); P.click('Unlock'); await tick(40);
+    ok('and resolves too', (await gb) === true);
+  }
+
   console.log('\n13. bio-only (Plans consent)');
   {
     const W = fakeWorker();

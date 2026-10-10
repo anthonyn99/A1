@@ -1043,6 +1043,9 @@ function gate(id, opts) {
   var decide = function () {
     if (!mustBlock(id)) { showRoot(d); return Promise.resolve(true); }
     hideRoot(d);
+    // Another lock's card is up (an app gate and a tab gate both starting at
+    // load): wait for it to close, then decide again — never knock it away.
+    if (OPEN && OPEN.d !== d) return afterClose().then(decide);
     return open(d, function (dd, card) {
       scrUnlock(d, card, { hard: hard, message: opts.message });
     }).then(function (ok) {
@@ -1056,6 +1059,12 @@ function gate(id, opts) {
   var p = decide();
   refresh([id]);
   return p;
+}
+function afterClose() {
+  return new Promise(function (res) {
+    var on = function () { window.removeEventListener('guardian:close', on); setTimeout(res, 0); };
+    window.addEventListener('guardian:close', on);
+  });
 }
 /* The lock menu, or "set a password" when the lock doesn't exist yet. */
 function manage(id) {
