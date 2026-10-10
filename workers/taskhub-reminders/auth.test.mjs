@@ -90,6 +90,22 @@ console.log('\n1b. status carries a password fingerprint that moves with the pas
   t("remove + set (the apps' change flow) moves it too", (await call('/auth/journal/status', VJ)).body.ver !== v2);
 }
 
+console.log('\n1c. status-many (Guardian) reports every lock in one call, writes nothing');
+{
+  const A = { journal: 'applock', entryId: 'gd_many_a' }, B = { journal: 'tj', entryId: 'gd_many_b' };
+  await call('/auth/journal/set-lock', { ...A, password: 'x' });
+  const single = (await call('/auth/journal/status', A)).body.ver;
+  const before = store.size;
+  r = await call('/auth/journal/status-many', { locks: [A, B, { journal: 'applock' }] });
+  t('ok', r.body.ok === true, r.body);
+  t('locked entry carries the same ver as /status', r.body.locks['applock:gd_many_a'].hasLock === true && r.body.locks['applock:gd_many_a'].ver === single, r.body);
+  t('missing entry reports no lock', r.body.locks['tj:gd_many_b'].hasLock === false && r.body.locks['tj:gd_many_b'].ver === null, r.body);
+  t('malformed entries are skipped', Object.keys(r.body.locks).length === 2, r.body);
+  t('zero KV writes', store.size === before, [before, store.size]);
+  r = await call('/auth/journal/status-many', {});
+  t('no list -> 400', r.status === 400, r);
+}
+
 console.log('\n2. legacy change flow (verify -> remove -> set) still works');
 r = await call('/auth/journal/remove-lock', { ...J, password: 'newpw' });
 t('remove-lock with correct pw', r.body.ok === true, r.body);
