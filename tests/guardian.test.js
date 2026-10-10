@@ -350,6 +350,19 @@ function page(W, opts) {
     ok('worker never called', W.calls.length === 0, W.calls);
   }
 
+  console.log('\n13. bio-only (Plans consent)');
+  {
+    const W = fakeWorker();
+    const P = page(W, { storage: { bio_cred_plans_veda: JSON.stringify({ id: 'plcred', created: 5 }) } });
+    P.G.define('plans:veda', { journal: 'plans', entryId: 'veda', owner: 'veda', bioOnly: true, legacy: { bio: () => P.G.legacy.bioRec('plans', 'veda', 0) } });
+    P.G.define('plans:tony', { journal: 'plans', entryId: 'tony', bioOnly: true, legacy: { bio: () => P.G.legacy.bioRec('plans', 'tony', 0) } });
+    ok('old Plans credential adopted', P.G.bio.isRegistered('plans:veda') && JSON.parse(P.ls.getItem('gd.b.plans:veda')).id === 'plcred');
+    ok('no credential, nothing registered', !P.G.bio.isRegistered('plans:tony'));
+    await P.G.refresh(null, true);
+    ok('bio-only locks never hit the worker', !W.calls.some((c) => JSON.stringify(c.body).includes('plans')), W.calls);
+    ok('still registered after a refresh', P.G.bio.isRegistered('plans:veda'));
+  }
+
   console.log('\n' + (fail ? 'FAILED ' + fail + ' of ' : 'ALL PASSED — ') + (pass + fail) + ' assertions');
   process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
