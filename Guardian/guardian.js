@@ -526,7 +526,7 @@ var CSS = [
 'button.b:focus-visible,.lk:focus-visible,.eye:focus-visible{outline:2px solid var(--ac);outline-offset:1px}',
 '@media (hover:hover) and (pointer:fine){button.b:hover:not(:disabled){filter:brightness(1.15);border-color:var(--ac)}button.b.dg:hover:not(:disabled){border-color:var(--red);box-shadow:0 0 0 3px rgba(214,138,124,.16)}}',
 'button.b:active:not(:disabled){filter:brightness(.94);transform:translateY(1px)}',
-'.menu{display:flex;flex-direction:column;gap:8px;width:100%}',
+'.menu{display:flex;flex-direction:column;gap:8px;width:100%}.menu:empty{display:none}',
 '.menu button.b{justify-content:flex-start}',
 '.links{display:flex;justify-content:center;flex-wrap:wrap;gap:4px 16px}',
 '.lk{background:none;border:0;padding:2px 0;color:var(--txm);font:500 12px var(--f);cursor:pointer;text-decoration:underline;text-underline-offset:3px}',
