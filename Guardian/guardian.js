@@ -78,6 +78,7 @@ function define(id, o) {
   var d = {
     id: id,
     owner: o.owner || prev.owner || guessOwner(id),
+    ownerName: o.ownerName || prev.ownerName || null,   // how the card names the owner (Shield: "T"/"V")
     label: o.label || prev.label || id,
     kind: o.kind || prev.kind || (/^profile_/.test(id) ? 'profile' : 'app'),   // app | profile | entry | tab
     journal: o.journal || prev.journal || 'applock',
@@ -102,6 +103,7 @@ function def(id) {
   if (!DEFS[id]) define(id, {});
   return DEFS[id];
 }
+function who(d) { return d.ownerName || OWNERS[d.owner] || ''; }
 function themeOf(d) { return d.theme || (d.owner === 'veda' ? 'veda' : 'tony'); }
 function noun(d) { return { profile: 'profile', entry: 'entry', tab: 'tab' }[d.kind] || 'app'; }
 
@@ -661,7 +663,7 @@ function scrUnlock(d, card, opts) {
   var bioBox = h('div', { 'class': 'menu' });
   var hint = h('button', { 'class': 'lk', type: 'button', text: 'Email me my hint' });
   var reset = h('button', { 'class': 'lk', type: 'button', text: 'Reset password' });
-  var parts = header(d, purpose === 'removeBio' ? 'bio' : 'lock', OWNERS[d.owner] ? (OWNERS[d.owner] + ' · Locked') : 'Locked', sub)
+  var parts = header(d, purpose === 'removeBio' ? 'bio' : 'lock', opts.title || (who(d) ? (who(d) + ' · Locked') : 'Locked'), sub)
     .concat([h('div', { 'class': 'body' }, [bioBox, pw, err, go, h('div', { 'class': 'links' }, [hint, reset])])]);
   if (!opts.hard) parts.push(footer('Cancel', function () { settle(OPEN ? OPEN.cancelValue : false); }));
   fill(card, parts);
@@ -768,7 +770,7 @@ function sendHint(d, link, err) {
     });
   }).catch(function () { err.textContent = 'Network error. Try again.'; return false; })
     .then(function (ok) {
-      link.textContent = ok ? 'Hint sent to ' + (OWNERS[d.owner] || 'your') + "'s email" : 'Email me my hint';
+      link.textContent = ok ? 'Hint sent to ' + (who(d) || 'your') + "'s email" : 'Email me my hint';
       setTimeout(function () { link.textContent = 'Email me my hint'; link.disabled = false; }, ok ? 4000 : 0);
     });
 }
@@ -778,7 +780,7 @@ function scrReset(d, card, back) {
   if (OPEN) OPEN.escapable = !(back && back.hard);
   var err = h('div', { 'class': 'err' });
   var send = B('pri', 'mail', 'Email me a code');
-  var to = (OWNERS[d.owner] || 'the owner') + "'s email";
+  var to = (who(d) || 'the owner') + "'s email";
   var parts = header(d, 'mail', 'Reset password', 'We\'ll email a 6-character code to ' + to + '. Then choose a new password.')
     .concat([h('div', { 'class': 'body' }, [err, send])]);
   parts.push(footer('Back', function () { scrUnlock(d, card, back); }));
@@ -800,7 +802,7 @@ function scrResetCode(d, card, back, to) {
   var hintIn = h('input', { type: 'text', placeholder: 'Optional', autocomplete: 'off' });
   var err = h('div', { 'class': 'err' });
   var go = B('pri', 'key', 'Reset password');
-  var parts = header(d, 'mail', 'Check your email', 'A code was sent to ' + (to || ((OWNERS[d.owner] || 'your') + "'s email")) + '. Check spam if it isn\'t there in a minute.')
+  var parts = header(d, 'mail', 'Check your email', 'A code was sent to ' + (to || ((who(d) || 'your') + "'s email")) + '. Check spam if it isn\'t there in a minute.')
     .concat([h('div', { 'class': 'body' }, [field('Security code', code), field('New password', np), field('Confirm', np2), field('Password hint', hintIn), err, go])]);
   parts.push(footer('Back', function () { scrUnlock(d, card, back); }));
   fill(card, parts);
@@ -1034,7 +1036,7 @@ function removeLock(id) { var d = def(id); return open(d, function (dd, card) { 
 function verify(id, opts) {
   opts = opts || {};
   var d = def(id);
-  return open(d, function (dd, card) { scrUnlock(d, card, { purpose: 'verify', message: opts.message, hard: opts.hard }); }, { cancelValue: null })
+  return open(d, function (dd, card) { scrUnlock(d, card, { purpose: 'verify', message: opts.message, title: opts.title, hard: opts.hard }); }, { cancelValue: null })
     .then(function (v) { return typeof v === 'string' ? v : null; });
 }
 /* Drop THIS device's unlock (password and other devices untouched). */
@@ -1083,6 +1085,8 @@ window.Guardian = {
   hideRoot: function (id) { hideRoot(def(id)); },
   showRoot: function (id) { showRoot(def(id)); },
   isOpen: function () { return !!OPEN; },
+  // Is there an offline verifier on this device (offline:true locks)?
+  hasOffline: function (id) { var d = def(id); if (jGet('gd.o.' + d.key)) return true; try { return !!localStorage.getItem('sh_offline_' + d.entryId); } catch (e) { return false; } },
   close: function () { settle(OPEN ? OPEN.cancelValue : false); },
   bio: {
     available: bioAvailable,
