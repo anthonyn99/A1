@@ -7,8 +7,14 @@ const fs = require('fs');
 // The Pages console, served from this working copy (cdp.js): since Phase 14 a
 // file:// page (Origin "null") is refused by the engine.
 const URL = require('./cdp.js').PAGES_URL;
-const STUB = `(()=>{const real=window.fetch;window.fetch=(u,o)=>{const s=String(u&&u.url?u.url:u);
- if(s.indexOf('/auth/journal/status')>=0)return Promise.resolve(new Response(JSON.stringify({ok:true,hasLock:false}),{status:200,headers:{'Content-Type':'application/json'}}));
+// Lock status, stubbed in both shapes: /status (one lock) and Guardian's
+// /status-many (every lock the page declared).
+const lockReply = (has) => `(s,o)=>{let b={};try{b=JSON.parse(o&&o.body||'{}')}catch(e){}
+ const one={ok:true,hasLock:${has},ver:${has}?'vstub':null};
+ if(s.indexOf('status-many')<0)return one;
+ const L={};(b.locks||[]).forEach(l=>{L[l.journal+':'+l.entryId]={hasLock:${has},ver:${has}?'vstub':null}});return {ok:true,locks:L};}`;
+const STUB = `(()=>{const real=window.fetch;const reply=${lockReply(false)};window.fetch=(u,o)=>{const s=String(u&&u.url?u.url:u);
+ if(s.indexOf('/auth/journal/status')>=0)return Promise.resolve(new Response(JSON.stringify(reply(s,o)),{status:200,headers:{'Content-Type':'application/json'}}));
  if(s.indexOf('firebase')>=0||s.indexOf('googleapis')>=0||s.indexOf('gstatic')>=0)return Promise.reject(new TypeError('x'));
  return real(u,o);};})();`;
 let pass = 0, fail = 0;
@@ -35,11 +41,11 @@ const waitFor = async (c, expr, ms = 20000) => {
   // The gate only draws cards when a profile HAS a password, so that answer
   // is stubbed; everything else on this page is the real thing.
   const lockStub = await c.send('Page.addScriptToEvaluateOnNewDocument', { source: `
-    (() => { const real = window.fetch;
+    (() => { const real = window.fetch; const reply = ${lockReply(true)};
       window.fetch = (u, o) => {
         const s = String(u && u.url ? u.url : u);
         if (s.indexOf('/auth/journal/status') >= 0) return Promise.resolve(
-          new Response(JSON.stringify({ ok: true, hasLock: true }),
+          new Response(JSON.stringify(reply(s, o)),
                        { status: 200, headers: { 'Content-Type': 'application/json' } }));
         return real(u, o); }; })();` });
   await c.send('Page.navigate', { url: URL }); await sleep(3500);

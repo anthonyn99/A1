@@ -236,52 +236,8 @@ input::placeholder,textarea::placeholder{color:var(--faint)}
 select{cursor:pointer}
 label.fld{display:block;font-size:9px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--faint);margin-bottom:5px}
 
-/* ══════════════════════════════════════════════════════════════════════════
-   LOCK SCREEN — identical architecture to insight.html / vault.html
-   ══════════════════════════════════════════════════════════════════════════ */
-#lockScreen{
-  position:fixed;inset:0;z-index:200;background:var(--bg);
-  display:flex;align-items:center;justify-content:center;padding:24px;
-}
-.lockbox{width:100%;max-width:340px;text-align:center;display:flex;flex-direction:column;gap:11px}
-.lockbox .brand{
-  /* display:block undoes the topbar .brand{display:flex}, which turned this into a
-     flex container and parked the wordmark at flex-start instead of centred. */
-  display:block;text-align:center;
-  font-family:var(--suite-display);font-size:30px;font-weight:750;letter-spacing:-.5px;
-  color:var(--acl);margin-bottom:-4px;
-}
-.lockbox .sub{font-size:13px;color:var(--muted);margin-bottom:9px}
-.locksetup-note{
-  font-size:12.5px;color:var(--muted);line-height:1.5;text-align:left;
-  background:var(--surface);border:1px solid var(--border-soft);border-radius:var(--radius-sm);padding:11px 13px;
-}
-.lockmsg{font-size:12.5px;color:var(--danger);min-height:18px;line-height:1.4}
-.lockmsg.ok{color:var(--muted)}
-#lockMenu{display:flex;flex-direction:column;gap:8px}
-#lockMenu .btn{text-transform:none;letter-spacing:.2px;font-size:13px;padding:12px 16px}
-.locklinks{display:flex;flex-direction:column;gap:7px;margin-top:3px}
-.locklinks span{font-size:12px;color:var(--faint);cursor:pointer;transition:color .15s}
-.locklinks span:hover{color:var(--ac)}
-.pw-wrap{position:relative;display:block}
-.pw-wrap input{padding-right:40px}
-.pw-eye{
-  position:absolute;right:4px;top:50%;transform:translateY(-50%);
-  background:transparent;border:none;color:var(--faint);cursor:pointer;padding:7px;
-  display:flex;align-items:center;justify-content:center;
-}
-.pw-eye:hover{color:var(--text)}
-.pw-eye svg{width:17px;height:17px}
 @keyframes shake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}30%,50%,70%{transform:translateX(-6px)}40%,60%{transform:translateX(6px)}}
 .shake{animation:shake .5s cubic-bezier(.36,.07,.19,.97) both}
-/* Phones: the card fills the width and the manage menu scrolls inside itself
-   rather than running off a short screen, with 46px tap targets throughout. */
-@media(max-width:520px){
-  #lockScreen{padding:16px}
-  .lockbox{max-width:none;max-height:calc(100dvh - 32px);overflow-y:auto;-webkit-overflow-scrolling:touch}
-  #lockMenu .btn,#lockGo,#bioBtn{min-height:46px}
-  .lockbox input{min-height:46px}
-}
 
 /* ══════════════════════════════════════════════════════════════════════════
    APP SHELL — three panes on desktop, one pane with push navigation on phones
@@ -857,7 +813,6 @@ section.readpane{flex:1;display:flex;flex-direction:column;min-width:0;min-heigh
      the glyph, so it never overlaps the row's own tap area awkwardly. */
   .mstar{padding:10px;margin:-10px -8px 0 0}
   .bottomnav button{min-height:52px}
-  .pw-eye{padding:11px;min-width:44px;min-height:44px}
 }
 </style>
 <style id="ui-cap-2000">
@@ -888,159 +843,13 @@ body { max-width: 2000px; margin-inline: auto; }
    running the full width of an ultrawide screen. */
 .bottomnav { max-width: 2000px; margin-inline: auto; }
 </style>
-<script id="mail-relay">
-/* == Recovery-mail relay ===================================================
-   The worker mints the reset code and the hint text, but it cannot always
-   DELIVER them. Formspree files anything posted from a Cloudflare Worker as
-   spam -- it answers {"ok":true} and the mail never arrives -- while the exact
-   same submission sent from a browser has worked for months. So when the
-   worker has no server-side sender configured it hands the page an envelope
-   instead of sending, and this posts it from here, where it works.
-
-   `relay` only appears when the worker could not send it itself. Set
-   BREVO_API_KEY (or RESEND_API_KEY) on taskhub-reminders and the worker sends
-   it directly, stops returning `relay`, and this quietly stops being used --
-   no page change needed. Until then, note that a relayed reset code passes
-   through this browser, so whoever asked for it can read it.
-
-   Returns true if the mail went out, false if nothing was sent. A response
-   that was already delivered server-side (`emailed`) counts as sent. */
-window._mailRelay = window._mailRelay || async function (res) {
-  if (res && res.emailed) return true;
-  var r = res && res.relay;
-  if (!r || !r.form) return false;
-  try {
-    var out = await fetch(r.form, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      /* `_subject` is the field Formspree uses for the subject line; a plain
-         `subject` key is swallowed. Both are sent so either spelling works. */
-      body: JSON.stringify({ email: r.email, _subject: r.subject, subject: r.subject, message: r.message })
-    });
-    var d = null;
-    try { d = await out.json(); } catch (e) {}
-    /* A 2xx is not delivery on its own -- Formspree states a refusal as
-       {"ok":false} or an errors array underneath one. */
-    return !!out.ok && !(d && (d.ok === false || (d.errors && d.errors.length)));
-  } catch (e) { return false; }
-};
-</script>
+<!-- Guardian: the one A1 lock (docs/Guardian/README.md). Loaded before first
+     paint, unpinned, so every Guardian upgrade reaches this page. The inbox
+     (#app) stays hidden until this device is unlocked. -->
+<script src="Guardian/guardian.js"></script>
+<script>Guardian.define('tony_oneinbox', { owner: 'tony', label: 'OneInbox', root: '#app', hard: true }); Guardian.prepaint();</script>
 </head>
 <body data-hoverfx="magi">
-
-<!-- ══════════════════════════════════════════════════════════════════════════
-     Biometric unlock helper — the same dependency-free WebAuthn wrapper MyList
-     and Insight use. The app never sees raw biometric data; WebAuthn returns
-     only a public-key credential handle, and credentials are keyed per
-     (app,id) so OneInbox's is isolated from every other A1 app's.
-     ══════════════════════════════════════════════════════════════════════════ -->
-<script>
-(function(){
-  if (window.Bio) return;
-  var NS = 'bio_cred_';
-  function u8(buf){ return new Uint8Array(buf); }
-  function b64u(buf){ var b=u8(buf),s=''; for(var i=0;i<b.length;i++) s+=String.fromCharCode(b[i]); return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
-  function unb64u(str){ str=String(str).replace(/-/g,'+').replace(/_/g,'/'); while(str.length%4) str+='='; var bin=atob(str),b=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) b[i]=bin.charCodeAt(i); return b.buffer; }
-  function rand(n){ var a=new Uint8Array(n); crypto.getRandomValues(a); return a; }
-  function keyOf(app,id){ return NS+app+'_'+id; }
-  function supported(){ return !!(window.isSecureContext && window.PublicKeyCredential && navigator.credentials && navigator.credentials.create); }
-  function available(){
-    if(!supported()) return Promise.resolve(false);
-    if(!PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) return Promise.resolve(false);
-    return PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(function(v){return !!v;}).catch(function(){return false;});
-  }
-  function stored(app,id){ try{ return JSON.parse(localStorage.getItem(keyOf(app,id))||'null'); }catch(e){ return null; } }
-  function isRegistered(app,id,curV){ return current(app,id,curV); }
-  // ── Password binding ──────────────────────────────────────────────────────
-  // A credential is only as good as the password it was enrolled under. Every
-  // lock carries a version that moves when its password is set, changed or
-  // reset; the credential records the version it was enrolled at, and once the
-  // lock's version is newer it is dropped. Without this, anyone who learned the
-  // password ONCE could enrol their own fingerprint and keep walking in after
-  // the password changed. A credential from before this binding existed has no
-  // version: its enrolment time stands in when versions are timestamps, and
-  // anything else is treated as stale.
-  function boundV(r,curV){ return r.v!=null ? (+r.v||0) : (curV>1e12 ? (+r.created||0) : 0); }
-  function current(app,id,curV){
-    var r=stored(app,id); if(!(r&&r.id)) return false;
-    curV=+curV||0;
-    if(!curV || boundV(r,curV)>=curV) return true;
-    unregister(app,id);
-    try{ localStorage.setItem(NS+'stale_'+app+'_'+id,'1'); }catch(e){}
-    return false;
-  }
-  // True ONCE after a password change dropped this device's credential, so the
-  // next password unlock can offer to enrol again.
-  function takeStale(app,id){ var k=NS+'stale_'+app+'_'+id, s=null; try{ s=localStorage.getItem(k); localStorage.removeItem(k); }catch(e){} return s==='1'; }
-  function unregister(app,id){ try{ localStorage.removeItem(keyOf(app,id)); }catch(e){} }
-  function label(){
-    var ua=navigator.userAgent||'';
-    if(/iPhone|iPad|iPod/.test(ua)) return 'Face ID';
-    if(/Android/.test(ua)) return 'fingerprint';
-    if(/Windows/.test(ua)) return 'Windows Hello';
-    if(/Mac/.test(ua)) return 'Touch ID';
-    return 'biometrics';
-  }
-  function register(app,id,opts){
-    opts=opts||{};
-    if(!supported()) return Promise.resolve({ok:false,error:'unsupported'});
-    return navigator.credentials.create({publicKey:{
-      challenge: rand(32),
-      rp:{ name: opts.rpName||document.title||'App', id: location.hostname||undefined },
-      user:{ id: rand(16), name: opts.userName||(app+':'+id), displayName: opts.displayName||opts.userName||id },
-      pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
-      authenticatorSelection:{ authenticatorAttachment:'platform', userVerification:'required', residentKey:'preferred' },
-      timeout: 60000, attestation:'none'
-    }}).then(function(cred){
-      if(!cred) return {ok:false,error:'cancelled'};
-      try{ localStorage.removeItem(NS+'stale_'+app+'_'+id); }catch(e){}
-      localStorage.setItem(keyOf(app,id), JSON.stringify({ id:b64u(cred.rawId), created:Date.now(), v:+(opts.v)||0, label:opts.displayName||opts.userName||id }));
-      return {ok:true};
-    }).catch(function(e){ return {ok:false, error:(e&&e.name)||'error', message:(e&&e.message)||'' }; });
-  }
-  function authenticate(app,id,opts){
-    if(!supported()) return Promise.resolve({ok:false,error:'unsupported'});
-    if(opts&&opts.v!=null&&!current(app,id,opts.v)) return Promise.resolve({ok:false,error:'stale'});
-    var rec=stored(app,id);
-    if(!rec||!rec.id) return Promise.resolve({ok:false,error:'notregistered'});
-    return navigator.credentials.get({publicKey:{
-      challenge: rand(32),
-      allowCredentials:[{ type:'public-key', id: unb64u(rec.id) }],
-      userVerification:'required', timeout:60000, rpId: location.hostname||undefined
-    }}).then(function(asr){
-      if(!asr) return {ok:false,error:'cancelled'};
-      return {ok:true};
-    }).catch(function(e){ return {ok:false, error:(e&&e.name)||'error', message:(e&&e.message)||'' }; });
-  }
-  window.Bio = { supported:supported, available:available, isRegistered:isRegistered, register:register, authenticate:authenticate, unregister:unregister, label:label, takeStale:takeStale };
-})();
-</script>
-
-<div id="lockScreen">
-  <div class="lockbox" id="lockBox">
-    <div class="brand">OneInbox</div>
-    <div class="sub" id="lockSub">Locked</div>
-    <div class="locksetup-note" id="lockNote" style="display:none">
-      First time here — create the password that protects OneInbox. It gates every mailbox
-      you connect, and it's stored exactly like your other A1 app locks: hashed, never plaintext.
-    </div>
-    <input type="text" id="lockCode" placeholder="6-character code from email" style="display:none" autocomplete="one-time-code">
-    <input type="password" id="lockPwCur" placeholder="Current password" style="display:none" autocomplete="current-password">
-    <input type="password" id="lockPw1" placeholder="Password" autocomplete="current-password">
-    <input type="password" id="lockPw2" placeholder="Confirm password" style="display:none" autocomplete="new-password">
-    <input type="text" id="lockHintIn" placeholder="Hint (optional)" style="display:none" autocomplete="off">
-    <button class="btn ac" id="lockGo" style="justify-content:center">Unlock</button>
-    <!-- Manage menu. The lock button in the header no longer locks on the spot:
-         it opens this, so "lock this device" is a choice rather than a
-         side-effect of reaching for the settings you actually wanted. -->
-    <div id="lockMenu" style="display:none"></div>
-    <div id="lockBio" style="display:none">
-      <button class="btn ac" id="bioBtn" style="width:100%;justify-content:center"></button>
-    </div>
-    <div class="lockmsg" id="lockMsg"></div>
-    <div class="locklinks" id="lockLinks"></div>
-  </div>
-</div>
 
 <div id="app" data-view="list">
   <header class="topbar">
@@ -1066,7 +875,7 @@ window._mailRelay = window._mailRelay || async function (res) {
     <button class="iconbtn" id="lockNowBtn" title="Lock OneInbox" aria-label="Lock">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10.5" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>
     </button>
-    <!-- LifeHub app switcher (LifeHub/lifehub.js) — hidden while #lockScreen is up. -->
+    <!-- LifeHub app switcher (LifeHub/lifehub.js) — hidden while a Guardian lock is up. -->
     <a1-lifehub></a1-lifehub>
   </header>
 
@@ -1299,381 +1108,79 @@ import { initializeFirestore, persistentLocalCache, persistentSingleTabManager,
 const API = 'https://oneinbox-api.av1.workers.dev';
 
 /* ══════════════════════════════════════════════════════════════════════════
-   APP LOCK — same architecture as insight.html.
-   The PBKDF2 record lives in taskhub-reminders' KV (jlock:applock:tony_oneinbox)
-   and is created/reset through the same /auth/journal + /auth/reset endpoints
-   index.html uses, with hints and reset codes emailed through the same
-   Formspree form. A verified password is exchanged at oneinbox-api for a device
-   token that authorizes every mailbox call; "Lock" revokes it on both ends.
+   APP LOCK → Guardian (Guardian/guardian.js, docs/Guardian/README.md)
+   The password is a Guardian lock (jlock:applock:tony_oneinbox). A verified
+   password is exchanged at oneinbox-api for a device token that authorizes
+   every mailbox call — Guardian's `session` hook — and the server refusing
+   that token means the password changed elsewhere. There is no "Remove lock":
+   the app cannot work without the password that mints its token.
    ══════════════════════════════════════════════════════════════════════════ */
-const AUTH_API   = 'https://taskhub-reminders.av1.workers.dev';
-const LOCK_ID    = { journal: 'applock', entryId: 'tony_oneinbox' };
-const FORM_URL   = 'https://formspree.io/f/xeedkebo';   // the form index.html uses for Tony
-const LOCK_EMAIL = 'anthonypn99@gmail.com';
-const LOCK_LS    = 'oneinbox_lock_session';
-const LOCKED_LS  = 'oneinbox_locked';
-const BIO_APP = 'oneinbox', BIO_ID = 'tony';
-
-let lockSession = null, lockMode = 'unlock', lockHint = '', lockSetupNeeded = false, bioRemoveMode = false;
+const LOCK = 'tony_oneinbox';
+const LOCK_LS   = 'oneinbox_lock_session';
+const LOCKED_LS = 'oneinbox_locked';   // the old "locked, token parked for biometrics" flag (adoption only)
+let lockSession = null;
 
 const el = id => document.getElementById(id);
-const bioRegistered = () => !!(window.Bio && Bio.isRegistered(BIO_APP, BIO_ID));
-// The server refusing this device's session means the password changed (the
-// token is stamped with the password's fingerprint). The biometric enrolled
-// under the OLD password goes with it, on every device, so learning the
-// password once is never enough to keep a fingerprint that outlives it; the
-// next password unlock offers to enrol again.
-const dropBio = () => { if (bioRegistered()) Bio.unregister(BIO_APP, BIO_ID); };
-const isLockedFlag  = () => { try { return localStorage.getItem(LOCKED_LS) === '1'; } catch { return false; } };
-const setLockedFlag = on => { try { on ? localStorage.setItem(LOCKED_LS,'1') : localStorage.removeItem(LOCKED_LS); } catch {} };
-const persistSession = () => { try { localStorage.setItem(LOCK_LS, JSON.stringify(lockSession)); } catch {} };
 function getStoredSession(){ try { const s = JSON.parse(localStorage.getItem(LOCK_LS)||'null'); return s && s.token ? s : null; } catch { return null; } }
-
-const authPost = (path, body) => fetch(AUTH_API + path, {
-  method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...LOCK_ID, ...body })
-}).then(r => r.json());
-
-const formspree = (subject, message) => fetch(FORM_URL, {
-  method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'},
-  body: JSON.stringify({ email: LOCK_EMAIL, subject, message })
-});
-
-/* Show/hide password. Each field gets an eye toggle injected in JS so the
-   markup stays clean; lockView() then hides the wrapper, not the bare input. */
-function addPasswordToggle(id){
-  const input = el(id);
-  if (!input || input.dataset.eye) return;
-  input.dataset.eye = '1';
-  const wrap = document.createElement('div');
-  wrap.className = 'pw-wrap';
-  input.parentNode.insertBefore(wrap, input);
-  wrap.appendChild(input);
-  if (input.style.display === 'none'){ input.style.display=''; wrap.style.display='none'; }
-  const EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M1.8 12S5.8 5.5 12 5.5 22.2 12 22.2 12 18.2 18.5 12 18.5 1.8 12 1.8 12z"/><circle cx="12" cy="12" r="2.8"/></svg>';
-  const EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M17.9 17.9A10.1 10.1 0 0 1 12 19.8c-6.2 0-10.2-6.5-10.2-6.5a18.4 18.4 0 0 1 4.7-5.4M9.9 5.7A9.1 9.1 0 0 1 12 5.5c6.2 0 10.2 6.5 10.2 6.5a18.5 18.5 0 0 1-2 2.9m-6.2-1.1a2.8 2.8 0 1 1-3.9-3.9"/><line x1="2.5" y1="2.5" x2="21.5" y2="21.5"/></svg>';
-  const btn = document.createElement('button');
-  btn.type='button'; btn.className='pw-eye';
-  const apply = show => { input.type = show?'text':'password'; btn.innerHTML = show?EYE_OFF:EYE; btn.setAttribute('aria-label', show?'Hide password':'Show password'); };
-  apply(false);
-  btn.addEventListener('click', ()=>{ apply(input.type==='password'); input.focus(); });
-  btn._hide = ()=>apply(false);
-  wrap.appendChild(btn);
+const lockApi = (path, body) => fetch(API + path, {
+  method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
+}).then(x => x.json());
+function forgetToken(t){
+  try { localStorage.removeItem(LOCK_LS); } catch {}
+  if (t) lockApi('/lock/end', { token: t }).catch(()=>{});
 }
-['lockPwCur','lockPw1','lockPw2'].forEach(addPasswordToggle);
-const resetPasswordToggles = () => ['lockPwCur','lockPw1','lockPw2'].forEach(id => { const b = el(id)?.parentNode?.querySelector('.pw-eye'); if (b && b._hide) b._hide(); });
-const lockMsg = (t, ok) => { const m = el('lockMsg'); m.className = 'lockmsg' + (ok?' ok':''); m.textContent = t; };
-
-function renderBioButton(){
-  const box = el('lockBio'), btn = el('bioBtn');
-  box.style.display = 'none';
-  if (lockMode !== 'unlock' || !window.Bio || !bioRegistered()) return;
-  Bio.available().then(avail => {
-    if (!avail || lockMode !== 'unlock') return;
-    if (!bioRemoveMode && !getStoredSession()) return;
-    btn.textContent = (bioRemoveMode ? 'Verify with ' : 'Unlock with ') + Bio.label();
-    box.style.display = '';
-  });
-}
-
-function lockView(mode){
-  lockMode = mode;
-  const show = (id,on) => { const e = el(id); (e.closest('.pw-wrap')||e).style.display = on?'':'none'; };
-  resetPasswordToggles(); lockMsg('');
-  ['lockPwCur','lockPw1','lockPw2','lockHintIn','lockCode'].forEach(id => el(id).value = '');
-  // 'manage' shows the menu in place of the form; every other mode is a form.
-  const form = mode!=='manage';
-  show('lockNote', mode==='setup');
-  show('lockCode', mode==='reset');
-  show('lockPwCur', mode==='change');
-  show('lockPw1', form);
-  show('lockPw2', form && mode!=='unlock');
-  show('lockHintIn', form && mode!=='unlock');
-  el('lockGo').style.display = form ? '' : 'none';
-  el('lockMenu').style.display = form ? 'none' : '';
-  if (form) el('lockMenu').innerHTML = '';
-  el('lockPw1').placeholder = mode==='unlock' ? 'Password' : 'New password';
-  el('lockHintIn').placeholder = mode==='reset' ? 'New hint (optional)' : 'Hint (optional)';
-  const bioName = window.Bio ? Bio.label() : 'biometrics';
-  el('lockSub').textContent = mode==='setup' ? 'Set up your password'
-    : mode==='reset' ? 'Reset password'
-    : mode==='change' ? 'Change password'
-    : mode==='manage' ? 'OneInbox is locked. Manage:'
-    : bioRemoveMode ? 'Remove ' + bioName : 'Locked';
-  el('lockGo').textContent = mode==='setup' ? 'Create & unlock'
-    : mode==='reset' ? 'Reset password'
-    : mode==='change' ? 'Change password'
-    : bioRemoveMode ? 'Verify password & remove' : 'Unlock';
-  const L = el('lockLinks'); L.innerHTML = '';
-  const link = (label, fn) => { const s = document.createElement('span'); s.textContent = label; s.addEventListener('click', fn); L.appendChild(s); };
-  if (mode==='manage') renderManageMenu();
-  else if (mode==='unlock' && bioRemoveMode) link('Cancel', () => { bioRemoveMode=false; lockView(lockSession ? 'manage' : 'unlock'); });
-  else if (mode==='unlock'){
-    link('Email me the hint', emailHint);
-    link('Forgot password?', startReset);
-    if (bioRegistered()) link('Remove ' + Bio.label(), forgetBio);
-  } else if (mode==='reset'){
-    link('Resend code', startReset);
-    link('Back', () => lockView('unlock'));
-  } else if (mode==='change'){
-    link('Back', () => lockView('manage'));
-  }
-  renderBioButton();
-  if (form) setTimeout(() => el(mode==='reset'?'lockCode':mode==='change'?'lockPwCur':'lockPw1').focus(), 80);
-}
-
-/* == Manage menu ============================================================
-   The lock button in the header used to lock the device on the spot. It opens
-   this instead, so locking is a choice rather than a side-effect of reaching
-   for the settings you actually wanted. Shape follows the rest of the suite
-   (RiftIQ / TradeHub / Vault / Shield): the per-device action first, then
-   biometrics, then the password. There is no "Remove lock" row - OneInbox's
-   password is what mints the device token that authorizes every mailbox call,
-   so the app cannot exist without one. */
-const MI = {
-  lock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10.5" rx="2.2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>',
-  key:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 8.5-8.5"/><path d="m17 6 3 3"/><path d="m14 9 3 3"/></svg>',
-  user:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
-};
-function menuBtn(parent, cls, html, fn, beforeEl){
-  const b = document.createElement('button');
-  b.className = 'btn' + (cls ? ' ' + cls : '');
-  b.style.cssText = 'width:100%;justify-content:center';
-  b.innerHTML = html;                 // trusted markup: an MI icon plus a <span>
-  b.addEventListener('click', fn);
-  if (beforeEl) parent.insertBefore(b, beforeEl); else parent.appendChild(b);
-  return b;
-}
-function renderManageMenu(){
-  const m = el('lockMenu'); m.innerHTML = '';
-  menuBtn(m, 'ac', MI.lock + '<span>Lock this device now</span>', lockNow);
-  const changeBtn = menuBtn(m, '', MI.key + '<span>Change password</span>', () => lockView('change'));
-  menuBtn(m, '', '<span>Cancel</span>', closeManager);
-  // Biometrics lands above "Change password" once the platform has answered.
-  if (window.Bio) Bio.available().then(avail => {
-    if (!avail || lockMode !== 'manage') return;
-    if (bioRegistered())
-      menuBtn(m, '', MI.user + '<span>Remove ' + Bio.label() + '</span>', forgetBio, changeBtn);
-    else
-      menuBtn(m, 'ac', MI.user + '<span>Register ' + Bio.label() + '</span>', registerBioNow, changeBtn);
-  });
-}
-async function registerBioNow(){
-  const name = Bio.label();
-  const r = await Bio.register(BIO_APP, BIO_ID, { rpName:'OneInbox', userName:'oneinbox-tony', displayName:'OneInbox' });
-  if (r.ok){ toast(name + ' enabled', true); closeManager(); }
-  else if (r.error !== 'cancelled' && r.error !== 'NotAllowedError') lockMsg('Could not enable ' + name + '.');
-}
-/* Dismissing the manager must never expose the app when this device is in fact
-   locked, so with no session it falls back to the unlock prompt. */
-function closeManager(){
-  if (!lockSession){ bioRemoveMode = false; lockView(lockSetupNeeded ? 'setup' : 'unlock'); return; }
-  const ls = el('lockScreen');
-  ls.style.transition = 'opacity .3s'; ls.style.opacity = '0';
-  setTimeout(() => { ls.style.display = 'none'; }, 320);
-}
-function showManager(){
-  const ls = el('lockScreen');
-  ls.style.display = 'flex'; ls.style.opacity = '1';
-  bioRemoveMode = false;
-  lockView('manage');
-}
-function showLock(){ const ls = el('lockScreen'); ls.style.display='flex'; ls.style.opacity='1'; bioRemoveMode=false; lockView(lockSetupNeeded?'setup':'unlock'); }
-function hideLock(){
-  const ls = el('lockScreen');
-  ls.style.transition='opacity .3s'; ls.style.opacity='0';
-  setTimeout(()=>{ ls.style.display='none'; }, 320);
-  boot();
-}
-
-// The hint text no longer reaches the page at all — the worker mails it. That
-// is the point: it used to be prefetched into a variable on every load, so
-// anyone who opened OneInbox could read it out of memory without unlocking.
-async function emailHint(){
-  lockMsg('Sending…', true);
-  try {
-    const h = await authPost('/auth/journal/hint', { appName:'OneInbox', label:'OneInbox' });
-    if (h.noLock){ lockMsg('No password is set yet.'); return; }
-    if (h.error === 'throttled'){ lockMsg('Too many hint emails just now — wait a few minutes.'); return; }
-    const hsent = await window._mailRelay(h);
-    lockMsg(hsent ? 'Hint emailed to ' + (h.to || LOCK_EMAIL) : 'Email failed — try again shortly.', hsent);
-  } catch { lockMsg('Email failed — try again shortly.'); }
-}
-async function startReset(){
-  lockMsg('Emailing you a reset code…', true);
-  try {
-    // The worker mails the code itself; it is never returned here, so a
-    // stranger who starts a reset cannot read the code off the reply.
-    const rq = await authPost('/auth/reset/request', { appName: 'OneInbox', label: 'OneInbox' });
-    if (rq.noLock){ lockMsg('No password is set yet.'); return; }
-    if (rq.error === 'throttled'){ lockMsg('Too many reset emails just now — wait a few minutes.'); return; }
-    if (rq.error === 'email-failed'){ lockMsg('Could not send the email — try again shortly.'); return; }
-    if (!rq.ok){ lockMsg('Could not start the reset — try again.'); return; }
-    if (!(await window._mailRelay(rq))){ lockMsg('Could not send the email — try again shortly.'); return; }
-    if (lockMode !== 'reset') lockView('reset');
-    lockMsg('Code sent to ' + (rq.to || LOCK_EMAIL) + " — check spam if it's not there in a minute.", true);
-  } catch { lockMsg('Network error — try again.'); }
-}
-
 async function openSession(password){
-  const r = await fetch(API + '/lock/session', {
-    method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ password })
-  }).then(x=>x.json()).catch(()=>({ok:false}));
+  const r = await lockApi('/lock/session', { password }).catch(()=>({ ok:false }));
   if (!r.ok) return false;
   const old = getStoredSession();
-  if (old && old.token !== r.token){
-    fetch(API + '/lock/end', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token: old.token }) }).catch(()=>{});
-  }
+  if (old && old.token !== r.token) forgetToken(old.token);
   lockSession = { token: r.token, since: Date.now() };
-  persistSession(); setLockedFlag(false);
+  try { localStorage.setItem(LOCK_LS, JSON.stringify(lockSession)); localStorage.removeItem(LOCKED_LS); } catch {}
   return true;
 }
 
-async function bioUnlock(){
-  lockMsg('');
-  const r = await Bio.authenticate(BIO_APP, BIO_ID);
-  if (!r.ok){
-    if (r.error === 'notregistered'){ el('lockBio').style.display='none'; return; }
-    if (r.error === 'cancelled' || r.error === 'NotAllowedError'){ lockMsg('Cancelled — or use your password.'); return; }
-    lockMsg(Bio.label() + ' check failed — use your password.'); return;
-  }
-  if (bioRemoveMode){ doRemoveBio(); return; }
-  const s = getStoredSession();
-  if (!s){ lockMsg('Enter your password once on this device.'); return; }
-  try {
-    const chk = await fetch(API + '/lock/check', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token: s.token }) }).then(x=>x.json());
-    if (!chk.ok){
-      try { localStorage.removeItem(LOCK_LS); } catch {}
-      lockSession = null; dropBio(); el('lockBio').style.display='none';
-      lockMsg('The password was changed — enter the new one. ' + Bio.label() + ' needs registering again on this device.'); return;
+Guardian.define(LOCK, {
+  owner: 'tony', label: 'OneInbox', appName: 'OneInbox', root: '#app', hard: true, allowRemove: false,
+  // First sight on this device: a stored token that was not parked by "Lock" means unlocked.
+  legacy: {
+    open: () => { try { if (localStorage.getItem(LOCKED_LS) === '1') return false; } catch {} return !!getStoredSession(); },
+    bio: () => Guardian.legacy.bioRec('oneinbox', 'tony', 0)
+  },
+  session: {
+    mint: openSession,
+    // false = the server refused the token; null = offline, keep trusting it.
+    check: async () => {
+      const s = getStoredSession(); if (!s) return false;
+      try {
+        const r = await lockApi('/lock/check', { token: s.token });
+        if (!r.ok){ lockSession = null; forgetToken(); return false; }
+      } catch { lockSession = s; return null; }
+      lockSession = s; return true;
+    },
+    // "Lock this device": with a biometric enrolled the token is parked so the
+    // fingerprint can resume it without the password; otherwise it ends on both ends.
+    end: () => {
+      const t = (lockSession && lockSession.token) || (getStoredSession() || {}).token;
+      lockSession = null;
+      if (!(t && Guardian.bio.isRegistered(LOCK))) forgetToken(t);
     }
-  } catch { /* offline: trust the local token */ }
-  lockSession = s; setLockedFlag(false); hideLock();
-}
-async function maybeOfferBio(){
-  if (!window.Bio || bioRegistered()) return;
-  if (!(await Bio.available())) return;
-  const name = Bio.label();
-  const yes = await ask({
-    title: `Use ${name}?`,
-    body: `Unlock OneInbox with <strong>${esc(name)}</strong> on this device instead of typing your password.<br><br>Your password always keeps working, and nothing biometric ever leaves this device — OneInbox only stores a credential handle.`,
-    ok: 'Enable', cancel: 'Not now'
-  });
-  if (!yes) return;
-  const r = await Bio.register(BIO_APP, BIO_ID, { rpName:'OneInbox', userName:'oneinbox-tony', displayName:'OneInbox' });
-  if (r.ok) toast(name + ' enabled', true);
-  else if (r.error !== 'cancelled' && r.error !== 'NotAllowedError') toast('Could not enable ' + name);
-}
-function forgetBio(){ bioRemoveMode = true; lockView('unlock'); lockMsg(`Verify with ${Bio.label()} or your password to remove it from this device.`, true); }
-function doRemoveBio(){
-  const n = Bio.label(); bioRemoveMode=false; Bio.unregister(BIO_APP, BIO_ID);
-  // Reachable from the manager now, i.e. while this device is NOT locked, so
-  // finishing has to hand the user back rather than strand them on an unlock
-  // prompt for a device that has a perfectly good session.
-  lockView(lockSession ? 'manage' : 'unlock');
-  toast(n + ' removed from this device');
-}
+  },
+  onBlock: () => { lockSession = null; gateIn(); }
+});
 
-async function lockSubmit(){
-  const p1 = el('lockPw1').value;
-  lockMsg('');
-  if (lockMode === 'unlock'){
-    if (!p1) return;
-    const shake = () => { const b = el('lockBox'); b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake'); el('lockPw1').select(); };
-    if (bioRemoveMode){
-      const v = await authPost('/auth/journal/verify', { password: p1 });
-      if (v.ok) doRemoveBio(); else { shake(); lockMsg('Wrong password.'); }
-      return;
-    }
-    if (await openSession(p1)){ hideLock(); maybeOfferBio(); return; }
-    shake(); lockMsg('Wrong password.'); return;
-  }
-  const p2 = el('lockPw2').value;
-  if (p1.length < 4){ lockMsg('Use at least 4 characters.'); return; }
-  if (p1 !== p2){ lockMsg('Passwords do not match.'); return; }
-  const hint = el('lockHintIn').value.trim();
-  if (lockMode === 'change'){
-    // Verify the current password, then swap it: remove-then-set, the same two
-    // calls every other program in the suite makes. The old device token is
-    // stamped with the old password's fingerprint, so a fresh session has to be
-    // opened here or this device would be holding a token the server has just
-    // invalidated — and every OTHER device is asked for the new password once.
-    const cur = el('lockPwCur').value;
-    if (!cur){ lockMsg('Enter your current password.'); return; }
-    const v = await authPost('/auth/journal/verify', { password: cur });
-    if (!v.ok){
-      const b = el('lockBox'); b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake');
-      lockMsg('Current password is not correct.'); return;
-    }
-    const rm = await authPost('/auth/journal/remove-lock', { password: cur });
-    if (!rm.ok){ lockMsg('Could not replace the old password — try again.'); return; }
-    const st = await authPost('/auth/journal/set-lock', { password: p1, hint });
-    if (!st.ok){
-      // The old record is already gone, so say so plainly rather than leaving
-      // the impression nothing happened.
-      lockMsg('The new password could not be saved. Use "Forgot password?" to set one.');
-      return;
-    }
-    lockHint = hint;
-    const hadBio = bioRegistered();
-    dropBio();
-    if (await openSession(p1)){ hideLock(); toast('Password changed — biometric unlock needs registering again on every device', true); if (hadBio) maybeOfferBio(); }
-    else lockMsg('Password changed, but this device could not reopen — reload and unlock.');
-    return;
-  }
-  if (lockMode === 'setup'){
-    const r = await authPost('/auth/journal/set-lock', { password:p1, hint });
-    if (!r.ok){ lockMsg(r.error || 'Could not set password.'); return; }
-    lockSetupNeeded = false; lockHint = hint;
-    if (await openSession(p1)){ hideLock(); toast('Password set — OneInbox is protected', true); maybeOfferBio(); }
-  } else {
-    const code = el('lockCode').value.trim().toUpperCase();
-    if (!code){ lockMsg('Enter the code from your email.'); return; }
-    const r = await authPost('/auth/reset/confirm', { code, password:p1, hint });
-    if (!r.ok){
-      lockMsg(r.error==='expired' ? 'Code expired — use "Resend code".'
-        : r.error==='locked' ? 'Too many wrong tries — request a fresh code.'
-        : r.error==='badcode' ? `Wrong code${r.remaining ? ` — ${r.remaining} tries left` : ''}.`
-        : (r.error || 'Reset failed.'));
-      return;
-    }
-    lockHint = hint;
-    dropBio();
-    if (await openSession(p1)){ hideLock(); toast("Password reset — you're unlocked", true); maybeOfferBio(); }
-  }
+// Into the app once this device is unlocked AND holds a token. No token means
+// one must be minted: set up the first password, or ask for it.
+function enter(){
+  lockSession = lockSession || getStoredSession();
+  if (lockSession){ Guardian.showRoot(LOCK); boot(); return; }
+  if (!Guardian.isLocked(LOCK)) Guardian.setLock(LOCK).then(ok => { if (ok) enter(); });
+  else Guardian.lockNow(LOCK);
 }
-el('lockGo').addEventListener('click', lockSubmit);
-el('bioBtn').addEventListener('click', bioUnlock);
-['lockPwCur','lockPw1','lockPw2','lockHintIn','lockCode'].forEach(id => el(id).addEventListener('keydown', e => { if (e.key === 'Enter') lockSubmit(); }));
-
-function lockNow(){
-  const t = lockSession?.token;
-  lockSession = null;
-  if (bioRegistered() && t) setLockedFlag(true);
-  else {
-    setLockedFlag(false);
-    try { localStorage.removeItem(LOCK_LS); } catch {}
-    if (t) fetch(API + '/lock/end', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token: t }) }).catch(()=>{});
-  }
-  showLock();
-}
-// Opens the manager rather than locking on the spot — locking is one of the
-// choices in there now, not the whole meaning of the button.
-el('lockNowBtn').addEventListener('click', showManager);
+function gateIn(){ Guardian.gate(LOCK).then(ok => { if (ok) enter(); }); }
+// The header lock button opens Guardian's menu (lock now, biometrics, change).
+el('lockNowBtn').addEventListener('click', () => Guardian.manage(LOCK));
 el('lockNowBtn').title = 'Lock manager';
 el('lockNowBtn').setAttribute('aria-label', 'Lock manager');
-
-async function confirmDeviceTrust(){
-  if (!lockSession) return;
-  try {
-    const r = await fetch(API + '/lock/check', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token: lockSession.token }) }).then(x=>x.json());
-    if (!r.ok){
-      lockSession = null;
-      try { localStorage.removeItem(LOCK_LS); } catch {}
-      setLockedFlag(false); dropBio(); showLock();
-      lockMsg('The password was changed — enter the new one.');
-    }
-  } catch { /* offline: keep trusting the local token */ }
-}
 
 /* ══════════════════════════════════════════════════════════════════════════
    FIREBASE — real-time sync of settings + AI classifications + cards
@@ -1780,7 +1287,9 @@ async function api(path, body = {}){
     throw new Error('could not reach the mail service (network or CORS) — nothing was sent');
   }
   const d = await r.json().catch(() => ({ ok:false, error:'bad response' }));
-  if (r.status === 401){ lockNow(); throw new Error('locked'); }
+  // The server no longer honours this token (password changed, or revoked):
+  // drop it and let Guardian ask for the password again.
+  if (r.status === 401){ lockSession = null; forgetToken(); Guardian.lockNow(LOCK); throw new Error('locked'); }
   if (!d.ok){
     // A mailbox whose Google authorisation has lapsed is not a transient
     // failure — nothing works for that account until it is reconnected — so
@@ -3351,28 +2860,15 @@ function openFromHash(){
 }
 window.addEventListener('hashchange', () => { if (lockSession) openFromHash(); });
 
-// A trusted device opens straight into the app, even offline; the token is
-// confirmed with the server in the background and the device is locked if the
-// password has since changed elsewhere.
-const bootLocked = isLockedFlag();
-lockSession = bootLocked ? null : getStoredSession();
-if (lockSession) el('lockScreen').style.display = 'none';
-(async () => {
-  try {
-    // /status, not /hint: this runs on every page load and /hint now MAILS
-    // the owner. All the boot needs is whether a lock exists at all.
-    const h = await authPost('/auth/journal/status', {});
-    lockSetupNeeded = !!h.noLock;
-  } catch {
-    if (!lockSession){ lockMsg('Lock service unreachable — reload to retry.'); return; }
-  }
-  if (!lockSession) showLock();
-  else { confirmDeviceTrust(); boot(); }
-})();
+// A trusted device opens straight into the app, even offline; Guardian checks
+// the password version and the token in the background and locks this device
+// if the password has since changed elsewhere.
+if (Guardian.isUnlocked(LOCK) && getStoredSession()){ enter(); Guardian.refresh([LOCK], true); }
+else gateIn();
 </script>
 <script src="tabsync.js"></script>
 <script src="hoverfx.js"></script>
 <script src="dragsort.js"></script>
 <script src="resizegrip.js"></script>
-<script src="LifeHub/lifehub.js" data-lock="#lockScreen" defer></script></body>
+<script src="LifeHub/lifehub.js" data-lock="guardian" defer></script></body>
 </html>

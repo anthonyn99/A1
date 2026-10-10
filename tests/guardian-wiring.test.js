@@ -35,10 +35,12 @@ const HOSTS = {
   'shield.html': [],
   // MyJournal + Brainstorm entry locks run inside index (Notebook/).
   'index.html': ['Notebook/apps/myjournal.js', 'Notebook/apps/brainstorm.js', 'Notebook/notebook.js'],
+  'mylist.html': [],
+  'oneinbox.html': [],
+  'magi.html': [],
 };
 // Not migrated yet (shrinks phase by phase; must end empty).
 const PENDING = [
-  'mylist.html', 'oneinbox.html', 'magi.html',
   'tradehub.html', 'insight.html', 'vault.html', 'riftiq.html', 'solace.html',
 ];
 // Never touched by Guardian (user decision 2026-10-10): StudyOS keeps its own

@@ -29,9 +29,9 @@ const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 
 // Every program LifeHub is integrated into, with what its tag must carry.
 const HOSTS = {
-  'oneinbox.html': { lock: '#lockScreen' },
+  'oneinbox.html': { lock: 'guardian' },
   'tradehub.html': { lock: '#applock-overlay' },
-  'mylist.html':   { lock: '#lock-overlay', profile: true },
+  'mylist.html':   { lock: 'guardian', profile: true },
   'insight.html':  { lock: '#lockScreen' },
   'vault.html':    { lock: '#applock-overlay' },
   'solace.html':   { lock: '#applock-overlay' },

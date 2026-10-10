@@ -80,8 +80,10 @@ for (const [decl, key] of [
 ok('lsKey really namespaces', /const lsKey\s*=\s*\(name\)\s*=>\s*`magi\.\$\{PROFILE\.id\}\.\$\{name\}`/.test(MAGI));
 ok('the lock session is per profile', /const LOCK_LS\s*=\s*lsKey\("lock_session"\)/.test(MAGI));
 ok('the locked flag is per profile', /const LOCKED_LS\s*=\s*lsKey\("locked"\)/.test(MAGI));
-ok('the lock record is per profile', /entryId:\s*prof\(\)\.lock/.test(MAGI));
-ok('the biometric credential is per profile', /BIO_ID\s*=\s*PROFILE\.id/.test(MAGI));
+// The lock is a Guardian lock (Guardian/guardian.js) keyed by the profile's
+// own record, so each profile has its own password, unlock and biometric.
+ok('the lock record is per profile', /const GID = prof\(\)\.lock;/.test(MAGI) && /Guardian\.define\(GID,/.test(MAGI));
+ok('the lock is owned (themed, mailed) per profile', /owner: PROFILE\.id/.test(lift('Guardian.define(GID')));
 
 console.log('\nDevice-shaped settings stay shared');
 // Muting MAGI must not un-mute itself because you switched profile.
@@ -113,12 +115,16 @@ ok('discovery is not started at boot beside the gate',
 ok('it is started by the unlock instead', /function openUp\(\)/.test(MAGI) && /openUp\(\);/.test(lift('function hideLock()')));
 
 console.log('\nThe gate is ours, not the browser\'s');
-const gate = lift('function renderLock()') + lift('function lockFormInto(box)')
-           + lift('function gateCard(id)') + lift('function pwField(');
+const gate = lift('function renderLock()') + lift('function gateCard(id)');
 ok('no native dialog in the gate', !/\b(window\.)?(alert|confirm|prompt)\s*\(/.test(gate));
-ok('the password field is drawn', /function pwField\(/.test(MAGI));
-ok('it has a reveal toggle', /gate-eye/.test(MAGI));
-ok('it warns about caps lock', /getModifierState\("CapsLock"\)/.test(MAGI));
+// The password card itself is Guardian's: drawn, with a reveal toggle and a
+// caps-lock warning, in every program at once.
+const GUARD = fs.readFileSync(path.join(__dirname, '..', 'Guardian', 'guardian.js'), 'utf8');
+ok('MAGI loads Guardian before first paint', /<script src="Guardian\/guardian\.js"><\/script>/.test(MAGI));
+ok('the password field is drawn', /function pwField\(/.test(GUARD));
+ok('it has a reveal toggle', /'aria-label': 'Show password'/.test(GUARD));
+ok('it warns about caps lock', /getModifierState\("CapsLock"\)/.test(GUARD));
+ok('the open card raises Guardian', /b\.onclick = unlockGate;/.test(lift('function gateCard(id)')));
 ok('both cards are rendered', /for \(const id of PROFILE_ORDER\) cards\.append\(gateCard\(id\)\)/.test(MAGI));
 
 console.log('\nSwitching profile is a reload, not a reassignment');
@@ -142,12 +148,11 @@ ok('a full store is detected without being called blocked',
    !/MAGI_STORAGE_BLOCKED = true;[^\n]*isQuota/.test(guard));
 ok('the pick is stashed in its own try, before the store that may refuse',
    /try \{ sessionStorage\.setItem\(PICK_SS, id\); \} catch \{\}\s*try \{ localStorage\.setItem\(LAST_PROFILE_LS, id\); \} catch \{\}/.test(sel));
-// Setting a password was a dead end: the form had one button.
-const form = MAGI.slice(MAGI.indexOf('function lockFormInto(box)'), MAGI.indexOf('function renderBioButton()'));
-ok('password setup has a way back',
-   /if \(m === "setup"\) \{[\s\S]{0,600}el\("button", "btn", "Back"\)[\s\S]{0,120}hideLock\(\)/.test(form));
-ok('Escape backs out of setup, but only on a profile that is already open',
-   /if \(PROFILE\.unlocked && \(GATE\.picking \|\| LOCK\.mode === "setup"/.test(MAGI));
+// Setting a password was once a dead end: the form had one button. Guardian's
+// set screen always carries Cancel.
+ok('password setup has a way back', /function scrSet[\s\S]{0,2200}footer\('Cancel'/.test(GUARD));
+ok('Escape backs out of the picker, but only on a profile that is already open',
+   /if \(PROFILE\.unlocked && GATE\.picking\) hideLock\(\);/.test(MAGI));
 ok('the gate says the store is full', /MAGI_STORAGE_FULL\) \{[\s\S]{0,200}gate-storage/.test(MAGI));
 ok('a working browser strips it again', /else u\.searchParams\.delete\(PROFILE_QS\)/.test(rel));
 ok('the url pick is read at load', /if \(urlProfile\(\)\) return urlProfile\(\)/.test(MAGI));

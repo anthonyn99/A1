@@ -116,7 +116,7 @@ async function load(c, w, h, mobile, keepStorage) {
   await c.send('Emulation.setTouchEmulationEnabled', { enabled: mobile, maxTouchPoints: mobile ? 5 : 0 });
   if (!keepStorage) {
     await c.send('Page.navigate', { url: ORIGIN + '/A1/oneinbox.html?blank' }); await sleep(800);
-    await evalJs(c, "localStorage.clear(); localStorage.setItem('oneinbox_lock_session', JSON.stringify({token:'test'})); 1");
+    await evalJs(c, "localStorage.clear(); sessionStorage.clear(); localStorage.setItem('oneinbox_lock_session', JSON.stringify({token:'test'})); 1");
   }
   await c.send('Page.navigate', { url: ORIGIN + '/A1/oneinbox.html' });
   await sleep(2500);

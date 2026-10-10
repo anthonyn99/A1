@@ -65,7 +65,7 @@ const toggle = async (c) => { await evalJs(c, "var l=document.querySelector('a1-
   await c.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
   await c.send('Page.navigate', { url: ORIGIN + '/A1/oneinbox.html?blank' }); await sleep(800);
   const app = { id: 'orca', name: 'Orca', url: ORCA, icon: 'auto', tab: 'lh_orca', hidden: false };
-  await evalJs(c, `localStorage.clear();
+  await evalJs(c, `localStorage.clear(); sessionStorage.clear();
     localStorage.setItem('oneinbox_lock_session', JSON.stringify({token:'test'}));
     localStorage.setItem('lifehub:v1', JSON.stringify({ base: [${JSON.stringify(app)}], apps: [${JSON.stringify(app)}], pending: false }));
     localStorage.setItem('lh_pageicons', JSON.stringify({ ${JSON.stringify(ORCA)}: [${JSON.stringify(OLD)}] })); 1`);
