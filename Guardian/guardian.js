@@ -160,10 +160,20 @@ function adopt(d, c) {
 var legacy = {
   // index / Shield / TradeHub-style app locks: al_locks[id].v vs al_unlockedat_<id>.
   al: function (id, bioNs) {
-    function locks() { try { return JSON.parse(localStorage.getItem('al_locks') || '{}') || {}; } catch (e) { return {}; } }
+    // The TradeHub-style pages (A1-Priv) mirrored every one of these keys into a
+    // 400-day cookie (window.alDur), so a device whose localStorage was evicted
+    // may hold them ONLY as cookies.
+    var cookieStore = { getItem: function (k) {
+      try {
+        var m = document.cookie.match(new RegExp('(?:^|; )' + k.replace(/[^\w]/g, '\\$&') + '=([^;]*)'));
+        return m ? decodeURIComponent(m[1]) : null;
+      } catch (e) { return null; }
+    } };
+    function get(k) { var v = null; try { v = localStorage.getItem(k); } catch (e) {} return v != null ? v : cookieStore.getItem(k); }
+    function locks() { try { return JSON.parse(get('al_locks') || '{}') || {}; } catch (e) { return {}; } }
     // A device that never ran the old lock has no al_locks at all — that is
     // "nothing to adopt", never "the old system had no lock here".
-    function hadOld() { try { return localStorage.getItem('al_locks') !== null; } catch (e) { return false; } }
+    function hadOld() { return get('al_locks') !== null; }
     function at() {
       var best = -1;
       function rd(store, k) {
@@ -173,14 +183,11 @@ var legacy = {
           if (!isNaN(n) && n > best) best = n; else if (isNaN(n) && best < 0) best = 0;
         } catch (e) {}
       }
-      rd(localStorage, 'al_unlockedat_' + id); rd(localStorage, 'al_unlockedv_' + id);
-      try { if (localStorage.getItem('al_unlocked_' + id) === '1' && best < 0) best = 0; } catch (e) {}
+      [localStorage, cookieStore].forEach(function (st) {
+        rd(st, 'al_unlockedat_' + id); rd(st, 'al_unlockedv_' + id);
+        try { if (st.getItem('al_unlocked_' + id) === '1' && best < 0) best = 0; } catch (e) {}
+      });
       rd(sessionStorage, 'al_unlockedat_' + id);
-      // TradeHub-style pages mirrored the marker into a cookie (window.alDur).
-      try {
-        var m = document.cookie.match(new RegExp('(?:^|; )al_unlockedv_' + id.replace(/[^\w]/g, '\\$&') + '=([^;]*)'));
-        if (m) rd({ getItem: function () { return decodeURIComponent(m[1]); } }, 'x');
-      } catch (e) {}
       return best;
     }
     return {
