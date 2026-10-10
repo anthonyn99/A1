@@ -185,6 +185,16 @@ function page(W, opts) {
     ok('stale old biometric not adopted', P.ls.getItem('gd.b.applock:tony_vault') === null);
   }
   {
+    // A1-Priv's pages mirrored al_* into cookies (window.alDur); a device whose
+    // localStorage was evicted holds them only there.
+    const W = fakeWorker(); W.set('applock:tony_solace_standalone', 'pw');
+    const P = page(W);
+    P.w.document.cookie = 'al_locks=' + encodeURIComponent(JSON.stringify({ tony_solace_standalone: { locked: true, v: 100 } })) + '; path=/';
+    P.w.document.cookie = 'al_unlockedv_tony_solace_standalone=150; path=/';
+    P.G.define('tony_solace_standalone', { legacy: P.G.legacy.al('tony_solace_standalone', 'solacelock') });
+    ok('old cookie-only records are adopted (evicted localStorage)', P.G.isLocked('tony_solace_standalone') && P.G.isUnlocked('tony_solace_standalone'));
+  }
+  {
     const W = fakeWorker(); W.set('applock:tony_myjournal', 'pw');
     const P = page(W, { storage: { al_locks: '{}' } });
     P.G.define('tony_myjournal', { legacy: P.G.legacy.al('tony_myjournal') });
