@@ -373,7 +373,7 @@ async function capture(label) {
       // Guardian's own keys (gd.*) are lock state, left out with the lock steps.
       lsKeys: Object.keys(localStorage).filter(k => !(${SKIP_LOCK} && k.startsWith('gd.'))).sort(),
       cache: JSON.parse(localStorage.getItem('${J.cache}') || 'null'),
-      ssKeys: Object.keys(sessionStorage).filter(k => k !== '__fakefs_docs').sort() });`));
+      ssKeys: Object.keys(sessionStorage).filter(k => k !== '__fakefs_docs' && !(${SKIP_LOCK} && k.startsWith('gd.'))).sort() });`));
     rec.journals[K] = { steps, store };
   }
   rec.pageErrors = errs;
@@ -388,6 +388,11 @@ async function capture(label) {
 // the recording (e.g. /^tj\.steps\[\d+\]\.snap\.sync$/). Nothing else may differ.
 // Screenshots a rule allows to differ go in `shots` (file-name regex).
 const EXPECTED = [
+  // Guardian (docs/Guardian/plan.md): the app lock no longer rewrites the
+  // al_locks cache on every load — Guardian keeps its own gd.* state.
+  { phase: 'G', why: 'Guardian: index stops writing al_locks on load', path: /^(tj|bj)\.store\.lsKeys/,
+    check: (a, b) => { const x = new Set(a.store.lsKeys), y = new Set(b.store.lsKeys);
+      return [...x].filter((k) => !y.has(k)).join() === 'al_locks' && [...y].every((k) => x.has(k) || k === 'nb_myjournal_link'); } },
   // Phase 5: MyJournal is an External-Link button now. On a device with no saved
   // order (this recording) it sits after the other links, so the header row
   // differs; and the device remembers it seeded that link (nb_myjournal_link).
