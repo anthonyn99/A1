@@ -122,11 +122,38 @@ const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/cs
 const BLOCK = ['https://www.gstatic.com/firebasejs/*', 'https://*.googleapis.com/*',
   'https://www.google.com/recaptcha/*', 'https://www.recaptcha.net/*'];
 
+// Guardian (Guardian/guardian.js) asks the lock worker which locks exist on
+// every page load. A test must never depend on the REAL lock records, so that
+// one call is always answered here: by the test's mock when it returns a
+// status-many shaped reply ({ locks }), otherwise "no locks at all".
+const STATUS_MANY = 'https://taskhub-reminders.av1.workers.dev/auth/journal/status-many';
+function noLocksReply(request) {
+  let body = {}; try { body = JSON.parse(request.postData || '{}'); } catch (e) {}
+  const locks = {};
+  (body.locks || []).forEach((l) => { locks[l.journal + ':' + l.entryId] = { hasLock: false, ver: null }; });
+  return { json: { ok: true, locks } };
+}
+
 async function servePagesFromWorkingCopy(ws, send, mock) {
   ws.addEventListener('message', (ev) => {
     const m = JSON.parse(ev.data);
     if (m.method !== 'Fetch.requestPaused') return;
     const { requestId, request } = m.params;
+    if (request.url.startsWith(STATUS_MANY)) {
+      let r = request.method === 'OPTIONS' ? { status: 204, text: '' } : (mock && mock.handle ? mock.handle(request) : null);
+      if (request.method !== 'OPTIONS' && !(r && r.json && r.json.locks)) r = noLocksReply(request);
+      send('Fetch.fulfillRequest', {
+        requestId, responseCode: r.status || 200,
+        responseHeaders: [
+          { name: 'Content-Type', value: 'application/json' },
+          { name: 'Access-Control-Allow-Origin', value: '*' },
+          { name: 'Access-Control-Allow-Headers', value: '*' },
+          { name: 'Access-Control-Allow-Methods', value: 'POST, GET, OPTIONS' },
+        ],
+        body: Buffer.from(r.text != null ? r.text : JSON.stringify(r.json)).toString('base64'),
+      });
+      return;
+    }
     if (mock && !request.url.startsWith(PAGES)) {
       const r = mock.handle(request);
       if (r) {
@@ -175,7 +202,7 @@ async function servePagesFromWorkingCopy(ws, send, mock) {
       body: fs.readFileSync(file).toString('base64'),
     });
   });
-  await send('Fetch.enable', { patterns: [PAGES + '*', ...BLOCK, ...((mock && mock.patterns) || [])]
+  await send('Fetch.enable', { patterns: [PAGES + '*', STATUS_MANY, ...BLOCK, ...((mock && mock.patterns) || [])]
     .map((urlPattern) => ({ urlPattern, requestStage: 'Request' })) });
   // A public page reaching 127.0.0.1 needs Local Network Access -- a prompt
   // in a real browser (Tony allowed it once), refused outright when headless.
