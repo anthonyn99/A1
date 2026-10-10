@@ -162,3 +162,9 @@ events: guardian:unlock / guardian:lock / guardian:change on window
 - **"No change for us" test:** seed each program's real legacy localStorage shapes (copied from the code paths above) in headless pages. Assert that the page opens unlocked with no prompt and the biometric is adopted. Then bump `ver` on the fake worker and assert re-lock, stale biometric and a re-register offer.
 - **Mail routing:** worker unit tests on `mailboxFor` for Tony and Veda ids, plus the mocked live flows. Before sending a single real hint or reset email to each of you, I'll ask you.
 - **Last step for you (only manual work):** open each program once on each device and confirm it opens without a prompt and biometrics still work.
+
+## Progress (2026-10-10)
+- Phase 0 DONE — Guardian/guardian.js, worker /auth/journal/status-many, tests (guardian.test.js, guardian-wiring.test.js, live/guardian.live.js).
+- Phase 1 DONE — index app/profile/widget locks (thin adapter keeps alGate/alManage/…), Shield (window.AL shim, verify + offline). Fixed: new-device adoption hole; MyJournal never re-gated (position:fixed root vs offsetParent).
+- Phase 2 DONE — MyJournal/Brainstorm entry locks (pane + Guardian card), Plans bio-only, index's Bio/_mailRelay/_pwReset deleted, Notebook loader brings Guardian to instances. Fixed: fresh-device landing waits for the worker; a late gate re-navigating into Tony's TaskHub while Veda was open; a stray `}` that dropped MyJournal's Edit toggle; Brainstorm locked-delete fails closed. notebook-baseline (NB_SKIP_LOCK=1 vs 47690e4): both journals byte-identical, 16 screenshots identical.
+- Development note: the auto-committer ships every edit, so larger edits are built in a git worktree (Desktop\A1-gd), tested with A1_ROOT=..\A1-gd, then copied in.
