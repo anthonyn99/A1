@@ -28,7 +28,8 @@
  * allowed one.
  */
 
-const ALLOWED_ORIGINS = ['https://anthonyn99.github.io'];
+// a1-priv: RiftIQ's host since 2026-10-10 (docs/a1-priv-move-plan.md).
+const ALLOWED_ORIGINS = ['https://anthonyn99.github.io', 'https://a1-priv.av1.workers.dev'];
 // Any local dev server, whatever port it grabbed.
 const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
