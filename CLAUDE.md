@@ -19,13 +19,14 @@
   at `C:\Users\antho\Desktop\ORCA` (Veda's repo, branch `accounts`), not in
   A1. Read §0 of `C:\Users\antho\Desktop\ORCA\docs\refine-plan.md`, build
   exactly the phase it names, then test, commit, push, deploy and rewrite §0.
-- **Notebook** ("continue Notebook", "next Notebook phase"): MyJournal,
-  Brainstorm Journal and OurJournal are moving out of index.html into one
-  independent program, `Notebook/`, embedded like LifeHub (TaskHub for both
-  profiles, TradeHub's Playbook). Read §0 of
-  [docs/Notebook/plan.md](docs/Notebook/plan.md), build exactly the phase it
-  names, prove it with `node tests/live/notebook-baseline.live.js`, then
-  commit, push and rewrite §0. Never change how Veda's side looks or works.
+- **Notebook** (MyJournal, Brainstorm Journal, OurJournal, the DOCX editor):
+  one program in `Notebook/`, embedded like LifeHub. index.html mounts both
+  journals; TradeHub's Playbook is an instance. **All 7 phases are done
+  (2026-10-09).** The contract is [docs/Notebook/README.md](docs/Notebook/README.md)
+  (adding it to a program, data layout, why MyJournal names stay `tj`-prefixed);
+  [docs/Notebook/plan.md](docs/Notebook/plan.md) is the record. Prove journal
+  changes with `node tests/live/notebook-baseline.live.js`. Never change how
+  Veda's side looks or works.
 - **Theme overhaul** ("continue theme", "next theme phase"): MAGI's look on
   Tony's side of every program, plus MAGI's drag and drop everywhere except
   Tony's TaskHub. **All 11 phases are done (2026-10-03).** §0 of
