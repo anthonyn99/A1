@@ -40,8 +40,9 @@ const PENDING = [
   'tradehub.html', 'insight.html', 'vault.html', 'riftiq.html', 'solace.html',
 ];
 // Never touched by Guardian (user decision 2026-10-10): StudyOS keeps its own
-// backend. Pages under V1/ are Veda's StudyOS world.
-const EXEMPT = /^V1[\\/]/;
+// backend (V1/ is Veda's StudyOS world), and Vault/'s WebAuthn is the vault
+// MASTER-password encryption (a PRF-derived key), not a lock.
+const EXEMPT = /^(?:V1|Vault)[\\/]/;
 
 console.log('\nThe folder');
 const G = 'Guardian/guardian.js';
