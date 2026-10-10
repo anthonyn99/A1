@@ -110,6 +110,7 @@ const PAGES_URL = PAGES + 'magi.html';
 // `git worktree` of an older tag, for a before/after comparison
 // (tests/live/theme-shots.live.js).
 const A1 = path.resolve(process.env.A1_ROOT || path.join(__dirname, '..', '..'));
+const MOVED = /^(?:(?:tradehub|insight|vault)\.html$|Vault\/)/;   // tests/moved.js
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
   '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' };
 
@@ -154,8 +155,14 @@ async function servePagesFromWorkingCopy(ws, send, mock) {
       return;
     }
     const rel = decodeURIComponent(new global.URL(request.url).pathname.slice('/A1/'.length)) || 'index.html';
-    const file = path.resolve(A1, rel);
-    if (!file.startsWith(A1 + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
+    // TradeHub, Insight and Vault (+ Vault/) moved to ../A1-Priv on 2026-10-10;
+    // A1 holds redirect stubs. Serve the real pages from that checkout, still
+    // under this origin, so their tests exercise the code that ships.
+    const priv = path.join(A1, '..', 'A1-Priv');
+    const moved = MOVED.test(rel) && fs.existsSync(path.join(priv, rel));
+    const base = moved ? priv : A1;
+    const file = path.resolve(base, rel);
+    if (!file.startsWith(base + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
       send('Fetch.continueRequest', { requestId });
       return;
     }

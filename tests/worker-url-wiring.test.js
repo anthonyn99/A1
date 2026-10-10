@@ -50,6 +50,9 @@ function scriptNames(lane) {
 }
 const ACCT1 = scriptNames('workers');    // -> av1.workers.dev
 const ACCT2 = scriptNames('workers2');   // -> av1-2.workers.dev
+// The private programs' host is a Worker too, deployed from the A1-Priv repo
+// (its wrangler.toml pins account 1). Known by name even without a checkout.
+ACCT1['a1-priv'] = '../A1-Priv';
 
 section('Both lanes were discovered');
 t('workers/ has workers', Object.keys(ACCT1).length > 0, Object.keys(ACCT1).length + ' found');
