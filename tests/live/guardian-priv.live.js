@@ -58,7 +58,7 @@ const FAKE_AUTH = `(function(){ if (window.top !== window) return;
 const PAGES = [
   { file: 'tradehub.html', id: 'tony_tradehub_standalone', ns: 'tradehub', root: "document.getElementById('tradeboard-root')" },
   { file: 'solace.html', id: 'tony_solace_standalone', ns: 'solacelock', root: "document.getElementById('sol-root')" },
-  { file: 'riftiq.html', id: 'tony_warroom_standalone', ns: 'warroomlock', root: "document.getElementById('app')" },
+  { file: 'riftiq.html', id: 'tony_warroom_standalone', ns: 'warroomlock', root: "document.getElementById('program-picker')" },   // RiftIQ opens on its program picker
   { file: 'vault.html', id: 'tony_vault_standalone', ns: 'vaultlock', root: "document.getElementById('kc-root')" },
 ];
 
