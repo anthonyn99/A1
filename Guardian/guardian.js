@@ -285,7 +285,12 @@ var LAST = {}, INFLIGHT = null;
 function applyStatus(d, h, v) {
   var old = cacheGet(d), m = markerGet(d), b = bioRec(d);
   cacheSet(d, { h: !!h, v: v || null, t: Date.now() });
-  if (!h) { return; }
+  if (!h) {
+    // The lock was removed (on another device) while this one was asking for
+    // it: there is nothing left to ask for, so let the user straight in.
+    if (OPEN && OPEN.d === d && OPEN.purpose === 'unlock') { markOpen(d); settle(true); }
+    return;
+  }
   if (m === '?') markerSet(d, v);
   if (b && b.ver === '?') { b.ver = v; jSet('gd.b.' + d.key, b); }
   var changed = m && m !== '?' && m !== v;
@@ -673,7 +678,7 @@ function enterSubmits(inputs, b) {
 function scrUnlock(d, card, opts) {
   opts = opts || {};
   var purpose = opts.purpose || 'unlock';
-  if (OPEN) OPEN.escapable = !opts.hard;
+  if (OPEN) { OPEN.escapable = !opts.hard; OPEN.purpose = purpose; }
   var sub = opts.message || (purpose === 'removeBio'
     ? 'Verify with ' + bioLabel() + ' or your password to remove biometrics from this device.'
     : purpose === 'verify' ? 'Enter your password to continue.'
@@ -799,6 +804,7 @@ function sendHint(d, link, err) {
 /* ── Reset by emailed code ─────────────────────────────────────────────────── */
 function scrReset(d, card, back) {
   if (OPEN) OPEN.escapable = !(back && back.hard);
+  if (OPEN) OPEN.purpose = null;
   var err = h('div', { 'class': 'err' });
   var send = B('pri', 'mail', 'Email me a code');
   var to = (who(d) || 'the owner') + "'s email";
@@ -859,6 +865,7 @@ function scrResetCode(d, card, back, to) {
 /* ── Set a new lock ──────────────────────────────────────────────────────── */
 function scrSet(d, card) {
   if (OPEN) OPEN.escapable = true;
+  if (OPEN) OPEN.purpose = null;
   var np = pwField('New password', { autocomplete: 'new-password' }), np2 = pwField('Confirm password', { autocomplete: 'new-password' });
   var hintIn = h('input', { type: 'text', placeholder: 'Optional — emailed to you if you forget', autocomplete: 'off' });
   var err = h('div', { 'class': 'err' });
@@ -891,6 +898,7 @@ function scrSet(d, card) {
 /* ── Change password (ONE atomic set-lock with `current`) ──────────────────── */
 function scrChange(d, card) {
   if (OPEN) OPEN.escapable = true;
+  if (OPEN) OPEN.purpose = null;
   var cur = pwField('Current password', { autocomplete: 'current-password' });
   var np = pwField('New password', { autocomplete: 'new-password' }), np2 = pwField('Confirm new password', { autocomplete: 'new-password' });
   var hintIn = h('input', { type: 'text', placeholder: 'Optional', autocomplete: 'off' });
@@ -930,6 +938,7 @@ function scrChange(d, card) {
 /* ── Remove the lock ─────────────────────────────────────────────────────── */
 function scrRemove(d, card) {
   if (OPEN) OPEN.escapable = true;
+  if (OPEN) OPEN.purpose = null;
   var pw = pwField('Password', { big: true, autocomplete: 'current-password' });
   var err = h('div', { 'class': 'err' });
   var go = B('dg', 'trash', 'Remove lock');
@@ -958,6 +967,7 @@ function scrRemove(d, card) {
 /* ── The lock menu ───────────────────────────────────────────────────────── */
 function scrMenu(d, card) {
   if (OPEN) OPEN.escapable = true;
+  if (OPEN) OPEN.purpose = null;
   var open_ = isUnlocked(d.id);
   var menu = h('div', { 'class': 'menu' });
   if (!open_) menu.appendChild(B('pri', 'unlock', 'Unlock this device', function () { scrUnlock(d, card, {}); }));
