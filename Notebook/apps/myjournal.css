@@ -16,8 +16,6 @@
 #tj-root .template-card-icon .tji{width:26px;height:26px;}
 #tj-root .tj-empty-ico .tji{width:32px;height:32px;margin:0 auto;opacity:.5;}
 #tj-root .modal-close{display:inline-flex;align-items:center;justify-content:center;}
-#tj-root .tl-icon{line-height:0;color:var(--purple);display:flex;justify-content:center;}
-#tj-root .tl-icon svg{width:30px;height:30px;display:block;}
 
 #tj-root {
   display: none;
@@ -364,75 +362,21 @@
 #tj-root .tb-btn.lock-btn:hover { background: transparent; color: var(--text); border-color: var(--ac); }
 #tj-root .tb-btn.lock-btn.locked { color: var(--gold); border-color: var(--gold); background: transparent; }
 #tj-root .tb-btn.lock-btn.locked:hover { background: transparent; border-color: var(--gold); }
-#tj-lock-overlay {
-  position: absolute; inset: 0; z-index: 200;
-  background: rgba(10,10,12,0.78); backdrop-filter: blur(6px);
-  display: flex; align-items: center; justify-content: center; padding: 22px;
+/* The pane over a locked entry's editor until Guardian unlocks it
+   (the password card itself is Guardian's, Guardian/guardian.js). */
+#tj-locked-pane {
+  position: absolute; inset: 0; z-index: 200; background: var(--bg);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
 }
-#tj-lock-overlay .tl-box {
-  width: 100%; max-width: 360px; background: var(--card); border: 1px solid var(--border2);
-  border-radius: 18px; padding: 26px 22px; text-align: center;
-  display: flex; flex-direction: column; align-items: center; gap: 14px;
-  box-shadow: 0 24px 70px rgba(0,0,0,0.55);
+#tj-locked-pane .tl-pane-ic { color: var(--purple); line-height: 0; }
+#tj-locked-pane .tl-pane-ic svg { width: 30px; height: 30px; }
+#tj-locked-pane .tl-pane-title { font-family: 'Manrope', system-ui, sans-serif; font-size: 18px; font-weight: 800; color: var(--text); }
+#tj-locked-pane .tl-btn {
+  padding: 10px 22px; background: var(--ac); color: #1a1a1d; border: 1px solid var(--ac); border-radius: 6px;
+  font: 700 10px var(--font); letter-spacing: 1px; text-transform: uppercase; cursor: pointer;
 }
-#tj-lock-overlay .tl-box.shake { animation: tl-shake 0.45s ease; }
-@keyframes tl-shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-9px)} 40%,80%{transform:translateX(9px)} }
-#tj-lock-overlay .tl-icon { font-size: 38px; line-height: 1; }
-#tj-lock-overlay .tl-title { font-family: 'Manrope', system-ui, sans-serif; font-size: 22px; font-weight: 800; color: var(--text); }
-#tj-lock-overlay .tl-sub { font-size: 13px; color: var(--text3); text-align: center; line-height: 1.45; font-family: var(--font); }
-#tj-lock-overlay .tl-menu { display: flex; flex-direction: column; gap: 8px; width: 100%; }
-#tj-lock-overlay .tl-input-wrap { display: flex; flex-direction: column; gap: 10px; width: 100%; }
-#tj-lock-overlay .tl-pw-input {
-  width: 100%; background: var(--card2); border: 1px solid var(--border2);
-  border-radius: 6px; color: var(--text); font-size: 16px; padding: 11px 14px;
-  outline: none; font-family: var(--font); text-align: center; letter-spacing: 3px;
-  transition: border-color 0.15s; box-sizing: border-box;
-}
-#tj-lock-overlay .tl-pw-input:focus { border-color: var(--ac); }
-#tj-lock-overlay .tl-pw-input.error { border-color: var(--red); }
-#tj-lock-overlay .tl-err { font-size: 12px; color: var(--red); font-weight: 700; text-align: center; min-height: 16px; font-family: var(--font); }
-#tj-lock-overlay .tl-row { display: flex; gap: 8px; width: 100%; }
-#tj-lock-overlay .tl-row .tl-btn { flex: 1; }
-#tj-lock-overlay .tl-btn {
-  width: 100%; padding: 11px; background: var(--ac); color: #1a1a1d; border: none;
-  border-radius: 6px; font-size: 13px; font-weight: 700; font-family: var(--font);
-  letter-spacing: 0.04em; cursor: pointer; transition: opacity 0.15s;
-}
-#tj-lock-overlay .tl-btn.ghost { background: transparent; color: var(--text2); border: 1px solid var(--border2); }
-#tj-lock-overlay .tl-btn.danger { background: transparent; color: var(--red); border: 1px solid var(--red); }
-#tj-lock-overlay .tl-btn:hover { opacity: 0.85; }
-/* ── Lock-manager hover + touch sizing ───────────────────────────────────────
-   Opacity alone gave almost no feedback on a pointer device, so each row also
-   lights its outline. Gated behind hover/fine pointers: on a phone a tap would
-   otherwise leave the last-pressed row stuck looking hovered. */
-#tj-lock-overlay .tl-btn { transition: opacity .15s, box-shadow .18s, border-color .18s; }
-@media (hover: hover) and (pointer: fine) {
-  #tj-lock-overlay .tl-btn:hover { box-shadow: var(--suite-glow); }
-  #tj-lock-overlay .tl-btn.ghost:hover { border-color: var(--ac); box-shadow: none; }
-  #tj-lock-overlay .tl-btn.danger:hover { border-color: var(--red); box-shadow: none; }
-  #tj-lock-overlay .tl-forgot:hover { color: var(--ac); }
-}
-#tj-lock-overlay .tl-pw-input:focus { box-shadow: 0 0 0 3px rgba(192,174,234,.16); }
-#tj-lock-overlay .tl-pw-input { transition: border-color .15s, box-shadow .18s; }
-/* Phones: a taller-than-screen menu (biometrics + every action) has to scroll
-   inside its own card rather than pushing itself off the overlay. */
-@media (max-width: 560px) {
-  #tj-lock-overlay { padding: 14px; }
-  #tj-lock-overlay .tl-box {
-    max-width: none; max-height: calc(100% - 28px);
-    overflow-y: auto; -webkit-overflow-scrolling: touch;
-  }
-  #tj-lock-overlay .tl-btn { min-height: 46px; font-size: 14px; }
-  #tj-lock-overlay .tl-pw-input { min-height: 46px; }
-}
-#tj-lock-overlay .tl-forgot { background: none; border: none; color: var(--text3); font-size: 12px; font-family: var(--font); cursor: pointer; text-decoration: underline; padding: 0; margin-top: 4px; }
-#tj-lock-overlay .tl-forgot:hover { color: var(--text2); }
+#tj-locked-pane .tl-btn:hover { filter: brightness(1.15); }
 #tj-root .entry-item .tl-badge { font-size: 10px; margin-left: 4px; opacity: 0.7; }
-@media (max-width: 900px) {
-  #tj-lock-overlay .tl-box { padding: 24px 20px; }
-  #tj-lock-overlay .tl-icon { font-size: 44px; }
-  #tj-lock-overlay .tl-title { font-size: 22px; }
-}
 
   /* Edit/View Toggle */
 #tj-root .mode-toggle-wrap {

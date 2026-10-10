@@ -90,25 +90,11 @@ var html = `
   </div>
 
   <div id="tj-content-area">
-    <!-- LOCK OVERLAY -->
-    <div id="tj-lock-overlay" style="display:none;">
-      <div class="tl-box" id="tj-lock-box">
-        <div class="tl-icon" id="tj-lock-icon"></div>
-        <div class="tl-title" id="tj-lock-title">Locked Entry</div>
-        <div class="tl-sub" id="tj-lock-sub">Enter your password to unlock this entry.</div>
-        <div id="tj-lock-bio" style="display:none;"></div>
-        <div class="tl-menu" id="tj-lock-menu" style="display:none;"></div>
-        <div class="tl-input-wrap" id="tj-lock-input-wrap">
-          <input class="tl-pw-input" id="tj-lock-pw" type="password" placeholder="• • • •" autocomplete="current-password" />
-          <div class="tl-err" id="tj-lock-err"></div>
-          <div class="tl-row" id="tj-lock-row">
-            <button class="tl-btn ghost" id="tj-lock-cancel">Cancel</button>
-            <button class="tl-btn" id="tj-lock-submit">Unlock</button>
-          </div>
-        </div>
-        <button class="tl-forgot" id="tj-lock-forgot">Forgot password?</button>
-        <button class="tl-forgot" id="tj-lock-reset" style="margin-top:4px;">Reset password via email</button>
-      </div>
+    <!-- A locked entry's editor stays behind this until Guardian unlocks it. -->
+    <div id="tj-locked-pane" style="display:none;">
+      <div class="tl-pane-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+      <div class="tl-pane-title">Locked entry</div>
+      <button class="tl-btn" type="button">Unlock</button>
     </div>
 
     <div id="tj-empty-state">
@@ -965,15 +951,8 @@ function _tjForgetDeleted(ids) {
   if (!Array.isArray(state.deletedIds)) state.deletedIds = [];
   ids.forEach(function(id) {
     if (!state.deletedIds.includes(id)) state.deletedIds.push(id);
-    try {
-      localStorage.removeItem('tj_unlocked_' + id);
-      localStorage.removeItem('tj_unlockedv_' + id);
-      localStorage.removeItem('tj_unlockedat_' + id);
-      sessionStorage.removeItem('tj_unlocked_' + id);
-      sessionStorage.removeItem('tj_unlockedv_' + id);
-      sessionStorage.removeItem('tj_unlockedat_' + id);
-      localStorage.removeItem(TJ_CANVAS_KEY(id));
-    } catch (e) {}
+    if (window._tjLockForget) window._tjLockForget(id);
+    try { localStorage.removeItem(TJ_CANVAS_KEY(id)); } catch (e) {}
   });
   // Keep the tombstone list from growing without bound across years of use.
   if (state.deletedIds.length > 500) state.deletedIds = state.deletedIds.slice(-500);
@@ -1163,27 +1142,15 @@ function renderSidebar() {
     });
     div.querySelector('.entry-delete').addEventListener('click', async e => {
       e.stopPropagation();
-      // If entry is locked, require password before deleting
-      var lock = window._tjGetLock && window._tjGetLock(entry.id);
-      if (lock) {
-        var alreadyUnlocked = window._tjIsUnlocked && window._tjIsUnlocked(entry.id);
-        if (!alreadyUnlocked) {
-          var pw = await window.uiPrompt('This entry is locked. Enter password to delete:', {title:'Locked entry', password:true});
-          if (pw === null) return;
-          // The lock's worker calls live inside the lock code below; it hands
-          // them out through _tjLock.
-          try {
-            var data = await _tjLock.post('/auth/journal/verify', { journal: 'tj', entryId: entry.id, password: pw });
-            if (!data.ok) { await window.uiAlert('Incorrect password. Entry not deleted.'); return; }
-            if (await window.uiConfirm('Delete "' + (entry.title || 'Untitled') + '"?', {danger:true, okLabel:'Delete'})) {
-              await _tjLock.post('/auth/journal/remove-lock', { journal: 'tj', entryId: entry.id, password: pw }).catch(function(){});
-              deleteEntry(entry.id);
-            }
-          } catch(e) { await window.uiAlert(_tjLock.errText(e)); }
-          return;
-        }
+      // A locked entry this device has not opened takes its password first
+      // (Guardian's verify screen); the lock record goes with the entry.
+      // No lock helper must never mean no password: a locked entry then stays.
+      var pw = window._tjLockDeleteAsk ? await window._tjLockDeleteAsk(entry.id) : (entry.lock ? null : '');
+      if (pw === null) return;
+      if (await window.uiConfirm(`Delete "${entry.title || 'Untitled'}"?`, {danger:true, okLabel:'Delete'})) {
+        if (pw && window._tjLockForget) await window._tjLockForget(entry.id, pw);
+        deleteEntry(entry.id);
       }
-      if (await window.uiConfirm(`Delete "${entry.title || 'Untitled'}"?`, {danger:true, okLabel:'Delete'})) deleteEntry(entry.id);
     });
     list.appendChild(div);
   });
@@ -3428,306 +3395,71 @@ function _tjEsc(s) {
 
 
 // ══════════════════════════════════════════
-// TJ LOCK SYSTEM
+// TJ LOCK SYSTEM → Guardian
 // ══════════════════════════════════════════
-// What the rest of the app needs from the lock code (the sidebar's delete).
-var _tjLock = null;
+// A locked entry is a Guardian lock (Guardian/guardian.js, docs/Guardian/README.md):
+// id 'tj:<entryId>', worker record jlock:tj:<entryId>. Guardian owns the screens,
+// passwords, biometrics and hint/reset mail. This block only keeps entry.lock —
+// the synced "this entry is locked" marker the sidebar and the load/save guards
+// read without a network call — and the pane that covers a locked entry's editor.
 (function() {
-  // Lock data stored on entry.lock = {hash, plain} → syncs to Firebase via saveState()
-  // Per-device unlock session stored in localStorage (not synced — each device must unlock once)
-  var TJ_AUTH = 'https://taskhub-reminders.av1.workers.dev';
-  var _tjUnlocked = {};
-  function tlGetLock(id) {
-    var entry = state.entries.find(function(e) { return e.id === id; });
-    return (entry && entry.lock) ? entry.lock : null;
-  }
-  function tlLockVersion(id) {
-    var entry = state.entries.find(function(e) { return e.id === id; });
-    return (entry && entry.lock && entry.lock.v) || 0;
-  }
-  function tlSetLock(id, v) {
-    var entry = state.entries.find(function(e) { return e.id === id; });
-    if (!entry) return;
-    entry.lock = { locked: true, v: v || Date.now() };
-    entry.updated = Date.now();
-    saveState();
-  }
-  function tlRemoveLock(id) {
-    var entry = state.entries.find(function(e) { return e.id === id; });
-    if (!entry) return;
-    delete entry.lock;
-    entry.updated = Date.now();
-    saveState();
-  }
-  
-  // Once per device, forever — monotonic version comparison, same reasoning as
-  // blIsUnlocked / alIsUnlocked: entry.lock.v arrives via Firebase sync and can
-  // read stale or absent mid-flight, and an exact match turned that into a
-  // spurious password prompt. Only a strictly newer version re-locks.
-  function _tlUnlockAt(id) {
-    var best = (_tjUnlocked[id] !== undefined) ? _tjUnlocked[id] : -1;
-    var read = function(store, key) {
-      try {
-        var raw = store.getItem(key); if (raw === null) return;
-        var s = String(raw), n = parseInt(s.charAt(0)==='v' ? s.slice(1) : s, 10);
-        if (!isNaN(n)) { if (n > best) best = n; }
-        else if (best < 0) best = 0;
-      } catch(e) {}
-    };
-    read(localStorage,'tj_unlockedat_'+id); read(sessionStorage,'tj_unlockedat_'+id);
-    read(localStorage,'tj_unlockedv_'+id);  read(sessionStorage,'tj_unlockedv_'+id);
-    try { if ((localStorage.getItem('tj_unlocked_'+id)==='1'||sessionStorage.getItem('tj_unlocked_'+id)==='1') && best < 0) best = 0; } catch(e) {}
-    return best;
-  }
-  function tlIsUnlocked(id) {
-    var at = _tlUnlockAt(id);
-    if (at < 0) return false;
-    return at >= tlLockVersion(id);
-  }
-  function tlMarkUnlocked(id) {
-    var v = tlLockVersion(id), prev = _tlUnlockAt(id);
-    if (prev > v) v = prev;
-    _tjUnlocked[id] = v;
-    try{localStorage.setItem('tj_unlockedat_'+id,String(v));}catch(e){}
-    try{sessionStorage.setItem('tj_unlockedat_'+id,String(v));}catch(e){}
-    try{localStorage.setItem('tj_unlockedv_'+id,'v'+v);}catch(e){}
-    try{localStorage.setItem('tj_unlocked_'+id,'1');}catch(e){}
-  }
-  function tlMarkLocked(id) {
-    delete _tjUnlocked[id];
-    try{localStorage.removeItem('tj_unlocked_'+id);localStorage.removeItem('tj_unlockedv_'+id);localStorage.removeItem('tj_unlockedat_'+id);}catch(e){}
-    try{sessionStorage.removeItem('tj_unlocked_'+id);sessionStorage.removeItem('tj_unlockedv_'+id);sessionStorage.removeItem('tj_unlockedat_'+id);}catch(e){}
-  }
-
-  // Simple hash (SHA-256 via subtle crypto)
-  
-
-  var overlay = document.getElementById('tj-lock-overlay');
+  var G = window.Guardian;
   var lockBtn = document.getElementById('tj-btn-lock');
   var mobileLockBtn = document.getElementById('tj-mobile-lock-btn');
-  var pwInput = document.getElementById('tj-lock-pw');
-  var submitBtn = document.getElementById('tj-lock-submit');
-  var errEl = document.getElementById('tj-lock-err');
-  var forgotBtn = document.getElementById('tj-lock-forgot');
-  var resetBtn = document.getElementById('tj-lock-reset');
-  var lockIcon = document.getElementById('tj-lock-icon');
-  var lockTitle = document.getElementById('tj-lock-title');
-  var lockSub = document.getElementById('tj-lock-sub');
-  var cancelBtn = document.getElementById('tj-lock-cancel');
-  var boxEl = document.getElementById('tj-lock-box');
-  var menuEl = document.getElementById('tj-lock-menu');
-  var inputWrap = document.getElementById('tj-lock-input-wrap');
-  var bioEl = document.getElementById('tj-lock-bio');
-  var tlMode = 'unlock';
-  var _tlRemoveBioId = null;   // when set to an entry id, a successful unlock removes that entry's biometric
+  var pane = document.getElementById('tj-locked-pane');
 
-  // ── BIOMETRICS (Face ID / Touch ID / fingerprint / Windows Hello) ──
-  // Primary unlock per entry; password stays as the fallback. Keyed by entry id
-  // under the 'tj' namespace so each entry keeps its own isolated device credential.
-  function tlBioShowInput(show) {
-    pwInput.style.display = show ? '' : 'none';
-    submitBtn.style.display = show ? '' : 'none';
-    forgotBtn.style.display = show ? '' : 'none';
-    if (resetBtn) resetBtn.style.display = show ? '' : 'none';
-    if (show) setTimeout(function() { pwInput.focus(); }, 60);
-  }
-  var _tlBioSeq = 0;   // newest render wins: two quick opens used to draw the buttons twice
-  function tlBioRender() {
-    if (!bioEl) return; bioEl.innerHTML = ''; bioEl.style.display = 'none';
-    var seq = ++_tlBioSeq;
-    if (!window.Bio || tlMode !== 'unlock') return;
-    var entry = getActive(); if (!entry) return; var id = entry.id;
-    window.Bio.available().then(function(avail) {
-      var cur = getActive();
-      if (tlMode !== 'unlock' || !cur || cur.id !== id) return;
-      if (seq !== _tlBioSeq) return;
-      bioEl.innerHTML = '';
-      var had = window.Bio.isRegistered('tj', id);
-      if (!(avail && window.Bio.isRegistered('tj', id, tlLockVersion(id)))) { if (avail && had) tlBioStaleMsg(); return; }
-      bioEl.style.display = 'flex'; bioEl.style.flexDirection = 'column'; bioEl.style.gap = '8px'; bioEl.style.marginBottom = '10px';
-      var b = document.createElement('button'); b.className = 'tl-btn';
-      b.innerHTML = TNI.unlock + '<span>Unlock with ' + window.Bio.label() + '</span>';
-      b.onclick = function() { tlBioUnlock(); };
-      bioEl.appendChild(b);
-      // The password field stays visible alongside it: biometrics run ONLY when
-      // this button is pressed, so either route is available at all times.
-      tlBioShowInput(true);
+  function tlEntry(id) { return state.entries.find(function(e) { return e.id === id; }); }
+  function tlGetLock(id) { var e = tlEntry(id); return (e && e.lock) ? e.lock : null; }
+  function gid(id) { return 'tj:' + id; }
+  // Declare the entry's lock to Guardian (idempotent; keeps the label current).
+  function tlDefine(id) {
+    var e = tlEntry(id);
+    return G.define(gid(id), {
+      journal: 'tj', entryId: id, kind: 'entry', owner: 'tony',
+      label: (e && e.title) || 'Untitled entry', appName: 'MyJournal',
+      // First sight on this device: the old per-entry unlock marker decides.
+      legacy: {
+        locked: function() { return !!tlGetLock(id); },
+        open: G.legacy.marker('tj_', id, (tlGetLock(id) || {}).v || 0, 'tj').open,
+        bio: G.legacy.marker('tj_', id, (tlGetLock(id) || {}).v || 0, 'tj').bio
+      },
+      onChange: function(_g, what) {
+        var en = tlEntry(id); if (!en) return;
+        if (what === 'remove') delete en.lock;
+        else en.lock = { locked: true, v: Date.now() };
+        en.updated = Date.now();
+        saveState();
+        tlUpdateLockBtn(); try { renderSidebar(); } catch (e) {}
+      },
+      // Locked here again (lock now, or a new password elsewhere): reload the
+      // entry so the load guard blanks its editor behind the pane.
+      onBlock: function() { if (state.activeId === id) { try { loadActiveEntry(); } catch (e) { tlCheckEntry(); } } }
     });
   }
-  function tlBioUnlock() {
-    errEl.textContent = '';
-    var entry = getActive(); if (!entry || !window.Bio) return; var id = entry.id;
-    window.Bio.authenticate('tj', id, { v: tlLockVersion(id) }).then(function(r) {
-      if (r.ok) {
-        if (_tlRemoveBioId === id) { tlDoRemoveBio(id); return; }
-        tlMarkUnlocked(id); tlHideOverlay(); tlUpdateLockBtn(); try { loadActiveEntry(); renderSidebar(); } catch(e) {}
-      }
-      else if (r.error === 'stale') { tlBioStaleMsg(); }
-      else if (r.error === 'notregistered') { tlBioShowInput(true); }
-      else { errEl.textContent = 'Biometric check failed — use your password.'; tlBioShowInput(true); }
+  function tlIsUnlocked(id) { return !tlGetLock(id) || G.isUnlocked(tlDefine(id)); }
+
+  function tlShowPane(show) { if (pane) pane.style.display = show ? 'flex' : 'none'; }
+  function tlOpened(id) {
+    tlShowPane(false); tlUpdateLockBtn();
+    try { loadActiveEntry(); renderSidebar(); } catch (e) {}
+  }
+  // Ask for the active entry's password (Cancel leaves the pane over it).
+  function tlAsk() {
+    var entry = getActive(); if (!entry || !tlGetLock(entry.id)) return;
+    var id = entry.id;
+    G.gate(tlDefine(id)).then(function(ok) {
+      // The server reported no lock: the marker was stale (deleted + re-synced).
+      if (ok && G.status(gid(id)).hasLock === false && tlGetLock(id)) { var en = tlEntry(id); delete en.lock; en.updated = Date.now(); saveState(); }
+      if (ok && state.activeId === id) tlOpened(id);
     });
   }
-  // The password changed since this device enrolled, so its biometric no longer
-  // opens the entry (Bio drops it): say why, and fall back to the password.
-  function tlBioStaleMsg() {
-    if (bioEl) { bioEl.innerHTML = ''; bioEl.style.display = 'none'; }
-    errEl.textContent = 'The password changed — enter the new one. ' + window.Bio.label() + ' needs registering again on this device.';
-    tlBioShowInput(true);
-  }
-  // After the password proves who this is: if a password change dropped this
-  // device's biometric (or this device just changed it), offer to enrol again.
-  function tlBioAfterPw(id, hadBio) {
-    if (!window.Bio) return;
-    if (window.Bio.takeStale('tj', id) || hadBio) tlMaybeOfferBio(id);
-  }
-  function tlHadBio(id) { return !!(window.Bio && window.Bio.isRegistered('tj', id)); }
-  // Verify identity (biometric OR password) before removing this entry's biometric.
-  function tlBioRemovePrompt(id) {
-    tlShowOverlay('unlock');
-    _tlRemoveBioId = id;
-    lockIcon.innerHTML = TNI.user;
-    lockSub.textContent = 'Verify with ' + window.Bio.label() + ' or your password to remove biometrics from this device.';
-  }
-  function tlDoRemoveBio(id) {
-    _tlRemoveBioId = null;
-    window.Bio.unregister('tj', id);
-    tlHideOverlay(); tlUpdateLockBtn();
-    window.uiAlert('Biometrics removed from this device.');
-  }
-  function tlBioRegister(id, closeAfter) {
-    if (!window.Bio) return;
-    window.Bio.register('tj', id, { rpName: 'MyJournal', userName: 'tj-' + id, displayName: 'Journal entry — MyJournal', v: tlLockVersion(id) }).then(function(r) {
-      if (r.ok) { tlMarkUnlocked(id); if (closeAfter) { tlHideOverlay(); tlUpdateLockBtn(); try { loadActiveEntry(); renderSidebar(); } catch(e) {} } alert('Biometrics registered on this device. You can now unlock this entry with ' + window.Bio.label() + '.'); }
-      else if (!(r.error === 'cancelled' || r.error === 'NotAllowedError')) alert('Could not register biometrics on this device.');
-    });
-  }
-  function tlMaybeOfferBio(id) {
-    if (!window.Bio) return;
-    window.Bio.available().then(function(avail) {
-      if (!avail || window.Bio.isRegistered('tj', id, tlLockVersion(id))) return;
-      window.uiConfirm('Register ' + window.Bio.label() + ' to unlock this entry on this device? Your password still works as a fallback.', { title: 'Register ' + window.Bio.label(), okLabel: 'Register' }).then(function(ok) { if (ok) tlBioRegister(id, false); });
-    });
-  }
-
-  // modes: 'setpw' | 'unlock' | 'remove' | 'changepw'
-  function tlShowOverlay(mode) {
-    tlMode = mode;
-    overlay.style.display = 'flex';
-    if (menuEl) { menuEl.innerHTML = ''; menuEl.style.display = 'none'; }
-    if (inputWrap) inputWrap.style.display = '';
-    if (bioEl) { bioEl.innerHTML = ''; bioEl.style.display = 'none'; }
-    _tlRemoveBioId = null;   // cleared on any normal open; tlBioRemovePrompt re-sets it after
-    errEl.textContent = '';
-    pwInput.value = '';
-    pwInput.style.display = '';   // restore in case a prior biometric prompt hid it
-    pwInput.classList.remove('error');
-    submitBtn.style.display = '';
-    cancelBtn.style.display = '';
-    forgotBtn.style.display = '';
-    if (resetBtn) resetBtn.style.display = '';
-    if (mode === 'setpw') {
-      lockIcon.innerHTML = TNI.shield;
-      lockTitle.textContent = 'Set a Password';
-      lockSub.textContent = 'Choose a password for this entry. Unlock once on this device — it stays unlocked here until you re-lock it.';
-      submitBtn.textContent = 'Set Password';
-      forgotBtn.style.display = 'none';
-      if (resetBtn) resetBtn.style.display = 'none';
-    } else if (mode === 'remove') {
-      lockIcon.innerHTML = TNI.unlock;
-      lockTitle.textContent = 'Remove Lock';
-      lockSub.textContent = 'Enter the password to remove the lock.';
-      submitBtn.textContent = 'Remove Lock';
-    } else if (mode === 'changepw') {
-      lockIcon.innerHTML = TNI.key;
-      lockTitle.textContent = 'Change Password';
-      lockSub.textContent = 'Enter your current password first.';
-      submitBtn.textContent = 'Verify';
-    } else {
-      lockIcon.innerHTML = TNI.lock;
-      lockTitle.textContent = 'Locked Entry';
-      lockSub.textContent = 'Enter your password to unlock this entry.';
-      submitBtn.textContent = 'Unlock';
-    }
-    setTimeout(function() { pwInput.focus(); }, 80);
-    tlBioRender();
-  }
-
-  function tlHideOverlay() {
-    overlay.style.display = 'none';
-    if (menuEl) { menuEl.innerHTML = ''; menuEl.style.display = 'none'; }
-    if (inputWrap) inputWrap.style.display = '';
-    if (bioEl) { bioEl.innerHTML = ''; bioEl.style.display = 'none'; }
-    _tlRemoveBioId = null;
-  }
-
-  function tlLockErr(msg) {
-    errEl.textContent = msg;
-    pwInput.value = '';
-    pwInput.classList.add('error');
-    if (boxEl) { boxEl.classList.remove('shake'); void boxEl.offsetWidth; boxEl.classList.add('shake'); }
-    setTimeout(function() { pwInput.classList.remove('error'); }, 450);
-  }
-
-  function _tlMenuBtn(parent, label, cls, fn, beforeEl) {
-    var b = document.createElement('button');
-    b.className = 'tl-btn' + (cls ? ' ' + cls : '');
-    // Callers pass icon markup + a <span> label, so this must be innerHTML —
-    // textContent printed the raw <svg …> source into the button.
-    b.innerHTML = label;
-    b.onclick = fn;
-    if (beforeEl) parent.insertBefore(b, beforeEl); else parent.appendChild(b);
-    return b;
-  }
-
-  // Manage menu shown when the entry is already locked (mirrors MyList)
-  function tlShowMenu(entry) {
-    overlay.style.display = 'flex';
-    errEl.textContent = '';
-    pwInput.value = '';
-    pwInput.classList.remove('error');
-    if (bioEl) { bioEl.innerHTML = ''; bioEl.style.display = 'none'; }
-    lockIcon.innerHTML = TNI.lock;
-    lockTitle.textContent = 'Locked Entry';
-    lockSub.textContent = 'Manage lock for this entry.';
-    if (inputWrap) inputWrap.style.display = 'none';
-    forgotBtn.style.display = 'none';
-    if (resetBtn) resetBtn.style.display = 'none';
-    var m = menuEl; m.innerHTML = ''; m.style.display = 'flex';
-    if (!tlIsUnlocked(entry.id)) {
-      _tlMenuBtn(m, TNI.unlock + '<span>Unlock this entry</span>', '', function() { tlShowOverlay('unlock'); });
-    } else {
-      _tlMenuBtn(m, TNI.lock + '<span>Lock this entry now</span>', '', function() { tlMarkLocked(entry.id); tlHideOverlay(); tlUpdateLockBtn(); tlCheckEntry(); });
-    }
-    var changeBtn = _tlMenuBtn(m, TNI.key + '<span>Change password</span>', 'ghost', function() { tlShowOverlay('changepw'); });
-    _tlMenuBtn(m, TNI.trash + '<span>Remove lock</span>', 'danger', function() { tlShowOverlay('remove'); });
-    _tlMenuBtn(m, 'Close', 'ghost', function() { tlDismiss(); });
-    if (window.Bio) window.Bio.available().then(function(avail) {
-      var cur = getActive();
-      if (!avail || !cur || cur.id !== entry.id) return;
-      if (window.Bio.isRegistered('tj', entry.id, tlLockVersion(entry.id)))
-        _tlMenuBtn(m, TNI.user + '<span>Remove biometrics</span>', 'ghost', function() { tlBioRemovePrompt(entry.id); }, changeBtn);
-      else
-        _tlMenuBtn(m, TNI.user + '<span>Register ' + window.Bio.label() + '</span>', '', function() { tlBioRegister(entry.id, true); }, changeBtn);
-    });
-  }
-
-  // Dismiss the overlay — but if the entry is still locked & not unlocked on this
-  // device, stay gated (never expose content) by falling back to the unlock prompt.
-  function tlDismiss() {
-    var entry = getActive();
-    if (entry && tlGetLock(entry.id) && !tlIsUnlocked(entry.id)) { tlShowOverlay('unlock'); }
-    else { tlHideOverlay(); }
-  }
+  pane && pane.querySelector('button') && pane.querySelector('button').addEventListener('click', tlAsk);
 
   function tlManage() {
-    var entry = getActive();
-    if (!entry) return;
-    var lock = tlGetLock(entry.id);
-    if (!lock) { tlShowOverlay('setpw'); return; }
-    tlShowMenu(entry);
+    var entry = getActive(); if (!entry) return;
+    var id = entry.id;
+    G.manage(tlDefine(id)).then(function() { if (state.activeId === id) tlCheckEntry(); });
   }
-
-  cancelBtn && cancelBtn.addEventListener('click', function() { tlDismiss(); });
 
   function tlUpdateLockBtn() {
     var entry = getActive();
@@ -3751,195 +3483,36 @@ var _tjLock = null;
       if (mobileLockBtn) { mobileLockBtn.innerHTML = TNI.unlock; mobileLockBtn.classList.remove('tl-locked'); mobileLockBtn.style.color = ''; }
     }
   }
+  lockBtn && lockBtn.addEventListener('click', tlManage);
+  mobileLockBtn && mobileLockBtn.addEventListener('click', tlManage);
 
-  // Lock button (desktop + mobile) opens the manage flow
-  function _tlHandleLockClick() { tlManage(); }
-  mobileLockBtn && mobileLockBtn.addEventListener('click', _tlHandleLockClick);
-
-  // Called by loadActiveEntry wrapper below
+  // Gate the active entry: a locked entry this device has not opened shows the
+  // pane (never its content) and asks.
   function tlCheckEntry() {
     var entry = getActive();
     tlUpdateLockBtn();
-    if (!entry) { tlHideOverlay(); return; }
-    var lock = tlGetLock(entry.id);
-    if (lock && !tlIsUnlocked(entry.id)) {
-      tlShowOverlay('unlock');
+    if (!entry || !tlGetLock(entry.id)) { tlShowPane(false); return; }
+    if (!tlIsUnlocked(entry.id)) {
+      tlShowPane(true);
+      if (!G.isOpen()) tlAsk();
     } else {
-      tlHideOverlay();
+      tlShowPane(false);
     }
   }
 
-  // Lock button click (desktop) — same logic as mobile via shared handler
-  lockBtn && lockBtn.addEventListener('click', _tlHandleLockClick);
-
-  // Every lock call went through a bare fetch+res.json() inside one try/catch
-  // that reported "Network error" for anything that threw — including a server
-  // that answered with an HTML error page. Tag the failure so the message can
-  // tell the truth about what actually went wrong.
-  async function tlAuthPost(path, body) {
-    if (navigator.onLine === false) { var offErr = new Error('offline'); offErr._offline = true; throw offErr; }
-    var res;
-    try { res = await fetch(TJ_AUTH + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
-    catch (e) { var netErr = new Error('unreachable'); netErr._offline = true; throw netErr; }
-    var txt = await res.text();
-    try { return JSON.parse(txt); }
-    catch (e) { var srvErr = new Error('bad response'); srvErr._status = res.status; throw srvErr; }
-  }  // The message for a lock call that threw (see tlAuthPost).
-  function tlErrText(e) {
-    return e && e._offline
-      ? 'No connection. Check your network and try again.'
-      : (e && e._status ? 'Lock server error (' + e._status + '). Try again.' : 'Could not reach the lock server. Try again.');
-  }
-  _tjLock = { post: tlAuthPost, errText: tlErrText };
-
-  // The server is the source of truth for locks. If it reports no lock for this
-  // entry, the local marker is stale (typically the entry was deleted and
-  // re-synced) — clear it and let the user in rather than trapping them behind
-  // a password that nothing on the server can verify.
-  function tlDropStaleLock(entry) {
-    tlRemoveLock(entry.id); tlMarkUnlocked(entry.id);
-    tlHideOverlay(); tlUpdateLockBtn();
-    try { loadActiveEntry(); renderSidebar(); } catch (e) {}
-  }
-
-  // Submit button
-  submitBtn && submitBtn.addEventListener('click', async function() {
-    var entry = getActive(); if (!entry) return;
-    var pw = pwInput.value.trim();
-    if (!pw) { pwInput.classList.add('error'); errEl.textContent = 'Password required.'; return; }
-    submitBtn.disabled = true; var _prev = submitBtn.textContent; submitBtn.textContent = 'Checking…';
-    var lock = tlGetLock(entry.id);
-    try {
-      if (!lock || tlMode === 'setpw') {
-        var hint = (await window.uiPrompt('Optional: enter a password hint (sent in the recovery email, never the password). Leave blank to skip.', {title:'Password hint'})) || '';
-        var data = await tlAuthPost('/auth/journal/set-lock', { journal: 'tj', entryId: entry.id, password: pw, hint: hint });
-        if (data.ok) { tlSetLock(entry.id); tlMarkUnlocked(entry.id); tlHideOverlay(); tlUpdateLockBtn(); renderSidebar(); tlMaybeOfferBio(entry.id); }
-        else errEl.textContent = 'Failed to set lock. Try again.';
-      } else if (tlMode === 'remove') {
-        var data2 = await tlAuthPost('/auth/journal/remove-lock', { journal: 'tj', entryId: entry.id, password: pw });
-        if (data2.ok) { tlRemoveLock(entry.id); tlMarkLocked(entry.id); tlHideOverlay(); tlUpdateLockBtn(); renderSidebar(); }
-        else tlLockErr('Wrong password.');
-      } else if (tlMode === 'changepw') {
-        var data3 = await tlAuthPost('/auth/journal/verify', { journal: 'tj', entryId: entry.id, password: pw });
-        if (data3.ok) {
-          var chg = await window.uiForm({ title:'Change password', okLabel:'Change password',
-            fields:[ {name:'password',label:'New password',type:'password',required:true}, {name:'hint',label:'New password hint (optional)'} ] });
-          var np = chg ? chg.password : '';
-          if (np && np.trim()) {
-            var nh = (chg.hint) || '';
-            // One call: the worker checks `current` and swaps the password, so
-            // the entry is never left without one if the new password fails.
-            var sd = await tlAuthPost('/auth/journal/set-lock', { journal: 'tj', entryId: entry.id, password: np.trim(), hint: nh, current: pw });
-            if (sd.ok) { var hadBio = tlHadBio(entry.id); tlSetLock(entry.id); tlMarkUnlocked(entry.id); tlHideOverlay(); tlUpdateLockBtn(); renderSidebar(); tlBioAfterPw(entry.id, hadBio); }
-            else errEl.textContent = 'Failed to set new password.';
-          } else errEl.textContent = 'New password empty.';
-        } else tlLockErr('Wrong password.');
-      } else {
-        var data4 = await tlAuthPost('/auth/journal/verify', { journal: 'tj', entryId: entry.id, password: pw });
-        if (data4.ok) {
-          if (_tlRemoveBioId === entry.id) { tlDoRemoveBio(entry.id); }
-          else { tlMarkUnlocked(entry.id); tlHideOverlay(); tlUpdateLockBtn(); try { loadActiveEntry(); renderSidebar(); } catch(e) {} tlBioAfterPw(entry.id, false); }
-        } else if (data4.noLock) {
-          tlDropStaleLock(entry);
-        } else tlLockErr('Wrong password.');
-      }
-    } catch(e) {
-      errEl.textContent = tlErrText(e);
-    }
-    submitBtn.disabled = false; submitBtn.textContent = _prev;
-  });
-
-  pwInput && pwInput.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') submitBtn.click();
-    if (e.key === 'Escape') {
-      // If unlock prompt — revert to previous entry or keep overlay up (can't dismiss lock)
-      // Just clear error state; can't bypass lock with Escape
-      errEl.textContent = '';
-      pwInput.classList.remove('error');
-    }
-  });
-
-  // Forgot password — fetches hint from Worker KV, emails via Formspree from client
-  forgotBtn && forgotBtn.addEventListener('click', async function() {
-    var entry = getActive(); if (!entry) return;
-    var lock = tlGetLock(entry.id);
-    if (!lock) { errEl.textContent = 'No lock set on this entry.'; return; }
-    forgotBtn.textContent = 'Sending...';
-    forgotBtn.disabled = true;
-    try {
-      // The worker mails the hint and no longer returns its text. journal:'tj'
-      // is what routes this to Tony's inbox — the entry id is random and names
-      // no owner (see JOURNAL_OWNER in the worker).
-      var hintRes = await fetch(TJ_AUTH + '/auth/journal/hint', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          journal: 'tj', entryId: entry.id, owner: 'tony',
-          appName: 'MyJournal',
-          label: 'entry "' + (entry.title || 'Untitled') + '"'
-        })
-      });
-      var hintData = await hintRes.json();
-      if (hintData.noLock) {
-        errEl.textContent = 'No lock found on server. Try re-locking the entry.';
-        forgotBtn.disabled = false; forgotBtn.textContent = 'Forgot password?';
-        return;
-      }
-      // `hintData.ok` is not delivery. With no server-side sender the worker
-      // returns a relay envelope for THIS BROWSER to post, because Formspree
-      // files worker-sent mail as spam. _mailRelay reports what went out.
-      if (await window._mailRelay(hintData)) {
-        forgotBtn.textContent = 'Hint sent!';
-        setTimeout(function() { forgotBtn.textContent = 'Forgot password?'; forgotBtn.disabled = false; }, 3000);
-      } else {
-        forgotBtn.textContent = 'Failed - try again';
-        forgotBtn.disabled = false;
-      }
-    } catch(e) {
-      forgotBtn.textContent = 'Failed - try again';
-      forgotBtn.disabled = false;
-    }
-  });
-
-  // Reset password via emailed security code (MyJournal → Tony's email).
-  resetBtn && resetBtn.addEventListener('click', async function() {
-    var entry = state.entries.find(function(e) { return e.id === state.activeId; });
-    if (!entry) return;
-    if (!tlGetLock(entry.id)) { errEl.textContent = 'No lock set on this entry.'; return; }
-    var prev = resetBtn.textContent; resetBtn.textContent = 'Sending code…'; resetBtn.disabled = true;
-    await window._pwReset({
-      worker: TJ_AUTH,
-      reqBody: { journal: 'tj', entryId: entry.id },
-      // The worker picks the mailbox; `owner` states it outright rather than
-      // leaning on the journal lookup. `email` is now only display text.
-      owner: 'tony',
-      email: 'anthonypn99@gmail.com',
-      appName: 'MyJournal',
-      label: 'entry "' + (entry.title || 'Untitled') + '"',
-      onSuccess: function() {
-        var hadBio = tlHadBio(entry.id);
-        tlSetLock(entry.id); tlMarkUnlocked(entry.id); tlHideOverlay(); tlUpdateLockBtn();
-        tlBioAfterPw(entry.id, hadBio);
-        try { loadActiveEntry(); renderSidebar(); } catch(e) {}
-      }
-    });
-    resetBtn.textContent = prev; resetBtn.disabled = false;
-  });
-
-  // Patch loadActiveEntry to run lock check after loading
+  // Run the lock check after every entry load.
   var _origLoadActive = loadActiveEntry;
   loadActiveEntry = function() {
     _origLoadActive.apply(this, arguments);
     tlCheckEntry();
   };
-
-  // Run immediately so the first entry loaded before this patch executes is also gated
+  // …and right now, so an entry loaded before this patch is gated too.
   tlCheckEntry();
 
-  // Patch renderSidebar to show lock badge
+  // Lock badges in the sidebar.
   var _origRenderSidebar = renderSidebar;
   renderSidebar = function() {
     _origRenderSidebar.apply(this, arguments);
-    // Add lock badges after render
     document.querySelectorAll('#tj-entries-list .entry-item').forEach(function(div) {
       var id = div.dataset.entryId;
       if (!id) return;
@@ -3956,7 +3529,16 @@ var _tjLock = null;
     });
   };
 
-  // Expose for external use
+    // Resolves '' (no password needed), the verified password, or null (cancelled).
+  window._tjLockDeleteAsk = function(id) {
+    if (!tlGetLock(id)) return Promise.resolve('');
+    var g = tlDefine(id);
+    if (G.isUnlocked(g)) return Promise.resolve('');
+    return G.verify(g, { title: 'Delete entry', message: 'This entry is locked. Enter its password to delete it.' });
+  };
+  // The entry is gone: drop its lock here, and on the server when the password is known.
+  window._tjLockForget = function(id, pw) { return G.forget(gid(id), pw || undefined); };
+
   window._tjLockCheck = tlCheckEntry;
   window._tjLockUpdateBtn = tlUpdateLockBtn;
   window._tjGetLock = tlGetLock;

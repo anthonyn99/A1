@@ -5986,43 +5986,6 @@ body { max-width: 2000px; margin-inline: auto; }
 <!-- Guardian: the one A1 lock (docs/Guardian/README.md). Loaded before first
      paint, unpinned, so every Guardian upgrade reaches this page. -->
 <script src="Guardian/guardian.js"></script>
-<script id="mail-relay">
-/* == Recovery-mail relay ===================================================
-   The worker mints the reset code and the hint text, but it cannot always
-   DELIVER them. Formspree files anything posted from a Cloudflare Worker as
-   spam -- it answers {"ok":true} and the mail never arrives -- while the exact
-   same submission sent from a browser has worked for months. So when the
-   worker has no server-side sender configured it hands the page an envelope
-   instead of sending, and this posts it from here, where it works.
-
-   `relay` only appears when the worker could not send it itself. Set
-   BREVO_API_KEY (or RESEND_API_KEY) on taskhub-reminders and the worker sends
-   it directly, stops returning `relay`, and this quietly stops being used --
-   no page change needed. Until then, note that a relayed reset code passes
-   through this browser, so whoever asked for it can read it.
-
-   Returns true if the mail went out, false if nothing was sent. A response
-   that was already delivered server-side (`emailed`) counts as sent. */
-window._mailRelay = window._mailRelay || async function (res) {
-  if (res && res.emailed) return true;
-  var r = res && res.relay;
-  if (!r || !r.form) return false;
-  try {
-    var out = await fetch(r.form, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      /* `_subject` is the field Formspree uses for the subject line; a plain
-         `subject` key is swallowed. Both are sent so either spelling works. */
-      body: JSON.stringify({ email: r.email, _subject: r.subject, subject: r.subject, message: r.message })
-    });
-    var d = null;
-    try { d = await out.json(); } catch (e) {}
-    /* A 2xx is not delivery on its own -- Formspree states a refusal as
-       {"ok":false} or an errors array underneath one. */
-    return !!out.ok && !(d && (d.ok === false || (d.errors && d.errors.length)));
-  } catch (e) { return false; }
-};
-</script>
 <!-- MAGI's drag to reorder and corner resize grip, shared by every program
      (theme overhaul, phases 1b and 2). In the head, so they exist before any
      list first draws: MyJournal's sidebar renders while the body is parsing. -->
@@ -16610,6 +16573,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     const main=localStorage.getItem("td6_mainDash");
     const last=localStorage.getItem("td6_lastDash");
     const open=function(who){ return !(window.alMustBlock && window.alMustBlock("profile_"+who)); };
+    const decide=function(){
     // Main dash takes priority — skip profile chooser entirely (only if that profile
     // isn't password-locked on this device; otherwise show chooser so they can unlock).
     let autoDash=false;
@@ -16640,6 +16604,17 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
     } else {
       hideBootLoader();
     }
+    };
+    // A device that has never seen these locks does not know yet whether
+    // there are any, and Guardian fails closed — so ask the worker before
+    // landing (the boot loader is still up), rather than bouncing to the
+    // chooser or gating programs that may have no lock at all. Capped at 2.5s.
+    const G=window.Guardian;
+    const unknown=!!G && G.defs().some(function(d){ return !d.bioOnly && G.status(d.id).hasLock===null && !G.isUnlocked(d.id); });
+    if(unknown){
+      // One status-many call answers every lock on the page.
+      Promise.race([G.refresh(null,true), new Promise(function(r){setTimeout(r,2500);})]).then(decide,decide);
+    } else decide();
   });
 })();
 </script>
@@ -18488,52 +18463,42 @@ function stamp(verified){
 // ── Biometric consent ───────────────────────────────────────────────────────
 // This is the part that actually closes the forgery hole. The profile chooser
 // cannot tell two people apart; the device's secure enclave can. Each profile
-// enrols its OWN credential under ('plans', profile), and window.Bio only ever
-// allows that one credential id — so Tony's fingerprint cannot satisfy a check
-// registered to Veda, even on a device they share.
+// enrols its OWN credential — a Guardian bio-only lock 'plans:<profile>'
+// (Guardian/guardian.js) — and Guardian only ever allows that one credential id
+// — so Tony's fingerprint cannot satisfy a check registered to Veda, even on a
+// device they share.
 //
 // The app never sees biometric data. WebAuthn returns a public-key handle only.
-const BIO_APP='plans';
-function bioEnrolled(who){return !!(window.Bio&&who&&window.Bio.isRegistered(BIO_APP,who));}
-function bioLabel(){return (window.Bio&&window.Bio.label())||'biometrics';}
+const GD=window.Guardian;
+function plansBio(who){
+  return GD.define('plans:'+who,{journal:'plans',entryId:who,owner:who,label:'Plans confirmation',bioOnly:true,
+    // the credential the old shared helper enrolled (bio_cred_plans_<who>) carries over
+    legacy:{bio:()=>GD.legacy.bioRec('plans',who,0)}});
+}
+function bioEnrolled(who){return !!(GD&&who&&GD.bio.isRegistered(plansBio(who)));}
+function bioLabel(){return (GD&&GD.bio.label())||'biometrics';}
 // The panel renders synchronously but availability is a promise, so it is
 // resolved once at boot and cached. Defaults to false: never advertise a
 // capability we have not actually confirmed the device has.
 let bioOK=false;
-function bioAvailable(){
-  if(!window.Bio)return Promise.resolve(false);
-  return window.Bio.available().catch(()=>false);
-}
-// window.Bio is defined much further down the file, so it does not exist when
-// this script parses and may still be missing when a panel is first opened.
-// Poll briefly until it appears, then cache the answer and repaint once.
 let bioChecked=false;
 function refreshBioOK(){
   if(bioChecked)return Promise.resolve(bioOK);
-  if(!window.Bio){
-    // Not loaded yet — try again shortly rather than answering "unavailable".
-    setTimeout(refreshBioOK,300);
-    return Promise.resolve(false);
-  }
   bioChecked=true;
-  return bioAvailable().then(v=>{bioOK=v;window._plBioOK=v;emit();return v;});
+  if(!GD)return Promise.resolve(false);
+  return GD.bio.available().catch(()=>false).then(v=>{bioOK=v;window._plBioOK=v;emit();return v;});
 }
 refreshBioOK();
-window.addEventListener('load',refreshBioOK);
 // Resolves true only when the OS positively verified this profile's own
 // credential. A cancelled prompt or a failure resolves false — never throws, so
 // a confirm can still proceed as unverified rather than dead-ending.
 function bioVerify(who){
   if(!bioEnrolled(who))return Promise.resolve(false);
-  return window.Bio.authenticate(BIO_APP,who)
-    .then(r=>!!(r&&r.ok)).catch(()=>false);
+  return GD.bio.authenticate(plansBio(who)).then(r=>!!(r&&r.ok)).catch(()=>false);
 }
 function bioEnrol(who){
-  if(!window.Bio||!who)return Promise.resolve({ok:false,error:'unsupported'});
-  return window.Bio.register(BIO_APP,who,{
-    rpName:'Plans',userName:'plans-'+who,
-    displayName:(NAMES[who]||who)+' — Plans confirmation'
-  }).catch(e=>({ok:false,error:(e&&e.name)||'error'}));
+  if(!GD||!who)return Promise.resolve({ok:false,error:'unsupported'});
+  return GD.bio.register(plansBio(who)).catch(e=>({ok:false,error:(e&&e.name)||'error'}));
 }
 
 // Two confirmations from the SAME device are not proof of forgery — a couple may
@@ -19218,62 +19183,10 @@ window.PlansCore={
      OurJournal) and their Firestore adapters, loaded in place by notebook.js.
      MyJournal itself still lives below until Phase 3
      (docs/Notebook/plan.md). ── -->
-<script src="Notebook/notebook.js?v=54d03cb0ac"></script>
+<script src="Notebook/notebook.js?v=950894b131"></script>
 
 <!-- ── Brainstorm Journal: Notebook's brainstorm app (Notebook/apps/brainstorm.*). ── -->
 <script>Notebook.mount({ app: 'brainstorm', key: 'bj', store: 'journal' });</script>
-<script>
-// Shared password-reset flow (emailed 6-char code → verify → set new password).
-// Host-owned: the app lock and both journals' locks use it.
-// opts: { worker, reqBody:{journal,entryId}|{profile}, email, appName, label, onSuccess }
-window._pwReset = window._pwReset || async function(opts){
-  function post(path, obj){ return fetch(opts.worker+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)}).then(function(r){return r.json();}); }
-  var rq;
-  try { rq = await post('/auth/reset/request', Object.assign({ appName: opts.appName, label: opts.label, owner: opts.owner }, opts.reqBody)); }
-  catch(e){ alert('Network error while starting the reset. Check your connection and try again.'); return false; }
-  if (rq && rq.noLock) { alert('There is no password set on the server for this item.'); return false; }
-  if (rq && rq.error==='throttled') { alert('Too many reset emails have gone out just now. Wait a few minutes and try again.'); return false; }
-if (rq && rq.error==='email-failed') { alert('Could not send the reset email. Please try again in a moment.'); return false; }
-if (!rq || !rq.ok) { alert('Could not start the reset. Please try again.'); return false; }
-  // The worker sends the code itself when it has a provider that can.
-  // When it cannot, it returns a `relay` envelope and the BROWSER sends it
-  // -- Formspree files worker-sent mail as spam, so this is the only path
-  // that actually reaches the inbox. See the mail-relay script in <head>.
-  if (!(await window._mailRelay(rq))) { alert('Could not send the reset email. Please try again in a moment.'); return false; }
-  // The WORKER mails the code now; it is never returned here. That is what
-// stops a stranger starting a reset and reading the code off the reply.
-  var vals = await window.uiForm({
-    title:'Reset password',
-    message:'A 6-character code was emailed to '+(rq.to||opts.email)+'. Enter it below (check spam if you don\'t see it within a minute), then choose a new password.',
-    okLabel:'Reset password',
-    fields:[
-      { name:'code', label:'Security code from email', placeholder:'6-character code', autocap:false, required:true },
-      { name:'password', label:'New password', type:'password', required:true },
-      { name:'hint', label:'New password hint (optional)' }
-    ]
-  });
-  if (!vals) return false;
-  var code = String(vals.code||'').trim();
-  var np = String(vals.password||'').trim();
-  var nh = vals.hint||'';
-  if (!code) { await window.uiAlert('No code entered.'); return false; }
-  if (!np) { await window.uiAlert('Password cannot be empty.'); return false; }
-  var body = Object.assign({ code:code, password:np, hint:nh }, opts.reqBody);
-  var cf;
-  try { cf = await post('/auth/reset/confirm', body); }
-  catch(e){ alert('Network error while confirming the reset. Please try again.'); return false; }
-  if (cf && cf.ok) {
-    if (opts.onSuccess) { try { opts.onSuccess(); } catch(e){} }
-    alert('Password reset! It now syncs to all your devices. This device is unlocked; other devices will ask for the new password once.');
-    return true;
-  }
-  if (cf && cf.error==='badcode') alert('That code is not correct.'+(cf.remaining!=null?(' '+cf.remaining+' attempt(s) left before it expires.'):''));
-  else if (cf && cf.error==='expired') alert('That code has expired or was already used. Start the reset again to get a fresh code.');
-  else if (cf && cf.error==='locked') alert('Too many incorrect attempts. Start the reset again to get a fresh code.');
-  else alert('Reset failed. Please try again.');
-  return false;
-};
-</script>
 
 
 <!-- ── MyJournal's place in TaskHub: the program nav and how MyJournal opens and
@@ -20241,8 +20154,7 @@ window._THV={
   // all sit over the same scrollable content. One guard for all of them means a
   // new modal is protected the day it ships, and both profiles get the fix at
   // once — uiModal, useScrollLock and this list are all shared between them.
-  var _MODAL_OVERLAYS=['uim-overlay','bj-lock-overlay',
-                       'tj-lock-overlay','profile-overlay','thset-overlay'];
+  var _MODAL_OVERLAYS=['uim-overlay','profile-overlay','thset-overlay'];
   function _openModalOverlay(){
     // Guardian's lock card lives in a shadow root; its host element is what
     // a gesture inside it targets, so that host is the overlay to allow.
@@ -20520,141 +20432,6 @@ window._THV={
 
 
 
-<!-- ══════════════ Biometric auth (WebAuthn / platform passkeys) ══════════════
-     Shared, dependency-free helper. Primary auth = the device's own biometric
-     (Face ID / Touch ID on iOS, fingerprint on Android/Samsung, Windows Hello on
-     Windows) through the OS secure framework. The app NEVER sees or stores raw
-     biometric data — WebAuthn returns only a public-key credential handle.
-     Credentials are keyed per (app,id) so every profile / app keeps its own
-     isolated credential: one profile's biometric can never satisfy another's
-     unlock, because each unlock only allows its own stored credential id. -->
-<script>
-(function(){
-  if (window.Bio) return;
-  var NS = 'bio_cred_';
-  function u8(buf){ return new Uint8Array(buf); }
-  function b64u(buf){ var b=u8(buf),s=''; for(var i=0;i<b.length;i++) s+=String.fromCharCode(b[i]); return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
-  function unb64u(str){ str=String(str).replace(/-/g,'+').replace(/_/g,'/'); while(str.length%4) str+='='; var bin=atob(str),b=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) b[i]=bin.charCodeAt(i); return b.buffer; }
-  function rand(n){ var a=new Uint8Array(n); crypto.getRandomValues(a); return a; }
-  function keyOf(app,id){ return NS+app+'_'+id; }
-  function supported(){ return !!(window.isSecureContext && window.PublicKeyCredential && navigator.credentials && navigator.credentials.create); }
-  function available(){
-    if(!supported()) return Promise.resolve(false);
-    if(!PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) return Promise.resolve(false);
-    return PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(function(v){return !!v;}).catch(function(){return false;});
-  }
-  function stored(app,id){ try{ return JSON.parse(localStorage.getItem(keyOf(app,id))||'null'); }catch(e){ return null; } }
-  function isRegistered(app,id,curV){ return current(app,id,curV); }
-  // ── Password binding ──────────────────────────────────────────────────────
-  // A credential is only as good as the password it was enrolled under. Every
-  // lock carries a version that moves when its password is set, changed or
-  // reset; the credential records the version it was enrolled at, and once the
-  // lock's version is newer it is dropped. Without this, anyone who learned the
-  // password ONCE could enrol their own fingerprint and keep walking in after
-  // the password changed. A credential from before this binding existed has no
-  // version: its enrolment time stands in when versions are timestamps, and
-  // anything else is treated as stale.
-  function boundV(r,curV){ return r.v!=null ? (+r.v||0) : (curV>1e12 ? (+r.created||0) : 0); }
-  function current(app,id,curV){
-    var r=stored(app,id); if(!(r&&r.id)) return false;
-    curV=+curV||0;
-    if(!curV || boundV(r,curV)>=curV) return true;
-    unregister(app,id);
-    try{ localStorage.setItem(NS+'stale_'+app+'_'+id,'1'); }catch(e){}
-    return false;
-  }
-  // True ONCE after a password change dropped this device's credential, so the
-  // next password unlock can offer to enrol again.
-  function takeStale(app,id){ var k=NS+'stale_'+app+'_'+id, s=null; try{ s=localStorage.getItem(k); localStorage.removeItem(k); }catch(e){} return s==='1'; }
-  function unregister(app,id){ try{ localStorage.removeItem(keyOf(app,id)); }catch(e){} }
-  function label(){
-    var ua=navigator.userAgent||'';
-    if(/iPhone|iPad|iPod/.test(ua)) return 'Face ID';
-    if(/Android/.test(ua)) return 'fingerprint';
-    if(/Windows/.test(ua)) return 'Windows Hello';
-    if(/Mac/.test(ua)) return 'Touch ID';
-    return 'biometrics';
-  }
-  // ── PRF ────────────────────────────────────────────────────────────────────
-  // The WebAuthn PRF extension makes the authenticator derive a secret from a
-  // salt, released ONLY after a successful biometric check. Vault uses that
-  // secret as the key that unwraps its vault key, so with PRF there is nothing
-  // on disk to steal: passing the fingerprint is what produces the key, rather
-  // than merely guarding a key already sitting in localStorage.
-  //
-  // The salt is not secret — it is an input, and the authenticator's own key is
-  // what stays out of reach. Store it beside the credential id.
-  function prfExt(rec){ return { prf: { eval: { first: unb64u(rec.prfSalt) } } }; }
-
-  function register(app,id,opts){
-    opts=opts||{};
-    if(!supported()) return Promise.resolve({ok:false,error:'unsupported'});
-    var salt = rand(32);
-    return navigator.credentials.create({publicKey:{
-      challenge: rand(32),
-      rp:{ name: opts.rpName||document.title||'App', id: location.hostname||undefined },
-      user:{ id: rand(16), name: opts.userName||(app+':'+id), displayName: opts.displayName||opts.userName||id },
-      pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
-      authenticatorSelection:{ authenticatorAttachment:'platform', userVerification:'required', residentKey:'preferred' },
-      timeout: 60000, attestation:'none',
-      extensions: { prf: {} }
-    }}).then(function(cred){
-      if(!cred) return {ok:false,error:'cancelled'};
-      var ext = {}; try { ext = cred.getClientExtensionResults() || {}; } catch(e) {}
-      var prfOk = !!(ext.prf && ext.prf.enabled);
-      try{ localStorage.removeItem(NS+'stale_'+app+'_'+id); }catch(e){}
-      localStorage.setItem(keyOf(app,id), JSON.stringify({
-        id:b64u(cred.rawId), created:Date.now(), v:+(opts.v)||0,
-        label:opts.displayName||opts.userName||id,
-        prf:prfOk, prfSalt:b64u(salt)
-      }));
-      return {ok:true, prf:prfOk};
-    }).catch(function(e){ return {ok:false, error:(e&&e.name)||'error', message:(e&&e.message)||'' }; });
-  }
-  // opts.withPrf asks for the derived secret; it comes back base64 in `.prf`.
-  function authenticate(app,id,opts){
-    opts=opts||{};
-    if(!supported()) return Promise.resolve({ok:false,error:'unsupported'});
-    if(opts&&opts.v!=null&&!current(app,id,opts.v)) return Promise.resolve({ok:false,error:'stale'});
-    var rec=stored(app,id);
-    if(!rec||!rec.id) return Promise.resolve({ok:false,error:'notregistered'});
-    var want = !!(opts.withPrf && rec.prf && rec.prfSalt);
-    var pk = {
-      challenge: rand(32),
-      allowCredentials:[{ type:'public-key', id: unb64u(rec.id) }],
-      userVerification:'required', timeout:60000, rpId: location.hostname||undefined
-    };
-    if (want) pk.extensions = prfExt(rec);
-    return navigator.credentials.get({publicKey:pk}).then(function(asr){
-      if(!asr) return {ok:false,error:'cancelled'};
-      if(!want) return {ok:true};
-      var ext = {}; try { ext = asr.getClientExtensionResults() || {}; } catch(e) {}
-      var first = ext.prf && ext.prf.results && ext.prf.results.first;
-      // The check passed but the authenticator gave no secret — better to fail
-      // than to fall back to something weaker without saying so.
-      if(!first) return {ok:false, error:'noprf'};
-      return {ok:true, prf:b64u(first)};
-    }).catch(function(e){ return {ok:false, error:(e&&e.name)||'error', message:(e&&e.message)||'' }; });
-  }
-  // Does THIS device's stored credential carry a usable PRF secret?
-  function hasPrf(app,id){ var r=stored(app,id); return !!(r&&r.prf&&r.prfSalt); }
-  // Can this BROWSER do PRF at all? Asked before offering to re-enrol an older
-  // credential, because finding out by attempting a registration would burn the
-  // working credential we are trying to replace. When the capability API is
-  // absent we answer false and simply never offer — no prompt is much better
-  // than a prompt that can strand someone without biometric unlock.
-  function prfCapable(){
-    try {
-      if(!window.PublicKeyCredential || !PublicKeyCredential.getClientCapabilities)
-        return Promise.resolve(false);
-      return PublicKeyCredential.getClientCapabilities()
-        .then(function(c){ return !!(c && c.prf); })
-        .catch(function(){ return false; });
-    } catch(e){ return Promise.resolve(false); }
-  }
-  window.Bio = { supported:supported, available:available, isRegistered:isRegistered, register:register, authenticate:authenticate, unregister:unregister, label:label, takeStale:takeStale, hasPrf:hasPrf, prfCapable:prfCapable };
-})();
-</script>
 
 <!-- ── APP LOCK → Guardian ──────────────────────────────────────────────────────
      Every program/profile/widget lock here is a Guardian lock
@@ -20737,10 +20514,13 @@ function alHideAppRoot(appId) {
   (AL_APP_ROOTS[appId] || []).forEach(function(rid){ var el = _el(rid); if (el) el.style.display = 'none'; });
   if (appId === 'veda_gita' && window._vedaCloseGita) window._vedaCloseGita();
 }
-// Unlocked from an access gate on load: re-show through the normal nav path.
+// Unlocked from an access gate on load: re-show through the normal nav path —
+// but only while that profile is still the one open. A gate that resolves after
+// the device has landed elsewhere (Veda) must not pull Tony's TaskHub back up.
 function alReNav(appId) {
   return function() {
     var prof = (AL_LABELS[appId] || {}).profile;
+    if (window._activeProfile && window._activeProfile !== prof) return;
     var nav = { tony_taskhub:'taskhub', veda_taskhub:'taskhub' }[appId];
     if (prof === 'tony' && nav && window._tonyNav) window._tonyNav(nav);
     else if (prof === 'veda' && nav && window._vedaNav) window._vedaNav(nav);

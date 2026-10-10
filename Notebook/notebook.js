@@ -174,6 +174,9 @@ function helpers() {
   var w = window, jobs = [];
   if (!w.TNI) jobs.push(loadScript(BASE + '../tni.js' + (STAMP ? '?v=' + STAMP : '')));
   if (!w.A1Drag) jobs.push(loadScript(BASE + '../dragsort.js' + (STAMP ? '?v=' + STAMP : '')));
+  // Entry locks are Guardian locks. Loaded unpinned (never ?v=), like every
+  // Guardian host, so a Guardian upgrade reaches instances too.
+  if (!w.Guardian) jobs.push(loadScript(BASE + '../Guardian/guardian.js'));
   if (!w.uiAlert) w.uiAlert = function (m) { w.alert(String(m == null ? '' : m)); return Promise.resolve(); };
   if (!w.uiConfirm) w.uiConfirm = function (m) { return Promise.resolve(w.confirm(String(m == null ? '' : m))); };
   if (!w.uiPrompt) w.uiPrompt = function (m) { return Promise.resolve(w.prompt(String(m == null ? '' : m), '')); };
@@ -262,7 +265,6 @@ function instanceCss(cfg) {
   }
   if (cfg.features && cfg.features.locks === false) css.push(R + ' ' + K + '-mobile-lock-btn,' + R + ' ' + K + '-btn-lock{display:none!important;}');
   if (Array.isArray(cfg.templates)) css.push(R + ' .template-card' + cfg.templates.map(function (t) { return ':not([data-template="' + t + '"])'; }).join('') + '{display:none!important;}');
-  if (!window._pwReset) css.push(R + ' [id$="-lock-forgot"],' + R + ' [id$="-lock-reset"]{display:none!important;}');
   return css.join('\n');
 }
 
