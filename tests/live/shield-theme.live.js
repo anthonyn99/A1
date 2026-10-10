@@ -88,6 +88,12 @@ const mock = {
     if (req.url.startsWith('https://www.gstatic.com/firebasejs/')) return { text: FB, type: 'text/javascript' };
     if (!/\.workers\.dev/.test(req.url)) return null;
     if (req.method === 'OPTIONS') return { status: 204, json: null };
+    // Guardian's lock status: no Shield passcode set in this fixture.
+    if (/status-many/.test(req.url)) {
+      const b = JSON.parse(req.postData || '{}'), locks = {};
+      (b.locks || []).forEach((l) => { locks[l.journal + ':' + l.entryId] = { hasLock: false, ver: null }; });
+      return { json: { ok: true, locks } };
+    }
     return { json: { ok: true } };
   },
 };
@@ -133,7 +139,7 @@ async function shotsFor(c, p) {
   await shot(c, p + '-uiprompt');
   await evalJs(c, "document.getElementById('uim-cancel').click(); document.getElementById('lock-btn').click(); 1"); await sleep(500);
   await shot(c, p + '-lock');
-  await evalJs(c, "document.getElementById('applock-cancel').click(); 1"); await sleep(200);
+  await evalJs(c, "Guardian.close(); 1"); await sleep(200);
   await load(c, 1280, 900, false, p, true);
   await shot(c, p + '-emergency');
   await load(c, 400, 860, true, p);
@@ -199,9 +205,11 @@ async function shotsFor(c, p) {
   await evalJs(c, "document.getElementById('uim-cancel').click(); uiConfirm('Delete?', {danger:true, okLabel:'Delete'}); 1"); await sleep(300);
   ok('a danger OK is a red outline', (await css(c, '#uim-ok', 'backgroundColor')) === 'rgba(0, 0, 0, 0)' && (await css(c, '#uim-ok', 'color')) === 'rgb(214, 138, 124)');
   await evalJs(c, "document.getElementById('uim-cancel').click(); document.getElementById('lock-btn').click(); 1"); await sleep(500);
-  ok('the lock card outline is acd, radius 8', (await css(c, '#applock-box', 'borderTopColor')) === ACD && (await css(c, '#applock-box', 'borderTopLeftRadius')) === '8px');
-  ok('"Set Password" is solid purple', (await css(c, '#applock-submit', 'backgroundColor')) === PURPLE && (await css(c, '#applock-submit', 'color')) === DARK);
-  await evalJs(c, "document.getElementById('applock-cancel').click(); 1"); await sleep(200);
+  // The lock card is Guardian's (Guardian/guardian.js), in its shadow root.
+  const gcss = (sel, prop) => evalJs(c, `var e=document.querySelector('guardian-lock').shadowRoot.querySelector(${JSON.stringify(sel)}); return e?getComputedStyle(e)[${JSON.stringify(prop)}]:'(none)';`);
+  ok('the lock card is Guardian\'s MAGI card: s1, radius 8', (await gcss('.card', 'backgroundColor')) === 'rgb(35, 35, 39)' && (await gcss('.card', 'borderTopLeftRadius')) === '8px');
+  ok('"Set password" is solid purple with a dark label', (await gcss('button.pri', 'backgroundColor')) === PURPLE && (await gcss('button.pri', 'color')) === DARK);
+  await evalJs(c, "Guardian.close(); 1"); await sleep(200);
   await load(c, 1280, 900, false, 'tony', true);
   ok('the emergency takeover is on', (await evalJs(c, "return document.getElementById('emg-screen').classList.contains('on');")) === true);
   ok('the takeover has no radial glow', (await css(c, '#emg-screen', 'backgroundImage')) === 'none');
