@@ -135,8 +135,10 @@ function markerDel(d) { sDel('gd.u.' + d.key); cookieSet(d.key, null); }
    open() returning a ver string (MAGI) is compared against the worker's ver. */
 var ADOPTED = {};
 function adopt(d, c) {
-  if (ADOPTED[d.key] || !d.legacy || typeof d.legacy.open !== 'function') return false;
-  ADOPTED[d.key] = 1;
+  // Once per lock per device, ever: after that Guardian's own marker is the
+  // only truth (otherwise "Lock this device now" would be undone on reload).
+  if (ADOPTED[d.key] || sGet('gd.a.' + d.key) || !d.legacy || typeof d.legacy.open !== 'function') return false;
+  ADOPTED[d.key] = 1; sSet('gd.a.' + d.key, '1');
   var a = false;
   try { a = d.legacy.open(); } catch (e) { a = false; }
   if (!a) return false;
@@ -318,6 +320,7 @@ function refreshOne(d) { return refresh([d.id], true); }
 function blocked(d, reason) {
   emit('lock', { id: d.id, reason: reason });
   if (d.onBlock) { try { d.onBlock(d.id, reason); } catch (e) {} return; }
+  if (OPEN && OPEN.d === d) return;
   if (d.root && rootVisible(d)) { hideRoot(d); gate(d.id); }
 }
 
@@ -667,6 +670,7 @@ function scrUnlock(d, card, opts) {
       return;
     }
     markOpen(d);
+    if (opts.then) { takeStale(d); opts.then(); return; }
     var stale = takeStale(d);
     settle(true);
     if (password && stale) offerBio(d);
@@ -930,7 +934,7 @@ function scrMenu(d, card) {
   var open_ = isUnlocked(d.id);
   var menu = h('div', { 'class': 'menu' });
   if (!open_) menu.appendChild(B('pri', 'unlock', 'Unlock this device', function () { scrUnlock(d, card, {}); }));
-  else menu.appendChild(B('pri', 'lock', 'Lock this device now', function () { lockNow(d.id); settle('locked'); }));
+  else menu.appendChild(B('pri', 'lock', 'Lock this device now', function () { settle('locked'); lockNow(d.id); }));
   var bioSlot = h('div', { 'class': 'menu' }); menu.appendChild(bioSlot);
   menu.appendChild(B('', 'key', 'Change password', function () { scrChange(d, card); }));
   if (d.allowRemove) menu.appendChild(B('dg', 'trash', 'Remove lock', function () { scrRemove(d, card); }));
@@ -949,16 +953,16 @@ function scrMenu(d, card) {
       };
       // Only someone who can open the lock may enrol a fingerprint for it.
       if (isUnlocked(d.id)) go();
-      else scrUnlock(d, card, {}), OPEN && (OPEN.afterUnlock = go);
+      else scrUnlock(d, card, { then: go });
     }));
   });
 }
 
 /* A one-button message inside the same card. */
-function info(d, title, text, closeOnOk, then) {
+function info(d, title, text, _unused, then) {
   if (!OPEN) return;
   var card = OPEN.card; OPEN.escapable = true;
-  var ok = B('pri', null, 'OK', function () { if (then) then(); else if (closeOnOk) settle(true); else settle(true); });
+  var ok = B('pri', null, 'OK', function () { if (then) then(); else settle(true); });
   fill(card, [h('div', { 'class': 'ic', html: I.shield }), h('div', { 'class': 'head' }, [h('div', { 'class': 'title', text: title }), h('div', { 'class': 'sub', text: text })]), h('div', { 'class': 'body' }, [ok])]);
   setTimeout(function () { try { ok.focus(); } catch (e) {} }, 60);
 }
@@ -996,12 +1000,12 @@ function gate(id, opts) {
     return open(d, function (dd, card) {
       scrUnlock(d, card, { hard: hard, message: opts.message });
     }).then(function (ok) {
-      if (ok === true) { showRoot(d); var f = OPEN === null && d._after; }
+      if (ok === true) showRoot(d);
       return ok === true;
     });
   };
   // Never seen this lock on this device: ask the worker first (fails closed).
-  if (c.h === null && !markerGet(d)) return refreshOne(d).catch(function () {}).then(decide);
+  if (c.h === null && !isUnlocked(id)) return refreshOne(d).catch(function () {}).then(decide);
   // Known: answer from the cache now, and check for a newer password in the background.
   var p = decide();
   refresh([id]);
@@ -1013,9 +1017,6 @@ function manage(id) {
   var run = function () {
     return open(d, function (dd, card) {
       if (isLocked(id)) scrMenu(d, card); else scrSet(d, card);
-    }).then(function (v) {
-      if (OPEN === null && v === true) { /* closed via a finished action */ }
-      return v;
     });
   };
   var c = cacheGet(d);
