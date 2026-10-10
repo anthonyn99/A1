@@ -3,7 +3,7 @@
 **A1-Priv** is the private GitHub repo `anthonyn99/A1-Priv`, cloned to
 `C:\Users\antho\Desktop\A1-Priv` and served from Cloudflare at
 **https://a1-priv.av1.workers.dev/**. That host is a static-assets Worker on
-account 1, deployed from this PC. It moved in on 2026-10-10:
+account 1, deployed from this PC. Everything below moved in on 2026-10-10:
 
 | Program | New address | Old A1 file |
 | --- | --- | --- |
