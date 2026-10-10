@@ -8,14 +8,13 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-10-09. **Phases 0–4 are done.** Both journals are Notebook apps that
+**Last updated:** 2026-10-09. **Phases 0–5 are done.** Both journals are Notebook apps that
 index.html mounts, with no journal code left in index. Notebook can also mount MyJournal
 into any other program under its own key and store (an *instance*). The contract is
 [README.md](README.md). The "before" state is still the git tag **`notebook-p0`**, and
 every on-purpose difference is a rule in the baseline suite's `EXPECTED`.
 
-**Next: Phase 5** (TaskHub: MyJournal becomes an external program, see §4). Then Phase 6
-puts TradeHub's Playbook on a Notebook instance:
+**Next: Phase 6** (see §4): TradeHub's Playbook on a Notebook instance:
 `Notebook.mount({app:'myjournal', key:'pb', store:'tradehub_playbook', container, title:'Playbook',
 templates:['page'], pinned:[{id:'daily-reminder', title:'Daily Reminder'}], onSave})` plus
 `window.NotebookFirebase = () => ({ db, fs })`. The live test
@@ -417,7 +416,7 @@ How it was built:
   throwaway host, fixture `tests/live/fixtures/notebook-host.html`, which the stamp tool
   also re-stamps).
 
-### Phase 5 — TaskHub: MyJournal becomes an external program
+### Phase 5 — TaskHub: MyJournal becomes an external program ✅ 2026-10-09
 - Take `brainstormjournal` out of `TONY_DEFAULT` and Internal Programs.
 - Add a MyJournal row to `LEGACY_PROGRAMS` with its icon and
   `lockId:'tony_myjournal'`. Its open action calls `showTonyJournal()` (in-page),
@@ -426,6 +425,28 @@ How it was built:
   visibility.
 - App-lock wiring is kept. Veda's settings are unchanged.
 - Add a live test.
+
+How it was built:
+- `brainstormjournal` left `TONY_DEFAULT`/`TONY_SELECT_LABELS`, and the static header button
+  and select option went. LEGACY_PROGRAMS gained
+  `{id:'myjournal', lockId:'tony_myjournal', openFn:'_myjournalClick'}`, and
+  `_myjournalClick` → `_tonyNav('brainstormjournal')`: the same in-page, app-lock-gated path
+  the old button took. The in-page app id stays `brainstormjournal` (app lock, theme and nav
+  wrappers key off it). `_updateTonyNavActive` and the dropdown light `custom:myjournal` for it.
+- **Migration** (in NavOrder's `applyRemote`): a saved `tony` order that still lists
+  `brainstormjournal` gets the MyJournal link (if the cloud has none) in that same slot,
+  pushed once through the guarded `saveNavOrder`. An order without it is left alone, so
+  deleting the link sticks. A per-device local pre-seed (`nb_myjournal_link`) puts the
+  button up before Firebase answers.
+- Settings lists it under External Links with its existing lock. `_navIsLegacyLockId`
+  keeps it out of Internal Programs. Veda's side is untouched.
+- Fixed on the way: picking an External Link in the mobile select called
+  `_tonyNav('custom:…')` and blanked the page; it now opens through `_navOpenLink`.
+- Tests: `tests/live/myjournal-external.live.js` (17 checks: one-write migration in place,
+  opens in-page and lights up, Settings, idempotent, delete sticks). `index-drag.live.js`
+  follows the new button. The baseline gained two rule kinds: `shots` + `rows` (differences
+  allowed only in those rows, here the header) and `check(before, after)` (here: exactly
+  one new local key).
 
 ### Phase 6 — TradeHub Playbook on Notebook
 - **Mount:** in `TBPlaybookPage` (~9846), add a host `<div>` whose `useEffect`

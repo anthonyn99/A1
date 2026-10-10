@@ -370,6 +370,13 @@ async function capture(label) {
 // the recording (e.g. /^tj\.steps\[\d+\]\.snap\.sync$/). Nothing else may differ.
 // Screenshots a rule allows to differ go in `shots` (file-name regex).
 const EXPECTED = [
+  // Phase 5: MyJournal is an External-Link button now. On a device with no saved
+  // order (this recording) it sits after the other links, so the header row
+  // differs; and the device remembers it seeded that link (nb_myjournal_link).
+  { phase: 5, why: 'the header nav: MyJournal\'s button is an External Link, after the others on a fresh device', shots: /-tj-/, rows: [0, 47] },
+  { phase: 5, why: 'one new local key: nb_myjournal_link', path: /^(tj|bj)\.store\.lsKeys/,
+    check: (a, b) => { const x = new Set(a.store.lsKeys), y = new Set(b.store.lsKeys);
+      return [...y].filter((k) => !x.has(k)).join() === 'nb_myjournal_link' && [...x].every((k) => y.has(k)); } },
   // Phase 3, MyJournal: the same lock fixes as Brainstorm's (steps 21 and 22)...
   { phase: 3, why: 'MyJournal change password: one set-lock call with current', path: /^tj\.steps\[21\]\.reqs/ },
   { phase: 3, why: 'MyJournal: deleting a locked entry works (TJ_AUTH was out of scope, so it said "Network error")', path: /^tj\.steps\[22\]\./ },
@@ -417,11 +424,13 @@ function pngPixels(buf) {
   }
   return { w, h, bpp, px };
 }
-function pngDiff(A, B) {
+// skip: [y0, y1] rows a rule allows to differ (inclusive), left out of the count.
+function pngDiff(A, B, skip) {
   const a = pngPixels(A), b = pngPixels(B);
   if (a.w !== b.w || a.h !== b.h || a.bpp !== b.bpp) return { n: Infinity, max: 255 };
   let n = 0, max = 0;
   for (let i = 0; i < a.px.length; i += a.bpp) {
+    if (skip) { const y = Math.floor(i / a.bpp / a.w); if (y >= skip[0] && y <= skip[1]) continue; }
     let m = 0; for (let k = 0; k < a.bpp; k++) m = Math.max(m, Math.abs(a.px[i + k] - b.px[i + k]));
     if (m) { n++; if (m > max) max = m; }
   }
@@ -448,9 +457,12 @@ function compare(la, lb) {
     const out = [];
     diff(A.journals[K], B.journals[K], K, out);
     const head = (d) => d.split('\n')[0];
-    const allowed = out.filter((d) => EXPECTED.some((r) => r.path && r.path.test(head(d))));
+    // A rule may also carry check(before, after) over the journal's recording:
+    // the difference is expected only when that holds (e.g. "one key was added").
+    const ruleFor = (d) => EXPECTED.find((r) => r.path && r.path.test(head(d)) && (!r.check || r.check(A.journals[K], B.journals[K])));
+    const allowed = out.filter((d) => !!ruleFor(d));
     const byRule = new Map();
-    allowed.forEach((d) => { const r = EXPECTED.find((x) => x.path && x.path.test(head(d))); byRule.set(r, (byRule.get(r) || 0) + 1); });
+    allowed.forEach((d) => { const r = ruleFor(d); byRule.set(r, (byRule.get(r) || 0) + 1); });
     byRule.forEach((n, r) => console.log(`  expected (phase ${r.phase}, ${n} difference(s)): ${r.why}`));
     out.splice(0, out.length, ...out.filter((d) => !allowed.includes(d)));
     console.log(out.length ? `  FAIL ${K}: ${out.length} difference(s)\n    ` + out.slice(0, 60).join('\n    ') + (out.length > 60 ? `\n    ... and ${out.length - 60} more` : '') : `  ok   ${K}: writes, requests, storage and every step match`);
@@ -458,12 +470,15 @@ function compare(la, lb) {
   }
   const shots = fs.readdirSync(OUT).filter((f) => f.startsWith(`nb-${la}-`) && f.endsWith('.png'));
   const near = [];
-  const bad = shots.filter((f) => !EXPECTED.some((r) => r.shots && r.shots.test(f))).filter((f) => {
+  // A shots rule with rows allows differences only inside those rows.
+  const bad = shots.filter((f) => !EXPECTED.some((r) => r.shots && r.shots.test(f) && !r.rows)).filter((f) => {
     const g = path.join(OUT, f.replace(`nb-${la}-`, `nb-${lb}-`));
     if (!fs.existsSync(g)) return true;
     const A = fs.readFileSync(path.join(OUT, f)), B = fs.readFileSync(g);
     if (A.equals(B)) return false;
-    const d = pngDiff(A, B);
+    const rr = EXPECTED.find((r) => r.shots && r.rows && r.shots.test(f));
+    const d = pngDiff(A, B, rr && rr.rows);
+    if (rr && d.max <= SHOT_TOLERANCE) { near.push(`${f} (differs only in rows ${rr.rows.join('-')}: phase ${rr.phase})`); return false; }
     if (d.max <= SHOT_TOLERANCE) { near.push(`${f} (${d.n} px within ±${d.max})`); return false; }
     return true;
   });
