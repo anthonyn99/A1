@@ -57,7 +57,7 @@ const FAKE_AUTH = `(function(){ if (window.top !== window) return;
   const btn = (t) => `[...document.querySelector('guardian-lock').shadowRoot.querySelectorAll('button')].find(b => b.textContent.trim() === ${JSON.stringify(t)})`;
   const shot = async (name) => {
     const r = await c.send('Page.captureScreenshot', { format: 'png' });
-    require('fs').writeFileSync(shotPath('guardian-' + name), Buffer.from(r.data, 'base64'));
+    require('fs').writeFileSync(shotPath('guardian-' + name), Buffer.from(r.result.data, 'base64'));
   };
   const load = async (w, h, mobile) => {
     await c.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: mobile ? 2 : 1, mobile: !!mobile });
