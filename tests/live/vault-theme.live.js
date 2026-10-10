@@ -133,7 +133,7 @@ const row = (name) => `[...document.querySelectorAll('#kc-conns-list .kc-item-ro
   ok('hover mechanics: <body data-hoverfx="magi">', th.hover === 'magi');
   ok('NUMBERS: body + controls are tabular, the face is Inter', th.num === 'tabular-nums' && th.btnNum === 'tabular-nums' && /^"?Inter/.test(th.bodyFont), th);
   ok('no Fraunces loaded', !th.fraunces);
-  const grads = JSON.parse(await evalJs(c, `var out=[]; document.querySelectorAll('#kc-root *, #applock-overlay').forEach(function(e){ var b=getComputedStyle(e).backgroundImage; if(/gradient/.test(b) && !e.closest('.vpay-face')) out.push((e.id||e.className||e.tagName)+''); }); return JSON.stringify(out.slice(0,8));`));
+  const grads = JSON.parse(await evalJs(c, `var out=[]; document.querySelectorAll('#kc-root *').forEach(function(e){ var b=getComputedStyle(e).backgroundImage; if(/gradient/.test(b) && !e.closest('.vpay-face')) out.push((e.id||e.className||e.tagName)+''); }); return JSON.stringify(out.slice(0,8));`));
   ok('no gradient fills', !grads.length, grads);
   const gold = JSON.parse(await evalJs(c, `var out=[]; document.querySelectorAll('#kc-root *').forEach(function(e){ var s=getComputedStyle(e); [s.color,s.borderTopColor,s.backgroundColor].forEach(function(v){ if(/224, 184, 116/.test(v)) out.push(e.className||e.tagName); }); }); return JSON.stringify(out.slice(0,8));`));
   ok('no gold left on the Keychain screen', !gold.length, gold);
@@ -186,7 +186,7 @@ const row = (name) => `[...document.querySelectorAll('#kc-conns-list .kc-item-ro
   await mouseDrag(c, h1.x, h1.y, h2.x - h1.x + h2.w / 2, 0);
   const hk1 = await evalJs(c, `return [].map.call(document.querySelectorAll('#kc-hbar-actions > [data-hk]'), function(b){ return b.dataset.hk; }).join(',');`);
   ok('header buttons reorder by drag (A1Drag)', hk0.split(',').reverse().join(',') === hk1, hk0 + ' -> ' + hk1);
-  ok('...and the drop did not click the button', await evalJs(c, `return getComputedStyle(document.getElementById('applock-overlay')).display === 'none' && !document.querySelector('#kc-vault-setup-overlay[style*="flex"], .kc-overlay[style*="flex"]');`));
+  ok('...and the drop did not click the button', await evalJs(c, `return !Guardian.isOpen() && !document.querySelector('#kc-vault-setup-overlay[style*="flex"], .kc-overlay[style*="flex"]');`));
 
   console.log('\nResize grip (connection modal)');
   await evalJs(c, `kcOpenEdit(0); return 1;`);

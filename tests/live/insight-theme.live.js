@@ -192,7 +192,7 @@ async function shot(c, name) {
   await load(c, 1280, 900, false);
   console.log('theme');
   ok('body opts into MAGI hover', (await evalJs(c, "return document.body.dataset.hoverfx;")) === 'magi');
-  ok('lock screen is out of the way', (await css(c, '#lockScreen', 'display')) === 'none');
+  ok('the lock is out of the way', await evalJs(c, "return !Guardian.isOpen() && getComputedStyle(document.querySelector('body > .wrap')).visibility === 'visible';"));
   ok('"+ Add entry" is a solid purple fill', (await css(c, '#addManualBtn', 'backgroundColor')) === 'rgb(192, 174, 234)');
   ok('its label is dark', (await css(c, '#addManualBtn', 'color')) === 'rgb(26, 26, 29)');
   // Insight keeps its own type (Tony, 2026-10-02): only the colours are MAGI's.
@@ -207,7 +207,7 @@ async function shot(c, name) {
   ok('money in stays gold', (await css(c, '#statIn', 'color')) === 'rgb(224, 184, 116)');
   ok('no Fraunces is loaded', (await evalJs(c, "return !/Fraunces/.test([...document.querySelectorAll('link')].map(l=>l.href).join())+'';")) === 'true');
   const scan = async (label) => {
-    const grads = await evalJs(c, "return [...document.querySelectorAll('.wrap *, #lockScreen, #lockScreen *')].filter(e=>{var s=getComputedStyle(e),a=getComputedStyle(e,'::after');return /gradient\\(/.test(s.backgroundImage+a.backgroundImage);}).map(e=>e.className||e.id||e.tagName).join(',');");
+    const grads = await evalJs(c, "return [...document.querySelectorAll('.wrap *')].filter(e=>{var s=getComputedStyle(e),a=getComputedStyle(e,'::after');return /gradient\\(/.test(s.backgroundImage+a.backgroundImage);}).map(e=>e.className||e.id||e.tagName).join(',');");
     ok('no gradient fills (' + label + ')', grads === '', grads);
     const gold = await evalJs(c, "return [...document.querySelectorAll('body *')].filter(e=>{var s=getComputedStyle(e);return /236, 199, 140/.test(s.color+s.backgroundColor+s.borderColor+s.boxShadow+s.outlineColor);}).map(e=>e.className||e.id||e.tagName).join(',');");
     ok('none of the old tan-gold (' + label + ')', gold === '', gold);

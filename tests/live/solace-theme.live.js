@@ -358,10 +358,12 @@ const cardHead = (c, sel) => rect(c, `document.querySelector(${JSON.stringify(se
   await evalJs(c, "document.getElementById('uim-cancel').click(); uiConfirm('Delete?', {danger:true, okLabel:'Delete'}); 1"); await sleep(300);
   ok('a danger OK is a red outline', (await css(c, '#uim-ok', 'backgroundColor')) === 'rgba(0, 0, 0, 0)' && (await css(c, '#uim-ok', 'color')) === 'rgb(214, 138, 124)');
   await evalJs(c, "document.getElementById('uim-cancel').click(); SOL.manageLock(); 1"); await sleep(600);
-  ok('the lock card outline is #9a86c9', (await css(c, '#applock-box', 'borderTopColor')) === 'rgb(154, 134, 201)');
-  ok('the lock has no glow', (await css(c, '#applock-overlay', 'backgroundImage')) === 'none');
-  ok('"Set Password" is solid purple', (await css(c, '#applock-submit', 'backgroundColor')) === PURPLE && (await css(c, '#applock-submit', 'color')) === DARK);
-  await evalJs(c, "document.getElementById('applock-cancel').click(); 1"); await sleep(300);
+  // The lock card is Guardian's (A1/Guardian/guardian.js), in its shadow root.
+  const gcss = (sel, prop) => evalJs(c, `var e=document.querySelector('guardian-lock').shadowRoot.querySelector(${JSON.stringify(sel)}); return e?getComputedStyle(e)[${JSON.stringify(prop)}]:'(none)';`);
+  ok('the lock card is Guardian\'s MAGI card (s1, radius 8)', (await gcss('.card', 'backgroundColor')) === 'rgb(35, 35, 39)' && (await gcss('.card', 'borderTopLeftRadius')) === '8px');
+  ok('the lock has no glow', (await gcss('.ov', 'backgroundImage')) === 'none');
+  ok('"Set password" is solid purple', (await gcss('button.pri', 'backgroundColor')) === PURPLE && (await gcss('button.pri', 'color')) === DARK);
+  await evalJs(c, "Guardian.close(); 1"); await sleep(300);
 
   // ── 6. phone ──
   console.log('phone');
