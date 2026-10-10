@@ -61,9 +61,16 @@ const JOURNALS = [
   { key: 'tj', who: 'tony', doc: 'dashboards/tony_journal', cache: 'tony_journal_v3', open: "window._tonyNav('brainstormjournal')" },
   { key: 'bj', who: 'veda', doc: 'dashboards/journal', cache: 'brainstorm_journal_v3', open: "window._vedaNav('journal')" },
 ];
+// NB_SKIP_LOCK=1 leaves the entry-lock steps out of BOTH recordings (and the
+// lock overlay out of every snapshot). Used when the lock UI itself changed on
+// purpose — the Guardian move (docs/Guardian/plan.md) — to prove everything
+// else in both journals is still byte-identical; the locks are then proven by
+// tests/live/guardian-journals.live.js.
+const SKIP_LOCK = !!process.env.NB_SKIP_LOCK;
 // Elements whose box and look are recorded at every step (when present).
 const PROBES = ['root', 'sidebar', 'entries-list', 'search-box', 'new-entry-btn', 'main', 'toolbar', 'entry-title-input',
-  'btn-edit', 'btn-lock', 'tags-row', 'sync-pill', 'page-toolbar', 'page-editor', 'page-editor-wrap', 'lock-overlay', 'empty-state'];
+  'btn-edit', 'btn-lock', 'tags-row', 'sync-pill', 'page-toolbar', 'page-editor', 'page-editor-wrap', 'lock-overlay', 'empty-state']
+  .filter((p) => !(SKIP_LOCK && p === 'lock-overlay'));
 
 // ── worker mocks (recorded) ─────────────────────────────────────────────────
 const workerLog = [];
@@ -77,6 +84,12 @@ function workerMock() {
       let body = null; try { body = JSON.parse(req.postData || 'null'); } catch (e) { body = req.postData || null; }
       if (req.url.startsWith(AUTH)) {
         const op = req.url.slice(AUTH.length);
+        // Guardian's background "which locks exist" check: no locks here, and
+        // not part of the recording (the pre-Guardian pages never asked).
+        if (op === 'status-many') {
+          const locks = {}; ((body && body.locks) || []).forEach((l) => { locks[l.journal + ':' + l.entryId] = { hasLock: false, ver: null }; });
+          return { json: { ok: true, locks } };
+        }
         workerLog.push({ url: req.url, body });
         if (op === 'verify') return { json: body && body.password === 'pw-right' ? { ok: true } : { ok: false } };
         return { json: { ok: true } };
