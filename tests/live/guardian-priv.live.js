@@ -16,6 +16,7 @@
 // Run: node tests/live/guardian-priv.live.js
 'use strict';
 const { connect, evalJs, sleep } = require('./cdp.js');
+const { firebaseMock } = require('./fake-firebase.js');
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => {
@@ -63,7 +64,7 @@ const PAGES = [
 ];
 
 (async () => {
-  const c = await connect({ mock });
+  const c = await connect({ mock: firebaseMock(mock) });
   await c.send('Page.enable'); await c.send('Runtime.enable');
   await c.send('Page.addScriptToEvaluateOnNewDocument', { source: FAKE_AUTH });
   const errs = [];
