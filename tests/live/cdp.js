@@ -110,7 +110,7 @@ const PAGES_URL = PAGES + 'magi.html';
 // `git worktree` of an older tag, for a before/after comparison
 // (tests/live/theme-shots.live.js).
 const A1 = path.resolve(process.env.A1_ROOT || path.join(__dirname, '..', '..'));
-const MOVED = /^(?:(?:tradehub|insight|vault|riftiq|solace).html$|Vault\/)/;   // tests/moved.js
+const MOVED = /^(?:(?:tradehub|insight|vault|riftiq|solace)\.html$|Vault\/)/;   // tests/moved.js
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
   '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' };
 
