@@ -3668,6 +3668,7 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
   color: var(--txm); font: inherit; font-size: 11px; text-align: center;
 }
 .lock-link:hover { color: var(--ac); border-color: var(--ac); }
+.lock-forgot { margin-top: 12px; }
 .lock-bio { margin-top: 12px; }
 .lock-bio .btn { width: 100%; justify-content: center; }
 /* A wrong password shakes rather than only printing -- the message is small
@@ -28166,7 +28167,7 @@ function gateCard(id) {
 }
 
 /** Everything the old .lock-box held, minus the identity the card already
- *  shows. Element ids are unchanged, so lockSubmit, lockForgot, bioUnlock and
+ *  shows. Element ids are unchanged, so lockSubmit, lockSendHint, bioUnlock and
  *  the rest of the lock keep working exactly as they did. */
 function lockFormInto(box) {
   const m = LOCK.mode;
@@ -28273,10 +28274,21 @@ function lockFormInto(box) {
   if (m === "unlock") {
     // Short, because the card is narrow now and the long form wrapped to two
     // lines. The title carries what it actually does.
+    // Two separate asks: a hint and a reset code. It used to be one button
+    // that mailed both, so asking for a hint also started a reset.
     const forgot = el("button", "lock-link", "Forgot password?");
     forgot.title = "Email me a hint, or a reset code";
-    forgot.onclick = lockForgot;
-    box.append(forgot);
+    const choices = el("div", "lock-row lock-forgot");
+    choices.style.display = "none";
+    const hintBtn = el("button", "btn", "Email my hint");
+    hintBtn.id = "lockHintBtn";
+    hintBtn.onclick = lockSendHint;
+    const resetBtn = el("button", "btn", "Reset password");
+    resetBtn.id = "lockResetBtn";
+    resetBtn.onclick = lockSendReset;
+    choices.append(hintBtn, resetBtn);
+    forgot.onclick = () => { forgot.style.display = "none"; choices.style.display = ""; };
+    box.append(forgot, choices);
   }
 
   const msg = el("div", "lock-msg");
@@ -28328,26 +28340,31 @@ async function enrolBio() {
   if (r && r.ok) renderLock();
 }
 
-async function lockForgot() {
+// The worker composes both messages, so MAGI never builds the text or reads
+// the code. It sends them itself when it has a provider that can; otherwise it
+// returns a `relay` envelope and _mailRelay posts it FROM THIS BROWSER, because
+// Formspree files worker-sent mail as spam.
+async function lockSendHint() {
   lockMsg("Sending…");
   try {
-    // The worker composes both messages now, so MAGI no longer builds the text
-    // or reads the code. It sends them itself when it has a provider that can;
-    // otherwise it returns a `relay` envelope and _mailRelay posts it FROM THIS
-    // BROWSER, because Formspree files worker-sent mail as spam. This block used
-    // to key off `h.hint` and `rq.code` being returned — neither is any more, so
-    // it had silently stopped emailing anything at all.
     const h = await authPost("/auth/journal/hint", { appName: "MAGI", label: "MAGI" });
-    const hintSent = await window._mailRelay(h);
-    if (hintSent) lockMsg("Hint emailed.", true);
+    if (await window._mailRelay(h)) lockMsg("Hint emailed.", true);
+    else lockMsg("Could not send the hint — is the lock service reachable?");
+  } catch {
+    lockMsg("Could not reach the lock service.");
+  }
+}
 
+async function lockSendReset() {
+  lockMsg("Sending…");
+  try {
     const rq = await authPost("/auth/reset/request", { appName: "MAGI", label: "MAGI" });
     if (await window._mailRelay(rq)) {
       LOCK.mode = "reset";
       renderLock();
       lockMsg("Reset code emailed. Enter it below.", true);
-    } else if (!hintSent) {
-      lockMsg("Could not send anything — is the lock service reachable?");
+    } else {
+      lockMsg("Could not send a reset code — is the lock service reachable?");
     }
   } catch {
     lockMsg("Could not reach the lock service.");
