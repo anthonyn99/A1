@@ -87,7 +87,8 @@ TASKHUB_POS  = [3413, 0, 1707, SCREEN_H]   # ← right
 #  URLs
 # ==============================================================================
 
-TRADEHUB_URL = "https://anthonyn99.github.io/A1/tradehub.html"
+# TradeHub lives in the private repo (A1-Priv) since 2026-10-10.
+TRADEHUB_URL = "https://a1-priv.av1.workers.dev/tradehub.html"
 # TaskHub opens via its installed Brave app (app-id below) — no URL needed here
 
 # ==============================================================================

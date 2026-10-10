@@ -12482,9 +12482,10 @@ window.kcAppIcon=function(u){
     var url=kcUrl(u); if(!url) return '';
     var path=url.pathname.toLowerCase();
     // Accept the published /A1/ path, this page's own origin however the
-    // link was written, and any local dev server serving it.
+    // link was written, the private programs' host (TradeHub, Insight, Vault)
+    // and any local dev server serving it.
     if(!/(^|\/)a1\//.test(path)&&!/^(localhost|127\.0\.0\.1)$/i.test(url.hostname)
-       &&url.hostname!==location.hostname) return '';
+       &&url.hostname!==location.hostname&&url.hostname!=='a1-priv.av1.workers.dev') return '';
     // A bare directory ("/A1/") is served as index.html, i.e. TaskHub.
     var file=/\.html?$/.test(path)?path.split('/').pop():'index.html';
     return window.KC_APP_ICONS[file]||'';
@@ -17847,7 +17848,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   if(location.hash==='#notifdiag'){setTimeout(()=>{window.thNotifDiag();},1500);}
   // Legacy deep link — Vault used to be this page's Keychain view, and older
   // Vault Launcher builds (plus any bookmarks) still point at
-  // ?goto=keychain / #keychain. Vault now lives at /A1/vault.html, so these
+  // ?goto=keychain / #keychain. Vault now lives at https://a1-priv.av1.workers.dev/vault.html, so these
   // REDIRECT there rather than switching views. Kept indefinitely: it costs
   // nothing and means an un-updated extension still lands in the right place.
   //
@@ -17856,7 +17857,8 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   window._gotoKeychain=function(){
     var q='';
     try{ var vt=new URLSearchParams(location.search).get('vaulttab'); if(vt) q='?vaulttab='+encodeURIComponent(vt); }catch(_){}
-    try{ location.replace('vault.html'+q); }catch(_){ location.href='vault.html'+q; }
+    var V='https://a1-priv.av1.workers.dev/vault.html';
+    try{ location.replace(V+q); }catch(_){ location.href=V+q; }
   };
   (function(){
     var wants=false;
@@ -22540,7 +22542,7 @@ window._wrClick = function() {
 
 // ── TradeHub ──
 window._thubClick = function(){
-  var URL_THUB = _legacyOpenUrl('tony','tradehub','https://anthonyn99.github.io/A1/tradehub.html');
+  var URL_THUB = _legacyOpenUrl('tony','tradehub','https://a1-priv.av1.workers.dev/tradehub.html');
   var w = window._tnOpenTab(URL_THUB, 'tradehub');
   if(!w || w.closed || typeof w.closed === 'undefined'){
     if(window.confirm('TradeHub opens in a new tab, but your browser blocked the popup.\n\nPlease allow popups/redirects for this site, then press OK to try again.')){
@@ -22562,11 +22564,11 @@ window._thubClick = function() {
 };
 
 // ── Vault ──
-// Vault is its own program at /A1/vault.html. It used to be this page's
+// Vault is its own program at https://a1-priv.av1.workers.dev/vault.html (A1-Priv). It used to be this page's
 // Keychain view (#kc-root); that markup is still here but is no longer the way
 // in — every route now opens the standalone app, exactly like TradeHub/WarRoom.
 window._vaultClick = function(){
-  var URL_VAULT = _legacyOpenUrl('tony','vault','https://anthonyn99.github.io/A1/vault.html');
+  var URL_VAULT = _legacyOpenUrl('tony','vault','https://a1-priv.av1.workers.dev/vault.html');
   var w = window._tnOpenTab(URL_VAULT, 'vault');
   if(!w || w.closed || typeof w.closed === 'undefined'){
     if(window.confirm('Vault opens in a new tab, but your browser blocked the popup.\n\nPlease allow popups/redirects for this site, then press OK to try again.')){
@@ -22766,8 +22768,12 @@ function _sanLink(l){ return { id: String(l.id||''), label: String(l.label||'Lin
 // No `color` on purpose — these render like every other External Link, so the
 // Settings list stays uniform.
 var LEGACY_PROGRAMS = [
-  { id:'tradehub', label:'TradeHub', url:'https://anthonyn99.github.io/A1/tradehub.html', lockId:'tony_tradehub', openFn:'_thubClick' },
-  { id:'vault',    label:'Vault',    url:'https://anthonyn99.github.io/A1/vault.html',    lockId:'tony_keychain', openFn:'_vaultClick' },
+  // TradeHub and Vault moved to the private repo's host on 2026-10-10
+  // (docs/a1-priv-move-plan.md); prevUrls carries a stored button over.
+  { id:'tradehub', label:'TradeHub', url:'https://a1-priv.av1.workers.dev/tradehub.html', lockId:'tony_tradehub', openFn:'_thubClick',
+    prevUrls:['https://anthonyn99.github.io/A1/tradehub.html'] },
+  { id:'vault',    label:'Vault',    url:'https://a1-priv.av1.workers.dev/vault.html',    lockId:'tony_keychain', openFn:'_vaultClick',
+    prevUrls:['https://anthonyn99.github.io/A1/vault.html'] },
   // prevUrls / prevLabels: what this entry shipped as before it was renamed.
   // A stored button still sitting on one of them is a stale copy of OUR default,
   // not a choice the user made, so migrateLegacyDefaults() below moves it on.
@@ -22816,8 +22822,24 @@ function _legacyUrl(profile, id, fallback){
 // A stored button still pointing at a previous default is a leftover of OUR
 // rename, not the user's choice — move it forward once. A URL the user actually
 // edited matches neither the current nor a previous default, so it is left alone.
+// Programs that left A1 for the private repo's host (docs/a1-priv-move-plan.md).
+// Their old pages are redirect stubs; any of Tony's links still on one is moved
+// to the new address, keeping its query and hash. Mirrors LifeHub's MOVED map.
+var MOVED_PROGRAMS = {
+  'https://anthonyn99.github.io/a1/tradehub.html': 'https://a1-priv.av1.workers.dev/tradehub.html',
+  'https://anthonyn99.github.io/a1/insight.html':  'https://a1-priv.av1.workers.dev/insight.html',
+  'https://anthonyn99.github.io/a1/vault.html':    'https://a1-priv.av1.workers.dev/vault.html'
+};
+function _movedUrl(u){
+  try { var x = new URL(u); var to = MOVED_PROGRAMS[(x.origin + x.pathname).toLowerCase()]; return to ? to + x.search + x.hash : ''; }
+  catch(e){ return ''; }
+}
 function migrateLegacyDefaults(){
   var changed = false;
+  tonyLinks.forEach(function(l){
+    var m = l && _movedUrl(l.url);
+    if (m && m !== l.url){ l.url = m; changed = true; }
+  });
   LEGACY_PROGRAMS.forEach(function(p){
     if (!p.prevUrls && !p.prevLabels) return;
     _lpProfiles(p).forEach(function(profile){

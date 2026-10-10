@@ -107,3 +107,10 @@ magi/artifacts/
 magi/.venv/
 magi/**/__pycache__/
 magi/.pytest_cache/
+
+# ── Moved to the private repo (anthonyn99/A1-Priv, Desktop\A1-Priv) ─────────
+# Vault/ is a directory JUNCTION to ..\A1-Priv\Vault on Tony's PC, so the
+# Vault Launcher extension Brave loads unpacked from A1\Vault keeps working.
+# It must never be tracked here again (docs/a1-priv-move-plan.md).
+/Vault
+/Vault/

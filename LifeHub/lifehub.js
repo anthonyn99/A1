@@ -173,6 +173,24 @@
      identical (tradehub, warroom, vault, solace, magi, shield_tony) so both
      launchers land on one tab per program. */
   var BASE = 'https://anthonyn99.github.io/A1/';
+  // Programs that moved to the private repo's host on 2026-10-10
+  // (docs/a1-priv-move-plan.md). Their old A1 pages are redirect stubs.
+  var PRIV = 'https://a1-priv.av1.workers.dev/';
+  // Old address → new, by origin + path. Stored tiles still on an old one are
+  // rewritten once on sync (migrate below), keeping any query or hash. To move
+  // another program, add its line here.
+  var MOVED = {
+    'https://anthonyn99.github.io/a1/tradehub.html': PRIV + 'tradehub.html',
+    'https://anthonyn99.github.io/a1/insight.html': PRIV + 'insight.html',
+    'https://anthonyn99.github.io/a1/vault.html': PRIV + 'vault.html'
+  };
+  function movedUrl(u) {
+    try {
+      var x = new URL(u);
+      var to = MOVED[(x.origin + x.pathname).toLowerCase()];
+      return to ? to + x.search + x.hash : '';
+    } catch (e) { return ''; }
+  }
   var SHIELD_EXE = {
     tony: 'C:\\Users\\antho\\AppData\\Local\\Shield\\shield-agent.exe',
     veda: 'C:\\Users\\vedap\\AppData\\Local\\Shield\\shield-agent.exe'
@@ -182,10 +200,10 @@
   var LEGACY_SHIELD_LINK = 'shieldopen:show';
   var DEFAULT_APPS = [
     { id: 'oneinbox', name: 'OneInbox', url: BASE + 'oneinbox.html', icon: 'a1:oneinbox', tab: 'oneinbox' },
-    { id: 'tradehub', name: 'TradeHub', url: BASE + 'tradehub.html', icon: 'a1:tradehub', tab: 'tradehub' },
+    { id: 'tradehub', name: 'TradeHub', url: PRIV + 'tradehub.html', icon: 'a1:tradehub', tab: 'tradehub' },
     { id: 'mylist', name: 'MyList', url: BASE + 'mylist.html', icon: 'a1:mylist', tab: 'mylist' },
-    { id: 'insight', name: 'Insight', url: BASE + 'insight.html', icon: 'a1:insight', tab: 'insight' },
-    { id: 'vault', name: 'Vault', url: BASE + 'vault.html', icon: 'a1:vault', tab: 'vault' },
+    { id: 'insight', name: 'Insight', url: PRIV + 'insight.html', icon: 'a1:insight', tab: 'insight' },
+    { id: 'vault', name: 'Vault', url: PRIV + 'vault.html', icon: 'a1:vault', tab: 'vault' },
     { id: 'solace', name: 'Solace', url: BASE + 'solace.html', icon: 'a1:solace', tab: 'solace' },
     // The desktop agent, by its installed path (per-user NSIS install). It is
     // a local program like any other: the click goes through shieldopen:lh:…,
@@ -472,11 +490,20 @@
   // The Shield tile used to hand off with shieldopen:show. Move a list that
   // still carries it to the agent's real path — once, as an ordinary patch,
   // so it merges and is never written twice (an identical result is skipped).
+  // Tiles on a MOVED program's old address go to its new one the same way:
+  // one patch per tile, by id, so an edit from another device still merges.
   function migrate(st, list) {
     var a = byId(list, 'shield'), d = byId(st.defaults, 'shield');
     if (a && d && a.url === LEGACY_SHIELD_LINK && !st.migrated) {
       st.migrated = true;
       commit(st, patchOp('shield', { url: d.url }));
+    }
+    if (!st.movedDone) {
+      var hits = list.filter(function (x) { return isWeb(x.url) && movedUrl(x.url); });
+      if (hits.length) {
+        st.movedDone = true;
+        hits.forEach(function (x) { commit(st, patchOp(x.id, { url: movedUrl(x.url) })); });
+      }
     }
   }
 
