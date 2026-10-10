@@ -27,7 +27,10 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'riftiq.html'), 'utf8');
+// RiftIQ lives in ../A1-Priv since 2026-10-10 (tests/moved.js).
+const M = require('./moved');
+if (!M.has('riftiq.html')) { M.skipNote('riftiq.html'); process.exit(0); }
+const SRC = M.read('riftiq.html');
 
 const results = [];
 const check = (n, p, d) => { results.push(p); console.log('  ' + (p ? 'PASS  ' : 'FAIL  ') + n + (d ? '  [' + d + ']' : '')); };

@@ -87,7 +87,7 @@ for (const [file, want] of Object.entries(HOSTS)) {
 
 console.log('\nPrograms that moved to A1-Priv (docs/a1-priv-move-plan.md)');
 {
-  const moved = ['tradehub', 'insight', 'vault'];
+  const moved = ['tradehub', 'insight', 'vault', 'riftiq', 'solace'];
   for (const p of moved) {
     ok(p + ' seeds on its new host', new RegExp("\\{ id: '" + p + "'[^}]*url: PRIV \\+ '" + p + "\\.html'").test(src));
     ok(p + "'s old address is in LifeHub's MOVED map",
@@ -101,12 +101,14 @@ console.log('\nPrograms that moved to A1-Priv (docs/a1-priv-move-plan.md)');
   try { mv = new Function("var PRIV = 'https://a1-priv.av1.workers.dev/';\n" + body[0] + '\nreturn movedUrl;')(); } catch (e) {}
   ok('movedUrl keeps the query and hash', mv && mv('https://anthonyn99.github.io/A1/vault.html?vaulttab=payments#x') === 'https://a1-priv.av1.workers.dev/vault.html?vaulttab=payments#x');
   ok('movedUrl leaves programs that stayed alone', mv && mv('https://anthonyn99.github.io/A1/magi.html') === '');
+  ok("movedUrl sends RiftIQ's old WarRoom name to RiftIQ", mv && mv('https://anthonyn99.github.io/A1/warroom.html') === 'https://a1-priv.av1.workers.dev/riftiq.html');
   // Index moves Tony's stored buttons the same way.
   const idx = read('index.html');
   for (const p of moved) ok("Index's MOVED_PROGRAMS has " + p, idx.includes("'https://anthonyn99.github.io/a1/" + p + ".html'") && idx.includes("'https://a1-priv.av1.workers.dev/" + p + ".html'"));
-  for (const p of ['tradehub', 'vault']) {
-    ok("Index's " + p + ' button is on the new host, old url in prevUrls',
-      new RegExp("\\{ id:'" + p + "',[^}]*url:'https://a1-priv\\.av1\\.workers\\.dev/" + p + "\\.html'[^}]*prevUrls:\\['https://anthonyn99\\.github\\.io/A1/" + p + "\\.html'\\]").test(idx));
+  // [button id, page]. RiftIQ's button kept its WarRoom-era id.
+  for (const [id, p] of [['tradehub', 'tradehub'], ['vault', 'vault'], ['warroom', 'riftiq'], ['solace', 'solace']]) {
+    ok("Index's " + id + ' button is on the new host, old url in prevUrls',
+      new RegExp("\\{ id:'" + id + "',[^}]*url:'https://a1-priv\\.av1\\.workers\\.dev/" + p + "\\.html'[^}]*prevUrls:\\[[^\\]]*'https://anthonyn99\\.github\\.io/A1/" + p + "\\.html'").test(idx));
   }
   for (const p of moved) {
     const stub = read(p + '.html');
