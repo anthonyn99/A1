@@ -8,27 +8,17 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-10-09. **Phases 0–6 are done.** Both journals are Notebook apps that
-index.html mounts, with no journal code left in index. Notebook can also mount MyJournal
-into any other program under its own key and store (an *instance*). The contract is
-[README.md](README.md). The "before" state is still the git tag **`notebook-p0`**, and
-every on-purpose difference is a rule in the baseline suite's `EXPECTED`.
+**Last updated:** 2026-10-09. **All phases (0–7) are done.** The journals are one program in
+`Notebook/`. index.html mounts MyJournal (tj) and Brainstorm (bj) and holds no journal code.
+TaskHub lists MyJournal as an external program that opens in-page. TradeHub's Playbook
+is a Notebook instance (key pb) whose pinned Daily Reminder feeds the morning launcher.
+How to use it and change it is in [README.md](README.md). This file is the record.
 
-**Next: Phase 7** (wrap-up, see §4). TradeHub's Playbook now runs on a Notebook instance.
-`tests/live/tradehub-playbook.live.js` covers it, and `tests/live/notebook-host.live.js` covers any host.
-
-Method, as in Phases 2–4: one scripted, asserted step, then the baseline, then commit.
-Write scratch scripts with the Write tool (bash heredocs mangle escapes, twice this
-session), expect CRLF in some test files, and wrap every long command in `timeout`. The
-baseline and the other live tests share one CDP browser (port 9333), so run them one at
-a time.
-
-Before starting any phase: `git pull`; run `node tests/run-all.js`; then
-`node tests/live/notebook-baseline.live.js` (about 10 minutes; it must already
-pass on a clean checkout, otherwise fix the harness first).
-
-At the end of every phase: baseline suite passes, `node tests/run-all.js` passes,
-commit + push, rewrite this §0.
+A new journal ask: change `Notebook/` (MyJournal's names stay `tj`-prefixed, so instances keep
+working). Prove it with `node tests/live/notebook-baseline.live.js` (index, vs tag `notebook-p0`;
+add an `EXPECTED` rule for each deliberate difference), `tests/live/notebook-host.live.js`
+(any host) and `tests/live/tradehub-playbook.live.js` (TradeHub), plus `node tests/run-all.js`.
+The baseline and the other live tests share one CDP browser, so run them one at a time.
 
 ---
 
@@ -515,10 +505,18 @@ How it was built:
   untouched, pinned page, launcher push on open and on edit only, park and return,
   reload, phone fit). `tradehub-trash.test.js` now guards the migration and the new wiring.
 
-### Phase 7 — Wrap-up
+### Phase 7 — Wrap-up ✅ 2026-10-09
 - Run every suite, both profiles, and TradeHub mobile-fit.
 - Update the memory notes (myjournal-docx-editor, ourjournal,
   journal-localstorage-quota) and add a `notebook` memory.
+
+Done: `node tests/run-all.js` (68 suites); the baseline (both profiles, vs `notebook-p0`, only
+the `EXPECTED` differences); live: notebook-host 21, tradehub-playbook 27,
+myjournal-external 17, myjournal-drag 21, index-drag 15, lock-bio-binding 83,
+tradehub-drag 53, tradehub-mobile-fit 21, numbers-sweep 52. The deployed trade-dashboard
+answers 401 to an unauthenticated POST /daily-reminder and 200 to GET. The memory notes
+(notebook-extraction, myjournal-docx-editor, ourjournal, journal-localstorage-quota) and
+CLAUDE.md point at Notebook/.
 
 ## 5. Verifying a phase
 
