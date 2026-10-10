@@ -88,6 +88,9 @@ function define(id, o) {
     hard: o.hard !== undefined ? !!o.hard : !!prev.hard,
     allowRemove: o.allowRemove !== undefined ? !!o.allowRemove : (prev.allowRemove !== undefined ? prev.allowRemove : true),
     offline: o.offline !== undefined ? !!o.offline : !!prev.offline,
+    // A biometric with no password behind it (Plans' consent check): never
+    // asked about on the worker, only enrolled / verified on this device.
+    bioOnly: o.bioOnly !== undefined ? !!o.bioOnly : !!prev.bioOnly,
     session: o.session || prev.session || null,
     backend: o.backend || prev.backend || null,
     legacy: o.legacy !== undefined ? o.legacy : prev.legacy,
@@ -292,7 +295,7 @@ function applyStatus(d, h, v) {
 }
 function refresh(ids, force) {
   var list = (ids == null ? Object.keys(DEFS) : [].concat(ids)).map(def).filter(function (d) {
-    return force || !LAST[d.key] || Date.now() - LAST[d.key] > REFRESH_MIN_MS;
+    return !d.bioOnly && (force || !LAST[d.key] || Date.now() - LAST[d.key] > REFRESH_MIN_MS);
   });
   if (!list.length) return Promise.resolve();
   list.forEach(function (d) { LAST[d.key] = Date.now(); });
@@ -375,7 +378,17 @@ function bioLabel() {
   if (/Mac/.test(ua)) return 'Touch ID';
   return 'biometrics';
 }
-function bioRec(d) { return jGet('gd.b.' + d.key); }
+function bioRec(d) {
+  var b = jGet('gd.b.' + d.key);
+  // A bio-only lock adopts the old helper's credential on first sight (no
+  // unlock marker to hang that on, unlike adopt() above).
+  if (!b && d.bioOnly && d.legacy && typeof d.legacy.bio === 'function' && !sGet('gd.a.' + d.key)) {
+    sSet('gd.a.' + d.key, '1');
+    var o = null; try { o = d.legacy.bio(); } catch (e) {}
+    if (o && o.id) { b = { id: o.id, ver: '?', prf: !!o.prf, prfSalt: o.prfSalt || null, created: o.created || Date.now() }; jSet('gd.b.' + d.key, b); }
+  }
+  return b;
+}
 function bioValid(d) {
   var b = bioRec(d); if (!b || !b.id) return false;
   var c = cacheGet(d), m = markerGet(d);
@@ -1103,6 +1116,8 @@ window.Guardian = {
     label: bioLabel,
     isRegistered: bioIsRegistered,
     authenticate: function (id, o) { return bioAuth(def(id), o && o.withPrf); },
+    register: function (id) { return bioRegister(def(id)); },
+    remove: function (id) { return bioRemove(def(id)); },
     hasPrf: function (id) { var b = bioRec(def(id)); return !!(b && b.prf && b.prfSalt); }
   },
   mailRelay: mailRelay,
