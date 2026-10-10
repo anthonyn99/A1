@@ -70,8 +70,10 @@ fi
 # Notebook/ re-stamps every host in the same commit, so Pages' 10-minute cache
 # never mixes old and new files (tests/notebook-wiring.test.js checks it too).
 if git diff --cached --name-only | grep -qE '^Notebook/' && command -v node >/dev/null 2>&1; then
+# (Hosts in the sibling A1-Priv repo are re-stamped too, but committed by
+# A1-Priv's own watcher, so they are left out of this repo's git add.)
   node tools/notebook-stamp.js >/dev/null && \
-    node -e "console.log(require('./tools/notebook-stamp.js').hosts().map(f=>require('path').relative('.',f)).join('\n'))" | \
+    node -e "console.log(require('./tools/notebook-stamp.js').hosts().map(f=>require('path').relative('.',f)).filter(f=>!f.startsWith('..')).join('\n'))" | \
     while IFS= read -r h; do git add -- "$h"; done
 fi
 

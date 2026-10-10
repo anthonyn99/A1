@@ -185,7 +185,8 @@ function authoritativeMacro(fromD,toD){
 const isoD = d => d.toISOString().slice(0,10);
 
 /* ════════════════════════ CORS / JSON / KV ════════════════════════ */
-const ALLOWED=['https://anthonyn99.github.io'];
+// a1-priv: TradeHub's host since 2026-10-10 (docs/a1-priv-move-plan.md).
+const ALLOWED=['https://anthonyn99.github.io','https://a1-priv.av1.workers.dev'];
 function cors(req){
   const o=req?.headers?.get('Origin')||'';
   let allow;

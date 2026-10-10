@@ -21,6 +21,9 @@
  */
 
 const ALLOWED_ORIGIN = 'https://anthonyn99.github.io';
+// The private programs (TradeHub, Insight, Vault) moved to their own host on
+// 2026-10-10 (docs/a1-priv-move-plan.md). Same pages, same Firebase project.
+const PRIV_ORIGIN = 'https://a1-priv.av1.workers.dev';
 
 // MAGI is the one A1 program that is not only a page: its engine serves
 // magi.html from http://127.0.0.1:8000 on Tony's PC, so its app lock calls the
@@ -37,7 +40,7 @@ const ALLOWED_ORIGIN = 'https://anthonyn99.github.io';
 const LOOPBACK_ORIGIN = /^http:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/;
 
 function allowedOrigin(origin) {
-  if (origin === ALLOWED_ORIGIN) return origin;
+  if (origin === ALLOWED_ORIGIN || origin === PRIV_ORIGIN) return origin;
   if (origin && LOOPBACK_ORIGIN.test(origin)) return origin;
   return ALLOWED_ORIGIN;
 }

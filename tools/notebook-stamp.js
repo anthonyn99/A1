@@ -33,9 +33,14 @@ function stamp() {
   return h.digest('hex').slice(0, 10);
 }
 
-// Host pages: any .html in the repo that loads notebook.js.
+// Host pages: any .html in the repo that loads notebook.js, plus the root
+// pages of the sibling private repo (Desktop\A1-Priv, docs/a1-priv-move-plan.md)
+// when it is checked out next to this one. TradeHub lives there now and loads
+// Notebook from this repo's Pages URL, so it needs the same stamp. Rewriting
+// it there is picked up by A1-Priv's own watcher, which commits and deploys.
+const SIBLINGS = [path.join(ROOT, '..', 'A1-Priv')];
 function hosts() {
-  const skip = new Set(['.git', 'node_modules', 'Notebook']);
+  const skip = new Set(['.git', 'node_modules', 'Notebook', 'Vault']);
   const out = [];
   (function walk(dir) {
     for (const d of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -45,6 +50,13 @@ function hosts() {
       else if (d.name.endsWith('.html') && fs.readFileSync(p, 'utf8').includes('Notebook/notebook.js')) out.push(p);
     }
   })(ROOT);
+  for (const sib of SIBLINGS) {
+    if (!fs.existsSync(sib)) continue;
+    for (const f of fs.readdirSync(sib)) {
+      const p = path.join(sib, f);
+      if (f.endsWith('.html') && fs.readFileSync(p, 'utf8').includes('Notebook/notebook.js')) out.push(p);
+    }
+  }
   return out;
 }
 
