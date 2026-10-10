@@ -88,8 +88,8 @@ function walk(dir, base, out) {
   }
   return out;
 }
-const scan = walk(ROOT, ROOT, []).filter((f) => !f.startsWith('Guardian/') && !f.startsWith('Vault/') && !EXEMPT.test(f));
-if (fs.existsSync(M.PRIV)) walk(M.PRIV, M.PRIV, []).forEach((f) => { if (!scan.includes(f)) scan.push(f); });
+const scan = walk(ROOT, ROOT, []).filter((f) => !f.startsWith('Guardian/') && !EXEMPT.test(f));
+if (fs.existsSync(M.PRIV)) walk(M.PRIV, M.PRIV, []).forEach((f) => { if (!scan.includes(f) && !EXEMPT.test(f)) scan.push(f); });
 const offenders = [];
 for (const f of scan) {
   if (PENDING.includes(f) || HOSTS[f] !== undefined) continue;
