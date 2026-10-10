@@ -156,6 +156,9 @@ var legacy = {
   // index / Shield / TradeHub-style app locks: al_locks[id].v vs al_unlockedat_<id>.
   al: function (id, bioNs) {
     function locks() { try { return JSON.parse(localStorage.getItem('al_locks') || '{}') || {}; } catch (e) { return {}; } }
+    // A device that never ran the old lock has no al_locks at all — that is
+    // "nothing to adopt", never "the old system had no lock here".
+    function hadOld() { try { return localStorage.getItem('al_locks') !== null; } catch (e) { return false; } }
     function at() {
       var best = -1;
       function rd(store, k) {
@@ -176,8 +179,9 @@ var legacy = {
       return best;
     }
     return {
-      locked: function () { return !!locks()[id]; },
+      locked: function () { return hadOld() ? !!locks()[id] : null; },
       open: function () {
+        if (!hadOld()) return false;
         var L = locks()[id];
         if (!L) return true;                       // the old system had no lock here → it opened
         var a = at(); return a >= 0 && a >= ((L && L.v) || 0);

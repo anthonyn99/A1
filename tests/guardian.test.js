@@ -191,6 +191,13 @@ function page(W, opts) {
     ok('old registry had no lock → still opens (no surprise prompt)', P.G.isUnlocked('tony_myjournal'));
   }
   {
+    const W = fakeWorker(); W.set('applock:profile_tony', 'pw');
+    const P = page(W);
+    P.G.define('profile_tony', { legacy: P.G.legacy.al('profile_tony') });
+    await P.G.refresh();
+    ok('a brand-new device (no old records at all) is NOT adopted — it asks', !P.G.isUnlocked('profile_tony') && P.G.mustBlock('profile_tony'));
+  }
+  {
     const W = fakeWorker(); W.set('tj:e1', 'pw');
     const P = page(W, { storage: { tj_unlockedat_e1: '900' } });
     P.G.define('tj:e1', { journal: 'tj', entryId: 'e1', kind: 'entry', legacy: P.G.legacy.marker('tj_', 'e1', 800) });
