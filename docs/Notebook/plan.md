@@ -8,17 +8,14 @@
 
 ## 0. Hand-off — read this first
 
-**Last updated:** 2026-10-09. **Phases 0–5 are done.** Both journals are Notebook apps that
+**Last updated:** 2026-10-09. **Phases 0–6 are done.** Both journals are Notebook apps that
 index.html mounts, with no journal code left in index. Notebook can also mount MyJournal
 into any other program under its own key and store (an *instance*). The contract is
 [README.md](README.md). The "before" state is still the git tag **`notebook-p0`**, and
 every on-purpose difference is a rule in the baseline suite's `EXPECTED`.
 
-**Next: Phase 6** (see §4): TradeHub's Playbook on a Notebook instance:
-`Notebook.mount({app:'myjournal', key:'pb', store:'tradehub_playbook', container, title:'Playbook',
-templates:['page'], pinned:[{id:'daily-reminder', title:'Daily Reminder'}], onSave})` plus
-`window.NotebookFirebase = () => ({ db, fs })`. The live test
-`tests/live/notebook-host.live.js` shows the whole shape on a throwaway host.
+**Next: Phase 7** (wrap-up, see §4). TradeHub's Playbook now runs on a Notebook instance.
+`tests/live/tradehub-playbook.live.js` covers it, and `tests/live/notebook-host.live.js` covers any host.
 
 Method, as in Phases 2–4: one scripted, asserted step, then the baseline, then commit.
 Write scratch scripts with the Write tool (bash heredocs mangle escapes, twice this
@@ -448,7 +445,7 @@ How it was built:
   allowed only in those rows, here the header) and `check(before, after)` (here: exactly
   one new local key).
 
-### Phase 6 — TradeHub Playbook on Notebook
+### Phase 6 — TradeHub Playbook on Notebook ✅ 2026-10-09
 - **Mount:** in `TBPlaybookPage` (~9846), add a host `<div>` whose `useEffect`
   calls `Notebook.mount({app:'myjournal', key:'pb', store:'tradehub_playbook',
   mode:'inline', features:{ourjournal:false}, pinned:[Daily Reminder]})`.
@@ -473,6 +470,50 @@ How it was built:
     `workers2/trade-dashboard/worker.js`; GET stays open for launch.py
   - launch.py: handle `~~strike~~`, and stop treating snake_case as italic (1707)
 - Add `tests/live/tradehub-playbook.live.js`.
+
+How it was built:
+- **Loading:** tradehub.html loads `Notebook/notebook.js` with `data-lazy`, so nothing of Notebook
+  loads until the Playbook tab opens. Its Firebase module sets
+  `window.NotebookFirebase = () => ({ db: () => db, fs: <the firestore module> })`. `db` is a
+  getter because TradeHub's teardown (1 s after the tab hides) replaces it. The teardown
+  calls `Notebook.fb.unsubscribe()/rearm()`, and `init()` ends with `Notebook.fb.reconnect()`,
+  which re-installs instance stores and re-fires their `nb-<key>-fb-ready`.
+- **Mount:** `TBPlaybookPage` is a title plus a `.tb-pb-host` box. A layout effect calls
+  `tbPbMount()`. The first time, it waits for fb-ready, runs the migration, then
+  `Notebook.mount({app:'myjournal', key:'pb', store:'tradehub_playbook', title:'Playbook',
+  templates:['page'], pinned:[Daily Reminder, seeded from TB_PB_DAILY_SEED], onSave, onReady})`.
+  Leaving the tab parks `#pb-root` in a hidden `#tb-pb-park` instead of letting React
+  destroy it (an autosave in flight needs its elements). Coming back moves it in again.
+  `TBTabGate` and the nav entry are unchanged.
+- **Migration** (`window._fbMigrateTBPlaybook(convert)`, one `runTransaction`): skipped if the
+  new doc has `_migratedFrom` or any `e_` field. Otherwise `dashboards/tradeboard_playbook`'s
+  pages[] become `e_<id>` page entries via `tbPbToEntries` (`tbPbNormalize` order, sanitized
+  HTML, trashed stamps kept, Daily Reminder never trashed). The old doc is only read. The
+  tab mounts only after this succeeds: mounting first would let a new save look like
+  "already migrated". Decision: the plan's `tb_playbook_v1` fallback was dropped. It only
+  mattered for a Playbook that never reached the cloud, and keeping it would have left a
+  live reader of a key the cleanup registry now lists.
+- **Daily Reminder:** `onSave` → `tbPbPushReminder(entry)` (only that id, `tbHtmlToMd`, 1.5 s
+  debounce, signature dedupe, never empty), and once on `onReady`. `tbHtmlToMd` learned
+  `docx-math` (`$…$` / `$$…$$`), and file chips/data: links become `[file: name]`.
+- **Removed:** the old toolbar/editor/page components and their helpers, persistence,
+  listener, `_fbLoad/SaveTBPlaybook`, the remote/saved/error events, its Trash section
+  (TradeHub's can is tickers + prompts now; the Playbook uses Notebook's trash), the
+  storage warning, and the editor CSS. `.tb-pb-doc` stays because the Control prompt
+  preview uses it. `tb_playbook_v1` is in cleanup-rules.json (`delete: false`), and
+  tradehub.html now loads `sweep.js` as `data-program="tradehub"`.
+- **Worker:** POST `/daily-reminder` is App Check gated (TradeHub's fetch interceptor
+  already attaches the token). GET stays open for launch.py.
+- **launch.py:** `~~strike~~` renders (Tk overstrike), and `_x_`/`__x__` count only at word
+  edges, so `max_risk_per_trade` stays a name.
+- **Notebook changes it needed:** `data-lazy`; `hostF` takes a `db` getter; `reconnect()`;
+  `_tjCfg.entries()` for the host. An inline instance pins the phone drawer, its backdrop
+  and the bottom bar to itself, not to the viewport (inside TradeHub's transformed tab
+  container the closed drawer peeked 12 px in). The lock-button hide rule now matches
+  the app's own specificity.
+- Tests: `tests/live/tradehub-playbook.live.js` (27 checks: migration once with the old doc
+  untouched, pinned page, launcher push on open and on edit only, park and return,
+  reload, phone fit). `tradehub-trash.test.js` now guards the migration and the new wiring.
 
 ### Phase 7 — Wrap-up
 - Run every suite, both profiles, and TradeHub mobile-fit.
