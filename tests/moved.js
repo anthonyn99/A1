@@ -1,5 +1,6 @@
 // Programs that left A1 for the private repo (anthonyn99/A1-Priv) on
-// 2026-10-10 (TradeHub, Insight, Vault, then RiftIQ and Solace) — docs/a1-priv-move-plan.md. Their A1 copies are redirect stubs,
+// 2026-10-10 (TradeHub, Insight, Vault, then RiftIQ and Solace) —
+// docs/a1-priv-move-plan.md. Their A1 copies are redirect stubs,
 // but the suites here still guard the REAL code: they read it from the sibling
 // checkout next to this one (Desktop\A1-Priv). Without that checkout (CI,
 // another PC) a suite skips those files and says so, instead of failing on a stub.
@@ -16,7 +17,7 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const PRIV = path.join(ROOT, '..', 'A1-Priv');
-const MOVED = /^(?:(?:tradehub|insight|vault|riftiq|solace).html$|Vault[\\/])/;
+const MOVED = /^(?:(?:tradehub|insight|vault|riftiq|solace)\.html$|Vault[\\/])/;
 
 const isMoved = (rel) => MOVED.test(String(rel));
 const file = (rel) => path.join(isMoved(rel) ? PRIV : ROOT, rel);
