@@ -150,6 +150,9 @@
 
 <!-- MAGI's drag to reorder and corner resize grip, shared by every A1 program -->
 <script src="dragsort.js"></script>
+<!-- Notebook (docs/Notebook/README.md): the Playbook tab is a MyJournal instance.
+     data-lazy: nothing of it loads until that tab is opened. -->
+<script src="Notebook/notebook.js?v=6db3e4d949" data-lazy></script>
 <script src="resizegrip.js"></script>
 <!-- React / ReactDOM / Babel (same CDN builds as the main suite) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
@@ -443,7 +446,10 @@ window._mailRelay = window._mailRelay || async function (res) {
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
   import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
   import { initializeAppCheck, ReCaptchaV3Provider, getToken } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js";
-  import { initializeFirestore, memoryLocalCache, terminate, doc, setDoc, updateDoc, onSnapshot, getDoc, getDocFromServer, deleteDoc, deleteField } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
+  import { initializeFirestore, memoryLocalCache, terminate, doc, setDoc, updateDoc, onSnapshot, getDoc, getDocFromServer, deleteDoc, deleteField, runTransaction } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
+  // The whole module too, for Notebook (window.NotebookFirebase below): the same
+  // module instance, so it shares this page's Firestore.
+  import * as _fsNS from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyC2aKunOKj5WS8NpgZhpyMzOYecBr5t2_4",
@@ -511,6 +517,9 @@ window._mailRelay = window._mailRelay || async function (res) {
   signInAnonymously(auth).catch(e => console.warn("Anon auth failed:", e));
   // Memory-only cache: only docs with ACTIVE listeners get re-read on reconnect
   let db = initializeFirestore(app, { localCache: memoryLocalCache() });
+  // Notebook (the Playbook tab) borrows this Firestore. db is handed over as a
+  // getter because a teardown below replaces it.
+  window.NotebookFirebase = () => ({ db: () => db, fs: _fsNS });
 
   const TB_JOURNAL_PATH  = "dashboards/tradeboard_journal";
   // Journal backups live in their OWN document. A backup stored inside the
@@ -538,9 +547,6 @@ window._mailRelay = window._mailRelay || async function (res) {
   let _tbWatchlistSaveTimer = null;
   let _tbWatchlistLastOwnSaveAt = 0;
   let _tbWatchlistUnsub = null;
-  let _tbPlaybookSaveTimer = null;
-  let _tbPlaybookLastOwnSaveAt = 0;
-  let _tbPlaybookUnsub = null;
 
   let _tbAppLockSaveTimer = null;
   let _tbAppLockLastOwnSaveAt = 0;
@@ -557,7 +563,6 @@ window._mailRelay = window._mailRelay || async function (res) {
     const tbPromptsDocRef = doc(db, TB_PROMPTS_PATH);
     const tbAnalysisDocRef = doc(db, TB_ANALYSIS_PATH);
     const tbWatchlistDocRef = doc(db, TB_WATCHLIST_PATH);
-    const tbPlaybookDocRef = doc(db, TB_PLAYBOOK_PATH);
     const tbAppLockDocRef = doc(db, "dashboards/applock");
 
     // Journal: remember the last Webull sync stamp written by ANY device, so
@@ -996,41 +1001,30 @@ window._mailRelay = window._mailRelay || async function (res) {
         .catch(e => { console.warn('Firebase TBWatchlist default save failed:', e && e.message); window.dispatchEvent(new CustomEvent('fb-tb-watchlist-error')); });
     };
 
-    // Playbook: load (pages of trading documentation — rules, strategies, checklists)
-    // Returns pages[] · null = nothing stored yet (caller seeds) · false = the read
-    // FAILED. Those last two must stay distinguishable: on a failed read the caller
-    // must not seed, because seeding writes, and that write would overwrite the
-    // real playbook with starter content just because the network blipped.
-    window._fbLoadTBPlaybook = async () => {
-      try {
-        if (window._fbAuthReady) { try { await window._fbAuthReady; } catch(e){} }
-        const snap = await getDoc(tbPlaybookDocRef);
-        if (!snap.exists()) return null;
-        const data = snap.data();
-        return Array.isArray(data.pages) ? data.pages : null;
-      } catch(e) { console.warn('Firebase TBPlaybook load failed:', e); return false; }
-    };
-    // Playbook: save (800ms debounce, same shape as the watchlist/analysis writers)
-    window._fbSaveTBPlaybook = (pages) => {
-      _tbPlaybookLastOwnSaveAt = Date.now();
-      window.dispatchEvent(new CustomEvent('fb-tb-saving'));
-      if (_tbPlaybookSaveTimer) clearTimeout(_tbPlaybookSaveTimer);
-      _tbPlaybookSaveTimer = setTimeout(async () => {
-        const attempt = async () => {
-          if (window._fbAuthReady) { try { await window._fbAuthReady; } catch(e){} }
-          _tbPlaybookLastOwnSaveAt = Date.now();
-          await setDoc(doc(db, TB_PLAYBOOK_PATH), { pages: JSON.parse(JSON.stringify(pages||[])), savedAt: Date.now() });
-        };
-        // Retry with backoff — pages can be large, and a cold auth/App-Check token
-        // shouldn't silently drop the user's writing.
-        let ok=false, lastErr=null;
-        for (let i=0;i<3 && !ok;i++){
-          try { if(i>0) await new Promise(r=>setTimeout(r, 1200*i)); await attempt(); ok=true; }
-          catch(e){ lastErr=e; }
-        }
-        if (ok){ _tbPlaybookLastOwnSaveAt = Date.now(); window.dispatchEvent(new CustomEvent('fb-tb-playbook-saved')); }
-        else { console.warn('[TBPlaybook save FAILED]', lastErr&&(lastErr.code||''), lastErr&&lastErr.message); window.dispatchEvent(new CustomEvent('fb-tb-playbook-error')); }
-      }, 800);
+    // ── Playbook → Notebook, once ────────────────────────────────────────────
+    // The Playbook tab is a Notebook instance on dashboards/tradehub_playbook. Its
+    // first open moves the old pages[] document there in ONE transaction: page ids kept (the Daily
+    // Reminder keeps 'daily-reminder'), trashed pages keep their stamp, and a
+    // _migratedFrom marker means it never runs twice. The old document is left
+    // alone as a backup. convert(pages) is the React side's: it knows the page
+    // format and the sanitizer. A failed read throws, and the tab does not mount:
+    // mounting first would let a new save look like "already migrated".
+    window._fbMigrateTBPlaybook = async (convert) => {
+      if (window._fbAuthReady) { try { await window._fbAuthReady; } catch(e){} }
+      const nRef = doc(db, 'dashboards/tradehub_playbook'), oRef = doc(db, TB_PLAYBOOK_PATH);
+      return runTransaction(db, async (tx) => {
+        const cur = await tx.get(nRef);
+        const cd = cur.exists() ? cur.data() : null;
+        if (cd && (cd._migratedFrom || Object.keys(cd).some(k => k.indexOf('e_') === 0))) return 'already';
+        const old = await tx.get(oRef);
+        let pages = old.exists() && Array.isArray(old.data().pages) ? old.data().pages : null, from = TB_PLAYBOOK_PATH;
+        // Nothing to move (a fresh account): the pinned Daily Reminder starts empty-handed.
+        if (!pages || !pages.length) return 'empty';
+        const out = convert(pages);
+        out._migratedFrom = from; out.savedAt = Date.now();
+        tx.set(nRef, out, { merge: true });
+        return 'migrated';
+      });
     };
 
     // Analysis cfg: save (800ms debounce)
@@ -1192,16 +1186,6 @@ window._mailRelay = window._mailRelay || async function (res) {
       }
     });
 
-    if (_tbPlaybookUnsub) { _tbPlaybookUnsub(); _tbPlaybookUnsub = null; }
-    _tbPlaybookUnsub = onSnapshot(tbPlaybookDocRef, (snap) => {
-      if (!snap.exists()) return;
-      if (Date.now() - _tbPlaybookLastOwnSaveAt < 8000) return;
-      const data = snap.data();
-      if (Array.isArray(data.pages)) {
-        window.dispatchEvent(new CustomEvent('fb-tb-playbook-remote', { detail: data.pages }));
-      }
-    });
-
     // ── AppLock locked-set sync — which apps are locked, shared across ALL devices.
     //    Same dashboards/applock doc the main suite (index.html) uses, so locking
     //    TradeHub here or there stays in sync everywhere. ──
@@ -1232,6 +1216,8 @@ window._mailRelay = window._mailRelay || async function (res) {
 
     window._fbReady = true;
     window.dispatchEvent(new CustomEvent("fb-ready"));
+    // The Playbook's Notebook store re-attaches to the new client after a teardown.
+    if (window.Notebook && window.Notebook.fb && window.Notebook.fb.reconnect) window.Notebook.fb.reconnect();
   }
 
   init();
@@ -1261,7 +1247,9 @@ window._mailRelay = window._mailRelay || async function (res) {
     if (_tbNewsUnsub)    { _tbNewsUnsub();    _tbNewsUnsub    = null; }
     if (_tbAnalysisUnsub){ _tbAnalysisUnsub();_tbAnalysisUnsub= null; }
     if (_tbWatchlistUnsub){ _tbWatchlistUnsub();_tbWatchlistUnsub= null; }
-    if (_tbPlaybookUnsub){ _tbPlaybookUnsub();_tbPlaybookUnsub= null; }
+    // The Playbook (Notebook): drop its listener, and it must see the server
+    // again before writing (its stale-overwrite guard).
+    if (window.Notebook && window.Notebook.fb) { window.Notebook.fb.unsubscribe(); window.Notebook.fb.rearm(); }
     if (_tbAppLockUnsub) { _tbAppLockUnsub(); _tbAppLockUnsub = null; }
     try { await terminate(db); } catch(e) {}
     db = initializeFirestore(app, { localCache: memoryLocalCache() });
@@ -1654,28 +1642,10 @@ const TB_STYLES=`
 /* Placeholder — driven by a data attr, not :empty, because contentEditable keeps
    a stray <br> in an "empty" doc and :empty would never match. */
 #tradeboard-root .tb-pb-doc[data-empty="1"]::before{content:attr(data-placeholder);color:var(--txm);font-style:normal;font-family:var(--font-accent);pointer-events:none;}
-/* ── Formatting toolbar ──────────────────────────────────────────────────────
-   Every control preventDefaults its mousedown so the editor keeps its selection,
-   then runs an execCommand on it — the standard rich-text pattern, and cleaner
-   than a save/restore-range dance. */
-#tradeboard-root .tb-pb-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:2px;padding:7px 4px 0;border-top:1px solid var(--bd);margin-top:8px;}
-#tradeboard-root .tb-pb-tool{display:inline-flex;align-items:center;justify-content:center;gap:3px;min-width:30px;height:30px;padding:0 7px;background:transparent;border:1px solid transparent;border-radius:7px;color:var(--txd);font-size:13px;font-weight:600;cursor:pointer;transition:background .12s,color .12s,border-color .12s;white-space:nowrap;}
-#tradeboard-root .tb-pb-tool:hover{background:var(--s2);color:var(--tx);}
-#tradeboard-root .tb-pb-tool.active{background:var(--ac);border-color:var(--ac);color:var(--bg);}
-#tradeboard-root .tb-pb-tool .tb-pb-caret{font-size:8px;opacity:.6;margin-left:1px;}
-#tradeboard-root .tb-pb-div{width:1px;align-self:stretch;background:var(--bd);margin:4px 4px;}
-#tradeboard-root .tb-pb-menuwrap{position:relative;display:inline-flex;}
-#tradeboard-root .tb-pb-menu{position:absolute;top:calc(100% + 4px);left:0;z-index:60;background:var(--s1);border:1px solid var(--bdl);border-radius:9px;box-shadow:0 10px 30px rgba(0,0,0,0.4);padding:5px;display:flex;flex-direction:column;gap:1px;max-height:320px;overflow-y:auto;}
-#tradeboard-root .tb-pb-menu-item{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:transparent;border:none;border-radius:6px;padding:7px 12px;color:var(--txd);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;transition:background .12s,color .12s;}
-#tradeboard-root .tb-pb-menu-item:hover{background:var(--s2);color:var(--tx);}
-#tradeboard-root .tb-pb-menu-item.active{color:var(--ac);}
-#tradeboard-root .tb-pb-menu-item .tb-pb-check{margin-left:auto;color:var(--ac);font-size:12px;}
-#tradeboard-root .tb-pb-swatches{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;padding:3px;}
-#tradeboard-root .tb-pb-swatch{width:24px;height:24px;border-radius:6px;border:1px solid var(--bdl);cursor:pointer;padding:0;transition:transform .1s;}
-#tradeboard-root .tb-pb-swatch:hover{transform:scale(1.12);}
-#tradeboard-root .tb-pb-linkrow{display:flex;align-items:center;gap:6px;padding:2px;}
-#tradeboard-root .tb-pb-linkrow input{background:var(--s2);border:1px solid var(--bd);border-radius:7px;color:var(--tx);font-size:13px;padding:7px 10px;width:230px;outline:none;}
-#tradeboard-root .tb-pb-linkrow input:focus{border-color:var(--ac);}
+/* The Playbook tab hosts Notebook (MyJournal as an instance): it fills this box. */
+#tradeboard-root .tb-pb-host{position:relative;height:calc(100dvh - 190px);min-height:480px;border:1px solid var(--bd);border-radius:8px;overflow:hidden;}
+#tradeboard-root .tb-pb-note{padding:24px;color:var(--txd);font-size:13px;}
+@media(max-width:768px){#tradeboard-root .tb-pb-host{height:calc(100dvh - 170px);border-radius:6px;}}
 /* The app's main content pane shows a REAL, grabbable scrollbar. Bars are hidden
    globally (see the ::-webkit-scrollbar reset above), which looks tidy but leaves
    every long tab — Playbook documents, the News feed's 50+ cards, the Journal's
@@ -5100,32 +5070,31 @@ function TBPortfolioPage(){
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
-   TRASH CAN — Playbook pages · Control tickers · Control prompts
+   TRASH CAN — Control tickers · Control prompts (the Playbook has Notebook's own)
    Modelled on the Trash in MyJournal / Brainstorm Journal (index.html): deleting
    is a soft delete, the item is recoverable for 30 days, and restoring it RESETS
    that clock (the stamp is written fresh on each delete, never carried over).
 
    Storage is deliberately parasitic on what already exists — there is no trash
    document, no extra listener and no extra read:
-     · a trashed Playbook page keeps its slot in the playbook doc's pages[] with
-       a `trashed` stamp, exactly as a journal entry does;
-     · a trashed prompt does the same inside the prompts doc's prompts[];
+     · a trashed prompt keeps its slot in the prompts doc's prompts[] with a
+       `trashed` stamp, exactly as a journal entry does;
      · tickers are bare strings and cannot carry a stamp, so the watchlist doc
        gains a sibling `trash: [{t, trashed}]` field.
    Deleting already wrote its source document, so the write count is unchanged,
    and the live listeners those documents already have sync the trash for free.
    ════════════════════════════════════════════════════════════════════════════ */
 const TB_TRASH_TTL = 30*24*60*60*1000;          // 30 days, then auto-purge
-/* Per-section caps. A trashed Playbook page keeps its full HTML body inside the
-   SAME document as the live pages, and Firestore documents stop at 1 MiB, so the
+/* Per-section caps. A trashed prompt keeps its full text inside the SAME
+   document as the live prompts, and Firestore documents stop at 1 MiB, so the
    can is bounded two ways — past either limit the oldest deletions are purged
    early. Counting alone is not enough when one item can be 100 KB.
 
    TB_TRASH_BYTES is only the CEILING. The real budget is whatever the live items
-   leave behind (see persistPlaybook / persistPrompts), because the live pages
-   must always win: the trash can must never be the reason a save fails. A
-   playbook that grows shrinks its own can rather than taking the document — and
-   with it everything still being written — down with it. */
+   leave behind (see persistPrompts), because the live items must always win:
+   the trash can must never be the reason a save fails. A prompt list that
+   grows shrinks its own can rather than taking the document — and with it
+   everything still being written — down with it. */
 const TB_TRASH_MAX   = 60;
 const TB_TRASH_BYTES = 250 * 1024;
 /* Firestore's hard ceiling is 1 MiB. Stay well clear of it: the estimate here is
@@ -5159,8 +5128,6 @@ function tbTrashCap(arr, maxBytes){
 /* Section descriptors. `id` turns an item into the stable key the restore/purge
    callbacks receive, `name` into its row label. */
 const TB_TRASH_SECTIONS = [
-  { key:'playbook', label:'Playbook pages', icon:'doc',    kind:'PAGE',
-    id:i=>i.id, name:i=>i.title||'Untitled page',   mono:false },
   { key:'tickers',  label:'Tickers',        icon:'list',   kind:'TICKER',
     id:i=>i.t,  name:i=>i.t,                        mono:true  },
   { key:'prompts',  label:'Prompts',        icon:'pencil', kind:'PROMPT',
@@ -5172,8 +5139,8 @@ function tbTrashCount(trash){
   return TB_TRASH_SECTIONS.reduce((n,s)=>n+(((trash&&trash[s.key])||[]).length),0);
 }
 
-/* The Trash button itself — one per surface you can delete from (the Playbook
-   sidebar, the Watchlist card, the Prompts card). They all open the same modal. */
+/* The Trash button itself — one per surface you can delete from (the Watchlist
+   card, the Prompts card). They all open the same modal. */
 function TBTrashButton({count=0,onClick,style,block}){
   return(<button type="button" onClick={onClick} title="Deleted items — recoverable for 30 days"
     style={{display:'inline-flex',alignItems:'center',justifyContent:block?'center':'flex-start',gap:7,
@@ -9339,6 +9306,7 @@ function tbHtmlIsPlain(html){
    rules list into one giant run-on heading. */
 const TB_MD_BLOCK=/^(address|article|aside|blockquote|div|dl|dd|dt|figure|figcaption|footer|h[1-6]|header|hr|li|main|nav|ol|p|pre|section|table|tbody|td|tfoot|th|thead|tr|ul)$/;
 
+function tbMathTex(el){ try{ return decodeURIComponent(el.getAttribute('data-tex')||'').trim(); }catch(e){ return (el.getAttribute('data-tex')||'').trim(); } }
 function tbHtmlToMd(html){
   const raw=String(html||'');
   if(!raw.trim()) return '';
@@ -9353,7 +9321,11 @@ function tbHtmlToMd(html){
   const fmtNode=(c)=>{
     if(c.nodeType===3) return c.nodeValue.replace(/\s+/g,' ');
     if(c.nodeType!==1) return '';
+    // The Notebook editor's math (data-tex) as LaTeX in dollars.
+    if(c.classList.contains('docx-math')){ const tex=tbMathTex(c); return tex?(c.classList.contains('docx-math-block')?'$$'+tex+'$$':'$'+tex+'$'):''; }
     const t=c.tagName.toLowerCase(), inner=inl(c), core=inner.trim();
+    // A file chip carries the whole file as a data: URL: name it, never inline it.
+    if(t==='a'&&(c.hasAttribute('download')||/^(data:|[a-z]+-fbimg:)/i.test(c.getAttribute('href')||''))) return '[file: '+(c.getAttribute('download')||core||'attachment')+']';
     if(t==='br') return '\n';
     if((t==='strong'||t==='b')&&core) return '**'+core+'**';
     if((t==='em'||t==='i')&&core) return '*'+core+'*';
@@ -9420,6 +9392,7 @@ function tbHtmlToMd(html){
     if(/^h[1-6]$/.test(t)){ const n=parseInt(t[1],10); emitMixed(c,s=>'#'.repeat(n)+' '+s); return; }
     if(t==='p'){ emitMixed(c,s=>s); return; }
     if(t==='hr'){ blocks.push('---'); return; }
+    if(c.classList.contains('docx-math-block')){ const tex=tbMathTex(c); if(tex) blocks.push('$$\n'+tex+'\n$$'); return; }
     if(t==='br'){ return; }   // block separator — the join already handles it
     if(t==='pre'){ blocks.push('```\n'+(c.textContent||'').replace(/\n+$/,'')+'\n```'); return; }
     if(t==='blockquote'){ const s=tbHtmlToMd(c.innerHTML); if(s) blocks.push(s.split('\n').map(l=>l?'> '+l:'>').join('\n')); return; }
@@ -9461,8 +9434,6 @@ function tbHtmlToMd(html){
 
 /* ── Playbook pages ── */
 const TB_PB_DAILY_ID='daily-reminder';   // fixed id — Trading Auto Launch reads THIS page
-const TB_PLAYBOOK_KEY='tb_playbook_v1';
-const tbPbNewId=()=>'pb_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7);
 
 const TB_PB_DAILY_SEED=
 `## Before I place a single trade
@@ -9481,11 +9452,6 @@ function tbPbDefaultPages(){
   return [{ id:TB_PB_DAILY_ID, title:'Daily Reminder', body:tbMdToHtml(TB_PB_DAILY_SEED),
             createdAt:Date.now(), updatedAt:Date.now() }];
 }
-function tbLoadPlaybookLocal(){
-  try{ const r=localStorage.getItem(TB_PLAYBOOK_KEY); if(r){ const a=JSON.parse(r); if(Array.isArray(a)&&a.length) return a; } }catch(e){}
-  return tbPbDefaultPages();
-}
-function tbSavePlaybookLocal(pages){ try{ localStorage.setItem(TB_PLAYBOOK_KEY,JSON.stringify(pages)); }catch(e){} }
 /* Daily Reminder is pinned first and always exists — Trading Auto Launch depends on it. */
 function tbPbNormalize(pages){
   const arr=Array.isArray(pages)?pages.filter(p=>p&&p.id):[];
@@ -9496,446 +9462,79 @@ function tbPbNormalize(pages){
   return [daily,...arr.filter(p=>p.id!==TB_PB_DAILY_ID)];
 }
 
-/* ── Formatting toolbar ───────────────────────────────────────────────────────
-   Word-processor controls over the shared contentEditable. Every button/menu-item
-   preventDefaults its mousedown so the editor keeps its live selection, then runs
-   an execCommand against it — the standard rich-text-toolbar trick, and simpler
-   than saving/restoring a Range. `run` focuses, toggles styleWithCSS as needed,
-   execs, and re-fires the editor's onInput (via emit) so the change syncs. */
-const TB_PB_FONTS=[
-  ['Arial','Arial, Helvetica, sans-serif'],
-  ['Georgia','Georgia, serif'],
-  ['Times','\'Times New Roman\', Times, serif'],
-  ['Courier','\'Courier New\', monospace'],
-  ['System','system-ui, sans-serif'],
-  ['Lora','Lora, Georgia, serif'],
-];
-const TB_PB_SIZES=[12,14,16,18,20,24,28,32];
-const TB_PB_BLOCKS=[['p','Normal text'],['h1','Heading 1'],['h2','Heading 2'],['h3','Heading 3'],['blockquote','Quote'],['pre','Code block']];
-// Text colours: theme-aware, all readable on the dark surface. First entry resets.
-const TB_PB_TEXT_COLORS=['','#f4f3f0','#adadb2','#e0b874','#a4b986','#d68a7c','#e0b57c','#7dd3fc','#c084fc','#fb923c'];
-// Highlights: translucent so text stays legible. First entry clears.
-const TB_PB_HL_COLORS=['','rgba(224,184,116,0.30)','rgba(164,185,134,0.28)','rgba(251,191,36,0.30)','rgba(125,211,252,0.28)','rgba(192,132,252,0.28)'];
-
-/* Hoisted so their identity is stable across toolbar re-renders (inline components
-   would remount their subtrees, e.g. dropping focus from an open menu). */
-function TBpTool({title,onClick,children,active}){
-  return(<button type="button" className={'tb-pb-tool'+(active?' active':'')} title={title}
-    onMouseDown={e=>e.preventDefault()} onClick={onClick}>{children}</button>);
-}
-function TBpDiv(){ return <span className="tb-pb-div"/>; }
-function TBpItem({onClick,close,active,children}){
-  return(<button type="button" className={'tb-pb-menu-item'+(active?' active':'')}
-    onMouseDown={e=>e.preventDefault()} onClick={()=>{onClick();close();}}>
-    {children}{active?<span className="tb-pb-check"><TBIcon n="check" size={12}/></span>:null}</button>);
+/* ── Playbook: a Notebook instance ───────────────────────────────────────────
+   The Playbook tab is MyJournal running on TradeHub's own documents
+   (dashboards/tradehub_playbook): same editor, pages, trash and sync as Tony's
+   MyJournal, every change to Notebook arriving here too (docs/Notebook/README.md).
+   The Daily Reminder is a pinned page — always first, never deletable — and every
+   confirmed save of it is pushed to the worker for Trading Auto Launch.
+   Notebook's DOM outlives this tab: leaving parks it in a hidden holder and
+   coming back moves it in again, so an edit in flight is never cut off. */
+function tbPbToEntries(pages){
+  const out={_order:[],activeId:TB_PB_DAILY_ID};
+  tbPbNormalize(pages).forEach(p=>{
+    const e={id:p.id,title:p.title||(p.id===TB_PB_DAILY_ID?'Daily Reminder':'Untitled page'),template:'page',
+      created:p.createdAt||Date.now(),updated:p.updatedAt||p.createdAt||Date.now(),tags:[],
+      data:{html:tbSanitizeHtml(p.body||''),attachments:[]},rev:1};
+    if(p.trashed){ e.trashed=p.trashed; e.trashChangedAt=p.trashed; }
+    out['e_'+p.id]=e; out._order.push(p.id);
+  });
+  return out;
 }
 
-function TBPbMenu({id,openId,setOpenId,title,label,width,children}){
-  const open=openId===id;
-  return(<div className="tb-pb-menuwrap">
-    <button type="button" className={'tb-pb-tool'+(open?' active':'')} title={title}
-      onMouseDown={e=>e.preventDefault()} onClick={()=>setOpenId(open?null:id)}>
-      {label}<span className="tb-pb-caret"><TBIcon n="chevron" size={12}/></span>
-    </button>
-    {open&&<div className="tb-pb-menu" style={width?{minWidth:width}:null} onMouseDown={e=>e.preventDefault()}>
-      {children(()=>setOpenId(null))}
-    </div>}
-  </div>);
+/* Daily Reminder → Trading Auto Launch, which GETs /daily-reminder and makes you
+   confirm it before it opens anything, so it must reflect the CURRENT page. Pages
+   are HTML; the launcher renders Markdown, so push a converted copy, debounced
+   and deduped. An empty page is never pushed — that would blank the morning gate. */
+let _tbReminderSig=null,_tbReminderTimer=null;
+function tbPbPushReminder(entry){
+  if(!entry||entry.id!==TB_PB_DAILY_ID||entry.trashed) return;
+  const markdown=tbHtmlToMd((entry.data&&entry.data.html)||'');
+  if(!markdown.trim()) return;
+  const title=(entry.title||'Daily Reminder').trim();
+  const sig=title+' | '+markdown;
+  if(_tbReminderSig===sig) return;
+  clearTimeout(_tbReminderTimer);
+  _tbReminderTimer=setTimeout(()=>{
+    fetch(TD_WORKER_URL+'/daily-reminder',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,markdown})})
+      .then(r=>{ if(r.ok) _tbReminderSig=sig; }).catch(()=>{});
+  },1500);
 }
 
-function TBPlaybookToolbar({editorRef,emit}){
-  const [openId,setOpenId]=useState(null);
-  const [linkUrl,setLinkUrl]=useState('');
-  const barRef=useRef(null);
-  const linkRange=useRef(null);
-
-  // Close any open menu on an outside click or Escape.
-  useEffect(()=>{
-    if(!openId) return;
-    const onDown=(e)=>{ if(barRef.current && !barRef.current.contains(e.target)) setOpenId(null); };
-    const onKey=(e)=>{ if(e.key==='Escape') setOpenId(null); };
-    document.addEventListener('pointerdown',onDown,true);
-    document.addEventListener('keydown',onKey);
-    return()=>{ document.removeEventListener('pointerdown',onDown,true); document.removeEventListener('keydown',onKey); };
-  },[openId]);
-
-  const focusEd=()=>{ const el=editorRef.current; if(el) el.focus(); return el; };
-
-  // Core: run an execCommand against the editor's current selection, then sync.
-  // A null value is passed as OMITTED, not as the string "null" — insertHorizontalRule
-  // treats its value arg as the new element's id, so run('insertHorizontalRule')
-  // must not hand it one.
-  const run=(cmd,val=null,css=false)=>{
-    const el=focusEd(); if(!el) return;
-    try{ document.execCommand('styleWithCSS',false,css); }catch(e){}
-    try{ if(val==null) document.execCommand(cmd,false); else document.execCommand(cmd,false,val); }catch(e){}
-    emit();
-  };
-
-  const setBlock=(tag)=>{ run('formatBlock',tag,false); };
-  const setFont=(css)=>{ run('fontName',css,true); };
-  const setColor=(c)=>{
-    if(c){ run('foreColor',c,true); return; }
-    // Reset = re-apply the theme's default text colour, so ONLY the colour clears
-    // — removeFormat would also strip the selection's bold/italic/size.
-    const root=document.getElementById('tradeboard-root');
-    const def=(root&&getComputedStyle(root).getPropertyValue('--tx').trim())||'#f4f3f0';
-    run('foreColor',def,true);
-  };
-  const setHighlight=(c)=>{ run('hiliteColor',c||'transparent',true); };
-
-  // Font size: execCommand('fontSize','7') creates <font size=7> around the
-  // selection (reliable cross-browser); we then remap those to a px span. This is
-  // the same technique index.html's editor uses.
-  const setSize=(px)=>{
-    const el=focusEd(); if(!el) return;
-    try{ document.execCommand('styleWithCSS',false,false); }catch(e){}
-    try{ document.execCommand('fontSize',false,'7'); }catch(e){}
-    el.querySelectorAll('font[size="7"]').forEach(f=>{
-      const span=document.createElement('span');
-      span.style.fontSize=px+'px';
-      while(f.firstChild) span.appendChild(f.firstChild);
-      f.replaceWith(span);
+let _tbPbMounting=null;
+function tbPbHost(){ return document.querySelector('#tradeboard-root .tb-pb-host'); }
+function tbPbPark(){
+  const r=document.getElementById('pb-root'); if(!r) return;
+  let p=document.getElementById('tb-pb-park');
+  if(!p){ p=document.createElement('div'); p.id='tb-pb-park'; p.style.display='none'; document.body.appendChild(p); }
+  p.appendChild(r);
+}
+function tbPbMount(){
+  const host=tbPbHost(); if(!host) return;
+  const root=document.getElementById('pb-root');
+  if(root){ host.appendChild(root); return; }
+  if(_tbPbMounting) return;
+  host.innerHTML='<div class="tb-pb-note">Opening the Playbook…</div>';
+  const fbUp=window._fbReady?Promise.resolve():new Promise(r=>window.addEventListener('fb-ready',r,{once:true}));
+  const cfg={app:'myjournal',key:'pb',store:'tradehub_playbook',title:'Playbook',templates:['page'],
+    pinned:[{id:TB_PB_DAILY_ID,title:'Daily Reminder',html:tbMdToHtml(TB_PB_DAILY_SEED)}],
+    onSave:tbPbPushReminder,
+    onReady:()=>{ const d=(cfg.entries?cfg.entries():[]).find(e=>e.id===TB_PB_DAILY_ID); if(d) tbPbPushReminder(d); }};
+  _tbPbMounting=fbUp
+    .then(()=>window._fbMigrateTBPlaybook(tbPbToEntries))
+    .then(()=>{ const h=tbPbHost(); if(h) h.innerHTML=''; cfg.container=h||document.body; return window.Notebook.mount(cfg); })
+    .then(()=>{ const r=document.getElementById('pb-root'), h=tbPbHost(); if(r){ if(h) h.appendChild(r); else tbPbPark(); } })
+    .catch(e=>{
+      console.warn('[Playbook] could not open:',e);
+      _tbPbMounting=null;
+      const h=tbPbHost(); if(h) h.innerHTML='<div class="tb-pb-note">The Playbook could not open (offline?). Open the tab again to retry.</div>';
     });
-    emit();
-  };
-
-  // Inline code: wrap the selection in <code>, or unwrap if already inside one.
-  const toggleCode=()=>{
-    const el=focusEd(); if(!el) return;
-    const sel=window.getSelection();
-    if(!sel||!sel.rangeCount){ return; }
-    let n=sel.anchorNode; if(n&&n.nodeType===3) n=n.parentElement;
-    const existing=n&&n.closest?n.closest('code'):null;
-    if(existing&&el.contains(existing)){
-      const p=existing.parentNode;
-      while(existing.firstChild) p.insertBefore(existing.firstChild,existing);
-      p.removeChild(existing); el.normalize(); emit(); return;
-    }
-    if(sel.isCollapsed){ return; }
-    const range=sel.getRangeAt(0);
-    const code=document.createElement('code');
-    code.textContent=range.toString();
-    range.deleteContents(); range.insertNode(code);
-    const r2=document.createRange(); r2.selectNodeContents(code); r2.collapse(false);
-    sel.removeAllRanges(); sel.addRange(r2);
-    emit();
-  };
-
-  // Link: capture the selection when the button is pressed (its mousedown is
-  // prevented, so the range is still live), reveal an input, then createLink onto
-  // the restored range. A collapsed caret inserts the URL as its own link text.
-  const openLink=()=>{
-    const el=focusEd(); if(!el) return;
-    const sel=window.getSelection();
-    let a=null, n=sel&&sel.anchorNode;
-    if(n&&n.nodeType===3) n=n.parentElement;
-    if(n&&n.closest) a=n.closest('a');
-    if(a&&el.contains(a)){ setLinkUrl(a.getAttribute('href')||''); }
-    else setLinkUrl('');
-    linkRange.current=(sel&&sel.rangeCount&&el.contains(sel.anchorNode))?sel.getRangeAt(0).cloneRange():null;
-    setOpenId(openId==='link'?null:'link');
-  };
-  const applyLink=(close)=>{
-    let url=(linkUrl||'').trim(); if(!url){ close(); return; }
-    if(!/^(https?:|mailto:|tel:|#|\/)/i.test(url)) url='https://'+url;
-    const el=focusEd(); if(!el){ close(); return; }
-    const sel=window.getSelection();
-    if(linkRange.current){ sel.removeAllRanges(); sel.addRange(linkRange.current); }
-    if(!sel.rangeCount){ close(); return; }   // nothing to anchor to
-    if(sel.isCollapsed){
-      // No selection → drop the URL in as a linked chunk of text.
-      const a=document.createElement('a'); a.href=url; a.textContent=url;
-      a.target='_blank'; a.rel='noopener noreferrer';
-      sel.getRangeAt(0).insertNode(a);
-    }else{
-      try{ document.execCommand('createLink',false,url); }catch(e){}
-      el.querySelectorAll('a[href="'+url+'"]').forEach(x=>{ x.setAttribute('target','_blank'); x.setAttribute('rel','noopener noreferrer'); });
-    }
-    emit(); close();
-  };
-
-  const Tool=TBpTool, Div=TBpDiv;
-
-  // Which block/font the caret currently sits in — computed when a menu opens, so
-  // the menu can tick the active option without a global selectionchange listener.
-  const curBlock=()=>{
-    const el=editorRef.current, sel=window.getSelection();
-    if(!el||!sel||!sel.rangeCount) return 'p';
-    let n=sel.anchorNode; if(n&&n.nodeType===3) n=n.parentElement;
-    while(n&&n!==el){ const t=n.tagName&&n.tagName.toLowerCase(); if(/^(p|h1|h2|h3|h4|h5|h6|blockquote|pre|li)$/.test(t||'')) return t; n=n.parentElement; }
-    return 'p';
-  };
-
-  return(<div className="tb-pb-toolbar" ref={barRef}>
-    <Tool title="Undo (Ctrl+Z)" onClick={()=>run('undo')}><TBIcon n="undo"/></Tool>
-    <Tool title="Redo (Ctrl+Y)" onClick={()=>run('redo')}><TBIcon n="redo"/></Tool>
-    <Div/>
-    <TBpMenuBlock openId={openId} setOpenId={setOpenId} curBlock={curBlock} setBlock={setBlock}/>
-    <TBpMenuFont openId={openId} setOpenId={setOpenId} setFont={setFont}/>
-    <TBpMenuSize openId={openId} setOpenId={setOpenId} setSize={setSize}/>
-    <Div/>
-    <Tool title="Bold (Ctrl+B)" onClick={()=>run('bold')}><b>B</b></Tool>
-    <Tool title="Italic (Ctrl+I)" onClick={()=>run('italic')}><i>I</i></Tool>
-    <Tool title="Underline (Ctrl+U)" onClick={()=>run('underline')}><u>U</u></Tool>
-    <Tool title="Strikethrough" onClick={()=>run('strikeThrough')}><s>S</s></Tool>
-    <Tool title="Inline code" onClick={toggleCode}><span style={{fontFamily:'monospace',fontSize:12}}>{'<>'}</span></Tool>
-    <Div/>
-    <TBpMenuSwatch id="color" openId={openId} setOpenId={setOpenId} title="Text colour"
-      label={<span style={{borderBottom:'3px solid var(--ac)',lineHeight:1,paddingBottom:1}}>A</span>}
-      colors={TB_PB_TEXT_COLORS} onPick={setColor}/>
-    <TBpMenuSwatch id="hl" openId={openId} setOpenId={setOpenId} title="Highlight"
-      label={<span style={{background:'rgba(251,191,36,0.4)',borderRadius:2,padding:'0 2px',lineHeight:1}}>H</span>}
-      colors={TB_PB_HL_COLORS} onPick={setHighlight} swatchBg={true}/>
-    <Div/>
-    <Tool title="Bulleted list" onClick={()=>run('insertUnorderedList')}><TBIcon n="list"/></Tool>
-    <Tool title="Numbered list" onClick={()=>run('insertOrderedList')}><TBIcon n="listOrd"/></Tool>
-    <Tool title="Decrease indent" onClick={()=>run('outdent',null,true)}><TBIcon n="outdent"/></Tool>
-    <Tool title="Increase indent" onClick={()=>run('indent',null,true)}><TBIcon n="indent"/></Tool>
-    <Div/>
-    <div className="tb-pb-menuwrap">
-      <button type="button" className={'tb-pb-tool'+(openId==='link'?' active':'')} title="Insert link"
-        onMouseDown={e=>e.preventDefault()} onClick={openLink}><TBIcon n="link"/></button>
-      {openId==='link'&&<div className="tb-pb-menu" onMouseDown={e=>e.preventDefault()}>
-        <div className="tb-pb-linkrow">
-          <input autoFocus value={linkUrl} placeholder="https://…" spellCheck={false}
-            onChange={e=>setLinkUrl(e.target.value)}
-            onKeyDown={e=>{ if(e.key==='Enter'){ e.preventDefault(); applyLink(()=>setOpenId(null)); } }}/>
-          <button type="button" className="tb-pb-tool active" onMouseDown={e=>e.preventDefault()}
-            onClick={()=>applyLink(()=>setOpenId(null))}>Add</button>
-        </div>
-      </div>}
-    </div>
-    <Tool title="Horizontal rule" onClick={()=>run('insertHorizontalRule')}>―</Tool>
-    <Tool title="Clear formatting" onClick={()=>run('removeFormat')}><TBIcon n="eraser"/></Tool>
-  </div>);
 }
-
-function TBpMenuBlock({openId,setOpenId,curBlock,setBlock}){
-  const cur=openId==='block'?curBlock():null;
-  return(<TBPbMenu id="block" openId={openId} setOpenId={setOpenId} title="Paragraph style" label="Style" width={170}>
-    {close=>TB_PB_BLOCKS.map(([tag,name])=>
-      <TBpItem key={tag} onClick={()=>setBlock(tag)} close={close} active={cur===tag}>{name}</TBpItem>)}
-  </TBPbMenu>);
-}
-function TBpMenuFont({openId,setOpenId,setFont}){
-  return(<TBPbMenu id="font" openId={openId} setOpenId={setOpenId} title="Font" label="Font" width={160}>
-    {close=>TB_PB_FONTS.map(([name,css])=>
-      <TBpItem key={name} onClick={()=>setFont(css)} close={close}><span style={{fontFamily:css}}>{name}</span></TBpItem>)}
-  </TBPbMenu>);
-}
-function TBpMenuSize({openId,setOpenId,setSize}){
-  return(<TBPbMenu id="size" openId={openId} setOpenId={setOpenId} title="Font size" label="Size" width={90}>
-    {close=>TB_PB_SIZES.map(px=>
-      <TBpItem key={px} onClick={()=>setSize(px)} close={close}>{px}px</TBpItem>)}
-  </TBPbMenu>);
-}
-function TBpMenuSwatch({id,openId,setOpenId,title,label,colors,onPick,swatchBg}){
-  const open=openId===id;
-  return(<div className="tb-pb-menuwrap">
-    <button type="button" className={'tb-pb-tool'+(open?' active':'')} title={title}
-      onMouseDown={e=>e.preventDefault()} onClick={()=>setOpenId(open?null:id)}>{label}<span className="tb-pb-caret"><TBIcon n="chevron" size={12}/></span></button>
-    {open&&<div className="tb-pb-menu" onMouseDown={e=>e.preventDefault()}>
-      <div className="tb-pb-swatches">
-        {colors.map((c,i)=>(
-          <button key={i} type="button" className="tb-pb-swatch" title={c?(i===0?'':c):'None'}
-            onMouseDown={e=>e.preventDefault()}
-            onClick={()=>{ onPick(c); setOpenId(null); }}
-            style={c?(swatchBg?{background:c}:{background:'var(--s2)',color:c,fontWeight:800,fontSize:13,display:'flex',alignItems:'center',justifyContent:'center'})
-                    :{background:'var(--s2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,color:'var(--txm)'}}>
-            {c?(swatchBg?'':'A'):<TBIcon n="backspace" size={12}/>}</button>))}
-      </div>
-    </div>}
-  </div>);
-}
-
-/* ── Page editor — contentEditable so typing and pasting share one surface ──
-   Deliberately UNCONTROLLED: re-rendering innerHTML on every keystroke would
-   reset the caret to the top of the document. React owns the initial html (and
-   remote updates that land while unfocused); the DOM owns it while typing. */
-function TBPlaybookEditor({page,onChange,onDelete,onBack,isMobile,onToast}){
-  const ref=useRef(null);
-  const isDaily=page.id===TB_PB_DAILY_ID;
-  const [confirmDel,setConfirmDel]=useState(false);   // inline two-step, like the Journal's delete
-
-  const syncEmpty=useCallback(()=>{
-    const el=ref.current; if(!el) return;
-    const empty=!el.textContent.trim() && !el.querySelector('img,table,hr');
-    el.setAttribute('data-empty',empty?'1':'0');
-  },[]);
-
-  // What this device last wrote up. Anything matching it is our OWN edit echoing
-  // back through state — never a remote change — so the DOM must be left alone.
-  const lastEmitted=useRef(null);
-
-  // Mount: seed the DOM once from the saved html.
-  useEffect(()=>{
-    const el=ref.current; if(!el) return;
-    el.innerHTML=tbSanitizeHtml(page.body||'');
-    lastEmitted.current=el.innerHTML;
-    syncEmpty();
-  },[page.id]);
-
-  // Remote edit from another device: adopt it only when this device isn't the one
-  // typing, so an incoming snapshot can never yank the caret mid-sentence. The
-  // lastEmitted check matters beyond that: editing the TITLE re-renders with the
-  // editor unfocused, and without it every title keystroke would re-parse and
-  // re-assign the body's innerHTML, blowing away its native undo history.
-  useEffect(()=>{
-    const el=ref.current; if(!el) return;
-    if(document.activeElement===el) return;
-    if(page.body===lastEmitted.current) return;
-    const next=tbSanitizeHtml(page.body||'');
-    if(el.innerHTML!==next){ el.innerHTML=next; lastEmitted.current=next; syncEmpty(); }
-  },[page.body,page.id]);
-
-  const emit=useCallback(()=>{
-    const el=ref.current; if(!el) return;
-    syncEmpty();
-    lastEmitted.current=el.innerHTML;
-    onChange({...page,body:el.innerHTML,updatedAt:Date.now()});
-  },[page,onChange,syncEmpty]);
-
-  const onPaste=useCallback((e)=>{
-    const dt=e.clipboardData; if(!dt) return;
-    const html=dt.getData('text/html');
-    const text=dt.getData('text/plain');
-    let out='';
-    // Rendered source (ChatGPT, a web page, Word) → keep its structure. dropColor:
-    // foreign text colours are stripped so black-on-white can't land invisible here.
-    if(html && html.trim() && !tbHtmlIsPlain(html)) out=tbSanitizeHtml(html,{dropColor:true});
-    // Raw markdown text → render it. Anything else → in verbatim, unparsed.
-    else if(text && text.trim()) out=tbSanitizeHtml(tbLooksLikeMd(text)?tbMdToHtml(text):tbTextToHtml(text),{dropColor:true});
-    if(!out) return;
-    e.preventDefault();
-    // execCommand is deprecated but remains the only cross-browser way to insert
-    // rich HTML at the caret with native undo support.
-    document.execCommand('insertHTML',false,out);
-    emit();
-  },[emit]);
-
-  // Enter inside a contentEditable div creates a <div> per line in Chromium;
-  // <p> matches the markdown output and this doc's styling.
-  useEffect(()=>{ try{ document.execCommand('defaultParagraphSeparator',false,'p'); }catch(e){} },[]);
-
-  const copyMd=()=>{
-    const md=tbHtmlToMd(ref.current?ref.current.innerHTML:page.body);
-    // writeText rejects asynchronously (denied permission, unfocused document),
-    // so the toast has to hang off the promise or it would always claim success.
-    Promise.resolve()
-      .then(()=>navigator.clipboard.writeText(md))
-      .then(()=>onToast&&onToast('Markdown copied','copy'))
-      .catch(()=>onToast&&onToast('Copy failed \u2014 clipboard blocked','alert'));
-  };
-
-  return(<div style={{display:'flex',flexDirection:'column',gap:14,minWidth:0}}>
-    <div className="tb-pb-head" style={{display:'flex',flexDirection:'column'}}>
-      <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-        {isMobile&&<button className="tb-btn-ghost" onClick={onBack} style={{padding:'6px 14px',fontSize:12}}>‹ Pages</button>}
-        <input value={page.title||''} onChange={e=>onChange({...page,title:e.target.value,updatedAt:Date.now()})}
-          placeholder="Page title" spellCheck={false}
-          style={{flex:1,minWidth:120,background:'transparent',border:'none',borderBottom:'1px solid var(--bd)',color:'var(--tx)',
-            fontFamily:"'Manrope',system-ui,-apple-system,sans-serif",fontSize:isMobile?19:23,fontWeight:700,padding:'6px 2px',outline:'none'}}/>
-        {isDaily&&<span title="Trading Auto Launch shows this page before it opens anything"
-          style={{fontSize:8.5,background:'rgba(164,185,134,0.18)',color:'var(--tbb)',border:'1px solid rgba(164,185,134,0.35)',
-            borderRadius:4,padding:'3px 7px',fontWeight:800,letterSpacing:.6,whiteSpace:'nowrap'}}>AUTOLAUNCH</span>}
-        <button className="tb-btn-ghost" onClick={copyMd} style={{padding:'6px 14px',fontSize:12}} title="Copy this page as Markdown"><TBIcon n="copy"/> Copy</button>
-        {!isDaily&&(!confirmDel
-          ?<button className="tb-btn-danger" onClick={()=>setConfirmDel(true)} style={{padding:'6px 14px',fontSize:12}}><TBIcon n="trash"/> Delete</button>
-          :<div style={{display:'flex',gap:7,alignItems:'center'}}>
-            <span style={{fontSize:12,color:'var(--tbe)',whiteSpace:'nowrap'}}>Move to Trash?</span>
-            <button onClick={onDelete} style={{padding:'6px 14px',borderRadius:100,border:'none',background:'var(--tbr)',color:'#fff',fontWeight:700,fontSize:12,cursor:'pointer'}}>Yes</button>
-            <button className="tb-btn-ghost" onClick={()=>setConfirmDel(false)} style={{padding:'6px 14px',fontSize:12}}>No</button>
-          </div>)}
-      </div>
-      <TBPlaybookToolbar editorRef={ref} emit={emit}/>
-    </div>
-
-    <div className="tb-card" style={{padding:0,overflow:'hidden'}}>
-      <div ref={ref} className="tb-pb-doc" contentEditable suppressContentEditableWarning
-        data-placeholder="Type your notes, or paste from ChatGPT / a doc — formatting is preserved."
-        onInput={emit} onPaste={onPaste} onBlur={emit}
-        spellCheck={true}
-        style={{minHeight:isMobile?300:420,padding:isMobile?'18px 16px':'26px 30px'}}/>
-    </div>
-
-    {/* Only the daily page keeps a footer note, and only because it says
-        something you cannot infer from the page: that the morning launch stops
-        here and waits for you. The old generic line ("Saves automatically…") was
-        on every other page describing behaviour the editor already makes
-        obvious. */}
-    {isDaily&&(
-      <div style={{fontSize:11,color:'var(--txm)',paddingLeft:2}}>
-        The Trading Auto Launch shows this page every trading morning and waits for you to confirm it before opening anything.
-      </div>
-    )}
-  </div>);
-}
-
-function TBPlaybookPage({pages,onSavePages,onToast,onTrashPage,trashCount=0,onOpenTrash,storageWarn}){
-  const list=tbPbNormalize(pages);
-  const [selId,setSelId]=useState(list[0].id);
-  const [mobileEditing,setMobileEditing]=useState(false);
-  const isMobile=useIsMobile();
-
-  const sel=list.find(p=>p.id===selId)||list[0];
-
-  const updatePage=useCallback((next)=>{
-    onSavePages(tbPbNormalize(list.map(p=>p.id===next.id?next:p)));
-  },[list,onSavePages]);
-
-  const addPage=()=>{
-    const p={id:tbPbNewId(),title:'Untitled page',body:'',createdAt:Date.now(),updatedAt:Date.now()};
-    onSavePages(tbPbNormalize([...list,p]));
-    setSelId(p.id); setMobileEditing(true);
-    onToast&&onToast('Page added','＋');
-  };
-  /* Soft delete — the page moves to the 30-day trash can and stays restorable.
-     Selection has to move off it first, or the editor would keep rendering a page
-     that is no longer in the live list. */
-  const deletePage=(id)=>{
-    if(id===TB_PB_DAILY_ID) return;                       // AutoLaunch depends on it
-    const rest=list.filter(x=>x.id!==id);
-    setSelId((rest[0]||list[0]).id); setMobileEditing(false);
-    if(onTrashPage) onTrashPage(id);
-    else onSavePages(tbPbNormalize(rest));
-    onToast&&onToast('Moved to Trash','trash');
-  };
-
-  const sidebar=(<div className={isMobile?undefined:'tb-pb-side'} style={{display:'flex',flexDirection:'column',gap:6,minWidth:0}}>
-    <div className="tb-section-label" style={{padding:'0 2px 6px'}}>Pages</div>
-    {list.map(p=>(
-      <button key={p.id} className={'tb-pb-item'+(p.id===selId&&!isMobile?' active':'')}
-        onClick={()=>{setSelId(p.id);setMobileEditing(true);}}>
-        <TBIcon n={p.id===TB_PB_DAILY_ID?'sun':'doc'} size={13} style={{opacity:.75}}/>
-        <span style={{flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.title||'Untitled page'}</span>
-        {p.id===TB_PB_DAILY_ID&&<span style={{fontSize:7.5,background:'rgba(164,185,134,0.18)',color:'var(--tbb)',
-          border:'1px solid rgba(164,185,134,0.35)',borderRadius:3,padding:'2px 5px',fontWeight:800,letterSpacing:.4}}>AUTO</span>}
-      </button>
-    ))}
-    <button className="tb-btn-ghost" onClick={addPage} style={{marginTop:8,justifyContent:'center',padding:'8px 14px',fontSize:12.5}}>＋ New page</button>
-    {onOpenTrash&&<TBTrashButton block count={trashCount} onClick={()=>onOpenTrash('playbook')} style={{marginTop:2}}/>}
-  </div>);
-
-  const editor=<TBPlaybookEditor key={sel.id} page={sel} onChange={updatePage} onDelete={()=>deletePage(sel.id)}
-    onBack={()=>setMobileEditing(false)} isMobile={isMobile} onToast={onToast}/>;
-
+function TBPlaybookPage(){
+  React.useLayoutEffect(()=>{ tbPbMount(); return ()=>tbPbPark(); },[]);
   return(<div className="tb-fade-in" style={{display:'flex',flexDirection:'column',gap:8}}>
     <div style={{fontSize:20,fontWeight:800,color:'var(--tx)'}}>Playbook</div>
-    {/* Every page lives in ONE Firestore document, which stops at 1 MiB. There is
-        plenty of room for a normal playbook, but pages pasted in with heavy
-        formatting add up, and the failure mode is silent: saves simply stop. */}
-    {storageWarn&&<div style={{display:'flex',alignItems:'flex-start',gap:9,padding:'10px 13px',marginBottom:4,
-      borderRadius:8,background:'var(--s1)',border:'1px solid var(--gold)',
-      fontSize:12.5,lineHeight:1.55,color:'var(--txd)'}}>
-      <TBIcon n="alert" size={14} style={{color:'var(--gold)',flexShrink:0,marginTop:2}}/>
-      <span>These pages are using about <strong style={{color:'var(--tx)'}}>{storageWarn.pct}%</strong> of the
-      space the Playbook can sync. Shortening or deleting a long page keeps everything saving —
-      the Trash frees its share as soon as an item is deleted forever.</span>
-    </div>}
-    {isMobile
-      ? (mobileEditing?editor:sidebar)
-      : <div style={{display:'grid',gridTemplateColumns:'240px 1fr',gap:22,alignItems:'start'}}>{sidebar}{editor}</div>}
+    <div className="tb-pb-host"/>
   </div>);
 }
 
@@ -9959,7 +9558,6 @@ function TBApp(){
   const [prompts,setPrompts]=useState(tbLoadPromptsLocal);
   const [analysisCfg,setAnalysisCfg]=useState(tbLoadAnalysisCfg);
   const [watchlist,setWatchlist]=useState(tbLoadWatchlistLocal);
-  const [playbook,setPlaybook]=useState(tbLoadPlaybookLocal);
   const [wlTrash,setWlTrash]=useState(tbLoadWlTrashLocal);   // trashed tickers (Control)
   const [trashOpen,setTrashOpen]=useState(null);             // null | section key in focus
   const [toast,setToast]=useState(null);
@@ -9989,7 +9587,6 @@ function TBApp(){
     window.addEventListener('fb-tb-news-saved',onSaved);
     window.addEventListener('fb-tb-analysis-saved',onSaved);
     window.addEventListener('fb-tb-watchlist-saved',onSaved);
-    window.addEventListener('fb-tb-playbook-saved',onSaved);
     window.addEventListener('fb-tb-dash-saved',onSaved);
     window.addEventListener('fb-tb-marketcal-saved',onSaved);
     window.addEventListener('fb-tb-journal-error',onError);
@@ -9997,7 +9594,6 @@ function TBApp(){
     window.addEventListener('fb-tb-news-error',onError);
     window.addEventListener('fb-tb-analysis-error',onError);
     window.addEventListener('fb-tb-watchlist-error',onError);
-    window.addEventListener('fb-tb-playbook-error',onError);
     window.addEventListener('fb-tb-dash-error',onError);
     window.addEventListener('fb-tb-marketcal-error',onError);
     window.addEventListener('fb-tb-saving',onSaving);
@@ -10008,7 +9604,6 @@ function TBApp(){
       window.removeEventListener('fb-tb-news-saved',onSaved);
       window.removeEventListener('fb-tb-analysis-saved',onSaved);
       window.removeEventListener('fb-tb-watchlist-saved',onSaved);
-      window.removeEventListener('fb-tb-playbook-saved',onSaved);
       window.removeEventListener('fb-tb-dash-saved',onSaved);
       window.removeEventListener('fb-tb-marketcal-saved',onSaved);
       window.removeEventListener('fb-tb-journal-error',onError);
@@ -10016,7 +9611,6 @@ function TBApp(){
       window.removeEventListener('fb-tb-news-error',onError);
       window.removeEventListener('fb-tb-analysis-error',onError);
       window.removeEventListener('fb-tb-watchlist-error',onError);
-      window.removeEventListener('fb-tb-playbook-error',onError);
       window.removeEventListener('fb-tb-dash-error',onError);
       window.removeEventListener('fb-tb-marketcal-error',onError);
       window.removeEventListener('fb-tb-saving',onSaving);
@@ -10253,18 +9847,6 @@ function TBApp(){
           }
         }
       }
-      /* Playbook. Nothing stored yet (first device / fresh account) → seed the
-         Daily Reminder so AutoLaunch always has a page to show. The id is fixed,
-         so two devices seeding at once converge instead of duplicating.
-         A FAILED read (false) is left alone: seeding would write, and that write
-         would clobber the real playbook over a transient network error. The live
-         listener picks the pages up once the connection recovers. */
-      if(window._fbLoadTBPlaybook){
-        const fpb=await window._fbLoadTBPlaybook();
-        if(fpb===false){ /* read failed — keep what's on this device, write nothing */ }
-        else if(Array.isArray(fpb)&&fpb.length){ const n=tbPbNormalize(fpb); setPlaybook(n); tbSavePlaybookLocal(n); }
-        else { const seed=tbPbNormalize(tbLoadPlaybookLocal()); setPlaybook(seed); tbSavePlaybookLocal(seed); if(window._fbSaveTBPlaybook) window._fbSaveTBPlaybook(seed); }
-      }
       /* One-time: force every device to the new canonical default watchlist.
          That migration is long done, and on a NEW device (fresh browser, cleared
          storage) it did real damage: it reset the SHARED Firebase watchlist to the
@@ -10317,13 +9899,6 @@ function TBApp(){
     };
     window.addEventListener('fb-tb-watchlist-remote',onRemote);
     return()=>window.removeEventListener('fb-tb-watchlist-remote',onRemote);
-  },[]);
-
-  /* Live sync: apply remote playbook pages from other devices */
-  useEffect(()=>{
-    const onRemote=(e)=>{if(Array.isArray(e.detail)&&e.detail.length){const n=tbPbNormalize(e.detail);setPlaybook(n);tbSavePlaybookLocal(n);}}
-    window.addEventListener('fb-tb-playbook-remote',onRemote);
-    return()=>window.removeEventListener('fb-tb-playbook-remote',onRemote);
   },[]);
 
   /* Keep the parser's active watchlist in lockstep with state. The workers only
@@ -10398,42 +9973,18 @@ function TBApp(){
     saveAnalysisCfg({...analysisCfg,aiSite:'magi',magiMigrated:1});
   },[fbLoaded,analysisCfg.magiMigrated]);
 
-  /* ── Push Playbook → Daily Reminder to the worker ─────────────────────────────
-     Trading Auto Launch GETs /daily-reminder and makes you confirm it before it opens
-     anything, so it must reflect the CURRENT page. Pages are authored as HTML;
-     the launcher renders Markdown, so push a converted copy. Debounced (this runs
-     on every keystroke) and deduped so we only POST on real changes.
-     An empty page is never pushed — that would silently blank the morning gate. */
-  const _tbReminderPushSig=useRef(null);
-  useEffect(()=>{
-    if(!fbLoaded)return;
-    const p=(playbook||[]).find(x=>x.id===TB_PB_DAILY_ID);
-    if(!p)return;
-    const markdown=tbHtmlToMd(p.body||'');
-    if(!markdown.trim())return;
-    const title=(p.title||'Daily Reminder').trim();
-    const sig=title+' | '+markdown;
-    if(_tbReminderPushSig.current===sig)return;
-    const t=setTimeout(()=>{
-      const push=()=>{fetch(TD_WORKER_URL+'/daily-reminder',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({title,markdown})}).then(r=>{if(r.ok)_tbReminderPushSig.current=sig;}).catch(()=>{});};
-      if(window._fbReady)push(); else window.addEventListener('fb-ready',push,{once:true});
-    },1500);
-    return()=>clearTimeout(t);
-  },[playbook,fbLoaded]);
-
   const showToast=(msg,icon='check')=>{setToast({msg,icon,k:Date.now()});};
 
   /* ── Persistence ────────────────────────────────────────────────────────────
-     The playbook and prompts arrays hold LIVE *and* trashed items, because the
-     trash can shares their Firestore document (see TB_TRASH_TTL above). The three
-     persist* helpers below are the only writers, and they take the COMPLETE array
+     The prompts array holds LIVE *and* trashed items, because the trash can
+     shares its Firestore document (see TB_TRASH_TTL above). The persist*
+     helpers below are the only writers, and they take the COMPLETE array
      so they can never accidentally drop what is in the trash. Everything that
      edits the visible lists goes through the save* wrappers, which splice the
      trashed items back on before persisting. */
   /* The trash shares a document with the live items, so it gets only the room
-     they leave behind — never a fixed slice. Prompts and Playbook pages are both
-     free-form text that can run to tens of KB each, so as they grow the can
+     they leave behind — never a fixed slice. Prompts are free-form text that
+     can run to tens of KB each, so as they grow the can
      shrinks, and a can that would crowd the real content purges early instead of
      pushing the document past Firestore's limit and stopping ALL saves. */
   const persistPrompts=useCallback(full=>{
@@ -10442,14 +9993,6 @@ function TBApp(){
     const next=[...live,...dead];
     setPrompts(next);tbSavePromptsLocal(next);
     if(window._fbSaveTBPrompts)window._fbSaveTBPrompts(next);
-  },[]);
-  const persistPlaybook=useCallback(full=>{
-    const n=tbPbNormalize(full);
-    const live=n.filter(p=>!p.trashed);
-    const dead=tbTrashCap(n.filter(p=>p.trashed), TB_DOC_SAFE-tbJsonBytes(live));
-    const next=[...live,...dead];
-    setPlaybook(next);tbSavePlaybookLocal(next);
-    if(window._fbSaveTBPlaybook)window._fbSaveTBPlaybook(next);
   },[]);
   const persistWatchlist=useCallback((wl,trash)=>{
     const list=Array.isArray(wl)?wl:[];
@@ -10462,24 +10005,16 @@ function TBApp(){
 
   /* Live views — everything outside the trash modal sees only these. */
   const livePrompts =useMemo(()=>prompts.filter(p=>!p.trashed),[prompts]);
-  const livePlaybook=useMemo(()=>tbPbNormalize(playbook).filter(p=>!p.trashed),[playbook]);
 
   const savePrompts=arr=>persistPrompts([...arr,...prompts.filter(p=>p.trashed)]);
   const saveAnalysisCfg=cfg=>{setAnalysisCfg(cfg);try{localStorage.setItem(TB_ANALYSIS_KEY,JSON.stringify(cfg));}catch{} if(window._fbSaveTBAnalysis)window._fbSaveTBAnalysis(cfg);};
   const saveWatchlist=arr=>persistWatchlist(arr,wlTrash);
-  const savePlaybook=pages=>persistPlaybook([...pages,...playbook.filter(p=>p.trashed)]);
 
   /* ── Trash actions ──────────────────────────────────────────────────────────
      Deleting stamps `trashed` with a FRESH Date.now() every time, which is what
      makes restoring-then-deleting restart the 30-day clock rather than resume it.
      Each of these writes exactly one document — the same one the old hard delete
      wrote — so the trash can costs no extra Firestore traffic. */
-  const trashPlaybookPage=useCallback(id=>{
-    if(id===TB_PB_DAILY_ID)return;                    // AutoLaunch depends on it
-    const ts=Date.now();
-    persistPlaybook(playbook.map(p=>p.id===id?{...p,trashed:ts}:p));
-  },[playbook,persistPlaybook]);
-
   const trashPrompt=useCallback(id=>{
     const ts=Date.now();
     persistPrompts(prompts.map(p=>p.id===id?{...p,trashed:ts}:p));
@@ -10501,11 +10036,6 @@ function TBApp(){
   const tbUntrash=o=>{const c={...o};delete c.trashed;return c;};
   const restoreTrash=useCallback(map=>{
     let n=0;
-    if(map.playbook&&map.playbook.length){
-      const ids=new Set(map.playbook);
-      persistPlaybook(playbook.map(p=>ids.has(p.id)&&p.trashed?tbUntrash(p):p));
-      n+=map.playbook.length;
-    }
     if(map.prompts&&map.prompts.length){
       const ids=new Set(map.prompts);
       persistPrompts(prompts.map(p=>ids.has(p.id)&&p.trashed?tbUntrash(p):p));
@@ -10519,15 +10049,10 @@ function TBApp(){
       n+=map.tickers.length;
     }
     if(n)showToast('Restored '+n+' item'+(n!==1?'s':''),'rotateCcw');
-  },[playbook,prompts,watchlist,wlTrash,persistPlaybook,persistPrompts,persistWatchlist]);
+  },[prompts,watchlist,wlTrash,persistPrompts,persistWatchlist]);
 
   const purgeTrash=useCallback(map=>{
     let n=0;
-    if(map.playbook&&map.playbook.length){
-      const ids=new Set(map.playbook);
-      persistPlaybook(playbook.filter(p=>!(p.trashed&&ids.has(p.id))));
-      n+=map.playbook.length;
-    }
     if(map.prompts&&map.prompts.length){
       const ids=new Set(map.prompts);
       persistPrompts(prompts.filter(p=>!(p.trashed&&ids.has(p.id))));
@@ -10539,24 +10064,22 @@ function TBApp(){
       n+=map.tickers.length;
     }
     if(n)showToast('Deleted '+n+' item'+(n!==1?'s':'')+' permanently','trash');
-  },[playbook,prompts,watchlist,wlTrash,persistPlaybook,persistPrompts,persistWatchlist]);
+  },[prompts,watchlist,wlTrash,persistPrompts,persistWatchlist]);
 
   /* ── 30-day auto-purge ──────────────────────────────────────────────────────
      Reads through a ref rather than a closure so a sweep scheduled minutes ago
      still sees current state, and writes ONLY when something actually expired —
      a sweep that finds nothing must not cost a write. */
   const _tbTrashLatest=useRef(null);
-  _tbTrashLatest.current={playbook,prompts,watchlist,wlTrash};
+  _tbTrashLatest.current={prompts,watchlist,wlTrash};
   const sweepTrash=useCallback(()=>{
     const L=_tbTrashLatest.current||{};
-    const pb=L.playbook||[],pr=L.prompts||[],wt=L.wlTrash||[];
-    const pbKeep=pb.filter(p=>!(p.trashed&&tbTrashExpired(p.trashed)));
-    if(pbKeep.length!==pb.length)persistPlaybook(pbKeep);
+    const pr=L.prompts||[],wt=L.wlTrash||[];
     const prKeep=pr.filter(p=>!(p.trashed&&tbTrashExpired(p.trashed)));
     if(prKeep.length!==pr.length)persistPrompts(prKeep);
     const wtKeep=wt.filter(x=>!tbTrashExpired(x.trashed));
     if(wtKeep.length!==wt.length)persistWatchlist(L.watchlist||[],wtKeep);
-  },[persistPlaybook,persistPrompts,persistWatchlist]);
+  },[persistPrompts,persistWatchlist]);
 
   /* One sweep per session, once the cloud copy has landed and the snapshot
      listeners have had a moment to settle — sweeping against a half-loaded state
@@ -10567,23 +10090,13 @@ function TBApp(){
     return()=>clearTimeout(t);
   },[fbLoaded,sweepTrash]);
 
-  /* The live pages alone can still approach the 1 MiB document limit — that was
-     true before the trash existed and the trash now yields rather than adds to
-     it. Past ~75% say so in the Playbook itself, because the alternative is
-     finding out when saves start failing. */
-  const playbookFull=useMemo(()=>{
-    const bytes=tbJsonBytes(livePlaybook);
-    return bytes>TB_DOC_SAFE*0.75 ? {bytes,pct:Math.round(bytes/10485.76)} : null;
-  },[livePlaybook]);
-
   const trash=useMemo(()=>({
-    playbook:playbook.filter(p=>p.trashed),
     tickers:wlTrash,
     prompts:prompts.filter(p=>p.trashed),
-  }),[playbook,prompts,wlTrash]);
+  }),[prompts,wlTrash]);
   const trashTotal=tbTrashCount(trash);
   // Opening the can is also a good moment to drop anything that has aged out.
-  const openTrash=useCallback(section=>{sweepTrash();setTrashOpen(section||'playbook');},[sweepTrash]);
+  const openTrash=useCallback(section=>{sweepTrash();setTrashOpen(section||'prompts');},[sweepTrash]);
 
 
 
@@ -10594,9 +10107,7 @@ function TBApp(){
   const pageMap={
     portfolio:<TBPortfolioPage/>,
     journal:  <TBJournalPage/>,
-    playbook: <TBPlaybookPage pages={livePlaybook} onSavePages={savePlaybook} onToast={showToast}
-                onTrashPage={trashPlaybookPage} trashCount={trashTotal} onOpenTrash={openTrash}
-                storageWarn={playbookFull}/>,
+    playbook: <TBPlaybookPage/>,
     news:     <TBNewsPage watchlist={watchlist}/>,
     catalysts:<TBCatalystsPage watchlist={watchlist}/>,
     prompt:   <TBControlPage prompts={livePrompts} onSavePrompts={savePrompts} onToast={showToast} watchlist={watchlist} onSaveWatchlist={saveWatchlist}
@@ -11369,5 +10880,6 @@ window._tbTabLock = {
 
 <script src="tabsync.js"></script>
 <script src="hoverfx.js"></script>
+<script src="sweep.js" data-program="tradehub" defer></script>
 <script src="LifeHub/lifehub.js" data-lock="#applock-overlay" defer></script></body>
 </html>

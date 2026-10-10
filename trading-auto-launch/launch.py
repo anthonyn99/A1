@@ -1701,10 +1701,13 @@ def _rd_track(s: str) -> str:
     return "\u200a".join(s.upper())
 
 
-# Inline markdown: bold / italic / code / links. Split-capturing, so the text
-# between matches survives in the same pass.
+# Inline markdown: bold / italic / strike / code / links. Split-capturing, so the
+# text between matches survives in the same pass. Underscore emphasis only counts
+# at word edges (CommonMark's rule): `max_risk_per_trade` is a name, not "risk"
+# in italics.
 _RD_INLINE_RE = re.compile(
-    r"(\*\*[^*]+\*\*|__[^_]+__|\*[^*\n]+\*|_[^_\n]+_|`[^`]+`|\[[^\]]+\]\([^)\s]+\))")
+    r"(\*\*[^*]+\*\*|(?<!\w)__[^_]+__(?!\w)|~~[^~\n]+~~|\*[^*\n]+\*|(?<!\w)_[^_\n]+_(?!\w)"
+    r"|`[^`]+`|\[[^\]]+\]\([^)\s]+\))")
 
 
 def _rd_insert_inline(t, s: str, base: str):
@@ -1720,6 +1723,8 @@ def _rd_insert_inline(t, s: str, base: str):
         if len(part) > 4 and (part.startswith("**") and part.endswith("**")
                               or part.startswith("__") and part.endswith("__")):
             t.insert("end", part[2:-2], (base, "b"))
+        elif len(part) > 4 and part.startswith("~~") and part.endswith("~~"):
+            t.insert("end", part[2:-2], (base, "s"))
         elif len(part) > 2 and part.startswith("`") and part.endswith("`"):
             t.insert("end", part[1:-1], (base, "codespan"))
         elif part.startswith("[") and "](" in part:
@@ -1734,8 +1739,10 @@ def _rd_insert_inline(t, s: str, base: str):
 def _rd_strip_inline(s: str) -> str:
     """Drop inline markdown markers — for headings, which render at one size."""
     s = re.sub(r"\*\*([^*]+)\*\*", r"\1", s)
-    s = re.sub(r"__([^_]+)__", r"\1", s)
+    s = re.sub(r"(?<!\w)__([^_]+)__(?!\w)", r"\1", s)
+    s = re.sub(r"~~([^~\n]+)~~", r"\1", s)
     s = re.sub(r"\*([^*\n]+)\*", r"\1", s)
+    s = re.sub(r"(?<!\w)_([^_\n]+)_(?!\w)", r"\1", s)
     s = re.sub(r"`([^`]+)`", r"\1", s)
     s = re.sub(r"\[([^\]]+)\]\([^)\s]+\)", r"\1", s)
     return s
@@ -2001,6 +2008,7 @@ def _show_reminder_dialog(title: str, markdown: str, notice: str = "") -> bool:
     # Created AFTER the block tags so they win Tk's tag-priority contest.
     txt.tag_configure("b",        font=(UI, 11, "bold"),      foreground=_RD_TX)
     txt.tag_configure("i",        font=(UI, 11, "italic"))
+    txt.tag_configure("s",        font=(UI, 11, "overstrike"))
     txt.tag_configure("codespan", font=("Consolas", 10),      foreground=_RD_ACCENT_SOFT)
     txt.tag_configure("link",     font=(UI, 11, "underline"), foreground=_RD_ACCENT)
 

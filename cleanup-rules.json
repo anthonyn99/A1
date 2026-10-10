@@ -292,6 +292,19 @@
       "reason": "Keys on the shared origin that nothing in the repo reads or writes any more; the meal planner, expense and grocery pages were deleted with the old index.html, the others were one-off flags. About 6 KB in total.",
       "delete": true,
       "approved": "2026-09-30: Tony asked for TaskHub-side trash to auto-trim through the cleanup system; these keys have no live code (checked by the test)"
+    },
+    {
+      "id": "tradehub-playbook-local",
+      "store": "localStorage",
+      "program": "tradehub",
+      "category": "unused",
+      "capDays": 0,
+      "exact": [
+        "tb_playbook_v1"
+      ],
+      "owner": "tradehub.html Playbook (before Notebook)",
+      "reason": "This device's copy of the old Playbook pages[]. Since 2026-10-09 (Notebook Phase 6) the Playbook is a Notebook instance on dashboards/tradehub_playbook, and the first open migrated these pages there (this copy is only read when the cloud document never existed). The old dashboards/tradeboard_playbook document is kept as a backup.",
+      "delete": false
     }
   ],
   "handledElsewhere": [

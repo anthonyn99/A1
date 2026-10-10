@@ -373,6 +373,8 @@ const _tjCfg = (window.Notebook && window.Notebook.mounts && window.Notebook.mou
 const _tjFeat = Object.assign({ ourjournal: true, locks: true }, _tjCfg.features || {});
 const _tjPinned = Array.isArray(_tjCfg.pinned) ? _tjCfg.pinned : [];
 function _tjIsPinned(id) { return _tjPinned.some(function (p) { return p.id === id; }); }
+// For the host (e.g. in onReady): the entries as they stand, live and trashed.
+_tjCfg.entries = function () { return state.entries; };
 // Make every pinned page exist, out of the trash, at the top in its given order.
 function _tjPinFirst() {
   if (!_tjPinned.length || _tjIsOJ()) return;

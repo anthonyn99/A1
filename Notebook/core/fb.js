@@ -1244,7 +1244,20 @@ window.Notebook.fb = {
   // or takes the F a Firebase-borrowing host built for it (Notebook.mount).
   addStore: function (key, st, F) {
     _extras[key] = st;
+    st._F = F;
     if (_H) st.install(_H); else if (F) st.install(F);
+  },
+  // A Firebase-borrowing host's re-init after its own teardown (TradeHub drops
+  // its client when the tab hides): each instanced store re-attaches with the F
+  // it was given (its db is a getter, so it reaches the new client), and its app
+  // re-reads the document, as index's fb-ready does for tj and bj.
+  reconnect: function () {
+    Object.keys(_extras).forEach(function (k) {
+      var st = _extras[k];
+      if (_H || !st._F) return;
+      st.install(st._F);
+      window.dispatchEvent(new Event('nb-' + k + '-fb-ready'));
+    });
   },
   // The host's teardown: drop both journals' listeners...
   unsubscribe: function () {

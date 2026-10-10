@@ -316,7 +316,10 @@ async function handle(request, env, ctx){
   // browser extension reads it and cannot hold a credential (public repo, and
   // extensions get no App Check token) - it returns a prompt template, not
   // personal data, so that is the accepted line.
-  if (path === '/watchlist' || path === '/calendar') {
+  // POST /daily-reminder rewrites the text Trading Auto Launch makes Tony confirm
+  // every morning, so only TradeHub (App Check) may write it. GET stays open:
+  // launch.py reads it and holds no App Check token.
+  if (path === '/watchlist' || path === '/calendar' || (path === '/daily-reminder' && method === 'POST')) {
     const denied = await requireAppCheck(request, cors(request));
     if (denied) return denied;
   }

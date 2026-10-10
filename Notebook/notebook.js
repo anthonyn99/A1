@@ -195,13 +195,16 @@ function hostFirestore() {
   if (typeof window.NotebookFirebase !== 'function') return Promise.reject(new Error('Notebook: the host has no window.NotebookFirebase()'));
   return Promise.resolve(window.NotebookFirebase()).then(function (h) {
     if (!h || !h.db || !h.fs) throw new Error('Notebook: NotebookFirebase() gave no { db, fs }');
+    if (typeof h.db === 'function' && !h.db()) throw new Error('Notebook: the host\'s Firestore is not up');
     return h;
   });
 }
 // The F core/fb.js expects from a host (see its header), built from { db, fs }:
 // index.html passes its own helpers; another host gets these equivalents.
 function hostF(h) {
-  var fs = h.fs, db = h.db, noop = function () {};
+  // db may be a getter: a host that re-creates its Firestore after a teardown
+  // (TradeHub) hands over () => db, so every call reaches the live instance.
+  var fs = h.fs, dbGet = typeof h.db === 'function' ? h.db : function () { return h.db; }, noop = function () {};
   var transient = { unavailable: 1, 'deadline-exceeded': 1, aborted: 1, internal: 1, cancelled: 1, unknown: 1 };
   function writeRetry(fn, label) {
     var attempt = 0;
@@ -217,7 +220,7 @@ function hostF(h) {
   }
   var SERVER = typeof WeakSet === 'function' ? new WeakSet() : null;
   return {
-    db: function () { return db; },
+    db: dbGet,
     doc: fs.doc, getDoc: fs.getDoc, getDocFromCache: fs.getDocFromCache || fs.getDoc, setDoc: fs.setDoc,
     updateDoc: fs.updateDoc, deleteDoc: fs.deleteDoc, deleteField: fs.deleteField, onSnapshot: fs.onSnapshot,
     writeRetry: writeRetry,
@@ -333,5 +336,7 @@ window.Notebook = {
   }
 };
 
-load('core');
+// <script ... data-lazy>: a host that only mounts an instance later (TradeHub's
+// Playbook tab) skips the engines until then; the instance loads them itself.
+if (!(me && me.hasAttribute && me.hasAttribute('data-lazy'))) load('core');
 })();

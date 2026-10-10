@@ -1,9 +1,11 @@
 /**
- * TradeHub's trash can — Playbook pages, Control tickers, Control prompts.
+ * TradeHub's trash can — Control tickers, Control prompts. (The Playbook is a
+ * Notebook instance since 2026-10-09 and has Notebook's own trash; its old
+ * pages[] are migrated once, which section "The Playbook moves to Notebook"
+ * guards.)
  *
  * WHY THIS FILE EXISTS
- * The trash can has no storage of its own. A trashed Playbook page keeps its
- * slot in the playbook document's pages[], a trashed prompt keeps its slot in
+ * The trash can has no storage of its own. A trashed prompt keeps its slot in
  * the prompts document's prompts[], and trashed tickers ride in a `trash` field
  * on the watchlist document. That design is what keeps the feature free — a
  * delete already wrote that document, so nothing extra is read or written — but
@@ -13,9 +15,8 @@
  * So this suite guards both halves:
  *
  *   1. The pure helpers behave (expiry boundary, newest-first cap, and the rule
- *      that the pinned Daily Reminder page can never be trashed — Trading Auto
- *      Launch reads it, and a trashed copy would vanish from the live list while
- *      still being pinned first).
+ *      that the migrated Daily Reminder page is never trashed — Trading Auto
+ *      Launch reads it).
  *
  *   2. The wiring cannot regress to a live-only write. Those are static checks,
  *      because the failure is invisible at runtime: the delete works, the trash
@@ -48,7 +49,7 @@ function extract(startMarker, endMarker) {
 
 const helperSrc = extract('const TB_TRASH_TTL =', 'function TBTrashButton');
 const pbSrc = extract('const TB_PB_DAILY_ID=', 'function tbPbNormalize')
-            + extract('function tbPbNormalize', '/* ── Formatting toolbar');
+            + extract('function tbPbNormalize', '/* ── Playbook: a Notebook instance');
 
 const sandbox = {
   // tbPbDefaultPages runs the seed through the page's markdown renderer; the
@@ -114,9 +115,9 @@ check('a cap is set', typeof TB_TRASH_MAX === 'number' && TB_TRASH_MAX > 0, Stri
         'dropping what you just deleted instead of what has nearly aged out would be the wrong way round');
 }
 /* The byte budget is the limit that actually protects the document. A trashed
-   Playbook page keeps its full HTML body in the SAME document as the live pages,
-   so sixty long pages would push it past Firestore's 1 MiB ceiling — at which
-   point every save fails and the LIVE playbook stops persisting too. */
+   prompt keeps its full text in the SAME document as the live prompts, so sixty
+   long ones would push it past Firestore's 1 MiB ceiling — at which point every
+   save fails and the LIVE prompts stop persisting too. */
 {
   const big = n => ({ id: 'b' + n, trashed: Date.now() - n * 1000, body: 'x'.repeat(90 * 1024) });
   const capped = tbTrashCap([big(1), big(2), big(3), big(4), big(5)]);
@@ -195,34 +196,32 @@ check('there is a document budget', typeof TB_DOC_SAFE === 'number' && TB_DOC_SA
         'TB_TRASH_BYTES caps the can even in an empty playbook');
 }
 
-check('both shared-document writers pass their leftover room',
-      (SRC.match(/tbTrashCap\(.{0,60}?TB_DOC_SAFE-tbJsonBytes\(live\)\)/g) || []).length === 2,
-      'persistPlaybook and persistPrompts');
-check('the Playbook warns before the document fills up', /storageWarn/.test(SRC),
-      'the failure mode is silent otherwise — saves just stop');
+check('the shared-document writer passes its leftover room',
+      (SRC.match(/tbTrashCap\(.{0,60}?TB_DOC_SAFE-tbJsonBytes\(live\)\)/g) || []).length === 1,
+      'persistPrompts');
 
 /* ════════════════════════════════════════════════════════════════════════════ */
 section('Sections and counts');
 
-check('there are exactly three sections', TB_TRASH_SECTIONS.length === 3,
+check('there are exactly two sections', TB_TRASH_SECTIONS.length === 2,
       TB_TRASH_SECTIONS.map(s => s.key).join(', '));
-check('they are playbook, tickers and prompts',
-      TB_TRASH_SECTIONS.map(s => s.key).sort().join(',') === 'playbook,prompts,tickers');
+check('they are tickers and prompts (the Playbook has Notebook\'s trash)',
+      TB_TRASH_SECTIONS.map(s => s.key).sort().join(',') === 'prompts,tickers');
 TB_TRASH_SECTIONS.forEach(s => {
   check(s.key + ' can key and label its rows',
         typeof s.id === 'function' && typeof s.name === 'function' && !!s.label && !!s.icon);
 });
 check('a ticker row is keyed by its symbol',
       TB_TRASH_SECTIONS.find(s => s.key === 'tickers').id({ t: 'NVDA' }) === 'NVDA');
-check('an untitled playbook page still gets a label',
-      TB_TRASH_SECTIONS.find(s => s.key === 'playbook').name({ id: 'p' }) === 'Untitled page');
+check('an untitled prompt still gets a label',
+      TB_TRASH_SECTIONS.find(s => s.key === 'prompts').name({ id: 'p' }) === 'Untitled prompt');
 check('the badge counts every section',
-      tbTrashCount({ playbook: [1, 2], tickers: [1], prompts: [1, 2, 3] }) === 6);
+      tbTrashCount({ tickers: [1], prompts: [1, 2, 3] }) === 4);
 check('the badge survives a missing section', tbTrashCount({}) === 0 && tbTrashCount(null) === 0,
       'state can be mid-load');
 
 /* ════════════════════════════════════════════════════════════════════════════ */
-section('The Daily Reminder page can never be trashed');
+section('The Daily Reminder page arrives in Notebook untrashed and first');
 
 {
   // Trading Auto Launch reads this page every trading morning. tbPbNormalize
@@ -264,10 +263,6 @@ check('TBPromptPage never writes Firestore itself', !/_fbSaveTBPrompts/.test(pro
       'it only ever holds the LIVE prompts — writing those would erase every trashed prompt');
 check('its delete goes to the trash', /onTrash\(/.test(promptPage));
 
-const playbookPage = slice('function TBPlaybookPage(', 'function TBApp(');
-check('TBPlaybookPage never writes Firestore itself', !/_fbSaveTBPlaybook/.test(playbookPage),
-      'same hazard: it is handed the live pages only');
-check('its delete goes to the trash', /onTrashPage\(/.test(playbookPage));
 
 const wlEditor = slice('function TBWatchlistEditor(', '/* ── Control Page');
 check('removing a ticker goes to the trash', /onTrashTickers/.test(wlEditor));
@@ -280,14 +275,12 @@ check('persistPrompts splits live from trashed before writing',
 check('savePrompts re-attaches the trashed prompts',
       /const savePrompts=arr=>persistPrompts\(\[\.\.\.arr,\.\.\.prompts\.filter\(p=>p\.trashed\)\]\)/.test(app),
       'this is the line that stops an edit in Control from emptying the can');
-check('savePlaybook re-attaches the trashed pages',
-      /const savePlaybook=pages=>persistPlaybook\(\[\.\.\.pages,\.\.\.playbook\.filter\(p=>p\.trashed\)\]\)/.test(app));
 check('a delete stamps a fresh Date.now()', /const ts=Date\.now\(\)/.test(app),
       'reusing an old stamp is how restore-then-delete would fail to reset the clock');
 
 section('The ticker trash rides in the watchlist document');
 
-const fbWl = slice('window._fbSaveTBWatchlist =', 'window._fbLoadTBPlaybook');
+const fbWl = slice('window._fbSaveTBWatchlist =', '// ── Playbook → Notebook, once');
 check('the watchlist writer accepts a trash argument', /_fbSaveTBWatchlist = \(tickers, trash\)/.test(fbWl));
 check('it writes with merge', /\{ merge: true \}/.test(fbWl),
       'a plain setDoc from a caller that omits trash would delete the stored trash field');
@@ -303,19 +296,51 @@ section('No new Firestore document, listener or read');
 const paths = (SRC.match(/^\s*const TB_[A-Z_]+_PATH\s*=\s*"[^"]+"/gm) || []).length;
 check('no trash document was added', !/tradeboard_trash/.test(SRC),
       paths + ' TradeHub document paths, unchanged');
-check('no new snapshot listener was added', (SRC.match(/onSnapshot\(/g) || []).length === 9,
-      'the trash syncs on the listeners the watchlist, prompts and playbook already have');
+check('no new snapshot listener was added', (SRC.match(/onSnapshot\(/g) || []).length === 8,
+      'the trash syncs on the listeners the watchlist and prompts already have (the Playbook\'s went with it to Notebook)');
 
 section('The auto-purge does not cost a write when nothing expired');
 check('each sweep compares lengths before persisting',
-      /if\(pbKeep\.length!==pb\.length\)persistPlaybook/.test(SRC) &&
       /if\(prKeep\.length!==pr\.length\)persistPrompts/.test(SRC) &&
       /if\(wtKeep\.length!==wt\.length\)persistWatchlist/.test(SRC),
       'an unconditional sweep would write all three documents on every boot');
 check('the sweep reads through a ref, not a closure', /_tbTrashLatest\.current/.test(SRC),
       'it runs on a timer — a closure would sweep against state from six seconds ago');
 
+section('The Playbook moves to Notebook');
+
+const pbHost = slice('/* ── Playbook: a Notebook instance', 'function TBApp(');
+check('the Playbook tab mounts MyJournal as a Notebook instance on its own store',
+      /app:'myjournal',key:'pb',store:'tradehub_playbook'/.test(pbHost) && /templates:\['page'\]/.test(pbHost));
+check('the Daily Reminder is a pinned page with its fixed id',
+      /pinned:\[\{id:TB_PB_DAILY_ID,title:'Daily Reminder'/.test(pbHost));
+check('every confirmed save of it is pushed to the launcher (and only it)',
+      /onSave:tbPbPushReminder/.test(pbHost) && /entry\.id!==TB_PB_DAILY_ID/.test(pbHost) && /\/daily-reminder/.test(pbHost));
+check('it mounts only after the migration succeeds',
+      /_fbMigrateTBPlaybook\(tbPbToEntries\)\)\s*\.then\(\(\)=>\{[^}]*Notebook\.mount\(cfg\)/.test(pbHost));
+const mig = slice('window._fbMigrateTBPlaybook =', '    // Analysis cfg');
+check('the migration is one transaction', /runTransaction\(db, async \(tx\)/.test(mig));
+check('...that runs once (a marker, or any entry already there)',
+      /_migratedFrom/.test(mig) && /k\.indexOf\('e_'\) === 0/.test(mig));
+check('...and never writes the old document (it stays as the backup)',
+      !/tx\.(set|update|delete)\(oRef/.test(mig) && /tx\.set\(nRef, out, \{ merge: true \}\)/.test(mig));
+{
+  const sandbox2 = { tbMdToHtml: (x) => String(x), tbSanitizeHtml: (x) => 'S:' + x, console };
+  const conv = vm.runInNewContext(pbSrc + '\n' + slice('function tbPbToEntries', 'let _tbReminderSig') + '\ntbPbToEntries', sandbox2);
+  const out = conv([{ id: 'pb_2', title: 'Rules', body: '<p>r</p>', createdAt: 5, updatedAt: 6 },
+                    { id: 'pb_3', title: 'Old', body: '<p>o</p>', trashed: 99 },
+                    { id: TB_PB_DAILY_ID, title: 'Daily Reminder', body: '<p>d</p>', trashed: 7 }]);
+  check('converted pages keep their ids, Daily Reminder first',
+        JSON.stringify(out._order) === JSON.stringify([TB_PB_DAILY_ID, 'pb_2', 'pb_3']), JSON.stringify(out._order));
+  check('each becomes a MyJournal page entry with sanitised HTML',
+        out.e_pb_2.template === 'page' && out.e_pb_2.data.html === 'S:<p>r</p>' && out.e_pb_2.created === 5 && out.e_pb_2.updated === 6);
+  check('a trashed page keeps its stamp', out.e_pb_3.trashed === 99 && out.e_pb_3.trashChangedAt === 99);
+  check('the Daily Reminder never arrives trashed', !out['e_' + TB_PB_DAILY_ID].trashed);
+}
+check('nothing of the old Playbook editor is left', !/_fbSaveTBPlaybook|_fbLoadTBPlaybook|persistPlaybook|TBPlaybookEditor|fb-tb-playbook/.test(SRC));
+
 /* ════════════════════════════════════════════════════════════════════════════ */
 console.log('\n' + '='.repeat(64));
 if (fail) { console.log(fail + ' of ' + (pass + fail) + ' checks FAILED.'); process.exit(1); }
 console.log('All ' + pass + ' TradeHub trash checks passed.');
+
