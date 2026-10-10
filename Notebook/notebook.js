@@ -250,9 +250,17 @@ function hostF(h) {
 // what the host turned off.
 function instanceCss(cfg) {
   var R = '#' + cfg.key + '-root', css = [];
-  if (cfg.mode !== 'overlay') css.push(R + '{position:relative!important;inset:auto!important;z-index:auto!important;'
-    + 'display:flex!important;flex-direction:column;width:100%;height:100%;padding-top:0!important;}');
-  if (cfg.features && cfg.features.locks === false) css.push(R + ' [id$="-lock-btn"],' + R + ' [id$="-btn-lock"]{display:none!important;}');
+  var K = '#' + cfg.key;
+  if (cfg.mode !== 'overlay') {
+    css.push(R + '{position:relative!important;inset:auto!important;z-index:auto!important;'
+      + 'display:flex!important;flex-direction:column;width:100%;height:100%;padding-top:0!important;}');
+    // What the app pins to the VIEWPORT on a phone (the sidebar drawer, its
+    // backdrop, the bottom bar) pins to the instance instead: inside a host's
+    // transformed or offset container a fixed drawer peeks out at the edge.
+    css.push('@media (max-width: 900px){' + R + ' ' + K + '-sidebar,' + R + ' ' + K + '-sidebar-backdrop{position:absolute!important;height:100%!important;}'
+      + R + ' ' + K + '-bottom-bar{position:absolute!important;}}');
+  }
+  if (cfg.features && cfg.features.locks === false) css.push(R + ' ' + K + '-mobile-lock-btn,' + R + ' ' + K + '-btn-lock{display:none!important;}');
   if (Array.isArray(cfg.templates)) css.push(R + ' .template-card' + cfg.templates.map(function (t) { return ':not([data-template="' + t + '"])'; }).join('') + '{display:none!important;}');
   if (!window._pwReset) css.push(R + ' [id$="-lock-forgot"],' + R + ' [id$="-lock-reset"]{display:none!important;}');
   return css.join('\n');

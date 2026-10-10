@@ -94,6 +94,7 @@ const worker = {
   ok('the list: Daily Reminder first, then Rules; the trashed page is not listed',
     R.length === 2 && R[0].id === 'daily-reminder' && R[0].t === 'Daily Reminder' && R[1].id === 'pb_rules', JSON.stringify(R));
   ok('the Daily Reminder has no trash button; Rules does', R[0].del === false && R[1].del === true);
+  await js(`document.querySelector('#pb-entries-list .entry-item[data-entry-id="daily-reminder"] .entry-item-title').click(); 1`); await sleep(600);
   ok('its content is the old page', /discipline/.test(await js(`return (document.getElementById('pb-page-editor')||{}).innerHTML || '';`)));
   await js(`document.getElementById('pb-new-entry-btn').click(); 1`); await sleep(400);
   ok('New Entry offers only a page', await js(`return [...document.querySelectorAll('#pb-root .template-card')].filter(c => getComputedStyle(c).display !== 'none').map(c => c.dataset.template).join() === 'page';`));
@@ -135,6 +136,12 @@ const worker = {
   await size(390, 844); await sleep(1200);
   ok('nothing scrolls sideways', await js(`return document.documentElement.scrollWidth <= window.innerWidth + 1;`), await js(`return document.documentElement.scrollWidth;`));
   ok('the Playbook is on screen', await js(`var r=document.getElementById('pb-root').getBoundingClientRect(); return r.width > 300 && r.height > 300;`));
+  ok('the closed page drawer does not peek in at the edge', await js(`var e=document.elementFromPoint(5, 300); return !(e && e.closest && e.closest('#pb-sidebar'));`),
+    await js(`var e=document.elementFromPoint(5, 300); return e ? e.tagName + '#' + e.id : 'none';`));
+  ok('no lock button (locks are off for the Playbook)', await js(`var b=document.getElementById('pb-mobile-lock-btn'); return !b || getComputedStyle(b).display === 'none';`));
+  ok('the phone header names the open page', await js(`var a=document.querySelector('#pb-entries-list .entry-item.active .entry-item-title'); return !!a && document.getElementById('pb-mobile-title').value === a.innerText;`),
+    await js(`return JSON.stringify([document.getElementById('pb-mobile-title').value, (document.querySelector('#pb-entries-list .entry-item.active .entry-item-title')||{}).innerText]);`));
+  ok('the bottom bar sits inside the Playbook, not on the page', await js(`var b=document.getElementById('pb-bottom-bar'), r=document.getElementById('pb-root').getBoundingClientRect(), q=b.getBoundingClientRect(); return getComputedStyle(b).display === 'none' || (q.bottom <= r.bottom + 1 && q.top >= r.top);`));
   const s1 = await c.send('Page.captureScreenshot', { format: 'png' });
   fs.writeFileSync(shotPath('tradehub-playbook-phone'), Buffer.from(s1.result.data, 'base64'));
   await size(1440, 900); await sleep(800);
