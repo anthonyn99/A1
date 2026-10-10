@@ -35,7 +35,7 @@ const HOSTS = {
   'insight.html':  { lock: '#lockScreen' },
   'vault.html':    { lock: '#applock-overlay' },
   'solace.html':   { lock: '#applock-overlay' },
-  'shield.html':   { lock: '#applock-overlay', profile: true },
+  'shield.html':   { lock: 'guardian', profile: true },
   'riftiq.html':   { lock: '#applock-overlay' },
   'magi.html':     { lock: '#lockScreen' },
 };
@@ -75,6 +75,8 @@ for (const [file, want] of Object.entries(HOSTS)) {
   ok(file + ' has an <a1-lifehub> launcher', /<a1-lifehub\b/.test(html));
   const lock = (/data-lock=["']([^"']+)["']/.exec(tag) || [])[1];
   ok(file + ' names its lock screen (' + want.lock + ')', lock === want.lock, lock);
+  // 'guardian' = the host locks with Guardian; LifeHub asks Guardian.isOpen().
+  if (lock === 'guardian') ok(file + ' loads Guardian for that lock', html.includes('Guardian/guardian.js'));
   if (lock && lock[0] === '#') {
     const id = lock.slice(1);
     const present = html.includes('id="' + id + '"') || html.includes("id='" + id + "'") ||

@@ -15,7 +15,8 @@
  *   <script src="LifeHub/lifehub.js" defer
  *           data-lock="#applock-overlay"></script>    ← once, before </body>
  *
- *   data-lock          CSS selector for the program's existing lock screen.
+ *   data-lock          CSS selector for the program's existing lock screen, or
+ *                      "guardian" when the program locks with Guardian.
  *                      While that element is on screen the launcher is not
  *                      rendered at all (display:none — no empty slot).
  *   data-profile-attr  For programs with Tony AND Veda profiles: the <body>
@@ -817,7 +818,10 @@
   function lockedNow() {
     try {
       if (typeof CFG.locked === 'function') return !!CFG.locked();
-      if (!CFG.lock) return false;
+      // Any Guardian lock card on screen (Guardian/guardian.js) hides the
+      // launcher, whatever the host names in data-lock.
+      if (window.Guardian && window.Guardian.isOpen()) return true;
+      if (!CFG.lock || CFG.lock === 'guardian') return false;
       var n = document.querySelectorAll(CFG.lock);
       for (var i = 0; i < n.length; i++) if (n[i].getClientRects().length) return true;
       return false;

@@ -707,60 +707,9 @@ label.fld{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;tex
 #toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
 #toast.bad{border-color:var(--errl);color:var(--err)}
 
-/* ── App Lock overlay ── lifted from vault.html:98-124, retokenised ────────── */
-#applock-overlay{position:fixed;inset:0;z-index:2147483000;background:var(--bg);display:none;align-items:center;justify-content:center;font-family:var(--sans);padding:calc(var(--safe-t) + 20px) calc(var(--safe-r) + 20px) calc(var(--safe-b) + 20px) calc(var(--safe-l) + 20px);overflow-y:auto}
-#applock-box{display:flex;flex-direction:column;align-items:center;gap:18px;padding:34px 30px 22px;background:var(--s1);border:1px solid var(--acl);border-radius:18px;width:350px;max-width:calc(100vw - 32px);box-shadow:0 32px 80px rgba(0,0,0,.7);position:relative}
-#applock-head{text-align:center;display:flex;flex-direction:column;gap:5px}
-#applock-form{width:100%;display:flex;flex-direction:column;gap:10px}
-#applock-links{display:flex;flex-direction:column;align-items:center;gap:5px}
-#applock-foot{width:100%;padding-top:14px;border-top:1px solid var(--bd);display:flex;justify-content:center}
-@keyframes applock-shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
-#applock-box.shake{animation:applock-shake .4s ease}
-#applock-icon{line-height:0;color:var(--ac)}
-#applock-icon svg{width:30px;height:30px;display:block}
-#applock-title{font-family:var(--display);font-size:25px;font-weight:var(--head-wt);letter-spacing:var(--head-ls);text-transform:var(--head-tr);color:var(--tx)}
-#applock-sub{font-size:10.5px;letter-spacing:2.4px;text-transform:uppercase;color:var(--txm);text-align:center;line-height:1.6}
-#applock-pw{background:var(--s1);border:1px solid var(--bdl);border-radius:var(--radius-sm);color:var(--tx);font-size:15px;font-weight:500;padding:14px 16px;font-family:var(--sans);outline:none;width:100%;text-align:center;letter-spacing:4px;box-sizing:border-box;transition:border-color .18s}
-#applock-pw:focus{border-color:var(--ac)}
-#applock-pw.error{border-color:var(--err)}
-#applock-err{font-size:12.5px;color:var(--err);font-weight:500;text-align:center;min-height:16px}
-#applock-submit{background:transparent;color:var(--acs);border:1px solid var(--acl);border-radius:var(--radius-sm);padding:14px 0;font-size:13.5px;font-weight:500;cursor:pointer;font-family:var(--sans);width:100%;transition:border-color .18s,opacity .18s}
-#applock-submit:hover:not(:disabled){border-color:var(--ac)}
-#applock-submit:disabled{opacity:.4;cursor:default}
-#applock-cancel{background:transparent;border:none;color:var(--txm);font-size:13px;cursor:pointer;font-family:var(--sans);padding:2px 10px;text-decoration:underline;text-underline-offset:3px;transition:color .15s}
-#applock-forgot,#applock-reset{background:transparent;border:none;color:var(--txm);font-size:12px;cursor:pointer;font-family:var(--sans);padding:2px 0 0;text-decoration:underline;text-underline-offset:3px;width:100%;text-align:center;transition:color .15s}
-#applock-cancel:hover,#applock-forgot:hover,#applock-reset:hover{color:var(--txd)}
-#applock-bio button svg,#al-menu-btns button svg{width:15px;height:15px;display:block;flex-shrink:0}
 
-/* ── Lock-screen hover ──────────────────────────────────────────────────────
-   These buttons are built in JS with an inline `border` shorthand, which no
-   stylesheet rule can override without !important — so the old hover here was
-   dead on arrival and the menu gave no feedback at all. The glow is what makes
-   the target obvious; the colours are profile tokens, so T reads purple and V
-   reads purple with nothing profile-specific written here.
 
-   --acl / --errl rather than --acbg for the shadow: both are translucent in
-   BOTH profiles, whereas V's --acbg is an opaque swatch that would paint a
-   solid block instead of a halo. */
-#applock-bio button,#al-menu-btns button{
-  transition:border-color .18s,box-shadow .18s,color .18s;
-}
-#applock-bio button:hover,#al-menu-btns button:hover{
-  border-color:var(--acl) !important;box-shadow:0 0 11px var(--acl);
-}
-#al-menu-btns button.al-ac:hover{border-color:var(--ac) !important;box-shadow:0 0 12px var(--acl)}
-#al-menu-btns button.al-dg:hover{border-color:var(--err) !important;box-shadow:0 0 12px var(--errl)}
-#applock-submit:hover:not(:disabled){box-shadow:0 0 12px var(--acl)}
-#applock-pw:focus{box-shadow:0 0 11px var(--acl)}
-#applock-submit,#applock-pw{transition:border-color .18s,box-shadow .18s,opacity .18s}
-
-/* Phones: full-bleed card with 46px tap targets, and a scrolling body so a
-   menu carrying biometrics plus every action still fits a short screen. */
 @media(max-width:520px){
-  #applock-overlay{padding:14px}
-  #applock-box{width:100%;max-width:none;padding:28px 20px;max-height:calc(100vh - 28px);max-height:calc(100dvh - 28px);overflow-y:auto;-webkit-overflow-scrolling:touch}
-  #applock-bio button,#al-menu-btns button{min-height:46px;font-size:13.5px}
-  #applock-pw,#applock-submit{min-height:48px}
   .pf-card{width:118px;height:136px}
   .pf-card .glyph{font-size:52px}
   .nav{padding-left:12px;padding-right:12px}
@@ -810,15 +759,12 @@ label.fld{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;tex
   .tgt-opt{gap:10px}
 
   input[type=text],input[type=password],select{font-size:16px;padding:12px 13px}
-  #applock-pw{font-size:17px;padding:16px}
-  #applock-submit{padding:16px 0;font-size:15px}
   .uim-input{font-size:16px !important;padding:12px 13px !important}
   #uim-btns button{min-height:44px;padding:0 18px !important}
 
   /* Rows get more vertical room so neighbouring controls are not adjacent. */
   .tgt,.dev{padding:12px 13px}
   .opt{padding:13px 0}
-  .locklinks span,#applock-forgot,#applock-reset,#applock-cancel{padding:10px 0;display:inline-block}
 
   /* Hover states are meaningless on touch and leave controls looking stuck
      "lit" after a tap. */
@@ -906,7 +852,7 @@ body:not([data-profile="veda"]) :is(.kbd,.pick-ico){border-color:var(--bdl)}
 
 /* Fields: an accent border plus a 3px ring at 16%. */
 body:not([data-profile="veda"]) :is(input[type=text],input[type=password],select,.pick-search,.uim-input){border-color:var(--bdl)}
-body:not([data-profile="veda"]) :is(input,select,.pick-search,.uim-input,#applock-pw):focus{border-color:var(--ac);box-shadow:0 0 0 3px var(--ring)}
+body:not([data-profile="veda"]) :is(input,select,.pick-search,.uim-input):focus{border-color:var(--ac);box-shadow:0 0 0 3px var(--ring)}
 
 /* Titles and labels. */
 body:not([data-profile="veda"]) .sec-title{
@@ -944,13 +890,6 @@ body:not([data-profile="veda"]) #uim-cancel:hover{border-color:var(--ac);box-sha
 body:not([data-profile="veda"]) .uim-label{font-size:9px}
 body:not([data-profile="veda"]) #toast{border-radius:8px}
 
-/* The app lock: an acd card, a solid purple submit, no glows. */
-body:not([data-profile="veda"]) #applock-box{border-color:var(--acl);border-radius:8px}
-body:not([data-profile="veda"]) #applock-submit{background:var(--ac);color:var(--bg);border-color:var(--ac);font-weight:700}
-body:not([data-profile="veda"]) #applock-submit:hover:not(:disabled){border-color:var(--ac);box-shadow:none}
-body:not([data-profile="veda"]) #applock-bio button:hover,
-body:not([data-profile="veda"]) #al-menu-btns button:hover{border-color:var(--ac) !important;box-shadow:none}
-body:not([data-profile="veda"]) #al-menu-btns button.al-dg:hover{border-color:var(--err) !important;box-shadow:none}
 </style>
 <style id="ui-cap-2000">
 /* == Suite-wide 2000px UI cap ==============================================
@@ -977,69 +916,11 @@ body:not([data-profile="veda"]) #al-menu-btns button.al-dg:hover{border-color:va
    tests/ui-width-cap.test.js fails the build if any of this goes missing. */
 body { max-width: 2000px; margin-inline: auto; }
 </style>
-<script id="mail-relay">
-/* == Recovery-mail relay ===================================================
-   The worker mints the reset code and the hint text, but it cannot always
-   DELIVER them. Formspree files anything posted from a Cloudflare Worker as
-   spam -- it answers {"ok":true} and the mail never arrives -- while the exact
-   same submission sent from a browser has worked for months. So when the
-   worker has no server-side sender configured it hands the page an envelope
-   instead of sending, and this posts it from here, where it works.
-
-   `relay` only appears when the worker could not send it itself. Set
-   BREVO_API_KEY (or RESEND_API_KEY) on taskhub-reminders and the worker sends
-   it directly, stops returning `relay`, and this quietly stops being used --
-   no page change needed. Until then, note that a relayed reset code passes
-   through this browser, so whoever asked for it can read it.
-
-   Returns true if the mail went out, false if nothing was sent. A response
-   that was already delivered server-side (`emailed`) counts as sent. */
-window._mailRelay = window._mailRelay || async function (res) {
-  if (res && res.emailed) return true;
-  var r = res && res.relay;
-  if (!r || !r.form) return false;
-  try {
-    var out = await fetch(r.form, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      /* `_subject` is the field Formspree uses for the subject line; a plain
-         `subject` key is swallowed. Both are sent so either spelling works. */
-      body: JSON.stringify({ email: r.email, _subject: r.subject, subject: r.subject, message: r.message })
-    });
-    var d = null;
-    try { d = await out.json(); } catch (e) {}
-    /* A 2xx is not delivery on its own -- Formspree states a refusal as
-       {"ok":false} or an errors array underneath one. */
-    return !!out.ok && !(d && (d.ok === false || (d.errors && d.errors.length)));
-  } catch (e) { return false; }
-};
-</script>
+<!-- Guardian: the one A1 lock (docs/Guardian/README.md). Loaded before first
+     paint, unpinned, so every Guardian upgrade reaches this page. -->
+<script src="Guardian/guardian.js"></script>
 </head>
 <body data-gate="boot" data-profile="tony">
-
-<!-- ══ App Lock overlay — same Worker-KV / PBKDF2 system as index.html ══════ -->
-<div id="applock-overlay">
-  <div id="applock-box">
-    <div id="applock-icon"></div>
-    <div id="applock-head">
-      <div id="applock-title">Locked</div>
-      <div id="applock-sub">Enter your password.</div>
-    </div>
-    <div id="applock-form">
-      <div id="applock-bio"></div>
-      <input id="applock-pw" type="password" placeholder="Password" autocomplete="off" />
-      <div id="applock-err"></div>
-      <button id="applock-submit">Unlock</button>
-      <div id="applock-links">
-        <button id="applock-forgot">Forgot password?</button>
-        <button id="applock-reset">Reset password via email</button>
-      </div>
-    </div>
-    <div id="applock-foot">
-      <button id="applock-cancel">Cancel</button>
-    </div>
-  </div>
-</div>
 
 <!-- ══ Profile chooser ══════════════════════════════════════════════════════ -->
 <div id="profile-overlay">
@@ -1075,7 +956,7 @@ window._mailRelay = window._mailRelay || async function (res) {
     <span class="sync" id="sync">·</span>
     <button class="iconbtn" id="lock-btn" title="Manage lock"></button>
     <!-- LifeHub app switcher (LifeHub/lifehub.js) — follows body[data-profile]:
-         Tony's list or Veda's; hidden while #applock-overlay is up. -->
+         Tony's list or Veda's; hidden while a Guardian lock is up. -->
     <a1-lifehub></a1-lifehub>
     <button class="pf-badge" id="pf-badge" title="Switch profile">T</button>
   </header>
@@ -1192,90 +1073,6 @@ window._mailRelay = window._mailRelay || async function (res) {
     fields:[{name:'value',type:o.password?'password':'text',value:(o.default!=null?o.default:''),placeholder:o.placeholder||'',autocap:o.autocap}]}); };
   window.uiForm=function(cfg){ cfg=cfg||{}; return open({kind:'form',title:cfg.title,message:cfg.message,okLabel:cfg.okLabel||'Save',cancelLabel:cfg.cancelLabel||'Cancel',danger:cfg.danger,fields:cfg.fields||[]}); };
   try { window.alert=function(m){ window.uiAlert(m==null?'':String(m)); }; } catch(e){}
-})();
-</script>
-
-<!-- ══ Biometrics (WebAuthn platform authenticator) ═════════════════════════
-        Copied from mylist.html:727. The app never sees or stores biometric
-        data — WebAuthn returns only a public-key credential handle, and unlock
-        is scoped to that credential id alone via allowCredentials, so one
-        profile's biometric can never satisfy the other's. ══════════════════ -->
-<script>
-window.Bio = (function(){
-  var NS='bio_cred_';
-  function u8(b){ return new Uint8Array(b); }
-  function b64u(buf){ var b=u8(buf),s=''; for(var i=0;i<b.length;i++) s+=String.fromCharCode(b[i]); return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
-  function unb64u(str){ str=String(str).replace(/-/g,'+').replace(/_/g,'/'); while(str.length%4) str+='='; var bin=atob(str),b=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) b[i]=bin.charCodeAt(i); return b.buffer; }
-  function rand(n){ var a=new Uint8Array(n); crypto.getRandomValues(a); return a; }
-  function keyOf(app,id){ return NS+app+'_'+id; }
-  function supported(){ return !!(window.isSecureContext && window.PublicKeyCredential && navigator.credentials && navigator.credentials.create); }
-  function available(){
-    if(!supported()) return Promise.resolve(false);
-    if(!PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) return Promise.resolve(false);
-    return PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(function(v){return !!v;}).catch(function(){return false;});
-  }
-  function stored(app,id){ try{ return JSON.parse(localStorage.getItem(keyOf(app,id))||'null'); }catch(e){ return null; } }
-  function isRegistered(app,id,curV){ return current(app,id,curV); }
-  // ── Password binding ──────────────────────────────────────────────────────
-  // A credential is only as good as the password it was enrolled under. Every
-  // lock carries a version that moves when its password is set, changed or
-  // reset; the credential records the version it was enrolled at, and once the
-  // lock's version is newer it is dropped. Without this, anyone who learned the
-  // password ONCE could enrol their own fingerprint and keep walking in after
-  // the password changed. A credential from before this binding existed has no
-  // version: its enrolment time stands in when versions are timestamps, and
-  // anything else is treated as stale.
-  function boundV(r,curV){ return r.v!=null ? (+r.v||0) : (curV>1e12 ? (+r.created||0) : 0); }
-  function current(app,id,curV){
-    var r=stored(app,id); if(!(r&&r.id)) return false;
-    curV=+curV||0;
-    if(!curV || boundV(r,curV)>=curV) return true;
-    unregister(app,id);
-    try{ localStorage.setItem(NS+'stale_'+app+'_'+id,'1'); }catch(e){}
-    return false;
-  }
-  // True ONCE after a password change dropped this device's credential, so the
-  // next password unlock can offer to enrol again.
-  function takeStale(app,id){ var k=NS+'stale_'+app+'_'+id, s=null; try{ s=localStorage.getItem(k); localStorage.removeItem(k); }catch(e){} return s==='1'; }
-  function unregister(app,id){ try{ localStorage.removeItem(keyOf(app,id)); }catch(e){} }
-  function label(){
-    var ua=navigator.userAgent||'';
-    if(/iPhone|iPad|iPod/.test(ua)) return 'Face ID';
-    if(/Android/.test(ua)) return 'fingerprint';
-    if(/Windows/.test(ua)) return 'Windows Hello';
-    if(/Mac/.test(ua)) return 'Touch ID';
-    return 'biometrics';
-  }
-  function register(app,id,opts){
-    opts=opts||{};
-    if(!supported()) return Promise.resolve({ok:false,error:'unsupported'});
-    return navigator.credentials.create({publicKey:{
-      challenge:rand(32),
-      rp:{name:opts.rpName||'Shield', id:location.hostname||undefined},
-      user:{id:rand(16), name:app+':'+id, displayName:opts.label||id},
-      pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
-      authenticatorSelection:{authenticatorAttachment:'platform',userVerification:'required',residentKey:'preferred'},
-      timeout:60000, attestation:'none'
-    }}).then(function(cred){
-      if(!cred) return {ok:false,error:'cancelled'};
-      try{ localStorage.removeItem(NS+'stale_'+app+'_'+id); }catch(e){}
-      localStorage.setItem(keyOf(app,id), JSON.stringify({id:b64u(cred.rawId),created:Date.now(), v:+(opts.v)||0,label:opts.label||id}));
-      return {ok:true};
-    }).catch(function(e){ return {ok:false,error:(e&&e.name)||'error'}; });
-  }
-  function authenticate(app,id,opts){
-    if(!supported()) return Promise.resolve({ok:false,error:'unsupported'});
-    if(opts&&opts.v!=null&&!current(app,id,opts.v)) return Promise.resolve({ok:false,error:'stale'});
-    var rec=stored(app,id);
-    if(!rec||!rec.id) return Promise.resolve({ok:false,error:'notregistered'});
-    return navigator.credentials.get({publicKey:{
-      challenge:rand(32),
-      allowCredentials:[{type:'public-key',id:unb64u(rec.id)}],
-      userVerification:'required', timeout:60000, rpId:location.hostname||undefined
-    }}).then(function(a){ return a?{ok:true}:{ok:false,error:'cancelled'}; })
-      .catch(function(e){ return {ok:false,error:(e&&e.name)||'error'}; });
-  }
-  return {supported:supported,available:available,isRegistered:isRegistered,register:register,authenticate:authenticate,unregister:unregister,label:label,takeStale:takeStale};
 })();
 </script>
 
@@ -1701,621 +1498,67 @@ authReady.then(() => {
 });
 </script>
 
-<!-- ══ APP LOCK ═════════════════════════════════════════════════════════════
-     Ported from V1/js/applock.js — the clean, host-free extraction of the
-     suite's lock — and re-widened to handle more than one lock id, the way
-     index.html:40464 does.
-
-     SECURITY MODEL, unchanged: the password is NEVER stored in the browser and
-     never reaches Firestore. It goes to the taskhub-reminders Worker, which
-     keeps only a PBKDF2-SHA256 hash (100k iterations, random 16-byte salt) in
-     KV. Firestore holds only WHICH lock is on and at what version, so a new
-     device knows to prompt.
-
-     Shield adds ONE thing to the original: a local PBKDF2 verifier, written
-     alongside the Worker record, used only when the Worker is unreachable.
-     Without it an internet outage during Emergency Mode would be a lockout.
-     ═══════════════════════════════════════════════════════════════════════ -->
+<!-- ══ APP LOCK → Guardian ══════════════════════════════════════════════════
+     Shield's two locks (tony_shield / veda_shield) are Guardian locks
+     (Guardian/guardian.js, docs/Guardian/README.md). `offline:true` keeps a
+     local PBKDF2 verifier so Emergency Mode can still be lifted when the
+     worker is unreachable. window.AL is only the small surface SH calls.
+     dashboards/applock stays the cross-device bell, as in index.html. ═══════ -->
 <script>
 window.AL = (function(){
 'use strict';
-
-var AL_WORKER  = 'https://taskhub-reminders.av1.workers.dev';
-var AL_JOURNAL = 'applock';
-// Per-profile recovery routing, mirroring index.html:40471-40472.
-var AL_EMAIL = { tony:'anthonypn99@gmail.com', veda:'vedaapatel1605@gmail.com' };
-var AL_FORM  = { tony:'https://formspree.io/f/xeedkebo', veda:'https://formspree.io/f/xzdlwaqg' };
-var AL_LABELS = {
-  tony_shield: { label:'Shield', profile:'tony', accent:'#c0aeea' },
-  veda_shield: { label:'Shield', profile:'veda', accent:'#8D769A' }
-};
-
+var G = window.Guardian;
 function I(b){ return '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+b+'</svg>'; }
 var ICON = {
   lock:   I('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'),
-  unlock: I('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>'),
-  key:    I('<circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 8.5-8.5"/><path d="m17 6 3 3"/><path d="m14 9 3 3"/>'),
-  shield: I('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/>'),
-  user:   I('<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'),
-  trash:  I('<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>')
+  unlock: I('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>')
 };
+function sh(fn){ return function(){ if (window.SH && window.SH[fn]) window.SH[fn](); }; }
 
-/* ── Lock state ───────────────────────────────────────────────────────────
-   _locks holds the WHOLE suite registry (every app's lock), not just Shield's.
-   Shield mutates only its own ids, but it must carry the rest untouched or a
-   save would erase every other app's lock. */
+// ── Cross-device bell (dashboards/applock), shared with index.html ──────────
 var _locks = {};
-try { _locks = JSON.parse(localStorage.getItem('al_locks')||'{}'); } catch(e){}
-var _pendingPush = false;
-
-function saveLocks(){
+try { _locks = JSON.parse(localStorage.getItem('al_locks') || '{}') || {}; } catch(e){}
+function ring(id, what){
+  if (what === 'remove') delete _locks[id];
+  else if (what === 'set' || what === 'change' || what === 'reset') _locks[id] = { locked:true, v:Date.now() };
+  else return;
   try { localStorage.setItem('al_locks', JSON.stringify(_locks)); } catch(e){}
-  if (window._fbSaveAppLocks) { window._fbSaveAppLocks(_locks); _pendingPush = false; }
-  else _pendingPush = true;
+  if (window._fbSaveAppLocks) window._fbSaveAppLocks(_locks);
 }
-function isLocked(id){ return !!(_locks[id] && _locks[id].locked); }
-function lockVersion(id){ var e=_locks[id]; return (e && e.v) || 0; }
-function setLock(id, v){ _locks[id] = { locked:true, v: v || Date.now() }; saveLocks(); }
-function removeLock(id){ delete _locks[id]; saveLocks(); }
-function allLockIds(){ return Object.keys(_locks); }
-
-/* ── Per-device unlock ────────────────────────────────────────────────────
-   Records the lock VERSION this device unlocked at and compares MONOTONICALLY
-   (unlocked-at >= current), which is index.html's fixed behaviour rather than
-   MyList's exact-match variant. The version replicates through Firestore, so a
-   device can briefly observe a stale, missing or zero version (a cached
-   snapshot before the server one lands, a legacy record with no v, an offline
-   start). Exact matching treated every one of those as "password changed →
-   prompt again". Monotonic treats them as "not newer than what I already
-   unlocked" and stays open; only a real password change, which stamps a
-   strictly greater Date.now(), locks this device out again.
-
-   Keys are the suite-standard al_unlockedat_* so an unlock done in index.html
-   and one done here mean the same thing on the same device. */
-var _unlockedMem = {};
-function readUnlockAt(id){
-  var best = -1;
-  function read(store, key){
-    try {
-      var raw = store.getItem(key);
-      if (raw === null) return;
-      var n = parseInt(String(raw).charAt(0)==='v' ? String(raw).slice(1) : raw, 10);
-      if (!isNaN(n) && n > best) best = n;
-    } catch(e){}
-  }
-  if (_unlockedMem[id] !== undefined) best = _unlockedMem[id];
-  read(localStorage, 'al_unlockedat_'+id);
-  read(localStorage, 'al_unlockedv_'+id);
-  try { if (localStorage.getItem('al_unlocked_'+id)==='1' && best < 0) best = 0; } catch(e){}
-  read(sessionStorage, 'al_unlockedat_'+id);
-  return best;
-}
-function isUnlocked(id){
-  if (!isLocked(id)) return true;
-  var at = readUnlockAt(id);
-  if (at < 0) return false;
-  return at >= lockVersion(id);
-}
-function markUnlocked(id){
-  var v = lockVersion(id);
-  var prev = readUnlockAt(id);
-  if (prev > v) v = prev;
-  _unlockedMem[id] = v;
-  try { localStorage.setItem('al_unlockedat_'+id, String(v)); } catch(e){}
-  try { sessionStorage.setItem('al_unlockedat_'+id, String(v)); } catch(e){}
-  try { localStorage.setItem('al_unlockedv_'+id, 'v'+v); } catch(e){}
-}
-function markLocked(id){
-  delete _unlockedMem[id];
-  try { localStorage.removeItem('al_unlockedat_'+id); localStorage.removeItem('al_unlockedv_'+id); localStorage.removeItem('al_unlocked_'+id); } catch(e){}
-  try { sessionStorage.removeItem('al_unlockedat_'+id); } catch(e){}
-}
-function mustBlock(id){ return isLocked(id) && !isUnlocked(id); }
-
-/* ── Worker API ───────────────────────────────────────────────────────────── */
-function api(id, path, body){
-  return fetch(AL_WORKER + path, {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify(Object.assign({ journal:AL_JOURNAL, entryId:id }, body||{}))
-  }).then(function(r){ return r.json(); });
-}
-
-/* ── Offline verifier ─────────────────────────────────────────────────────
-   Written alongside every successful Worker set/change, read ONLY when the
-   Worker cannot be reached. Same PBKDF2-SHA256 / 100k / random-16-byte-salt
-   shape as the KV record. This does put a brute-forceable verifier on disk —
-   but anyone with disk access can already stop Shield's agent, so it does not
-   widen the real attack surface, and without it a dead connection during
-   Emergency Mode would be an unbreakable lockout. */
-var PBKDF2_ITER = 100000;
-function b64(buf){ var b=new Uint8Array(buf),s=''; for(var i=0;i<b.length;i++) s+=String.fromCharCode(b[i]); return btoa(s); }
-function unb64(str){ var bin=atob(str), b=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) b[i]=bin.charCodeAt(i); return b; }
-async function pbkdf2(pw, salt, iter){
-  var key = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveBits']);
-  var bits = await crypto.subtle.deriveBits({ name:'PBKDF2', salt:salt, iterations:iter, hash:'SHA-256' }, key, 256);
-  return b64(bits);
-}
-async function writeOffline(id, pw){
-  try {
-    var salt = crypto.getRandomValues(new Uint8Array(16));
-    var hash = await pbkdf2(pw, salt, PBKDF2_ITER);
-    localStorage.setItem('sh_offline_'+id, JSON.stringify({ hash:hash, salt:b64(salt), iter:PBKDF2_ITER }));
-  } catch(e){ console.warn('[Shield] offline verifier not written', e); }
-}
-function clearOffline(id){ try { localStorage.removeItem('sh_offline_'+id); } catch(e){} }
-async function verifyOffline(id, pw){
-  var rec = null;
-  try { rec = JSON.parse(localStorage.getItem('sh_offline_'+id)||'null'); } catch(e){}
-  if (!rec || !rec.hash) return { ok:false, error:'norecord' };
-  try {
-    var got = await pbkdf2(pw, unb64(rec.salt), rec.iter || PBKDF2_ITER);
-    // Constant-time-ish compare: always walk the whole string.
-    var a = got, b = rec.hash, diff = a.length ^ b.length;
-    for (var i = 0; i < Math.max(a.length, b.length); i++) diff |= (a.charCodeAt(i)||0) ^ (b.charCodeAt(i)||0);
-    return { ok: diff === 0, offline:true };
-  } catch(e){ return { ok:false, error:'crypto' }; }
-}
-
-/* Live verification used by every security-critical action (disabling
-   Emergency Mode especially). It deliberately IGNORES the per-device unlock
-   marker: "this device already opened Shield once" must never be enough to
-   lift a lockdown. */
-async function verifyNow(id, pw){
-  try {
-    var d = await api(id, '/auth/journal/verify', { password: pw });
-    if (d && d.noLock) return { ok:true, noLock:true };
-    return { ok: !!(d && d.ok) };
-  } catch(e){
-    var off = await verifyOffline(id, pw);
-    if (off.error === 'norecord') return { ok:false, offlineUnavailable:true };
-    return off;
-  }
-}
-
-/* ── Overlay ──────────────────────────────────────────────────────────────── */
-function el(id){ return document.getElementById(id); }
-var _mode='unlock', _id=null, _cb=null, _onCancel=null, _removeBio=false;
-var _attempts={}, _cooldown={};
-
-function meta(id){ return AL_LABELS[id] || { label:'Shield', profile:'tony', accent:'#c0aeea' }; }
-
-function showOverlay(id, mode, cb, onCancel){
-  _id=id; _mode=mode; _cb=cb||null; _onCancel=onCancel||null; _removeBio=false;
-  var m = meta(id);
-  el('applock-err').textContent='';
-  el('applock-pw').value='';
-  el('applock-pw').classList.remove('error');
-  el('applock-title').textContent = m.label;
-  el('applock-submit').style.display='';
-  el('applock-pw').style.display='';
-  var old = el('al-menu-btns'); if (old) old.remove();
-
-  if (mode==='setpw'){
-    el('applock-icon').innerHTML = ICON.shield;
-    el('applock-sub').textContent = 'Choose a password. Unlock once per device.';
-    el('applock-submit').textContent = 'Set Password';
-  } else if (mode==='remove'){
-    el('applock-icon').innerHTML = ICON.unlock;
-    el('applock-sub').textContent = 'Enter password to remove the lock.';
-    el('applock-submit').textContent = 'Remove Lock';
-  } else if (mode==='changepw'){
-    el('applock-icon').innerHTML = ICON.key;
-    el('applock-sub').textContent = 'Enter your current password first.';
-    el('applock-submit').textContent = 'Verify & Continue';
-  } else {
-    el('applock-icon').innerHTML = ICON.lock;
-    el('applock-sub').textContent = 'Enter your password to open Shield.';
-    el('applock-submit').textContent = 'Unlock';
-  }
-  var links = (mode!=='setpw');
-  el('applock-forgot').style.display = links ? '' : 'none';
-  el('applock-reset').style.display  = links ? '' : 'none';
-  // Cancel is meaningless on a genuine access gate — hiding it stops anyone
-  // dismissing their way in. It stays for management flows.
-  el('applock-cancel').style.display = (mode==='unlock' && mustBlock(id)) ? 'none' : '';
-
-  el('applock-overlay').style.display='flex';
-  setTimeout(function(){ try{ el('applock-pw').focus(); }catch(e){} }, 80);
-  renderBio();
-}
-function hideOverlay(){
-  el('applock-overlay').style.display='none';
-  var m = el('al-menu-btns'); if (m) m.remove();
-  var bio = el('applock-bio'); if (bio){ bio.innerHTML=''; bio.style.display='none'; }
-  _removeBio=false;
-}
-function pwErr(msg){
-  el('applock-err').textContent = msg;
-  el('applock-pw').classList.add('error');
-  var box = el('applock-box');
-  box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
-  setTimeout(function(){ box.classList.remove('shake'); }, 500);
-}
-function bump(id){ _attempts[id]=(_attempts[id]||0)+1; if (_attempts[id]>=5) _cooldown[id]=Date.now()+30000; }
-
-/* ── Biometrics wiring ────────────────────────────────────────────────────── */
-function showPwFields(show){
-  el('applock-pw').style.display = show?'':'none';
-  el('applock-submit').style.display = show?'':'none';
-}
-var _bioSeq = 0;   // newest render wins: two quick opens used to draw the buttons twice
-function renderBio(){
-  var box = el('applock-bio'); if (!box) return;
-  box.innerHTML=''; box.style.display='none';
-  var seq = ++_bioSeq;
-  if (_mode!=='unlock') return;
-  var id=_id;
-  window.Bio.available().then(function(avail){
-    if (seq!==_bioSeq || _mode!=='unlock' || _id!==id) return;
-    box.innerHTML='';
-    var had = window.Bio.isRegistered('shield', id);
-    if (!(avail && window.Bio.isRegistered('shield', id, lockVersion(id)))){ if (avail && had) bioStaleMsg(); return; }
-    box.style.display='flex'; box.style.flexDirection='column'; box.style.gap='8px';
-    var b=document.createElement('button');
-    b.innerHTML = ICON.unlock+'<span>Unlock with '+window.Bio.label()+'</span>';
-    b.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--acl);background:transparent;color:var(--ac);border-radius:var(--radius-sm);padding:12px 0;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans);width:100%;';
-    b.onclick = bioUnlock;
-    box.appendChild(b);
-    // Password stays visible alongside — biometrics run only on this button, so
-    // both routes are available at all times.
-    showPwFields(true);
-  });
-}
-function bioUnlock(){
-  el('applock-err').textContent='';
-  window.Bio.authenticate('shield', _id, { v: lockVersion(_id) }).then(function(r){
-    if (r.ok){
-      if (_removeBio){ doRemoveBio(); return; }
-      markUnlocked(_id); _attempts[_id]=0;
-      var cb=_cb; hideOverlay(); if (cb) cb();
-      if (window.SH && window.SH.onLockChange) window.SH.onLockChange();
-    } else if (r.error==='stale'){ bioStaleMsg(); }
-    else if (r.error==='notregistered'){ showPwFields(true); }
-    else { el('applock-err').textContent='Biometric check failed — use your password.'; showPwFields(true); }
-  });
-}
-// The password changed since this device enrolled, so its biometric no longer
-// opens Shield (Bio drops it): say why, and fall back to the password.
-function bioStaleMsg(){
-  var box = el('applock-bio'); if (box){ box.innerHTML=''; box.style.display='none'; }
-  el('applock-err').textContent='The password changed — enter the new one. '+window.Bio.label()+' needs registering again on this device.';
-  showPwFields(true);
-}
-// After the password proves who this is: if a password change dropped this
-// device's biometric (or this device just changed it), offer to enrol again.
-function bioAfterPw(id, hadBio){
-  if (!window.Bio) return;
-  if (window.Bio.takeStale('shield', id) || hadBio) maybeOfferBio(id);
-}
-function hadBioFor(id){ return !!(window.Bio && window.Bio.isRegistered('shield', id)); }
-function bioRemovePrompt(id){
-  showOverlay(id, 'unlock');
-  _removeBio = true;   // showOverlay resets it; re-set after
-  el('applock-icon').innerHTML = ICON.user;
-  el('applock-sub').textContent = 'Verify to remove biometrics from this device.';
-}
-function doRemoveBio(){
-  _removeBio=false;
-  window.Bio.unregister('shield', _id);
-  hideOverlay();
-  window.uiAlert('Biometrics removed from this device.');
-  if (window.SH && window.SH.onLockChange) window.SH.onLockChange();
-}
-function bioRegister(id, closeAfter){
-  window.Bio.register('shield', id, { rpName:'Shield', label:'Shield', v: lockVersion(id) }).then(function(r){
-    if (r.ok){
-      markUnlocked(id); if (closeAfter) hideOverlay();
-      window.uiAlert('Biometrics registered. You can now unlock Shield with '+window.Bio.label()+' on this device.');
-      if (window.SH && window.SH.onLockChange) window.SH.onLockChange();
-    } else if (r.error==='cancelled' || r.error==='NotAllowedError'){ /* backed out */ }
-    else window.uiAlert('Could not register biometrics on this device.');
-  });
-}
-function maybeOfferBio(id){
-  window.Bio.available().then(function(avail){
-    if (!avail || window.Bio.isRegistered('shield', id, lockVersion(id))) return;
-    window.uiConfirm('Register '+window.Bio.label()+' to unlock Shield on this device? Your password still works as a fallback.',
-      { title:'Register '+window.Bio.label(), okLabel:'Register' }).then(function(ok){ if (ok) bioRegister(id, false); });
-  });
-}
-
-/* ── Manage menu ──────────────────────────────────────────────────────────── */
-function manage(id){
-  if (isLocked(id)) showManageMenu(id);
-  else showOverlay(id, 'setpw', function(){ if (window.SH && window.SH.onLockChange) window.SH.onLockChange(); });
-}
-function showManageMenu(id){
-  _id = id;
-  var unlocked = isUnlocked(id), m = meta(id);
-  el('applock-err').textContent='';
-  var mb=el('applock-bio'); if (mb){ mb.innerHTML=''; mb.style.display='none'; }
-  el('applock-pw').value=''; el('applock-pw').classList.remove('error');
-  el('applock-pw').style.display='none';
-  el('applock-icon').innerHTML = ICON.lock;
-  el('applock-title').textContent = m.label;
-  el('applock-submit').style.display='none';
-  el('applock-forgot').style.display='none';
-  el('applock-reset').style.display='none';
-  el('applock-cancel').style.display = unlocked?'':'none';
-  el('applock-sub').textContent = unlocked ? 'Shield is locked. Manage:' : 'Shield is locked. Choose:';
-
-  var old=el('al-menu-btns'); if (old) old.remove();
-  var menu=document.createElement('div'); menu.id='al-menu-btns';
-  menu.style.cssText='display:flex;flex-direction:column;gap:8px;width:100%;';
-  var s='display:flex;align-items:center;justify-content:center;gap:8px;border-radius:var(--radius-sm);padding:11px 0;font-size:12.5px;font-weight:600;cursor:pointer;font-family:var(--sans);width:100%;background:transparent;';
-
-  if (!unlocked){
-    var ub=document.createElement('button');
-    ub.innerHTML=ICON.unlock+'<span>Unlock this device</span>';
-    ub.className='al-ac';
-    ub.style.cssText=s+'border:1px solid var(--acl);color:var(--ac);';
-    ub.onclick=function(){ menu.remove(); showOverlay(id,'unlock', function(){ if (window.SH && window.SH.onLockChange) window.SH.onLockChange(); }); };
-    menu.appendChild(ub);
-  } else {
-    // The mirror of "Unlock this device", and the first row for the same reason
-    // — it is the action you came here for. Drops only THIS device's unlock
-    // record; the password and every other device are untouched.
-    var lb=document.createElement('button');
-    lb.innerHTML=ICON.lock+'<span>Lock this device now</span>';
-    lb.className='al-ac';
-    lb.style.cssText=s+'border:1px solid var(--acl);color:var(--ac);';
-    lb.onclick=function(){ menu.remove(); markLocked(id); hideOverlay(); if (window.SH && window.SH.onDeviceRelock) window.SH.onDeviceRelock(); };
-    menu.appendChild(lb);
-  }
-
-  var cb=document.createElement('button');
-  cb.innerHTML=ICON.key+'<span>Change password</span>';
-  cb.style.cssText=s+'border:1px solid var(--bdl);color:var(--tx);';
-  cb.onclick=function(){ menu.remove(); showOverlay(id,'changepw',null); };
-  menu.appendChild(cb);
-
-  window.Bio.available().then(function(avail){
-    if (!avail) return;
-    var bb=document.createElement('button');
-    if (window.Bio.isRegistered('shield', id, lockVersion(id))){
-      bb.innerHTML=ICON.user+'<span>Remove biometrics</span>';
-      bb.style.cssText=s+'border:1px solid var(--bdl);color:var(--txd);';
-      bb.onclick=function(){ menu.remove(); bioRemovePrompt(id); };
-    } else {
-      bb.innerHTML=ICON.user+'<span>Register '+window.Bio.label()+'</span>';
-      bb.style.cssText=s+'border:1px solid var(--bdl);color:var(--tx);';
-      bb.onclick=function(){ menu.remove(); bioRegister(id, true); };
-    }
-    menu.insertBefore(bb, cb);
-  });
-
-  var rb=document.createElement('button');
-  rb.innerHTML=ICON.trash+'<span>Remove lock</span>';
-  rb.className='al-dg';
-  rb.style.cssText=s+'border:1px solid var(--errl);color:var(--err);';
-  rb.onclick=function(){ menu.remove(); showOverlay(id,'remove', function(){ if (window.SH && window.SH.onLockChange) window.SH.onLockChange(); }); };
-  menu.appendChild(rb);
-
-  el('applock-form').appendChild(menu);
-  el('applock-overlay').style.display='flex';
-}
-
-/* ── Reset by emailed code ────────────────────────────────────────────────── */
-async function resetFlow(id){
-  var m = meta(id);
-  var form = AL_FORM[m.profile] || AL_FORM.tony;
-  var email = AL_EMAIL[m.profile] || AL_EMAIL.tony;
-  function post(path, obj){
-    return fetch(AL_WORKER+path, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(obj) })
-      .then(function(r){ return r.json(); });
-  }
-  // entryId carries the owner (tony_shield / veda_shield), so the worker mails
-  // the code to the right person. It is never returned here — that is what stops
-  // a stranger starting a reset and reading the code off the reply.
-  var reqBody = { journal:AL_JOURNAL, entryId:id, appName:'Shield', label:'Shield' };
-  var rq;
-  try { rq = await post('/auth/reset/request', reqBody); }
-  catch(e){ await window.uiAlert('Network error while starting the reset. Check your connection and try again.'); return; }
-  if (rq && rq.noLock){ await window.uiAlert('There is no password set on the server for Shield.'); return; }
-  if (rq && rq.error==='throttled'){ await window.uiAlert('Too many reset emails have gone out just now. Wait a few minutes and try again.'); return; }
-  if (rq && rq.error==='email-failed'){ await window.uiAlert('Could not send the reset email. Please try again in a moment.'); return; }
-  if (!rq || !rq.ok){ await window.uiAlert('Could not start the reset. Please try again.'); return; }
-  // The worker sends it when it has a provider that can. When it cannot it
-  // returns a `relay` envelope and the BROWSER sends it -- Formspree files
-  // worker-sent mail as spam, so this is the path that reaches the inbox.
-  if (!(await window._mailRelay(rq))){ await window.uiAlert('Could not send the reset email. Please try again in a moment.'); return; }
-
-  var vals = await window.uiForm({
-    title:'Reset password',
-    message:'A 6-character code was emailed to '+email+'. Enter it below (check spam if it does not arrive within a minute), then choose a new password.',
-    okLabel:'Reset password',
-    fields:[
-      { name:'code', label:'Security code from email', placeholder:'6-character code', autocap:false, required:true },
-      { name:'password', label:'New password', type:'password', required:true },
-      { name:'hint', label:'New password hint (optional)' }
-    ]
-  });
-  if (!vals) return;
-  var code=String(vals.code||'').trim(), np=String(vals.password||'').trim();
-  if (!code){ await window.uiAlert('No code entered.'); return; }
-  if (!np){ await window.uiAlert('Password cannot be empty.'); return; }
-
-  var cf;
-  try { cf = await post('/auth/reset/confirm', Object.assign({ code:code, password:np, hint:vals.hint||'' }, reqBody)); }
-  catch(e){ await window.uiAlert('Network error while confirming the reset. Please try again.'); return; }
-
-  if (cf && cf.ok){
-    var hadBio = hadBioFor(id);
-    setLock(id); markUnlocked(id); await writeOffline(id, np);
-    hideOverlay();
-    if (window.SH && window.SH.onLockChange) window.SH.onLockChange();
-    await window.uiAlert('Password reset. It now syncs to all your devices — this one is unlocked, others will ask for the new password once. Biometric unlock needs registering again on every device.');
-    bioAfterPw(id, hadBio);
-    return;
-  }
-  if (cf && cf.error==='badcode') await window.uiAlert('That code is not correct.'+(cf.remaining!=null?(' '+cf.remaining+' attempt(s) left before it expires.'):''));
-  else if (cf && cf.error==='expired') await window.uiAlert('That code has expired or was already used. Start the reset again for a fresh code.');
-  else if (cf && cf.error==='locked') await window.uiAlert('Too many incorrect attempts. Start the reset again for a fresh code.');
-  else await window.uiAlert('Reset failed. Please try again.');
-}
-
-/* ── Wiring ───────────────────────────────────────────────────────────────── */
-function wire(){
-  el('applock-submit').addEventListener('click', async function(){
-    var id=_id, pw=el('applock-pw').value.trim();
-    if (!pw){ el('applock-pw').classList.add('error'); el('applock-err').textContent='Password required.'; return; }
-    if ((_attempts[id]||0) >= 5){
-      var wait = Math.ceil(((_cooldown[id]||0) - Date.now())/1000);
-      if (wait > 0){ el('applock-err').textContent='Too many attempts. Wait '+wait+'s.'; return; }
-      _attempts[id]=0;
-    }
-    var btn = el('applock-submit');
-    btn.disabled=true; btn.textContent='Checking…';
-    try {
-      if (_mode==='setpw'){
-        var hint = (await window.uiPrompt('Optional: a password hint for the recovery email. Leave blank to skip.', { title:'Password hint' })) || '';
-        var d1 = await api(id, '/auth/journal/set-lock', { password:pw, hint:hint });
-        if (d1.ok){
-          setLock(id); markUnlocked(id); await writeOffline(id, pw);
-          hideOverlay();
-          if (_cb) _cb();
-          maybeOfferBio(id);
-        } else el('applock-err').textContent='Failed to set lock. Try again.';
-
-      } else if (_mode==='remove'){
-        var d2 = await api(id, '/auth/journal/remove-lock', { password:pw });
-        if (d2.ok){ removeLock(id); markLocked(id); clearOffline(id); hideOverlay(); if (_cb) _cb(); }
-        else { bump(id); pwErr('Wrong password.'); }
-
-      } else if (_mode==='changepw'){
-        var d3 = await api(id, '/auth/journal/verify', { password:pw });
-        if (d3.ok){
-          var chg = await window.uiForm({
-            title:'Change password', okLabel:'Change password',
-            fields:[
-              { name:'password', label:'New password', type:'password', required:true },
-              { name:'hint', label:'New password hint (optional)' }
-            ]
-          });
-          var np = chg ? String(chg.password||'').trim() : '';
-          if (!np){ el('applock-err').textContent='New password empty — not changed.'; }
-          else {
-            // Remove-then-set, so a failure at either step leaves a coherent
-            // state rather than two live records.
-            var rem = await api(id, '/auth/journal/remove-lock', { password:pw });
-            if (rem.ok){
-              var set = await api(id, '/auth/journal/set-lock', { password:np, hint:(chg.hint||'') });
-              if (set.ok){
-                var hadBio = hadBioFor(id);
-                setLock(id); markUnlocked(id); await writeOffline(id, np);   // fresh version → other devices re-enter once
-                hideOverlay();
-                if (window.SH && window.SH.onLockChange) window.SH.onLockChange();
-                await window.uiAlert('Password changed. Other devices will ask for the new password once, and biometric unlock needs registering again on every device.');
-                bioAfterPw(id, hadBio);
-              } else el('applock-err').textContent='Failed to set the new password.';
-            } else el('applock-err').textContent='Error removing the old lock. Try again.';
-          }
-        } else { bump(id); pwErr('Wrong password.'); }
-
-      } else {
-        var d4 = await verifyNow(id, pw);
-        if (d4.ok){
-          _attempts[id]=0;
-          if (_removeBio) doRemoveBio();
-          else {
-            markUnlocked(id);
-            var cb2=_cb; hideOverlay(); if (cb2) cb2();
-            if (window.SH && window.SH.onLockChange) window.SH.onLockChange();
-            bioAfterPw(id, false);
-          }
-        } else if (d4.offlineUnavailable){
-          el('applock-err').textContent='Offline, and no local verifier on this device.';
-        } else { bump(id); pwErr('Wrong password.'); }
-      }
-    } catch(e){
-      el('applock-err').textContent='Network error. Try again.';
-    }
-    btn.disabled=false;
-    btn.textContent = { setpw:'Set Password', remove:'Remove Lock', changepw:'Verify & Continue' }[_mode] || 'Unlock';
-  });
-
-  el('applock-pw').addEventListener('keydown', function(e){
-    if (e.key==='Enter') el('applock-submit').click();
-    if (e.key==='Escape'){ el('applock-err').textContent=''; el('applock-pw').classList.remove('error'); }
-  });
-
-  el('applock-cancel').addEventListener('click', function(){
-    var m=el('al-menu-btns'); if (m) m.remove();
-    el('applock-submit').style.display='';
-    el('applock-pw').style.display='';
-    if (_mode==='unlock' && mustBlock(_id)) return;   // never dismissible while genuinely gated
-    hideOverlay();
-    if (_onCancel) _onCancel();
-  });
-
-  el('applock-forgot').addEventListener('click', async function(){
-    var btn=el('applock-forgot'), id=_id, m=meta(id);
-    var form = AL_FORM[m.profile] || AL_FORM.tony, email = AL_EMAIL[m.profile] || AL_EMAIL.tony;
-    btn.textContent='Sending…'; btn.disabled=true;
-    try {
-      // The worker mails the hint. Shield is the one program BOTH profiles run,
-      // so `owner` matters here more than anywhere: it is what keeps Veda's
-      // Shield hint out of Tony's inbox and vice versa.
-      var hd = await api(id, '/auth/journal/hint', { owner:m.profile, appName:'Shield', label:'Shield' });
-      if (hd.noLock){
-        el('applock-err').textContent='No lock on the server. Try re-locking.';
-        btn.disabled=false; btn.textContent='Forgot password?'; return;
-      }
-      var hsent = await window._mailRelay(hd);
-      if (hsent){ btn.textContent='Hint sent!'; setTimeout(function(){ btn.textContent='Forgot password?'; btn.disabled=false; }, 3000); }
-      else { btn.textContent='Failed — try again'; btn.disabled=false; }
-    } catch(e){ btn.textContent='Failed — try again'; btn.disabled=false; }
-  });
-
-  el('applock-reset').addEventListener('click', async function(){
-    var btn=el('applock-reset'), prev=btn.textContent;
-    btn.textContent='Sending code…'; btn.disabled=true;
-    await resetFlow(_id);
-    btn.textContent=prev; btn.disabled=false;
-  });
-}
-
-/* Remote lock changes pushed from another device. */
 window._alApplyRemoteLocks = function(remote){
-  remote = remote || {};
-  // Nothing here erases this device's unlock marker. Re-locking is decided by
-  // isUnlocked()'s monotonic comparison against the version below: a genuinely
-  // NEWER version (password changed elsewhere) locks this device out, an
-  // older/equal/absent one leaves it open. Markers are only ever removed by an
-  // explicit user action.
   _locks = {};
-  Object.keys(remote).forEach(function(id){
-    var e = remote[id];
-    _locks[id] = (e && typeof e === 'object') ? { locked: !!e.locked, v: e.v || 0 } : { locked: !!e, v: 0 };
-  });
+  Object.keys(remote || {}).forEach(function(id){ var e = remote[id]; _locks[id] = { locked:true, v:(e && e.v) || 0 }; });
   try { localStorage.setItem('al_locks', JSON.stringify(_locks)); } catch(e){}
-  if (window.SH && window.SH.onRemoteLocks) window.SH.onRemoteLocks();
+  G.refresh(['tony_shield','veda_shield'], true).then(sh('onRemoteLocks'));
 };
 
-function flushPending(){
-  if (_pendingPush && window._fbSaveAppLocks){ window._fbSaveAppLocks(_locks); _pendingPush=false; }
-  if (!window._fbLoadAppLocks) return;
-  window._fbLoadAppLocks().then(function(remote){ if (remote) window._alApplyRemoteLocks(remote); }).catch(function(){});
-}
+['tony','veda'].forEach(function(p){
+  G.define(p + '_shield', {
+    owner: p, ownerName: p === 'veda' ? 'V' : 'T',   // the brief: T and V, never the full names
+    label: 'Shield', appName: 'Shield', offline: true,
+    legacy: G.legacy.al(p + '_shield', 'shield'), onChange: ring,
+    // A password change elsewhere drops this device back to the chooser; a
+    // manual "Lock this device" only re-renders.
+    onBlock: function(id, reason){ (reason === 'manual' ? sh('onLockChange') : sh('onRemoteLocks'))(); }
+  });
+});
+['guardian:status','guardian:change','guardian:unlock'].forEach(function(ev){ window.addEventListener(ev, sh('onLockChange')); });
 
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire);
-else wire();
-if (window._fbReady) flushPending();
-else window.addEventListener('fb-ready', flushPending, { once:true });
-
-/* Gate helper: run cb if this lock is open on this device, otherwise prompt. */
+/* Run cb if this lock is open on this device, otherwise ask; Cancel → onCancel. */
 function gate(id, cb, onCancel){
-  if (!mustBlock(id)) { cb(); return; }
-  showOverlay(id, 'unlock', cb, onCancel);
+  if (!G.mustBlock(id)) { cb(); return; }
+  G.gate(id).then(function(ok){ if (ok) cb(); else if (onCancel) onCancel(); });
 }
 
 return {
-  isLocked:isLocked, isUnlocked:isUnlocked, mustBlock:mustBlock,
-  markLocked:markLocked, markUnlocked:markUnlocked,
-  allLockIds:allLockIds, lockVersion:lockVersion,
-  gate:gate, manage:manage, verifyNow:verifyNow,
-  hasOffline:function(id){ try{ return !!localStorage.getItem('sh_offline_'+id); }catch(e){ return false; } },
-  ICON:ICON
+  isLocked: G.isLocked, isUnlocked: G.isUnlocked, mustBlock: G.mustBlock,
+  markLocked: function(id){ G.lockNow(id); },
+  gate: gate,
+  manage: function(id){ G.manage(id).then(sh('onLockChange')); },
+  // Always asks — never satisfied by this device's unlock. Resolves the password, or null.
+  verify: function(id, title, message){ return G.verify(id, { title: title, message: message }); },
+  hasOffline: G.hasOffline,
+  ICON: ICON
 };
 })();
 </script>
@@ -3041,15 +2284,9 @@ async function releaseDevice(owner){
   // The OWNER's passcode, not the profile you are trying to switch to.
   var id = owner + '_shield';
   if (window.AL.isLocked(id)){
-    for (var i = 0; i < 3; i++){
-      var pw = await window.uiPrompt('Enter the passcode for profile ' + (owner==='veda'?'V':'T') + ' to release this device.',
-        { title:'Release this device', password:true, okLabel:'Release' });
-      if (pw === null || pw === undefined) return false;
-      var r = await window.AL.verifyNow(id, String(pw).trim());
-      if (r.ok) break;
-      if (i === 2) return false;
-      await window.uiAlert('Wrong password.');
-    }
+    var pw = await window.AL.verify(id, 'Release this device',
+      'Enter the passcode for profile ' + (owner==='veda'?'V':'T') + ' to release this device.');
+    if (pw == null) return false;
   }
 
   // Erase the record from the owning profile, not just flag it — a released
@@ -3511,20 +2748,10 @@ async function challenge(title, message){
       { title:title, okLabel:'Continue anyway', danger:true });
     return { ok: !!ok, password: '' };
   }
-  for (var i = 0; i < 3; i++){
-    var pw = await window.uiPrompt(message, { title:title, password:true, okLabel:'Confirm' });
-    if (pw === null || pw === undefined) return { ok:false, password:'' };
-    pw = String(pw).trim();
-    if (!pw) continue;
-    var r = await window.AL.verifyNow(id, pw);
-    if (r.ok){
-      if (r.offline) toast('Verified offline — the Worker was unreachable.');
-      return { ok:true, password: pw };
-    }
-    if (r.offlineUnavailable){ await window.uiAlert('Offline, and this device has no local verifier. Reconnect and try again.'); return { ok:false, password:'' }; }
-    await window.uiAlert('Wrong password.' + (i < 2 ? ' Try again.' : ''));
-  }
-  return { ok:false, password:'' };
+  // Guardian's verify screen always asks (never satisfied by this device's
+  // unlock) and falls back to the offline verifier when the worker is down.
+  var pw = await window.AL.verify(id, title, message);
+  return pw == null ? { ok:false, password:'' } : { ok:true, password: pw };
 }
 
 /* Publish the profile-wide emergency signal.
@@ -5502,6 +4729,6 @@ return {
 </script>
 <script src="tabsync.js"></script>
 <script src="hoverfx.js"></script>
-<script src="LifeHub/lifehub.js" data-lock="#applock-overlay" data-profile-attr="data-profile" defer></script></body>
+<script src="LifeHub/lifehub.js" data-lock="guardian" data-profile-attr="data-profile" defer></script></body>
 </html>
 
