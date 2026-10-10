@@ -32,10 +32,11 @@ const ok = (name, cond, extra) => {
 // Programs on Guardian. A host lists the scripts (besides its .html) that make
 // up its lock surface, so the scan covers code that lives outside the page.
 const HOSTS = {
+  'shield.html': [],
 };
 // Not migrated yet (shrinks phase by phase; must end empty).
 const PENDING = [
-  'index.html', 'shield.html', 'Notebook/apps/myjournal.js', 'Notebook/apps/brainstorm.js',
+  'index.html', 'Notebook/apps/myjournal.js', 'Notebook/apps/brainstorm.js',
   'mylist.html', 'oneinbox.html', 'magi.html',
   'tradehub.html', 'insight.html', 'vault.html', 'riftiq.html', 'solace.html',
 ];
