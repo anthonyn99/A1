@@ -100,8 +100,18 @@ used.
   Firestore. The same goes for small per-device settings, like popup sizes and
   the last tab.
 - **Vault cloud files:** each device reconnects Google Drive/Dropbox once on the
-  new host, after the provider consoles list it (see the owner checklist in
-  the session notes: Google OAuth origin and redirect, Dropbox redirect).
+  new host, after the provider consoles list it:
+  - **Google Cloud Console** → Credentials → OAuth client
+    `982539604706-vmc7tbc0…` → add the JavaScript origin
+    `https://a1-priv.av1.workers.dev`, and the redirect URI
+    `https://a1-priv.av1.workers.dev/Vault/oauth-silent.html`.
+  - **Dropbox App Console** → app `cws7hl139d725oc` → OAuth 2 → add the
+    redirect URI `https://a1-priv.av1.workers.dev/vault.html`.
+- **Plaid OAuth banks** (Chase, Capital One, Wells Fargo): add
+  `https://a1-priv.av1.workers.dev/insight.html` under Plaid Dashboard →
+  Developers → API → Allowed redirect URIs. Until then those banks link
+  without the OAuth redirect (insight-api's existing fallback), and every
+  other bank is unaffected.
 - **TradeHub's local journal snapshots** (IndexedDB) stay on the old origin. The
   Firestore snapshot copy is unaffected.
 - **Tab de-duplication after a browser restart** (tabsync) only works within one
