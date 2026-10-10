@@ -45,7 +45,7 @@ const mock = {
   await c.send('Page.enable');
   await c.send('Runtime.enable');
   const errors = [];
-  c.on && c.on('Runtime.exceptionThrown', (m) => errors.push(m.exceptionDetails && (m.exceptionDetails.exception || {}).description));
+  c.ws.addEventListener('message', (ev) => { const m = JSON.parse(ev.data); if (m.method === 'Runtime.exceptionThrown') errors.push(((m.params.exceptionDetails || {}).exception || {}).description || m.params.exceptionDetails.text); });
   const sr = `document.querySelector('guardian-lock') && document.querySelector('guardian-lock').shadowRoot`;
   const dlg = () => evalJs(c, `const s = ${sr}; const ov = s && s.querySelector('.ov');
     return JSON.stringify(ov ? { open: true, theme: ov.dataset.theme, title: s.querySelector('.title').textContent,
