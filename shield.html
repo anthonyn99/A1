@@ -2751,7 +2751,8 @@ async function challenge(title, message){
   // Guardian's verify screen always asks (never satisfied by this device's
   // unlock) and falls back to the offline verifier when the worker is down.
   var pw = await window.AL.verify(id, title, message);
-  return pw == null ? { ok:false, password:'' } : { ok:true, password: pw };
+  if (pw == null) return { ok:false, password:'' };
+  return { ok:true, password: pw };
 }
 
 /* Publish the profile-wide emergency signal.
