@@ -535,6 +535,7 @@ var CSS = [
 '.eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--txm);cursor:pointer;padding:6px;display:flex;border-radius:4px}',
 '.eye:hover{color:var(--txd)}.eye svg{width:16px;height:16px}',
 '.err{font:600 12px/1.4 var(--f);color:var(--red);text-align:center;min-height:16px}',
+'.caps{font:600 11px var(--f);color:#e0b874;margin:5px 0 0 2px;text-align:left}.caps[hidden]{display:none}',
 '.note{font:500 12px/1.45 var(--f);color:var(--txd);text-align:center}',
 'button.b{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:42px;padding:10px 14px;border-radius:var(--rb);border:1px solid var(--bdl);background:var(--s2);color:var(--tx);font:700 var(--btn-fs) var(--f);letter-spacing:var(--btn-ls);text-transform:var(--btn-tt);cursor:pointer;transition:filter .15s,border-color .15s,box-shadow .15s,transform .05s}',
 'button.b svg{width:15px;height:15px;flex:none}',
@@ -599,8 +600,15 @@ function pwField(ph, opts) {
   var eye = h('button', { 'class': 'eye', type: 'button', 'aria-label': 'Show password', html: I.eye });
   eye.onclick = function () { var show = inp.type === 'password'; inp.type = show ? 'text' : 'password'; eye.innerHTML = show ? I.eyeOff : I.eye; eye.setAttribute('aria-label', show ? 'Hide password' : 'Show password'); inp.focus(); };
   var wrap = h('div', { 'class': 'pw' }, [inp, eye]);
-  wrap.input = inp;
-  return wrap;
+  // Caps Lock is why a password "doesn't work" often enough to say so, and a
+  // laptop may have no indicator for it.
+  var caps = h('div', { 'class': 'caps', text: 'Caps Lock is on' });
+  caps.hidden = true;
+  var check = function (e) { try { caps.hidden = !(e.getModifierState && e.getModifierState("CapsLock")); } catch (x) {} };
+  inp.addEventListener('keydown', check); inp.addEventListener('keyup', check);
+  var outer = h('div', { 'class': 'pwf' }, [wrap, caps]);
+  outer.input = inp;
+  return outer;
 }
 function field(label, el) { return h('label', { 'class': 'fl' }, [label, el]); }
 
