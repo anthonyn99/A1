@@ -30,13 +30,13 @@ const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 // Every program LifeHub is integrated into, with what its tag must carry.
 const HOSTS = {
   'oneinbox.html': { lock: 'guardian' },
-  'tradehub.html': { lock: '#applock-overlay' },
+  'tradehub.html': { lock: 'guardian' },
   'mylist.html':   { lock: 'guardian', profile: true },
-  'insight.html':  { lock: '#lockScreen' },
-  'vault.html':    { lock: '#applock-overlay' },
-  'solace.html':   { lock: '#applock-overlay' },
+  'insight.html':  { lock: 'guardian' },
+  'vault.html':    { lock: 'guardian' },
+  'solace.html':   { lock: 'guardian' },
   'shield.html':   { lock: 'guardian', profile: true },
-  'riftiq.html':   { lock: '#applock-overlay' },
+  'riftiq.html':   { lock: 'guardian' },
   'magi.html':     { lock: '#lockScreen' },
 };
 // Deliberately without it: Index (the suite shell) and Veda's own program.

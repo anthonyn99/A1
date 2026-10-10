@@ -38,11 +38,15 @@ const HOSTS = {
   'mylist.html': [],
   'oneinbox.html': [],
   'magi.html': [],
+  // A1-Priv (loaded by absolute URL; tests/moved.js reads them from ../A1-Priv).
+  'tradehub.html': [],
+  'insight.html': [],
+  'vault.html': [],
+  'riftiq.html': [],
+  'solace.html': [],
 };
 // Not migrated yet (shrinks phase by phase; must end empty).
-const PENDING = [
-  'tradehub.html', 'insight.html', 'vault.html', 'riftiq.html', 'solace.html',
-];
+const PENDING = [];
 // Never touched by Guardian (user decision 2026-10-10): StudyOS keeps its own
 // backend (V1/ is Veda's StudyOS world), and Vault/'s WebAuthn is the vault
 // MASTER-password encryption (a PRF-derived key), not a lock.
