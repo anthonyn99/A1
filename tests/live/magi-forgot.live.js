@@ -33,7 +33,7 @@ const ORIGIN = 'https://anthonyn99.github.io';
     console.log('\nmagi.html — ' + profile);
     const q = profile === 'tony' ? '' : '?profile=veda';
     await m.send('Page.navigate', { url: ORIGIN + '/A1/magi.html?blank' }); await sleep(800);
-    await evalJs(m, `localStorage.clear(); return 1;`);
+    await evalJs(m, `localStorage.clear(); sessionStorage.clear(); return 1;`);
     await m.send('Page.navigate', { url: ORIGIN + '/A1/magi.html' + q }); await sleep(4000);
 
     const shown = JSON.parse(await evalJs(m, `var s = document.getElementById('lockScreen');
