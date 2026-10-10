@@ -1084,6 +1084,16 @@ window.Guardian = {
   prepaint: prepaint,
   hideRoot: function (id) { hideRoot(def(id)); },
   showRoot: function (id) { showRoot(def(id)); },
+  // The locked thing itself was deleted (a journal entry): drop every trace of
+  // its lock on this device, and — given the password — the server record too.
+  forget: function (id, password) {
+    var d = def(id);
+    ['gd.u.', 'gd.c.', 'gd.b.', 'gd.s.', 'gd.o.', 'gd.a.'].forEach(function (p) { sDel(p + d.key); });
+    cookieSet(d.key, null); showRoot(d);
+    var done = password ? Promise.resolve(be(d).remove(d, password)).catch(function () {}) : Promise.resolve();
+    delete DEFS[id];
+    return done;
+  },
   isOpen: function () { return !!OPEN; },
   // Is there an offline verifier on this device (offline:true locks)?
   hasOffline: function (id) { var d = def(id); if (jGet('gd.o.' + d.key)) return true; try { return !!localStorage.getItem('sh_offline_' + d.entryId); } catch (e) { return false; } },
