@@ -11,6 +11,8 @@ account 1, deployed from this PC. Everything below moved in on 2026-10-10:
 | Insight | https://a1-priv.av1.workers.dev/insight.html | `insight.html`, now a redirect stub |
 | Vault | https://a1-priv.av1.workers.dev/vault.html | `vault.html`, now a redirect stub |
 | Vault Launcher extension + Vault modules | `A1-Priv/Vault/` | `A1\Vault`, now a git-ignored junction to it |
+| RiftIQ (second move) | https://a1-priv.av1.workers.dev/riftiq.html | `riftiq.html`, now a redirect stub |
+| Solace (second move) | https://a1-priv.av1.workers.dev/solace.html | `solace.html`, now a redirect stub |
 
 A1 stays public on GitHub Pages. The moved pages still use A1's shared files
 (LifeHub, Notebook, tabsync, dragsort, hoverfx, resizegrip, sweep). They load
@@ -22,6 +24,18 @@ day-to-day work there.
 
 **Done 2026-10-10, all three phases, verified live.** To move another program,
 follow "Moving another program later" at the bottom.
+
+**Second move, same day: RiftIQ and Solace**, done with that recipe.
+- warroom-api (it refuses unlisted origins) now allows this host. The other
+  workers they call (proview-api, personal-ai) answer `*`, and
+  taskhub-reminders already allowed it.
+- RiftIQ had TradeHub's sign-in race (listeners attached before anonymous
+  auth). It is fixed the same way, behind `_fbAuthed`.
+- LifeHub's `MOVED` and Index's `MOVED_PROGRAMS` also map the old
+  `warroom.html`. Both stores were verified on the server.
+- RiftIQ's live game card reads the local WarRoom Live Link proxy
+  (127.0.0.1:2998), which accepts any origin. Brave asks once per site for
+  local-network access, so allow it the first time on the new host.
 
 ## Why a Worker and not Cloudflare Pages
 
