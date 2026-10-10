@@ -120,6 +120,8 @@ const PAGES = [
 
     // A fresh device.
     await fresh(P.file);
+    // TradeHub compiles its React in the page, so its lock script runs late on a cold load.
+    for (let i = 0; i < 20 && !(await dlg()).open; i++) await sleep(500);
     d = await dlg();
     ok('a fresh device: asks, content hidden', d.open && !(await shown(P.root)), JSON.stringify(d));
   }
