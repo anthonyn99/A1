@@ -152,6 +152,9 @@ const FAKE_AUTH = `(function(){ if (window.top !== window) return;
     ok('the field keeps focus (a phone keyboard stays up)', after.focused, JSON.stringify(after));
     ok('the text never runs under the eye', await evalJs(c, `const s = document.querySelector('guardian-lock').shadowRoot; const i = s.querySelector('.pw input'); return parseFloat(getComputedStyle(i).paddingRight) >= ${mobile ? 44 : 36};`));
     await shot(tag + '-eye-shown');
+    // all:initial on the host drops the page's rule; Guardian restates it, so no blue tap box.
+    const tapBox = JSON.parse(await evalJs(c, `const s = document.querySelector('guardian-lock').shadowRoot; const els = [...s.querySelectorAll('button, input, .card')]; return JSON.stringify({ n: els.length, bad: els.filter(e => { const st = getComputedStyle(e); return st.webkitTapHighlightColor !== 'rgba(0, 0, 0, 0)'; }).map(e => e.className || e.tagName), sel: [...s.querySelectorAll('button')].filter(b => getComputedStyle(b).userSelect !== 'none').length });`));
+    ok('no blue tap box on any button or field, and a held button never selects its label', tapBox.n > 3 && !tapBox.bad.length && !tapBox.sel, JSON.stringify(tapBox));
     if (mobile) {
       // The keyboard takes half the screen: the long form must scroll, never clip.
       await c.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 420, deviceScaleFactor: 2, mobile: true });
