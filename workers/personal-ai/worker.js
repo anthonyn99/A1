@@ -8,6 +8,7 @@
 //   POST /taskhub/parse   (was taskhub-voice /parse)  — voice/text → TaskHub actions
 //   POST /taskhub/prep    — one flagged task → AI prep kit (prompt, draft, sites, apps)
 //   POST /journal/format  (was journal-ai /format)    — messy text → clean HTML
+//   GET  /quote/daily     — Everwell's quote of the day (ORCA → Gemini, cached per day)
 //   GET  /health          — status (which keys are configured)
 //
 // Each person (Tony / Veda) has a SINGLE key shared across all three features.
@@ -3128,6 +3129,146 @@ async function handleCloudSearch(body, env) {
   return json({ ok: true, matches, answer: String(v.answer || '') });
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// FEATURE — Everwell's quote of the day  (GET /quote/daily?profile=tony&date=YYYY-MM-DD)
+//
+// One original, unattributed line per day for Everwell's Dashboard and Mindset
+// (A1-Priv/docs/Everwell/plan.md, Phase 4). Generated at most ONCE per day and
+// cached in KV, so a page opening a hundred times costs one AI call.
+//
+//   1. ORCA (Tony's own router, key TONY_ORCA_KEY): Claude Pro first — the
+//      best writer of the lot — then ORCA's own pick. Every routable ORCA model
+//      on Tony's profile is a signed-in BROWSER account, which only answers while
+//      his PC bridge is up; ORCA then says 503/404 + Retry-After and we stop
+//      asking it at once rather than burn the budget.
+//   2. Gemini (TONY_GEMINI_KEY) through runModelChain, quality-first models.
+//   3. Nothing: { ok:false, error:'unavailable' } and the page keeps its own
+//      local line (EWCore.localQuote). Provider messages never leave the worker.
+//
+// Guard rails: profile 'tony' only; the date must be within a day of today
+// (UTC), so the cache cannot be bypassed by asking for arbitrary dates; an
+// older day than the cached one is never generated. KV: ONE write per day on
+// TOKEN_CACHE (account 1's write budget, memory kv-write-budget).
+// ════════════════════════════════════════════════════════════════════════════
+const QUOTE_ORCA_URL = 'https://orca.vedapatel05.workers.dev/v1/chat/completions';
+const QUOTE_ORCA_MODELS = ['claude_pro/pro', null];    // null = ORCA picks among the profile's routable models
+const QUOTE_ORCA_BUDGET_MS = 45000;                    // browser units are slow; one shared budget for both tries
+const QUOTE_GEMINI_MODELS = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite'];
+const QUOTE_KV_PREFIX = 'ew_quote:';
+const QUOTE_RECENT = 30;
+const QUOTE_THEMES = ['discipline', 'resilience', 'growth', 'mindset', 'faith', 'patience', 'focus', 'gratitude', 'courage', 'consistency', 'rest and renewal', 'purpose'];
+
+function quoteDateOk(date, nowMs) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) return false;
+  const t = Date.parse(date + 'T00:00:00Z');
+  if (isNaN(t)) return false;
+  const today = Date.parse(new Date(nowMs).toISOString().slice(0, 10) + 'T00:00:00Z');
+  return Math.abs(t - today) <= 86400000;   // device time zones put "today" within ±1 day of UTC
+}
+function quotePrompt(date, recent) {
+  const day = Math.round(Date.parse(date + 'T00:00:00Z') / 86400000);
+  const theme = QUOTE_THEMES[((day % QUOTE_THEMES.length) + QUOTE_THEMES.length) % QUOTE_THEMES.length];
+  return [
+    'Write ONE original quote of the day for Everwell, a personal app for growing in mind, health and faith.',
+    `Today's theme: ${theme}.`,
+    'Rules:',
+    '- 8 to 24 words, one or two short sentences.',
+    '- Original wording. Never a famous or existing quote, never a paraphrase of one.',
+    '- No author, no attribution, no quotation marks, no hashtags, no emoji.',
+    '- Grounded and specific, not sentimental or cheesy. Speak to someone training their body, mind and faith.',
+    recent.length ? '- Do not repeat or closely echo any of these recent lines:\n' + recent.slice(-QUOTE_RECENT).map(r => '  * ' + r).join('\n') : '',
+    'Reply with JSON only: {"quote": "..."}',
+  ].filter(Boolean).join('\n');
+}
+// The model's reply → one clean line, or null when it breaks a rule (the chain
+// then tries the next source). Accepts bare JSON, JSON inside prose or a code
+// fence, or a bare sentence.
+function cleanQuote(raw, recent) {
+  let s = String(raw == null ? '' : raw).trim();
+  if (!s) return null;
+  let parsed = null;
+  try { parsed = JSON.parse(s); } catch (e) {
+    const m = s.match(/"quote"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    if (m) { try { parsed = { quote: JSON.parse('"' + m[1] + '"') }; } catch (e2) {} }
+  }
+  if (parsed && typeof parsed === 'object') s = typeof parsed.quote === 'string' ? parsed.quote : '';
+  s = s.replace(/^```[a-z]*|```$/g, '').replace(/^[\s"“”'‘’]+|[\s"“”'‘’]+$/g, '').replace(/\s+/g, ' ').trim();
+  if (s.length < 25 || s.length > 180) return null;
+  if (/[\r\n]/.test(s)) return null;
+  if (/[—–-]\s*[A-Z][\w.']*(?:\s+[A-Z][\w.']*)*\s*$/.test(s)) return null;      // "… — Some Name"
+  if (/\b(once said|as .{1,30} said|according to)\b/i.test(s)) return null;
+  if (/#|[\u{1F300}-\u{1FAFF}]/u.test(s)) return null;
+  const norm = (x) => String(x).toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim();
+  if ((recent || []).some(r => norm(r) === norm(s))) return null;
+  return s;
+}
+async function orcaQuote(env, prompt, recent) {
+  if (!env.TONY_ORCA_KEY) return { ok: false, why: 'orca:no-key' };
+  const deadline = Date.now() + QUOTE_ORCA_BUDGET_MS;
+  let why = 'orca:no-usable-answer';
+  for (const model of QUOTE_ORCA_MODELS) {
+    const left = deadline - Date.now();
+    if (left < 3000) { why = 'orca:budget-spent'; break; }
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), left);
+    let r;
+    try {
+      const body = { messages: [{ role: 'user', content: prompt }], max_tokens: 160, temperature: 0.9 };
+      if (model) body.model = model;
+      r = await fetch(QUOTE_ORCA_URL, { method: 'POST', signal: ac.signal,
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + env.TONY_ORCA_KEY }, body: JSON.stringify(body) });
+    } catch (e) {
+      clearTimeout(timer);
+      return { ok: false, why: e && e.name === 'AbortError' ? 'orca:timeout' : 'orca:network' };   // a timeout has spent the budget
+    } finally { clearTimeout(timer); }
+    if (r.status === 401 || r.status === 403) return { ok: false, why: 'orca:auth' };           // bad/rotated key: no point trying again
+    if (r.status === 503 || r.status === 404) return { ok: false, why: 'orca:unavailable', retryAfter: r.headers.get('Retry-After') }; // PC bridge away
+    if (r.status === 429) return { ok: false, why: 'orca:rate-limited', retryAfter: r.headers.get('Retry-After') };
+    if (!r.ok) { why = 'orca:' + r.status; continue; }                                             // e.g. 502 session expired → let ORCA pick another
+    let d = null;
+    try { d = await r.json(); } catch (e) { why = 'orca:bad-envelope'; continue; }
+    const text = d && d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+    const q = cleanQuote(text, recent);
+    if (q) return { ok: true, text: q, via: 'orca', model: (d && d.model) || model || 'orca' };
+    why = 'orca:invalid-output';
+  }
+  return { ok: false, why };
+}
+async function geminiQuote(env, prompt, recent) {
+  const key = env.TONY_GEMINI_KEY;
+  if (!key) return { ok: false, why: 'gemini:no-key' };
+  try {
+    const r = await runModelChain(QUOTE_GEMINI_MODELS, key, {
+      prompt, feature: 'quote', maxOutputTokens: 200, deadlineMs: 25000, timeoutMs: 12000,
+      schema: { type: 'OBJECT', properties: { quote: { type: 'STRING' } }, required: ['quote'] },
+      validate: (v) => !!cleanQuote(v && v.quote, recent),
+    });
+    const q = !r.soft && cleanQuote(r.value && r.value.quote, recent);
+    return q ? { ok: true, text: q, via: 'gemini', model: r.model } : { ok: false, why: 'gemini:invalid-output' };
+  } catch (e) { return { ok: false, why: 'gemini:failed' }; }
+}
+async function handleQuote(url, env) {
+  const profile = url.searchParams.get('profile');
+  const date = url.searchParams.get('date') || '';
+  if (profile !== 'tony') return json({ ok: false, error: 'unsupported profile' }, 400);
+  if (!quoteDateOk(date, Date.now())) return json({ ok: false, error: 'bad date' }, 400);
+  const kvKey = QUOTE_KV_PREFIX + profile;
+  let st = null;
+  try { st = env.TOKEN_CACHE ? await env.TOKEN_CACHE.get(kvKey, 'json') : null; } catch (e) {}
+  if (st && st.date === date && st.text) return json({ ok: true, date, quote: st.text, source: st.via, cached: true });
+  if (st && st.date > date) return json({ ok: false, error: 'unavailable' });       // a past day: never generated afresh
+  const recent = (st && Array.isArray(st.recent)) ? st.recent : [];
+  const prompt = quotePrompt(date, recent);
+  const why = [];
+  let res = await orcaQuote(env, prompt, recent);
+  if (!res.ok) { why.push(res.why); const g = await geminiQuote(env, prompt, recent); if (g.ok) res = g; else why.push(g.why); }
+  if (!res.ok) { console.warn('[quote] no source answered: ' + why.join(' | ')); return json({ ok: false, error: 'unavailable' }); }
+  if (why.length) console.log('[quote] ' + res.via + ' after: ' + why.join(' | '));
+  const next = { date, text: res.text, via: res.via, model: res.model, at: Date.now(), recent: recent.concat([res.text]).slice(-QUOTE_RECENT) };
+  try { if (env.TOKEN_CACHE) await env.TOKEN_CACHE.put(kvKey, JSON.stringify(next)); } catch (e) { console.warn('[quote] KV write failed'); }
+  return json({ ok: true, date, quote: res.text, source: res.via });
+}
+
 export default {
   async fetch(req, env) {
     if (req.method === 'OPTIONS') return new Response(null, { headers: cors() });
@@ -3138,8 +3279,10 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 20, // bump when verifying a deploy went live
-        features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search'],
+        version: 21, // bump when verifying a deploy went live
+        features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search', 'quote'],
+        quoteModels: { orca: QUOTE_ORCA_MODELS.map(m => m || 'orca:auto'), gemini: QUOTE_GEMINI_MODELS },
+        orcaKey: !!env.TONY_ORCA_KEY,
         models: MODELS,
         listModels: LIST_MODELS,
         listDictationModels: LIST_DICTATION_MODELS,
@@ -3158,6 +3301,8 @@ export default {
         time: new Date().toISOString(),
       });
     }
+
+    if (req.method === 'GET' && path === '/quote/daily') return handleQuote(url, env);
 
     if (req.method === 'POST') {
       let body;
