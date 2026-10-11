@@ -65,6 +65,10 @@ const DELIBERATE_FULL_BLEED = [
   // page showing beside it on a very wide screen, which is the opposite of
   // what a lock screen is for.
   /^\.gate$/,
+  // RiftIQ's mastery detail popup: a blurred dim (inset:0, rgba background)
+  // whose name doesn't say overlay. The window inside it is
+  // `#mastery-detail-card`, held to min(440px, 100%) and centred by flex.
+  /^#mastery-detail$/,
 ];
 const failures = [];
 
