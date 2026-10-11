@@ -172,6 +172,7 @@ const mock = {
   await fresh({ seed });
   await tapIntro();
   await js(`EWApp.go('fitness'); return 1;`); await sleep(1500);
+  ok('the sync status is a dot and a word, no outline', await js(`const s = getComputedStyle(document.getElementById('ew-sync')); return s.borderTopWidth === '0px' || s.borderTopStyle === 'none';`));
   ok('your circuits load from the same doc Solace uses', await js(`return EWFitness.state().loaded && [...document.querySelectorAll('#mc-circuits-list .circuit-card-title')].map(e => e.textContent).join() === 'Real Core,Second Circuit';`),
     await js(`return JSON.stringify(EWFitness.state());`));
   ok('…and nothing of them is cached in browser storage', await js(`return !Object.keys(localStorage).some(k => /^mc_|motioncore|Real Core/.test(k + localStorage.getItem(k)));`));
@@ -186,6 +187,9 @@ const mock = {
   a = await rect('#mc-circuits-list .circuit-card:nth-child(3) .circuit-card-title'); b = await rect('#mc-circuits-list .circuit-card:nth-child(1) .circuit-card-title');
   await mouse('mousePressed', a.x, a.y);
   for (let i = 1; i <= 14; i++) { await mouse('mouseMoved', a.x, a.y + (b.y - 30 - a.y) * i / 14); await sleep(16); }
+  await sleep(250);
+  ok('mid-drag, the other cards SLIDE aside like Nutrition\'s (transform transition, moved)', await js(`const n = document.querySelector('#mc-circuits-list .circuit-card:nth-child(1)'); const cs = getComputedStyle(n);
+    return /transform/.test(cs.transitionProperty) && cs.transform !== 'none';`), await js(`const cs = getComputedStyle(document.querySelector('#mc-circuits-list .circuit-card:nth-child(1)')); return cs.transitionProperty + ' | ' + cs.transform;`));
   await mouse('mouseReleased', a.x, b.y - 30); await sleep(2300);
   ok('dragging a circuit reorders the saved list', await js(`return __fakeFs.docs['dashboards/motioncore'].circuits.map(c => c.name).join() === 'New One,Real Core,Second Circuit';`),
     await js(`return __fakeFs.docs['dashboards/motioncore'].circuits.map(c => c.name).join();`));
