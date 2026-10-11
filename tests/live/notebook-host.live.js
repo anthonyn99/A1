@@ -100,8 +100,8 @@ const SEED = {
   await sleep(300);
   await js(`var e=document.getElementById('nb-page-editor'); e.focus(); var r=document.createRange(); r.selectNodeContents(e); r.collapse(false); var s=getSelection(); s.removeAllRanges(); s.addRange(r); 1`);
   await c.send('Input.insertText', { text: 'Breathe before entries.' });
-  await sleep(3500);
-  D = await doc();
+  // The autosave is debounced: wait for it rather than a fixed sleep it can just miss.
+  for (let i = 0; i < 40; i++) { await sleep(250); D = await doc(); if (D && D['e_daily-reminder'] && /Breathe before entries\./.test(D['e_daily-reminder'].data.html)) break; }
   ok('editing it saves it under its fixed id', D && D['e_daily-reminder'] && /Breathe before entries\./.test(D['e_daily-reminder'].data.html), JSON.stringify(D && D['e_daily-reminder']));
   ok('...and onSave names it', await js(`return window.__saved.includes('daily-reminder');`));
   // The trash's "delete forever" is the one path left that names it directly.
