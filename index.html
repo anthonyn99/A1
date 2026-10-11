@@ -10522,6 +10522,8 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _vdPrepUnsub    = null;   // Veda AI task prep kits (see VD-PREP block)
   let _vdPcAppsUnsub  = null;   // apps on Veda's PC, via the StudyOS bridge (names + ids only)
   let _plansUnsub     = null;   // Plans → both TaskHubs mirror (read-only)
+  let _ewRotUnsub     = null;   // Everwell rotation → Tony's workout task (read-only)
+  let _ewPrayUnsub    = null;   // Everwell's own Prayer habit row (two-way, its own doc)
   let _plansSaveTimer = null;
   let _ecUnsubscribe  = null;
   let _crUnsubs       = [];     // Claude reset times, one per profile (read-only)
@@ -11531,6 +11533,48 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       }
     }, label);
 
+    // ── Everwell → Tony's TaskHub (A1-Priv/docs/Everwell/plan.md, Phase 5) ────
+    // Everwell (A1-Priv/everwell.html) never writes dashboards/main. It feeds
+    // Tony's TaskHub through two documents it owns:
+    //   dashboards/everwell_tony    READ ONLY here. Its `rotation` names each
+    //                               day's workout; Tony's TaskHub turns that into
+    //                               one Health task per day (today + 6) through
+    //                               its OWN save, tagged _ewId, the way Plans
+    //                               items are tagged _planId.
+    //   dashboards/everwell_prayer  { done: { "YYYY-MM-DD": bool } }: Everwell's
+    //                               own "Prayer" row in Tony's Daily Habits. A
+    //                               tick in either app writes that one date
+    //                               (merge); both listen. Never `habits` / `hc`.
+    // Dates are the device's LOCAL calendar day (Everwell's standing rule).
+    const ewRotRef = doc(db, 'dashboards/everwell_tony');
+    const ewPrayRef = doc(db, 'dashboards/everwell_prayer');
+    if (_ewRotUnsub) { _ewRotUnsub(); _ewRotUnsub = null; }
+    if (_ewPrayUnsub) { _ewPrayUnsub(); _ewPrayUnsub = null; }
+    _ewRotUnsub = onSnapshot(ewRotRef, { includeMetadataChanges: true }, (snap) => {
+      // A cached snapshot carries no news (same rule as the Plans mirror).
+      if (snap.metadata && snap.metadata.fromCache) return;
+      const d = snap.exists() ? (snap.data() || {}) : {};
+      // null = "known: no rotation", which removes upcoming workout items;
+      // undefined (before this fires) = "not known yet", which touches nothing.
+      window._ewRotation = d.rotation || null;
+      window.dispatchEvent(new CustomEvent('fb-ew-rotation', { detail: window._ewRotation }));
+    }, (err) => { console.warn('[Everwell] rotation onSnapshot error:', err && err.code); });
+    _ewPrayUnsub = onSnapshot(ewPrayRef, { includeMetadataChanges: true }, (snap) => {
+      if (snap.metadata && snap.metadata.fromCache && !snap.exists()) return;
+      if (snap.metadata && snap.metadata.hasPendingWrites) return;      // our own tick, already shown
+      const d = snap.exists() ? (snap.data() || {}) : {};
+      window._ewPrayer = Object.assign({}, d.done || {});
+      window.dispatchEvent(new CustomEvent('fb-ew-prayer', { detail: window._ewPrayer }));
+    }, (err) => { console.warn('[Everwell] prayer onSnapshot error:', err && err.code); });
+    // One date, merged: a tick here never rewrites another day or another device's tick.
+    window._fbEwPrayerSet = (dk, val) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dk || '')) return Promise.resolve();
+      window._ewPrayer = Object.assign({}, window._ewPrayer || {}, { [dk]: !!val });
+      window.dispatchEvent(new CustomEvent('fb-ew-prayer', { detail: window._ewPrayer }));
+      return _fbWriteRetry(() => setDoc(ewPrayRef, { done: { [dk]: !!val }, savedAt: Date.now(), by: 'taskhub' }, { merge: true }), 'Everwell prayer')
+        .catch(e => { console.warn('[Everwell] prayer tick failed:', e && e.code); window.dispatchEvent(new CustomEvent('fb-ew-prayer-error')); });
+    };
+
     // ── Plans mirror ──────────────────────────────────────────────────────────
     // Shared commitments live in dashboards/plans, one top-level field per plan
     // ("p_{id}") exactly like the journal's e_{id}, so two devices editing two
@@ -12093,6 +12137,8 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     if (_vdPrepUnsub)    { _vdPrepUnsub();    _vdPrepUnsub    = null; }
     if (_vdPcAppsUnsub)  { _vdPcAppsUnsub();  _vdPcAppsUnsub  = null; }
     if (_plansUnsub)     { _plansUnsub();     _plansUnsub     = null; }
+    if (_ewRotUnsub)     { _ewRotUnsub();     _ewRotUnsub     = null; }
+    if (_ewPrayUnsub)    { _ewPrayUnsub();    _ewPrayUnsub    = null; }
     if (_ecUnsubscribe)  { _ecUnsubscribe();  _ecUnsubscribe  = null; }
     _crUnsubs.forEach(u => { try { u(); } catch (e) {} }); _crUnsubs = [];
     if (_alUnsubscribe)  { _alUnsubscribe();  _alUnsubscribe  = null; }
