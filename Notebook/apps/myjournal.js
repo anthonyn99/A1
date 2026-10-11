@@ -77,12 +77,6 @@ var html = `
     </button>
     <div class="toolbar-sep"></div>
 
-    <!-- TAGS (moved into the toolbar — Batch 12 #3) -->
-    <div id="tj-tags-row" style="display:none;">
-      <span class="tags-label">Tags</span>
-      <input id="tj-add-tag-input" type="text" placeholder="+ add tag" maxlength="20" />
-    </div>
-
     <span id="tj-sync-pill" class="tj-sync-pill tj-sync-idle">
       <span class="tj-sync-dot"></span>
       <span id="tj-sync-text">Idle</span>
@@ -367,7 +361,7 @@ function _tjPinFirst() {
   var head = [];
   _tjPinned.forEach(function (p) {
     var e = state.entries.find(function (x) { return x.id === p.id; });
-    if (!e) e = { id: p.id, title: p.title || 'Untitled', template: 'page', created: 0, updated: 0, tags: [], data: { html: p.html || '', attachments: [] }, rev: 0 };
+    if (!e) e = { id: p.id, title: p.title || 'Untitled', template: 'page', created: 0, updated: 0, data: { html: p.html || '', attachments: [] }, rev: 0 };
     delete e.trashed; delete e.trashChangedAt;
     head.push(e);
   });
@@ -912,7 +906,7 @@ function getActive() { return state.entries.find(e => e.id === state.activeId) |
 
 function createEntry(template) {
   const id = 'e_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-  const entry = { id, title: '', template: template || 'page', created: Date.now(), updated: Date.now(), tags: [], data: {} };
+  const entry = { id, title: '', template: template || 'page', created: Date.now(), updated: Date.now(), data: {} };
   if (template === 'whiteboard') entry.data = { attachments: [] };
   if (template === 'mindmap') entry.data = { attachments: [] };
   if (template === 'page') entry.data = { html: '', attachments: [] };
@@ -1028,11 +1022,10 @@ window._tjSetPageMargins = function(m) {
   if (e && _TJ_SHEET_TEMPLATES.includes(e.template)) { e.data.margins = m; e.updated = Date.now(); autoSave(); }
 };
 
-// ── UNIFIED SEARCH: title + full content + tags; multi-tag filter ──
-let tjTagFilters = [];
+// ── UNIFIED SEARCH: title + full content ──
 function _tjEntryText(e) {
   const d = e.data || {};
-  const parts = [e.title || '', (e.tags||[]).join(' ')];
+  const parts = [e.title || ''];
   if (d.html) parts.push(String(d.html).replace(/<[^>]*>/g, ' '));
   if (d.dates) Object.values(d.dates).forEach(dd => { if (dd && dd.html) parts.push(String(dd.html).replace(/<[^>]*>/g, ' ')); });
   if (d.nodes) d.nodes.forEach(n => parts.push(n.label || ''));
@@ -1044,37 +1037,6 @@ function _tjHlTitle(text, q) {
   const i = text.toLowerCase().indexOf(q);
   if (i < 0) return esc(text);
   return esc(text.slice(0,i)) + '<mark class="docx-hl">' + esc(text.slice(i, i+q.length)) + '</mark>' + esc(text.slice(i+q.length));
-}
-function _tjRenderTagChips(live) {
-  let row = document.getElementById('tj-tagfilter-row');
-  if (!row) {
-    row = document.createElement('div');
-    row.id = 'tj-tagfilter-row';
-    row.className = 'docx-tagchips';
-    const listEl = document.getElementById('tj-entries-list');
-    listEl.parentNode.insertBefore(row, listEl);
-  }
-  const all = [...new Set(live.reduce((a,e) => a.concat(e.tags||[]), []))].sort((a,b)=>a.localeCompare(b));
-  tjTagFilters = tjTagFilters.filter(t => all.includes(t));
-  row.classList.toggle('on', all.length > 0);
-  row.style.display = '';
-  row.innerHTML = '';
-  if (!all.length) return;
-  const lbl = document.createElement('div');
-  lbl.className = 'docx-tagchips-lbl';
-  lbl.textContent = 'Filter by tag';
-  row.appendChild(lbl);
-  all.forEach(tag => {
-    const chip = document.createElement('button');
-    chip.className = 'docx-tagchip' + (tjTagFilters.includes(tag) ? ' on' : '');
-    chip.textContent = tag;
-    chip.title = tag;
-    chip.onclick = () => {
-      tjTagFilters = tjTagFilters.includes(tag) ? tjTagFilters.filter(t => t !== tag) : tjTagFilters.concat(tag);
-      renderSidebar();
-    };
-    row.appendChild(chip);
-  });
 }
 function _tjRenderTrashBtn() {
   let btn = document.getElementById('tj-trash-btn');
@@ -1099,21 +1061,20 @@ function renderSidebar() {
   const search = document.getElementById('tj-search-box').value.toLowerCase().trim();
   const live = state.entries.filter(e => !e.trashed);
   const entries = live.filter(e => {
-    // Locked entries: search title/tags only (never their hidden content)
+    // Locked entries: search the title only (never their hidden content)
     const isLocked = window._tjGetLock && window._tjGetLock(e.id) && !(window._tjIsUnlocked && window._tjIsUnlocked(e.id));
-    const hay = isLocked ? ((e.title||'') + ' ' + (e.tags||[]).join(' ')).toLowerCase() : _tjEntryText(e);
-    return (!search || hay.includes(search)) &&
-           (tjTagFilters.length === 0 || tjTagFilters.every(t => (e.tags||[]).includes(t)));
+    const hay = isLocked ? (e.title||'').toLowerCase() : _tjEntryText(e);
+    return !search || hay.includes(search);
   });
   list.innerHTML = '';
   if (entries.length === 0) {
-    list.innerHTML = `<div class="list-empty">${search || tjTagFilters.length ? 'No entries match your search.' : (_tjIsOJ() ? 'Nothing shared yet.<br>Anything created here is visible to Tony and Veda.' : 'No entries yet.<br>Click "New Entry" to begin.')}</div>`;
+    list.innerHTML = `<div class="list-empty">${search ? 'No entries match your search.' : (_tjIsOJ() ? 'Nothing shared yet.<br>Anything created here is visible to Tony and Veda.' : 'No entries yet.<br>Click "New Entry" to begin.')}</div>`;
   }
   // Reordering is MAGI's drag (dragsort.js, theme overhaul phase 2): a mouse
   // takes the row anywhere, a finger only by its grip, and the grip's arrow
-  // keys move it one place. Off while a search or tag filter is narrowing the
+  // keys move it one place. Off while a search is narrowing the
   // list, because a move between two filtered rows has no clear meaning.
-  const isDraggable = !search && tjTagFilters.length === 0;
+  const isDraggable = !search;
 
   entries.forEach(entry => {
     const div = document.createElement('div');
@@ -1129,7 +1090,6 @@ function renderSidebar() {
       <div class="entry-item-meta">
         <span class="template-badge">${tmap[entry.template]||'NOTE'}</span>
         <span>${date}</span>
-        ${(entry.tags||[]).length ? `<span>· ${entry.tags.slice(0,2).join(', ')}${entry.tags.length > 2 ? '…' : ''}</span>` : ''}
         ${_tjIsOJ() && entry.creator && window.OJ ? `<span class="oj-by oj-by-${entry.creator}" title="Created by ${window.OJ.name(entry.creator)}">${window.OJ.name(entry.creator)}</span>` : ''}
       </div>
       <button class="entry-delete" data-id="${entry.id}" title="Move to Trash">${window.TNI.x}</button>
@@ -1177,7 +1137,6 @@ function renderSidebar() {
   }
   const ec = document.getElementById('tj-entry-count');
   if (ec) ec.textContent = live.length;
-  _tjRenderTagChips(live);
   _tjRenderTrashBtn();
 }
 
@@ -1190,7 +1149,6 @@ function showTemplate(name) {
   document.getElementById('tj-page-area').style.display = name === 'page' ? 'flex' : 'none';
   document.getElementById('tj-je-area').style.display = name === 'journal-entries' ? 'flex' : 'none';
   document.getElementById('tj-empty-state').style.display = name ? 'none' : 'flex';
-  document.getElementById('tj-tags-row').style.display = name ? 'flex' : 'none';
   // Page toolbar edit-mode sync
   const pt = document.getElementById('tj-page-toolbar');
   if (pt) { if (name === 'page' && isEditMode) pt.classList.add('edit-mode'); else pt.classList.remove('edit-mode'); }
@@ -1206,12 +1164,12 @@ function loadActiveEntry() {
   // returns below, so the blank editor they leave behind can never be read back as
   // an entry's new content.
   _tjDomOwner = null;
-  if (!entry) { document.getElementById('tj-entry-title-input').value = ''; showTemplate(null); renderTags([]); if (_tjIsOJ() && window.OJ) window.OJ.painted('tj', null); return; }
+  if (!entry) { document.getElementById('tj-entry-title-input').value = ''; showTemplate(null); if (_tjIsOJ() && window.OJ) window.OJ.painted('tj', null); return; }
   // A shared entry's content is fetched on first open (only the index is kept
   // live for the whole list). The engine calls back here once it has it.
   if (_tjIsOJ() && window.OJ && !window.OJ.isLoaded(entry)) {
     document.getElementById('tj-entry-title-input').value = entry.title || '';
-    showTemplate(null); renderTags(entry.tags || []);
+    showTemplate(null);
     window.OJ.open('tj', entry);
     return;
   }
@@ -1219,7 +1177,6 @@ function loadActiveEntry() {
   if (window._tjGetLock && window._tjGetLock(entry.id) && !(window._tjIsUnlocked && window._tjIsUnlocked(entry.id))) {
     document.getElementById('tj-entry-title-input').value = '';
     showTemplate(null);
-    renderTags([]);
     if (window._tjLockCheck) window._tjLockCheck();
     return;
   }
@@ -1230,7 +1187,6 @@ function loadActiveEntry() {
   if (window.JGuard && window.JGuard.recover('tj', entry)) { entry.updated = Date.now(); _tjWriteCache(); }
   document.getElementById('tj-entry-title-input').value = entry.title;
   showTemplate(entry.template);
-  renderTags(entry.tags || []);
   if (entry.template === 'whiteboard') {
     _tjBoard('wb').open(entry).then(function () { _tjBoard('wb').setEditable(isEditMode); });
   }
@@ -1370,47 +1326,6 @@ function _tjAutoTitle(entry, dataOverride) {
   if (!line) return '';
   return line.length > 60 ? line.slice(0, 57).trimEnd() + '…' : line;
 }
-
-/* TAGS */
-function renderTags(tags) {
-  const row = document.getElementById('tj-tags-row');
-  row.querySelectorAll('.tag').forEach(t => t.remove());
-  const input = document.getElementById('tj-add-tag-input');
-  tags.forEach(tag => {
-    const span = document.createElement('span');
-    span.className = 'tag';
-    const label = document.createElement('span');
-    label.className = 'tag-txt';
-    label.textContent = tag;
-    span.appendChild(label);
-    const delBtn = document.createElement('span');
-    delBtn.className = 'tag-del';
-    delBtn.innerHTML = window.TNI.x;
-    delBtn.style.display = isEditMode ? '' : 'none';
-    delBtn.onclick = () => {
-      const e = getActive(); if (!e) return;
-      e.tags = (e.tags||[]).filter(t => t !== tag);
-      // A tag change is a real edit: bump the merge clock too, or the other device
-      // resolves the incoming copy as older and silently drops it.
-      e.updated = Date.now();
-      saveState(); renderTags(e.tags); renderSidebar();
-    };
-    span.appendChild(delBtn);
-    row.insertBefore(span, input);
-  });
-}
-document.getElementById('tj-add-tag-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter' || e.key === ',') {
-    e.preventDefault();
-    const val = e.target.value.trim().replace(/,/g,'');
-    if (!val) return;
-    const entry = getActive(); if (!entry) return;
-    entry.tags = entry.tags || [];
-    if (!entry.tags.includes(val)) entry.tags.push(val);
-    entry.updated = Date.now();   // see the tag-delete handler above
-    e.target.value = ''; saveState(); renderTags(entry.tags); renderSidebar();
-  }
-});
 
 /* ── WHITEBOARD + MIND MAP ─────────────────────────────────────────────────
  * VizEngine boards, identical to Veda's except for the document prefix and the
@@ -2909,10 +2824,8 @@ function setEditMode(enabled) {
   // disableEdit(): still pannable and readable, but nothing can change.
   if (_tjBoards.wb) _tjBoards.wb.setEditable(enabled);
   if (_tjBoards.mm) _tjBoards.mm.setEditable(enabled);
-  ['tj-entry-title-input','tj-add-tag-input'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.readOnly = !enabled;
-  });
+  const titleIn = document.getElementById('tj-entry-title-input');
+  if (titleIn) titleIn.readOnly = !enabled;
   // Page editor
   const pgEd = document.getElementById('tj-page-editor');
   if (pgEd) pgEd.contentEditable = enabled ? 'true' : 'false';
@@ -2932,11 +2845,6 @@ function setEditMode(enabled) {
     if (enabled && activeEntry && activeEntry.template === 'journal-entries') jeTb.classList.add('edit-mode');
     else jeTb.classList.remove('edit-mode');
   }
-  document.querySelectorAll('.tag-del').forEach(el => {
-    el.style.display = enabled ? '' : 'none';
-  });
-  const addTagInput = document.getElementById('tj-add-tag-input');
-  if (addTagInput) addTagInput.style.display = enabled ? '' : 'none';
   // Sync bottom bar edit button label
   const bbEdit = document.getElementById('tj-bb-edit');
   if (bbEdit) bbEdit.textContent = enabled ? 'Done' : 'Edit';
@@ -3095,7 +3003,6 @@ function _tjOJEnter() {
   _tjPersonal = state;
   _tjOJState = window.OJ.state('tj');
   state = _tjOJState;
-  tjTagFilters = [];
   var sb = document.getElementById('tj-search-box'); if (sb) sb.value = '';
   window.OJ.enter('tj');
   _tjModeUI();
@@ -3107,7 +3014,6 @@ function _tjOJLeave() {
   try { if (window._tjFlushBoards) window._tjFlushBoards(); } catch (e) {}
   state = _tjPersonal; _tjPersonal = null;
   if (window.OJ) window.OJ.leave('tj');
-  tjTagFilters = [];
   var sb = document.getElementById('tj-search-box'); if (sb) sb.value = '';
   if (state.activeId && !state.entries.some(function(e) { return e.id === state.activeId && !e.trashed; })) {
     state.activeId = (state.entries.find(function(e) { return !e.trashed; }) || {}).id || null;
@@ -3125,7 +3031,6 @@ window._tjOJ = { enter: _tjOJEnter, leave: _tjOJLeave, active: _tjIsOJ };
     editor: function() { return document.getElementById('tj-page-editor'); },
     pageOwned: function(id) { var e = _tjIsOJ() && !window._tjCloudMode ? getActive() : null; return !!(e && e.id === id && e.template === 'page' && _tjDomOwner === id); },
     titleInput: function() { return document.getElementById('tj-entry-title-input'); },
-    renderTags: function(t) { if (_tjIsOJ()) renderTags(t); },
     setSync: function(st) { if (_tjIsOJ()) _tjSetSync(st); },
     rebind: function(ed) { ed.querySelectorAll('.pg-img-wrap').forEach(_pgBindImgWrap); },
     pageSetup: function() { if (window._docxApplyPageSetup) window._docxApplyPageSetup('tj'); }
@@ -3316,7 +3221,6 @@ function _tjOpenPrintBlob(htmlStr) {
 function exportEntryAsPDF(entry) {
   var title = entry.title || 'Untitled Entry';
   var date = new Date(entry.updated || entry.created).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
-  var tags = (entry.tags || []).length ? entry.tags.join(', ') : '';
 
   // Visual templates: ask the live board to render itself — see the BJ twin.
   if (entry.template === 'whiteboard' || entry.template === 'mindmap') {
@@ -3330,7 +3234,7 @@ function exportEntryAsPDF(entry) {
         + '<style>body{margin:0;background:#fff;}img{max-width:100%;display:block;}h1{font-family:sans-serif;font-size:18px;margin:16px;}p{font-family:sans-serif;font-size:12px;color:#666;margin:0 16px 12px;}@media print{h1,p{display:block;}}</style>'
         + '</head><body>'
         + '<h1>' + _tjEsc(title) + '</h1>'
-        + '<p>' + _tjEsc(date) + (tags ? ' &middot; ' + _tjEsc(tags) : '') + '</p>'
+        + '<p>' + _tjEsc(date) + '</p>'
         + (dataURL ? '<img src="' + dataURL + '" />' : '<p style="color:#aaa;font-style:italic;padding:16px;">This board is empty.</p>')
         + '</body></html>';
       _tjOpenPrintBlob(vHtml);
@@ -3363,7 +3267,6 @@ function exportEntryAsPDF(entry) {
     + 'body{font-family:Georgia,serif;max-width:750px;margin:32px auto;color:#1a1a2e;font-size:14px;line-height:1.7;padding:0 24px;}'
     + 'h1{font-size:22px;font-weight:700;margin:0 0 6px;color:#1a1a1d;}'
     + '.meta{font-size:11px;color:#888;font-family:sans-serif;margin-bottom:20px;}'
-    + '.tag{background:#f0f0f2;color:#45454c;border-radius:4px;padding:2px 8px;margin-left:4px;font-size:10px;font-weight:700;}'
     + '.section{margin-bottom:18px;}'
     + '.section-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#6b6b73;margin-bottom:6px;font-family:sans-serif;border-bottom:1px solid #e4e4e8;padding-bottom:4px;}'
     + '.section-body{white-space:pre-wrap;word-break:break-word;}'
@@ -3380,7 +3283,6 @@ function exportEntryAsPDF(entry) {
     + '</head><body>'
     + '<h1>' + _tjEsc(title) + '</h1>'
     + '<div class="meta">' + _tjEsc(date)
-    + (tags ? tags.split(',').map(function(t){ return '<span class="tag">' + _tjEsc(t.trim()) + '</span>'; }).join('') : '')
     + '</div><hr/>'
     + bodyHTML
     + (/docx-math/.test(bodyHTML) && window._docxExportMathScript ? window._docxExportMathScript() : '')
