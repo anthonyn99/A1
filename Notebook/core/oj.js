@@ -11,7 +11,7 @@
 
    FIRESTORE LAYOUT (all under dashboards/, covered by the existing auth rule)
      ourjournal            index — one field per entry, m_<id> = METADATA ONLY
-                           (title, template, tags, trash state, creator, order)
+                           (title, template, trash state, creator, order)
      ourjournal_c_<id>     one entry's content: { d, w, pw, by, at }
      ourjournal_img_<key>  page images, extracted like the journals' own
      ourjournal_viz_<id>   whiteboard / mind-map boards (VizEngine, live mode)
@@ -33,7 +33,7 @@
    COST
    Writes are throttled per document (1.5s alone, 0.65s while the other person
    is actively editing the same entry) and skipped entirely when nothing that
-   is persisted changed. Metadata (title/tags/trash/order) is written field by
+   is persisted changed. Metadata (title/trash/order) is written field by
    field, only on change. `updated` alone republishes at most every 10 min.
    ══════════════════════════════════════════════════════════════════════════ */
 (function () {
