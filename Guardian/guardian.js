@@ -537,12 +537,12 @@ function ensureFonts() {
 var CSS = [
 ':host{all:initial}',
 '*{box-sizing:border-box}',
-'.ov{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.62);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);font-family:var(--f);color:var(--tx);-webkit-font-smoothing:antialiased}',
+'.ov{position:fixed;inset:0;z-index:2147483000;display:flex;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));background:rgba(0,0,0,.62);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);font-family:var(--f);color:var(--tx);-webkit-font-smoothing:antialiased}',
 /* Tony: MAGI tokens (magi.html :root, docs/theme-overhaul-plan.md §2). */
 '.ov[data-theme=tony]{--bg:#1a1a1d;--s1:#232327;--s2:#2c2c31;--s3:#34343a;--bd:rgba(255,255,255,.06);--bdl:#45454c;--tx:#f4f3f0;--txd:#adadb2;--txm:#8d8d94;--ac:#c0aeea;--acl:#dbd0f5;--onac:#1a1a1d;--red:#d68a7c;--ring:rgba(192,174,234,.16);--f:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;--fd:"Manrope","Inter",system-ui,sans-serif;--r:8px;--rb:6px;--btn-fs:10px;--btn-tt:uppercase;--btn-ls:1px;--title-fs:22px;--title-w:800;--title-ls:-.3px}',
 /* Veda: her TaskHub palette (index.html VD_T, Notebook/apps/brainstorm.css) — Lora titles, Inter body. */
 '.ov[data-theme=veda]{--bg:#1B1C1E;--s1:#26272A;--s2:#2E2F33;--s3:#303135;--bd:#3D3E43;--bdl:#4A4B51;--tx:#ECECEE;--txd:#AFB0B5;--txm:#76777C;--ac:#8D769A;--acl:#A892B0;--onac:#ffffff;--red:#E07A6F;--ring:rgba(141,118,154,.24);--f:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;--fd:"Lora",Georgia,serif;--r:6px;--rb:6px;--btn-fs:13px;--btn-tt:none;--btn-ls:0;--title-fs:24px;--title-w:700;--title-ls:-.2px}',
-'.card{position:relative;width:360px;max-width:100%;max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);overflow-y:auto;background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);box-shadow:0 24px 64px rgba(0,0,0,.5);padding:30px 26px 18px;display:flex;flex-direction:column;align-items:center;gap:16px}',
+'.card{position:relative;margin:auto;width:360px;max-width:100%;background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);box-shadow:0 24px 64px rgba(0,0,0,.5);padding:30px 26px 18px;display:flex;flex-direction:column;align-items:center;gap:16px}',
 '.card.shake{animation:gd-shake .4s ease}',
 '@keyframes gd-shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}',
 '.ic{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--ac);background:var(--s2);border:1px solid var(--bd)}',
@@ -555,11 +555,14 @@ var CSS = [
 'label.fl{display:flex;flex-direction:column;gap:5px;font:700 9px/1 var(--f);letter-spacing:1px;text-transform:uppercase;color:var(--txm);text-align:left}',
 '.pw{position:relative;display:flex}',
 'input{width:100%;background:var(--bg);border:1px solid var(--bdl);border-radius:var(--rb);color:var(--tx);font:600 15px var(--f);padding:12px 14px;outline:none;transition:border-color .18s,box-shadow .18s}',
-'input.big{text-align:center;letter-spacing:3px;padding:13px 44px}',
+'.pw input{padding-right:46px}',
+'input.big{text-align:center;letter-spacing:3px;padding:13px 46px}',
 'input:focus{border-color:var(--ac);box-shadow:0 0 0 3px var(--ring)}',
 'input.bad{border-color:var(--red)}',
-'.eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--txm);cursor:pointer;padding:6px;display:flex;border-radius:4px}',
-'.eye:hover{color:var(--txd)}.eye svg{width:16px;height:16px}',
+'.eye{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:36px;height:36px;background:none;border:0;color:var(--txm);cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;border-radius:var(--rb);-webkit-tap-highlight-color:transparent;touch-action:manipulation}',
+'.eye:hover{color:var(--txd)}.eye[aria-pressed=true]{color:var(--ac)}.eye svg{width:17px;height:17px}',
+/* Touch screens: a 44px target for the eye. */
+'@media (pointer:coarse){.eye{width:44px;height:44px;right:2px}.pw input{padding-right:50px}input.big{padding-left:50px;padding-right:50px}}',
 '.err{font:600 12px/1.4 var(--f);color:var(--red);text-align:center;min-height:16px}',
 '.caps{font:600 11px var(--f);color:#e0b874;margin:5px 0 0 2px;text-align:left}.caps[hidden]{display:none}',
 '.note{font:500 12px/1.45 var(--f);color:var(--txd);text-align:center}',
@@ -579,7 +582,7 @@ var CSS = [
 '.lk:hover:not(:disabled){color:var(--txd)}.lk:disabled{cursor:default;opacity:.8}',
 '.foot{width:100%;padding-top:12px;border-top:1px solid var(--bd);display:flex;justify-content:center}',
 '.row2{display:flex;gap:8px;width:100%}',
-'@media (max-width:520px){.card{width:100%;padding:26px 18px 16px}button.b{min-height:46px;font-size:max(var(--btn-fs),12px)}input{min-height:48px}}'
+'@media (max-width:520px){.card{width:100%;padding:26px 18px 16px;gap:14px}button.b{min-height:46px;font-size:max(var(--btn-fs),12px)}input{min-height:48px;font-size:16px}.lk{padding:8px 4px;font-size:13px}.title{font-size:calc(var(--title-fs) - 2px)}}'
 ].join('\n');
 
 var I = {
@@ -623,8 +626,20 @@ function B(cls, icon, text, onclick) { return setBtnText(btn(cls, icon, text, on
 function pwField(ph, opts) {
   opts = opts || {};
   var inp = h('input', { type: 'password', placeholder: ph, autocomplete: opts.autocomplete || 'off', 'class': opts.big ? 'big' : '', spellcheck: 'false' });
-  var eye = h('button', { 'class': 'eye', type: 'button', 'aria-label': 'Show password', html: I.eye });
-  eye.onclick = function () { var show = inp.type === 'password'; inp.type = show ? 'text' : 'password'; eye.innerHTML = show ? I.eyeOff : I.eye; eye.setAttribute('aria-label', show ? 'Hide password' : 'Show password'); inp.focus(); };
+  var eye = h('button', { 'class': 'eye', type: 'button', 'aria-label': 'Show password', 'aria-pressed': 'false', title: 'Show password', html: I.eye });
+  eye.addEventListener('pointerdown', function (e) { e.preventDefault(); });
+  eye.addEventListener('mousedown', function (e) { e.preventDefault(); });
+  eye.onclick = function (e) {
+    if (e) e.preventDefault();
+    var show = inp.type === 'password';
+    var s = null, t = null; try { s = inp.selectionStart; t = inp.selectionEnd; } catch (x) {}
+    inp.type = show ? 'text' : 'password';
+    eye.innerHTML = show ? I.eyeOff : I.eye;
+    var lbl = show ? 'Hide password' : 'Show password';
+    eye.setAttribute('aria-label', lbl); eye.title = lbl; eye.setAttribute('aria-pressed', show ? 'true' : 'false');
+    if (document.activeElement !== HOST || (ROOT.activeElement && ROOT.activeElement !== inp)) { try { inp.focus({ preventScroll: true }); } catch (x) { inp.focus(); } }
+    try { if (s != null) inp.setSelectionRange(s, t); } catch (x) {}
+  };
   var wrap = h('div', { 'class': 'pw' }, [inp, eye]);
   // Caps Lock is why a password "doesn't work" often enough to say so, and a
   // laptop may have no indicator for it.
