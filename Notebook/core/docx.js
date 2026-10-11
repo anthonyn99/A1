@@ -2948,6 +2948,7 @@ var IC = {
   clearFmt: '<path d="M5 5h14"/><path d="M11 5 8 19"/><line x1="6" y1="19" x2="12" y2="19"/><line x1="15.5" y1="10.5" x2="21" y2="16"/><line x1="21" y1="10.5" x2="15.5" y2="16"/>',
   table: '<rect x="3" y="4" width="18" height="16" rx="1.5"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="4" x2="9" y2="20"/><line x1="15" y1="4" x2="15" y2="20"/>',
   image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 16-5-5L5 20"/>',
+  copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
   ai: '<path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z"/><path d="M18 14l.8 2.2L21 17l-2.2.8L18 20l-.8-2.2L15 17l2.2-.8z"/>',
   eraser: '<path d="M20 20H7L3 16a2 2 0 0 1 0-3l8-8a2 2 0 0 1 3 0l6 6a2 2 0 0 1 0 3l-7 6"/><line x1="9" y1="10" x2="15" y2="16"/>',
   highlight: '<path d="M4 20h6"/><path d="m14 4 6 6-9 9-6 1 1-6z"/>',
@@ -2967,6 +2968,60 @@ function setBtnIcon(btn, paths) {
   span.style.cssText = 'display:inline-flex;align-items:center;';
   span.innerHTML = svg(paths);
   btn.insertBefore(span, btn.firstChild);
+}
+
+// Copy all: the whole document onto the clipboard exactly as Select All + Copy
+// would put it — Markdown as the plain text, the rich markup as text/html (the
+// same two flavours the editor's own copy handler writes).
+function docxCopyAll(ctx) {
+  var holder = document.createElement('div');
+  holder.innerHTML = ctx.edEl.innerHTML;
+  var md = '';
+  try { md = _docxHtmlToMd(holder); } catch (e) { md = ctx.edEl.innerText || ''; }
+  var html = holder.innerHTML;
+  if (!md.trim()) return Promise.resolve(false);
+  // A copy event lets us set both flavours synchronously, inside the click.
+  var done = false;
+  function onCopy(e) {
+    var cd = e.clipboardData;
+    if (!cd) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    cd.setData('text/plain', md);
+    cd.setData('text/html', html);
+    done = true;
+  }
+  document.addEventListener('copy', onCopy, true);
+  try { document.execCommand('copy'); } catch (e) {}
+  document.removeEventListener('copy', onCopy, true);
+  if (done) return Promise.resolve(true);
+  var cb = navigator.clipboard;
+  if (!cb) return Promise.resolve(false);
+  var rich = window.ClipboardItem && cb.write
+    ? cb.write([new ClipboardItem({
+        'text/plain': new Blob([md], { type: 'text/plain' }),
+        'text/html': new Blob([html], { type: 'text/html' })
+      })])
+    : Promise.reject();
+  return rich.catch(function () { return cb.writeText(md); })
+    .then(function () { return true; }, function () { return false; });
+}
+function docxCopyAllBtn(ctx) {
+  var b = ptBtn(svg(IC.copy) + '<span class="docx-copyall-lbl">Copy all</span>',
+                'Copy the whole document (keeps its Markdown formatting)');
+  b.classList.add('docx-copyall-btn', 'docx-r1');
+  b.addEventListener('mousedown', function(e) { e.preventDefault(); });
+  var timer = null;
+  b.addEventListener('click', function() {
+    docxCopyAll(ctx).then(function(ok) {
+      var lbl = b.querySelector('.docx-copyall-lbl');
+      lbl.textContent = ok ? 'Copied' : 'Nothing to copy';
+      b.classList.toggle('copied', ok);
+      clearTimeout(timer);
+      timer = setTimeout(function() { lbl.textContent = 'Copy all'; b.classList.remove('copied'); }, 1600);
+    });
+  });
+  return b;
 }
 
 function injectRibbonExtras(ctx) {
@@ -3003,6 +3058,7 @@ function injectRibbonExtras(ctx) {
   startFrag.appendChild(undoB);
   startFrag.appendChild(redoB);
   startFrag.appendChild(printB);
+  startFrag.appendChild(docxCopyAllBtn(ctx));
   startFrag.appendChild(ptSep());
   var menubar = tb.querySelector('.docx-menubar');
   tb.insertBefore(startFrag, menubar ? menubar.nextSibling : tb.firstChild);
