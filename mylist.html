@@ -53,6 +53,10 @@
      In <head> so A1Drag / A1Resize exist before the first render. -->
 <script src="dragsort.js"></script>
 <script src="resizegrip.js"></script>
+<style id="no-tap-box">/* Phones: no blue box when anything is tapped or held, and a held control never selects its label or opens the callout. */
+*,*::before,*::after{-webkit-tap-highlight-color:transparent}
+button,[role="button"],input[type="button"],input[type="submit"],input[type="reset"],summary,label,select{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+</style>
 <style>
 /* ══════════════════════════════════════════════════════════════════════════
    SUITE DESIGN TOKENS — mirrored from index.html. Two golds, one display face,

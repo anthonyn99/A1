@@ -17,6 +17,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..900&family=Manrope:wght@400..800&family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+Math&display=swap" rel="stylesheet">
+<style id="no-tap-box">/* Phones: no blue box when anything is tapped or held, and a held control never selects its label or opens the callout. */
+*,*::before,*::after{-webkit-tap-highlight-color:transparent}
+button,[role="button"],input[type="button"],input[type="submit"],input[type="reset"],summary,label,select{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+</style>
 <style>
 /* Symbols the text fonts get wrong or do not have. Manrope's own ÷ is two
    pinprick dots and a hairline that do not thicken with the weight, so a bold

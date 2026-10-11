@@ -16,6 +16,10 @@
      copy can write back. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style id="no-tap-box">/* Phones: no blue box when anything is tapped or held, and a held control never selects its label or opens the callout. */
+*,*::before,*::after{-webkit-tap-highlight-color:transparent}
+button,[role="button"],input[type="button"],input[type="submit"],input[type="reset"],summary,label,select{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+</style>
 <style>
   :root {
     --bg: #131316; --card: #1b1b20; --raise: #23232a; --line: #2c2c34; --fg: #ececf1;
