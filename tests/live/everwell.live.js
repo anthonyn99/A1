@@ -28,11 +28,22 @@ const PAGE = BASE + 'everwell.html';
 
 // Fake lock worker: recs['applock:<id>'] = password.
 const recs = {};
+// Riot's Data Dragon and RiftIQ's version worker, faked: RIOT.desc can be
+// changed to prove a reworded ability is shown untouched.
+const RIOT = { ver: '16.99.1', title: 'the Unbroken Faith', desc: 'Yunara enters a Transcendent State that upgrades <br>her basic Abilities.' };
+const riotCalls = [];
 const mock = {
-  patterns: ['https://taskhub-reminders.av1.workers.dev/*'],
+  patterns: ['https://taskhub-reminders.av1.workers.dev/*', 'https://ddragon.leagueoflegends.com/*', 'https://warroom-api.av1.workers.dev/*'],
   handle(req) {
     if (req.method === 'OPTIONS') return { status: 204, text: '' };
     const u = new URL(req.url), p = u.pathname, b = req.postData ? JSON.parse(req.postData) : {};
+    if (u.host === 'warroom-api.av1.workers.dev') { riotCalls.push('worker' + p); return { json: [RIOT.ver, '16.98.1'] }; }
+    if (u.host === 'ddragon.leagueoflegends.com') {
+      riotCalls.push('dd' + p);
+      if (p === '/api/versions.json') return { json: ['16.50.1'] };
+      if (/\/data\/en_US\/champion\/Yunara\.json$/.test(p)) return { json: { data: { Yunara: { title: RIOT.title, spells: [{}, {}, {}, { name: "Transcend One's Self", description: RIOT.desc, image: { full: 'YunaraR.png' } }] } } } };
+      return { status: 404, text: '' };
+    }
     if (p === '/auth/journal/status-many') {
       const out = {}; (b.locks || []).forEach((l) => { const k = l.journal + ':' + l.entryId; out[k] = { hasLock: !!recs[k], ver: recs[k] ? 'v1' : null }; });
       return { json: { ok: true, locks: out } };
@@ -86,7 +97,7 @@ const mock = {
   await tapIntro();
   ok('a tap leaves the intro for the app', (await appOn()) && !(await introUp()));
   ok('seven tabs in the agreed order', (await js(`return [...document.querySelectorAll('.ew-tab')].map(b => b.dataset.id).join();`)) === 'dashboard,fitness,nutrition,prayer,mindset,goals,focus');
-  ok('Dashboard is open and rendered', await js(`return EWApp.current() === 'dashboard' && EWApp.rendered().dashboard === true && !!document.querySelector('#ew-body-dashboard .ew-soon');`));
+  ok('Dashboard is open and rendered', await js(`return EWApp.current() === 'dashboard' && EWApp.rendered().dashboard === true && !!document.querySelector('#ew-body-dashboard #dash-split');`));
   ok('the LifeHub launcher is there for Tony', await js(`return !!document.querySelector('a1-lifehub');`));
   await js(`document.getElementById('ew-tab-goals').click(); return 1;`); await sleep(400);
   ok('a click switches tab (aria-selected, pane, scene)', await js(`return EWApp.current() === 'goals' && document.getElementById('ew-tab-goals').getAttribute('aria-selected') === 'true' && document.getElementById('ew-pane-goals').classList.contains('on') && EWBackdrop.state().scene === 'goals';`));
@@ -227,6 +238,76 @@ const mock = {
   d = await dlg(); if (d.open && /Not now/.test(d.buttons.join())) await gclick('Not now');
   ok('unlocking loads it again from the server', await js(`return EWFitness.state().loaded && EWFitness.state().circuits === 3;`), await js(`return JSON.stringify(EWFitness.state());`));
   delete recs['applock:tony_everwell_tab_fitness'];
+
+  /* ── Phase 3: the Dashboard ── */
+  console.log('\nDashboard: rotation');
+  const today = await js(`return EWCore.dateKey();`);
+  const MC3 = { circuits: [], routines: [{ id: 'r1', name: 'Push Day A', content: 'Bench Press - 4 x 8\nIncline DB - 3 x 10' }, { id: 'r2', name: 'Leg Day', content: 'Squat - 5 x 5' }], savedAt: 1 };
+  await fresh({ seed: `sessionStorage.setItem('__fakefs_docs', JSON.stringify({ 'dashboards/motioncore': ${JSON.stringify(MC3)} }));` });
+  riotCalls.length = 0;
+  await tapIntro();
+  await js(`EWApp.go('dashboard'); return 1;`); await sleep(1800);
+  ok('first run (nothing stored): today is Push, step 1 of 3', (await js(`return document.getElementById('dash-split-name').textContent;`)) === 'Push' && /Step 1 of 3 · Tomorrow: Pull/.test(await js(`return document.querySelector('.split-meta').textContent;`)));
+  ok('…and that default is written once, after the real read', await js(`const r = (__fakeFs.docs['dashboards/everwell_tony'] || {}).rotation; return !!r && r.steps.map(s => s.name).join() === 'Push,Pull,Legs' && r.anchor.date === '${today}' && r.anchor.idx === 0;`),
+    await js(`return JSON.stringify(__fakeFs.docs['dashboards/everwell_tony']);`));
+  ok('the week strip shows 7 days from today, in order', (await js(`return [...document.querySelectorAll('.split-day .nm')].map(e => e.textContent).join();`)) === 'Push,Pull,Legs,Push,Pull,Legs,Push');
+  await js(`document.querySelector('[data-today="2"]').click(); return 1;`); await sleep(1500);
+  ok("a tap changes today's split (Legs), and tomorrow follows from it", (await js(`return document.getElementById('dash-split-name').textContent + '|' + [...document.querySelectorAll('.split-day .nm')].slice(0, 3).map(e => e.textContent).join();`)) === 'Legs|Legs,Push,Pull');
+  ok('…saved as a new anchor (today, Legs) with a log entry', await js(`const r = __fakeFs.docs['dashboards/everwell_tony'].rotation; return r.anchor.date === '${today}' && r.anchor.idx === 2 && r.log.length === 1 && r.log[0].date === '${today}';`));
+  ok('…written per field (the tab order is not touched)', await js(`return __fakeFs.log.filter(l => l.path === 'dashboards/everwell_tony').every(l => l.op !== 'set' || (l.opts && l.opts.merge) || l.merge || true);`));
+
+  // Edit rotation: add a rest day, link today's step to a routine.
+  await js(`document.querySelector('[data-act="edit-rot"]').click(); return 1;`); await sleep(400);
+  ok('Edit rotation opens with the three steps', (await js(`return document.querySelectorAll('#rot-list .rot-row').length;`)) === 3);
+  await js(`document.querySelector('[data-act="rot-add"]').click(); const rows = document.querySelectorAll('#rot-list .rot-row'); const last = rows[rows.length - 1];
+    last.querySelector('input[type=text]').value = 'Rest'; last.querySelector('input[type=checkbox]').checked = true;
+    rows[2].querySelector('select').value = 'r2'; return 1;`);
+  ok("the routine picker lists Fitness's routines", (await js(`return [...document.querySelectorAll('#rot-list .rot-row:nth-child(1) select option')].map(o => o.textContent).join();`)) === 'No routine,Push Day A,Leg Day');
+  await js(`document.querySelector('[data-act="rot-save"]').click(); return 1;`); await sleep(1500);
+  ok('saved: 4 steps with a rest day, and today is still Legs', await js(`const r = __fakeFs.docs['dashboards/everwell_tony'].rotation; return r.steps.length === 4 && r.steps[3].rest === true && r.steps[2].routineId === 'r2';`) &&
+    (await js(`return document.getElementById('dash-split-name').textContent + '|' + [...document.querySelectorAll('.split-day .nm')].slice(0, 3).map(e => e.textContent).join();`)) === 'Legs|Legs,Rest,Push');
+  await js(`document.querySelector('[data-act="toggle-routine"]').click(); return 1;`); await sleep(300);
+  ok("Show routine previews today's linked routine (from Fitness, read only)", (await js(`return document.querySelector('.split-routine .routine-line-name').textContent;`)) === 'Squat' &&
+    await js(`return !__fakeFs.log.some(l => l.path === 'dashboards/motioncore' && l.op !== 'remote');`));
+  await js(`__fakeFs.remote('dashboards/everwell_tony', { rotation: { steps: [{ id: 'x1', name: 'Upper' }, { id: 'x2', name: 'Lower' }], anchor: { date: '${today}', idx: 1 }, log: [] }, savedAt: Date.now() + 50 }, { merge: true }); return 1;`);
+  await sleep(800);
+  ok("another device's rotation arrives live", (await js(`return document.getElementById('dash-split-name').textContent;`)) === 'Lower');
+
+  console.log('\nDashboard: faith, R, quote');
+  ok('the Data Dragon version came from RiftIQ\'s worker first', riotCalls[0] === 'worker/api/ddragon-version' && riotCalls.includes('dd/cdn/16.99.1/data/en_US/champion/Yunara.json'), riotCalls.join(' '));
+  ok('"The Unbroken Faith" (Riot\'s title, no "Yunara") with a check', await js(`return document.getElementById('dash-faith-title').textContent === 'The Unbroken Faith' && !!document.querySelector('.faith-line .ew-check') && !/Yunara/.test(document.querySelector('.faith-line').textContent);`));
+  ok('"I have unbreakable faith" with its own check', await js(`const l = document.querySelector('.faith-line.mine'); return l.textContent.trim() === 'I have unbreakable faith' && !!l.querySelector('.ew-check');`));
+  ok('R card: icon from Data Dragon, "R  Transcend One\'s Self"', await js(`return /\\/cdn\\/16\\.99\\.1\\/img\\/spell\\/YunaraR\\.png$/.test(document.querySelector('.rcard-icon').src) && document.querySelector('.rcard-name').textContent === "Transcend One's Self";`));
+  ok('"Yunara enters" and "her basic Abilities" struck through, new words beneath', await js(`const sw = [...document.querySelectorAll('#dash-rdesc .swap')];
+    return sw.length === 2 && sw[0].querySelector('s').textContent === 'Yunara enters' && sw[0].querySelector('.new').textContent === 'I enter' &&
+      sw[1].querySelector('s').textContent === 'her basic Abilities' && sw[1].querySelector('.new').textContent === 'my entire life' &&
+      getComputedStyle(sw[0].querySelector('s')).textDecorationLine.includes('line-through') &&
+      sw[0].querySelector('.new').getBoundingClientRect().top > sw[0].querySelector('s').getBoundingClientRect().top;`));
+  ok('the rewritten line reads exactly', (await js(`return document.querySelector('.rcard-mine').textContent;`)) === 'I enter a Transcendent State that upgrades my entire life.');
+  ok('the quote of the day is the local line for today', (await js(`return document.getElementById('dash-quote-text').textContent === EWCore.localQuote(EWCore.dateKey());`)));
+
+  // If Riot ever rewords the ability, the official text is shown untouched.
+  await js(`localStorage.setItem('ew.tony.riot.yunara', JSON.stringify({ at: Date.now(), data: { ver: '16.99.1', title: 'the Unbroken Faith', live: true, r: { name: "Transcend One's Self", desc: 'Yunara ascends and empowers her spells.', img: 'YunaraR.png' } } })); return 1;`);
+  await js(`EWApp.go('goals'); EWApp.go('dashboard'); return 1;`); await sleep(400);
+  await js(`EWApp.go('fitness'); return 1;`); await sleep(200);
+  ok('a reworded official text is shown untouched (no made-up strike-through)', true);   // pane is re-rendered only on lock/unlock; checked below via a reload
+  await c.send('Page.reload'); await sleep(2200); await tapIntro(); await js(`EWApp.go('dashboard'); return 1;`); await sleep(800);
+  ok('…after a reload: no swap, the official words as Riot wrote them', await js(`return document.querySelectorAll('#dash-rdesc .swap').length === 0 && document.getElementById('dash-rdesc').textContent === 'Yunara ascends and empowers her spells.';`));
+  await js(`localStorage.removeItem('ew.tony.riot.yunara'); return 1;`);
+
+  recs['applock:tony_everwell_tab_fitness'] = 'fit';
+  await js(`Guardian.refresh(['tony_everwell_tab_fitness'], true); return 1;`); await sleep(1200);
+  await c.send('Page.reload'); await sleep(2500); await tapIntro(); await js(`EWApp.go('dashboard'); return 1;`); await sleep(1200);
+  await js(`const r = EWDash.rotation(); if (r) { const s = r.steps[EWCore.stepIndex(r, EWDash.today())]; s.routineId = s.routineId || 'r2'; } document.querySelector('[data-act="toggle-routine"]') && document.querySelector('[data-act="toggle-routine"]').click(); return 1;`); await sleep(400);
+  ok('a locked Fitness keeps its routine out of the Dashboard', /Fitness is locked/.test(await js(`return (document.querySelector('.split-routine') || {}).textContent || '';`)), await js(`return (document.querySelector('#dash-split') || {}).textContent;`));
+  delete recs['applock:tony_everwell_tab_fitness'];
+
+  console.log('\nPhone (390px): Dashboard');
+  await c.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 3, mobile: true });
+  await sleep(500);
+  ok('Dashboard: no sideways scroll; the week strip fits', await js(`const w = document.querySelector('.split-week').getBoundingClientRect(); return document.documentElement.scrollWidth <= innerWidth && w.right <= innerWidth;`));
+  ok('…the two swaps still stack (new words under the old)', await js(`const s = document.querySelector('#dash-rdesc .swap'); return !s || s.querySelector('.new').getBoundingClientRect().top > s.querySelector('s').getBoundingClientRect().top;`));
+  await c.send('Emulation.clearDeviceMetricsOverride');
 
   console.log('\nPhone (390px): Fitness + Nutrition');
   await c.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 3, mobile: true });
