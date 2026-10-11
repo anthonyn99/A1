@@ -294,7 +294,13 @@ const mock = {
   ok('Routines opens one row per split, each with a picker of Fitness routines', await js(`return document.querySelectorAll('#pair-list .pair-row').length === 3 &&
     [...document.querySelectorAll('#pair-list .pair-row:nth-child(1) select option')].map(o => o.textContent).join() === 'No routine,Push Day A,Leg Day';`));
   await js(`const s = document.querySelector('#pair-list .pair-row:nth-child(1) select'); s.value = 'r1'; s.dispatchEvent(new Event('change', { bubbles: true })); return 1;`);
-  await js(`document.querySelector('#pair-list .pair-row:nth-child(3) [data-unpair]').click(); return 1;`);
+  await js(`document.querySelector('#pair-list .pair-row:nth-child(3) [data-unpair]').click(); return 1;`); await sleep(300);
+  ok('removing a pairing asks first, in the page, over the dialog', await js(`return document.getElementById('uim-overlay').classList.contains('show') && document.getElementById('uim-title').textContent === 'Remove pairing?' && /Legs will no longer open “Leg Day”/.test(document.getElementById('uim-msg').textContent);`),
+    await js(`return document.getElementById('uim-msg').textContent;`));
+  await js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return 1;`); await sleep(300);
+  ok('…Escape cancels it and leaves the pairing dialog open', await js(`return !!document.getElementById('pair-editor') && document.querySelector('#pair-list .pair-row:nth-child(3)').classList.contains('on');`));
+  await js(`document.querySelector('#pair-list .pair-row:nth-child(3) [data-unpair]').click(); return 1;`); await sleep(300);
+  await js(`document.getElementById('uim-ok').click(); return 1;`); await sleep(300);
   ok('pairing Push and removing Legs shows in the dialog before saving', await js(`const rows = document.querySelectorAll('#pair-list .pair-row'); return rows[0].classList.contains('on') && rows[0].querySelector('select').value === 'r1' && !rows[2].classList.contains('on') && rows[2].querySelector('select').value === '';`));
   await js(`document.querySelector('[data-act="pair-save"]').click(); return 1;`); await sleep(1500);
   ok('saved with the rotation: Push → Push Day A, Legs → none', await js(`const r = __fakeFs.docs['dashboards/everwell_tony'].rotation; return r.steps[0].routineId === 'r1' && !r.steps[2].routineId && r.autoPaired === true;`));
