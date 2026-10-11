@@ -80,14 +80,21 @@ const SEED = {
   await js(`var t=document.getElementById('nb-entry-title-input'); t.value='Setups'; t.dispatchEvent(new Event('input',{bubbles:true}));
     var e=document.getElementById('nb-page-editor'); e.focus(); var r=document.createRange(); r.selectNodeContents(e); r.collapse(false); var s=getSelection(); s.removeAllRanges(); s.addRange(r); 1`);
   await c.send('Input.insertText', { text: 'Wait for the retest.' });
-  await sleep(3500);
   const doc = async () => JSON.parse(await js(`return JSON.stringify(__fakeFs.docs['dashboards/nb_test'] || null);`));
-  let D = await doc();
   const newId = await js(`return (document.querySelector('#nb-entries-list .entry-item.active')||{dataset:{}}).dataset.entryId || null;`);
+  // Autosave + the Firebase write are both debounced, and slower on a busy
+  // machine: wait for the save (and its onSave) instead of a fixed sleep.
+  let D = null;
+  for (let i = 0; i < 60; i++) {
+    await sleep(250); D = await doc();
+    const e = D && newId && D['e_' + newId];
+    if (e && e.title === 'Setups' && /Wait for the retest\./.test((e.data || {}).html || '')
+      && await js(`return (window.__saved || []).includes(${JSON.stringify(newId)});`)) break;
+  }
   const saved = D && newId && D['e_' + newId];
   ok('a new page is saved to dashboards/nb_test', !!saved && saved.title === 'Setups' && /Wait for the retest\./.test(saved.data.html), JSON.stringify(saved));
   ok('...and the order lists it', D && Array.isArray(D._order) && D._order.includes(newId));
-  ok('onSave got the entry', await js(`return window.__saved.includes(${JSON.stringify(newId)});`), await js('return JSON.stringify(window.__saved);'));
+  ok('onSave got the entry', await js(`return (window.__saved || []).includes(${JSON.stringify(newId)});`), await js('return JSON.stringify(window.__saved);'));
   const paths = JSON.parse(await js(`return JSON.stringify([...new Set(__fakeFs.log.map(l => l.path))]);`));
   ok('every write went to the instance\'s own documents', paths.length > 0 && paths.every((p) => /^dashboards\/nb_test(_|$)/.test(p)), JSON.stringify(paths));
   ok('MyJournal\'s document is untouched', JSON.stringify(await js(`return JSON.stringify(__fakeFs.docs['dashboards/tony_journal']);`)) === JSON.stringify(JSON.stringify(SEED['dashboards/tony_journal'])));
