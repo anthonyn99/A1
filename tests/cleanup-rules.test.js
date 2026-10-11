@@ -174,6 +174,17 @@ for (const it of RULES.items.filter((i) => i.program === 'trading-auto-launch'))
   ok(`${it.id}: launch.py trims on every run`, /args = parser\.parse_args\(\)\r?\n\s+trim_logs\(\)/.test(launch));
 }
 
+// A1-Priv's watcher trims its own log at start. (A1's twin lives outside any
+// repo, in C:\Users\antho\Scripts, so only this one can be pinned here.)
+const autosync = path.join(M.PRIV, 'tools', 'autosync.ps1');
+for (const it of RULES.items.filter((i) => i.program === 'A1-Priv/tools/autosync.ps1')) {
+  if (!fs.existsSync(autosync)) { M.skipNote('tools/autosync.ps1'); continue; }
+  const ps = fs.readFileSync(autosync, 'utf8');
+  ok(`${it.id}: autosync.ps1 keeps the same ${it.capDays} days`, new RegExp(`^\\$logKeepDays = ${it.capDays}\\r?$`, 'm').test(ps));
+  ok(`${it.id}: autosync.ps1 trims before it starts logging`,
+    /^Trim-Log\r?$/m.test(ps) && ps.search(/^Trim-Log\r?$/m) < ps.indexOf('Write-Log "Auto-sync started'));
+}
+
 // ── Behaviour: the shipped sweep.js ───────────────────────────────────────
 function boot({ rules = RULES, storage = true, adapter, seed = {}, program = 'index', idb, cloud, full = false,
   url = 'https://example.test/A1/index.html' } = {}) {
