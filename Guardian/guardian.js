@@ -579,9 +579,8 @@ var CSS = [
 'button.b:active:not(:disabled){filter:brightness(.94);transform:translateY(1px)}',
 '.menu{display:flex;flex-direction:column;gap:8px;width:100%}.menu:empty{display:none}',
 '.menu button.b{justify-content:flex-start}',
-'.links{display:grid;grid-template-columns:1fr 1fr;gap:8px}',
-'.links button.b{min-height:38px;padding:8px 10px;color:var(--txd)}',
-'@media (max-width:360px){.links{grid-template-columns:1fr}}',
+'.links{display:grid;grid-template-columns:1fr;gap:8px}',
+'.links button.b{white-space:nowrap;color:var(--txd)}',
 
 '.foot{width:100%;padding-top:12px;border-top:1px solid var(--bd);display:flex;justify-content:center}',
 '.row2{display:flex;gap:8px;width:100%}',
