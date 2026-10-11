@@ -293,6 +293,7 @@ const mock = {
   await js(`document.querySelector('[data-act="pairs"]').click(); return 1;`); await sleep(300);
   ok('Routines opens one row per split, each with a picker of Fitness routines', await js(`return document.querySelectorAll('#pair-list .pair-row').length === 3 &&
     [...document.querySelectorAll('#pair-list .pair-row:nth-child(1) select option')].map(o => o.textContent).join() === 'No routine,Push Day A,Leg Day';`));
+  ok('…with no field highlighted: focus is on the dialog itself (Tony)', await js(`const a = document.activeElement; return !!a && a.classList.contains('ew-dlg') && getComputedStyle(a).outlineStyle === 'none';`));
   await js(`const s = document.querySelector('#pair-list .pair-row:nth-child(1) select'); s.value = 'r1'; s.dispatchEvent(new Event('change', { bubbles: true })); return 1;`);
   await js(`document.querySelector('#pair-list .pair-row:nth-child(3) [data-unpair]').click(); return 1;`); await sleep(300);
   ok('removing a pairing asks first, in the page, over the dialog', await js(`return document.getElementById('uim-overlay').classList.contains('show') && document.getElementById('uim-title').textContent === 'Remove pairing?' && /Legs will no longer open “Leg Day”/.test(document.getElementById('uim-msg').textContent);`),
@@ -321,6 +322,7 @@ const mock = {
   // Edit rotation: add a rest day; pairings ride along untouched.
   await js(`document.querySelector('[data-act="edit-rot"]').click(); return 1;`); await sleep(400);
   ok('Edit rotation opens with the three steps, and no routine picker', (await js(`return document.querySelectorAll('#rot-list .rot-row').length;`)) === 3 && (await js(`return document.querySelectorAll('#rot-list select').length;`)) === 0);
+  ok('…with no step highlighted: focus is on the dialog itself (Tony)', await js(`const a = document.activeElement; return !!a && a.classList.contains('ew-dlg') && !!a.querySelector('#rot-list');`));
   await js(`document.querySelector('[data-act="rot-add"]').click(); const rows = document.querySelectorAll('#rot-list .rot-row'); const last = rows[rows.length - 1];
     last.querySelector('input[type=text]').value = 'Rest'; last.querySelector('input[type=checkbox]').checked = true; return 1;`);
   await js(`document.querySelector('[data-act="rot-save"]').click(); return 1;`); await sleep(1500);
