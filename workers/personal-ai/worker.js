@@ -3136,11 +3136,13 @@ async function handleCloudSearch(body, env) {
 // (A1-Priv/docs/Everwell/plan.md, Phase 4). Generated at most ONCE per day and
 // cached in KV, so a page opening a hundred times costs one AI call.
 //
-//   1. ORCA (Tony's own router, key TONY_ORCA_KEY): Claude Pro first — the
-//      best writer of the lot — then ORCA's own pick. Every routable ORCA model
-//      on Tony's profile is a signed-in BROWSER account, which only answers while
-//      his PC bridge is up; ORCA then says 503/404 + Retry-After and we stop
-//      asking it at once rather than burn the budget.
+//   1. ORCA (Tony's own router, key TONY_ORCA_KEY): DeepSeek first, then the
+//      other FREE accounts in turn (Tony, 2026-10-11: never Claude Pro or
+//      Claude free, so never "ORCA's own pick" either, which could land on
+//      them). Every routable ORCA model on Tony's profile is a signed-in BROWSER
+//      account, which only answers while his PC bridge is up; ORCA then says
+//      503 + Retry-After and we stop asking it at once rather than burn the
+//      budget.
 //   2. Gemini (TONY_GEMINI_KEY) through runModelChain, quality-first models.
 //   3. Nothing: { ok:false, error:'unavailable' } and the page keeps its own
 //      local line (EWCore.localQuote). Provider messages never leave the worker.
@@ -3151,8 +3153,9 @@ async function handleCloudSearch(body, env) {
 // TOKEN_CACHE (account 1's write budget, memory kv-write-budget).
 // ════════════════════════════════════════════════════════════════════════════
 const QUOTE_ORCA_URL = 'https://orca.vedapatel05.workers.dev/v1/chat/completions';
-const QUOTE_ORCA_MODELS = ['claude_pro/pro', null];    // null = ORCA picks among the profile's routable models
-const QUOTE_ORCA_BUDGET_MS = 45000;                    // browser units are slow; one shared budget for both tries
+const QUOTE_ORCA_MODELS = ['deepseek/free', 'chatgpt/free', 'gemini_web/free', 'grok/free', 'copilot/free', 'perplexity/free'];
+const QUOTE_ORCA_BUDGET_MS = 60000;                    // browser units are slow; one shared budget for every try
+const QUOTE_ORCA_TRY_MS = 20000;                       // one hung unit must not eat the whole budget
 const QUOTE_GEMINI_MODELS = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite'];
 const QUOTE_KV_PREFIX = 'ew_quote:';
 const QUOTE_RECENT = 30;
@@ -3210,30 +3213,30 @@ async function orcaQuote(env, prompt, recent) {
     const left = deadline - Date.now();
     if (left < 3000) { why = 'orca:budget-spent'; break; }
     const ac = new AbortController();
-    const timer = setTimeout(() => ac.abort(), left);
+    const timer = setTimeout(() => ac.abort(), Math.min(left, QUOTE_ORCA_TRY_MS));
     let r;
     try {
-      const body = { messages: [{ role: 'user', content: prompt }], max_tokens: 160, temperature: 0.9 };
-      if (model) body.model = model;
+      const body = { model, messages: [{ role: 'user', content: prompt }], max_tokens: 160, temperature: 0.9 };
       r = await fetch(QUOTE_ORCA_URL, { method: 'POST', signal: ac.signal,
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + env.TONY_ORCA_KEY }, body: JSON.stringify(body) });
     } catch (e) {
       clearTimeout(timer);
-      return { ok: false, why: e && e.name === 'AbortError' ? 'orca:timeout' : 'orca:network' };   // a timeout has spent the budget
+      if (e && e.name === 'AbortError') { why = 'orca:timeout-' + model; continue; }               // this unit hung; the next may answer
+      return { ok: false, why: 'orca:network' };
     } finally { clearTimeout(timer); }
     if (r.status === 401 || r.status === 403) return { ok: false, why: 'orca:auth' };           // bad/rotated key: no point trying again
     // 503 (+Retry-After): nothing can serve right now (the PC bridge is away) —
     // true for every browser model, so stop. 404: THIS model cannot (disabled,
-    // signed out) — ORCA's own pick may still find one.
+    // signed out) — the next free model may still answer.
     if (r.status === 503) return { ok: false, why: 'orca:unavailable', retryAfter: r.headers.get('Retry-After') };
-    if (r.status === 404) { why = 'orca:no-backend-for-' + (model || 'auto'); continue; }
+    if (r.status === 404) { why = 'orca:no-backend-for-' + model; continue; }
     if (r.status === 429) return { ok: false, why: 'orca:rate-limited', retryAfter: r.headers.get('Retry-After') };
-    if (!r.ok) { why = 'orca:' + r.status; continue; }                                             // e.g. 502 session expired → let ORCA pick another
+    if (!r.ok) { why = 'orca:' + r.status; continue; }                                             // e.g. 502 session expired → the next model
     let d = null;
     try { d = await r.json(); } catch (e) { why = 'orca:bad-envelope'; continue; }
     const text = d && d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
     const q = cleanQuote(text, recent);
-    if (q) return { ok: true, text: q, via: 'orca', model: (d && d.model) || model || 'orca' };
+    if (q) return { ok: true, text: q, via: 'orca', model: (d && d.model) || model };
     why = 'orca:invalid-output';
   }
   return { ok: false, why };
@@ -3283,9 +3286,9 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 21, // bump when verifying a deploy went live
+        version: 22, // bump when verifying a deploy went live
         features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search', 'quote'],
-        quoteModels: { orca: QUOTE_ORCA_MODELS.map(m => m || 'orca:auto'), gemini: QUOTE_GEMINI_MODELS },
+        quoteModels: { orca: QUOTE_ORCA_MODELS, gemini: QUOTE_GEMINI_MODELS },
         orcaKey: !!env.TONY_ORCA_KEY,
         models: MODELS,
         listModels: LIST_MODELS,
