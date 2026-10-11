@@ -4255,20 +4255,26 @@ function wireEditor(ctx) {
     if (a && ed.contains(a) && ed.contentEditable !== 'true') {
       e.preventDefault();
       window.open(a.href, '_blank', 'noopener');
-      return;
-    }
-    // A bare URL typed as plain text (no <a>) opens the same way — VIEW mode only.
-    if (!a && ed.contentEditable !== 'true') {
-      var u = bareUrlAt(e.clientX, e.clientY);
-      if (u) { e.preventDefault(); window.open(u, '_blank', 'noopener'); }
     }
   });
-  // The http(s) URL in plain text under a point, or ''.
+  // A bare URL typed as plain text (no <a>) opens the same way — VIEW mode only.
+  // The apps give a view-mode editor pointer-events:none (only its <a>s take
+  // clicks), so the click lands on the wrap behind it; .docx-hit turns hit
+  // testing back on for the one synchronous caret lookup.
+  var hitHost = ctx.wrapEl || ed.parentNode;
   function bareUrlAt(x, y) {
     var node, off;
-    if (document.caretPositionFromPoint) { var p = document.caretPositionFromPoint(x, y); if (p) { node = p.offsetNode; off = p.offset; } }
-    else if (document.caretRangeFromPoint) { var r = document.caretRangeFromPoint(x, y); if (r) { node = r.startContainer; off = r.startOffset; } }
+    hitHost.classList.add('docx-hit');
+    try {
+      if (document.caretPositionFromPoint) { var p = document.caretPositionFromPoint(x, y); if (p) { node = p.offsetNode; off = p.offset; } }
+      else if (document.caretRangeFromPoint) { var r = document.caretRangeFromPoint(x, y); if (r) { node = r.startContainer; off = r.startOffset; } }
+    } finally { hitHost.classList.remove('docx-hit'); }
     if (!node || node.nodeType !== 3 || !ed.contains(node)) return '';
+    // The caret lands beside the nearest character even past the end of a line,
+    // so the click must also fall inside the text's own boxes.
+    var hitR = document.createRange(); hitR.selectNodeContents(node);
+    var inside = Array.prototype.some.call(hitR.getClientRects(), function (b) { return x >= b.left && x <= b.right && y >= b.top && y <= b.bottom; });
+    if (!inside) return '';
     var re = /https?:\/\/[^\s<>"']+/gi, txt = node.textContent, m;
     while ((m = re.exec(txt))) {
       var url = m[0].replace(/[.,;:!?)\]]+$/, '');
@@ -4276,9 +4282,25 @@ function wireEditor(ctx) {
     }
     return '';
   }
-  ed.addEventListener('mousemove', function(e) {
-    ed.style.cursor = ed.contentEditable !== 'true' && bareUrlAt(e.clientX, e.clientY) ? 'pointer' : '';
-  });
+  if (hitHost) {
+    hitHost.addEventListener('click', function(e) {
+      if (ed.contentEditable === 'true' || (e.target.closest && e.target.closest('a[href]'))) return;
+      var sel = window.getSelection();
+      if (sel && !sel.isCollapsed) return;          // finishing a text selection, not a click
+      var u = bareUrlAt(e.clientX, e.clientY);
+      if (u) { e.preventDefault(); window.open(u, '_blank', 'noopener'); }
+    });
+    var hoverPending = false;
+    hitHost.addEventListener('mousemove', function(e) {
+      if (hoverPending) return;
+      hoverPending = true;
+      var x = e.clientX, y = e.clientY;
+      requestAnimationFrame(function () {
+        hoverPending = false;
+        hitHost.style.cursor = ed.contentEditable !== 'true' && bareUrlAt(x, y) ? 'pointer' : '';
+      });
+    });
+  }
   // Delegated image handling so images stay resizable/deletable/copyable no matter how the DOM moves
   wireImageDelegation(ctx);
   // ── Copy / cut as Markdown ──

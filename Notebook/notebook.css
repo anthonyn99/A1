@@ -301,6 +301,8 @@ mark.docx-find-hit.cur { background: #E0A62A; color: #201800; outline: 2px solid
 mark.docx-hl { background: rgba(224,184,116,.4); color: inherit; border-radius: 2px; padding: 0 1px; }
 
 /* ── Fading page scrollbar (draggable) ── */
+/* docx.js finds a bare URL under a view-mode click (the editor is pointer-events:none then) */
+.docx-hit [contenteditable] { pointer-events: auto !important; }
 .docx-scrollbar-holder { position: sticky; top: 0; height: 0; z-index: 60; overflow: visible; pointer-events: none; }
 .docx-scrollbar { position: absolute; right: 5px; width: 9px; border-radius: 5px; background: rgba(255,255,255,.34); opacity: 0; transition: opacity .5s ease; pointer-events: auto; cursor: grab; z-index: 60; touch-action: none; }
 .docx-scrollbar.on { opacity: 1; }
