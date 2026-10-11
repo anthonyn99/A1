@@ -28,7 +28,7 @@ const LOADS = new RegExp('<script[^>]+src=["\']' + M.src('hoverfx.js') + '["\']'
 // Pages served from the repo root, which load the shared file directly.
 const PAGES = [
   'index.html', 'riftiq.html', 'tradehub.html', 'shield.html', 'mylist.html',
-  'solace.html', 'vault.html', 'insight.html', 'oneinbox.html', 'wellness.html',
+  'vault.html', 'insight.html', 'oneinbox.html', 'wellness.html',
   'everwell.html',
 ];
 

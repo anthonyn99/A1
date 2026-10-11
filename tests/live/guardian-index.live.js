@@ -63,7 +63,7 @@ const mock = {
   await fresh();
   ok('Guardian loaded', await evalJs(c, `!!window.Guardian && typeof window.alGate === 'function'`));
   ok('every index lock declared (incl. tony_magi, which had no label before)', await evalJs(c,
-    `['tony_taskhub','tony_tradehub','tony_solace','tony_keychain','tony_myjournal','tony_warroom','tony_magi','veda_taskhub','veda_gita','veda_journal','veda_rules','veda_reels','tony_shield','veda_shield','profile_tony','profile_veda'].every(id => Guardian.defs().some(d => d.id === id))`));
+    `['tony_taskhub','tony_tradehub','tony_everwell','tony_keychain','tony_myjournal','tony_warroom','tony_magi','veda_taskhub','veda_gita','veda_journal','veda_rules','veda_reels','tony_shield','veda_shield','profile_tony','profile_veda'].every(id => Guardian.defs().some(d => d.id === id))`));
   ok('the old overlay is gone', await evalJs(c, `!document.getElementById('applock-overlay')`));
   ok('one status-many call covers every lock on load', calls.filter((p) => p === '/auth/journal/status-many').length >= 1, calls.join());
   ok('profile_tony known locked after refresh', await evalJs(c, `alIsLocked('profile_tony') && !alIsUnlocked('profile_tony')`));

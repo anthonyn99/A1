@@ -25,7 +25,7 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const PAGES = [
   'index.html', 'insight.html', 'magi.html', 'mylist.html', 'oneinbox.html',
-  'riftiq.html', 'shield.html', 'solace.html', 'tradehub.html', 'vault.html',
+  'riftiq.html', 'shield.html', 'tradehub.html', 'vault.html',
   'wellness.html', 'everwell.html',
 ];
 // StudyOS is the one multi-file app; its cap lives in its stylesheet.

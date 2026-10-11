@@ -34,7 +34,6 @@ const HOSTS = {
   'mylist.html':   { lock: 'guardian', profile: true },
   'insight.html':  { lock: 'guardian' },
   'vault.html':    { lock: 'guardian' },
-  'solace.html':   { lock: 'guardian' },
   'everwell.html': { lock: 'guardian' },
   'shield.html':   { lock: 'guardian', profile: true },
   'riftiq.html':   { lock: 'guardian' },
@@ -90,29 +89,41 @@ for (const [file, want] of Object.entries(HOSTS)) {
 
 console.log('\nPrograms that moved to A1-Priv (docs/a1-priv-move-plan.md)');
 {
-  const moved = ['tradehub', 'insight', 'vault', 'riftiq', 'solace'];
+  const moved = ['tradehub', 'insight', 'vault', 'riftiq'];
   for (const p of moved) {
     ok(p + ' seeds on its new host', new RegExp("\\{ id: '" + p + "'[^}]*url: PRIV \\+ '" + p + "\\.html'").test(src));
     ok(p + "'s old address is in LifeHub's MOVED map",
       src.includes("'https://anthonyn99.github.io/a1/" + p + ".html': PRIV + '" + p + ".html'"));
   }
   ok("LifeHub's PRIV is the private host", /var PRIV = 'https:\/\/a1-priv\.av1\.workers\.dev\/';/.test(src));
-  ok('stored tiles are migrated by patch, once per sync', /if \(!st\.movedDone\)/.test(src) && /patchOp\(x\.id, \{ url: movedUrl\(x\.url\) \}\)/.test(src));
+  ok('stored tiles are migrated by patch, once per sync', /if \(!st\.movedDone\)/.test(src) && /patchOp\(x\.id, movedPatch\(x\)\)/.test(src));
   // Run the real movedUrl: keeps query + hash, ignores case, leaves others alone.
   const body = /var MOVED = \{[\s\S]*?\n  function movedUrl\(u\) \{[\s\S]*?\n  \}/.exec(src);
-  let mv = null;
-  try { mv = new Function("var PRIV = 'https://a1-priv.av1.workers.dev/';\n" + body[0] + '\nreturn movedUrl;')(); } catch (e) {}
+  let mv = null, mp = null;
+  try { [mv, mp] = new Function("var PRIV = 'https://a1-priv.av1.workers.dev/';\n" + body[0] + '\nreturn [movedUrl, movedPatch];')(); } catch (e) {}
   ok('movedUrl keeps the query and hash', mv && mv('https://anthonyn99.github.io/A1/vault.html?vaulttab=payments#x') === 'https://a1-priv.av1.workers.dev/vault.html?vaulttab=payments#x');
   ok('movedUrl leaves programs that stayed alone', mv && mv('https://anthonyn99.github.io/A1/magi.html') === '');
+  // Everwell Phase 9: both Solace addresses lead to Everwell, and the tile
+  // takes Everwell's name, icon and tab unless Tony changed them.
+  ok('a Solace tile becomes Everwell (url, name, icon, tab)', mp && JSON.stringify(mp({ url: 'https://a1-priv.av1.workers.dev/solace.html', name: 'Solace', icon: 'a1:solace', tab: 'solace' })) ===
+    JSON.stringify({ url: 'https://a1-priv.av1.workers.dev/everwell.html', name: 'Everwell', icon: 'a1:everwell', tab: 'everwell' }));
+  ok("…from A1's old address too, keeping a name Tony gave it", mp && JSON.stringify(mp({ url: 'https://anthonyn99.github.io/A1/solace.html', name: 'Health', icon: 'a1:solace', tab: 'solace' })) ===
+    JSON.stringify({ url: 'https://a1-priv.av1.workers.dev/everwell.html', icon: 'a1:everwell', tab: 'everwell' }));
+  ok('LifeHub has no Solace icon or seed left', !/\bsolace: "<svg/.test(src) && !/id: 'solace'/.test(src));
   ok("movedUrl sends RiftIQ's old WarRoom name to RiftIQ", mv && mv('https://anthonyn99.github.io/A1/warroom.html') === 'https://a1-priv.av1.workers.dev/riftiq.html');
   // Index moves Tony's stored buttons the same way.
   const idx = read('index.html');
   for (const p of moved) ok("Index's MOVED_PROGRAMS has " + p, idx.includes("'https://anthonyn99.github.io/a1/" + p + ".html'") && idx.includes("'https://a1-priv.av1.workers.dev/" + p + ".html'"));
   // [button id, page]. RiftIQ's button kept its WarRoom-era id.
-  for (const [id, p] of [['tradehub', 'tradehub'], ['vault', 'vault'], ['warroom', 'riftiq'], ['solace', 'solace']]) {
+  for (const [id, p] of [['tradehub', 'tradehub'], ['vault', 'vault'], ['warroom', 'riftiq']]) {
     ok("Index's " + id + ' button is on the new host, old url in prevUrls',
       new RegExp("\\{ id:'" + id + "',[^}]*url:'https://a1-priv\\.av1\\.workers\\.dev/" + p + "\\.html'[^}]*prevUrls:\\[[^\\]]*'https://anthonyn99\\.github\\.io/A1/" + p + "\\.html'").test(idx));
   }
+  ok("Index's Everwell button replaces Solace's (lock tony_everwell, opener _everwellClick)",
+    /\{ id:'everwell', label:'Everwell', url:'https:\/\/a1-priv\.av1\.workers\.dev\/everwell\.html', lockId:'tony_everwell', openFn:'_everwellClick' \}/.test(idx) && !/id:'solace'/.test(idx));
+  ok("Index's MOVED_PROGRAMS sends both Solace addresses to Everwell",
+    idx.includes("'https://anthonyn99.github.io/a1/solace.html':   'https://a1-priv.av1.workers.dev/everwell.html'") && idx.includes("'https://a1-priv.av1.workers.dev/solace.html':   'https://a1-priv.av1.workers.dev/everwell.html'"));
+  ok('A1/solace.html forwards to Everwell with query + hash', read('solace.html').includes("location.replace('https://a1-priv.av1.workers.dev/everwell.html' + location.search + location.hash)"));
   for (const p of moved) {
     const stub = read(p + '.html');
     ok('A1/' + p + '.html is a stub that forwards query + hash',
@@ -138,7 +149,7 @@ for (const msg of ['claim', 'claimed', 'retire']) {
 ok('the named-tab path never passes noopener', !/window\.open\('',\s*name,/.test(src) && !/noopener['"]\)/.test(src));
 // The keys TaskHub's own buttons use. Different keys = two tabs of one program.
 const tabOf = (id) => (new RegExp("\\{ id: '" + id + "'[^}]*tab: '([^']+)'").exec(src) || [])[1];
-for (const [id, key] of [['tradehub', 'tradehub'], ['riftiq', 'warroom'], ['vault', 'vault'], ['solace', 'solace'], ['magi', 'magi']]) {
+for (const [id, key] of [['tradehub', 'tradehub'], ['riftiq', 'warroom'], ['vault', 'vault'], ['everwell', 'everwell'], ['magi', 'magi']]) {
   ok(`${id} opens under TaskHub's key '${key}'`, tabOf(id) === key && index.includes("_tnOpenTab(URL_" ) && new RegExp("_tnOpenTab\\([A-Z_]+, '" + key + "'\\)").test(index), tabOf(id));
 }
 ok("Shield (HTML) opens under TaskHub's Tony key 'shield_tony'",
@@ -149,7 +160,7 @@ console.log('\nThe initial configuration');
 const block = (name) => (new RegExp('var ' + name + ' = \\[([\\s\\S]*?)\\n  \\];').exec(src) || [])[1] || '';
 const names = (b) => [...b.matchAll(/\{ id: '([a-z_]+)', name: '([^']+)'/g)].map((m) => m[2]);
 const tony = block('DEFAULT_APPS'), veda = block('VEDA_APPS');
-ok("seeds exactly Tony's ten programs, in order", names(tony).join() === 'OneInbox,TradeHub,MyList,Insight,Vault,Solace,Shield,Shield (HTML),RiftIQ,MAGI', names(tony));
+ok("seeds exactly Tony's ten programs, in order", names(tony).join() === 'OneInbox,TradeHub,MyList,Insight,Vault,Everwell,Shield,Shield (HTML),RiftIQ,MAGI', names(tony));
 ok("seeds Veda's own list: the programs with a Veda profile", names(veda).join() === 'MyList,Shield,Shield (HTML)', names(veda));
 ok("each profile has its own document and mirror (Tony's unchanged)",
   /tony: \{ doc: 'lifehub', ls: 'lifehub:v1'/.test(src) && /veda: \{ doc: 'lifehub_veda', ls: 'lifehub:v1:veda'/.test(src));

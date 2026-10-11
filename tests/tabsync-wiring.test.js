@@ -39,7 +39,7 @@ const ROOT = path.join(__dirname, '..');
 // with this one, so it can only ever have the window-name pairing.
 const PAGES = [
   'index.html', 'magi.html', 'riftiq.html', 'tradehub.html', 'shield.html',
-  'mylist.html', 'solace.html', 'vault.html', 'insight.html', 'oneinbox.html',
+  'mylist.html', 'vault.html', 'insight.html', 'oneinbox.html',
   'wellness.html', 'everwell.html',
 ];
 

@@ -24,7 +24,7 @@ const ok = (name, cond) => {
 const PAGES = [
   'index.html', 'magi.html', 'mylist.html', 'oneinbox.html', 'shield.html',
   'wellness.html', 'backup-export.html', 'backup-restore.html',
-  'insight.html', 'riftiq.html', 'solace.html', 'tradehub.html', 'vault.html',
+  'insight.html', 'riftiq.html', 'tradehub.html', 'vault.html',
   'everwell.html',
 ];
 const NO_HIGHLIGHT = /\*,\*::before,\*::after\{-webkit-tap-highlight-color:transparent\}/;

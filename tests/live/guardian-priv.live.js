@@ -4,7 +4,7 @@
 // lock-bio-binding.live.js: the biometric-to-password binding it checked per
 // page is Guardian's now, and is checked here on every page.
 //
-// Each of TradeHub, Solace, RiftIQ and Vault:
+// Each of TradeHub, RiftIQ and Vault:
 //   - an old unlock (al_locks + al_unlockedv_*, as cookies only — what an
 //     evicted Brave leaves) is adopted: straight in, the old credential kept
 //   - the biometric unlocks; a password change elsewhere re-locks the page,
@@ -58,7 +58,6 @@ const FAKE_AUTH = `(function(){ if (window.top !== window) return;
 
 const PAGES = [
   { file: 'tradehub.html', id: 'tony_tradehub_standalone', ns: 'tradehub', root: "document.getElementById('tradeboard-root')" },
-  { file: 'solace.html', id: 'tony_solace_standalone', ns: 'solacelock', root: "document.getElementById('sol-root')" },
   { file: 'riftiq.html', id: 'tony_warroom_standalone', ns: 'warroomlock', root: "document.getElementById('program-picker')" },   // RiftIQ opens on its program picker
   { file: 'vault.html', id: 'tony_vault_standalone', ns: 'vaultlock', root: "document.getElementById('kc-root')" },
 ];

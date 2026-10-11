@@ -1,5 +1,6 @@
 // Programs that left A1 for the private repo (anthonyn99/A1-Priv) on
-// 2026-10-10 (TradeHub, Insight, Vault, then RiftIQ and Solace) —
+// 2026-10-10 (TradeHub, Insight, Vault, then RiftIQ and Solace, which Everwell
+// replaced on 2026-10-11) —
 // docs/a1-priv-move-plan.md. Their A1 copies are redirect stubs,
 // but the suites here still guard the REAL code: they read it from the sibling
 // checkout next to this one (Desktop\A1-Priv). Without that checkout (CI,
@@ -18,7 +19,7 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 // A1_PRIV points the suites at another checkout (e.g. a git worktree under test).
 const PRIV = process.env.A1_PRIV ? path.resolve(process.env.A1_PRIV) : path.join(ROOT, '..', 'A1-Priv');
-const MOVED = /^(?:(?:tradehub|insight|vault|riftiq|solace|everwell)\.html$|Vault[\\/])/;
+const MOVED = /^(?:(?:tradehub|insight|vault|riftiq|everwell)\.html$|Vault[\\/])/;
 
 const isMoved = (rel) => MOVED.test(String(rel));
 const file = (rel) => path.join(isMoved(rel) ? PRIV : ROOT, rel);
