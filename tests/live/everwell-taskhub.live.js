@@ -116,22 +116,22 @@ const ROT = { steps: [{ id: 'a', name: 'Push' }, { id: 'b', name: 'Pull' }, { id
   ok('in edit mode the Prayer row is draggable', await js(`return document.querySelector('tr[data-ew-prayer]').draggable === true;`));
   const mainW0 = await js(`return __fakeFs.log.filter(l => l.path === 'dashboards/main' && !l.remote).length;`);
   await drag('tr[data-ew-prayer]', 'tr[data-dnd-id="h_read"]');
-  ok('dropping Prayer on the last habit moves it there', (await rowIds()) === 'h_pray,ew-prayer,h_read', await rowIds());
-  ok("…its place is saved beside the ticks (row.after), ticks kept", await js(`const d = __fakeFs.docs['dashboards/everwell_prayer']; return d.row && d.row.after === 'h_pray' && d.row.at === 1 && d.done['${YESTERDAY}'] === true;`),
+  ok('dropping Prayer on the last habit moves it to the bottom', (await rowIds()) === 'h_pray,h_read,ew-prayer', await rowIds());
+  ok("…its place is saved beside the ticks (row.after), ticks kept", await js(`const d = __fakeFs.docs['dashboards/everwell_prayer']; return d.row && d.row.after === 'h_read' && d.row.at === 2 && d.done['${YESTERDAY}'] === true;`),
     await js(`return JSON.stringify(__fakeFs.docs['dashboards/everwell_prayer']);`));
   ok('…and `habits` is unchanged (Prayer never enters it, order kept)', await js(`return JSON.stringify(__fakeFs.docs['dashboards/main'].habits.map(h => h.id)) === '["h_pray","h_read"]';`) &&
     (await js(`return __fakeFs.log.filter(l => l.path === 'dashboards/main' && !l.remote).length;`)) === mainW0);
   await drag('tr[data-dnd-id="h_read"]', 'tr[data-ew-prayer]');
-  ok('a habit dropped on Prayer takes its place; Prayer follows its anchor', (await rowIds()) === 'h_pray,h_read,ew-prayer', await rowIds());
+  ok('a habit dropped on Prayer takes its slot (Prayer moves up past it)', (await rowIds()) === 'h_pray,ew-prayer,h_read', await rowIds());
   ok('…the habit order is saved through TaskHub, Prayer still out of it', await js(`return JSON.stringify(__fakeFs.docs['dashboards/main'].habits.map(h => h.id)) === '["h_pray","h_read"]';`) &&
-    await js(`const r = __fakeFs.docs['dashboards/everwell_prayer'].row; return r.after === 'h_read' && r.at === 2;`));
+    await js(`const r = __fakeFs.docs['dashboards/everwell_prayer'].row; return r.after === 'h_pray' && r.at === 1;`));
   // Out of Daily Habits: onto a week-view task and onto the Long-Term Goals zone.
-  const own = `[data-dnd-id="t_own"]`;
+  const own = `div[data-dnd-id]`;   // any week-view card
   await drag('tr[data-ew-prayer]', own);
-  ok('dropping Prayer on a week task does nothing (it stays in Daily Habits)', (await rowIds()) === 'h_pray,h_read,ew-prayer' &&
+  ok('dropping Prayer on a week task does nothing (it stays in Daily Habits)', (await rowIds()) === 'h_pray,ew-prayer,h_read' &&
     await js(`const m = __fakeFs.docs['dashboards/main']; return !Object.values(m.data).some(a => (a || []).some(t => t.id === 'ew-prayer' || t._ewPrayer)) && !(m.goals || []).some(g => g.id === 'ew-prayer');`));
   await drag('tr[data-ew-prayer]', '[data-dnd-zone="goal"]');
-  ok('…nor on Long-Term Goals', (await rowIds()) === 'h_pray,h_read,ew-prayer' && await js(`return !(__fakeFs.docs['dashboards/main'].goals || []).some(g => g.id === 'ew-prayer');`));
+  ok('…nor on Long-Term Goals', (await rowIds()) === 'h_pray,ew-prayer,h_read' && await js(`return !(__fakeFs.docs['dashboards/main'].goals || []).some(g => g.id === 'ew-prayer');`));
   await js(`__fakeFs.remote('dashboards/everwell_prayer', { row: { after: null, at: 0 }, savedAt: Date.now() }, { merge: true }); 1`); await sleep(1200);
   ok('a place set on another device shows here', (await rowIds()) === 'ew-prayer,h_pray,h_read', await rowIds());
   await js(`__fakeFs.remote('dashboards/everwell_prayer', { row: { after: 'h_gone', at: 1 }, savedAt: Date.now() }, { merge: true }); 1`); await sleep(1200);
