@@ -3222,7 +3222,11 @@ async function orcaQuote(env, prompt, recent) {
       return { ok: false, why: e && e.name === 'AbortError' ? 'orca:timeout' : 'orca:network' };   // a timeout has spent the budget
     } finally { clearTimeout(timer); }
     if (r.status === 401 || r.status === 403) return { ok: false, why: 'orca:auth' };           // bad/rotated key: no point trying again
-    if (r.status === 503 || r.status === 404) return { ok: false, why: 'orca:unavailable', retryAfter: r.headers.get('Retry-After') }; // PC bridge away
+    // 503 (+Retry-After): nothing can serve right now (the PC bridge is away) —
+    // true for every browser model, so stop. 404: THIS model cannot (disabled,
+    // signed out) — ORCA's own pick may still find one.
+    if (r.status === 503) return { ok: false, why: 'orca:unavailable', retryAfter: r.headers.get('Retry-After') };
+    if (r.status === 404) { why = 'orca:no-backend-for-' + (model || 'auto'); continue; }
     if (r.status === 429) return { ok: false, why: 'orca:rate-limited', retryAfter: r.headers.get('Retry-After') };
     if (!r.ok) { why = 'orca:' + r.status; continue; }                                             // e.g. 502 session expired → let ORCA pick another
     let d = null;
