@@ -261,28 +261,46 @@ const mock = {
   ok("a tap changes today's split (Legs), and tomorrow follows from it", (await js(`return document.getElementById('dash-split-name').textContent + '|' + [...document.querySelectorAll('.split-day .nm')].slice(0, 3).map(e => e.textContent).join();`)) === 'Legs|Legs,Push,Pull');
   ok('…saved as a new anchor (today, Legs) with a log entry', await js(`const r = __fakeFs.docs['dashboards/everwell_tony'].rotation; return r.anchor.date === '${today}' && r.anchor.idx === 2 && r.log.length === 1 && r.log[0].date === '${today}';`));
 
-  // Edit rotation: add a rest day, link today's step to a routine.
-  await js(`document.querySelector('[data-act="edit-rot"]').click(); return 1;`); await sleep(400);
-  ok('Edit rotation opens with the three steps', (await js(`return document.querySelectorAll('#rot-list .rot-row').length;`)) === 3);
-  await js(`document.querySelector('[data-act="rot-add"]').click(); const rows = document.querySelectorAll('#rot-list .rot-row'); const last = rows[rows.length - 1];
-    last.querySelector('input[type=text]').value = 'Rest'; last.querySelector('input[type=checkbox]').checked = true;
-    rows[2].querySelector('select').value = 'r2'; return 1;`);
-  ok("the routine picker lists Fitness's routines", (await js(`return [...document.querySelectorAll('#rot-list .rot-row:nth-child(1) select option')].map(o => o.textContent).join();`)) === 'No routine,Push Day A,Leg Day');
-  await js(`document.querySelector('[data-act="rot-save"]').click(); return 1;`); await sleep(1500);
-  ok('saved: 4 steps with a rest day, and today is still Legs', await js(`const r = __fakeFs.docs['dashboards/everwell_tony'].rotation; return r.steps.length === 4 && r.steps[3].rest === true && r.steps[2].routineId === 'r2';`) &&
-    (await js(`return document.getElementById('dash-split-name').textContent + '|' + [...document.querySelectorAll('.split-day .nm')].slice(0, 3).map(e => e.textContent).join();`)) === 'Legs|Legs,Rest,Push');
+  console.log('\nDashboard: routine pairings');
+  ok('auto-paired ONCE by name: Legs → Leg Day; "Push Day A" is not an exact match, so Push stays free', await js(`const r = __fakeFs.docs['dashboards/everwell_tony'].rotation;
+    return r.autoPaired === true && r.steps[2].routineId === 'r2' && !r.steps[0].routineId && !r.steps[1].routineId;`), await js(`return JSON.stringify(__fakeFs.docs['dashboards/everwell_tony'].rotation.steps);`));
+  ok("today (Legs) names its routine and offers Show routine", /Routine: Leg Day/.test(await js(`return document.getElementById('dash-split-pair').textContent;`)) && await js(`return !!document.querySelector('[data-act="toggle-routine"]');`));
   await js(`document.querySelector('[data-act="toggle-routine"]').click(); return 1;`); await sleep(300);
-  ok("Show routine previews today's linked routine (from Fitness, read only)", (await js(`return document.querySelector('.split-routine .routine-line-name').textContent;`)) === 'Squat' &&
+  ok("Show routine previews it (from Fitness, read only)", (await js(`return document.querySelector('.split-routine .routine-line-name').textContent;`)) === 'Squat' &&
     await js(`return !__fakeFs.log.some(l => l.path === 'dashboards/motioncore' && l.op !== 'remote');`));
+  await js(`document.querySelector('[data-act="pairs"]').click(); return 1;`); await sleep(300);
+  ok('Routines opens one row per split, each with a picker of Fitness routines', await js(`return document.querySelectorAll('#pair-list .pair-row').length === 3 &&
+    [...document.querySelectorAll('#pair-list .pair-row:nth-child(1) select option')].map(o => o.textContent).join() === 'No routine,Push Day A,Leg Day';`));
+  await js(`const s = document.querySelector('#pair-list .pair-row:nth-child(1) select'); s.value = 'r1'; s.dispatchEvent(new Event('change', { bubbles: true })); return 1;`);
+  await js(`document.querySelector('#pair-list .pair-row:nth-child(3) [data-unpair]').click(); return 1;`);
+  ok('pairing Push and removing Legs shows in the dialog before saving', await js(`const rows = document.querySelectorAll('#pair-list .pair-row'); return rows[0].classList.contains('on') && rows[0].querySelector('select').value === 'r1' && !rows[2].classList.contains('on') && rows[2].querySelector('select').value === '';`));
+  await js(`document.querySelector('[data-act="pair-save"]').click(); return 1;`); await sleep(1500);
+  ok('saved with the rotation: Push → Push Day A, Legs → none', await js(`const r = __fakeFs.docs['dashboards/everwell_tony'].rotation; return r.steps[0].routineId === 'r1' && !r.steps[2].routineId && r.autoPaired === true;`));
+  ok('…and today (Legs) no longer shows a routine', await js(`return !document.getElementById('dash-split-pair') && !document.querySelector('[data-act="toggle-routine"]');`));
+  await c.send('Page.reload'); await sleep(2500); await tapIntro(); await js(`EWApp.go('dashboard'); return 1;`); await sleep(1500);
+  ok('auto-pairing never runs again (Legs stays unpaired after a reload)', await js(`return !__fakeFs.docs['dashboards/everwell_tony'].rotation.steps[2].routineId;`));
+  await js(`document.querySelector('[data-act="pairs"]').click(); return 1;`); await sleep(300);
+  await js(`const s = document.querySelector('#pair-list .pair-row:nth-child(3) select'); s.value = 'r2'; s.dispatchEvent(new Event('change', { bubbles: true })); document.querySelector('[data-act="pair-save"]').click(); return 1;`); await sleep(1500);
+  ok('re-pairing Legs → Leg Day works', (await js(`return document.getElementById('dash-split-pair').textContent;`)).includes('Leg Day'));
+
+  // Edit rotation: add a rest day; pairings ride along untouched.
+  await js(`document.querySelector('[data-act="edit-rot"]').click(); return 1;`); await sleep(400);
+  ok('Edit rotation opens with the three steps, and no routine picker', (await js(`return document.querySelectorAll('#rot-list .rot-row').length;`)) === 3 && (await js(`return document.querySelectorAll('#rot-list select').length;`)) === 0);
+  await js(`document.querySelector('[data-act="rot-add"]').click(); const rows = document.querySelectorAll('#rot-list .rot-row'); const last = rows[rows.length - 1];
+    last.querySelector('input[type=text]').value = 'Rest'; last.querySelector('input[type=checkbox]').checked = true; return 1;`);
+  await js(`document.querySelector('[data-act="rot-save"]').click(); return 1;`); await sleep(1500);
+  ok('saved: 4 steps with a rest day, today still Legs, pairings kept', await js(`const r = __fakeFs.docs['dashboards/everwell_tony'].rotation; return r.steps.length === 4 && r.steps[3].rest === true && r.steps[2].routineId === 'r2' && r.steps[0].routineId === 'r1';`) &&
+    (await js(`return document.getElementById('dash-split-name').textContent + '|' + [...document.querySelectorAll('.split-day .nm')].slice(0, 3).map(e => e.textContent).join();`)) === 'Legs|Legs,Rest,Push');
   await js(`__fakeFs.remote('dashboards/everwell_tony', { rotation: { steps: [{ id: 'x1', name: 'Upper' }, { id: 'x2', name: 'Lower' }], anchor: { date: '${today}', idx: 1 }, log: [] }, savedAt: Date.now() + 50 }, { merge: true }); return 1;`);
   await sleep(800);
   ok("another device's rotation arrives live", (await js(`return document.getElementById('dash-split-name').textContent;`)) === 'Lower');
 
   console.log('\nDashboard: faith, R, quote');
   ok('the Data Dragon version came from RiftIQ\'s worker first', riotCalls[0] === 'worker/api/ddragon-version' && riotCalls.includes('dd/cdn/16.99.1/data/en_US/champion/Yunara.json'), riotCalls.join(' '));
-  ok('"Yunara - The Unbroken Faith" (Riot\'s title) with a check', await js(`return document.getElementById('dash-faith-title').textContent === 'Yunara - The Unbroken Faith' && !!document.querySelector('.faith-line .ew-check');`));
-  ok('"I - have unbreakable faith" with its own check', await js(`const l = document.querySelector('.faith-line.mine'); return l.textContent.trim() === 'I - have unbreakable faith' && !!l.querySelector('.ew-check');`));
-  ok('no source footnotes under the faith lines or the R card', await js(`return !document.querySelector('.faith-src, .rcard-credit') && !/Data Dragon|champion data/.test(document.getElementById('dash-faith').textContent + document.getElementById('dash-r').textContent);`));
+  ok('"The Unbroken Faith" (Riot\'s title) with a check', await js(`return document.getElementById('dash-faith-title').textContent === 'The Unbroken Faith' && !!document.querySelector('.faith-line .ew-check');`));
+  ok('"I have unbreakable faith" with its own check', await js(`const l = document.querySelector('.faith-line.mine'); return l.textContent.trim() === 'I have unbreakable faith' && !!l.querySelector('.ew-check');`));
+  ok('the small caption "Yunara\'s title from League of Legends"; no R-card credit', await js(`const cap = document.querySelector('#dash-faith .faith-cap'); return !!cap && cap.textContent === "Yunara's title from League of Legends" && parseFloat(getComputedStyle(cap).fontSize) <= 12 && !document.querySelector('.rcard-credit');`));
+  ok("Tony's profile pill shows his purple fleur-de-lis", await js(`const s = document.querySelector('#ew-profile-btn .ew-fleur path'); return !!s && s.getAttribute('fill') === '#c0aeea';`));
   ok('R card: icon from Data Dragon, "R  Transcend One\'s Self"', await js(`return /\\/cdn\\/16\\.99\\.1\\/img\\/spell\\/YunaraR\\.png$/.test(document.querySelector('.rcard-icon').src) && document.querySelector('.rcard-name').textContent === "Transcend One's Self";`));
   ok('"Yunara enters" and "her basic Abilities" struck through, new words beneath', await js(`const sw = [...document.querySelectorAll('#dash-rdesc .swap')];
     return sw.length === 2 && sw[0].querySelector('s').textContent === 'Yunara enters' && sw[0].querySelector('.new').textContent === 'I enter' &&
