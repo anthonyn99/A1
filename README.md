@@ -22,11 +22,12 @@ files and belong at the root.
 
 ### Private programs (A1-Priv)
 
-**TradeHub**, **Insight**, **Vault**, **RiftIQ** and **Solace**, plus the Vault Launcher extension, live
+**TradeHub**, **Insight**, **Vault**, **RiftIQ** and **Everwell**, plus the Vault Launcher extension, live
 in the private repo `anthonyn99/A1-Priv` (`Desktop\A1-Priv`). They are served
 from `https://a1-priv.av1.workers.dev/<page>.html` and still load this repo's
 shared files (LifeHub, Notebook, tabsync, ...) by URL. Here, `tradehub.html`,
-`insight.html`, `vault.html`, `riftiq.html` and `solace.html` are redirect stubs that keep old links working,
+`insight.html`, `vault.html` and `riftiq.html` are redirect stubs that keep old links working (`solace.html`
+forwards to Everwell, which replaced Solace on 2026-10-11),
 and `Vault/` is a git-ignored junction to `A1-Priv\Vault`, so Brave's unpacked
 extension keeps its path. See `docs/a1-priv-move-plan.md`, which also covers
 moving another program there.

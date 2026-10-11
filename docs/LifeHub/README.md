@@ -134,7 +134,8 @@ the same as any unhandled protocol.
   or `""` for automatic (the program's own icon, otherwise the site's favicon,
   otherwise a letter).
 - `tab`: the named-window key. The built-ins match TaskHub's (`tradehub`,
-  `warroom`, `vault`, `solace`, `magi`, `shield_tony`).
+  `warroom`, `vault`, `everwell`, `magi`, `shield_tony`). A stored Solace
+  tile is moved to Everwell (address, name, icon, tab) on sync (`movedPatch`).
 
 ## Known limits
 

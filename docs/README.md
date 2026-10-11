@@ -3,7 +3,7 @@
 Every doc, plan and README in A1 lives here, one subfolder per project. Plans
 are kept after they are finished: they are the record of why things are the
 way they are. Docs for the private programs (TradeHub, Insight, Vault, RiftIQ,
-Solace) are in A1-Priv's own `docs/`.
+Everwell) are in A1-Priv's own `docs/`.
 
 ## Across the suite
 

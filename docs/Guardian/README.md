@@ -19,7 +19,8 @@ Two things are deliberately not on Guardian:
 | MAGI | `<p>_magi` | the picker stays; one record shared with index's MAGI nav gate |
 | TradeHub (A1-Priv) | `tony_tradehub_standalone`, `tony_tradehub_tab_<tab>` | app lock and per-tab locks |
 | Insight (A1-Priv) | `tony_insight` | `session` → insight-api token (Plaid); no Remove |
-| Vault / RiftIQ / Solace (A1-Priv) | `tony_vault_standalone` / `tony_warroom_standalone` / `tony_solace_standalone` | hard gates |
+| Vault / RiftIQ (A1-Priv) | `tony_vault_standalone` / `tony_warroom_standalone` | hard gates |
+| Everwell (A1-Priv) | `tony_everwell_standalone`, `tony_everwell_tab_<tab>`; index's nav button `tony_everwell` | hard gate and per-tab locks (Solace's `tony_solace*` retired 2026-10-11) |
 | ORCA (Desktop\ORCA) | `<p>_orca` | `backend` over ORCA's own `/lock/*` routes (server sessions and passkeys) |
 
 ## Adding a lock to a program
