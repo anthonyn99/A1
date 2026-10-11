@@ -3276,8 +3276,76 @@ async function handleQuote(url, env) {
   return json({ ok: true, date, quote: res.text, source: res.via });
 }
 
+// ── YouTube playlist contents (Everwell's "Expand", A1-Priv/everwell.html) ──
+// GET /yt/playlist?list=<id> → { ok, list, title, videos: [{ id, title }], more }
+// No API key: the public playlist page (ytInitialData) gives the first 100,
+// then YouTube's own browse continuation gives 100 a page, up to YT_MAX.
+// Videos are "lockupViewModel" entries since 2025 ("playlistVideoRenderer"
+// before; both are read). Answers sit in the edge cache for an hour; nothing
+// goes to KV (its writes are the daily limit). Mixes (RD…) and private lists
+// have no playlist page: { ok: false, error: 'unavailable' }.
+const YT_MAX = 500;
+const YT_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
+export function ytInitialData(h) {
+  const tag = 'var ytInitialData = ', i = h.indexOf(tag); if (i < 0) return null;
+  const s = i + tag.length, e = h.indexOf(';</script>', s); if (e < 0) return null;
+  try { return JSON.parse(h.slice(s, e)); } catch (x) { return null; }
+}
+export function ytWalk(o, out) {
+  if (!o || typeof o !== 'object') return out;
+  if (Array.isArray(o)) { for (const x of o) ytWalk(x, out); return out; }
+  const l = o.lockupViewModel;
+  if (l && l.contentType === 'LOCKUP_CONTENT_TYPE_VIDEO' && /^[A-Za-z0-9_-]{11}$/.test(l.contentId || '')) {
+    const md = l.metadata && l.metadata.lockupMetadataViewModel;
+    out.videos.push({ id: l.contentId, title: String((md && md.title && md.title.content) || '').slice(0, 120) });
+    return out;
+  }
+  const p = o.playlistVideoRenderer;
+  if (p && /^[A-Za-z0-9_-]{11}$/.test(p.videoId || '')) {
+    const t = p.title ? (p.title.simpleText || (p.title.runs || []).map((r) => r.text).join('')) : '';
+    out.videos.push({ id: p.videoId, title: String(t || '').slice(0, 120) });
+    return out;
+  }
+  if (o.continuationCommand && o.continuationCommand.token) out.next = o.continuationCommand.token;
+  for (const k in o) ytWalk(o[k], out);
+  return out;
+}
+async function handleYtPlaylist(url, ctx) {
+  const list = url.searchParams.get('list') || '';
+  if (!/^[A-Za-z0-9_-]{10,64}$/.test(list)) return json({ ok: false, error: 'bad list' }, 400);
+  const cache = caches.default, ckey = new Request('https://personal-ai.cache/yt/playlist?list=' + list);
+  const hit = await cache.match(ckey); if (hit) return new Response(hit.body, { headers: { 'Content-Type': 'application/json', ...cors() } });
+  let page;
+  try {
+    const r = await fetch('https://www.youtube.com/playlist?list=' + encodeURIComponent(list) + '&hl=en', { headers: { 'User-Agent': YT_UA, 'Accept-Language': 'en-US,en;q=0.9', Cookie: 'SOCS=CAI; CONSENT=YES+1' } });
+    if (!r.ok) return json({ ok: false, error: 'unavailable' });
+    page = await r.text();
+  } catch (e) { return json({ ok: false, error: 'unreachable' }); }
+  const d = ytInitialData(page);
+  const out = ytWalk(d && d.contents, { videos: [], next: null });
+  if (!d || !out.videos.length) return json({ ok: false, error: 'unavailable' });
+  const md = d.metadata && d.metadata.playlistMetadataRenderer;
+  const key = (page.match(/"INNERTUBE_API_KEY":"([^"]+)"/) || [])[1], ver = (page.match(/"INNERTUBE_CLIENT_VERSION":"([^"]+)"/) || [])[1];
+  while (out.next && out.videos.length < YT_MAX && ver) {
+    const token = out.next; out.next = null;
+    try {
+      const r = await fetch('https://www.youtube.com/youtubei/v1/browse?prettyPrint=false' + (key ? '&key=' + key : ''), {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'User-Agent': YT_UA },
+        body: JSON.stringify({ context: { client: { clientName: 'WEB', clientVersion: ver, hl: 'en' } }, continuation: token }) });
+      if (!r.ok) break;
+      const j = await r.json(); const before = out.videos.length;
+      ytWalk(j.onResponseReceivedActions, out);
+      if (out.videos.length === before) break;
+    } catch (e) { break; }
+  }
+  const seen = new Set(), videos = out.videos.filter((v) => !seen.has(v.id) && seen.add(v.id)).slice(0, YT_MAX);
+  const body = JSON.stringify({ ok: true, list, title: String((md && md.title) || '').slice(0, 120), videos, more: !!out.next || out.videos.length > YT_MAX });
+  if (ctx) ctx.waitUntil(cache.put(ckey, new Response(body, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=3600' } })));
+  return new Response(body, { headers: { 'Content-Type': 'application/json', ...cors() } });
+}
+
 export default {
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     if (req.method === 'OPTIONS') return new Response(null, { headers: cors() });
     const url = new URL(req.url);
     const path = url.pathname.replace(/\/+$/, '') || '/';
@@ -3286,8 +3354,8 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 22, // bump when verifying a deploy went live
-        features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search', 'quote'],
+        version: 23, // bump when verifying a deploy went live
+        features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search', 'quote', 'yt-playlist'],
         quoteModels: { orca: QUOTE_ORCA_MODELS, gemini: QUOTE_GEMINI_MODELS },
         orcaKey: !!env.TONY_ORCA_KEY,
         models: MODELS,
@@ -3310,6 +3378,7 @@ export default {
     }
 
     if (req.method === 'GET' && path === '/quote/daily') return handleQuote(url, env);
+    if (req.method === 'GET' && path === '/yt/playlist') return handleYtPlaylist(url, ctx);
 
     if (req.method === 'POST') {
       let body;
