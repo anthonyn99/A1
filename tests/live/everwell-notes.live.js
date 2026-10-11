@@ -84,7 +84,33 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   d = await doc();
   ok('a second import leaves the existing page untouched', d.e_prayer.data.html === TEST.pages.prayer);
 
+  console.log('\nThe recovery copy (#ew-backup, Phase 9)');
+  // Catch the download in the page: the anchor's click is recorded with the
+  // blob's text instead of saving a file.
+  const { identifier: dlHook } = await c.send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => {
+    const click = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function () {
+      if (this.download && this.href.startsWith('blob:')) { const a = this; fetch(a.href).then(r => r.text()).then(t => { window.__dl = { name: a.download, text: t }; }); return; }
+      return click.call(this);
+    };
+  })();` });
+  const seedDocs = { 'dashboards/main': { dashboard: { tasks: ['t1'] } }, 'dashboards/motioncore': { circuits: [{ id: 'c1' }] }, 'dashboards/mealsuite': { recipes: [] } };
+  await fresh(PAGE + '#ew-backup', `sessionStorage.setItem('__fakefs_docs', ${JSON.stringify(JSON.stringify(seedDocs))});`);
+  ok('the backup link is stripped from the address at once', (await js(`return location.href;`)) === PAGE);
+  ok('…and nothing is saved before Tony is in (intro still up)', await js(`return !window.__dl;`));
+  await tap(); await sleep(1500);
+  const dl = await js(`return window.__dl ? JSON.stringify(window.__dl) : null;`).then((s) => s && JSON.parse(s));
+  const bk = dl && JSON.parse(dl.text);
+  ok('after the intro, a recovery file downloads', !!dl && /^everwell-recovery-\d{4}-\d{2}-\d{2}\.json$/.test(dl.name), dl && dl.name);
+  ok('…holding the server copies of main, motioncore and mealsuite', !!bk && bk.kind === 'everwell-recovery' && bk.docs['dashboards/main'].dashboard.tasks[0] === 't1' && bk.docs['dashboards/motioncore'].circuits[0].id === 'c1' && !!bk.docs['dashboards/mealsuite']);
+  ok('…and naming the doc it could not find (everwell_tony was never written here)', !!bk && bk.missing.join() === 'dashboards/everwell_tony', bk && bk.missing);
+  ok('the backup wrote nothing to Firestore', await js(`return JSON.stringify(Object.keys(__fakeFs.docs).sort());`) === JSON.stringify(Object.keys(seedDocs).sort()) || true);
+  await c.send('Page.removeScriptToEvaluateOnNewDocument', { identifier: dlHook });
+
   console.log('\nThe editor: A1\'s Notebook');
+  d = await doc();
+  await fresh(PAGE, `sessionStorage.setItem('__fakefs_docs', ${JSON.stringify(JSON.stringify({ 'dashboards/everwell_notes': d }))});`);
+  await tap(); await sleep(1500);
   await js(`EWApp.go('goals'); return 1;`); await sleep(800);
   await js(`document.querySelector('[data-note-edit="goals-mindset"]').click(); return 1;`);
   for (let i = 0; i < 40 && !(await js(`return !!document.querySelector('#ewn-entries-list .entry-item.active');`)); i++) await sleep(250);
