@@ -4385,10 +4385,20 @@ function addFadingScrollbar(ctx) {
     var sh = wrap.scrollHeight, ch = wrap.clientHeight;
     if (sh <= ch + 4) { bar.style.display = 'none'; return null; }
     bar.style.display = '';
-    var thumbH = Math.max(36, ch * ch / sh);
-    var maxTop = Math.max(0, ch - thumbH - 6);      // keep the thumb's end inside the page
-    var top = (sh - ch) ? (wrap.scrollTop / (sh - ch)) * maxTop : 0;
-    top = Math.min(maxTop, Math.max(0, top));        // overscroll / rounding never push it off
+    // Lay the track over the part of the scroller that is actually on screen.
+    // The holder does not sit at the scroller's top edge (sticky honours the
+    // scroller's padding-top), and the scroller can run past the window's
+    // bottom, so a track of clientHeight measured from the holder pushed the
+    // thumb's end off screen at the bottom of a page.
+    var wr = wrap.getBoundingClientRect(), hr = holder.getBoundingClientRect();
+    var visTop = Math.max(wr.top + wrap.clientTop, 0);
+    var visBot = Math.min(wr.top + wrap.clientTop + ch, window.innerHeight || ch);
+    var visH = Math.max(0, visBot - visTop);
+    var thumbH = Math.min(Math.max(36, visH * ch / sh), Math.max(0, visH - 6));
+    var maxTop = Math.max(0, visH - thumbH - 6);    // keep the thumb's end inside the page
+    var frac = (sh - ch) ? wrap.scrollTop / (sh - ch) : 0;
+    frac = Math.min(1, Math.max(0, frac));           // overscroll / rounding never push it off
+    var top = visTop + 3 + frac * maxTop - hr.top;   // the bar's offset inside the holder
     return { thumbH: thumbH, top: top, sh: sh, ch: ch, maxTop: maxTop };
   }
   function place() { var g = geom(); if (!g) return; bar.style.height = g.thumbH + 'px'; bar.style.top = g.top + 'px'; }
