@@ -61,6 +61,9 @@ const FAKE_AUTH = `(function(){ if (window.top !== window) return;
   };
   const load = async (w, h, mobile) => {
     await c.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: mobile ? 2 : 1, mobile: !!mobile });
+    // A phone is a touch screen: (pointer:coarse), and taps arrive as touches.
+    await c.send('Emulation.setTouchEmulationEnabled', { enabled: !!mobile, maxTouchPoints: mobile ? 5 : 0 });
+    try { await c.send('Emulation.setEmulatedMedia', { features: [{ name: 'pointer', value: mobile ? 'coarse' : 'fine' }, { name: 'hover', value: mobile ? 'none' : 'hover' }] }); } catch (e) {}
     await c.send('Page.navigate', { url: URL_ }); await sleep(900);
     await evalJs(c, `localStorage.clear(); sessionStorage.clear(); document.cookie.split(';').forEach(k => document.cookie = k.split('=')[0].trim() + '=; path=/; max-age=0'); return 1;`);
     await c.send('Page.navigate', { url: URL_ }); await sleep(900);
