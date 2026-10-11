@@ -68,13 +68,15 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
     return !!n && n.querySelector('strong').textContent === 'Test gratitude line' && !!n.querySelector('em') && g.firstElementChild.id === 'pray-note';`));
   await js(`EWApp.go('goals'); return 1;`); await sleep(900);
   ok('Goals shows Goals & Mindset: section headings, bullets and numbered steps', await js(`const n = document.querySelector('#goals-notes .ew-doc'); return !!n && n.querySelectorAll('h2').length === 2 && n.querySelectorAll('ul li').length === 2 && n.querySelectorAll('ol li').length === 3;`));
-  ok('numbered steps get circled numbers', await js(`const li = document.querySelector('#goals-notes .ew-doc ol li'); return getComputedStyle(li, '::before').content.indexOf('counter') < 0 && getComputedStyle(li, '::before').borderRadius === '50%';`));
+  ok('numbered steps get circled numbers', await js(`const li = document.querySelector('#goals-notes .ew-doc ol li'); return getComputedStyle(li, '::before').content.indexOf('counter') >= 0 && getComputedStyle(li, '::before').borderRadius === '50%';`));
   await js(`EWApp.go('mindset'); return 1;`); await sleep(900);
   ok('Mindset shows Relationship Principles and With Parents', await js(`return [...document.querySelectorAll('#mind-notes .note-card .panel-title')].map(e => e.textContent).join() === 'Relationship Principles,With Parents';`));
   ok('Mindset leads with the quote of the day (same line as the Dashboard)', await js(`return EWQuote.today().then(q => document.querySelector('#mind-quote .quote-text').textContent === q.text);`));
 
   console.log('\nRe-import never overwrites');
-  await fresh(link({ v: 1, pages: { prayer: '<p>OVERWRITE ATTEMPT</p>' } }), `localStorage.setItem('x', '1');`);
+  // fresh() clears sessionStorage, which holds the fake Firestore: carry the notes doc over.
+  d = await doc();
+  await fresh(link({ v: 1, pages: { prayer: '<p>OVERWRITE ATTEMPT</p>' } }), `sessionStorage.setItem('__fakefs_docs', ${JSON.stringify(JSON.stringify({ 'dashboards/everwell_notes': d }))});`);
   await tap(); await sleep(1500);
   d = await doc();
   ok('a second import leaves the existing page untouched', d.e_prayer.data.html === TEST.pages.prayer);
