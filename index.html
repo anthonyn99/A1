@@ -9612,7 +9612,7 @@ function App(){
   const wkCatalystCard=cat=>({background:OI_CARD_BG,border:"1px solid "+("#34343a"),borderLeft:"3px solid "+("#8d8d94"),borderRadius:10,padding:isMobile?"3px 11px":"2px 9px",boxShadow:"0 1px 2px rgba(0,0,0,0.35)"});
 
   // Touch reorder for habits and goals
-  const {getTouchHandlers:habitTouchH,getRowProps:habitRowP}=useTouchReorder(habits,setHabits,"tony","habit");
+  const {getTouchHandlers:habitTouchH,getRowProps:habitRowP}=useTouchReorder(habRows,setHabRows,"tony","habit");
   const {getTouchHandlers:goalTouchH,getRowProps:goalRowP}=useTouchReorder(mg,setMg,"tony","goal");
   const {getTouchHandlers:goalMTouchH,getRowProps:goalMRowP}=useTouchReorder(mgMonthly,setMgMonthly,"tony","goalm");
   const {getTaskTouchHandlers:taskTouchH,getTaskRowProps:taskRowP}=useTouchReorderByDay(setData,T.AC,"tony");
@@ -9656,7 +9656,7 @@ function App(){
     if(dragInfo.current&&dragInfo.current.zone!=="habit"){crossMoveRef.current&&crossMoveRef.current("habit",targetId);dragInfo.current=null;return;}
     if(dragType.current!=="habit"||dragSrc.current===targetId)return;
     const srcId=dragSrc.current;
-    setHabits(prev=>{
+    setHabRows(prev=>{
       const arr=[...prev];
       const si=arr.findIndex(h=>h.id===srcId),ti=arr.findIndex(h=>h.id===targetId);
       if(si<0||ti<0)return prev;
@@ -9719,6 +9719,9 @@ function App(){
     const {zone:sZone,id:sId,dayKey:sDay}=di;
     // Same-zone same-list reorders are handled by the existing per-list handlers
     if(sZone===destZone&&(sZone!=="week"||sDay===destDayKey)){return;}
+    // Everwell's Prayer row never leaves Daily Habits (it is not in `habits`, so
+    // _findCross finds nothing for it; said here so nobody "fixes" that).
+    if(sZone==="habit"&&sId===EWP_ID)return;
     const item=_findCross(sZone,sId,sDay);if(!item)return;
     // 1) remove from source
     if(sZone==="week"){setData(prev=>{const arr=[...(prev[sDay]||[])];const i=arr.findIndex(x=>x.id===sId);if(i>=0)arr.splice(i,1);return{...prev,[sDay]:arr};});}
