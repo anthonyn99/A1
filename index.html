@@ -10170,7 +10170,11 @@ function App(){
                   "Prayer",
                   React.createElement("span",{"aria-label":"from Everwell",style:{display:"inline-flex",width:11,height:11,marginLeft:6,verticalAlign:"-1px",color:T.AC},dangerouslySetInnerHTML:{__html:'<svg viewBox="0 0 96 96" width="11" height="11" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"><path d="M22 80 48 54 74 80"/><path d="M22 54 48 28 74 54"/></g><circle cx="48" cy="10" r="9" fill="currentColor"/></svg>'}})),
                 ...wd.map((w2,di)=>{const k=dkey(w2.year,w2.month,w2.day),ch=!!ewPrayer[k];return habCell(ch,()=>{if(window._fbEwPrayerSet)window._fbEwPrayerSet(k,!ch);},k===tk);}),
-                React.createElement("td",{style:{width:edit?62:0,padding:0,borderBottom:"1px solid "+T.BD+"22",visibility:"hidden"}}))
+                // The same cell as a habit's edit/delete one (it sets the row's
+                // height), with its buttons as invisible stand-ins: same size, no actions.
+                React.createElement("td",{"aria-hidden":"true",style:{textAlign:"right",paddingTop:7,paddingBottom:7,borderBottom:"1px solid "+T.BD+"22",width:edit?62:0,paddingRight:edit?2:0,paddingLeft:0,overflow:"hidden",whiteSpace:"nowrap",visibility:"hidden"}},
+                  React.createElement("button",{type:"button",tabIndex:-1,disabled:true,style:{...ebtn,padding:"0 6px"}},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
+                  React.createElement("button",{type:"button",tabIndex:-1,disabled:true,style:{...dbtn,padding:"0 6px"}},"×")))
               :React.createElement("tr",{key:h.id,...habitRowP(h.id),...(edit?habitTouchH(h.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartHabit(e,h.id):null,onDragOver:edit?e=>{e.preventDefault();if(!isMobile)setDragOverId(h.id);}:null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropHabit(e,h.id):null,style:{cursor:edit?"grab":"default",outline:(!isMobile&&dragOverId===h.id)?"2px solid "+T.AC:"none",outlineOffset:"-1px"}},
                 React.createElement("td",{style:{fontSize:13,fontWeight:700,color:T.TX,paddingLeft:4,paddingTop:7,paddingBottom:7,wordBreak:"break-word",whiteSpace:"normal",borderBottom:"1px solid "+T.BD+"22",width:"100%"}},
                                     h.title,
