@@ -33,6 +33,7 @@ const mock = {
     if (req.method === 'OPTIONS') return { status: 204, text: '' };
     const u = new URL(req.url), p = u.pathname;
     if (u.host === 'i.ytimg.com') return { status: 404, text: '' };
+    if (/\.png$/.test(p)) return { body: PNG, type: 'image/png' };
     if (u.host === 'www.youtube-nocookie.com' || u.host === 'www.instagram.com') return { text: '<!doctype html><title>fake player</title>', type: 'text/html' };
     if (u.host === 'personal-ai.av1.workers.dev' && p === '/quote/daily')
       return { json: { ok: true, date: u.searchParams.get('date'), text: 'A long enough line of the day that wraps across a narrow phone screen without trouble.', via: 'orca' } };
@@ -47,6 +48,7 @@ const mock = {
   },
 };
 
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
 // Tony's seed: long names on purpose, the things a narrow screen breaks on.
 const LONG = 'Supercalifragilistic Posterior Chain Mobility Sequence';
 const SEED = {
@@ -127,9 +129,9 @@ const OFFENDERS = `(() => {
 
   // Each dialog a phone opens: [tab, label, js that opens it, selector of its box].
   const DIALOGS = [
-    ['dashboard', 'Edit rotation', `[...document.querySelectorAll('#ew-body-dashboard button')].find(b => /Edit rotation/i.test(b.textContent)).click()`],
-    ['dashboard', 'Routines', `[...document.querySelectorAll('#ew-body-dashboard button')].find(b => /^Routines$/i.test(b.textContent.trim())).click()`],
-    ['nutrition', 'a recipe', `document.querySelector('#ew-body-nutrition .rec-card, #ew-body-nutrition [data-rid], #ew-body-nutrition .recipe-card').click()`],
+    ['dashboard', 'Edit rotation', `document.querySelector('#ew-body-dashboard [data-act="edit-rot"]').click()`],
+    ['dashboard', 'Routines', `document.querySelector('#ew-body-dashboard [data-act="pairs"]').click()`],
+    ['nutrition', 'a recipe', `document.querySelector('#ew-body-nutrition .rec-row .rec-info').click()`],
   ];
 
   for (const display of [false, true]) {
@@ -149,7 +151,7 @@ const OFFENDERS = `(() => {
       for (const [tab, label, open] of DIALOGS) {
         await js(`EWApp.go('${tab}'); return 1;`); await sleep(900);
         const r = await js(`try { ${open}; return 'opened'; } catch (e) { return 'cannot open: ' + e.message; }`); await sleep(700);
-        if (r !== 'opened') { ok(`${who} ${w}px dialog ${label}: opens`, false, r); continue; }
+        if (r !== 'opened') { ok(`${who} ${w}px dialog ${label}: opens`, false, r + ' / ' + await js(`return document.getElementById('ew-body-${tab}').innerText.slice(0, 300);`)); continue; }
         const o = await offenders();
         ok(`${who} ${w}px dialog ${label}: nothing past the edge`, o.length === 0, show(o));
         await closeAll(); await sleep(400);
