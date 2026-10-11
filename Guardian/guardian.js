@@ -574,17 +574,18 @@ var CSS = [
 /* Cancel / Back: the same clean outline, sized to its word. */
 '.foot button.b{width:auto;min-width:132px;min-height:38px;padding:8px 22px;color:var(--txd)}',
 'button.b:disabled{opacity:.55;cursor:default}',
-'button.b:focus-visible,.lk:focus-visible,.eye:focus-visible{outline:2px solid var(--ac);outline-offset:1px}',
+'button.b:focus-visible,.eye:focus-visible{outline:2px solid var(--ac);outline-offset:1px}',
 '@media (hover:hover) and (pointer:fine){button.b:hover:not(:disabled){background:var(--s3);border-color:var(--ac)}button.b.dg:hover:not(:disabled){border-color:var(--red)}}',
 'button.b:active:not(:disabled){filter:brightness(.94);transform:translateY(1px)}',
 '.menu{display:flex;flex-direction:column;gap:8px;width:100%}.menu:empty{display:none}',
 '.menu button.b{justify-content:flex-start}',
-'.links{display:flex;justify-content:center;flex-wrap:wrap;gap:4px 16px}',
-'.lk{background:none;border:0;padding:2px 0;color:var(--txm);font:500 12px var(--f);cursor:pointer;text-decoration:underline;text-underline-offset:3px}',
-'.lk:hover:not(:disabled){color:var(--txd)}.lk:disabled{cursor:default;opacity:.8}',
+'.links{display:grid;grid-template-columns:1fr 1fr;gap:8px}',
+'.links button.b{min-height:38px;padding:8px 10px;color:var(--txd)}',
+'@media (max-width:360px){.links{grid-template-columns:1fr}}',
+
 '.foot{width:100%;padding-top:12px;border-top:1px solid var(--bd);display:flex;justify-content:center}',
 '.row2{display:flex;gap:8px;width:100%}',
-'@media (max-width:520px){.card{width:100%;padding:26px 18px 16px;gap:14px}button.b{min-height:46px;font-size:max(var(--btn-fs),12px)}input{min-height:48px;font-size:16px}.lk{padding:8px 4px;font-size:13px}.title{font-size:calc(var(--title-fs) - 2px)}}'
+'@media (max-width:520px){.card{width:100%;padding:26px 18px 16px;gap:14px}button.b{min-height:46px;font-size:max(var(--btn-fs),12px)}input{min-height:48px;font-size:16px}.title{font-size:calc(var(--title-fs) - 2px)}}'
 ].join('\n');
 
 var I = {
@@ -725,8 +726,8 @@ function scrUnlock(d, card, opts) {
   var err = h('div', { 'class': 'err' });
   var go = B('pri', null, purpose === 'removeBio' ? 'Verify' : purpose === 'verify' ? 'Continue' : 'Unlock');
   var bioBox = h('div', { 'class': 'menu' });
-  var hint = h('button', { 'class': 'lk', type: 'button', text: 'Email me my hint' });
-  var reset = h('button', { 'class': 'lk', type: 'button', text: 'Reset password' });
+  var hint = B('', 'mail', 'Email me my hint');
+  var reset = B('', 'key', 'Reset password');
   var parts = header(d, purpose === 'removeBio' ? 'bio' : 'lock', opts.title || (who(d) ? (who(d) + ' · Locked') : 'Locked'), sub)
     .concat([h('div', { 'class': 'body' }, [bioBox, pw, err, go, h('div', { 'class': 'links' }, [hint, reset])])]);
   if (!opts.hard) parts.push(footer('Cancel', function () { settle(OPEN ? OPEN.cancelValue : false); }));
@@ -824,7 +825,7 @@ function scrUnlock(d, card, opts) {
 }
 
 function sendHint(d, link, err) {
-  link.disabled = true; link.textContent = 'Sending…'; err.textContent = '';
+  link.disabled = true; setBtnText(link, 'Sending…'); err.textContent = '';
   be(d).hint(d).then(function (r) {
     if (r && r.noLock) { err.textContent = 'No password is set on the server for this ' + noun(d) + '.'; return false; }
     if (netErr(r)) { err.textContent = 'Too many emails just now. Try again in a few minutes.'; return false; }
@@ -834,8 +835,9 @@ function sendHint(d, link, err) {
     });
   }).catch(function () { err.textContent = 'Network error. Try again.'; return false; })
     .then(function (ok) {
-      link.textContent = ok ? 'Hint sent to ' + (who(d) || 'your') + "'s email" : 'Email me my hint';
-      setTimeout(function () { link.textContent = 'Email me my hint'; link.disabled = false; }, ok ? 4000 : 0);
+      setBtnText(link, ok ? 'Hint sent' : 'Email me my hint');
+      if (ok) err.textContent = '';
+      setTimeout(function () { setBtnText(link, 'Email me my hint'); link.disabled = false; }, ok ? 4000 : 0);
     });
 }
 
