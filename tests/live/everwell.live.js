@@ -337,9 +337,9 @@ const mock = {
       getComputedStyle(sw[0].querySelector('s')).textDecorationLine.includes('line-through') &&
       sw[0].querySelector('.new').getBoundingClientRect().top > sw[0].querySelector('s').getBoundingClientRect().top;`));
   ok('the rewritten line reads exactly', (await js(`return document.querySelector('.rcard-mine').textContent;`)) === 'I enter a Transcendent State that upgrades my entire life.');
-  ok('dates read like "Sun, Oct 11" (header and quote)', await js(`const want = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-    return /^[A-Z][a-z]{2}, [A-Z][a-z]{2} \\d{1,2}$/.test(want) && document.getElementById('dash-date').textContent === want && document.querySelector('#dash-quote .quote-src').textContent === 'Everwell · ' + want;`),
-    await js(`return document.getElementById('dash-date').textContent + ' | ' + document.querySelector('#dash-quote .quote-src').textContent;`));
+  ok('the date reads like "Sun, Oct 11" at the top, and the quote card carries no date of its own', await js(`const want = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    return /^[A-Z][a-z]{2}, [A-Z][a-z]{2} \\d{1,2}$/.test(want) && document.getElementById('dash-date').textContent === want && !document.querySelector('#dash-quote .quote-src') && !document.getElementById('dash-quote').textContent.includes(want);`),
+    await js(`return document.getElementById('dash-date').textContent + ' | ' + document.getElementById('dash-quote').textContent;`));
   ok('with the AI unreachable, the quote of the day is the local line for today', (await js(`return document.getElementById('dash-quote-text').textContent === EWCore.localQuote(EWCore.dateKey());`)));
 
   // If Riot ever rewords the ability, the official text is shown untouched.
