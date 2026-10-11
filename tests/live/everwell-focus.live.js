@@ -30,10 +30,17 @@ addEventListener('message', function(e){ var d; try { d = JSON.parse(e.data); } 
 // 16-bit mono at 4112 Hz, 4096 data bytes of zeros.
 const le = (n, w) => { let s = ''; for (let i = 0; i < w; i++) s += String.fromCharCode((n >> (8 * i)) & 255); return s; };
 const WAV = 'RIFF' + le(36 + 4096, 4) + 'WAVEfmt ' + le(16, 4) + le(1, 2) + le(1, 2) + le(4112, 4) + le(8224, 4) + le(2, 2) + le(16, 2) + 'data' + le(4096, 4) + '\0'.repeat(4096);
+const lists = [];   // playlists asked of personal-ai /yt/playlist
+const PLAYLISTS = { PLgoodlist01: [{ id: 'listvideo01', title: 'One' }, { id: 'listvideo02', title: 'Two' }, { id: 'blockedvid1', title: 'Three' }] };
 const mock = {
-  patterns: ['https://taskhub-reminders.av1.workers.dev/*', 'https://www.youtube-nocookie.com/*', 'https://i.ytimg.com/*', 'https://audio.test/*', 'https://example.com/*', 'https://www.instagram.com/*'],
+  patterns: ['https://taskhub-reminders.av1.workers.dev/*', 'https://www.youtube-nocookie.com/*', 'https://i.ytimg.com/*', 'https://audio.test/*', 'https://example.com/*', 'https://www.instagram.com/*', 'https://personal-ai.av1.workers.dev/*'],
   handle(req) {
     const u = new URL(req.url);
+    if (u.hostname === 'personal-ai.av1.workers.dev') {
+      if (u.pathname !== '/yt/playlist') return { json: { ok: false, error: 'unavailable' } };   // the quote: use the local line
+      const id = u.searchParams.get('list'); lists.push(id);
+      return { json: PLAYLISTS[id] ? { ok: true, list: id, title: 'x', videos: PLAYLISTS[id], more: false } : { ok: false, error: 'unavailable' } };
+    }
     if (u.hostname !== 'taskhub-reminders.av1.workers.dev') {
       if (/^(www\.youtube-nocookie\.com|i\.ytimg\.com|audio\.test|example\.com|www\.instagram\.com)$/.test(u.hostname)) media.push(req.url);
       if (u.hostname === 'www.youtube-nocookie.com') { const id = u.pathname.split('/').pop(); return { text: player(CODES[id]), type: 'text/html' }; }
@@ -160,6 +167,42 @@ const mock = {
   ok('…the Short is tall but fits the screen', await js(`const f = document.querySelector('#focus-grid .media-tile.tall .media-frame').getBoundingClientRect(); return f.height <= innerHeight * 0.72 + 1 && f.width <= 360;`));
   await js(`document.querySelector('#focus-grid .media-tile [data-play]').click(); return 1;`); await sleep(800);
   ok('…and audio plays there too', await js(`return !!document.querySelector('#focus-grid audio');`));
+  await c.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
+
+  console.log('\nExpand a playlist');
+  await fresh(`sessionStorage.setItem('ew.skipIntro', '1'); sessionStorage.setItem('__fakefs_docs', JSON.stringify({ 'dashboards/everwell_tony': { focusMedia: [
+    { id: 'p1', url: 'https://www.youtube.com/playlist?list=PLgoodlist01', title: 'Study list' },
+    { id: 'p2', url: 'https://www.youtube.com/playlist?list=PLbadlist001', title: 'Private list' },
+    { id: 'v1', url: 'https://youtu.be/abcdefghijk', title: 'Plain video' }] } }));`);
+  await js(`document.getElementById('ew-intro-overlay') && document.getElementById('ew-intro-overlay').click(); return 1;`); await sleep(1200);
+  await js(`EWApp.go('focus'); return 1;`); await sleep(1200);
+  const q = (s) => `document.querySelector('${s}')`;
+  ok('playlists get an Expand button; a plain video does not', await js(`return !!${q('[data-id="p1"] [data-expand]')} && !!${q('[data-id="p2"] [data-expand]')} && !${q('[data-id="v1"] [data-expand]')};`));
+  await js(`${q('[data-id="p1"] [data-expand]')}.click(); return 1;`); await sleep(1200);
+  ok('Expand lays each video out as its own tile, in a full-width group', await js(`const g = ${q('.media-group[data-id="p1"]')}; return !!g && g.querySelectorAll('.media-tile').length === 3 && /3 videos/.test(g.textContent) && getComputedStyle(g).gridColumnStart === '1';`),
+    await js(`return document.getElementById('focus-grid').innerHTML.slice(0, 300);`));
+  ok('…asking personal-ai /yt/playlist for that list', lists.includes('PLgoodlist01'), lists);
+  await sleep(1500);
+  ok('…and the expanded list is saved with the item (it syncs)', await js(`const p = __fakeFs.docs['dashboards/everwell_tony'].focusMedia.find(x => x.id === 'p1'); return p.expanded === true && p.videos.length === 3 && p.videos[1].id === 'listvideo02';`));
+  await js(`${q('[data-id="p1~listvideo02"] [data-play]')}.click(); return 1;`); await sleep(1200);
+  ok('a video in the group plays inside its playlist (the next one follows)', await js(`const f = ${q('[data-id="p1~listvideo02"] iframe')}; return !!f && /embed\\/listvideo02\\?.*&list=PLgoodlist01/.test(f.src);`));
+  await js(`${q('[data-id="p1~blockedvid1"] [data-play]')}.click(); return 1;`); await sleep(1800);
+  ok('one plays at a time, and a blocked one in the group shows its note', (await js(`const m = ${q('[data-id="p1~blockedvid1"] .media-msg')}; return m ? m.dataset.msg : '';`)) === 'blocked' && await js(`return !document.querySelector('#focus-grid iframe');`));
+  ok('videos in a group have no remove button of their own', await js(`return !${q('.media-group .media-grid [data-rm]')};`));
+  await js(`${q('[data-id="p2"] [data-expand]')}.click(); return 1;`); await sleep(1200);
+  ok('a list that cannot be read says so on its tile and stays one tile', /^nolist\|Could not list its videos/.test(await js(`const m = ${q('[data-id="p2"] .media-msg')}; return m ? m.dataset.msg + '|' + m.textContent : '';`)) && await js(`return !${q('.media-group[data-id="p2"]')};`));
+  await js(`${q('[data-id="p1~listvideo01"] [data-play]')}.click(); return 1;`); await sleep(800);
+  await js(`${q('[data-collapse="p1"]')}.click(); return 1;`); await sleep(1500);
+  ok('Collapse folds it back to one tile, stopping a video playing in it', await js(`return !${q('.media-group')} && !!${q('.media-tile[data-id="p1"] [data-expand]')} && EWFocus.playing() === null && !document.querySelector('#focus-grid iframe');`));
+  ok('…and drops the stored list (fetched fresh next time)', await js(`const p = __fakeFs.docs['dashboards/everwell_tony'].focusMedia.find(x => x.id === 'p1'); return p.expanded === false && !('videos' in p);`));
+  await js(`${q('[data-id="p1"] [data-expand]')}.click(); return 1;`); await sleep(1200);
+  await js(`${q('.media-group[data-id="p1"] .media-group-head [data-rm]')}.click(); return 1;`); await sleep(300);
+  ok('removing an expanded playlist asks, counting its videos', await js(`return document.getElementById('uim-title').textContent === 'Remove playlist?' && /“Study list” and its 3 videos leave Focus/.test(document.getElementById('uim-msg').textContent);`),
+    await js(`return document.getElementById('uim-title').textContent + ' | ' + document.getElementById('uim-msg').textContent;`));
+  await js(`document.getElementById('uim-ok').click(); return 1;`); await sleep(500);
+  ok('…and Remove takes the whole group', await js(`return !${q('[data-id="p1"]')} && !${q('[data-id^="p1~"]')};`));
+  await c.send('Emulation.setDeviceMetricsOverride', { width: 360, height: 780, deviceScaleFactor: 2, mobile: true }); await sleep(600);
+  ok('360px: a tile with Expand fits, no sideways scroll', await js(`return document.documentElement.scrollWidth <= 360;`), await js(`return document.documentElement.scrollWidth;`));
   await c.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
 
   console.log('\nDisplay');
