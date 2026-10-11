@@ -274,8 +274,9 @@ const mock = {
 
   console.log('\nDashboard: faith, R, quote');
   ok('the Data Dragon version came from RiftIQ\'s worker first', riotCalls[0] === 'worker/api/ddragon-version' && riotCalls.includes('dd/cdn/16.99.1/data/en_US/champion/Yunara.json'), riotCalls.join(' '));
-  ok('"The Unbroken Faith" (Riot\'s title, no "Yunara") with a check', await js(`return document.getElementById('dash-faith-title').textContent === 'The Unbroken Faith' && !!document.querySelector('.faith-line .ew-check') && !/Yunara/.test(document.querySelector('.faith-line').textContent);`));
-  ok('"I have unbreakable faith" with its own check', await js(`const l = document.querySelector('.faith-line.mine'); return l.textContent.trim() === 'I have unbreakable faith' && !!l.querySelector('.ew-check');`));
+  ok('"Yunara - The Unbroken Faith" (Riot\'s title) with a check', await js(`return document.getElementById('dash-faith-title').textContent === 'Yunara - The Unbroken Faith' && !!document.querySelector('.faith-line .ew-check');`));
+  ok('"I - have unbreakable faith" with its own check', await js(`const l = document.querySelector('.faith-line.mine'); return l.textContent.trim() === 'I - have unbreakable faith' && !!l.querySelector('.ew-check');`));
+  ok('no source footnotes under the faith lines or the R card', await js(`return !document.querySelector('.faith-src, .rcard-credit') && !/Data Dragon|champion data/.test(document.getElementById('dash-faith').textContent + document.getElementById('dash-r').textContent);`));
   ok('R card: icon from Data Dragon, "R  Transcend One\'s Self"', await js(`return /\\/cdn\\/16\\.99\\.1\\/img\\/spell\\/YunaraR\\.png$/.test(document.querySelector('.rcard-icon').src) && document.querySelector('.rcard-name').textContent === "Transcend One's Self";`));
   ok('"Yunara enters" and "her basic Abilities" struck through, new words beneath', await js(`const sw = [...document.querySelectorAll('#dash-rdesc .swap')];
     return sw.length === 2 && sw[0].querySelector('s').textContent === 'Yunara enters' && sw[0].querySelector('.new').textContent === 'I enter' &&
