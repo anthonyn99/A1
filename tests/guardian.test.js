@@ -298,7 +298,14 @@ function page(W, opts) {
     const W = fakeWorker(); W.set('applock:tony_oneinbox', 'pw'); const P = page(W);
     P.G.define('tony_oneinbox', { allowRemove: false }); await P.G.refresh();
     P.G.manage('tony_oneinbox'); await tick(20);
-    ok('allowRemove:false hides Remove lock', !P.button('Remove lock'));
+    ok('every menu shows Remove lock, the same as everywhere', !!P.button('Remove lock'));
+    P.click('Remove lock'); await tick(10);
+    ok('allowRemove:false: it explains instead, and never calls remove', /This lock stays on/i.test(P.q('.card').textContent) && !W.calls.some((c) => c.p === '/auth/journal/remove-lock') && !!W.recs['applock:tony_oneinbox']);
+    P.click('OK'); await tick(10);
+    ok('…and OK goes back to the menu', !!P.button('Change password'));
+    // One look: every secondary row and the footer share the same outline.
+    const looks = P.all('.menu button.b:not(.pri), .foot button.b').map((b) => b.className.replace(/\s+/g, ' ').trim());
+    ok('secondary rows and Cancel share one button style', looks.length >= 3 && looks.every((c) => /^b( dg)?$/.test(c)), looks.join(' | '));
     P.G.close();
   }
 
