@@ -160,9 +160,9 @@ const mock = {
   ok('Unlock asks for the tab password, with Cancel', d.open && /Prayer/.test(d.text) && d.buttons.includes('Cancel'), JSON.stringify(d));
   await gtype('Password', 'pray'); await gclick('Unlock'); await sleep(400);
   d = await dlg(); if (d.open && /Not now/.test(d.buttons.join())) await gclick('Not now');
-  ok('the right password renders the section', await js(`return !!document.querySelector('#ew-body-prayer .ew-soon') && EWApp.rendered().prayer === true;`));
+  ok('the right password renders the section', await js(`return !!document.querySelector('#ew-body-prayer .pray-grid') && EWApp.rendered().prayer === true;`));
   await js(`Guardian.lockNow('tony_everwell_tab_prayer'); return 1;`); await sleep(500);
-  ok('"Lock this device now" empties it again', await js(`return !document.querySelector('#ew-body-prayer .ew-soon') && !EWApp.rendered().prayer && document.getElementById('ew-body-prayer').dataset.state === 'locked';`));
+  ok('"Lock this device now" empties it again', await js(`return !document.querySelector('#ew-body-prayer .pray-grid') && !EWApp.rendered().prayer && document.getElementById('ew-body-prayer').dataset.state === 'locked';`));
   ok('other tabs are unaffected', await js(`document.getElementById('ew-tab-goals').click(); return true;`) && (await js(`return document.getElementById('ew-body-goals').dataset.state;`)) === 'open');
 
   /* ── App lock ── */
