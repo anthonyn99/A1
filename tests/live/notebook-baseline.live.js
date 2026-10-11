@@ -263,8 +263,11 @@ async function capture(label) {
     await caretEnd(K); await type(' Typed by the baseline.');
     await step('edit-type', { shot: true });
 
-    await js(`document.getElementById('${K}-add-tag-input').focus(); 1`);
-    await type('baseline'); await key('Enter');
+    // MyJournal dropped tags (2026-10-11); Brainstorm keeps them.
+    if (await js(`return !!document.getElementById('${K}-add-tag-input');`)) {
+      await js(`document.getElementById('${K}-add-tag-input').focus(); 1`);
+      await type('baseline'); await key('Enter');
+    }
     await step('add-tag');
 
     await js(`var s=document.getElementById('${K}-search-box'); s.value='char'; s.dispatchEvent(new Event('input',{bubbles:true})); 1`);
