@@ -175,6 +175,18 @@ const NAMELESS = `JSON.stringify([...document.querySelectorAll('#ew-head button,
     }
   }
 
+  // The intro mark must not shake while "Everwell" spreads its letters
+  // (Tony, 2026-10-11): its left edge is sampled every frame of the entrance.
+  console.log('\nIntro');
+  const probe = await c.send('Page.addScriptToEvaluateOnNewDocument', { source: `window.__markX = []; (function f(){ const m = document.querySelector('.ew-intro-mark'); if (m) window.__markX.push(m.getBoundingClientRect().left); if (window.__markX.length < 120) requestAnimationFrame(f); })();` });
+  for (const w of [1440, 390]) {
+    await c.send('Emulation.setDeviceMetricsOverride', { width: w, height: 900, deviceScaleFactor: w < 500 ? 3 : 1, mobile: w < 500 });
+    await c.send('Page.navigate', { url: PAGE }); await sleep(3000);
+    const xs = JSON.parse(await js(`return JSON.stringify(window.__markX);`));
+    ok(`intro ${w}px: the mark holds still sideways through the entrance (${xs.length} frames)`, xs.length > 40 && new Set(xs).size === 1, [...new Set(xs)].join(' '));
+  }
+  await c.send('Page.removeScriptToEvaluateOnNewDocument', { identifier: probe.identifier });
+
   console.log('\nReduced motion');
   await c.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
   await size(390);
