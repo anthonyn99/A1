@@ -130,7 +130,7 @@ const ROT = { steps: [{ id: 'a', name: 'Push' }, { id: 'b', name: 'Pull' }, { id
   await drag('tr[data-ew-prayer]', own);
   ok('dropping Prayer on a week task does nothing (it stays in Daily Habits)', (await rowIds()) === 'h_pray,ew-prayer,h_read' &&
     await js(`const m = __fakeFs.docs['dashboards/main']; return !Object.values(m.data).some(a => (a || []).some(t => t.id === 'ew-prayer' || t._ewPrayer)) && !(m.goals || []).some(g => g.id === 'ew-prayer');`));
-  await drag('tr[data-ew-prayer]', '[data-dnd-zone="goal"]');
+  await drag('tr[data-ew-prayer]', '[data-dnd-zone="goal"],[data-dnd-zone="goalm"]');
   ok('…nor on Long-Term Goals', (await rowIds()) === 'h_pray,ew-prayer,h_read' && await js(`return !(__fakeFs.docs['dashboards/main'].goals || []).some(g => g.id === 'ew-prayer');`));
   await js(`__fakeFs.remote('dashboards/everwell_prayer', { row: { after: null, at: 0 }, savedAt: Date.now() }, { merge: true }); 1`); await sleep(1200);
   ok('a place set on another device shows here', (await rowIds()) === 'ew-prayer,h_pray,h_read', await rowIds());
