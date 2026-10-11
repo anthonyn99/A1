@@ -269,14 +269,14 @@ body.docx-page-fs #tony-app-nav { display: none !important; }
 .docx-fs-float button:hover { color: #fff; border-color: #6f7dff; background: rgba(45,46,52,.95); }
 
 /* ── Tags relocated into the top toolbar (Batch 12 #3) — compact & inline ── */
-#tj-root #tj-toolbar #tj-tags-row, #bj-root #bj-toolbar #bj-tags-row {
+#bj-root #bj-toolbar #bj-tags-row {
   margin: 0 !important; flex-wrap: nowrap; gap: 5px; align-items: center;
   max-width: 300px; overflow-x: auto; flex-shrink: 1; min-width: 0;
 }
-#tj-root #tj-toolbar #tj-tags-row::-webkit-scrollbar, #bj-root #bj-toolbar #bj-tags-row::-webkit-scrollbar { height: 0; width: 0; display: none; }
-#tj-root #tj-toolbar #tj-tags-row .tag, #bj-root #bj-toolbar #bj-tags-row .tag { flex-shrink: 0; }
-#tj-root #tj-toolbar #tj-tags-row .tags-label, #bj-root #bj-toolbar #bj-tags-row .tags-label { flex-shrink: 0; }
-#tj-root #tj-toolbar #tj-add-tag-input, #bj-root #bj-toolbar #bj-add-tag-input { flex-shrink: 0; }
+#bj-root #bj-toolbar #bj-tags-row::-webkit-scrollbar { height: 0; width: 0; display: none; }
+#bj-root #bj-toolbar #bj-tags-row .tag { flex-shrink: 0; }
+#bj-root #bj-toolbar #bj-tags-row .tags-label { flex-shrink: 0; }
+#bj-root #bj-toolbar #bj-add-tag-input { flex-shrink: 0; }
 
 /* ── Find & Replace panel (fixed overlay — never shifts the page layout) ── */
 .docx-find { position: fixed; top: 74px; right: 22px; z-index: 100020; background: linear-gradient(180deg,#26272C,#202126); border: 1px solid #40424A; border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.03); padding: 12px 13px 13px; width: 340px; max-width: calc(100vw - 24px); font-family: 'DM Sans','Segoe UI',sans-serif; color: #f4f3f0; display: flex; flex-direction: column; gap: 9px; }
@@ -392,12 +392,12 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 
 /* ── Sidebar: tag filter chips + Trash button + search highlight ──
    Scoped so the roots' universal padding:0 reset doesn't flatten them; box-sizing + overflow guard keep chips on-screen. */
-#tj-root .docx-tagchips, #bj-root .docx-tagchips { display: none; flex-wrap: wrap; gap: 5px; padding: 4px 12px 8px; box-sizing: border-box; width: 100%; max-width: 100%; overflow: hidden; }
-#tj-root .docx-tagchips.on, #bj-root .docx-tagchips.on { display: flex; }
-#tj-root .docx-tagchips-lbl, #bj-root .docx-tagchips-lbl { width: 100%; font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--text3, #777); margin-bottom: 1px; }
-#tj-root .docx-tagchip, #bj-root .docx-tagchip { max-width: 100%; box-sizing: border-box; font-size: 10.5px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border2, #444); background: transparent; color: var(--text2, #999); cursor: pointer; font-family: inherit; letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: all .12s; }
-#tj-root .docx-tagchip:hover, #bj-root .docx-tagchip:hover { border-color: var(--purple, #e0b874); color: var(--text, #eee); }
-#tj-root .docx-tagchip.on, #bj-root .docx-tagchip.on { background: var(--purple, #e0b874); color: #101014; border-color: var(--purple, #e0b874); font-weight: 700; }
+#bj-root .docx-tagchips { display: none; flex-wrap: wrap; gap: 5px; padding: 4px 12px 8px; box-sizing: border-box; width: 100%; max-width: 100%; overflow: hidden; }
+#bj-root .docx-tagchips.on { display: flex; }
+#bj-root .docx-tagchips-lbl { width: 100%; font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--text3, #777); margin-bottom: 1px; }
+#bj-root .docx-tagchip { max-width: 100%; box-sizing: border-box; font-size: 10.5px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border2, #444); background: transparent; color: var(--text2, #999); cursor: pointer; font-family: inherit; letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: all .12s; }
+#bj-root .docx-tagchip:hover { border-color: var(--purple, #e0b874); color: var(--text, #eee); }
+#bj-root .docx-tagchip.on { background: var(--purple, #e0b874); color: #101014; border-color: var(--purple, #e0b874); font-weight: 700; }
 #tj-root .docx-trash-btn, #bj-root .docx-trash-btn { flex-shrink: 0; margin: 0; padding: 11px 16px; display: flex; align-items: center; gap: 9px; box-sizing: border-box; width: 100%; background: transparent; border: none; border-top: 1px solid var(--border, #34343a); border-radius: 0; color: var(--text3, #777); font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: inherit; letter-spacing: .05em; text-transform: uppercase; transition: all .12s; }
 #tj-root .docx-trash-btn:hover, #bj-root .docx-trash-btn:hover { color: var(--text, #eee); background: rgba(255,255,255,.03); }
 #tj-root .docx-trash-count, #bj-root .docx-trash-count { margin-left: auto; background: var(--purple, #e0b874); color: #101014; border-radius: 9px; padding: 0 7px; font-weight: 700; font-size: 10px; line-height: 16px; }
@@ -716,7 +716,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   #tj-root .docx-ribbonrow .pt-btn, #bj-root .docx-ribbonrow .pt-btn { min-height: 32px; }
   #tj-root #tj-toolbar, #bj-root #bj-toolbar { gap: 5px; padding: 7px 9px; }
   #tj-root .tb-btn, #bj-root .tb-btn { padding: 5px 8px; font-size: 10.5px; }
-  #tj-root #tj-toolbar #tj-tags-row, #bj-root #bj-toolbar #bj-tags-row { max-width: 150px; }
+  #bj-root #bj-toolbar #bj-tags-row { max-width: 150px; }
 }
 /* A tablet in this range is still a touch device — trim the ribbon to two rows
    and keep the targets big. A trackpad laptop at the same width is not, and
@@ -770,7 +770,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
         on focus and never zooms back out. ── */
   #tj-root #tj-mobile-title, #bj-root #bj-mobile-title,
   #tj-root .search-wrap input, #bj-root .search-wrap input,
-  #tj-root #tj-add-tag-input, #bj-root #bj-add-tag-input,
+  #bj-root #bj-add-tag-input,
   #tj-root #tj-entry-title-input, #bj-root #bj-entry-title-input { font-size: 16px !important; }
 
   /* ── Mobile header: proper 44px targets, safe-area aware ── */
@@ -806,7 +806,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   /* ── Entry list rows: comfortable and easy to hit ── */
   #tj-root .entry-item, #bj-root .entry-item { min-height: 52px; padding: 11px 10px 11px 26px; }
   #tj-root .entry-delete, #bj-root .entry-delete { width: 36px !important; height: 36px !important; top: 6px; right: 4px; }
-  #tj-root .docx-tagchip, #bj-root .docx-tagchip { padding: 6px 12px; font-size: 11.5px; }
+  #bj-root .docx-tagchip { padding: 6px 12px; font-size: 11.5px; }
   #tj-root .docx-trash-btn, #bj-root .docx-trash-btn { padding: 14px 16px; }
 }
 
