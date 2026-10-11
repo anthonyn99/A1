@@ -28,7 +28,8 @@ function section(s) { console.log('\n' + s); }
 // Load the worker as a plain script: drop the ESM default export and hand the
 // list functions back through a sandbox global.
 const src = fs.readFileSync(path.join(__dirname, '..', 'workers', 'personal-ai', 'worker.js'), 'utf8')
-  .replace(/^export default\s*\{/m, 'const __workerDefault = {');
+  .replace(/^export default\s*\{/m, 'const __workerDefault = {')
+  .replace(/^export (?=(?:async )?function |const |let )/gm, '');
 const ctx = { console, URL, Response: function () {}, fetch: () => Promise.reject(new Error('no network in tests')), setTimeout, clearTimeout, AbortController };
 vm.createContext(ctx);
 vm.runInContext(src + '\n;globalThis.__T = { applyListOps, buildListPrompt, listInputEntries, isListDictation, salvageListOps, normListType, sanitizeItems, LIST_TYPES, runStaggered, missingNumbers };', ctx);

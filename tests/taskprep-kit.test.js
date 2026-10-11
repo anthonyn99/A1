@@ -26,7 +26,8 @@ function t(name, cond, detail) {
 function section(s) { console.log('\n' + s); }
 
 const src = fs.readFileSync(path.join(__dirname, '..', 'workers', 'personal-ai', 'worker.js'), 'utf8')
-  .replace(/^export default\s*\{/m, 'const __workerDefault = {');
+  .replace(/^export default\s*\{/m, 'const __workerDefault = {')
+  .replace(/^export (?=(?:async )?function |const |let )/gm, '');
 const ctx = { console, URL, Response: function () {}, fetch: () => Promise.reject(new Error('no network in tests')), setTimeout, clearTimeout, AbortController };
 vm.createContext(ctx);
 vm.runInContext(src + '\n;globalThis.__T = { cleanPrepKit, prepCleanApps, buildPrepPrompt, prepGmailUrl, handleTaskPrep, PREP_PROMPT_MAX, __workerDefault };', ctx);
