@@ -144,4 +144,9 @@ used.
    `prevUrls` if it is a built-in button), and `tests/moved.js` / `cdp.js`'s
    `MOVED` patterns.
 5. Replace the A1 copy with a redirect stub (copy one of the three).
-6. Run both suites: `npm test` in A1 and in A1-Priv.
+6. Cleanup: give the page `<script src="https://anthonyn99.github.io/A1/sweep.js"
+   data-program="<name>" defer></script>` (tests/cleanup-rules.test.js checks
+   every A1-Priv page has it), and add its localStorage keys to the
+   `moved-programs-old-origin` item in `cleanup-rules.json`: on github.io they
+   are dead from the day of the move.
+7. Run both suites: `npm test` in A1 and in A1-Priv.
