@@ -90,6 +90,9 @@ const ROT = { steps: [{ id: 'a', name: 'Push' }, { id: 'b', name: 'Pull' }, { id
 
   console.log("\nEverwell's own Prayer row");
   ok('a Prayer row from Everwell is the first row of Daily Habits, with 7 day cells', await js(`const r = document.querySelector('tr[data-ew-prayer]'); return !!r && r.parentElement.firstElementChild === r && r.children.length === 9 && /Prayer/.test(r.children[0].textContent);`));
+  ok('the Prayer row is exactly the size of a habit row (row and every cell)', await js(`const rows = [...document.querySelector('tr[data-ew-prayer]').parentElement.children];
+    const sig = (r) => [...r.children].map(td => { const b = td.getBoundingClientRect(); return Math.round(b.width) + 'x' + Math.round(b.height); }).join();
+    return rows.every(r => sig(r) === sig(rows[1]));`), await js(`return [...document.querySelector('tr[data-ew-prayer]').parentElement.children].map(r => r.getBoundingClientRect().height).join();`));
   ok("Tony's own Prayer habit is still there, separate", await js(`return [...document.querySelectorAll('tbody tr')].filter(r => /^Prayer/.test(r.children[0] && r.children[0].textContent || '')).length === 2;`));
   const col = (now.getDay() + 6) % 7;   // Monday-based column
   const cell = `document.querySelector('tr[data-ew-prayer]').children[${col + 1}].firstElementChild`;
