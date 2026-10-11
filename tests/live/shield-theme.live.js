@@ -208,7 +208,8 @@ async function shotsFor(c, p) {
   // The lock card is Guardian's (Guardian/guardian.js), in its shadow root.
   const gcss = (sel, prop) => evalJs(c, `var e=document.querySelector('guardian-lock').shadowRoot.querySelector(${JSON.stringify(sel)}); return e?getComputedStyle(e)[${JSON.stringify(prop)}]:'(none)';`);
   ok('the lock card is Guardian\'s MAGI card: s1, radius 8', (await gcss('.card', 'backgroundColor')) === 'rgb(35, 35, 39)' && (await gcss('.card', 'borderTopLeftRadius')) === '8px');
-  ok('"Set password" is solid purple with a dark label', (await gcss('button.pri', 'backgroundColor')) === PURPLE && (await gcss('button.pri', 'color')) === DARK);
+  // Every Guardian button is the same gray; the main action wears an accent outline.
+  ok('"Set password" is the shared gray button with an accent outline', (await gcss('button.pri', 'backgroundColor')) === 'rgb(44, 44, 49)' && (await gcss('button.pri', 'borderTopColor')) === 'rgb(192, 174, 234)');
   await evalJs(c, "Guardian.close(); 1"); await sleep(200);
   await load(c, 1280, 900, false, 'tony', true);
   ok('the emergency takeover is on', (await evalJs(c, "return document.getElementById('emg-screen').classList.contains('on');")) === true);

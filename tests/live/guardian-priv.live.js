@@ -149,7 +149,10 @@ const PAGES = [
   ok('and opens Insight', !(await dlg()).open && (await js(`return getComputedStyle(document.querySelector('body > .wrap')).visibility;`)) === 'visible');
   await js(`document.getElementById('lockNowBtn').click(); return 1;`); await sleep(600);
   d = await dlg();
-  ok('its menu has no "Remove lock"', d.open && !d.buttons.includes('Remove lock') && d.buttons.includes('Change password'), JSON.stringify(d.buttons));
+  ok('its menu shows Remove lock like every program', d.open && d.buttons.includes('Remove lock') && d.buttons.includes('Change password'), JSON.stringify(d.buttons));
+  await gclick('Remove lock');
+  ok('…which explains instead (the password protects the bank link)', /This lock stays on/i.test((await dlg()).text) && !!recs['applock:tony_insight']);
+  await gclick('OK');
   await gclick('Cancel');
 
   ok('no page errors', errs.length === 0, errs.join(' | '));

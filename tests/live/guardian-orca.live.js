@@ -108,7 +108,7 @@ const mock = {
   await pick('tony');
   let d = await dlg();
   ok("Tony's card asks, in Tony's theme, with the eye", d.open && d.theme === 'tony' && /Tony’s ORCA/.test(d.text) && d.eyes === 1, JSON.stringify(d));
-  ok('…and no "Remove lock" anywhere (refused on the internet)', !d.buttons.includes('Remove lock'));
+  ok('the unlock card has the hint and reset as outlined buttons', d.buttons.includes('Email me my hint') && d.buttons.includes('Reset password'));
   await gtype('Password', 'nope'); await gclick('Unlock');
   ok('a wrong password is refused', (await dlg()).open && /Wrong password/.test((await dlg()).err), (await dlg()).err);
   await gtype('Password', 'tpw'); await gclick('Unlock'); await sleep(600);
@@ -135,7 +135,10 @@ const mock = {
   S.current = 'tony'; S.manage = true;
   await gateUp();
   d = await dlg();
-  ok("Guardian's menu for the current profile, without Remove lock", d.open && d.buttons.includes('Lock this device now') && d.buttons.includes('Change password') && !d.buttons.includes('Remove lock'), JSON.stringify(d.buttons));
+  ok("Guardian's menu for the current profile", d.open && d.buttons.includes('Lock this device now') && d.buttons.includes('Change password'), JSON.stringify(d.buttons));
+  await gclick('Remove lock');
+  ok('Remove lock explains it stays on (refused on the internet) and calls nothing', /This lock stays on/i.test((await dlg()).text) && !S.calls.includes('/lock/remove'));
+  await gclick('OK');
   await gclick('Change password');
   await gtype('Current password', 'tpw'); await gtype('New password', 't2'); await gtype('Confirm new password', 't2');
   await gclick('Change password');

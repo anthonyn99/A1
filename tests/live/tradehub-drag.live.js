@@ -249,8 +249,8 @@ async function gripChecks(c, name, boxJs, key, reopen) {
   // purple, so its dark label read black on charcoal (Tony, 2026-10-02).
   // The lock card is Guardian's now, in its shadow root.
   await evalJs(c, 'window._tbManageLock(); return 1;'); await sleep(500);
-  const setPw = await evalJs(c, `var b=document.querySelector('guardian-lock').shadowRoot.querySelector('button.pri'), s=getComputedStyle(b); var r=b.textContent.trim()+' | '+s.backgroundColor+' | '+s.color; Guardian.close(); return r;`);
-  ok('Set password: solid purple with a dark label', setPw === 'Set password | rgb(192, 174, 234) | rgb(26, 26, 29)', setPw);
+  const setPw = await evalJs(c, `var b=document.querySelector('guardian-lock').shadowRoot.querySelector('button.pri'), s=getComputedStyle(b); var r=b.textContent.trim()+' | '+s.backgroundColor+' | '+s.borderTopColor; Guardian.close(); return r;`);
+  ok('Set password: the shared gray button with an accent outline', setPw === 'Set password | rgb(44, 44, 49) | rgb(192, 174, 234)', setPw);
   ok('Deploy leave: the fill is gone at once (no background fade)', /^rgba\(0, 0, 0, 0\) \| /.test(depOff) && !/\b(all|background)/.test(depOff.split('|')[1]), depOff);
   const openTrade = async () => {
     await goTo(c, DESK, 'journal');

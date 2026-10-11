@@ -362,7 +362,7 @@ const cardHead = (c, sel) => rect(c, `document.querySelector(${JSON.stringify(se
   const gcss = (sel, prop) => evalJs(c, `var e=document.querySelector('guardian-lock').shadowRoot.querySelector(${JSON.stringify(sel)}); return e?getComputedStyle(e)[${JSON.stringify(prop)}]:'(none)';`);
   ok('the lock card is Guardian\'s MAGI card (s1, radius 8)', (await gcss('.card', 'backgroundColor')) === 'rgb(35, 35, 39)' && (await gcss('.card', 'borderTopLeftRadius')) === '8px');
   ok('the lock has no glow', (await gcss('.ov', 'backgroundImage')) === 'none');
-  ok('"Set password" is solid purple', (await gcss('button.pri', 'backgroundColor')) === PURPLE && (await gcss('button.pri', 'color')) === DARK);
+  ok('"Set password" is the shared gray button with an accent outline', (await gcss('button.pri', 'backgroundColor')) === 'rgb(44, 44, 49)' && (await gcss('button.pri', 'borderTopColor')) === 'rgb(192, 174, 234)');
   await evalJs(c, "Guardian.close(); 1"); await sleep(300);
 
   // ── 6. phone ──

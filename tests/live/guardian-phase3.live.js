@@ -101,7 +101,10 @@ const api = {
   ok('and opens the inbox', !(await dlg()).open && (await js(`return getComputedStyle(document.getElementById('app')).visibility`)) === 'visible');
   await js(`document.getElementById('lockNowBtn').click(); return 1;`); await sleep(600);
   d = await dlg();
-  ok('the menu has no "Remove lock" (the password mints the token)', d.open && d.buttons.includes('Lock this device now') && !d.buttons.includes('Remove lock'), JSON.stringify(d.buttons));
+  ok('the menu shows Remove lock like every program', d.open && d.buttons.includes('Lock this device now') && d.buttons.includes('Remove lock'), JSON.stringify(d.buttons));
+  await gclick('Remove lock');
+  ok('…which explains the password protects the mailboxes, and removes nothing', /This lock stays on/i.test((await dlg()).text) && !calls.includes('taskhub-reminders/auth/journal/remove-lock'));
+  await gclick('OK');
   await gclick('Lock this device now');
   ok('lock now: gate back, inbox hidden', (await dlg()).open && (await js(`return getComputedStyle(document.getElementById('app')).visibility`)) === 'hidden');
   ok('…and the token is ended (no biometric to park it for)', (await js(`return localStorage.getItem('oneinbox_lock_session')`)) === null && calls.includes('oneinbox-api/lock/end'));
