@@ -135,7 +135,10 @@ const worker = {
     ok('an unlocked entry offers "Set password"', (await dlg()).buttons.includes('Set password'));
     await gtype('New password', 'np'); await gtype('Confirm password', 'np'); await gclick('Set password'); await sleep(500);
     ok('the new lock is on the worker and marked on the entry', recs[K + ':' + OPEN] && recs[K + ':' + OPEN].pw === 'np' && await js(`return !!window.__fakeFs.docs['${J.doc}']['e_${OPEN}'].lock;`));
-    ok('this device stays unlocked on it', !(await pane()) && /Open body/.test(await body()));
+    // Poll: the entry re-renders once the synced lock marker lands.
+    let stays = false;
+    for (let i = 0; i < 12 && !stays; i++) { stays = !(await pane()) && /Open body/.test(await body()); if (!stays) await sleep(250); }
+    ok('this device stays unlocked on it', stays);
     await js(`(${sr}) && Guardian.close(); return 1;`);
   }
   ok('no page errors', errs.length === 0, errs.join(' | '));
