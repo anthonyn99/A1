@@ -153,7 +153,6 @@
     mylist: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='#1a1a1d'/><g fill='none' stroke='#c0aeea' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'><path d='M42 32h30'/><path d='M42 48h30'/><path d='M42 64h30'/><circle cx='28' cy='32' r='3.5' fill='#c0aeea' stroke='none'/><circle cx='28' cy='48' r='3.5' fill='#c0aeea' stroke='none'/><circle cx='28' cy='64' r='3.5' fill='#c0aeea' stroke='none'/></g></svg>",
     insight: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='#1a1a1d'/><g fill='none' stroke='#c0aeea' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'><path d='M48 24a24 24 0 1 0 24 24H48Z'/><path d='M60 20a20 20 0 0 1 16 16H60Z'/></g></svg>",
     vault: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='#1a1a1d'/><g fill='none' stroke='#c0aeea' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'><rect x='22' y='42' width='52' height='34' rx='7'/><path d='M33 42v-9a15 15 0 0 1 30 0v9'/><path d='M48 55v8'/></g></svg>",
-    solace: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='#1a1a1d'/><g fill='none' stroke='#c0aeea' stroke-linecap='round' stroke-linejoin='round'><path d='M48 70C33.5 59.5 25 51 25 41.5 25 34 30.5 28.5 37.5 28.5 42.5 28.5 46 31.5 48 34.5 50 31.5 53.5 28.5 58.5 28.5 65.5 28.5 71 34 71 41.5 71 51 62.5 59.5 48 70Z' stroke-width='5'/><path d='M34 45h6l4-8.5 5.5 16 4-7.5h8.5' stroke-width='4'/></g></svg>",
     everwell: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='#1a1a1d'/><g fill='none' stroke='#c0aeea' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'><path d='M28 72 48 52 68 72'/><path d='M28 54 48 34 68 54'/></g><circle cx='48' cy='20' r='5.5' fill='#dbd0f5'/></svg>",
     shield: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='#1a1a1d'/><g fill='none' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'><path d='M48 14 22 23v24c0 17 13 28 26 35' stroke='#c0aeea'/><path d='M48 14 74 23v24c0 17-13 28-26 35' stroke='#8D769A'/><circle cx='48' cy='42' r='7' stroke='#adadb2'/><path d='M48 49v11' stroke='#adadb2'/></g></svg>",
     // The desktop agent: Shield's two-tone mark on a monitor, so the app and
@@ -172,7 +171,7 @@
      names; it reads the synced list.
 
      `tab` is the named-window key. The ones TaskHub already uses are kept
-     identical (tradehub, warroom, vault, solace, magi, shield_tony) so both
+     identical (tradehub, warroom, vault, everwell, magi, shield_tony) so both
      launchers land on one tab per program. */
   var BASE = 'https://anthonyn99.github.io/A1/';
   // Programs that moved to the private repo's host on 2026-10-10
@@ -188,8 +187,22 @@
     'https://anthonyn99.github.io/a1/riftiq.html': PRIV + 'riftiq.html',
     // RiftIQ's name before the rename, still on some saved tiles.
     'https://anthonyn99.github.io/a1/warroom.html': PRIV + 'riftiq.html',
-    'https://anthonyn99.github.io/a1/solace.html': PRIV + 'solace.html'
+    // Solace was replaced by Everwell (2026-10-11); both of its addresses lead
+    // there, and the tile takes Everwell's name, icon and tab (see migrate).
+    'https://anthonyn99.github.io/a1/solace.html': PRIV + 'everwell.html',
+    'https://a1-priv.av1.workers.dev/solace.html': PRIV + 'everwell.html'
   };
+  // The patch for a tile on a moved address. A Solace tile also takes
+  // Everwell's name, icon and tab, unless Tony renamed or re-iconed it.
+  function movedPatch(x) {
+    var to = movedUrl(x.url), out = { url: to };
+    if (/\/everwell\.html/.test(to) && /\/solace\.html/i.test(x.url)) {
+      if (x.name === 'Solace') out.name = 'Everwell';
+      if (!x.icon || x.icon === 'a1:solace') out.icon = 'a1:everwell';
+      if (!x.tab || x.tab === 'solace') out.tab = 'everwell';
+    }
+    return out;
+  }
   function movedUrl(u) {
     try {
       var x = new URL(u);
@@ -210,7 +223,7 @@
     { id: 'mylist', name: 'MyList', url: BASE + 'mylist.html', icon: 'a1:mylist', tab: 'mylist' },
     { id: 'insight', name: 'Insight', url: PRIV + 'insight.html', icon: 'a1:insight', tab: 'insight' },
     { id: 'vault', name: 'Vault', url: PRIV + 'vault.html', icon: 'a1:vault', tab: 'vault' },
-    { id: 'solace', name: 'Solace', url: PRIV + 'solace.html', icon: 'a1:solace', tab: 'solace' },
+    { id: 'everwell', name: 'Everwell', url: PRIV + 'everwell.html', icon: 'a1:everwell', tab: 'everwell' },
     // The desktop agent, by its installed path (per-user NSIS install). It is
     // a local program like any other: the click goes through shieldopen:lh:…,
     // and the agent starting its own exe is a second launch, which surfaces
@@ -508,7 +521,7 @@
       var hits = list.filter(function (x) { return isWeb(x.url) && movedUrl(x.url); });
       if (hits.length) {
         st.movedDone = true;
-        hits.forEach(function (x) { commit(st, patchOp(x.id, { url: movedUrl(x.url) })); });
+        hits.forEach(function (x) { commit(st, patchOp(x.id, movedPatch(x))); });
       }
     }
   }
