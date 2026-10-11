@@ -105,6 +105,39 @@ const ROT = { steps: [{ id: 'a', name: 'Push' }, { id: 'b', name: 'Pull' }, { id
   ok('an untick from Everwell (another device) shows here', !(await checked()));
   ok('…and other days merge in, not over', await js(`const d = __fakeFs.docs['dashboards/everwell_prayer']; return d.done['${TODAY}'] === false && d.done['${YESTERDAY}'] === true;`));
 
+  console.log('\nThe Prayer row drags WITHIN Daily Habits only');
+  await js(`window._thVoice.setEdit(true); 1`); await sleep(800);
+  // A desktop drag: dragstart on `src`, drop on `dst` (React's own handlers).
+  const drag = (src, dst) => js(`const dt = new DataTransfer(), q = (s) => document.querySelector(s);
+    q(${JSON.stringify(src)}).dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+    const d = q(${JSON.stringify(dst)}); d.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    d.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt })); return 1;`).then(() => sleep(1200));
+  const rowIds = () => js(`return [...document.querySelector('tr[data-ew-prayer]').parentElement.children].map(r => r.dataset.dndId).join();`);
+  ok('in edit mode the Prayer row is draggable', await js(`return document.querySelector('tr[data-ew-prayer]').draggable === true;`));
+  const mainW0 = await js(`return __fakeFs.log.filter(l => l.path === 'dashboards/main' && !l.remote).length;`);
+  await drag('tr[data-ew-prayer]', 'tr[data-dnd-id="h_read"]');
+  ok('dropping Prayer on the last habit moves it there', (await rowIds()) === 'h_pray,ew-prayer,h_read', await rowIds());
+  ok("…its place is saved beside the ticks (row.after), ticks kept", await js(`const d = __fakeFs.docs['dashboards/everwell_prayer']; return d.row && d.row.after === 'h_pray' && d.row.at === 1 && d.done['${YESTERDAY}'] === true;`),
+    await js(`return JSON.stringify(__fakeFs.docs['dashboards/everwell_prayer']);`));
+  ok('…and `habits` is unchanged (Prayer never enters it, order kept)', await js(`return JSON.stringify(__fakeFs.docs['dashboards/main'].habits.map(h => h.id)) === '["h_pray","h_read"]';`) &&
+    (await js(`return __fakeFs.log.filter(l => l.path === 'dashboards/main' && !l.remote).length;`)) === mainW0);
+  await drag('tr[data-dnd-id="h_read"]', 'tr[data-ew-prayer]');
+  ok('a habit dropped on Prayer takes its place; Prayer follows its anchor', (await rowIds()) === 'h_pray,h_read,ew-prayer', await rowIds());
+  ok('…the habit order is saved through TaskHub, Prayer still out of it', await js(`return JSON.stringify(__fakeFs.docs['dashboards/main'].habits.map(h => h.id)) === '["h_pray","h_read"]';`) &&
+    await js(`const r = __fakeFs.docs['dashboards/everwell_prayer'].row; return r.after === 'h_read' && r.at === 2;`));
+  // Out of Daily Habits: onto a week-view task and onto the Long-Term Goals zone.
+  const own = `[data-dnd-id="t_own"]`;
+  await drag('tr[data-ew-prayer]', own);
+  ok('dropping Prayer on a week task does nothing (it stays in Daily Habits)', (await rowIds()) === 'h_pray,h_read,ew-prayer' &&
+    await js(`const m = __fakeFs.docs['dashboards/main']; return !Object.values(m.data).some(a => (a || []).some(t => t.id === 'ew-prayer' || t._ewPrayer)) && !(m.goals || []).some(g => g.id === 'ew-prayer');`));
+  await drag('tr[data-ew-prayer]', '[data-dnd-zone="goal"]');
+  ok('…nor on Long-Term Goals', (await rowIds()) === 'h_pray,h_read,ew-prayer' && await js(`return !(__fakeFs.docs['dashboards/main'].goals || []).some(g => g.id === 'ew-prayer');`));
+  await js(`__fakeFs.remote('dashboards/everwell_prayer', { row: { after: null, at: 0 }, savedAt: Date.now() }, { merge: true }); 1`); await sleep(1200);
+  ok('a place set on another device shows here', (await rowIds()) === 'ew-prayer,h_pray,h_read', await rowIds());
+  await js(`__fakeFs.remote('dashboards/everwell_prayer', { row: { after: 'h_gone', at: 1 }, savedAt: Date.now() }, { merge: true }); 1`); await sleep(1200);
+  ok('if its anchor habit is deleted, it keeps its index', (await rowIds()) === 'h_pray,ew-prayer,h_read', await rowIds());
+  await js(`window._thVoice.setEdit(false); 1`); await sleep(500);
+
   console.log("\nVeda's side");
   ok('the Prayer row and the workout reconcile exist only in Tony\'s TaskHub', await js(`return document.querySelectorAll('tr[data-ew-prayer]').length === 1;`));
 
