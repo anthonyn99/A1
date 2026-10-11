@@ -61,12 +61,12 @@ const JOURNALS = [
   { key: 'tj', who: 'tony', doc: 'dashboards/tony_journal', cache: 'tony_journal_v3', open: "window._tonyNav('brainstormjournal')" },
   { key: 'bj', who: 'veda', doc: 'dashboards/journal', cache: 'brainstorm_journal_v3', open: "window._vedaNav('journal')" },
 ];
-// NB_SKIP_LOCK=1 leaves the entry-lock steps out of BOTH recordings (and the
-// lock overlay out of every snapshot). Used when the lock UI itself changed on
-// purpose — the Guardian move (docs/Guardian/plan.md) — to prove everything
-// else in both journals is still byte-identical; the locks are then proven by
-// tests/live/guardian-journals.live.js.
-const SKIP_LOCK = !!process.env.NB_SKIP_LOCK;
+// The entry-lock steps are left out of BOTH recordings (and the lock overlay
+// out of every snapshot). Since the Guardian move (docs/Guardian/plan.md) the
+// lock is Guardian's UI, which these steps' selectors predate; the locks are
+// proven by tests/live/guardian-journals.live.js. NB_LOCKS=1 puts the steps
+// back, for comparing two refs that are both from before Guardian.
+const SKIP_LOCK = !process.env.NB_LOCKS;
 // Elements whose box and look are recorded at every step (when present).
 const PROBES = ['root', 'sidebar', 'entries-list', 'search-box', 'new-entry-btn', 'main', 'toolbar', 'entry-title-input',
   'btn-edit', 'btn-lock', 'tags-row', 'sync-pill', 'page-toolbar', 'page-editor', 'page-editor-wrap', 'lock-overlay', 'empty-state']
@@ -530,7 +530,9 @@ async function main() {
   const ref = ri > 0 ? process.argv[ri + 1] : 'notebook-p0';
   const wt = path.join(os.tmpdir(), 'notebook-baseline-wt');
   spawnSync('git', ['-C', REPO, 'worktree', 'remove', '--force', wt], { stdio: 'ignore' });
-  const add = spawnSync('git', ['-C', REPO, 'worktree', 'add', '--detach', wt, ref], { encoding: 'utf8' });
+  // LF, as the working copy: with Windows' autocrlf the checkout gets CRLF, and
+  // Notebook's instance loader can't find core/fb.js's line-anchored markers.
+  const add = spawnSync('git', ['-C', REPO, '-c', 'core.autocrlf=false', 'worktree', 'add', '--detach', wt, ref], { encoding: 'utf8' });
   if (add.status !== 0) { console.error(add.stderr); process.exit(2); }
   try {
     console.log(`before = ${ref} (${wt})`);
