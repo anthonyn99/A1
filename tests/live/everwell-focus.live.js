@@ -100,6 +100,10 @@ const mock = {
   console.log('\nPlaying');
   await js(`${tile(1)}.querySelector('[data-play]').click(); return 1;`); await sleep(1500);
   ok('a tap plays it through youtube-nocookie with autoplay and the error channel', await js(`const f = ${tile(1)}.querySelector('iframe'); return !!f && /^https:\\/\\/www\\.youtube-nocookie\\.com\\/embed\\/goodvideo01\\?autoplay=1&.*enablejsapi=1/.test(f.src);`));
+  ok('the playing video takes two columns, and offers only Stop and Open', await js(`const t = ${tile(1)}, w = t.getBoundingClientRect().width, o = ${tile(2)}.getBoundingClientRect().width;
+    return t.classList.contains('playing') && w > o * 1.9 && !!t.querySelector('[data-stop]') && !t.querySelector('[data-rm], [data-expand]') && !!t.querySelector('.media-meta a');`));
+  ok('the tile buttons are small and quiet (28px, no box until hovered)', await js(`const b = ${tile(2)}.querySelector('[data-rm]'), s = getComputedStyle(b); return b.offsetWidth === 28 && s.borderTopColor === 'rgba(0, 0, 0, 0)';`),
+    await js(`const b = ${tile(2)}.querySelector('[data-rm]'); return b.offsetWidth + ' ' + getComputedStyle(b).borderTopColor;`));
   ok('a good video keeps playing (its messages are not errors)', await js(`return EWFocus.playing() !== null && !!${tile(1)}.querySelector('iframe');`));
   await add('https://www.youtube.com/watch?v=abcdefghijk', 'Added while playing');
   ok('adding while one plays does not restart it (the player stays put)', await js(`return document.querySelectorAll('#focus-grid .media-tile').length === 6 && ${tile(2)}.querySelector('.t').textContent === 'Good' && !!${tile(2)}.querySelector('iframe');`));
@@ -167,6 +171,7 @@ const mock = {
   ok('…the Short is tall but fits the screen', await js(`const f = document.querySelector('#focus-grid .media-tile.tall .media-frame').getBoundingClientRect(); return f.height <= innerHeight * 0.72 + 1 && f.width <= 360;`));
   await js(`document.querySelector('#focus-grid .media-tile [data-play]').click(); return 1;`); await sleep(800);
   ok('…and audio plays there too', await js(`return !!document.querySelector('#focus-grid audio');`));
+  ok('…a playing tile stays one column wide on a phone (no sideways scroll)', await js(`const t = document.querySelector('.media-tile.playing'); return !!t && t.getBoundingClientRect().right <= innerWidth && document.documentElement.scrollWidth <= 360;`));
   await c.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
 
   console.log('\nExpand a playlist');
