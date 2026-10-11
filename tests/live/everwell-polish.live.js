@@ -150,7 +150,7 @@ const OFFENDERS = `(() => {
       for (const [tab, label, open] of DIALOGS) {
         await js(`EWApp.go('${tab}'); return 1;`); await sleep(900);
         const r = await js(`try { ${open}; return 'opened'; } catch (e) { return 'cannot open: ' + e.message; }`); await sleep(700);
-        if (r !== 'opened') { ok(`${who} ${w}px dialog ${label}: opens`, false, r + ' / ' + await js(`return document.getElementById('ew-body-${tab}').innerText.slice(0, 300);`)); continue; }
+        if (r !== 'opened') { ok(`${who} ${w}px dialog ${label}: opens`, false, r + ' / ' + await js(`const b = document.getElementById('ew-body-${tab}'); return b ? b.innerText.slice(0, 300) : 'no body; current=' + EWApp.current() + ' ids=' + [...document.querySelectorAll('[id^=ew-body]')].map(e => e.id).join();`)); continue; }
         const o = await offenders();
         ok(`${who} ${w}px dialog ${label}: nothing past the edge`, o.length === 0, show(o));
         await closeAll(); await sleep(400);
