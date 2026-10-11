@@ -27,6 +27,12 @@
   [docs/Notebook/plan.md](docs/Notebook/plan.md) is the record. Prove journal
   changes with `node tests/live/notebook-baseline.live.js`. Never change how
   Veda's side looks or works.
+- **Guardian — the one lock** ("add a lock to X", "change the lock screen",
+  anything about passwords, biometrics, hints or reset codes): every A1 program,
+  A1-Priv and ORCA's gate lock through [Guardian/guardian.js](Guardian/guardian.js).
+  Never build a lock in a program; declare one. The contract is
+  [docs/Guardian/README.md](docs/Guardian/README.md) (hosts must load the file
+  unpinned; legacy adoption is retired after 2026-11-10 by its checklist).
 - **Theme overhaul** ("continue theme", "next theme phase"): MAGI's look on
   Tony's side of every program, plus MAGI's drag and drop everywhere except
   Tony's TaskHub. **All 11 phases are done (2026-10-03).** §0 of
