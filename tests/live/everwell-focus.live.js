@@ -215,7 +215,7 @@ const mock = {
   ok('…and catches up once it stops (the removed video goes)', await js(`return !${q('[data-id="p1~listvideo00"]')} && ${q('.media-group[data-id="p1"]')}.querySelectorAll('.media-grid .media-tile').length === 3;`));
   delete PLAYLISTS.PLgoodlist01; w0 = await tonyWrites();
   await js(`EWFocus.resync(); return 1;`); await sleep(1200);
-  ok('re-sync failing (private now, or YouTube silent) keeps the stored list', (await tonyWrites()) === w0 && await js(`return ${q('.media-group[data-id="p1"]')}.querySelectorAll('.media-grid .media-tile').length === 3 && !${q('.media-group[data-id="p1"] .media-msg')};`));
+  ok('re-sync failing (private now, or YouTube silent) keeps the stored list', (await tonyWrites()) === w0 && await js(`return ${q('.media-group[data-id="p1"]')}.querySelectorAll('.media-grid .media-tile').length === 3 && !${q('.media-group[data-id="p1"] [data-msg="nolist"]')};`));
   PLAYLISTS.PLgoodlist01 = ORIG.slice();
   await js(`${q('[data-id="p2"] [data-expand]')}.click(); return 1;`); await sleep(1200);
   ok('a list that cannot be read says so on its tile and stays one tile', /^nolist\|Could not list its videos/.test(await js(`const m = ${q('[data-id="p2"] .media-msg')}; return m ? m.dataset.msg + '|' + m.textContent : '';`)) && await js(`return !${q('.media-group[data-id="p2"]')};`));
