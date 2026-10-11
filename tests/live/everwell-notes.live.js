@@ -117,7 +117,8 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   await addLink('https://www.youtube.com/playlist?list=PLabcdefghijklmnop');
   ok('four tiles: Short and Reel are tall, the video and playlist wide', await js(`const t = [...document.querySelectorAll('.media-tile')]; return t.length === 4 && t.filter(x => x.classList.contains('tall')).length === 2;`));
   ok('nothing plays on open (no player until a tap)', await js(`return !document.querySelector('.media-tile iframe');`));
-  ok('saved with the settings (dashboards/everwell_tony)', await js(`const m = (__fakeFs.docs['dashboards/everwell_tony'] || {}).mindsetMedia || []; return m.length === 4 && m[3].title === 'Morning talk';`));
+  await sleep(1500);
+  ok('saved with the settings (dashboards/everwell_tony)', await js(`const m = (__fakeFs.docs['dashboards/everwell_tony'] || {}).mindsetMedia || []; return m.length === 4 && m[3].title === 'Morning talk';`), await js(`return JSON.stringify((__fakeFs.docs['dashboards/everwell_tony'] || {}).mindsetMedia);`));
   await js(`document.querySelector('.media-tile:last-child [data-play]').click(); return 1;`); await sleep(400);
   ok('tapping plays it through youtube-nocookie with autoplay', await js(`const f = document.querySelector('.media-tile iframe'); return !!f && /^https:\\/\\/www\\.youtube-nocookie\\.com\\/embed\\/abcdefghijk\\?autoplay=1/.test(f.src);`));
   await js(`document.querySelector('.media-tile:nth-child(2) [data-play]').click(); return 1;`); await sleep(400);
