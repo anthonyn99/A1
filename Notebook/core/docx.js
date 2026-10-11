@@ -4255,7 +4255,29 @@ function wireEditor(ctx) {
     if (a && ed.contains(a) && ed.contentEditable !== 'true') {
       e.preventDefault();
       window.open(a.href, '_blank', 'noopener');
+      return;
     }
+    // A bare URL typed as plain text (no <a>) opens the same way — VIEW mode only.
+    if (!a && ed.contentEditable !== 'true') {
+      var u = bareUrlAt(e.clientX, e.clientY);
+      if (u) { e.preventDefault(); window.open(u, '_blank', 'noopener'); }
+    }
+  });
+  // The http(s) URL in plain text under a point, or ''.
+  function bareUrlAt(x, y) {
+    var node, off;
+    if (document.caretPositionFromPoint) { var p = document.caretPositionFromPoint(x, y); if (p) { node = p.offsetNode; off = p.offset; } }
+    else if (document.caretRangeFromPoint) { var r = document.caretRangeFromPoint(x, y); if (r) { node = r.startContainer; off = r.startOffset; } }
+    if (!node || node.nodeType !== 3 || !ed.contains(node)) return '';
+    var re = /https?:\/\/[^\s<>"']+/gi, txt = node.textContent, m;
+    while ((m = re.exec(txt))) {
+      var url = m[0].replace(/[.,;:!?)\]]+$/, '');
+      if (off >= m.index && off <= m.index + url.length) return url;
+    }
+    return '';
+  }
+  ed.addEventListener('mousemove', function(e) {
+    ed.style.cursor = ed.contentEditable !== 'true' && bareUrlAt(e.clientX, e.clientY) ? 'pointer' : '';
   });
   // Delegated image handling so images stay resizable/deletable/copyable no matter how the DOM moves
   wireImageDelegation(ctx);

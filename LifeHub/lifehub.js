@@ -954,6 +954,9 @@
   /* ══ Panel ═════════════════════════════════════════════════════════════════ */
   var PANEL_CSS =
     ':host{all:initial}' +
+    // all:initial drops the page's no-tap-highlight rule: no blue box on a phone tap or hold.
+    ':host,*,*::before,*::after{-webkit-tap-highlight-color:transparent}' +
+    'button,[role="button"]{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}' +
     '*{box-sizing:border-box}' +
     '[hidden]{display:none!important}' +
     '.wrap{--bg:#1c1c20;--bg2:#242428;--bd:#2e2f33;--bd2:#3b3c42;--tx:#ecebe8;--tx2:#d2d0cc;--dim:#8f8e94;' +
