@@ -443,6 +443,35 @@ function page(W, opts) {
     P.G.close();
   }
 
+  console.log('\n12e. every screen that asks for the current password offers the hint and a reset');
+  {
+    const W = fakeWorker(); W.set('applock:tony_f', 'pw', 'my hint');
+    const P = page(W);
+    P.G.define('tony_f', {}); await P.G.refresh(null, true);
+    const labels = () => P.all('button').map((b) => b.textContent.trim());
+    const screens = {
+      unlock: [() => P.G.gate('tony_f'), 'Unlock'],
+      verify: [() => P.G.verify('tony_f'), 'Continue'],
+      change: [() => P.G.changePassword('tony_f'), 'Change password'],
+      remove: [() => P.G.removeLock('tony_f'), 'Remove lock'],
+    };
+    for (const [name, [openIt, main]] of Object.entries(screens)) {
+      openIt(); await tick(20);
+      const L = labels();
+      ok(name + ': has "Email me my hint" and "Reset password"', L.includes('Email me my hint') && L.includes('Reset password'), L);
+      P.click('Reset password'); await tick(5);
+      ok(name + ': Reset password opens the emailed-code screen', labels().includes('Email me a code'), labels());
+      P.click('Back'); await tick(5);
+      ok(name + ': Back returns to the same screen', labels().includes(main) && labels().includes('Reset password'), labels());
+      P.G.close(); await tick(5);
+    }
+    P.G.changePassword('tony_f'); await tick(20);
+    const before = W.calls.length;
+    P.click('Email me my hint'); await tick(30);
+    ok('the hint button on Change password emails the hint', W.calls.slice(before).some((c) => /hint/.test(c.url || JSON.stringify(c))), W.calls.slice(before));
+    P.G.close();
+  }
+
   console.log('\n13. bio-only (Plans consent)');
   {
     const W = fakeWorker();
