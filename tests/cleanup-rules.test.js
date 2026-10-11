@@ -92,13 +92,29 @@ const priv = fs.existsSync(M.PRIV)
       .concat(fs.readdirSync(path.join(M.PRIV, 'Vault')).filter((f) => /\.js$/.test(f) && !/\.test\.js$/.test(f)).map((f) => path.join(M.PRIV, 'Vault', f)))
   : [];
 if (!priv.length) M.skipNote('the A1-Priv programs (their keys cannot be checked)');
-const live = walk(ROOT, []).filter((p) => !M.isMoved(path.relative(ROOT, p)))
-  .concat(priv)
+const a1Live = walk(ROOT, []).filter((p) => !M.isMoved(path.relative(ROOT, p)))
   .map((p) => [path.relative(ROOT, p), fs.readFileSync(p, 'utf8')]);
-const usedBy = (needle) => live.filter(([, src]) => src.includes(needle)).map(([p]) => p);
+const privLive = priv.map((p) => [path.relative(ROOT, p), fs.readFileSync(p, 'utf8')]);
+// An item with an "origin" runs on that host only, so only code served there
+// counts. A1-Priv's pages also run A1's shared scripts (LifeHub, Notebook,
+// tabsync, Guardian...), so every A1 file stays in its set; the A1 set leaves
+// out A1-Priv, whose pages never run on github.io.
+const ORIGINS = { a1: a1Live, 'a1-priv': a1Live.concat(privLive) };
+const live = a1Live.concat(privLive);
+const usedBy = (needle, origin) => (origin ? ORIGINS[origin] : live)
+  .filter(([, src]) => src.includes(needle)).map(([p]) => p);
+for (const it of RULES.items) {
+  if (it.origin !== undefined) ok(`${it.id}: origin '${it.origin}' is a known host`, !!ORIGINS[it.origin]);
+}
+// Every A1-Priv page loads the sweep, so an item for any of them just works.
+for (const page of fs.existsSync(M.PRIV) ? fs.readdirSync(M.PRIV).filter((f) => f.endsWith('.html')) : []) {
+  const prog = page.replace(/\.html$/, '');
+  ok(`A1-Priv ${page} loads sweep.js as data-program="${prog}"`,
+    new RegExp(`<script src="https://anthonyn99\\.github\\.io/A1/sweep\\.js" data-program="${prog}" defer></script>`).test(M.read(page)));
+}
 for (const it of RULES.items.filter((i) => i.store === 'localStorage')) {
   for (const k of [...(it.exact || []), ...(it.prefix || [])]) {
-    const hits = usedBy(k);
+    const hits = usedBy(k, it.origin);
     ok(`${it.id}: '${k}' is not used by live code`, hits.length === 0, hits.join(', '));
   }
 }
