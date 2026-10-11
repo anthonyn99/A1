@@ -566,14 +566,15 @@ var CSS = [
 '.err{font:600 12px/1.4 var(--f);color:var(--red);text-align:center;min-height:16px}',
 '.caps{font:600 11px var(--f);color:#e0b874;margin:5px 0 0 2px;text-align:left}.caps[hidden]{display:none}',
 '.note{font:500 12px/1.45 var(--f);color:var(--txd);text-align:center}',
-'button.b{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:42px;padding:10px 14px;border-radius:var(--rb);border:1px solid var(--bdl);background:var(--s2);color:var(--tx);font:700 var(--btn-fs) var(--f);letter-spacing:var(--btn-ls);text-transform:var(--btn-tt);cursor:pointer;transition:filter .15s,border-color .15s,box-shadow .15s,transform .05s}',
+'button.b{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:42px;padding:10px 14px;border-radius:var(--rb);border:1px solid var(--bdl);background:transparent;color:var(--tx);font:700 var(--btn-fs) var(--f);letter-spacing:var(--btn-ls);text-transform:var(--btn-tt);cursor:pointer;transition:filter .15s,border-color .15s,box-shadow .15s,transform .05s}',
 'button.b svg{width:15px;height:15px;flex:none}',
 'button.b.pri{background:var(--ac);border-color:var(--ac);color:var(--onac)}',
-'button.b.ghost{background:transparent}',
-'button.b.dg{background:transparent;color:var(--red);border-color:var(--red)}',
+'button.b.dg{color:var(--red)}',
+/* Cancel / Back: the same clean outline, sized to its word. */
+'.foot button.b{width:auto;min-width:132px;min-height:38px;padding:8px 22px;color:var(--txd)}',
 'button.b:disabled{opacity:.55;cursor:default}',
 'button.b:focus-visible,.lk:focus-visible,.eye:focus-visible{outline:2px solid var(--ac);outline-offset:1px}',
-'@media (hover:hover) and (pointer:fine){button.b:hover:not(:disabled){filter:brightness(1.15);border-color:var(--ac)}button.b.dg:hover:not(:disabled){border-color:var(--red);box-shadow:0 0 0 3px rgba(214,138,124,.16)}}',
+'@media (hover:hover) and (pointer:fine){button.b:hover:not(:disabled){filter:brightness(1.15);border-color:var(--ac)}button.b.dg:hover:not(:disabled){border-color:var(--red)}}',
 'button.b:active:not(:disabled){filter:brightness(.94);transform:translateY(1px)}',
 '.menu{display:flex;flex-direction:column;gap:8px;width:100%}.menu:empty{display:none}',
 '.menu button.b{justify-content:flex-start}',
@@ -697,7 +698,7 @@ function header(d, icon, kicker, sub) {
   ];
 }
 function footer(label, onclick) {
-  return h('div', { 'class': 'foot' }, [h('button', { 'class': 'lk', type: 'button', text: label || 'Cancel', onclick: onclick })]);
+  return h('div', { 'class': 'foot' }, [B('', null, label || 'Cancel', onclick)]);
 }
 function busy(b, on, text) { b.disabled = !!on; if (text) setBtnText(b, text); }
 function netErr(r) {
@@ -1010,13 +1011,17 @@ function scrMenu(d, card) {
   else menu.appendChild(B('pri', 'lock', 'Lock this device now', function () { settle('locked'); lockNow(d.id); }));
   var bioSlot = h('div', { 'class': 'menu' }); menu.appendChild(bioSlot);
   menu.appendChild(B('', 'key', 'Change password', function () { scrChange(d, card); }));
-  if (d.allowRemove) menu.appendChild(B('dg', 'trash', 'Remove lock', function () { scrRemove(d, card); }));
+  menu.appendChild(B('dg', 'trash', 'Remove lock', function () {
+    if (d.allowRemove) { scrRemove(d, card); return; }
+    info(d, 'This lock stays on', d.label + "'s password also protects its data on the server, so removing it would open that to anyone. You can change it instead.", false,
+      function () { scrMenu(d, card); });
+  }));
   fill(card, header(d, 'lock', 'Lock settings', open_ ? 'Unlocked on this device.' : 'Locked on this device.').concat([
     menu, footer('Cancel', function () { settle(false); })
   ]));
   bioAvailFor(d).then(function (avail) {
     if (!avail || !OPEN || OPEN.card !== card) return;
-    if (bioIsRegistered(d.id)) bioSlot.appendChild(B('ghost', 'bio', 'Remove ' + bioLabel(), function () { scrUnlock(d, card, { purpose: 'removeBio' }); }));
+    if (bioIsRegistered(d.id)) bioSlot.appendChild(B('', 'bio', 'Remove ' + bioLabel(), function () { scrUnlock(d, card, { purpose: 'removeBio' }); }));
     else bioSlot.appendChild(B('', 'bio', 'Register ' + bioLabel(), function () {
       var go = function () {
         bioRegister(d).then(function (r) {
@@ -1051,7 +1056,7 @@ function offerBio(d) {
           B('pri', 'bio', 'Register ' + bioLabel(), function () {
             bioRegister(d).then(function (r) { if (r.ok) emit('change', { id: d.id, what: 'bio' }); settle(true); });
           }),
-          B('ghost', null, 'Not now', function () { settle(false); })
+          B('', null, 'Not now', function () { settle(false); })
         ])
       ]));
     });
