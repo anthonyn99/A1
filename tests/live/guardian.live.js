@@ -131,6 +131,37 @@ const FAKE_AUTH = `(function(){ if (window.top !== window) return;
     await evalJs(c, `Guardian.define('veda_new', { owner: 'veda', label: 'Rules' }); Guardian.setLock('veda_new'); return 1;`); await sleep(400);
     await shot(tag + '-veda-set');
     await evalJs(c, `Guardian.close(); return 1;`);
+
+    console.log('\n' + tag + ' — show / hide password');
+    await evalJs(c, `window.__g = Guardian.changePassword('tony_demo'); return 1;`); await sleep(500);
+    await evalJs(c, `const s = document.querySelector('guardian-lock').shadowRoot; const i = s.querySelector('input[type=password]'); i.focus(); i.value = 'typed-secret'; return 1;`);
+    const eyeBox = JSON.parse(await evalJs(c, `const s = document.querySelector('guardian-lock').shadowRoot; const r = s.querySelector('.pw .eye').getBoundingClientRect(); return JSON.stringify({ x: r.left + r.width / 2, y: r.top + r.height / 2, w: Math.round(r.width), h: Math.round(r.height) });`));
+    ok('every password field on the screen has an eye', await evalJs(c, `const s = document.querySelector('guardian-lock').shadowRoot; const p = [...s.querySelectorAll('input[type=password]')]; return p.length === 3 && p.every(i => i.parentNode.querySelector('.eye'));`));
+    ok(mobile ? 'the eye is a 44px touch target' : 'the eye is a comfortable 36px target', mobile ? eyeBox.w >= 44 && eyeBox.h >= 44 : eyeBox.w >= 36, JSON.stringify(eyeBox));
+    if (mobile) {
+      for (const type of ['touchStart', 'touchEnd']) await c.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x: eyeBox.x, y: eyeBox.y }] });
+    } else {
+      for (const type of ['mousePressed', 'mouseReleased']) await c.send('Input.dispatchMouseEvent', { type, x: eyeBox.x, y: eyeBox.y, button: 'left', clickCount: 1 });
+    }
+    await sleep(300);
+    const after = JSON.parse(await evalJs(c, `const s = document.querySelector('guardian-lock').shadowRoot; const i = s.querySelector('.pw input'); return JSON.stringify({ type: i.type, value: i.value, focused: s.activeElement === i, pressed: s.querySelector('.pw .eye').getAttribute('aria-pressed') });`));
+    ok((mobile ? 'a tap' : 'a click') + ' on the eye shows what was typed', after.type === 'text' && after.value === 'typed-secret' && after.pressed === 'true', JSON.stringify(after));
+    ok('the field keeps focus (a phone keyboard stays up)', after.focused, JSON.stringify(after));
+    ok('the text never runs under the eye', await evalJs(c, `const s = document.querySelector('guardian-lock').shadowRoot; const i = s.querySelector('.pw input'); return parseFloat(getComputedStyle(i).paddingRight) >= ${mobile ? 44 : 36};`));
+    await shot(tag + '-eye-shown');
+    if (mobile) {
+      // The keyboard takes half the screen: the long form must scroll, never clip.
+      await c.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 420, deviceScaleFactor: 2, mobile: true });
+      await sleep(400);
+      const sc = JSON.parse(await evalJs(c, `const s = document.querySelector('guardian-lock').shadowRoot, ov = s.querySelector('.ov'), card = s.querySelector('.card');
+        ov.scrollTop = 0; const top = card.getBoundingClientRect().top; ov.scrollTop = 99999; const bottom = card.getBoundingClientRect().bottom;
+        return JSON.stringify({ scrolls: ov.scrollHeight > ov.clientHeight, topVisible: top >= 0, bottomReachable: bottom <= innerHeight + 1, hscroll: document.documentElement.scrollWidth > innerWidth });`));
+      ok('on a short screen (keyboard up) the card scrolls: top and bottom both reachable', sc.scrolls && sc.topVisible && sc.bottomReachable && !sc.hscroll, JSON.stringify(sc));
+      ok('phone fields use 16px text (no iOS zoom on focus)', await evalJs(c, `return getComputedStyle(document.querySelector('guardian-lock').shadowRoot.querySelector('.pw input')).fontSize === '16px';`));
+      await shot(tag + '-short-screen');
+      await c.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 2, mobile: true });
+    }
+    await evalJs(c, `Guardian.close(); return 1;`);
   }
 
   console.log('\nScreenshots: ' + SHOTS + '\\guardian-*.png');
