@@ -399,7 +399,26 @@ async function capture(label) {
 // Each rule names the phase and the fix, and matches the difference's path in
 // the recording (e.g. /^tj\.steps\[\d+\]\.snap\.sync$/). Nothing else may differ.
 // Screenshots a rule allows to differ go in `shots` (file-name regex).
+// 2026-10-11 (phase 'T'): MyJournal and OurJournal dropped tags (Brainstorm's own
+// entries keep them), and the editor ribbon gained Copy all. A tag element going
+// away is the only change these rules let through: tagOnly() holds that nothing
+// else appeared or vanished, rowsTrimmed() that a row only lost its "· tags".
+const TAG_IDS = /-(tags-row|add-tag-input|tagfilter-row)$/;
+const tagOnly = (a, b) => a.steps.every((s, i) => { const x = new Set(s.snap.visibleIds), y = new Set((b.steps[i] || { snap: { visibleIds: [] } }).snap.visibleIds);
+  return [...x].every((k) => y.has(k) || TAG_IDS.test(k)) && [...y].every((k) => x.has(k)); });
+const rowsTrimmed = (a, b) => a.steps.every((s, i) => s.snap.rows.every((r, j) => { const t = ((b.steps[i] || {}).snap || { rows: [] }).rows[j];
+  return t && (t.text === r.text || r.text.startsWith(t.text + ' · ')); }));
+const stepIs = (n, name) => (a) => !!a.steps[n] && a.steps[n].name === name;
 const EXPECTED = [
+  { phase: 'T', why: 'MyJournal: no tag row, tag chips or tag box (and the toolbar/sidebar close the gap)', check: tagOnly,
+    path: /^tj\.steps\[\d+\]\.snap\.(visibleIds\[\d+\]|tags(\[\d+\])?|box\.(tags-row|entries-list\.[yh]|entry-title-input\.w|btn-edit\.x|btn-lock\.x))$/ },
+  { phase: 'T', why: 'MyJournal: sidebar rows no longer list tags', check: rowsTrimmed, path: /^tj\.steps\[\d+\]\.snap\.rows\[\d+\]\.text$/ },
+  { phase: 'T', why: 'MyJournal: the add-tag step adds nothing, so it writes nothing and the pill stays "Saved"', check: stepIs(3, 'add-tag'),
+    path: /^tj\.steps\[3\]\.(writes(\[\d+\].*)?|snap\.(sync|box\.sync-pill\.\w+))$/ },
+  { phase: 'T', why: 'no tags field is stored on MyJournal or OurJournal entries', path: /^(tj|bj)\.(steps\[\d+\]\.writes\[\d+\]\.data\.(e|m)_e_ID\d+\.tags|store\.(fs\.dashboards\/(tony_journal|ourjournal)\.(e|m)_e_ID\d+\.tags|cache\.entries\[\d+\]\.tags)(\[\d+\])?)$/ },
+  { phase: 'T', why: 'Brainstorm\'s OurJournal tab hides the tag row (her own entries keep it)', check: (a, b) => stepIs(11, 'oj-new-page')(a) && tagOnly(a, b),
+    path: /^bj\.steps\[11\]\.snap\.(visibleIds\[\d+\]|tags(\[\d+\])?|box\.(tags-row|entry-title-input\.w|btn-edit\.x))$/ },
+  { phase: 'T', why: 'the editor ribbon has a Copy all button', shots: /-(tj|bj)-(edit-type|new-page|ai-format|size-tablet|size-phone)\.png$/ },
   // Guardian (docs/Guardian/plan.md): the app lock no longer rewrites the
   // al_locks cache on every load — Guardian keeps its own gd.* state.
   { phase: 'G', why: 'Guardian: index stops writing al_locks on load', path: /^(tj|bj)\.store\.lsKeys/,
