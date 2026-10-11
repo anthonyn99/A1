@@ -51,9 +51,9 @@ Removing a lock means deleting those lines. Nothing else in the program knows ab
   - Lock this device now
   - Register or remove biometrics
   - Change password: one atomic call that carries `current`
-  - Remove lock (unless `allowRemove:false`)
+  - Remove lock (with `allowRemove:false` it explains why the lock stays on)
   - Cancel
-- **Recovery:**
+- **Recovery:** on EVERY screen that asks for the current password (unlock, verify, Change password, Remove lock, the biometric-removal check), through one helper, `forgot()`; Back from the reset returns to that screen:
   - "Email me my hint"
   - "Reset password" by an emailed 6-character code
   - New password + confirm + hint when setting or changing a password
