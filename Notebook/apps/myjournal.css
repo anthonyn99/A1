@@ -908,33 +908,6 @@
   display: flex; flex-wrap: wrap; gap: 5px; padding: 6px 10px 0;
   border-top: 1px solid var(--border); margin-top: 10px;
 }
-  /* ── TAGS ── */
-#tj-root #tj-tags-row { display: flex; align-items: center; gap: 5px; margin-top: 12px; flex-wrap: wrap; }
-#tj-root .tags-label {
-    font-family: var(--font); font-size: 10px; color: var(--text3);
-    font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
-  }
-#tj-root .tag {
-    display: inline-flex; align-items: center; gap: 5px; padding: 3px 6px 3px 11px; border-radius: 999px;
-    font-family: var(--font); font-size: 11px; font-weight: 600;
-    background: transparent; color: var(--ac); border: 1px solid rgba(192,174,234,0.4);
-    letter-spacing: 0.02em; max-width: 100%;
-    transition: background 0.12s, border-color 0.12s;
-  }
-#tj-root .tag .tag-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px; }
-#tj-root .tag:hover { background: transparent; border-color: var(--ac); }
-#tj-root .tag-del { cursor: pointer; opacity: 0.55; font-size: 12px; line-height: 1; width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; flex-shrink: 0; transition: opacity 0.1s, background 0.1s; }
-#tj-root .tag-del:hover { opacity: 1; color: #fff; background: var(--red); }
-#tj-root #tj-add-tag-input {
-    border: 1px dashed var(--border2); border-radius: 999px; padding: 3px 12px; box-sizing: content-box;
-    font-family: var(--font); font-size: 11px;
-    color: var(--text2); background: none; outline: none; width: 92px;
-    transition: border-color 0.15s, width 0.2s;
-    letter-spacing: 0.02em;
-  }
-#tj-root #tj-add-tag-input:focus { border-style: solid; border-color: var(--ac); color: var(--text); width: 120px; }
-#tj-root #tj-add-tag-input::placeholder { color: var(--text3); }
-
   /* ── SCROLLBAR ── */
 #tj-root ::-webkit-scrollbar {display:none;width:0;height:0;}
 #tj-root ::-webkit-scrollbar-track { background: transparent; }
@@ -1035,8 +1008,7 @@
 /* Prevent iOS zoom on input focus — all inputs min 16px */
 #tj-root input, #tj-root textarea, #tj-root select,
 #tj-root #tj-entry-title-input,
-#tj-root #tj-search-box, #tj-root .search-wrap input,
-#tj-root #tj-add-tag-input {
+#tj-root #tj-search-box, #tj-root .search-wrap input {
   font-size: 16px !important;
   -webkit-text-size-adjust: 100%;
 }
@@ -1167,10 +1139,6 @@
   /* ── SIDEBAR HEADER ── */
   #tj-root #tj-sidebar-header { padding: 10px 12px 8px; }
   #tj-root #tj-sidebar-header h1 { font-size: 13px; }
-
-  /* ── TAGS ROW ── */
-  #tj-root #tj-tags-row { padding: 6px 12px 4px; flex-wrap: wrap; gap: 4px; }
-  #tj-root .tag { font-size: 10px; padding: 2px 7px; }
 
   /* ── BOTTOM ACTION BAR ── */
   #tj-root #tj-bottom-bar {
