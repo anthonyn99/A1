@@ -504,6 +504,9 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 /* ── View-mode segmented toggle (main toolbar) ── */
 
 /* ── AI Format button + overlay + toast ── */
+/* Copy all: a label that turns into "Copied" for a moment. */
+#tj-root .docx-copyall-lbl, #bj-root .docx-copyall-lbl { margin-left: 4px; }
+#tj-root .docx-copyall-btn.copied, #bj-root .docx-copyall-btn.copied { color: var(--green, #6fcf97); }
 #tj-root .docx-ai-btn, #bj-root .docx-ai-btn { color: #c3a7ff; border: 1px solid rgba(150,110,255,.4); background: rgba(150,110,255,.08); font-weight: 600; }
 #tj-root .docx-ai-btn:hover, #bj-root .docx-ai-btn:hover { background: rgba(150,110,255,.2); color: #e2d4ff; border-color: rgba(150,110,255,.7); }
 .docx-ai-veil { z-index: 100010; }
@@ -656,6 +659,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   #bj-root .docx-ribbonrow > *:not(.docx-r1) { display: none !important; }
   /* "AI Format" shrinks to its icon; the label is what made it 110px wide. */
   #tj-root .docx-ai-lbl, #bj-root .docx-ai-lbl { display: none !important; }
+  #tj-root .docx-copyall-btn:not(.copied) .docx-copyall-lbl, #bj-root .docx-copyall-btn:not(.copied) .docx-copyall-lbl { display: none; }
   #tj-root .docx-ribbonrow .pt-select, #bj-root .docx-ribbonrow .pt-select {
     max-width: 116px; font-size: 11.5px; padding-right: 2px;
   }
@@ -692,6 +696,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   #tj-root .docx-ribbonrow > *:not(.docx-r1),
   #bj-root .docx-ribbonrow > *:not(.docx-r1) { display: none !important; }
   #tj-root .docx-ai-lbl, #bj-root .docx-ai-lbl { display: none !important; }
+  #tj-root .docx-copyall-btn:not(.copied) .docx-copyall-lbl, #bj-root .docx-copyall-btn:not(.copied) .docx-copyall-lbl { display: none; }
   #tj-root .docx-menubar, #bj-root .docx-menubar { padding: 0 0 3px; margin-bottom: 3px; }
   #tj-root .docx-menu-btn, #bj-root .docx-menu-btn { min-height: 30px; padding: 4px 10px; font-size: 12.5px; }
   #tj-root .docx-ribbonrow .pt-btn, #bj-root .docx-ribbonrow .pt-btn { min-height: 32px; min-width: 32px; padding: 4px 7px; }
