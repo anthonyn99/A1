@@ -198,6 +198,10 @@ async function servePagesFromWorkingCopy(ws, send, mock) {
       responseHeaders: [
         { name: 'Content-Type', value: (TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream') + '; charset=utf-8' },
         { name: 'Cache-Control', value: 'no-store' },
+        // GitHub Pages sends this on every file. A1-Priv's pages fetch A1 files
+        // cross-origin (sweep.js reads cleanup-rules.json), so without it they
+        // fail here and nowhere else.
+        { name: 'Access-Control-Allow-Origin', value: '*' },
       ],
       body: fs.readFileSync(file).toString('base64'),
     });
