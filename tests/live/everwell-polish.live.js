@@ -43,7 +43,10 @@ const mock = {
       if (/Yunara\.json$/.test(p)) return { json: { data: { Yunara: { title: 'the Unbroken Faith', spells: [{}, {}, {}, { name: "Transcend One's Self", description: 'Yunara enters a Transcendent State that upgrades <br>her basic Abilities.', image: { full: 'YunaraR.png' } }] } } } };
       return { status: 404, text: '' };
     }
-    if (p === '/auth/journal/status-many') return { json: { ok: true, locks: {} } };
+    if (p === '/auth/journal/status-many') {   // no lock anywhere (a missing answer would gate the app)
+      const out = {}; ((req.postData ? JSON.parse(req.postData) : {}).locks || []).forEach((l) => { out[l.journal + ':' + l.entryId] = { hasLock: false, ver: null }; });
+      return { json: { ok: true, locks: out } };
+    }
     return { json: { ok: false } };
   },
 };
@@ -137,6 +140,7 @@ const OFFENDERS = `(() => {
     const who = display ? 'Display' : 'Tony';
     await size(360);
     await fresh(display);
+    ok(`${who}: the app is open with every tab (else nothing below means anything)`, await js(`return document.getElementById('ew-app').classList.contains('on') && document.querySelectorAll('.ew-tab').length === 7;`));
     for (const w of [360, 320]) {
       console.log('\n' + who + ' at ' + w + 'px');
       await size(w); await sleep(500);
@@ -144,8 +148,8 @@ const OFFENDERS = `(() => {
         await js(`return [...document.querySelector('.ew-head-row').children].filter(e => e.offsetWidth).map(e => (e.id || e.className || e.tagName) + ':' + Math.round(e.getBoundingClientRect().left) + '-' + Math.round(e.getBoundingClientRect().right)).join(' ') + ' / ' + innerWidth;`));
       for (const t of TABS) {
         await js(`EWApp.go('${t}'); return 1;`); await sleep(t === 'nutrition' || t === 'fitness' ? 1400 : 900);
-        const o = await offenders();
-        ok(`${who} ${w}px ${t}: nothing past the edge`, o.length === 0, show(o));
+        const o = await offenders(), shown = await js(`const b = document.getElementById('ew-body-${t}'); return !!b && b.dataset.state === 'open' && b.children.length > 0;`);
+        ok(`${who} ${w}px ${t}: rendered, nothing past the edge`, shown && o.length === 0, shown ? show(o) : 'not rendered');
       }
       for (const [tab, label, open] of DIALOGS) {
         await js(`EWApp.go('${tab}'); return 1;`); await sleep(900);
