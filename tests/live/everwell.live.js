@@ -32,11 +32,17 @@ const recs = {};
 // changed to prove a reworded ability is shown untouched.
 const RIOT = { ver: '16.99.1', title: 'the Unbroken Faith', desc: 'Yunara enters a Transcendent State that upgrades <br>her basic Abilities.' };
 const riotCalls = [];
+// personal-ai /quote/daily, faked: QUOTE.reply null = the worker is unreachable.
+const QUOTE = { reply: null, calls: [] };
 const mock = {
-  patterns: ['https://taskhub-reminders.av1.workers.dev/*', 'https://ddragon.leagueoflegends.com/*', 'https://warroom-api.av1.workers.dev/*'],
+  patterns: ['https://taskhub-reminders.av1.workers.dev/*', 'https://ddragon.leagueoflegends.com/*', 'https://warroom-api.av1.workers.dev/*', 'https://personal-ai.av1.workers.dev/*'],
   handle(req) {
     if (req.method === 'OPTIONS') return { status: 204, text: '' };
     const u = new URL(req.url), p = u.pathname, b = req.postData ? JSON.parse(req.postData) : {};
+    if (u.host === 'personal-ai.av1.workers.dev' && p === '/quote/daily') {
+      QUOTE.calls.push(u.search);
+      return QUOTE.reply ? { json: Object.assign({ date: u.searchParams.get('date') }, QUOTE.reply) } : { status: 503, json: { ok: false, error: 'unavailable' } };
+    }
     if (u.host === 'warroom-api.av1.workers.dev') { riotCalls.push('worker' + p); return { json: [RIOT.ver, '16.98.1'] }; }
     if (u.host === 'ddragon.leagueoflegends.com') {
       riotCalls.push('dd' + p);
@@ -284,13 +290,30 @@ const mock = {
       getComputedStyle(sw[0].querySelector('s')).textDecorationLine.includes('line-through') &&
       sw[0].querySelector('.new').getBoundingClientRect().top > sw[0].querySelector('s').getBoundingClientRect().top;`));
   ok('the rewritten line reads exactly', (await js(`return document.querySelector('.rcard-mine').textContent;`)) === 'I enter a Transcendent State that upgrades my entire life.');
-  ok('the quote of the day is the local line for today', (await js(`return document.getElementById('dash-quote-text').textContent === EWCore.localQuote(EWCore.dateKey());`)));
+  ok('with the AI unreachable, the quote of the day is the local line for today', (await js(`return document.getElementById('dash-quote-text').textContent === EWCore.localQuote(EWCore.dateKey());`)));
 
   // If Riot ever rewords the ability, the official text is shown untouched.
   await js(`localStorage.setItem('ew.tony.riot.yunara', JSON.stringify({ at: Date.now(), data: { ver: '16.99.1', title: 'the Unbroken Faith', live: true, r: { name: "Transcend One's Self", desc: 'Yunara ascends and empowers her spells.', img: 'YunaraR.png' } } })); return 1;`);
   await c.send('Page.reload'); await sleep(2200); await tapIntro(); await js(`EWApp.go('dashboard'); return 1;`); await sleep(800);
   ok('…after a reload: no swap, the official words as Riot wrote them', await js(`return document.querySelectorAll('#dash-rdesc .swap').length === 0 && document.getElementById('dash-rdesc').textContent === 'Yunara ascends and empowers her spells.';`));
   await js(`localStorage.removeItem('ew.tony.riot.yunara'); return 1;`);
+
+  console.log('\nQuote of the day: AI (Phase 4)');
+  ok('Tony asked personal-ai once for today (profile tony, local date)', QUOTE.calls.length >= 1 && QUOTE.calls.every((s) => s === '?profile=tony&date=' + today), QUOTE.calls);
+  ok('the worker was unreachable, so the local line stays and the try is throttled', await js(`return document.getElementById('dash-quote').dataset.source === 'local' && JSON.parse(localStorage.getItem('ew.tony.quoteTry')).date === '${today}';`));
+  QUOTE.calls.length = 0;
+  await c.send('Page.reload'); await sleep(2200); await tapIntro(); await js(`EWApp.go('dashboard'); return 1;`); await sleep(800);
+  ok('a reload within 30 minutes does NOT ask again', QUOTE.calls.length === 0, QUOTE.calls);
+  QUOTE.reply = { ok: true, quote: 'Strength is the quiet decision to begin again, every single morning.', source: 'orca' };
+  await js(`localStorage.removeItem('ew.tony.quoteTry'); return 1;`);
+  await c.send('Page.reload'); await sleep(2200); await tapIntro(); await js(`EWApp.go('dashboard'); return 1;`); await sleep(1200);
+  ok("the day's AI line replaces the local one", await js(`return document.getElementById('dash-quote-text').textContent === 'Strength is the quiet decision to begin again, every single morning.' && document.getElementById('dash-quote').dataset.source === 'orca';`));
+  ok('…kept for the day on this device', await js(`const q = JSON.parse(localStorage.getItem('ew.tony.quote')); return q.date === '${today}' && q.source === 'orca';`));
+  QUOTE.calls.length = 0;
+  await c.send('Page.reload'); await sleep(2200); await tapIntro(); await js(`EWApp.go('dashboard'); return 1;`); await sleep(600);
+  ok('…so the next open shows it at once and makes no request', QUOTE.calls.length === 0 && (await js(`return document.getElementById('dash-quote').dataset.source;`)) === 'orca');
+  ok('EWQuote.today() gives Mindset the same line', (await js(`return EWQuote.today().then(q => q.text);`)) === 'Strength is the quiet decision to begin again, every single morning.');
+  QUOTE.reply = null;
 
   // Today's step linked to a routine (through the synced doc), then Fitness locked.
   await js(`__fakeFs.remote('dashboards/everwell_tony', { rotation: { steps: [{ id: 'x1', name: 'Upper', routineId: 'r1' }, { id: 'x2', name: 'Lower', routineId: 'r2' }], anchor: { date: '${today}', idx: 1 }, log: [] }, savedAt: Date.now() + 60 }, { merge: true }); return 1;`);
