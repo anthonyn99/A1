@@ -146,7 +146,9 @@ const mock = {
   console.log('\nDisplay profile');
   await fresh({ display: true });
   ok('Display loads no Firebase at all', !reqs.some((u) => /firebasejs|firestore\.googleapis|identitytoolkit|securetoken/.test(u)), reqs.filter((u) => /firebase|google/.test(u)).join(' '));
-  ok('…and calls no worker', !reqs.some((u) => /\.workers\.dev/.test(u)), reqs.filter((u) => /workers\.dev/.test(u)).join(' '));
+  // Real requests only: the data: manifest names this host in its JSON.
+  const net = reqs.filter((u) => /^https?:/.test(u));
+  ok('…and calls no worker', !net.some((u) => /^https:\/\/[^/]*\.workers\.dev\//.test(u)), net.filter((u) => /workers\.dev/.test(u)).join(' '));
   ok("the intro offers Tony's profile, not the Display one", await js(`return getComputedStyle(document.getElementById('ew-intro-tony')).display !== 'none' && getComputedStyle(document.getElementById('ew-intro-display')).display === 'none';`));
   await tapIntro();
   ok('no Tony launcher, no lock button, a clear demo badge', await js(`return !document.querySelector('a1-lifehub') && getComputedStyle(document.getElementById('ew-lock-btn')).display === 'none' && getComputedStyle(document.getElementById('ew-display-btn')).display !== 'none' && /demo/i.test(document.getElementById('ew-display-btn').textContent);`));
