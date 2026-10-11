@@ -4342,8 +4342,9 @@ function addFadingScrollbar(ctx) {
     if (sh <= ch + 4) { bar.style.display = 'none'; return null; }
     bar.style.display = '';
     var thumbH = Math.max(36, ch * ch / sh);
-    var maxTop = ch - thumbH;
+    var maxTop = Math.max(0, ch - thumbH - 6);      // keep the thumb's end inside the page
     var top = (sh - ch) ? (wrap.scrollTop / (sh - ch)) * maxTop : 0;
+    top = Math.min(maxTop, Math.max(0, top));        // overscroll / rounding never push it off
     return { thumbH: thumbH, top: top, sh: sh, ch: ch, maxTop: maxTop };
   }
   function place() { var g = geom(); if (!g) return; bar.style.height = g.thumbH + 'px'; bar.style.top = g.top + 'px'; }
