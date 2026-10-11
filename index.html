@@ -9730,7 +9730,7 @@ function App(){
     else if(sZone==="goalm"){setMgMonthly(prev=>prev.filter(x=>x.id!==sId));}
     // 2) insert into destination (preserve all dormant fields incl. category)
     if(destZone==="week"){const ni=_toWeek(item);setData(prev=>{const arr=[...(prev[destDayKey]||[])];const ti=targetId?arr.findIndex(x=>x.id===targetId):-1;if(ti<0)arr.push(ni);else arr.splice(ti,0,ni);return{...prev,[destDayKey]:arr};});}
-    else if(destZone==="habit"){const ni=_toHabit(item);setHabits(prev=>{const arr=[...prev];const ti=targetId?arr.findIndex(x=>x.id===targetId):-1;if(ti<0)arr.push(ni);else arr.splice(ti,0,ni);return arr;});}
+    else if(destZone==="habit"){const ni=_toHabit(item);setHabits(prev=>{const arr=[...prev];const ti=targetId===EWP_ID?habRowsRef.current.findIndex(x=>x.id===EWP_ID):targetId?arr.findIndex(x=>x.id===targetId):-1;if(ti<0)arr.push(ni);else arr.splice(ti,0,ni);return arr;});}
     else if(destZone==="goal"){const ni=_toGoal(item);setMg(prev=>{const arr=[...prev];const ti=targetId?arr.findIndex(x=>x.id===targetId):-1;if(ti<0)arr.push(ni);else arr.splice(ti,0,ni);return arr;});}
     else if(destZone==="goalm"){const ni=_toGoal(item);setMgMonthly(prev=>{const arr=[...prev];const ti=targetId?arr.findIndex(x=>x.id===targetId):-1;if(ti<0)arr.push(ni);else arr.splice(ti,0,ni);return arr;});}
   },[setData,setHabits,setMg,setMgMonthly]);
