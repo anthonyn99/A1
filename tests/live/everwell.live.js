@@ -282,6 +282,13 @@ const mock = {
   await js(`document.querySelector('[data-act="pairs"]').click(); return 1;`); await sleep(300);
   await js(`const s = document.querySelector('#pair-list .pair-row:nth-child(3) select'); s.value = 'r2'; s.dispatchEvent(new Event('change', { bubbles: true })); document.querySelector('[data-act="pair-save"]').click(); return 1;`); await sleep(1500);
   ok('re-pairing Legs → Leg Day works', (await js(`return document.getElementById('dash-split-pair').textContent;`)).includes('Leg Day'));
+  await js(`document.querySelector('[data-act="toggle-routine"]').click(); return 1;`); await sleep(300);
+  ok('the shown routine has a pencil', await js(`return !!document.querySelector('[data-act="edit-routine"] svg');`));
+  await js(`document.querySelector('[data-act="edit-routine"]').click(); return 1;`); await sleep(1800);
+  ok('the pencil opens Fitness ▸ Routines with that routine\'s editor', await js(`return EWApp.current() === 'fitness' && document.getElementById('mc-view-routines').classList.contains('active') &&
+    document.getElementById('mc-routine-modal').classList.contains('open') && document.getElementById('mc-routine-name').value === 'Leg Day';`),
+    await js(`return EWApp.current() + ' ' + (document.getElementById('mc-routine-name') || {}).value;`));
+  await js(`mcCloseModal('mc-routine-modal'); EWApp.go('dashboard'); return 1;`); await sleep(800);
 
   // Edit rotation: add a rest day; pairings ride along untouched.
   await js(`document.querySelector('[data-act="edit-rot"]').click(); return 1;`); await sleep(400);
