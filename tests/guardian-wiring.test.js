@@ -44,6 +44,7 @@ const HOSTS = {
   'vault.html': [],
   'riftiq.html': [],
   'solace.html': [],
+  'everwell.html': [],
 };
 // Not migrated yet (shrinks phase by phase; must end empty).
 const PENDING = [];

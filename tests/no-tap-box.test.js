@@ -25,6 +25,7 @@ const PAGES = [
   'index.html', 'magi.html', 'mylist.html', 'oneinbox.html', 'shield.html',
   'wellness.html', 'backup-export.html', 'backup-restore.html',
   'insight.html', 'riftiq.html', 'solace.html', 'tradehub.html', 'vault.html',
+  'everwell.html',
 ];
 const NO_HIGHLIGHT = /\*,\*::before,\*::after\{-webkit-tap-highlight-color:transparent\}/;
 const NO_SELECT = /button,\[role="button"\][^{]*\{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none\}/;

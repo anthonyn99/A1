@@ -29,6 +29,7 @@ const LOADS = new RegExp('<script[^>]+src=["\']' + M.src('hoverfx.js') + '["\']'
 const PAGES = [
   'index.html', 'riftiq.html', 'tradehub.html', 'shield.html', 'mylist.html',
   'solace.html', 'vault.html', 'insight.html', 'oneinbox.html', 'wellness.html',
+  'everwell.html',
 ];
 
 // Folders that ship their own copy, and the page in each that loads it.

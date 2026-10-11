@@ -35,6 +35,7 @@ const HOSTS = {
   'insight.html':  { lock: 'guardian' },
   'vault.html':    { lock: 'guardian' },
   'solace.html':   { lock: 'guardian' },
+  'everwell.html': { lock: 'guardian' },
   'shield.html':   { lock: 'guardian', profile: true },
   'riftiq.html':   { lock: 'guardian' },
   'magi.html':     { lock: '#lockScreen' },
