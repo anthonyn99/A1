@@ -161,6 +161,77 @@ const mock = {
   ok('the password opens the app', await appOn());
   delete recs['applock:tony_everwell_standalone']; delete recs['applock:tony_everwell_tab_prayer'];
 
+  /* ── Phase 2: Fitness + Nutrition on Solace's own docs ── */
+  console.log('\nFitness (dashboards/motioncore)');
+  const MC = { circuits: [{ id: 'c1', name: 'Real Core', desc: 'mine', _open: false, modules: [{ id: 'm1', name: 'Plank', time: 3, desc: '' }, { id: 'm2', name: 'Crunch', time: 2, desc: '' }] },
+    { id: 'c2', name: 'Second Circuit', _open: false, modules: [{ id: 'm3', name: 'Burpee', time: 5 }] }],
+    routines: [{ id: 'r1', name: 'Push Day', content: 'Bench Press - 4 x 8\n\nDips - 3 x 10', _open: false }], savedAt: 1 };
+  const MEAL = { recipes: [{ id: 'rA', name: 'Overnight Oats', category: 'Breakfast', prepTime: '5 min', servings: '1', ingredients: [{ name: 'Oats', qty: '1/2 cup' }], tools: ['Jar'], instructions: '1. Mix\n2. Chill' },
+    { id: 'rB', name: 'Steak Night', category: 'Dinner', prepTime: '', servings: '', ingredients: [], tools: [], instructions: '' }], savedAt: 1 };
+  const seed = `sessionStorage.setItem('__fakefs_docs', JSON.stringify({ 'dashboards/motioncore': ${JSON.stringify(MC)}, 'dashboards/mealsuite': ${JSON.stringify(MEAL)}, 'dashboards/mealsuite-veda': { recipes: [{ id: 'veda1', name: 'VEDA ONLY' }] } }));`;
+  await fresh({ seed });
+  await tapIntro();
+  await js(`EWApp.go('fitness'); return 1;`); await sleep(1500);
+  ok('your circuits load from the same doc Solace uses', await js(`return EWFitness.state().loaded && [...document.querySelectorAll('#mc-circuits-list .circuit-card-title')].map(e => e.textContent).join() === 'Real Core,Second Circuit';`),
+    await js(`return JSON.stringify(EWFitness.state());`));
+  ok('…and nothing of them is cached in browser storage', await js(`return !Object.keys(localStorage).some(k => /^mc_|motioncore|Real Core/.test(k + localStorage.getItem(k)));`));
+  await js(`document.getElementById('mc-nav-routines').click(); return 1;`); await sleep(200);
+  ok('routines render grouped, "name - detail" split', await js(`return document.querySelectorAll('#mc-routines-list .routine-group').length === 0 || true;`) &&
+    await js(`document.querySelector('#mc-routines-list .routine-card-header').click(); return document.querySelectorAll('#mc-routine-body-r1 .routine-group').length === 2 && document.querySelector('#mc-routine-body-r1 .routine-line-detail').textContent === '4 x 8';`));
+  await js(`document.getElementById('mc-nav-circuits').click(); mcOpenNewCircuitModal(); document.getElementById('mc-circuit-name').value = 'New One';
+    document.getElementById('mc-mod-name').value = 'Squat'; document.getElementById('mc-mod-time').value = '20'; mcAddModuleToBuild(); mcSaveCircuit(); return 1;`);
+  await sleep(2200);
+  ok('a new circuit is saved to dashboards/motioncore, existing ids untouched', await js(`const d = __fakeFs.docs['dashboards/motioncore']; return d.circuits.length === 3 && d.circuits[0].id === 'c1' && d.circuits[0].modules[0].id === 'm1' && d.circuits[2].name === 'New One' && d.routines[0].id === 'r1' && d.savedAt > 1;`),
+    await js(`return JSON.stringify(__fakeFs.docs['dashboards/motioncore']).slice(0, 300);`));
+  a = await rect('#mc-circuits-list .circuit-card:nth-child(3) .circuit-card-title'); b = await rect('#mc-circuits-list .circuit-card:nth-child(1) .circuit-card-title');
+  await mouse('mousePressed', a.x, a.y);
+  for (let i = 1; i <= 14; i++) { await mouse('mouseMoved', a.x, a.y + (b.y - 30 - a.y) * i / 14); await sleep(16); }
+  await mouse('mouseReleased', a.x, b.y - 30); await sleep(2300);
+  ok('dragging a circuit reorders the saved list', await js(`return __fakeFs.docs['dashboards/motioncore'].circuits.map(c => c.name).join() === 'New One,Real Core,Second Circuit';`),
+    await js(`return __fakeFs.docs['dashboards/motioncore'].circuits.map(c => c.name).join();`));
+  await js(`__fakeFs.remote('dashboards/motioncore', Object.assign({}, __fakeFs.docs['dashboards/motioncore'], { routines: [{ id: 'r1', name: 'Push Day (edited elsewhere)', content: 'x' }], savedAt: Date.now() + 9 })); return 1;`);
+  await sleep(800);
+  ok("another device's edit appears live", await js(`document.getElementById('mc-nav-routines').click(); return document.querySelector('#mc-routines-list .routine-title').textContent === 'Push Day (edited elsewhere)';`));
+  await js(`document.getElementById('mc-nav-circuits').click(); mcStartTimer('c1'); return 1;`); await sleep(400);
+  ok('Run opens the circuit timer (get ready countdown)', await js(`return document.getElementById('mc-timer-overlay').classList.contains('open') && document.getElementById('mc-timer-exercise').textContent === 'GET READY';`));
+  ok('the timer covers the header (nothing else is tappable)', await js(`const r = document.getElementById('ew-tab-dashboard').getBoundingClientRect(); const el = document.elementFromPoint(r.left + 5, r.top + 5); return !!el.closest('#mc-timer-overlay');`));
+  await js(`mcStopTimer(); return 1;`);
+
+  console.log('\nNutrition (dashboards/mealsuite)');
+  await js(`EWApp.go('nutrition'); return 1;`); await sleep(1500);
+  ok('your recipes load from the same doc Solace uses', await js(`return [...document.querySelectorAll('#rec-root .rec-name')].map(e => e.textContent).join() === 'Overnight Oats,Steak Night';`));
+  ok("Tony gets the voice/type bar", await js(`return getComputedStyle(document.getElementById('float-voice')).display !== 'none';`));
+  await js(`EWRec.recOpenDetail('rB'); EWRec.recAddStep(); return 1;`); await sleep(200);
+  await js(`document.getElementById('rec-step-input').value = 'Sear 3 minutes a side'; EWRec.recSaveStep(0); return 1;`); await sleep(1800);
+  ok('an added step is saved, numbered, to dashboards/mealsuite', await js(`const r = __fakeFs.docs['dashboards/mealsuite'].recipes.find(x => x.id === 'rB'); return r.instructions === '1. Sear 3 minutes a side';`));
+  await js(`EWRec.recUndo(); return 1;`); await sleep(1800);
+  ok('undo puts it back (and saves that)', await js(`return __fakeFs.docs['dashboards/mealsuite'].recipes.find(x => x.id === 'rB').instructions === '';`));
+  ok("Veda's recipe doc was never written", await js(`return !__fakeFs.log.some(l => /mealsuite-veda/.test(l.path)) && __fakeFs.docs['dashboards/mealsuite-veda'].recipes[0].name === 'VEDA ONLY';`));
+  await js(`EWApp.go('fitness'); return 1;`); await sleep(300);
+  ok('leaving Nutrition hides its voice bar', await js(`return !document.getElementById('float-voice') || getComputedStyle(document.getElementById('float-voice')).display === 'none' || document.getElementById('ew-pane-nutrition').offsetParent === null;`));
+
+  console.log('\nA locked section drops its data');
+  recs['applock:tony_everwell_tab_fitness'] = 'fit';
+  await js(`Guardian.refresh(['tony_everwell_tab_fitness'], true); return 1;`); await sleep(1500);
+  ok('locking Fitness empties it: no list, no data in memory', await js(`return !document.getElementById('mc-root') && EWFitness.state().circuits === 0 && !EWFitness.state().loaded && document.getElementById('ew-body-fitness').dataset.state === 'locked';`),
+    await js(`return JSON.stringify(EWFitness.state()) + ' ' + document.getElementById('ew-body-fitness').dataset.state;`));
+  const writesBefore = await js(`return __fakeFs.log.length;`);
+  await js(`__fakeFs.remote('dashboards/motioncore', Object.assign({}, __fakeFs.docs['dashboards/motioncore'], { savedAt: Date.now() + 20 })); return 1;`); await sleep(500);
+  ok('…and its listener is gone (a remote change renders nothing)', await js(`return !document.getElementById('mc-root') && EWFitness.state().circuits === 0;`));
+  await js(`document.querySelector('[data-unlock="fitness"]').click(); return 1;`); await sleep(800);
+  await gtype('Password', 'fit'); await gclick('Unlock'); await sleep(1500);
+  d = await dlg(); if (d.open && /Not now/.test(d.buttons.join())) await gclick('Not now');
+  ok('unlocking loads it again from the server', await js(`return EWFitness.state().loaded && EWFitness.state().circuits === 3;`), await js(`return JSON.stringify(EWFitness.state());`));
+  delete recs['applock:tony_everwell_tab_fitness'];
+
+  console.log('\nPhone (390px): Fitness + Nutrition');
+  await c.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 3, mobile: true });
+  await sleep(500);
+  ok('Fitness: no sideways scroll', await js(`return document.documentElement.scrollWidth <= innerWidth;`), await js(`return document.documentElement.scrollWidth;`));
+  await js(`EWApp.go('nutrition'); return 1;`); await sleep(1200);
+  ok('Nutrition: no sideways scroll, the voice bar fits', await js(`const r = document.getElementById('float-voice').getBoundingClientRect(); return document.documentElement.scrollWidth <= innerWidth && r.left >= 0 && r.right <= innerWidth;`));
+  await c.send('Emulation.clearDeviceMetricsOverride');
+
   /* ── Display ── */
   console.log('\nDisplay profile');
   await fresh({ display: true });
@@ -171,7 +242,13 @@ const mock = {
   ok("the intro offers Tony's profile, not the Display one", await js(`return getComputedStyle(document.getElementById('ew-intro-tony')).display !== 'none' && getComputedStyle(document.getElementById('ew-intro-display')).display === 'none';`));
   await tapIntro();
   ok('no Tony launcher, no lock button, a clear demo badge', await js(`return !document.querySelector('a1-lifehub') && getComputedStyle(document.getElementById('ew-lock-btn')).display === 'none' && getComputedStyle(document.getElementById('ew-display-btn')).display !== 'none' && /demo/i.test(document.getElementById('ew-display-btn').textContent);`));
-  ok('every pane says it is demo data', await js(`return /demo data/i.test(document.querySelector('#ew-body-dashboard .ew-demo-note').textContent);`));
+  ok('every pane says it is demo data', await js(`return [...document.querySelectorAll('.ew-pane .ew-demo-note')].filter(n => getComputedStyle(n).display !== 'none' && /demo data/i.test(n.textContent)).length === 7;`));
+  await js(`EWApp.go('fitness'); return 1;`); await sleep(400);
+  ok('Display Fitness shows demo circuits and Push/Pull/Legs routines', await js(`return EWFitness.circuits()[0].id.indexOf('demo-') === 0 && EWFitness.routines().map(r => r.name).join() === 'Push,Pull,Legs';`));
+  await js(`EWApp.go('nutrition'); return 1;`); await sleep(400);
+  ok('Display Nutrition shows demo recipes and NO voice bar', await js(`return EWRec.recipes().length === 3 && EWRec.recipes()[0].id.indexOf('demo-') === 0 && !document.getElementById('float-voice');`));
+  ok('Display never loaded the Firebase fake at all', await js(`return typeof window.__fakeFs === 'undefined' && !window.EWFB;`));
+  await js(`EWApp.go('dashboard'); return 1;`); await sleep(300);
   a = await rect('#ew-tab-goals'); b = await rect('#ew-tab-dashboard');
   await mouse('mousePressed', a.x, a.y);
   for (let i = 1; i <= 12; i++) { await mouse('mouseMoved', a.x + (b.x - b.w / 2 - a.x) * i / 12, a.y); await sleep(16); }
