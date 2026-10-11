@@ -44,7 +44,7 @@ moving another program there.
 | `tests/` | Node test suite for the root apps — `npm test` |
 | `tools/` | App Check maintenance scripts (see `docs/tools/README-appcheck.md`) |
 | `magi/` | MAGI's engine — Python + Playwright, driving four logged-in Chrome profiles. Local-only by nature; it starts itself at logon. See `docs/MAGI/magi.md` |
-| `docs/` | **Every** doc, plan and README in A1, whatever project it is for -- one place to look. Each project away from the top level keeps its own subfolder (`docs/V1/`, `docs/LifeHub/`, `docs/PriceWatch/`, `docs/shield/`, `docs/workers2/`, `docs/tools/`). Only `CLAUDE.md`, `.claude/skills/` and this README stay outside it, because Claude Code and GitHub look for them where they are |
+| `docs/` | **Every** doc, plan and README in A1, whatever project it is for -- one place to look. Each project keeps its own subfolder (`docs/MAGI/`, `docs/TaskHub/`, `docs/Notebook/`, `docs/Guardian/`, `docs/V1/`, ...), finished plans stay as the record, and `docs/README.md` indexes them all. Only `CLAUDE.md`, `.claude/skills/` and this README stay outside it, because Claude Code and GitHub look for them where they are |
 
 ## Tests
 
