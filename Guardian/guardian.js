@@ -730,10 +730,8 @@ function scrUnlock(d, card, opts) {
   var err = h('div', { 'class': 'err' });
   var go = B('pri', null, purpose === 'removeBio' ? 'Verify' : purpose === 'verify' ? 'Continue' : 'Unlock');
   var bioBox = h('div', { 'class': 'menu' });
-  var hint = B('', 'mail', 'Email me my hint');
-  var reset = B('', 'key', 'Reset password');
   var parts = header(d, purpose === 'removeBio' ? 'bio' : 'lock', opts.title || (who(d) ? (who(d) + ' · Locked') : 'Locked'), sub)
-    .concat([h('div', { 'class': 'body' }, [bioBox, pw, err, go, h('div', { 'class': 'links' }, [hint, reset])])]);
+    .concat([h('div', { 'class': 'body' }, [bioBox, pw, err, go, forgot(d, card, err, opts)])]);
   if (!opts.hard) parts.push(footer('Cancel', function () { settle(OPEN ? OPEN.cancelValue : false); }));
   fill(card, parts);
   if (opts.error) err.textContent = opts.error;
@@ -795,8 +793,6 @@ function scrUnlock(d, card, opts) {
     });
   };
   enterSubmits([pw.input], go);
-  hint.onclick = function () { sendHint(d, hint, err); };
-  reset.onclick = function () { scrReset(d, card, opts); };
 
   // Biometric button: only when this device has a valid credential for this lock.
   if (purpose !== 'verify') bioAvailFor(d).then(function (avail) {
@@ -828,6 +824,17 @@ function scrUnlock(d, card, opts) {
   });
 }
 
+/* "Email me my hint" + "Reset password": on EVERY screen that asks for the
+   current password. back = the scrUnlock opts to return to, or a function. */
+function forgot(d, card, err, back) {
+  var hint = B('', 'mail', 'Email me my hint', function () { sendHint(d, hint, err); });
+  var reset = B('', 'key', 'Reset password', function () { scrReset(d, card, back); });
+  return h('div', { 'class': 'links' }, [hint, reset]);
+}
+function backTo(d, card, back) {
+  return typeof back === 'function' ? back : function () { scrUnlock(d, card, back); };
+}
+
 function sendHint(d, link, err) {
   link.disabled = true; setBtnText(link, 'Sending…'); err.textContent = '';
   be(d).hint(d).then(function (r) {
@@ -854,7 +861,7 @@ function scrReset(d, card, back) {
   var to = (who(d) || 'the owner') + "'s email";
   var parts = header(d, 'mail', 'Reset password', 'We\'ll email a 6-character code to ' + to + '. Then choose a new password.')
     .concat([h('div', { 'class': 'body' }, [err, send])]);
-  parts.push(footer('Back', function () { scrUnlock(d, card, back); }));
+  parts.push(footer('Back', backTo(d, card, back)));
   fill(card, parts);
   send.onclick = function () {
     busy(send, true, 'Sending…'); err.textContent = '';
@@ -875,7 +882,7 @@ function scrResetCode(d, card, back, to) {
   var go = B('pri', 'key', 'Reset password');
   var parts = header(d, 'mail', 'Check your email', 'A code was sent to ' + (to || ((who(d) || 'your') + "'s email")) + '. Check spam if it isn\'t there in a minute.')
     .concat([h('div', { 'class': 'body' }, [field('Security code', code), field('New password', np), field('Confirm', np2), field('Password hint', hintIn), err, go])]);
-  parts.push(footer('Back', function () { scrUnlock(d, card, back); }));
+  parts.push(footer('Back', backTo(d, card, back)));
   fill(card, parts);
   go.onclick = function () {
     var c = code.value.trim(), p = np.input.value, p2 = np2.input.value;
@@ -949,7 +956,8 @@ function scrChange(d, card) {
   var err = h('div', { 'class': 'err' });
   var go = B('pri', 'key', 'Change password');
   fill(card, header(d, 'key', 'Change password', 'Other devices will ask for the new password once. Biometrics must be registered again on every device.').concat([
-    h('div', { 'class': 'body' }, [field('Current password', cur), field('New password', np), field('Confirm', np2), field('Password hint', hintIn), err, go]),
+    h('div', { 'class': 'body' }, [field('Current password', cur), field('New password', np), field('Confirm', np2), field('Password hint', hintIn), err, go,
+      forgot(d, card, err, function () { scrChange(d, card); })]),
     footer('Back', function () { scrMenu(d, card); })
   ]));
   go.onclick = function () {
@@ -987,7 +995,7 @@ function scrRemove(d, card) {
   var err = h('div', { 'class': 'err' });
   var go = B('dg', 'trash', 'Remove lock');
   fill(card, header(d, 'unlock', 'Remove lock', 'Enter the password to remove this lock from every device.').concat([
-    h('div', { 'class': 'body' }, [pw, err, go]),
+    h('div', { 'class': 'body' }, [pw, err, go, forgot(d, card, err, function () { scrRemove(d, card); })]),
     footer('Back', function () { scrMenu(d, card); })
   ]));
   go.onclick = function () {
