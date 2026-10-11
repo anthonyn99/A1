@@ -398,6 +398,9 @@ const mock = {
   await js(`EWApp.go('nutrition'); return 1;`); await sleep(400);
   ok('Display Nutrition shows demo recipes and NO voice bar', await js(`return EWRec.recipes().length === 3 && EWRec.recipes()[0].id.indexOf('demo-') === 0 && !document.getElementById('float-voice');`));
   ok('Display never loaded the Firebase fake at all', await js(`return typeof window.__fakeFs === 'undefined' && !window.EWFB;`));
+  await js(`EWApp.go('prayer'); return 1;`); await sleep(400);
+  await js(`document.getElementById('pray-btn').click(); return 1;`); await sleep(300);
+  ok('Display Prayer ticks in memory only (demo), still no Firebase', await js(`return document.getElementById('pray-big').textContent === 'Prayed today' && typeof window.__fakeFs === 'undefined' && /demo/i.test(document.querySelector('.pray-note').textContent);`));
   await js(`EWApp.go('dashboard'); return 1;`); await sleep(300);
   a = await rect('#ew-tab-goals'); b = await rect('#ew-tab-dashboard');
   await mouse('mousePressed', a.x, a.y);
