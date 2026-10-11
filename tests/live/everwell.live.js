@@ -414,8 +414,10 @@ const mock = {
   ok('…and calls no worker', !net.some((u) => /^https:\/\/[^/]*\.workers\.dev\//.test(u)), net.filter((u) => /workers\.dev/.test(u)).join(' '));
   ok("the intro offers Tony's profile, not the Display one", await js(`return getComputedStyle(document.getElementById('ew-intro-tony')).display !== 'none' && getComputedStyle(document.getElementById('ew-intro-display')).display === 'none';`));
   await tapIntro();
-  ok('no Tony launcher, no lock button; the pill reads "Display" in gold, no icon', await js(`const b = document.getElementById('ew-display-btn'); return !document.querySelector('a1-lifehub') && getComputedStyle(document.getElementById('ew-lock-btn')).display === 'none' &&
-    getComputedStyle(b).display !== 'none' && b.textContent === 'Display' && !b.querySelector('svg') && getComputedStyle(b).color === 'rgb(224, 184, 116)';`));
+  ok('no Tony launcher, no lock button; the pill is Tony's (grey outline, uppercase), no icon, "Display" in a softer gold', await js(`const b = document.getElementById('ew-display-btn'), t = getComputedStyle(document.getElementById('ew-profile-btn')), s = getComputedStyle(b);
+    return !document.querySelector('a1-lifehub') && getComputedStyle(document.getElementById('ew-lock-btn')).display === 'none' &&
+    s.display !== 'none' && b.textContent === 'Display' && !b.querySelector('svg') && s.color === 'rgb(205, 182, 140)' && s.borderTopColor === t.borderTopColor && s.textTransform === 'uppercase' && s.height === t.height;`),
+    await js(`const s = getComputedStyle(document.getElementById('ew-display-btn')); return s.color + ' ' + s.borderTopColor + ' / ' + getComputedStyle(document.getElementById('ew-profile-btn')).borderTopColor;`));
   ok('no "demo data" chip under any tab (Tony, 2026-10-11)', await js(`return !document.querySelector('.ew-demo-note') && !/Display profile · demo data/.test(document.getElementById('ew-main').textContent);`));
   await js(`EWApp.go('fitness'); return 1;`); await sleep(400);
   ok('Display Fitness shows demo circuits and Push/Pull/Legs routines', await js(`return EWFitness.circuits()[0].id.indexOf('demo-') === 0 && EWFitness.routines().map(r => r.name).join() === 'Push,Pull,Legs';`));

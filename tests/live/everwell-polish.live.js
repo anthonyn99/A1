@@ -127,7 +127,8 @@ const OFFENDERS = `(() => {
   const headerFits = () => js(`const row = document.querySelector('.ew-head-row'); return row.scrollWidth <= row.clientWidth + 0.5 && [...row.children].every(e => !e.offsetWidth || e.getBoundingClientRect().right <= innerWidth + 0.5);`);
   const closeAll = () => js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     document.querySelectorAll('#mc-root .modal-backdrop.open, #mc-root .modal-overlay.open').forEach(m => m.classList.remove('open'));
-    const rm = document.getElementById('rec-modal'); if (rm) rm.style.display = 'none'; return 1;`);
+    const rm = document.getElementById('rec-modal'); if (rm) rm.style.display = 'none';
+    const back = [...document.querySelectorAll('#ew-body-nutrition button')].find(b => /back to recipes/i.test(b.textContent)); if (back) back.click(); return 1;`);
 
   // Each dialog a phone opens: [tab, label, js that opens it, selector of its box].
   const DIALOGS = [
