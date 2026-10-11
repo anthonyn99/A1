@@ -8841,6 +8841,36 @@ function App(){
     if(window._ewPrayer)setEwPrayer(Object.assign({},window._ewPrayer));
     return()=>window.removeEventListener("fb-ew-prayer",h);
   },[]);
+  // Its place among the habits (Tony, 2026-10-11): draggable WITHIN Daily Habits
+  // only. `row` = {after: the habit id above it (null = top), at: its index, used
+  // if that habit is deleted}, stored beside the ticks, never in `habits`.
+  // habRows is what the table and its drag handlers work on; setHabRows splits a
+  // reorder back into `habits` and the Prayer row's place.
+  const EWP_ID="ew-prayer";
+  const[ewPrayRow,setEwPrayRow]=useState(()=>window._ewPrayerRow||null);
+  useEffect(()=>{
+    const h=e=>setEwPrayRow(e.detail||null);
+    window.addEventListener("fb-ew-prayer-row",h);
+    if(window._ewPrayerRow)setEwPrayRow(window._ewPrayerRow);
+    return()=>window.removeEventListener("fb-ew-prayer-row",h);
+  },[]);
+  const habRows=useMemo(()=>{
+    const r=ewPrayRow||{},a=[...habits];
+    let i=r.after?a.findIndex(x=>x.id===r.after)+1:0;
+    if(r.after&&i===0)i=Math.min(Math.max(0,r.at|0),a.length);
+    a.splice(i,0,{id:EWP_ID,_ewPrayer:true});
+    return a;
+  },[habits,ewPrayRow]);
+  const habRowsRef=useRef(habRows);habRowsRef.current=habRows;
+  const setHabRows=useCallback(upd=>{
+    const prev=habRowsRef.current,next=typeof upd==="function"?upd(prev):upd;
+    if(!next||next===prev)return;
+    const nh=next.filter(x=>x.id!==EWP_ID);
+    if(prev.filter(x=>x.id!==EWP_ID).map(x=>x.id).join()!==nh.map(x=>x.id).join())setHabits(nh);
+    const i=next.findIndex(x=>x.id===EWP_ID),pi=prev.findIndex(x=>x.id===EWP_ID);
+    const after=i>0?next[i-1].id:null,pAfter=pi>0?prev[pi-1].id:null;
+    if(i>=0&&(after!==pAfter||i!==pi)){const row={after,at:i};setEwPrayRow(row);if(window._fbEwPrayerRowSet)window._fbEwPrayerRowSet(row);}
+  },[setHabits]);
 
   // ── Archive day-keys older than TH_ARCHIVE_YEARS ──────────────────────────
   // Runs once per device per day, 20s after load. Three safety gates, because
