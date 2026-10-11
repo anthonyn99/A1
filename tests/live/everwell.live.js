@@ -176,7 +176,7 @@ const mock = {
     await js(`return JSON.stringify(EWFitness.state());`));
   ok('…and nothing of them is cached in browser storage', await js(`return !Object.keys(localStorage).some(k => /^mc_|motioncore|Real Core/.test(k + localStorage.getItem(k)));`));
   await js(`document.getElementById('mc-nav-routines').click(); return 1;`); await sleep(200);
-  ok('routines render grouped, "name - detail" split', await js(`return document.querySelectorAll('#mc-routines-list .routine-group').length === 0 || true;`) &&
+  ok('routines render grouped, "name - detail" split',
     await js(`document.querySelector('#mc-routines-list .routine-card-header').click(); return document.querySelectorAll('#mc-routine-body-r1 .routine-group').length === 2 && document.querySelector('#mc-routine-body-r1 .routine-line-detail').textContent === '4 x 8';`));
   await js(`document.getElementById('mc-nav-circuits').click(); mcOpenNewCircuitModal(); document.getElementById('mc-circuit-name').value = 'New One';
     document.getElementById('mc-mod-name').value = 'Squat'; document.getElementById('mc-mod-time').value = '20'; mcAddModuleToBuild(); mcSaveCircuit(); return 1;`);
