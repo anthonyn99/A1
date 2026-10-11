@@ -1601,7 +1601,7 @@ def open_chatgpt_analysis(target_hwnd=None):
     if use_magi:
         log(f"AI analysis: MAGI opened with the prompt '{name}' and {len(magi_units)} unit(s) "
             f"({', '.join(magi_units)}) — it convenes on arrival. If nothing happens, the MAGI "
-            "engine is not running on this PC (it starts at logon; see docs/magi.md).")
+            "engine is not running on this PC (it starts at logon; see docs/MAGI/magi.md).")
     elif ai_url:
         log(f"AI analysis: {ai_label} opened with the #tbauto marker — the Vault extension "
             "types the prompt in and sends it, and brings that tab to the front. If nothing "

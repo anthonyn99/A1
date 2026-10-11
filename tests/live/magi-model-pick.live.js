@@ -3,7 +3,7 @@
 //
 // MAGI Phase U4: choosing each unit's model in the Units sheet. Sends NO
 // question (a live run with non-default models is done by hand; see
-// docs/magi-plan.md "Phase U4"). Checks:
+// docs/MAGI/magi-plan.md "Phase U4"). Checks:
 //   1. every unit's /api/units/usage entry says whether it has a picker; the
 //      sheet shows a Model dropdown on exactly those (Claude, Claude (Pro),
 //      Gemini, Grok) and a "no picker" line on the rest

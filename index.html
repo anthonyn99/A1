@@ -8798,7 +8798,7 @@ function App(){
       // early return below — that exit is exactly the case worth shouting
       // about: everything archivable is already archived and the document is
       // still too big, so the next write may hit the 900 KB guard.
-      if(split.overCap)console.error("[Archive] Tony: live doc is still "+(split.overCap/1024).toFixed(0)+" KB after archiving everything older than "+TH_ARCHIVE_MIN_AGE_DAYS+" days. Recent days are deliberately NOT archived — this needs a capacity plan (see docs/taskhub-archive-handoff.md), not a bigger cap.");
+      if(split.overCap)console.error("[Archive] Tony: live doc is still "+(split.overCap/1024).toFixed(0)+" KB after archiving everything older than "+TH_ARCHIVE_MIN_AGE_DAYS+" days. Recent days are deliberately NOT archived — this needs a capacity plan (see docs/TaskHub/taskhub-archive-handoff.md), not a bigger cap.");
       if(!split.movedCount&&!split.droppedEmpty){
         archiveRanRef.current=true;localStorage.setItem("td6_archive_at",String(Date.now()));return;
       }
@@ -15192,7 +15192,7 @@ function App(){
       // early return below — that exit is exactly the case worth shouting
       // about: everything archivable is already archived and the document is
       // still too big, so the next write may hit the 900 KB guard.
-      if(split.overCap)console.error("[Archive] Veda: live doc is still "+(split.overCap/1024).toFixed(0)+" KB after archiving everything older than "+TH_ARCHIVE_MIN_AGE_DAYS+" days. Recent days are deliberately NOT archived — this needs a capacity plan (see docs/taskhub-archive-handoff.md), not a bigger cap.");
+      if(split.overCap)console.error("[Archive] Veda: live doc is still "+(split.overCap/1024).toFixed(0)+" KB after archiving everything older than "+TH_ARCHIVE_MIN_AGE_DAYS+" days. Recent days are deliberately NOT archived — this needs a capacity plan (see docs/TaskHub/taskhub-archive-handoff.md), not a bigger cap.");
       if(!split.movedCount&&!split.droppedEmpty){
         archiveRanRef.current=true;localStorage.setItem("td_archive_at",String(Date.now()));return;
       }

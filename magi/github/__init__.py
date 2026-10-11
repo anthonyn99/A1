@@ -1,6 +1,6 @@
 """GitHub, for Code Mode: accounts, the REST client, and the push credential.
 
-The dividing line (docs/magi-plan.md §6): local git for anything about the
+The dividing line (docs/MAGI/magi-plan.md §6): local git for anything about the
 working tree, REST for anything about GitHub as a service. This package is
 the REST half plus the one thing git needs from it -- a token, handed over at
 the moment git asks and never written anywhere git would keep it.

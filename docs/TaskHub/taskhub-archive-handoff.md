@@ -196,8 +196,8 @@ looking in the write guards — see [Why the old fixes did not cover it](#why-th
 Four steps, all in `index.html`:
 
 **1. The document outgrew the soft cap.**
-`TH_ARCHIVE_SOFT_BYTES = 780000` ([:5316](../index.html#L5316) Tony,
-[:13642](../index.html#L13642) Veda). Veda's `data` measured ~1103 KB in repro.
+`TH_ARCHIVE_SOFT_BYTES = 780000` ([:5316](../../index.html#L5316) Tony,
+[:13642](../../index.html#L13642) Veda). Veda's `data` measured ~1103 KB in repro.
 
 **2. The overflow branch started moving *recent* days.**
 `thSplitArchivable` normally archives only day-keys older than
@@ -283,11 +283,11 @@ hard limit is still respected.
 
 | Piece | Tony | Veda |
 |---|---|---|
-| Archived-key registry | `thArchivedRef` [:7175](../index.html#L7175) | `vdArchivedRef` [:14153](../index.html#L14153) |
-| Stripped from payload | `buildPayload` [:7151](../index.html#L7151) | `buildVdPayload` [:14163](../index.html#L14163) |
-| Render without pushing | `setDataLocalOnly` [:7217](../index.html#L7217) | `setDataLocalOnly` [:14201](../index.html#L14201) |
-| Un-archive latch | `td6_unarchived_v2` [:7493](../index.html#L7493) | `td_unarchived_v2` [:14417](../index.html#L14417) |
-| UI marker hook | `window._thIsArchivedDay(k)` [:7177](../index.html#L7177) | `window._vdIsArchivedDay(k)` [:14155](../index.html#L14155) |
+| Archived-key registry | `thArchivedRef` [:7175](../../index.html#L7175) | `vdArchivedRef` [:14153](../../index.html#L14153) |
+| Stripped from payload | `buildPayload` [:7151](../../index.html#L7151) | `buildVdPayload` [:14163](../../index.html#L14163) |
+| Render without pushing | `setDataLocalOnly` [:7217](../../index.html#L7217) | `setDataLocalOnly` [:14201](../../index.html#L14201) |
+| Un-archive latch | `td6_unarchived_v2` [:7493](../../index.html#L7493) | `td_unarchived_v2` [:14417](../../index.html#L14417) |
+| UI marker hook | `window._thIsArchivedDay(k)` [:7177](../../index.html#L7177) | `window._vdIsArchivedDay(k)` [:14155](../../index.html#L14155) |
 
 Plus, on both:
 - **Size gate removed** from the un-archive (this is what broke the deadlock).

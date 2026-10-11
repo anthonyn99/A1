@@ -176,7 +176,7 @@ Shrink MJDocs down to a minimal rail module.
 - `viz-board.test.js` passes.
 
 ## Phase 4: Cleanup
-- **Keep old plan and handoff docs** (Tony, 2026-09-29: they are a few KB each and cost nothing). That includes this file, `docs/plans-section-design.md` and `docs/warden-handoff.md`. At the end, mark §0 "Done" instead of deleting this file, and change the memory `myjournal-strip-phases.md` and its MEMORY.md line from IN PROGRESS to done.
+- **Keep old plan and handoff docs** (Tony, 2026-09-29: they are a few KB each and cost nothing). That includes this file, `docs/TaskHub/plans-section-design.md` and `docs/archive/warden-handoff.md`. At the end, mark §0 "Done" instead of deleting this file, and change the memory `myjournal-strip-phases.md` and its MEMORY.md line from IN PROGRESS to done.
 - Also keep `magi*.md`, `taskhub-archive-handoff.md`, `tradehub-journal-handoff.md`, `STORE_NOTES.md` and `README.md`. Code, tests or memory depend on them.
 - Leave V1/ alone (Veda's folder). Tell Tony which of its files are candidates:
   - `2026-08-07-wellness-tracker-design.md`

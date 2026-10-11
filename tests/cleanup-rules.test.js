@@ -5,7 +5,7 @@
  * WHY THIS FILE EXISTS
  * A cleanup that deletes the wrong thing destroys data, and one that runs too
  * often spends quota. Both look fine until they don't. These are the hard rules
- * from docs/myjournal-strip-plan.md Phase 4, checked where the code allows:
+ * from docs/Notebook/myjournal-strip-plan.md Phase 4, checked where the code allows:
  *
  *   - no Firestore reads, at most 25 deletes per sweep, once a day, never
  *     before the boot write guard clears

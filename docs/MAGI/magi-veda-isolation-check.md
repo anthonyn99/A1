@@ -10,7 +10,7 @@ costs two small Codex requests and nothing else.
 
 Phase 15 put Veda's MAGI engine on her own PC (installed 2026-09-28,
 self-updating). What was never verified is that her MAGI and Tony's stay
-completely apart (docs/magi-plan.md, §8 "Phase 15", *Verify*):
+completely apart (docs/MAGI/magi-plan.md, §8 "Phase 15", *Verify*):
 
 1. **Each console reaches only its own engine** — hers talks to her engine,
    Tony's never does.
@@ -31,14 +31,14 @@ Checks 1–3 are `tests/live/magi-isolation.live.js`; check 4 is
 1. **Make sure this is Veda's PC.** `Test-Path magi\data\veda\engine.json`
    must be true. Then read the port:
    `(Get-Content magi\data\veda\engine.json | ConvertFrom-Json).port`
-   (8000, or 8001 if her old MAGI held 8000 — see docs/magi-setup.md).
+   (8000, or 8001 if her old MAGI held 8000 — see docs/MAGI/magi-setup.md).
    `curl.exe -s http://127.0.0.1:<port>/api/health` must say
    `"profile":"veda"`. If it says `tony`, **stop**: this is Tony's PC, and
    none of this means anything here.
 2. `git pull --rebase --autostash` in A1 (Tony and Veda both push to it).
 3. If the engine does not answer: `powershell -ExecutionPolicy Bypass -File
    magi\restart.ps1` once, wait ~20 s, check health again. Never send Veda
-   setup commands — her engine is installed (docs/magi-plan.md §0).
+   setup commands — her engine is installed (docs/MAGI/magi-plan.md §0).
 
 ## Run
 
@@ -74,7 +74,7 @@ simply being off (step 3 of "Before you start").
 
 ## Record the result, then tell them
 
-1. In `docs/magi-plan.md`: replace §0's "Phase 15 — what is left" section
+1. In `docs/MAGI/magi-plan.md`: replace §0's "Phase 15 — what is left" section
    with the outcome (date, port, each check PASS / FAIL / not applicable,
    anything Veda saw), and update the *Status* line of §8 "Phase 15 —
    Veda's engine". Also strike Phase 15's isolation check from §0's "After

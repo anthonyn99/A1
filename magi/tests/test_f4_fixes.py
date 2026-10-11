@@ -1,4 +1,4 @@
-"""The two engine bugs Track F's F4 fixed on the way (docs/magi-plan.md §8 F4
+"""The two engine bugs Track F's F4 fixed on the way (docs/MAGI/magi-plan.md §8 F4
 step 6), each on the string it was seen with.
 
 * A sole Gemini verdict lost its heading line breaks in capture, so its NOTES

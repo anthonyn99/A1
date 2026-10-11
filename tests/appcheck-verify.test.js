@@ -14,7 +14,7 @@ const load = () => new Function(SRC + `
 // A real Google-signed token cannot be committed (public repo, and it expires in
 // an hour). Supply one via APPCHECK_TOKEN to exercise the positive path; without
 // it the forgery tests still run, and those are the ones that catch a weakened
-// check. tools/mint-appcheck-token.js prints a fresh one.
+// check. docs/tools/README-appcheck.md says how to mint one (it needs a headed browser).
 const REAL = (process.env.APPCHECK_TOKEN || '').trim();
 const HAVE_REAL = REAL.split('.').length === 3;
 const b64u = (b) => Buffer.from(b).toString('base64url');

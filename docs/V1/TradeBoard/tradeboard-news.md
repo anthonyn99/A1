@@ -1,6 +1,6 @@
 # TradeBoard News + Control (Veda)
 
-TradeBoard ([V1/TradeBoard/tradeboard.html](../V1/TradeBoard/tradeboard.html))
+TradeBoard ([V1/TradeBoard/tradeboard.html](../../../V1/TradeBoard/tradeboard.html))
 has News and Control tabs, integrated from Tony's TradeHub on 2026-10-08.
 Control is TradeHub's watchlist editor without Prompts. News is TradeHub's
 News tab, rebuilt in TradeBoard's vanilla JS.

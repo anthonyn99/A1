@@ -232,7 +232,7 @@ stale copies still sitting at the old level, signing every account out at once.
 ## Code Mode
 
 > Code Mode is being built in phases, one session each. The living plan and
-> the hand-off between sessions is **[docs/magi-plan.md](magi-plan.md)** —
+> the hand-off between sessions is **[docs/MAGI/magi-plan.md](magi-plan.md)** —
 > start at its §0.
 
 The switch beside the prompt box changes what that box does.
@@ -515,7 +515,7 @@ your folder ──git stash create──► worktree in %TEMP%\magi-sandbox\<pro
   **since 2026-10-04 only `elevated`**: in `unelevated` a command could
   delete files anywhere you can -- `agents/codex_sandbox.py` checks the
   elevated sandbox is set up before Codex is used; Veda's PC:
-  docs/magi-veda-codex-sandbox.md), temp-dir exemptions off
+  docs/MAGI/magi-veda-codex-sandbox.md), temp-dir exemptions off
   and network off. Tested live: a write to `%USERPROFILE%` or `%TEMP%` is
   denied. Codex keeps its shell, because that is how it reads files, but only
   inside that OS sandbox -- and **that sandbox does not keep it off
@@ -1990,7 +1990,7 @@ items, Diagnose and a reload's reattach are sessions of their own.
   A resume that misses ("No conversation found" / "no rollout found") is
   retried once on the same agent from the block. Both CLIs resume across
   folders -- a write turn's sandbox is gone by the next turn -- and after a
-  kill (verified live, see docs/magi-plan.md "Hard-won facts"). Codex no
+  kill (verified live, see docs/MAGI/magi-plan.md "Hard-won facts"). Codex no
   longer runs `--ephemeral`, so its rollouts persist; `magi-codex-rollouts` in
   cleanup-rules.json removes ones 30 days old (dry run until Tony turns it on).
   Each result carries `native` for the next turn.
@@ -2740,7 +2740,7 @@ that wrote it (both `gpt-5-6` and `gpt-5-6-mini` were seen, so a fallback is
 visible).
 **Perplexity**'s free plan lists models that all lead to "Upgrade".
 **DeepSeek** has only DeepThink/Search toggles. The per-unit table is in
-`docs/magi-plan.md`, Track S, "Phase U1".
+`docs/MAGI/magi-plan.md`, Track S, "Phase U1".
 
 ### The model chip (Phase U2)
 
@@ -3186,7 +3186,7 @@ powershell -ExecutionPolicy Bypass -File magi\setup.ps1 -Profile veda
 `magi/setup.ps1` installs what is missing (Python, Node.js, Chrome, git, via
 winget), the venv, the Claude Code and Codex CLIs, onboards the profile, starts
 the engine, registers A1 in Code Mode and checks it; what is left is signing
-in, from the console's Accounts view. [docs/magi-setup.md](magi-setup.md) is
+in, from the console's Accounts view. [docs/MAGI/magi-setup.md](magi-setup.md) is
 the same thing written for the Claude session that runs it, and `CLAUDE.md`
 points there. On a PC of its own an engine takes port 8000 like Tony's; the
 spare port (veda: 8001) is only for a second engine beside another.

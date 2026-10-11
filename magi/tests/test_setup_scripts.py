@@ -51,6 +51,6 @@ def test_restart_starts_the_profile_on_its_port_with_its_token():
 
 
 def test_the_doc_claude_follows_runs_this_script():
-    doc = (REPO / "docs" / "magi-setup.md").read_text(encoding="utf-8")
+    doc = (REPO / "docs" / "MAGI" / "magi-setup.md").read_text(encoding="utf-8")
     assert r"magi\setup.ps1 -Profile veda" in doc
-    assert "docs/magi-setup.md" in (REPO / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "docs/MAGI/magi-setup.md" in (REPO / "CLAUDE.md").read_text(encoding="utf-8")

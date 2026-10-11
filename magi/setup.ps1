@@ -3,7 +3,7 @@
 
         powershell -ExecutionPolicy Bypass -File magi\setup.ps1 -Profile veda
 
-    Written for Veda's PC (docs/magi-setup.md is what a Claude session there
+    Written for Veda's PC (docs/MAGI/magi-setup.md is what a Claude session there
     reads and runs), and it works for any profile on any Windows PC. It ends
     with the engine running, starting at every logon, reachable from the
     hosted console, and A1 registered in Code Mode -- identical to Tony's.

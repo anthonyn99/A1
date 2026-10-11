@@ -15,7 +15,7 @@ the Cloudflare Workers each have their own folder.
 | `oneinbox.html` | **OneInbox** — unified mail inbox |
 | `wellness.html` | **Wellness** — Veda's tracker |
 | `shield.html` | **Shield** — front end for the desktop agent |
-| `magi.html` | **MAGI** — multi-model council: one question to ChatGPT/Claude/Gemini/DeepSeek, one synthesised verdict. The console only — the engine runs on Tony's PC (`magi/`, `docs/magi.md`) |
+| `magi.html` | **MAGI** — multi-model council: one question to ChatGPT/Claude/Gemini/DeepSeek, one synthesised verdict. The console only — the engine runs on Tony's PC (`magi/`, `docs/MAGI/magi.md`) |
 
 `firestore.rules`, `firebase-messaging-sw.js` and `.nojekyll` are deployment
 files and belong at the root.
@@ -43,7 +43,7 @@ moving another program there.
 | `V1/` | Veda's earlier suite — StudyOS, Finance, TradeBoard. Still deployed, by `deploy-v1-workers.yml`; self-contained, with its own README and workers |
 | `tests/` | Node test suite for the root apps — `npm test` |
 | `tools/` | App Check maintenance scripts (see `docs/tools/README-appcheck.md`) |
-| `magi/` | MAGI's engine — Python + Playwright, driving four logged-in Chrome profiles. Local-only by nature; it starts itself at logon. See `docs/magi.md` |
+| `magi/` | MAGI's engine — Python + Playwright, driving four logged-in Chrome profiles. Local-only by nature; it starts itself at logon. See `docs/MAGI/magi.md` |
 | `docs/` | **Every** doc, plan and README in A1, whatever project it is for -- one place to look. Each project away from the top level keeps its own subfolder (`docs/V1/`, `docs/LifeHub/`, `docs/PriceWatch/`, `docs/shield/`, `docs/workers2/`, `docs/tools/`). Only `CLAUDE.md`, `.claude/skills/` and this README stay outside it, because Claude Code and GitHub look for them where they are |
 
 ## Tests

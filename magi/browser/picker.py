@@ -1,7 +1,7 @@
 """Choosing a unit's model on its own site (Phase U4).
 
 Three sites have a picker a free or Pro account can drive -- Claude (both
-accounts), Gemini and Grok (docs/magi-plan.md, Track S, "Phase U1"). ChatGPT,
+accounts), Gemini and Grok (docs/MAGI/magi-plan.md, Track S, "Phase U1"). ChatGPT,
 Perplexity and DeepSeek have none, so their only choice is "Site default".
 
 THE ONE RULE: A PICK NEVER FAILS A RUN

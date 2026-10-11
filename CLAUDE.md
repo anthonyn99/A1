@@ -1,19 +1,19 @@
 # A1
 
 - **Setting up MAGI on a PC** ("set up MAGI", Veda's PC, a new engine):
-  follow [docs/magi-setup.md](docs/magi-setup.md). It's one command, then the
+  follow [docs/MAGI/magi-setup.md](docs/MAGI/magi-setup.md). It's one command, then the
   sign-ins.
 - **Checking Veda's MAGI is separate from Tony's** ("do the isolation check",
   "run the Veda check", "check MAGI is separate"), on Veda's PC: follow
-  [docs/magi-veda-isolation-check.md](docs/magi-veda-isolation-check.md)
+  [docs/MAGI/magi-veda-isolation-check.md](docs/MAGI/magi-veda-isolation-check.md)
   start to finish.
 - **Retiring the old "tony" engine on Veda's PC** ("read the retire plan",
   "retire the old engine", "do the Veda engine cleanup"), on Veda's PC:
-  follow [docs/magi-veda-retire-old-engine.md](docs/magi-veda-retire-old-engine.md)
+  follow [docs/MAGI/magi-veda-retire-old-engine.md](docs/MAGI/magi-veda-retire-old-engine.md)
   start to finish.
 - **Codex's protected sandbox on Veda's PC** ("set up Codex's sandbox",
   "do the Codex sandbox fix", "Veda Codex fix"), on Veda's PC: follow
-  [docs/magi-veda-codex-sandbox.md](docs/magi-veda-codex-sandbox.md)
+  [docs/MAGI/magi-veda-codex-sandbox.md](docs/MAGI/magi-veda-codex-sandbox.md)
   start to finish.
 - **Orca refinement** ("continue Orca", "next Orca phase", "go"): Orca lives
   at `C:\Users\antho\Desktop\ORCA` (Veda's repo, branch `accounts`), not in

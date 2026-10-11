@@ -1,7 +1,7 @@
 """Phase U1: the model / limit selectors match the pages they were read from.
 
 U1 was a read-only recon of every browser unit's model picker, model label
-and limit wording (docs/magi-plan.md, Track S, "Phase U1"). Its output is the
+and limit wording (docs/MAGI/magi-plan.md, Track S, "Phase U1"). Its output is the
 `model_*`, `think_toggle`, `limit_notice`, `downgrade_notice`,
 `usage_readout` and `prompt_too_long` keys in config/selectors.yaml, and the
 sanitized DOM cut from each live page into tests/fixtures/units/. Nothing in

@@ -120,5 +120,5 @@ powershell -ExecutionPolicy Bypass -File magi\restart.ps1
   are git-ignored for that reason.
 - Never type or paste her API token or a GitHub token into a chat, a file or
   a commit.
-- Everything else about MAGI is in [docs/magi.md](magi.md). The build history
-  and hand-off are in [docs/magi-plan.md](magi-plan.md) §0.
+- Everything else about MAGI is in [docs/MAGI/magi.md](magi.md). The build history
+  and hand-off are in [docs/MAGI/magi-plan.md](magi-plan.md) §0.

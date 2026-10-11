@@ -368,7 +368,7 @@ class SiteSelectors:
     # -- models and limits (Phase U1 recon; read from U2 on) -----------------
     # Every one a list, [] meaning "looked, this site has none". What each
     # site offers is in its "Models and limits" block in selectors.yaml and
-    # the findings table in docs/magi-plan.md (Track S, "Phase U1").
+    # the findings table in docs/MAGI/magi-plan.md (Track S, "Phase U1").
     model_button: list[str] = field(default_factory=list)
     model_option: list[str] = field(default_factory=list)
     model_selected: list[str] = field(default_factory=list)

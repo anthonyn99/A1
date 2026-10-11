@@ -696,7 +696,7 @@ class Auth:
 
     `config()` clears git's credential helper list first. Git Credential
     Manager is configured machine-wide on the engine PC, and without this a
-    push would silently go out as whoever GCM remembers (docs/magi-plan.md
+    push would silently go out as whoever GCM remembers (docs/MAGI/magi-plan.md
     §0, Phase 9 facts) -- and git would hand the token to GCM to keep after
     a successful push, which is exactly where it must not end up.
     """

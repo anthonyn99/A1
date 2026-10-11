@@ -103,7 +103,7 @@ async function connect(opts) {
 // file exists there), so the page is the one being tested, and its origin is
 // the one the engine allows. Until Phase 14 the tests opened magi.html as
 // file://; its Origin is "null", which the engine now refuses because any
-// website can produce it too (see "Who may drive the engine" in docs/magi.md).
+// website can produce it too (see "Who may drive the engine" in docs/MAGI/magi.md).
 const PAGES = 'https://anthonyn99.github.io/A1/';
 const PAGES_URL = PAGES + 'magi.html';
 // A1_ROOT serves a DIFFERENT checkout under the same origin -- e.g. a

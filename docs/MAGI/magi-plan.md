@@ -74,7 +74,7 @@ for what's manual and the two unit issues found). Tony's call what comes next.
 Nothing is half-built.
 
 **If a fresh session touches Code Mode follow-ups**, the map is "What
-exists" › "Code Mode follow-ups, console (F4)" and docs/magi.md "Code Mode
+exists" › "Code Mode follow-ups, console (F4)" and docs/MAGI/magi.md "Code Mode
 follow-ups". The one rule to keep: `codeTurnOf`'s `write`/`files` are the
 ground truth the next turn is told about the folder -- a denied diff must
 never read as applied (mutation-checked in `tests/magi-code-thread.test.js`).
@@ -86,7 +86,7 @@ pytest tests -q` (1,555 + 1 on 2026-09-30, ~7 min).
 **Pre-F3 fix (2026-09-30): the queue is now TWO queues.** Deliberation and
 Code Mode each have their own (`QUEUES.council` / `QUEUES.code` in magi.html;
 Firestore `queue` / `codeQueue`, leases `queueLease` / `codeQueueLease`), with
-their own Run/Pause/hold, and they run side by side. See docs/magi.md "The
+their own Run/Pause/hold, and they run side by side. See docs/MAGI/magi.md "The
 prompt queue". F4's "mid-run send" and anything queue-shaped build on
 `QUEUES.code`, never a shared list. Live test: `tests/live/magi-queue-split.live.js`.
 **Phase 15 (Veda's engine) is INSTALLED**: she ran `magi\setup.ps1 -Profile veda`, signed in
@@ -163,7 +163,7 @@ One phase per session.
    files are CRLF on disk).
 3. Live check in a real browser: `node tests/live/<file>.live.js` (see
    "Test harness" below), desktop and 390px phone widths.
-4. `docs/magi.md` and the console's HOW panel updated in the same commit
+4. `docs/MAGI/magi.md` and the console's HOW panel updated in the same commit
    (`magi/tests/test_howitworks.py` enforces the panel as a contract).
 5. **Rewrite this §0**: move the finished phase into "What exists", write the
    next phase's first concrete steps, list anything waiting on Tony.
@@ -338,7 +338,7 @@ One phase per session.
     (`codeChainTouched`, `lsKey("code.chainAt")`). `cloudCountWrites` logs
     every write to `CLOUD.writeLog`. **Decided: 11B's model choices/caps do
     NOT sync** (per engine, per PC's CLIs).
-  - **Hardening (Phase 14a)** — `docs/magi.md` "Who may drive the engine".
+  - **Hardening (Phase 14a)** — `docs/MAGI/magi.md` "Who may drive the engine".
     `magi/agent_guard.py`: every agent CLI is put in ONE Windows job at
     launch (`_proc.Stream` → `adopt`); while the job has processes, each
     loopback `/api/` request is traced (TCP table, ESTABLISHED rows only →
@@ -367,7 +367,7 @@ One phase per session.
     (`ENGINE_REPO_DEPLOYS`); the applied event `by_hook`. Console: the A1
     note under Read/Write (`w.note`), the ships/engine banners
     (`.code-appr-out.is-warn`), no Commit (`applied.by_hook`), no Push ↑n
-    (`proj.write.push !== false`). `docs/magi.md` "A1 itself".
+    (`proj.write.push !== false`). `docs/MAGI/magi.md` "A1 itself".
 
 * **Speed (Track S, S1–S2)** — `max_concurrency: 8`, rate-limit check
   above Gate 1, launcher scans off the event loop (S1). **One fan-out**
@@ -558,7 +558,7 @@ One phase per session.
      The probe found no hidden draft in Gemini's DOM; if it recurs, capture
      that turn's outerHTML (scratch probe pattern: `magi capture`'s send
      path + `node.evaluate("el => el.outerHTML")`).
-  3. **Effort / thinking in the pick** — docs/magi.md "Effort and
+  3. **Effort / thinking in the pick** — docs/MAGI/magi.md "Effort and
      thinking". `picker.effort_kind/options/label`, `choose_effort`
      (levels | menu_toggle | toggle), `think_confirm` (new selector key;
      ChatGPT's "Turn on" dialog), `accounts.effort_choice/set_effort`,
@@ -580,7 +580,7 @@ One phase per session.
   `tests/live/magi-drag-sort.live.js` 27/27.
   Also (Tony, same day): **earlier turns of a deliberation have the Brief /
   Text switch** (`verdictViewSeg`, one choice for every verdict on screen).
-* **Track V (2026-10-04), V1 + V2** -- §8 "Track V" and docs/magi.md
+* **Track V (2026-10-04), V1 + V2** -- §8 "Track V" and docs/MAGI/magi.md
   "Every agent's file tools, Also read, and agents running the check".
   `magi/code/ws_mcp.py` (Claude's workspace MCP server: move/copy/delete/
   make_dir, `run_check` when `checks.json` has `agents: true`, `ref_list/
@@ -617,7 +617,7 @@ projects). Verified this session with a real veda engine on :8001 (own
 defaults; a cap and a choice set there did not touch Tony's).
 
 **On her PC it is one command** (built 2026-09-24, after Phase 14): she asks
-Claude to "set up MAGI"; `CLAUDE.md` points it at `docs/magi-setup.md`, which
+Claude to "set up MAGI"; `CLAUDE.md` points it at `docs/MAGI/magi-setup.md`, which
 runs `magi\setup.ps1 -Profile veda` (prerequisites via winget, venv, both
 CLIs, onboard on port 8000, start, A1 registered, checked) and then walks her
 through the sign-ins in the console. Proven on a fresh clone here (as veda,
@@ -944,7 +944,7 @@ reachable from the internet.
   ready -> Codex unavailable with `SETUP_HINT`, the chain hands on, the
   Codex chip says *sandbox not set up* (`/agents` `sandbox`, checked in the
   background). Tony's PC was already set up (2026-09-24). **Veda's PC:
-  docs/magi-veda-codex-sandbox.md** (one UAC Yes if not set up; CLAUDE.md
+  docs/MAGI/magi-veda-codex-sandbox.md** (one UAC Yes if not set up; CLAUDE.md
   trigger "Veda Codex fix"). setup.ps1 now does it for new installs.
   `test_codex_sandbox.py` (8; the real-delete test fails with unelevated).
   The original note follows.
@@ -1037,7 +1037,7 @@ offer them, do not start them unasked:
   fixed (its sandbox could not start the Store pwsh; noted there).
 * **From Claude Queue (compared 2026-09-29) -- ALL BUILT the same day**, no
   offers left from it. Console: the usage-limit hold, the attention chime,
-  run-again (docs/magi.md "The prompt queue"). Engine: the project **check
+  run-again (docs/MAGI/magi.md "The prompt queue"). Engine: the project **check
   command** (`magi/code/check.py`; set from the engine PC only, never syncs,
   runs in the task's private copy inside the agent job, manual Run check by
   default with the approval clock held, Automatic opt-in) and the **stall
@@ -1064,7 +1064,7 @@ default. Refresh models live: free Claude also offers Sonnet 5 and Sonnet
 
 ### Phase 15 — isolation check: RUN on Veda's PC 2026-10-02
 
-Run per docs/magi-veda-isolation-check.md, on Veda's PC against HER engine
+Run per docs/MAGI/magi-veda-isolation-check.md, on Veda's PC against HER engine
 (`eng_9dc2cc4b6a39` "Veda PC", **port 8001**, `/api/health` profile=veda).
 **Verdict: her MAGI is separate from Tony's.** No privacy FAIL anywhere.
 
@@ -1195,7 +1195,7 @@ Refine path already uses a free-tier AI Studio key. `ANTHROPIC_API_KEY` is suppo
 escape hatch you will not set.
 
 Worth naming once and then leaving alone: driving a subscription login from a program rather than the app it
-ships with sits in the same grey area `docs/magi.md` already documents for the browser units — *"This is
+ships with sits in the same grey area `docs/MAGI/magi.md` already documents for the browser units — *"This is
 against those services' terms of use… at your own risk."* Same posture, knowingly taken, for the same reasons.
 
 ---
@@ -1222,53 +1222,53 @@ sync; `goTony()`/`goVeda()` ([:17570](index.html#L17570), [:17611](index.html#L1
 is a single anonymous identity for the whole suite. MAGI copies this wholesale.
 
 **MAGI's own App Lock** already exists and is already namespaced per person:
-`LOCK_ID = {journal:"applock", entryId:"tony_magi"}` ([magi.html:14594](magi.html#L14594)), backed by the
+`LOCK_ID = {journal:"applock", entryId:"tony_magi"}` ([magi.html:14594](../../magi.html#L14594)), backed by the
 `taskhub-reminders` worker. `veda_magi` is the natural sibling — no new lock system needed.
 
 **Engine job pattern** — every long-running operation in `app.py` uses one shape: `POST` creates
 `{queue: asyncio.Queue(), cancel: asyncio.Event(), done, result}` in a module dict, spawns
 `asyncio.create_task(work())`, returns an id; `GET /…/{id}/stream` drains the queue as SSE; `POST /…/{id}/cancel`
-sets the Event. Runs ([app.py:375](magi/app.py#L375), [:511](magi/app.py#L511)), Studio
-([:597](magi/app.py#L597)), Brainstorm ([:973](magi/app.py#L973)). **Code Mode tasks reuse it verbatim.**
+sets the Event. Runs ([app.py:375](../../magi/app.py#L375), [:511](../../magi/app.py#L511)), Studio
+([:597](../../magi/app.py#L597)), Brainstorm ([:973](../../magi/app.py#L973)). **Code Mode tasks reuse it verbatim.**
 
-**Cooperative cancellation** — `Orchestrator._ask` ([orchestrator.py:105-150](magi/engine/orchestrator.py#L105))
+**Cooperative cancellation** — `Orchestrator._ask` ([orchestrator.py:105-150](../../magi/engine/orchestrator.py#L105))
 races work against `cancel.wait()` with `FIRST_COMPLETED` and cancels the task outright so `async with` blocks
 unwind. Exactly what Halt on a running Claude session needs.
 
-**Subprocess discipline** — everything goes through [`magi/proc.py`](magi/proc.py) `run()`/`popen()`, which force
+**Subprocess discipline** — everything goes through [`magi/proc.py`](../../magi/proc.py) `run()`/`popen()`, which force
 `CREATE_NO_WINDOW`. *No module in the package calls `subprocess` directly.* Git and the Claude CLI must follow.
 
-**Failure taxonomy** — [`magi/errors.py`](magi/errors.py)'s `FailureKind`; providers never raise for expected
+**Failure taxonomy** — [`magi/errors.py`](../../magi/errors.py)'s `FailureKind`; providers never raise for expected
 failure, they return a structured cause and remedy shown inline. Code Mode failures (git conflict, rejected push,
 non-zero exit, denied approval, CLI rate limit) get the same treatment — never a bare 500.
 
-**Adding a unit** is a documented three-file path (`docs/magi.md`): a site block in `config/selectors.yaml`, an
+**Adding a unit** is a documented three-file path (`docs/MAGI/magi.md`): a site block in `config/selectors.yaml`, an
 `enabled` flag in `config/magi.yaml`, and a codename in `UNIT` + a stagger in `PHASE` in `magi.html`.
 `magi/tests/test_units.py` fails if the last two are forgotten, and refuses two units sharing an accent colour.
 The free Claude unit goes in through exactly this path.
 
-**Console view system** — no router; one `setView(v)` ([magi.html:9054](magi.html#L9054)) shows/hides fixed
+**Console view system** — no router; one `setView(v)` ([magi.html:9054](../../magi.html#L9054)) shows/hides fixed
 containers and toggles sidebar `active` classes. A new mode is a branch there plus a `<div id="codeView" hidden>`.
 
 **Firestore sync layer** — one index doc, one body doc per run, **exactly one `onSnapshot`**
-([cloudWatch, magi.html:14139](magi.html#L14139)), debounced merge-writes guarded by dirty flags
-(`_queueDirty`, `_marksDirty`). Budget rationale at [magi.html:12657](magi.html#L12657). Path helpers are
-already factored as `_indexDoc()` / `_runDoc(id)` ([:12770](magi.html#L12770)) — which is what makes profiles a
+([cloudWatch, magi.html:14139](../../magi.html#L14139)), debounced merge-writes guarded by dirty flags
+(`_queueDirty`, `_marksDirty`). Budget rationale at [magi.html:12657](../../magi.html#L12657). Path helpers are
+already factored as `_indexDoc()` / `_runDoc(id)` ([:12770](../../magi.html#L12770)) — which is what makes profiles a
 small change rather than a sweep.
 
-**Shared A1 furniture** — `uiAlert/uiConfirm/uiPrompt/uiForm` ([:4161](magi.html#L4161)), the `ui-cap-2000` cap
-([:4074](magi.html#L4074)), `SPINNER`/`spinnerEl()`, overlay scrollbars, `tabsync.js`, `<a1-lifehub>`.
+**Shared A1 furniture** — `uiAlert/uiConfirm/uiPrompt/uiForm` ([:4161](../../magi.html#L4161)), the `ui-cap-2000` cap
+([:4074](../../magi.html#L4074)), `SPINNER`/`spinnerEl()`, overlay scrollbars, `tabsync.js`, `<a1-lifehub>`.
 
 ### Hard constraints discovered
 
 1. **The engine has no Firebase credentials and must not grow any** — policy, stated at
-   [app.py:579-582](magi/app.py#L579): the machine holding logged-in AI accounts should not also hold the keys
+   [app.py:579-582](../../magi/app.py#L579): the machine holding logged-in AI accounts should not also hold the keys
    to the sync store. Firestore is browser-only.
 2. **App Check refuses `127.0.0.1`** — a console served by the engine can never sync. Already why the prompt
    queue is mirrored to `localStorage`.
 3. **Firebase budget is shared across all of A1** — 20k writes / 50k reads a day. Nothing is written while work
    is in flight; one body write plus one debounced index update per *finished* unit of work.
-4. **1 MiB per document**, 900 KB house soft-guard (`docs/warden-handoff.md`, `docs/taskhub-archive-handoff.md`).
+4. **1 MiB per document**, 900 KB house soft-guard (`docs/archive/warden-handoff.md`, `docs/TaskHub/taskhub-archive-handoff.md`).
 5. **Engine code is inert until restarted.** Every engine change needs `magi/restart.ps1`.
 6. **`.claude/hooks/auto-push.sh` runs `git add -A` on every Stop.** Code Mode must stage *specific paths only*.
 7. **Tests lift strings out of `magi.html`** — `tests/magi-handoff.test.js`, `tests/ui-width-cap.test.js`,
@@ -1340,8 +1340,8 @@ small change rather than a sweep.
 ### UI principles — apply to every phase
 
 **Everything is hand-built in MAGI's own CSS. No native browser UI, anywhere.** MAGI already takes this
-position — `window.alert` is globally overridden to route through `uiAlert` ([magi.html:4263](magi.html#L4263))
-and the suite ships `uiModal/uiAlert/uiConfirm/uiPrompt/uiForm` ([:4161](magi.html#L4161)). Code Mode and the
+position — `window.alert` is globally overridden to route through `uiAlert` ([magi.html:4263](../../magi.html#L4263))
+and the suite ships `uiModal/uiAlert/uiConfirm/uiPrompt/uiForm` ([:4161](../../magi.html#L4161)). Code Mode and the
 profile system extend it rather than reopening it:
 
 | Instead of | Build |
@@ -1354,8 +1354,8 @@ profile system extend it rather than reopening it:
 
 **One layout, two shapes.** Every new surface is designed at 400 px first and allowed to expand, not designed
 wide and then squeezed. The rules the rest of MAGI already follows apply unchanged: the `ui-cap-2000` width cap
-([:4074](magi.html#L4074)) stays; the 760 px breakpoint moves the sidebar into the existing off-canvas drawer;
-modals become bottom sheets under 430 px ([:4198](magi.html#L4198)); every new scroller gets an overlay
+([:4074](../../magi.html#L4074)) stays; the 760 px breakpoint moves the sidebar into the existing off-canvas drawer;
+modals become bottom sheets under 430 px ([:4198](../../magi.html#L4198)); every new scroller gets an overlay
 scrollbar; touch targets stay at 44 px; and the Code Mode status strip collapses from a row of pills to a single
 tappable line. Approval cards in particular are designed for a phone, because approving a diff from the couch is
 a primary use, not a fallback.
@@ -1373,7 +1373,7 @@ and its own engine with its own Chrome profile directories and its own SQLite. S
 Firestore listener and re-attaches to the other document — it is not a UI filter over shared data.
 
 **The lock is the profile gate, and it is load-bearing.** Today MAGI's lock is explicitly cosmetic — the code
-says so at [magi.html:14580-14591](magi.html#L14580): it stops someone at the laptop reading transcripts, and
+says so at [magi.html:14580-14591](../../magi.html#L14580): it stops someone at the laptop reading transcripts, and
 authorises nothing. With profiles that is not enough, because "someone at the laptop" now includes the other
 person. So the lock gains three real properties:
 
@@ -1385,7 +1385,7 @@ person. So the lock gains three real properties:
 - **Independent credentials per profile.** Separate password records (`tony_magi` / `veda_magi` against the
   existing `taskhub-reminders` worker, which already syncs them cross-device) and separate biometric
   credentials — the shared `window.Bio` helper already namespaces by `NS + app + '_' + id`
-  ([:4270](magi.html#L4270)), so `bio_cred_magi_tony` and `bio_cred_magi_veda` need no new mechanism. Unlocking
+  ([:4270](../../magi.html#L4270)), so `bio_cred_magi_tony` and `bio_cred_magi_veda` need no new mechanism. Unlocking
   one never unlocks the other, and leaving a profile re-locks it.
 
 This is a genuine improvement to MAGI independent of Code Mode, and it is why the lock and the picker are one
@@ -1536,7 +1536,7 @@ separate document would cost a second listener and a second read on every page l
 kilobytes. Folding it in costs **zero additional reads and zero additional listeners**.
 
 Written by `cloudSaveCode()` and `cloudSaveEngines()`, both cloned from `cloudSaveUnitOrder()`
-([magi.html:12807](magi.html#L12807)): 900 ms debounce, dirty-flag guard, `setDoc(…, {merge:true})` on one
+([magi.html:12807](../../magi.html#L12807)): 900 ms debounce, dirty-flag guard, `setDoc(…, {merge:true})` on one
 field. `cloudWatch` gains two `if (!_dirty && snap.x)` branches.
 
 **Size:** ~1–3 KB per project; twenty projects is under 60 KB against a 900 KB soft ceiling. A hard guard
@@ -1888,7 +1888,7 @@ desktop they sit side by side and the expanded one grows without moving its sibl
 
 **The mechanics.** `MAGI_PROFILES` (§4); `PROFILE` module state plus a global `magi.lastProfile`; unlock through
 the existing lock worker with per-profile entry ids and per-profile biometric credentials (§3);
-`_indexDoc()` / `_runDoc()` ([:12770](magi.html#L12770)) become profile-aware — that is the whole data split,
+`_indexDoc()` / `_runDoc()` ([:12770](../../magi.html#L12770)) become profile-aware — that is the whole data split,
 and it is two functions; every `localStorage` key routed through `lsKey(name)` → `magi.<profile>.<name>`, with
 the global exceptions in §4; **`cloudInit()` and the token load gated on unlock**, which is the security change
 in §3; a profile chip in the sidebar that returns to the gate and re-locks the profile being left; password
@@ -1918,7 +1918,7 @@ build.
 
 *Files:* `magi/settings.py`, `magi/config/magi.yaml` (+`profile: tony`), `magi/accounts.py`, `magi/db.py`,
 `magi/__main__.py` (+`--profile`, `--port`), `magi/cli/*.py`, new `magi/cli/onboard.py`, `magi/app.py`,
-`magi.html`, `docs/magi.md`.
+`magi.html`, `docs/MAGI/magi.md`.
 
 *Steps:*
 
@@ -1960,7 +1960,7 @@ deleting, is idempotent, and is verified by opening one unit before the original
 *Purpose:* A profile can have engines on several machines, and the console picks between them.
 
 *Files:* `magi/ident.py` + `magi/data/<profile>/engine.json`, `magi/app.py`, `magi.html`
-(the `══ link ══` section, [:4644](magi.html#L4644)), `docs/magi.md`.
+(the `══ link ══` section, [:4644](../../magi.html#L4644)), `docs/MAGI/magi.md`.
 
 *Steps:* Stable `engineId` + editable label per engine, distinct from the existing per-process
 `ident.INSTANCE` (which tunnel adoption still needs); `/api/health` returns both; an engine registry in the
@@ -1987,7 +1987,7 @@ records. *Firebase:* one new field, no new listener. *Rollback:* a single-entry 
 *Purpose:* Deliberation and Brainstorm stop competing with Code Mode for subscription quota.
 
 *Files:* `magi/config/selectors.yaml`, `magi/config/magi.yaml`, `magi.html` (`UNIT` + `PHASE`),
-`tradehub.html` (`TB_MAGI_UNITS`), `workers2/trade-dashboard` allow-list, `docs/magi.md`.
+`tradehub.html` (`TB_MAGI_UNITS`), `workers2/trade-dashboard` allow-list, `docs/MAGI/magi.md`.
 
 *Steps:* The documented three-file "Adding a unit" path — a `claude-free` site block reusing Claude's selectors
 against its own profile directory, an `enabled` flag, and a codename plus stagger with a **distinct accent**
@@ -2015,7 +2015,7 @@ distinct answers from two accounts; confirm a free-plan rate limit reports as `r
 
 *Steps:* Mode toggle in `.qbar-toolbar` beside Refine (thumb-reachable on mobile); `S.mode` persisted to
 `lsKey("mode")`, defaulting to `"deliberation"`; the header
-[`magi.html:4428`](magi.html#L4428) `<span class="bs-title council-title">Deliberation</span>` reads
+[`magi.html:4428`](../../magi.html#L4428) `<span class="bs-title council-title">Deliberation</span>` reads
 **Code Mode** when active; `setView()` gains a `"code"` branch and a `<div id="codeView" hidden>` beside
 `#bsView`; a compact status strip — profile · engine · project · repo · branch · autoCommit/autoPush pills —
 collapsing to one tappable line under 760 px; engine-offline placeholders throughout.
@@ -2032,7 +2032,7 @@ collapsing to one tappable line under 760 px; engine-offline placeholders throug
 *Status:* **complete (A1 registered; folder browser wired in Phase 7).**
 
 *Files:* new `magi/code/{__init__,workspace,routes}.py`; `magi/db.py` (+`code_projects`, `code_bindings`,
-`code_events`, `code_tasks`, hand-rolled migration per [db.py:156-254](magi/db.py#L156)); `magi/app.py`
+`code_events`, `code_tasks`, hand-rolled migration per [db.py:156-254](../../magi/db.py#L156)); `magi/app.py`
 (mount the router); `magi/settings.py` + `magi/config/magi.yaml` (`CodeModeConfig`).
 
 *Steps:* CRUD for projects and bindings; path validation (exists, is a directory, not a drive root, not inside
@@ -2089,19 +2089,19 @@ smaller profile cards, mobile pass, and the pull-before-work rule added to §7A 
 before anything can damage a file.
 
 *Files:* `magi/requirements.txt` (+`claude-agent-sdk`); new `magi/code/{agent,prompt}.py`;
-`magi/code/routes.py`; `magi.html`; `docs/magi.md`.
+`magi/code/routes.py`; `magi.html`; `docs/MAGI/magi.md`.
 
 *Steps:* Install the CLI (`npm i -g @anthropic-ai/claude-code`) and document it as a prerequisite alongside
 Chrome and Python; `CodeSession` wrapping `ClaudeSDKClient` with `permission_mode="plan"` and
 `disallowed_tools=["Write","Edit","Bash","NotebookEdit"]`; `POST /api/code/tasks` +
 `GET /api/code/tasks/{id}/stream` + `/cancel`, copied from the runs pattern; map SDK message types
 (`AssistantMessage`, `TextBlock`, `ThinkingBlock`, `ToolUseBlock`, `ResultMessage`) onto SSE frames; render the
-transcript with the existing markdown renderer ([:1147](magi.html#L1147)) and `copyButton`; Halt → `interrupt()`;
-extend the restart-refusal check at [app.py:299-307](magi/app.py#L299) to cover live code tasks.
+transcript with the existing markdown renderer ([:1147](../../magi.html#L1147)) and `copyButton`; Halt → `interrupt()`;
+extend the restart-refusal check at [app.py:299-307](../../magi/app.py#L299) to cover live code tasks.
 
 *Testing:* Ask "explain how the queue works in magi.html" — expect Glob/Grep/Read only, and confirm a Write is
 refused. Halt mid-task closes cleanly. Reload mid-task reattaches, or fails cleanly and says so. Engine restart
-mid-task leaves no orphan row (as Studio already handles at [app.py:85](magi/app.py#L85)).
+mid-task leaves no orphan row (as Studio already handles at [app.py:85](../../magi/app.py#L85)).
 
 *Risk:* Medium — new dependency, subprocess lifecycle. Mitigated by being read-only: the worst case is a wasted
 run. *Firebase:* none. *Rollback:* remove the route; the dependency is inert unused.
@@ -2308,7 +2308,7 @@ validation. Releases/compare are read but PR/issue *writes* are deliberately out
 
 *Files:* new `magi/code/agents/models.py`; `usage_fetch.py` (credits, plan), `limits.py` (`note_account`),
 `claude_cli.py` / `codex_cli.py` (model + effort per task, credits retry, caps), `routes.py` (`/models…`),
-`magi.html` (model row, sheet, Auto preview, usage popup), `docs/magi.md`.
+`magi.html` (model row, sheet, Auto preview, usage popup), `docs/MAGI/magi.md`.
 
 *Steps (as built):* model lists from the providers per account (`/v1/models` + `/api/oauth/profile`;
 `codex/models`), cached 6 h; usage credits from the existing usage read; credit-gated models (Fable/Mythos on
@@ -2335,7 +2335,7 @@ Repository panel header, so they work for non-GitHub remotes too; a fixable
 refusal (something else staged, mid-merge/rebase, detached, conflicted)
 keeps the commit pending for **Try again** rather than dropping it; and the
 pull before an auto push is `git.pull` (rebase + autostash, a clash undone)
-— the commit stays local when it is not clean. See `docs/magi.md` ›
+— the commit stays local when it is not clean. See `docs/MAGI/magi.md` ›
 *Auto commit and auto push*.
 
 *Files:* new `magi/code/autocommit.py`; `magi/code/agent.py`; `magi.html`.
@@ -2366,7 +2366,7 @@ that guarded a pref never pushes it back), `rev` is used to skip the
 reconcile when nothing moved; deletions are tombstones on both sides; the
 agent chain (order + ticks) syncs too; which project is OPEN stays per
 browser; **model choices and caps stay per engine** (decided). Measured
-write counts are in `docs/magi.md` › *Code Mode across your devices*.
+write counts are in `docs/MAGI/magi.md` › *Code Mode across your devices*.
 
 *Files:* `magi.html` (`cloudSaveCode()`, one `cloudWatch` branch, the reconcile); `magi/code/routes.py`
 (`GET/PUT /api/code/state` + `codeRev`).
@@ -2391,15 +2391,15 @@ program. Mitigated by one field, one existing listener, the dirty-flag guard, an
 
 ### Phase 14 — Hardening, documentation, regression sweep
 
-*Status:* **done 2026-09-24.** 14a (hardening) — docs/magi.md "Who may
-drive the engine"; 14b (A1 writable, writes only, per Tony) — docs/magi.md
+*Status:* **done 2026-09-24.** 14a (hardening) — docs/MAGI/magi.md "Who may
+drive the engine"; 14b (A1 writable, writes only, per Tony) — docs/MAGI/magi.md
 "A1 itself". Both in §0 "What exists".
 
-*Files:* `docs/magi.md`, the `HOW` array ([magi.html:5006](magi.html#L5006)), `magi/tests/*`, `tests/*`.
+*Files:* `docs/MAGI/magi.md`, the `HOW` array ([magi.html:5006](../../magi.html#L5006)), `magi/tests/*`, `tests/*`.
 
 *Steps:* The `HOW` panel gains profiles, multi-engine and Code Mode — a **contract**, not a nicety:
-`magi/tests/test_howitworks.py` enforces the checkable claims and `docs/magi.md` requires the panel to be updated
-in the same commit as the behaviour; new `docs/magi.md` sections on the profile model, the engine model, the
+`magi/tests/test_howitworks.py` enforces the checkable claims and `docs/MAGI/magi.md` requires the panel to be updated
+in the same commit as the behaviour; new `docs/MAGI/magi.md` sections on the profile model, the engine model, the
 Code Mode security model and the restart requirement; an adversarial pass (path traversal, symlink escape, a
 prompt-injection file planted in a scratch repo, a hostile `.claude/` in a target workspace, an oversized diff,
 a runaway Bash command, a cross-profile data leak attempt); a full regression sweep of Deliberation, Queue,
@@ -2559,7 +2559,7 @@ rewritten; no other console change, so no CDP pass was run.
 Fixes), plus three reload bugs the live test found that made "survives
 reload" false before any phase work (the pin was dropped by the unload's
 stream error; a failed first fetch lost it for good; the grid came back as
-every ticked unit on STANDBY) — see docs/magi.md "A reload mid-round comes
+every ticked unit on STANDBY) — see docs/MAGI/magi.md "A reload mid-round comes
 back to the round". **Validator replay:** 332 stored captures (runs +
 brainstorm turns), exactly one verdict changed — DeepSeek's "Four".
 pytest 1193, node 51 suites; 10 mutants killed. **Live**
@@ -2917,7 +2917,7 @@ turn is running in THIS engine. `newRun` and hand-offs reset the session.
    live elsewhere) is part of F2's done.
 6. **Sync**: still one body write per finished turn (`cloudPushRun`) + index row;
    `notes` stored in the body. Nothing written mid-run.
-7. **HOW panel + `docs/magi.md`** in the same commit (`test_howitworks.py`).
+7. **HOW panel + `docs/MAGI/magi.md`** in the same commit (`test_howitworks.py`).
 8. **Tests**: node static tests (send-path matrix, no write mid-run, grouping);
    `tests/live/magi-thread.live.js` — stubbed engine (fake EventSource) for the
    matrix + grouping + 390px shots, then ONE real 2-turn session on one cheap unit
@@ -3021,7 +3021,7 @@ Live, 2026-09-30: `magi-code-thread` 55/55, `magi-thread` (F2) 48/48,
    session id (= first task id); `codeGone` tombstones per task still apply; opening
    loads each turn's body and can continue — every case in "Continue from
    History" above, incl. switching to the session's workspace.
-5. HOW panel + `docs/magi.md`; node static tests; extend `magi-code-queue`/
+5. HOW panel + `docs/MAGI/magi.md`; node static tests; extend `magi-code-queue`/
    `magi-code-history` live tests + the F3 live test through the UI at 390px.
 6. **The open bugs, fixed in F4** (Tony, 2026-09-30; details under "Bugs to
    fix on the way" below). Each needs a test that fails before its fix:
@@ -3045,7 +3045,7 @@ Live, 2026-09-30: `magi-code-thread` 55/55, `magi-thread` (F2) 48/48,
 
 #### End of each phase (the §0 checklists)
 Engine restarted + live-verified; pytest + node green; desktop + 390px shots; HOW
-panel/docs in the same commit; rewrite `docs/magi-plan.md` §0 (add this track as
+panel/docs in the same commit; rewrite `docs/MAGI/magi-plan.md` §0 (add this track as
 "F1–F4"); commit + push (`git pull --rebase` first).
 
 ### Bugs to fix on the way (found so far)
@@ -3128,7 +3128,7 @@ silently giving less." Design for the end goal, not a prototype.
 | V7 | Project map for analysis units | A symbol outline (classes/functions per file, cached by mtime) in the context, so units understand a large project's structure without having every file uploaded. | **done 2026-10-08** |
 
 ### V1 + V2 -- what was built (2026-10-04)
-See docs/magi.md "Every agent's file tools, Also read, and agents running
+See docs/MAGI/magi.md "Every agent's file tools, Also read, and agents running
 the check (Track V)". Tests: `test_code_ws_tools.py` (54; 7 mutants killed
 in memory), `test_code_refs.py` (20; 4 mutants killed),
 `test_claude_cli_offline.py` (4: the REAL Claude CLI against a fake API --
@@ -3145,7 +3145,7 @@ validates against the whole framed prompt, which itself says "reply with
 ONLY lines ..." and "... nothing else" -- a test pins that).
 
 ### V3 -- what was built (2026-10-08)
-*Status:* done. See docs/magi.md "Changing several workspaces in one task
+*Status:* done. See docs/MAGI/magi.md "Changing several workspaces in one task
 (Track V3)". `POST /tasks` `writes: [project_id]` (registered ids, at most
 4, a repository each; Read mode reads them); `tasks.Part` per workspace, its
 own sandbox (`<task>-2`...); `sandbox.apply_all` plans every part before
@@ -3178,7 +3178,7 @@ Found on the way and fixed the same day:
   `fixtures/units/chatgpt-code-block.html`.
 
 ### V4 -- what was built (2026-10-08)
-*Status:* done. See docs/magi.md "Branches and pull requests (Track V4)".
+*Status:* done. See docs/MAGI/magi.md "Branches and pull requests (Track V4)".
 Agents end Write summaries with `COMMIT:`/`BRANCH:` (`base.SUGGEST_LINES`;
 `git.suggestions` takes the last of each and removes them from the summary);
 `POST /tasks/{id}/commit {branch}` switches (or makes) the branch first --
@@ -3198,7 +3198,7 @@ magi-push-test opened, re-found, closed, branch deleted). The project's
 account is an OAuth sign-in with `repo` scope, which covers pull requests.
 
 ### V5 -- what was built (2026-10-08)
-*Status:* done. See docs/magi.md "Browser units close the check loop (Track
+*Status:* done. See docs/MAGI/magi.md "Browser units close the check loop (Track
 V5)". `BrowserUnitAgent.run` = `_run_once` + check (`_check`, check.py's
 runner in the agents' job) + up to `CHECK_FIXES = 2` fix rounds with
 `check_feedback` (exit code, output tail, the changed files attached as they
@@ -3209,7 +3209,7 @@ mutants killed), one HOW contract; live `tests/live/magi-code-v5.live.js`
 7/7 on DeepSeek.
 
 ### V6 -- what was built (2026-10-08)
-*Status:* done. See docs/magi.md "Named commands agents may run (Track V6)".
+*Status:* done. See docs/MAGI/magi.md "Named commands agents may run (Track V6)".
 `code/commands.py` (store `data/<p>/code/commands.json`, `clean`, `check_arg`,
 `render`, `find`, `describe`, `suggest` from package.json); routes `GET/POST
 /projects/{id}/commands` (POST local-only), forgotten with the project;
@@ -3222,7 +3222,7 @@ one HOW contract; live `tests/live/magi-code-v6.live.js` (DeepSeek and
 Claude both ran `build` and fixed util.py; the real build passes).
 
 ### V7 -- what was built (2026-10-08)
-*Status:* done. See docs/magi.md "The project map for browser units (Track
+*Status:* done. See docs/MAGI/magi.md "The project map for browser units (Track
 V7)". `agents/symbols.py` (`outline_text` per language, `outline` with the
 mtime/size cache in `data/<p>/code/maps/`, `KEEP_MAPS = 40`, `pick`,
 `render`); `context.Plan.symbols`, `context.MAP_SHARE`; `magi/tests/conftest.py`
@@ -3233,7 +3233,7 @@ mutants killed), one HOW contract; live `tests/live/magi-code-v7.live.js` 4/4.
 ### Track V -- the write-up for Tony and Veda
 A short page explaining V3–V7 for both of them was published as a Claude
 Docs document on 2026-10-08 (link in that session's last message). The
-source of truth stays docs/magi.md.
+source of truth stays docs/MAGI/magi.md.
 
 ## Track W — the rest of the way to Claude Code in VS Code (Tony, 2026-10-08)
 
@@ -3309,15 +3309,15 @@ magi/data/<profile>/engine.json          (runtime, gitignored)
 
 | File | Change | Size |
 |---|---|---|
-| `magi.html` | The gate — profile cards + inline lock, replacing `#lockScreen` ([:14574](magi.html#L14574)) — plus `MAGI_PROFILES` and `lsKey()`; profile-aware `_indexDoc`/`_runDoc` ([:12770](magi.html#L12770)) with `cloudInit` gated on unlock; engine registry and picker in `══ link ══` ([:4644](magi.html#L4644)); mode switch + header swap ([:4428](magi.html#L4428)); `setView()` branch ([:9054](magi.html#L9054)); `#codeView`, the directory picker, the file tree and approval cards, all hand-built; `cloudSaveCode`/`cloudSaveEngines` beside [:12807](magi.html#L12807); two `cloudWatch` branches ([:14139](magi.html#L14139)); `UNIT`/`PHASE` for the free Claude; `HOW` array | **Large — most of the frontend work** |
+| `magi.html` | The gate — profile cards + inline lock, replacing `#lockScreen` ([:14574](../../magi.html#L14574)) — plus `MAGI_PROFILES` and `lsKey()`; profile-aware `_indexDoc`/`_runDoc` ([:12770](../../magi.html#L12770)) with `cloudInit` gated on unlock; engine registry and picker in `══ link ══` ([:4644](../../magi.html#L4644)); mode switch + header swap ([:4428](../../magi.html#L4428)); `setView()` branch ([:9054](../../magi.html#L9054)); `#codeView`, the directory picker, the file tree and approval cards, all hand-built; `cloudSaveCode`/`cloudSaveEngines` beside [:12807](../../magi.html#L12807); two `cloudWatch` branches ([:14139](../../magi.html#L14139)); `UNIT`/`PHASE` for the free Claude; `HOW` array | **Large — most of the frontend work** |
 | `magi/settings.py`, `config/magi.yaml` | `profile`, `CodeModeConfig`, profile-scoped paths | Medium |
-| `magi/db.py` | Four tables + migration, per [:156-254](magi/db.py#L156) | Medium |
-| `magi/app.py` | Mount the code router; `profile` + `engineId` in `/api/health`; restart-refusal covers live code tasks ([:299](magi/app.py#L299)) | Small |
+| `magi/db.py` | Four tables + migration, per [:156-254](../../magi/db.py#L156) | Medium |
+| `magi/app.py` | Mount the code router; `profile` + `engineId` in `/api/health`; restart-refusal covers live code tasks ([:299](../../magi/app.py#L299)) | Small |
 | `magi/accounts.py`, `cli/*.py`, `__main__.py` | Profile-scoped profile dirs; `--profile` / `--port` | Medium |
 | `magi/config/selectors.yaml` | `claude-free` site block | Small |
 | `magi/requirements.txt`, `.env.example` | `claude-agent-sdk`, `keyring`, `httpx` | Small |
 | `tradehub.html` + `workers2/trade-dashboard` | `claude-free` in the unit allow-list | Small |
-| `docs/magi.md` | Profiles, engines, Code Mode | Large |
+| `docs/MAGI/magi.md` | Profiles, engines, Code Mode | Large |
 
 **Deliberately not touched:** `magi/engine/{orchestrator,chairman,brainstorm,studio}.py`, `providers/*`,
 `browser/*`, `tunnel.py`, `firestore.rules` (the `/dashboards/{doc=**}` rule already covers the new document),
@@ -3339,7 +3339,7 @@ magi/data/<profile>/engine.json          (runtime, gitignored)
    `git add -A` per task. `setting_sources=[]` is load-bearing and belongs in a test.
 4. **Cross-profile leakage.** A cached Firestore snapshot or a stale listener surviving a profile switch would
    show one person's data under the other's name — and because Firestore's `persistentLocalCache` writes to
-   IndexedDB ([magi.html:12739](magi.html#L12739)), a document read once stays on that device. *Mitigation:*
+   IndexedDB ([magi.html:12739](../../magi.html#L12739)), a document read once stays on that device. *Mitigation:*
    gate `cloudInit()` on unlock so a locked profile is never read in the first place, full listener teardown on
    switch, every localStorage key through `lsKey()`, and an explicit test that watches the network tab.
 5. **Firebase regression.** A stray listener or an in-flight write is a permanent tax on every A1 program.
