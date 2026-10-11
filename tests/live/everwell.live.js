@@ -275,7 +275,7 @@ const mock = {
   riotCalls.length = 0;
   await tapIntro();
   await js(`EWApp.go('dashboard'); return 1;`); await sleep(1800);
-  ok('first run (nothing stored): today is Push, step 1 of 3', (await js(`return document.getElementById('dash-split-name').textContent;`)) === 'Push' && /Step 1 of 3 · Tomorrow: Pull/.test(await js(`return document.querySelector('.split-meta').textContent;`)));
+  ok('first run (nothing stored): today is Push, with no "Step 1 of 3 · Tomorrow" line (Tony removed it)', (await js(`return document.getElementById('dash-split-name').textContent;`)) === 'Push' && await js(`return !document.querySelector('.split-meta') && !/Step \\d+ of|Tomorrow:/.test(document.getElementById('dash-split').textContent);`));
   ok('…and that default is written once, after the real read', await js(`const r = (__fakeFs.docs['dashboards/everwell_tony'] || {}).rotation; return !!r && r.steps.map(s => s.name).join() === 'Push,Pull,Legs' && r.anchor.date === '${today}' && r.anchor.idx === 0;`),
     await js(`return JSON.stringify(__fakeFs.docs['dashboards/everwell_tony']);`));
   ok('the week strip shows 7 days from today, in order', (await js(`return [...document.querySelectorAll('.split-day .nm')].map(e => e.textContent).join();`)) === 'Push,Pull,Legs,Push,Pull,Legs,Push');
