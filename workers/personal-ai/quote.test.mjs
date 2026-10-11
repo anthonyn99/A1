@@ -73,7 +73,7 @@ reset(); ORCA = () => { throw new TypeError('network down'); }; GEMINI = geminiS
 ok('ORCA network error: Gemini', (await call('profile=tony&date=' + today)).body.source === 'gemini');
 reset(); ORCA = orcaSays('The only way to do great work is to love what you do. — Steve Jobs'); GEMINI = geminiSays('Do the small thing well today and tomorrow will ask less of your courage.');
 r = await call('profile=tony&date=' + today);
-ok('an attributed (or famous) line from ORCA is rejected, next source used', r.body.ok && r.body.source === 'gemini' && !/Jobs/.test(r.body.quote), r.body);
+ok('a line with an attribution ("— Name") is rejected, next source used', r.body.ok && r.body.source === 'gemini' && !/Jobs/.test(r.body.quote), r.body);
 reset(); ORCA = () => resp(503, {}); GEMINI = () => resp(429, { error: { message: 'Quota exceeded for project 12345 secret detail' } });
 r = await call('profile=tony&date=' + today);
 ok('everything fails: ok:false with a GENERIC error, nothing cached', r.status === 200 && r.body.ok === false && r.body.error === 'unavailable' && puts === 0, r);
