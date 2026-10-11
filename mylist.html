@@ -1408,11 +1408,11 @@ body { max-width: 2000px; margin-inline: auto; }
   }, (err) => { console.warn("MyList snapshot err", err); window.dispatchEvent(new CustomEvent("ml-error")); });
 
   // ── Recipes — VEDA ONLY, in dashboards/mealsuite-veda. ──────────────────────
-  //    Tony's recipes moved to Solace (solace.html → Nutrition ▸ Recipes), which is
+  //    Tony's recipes moved to Everwell (everwell.html → Nutrition), which is
   //    now the sole owner of dashboards/mealsuite. Dropping his key from REC_DOCS is
   //    the whole enforcement: both _mlLoadRecipes and _mlSaveRecipes bail on a
   //    missing ref, so MyList can no longer read OR write that document from any
-  //    path — there is no second writer to race Solace, and no way for this page to
+  //    path — there is no second writer to race Everwell, and no way for this page to
   //    overwrite his recipe book. Veda's doc and every line of the Recipes engine
   //    are untouched; she still uses all of it.
   //    REC_DOCS is also the single source of truth for which profiles this page
@@ -1449,7 +1449,7 @@ body { max-width: 2000px; margin-inline: auto; }
     }, 1200);
   };
   // Derived from REC_DOCS, not a hardcoded profile list — so this page never opens
-  // a listener on a recipe document it no longer owns (Tony's went to Solace).
+  // a listener on a recipe document it no longer owns (Tony's went to Everwell).
   Object.keys(REC_DOCS).forEach((profile) => {
     onSnapshot(REC_DOCS[profile], (snap) => {
       recLoadOk[profile] = true;   // reads work — lift the barrier (see _mlLoadOk)
@@ -1842,7 +1842,7 @@ function boot(){
   // Both profiles' locks, declared once the synced lock state is in, and one
   // status call to the worker for the pair.
   mlDefine('tony'); mlDefine('veda'); Guardian.refresh([gid('tony'), gid('veda')], false);
-  // Veda only — Tony's recipes are Solace's now (see REC_DOCS). Asking for his doc
+  // Veda only — Tony's recipes are Everwell's now (see REC_DOCS). Asking for his doc
   // here would be a pointless read of a document this page must never write.
   if(window._mlLoadRecipes){
     ['veda'].forEach(function(p){
@@ -2508,7 +2508,7 @@ var EDIT_SVG='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke
 var DEL_SVG='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
 function persistRecipes(){ if(window._mlSaveRecipes && activeProfile) window._mlSaveRecipes(activeProfile, recipes.map(sanitize)); }
 function setView(v){
-  // A view this profile no longer has (Tony's Recipes → Solace) falls back to Lists
+  // A view this profile no longer has (Tony's Recipes → Everwell) falls back to Lists
   // rather than rendering an empty screen, so an old deep link or a stale saved
   // view can't strand him on a tab that is not in his switcher.
   if(viewHidden(v)) v='lists';
@@ -2901,7 +2901,7 @@ document.addEventListener('keydown', function(e){ if(e.key==='Escape' && $('ev-m
 var VIEW_LABELS = { lists:'Lists', recipes:'Recipes', events:'Events', watch:'Price Watch' };
 var VIEW_DEFAULT_ORDER = ['lists','recipes','events','watch'];
 // ── Views a profile may see ─────────────────────────────────────────────────────
-// Tony's Recipes moved to Solace (solace.html → Nutrition ▸ Recipes), which is now
+// Tony's Recipes moved to Everwell (everwell.html → Nutrition), which is now
 // the ONLY owner of dashboards/mealsuite. Veda's recipes never moved — they still
 // live here, in dashboards/mealsuite-veda — so this is a per-profile de-scope, not
 // a removal: every .rec-* style, the recipe modal and the whole Recipes engine stay
@@ -3288,7 +3288,7 @@ function render(){
     $('sel-bar').classList.remove('show');
     var mf=$('manual-fab'); if(mf) mf.style.display='none'; var mp=$('manual-pop'); if(mp) mp.classList.remove('show');
     $('list-view').innerHTML = renderRecipesView();
-    // Recipes are Veda's only (Tony's moved to Solace), so this is her engine.
+    // Recipes are Veda's only (Tony's moved to Everwell), so this is her engine.
     if(!recDetailId){ var rl=$('rec-list-rows'); if(rl && recFiltered().length===recipes.length) enableDrag(rl, 'recipe'); }
     else if(recEditingStep===null){ var rs=$('rec-steps-container'); if(rs) enableDrag(rs, 'recstep'); }
     return;

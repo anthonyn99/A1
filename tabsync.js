@@ -58,7 +58,7 @@
  *     A tab opened the normal way qualifies — the destination replaces the
  *     initial empty document rather than pushing onto it, measured at
  *     history.length === 1 — but a page that pushes history entries as you use
- *     it (Solace does) can grow out of it. A retired tab that cannot close has
+ *     it can grow out of it. A retired tab that cannot close has
  *     already given up the key, so the next click is clean; that one time you
  *     are left with the old tab sitting there, which is the behaviour we had
  *     before and never worse.

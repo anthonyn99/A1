@@ -363,9 +363,27 @@
         "vault_cloud_silentok_",
         "vault_cloud_tok_"
       ],
-      "owner": "tradehub.html, insight.html, vault.html, riftiq.html, solace.html (moved to A1-Priv, 2026-10-10)",
+      "owner": "tradehub.html, insight.html, vault.html, riftiq.html, solace.html (moved to A1-Priv, 2026-10-10; Solace is Everwell since 2026-10-11)",
       "reason": "These five programs now run on a1-priv.av1.workers.dev, and their A1 files are redirect stubs that read nothing, so this origin's copies of their keys are never read again. They are local mirrors and settings (the data is in Firestore) taking room that TaskHub's journal caches need. Left out on purpose: keys a page here still uses (al_locks, td6_mainDash, pl_device_name, kc_icon_cache_v1, bio_cred_*), pv_sched_v1 (index clears it itself) and Vault's device keys (vault.deviceId, vault.deviceKey), which are key material. Keep it a dry run until 2026-11-10, a month after the move, so the old copies stay as a fallback.",
       "delete": false
+    },
+    {
+      "id": "solace-priv-leftovers",
+      "store": "localStorage",
+      "program": "everwell",
+      "category": "unused",
+      "capDays": 0,
+      "exact": [
+        "mc_circuits",
+        "mc_routines",
+        "sol_mic_device",
+        "sol_route"
+      ],
+      "prefix": [],
+      "owner": "solace.html on a1-priv.av1.workers.dev (replaced by everwell.html, 2026-10-11)",
+      "reason": "Solace's local copies of the circuits and routines, its microphone choice and its last view. Everwell replaced Solace (Everwell plan Phase 9), caches nothing in localStorage, and keeps its microphone as ew.tony.micDevice, so these keys on A1-Priv's origin are never read again. The data itself is in Firestore (dashboards/motioncore). Left out on purpose: a1.h.sol.* (Everwell still uses those grip heights) and al_locks (Guardian's).",
+      "delete": false,
+      "origin": "a1-priv"
     },
     {
       "id": "a1-autocommit-log",
