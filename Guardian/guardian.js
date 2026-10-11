@@ -536,7 +536,12 @@ function ensureFonts() {
 }
 var CSS = [
 ':host{all:initial}',
+/* all:initial drops the page's no-tap-highlight rule, so restate it: no blue
+   box when a phone taps or holds anything here, and a held button never
+   selects its label or opens the callout. */
+':host,*,*::before,*::after{-webkit-tap-highlight-color:transparent}',
 '*{box-sizing:border-box}',
+'button{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}',
 '.ov{position:fixed;inset:0;z-index:2147483000;display:flex;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));background:rgba(0,0,0,.62);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);font-family:var(--f);color:var(--tx);-webkit-font-smoothing:antialiased}',
 /* Tony: MAGI tokens (magi.html :root, docs/theme-overhaul-plan.md §2). */
 '.ov[data-theme=tony]{--bg:#1a1a1d;--s1:#232327;--s2:#2c2c31;--s3:#34343a;--bd:rgba(255,255,255,.06);--bdl:#45454c;--tx:#f4f3f0;--txd:#adadb2;--txm:#8d8d94;--ac:#c0aeea;--acl:#dbd0f5;--onac:#1a1a1d;--red:#d68a7c;--ring:rgba(192,174,234,.16);--f:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;--fd:"Manrope","Inter",system-ui,sans-serif;--r:8px;--rb:6px;--btn-fs:10px;--btn-tt:uppercase;--btn-ls:1px;--title-fs:22px;--title-w:800;--title-ls:-.3px}',
