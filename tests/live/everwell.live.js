@@ -291,10 +291,12 @@ const mock = {
   ok('…after a reload: no swap, the official words as Riot wrote them', await js(`return document.querySelectorAll('#dash-rdesc .swap').length === 0 && document.getElementById('dash-rdesc').textContent === 'Yunara ascends and empowers her spells.';`));
   await js(`localStorage.removeItem('ew.tony.riot.yunara'); return 1;`);
 
+  // Today's step linked to a routine (through the synced doc), then Fitness locked.
+  await js(`__fakeFs.remote('dashboards/everwell_tony', { rotation: { steps: [{ id: 'x1', name: 'Upper', routineId: 'r1' }, { id: 'x2', name: 'Lower', routineId: 'r2' }], anchor: { date: '${today}', idx: 1 }, log: [] }, savedAt: Date.now() + 60 }, { merge: true }); return 1;`);
   recs['applock:tony_everwell_tab_fitness'] = 'fit';
   await js(`Guardian.refresh(['tony_everwell_tab_fitness'], true); return 1;`); await sleep(1200);
-  await c.send('Page.reload'); await sleep(2500); await tapIntro(); await js(`EWApp.go('dashboard'); return 1;`); await sleep(1200);
-  await js(`const r = EWDash.rotation(); if (r) { const s = r.steps[EWCore.stepIndex(r, EWDash.today())]; s.routineId = s.routineId || 'r2'; } document.querySelector('[data-act="toggle-routine"]') && document.querySelector('[data-act="toggle-routine"]').click(); return 1;`); await sleep(400);
+  await c.send('Page.reload'); await sleep(2500); await tapIntro(); await js(`EWApp.go('dashboard'); return 1;`); await sleep(1500);
+  await js(`document.querySelector('[data-act="toggle-routine"]').click(); return 1;`); await sleep(400);
   ok('a locked Fitness keeps its routine out of the Dashboard', /Fitness is locked/.test(await js(`return (document.querySelector('.split-routine') || {}).textContent || '';`)), await js(`return (document.querySelector('#dash-split') || {}).textContent;`));
   delete recs['applock:tony_everwell_tab_fitness'];
 
