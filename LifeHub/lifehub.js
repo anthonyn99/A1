@@ -13,7 +13,7 @@
  *
  *   <a1-lifehub></a1-lifehub>                         ← in the header, where the icon goes
  *   <script src="LifeHub/lifehub.js" defer
- *           data-lock="#applock-overlay"></script>    ← once, before </body>
+ *           data-lock="guardian"></script>    ← once, before </body>
  *
  *   data-lock          CSS selector for the program's existing lock screen, or
  *                      "guardian" when the program locks with Guardian.
