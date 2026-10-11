@@ -8766,6 +8766,82 @@ function App(){
     return()=>{clearInterval(iv);window.removeEventListener("fb-plans-update",onPlans);};
   },[setDataBg,setMgMonthlyBg]);
 
+  // ── Everwell workout — receive (A1-Priv/docs/Everwell/plan.md, Phase 5) ────
+  // Everwell's rotation (dashboards/everwell_tony, READ only) says which split
+  // falls on which local day. Today and the next 6 days each get ONE Health
+  // task tagged _ewId = "ew_workout_<date>", written by OUR own save (like the
+  // Plans mirror). Rules:
+  //   • only today and later are reconciled; past days are history, untouched;
+  //   • an existing item keeps its slot and its `done` (completion is
+  //     TaskHub's); only its title/category follow the rotation;
+  //   • a rest day, or a day the rotation no longer names, loses its item;
+  //   • nothing happens until our own doc has loaded AND the rotation is
+  //     known (undefined = not heard yet), and the reducer returns `prev`
+  //     when nothing changed, so a no-op never writes.
+  // It re-checks every minute, which also carries it across midnight and puts
+  // an item back if an undo removed it.
+  useEffect(()=>{
+    const pad=n=>String(n).padStart(2,"0");
+    const localKey=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+    const utc=k=>{const p=k.split("-");return Date.UTC(+p[0],+p[1]-1,+p[2]);};
+    const want=rot=>{
+      const out={};
+      if(!rot||!Array.isArray(rot.steps)||!rot.steps.length||!rot.anchor||!/^\d{4}-\d{2}-\d{2}$/.test(rot.anchor.date||""))return out;
+      const n=rot.steps.length, base=new Date();
+      for(let i=0;i<7;i++){
+        const d=new Date(base.getFullYear(),base.getMonth(),base.getDate()+i), dk=localKey(d);
+        const idx=((((parseInt(rot.anchor.idx,10)||0)+Math.round((utc(dk)-utc(rot.anchor.date))/86400000))%n)+n)%n;
+        const s=rot.steps[idx]||{};
+        if(s.rest)continue;
+        const name=String(s.name||"").trim()||"Workout";
+        out[dk]={id:"ew_workout_"+dk,_ewId:"ew_workout_"+dk,type:"task",title:"Workout: "+name,category:"health",done:false};
+      }
+      return out;
+    };
+    const sig=o=>JSON.stringify(Object.keys(o||{}).sort().map(k=>[k,(o[k]||[]).filter(t=>t&&t._ewId).map(t=>[t._ewId,t.title,t.category||""])]));
+    const apply=()=>{
+      if(!fbLoadedRef.current)return;
+      const rot=window._ewRotation;
+      if(rot===undefined)return;                       // not heard from Everwell yet
+      const items=want(rot), today=localKey(new Date());
+      setDataBg(prev=>{
+        const next={...prev};
+        const days={};
+        Object.keys(prev).forEach(dk=>{ if(dk>=today)days[dk]=1; });
+        Object.keys(items).forEach(dk=>{ days[dk]=1; });
+        Object.keys(days).forEach(dk=>{
+          const fresh=items[dk]||null; let placed=false; const out=[];
+          (prev[dk]||[]).forEach(t=>{
+            if(t&&t._ewId){
+              if(fresh&&!placed&&t._ewId===fresh._ewId){ placed=true; out.push({...t,title:fresh.title,category:fresh.category,type:"task"}); }
+              // otherwise: no longer this day's split (rest day / rotation change) → removed
+            } else out.push(t);
+          });
+          if(fresh&&!placed)out.push(fresh);
+          if(out.length)next[dk]=out; else delete next[dk];
+        });
+        return sig(prev)===sig(next)?prev:next;
+      });
+    };
+    const onRot=()=>apply();
+    window.addEventListener("fb-ew-rotation",onRot);
+    apply();
+    const iv=setInterval(apply,60000);
+    let tries=0;
+    const boot=setInterval(()=>{ if(fbLoadedRef.current){ clearInterval(boot); apply(); } else if(++tries>120) clearInterval(boot); },500);
+    return()=>{clearInterval(iv);clearInterval(boot);window.removeEventListener("fb-ew-rotation",onRot);};
+  },[setDataBg]);
+
+  // ── Everwell Prayer — its own row in Daily Habits (two-way) ─────────────────
+  // Stored in dashboards/everwell_prayer, never in habits/hc. See the Firebase layer.
+  const[ewPrayer,setEwPrayer]=useState(()=>window._ewPrayer||{});
+  useEffect(()=>{
+    const h=e=>setEwPrayer(Object.assign({},e.detail||{}));
+    window.addEventListener("fb-ew-prayer",h);
+    if(window._ewPrayer)setEwPrayer(Object.assign({},window._ewPrayer));
+    return()=>window.removeEventListener("fb-ew-prayer",h);
+  },[]);
+
   // ── Archive day-keys older than TH_ARCHIVE_YEARS ──────────────────────────
   // Runs once per device per day, 20s after load. Three safety gates, because
   // this is the one job here that removes data from the live doc:
