@@ -212,6 +212,9 @@ const mock = {
   ok('Display shows four sample tiles, no add form, no remove, no site links', await js(`return document.querySelectorAll('#focus-grid .media-tile').length === 4 && !document.getElementById('focus-add') && !document.querySelector('#focus-grid [data-rm], #focus-grid .media-meta a');`));
   await js(`document.querySelector('#focus-grid [data-play]').click(); return 1;`); await sleep(600);
   ok('a tap plays nothing and says why', await js(`return !document.querySelector('#focus-grid iframe, #focus-grid audio') && /Nothing plays here/.test(document.getElementById('ew-toast').textContent);`));
+  await js(`document.querySelector('#focus-grid [data-expand]').click(); return 1;`); await sleep(500);
+  ok('Display: the sample playlist expands to its sample videos, and collapses', await js(`return document.querySelectorAll('.media-group .media-tile').length === 3;`) &&
+    await js(`document.querySelector('[data-collapse]').click(); return !document.querySelector('.media-group');`));
   ok('Display touched no media host (no thumbnails, no player) and no Firebase', media.length === 0 && await js(`return typeof window.__fakeFs === 'undefined';`), media.join(' '));
 
   console.log('\nPage errors');
