@@ -208,7 +208,16 @@ async function capture(label) {
         sessionStorage.setItem('__fakefs_docs', JSON.stringify({ '${J.doc}': ${JSON.stringify(seedDoc())} })); 1`);
     }
     await c.send('Page.navigate', { url: BASE + 'index.html' });
-    await sleep(9000);   // babel compiles the TaskHubs in-page
+    // Babel compiles the TaskHubs in-page, and the profile boot then lands on
+    // the TaskHub (goTony/goVeda hide every other root). Opening the journal
+    // before that lands it underneath, so wait for the boot to finish: it fades
+    // the loader out once the dashboard has synced (or after 4s).
+    await sleep(3000);
+    for (let i = 0; i < 120; i++) {
+      if (await js(`var l=document.getElementById('th-boot-loader'); return !!window._profileGoTony && (!l || l.classList.contains('th-boot-hide'));`)) break;
+      await sleep(250);
+    }
+    await sleep(1000);
     await js(`var l=document.getElementById('th-boot-loader'); if(l) l.remove(); ${J.open}; 1`);
     await sleep(2500);
   }
