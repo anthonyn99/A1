@@ -336,6 +336,9 @@ const mock = {
   ok('"I have unbreakable faith" with its own check', await js(`const l = document.querySelector('.faith-line.mine'); return l.textContent.trim() === 'I have unbreakable faith' && !!l.querySelector('.ew-check');`));
   ok('the small caption "Yunara\'s title from League of Legends"; no R-card credit', await js(`const cap = document.querySelector('#dash-faith .faith-cap'); return !!cap && cap.textContent === "Yunara's title from League of Legends" && parseFloat(getComputedStyle(cap).fontSize) <= 12 && !document.querySelector('.rcard-credit');`));
   ok("Tony's profile pill shows his purple fleur-de-lis", await js(`const s = document.querySelector('#ew-profile-btn .ew-fleur path'); return !!s && s.getAttribute('fill') === '#c0aeea';`));
+  ok("…alone, in a circle the lock button's size, the mark bigger than before", await js(`const b = document.getElementById('ew-profile-btn'), r = b.getBoundingClientRect(), l = document.getElementById('ew-lock-btn').getBoundingClientRect(), f = b.querySelector('.ew-fleur').getBoundingClientRect();
+    return !b.textContent.trim() && Math.round(r.width) === Math.round(l.width) && Math.round(r.height) === Math.round(l.height) && getComputedStyle(b).borderRadius === '50%' && f.width >= 17 && /Tony/.test(b.getAttribute('aria-label'));`),
+    await js(`const b = document.getElementById('ew-profile-btn'); return JSON.stringify([b.getBoundingClientRect().width, document.getElementById('ew-lock-btn').getBoundingClientRect().width, getComputedStyle(b).borderRadius, b.querySelector('.ew-fleur').getBoundingClientRect().width]);`));
   ok('R card: icon from Data Dragon, "R  Transcend One\'s Self"', await js(`return /\\/cdn\\/16\\.99\\.1\\/img\\/spell\\/YunaraR\\.png$/.test(document.querySelector('.rcard-icon').src) && document.querySelector('.rcard-name').textContent === "Transcend One's Self";`));
   ok('"Yunara enters" and "her basic Abilities" struck through, new words beneath', await js(`const sw = [...document.querySelectorAll('#dash-rdesc .swap')];
     return sw.length === 2 && sw[0].querySelector('s').textContent === 'Yunara enters' && sw[0].querySelector('.new').textContent === 'I enter' &&
@@ -414,9 +417,9 @@ const mock = {
   ok('…and calls no worker', !net.some((u) => /^https:\/\/[^/]*\.workers\.dev\//.test(u)), net.filter((u) => /workers\.dev/.test(u)).join(' '));
   ok("the intro offers Tony's profile, not the Display one", await js(`return getComputedStyle(document.getElementById('ew-intro-tony')).display !== 'none' && getComputedStyle(document.getElementById('ew-intro-display')).display === 'none';`));
   await tapIntro();
-  ok('no Tony launcher, no lock button; the pill is Tony's (grey outline, uppercase), no icon, "Display" in a softer gold', await js(`const b = document.getElementById('ew-display-btn'), t = getComputedStyle(document.getElementById('ew-profile-btn')), s = getComputedStyle(b);
+  ok('no Tony launcher, no lock button; the pill has the same grey outline as Tony's, uppercase, no icon, "Display" in a softer gold', await js(`const b = document.getElementById('ew-display-btn'), t = getComputedStyle(document.getElementById('ew-profile-btn')), s = getComputedStyle(b);
     return !document.querySelector('a1-lifehub') && getComputedStyle(document.getElementById('ew-lock-btn')).display === 'none' &&
-    s.display !== 'none' && b.textContent === 'Display' && !b.querySelector('svg') && s.color === 'rgb(205, 182, 140)' && s.borderTopColor === t.borderTopColor && s.textTransform === 'uppercase' && s.height === t.height;`),
+    s.display !== 'none' && b.textContent === 'Display' && !b.querySelector('svg') && s.color === 'rgb(205, 182, 140)' && s.borderTopColor === t.borderTopColor && s.textTransform === 'uppercase';`),
     await js(`const s = getComputedStyle(document.getElementById('ew-display-btn')); return s.color + ' ' + s.borderTopColor + ' / ' + getComputedStyle(document.getElementById('ew-profile-btn')).borderTopColor;`));
   ok('no "demo data" chip under any tab (Tony, 2026-10-11)', await js(`return !document.querySelector('.ew-demo-note') && !/Display profile · demo data/.test(document.getElementById('ew-main').textContent);`));
   await js(`EWApp.go('fitness'); return 1;`); await sleep(400);
