@@ -1115,9 +1115,11 @@ window._bjSetPageMargins = function(m) {
 
 // ── UNIFIED SEARCH: title + full content + tags; multi-tag filter ──
 let bjTagFilters = [];
+// OurJournal has no tags: a shared entry's tags read as none.
+function _bjTags(e) { return _bjIsOJ() ? [] : (e.tags || []); }
 function _bjEntryText(e) {
   const d = e.data || {};
-  const parts = [e.title || '', (e.tags||[]).join(' ')];
+  const parts = [e.title || '', _bjTags(e).join(' ')];
   ['main','links','questions','topic','cues','notes','summary'].forEach(k => { if (d[k]) parts.push(d[k]); });
   if (d.html) parts.push(String(d.html).replace(/<[^>]*>/g, ' '));
   if (d.dates) Object.values(d.dates).forEach(dd => { if (dd && dd.html) parts.push(String(dd.html).replace(/<[^>]*>/g, ' ')); });
@@ -1140,7 +1142,7 @@ function _bjRenderTagChips(live) {
     const listEl = document.getElementById('bj-entries-list');
     listEl.parentNode.insertBefore(row, listEl);
   }
-  const all = [...new Set(live.reduce((a,e) => a.concat(e.tags||[]), []))].sort((a,b)=>a.localeCompare(b));
+  const all = [...new Set(live.reduce((a,e) => a.concat(_bjTags(e)), []))].sort((a,b)=>a.localeCompare(b));
   bjTagFilters = bjTagFilters.filter(t => all.includes(t));
   row.classList.toggle('on', all.length > 0);
   row.style.display = '';
@@ -1184,9 +1186,9 @@ function renderSidebar() {
   const entries = live.filter(e => {
     // Locked entries: search title/tags only (never their hidden content)
     const isLocked = window._bjGetLock && window._bjGetLock(e.id) && !(window._bjIsUnlocked && window._bjIsUnlocked(e.id));
-    const hay = isLocked ? ((e.title||'') + ' ' + (e.tags||[]).join(' ')).toLowerCase() : _bjEntryText(e);
+    const hay = isLocked ? ((e.title||'') + ' ' + _bjTags(e).join(' ')).toLowerCase() : _bjEntryText(e);
     return (!search || hay.includes(search)) &&
-           (bjTagFilters.length === 0 || bjTagFilters.every(t => (e.tags||[]).includes(t)));
+           (bjTagFilters.length === 0 || bjTagFilters.every(t => _bjTags(e).includes(t)));
   });
   list.innerHTML = '';
   if (entries.length === 0) {
@@ -1209,7 +1211,7 @@ function renderSidebar() {
       <div class="entry-item-meta">
         <span class="template-badge">${tmap[entry.template]||'NOTE'}</span>
         <span>${date}</span>
-        ${(entry.tags||[]).length ? `<span>· ${entry.tags.slice(0,2).join(', ')}${entry.tags.length > 2 ? '…' : ''}</span>` : ''}
+        ${_bjTags(entry).length ? `<span>· ${_bjTags(entry).slice(0,2).join(', ')}${_bjTags(entry).length > 2 ? '…' : ''}</span>` : ''}
         ${_bjIsOJ() && entry.creator && window.OJ ? `<span class="oj-by oj-by-${entry.creator}" title="Created by ${window.OJ.name(entry.creator)}">${window.OJ.name(entry.creator)}</span>` : ''}
       </div>
       <button class="entry-delete" data-id="${entry.id}" title="Move to Trash" aria-label="Move to Trash">${window.TNI.x}</button>
@@ -1291,7 +1293,7 @@ function showTemplate(name) {
   document.getElementById('bj-mml-area').style.display = name === 'mindmap-legacy' ? 'flex' : 'none';
   document.getElementById('bj-page-area').style.display = name === 'page' ? 'flex' : 'none';
   document.getElementById('bj-empty-state').style.display = name ? 'none' : 'flex';
-  document.getElementById('bj-tags-row').style.display = name ? 'flex' : 'none';
+  document.getElementById('bj-tags-row').style.display = name && !_bjIsOJ() ? 'flex' : 'none';
   // Page toolbar edit-mode sync
   const pt = document.getElementById('bj-page-toolbar');
   if (pt) { if (name === 'page' && isEditMode) pt.classList.add('edit-mode'); else pt.classList.remove('edit-mode'); }
@@ -3391,7 +3393,6 @@ window._bjOJ = { enter: _bjOJEnter, leave: _bjOJLeave, active: _bjIsOJ };
     editor: function() { return document.getElementById('bj-page-editor'); },
     pageOwned: function(id) { var e = _bjIsOJ() ? getActive() : null; return !!(e && e.id === id && e.template === 'page' && _bjDomOwner === id); },
     titleInput: function() { return document.getElementById('bj-entry-title-input'); },
-    renderTags: function(t) { if (_bjIsOJ()) renderTags(t); },
     setSync: function(st) { if (_bjIsOJ()) _bjSetSync(st); },
     rebind: function(ed) { ed.querySelectorAll('.pg-img-wrap').forEach(_pgBindImgWrap); },
     pageSetup: function() { if (window._docxApplyPageSetup) window._docxApplyPageSetup('bj'); }
@@ -3568,7 +3569,7 @@ function _bjOpenPrintBlob(htmlStr) {
 function exportEntryAsPDF(entry) {
   var title = entry.title || 'Untitled Entry';
   var date = new Date(entry.updated || entry.created).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
-  var tags = (entry.tags || []).length ? entry.tags.join(', ') : '';
+  var tags = _bjTags(entry).length ? _bjTags(entry).join(', ') : '';
 
   // The legacy mind map draws itself onto a 2D canvas, so its own bitmap is the
   // export — exactly as it was before the rebuild.

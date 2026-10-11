@@ -48,7 +48,7 @@ try { NS = localStorage.getItem('oj_ns') || 'ourjournal'; } catch (e) {}
 var PEOPLE = { tj: 'tony', bj: 'veda' };
 var NAMES = { tony: 'Tony', veda: 'Veda' };
 var TEMPLATES = ['page', 'mindmap', 'whiteboard'];   // the templates BOTH journals have
-var META = ['title', 'template', 'created', 'updated', 'tags', 'trashed', 'trashChangedAt', 'creator', 'ord'];
+var META = ['title', 'template', 'created', 'updated', 'trashed', 'trashChangedAt', 'creator', 'ord'];
 var CLIENT = Math.random().toString(36).slice(2, 9);
 var TRASH_TTL = 30 * 24 * 3600 * 1000;
 var UPDATED_GRAIN = 10 * 60 * 1000;
@@ -432,7 +432,6 @@ function metaProj(e) {
   var p = {};
   META.forEach(function (f) { if (e[f] !== undefined && e[f] !== null) p[f] = clone(e[f]); });
   if (!p.title) p.title = '';
-  if (!p.tags) p.tags = [];
   return p;
 }
 function cacheKey(app) { return 'oj_cache_' + app + (NS === 'ourjournal' ? '' : '_' + NS); }
@@ -501,7 +500,7 @@ function onIndex(a, snap) {
   });
   var byId = {}, dels = new Set(S.deletedIds || []);
   S.entries.forEach(function (e) { byId[e.id] = e; });
-  var ae = active(a), aTitle = ae && ae.title, aTags = ae && stable(ae.tags);
+  var ae = active(a), aTitle = ae && ae.title;
   Object.keys(metas).forEach(function (id) {
     if (dels.has(id) || a.dels[id]) return;
     var m = metas[id], e = byId[id];
@@ -538,10 +537,9 @@ function onIndex(a, snap) {
     S.activeId = nxt ? nxt.id : null;
     if (shown) a.h.reload();
   } else if (shown && now) {
-    // The open entry's title or tags changed on the other side.
+    // The open entry's title changed on the other side.
     var ti = a.h.titleInput && a.h.titleInput();
     if (now.title !== aTitle && ti && document.activeElement !== ti) ti.value = now.title || '';
-    if (stable(now.tags) !== aTags && a.h.renderTags) a.h.renderTags(now.tags || []);
   }
   if (shown) a.h.render();
   writeCache(a.app);
