@@ -107,7 +107,9 @@ for (const it of RULES.items) {
   if (it.origin !== undefined) ok(`${it.id}: origin '${it.origin}' is a known host`, !!ORIGINS[it.origin]);
 }
 // Every A1-Priv page loads the sweep, so an item for any of them just works.
-for (const page of fs.existsSync(M.PRIV) ? fs.readdirSync(M.PRIV).filter((f) => f.endsWith('.html')) : []) {
+// A forwarding stub (solace.html → Everwell) is not a program and runs nothing.
+const isStub = (page) => { const s = M.read(page); return s.length < 4000 && /location\.replace\('https:/.test(s); };
+for (const page of fs.existsSync(M.PRIV) ? fs.readdirSync(M.PRIV).filter((f) => f.endsWith('.html') && !isStub(f)) : []) {
   const prog = page.replace(/\.html$/, '');
   ok(`A1-Priv ${page} loads sweep.js as data-program="${prog}"`,
     new RegExp(`<script src="https://anthonyn99\\.github\\.io/A1/sweep\\.js" data-program="${prog}" defer></script>`).test(M.read(page)));
@@ -129,7 +131,7 @@ console.log('\nWiring');
 const browserPrograms = new Set(RULES.items.filter((i) => ['localStorage', 'firestore', 'indexeddb'].includes(i.store)).map((i) => i.program));
 for (const prog of browserPrograms) {
   // Root pages load sweep.js beside them; V1 pages (StudyOS) load ../sweep.js.
-  const page = fs.existsSync(path.join(ROOT, prog + '.html')) ? prog + '.html' : 'V1/' + prog + '.html';
+  const page = (fs.existsSync(path.join(ROOT, prog + '.html')) || M.isMoved(prog + '.html')) ? prog + '.html' : 'V1/' + prog + '.html';
   if (M.isMoved(page) && !M.has(page)) { M.skipNote(page); continue; }
   const html = M.isMoved(page) ? M.read(page) : fs.existsSync(path.join(ROOT, page)) ? read(page) : '';
   // A moved page loads it from A1's host by absolute URL.
