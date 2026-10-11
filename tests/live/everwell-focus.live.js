@@ -97,6 +97,18 @@ const mock = {
   await add('https://www.youtube.com/watch?v=abcdefghijk', 'Added while playing');
   ok('adding while one plays does not restart it (the player stays put)', await js(`return document.querySelectorAll('#focus-grid .media-tile').length === 6 && ${tile(2)}.querySelector('.t').textContent === 'Good' && !!${tile(2)}.querySelector('iframe');`));
   await js(`${tile(1)}.querySelector('[data-rm]').click(); return 1;`); await sleep(300);
+  ok('remove asks first, in the page (title, name, red Remove)', await js(`return document.getElementById('uim-overlay').classList.contains('show') && document.getElementById('uim-title').textContent === 'Remove video?' &&
+    /“Added while playing” leaves Focus on every device/.test(document.getElementById('uim-msg').textContent) && document.getElementById('uim-ok').textContent === 'Remove';`));
+  await js(`document.getElementById('uim-cancel').click(); return 1;`); await sleep(300);
+  ok('Cancel keeps it', await js(`return document.querySelectorAll('#focus-grid .media-tile').length === 6;`));
+  await js(`${tile(1)}.querySelector('[data-rm]').click(); return 1;`); await sleep(300);
+  await js(`const ov = document.getElementById('uim-overlay'); ov.dispatchEvent(new MouseEvent('click', { bubbles: true })); return 1;`); await sleep(300);
+  ok('a tap on the backdrop cancels too', await js(`return !document.getElementById('uim-overlay').classList.contains('show') && document.querySelectorAll('#focus-grid .media-tile').length === 6;`));
+  await js(`${tile(1)}.querySelector('[data-rm]').click(); return 1;`); await sleep(300);
+  await js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return 1;`); await sleep(300);
+  ok('Escape cancels', await js(`return !document.getElementById('uim-overlay').classList.contains('show') && document.querySelectorAll('#focus-grid .media-tile').length === 6;`));
+  await js(`${tile(1)}.querySelector('[data-rm]').click(); return 1;`); await sleep(300);
+  await js(`document.getElementById('uim-ok').click(); return 1;`); await sleep(400);
   ok('removing another tile while one plays leaves the player alone', await js(`return document.querySelectorAll('#focus-grid .media-tile').length === 5 && !!${tile(1)}.querySelector('iframe');`));
 
   console.log('\nFailures are shown');
