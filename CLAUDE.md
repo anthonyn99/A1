@@ -19,6 +19,12 @@
   at `C:\Users\antho\Desktop\ORCA` (Veda's repo, branch `accounts`), not in
   A1. Read §0 of `C:\Users\antho\Desktop\ORCA\docs\refine-plan.md`, build
   exactly the phase it names, then test, commit, push, deploy and rewrite §0.
+- **Everwell** ("continue Everwell", "next Everwell phase"): Tony's Mind,
+  Health, Faith program that replaces Solace. It lives in A1-Priv
+  (`everwell.html`). Read §0 of `C:\Users\antho\Desktop\A1-Priv\docs\Everwell\plan.md`,
+  build exactly the phase it names, then run the tests (A1-Priv `npm test` and A1
+  `node tests/live/everwell.live.js`) and rewrite §0. One phase per session.
+  Never write into TaskHub's documents from Everwell (plan §1).
 - **Notebook** (MyJournal, Brainstorm Journal, OurJournal, the DOCX editor):
   one program in `Notebook/`, embedded like LifeHub. index.html mounts both
   journals; TradeHub's Playbook is an instance. **All 7 phases are done
