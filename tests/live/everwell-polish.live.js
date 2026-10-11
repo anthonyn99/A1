@@ -33,7 +33,7 @@ const mock = {
     if (req.method === 'OPTIONS') return { status: 204, text: '' };
     const u = new URL(req.url), p = u.pathname;
     if (u.host === 'i.ytimg.com') return { status: 404, text: '' };
-    if (/.png$/.test(p)) return { text: '', type: 'image/png' };   // the R icon: an empty 200 (the mock sends text only)
+    if (/\.png$/.test(p)) return { text: '', type: 'image/png' };   // the R icon: an empty 200 (the mock sends text only)
     if (u.host === 'www.youtube-nocookie.com' || u.host === 'www.instagram.com') return { text: '<!doctype html><title>fake player</title>', type: 'text/html' };
     if (u.host === 'personal-ai.av1.workers.dev' && p === '/quote/daily')
       return { json: { ok: true, date: u.searchParams.get('date'), text: 'A long enough line of the day that wraps across a narrow phone screen without trouble.', via: 'orca' } };
