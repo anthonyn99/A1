@@ -17,8 +17,11 @@ const BASE = 'https://anthonyn99.github.io/A1/';
 const PAGE = BASE + 'everwell.html';
 const recs = {};
 const mock = {
-  patterns: ['https://taskhub-reminders.av1.workers.dev/*'],
+  // The players are faked (a quiet page): a made-up video id would make the
+  // real YouTube report an error, and the tile would rightly close it.
+  patterns: ['https://taskhub-reminders.av1.workers.dev/*', 'https://www.youtube-nocookie.com/*', 'https://www.instagram.com/*'],
   handle(req) {
+    if (!req.url.startsWith('https://taskhub-reminders.av1.workers.dev/')) return { text: '<!doctype html><title>fake player</title>', type: 'text/html' };
     if (req.method === 'OPTIONS') return { status: 204, text: '' };
     const p = new URL(req.url).pathname, b = req.postData ? JSON.parse(req.postData) : {};
     if (p === '/auth/journal/status-many') { const out = {}; (b.locks || []).forEach((l) => { const k = l.journal + ':' + l.entryId; out[k] = { hasLock: !!recs[k], ver: recs[k] ? 'v1' : null }; }); return { json: { ok: true, locks: out } }; }

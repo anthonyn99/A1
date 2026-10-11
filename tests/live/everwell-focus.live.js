@@ -101,7 +101,7 @@ const mock = {
 
   console.log('\nFailures are shown');
   await js(`${tile(2)}.querySelector('[data-play]').click(); return 1;`); await sleep(1800);
-  ok('embed-blocked (150): the player closes and the tile says so, with a link to YouTube', /^blocked\|.*only lets it play on YouTube.*Open on YouTube/.test(await msg(2)) && await js(`return !document.querySelector('#focus-grid iframe') && EWFocus.playing() === null;`), await msg(2));
+  ok('embed-blocked (150): the player closes and the tile says so, with a link to YouTube', /^blocked\|YouTube will not play this one here.*Open on YouTube/.test(await msg(2)) && await js(`return !document.querySelector('#focus-grid iframe') && EWFocus.playing() === null;`), await msg(2));
   await js(`${tile(3)}.querySelector('[data-play]').click(); return 1;`); await sleep(1800);
   ok('removed (100): "unavailable: removed or made private"', /^gone\|.*removed or made private/.test(await msg(3)), await msg(3));
   ok('…and the earlier message stays on its own tile', /^blocked/.test(await msg(2)));
