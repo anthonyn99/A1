@@ -379,7 +379,17 @@ const mock = {
   await sleep(500);
   ok('Dashboard: no sideways scroll; the week strip fits', await js(`const w = document.querySelector('.split-week').getBoundingClientRect(); return document.documentElement.scrollWidth <= innerWidth && w.right <= innerWidth;`));
   ok('…the two swaps still stack (new words under the old)', await js(`const s = document.querySelector('#dash-rdesc .swap'); return !s || s.querySelector('.new').getBoundingClientRect().top > s.querySelector('s').getBoundingClientRect().top;`));
+  // The tagline: shown whenever it fits, hidden only where it would hit the buttons.
+  const tagAt = async (w) => { await c.send('Emulation.setDeviceMetricsOverride', { width: w, height: 844, deviceScaleFactor: 3, mobile: true }); await sleep(500);
+    return js(`const t = document.querySelector('.ew-tagline'); if (getComputedStyle(t).display === 'none') return 'hidden';
+      const r = t.getBoundingClientRect(), next = document.querySelector('.ew-spacer').nextElementSibling; let x = innerWidth;
+      for (let e = next; e; e = e.nextElementSibling) if (e.offsetWidth) { x = e.getBoundingClientRect().left; break; }
+      return r.right + 4 <= x ? 'fits' : 'overlaps';`); };
+  ok('header tagline: shown on a wider phone (520px) without touching the buttons', (await tagAt(520)) === 'fits');
+  ok('…hidden at 360px, where it would run into them', (await tagAt(360)) === 'hidden');
   await c.send('Emulation.clearDeviceMetricsOverride');
+  await sleep(400);
+  ok('…and back on the desktop', (await js(`return getComputedStyle(document.querySelector('.ew-tagline')).display;`)) !== 'none');
 
   console.log('\nPhone (390px): Fitness + Nutrition');
   await c.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 3, mobile: true });
