@@ -52,7 +52,11 @@ const mock = {
     const u = new URL(req.url), p = u.pathname;
     if (u.origin !== SITE || p.startsWith('/A1/')) return null;
     if (p === '/profiles') return { text: gatePage(), type: 'text/html' };
-    if (p === '/') return { text: '<!DOCTYPE html><title>ORCA app</title><body>APP</body>', type: 'text/html' };
+    // The signed-in app: ORCA's real nav padlock and app.js (worker/src/web/html.ts layout).
+    if (p === '/') return { text: `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>ORCA app</title><link href="/static/app.css" rel="stylesheet"></head>
+<body data-profile="tony"><nav><span class="brand"><a class="brand-mark" href="/">ORCA</a><a class="prof-btn" href="/profiles"><span class="prof-name">Tony</span></a>
+<a class="lock-btn" href="/profiles?manage=1" title="Lock ORCA / manage password">LOCK</a></span></nav><main><h1 id="appmain">APP</h1></main>
+<script src="/static/app.js"></script></body></html>`, type: 'text/html' };
     if (p.startsWith('/static/')) {
       const f = path.join(ORCA, 'app', 'web', 'static', p.slice('/static/'.length));
       if (!fs.existsSync(f)) return { status: 404, text: '' };
@@ -152,6 +156,19 @@ const mock = {
   await gtype('Password', 't2'); await gclick('Unlock'); await sleep(600);
   ok('the new password opens it again', (await where()) === '/');
   S.manage = false;
+
+  console.log('\nThe app padlock opens the menu in place');
+  S.held.add('tony');
+  await c.send('Page.navigate', { url: SITE + '/' }); await sleep(1200);
+  await js(`document.querySelector('a.lock-btn').click(); return 1;`);
+  for (let i = 0; i < 20 && !(await dlg()).open; i++) await sleep(250);
+  d = await dlg();
+  ok('the menu rises over the app page, with no trip to the profile screen', d.open && (await where()) === '/' && !!(await js(`return !!document.getElementById('appmain');`)) && /Tony\u2019s ORCA/.test(d.text), JSON.stringify(d));
+  await gclick('Cancel');
+  ok('Cancel leaves you on the app page', !(await dlg()).open && (await where()) === '/');
+  await js(`document.querySelector('a.lock-btn').click(); return 1;`); await sleep(900);
+  await gclick('Lock this device now'); await sleep(900);
+  ok('Lock this device now clears the session and goes to the gate', !S.held.has('tony') && (await where()) === '/profiles');
 
   console.log('\nPhone');
   await c.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
