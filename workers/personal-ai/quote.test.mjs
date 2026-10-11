@@ -96,7 +96,7 @@ ok('…and the new line joins the recent list (capped at 30)', JSON.parse(store.
 
 console.log('\nThe health route advertises it');
 const h = await (await worker.fetch(new Request('https://personal-ai.av1.workers.dev/health'), ENV)).json();
-ok('/health: version 22, feature "quote", orcaKey true, no key material', h.version === 22 && h.features.includes('quote') && h.orcaKey === true && !JSON.stringify(h).includes('orca_sk_test'));
+ok('/health: version 23, features "quote" + "yt-playlist", orcaKey true, no key material', h.version === 23 && h.features.includes('quote') && h.features.includes('yt-playlist') && h.orcaKey === true && !JSON.stringify(h).includes('orca_sk_test'));
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
