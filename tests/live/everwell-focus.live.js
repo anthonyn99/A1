@@ -35,7 +35,7 @@ const mock = {
   handle(req) {
     const u = new URL(req.url);
     if (u.hostname !== 'taskhub-reminders.av1.workers.dev') {
-      media.push(req.url);
+      if (/^(www\.youtube-nocookie\.com|i\.ytimg\.com|audio\.test|example\.com|www\.instagram\.com)$/.test(u.hostname)) media.push(req.url);
       if (u.hostname === 'www.youtube-nocookie.com') { const id = u.pathname.split('/').pop(); return { text: player(CODES[id]), type: 'text/html' }; }
       if (u.pathname === '/rain.wav') return { text: WAV, type: 'audio/wav' };
       if (u.hostname === 'audio.test') return { status: 404, text: 'not found', type: 'text/plain' };
