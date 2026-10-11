@@ -11663,6 +11663,8 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     //                               own "Prayer" row in Tony's Daily Habits. A
     //                               tick in either app writes that one date
     //                               (merge); both listen. Never `habits` / `hc`.
+//                               Also `row` {after, at}: where TaskHub shows
+//                               that row among the habits (drag, TaskHub only).
     // Dates are the device's LOCAL calendar day (Everwell's standing rule).
     const ewRotRef = doc(db, 'dashboards/everwell_tony');
     const ewPrayRef = doc(db, 'dashboards/everwell_prayer');
@@ -11683,6 +11685,11 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       const d = snap.exists() ? (snap.data() || {}) : {};
       window._ewPrayer = Object.assign({}, d.done || {});
       window.dispatchEvent(new CustomEvent('fb-ew-prayer', { detail: window._ewPrayer }));
+      const row = d.row && typeof d.row === 'object' ? { after: typeof d.row.after === 'string' ? d.row.after : null, at: d.row.at | 0 } : null;
+      if (JSON.stringify(row) !== JSON.stringify(window._ewPrayerRow || null)) {
+        window._ewPrayerRow = row;
+        window.dispatchEvent(new CustomEvent('fb-ew-prayer-row', { detail: row }));
+      }
     }, (err) => { console.warn('[Everwell] prayer onSnapshot error:', err && err.code); });
     // One date, merged: a tick here never rewrites another day or another device's tick.
     window._fbEwPrayerSet = (dk, val) => {
@@ -11691,6 +11698,13 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       window.dispatchEvent(new CustomEvent('fb-ew-prayer', { detail: window._ewPrayer }));
       return _fbWriteRetry(() => setDoc(ewPrayRef, { done: { [dk]: !!val }, savedAt: Date.now(), by: 'taskhub' }, { merge: true }), 'Everwell prayer')
         .catch(e => { console.warn('[Everwell] prayer tick failed:', e && e.code); window.dispatchEvent(new CustomEvent('fb-ew-prayer-error')); });
+    };
+    // The Prayer row's place in Daily Habits: `row` {after, at}, merged beside the
+    // ticks (Everwell never writes `row`, and its own writes are merges too).
+    window._fbEwPrayerRowSet = (row) => {
+      window._ewPrayerRow = { after: row.after || null, at: row.at | 0 };
+      return _fbWriteRetry(() => setDoc(ewPrayRef, { row: window._ewPrayerRow, savedAt: Date.now(), by: 'taskhub' }, { merge: true }), 'Everwell prayer row')
+        .catch(e => { console.warn('[Everwell] prayer row place failed:', e && e.code); });
     };
 
     // ── Plans mirror ──────────────────────────────────────────────────────────
