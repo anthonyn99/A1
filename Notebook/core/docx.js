@@ -4328,7 +4328,14 @@ function addFadingScrollbar(ctx) {
   if (getComputedStyle(wrap).position === 'static') wrap.style.position = 'relative';
   var bar = document.createElement('div');
   bar.className = 'docx-scrollbar';
-  wrap.appendChild(bar);
+  // The thumb sits in a zero-height sticky holder at the top of the scroller, so
+  // the browser pins it while scrolling; only its offset inside the holder moves.
+  // (Absolute inside the scrolled content, it rode the scroll and was re-placed a
+  // frame late, which made it bounce.)
+  var holder = document.createElement('div');
+  holder.className = 'docx-scrollbar-holder';
+  holder.appendChild(bar);
+  wrap.insertBefore(holder, wrap.firstChild);
   var hideT = null, dragging = false, raf = null;
   function geom() {
     var sh = wrap.scrollHeight, ch = wrap.clientHeight;
@@ -4339,13 +4346,13 @@ function addFadingScrollbar(ctx) {
     var top = (sh - ch) ? (wrap.scrollTop / (sh - ch)) * maxTop : 0;
     return { thumbH: thumbH, top: top, sh: sh, ch: ch, maxTop: maxTop };
   }
-  function place() { var g = geom(); if (!g) return; bar.style.height = g.thumbH + 'px'; bar.style.top = (wrap.scrollTop + g.top) + 'px'; }
+  function place() { var g = geom(); if (!g) return; bar.style.height = g.thumbH + 'px'; bar.style.top = g.top + 'px'; }
   function flash() { place(); bar.classList.add('on'); if (!dragging) { clearTimeout(hideT); hideT = setTimeout(function () { bar.classList.remove('on'); }, 1100); } }
   // Persist scroll position per open doc (item 12).
   var saveT = null;
   function saveScroll() { if (!ctx._docId) return; clearTimeout(saveT); saveT = setTimeout(function () { try { localStorage.setItem('docx_scroll_' + ctx.app + '_' + ctx._docId, String(wrap.scrollTop)); } catch (e) {} }, 350); }
   // Show ONLY on scroll or drag (rAF-throttled → no jitter); typing never flashes it.
-  wrap.addEventListener('scroll', function () { saveScroll(); if (raf) return; raf = requestAnimationFrame(function () { raf = null; flash(); }); }, { passive: true });
+  wrap.addEventListener('scroll', function () { saveScroll(); flash(); }, { passive: true });
   window.addEventListener('resize', place);
   try { new MutationObserver(function () { if (bar.classList.contains('on') || dragging) place(); }).observe(ctx.edEl, { childList: true, subtree: true, characterData: true }); } catch (e) {}
   // Grab-and-drag the bar to scroll.
