@@ -175,9 +175,10 @@ for (const it of RULES.items.filter((i) => i.program === 'trading-auto-launch'))
 }
 
 // ── Behaviour: the shipped sweep.js ───────────────────────────────────────
-function boot({ rules = RULES, storage = true, adapter, seed = {}, program = 'index', idb, cloud, full = false } = {}) {
+function boot({ rules = RULES, storage = true, adapter, seed = {}, program = 'index', idb, cloud, full = false,
+  url = 'https://example.test/A1/index.html' } = {}) {
   const dom = new JSDOM('<!doctype html><html><body></body></html>', {
-    url: 'https://example.test/A1/index.html',
+    url,
     runScripts: 'outside-only',
     beforeParse(w) {
       if (!storage) Object.defineProperty(w, 'localStorage', { get() { throw new Error('SecurityError'); } });
@@ -348,6 +349,26 @@ const clone = () => JSON.parse(JSON.stringify(RULES));
     const w6 = boot({ program: 'index', idb: mk(true).a });
     const rep6 = await w6.A1Sweep.run();
     ok("another program's page never runs StudyOS's item", !rep6.deleted.some((x) => /IndexedDB/.test(x)));
+  }
+
+  // Origins: A1 and A1-Priv keep separate localStorage, so an item with an
+  // "origin" runs on that host only.
+  {
+    const ro = clone();
+    ro.items.push({ id: 'only-a1', store: 'localStorage', program: 'index', origin: 'a1', category: 'unused',
+      capDays: 0, exact: ['dead_here'], owner: 't', reason: 't', delete: true, approved: 'test fixture only' });
+    const wa = boot({ rules: ro, seed: { dead_here: '1' }, url: 'https://anthonyn99.github.io/A1/index.html' });
+    await wa.A1Sweep.run();
+    ok('an origin:"a1" item runs on anthonyn99.github.io', wa.localStorage.getItem('dead_here') === null);
+    const wp = boot({ rules: ro, seed: { dead_here: '1' }, url: 'https://a1-priv.av1.workers.dev/index.html' });
+    const repP = await wp.A1Sweep.run();
+    ok('and never on a1-priv, where the key may be live', wp.localStorage.getItem('dead_here') === '1' && !repP.error, repP.error);
+    const ru = clone(); ru.items[0].origin = 'elsewhere';
+    ok('an unknown origin fails closed', (await boot({ rules: ru }).A1Sweep.run()).error);
+    const wd = boot({ seed: { tb_quick_prompt: '1' }, url: 'https://anthonyn99.github.io/A1/index.html' });
+    const repD = await wd.A1Sweep.run();
+    ok('moved-programs-old-origin ships as a dry run', wd.localStorage.getItem('tb_quick_prompt') === '1' &&
+      repD.wouldDelete.some((x) => x === 'moved-programs-old-origin: localStorage tb_quick_prompt'), repD.wouldDelete);
   }
 
   console.log(`\n  ${pass} passed, ${fail} failed`);
