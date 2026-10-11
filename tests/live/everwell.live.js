@@ -417,7 +417,7 @@ const mock = {
   ok('…and calls no worker', !net.some((u) => /^https:\/\/[^/]*\.workers\.dev\//.test(u)), net.filter((u) => /workers\.dev/.test(u)).join(' '));
   ok("the intro offers Tony's profile, not the Display one", await js(`return getComputedStyle(document.getElementById('ew-intro-tony')).display !== 'none' && getComputedStyle(document.getElementById('ew-intro-display')).display === 'none';`));
   await tapIntro();
-  ok('no Tony launcher, no lock button; the pill has the same grey outline as Tony's, uppercase, no icon, "Display" in a softer gold', await js(`const b = document.getElementById('ew-display-btn'), t = getComputedStyle(document.getElementById('ew-profile-btn')), s = getComputedStyle(b);
+  ok("no Tony launcher, no lock button; the pill has the same grey outline as Tony's, uppercase, no icon, Display in a softer gold", await js(`const b = document.getElementById('ew-display-btn'), t = getComputedStyle(document.getElementById('ew-profile-btn')), s = getComputedStyle(b);
     return !document.querySelector('a1-lifehub') && getComputedStyle(document.getElementById('ew-lock-btn')).display === 'none' &&
     s.display !== 'none' && b.textContent === 'Display' && !b.querySelector('svg') && s.color === 'rgb(205, 182, 140)' && s.borderTopColor === t.borderTopColor && s.textTransform === 'uppercase';`),
     await js(`const s = getComputedStyle(document.getElementById('ew-display-btn')); return s.color + ' ' + s.borderTopColor + ' / ' + getComputedStyle(document.getElementById('ew-profile-btn')).borderTopColor;`));
