@@ -101,6 +101,14 @@ const OFFENDERS = `(() => {
   return JSON.stringify(out);
 })()`;
 
+// Visible buttons, links, inputs and selects with no accessible name.
+const NAMELESS = `JSON.stringify([...document.querySelectorAll('#ew-head button, #ew-head a, #ew-tabs button, #ew-main button, #ew-main a[href], #ew-main input:not([type=hidden]), #ew-main select, #ew-main textarea')].filter(e => {
+  if (!e.offsetWidth || !e.offsetHeight) return false;
+  const lab = e.labels && e.labels.length ? [...e.labels].map(l => l.textContent).join('') : '';
+  const by = e.getAttribute('aria-labelledby'); const byText = by ? by.split(/\s+/).map(i => (document.getElementById(i) || {}).textContent || '').join('') : '';
+  return !((e.getAttribute('aria-label') || '') + (e.getAttribute('title') || '') + lab + byText + (e.textContent || '') + (e.getAttribute('placeholder') || '') + (e.querySelector('img[alt]:not([alt=""])') ? 'img' : '')).trim();
+}).map(e => e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + (typeof e.className === 'string' && e.className ? '.' + e.className.trim().split(/\s+/)[0] : '') + (e.dataset.act ? '[' + e.dataset.act + ']' : '')))`;
+
 (async () => {
   const c = await connect({ mock: firebaseMock(mock) });
   await c.send('Page.enable'); await c.send('Runtime.enable'); await c.send('Network.enable'); await c.send('Log.enable');
@@ -151,6 +159,10 @@ const OFFENDERS = `(() => {
         await js(`EWApp.go('${t}'); return 1;`); await sleep(t === 'nutrition' || t === 'fitness' ? 1400 : 900);
         const o = await offenders(), shown = await js(`const b = document.getElementById('ew-body-${t}'); return !!b && b.dataset.state === 'open' && b.children.length > 0;`);
         ok(`${who} ${w}px ${t}: rendered, nothing past the edge`, shown && o.length === 0, shown ? show(o) : 'not rendered');
+        if (w === 360) {
+          const nameless = JSON.parse(await js(`return ${NAMELESS};`));
+          ok(`${who} ${t}: every visible control has a name (screen readers)`, nameless.length === 0, nameless.join(' | '));
+        }
       }
       for (const [tab, label, open] of DIALOGS) {
         await js(`EWApp.go('${tab}'); return 1;`); await sleep(900);
