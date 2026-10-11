@@ -254,7 +254,6 @@ const mock = {
   await js(`document.querySelector('[data-today="2"]').click(); return 1;`); await sleep(1500);
   ok("a tap changes today's split (Legs), and tomorrow follows from it", (await js(`return document.getElementById('dash-split-name').textContent + '|' + [...document.querySelectorAll('.split-day .nm')].slice(0, 3).map(e => e.textContent).join();`)) === 'Legs|Legs,Push,Pull');
   ok('…saved as a new anchor (today, Legs) with a log entry', await js(`const r = __fakeFs.docs['dashboards/everwell_tony'].rotation; return r.anchor.date === '${today}' && r.anchor.idx === 2 && r.log.length === 1 && r.log[0].date === '${today}';`));
-  ok('…written per field (the tab order is not touched)', await js(`return __fakeFs.log.filter(l => l.path === 'dashboards/everwell_tony').every(l => l.op !== 'set' || (l.opts && l.opts.merge) || l.merge || true);`));
 
   // Edit rotation: add a rest day, link today's step to a routine.
   await js(`document.querySelector('[data-act="edit-rot"]').click(); return 1;`); await sleep(400);
@@ -288,9 +287,6 @@ const mock = {
 
   // If Riot ever rewords the ability, the official text is shown untouched.
   await js(`localStorage.setItem('ew.tony.riot.yunara', JSON.stringify({ at: Date.now(), data: { ver: '16.99.1', title: 'the Unbroken Faith', live: true, r: { name: "Transcend One's Self", desc: 'Yunara ascends and empowers her spells.', img: 'YunaraR.png' } } })); return 1;`);
-  await js(`EWApp.go('goals'); EWApp.go('dashboard'); return 1;`); await sleep(400);
-  await js(`EWApp.go('fitness'); return 1;`); await sleep(200);
-  ok('a reworded official text is shown untouched (no made-up strike-through)', true);   // pane is re-rendered only on lock/unlock; checked below via a reload
   await c.send('Page.reload'); await sleep(2200); await tapIntro(); await js(`EWApp.go('dashboard'); return 1;`); await sleep(800);
   ok('…after a reload: no swap, the official words as Riot wrote them', await js(`return document.querySelectorAll('#dash-rdesc .swap').length === 0 && document.getElementById('dash-rdesc').textContent === 'Yunara ascends and empowers her spells.';`));
   await js(`localStorage.removeItem('ew.tony.riot.yunara'); return 1;`);
