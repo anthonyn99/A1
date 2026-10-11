@@ -3281,10 +3281,12 @@ async function handleQuote(url, env) {
 // No API key: the public playlist page (ytInitialData) gives the first 100,
 // then YouTube's own browse continuation gives 100 a page, up to YT_MAX.
 // Videos are "lockupViewModel" entries since 2025 ("playlistVideoRenderer"
-// before; both are read). Answers sit in the edge cache for an hour; nothing
+// before; both are read). Answers sit in the edge cache for 10 minutes (Everwell
+// re-syncs expanded playlists, so a change on YouTube shows soon); nothing
 // goes to KV (its writes are the daily limit). Mixes (RD…) and private lists
 // have no playlist page: { ok: false, error: 'unavailable' }.
 const YT_MAX = 500;
+const YT_CACHE_S = 600;
 const YT_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
 export function ytInitialData(h) {
   const tag = 'var ytInitialData = ', i = h.indexOf(tag); if (i < 0) return null;
@@ -3340,7 +3342,7 @@ async function handleYtPlaylist(url, ctx) {
   }
   const seen = new Set(), videos = out.videos.filter((v) => !seen.has(v.id) && seen.add(v.id)).slice(0, YT_MAX);
   const body = JSON.stringify({ ok: true, list, title: String((md && md.title) || '').slice(0, 120), videos, more: !!out.next || out.videos.length > YT_MAX });
-  if (ctx) ctx.waitUntil(cache.put(ckey, new Response(body, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=3600' } })));
+  if (ctx) ctx.waitUntil(cache.put(ckey, new Response(body, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=' + YT_CACHE_S } })));
   return new Response(body, { headers: { 'Content-Type': 'application/json', ...cors() } });
 }
 
@@ -3354,7 +3356,7 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 23, // bump when verifying a deploy went live
+        version: 24, // bump when verifying a deploy went live
         features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search', 'quote', 'yt-playlist'],
         quoteModels: { orca: QUOTE_ORCA_MODELS, gemini: QUOTE_GEMINI_MODELS },
         orcaKey: !!env.TONY_ORCA_KEY,
