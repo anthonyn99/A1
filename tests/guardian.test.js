@@ -406,6 +406,36 @@ function page(W, opts) {
     ok('and resolves too', (await gb) === true);
   }
 
+  console.log('\n12d. every password field on every screen has a show/hide eye');
+  {
+    const W = fakeWorker(); W.set('applock:tony_e', 'pw');
+    const P = page(W);
+    P.G.define('tony_e', {}); await P.G.refresh(null, true);
+    const screens = {
+      unlock: () => P.G.gate('tony_e'),
+      change: () => P.G.changePassword('tony_e'),
+      remove: () => P.G.removeLock('tony_e'),
+      set: () => { P.G.define('tony_new', {}); return P.G.setLock('tony_new'); },
+    };
+    for (const [name, openIt] of Object.entries(screens)) {
+      openIt(); await tick(20);
+      const pws = P.all('input').filter((i) => i.type === 'password');
+      const eyes = P.all('.pw .eye');
+      ok(name + ': ' + pws.length + ' password field(s), each with an eye', pws.length > 0 && pws.every((i) => i.parentNode.querySelector('.eye')), pws.length + '/' + eyes.length);
+      const i = pws[0]; i.value = 'secret';
+      i.parentNode.querySelector('.eye').click();
+      ok(name + ': the eye shows the text, keeps it, and says so', i.type === 'text' && i.value === 'secret' && i.parentNode.querySelector('.eye').getAttribute('aria-pressed') === 'true');
+      i.parentNode.querySelector('.eye').click();
+      ok(name + ': and hides it again', i.type === 'password');
+      P.G.close(); await tick(5);
+    }
+    // the reset-code screen
+    P.G.gate('tony_e'); await tick(20); P.click('Reset password'); await tick(5); P.click('Email me a code'); await tick(30);
+    const rp = P.all('input').filter((i) => i.type === 'password');
+    ok('reset: both new-password fields have an eye', rp.length === 2 && rp.every((i) => i.parentNode.querySelector('.eye')), rp.length);
+    P.G.close();
+  }
+
   console.log('\n13. bio-only (Plans consent)');
   {
     const W = fakeWorker();
