@@ -245,6 +245,21 @@ const mock = {
   ok('unlocking loads it again from the server', await js(`return EWFitness.state().loaded && EWFitness.state().circuits === 3;`), await js(`return JSON.stringify(EWFitness.state());`));
   delete recs['applock:tony_everwell_tab_fitness'];
 
+  /* ── Phase 5: Prayer (its own habit, shared with TaskHub) ── */
+  console.log('\nPrayer');
+  await js(`EWApp.go('prayer'); return 1;`); await sleep(1200);
+  const pToday = await js(`return EWCore.dateKey();`);
+  ok('Prayer opens unticked for today, with a Mon–Sun week', await js(`return EWPrayer.state().loaded && document.getElementById('pray-big').textContent === 'Not yet today' && document.querySelectorAll('.pray-week .pray-day').length === 7;`));
+  ok('future days cannot be ticked', await js(`const t = '${pToday}'; return [...document.querySelectorAll('.pray-day')].every(b => (b.dataset.pray > t) === b.disabled);`));
+  await js(`document.getElementById('pray-btn').click(); return 1;`); await sleep(1500);
+  ok("marking it writes today's LOCAL date to dashboards/everwell_prayer", await js(`const d = __fakeFs.docs['dashboards/everwell_prayer']; return !!d && d.done['${pToday}'] === true && d.by === 'everwell';`),
+    await js(`return JSON.stringify(__fakeFs.docs['dashboards/everwell_prayer']);`));
+  ok('…and shows "Prayed today", the button now undoes', await js(`return document.getElementById('pray-big').textContent === 'Prayed today' && /undo/i.test(document.getElementById('pray-btn').textContent);`));
+  await js(`__fakeFs.remote('dashboards/everwell_prayer', { done: { '${pToday}': false, '2020-01-01': true }, savedAt: Date.now(), by: 'taskhub' }, { merge: true }); return 1;`); await sleep(1000);
+  ok('an untick from TaskHub shows here', await js(`return document.getElementById('pray-big').textContent === 'Not yet today' && !EWPrayer.state().done['${pToday}'];`));
+  ok('…and every tick is merged per date (older days kept)', await js(`return __fakeFs.docs['dashboards/everwell_prayer'].done['2020-01-01'] === true;`));
+  ok("Prayer never writes TaskHub's own doc", await js(`return !__fakeFs.log.some(l => l.path === 'dashboards/main');`));
+
   /* ── Phase 3: the Dashboard ── */
   console.log('\nDashboard: rotation');
   const today = await js(`return EWCore.dateKey();`);
