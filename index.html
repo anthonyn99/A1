@@ -4222,11 +4222,11 @@ window.THRL={
 
 /* ── Tires: top-down, the car body drawn in the gutter between the columns ── */
 .thts-tirebox{position:relative;display:grid;grid-template-columns:1fr 1fr;
-  gap:8px 74px;padding:6px 0;}
+  gap:8px 96px;padding:6px 0;}
 /* The car outline itself is a real SVG child (.thts-tire-car below), not a
    pseudo-element — it needs to swap shape between sedan and SUV, which
    content-less ::before/::after can't do. */
-.thts-tire-car{position:absolute;left:50%;top:2px;bottom:2px;width:56px;
+.thts-tire-car{position:absolute;left:50%;top:0;bottom:0;width:84px;
   transform:translateX(-50%);pointer-events:none;}
 .thts-tire-car svg{display:block;width:100%;height:100%;}
 .thts-tire{position:relative;background:var(--ts-s2);border:1px solid var(--ts-bd);
@@ -4237,7 +4237,9 @@ window.THRL={
   font-variant-numeric:tabular-nums;}
 .thts-tire.warn b{color:var(--ts-red);}
 .thts-tire em{font-style:normal;font-size:9px;font-weight:700;color:var(--ts-txm);margin-left:2px;}
-@media (max-width:400px){ .thts-tirebox{gap:8px 40px;} .thts-tirebox::before{width:30px;} }
+@media (max-width:400px){ .thts-tirebox{gap:8px 64px;} .thts-tire-car{width:58px;} }
+.thts-tire.old b{color:var(--ts-txm);}
+.thts-tirenote{grid-column:1/-1;text-align:center;font-size:10px;color:var(--ts-txm);margin-top:2px;}
 
 /* ── Charging history ── */
 .thts-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(84px,1fr));gap:7px;
@@ -4677,7 +4679,21 @@ function load(force,wake){
     });
   return inflight;
 }
+// An offline/asleep car reports no TPMS at all, which used to blank the Tires
+// section. Keep the last pressures it did report and show them marked stale.
+var LS_TIRES='thts_tires_v1';
+function keepTires(m){
+  try{
+    if(m&&m.tires){m.tiresAt=m.ts||Date.now();
+      localStorage.setItem(LS_TIRES,JSON.stringify({t:m.tires,w:m.tireWarn,at:m.tiresAt,u:m.units&&m.units.press}));}
+    else if(m){
+      var c=JSON.parse(localStorage.getItem(LS_TIRES));
+      if(c&&c.t&&c.u===(m.units&&m.units.press)){m.tires=c.t;m.tireWarn=c.w||{};m.tiresAt=c.at;m.tiresStale=true;}
+    }
+  }catch(e){}
+}
 function apply(m){
+  keepTires(m);
   inflight=null;
   S.data=m;S.at=Date.now();S.err=null;S.loading=false;S.waking=false;
   try{localStorage.setItem(LS_CACHE,JSON.stringify({at:S.at,m:m}));}catch(e){}
@@ -4879,39 +4895,45 @@ function roundedTaperPath(x,y,w,h,rTop,rBot){
     ' L'+(x+rBot)+' '+y2+' A'+rBot+' '+rBot+' 0 0 1 '+x+' '+(y2-rBot)+
     ' L'+x+' '+(y+rTop)+' A'+rTop+' '+rTop+' 0 0 1 '+(x+rTop)+' '+y+' Z';
 }
-function topViewSvg(sedan){
-  var b=sedan?{x:10,y:6,w:40,h:120,rTop:17,rBot:9}:{x:6,y:6,w:48,h:120,rTop:13,rBot:8};
-  // Glass is narrower than the body on purpose — it has to leave the side
-  // margins clear for the wheel marks below, or they'd render right under
-  // the glass panel and disappear into it (both are the same near-black).
-  var glass=sedan?{x:20,y:26,w:20,h:76,r:8}:{x:15,y:24,w:30,h:78,r:8};
-  var mirrors=sedan?[[5,29,5,9],[50,29,5,9]]:[[1,27,5,9],[54,27,5,9]];
-  var tail=sedan?{x:16,y:b.y+b.h-6,w:28,h:4}:{x:12,y:b.y+b.h-6,w:36,h:4};
-  // Axles placed off the car's real proportions rather than eyeballed insets:
-  // a Model 3 is 4694mm long on a 2875mm wheelbase, so the front axle sits
-  // ~18% back from the nose and the rear ~79% (slightly more rear overhang
-  // than front). The previous version hard-coded a 38px inset from each end,
-  // which worked out to a 27%-of-length wheelbase — that is why the rear
-  // wheels looked parked halfway up the car.
-  var ww=7,wh=18,wl=sedan?12:8,wr=sedan?(b.x+b.w-2-ww):(b.x+b.w-1-ww);
-  var axleF=b.y+b.h*0.18,axleR=b.y+b.h*0.79;
-  var wheels=[[wl,axleF-wh/2],[wr,axleF-wh/2],[wl,axleR-wh/2],[wr,axleR-wh/2]];
-  var uid='thtsTop';
+function topViewSvg(sedan,warn){
+  warn=warn||{};
+  var b=sedan?{x:11,y:6,w:38,h:120,rTop:18,rBot:10}:{x:8,y:6,w:44,h:120,rTop:15,rBot:9};
+  var cx=30,gl=sedan?{x:18,w:24}:{x:15,w:30};
+  // Wheels sit just proud of the body, as a real top-down render shows the
+  // tyre tread beside the fender. Axles at ~18% / ~79% of the length.
+  var ww=6,wh=19,axleF=b.y+b.h*0.18,axleR=b.y+b.h*0.79;
+  var lx=b.x-3,rx=b.x+b.w-ww+3;
+  var wheels=[['fl',lx,axleF],['fr',rx,axleF],['rl',lx,axleR],['rr',rx,axleR]];
+  var uid='thtsTop',gid='thtsTopG';
   return h('svg',{viewBox:'0 0 60 132',role:'img','aria-label':'Top-down vehicle outline'},
-    h('defs',{key:'d'},h('linearGradient',{id:uid,x1:'0',y1:'0',x2:'0',y2:'1'},
-      h('stop',{key:'a',offset:'0%',stopColor:'#4c5058'}),
-      h('stop',{key:'b',offset:'100%',stopColor:'#34373d'}))),
+    h('defs',{key:'d'},
+      h('linearGradient',{key:'a',id:uid,x1:'0',y1:'0',x2:'1',y2:'0'},
+        h('stop',{key:'a',offset:'0%',stopColor:'#3a3d44'}),
+        h('stop',{key:'b',offset:'50%',stopColor:'#565a63'}),
+        h('stop',{key:'c',offset:'100%',stopColor:'#3a3d44'})),
+      h('linearGradient',{key:'g',id:gid,x1:'0',y1:'0',x2:'0',y2:'1'},
+        h('stop',{key:'a',offset:'0%',stopColor:'#1b1e24'}),
+        h('stop',{key:'b',offset:'100%',stopColor:'#0c0e12'}))),
+    // Tyres first so the body overlaps their inner edge
+    wheels.map(function(w){return h('rect',{key:'t'+w[0],x:w[1],y:w[2]-wh/2,width:ww,height:wh,rx:2.6,
+      fill:'#0b0c0e',stroke:warn[w[0]]?'#d68a7c':'#6a6e78',strokeWidth:warn[w[0]]?1.4:.9});}),
     h('path',{key:'body',d:roundedTaperPath(b.x,b.y,b.w,b.h,b.rTop,b.rBot),
-      fill:'url(#'+uid+')',stroke:'#5c6069',strokeWidth:1.1}),
-    h('rect',{key:'g',x:glass.x,y:glass.y,width:glass.w,height:glass.h,rx:glass.r,fill:'#101216'}),
-    // Wheel marks paint LAST, on top of the glass — the glass panel is wide
-    // enough to reach under where the wheels sit, and drawing wheels first
-    // (as an earlier version did) let the glass paint straight over them.
-    wheels.map(function(p,i){return h('rect',{key:'wh'+i,x:p[0],y:p[1],width:ww,height:wh,rx:3,
-      fill:'#0e1013'});}),
-    mirrors.map(function(m,i){return h('rect',{key:'m'+i,x:m[0],y:m[1],width:m[2],height:m[3],
-      rx:2,fill:'#585c64'});}),
-    h('rect',{key:'tl',x:tail.x,y:tail.y,width:tail.w,height:tail.h,rx:2,fill:'#7a4a45'}));
+      fill:'url(#'+uid+')',stroke:'#6a6e78',strokeWidth:1}),
+    // hood crease + trunk line
+    h('path',{key:'hd',d:'M'+(cx-7)+' '+(b.y+16)+' Q'+cx+' '+(b.y+11)+' '+(cx+7)+' '+(b.y+16),
+      fill:'none',stroke:'#6f737d',strokeWidth:.7}),
+    // windshield, panoramic roof, rear glass as one continuous glass shape
+    h('path',{key:'gl',d:'M'+gl.x+' 34 Q'+cx+' 26 '+(gl.x+gl.w)+' 34 L'+(gl.x+gl.w-1)+' 92 Q'+cx+' 99 '+(gl.x+1)+' 92 Z',
+      fill:'url(#'+gid+')'}),
+    h('path',{key:'rf',d:'M'+(gl.x+3)+' 52 H'+(gl.x+gl.w-3)+' M'+(gl.x+3)+' 76 H'+(gl.x+gl.w-3),
+      stroke:'#2a2d34',strokeWidth:.8}),
+    // mirrors
+    h('rect',{key:'m0',x:b.x-5,y:36,width:6,height:8,rx:2.5,fill:'#5a5e68'}),
+    h('rect',{key:'m1',x:b.x+b.w-1,y:36,width:6,height:8,rx:2.5,fill:'#5a5e68'}),
+    // headlights + tail light bar
+    h('path',{key:'h0',d:'M'+(b.x+5)+' '+(b.y+7)+' L'+(b.x+13)+' '+(b.y+4),stroke:'#cfd3dc',strokeWidth:1.3,strokeLinecap:'round'}),
+    h('path',{key:'h1',d:'M'+(b.x+b.w-5)+' '+(b.y+7)+' L'+(b.x+b.w-13)+' '+(b.y+4),stroke:'#cfd3dc',strokeWidth:1.3,strokeLinecap:'round'}),
+    h('rect',{key:'tl',x:b.x+5,y:b.y+b.h-5,width:b.w-10,height:2.4,rx:1.2,fill:'#b0544b'}));
 }
 // ── Render helpers. Each returns null when the value is absent, so a section
 //    that knows nothing renders nothing — no "N/A" rows, no empty headings. ─
@@ -5336,7 +5358,7 @@ function Widget(props){
       .map(function(c){
         var val=d.tires[c[0]];
         if(val==null)return null;
-        return h('div',{key:c[0],className:'thts-tire'+(tw[c[0]]?' warn':'')},
+        return h('div',{key:c[0],className:'thts-tire'+(tw[c[0]]?' warn':'')+(d.tiresStale?' old':'')},
           h('div',{key:'k',className:'thts-k'},c[1]),
           h('b',{key:'v'},U.press==='bar'?n1(val):Math.round(val),
             h('em',{key:'u'},U.press)));
@@ -5346,7 +5368,9 @@ function Widget(props){
       // Model Y draws a boxier top-down outline here too — the car icon
       // updates everywhere the model does, not just in the hero.
       corners.unshift(h('div',{key:'car',className:'thts-tire-car'},
-        topViewSvg(!!(d.id&&d.id.sedan))));
+        topViewSvg(!!(d.id&&d.id.sedan),tw)));
+      if(d.tiresStale&&d.tiresAt)corners.push(h('div',{key:'note',className:'thts-tirenote'},
+        'Last reported '+ago(d.tiresAt)));
       tireBlock=h('div',{key:'tb',className:'thts-tirebox'},corners);
     }
   }
