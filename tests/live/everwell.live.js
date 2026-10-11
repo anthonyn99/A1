@@ -38,6 +38,7 @@ const mock = {
       return { json: { ok: true, locks: out } };
     }
     if (p === '/auth/journal/verify') { const r = recs[b.journal + ':' + b.entryId]; return { json: r ? { ok: r === b.password } : { ok: false, noLock: true } }; }
+    if (p === '/auth/journal/set-lock') { recs[b.journal + ':' + b.entryId] = b.password; return { json: { ok: true } }; }
     return { json: { ok: false } };
   },
 };
@@ -71,6 +72,7 @@ const mock = {
     reqs.length = 0;
     await c.send('Page.navigate', { url: PAGE }); await sleep(opts.wait || 2500);
   };
+  let d0;
   const tapIntro = async () => { await js(`document.getElementById('ew-intro-overlay').click(); return 1;`); await sleep(900); };
 
   /* ── Tony, no locks ── */
@@ -78,7 +80,7 @@ const mock = {
   Object.keys(recs).forEach((k) => delete recs[k]);
   await fresh();
   ok('the intro is up on launch, the app hidden', (await introUp()) && !(await appOn()));
-  ok('the intro reads Everwell / Mind, Health, Faith', await js(`return /Everwell/.test(document.querySelector('.ew-intro-word').textContent) && /Mind, Health, Faith/.test(document.querySelector('.ew-intro-sub').textContent);`));
+  ok('the intro reads Everwell / Mind. Health. Faith.', await js(`return /Everwell/.test(document.querySelector('.ew-intro-word').textContent) && document.querySelector('.ew-intro-sub').textContent === 'Mind. Health. Faith.';`));
   ok('the backdrop is animating the intro scene', await js(`const s = EWBackdrop.state(); return s.scene === 'intro' && s.running && s.frames > 5;`));
   ok('Tony loads Firebase (the fake)', reqs.some((u) => u.includes('/firebasejs/')));
   await tapIntro();
@@ -109,6 +111,23 @@ const mock = {
   ok("another device's order arrives live", (await js(`return EWApp.order().join();`)) === 'prayer,dashboard,fitness,nutrition,mindset,goals,focus');
   await js(`const t = document.getElementById('ew-tab-mindset'); t.focus(); t.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', altKey: true, shiftKey: true, bubbles: true })); return 1;`); await sleep(1200);
   ok('Alt+Shift+Left moves the focused tab (keyboard reorder)', (await js(`return EWApp.order().indexOf('mindset');`)) === 3);
+  ok('desktop tabs are slim (32px) and header controls 30px', await js(`return Math.round(document.getElementById('ew-tab-goals').getBoundingClientRect().height) === 32 && Math.round(document.getElementById('ew-lock-btn').getBoundingClientRect().height) === 30;`));
+
+  // The Everwell mark beside the wordmark returns to the intro.
+  await js(`document.getElementById('ew-intro-btn').click(); return 1;`); await sleep(500);
+  ok('the mark button brings back the intro (app hidden, intro scene)', (await introUp()) && !(await appOn()) && (await js(`return EWBackdrop.state().scene === 'intro';`)));
+  await tapIntro();
+  ok('…and continuing returns to the same tab', (await appOn()) && !(await introUp()) && (await js(`return EWApp.current();`)) === 'goals');
+
+  // Setting the app password from the header must not blank the page
+  // (2026-10-11: Guardian fires onBlock mid-flow, with the biometrics card up).
+  await js(`document.getElementById('ew-lock-btn').click(); return 1;`); await sleep(1000);
+  await js(`const s = ${sr}; [...s.querySelectorAll('input')].forEach(i => { i.value = /hint/i.test(i.placeholder) ? 'h' : 'newpw'; }); [...s.querySelectorAll('button')].find(b => /^Set password/.test(b.textContent.trim())).click(); return 1;`);
+  await sleep(1500);
+  ok('setting the password keeps the app on screen (card still up)', await appOn(), await js(`return JSON.stringify(Guardian.status('tony_everwell_standalone'));`));
+  d0 = await dlg(); if (d0.open) await gclick('Not now');
+  ok('…and after the last card closes', (await appOn()) && !(await dlg()).open);
+  delete recs['applock:tony_everwell_standalone'];
 
   /* ── Tab lock ── */
   console.log('\nTab lock');
@@ -172,7 +191,7 @@ const mock = {
   await tapIntro();
   ok('no sideways scroll on the page', await js(`return document.documentElement.scrollWidth <= innerWidth;`), await js(`return document.documentElement.scrollWidth + ' > ' + innerWidth;`));
   ok('the tab strip scrolls inside itself', await js(`const n = document.getElementById('ew-tabs'); return n.scrollWidth > n.clientWidth && getComputedStyle(n).overflowX === 'auto';`));
-  ok('tabs are at least 44px tall', await js(`return document.getElementById('ew-tab-dashboard').getBoundingClientRect().height >= 44;`));
+  ok('phone tabs are slim but tappable (36px)', await js(`return Math.round(document.getElementById('ew-tab-dashboard').getBoundingClientRect().height) === 36;`));
   a = await rect('#ew-tab-fitness'); b = await rect('#ew-tab-dashboard');
   await touch('touchStart', a.x, a.y); await sleep(450);
   for (let i = 1; i <= 12; i++) { await touch('touchMove', a.x + (b.x - b.w / 2 - a.x) * i / 12, a.y); await sleep(20); }
