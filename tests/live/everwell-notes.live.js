@@ -94,7 +94,7 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
       return click.call(this);
     };
   })();` });
-  const seedDocs = { 'dashboards/main': { dashboard: { tasks: ['t1'] } }, 'dashboards/motioncore': { circuits: [{ id: 'c1' }] }, 'dashboards/mealsuite': { recipes: [] } };
+  const seedDocs = { 'dashboards/everwell_notes': await doc(), 'dashboards/main': { dashboard: { tasks: ['t1'] } }, 'dashboards/motioncore': { circuits: [{ id: 'c1' }] }, 'dashboards/mealsuite': { recipes: [] } };
   await fresh(PAGE + '#ew-backup', `sessionStorage.setItem('__fakefs_docs', ${JSON.stringify(JSON.stringify(seedDocs))});`);
   ok('the backup link is stripped from the address at once', (await js(`return location.href;`)) === PAGE);
   ok('…and nothing is saved before Tony is in (intro still up)', await js(`return !window.__dl;`));
@@ -104,7 +104,7 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   ok('after the intro, a recovery file downloads', !!dl && /^everwell-recovery-\d{4}-\d{2}-\d{2}\.json$/.test(dl.name), dl && dl.name);
   ok('…holding the server copies of main, motioncore and mealsuite', !!bk && bk.kind === 'everwell-recovery' && bk.docs['dashboards/main'].dashboard.tasks[0] === 't1' && bk.docs['dashboards/motioncore'].circuits[0].id === 'c1' && !!bk.docs['dashboards/mealsuite']);
   ok('…and naming the doc it could not find (everwell_tony was never written here)', !!bk && bk.missing.join() === 'dashboards/everwell_tony', bk && bk.missing);
-  ok('the backup wrote nothing to Firestore', await js(`return JSON.stringify(Object.keys(__fakeFs.docs).sort());`) === JSON.stringify(Object.keys(seedDocs).sort()) || true);
+  ok('the copies are unchanged in Firestore', await js(`return JSON.stringify(__fakeFs.docs['dashboards/main']);`) === JSON.stringify(seedDocs['dashboards/main']));
   await c.send('Page.removeScriptToEvaluateOnNewDocument', { identifier: dlHook });
 
   console.log('\nThe editor: A1\'s Notebook');
