@@ -33,7 +33,7 @@ const CID = '17912345678901234', COLL = 'https://www.instagram.com/tony/saved/di
 // A short silent WAV (every byte ASCII; the mock sends text): 2 s (16448 bytes: every size byte stays ASCII), so a
 // "reel" ends quickly. A <video> plays an audio-only file and fires 'ended'.
 const le = (n, w) => { let s = ''; for (let i = 0; i < w; i++) s += String.fromCharCode((n >> (8 * i)) & 255); return s; };
-const WAV = 'RIFF' + le(36 + 16448, 4) + 'WAVEfmt ' + le(16, 4) + le(1, 2) + le(1, 2) + le(4112, 4) + le(8224, 4) + le(2, 2) + le(16, 2) + 'data' + le(4096, 4) + '\0'.repeat(4096);
+const WAV = 'RIFF' + le(36 + 16448, 4) + 'WAVEfmt ' + le(16, 4) + le(1, 2) + le(1, 2) + le(4112, 4) + le(8224, 4) + le(2, 2) + le(16, 2) + 'data' + le(16448, 4) + '\0'.repeat(16448);
 const svg = (t, w, h) => `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect width="100%" height="100%" fill="#456"/><text x="10" y="30" fill="#fff">${t}</text></svg>`;
 const net = [];   // every request to the worker's /ig, the CDN or Instagram
 const API = { fail: false, pages: [] };   // Instagram's collection API, faked
