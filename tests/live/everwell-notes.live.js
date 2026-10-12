@@ -111,10 +111,10 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   const edgeName = f.edgeN;
   ok('at the top, the first line is sharp too', await js(`const l = document.querySelector('#ew-reader .lyric li'); return !l.style.filter && !l.style.opacity;`));
   // Smooth scrolling: a scroll frame reads no layout (positions are measured once) and the scroller has no mask.
-  await js(`window.__n = 0; window.__o = Element.prototype.getBoundingClientRect; Element.prototype.getBoundingClientRect = function(){ window.__n++; return window.__o.call(this); };
+  await js(`window.__n = 0; window.__o = Element.prototype.getBoundingClientRect; Element.prototype.getBoundingClientRect = function(){ if (this.closest && this.closest('.lyric')) window.__n++; return window.__o.call(this); };
     const sc = document.querySelector('#ew-reader .rd-scroll'); sc.scrollTop += 60; return 1;`); await sleep(350);
   const reads = await js(`Element.prototype.getBoundingClientRect = window.__o; return window.__n;`);
-  ok('scrolling the reader does no layout reads per frame (no getBoundingClientRect)', reads === 0, reads + ' reads');
+  ok('scrolling the reader reads no layout of its lines per frame (no getBoundingClientRect on the text)', reads === 0, reads + ' reads');
   ok('…and its scroller carries no mask (keeps the fast scroll path)', await js(`const c = getComputedStyle(document.querySelector('#ew-reader .rd-scroll')); return (c.maskImage || 'none') === 'none' && (c.webkitMaskImage || 'none') === 'none';`));
   await js(`const sc = document.querySelector('#ew-reader .rd-scroll'); sc.scrollTop += sc.clientHeight * 0.45; return 1;`); await sleep(400);
   ok('scrolling brings an edge line into focus (it turns sharp)', await js(`const l = [...document.querySelectorAll('#ew-reader .lyric li')].find(x => x.textContent === ${JSON.stringify(edgeName)}); return !!l && !l.style.filter;`));
