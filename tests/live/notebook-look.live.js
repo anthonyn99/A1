@@ -7,7 +7,7 @@
 //   - under the cursor (:hover forced): background, border, colour, glow
 //   - a real mouse over Bold, then a press: hoverfx's lift and sink
 // Only what a host's mount config turns off may be missing (locks: the Lock
-// button). A new host goes in HOSTS below.
+// button); the sync pill's colour is its state (idle / synced), so it is left out. A new host goes in HOSTS below.
 //
 // Run: node tests/live/notebook-look.live.js
 'use strict';
@@ -61,11 +61,12 @@ function compare(a, b, allowMissing, opts) {
   for (const o of a) {
     const k = norm(o.p), i = seen.get(k) || 0; seen.set(k, i + 1);
     const x = (mb.get(k) || [])[i];
-    if (!x) { if (!allowMissing.some((re) => re.test(o.p))) diffs.push('missing ' + o.p); continue; }
+    if (allowMissing.some((re) => re.test(o.p))) continue;   // a host may hide or drop it
+    if (!x) { diffs.push('missing ' + o.p); continue; }
     const d = [];
     const shown = o.st.display !== 'none' && (o.box[2] || o.box[3]);   // a closed menu's options measure 0x0 off-screen
     if (shown && box(o) !== box(x)) d.push('box ' + o.box + ' -> ' + x.box);
-    for (const p in o.st) if (o.st[p] !== x.st[p] && !(p === 'width' && opts.flex && opts.flex.test(o.p)) && !(allowMissing.some((re) => re.test(o.p)))) d.push(p + ': ' + o.st[p] + ' -> ' + x.st[p]);
+    for (const p in o.st) if (o.st[p] !== x.st[p] && !(p === 'width' && opts.flex && opts.flex.test(o.p))) d.push(p + ': ' + o.st[p] + ' -> ' + x.st[p]);
     if (d.length) diffs.push(o.p.slice(-90) + ' { ' + d.join('; ') + ' }');
   }
   for (const [k, arr] of mb) arr.slice(seen.get(k) || 0).forEach((o) => diffs.push('extra ' + o.p));
@@ -170,7 +171,7 @@ const HOSTS = [
     const got = await take(H.key);
     let d = compare(std.ribbon, got.ribbon, []);
     ok('its ribbon is MyJournal\'s: every button in the same place, the same size, the same look', d.length === 0, d.join('\n      '));
-    d = compare(std.bar, got.bar, H.missing, { sizeOnly: true, flex: /#K-entry-title-input$/ });
+    d = compare(std.bar, got.bar, H.missing.concat([/#K-sync-pill/]), { sizeOnly: true, flex: /#K-entry-title-input$/ });
     ok('its title bar is MyJournal\'s (less what its mount turns off)', d.length === 0, d.join('\n      '));
     const hm = new Map(); got.hover.forEach(([k, v]) => { if (!hm.has(k)) hm.set(k, []); hm.get(k).push(v); });
     const seen = new Map();
