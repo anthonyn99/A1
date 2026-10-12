@@ -3440,6 +3440,77 @@ async function handleYtPlaylist(url, ctx) {
   return new Response(body, { headers: { 'Content-Type': 'application/json', ...cors() } });
 }
 
+// ── Instagram post/reel media (Everwell's reel player, A1-Priv/everwell.html) ──
+// GET /ig/media?code=<shortcode> → { ok, code, user, caption, items: [{ type:
+// 'video'|'image', src, poster?, w, h, dur? }] }
+// No login: Instagram's public EMBED page (what an <iframe> of
+// /p/<code>/embed/captioned/ gets) carries the post as contextJSON ->
+// gql_data.shortcode_media for reels/videos/carousels, and as an
+// <img class="EmbeddedMediaImage"> for a plain photo. It only does so for a
+// request that looks like an iframe load (Sec-Fetch-Dest: iframe); a plain
+// GET gets an empty shell. The CDN files themselves answer CORP cross-origin
+// with ACAO *, so Everwell plays them in its own <video> (checked 2026-10-12).
+// The CDN links are signed and expire (oe=), so they are never stored: the
+// page asks again each time, and answers sit in the edge cache for IG_CACHE_S.
+// A private, deleted or unreadable post → { ok: false, error }, and the page
+// falls back to Instagram's own embed.
+const IG_CACHE_S = 1200;
+const IG_CDN = /^https:\/\/[a-z0-9.-]+\.(cdninstagram\.com|fbcdn\.net)\//;
+export function igContext(h) {
+  const m = String(h || '').match(/"contextJSON":("(?:[^"\\]|\\.)*")/); if (!m) return null;
+  try { const s = JSON.parse(m[1]); return s ? JSON.parse(s) : null; } catch (e) { return null; }
+}
+const igUnent = (s) => String(s || '').replace(/&amp;/g, '&').replace(/&#064;/g, '@').replace(/&quot;/g, '"').replace(/&#x2F;|&#47;/g, '/').replace(/&#039;|&#39;/g, "'");
+export function igMedia(h, code) {
+  const out = { code, user: '', caption: '', items: [] };
+  const c = igContext(h), sm = c && c.gql_data && c.gql_data.shortcode_media;
+  const cdn = (u) => (IG_CDN.test(u || '') ? u : '');
+  const one = (n) => {
+    if (!n) return null;
+    const d = n.dimensions || {}, w = Number(d.width) || 0, ht = Number(d.height) || 0;
+    if (n.is_video && cdn(n.video_url)) return { type: 'video', src: n.video_url, poster: cdn(n.display_url), w, h: ht, dur: Number(n.video_duration) || 0 };
+    if (cdn(n.display_url)) return { type: 'image', src: n.display_url, w, h: ht };
+    return null;
+  };
+  if (sm) {
+    out.user = String((sm.owner && sm.owner.username) || '').slice(0, 60);
+    const ce = sm.edge_media_to_caption && sm.edge_media_to_caption.edges, cn = ce && ce[0] && ce[0].node;
+    out.caption = String((cn && cn.text) || '').slice(0, 800);
+    const kids = sm.edge_sidecar_to_children && sm.edge_sidecar_to_children.edges;
+    out.items = (kids && kids.length ? kids.map((e) => e && e.node) : [sm]).map(one).filter(Boolean);
+  }
+  if (!out.items.length) {
+    // A plain photo: the embed draws it as EmbeddedMediaImage (srcset → largest).
+    const tag = (String(h || '').match(/<img[^>]*class="[^"]*EmbeddedMediaImage[^"]*"[^>]*>/) || [])[0] || '';
+    const set = (tag.match(/srcset="([^"]+)"/) || [])[1];
+    let best = '', bw = 0;
+    if (set) igUnent(set).split(/,\s*(?=https:)/).forEach((p) => { const m = p.trim().match(/^(\S+)\s+(\d+)w$/); if (m && +m[2] > bw && cdn(m[1])) { best = m[1]; bw = +m[2]; } });
+    const src = best || cdn(igUnent((tag.match(/src="([^"]+)"/) || [])[1]));
+    if (src) out.items.push({ type: 'image', src, w: bw || 0, h: 0 });
+    if (!out.user) out.user = ((igUnent(tag).match(/shared by @([A-Za-z0-9._]{1,30})/) || [])[1] || '');
+  }
+  return out;
+}
+async function handleIgMedia(url, ctx) {
+  const code = url.searchParams.get('code') || '';
+  if (!/^[A-Za-z0-9_-]{5,40}$/.test(code)) return json({ ok: false, error: 'bad code' }, 400);
+  const cache = caches.default, ckey = new Request('https://personal-ai.cache/ig/media?code=' + code);
+  const hit = await cache.match(ckey); if (hit) return new Response(hit.body, { headers: { 'Content-Type': 'application/json', ...cors() } });
+  let page;
+  try {
+    const r = await fetch('https://www.instagram.com/p/' + code + '/embed/captioned/', { headers: {
+      'User-Agent': YT_UA, Accept: 'text/html,application/xhtml+xml', 'Accept-Language': 'en-US,en;q=0.9',
+      'Sec-Fetch-Dest': 'iframe', 'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-Site': 'cross-site', Referer: 'https://a1-priv.av1.workers.dev/' } });
+    if (!r.ok) return json({ ok: false, error: r.status === 404 ? 'gone' : 'unavailable' });
+    page = await r.text();
+  } catch (e) { return json({ ok: false, error: 'unreachable' }); }
+  const m = igMedia(page, code);
+  if (!m.items.length) return json({ ok: false, error: 'unavailable' });
+  const body = JSON.stringify({ ok: true, ...m });
+  if (ctx) ctx.waitUntil(cache.put(ckey, new Response(body, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=' + IG_CACHE_S } })));
+  return new Response(body, { headers: { 'Content-Type': 'application/json', ...cors() } });
+}
+
 export default {
   async fetch(req, env, ctx) {
     if (req.method === 'OPTIONS') return new Response(null, { headers: cors() });
@@ -3450,8 +3521,8 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 25, // bump when verifying a deploy went live
-        features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search', 'quote', 'quote-buddhist', 'yt-playlist'],
+        version: 26, // bump when verifying a deploy went live
+        features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search', 'quote', 'quote-buddhist', 'yt-playlist', 'ig-media'],
         quoteModels: { orca: QUOTE_ORCA_MODELS, gemini: QUOTE_GEMINI_MODELS },
         orcaKey: !!env.TONY_ORCA_KEY,
         models: MODELS,
@@ -3475,6 +3546,7 @@ export default {
 
     if (req.method === 'GET' && path === '/quote/daily') return handleQuote(url, env);
     if (req.method === 'GET' && path === '/yt/playlist') return handleYtPlaylist(url, ctx);
+    if (req.method === 'GET' && path === '/ig/media') return handleIgMedia(url, ctx);
 
     if (req.method === 'POST') {
       let body;
