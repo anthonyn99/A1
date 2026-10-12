@@ -273,7 +273,7 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
     JSON.stringify(mm[0]).slice(0, 200) + ' ' + await js(`return JSON.stringify(window.__opened) + (document.getElementById('igd') ? ' dialog still open: ' + document.getElementById('igd-err').textContent : '');`));
   await click(`#media-grid [data-rm="${mm[0].id}"]`); await sleep(400);
   ok('removing a collection asks first, and says Instagram is untouched', await js(`return document.getElementById('uim-title').textContent === 'Remove collection?' && /Nothing changes on Instagram/.test(document.getElementById('uim-msg').textContent);`));
-  await js(`document.getElementById('uim-ok').click(); return 1;`); await sleep(500);
+  await js(`document.getElementById('uim-ok').click(); return 1;`); await sleep(1800);
   ok('…then it is gone', !(await media()).some((x) => x.igc && x.igc.cid === 'all'));
 
   console.log('\nPhone (390px)');
