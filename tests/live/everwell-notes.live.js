@@ -73,7 +73,7 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   await js(`EWApp.go('goals'); return 1;`); await sleep(900);
   ok('Goals shows Goals & Mindset on the reading stage: section heads, bullets and numbered steps', await js(`const h = document.getElementById('goals-notes'), n = h.querySelector('.lyric'); return h.classList.contains('rd-stage') && !!n && n.querySelectorAll('h2').length === 2 && n.querySelectorAll('ul li').length === 2 && n.querySelectorAll('ol li').length === 3;`));
   ok('…large type over a blurred, drifting field of colour (Apple Music lyrics)', await js(`const t = getComputedStyle(document.querySelector('#goals-notes .lyric')), bg = getComputedStyle(document.querySelector('#goals-notes .rd-bg'));
-    return parseFloat(t.fontSize) >= 22 && parseInt(t.fontWeight, 10) >= 700 && /blur\(/.test(bg.filter) && document.querySelectorAll('#goals-notes .rd-bg i').length === 4;`));
+    return parseFloat(t.fontSize) >= 22 && parseInt(t.fontWeight, 10) >= 700 && bg.filter.indexOf('blur(') >= 0 && document.querySelectorAll('#goals-notes .rd-bg i').length === 4;`));
   ok('numbered steps keep their numbers', await js(`const li = document.querySelector('#goals-notes .lyric ol li'); return getComputedStyle(li, '::before').content.indexOf('counter') >= 0;`));
   ok('the stage has its own Edit (Tony) and no Close', await js(`return !!document.querySelector('#goals-notes [data-rd="edit"]') && !document.querySelector('#goals-notes [data-rd="close"]');`));
   await js(`EWApp.go('mindset'); return 1;`); await sleep(900);
