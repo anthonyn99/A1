@@ -348,10 +348,10 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   await js(`EWRec.recBack(); return 1;`);
   await go('fitness'); await js(`document.getElementById('mc-nav-routines').click(); return 1;`); await sleep(300);
   await click('#mc-routines-list .routine-card .fx-name'); await sleep(600);
-  ok('the routine sheet: its split, exercises numbered across sections, sets and minutes added up', await js(`const s = document.getElementById('mc-sheet');
+  ok('the routine sheet: its split, exercises numbered across sections, sets added up (no minutes total)', await js(`const s = document.getElementById('mc-sheet');
     const nums = [...s.querySelectorAll('.sh-rt .routine-line')].map(l => getComputedStyle(l, '::before').content).join();
     const stats = [...s.querySelectorAll('.sh-stat')].map(x => x.textContent).join('|');
-    return nums === 'counter(ex),counter(ex),counter(ex),counter(ex),counter(ex)' && getComputedStyle(s.querySelector('.sh-rt')).counterReset === 'ex 0' && getComputedStyle(s.querySelector('.sh-rt .routine-group')).counterReset === 'none' && stats === '5Exercises|9Sets|20Minutes' && s.querySelectorAll('.sh-rt .routine-group').length === 4;`),
+    return nums === 'counter(ex),counter(ex),counter(ex),counter(ex),counter(ex)' && getComputedStyle(s.querySelector('.sh-rt')).counterReset === 'ex 0' && getComputedStyle(s.querySelector('.sh-rt .routine-group')).counterReset === 'none' && stats === '5Exercises|9Sets' && s.querySelectorAll('.sh-rt .routine-group').length === 4;`),
     await js(`const s = document.getElementById('mc-sheet'); return [...s.querySelectorAll('.sh-stat')].map(x => x.textContent).join('|') + ' / ' + [...s.querySelectorAll('.sh-rt .routine-line')].map(l => getComputedStyle(l, '::before').content).join();`));
   await click('#mc-sheet [data-act="sheet-close"]');
 
