@@ -142,7 +142,7 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   await js(`document.querySelector('.rd-dim').click(); return 1;`); await sleep(800);
   ok('a click on the dimmed page closes it too, dim and all', await js(`return !document.getElementById('ew-reader') && !document.querySelector('.rd-dim') && !document.documentElement.classList.contains('rd-lock');`));
   // Paging (Tony, 2026-10-12): the reader's left and right edges go to the previous / next card, in the board's order.
-  const edge = (side) => js(`const o = document.getElementById('ew-reader'), b = o.getBoundingClientRect(); o.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: side === 'r' ? b.right - 20 : b.left + 20, clientY: b.top + b.height / 2 })); return 1;`);
+  const edge = (side) => js(`const o = document.getElementById('ew-reader'), b = o.getBoundingClientRect(); o.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: '${side}' === 'r' ? b.right - 20 : b.left + 20, clientY: b.top + b.height / 2 })); return 1;`);
   const rdTitle = () => js(`return document.querySelector('#ew-reader [data-rd-title]').textContent;`);
   const board = await js(`return [...document.querySelectorAll('#wr-grid .wr-card')].map(c => c.querySelector('.wr-title').textContent).join('|');`);
   await js(`document.querySelector('#wr-grid .wr-card .wr-title').click(); return 1;`); await sleep(900);
