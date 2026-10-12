@@ -50,8 +50,7 @@
     '}',
     'html.vc-dragging,html.vc-dragging *{cursor:grabbing!important;user-select:none!important;-webkit-user-select:none!important}',
     '@media (prefers-reduced-motion:reduce){.vc-rail,.vc-thumb{transition:none!important}}',
-  ].join('
-');
+  ].join('\n');
 
   function injectStyles() {
     if (doc.getElementById('vc-styles') || doc.getElementById('a1sb-styles')) return;
