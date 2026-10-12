@@ -7,9 +7,15 @@
  * pointer nears its edge), fades out when idle, and can be dragged — mouse,
  * pen or finger. Track clicks page.
  *
- * Add it with one tag, anywhere in the page:
+ * Add it with one tag in <head>, so it is there before the page's own code:
  *   <script src="scrollbar.js"></script>
  * Opt a subtree out with `data-native-scroll`.
+ *
+ * Tony's side only. Veda's side of a two-profile page (body data-profile or
+ * data-th-profile = "veda") keeps the bars it always had: this file switches
+ * itself off there, live, and A1Scrollbar.active() says which is in force. A
+ * program's older bar (the journal editor's, Shield's, MAGI's, OneInbox's,
+ * ProView's) checks active() and stands down while this one is on.
  *
  * Vault itself keeps loading vault-controls.js (which carries the same code
  * plus its select/date/tooltip controls), so this file stands down when that
@@ -59,7 +65,17 @@
     if (doc.getElementById('vc-styles') || doc.getElementById('a1sb-styles')) return;
     var s = doc.createElement('style'); s.id = 'a1sb-styles'; s.textContent = CSS;
     (doc.head || root).appendChild(s);
-    root.classList.add('vc-on');
+    sync();
+  }
+  function veda() {
+    var b = doc.body;
+    return !!b && (b.getAttribute('data-profile') === 'veda' || b.getAttribute('data-th-profile') === 'veda');
+  }
+  function sync() {
+    var on = !veda();
+    if (root.classList.contains('vc-on') === on) return;
+    root.classList.toggle('vc-on', on);
+    if (!on) bars.forEach(function (b) { ['v', 'h'].forEach(function (a) { if (b[a]) b[a].rail.style.display = 'none'; }); });
   }
 
   function h(tag, cls, html) { var e = doc.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
@@ -103,10 +119,7 @@
     return t;
   }
   function canScroll(el, axis) {
-    if (!el || el.nodeType !== 1 || el.closest('[data-native-scroll]')) return false;
-    // A scroller that draws its own overlay bar (MAGI's [data-sbar], RiftIQ's
-    // ProView) keeps it; a second rail would sit on top of the first.
-    if (el.hasAttribute('data-sbar')) return false;
+    if (!el || el.nodeType !== 1 || !root.classList.contains('vc-on') || el.closest('[data-native-scroll]')) return false;
     var isDoc = el === (doc.scrollingElement || root);
     if (axis === 'v') {
       if (el.scrollHeight - el.clientHeight < 2) return false;
@@ -292,9 +305,14 @@
 
   function start() {
     injectStyles();
+    // The profile can change after load (Index and Shield switch it live).
+    if (doc.body) new MutationObserver(sync).observe(doc.body, { attributes: true, attributeFilter: ['data-profile', 'data-th-profile'] });
   }
   if (doc.head) injectStyles();
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', start); else start();
 
-  window.A1Scrollbar = { show: function (el) { show(barFor(el)); } };
+  window.A1Scrollbar = {
+    show: function (el) { show(barFor(el)); },
+    active: function () { return root.classList.contains('vc-on'); },
+  };
 })();
