@@ -143,8 +143,13 @@ const mock = {
     return t.classList.contains('filled') && !document.fullscreenElement && Math.round(r.left) === 0 && Math.round(r.top) === 0 && Math.round(r.width) === innerWidth && Math.round(r.height) === innerHeight &&
       document.elementFromPoint(innerWidth / 2, 10).closest('.media-tile') === t;`), await js(`const r = ${tile(1)}.querySelector('.media-frame').getBoundingClientRect(); return JSON.stringify(r) + ' ' + innerWidth + 'x' + innerHeight;`));
   ok('…the same iframe keeps playing (nothing reloaded)', await js(`return !!${tile(1)}.querySelector('iframe') && EWFocus.playing() !== null;`));
+  // A phone's Back swipe (Android, iOS) exits the fill, never the page (Tony, 2026-10-11).
+  ok('filling the window adds one history entry at the same address', await js(`return !!history.state && history.state.ewLayer === 1 && location.pathname.endsWith('/everwell.html') && !location.hash;`));
+  await js(`history.back(); return 1;`); await sleep(700);
+  ok('Back (the swipe) exits the fill and stays in Everwell, still playing', await js(`return !${tile(1)}.classList.contains('filled') && !document.documentElement.classList.contains('vp-lock') && /everwell\.html$/.test(location.pathname) && EWFocus.playing() !== null;`));
+  await js(`${tile(1)}.querySelector('[data-vp="fill"]').click(); return 1;`); await sleep(500);
   await js(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return 1;`); await sleep(400);
-  ok('Escape puts it back in its tile', await js(`return !${tile(1)}.classList.contains('filled') && !document.documentElement.classList.contains('vp-lock');`));
+  ok('Escape puts it back in its tile', await js(`return !history.state || !history.state.ewLayer;`) && await js(`return !${tile(1)}.classList.contains('filled') && !document.documentElement.classList.contains('vp-lock');`));
   await js(`${tile(1)}.querySelector('[data-vp-hit]').focus(); document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 't', bubbles: true })); return 1;`); await sleep(400);
   ok('T fills the window from the keyboard', await js(`return ${tile(1)}.classList.contains('filled');`));
   await js(`EWApp.go('goals'); return 1;`); await sleep(400);

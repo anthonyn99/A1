@@ -122,6 +122,9 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   ok('scrolled to the very end, the last line is sharp (nothing left to fade toward below)', await js(`const ls = document.querySelectorAll('#ew-reader .lyric li'); return !ls[ls.length - 1].style.filter;`));
   await js(`document.querySelector('#ew-reader [data-rd="close"]').click(); return 1;`); await sleep(800);
   ok('Close closes it', await js(`return !document.getElementById('ew-reader');`));
+  await js(`document.querySelector('.wr-card[data-wr="relationship-principles"] .wr-title').click(); return 1;`); await sleep(900);
+  await js(`history.back(); return 1;`); await sleep(900);
+  ok("a phone's Back swipe closes the reader and stays in Everwell", await js(`return !document.getElementById('ew-reader') && EWApp.current() === 'mindset' && /everwell\.html$/.test(location.pathname);`));
 
   console.log('\nNew cards (Notebook pages)');
   ok('New principle is a solid button in the header, not a blank card', await js(`const b = document.querySelector('#mind-writings .wr-head [data-wr-add]'); return !!b && b.classList.contains('btn') && b.classList.contains('solid') && b.textContent === '+ New principle' && !document.querySelector('#wr-grid [data-wr-add]');`));
