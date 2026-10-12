@@ -296,8 +296,9 @@ const mock = {
   ok('…with the AI unreachable, a Dhammapada verse stands in, with its source', await js(`const b = EWCore.localBuddhist('${pToday}'); return document.getElementById('pray-bq-text').textContent === b.text && document.getElementById('pray-bq-cite').textContent === b.cite && /^Dhammapada, verse \\d+$/.test(b.cite) && document.getElementById('pray-bq').dataset.source === 'local';`),
     await js(`return document.getElementById('pray-bq').textContent;`));
   console.log('\nPrayer: cards drag to reorder');
-  ok('the default order: the prayer, today, the Buddhist quote, the week', await js(`return [...document.querySelectorAll('#pray-grid > .pray-card')].map(e => e.dataset.card).join() === 'text,today,buddhist,week';`));
-  a = await rect('#pray-grid [data-card="week"] .panel-title'); b = await rect('#pray-grid [data-card="text"]');
+  ok('the default order: the Buddhist quote on top, then the prayer, today, the week', await js(`return [...document.querySelectorAll('#pray-grid > .pray-card')].map(e => e.dataset.card).join() === 'buddhist,text,today,week';`));
+  ok('…its source sits on the right of the card', await js(`return getComputedStyle(document.getElementById('pray-bq-cite')).textAlign === 'right';`));
+  a = await rect('#pray-grid [data-card="week"] .panel-title'); b = await rect('#pray-grid [data-card="buddhist"]');
   await mouse('mousePressed', a.x, a.y);
   for (let i = 1; i <= 16; i++) { await mouse('mouseMoved', a.x, a.y + (b.y - b.w * 0 - 40 - a.y) * i / 16); await sleep(16); }
   await sleep(200); await mouse('mouseReleased', a.x, b.y - 40); await sleep(1800);

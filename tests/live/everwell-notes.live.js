@@ -67,8 +67,8 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
 
   console.log('\nRead views');
   await js(`EWApp.go('prayer'); return 1;`); await sleep(900);
-  ok('Prayer shows the prayer first, typeset (bold first line, italic note), above Today', await js(`const n = document.querySelector('#pray-note .ew-doc'); const g = document.querySelector('.pray-grid');
-    return !!n && n.querySelector('strong').textContent === 'Test gratitude line' && !!n.querySelector('em') && g.firstElementChild.id === 'pray-note';`));
+  ok('Prayer shows the Buddhist quote, then the prayer, typeset (bold first line, italic note), above Today', await js(`const n = document.querySelector('#pray-note .ew-doc'); const g = document.querySelector('.pray-grid');
+    return !!n && n.querySelector('strong').textContent === 'Test gratitude line' && !!n.querySelector('em') && g.children[1].id === 'pray-note' && g.firstElementChild.id === 'pray-bq';`));
   ok('the prayer card can open in the reader too', await js(`return !!document.querySelector('#pray-note [data-note-read="prayer"]');`));
   await js(`EWApp.go('goals'); return 1;`); await sleep(900);
   ok('Goals shows Goals & Mindset on the reading stage: section heads, bullets and numbered steps', await js(`const h = document.getElementById('goals-notes'), n = h.querySelector('.lyric'); return h.classList.contains('rd-stage') && !!n && n.querySelectorAll('h2').length === 2 && n.querySelectorAll('ul li').length === 2 && n.querySelectorAll('ol li').length === 3;`));
