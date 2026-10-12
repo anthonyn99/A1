@@ -336,7 +336,11 @@ const mock = {
   ok('a tick in TaskHub shows here too', await js(`return document.getElementById('dash-wk-btn').getAttribute('aria-pressed') === 'true';`));
   ok("the workout tick never writes TaskHub's own doc", await js(`return !__fakeFs.log.some(l => l.path === 'dashboards/main');`));
 
+  ok('the workout pill sits top right of its card, on the title\'s row, compact (30px)', await js(`const b = document.getElementById('dash-wk-btn').getBoundingClientRect(), c = document.getElementById('dash-split').getBoundingClientRect(), t = document.querySelector('#dash-split .panel-title').getBoundingClientRect();
+    return Math.abs(b.right - (c.right - parseFloat(getComputedStyle(document.getElementById('dash-split')).paddingRight))) < 2 && b.top < t.bottom && b.bottom > t.top && Math.round(b.height) === 30;`));
   console.log('\nDashboard: today\'s prayer, in Faith');
+  ok('…and the prayer pill likewise, top right of Faith', await js(`const b = document.getElementById('dash-pray-state').getBoundingClientRect(), c = document.getElementById('dash-faith').getBoundingClientRect(), t = document.querySelector('#dash-faith .panel-title').getBoundingClientRect();
+    return Math.abs(b.right - (c.right - parseFloat(getComputedStyle(document.getElementById('dash-faith')).paddingRight))) < 2 && b.top < t.bottom && b.bottom > t.top && Math.round(b.height) === 30;`));
   ok('Faith says "Not prayed yet today", with a Pray now button', await js(`const f = document.getElementById('dash-pray-state'); return !!f && f.dataset.done === 'false' && /Not prayed yet today/.test(f.textContent) && !!f.querySelector('[data-act="go-prayer"]');`),
     await js(`return document.getElementById('dash-faith').textContent;`));
   await js(`document.querySelector('[data-act="go-prayer"]').click(); return 1;`); await sleep(900);
