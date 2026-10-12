@@ -3549,7 +3549,7 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 26, // bump when verifying a deploy went live
+        version: 27, // bump when verifying a deploy went live
         features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search', 'quote', 'quote-buddhist', 'yt-playlist', 'ig-media', 'ig-thumb'],
         quoteModels: { orca: QUOTE_ORCA_MODELS, gemini: QUOTE_GEMINI_MODELS },
         orcaKey: !!env.TONY_ORCA_KEY,
