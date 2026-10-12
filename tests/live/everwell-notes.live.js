@@ -163,6 +163,11 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
     const b = rail.getBoundingClientRect(), x = b.left + b.width / 2, y = b.top + b.height * .7;
     rail.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: x, clientY: y })); rail.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: x, clientY: y })); return 1;`); await sleep(450);
   ok('a click on the scrollbar track (jump to that spot) does not page', (await rdTitle()) === before, await rdTitle());
+  const touchTurn = await js(`const o = document.getElementById('ew-reader'), b = o.getBoundingClientRect(), x = b.left + 40, y = b.top + b.height / 2, t0 = document.querySelector('#ew-reader [data-rd-title]').textContent;
+    o.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch', clientX: x, clientY: y })); o.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: x, clientY: y })); o.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: x, clientY: y }));
+    const shown = o.getAttribute('data-edge'); return new Promise(res => setTimeout(() => { o.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: x, clientY: y })); res(JSON.stringify({ shown, after: o.getAttribute('data-edge'), turned: document.querySelector('#ew-reader [data-rd-title]').textContent !== t0 })); }, 600));`).then(JSON.parse);
+  ok('a finger tap on an edge turns the page and the chevron flashes, then fades (it never hangs there)', touchTurn.shown === 'l' && touchTurn.after === '' && touchTurn.turned, JSON.stringify(touchTurn));
+  await edge('r'); await sleep(450);
   ok('...the edge under the cursor shows a chevron', await js(`const o = document.getElementById('ew-reader'), b = o.getBoundingClientRect(); o.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: b.right - 20, clientY: b.top + b.height / 2 })); return o.getAttribute('data-edge') === 'r';`));
   await js(`document.querySelector('#ew-reader [data-rd="close"]').click(); return 1;`); await sleep(800);
   ok('closing after paging leaves every card visible', await js(`return !document.getElementById('ew-reader') && [...document.querySelectorAll('.wr-card')].every(c => c.style.visibility === '');`));
