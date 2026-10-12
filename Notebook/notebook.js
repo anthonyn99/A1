@@ -249,6 +249,35 @@ function hostF(h) {
   };
 }
 
+// The sheets MyJournal draws on besides its own, in index.html's cascade
+// order; myjournal.css goes in at TJ_AT (after Brainstorm's, before the docx
+// sheet). Brainstorm's sheet holds the ribbon rule both journals share
+// (.docx-toolbar's flex row, padding and gap), and notebook.css's tj rules must
+// come AFTER myjournal.css or its .pt-btn colour outranks the AI button's.
+// Leaving a sheet out, or taking them in another order, is how Everwell's
+// ribbon lost its layout (2026-10-12). tests/notebook-instance.test.js holds
+// this order to index.html's.
+var TJ_SHEETS = ['core/viz.css', 'core/oj.css', 'apps/brainstorm.css', 'notebook.css'];
+var TJ_AT = 3;
+function instanceSheet(myjournalCss, sheets, cfg) {
+  var parts = sheets.map(function (css) { return rewrite(tjRules(css), cfg); });
+  parts.splice(TJ_AT, 0, rewrite(myjournalCss, cfg));
+  return hostGuard(cfg) + '\n' + parts.join('\n') + '\n' + instanceCss(cfg);
+}
+// A host's own element rules (Everwell's `select { width: 100% }`, a form
+// padding, a font weight) would restyle Notebook's controls: index.html styles
+// no bare form control, so MyJournal's show the browser's own. all:revert puts
+// that back. :where() keeps it at element weight, and this sheet comes after
+// the host's, so it beats the host's bare element rules but loses to every
+// Notebook rule (each names a class or an id). Then index.html's default hover
+// glow for every button in an app root (its :where(#tj-root,...) rule).
+function hostGuard(cfg) {
+  var R = ':where(#' + cfg.key + '-root)';
+  return R + ' :is(input,select,textarea,button){all:revert;}\n'
+    + R + ' :where(button,[role="button"]):hover:not([data-noglow]){box-shadow:var(--suite-glow);}\n'
+    + R + ' :where(button,[role="button"]){transition:box-shadow .15s;}';
+}
+
 // Instance CSS: the app inline in its container instead of over the page, and
 // what the host turned off.
 function instanceCss(cfg) {
@@ -289,11 +318,11 @@ function instantiate(cfg) {
   return helpers()
     .then(function () { return load('core'); })
     .then(function () { return load('docx'); })
-    .then(function () { return Promise.all([fetchText('apps/myjournal.css'), fetchText('apps/myjournal.js'), fetchText('core/fb.js'), fetchText('notebook.css')]); })
+    .then(function () { return Promise.all([fetchText('apps/myjournal.css'), fetchText('apps/myjournal.js'), fetchText('core/fb.js')].concat(TJ_SHEETS.map(fetchText))); })
     .then(function (t) {
       var st = document.createElement('style');
       st.setAttribute('data-notebook', K);
-      st.textContent = rewrite(tjRules(t[3]), cfg) + '\n' + rewrite(t[0], cfg) + '\n' + instanceCss(cfg);
+      st.textContent = instanceSheet(t[0], t.slice(3), cfg);
       document.head.appendChild(st);
       // The app builds its markup right before its own script element, so the
       // element goes where the markup should: the host's container.
