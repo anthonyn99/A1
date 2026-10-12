@@ -8883,10 +8883,15 @@ function App(){
   },[]);
   useEffect(()=>{
     if(!fbLoadedRef.current||!ewWork)return;
-    const seen=ewWorkSeen.current,fromDoc={},toDoc=[];
+    const seen=ewWorkSeen.current,fromDoc={},toDoc=[],has_={};
+    // Only the last week and the coming one (Everwell keeps three weeks).
+    const d0=new Date(),cut=new Date(d0.getFullYear(),d0.getMonth(),d0.getDate()-7);
+    const cutKey=cut.getFullYear()+"-"+String(cut.getMonth()+1).padStart(2,"0")+"-"+String(cut.getDate()).padStart(2,"0");
     Object.keys(data||{}).forEach(dk=>{
+      if(dk<cutKey)return;
       (data[dk]||[]).forEach(t=>{
         if(!t||t._ewId!=="ew_workout_"+dk)return;
+        has_[dk]=1;
         const td=!!t.done,has=Object.prototype.hasOwnProperty.call(ewWork,dk),dd=!!ewWork[dk];
         if(!(dk in seen)){
           if(has&&dd!==td){seen[dk]=dd;fromDoc[dk]=dd;}
@@ -8897,6 +8902,9 @@ function App(){
         else if(td!==seen[dk]){seen[dk]=td;if(dd!==td)toDoc.push([dk,td]);}
       });
     });
+    // A day whose item went (a rest day now) starts afresh if it comes back:
+    // the re-created task then takes the shared doc's value, not the reverse.
+    Object.keys(seen).forEach(dk=>{if(!has_[dk])delete seen[dk];});
     toDoc.forEach(([dk,v])=>{if(window._fbEwWorkoutSet)window._fbEwWorkoutSet(dk,v);});
     if(Object.keys(fromDoc).length)setDataBg(prev=>{
       let changed=false;const next={...prev};

@@ -88,6 +88,32 @@ const ROT = { steps: [{ id: 'a', name: 'Push' }, { id: 'b', name: 'Pull' }, { id
   const all = Object.keys(m.data).reduce((n, dk) => n + ew(m, dk).length, 0);
   ok('re-running never duplicates (one item per day at most)', Object.keys(m.data).every((dk) => ew(m, dk).length <= 1) && all === 5, all);
 
+  console.log('\nWorkout done, both ways (dashboards/everwell_workout)');
+  const wdoc = () => js(`return JSON.stringify(__fakeFs.docs['dashboards/everwell_workout'] || null);`).then(JSON.parse);
+  let w = await wdoc();
+  ok('a workout already done in TaskHub (yesterday) is copied to the shared doc', !!w && w.done[YESTERDAY] === true, JSON.stringify(w));
+  ok("today's tick in TaskHub (another device's save, above) was written there too, by TaskHub", !!w && w.done[TODAY] === true && w.by === 'taskhub', JSON.stringify(w));
+  await js(`__fakeFs.remote('dashboards/everwell_tony', { rotation: Object.assign(${JSON.stringify(ROT)}, { anchor: { date: '${TODAY}', idx: 0 } }), savedAt: Date.now() + 9 }, { merge: true }); 1`);
+  await sleep(2500);
+  m = await cloud();
+  ok("a rest day and back: the re-created item takes the shared doc's done (not the other way)", ew(m, TODAY).length === 1 && ew(m, TODAY)[0].done === true && (await wdoc()).done[TODAY] === true, JSON.stringify(ew(m, TODAY)));
+  const mainW1 = await js(`return __fakeFs.log.filter(l => l.path === 'dashboards/main' && !l.remote).length;`);
+  await js(`__fakeFs.remote('dashboards/everwell_workout', { done: { '${TODAY}': false }, savedAt: Date.now(), by: 'everwell' }, { merge: true }); 1`); await sleep(2500);
+  m = await cloud();
+  ok('an untick in Everwell unticks the task here at once', ew(m, TODAY)[0].done === false, JSON.stringify(ew(m, TODAY)));
+  ok("…through TaskHub's own save (dashboards/main written by TaskHub)", (await js(`return __fakeFs.log.filter(l => l.path === 'dashboards/main' && !l.remote).length;`)) > mainW1);
+  await js(`__fakeFs.remote('dashboards/everwell_workout', { done: { '${TODAY}': true }, savedAt: Date.now(), by: 'everwell' }, { merge: true }); 1`); await sleep(2500);
+  m = await cloud();
+  ok('a tick in Everwell ticks it', ew(m, TODAY)[0].done === true);
+  ok('…and TaskHub does not echo it back (the doc still says Everwell wrote it)', (await wdoc()).by === 'everwell');
+  m.data[TODAY] = m.data[TODAY].map((t) => (t._ewId ? Object.assign({}, t, { done: false }) : t)); m.savedAt = Date.now() + 2000;
+  await js(`__fakeFs.remote('dashboards/main', ${JSON.stringify(m)}); 1`); await sleep(2500);
+  w = await wdoc();
+  ok('an untick in TaskHub writes the shared doc (Everwell sees it)', w.done[TODAY] === false && w.by === 'taskhub', JSON.stringify(w));
+  ok('…one date per write, merged: yesterday kept', w.done[YESTERDAY] === true);
+  await js(`__fakeFs.remote('dashboards/everwell_tony', { rotation: Object.assign(${JSON.stringify(ROT)}, { anchor: { date: '${TODAY}', idx: 2 } }), savedAt: Date.now() + 15 }, { merge: true }); 1`);
+  await sleep(2000);
+
   console.log("\nEverwell's own Prayer row");
   ok('a Prayer row from Everwell is the first row of Daily Habits, with 7 day cells', await js(`const r = document.querySelector('tr[data-ew-prayer]'); return !!r && r.parentElement.firstElementChild === r && r.children.length === 9 && /Prayer/.test(r.children[0].textContent);`));
   ok('the Prayer row is exactly the size of a habit row (row and every cell)', await js(`const rows = [...document.querySelector('tr[data-ew-prayer]').parentElement.children];
