@@ -271,6 +271,19 @@ function instanceCss(cfg) {
   return css.join('\n');
 }
 
+// What a host may pass to mount an instance. Anything else is a typo or a
+// setting Notebook doesn't have, and a host that silently loses a setting is
+// how a program drifts from the others: refuse it. A new setting is added
+// here, documented in docs/Notebook/README.md, and defaults so that every
+// other program keeps working unchanged.
+var OPTIONS = { app: 1, key: 1, store: 1, container: 1, mode: 1, title: 1, templates: 1, features: 1, pinned: 1, onSave: 1, onReady: 1 };
+var FEATURES = { ourjournal: 1, locks: 1, sidebar: 1 };
+function checkOptions(cfg) {
+  Object.keys(cfg).forEach(function (k) { if (!OPTIONS[k]) throw new Error('Notebook.mount: unknown option ' + k); });
+  Object.keys(cfg.features || {}).forEach(function (k) { if (!FEATURES[k]) throw new Error('Notebook.mount: unknown feature ' + k); });
+  if (cfg.mode && cfg.mode !== 'inline' && cfg.mode !== 'overlay') throw new Error('Notebook.mount: mode is inline or overlay');
+}
+
 function instantiate(cfg) {
   var K = cfg.key;
   return helpers()
@@ -319,10 +332,29 @@ window.Notebook = {
     if (NATIVE[cfg.app] === cfg.key) { this.mounts[cfg.key] = cfg; load(cfg.app); return (cfg._ready = Promise.resolve(cfg)); }
     if (cfg.app !== 'myjournal') throw new Error('Notebook.mount: only myjournal can take another key');
     if (!cfg.store || !/^[a-z0-9_]+$/.test(cfg.store) || cfg.store === 'tony_journal' || cfg.store === 'journal') throw new Error('Notebook.mount: an instance needs its own store');
+    checkOptions(cfg);
     this.mounts[cfg.key] = cfg;
     cfg.mode = cfg.mode || 'inline';
     cfg.features = Object.assign({ ourjournal: false, locks: false, sidebar: true }, cfg.features || {});
     return (cfg._ready = instantiate(cfg));
+  },
+  // Move a mounted instance into `container` (a host that re-renders its own
+  // markup, e.g. TradeHub's React tab), or set it aside, hidden and still
+  // running, while the host's spot for it is gone. Both return false when
+  // nothing is mounted under `key` yet. A host never moves `#<key>-root` itself.
+  attach: function (key, container) {
+    var root = document.getElementById(key + '-root');
+    if (!root || !this.mounts[key] || !container) return false;
+    if (root.parentNode !== container) container.appendChild(root);
+    return true;
+  },
+  detach: function (key) {
+    var root = document.getElementById(key + '-root');
+    if (!root || !this.mounts[key]) return false;
+    var park = document.getElementById('nb-park');
+    if (!park) { park = document.createElement('div'); park.id = 'nb-park'; park.style.display = 'none'; document.body.appendChild(park); }
+    if (root.parentNode !== park) park.appendChild(root);
+    return true;
   },
   // Open entry `id` in the app mounted under `key`, as a click on its row
   // would; opts.edit true/false switches edit/view mode. Waits for the mount
