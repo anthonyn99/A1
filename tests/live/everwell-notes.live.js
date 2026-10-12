@@ -60,7 +60,7 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   ok('the import link is stripped from the address at once', (await js(`return location.href;`)) === PAGE);
   ok('…and nothing is written before Tony is in (intro still up)', (await doc()) === null);
   await tap(); await sleep(1500);
-  let d = await doc();
+  let d = await doc(), a, b;
   ok('after the intro, the four pages are written as Notebook entries', !!d && ['prayer', 'goals-mindset', 'relationship-principles', 'with-parents'].every((id) => d['e_' + id] && d['e_' + id].template === 'page' && d['e_' + id].data.html === TEST.pages[id]) && d._order.length === 4,
     JSON.stringify(d).slice(0, 300));
   ok('titles are the page names', d['e_goals-mindset'].title === 'Goals & Mindset' && d['e_with-parents'].title === 'With Parents');
