@@ -3511,17 +3511,32 @@ async function handleIgMedia(url, ctx) {
   return new Response(body, { headers: { 'Content-Type': 'application/json', ...cors() } });
 }
 
-// GET /ig/thumb?code=<shortcode>[&size=m|l] → 302 to the post's cover on the CDN.
-// A page cannot use instagram.com/p/<code>/media/ itself (the browser blocks
-// that redirect cross-site), but a server can: its Location is a CDN image that
-// any page may show. Falls back to the embed's poster. The 302 is cacheable
-// (the CDN link lives for days), so a grid of covers costs one lookup each.
+// GET /ig/thumb?code=<shortcode> → the post's cover, as image bytes.
+// instagram.com/p/<code>/media/?size=m redirects (server side only) to a cover
+// on the CDN, but THAT file answers `cross-origin-resource-policy: same-origin`,
+// so no other site's <img> may show it (seen 2026-10-12: every cover blank).
+// The worker fetches the bytes itself and passes them on with CORP
+// cross-origin. Falls back to the embed's poster. Edge-cached IG_THUMB_S.
 const IG_THUMB_S = 21600;
-async function handleIgThumb(url, ctx) {
+// Fetch an Instagram CDN file and hand it on so any page may use it: an <img>,
+// or a <video> (Range passes through, so it can seek). Images are cached.
+async function igRelay(target, req, ctx, ckey) {
+  const range = req && req.headers.get('Range');
+  const r = await fetch(target, { headers: { 'User-Agent': YT_UA, ...(range ? { Range: range } : {}) } });
+  const h = new Headers({ ...cors(), 'Cross-Origin-Resource-Policy': 'cross-origin', 'Accept-Ranges': 'bytes' });
+  ['Content-Type', 'Content-Length', 'Content-Range'].forEach((k) => { const v = r.headers.get(k); if (v) h.set(k, v); });
+  const img = /^image\//.test(r.headers.get('Content-Type') || '');
+  h.set('Cache-Control', r.ok && img ? 'max-age=' + IG_THUMB_S : 'no-store');
+  const res = new Response(r.body, { status: r.status, headers: h });
+  if (ctx && ckey && r.status === 200 && img) ctx.waitUntil(cache_put(ckey, res.clone()));
+  return res;
+}
+const cache_put = (k, r) => caches.default.put(k, r).catch(() => {});
+async function handleIgThumb(url, req, ctx) {
   const code = url.searchParams.get('code') || '', size = url.searchParams.get('size') === 'l' ? 'l' : 'm';
   if (!/^[A-Za-z0-9_-]{5,40}$/.test(code)) return json({ ok: false, error: 'bad code' }, 400);
-  const cache = caches.default, ckey = new Request('https://personal-ai.cache/ig/thumb?code=' + code + '&size=' + size);
-  const hit = await cache.match(ckey); if (hit) return hit;
+  const ckey = new Request('https://personal-ai.cache/ig/thumb2?code=' + code + '&size=' + size);
+  const hit = await caches.default.match(ckey); if (hit) return hit;
   let to = '';
   try {
     const r = await fetch('https://www.instagram.com/p/' + code + '/media/?size=' + size, { redirect: 'manual', headers: { 'User-Agent': YT_UA } });
@@ -3534,9 +3549,18 @@ async function handleIgThumb(url, ctx) {
     to = it ? (it.type === 'video' ? it.poster : it.src) || '' : '';
   }
   if (!to) return new Response('not found', { status: 404, headers: { ...cors(), 'Cache-Control': 'max-age=600' } });
-  const res = new Response(null, { status: 302, headers: { Location: to, 'Cache-Control': 'max-age=' + IG_THUMB_S, ...cors() } });
-  if (ctx) ctx.waitUntil(cache.put(ckey, res.clone()));
-  return res;
+  try { return await igRelay(to, null, ctx, ckey); } catch (e) { return new Response('unreachable', { status: 502, headers: cors() }); }
+}
+// GET /ig/px?u=<an Instagram CDN link> → that file, usable by any page.
+// For posts whose owner turned embedding off: no logged-out route reads them,
+// so the "Everwell sync" bookmarklet brings their CDN links back from Tony's
+// signed-in tab, and they play through here. Only Instagram's CDN hosts.
+async function handleIgPx(url, req, ctx) {
+  const u = url.searchParams.get('u') || '';
+  if (!IG_CDN.test(u) || u.length > 2000) return json({ ok: false, error: 'bad link' }, 400);
+  const ckey = new Request('https://personal-ai.cache/ig/px?u=' + encodeURIComponent(u));
+  if (!req.headers.get('Range')) { const hit = await caches.default.match(ckey); if (hit) return hit; }
+  try { return await igRelay(u, req, ctx, ckey); } catch (e) { return new Response('unreachable', { status: 502, headers: cors() }); }
 }
 
 export default {
@@ -3549,8 +3573,8 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 27, // bump when verifying a deploy went live
-        features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search', 'quote', 'quote-buddhist', 'yt-playlist', 'ig-media', 'ig-thumb'],
+        version: 28, // bump when verifying a deploy went live
+        features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search', 'quote', 'quote-buddhist', 'yt-playlist', 'ig-media', 'ig-thumb', 'ig-px'],
         quoteModels: { orca: QUOTE_ORCA_MODELS, gemini: QUOTE_GEMINI_MODELS },
         orcaKey: !!env.TONY_ORCA_KEY,
         models: MODELS,
@@ -3575,7 +3599,8 @@ export default {
     if (req.method === 'GET' && path === '/quote/daily') return handleQuote(url, env);
     if (req.method === 'GET' && path === '/yt/playlist') return handleYtPlaylist(url, ctx);
     if (req.method === 'GET' && path === '/ig/media') return handleIgMedia(url, ctx);
-    if (req.method === 'GET' && path === '/ig/thumb') return handleIgThumb(url, ctx);
+    if (req.method === 'GET' && path === '/ig/thumb') return handleIgThumb(url, req, ctx);
+    if (req.method === 'GET' && path === '/ig/px') return handleIgPx(url, req, ctx);
 
     if (req.method === 'POST') {
       let body;
