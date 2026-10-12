@@ -2794,6 +2794,22 @@ window._tjPersistNow = function() {
   try { clearTimeout(autoTimer); if (getActive()) saveCurrentEntry(); } catch(e) {}
   try { return _tjFbFlush(); } catch(e) {}
 };
+// Open an entry from outside (Notebook.open): what a click on its sidebar row
+// does, then edit or view mode if asked. Waits for the entry to arrive from the
+// server (a host may ask before the first load). Resolves false if it never does.
+window._tjOpenEntry = function(id, opts) {
+  opts = opts || {};
+  return new Promise(function(resolve) {
+    var tries = 0;
+    (function attempt() {
+      var e = state.entries.find(function(x) { return x.id === id && !x.trashed; });
+      if (!e) { if (++tries < 80) setTimeout(attempt, 100); else resolve(false); return; }
+      if (state.activeId !== id) { saveCurrentEntry(); _tjFbFlush(); state.activeId = id; renderSidebar(); loadActiveEntry(); }
+      if (opts.edit !== undefined && !!opts.edit !== isEditMode) setEditMode(!!opts.edit);
+      resolve(true);
+    })();
+  });
+};
 document.getElementById('tj-entry-title-input').addEventListener('input', autoSave);
 document.getElementById('tj-page-editor').addEventListener('input', autoSave);
 // Journal Entries editor (contenteditable) — must listen for input to catch paste, typing, etc.
