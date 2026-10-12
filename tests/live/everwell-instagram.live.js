@@ -164,7 +164,7 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   await js(`document.querySelector('#media-grid [data-igstage]').focus(); document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })); return 1;`); await sleep(900);
   s = await stage();
   ok("a post the worker cannot read plays in Instagram's own embed, and says Next is by hand", s.frame === 'https://www.instagram.com/p/BADaaaa5/embed/captioned/' && /embed/.test(s.cls) && /Use Next/.test(s.note) && s.pos === 'Discipline · 5 of 5', JSON.stringify(s));
-  await js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })); return 1;`); await sleep(900);
+  await js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })); return 1;`); for (let w = 0; w < 30 && (await js(`return document.querySelector('[data-ig-pos]').textContent;`)) === 'Discipline · 5 of 5'; w++) await sleep(50);
   s = await stage();
   ok('Advance wraps round from the last to the first (↓ moves a post)', s.pos === 'Discipline · 1 of 5' && s.v === 'https://cdn.test/VIDaaaa1.wav', JSON.stringify(s));
   await click('#media-grid [data-igstage] [data-igs="mode"]'); await sleep(200);
