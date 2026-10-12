@@ -2000,7 +2000,7 @@ async function fetchEarningsAlphaVantage(wl, env, fromD, toD, diag){
 // watchlist. No API key — just needs a User-Agent. Bounded concurrency; the whole
 // /calendar endpoint is 12h-cached so this scan runs rarely. If Nasdaq blocks the
 // request the source simply returns [] and Finnhub/AV still stand.
-async function fetchEarningsNasdaq(wl, env, fromD, toD, diag){
+async function fetchEarningsNasdaq(wl, env, fromD, toD, diag, cov){
   const set = new Set(wl);
   const dates = [];
   for (let t = Date.parse(fromD+'T00:00:00Z'); t <= Date.parse(toD+'T00:00:00Z'); t += 86400000){
@@ -2010,32 +2010,48 @@ async function fetchEarningsNasdaq(wl, env, fromD, toD, diag){
   }
   const out = [];
   const CONC = 6;
-  let idx = 0, ok = 0, err = 0;
-  async function drain(){
-    while (idx < dates.length){
-      const date = dates[idx++];
-      try {
-        const r = await fetch(`https://api.nasdaq.com/api/calendar/earnings?date=${date}`, {
-          headers: { 'User-Agent': 'tradehub-newshub/1.0', 'Accept': 'application/json' },
-          signal: AbortSignal.timeout(8000),
-        });
-        if (!r.ok){ err++; continue; }
-        const j = await r.json();
-        const rows = ((j && j.data) || {}).rows || [];
-        ok++;
-        for (const row of rows){
-          const sym = (row.symbol || '').toUpperCase();
-          if (!set.has(sym)) continue;
-          const tm = (row.time || '').toLowerCase();
-          const when = tm.includes('pre-market') ? 'bmo' : tm.includes('after-hours') ? 'amc' : null;
-          const epsRaw = String(row.epsForecast || '').replace(/[^0-9.\-]/g,'');
-          out.push({ ticker: sym, date, when, epsEst: epsRaw ? parseFloat(epsRaw) : null });
-        }
-      } catch(e){ err++; }
+  let ok = 0;
+  // A date that fails is a HOLE, not "nobody reports that day": foreign ADRs like
+  // TSM come from Nasdaq alone, so one aborted page silently drops their earnings
+  // from the whole build (TSM vanished from Catalysts this way, 2026-10). Failed
+  // dates get a second pass, and the dates that really answered are reported in
+  // `cov.nasdaqDates` so the front-end can tell "not listed" from "never checked".
+  async function scan(list){
+    const failed = [];
+    let idx = 0;
+    async function drain(){
+      while (idx < list.length){
+        const date = list[idx++];
+        try {
+          const r = await fetch(`https://api.nasdaq.com/api/calendar/earnings?date=${date}`, {
+            headers: { 'User-Agent': 'tradehub-newshub/1.0', 'Accept': 'application/json' },
+            signal: AbortSignal.timeout(8000),
+          });
+          if (!r.ok){ failed.push(date); continue; }
+          const j = await r.json();
+          const rows = ((j && j.data) || {}).rows || [];
+          ok++;
+          // An empty page proves nothing (a quiet day and a blocked answer look the
+          // same), so only a date that listed SOMEONE counts as covered.
+          if (rows.length && cov) cov.nasdaqDates.push(date);
+          for (const row of rows){
+            const sym = (row.symbol || '').toUpperCase();
+            if (!set.has(sym)) continue;
+            const tm = (row.time || '').toLowerCase();
+            const when = tm.includes('pre-market') ? 'bmo' : tm.includes('after-hours') ? 'amc' : null;
+            const epsRaw = String(row.epsForecast || '').replace(/[^0-9.\-]/g,'');
+            out.push({ ticker: sym, date, when, epsEst: epsRaw ? parseFloat(epsRaw) : null });
+          }
+        } catch(e){ failed.push(date); }
+      }
     }
+    await Promise.all(Array.from({ length: Math.min(CONC, list.length) }, drain));
+    return failed;
   }
-  await Promise.all(Array.from({ length: Math.min(CONC, dates.length) }, drain));
-  diag&&diag.push('nasdaq: '+out.length+' earnings across '+ok+'/'+dates.length+' dates'+(err?', '+err+' errs':''));
+  let failed = await scan(dates);
+  if (failed.length) failed = await scan(failed);
+  if (cov) cov.nasdaqFailed = failed.slice().sort();
+  diag&&diag.push('nasdaq: '+out.length+' earnings across '+ok+'/'+dates.length+' dates'+(failed.length?', still failing: '+failed.join(' '):''));
   return out;
 }
 
