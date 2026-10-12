@@ -9,7 +9,9 @@
 //  2. A host's data-lock selector stops matching its lock screen (renamed id)
 //     — the launcher then shows over a locked program. The selector is checked
 //     against the file it lives in.
-//  3. It creeps into a place it was never meant to be: Index, or Wellness.
+//  3. It creeps into a place it was never meant to be: Wellness, or a
+//     launcher in Index (Index uses it headless: Tony's External Links ARE
+//     his LifeHub list, shown as header buttons, since 2026-10-12).
 //     Profile programs must pass data-profile-attr, or Veda would be shown
 //     Tony's list instead of her own.
 //  4. The tab keys drift from index.html's. LifeHub and TaskHub then open
@@ -39,8 +41,8 @@ const HOSTS = {
   'riftiq.html':   { lock: 'guardian' },
   'magi.html':     { lock: '#lockScreen' },
 };
-// Deliberately without it: Index (the suite shell) and Veda's own program.
-const NEVER = ['index.html', 'wellness.html'];
+// Deliberately without it: Veda's own program.
+const NEVER = ['wellness.html'];
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => {
@@ -114,13 +116,8 @@ console.log('\nPrograms that moved to A1-Priv (docs/a1-priv-move-plan.md)');
   // Index moves Tony's stored buttons the same way.
   const idx = read('index.html');
   for (const p of moved) ok("Index's MOVED_PROGRAMS has " + p, idx.includes("'https://anthonyn99.github.io/a1/" + p + ".html'") && idx.includes("'https://a1-priv.av1.workers.dev/" + p + ".html'"));
-  // [button id, page]. RiftIQ's button kept its WarRoom-era id.
-  for (const [id, p] of [['tradehub', 'tradehub'], ['vault', 'vault'], ['warroom', 'riftiq']]) {
-    ok("Index's " + id + ' button is on the new host, old url in prevUrls',
-      new RegExp("\\{ id:'" + id + "',[^}]*url:'https://a1-priv\\.av1\\.workers\\.dev/" + p + "\\.html'[^}]*prevUrls:\\[[^\\]]*'https://anthonyn99\\.github\\.io/A1/" + p + "\\.html'").test(idx));
-  }
-  ok("Index's Everwell button replaces Solace's (lock tony_everwell, opener _everwellClick)",
-    /\{ id:'everwell', label:'Everwell', url:'https:\/\/a1-priv\.av1\.workers\.dev\/everwell\.html', lockId:'tony_everwell', openFn:'_everwellClick' \}/.test(idx) && !/id:'solace'/.test(idx));
+  ok("Index reads Tony's old links through MOVED_PROGRAMS when it brings them into LifeHub",
+    /_sameDest\(a\.url, _movedUrl\(l\.url\) \|\| l\.url\)/.test(idx) && !/id:'solace'/.test(idx));
   ok("Index's MOVED_PROGRAMS sends both Solace addresses to Everwell",
     idx.includes("'https://anthonyn99.github.io/a1/solace.html':   'https://a1-priv.av1.workers.dev/everwell.html'") && idx.includes("'https://a1-priv.av1.workers.dev/solace.html':   'https://a1-priv.av1.workers.dev/everwell.html'"));
   ok('A1/solace.html forwards to Everwell with query + hash', read('solace.html').includes("location.replace('https://a1-priv.av1.workers.dev/everwell.html' + location.search + location.hash)"));
@@ -129,6 +126,25 @@ console.log('\nPrograms that moved to A1-Priv (docs/a1-priv-move-plan.md)');
     ok('A1/' + p + '.html is a stub that forwards query + hash',
       stub.length < 4000 && stub.includes("location.replace('https://a1-priv.av1.workers.dev/" + p + ".html' + location.search + location.hash)"));
   }
+}
+
+console.log("\nIndex: Tony's External Links are his LifeHub list");
+{
+  const idx = read('index.html');
+  const tags = idx.match(tagRe) || [];
+  ok('index.html loads LifeHub/lifehub.js exactly once, deferred, Guardian lock',
+    tags.length === 1 && /\bdefer\b/.test(tags[0]) && /data-lock="guardian"/.test(tags[0]), tags.join(' '));
+  ok('…headless: no <a1-lifehub> launcher (the header buttons are the display)', !/<a1-lifehub\b/.test(idx));
+  ok("its header follows LifeHub.watch('tony') and opens through LifeHub.launch",
+    /LH\.watch\('tony', _lhApply\)/.test(idx) && /LH\.launch\('tony', id\)/.test(idx));
+  ok('Settings edits go to LifeHub (add / update / remove / reorder)',
+    /LH\.add\('tony',/.test(idx) && /LH\.update\('tony',id,/.test(idx) && /LH\.remove\('tony',id\)/.test(idx) && /LH\.reorder\('tony',idArray\)/.test(idx));
+  ok('hidden apps, and PC programs on a device that cannot start them, stay out of the header',
+    /function _lhInHeader\(a\)\{ return !!\(a && a\.url && !a\.hidden && \(!_isLocalPath\(a\.url\) \|\| _lhCanLocal\(\)\)\); \}/.test(idx));
+  ok("Tony's external buttons have no App Lock gate",
+    !/alGate\('tony_(tradehub|warroom|everwell|magi)'/.test(idx) && !/alGate\(profile \+ '_shield'/.test(idx) && /profile === 'veda' && window\.alGate\) window\.alGate\('veda_shield'/.test(idx));
+  ok('LifeHub exposes the headless API Index uses',
+    ['watch', 'list', 'launch', 'add', 'update', 'remove', 'reorder', 'reconnect', 'canLocal'].every((k) => new RegExp('\\n    ' + k + ': ').test(src)));
 }
 
 console.log('\nNowhere it does not belong');
@@ -211,11 +227,12 @@ ok('writes are debounced', /st\.wt = setTimeout\(function \(\) \{ flush\(st\); \
 ok('Firestore is reached only through ensureSync and flush', (src.match(/\bconnect\(\)/g) || []).length === 3,   // its definition + those two calls
   (src.match(/\bconnect\(\)/g) || []).length);
 // ensureSync's callers: warm() (launcher hover/focus/touch), open(), a finished
-// save, retry(), and localLinks (inside the Shield agent only).
+// save, retry(), localLinks (inside the Shield agent only), watch (a headless
+// host: Index) and reconnect (that host's Firestore was replaced).
 const ensureCalls = [...src.matchAll(/^.*\bensureSync\b.*$/gm)].map((m) => m[0].trim())
   .filter((l) => !/^function ensureSync/.test(l) && !/^\/\//.test(l));
-ok('the listener starts only on launcher approach, open, a save, a retry, or the agent',
-  ensureCalls.length === 5 &&
+ok('the listener starts only on launcher approach, open, a save, a retry, the agent, or a headless host',
+  ensureCalls.length === 7 &&
   [...src.matchAll(/addEventListener\('(pointerenter|focus|touchstart)', warm/g)].length === 3 &&
   /function warm\(\) \{[\s\S]*?ensureSync\(S\);/.test(src),
   ensureCalls.join(' | '));
