@@ -217,6 +217,29 @@ ok('paths with forbidden characters are refused',
 ok('web links behave as before',
   N('example.com') === 'https://example.com' && N('https://x.y/a') === 'https://x.y/a' && N('javascript:alert(1)') === '' && N('file:///etc/passwd') === '');
 
+console.log('\nIcons');
+{
+  // The real a1IconFor, with the real BASE / PRIV / ICONS keys and destKey.
+  const ib = {};
+  const keys = (/var ICONS = \{([\s\S]*?)\n  \};/.exec(src) || ['', ''])[1];
+  const iconKeys = [...keys.matchAll(/^\s*'?([a-z-]+)'?:\s*"/gm)].map((m) => m[1]);
+  vm.runInNewContext([
+    "var URL = this.URL, location = { href: 'https://anthonyn99.github.io/A1/index.html' };",
+    "var BASE = 'https://anthonyn99.github.io/A1/', PRIV = 'https://a1-priv.av1.workers.dev/';",
+    'var ICONS = {' + iconKeys.map((k) => JSON.stringify(k) + ':1').join(',') + '};',
+    fnSrc('destKey'), fnSrc('a1IconFor'), 'this.f = a1IconFor;'].join('\n'), Object.assign(ib, { URL }));
+  const f = ib.f || (() => 'missing');
+  ok('an automatic tile on the private host gets its built-in icon (Everwell)', f('https://a1-priv.av1.workers.dev/everwell.html') === 'everwell', f('https://a1-priv.av1.workers.dev/everwell.html'));
+  ok('…and on A1\'s host', f('https://anthonyn99.github.io/A1/magi.html') === 'magi');
+  ok('another site with a same-named page does not', f('https://example.com/everwell.html') === '');
+  const wk = read('workers/lifehub-icon/worker.js');
+  ok('the icon worker says when it could not read the page', /read: !!html/.test(wk));
+  ok('…and LifeHub then reads the page itself, keeping the worker\'s guess as a fallback',
+    /if \(list\.length && !read\) \{ guess = list; tryRoute\(i \+ 1\); \}/.test(src) && /done\(guess\)/.test(src));
+  ok('a tile TaskHub\'s import duplicated (link_ tab, same page as another tile) is removed once',
+    /if \(!st\.dupDone\)/.test(src) && /commit\(st, removeOp\(id\)\)/.test(src));
+}
+
 console.log('\nSpark budget');
 ok('exactly one onSnapshot', (src.match(/\.onSnapshot\(/g) || []).length === 1);
 ok('exactly one write site, inside the batched transaction',
