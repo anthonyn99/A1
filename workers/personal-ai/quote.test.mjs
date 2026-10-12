@@ -94,9 +94,27 @@ r = await call('profile=tony&date=' + today);
 ok('a repeat of a recent line is rejected; the recent list is in the prompt', r.body.ok && r.body.source === 'gemini' && /Yesterday line/.test(CALLS[0].prompt), r.body);
 ok('…and the new line joins the recent list (capped at 30)', JSON.parse(store.get('ew_quote:tony')).recent.length === 2);
 
+console.log('\nkind=buddhist (Prayer tab)');
+const bq = (o) => JSON.stringify(o);
+reset(); ORCA = orcaSays(bq({ quote: 'Hatred is never appeased by hatred in this world. By non-hatred alone is hatred appeased.', source: 'Dhammapada, verse 5' }));
+r = await call('profile=tony&kind=buddhist&date=' + today);
+ok('ORCA (DeepSeek first) answers with the quote AND its source', r.body.ok && r.body.kind === 'buddhist' && r.body.source === 'orca' && r.body.cite === 'Dhammapada, verse 5' && /^Hatred is never/.test(r.body.quote) && CALLS[0].model === 'deepseek/free', r.body);
+ok('the prompt asks for a REAL quote and warns off fake ones', /genuine Buddhist quote/.test(CALLS[0].prompt) && /misattributed/.test(CALLS[0].prompt));
+ok('…cached under its own key (the daily line is untouched)', puts === 1 && !!store.get('ew_bquote:tony') && !store.get('ew_quote:tony'));
+r = await call('profile=tony&kind=buddhist&date=' + today);
+ok('the same day again: no AI call, same quote and source', r.body.cached && CALLS.length === 1 && r.body.cite === 'Dhammapada, verse 5');
+reset(); ORCA = orcaSays('Here you go: {"quote": "Peace comes from within. Do not seek it without."}'); GEMINI = () => resp(200, { candidates: [{ finishReason: 'STOP', content: { parts: [{ text: bq({ quote: 'You yourselves must strive; the Buddhas only point the way.', source: 'Dhammapada, verse 276' }) }] } }] });
+r = await call('profile=tony&kind=buddhist&date=' + today);
+ok('an answer with no source is refused; the next source is used', r.body.ok && r.body.source === 'gemini' && r.body.cite === 'Dhammapada, verse 276', r.body);
+reset(); ORCA = () => resp(503, {}); GEMINI = () => resp(429, { error: { message: 'quota secret' } });
+r = await call('profile=tony&kind=buddhist&date=' + today);
+ok('all failing: a generic unavailable, nothing cached, no leak', r.body.ok === false && r.body.error === 'unavailable' && puts === 0 && !/quota|secret/.test(JSON.stringify(r.body)));
+ok('an unknown kind is refused', (await call('profile=tony&kind=zen&date=' + today)).status === 400);
+ok('kind=buddhist keeps the guard rails (profile, date)', (await call('profile=veda&kind=buddhist&date=' + today)).status === 400 && (await call('profile=tony&kind=buddhist&date=' + day(3))).status === 400);
+
 console.log('\nThe health route advertises it');
 const h = await (await worker.fetch(new Request('https://personal-ai.av1.workers.dev/health'), ENV)).json();
-ok('/health: version 23, features "quote" + "yt-playlist", orcaKey true, no key material', h.version === 23 && h.features.includes('quote') && h.features.includes('yt-playlist') && h.orcaKey === true && !JSON.stringify(h).includes('orca_sk_test'));
+ok('/health: version 25, features "quote" + "quote-buddhist" + "yt-playlist", orcaKey true, no key material', h.version === 25 && h.features.includes('quote') && h.features.includes('quote-buddhist') && h.features.includes('yt-playlist') && h.orcaKey === true && !JSON.stringify(h).includes('orca_sk_test'));
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
