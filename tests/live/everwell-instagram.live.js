@@ -269,7 +269,8 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   ok('the link dialog refuses a link that is not a collection', /not a saved-collection link/.test(await js(`return document.getElementById('igd-err').textContent;`)));
   await js(`document.getElementById('igd-url').value = 'https://www.instagram.com/tony/saved/all-posts/'; document.querySelector('#igd [data-igd="go"]').click(); return 1;`); await sleep(500);
   mm = await media();
-  ok('…and links a good one, opening Instagram on it', mm[0].igc.cid === 'all' && mm[0].title === 'All saved' && await js(`return window.__opened[1] === 'https://www.instagram.com/tony/saved/all-posts/';`));
+  ok('…and links a good one, opening Instagram on it', mm[0].igc.cid === 'all' && mm[0].title === 'All saved' && await js(`return window.__opened[1] === 'https://www.instagram.com/tony/saved/all-posts/';`),
+    JSON.stringify(mm[0]).slice(0, 200) + ' ' + await js(`return JSON.stringify(window.__opened) + (document.getElementById('igd') ? ' dialog still open: ' + document.getElementById('igd-err').textContent : '');`));
   await click(`#media-grid [data-rm="${mm[0].id}"]`); await sleep(400);
   ok('removing a collection asks first, and says Instagram is untouched', await js(`return document.getElementById('uim-title').textContent === 'Remove collection?' && /Nothing changes on Instagram/.test(document.getElementById('uim-msg').textContent);`));
   await js(`document.getElementById('uim-ok').click(); return 1;`); await sleep(500);
@@ -279,7 +280,8 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   await size(390, 844, true); await sleep(500);
   await click('#media-grid .igc-cell[data-id="col1~VIDaaaa1"]'); await sleep(1000);
   ok('the player fits the phone: the post full width, every control on screen', await js(`const s = document.querySelector('[data-igstage]'), W = document.documentElement.clientWidth;
-    return [...s.querySelectorAll('.ig-box, .ig-side button, .ig-side a')].every(e => { const r = e.getBoundingClientRect(); return r.left >= -0.5 && r.right <= W + 0.5; }) && s.querySelector('.ig-box').getBoundingClientRect().width > 330;`));
+    return [...s.querySelectorAll('.ig-box, .ig-side button, .ig-side a')].every(e => { const r = e.getBoundingClientRect(); return r.left >= -0.5 && r.right <= W + 0.5; }) && s.querySelector('.ig-box').getBoundingClientRect().width > 330;`),
+    await js(`const s = document.querySelector('[data-igstage]'); if (!s) return 'no stage'; return [...s.querySelectorAll('.ig-box, .ig-side button, .ig-side a')].map(e => { const r = e.getBoundingClientRect(); return (e.className || e.tagName) + ':' + Math.round(r.left) + '-' + Math.round(r.right); }).join(' ') + ' W=' + document.documentElement.clientWidth;`));
   await click('#media-grid [data-igs="fill"]'); await sleep(500);
   ok('filled on a phone it is exactly the screen', await js(`const r = document.querySelector('[data-igstage]').getBoundingClientRect(); return r.left === 0 && r.width === innerWidth && r.height === innerHeight;`));
   await click('#media-grid [data-igs="fill"]'); await click('#media-grid [data-igs="close"]'); await sleep(400);
@@ -311,7 +313,7 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   ok('the routine sheet: its split, exercises numbered across sections, sets and minutes added up', await js(`const s = document.getElementById('mc-sheet');
     const nums = [...s.querySelectorAll('.sh-rt .routine-line')].map(l => getComputedStyle(l, '::before').content).join();
     const stats = [...s.querySelectorAll('.sh-stat')].map(x => x.textContent).join('|');
-    return nums === '"1","2","3","4","5"' && stats === '5Exercises|9Sets|20Minutes' && s.querySelectorAll('.sh-rt .routine-group').length === 4;`),
+    return nums === 'counter(ex),counter(ex),counter(ex),counter(ex),counter(ex)' && getComputedStyle(s.querySelector('.sh-rt')).counterReset === 'ex 0' && getComputedStyle(s.querySelector('.sh-rt .routine-group')).counterReset === 'none' && stats === '5Exercises|9Sets|20Minutes' && s.querySelectorAll('.sh-rt .routine-group').length === 4;`),
     await js(`const s = document.getElementById('mc-sheet'); return [...s.querySelectorAll('.sh-stat')].map(x => x.textContent).join('|') + ' / ' + [...s.querySelectorAll('.sh-rt .routine-line')].map(l => getComputedStyle(l, '::before').content).join();`));
   await click('#mc-sheet [data-act="sheet-close"]');
 
