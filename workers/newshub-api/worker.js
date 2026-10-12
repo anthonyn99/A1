@@ -1922,7 +1922,7 @@ function etDateStr(offsetDays = 0){
 // returns only that name's report and is immune to the cap, so ANY ticker in the
 // Control watchlist gets its earnings fetched. Bounded concurrency keeps us under
 // Finnhub's 60 req/min; the whole endpoint is cached 12h so this runs rarely.
-async function fetchEarningsCalendar(wl, env, fromD, toD, diag){
+async function fetchEarningsCalendar(wl, env, fromD, toD, diag, cov){
   if (!env.FINNHUB_KEY){ diag&&diag.push('finnhub: NO KEY'); return []; }
   const out = [];
   const CONC = 6;
@@ -1935,6 +1935,7 @@ async function fetchEarningsCalendar(wl, env, fromD, toD, diag){
         if (!r.ok){ httpErr++; continue; }
         const j = await r.json();
         const rows = Array.isArray(j.earningsCalendar) ? j.earningsCalendar : [];
+        if (cov) cov.finnhubSyms.push(sym);
         for (const e of rows){
           const esym = (e.symbol || sym).toUpperCase();
           if (esym !== sym) continue;                       // symbol-scoped, but guard anyway
@@ -1964,7 +1965,7 @@ async function fetchEarningsCalendar(wl, env, fromD, toD, diag){
 // next ~3 months; we filter to the watchlist + window. Used to CONFIRM Finnhub
 // dates (both sources agree → confirmed) and to fill tickers Finnhub misses.
 // Free tier is ~25 req/day — fine since /calendar is cached 12h.
-async function fetchEarningsAlphaVantage(wl, env, fromD, toD, diag){
+async function fetchEarningsAlphaVantage(wl, env, fromD, toD, diag, cov){
   if (!env.ALPHAVANTAGE_KEY){ diag&&diag.push('av-earn: NO KEY'); return []; }
   try {
     const r = await fetch(`https://www.alphavantage.co/query?function=EARNINGS_CALENDAR&horizon=3month&apikey=${env.ALPHAVANTAGE_KEY}`);
@@ -1987,6 +1988,7 @@ async function fetchEarningsAlphaVantage(wl, env, fromD, toD, diag){
       if (!date || date < fromD || date > toD) continue;
       out.push({ ticker: sym, date });
     }
+    if (cov) cov.av = true;
     diag&&diag.push('av-earn: '+out.length+' in-window matches');
     return out;
   } catch(e){ diag&&diag.push('av-earn: EXC '+e.message); return []; }
