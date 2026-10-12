@@ -265,15 +265,15 @@ function instanceSheet(myjournalCss, sheets, cfg) {
   return hostGuard(cfg) + '\n' + parts.join('\n') + '\n' + instanceCss(cfg);
 }
 // A host's own element rules (Everwell's `select { width: 100% }`, a form
-// padding, a font weight) would restyle Notebook's controls: index.html styles
-// no bare form control, so MyJournal's show the browser's own. all:revert puts
-// that back. :where() keeps it at element weight, and this sheet comes after
+// padding, a font weight) would restyle Notebook's controls: index.html gives a
+// bare form control only its Inter font, so MyJournal's show the browser's own
+// look in Inter. all:revert + that font puts it back. :where() keeps it at element weight, and this sheet comes after
 // the host's, so it beats the host's bare element rules but loses to every
 // Notebook rule (each names a class or an id). Then index.html's default hover
 // glow for every button in an app root (its :where(#tj-root,...) rule).
 function hostGuard(cfg) {
   var R = ':where(#' + cfg.key + '-root)';
-  return R + ' :is(input,select,textarea,button){all:revert;}\n'
+  return R + ' :is(input,select,textarea,button){all:revert;font-family:\'Inter\',system-ui,-apple-system,sans-serif;}\n'
     + R + ' :where(button,[role="button"]):hover:not([data-noglow]){box-shadow:var(--suite-glow);}\n'
     + R + ' :where(button,[role="button"]){transition:box-shadow .15s;}\n'
     + R + ' button{transition:box-shadow .15s;}';   // the same, past the revert above
