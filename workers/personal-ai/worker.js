@@ -3454,7 +3454,7 @@ async function handleYtPlaylist(url, ctx) {
 // page asks again each time, and answers sit in the edge cache for IG_CACHE_S.
 // A private, deleted or unreadable post → { ok: false, error }, and the page
 // falls back to Instagram's own embed.
-const IG_CACHE_S = 1200;
+const IG_CACHE_S = 3600;
 const IG_CDN = /^https:\/\/[a-z0-9.-]+\.(cdninstagram\.com|fbcdn\.net)\//;
 export function igContext(h) {
   const m = String(h || '').match(/"contextJSON":("(?:[^"\\]|\\.)*")/); if (!m) return null;
@@ -3511,6 +3511,34 @@ async function handleIgMedia(url, ctx) {
   return new Response(body, { headers: { 'Content-Type': 'application/json', ...cors() } });
 }
 
+// GET /ig/thumb?code=<shortcode>[&size=m|l] → 302 to the post's cover on the CDN.
+// A page cannot use instagram.com/p/<code>/media/ itself (the browser blocks
+// that redirect cross-site), but a server can: its Location is a CDN image that
+// any page may show. Falls back to the embed's poster. The 302 is cacheable
+// (the CDN link lives for days), so a grid of covers costs one lookup each.
+const IG_THUMB_S = 21600;
+async function handleIgThumb(url, ctx) {
+  const code = url.searchParams.get('code') || '', size = url.searchParams.get('size') === 'l' ? 'l' : 'm';
+  if (!/^[A-Za-z0-9_-]{5,40}$/.test(code)) return json({ ok: false, error: 'bad code' }, 400);
+  const cache = caches.default, ckey = new Request('https://personal-ai.cache/ig/thumb?code=' + code + '&size=' + size);
+  const hit = await cache.match(ckey); if (hit) return hit;
+  let to = '';
+  try {
+    const r = await fetch('https://www.instagram.com/p/' + code + '/media/?size=' + size, { redirect: 'manual', headers: { 'User-Agent': YT_UA } });
+    const loc = r.headers.get('Location') || '';
+    if (r.status >= 300 && r.status < 400 && IG_CDN.test(loc)) to = loc;
+  } catch (e) {}
+  if (!to) {
+    const m = await handleIgMedia(new URL('https://x/ig/media?code=' + code), ctx).then((r) => r.json()).catch(() => null);
+    const it = m && m.ok && m.items[0];
+    to = it ? (it.type === 'video' ? it.poster : it.src) || '' : '';
+  }
+  if (!to) return new Response('not found', { status: 404, headers: { ...cors(), 'Cache-Control': 'max-age=600' } });
+  const res = new Response(null, { status: 302, headers: { Location: to, 'Cache-Control': 'max-age=' + IG_THUMB_S, ...cors() } });
+  if (ctx) ctx.waitUntil(cache.put(ckey, res.clone()));
+  return res;
+}
+
 export default {
   async fetch(req, env, ctx) {
     if (req.method === 'OPTIONS') return new Response(null, { headers: cors() });
@@ -3522,7 +3550,7 @@ export default {
         ok: true,
         service: 'personal-ai',
         version: 26, // bump when verifying a deploy went live
-        features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search', 'quote', 'quote-buddhist', 'yt-playlist', 'ig-media'],
+        features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search', 'quote', 'quote-buddhist', 'yt-playlist', 'ig-media', 'ig-thumb'],
         quoteModels: { orca: QUOTE_ORCA_MODELS, gemini: QUOTE_GEMINI_MODELS },
         orcaKey: !!env.TONY_ORCA_KEY,
         models: MODELS,
@@ -3547,6 +3575,7 @@ export default {
     if (req.method === 'GET' && path === '/quote/daily') return handleQuote(url, env);
     if (req.method === 'GET' && path === '/yt/playlist') return handleYtPlaylist(url, ctx);
     if (req.method === 'GET' && path === '/ig/media') return handleIgMedia(url, ctx);
+    if (req.method === 'GET' && path === '/ig/thumb') return handleIgThumb(url, ctx);
 
     if (req.method === 'POST') {
       let body;
