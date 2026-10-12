@@ -44,7 +44,9 @@ function reaches(src, K) {
     { re: new RegExp('[\'"`]' + K + '_[a-z]', 'g'), what: 'a storage key of the instance (' + K + '_…)' },
     { re: new RegExp('nb-' + K + '-fb-ready|_nb' + K.charAt(0).toUpperCase() + K.slice(1) + 'FbReady', 'g'), what: 'the instance\'s ready signal' },
   ];
-  const lines = src.split('\n'), out = [];
+  // The mount call's own store name is the host's to choose (it often starts
+  // with the key), not a reach into the instance.
+  const lines = src.replace(/store\s*:\s*(['"])[a-z0-9_]+\1/g, "store: ''").split('\n'), out = [];
   pats.forEach((p) => lines.forEach((l, i) => {
     p.re.lastIndex = 0;
     if (p.re.test(l)) out.push('line ' + (i + 1) + ': ' + p.what + ': ' + l.trim().slice(0, 120));
@@ -78,13 +80,17 @@ for (const f of hosts) {
 
 console.log('\nThe guard itself');
 // A host that does what Everwell and TradeHub used to must fail.
-const BAD = `document.querySelector('#ewn-entries-list .entry-item').click();
-  $('ewn-btn-edit'); #ew-nb-host #ewn-sidebar{display:none}
-  window._ewnTrashAPI.purge([]); localStorage.getItem('ewn_unlocked_x');
-  window.addEventListener('nb-ewn-fb-ready', f); document.getElementById('pb-root')`;
+const BAD = [
+  "document.querySelector('#ewn-entries-list .entry-item').click();",
+  "$('ewn-btn-edit');",
+  '#ew-nb-host #ewn-sidebar{display:none}',
+  'window._ewnTrashAPI.purge([]);',
+  "localStorage.getItem('ewn_unlocked_x');",
+  "window.addEventListener('nb-ewn-fb-ready', f);",
+  "document.getElementById('pb-root')"].join('\n');
 ok('it catches an element, a function, a storage key and the ready signal', reaches(BAD, 'ewn').length === 6, JSON.stringify(reaches(BAD, 'ewn')));
 ok('...and #pb-root moved by hand', reaches(BAD, 'pb').length === 1);
-const GOOD = `Notebook.mount({ app: 'myjournal', key: 'ewn', store: 'everwell_notes' }); Notebook.open('ewn', id, { edit: true });
+const GOOD = `Notebook.mount({ app: 'myjournal', key: 'ewn', store: 'ewn_notes' }); Notebook.open('ewn', id, { edit: true });
   Notebook.attach('pb', host); .tb-pb-host{} document.getElementById('tb-pb-root'); ew-nb-host`;
 ok('...and lets the API, the mount call and look-alike names through', reaches(GOOD, 'ewn').length === 0 && reaches(GOOD, 'pb').length === 0,
   JSON.stringify(reaches(GOOD, 'ewn').concat(reaches(GOOD, 'pb'))));
