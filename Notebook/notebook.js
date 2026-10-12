@@ -408,6 +408,9 @@ window.Notebook = {
   _rewriteApp: rewriteApp,
   _storeSource: storeSource,
   _tjRules: tjRules,
+  _instanceSheet: instanceSheet,
+  _tjSheets: TJ_SHEETS,
+  _tjAt: TJ_AT,
   // DOCX editor config per app key (tj, bj, ...). core/docx.js reads this
   // object as its APPS registry; an app registered after the editor has
   // initialised is initialised on arrival.
