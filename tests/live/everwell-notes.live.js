@@ -1,4 +1,4 @@
-// Everwell Phase 6 (A1-Priv/everwell.html): Tony's notes in Prayer / Goals /
+﻿// Everwell Phase 6 (A1-Priv/everwell.html): Tony's notes in Prayer / Goals /
 // Mindset, the one-time import link, A1's Notebook as the editor, and the
 // Mindset reels. Real page + real Notebook files (served by cdp.js), fake
 // Firestore, fake lock worker. The note text here is TEST text, never Tony's.
@@ -58,7 +58,7 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   console.log('\nThe import link');
   await fresh(link(TEST));
   ok('the import link is stripped from the address at once', (await js(`return location.href;`)) === PAGE);
-  ok('…and nothing is written before Tony is in (intro still up)', (await doc()) === null);
+  ok('â€¦and nothing is written before Tony is in (intro still up)', (await doc()) === null);
   await tap(); await sleep(1500);
   let d = await doc(), a, b;
   ok('after the intro, the four pages are written as Notebook entries', !!d && ['prayer', 'goals-mindset', 'relationship-principles', 'with-parents'].every((id) => d['e_' + id] && d['e_' + id].template === 'page' && d['e_' + id].data.html === TEST.pages[id]) && d._order.length === 4,
@@ -72,7 +72,7 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   ok('the prayer card can open in the reader too', await js(`return !!document.querySelector('#pray-note [data-note-read="prayer"]');`));
   await js(`EWApp.go('goals'); return 1;`); await sleep(900);
   ok('Goals shows Goals & Mindset on the reading stage: section heads, bullets and numbered steps', await js(`const h = document.getElementById('goals-notes'), n = h.querySelector('.lyric'); return h.classList.contains('rd-stage') && !!n && n.querySelectorAll('h2').length === 2 && n.querySelectorAll('ul li').length === 2 && n.querySelectorAll('ol li').length === 3;`));
-  ok('…large type over a DARK, blurred field of pastel colour (Apple Music lyrics)', await js(`const t = getComputedStyle(document.querySelector('#goals-notes .lyric')), bg = getComputedStyle(document.querySelector('#goals-notes .rd-bg i')), st = getComputedStyle(document.getElementById('goals-notes'));
+  ok('â€¦large type over a DARK, blurred field of pastel colour (Apple Music lyrics)', await js(`const t = getComputedStyle(document.querySelector('#goals-notes .lyric')), bg = getComputedStyle(document.querySelector('#goals-notes .rd-bg i')), st = getComputedStyle(document.getElementById('goals-notes'));
     const blob = getComputedStyle(document.querySelector('#goals-notes .rd-bg i'));
     return parseFloat(t.fontSize) >= 19 && parseFloat(t.fontSize) <= 26 && parseInt(t.fontWeight, 10) >= 700 && bg.backgroundImage.indexOf('radial-gradient') >= 0 && bg.filter === 'none' && document.querySelectorAll('#goals-notes .rd-bg i').length === 4 &&
       st.backgroundColor === 'rgb(17, 17, 20)' && parseFloat(blob.opacity) <= 0.25;`),
@@ -83,7 +83,7 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   ok('the stage has its own Edit (Tony) and no Close', await js(`return !!document.querySelector('#goals-notes [data-rd="edit"]') && !document.querySelector('#goals-notes [data-rd="close"]');`));
   await js(`EWApp.go('mindset'); return 1;`); await sleep(900);
   ok('Mindset leads with the quote of the day (same line as the Dashboard)', await js(`return EWQuote.today().then(q => document.querySelector('#mind-quote .quote-text').textContent === q.text);`));
-  ok('…then two sub-tabs, Content and Principles', await js(`return [...document.querySelectorAll('#mind-seg [data-seg]')].map(b => b.textContent).join() === 'Content,Principles' && document.querySelector('#mind-writings .wr-ttl').textContent === 'Principles';`));
+  ok('â€¦then two sub-tabs, Content and Principles', await js(`return [...document.querySelectorAll('#mind-seg [data-seg]')].map(b => b.textContent).join() === 'Content,Principles' && document.querySelector('#mind-writings .wr-ttl').textContent === 'Principles';`));
   await js(`document.getElementById('mind-tab-writings').click(); return 1;`); await sleep(500);
   ok('Writings: one card per page, by name; Content is hidden; the quote stays on top', await js(`return [...document.querySelectorAll('#wr-grid .wr-card .wr-title')].map(e => e.textContent).join() === 'Relationship Principles,With Parents' &&
     document.getElementById('mind-content').hidden && !document.getElementById('mind-writings').hidden && document.getElementById('mind-quote').getBoundingClientRect().height > 0 &&
@@ -94,7 +94,7 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   await js(`document.querySelector('.wr-card[data-wr="relationship-principles"] .wr-title').click(); return 1;`); await sleep(900);
   ok('tapping a card opens the reader (a dialog with the card\'s name)', await js(`const r = document.getElementById('ew-reader'); return !!r && r.getAttribute('role') === 'dialog' && r.querySelector('.rd-title').textContent === 'Relationship Principles' && document.documentElement.classList.contains('rd-lock');`));
   ok('on a desktop it is a card where the Goals stage sits (the pane\'s width, from its top, 100vh - 230px tall), over a dimmed page', await js(`const r = document.getElementById('ew-reader').getBoundingClientRect(), b = document.getElementById('ew-body-mindset').getBoundingClientRect(), d = document.querySelector('.rd-dim');
-    return document.getElementById('ew-reader').classList.contains('rd-box') && Math.abs(r.left - b.left) < 2 && Math.abs(r.width - b.width) < 2 && Math.abs(r.top - b.top) < 2 && Math.abs(r.height - (innerHeight - 230)) < 2 && !!d && getComputedStyle(d).position === 'fixed';`),
+    return document.getElementById('ew-reader').classList.contains('rd-box') && Math.abs(r.left - b.left) < 2 && Math.abs(r.width - b.width) < 2 && Math.abs(r.top - b.top) < 2 && Math.abs(r.height - Math.min(innerHeight - 230, innerHeight - b.top - 16)) < 2 && !!d && getComputedStyle(d).position === 'fixed';`),
     await js(`return JSON.stringify([document.getElementById('ew-reader').getBoundingClientRect(), document.getElementById('ew-body-mindset').getBoundingClientRect(), innerHeight]);`));
   ok('...with the Mindset title showing above it, and no "Mindset" kicker inside', await js(`const h = document.querySelector('#ew-pane-mindset .ew-hero h1').getBoundingClientRect(), r = document.getElementById('ew-reader').getBoundingClientRect();
     return h.bottom <= r.top && h.top >= 0 && !document.querySelector('#ew-reader .rd-kicker');`));
@@ -105,7 +105,7 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
     await js(`return document.querySelector('#ew-reader .lyric').innerHTML;`));
   await js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); document.getElementById('ew-reader').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return 1;`); await sleep(800);
   ok('Escape closes it, back to the cards', await js(`return !document.getElementById('ew-reader') && !document.documentElement.classList.contains('rd-lock');`));
-  ok('…and the card it grew out of is back (it hides while its reader is open)', await js(`return document.querySelector('.wr-card[data-wr="relationship-principles"]').style.visibility === '';`));
+  ok('â€¦and the card it grew out of is back (it hides while its reader is open)', await js(`return document.querySelector('.wr-card[data-wr="relationship-principles"]').style.visibility === '';`));
   await js(`document.querySelector('.wr-card[data-wr="with-parents"] .wr-title').click(); return 1;`); await sleep(1100);
   const fade = () => js(`const f = getComputedStyle(document.querySelector('#ew-reader .rd-fade')); return JSON.stringify({ t: parseFloat(f.getPropertyValue('--rd-ft')), b: parseFloat(f.getPropertyValue('--rd-fb')), m: f.maskImage || f.webkitMaskImage || 'none' });`).then(JSON.parse);
   let f = await fade();
@@ -143,9 +143,9 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   const newId = await js(`const m = (__fakeFs.docs['dashboards/everwell_tony'] || {}).mindsetPages || []; return (m[2] || {}).id || '';`);
   ok('"+ New principle" (a header button, like New recipe) asks a name, then adds the card at the end (synced list)', /^m-discipline-[a-z0-9]{4}$/.test(newId) && await js(`return [...document.querySelectorAll('#wr-grid .wr-title')].map(e => e.textContent).join() === 'Relationship Principles,With Parents,Discipline';`),
     newId + ' ' + await js(`return JSON.stringify((__fakeFs.docs['dashboards/everwell_tony'] || {}).mindsetPages);`));
-  ok('…as an empty Notebook page in the notes store', await js(`const e = __fakeFs.docs['dashboards/everwell_notes']['e_${newId}']; return !!e && e.title === 'Discipline' && e.template === 'page' && e.data.html === '' && __fakeFs.docs['dashboards/everwell_notes']._order.includes('${newId}');`));
+  ok('â€¦as an empty Notebook page in the notes store', await js(`const e = __fakeFs.docs['dashboards/everwell_notes']['e_${newId}']; return !!e && e.title === 'Discipline' && e.template === 'page' && e.data.html === '' && __fakeFs.docs['dashboards/everwell_notes']._order.includes('${newId}');`));
   for (let i = 0; i < 40 && !(await js(`return !!document.querySelector('#ewn-entries-list .entry-item.active');`)); i++) await sleep(250);
-  ok('…and Notebook opens on it, ready to write', await js(`return document.getElementById('ew-nb-overlay').classList.contains('on') && document.getElementById('ew-nb-title').textContent === 'Discipline';`) &&
+  ok('â€¦and Notebook opens on it, ready to write', await js(`return document.getElementById('ew-nb-overlay').classList.contains('on') && document.getElementById('ew-nb-title').textContent === 'Discipline';`) &&
     (await js(`const a = document.querySelector('#ewn-entries-list .entry-item.active'); return a && a.dataset.entryId;`)) === newId);
   const typed2 = await js(`const ed = [...document.querySelectorAll('#ewn-root [contenteditable="true"]')].find(e => e.offsetParent); if (!ed) return 'no editor';
     ed.focus(); const r = document.createRange(); r.selectNodeContents(ed); r.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(r);
@@ -167,7 +167,7 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   await js(`document.querySelector('[data-wr-rm="${newId}"]').click(); return 1;`); await sleep(400);
   ok('Delete asks first, naming the principle', await js(`return document.getElementById('uim-title').textContent === 'Delete principle?' && /Discipline Rules/.test(document.getElementById('uim-msg').textContent);`));
   await js(`document.getElementById('uim-ok').click(); return 1;`); await sleep(1800);
-  ok('…then the card and its page are gone', await js(`return !document.querySelector('.wr-card[data-wr="${newId}"]') && !__fakeFs.docs['dashboards/everwell_tony'].mindsetPages.some(p => p.id === '${newId}') && !__fakeFs.docs['dashboards/everwell_notes']['e_${newId}'];`));
+  ok('â€¦then the card and its page are gone', await js(`return !document.querySelector('.wr-card[data-wr="${newId}"]') && !__fakeFs.docs['dashboards/everwell_tony'].mindsetPages.some(p => p.id === '${newId}') && !__fakeFs.docs['dashboards/everwell_notes']['e_${newId}'];`));
   await js(`document.getElementById('mind-tab-content').click(); return 1;`); await sleep(300);
 
   console.log('\nRe-import never overwrites');
@@ -191,13 +191,13 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   const seedDocs = { 'dashboards/everwell_notes': await doc(), 'dashboards/main': { dashboard: { tasks: ['t1'] } }, 'dashboards/motioncore': { circuits: [{ id: 'c1' }] }, 'dashboards/mealsuite': { recipes: [] } };
   await fresh(PAGE + '#ew-backup', `sessionStorage.setItem('__fakefs_docs', ${JSON.stringify(JSON.stringify(seedDocs))});`);
   ok('the backup link is stripped from the address at once', (await js(`return location.href;`)) === PAGE);
-  ok('…and nothing is saved before Tony is in (intro still up)', await js(`return !window.__dl;`));
+  ok('â€¦and nothing is saved before Tony is in (intro still up)', await js(`return !window.__dl;`));
   await tap(); await sleep(1500);
   const dl = await js(`return window.__dl ? JSON.stringify(window.__dl) : null;`).then((s) => s && JSON.parse(s));
   const bk = dl && JSON.parse(dl.text);
   ok('after the intro, a recovery file downloads', !!dl && /^everwell-recovery-\d{4}-\d{2}-\d{2}\.json$/.test(dl.name), dl && dl.name);
-  ok('…holding the server copies of main, motioncore and mealsuite', !!bk && bk.kind === 'everwell-recovery' && bk.docs['dashboards/main'].dashboard.tasks[0] === 't1' && bk.docs['dashboards/motioncore'].circuits[0].id === 'c1' && !!bk.docs['dashboards/mealsuite']);
-  ok('…and naming the doc it could not find (everwell_tony was never written here)', !!bk && bk.missing.join() === 'dashboards/everwell_tony', bk && bk.missing);
+  ok('â€¦holding the server copies of main, motioncore and mealsuite', !!bk && bk.kind === 'everwell-recovery' && bk.docs['dashboards/main'].dashboard.tasks[0] === 't1' && bk.docs['dashboards/motioncore'].circuits[0].id === 'c1' && !!bk.docs['dashboards/mealsuite']);
+  ok('â€¦and naming the doc it could not find (everwell_tony was never written here)', !!bk && bk.missing.join() === 'dashboards/everwell_tony', bk && bk.missing);
   ok('the copies are unchanged in Firestore', await js(`return JSON.stringify(__fakeFs.docs['dashboards/main']);`) === JSON.stringify(seedDocs['dashboards/main']));
   await c.send('Page.removeScriptToEvaluateOnNewDocument', { identifier: dlHook });
 
@@ -209,8 +209,8 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   await js(`document.querySelector('#goals-notes [data-rd="edit"]').click(); return 1;`);
   for (let i = 0; i < 40 && !(await js(`return !!document.querySelector('#ewn-entries-list .entry-item.active');`)); i++) await sleep(250);
   ok('Edit opens the Notebook editor (instance ewn) full-screen', await js(`return document.getElementById('ew-nb-overlay').classList.contains('on') && !!document.getElementById('ewn-root');`));
-  ok('…on the Goals & Mindset page', (await js(`const a = document.querySelector('#ewn-entries-list .entry-item.active'); return a && a.dataset.entryId;`)) === 'goals-mindset');
-  ok("…with Notebook's page list hidden (no other tab's page shows)", await js(`return getComputedStyle(document.getElementById('ewn-sidebar')).display === 'none';`));
+  ok('â€¦on the Goals & Mindset page', (await js(`const a = document.querySelector('#ewn-entries-list .entry-item.active'); return a && a.dataset.entryId;`)) === 'goals-mindset');
+  ok("â€¦with Notebook's page list hidden (no other tab's page shows)", await js(`return getComputedStyle(document.getElementById('ewn-sidebar')).display === 'none';`));
   const typed = await js(`const ed = [...document.querySelectorAll('#ewn-root [contenteditable="true"]')].find(e => e.offsetParent); if (!ed) return 'no editor';
     ed.focus(); const r = document.createRange(); r.selectNodeContents(ed); r.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(r);
     document.execCommand('insertHTML', false, '<p>Added in Notebook</p>'); ed.dispatchEvent(new Event('input', { bubbles: true })); return 'ok';`);
@@ -248,7 +248,7 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   ok('playing another stops the first (one player at a time)', await js(`const f = document.querySelectorAll('.media-tile iframe'); return f.length === 1 && /instagram\\.com\\/reel\\/Cxyz123abc\\/embed/.test(f[0].src);`));
   await js(`EWApp.go('dashboard'); return 1;`); await sleep(500);
   ok('leaving Mindset KEEPS it playing (Tony, 2026-10-11)', await js(`return !!document.querySelector('#media-grid .media-tile iframe') && EWMindset.playing() !== null;`));
-  ok('…and the "now playing" pill says what and where, at the bottom', await js(`const n = document.getElementById('ew-now'); return n.classList.contains('on') && /Playing in Mindset/.test(n.textContent);`));
+  ok('â€¦and the "now playing" pill says what and where, at the bottom', await js(`const n = document.getElementById('ew-now'); return n.classList.contains('on') && /Playing in Mindset/.test(n.textContent);`));
   await js(`document.getElementById('ew-now-go').click(); return 1;`); await sleep(500);
   ok('the pill takes you back to Mindset (and hides there)', await js(`return EWApp.current() === 'mindset' && !document.getElementById('ew-now').classList.contains('on') && !!document.querySelector('#media-grid iframe');`));
   await js(`EWApp.go('goals'); return 1;`); await sleep(400);
