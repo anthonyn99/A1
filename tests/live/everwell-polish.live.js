@@ -199,6 +199,17 @@ const NAMELESS = `JSON.stringify([...document.querySelectorAll('#ew-head button,
   ok('the page behind the backdrop is its own base colour (no other shade can show)', await js(`return getComputedStyle(document.documentElement).backgroundColor === 'rgb(20, 20, 24)' && getComputedStyle(document.body).backgroundColor === 'rgb(20, 20, 24)';`));
   ok('…and the backdrop runs past the bottom of the screen', await js(`return document.getElementById('ew-backdrop').getBoundingClientRect().bottom >= innerHeight + 100;`));
 
+  console.log('\nPhone: a long circuit editor fits the window, Save always reachable');
+  await c.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 640, deviceScaleFactor: 3, mobile: true }); await sleep(400);
+  await js(`EWApp.go('fitness'); return 1;`); await sleep(1400);
+  await js(`mcOpenNewCircuitModal(); for (let i = 0; i < 14; i++) { document.getElementById('mc-mod-name').value = 'Move ' + i; document.getElementById('mc-mod-time').value = '30'; mcAddModuleToBuild(); } return 1;`); await sleep(400);
+  ok('the dialog is no taller than the window, and Save sits inside it', await js(`const m = document.querySelector('#mc-circuit-modal .modal').getBoundingClientRect(), b = [...document.querySelectorAll('#mc-circuit-modal .modal-footer .btn')].pop().getBoundingClientRect();
+    return m.top >= 0 && m.bottom <= innerHeight && b.bottom <= m.bottom && b.top >= m.top;`),
+    await js(`const m = document.querySelector('#mc-circuit-modal .modal').getBoundingClientRect(); return m.top + '-' + m.bottom + ' / ' + innerHeight;`));
+  await js(`document.querySelector('#mc-circuit-modal .modal').scrollTop = 0; return 1;`); await sleep(200);
+  ok('…even scrolled to the top, Save stays pinned at the bottom of the dialog', await js(`const m = document.querySelector('#mc-circuit-modal .modal').getBoundingClientRect(), b = [...document.querySelectorAll('#mc-circuit-modal .modal-footer .btn')].pop().getBoundingClientRect(); return b.bottom <= m.bottom + 1 && b.bottom > m.bottom - 80;`));
+  await js(`mcCloseModal('mc-circuit-modal'); return 1;`);
+
   console.log('\nPhone intro: title centred above its foot');
   await c.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 3, mobile: true });
   await c.send('Page.navigate', { url: BASE + 'LifeHub/lifehub.js' }); await sleep(300);

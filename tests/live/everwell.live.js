@@ -303,9 +303,9 @@ const mock = {
   ok('…with the AI unreachable, a Dhammapada verse stands in, with its source', await js(`const b = EWCore.localBuddhist('${pToday}'); return document.getElementById('pray-bq-text').textContent === b.text && document.getElementById('pray-bq-cite').textContent === b.cite && /^Dhammapada, verse \\d+$/.test(b.cite) && document.getElementById('pray-bq').dataset.source === 'local';`),
     await js(`return document.getElementById('pray-bq').textContent;`));
   console.log('\nPrayer: cards drag to reorder');
-  ok('the default order: the Buddhist quote on top, then the prayer, today, the week', await js(`return [...document.querySelectorAll('#pray-grid > .pray-card')].map(e => e.dataset.card).join() === 'buddhist,text,today,week';`));
+  ok('the default order: the prayer, the Buddhist quote right below it, today, the week', await js(`return [...document.querySelectorAll('#pray-grid > .pray-card')].map(e => e.dataset.card).join() === 'text,buddhist,today,week';`));
   ok('…its source sits on the right of the card', await js(`return getComputedStyle(document.getElementById('pray-bq-cite')).textAlign === 'right';`));
-  a = await rect('#pray-grid [data-card="week"] .panel-title'); b = await rect('#pray-grid [data-card="buddhist"]');
+  a = await rect('#pray-grid [data-card="week"] .panel-title'); b = await rect('#pray-grid [data-card="text"]');
   await mouse('mousePressed', a.x, a.y);
   for (let i = 1; i <= 16; i++) { await mouse('mouseMoved', a.x, a.y + (b.y - b.w * 0 - 40 - a.y) * i / 16); await sleep(16); }
   await sleep(200); await mouse('mouseReleased', a.x, b.y - 40); await sleep(1800);
@@ -335,7 +335,7 @@ const mock = {
   await js(`document.getElementById('dash-wk-btn').click(); return 1;`); await sleep(1500);
   ok("a tap writes today's LOCAL date to dashboards/everwell_workout (merge, by everwell)", await js(`const d = __fakeFs.docs['dashboards/everwell_workout']; return !!d && d.done['${today}'] === true && d.by === 'everwell';`),
     await js(`return JSON.stringify(__fakeFs.docs['dashboards/everwell_workout']);`));
-  ok('…and the button says "Workout complete" in the A1 green (no extra badge by the split)', await js(`const b = document.getElementById('dash-wk-btn'); return b.getAttribute('aria-pressed') === 'true' && /Workout complete/.test(b.textContent) && !document.getElementById('dash-wk-badge') &&
+  ok('…and the button says "Workout complete" in the A1 green (no extra badge, no Undo word: a tap unchecks it)', await js(`const b = document.getElementById('dash-wk-btn'); return b.getAttribute('aria-pressed') === 'true' && b.textContent === 'Workout complete' && !document.getElementById('dash-wk-badge') &&
     getComputedStyle(b).color === 'rgb(164, 185, 134)' && b.getBoundingClientRect().height <= 42;`), await js(`const b = document.getElementById('dash-wk-btn'); return getComputedStyle(b).color + ' ' + b.getBoundingClientRect().height;`));
   await js(`__fakeFs.remote('dashboards/everwell_workout', { done: { '${today}': false, '2020-02-02': true }, savedAt: Date.now(), by: 'taskhub' }, { merge: true }); return 1;`); await sleep(1000);
   ok('an untick in TaskHub shows here at once', await js(`return document.getElementById('dash-wk-btn').getAttribute('aria-pressed') === 'false';`));
