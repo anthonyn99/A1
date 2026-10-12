@@ -180,6 +180,22 @@ const NAMELESS = `JSON.stringify([...document.querySelectorAll('#ew-head button,
 
   // The intro mark must not shake while "Everwell" spreads its letters
   // (Tony, 2026-10-11): its left edge is sampled every frame of the entrance.
+  // A phone's address bar hiding/showing while scrolling changes the window
+  // height; that used to resize (and so wipe) the backdrop canvas: a black flash.
+  console.log('\nPhone scroll: no black flash');
+  await size(390); await fresh(false); await sleep(800);
+  const bd = () => js(`const cv = document.getElementById('ew-bg-canvas'), p = cv.getContext('2d').getImageData(Math.floor(cv.width / 2), Math.floor(cv.height / 2), 1, 1).data;
+    return JSON.stringify({ w: cv.width, h: cv.height, px: p[0] + p[1] + p[2] });`).then(JSON.parse);
+  const b0 = await bd();
+  for (const h of [700, 640, 760, 700]) { await c.send('Emulation.setDeviceMetricsOverride', { width: 390, height: h, deviceScaleFactor: 2, mobile: true }); await sleep(60); }
+  await sleep(400);
+  const b1 = await bd();
+  ok('the address bar coming and going leaves the backdrop canvas alone (no resize, no wipe)', b1.w === b0.w && b1.h === b0.h && b1.px > 0, JSON.stringify([b0, b1]));
+  ok('…and it is as tall as the large viewport, so it always covers the screen', await js(`return document.getElementById('ew-backdrop').getBoundingClientRect().height >= innerHeight;`));
+  await c.send('Emulation.setDeviceMetricsOverride', { width: 430, height: 760, deviceScaleFactor: 2, mobile: true }); await sleep(500);
+  ok('a real width change (rotation) still redraws it at the new size, painted', await js(`const cv = document.getElementById('ew-bg-canvas'), p = cv.getContext('2d').getImageData(5, 5, 1, 1).data; return Math.round(cv.width / 1.25) === 430 && p[0] + p[1] + p[2] > 0;`),
+    await js(`return document.getElementById('ew-bg-canvas').width;`));
+
   console.log('\nIntro');
   const probe = await c.send('Page.addScriptToEvaluateOnNewDocument', { source: `window.__markX = []; (function f(){ const m = document.querySelector('.ew-intro-mark'); if (m) window.__markX.push(m.getBoundingClientRect().left); if (window.__markX.length < 120) requestAnimationFrame(f); })();` });
   for (const w of [1440, 390]) {
