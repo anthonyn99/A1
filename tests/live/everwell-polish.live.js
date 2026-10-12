@@ -136,13 +136,16 @@ const NAMELESS = `JSON.stringify([...document.querySelectorAll('#ew-head button,
   const closeAll = () => js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     document.querySelectorAll('#mc-root .modal-backdrop.open, #mc-root .modal-overlay.open').forEach(m => m.classList.remove('open'));
     const rm = document.getElementById('rec-modal'); if (rm) rm.style.display = 'none';
-    const back = [...document.querySelectorAll('#ew-body-nutrition button')].find(b => /back to recipes/i.test(b.textContent)); if (back) back.click(); return 1;`);
+    const back = [...document.querySelectorAll('#ew-body-nutrition button')].find(b => /back to recipes|recipe book/i.test(b.textContent)); if (back) back.click();
+    if (window.EWReader) EWReader.close(); return 1;`);
 
   // Each dialog a phone opens: [tab, label, js that opens it, selector of its box].
   const DIALOGS = [
     ['dashboard', 'Edit rotation', `document.querySelector('#ew-body-dashboard [data-act="edit-rot"]').click()`],
     ['dashboard', 'Routines', `document.querySelector('#ew-body-dashboard [data-act="pairs"]').click()`],
-    ['nutrition', 'a recipe', `document.querySelector('#ew-body-nutrition .rec-row .rec-info').click()`],
+    ['nutrition', 'a recipe', `document.querySelector('#ew-body-nutrition .rec-row .rec-name').click()`],
+    ['fitness', 'a circuit sheet', `document.querySelector('#ew-body-fitness .circuit-card .fx-name').click()`],
+    ['mindset', 'the reader', `EWMindset.show('writings'); document.querySelector('#ew-body-mindset .wr-card .wr-title').click()`],
   ];
 
   for (const display of [false, true]) {
