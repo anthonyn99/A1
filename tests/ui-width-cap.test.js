@@ -77,6 +77,10 @@ const DELIBERATE_FULL_BLEED = [
   // on purpose (Tony, 2026-10-11). Its content IS the picture, letterboxed by
   // the player, so every pixel of width is the video, not stretched UI.
   /^\.media-tile\.filled$/,
+  // Its Instagram player filled the same way (2026-10-12): the blurred cover
+  // fills the window, the post keeps its own shape in the middle, and the
+  // caption panel beside it is a fixed 340px, so nothing stretches.
+  /^\.ig-stage\.filled$/,
 ];
 const failures = [];
 
