@@ -25,7 +25,10 @@
 
   var CSS = [
     // Native scrollbars off everywhere — the overlay thumb below replaces them.
-    'html.vc-on *:not([data-native-scroll]){scrollbar-width:none!important}',
+    // `html.vc-on` itself too: the page's own bar belongs to <html>, not to
+    // anything inside it.
+    'html.vc-on:not([data-native-scroll]),html.vc-on *:not([data-native-scroll]){scrollbar-width:none!important}',
+    'html.vc-on:not([data-native-scroll])::-webkit-scrollbar{width:0!important;height:0!important;display:none!important;background:transparent!important}',
     'html.vc-on :not([data-native-scroll])::-webkit-scrollbar{width:0!important;height:0!important;display:none!important;background:transparent!important}',
     // ── overlay scrollbar ──
     '.vc-rail{position:fixed;z-index:60;pointer-events:none;opacity:0;transition:opacity .35s ease;touch-action:none}',
@@ -86,12 +89,24 @@
   // ── overlay scrollbars ─────────────────────────────────────────────────────
   var bars = new Map();            // scroller -> bar
   var HIDE_MS = 1100;
+  // A page whose <html> is overflow:hidden scrolls <body> instead; every other
+  // page scrolls the document, whichever of the two the event names.
+  function bodyScrolls() {
+    var b = doc.body;
+    if (!b || b.scrollHeight - b.clientHeight < 2) return false;
+    var oy = getComputedStyle(b).overflowY;
+    return (oy === 'auto' || oy === 'scroll') && getComputedStyle(root).overflowY !== 'visible';
+  }
   function scrollerFor(t) {
+    if (t === doc.body && bodyScrolls()) return doc.body;
     if (t === doc || t === doc.documentElement || t === doc.body) return doc.scrollingElement || root;
     return t;
   }
   function canScroll(el, axis) {
     if (!el || el.nodeType !== 1 || el.closest('[data-native-scroll]')) return false;
+    // A scroller that draws its own overlay bar (MAGI's [data-sbar], RiftIQ's
+    // ProView) keeps it; a second rail would sit on top of the first.
+    if (el.hasAttribute('data-sbar')) return false;
     var isDoc = el === (doc.scrollingElement || root);
     if (axis === 'v') {
       if (el.scrollHeight - el.clientHeight < 2) return false;
@@ -259,7 +274,7 @@
       var t = ev.target;
       if (t && t.closest && t.closest('.vc-rail')) return;
       for (var el = t && t.nodeType === 1 ? t : null; el; el = el.parentElement) {
-        if (el === doc.body) el = doc.scrollingElement || root;
+        if (el === doc.body && !bodyScrolls()) el = doc.scrollingElement || root;
         var v = canScroll(el, 'v');
         var hz = canScroll(el, 'h');
         if (v || hz) {
