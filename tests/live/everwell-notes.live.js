@@ -103,11 +103,11 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   await js(`document.querySelector('.wr-card[data-wr="with-parents"] .wr-title').click(); return 1;`); await sleep(1100);
   const fx = () => js(`const sc = document.querySelector('#ew-reader .rd-scroll').getBoundingClientRect(), mid = (sc.top + sc.bottom) / 2;
     const ls = [...document.querySelectorAll('#ew-reader .lyric li')].map(l => { const r = l.getBoundingClientRect(); return { c: (r.top + r.bottom) / 2, f: l.style.filter, o: l.style.opacity, n: l.textContent }; }).filter(x => x.c > sc.top && x.c < sc.bottom);
-    const near = ls.reduce((a, x) => Math.abs(x.c - mid) < Math.abs(a.c - mid) ? x : a), last = ls[ls.length - 1];
-    return JSON.stringify({ mid: near.f, midN: near.n, edge: last.f, edgeO: last.o, edgeN: last.n, sharp: ls.filter(x => !x.f).length, all: ls.length });`).then(JSON.parse);
+    const near = ls.reduce((a, x) => Math.abs(x.c - mid) < Math.abs(a.c - mid) ? x : a), last = ls.filter(x => x.f).pop() || ls[ls.length - 1], H = sc.bottom - sc.top;
+    return JSON.stringify({ mid: near.f, midN: near.n, edge: last.f, edgeO: last.o, edgeN: last.n, sharp: ls.filter(x => !x.f).length, all: ls.length, outside: ls.filter(x => x.f && x.c < sc.bottom - H * 0.12).length });`).then(JSON.parse);
   let f = await fx();
   ok('the reader: lines in the middle are sharp, most of the screen is clear', f.mid === '' && f.sharp >= f.all * 0.6, JSON.stringify(f));
-  ok('…and only the lines at the bottom edge are soft (blurred, dimmed)', /blur\(\d/.test(f.edge) && parseFloat(f.edge.replace(/[^\d.]/g, '')) > 0 && parseFloat(f.edgeO) < 1, JSON.stringify(f));
+  ok('…and only lines in a NARROW bottom edge are soft (blurred, dimmed): none above the last ~10%', f.outside === 0 && /blur\(\d/.test(f.edge) && parseFloat(f.edge.replace(/[^\d.]/g, '')) > 0 && parseFloat(f.edgeO) < 1, JSON.stringify(f));
   const edgeName = f.edgeN;
   ok('at the top, the first line is sharp too', await js(`const l = document.querySelector('#ew-reader .lyric li'); return !l.style.filter && !l.style.opacity;`));
   // Smooth scrolling: a scroll frame reads no layout (positions are measured once) and the scroller has no mask.
