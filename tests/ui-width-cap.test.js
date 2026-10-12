@@ -69,6 +69,14 @@ const DELIBERATE_FULL_BLEED = [
   // whose name doesn't say overlay. The window inside it is
   // `#mastery-detail-card`, held to min(440px, 100%) and centred by flex.
   /^#mastery-detail$/,
+  // Everwell's reader (the lyrics-style view): a full-bleed field of colour
+  // the words sit on. The words are `.rd-text`, held to 820px and centred, so
+  // capping the field would only leave bare page beside it on a wide screen.
+  /^\.rd-ov$/,
+  // Everwell's "Fill the window": a playing video filling the browser window
+  // on purpose (Tony, 2026-10-11). Its content IS the picture, letterboxed by
+  // the player, so every pixel of width is the video, not stretched UI.
+  /^\.media-tile\.filled$/,
 ];
 const failures = [];
 
