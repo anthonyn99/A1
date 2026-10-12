@@ -91,16 +91,6 @@
     }
     return doc.body;
   }
-  // A position:fixed child is positioned against the viewport UNLESS an
-  // ancestor has a transform / filter / backdrop-filter, which makes that
-  // ancestor the containing block. Measure instead of guessing.
-  function fixedOrigin(node) {
-    var prev = node.style.cssText;
-    node.style.left = '0px'; node.style.top = '0px';
-    var r = node.getBoundingClientRect();
-    node.style.cssText = prev;
-    return { x: r.left, y: r.top };
-  }
   function vw() { return root.clientWidth || window.innerWidth; }
   function vh() { return window.innerHeight || root.clientHeight; }
 
