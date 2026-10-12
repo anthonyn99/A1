@@ -281,6 +281,21 @@ const mock = {
   ok('…and every tick is merged per date (older days kept)', await js(`return __fakeFs.docs['dashboards/everwell_prayer'].done['2020-01-01'] === true;`));
   ok("Prayer never writes TaskHub's own doc", await js(`return !__fakeFs.log.some(l => l.path === 'dashboards/main');`));
 
+  console.log('\nPrayer: the Buddhist quote of the day');
+  ok('Prayer asks personal-ai for the Buddhist quote (kind=buddhist, local date)', QUOTE.calls.some((q) => q === '?profile=tony&date=' + pToday + '&kind=buddhist'), QUOTE.calls);
+  ok('…with the AI unreachable, a Dhammapada verse stands in, with its source', await js(`const b = EWCore.localBuddhist('${pToday}'); return document.getElementById('pray-bq-text').textContent === b.text && document.getElementById('pray-bq-cite').textContent === b.cite && /^Dhammapada, verse \\d+$/.test(b.cite) && document.getElementById('pray-bq').dataset.source === 'local';`),
+    await js(`return document.getElementById('pray-bq').textContent;`));
+  console.log('\nPrayer: cards drag to reorder');
+  ok('the default order: the prayer, today, the Buddhist quote, the week', await js(`return [...document.querySelectorAll('#pray-grid > .pray-card')].map(e => e.dataset.card).join() === 'text,today,buddhist,week';`));
+  a = await rect('#pray-grid [data-card="week"] .panel-title'); b = await rect('#pray-grid [data-card="text"]');
+  await mouse('mousePressed', a.x, a.y);
+  for (let i = 1; i <= 16; i++) { await mouse('mouseMoved', a.x, a.y + (b.y - b.w * 0 - 40 - a.y) * i / 16); await sleep(16); }
+  await sleep(200); await mouse('mouseReleased', a.x, b.y - 40); await sleep(1800);
+  ok('dragging "This week" to the top moves it there and saves the order (synced)', await js(`const o = (__fakeFs.docs['dashboards/everwell_tony'] || {}).prayerOrder || []; return o[0] === 'week' && document.querySelector('#pray-grid > .pray-card').dataset.card === 'week';`),
+    await js(`return JSON.stringify((__fakeFs.docs['dashboards/everwell_tony'] || {}).prayerOrder) + ' ' + [...document.querySelectorAll('#pray-grid > .pray-card')].map(e => e.dataset.card).join();`));
+  await js(`__fakeFs.remote('dashboards/everwell_tony', { prayerOrder: ['buddhist', 'text', 'today', 'week'], savedAt: Date.now() + 5 }, { merge: true }); return 1;`); await sleep(900);
+  ok("another device's order arrives live", await js(`return [...document.querySelectorAll('#pray-grid > .pray-card')].map(e => e.dataset.card).join() === 'buddhist,text,today,week';`));
+
   /* ── Phase 3: the Dashboard ── */
   console.log('\nDashboard: rotation');
   const today = await js(`return EWCore.dateKey();`);
@@ -296,6 +311,39 @@ const mock = {
   await js(`document.querySelector('[data-today="2"]').click(); return 1;`); await sleep(1500);
   ok("a tap changes today's split (Legs), and tomorrow follows from it", (await js(`return document.getElementById('dash-split-name').textContent + '|' + [...document.querySelectorAll('.split-day .nm')].slice(0, 3).map(e => e.textContent).join();`)) === 'Legs|Legs,Push,Pull');
   ok('…saved as a new anchor (today, Legs) with a log entry', await js(`const r = __fakeFs.docs['dashboards/everwell_tony'].rotation; return r.anchor.date === '${today}' && r.anchor.idx === 2 && r.log.length === 1 && r.log[0].date === '${today}';`));
+
+  console.log('\nDashboard: today\'s workout, ticked here or in TaskHub');
+  ok('the split card offers "Mark today\'s workout done"', await js(`const b = document.getElementById('dash-wk-btn'); return !!b && !b.disabled && b.getAttribute('aria-pressed') === 'false' && /Mark today's workout done/.test(b.textContent);`));
+  await js(`document.getElementById('dash-wk-btn').click(); return 1;`); await sleep(1500);
+  ok("a tap writes today's LOCAL date to dashboards/everwell_workout (merge, by everwell)", await js(`const d = __fakeFs.docs['dashboards/everwell_workout']; return !!d && d.done['${today}'] === true && d.by === 'everwell';`),
+    await js(`return JSON.stringify(__fakeFs.docs['dashboards/everwell_workout']);`));
+  ok('…and the split shows it complete (badge, button turned to undo)', await js(`return !!document.getElementById('dash-wk-badge') && document.getElementById('dash-split-name').classList.contains('done') && document.getElementById('dash-wk-btn').getAttribute('aria-pressed') === 'true' && /Workout complete/.test(document.getElementById('dash-wk-btn').textContent);`));
+  await js(`__fakeFs.remote('dashboards/everwell_workout', { done: { '${today}': false, '2020-02-02': true }, savedAt: Date.now(), by: 'taskhub' }, { merge: true }); return 1;`); await sleep(1000);
+  ok('an untick in TaskHub shows here at once', await js(`return !document.getElementById('dash-wk-badge') && document.getElementById('dash-wk-btn').getAttribute('aria-pressed') === 'false';`));
+  await js(`__fakeFs.remote('dashboards/everwell_workout', { done: { '${today}': true }, savedAt: Date.now(), by: 'taskhub' }, { merge: true }); return 1;`); await sleep(1000);
+  ok('a tick in TaskHub shows here too', await js(`return !!document.getElementById('dash-wk-badge');`));
+  ok("the workout tick never writes TaskHub's own doc", await js(`return !__fakeFs.log.some(l => l.path === 'dashboards/main');`));
+
+  console.log('\nDashboard: today\'s prayer, in Faith');
+  ok('Faith says "Not prayed yet today", with a Pray now button', await js(`const f = document.getElementById('dash-pray-state'); return !!f && f.dataset.done === 'false' && /Not prayed yet today/.test(f.textContent) && !!f.querySelector('[data-act="go-prayer"]');`),
+    await js(`return document.getElementById('dash-faith').textContent;`));
+  await js(`document.querySelector('[data-act="go-prayer"]').click(); return 1;`); await sleep(900);
+  ok('Pray now opens the Prayer tab', await js(`return EWApp.current() === 'prayer' && !!document.getElementById('pray-btn');`));
+  await js(`document.getElementById('pray-btn').click(); return 1;`); await sleep(1200);
+  await js(`EWApp.go('dashboard'); return 1;`); await sleep(600);
+  ok('…and once prayed, Faith says "Prayed today", no button', await js(`const f = document.getElementById('dash-pray-state'); return f.dataset.done === 'true' && /Prayed today/.test(f.textContent) && !f.querySelector('[data-act="go-prayer"]');`));
+
+  console.log('\nDashboard: cards drag, between the two columns too');
+  a = await rect('#dash-r .rcard-name'); b = await rect('#dash-split');
+  await mouse('mousePressed', a.x, a.y);
+  for (let i = 1; i <= 18; i++) { await mouse('mouseMoved', a.x + (b.x - a.x) * i / 18, a.y + (b.y - b.w * 0 - a.y - 120) * i / 18); await sleep(16); }
+  await sleep(200);
+  const dropAt = await rect('#dash-split'); await mouse('mouseMoved', dropAt.x, dropAt.y - 120); await sleep(120);
+  await mouse('mouseReleased', dropAt.x, dropAt.y - 120); await sleep(1800);
+  ok('the R card dragged into the left column lands there, and the order is saved', await js(`const o = (__fakeFs.docs['dashboards/everwell_tony'] || {}).dashOrder; return !!o && o.a.indexOf('r') >= 0 && !o.b.includes('r') && !!document.querySelector('#dash-col-a [data-card="r"]');`),
+    await js(`return JSON.stringify((__fakeFs.docs['dashboards/everwell_tony'] || {}).dashOrder) + ' | ' + [...document.querySelectorAll('#dash-col-a > *')].map(e => e.dataset.card).join();`));
+  await js(`__fakeFs.remote('dashboards/everwell_tony', { dashOrder: { a: ['split', 'quote'], b: ['faith', 'r'] }, savedAt: Date.now() + 7 }, { merge: true }); return 1;`); await sleep(900);
+  ok("another device's card order arrives live", await js(`return [...document.querySelectorAll('#dash-col-b > .dash-card')].map(e => e.dataset.card).join() === 'faith,r';`));
 
   console.log('\nDashboard: routine pairings');
   ok('auto-paired ONCE by name: Legs → Leg Day; "Push Day A" is not an exact match, so Push stays free', await js(`const r = __fakeFs.docs['dashboards/everwell_tony'].rotation;
@@ -374,7 +422,8 @@ const mock = {
   await js(`localStorage.removeItem('ew.tony.riot.yunara'); return 1;`);
 
   console.log('\nQuote of the day: AI (Phase 4)');
-  ok('Tony asked personal-ai once for today (profile tony, local date)', QUOTE.calls.length >= 1 && QUOTE.calls.every((s) => s === '?profile=tony&date=' + today), QUOTE.calls);
+  const daily = () => QUOTE.calls.filter((s) => !/kind=/.test(s));
+  ok('Tony asked personal-ai once for today (profile tony, local date)', daily().length >= 1 && daily().every((s) => s === '?profile=tony&date=' + today), QUOTE.calls);
   ok('the worker was unreachable, so the local line stays and the try is throttled', await js(`return document.getElementById('dash-quote').dataset.source === 'local' && JSON.parse(localStorage.getItem('ew.tony.quoteTry')).date === '${today}';`));
   QUOTE.calls.length = 0;
   await c.send('Page.reload'); await sleep(2200); await tapIntro(); await js(`EWApp.go('dashboard'); return 1;`); await sleep(800);
