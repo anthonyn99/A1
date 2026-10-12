@@ -290,7 +290,16 @@ const mock = {
   await js(`window.__pg = document.querySelector('.pray-grid'); return 1;`);
   ok('Prayer opens unticked for today, with a Mon–Sun week', await js(`return EWPrayer.state().loaded && document.getElementById('pray-big').textContent === 'Not yet today' && document.querySelectorAll('.pray-week .pray-day').length === 7;`));
   ok('future days cannot be ticked', await js(`const t = '${pToday}'; return [...document.querySelectorAll('.pray-day')].every(b => (b.dataset.pray > t) === b.disabled);`));
-  await js(`document.getElementById('pray-btn').click(); return 1;`); await sleep(1500);
+  // The swap (Tony, 2026-10-12: "it flashes a bit"): the button keeps its box,
+  // so it never jumps out from under the cursor, and its colours change in one
+  // frame instead of fading through low contrast.
+  await js(`const b = document.getElementById('pray-btn'); window.__pb = JSON.stringify(b.getBoundingClientRect()); window.__pbSnap = null;
+    new MutationObserver(() => { if (b.classList.contains('pb-snap') && window.__pbSnap === null) window.__pbSnap = getComputedStyle(b).transitionDuration; }).observe(b, { attributes: true, attributeFilter: ['class'] });
+    b.click(); return 1;`); await sleep(1500);
+  ok('the Prayer button keeps its size and place when it turns into "Prayed · undo"', await js(`return JSON.stringify(document.getElementById('pray-btn').getBoundingClientRect()) === window.__pb;`));
+  ok('...switching its colours in one frame (no fade), then its hover fades again', await js(`const b = document.getElementById('pray-btn'); return window.__pbSnap !== null && window.__pbSnap.split(',').every(d => parseFloat(d) === 0) && !b.classList.contains('pb-snap');`),
+    await js(`return window.__pbSnap;`));
+  ok('...showing only the label for its state', await js(`const b = document.getElementById('pray-btn'), vis = (s) => getComputedStyle(b.querySelector(s)).visibility === 'visible'; return vis('.pb-on') && !vis('.pb-off');`));
   ok("marking it writes today's LOCAL date to dashboards/everwell_prayer", await js(`const d = __fakeFs.docs['dashboards/everwell_prayer']; return !!d && d.done['${pToday}'] === true && d.by === 'everwell';`),
     await js(`return JSON.stringify(__fakeFs.docs['dashboards/everwell_prayer']);`));
   ok('…and shows "Prayed today", the button now undoes', await js(`return document.getElementById('pray-big').textContent === 'Prayed today' && /undo/i.test(document.getElementById('pray-btn').textContent);`));
