@@ -88,9 +88,35 @@ Notebook.mount({
 }).then(() => { /* mounted */ });
 ```
 
-Then add the host to `tools/notebook-stamp.js` (it rewrites every host's `?v=`), and
-keep the program's `window.uiAlert/uiConfirm/uiPrompt/uiForm` if it has them. Notebook
-borrows them, and its stand-ins are the browser's own dialogs.
+There is nothing to register. `tools/notebook-stamp.js` finds every page in A1 and
+A1-Priv that loads `notebook.js` and keeps its `?v=` current, and
+`tests/notebook-hosts.test.js` holds the new page to the host rules below. Keep the
+program's `window.uiAlert/uiConfirm/uiPrompt/uiForm` if it has them. Notebook borrows
+them, and its stand-ins are the browser's own dialogs.
+
+### Host rules
+
+A host talks to its instance only through what this page documents: the mount
+options, `Notebook.open`, `Notebook.attach` / `Notebook.detach`, `Notebook.flushAll`,
+and `cfg.entries()` (Notebook adds it to the config the host passed). Everything
+else (the instance's ids and classes, its `_<key>…` functions, its `<key>_…`
+storage keys, its ready events) is Notebook's to rename, so a host that touched
+it would break silently the day Notebook changed. Concretely:
+
+- Load `notebook.js` once, as a plain `<script>` (or with `data-lazy`), never
+  async, deferred or as a module.
+- Write the mount call with `app`, `key` and `store` spelled out, in that order.
+- Set `window.NotebookFirebase` before mounting.
+- No CSS for `#<key>-…` and no script that queries, clicks or moves the
+  instance's elements. To hide part of Notebook, use a mount option; if none
+  exists, add a `features` switch to Notebook (default on) and to `FEATURES` in
+  `notebook.js`.
+- `Notebook.mount` throws on an option or feature it doesn't know, so a typo
+  fails at once instead of quietly leaving a program behind.
+
+`tests/notebook-hosts.test.js` fails on any of these for every host it finds, and
+A1-Priv's suite runs it too. index.html is the native host of `tj` and `bj` and is
+exempt from the internals rule (it owns how they open inside TaskHub).
 
 | Option | Meaning |
 |---|---|
@@ -112,6 +138,11 @@ does, switches edit (`true`) or view (`false`) mode when asked, and waits for th
 mount and for the page to load. It resolves `true` once the page is open, and
 `false` if the page never turns up or a newer `open` took over. Never click or
 read Notebook's own elements from a host: their ids are Notebook's to change.
+
+A host whose own markup comes and goes (TradeHub's React tab) moves the mounted
+instance with `Notebook.attach(key, container)` and sets it aside, hidden and
+still running, with `Notebook.detach(key)`. Both return `false` when nothing is
+mounted under `key` yet, so `attach` doubles as "is it mounted?".
 
 ### How an instance works
 
