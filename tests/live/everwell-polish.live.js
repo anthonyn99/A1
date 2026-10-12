@@ -210,6 +210,13 @@ const NAMELESS = `JSON.stringify([...document.querySelectorAll('#ew-head button,
   ok('…even scrolled to the top, Save stays pinned at the bottom of the dialog', await js(`const m = document.querySelector('#mc-circuit-modal .modal').getBoundingClientRect(), b = [...document.querySelectorAll('#mc-circuit-modal .modal-footer .btn')].pop().getBoundingClientRect(); return b.bottom <= m.bottom + 1 && b.bottom > m.bottom - 80;`));
   await js(`mcCloseModal('mc-circuit-modal'); return 1;`);
 
+  console.log('\nPhone: Nutrition\'s last card clears the voice bar');
+  await js(`EWApp.go('nutrition'); return 1;`); await sleep(1400);
+  await js(`window.scrollTo(0, document.documentElement.scrollHeight); return 1;`); await sleep(400);
+  ok('scrolled to the bottom, the last recipe card ends above the voice bar', await js(`const cards = document.querySelectorAll('#rec-root .rb-card'), v = document.getElementById('float-voice'); if (!cards.length || !v) return false;
+    return cards[cards.length - 1].getBoundingClientRect().bottom <= v.getBoundingClientRect().top;`),
+    await js(`const cards = document.querySelectorAll('#rec-root .rb-card'), v = document.getElementById('float-voice'); return (cards.length ? cards[cards.length - 1].getBoundingClientRect().bottom : 'none') + ' vs ' + (v ? v.getBoundingClientRect().top : 'no bar');`));
+
   console.log('\nPhone intro: title centred above its foot');
   await c.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 3, mobile: true });
   await c.send('Page.navigate', { url: BASE + 'LifeHub/lifehub.js' }); await sleep(300);
