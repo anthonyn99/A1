@@ -193,7 +193,7 @@ const NAMELESS = `JSON.stringify([...document.querySelectorAll('#ew-head button,
   ok('the address bar coming and going leaves the backdrop canvas alone (no resize, no wipe)', b1.w === b0.w && b1.h === b0.h && b1.px > 0, JSON.stringify([b0, b1]));
   ok('…and it is as tall as the large viewport, so it always covers the screen', await js(`return document.getElementById('ew-backdrop').getBoundingClientRect().height >= innerHeight;`));
   await c.send('Emulation.setDeviceMetricsOverride', { width: 430, height: 760, deviceScaleFactor: 2, mobile: true }); await sleep(500);
-  ok('a real width change (rotation) still redraws it at the new size, painted', await js(`const cv = document.getElementById('ew-bg-canvas'), p = cv.getContext('2d').getImageData(5, 5, 1, 1).data; return Math.round(cv.width / 1.25) === 430 && p[0] + p[1] + p[2] > 0;`),
+  ok('a real width change (rotation) still redraws it at the new size, painted', await js(`const cv = document.getElementById('ew-bg-canvas'), p = cv.getContext('2d').getImageData(5, 5, 1, 1).data; return cv.width === Math.round(430 * ${b0.w} / 390) && Math.round(cv.getBoundingClientRect().width) === 430 && p[0] + p[1] + p[2] > 0;`),
     await js(`return document.getElementById('ew-bg-canvas').width;`));
 
   console.log('\nIntro');
