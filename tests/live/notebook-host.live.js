@@ -132,8 +132,7 @@ const SEED = {
   R = await rows();
   ok('after a reload: pinned first, the new page and the renamed one kept', R[0] && R[0].id === 'daily-reminder' && R.some((r) => r.id === newId) && R.some((r) => r.t === 'Alpha rules v2'), JSON.stringify(R));
 
-  console.log('
-A host that picks the page itself (features.sidebar false, Notebook.open)');
+  console.log('\nA host that picks the page itself (features.sidebar false, Notebook.open)');
   await boot({ features: { sidebar: false } });
   const shown = (id) => js(`var e=document.getElementById(${JSON.stringify(id)}); return !!e && e.getClientRects().length > 0 && getComputedStyle(e).display !== 'none';`);
   ok('no entry list, no phone drawer backdrop', !(await shown('nb-sidebar')) && !(await shown('nb-sidebar-backdrop')));
