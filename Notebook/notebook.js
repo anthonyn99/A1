@@ -263,6 +263,9 @@ function instanceCss(cfg) {
     css.push('@media (max-width: 900px){' + R + ' ' + K + '-sidebar,' + R + ' ' + K + '-sidebar-backdrop{position:absolute!important;height:100%!important;}'
       + R + ' ' + K + '-bottom-bar{position:absolute!important;}}');
   }
+  // features.sidebar false: the entry list, its phone drawer and the phone
+  // bar's New button go; the host picks the entry (Notebook.open).
+  if (cfg.features && cfg.features.sidebar === false) css.push(R + ' ' + K + '-sidebar,' + R + ' ' + K + '-sidebar-backdrop,' + R + ' ' + K + '-bb-new{display:none!important;}');
   if (cfg.features && cfg.features.locks === false) css.push(R + ' ' + K + '-mobile-lock-btn,' + R + ' ' + K + '-btn-lock{display:none!important;}');
   if (Array.isArray(cfg.templates)) css.push(R + ' .template-card' + cfg.templates.map(function (t) { return ':not([data-template="' + t + '"])'; }).join('') + '{display:none!important;}');
   return css.join('\n');
@@ -302,7 +305,8 @@ window.Notebook = {
   // A host mounts an app: { app, key, store } and, for an instance:
   //   container   the element it lives in (mode 'inline', the default for an
   //               instance); title (the app's name in its UI);
-  //   features    { ourjournal, locks } (an instance: both off unless set);
+  //   features    { ourjournal, locks, sidebar } (an instance: ourjournal and
+  //               locks off unless set, sidebar on unless set to false);
   //   templates   the template cards to offer, e.g. ['page'];
   //   pinned      [{ id, title, html }] pages always first, never trashed;
   //   onSave(entry), onReady()   hooks.
@@ -317,8 +321,21 @@ window.Notebook = {
     if (!cfg.store || !/^[a-z0-9_]+$/.test(cfg.store) || cfg.store === 'tony_journal' || cfg.store === 'journal') throw new Error('Notebook.mount: an instance needs its own store');
     this.mounts[cfg.key] = cfg;
     cfg.mode = cfg.mode || 'inline';
-    cfg.features = Object.assign({ ourjournal: false, locks: false }, cfg.features || {});
+    cfg.features = Object.assign({ ourjournal: false, locks: false, sidebar: true }, cfg.features || {});
     return (cfg._ready = instantiate(cfg));
+  },
+  // Open entry `id` in the app mounted under `key`, as a click on its row
+  // would; opts.edit true/false switches edit/view mode. Waits for the mount
+  // and for the entry to load. Resolves true once it is open, false if the
+  // entry never turns up.
+  open: function (key, id, opts) {
+    var cfg = this.mounts[key];
+    if (!cfg) return Promise.reject(new Error('Notebook.open: nothing mounted as ' + key));
+    return Promise.resolve(cfg._ready).then(function () {
+      var f = window['_' + key + 'OpenEntry'];
+      if (typeof f !== 'function') throw new Error('Notebook.open: ' + key + ' cannot open entries');
+      return f(id, opts);
+    });
   },
   // Run fn once the document has parsed (now, for an instance mounted later).
   _whenReady: function (fn) {
