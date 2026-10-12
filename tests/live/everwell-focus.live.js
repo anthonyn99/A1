@@ -98,7 +98,7 @@ const mock = {
   await add('https://www.youtube.com/watch?v=goodvideo01', 'Good');
   await add('https://www.youtube.com/watch?v=goodvideo01');
   ok('a duplicate is refused', /already here/.test(await js(`return document.getElementById('focus-err').textContent;`)));
-  ok('the link and title boxes each get a clear x once they hold text', await js(`const u = document.getElementById('focus-url'), t = document.getElementById('focus-title'); return !!u.closest('.ew-clr') && !!t.closest('.ew-clr') && u.closest('.ew-clr').classList.contains('has');`));
+  ok('the link and title boxes each get a clear x once they hold text (typed or pasted)', await js(`const u = document.getElementById('focus-url'), t = document.getElementById('focus-title'); u.value = 'https://pasted.example/x'; u.dispatchEvent(new Event('input', { bubbles: true })); return !!u.closest('.ew-clr') && !!t.closest('.ew-clr') && u.closest('.ew-clr').classList.contains('has');`));
   await js(`document.getElementById('focus-url').closest('.ew-clr').querySelector('.ew-clr-x').click(); return 1;`); await sleep(200);
   ok('…and the x clears it', await js(`return document.getElementById('focus-url').value === '' && !document.getElementById('focus-url').closest('.ew-clr').classList.contains('has');`));
   ok('five tiles, newest first; the two audio tiles are short audio tiles', await js(`const t = [...document.querySelectorAll('#focus-grid .media-tile')]; return t.length === 5 && t[0].querySelector('.t').textContent === 'Good' && t.filter(x => x.dataset.kind === 'audio' && x.querySelector('.media-frame.audio')).length === 2;`));
