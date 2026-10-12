@@ -24,14 +24,18 @@ const CODES = { blockedvid1: 150, removedvid1: 100 };
 // A good one also obeys Everwell's controls (play / pause / seek) and reports
 // back like the real player (infoDelivery).
 const player = (code) => `<!doctype html><title>fake player</title><script>
-var st = { playerState: 1, currentTime: 0, duration: 120, muted: false };
+var st = { playerState: 1, currentTime: 0, duration: 120, muted: false }, heard = false, ad = false;
+// Like the real player, it reports its clock several times a second while playing.
+setInterval(function(){ if (!heard || st.playerState !== 1 || ad) return; st.currentTime = Math.min(st.duration, st.currentTime + 0.25); parent.postMessage(JSON.stringify({ event: 'infoDelivery', info: { currentTime: st.currentTime } }), '*'); }, 250);
 addEventListener('message', function(e){ var d; try { d = JSON.parse(e.data); } catch (x) { return; }
   if (d.event === 'command') {
     if (d.func === 'pauseVideo') st.playerState = 2; if (d.func === 'playVideo') st.playerState = 1;
     if (d.func === 'seekTo') st.currentTime = d.args[0]; if (d.func === 'mute') st.muted = true; if (d.func === 'unMute') st.muted = false;
+    if (d.func === 'testAd') ad = !!d.args[0];   // the test: an ad runs (the video's clock stands still)
     parent.postMessage(JSON.stringify({ event: 'infoDelivery', info: st }), '*'); return;
   }
   if (d.event !== 'listening') return;
+  heard = true;
   parent.postMessage(JSON.stringify(${code ? `{ event: 'onError', info: ${code} }` : `{ event: 'infoDelivery', info: st }`}), '*'); });
 </script>`;
 // A short silent WAV whose every byte is ASCII (the mock sends text as UTF-8):
