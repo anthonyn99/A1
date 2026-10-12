@@ -141,6 +141,22 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   await js(`document.querySelector('.wr-card[data-wr="relationship-principles"] .wr-title').click(); return 1;`); await sleep(900);
   await js(`document.querySelector('.rd-dim').click(); return 1;`); await sleep(800);
   ok('a click on the dimmed page closes it too, dim and all', await js(`return !document.getElementById('ew-reader') && !document.querySelector('.rd-dim') && !document.documentElement.classList.contains('rd-lock');`));
+  // Paging (Tony, 2026-10-12): the reader's left and right edges go to the previous / next card, in the board's order.
+  const edge = (side) => js(`const o = document.getElementById('ew-reader'), b = o.getBoundingClientRect(); o.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: side === 'r' ? b.right - 20 : b.left + 20, clientY: b.top + b.height / 2 })); return 1;`);
+  const rdTitle = () => js(`return document.querySelector('#ew-reader [data-rd-title]').textContent;`);
+  const board = await js(`return [...document.querySelectorAll('#wr-grid .wr-card')].map(c => c.querySelector('.wr-title').textContent).join('|');`);
+  await js(`document.querySelector('#wr-grid .wr-card .wr-title').click(); return 1;`); await sleep(900);
+  const seen = [await rdTitle()];
+  for (let k = 0; k < 5; k++) { await edge('r'); await sleep(450); seen.push(await rdTitle()); }
+  ok('a click on the right edge goes to the next card, in the board\'s order, and stops at the last', seen.join('|').startsWith(board) && seen[seen.length - 1] === board.split('|').pop(), seen.join('|') + ' vs ' + board);
+  await edge('l'); await sleep(450);
+  ok('...the left edge goes back one', (await rdTitle()) === board.split('|').slice(-2)[0], await rdTitle());
+  await js(`document.getElementById('ew-reader').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })); return 1;`); await sleep(450);
+  ok('...and so do the arrow keys', (await rdTitle()) === board.split('|').slice(-3)[0], await rdTitle());
+  ok('...with the new card\'s text, from its top', await js(`const sc = document.querySelector('#ew-reader .rd-scroll'); return sc.scrollTop === 0 && document.getElementById('ew-reader').getAttribute('aria-label') === document.querySelector('#ew-reader [data-rd-title]').textContent;`));
+  ok('...the edge under the cursor shows a chevron', await js(`const o = document.getElementById('ew-reader'), b = o.getBoundingClientRect(); o.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: b.right - 20, clientY: b.top + b.height / 2 })); return o.getAttribute('data-edge') === 'r';`));
+  await js(`document.querySelector('#ew-reader [data-rd="close"]').click(); return 1;`); await sleep(800);
+  ok('closing after paging leaves every card visible', await js(`return !document.getElementById('ew-reader') && [...document.querySelectorAll('.wr-card')].every(c => c.style.visibility === '');`));
   await c.send('Emulation.setDeviceMetricsOverride', { width: 400, height: 860, deviceScaleFactor: 1, mobile: true }); await sleep(400);
   await js(`document.querySelector('.wr-card[data-wr="relationship-principles"] .wr-title').click(); return 1;`); await sleep(900);
   ok('on a phone it stays the full-screen reader (with its kicker)', await js(`const r = document.getElementById('ew-reader'), b = r.getBoundingClientRect(); return !r.classList.contains('rd-box') && !document.querySelector('.rd-dim') && b.width === innerWidth && b.height === innerHeight && r.querySelector('.rd-kicker').textContent === 'Mindset';`));
