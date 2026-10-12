@@ -21,10 +21,18 @@ const media = [];   // every request to a media host, for the Display check
 // The fake player: answers "listening" with onError <code>, or with
 // infoDelivery for a good video.
 const CODES = { blockedvid1: 150, removedvid1: 100 };
+// A good one also obeys Everwell's controls (play / pause / seek) and reports
+// back like the real player (infoDelivery).
 const player = (code) => `<!doctype html><title>fake player</title><script>
+var st = { playerState: 1, currentTime: 0, duration: 120, muted: false };
 addEventListener('message', function(e){ var d; try { d = JSON.parse(e.data); } catch (x) { return; }
+  if (d.event === 'command') {
+    if (d.func === 'pauseVideo') st.playerState = 2; if (d.func === 'playVideo') st.playerState = 1;
+    if (d.func === 'seekTo') st.currentTime = d.args[0]; if (d.func === 'mute') st.muted = true; if (d.func === 'unMute') st.muted = false;
+    parent.postMessage(JSON.stringify({ event: 'infoDelivery', info: st }), '*'); return;
+  }
   if (d.event !== 'listening') return;
-  parent.postMessage(JSON.stringify(${code ? `{ event: 'onError', info: ${code} }` : `{ event: 'infoDelivery', info: { playerState: 1 } }`}), '*'); });
+  parent.postMessage(JSON.stringify(${code ? `{ event: 'onError', info: ${code} }` : `{ event: 'infoDelivery', info: st }`}), '*'); });
 </script>`;
 // A short silent WAV whose every byte is ASCII (the mock sends text as UTF-8):
 // 16-bit mono at 4112 Hz, 4096 data bytes of zeros.
@@ -105,6 +113,43 @@ const mock = {
   ok('the tile buttons are small and quiet (28px, no box until hovered)', await js(`const b = ${tile(2)}.querySelector('[data-rm]'), s = getComputedStyle(b); return b.offsetWidth === 28 && s.borderTopColor === 'rgba(0, 0, 0, 0)';`),
     await js(`const b = ${tile(2)}.querySelector('[data-rm]'); return b.offsetWidth + ' ' + getComputedStyle(b).borderTopColor;`));
   ok('a good video keeps playing (its messages are not errors)', await js(`return EWFocus.playing() !== null && !!${tile(1)}.querySelector('iframe');`));
+
+  console.log('\nThe player\'s own controls');
+  ok("YouTube's controls are off (controls=0); Everwell draws its own over the video", await js(`const t = ${tile(1)}; return /controls=0/.test(t.querySelector('iframe').src) && !!t.querySelector('.vp-ui [data-vp="toggle"]') && !!t.querySelector('[data-vp-seek]') && !!t.querySelector('[data-vp="fill"]') && !!t.querySelector('[data-vp="fs"]');`));
+  ok('…showing the time from the player (0:00 / 2:00)', /0:0\d \/ 2:00/.test(await js(`return ${tile(1)}.querySelector('[data-vp-time]').textContent;`)), await js(`return ${tile(1)}.querySelector('[data-vp-time]').textContent;`));
+  const fr = () => js(`const f = ${tile(1)}.querySelector('.media-frame'); return JSON.stringify({ on: f.classList.contains('ui-on'), idle: f.classList.contains('idle'), op: getComputedStyle(f.querySelector('.vp-ui')).opacity, tr: getComputedStyle(f.querySelector('.vp-ui')).transitionDuration });`).then(JSON.parse);
+  let v = await js(`const r = ${tile(1)}.querySelector('.media-frame').getBoundingClientRect(); return JSON.stringify({ x: r.left + r.width / 2, y: r.top + r.height / 3, r: r.right, b: r.bottom });`).then(JSON.parse);
+  const mm = (type, x, y, extra) => c.send('Input.dispatchMouseEvent', Object.assign({ type, x, y, button: 'none', buttons: 0 }, extra || {}));
+  await mm('mouseMoved', v.x, v.y); await sleep(250); await mm('mouseMoved', v.x + 6, v.y + 4); await sleep(250);
+  let u = await fr();
+  ok('moving the cursor over the video brings the controls up (a quick fade in)', u.on && parseFloat(u.tr) <= 0.2, JSON.stringify(u));
+  await sleep(3000);
+  u = await fr();
+  ok('…they FADE out (0.6s) once the cursor rests, never just vanish', !u.on && u.idle && parseFloat(u.tr) >= 0.5, JSON.stringify(u));
+  await mm('mouseMoved', v.x, v.y); await sleep(200);
+  await mm('mouseMoved', v.r + 40, v.b + 40); await sleep(300);
+  u = await fr();
+  ok('…and fade out as soon as the cursor leaves the video', !u.on && parseFloat(u.tr) >= 0.5, JSON.stringify(u));
+  await js(`${tile(1)}.querySelector('.vp-row [data-vp="toggle"]').click(); return 1;`); await sleep(500);
+  ok('Pause pauses the video (the player says so) and the controls stay up while paused', await js(`const f = ${tile(1)}.querySelector('.media-frame'); return f.classList.contains('paused') && getComputedStyle(f.querySelector('.vp-ui')).opacity === '1';`));
+  await js(`${tile(1)}.querySelector('.vp-row [data-vp="toggle"]').click(); return 1;`); await sleep(500);
+  ok('…and Play plays it again', await js(`return !${tile(1)}.querySelector('.media-frame').classList.contains('paused');`));
+  await js(`${tile(1)}.querySelector('[data-vp="fill"]').click(); return 1;`); await sleep(600);
+  ok('"Fill the window": the video covers the whole browser window, not the screen', await js(`const t = ${tile(1)}, r = t.querySelector('.media-frame').getBoundingClientRect();
+    return t.classList.contains('filled') && !document.fullscreenElement && Math.round(r.left) === 0 && Math.round(r.top) === 0 && Math.round(r.width) === innerWidth && Math.round(r.height) === innerHeight &&
+      document.elementFromPoint(innerWidth / 2, 10).closest('.media-tile') === t;`), await js(`const r = ${tile(1)}.querySelector('.media-frame').getBoundingClientRect(); return JSON.stringify(r) + ' ' + innerWidth + 'x' + innerHeight;`));
+  ok('…the same iframe keeps playing (nothing reloaded)', await js(`return !!${tile(1)}.querySelector('iframe') && EWFocus.playing() !== null;`));
+  await js(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return 1;`); await sleep(400);
+  ok('Escape puts it back in its tile', await js(`return !${tile(1)}.classList.contains('filled') && !document.documentElement.classList.contains('vp-lock');`));
+  await js(`${tile(1)}.querySelector('[data-vp-hit]').focus(); document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 't', bubbles: true })); return 1;`); await sleep(400);
+  ok('T fills the window from the keyboard', await js(`return ${tile(1)}.classList.contains('filled');`));
+  await js(`EWApp.go('goals'); return 1;`); await sleep(400);
+  ok('switching tabs takes it back into its tile, still playing', await js(`return !document.querySelector('.media-tile.filled') && EWFocus.playing() !== null;`));
+  await js(`EWApp.go('focus'); return 1;`); await sleep(400);
+  v = await js(`const r = ${tile(1)}.querySelector('[data-vp-seek]').getBoundingClientRect(); return JSON.stringify({ x: r.left + r.width * 0.5, y: r.top + r.height / 2 });`).then(JSON.parse);
+  await mm('mouseMoved', v.x, v.y - 40); await sleep(150);
+  await mm('mousePressed', v.x, v.y, { button: 'left', buttons: 1, clickCount: 1 }); await mm('mouseReleased', v.x, v.y, { button: 'left', buttons: 0, clickCount: 1 }); await sleep(500);
+  ok('clicking the middle of the seek bar seeks to 1:00', /^1:0\d \/ 2:00$/.test(await js(`return ${tile(1)}.querySelector('[data-vp-time]').textContent;`)), await js(`return ${tile(1)}.querySelector('[data-vp-time]').textContent;`));
   await add('https://www.youtube.com/watch?v=abcdefghijk', 'Added while playing');
   ok('adding while one plays does not restart it (the player stays put)', await js(`return document.querySelectorAll('#focus-grid .media-tile').length === 6 && ${tile(2)}.querySelector('.t').textContent === 'Good' && !!${tile(2)}.querySelector('iframe');`));
   await js(`${tile(1)}.querySelector('[data-rm]').click(); return 1;`); await sleep(300);
@@ -145,9 +190,10 @@ const mock = {
   console.log('\nLeaving and locking');
   await js(`${tile(1)}.querySelector('[data-play]').click(); return 1;`); await sleep(800);
   await js(`EWApp.go('goals'); return 1;`); await sleep(500);
-  ok('leaving Focus stops it', await js(`return !document.querySelector('#focus-grid iframe, #focus-grid audio') && EWFocus.playing() === null;`));
+  ok('leaving Focus KEEPS it playing (Tony, 2026-10-11), and the pill says so', await js(`return !!document.querySelector('#focus-grid iframe') && EWFocus.playing() !== null && document.getElementById('ew-now').classList.contains('on') && /Playing in Focus/.test(document.getElementById('ew-now').textContent);`));
   await js(`EWApp.go('focus'); return 1;`); await sleep(600);
-  ok('coming back plays nothing on its own', await js(`return !document.querySelector('#focus-grid iframe, #focus-grid audio');`));
+  ok('coming back, it is still the same player', await js(`return !!document.querySelector('#focus-grid iframe') && !document.getElementById('ew-now').classList.contains('on');`));
+  await js(`document.querySelector('#focus-grid [data-stop]').click(); return 1;`); await sleep(300);
   await js(`${tile(1)}.querySelector('[data-play]').click(); return 1;`); await sleep(800);
   await js(`EWApp.go('mindset'); return 1;`); await sleep(700);
   await js(`document.getElementById('media-url').value = 'https://youtu.be/blockedvid1'; document.getElementById('media-add').requestSubmit(); return 1;`); await sleep(300);
