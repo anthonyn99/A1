@@ -47,10 +47,10 @@ const SEED = {
   await c.send('Storage.clearDataForOrigin', { origin: ORIGIN, storageTypes: 'all' });
   await c.send('Page.navigate', { url: 'https://anthonyn99.github.io/A1/tni.js' }); await sleep(400);
   await js(`localStorage.clear(); sessionStorage.clear(); sessionStorage.setItem('__fakefs_docs', ${JSON.stringify(JSON.stringify(SEED))}); 1`);
-  const boot = async () => {
+  const boot = async (extra) => {
     await c.send('Page.navigate', { url: URL });
     if (!(await until('window.__hostReady', 10000))) throw new Error('host did not load');
-    await js('window.__mountP = window.__mount().then(() => { window.__mounted = true; }, (e) => { window.__mountErr = String(e && e.stack || e); }); 1');
+    await js('window.__mountP = window.__mount(' + JSON.stringify(extra || {}) + ').then(() => { window.__mounted = true; }, (e) => { window.__mountErr = String(e && e.stack || e); }); 1');
     await until('window.__mounted || window.__mountErr', 15000);
     const err = await js('return window.__mountErr || null;');
     if (err) throw new Error('mount failed: ' + err);
@@ -131,6 +131,29 @@ const SEED = {
   await boot();
   R = await rows();
   ok('after a reload: pinned first, the new page and the renamed one kept', R[0] && R[0].id === 'daily-reminder' && R.some((r) => r.id === newId) && R.some((r) => r.t === 'Alpha rules v2'), JSON.stringify(R));
+
+  console.log('
+A host that picks the page itself (features.sidebar false, Notebook.open)');
+  await boot({ features: { sidebar: false } });
+  const shown = (id) => js(`var e=document.getElementById(${JSON.stringify(id)}); return !!e && e.getClientRects().length > 0 && getComputedStyle(e).display !== 'none';`);
+  ok('no entry list, no phone drawer backdrop', !(await shown('nb-sidebar')) && !(await shown('nb-sidebar-backdrop')));
+  ok('...and the editor still fills the host', await js(`var r=document.getElementById('nb-main').getBoundingClientRect(); return r.width > 1000;`),
+    await js(`return JSON.stringify(document.getElementById('nb-main').getBoundingClientRect());`));
+  const opened = await js(`return window.Notebook.open('nb', 'e_1_alpha', { edit: true });`);
+  await sleep(400);
+  ok('Notebook.open opens the page', opened === true && await js(`return /Alpha rules v2/.test(document.getElementById('nb-entry-title-input').value);`),
+    await js(`return document.getElementById('nb-entry-title-input').value;`));
+  ok('...in edit mode', await js(`return document.getElementById('nb-page-editor').getAttribute('contenteditable') === 'true' && document.getElementById('nb-btn-edit').checked;`));
+  await js(`window.Notebook.open('nb', 'daily-reminder', { edit: false }); 1`); await sleep(400);
+  ok('another page, in view mode', await js(`return document.getElementById('nb-entry-title-input').value === 'Daily Reminder' && document.getElementById('nb-page-editor').getAttribute('contenteditable') === 'false';`),
+    await js(`return document.getElementById('nb-entry-title-input').value + ' ' + document.getElementById('nb-page-editor').getAttribute('contenteditable');`));
+  await js(`window.__race = []; window.Notebook.open('nb', 'not-there-yet').then(r => __race.push(['missing', r])); window.Notebook.open('nb', 'e_1_alpha').then(r => __race.push(['alpha', r])); 1`);
+  await sleep(600);
+  ok('a newer open takes over from one still waiting', await js(`return JSON.stringify(__race);`) === JSON.stringify([['missing', false], ['alpha', true]]),
+    await js(`return JSON.stringify(__race);`));
+  let refused = await js(`return window.Notebook.open('zz', 'x').then(() => 'opened', e => String(e.message));`);
+  ok('it refuses a key nothing is mounted under', /nothing mounted as zz/.test(refused), refused);
+
   const shot = shotPath('notebook-host');
   const s = await c.send('Page.captureScreenshot', { format: 'png' });
   fs.writeFileSync(shot, Buffer.from(s.result.data, 'base64'));
