@@ -2069,6 +2069,16 @@
       return true;
     },
     remove: function (p, id) { if (isProfile(p)) commit(storeFor(p), removeOp(id)); },
+    // A host that tore its Firestore down and stood a new one up (TaskHub does
+    // when backgrounded) moves LifeHub's listeners onto the new instance.
+    reconnect: function () {
+      Object.keys(stores).forEach(function (p) {
+        var st = stores[p];
+        if (!st.unsub && !st.subscribing) return;
+        dropConnection(st);
+        if (wanted(st)) ensureSync(st);
+      });
+    },
     // `ids`: the apps the host shows, in their new order. As in the panel,
     // apps it does not show keep their slots.
     reorder: function (p, ids) { if (isProfile(p) && Array.isArray(ids)) commit(storeFor(p), reorderOp(ids.slice())); },
