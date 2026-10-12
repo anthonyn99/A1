@@ -50,8 +50,12 @@ const SNAP = (K, sel) => `
   [tb.style.width, tb.style.minWidth, tb.style.maxWidth] = keep;
   return JSON.stringify(out).split('${K}-').join('K-').split('#${K}').join('#K');`;
 
-function compare(a, b, allowMissing) {
+// opts.sizeOnly: compare sizes, not places (a bar a host's mount shortens);
+// opts.flex: elements whose width is the room left over, not a size of their own.
+function compare(a, b, allowMissing, opts) {
+  opts = opts || {};
   const norm = (p) => p;
+  const box = (o) => (opts.sizeOnly ? o.box.slice(2) : o.box).filter((v, i, all) => !(opts.flex && opts.flex.test(o.p) && i === all.length - 2)).join();
   const mb = new Map(); b.forEach((o) => { if (!mb.has(norm(o.p))) mb.set(norm(o.p), []); mb.get(norm(o.p)).push(o); });
   const seen = new Map(), diffs = [];
   for (const o of a) {
@@ -59,8 +63,9 @@ function compare(a, b, allowMissing) {
     const x = (mb.get(k) || [])[i];
     if (!x) { if (!allowMissing.some((re) => re.test(o.p))) diffs.push('missing ' + o.p); continue; }
     const d = [];
-    if (o.box.join() !== x.box.join() && o.st.display !== 'none') d.push('box ' + o.box + ' -> ' + x.box);
-    for (const p in o.st) if (o.st[p] !== x.st[p] && !(allowMissing.some((re) => re.test(o.p)))) d.push(p + ': ' + o.st[p] + ' -> ' + x.st[p]);
+    const shown = o.st.display !== 'none' && (o.box[2] || o.box[3]);   // a closed menu's options measure 0x0 off-screen
+    if (shown && box(o) !== box(x)) d.push('box ' + o.box + ' -> ' + x.box);
+    for (const p in o.st) if (o.st[p] !== x.st[p] && !(p === 'width' && opts.flex && opts.flex.test(o.p)) && !(allowMissing.some((re) => re.test(o.p)))) d.push(p + ': ' + o.st[p] + ' -> ' + x.st[p]);
     if (d.length) diffs.push(o.p.slice(-90) + ' { ' + d.join('; ') + ' }');
   }
   for (const [k, arr] of mb) arr.slice(seen.get(k) || 0).forEach((o) => diffs.push('extra ' + o.p));
@@ -165,7 +170,7 @@ const HOSTS = [
     const got = await take(H.key);
     let d = compare(std.ribbon, got.ribbon, []);
     ok('its ribbon is MyJournal\'s: every button in the same place, the same size, the same look', d.length === 0, d.join('\n      '));
-    d = compare(std.bar, got.bar, H.missing);
+    d = compare(std.bar, got.bar, H.missing, { sizeOnly: true, flex: /#K-entry-title-input$/ });
     ok('its title bar is MyJournal\'s (less what its mount turns off)', d.length === 0, d.join('\n      '));
     const hm = new Map(); got.hover.forEach(([k, v]) => { if (!hm.has(k)) hm.set(k, []); hm.get(k).push(v); });
     const seen = new Map();
