@@ -168,6 +168,8 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   s = await stage();
   ok('Advance wraps round from the last to the first (↓ moves a post)', s.pos === 'Discipline · 1 of 5' && s.v === 'https://cdn.test/VIDaaaa1.wav', JSON.stringify(s));
   await click('#media-grid [data-igstage] [data-igs="mode"]'); await sleep(200);
+  // The 0.5 s test reel may have ended as Repeat was picked: back on the first, deterministically.
+  await click('#media-grid .igc-cell[data-id="col1~VIDaaaa1"]'); await sleep(700);
   s = await stage();
   ok('the mode button turns to Repeat: the video loops, saved for this device', s.mode === 'Repeat' && s.loop === true && await js(`return localStorage.getItem('ew.tony.igMode') === 'one';`), JSON.stringify(s));
   await sleep(2000);
