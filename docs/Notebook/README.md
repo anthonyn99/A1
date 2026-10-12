@@ -29,7 +29,7 @@ mounts it, on its next load. Nothing in a host has to change. This is the rule:
 - **Build features in Notebook, never in a host.** A host only loads, mounts and
   configures. A feature written into a host reaches only that host.
 - **A program leaves a feature out only through its mount config:** `features`
-  (`ourjournal`, `locks`), `templates`, `pinned`. A feature that some program
+  (`ourjournal`, `locks`, `sidebar`), `templates`, `pinned`. A feature that some program
   should not get needs a `features` switch in Notebook, defaulting to on, so
   every other program still gets it.
 - **Veda's side is the standing exception.** A MyJournal feature doesn't reach
@@ -81,7 +81,7 @@ Notebook.mount({
   container: document.getElementById('playbook-host'),   // it fills this element
   title: 'Playbook',                                      // replaces "MyJournal" in its UI
   templates: ['page'],                                    // template cards offered (default: all)
-  features: { ourjournal: false, locks: false },          // an instance's defaults
+  features: { ourjournal: false, locks: false, sidebar: true },   // an instance's defaults
   pinned: [{ id: 'daily-reminder', title: 'Daily Reminder' }],
   onSave: (entry) => {},     // after the cloud confirms a save of `entry`
   onReady: () => {}          // after the first load from the server
@@ -101,9 +101,17 @@ borrows them, and its stand-ins are the browser's own dialogs.
 | `templates` | Which template cards the New Entry picker offers. |
 | `features.ourjournal` | OurJournal's tab and rail. Off for an instance; offering it to another host is future work (OurJournal is wired to tj/bj). |
 | `features.locks` | Per-entry password locks, namespaced by key on the taskhub-reminders worker. Off for an instance unless turned on. |
+| `features.sidebar` | The entry list (and its phone drawer and the phone bar's New button). On unless set to `false`, for a host that keeps its own list of pages and opens them with `Notebook.open` (Everwell). |
 | `pinned` | Pages always at the top, never trashed, purged, dragged or locked. A pinned page missing from the store appears empty with `updated: 0`, so the cloud copy wins as soon as it loads. |
 | `onSave(entry)` | Called when `fb-<key>-saved` confirms that entry. |
 | `onReady()` | Called once, after the first server read. |
+
+To open a page from the host (its own list, a link), call
+`Notebook.open(key, id, { edit: true })`. It does what a click on the page's row
+does, switches edit (`true`) or view (`false`) mode when asked, and waits for the
+mount and for the page to load. It resolves `true` once the page is open, and
+`false` if the page never turns up or a newer `open` took over. Never click or
+read Notebook's own elements from a host: their ids are Notebook's to change.
 
 ### How an instance works
 
