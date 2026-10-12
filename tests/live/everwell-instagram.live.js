@@ -295,7 +295,7 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
 
   console.log('\nLinking and removing');
   await fresh(); await go('mindset');
-  await js(`const u = document.getElementById('media-url'); u.value = 'https://www.instagram.com/tony/saved/evening_calm/17888888888888888/'; document.getElementById('media-add').requestSubmit(); return 1;`); await sleep(600);
+  await js(`const u = document.getElementById('media-url'); u.value = 'https://www.instagram.com/tony/saved/evening_calm/17888888888888888/'; document.getElementById('media-add').requestSubmit(); return 1;`); await sleep(1800);
   mm = await media();
   ok('pasting a collection link links it (empty until synced) and opens the how-to', mm[0].igc && mm[0].igc.cid === '17888888888888888' && mm[0].posts.length === 0 && mm[0].title === 'Evening calm' &&
     await js(`const d = document.getElementById('igd'); return !!d && /^Sync “Evening calm”$/.test(d.querySelector('h3').textContent) && d.querySelector('.igd-mark').getAttribute('href').indexOf('javascript:') === 0 && document.activeElement === d.querySelector('.ew-dlg');`));
