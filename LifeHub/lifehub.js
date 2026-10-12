@@ -456,6 +456,15 @@
     st.apps = next;
     saveCache(st);
     if (st === S) render();
+    notifySubs(st);
+  }
+  // Hosts that draw the list themselves (LifeHub.watch, TaskHub's header
+  // buttons) hear about every change to what is shown, and whether the list
+  // has been confirmed by the server yet (`synced`).
+  function notifySubs(st) {
+    if (!st.subs || !st.subs.length) return;
+    var meta = { synced: !!st.synced };
+    st.subs.slice().forEach(function (cb) { try { cb(clone(st.apps), meta); } catch (e) {} });
   }
   function refreshFromBase(st) {
     st.stale = false;
@@ -667,7 +676,10 @@
     if (ud && !st.defPending && !same(ud, st.userDef)) { st.userDef = ud; saveCache(st); }
     var list = cleanList((snap.data() || {}).apps);
     if (!list) return;
+    var first = !st.synced;
+    st.synced = true;
     if (!same(list, st.base)) receiveBase(st, list);
+    else if (first) notifySubs(st);
     migrate(st, list);
     if (st.ops.length) scheduleWrite(st);
   }
@@ -1513,14 +1525,16 @@
     var a = byId(S.apps, t.dataset.id);
     if (!a) return;
     if (ui.edit) openEditor(a.id);
-    else launch(a);
+    else launch(a, S);
   }
 
-  function launch(a) {
+  // `st` is the list the app came from: the panel's (S) or a host's (LifeHub.launch).
+  function launch(a, st) {
+    st = st || S;
     var url = normUrl(a.url);
-    if (!url) { openEditor(a.id); return; }
+    if (!url) { if (st === S && ui.open) openEditor(a.id); return; }
     if (isHere(url)) { close(); return; }
-    if (isLocalPath(url)) { close(true); openLocal(a, url); return; }
+    if (isLocalPath(url)) { close(true); openLocal(a, url, st); return; }
     if (!isWeb(url)) {
       // Another program's protocol (shieldopen:, …): hand it to the OS, the
       // same way TaskHub hands local paths to Shield.
@@ -1592,11 +1606,11 @@
   // anywhere else it goes to the agent as an opaque id, exactly as TaskHub's
   // local-path buttons do (index.html _doOpen). If Shield isn't installed or
   // running, nothing visible happens — the same as any unhandled protocol.
-  function openLocal(a, path) {
+  function openLocal(a, path, st) {
     if (typeof CFG.openLocal === 'function') {
       try { if (CFG.openLocal(path, clone(a))) return; } catch (e) {}
     }
-    try { location.href = 'shieldopen:' + localKey(S.profile, a.id); } catch (e) {}
+    try { location.href = 'shieldopen:' + localKey((st || S).profile, a.id); } catch (e) {}
   }
 
   /* ── Drag to reorder ──────────────────────────────────────────────────────
@@ -1993,7 +2007,75 @@
     retry: function () { retry(S, true); },
     // For the Shield desktop agent: cb({ 'lh:<profile>:<id>': path }) now and
     // on every change. See "Local programs for the Shield agent" above.
-    localLinks: watchLocal
+    localLinks: watchLocal,
+
+    /* ── Headless: a host that shows the list its own way ───────────────────
+       TaskHub (index.html) draws Tony's list as its header buttons and edits
+       it from its Settings, with no launcher on the page. Same store, same
+       operations, same one listener and batched transaction as the panel, so
+       an edit made there shows in every program's LifeHub, and back. */
+    // cb(apps, { synced }) now and on every change. Attaches the listener and
+    // keeps it retrying while offline. Returns a function that stops the calls.
+    watch: function (p, cb) {
+      if (!isProfile(p) || typeof cb !== 'function') return function () {};
+      var st = storeFor(p);
+      (st.subs = st.subs || []).push(cb);
+      st.watched = true;
+      ensureSync(st);
+      try { cb(clone(st.apps), { synced: !!st.synced }); } catch (e) {}
+      return function () { st.subs = st.subs.filter(function (f) { return f !== cb; }); };
+    },
+    list: function (p) { return isProfile(p) ? clone(storeFor(p).apps) : []; },
+    // Opens an app exactly as its tile does. Call it inside the click.
+    launch: function (p, id) {
+      if (!isProfile(p)) return false;
+      var st = storeFor(p), a = byId(st.apps, id);
+      if (!a) return false;
+      launch(a, st);
+      return true;
+    },
+    // Edits, as operations (they merge like the panel's). A link normUrl
+    // refuses is refused here too: add returns null, update false.
+    add: function (p, app) {
+      if (!isProfile(p) || !app) return null;
+      var name = String(app.name || '').trim().slice(0, 40), url = normUrl(app.url);
+      if (!name || !url) return null;
+      var nid = String(app.id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 48);
+      if (!nid) {
+        var base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'app';
+        nid = base + '-' + Math.random().toString(36).slice(2, 6);
+      }
+      commit(storeFor(p), addOp(cleanApp({ id: nid, name: name, url: url, icon: app.icon || '',
+        tab: app.tab || ('lh_' + nid.replace(/-/g, '_')), hidden: !!app.hidden })));
+      return nid;
+    },
+    update: function (p, id, patch) {
+      if (!isProfile(p) || !patch) return false;
+      var st = storeFor(p), a = byId(st.apps, id);
+      if (!a) return false;
+      var out = {}, n = 0;
+      if (patch.name != null) {
+        var nm = String(patch.name).trim().slice(0, 40);
+        if (!nm) return false;
+        if (nm !== a.name) { out.name = nm; n++; }
+      }
+      if (patch.url != null) {
+        var u = normUrl(patch.url);
+        if (!u) return false;
+        if (u !== a.url) { out.url = u; n++; }
+      }
+      if (patch.hidden != null && !!patch.hidden !== a.hidden) { out.hidden = !!patch.hidden; n++; }
+      if (n) commit(st, patchOp(id, out));
+      return true;
+    },
+    remove: function (p, id) { if (isProfile(p)) commit(storeFor(p), removeOp(id)); },
+    // `ids`: the apps the host shows, in their new order. As in the panel,
+    // apps it does not show keep their slots.
+    reorder: function (p, ids) { if (isProfile(p) && Array.isArray(ids)) commit(storeFor(p), reorderOp(ids.slice())); },
+    normUrl: normUrl,
+    isLocalPath: isLocalPath,
+    // Whether this device can start a program on the PC (Windows, via Shield).
+    canLocal: CAN_LOCAL
   };
 
   useProfile(readProfile() || 'tony');
