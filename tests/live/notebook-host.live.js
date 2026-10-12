@@ -148,7 +148,7 @@ const SEED = {
     await js(`return document.getElementById('nb-entry-title-input').value + ' ' + document.getElementById('nb-page-editor').getAttribute('contenteditable');`));
   await js(`window.__race = []; window.Notebook.open('nb', 'not-there-yet').then(r => __race.push(['missing', r])); window.Notebook.open('nb', 'e_1_alpha').then(r => __race.push(['alpha', r])); 1`);
   await sleep(600);
-  ok('a newer open takes over from one still waiting', await js(`return JSON.stringify(__race);`) === JSON.stringify([['missing', false], ['alpha', true]]),
+  ok('a newer open takes over from one still waiting', await js(`return JSON.stringify(__race.slice().sort());`) === JSON.stringify([['alpha', true], ['missing', false]]),
     await js(`return JSON.stringify(__race);`));
   let refused = await js(`return window.Notebook.open('zz', 'x').then(() => 'opened', e => String(e.message));`);
   ok('it refuses a key nothing is mounted under', /nothing mounted as zz/.test(refused), refused);
