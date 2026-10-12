@@ -536,6 +536,20 @@
         hits.forEach(function (x) { commit(st, patchOp(x.id, movedPatch(x))); });
       }
     }
+    // TaskHub's one-time import of Tony's old header links (index.html
+    // _lhImport, 2026-10-12) adds tiles with a 'link_<profile>_' tab. On a device
+    // whose cached list was stale it re-added Everwell beside the tile that
+    // already was Everwell. An imported tile that opens the same page as another
+    // tile is that copy: it goes, once per sync, the original stays.
+    if (!st.dupDone) {
+      var seen = {}, dups = [];
+      list.forEach(function (x) { if (isWeb(x.url) && !/^link_/.test(x.tab)) seen[destKey(x.url)] = 1; });
+      list.forEach(function (x) { if (isWeb(x.url) && /^link_/.test(x.tab) && seen[destKey(x.url)]) dups.push(x.id); });
+      if (dups.length) {
+        st.dupDone = true;
+        dups.forEach(function (id) { commit(st, removeOp(id)); });
+      }
+    }
   }
 
   /* ── Firebase ───────────────────────────────────────────────────────────── */
@@ -1357,10 +1371,16 @@
   }
 
   /* ── Grid ────────────────────────────────────────────────────────────── */
+  // An A1 program's page on either host (A1's, or the private repo's) gets its
+  // built-in icon: exact, instant, and needs no network. The private host can't
+  // be read by the lifehub-icon worker (a Cloudflare worker may not fetch
+  // another workers.dev worker on its account), so without this an automatic
+  // Everwell tile showed that host's /favicon.ico instead of Everwell's mark.
   function a1IconFor(url) {
     var m = /\/([a-z0-9_-]+)\.html?(?:[?#]|$)/i.exec(String(url || ''));
-    if (m && ICONS[m[1].toLowerCase()] && destKey(url).indexOf(destKey(BASE)) === 0) return m[1].toLowerCase();
-    return '';
+    if (!m || !ICONS[m[1].toLowerCase()]) return '';
+    var k = destKey(url);
+    return (k.indexOf(destKey(BASE)) === 0 || k.indexOf(destKey(PRIV)) === 0) ? m[1].toLowerCase() : '';
   }
   function iconNode(a, cls) {
     var d = el('span', cls || 'ic');
@@ -1444,8 +1464,9 @@
       }
       return out.concat(best);
     };
+    var guess = null;
     var tryRoute = function (i) {
-      if (i >= routes.length) { done(null); return; }
+      if (i >= routes.length) { done(guess); return; }
       var ctl = window.AbortController ? new AbortController() : null;
       var to = setTimeout(function () { if (ctl) ctl.abort(); }, 7000);
       // no-store: the worker's answer carries a day of max-age, and a cached copy is
@@ -1454,10 +1475,20 @@
         .then(function (r) { return r.ok ? r.text() : ''; })
         .then(function (html) {
           clearTimeout(to);
-          var list;
-          if (i === 0) { try { list = (JSON.parse(html).icons || []).filter(function (x) { return typeof x === 'string'; }); } catch (e) { list = []; } }
-          else list = parse(html);
-          if (list.length) done(list); else tryRoute(i + 1);
+          var list, read = true;
+          if (i === 0) {
+            try {
+              var j = JSON.parse(html);
+              list = (j.icons || []).filter(function (x) { return typeof x === 'string'; });
+              read = j.read !== false;
+            } catch (e) { list = []; }
+          } else list = parse(html);
+          // The worker answers with /favicon.ico alone when it could not read the
+          // page. That is a guess, so the page itself is asked first, and the
+          // guess is kept only if that read finds nothing either.
+          if (list.length && !read) { guess = list; tryRoute(i + 1); }
+          else if (list.length) done(list);
+          else tryRoute(i + 1);
         }).catch(function () { clearTimeout(to); tryRoute(i + 1); });
     };
     try { tryRoute(0); } catch (e) { done(null); }

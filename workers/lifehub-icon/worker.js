@@ -35,6 +35,9 @@ export default {
       (/apple-touch/i.test(rel[1]) ? apple : main).push(abs);
     }
     main.push(...apple, new URL('/favicon.ico', base).href);
-    return json({ icons: main });
+    // read:false = the page could not be read (blocked, not HTML, or another
+    // workers.dev worker, which Cloudflare won't let this one fetch), so the
+    // list is only the /favicon.ico guess. LifeHub then asks the page directly.
+    return json({ icons: main, read: !!html });
   }
 };
