@@ -40,9 +40,11 @@
     '.vc-rail{position:fixed;z-index:60;pointer-events:none;opacity:0;transition:opacity .35s ease;touch-action:none}',
     '.vc-rail.on{opacity:1;pointer-events:auto;transition-duration:.14s}',
     '.vc-rail.v{width:14px}.vc-rail.h{height:14px}',
-    '.vc-thumb{position:absolute;border-radius:99px;background:rgba(173,173,178,.45);cursor:grab;',
-    '  transition:background-color .15s,width .15s,height .15s;touch-action:none}',
-    '.vc-rail.v .vc-thumb{right:3px;width:6px}.vc-rail.h .vc-thumb{bottom:3px;height:6px}',
+    // The thumb's length and offset are redrawn every frame, so only its
+    // thickness (the hover grow) animates — never where it is or how long.
+    '.vc-thumb{position:absolute;border-radius:99px;background:rgba(173,173,178,.45);cursor:grab;touch-action:none;will-change:transform}',
+    '.vc-rail.v .vc-thumb{top:0;right:3px;width:6px;transition:background-color .15s,width .15s}',
+    '.vc-rail.h .vc-thumb{left:0;bottom:3px;height:6px;transition:background-color .15s,height .15s}',
     '.vc-thumb::before{content:"";position:absolute;inset:-6px -4px}',
     '.vc-rail:hover .vc-thumb,.vc-rail.drag .vc-thumb{background:var(--ac,#c0aeea)}',
     '.vc-rail.v:hover .vc-thumb,.vc-rail.v.drag .vc-thumb{width:9px}.vc-rail.h:hover .vc-thumb,.vc-rail.h.drag .vc-thumb{height:9px}',
@@ -75,7 +77,7 @@
     var on = !veda();
     if (root.classList.contains('vc-on') === on) return;
     root.classList.toggle('vc-on', on);
-    if (!on) bars.forEach(function (b) { ['v', 'h'].forEach(function (a) { if (b[a]) b[a].rail.style.display = 'none'; }); });
+    if (!on) bars.forEach(function (b) { b.live = false; ['v', 'h'].forEach(function (a) { if (b[a]) hideRail(b[a]); }); });
   }
 
   function h(tag, cls, html) { var e = doc.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
@@ -103,8 +105,17 @@
   function vh() { return window.innerHeight || root.clientHeight; }
 
   // ── overlay scrollbars ─────────────────────────────────────────────────────
+  // While a rail shows, one animation-frame loop re-reads every shown scroller
+  // and redraws its thumb, so the thumb follows the content frame by frame:
+  // through a phone's momentum fling, a toolbar sliding away, content that
+  // grows or shrinks, and a box that moves because its page scrolled. Scroll
+  // events only wake it. Each frame reads everything first and writes after,
+  // so drawing never forces an extra layout.
   var bars = new Map();            // scroller -> bar
   var HIDE_MS = 1100;
+  var INSET = 2;
+  var loop = 0;
+  function docScroller() { return doc.scrollingElement || root; }
   // A page whose <html> is overflow:hidden scrolls <body> instead; every other
   // page scrolls the document, whichever of the two the event names.
   function bodyScrolls() {
@@ -115,18 +126,29 @@
   }
   function scrollerFor(t) {
     if (t === doc.body && bodyScrolls()) return doc.body;
-    if (t === doc || t === doc.documentElement || t === doc.body) return doc.scrollingElement || root;
+    if (t === doc || t === doc.documentElement || t === doc.body) return docScroller();
     return t;
+  }
+  // How much of a scroller shows, where it is, and how far it can go. The
+  // page shows the window's height, which on a phone grows and shrinks as the
+  // browser's toolbar slides away. The range never ends short of where the
+  // scroller actually is, so the thumb can't run off its track.
+  function extent(el, axis) {
+    var v = axis === 'v';
+    var view = el === docScroller() ? (v ? vh() : vw()) : (v ? el.clientHeight : el.clientWidth);
+    var pos = Math.abs(v ? el.scrollTop : el.scrollLeft);
+    var max = Math.max((v ? el.scrollHeight : el.scrollWidth) - view, pos, 0);
+    return { view: view, pos: pos, max: max };
   }
   function canScroll(el, axis) {
     if (!el || el.nodeType !== 1 || !root.classList.contains('vc-on') || el.closest('[data-native-scroll]')) return false;
-    var isDoc = el === (doc.scrollingElement || root);
+    var isDoc = el === docScroller();
     if (axis === 'v') {
-      if (el.scrollHeight - el.clientHeight < 2) return false;
+      if (extent(el, 'v').max < 2) return false;
       if (isDoc) return true;
       var oy = getComputedStyle(el).overflowY; return oy === 'auto' || oy === 'scroll';
     }
-    if (el.scrollWidth - el.clientWidth < 2) return false;
+    if (extent(el, 'h').max < 2) return false;
     if (isDoc) return true;
     // A short horizontally-swiped strip (tab bar, chip row) hid its bar on
     // purpose — a rail along its bottom would sit on top of its buttons.
@@ -137,7 +159,7 @@
   // ITSELF a fixed layer (a drawer, a modal sheet) holds its own rail, or the
   // rail would paint underneath it.
   function railHost(el) {
-    if (el === (doc.scrollingElement || root)) return doc.body;
+    if (el === docScroller()) return doc.body;
     if (el !== doc.body && !/^(TEXTAREA|INPUT|SELECT)$/.test(el.tagName) && getComputedStyle(el).position === 'fixed') return el;
     return layerOf(el);
   }
@@ -146,12 +168,13 @@
     var thumb = h('div', 'vc-thumb');
     rail.appendChild(thumb);
     rail.setAttribute('aria-hidden', 'true');
-    return { rail: rail, thumb: thumb, axis: axis };
+    rail.style.left = '0px'; rail.style.top = '0px';
+    return { rail: rail, thumb: thumb, axis: axis, drawn: {} };
   }
   function barFor(el) {
     var b = bars.get(el);
     if (b) return b;
-    b = { el: el, v: null, h: null, timer: 0, hover: false, drag: false };
+    b = { el: el, v: null, h: null, timer: 0, hover: false, drag: false, live: false };
     bars.set(el, b);
     return b;
   }
@@ -164,81 +187,128 @@
     r.rail.addEventListener('pointerleave', function () { b.hover = false; schedule(b); });
     return r;
   }
-  function geometry(b, r) {
-    var el = b.el, isDoc = el === (doc.scrollingElement || root);
-    var rect = isDoc ? { left: 0, top: 0, right: vw(), bottom: vh(), width: vw(), height: vh() } : el.getBoundingClientRect();
-    // Clip to the visible viewport so a box half off-screen doesn't draw its
-    // bar over the page chrome.
-    var top = Math.max(rect.top, 0), bottom = Math.min(rect.bottom, vh());
-    var left = Math.max(rect.left, 0), right = Math.min(rect.right, vw());
-    var border = isDoc ? { t: 0, r: 0, b: 0, l: 0 } : { t: el.clientTop, l: el.clientLeft, r: rect.width - el.clientWidth - el.clientLeft, b: rect.height - el.clientHeight - el.clientTop };
-    return { top: top, bottom: bottom, left: left, right: right, rect: rect, border: border, isDoc: isDoc };
-  }
-  function layout(b) {
+  function hideRail(r) { if (r.rail.style.display !== 'none') { r.rail.style.display = 'none'; r.drawn = {}; } }
+  // Writes only: the rails that should show are in the page and displayed.
+  function prepare(b) {
     ['v', 'h'].forEach(function (axis) {
       var r = b[axis]; if (!r) return;
-      var el = b.el;
-      if (!canScroll(el, axis) || !el.isConnected) { r.rail.style.display = 'none'; return; }
-      r.rail.style.display = '';
-      if (!r.rail.isConnected) railHost(el).appendChild(r.rail);
-      // A scroller inside a top layer gets a rail ABOVE that layer's content.
-      var host = r.rail.parentNode;
-      r.rail.style.zIndex = host === doc.body ? '60' : '2147483000';
-      var g = geometry(b, r);
-      var o = fixedOrigin(r.rail);
-      var inset = 2;
-      if (axis === 'v') {
-        var H = Math.max(0, g.bottom - g.top - g.border.t - g.border.b - (b.h && canScroll(el, 'h') ? 14 : 0));
-        var ratio = el.clientHeight / el.scrollHeight;
-        var th = Math.max(coarse.matches ? 44 : 32, H * ratio);
-        var maxScroll = el.scrollHeight - el.clientHeight;
-        var ty = maxScroll > 0 ? (el.scrollTop / maxScroll) * (H - th - inset * 2) + inset : inset;
-        r.rail.style.top = (g.top + g.border.t - o.y) + 'px';
-        r.rail.style.height = H + 'px';
-        r.rail.style.left = (Math.min(g.right, g.rect.right - g.border.r) - r.rail.offsetWidth - o.x) + 'px';
-        r.thumb.style.height = Math.max(0, th - inset * 2) + 'px';
-        r.thumb.style.top = ty + 'px';
-        r.track = H - th; r.size = th;
+      if (!b.el.isConnected || !canScroll(b.el, axis)) { hideRail(r); return; }
+      if (!r.rail.isConnected) {
+        var host = railHost(b.el);
+        host.appendChild(r.rail);
+        // A scroller inside a top layer gets a rail ABOVE that layer's content.
+        r.rail.style.zIndex = host === doc.body ? '60' : '2147483000';
+      }
+      if (r.rail.style.display === 'none') r.rail.style.display = '';
+    });
+  }
+  // Reads only.
+  function measure(b) {
+    var el = b.el, isDoc = el === docScroller(), m = { v: null, h: null };
+    ['v', 'h'].forEach(function (axis) {
+      var r = b[axis];
+      if (!r || r.rail.style.display === 'none' || !r.rail.isConnected) return;
+      // Where the rail's left/top really start: the viewport, unless an
+      // ancestor with a transform / filter is its containing block.
+      var rr = r.rail.getBoundingClientRect();
+      m[axis] = {
+        x: extent(el, axis),
+        o: { x: rr.left - (parseFloat(r.rail.style.left) || 0), y: rr.top - (parseFloat(r.rail.style.top) || 0) },
+        w: r.rail.offsetWidth, hgt: r.rail.offsetHeight,
+      };
+    });
+    if (!m.v && !m.h) return m;
+    var rect = isDoc ? { left: 0, top: 0, right: vw(), bottom: vh(), width: vw(), height: vh() } : el.getBoundingClientRect();
+    // Clipped to the viewport, so a box half off-screen doesn't draw its bar
+    // over the page chrome.
+    m.g = {
+      top: Math.max(rect.top, 0), bottom: Math.min(rect.bottom, vh()),
+      left: Math.max(rect.left, 0), right: Math.min(rect.right, vw()), rect: rect,
+      border: isDoc ? { t: 0, r: 0, b: 0, l: 0 } : { t: el.clientTop, l: el.clientLeft, r: rect.width - el.clientWidth - el.clientLeft, b: rect.height - el.clientHeight - el.clientTop },
+    };
+    return m;
+  }
+  function put(r, node, prop, val) {
+    var k = (node === r.rail ? 'r.' : 't.') + prop;
+    if (r.drawn[k] === val) return;
+    r.drawn[k] = val; node.style[prop] = val;
+  }
+  // Writes only, from what measure() read.
+  function draw(b, m) {
+    var g = m.g;
+    ['v', 'h'].forEach(function (axis) {
+      var r = b[axis], s = m[axis]; if (!r || !s) return;
+      var vert = axis === 'v';
+      var len = vert
+        ? g.bottom - g.top - g.border.t - g.border.b - (m.h ? 14 : 0)
+        : g.right - g.left - g.border.l - g.border.r - (m.v ? 14 : 0);
+      len = Math.max(0, len);
+      var x = s.x;
+      var size = Math.min(len, Math.max(coarse.matches ? 44 : 32, len * (x.view / (x.view + x.max))));
+      var travel = Math.max(0, len - size - INSET * 2);
+      var at = x.max > 0 ? Math.min(1, x.pos / x.max) * travel + INSET : INSET;
+      r.travel = travel;
+      if (vert) {
+        put(r, r.rail, 'top', Math.round(g.top + g.border.t - s.o.y) + 'px');
+        put(r, r.rail, 'height', Math.round(len) + 'px');
+        put(r, r.rail, 'left', Math.round(Math.min(g.right, g.rect.right - g.border.r) - s.w - s.o.x) + 'px');
+        put(r, r.thumb, 'height', Math.max(0, size - INSET * 2).toFixed(1) + 'px');
+        put(r, r.thumb, 'transform', 'translateY(' + at.toFixed(1) + 'px)');
       } else {
-        var W = Math.max(0, g.right - g.left - g.border.l - g.border.r - (b.v && canScroll(el, 'v') ? 14 : 0));
-        var rx = el.clientWidth / el.scrollWidth;
-        var tw = Math.max(coarse.matches ? 44 : 32, W * rx);
-        var maxX = el.scrollWidth - el.clientWidth;
-        var tx = maxX > 0 ? (el.scrollLeft / maxX) * (W - tw - inset * 2) + inset : inset;
-        r.rail.style.left = (g.left + g.border.l - o.x) + 'px';
-        r.rail.style.width = W + 'px';
-        r.rail.style.top = (Math.min(g.bottom, g.rect.bottom - g.border.b) - r.rail.offsetHeight - o.y) + 'px';
-        r.thumb.style.width = Math.max(0, tw - inset * 2) + 'px';
-        r.thumb.style.left = tx + 'px';
-        r.track = W - tw; r.size = tw;
+        put(r, r.rail, 'left', Math.round(g.left + g.border.l - s.o.x) + 'px');
+        put(r, r.rail, 'width', Math.round(len) + 'px');
+        put(r, r.rail, 'top', Math.round(Math.min(g.bottom, g.rect.bottom - g.border.b) - s.hgt - s.o.y) + 'px');
+        put(r, r.thumb, 'width', Math.max(0, size - INSET * 2).toFixed(1) + 'px');
+        put(r, r.thumb, 'transform', 'translateX(' + at.toFixed(1) + 'px)');
       }
     });
   }
+  function update(list) {
+    list.forEach(prepare);
+    var ms = list.map(measure);
+    list.forEach(function (b, i) { draw(b, ms[i]); });
+  }
+  function frame() {
+    loop = 0;
+    var live = [];
+    bars.forEach(function (b) { if (b.live) live.push(b); });
+    if (!live.length) return;
+    update(live);
+    loop = requestAnimationFrame(frame);
+  }
+  function wake() { if (!loop) loop = requestAnimationFrame(frame); }
   function show(b, axes) {
     (axes || ['v', 'h']).forEach(function (a) { if (canScroll(b.el, a)) ensureRail(b, a); });
-    layout(b);
-    ['v', 'h'].forEach(function (a) {
-      var r = b[a];
-      if (!r || r.rail.style.display === 'none' || r.rail.classList.contains('on')) return;
-      // Coming back from display:none — give it one frame so the fade runs.
-      void r.rail.offsetWidth;
-      r.rail.classList.add('on');
-    });
+    b.live = true;
+    var fresh = ['v', 'h'].filter(function (a) { return b[a] && !b[a].rail.classList.contains('on'); });
+    if (fresh.length) {
+      // Drawn in place now, so it fades in where it belongs.
+      update([b]);
+      fresh.forEach(function (a) {
+        var r = b[a];
+        if (r.rail.style.display === 'none') return;
+        // Coming back from display:none — give it one frame so the fade runs.
+        void r.rail.offsetWidth;
+        r.rail.classList.add('on');
+      });
+    }
+    wake();
     schedule(b);
   }
   function schedule(b) {
     clearTimeout(b.timer);
     b.timer = setTimeout(function () {
       if (b.hover || b.drag) return schedule(b);
-      ['v', 'h'].forEach(function (a) {
-        var r = b[a]; if (!r) return;
-        r.rail.classList.remove('on');
-        // Out of layout entirely once faded, so an idle rail can never pin a
-        // size (the Launcher popup sizes itself from its content).
-        setTimeout(function () { if (!r.rail.classList.contains('on')) r.rail.style.display = 'none'; }, 400);
-      });
-      // Detached scroller (modal closed): drop its rails entirely.
-      if (!b.el.isConnected) { ['v', 'h'].forEach(function (a) { if (b[a] && b[a].rail.parentNode) b[a].rail.parentNode.removeChild(b[a].rail); }); bars.delete(b.el); }
+      ['v', 'h'].forEach(function (a) { if (b[a]) b[a].rail.classList.remove('on'); });
+      // Out of layout entirely once faded, so an idle rail can never pin a
+      // size (the Launcher popup sizes itself from its content).
+      b.timer = setTimeout(function () {
+        if (['v', 'h'].some(function (a) { return b[a] && b[a].rail.classList.contains('on'); })) return;
+        b.live = false;
+        ['v', 'h'].forEach(function (a) { if (b[a]) hideRail(b[a]); });
+        // Detached scroller (modal closed): drop its rails entirely.
+        if (!b.el.isConnected) { ['v', 'h'].forEach(function (a) { if (b[a] && b[a].rail.parentNode) b[a].rail.parentNode.removeChild(b[a].rail); }); bars.delete(b.el); }
+      }, 400);
     }, HIDE_MS);
   }
   function bindDrag(b, r) {
@@ -247,12 +317,11 @@
       if (e.button > 0) return;
       e.preventDefault(); e.stopPropagation();
       var el = b.el;
-      var max = vert ? el.scrollHeight - el.clientHeight : el.scrollWidth - el.clientWidth;
       if (e.target !== r.thumb && !r.thumb.contains(e.target)) {
         // Track click: page toward the pointer.
         var tr = r.thumb.getBoundingClientRect();
         var before = vert ? e.clientY < tr.top : e.clientX < tr.left;
-        var page = (vert ? el.clientHeight : el.clientWidth) * 0.9 * (before ? -1 : 1);
+        var page = extent(el, r.axis).view * 0.9 * (before ? -1 : 1);
         el.scrollBy(vert ? { top: page, behavior: reduced.matches ? 'auto' : 'smooth' } : { left: page, behavior: reduced.matches ? 'auto' : 'smooth' });
         show(b);
         return;
@@ -260,12 +329,12 @@
       b.drag = true; r.rail.classList.add('drag'); root.classList.add('vc-dragging');
       var start = vert ? e.clientY : e.clientX;
       var startScroll = vert ? el.scrollTop : el.scrollLeft;
-      var perPx = r.track > 0 ? max / r.track : 0;
+      var perPx = r.travel > 0 ? extent(el, r.axis).max / r.travel : 0;
       try { r.rail.setPointerCapture(e.pointerId); } catch (_) {}
       function move(ev) {
         var d = ((vert ? ev.clientY : ev.clientX) - start) * perPx;
         if (vert) el.scrollTop = startScroll + d; else el.scrollLeft = startScroll + d;
-        layout(b);
+        update([b]);
       }
       function up() {
         b.drag = false; r.rail.classList.remove('drag'); root.classList.remove('vc-dragging');
@@ -279,6 +348,9 @@
   doc.addEventListener('scroll', function (e) {
     var el = scrollerFor(e.target);
     if (!el || el.nodeType !== 1) return;
+    var b = bars.get(el);
+    // Already showing: the frame loop draws it; just keep it awake.
+    if (b && b.live && ['v', 'h'].some(function (a) { return b[a] && b[a].rail.classList.contains('on'); })) { wake(); schedule(b); return; }
     if (!canScroll(el, 'v') && !canScroll(el, 'h')) return;
     show(barFor(el));
   }, true);
@@ -295,21 +367,23 @@
       var t = ev.target;
       if (t && t.closest && t.closest('.vc-rail')) return;
       for (var el = t && t.nodeType === 1 ? t : null; el; el = el.parentElement) {
-        if (el === doc.body && !bodyScrolls()) el = doc.scrollingElement || root;
+        if (el === doc.body && !bodyScrolls()) el = docScroller();
         var v = canScroll(el, 'v');
         var hz = canScroll(el, 'h');
         if (v || hz) {
-          var isDoc = el === (doc.scrollingElement || root);
+          var isDoc = el === docScroller();
           var rc = isDoc ? { right: vw(), bottom: vh() } : el.getBoundingClientRect();
           var nearV = v && rc.right - ev.clientX <= 24 && rc.right - ev.clientX >= -2;
           var nearH = hz && rc.bottom - ev.clientY <= 24 && rc.bottom - ev.clientY >= -2;
           if (nearV || nearH) { show(barFor(el), [nearV ? 'v' : null, nearH ? 'h' : null].filter(Boolean)); return; }
         }
-        if (el === (doc.scrollingElement || root)) return;
+        if (el === docScroller()) return;
       }
     });
   }, { passive: true });
-  window.addEventListener('resize', function () { bars.forEach(function (b) { if (b.v && b.v.rail.classList.contains('on')) layout(b); }); });
+  // The window or a phone's visual viewport changing size: redraw what shows.
+  window.addEventListener('resize', wake);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', wake);
 
   function start() {
     injectStyles();
