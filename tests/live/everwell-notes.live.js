@@ -295,9 +295,10 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   await js(`document.querySelector('.media-tile:last-child [data-play]').click(); return 1;`); await sleep(400);
   ok('tapping plays it through youtube-nocookie with autoplay', await js(`const f = document.querySelector('.media-tile iframe'); return !!f && /^https:\\/\\/www\\.youtube-nocookie\\.com\\/embed\\/abcdefghijk\\?autoplay=1/.test(f.src);`));
   await js(`document.querySelector('.media-tile:nth-child(2) [data-play]').click(); return 1;`); await sleep(400);
-  ok('playing another stops the first (one player at a time)', await js(`const f = document.querySelectorAll('.media-tile iframe'); return f.length === 1 && /instagram\\.com\\/reel\\/Cxyz123abc\\/embed/.test(f[0].src);`));
+  // A reel opens Everwell's Instagram player in place of its tile (2026-10-12).
+  ok('playing another stops the first (one player at a time)', await js(`return !document.querySelector('.media-tile iframe') && !!document.querySelector('#media-grid .ig-host [data-igstage]');`));
   await js(`EWApp.go('dashboard'); return 1;`); await sleep(500);
-  ok('leaving Mindset KEEPS it playing (Tony, 2026-10-11)', await js(`return !!document.querySelector('#media-grid .media-tile iframe') && EWMindset.playing() !== null;`));
+  ok('leaving Mindset KEEPS it playing (Tony, 2026-10-11)', await js(`return !!document.querySelector('#media-grid [data-igstage]') && EWMindset.playing() !== null;`));
   ok('â€¦and the "now playing" pill says what and where, at the bottom', await js(`const n = document.getElementById('ew-now'); return n.classList.contains('on') && /Playing in Mindset/.test(n.textContent);`));
   await js(`document.getElementById('ew-now-go').click(); return 1;`); await sleep(500);
   ok('the pill takes you back to Mindset (and hides there)', await js(`return EWApp.current() === 'mindset' && !document.getElementById('ew-now').classList.contains('on') && !!document.querySelector('#media-grid iframe');`));
