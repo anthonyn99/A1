@@ -250,6 +250,7 @@ const mock = {
   await js(`document.getElementById('rec-step-input').value = 'Sear 3 minutes a side'; EWRec.recSaveStep(0); return 1;`); await sleep(1800);
   ok('an added step is saved, numbered, to dashboards/mealsuite', await js(`const r = __fakeFs.docs['dashboards/mealsuite'].recipes.find(x => x.id === 'rB'); return r.instructions === '1. Sear 3 minutes a side';`));
   await js(`EWRec.recUndo(); return 1;`); await sleep(1800);
+  ok('the Undone message sits ABOVE the voice bar, never under it', await js(`const t = document.getElementById('ew-toast').getBoundingClientRect(), v = document.getElementById('float-voice').getBoundingClientRect(); return document.getElementById('ew-toast').classList.contains('show') && t.bottom <= v.top;`), await js(`return JSON.stringify([document.getElementById('ew-toast').getBoundingClientRect(), document.getElementById('float-voice').getBoundingClientRect().top]);`));
   ok('undo puts it back (and saves that)', await js(`return __fakeFs.docs['dashboards/mealsuite'].recipes.find(x => x.id === 'rB').instructions === '';`));
   ok("Veda's recipe doc was never written", await js(`return !__fakeFs.log.some(l => /mealsuite-veda/.test(l.path)) && __fakeFs.docs['dashboards/mealsuite-veda'].recipes[0].name === 'VEDA ONLY';`));
   await js(`EWApp.go('fitness'); return 1;`); await sleep(300);
