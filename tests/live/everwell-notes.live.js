@@ -77,6 +77,7 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
     return parseFloat(t.fontSize) >= 19 && parseFloat(t.fontSize) <= 26 && parseInt(t.fontWeight, 10) >= 700 && bg.backgroundImage.indexOf('radial-gradient') >= 0 && bg.filter === 'none' && document.querySelectorAll('#goals-notes .rd-bg i').length === 4 &&
       st.backgroundColor === 'rgb(17, 17, 20)' && parseFloat(blob.opacity) <= 0.25;`),
     await js(`return getComputedStyle(document.querySelector('#goals-notes .lyric')).fontSize + ' ' + getComputedStyle(document.getElementById('goals-notes')).backgroundColor + ' ' + getComputedStyle(document.querySelector('#goals-notes .rd-bg i')).opacity;`));
+  ok('scrolled all the way up, the first line ("Test heading A") is sharp: nothing to fade toward above', await js(`const h = document.querySelector('#goals-notes .lyric h2'); return h.textContent === 'Test heading A' && !h.style.filter;`));
   ok('numbered steps keep their numbers', await js(`const li = document.querySelector('#goals-notes .lyric ol li'); return getComputedStyle(li, '::before').content.indexOf('counter') >= 0;`));
   ok('the stage has its own Edit (Tony) and no Close', await js(`return !!document.querySelector('#goals-notes [data-rd="edit"]') && !document.querySelector('#goals-notes [data-rd="close"]');`));
   await js(`EWApp.go('mindset'); return 1;`); await sleep(900);
@@ -108,6 +109,7 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   ok('the reader: lines in the middle are sharp, most of the screen is clear', f.mid === '' && f.sharp >= f.all * 0.6, JSON.stringify(f));
   ok('…and only the lines at the bottom edge are soft (blurred, dimmed)', /blur\(\d/.test(f.edge) && parseFloat(f.edge.replace(/[^\d.]/g, '')) > 0 && parseFloat(f.edgeO) < 1, JSON.stringify(f));
   const edgeName = f.edgeN;
+  ok('at the top, the first line is sharp too', await js(`const l = document.querySelector('#ew-reader .lyric li'); return !l.style.filter && !l.style.opacity;`));
   // Smooth scrolling: a scroll frame reads no layout (positions are measured once) and the scroller has no mask.
   await js(`window.__n = 0; window.__o = Element.prototype.getBoundingClientRect; Element.prototype.getBoundingClientRect = function(){ window.__n++; return window.__o.call(this); };
     const sc = document.querySelector('#ew-reader .rd-scroll'); sc.scrollTop += 60; return 1;`); await sleep(350);
@@ -116,6 +118,8 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   ok('…and its scroller carries no mask (keeps the fast scroll path)', await js(`const c = getComputedStyle(document.querySelector('#ew-reader .rd-scroll')); return (c.maskImage || 'none') === 'none' && (c.webkitMaskImage || 'none') === 'none';`));
   await js(`const sc = document.querySelector('#ew-reader .rd-scroll'); sc.scrollTop += sc.clientHeight * 0.45; return 1;`); await sleep(400);
   ok('scrolling brings an edge line into focus (it turns sharp)', await js(`const l = [...document.querySelectorAll('#ew-reader .lyric li')].find(x => x.textContent === ${JSON.stringify(edgeName)}); return !!l && !l.style.filter;`));
+  await js(`const sc = document.querySelector('#ew-reader .rd-scroll'); sc.scrollTop = sc.scrollHeight; return 1;`); await sleep(400);
+  ok('scrolled to the very end, the last line is sharp (nothing left to fade toward below)', await js(`const ls = document.querySelectorAll('#ew-reader .lyric li'); return !ls[ls.length - 1].style.filter;`));
   await js(`document.querySelector('#ew-reader [data-rd="close"]').click(); return 1;`); await sleep(800);
   ok('Close closes it', await js(`return !document.getElementById('ew-reader');`));
 
