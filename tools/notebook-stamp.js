@@ -50,12 +50,18 @@ function hosts() {
       else if (d.name.endsWith('.html') && fs.readFileSync(p, 'utf8').includes('Notebook/notebook.js')) out.push(p);
     }
   })(ROOT);
+  // The whole sibling tree (a host in a subfolder counts too), minus build and
+  // tool folders: .deploy holds A1-Priv's publish copies, not hosts.
   for (const sib of SIBLINGS) {
     if (!fs.existsSync(sib)) continue;
-    for (const f of fs.readdirSync(sib)) {
-      const p = path.join(sib, f);
-      if (f.endsWith('.html') && fs.readFileSync(p, 'utf8').includes('Notebook/notebook.js')) out.push(p);
-    }
+    (function walk(dir) {
+      for (const d of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (d.name.startsWith('.') || d.name === 'node_modules') continue;
+        const p = path.join(dir, d.name);
+        if (d.isDirectory()) walk(p);
+        else if (d.name.endsWith('.html') && fs.readFileSync(p, 'utf8').includes('Notebook/notebook.js')) out.push(p);
+      }
+    })(sib);
   }
   return out;
 }
