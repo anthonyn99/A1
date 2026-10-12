@@ -249,8 +249,11 @@ const mock = {
   const xOn = (sel) => js(`const w = document.querySelector('${sel}').closest('.ew-clr'); return !!w && getComputedStyle(w.querySelector('.ew-clr-x')).opacity === '1';`);
   ok('the search box has no clear x while empty', !(await xOn('#rec-search')));
   await js(`const i = document.getElementById('rec-search'); i.value = 'steak'; i.dispatchEvent(new Event('input', { bubbles: true })); return 1;`); await sleep(300);
+  ok('the recipe book shows no recipe count', await js(`return !document.getElementById('rec-meta') && !/\\d+ (of \\d+ )?recipes?/.test(document.querySelector('#rec-root .rb-head').textContent);`));
   ok('typing filters, and a clean x appears at the right of the box', await js(`return [...document.querySelectorAll('#rec-root .rec-name')].map(e => e.textContent).join() === 'Steak Night';`) && await xOn('#rec-search'));
   await js(`document.querySelector('#rec-search').closest('.ew-clr').querySelector('.ew-clr-x').click(); return 1;`); await sleep(300);
+  ok('the x is bigger (36px here) and its icon sits dead centre, so the hover shade is centred', await js(`const x = document.querySelector('#rec-search').closest('.ew-clr').querySelector('.ew-clr-x'), r = x.getBoundingClientRect(), i = x.querySelector('svg').getBoundingClientRect();
+    return Math.round(r.width) === 36 && Math.abs((i.left + i.right) / 2 - (r.left + r.right) / 2) < 1 && Math.abs((i.top + i.bottom) / 2 - (r.top + r.bottom) / 2) < 1 && Math.round(i.width) === 18;`));
   ok('the x empties the box and every recipe is back', await js(`return document.getElementById('rec-search').value === '' && document.querySelectorAll('#rec-root .rec-name').length === 2;`) && !(await xOn('#rec-search')));
   await js(`EWRec.recOpenDetail('rB'); EWRec.recAddStep(); return 1;`); await sleep(200);
   await js(`document.getElementById('rec-step-input').value = 'Sear 3 minutes a side'; EWRec.recSaveStep(0); return 1;`); await sleep(1800);
@@ -356,6 +359,11 @@ const mock = {
   await js(`EWApp.go('dashboard'); return 1;`); await sleep(600);
   ok('…and once prayed, Faith says "Prayed today" in the A1 green, compact, no button', await js(`const f = document.getElementById('dash-pray-state'); return f.dataset.done === 'true' && /Prayed today/.test(f.textContent) && !f.querySelector('[data-act="go-prayer"]') &&
     getComputedStyle(f.querySelector('.fp-big')).color === 'rgb(164, 185, 134)' && f.getBoundingClientRect().height <= 50;`));
+  await js(`document.getElementById('dash-pray-state').click(); return 1;`); await sleep(900);
+  ok('tapping "Prayed today" undoes it (like the workout button)', await js(`const f = document.getElementById('dash-pray-state'); return f.dataset.done === 'false' && /Not prayed yet today/.test(f.textContent) && !!f.querySelector('[data-act="go-prayer"]');`));
+  await js(`EWApp.go('prayer'); return 1;`); await sleep(700);
+  ok('...and the Prayer tab follows (not marked)', await js(`return document.getElementById('pray-btn').getAttribute('aria-pressed') === 'false' && /Not yet today/.test(document.getElementById('pray-big').textContent);`));
+  await js(`EWApp.go('dashboard'); return 1;`); await sleep(600);
 
   console.log('\nDashboard: cards drag, between the two columns too');
   a = await rect('#dash-r .rcard-name'); b = await rect('#dash-split');
