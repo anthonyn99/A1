@@ -118,6 +118,16 @@ it would break silently the day Notebook changed. Concretely:
 A1-Priv's suite runs it too. index.html is the native host of `tj` and `bj` and is
 exempt from the internals rule (it owns how they open inside TaskHub).
 
+**An instance looks and behaves exactly like MyJournal in index.html.** Its
+stylesheet (`instanceSheet` in `notebook.js`) is every tj rule MyJournal gets
+there, in index's cascade order (core sheets, `brainstorm.css`'s shared ribbon
+rule, `myjournal.css`, then `notebook.css`), opened by a guard that undoes the
+host's bare element rules (`select { width: 100% }` and the like) and adds
+index's default button glow. A host's own CSS never reaches the editor's
+controls. `tests/live/notebook-look.live.js` compares every host's ribbon and
+title bar to MyJournal's, element by element, at rest and under the cursor; a
+new host goes in its `HOSTS` list.
+
 | Option | Meaning |
 |---|---|
 | `key` | 2–8 lowercase letters. The prefix of every id, class, function and local-storage key (`pb-root`, `_pbSetSync`, `pb_unlockedat_…`). One per host page. |
