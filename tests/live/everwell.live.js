@@ -246,6 +246,12 @@ const mock = {
   ok('a category chip filters (Dinner)', await js(`return [...document.querySelectorAll('#rec-root .rec-name')].map(e => e.textContent).join() === 'Steak Night';`));
   await js(`document.querySelector('.rb-chip[data-cat="Dinner"]').click(); return 1;`); await sleep(200);
   ok('…and tapping it again goes back to All', await js(`return document.querySelectorAll('#rec-root .rec-name').length === 2 && document.querySelector('.rb-chip[data-cat="all"]').getAttribute('aria-pressed') === 'true';`));
+  const xOn = (sel) => js(`const w = document.querySelector('${sel}').closest('.ew-clr'); return !!w && getComputedStyle(w.querySelector('.ew-clr-x')).opacity === '1';`);
+  ok('the search box has no clear x while empty', !(await xOn('#rec-search')));
+  await js(`const i = document.getElementById('rec-search'); i.value = 'steak'; i.dispatchEvent(new Event('input', { bubbles: true })); return 1;`); await sleep(300);
+  ok('typing filters, and a clean x appears at the right of the box', await js(`return [...document.querySelectorAll('#rec-root .rec-name')].map(e => e.textContent).join() === 'Steak Night';`) && await xOn('#rec-search'));
+  await js(`document.querySelector('#rec-search').closest('.ew-clr').querySelector('.ew-clr-x').click(); return 1;`); await sleep(300);
+  ok('the x empties the box and every recipe is back', await js(`return document.getElementById('rec-search').value === '' && document.querySelectorAll('#rec-root .rec-name').length === 2;`) && !(await xOn('#rec-search')));
   await js(`EWRec.recOpenDetail('rB'); EWRec.recAddStep(); return 1;`); await sleep(200);
   await js(`document.getElementById('rec-step-input').value = 'Sear 3 minutes a side'; EWRec.recSaveStep(0); return 1;`); await sleep(1800);
   ok('an added step is saved, numbered, to dashboards/mealsuite', await js(`const r = __fakeFs.docs['dashboards/mealsuite'].recipes.find(x => x.id === 'rB'); return r.instructions === '1. Sear 3 minutes a side';`));
