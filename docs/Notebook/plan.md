@@ -434,7 +434,7 @@ How it was built:
   `brainstormjournal`. See docs/LifeHub/README.md "A host that shows the list its own way".
 - Fixed on the way: picking an External Link in the mobile select called
   `_tonyNav('custom:…')` and blanked the page; it now opens through `_navOpenLink`.
-- Tests: `tests/live/myjournal-external.live.js` (17 checks: one-write migration in place,
+- Tests (retired 2026-10-12 with the migration they pinned): `tests/live/myjournal-external.live.js` (17 checks: one-write migration in place,
   opens in-page and lights up, Settings, idempotent, delete sticks). `index-drag.live.js`
   follows the new button. The baseline gained two rule kinds: `shots` + `rows` (differences
   allowed only in those rows, here the header) and `check(before, after)` (here: exactly

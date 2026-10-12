@@ -357,10 +357,12 @@ const mock = {
   await js(`document.querySelector('[data-act="go-prayer"]').click(); return 1;`); await sleep(900);
   ok('Pray now opens the Prayer tab', await js(`return EWApp.current() === 'prayer' && !!document.getElementById('pray-btn');`));
   await js(`document.getElementById('pray-btn').click(); return 1;`); await sleep(1200);
+  ok('prayed, the Prayer tab shows no line under "Prayed today"', await js(`const s = document.getElementById('pray-sub'); return /Prayed today/.test(document.getElementById('pray-big').textContent) && s.hidden && !s.textContent;`));
   await js(`EWApp.go('dashboard'); return 1;`); await sleep(600);
   ok('…and once prayed, Faith says "Prayed today" in the A1 green, compact, no button', await js(`const f = document.getElementById('dash-pray-state'); return f.dataset.done === 'true' && /Prayed today/.test(f.textContent) && !f.querySelector('[data-act="go-prayer"]') &&
     getComputedStyle(f.querySelector('.fp-big')).color === 'rgb(164, 185, 134)' && f.getBoundingClientRect().height <= 50;`));
   await js(`document.getElementById('dash-pray-state').click(); return 1;`); await sleep(900);
+  ok('the Faith checks are grey, not purple', await js(`return [...document.querySelectorAll('#dash-faith .ew-check circle')].every(c => c.getAttribute('fill') === '#9d9da6');`));
   ok('tapping "Prayed today" undoes it (like the workout button)', await js(`const f = document.getElementById('dash-pray-state'); return f.dataset.done === 'false' && /Not prayed yet today/.test(f.textContent) && !!f.querySelector('[data-act="go-prayer"]');`));
   await js(`EWApp.go('prayer'); return 1;`); await sleep(700);
   ok('...and the Prayer tab follows (not marked)', await js(`return document.getElementById('pray-btn').getAttribute('aria-pressed') === 'false' && /Not yet today/.test(document.getElementById('pray-big').textContent);`));

@@ -70,6 +70,10 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   ok('Prayer shows the prayer first, then the Buddhist quote, typeset (bold first line, italic note), above Today', await js(`const n = document.querySelector('#pray-note .ew-doc'); const g = document.querySelector('.pray-grid');
     return !!n && n.querySelector('strong').textContent === 'Test gratitude line' && !!n.querySelector('em') && g.firstElementChild.id === 'pray-note' && g.children[1].id === 'pray-bq';`));
   ok('the prayer card can open in the reader too', await js(`return !!document.querySelector('#pray-note [data-note-read="prayer"]');`));
+  await js(`document.querySelector('#pray-note [data-note-read="prayer"]').click(); return 1;`); await sleep(900);
+  ok('on a desktop, Read opens the prayer as a card where the Goals stage sits (Prayer title above, no kicker), not the whole screen', await js(`const o = document.getElementById('ew-reader'), r = o.getBoundingClientRect(), b = document.getElementById('ew-body-prayer').getBoundingClientRect(), h = document.querySelector('#ew-pane-prayer .ew-hero h1').getBoundingClientRect();
+    return o.classList.contains('rd-box') && !!document.querySelector('.rd-dim') && Math.abs(r.left - b.left) < 2 && Math.abs(r.width - b.width) < 2 && Math.abs(r.top - b.top) < 2 && h.bottom <= r.top && !o.querySelector('.rd-kicker');`));
+  await js(`document.querySelector('#ew-reader [data-rd="close"]').click(); return 1;`); await sleep(800);
   await js(`EWApp.go('goals'); return 1;`); await sleep(900);
   ok('Goals shows Goals & Mindset on the reading stage: section heads, bullets and numbered steps', await js(`const h = document.getElementById('goals-notes'), n = h.querySelector('.lyric'); return h.classList.contains('rd-stage') && !!n && n.querySelectorAll('h2').length === 2 && n.querySelectorAll('ul li').length === 2 && n.querySelectorAll('ol li').length === 3;`));
   ok('â€¦large type over a DARK, blurred field of pastel colour (Apple Music lyrics)', await js(`const t = getComputedStyle(document.querySelector('#goals-notes .lyric')), bg = getComputedStyle(document.querySelector('#goals-notes .rd-bg i')), st = getComputedStyle(document.getElementById('goals-notes'));
@@ -88,6 +92,8 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   ok('Writings: one card per page, by name; Content is hidden; the quote stays on top', await js(`return [...document.querySelectorAll('#wr-grid .wr-card .wr-title')].map(e => e.textContent).join() === 'Relationship Principles,With Parents' &&
     document.getElementById('mind-content').hidden && !document.getElementById('mind-writings').hidden && document.getElementById('mind-quote').getBoundingClientRect().height > 0 &&
     document.getElementById('mind-quote').getBoundingClientRect().top < document.getElementById('mind-writings').getBoundingClientRect().top;`));
+  ok('each principle card wears its own pastel: a soft wash, a band on top, a tinted title', await js(`const c = document.querySelector('.wr-card'), g = getComputedStyle(c), band = getComputedStyle(c, '::before'), t = getComputedStyle(c.querySelector('.wr-title'));
+    return g.backgroundColor !== getComputedStyle(document.body).getPropertyValue('--s1') && band.height === '3px' && band.content !== 'none' && t.color !== 'rgb(255, 255, 255)';`));
   ok('principle cards have no coloured circles at the top', await js(`return !document.querySelector('.wr-card .wr-orb') && document.querySelector('.wr-card').firstElementChild.classList.contains('wr-title');`));
   ok('a card shows an excerpt and no count (no "40 points")', await js(`const c = document.querySelector('.wr-card[data-wr="with-parents"]'); return /Parent point number 1/.test(c.querySelector('.wr-ex').textContent) && !/[0-9]/.test(c.querySelector('.wr-foot').textContent);`));
 
