@@ -116,6 +116,9 @@ const mock = {
 
   console.log('\nThe player\'s own controls');
   ok("YouTube's controls are off (controls=0); Everwell draws its own over the video", await js(`const t = ${tile(1)}; return /controls=0/.test(t.querySelector('iframe').src) && !!t.querySelector('.vp-ui [data-vp="toggle"]') && !!t.querySelector('[data-vp-seek]') && !!t.querySelector('[data-vp="fill"]') && !!t.querySelector('[data-vp="fs"]');`));
+  ok("YouTube's own chrome is hidden: the player is cut taller than the tile (title bar and logo fall outside)", await js(`const f = ${tile(1)}.querySelector('.media-frame').getBoundingClientRect(), i = ${tile(1)}.querySelector('iframe').getBoundingClientRect();
+    return i.top <= f.top - 60 && i.bottom >= f.bottom + 60 && getComputedStyle(${tile(1)}.querySelector('.media-frame')).overflow === 'hidden';`));
+  ok('…and a cover with the video\'s thumbnail sits over it whenever it is not playing', await js(`const p = ${tile(1)}.querySelector('[data-vp-poster]'); return !!p && /i\.ytimg\.com\/vi\/goodvideo01\/hqdefault/.test(p.style.backgroundImage) && getComputedStyle(p).opacity === '0';`));
   ok('…showing the time from the player (0:00 / 2:00)', /0:0\d \/ 2:00/.test(await js(`return ${tile(1)}.querySelector('[data-vp-time]').textContent;`)), await js(`return ${tile(1)}.querySelector('[data-vp-time]').textContent;`));
   const fr = () => js(`const f = ${tile(1)}.querySelector('.media-frame'); return JSON.stringify({ on: f.classList.contains('ui-on'), idle: f.classList.contains('idle'), op: getComputedStyle(f.querySelector('.vp-ui')).opacity, tr: getComputedStyle(f.querySelector('.vp-ui')).transitionDuration });`).then(JSON.parse);
   let v = await js(`const r = ${tile(1)}.querySelector('.media-frame').getBoundingClientRect(); return JSON.stringify({ x: r.left + r.width / 2, y: r.top + r.height / 3, r: r.right, b: r.bottom });`).then(JSON.parse);
@@ -132,6 +135,7 @@ const mock = {
   ok('…and fade out as soon as the cursor leaves the video', !u.on && parseFloat(u.tr) >= 0.5, JSON.stringify(u));
   await js(`${tile(1)}.querySelector('.vp-row [data-vp="toggle"]').click(); return 1;`); await sleep(500);
   ok('Pause pauses the video (the player says so) and the controls stay up while paused', await js(`const f = ${tile(1)}.querySelector('.media-frame'); return f.classList.contains('paused') && getComputedStyle(f.querySelector('.vp-ui')).opacity === '1';`));
+  ok("…and the cover hides YouTube's pause screen (only Everwell's controls show)", await js(`return getComputedStyle(${tile(1)}.querySelector('[data-vp-poster]')).opacity === '1';`));
   await js(`${tile(1)}.querySelector('.vp-row [data-vp="toggle"]').click(); return 1;`); await sleep(500);
   ok('…and Play plays it again', await js(`return !${tile(1)}.querySelector('.media-frame').classList.contains('paused');`));
   await js(`${tile(1)}.querySelector('[data-vp="fill"]').click(); return 1;`); await sleep(600);

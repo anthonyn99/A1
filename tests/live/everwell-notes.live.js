@@ -72,13 +72,16 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   ok('the prayer card can open in the reader too', await js(`return !!document.querySelector('#pray-note [data-note-read="prayer"]');`));
   await js(`EWApp.go('goals'); return 1;`); await sleep(900);
   ok('Goals shows Goals & Mindset on the reading stage: section heads, bullets and numbered steps', await js(`const h = document.getElementById('goals-notes'), n = h.querySelector('.lyric'); return h.classList.contains('rd-stage') && !!n && n.querySelectorAll('h2').length === 2 && n.querySelectorAll('ul li').length === 2 && n.querySelectorAll('ol li').length === 3;`));
-  ok('…large type over a blurred, drifting field of colour (Apple Music lyrics)', await js(`const t = getComputedStyle(document.querySelector('#goals-notes .lyric')), bg = getComputedStyle(document.querySelector('#goals-notes .rd-bg'));
-    return parseFloat(t.fontSize) >= 22 && parseInt(t.fontWeight, 10) >= 700 && bg.filter.indexOf('blur(') >= 0 && document.querySelectorAll('#goals-notes .rd-bg i').length === 4;`));
+  ok('…large type over a DARK, blurred field of pastel colour (Apple Music lyrics)', await js(`const t = getComputedStyle(document.querySelector('#goals-notes .lyric')), bg = getComputedStyle(document.querySelector('#goals-notes .rd-bg')), st = getComputedStyle(document.getElementById('goals-notes'));
+    const blob = getComputedStyle(document.querySelector('#goals-notes .rd-bg i'));
+    return parseFloat(t.fontSize) >= 19 && parseFloat(t.fontSize) <= 26 && parseInt(t.fontWeight, 10) >= 700 && bg.filter.indexOf('blur(') >= 0 && document.querySelectorAll('#goals-notes .rd-bg i').length === 4 &&
+      st.backgroundColor === 'rgb(17, 17, 20)' && parseFloat(blob.opacity) <= 0.25;`),
+    await js(`return getComputedStyle(document.querySelector('#goals-notes .lyric')).fontSize + ' ' + getComputedStyle(document.getElementById('goals-notes')).backgroundColor + ' ' + getComputedStyle(document.querySelector('#goals-notes .rd-bg i')).opacity;`));
   ok('numbered steps keep their numbers', await js(`const li = document.querySelector('#goals-notes .lyric ol li'); return getComputedStyle(li, '::before').content.indexOf('counter') >= 0;`));
   ok('the stage has its own Edit (Tony) and no Close', await js(`return !!document.querySelector('#goals-notes [data-rd="edit"]') && !document.querySelector('#goals-notes [data-rd="close"]');`));
   await js(`EWApp.go('mindset'); return 1;`); await sleep(900);
   ok('Mindset leads with the quote of the day (same line as the Dashboard)', await js(`return EWQuote.today().then(q => document.querySelector('#mind-quote .quote-text').textContent === q.text);`));
-  ok('…then two sub-tabs, Content and Writings', await js(`return [...document.querySelectorAll('#mind-seg [data-seg]')].map(b => b.textContent).join() === 'Content,Writings';`));
+  ok('…then two sub-tabs, Content and Principles', await js(`return [...document.querySelectorAll('#mind-seg [data-seg]')].map(b => b.textContent).join() === 'Content,Principles' && document.querySelector('#mind-writings .wr-ttl').textContent === 'Principles';`));
   await js(`document.getElementById('mind-tab-writings').click(); return 1;`); await sleep(500);
   ok('Writings: one card per page, by name; Content is hidden; the quote stays on top', await js(`return [...document.querySelectorAll('#wr-grid .wr-card .wr-title')].map(e => e.textContent).join() === 'Relationship Principles,With Parents' &&
     document.getElementById('mind-content').hidden && !document.getElementById('mind-writings').hidden && document.getElementById('mind-quote').getBoundingClientRect().height > 0 &&

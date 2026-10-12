@@ -196,7 +196,12 @@ const mock = {
   // The redesign (Tony, 2026-10-11): circuits and routines are cards side by side; a tap opens a sheet.
   ok('circuits are cards in a grid, side by side, each leading with its total time', await js(`const g = document.getElementById('mc-circuits-list'), c = g.querySelectorAll('.circuit-card');
     return getComputedStyle(g).display === 'grid' && c.length === 2 && Math.abs(c[0].getBoundingClientRect().top - c[1].getBoundingClientRect().top) < 2 && c[0].querySelector('.fx-num').textContent === '5' && /sec/.test(c[0].querySelector('.fx-unit').textContent);`));
-  ok('…with a segment per exercise, as wide as its time (3s and 2s)', await js(`const i = [...document.querySelectorAll('#mc-circuits-list .circuit-card:first-child .fx-seg i')]; return i.length === 2 && Math.abs(i[0].getBoundingClientRect().width / i[1].getBoundingClientRect().width - 1.5) < 0.2;`));
+  ok('…clean: no segment bars, and its moves counted as "moves"', await js(`const c = document.querySelector('#mc-circuits-list .circuit-card'); return !c.querySelector('.fx-seg') && /^2 moves$/.test(c.querySelector('.fx-foot span').textContent);`));
+  await js(`mcOpenEditCircuitModal('c1'); return 1;`); await sleep(300);
+  ok('the circuit editor speaks of MOVES, with a running total and a one-row adder', await js(`const m = document.getElementById('mc-circuit-modal'); return m.classList.contains('open') && document.getElementById('mc-circuit-modal-title').textContent === 'Edit circuit' &&
+    document.getElementById('mc-cx-sum').textContent === '2 moves · 5 sec' && m.querySelectorAll('.module-builder-item').length === 2 && !/module/i.test(m.innerText) && !!m.querySelector('.cx-add #mc-mod-name');`),
+    await js(`return document.getElementById('mc-circuit-modal').innerText.slice(0, 300);`));
+  await js(`mcCloseModal('mc-circuit-modal'); return 1;`);
   await js(`document.querySelector('#mc-circuits-list .circuit-card .fx-name').click(); return 1;`); await sleep(300);
   ok('tapping a circuit opens its sheet: the exercises in order, Run, Edit, Delete', await js(`const s = document.getElementById('mc-sheet'); return s.classList.contains('open') && document.getElementById('mc-sheet-title').textContent === 'Real Core' &&
     [...s.querySelectorAll('.sh-mod .nm')].map(e => e.textContent).join() === 'Plank,Crunch' && !!s.querySelector('[data-act="run"]') && !!s.querySelector('[data-act="del-circuit"]');`));
@@ -236,6 +241,11 @@ const mock = {
   await js(`EWApp.go('nutrition'); return 1;`); await sleep(1500);
   ok('your recipes load from the same doc Solace uses', await js(`return [...document.querySelectorAll('#rec-root .rec-name')].map(e => e.textContent).join() === 'Overnight Oats,Steak Night';`));
   ok("Tony gets the voice/type bar", await js(`return getComputedStyle(document.getElementById('float-voice')).display !== 'none';`));
+  ok('recipe cards are clean: no ingredient list on them', await js(`return document.querySelectorAll('#rec-root .rb-card').length === 2 && !document.querySelector('#rec-root .rb-card .rb-ings') && !/Oats ·|1\\/2 cup/.test(document.getElementById('rec-list-rows').textContent);`));
+  await js(`document.querySelector('.rb-chip[data-cat="Dinner"]').click(); return 1;`); await sleep(200);
+  ok('a category chip filters (Dinner)', await js(`return [...document.querySelectorAll('#rec-root .rec-name')].map(e => e.textContent).join() === 'Steak Night';`));
+  await js(`document.querySelector('.rb-chip[data-cat="Dinner"]').click(); return 1;`); await sleep(200);
+  ok('…and tapping it again goes back to All', await js(`return document.querySelectorAll('#rec-root .rec-name').length === 2 && document.querySelector('.rb-chip[data-cat="all"]').getAttribute('aria-pressed') === 'true';`));
   await js(`EWRec.recOpenDetail('rB'); EWRec.recAddStep(); return 1;`); await sleep(200);
   await js(`document.getElementById('rec-step-input').value = 'Sear 3 minutes a side'; EWRec.recSaveStep(0); return 1;`); await sleep(1800);
   ok('an added step is saved, numbered, to dashboards/mealsuite', await js(`const r = __fakeFs.docs['dashboards/mealsuite'].recipes.find(x => x.id === 'rB'); return r.instructions === '1. Sear 3 minutes a side';`));
@@ -317,11 +327,12 @@ const mock = {
   await js(`document.getElementById('dash-wk-btn').click(); return 1;`); await sleep(1500);
   ok("a tap writes today's LOCAL date to dashboards/everwell_workout (merge, by everwell)", await js(`const d = __fakeFs.docs['dashboards/everwell_workout']; return !!d && d.done['${today}'] === true && d.by === 'everwell';`),
     await js(`return JSON.stringify(__fakeFs.docs['dashboards/everwell_workout']);`));
-  ok('…and the split shows it complete (badge, button turned to undo)', await js(`return !!document.getElementById('dash-wk-badge') && document.getElementById('dash-split-name').classList.contains('done') && document.getElementById('dash-wk-btn').getAttribute('aria-pressed') === 'true' && /Workout complete/.test(document.getElementById('dash-wk-btn').textContent);`));
+  ok('…and the button says "Workout complete" in the A1 green (no extra badge by the split)', await js(`const b = document.getElementById('dash-wk-btn'); return b.getAttribute('aria-pressed') === 'true' && /Workout complete/.test(b.textContent) && !document.getElementById('dash-wk-badge') &&
+    getComputedStyle(b).color === 'rgb(164, 185, 134)' && b.getBoundingClientRect().height <= 42;`), await js(`const b = document.getElementById('dash-wk-btn'); return getComputedStyle(b).color + ' ' + b.getBoundingClientRect().height;`));
   await js(`__fakeFs.remote('dashboards/everwell_workout', { done: { '${today}': false, '2020-02-02': true }, savedAt: Date.now(), by: 'taskhub' }, { merge: true }); return 1;`); await sleep(1000);
-  ok('an untick in TaskHub shows here at once', await js(`return !document.getElementById('dash-wk-badge') && document.getElementById('dash-wk-btn').getAttribute('aria-pressed') === 'false';`));
+  ok('an untick in TaskHub shows here at once', await js(`return document.getElementById('dash-wk-btn').getAttribute('aria-pressed') === 'false';`));
   await js(`__fakeFs.remote('dashboards/everwell_workout', { done: { '${today}': true }, savedAt: Date.now(), by: 'taskhub' }, { merge: true }); return 1;`); await sleep(1000);
-  ok('a tick in TaskHub shows here too', await js(`return !!document.getElementById('dash-wk-badge');`));
+  ok('a tick in TaskHub shows here too', await js(`return document.getElementById('dash-wk-btn').getAttribute('aria-pressed') === 'true';`));
   ok("the workout tick never writes TaskHub's own doc", await js(`return !__fakeFs.log.some(l => l.path === 'dashboards/main');`));
 
   console.log('\nDashboard: today\'s prayer, in Faith');
@@ -331,7 +342,8 @@ const mock = {
   ok('Pray now opens the Prayer tab', await js(`return EWApp.current() === 'prayer' && !!document.getElementById('pray-btn');`));
   await js(`document.getElementById('pray-btn').click(); return 1;`); await sleep(1200);
   await js(`EWApp.go('dashboard'); return 1;`); await sleep(600);
-  ok('…and once prayed, Faith says "Prayed today", no button', await js(`const f = document.getElementById('dash-pray-state'); return f.dataset.done === 'true' && /Prayed today/.test(f.textContent) && !f.querySelector('[data-act="go-prayer"]');`));
+  ok('…and once prayed, Faith says "Prayed today" in the A1 green, compact, no button', await js(`const f = document.getElementById('dash-pray-state'); return f.dataset.done === 'true' && /Prayed today/.test(f.textContent) && !f.querySelector('[data-act="go-prayer"]') &&
+    getComputedStyle(f.querySelector('.fp-big')).color === 'rgb(164, 185, 134)' && f.getBoundingClientRect().height <= 50;`));
 
   console.log('\nDashboard: cards drag, between the two columns too');
   a = await rect('#dash-r .rcard-name'); b = await rect('#dash-split');
