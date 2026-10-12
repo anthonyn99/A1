@@ -233,7 +233,7 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   await click('#media-grid [data-igcollapse="col2"]'); await sleep(500);
   ok('a collapsed collection: its name, one quiet line, and icon buttons on their own row', await js(`const t = document.querySelector('#media-grid .igc-tile[data-id="col2"]'); if (!t) return false;
     const ttl = t.querySelector('.igc-ttl').getBoundingClientRect(), acts = t.querySelector('.igc-acts').getBoundingClientRect();
-    return t.querySelector('.igc-ttl .t').textContent === 'Blocked' && /^Instagram · synced d+ min ago$/.test(t.querySelector('.igc-ttl .s').textContent) && acts.top >= ttl.bottom - 1 && t.querySelectorAll('.igc-acts .igc-ib').length === 5;`));
+    return t.querySelector('.igc-ttl .t').textContent === 'Blocked' && /^Instagram · synced [0-9]+ min ago$/.test(t.querySelector('.igc-ttl .s').textContent) && acts.top >= ttl.bottom - 1 && t.querySelectorAll('.igc-acts .igc-ib').length === 5;`));
 
   console.log('\nA pasted reel');
   await click('#media-grid .media-tile[data-id="m1"] [data-play]'); await sleep(900);
