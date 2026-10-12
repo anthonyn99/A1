@@ -119,7 +119,7 @@ const worker = {
 
   console.log('\nLeaving the tab and coming back');
   await js(`var t=[...document.querySelectorAll('.tb-navtab[data-navid="journal"]')].find(b=>b.offsetParent); if(t) t.click(); 1`); await sleep(1200);
-  ok('away: the editor is parked, not destroyed', await js(`var r=document.getElementById('pb-root'); return !!r && !!document.getElementById('tb-pb-park') && document.getElementById('tb-pb-park').contains(r);`));
+  ok('away: the editor is set aside by Notebook.detach, not destroyed', await js(`var r=document.getElementById('pb-root'); return !!r && !!document.getElementById('nb-park') && document.getElementById('nb-park').contains(r);`));
   ok('back: the same editor returns with its pages', await openPlaybook() && (await rows()).length === 2);
 
   console.log('\nA reload');
