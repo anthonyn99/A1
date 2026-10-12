@@ -245,7 +245,7 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   mm = await media();
   const keep = before.filter((x) => ['VIDaaaa1', 'PICaaaa3', 'VIDaaaa2'].includes(x));
   ok("it merges into the collection: Tony's order kept, the new post on top, unsaved ones gone", mm[0].posts.map((x) => x.c).join() === ['NEWaaaa6'].concat(keep).join() && mm[0].igc.at > Date.now() - 60000, mm[0].posts.map((x) => x.c).join());
-  ok('a current bookmark's sync asks nothing', !(await js(`return document.getElementById('uim-overlay') && document.getElementById('uim-overlay').classList.contains('show');`)));
+  ok("a current bookmark's sync asks nothing", !(await js(`return document.getElementById('uim-overlay') && document.getElementById('uim-overlay').classList.contains('show');`)));
   ok('it says what changed', /Synced “Discipline”: 4 posts, 1 new, 2 unsaved\./.test(await toast()), await toast());
   ok('the link is gone from the address, and Mindset is open', await js(`return location.hash === '' && EWApp.current() === 'mindset';`));
   await sleep(2700);
