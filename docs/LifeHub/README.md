@@ -66,11 +66,37 @@ install, add it to `DEFAULT_APPS` in `lifehub.js` with its favicon in `ICONS`.
   `LifeHub.refresh()` re-checks immediately. Otherwise it checks every 500ms,
   locally, with no DOM writes unless the answer changes.
 
+### A host that shows the list its own way (TaskHub)
+
+Since 2026-10-12 Tony's External Links in TaskHub (`index.html`) **are** his LifeHub
+list. TaskHub loads `lifehub.js` (deferred, `data-lock="guardian"`) but places no
+`<a1-lifehub>`: it draws the apps as its header buttons and edits them from its
+Settings, through this API. Same store, same operations, same one listener and
+batched transaction as the panel, so an edit on either side shows on the other.
+
+| Call | Does |
+|---|---|
+| `LifeHub.watch(p, cb)` | `cb(apps, { synced })` now and on every change; attaches the listener. Returns an unsubscribe. |
+| `LifeHub.list(p)` | the list now (hidden apps included) |
+| `LifeHub.launch(p, id)` | opens it exactly as its tile does (call inside the click) |
+| `LifeHub.add(p, { name, url, id?, tab? })` | returns the new id, or `null` if the link is refused |
+| `LifeHub.update(p, id, { name?, url?, hidden? })` | `false` if refused |
+| `LifeHub.remove(p, id)` / `LifeHub.reorder(p, ids)` | as the panel's delete and drag |
+| `LifeHub.reconnect()` | the host replaced its Firestore (TaskHub does when backgrounded) |
+| `LifeHub.normUrl`, `isLocalPath`, `canLocal` | the panel's own link rules |
+
+TaskHub's header leaves out an app switched off with "Show in LifeHub", and a program
+on the PC where this device can't start one. Those buttons have no App Lock (each
+program has its own). Their order is LifeHub's; navorder only keeps which header
+slots are links. Tony's old navorder `tonyLinks` list was brought into LifeHub once
+(`_lhImport`, flag `tonyLinksInLifeHub`) and is kept unchanged. Veda's links are
+still her navorder list.
+
 ## Local programs
 
-A browser can't start a program. So a tile whose link is a local path does what
-TaskHub's local External Links do (`index.html` `_doOpen`): it hands off to the
-**Shield desktop agent**.
+A browser can't start a program. So a tile whose link is a local path hands off to
+the **Shield desktop agent** (TaskHub's header buttons are the same tiles, so they
+do the same; Veda's navorder links use `index.html` `_doOpen`).
 
 1. The tile sends `shieldopen:lh:<profile>:<id>`, which is an opaque id, not the path.
 2. In the agent, `shield.html` calls `LifeHub.localLinks(cb)`. That reports

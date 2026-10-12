@@ -427,6 +427,11 @@ How it was built:
   button up before Firebase answers.
 - Settings lists it under External Links with its existing lock. `_navIsLegacyLockId`
   keeps it out of Internal Programs. Veda's side is untouched.
+- **Reversed 2026-10-12** (Tony's request): his External Links became his LifeHub list
+  and lost their App Locks, so MyJournal, which opens inside this page, went back to
+  being an internal program (`TONY_DEFAULT`, static button, Internal Programs, lock
+  `tony_myjournal` kept). `applyRemote` turns a stored `custom:myjournal` slot into
+  `brainstormjournal`. See docs/LifeHub/README.md "A host that shows the list its own way".
 - Fixed on the way: picking an External Link in the mobile select called
   `_tonyNav('custom:…')` and blanked the page; it now opens through `_navOpenLink`.
 - Tests: `tests/live/myjournal-external.live.js` (17 checks: one-write migration in place,

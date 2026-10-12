@@ -118,7 +118,9 @@ human at a real desktop:
    keeps only the directories that actually exist, so either layout works.
 4. **Tray and hotkeys with no window open**, and the boot re-arm after a restart
    during an active lockdown.
-5. **`shieldopen:` local-link buttons.** TaskHub's Settings → External Links
+5. **`shieldopen:` local-link buttons.** (Tony's TaskHub links are his LifeHub
+   list since 2026-10-12, so his send `shieldopen:lh:tony:<id>` like any LifeHub
+   tile; what follows is Veda's.) TaskHub's Settings → External Links
    accepts a local file path (e.g. `C:\Apps\Foo.exe` or a `.lnk`) instead of a
    URL; clicking it there navigates to `shieldopen:<id>`, and this agent is
    meant to resolve that id (via the map `sh_set_links` synced down from
