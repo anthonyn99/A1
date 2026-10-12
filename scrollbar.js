@@ -133,6 +133,14 @@
     if (el.clientHeight < 120) return false;
     var ox = getComputedStyle(el).overflowX; return ox === 'auto' || ox === 'scroll';
   }
+  // Where a scroller's rail lives: the top layer it is in. A scroller that is
+  // ITSELF a fixed layer (a drawer, a modal sheet) holds its own rail, or the
+  // rail would paint underneath it.
+  function railHost(el) {
+    if (el === (doc.scrollingElement || root)) return doc.body;
+    if (el !== doc.body && !/^(TEXTAREA|INPUT|SELECT)$/.test(el.tagName) && getComputedStyle(el).position === 'fixed') return el;
+    return layerOf(el);
+  }
   function makeRail(el, axis) {
     var rail = h('div', 'vc-rail ' + axis);
     var thumb = h('div', 'vc-thumb');
@@ -172,7 +180,7 @@
       var el = b.el;
       if (!canScroll(el, axis) || !el.isConnected) { r.rail.style.display = 'none'; return; }
       r.rail.style.display = '';
-      if (!r.rail.isConnected) layerOf(el === (doc.scrollingElement || root) ? doc.body : el).appendChild(r.rail);
+      if (!r.rail.isConnected) railHost(el).appendChild(r.rail);
       // A scroller inside a top layer gets a rail ABOVE that layer's content.
       var host = r.rail.parentNode;
       r.rail.style.zIndex = host === doc.body ? '60' : '2147483000';
