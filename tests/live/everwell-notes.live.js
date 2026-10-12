@@ -77,7 +77,8 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
     return parseFloat(t.fontSize) >= 19 && parseFloat(t.fontSize) <= 26 && parseInt(t.fontWeight, 10) >= 700 && bg.backgroundImage.indexOf('radial-gradient') >= 0 && bg.filter === 'none' && document.querySelectorAll('#goals-notes .rd-bg i').length === 4 &&
       st.backgroundColor === 'rgb(17, 17, 20)' && parseFloat(blob.opacity) <= 0.25;`),
     await js(`return getComputedStyle(document.querySelector('#goals-notes .lyric')).fontSize + ' ' + getComputedStyle(document.getElementById('goals-notes')).backgroundColor + ' ' + getComputedStyle(document.querySelector('#goals-notes .rd-bg i')).opacity;`));
-  ok('scrolled all the way up, the first line ("Test heading A") is sharp: nothing to fade toward above', await js(`const h = document.querySelector('#goals-notes .lyric h2'); return h.textContent === 'Test heading A' && !h.style.filter;`));
+  ok('scrolled all the way up, nothing fades at the top (the first line is clear), and no "Goals" kicker above the title', await js(`const h = document.querySelector('#goals-notes .lyric h2'), f = getComputedStyle(document.querySelector('#goals-notes .rd-fade'));
+    return h.textContent === 'Test heading A' && !h.style.filter && f.getPropertyValue('--rd-ft').trim() === '0px' && !document.querySelector('#goals-notes .rd-kicker');`));
   ok('numbered steps keep their numbers', await js(`const li = document.querySelector('#goals-notes .lyric ol li'); return getComputedStyle(li, '::before').content.indexOf('counter') >= 0;`));
   ok('the stage has its own Edit (Tony) and no Close', await js(`return !!document.querySelector('#goals-notes [data-rd="edit"]') && !document.querySelector('#goals-notes [data-rd="close"]');`));
   await js(`EWApp.go('mindset'); return 1;`); await sleep(900);
@@ -87,11 +88,16 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   ok('Writings: one card per page, by name; Content is hidden; the quote stays on top', await js(`return [...document.querySelectorAll('#wr-grid .wr-card .wr-title')].map(e => e.textContent).join() === 'Relationship Principles,With Parents' &&
     document.getElementById('mind-content').hidden && !document.getElementById('mind-writings').hidden && document.getElementById('mind-quote').getBoundingClientRect().height > 0 &&
     document.getElementById('mind-quote').getBoundingClientRect().top < document.getElementById('mind-writings').getBoundingClientRect().top;`));
-  ok('a card shows an excerpt and its measure (40 points)', await js(`const c = document.querySelector('.wr-card[data-wr="with-parents"]'); return /Parent point number 1/.test(c.querySelector('.wr-ex').textContent) && /40 points/.test(c.querySelector('.wr-foot').textContent);`));
+  ok('a card shows an excerpt and no count (no "40 points")', await js(`const c = document.querySelector('.wr-card[data-wr="with-parents"]'); return /Parent point number 1/.test(c.querySelector('.wr-ex').textContent) && !/[0-9]/.test(c.querySelector('.wr-foot').textContent);`));
 
   console.log('\nThe reader');
   await js(`document.querySelector('.wr-card[data-wr="relationship-principles"] .wr-title').click(); return 1;`); await sleep(900);
-  ok('tapping a card opens the reader over everything (a dialog with the card\'s name)', await js(`const r = document.getElementById('ew-reader'); return !!r && r.getAttribute('role') === 'dialog' && r.querySelector('.rd-title').textContent === 'Relationship Principles' && document.documentElement.classList.contains('rd-lock');`));
+  ok('tapping a card opens the reader (a dialog with the card\'s name)', await js(`const r = document.getElementById('ew-reader'); return !!r && r.getAttribute('role') === 'dialog' && r.querySelector('.rd-title').textContent === 'Relationship Principles' && document.documentElement.classList.contains('rd-lock');`));
+  ok('on a desktop it is a card where the Goals stage sits (the pane\'s width, from its top, 100vh - 230px tall), over a dimmed page', await js(`const r = document.getElementById('ew-reader').getBoundingClientRect(), b = document.getElementById('ew-body-mindset').getBoundingClientRect(), d = document.querySelector('.rd-dim');
+    return document.getElementById('ew-reader').classList.contains('rd-box') && Math.abs(r.left - b.left) < 2 && Math.abs(r.width - b.width) < 2 && Math.abs(r.top - b.top) < 2 && Math.abs(r.height - (innerHeight - 230)) < 2 && !!d && getComputedStyle(d).position === 'fixed';`),
+    await js(`return JSON.stringify([document.getElementById('ew-reader').getBoundingClientRect(), document.getElementById('ew-body-mindset').getBoundingClientRect(), innerHeight]);`));
+  ok('...with the Mindset title showing above it, and no "Mindset" kicker inside', await js(`const h = document.querySelector('#ew-pane-mindset .ew-hero h1').getBoundingClientRect(), r = document.getElementById('ew-reader').getBoundingClientRect();
+    return h.bottom <= r.top && h.top >= 0 && !document.querySelector('#ew-reader .rd-kicker');`));
   ok('Markdown typed into a note is typeset: heading, bold, italic, link, bullets, numbers', await js(`const t = document.querySelector('#ew-reader .lyric');
     return t.querySelector('h2').textContent === 'Objective' && t.querySelector('strong').textContent === 'Test' && t.querySelector('em').textContent === 'care' &&
       t.querySelector('a').getAttribute('href') === 'https://example.com/x_y_z' && t.querySelector('a').target === '_blank' &&
@@ -101,30 +107,34 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   ok('Escape closes it, back to the cards', await js(`return !document.getElementById('ew-reader') && !document.documentElement.classList.contains('rd-lock');`));
   ok('…and the card it grew out of is back (it hides while its reader is open)', await js(`return document.querySelector('.wr-card[data-wr="relationship-principles"]').style.visibility === '';`));
   await js(`document.querySelector('.wr-card[data-wr="with-parents"] .wr-title').click(); return 1;`); await sleep(1100);
-  const fx = () => js(`const sc = document.querySelector('#ew-reader .rd-scroll').getBoundingClientRect(), mid = (sc.top + sc.bottom) / 2;
-    const ls = [...document.querySelectorAll('#ew-reader .lyric li')].map(l => { const r = l.getBoundingClientRect(); return { c: (r.top + r.bottom) / 2, f: l.style.filter, o: l.style.opacity, n: l.textContent }; }).filter(x => x.c > sc.top && x.c < sc.bottom);
-    const near = ls.reduce((a, x) => Math.abs(x.c - mid) < Math.abs(a.c - mid) ? x : a), last = ls.filter(x => x.f).pop() || ls[ls.length - 1], H = sc.bottom - sc.top;
-    return JSON.stringify({ mid: near.f, midN: near.n, edge: last.f, edgeO: last.o, edgeN: last.n, sharp: ls.filter(x => !x.f).length, all: ls.length, outside: ls.filter(x => x.f && x.c < sc.bottom - H * 0.12).length });`).then(JSON.parse);
-  let f = await fx();
-  ok('the reader: lines in the middle are sharp, most of the screen is clear', f.mid === '' && f.sharp >= f.all * 0.6, JSON.stringify(f));
-  ok('…and only lines in a NARROW bottom edge are soft (blurred, dimmed): none above the last ~10%', f.outside === 0 && /blur\(\d/.test(f.edge) && parseFloat(f.edge.replace(/[^\d.]/g, '')) > 0 && parseFloat(f.edgeO) < 1, JSON.stringify(f));
-  const edgeName = f.edgeN;
-  ok('at the top, the first line is sharp too', await js(`const l = document.querySelector('#ew-reader .lyric li'); return !l.style.filter && !l.style.opacity;`));
-  // Smooth scrolling: a scroll frame reads no layout (positions are measured once) and the scroller has no mask.
+  const fade = () => js(`const f = getComputedStyle(document.querySelector('#ew-reader .rd-fade')); return JSON.stringify({ t: parseFloat(f.getPropertyValue('--rd-ft')), b: parseFloat(f.getPropertyValue('--rd-fb')), m: f.maskImage || f.webkitMaskImage || 'none' });`).then(JSON.parse);
+  let f = await fade();
+  ok('the reader fades the text at the edges with ONE mask (no blur on any line)', /linear-gradient/.test(f.m) && await js(`return [...document.querySelectorAll('#ew-reader .lyric *')].every(l => !l.style.filter && !l.style.opacity);`), JSON.stringify(f));
+  ok('...a NARROW band: at the top nothing fades above, the bottom fade is 24-56px', f.t === 0 && f.b >= 24 && f.b <= 56, JSON.stringify(f));
+  // Smooth scrolling: a scroll frame reads no layout and the scroller has no mask.
   await js(`window.__n = 0; window.__o = Element.prototype.getBoundingClientRect; Element.prototype.getBoundingClientRect = function(){ if (this.closest && this.closest('.lyric')) window.__n++; return window.__o.call(this); };
     const sc = document.querySelector('#ew-reader .rd-scroll'); sc.scrollTop += 60; return 1;`); await sleep(350);
   const reads = await js(`Element.prototype.getBoundingClientRect = window.__o; return window.__n;`);
   ok('scrolling the reader reads no layout of its lines per frame (no getBoundingClientRect on the text)', reads === 0, reads + ' reads');
-  ok('…and its scroller carries no mask (keeps the fast scroll path)', await js(`const c = getComputedStyle(document.querySelector('#ew-reader .rd-scroll')); return (c.maskImage || 'none') === 'none' && (c.webkitMaskImage || 'none') === 'none';`));
-  await js(`const sc = document.querySelector('#ew-reader .rd-scroll'); sc.scrollTop += sc.clientHeight * 0.45; return 1;`); await sleep(400);
-  ok('scrolling brings an edge line into focus (it turns sharp)', await js(`const l = [...document.querySelectorAll('#ew-reader .lyric li')].find(x => x.textContent === ${JSON.stringify(edgeName)}); return !!l && !l.style.filter;`));
+  ok('...and its scroller carries no mask (keeps the fast scroll path)', await js(`const c = getComputedStyle(document.querySelector('#ew-reader .rd-scroll')); return (c.maskImage || 'none') === 'none' && (c.webkitMaskImage || 'none') === 'none';`));
+  f = await fade();
+  ok('scrolled down, the top fades too', f.t > 0 && f.t <= 56, JSON.stringify(f));
   await js(`const sc = document.querySelector('#ew-reader .rd-scroll'); sc.scrollTop = sc.scrollHeight; return 1;`); await sleep(400);
-  ok('scrolled to the very end, the last line is sharp (nothing left to fade toward below)', await js(`const ls = document.querySelectorAll('#ew-reader .lyric li'); return !ls[ls.length - 1].style.filter;`));
+  f = await fade();
+  ok('scrolled to the very end, nothing fades below (the last line is clear)', f.b === 0 && f.t > 0, JSON.stringify(f));
   await js(`document.querySelector('#ew-reader [data-rd="close"]').click(); return 1;`); await sleep(800);
   ok('Close closes it', await js(`return !document.getElementById('ew-reader');`));
   await js(`document.querySelector('.wr-card[data-wr="relationship-principles"] .wr-title').click(); return 1;`); await sleep(900);
   await js(`history.back(); return 1;`); await sleep(900);
   ok("a phone's Back swipe closes the reader and stays in Everwell", await js(`return !document.getElementById('ew-reader') && EWApp.current() === 'mindset' && /everwell\.html$/.test(location.pathname);`));
+  await js(`document.querySelector('.wr-card[data-wr="relationship-principles"] .wr-title').click(); return 1;`); await sleep(900);
+  await js(`document.querySelector('.rd-dim').click(); return 1;`); await sleep(800);
+  ok('a click on the dimmed page closes it too, dim and all', await js(`return !document.getElementById('ew-reader') && !document.querySelector('.rd-dim') && !document.documentElement.classList.contains('rd-lock');`));
+  await c.send('Emulation.setDeviceMetricsOverride', { width: 400, height: 860, deviceScaleFactor: 1, mobile: true }); await sleep(400);
+  await js(`document.querySelector('.wr-card[data-wr="relationship-principles"] .wr-title').click(); return 1;`); await sleep(900);
+  ok('on a phone it stays the full-screen reader (with its kicker)', await js(`const r = document.getElementById('ew-reader'), b = r.getBoundingClientRect(); return !r.classList.contains('rd-box') && !document.querySelector('.rd-dim') && b.width === innerWidth && b.height === innerHeight && r.querySelector('.rd-kicker').textContent === 'Mindset';`));
+  await js(`document.querySelector('#ew-reader [data-rd="close"]').click(); return 1;`); await sleep(800);
+  await c.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }); await sleep(400);
 
   console.log('\nNew cards (Notebook pages)');
   ok('New principle is a solid button in the header, not a blank card', await js(`const b = document.querySelector('#mind-writings .wr-head [data-wr-add]'); return !!b && b.classList.contains('btn') && b.classList.contains('solid') && b.textContent === '+ New principle' && !document.querySelector('#wr-grid [data-wr-add]');`));
