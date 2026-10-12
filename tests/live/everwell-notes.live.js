@@ -94,6 +94,7 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
     document.getElementById('mind-quote').getBoundingClientRect().top < document.getElementById('mind-writings').getBoundingClientRect().top;`));
   ok('each principle card wears its own pastel: a soft wash, a band on top, a tinted title', await js(`const c = document.querySelector('.wr-card'), g = getComputedStyle(c), band = getComputedStyle(c, '::before'), t = getComputedStyle(c.querySelector('.wr-title'));
     return g.backgroundColor !== getComputedStyle(document.body).getPropertyValue('--s1') && band.height === '3px' && band.content !== 'none' && t.color !== 'rgb(255, 255, 255)';`));
+  ok('principle cards never share a colour on the board', await js(`const c = [...document.querySelectorAll('.wr-card')].map(e => e.style.getPropertyValue('--wr-a')); return c.length >= 2 && new Set(c).size === c.length;`));
   ok('principle cards have no coloured circles at the top', await js(`return !document.querySelector('.wr-card .wr-orb') && document.querySelector('.wr-card').firstElementChild.classList.contains('wr-title');`));
   ok('a card shows an excerpt and no count (no "40 points")', await js(`const c = document.querySelector('.wr-card[data-wr="with-parents"]'); return /Parent point number 1/.test(c.querySelector('.wr-ex').textContent) && !/[0-9]/.test(c.querySelector('.wr-foot').textContent);`));
 
@@ -107,10 +108,12 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   ok('...with the Mindset title showing above it, and no "Mindset" kicker inside', await js(`const h = document.querySelector('#ew-pane-mindset .ew-hero h1').getBoundingClientRect(), r = document.getElementById('ew-reader').getBoundingClientRect();
     return h.bottom <= r.top && h.top >= 0 && !document.querySelector('#ew-reader .rd-kicker');`));
   ok('Markdown typed into a note is typeset: heading, bold, italic, link, bullets, numbers', await js(`const t = document.querySelector('#ew-reader .lyric');
-    return t.querySelector('h2').textContent === 'Objective' && t.querySelector('strong').textContent === 'Test' && t.querySelector('em').textContent === 'care' &&
+    return t.querySelector('h1').textContent === 'Objective' && t.querySelector('strong').textContent === 'Test' && t.querySelector('em').textContent === 'care' &&
       t.querySelector('a').getAttribute('href') === 'https://example.com/x_y_z' && t.querySelector('a').target === '_blank' &&
       [...t.querySelectorAll('ul li')].map(l => l.textContent).join() === 'k1,k2' && [...t.querySelectorAll('ol li')].map(l => l.textContent).join() === 'one,two' && !/[#*]/.test(t.textContent);`),
     await js(`return document.querySelector('#ew-reader .lyric').innerHTML;`));
+  ok('a heading reads LARGER than the text under it (Notebook order), never a small uppercase label', await js(`const h = getComputedStyle(document.querySelector('#ew-reader .lyric h1')), p = getComputedStyle(document.querySelector('#ew-reader .lyric p'));
+    return parseFloat(h.fontSize) > parseFloat(p.fontSize) * 1.4 && h.textTransform === 'none';`));
   await js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); document.getElementById('ew-reader').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return 1;`); await sleep(800);
   ok('Escape closes it, back to the cards', await js(`return !document.getElementById('ew-reader') && !document.documentElement.classList.contains('rd-lock');`));
   ok('â€¦and the card it grew out of is back (it hides while its reader is open)', await js(`return document.querySelector('.wr-card[data-wr="relationship-principles"]').style.visibility === '';`));
