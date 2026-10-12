@@ -1,4 +1,4 @@
-﻿// Everwell Phase 6 (A1-Priv/everwell.html): Tony's notes in Prayer / Goals /
+// Everwell Phase 6 (A1-Priv/everwell.html): Tony's notes in Prayer / Goals /
 // Mindset, the one-time import link, A1's Notebook as the editor, and the
 // Mindset reels. Real page + real Notebook files (served by cdp.js), fake
 // Firestore, fake lock worker. The note text here is TEST text, never Tony's.
