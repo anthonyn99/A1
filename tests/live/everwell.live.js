@@ -469,7 +469,8 @@ const mock = {
   await c.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 3, mobile: true });
   await sleep(500);
   ok('Dashboard: no sideways scroll; the week strip fits', await js(`const w = document.querySelector('.split-week').getBoundingClientRect(); return document.documentElement.scrollWidth <= innerWidth && w.right <= innerWidth;`));
-  ok('…the two swaps still stack (new words under the old)', await js(`const s = document.querySelector('#dash-rdesc .swap'); return !s || s.querySelector('.new').getBoundingClientRect().top > s.querySelector('s').getBoundingClientRect().top;`));
+  ok('…on a phone the swaps flow inline: the sentence wraps like text, no tall gaps', await js(`const d = document.getElementById('dash-rdesc'), s = d.querySelector('.swap'); const lh = parseFloat(getComputedStyle(d).lineHeight), fs = parseFloat(getComputedStyle(d).fontSize);
+    return !s || (getComputedStyle(s).display === 'inline' && lh / fs < 2 && d.getBoundingClientRect().right <= innerWidth);`), await js(`const d = document.getElementById('dash-rdesc'); return getComputedStyle(d).lineHeight + ' ' + (d.querySelector('.swap') ? getComputedStyle(d.querySelector('.swap')).display : '-');`));
   // The tagline: shown whenever it fits, hidden only where it would hit the buttons.
   const tagAt = async (w) => { await c.send('Emulation.setDeviceMetricsOverride', { width: w, height: 844, deviceScaleFactor: 3, mobile: true }); await sleep(500);
     return js(`const t = document.querySelector('.ew-tagline'); if (getComputedStyle(t).display === 'none') return 'hidden';
