@@ -161,6 +161,14 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   await click('#media-grid [data-igstage] [data-igs="cnext"]'); await sleep(300);
   s = await stage();
   ok('its arrow moves to the next slide', s.img === 'https://cdn.test/CARaaaa42.svg');
+  ok('the slide arrows are big and clear (46px)', await js(`return document.querySelector('[data-igstage] .ig-cnav.cnext').getBoundingClientRect().width === 46;`));
+  await click('#media-grid [data-igstage] .ig-ctl [data-igs="toggle"]'); await sleep(250);
+  ok('pausing stops the bars on its cover, and the shell knows (the pill says Paused)', await js(`const c = document.querySelector('.igc-cell.on'); return EWMedia.now().paused === true && c.classList.contains('paused') && getComputedStyle(c.querySelector('.igc-eq i')).animationPlayState === 'paused';`));
+  await go('focus');
+  ok('…the "now playing" pill on another tab stops its bars and says Paused', await js(`const n = document.getElementById('ew-now'); return n.classList.contains('on') && n.classList.contains('paused') && /^Paused in Mindset$/.test(document.getElementById('ew-now-k').textContent) && getComputedStyle(n.querySelector('.ew-now-eq i')).animationPlayState === 'paused';`));
+  await go('mindset');
+  await click('#media-grid [data-igstage] .ig-ctl [data-igs="toggle"]'); await sleep(250);
+  ok('playing again moves them again', await js(`const c = document.querySelector('.igc-cell.on'); return EWMedia.now().paused === false && !c.classList.contains('paused') && getComputedStyle(c.querySelector('.igc-eq i')).animationPlayState === 'running';`));
   await js(`document.querySelector('#media-grid [data-igstage]').focus(); document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })); return 1;`); await sleep(900);
   s = await stage();
   ok("a post the worker cannot read plays in Instagram's own embed, and says Next is by hand", s.frame === 'https://www.instagram.com/p/BADaaaa5/embed/captioned/' && /embed/.test(s.cls) && /Use Next/.test(s.note) && s.pos === 'Discipline · 5 of 5', JSON.stringify(s));

@@ -154,6 +154,12 @@ const mock = {
   ad = await adState();
   ok('an ad (playing, the clock stands still): the layers step aside, so a click reaches YouTube\'s Skip button', ad.ad && ad.hit === 'none' && ad.top === 'IFRAME' &&
     await js(`const f = ${tile(1)}.querySelector('.media-frame'); return getComputedStyle(f.querySelector('.vp-ui')).opacity === '0' && getComputedStyle(f.querySelector('[data-vp-poster]')).opacity === '0';`), JSON.stringify(ad));
+  // A click on YouTube's Skip moves the focus into the iframe (Tony, 2026-10-12: YouTube's own buttons stayed instead of Everwell's).
+  await js(`window.focus(); ${tile(1)}.querySelector('iframe').focus(); return 1;`); await sleep(1700);
+  ad = await adState();
+  ok("a click into YouTube (its Skip) hands the player back to Everwell's controls a moment later", !ad.ad && ad.hit !== 'none' && ad.top !== 'IFRAME', JSON.stringify(ad));
+  await sleep(3000);
+  ok('…and an ad still running (clock frozen) steps them aside again', (await adState()).ad);
   await js(`${tile(1)}.querySelector('iframe').contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'testAd', args: [false] }), '*'); return 1;`); await sleep(1500);
   ad = await adState();
   ok('…and once the video\'s clock moves again, Everwell\'s controls are back', !ad.ad && ad.hit !== 'none' && ad.top !== 'IFRAME', JSON.stringify(ad));
