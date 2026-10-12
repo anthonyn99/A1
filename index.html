@@ -8865,6 +8865,48 @@ function App(){
     if(window._ewPrayer)setEwPrayer(Object.assign({},window._ewPrayer));
     return()=>window.removeEventListener("fb-ew-prayer",h);
   },[]);
+  // ── Everwell workout done — both ways (Tony, 2026-10-11) ───────────────────
+  // dashboards/everwell_workout { done: { "YYYY-MM-DD": bool } } says whether a
+  // day's workout is done; Everwell's Dashboard ticks it, and here it is the
+  // `done` of that day's ew_workout_<date> task. seen[dk] is the last value
+  // both sides agreed on: a task that moved away from it was ticked HERE (write
+  // the doc), a doc value that moved away from it was ticked in Everwell (set
+  // the task through our own save; the doc wins if both moved). A day the doc
+  // has never named takes the task's value (written only if it is done).
+  const ewWorkSeen=useRef({});
+  const[ewWork,setEwWork]=useState(()=>window._ewWorkout);   // undefined until the doc is heard
+  useEffect(()=>{
+    const h=e=>setEwWork(Object.assign({},e.detail||{}));
+    window.addEventListener("fb-ew-workout",h);
+    if(window._ewWorkout)setEwWork(Object.assign({},window._ewWorkout));
+    return()=>window.removeEventListener("fb-ew-workout",h);
+  },[]);
+  useEffect(()=>{
+    if(!fbLoadedRef.current||!ewWork)return;
+    const seen=ewWorkSeen.current,fromDoc={},toDoc=[];
+    Object.keys(data||{}).forEach(dk=>{
+      (data[dk]||[]).forEach(t=>{
+        if(!t||t._ewId!=="ew_workout_"+dk)return;
+        const td=!!t.done,has=Object.prototype.hasOwnProperty.call(ewWork,dk),dd=!!ewWork[dk];
+        if(!(dk in seen)){
+          if(has&&dd!==td){seen[dk]=dd;fromDoc[dk]=dd;}
+          else{seen[dk]=td;if(!has&&td)toDoc.push([dk,true]);}
+          return;
+        }
+        if(has&&dd!==seen[dk]){seen[dk]=dd;if(td!==dd)fromDoc[dk]=dd;}
+        else if(td!==seen[dk]){seen[dk]=td;if(dd!==td)toDoc.push([dk,td]);}
+      });
+    });
+    toDoc.forEach(([dk,v])=>{if(window._fbEwWorkoutSet)window._fbEwWorkoutSet(dk,v);});
+    if(Object.keys(fromDoc).length)setDataBg(prev=>{
+      let changed=false;const next={...prev};
+      Object.keys(fromDoc).forEach(dk=>{
+        const arr=prev[dk];if(!arr)return;
+        next[dk]=arr.map(t=>{if(t&&t._ewId==="ew_workout_"+dk&&!!t.done!==fromDoc[dk]){changed=true;return{...t,done:fromDoc[dk]};}return t;});
+      });
+      return changed?next:prev;
+    });
+  },[data,ewWork,setDataBg]);
   // Its place among the habits (Tony, 2026-10-11): draggable WITHIN Daily Habits
   // only. `row` = {after: the habit id above it (null = top), at: its index, used
   // if that habit is deleted}, stored beside the ticks, never in `habits`.
@@ -10670,6 +10712,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _plansUnsub     = null;   // Plans → both TaskHubs mirror (read-only)
   let _ewRotUnsub     = null;   // Everwell rotation → Tony's workout task (read-only)
   let _ewPrayUnsub    = null;   // Everwell's own Prayer habit row (two-way, its own doc)
+  let _ewWorkUnsub    = null;   // Everwell workout done (two-way, its own doc)
   let _plansSaveTimer = null;
   let _ecUnsubscribe  = null;
   let _crUnsubs       = [];     // Claude reset times, one per profile (read-only)
@@ -11727,6 +11770,25 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       return _fbWriteRetry(() => setDoc(ewPrayRef, { done: { [dk]: !!val }, savedAt: Date.now(), by: 'taskhub' }, { merge: true }), 'Everwell prayer')
         .catch(e => { console.warn('[Everwell] prayer tick failed:', e && e.code); window.dispatchEvent(new CustomEvent('fb-ew-prayer-error')); });
     };
+    // dashboards/everwell_workout { done: { date: bool } }: whether the day's
+    // Everwell workout is done, ticked in either app (Tony's App reconciles it
+    // with its ew_workout_<date> task). One date per write, merged.
+    const ewWorkRef = doc(db, 'dashboards/everwell_workout');
+    if (_ewWorkUnsub) { _ewWorkUnsub(); _ewWorkUnsub = null; }
+    _ewWorkUnsub = onSnapshot(ewWorkRef, { includeMetadataChanges: true }, (snap) => {
+      if (snap.metadata && snap.metadata.fromCache) return;
+      if (snap.metadata && snap.metadata.hasPendingWrites) return;
+      const d = snap.exists() ? (snap.data() || {}) : {};
+      window._ewWorkout = Object.assign({}, d.done || {});
+      window.dispatchEvent(new CustomEvent('fb-ew-workout', { detail: window._ewWorkout }));
+    }, (err) => { console.warn('[Everwell] workout onSnapshot error:', err && err.code); });
+    window._fbEwWorkoutSet = (dk, val) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dk || '')) return Promise.resolve();
+      window._ewWorkout = Object.assign({}, window._ewWorkout || {}, { [dk]: !!val });
+      window.dispatchEvent(new CustomEvent('fb-ew-workout', { detail: window._ewWorkout }));
+      return _fbWriteRetry(() => setDoc(ewWorkRef, { done: { [dk]: !!val }, savedAt: Date.now(), by: 'taskhub' }, { merge: true }), 'Everwell workout')
+        .catch(e => { console.warn('[Everwell] workout tick failed:', e && e.code); });
+    };
     // The Prayer row's place in Daily Habits: `row` {after, at}, merged beside the
     // ticks (Everwell never writes `row`, and its own writes are merges too).
     window._fbEwPrayerRowSet = (row) => {
@@ -12299,6 +12361,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     if (_plansUnsub)     { _plansUnsub();     _plansUnsub     = null; }
     if (_ewRotUnsub)     { _ewRotUnsub();     _ewRotUnsub     = null; }
     if (_ewPrayUnsub)    { _ewPrayUnsub();    _ewPrayUnsub    = null; }
+    if (_ewWorkUnsub)    { _ewWorkUnsub();    _ewWorkUnsub    = null; }
     if (_ecUnsubscribe)  { _ecUnsubscribe();  _ecUnsubscribe  = null; }
     _crUnsubs.forEach(u => { try { u(); } catch (e) {} }); _crUnsubs = [];
     if (_alUnsubscribe)  { _alUnsubscribe();  _alUnsubscribe  = null; }
