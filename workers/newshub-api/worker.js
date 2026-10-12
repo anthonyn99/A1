@@ -2230,17 +2230,20 @@ async function prewarmCalendar(env){
     // device with no earnings dates at all). Whatever the cron caches is what every
     // device publishes to the shared doc, so this is the one build worth paying a
     // minute to get right. Mirrors the same retry cronPrewarmNews does for news.
-    if (result && result.degraded){
-      console.warn(`[cron] calendar degraded (${result.earningsCount || 0} earnings) — pausing for the Finnhub window, then retrying.`);
+    // A PARTIAL build (source holes) gets the same one retry: the hole is usually
+    // a single ADR's earnings date, and this is the build every device publishes.
+    if (result && (result.degraded || result.partial)){
+      console.warn(`[cron] calendar ${result.degraded ? 'degraded' : 'partial'} (${result.earningsCount || 0} earnings) — pausing for the Finnhub window, then retrying.`);
       await new Promise(r => setTimeout(r, 65000));   // clear Finnhub's per-minute cap
       const retry = await buildCalendar(wl, env, days).catch(e => { console.warn('[cron] calendar retry failed:', e.message); return null; });
-      if (retry && (retry.earningsCount || 0) > (result.earningsCount || 0)) result = retry;
+      if (retry && ((retry.earningsCount || 0) > (result.earningsCount || 0)
+                    || (!retry.degraded && !retry.partial && (retry.earningsCount || 0) >= (result.earningsCount || 0)))) result = retry;
     }
     // Only a HEALTHY build gets cached: the key lives 12h, so caching an
     // earnings-less calendar would hand the same broken answer to every device all
     // day. Leaving it unwritten makes the first real request rebuild instead.
     if (result && result.events && result.events.length && !result.degraded){
-      await env.NEWSHUB_CACHE.put(calKey, JSON.stringify(result), { expirationTtl: CAL_TTL });
+      await env.NEWSHUB_CACHE.put(calKey, JSON.stringify(result), { expirationTtl: result.partial ? CAL_PARTIAL_TTL : CAL_TTL });
       // Push to Firebase so TaskHub weekly view updates without needing TradeHub open.
       // Writes to dashboards/market_calendar — same doc the TradeHub Catalysts tab writes.
       // (See the App Check note above pushMarketCalToFirebase: this has never actually
@@ -4506,7 +4509,7 @@ export default {
         // that made earnings vanish every so often. Leaving the key unwritten costs
         // one extra rebuild and lets the very next request recover on its own.
         if (result.events.length && !result.degraded)
-          ctx.waitUntil(env.NEWSHUB_CACHE.put(calKey, JSON.stringify(result), { expirationTtl: CAL_TTL }));
+          ctx.waitUntil(env.NEWSHUB_CACHE.put(calKey, JSON.stringify(result), { expirationTtl: result.partial ? CAL_PARTIAL_TTL : CAL_TTL }));
         await env.NEWSHUB_CACHE.delete(calLock);
         // And never hand a degraded build back when a healthy one is already cached —
         // the caller publishes what it receives to the shared doc that TradeHub and
