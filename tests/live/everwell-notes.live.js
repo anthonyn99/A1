@@ -163,11 +163,20 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
     const b = rail.getBoundingClientRect(), x = b.left + b.width / 2, y = b.top + b.height * .7;
     rail.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: x, clientY: y })); rail.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: x, clientY: y })); return 1;`); await sleep(450);
   ok('a click on the scrollbar track (jump to that spot) does not page', (await rdTitle()) === before, await rdTitle());
-  const touchTurn = await js(`const o = document.getElementById('ew-reader'), b = o.getBoundingClientRect(), x = b.left + 40, y = b.top + b.height / 2, t0 = document.querySelector('#ew-reader [data-rd-title]').textContent;
+  const touchTurn = await js(`const o = document.getElementById('ew-reader'), b = o.getBoundingClientRect(), x = b.right - 40, y = b.top + b.height / 2, t0 = document.querySelector('#ew-reader [data-rd-title]').textContent;
     o.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch', clientX: x, clientY: y })); o.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: x, clientY: y })); o.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: x, clientY: y }));
     const shown = o.getAttribute('data-edge'); return new Promise(res => setTimeout(() => { o.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: x, clientY: y })); res(JSON.stringify({ shown, after: o.getAttribute('data-edge'), turned: document.querySelector('#ew-reader [data-rd-title]').textContent !== t0 })); }, 600));`).then(JSON.parse);
-  ok('a finger tap on an edge turns the page and the chevron flashes, then fades (it never hangs there)', touchTurn.shown === 'l' && touchTurn.after === '' && touchTurn.turned, JSON.stringify(touchTurn));
-  await edge('r'); await sleep(450);
+  ok('a finger tap on an edge turns the page and the chevron flashes, then fades (it never hangs there)', touchTurn.shown === 'r' && touchTurn.after === '' && touchTurn.turned, JSON.stringify(touchTurn));
+  await edge('l'); await sleep(450);
+  // Rapid clicks (Tony, 2026-10-12): every one turns a page, none selects text.
+  await js(`document.getSelection().removeAllRanges(); return 1;`);
+  const startAt = await rdTitle(), names = board.split('|');
+  await js(`const o = document.getElementById('ew-reader'), b = o.getBoundingClientRect(), x = b.left + 40, y = b.top + b.height / 2;
+    for (let k = 0; k < 2; k++) { o.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0, clientX: x, clientY: y, detail: k + 1 })); o.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: x, clientY: y })); o.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: x, clientY: y, detail: k + 1 })); }
+    return 1;`); await sleep(500);
+  const want = names[Math.max(0, names.indexOf(startAt) - 2)];
+  ok('rapid clicks each turn a page (two quick clicks = two cards back), mid-slide too', (await rdTitle()) === want, (await rdTitle()) + ' want ' + want + ' from ' + startAt);
+  ok('...and a press on an edge never starts a text selection', await js(`const o = document.getElementById('ew-reader'), b = o.getBoundingClientRect(); const ev = new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0, clientX: b.left + 40, clientY: b.top + b.height / 2 }); o.dispatchEvent(ev); return ev.defaultPrevented && getComputedStyle(o).touchAction === 'manipulation';`));
   ok('...the edge under the cursor shows a chevron', await js(`const o = document.getElementById('ew-reader'), b = o.getBoundingClientRect(); o.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: b.right - 20, clientY: b.top + b.height / 2 })); return o.getAttribute('data-edge') === 'r';`));
   await js(`document.querySelector('#ew-reader [data-rd="close"]').click(); return 1;`); await sleep(800);
   ok('closing after paging leaves every card visible', await js(`return !document.getElementById('ew-reader') && [...document.querySelectorAll('.wr-card')].every(c => c.style.visibility === '');`));
