@@ -193,21 +193,35 @@ const mock = {
   ok('your circuits load from the same doc Solace uses', await js(`return EWFitness.state().loaded && [...document.querySelectorAll('#mc-circuits-list .circuit-card-title')].map(e => e.textContent).join() === 'Real Core,Second Circuit';`),
     await js(`return JSON.stringify(EWFitness.state());`));
   ok('…and nothing of them is cached in browser storage', await js(`return !Object.keys(localStorage).some(k => /^mc_|motioncore|Real Core/.test(k + localStorage.getItem(k)));`));
-  await js(`document.getElementById('mc-nav-routines').click(); return 1;`); await sleep(200);
-  ok('routines render grouped, "name - detail" split',
-    await js(`document.querySelector('#mc-routines-list .routine-card-header').click(); return document.querySelectorAll('#mc-routine-body-r1 .routine-group').length === 2 && document.querySelector('#mc-routine-body-r1 .routine-line-detail').textContent === '4 x 8';`));
+  // The redesign (Tony, 2026-10-11): circuits and routines are cards side by side; a tap opens a sheet.
+  ok('circuits are cards in a grid, side by side, each leading with its total time', await js(`const g = document.getElementById('mc-circuits-list'), c = g.querySelectorAll('.circuit-card');
+    return getComputedStyle(g).display === 'grid' && c.length === 2 && Math.abs(c[0].getBoundingClientRect().top - c[1].getBoundingClientRect().top) < 2 && c[0].querySelector('.fx-num').textContent === '5' && /sec/.test(c[0].querySelector('.fx-unit').textContent);`));
+  ok('…with a segment per exercise, as wide as its time (3s and 2s)', await js(`const i = [...document.querySelectorAll('#mc-circuits-list .circuit-card:first-child .fx-seg i')]; return i.length === 2 && Math.abs(i[0].getBoundingClientRect().width / i[1].getBoundingClientRect().width - 1.5) < 0.2;`));
+  await js(`document.querySelector('#mc-circuits-list .circuit-card .fx-name').click(); return 1;`); await sleep(300);
+  ok('tapping a circuit opens its sheet: the exercises in order, Run, Edit, Delete', await js(`const s = document.getElementById('mc-sheet'); return s.classList.contains('open') && document.getElementById('mc-sheet-title').textContent === 'Real Core' &&
+    [...s.querySelectorAll('.sh-mod .nm')].map(e => e.textContent).join() === 'Plank,Crunch' && !!s.querySelector('[data-act="run"]') && !!s.querySelector('[data-act="del-circuit"]');`));
+  await js(`document.querySelector('#mc-sheet [data-act="sheet-close"]').click(); return 1;`); await sleep(200);
+  ok('the sheet closes', await js(`return !document.getElementById('mc-sheet').classList.contains('open');`));
+  await js(`document.getElementById('mc-nav-routines').click(); return 1;`); await sleep(400);
+  ok('Circuits | Routines is a segmented control with a sliding thumb', await js(`const t = document.querySelector('#mc-seg .ew-seg-thumb'), b = document.getElementById('mc-nav-routines'); return document.getElementById('mc-view-routines').classList.contains('active') && b.getAttribute('aria-selected') === 'true' && Math.abs(t.getBoundingClientRect().left - b.getBoundingClientRect().left) < 2;`));
+  ok('a routine card previews its first lines', await js(`return [...document.querySelectorAll('#mc-routines-list .routine-card .rt-peek li')].map(l => l.textContent).join('|') === 'Bench Press4 x 8|Dips3 x 10';`));
+  ok('routines render grouped, "name - detail" split (in the sheet)',
+    await js(`document.querySelector('#mc-routines-list .routine-card .fx-name').click(); return document.querySelectorAll('#mc-routine-body-r1 .routine-group').length === 2 && document.querySelector('#mc-routine-body-r1 .routine-line-detail').textContent === '4 x 8';`));
+  await js(`document.querySelector('#mc-sheet [data-act="sheet-close"]').click(); return 1;`); await sleep(200);
   await js(`document.getElementById('mc-nav-circuits').click(); mcOpenNewCircuitModal(); document.getElementById('mc-circuit-name').value = 'New One';
     document.getElementById('mc-mod-name').value = 'Squat'; document.getElementById('mc-mod-time').value = '20'; mcAddModuleToBuild(); mcSaveCircuit(); return 1;`);
   await sleep(2200);
   ok('a new circuit is saved to dashboards/motioncore, existing ids untouched', await js(`const d = __fakeFs.docs['dashboards/motioncore']; return d.circuits.length === 3 && d.circuits[0].id === 'c1' && d.circuits[0].modules[0].id === 'm1' && d.circuits[2].name === 'New One' && d.routines[0].id === 'r1' && d.savedAt > 1;`),
     await js(`return JSON.stringify(__fakeFs.docs['dashboards/motioncore']).slice(0, 300);`));
-  a = await rect('#mc-circuits-list .circuit-card:nth-child(3) .circuit-card-title'); b = await rect('#mc-circuits-list .circuit-card:nth-child(1) .circuit-card-title');
+  // The cards sit in one row here: drag the third onto the first's left half.
+  a = await rect('#mc-circuits-list .circuit-card:nth-child(3) .circuit-card-title'); b = await rect('#mc-circuits-list .circuit-card:nth-child(1)');
+  const bx = b.x - b.w / 2 + 20;
   await mouse('mousePressed', a.x, a.y);
-  for (let i = 1; i <= 14; i++) { await mouse('mouseMoved', a.x, a.y + (b.y - 30 - a.y) * i / 14); await sleep(16); }
+  for (let i = 1; i <= 14; i++) { await mouse('mouseMoved', a.x + (bx - a.x) * i / 14, a.y + (b.y - a.y) * i / 14); await sleep(16); }
   await sleep(250);
   ok('mid-drag, the other cards SLIDE aside like Nutrition\'s (transform transition, moved)', await js(`const n = document.querySelector('#mc-circuits-list .circuit-card:nth-child(1)'); const cs = getComputedStyle(n);
     return /transform/.test(cs.transitionProperty) && cs.transform !== 'none';`), await js(`const cs = getComputedStyle(document.querySelector('#mc-circuits-list .circuit-card:nth-child(1)')); return cs.transitionProperty + ' | ' + cs.transform;`));
-  await mouse('mouseReleased', a.x, b.y - 30); await sleep(2300);
+  await mouse('mouseReleased', bx, b.y); await sleep(2300);
   ok('dragging a circuit reorders the saved list', await js(`return __fakeFs.docs['dashboards/motioncore'].circuits.map(c => c.name).join() === 'New One,Real Core,Second Circuit';`),
     await js(`return __fakeFs.docs['dashboards/motioncore'].circuits.map(c => c.name).join();`));
   await js(`__fakeFs.remote('dashboards/motioncore', Object.assign({}, __fakeFs.docs['dashboards/motioncore'], { routines: [{ id: 'r1', name: 'Push Day (edited elsewhere)', content: 'x' }], savedAt: Date.now() + 9 })); return 1;`);
