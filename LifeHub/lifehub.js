@@ -344,7 +344,7 @@
   // A tab restored after a browser restart still claims this key but is
   // invisible to window.open(name). Ask it over the channel: it either comes
   // forward (we close the blank tab we hold) or retires (we use ours).
-  function handOver(w, url, key) {
+  function handOver(w, url, key, keep) {
     var bc = null;
     try { bc = new BroadcastChannel('a1tabs'); } catch (e) { bc = null; }
     if (!bc) { go(w, url); return; }
@@ -355,7 +355,7 @@
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      if (focused) { try { w.close(); } catch (e) {} }
+      if (focused || (keep && answered)) { try { w.close(); } catch (e) {} }
       else {
         if (answered) { try { bc.postMessage({ t: 'retire', k: key }); } catch (e) {} }
         go(w, url);
@@ -366,15 +366,18 @@
       var d = ev && ev.data;
       if (!d || d.t !== 'claimed' || d.k !== key || d.rid !== rid) return;
       answered = true;
+      if (keep) { finish(true); return; }
       // busy / not closable: retiring would lose a run or leave two tabs.
       finish(!!d.ok || !!d.busy || d.closable === false);
     };
     try { bc.postMessage({ t: 'claim', k: key, rid: rid }); } catch (e) { finish(false); }
   }
+  // `keep` (Open all): an existing tab that answers is left exactly as it is
+  // — never retired — and the blank tab we hold is closed instead.
   // Must run synchronously inside the click: opening the tab is what spends
   // the user gesture. Deliberately never 'noopener' — the opener link is what
   // keeps the named tab findable (see index.html).
-  function openTab(url, key) {
+  function openTab(url, key, keep) {
     var name = tabName(key);
     var w = null;
     try { w = window.open('', name); } catch (e) { w = null; }
@@ -388,7 +391,7 @@
     }
     var sk = storeKey(key);
     try { w.name = name; } catch (e) {}
-    if (claimedElsewhere(sk)) handOver(w, url, sk);
+    if (claimedElsewhere(sk)) handOver(w, url, sk, keep);
     else go(w, url);
     return w;
   }
@@ -1569,6 +1572,9 @@
     });
     if (!items.length && (!extOk || adoptPos === null)) { close(); return; }
     if (extOk) {
+      // A program already open under its tab key stays as it is: opening
+      // another would only make a duplicate.
+      items = items.filter(function (x) { return !claimedElsewhere(storeKey(x.a.tab || ('lh_' + x.a.id))); });
       try {
         window.postMessage({ source: 'vault-page', action: 'openLinkGroup', urls: items.map(function (x) { return x.url; }),
           name: 'LifeHub', color: '#a855f7', adoptPos: adoptPos }, location.origin);
@@ -1576,7 +1582,7 @@
     } else {
       items.forEach(function (x) {
         var key = x.a.tab || ('lh_' + x.a.id);
-        try { openTab(x.url, key); } catch (e) {}
+        try { openTab(x.url, key, true); } catch (e) {}
       });
     }
     close(true);
