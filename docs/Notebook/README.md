@@ -10,9 +10,39 @@ at once, so don't copy its code into a program.
 |---|---|---|---|---|
 | index.html, Tony | myjournal | `tj` | `tony_journal` | overlay (native) |
 | index.html, Veda | brainstorm | `bj` | `journal` | overlay (native) |
-| tradehub.html, Playbook | myjournal | `pb` | `tradehub_playbook` | inline (instance) |
+| tradehub.html, Playbook (A1-Priv) | myjournal | `pb` | `tradehub_playbook` | inline (instance) |
+| everwell.html, notes (A1-Priv) | myjournal | `ewn` | `everwell_notes` | inline (instance) |
 
 Plan and history: [plan.md](plan.md).
+
+## What reaches which program
+
+Every feature added, removed or changed in Notebook reaches every program that
+mounts it, on its next load. Nothing in a host has to change. This is the rule:
+
+| Change in | Reaches |
+|---|---|
+| `core/` (the DOCX editor, OurJournal, boards, md, the Firestore layer), `notebook.css` | every journal in every host: MyJournal, Brainstorm, OurJournal, every instance |
+| `apps/myjournal.*` | MyJournal and every instance (Playbook, Everwell notes, any later one) |
+| `apps/brainstorm.*` | Brainstorm Journal only |
+
+- **Build features in Notebook, never in a host.** A host only loads, mounts and
+  configures. A feature written into a host reaches only that host.
+- **A program leaves a feature out only through its mount config:** `features`
+  (`ourjournal`, `locks`), `templates`, `pinned`. A feature that some program
+  should not get needs a `features` switch in Notebook, defaulting to on, so
+  every other program still gets it.
+- **Veda's side is the standing exception.** A MyJournal feature doesn't reach
+  Brainstorm unless it's built in `core/` or added to `apps/brainstorm.*` on
+  purpose, because Veda's side never changes unless asked.
+- **The cache can't hold a change back.** Hosts load Notebook with a `?v=` hash of
+  this folder, and the pre-commit hook rewrites it in every host, A1-Priv's
+  included, whenever Notebook changes. `tests/notebook-wiring.test.js` fails on
+  a stale one.
+- **What a host borrows has a stand-in.** An instance gets Notebook's own icon
+  set, drag, Guardian and dialogs when the host has none. So a MyJournal feature
+  must not depend on something only index.html provides (its nav, its app lock,
+  its helpers); in an instance that feature would quietly do nothing.
 
 ## Files
 

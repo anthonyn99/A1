@@ -32,7 +32,10 @@
   (adding it to a program, data layout, why MyJournal names stay `tj`-prefixed);
   [docs/Notebook/plan.md](docs/Notebook/plan.md) is the record. Prove journal
   changes with `node tests/live/notebook-baseline.live.js`. Never change how
-  Veda's side looks or works.
+  Veda's side looks or works. **Every Notebook feature reaches every program
+  that mounts it:** build it in `Notebook/`, never in a host; a program leaves
+  one out only through its mount config (`features`, `templates`). See the
+  README's "What reaches which program".
 - **Guardian — the one lock** ("add a lock to X", "change the lock screen",
   anything about passwords, biometrics, hints or reset codes): every A1 program,
   A1-Priv and ORCA's gate lock through [Guardian/guardian.js](Guardian/guardian.js).
