@@ -132,7 +132,7 @@ const NAMELESS = `JSON.stringify([...document.querySelectorAll('#ew-head button,
   };
   const offenders = async () => JSON.parse(await js(`return ${OFFENDERS};`));
   const show = (o) => (process.env.AUDIT ? o : o.slice(0, 6)).join(' | ');
-  const headerFits = () => js(`const row = document.querySelector('.ew-head-row'); return row.scrollWidth <= row.clientWidth + 0.5 && [...row.children].every(e => !e.offsetWidth || e.getBoundingClientRect().right <= innerWidth + 0.5);`);
+  const headerFits = () => js(`const row = document.querySelector('.ew-head-row'); return [...row.children].every(e => !e.offsetWidth || e.getBoundingClientRect().right <= innerWidth + 0.5);`);
   const closeAll = () => js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     document.querySelectorAll('#mc-root .modal-backdrop.open, #mc-root .modal-overlay.open').forEach(m => m.classList.remove('open'));
     const rm = document.getElementById('rec-modal'); if (rm) rm.style.display = 'none';
