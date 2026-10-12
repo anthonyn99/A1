@@ -153,6 +153,20 @@ const SEED = {
   let refused = await js(`return window.Notebook.open('zz', 'x').then(() => 'opened', e => String(e.message));`);
   ok('it refuses a key nothing is mounted under', /nothing mounted as zz/.test(refused), refused);
 
+  console.log('\nattach / detach, and the options a mount takes');
+  ok('detach sets the instance aside, hidden and alive', await js(`return window.Notebook.detach('nb') && document.getElementById('nb-park').contains(document.getElementById('nb-root'))
+    && getComputedStyle(document.getElementById('nb-park')).display === 'none';`));
+  ok('attach puts it back in the host', await js(`return window.Notebook.attach('nb', document.getElementById('host')) && document.getElementById('host').contains(document.getElementById('nb-root'));`));
+  ok('...still on the same page, edits intact', await js(`return document.getElementById('nb-entry-title-input').value === 'Alpha rules v2';`),
+    await js(`return document.getElementById('nb-entry-title-input').value;`));
+  ok('both say false for a key nothing is mounted under', await js(`return window.Notebook.attach('zz', document.body) === false && window.Notebook.detach('zz') === false;`));
+  const bad = (o) => js(`try { window.Notebook.mount(${o}); return 'mounted'; } catch (e) { return String(e.message); }`);
+  refused = await bad(`{ app: 'myjournal', key: 'zq', store: 'zq_store', sidebarr: false }`);
+  ok('mount refuses an option it does not have (a typo)', /unknown option sidebarr/.test(refused), refused);
+  refused = await bad(`{ app: 'myjournal', key: 'zq', store: 'zq_store', features: { lock: false } }`);
+  ok('...and a feature it does not have', /unknown feature lock/.test(refused), refused);
+  ok('...and mounts nothing for either', await js(`return !window.Notebook.mounts.zq;`));
+
   const shot = shotPath('notebook-host');
   const s = await c.send('Page.captureScreenshot', { format: 'png' });
   fs.writeFileSync(shot, Buffer.from(s.result.data, 'base64'));
