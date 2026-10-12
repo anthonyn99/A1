@@ -264,7 +264,7 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   await js(`window.__opened = []; window.open = (u) => { window.__opened.push(u); return null; }; document.querySelector('#igd [data-igd="go"]').click(); return 1;`); await sleep(300);
   ok('"Open on Instagram" opens the collection itself', await js(`return window.__opened[0] === 'https://www.instagram.com/tony/saved/evening_calm/17888888888888888/' && !document.getElementById('igd');`));
   ok('an unsynced collection says so on its tile', await js(`const t = document.querySelector('#media-grid [data-id="${mm[0].id}"]'); return !!t && /not synced yet/.test(t.textContent);`));
-  await click('#media-grid [data-iglink]'); await sleep(400);
+  await click('#mind-media [data-iglink]'); await sleep(400);
   await js(`document.getElementById('igd-url').value = 'https://www.instagram.com/tony/'; document.querySelector('#igd [data-igd="go"]').click(); return 1;`); await sleep(200);
   ok('the link dialog refuses a link that is not a collection', /not a saved-collection link/.test(await js(`return document.getElementById('igd-err').textContent;`)));
   await js(`document.getElementById('igd-url').value = 'https://www.instagram.com/tony/saved/all-posts/'; document.querySelector('#igd [data-igd="go"]').click(); return 1;`); await sleep(500);
