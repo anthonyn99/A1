@@ -296,7 +296,7 @@ const mock = {
   await js(`const b = document.getElementById('pray-btn'); window.__pb = JSON.stringify(b.getBoundingClientRect()); window.__pbSnap = null;
     new MutationObserver(() => { if (b.classList.contains('pb-snap') && window.__pbSnap === null) window.__pbSnap = getComputedStyle(b).transitionDuration; }).observe(b, { attributes: true, attributeFilter: ['class'] });
     b.click(); return 1;`); await sleep(1500);
-  ok('the Prayer button keeps its size and place when it turns into "Prayed · undo"', await js(`return JSON.stringify(document.getElementById('pray-btn').getBoundingClientRect()) === window.__pb;`));
+  ok('the Prayer button keeps its size and place when it turns into "Prayed · undo"', await js(`return JSON.stringify(document.getElementById('pray-btn').getBoundingClientRect()) === window.__pb;`), await js(`return window.__pb + ' -> ' + JSON.stringify(document.getElementById('pray-btn').getBoundingClientRect());`));
   ok('...switching its colours in one frame (no fade), then its hover fades again', await js(`const b = document.getElementById('pray-btn'); return window.__pbSnap !== null && window.__pbSnap.split(',').every(d => parseFloat(d) === 0) && !b.classList.contains('pb-snap');`),
     await js(`return window.__pbSnap;`));
   ok('...showing only the label for its state', await js(`const b = document.getElementById('pray-btn'), vis = (s) => getComputedStyle(b.querySelector(s)).visibility === 'visible'; return vis('.pb-on') && !vis('.pb-off');`));
