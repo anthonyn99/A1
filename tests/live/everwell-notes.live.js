@@ -88,6 +88,7 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   ok('Writings: one card per page, by name; Content is hidden; the quote stays on top', await js(`return [...document.querySelectorAll('#wr-grid .wr-card .wr-title')].map(e => e.textContent).join() === 'Relationship Principles,With Parents' &&
     document.getElementById('mind-content').hidden && !document.getElementById('mind-writings').hidden && document.getElementById('mind-quote').getBoundingClientRect().height > 0 &&
     document.getElementById('mind-quote').getBoundingClientRect().top < document.getElementById('mind-writings').getBoundingClientRect().top;`));
+  ok('principle cards have no coloured circles at the top', await js(`return !document.querySelector('.wr-card .wr-orb') && document.querySelector('.wr-card').firstElementChild.classList.contains('wr-title');`));
   ok('a card shows an excerpt and no count (no "40 points")', await js(`const c = document.querySelector('.wr-card[data-wr="with-parents"]'); return /Parent point number 1/.test(c.querySelector('.wr-ex').textContent) && !/[0-9]/.test(c.querySelector('.wr-foot').textContent);`));
 
   console.log('\nThe reader');

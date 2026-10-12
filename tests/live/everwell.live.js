@@ -306,16 +306,17 @@ const mock = {
   ok('…with the AI unreachable, a Dhammapada verse stands in, with its source', await js(`const b = EWCore.localBuddhist('${pToday}'); return document.getElementById('pray-bq-text').textContent === b.text && document.getElementById('pray-bq-cite').textContent === b.cite && /^Dhammapada, verse \\d+$/.test(b.cite) && document.getElementById('pray-bq').dataset.source === 'local';`),
     await js(`return document.getElementById('pray-bq').textContent;`));
   console.log('\nPrayer: cards drag to reorder');
-  ok('the default order: the prayer, the Buddhist quote right below it, today, the week', await js(`return [...document.querySelectorAll('#pray-grid > .pray-card')].map(e => e.dataset.card).join() === 'text,buddhist,today,week';`));
+  ok('the default order: the prayer, the Buddhist quote right below it, then today with the week in the same card', await js(`return [...document.querySelectorAll('#pray-grid > .pray-card')].map(e => e.dataset.card).join() === 'text,buddhist,today';`));
+  ok('…one card holds today and This week (Tony, 2026-10-12)', await js(`const c = document.querySelector('#pray-grid [data-card="today"]'); return !!c.querySelector('#pray-btn') && c.querySelectorAll('.pray-day').length === 7 && !!c.querySelector('#pray-count') && !document.querySelector('[data-card="week"]');`));
   ok('…its source sits on the right of the card', await js(`return getComputedStyle(document.getElementById('pray-bq-cite')).textAlign === 'right';`));
-  a = await rect('#pray-grid [data-card="week"] .panel-title'); b = await rect('#pray-grid [data-card="text"]');
+  a = await rect('#pray-grid [data-card="today"] .panel-title'); b = await rect('#pray-grid [data-card="text"]');
   await mouse('mousePressed', a.x, a.y);
   for (let i = 1; i <= 16; i++) { await mouse('mouseMoved', a.x, a.y + (b.y - b.w * 0 - 40 - a.y) * i / 16); await sleep(16); }
   await sleep(200); await mouse('mouseReleased', a.x, b.y - 40); await sleep(1800);
-  ok('dragging "This week" to the top moves it there and saves the order (synced)', await js(`const o = (__fakeFs.docs['dashboards/everwell_tony'] || {}).prayerOrder || []; return o[0] === 'week' && document.querySelector('#pray-grid > .pray-card').dataset.card === 'week';`),
+  ok('dragging the Today card to the top moves it there and saves the order (synced)', await js(`const o = (__fakeFs.docs['dashboards/everwell_tony'] || {}).prayerOrder || []; return o[0] === 'today' && document.querySelector('#pray-grid > .pray-card').dataset.card === 'today';`),
     await js(`return JSON.stringify((__fakeFs.docs['dashboards/everwell_tony'] || {}).prayerOrder) + ' ' + [...document.querySelectorAll('#pray-grid > .pray-card')].map(e => e.dataset.card).join();`));
   await js(`__fakeFs.remote('dashboards/everwell_tony', { prayerOrder: ['buddhist', 'text', 'today', 'week'], savedAt: Date.now() + 5 }, { merge: true }); return 1;`); await sleep(900);
-  ok("another device's order arrives live", await js(`return [...document.querySelectorAll('#pray-grid > .pray-card')].map(e => e.dataset.card).join() === 'buddhist,text,today,week';`));
+  ok("another device's order arrives live (an old saved 'week' card is ignored)", await js(`return [...document.querySelectorAll('#pray-grid > .pray-card')].map(e => e.dataset.card).join() === 'buddhist,text,today';`));
 
   /* ── Phase 3: the Dashboard ── */
   console.log('\nDashboard: rotation');
