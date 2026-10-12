@@ -479,6 +479,12 @@ const mock = {
       return r.right + 4 <= x ? 'fits' : 'overlaps';`); };
   ok('header tagline: shown on a wider phone (520px) without touching the buttons', (await tagAt(520)) === 'fits');
   ok('…hidden at 360px, where it would run into them', (await tagAt(360)) === 'hidden');
+  // A control that draws past its own box (LifeHub's 35px button in a 30px
+  // slot) used to make the row "overflow" and hid the tagline on a Z Fold 7.
+  await js(`const r = document.querySelector('.ew-head-row'), x = document.createElement('span'); x.id = 'tag-probe'; x.style.cssText = 'display:inline-block;width:30px;flex-shrink:0';
+    x.innerHTML = '<i style="display:inline-block;width:40px;height:2px"></i>'; r.appendChild(x); return 1;`);
+  ok('…shown on an unfolded Z Fold (884px) even when a control overhangs its box', (await tagAt(884)) === 'fits');
+  await js(`document.getElementById('tag-probe').remove(); return 1;`);
   await c.send('Emulation.clearDeviceMetricsOverride');
   await sleep(400);
   ok('…and back on the desktop', (await js(`return getComputedStyle(document.querySelector('.ew-tagline')).display;`)) !== 'none');

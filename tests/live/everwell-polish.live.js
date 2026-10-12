@@ -196,6 +196,18 @@ const NAMELESS = `JSON.stringify([...document.querySelectorAll('#ew-head button,
   ok('a real width change (rotation) still redraws it at the new size, painted', await js(`const cv = document.getElementById('ew-bg-canvas'), p = cv.getContext('2d').getImageData(5, 5, 1, 1).data; return cv.width === Math.round(430 * ${b0.w} / 390) && Math.round(cv.getBoundingClientRect().width) === 430 && p[0] + p[1] + p[2] > 0;`),
     await js(`return document.getElementById('ew-bg-canvas').width;`));
 
+  ok('the page behind the backdrop is its own base colour (no other shade can show)', await js(`return getComputedStyle(document.documentElement).backgroundColor === 'rgb(20, 20, 24)' && getComputedStyle(document.body).backgroundColor === 'rgb(20, 20, 24)';`));
+  ok('…and the backdrop runs past the bottom of the screen', await js(`return document.getElementById('ew-backdrop').getBoundingClientRect().bottom >= innerHeight + 100;`));
+
+  console.log('\nPhone intro: title centred above its foot');
+  await c.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 3, mobile: true });
+  await c.send('Page.navigate', { url: BASE + 'LifeHub/lifehub.js' }); await sleep(300);
+  await js(`localStorage.clear(); sessionStorage.clear(); return 1;`);
+  await c.send('Page.navigate', { url: PAGE }); await sleep(3200);
+  ok('the title group sits centred between the top and the "Tap to continue" foot', await js(`const g = document.querySelector('.ew-intro-inner').getBoundingClientRect(), f = document.querySelector('.ew-intro-foot').getBoundingClientRect();
+    const mid = (g.top + g.bottom) / 2, want = f.top / 2; return Math.abs(mid - want) < 40 && mid < innerHeight / 2;`),
+    await js(`const g = document.querySelector('.ew-intro-inner').getBoundingClientRect(), f = document.querySelector('.ew-intro-foot').getBoundingClientRect(); return Math.round((g.top + g.bottom) / 2) + ' vs ' + Math.round(f.top / 2) + ' (h ' + innerHeight + ')';`));
+
   console.log('\nIntro');
   const probe = await c.send('Page.addScriptToEvaluateOnNewDocument', { source: `window.__markX = []; (function f(){ const m = document.querySelector('.ew-intro-mark'); if (m) window.__markX.push(m.getBoundingClientRect().left); if (window.__markX.length < 120) requestAnimationFrame(f); })();` });
   for (const w of [1440, 390]) {
