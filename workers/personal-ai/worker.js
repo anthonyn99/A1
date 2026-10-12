@@ -8,7 +8,7 @@
 //   POST /taskhub/parse   (was taskhub-voice /parse)  — voice/text → TaskHub actions
 //   POST /taskhub/prep    — one flagged task → AI prep kit (prompt, draft, sites, apps)
 //   POST /journal/format  (was journal-ai /format)    — messy text → clean HTML
-//   GET  /quote/daily     — Everwell's quote of the day (ORCA → Gemini, cached per day)
+//   GET  /quote/daily     — Everwell's quote of the day (ORCA → Gemini, cached per day); &kind=buddhist: a real Buddhist quote + its source
 //   GET  /health          — status (which keys are configured)
 //
 // Each person (Tony / Veda) has a SINGLE key shared across all three features.
@@ -3254,11 +3254,105 @@ async function geminiQuote(env, prompt, recent) {
     return q ? { ok: true, text: q, via: 'gemini', model: r.model } : { ok: false, why: 'gemini:invalid-output' };
   } catch (e) { return { ok: false, why: 'gemini:failed' }; }
 }
+// ── kind=buddhist: Everwell's Prayer tab, a REAL Buddhist quote of the day ──
+// Unlike the daily line, this one is a genuine teaching with its source
+// ("Dhammapada, verse 5", "Thich Nhat Hanh"). Same chain (ORCA's free models,
+// never Claude; then Gemini), its own KV key and recent list, one write a day.
+// The prompt steers away from the many fake "Buddha quotes" that circulate.
+const BQUOTE_KV_PREFIX = 'ew_bquote:';
+function buddhistPrompt(date, recent) {
+  return [
+    'Give ONE genuine Buddhist quote for today (' + date + ') for a personal reflection app.',
+    'Rules:',
+    '- It must be REAL and verifiable: a verse from the Dhammapada or another sutta (in a standard English translation), or the published words of a well-known Buddhist teacher (e.g. Thich Nhat Hanh, Ajahn Chah, Shunryu Suzuki, Pema Chödrön, the Dalai Lama, Ajahn Brahm).',
+    '- Never one of the popular misattributed "Buddha quotes". If unsure a line is authentic, pick a Dhammapada verse instead.',
+    '- 10 to 60 words. Plain text, no hashtags, no emoji, no quotation marks around it.',
+    '- "source" names where it comes from: "Dhammapada, verse 5", "Sutta Nipata 1.8", or the teacher\'s name.',
+    recent.length ? '- Not any of these recent ones:\n' + recent.slice(-QUOTE_RECENT).map(r => '  * ' + r).join('\n') : '',
+    'Reply with JSON only: {"quote": "...", "source": "..."}',
+  ].filter(Boolean).join('\n');
+}
+function cleanBuddhist(raw, recent) {
+  let v = raw;
+  if (typeof v === 'string') {
+    const s = v.trim().replace(/^```[a-z]*\s*|\s*```$/g, '');
+    try { v = JSON.parse(s); } catch (e) {
+      const m = s.match(/\{[\s\S]*\}/);
+      try { v = m ? JSON.parse(m[0]) : null; } catch (e2) { v = null; }
+    }
+  }
+  if (!v || typeof v !== 'object') return null;
+  const tidy = (x) => String(x == null ? '' : x).replace(/^[\s"“”'‘’]+|[\s"“”'‘’]+$/g, '').replace(/\s+/g, ' ').trim();
+  const quote = tidy(v.quote), source = tidy(v.source).replace(/^[—–-]\s*/, '');
+  if (quote.length < 20 || quote.length > 400) return null;
+  if (source.length < 2 || source.length > 80) return null;
+  if (/#|[\u{1F300}-\u{1FAFF}]/u.test(quote + source)) return null;
+  const norm = (x) => String(x).toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim();
+  if ((recent || []).some(r => norm(r) === norm(quote))) return null;
+  return { quote, source };
+}
+async function buddhistChain(env, prompt, recent) {
+  const why = [];
+  if (env.TONY_ORCA_KEY) {
+    const deadline = Date.now() + QUOTE_ORCA_BUDGET_MS;
+    for (const model of QUOTE_ORCA_MODELS) {
+      const left = deadline - Date.now();
+      if (left < 3000) { why.push('orca:budget-spent'); break; }
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), Math.min(left, QUOTE_ORCA_TRY_MS));
+      let r;
+      try {
+        r = await fetch(QUOTE_ORCA_URL, { method: 'POST', signal: ac.signal,
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + env.TONY_ORCA_KEY },
+          body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], max_tokens: 300, temperature: 0.8 }) });
+      } catch (e) {
+        clearTimeout(timer);
+        if (e && e.name === 'AbortError') { why.push('orca:timeout-' + model); continue; }
+        why.push('orca:network'); break;
+      } finally { clearTimeout(timer); }
+      if (r.status === 401 || r.status === 403 || r.status === 503 || r.status === 429) { why.push('orca:' + r.status); break; }
+      if (!r.ok) { why.push('orca:' + r.status + '-' + model); continue; }
+      let d = null; try { d = await r.json(); } catch (e) { why.push('orca:bad-envelope'); continue; }
+      const q = cleanBuddhist(d && d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content, recent);
+      if (q) return { ok: true, ...q, via: 'orca', model: (d && d.model) || model, why };
+      why.push('orca:invalid-output');
+    }
+  } else why.push('orca:no-key');
+  if (env.TONY_GEMINI_KEY) {
+    try {
+      const r = await runModelChain(QUOTE_GEMINI_MODELS, env.TONY_GEMINI_KEY, {
+        prompt, feature: 'quote', maxOutputTokens: 400, deadlineMs: 25000, timeoutMs: 12000,
+        schema: { type: 'OBJECT', properties: { quote: { type: 'STRING' }, source: { type: 'STRING' } }, required: ['quote', 'source'] },
+        validate: (v) => !!cleanBuddhist(v, recent),
+      });
+      const q = !r.soft && cleanBuddhist(r.value, recent);
+      if (q) return { ok: true, ...q, via: 'gemini', model: r.model, why };
+      why.push('gemini:invalid-output');
+    } catch (e) { why.push('gemini:failed'); }
+  } else why.push('gemini:no-key');
+  return { ok: false, why };
+}
+async function handleBuddhistQuote(profile, date, env) {
+  const kvKey = BQUOTE_KV_PREFIX + profile;
+  let st = null;
+  try { st = env.TOKEN_CACHE ? await env.TOKEN_CACHE.get(kvKey, 'json') : null; } catch (e) {}
+  if (st && st.date === date && st.text) return json({ ok: true, kind: 'buddhist', date, quote: st.text, cite: st.cite, source: st.via, cached: true });
+  if (st && st.date > date) return json({ ok: false, error: 'unavailable' });
+  const recent = (st && Array.isArray(st.recent)) ? st.recent : [];
+  const res = await buddhistChain(env, buddhistPrompt(date, recent), recent);
+  if (!res.ok) { console.warn('[bquote] no source answered: ' + res.why.join(' | ')); return json({ ok: false, error: 'unavailable' }); }
+  const next = { date, text: res.quote, cite: res.source, via: res.via, model: res.model, at: Date.now(), recent: recent.concat([res.quote]).slice(-QUOTE_RECENT) };
+  try { if (env.TOKEN_CACHE) await env.TOKEN_CACHE.put(kvKey, JSON.stringify(next)); } catch (e) { console.warn('[bquote] KV write failed'); }
+  return json({ ok: true, kind: 'buddhist', date, quote: res.quote, cite: res.source, source: res.via });
+}
 async function handleQuote(url, env) {
   const profile = url.searchParams.get('profile');
   const date = url.searchParams.get('date') || '';
   if (profile !== 'tony') return json({ ok: false, error: 'unsupported profile' }, 400);
   if (!quoteDateOk(date, Date.now())) return json({ ok: false, error: 'bad date' }, 400);
+  const kind = url.searchParams.get('kind') || 'daily';
+  if (kind === 'buddhist') return handleBuddhistQuote(profile, date, env);
+  if (kind !== 'daily') return json({ ok: false, error: 'unknown kind' }, 400);
   const kvKey = QUOTE_KV_PREFIX + profile;
   let st = null;
   try { st = env.TOKEN_CACHE ? await env.TOKEN_CACHE.get(kvKey, 'json') : null; } catch (e) {}
@@ -3356,8 +3450,8 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 24, // bump when verifying a deploy went live
-        features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search', 'quote', 'yt-playlist'],
+        version: 25, // bump when verifying a deploy went live
+        features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search', 'quote', 'quote-buddhist', 'yt-playlist'],
         quoteModels: { orca: QUOTE_ORCA_MODELS, gemini: QUOTE_GEMINI_MODELS },
         orcaKey: !!env.TONY_ORCA_KEY,
         models: MODELS,
