@@ -94,7 +94,7 @@ const mock = {
   console.log('\nAdding');
   const add = async (url, title) => { await js(`document.getElementById('focus-url').value = ${JSON.stringify(url)}; document.getElementById('focus-title').value = ${JSON.stringify(title || '')}; document.getElementById('focus-add').requestSubmit(); return 1;`); await sleep(300); };
   await add('https://example.com/page.html');
-  ok('a link that is not video, reel or audio is refused', /not a YouTube, Instagram Reel or audio/.test(await js(`return document.getElementById('focus-err').textContent;`)));
+  ok('a link that is not video, reel or audio is refused', /not a YouTube, Instagram or audio/.test(await js(`return document.getElementById('focus-err').textContent;`)));
   await add('https://audio.test/rain.wav', 'Rain');
   await add('https://audio.test/missing.mp3', 'Broken stream');
   await add('https://www.youtube.com/watch?v=removedvid1', 'Removed');
@@ -234,7 +234,7 @@ const mock = {
   await js(`EWApp.go('mindset'); return 1;`); await sleep(700);
   await js(`document.getElementById('media-url').value = 'https://youtu.be/blockedvid1'; document.getElementById('media-add').requestSubmit(); return 1;`); await sleep(300);
   await js(`document.getElementById('media-url').value = 'https://audio.test/rain.wav'; document.getElementById('media-add').requestSubmit(); return 1;`); await sleep(300);
-  ok('Mindset takes no audio link', /not a YouTube or Instagram Reel/.test(await js(`return document.getElementById('media-err').textContent;`)));
+  ok('Mindset takes no audio link', /not a YouTube or Instagram link/.test(await js(`return document.getElementById('media-err').textContent;`)));
   await js(`document.querySelector('#media-grid [data-play]').click(); return 1;`); await sleep(1800);
   ok('Mindset gets the same failure handling (embed-blocked shown)', /^blocked/.test(await js(`const m = document.querySelector('#media-grid .media-msg'); return m ? m.dataset.msg : '';`)));
   await js(`EWApp.go('focus'); return 1;`); await sleep(600);
@@ -319,7 +319,7 @@ const mock = {
   media.length = 0;
   await fresh(`sessionStorage.setItem('ew.profile', 'display'); sessionStorage.setItem('ew.skipIntro', '1');`);
   await js(`EWApp.go('focus'); return 1;`); await sleep(800);
-  ok('Display shows four sample tiles, no add form, no remove, no site links', await js(`return document.querySelectorAll('#focus-grid .media-tile').length === 4 && !document.getElementById('focus-add') && !document.querySelector('#focus-grid [data-rm], #focus-grid .media-meta a');`));
+  ok('Display shows five sample tiles (one a collection), no add form, no remove, no site links', await js(`return document.querySelectorAll('#focus-grid .media-tile').length === 5 && !!document.querySelector('#focus-grid .igc-tile') && !document.getElementById('focus-add') && !document.querySelector('#focus-grid [data-rm], #focus-grid .media-meta a');`));
   await js(`document.querySelector('#focus-grid [data-play]').click(); return 1;`); await sleep(600);
   ok('a tap plays nothing and says why', await js(`return !document.querySelector('#focus-grid iframe, #focus-grid audio') && /Nothing plays here/.test(document.getElementById('ew-toast').textContent);`));
   await js(`document.querySelector('#focus-grid [data-expand]').click(); return 1;`); await sleep(500);
