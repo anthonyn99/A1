@@ -142,7 +142,9 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   await js(`document.querySelector('.rd-dim').click(); return 1;`); await sleep(800);
   ok('a click on the dimmed page closes it too, dim and all', await js(`return !document.getElementById('ew-reader') && !document.querySelector('.rd-dim') && !document.documentElement.classList.contains('rd-lock');`));
   // Paging (Tony, 2026-10-12): the reader's left and right edges go to the previous / next card, in the board's order.
-  const edge = (side) => js(`const o = document.getElementById('ew-reader'), b = o.getBoundingClientRect(); o.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: '${side}' === 'r' ? b.right - 20 : b.left + 20, clientY: b.top + b.height / 2 })); return 1;`);
+  // A real tap: press and release in the same place (pointerdown, then click).
+  const edge = (side, moveY) => js(`const o = document.getElementById('ew-reader'), b = o.getBoundingClientRect(), x = '${side}' === 'r' ? b.right - 40 : b.left + 40, y = b.top + b.height / 2;
+    o.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: x, clientY: y })); o.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: x, clientY: y + ${moveY || 0} })); return 1;`);
   const rdTitle = () => js(`return document.querySelector('#ew-reader [data-rd-title]').textContent;`);
   const board = await js(`return [...document.querySelectorAll('#wr-grid .wr-card')].map(c => c.querySelector('.wr-title').textContent).join('|');`);
   await js(`document.querySelector('#wr-grid .wr-card .wr-title').click(); return 1;`); await sleep(900);
@@ -154,6 +156,13 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   await js(`document.getElementById('ew-reader').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })); return 1;`); await sleep(450);
   ok('...and so do the arrow keys', (await rdTitle()) === board.split('|').slice(-3)[0], await rdTitle());
   ok('...with the new card\'s text, from its top', await js(`const sc = document.querySelector('#ew-reader .rd-scroll'); return sc.scrollTop === 0 && document.getElementById('ew-reader').getAttribute('aria-label') === document.querySelector('#ew-reader [data-rd-title]').textContent;`));
+  let before = await rdTitle();
+  await edge('r', 200); await sleep(450);
+  ok('a drag that ends on the right edge (the scrollbar thumb, a selection) does not page', (await rdTitle()) === before, await rdTitle());
+  await js(`const o = document.getElementById('ew-reader'), rail = o.querySelector('.vc-rail') || (() => { const d = document.createElement('div'); d.className = 'vc-rail y'; d.style.cssText = 'position:absolute;right:4px;top:80px;bottom:10px;width:12px;z-index:5'; o.appendChild(d); return d; })();
+    const b = rail.getBoundingClientRect(), x = b.left + b.width / 2, y = b.top + b.height * .7;
+    rail.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: x, clientY: y })); rail.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: x, clientY: y })); return 1;`); await sleep(450);
+  ok('a click on the scrollbar track (jump to that spot) does not page', (await rdTitle()) === before, await rdTitle());
   ok('...the edge under the cursor shows a chevron', await js(`const o = document.getElementById('ew-reader'), b = o.getBoundingClientRect(); o.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: b.right - 20, clientY: b.top + b.height / 2 })); return o.getAttribute('data-edge') === 'r';`));
   await js(`document.querySelector('#ew-reader [data-rd="close"]').click(); return 1;`); await sleep(800);
   ok('closing after paging leaves every card visible', await js(`return !document.getElementById('ew-reader') && [...document.querySelectorAll('.wr-card')].every(c => c.style.visibility === '');`));
