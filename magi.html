@@ -5772,6 +5772,9 @@ body { max-width: 2000px; margin-inline: auto; }
      program (theme overhaul phase 11): one copy of the code, at the root. -->
 <script src="dragsort.js"></script>
 <script src="resizegrip.js"></script>
+<!-- The one A1 scrollbar (scrollbar.js): native bars hidden, overlay thumb.
+     In <head> so it is there before this page's own code. -->
+<script src="scrollbar.js"></script>
 </head>
 <body>
 
@@ -28447,7 +28450,6 @@ try {
 window.a1TabBusy = () => !!(S.running || S.refining);
 </script>
 <script src="tabsync.js"></script>
-<script src="scrollbar.js"></script>
 <script src="LifeHub/lifehub.js" data-lock="#lockScreen" data-accent="#c0aeea" defer></script>
 </body>
 </html>

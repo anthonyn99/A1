@@ -6019,6 +6019,9 @@ body { max-width: 2000px; margin-inline: auto; }
      list first draws: MyJournal's sidebar renders while the body is parsing. -->
 <script src="dragsort.js?v=20261008c"></script>
 <script src="resizegrip.js"></script>
+<!-- The one A1 scrollbar (scrollbar.js): native bars hidden, overlay thumb.
+     In <head> so it is there before this page's own code. -->
+<script src="scrollbar.js"></script>
 </head>
 <body>
 <!-- ── Boot loading screen: covers everything until profile routing + initial Firebase data are ready ── -->
@@ -23848,6 +23851,5 @@ document.addEventListener('visibilitychange',function(){ if(!document.hidden) sw
      own outline and lift (in CSS), and stacking a second signal on a designed one is
      how a hover language stops reading as one language. -->
 <script src="tabsync.js"></script>
-<script src="scrollbar.js"></script>
 <script src="sweep.js" data-program="index" defer></script>
 <script src="hoverfx.js" data-roots="#root,#veda-root,#tj-root,#bj-root,#wr-root,#thset-overlay,#uim-overlay,#profile-overlay,#thv-txt-overlay,#thv-dev-overlay"></script>

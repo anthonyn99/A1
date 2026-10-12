@@ -923,6 +923,9 @@ body { max-width: 2000px; margin-inline: auto; }
 <!-- Guardian: the one A1 lock (docs/Guardian/README.md). Loaded before first
      paint, unpinned, so every Guardian upgrade reaches this page. -->
 <script src="Guardian/guardian.js"></script>
+<!-- The one A1 scrollbar (scrollbar.js): native bars hidden, overlay thumb.
+     In <head> so it is there before this page's own code. -->
+<script src="scrollbar.js"></script>
 </head>
 <body data-gate="boot" data-profile="tony">
 
@@ -4733,7 +4736,6 @@ return {
 })();
 </script>
 <script src="tabsync.js"></script>
-<script src="scrollbar.js"></script>
 <script src="hoverfx.js"></script>
 <script src="LifeHub/lifehub.js" data-lock="guardian" data-profile-attr="data-profile" defer></script></body>
 </html>

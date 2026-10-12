@@ -852,6 +852,9 @@ body { max-width: 2000px; margin-inline: auto; }
      (#app) stays hidden until this device is unlocked. -->
 <script src="Guardian/guardian.js"></script>
 <script>Guardian.define('tony_oneinbox', { owner: 'tony', label: 'OneInbox', root: '#app', hard: true }); Guardian.prepaint();</script>
+<!-- The one A1 scrollbar (scrollbar.js): native bars hidden, overlay thumb.
+     In <head> so it is there before this page's own code. -->
+<script src="scrollbar.js"></script>
 </head>
 <body data-hoverfx="magi">
 
@@ -2871,7 +2874,6 @@ if (Guardian.isUnlocked(LOCK) && getStoredSession()){ enter(); Guardian.refresh(
 else gateIn();
 </script>
 <script src="tabsync.js"></script>
-<script src="scrollbar.js"></script>
 <script src="hoverfx.js"></script>
 <script src="dragsort.js"></script>
 <script src="resizegrip.js"></script>
