@@ -275,7 +275,8 @@ function hostGuard(cfg) {
   var R = ':where(#' + cfg.key + '-root)';
   return R + ' :is(input,select,textarea,button){all:revert;}\n'
     + R + ' :where(button,[role="button"]):hover:not([data-noglow]){box-shadow:var(--suite-glow);}\n'
-    + R + ' :where(button,[role="button"]){transition:box-shadow .15s;}';
+    + R + ' :where(button,[role="button"]){transition:box-shadow .15s;}\n'
+    + R + ' button{transition:box-shadow .15s;}';   // the same, past the revert above
 }
 
 // Instance CSS: the app inline in its container instead of over the page, and
