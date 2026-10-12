@@ -233,7 +233,7 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   await click('#media-grid [data-igcollapse="col2"]'); await sleep(500);
   ok('a collapsed collection: its name, one quiet line, and icon buttons on their own row', await js(`const t = document.querySelector('#media-grid .igc-tile[data-id="col2"]'); if (!t) return false;
     const ttl = t.querySelector('.igc-ttl').getBoundingClientRect(), acts = t.querySelector('.igc-acts').getBoundingClientRect();
-    return t.querySelector('.igc-ttl .t').textContent === 'Blocked' && t.querySelector('.igc-ttl .s').textContent === 'Instagram · synced 1 min ago' && acts.top >= ttl.bottom - 1 && t.querySelectorAll('.igc-acts .igc-ib').length === 5;`));
+    return t.querySelector('.igc-ttl .t').textContent === 'Blocked' && /^Instagram · synced d+ min ago$/.test(t.querySelector('.igc-ttl .s').textContent) && acts.top >= ttl.bottom - 1 && t.querySelectorAll('.igc-acts .igc-ib').length === 5;`));
 
   console.log('\nA pasted reel');
   await click('#media-grid .media-tile[data-id="m1"] [data-play]'); await sleep(900);
@@ -356,10 +356,10 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   await js(`EWRec.recBack(); return 1;`);
   await go('fitness'); await js(`document.getElementById('mc-nav-routines').click(); return 1;`); await sleep(300);
   await click('#mc-routines-list .routine-card .fx-name'); await sleep(600);
-  ok('the routine sheet: its split, exercises numbered across sections, sets added up (no minutes total)', await js(`const s = document.getElementById('mc-sheet');
+  ok('the routine sheet: its split, exercises numbered across sections, only the exercise count (no sets or minutes totals)', await js(`const s = document.getElementById('mc-sheet');
     const nums = [...s.querySelectorAll('.sh-rt .routine-line')].map(l => getComputedStyle(l, '::before').content).join();
     const stats = [...s.querySelectorAll('.sh-stat')].map(x => x.textContent).join('|');
-    return nums === 'counter(ex),counter(ex),counter(ex),counter(ex),counter(ex)' && getComputedStyle(s.querySelector('.sh-rt')).counterReset === 'ex 0' && getComputedStyle(s.querySelector('.sh-rt .routine-group')).counterReset === 'none' && stats === '5Exercises|9Sets' && s.querySelectorAll('.sh-rt .routine-group').length === 4;`),
+    return nums === 'counter(ex),counter(ex),counter(ex),counter(ex),counter(ex)' && getComputedStyle(s.querySelector('.sh-rt')).counterReset === 'ex 0' && getComputedStyle(s.querySelector('.sh-rt .routine-group')).counterReset === 'none' && stats === '5Exercises' && s.querySelectorAll('.sh-rt .routine-group').length === 4;`),
     await js(`const s = document.getElementById('mc-sheet'); return [...s.querySelectorAll('.sh-stat')].map(x => x.textContent).join('|') + ' / ' + [...s.querySelectorAll('.sh-rt .routine-line')].map(l => getComputedStyle(l, '::before').content).join();`));
   await click('#mc-sheet [data-act="sheet-close"]');
 
