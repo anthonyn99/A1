@@ -1989,7 +1989,9 @@ async function fetchEarningsAlphaVantage(wl, env, fromD, toD, diag, cov){
       if (!date || date < fromD || date > toD) continue;
       out.push({ ticker: sym, date });
     }
-    if (cov) cov.av = true;
+    // A header-only CSV is an empty answer, not "none of these report", so it
+    // does not count as AV having answered (same rule as Nasdaq's empty pages).
+    if (cov) cov.av = lines.filter(l => /\d{4}-\d{2}-\d{2}/.test(l)).length > 0;
     diag&&diag.push('av-earn: '+out.length+' in-window matches');
     return out;
   } catch(e){ diag&&diag.push('av-earn: EXC '+e.message); return []; }
