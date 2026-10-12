@@ -2796,12 +2796,16 @@ window._tjPersistNow = function() {
 };
 // Open an entry from outside (Notebook.open): what a click on its sidebar row
 // does, then edit or view mode if asked. Waits for the entry to arrive from the
-// server (a host may ask before the first load). Resolves false if it never does.
+// server (a host may ask before the first load). Resolves false if it never does,
+// or if a newer open call took over while it waited.
+let _tjOpenSeq = 0;
 window._tjOpenEntry = function(id, opts) {
   opts = opts || {};
+  const seq = ++_tjOpenSeq;
   return new Promise(function(resolve) {
     var tries = 0;
     (function attempt() {
+      if (seq !== _tjOpenSeq) { resolve(false); return; }
       var e = state.entries.find(function(x) { return x.id === id && !x.trashed; });
       if (!e) { if (++tries < 80) setTimeout(attempt, 100); else resolve(false); return; }
       if (state.activeId !== id) { saveCurrentEntry(); _tjFbFlush(); state.activeId = id; renderSidebar(); loadActiveEntry(); }
