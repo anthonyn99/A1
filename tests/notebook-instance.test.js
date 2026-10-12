@@ -52,6 +52,29 @@ ok('...and only those: no unscoped rule is repeated over the host\'s styles',
   shell.split('}').filter((r) => r.includes('{') && !/^\s*@/.test(r)).every((r) => /#pb-root|pb-/.test(r.split('{')[0]) || /^\s*$/.test(r.split('{')[0]) || /@media/.test(r)));
 ok('...balanced braces', (shell.match(/\{/g) || []).length === (shell.match(/\}/g) || []).length);
 
+console.log('\nIts whole sheet: every rule MyJournal gets in index.html, in index\'s order');
+// index.html's cascade: the core group (as notebook.js lists it), then
+// brainstorm.css (mounted first), then myjournal.css, then notebook.css
+// (Notebook.load('docx') comes after both mounts).
+const idx = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+const coreCss = (rd('notebook.js').match(/core: \[([^\]]*)\]/)[1].match(/'[^']+\.css'/g) || []).map((s) => s.slice(1, -1));
+const at = (s) => idx.indexOf(s);
+ok('index.html mounts Brainstorm, then MyJournal, then loads the docx sheet',
+  at("Notebook.mount({ app: 'brainstorm'") > 0 && at("Notebook.mount({ app: 'brainstorm'") < at("Notebook.mount({ app: 'myjournal'") && at("Notebook.mount({ app: 'myjournal'") < at("Notebook.load('docx')"));
+const order = N._tjSheets.slice(); order.splice(N._tjAt, 0, 'apps/myjournal.css');
+ok('an instance takes the sheets in that order', JSON.stringify(order) === JSON.stringify(coreCss.concat(['apps/brainstorm.css', 'apps/myjournal.css', 'notebook.css'])), JSON.stringify(order));
+const sheet = N._instanceSheet(rd('apps/myjournal.css'), N._tjSheets.map(rd), cfg);
+ok('nothing of tj survives in it', !TJ_LEFT.test(sheet), leftover(sheet));
+ok('it carries the ribbon rule brainstorm.css holds for both journals (flex row, padding, gap)',
+  /#pb-root \.docx-toolbar, #bj-root \.docx-toolbar \{\s*padding: 6px 10px;[\s\S]*?gap: 3px/.test(sheet) && /#pb-root \.docx-toolbar\.edit-mode[^{]*\{ display: flex; \}/.test(sheet));
+ok('notebook.css\'s rules come after myjournal.css\'s (the AI button outranks .pt-btn)',
+  sheet.indexOf('#pb-root .pt-btn {') > 0 && sheet.indexOf('#pb-root .pt-btn {') < sheet.indexOf('#pb-root .docx-ai-btn, #bj-root .docx-ai-btn'));
+ok('it opens with the guard against the host\'s bare element rules (all:revert at element weight, index\'s control font)',
+  sheet.indexOf(':where(#pb-root) :is(input,select,textarea,button){all:revert;font-family:') === 0);
+ok('...and index.html\'s default button glow',
+  sheet.includes(':where(#pb-root) :where(button,[role="button"]):hover:not([data-noglow]){box-shadow:var(--suite-glow);}'));
+ok('...balanced braces', (sheet.match(/\{/g) || []).length === (sheet.match(/\}/g) || []).length);
+
 console.log('\nIts Firestore layer');
 const store = N._rewrite(N._storeSource(rd('core/fb.js'), cfg), cfg);
 ok('it parses as one expression', parses('(' + store + ')') === true, parses('(' + store + ')'));
