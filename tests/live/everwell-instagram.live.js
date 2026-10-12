@@ -53,16 +53,23 @@ const mock = {
       if (m) {
         if (API.fail) return { status: 403, json: { message: 'login_required' } };
         const i = u.searchParams.get('max_id') ? 1 : 0, pg = API.pages[i] || [];
-        return { json: { items: pg.map((c) => ({ media: { code: c, media_type: /^V/.test(c) ? 2 : 1, product_type: /^V/.test(c) ? 'clips' : 'feed', video_duration: 12.4, caption: { text: 'caption of ' + c }, user: { username: 'acct' } } })),
+        const cand = (c) => ({ candidates: [{ width: 1080, height: 1350, url: 'https://scontent-x.cdninstagram.com/' + c + '-1080.jpg' }, { width: 640, height: 800, url: 'https://scontent-x.cdninstagram.com/' + c + '-640.jpg' }, { width: 150, height: 150, url: 'https://scontent-x.cdninstagram.com/' + c + '-150.jpg' }] });
+        return { json: { items: pg.map((c) => ({ media: { code: c, media_type: /^V/.test(c) ? 2 : 1, product_type: /^V/.test(c) ? 'clips' : 'feed', video_duration: 12.4, caption: { text: 'caption of ' + c }, user: { username: 'acct' },
+          image_versions2: cand(c), original_width: 1080, original_height: 1350, video_versions: /^V/.test(c) ? [{ url: 'https://scontent-x.cdninstagram.com/' + c + '.mp4' }] : undefined } })),
           more_available: i === 0 && API.pages.length > 1, next_max_id: i === 0 ? 'NEXT' : null } };
       }
       if (/\/saved\//.test(p)) return { text: IGPAGE(['LNKaaaa1', 'LNKaaaa2']), type: 'text/html' };
       return { text: '<!doctype html><body style="background:#fff">Instagram embed</body>', type: 'text/html' };
     }
-    if (u.host === 'personal-ai.av1.workers.dev' && p === '/ig/thumb') return { text: svg(u.searchParams.get('code'), 360, 480), type: 'image/svg+xml' };
+    if (u.host === 'personal-ai.av1.workers.dev' && p === '/ig/thumb') return /^BLK/.test(u.searchParams.get('code')) ? { status: 404, text: 'not found' } : { text: svg(u.searchParams.get('code'), 360, 480), type: 'image/svg+xml' };
+    if (u.host === 'personal-ai.av1.workers.dev' && p === '/ig/px') {
+      const t = u.searchParams.get('u') || '';
+      if (/gone/.test(t)) return { status: 403, text: 'URL signature expired' };
+      return /\.mp4$/.test(t) ? { text: WAV, type: 'audio/wav' } : { text: svg(t.split('/').pop(), 400, 500), type: 'image/svg+xml' };
+    }
     if (u.host === 'personal-ai.av1.workers.dev' && p === '/ig/media') {
       const c = u.searchParams.get('code');
-      if (/^BAD/.test(c)) return { json: { ok: false, error: 'unavailable' } };
+      if (/^BAD|^BLK/.test(c)) return { json: { ok: false, error: 'unavailable' } };
       if (/^CAR/.test(c)) return { json: { ok: true, code: c, user: 'car.acct', caption: 'three slides', items: [1, 2, 3].map((i) => ({ type: 'image', src: 'https://cdn.test/' + c + i + '.svg', w: 1080, h: 1350 })) } };
       if (/^PIC|^LNK/.test(c)) return { json: { ok: true, code: c, user: 'pic.acct', caption: 'a photo', items: [{ type: 'image', src: 'https://cdn.test/' + c + '.svg', w: 1080, h: 1080 }] } };
       return { json: { ok: true, code: c, user: 'reel.acct', caption: 'Caption with a #tag', items: [{ type: 'video', src: 'https://cdn.test/' + c + '.wav', poster: 'https://cdn.test/' + c + '.svg', w: 720, h: 1280, dur: 0.5 }] } };
@@ -84,6 +91,9 @@ const SEED = () => ({
     mindsetMedia: [
       { id: 'col1', url: COLL, title: 'Discipline', igc: { cid: CID, user: 'tony', slug: 'discipline', at: Date.now() - 7200e3 },
         posts: [post('VIDaaaa1', 'r', 12), post('VIDaaaa2', 'r', 30), post('PICaaaa3'), post('CARaaaa4'), post('BADaaaa5')], expanded: true },
+      { id: 'col2', url: 'https://www.instagram.com/tony/saved/blocked/17955555555555555/', title: 'Blocked', igc: { cid: '17955555555555555', user: 'tony', slug: 'blocked', at: Date.now() - 60e3 },
+        posts: [Object.assign(post('BLKphoto1', 'p'), { i: 'https://scontent-x.cdninstagram.com/BLKphoto1-640.jpg', m: [{ t: 'i', u: 'https://scontent-x.cdninstagram.com/BLKphoto1-1080.jpg', w: 1080, h: 1350 }] }),
+          Object.assign(post('BLKgone02', 'p'), { i: 'https://scontent-x.cdninstagram.com/gone-640.jpg', m: [{ t: 'i', u: 'https://scontent-x.cdninstagram.com/gone-1080.jpg', w: 1080, h: 1080 }] })], expanded: false },
       { id: 'm1', url: 'https://www.instagram.com/reel/VIDmanual/', title: 'A pasted reel' },
       { id: 'm2', url: 'https://youtu.be/jfKfPfyJRdk', title: 'A video' }],
     focusMedia: [{ id: 'f1', url: 'https://www.youtube.com/watch?v=jfKfPfyJRdk', title: 'Focus video' }] },
@@ -126,7 +136,7 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   ok('the expanded collection shows its covers (through personal-ai /ig/thumb), kinds and lengths', await js(`const g = document.querySelector('#media-grid .igc-group[data-id="col1"]'); if (!g) return false;
     const cells = [...g.querySelectorAll('.igc-cell')]; return cells.length === 5 && cells[0].querySelector('img').src.indexOf('https://personal-ai.av1.workers.dev/ig/thumb?code=VIDaaaa1') === 0 &&
     !!cells[0].querySelector('.igc-k') && cells[0].querySelector('.igc-d').textContent === '0:12' && !!cells[3].querySelector('.igc-k') && !cells[2].querySelector('.igc-k') &&
-    /Instagram collection · synced 2 h ago/.test(g.querySelector('[data-igc-kind]').textContent);`));
+    g.querySelector('[data-igc-kind]').textContent === 'Instagram · synced 2 h ago' && !!g.querySelector('.igc-head .igc-acts [data-igplay]') && !!g.querySelector('.igc-acts [data-igsync]') && !!g.querySelector('.igc-acts [data-igcollapse]');`));
   ok('the pasted reel stays its own tile beside it, with its cover', await js(`const t = document.querySelector('#media-grid .media-tile[data-id="m1"]'); return !!t && /ig\\/thumb\\?code=VIDmanual/.test(t.querySelector('img').src) && t.querySelector('.k').textContent === 'Instagram reel';`));
   ok('nothing loads a post until one is played (covers only)', !net.some((u) => /ig\/media|cdn\.test/.test(u)));
 
@@ -196,6 +206,25 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   ok('Play on the collapsed tile opens it and plays from the first (in Tony\'s order)', !!s && s.pos === 'Discipline · 1 of 5' && s.on === 'col1~' + order[0] && (await media())[0].expanded === true, JSON.stringify(s));
   await click('#media-grid [data-igs="close"]'); await sleep(400);
 
+  console.log('\nPosts kept off other sites (the sync\'s copy) and hiding the details');
+  await click('#media-grid [data-igexpand="col2"]'); await sleep(900);
+  ok("a blocked post's cover comes from the sync's copy through the worker relay when /ig/thumb has none", await js(`const im = document.querySelector('.igc-cell[data-id="col2~BLKphoto1"] img'); return !!im && im.complete && im.naturalWidth > 0 && im.src.indexOf('https://personal-ai.av1.workers.dev/ig/px?u=' + encodeURIComponent('https://scontent-x.cdninstagram.com/BLKphoto1-640.jpg')) === 0;`));
+  await click('#media-grid .igc-cell[data-id="col2~BLKphoto1"]'); await sleep(1000);
+  s = await stage();
+  ok('…and it plays from that copy (no "broken" embed)', s.img === 'https://personal-ai.av1.workers.dev/ig/px?u=' + encodeURIComponent('https://scontent-x.cdninstagram.com/BLKphoto1-1080.jpg') && !s.frame && !/embed|gone/.test(s.cls), JSON.stringify(s));
+  await click('#media-grid [data-igstage] .ig-ctl [data-igs="next"]'); await sleep(1000);
+  ok('a copy that has run out says to sync again, with a link to Instagram', await js(`const s = document.querySelector('[data-igstage]'); return s.classList.contains('gone') && /needs a fresh sync/.test(s.querySelector('[data-ig-gone]').textContent) && !!s.querySelector('[data-ig-gone] a[href*="instagram.com/p/BLKgone02"]');`));
+  await click('#media-grid .ig-side [data-igs="side"]'); await sleep(300);
+  ok('Hide details: only the post, a small bar keeps Show, Fill and Stop; remembered on this device', await js(`const s = document.querySelector('[data-igstage]'); return s.classList.contains('bare') && getComputedStyle(s.querySelector('.ig-side')).display === 'none' &&
+    getComputedStyle(s.querySelector('.ig-bare')).display === 'flex' && s.querySelectorAll('.ig-bare button').length === 3 && localStorage.getItem('ew.tony.igSide') === '0';`));
+  await click('#media-grid .ig-bare [data-igs="side"]'); await sleep(300);
+  ok('…and Show brings them back', await js(`const s = document.querySelector('[data-igstage]'); return !s.classList.contains('bare') && getComputedStyle(s.querySelector('.ig-side')).display !== 'none' && localStorage.getItem('ew.tony.igSide') === '1';`));
+  await click('#media-grid [data-igs="close"]'); await sleep(400);
+  await click('#media-grid [data-igcollapse="col2"]'); await sleep(500);
+  ok('a collapsed collection: its name, one quiet line, and icon buttons on their own row', await js(`const t = document.querySelector('#media-grid .igc-tile[data-id="col2"]'); if (!t) return false;
+    const ttl = t.querySelector('.igc-ttl').getBoundingClientRect(), acts = t.querySelector('.igc-acts').getBoundingClientRect();
+    return t.querySelector('.igc-ttl .t').textContent === 'Blocked' && t.querySelector('.igc-ttl .s').textContent === 'Instagram · synced 1 min ago' && acts.top >= ttl.bottom - 1 && t.querySelectorAll('.igc-acts .igc-ib').length === 5;`));
+
   console.log('\nA pasted reel');
   await click('#media-grid .media-tile[data-id="m1"] [data-play]'); await sleep(900);
   ok('it opens the player in place of its tile, alone in its sequence', await js(`const h = document.querySelector('#media-grid .ig-host[data-id="m1"]'); return !!h && !!h.querySelector('[data-igstage]') && h.querySelector('[data-ig-pos]').textContent === '';`));
@@ -225,7 +254,7 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   ok('a collection not linked yet arrives as a new one on top of Mindset, named from its address', mm[0].igc && mm[0].igc.cid === '17999999999999999' && mm[0].title === 'Calm mind' && mm[0].posts.length === 2 && mm[0].url === 'https://www.instagram.com/tony/saved/calm_mind/17999999999999999/' && mm[1].id === 'col1', JSON.stringify(mm[0]).slice(0, 300));
   await sleep(2700);
   await fresh({ seed: await js(`return JSON.stringify(__fakeFs.docs);`).then(JSON.parse), hash: '#ew-igc=' + b64({ cid: 'nope', user: 'x', posts: [] }) });
-  ok('a damaged sync link changes nothing and says so', /could not be read/.test(await toast()) && (await media()).length === 4);
+  ok('a damaged sync link changes nothing and says so', /could not be read/.test(await toast()) && (await media()).length === 5);
 
   console.log('\nSync: the bookmarklet, on a (fake) Instagram collection page');
   const mark = await js(`return EWMedia.igMark();`);
@@ -244,6 +273,9 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   mm = await media();
   const col = mm.find((x) => x.id === 'col1');
   ok('…and the merge used what it read (new posts on top, kinds and captions from Instagram)', col && col.posts.map((x) => x.c).join() === 'APIaaaa1,APIaaaa2,VIDaaaa1' && col.posts[0].t === 'caption of APIaaaa1' && col.posts[0].u === 'acct', col && col.posts.map((x) => x.c).join());
+  ok('…with each post\'s cover (about 640 wide) and media links: the photo at its largest, the reel\'s video and poster', col && col.posts[0].i === 'https://scontent-x.cdninstagram.com/APIaaaa1-640.jpg' &&
+    JSON.stringify(col.posts[0].m) === JSON.stringify([{ t: 'i', u: 'https://scontent-x.cdninstagram.com/APIaaaa1-1080.jpg', w: 1080, h: 1350 }]) &&
+    JSON.stringify(col.posts[2].m) === JSON.stringify([{ t: 'v', u: 'https://scontent-x.cdninstagram.com/VIDaaaa1.mp4', w: 1080, h: 1350, p: 'https://scontent-x.cdninstagram.com/VIDaaaa1-640.jpg' }]), col && JSON.stringify(col.posts.slice(0, 3)).slice(0, 600));
   ok('…and from now on Sync goes straight to Instagram (the bookmark is known)', await js(`return localStorage.getItem('ew.tony.igBm') === '1';`));
   docs = await js(`return JSON.stringify(__fakeFs.docs);`).then(JSON.parse);
   await js(`sessionStorage.setItem('__fakefs_docs', ${JSON.stringify(JSON.stringify(docs))}); return 1;`);
