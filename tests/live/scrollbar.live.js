@@ -49,7 +49,7 @@ function TRACK(scroller, host, minH, maxH) {
     var se = ${scroller}, view = se === document.scrollingElement ? innerHeight : se.clientHeight;
     return { frac: +(se.scrollTop / (se.scrollHeight - view)).toFixed(3),
       thumb: +((tr.top - rr.top - 2) / Math.max(1, rr.height - tr.height - 4)).toFixed(3),
-      ratio: +Math.max(view / se.scrollHeight, (${'\'ontouchstart\' in window'} || matchMedia('(pointer:coarse)').matches ? 44 : 32) / rr.height).toFixed(3),
+      ratio: +Math.max(view / se.scrollHeight, (matchMedia('(pointer:coarse)').matches ? 44 : 32) / rr.height).toFixed(3),
       size: +((tr.height + 4) / rr.height).toFixed(3),
       railTop: Math.round(rr.top), boxTop: Math.round(se.getBoundingClientRect().top),
       inside: tr.top >= rr.top - 0.5 && tr.bottom <= rr.bottom + 0.5 };`;
