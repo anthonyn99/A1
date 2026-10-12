@@ -98,6 +98,7 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
     await js(`return document.querySelector('#ew-reader .lyric').innerHTML;`));
   await js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); document.getElementById('ew-reader').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return 1;`); await sleep(800);
   ok('Escape closes it, back to the cards', await js(`return !document.getElementById('ew-reader') && !document.documentElement.classList.contains('rd-lock');`));
+  ok('…and the card it grew out of is back (it hides while its reader is open)', await js(`return document.querySelector('.wr-card[data-wr="relationship-principles"]').style.visibility === '';`));
   await js(`document.querySelector('.wr-card[data-wr="with-parents"] .wr-title').click(); return 1;`); await sleep(1100);
   const fx = () => js(`const sc = document.querySelector('#ew-reader .rd-scroll').getBoundingClientRect(), mid = (sc.top + sc.bottom) / 2;
     const ls = [...document.querySelectorAll('#ew-reader .lyric li')].map(l => { const r = l.getBoundingClientRect(); return { c: (r.top + r.bottom) / 2, f: l.style.filter, o: l.style.opacity, n: l.textContent }; }).filter(x => x.c > sc.top && x.c < sc.bottom);
