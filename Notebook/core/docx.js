@@ -4437,6 +4437,9 @@ function addFadingScrollbar(ctx) {
   holder.appendChild(bar);
   wrap.insertBefore(holder, wrap.firstChild);
   var hideT = null, dragging = false, raf = null;
+  // A page running the shared A1 scrollbar (scrollbar.js) draws this box's bar
+  // itself; this one only shows where that is off (Veda's side).
+  function shared() { return !!(window.A1Scrollbar && window.A1Scrollbar.active()); }
   function geom() {
     var sh = wrap.scrollHeight, ch = wrap.clientHeight;
     if (sh <= ch + 4) { bar.style.display = 'none'; return null; }
@@ -4457,8 +4460,8 @@ function addFadingScrollbar(ctx) {
     var top = visTop + 3 + frac * maxTop - hr.top;   // the bar's offset inside the holder
     return { thumbH: thumbH, top: top, sh: sh, ch: ch, maxTop: maxTop };
   }
-  function place() { var g = geom(); if (!g) return; bar.style.height = g.thumbH + 'px'; bar.style.top = g.top + 'px'; }
-  function flash() { place(); bar.classList.add('on'); if (!dragging) { clearTimeout(hideT); hideT = setTimeout(function () { bar.classList.remove('on'); }, 1100); } }
+  function place() { if (shared()) { bar.style.display = 'none'; return; } var g = geom(); if (!g) return; bar.style.height = g.thumbH + 'px'; bar.style.top = g.top + 'px'; }
+  function flash() { if (shared()) { bar.style.display = 'none'; return; } place(); bar.classList.add('on'); if (!dragging) { clearTimeout(hideT); hideT = setTimeout(function () { bar.classList.remove('on'); }, 1100); } }
   // Persist scroll position per open doc (item 12).
   var saveT = null;
   function saveScroll() { if (!ctx._docId) return; clearTimeout(saveT); saveT = setTimeout(function () { try { localStorage.setItem('docx_scroll_' + ctx.app + '_' + ctx._docId, String(wrap.scrollTop)); } catch (e) {} }, 350); }

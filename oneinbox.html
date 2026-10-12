@@ -2617,6 +2617,8 @@ syncChrome();
    finger, a mouse and a stylus all take the same path.
    Returns nothing; safe to call on any element. */
 function attachScrollbar(scroller){
+  // The shared A1 scrollbar (scrollbar.js, in <head>) already draws it.
+  if (window.A1Scrollbar && window.A1Scrollbar.active()) return;
   const host = scroller.parentElement;
   if (!host || host.querySelector(':scope > .vsb')) return;
   scroller.classList.add('has-vsb');   // suppress the native bar under ours

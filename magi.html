@@ -28118,6 +28118,9 @@ lockBoot();
 const SBARS = new Set();
 
 function attachScrollbar(sc, z) {
+  // The shared A1 scrollbar (scrollbar.js, in <head>) already draws every
+  // scroller's bar; a second one here would sit beside it.
+  if (window.A1Scrollbar && window.A1Scrollbar.active()) return;
   if (!sc || sc.dataset.sbar) return;
   sc.dataset.sbar = "1";
 
