@@ -30,10 +30,10 @@ const BASE = 'https://anthonyn99.github.io/A1/';
 const PAGE = BASE + 'everwell.html';
 const CID = '17912345678901234', COLL = 'https://www.instagram.com/tony/saved/discipline/' + CID + '/';
 
-// A short silent WAV (every byte ASCII; the mock sends text): ~0.5 s, so a
+// A short silent WAV (every byte ASCII; the mock sends text): 2 s (16448 bytes: every size byte stays ASCII), so a
 // "reel" ends quickly. A <video> plays an audio-only file and fires 'ended'.
 const le = (n, w) => { let s = ''; for (let i = 0; i < w; i++) s += String.fromCharCode((n >> (8 * i)) & 255); return s; };
-const WAV = 'RIFF' + le(36 + 4096, 4) + 'WAVEfmt ' + le(16, 4) + le(1, 2) + le(1, 2) + le(4112, 4) + le(8224, 4) + le(2, 2) + le(16, 2) + 'data' + le(4096, 4) + '\0'.repeat(4096);
+const WAV = 'RIFF' + le(36 + 16448, 4) + 'WAVEfmt ' + le(16, 4) + le(1, 2) + le(1, 2) + le(4112, 4) + le(8224, 4) + le(2, 2) + le(16, 2) + 'data' + le(4096, 4) + '\0'.repeat(4096);
 const svg = (t, w, h) => `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect width="100%" height="100%" fill="#456"/><text x="10" y="30" fill="#fff">${t}</text></svg>`;
 const net = [];   // every request to the worker's /ig, the CDN or Instagram
 const API = { fail: false, pages: [] };   // Instagram's collection API, faked
@@ -72,7 +72,7 @@ const mock = {
       if (/^BAD|^BLK/.test(c)) return { json: { ok: false, error: 'unavailable' } };
       if (/^CAR/.test(c)) return { json: { ok: true, code: c, user: 'car.acct', caption: 'three slides', items: [1, 2, 3].map((i) => ({ type: 'image', src: 'https://cdn.test/' + c + i + '.svg', w: 1080, h: 1350 })) } };
       if (/^PIC|^LNK/.test(c)) return { json: { ok: true, code: c, user: 'pic.acct', caption: 'a photo', items: [{ type: 'image', src: 'https://cdn.test/' + c + '.svg', w: 1080, h: 1080 }] } };
-      return { json: { ok: true, code: c, user: 'reel.acct', caption: 'Caption with a #tag', items: [{ type: 'video', src: 'https://cdn.test/' + c + '.wav', poster: 'https://cdn.test/' + c + '.svg', w: 720, h: 1280, dur: 0.5 }] } };
+      return { json: { ok: true, code: c, user: 'reel.acct', caption: 'Caption with a #tag', items: [{ type: 'video', src: 'https://cdn.test/' + c + '.wav', poster: 'https://cdn.test/' + c + '.svg', w: 720, h: 1280, dur: 2 }] } };
     }
     if (u.host === 'personal-ai.av1.workers.dev' && p === '/quote/daily') return { json: { ok: true, date: u.searchParams.get('date'), text: 'Small steps.', via: 'orca' } };
     if (u.host === 'warroom-api.av1.workers.dev') return { json: ['16.99.1'] };
