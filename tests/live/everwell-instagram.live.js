@@ -167,6 +167,14 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   await js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })); return 1;`); for (let w = 0; w < 30 && (await js(`return document.querySelector('[data-ig-pos]').textContent;`)) === 'Discipline · 5 of 5'; w++) await sleep(50);
   s = await stage();
   ok('Advance wraps round from the last to the first (↓ moves a post)', s.pos === 'Discipline · 1 of 5' && s.v === 'https://cdn.test/VIDaaaa1.wav', JSON.stringify(s));
+  await click('#media-grid [data-igstage] .ig-ctl [data-igs="next"]');
+  const mid = await js(`const b = document.querySelector('[data-ig-box]'); return JSON.stringify({ a: b.getAnimations().length, pos: document.querySelector('[data-ig-pos]').textContent });`).then(JSON.parse);
+  await sleep(500);
+  ok('Next turns like the Principles reader: the post slides out first, then the next lands', mid.a > 0 && mid.pos === 'Discipline · 1 of 5' && (await stage()).pos === 'Discipline · 2 of 5', JSON.stringify(mid));
+  await js(`const b = document.querySelector('#media-grid [data-igstage] .ig-ctl [data-igs="next"]'); b.click(); b.click(); return 1;`); await sleep(600);
+  ok('two quick presses move two posts (a turn lands at once when pressed again)', (await stage()).pos === 'Discipline · 4 of 5');
+  await click('#media-grid .igc-cell[data-id="col1~VIDaaaa1"]'); await sleep(700);
+  ok('picking an earlier cover turns back to it', (await stage()).pos === 'Discipline · 1 of 5');
   await click('#media-grid [data-igstage] [data-igs="mode"]'); await sleep(200);
   // The 0.5 s test reel may have ended as Repeat was picked: back on the first, deterministically.
   await click('#media-grid .igc-cell[data-id="col1~VIDaaaa1"]'); await sleep(700);
