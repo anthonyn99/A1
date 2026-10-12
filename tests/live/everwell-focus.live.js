@@ -145,6 +145,26 @@ const mock = {
   ok("…and the cover hides YouTube's pause screen (only Everwell's controls show)", await js(`return getComputedStyle(${tile(1)}.querySelector('[data-vp-poster]')).opacity === '1';`));
   await js(`${tile(1)}.querySelector('.vp-row [data-vp="toggle"]').click(); return 1;`); await sleep(500);
   ok('…and Play plays it again', await js(`return !${tile(1)}.querySelector('.media-frame').classList.contains('paused');`));
+  // Ads (Tony, 2026-10-12): YouTube's Skip button sits under Everwell's layers, so they must step aside.
+  const adState = () => js(`const f = ${tile(1)}.querySelector('.media-frame'), hit = f.querySelector('[data-vp-hit]'), r = f.getBoundingClientRect();
+    return JSON.stringify({ ad: f.classList.contains('ad'), hit: getComputedStyle(hit).pointerEvents, top: (document.elementFromPoint(r.right - 60, r.bottom - 70) || {}).tagName });`).then(JSON.parse);
+  let ad = await adState();
+  ok('playing normally (the clock moves), Everwell\'s layers take the clicks', !ad.ad && ad.hit !== 'none' && ad.top !== 'IFRAME', JSON.stringify(ad));
+  await js(`${tile(1)}.querySelector('iframe').contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'testAd', args: [true] }), '*'); return 1;`); await sleep(3600);
+  ad = await adState();
+  ok('an ad (playing, the clock stands still): the layers step aside, so a click reaches YouTube\'s Skip button', ad.ad && ad.hit === 'none' && ad.top === 'IFRAME' &&
+    await js(`const f = ${tile(1)}.querySelector('.media-frame'); return getComputedStyle(f.querySelector('.vp-ui')).opacity === '0' && getComputedStyle(f.querySelector('[data-vp-poster]')).opacity === '0';`), JSON.stringify(ad));
+  await js(`${tile(1)}.querySelector('iframe').contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'testAd', args: [false] }), '*'); return 1;`); await sleep(1500);
+  ad = await adState();
+  ok('…and once the video\'s clock moves again, Everwell\'s controls are back', !ad.ad && ad.hit !== 'none' && ad.top !== 'IFRAME', JSON.stringify(ad));
+  await js(`${tile(1)}.querySelector('[data-vp="ad"]').click(); return 1;`); await sleep(300);
+  ad = await adState();
+  ok('the ad button hands the player to YouTube by hand (any ad that keeps its own clock)', ad.ad && ad.top === 'IFRAME', JSON.stringify(ad));
+  await sleep(2000);
+  ok('…and it stays handed over while the clock runs (until its 20 seconds are up)', (await adState()).ad);
+  await js(`${tile(1)}.querySelector('[data-vp-hit]').focus(); document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', bubbles: true })); document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', bubbles: true })); return 1;`); await sleep(400);
+  ad = await adState();
+  ok('…or until Everwell\'s own play/pause is used (K pauses, K plays): the controls take it back', !ad.ad && ad.top !== 'IFRAME', JSON.stringify(ad));
   await js(`${tile(1)}.querySelector('[data-vp="fill"]').click(); return 1;`); await sleep(600);
   ok('"Fill the window": the video covers the whole browser window, not the screen', await js(`const t = ${tile(1)}, r = t.querySelector('.media-frame').getBoundingClientRect();
     return t.classList.contains('filled') && !document.fullscreenElement && Math.round(r.left) === 0 && Math.round(r.top) === 0 && Math.round(r.width) === innerWidth && Math.round(r.height) === innerHeight &&
