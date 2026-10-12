@@ -1659,6 +1659,7 @@ ${lines}`;
 // output-token budget on reasoning and return MAX_TOKENS with empty content.
 // ── Calendar config ─────────────────────────────────────────────────────────
 const CAL_TTL        = 12 * 3600;   // 12h cache — macro/earnings calendar barely moves
+const CAL_PARTIAL_TTL = 3600;       // 1h — a build with source holes (see buildCalendar `partial`)
 const CAL_LOCK_TTL   = 120;         // build-lock auto-expiry
 // The CRON holds the calendar lock for its WHOLE invocation — news pre-warm, the
 // pause, the calendar build and its retry — not just the build. A client that opens
@@ -2347,11 +2348,16 @@ async function buildCalendar(wl, env, days, diag){
   // 2) Earnings from THREE independent sources — Finnhub + Nasdaq + AlphaVantage —
   //    plus Gemini macro (supplement only). Nasdaq covers foreign ADRs (TSM, BABA,
   //    NVS…) that the other two omit, so ANY watchlist ticker gets its date.
+  // What each earnings source ACTUALLY answered for. The front-end removes a
+  // previously published earnings date only when this build moved it or every
+  // source answered for it and none listed it. A missing row from a source that
+  // never answered is a hole, not a cancellation.
+  const cov = { finnhubSyms: [], nasdaqDates: [], nasdaqFailed: [], av: false };
   const [earn, aiMacro, avEarn, nasEarn] = await Promise.all([
-    fetchEarningsCalendar(wl, env, fromD, toD, diag),
+    fetchEarningsCalendar(wl, env, fromD, toD, diag, cov),
     fetchMacroCalendar(env, fromD, toD, diag),
-    fetchEarningsAlphaVantage(wl, env, fromD, toD, diag),
-    fetchEarningsNasdaq(wl, env, fromD, toD, diag),
+    fetchEarningsAlphaVantage(wl, env, fromD, toD, diag, cov),
+    fetchEarningsNasdaq(wl, env, fromD, toD, diag, cov),
   ]);
 
   // 2b) Merge earnings across all three sources by ticker+date. Finnhub & Nasdaq
@@ -2429,7 +2435,12 @@ async function buildCalendar(wl, env, days, diag){
   // this size ALWAYS has earnings in a 30-day window, so zero earnings is a failed
   // build, not a quiet quarter.
   const degraded = !events.length || (wl.length > 0 && !earnOut.length);
-  return { events, generatedAt: Date.now(), from: fromD, to: toD, earningsCount: earnOut.length, degraded };
+  // PARTIAL = usable, but with holes: a Nasdaq date that failed twice (the only
+  // source for ADRs like TSM) or Finnhub symbols that never answered. Cached only
+  // briefly (CAL_PARTIAL_TTL) so the next open rebuilds instead of serving the
+  // holes for 12h; the front-end keeps published dates through it either way.
+  const partial = !degraded && (cov.nasdaqFailed.length > 0 || cov.finnhubSyms.length < wl.length);
+  return { events, generatedAt: Date.now(), from: fromD, to: toD, earningsCount: earnOut.length, degraded, partial, coverage: cov };
 }
 
 
