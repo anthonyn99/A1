@@ -114,10 +114,11 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   ok('Close closes it', await js(`return !document.getElementById('ew-reader');`));
 
   console.log('\nNew cards (Notebook pages)');
+  ok('New principle is a solid button in the header, not a blank card', await js(`const b = document.querySelector('#mind-writings .wr-head [data-wr-add]'); return !!b && b.classList.contains('btn') && b.classList.contains('solid') && b.textContent === '+ New principle' && !document.querySelector('#wr-grid [data-wr-add]');`));
   await js(`document.querySelector('[data-wr-add]').click(); return 1;`); await sleep(400);
   await js(`document.querySelector('#uim-fields input').value = 'Discipline'; document.getElementById('uim-ok').click(); return 1;`); await sleep(2500);
   const newId = await js(`const m = (__fakeFs.docs['dashboards/everwell_tony'] || {}).mindsetPages || []; return (m[2] || {}).id || '';`);
-  ok('"New card" asks a name, then adds the card at the end of Mindset (synced list)', /^m-discipline-[a-z0-9]{4}$/.test(newId) && await js(`return [...document.querySelectorAll('#wr-grid .wr-title')].map(e => e.textContent).join() === 'Relationship Principles,With Parents,Discipline';`),
+  ok('"+ New principle" (a header button, like New recipe) asks a name, then adds the card at the end (synced list)', /^m-discipline-[a-z0-9]{4}$/.test(newId) && await js(`return [...document.querySelectorAll('#wr-grid .wr-title')].map(e => e.textContent).join() === 'Relationship Principles,With Parents,Discipline';`),
     newId + ' ' + await js(`return JSON.stringify((__fakeFs.docs['dashboards/everwell_tony'] || {}).mindsetPages);`));
   ok('…as an empty Notebook page in the notes store', await js(`const e = __fakeFs.docs['dashboards/everwell_notes']['e_${newId}']; return !!e && e.title === 'Discipline' && e.template === 'page' && e.data.html === '' && __fakeFs.docs['dashboards/everwell_notes']._order.includes('${newId}');`));
   for (let i = 0; i < 40 && !(await js(`return !!document.querySelector('#ewn-entries-list .entry-item.active');`)); i++) await sleep(250);
@@ -141,7 +142,7 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   ok('cards drag to reorder (the new one to the front), saved', await js(`return __fakeFs.docs['dashboards/everwell_tony'].mindsetPages[0].id === '${newId}' && document.querySelector('#wr-grid .wr-card').dataset.wr === '${newId}';`),
     await js(`return JSON.stringify(__fakeFs.docs['dashboards/everwell_tony'].mindsetPages.map(p => p.id));`));
   await js(`document.querySelector('[data-wr-rm="${newId}"]').click(); return 1;`); await sleep(400);
-  ok('Delete asks first, naming the card', await js(`return document.getElementById('uim-title').textContent === 'Delete card?' && /Discipline Rules/.test(document.getElementById('uim-msg').textContent);`));
+  ok('Delete asks first, naming the principle', await js(`return document.getElementById('uim-title').textContent === 'Delete principle?' && /Discipline Rules/.test(document.getElementById('uim-msg').textContent);`));
   await js(`document.getElementById('uim-ok').click(); return 1;`); await sleep(1800);
   ok('…then the card and its page are gone', await js(`return !document.querySelector('.wr-card[data-wr="${newId}"]') && !__fakeFs.docs['dashboards/everwell_tony'].mindsetPages.some(p => p.id === '${newId}') && !__fakeFs.docs['dashboards/everwell_notes']['e_${newId}'];`));
   await js(`document.getElementById('mind-tab-content').click(); return 1;`); await sleep(300);
