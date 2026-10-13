@@ -9934,7 +9934,7 @@ function App(){
     else if(earn.length>1){
       const past=earn.every(e=>e._past);
       const tickers=earn.map(e=>mcTicker(e.title)).join(", ");
-      out.push(mcChip({id:"earn-"+earn[0].date,date:earn[0].date,kind:"earnings",category:earn[0].category||"earnings",title:tickers+" Earnings",_past:past},tone));
+      out.push(mcChip({id:"earn-"+earn[0].date,date:earn[0].date,kind:"earnings",category:earn[0].category||"earnings",title:tickers+" Earnings",_past:past,_group:earn},tone));
     }
     rest.forEach(e=>out.push(mcChip(e,tone)));
     return out;
@@ -16237,7 +16237,7 @@ function App(){
     else if(earn.length>1){
       const past=earn.every(e=>e._past);
       const tickers=earn.map(e=>mcTicker(e.title)).join(", ");
-      out.push(mcChip({id:"earn-"+earn[0].date,date:earn[0].date,kind:"earnings",category:earn[0].category||"earnings",title:tickers+" Earnings",_past:past},tone));
+      out.push(mcChip({id:"earn-"+earn[0].date,date:earn[0].date,kind:"earnings",category:earn[0].category||"earnings",title:tickers+" Earnings",_past:past,_group:earn},tone));
     }
     rest.forEach(e=>out.push(mcChip(e,tone)));
     return out;
