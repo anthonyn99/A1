@@ -21959,6 +21959,23 @@ window._magiClick = function(){
   }
 };
 
+// ── Catalysts debrief ▶ ──
+// The button a catalyst card grows ten minutes after its release (both
+// TaskHubs). catdebrief.js builds the prompt from TradeHub's templates and
+// opens the ONE MAGI tab with it, in the profile of the TaskHub pressed, using
+// that profile's units. `macroET` is the TaskHub's own release-time table.
+// Synchronous inside the click: anything deferred is popup-blocked.
+window._mcDebrief = function(events, profile, macroET){
+  profile = (profile === 'veda') ? 'veda' : 'tony';
+  var D = window.A1Debrief;
+  if (!D || !events || !events.length) return false;
+  var base = _legacyOpenUrl(profile, 'magi', D.MAGI_URL);
+  var ok = false;
+  try { ok = D.launch(events, profile, { macroET: macroET, magiUrl: base }); } catch(e){ ok = false; }
+  if (!ok) window.alert('MAGI opens in a new tab, but your browser blocked the popup.\n\nAllow pop-ups for this site, then press ▶ again.');
+  return ok;
+};
+
 // ── Shield ──
 // The emergency application closer / lockdown system at /A1/shield.html. Opened
 // exactly like Everwell — named tab, popup-blocked fallback — with one
