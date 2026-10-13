@@ -238,6 +238,10 @@ function consoleFor(opts) {
   const env = new Function(
     'location', 'history', 'S', 'LOCK', '$', 'online', 'autosize', 'saveUnitPicks',
     'renderUnitChips', 'setView', 'updateEnabled', 'setErr', 'start', 'calls', 'setMode',
+    'PROFILE', 'adoptHandoffProfile',
+    'const MAGI_PROFILES = { tony: {}, veda: {} };\n' +
+    'const HANDOFF_PROFILE = "tony";\n' +
+    (/const handoffProfileOf = [^\n]+/.exec(MAGI) || [''])[0] + '\n' +
     lift(MAGI, 'b64uDecode') + '\n' +
     'let HANDOFF = null;\n' +
     lift(MAGI, 'takeHandoff') + '\n' +
@@ -251,9 +255,9 @@ function consoleFor(opts) {
     () => { calls.saved++; }, () => { calls.rendered++; },
     (v) => calls.views.push(v), () => {}, (id, msg) => { calls.err = msg; },
     () => { calls.start++; calls.modeAtStart = calls.mode; }, calls,
-    (m) => { calls.mode = m; }
+    (m) => { calls.mode = m; }, PROFILE, adoptHandoffProfile
   );
-  return { env, calls, loc, els, S, LOCK, o };
+  return { env, calls, loc, els, S, LOCK, o, PROFILE };
 }
 
 const LINK = encode.tbMagiLink('Morning read on SPY', ['claude', 'gemini']);
