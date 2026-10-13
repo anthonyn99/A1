@@ -92,7 +92,7 @@ const CFG = { tony: { units: ['grok'] }, veda: { units: ['gemini', 'claude'] }, 
     await shot(`taskhub-${who}-desktop`);
     if (PAST) {
       await js(STUB);
-      await js(`[...document.querySelectorAll('.mc-debrief')].find(b=>/CPI/.test(b.getAttribute('aria-label'))).click(); 1`);
+      await js(`[...document.querySelectorAll('.mc-debrief')].find(b=>b.offsetParent&&/CPI/.test(b.getAttribute('aria-label'))).click(); 1`);
       await sleep(400);
       const o = JSON.parse(await js(`return JSON.stringify(window.__opened);`));
       const nav = o.find((x) => x.nav);
@@ -102,18 +102,21 @@ const CFG = { tony: { units: ['grok'] }, veda: { units: ['gemini', 'claude'] }, 
       ok(`with ${who}'s units from the settings doc`, p && p.units.join() === CFG[who].units.join(), p && p.units);
       ok('debriefing that release, by name and time', p && /^The September CPI Report just came out \(8:30 AM ET, /.test(p.q), p && p.q.slice(0, 80));
       ok('and it asks MAGI to run it', p && p.run === 1 && nav.nav.startsWith(ORIGIN + '/A1/magi.html#tb='));
-      await js(`window.__opened.length = 0; [...document.querySelectorAll('.mc-debrief')].find(b=>/earnings/.test(b.getAttribute('aria-label'))).click(); 1`);
+      await js(`window.__opened.length = 0; [...document.querySelectorAll('.mc-debrief')].find(b=>b.offsetParent&&/earnings/.test(b.getAttribute('aria-label'))).click(); 1`);
       await sleep(400);
       const e = decode(JSON.parse(await js(`return JSON.stringify(window.__opened.find(x=>x.nav));`)).nav);
       ok('the earnings ▶ debriefs each report on the card', /^Debrief each of these 2 reports separately \(TSM, NFLX\)/.test(e.q) && /TSM just reported earnings \(before the open/.test(e.q) && /consensus was \$2\.60/.test(e.q), e.q.slice(0, 120));
     }
-    // Phone width: the button must not push the card off its column.
+    // Phone width: one day shows (today). Put a release on it and treat it as
+    // out, so the button is drawn there; the button must not push the card
+    // off its column.
+    await js(`window.A1Debrief.isDue = function(){ return true; }; __fakeFs.remote('dashboards/market_calendar', { events: ${JSON.stringify(EVENTS.concat([{ id: 'mc_gdp_today', kind: 'macro', category: 'growth', name: 'GDP Second Estimate', date: day(0), importance: 'high' }]))}, savedAt: Date.now() }); 1`);
     await size(390, 844);
     await sleep(1200);
     await js(`document.querySelector('.mc-debrief') && document.querySelector('.mc-debrief').scrollIntoView({block:'center'}); 1`);
     await sleep(300);
-    if (PAST) {
-      const fit = JSON.parse(await js(`var b=[...document.querySelectorAll('.mc-debrief')].find(x=>x.offsetParent); if(!b) return 'null'; var r=b.getBoundingClientRect(), card=b.parentElement.parentElement.getBoundingClientRect(); return JSON.stringify({ inCard: r.right <= card.right + 0.5 && r.left >= card.left, w: r.width, vw: innerWidth, pageScroll: document.documentElement.scrollWidth > innerWidth + 1 });`));
+    {
+      const fit = JSON.parse(await js(`var b=[...document.querySelectorAll('.mc-debrief')].find(x=>x.offsetParent&&/GDP/.test(x.getAttribute('aria-label'))); if(!b) return 'null'; var r=b.getBoundingClientRect(), card=b.parentElement.parentElement.getBoundingClientRect(); return JSON.stringify({ inCard: r.right <= card.right + 0.5 && r.left >= card.left, w: r.width, vw: innerWidth, pageScroll: document.documentElement.scrollWidth > innerWidth + 1 });`));
       ok('on a phone the ▶ sits inside its card', fit && fit.inCard && fit.w >= 18, JSON.stringify(fit));
     }
     await shot(`taskhub-${who}-mobile`);
@@ -168,7 +171,7 @@ const CFG = { tony: { units: ['grok'] }, veda: { units: ['gemini', 'claude'] }, 
     ok('the default one stays empty (so a better default reaches it)', d.templates.macro === '');
     await js(`[...document.querySelectorAll('button')].find(b=>/^Preview/.test(b.textContent.trim())).click(); 1`);
     await sleep(300);
-    ok('the preview fills it from a real event', await js(`var p=document.querySelector('pre'); return !!p && /^(TSM|NFLX) earnings just came out\\./.test(p.textContent);`), await js(`var p=document.querySelector('pre'); return p && p.textContent.slice(0,80);`));
+    ok('the preview fills the template in', await js(`var p=document.querySelector('pre'); return !!p && /^(TSM|NFLX) earnings just came out\\./.test(p.textContent);`), await js(`var p=document.querySelector('pre'); return p && p.textContent.slice(0,80);`));
     await shot('tradehub-desktop-edited');
     await js(`[...document.querySelectorAll('button')].find(b=>/Reset to default/.test(b.textContent)).click(); 1`);
     await sleep(1800);
