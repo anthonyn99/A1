@@ -9485,7 +9485,7 @@ function App(){
 
   // Mirrored plan items are owned by dashboards/plans — ticking one here would be
   // reverted by the next reconcile, so refuse it and say why.
-  const tog=useCallback((k,id)=>{if(thArchivedRef.current[k]){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This day is archived history — it can be viewed but not edited.');return;}const cur=(stateRef.current.data[k]||[]).find(t=>t.id===id);if(cur&&cur._planId){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This is a shared plan — manage it in Add → Plan.');return;}setData(prev=>{const arr=[...(prev[k]||[])];const i=arr.findIndex(t=>t.id===id);if(i>=0)arr[i]={...arr[i],done:!arr[i].done};return {...prev,[k]:arr};});},[setData]);
+  const tog=useCallback((k,id)=>{if(thArchivedRef.current[k]){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This day is archived history — it can be viewed but not edited.');return;}const cur=(stateRef.current.data[k]||[]).find(t=>t.id===id);if(cur&&cur._planId){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This is a shared plan — manage it in Add → Plan.');return;}setData(prev=>{const arr=[...(prev[k]||[])];const i=arr.findIndex(t=>t.id===id);if(i>=0){const nd=!arr[i].done;const u={...arr[i],done:nd};if(nd)u.doneAt=Date.now();else delete u.doneAt;arr[i]=u;}return {...prev,[k]:arr};});},[setData]);
 
   const del=useCallback((k,id)=>{if(thArchivedRef.current[k]){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This day is archived history — it can be viewed but not edited.');return;}const cur=(stateRef.current.data[k]||[]).find(t=>t.id===id);if(cur&&cur._planId){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This is a shared plan — cancel it in Add → Plan to remove it.');return;}setData(prev=>{const item=(prev[k]||[]).find(t=>t.id===id);if(item?.repeatId||item?.altSeqId){setDelConfirm({dateKey:k,itemId:id,item});return prev;}if(item?.notifyAt&&window.thCancelNotif)window.thCancelNotif(id,item.notifyRepeatId);const arr=(prev[k]||[]).filter(t=>t.id!==id);const next={...prev};if(!arr.length)delete next[k];else next[k]=arr;return next;});},[setData]);
 
@@ -9945,11 +9945,12 @@ function App(){
   const nm=()=>{if(vm===11){setVm(0);setVy(y=>y+1);}else setVm(m=>m+1);};
   const calYears=useMemo(()=>{const y=now.getFullYear();const a=[];for(let i=y-2;i<=y+5;i++)a.push(i);return a;},[now]);
 
-  // Open tasks first, ticked ones below (same as Veda's week). Display-only and
+  // Open tasks first, ticked ones below with the latest-ticked on top (doneAt,
+  // stamped in tog). Display-only and
   // STABLE: hand-dragged order inside each group is untouched, and drops splice
   // data[k] by id so they never see this reordered copy. Re-runs every render,
   // so a check/uncheck resorts immediately.
-  const wkSortTasks=ts=>ts.map((t,i)=>[t,i]).sort((a,b)=>(!!a[0].done-!!b[0].done)||(a[1]-b[1])).map(x=>x[0]);
+  const wkSortTasks=ts=>ts.map((t,i)=>[t,i]).sort((a,b)=>(!!a[0].done-!!b[0].done)||(a[0].done?(b[0].doneAt||0)-(a[0].doneAt||0):0)||(a[1]-b[1])).map(x=>x[0]);
   const prog=k=>{const t=(data[k]||[]).filter(x=>x.type==="task");if(!t.length)return 0;return Math.round(t.filter(x=>x.done).length/t.length*100);};
   const lft=k=>(data[k]||[]).filter(x=>x.type==="task"&&!x.done).length;
   const dayDomColor=k=>{
