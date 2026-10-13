@@ -1635,9 +1635,9 @@
     });
     if (!items.length && (!extOk || adoptPos === null)) { close(); return; }
     if (extOk) {
-      // A program already open under its tab key stays as it is: opening
-      // another would only make a duplicate.
-      items = items.filter(function (x) { return !claimedElsewhere(storeKey(x.a.tab || ('lh_' + x.a.id))); });
+      // Every app goes in, even one already open under its tab key (MAGI
+      // always is: it names itself): the extension closes the earlier
+      // group's copy, so skipping it here only left it out of the new group.
       try {
         window.postMessage({ source: 'vault-page', action: 'openLinkGroup', urls: items.map(function (x) { return x.url; }),
           name: 'LifeHub', color: '#a855f7', adoptPos: adoptPos, replace: true }, location.origin);
