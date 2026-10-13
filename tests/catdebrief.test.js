@@ -141,6 +141,18 @@ console.log('\nThe button press');
   const O = load({ tab });
   O.D.launch([cpi], 'tony', {});
   ok('an open console is handed the prompt, not just focused', /magi\.html#tb=/.test(tab.location.href) && tab.focused, tab.location.href.slice(0, 60));
+  // window.name survives navigation: a tab that once held MAGI and now holds
+  // TaskHub is itself 'a1tab_magi'. The lookup must not hand TaskHub back to
+  // be navigated away, and its own tabsync must not be asked to take it.
+  const S = load({ claimed: true });
+  S.sb.name = 'a1tab_magi';
+  S.sb.sessionStorage = { getItem: (k) => (k === 'a1TabKey' ? 'magi' : null) };
+  const realOpen = S.sb.open;
+  S.sb.open = function (u, n) { if (n === S.sb.name) { S.opened.push({ self: true }); return S.sb; } return realOpen.call(this, u, n); };
+  S.sb.location = { href: 'https://anthonyn99.github.io/A1/index.html' };
+  S.D.launch([cpi], 'tony', {});
+  ok('a TaskHub tab carrying MAGI’s name gives it up', S.sb.name === '' && !S.opened.some((o) => o.self), JSON.stringify(S.opened).slice(0, 120));
+  ok('…and the debrief goes to a real MAGI tab, not to TaskHub', S.opened.some((o) => o.nav && /magi\.html#tb=/.test(o.nav)) && S.sb.location.href.endsWith('index.html'));
   const B = load({ blocked: true });
   ok('a blocked popup is reported, not swallowed', B.D.launch([cpi], 'tony', {}) === false);
 }
