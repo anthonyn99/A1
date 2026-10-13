@@ -403,13 +403,14 @@ def validate_answer(
         # A reply in kind to a prompt that is itself a few bare words:
         # "HEHEHEHEHE" answered "HEHEHEHEHE" by DeepSeek (2026-10-13) and was
         # called cut off. The truncations this rule exists for were all
-        # answers to real questions; a prompt of four words or fewer that
-        # asks nothing ("hi", "HEHEHE", "test") sets no expectation of a
-        # sentence back. A short QUESTION still does, and spinner labels
+        # answers to real questions; a bare prompt of four words or fewer
+        # with no sentence punctuation ("hi", "HEHEHE", "test") sets no
+        # expectation of a sentence back. A short question or instruction
+        # ("Explain TCP.", "Which is best?") still does, and spinner labels
         # still fail.
         and not (
             0 < len((question or "").split()) <= 4
-            and "?" not in (question or "")
+            and not re.search(r"[.?!]", question or "")
             and not _LOADING_LABEL.match(body)
         )
     ):

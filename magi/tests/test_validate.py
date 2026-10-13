@@ -368,5 +368,6 @@ def test_a_word_spelled_apart_in_the_answer_still_counts():
     other = ("Postgres handles concurrent writers with MVCC; each transaction sees a "
              "snapshot, and vacuum reclaims dead tuples later. Tune autovacuum for "
              "heavy update workloads, and watch for long transactions that pin "
-             "the horizon. Partitioning helps with very large append-only tables.")
+             "the horizon. Partitioning helps with very large append-only tables, and "
+             "BRIN indexes keep them cheap to scan by insertion order.")
     assert validate_answer(other, q).reason is Rejection.OFF_TOPIC
