@@ -66,6 +66,7 @@ function pageKey(u) {
     return (x.origin + x.pathname.replace(/\/index\.html?$/i, "/").replace(/\/+$/, "")).toLowerCase();
   } catch (_) { return ""; }
 }
+function originOf(u) { try { return new URL(u).origin.toLowerCase(); } catch (_) { return ""; } }
 async function readGroupTabs() {
   try { const o = await chrome.storage.session.get(GROUP_TABS_KEY); return o[GROUP_TABS_KEY] || {}; } catch (_) { return {}; }
 }
@@ -73,6 +74,12 @@ async function replaceOldGroups(title, groupId, ids, urls) {
   const known = await readGroupTabs();
   const fresh = new Set(ids);
   const keys = new Set(urls.map(pageKey).filter(Boolean));
+  // A site that holds only ONE of the apps (ORCA, StudyOS...) matches on
+  // its origin alone, so a tab that has moved to another page of it still
+  // counts. Sites holding several apps (github.io/A1) match on the page.
+  const perOrigin = {};
+  for (const u of urls) { const o = originOf(u); if (o) perOrigin[o] = (perOrigin[o] || 0) + 1; }
+  const isApp = u => keys.has(pageKey(u)) || perOrigin[originOf(u)] === 1;
   let groups = [];
   try { groups = await chrome.tabGroups.query({}); } catch (_) { groups = []; }
   const doomed = [];
@@ -83,7 +90,7 @@ async function replaceOldGroups(title, groupId, ids, urls) {
     try { tabs = await chrome.tabs.query({ groupId: g.id }); } catch (_) { tabs = []; }
     for (const t of tabs) {
       if (fresh.has(t.id)) continue;
-      if (ours.has(t.id) || keys.has(pageKey(t.url || t.pendingUrl || ""))) doomed.push(t.id);
+      if (ours.has(t.id) || isApp(t.url || t.pendingUrl || "")) doomed.push(t.id);
     }
   }
   if (doomed.length) { try { await chrome.tabs.remove(doomed); } catch (_) {} }
