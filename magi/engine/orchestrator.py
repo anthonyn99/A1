@@ -229,10 +229,10 @@ class Orchestrator:
         """
         a = await Orchestrator._ask_once(p, question, ctx, emit, cancel)
         # Retry only a model that says it cannot look things up -- that is a
-        # coin it flips per turn. A site's own error line ("I encountered an
-        # error", "I'm having a hard time fulfilling your request") came back
-        # the same way on every retry on 2026-09-22 and cost the whole council
-        # a further wait each time.
+        # coin it flips per turn. A site's own error line ("Sorry, something
+        # went wrong. Please try your request again.") already had its one
+        # retry inside the provider (BrowserProvider.ask), for every caller,
+        # not just the council.
         from .validate import _NO_LIVE_ACCESS
 
         if not (
