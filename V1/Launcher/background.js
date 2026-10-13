@@ -56,6 +56,9 @@ function nearestGroupColor(hex) {
 // remembered below) and any tab on a program the new launch just opened. What
 // is left — tabs dragged in or opened from inside it — stays where it is; a
 // group left with nothing in it is gone, which the browser does by itself.
+// One exception: an app tab that is mid-work (MAGI in a council, brainstorm or
+// Code Mode session — its window.a1TabBusy() says so) is never reopened. It
+// moves into the new group in its app's place, exactly as it is.
 // Done here and not by the pages: most of those tabs are other origins, which
 // no page channel (tabsync's BroadcastChannel) can reach.
 // Keep in step with V1/Launcher/background.js and A1-Priv/Vault/background.js.
@@ -67,34 +70,77 @@ function pageKey(u) {
   } catch (_) { return ""; }
 }
 function originOf(u) { try { return new URL(u).origin.toLowerCase(); } catch (_) { return ""; } }
+// Which of `urls` a tab at `u` is: the same page, or — on a site that holds
+// only ONE of the apps (ORCA, StudyOS...) — any page of that site, so a tab
+// that has moved on inside it still counts. -1 = none of them.
+function appMatcher(urls) {
+  const keys = urls.map(pageKey);
+  const perOrigin = {};
+  for (const u of urls) { const o = originOf(u); if (o) perOrigin[o] = (perOrigin[o] || 0) + 1; }
+  return (u) => {
+    const k = pageKey(u);
+    const i = k ? keys.indexOf(k) : -1;
+    if (i >= 0) return i;
+    const o = originOf(u);
+    return o && perOrigin[o] === 1 ? urls.findIndex(x => originOf(x) === o) : -1;
+  };
+}
 async function readGroupTabs() {
   try { const o = await chrome.storage.session.get(GROUP_TABS_KEY); return o[GROUP_TABS_KEY] || {}; } catch (_) { return {}; }
 }
-async function replaceOldGroups(title, groupId, ids, urls) {
+// Every tab of every earlier group with this title, with whether this
+// extension opened it there.
+async function oldGroupTabs(title, exceptGroup) {
   const known = await readGroupTabs();
-  const fresh = new Set(ids);
-  const keys = new Set(urls.map(pageKey).filter(Boolean));
-  // A site that holds only ONE of the apps (ORCA, StudyOS...) matches on
-  // its origin alone, so a tab that has moved to another page of it still
-  // counts. Sites holding several apps (github.io/A1) match on the page.
-  const perOrigin = {};
-  for (const u of urls) { const o = originOf(u); if (o) perOrigin[o] = (perOrigin[o] || 0) + 1; }
-  const isApp = u => keys.has(pageKey(u)) || perOrigin[originOf(u)] === 1;
   let groups = [];
   try { groups = await chrome.tabGroups.query({}); } catch (_) { groups = []; }
-  const doomed = [];
+  const out = [];
   for (const g of groups) {
-    if (g.id === groupId || (g.title || "") !== title) continue;
+    if (g.id === exceptGroup || (g.title || "") !== title) continue;
     const ours = new Set(known[g.id] || []);
     let tabs = [];
     try { tabs = await chrome.tabs.query({ groupId: g.id }); } catch (_) { tabs = []; }
-    for (const t of tabs) {
-      if (fresh.has(t.id)) continue;
-      if (ours.has(t.id) || isApp(t.url || t.pendingUrl || "")) doomed.push(t.id);
-    }
+    for (const t of tabs) out.push({ tab: t, ours: ours.has(t.id) });
+  }
+  return out;
+}
+// Asks the page itself. A tab the extension may not script (another site, a
+// browser page) is not busy; a discarded one can't answer but would pick its
+// work back up when woken, so it is treated as busy and kept.
+async function tabBusy(tab) {
+  if (tab.discarded) return true;
+  if (!chrome.scripting || !chrome.scripting.executeScript) return false;
+  try {
+    const r = await chrome.scripting.executeScript({
+      target: { tabId: tab.id }, world: "MAIN",
+      func: () => { try { return typeof window.a1TabBusy === "function" && !!window.a1TabBusy(); } catch (e) { return true; } },
+    });
+    return !!(r && r[0] && r[0].result === true);
+  } catch (_) { return false; }
+}
+// Before opening: the busy app tabs of the earlier groups, as {url index: tab}.
+async function busyOldTabs(title, urls, skipId) {
+  const which = appMatcher(urls);
+  const kept = new Map();
+  for (const { tab } of await oldGroupTabs(title, null)) {
+    if (tab.id === skipId) continue;
+    const i = which(tab.url || tab.pendingUrl || "");
+    if (i < 0 || kept.has(i)) continue;
+    if (await tabBusy(tab)) kept.set(i, tab);
+  }
+  return kept;
+}
+async function replaceOldGroups(title, groupId, ids, urls) {
+  const fresh = new Set(ids);
+  const which = appMatcher(urls);
+  const doomed = [];
+  for (const { tab, ours } of await oldGroupTabs(title, groupId)) {
+    if (fresh.has(tab.id)) continue;
+    if (ours || which(tab.url || tab.pendingUrl || "") >= 0) doomed.push(tab.id);
   }
   if (doomed.length) { try { await chrome.tabs.remove(doomed); } catch (_) {} }
   // Remember this launch's tabs; forget groups that no longer exist.
+  const known = await readGroupTabs();
   let alive = new Set();
   try { alive = new Set((await chrome.tabGroups.query({})).map(g => g.id)); } catch (_) {}
   const next = {};
@@ -120,13 +166,22 @@ async function openLinksAsGroup(urls, groupName, colorHex, adopt, replace) {
   try { win = await chrome.windows.getCurrent(); } catch (_) { win = null; }
   const windowId = adopt && adopt.windowId != null ? adopt.windowId : (win ? win.id : undefined);
 
-  const existing = await chrome.tabs.query(windowId != null ? { windowId } : { currentWindow: true });
-  let nextIndex = existing.length;
-  const firstNew = nextIndex;
+  const title = (groupName || "Group").slice(0, 60);
+  let kept = new Map();
+  if (replace) { try { kept = await busyOldTabs(title, urls, adopt && adopt.tabId); } catch (_) { kept = new Map(); } }
 
   const ids = [];
   for (let i = 0; i < urls.length; i++) {
-    const createProps = { url: urls[i], active: false, index: nextIndex++ };
+    const old = kept.get(i);
+    if (old) {
+      // Mid-work: moved to the end of the strip as it is, never reloaded.
+      try {
+        if (chrome.tabs.ungroup) await chrome.tabs.ungroup([old.id]);
+        const moved = await chrome.tabs.move(old.id, { windowId: windowId != null ? windowId : old.windowId, index: -1 });
+        if (moved && (moved.windowId === windowId || windowId == null)) { ids.push(old.id); continue; }
+      } catch (_) { /* gone or unmovable — open a fresh one */ }
+    }
+    const createProps = { url: urls[i], active: false, index: (await chrome.tabs.query(windowId != null ? { windowId } : { currentWindow: true })).length };
     if (windowId != null) createProps.windowId = windowId;
     const tab = await chrome.tabs.create(createProps);
     if (tab && tab.id != null) ids.push(tab.id);
@@ -141,8 +196,14 @@ async function openLinksAsGroup(urls, groupName, colorHex, adopt, replace) {
       if (!me.pinned) {
         if (me.groupId != null && me.groupId !== -1 && chrome.tabs.ungroup) await chrome.tabs.ungroup([me.id]);
         const pos = Math.max(0, Math.min(adopt.pos | 0, ids.length));
-        // The tab leaves the strip ahead of the new ones, so they all shift down one.
-        await chrome.tabs.move(me.id, { windowId: me.windowId, index: firstNew - 1 + pos });
+        // Just before the tab now in that slot (the end if none). A tab moving
+        // rightwards leaves a gap behind it, so its target is one to the left.
+        let to = -1;
+        if (pos < ids.length) {
+          to = (await chrome.tabs.get(ids[pos])).index;
+          if (me.windowId === windowId && me.index < to) to -= 1;
+        }
+        await chrome.tabs.move(me.id, { windowId: windowId != null ? windowId : me.windowId, index: to });
         ids.splice(pos, 0, me.id);
         adopted = true;
         adoptedUrl = me.url || "";
@@ -164,14 +225,14 @@ async function openLinksAsGroup(urls, groupName, colorHex, adopt, replace) {
       if (ids.length > 1) await chrome.tabs.group({ groupId, tabIds: ids.slice(1) });
       if (chrome.tabGroups && chrome.tabGroups.update) {
         await chrome.tabGroups.update(groupId, {
-          title: (groupName || "Group").slice(0, 60),
+          title,
           color: nearestGroupColor(colorHex),
         });
       }
     } catch (_) { /* grouping unsupported — tabs already opened */ }
   }
   if (replace && groupId != null) {
-    try { await replaceOldGroups((groupName || "Group").slice(0, 60), groupId, ids, adoptedUrl ? urls.concat(adoptedUrl) : urls); } catch (_) {}
+    try { await replaceOldGroups(title, groupId, ids, adoptedUrl ? urls.concat(adoptedUrl) : urls); } catch (_) {}
   }
 
   if (ids.length && !adopted) { try { await chrome.tabs.update(ids[0], { active: true }); } catch (_) {} }
