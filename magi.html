@@ -11482,16 +11482,33 @@ window.addEventListener("hashchange", () => {
  *
  *  Returns true when a reload is happening and the caller should stop. */
 function adoptHandoffProfile(h) {
-  if (!h || PROFILE.id === HANDOFF_PROFILE) return false;
+  const to = handoffProfileOf(h);
+  if (!h || PROFILE.id === to) return false;
   // Blocked storage is an in-memory stand-in: the stash would not survive.
-  if (window.MAGI_STORAGE_BLOCKED) return false;
+  // Carry the handoff in the url instead -- the fragment as it arrived, plus
+  // ?profile= like any pick on that browser (reloadAsProfile). The load reads
+  // the fragment's profile first, so this lands in the right one. Veda's
+  // Brave is exactly this browser (docs/MAGI: magi-blocked-storage).
+  if (window.MAGI_STORAGE_BLOCKED) return carryHandoffInUrl(h, to);
   try {
     sessionStorage.setItem(HANDOFF_SS, JSON.stringify(h));
-    sessionStorage.setItem(PICK_SS, HANDOFF_PROFILE);
-    localStorage.setItem(LAST_PROFILE_LS, HANDOFF_PROFILE);
-  } catch { return false; }   // no storage: better here than nowhere
+    sessionStorage.setItem(PICK_SS, to);
+  } catch { return carryHandoffInUrl(h, to); }
+  // Its own try: a FULL store refuses this write after the session ones
+  // succeeded, and the switch must still happen.
+  try { localStorage.setItem(LAST_PROFILE_LS, to); } catch {}
   location.reload();
   return true;
+}
+function carryHandoffInUrl(h, to) {
+  if (!h || !h.raw) return false;   // no storage and no fragment: better here than nowhere
+  try {
+    const u = new URL(location.href);
+    u.searchParams.set(PROFILE_QS, to);
+    u.hash = "tb=" + h.raw;
+    location.replace(u.href);
+    return true;
+  } catch { return false; }
 }
 
 /** A handoff stashed by the reload above. Consumed once, like the url one. */
