@@ -9648,7 +9648,11 @@ function App(){
     });
     if(item._notifyEdit&&!isAltSeq){
       // The series' own push for this date was at the old time.
-      if(_old&&_old.notifyAt&&window.thCancelNotif){try{window.thCancelNotif(_old.id,null,{notifyAt:_old.notifyAt});}catch(e){}}
+      // Cloud only, named by series: this row is already gone from the data a
+      // lookup would search, and a local regRemove by series would silence the
+      // series on every other date.
+      const _sid=_old&&(_old.notifyRepeatId||findSeriesNotifyId(stateRef.current&&stateRef.current.data,_old));
+      if(_old&&_old.notifyAt&&_sid&&window._fcmCancelNotif){window._fcmCancelNotif(null,_sid,{notifyAt:_old.notifyAt}).catch(()=>{});}
       if(window.thScheduleNotif){
         if(item.notifyAt&&new Date(item.notifyAt).getTime()>Date.now())
           window.thScheduleNotif({...item,id:_newId,repeat:"none",repeatId:undefined,notifyRepeat:"none",notifyRepeatDays:[],notifyRepeatId:null,_notifyEdit:undefined,dashboard:'tony'});
