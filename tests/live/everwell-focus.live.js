@@ -145,6 +145,17 @@ const mock = {
   ok("…and the cover hides YouTube's pause screen (only Everwell's controls show)", await js(`return getComputedStyle(${tile(1)}.querySelector('[data-vp-poster]')).opacity === '1';`));
   await js(`${tile(1)}.querySelector('.vp-row [data-vp="toggle"]').click(); return 1;`); await sleep(500);
   ok('…and Play plays it again', await js(`return !${tile(1)}.querySelector('.media-frame').classList.contains('paused');`));
+  // Lighter controls (Tony, 2026-10-12: the cursor lagged while a video played): the dot moves by transform, nothing redraws while they are hidden.
+  ok('the seek dot moves by transform (no layout), from a measured track', await js(`const k = ${tile(1)}.querySelector('.vp-knob'); return k.style.left === '' && /px$/.test(k.style.getPropertyValue('--kx'));`));
+  // The "now playing" pill plays and pauses it from another tab.
+  await js(`EWApp.go('dashboard'); return 1;`); await sleep(500);
+  ok('the "now playing" pill has play/pause', await js(`const b = document.getElementById('ew-now-pp'); return !!b && !b.hidden && b.getAttribute('aria-label') === 'Pause';`));
+  await js(`document.getElementById('ew-now-pp').click(); return 1;`); await sleep(500);
+  ok('…which pauses it (the pill says Paused, its button turns to Play)', await js(`return document.getElementById('ew-now').classList.contains('paused') && document.getElementById('ew-now-pp').getAttribute('aria-label') === 'Play' && EWMedia.now().paused === true;`));
+  ok('…and the backdrop is not slowed while nothing plays', await js(`return EWBackdrop.quiet() === false;`));
+  await js(`document.getElementById('ew-now-pp').click(); return 1;`); await sleep(500);
+  ok('…and plays it again; the backdrop rests while it plays', await js(`return !document.getElementById('ew-now').classList.contains('paused') && EWMedia.now().paused === false && EWBackdrop.quiet() === true;`));
+  await js(`EWApp.go('focus'); return 1;`); await sleep(500);
   // Ads (Tony, 2026-10-12): YouTube's Skip button sits under Everwell's layers, so they must step aside.
   const adState = () => js(`const f = ${tile(1)}.querySelector('.media-frame'), hit = f.querySelector('[data-vp-hit]'), r = f.getBoundingClientRect();
     return JSON.stringify({ ad: f.classList.contains('ad'), hit: getComputedStyle(hit).pointerEvents, top: (document.elementFromPoint(r.right - 60, r.bottom - 70) || {}).tagName,

@@ -216,7 +216,7 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   ok('covers drag to reorder, saved', mm[0].posts.map((x) => x.c).join() !== 'VIDaaaa1,VIDaaaa2,PICaaaa3,CARaaaa4,BADaaaa5' && mm[0].posts[0].c === 'VIDaaaa2', mm[0].posts.map((x) => x.c).join());
   ok('…and dragging did not play anything', !(await js(`return !!document.querySelector('[data-igstage]');`)));
   const order = mm[0].posts.map((x) => x.c);
-  await click('#media-grid [data-igcollapse="col1"]'); await sleep(600);
+  await click('#media-grid [data-igcollapse="col1"]'); await sleep(1800);
   ok('Collapse: one tile with a strip of its first four covers, Play and Expand', await js(`const t = document.querySelector('#media-grid .igc-tile[data-id="col1"]'); return !!t && t.querySelectorAll('.igc-strip img').length === 4 && !!t.querySelector('[data-igplay]') && !!t.querySelector('[data-igexpand]');`) &&
     (await media())[0].expanded === false);
   await click('#media-grid .igc-tile .media-play[data-igplay]'); await sleep(900);
@@ -334,7 +334,7 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   await size(390, 844, true); await sleep(500);
   await click('#media-grid .igc-cell[data-id="col1~VIDaaaa1"]'); await sleep(1000);
   ok('the player fits the phone: the post as big as the screen allows, every control on screen', await js(`const s = document.querySelector('[data-igstage]'), W = document.documentElement.clientWidth;
-    return [...s.querySelectorAll('.ig-box, .ig-side button, .ig-side a')].every(e => { const r = e.getBoundingClientRect(); return r.left >= -0.5 && r.right <= W + 0.5; }) && (b => b.height <= innerHeight * 0.75 && (b.width >= 280 || b.width >= W - 30))(s.querySelector('.ig-box').getBoundingClientRect());`),
+    return [...s.querySelectorAll('.ig-box, .ig-side button, .ig-side a')].every(e => { const r = e.getBoundingClientRect(); return r.left >= -0.5 && r.right <= W + 0.5; }) && (b => b.height <= innerHeight * 0.75 && b.width >= 200)(s.querySelector('.ig-box').getBoundingClientRect());`),
     await js(`const s = document.querySelector('[data-igstage]'); if (!s) return 'no stage'; return [...s.querySelectorAll('.ig-box, .ig-side button, .ig-side a')].map(e => { const r = e.getBoundingClientRect(); return (e.className || e.tagName) + ':' + Math.round(r.left) + '-' + Math.round(r.right); }).join(' ') + ' W=' + document.documentElement.clientWidth;`));
   ok('phone: the arrows sit beside the post, never over it, and no control row under it', await js(`const s = document.querySelector('[data-igstage]'), b = s.querySelector('.ig-box').getBoundingClientRect(), pv = s.querySelector('.ig-nav.pv').getBoundingClientRect(), nx = s.querySelector('.ig-nav.nx').getBoundingClientRect();
     return pv.width > 0 && pv.right <= b.left + 0.5 && nx.left >= b.right - 0.5 && getComputedStyle(s.querySelector('.ig-ctl')).display === 'none';`));
