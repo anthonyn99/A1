@@ -364,6 +364,11 @@ class SiteSelectors:
     # fallback matched a hidden decoy on that wall. So the question has a
     # different answer per site and has to be asked per site.
     login_is_proof: bool = False
+    # Ask the site's one retry after a site error (BrowserProvider.ask)
+    # SIGNED OUT, from a guest profile beside the real one. Gemini 2026-10-13:
+    # every question that needed Google Search failed on the signed-in
+    # account from MAGI, and the same question answered at once signed out.
+    guest_retry: bool = False
 
     # -- models and limits (Phase U1 recon; read from U2 on) -----------------
     # Every one a list, [] meaning "looked, this site has none". What each
@@ -453,6 +458,7 @@ class SiteSelectors:
             ready_selector=_as_list(merged.get("ready_selector")),
             login_selectors=_as_list(merged.get("login_selectors")),
             login_is_proof=bool(merged.get("login_is_proof", False)),
+            guest_retry=bool(merged.get("guest_retry", False)),
             challenge_selectors=_as_list(merged.get("challenge_selectors")),
             rate_limit_selectors=_as_list(merged.get("rate_limit_selectors")),
             dismiss_selectors=dismiss,

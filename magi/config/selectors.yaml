@@ -443,6 +443,15 @@ sites:
     # attached over CDP. Error 1099 is Google's own "session-state" fault.
     send_error:
       - ".cdk-overlay-container :text-matches('Something went wrong', 'i')"
+    # VERIFIED 2026-10-13: every question that made Gemini search ("What
+    # moved the market today?", a LoL counter question) came back "Sorry,
+    # something went wrong" / "I encountered an error" on the signed-in
+    # account -- headless or in a window, Playwright's default switches or
+    # not, site storage cleared or not (only the sign-in cookies kept).
+    # "Name three primary colors" answered fine. The SAME search question
+    # from an empty, signed-out profile answered correctly in 15s. So the
+    # retry after a site error goes out signed out (profiles/<p>/gemini-guest).
+    guest_retry: true
     # ── Models and limits (Phase U1 recon, 2026-09-28, read-only) ─────────
     # VERIFIED: a real picker ("mode picker"). Its aria-label names the
     # current mode: "Open mode picker, currently Gemini Flash". 42 of 43
