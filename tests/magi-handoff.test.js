@@ -221,8 +221,11 @@ console.log('\nTradeHub keeps the two kinds of destination apart');
 // these was a way to lose a prompt: a locked page drops it, an offline engine
 // drops it, a run in flight drops it, a reload runs it twice.
 function consoleFor(opts) {
-  const o = Object.assign({ hash: '', locked: false, lockDecided: true, online: true, providers: ['chatgpt', 'claude', 'gemini'], running: false, mode: 'deliberation' }, opts);
-  const calls = { start: 0, err: null, saved: 0, rendered: 0, views: [], mode: o.mode, modeAtStart: null };
+  const o = Object.assign({ hash: '', locked: false, lockDecided: true, online: true, providers: ['chatgpt', 'claude', 'gemini'], running: false, mode: 'deliberation', profile: 'tony' }, opts);
+  const calls = { start: 0, err: null, saved: 0, rendered: 0, views: [], mode: o.mode, modeAtStart: null, adopted: [] };
+  const PROFILE = { id: o.profile };
+  // The reload a profile switch performs, recorded instead of performed.
+  const adoptHandoffProfile = (h) => { calls.adopted.push(h.p); return true; };
   const loc = { hash: o.hash, pathname: '/A1/magi.html', search: '' };
   const hist = {
     state: null,
