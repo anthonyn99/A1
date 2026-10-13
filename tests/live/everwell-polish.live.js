@@ -184,7 +184,8 @@ const NAMELESS = `JSON.stringify([...document.querySelectorAll('#ew-head button,
   // height; that used to resize (and so wipe) the backdrop canvas: a black flash.
   console.log('\nPhone scroll: no black flash');
   await size(390); await fresh(false); await sleep(800);
-  const bd = () => js(`const cv = document.getElementById('ew-bg-canvas'), p = cv.getContext('2d').getImageData(Math.floor(cv.width / 2), Math.floor(cv.height / 2), 1, 1).data;
+  // The colour is on the light-pools canvas (#ew-bg-glow, quarter size, 2026-10-12); the motes canvas above it is transparent.
+  const bd = () => js(`const cv = document.getElementById('ew-bg-canvas'), gv = document.getElementById('ew-bg-glow'), p = gv.getContext('2d').getImageData(Math.floor(gv.width / 2), Math.floor(gv.height / 2), 1, 1).data;
     return JSON.stringify({ w: cv.width, h: cv.height, px: p[0] + p[1] + p[2] });`).then(JSON.parse);
   const b0 = await bd();
   for (const h of [700, 640, 760, 700]) { await c.send('Emulation.setDeviceMetricsOverride', { width: 390, height: h, deviceScaleFactor: 2, mobile: true }); await sleep(60); }
@@ -193,7 +194,7 @@ const NAMELESS = `JSON.stringify([...document.querySelectorAll('#ew-head button,
   ok('the address bar coming and going leaves the backdrop canvas alone (no resize, no wipe)', b1.w === b0.w && b1.h === b0.h && b1.px > 0, JSON.stringify([b0, b1]));
   ok('…and it is as tall as the large viewport, so it always covers the screen', await js(`return document.getElementById('ew-backdrop').getBoundingClientRect().height >= innerHeight;`));
   await c.send('Emulation.setDeviceMetricsOverride', { width: 430, height: 760, deviceScaleFactor: 2, mobile: true }); await sleep(500);
-  ok('a real width change (rotation) still redraws it at the new size, painted', await js(`const cv = document.getElementById('ew-bg-canvas'), p = cv.getContext('2d').getImageData(5, 5, 1, 1).data; return cv.width === Math.round(430 * ${b0.w} / 390) && Math.round(cv.getBoundingClientRect().width) === 430 && p[0] + p[1] + p[2] > 0;`),
+  ok('a real width change (rotation) still redraws it at the new size, painted', await js(`const cv = document.getElementById('ew-bg-canvas'), p = document.getElementById('ew-bg-glow').getContext('2d').getImageData(1, 1, 1, 1).data; return cv.width === Math.round(430 * ${b0.w} / 390) && Math.round(cv.getBoundingClientRect().width) === 430 && p[0] + p[1] + p[2] > 0;`),
     await js(`return document.getElementById('ew-bg-canvas').width;`));
 
   ok('the page behind the backdrop is its own base colour (no other shade can show)', await js(`return getComputedStyle(document.documentElement).backgroundColor === 'rgb(20, 20, 24)' && getComputedStyle(document.body).backgroundColor === 'rgb(20, 20, 24)';`));
