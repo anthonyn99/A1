@@ -70,6 +70,8 @@ const mock = {
     if (u.host === 'personal-ai.av1.workers.dev' && p === '/ig/media') {
       const c = u.searchParams.get('code');
       if (/^BAD|^BLK/.test(c)) return { json: { ok: false, error: 'unavailable' } };
+      // Instagram's embed without video_url: only the cover (NOV: flagged by worker v29; OLD: an older cached answer).
+      if (/^NOV|^OLD/.test(c)) return { json: Object.assign({ ok: true, code: c, user: 'nov.acct', caption: 'the whole caption of ' + c + ' #mindset', items: [{ type: 'image', src: 'https://cdn.test/' + c + '.svg', w: 720, h: 1280 }] }, /^NOV/.test(c) ? { noVideo: true } : {}) };
       if (/^CAR/.test(c)) return { json: { ok: true, code: c, user: 'car.acct', caption: 'three slides', items: [1, 2, 3].map((i) => ({ type: 'image', src: 'https://cdn.test/' + c + i + '.svg', w: 1080, h: 1350 })) } };
       if (/^PIC|^LNK/.test(c)) return { json: { ok: true, code: c, user: 'pic.acct', caption: 'a photo', items: [{ type: 'image', src: 'https://cdn.test/' + c + '.svg', w: 1080, h: 1080 }] } };
       return { json: { ok: true, code: c, user: 'reel.acct', caption: 'Caption with a #tag', items: [{ type: 'video', src: 'https://cdn.test/' + c + '.wav', poster: 'https://cdn.test/' + c + '.svg', w: 720, h: 1280, dur: 2 }] } };
@@ -398,6 +400,30 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
     return nums === 'counter(ex),counter(ex),counter(ex),counter(ex),counter(ex)' && getComputedStyle(s.querySelector('.sh-rt')).counterReset === 'ex 0' && getComputedStyle(s.querySelector('.sh-rt .routine-group')).counterReset === 'none' && stats === '5Exercises' && s.querySelectorAll('.sh-rt .routine-group').length === 4;`),
     await js(`const s = document.getElementById('mc-sheet'); return [...s.querySelectorAll('.sh-stat')].map(x => x.textContent).join('|') + ' / ' + [...s.querySelectorAll('.sh-rt .routine-line')].map(l => getComputedStyle(l, '::before').content).join();`));
   await click('#mc-sheet [data-act="sheet-close"]');
+
+  console.log('\nReels Instagram\'s embed gives only as a cover (2026-10-13)');
+  const NV = 'https://www.instagram.com/tony/saved/mindset/17966666666666666/';
+  const nvSeed = SEED();
+  nvSeed['dashboards/everwell_tony'].mindsetMedia = [{ id: 'nv', url: NV, title: 'Mindset', igc: { cid: '17966666666666666', user: 'tony', slug: 'mindset', at: Date.now() - 60e3 }, expanded: true, posts: [
+    Object.assign(post('NOVreel01', 'r', 6), { m: [{ t: 'v', u: 'https://scontent-x.cdninstagram.com/NOVreel01.mp4', p: 'https://scontent-x.cdninstagram.com/NOVreel01-640.jpg', w: 720, h: 1280 }] }),
+    post('OLDreel02', 'r', 8),
+    Object.assign(post('NOVgone03', 'r', 5), { m: [{ t: 'v', u: 'https://scontent-x.cdninstagram.com/gone.mp4', w: 720, h: 1280 }] }),
+    Object.assign(post('OLDreel04', 'r', 5), { m: [{ t: 'v', u: 'https://scontent-x.cdninstagram.com/OLDreel04.mp4', w: 720, h: 1280 }] })] }];
+  await fresh({ seed: nvSeed }); await go('mindset');
+  await click('#media-grid .igc-cell[data-id="nv~NOVreel01"]'); await sleep(900);
+  s = await stage();
+  ok('a reel the worker flags noVideo plays the video (with its sound) the sync brought back, not a still', s.v === 'https://personal-ai.av1.workers.dev/ig/px?u=' + encodeURIComponent('https://scontent-x.cdninstagram.com/NOVreel01.mp4') && !/\bimg\b/.test(s.cls) && !s.img, JSON.stringify(s));
+  ok('…with the full caption and account from the worker (the sync keeps only a snippet)', s.who === '@nov.acct' && /the whole caption of NOVreel01/.test(s.cap), JSON.stringify(s));
+  await click('#media-grid [data-igstage] .ig-ctl [data-igs="next"]'); await sleep(900);
+  s = await stage();
+  ok("a reel with no synced video (an older worker answer: a cover, no flag) plays in Instagram's own player, not as a silent still", s.frame === 'https://www.instagram.com/p/OLDreel02/embed/captioned/' && /embed/.test(s.cls) && !s.img, JSON.stringify(s));
+  await click('#media-grid [data-igstage] .ig-ctl [data-igs="next"]'); await sleep(1200);
+  s = await stage();
+  ok("a synced video link that ran out falls back to Instagram's player (the post is public), not \"needs a sync\"", s.frame === 'https://www.instagram.com/p/NOVgone03/embed/captioned/' && !/gone/.test(s.cls), JSON.stringify(s));
+  await click('#media-grid [data-igstage] .ig-ctl [data-igs="next"]'); await sleep(900);
+  s = await stage();
+  ok('an unflagged cover for a reel still prefers the synced video', s.v === 'https://personal-ai.av1.workers.dev/ig/px?u=' + encodeURIComponent('https://scontent-x.cdninstagram.com/OLDreel04.mp4'), JSON.stringify(s));
+  await js(`EWMedia.stopAll(); return 1;`); await sleep(300);
 
   console.log('\nDisplay');
   net.length = 0;
