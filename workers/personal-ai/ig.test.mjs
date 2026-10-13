@@ -36,6 +36,12 @@ ok('a photo: the largest srcset entry, entities decoded', p.items.length === 1 &
 ok('a photo: the owner from the alt text', p.user === 'world.rec_egg', p.user);
 const q = igMedia('<img class="EmbeddedMediaImage" src="' + CDN + 'only.jpg?a=1&amp;b=2">', 'PHOTO2');
 ok('a photo without srcset: its src', q.items.length === 1 && q.items[0].src === CDN + 'only.jpg?a=1&b=2', q);
+ok('a reel and a carousel with their videos are not flagged', !r.noVideo && !s.noVideo);
+// Instagram's embed since ~2026-10: a reel without video_url (only its cover).
+const bare = JSON.parse(JSON.stringify(reel)); delete bare.gql_data.shortcode_media.video_url;
+const b = igMedia(pageOf(bare), 'ABCreel01');
+ok('a reel whose embed left the video out: its cover, flagged noVideo', b.noVideo === true && b.items.length === 1 && b.items[0].type === 'image' && b.items[0].src === CDN + 'cover.jpg?a=1&b=2', b);
+ok('a plain photo is not flagged', !p.noVideo);
 ok('an empty shell (a login wall, a deleted post) has no items', igMedia('<html><title>Instagram</title></html>', 'X').items.length === 0);
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
