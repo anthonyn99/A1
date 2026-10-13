@@ -1923,6 +1923,32 @@ function etDateStr(offsetDays = 0){
 // returns only that name's report and is immune to the cap, so ANY ticker in the
 // Control watchlist gets its earnings fetched. Bounded concurrency keeps us under
 // Finnhub's 60 req/min; the whole endpoint is cached 12h so this runs rarely.
+// ── One earnings date per ticker ─────────────────────────────────────────────
+// The sources disagree by a day or so on reports not yet confirmed, and merging
+// them by ticker+date published BOTH: TSLA on Oct 20 (Finnhub) and Oct 21
+// (Nasdaq), SCCO on Oct 26 and 27 (2026-10-13). A company reports once a
+// quarter and the window is 30 days, so a ticker gets ONE date:
+//   1. the date the most sources agree on (2+ is what `confirmed` means);
+//   2. on a tie, Nasdaq's, then Finnhub's, then AlphaVantage's. Nasdaq lists a
+//      company's announced date as soon as it is out; Finnhub keeps serving its
+//      estimate (Tesla announced Oct 21 on Oct 2; Finnhub still said Oct 20);
+//   3. then the earlier date.
+// `sources` rides along so the front-end can apply the same rule.
+const EARN_SRC_RANK = { nasdaq: 3, finnhub: 2, av: 1 };
+function pickEarningsDates(earnMap, dateVotes){
+  const best = new Map();   // ticker → { ev, votes, rank }
+  for (const [key, ev] of earnMap){
+    const srcs = [...(dateVotes.get(key) || [])];
+    const cand = { ev, votes: srcs.length, rank: Math.max(0, ...srcs.map(s => EARN_SRC_RANK[s] || 0)) };
+    ev.confirmed = cand.votes >= 2;
+    ev.sources = srcs.sort();
+    const cur = best.get(ev.ticker);
+    if (!cur || cand.votes > cur.votes || (cand.votes === cur.votes && (cand.rank > cur.rank
+        || (cand.rank === cur.rank && ev.date < cur.ev.date)))) best.set(ev.ticker, cand);
+  }
+  return [...best.values()].map(c => c.ev);
+}
+
 async function fetchEarningsCalendar(wl, env, fromD, toD, diag, cov){
   if (!env.FINNHUB_KEY){ diag&&diag.push('finnhub: NO KEY'); return []; }
   const out = [];
@@ -2218,7 +2244,7 @@ async function resolveCronWatchlist(env){
 async function prewarmCalendar(env){
   const { wl } = await resolveCronWatchlist(env);
   const days   = 30;
-  const calKey = `cal:v1:${wlHash(wl)}:${etDateStr(0)}:${days}`;
+  const calKey = `cal:v2:${wlHash(wl)}:${etDateStr(0)}:${days}`;
   const calLock= `cal:lock:${wlHash(wl)}`;
   // Long TTL: the retry below can push this build past the 120s client-facing lock.
   await env.NEWSHUB_CACHE.put(calLock, '1', { expirationTtl: CAL_CRON_LOCK_TTL });
@@ -2387,8 +2413,7 @@ async function buildCalendar(wl, env, days, diag){
   for (const e of earn)    addEarn('finnhub', e);
   for (const e of nasEarn) addEarn('nasdaq',  e);
   for (const a of avEarn)  addEarn('av',      a);
-  const earnOut = [];
-  for (const [key, ev] of earnMap){ ev.confirmed = (dateVotes.get(key) || new Set()).size >= 2; earnOut.push(ev); }
+  const earnOut = pickEarningsDates(earnMap, dateVotes);
   diag && diag.push('earnings: '+earnOut.filter(e=>e.confirmed).length+' confirmed / '+earnOut.length+' total (3 sources)');
 
   // 3) Merge: authoritative wins. The hardcoded table only covers certain YEARS
@@ -4463,7 +4488,7 @@ export default {
       const days     = Math.min(parseInt(url.searchParams.get('days') || '10', 10) || 10, CAL_DAYS_MAX);
       const calFresh = url.searchParams.get('fresh') === '1';
       const calWl    = parseTickers(url.searchParams.get('tickers')) || WATCHLIST;
-      const calKey   = `cal:v1:${wlHash(calWl)}:${etDateStr(0)}:${days}`;
+      const calKey   = `cal:v2:${wlHash(calWl)}:${etDateStr(0)}:${days}`;
       const calLock  = `cal:lock:${wlHash(calWl)}`;
 
       if (!calFresh){
