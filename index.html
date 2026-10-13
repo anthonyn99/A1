@@ -16127,7 +16127,13 @@ function App(){
 
   // ── Macro banners (from TradeHub Catalysts, shared market_calendar doc).
   //    Grouped by day, today-onward. Display only — notifications removed. ──
-  const mcByDay=useMemo(()=>{const g={};const todayK=dkey(new Date().getFullYear(),new Date().getMonth(),new Date().getDate());(marketCal||[]).forEach(ev=>{if(!ev||!ev.date)return;(g[ev.date]=g[ev.date]||[]).push({id:ev.id,_mc:true,kind:ev.kind,title:ev.name,category:ev.category,importance:ev.importance,date:ev.date,_past:ev.date<todayK});});return g;},[marketCal]);
+  const mcByDay=useMemo(()=>{const g={};const todayK=dkey(new Date().getFullYear(),new Date().getMonth(),new Date().getDate());(marketCal||[]).forEach(ev=>{if(!ev||!ev.date)return;(g[ev.date]=g[ev.date]||[]).push({id:ev.id,_mc:true,kind:ev.kind,title:ev.name,category:ev.category,importance:ev.importance,date:ev.date,ticker:ev.ticker||null,when:ev.when||null,epsEst:ev.epsEst==null?null:ev.epsEst,_past:ev.date<todayK});});return g;},[marketCal]);
+  // ── Debrief ▶ (catdebrief.js) ── the same button as Tony's, in Veda's
+  // profile: MAGI opens as Veda and convenes her units. Drawn exactly like the
+  // StudyOS ▶ on her study cards. mcDueTick re-renders on the minute the next
+  // event becomes due (this TaskHub has no clock tick of its own).
+  const[mcDueTick,setMcDueTick]=useState(0);
+  useEffect(()=>{const D=window.A1Debrief;if(!D)return;const nd=D.nextDue(marketCal,e=>mcMacroET(e));if(!nd)return;const id=setTimeout(()=>setMcDueTick(x=>x+1),Math.min(Math.max(nd-Date.now(),0)+500,2147000000));return()=>clearTimeout(id);},[marketCal,mcDueTick]);
   // Claude reset times from MAGI — read-only, see CR_* in the first block.
   const crByDay=CR_useResets("veda");
   // Macro catalyst cards get a bordered card with a category-colored left stripe,
@@ -16218,13 +16224,18 @@ function App(){
   const vdEvtPassed=(e,k)=>{let latest=0;if(e.time){const[hh,mm]=e.time.split(":").map(Number);let ts;if(e.tz){try{ts=thZonedTs(k,hh,mm,e.tz);}catch(_){ts=new Date(k+"T"+e.time+":00").getTime();}}else{ts=new Date(k+"T"+e.time+":00").getTime();}if(ts)latest=Math.max(latest,ts);}if(e.notifyAt){const nt=new Date(e.notifyAt).getTime();if(nt)latest=Math.max(latest,nt);}if(!latest){latest=new Date(k+"T23:59:59").getTime();}return latest<Date.now();};
   // Macro release time in the viewer's LOCAL zone (CO→Mountain, GA→Eastern…). "" if unknown.
   const mcTimeLocal=(e)=>{const t=mcMacroET(e);if(!t)return"";try{const ts=thZonedTs(e.date,t.hh,t.mm,"America/New_York");return new Date(ts).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});}catch(_){return"";}};
+  const vdDebriefBtn=(e,auto)=>{const D=window.A1Debrief;if(!D)return null;const l=(e._group||[e]).filter(x=>D.isDue(x,mcMacroET(x)));if(!l.length)return null;
+    const nm=l.length===1?(l[0].kind==="earnings"?mcTicker(l[0].title)+" earnings":l[0].title):l.map(x=>mcTicker(x.title)).join(", ")+" earnings";
+    return RC("button",{type:"button",className:"mc-debrief",title:"Debrief "+nm+" in MAGI","aria-label":"Debrief "+nm+" in MAGI",style:{...vdIcoBtn(A),width:20,height:20,marginLeft:auto?"auto":0},
+      onClick:ev=>{ev.stopPropagation();window._mcDebrief&&window._mcDebrief(l,"veda",x=>mcMacroET(x));}},vdIco(TNI.play,12));};
   // Two-row card: pills (time · category · impact) on top, then icon + full-width title
   // below — so long macro names span the whole box instead of wrapping into a narrow column.
   const mcChip=(e,tone)=>{const tm=mcTimeLocal(e);return RC("div",{key:e.id,style:{...vdCatalystCard(e.category||e.kind),display:"flex",flexDirection:"column",gap:4,marginBottom:vrMobile?4:3,cursor:"default",opacity:e._past?0.5:1}},
     RC("div",{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"nowrap",minWidth:0}},
       RC("span",{style:{fontSize:9.5,color:TXD,background:TXD+"1a",borderRadius:6,padding:"1px 6px",textTransform:"none",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+TXD+"30"}},mcCatLabel(e.category)),
       tm?RC("span",{title:"Release time (your local zone)",style:{fontSize:9.5,fontWeight:800,letterSpacing:.3,color:TXD,whiteSpace:"nowrap",flexShrink:0}},tm):null,
-      e.importance&&MC_IMP[e.importance]?RC("span",{title:"Market impact: "+e.importance,style:{fontSize:9.5,fontWeight:800,letterSpacing:.4,color:MC_IMP[e.importance].c,background:MC_IMP[e.importance].c+"1a",borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap",flexShrink:0,marginLeft:"auto",border:"1px solid "+MC_IMP[e.importance].c+"40"}},MC_IMP[e.importance].t):null),
+      e.importance&&MC_IMP[e.importance]?RC("span",{title:"Market impact: "+e.importance,style:{fontSize:9.5,fontWeight:800,letterSpacing:.4,color:MC_IMP[e.importance].c,background:MC_IMP[e.importance].c+"1a",borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap",flexShrink:0,marginLeft:"auto",border:"1px solid "+MC_IMP[e.importance].c+"40"}},MC_IMP[e.importance].t):null,
+      vdDebriefBtn(e,!(e.importance&&MC_IMP[e.importance]))),
     RC("div",{style:{display:"flex",alignItems:"flex-start",gap:6}},
       RC("span",{style:{width:13,height:13,flexShrink:0,marginTop:2,display:"inline-flex"},dangerouslySetInnerHTML:{__html:e.kind==="earnings"?TNI.chartUp:e.kind==="holiday"?TNI.bank:TNI.calendar}}),
       RC("span",{style:{fontSize:11,fontWeight:700,color:tone||TX,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word"}},e.title)));};
