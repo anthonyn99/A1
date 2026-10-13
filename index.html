@@ -16305,7 +16305,7 @@ function App(){
   // the tools row on its own line below: 2 bands instead of 3.
   const vdTitleBlock=RC("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-start",gap:3,flexShrink:1,minWidth:0,paddingTop:2,position:"relative"}},
       RC("div",{style:{display:"flex",flexDirection:"row",alignItems:"center",gap:8}},
-        RC("div",{style:{fontFamily:"'Playfair Display',serif",fontSize:vrMobile?16:26,fontWeight:900,color:A,letterSpacing:vrMobile?0.5:1,textTransform:"uppercase",lineHeight:1.05,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},RC(window.A1AppIcon,{app:"taskhub"}),"Veda's TaskHub")),
+        RC("div",{style:{fontFamily:"'Playfair Display',serif",fontSize:vrMobile?16:26,fontWeight:900,color:A,letterSpacing:vrMobile?0.5:1,textTransform:"uppercase",lineHeight:1.05,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},RC(window.A1AppIcon,{app:"taskhub",style:{color:A}}),"Veda's TaskHub")),
       RC(window.A1SyncPill,{status:syncStatus,style:{position:"absolute",top:"100%",left:0,marginTop:2,padding:0}}));
   const vdNavTopRow=RC("div",{className:"veda-hbtns veda-hbtns-top"},
       RC("button",{onClick:()=>{},onMouseEnter:e=>{e.currentTarget.style.opacity="0.85";},onMouseLeave:e=>{e.currentTarget.style.opacity="1";},style:{background:A,color:BG,border:"1px solid "+A,boxShadow:GLOW_A,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"TaskHub"),
