@@ -3477,7 +3477,11 @@ export function igMedia(h, code) {
     const ce = sm.edge_media_to_caption && sm.edge_media_to_caption.edges, cn = ce && ce[0] && ce[0].node;
     out.caption = String((cn && cn.text) || '').slice(0, 800);
     const kids = sm.edge_sidecar_to_children && sm.edge_sidecar_to_children.edges;
-    out.items = (kids && kids.length ? kids.map((e) => e && e.node) : [sm]).map(one).filter(Boolean);
+    const nodes = kids && kids.length ? kids.map((e) => e && e.node) : [sm];
+    out.items = nodes.map(one).filter(Boolean);
+    // Since ~2026-10 the logged-out embed leaves video_url out (a reel is only
+    // its cover): say so, so the page plays the sync's link or IG's player.
+    if (nodes.some((n) => n && n.is_video && !cdn(n.video_url))) out.noVideo = true;
   }
   if (!out.items.length) {
     // A plain photo: the embed draws it as EmbeddedMediaImage (srcset → largest).
@@ -3573,7 +3577,7 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 28, // bump when verifying a deploy went live
+        version: 29, // bump when verifying a deploy went live
         features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search', 'quote', 'quote-buddhist', 'yt-playlist', 'ig-media', 'ig-thumb', 'ig-px'],
         quoteModels: { orca: QUOTE_ORCA_MODELS, gemini: QUOTE_GEMINI_MODELS },
         orcaKey: !!env.TONY_ORCA_KEY,
