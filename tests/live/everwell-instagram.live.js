@@ -360,6 +360,22 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   ok('phone: the arrows sit beside the post, never over it, and no control row under it', await js(`const s = document.querySelector('[data-igstage]'), b = s.querySelector('.ig-box').getBoundingClientRect(), pv = s.querySelector('.ig-nav.pv').getBoundingClientRect(), nx = s.querySelector('.ig-nav.nx').getBoundingClientRect();
     return pv.width > 0 && pv.right <= b.left + 0.5 && nx.left >= b.right - 0.5 && getComputedStyle(s.querySelector('.ig-ctl')).display === 'none';`));
   ok('phone: the preview caption is no scroll box, so a swipe on it scrolls the page', await js(`const c = getComputedStyle(document.querySelector('[data-igstage] .ig-cap')); return /clip|hidden/.test(c.overflowY) && c.overscrollBehaviorY === 'auto' && c.touchAction === 'pan-y';`));
+  // A finger swipe, read from touch events (iPhone WebKit cancels the pointer mid-swipe).
+  await c.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
+  const swipe = async (x0, y, d) => { const t = (type, x) => c.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] });
+    await t('touchStart', x0); for (let i = 1; i <= 8; i++) { await t('touchMove', x0 + i * d); await sleep(16); } await t('touchEnd'); await sleep(1100); };
+  const bx = JSON.parse(await js(`const r = document.querySelector('[data-igstage] .ig-box').getBoundingClientRect(); return JSON.stringify({ x: r.left, y: r.top + r.height / 2, w: r.width });`));
+  await swipe(bx.x + bx.w * 0.8, bx.y, -20);
+  ok('phone: a finger swiping left on the post moves to the next post', (await stage()).pos === 'Discipline · 2 of 5', (await stage()).pos);
+  await swipe(bx.x + bx.w * 0.2, bx.y, 20);
+  ok('…right, back again', (await stage()).pos === 'Discipline · 1 of 5', (await stage()).pos);
+  await swipe(bx.x + bx.w + 30, bx.y + 150, -25);
+  ok('…and a swipe in the margin beside the post counts too', (await stage()).pos === 'Discipline · 2 of 5', (await stage()).pos);
+  await c.send('Emulation.setTouchEmulationEnabled', { enabled: false });
+  await click('#media-grid [data-igstage] .ig-side [data-igs="side"]'); await sleep(400);
+  ok('phone, details hidden: the small bar sits above the post, never over it or its mute', await js(`const s = document.querySelector('[data-igstage]'), b = s.querySelector('.ig-box').getBoundingClientRect(), m = s.querySelector('.ig-mute').getBoundingClientRect();
+    const bs = [...s.querySelectorAll('.ig-bare button')].map(e => e.getBoundingClientRect()); return bs.length === 3 && bs.every(r => r.height > 0 && r.bottom <= b.top + 0.5 && !(r.bottom > m.top && r.top < m.bottom && r.right > m.left && r.left < m.right));`));
+  await click('#media-grid [data-igstage] .ig-bare [data-igs="side"]'); await sleep(300);
   await click('#media-grid .igc-cell[data-id="col1~CARaaaa4"]'); await sleep(900);
   await click('#media-grid [data-igstage] .ig-nav.nx'); await sleep(500);
   ok('phone: in a carousel the side arrow turns its slides first', (await stage()).img === 'https://cdn.test/CARaaaa42.svg' && (await stage()).pos === 'Discipline · 4 of 5');
