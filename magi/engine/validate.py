@@ -207,6 +207,32 @@ _REDIRECT = re.compile(
 MAX_REDIRECT_CHARS = 1500
 
 
+# The part of the stock lines above that is the SITE failing, not the model
+# declining: "Sorry, something went wrong. Please try your request again."
+# (Gemini, 2026-10-13 -- twice in one afternoon, on market questions it had
+# answered the night before). A blip on the site's backend, and the site
+# itself says to try again, so the provider does (browser_base.ask) once, in
+# a fresh chat. A model saying "I can't help with that" is not on this list:
+# asking it again gets the same answer.
+_SITE_HICCUP = re.compile(
+    r"\bsomething went wrong"
+    r"|\bplease try (?:your request )?again\b|\bcould you (?:please )?try again\b"
+    r"|\btry (?:your request|again) later\b"
+    r"|\b(?:encountered|encountering|ran into|running into) (?:an? )?(?:error|problem|issue|glitch)"
+    r"|\b(?:an? )?(?:error|problem) (?:occurred|has occurred|was encountered)"
+    r"|\bserver is busy\b|\bnetwork error\b"
+    r"|\bthe (?:response|request) (?:was )?(?:interrupted|failed|timed out)\b"
+    r"|\bunable to (?:generate|load|complete) (?:a |the )?(?:response|answer)\b",
+    re.IGNORECASE,
+)
+
+
+def is_site_hiccup(text: str) -> bool:
+    """A short capture that is the site's own "that failed, try again" line."""
+    body = (text or "").replace("’", "'").strip()
+    return 0 < len(body) < MAX_CANNED_CHARS and bool(_SITE_HICCUP.search(body))
+
+
 def _is_canned_refusal(body: str) -> bool:
     text = body.replace("’", "'").replace("‘", "'")
     if len(text) < MAX_CANNED_CHARS and (
