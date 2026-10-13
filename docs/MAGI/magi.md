@@ -2394,6 +2394,16 @@ magi.html#tb=<base64url of {v, src, q, units, run, t}>
 The units it ticks are ticked here, and the council convenes on arrival. Its
 searches still open as ordinary browser tabs — only the AI half changed.
 
+**A link can name its person: `p`.** The Catalysts debrief ▶ on both TaskHubs
+(`catdebrief.js`, [TaskHub/catalyst-debrief.md](../TaskHub/catalyst-debrief.md))
+sends `p: "veda"` from Veda's TaskHub and `p: "tony"` from Tony's. A fresh load
+opens in that profile (`pendingHandoffProfile()` reads it before anything
+else). A console that is open on the other person switches over by reload,
+carrying the prompt (sessionStorage stash, or the url itself where storage is
+blocked, as on Veda's Brave), and never while a run is live: `handoffTry()`
+holds it until `endRun()`. A link with no `p` or an unknown one, like
+TradeHub's and the morning launcher's, is Tony's (`HANDOFF_PROFILE`).
+
 **The payload is in the fragment, and that is the whole design.** A fragment is
 never sent to a server, so a long prompt cannot overflow a request line — that
 is the HTTP 431 that made TradeHub fall back to putting the prompt on your
