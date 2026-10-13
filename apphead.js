@@ -39,7 +39,7 @@
     brainstorm: '<path d="M48 20a18 18 0 0 0-10 33v7h20v-7a18 18 0 0 0-10-33Z"/><path d="M40 68h16"/><path d="M43 76h10"/>',
     pricewatch: '<path d="M22 46V24a2 2 0 0 1 2-2h22l28 28a3 3 0 0 1 0 4L54 74a3 3 0 0 1-4 0Z"/><circle cx="35" cy="35" r="4" fill="currentColor" stroke="none"/>',
     launcher: '<rect x="22" y="22" width="20" height="20" rx="5"/><rect x="54" y="22" width="20" height="20" rx="5"/><rect x="22" y="54" width="20" height="20" rx="5"/><rect x="54" y="54" width="20" height="20" rx="5"/>',
-    wellness: '<path d="M48 74S22 58 22 39a13 13 0 0 1 26-5 13 13 0 0 1 26 5c0 19-26 35-26 35Z"/>'
+    wellness: '<path d="M26 52c0-10 8-18 18-18s18 8 18 18"/><path d="M22 62h12l5-10 6 20 5-10h24"/>'
   };
   function icon(name) {
     var g = G[name];

@@ -85,8 +85,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .wl-hbtn:hover{border-color:var(--ac);}
 .wl-hbtn.active{background:var(--ac);color:var(--bg);border-color:var(--ac);}
 .wl-hbtn.icon{padding:0 8px;font-size:13px;border-color:rgba(141,118,154,0.45);}
-.wl-sync{font-size:10px;font-weight:600;white-space:nowrap;color:var(--txm);display:inline-flex;align-items:center;height:28px;}
-.wl-sync.ok{color:var(--grn);} .wl-sync.err{color:var(--err);}
+/* The sync pill is apphead.js's: Everwell's dot and word, no outline. */
+#wl-sync{height:28px;}
 
 /* ── Content wrapper ──────────────────────────────────────────────────────── */
 .wl-wrap{max-width:900px;margin:0 auto;padding:clamp(10px,2vw,20px) clamp(12px,3vw,32px) calc(env(safe-area-inset-bottom,0px) + 40px);}
@@ -289,7 +289,7 @@ body { max-width: 2000px; margin-inline: auto; }
 <div class="veda-hdr-outer">
   <div class="veda-hdr-inner">
     <div class="veda-hdr-left">
-      <div class="wl-title">Wellness</div>
+      <div class="wl-title"><span class="a1-app-ic" data-a1-app="wellness"></span>Wellness</div>
       <div class="wl-tagline" id="wl-tagline">Daily</div>
     </div>
     <div class="veda-hdr-right">
@@ -301,7 +301,7 @@ body { max-width: 2000px; margin-inline: auto; }
         <button class="wl-hbtn icon" id="wl-lock-btn" title="App Lock" aria-label="App Lock"><svg class="wli" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></button>
       </div>
       <div class="veda-hbtns" style="padding-top:4px;">
-        <span class="wl-sync" id="wl-sync"></span>
+        <span class="a1-sync idle" id="wl-sync"></span>
       </div>
     </div>
   </div>
@@ -727,10 +727,10 @@ function banner(html, kind){
   slot.appendChild(div);
   return div;
 }
-function setSync(text, cls){
-  const el = $('#wl-sync');
-  el.textContent = text || '';
-  el.className = 'wl-sync' + (cls ? ' ' + cls : '');
+// Everwell's sync pill, shared by every A1 program (apphead.js): busy, ok
+// (fades after two seconds), err (stays), off, idle.
+function setSync(kind){
+  if (window.A1Head) A1Head.sync($('#wl-sync'), kind);
 }
 
 /* Every Firestore call funnels through here so nothing can fail silently. */
@@ -746,7 +746,7 @@ async function guard(label, fn){
         : (e && e.message) || String(e);
       toast(label + ' failed', true);
       banner('<b>' + esc(label) + ' failed.</b> ' + esc(msg), 'error');
-      setSync('Error', 'err');
+      setSync('err');
     }
     return null;
   }
@@ -762,13 +762,12 @@ async function saveDocState(){
       settings: state.settings,
       updatedAt: Date.now()
     }, { merge: true });
-    setSync('Saved', 'ok');
-    setTimeout(() => setSync(''), 1400);
+    setSync('ok');
   });
 }
 
 async function loadAll(){
-  setSync('Syncing…');
+  setSync('busy');
   const signedIn = await authReady;
 
   // Never let a failed sign-in block the UI. Firestore still answers from its
@@ -777,7 +776,7 @@ async function loadAll(){
   // guard() if they are attempted.
   if (!signedIn){
     state.offline = true;
-    setSync('Offline', 'err');
+    setSync('off');
     banner('<b>Not signed in.</b> Showing locally cached data — changes will not sync until the connection is restored.', 'error');
   }
 
@@ -792,7 +791,7 @@ async function loadAll(){
   if (es) state.entries = es.docs.map(d => Object.assign({ id:d.id }, d.data()));
 
   state.loaded = true;
-  if (!state.offline) setSync('');
+  if (!state.offline) setSync('idle');
   renderAll();
 
   if (!signedIn) return;   // listeners would only error out
@@ -1539,6 +1538,7 @@ $('#wl-lock-btn').onclick = () => {
 /* ── Go ───────────────────────────────────────────────────────────────────── */
 loadAll();
 </script>
+<script src="apphead.js"></script>
 <script src="tabsync.js"></script>
 <script src="hoverfx.js"></script></body>
 </html>
