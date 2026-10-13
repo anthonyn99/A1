@@ -9945,6 +9945,11 @@ function App(){
   const nm=()=>{if(vm===11){setVm(0);setVy(y=>y+1);}else setVm(m=>m+1);};
   const calYears=useMemo(()=>{const y=now.getFullYear();const a=[];for(let i=y-2;i<=y+5;i++)a.push(i);return a;},[now]);
 
+  // Open tasks first, ticked ones below (same as Veda's week). Display-only and
+  // STABLE: hand-dragged order inside each group is untouched, and drops splice
+  // data[k] by id so they never see this reordered copy. Re-runs every render,
+  // so a check/uncheck resorts immediately.
+  const wkSortTasks=ts=>ts.map((t,i)=>[t,i]).sort((a,b)=>(!!a[0].done-!!b[0].done)||(a[1]-b[1])).map(x=>x[0]);
   const prog=k=>{const t=(data[k]||[]).filter(x=>x.type==="task");if(!t.length)return 0;return Math.round(t.filter(x=>x.done).length/t.length*100);};
   const lft=k=>(data[k]||[]).filter(x=>x.type==="task"&&!x.done).length;
   const dayDomColor=k=>{
@@ -10179,7 +10184,7 @@ function App(){
             const p=prog(k);
             const allItems=(data[k]||[]).filter(i=>!i._mc);
             const mcDay=mcByDay[k]||[];
-            const tasks=allItems.filter(i=>i.type==="task");
+            const tasks=wkSortTasks(allItems.filter(i=>i.type==="task"));
             const pvMatches=ecByDay[k]||[];
             const events=allItems.filter(i=>i.type==="event");
             return React.createElement("div",{"data-dnd-zone":"week:"+k,style:{background:td?(T.TODAYBG||T.S2):T.BG,border:td?"1.5px solid "+(T.TODAYBD||T.AC+"60"):"1px solid "+T.BD,borderRadius:6,padding:12,minHeight:80,display:"flex",flexDirection:"column"}},
@@ -10270,7 +10275,7 @@ function App(){
             const p=prog(k);
             const allItems=(data[k]||[]).filter(i=>!i._mc);
             const mcDay=mcByDay[k]||[];
-            const tasks=allItems.filter(i=>i.type==="task");
+            const tasks=wkSortTasks(allItems.filter(i=>i.type==="task"));
             const pvMatches=ecByDay[k]||[];
             const events=allItems.filter(i=>i.type==="event");
             return React.createElement("div",{key:k,"data-dnd-zone":"week:"+k,onDragOver:edit?e=>{e.preventDefault();e.dataTransfer.dropEffect="move";if(!isMobile)setDragOverId("day-"+k);}:null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropDay(e,k):null,style:dndDayStyle(k,{background:td?(T.TODAYBG||T.S2):T.BG,border:td?"1.5px solid "+(T.TODAYBD||T.AC+"60"):"1px solid "+T.BD,borderRadius:6,padding:"clamp(8px,1.2vw,12px)",minHeight:"clamp(200px,22vh,280px)",display:"flex",flexDirection:"column"})},
