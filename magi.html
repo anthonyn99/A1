@@ -4873,26 +4873,16 @@ button.code-git-br:hover, button.code-git-br:focus-visible { border-color: var(-
   .sbar, .sbar-thumb { transition: none; }
 }
 
-/* Sync state, under the wordmark -- the same place and the same wording
-   TaskHub uses, so "Syncing… / Synced / Sync failed" means the same thing
-   everywhere in the suite. It reserves no space when idle: a line that
-   appears and disappears under a logo is less noise than a permanent
-   "Synced" nobody reads. */
+/* Sync state, under the wordmark. Its look is apphead.js's -- Everwell's dot
+   and word, no outline, the same in every A1 program (Tony, 2026-10-13):
+   "Syncing…" pulses, "Synced" fades after two seconds, "Sync failed" stays.
+   min-height + line-height, never a fixed height, so descenders and the
+   ellipsis are not cropped, and the reserved line keeps the wordmark from
+   jumping when the state appears. */
 .syncline {
-  /* min-height + line-height, never a fixed height: 10px text needs more than
-     10px of box once descenders and the ellipsis in "Syncing…" are counted,
-     and a hard height cropped them. Reserving the space keeps the wordmark
-     from jumping when the line appears. */
-  font-size: 10px; font-weight: 600; white-space: nowrap;
-  letter-spacing: .2px; margin-top: 3px;
+  margin-top: 3px; padding: 0;
   min-height: 15px; line-height: 15px; overflow: visible;
-  visibility: hidden; color: var(--txm);
 }
-.syncline.on { visibility: visible; }
-.syncline.saving { color: var(--txm); }
-.syncline.saved  { color: var(--grn); }
-.syncline.error  { color: var(--red); }
-.syncline.off    { color: var(--txm); }
 
 /* ══ SIDEBAR GROUPS ════════════════════════════════════════════════════════
    Each section is a card. Before this the sections were separated only by a
@@ -5348,7 +5338,6 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
     margin-top: 2px; line-height: 13px; white-space: nowrap;
   }
   .mtop .syncline {
-    font-size: 9px; letter-spacing: .3px;
     margin-top: 2px; min-height: 12px; line-height: 12px;
     /* Out of flow when idle, so it cannot reserve a line the tagline is
        already using -- `visibility: hidden` would still hold the space and the
@@ -5356,7 +5345,7 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
     display: none;
   }
   .mtop-brand.showsync .mtop-tag { display: none; }
-  .mtop-brand.showsync .syncline { display: block; }
+  .mtop-brand.showsync .syncline { display: flex; }
   /* Where the engine is already has a permanent home at the bottom of the
      drawer. Repeating it here spent the width that the wordmark, the sync
      state and the lock all have to share. */
@@ -5775,6 +5764,7 @@ body { max-width: 2000px; margin-inline: auto; }
 <!-- The one A1 scrollbar (scrollbar.js): native bars hidden, overlay thumb.
      In <head> so it is there before this page's own code. -->
 <script src="scrollbar.js"></script>
+<script src="apphead.js"></script>
 </head>
 <body>
 
@@ -5911,9 +5901,9 @@ body { max-width: 2000px; margin-inline: auto; }
     <div class="side-top">
       <button type="button" class="side-toggle" id="navToggle" title="Collapse sidebar" aria-expanded="true"></button>
       <div class="side-brand">
-        <div class="wordmark">MAGI</div>
+        <div class="wordmark"><span class="a1-app-ic" data-a1-app="magi"></span>MAGI</div>
         <div class="tagline">Deliberation system</div>
-        <div class="syncline" id="syncLine"></div>
+        <div class="syncline a1-sync idle" id="syncLine"></div>
       </div>
       <!-- The header's controls get a row of their own under the brand, so
            "DELIBERATION SYSTEM" keeps the full width of the rail. -->
@@ -6001,13 +5991,13 @@ body { max-width: 2000px; margin-inline: auto; }
     <div class="mtop">
       <button type="button" class="mtop-burger" id="navBurger" aria-label="Menu" aria-expanded="false"></button>
       <span class="mtop-brand" id="mtopBrand">
-        <span class="mtop-title">MAGI</span>
+        <span class="mtop-title"><span class="a1-app-ic" data-a1-app="magi"></span>MAGI</span>
         <!-- One slot, two purposes: the tagline normally, the sync state while
              there is one. Stacking both would add a third line to a 40px bar,
              and the sync state is always transient -- so it borrows the line
              rather than being given its own. -->
         <span class="mtop-tag">Deliberation system</span>
-        <span class="syncline" id="syncLineM"></span>
+        <span class="syncline a1-sync idle" id="syncLineM"></span>
       </span>
       <span class="mtop-where"><span class="link-dot" id="mtopDot"></span><span id="mtopTxt">…</span></span>
       <button type="button" class="prof-btn" id="profBtnM" title="Switch profile"></button>
@@ -24144,8 +24134,7 @@ function setSync(state, why) {
   for (const id of ["syncLine", "syncLineM"]) {
     const n = $(id);
     if (!n) continue;
-    n.className = "syncline" + (text ? " on " + state : "");
-    n.textContent = text || "";
+    if (window.A1Head) A1Head.sync(n, text ? { saving: "busy", saved: "ok", error: "err", off: "off" }[state] : "idle");
     n.title = title;
     n.style.cursor = state === "error" ? "pointer" : "";
     n.onclick = state === "error" ? showSyncError : null;
