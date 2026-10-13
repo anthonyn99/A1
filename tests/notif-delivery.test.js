@@ -9,8 +9,8 @@
  * proposed, the record saved perfectly, and the other person was simply never
  * told. Nothing errored anywhere.
  *
- *   1. LATENESS MUST NOT DESTROY AN EVENT. A scheduled reminder more than 90s
- *      late is marked fired and never sent, which is right for an alarm. An
+ *   1. LATENESS MUST NOT DESTROY AN EVENT. A scheduled reminder more than 10min
+ *      late (LATE_SEND_MS) is marked fired and never sent, which is right for an alarm. An
  *      event push has no minute of its own — its notifyAt is "as soon as
  *      possible" written in the sweep's language, taken from the PROPOSING
  *      BROWSER's clock. A lagging clock, one skipped cron tick or a lost wake
@@ -77,7 +77,7 @@ check('the cron recognises an event push', evtPredicate.test(worker));
 check(
   'an event push is due on lateness alone, never stale',
   /if \(isEventPush\(r\.document\)\) \{[\s\S]{0,400}?due\.push\(r\)/.test(worker) &&
-    /else if \(at <= now - 90000\) stale\.push\(r\)/.test(worker),
+    /else if \(cls === 'stale'\) stale\.push\(r\)/.test(worker),
   'event branch returns before the stale branch'
 );
 check(
