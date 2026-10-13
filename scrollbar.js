@@ -211,8 +211,12 @@
     var rect = isDoc ? { left: 0, top: 0, right: vw(), bottom: vh(), width: vw(), height: vh() } : el.getBoundingClientRect();
     // Clipped to the viewport, so a box half off-screen doesn't draw its bar
     // over the page chrome.
+    // A page that pins a header (data-sb-top, the TaskHubs') starts the bar
+    // where that header ends, not behind it.
+    var pin = 0;
+    if (isDoc) { var hd = document.querySelector('[data-sb-top]'); if (hd) pin = Math.max(0, hd.getBoundingClientRect().bottom); }
     m.g = {
-      top: Math.max(rect.top, 0), bottom: Math.min(rect.bottom, vh()),
+      top: Math.max(rect.top, pin, 0), bottom: Math.min(rect.bottom, vh()),
       left: Math.max(rect.left, 0), right: Math.min(rect.right, vw()), rect: rect,
       border: isDoc ? { t: 0, r: 0, b: 0, l: 0 } : { t: el.clientTop, l: el.clientLeft, r: rect.width - el.clientWidth - el.clientLeft, b: rect.height - el.clientHeight - el.clientTop },
     };
