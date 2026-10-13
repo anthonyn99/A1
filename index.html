@@ -18283,6 +18283,51 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     var minute=Math.floor(t/60000); // floor to the minute → tolerant of skew
     return 'occ:'+series+':'+minute;
   }
+  // ── Which repeating reminders are real ─────────────────────────────────
+  // A repeating task keeps its reminder SERIES on its first occurrence only (see
+  // pushOcc in savItem). Deleting "all future" occurrences or re-creating the
+  // task removes the future days but leaves that first day in the past still
+  // holding the series, and every scanner used to arm whatever it found. So a
+  // task re-made at a new time kept firing at its OLD time too: Tony's "Put out
+  // trash bins" moved from 8 PM to 11 AM in July and still rang at 8 PM every
+  // Monday on the phone (2026-10-12), next to 4 dead "Charge Car" series.
+  //
+  // A series is LIVE when its task still has a day today or later (a reminder
+  // that repeats on a one-off row, with no task series, is always live). When
+  // several rows share one series id, the latest live row defines it. A series
+  // that only dead rows hold is DEAD: never armed, and its cloud docs are
+  // deleted. A habit whose reminder was switched off is dead the same way.
+  //   raw    = the day map (td6_data / td_data); habits = the habits array.
+  //   → { live: {seriesId: row}, dead: [seriesId] }
+  window.thNotifyPlan=function(raw,habits){
+    var live={},dead={},future={};
+    var d=new Date(),p=function(n){return (n<10?'0':'')+n;};
+    var today=d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+    var keys=(raw&&typeof raw==='object')?Object.keys(raw).filter(function(k){return /^\d{4}-\d{2}-\d{2}$/.test(k);}).sort():[];
+    keys.forEach(function(k){
+      var arr=raw[k];if(k<today||!Array.isArray(arr))return;
+      arr.forEach(function(it){if(it&&it.repeatId)future[it.repeatId]=1;});
+    });
+    keys.forEach(function(k){
+      var arr=raw[k];if(!Array.isArray(arr))return;
+      arr.forEach(function(it){
+        if(!it||!it.notifyAt||!it.id||it._notifyView)return;
+        if(!it.notifyRepeat||it.notifyRepeat==='none')return;
+        var key=it.notifyRepeatId||it.id;
+        if(!it.repeatId||future[it.repeatId])live[key]=it;   // days are sorted: the latest wins
+        else dead[key]=1;
+      });
+    });
+    if(Array.isArray(habits))habits.forEach(function(h){
+      if(!h||!h.id)return;
+      var key=h.notifyRepeatId||('habr_'+h.id);
+      if(h.notifyAt&&h.notifyRepeat&&h.notifyRepeat!=='none')live[key]=live[key]||h;
+      else if('notifyRepeat' in h)dead[key]=1;                // had a reminder once, now off
+    });
+    Object.keys(live).forEach(function(k){delete dead[k];});
+    return {live:live,dead:Object.keys(dead)};
+  };
+
   function getFired(){try{return JSON.parse(localStorage.getItem(FIRE_KEY)||'[]');}catch(e){return[];}}
   function hasFired(id){var f=getFired();for(var i=0;i<f.length;i++){if(f[i]===id)return true;}return false;}
   // Every write below is guarded: the origin's localStorage fills up (Veda's
