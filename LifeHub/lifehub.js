@@ -1382,15 +1382,27 @@
     var k = destKey(url);
     return (k.indexOf(destKey(BASE)) === 0 || k.indexOf(destKey(PRIV)) === 0) ? m[1].toLowerCase() : '';
   }
+  // A local program gets its built-in icon by file name (Tony, 2026-10-13: a
+  // Shield tile on shield-agent.exe showed an "S"): shield-agent.exe and a
+  // Shield.lnk shortcut are Shield's, as is the old shieldopen: hand-off.
+  function localIconFor(url) {
+    var u = String(url || '');
+    if (/^shieldopen:/i.test(u)) return 'shield';
+    if (!isLocalPath(u)) return '';
+    var f = u.split(/[\\/]/).pop().replace(/\.(exe|lnk|url|bat|cmd)$/i, '').replace(/[-_ ]?(agent|app|desktop)$/i, '').toLowerCase();
+    return f !== 'link' && ICONS[f] ? f : '';
+  }
   function iconNode(a, cls) {
     var d = el('span', cls || 'ic');
     var ic = a.icon || '';
     var key = /^a1:/.test(ic) ? ic.slice(3) : '';
-    if (!ic || ic === 'auto') key = a1IconFor(a.url);
+    // Automatic, or a built-in icon that no longer exists: the program's own.
+    var auto = !ic || ic === 'auto' || (key && !ICONS[key]);
+    if (auto) key = a1IconFor(a.url) || localIconFor(a.url);
     if (key && ICONS[key]) { d.innerHTML = ICONS[key]; return d; }
     var cands = [];
     if (/^https?:\/\//i.test(ic) || /^data:image\/(png|jpe?g|gif|webp|svg\+xml)[;,]/i.test(ic)) cands.push(ic);
-    else if ((!ic || ic === 'auto') && isWeb(a.url)) { d.classList.add('site'); cands = siteIcons(a.url); }
+    else if (auto && isWeb(a.url)) { d.classList.add('site'); cands = siteIcons(a.url); }
     if (cands.length) {
       var img = new Image(), n = 0;
       img.alt = ''; img.decoding = 'async'; img.referrerPolicy = 'no-referrer'; img.draggable = false;
