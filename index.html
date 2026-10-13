@@ -6567,6 +6567,48 @@ function findSeriesNotifyIdFor(storageKey,item){
   return findSeriesNotifyId(d,item);
 }
 function toMonIdx(jsd){return jsd===0?6:jsd-1;}
+// Move a repeating task's reminder to a new time (or switch it off) from
+// `cutoffKey` onward — the "all future" answer to editing one occurrence's
+// reminder. The series is defined by ONE row (see pushOcc), usually a first
+// occurrence long in the past, so changing the time on this week's row used to
+// change that row alone while the cloud series kept ringing at the old time
+// every other week. Here the first row on/after the cutoff becomes the series'
+// defining row at the new time, later rows get display-only badges at the new
+// time, and an older defining row stops defining it. Pure: returns
+//   {next, definer (row to arm, or null), seriesId (to cancel when off)}.
+function thSeriesNotifyEdit(data,rid,cutoffKey,item){
+  const next={...data};
+  const keys=Object.keys(next).filter(k=>/^\d{4}-\d{2}-\d{2}$/.test(k)).sort();
+  let def=null;
+  keys.forEach(k=>(next[k]||[]).forEach(t=>{if(t&&t.repeatId===rid&&t.notifyRepeat&&t.notifyRepeat!=="none"&&!t._notifyView)def=t;}));
+  const seriesId=(def&&def.notifyRepeatId)||item.notifyRepeatId||null;
+  const on=!!item.notifyAt;
+  const nb=on?new Date(item.notifyAt):null;
+  const _map={daily:"daily",weekly:"weekly",monthly:"monthly",annually:"annually"};
+  const cad=def?{r:def.notifyRepeat,days:def.notifyRepeatDays||[]}
+    :{r:_map[item.repeat]||"weekly",days:(item.repeat==="weekly"?(item.repeatDays||[]):[])};
+  const sid=seriesId||uid();
+  let definer=null;
+  keys.forEach(k=>{
+    const arr=next[k];if(!Array.isArray(arr)||!arr.some(t=>t&&t.repeatId===rid))return;
+    next[k]=arr.map(t=>{
+      if(!t||t.repeatId!==rid)return t;
+      if(k<cutoffKey){
+        // Before the cutoff: keep the badge, but no row back there defines the series any more.
+        if(t.notifyRepeat&&t.notifyRepeat!=="none")return{...t,notifyRepeat:"none",notifyRepeatDays:[],notifyRepeatId:null,_notifyView:true};
+        return t;
+      }
+      const nt={...t};delete nt._notifyView;
+      if(!on){nt.notifyAt=null;nt.notifyRepeat="none";nt.notifyRepeatDays=[];nt.notifyRepeatId=null;return nt;}
+      const [y,m,d]=k.split("-").map(Number);
+      nt.notifyAt=new Date(y,m-1,d,nb.getHours(),nb.getMinutes(),0,0).toISOString();
+      if(!definer){nt.notifyRepeat=cad.r;nt.notifyRepeatDays=cad.r==="weekly"?cad.days:[];nt.notifyRepeatId=sid;definer=nt;}
+      else{nt.notifyRepeat="none";nt.notifyRepeatDays=[];nt.notifyRepeatId=null;nt._notifyView=true;}
+      return nt;
+    });
+  });
+  return{next,definer,seriesId};
+}
 // Max "Until" horizon per repeat mode (years from today). Daily is capped at 2yr
 // because every occurrence is pre-expanded into the single Firestore dashboard
 // doc (1 MiB limit) — 3yr of daily risks overflow. Weekly/monthly (few hundred /
