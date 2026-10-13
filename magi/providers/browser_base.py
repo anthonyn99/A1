@@ -249,9 +249,17 @@ class BrowserProvider(Provider):
         a = await self._ask_site(question, ctx=ctx, on_event=on_event, cancel=cancel)
         if not self._site_hiccup(a) or self._halted(ctx, cancel):
             return a
+        # Gemini's retry goes out signed out (SiteSelectors.guest_retry): on
+        # 2026-10-13 the signed-in account failed every question that needed
+        # a search, and a signed-out profile answered the same one at once.
+        # Never with attachments -- signed out, Gemini may not take files,
+        # and a reply that never saw them would read as though it had.
+        guest = self.site.guest_retry and not ctx.attachments
         await self._emit(
             on_event, ProviderState.LAUNCHING,
-            message=f"{self.display_name}'s site errored; asking again in a fresh chat",
+            message=(f"{self.display_name} errored signed in; asking again signed out"
+                     if guest else
+                     f"{self.display_name}'s site errored; asking again in a fresh chat"),
         )
         if cancel is not None:
             with contextlib.suppress(asyncio.TimeoutError):
@@ -260,7 +268,8 @@ class BrowserProvider(Provider):
             await asyncio.sleep(SITE_RETRY_PAUSE_S)
         if self._halted(ctx, cancel):
             return a
-        return await self._ask_site(question, ctx=ctx, on_event=on_event, cancel=cancel)
+        return await self._ask_site(
+            question, ctx=ctx, on_event=on_event, cancel=cancel, guest=guest)
 
     @staticmethod
     def _site_hiccup(a: Answer) -> bool:
@@ -284,7 +293,10 @@ class BrowserProvider(Provider):
         ctx: RunContext,
         on_event: ProgressFn | None = None,
         cancel: asyncio.Event | None = None,
+        guest: bool = False,
     ) -> Answer:
+        """One browser turn. `guest`: from the signed-out profile beside this
+        site's own (profiles/<p>/<site>-guest), see ask()."""
         site = self.site
         started_at = datetime.now(timezone.utc)
         t0 = time.monotonic()
@@ -327,7 +339,7 @@ class BrowserProvider(Provider):
             # off-screen window, which still shows a taskbar icon but is the
             # only way they work at all.
             async with launcher.launch(
-                self.id,
+                f"{self.id}-guest" if guest else self.id,
                 self.settings.browser,
                 headless=True if site.headless_ok else None,
             ) as browser_ctx:
@@ -362,7 +374,7 @@ class BrowserProvider(Provider):
                 )
                 if box is None:
                     artifacts = await self._save_artifacts(page, "no-input")
-                    if await resolve.signed_out(page, site.login_selectors):
+                    if not guest and await resolve.signed_out(page, site.login_selectors):
                         return fail(
                             FailureKind.NOT_LOGGED_IN,
                             f"No composer found on {self.display_name} and a login "
@@ -398,7 +410,9 @@ class BrowserProvider(Provider):
                 # which tier had spoken. Failing loudly is the whole point of
                 # FailureKind: a wrong answer presented as a good one is the one
                 # outcome this system must not produce.
-                if await resolve.signed_out(page, site.login_selectors):
+                # (Not on the guest retry: signed out is the point of it, and
+                # its answer is labelled as such below.)
+                if not guest and await resolve.signed_out(page, site.login_selectors):
                     artifacts = await self._save_artifacts(page, "signed-out")
                     return fail(
                         FailureKind.NOT_LOGGED_IN,
