@@ -6,6 +6,11 @@ own. A program (a *host*) loads it and mounts an app into itself. It is built on
 `Notebook/`, and every host runs those same files. A change there reaches every host
 at once, so don't copy its code into a program.
 
+**Names on Tony's side (2026-10-13):** the program is called **Notebook** in
+TaskHub's nav, its header and Settings; inside it, his own-entries tab beside
+OurJournal reads **MyJournal**. Code, ids and the data keep the MyJournal / `tj`
+names. Veda's side is unchanged (Brainstorm Journal, its tab still "Journal").
+
 | Host | App | key | Store (`dashboards/…`) | Mode |
 |---|---|---|---|---|
 | index.html, Tony | myjournal | `tj` | `tony_journal` | overlay (native) |
