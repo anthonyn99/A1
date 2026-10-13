@@ -453,7 +453,7 @@ const mock = {
       sw[1].querySelector('s').textContent === 'her basic Abilities' && sw[1].querySelector('.new').textContent === 'my entire life' &&
       getComputedStyle(sw[0].querySelector('s')).textDecorationLine.includes('line-through') &&
       sw[0].querySelector('.new').getBoundingClientRect().top > sw[0].querySelector('s').getBoundingClientRect().top;`));
-  ok('the rewritten line reads exactly', (await js(`return document.querySelector('.rcard-mine').textContent;`)) === 'I enter a Transcendent State that upgrades my entire life.');
+  ok('no summary line under the crossed-out rewrite (Tony, 2026-10-12)', await js(`return !document.querySelector('.rcard-mine') && !!document.querySelector('#dash-rdesc .swap s');`));
   ok('the date reads like "Sun, Oct 11" at the top, and the quote card carries no date of its own', await js(`const want = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
     return /^[A-Z][a-z]{2}, [A-Z][a-z]{2} \\d{1,2}$/.test(want) && document.getElementById('dash-date').textContent === want && !document.querySelector('#dash-quote .quote-src') && !document.getElementById('dash-quote').textContent.includes(want);`),
     await js(`return document.getElementById('dash-date').textContent + ' | ' + document.getElementById('dash-quote').textContent;`));
