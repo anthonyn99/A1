@@ -310,7 +310,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const urls = (message.urls || []).map(normalize).filter(Boolean);
     if (!urls.length) { sendResponse({ ok: false, opened: 0 }); return true; }
     const adopt = message.adoptPos != null && sender && sender.tab ? { tabId: sender.tab.id, windowId: sender.tab.windowId, pos: message.adoptPos } : null;
-    (message.group ? openLinksAsGroup(urls, message.groupName, message.groupColor, adopt) : openPlainTabs(urls))
+    (message.group ? openLinksAsGroup(urls, message.groupName, message.groupColor, adopt, !!message.replace) : openPlainTabs(urls))
       .then(n => sendResponse({ ok: true, opened: n }))
       .catch(e => sendResponse({ ok: false, error: String(e && e.message || e) }));
     return true;   // async response
