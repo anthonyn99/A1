@@ -425,11 +425,12 @@ class BrowserProvider(Provider):
                 # Before attaching and typing, like a person would. Never a
                 # failure: a pick the site will not take leaves the chat on
                 # what it gives, and the note says so on the card.
-                want = accounts.model_choice(self.id)
+                # Not signed out: the guest gets what the site gives anyone.
+                want = None if guest else accounts.model_choice(self.id)
                 if want:
                     picked = await picker.choose(page, site, want)
                 # Then its effort / thinking, the other half of the pick.
-                effort = accounts.effort_choice(self.id)
+                effort = None if guest else accounts.effort_choice(self.id)
                 if effort:
                     eff = await picker.choose_effort(page, site, effort)
                     if not eff.ok:
@@ -693,6 +694,9 @@ class BrowserProvider(Provider):
                     # "Asked for X, got Y": said before any other reason,
                     # since it is the one you can act on.
                     model_fb = picked.note
+                if guest:
+                    model_fb = ("Answered signed out: the signed-in account "
+                                "errored on this question")
 
                 if not cleaned.strip():
                     artifacts = await self._save_artifacts(page, "empty")
