@@ -17730,20 +17730,15 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
       var seen={};
       for(var s=0;s<SOURCES.length;s++){
         var raw;try{raw=JSON.parse(localStorage.getItem(SOURCES[s].key)||'null');}catch(e){raw=null;}
-        if(raw&&typeof raw==='object'){
-          var arrs=Object.values(raw);
-          for(var a=0;a<arrs.length;a++){
-            var arr=arrs[a];if(!Array.isArray(arr))continue;
-            for(var i=0;i<arr.length;i++){
-              var it=arr[i];
-              if(!it||!it.notifyAt||!it.id)continue;
-              if(it._notifyView)continue; // display-only occurrence badge — never schedule a push
-              if(!it.notifyRepeat||it.notifyRepeat==='none')continue;
-              var key=it.notifyRepeatId||it.id;
-              if(seen[key])continue;seen[key]=1;
-              try{await window._fcmScheduleNotif({...it,dashboard:SOURCES[s].dash},{silent:true});}catch(e){}
-            }
-          }
+        // Only LIVE series, each from the row that defines it (thNotifyPlan).
+        // Arming every row that held a series is what kept dead ones firing at
+        // their old times.
+        var plan=window.thNotifyPlan?window.thNotifyPlan(raw,null):{live:{}};
+        var liveKeys=Object.keys(plan.live);
+        for(var i=0;i<liveKeys.length;i++){
+          var key=liveKeys[i],it=plan.live[key];
+          if(seen[key])continue;seen[key]=1;
+          try{await window._fcmScheduleNotif({...it,dashboard:SOURCES[s].dash},{silent:true});}catch(e){}
         }
         // Daily habits keep their reminders in a flat array beside the day map;
         // they need re-arming on the same rolling horizon as repeating tasks.
@@ -18590,12 +18585,13 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   function scanAndRegister(){
     var SOURCES=[{key:'td6_data',hkey:'td6_habits',dash:'tony'},{key:'td_data',hkey:'td_habits',dash:'veda'}];
     var nowMs=Date.now();
-    var deadSeries={};
+    var deadSeries={},liveRowId={};
     SOURCES.forEach(function(src){
       var raw;try{raw=JSON.parse(localStorage.getItem(src.key)||'null');}catch(e){raw=null;}
       var hab;try{hab=JSON.parse(localStorage.getItem(src.hkey)||'null');}catch(e){hab=null;}
       var plan=window.thNotifyPlan(raw,hab);
       plan.dead.forEach(function(k){deadSeries[k]=1;});
+      Object.keys(plan.live).forEach(function(k){if(plan.live[k].repeatId)liveRowId[k]=plan.live[k].id;});
       if(raw&&typeof raw==='object'){
         Object.values(raw).forEach(function(arr){
           if(!Array.isArray(arr))return;
@@ -18612,7 +18608,13 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     // Drop anything already registered for a dead series, so a desktop with the
     // tab open stops banner-ing it too. Not marked cancelled: if the series ever
     // comes back to life, the next scan may register it again.
-    var reg=getReg(),kept=reg.filter(function(r){return !(r&&r.repeatId&&deadSeries[r.repeatId]);});
+    // Same for an entry a superseded row registered under a series id that a
+    // newer row now owns (the old time would keep firing beside the new one).
+    var reg=getReg(),kept=reg.filter(function(r){
+      if(!r||!r.repeatId)return true;
+      if(deadSeries[r.repeatId])return false;
+      return !(liveRowId[r.repeatId]&&r.baseId&&r.baseId!==liveRowId[r.repeatId]);
+    });
     if(kept.length!==reg.length)saveReg(kept);
   }
 
