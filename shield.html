@@ -229,14 +229,6 @@ body[data-gate="app"] #profile-overlay{display:none}
   transition:border-color var(--transition);
 }
 .pf-badge:hover{border-color:var(--ac)}
-.sync{
-  font-size:9.5px;font-weight:600;letter-spacing:1px;text-transform:uppercase;
-  color:var(--txm);white-space:nowrap;opacity:1;transition:opacity .5s ease;
-}
-.sync.ok{color:var(--grn)} .sync.err{color:var(--err)}
-/* Only ever applied to "Synced" — see syncState(). A failure has to stay put. */
-.sync.fade{opacity:0}
-
 /* NOTE: left/right were swapped here — safe-l was padding the right edge. On a
    notched phone in landscape the nav slid under the cutout on one side only. */
 .nav{
@@ -923,6 +915,7 @@ body { max-width: 2000px; margin-inline: auto; }
 <!-- Guardian: the one A1 lock (docs/Guardian/README.md). Loaded before first
      paint, unpinned, so every Guardian upgrade reaches this page. -->
 <script src="Guardian/guardian.js"></script>
+<script src="apphead.js"></script>
 <!-- The one A1 scrollbar (scrollbar.js): native bars hidden, overlay thumb.
      In <head> so it is there before this page's own code. -->
 <script src="scrollbar.js"></script>
@@ -960,7 +953,7 @@ body { max-width: 2000px; margin-inline: auto; }
       <span>Shield</span>
     </div>
     <div class="spacer"></div>
-    <span class="sync" id="sync">·</span>
+    <span class="a1-sync idle" id="sync"></span>
     <button class="iconbtn" id="lock-btn" title="Manage lock"></button>
     <!-- LifeHub app switcher (LifeHub/lifehub.js) — follows body[data-profile]:
          Tony's list or Veda's; hidden while a Guardian lock is up. -->
@@ -2003,24 +1996,13 @@ function cfgEmg(id){
    drop whatever another device saved in between. This is a deliberate
    divergence from MyList's whole-doc pattern, and it removes the lost-update
    problem rather than guarding against it. */
-/* The sync indicator.
-   "Synced" is confirmation, not status — it says something that has already
-   finished, so it shows briefly and goes. "Sync failed" is status: it stays
-   until a later write actually succeeds, because a failure that fades looks
-   exactly like a success from two seconds later. */
-var _syncFade = 0;
+/* The sync indicator: Everwell's pill, shared by every A1 program
+   (apphead.js). "Synced" is confirmation, not status, so it fades after two
+   seconds; "Sync failed" stays until a later write succeeds, because a failure
+   that fades looks exactly like a success from two seconds later. */
 function syncState(s){
-  var e=$('sync'); if (!e) return;
-  clearTimeout(_syncFade);
-  e.className = 'sync' + (s==='ok'?' ok':(s==='err'?' err':''));
-  e.textContent = s==='saving' ? 'Saving…' : (s==='ok' ? 'Synced' : (s==='err' ? 'Sync failed' : '·'));
-  if (s === 'ok'){
-    _syncFade = setTimeout(function(){
-      // Guard against a newer state having landed while the timer ran — only
-      // fade the "Synced" this call put there.
-      if (e.textContent === 'Synced') e.classList.add('fade');
-    }, 1600);
-  }
+  if (!window.A1Head) return;
+  A1Head.sync($('sync'), s==='saving' ? 'busy' : s);
 }
 /* Pending writes MERGE rather than replace. Restarting the debounce timer and
    letting the newer call's payload win would silently drop the older one — add
