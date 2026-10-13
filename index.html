@@ -9894,7 +9894,18 @@ function App(){
   const CURSOR=T.TX, GLOW_CURSOR=(T.SEL||GLOW)(T.TX), GLOW_AC=(T.SEL||GLOW)(T.AC);
   const sbtn={background:"transparent",color:T.ACL,border:"1px solid "+T.AC,borderRadius:6,padding:"6px 14px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"'Inter',system-ui,-apple-system,sans-serif"};
   const ctag=c=>({fontSize:9,color:CC[c]||T.TXD,background:(CC[c]||T.TXD)+"1a",borderRadius:6,padding:"1px 5px",marginLeft:2,textTransform:"capitalize",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+(CC[c]||T.TXD)+"30"});
-  const mcByDay=useMemo(()=>{const g={};const todayK=dkey(new Date().getFullYear(),new Date().getMonth(),new Date().getDate());(marketCal||[]).forEach(ev=>{if(!ev||!ev.date)return;(g[ev.date]=g[ev.date]||[]).push({id:ev.id,type:"event",_mc:true,kind:ev.kind,title:ev.name,category:ev.category,importance:ev.importance,date:ev.date,notifyAt:ev.notifyAt||null,_past:ev.date<todayK});});return g;},[marketCal]);
+  const mcByDay=useMemo(()=>{const g={};const todayK=dkey(new Date().getFullYear(),new Date().getMonth(),new Date().getDate());(marketCal||[]).forEach(ev=>{if(!ev||!ev.date)return;(g[ev.date]=g[ev.date]||[]).push({id:ev.id,type:"event",_mc:true,kind:ev.kind,title:ev.name,category:ev.category,importance:ev.importance,date:ev.date,notifyAt:ev.notifyAt||null,ticker:ev.ticker||null,when:ev.when||null,epsEst:ev.epsEst==null?null:ev.epsEst,_past:ev.date<todayK});});return g;},[marketCal]);
+  // ── Debrief ▶ (catdebrief.js) ── ten minutes after a catalyst comes out its
+  // card offers a MAGI debrief, in Tony's profile. A grouped earnings card
+  // debriefs every report on it that is already out. mcDueTick re-renders on
+  // the minute the next one becomes due, so it appears without a reload.
+  const[mcDueTick,setMcDueTick]=useState(0);
+  useEffect(()=>{const D=window.A1Debrief;if(!D)return;const nd=D.nextDue(marketCal,e=>mcMacroET(e));if(!nd)return;const id=setTimeout(()=>setMcDueTick(x=>x+1),Math.min(Math.max(nd-Date.now(),0)+500,2147000000));return()=>clearTimeout(id);},[marketCal,mcDueTick]);
+  const mcDebriefOf=e=>{const D=window.A1Debrief;if(!D)return null;const l=(e._group||[e]).filter(x=>D.isDue(x,mcMacroET(x)));return l.length?l:null;};
+  const mcDebriefBtn=(e,auto)=>{const l=mcDebriefOf(e);if(!l)return null;const nm=l.length===1?(l[0].kind==="earnings"?mcTicker(l[0].title)+" earnings":l[0].title):l.map(x=>mcTicker(x.title)).join(", ")+" earnings";
+    return React.createElement("button",{type:"button",className:"mc-debrief",title:"Debrief "+nm+" in MAGI","aria-label":"Debrief "+nm+" in MAGI",onClick:ev=>{ev.stopPropagation();window._mcDebrief&&window._mcDebrief(l,"tony",x=>mcMacroET(x));},
+      style:{background:"transparent",border:"none",color:T.AC,cursor:"pointer",padding:0,width:20,height:20,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0,lineHeight:0,borderRadius:5,marginLeft:auto?"auto":0,fontFamily:"inherit"}},
+      React.createElement("span",{style:{width:12,height:12,display:"inline-flex",lineHeight:0},dangerouslySetInnerHTML:{__html:TNI.play}}));};
   const mcFmt=(iso)=>{const d=new Date(iso);let h=d.getHours();const m=d.getMinutes();const ap=h<12?" AM":" PM";h=h%12||12;return h+":"+(m<10?"0":"")+m+ap;};
   // Standard US-macro release time (ET), by name/category. Converted to the
   // viewer's LOCAL zone for display (CO→Mountain, GA→Eastern, etc). null → no time.
@@ -9908,7 +9919,8 @@ function App(){
          to match Veda's. The colorful category chips stay in the Catalysts tab only. */
       React.createElement("span",{style:{fontSize:9.5,color:T.TXD,background:T.TXD+"1a",borderRadius:6,padding:"1px 6px",textTransform:"none",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+T.TXD+"30"}},mcCatLabel(e.category)),
       tm?React.createElement("span",{title:"Release time (your local zone)",style:{fontSize:9.5,fontWeight:800,letterSpacing:.3,color:T.TXD,whiteSpace:"nowrap",flexShrink:0}},tm):null,
-      e.importance&&MC_IMP[e.importance]?React.createElement("span",{title:"Market impact: "+e.importance,style:{fontSize:9.5,fontWeight:800,letterSpacing:.4,color:MC_IMP[e.importance].c,background:MC_IMP[e.importance].c+"1a",borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap",flexShrink:0,marginLeft:"auto",border:"1px solid "+MC_IMP[e.importance].c+"40"}},MC_IMP[e.importance].t):null),
+      e.importance&&MC_IMP[e.importance]?React.createElement("span",{title:"Market impact: "+e.importance,style:{fontSize:9.5,fontWeight:800,letterSpacing:.4,color:MC_IMP[e.importance].c,background:MC_IMP[e.importance].c+"1a",borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap",flexShrink:0,marginLeft:"auto",border:"1px solid "+MC_IMP[e.importance].c+"40"}},MC_IMP[e.importance].t):null,
+      mcDebriefBtn(e,!(e.importance&&MC_IMP[e.importance]))),
     React.createElement("div",{style:{display:"flex",alignItems:"flex-start",gap:6}},
       React.createElement("span",{style:{width:13,height:13,flexShrink:0,marginTop:2,display:"inline-flex"},dangerouslySetInnerHTML:{__html:e.kind==="earnings"?TNI.chartUp:e.kind==="holiday"?TNI.bank:TNI.calendar}}),
       React.createElement("span",{style:{fontSize:11,fontWeight:700,color:tone||T.TX,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word"}},e.title)));};
