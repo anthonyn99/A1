@@ -275,6 +275,11 @@
     // so a tab that once held MAGI and now holds TaskHub IS 'a1tab_magi', and
     // the lookup would hand back TaskHub itself to navigate away. Give the
     // name up first, so the lookup finds the real console or opens one.
+    // tabsync.js on this page then also answers to 'magi' (its key outlives
+    // the name in sessionStorage), so a handover would be answered by THIS
+    // tab and the 'deliver' would navigate it. Such a tab skips the handover.
+    var selfIsMagi = false;
+    try { selfIsMagi = root.name === TAB_NAME || root.sessionStorage.getItem('a1TabKey') === TAB_KEY; } catch (e) {}
     try { if (root.name === TAB_NAME) root.name = ''; } catch (e) {}
     try { w = root.open('', TAB_NAME); } catch (e) { w = null; }
     if (w === root) w = null;
@@ -283,7 +288,7 @@
     try { cur = w.location.href; } catch (e) { cur = null; }
     if (cur === '' || cur === 'about:blank') {
       try { w.name = TAB_NAME; } catch (e) {}
-      if (claimed()) { handOver(w, url); return true; }
+      if (!selfIsMagi && claimed()) { handOver(w, url); return true; }
     }
     // The console itself, or a blank tab nobody claims. Only the fragment
     // differs for an open console, so this is not a reload: MAGI hears it on
