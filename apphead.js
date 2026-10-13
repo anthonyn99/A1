@@ -33,6 +33,7 @@
     everwell: '<path d="M28 72 48 52 68 72"/><path d="M28 54 48 34 68 54"/><circle cx="48" cy="20" r="5.5" fill="currentColor" stroke="none"/>',
     shield: '<path d="M48 18 24 26.5v19.5c0 16 12 26 24 32 12-6 24-16 24-32V26.5Z"/><circle cx="48" cy="44" r="6.5"/><path d="M48 50.5v10"/>',
     riftiq: '<path d="M48 19 73 33.5v29L48 77 23 62.5v-29Z" stroke-width="4"/><path d="M48 26l5 12v18H43V38Z" fill="currentColor" stroke="none"/><rect x="33" y="56" width="30" height="6" rx="3" fill="currentColor" stroke="none"/><rect x="45" y="62" width="6" height="11" rx="3" fill="currentColor" stroke="none"/>',
+    proview: '<rect x="18" y="24" width="60" height="42" rx="6"/><path d="M42 37l16 9-16 9Z" fill="currentColor" stroke="none"/><path d="M36 76h24"/>',
     magi: '<circle cx="48" cy="35.3" r="14.5" stroke-width="4.2"/><circle cx="36.4" cy="54.4" r="14.5" stroke-width="4.2"/><circle cx="59.6" cy="54.4" r="14.5" stroke-width="4.2"/><circle cx="48" cy="47.7" r="5.4" fill="currentColor" stroke="none"/>',
     taskhub: '<path d="M26 34l7 7 12-13"/><path d="M56 36h16"/><path d="M26 58h46"/><path d="M26 72h46"/>',
     journal: '<path d="M30 20h32a6 6 0 0 1 6 6v44a6 6 0 0 1-6 6H30Z"/><path d="M30 20a6 6 0 0 0-6 6v44a6 6 0 0 0 6 6"/><path d="M40 36h16"/><path d="M40 48h16"/>',
@@ -53,6 +54,9 @@
     '.a1-app-ic{display:inline-block;width:1em;height:1em;margin-right:.4em;vertical-align:-.15em;flex-shrink:0;' +
       'color:var(--a1-app-ic,var(--ac,var(--accent,#c0aeea)));line-height:0}' +
     '.a1-app-ic svg{width:100%;height:100%;display:block}' +
+    // A mark that runs to its right edge (TradeHub's chart arrow) meets the
+    // first letter, so it gets a wider gap to look the same as the others.
+    '.a1-app-ic[data-a1-app=tradehub]{margin-right:.55em}' +
     // Inside a flex title the gap is the title's own; the margin is dropped.
     '.a1-app-ic.a1-flex{margin-right:0}' +
     '.a1-sync{display:inline-flex;align-items:center;gap:6px;font-family:Inter,system-ui,-apple-system,sans-serif;' +
@@ -116,7 +120,7 @@
   //   h(A1Head.SyncPill, { status })  status: 'saving' | 'saved' | 'error' |
   //     'off', anything else idle. "Synced" fades after two seconds.
   function AppIcon(p) {
-    return window.React.createElement('span', { className: 'a1-app-ic', 'aria-hidden': 'true', style: p.style,
+    return window.React.createElement('span', { className: 'a1-app-ic', 'data-a1-app': p.app, 'aria-hidden': 'true', style: p.style,
       dangerouslySetInnerHTML: { __html: icon(p.app) } });
   }
   function SyncPill(p) {
