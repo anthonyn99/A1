@@ -10596,7 +10596,7 @@ function App(){
     // backup chip (backup.js pins that chip bottom-left at a z-index nothing
     // here can outrank, so the chip wins and the button cannot be pressed).
     // Right-anchored and lifted clear of the chip's row, the two never meet.
-    showPomo&&React.createElement("div",{style:{position:"fixed",bottom:isMobile?(window.A1_BACKUP_CHIP_CLEAR||44):22,right:isMobile?10:22,left:"auto",zIndex:999}},React.createElement(Pomodoro,{onClose:()=>setShowPomo(false),T,isMobile}))));
+    showPomo&&React.createElement(Pomodoro,{onClose:()=>setShowPomo(false),T,look:"magi",profile:"tony"})));
 }
 
 ReactDOM.render(React.createElement(Root),document.getElementById("root"));
@@ -15133,12 +15133,179 @@ function VdPrepPanel({item,dateKey,onClose}){
         Object.keys(sites).map(k=>RC("button",{key:k,type:"button",onClick:()=>{window._vdPrepSetDefaultSite(k);setDefSite(k);},style:{...btn(defSite===k),padding:"4px 10px",fontSize:10}},sites[k].name)))));
 }
 
-function playAlarm(){const ctx=new(window.AudioContext||window.webkitAudioContext)();if(ctx.state==="suspended")ctx.resume();const notes=[523.25,659.25,783.99,659.25,783.99,1046.5,783.99,1046.5,783.99,659.25];const dur=0.45,gap=0.05;notes.forEach((freq,i)=>{const osc=ctx.createOscillator();const gain=ctx.createGain();const t=ctx.currentTime+i*(dur+gap);osc.type="sine";osc.frequency.setValueAtTime(freq,t);const osc2=ctx.createOscillator();osc2.type="triangle";osc2.frequency.setValueAtTime(freq*2,t);const g2=ctx.createGain();g2.gain.setValueAtTime(0.08,t);osc2.connect(g2);g2.connect(ctx.destination);osc2.start(t);osc2.stop(t+dur);gain.gain.setValueAtTime(0,t);gain.gain.linearRampToValueAtTime(0.18,t+0.05);gain.gain.setValueAtTime(0.18,t+dur*0.6);gain.gain.linearRampToValueAtTime(0,t+dur);osc.connect(gain);gain.connect(ctx.destination);osc.start(t);osc.stop(t+dur);});setTimeout(()=>ctx.close(),6000);}
+// Timer sounds. A soft bell: each note is a sine fundamental plus three
+// bell-like partials with an exponential decay, run through a short generated
+// room reverb and a gentle compressor, so overlapping notes stay smooth instead
+// of clipping. Pass an existing (or Offline) AudioContext to reuse it; one this
+// creates for itself is closed once the sound has rung out.
+function _tmBell(ctx,out,freq,t,vel){
+  const parts=[[1,1,2.6],[2.01,.32,1.7],[2.76,.16,1.1],[4.07,.06,.6]];
+  parts.forEach(([mul,amp,len])=>{
+    const o=ctx.createOscillator(),g=ctx.createGain();
+    o.type="sine";o.frequency.setValueAtTime(freq*mul,t);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.linearRampToValueAtTime(vel*amp,t+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+len);
+    o.connect(g);g.connect(out);o.start(t);o.stop(t+len+0.05);
+  });
+}
+function _tmChain(ctx){
+  const comp=ctx.createDynamicsCompressor();
+  comp.threshold.setValueAtTime(-14,ctx.currentTime);comp.knee.setValueAtTime(12,ctx.currentTime);
+  comp.ratio.setValueAtTime(3,ctx.currentTime);comp.attack.setValueAtTime(0.004,ctx.currentTime);comp.release.setValueAtTime(0.25,ctx.currentTime);
+  comp.connect(ctx.destination);
+  const dry=ctx.createGain();dry.gain.value=1;dry.connect(comp);
+  const len=Math.floor(ctx.sampleRate*1.8),ir=ctx.createBuffer(2,len,ctx.sampleRate);
+  for(let ch=0;ch<2;ch++){const d=ir.getChannelData(ch);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,3);}
+  const rev=ctx.createConvolver();rev.buffer=ir;const wet=ctx.createGain();wet.gain.value=0.2;
+  dry.connect(rev);rev.connect(wet);wet.connect(comp);
+  return dry;
+}
+function _tmCtx(ctx){
+  const own=!ctx;if(own)ctx=new(window.AudioContext||window.webkitAudioContext)();
+  if(ctx.state==="suspended"&&ctx.resume)ctx.resume();
+  return {ctx,own};
+}
+// The end-of-timer chime: a rising Cmaj7 arpeggio played twice, then a
+// resolving high C held over a low C. About five seconds in all.
+function playAlarm(ctxIn){
+  const {ctx,own}=_tmCtx(ctxIn);const out=_tmChain(ctx);const t0=ctx.currentTime+0.05;
+  const arp=[523.25,659.25,783.99,987.77];
+  [0,1.5].forEach(off=>arp.forEach((f,i)=>_tmBell(ctx,out,f,t0+off+i*0.17,0.34-i*0.02)));
+  _tmBell(ctx,out,1046.5,t0+3.0,0.36);_tmBell(ctx,out,523.25,t0+3.0,0.24);
+  if(own)setTimeout(()=>{try{ctx.close();}catch(e){}},7000);
+}
+// Quiet single-note cues for start (up a fifth) and pause (down).
+function playTimerCue(kind,ctxIn){
+  const {ctx,own}=_tmCtx(ctxIn);const out=_tmChain(ctx);const t=ctx.currentTime+0.02;
+  if(kind==="start"){_tmBell(ctx,out,659.25,t,0.14);_tmBell(ctx,out,987.77,t+0.09,0.12);}
+  else _tmBell(ctx,out,587.33,t,0.12);
+  if(own)setTimeout(()=>{try{ctx.close();}catch(e){}},3000);
+}
 const workerBlob=new Blob([`let iv=null,end=0;onmessage=function(e){if(e.data.cmd==="start"){clearInterval(iv);end=Date.now()+e.data.secs*1000;iv=setInterval(function(){const rem=Math.round((end-Date.now())/1000);if(rem<=0){clearInterval(iv);iv=null;postMessage({type:"done"});}else postMessage({type:"tick",left:rem});},250);}else if(e.data.cmd==="stop"){clearInterval(iv);iv=null;}};`],{type:"application/javascript"});
 const workerUrl=URL.createObjectURL(workerBlob);
 
-function Pomodoro({onClose}){const SHORT=5*60,LONG=15*60;const[workMin,setWorkMin]=useState(25);const getModes=wm=>[{label:"Work",secs:wm*60},{label:"Short Break",secs:SHORT},{label:"Long Break",secs:LONG}];const[mode,setMode]=useState(0);const[left,setLeft]=useState(25*60);const[total,setTotal]=useState(25*60);const[running,setRunning]=useState(false);const[done,setDone]=useState(false);const workerRef=useRef(null);const audioCtxRef=useRef(null);useEffect(()=>{const w=new Worker(workerUrl);workerRef.current=w;w.onmessage=(e)=>{if(e.data.type==="tick"){setLeft(e.data.left);}else if(e.data.type==="done"){setLeft(0);setRunning(false);setDone(true);playAlarm();}};return()=>w.terminate();},[]);const warmAudio=()=>{if(!audioCtxRef.current){audioCtxRef.current=new(window.AudioContext||window.webkitAudioContext)();const o=audioCtxRef.current.createOscillator();const g=audioCtxRef.current.createGain();g.gain.setValueAtTime(0,audioCtxRef.current.currentTime);o.connect(g);g.connect(audioCtxRef.current.destination);o.start();o.stop(audioCtxRef.current.currentTime+0.01);}};const modes=getModes(workMin);const startTimer=(secs)=>{workerRef.current?.postMessage({cmd:"start",secs});};const stopTimer=()=>{workerRef.current?.postMessage({cmd:"stop"});};const pickMode=(i)=>{stopTimer();setMode(i);const s=getModes(workMin)[i].secs;setLeft(s);setTotal(s);setRunning(false);setDone(false);};const toggle=()=>{if(done){setDone(false);setLeft(total);return;}if(!running){warmAudio();startTimer(left);setRunning(true);}else{stopTimer();setRunning(false);}};const cancel=()=>{stopTimer();setRunning(false);setDone(false);setLeft(total);};useEffect(()=>{window._vdTimerExec=(cmd,arg)=>{if(cmd==="set"){const m=Math.max(1,Math.min(120,parseInt(arg)||25));setWorkMin(m);setMode(0);setLeft(m*60);setTotal(m*60);setRunning(false);setDone(false);stopTimer();}else if(cmd==="start"){warmAudio();startTimer(left);setRunning(true);setDone(false);}else if(cmd==="stop"){stopTimer();setRunning(false);}else if(cmd==="reset"){stopTimer();setRunning(false);setDone(false);setLeft(total);}};return()=>{if(window._vdTimerExec)delete window._vdTimerExec;};},[left,total,running,done,workMin]);const adjWork=(delta)=>{const nw=Math.max(1,Math.min(120,workMin+delta));setWorkMin(nw);if(mode===0){const s=nw*60;setLeft(s);setTotal(s);}};const mm=String(Math.floor(left/60)).padStart(2,"0"),ss=String(left%60).padStart(2,"0");const pct=total>0?left/total:0;const R=54,C=2*Math.PI*R;const canAdj=mode===0&&!running&&!done;const adjBtn={background:"transparent",border:"1px solid "+BDL,borderRadius:4,color:canAdj?TX:TXM,cursor:canAdj?"pointer":"default",fontSize:14,fontWeight:700,fontFamily:"inherit",width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1,opacity:canAdj?1:.4,transition:"all .15s"};
-return RC("div",{style:{background:S1,border:"1px solid "+BD,borderRadius:10,padding:"16px 20px",width:260,boxShadow:"0 8px 32px rgba(0,0,0,.5)"}},RC("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}},RC("span",{style:{fontSize:12,fontWeight:700,color:A,textTransform:"uppercase",letterSpacing:2}},"Timer"),RC("button",{onClick:onClose,style:{background:"transparent",border:"none",color:TXD,cursor:"pointer",fontSize:16,fontWeight:700,fontFamily:"inherit",lineHeight:1}},"×")),RC("div",{style:{display:"flex",gap:4,marginBottom:10}},modes.map((m,i)=>RC("button",{key:i,onClick:()=>pickMode(i),style:{fontSize:10,fontWeight:700,padding:"4px 10px",borderRadius:4,cursor:"pointer",fontFamily:"inherit",background:mode===i?A:BG,color:mode===i?BG:TXD,border:mode===i?"1px solid "+A:"1px solid "+BDL,...(mode===i?{boxShadow:GLOW_A}:{}),transition:"all .15s",flex:1}},m.label))),mode===0&&RC("div",{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginBottom:10}},RC("button",{style:adjBtn,onClick:()=>canAdj&&adjWork(-5),disabled:!canAdj},"−5"),RC("button",{style:{...adjBtn,width:22},onClick:()=>canAdj&&adjWork(-1),disabled:!canAdj},"−"),RC("span",{style:{fontSize:13,fontWeight:700,color:A,minWidth:50,textAlign:"center"}},workMin+" min"),RC("button",{style:{...adjBtn,width:22},onClick:()=>canAdj&&adjWork(1),disabled:!canAdj},"+"),RC("button",{style:adjBtn,onClick:()=>canAdj&&adjWork(5),disabled:!canAdj},"+5")),RC("div",{style:{display:"flex",justifyContent:"center",marginBottom:14}},RC("svg",{width:130,height:130,viewBox:"0 0 130 130"},RC("circle",{cx:65,cy:65,r:R,fill:"none",stroke:BD,strokeWidth:6}),RC("circle",{cx:65,cy:65,r:R,fill:"none",stroke:done?"#56d364":running?A:AL,strokeWidth:6,strokeLinecap:"round",strokeDasharray:C,strokeDashoffset:C*(1-pct),transform:"rotate(-90 65 65)",style:{transition:"stroke-dashoffset .4s linear, stroke .3s"}}),RC("text",{x:65,y:62,textAnchor:"middle",fill:done?"#56d364":TX,fontSize:28,fontWeight:700,fontFamily:"'IBM Plex Mono',monospace"},mm+":"+ss),RC("text",{x:65,y:80,textAnchor:"middle",fill:TXD,fontSize:10,fontWeight:600,fontFamily:"'IBM Plex Mono',monospace"},done?"Done!":running?"Running":"Paused"))),RC("div",{style:{display:"flex",gap:8}},RC("button",{onClick:toggle,style:{flex:1,background:done?"#56d364":running?"#d29922":A,color:BG,border:"none",borderRadius:5,padding:"8px 0",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1}},done?"Reset":running?"Pause":"Start"),RC("button",{onClick:cancel,style:{background:"transparent",border:"1px solid "+BDL,borderRadius:5,padding:"8px 14px",fontSize:12,fontWeight:600,color:TXD,cursor:"pointer",fontFamily:"inherit"}},"Cancel")));}
+// The TaskHub timer. ONE component for both profiles (see the note where Tony's
+// copy used to live): T is the profile's theme (Tony's THEMES.dark, Veda's
+// VD_T) and `look` picks the type, "magi" (Inter/Manrope, Tony) or "veda"
+// (IBM Plex Mono). It positions itself: bottom-right by default, and dragging
+// it anywhere (mouse or finger, from any spot that isn't a button) parks it
+// there, remembered per profile in localStorage (a convenience only; it falls
+// back to the corner if storage is blocked).
+function Pomodoro({onClose,T,look,profile}){
+  T=T||VD_T;const magi=look==="magi";
+  const AC=T.AC,ACL=T.ACL||T.AC,BGc=T.BG,S1c=T.S1,S2c=T.S2||T.S1,BDc=T.BD,BDLc=T.BDL,TXc=T.TX,TXDc=T.TXD,TXMc=T.TXM,OK=T.GRN||"#5DAF6D";
+  const FONT=magi?"Inter,system-ui,sans-serif":"'IBM Plex Mono',monospace";
+  const HEAD=magi?"Manrope,Inter,sans-serif":FONT;
+  const NUM=magi?{fontFamily:"Inter,system-ui,sans-serif",fontWeight:500,fontVariantNumeric:"tabular-nums"}:{fontFamily:"'IBM Plex Mono',monospace",fontWeight:600};
+  const SHORT=5*60,LONG=15*60;const[workMin,setWorkMin]=useState(25);
+  const getModes=wm=>[{label:"Focus",secs:wm*60},{label:"Short",secs:SHORT},{label:"Long",secs:LONG}];
+  const[mode,setMode]=useState(0);const[left,setLeft]=useState(25*60);const[total,setTotal]=useState(25*60);const[running,setRunning]=useState(false);const[done,setDone]=useState(false);
+  const workerRef=useRef(null);const audioCtxRef=useRef(null);
+  const ac=()=>audioCtxRef.current||undefined;
+  useEffect(()=>{const w=new Worker(workerUrl);workerRef.current=w;w.onmessage=(e)=>{if(e.data.type==="tick"){setLeft(e.data.left);}else if(e.data.type==="done"){setLeft(0);setRunning(false);setDone(true);playAlarm(ac());}};return()=>{w.terminate();try{audioCtxRef.current&&audioCtxRef.current.close();}catch(e){}};},[]);
+  // Created on the first Start (a user gesture), so the alarm can still sound
+  // when it fires later from the worker with no gesture in sight.
+  const warmAudio=()=>{if(!audioCtxRef.current){try{audioCtxRef.current=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}else if(audioCtxRef.current.state==="suspended"){audioCtxRef.current.resume();}};
+  const modes=getModes(workMin);
+  const startTimer=(secs)=>{workerRef.current?.postMessage({cmd:"start",secs});};
+  const stopTimer=()=>{workerRef.current?.postMessage({cmd:"stop"});};
+  const pickMode=(i)=>{stopTimer();setMode(i);const s=getModes(workMin)[i].secs;setLeft(s);setTotal(s);setRunning(false);setDone(false);};
+  const toggle=()=>{if(done){setDone(false);setLeft(total);return;}if(!running){warmAudio();playTimerCue("start",ac());startTimer(left);setRunning(true);}else{stopTimer();setRunning(false);playTimerCue("pause",ac());}};
+  const cancel=()=>{stopTimer();setRunning(false);setDone(false);setLeft(total);};
+  const addMin=()=>{const nl=(done?0:left)+60,nt=Math.max(total,nl);setLeft(nl);setTotal(nt);if(done){setDone(false);}if(running)startTimer(nl);};
+  useEffect(()=>{window._vdTimerExec=(cmd,arg)=>{if(cmd==="set"){const m=Math.max(1,Math.min(120,parseInt(arg)||25));setWorkMin(m);setMode(0);setLeft(m*60);setTotal(m*60);setRunning(false);setDone(false);stopTimer();}else if(cmd==="start"){warmAudio();startTimer(left);setRunning(true);setDone(false);}else if(cmd==="stop"){stopTimer();setRunning(false);}else if(cmd==="reset"){stopTimer();setRunning(false);setDone(false);setLeft(total);}};return()=>{if(window._vdTimerExec)delete window._vdTimerExec;};},[left,total,running,done,workMin]);
+  const adjWork=(delta)=>{const nw=Math.max(1,Math.min(120,workMin+delta));setWorkMin(nw);if(mode===0){const s=nw*60;setLeft(s);setTotal(s);}};
+
+  // ── Position + drag ─────────────────────────────────────────────────────
+  const posKey="a1_timer_pos_"+(profile||"veda");
+  const boxRef=useRef(null);const dragRef=useRef(null);
+  const[pos,setPos]=useState(()=>{try{const p=JSON.parse(localStorage.getItem(posKey)||"null");return p&&isFinite(p.x)&&isFinite(p.y)?p:null;}catch(e){return null;}});
+  const[dragging,setDragging]=useState(false);
+  const clamp=(p)=>{const el=boxRef.current;const w=el?el.offsetWidth:280,h=el?el.offsetHeight:380;const vw=window.innerWidth,vh=window.innerHeight;return{x:Math.round(Math.max(6,Math.min(vw-w-6,p.x))),y:Math.round(Math.max(6,Math.min(vh-h-6,p.y)))};};
+  useEffect(()=>{const fit=()=>setPos(p=>p?clamp(p):p);fit();window.addEventListener("resize",fit);return()=>window.removeEventListener("resize",fit);},[]);
+  const onDown=(e)=>{
+    if(e.button!==undefined&&e.button!==0)return;
+    if(e.target.closest&&e.target.closest("button,input,select,textarea,a"))return;
+    const r=boxRef.current.getBoundingClientRect();
+    dragRef.current={id:e.pointerId,sx:e.clientX,sy:e.clientY,ox:r.left,oy:r.top,moved:false};
+    try{boxRef.current.setPointerCapture(e.pointerId);}catch(_){}
+  };
+  const onMove=(e)=>{
+    const d=dragRef.current;if(!d||d.id!==e.pointerId)return;
+    const dx=e.clientX-d.sx,dy=e.clientY-d.sy;
+    if(!d.moved){if(Math.abs(dx)+Math.abs(dy)<4)return;d.moved=true;setDragging(true);}
+    e.preventDefault();setPos(clamp({x:d.ox+dx,y:d.oy+dy}));
+  };
+  const onUp=(e)=>{
+    const d=dragRef.current;if(!d||d.id!==e.pointerId)return;dragRef.current=null;
+    try{boxRef.current.releasePointerCapture(e.pointerId);}catch(_){}
+    if(d.moved){setDragging(false);setPos(p=>{if(p){try{localStorage.setItem(posKey,JSON.stringify(p));}catch(_){}}return p;});}
+  };
+  // Double-click the empty card to send it home to the corner.
+  const onDbl=(e)=>{if(e.target.closest&&e.target.closest("button"))return;setPos(null);try{localStorage.removeItem(posKey);}catch(_){}};
+  const mobile=window.innerWidth<640;
+  const anchor=pos?{left:pos.x,top:pos.y}:{right:mobile?10:22,bottom:mobile?(window.A1_BACKUP_CHIP_CLEAR||44):22};
+
+  // ── Render ──────────────────────────────────────────────────────────────
+  const mm=String(Math.floor(left/60)).padStart(2,"0"),ss=String(left%60).padStart(2,"0");
+  const pct=total>0?left/total:0;const SZ=184,R=80,C=2*Math.PI*R;const ang=(-90+360*pct)*Math.PI/180;
+  const canAdj=mode===0&&!running&&!done;const ring=done?OK:AC;
+  const hfx=magi?{"data-hoverfx":"magi"}:{};
+  const sel=(T.SEL||GLOW)(AC);
+  const icon=(d,sz)=>RC("svg",{width:sz||16,height:sz||16,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round","aria-hidden":true},d);
+  const roundBtn=(sz,primary)=>({width:sz,height:sz,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontFamily:FONT,padding:0,flexShrink:0,
+    background:primary?(done?OK:AC):"transparent",color:primary?BGc:TXDc,border:primary?"none":"1px solid "+BDLc,
+    boxShadow:primary?"0 6px 18px "+(done?OK:AC)+"40":"none",transition:"background .2s, color .15s, border-color .15s, transform .12s"});
+  const step=(lbl,d,w)=>RC("button",{type:"button",...hfx,onClick:()=>canAdj&&adjWork(d),disabled:!canAdj,"aria-label":(d>0?"Add ":"Remove ")+Math.abs(d)+" minutes",
+    style:{width:w,height:28,borderRadius:8,border:"1px solid "+BDLc,background:"transparent",color:canAdj?TXc:TXMc,opacity:canAdj?1:.35,cursor:canAdj?"pointer":"default",fontSize:12,fontWeight:600,fontFamily:FONT,...(magi?{fontVariantNumeric:"tabular-nums"}:{}),display:"flex",alignItems:"center",justifyContent:"center",padding:0,transition:"opacity .2s, border-color .15s"}},lbl);
+  const status=done?"Complete":running?(mode===0?"Focusing":"On break"):(left<total?"Paused":"Ready");
+
+  return RC("div",{ref:boxRef,className:"a1-timer",role:"dialog","aria-label":"Timer",
+    onPointerDown:onDown,onPointerMove:onMove,onPointerUp:onUp,onPointerCancel:onUp,onDoubleClick:onDbl,
+    style:{position:"fixed",...anchor,zIndex:999,width:mobile?Math.min(280,window.innerWidth-20):280,boxSizing:"border-box",
+      background:S1c,border:"1px solid "+(magi?"rgba(255,255,255,.06)":BDc),borderRadius:18,padding:"12px 16px 18px",
+      fontFamily:FONT,color:TXc,userSelect:"none",WebkitUserSelect:"none",touchAction:"none",
+      cursor:dragging?"grabbing":"grab",
+      boxShadow:dragging?"0 24px 60px rgba(0,0,0,.55), 0 2px 8px rgba(0,0,0,.35)":"0 16px 44px rgba(0,0,0,.45), 0 2px 6px rgba(0,0,0,.3)",
+      transform:dragging?"scale(1.015)":"none",transition:"box-shadow .2s, transform .2s"}},
+    // Header
+    RC("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}},
+      RC("div",{style:{display:"flex",alignItems:"center",gap:8}},
+        RC("span",{style:{width:7,height:7,borderRadius:"50%",background:ring,opacity:running||done?1:.45,boxShadow:running?"0 0 0 3px "+ring+"30":"none",transition:"all .3s"}}),
+        RC("span",{style:{fontFamily:HEAD,fontSize:11,fontWeight:magi?800:700,color:magi?ACL:AC,textTransform:"uppercase",letterSpacing:magi?1.8:2}},"Timer")),
+      RC("button",{type:"button",...hfx,onClick:onClose,title:"Close","aria-label":"Close timer",style:{width:26,height:26,borderRadius:8,border:"none",background:"transparent",color:TXMc,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0}},
+        icon([RC("path",{key:1,d:"M6 6l12 12"}),RC("path",{key:2,d:"M18 6L6 18"})],14))),
+    // Mode segmented control
+    RC("div",{style:{display:"flex",gap:2,padding:3,background:magi?S2c:BGc,borderRadius:11,marginBottom:6}},
+      modes.map((m,i)=>RC("button",{key:i,type:"button",...hfx,onClick:()=>pickMode(i),
+        style:{flex:1,fontSize:11,fontWeight:mode===i?700:600,padding:"6px 0",borderRadius:8,cursor:"pointer",fontFamily:FONT,letterSpacing:.3,
+          background:mode===i?AC:"transparent",color:mode===i?BGc:TXDc,border:"none",...(mode===i&&sel!=="none"?{boxShadow:sel}:{}),transition:"background .2s, color .2s"}},m.label))),
+    // Ring
+    RC("div",{style:{position:"relative",width:SZ,height:SZ,margin:"8px auto 6px"}},
+      RC("svg",{width:SZ,height:SZ,viewBox:"0 0 "+SZ+" "+SZ,style:{display:"block"}},
+        RC("circle",{cx:SZ/2,cy:SZ/2,r:R,fill:"none",stroke:magi?S2c:BDc,strokeWidth:5}),
+        RC("circle",{cx:SZ/2,cy:SZ/2,r:R,fill:"none",stroke:ring,strokeWidth:5,strokeLinecap:"round",strokeDasharray:C,strokeDashoffset:C*(1-pct),transform:"rotate(-90 "+SZ/2+" "+SZ/2+")",style:{transition:"stroke-dashoffset .4s linear, stroke .3s"}}),
+        pct>0.004&&RC("circle",{cx:SZ/2+R*Math.cos(ang),cy:SZ/2+R*Math.sin(ang),r:6,fill:ring,stroke:S1c,strokeWidth:3,style:{transition:"cx .4s linear, cy .4s linear"}})),
+      RC("div",{style:{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",pointerEvents:"none"}},
+        RC("div",{style:{...NUM,fontSize:44,lineHeight:1,letterSpacing:magi?-1:-.5,color:done?OK:TXc}},mm+":"+ss),
+        RC("div",{style:{marginTop:8,fontSize:10,fontWeight:600,letterSpacing:1.6,textTransform:"uppercase",color:done?OK:TXDc}},status))),
+    // Focus length stepper (Focus mode, not running)
+    mode===0&&RC("div",{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:14,height:28}},
+      step("−5",-5,34),step("−",-1,28),
+      RC("span",{style:{minWidth:64,textAlign:"center",fontSize:12,fontWeight:600,color:canAdj?TXDc:TXMc,...(magi?{fontVariantNumeric:"tabular-nums"}:{})}},workMin+" min"),
+      step("+",1,28),step("+5",5,34)),
+    mode!==0&&RC("div",{style:{height:28,marginBottom:14,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:TXMc,letterSpacing:.3}},mode===1?"5 minute break":"15 minute break"),
+    // Controls
+    RC("div",{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:22}},
+      RC("button",{type:"button",...hfx,onClick:cancel,title:"Reset","aria-label":"Reset",style:roundBtn(40,false)},
+        icon([RC("path",{key:1,d:"M3 12a9 9 0 1 0 3-6.7"}),RC("path",{key:2,d:"M3 4v5h5"})],16)),
+      RC("button",{type:"button",...hfx,onClick:toggle,title:done?"Restart":running?"Pause":"Start","aria-label":done?"Restart":running?"Pause":"Start",style:roundBtn(60,true)},
+        done?icon([RC("path",{key:1,d:"M5 12.5l4.5 4.5L19 7.5"})],24)
+          :running?RC("svg",{width:22,height:22,viewBox:"0 0 24 24",fill:"currentColor","aria-hidden":true},RC("rect",{x:6,y:5,width:4,height:14,rx:1.2}),RC("rect",{x:14,y:5,width:4,height:14,rx:1.2}))
+          :RC("svg",{width:22,height:22,viewBox:"0 0 24 24",fill:"currentColor","aria-hidden":true,style:{marginLeft:3}},RC("path",{d:"M7 4.8v14.4a1 1 0 0 0 1.5.86l12-7.2a1 1 0 0 0 0-1.72l-12-7.2A1 1 0 0 0 7 4.8z"}))),
+      RC("button",{type:"button",...hfx,onClick:addMin,title:"Add a minute","aria-label":"Add a minute",style:{...roundBtn(40,false),fontSize:11,fontWeight:700,...(magi?{fontVariantNumeric:"tabular-nums"}:{})}},"+1")));
+}
 
 // ─── GITA QUOTE MODAL ─────────────────────────────────────────────────
 function GitaQuoteModal({lesson, onClose, onNext, onPrev, onBackToLessons}){
@@ -16582,7 +16749,7 @@ function App(){
       vxUndo&&RC("button",{key:"vx-undo",title:"Undo",onClick:()=>window._THV&&window._THV.undo(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 11px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},RC(VdIcon,{name:"undo",size:15})),
       vxRedo&&RC("button",{key:"vx-redo",title:"Redo",onClick:()=>window._THV&&window._THV.redo(),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 11px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}},RC(VdIcon,{name:"redo",size:15})),
       RC("button",{onClick:openRulesManage,title:"Trading rules checklist",onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"Rules"),
-      RC("button",{onClick:()=>setShowPomo(p=>!p),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=showPomo?A:BDL;},style:{background:showPomo?A:"transparent",color:showPomo?BG:A,border:"1px solid "+(showPomo?A:BDL),...(showPomo?{boxShadow:GLOW_A}:{}),borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},showPomo?"Timer On":"Timer"),
+      RC("button",{onClick:()=>setShowPomo(p=>!p),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=showPomo?A:BDL;},style:{background:showPomo?A:"transparent",color:showPomo?BG:A,border:"1px solid "+(showPomo?A:BDL),...(showPomo?{boxShadow:GLOW_A}:{}),borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontFamily:"inherit",transition:"all .15s"},title:"Timer","aria-label":"Timer","aria-pressed":showPomo},RC("span",{style:{width:14,height:14,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.clock}})),
       RC("div",{role:"button",tabIndex:0,"aria-pressed":edit,title:edit?"Switch to view mode":"Switch to edit mode",style:{display:"flex",alignItems:"center",gap:6,cursor:"pointer",userSelect:"none",height:28,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",boxSizing:"border-box"},onClick:()=>setEdit(!edit),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;}},
         /* Mode reads as a glyph, not a word — pencil for edit, eye for view (same
            vocabulary as Tony's TaskHub). */
@@ -16845,7 +17012,7 @@ function App(){
     RC(VdConfirmEditTitleModal,{open:!!titleEditConfirm,onClose:()=>setTitleEditConfirm(null),onThisOnly:titleEditThisOnly,onAllFuture:titleEditAllFuture,isAltSeq:!!(titleEditConfirm?.isAltSeq)}),
     // Lifted clear of the backup chip on a phone -- see the same note on Tony's
     // timer: at bottom:20 the panel's Start button sits in the chip's row.
-    showPomo&&RC("div",{style:{position:"fixed",bottom:vrMobile?(window.A1_BACKUP_CHIP_CLEAR||44):20,right:vrMobile?10:20,zIndex:999}},RC(Pomodoro,{onClose:()=>setShowPomo(false)})),
+    showPomo&&RC(Pomodoro,{onClose:()=>setShowPomo(false),T:VD_T,look:"veda",profile:"veda"}),
     RC(GitaQuoteModal,{lesson:gitaModal,onClose:()=>setGitaModal(null),onNext:gitaNext,onPrev:gitaPrev,onBackToLessons:gitaFromBrowser?closeGitaToLessons:null}),
     showLessons&&RC(GitaLessonsBrowser,{onClose:()=>setShowLessons(false),onSelectLesson:openGitaLesson}),
     RC(HabitModal,{open:!!editingHabit,onClose:()=>setEditingHabit(null),onSave:patch=>saveHabit(editingHabit.id,patch),initial:editingHabit,T:VD_T,titleFont:"'Lora',serif"}),
