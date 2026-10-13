@@ -377,8 +377,13 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   await c.send('Emulation.setTouchEmulationEnabled', { enabled: false });
   await js(`localStorage.removeItem('ew.tony.igMode'); return 1;`);
   await click('#media-grid [data-igstage] .ig-side [data-igs="side"]'); await sleep(400);
-  ok('phone, details hidden: the small bar sits above the post, never over it or its mute', await js(`const s = document.querySelector('[data-igstage]'), b = s.querySelector('.ig-box').getBoundingClientRect(), m = s.querySelector('.ig-mute').getBoundingClientRect();
-    const bs = [...s.querySelectorAll('.ig-bare button')].map(e => e.getBoundingClientRect()); return bs.length === 3 && bs.every(r => r.height > 0 && r.bottom <= b.top + 0.5 && !(r.bottom > m.top && r.top < m.bottom && r.right > m.left && r.left < m.right));`));
+  ok('phone, details hidden: the small bar, mute included, sits above the post, never over it', await js(`const s = document.querySelector('[data-igstage]'), b = s.querySelector('.ig-box').getBoundingClientRect();
+    const bs = [...s.querySelectorAll('.ig-bare button')].map(e => e.getBoundingClientRect()); return bs.length === 4 && bs.every(r => r.height > 0 && r.bottom <= b.top + 0.5) &&
+      getComputedStyle(s.querySelector('.ig-box .ig-mute')).display === 'none' && !!s.querySelector('.ig-bare .ig-muteb');`));
+  const muted = () => js(`const s = document.querySelector('[data-igstage]'); return s.querySelector('[data-ig-media] video').muted + '/' + s.querySelector('.ig-muteb').title;`);
+  const m0 = await muted(); await click('#media-grid [data-igstage] .ig-muteb'); await sleep(200);
+  ok('…and the bar\'s mute mutes and unmutes, its icon in step', (await muted()) !== m0 && /^(true\/Unmute|false\/Mute)$/.test(await muted()), m0 + ' -> ' + (await muted()));
+  await click('#media-grid [data-igstage] .ig-muteb'); await sleep(200);
   await click('#media-grid [data-igstage] .ig-bare [data-igs="side"]'); await sleep(300);
   await click('#media-grid .igc-cell[data-id="col1~CARaaaa4"]'); await sleep(900);
   await click('#media-grid [data-igstage] .ig-nav.nx'); await sleep(500);

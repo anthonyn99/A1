@@ -18590,16 +18590,30 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   function scanAndRegister(){
     var SOURCES=[{key:'td6_data',hkey:'td6_habits',dash:'tony'},{key:'td_data',hkey:'td_habits',dash:'veda'}];
     var nowMs=Date.now();
+    var deadSeries={};
     SOURCES.forEach(function(src){
       var raw;try{raw=JSON.parse(localStorage.getItem(src.key)||'null');}catch(e){raw=null;}
+      var hab;try{hab=JSON.parse(localStorage.getItem(src.hkey)||'null');}catch(e){hab=null;}
+      var plan=window.thNotifyPlan(raw,hab);
+      plan.dead.forEach(function(k){deadSeries[k]=1;});
       if(raw&&typeof raw==='object'){
         Object.values(raw).forEach(function(arr){
           if(!Array.isArray(arr))return;
-          arr.forEach(function(item){registerScanned(item,src.dash,nowMs);});
+          arr.forEach(function(item){
+            // A repeating reminder registers only from the row that defines its
+            // live series (see thNotifyPlan) — never from a dead or older copy.
+            if(item&&item.notifyRepeat&&item.notifyRepeat!=='none'&&plan.live[item.notifyRepeatId||item.id]!==item)return;
+            registerScanned(item,src.dash,nowMs);
+          });
         });
       }
       scanHabits(src,nowMs);
     });
+    // Drop anything already registered for a dead series, so a desktop with the
+    // tab open stops banner-ing it too. Not marked cancelled: if the series ever
+    // comes back to life, the next scan may register it again.
+    var reg=getReg(),kept=reg.filter(function(r){return !(r&&r.repeatId&&deadSeries[r.repeatId]);});
+    if(kept.length!==reg.length)saveReg(kept);
   }
 
   window.thScheduleNotif=async function(item){
