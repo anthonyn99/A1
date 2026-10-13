@@ -6045,13 +6045,13 @@ try{ if(localStorage.getItem('td6_mainDash')==='veda') document.getElementById('
   <div id="tony-app-nav-inner">
   <select id="tn-mobile-select" onchange="if(this.value==='warroom'){window._wrClick&&window._wrClick();this.value=window._tnCurApp||'taskhub';}else if(this.value==='tradeboard'){window._thubClick&&window._thubClick();this.value=window._tnCurApp||'taskhub';}else if(this.value==='keychain'){window._vaultClick&&window._vaultClick();this.value=window._tnCurApp||'taskhub';}else if(this.value.indexOf('custom:')===0){window._navOpenLink&&window._navOpenLink('tony',this.value.slice(7));this.value=window._tnCurApp||'taskhub';}else{window._tonyNav&&window._tonyNav(this.value);}this.blur();">
     <option value="taskhub">Tony's TaskHub</option>
-    <option value="brainstormjournal">MyJournal</option>
+    <option value="brainstormjournal">Notebook</option>
     <option value="tradeboard">TradeHub</option>
     <option value="keychain">Vault</option>
     <option value="warroom">RiftIQ</option>
   </select>
   <button class="tn-btn" data-app="taskhub" onclick="window._tonyNav&&window._tonyNav('taskhub')">TaskHub</button>
-  <button class="tn-btn" data-app="brainstormjournal" onclick="window._tonyNav&&window._tonyNav('brainstormjournal')">MyJournal</button>
+  <button class="tn-btn" data-app="brainstormjournal" onclick="window._tonyNav&&window._tonyNav('brainstormjournal')">Notebook</button>
   <!-- The External Links buttons are Tony's LifeHub list (dashboards/lifehub,
        LifeHub/lifehub.js). ensureTonyCustomBtns() injects one <button> per app here. -->
   <button id="tn-settings-btn" onclick="window._openSettings&&window._openSettings('tony')" title="Settings" style="padding:0 7px;justify-content:center;touch-action:manipulation;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
@@ -19505,7 +19505,7 @@ window.PlansCore={
      OurJournal) and their Firestore adapters, loaded in place by notebook.js.
      MyJournal itself still lives below until Phase 3
      (docs/Notebook/plan.md). ── -->
-<script src="Notebook/notebook.js?v=eaf717d57d"></script>
+<script src="Notebook/notebook.js?v=bdfffc5086"></script>
 
 <!-- ── Brainstorm Journal: Notebook's brainstorm app (Notebook/apps/brainstorm.*). ── -->
 <script>Notebook.mount({ app: 'brainstorm', key: 'bj', store: 'journal' });</script>
@@ -19594,7 +19594,7 @@ window.showTonyJournal = function() {
     var titleEl = document.createElement('div');
     titleEl.id = 'tj-nav-title';
     titleEl.style.cssText = 'position:absolute;left:clamp(12px,3vw,24px);top:50%;transform:translateY(-50%);white-space:nowrap;pointer-events:none;line-height:1.2;';
-    titleEl.innerHTML = '<span class="suite-title th-wordmark"><span class="a1-app-ic" data-a1-app="journal"></span>MyJournal</span>'; if (window.A1Head) A1Head.fill(titleEl);
+    titleEl.innerHTML = '<span class="suite-title th-wordmark"><span class="a1-app-ic" data-a1-app="journal"></span>Notebook</span>'; if (window.A1Head) A1Head.fill(titleEl);
     tni.insertBefore(titleEl, tni.firstChild);
   }
   if(window._tjApplyTheme) window._tjApplyTheme();
@@ -20792,7 +20792,7 @@ var AL_LABELS = {
   tony_tradehub:  { label: 'TradeHub',   profile: 'tony' },
   tony_everwell:  { label: 'Everwell',   profile: 'tony' },
   tony_keychain:  { label: 'Vault',      profile: 'tony' },
-  tony_myjournal: { label: 'MyJournal',  profile: 'tony' },
+  tony_myjournal: { label: 'Notebook',   profile: 'tony' },
   tony_warroom:   { label: 'RiftIQ',     profile: 'tony' },
   // Same KV record as MAGI's own Tony lock (magi.html), so one password opens both.
   tony_magi:      { label: 'MAGI',       profile: 'tony' },
@@ -22050,11 +22050,11 @@ window.addEventListener('focus', _initNavTabGear);
 // those are his LifeHub list (see TONY'S EXTERNAL LINKS below).
 var TONY_DEFAULT = [
   {app:'taskhub',           label:'TaskHub'},
-  {app:'brainstormjournal', label:'MyJournal'},
+  {app:'brainstormjournal', label:'Notebook'},
 ];
 var TONY_SELECT_LABELS = {
   taskhub:"Tony's TaskHub",
-  brainstormjournal:'MyJournal'
+  brainstormjournal:'Notebook'
 };
 
 var VEDA_DEFAULT = [

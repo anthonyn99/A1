@@ -3078,7 +3078,7 @@ window._tjOJ = { enter: _tjOJEnter, leave: _tjOJLeave, active: _tjIsOJ };
     var rail = document.createElement('div');
     rail.id = 'tj-oj-rail'; rail.className = 'oj-rail'; rail.setAttribute('role', 'tablist');
     rail.innerHTML = '<button class="oj-tab" data-oj="1" role="tab" title="OurJournal — shared with Veda">' + ICON_OJ + '<span class="oj-lbl">OurJournal</span></button>' +
-                     '<button class="oj-tab" data-oj="0" role="tab" title="MyJournal — your own entries">' + ICON_J + '<span class="oj-lbl">Journal</span></button>';
+                     '<button class="oj-tab" data-oj="0" role="tab" title="MyJournal — your own entries">' + ICON_J + '<span class="oj-lbl">MyJournal</span></button>';
     side.insertBefore(rail, nb);
     rail.addEventListener('click', onTab);
   }
@@ -3094,6 +3094,8 @@ window._tjOJ = { enter: _tjOJEnter, leave: _tjOJLeave, active: _tjIsOJ };
     b.innerHTML = ICON_OJ + '<span class="mjd-lbl">OurJournal</span>';
     rail.insertBefore(b, rail.firstChild);
     rail.classList.add('oj-has-tab');
+    // Beside OurJournal, the own-entries tab says whose it is (Tony, 2026-10-13).
+    var own_lbl = rail.querySelector('[data-sec="pages"] .mjd-lbl'); if (own_lbl) own_lbl.textContent = 'MyJournal';
     b.addEventListener('click', onTab);
     // The Journal button is Tony's own: leave OurJournal before the rail
     // acts on the click (capture phase).
