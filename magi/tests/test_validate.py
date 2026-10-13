@@ -367,6 +367,6 @@ def test_a_word_spelled_apart_in_the_answer_still_counts():
     # A genuinely unrelated capture of the same length is still caught.
     other = ("Postgres handles concurrent writers with MVCC; each transaction sees a "
              "snapshot, and vacuum reclaims dead tuples later. Tune autovacuum for "
-             "heavy update workloads, and watch for long transactions that hold back "
+             "heavy update workloads, and watch for long transactions that pin "
              "the horizon. Partitioning helps with very large append-only tables.")
     assert validate_answer(other, q).reason is Rejection.OFF_TOPIC
