@@ -11365,6 +11365,10 @@ function takeHandoff() {
       units: Array.isArray(h.units) ? h.units.map(String).slice(0, 12) : [],
       run: !!h.run,
       src: String((h && h.src) || "").slice(0, 24),
+      p: handoffProfileOf(h),
+      // The fragment as it came, so a profile switch where storage is blocked
+      // can carry it across the reload in the url itself.
+      raw,
       at: Date.now(),
     };
   } catch { return null; }
@@ -11377,6 +11381,13 @@ function takeHandoff() {
  *  ready. It is a no-op on all the others. */
 function handoffTry() {
   if (!HANDOFF) return;
+  // Meant for the other person: switch profile first (a reload that carries
+  // it). Never in the middle of a run -- the reload would throw this
+  // person's council away -- so a live run holds it; endRun() comes back.
+  if (handoffProfileOf(HANDOFF) !== PROFILE.id) {
+    if (S.running || S.refining) return;
+    if (adoptHandoffProfile(HANDOFF)) { HANDOFF = null; return; }
+  }
   // The lock has not decided yet. It is a network answer and can land after
   // the engine has already listed its units, so "the lock screen is not up"
   // is not the same question as "this page is unlocked".
@@ -11452,10 +11463,11 @@ function applyHandoff(h) {
 
 // The tab is already open and TradeHub sent another one. A hash-only change
 // does not reload the page, so this is the only thing that hears it.
+// A handoff for the other profile is switched to by handoffTry, which waits
+// out a live run first.
 window.addEventListener("hashchange", () => {
   const h = takeHandoff();
   if (!h) return;
-  if (adoptHandoffProfile(h)) return;   // reloading into the right profile
   HANDOFF = h;
   handoffTry();
 });
