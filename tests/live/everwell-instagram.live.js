@@ -336,6 +336,15 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   ok('the player fits the phone: the post as big as the screen allows, every control on screen', await js(`const s = document.querySelector('[data-igstage]'), W = document.documentElement.clientWidth;
     return [...s.querySelectorAll('.ig-box, .ig-side button, .ig-side a')].every(e => { const r = e.getBoundingClientRect(); return r.left >= -0.5 && r.right <= W + 0.5; }) && (b => b.height <= innerHeight * 0.75 && (b.width >= 280 || b.width >= W - 30))(s.querySelector('.ig-box').getBoundingClientRect());`),
     await js(`const s = document.querySelector('[data-igstage]'); if (!s) return 'no stage'; return [...s.querySelectorAll('.ig-box, .ig-side button, .ig-side a')].map(e => { const r = e.getBoundingClientRect(); return (e.className || e.tagName) + ':' + Math.round(r.left) + '-' + Math.round(r.right); }).join(' ') + ' W=' + document.documentElement.clientWidth;`));
+  ok('phone: the arrows sit beside the post, never over it, and no control row under it', await js(`const s = document.querySelector('[data-igstage]'), b = s.querySelector('.ig-box').getBoundingClientRect(), pv = s.querySelector('.ig-nav.pv').getBoundingClientRect(), nx = s.querySelector('.ig-nav.nx').getBoundingClientRect();
+    return pv.width > 0 && pv.right <= b.left + 0.5 && nx.left >= b.right - 0.5 && getComputedStyle(s.querySelector('.ig-ctl')).display === 'none';`));
+  ok('phone: the preview caption is no scroll box, so a swipe on it scrolls the page', await js(`const c = getComputedStyle(document.querySelector('[data-igstage] .ig-cap')); return /clip|hidden/.test(c.overflowY) && c.overscrollBehaviorY === 'auto' && c.touchAction === 'pan-y';`));
+  await click('#media-grid .igc-cell[data-id="col1~CARaaaa4"]'); await sleep(900);
+  await click('#media-grid [data-igstage] .ig-nav.nx'); await sleep(500);
+  ok('phone: in a carousel the side arrow turns its slides first', (await stage()).img === 'https://cdn.test/CARaaaa42.svg' && (await stage()).pos === 'Discipline · 4 of 5');
+  await click('#media-grid [data-igstage] .ig-nav.nx'); await sleep(400); await click('#media-grid [data-igstage] .ig-nav.nx'); await sleep(900);
+  ok('…then, after its last slide, the next post', (await stage()).pos === 'Discipline · 5 of 5', (await stage()).pos);
+  await click('#media-grid .igc-cell[data-id="col1~VIDaaaa1"]'); await sleep(900);
   await click('#media-grid [data-igs="fill"]'); await sleep(500);
   ok('filled on a phone it is exactly the screen', await js(`const r = document.querySelector('[data-igstage]').getBoundingClientRect(); return r.left === 0 && r.width === innerWidth && r.height === innerHeight;`));
   await click('#media-grid [data-igs="fill"]'); await click('#media-grid [data-igs="close"]'); await sleep(400);
