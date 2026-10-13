@@ -11,7 +11,7 @@ var html = `
 <div id="bj-nav-header" class="veda-hdr-outer">
   <div class="veda-hdr-inner">
   <div class="veda-hdr-left">
-    <div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:900;color:#8D769A;letter-spacing:1px;text-transform:uppercase;line-height:1;">Brainstorm Journal</div>
+    <div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:900;color:#8D769A;letter-spacing:1px;text-transform:uppercase;line-height:1;"><span class="a1-app-ic" aria-hidden="true" style="display:inline-block;width:1em;height:1em;margin-right:.4em;vertical-align:-.15em;color:#8D769A;line-height:0"><svg viewBox="14 14 68 68" fill="none" stroke="currentColor" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;display:block"><path d="M48 20a18 18 0 0 0-10 33v7h20v-7a18 18 0 0 0-10-33Z"/><path d="M40 68h16"/><path d="M43 76h10"/></svg></span>Brainstorm Journal</div>
   </div>
   <div class="veda-hdr-right">
     <div class="veda-hbtns">

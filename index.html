@@ -14913,7 +14913,7 @@ function GitaLessonsBrowser({onClose, onSelectLesson}){
     RC("div",{className:"veda-hdr-outer"},
       RC("div",{className:"veda-hdr-inner"},
       RC("div",{className:"veda-hdr-left"},
-        RC("div",{style:{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:900,color:A,letterSpacing:1,textTransform:"uppercase",lineHeight:1}},"Bhagavad Gita · All Lessons")
+        RC("div",{style:{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:900,color:A,letterSpacing:1,textTransform:"uppercase",lineHeight:1}},RC(window.A1AppIcon,{app:"gita",style:{color:A}}),"Bhagavad Gita · All Lessons")
       ),
       RC("div",{className:"veda-hdr-right"},RC("div",{className:"veda-hbtns"},
         RC("button",{onClick:onClose,onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:gitaBtnStyle(false)},"TaskHub"),
@@ -19530,7 +19530,7 @@ window.PlansCore={
      OurJournal) and their Firestore adapters, loaded in place by notebook.js.
      MyJournal itself still lives below until Phase 3
      (docs/Notebook/plan.md). ── -->
-<script src="Notebook/notebook.js?v=86fef1999b"></script>
+<script src="Notebook/notebook.js?v=eaf717d57d"></script>
 
 <!-- ── Brainstorm Journal: Notebook's brainstorm app (Notebook/apps/brainstorm.*). ── -->
 <script>Notebook.mount({ app: 'brainstorm', key: 'bj', store: 'journal' });</script>
