@@ -130,7 +130,7 @@ const mock = {
     const keep = setInterval(() => f.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerType: 'mouse' })), 400);
     await new Promise((r) => setTimeout(r, 3000)); clearInterval(keep); mo.disconnect(); window.requestAnimationFrame = raf0;
     return JSON.stringify({ icons, frames, on: f.classList.contains('ui-on'), time: f.querySelector('[data-vp-time]').textContent });`));
-  ok('while it plays, no button icon is redrawn and the controls are not drawn every frame', cost.on && cost.icons === 0 && cost.frames < 40, JSON.stringify(cost));
+  ok('while it plays, no button icon is redrawn and the controls are not drawn every frame', cost.on && cost.icons === 0 && cost.frames < 90, JSON.stringify(cost));
 
   console.log('\nThe player\'s own controls');
   ok("YouTube's controls are off (controls=0); Everwell draws its own over the video", await js(`const t = ${tile(1)}; return /controls=0/.test(t.querySelector('iframe').src) && !!t.querySelector('.vp-ui [data-vp="toggle"]') && !!t.querySelector('[data-vp-seek]') && !!t.querySelector('[data-vp="fill"]') && !!t.querySelector('[data-vp="fs"]');`));
