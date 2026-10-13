@@ -232,6 +232,39 @@ console.log('\nIcons');
   ok('an automatic tile on the private host gets its built-in icon (Everwell)', f('https://a1-priv.av1.workers.dev/everwell.html') === 'everwell', f('https://a1-priv.av1.workers.dev/everwell.html'));
   ok('…and on A1\'s host', f('https://anthonyn99.github.io/A1/magi.html') === 'magi');
   ok('another site with a same-named page does not', f('https://example.com/everwell.html') === '');
+
+  // A local program: its built-in icon by file name (a Shield tile showed "S").
+  const lb = {};
+  vm.runInNewContext(['var ICONS = {' + iconKeys.map((k) => JSON.stringify(k) + ':1').join(',') + '};',
+    fnSrc('isLocalPath'), fnSrc('localIconFor'), 'this.f = localIconFor;'].join('\n'), lb);
+  const L = lb.f || (() => 'missing');
+  ok('a local Shield (the agent .exe, any user; its desktop shortcut; shieldopen:) gets Shield\'s icon',
+    L('C:\\Users\\antho\\AppData\\Local\\Shield\\shield-agent.exe') === 'shield' && L('C:\\Users\\vedap\\AppData\\Local\\Shield\\shield-agent.exe') === 'shield' &&
+    L('C:\\Users\\antho\\Desktop\\Shield.lnk') === 'shield' && L('shieldopen:show') === 'shield',
+    L('C:\\Users\\antho\\AppData\\Local\\Shield\\shield-agent.exe'));
+  ok('…another local program, a web page or a "link" file gets none', L('C:\\Games\\League.exe') === '' && L('https://x.y/shield.exe') === '' && L('C:\\a\\link.lnk') === '');
+  ok('an automatic tile, a built-in icon that no longer exists, or an image that fails all fall back to the program\'s own',
+    /var auto = !ic \|\| ic === 'auto' \|\| \(key && !ICONS\[key\]\);/.test(src) && /if \(auto\) key = a1IconFor\(a\.url\) \|\| localIconFor\(a\.url\);/.test(src) &&
+    /var fk = a1IconFor\(a\.url\) \|\| localIconFor\(a\.url\);/.test(src));
+
+  // A program changes its favicon: LifeHub's copy must change with it, or the
+  // launcher keeps showing the old mark. Each built-in icon is checked against
+  // its program's <link rel="icon"> (private-repo pages when that repo is here).
+  const PAGES = { oneinbox: 'oneinbox.html', tradehub: '../A1-Priv/tradehub.html', mylist: 'mylist.html', insight: '../A1-Priv/insight.html', vault: '../A1-Priv/vault.html',
+    everwell: '../A1-Priv/everwell.html', shield: 'shield.html', riftiq: '../A1-Priv/riftiq.html', magi: 'magi.html', taskhub: 'index.html' };
+  const svgs = {};
+  for (const m of keys.matchAll(/^\s*'?([a-z-]+)'?:\s*"([^"]*)"/gm)) svgs[m[1]] = m[2];
+  const favicon = (f) => {
+    const h = fs.readFileSync(path.join(ROOT, f), 'utf8');
+    const tag = (h.match(/<link\b[^>]*>/gi) || []).find((t) => /\brel=["'](?:shortcut )?icon["']/i.test(t));
+    const m = tag && (/href="([^"]+)"/.exec(tag) || /href='([^']+)'/.exec(tag));
+    return m ? decodeURIComponent(m[1].replace(/^data:image\/svg\+xml(;utf8)?,/, '')) : null;
+  };
+  Object.keys(PAGES).forEach((k) => {
+    if (!fs.existsSync(path.join(ROOT, PAGES[k]))) { console.log('  skip ' + k + ' (' + PAGES[k] + ' not here)'); return; }
+    ok('LifeHub\'s ' + k + ' icon is ' + PAGES[k] + '\'s favicon', svgs[k] === favicon(PAGES[k]), 'update ICONS.' + k + ' in LifeHub/lifehub.js');
+  });
+  ok('every built-in icon is checked (a new one belongs in PAGES)', iconKeys.every((k) => PAGES[k] || k === 'shield-desktop' || k === 'link'), iconKeys.join());
   const wk = read('workers/lifehub-icon/worker.js');
   ok('the icon worker says when it could not read the page', /read: !!html/.test(wk));
   ok('…and LifeHub then reads the page itself, keeping the worker\'s guess as a fallback',
