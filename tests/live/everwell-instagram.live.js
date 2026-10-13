@@ -361,6 +361,9 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
     return pv.width > 0 && pv.right <= b.left + 0.5 && nx.left >= b.right - 0.5 && getComputedStyle(s.querySelector('.ig-ctl')).display === 'none';`));
   ok('phone: the preview caption is no scroll box, so a swipe on it scrolls the page', await js(`const c = getComputedStyle(document.querySelector('[data-igstage] .ig-cap')); return /clip|hidden/.test(c.overflowY) && c.overscrollBehaviorY === 'auto' && c.touchAction === 'pan-y';`));
   // A finger swipe, read from touch events (iPhone WebKit cancels the pointer mid-swipe).
+  // Repeat, so the 2 s reel never advances on its own while the swipes are counted.
+  await js(`localStorage.setItem('ew.tony.igMode', 'one'); return 1;`);
+  await click('#media-grid .igc-cell[data-id="col1~VIDaaaa2"]'); await sleep(700); await click('#media-grid .igc-cell[data-id="col1~VIDaaaa1"]'); await sleep(900);
   await c.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
   const swipe = async (x0, y, d) => { const t = (type, x) => c.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] });
     await t('touchStart', x0); for (let i = 1; i <= 8; i++) { await t('touchMove', x0 + i * d); await sleep(16); } await t('touchEnd'); await sleep(1100); };
@@ -372,6 +375,7 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   await swipe(bx.x + bx.w + 30, bx.y + 150, -25);
   ok('…and a swipe in the margin beside the post counts too', (await stage()).pos === 'Discipline · 2 of 5', (await stage()).pos);
   await c.send('Emulation.setTouchEmulationEnabled', { enabled: false });
+  await js(`localStorage.removeItem('ew.tony.igMode'); return 1;`);
   await click('#media-grid [data-igstage] .ig-side [data-igs="side"]'); await sleep(400);
   ok('phone, details hidden: the small bar sits above the post, never over it or its mute', await js(`const s = document.querySelector('[data-igstage]'), b = s.querySelector('.ig-box').getBoundingClientRect(), m = s.querySelector('.ig-mute').getBoundingClientRect();
     const bs = [...s.querySelectorAll('.ig-bare button')].map(e => e.getBoundingClientRect()); return bs.length === 3 && bs.every(r => r.height > 0 && r.bottom <= b.top + 0.5 && !(r.bottom > m.top && r.top < m.bottom && r.right > m.left && r.left < m.right));`));
