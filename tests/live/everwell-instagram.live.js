@@ -255,7 +255,7 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   ok('a copy that has run out says to sync again, with a link to Instagram', await js(`const s = document.querySelector('[data-igstage]'); return s.classList.contains('gone') && /needs a fresh sync/.test(s.querySelector('[data-ig-gone]').textContent) && !!s.querySelector('[data-ig-gone] a[href*="instagram.com/p/BLKgone02"]');`));
   await click('#media-grid .ig-side [data-igs="side"]'); await sleep(300);
   ok('Hide details: only the post, a small bar keeps Show, Fill and Stop; remembered on this device', await js(`const s = document.querySelector('[data-igstage]'); return s.classList.contains('bare') && getComputedStyle(s.querySelector('.ig-side')).display === 'none' &&
-    getComputedStyle(s.querySelector('.ig-bare')).display === 'flex' && s.querySelectorAll('.ig-bare button').length === 3 && localStorage.getItem('ew.tony.igSide') === '0';`));
+    getComputedStyle(s.querySelector('.ig-bare')).display === 'flex' && [...s.querySelectorAll('.ig-bare button')].filter(b => b.offsetWidth).length === 3 && localStorage.getItem('ew.tony.igSide') === '0';`));
   await click('#media-grid .ig-bare [data-igs="side"]'); await sleep(300);
   ok('…and Show brings them back', await js(`const s = document.querySelector('[data-igstage]'); return !s.classList.contains('bare') && getComputedStyle(s.querySelector('.ig-side')).display !== 'none' && localStorage.getItem('ew.tony.igSide') === '1';`));
   await click('#media-grid [data-igs="close"]'); await sleep(400);
