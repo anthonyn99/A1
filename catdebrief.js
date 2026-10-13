@@ -271,7 +271,13 @@
   function openMagi(url) {
     if (!url) return false;
     var w = null;
+    // This very tab may carry MAGI's name: window.name survives navigation,
+    // so a tab that once held MAGI and now holds TaskHub IS 'a1tab_magi', and
+    // the lookup would hand back TaskHub itself to navigate away. Give the
+    // name up first, so the lookup finds the real console or opens one.
+    try { if (root.name === TAB_NAME) root.name = ''; } catch (e) {}
     try { w = root.open('', TAB_NAME); } catch (e) { w = null; }
+    if (w === root) w = null;
     if (!w) { try { return !!root.open(url, TAB_NAME); } catch (e) { return false; } }
     var cur = null;
     try { cur = w.location.href; } catch (e) { cur = null; }
