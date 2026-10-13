@@ -6970,6 +6970,9 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
     // the series kept ringing at the old time on every other date.
     const _hm=iso=>{if(!iso)return"";const d=new Date(iso);return d.getHours()+":"+d.getMinutes();};
     const notifyChanged=!!(initial?.id&&wasRepeating&&isNowRepeating&&!wasAltSeq&&_hm(item.notifyAt)!==_hm(initial.notifyAt));
+    // Untouched, a later occurrence's reminder stays a display-only badge of the
+    // series — re-saving it must not turn it into a second, one-off push.
+    if(initial?._notifyView&&!notifyChanged&&item.notifyAt){item._notifyView=true;item.notifyRepeat="none";item.notifyRepeatDays=[];item.notifyRepeatId=null;}
     if(wasRepeating&&repeat==="none"){
       onSave(startDateKey,{...item,altSeqId:initial?.altSeqId},"cancelRepeat");onClose();
     } else if(isNowRepeating&&wasNotRepeating&&initial?.id){
@@ -9612,7 +9615,10 @@ function App(){
     // Reschedule if a reminder is still set (deterministic ids overwrite the old
     // docs); otherwise CANCEL so a removed reminder's pre-expanded occurrence
     // docs are deleted from Firestore instead of firing at the original time.
-    if(item.notifyAt&&window.thScheduleNotif){window.thScheduleNotif(effNotify?{...item,notifyRepeat:effNotify.notifyRepeat,notifyRepeatDays:effNotify.notifyRepeatDays,notifyRepeatId:effNotify.notifyRepeatId,dashboard:'tony'}:{...item,dashboard:'tony'});}
+    // A display-only badge (_notifyView) is the series' business: arming it would
+    // add a duplicate push, and cancelling it would resolve to the whole series.
+    if(item._notifyView&&!effNotify){}
+    else if(item.notifyAt&&window.thScheduleNotif){window.thScheduleNotif(effNotify?{...item,notifyRepeat:effNotify.notifyRepeat,notifyRepeatDays:effNotify.notifyRepeatDays,notifyRepeatId:effNotify.notifyRepeatId,dashboard:'tony'}:{...item,dashboard:'tony'});}
     else if(window.thCancelNotif){try{window.thCancelNotif(item.id,item.notifyRepeatId);}catch(e){}}
   },[setData]);
 
