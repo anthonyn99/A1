@@ -65,9 +65,14 @@ const toggle = async (c) => { await evalJs(c, "var l=document.querySelector('a1-
   await c.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
   await c.send('Page.navigate', { url: ORIGIN + '/A1/oneinbox.html?blank' }); await sleep(800);
   const app = { id: 'orca', name: 'Orca', url: ORCA, icon: 'auto', tab: 'lh_orca', hidden: false };
+  // Local Shield tiles (2026-10-13: one showed an "S"): the agent with no icon, a shortcut
+  // whose built-in icon no longer exists. Both must draw Shield's own mark.
+  const sh1 = { id: 'sh1', name: 'Shield', url: 'C:\Users\antho\AppData\Local\Shield\shield-agent.exe', icon: '', tab: 'lh_sh1', hidden: false };
+  const sh2 = { id: 'sh2', name: 'Shield', url: 'C:\Users\antho\Desktop\Shield.lnk', icon: 'a1:shield-old', tab: 'lh_sh2', hidden: false };
+  const apps = JSON.stringify([app, sh1, sh2]);
   await evalJs(c, `localStorage.clear(); sessionStorage.clear();
     localStorage.setItem('oneinbox_lock_session', JSON.stringify({token:'test'}));
-    localStorage.setItem('lifehub:v1', JSON.stringify({ base: [${JSON.stringify(app)}], apps: [${JSON.stringify(app)}], pending: false }));
+    localStorage.setItem('lifehub:v1', JSON.stringify({ base: ${apps}, apps: ${apps}, pending: false }));
     localStorage.setItem('lh_pageicons', JSON.stringify({ ${JSON.stringify(ORCA)}: [${JSON.stringify(OLD)}] })); 1`);
   await c.send('Page.navigate', { url: ORIGIN + '/A1/oneinbox.html' }); await sleep(3000);
 
@@ -75,6 +80,9 @@ const toggle = async (c) => { await evalJs(c, "var l=document.querySelector('a1-
   ok('the Orca tile is drawn', !!(await orcaSrc(c)));
   ok('opening the panel paints the NEW logo, not the cached one', (await orcaSrc(c)) === NEW1, await orcaSrc(c));
   ok('the new logo is cached', (await evalJs(c, "return localStorage.getItem('lh_pageicons');")).includes(encodeURIComponent('#c0aeea').slice(0, 9)));
+  const shield = (id) => evalJs(c, "var t=null; [document].concat([...document.querySelectorAll('*')].map(e=>e.shadowRoot).filter(Boolean)).forEach(function(d){ var x=d.querySelector('.t[data-id=\\"" + id + "\\"] .ic'); if(x) t=x; }); return t ? (t.querySelector('svg circle[cx=\\"48\\"][cy=\\"42\\"]') ? 'shield' : t.textContent || t.innerHTML.slice(0, 80)) : 'missing';");
+  ok('a local Shield tile with no icon draws Shield's mark, not an "S"', (await shield('sh1')) === 'shield', await shield('sh1'));
+  ok('…and one whose built-in icon no longer exists', (await shield('sh2')) === 'shield', await shield('sh2'));
   const hits = workerHits;
   await toggle(c);   // close
   declared = NEW2;
