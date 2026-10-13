@@ -1408,6 +1408,9 @@
       img.alt = ''; img.decoding = 'async'; img.referrerPolicy = 'no-referrer'; img.draggable = false;
       var next = function () {
         if (n < cands.length) { img.src = cands[n++]; return; }
+        // Nothing loaded: the program's built-in icon, if it has one, before a letter.
+        var fk = a1IconFor(a.url) || localIconFor(a.url);
+        if (fk && ICONS[fk]) { d.className = cls || 'ic'; d.innerHTML = ICONS[fk]; return; }
         d.className = (cls || 'ic') + ' mono'; d.textContent = initial(a);
       };
       img.onerror = next;
