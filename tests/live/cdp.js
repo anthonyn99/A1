@@ -42,6 +42,8 @@ async function launch() {
   if (!exe) throw new Error('no Edge/Chrome found');
   const child = spawn(exe, [
     `--remote-debugging-port=${PORT}`, '--headless=new', '--disable-gpu',
+    // Silent: a live test can play a real video (Tony heard one, 2026-10-12).
+    '--mute-audio',
     '--window-size=1440,900', `--user-data-dir=${UDD}`, '--no-first-run',
     '--no-default-browser-check', 'about:blank',
   ], { detached: true, stdio: 'ignore' });
