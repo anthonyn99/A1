@@ -28485,8 +28485,19 @@ async function hardReload() {
 try {
   if (!/^a1tab_/.test(String(window.name || "")) && !sessionStorage.getItem("a1TabKey")) window.name = "a1tab_magi";
 } catch {}
-/* Answered to a claim so no opener retires this tab mid-council. */
-window.a1TabBusy = () => !!(S.running || S.refining);
+/* Answered to a claim so no opener retires this tab mid-work, and asked by the
+   extension before LifeHub's Open all replaces it (it moves a busy tab into the
+   new group instead). The engine would finish the work either way, but the live
+   view lives in THIS tab's sessionStorage pins — a fresh tab would not see it.
+   Busy = a council, a queue, a brainstorm session or a Code Mode session. */
+window.a1TabBusy = () => {
+  try {
+    return !!(S.running || S.refining
+      || (typeof QUEUES === "object" && (QUEUES.council.running || QUEUES.code.running))
+      || (S.bs && (S.bs.busy || S.bs.refining || (S.bs.sessionId && S.bs.status === "active")))
+      || (typeof CODE === "object" && ((CODE.task && !CODE.task.done) || (CODE.session && CODE.session.id))));
+  } catch { return true; }
+};
 </script>
 <script src="tabsync.js"></script>
 <script src="LifeHub/lifehub.js" data-lock="#lockScreen" data-accent="#c0aeea" defer></script>
