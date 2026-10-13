@@ -8,6 +8,7 @@
        localStorage in time for the one layout the browser measures to size the
        popup window. See the file header. -->
   <script src="launcher-size.js"></script>
+  <script src="apphead.js"></script>
   <style>
     /* ── Veda's palette, lifted from index.html #vd-kc-root so Launcher and the
        Links program are visibly the same product. Webfonts can't be fetched from
@@ -115,13 +116,7 @@
       font-family:var(--serif); font-size:15px; font-weight:900;
       letter-spacing:.8px; text-transform:uppercase; line-height:1; color:var(--ac);
     }
-    .sync {
-      font-size:9px; font-weight:700; letter-spacing:1px; text-transform:uppercase;
-      color:var(--txm); min-height:12px; margin-top:4px; white-space:nowrap;
-    }
-    .sync.saving { color:var(--txd); }
-    .sync.ok     { color:var(--ok); }
-    .sync.error  { color:var(--err); }
+    .hd-right { display:flex; align-items:center; gap:6px; }
     .gear {
       background:transparent; border:1px solid var(--bdl); color:var(--ac);
       width:30px; height:30px; border-radius:5px; cursor:pointer; flex-shrink:0;
@@ -336,14 +331,14 @@
   <header>
     <div class="brand">
       <img class="brand-mark" src="icons/launcher.svg" alt="" width="26" height="26" />
-      <div style="min-width:0;">
-        <div class="logo">Launcher</div>
-        <div class="sync" id="sync"></div>
-      </div>
+      <div class="logo">Launcher</div>
     </div>
+    <div class="hd-right">
+    <span class="a1-sync idle" id="sync"></span>
     <button class="gear" id="gear" title="Open Links in Index">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     </button>
+    </div>
   </header>
 
   <div class="section-head">

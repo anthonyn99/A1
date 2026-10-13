@@ -280,9 +280,10 @@ function toast(msg) {
   toast._t = setTimeout(() => toastEl.classList.remove("show"), 1400);
 }
 
-function setSync(state, text) {
-  syncEl.className = "sync" + (state ? " " + state : "");
-  syncEl.textContent = text || "";
+// Everwell's sync pill, shared by every A1 program (apphead.js): busy, ok
+// (fades after two seconds), err (stays), off, idle.
+function setSync(state) {
+  A1Head.sync(syncEl, state);
 }
 
 // Open one or more links. When `group` is set (a multi-link launch), the
@@ -462,15 +463,14 @@ function persistOrder(result) {
   render();
 
   lastOwnSaveAt = Date.now();
-  setSync("saving", "Syncing…");
+  setSync("busy");
   LauncherDB.save({ connections, colmap })
     .then(() => {
       lastOwnSaveAt = Date.now();
       LauncherDB.writeCache({ connections, colmap, savedAt: Date.now() });
-      setSync("ok", "✓ Synced");
-      setTimeout(() => { if (syncEl.textContent === "✓ Synced") setSync("", "Synced with Links"); }, 2200);
+      setSync("ok");
     })
-    .catch(() => setSync("error", "⚠ Sync failed"));
+    .catch(() => setSync("err"));
 }
 
 // ── Load + live refresh ──────────────────────────────────────────────────────
@@ -517,20 +517,20 @@ async function boot() {
   // reconcile against the worker.
   try {
     const cached = await LauncherDB.readCache();
-    if (cached && cached.connections.length) { apply(cached); setSync("", "Synced with Links"); }
+    if (cached && cached.connections.length) { apply(cached); setSync("idle"); }
   } catch (_) {}
 
   try {
     const doc = await LauncherDB.refresh();
     applyRemote(doc);
     if (loadingEl.style.display !== "none") apply(doc);
-    setSync("", "Synced with Links");
+    setSync("ok");
   } catch (e) {
     if (!connections.length) {
       loadingEl.style.display = "none";
       groupsEl.innerHTML = `<div class="empty">Couldn't reach Links.<br />Check your connection and reopen.</div>`;
     }
-    setSync("error", "Offline");
+    setSync("off");
   }
 
   // Keep the open popup live: an edit made in the Links program shows up here
