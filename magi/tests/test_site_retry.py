@@ -36,22 +36,26 @@ def _ok(text: str = GOOD) -> Answer:
                   ok=True, state=ProviderState.DONE)
 
 
-def _run(monkeypatch, script, *, cancel=None, interrupt=None):
+def _run(monkeypatch, script, *, cancel=None, interrupt=None, site="gemini",
+         attachments=None, guests=None):
     monkeypatch.setattr(browser_base, "SITE_RETRY_PAUSE_S", 0.0)
     calls, events = [], []
 
-    async def fake(self, question, *, ctx, on_event=None, cancel=None):
+    async def fake(self, question, *, ctx, on_event=None, cancel=None, guest=False):
         calls.append(question)
+        if guests is not None:
+            guests.append(guest)
         return script[len(calls) - 1]
 
     monkeypatch.setattr(BrowserProvider, "_ask_site", fake)
     s = load_settings()
-    p = BrowserProvider(s.site("gemini"), s)
+    p = BrowserProvider(s.site(site), s)
 
     async def on_event(e):
         events.append(e)
 
-    ctx = RunContext(run_id="t", question="What moved the market?", interrupt=interrupt)
+    ctx = RunContext(run_id="t", question="What moved the market?", interrupt=interrupt,
+                     attachments=attachments or [])
     a = asyncio.run(p.ask("What moved the market?", ctx=ctx, on_event=on_event, cancel=cancel))
     return a, calls, events
 
@@ -61,6 +65,27 @@ def test_something_went_wrong_is_asked_again_and_the_answer_counts(monkeypatch):
     assert a.ok and a.text == GOOD
     assert len(calls) == 2
     assert any(e.state is ProviderState.LAUNCHING and "again" in e.message for e in events)
+
+
+def test_gemini_retries_signed_out(monkeypatch):
+    """2026-10-13: the signed-in account failed every search question; the
+    same question from a signed-out profile answered."""
+    from magi.settings import load_settings
+    assert load_settings().site("gemini").guest_retry
+    guests = []
+    a, _, events = _run(monkeypatch, [_degraded(HICCUP), _ok()], guests=guests)
+    assert guests == [False, True] and a.ok
+    assert any("signed out" in e.message for e in events)
+
+
+def test_no_guest_retry_with_attachments_or_on_other_sites(monkeypatch, tmp_path):
+    guests = []
+    _run(monkeypatch, [_degraded(HICCUP), _ok()], guests=guests,
+         attachments=[tmp_path / "chart.png"])
+    assert guests == [False, False]
+    guests.clear()
+    _run(monkeypatch, [_degraded(HICCUP), _ok()], guests=guests, site="chatgpt")
+    assert guests == [False, False]
 
 
 def test_the_send_refused_toast_is_asked_again(monkeypatch):
