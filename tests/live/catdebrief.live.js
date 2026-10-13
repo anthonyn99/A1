@@ -157,6 +157,23 @@ const CFG = { tony: { units: ['grok'] }, veda: { units: ['gemini', 'claude'] }, 
     ok(`(${tag}) no sideways scroll when open`, fits);
     await shot(`tradehub-${tag}`);
     if (tag !== 'desktop') continue;
+    // The template box wears the suite's grip (resizegrip.js), not the
+    // native corner, and a drag on it resizes the box.
+    ok('the template box has MAGI’s corner grip', await js(`var ta=document.querySelector('textarea.tb-debrief-tpl'); return !!ta && !!ta.parentElement.querySelector('.a1-grip') && getComputedStyle(ta).resize === 'none';`));
+    {
+      const g = JSON.parse(await js(`var ta=document.querySelector('textarea.tb-debrief-tpl'); ta.scrollIntoView({block:'center'}); var r=ta.parentElement.querySelector('.a1-grip').getBoundingClientRect(); return JSON.stringify({x:r.left+r.width/2,y:r.top+r.height/2,h:ta.getBoundingClientRect().height});`));
+      await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: g.x, y: g.y, button: 'left', clickCount: 1 });
+      for (let i = 1; i <= 8; i++) { await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: g.x, y: g.y + i * 10, button: 'left', buttons: 1 }); await sleep(16); }
+      await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: g.x, y: g.y + 80, button: 'left', clickCount: 1 });
+      await sleep(300);
+      const h2 = await js(`return document.querySelector('textarea.tb-debrief-tpl').getBoundingClientRect().height;`);
+      ok('dragging the grip makes the box taller', h2 > g.h + 50, g.h + ' → ' + h2);
+      await js(`var ta=document.querySelector('textarea.tb-debrief-tpl'); ta.style.height='120px'; ta.scrollTop=60; ta.dispatchEvent(new Event('scroll')); 1`);
+      await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: g.x - 60, y: g.y - 40 });
+      await sleep(400);
+      await shot('tradehub-template-grip');
+      await js(`var ta=document.querySelector('textarea.tb-debrief-tpl'); ta.style.height=''; 1`);
+    }
     // Tick Grok for Veda: the doc gets it, in the canonical order.
     await js(`var rows=[...document.querySelectorAll('div')].filter(d=>/^Veda’s TaskHub/.test(d.textContent) && d.children.length===0); var sec=rows[0].parentElement; [...sec.querySelectorAll('button')].find(b=>/Grok/.test(b.textContent)).click(); 1`);
     await sleep(1800);
