@@ -10069,7 +10069,7 @@ function App(){
 
   return React.createElement("div",{style:{background:T.BG,minHeight:"100%",color:T.TX,fontFamily:"'Inter',system-ui,-apple-system,sans-serif",fontSize:15}},
     // Sticky header bar
-    React.createElement("div",{style:{position:"sticky",top:0,left:0,right:0,zIndex:200,background:T.BG,borderBottom:"1px solid "+T.BD,transition:"background .4s,border-color .4s"}},
+    React.createElement("div",{"data-sb-top":"1",style:{position:"sticky",top:0,left:0,right:0,zIndex:200,background:T.BG,borderBottom:"1px solid "+T.BD,transition:"background .4s,border-color .4s"}},
       React.createElement("div",{id:"th-main-header-row",style:{maxWidth:2000,margin:"0 auto",padding:"calc(env(safe-area-inset-top, 0px) + 10px) clamp(12px,3vw,24px) 10px",display:"flex",flexDirection:"column",gap:6,minWidth:0,width:"100%"}},
         React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,minWidth:0,minHeight:30}},
           React.createElement("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-start",gap:2,minWidth:0,position:"relative"}},
@@ -16413,7 +16413,7 @@ function App(){
     // The safe-area inset lives on THIS element, not the page wrapper: the header
     // then owns the notch/Dynamic-Island strip and paints it as it pins, so
     // scrolled content never slides up behind the pill.
-    RC("div",{style:{position:"sticky",top:0,zIndex:50,background:BG,marginLeft:-14,marginRight:-14,paddingLeft:14,paddingRight:14,paddingTop:"calc(env(safe-area-inset-top,0px) + 4px)",paddingBottom:4}},
+    RC("div",{"data-sb-top":"1",style:{position:"sticky",top:0,zIndex:50,background:BG,marginLeft:-14,marginRight:-14,paddingLeft:14,paddingRight:14,paddingTop:"calc(env(safe-area-inset-top,0px) + 4px)",paddingBottom:4}},
     // Mobile: title + program nav (switch/star/gear) share one row, tools
     // sit on the row below — 2 bands. Desktop keeps its original 2-column
     // shape (title left, nav+tools stacked right) untouched.
