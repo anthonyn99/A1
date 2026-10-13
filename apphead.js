@@ -56,9 +56,6 @@
     '.a1-app-ic{display:inline-block;width:1em;height:1em;margin:0 .4em 0 0!important;vertical-align:-.15em;flex-shrink:0;' +
       'color:var(--a1-app-ic,var(--ac,var(--accent,#c0aeea)));line-height:0}' +
     '.a1-app-ic svg{width:100%;height:100%;display:block}' +
-    // A mark that runs to its right edge (TradeHub's chart arrow) meets the
-    // first letter, so it gets a wider gap to look the same as the others.
-    '.a1-app-ic[data-a1-app=tradehub]{margin-right:.55em!important}' +
     // Inside a flex title the gap is the title's own; the margin is dropped.
     '.a1-app-ic.a1-flex{margin-right:0!important}' +
     '.a1-sync{display:inline-flex;align-items:center;gap:6px;font-family:Inter,system-ui,-apple-system,sans-serif;' +
