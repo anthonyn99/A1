@@ -6230,13 +6230,31 @@ const FAV_PROFILE_LS = "magi.favProfile";
 // sessionStorage, so it lasts as long as this tab and no longer: a NEW
 // window is a fresh start and gets the favourite again.
 const PICK_SS = "magi.pick";
-// A prompt handed over by another A1 program belongs to a PERSON, and every
-// program that hands one over -- TradeHub's Analysis tab, and the morning
-// launcher that builds the same link in Python -- is Tony's. Without this a
-// handoff would land in whichever profile the console happened to be showing,
-// so a trading prompt could convene Veda's council against Veda's accounts
-// and file the verdict in her history.
+// A prompt handed over by another A1 program belongs to a PERSON. TradeHub's
+// Analysis tab and the morning launcher (which builds the same link in
+// Python) are Tony's and send no profile, so this is the default. Without it
+// a handoff would land in whichever profile the console happened to be
+// showing, so a trading prompt could convene Veda's council against Veda's
+// accounts and file the verdict in her history.
 const HANDOFF_PROFILE = "tony";
+// A link that names its person (`p`) goes to that person instead: the
+// Catalysts debrief button (catdebrief.js) sends `p: "veda"` from Veda's
+// TaskHub. Anything that is not a known profile falls back to Tony.
+const handoffProfileOf = (h) => (h && MAGI_PROFILES[h.p]) ? h.p : HANDOFF_PROFILE;
+// The profile of the handoff waiting for this load: the stash a profile
+// switch left behind, else the fragment. Read without consuming either --
+// takeStashedHandoff()/takeHandoff() do that later, once, as before.
+function pendingHandoffProfile() {
+  try {
+    const st = sessionStorage.getItem(HANDOFF_SS);
+    if (st) return handoffProfileOf(JSON.parse(st));
+  } catch {}
+  try {
+    const m = /[#&]tb=([^&]+)/.exec(location.hash || "");
+    if (m) return handoffProfileOf(JSON.parse(b64uDecode(decodeURIComponent(m[1]))));
+  } catch {}
+  return HANDOFF_PROFILE;
+}
 // A handoff that arrives in the WRONG profile has to survive the reload that
 // switches to the right one -- takeHandoff() has already stripped the
 // fragment by then, so there is nothing left in the url to read afterwards.
@@ -6263,7 +6281,7 @@ const PROFILE = {
     // A handoff outranks everything, including a favourite pointing the
     // other way: the link names the work, and the work is one person's.
     try {
-      if (hasHandoffHash() || sessionStorage.getItem(HANDOFF_SS)) return HANDOFF_PROFILE;
+      if (hasHandoffHash() || sessionStorage.getItem(HANDOFF_SS)) return pendingHandoffProfile();
     } catch {}
     // Then this tab's explicit pick, the favourite, whoever was here last,
     // and the default.

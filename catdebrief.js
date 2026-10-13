@@ -190,7 +190,7 @@
       ticker: isEarn(ev) ? tickerOf(ev) : '',
       event: String((ev && (ev.title || ev.name)) || '').trim(),
       date: ev && ev.date ? fmtDate(ev.date) : '',
-      timing: isEarn(ev) ? (TIMING[ev.when] || 'today') : '',
+      timing: isEarn(ev) ? (TIMING[ev.when] || '') : '',
       time: !isEarn(ev) ? fmtET(macroET) : '',
       epsEst: (typeof eps === 'number' && isFinite(eps)) ? '$' + eps.toFixed(2) : 'not available',
       category: catLabel(ev && ev.category)
