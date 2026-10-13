@@ -316,6 +316,48 @@ console.log('\nA council already in flight');
   ok('and goes as soon as the run ends', c.calls.start === 1);
 }
 
+console.log('\nA Catalysts debrief names its person (catdebrief.js)');
+{
+  // The debrief button on Veda's TaskHub sends `p: "veda"`. It must land in
+  // her console, not whichever one the MAGI tab happened to show.
+  const vm = require('vm');
+  const sb = { TextEncoder, TextDecoder, btoa, atob, Intl, Date, JSON, Math, console, CustomEvent: function () {}, dispatchEvent() {} };
+  sb.window = sb;
+  vm.createContext(sb);
+  vm.runInContext(fs.readFileSync(path.join(ROOT, 'catdebrief.js'), 'utf8'), sb);
+  const D = sb.A1Debrief;
+  const vLink = D.link('Debrief the September CPI Report', ['gemini'], 'veda');
+  const vHash = vLink.slice(vLink.indexOf('#'));
+  const got = readLink(vLink);
+  ok('magi.html reads the debrief link', got && got.q === 'Debrief the September CPI Report' && got.p === 'veda', got && got.p);
+  ok('it points at the console TradeHub uses', vLink.split('#')[0] === TB_MAGI_URL, vLink.split('#')[0]);
+
+  const c = consoleFor({ hash: vHash, profile: 'tony' });
+  c.env.handoffTry();
+  ok('a Veda debrief arriving in Tony’s console switches profile', c.calls.adopted.join() === 'veda', c.calls.adopted);
+  ok('and runs nothing in Tony’s', c.calls.start === 0 && c.els.composer.value === '');
+
+  const r = consoleFor({ hash: vHash, profile: 'tony', running: true });
+  r.env.handoffTry();
+  ok('the switch never cuts off Tony’s live run', r.calls.adopted.length === 0 && r.env.pending());
+  r.S.running = false;
+  r.env.handoffTry();
+  ok('and happens once the run ends', r.calls.adopted.join() === 'veda');
+
+  const v = consoleFor({ hash: vHash, profile: 'veda', providers: ['gemini', 'claude'] });
+  v.env.handoffTry();
+  ok('already in Veda’s console it simply convenes', v.calls.start === 1 && v.calls.adopted.length === 0);
+  ok('with her units', [...v.S.selected].join() === 'gemini', [...v.S.selected]);
+
+  const t = consoleFor({ hash: HASH, profile: 'tony' });
+  t.env.handoffTry();
+  ok('a link that names nobody (TradeHub, the launcher) is still Tony’s', t.calls.start === 1 && t.calls.adopted.length === 0);
+  const forged = '#tb=' + D.b64u(JSON.stringify({ v: 1, q: 'x', units: [], run: 1, t: 1, p: 'mallory' }));
+  const f = consoleFor({ hash: forged, profile: 'tony' });
+  f.env.handoffTry();
+  ok('an unknown profile falls back to Tony', f.calls.start === 1 && f.calls.adopted.length === 0);
+}
+
 console.log('\nThe engine is not reachable yet');
 {
   // The morning launcher opens MAGI as a background tab, and its first probe
