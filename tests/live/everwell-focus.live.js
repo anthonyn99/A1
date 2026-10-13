@@ -153,8 +153,9 @@ const mock = {
   ok('playing normally (the clock moves), Everwell\'s layers take the clicks', !ad.ad && ad.hit !== 'none' && ad.top !== 'IFRAME', JSON.stringify(ad));
   await js(`${tile(1)}.querySelector('iframe').contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'testAd', args: [true] }), '*'); return 1;`); await sleep(3600);
   ad = await adState();
-  ok('an ad (playing, the clock stands still): the layers step aside, so a click reaches YouTube\'s Skip button', ad.ad && ad.hit === 'none' && ad.top === 'IFRAME' &&
-    await js(`const f = ${tile(1)}.querySelector('.media-frame'); return getComputedStyle(f.querySelector('.vp-ui')).opacity === '0' && getComputedStyle(f.querySelector('[data-vp-poster]')).opacity === '0';`), JSON.stringify(ad));
+  // Only a hole over YouTube's Skip corner (Tony, 2026-10-12): elsewhere YouTube never sees the mouse, so its own buttons never show under Everwell's.
+  ok("an ad (playing, the clock stands still): the bottom-right corner reaches YouTube's Skip, everywhere else stays Everwell's", ad.ad && ad.top === 'IFRAME' && ad.mid !== 'IFRAME' &&
+    await js(`const f = ${tile(1)}.querySelector('.media-frame'); return getComputedStyle(f.querySelector('.vp-bar')).opacity === '0' && getComputedStyle(f.querySelector('[data-vp-poster]')).opacity === '0';`), JSON.stringify(ad));
   // A click on YouTube's Skip moves the focus into the iframe (Tony, 2026-10-12: YouTube's own buttons stayed instead of Everwell's).
   await js(`window.focus(); ${tile(1)}.querySelector('iframe').focus(); return 1;`); await sleep(1700);
   ad = await adState();
