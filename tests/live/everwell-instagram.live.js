@@ -121,7 +121,7 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   const go = (t) => js(`EWApp.go('${t}'); return 1;`).then(() => sleep(800));
   const media = () => js(`return JSON.stringify(__fakeFs.docs['dashboards/everwell_tony'].mindsetMedia);`).then(JSON.parse);
   const stage = () => js(`const s = document.querySelector('#media-grid [data-igstage]'); if (!s) return 'null';
-    const v = s.querySelector('video'), im = s.querySelector('.ig-media img'), f = s.querySelector('.ig-media iframe');
+    const v = s.querySelector('[data-ig-media] video'), im = s.querySelector('[data-ig-media] img'), f = s.querySelector('[data-ig-media] iframe');
     return JSON.stringify({ cls: s.className, pos: s.querySelector('[data-ig-pos]').textContent, who: s.querySelector('[data-ig-who]').textContent, cap: s.querySelector('[data-ig-cap]').innerHTML,
       v: v ? v.src : null, loop: v ? v.loop : null, img: im ? im.src : null, frame: f ? f.src : null, note: s.querySelector('[data-ig-note]').textContent, segs: s.querySelectorAll('[data-ig-segs] span').length,
       mode: s.querySelector('[data-igs="mode"]').textContent, on: [...document.querySelectorAll('#media-grid .igc-cell.on, #media-grid .media-tile.ig-on')].map(e => e.dataset.id).join(),
@@ -158,9 +158,28 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   await click('#media-grid [data-igstage] .ig-ctl [data-igs="next"]'); await sleep(900);
   s = await stage();
   ok('Next: a carousel shows its first slide with a segment per slide', s.img === 'https://cdn.test/CARaaaa41.svg' && s.segs === 3 && /multi/.test(s.cls) && s.pos === 'Discipline · 4 of 5', JSON.stringify(s));
-  await click('#media-grid [data-igstage] [data-igs="cnext"]'); await sleep(300);
+  await click('#media-grid [data-igstage] [data-igs="cnext"]');
+  let mid = 'none';
+  for (let w = 0; w < 40; w++) {
+    mid = await js(`const s = document.querySelector('[data-igstage]'), g = s.querySelector('.ig-ghost'), m = s.querySelector('[data-ig-media]'); if (!g) return 'none';
+      const x = (el) => new DOMMatrix(getComputedStyle(el).transform).m41, bw = s.querySelector('[data-ig-box]').getBoundingClientRect().width;
+      return JSON.stringify({ gi: (g.querySelector('img') || {}).src, mi: (m.querySelector('img') || {}).src, gx: x(g), mx: x(m), bw, mo: getComputedStyle(m).opacity, go: getComputedStyle(g).opacity, gp: getComputedStyle(g).pointerEvents });`);
+    if (mid !== 'none') { const q = JSON.parse(mid); if (q.gx < 0) break; }
+    await sleep(15);
+  }
+  const mq = mid === 'none' ? {} : JSON.parse(mid);
+  ok('a slide turn moves both slides together, side by side: the old one out left, the new one in from the right, no gap', mq.gi === 'https://cdn.test/CARaaaa41.svg' && mq.mi === 'https://cdn.test/CARaaaa42.svg' && mq.gx < 0 && mq.mx > 0 && Math.abs(mq.mx - mq.gx - mq.bw) < 2, mid);
+  ok('…with nothing faded (no dark flash between them), and the leaving slide takes no clicks', mq.mo === '1' && mq.go === '1' && mq.gp === 'none', mid);
+  await sleep(600);
   s = await stage();
   ok('its arrow moves to the next slide', s.img === 'https://cdn.test/CARaaaa42.svg');
+  ok('…and when the turn ends the old slide is gone and the new one rests in place', await js(`const s = document.querySelector('[data-igstage]'); return !s.querySelector('.ig-ghost') && getComputedStyle(s.querySelector('[data-ig-media]')).transform === 'none';`));
+  await js(`const b = document.querySelector('[data-igstage] [data-igs="cprev"]'); b.click(); return 1;`); await sleep(30);
+  await js(`const b = document.querySelector('[data-igstage] [data-igs="cnext"]'); b.click(); return 1;`); await sleep(40);
+  await js(`const b = document.querySelector('[data-igstage] [data-igs="cnext"]'); b.click(); return 1;`); await sleep(800);
+  s = await stage();
+  ok('rapid presses all count and leave one clean slide (no stray layers)', s.img === 'https://cdn.test/CARaaaa43.svg' && await js(`return document.querySelectorAll('[data-igstage] .ig-ghost').length === 0 && document.querySelectorAll('[data-igstage] [data-ig-media] img').length === 1;`), JSON.stringify(s));
+  await js(`document.querySelector('[data-igstage] [data-igs="cprev"]').click(); return 1;`); await sleep(800);
   ok('the slide arrows are big and clear (46px)', await js(`return document.querySelector('[data-igstage] .ig-cnav.cnext').getBoundingClientRect().width === 46;`));
   await click('#media-grid [data-igstage] .ig-ctl [data-igs="toggle"]'); await sleep(250);
   ok('pausing stops the bars on its cover, and the shell knows (the pill says Paused)', await js(`const c = document.querySelector('.igc-cell.on'); return EWMedia.now().paused === true && c.classList.contains('paused') && getComputedStyle(c.querySelector('.igc-eq i')).animationPlayState === 'paused';`));
