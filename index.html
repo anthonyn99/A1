@@ -17779,7 +17779,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
       for(var s=0;s<SOURCES.length;s++){
         var raw;try{raw=JSON.parse(localStorage.getItem(SOURCES[s].key)||'null');}catch(e){continue;}
         if(!raw||typeof raw!=='object')continue;
-        var seen={};
+        var seen={},_plan=null;
         var arrs=Object.values(raw);
         for(var a=0;a<arrs.length;a++){
           var arr=arrs[a];if(!Array.isArray(arr))continue;
@@ -17790,6 +17790,11 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
             // Skip anything already fully in the past with no repeat — nothing to fix.
             var rep=it.notifyRepeat||'none';
             if(rep==='none'&&new Date(it.notifyAt).getTime()<nowT-10000)continue;
+            // A repeating row is re-tagged only if it defines a live series.
+            if(rep!=='none'){
+              if(!_plan)_plan=window.thNotifyPlan?window.thNotifyPlan(raw,null):null;
+              if(_plan&&_plan.live[it.notifyRepeatId||it.id]!==it)continue;
+            }
             // De-dupe repeating series so we rewrite each series once.
             var dkey2=(rep!=='none')?('rid_'+(it.notifyRepeatId||it.id)):('one_'+it.id);
             if(seen[dkey2])continue;seen[dkey2]=1;
@@ -17816,8 +17821,11 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   //
   // Collapse them at the source: walk the upcoming reminder docs, group by
   // profile + normalised title + minute, and keep exactly ONE per group. The
-  // keeper is the doc whose series is still armed in this device's task data
-  // (that's the live one); failing that, the most recently created. Bounded to
+  // keeper is the doc whose series is live in this device's task data (see
+  // thNotifyPlan); failing that, the most recently created. Docs of a series
+  // this device knows is DEAD are deleted outright, whatever their time — a
+  // dead series at a different minute (8 PM next to the live 11 AM) has no
+  // group-mate to lose to, so the grouping alone never removed it. Bounded to
   // 800 docs and throttled to 6h, so the read cost stays trivial.
   window._fcmDedupSweep=async function(force){
     try{
@@ -17882,7 +17890,12 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   };
   // After the re-arm sweep (4s) so the live series is written before we decide
   // which doc of each group to keep.
-  setTimeout(function(){window._fcmDedupSweep(false);},12000);
+  // It also waits (up to a minute) for a profile's cloud data, since dead-series
+  // cleanup only trusts data that has loaded this session.
+  (function waitThenSweep(n){
+    if(!(window._thCloudLoaded||window._vdCloudLoaded)&&n<8){setTimeout(function(){waitThenSweep(n+1);},6000);return;}
+    window._fcmDedupSweep(false);
+  })(-2);
 
   // ── Cancel reminder (+ optional whole series) ────────────────────────
   // Recover the reminder-series id for a task id from this device's task data.
