@@ -269,7 +269,7 @@ export default {
   },
 
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(runReminders(env));
+    ctx.waitUntil(runReminders(env, event && event.scheduledTime));
 
     // Insight daily sync piggyback. insight-api has no cron of its own, so this
     // every-minute cron fires its daily /transactions sync at 11:00 UTC. That
@@ -1808,8 +1808,41 @@ function deviceMatches(d, dash, eventPush) {
   return (d.fields?.lastDash?.stringValue || '') === dash;
 }
 
-async function runReminders(env) {
+// ── When a scheduled reminder goes out ──────────────────────────────────────
+// Cloudflare does NOT run "* * * * *" at :00 of each minute. It picks a fixed
+// second inside the minute (this worker's ticks were measured at :43 on
+// 2026-10-13) and then starts the handler up to ~20s after that. The old rule —
+// send only when the reminder is at most 5s ahead — meant an 11:00:00 reminder
+// could not go out before the 11:00:43 tick, so EVERY reminder landed 60-110s
+// late, and a slow tick crossed the 90s cutoff and was dropped without any push
+// at all (Tony's "Put in trash bins", 2026-10-13: due 11:00:00, swept 11:01:49).
+//
+// Now a tick takes every reminder that is due BEFORE THE NEXT TICK and waits
+// inside the tick until its exact minute, so 11:00 rings at 11:00. A tick that
+// does run late still SENDS anything up to LATE_SEND_MS late — a reminder a few
+// minutes late is useful, silence is not. Only older ones are dropped.
+const TICK_MS = 60 * 1000;
+const LATE_SEND_MS = 10 * 60 * 1000;
+const MAX_HOLD_MS = 70 * 1000;      // never hold a tick open longer than this
+
+// 'due' | 'stale' | 'later' for one scheduled (non-event) reminder.
+// `nextTickAt` is when the following cron tick is scheduled to run.
+function classifyReminder(at, now, nextTickAt) {
+  if (at <= now - LATE_SEND_MS) return 'stale';
+  if (at < nextTickAt - 1000) return 'due';
+  return 'later';
+}
+
+// How long to wait before sending a due reminder so it lands on its minute.
+function holdFor(at, now) {
+  return Math.max(0, Math.min(MAX_HOLD_MS, at - now));
+}
+
+async function runReminders(env, scheduledTime) {
   const now = Date.now();
+  // The scheduled time of THIS tick, not when the handler happened to start, so
+  // a late start does not shift the window. A manual call has none.
+  const nextTickAt = (typeof scheduledTime === 'number' && scheduledTime > 0 ? scheduledTime : now) + TICK_MS;
 
   if (await shouldSkipTick(env, now)) return;
 
@@ -1919,8 +1952,9 @@ async function runReminders(env) {
     }
     if (isNaN(at)) continue;
     if (at > tenMinFromNow) continue;
-    if (at <= now + 5000 && at > now - 90000) due.push(r);
-    else if (at <= now - 90000) stale.push(r);
+    const cls = classifyReminder(at, now, nextTickAt);
+    if (cls === 'due') due.push(r);
+    else if (cls === 'stale') stale.push(r);
     // Everything left is inside the window but still ahead of us. Capturing it
     // is what stops the lookahead from ever jumping PAST a pending reminder:
     // "nothing due this tick" is not the same as "nothing due for 10 minutes".
@@ -2011,6 +2045,14 @@ async function runReminders(env) {
     // the same minute for the same profile (the orphaned-series case).
     const dup = sentKeys.has(key) || sentContent.has(cKey);
     if (!dup) { sentKeys.add(key); sentContent.add(cKey); }
+
+    // A reminder taken a few seconds early (see classifyReminder) waits here for
+    // its exact minute. Event pushes go at once.
+    if (!evt) {
+      const at = new Date(fields.notifyAt?.stringValue).getTime();
+      const wait = isNaN(at) ? 0 : holdFor(at, Date.now());
+      if (wait > 0) await new Promise(res => setTimeout(res, wait));
+    }
 
     await maybeReschedule(r.document, baseUrl, authHdr);
 
