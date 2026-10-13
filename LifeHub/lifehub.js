@@ -1609,7 +1609,10 @@
      page you are already on are skipped. With the Vault extension (desktop) the
      tabs land as one purple tab group, through the same bridge Vault's "Open
      all" uses; a page can't make a tab group itself. Without it — every phone,
-     any browser lacking the extension — they open as separate tabs. Whether the
+     any browser lacking the extension — they open as separate tabs. A second
+     Open all REPLACES the first (`replace`): the extension closes the earlier
+     LifeHub groups' tabs, keeping only tabs dragged or opened into them, and
+     a group left empty disappears. Whether the
      extension is there is learned ahead of the click (its answer is async, and
      a plain window.open is only allowed inside the click itself). */
   var extOk = false;
