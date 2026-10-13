@@ -17839,30 +17839,32 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
       // Range + orderBy on the SAME single field — no composite index needed.
       const fromIso=new Date(Date.now()-5*60*1000).toISOString();
       const snap=await gd2(q2(colRef(db,'reminders'),wh2('notifyAt','>=',fromIso),ob2('notifyAt'),lm2(800)));
-      // Series ids this device currently has armed — always the keeper.
-      var live={};
-      ['td6_data','td_data'].forEach(function(k){
-        var raw;try{raw=JSON.parse(localStorage.getItem(k)||'null');}catch(e){return;}
-        if(!raw||typeof raw!=='object')return;
-        Object.values(raw).forEach(function(arr){
-          if(!Array.isArray(arr))return;
-          arr.forEach(function(it){if(it&&it.notifyRepeatId)live[it.notifyRepeatId]=1;});
-        });
+      // Series that are LIVE in this device's task data (thNotifyPlan) — always
+      // the keeper — and series it knows are DEAD, whose docs all go. Dead is
+      // only trusted for a profile whose cloud data has loaded this session: a
+      // device's cached copy can be weeks old, and acting on it could delete a
+      // series that has since come back.
+      var live={},dead={};
+      [{key:'td6_data',hkey:'td6_habits',fresh:!!window._thCloudLoaded},
+       {key:'td_data',hkey:'td_habits',fresh:!!window._vdCloudLoaded}].forEach(function(src){
+        var raw,hab;
+        try{raw=JSON.parse(localStorage.getItem(src.key)||'null');}catch(e){raw=null;}
+        try{hab=JSON.parse(localStorage.getItem(src.hkey)||'null');}catch(e){hab=null;}
+        if(!window.thNotifyPlan)return;
+        var plan=window.thNotifyPlan(raw,hab);
+        Object.keys(plan.live).forEach(function(k){live[k]=1;});
+        if(src.fresh)plan.dead.forEach(function(k){dead[k]=1;});
       });
-      ['td6_habits','td_habits'].forEach(function(k){
-        var raw;try{raw=JSON.parse(localStorage.getItem(k)||'null');}catch(e){return;}
-        if(!Array.isArray(raw))return;
-        raw.forEach(function(h){if(h&&h.id)live[h.notifyRepeatId||('habr_'+h.id)]=1;});
-      });
+      var dels=[];
       var groups={};
       snap.forEach(function(ds){
         var d=ds.data()||{};
+        if(d.notifyRepeatId&&dead[d.notifyRepeatId]&&!live[d.notifyRepeatId]){dels.push(ds.id);return;}
         var t=new Date(d.notifyAt).getTime();
         if(isNaN(t))return;
         var key=(d.dashboard||'all')+'|'+String(d.title||'').trim().toLowerCase()+'|'+Math.floor(t/60000);
         (groups[key]=groups[key]||[]).push({id:ds.id,rid:d.notifyRepeatId||null,createdAt:d.createdAt||0});
       });
-      var dels=[];
       Object.keys(groups).forEach(function(k){
         var list=groups[k];
         if(list.length<2)return;
