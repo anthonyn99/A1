@@ -161,17 +161,17 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   s = await stage();
   ok('Next: a carousel shows its first slide with a segment per slide', s.img === 'https://cdn.test/CARaaaa41.svg' && s.segs === 3 && /multi/.test(s.cls) && s.pos === 'Discipline · 4 of 5', JSON.stringify(s));
   await click('#media-grid [data-igstage] [data-igs="cnext"]');
-  let mid = 'none';
+  let turnAt = 'none';
   for (let w = 0; w < 40; w++) {
-    mid = await js(`const s = document.querySelector('[data-igstage]'), g = s.querySelector('.ig-ghost'), m = s.querySelector('[data-ig-media]'); if (!g) return 'none';
+    turnAt = await js(`const s = document.querySelector('[data-igstage]'), g = s.querySelector('.ig-ghost'), m = s.querySelector('[data-ig-media]'); if (!g) return 'none';
       const x = (el) => new DOMMatrix(getComputedStyle(el).transform).m41, bw = s.querySelector('[data-ig-box]').getBoundingClientRect().width;
       return JSON.stringify({ gi: (g.querySelector('img') || {}).src, mi: (m.querySelector('img') || {}).src, gx: x(g), mx: x(m), bw, mo: getComputedStyle(m).opacity, go: getComputedStyle(g).opacity, gp: getComputedStyle(g).pointerEvents });`);
-    if (mid !== 'none') { const q = JSON.parse(mid); if (q.gx < 0) break; }
+    if (turnAt !== 'none') { const q = JSON.parse(turnAt); if (q.gx < 0) break; }
     await sleep(15);
   }
-  const mq = mid === 'none' ? {} : JSON.parse(mid);
-  ok('a slide turn moves both slides together, side by side: the old one out left, the new one in from the right, no gap', mq.gi === 'https://cdn.test/CARaaaa41.svg' && mq.mi === 'https://cdn.test/CARaaaa42.svg' && mq.gx < 0 && mq.mx > 0 && Math.abs(mq.mx - mq.gx - mq.bw) < 2, mid);
-  ok('…with nothing faded (no dark flash between them), and the leaving slide takes no clicks', mq.mo === '1' && mq.go === '1' && mq.gp === 'none', mid);
+  const mq = turnAt === 'none' ? {} : JSON.parse(turnAt);
+  ok('a slide turn moves both slides together, side by side: the old one out left, the new one in from the right, no gap', mq.gi === 'https://cdn.test/CARaaaa41.svg' && mq.mi === 'https://cdn.test/CARaaaa42.svg' && mq.gx < 0 && mq.mx > 0 && Math.abs(mq.mx - mq.gx - mq.bw) < 2, turnAt);
+  ok('…with nothing faded (no dark flash between them), and the leaving slide takes no clicks', mq.mo === '1' && mq.go === '1' && mq.gp === 'none', turnAt);
   await sleep(600);
   s = await stage();
   ok('its arrow moves to the next slide', s.img === 'https://cdn.test/CARaaaa42.svg');
