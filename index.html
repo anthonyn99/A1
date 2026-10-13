@@ -6897,6 +6897,8 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
   const[notifyRepeat,setNotifyRepeat]=useState("none");const[notifyRepeatDays,setNotifyRepeatDays]=useState([]);
   // Alternating sequence state
   const[altSeqTitles,setAltSeqTitles]=useState(["","",""]);
+  // AI prep (the TH-PREP block): same fields as Veda's, on the item itself.
+  const[aiPrep,setAiPrep]=useState(false);const[aiNote,setAiNote]=useState("");const[aiSite,setAiSite]=useState("");
 
   useEffect(()=>{
     if(!open)return;
@@ -6906,6 +6908,7 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
     if(initial?.altSeqTitles)setAltSeqTitles(initial.altSeqTitles.length>=2?[...initial.altSeqTitles]:["","",""].map((v,i)=>initial.altSeqTitles[i]||""));
     else setAltSeqTitles(["","",""]);
     if(initial?.notifyAt){const nd=new Date(initial.notifyAt);const pad=n=>String(n).padStart(2,"0");setNotifyDate(nd.getFullYear()+"-"+pad(nd.getMonth()+1)+"-"+pad(nd.getDate()));setNotifyTime(pad(nd.getHours())+":"+pad(nd.getMinutes()));}else{setNotifyDate("");setNotifyTime("");}setNotifyRepeat(initial?.notifyRepeat||"none");setNotifyRepeatDays(initial?.notifyRepeatDays||[]);
+    setAiPrep(!!initial?.aiPrep);setAiNote(initial?.aiNote||"");setAiSite(initial?.aiSite||"");
 
     // Default end date: today+14 days, capped at the horizon allowed for this
     // repeat mode (daily 2y / weekly·monthly 5y / annual 10y).
@@ -6928,6 +6931,8 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
   if(!open)return null;
   const save=()=>{
     if(!title.trim()&&repeat!=="altSeq")return;
+    // AI prep fields ride on the item itself (plain keys: _-prefixed ones are stripped on save).
+    const aiF=aiPrep?{aiPrep:true,aiNote:aiNote.trim(),aiSite}:{};
     if(repeat==="altSeq"){
       const validTitles=altSeqTitles.map(s=>s.trim()).filter(Boolean);
       if(validTitles.length<2){alert("Alternating sequence needs at least 2 steps.");return;}
@@ -6940,6 +6945,7 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
           altSeqId:initial.altSeqId,altSeqIdx:initial.altSeqIdx,altSeqTitles:validTitles,
           altSeqEndDate:{year:endDate.year,month:endDate.month,day:endDate.day},
           ...(notifyDate&&notifyTime?{notifyAt:new Date(notifyDate+"T"+notifyTime+":00").toISOString(),notifyRepeat,notifyRepeatDays:notifyRepeat==="weekly"?notifyRepeatDays:[],notifyRepeatId:initial?.notifyRepeatId||findSeriesNotifyIdFor("td6_data",initial)||(notifyRepeat!=="none"?uid():null)}:{notifyAt:null,notifyRepeat:"none",notifyRepeatId:null}),
+          ...aiF,
         };
         onSave(startDateKey,item,"altSeqEdit");onClose();
       } else {
@@ -6948,6 +6954,7 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
           altSeqTitles:validTitles,
           altSeqEndDate:{year:endDate.year,month:endDate.month,day:endDate.day},
           ...(notifyDate&&notifyTime?{notifyAt:new Date(notifyDate+"T"+notifyTime+":00").toISOString(),notifyRepeat,notifyRepeatDays:notifyRepeat==="weekly"?notifyRepeatDays:[],notifyRepeatId:null}:{notifyAt:null,notifyRepeat:"none",notifyRepeatId:null}),
+          ...aiF,
         };
         onSave(startDateKey,baseItem,{mode:"altSeq",titles:validTitles,endDate});onClose();
       }
@@ -6957,6 +6964,7 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
       ...(type==="event"&&time?{time,tz:Intl.DateTimeFormat().resolvedOptions().timeZone}:{}),
       ...(repeat!=="none"?{repeat,repeatDays,repeatEndDate:endDate,repeatId:initial?.repeatId||uid()}:{repeat:"none"}),
       ...(notifyDate&&notifyTime?{notifyAt:new Date(notifyDate+"T"+notifyTime+":00").toISOString(),notifyRepeat,notifyRepeatDays:notifyRepeat==="weekly"?notifyRepeatDays:[],notifyRepeatId:initial?.notifyRepeatId||findSeriesNotifyIdFor("td6_data",initial)||(notifyRepeat!=="none"?uid():null)}:{notifyAt:null,notifyRepeat:"none",notifyRepeatId:null}),
+      ...aiF,
 };
     const wasAltSeq=!!(initial?.altSeqId);
     const wasRepeating=(initial?.repeatId&&initial?.repeat&&initial.repeat!=="none")||wasAltSeq;
@@ -6986,6 +6994,11 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
     } else {
       onSave(startDateKey,item,{mode:repeat,days:repeatDays,endDate});onClose();
     }
+    // A flagged task is prepped as soon as it is saved, whatever its date; the
+    // background run only covers today and tomorrow. Skipped when the kit is
+    // already current, and when a this-day / all-future choice is still open
+    // ("this day only" gives the row a new id; the background run catches it).
+    if(item.aiPrep&&!(titleChanged||typeChanged||notifyChanged)&&window._thPrepRequest){const _g=window._thPrepKitFor(item,startDateKey);if(!_g||!_g.fresh)setTimeout(()=>window._thPrepRequest(item,startDateKey),0);}
   };
   const mi={background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,color:T.TX,fontSize:13,padding:"9px 12px",fontFamily:"inherit",fontWeight:500,outline:"none",width:"100%",boxSizing:"border-box"};
   const lbl={fontSize:10,color:T.TXD,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:6};
@@ -7037,6 +7050,17 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
         (repeat==="daily"||repeat==="weekly"||repeat==="monthly"||repeat==="annually"||repeat==="altSeq")&&React.createElement(DatePicker,{value:endDate,onChange:setEndDate,label:"Until (max "+thRepeatMaxYears(repeat)+(thRepeatMaxYears(repeat)===1?" year":" years")+")",T,maxYears:thRepeatMaxYears(repeat)})),
 
       React.createElement("div",{style:{marginBottom:14,borderTop:"1px solid "+T.BD,paddingTop:14,marginTop:4}},
+        React.createElement("label",{style:{...lbl,display:"flex",alignItems:"center",gap:7,cursor:"pointer",marginBottom:aiPrep?10:0}},
+          React.createElement("input",{type:"checkbox",checked:aiPrep,onChange:e=>setAiPrep(e.target.checked),style:{accentColor:T.AC,margin:0,cursor:"pointer"}}),
+          React.createElement("span",{style:{width:14,height:14,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.sparkle}}),"AI prep"),
+        aiPrep&&React.createElement(React.Fragment,null,
+          React.createElement("div",{style:{fontSize:11,color:T.TXD,marginBottom:8,lineHeight:1.5}},"An AI gets this ready ahead of time: a draft, the sites and apps you’ll need, and a prompt for your assistant. Press ✦ on the task to open it all. Nothing is ever sent for you."),
+          React.createElement("textarea",{style:{...mi,minHeight:64,resize:"vertical",lineHeight:1.45},value:aiNote,onChange:e=>setAiNote(e.target.value),placeholder:"Details for the AI: who it’s for, email address, what to say, links…"}),
+          React.createElement("div",{style:{display:"flex",gap:6,marginTop:10,flexWrap:"wrap",alignItems:"center"}},
+            React.createElement("span",{style:{fontSize:11,color:T.TXD,fontWeight:700,marginRight:2}},"Assistant"),
+            [["","Default"],["perplexity","Perplexity"],["chatgpt","ChatGPT"],["claude","Claude"]].map(([v,l])=>React.createElement("button",{key:v||"def",type:"button",onClick:()=>setAiSite(v),style:tb(aiSite===v,false)},l))))),
+
+      React.createElement("div",{style:{marginBottom:14,borderTop:"1px solid "+T.BD,paddingTop:14,marginTop:4}},
         React.createElement("div",{style:{...lbl,display:"flex",alignItems:"center",gap:6}},React.createElement("span",{style:{width:14,height:14,display:"inline-flex"},dangerouslySetInnerHTML:{__html:TNI.bell}})," Remind me"),
         React.createElement("div",{style:{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}},
           React.createElement("input",{type:"date",style:{...mi,width:"auto",cursor:"pointer",flex:"1 1 120px"},value:notifyDate,onChange:e=>setNotifyDate(e.target.value),min:(()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");})()}),
@@ -7084,6 +7108,84 @@ const PLAN_GRN_VEDA="#8FBCA0";
 const PLAN_OVERDUE_RED="#f85149";
 // One check glyph for both panels and both week grids: a bare stroke in the
 // profile's green, no box and no fill — "a clean check mark", nothing else.
+// ─── AI TASK PREP PANEL (Tony) ───────────────────────────────────────────────
+// Veda's VdPrepPanel, ported field for field onto Tony's own kits (the TH-PREP
+// block) and drawn in MAGI's look. Everything here is a copy button or a link
+// he clicks himself; nothing is sent on his behalf.
+// One difference: the PC-bridge box shows only once a bridge has been seen on
+// Tony's PC (up now, or an app list published from it). Without one, the
+// links below are the way in, and a "helper isn't answering" warning on every
+// open would only be noise.
+function ThPrepPanel({item,dateKey,onClose,T}){
+  const h=React.createElement;
+  const[copied,setCopied]=useState("");
+  const[defSite,setDefSite]=useState(()=>window._thPrepDefaultSite?window._thPrepDefaultSite():"perplexity");
+  useScrollLock(!!item);
+  useEffect(()=>{if(item&&window._thBridgeProbe&&!window._thBridgeUp)window._thBridgeProbe();},[item&&item.id]);
+  if(!item)return null;
+  const got=window._thPrepKitFor?window._thPrepKitFor(item,dateKey):null;
+  const kit=got&&got.kit;const fresh=!!(got&&got.fresh);
+  const busy=!!(window._thPrepBusy&&window._thPrepBusy[item.id]);
+  const sites=window._thPrepSites||{};
+  const site=window._thPrepSite(item);const siteName=(sites[site]||{}).name||"Perplexity";
+  const prompt=(kit&&fresh&&kit.prompt)||window._thPrepFallbackPrompt(item,dateKey);
+  const appName={};(window._thPcApps||[]).forEach(a=>{if(a&&a.id)appName[a.id]=a.name;});
+  const copy=(key,txt)=>{try{Promise.resolve(navigator.clipboard.writeText(String(txt||""))).then(()=>{setCopied(key);setTimeout(()=>setCopied(c=>c===key?"":c),1400);},()=>{});}catch(e){}};
+  const lbl={fontFamily:"'Manrope',system-ui,sans-serif",fontSize:11,color:T.ACL,fontWeight:800,textTransform:"uppercase",letterSpacing:1.6,marginBottom:8};
+  const box={background:T.S2,border:"1px solid "+T.BDL,borderRadius:8,padding:"10px 12px",fontSize:13,color:T.TX,lineHeight:1.5};
+  const btn=(primary)=>({fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,padding:"8px 14px",borderRadius:6,cursor:"pointer",fontFamily:"inherit",background:primary?T.AC:"transparent",color:primary?T.BG:T.TXD,border:"1px solid "+(primary?T.AC:T.BDL),whiteSpace:"nowrap"});
+  const copyBtn=(key,txt)=>h("button",{type:"button","data-hoverfx":"magi",style:{...btn(false),padding:"4px 9px"},onClick:()=>copy(key,txt)},copied===key?"Copied":"Copy");
+  const d=kit&&fresh?kit.draft:null;
+  const status=busy?"Preparing… this takes about 15 seconds."
+    :!kit?"Not prepared yet."
+    :!fresh?"The task changed since this was prepared. Press Re-prep for a new kit."
+    :kit.helpful===false?"Nothing much to prepare for this one.":"";
+  const extras=kit&&fresh&&((kit.sites&&kit.sites.length)||(kit.apps&&kit.apps.length))>0;
+  const bridgeSeen=!!(window._thBridgeUp||(window._thPcApps||[]).length);
+  const err=window._thBridgeErr;
+  return h("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.62)",backdropFilter:"blur(2px)",WebkitBackdropFilter:"blur(2px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000},onClick:onClose},
+    h("div",{"data-th-prep-panel":"1",style:{background:T.S1,border:"1px solid rgba(255,255,255,.06)",borderRadius:8,padding:24,width:520,maxWidth:"94vw",maxHeight:"90vh",overflowY:"auto",overscrollBehavior:"contain",boxSizing:"border-box",display:"flex",flexDirection:"column",gap:16,boxShadow:"0 30px 80px "+T.SHADOW},onClick:e=>e.stopPropagation()},
+      h("div",{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12}},
+        h("div",{style:{minWidth:0}},
+          h("div",{style:{...lbl,marginBottom:0,display:"flex",alignItems:"center",gap:6}},h("span",{style:{width:13,height:13,display:"inline-flex"},dangerouslySetInnerHTML:{__html:TNI.sparkle}}),"AI prep"),
+          h("div",{style:{fontFamily:"'Manrope',system-ui,sans-serif",fontSize:16,fontWeight:700,color:T.TX,marginTop:6,wordBreak:"break-word"}},item.title)),
+        h("button",{type:"button",title:"Close","data-hoverfx":"magi",onClick:onClose,style:{...btn(false),padding:"5px 10px"}},"Close")),
+      status&&h("div",{style:{fontSize:12,color:busy?T.ACL:T.TXD,fontWeight:600}},status),
+      kit&&fresh&&kit.summary&&h("div",{style:{fontSize:13,color:T.TX,lineHeight:1.55}},kit.summary),
+      h("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
+        h("button",{type:"button","data-hoverfx":"magi",style:btn(true),onClick:()=>{try{window.open(window._thPrepAssistantUrl(site,prompt),"_blank","noopener");}catch(e){}}},"Open in "+siteName),
+        h("button",{type:"button","data-hoverfx":"magi",style:btn(false),onClick:()=>copy("prompt",prompt)},copied==="prompt"?"Copied":"Copy prompt"),
+        h("button",{type:"button","data-hoverfx":"magi",style:{...btn(false),opacity:busy?.5:1},disabled:busy,onClick:()=>window._thPrepRequest(item,dateKey)},kit?"Re-prep":"Prepare now")),
+      d&&d.kind!=="none"&&d.body&&h("div",null,
+        h("div",{style:lbl},d.kind==="email"?"Email draft":d.kind==="message"?"Message draft":"Draft"),
+        d.kind==="email"&&(d.to||d.subject)&&h("div",{style:{display:"flex",flexDirection:"column",gap:6,marginBottom:8}},
+          d.to&&h("div",{style:{display:"flex",alignItems:"center",gap:8,fontSize:12,color:T.TXD}},h("span",{style:{fontWeight:700,minWidth:52}},"To"),h("span",{style:{color:T.TX,flex:1,minWidth:0,wordBreak:"break-all"}},d.to),copyBtn("to",d.to)),
+          d.subject&&h("div",{style:{display:"flex",alignItems:"center",gap:8,fontSize:12,color:T.TXD}},h("span",{style:{fontWeight:700,minWidth:52}},"Subject"),h("span",{style:{color:T.TX,flex:1,minWidth:0}},d.subject),copyBtn("subject",d.subject))),
+        h("div",{style:{...box,whiteSpace:"pre-wrap",maxHeight:260,overflowY:"auto"}},d.body),
+        h("div",{style:{marginTop:8}},copyBtn("body",d.body))),
+      extras&&bridgeSeen&&/Windows/i.test(navigator.userAgent||"")&&h("div",{style:{...box,display:"flex",flexDirection:"column",gap:8,borderColor:err?T.GOLD:T.BDL}},
+        h("div",{style:{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}},
+          h("span",{style:{fontSize:12,fontWeight:700,color:err?T.GOLD:T.TX,flex:1,minWidth:160}},
+            window._thBridgeUp?"Sites and apps open on your PC when you press ✦."
+            :err==="down"?"The StudyOS helper isn’t answering on this PC, so the sites and apps didn’t open."
+            :err?"Your browser stopped TaskHub from opening the sites and apps on this PC."
+            :"Checking the StudyOS helper on this PC…"),
+          h("button",{type:"button","data-hoverfx":"magi",style:btn(true),onClick:()=>window._thPrepOpenLocal(kit.apps||[],(kit.sites||[]).map(x=>x.url))},"Open sites & apps")),
+        err&&err!=="down"&&h("div",{style:{fontSize:12,color:T.TXD,lineHeight:1.55}},
+          "One-time fix: click the icon just left of the address bar → Site settings → set “Apps on this device” (Brave may call it “Localhost access” or “Local network access”) to Allow for this site. Then press Open sites & apps. If your browser shows an “Allow access to apps on this device?” popup, choose Allow."),
+        err==="down"&&h("div",{style:{fontSize:12,color:T.TXD,lineHeight:1.55}},"Start it from the Startup folder (“StudyOS Bridge”) or restart the PC, then press Open sites & apps. The links below still work.")),
+      kit&&fresh&&kit.sites&&kit.sites.length>0&&h("div",null,
+        h("div",{style:lbl},"Sites"),
+        h("div",{style:{display:"flex",flexDirection:"column",gap:6}},kit.sites.map((s,i)=>h("a",{key:i,href:s.url,target:"_blank",rel:"noopener noreferrer","data-hoverfx":"magi",style:{...box,padding:"9px 12px",color:T.ACL,fontWeight:700,textDecoration:"none",display:"block",wordBreak:"break-word"}},s.label)))),
+      kit&&fresh&&kit.apps&&kit.apps.length>0&&h("div",null,
+        h("div",{style:lbl},"Apps on your PC"),
+        h("div",{style:{display:"flex",gap:6,flexWrap:"wrap"}},kit.apps.map(id=>h("button",{key:id,type:"button",title:"Open on your PC","data-hoverfx":"magi",onClick:()=>window._thPrepOpenLocal([id],[]),style:{...box,padding:"5px 10px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",borderRadius:6,opacity:window._thBridgeUp?1:.6}},appName[id]||"App"))),
+        h("div",{style:{fontSize:11,color:T.TXM,marginTop:6}},window._thBridgeUp?"✦ opens these and the sites on your PC. Click one to open just that app.":"Apps open on your PC when the StudyOS bridge is running there.")),
+      h("div",{style:{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",borderTop:"1px solid "+T.BD,paddingTop:14}},
+        h("span",{style:{fontSize:11,color:T.TXD,fontWeight:700}},"Default assistant:"),
+        Object.keys(sites).map(k=>h("button",{key:k,type:"button","data-hoverfx":"magi",onClick:()=>{window._thPrepSetDefaultSite(k);setDefSite(k);},style:{...btn(defSite===k),padding:"5px 10px"}},sites[k].name)))));
+}
+
 function PlanCheck({size=13,color="#a4b986",strokeWidth=2.4}){
   return React.createElement("svg",{width:size,height:size,viewBox:"0 0 12 12",fill:"none",
     style:{display:"block",flexShrink:0},"aria-hidden":"true"},
@@ -8631,6 +8733,22 @@ function App(){
   },[buildPayload]);
 
   const setData=useCallback(fn=>{setDataState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(T_SK.data,next);stateRef.current={...stateRef.current,data:next};fbPush();return next;});},[fbPush]);
+  // ── AI task prep (see the TH-PREP block) ──────────────────────────────────
+  // Kits live in window._thPrepKits (fed by the tony_taskprep listener); this
+  // tick only makes rows and the panel repaint when one lands or starts.
+  const[thPrepTick,setThPrepTick]=useState(0);
+  const[thPrepOpen,setThPrepOpen]=useState(null);   // {id,dateKey} | null
+  useEffect(()=>{const u=()=>setThPrepTick(x=>x+1);const o=e=>setThPrepOpen(e.detail||null);
+    window.addEventListener("th-prep-update",u);window.addEventListener("th-prep-open",o);
+    return()=>{window.removeEventListener("th-prep-update",u);window.removeEventListener("th-prep-open",o);};},[]);
+  // Background prep: debounced after any change, plus every 30 min so the
+  // next day's tasks get prepped after midnight on a page left open.
+  useEffect(()=>{
+    const go=()=>{if(!window._thPrepRun)return;if(window._thBridgeProbe)window._thBridgeProbe();const d=new Date();const k=x=>dkey(x.getFullYear(),x.getMonth(),x.getDate());
+      const t1=new Date(d);t1.setDate(d.getDate()+1);const y1=new Date(d);y1.setDate(d.getDate()-1);
+      window._thPrepRun(stateRef.current.data,k(d),k(t1),k(y1));};
+    const tm=setTimeout(go,3000);const iv=setInterval(go,30*60*1000);
+    return()=>{clearTimeout(tm);clearInterval(iv);};},[data,thPrepTick]);
   // Update `data` in memory + localStorage WITHOUT pushing to Firestore. Used by
   // the un-archive restore and the archiver: archived days are display-only
   // history, so rendering them must not enqueue a write (buildPayload strips them
@@ -9686,6 +9804,7 @@ function App(){
         const sharedFields={category:item.category,type:item.type,altSeqTitles:newTitles,
           ...(item.type==="event"&&item.time?{time:item.time}:{time:undefined}),
           notifyAt:item.notifyAt,notifyRepeat:item.notifyRepeat,notifyRepeatDays:item.notifyRepeatDays,notifyRepeatId:item.notifyRepeatId,
+          aiPrep:item.aiPrep||undefined,aiNote:item.aiPrep?(item.aiNote||""):undefined,aiSite:item.aiPrep?(item.aiSite||""):undefined,
         };
         Object.keys(next).forEach(k=>{
           const kd=new Date(k);
@@ -9704,9 +9823,11 @@ function App(){
         // state (done, id, repeat membership, notify) is preserved.
         const shared={title:item.title,type:item.type};
         if(item.type==="event"){shared.time=item.time;shared.tz=item.tz;}
+      // AI prep is set in the same editor, so it goes with the rest of the edit.
+      const _ai=item.aiPrep?{aiPrep:true,aiNote:item.aiNote||"",aiSite:item.aiSite||""}:null;
         Object.keys(next).forEach(k=>{
           const kd=new Date(k);
-          if(kd>=cutoff&&rid)next[k]=(next[k]||[]).map(t=>{if(t.repeatId!==rid)return t;const nt={...t,...shared};if(item.type!=="event"){delete nt.time;delete nt.tz;}return nt;});
+          if(kd>=cutoff&&rid)next[k]=(next[k]||[]).map(t=>{if(t.repeatId!==rid)return t;const nt={...t,...shared};if(item.type!=="event"){delete nt.time;delete nt.tz;}if(_ai)Object.assign(nt,_ai);else{delete nt.aiPrep;delete nt.aiNote;delete nt.aiSite;}return nt;});
         });
         // A changed reminder moves the whole series from this date on — from
         // today when the edited date is ahead, since the cloud series has no end:
@@ -9992,6 +10113,13 @@ function App(){
         React.createElement("button",{type:"button",disabled:!ok,onClick:tgSaveEdit,style:{...hbtn(false),background:T.AC,color:T.BG,border:"1px solid "+T.AC,opacity:ok?1:0.4,cursor:ok?"pointer":"default"}},"Save")));
   };
   const ebtn={background:"transparent",border:"none",color:T.TXD,cursor:"pointer",fontSize:12,padding:"0 3px",lineHeight:1,fontFamily:"inherit"};
+  // AI prep ✦ on a flagged row (the same button as Veda's, in Tony's colours): opens
+  // the assistant with the kit's prompt and the Prep panel. Dim until ready.
+  const thPrepBtn=(t,k)=>{const g=window._thPrepKitFor?window._thPrepKitFor(t,k):null;const ready=!!(g&&g.fresh);
+    const busy=!!(window._thPrepBusy&&window._thPrepBusy[t.id]);const nm=((window._thPrepSites||{})[window._thPrepSite?window._thPrepSite(t):""]||{}).name||"your assistant";
+    return React.createElement("button",{type:"button","data-th-prep-btn":t.id,title:busy?"AI prep: preparing…":ready?"AI prep ready — opens "+nm+" with everything prepared":"AI prep: opens "+nm+" (kit not ready yet)",
+      style:{background:"transparent",border:"none",color:T.AC,cursor:"pointer",padding:0,width:22,height:22,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0,lineHeight:0,fontFamily:"inherit",borderRadius:6,opacity:ready?1:.5,transition:"opacity .15s"},
+      onClick:ev=>{ev.stopPropagation();window._thPrepLaunch&&window._thPrepLaunch(t,k);}},React.createElement("span",{"aria-hidden":true,style:{fontSize:13,lineHeight:1,display:"inline-flex"}},"✦"));};
   // Today and the day you are standing on are both marked with a bright
   // outline. In this theme T.ACL and T.AC are the SAME gold, so marking both in
   // the accent made them pixel-identical — with the 21st selected and the 30th
@@ -10250,7 +10378,8 @@ function App(){
                   t.category&&React.createElement("span",{style:{...ctag(t.category),opacity:(t.done?0.6:1)*dimA}},t.category),
                   t.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:(t.done?0.4:0.85)*dimA,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},React.createElement("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}}),"\u202f"+fmtNotif(t.notifyAt))),
                 React.createElement("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?T.TXDONE:dayTX,opacity:t.done?0.5:1,textDecoration:t.done?"line-through":"none",lineHeight:1.4,...wkTitleFit}},t.title)),
-                edit&&React.createElement("button",{type:"button",style:{...ebtn,padding:"0 6px"},onClick:()=>{setEi(t);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
+                !edit&&t.aiPrep&&!t._sosId&&thPrepBtn(t,k),
+              edit&&React.createElement("button",{type:"button",style:{...ebtn,padding:"0 6px"},onClick:()=>{setEi(t);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,t.id)},"×"))),
               events.map(e=>React.createElement("div",{key:e.id,...taskRowP(e.id),...(edit?taskTouchH(k,e.id):{}),draggable:edit,onDragStart:edit?ev=>onDragStartTask(ev,k,e.id):null,onDragOver:edit?ev=>onDragOverTask(ev,e.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?ev=>onDropTask(ev,k,e.id):null,style:dndRowStyle(e.id,{...wkEventCard(e.category,wkEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:7,marginBottom:4,opacity:wkEvtPassed(e,k)?0.5:dimA,cursor:edit?"grab":"default"})},
                                 React.createElement("div",{style:{width:6,height:6,borderRadius:"50%",background:CC[e.category]||T.ACL,marginTop:5,flexShrink:0}}),
@@ -10259,7 +10388,8 @@ function App(){
                   e.time&&React.createElement("span",{style:{fontSize:11,fontWeight:600,color:T.TXD,opacity:0.65,whiteSpace:"nowrap"}},fmt12h(e.time,k,e.tz)),
                   !edit&&e.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},React.createElement("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}})," "+fmtNotif(e.notifyAt))),
                 React.createElement("span",{style:{fontSize:14,fontWeight:600,color:T.TXD,lineHeight:1.4,...wkTitleFit}},e.title)),
-                edit&&React.createElement("button",{type:"button",style:{...ebtn,padding:"0 6px"},onClick:()=>{setEi(e);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
+                !edit&&e.aiPrep&&!e._sosId&&thPrepBtn(e,k),
+              edit&&React.createElement("button",{type:"button",style:{...ebtn,padding:"0 6px"},onClick:()=>{setEi(e);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,e.id)},"×"))),
               !tasks.length&&!events.length&&!mcDay.length&&!(crByDay[k]||[]).length&&!edit&&React.createElement("div",{style:{fontSize:11,fontWeight:500,color:T.TXM,textAlign:"center",padding:"24px 0"}},"—"),
               edit&&React.createElement("button",{type:"button",style:{fontSize:11,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:6,padding:"9px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"));
@@ -10330,7 +10460,8 @@ function App(){
                   t.category&&React.createElement("span",{style:{...ctag(t.category),opacity:(t.done?0.6:1)*dimA}},t.category),
                   t.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:(t.done?0.4:0.85)*dimA,whiteSpace:"nowrap"},title:"Reminder: "+new Date(t.notifyAt).toLocaleString()},React.createElement("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}}),"\u202f"+fmtNotif(t.notifyAt))),
                 React.createElement("span",{style:{fontSize:13,fontWeight:t.done?500:700,color:t.done?T.TXDONE:dayTX,opacity:t.done?0.5:1,textDecoration:t.done?"line-through":"none",lineHeight:1.35,whiteSpace:"normal",...wkTitleFit}},t.title)),
-                edit&&React.createElement("button",{type:"button",style:ebtn,onClick:()=>{setEi(t);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
+                !edit&&t.aiPrep&&!t._sosId&&thPrepBtn(t,k),
+              edit&&React.createElement("button",{type:"button",style:ebtn,onClick:()=>{setEi(t);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&React.createElement("button",{type:"button",style:dbtn,onClick:()=>del(k,t.id)},"×"))),
               events.map(e=>React.createElement("div",{key:e.id,...taskRowP(e.id),...(edit?taskTouchH(k,e.id):{}),draggable:edit,onDragStart:edit?ev=>onDragStartTask(ev,k,e.id):null,onDragOver:edit?ev=>onDragOverTask(ev,e.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?ev=>onDropTask(ev,k,e.id):null,style:dndRowStyle(e.id,{...wkEventCard(e.category,wkEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:5,marginBottom:3,opacity:wkEvtPassed(e,k)?0.5:dimA,cursor:edit?"grab":"default"})},
                                 React.createElement("div",{style:{width:5,height:5,borderRadius:"50%",background:CC[e.category]||T.ACL,marginTop:5,flexShrink:0}}),
@@ -10339,7 +10470,8 @@ function App(){
                   e.time&&React.createElement("span",{style:{fontSize:10,fontWeight:600,color:T.TXD,opacity:0.65,whiteSpace:"nowrap"}},fmt12h(e.time,k,e.tz)),
                   !edit&&e.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:0.85,whiteSpace:"nowrap"},title:"Reminder: "+new Date(e.notifyAt).toLocaleString()},React.createElement("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}})," "+fmtNotif(e.notifyAt))),
                 React.createElement("span",{style:{fontSize:13,fontWeight:600,color:T.TXD,lineHeight:1.35,whiteSpace:"normal",...wkTitleFit}},e.title)),
-                edit&&React.createElement("button",{type:"button",style:ebtn,onClick:()=>{setEi(e);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
+                !edit&&e.aiPrep&&!e._sosId&&thPrepBtn(e,k),
+              edit&&React.createElement("button",{type:"button",style:ebtn,onClick:()=>{setEi(e);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&React.createElement("button",{type:"button",style:dbtn,onClick:()=>del(k,e.id)},"×"))),
               !tasks.length&&!events.length&&!mcDay.length&&!(crByDay[k]||[]).length&&!edit&&React.createElement("div",{style:{fontSize:10,fontWeight:500,color:T.TXM,textAlign:"center",padding:"32px 0"}},"—"),
               edit&&React.createElement("button",{type:"button",style:{fontSize:10,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:6,padding:"5px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"));
@@ -10451,7 +10583,8 @@ function App(){
       // Plans is reached from the top nav bar (#tony-app-nav) like every other
       // program, not from a hidden edit-mode link down here.
 
-        React.createElement(ItemModal,{open:mo,onClose:()=>{setMo(false);setEi(null);},onSave:savItem,initial:ei,startDateKey:mdt,T,dateLabel:mdt?(()=>{const p=mdt.split("-");return MOS[parseInt(p[1])-1]+" "+parseInt(p[2]);})():""}),
+        thPrepOpen&&React.createElement(ThPrepPanel,{T,item:(data[thPrepOpen.dateKey]||[]).find(x=>x.id===thPrepOpen.id),dateKey:thPrepOpen.dateKey,onClose:()=>setThPrepOpen(null)}),
+      React.createElement(ItemModal,{open:mo,onClose:()=>{setMo(false);setEi(null);},onSave:savItem,initial:ei,startDateKey:mdt,T,dateLabel:mdt?(()=>{const p=mdt.split("-");return MOS[parseInt(p[1])-1]+" "+parseInt(p[2]);})():""}),
 
     React.createElement(ConfirmDeleteModal,{open:!!delConfirm,onClose:()=>setDelConfirm(null),onConfirm:delAllFuture,onThis:delThisOnly,T,isAltSeq:!!(delConfirm?.item?.altSeqId)}),
     React.createElement(ConfirmEditTitleModal,{open:!!titleEditConfirm,onClose:()=>setTitleEditConfirm(null),onThisOnly:titleEditThisOnly,onAllFuture:titleEditAllFuture,T,isAltSeq:!!(titleEditConfirm?.isAltSeq)}),
@@ -10844,6 +10977,8 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _sosAckUnsub    = null;   // our own done-flips, read back (see _sosMergeAck)
   let _vdPrepUnsub    = null;   // Veda AI task prep kits (see VD-PREP block)
   let _vdPcAppsUnsub  = null;   // apps on Veda's PC, via the StudyOS bridge (names + ids only)
+  let _thPrepUnsub    = null;   // Tony AI task prep kits (see TH-PREP block)
+  let _thPcAppsUnsub  = null;   // apps on Tony's PC, via the same bridge (names + ids only)
   let _plansUnsub     = null;   // Plans → both TaskHubs mirror (read-only)
   let _ewRotUnsub     = null;   // Everwell rotation → Tony's workout task (read-only)
   let _ewPrayUnsub    = null;   // Everwell's own Prayer habit row (two-way, its own doc)
@@ -11826,7 +11961,13 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       setDoc(vdPrepRef, { kits: { [taskId]: kit }, savedAt: Date.now() }, { merge: true })
         .catch(e => console.warn('[AI prep] kit write failed:', e && e.code));
     };
+    // Both TaskHubs are mounted on every device, and both probe the ONE bridge
+    // on the PC they run on. So whose PC this is decides whose app list it
+    // may publish: never Veda's from a PC that is Tony's (and the reverse in
+    // _fbSaveThPcApps), or one person's installed apps land in the other's doc.
+    const _prepMainDash = () => { try { return localStorage.getItem("td6_mainDash") || ""; } catch (e) { return ""; } };
     window._fbSaveVdPcApps = (apps) => {
+      if (_prepMainDash() === "tony") return false;
       setDoc(vdPcAppsRef, { apps: apps || [], savedAt: Date.now() })
         .catch(e => console.warn('[AI prep] pc apps write failed:', e && e.code));
     };
@@ -11835,6 +11976,45 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       (ids || []).forEach(id => { if (/^[A-Za-z0-9_-]+$/.test(id)) upd["kits." + id] = deleteField(); });
       if (Object.keys(upd).length < 2) return;
       updateDoc(vdPrepRef, upd).catch(e => console.warn('[AI prep] kit prune failed:', e && e.code));
+    };
+
+    // ── AI task prep kits (Tony) ───────────────────────────────────────────────
+    // The same pair of docs as Veda's above, Tony's own (see the TH-PREP block):
+    // dashboards/tony_taskprep (one kit per flagged task, written per field with
+    // merge) and dashboards/tony_pc_apps (names + opaque ids from the bridge).
+    const thPrepRef = doc(db, "dashboards/tony_taskprep");
+    const thPcAppsRef = doc(db, "dashboards/tony_pc_apps");
+    if (_thPrepUnsub) { _thPrepUnsub(); _thPrepUnsub = null; }
+    if (_thPcAppsUnsub) { _thPcAppsUnsub(); _thPcAppsUnsub = null; }
+    _thPrepUnsub = onSnapshot(thPrepRef, { includeMetadataChanges: true }, (snap) => {
+      const d = snap.exists() ? (snap.data() || {}) : {};
+      window._thPrepKits = Object.assign({}, d.kits || {});
+      window._thPrepKitsLoaded = window._thPrepKitsLoaded || !(snap.metadata && snap.metadata.fromCache);
+      window.dispatchEvent(new CustomEvent("th-prep-update"));
+    }, (err) => { console.warn('[AI prep tony] onSnapshot error:', err && err.code); });
+    _thPcAppsUnsub = onSnapshot(thPcAppsRef, { includeMetadataChanges: true }, (snap) => {
+      const d = snap.exists() ? (snap.data() || {}) : {};
+      window._thPcApps = Array.isArray(d.apps) ? d.apps : [];
+      window._thPcAppsAt = d.savedAt || 0;
+      window._thPcAppsLoaded = window._thPcAppsLoaded || !(snap.metadata && snap.metadata.fromCache);
+      window.dispatchEvent(new CustomEvent("th-prep-update"));
+    }, (err) => { console.warn('[AI prep tony] pc apps onSnapshot error:', err && err.code); });
+    window._fbSaveThKit = (taskId, kit) => {
+      setDoc(thPrepRef, { kits: { [taskId]: kit }, savedAt: Date.now() }, { merge: true })
+        .catch(e => console.warn('[AI prep tony] kit write failed:', e && e.code));
+    };
+    // Stricter than Veda's: only a device that is explicitly Tony's publishes
+    // (hers already published before this existed, so hers stays "not Tony's").
+    window._fbSaveThPcApps = (apps) => {
+      if (_prepMainDash() !== "tony") return false;
+      setDoc(thPcAppsRef, { apps: apps || [], savedAt: Date.now() })
+        .catch(e => console.warn('[AI prep tony] pc apps write failed:', e && e.code));
+    };
+    window._fbDropThKits = (ids) => {
+      const upd = { savedAt: Date.now() };
+      (ids || []).forEach(id => { if (/^[A-Za-z0-9_-]+$/.test(id)) upd["kits." + id] = deleteField(); });
+      if (Object.keys(upd).length < 2) return;
+      updateDoc(thPrepRef, upd).catch(e => console.warn('[AI prep tony] kit prune failed:', e && e.code));
     };
 
     // ── Resilient write helpers (shared by BJ / MJ / TJ) ──────────────────────
@@ -12501,6 +12681,8 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     if (_sosAckUnsub)    { _sosAckUnsub();    _sosAckUnsub    = null; }
     if (_vdPrepUnsub)    { _vdPrepUnsub();    _vdPrepUnsub    = null; }
     if (_vdPcAppsUnsub)  { _vdPcAppsUnsub();  _vdPcAppsUnsub  = null; }
+    if (_thPrepUnsub)    { _thPrepUnsub();    _thPrepUnsub    = null; }
+    if (_thPcAppsUnsub)  { _thPcAppsUnsub();  _thPcAppsUnsub  = null; }
     if (_plansUnsub)     { _plansUnsub();     _plansUnsub     = null; }
     if (_ewRotUnsub)     { _ewRotUnsub();     _ewRotUnsub     = null; }
     if (_ewPrayUnsub)    { _ewPrayUnsub();    _ewPrayUnsub    = null; }
@@ -14898,7 +15080,7 @@ function VdPrepPanel({item,dateKey,onClose}){
   const site=window._vdPrepSite(item);const siteName=(sites[site]||{}).name||"Perplexity";
   const prompt=(kit&&fresh&&kit.prompt)||window._vdPrepFallbackPrompt(item,dateKey);
   const appName={};(window._vdPcApps||[]).forEach(a=>{if(a&&a.id)appName[a.id]=a.name;});
-  const copy=(key,txt)=>{try{navigator.clipboard.writeText(String(txt||""));setCopied(key);setTimeout(()=>setCopied(c=>c===key?"":c),1400);}catch(e){}};
+  const copy=(key,txt)=>{try{Promise.resolve(navigator.clipboard.writeText(String(txt||""))).then(()=>{setCopied(key);setTimeout(()=>setCopied(c=>c===key?"":c),1400);},()=>{});}catch(e){}};
   const lbl={fontSize:10,color:TXD,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:6};
   const box={background:BG,border:"1px solid "+BDL,borderRadius:6,padding:"10px 12px",fontSize:13,color:TX,lineHeight:1.5};
   const btn=(primary)=>({fontSize:11,fontWeight:700,padding:"7px 14px",borderRadius:5,cursor:"pointer",fontFamily:"inherit",background:primary?A:"transparent",color:primary?BG:TXD,border:"1px solid "+(primary?A:BDL),whiteSpace:"nowrap"});
@@ -16050,7 +16232,7 @@ function App(){
     return next;});
   },[]);
   const titleEditThisOnly=useCallback(()=>{if(!titleEditConfirm)return;const{dateKey,item,isAltSeq}=titleEditConfirm;setData(prev=>{const arr=[...(prev[dateKey]||[])];const idx=arr.findIndex(t=>t.id===item.id);if(isAltSeq){const detached={...item,altSeqId:undefined,altSeqIdx:undefined,altSeqTitles:undefined,altSeqEndDate:undefined};if(idx>=0)arr[idx]=detached;else arr.push(detached);}else{const detached={...item,id:uid(),repeat:"none",repeatId:undefined,repeatDays:undefined,repeatEndDate:undefined};if(idx>=0)arr[idx]=detached;else arr.push(detached);}return{...prev,[dateKey]:arr};});setTitleEditConfirm(null);},[titleEditConfirm]);
-  const titleEditAllFuture=useCallback(()=>{if(!titleEditConfirm)return;const{dateKey,item,isAltSeq}=titleEditConfirm;const cutoff=new Date(dateKey);setData(prev=>{const next={...prev};if(isAltSeq){const sid=item.altSeqId;const newTitles=item.altSeqTitles;const sharedFields={category:item.category,type:item.type,altSeqTitles:newTitles,...(item.type==="event"&&item.time?{time:item.time}:{time:undefined}),notifyAt:item.notifyAt,notifyRepeat:item.notifyRepeat,notifyRepeatDays:item.notifyRepeatDays,notifyRepeatId:item.notifyRepeatId};Object.keys(next).forEach(k=>{const kd=new Date(k);if(kd>=cutoff&&sid){next[k]=(next[k]||[]).map(t=>{if(t.altSeqId!==sid)return t;const newTitle=newTitles[t.altSeqIdx]||t.title;return{...t,...sharedFields,title:newTitle};});}});}else{const rid=item.repeatId;const shared={title:item.title,type:item.type};if(item.type==="event"){shared.time=item.time;shared.tz=item.tz;}Object.keys(next).forEach(k=>{const kd=new Date(k);if(kd>=cutoff&&rid)next[k]=(next[k]||[]).map(t=>{if(t.repeatId!==rid)return t;const nt={...t,...shared};if(item.type!=="event"){delete nt.time;delete nt.tz;}return nt;});});}return next;});setTitleEditConfirm(null);},[titleEditConfirm]);
+  const titleEditAllFuture=useCallback(()=>{if(!titleEditConfirm)return;const{dateKey,item,isAltSeq}=titleEditConfirm;const cutoff=new Date(dateKey);setData(prev=>{const next={...prev};if(isAltSeq){const sid=item.altSeqId;const newTitles=item.altSeqTitles;const sharedFields={category:item.category,type:item.type,altSeqTitles:newTitles,...(item.type==="event"&&item.time?{time:item.time}:{time:undefined}),notifyAt:item.notifyAt,notifyRepeat:item.notifyRepeat,notifyRepeatDays:item.notifyRepeatDays,notifyRepeatId:item.notifyRepeatId,aiPrep:item.aiPrep||undefined,aiNote:item.aiPrep?(item.aiNote||""):undefined,aiSite:item.aiPrep?(item.aiSite||""):undefined};Object.keys(next).forEach(k=>{const kd=new Date(k);if(kd>=cutoff&&sid){next[k]=(next[k]||[]).map(t=>{if(t.altSeqId!==sid)return t;const newTitle=newTitles[t.altSeqIdx]||t.title;return{...t,...sharedFields,title:newTitle};});}});}else{const rid=item.repeatId;const shared={title:item.title,type:item.type};if(item.type==="event"){shared.time=item.time;shared.tz=item.tz;}const _ai=item.aiPrep?{aiPrep:true,aiNote:item.aiNote||"",aiSite:item.aiSite||""}:null;Object.keys(next).forEach(k=>{const kd=new Date(k);if(kd>=cutoff&&rid)next[k]=(next[k]||[]).map(t=>{if(t.repeatId!==rid)return t;const nt={...t,...shared};if(item.type!=="event"){delete nt.time;delete nt.tz;}if(_ai)Object.assign(nt,_ai);else{delete nt.aiPrep;delete nt.aiNote;delete nt.aiSite;}return nt;});});}return next;});setTitleEditConfirm(null);},[titleEditConfirm]);
   const togH=useCallback((hid,di)=>{const w2=wd[di];const k=`${hid}-${w2.year}-${w2.month}-${w2.day}`;setHc(p=>({...p,[k]:!p[k]}));},[wd]);
   // Deleting a habit also tears down its armed reminder (see Tony's delH).
   const delH=useCallback(id=>{habSyncNotif({id},"veda");setHabits(p=>p.filter(h=>h.id!==id));},[]);
@@ -21862,9 +22044,11 @@ window._sosResUseBrowser = function(on){
       window._vdBridgeErr = '';
       var apps = j.apps.filter(function(a){ return a && a.id && a.name; })
         .map(function(a){ return { id: String(a.id), name: String(a.name) }; });
-      if (window._vdPcAppsLoaded && appsSig(apps) !== appsSig(window._vdPcApps) && window._fbSaveVdPcApps) {
+      // The save answers false when this PC is not hers to publish from; then
+      // the list is not kept either, so no kit is built from another PC's apps.
+      if (window._vdPcAppsLoaded && appsSig(apps) !== appsSig(window._vdPcApps) && window._fbSaveVdPcApps
+          && window._fbSaveVdPcApps(apps) !== false) {
         window._vdPcApps = apps;
-        window._fbSaveVdPcApps(apps);
         changed = true;
       }
       if (changed) window.dispatchEvent(new CustomEvent('vd-prep-update'));
@@ -22036,6 +22220,244 @@ window._sosResUseBrowser = function(on){
 })();
 </script>
 <!-- VD-PREP-END -->
+
+<!-- ── AI task prep (Tony's TaskHub) ───────────────────────────────────────────
+     The same feature as Veda's (the VD-PREP block above), with everything of
+     its own: dashboards/tony_taskprep and dashboards/tony_pc_apps, Tony's
+     Gemini key (profile 'tony'), his own default assistant ('thAiSite'), and
+     'th-prep-*' events. Nothing here reads or writes any of Veda's.
+
+     This block is VD-PREP with its comments removed and every name moved from
+     _vd/Vd/vd- to _th/Th/th- (tests/taskprep-page.test.js rebuilds it that
+     way and fails on any difference). So a fix goes into VD-PREP first, and
+     the same change is made here. Read VD-PREP for the why of each part.
+     TH-PREP-BEGIN ── -->
+<script>
+(function(){
+  var WORKER = 'https://personal-ai.av1.workers.dev/taskhub/prep';
+  var SITES = {
+    perplexity: { name: 'Perplexity', url: function(q){ return 'https://www.perplexity.ai/search?q=' + encodeURIComponent(q); } },
+    chatgpt:    { name: 'ChatGPT',    url: function(q){ return 'https://chatgpt.com/?q=' + encodeURIComponent(q); } },
+    claude:     { name: 'Claude',     url: function(q){ return 'https://claude.ai/new?q=' + encodeURIComponent(q); } }
+  };
+  var URL_PROMPT_MAX = 6000;
+  var RETRY_AFTER_MS = 10 * 60 * 1000;
+
+  window._thPrepSites = SITES;
+  window._thPrepKits = window._thPrepKits || {};
+  window._thPrepBusy = window._thPrepBusy || {};
+  var failedAt = {};
+
+  window._thPrepDefaultSite = function(){
+    var s = null;
+    try { s = localStorage.getItem('thAiSite'); } catch(e){}
+    return SITES[s] ? s : 'perplexity';
+  };
+  window._thPrepSetDefaultSite = function(s){
+    try { if (SITES[s]) localStorage.setItem('thAiSite', s); } catch(e){}
+  };
+  window._thPrepSite = function(item){
+    return (item && SITES[item.aiSite]) ? item.aiSite : window._thPrepDefaultSite();
+  };
+
+  window._thPrepSig = function(item, dateKey){
+    var s = [item.title || '', dateKey || '', item.time || '', item.type || 'task',
+             item.aiNote || '', window._thPrepSite(item)].join('\u0001');
+    var h = 5381;
+    for (var i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+    return h.toString(36);
+  };
+
+  window._thPrepKitFor = function(item, dateKey){
+    var k = item && window._thPrepKits[item.id];
+    if (!k) return null;
+    return { kit: k, fresh: k.sig === window._thPrepSig(item, dateKey) };
+  };
+
+  window._thPrepFallbackPrompt = function(item, dateKey){
+    var lines = ['I need help getting this task done: "' + (item.title || '') + '"'
+      + (dateKey ? ' (due ' + dateKey + (item.time ? ' at ' + item.time : '') + ')' : '') + '.'];
+    if (item.aiNote) lines.push('Details: ' + item.aiNote);
+    lines.push('Prepare everything you can for me: draft any email or message in full, '
+      + 'list the exact steps left, and link the websites I will need.');
+    return lines.join('\n\n');
+  };
+
+  window._thPrepAssistantUrl = function(site, prompt){
+    var s = SITES[site] || SITES.perplexity;
+    return s.url(String(prompt || '').slice(0, URL_PROMPT_MAX));
+  };
+
+  var BRIDGE = 'http://127.0.0.1:8781';
+  window._thBridgeUp = window._thBridgeUp || false;
+  var onWindows = function(){ try { return /Windows/i.test(navigator.userAgent || ''); } catch(e){ return false; } };
+  var bridgeFetch = function(path, opts, ms){
+    var ac = (typeof AbortController === 'function') ? new AbortController() : null;
+    var timer = ac ? setTimeout(function(){ ac.abort(); }, ms || 4000) : null;
+    return fetch(BRIDGE + path, Object.assign({}, opts || {}, ac ? { signal: ac.signal } : {}))
+      .then(function(r){ return r.json(); })
+      .then(function(j){ if (timer) clearTimeout(timer); return j; },
+            function(e){ if (timer) clearTimeout(timer); throw e; });
+  };
+  var appsSig = function(list){
+    return (list || []).map(function(a){ return a.id + '=' + a.name; }).sort().join('|');
+  };
+
+  window._thBridgeProbe = function(){
+    if (!onWindows()) return Promise.resolve(false);
+    return bridgeFetch('/api/apps', { method: 'GET' }, 3000).then(function(j){
+      if (!j || !j.ok || !Array.isArray(j.apps)) throw new Error('no apps');
+      var changed = !window._thBridgeUp || window._thBridgeErr !== '';
+      window._thBridgeUp = true;
+      window._thBridgeErr = '';
+      var apps = j.apps.filter(function(a){ return a && a.id && a.name; })
+        .map(function(a){ return { id: String(a.id), name: String(a.name) }; });
+      if (window._thPcAppsLoaded && appsSig(apps) !== appsSig(window._thPcApps) && window._fbSaveThPcApps
+          && window._fbSaveThPcApps(apps) !== false) {
+        window._thPcApps = apps;
+        changed = true;
+      }
+      if (changed) window.dispatchEvent(new CustomEvent('th-prep-update'));
+      return true;
+    }).catch(function(){
+      var wasUp = window._thBridgeUp;
+      window._thBridgeUp = false;
+      return noteFailure(wasUp).then(function(){ return false; });
+    });
+  };
+
+  window._thBridgePerm = function(){
+    var q = function(name){
+      try { return navigator.permissions.query({ name: name }).then(function(r){ return r.state; }, function(){ return null; }); }
+      catch(e){ return Promise.resolve(null); }
+    };
+    if (!navigator.permissions || !navigator.permissions.query) return Promise.resolve('unknown');
+    return q('loopback-network').then(function(st){ return st || q('local-network-access'); })
+      .then(function(st){ return st || 'unknown'; });
+  };
+  window._thBridgeErr = window._thBridgeErr || '';
+  var noteFailure = function(force){
+    var before = window._thBridgeErr;
+    return window._thBridgePerm().then(function(st){
+      window._thBridgeErr = st === 'denied' ? 'blocked' : (st === 'prompt' ? 'blocked-or-down' : 'down');
+      if (force || window._thBridgeErr !== before) window.dispatchEvent(new CustomEvent('th-prep-update'));
+    });
+  };
+
+  window._thPrepOpenLocal = function(appIds, urls, focus){
+    if (!onWindows()) return Promise.resolve(null);
+    var body = JSON.stringify(Object.assign({ apps: appIds || [], urls: urls || [] }, focus ? { focus: focus } : {}));
+    return bridgeFetch('/api/launch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body }, 8000)
+      .then(function(j){
+        window._thBridgeUp = !!(j && j.ok);
+        window._thBridgeErr = window._thBridgeUp ? '' : 'down';
+        window.dispatchEvent(new CustomEvent('th-prep-update'));
+        return j;
+      })
+      .catch(function(){ window._thBridgeUp = false; return noteFailure(true).then(function(){ return null; }); });
+  };
+
+  window._thPrepRequest = function(item, dateKey){
+    if (!item || !item.id || window._thPrepBusy[item.id]) return Promise.resolve(null);
+    if (!/^[A-Za-z0-9_-]+$/.test(item.id)) return Promise.resolve(null);
+    var sig = window._thPrepSig(item, dateKey);
+    var site = window._thPrepSite(item);
+    window._thPrepBusy[item.id] = true;
+    window.dispatchEvent(new CustomEvent('th-prep-update'));
+    var now = new Date();
+    var body = {
+      profile: 'tony',
+      task: { title: item.title, date: dateKey, time: item.time || '', type: item.type || 'task', category: item.category || '' },
+      note: item.aiNote || '',
+      site: site,
+      today: now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0'),
+      weekday: now.toLocaleDateString('en-US', { weekday: 'long' }),
+      apps: Array.isArray(window._thPcApps) ? window._thPcApps : []
+    };
+    return fetch(WORKER, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if (!j || !j.ok || !j.kit) throw new Error((j && j.error) || 'prep failed');
+        var kit = Object.assign({}, j.kit, { sig: sig, site: site, date: dateKey, at: Date.now() });
+        window._thPrepKits[item.id] = kit;
+        if (window._fbSaveThKit) window._fbSaveThKit(item.id, kit);
+        return kit;
+      })
+      .catch(function(e){
+        failedAt[item.id + '|' + sig] = Date.now();
+        console.warn('[AI prep]', item.title, e && e.message);
+        return null;
+      })
+      .then(function(kit){
+        delete window._thPrepBusy[item.id];
+        window.dispatchEvent(new CustomEvent('th-prep-update'));
+        return kit;
+      });
+  };
+
+  window._thPrepDue = function(data, todayKey, tomorrowKey, kits, nowMs){
+    var out = [];
+    [todayKey, tomorrowKey].forEach(function(k){
+      ((data && data[k]) || []).forEach(function(t){
+        if (!t || !t.aiPrep || t.done || t._sosId || t._planId) return;
+        var sig = window._thPrepSig(t, k);
+        var have = kits[t.id];
+        if (have && have.sig === sig) return;
+        var f = failedAt[t.id + '|' + sig];
+        if (f && nowMs - f < RETRY_AFTER_MS) return;
+        out.push({ item: t, dateKey: k });
+      });
+    });
+    return out;
+  };
+
+  window._thPrepStale = function(data, kits, yesterdayKey){
+    var live = {};
+    Object.keys(data || {}).forEach(function(k){
+      if (k < yesterdayKey) return;
+      (data[k] || []).forEach(function(t){ if (t && t.aiPrep) live[t.id] = true; });
+    });
+    return Object.keys(kits || {}).filter(function(id){ return !live[id]; });
+  };
+
+  var running = false;
+  window._thPrepRun = function(data, todayKey, tomorrowKey, yesterdayKey){
+    if (!window._thCloudLoaded || !window._thPrepKitsLoaded) return;
+    var stale = window._thPrepStale(data, window._thPrepKits, yesterdayKey);
+    if (stale.length && window._fbDropThKits) {
+      stale.forEach(function(id){ delete window._thPrepKits[id]; });
+      window._fbDropThKits(stale);
+    }
+    if (running) return;
+    var due = window._thPrepDue(data, todayKey, tomorrowKey, window._thPrepKits, Date.now());
+    if (!due.length) return;
+    running = true;
+    var next = function(i){
+      if (i >= due.length) { running = false; return; }
+      window._thPrepRequest(due[i].item, due[i].dateKey).then(function(){ next(i + 1); });
+    };
+    next(0);
+  };
+
+  window._thPrepLaunch = function(item, dateKey){
+    var got = window._thPrepKitFor(item, dateKey);
+    var kit = got && got.kit;
+    var site = window._thPrepSite(item);
+    var prompt = (kit && got.fresh && kit.prompt) || window._thPrepFallbackPrompt(item, dateKey);
+    var aiUrl = window._thPrepAssistantUrl(site, prompt);
+    var extras = !!(kit && got.fresh && ((kit.sites && kit.sites.length) || (kit.apps && kit.apps.length)));
+    if (extras && window._thBridgeUp && onWindows()) {
+      window._thPrepOpenLocal(kit.apps || [], (kit.sites || []).map(function(x){ return x.url; }), aiUrl);
+    } else {
+      try { window.open(aiUrl, '_blank', 'noopener'); } catch(e){}
+      if (extras) window._thPrepOpenLocal(kit.apps || [], (kit.sites || []).map(function(x){ return x.url; }));
+    }
+    if (!got || !got.fresh) window._thPrepRequest(item, dateKey);
+    window.dispatchEvent(new CustomEvent('th-prep-open', { detail: { id: item.id, dateKey: dateKey } }));
+  };
+})();
+</script>
+<!-- TH-PREP-END -->
 
 <!-- ── Where a built-in program opens ─────────────────────────────────────────
      The address comes from LifeHub (Tony's External Links are LifeHub's list),

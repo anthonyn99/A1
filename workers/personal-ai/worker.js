@@ -1482,8 +1482,8 @@ async function handleTaskhub(body, env) {
 // ════════════════════════════════════════════════════════════════════════════
 // FEATURE 2b — TaskHub AI task prep  (POST /taskhub/prep)
 // ════════════════════════════════════════════════════════════════════════════
-// Veda flags a task ("AI prep") and TaskHub asks this route, ahead of time, for
-// a KIT: a ready-to-paste prompt for her chosen assistant, a first draft (the
+// Tony or Veda flags a task ("AI prep") and their TaskHub asks this route, ahead
+// of time, for a KIT: a ready-to-paste prompt for the chosen assistant, a first draft (the
 // email itself, a message, notes), the websites worth opening and the PC apps
 // worth opening. Clicking the task's ✨ button then opens the assistant with
 // the prompt typed in, and Shield opens the sites and apps.
@@ -1569,14 +1569,22 @@ function prepGmailUrl(d) {
   return 'https://mail.google.com/mail/?' + q.join('&');
 }
 
-function buildPrepPrompt({ task, note, site, today, weekday, apps }) {
+// Whose planner it is. Veda's wording is the original; Tony's says only what
+// is known (nothing about school).
+const PREP_PEOPLE = {
+  veda: { name: 'Veda', intro: 'Veda is a university student. She', they: 'she', their: 'her', THEIR: 'HER', them: 'her', starts: 'starts', does: 'does', has: 'has' },
+  tony: { name: 'Tony', intro: 'Tony', they: 'they', their: 'their', THEIR: 'THEIR', them: 'them', starts: 'start', does: 'do', has: 'have' },
+};
+
+function buildPrepPrompt({ profile, task, note, site, today, weekday, apps }) {
+  const P = PREP_PEOPLE[profile === 'tony' ? 'tony' : 'veda'];
   const siteName = PREP_SITES[site] || 'Perplexity';
   const appLines = apps.length
     ? apps.map(a => `${a.id}: ${a.name}`).join('\n')
     : '(none reported — return an empty apps list)';
   return [
-    `You are Veda's task-prep assistant. Veda is a university student. She flagged one task on her planner`,
-    `and wants everything ready before she starts it, so she does as little manual work as possible.`,
+    `You are ${P.name}'s task-prep assistant. ${P.intro} flagged one task on ${P.their} planner`,
+    `and wants everything ready before ${P.they} ${P.starts} it, so ${P.they} ${P.does} as little manual work as possible.`,
     `You PREPARE only. Never claim anything was sent, booked or submitted.`,
     ``,
     `TODAY: ${today}${weekday ? ' (' + weekday + ')' : ''}`,
@@ -1585,30 +1593,30 @@ function buildPrepPrompt({ task, note, site, today, weekday, apps }) {
     task.date ? `TASK DATE: ${task.date}${task.time ? ' at ' + task.time : ''}` : '',
     task.type === 'event' ? `This is an EVENT (something happening at a time), not a to-do.` : '',
     task.category ? `CATEGORY: ${task.category}` : '',
-    note ? `HER NOTES FOR YOU (trust these; they hold names, addresses, details): ${note}` : `HER NOTES: none.`,
+    note ? `${P.THEIR} NOTES FOR YOU (trust these; they hold names, addresses, details): ${note}` : `${P.THEIR} NOTES: none.`,
     ``,
     `Return JSON with:`,
     `- helpful: false ONLY if there is nothing to prepare (e.g. "gym", "laundry", "sleep early"). Then keep the rest minimal.`,
-    `- summary: 1-2 short sentences telling Veda what you prepared and what is left for her to do. Mention only`,
+    `- summary: 1-2 short sentences telling ${P.name} what you prepared and what is left for ${P.them} to do. Mention only`,
     `  what this JSON actually contains (never say you drafted an email unless draft.body holds it).`,
-    `- prompt: a complete, self-contained message Veda will paste into ${siteName}. Write it in her voice ("I need to…"),`,
+    `- prompt: a complete, self-contained message ${P.name} will paste into ${siteName}. Write it in ${P.their} voice ("I need to…"),`,
     `  include every detail from the task and notes, and ask for the concrete finished output (the full email, a`,
     `  comparison with links, a step-by-step plan, etc.). ${siteName === 'Perplexity' ? 'Perplexity searches the web, so ask it to cite sources and current info where that helps.' : ''}`,
-    `  The assistant knows nothing else about her, so the prompt must stand alone. Max ~1200 words.`,
-    `- draft: your own best first draft of the deliverable, so she has something even before opening ${siteName}.`,
+    `  The assistant knows nothing else about ${P.them}, so the prompt must stand alone. Max ~1200 words.`,
+    `- draft: your own best first draft of the deliverable, so ${P.they} ${P.has} something even before opening ${siteName}.`,
     `  The COMPLETE text goes in draft.body; a draft with an empty body is discarded. Always fill every draft field`,
     `  (use "" for ones that do not apply).`,
-    `  kind "email" when the task is to email/write to someone: fill to (only an address that appears in her notes,`,
-    `  else empty), subject, and body (complete, polite, signed "Veda", placeholders like [date] only where a fact`,
+    `  kind "email" when the task is to email/write to someone: fill to (only an address that appears in ${P.their} notes,`,
+    `  else empty), subject, and body (complete, polite, signed "${P.name}", placeholders like [date] only where a fact`,
     `  is genuinely unknown). kind "message" for a text/DM, "document" for notes/outlines/lists, "none" if no draft fits.`,
-    `- sites: up to ${PREP_MAX_SITES} websites she will actually need for THIS task (the real https URL of the`,
+    `- sites: up to ${PREP_MAX_SITES} websites ${P.they} will actually need for THIS task (the real https URL of the`,
     `  specific service: a booking page, a portal, a form, docs). Do NOT include Gmail (it is added automatically`,
     `  for email drafts), the AI assistant itself, or generic search pages. Empty when none clearly fit.`,
-    `- apps: up to ${PREP_MAX_APPS} ids from the list below of apps installed on her PC, only ones she would`,
+    `- apps: up to ${PREP_MAX_APPS} ids from the list below of apps installed on ${P.their} PC, only ones ${P.they} would`,
     `  open for this task (Word for an essay, Excel for a budget, Zoom for a call, Spotify for nothing). Use the ids`,
     `  exactly. Empty when none clearly fit.`,
     ``,
-    `APPS ON HER PC (id: name):`,
+    `APPS ON ${P.THEIR} PC (id: name):`,
     appLines,
   ].filter(l => l !== '').join('\n');
 }
@@ -1680,7 +1688,7 @@ async function handleTaskPrep(body, env) {
   const key = keyFor(env, profile);
   if (!key) return json({ ok: false, error: `no Gemini key configured for ${profile}` }, 500);
 
-  const prompt = buildPrepPrompt({ task, note, site, today, weekday, apps });
+  const prompt = buildPrepPrompt({ profile, task, note, site, today, weekday, apps });
   try {
     // Nobody is waiting on this (it runs ahead of time), so quality leads.
     const { value, model, tried } = await runModelChain(TASKHUB_BULK_MODELS, key, {

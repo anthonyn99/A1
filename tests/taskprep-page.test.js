@@ -11,7 +11,13 @@
  *   hand the kit's apps and sites to the StudyOS bridge, never to Shield.
  * - Veda's Modal rebuilds the item on save. If the AI fields were missing from
  *   any branch, editing a task would silently unflag it.
- * - This is Veda's side only. Tony's Modal and rows must never get it.
+ * - Tony has the same feature (TH-PREP block, his ItemModal, rows and panel),
+ *   built on his own docs, key, events and storage. TH-PREP is VD-PREP with
+ *   comments removed and names moved to _th; this file rebuilds it that way
+ *   and fails on any difference, so the two can never drift. Neither side may
+ *   touch a single name of the other's.
+ * - Both TaskHubs run on every device and share one PC bridge, so whose PC it
+ *   is (td6_mainDash) decides whose app list it may publish.
  *
  * Run: node tests/taskprep-page.test.js
  */
@@ -53,7 +59,7 @@ function sandbox(opts) {
   ctx.open = (url) => { order.push('open:' + url); return null; };
   Object.defineProperty(ctx.location, 'href', { set: v => order.push('nav:' + v), get: () => '' });
   vm.createContext(ctx);
-  vm.runInContext(js, ctx);
+  vm.runInContext(opts.js || js, ctx);
   return { W: ctx, events, order, store };
 }
 
@@ -301,12 +307,105 @@ section('request');
     t('all three item builds carry the AI fields', builds.length === 3, 'found ' + builds.length);
     t('rows show ✨ only on her own flagged items', (html.slice(vApp).match(/!edit&&[te]\.aiPrep&&![te]\._sosId&&vdPrepBtn\([te],k\)/g) || []).length === 4);
     t('the panel is mounted', html.slice(vApp).includes('RC(VdPrepPanel,{'));
+    t("Veda's side never names Tony's prep", !/_thPrep|_thBridge|_thPcApps|th-prep-|ThPrepPanel/.test(html.slice(vStart, html.indexOf('ReactDOM.render(RC(App)', vStart))));
+  }
+
+  section("Tony's Modal, rows and panel (static)");
+  {
     // Tony's App up to the end of its render (the shared Firestore module
     // after it serves both sides and is checked separately below).
+    const tonyApp = html.indexOf('function App(){');
     const tony = html.slice(tonyApp, html.indexOf('ReactDOM.render(React.createElement(Root)', tonyApp));
-    t("Tony's side has none of it", !/aiPrep|vdPrep|VdPrepPanel|_vdPrep/.test(tony));
-    const tonyModal = html.slice(html.indexOf('function ItemModal('), html.indexOf('function ItemModal(') + 20000);
-    t("Tony's ItemModal has none of it", !/aiPrep|aiNote/.test(tonyModal));
+    t("Tony's App never names Veda's prep", !/vdPrep|VdPrepPanel|_vdPrep|_vdBridge|_vdPcApps|vd-prep-/.test(tony));
+    const mS = html.indexOf('function ItemModal('), mE = html.indexOf('function PlanCheck(', mS);
+    const tModal = html.slice(mS, mE);
+    t("Tony's ItemModal has the AI state", /const\[aiPrep,setAiPrep\]=useState\(false\)/.test(tModal));
+    t('it is loaded from the item being edited', tModal.includes('setAiPrep(!!initial?.aiPrep);setAiNote(initial?.aiNote||"");setAiSite(initial?.aiSite||"")'));
+    t('all three item builds carry the AI fields', (tModal.match(/\.\.\.aiF,\n/g) || []).length === 3, 'found ' + (tModal.match(/\.\.\.aiF,\n/g) || []).length);
+    t('a saved flagged task is prepped with Tony\'s request, never Veda\'s', tModal.includes('window._thPrepRequest(item,startDateKey)') && !/_vdPrep/.test(tModal));
+    t('the panel is Tony\'s own', html.includes('function ThPrepPanel({item,dateKey,onClose,T})') && !/_vd/.test(html.slice(html.indexOf('function ThPrepPanel('), html.indexOf('function PlanCheck('))));
+    t('rows show ✦ on his flagged items, both week layouts', (tony.match(/!edit&&[te]\.aiPrep&&![te]\._sosId&&thPrepBtn\([te],k\)/g) || []).length === 4);
+    t('the panel is mounted', tony.includes('React.createElement(ThPrepPanel,{T,'));
+    t('the background run reads Tony\'s data', tony.includes('window._thPrepRun(stateRef.current.data,'));
+  }
+
+  section('TH-PREP is VD-PREP, renamed (no drift)');
+  const tb = html.indexOf('TH-PREP-BEGIN'), te = html.indexOf('<!-- TH-PREP-END -->');
+  const tBlock = html.slice(tb, te);
+  const thJs = tBlock.slice(tBlock.indexOf('<script>') + 8, tBlock.lastIndexOf('</script>'));
+  {
+    // The SAME transform that generated it. If VD-PREP changes, regenerate.
+    const strip = (src) => src.split('\n').filter((l) => !/^\s*\/\//.test(l)).map((l) => l.replace(/\s+\/\/ .*$/, '')).join('\n');
+    const toTony = (src) => src
+      .replace(/_vd(Prep|Bridge|PcApps|CloudLoaded)/g, '_th$1')
+      .replace(/_fb(Save|Drop)Vd/g, '_fb$1Th')
+      .replace(/'vd-prep-/g, "'th-prep-")
+      .replace(/'vdAiSite'/g, "'thAiSite'")
+      .replace(/profile: 'veda'/g, "profile: 'tony'");
+    t('the block is present, after VD-PREP', tb > e && te > tb);
+    t('it equals VD-PREP renamed', thJs === toTony(strip(js)));
+    t('not one Veda name in it', !/_vd|vd-prep|vdAiSite|'veda'|_fbSaveVd|_fbDropVd/.test(thJs));
+  }
+  {
+    let sent = null;
+    const saved = [];
+    const { W, events, store } = sandbox({ js: thJs, fetch: (u, o) => { sent = { u, body: JSON.parse(o.body) }; return Promise.resolve({ json: () => Promise.resolve({ ok: true, kit: { prompt: 'P', sites: [], apps: [], draft: { kind: 'none' } } }) }); } });
+    W._fbSaveThKit = (id, k) => saved.push([id, k]);
+    W._fbSaveVdKit = () => saved.push(['VEDA']);
+    W._thPcApps = [{ id: 't1', name: 'Excel' }];
+    W._vdPcApps = [{ id: 'v1', name: 'HER APP' }];
+    const item = { id: 'x1', title: 'Email the landlord', aiPrep: true, aiNote: 'n' };
+    await W._thPrepRequest(item, '2026-10-14');
+    t("Tony's request posts profile tony with his own app list", sent && sent.body.profile === 'tony' && JSON.stringify(sent.body.apps) === '[{"id":"t1","name":"Excel"}]', JSON.stringify(sent && sent.body));
+    t('his kit goes to his store only', saved.length === 1 && saved[0][0] === 'x1');
+    t('his events are th-prep-*', events.length && events.every((x) => /^th-prep-/.test(x.type)));
+    t("Veda's globals are untouched", !W._vdPrepKits && !W._vdPrepBusy && JSON.stringify(W._vdPcApps) === '[{"id":"v1","name":"HER APP"}]');
+    W._thPrepSetDefaultSite('claude');
+    t('his default assistant is his own key', store.thAiSite === 'claude' && !('vdAiSite' in store));
+  }
+
+  section('bridge probe: no repaint loop, and whose PC it is');
+  {
+    // MEASURED before the fix: the App re-runs its prep effect on every
+    // repaint, the probe ended every run with a repaint event, so the bridge
+    // was asked every 3 seconds forever on every Windows PC.
+    for (const [name, src, pfx] of [['Veda', js, 'vd'], ['Tony', thJs, 'th']]) {
+      const { W, events } = sandbox({ js: src, fetch: () => Promise.resolve({ json: () => Promise.resolve({ ok: true, apps: [{ id: 'w1', name: 'Word' }] }) }) });
+      const P = '_' + pfx, F = pfx === 'vd' ? 'Vd' : 'Th';
+      W['_fbSave' + F + 'PcApps'] = () => {};
+      W[P + 'PcAppsLoaded'] = true; W[P + 'PcApps'] = [];
+      await W[P + 'BridgeProbe']();
+      const n1 = events.length;
+      await W[P + 'BridgeProbe']();
+      t(name + ': a probe that changes nothing does not repaint', n1 === 1 && events.length === 1, n1 + ' then ' + events.length);
+      const down = sandbox({ js: src, fetch: () => Promise.reject(new Error('ECONNREFUSED')) });
+      await down.W[P + 'BridgeProbe']();
+      const d1 = down.events.length;
+      await down.W[P + 'BridgeProbe']();
+      t(name + ': a bridge that stays down repaints once, not on every probe', d1 === 1 && down.events.length === 1, d1 + ' then ' + down.events.length);
+      const refused = sandbox({ js: src, fetch: () => Promise.resolve({ json: () => Promise.resolve({ ok: true, apps: [{ id: 'w1', name: 'Word' }] }) }) });
+      refused.W['_fbSave' + F + 'PcApps'] = () => false;
+      refused.W[P + 'PcAppsLoaded'] = true; refused.W[P + 'PcApps'] = [];
+      await refused.W[P + 'BridgeProbe']();
+      t(name + ': a refused save (not their PC) keeps no app list either', refused.W[P + 'PcApps'].length === 0);
+    }
+  }
+  {
+    const fsStart = html.indexOf('// ── AI task prep kits (Veda)');
+    const fsMod = html.slice(fsStart, html.indexOf('// ── Resilient write helpers', fsStart));
+    t("Veda's app list is never published from Tony's PC", /window\._fbSaveVdPcApps = \(apps\) => \{\n\s+if \(_prepMainDash\(\) === "tony"\) return false;/.test(fsMod));
+    t("Tony's only from a PC that is explicitly his", /window\._fbSaveThPcApps = \(apps\) => \{\n\s+if \(_prepMainDash\(\) !== "tony"\) return false;/.test(fsMod));
+    t("Tony's kits and apps live in his own docs", fsMod.includes('doc(db, "dashboards/tony_taskprep")') && fsMod.includes('doc(db, "dashboards/tony_pc_apps")'));
+    t('his kits are written per field with merge', fsMod.includes('setDoc(thPrepRef, { kits: { [taskId]: kit }, savedAt: Date.now() }, { merge: true })'));
+    t("his writes never use Veda's refs", !/_fbSaveTh[\s\S]{0,200}vdP|_fbDropTh[\s\S]{0,300}vdPrepRef/.test(fsMod));
+    t('both of his listeners are torn down', html.includes('if (_thPrepUnsub)    { _thPrepUnsub();    _thPrepUnsub    = null; }') && html.includes('if (_thPcAppsUnsub)  { _thPcAppsUnsub();  _thPcAppsUnsub  = null; }'));
+  }
+
+  section('"All future repeats" keeps the AI prep edit (both sides)');
+  {
+    t('Tony: repeating series', html.includes('const _ai=item.aiPrep?{aiPrep:true,aiNote:item.aiNote||"",aiSite:item.aiSite||""}:null;\n') && /if\(_ai\)Object\.assign\(nt,_ai\);else\{delete nt\.aiPrep;delete nt\.aiNote;delete nt\.aiSite;\}return nt;\}\);\n/.test(html));
+    t('Veda: repeating series', /const _ai=item\.aiPrep\?\{aiPrep:true,aiNote:item\.aiNote\|\|"",aiSite:item\.aiSite\|\|""\}:null;Object\.keys\(next\)/.test(html));
+    t('both: alternating sequences', (html.match(/notifyRepeatId:item\.notifyRepeatId,\s*aiPrep:item\.aiPrep\|\|undefined,/g) || []).length === 2);
   }
 
   section('Firestore');

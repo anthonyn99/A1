@@ -114,6 +114,11 @@ section('prompt');
   const none = W.buildPrepPrompt({ task: { title: 'x', type: 'task' }, note: '', site: 'nope', today: '2026-10-03', apps: [] });
   t('unknown site falls back to Perplexity', none.includes('Perplexity'));
   t('no apps says so', none.includes('return an empty apps list'));
+  const args = { task: { title: 'Email the landlord', type: 'task' }, note: 'x', site: 'claude', today: '2026-10-13', apps: [] };
+  const v = W.buildPrepPrompt(Object.assign({ profile: 'veda' }, args));
+  t("Veda's prompt is hers (and the default when no profile is given)", v === W.buildPrepPrompt(args) && v.includes("You are Veda's task-prep assistant. Veda is a university student.") && v.includes('signed "Veda"'));
+  const tp = W.buildPrepPrompt(Object.assign({ profile: 'tony' }, args));
+  t("Tony's prompt is his: his name, his signature, nothing of Veda's", tp.includes("You are Tony's task-prep assistant.") && tp.includes('signed "Tony"') && !/Veda|university|\bher\b|\bshe\b|\bHER\b/.test(tp), tp.slice(0, 300));
 }
 
 section('route');
@@ -124,6 +129,10 @@ section('route');
   t('missing title is a 400', r.status === 400);
   const r2 = await W.handleTaskPrep({ profile: 'veda', task: { title: 'Email Kim' } }, {});
   t('missing key is a 500, not a crash', r2.status === 500 && /no Gemini key/.test(JSON.parse(r2.body).error));
+  const r3 = await W.handleTaskPrep({ profile: 'tony', task: { title: 'Email the landlord' } }, { VEDA_GEMINI_KEY: 'v' });
+  t("Tony's request never borrows Veda's key", r3.status === 500 && /for tony/.test(JSON.parse(r3.body).error));
+  const wsrc0 = fs.readFileSync(path.join(__dirname, '..', 'workers', 'personal-ai', 'worker.js'), 'utf8');
+  t('the route builds the prompt for the profile asked', /buildPrepPrompt\(\{ profile, task,/.test(wsrc0));
   const wsrc = fs.readFileSync(path.join(__dirname, '..', 'workers', 'personal-ai', 'worker.js'), 'utf8');
   t('route is wired', /path === '\/taskhub\/prep'\)\s+return handleTaskPrep\(body, env\)/.test(wsrc));
 
