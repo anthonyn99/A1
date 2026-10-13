@@ -310,7 +310,15 @@ def _overlap(question: str, text: str) -> float:
     if len(words) > MAX_REFERENCE_WORDS:
         return 1.0
     body = set(re.findall(r"[a-z0-9]+", text.lower()))
-    return len(words & body) / len(words)
+    # Spacing is not vocabulary: "Is YourShop back?" was answered about "Your
+    # Shop" by Gemini (2026-10-13) and thrown out as a stale turn, because
+    # "yourshop" is no word of the answer. A question word also counts when
+    # the answer spells it with spaces or punctuation in between. Five
+    # letters or more, so a short word cannot turn up by accident across a
+    # word boundary.
+    compact = "".join(re.findall(r"[a-z0-9]+", text.lower()))
+    hits = {w for w in words if w in body or (len(w) >= 5 and w in compact)}
+    return len(hits) / len(words)
 
 
 def validate_answer(

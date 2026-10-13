@@ -352,3 +352,21 @@ def test_a_reply_in_kind_to_a_bare_prompt_is_an_answer():
     # A spinner is still a spinner, and a short QUESTION still wants an answer.
     assert validate_answer("Thinking", "HEHEHE").reason is Rejection.TRUNCATED
     assert validate_answer("The scheduler", "Which scheduler wins?").reason is Rejection.TRUNCATED
+
+
+def test_a_word_spelled_apart_in_the_answer_still_counts():
+    """2026-10-13: "Is YourShop back for LoL?" was answered about "Your
+    Shop" and Gemini was excluded as a previous conversation turn."""
+    q = "Is YourShop back for LoL? Search carefully, the latest info"
+    a = ("**No, Your Shop is not currently active in League of Legends right now.** "
+         "### Current Status & Known Timeline - **Status:** Inactive in the client. "
+         "- **Last Active Period:** July 21, 2026 - August 18, 2026. Riot generally "
+         "schedules a Your Shop instance around major seasonal events, such as the "
+         "Worlds Championship or the holiday season. Keep an eye on the patch notes.")
+    assert validate_answer(a, q, display_name="Gemini").ok
+    # A genuinely unrelated capture of the same length is still caught.
+    other = ("Postgres handles concurrent writers with MVCC; each transaction sees a "
+             "snapshot, and vacuum reclaims dead tuples later. Tune autovacuum for "
+             "heavy update workloads, and watch for long transactions that hold back "
+             "the horizon. Partitioning helps with very large append-only tables.")
+    assert validate_answer(other, q).reason is Rejection.OFF_TOPIC
