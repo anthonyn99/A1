@@ -10,6 +10,7 @@ Verified working against chatgpt.com on 2026-08-12 (M1 gate, 3/3).
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -78,6 +79,10 @@ DIRECT_ANSWER_PREAMBLE = (
     "current information: web search is available in this chat, so use it "
     "rather than saying you lack live data.\n\n"
 )
+
+# How long to wait before asking a site again after it broke (ask()). Long
+# enough for a backend blip to pass, short against a turn of 30-120s.
+SITE_RETRY_PAUSE_S = 5.0
 
 #: Put in front of the question when a member is asked a second time after
 #: returning a stock refusal (see Orchestrator._ask). Only ever sent on that
