@@ -9485,7 +9485,7 @@ function App(){
 
   // Mirrored plan items are owned by dashboards/plans — ticking one here would be
   // reverted by the next reconcile, so refuse it and say why.
-  const tog=useCallback((k,id)=>{if(thArchivedRef.current[k]){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This day is archived history — it can be viewed but not edited.');return;}const cur=(stateRef.current.data[k]||[]).find(t=>t.id===id);if(cur&&cur._planId){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This is a shared plan — manage it in Add → Plan.');return;}setData(prev=>{const arr=[...(prev[k]||[])];const i=arr.findIndex(t=>t.id===id);if(i>=0){const nd=!arr[i].done;const u={...arr[i],done:nd};if(nd)u.doneAt=Date.now();else delete u.doneAt;arr[i]=u;}return {...prev,[k]:arr};});},[setData]);
+  const tog=useCallback((k,id)=>{if(thArchivedRef.current[k]){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This day is archived history — it can be viewed but not edited.');return;}const cur=(stateRef.current.data[k]||[]).find(t=>t.id===id);if(cur&&cur._planId){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This is a shared plan — manage it in Add → Plan.');return;}setData(prev=>{const arr=[...(prev[k]||[])];const i=arr.findIndex(t=>t.id===id);if(i>=0){const nd=!arr[i].done;const u={...arr[i],done:nd};const dm=(window._wkDoneAt=window._wkDoneAt||{});if(nd){u.doneAt=Date.now();dm[id]=u.doneAt;}else{delete u.doneAt;delete dm[id];}arr[i]=u;}return {...prev,[k]:arr};});},[setData]);
 
   const del=useCallback((k,id)=>{if(thArchivedRef.current[k]){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This day is archived history — it can be viewed but not edited.');return;}const cur=(stateRef.current.data[k]||[]).find(t=>t.id===id);if(cur&&cur._planId){if(window._planReadOnlyNudge)window._planReadOnlyNudge('This is a shared plan — cancel it in Add → Plan to remove it.');return;}setData(prev=>{const item=(prev[k]||[]).find(t=>t.id===id);if(item?.repeatId||item?.altSeqId){setDelConfirm({dateKey:k,itemId:id,item});return prev;}if(item?.notifyAt&&window.thCancelNotif)window.thCancelNotif(id,item.notifyRepeatId);const arr=(prev[k]||[]).filter(t=>t.id!==id);const next={...prev};if(!arr.length)delete next[k];else next[k]=arr;return next;});},[setData]);
 
@@ -9950,7 +9950,10 @@ function App(){
   // STABLE: hand-dragged order inside each group is untouched, and drops splice
   // data[k] by id so they never see this reordered copy. Re-runs every render,
   // so a check/uncheck resorts immediately.
-  const wkSortTasks=ts=>ts.map((t,i)=>[t,i]).sort((a,b)=>(!!a[0].done-!!b[0].done)||(a[0].done?(b[0].doneAt||0)-(a[0].doneAt||0):0)||(a[1]-b[1])).map(x=>x[0]);
+  // doneAt is stamped on the task, but a sync echo can hand back a copy without it,
+  // so this session's own ticks are also kept in window._wkDoneAt (by id).
+  const wkDoneKey=t=>Math.max(t.doneAt||0,(window._wkDoneAt||{})[t.id]||0);
+  const wkSortTasks=ts=>ts.map((t,i)=>[t,i]).sort((a,b)=>(!!a[0].done-!!b[0].done)||(a[0].done?wkDoneKey(b[0])-wkDoneKey(a[0]):0)||(a[1]-b[1])).map(x=>x[0]);
   const prog=k=>{const t=(data[k]||[]).filter(x=>x.type==="task");if(!t.length)return 0;return Math.round(t.filter(x=>x.done).length/t.length*100);};
   const lft=k=>(data[k]||[]).filter(x=>x.type==="task"&&!x.done).length;
   const dayDomColor=k=>{
