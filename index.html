@@ -21854,6 +21854,10 @@ window._sosResUseBrowser = function(on){
     if (!onWindows()) return Promise.resolve(false);
     return bridgeFetch('/api/apps', { method: 'GET' }, 3000).then(function(j){
       if (!j || !j.ok || !Array.isArray(j.apps)) throw new Error('no apps');
+      // Repaint only on a CHANGE. The App re-runs its prep effect on every
+      // repaint and that effect probes again, so an unconditional event here
+      // was a loop: one bridge request every 3 seconds, forever (measured).
+      var changed = !window._vdBridgeUp || window._vdBridgeErr !== '';
       window._vdBridgeUp = true;
       window._vdBridgeErr = '';
       var apps = j.apps.filter(function(a){ return a && a.id && a.name; })
@@ -21861,12 +21865,14 @@ window._sosResUseBrowser = function(on){
       if (window._vdPcAppsLoaded && appsSig(apps) !== appsSig(window._vdPcApps) && window._fbSaveVdPcApps) {
         window._vdPcApps = apps;
         window._fbSaveVdPcApps(apps);
+        changed = true;
       }
-      window.dispatchEvent(new CustomEvent('vd-prep-update'));
+      if (changed) window.dispatchEvent(new CustomEvent('vd-prep-update'));
       return true;
     }).catch(function(){
+      var wasUp = window._vdBridgeUp;
       window._vdBridgeUp = false;
-      return noteFailure().then(function(){ return false; });
+      return noteFailure(wasUp).then(function(){ return false; });
     });
   };
 
@@ -21889,10 +21895,12 @@ window._sosResUseBrowser = function(on){
       .then(function(st){ return st || 'unknown'; });
   };
   window._vdBridgeErr = window._vdBridgeErr || '';     // '' | 'blocked' | 'down'
-  var noteFailure = function(){
+  // force: repaint even when the error is unchanged (a click that failed).
+  var noteFailure = function(force){
+    var before = window._vdBridgeErr;
     return window._vdBridgePerm().then(function(st){
       window._vdBridgeErr = st === 'denied' ? 'blocked' : (st === 'prompt' ? 'blocked-or-down' : 'down');
-      window.dispatchEvent(new CustomEvent('vd-prep-update'));
+      if (force || window._vdBridgeErr !== before) window.dispatchEvent(new CustomEvent('vd-prep-update'));
     });
   };
 
@@ -21908,7 +21916,7 @@ window._sosResUseBrowser = function(on){
         window.dispatchEvent(new CustomEvent('vd-prep-update'));
         return j;
       })
-      .catch(function(){ window._vdBridgeUp = false; return noteFailure().then(function(){ return null; }); });
+      .catch(function(){ window._vdBridgeUp = false; return noteFailure(true).then(function(){ return null; }); });
   };
 
   window._vdPrepRequest = function(item, dateKey){
