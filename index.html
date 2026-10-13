@@ -6023,33 +6023,8 @@ body { max-width: 2000px; margin-inline: auto; }
      In <head> so it is there before this page's own code. -->
 <script src="scrollbar.js"></script>
 <!-- The app mark beside each title and Everwell's sync pill (apphead.js),
-     shared by every A1 program. The two React wrappers below draw them for
-     TaskHub's React headers (Tony's and Veda's). -->
+     shared by every A1 program; TaskHub's React headers use its components. -->
 <script src="apphead.js"></script>
-<script>
-(function(){
-  var h=React.createElement;
-  // The app's line mark, sized by the title it sits in (1em, .4em gap).
-  window.A1AppIcon=function(p){
-    return h("span",{className:"a1-app-ic","aria-hidden":"true",style:p.style,
-      dangerouslySetInnerHTML:{__html:window.A1Head?A1Head.icon(p.app):""}});
-  };
-  // TaskHub's syncStatus ("saving" / "saved" / "error", anything else idle)
-  // as Everwell's pill: "Synced" fades after two seconds, "Sync failed" stays.
-  window.A1SyncPill=function(p){
-    var st=p.status, fs=React.useState(false), faded=fs[0], setFaded=fs[1];
-    React.useEffect(function(){
-      setFaded(false);
-      if(st==="saved"){var t=setTimeout(function(){setFaded(true);},2000);return function(){clearTimeout(t);};}
-    },[st]);
-    var k=st==="saving"?"busy":st==="error"?"err":st==="saved"?"ok":"idle";
-    if(k==="ok"&&navigator.onLine===false)k="off";
-    var word={busy:"Syncing…",ok:"Synced",err:"Sync failed",off:"Offline"}[k]||"Synced";
-    return h("span",{className:"a1-sync "+(k==="idle"?"ok idle":k+(faded?" idle":"")),role:"status","aria-live":"polite",style:p.style,"data-sync":k},
-      h("span",{className:"a1-sync-dot"}),h("span",{className:"a1-sync-text"},word));
-  };
-})();
-</script>
 </head>
 <body>
 <!-- ── Boot loading screen: covers everything until profile routing + initial Firebase data are ready ── -->
@@ -10001,8 +9976,8 @@ function App(){
               // Main/Un-main now live in Settings → Profile Lock → Tony's Suite
               // (see renderMainDeviceRow), not the header — same ids, same
               // window._updateMainDashBtn/_thUnsetMainDash wiring, just moved.
-              React.createElement("div",{className:"suite-title th-wordmark",style:{whiteSpace:"nowrap"}},React.createElement(window.A1AppIcon,{app:"taskhub"}),"Tony's TaskHub")),
-            React.createElement(window.A1SyncPill,{status:syncStatus,style:{position:"absolute",top:"100%",left:0,marginTop:2,padding:0}})),
+              React.createElement("div",{className:"suite-title th-wordmark",style:{whiteSpace:"nowrap"}},React.createElement(window.A1Head.AppIcon,{app:"taskhub"}),"Tony's TaskHub")),
+            React.createElement(window.A1Head.SyncPill,{status:syncStatus,style:{position:"absolute",top:"100%",left:0,marginTop:2,padding:0}})),
           React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4,flexShrink:0}})),
         React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:6,minWidth:0,width:"100%",flexWrap:"wrap"}},
           React.createElement("button",{type:"button",key:"vx-voice",title:"Voice control",style:{...hbtn(false),background:vxRec?T.ERR:T.AC,color:T.BG,border:"1px solid "+(vxRec?T.ERR:T.AC),fontWeight:800,boxShadow:(T.SEL||GLOW)(vxRec?T.ERR:T.AC)},onClick:()=>window._THV&&window._THV.toggleVoice()},React.createElement("svg",{width:14,height:14,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round"},React.createElement("path",{d:"M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"}),React.createElement("path",{d:"M19 10v2a7 7 0 0 1-14 0v-2"}),React.createElement("line",{x1:12,y1:19,x2:12,y2:23}),React.createElement("line",{x1:8,y1:23,x2:16,y2:23}))),
@@ -10029,7 +10004,7 @@ function App(){
       React.createElement("div",{onClick:e=>e.stopPropagation(),style:{background:T.BG,border:"1px solid "+T.BD,borderRadius:12,width:"100%",maxWidth:640,boxSizing:"border-box",flex:1,minHeight:0,display:"flex",flexDirection:"column",overflow:"hidden",wordBreak:"break-word",overflowWrap:"break-word"}},
         React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"clamp(14px,3vw,20px) clamp(16px,4vw,28px)",borderBottom:"1px solid "+T.BD,flexShrink:0,background:T.BG,borderRadius:"12px 12px 0 0"}},
           React.createElement("span",{style:{fontFamily:"'Manrope',system-ui,sans-serif",fontSize:"clamp(15px,1.6vw,18px)",fontWeight:700,color:T.TX,letterSpacing:0.3}},"All Quotes"),
-          React.createElement(window.A1SyncPill,{status:syncStatus,style:{marginLeft:10,marginRight:"auto"}}),
+          React.createElement(window.A1Head.SyncPill,{status:syncStatus,style:{marginLeft:10,marginRight:"auto"}}),
           React.createElement("button",{type:"button",onClick:()=>setTgEdit({id:"new",text:"",author:""}),title:"Add a quote",style:{...hbtn(false),marginRight:8,color:T.AC,border:"1px solid "+T.BD},onMouseEnter:e=>e.currentTarget.style.borderColor=T.AC,onMouseLeave:e=>e.currentTarget.style.borderColor=T.BD},"+ Add"),
           React.createElement("button",{type:"button",onClick:()=>setTgShowAll(false),style:{background:"transparent",border:"1px solid "+T.BD,borderRadius:5,cursor:"pointer",padding:"4px 12px",color:T.TXD,fontSize:18,lineHeight:1,fontFamily:"inherit",transition:"all .15s",flexShrink:0},onMouseEnter:e=>{e.currentTarget.style.borderColor=T.AC;e.currentTarget.style.color=T.AC;},onMouseLeave:e=>{e.currentTarget.style.borderColor=T.BD;e.currentTarget.style.color=T.TXD;}},"×")),
         React.createElement(TgScrollBox,{theme:T,trackInset:8,style:{padding:"0 clamp(22px,4vw,34px) 0 clamp(16px,4vw,28px)",boxSizing:"border-box"}},
@@ -14913,7 +14888,7 @@ function GitaLessonsBrowser({onClose, onSelectLesson}){
     RC("div",{className:"veda-hdr-outer"},
       RC("div",{className:"veda-hdr-inner"},
       RC("div",{className:"veda-hdr-left"},
-        RC("div",{style:{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:900,color:A,letterSpacing:1,textTransform:"uppercase",lineHeight:1}},RC(window.A1AppIcon,{app:"gita",style:{color:A}}),"Bhagavad Gita · All Lessons")
+        RC("div",{style:{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:900,color:A,letterSpacing:1,textTransform:"uppercase",lineHeight:1}},RC(window.A1Head.AppIcon,{app:"gita",style:{color:A}}),"Bhagavad Gita · All Lessons")
       ),
       RC("div",{className:"veda-hdr-right"},RC("div",{className:"veda-hbtns"},
         RC("button",{onClick:onClose,onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:gitaBtnStyle(false)},"TaskHub"),
@@ -16305,8 +16280,8 @@ function App(){
   // the tools row on its own line below: 2 bands instead of 3.
   const vdTitleBlock=RC("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-start",gap:3,flexShrink:1,minWidth:0,paddingTop:2,position:"relative"}},
       RC("div",{style:{display:"flex",flexDirection:"row",alignItems:"center",gap:8}},
-        RC("div",{style:{fontFamily:"'Playfair Display',serif",fontSize:vrMobile?16:26,fontWeight:900,color:A,letterSpacing:vrMobile?0.5:1,textTransform:"uppercase",lineHeight:1.05,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},RC(window.A1AppIcon,{app:"taskhub",style:{color:A}}),"Veda's TaskHub")),
-      RC(window.A1SyncPill,{status:syncStatus,style:{position:"absolute",top:"100%",left:0,marginTop:2,padding:0}}));
+        RC("div",{style:{fontFamily:"'Playfair Display',serif",fontSize:vrMobile?16:26,fontWeight:900,color:A,letterSpacing:vrMobile?0.5:1,textTransform:"uppercase",lineHeight:1.05,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},RC(window.A1Head.AppIcon,{app:"taskhub",style:{color:A}}),"Veda's TaskHub")),
+      RC(window.A1Head.SyncPill,{status:syncStatus,style:{position:"absolute",top:"100%",left:0,marginTop:2,padding:0}}));
   const vdNavTopRow=RC("div",{className:"veda-hbtns veda-hbtns-top"},
       RC("button",{onClick:()=>{},onMouseEnter:e=>{e.currentTarget.style.opacity="0.85";},onMouseLeave:e=>{e.currentTarget.style.opacity="1";},style:{background:A,color:BG,border:"1px solid "+A,boxShadow:GLOW_A,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"TaskHub"),
       RC("button",{onClick:()=>window._vedaNav&&window._vedaNav('gita'),onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},onMouseLeave:e=>{e.currentTarget.style.borderColor=BDL;},style:{background:"transparent",color:A,border:"1px solid "+BDL,borderRadius:5,padding:"0 10px",height:28,boxSizing:"border-box",display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textTransform:"uppercase",letterSpacing:1,transition:"all .15s"}},"Gita"),

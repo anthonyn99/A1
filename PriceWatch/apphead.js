@@ -109,7 +109,31 @@
     }
   }
 
-  window.A1Head = { icon: icon, fill: fill, sync: sync, names: Object.keys(G) };
+  // The same two pieces as React components, for pages whose header is
+  // React (TaskHub, TradeHub, ...). React is looked up when they render, so
+  // this file can load before it.
+  //   h(A1Head.AppIcon, { app: 'taskhub', style })
+  //   h(A1Head.SyncPill, { status })  status: 'saving' | 'saved' | 'error' |
+  //     'off', anything else idle. "Synced" fades after two seconds.
+  function AppIcon(p) {
+    return window.React.createElement('span', { className: 'a1-app-ic', 'aria-hidden': 'true', style: p.style,
+      dangerouslySetInnerHTML: { __html: icon(p.app) } });
+  }
+  function SyncPill(p) {
+    var R = window.React, h = R.createElement, st = p.status;
+    var fs = R.useState(false), faded = fs[0], setFaded = fs[1];
+    R.useEffect(function () {
+      setFaded(false);
+      if (st === 'saved') { var t = setTimeout(function () { setFaded(true); }, 2000); return function () { clearTimeout(t); }; }
+    }, [st]);
+    var k = st === 'saving' ? 'busy' : st === 'error' ? 'err' : st === 'saved' ? 'ok' : st === 'off' ? 'off' : 'idle';
+    if (k === 'ok' && navigator.onLine === false) k = 'off';
+    return h('span', { className: 'a1-sync ' + (k === 'idle' ? 'ok idle' : k + (faded ? ' idle' : '')), role: 'status',
+      'aria-live': 'polite', style: p.style, 'data-sync': k },
+      h('span', { className: 'a1-sync-dot' }), h('span', { className: 'a1-sync-text' }, WORD[k] || WORD.ok));
+  }
+
+  window.A1Head = { icon: icon, fill: fill, sync: sync, AppIcon: AppIcon, SyncPill: SyncPill, names: Object.keys(G) };
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function () { addStyle(); fill(); });
   } else fill();
