@@ -51,6 +51,51 @@ function nearestGroupColor(hex) {
   return best;
 }
 
+// LifeHub "Open all" pressed again: the new group REPLACES the old one. Every
+// earlier group with the same title loses the tabs that launch opened (tab ids
+// remembered below) and any tab on a program the new launch just opened. What
+// is left — tabs dragged in or opened from inside it — stays where it is; a
+// group left with nothing in it is gone, which the browser does by itself.
+// Done here and not by the pages: most of those tabs are other origins, which
+// no page channel (tabsync's BroadcastChannel) can reach.
+// Keep in step with V1/Launcher/background.js and A1-Priv/Vault/background.js.
+const GROUP_TABS_KEY = "openAllGroupTabs";
+function pageKey(u) {
+  try {
+    const x = new URL(u);
+    return (x.origin + x.pathname.replace(/\/index\.html?$/i, "/").replace(/\/+$/, "")).toLowerCase();
+  } catch (_) { return ""; }
+}
+async function readGroupTabs() {
+  try { const o = await chrome.storage.session.get(GROUP_TABS_KEY); return o[GROUP_TABS_KEY] || {}; } catch (_) { return {}; }
+}
+async function replaceOldGroups(title, groupId, ids, urls) {
+  const known = await readGroupTabs();
+  const fresh = new Set(ids);
+  const keys = new Set(urls.map(pageKey).filter(Boolean));
+  let groups = [];
+  try { groups = await chrome.tabGroups.query({}); } catch (_) { groups = []; }
+  const doomed = [];
+  for (const g of groups) {
+    if (g.id === groupId || (g.title || "") !== title) continue;
+    const ours = new Set(known[g.id] || []);
+    let tabs = [];
+    try { tabs = await chrome.tabs.query({ groupId: g.id }); } catch (_) { tabs = []; }
+    for (const t of tabs) {
+      if (fresh.has(t.id)) continue;
+      if (ours.has(t.id) || keys.has(pageKey(t.url || t.pendingUrl || ""))) doomed.push(t.id);
+    }
+  }
+  if (doomed.length) { try { await chrome.tabs.remove(doomed); } catch (_) {} }
+  // Remember this launch's tabs; forget groups that no longer exist.
+  let alive = new Set();
+  try { alive = new Set((await chrome.tabGroups.query({})).map(g => g.id)); } catch (_) {}
+  const next = {};
+  for (const k of Object.keys(known)) if (alive.has(+k)) next[k] = known[k];
+  next[groupId] = ids;
+  try { await chrome.storage.session.set({ [GROUP_TABS_KEY]: next }); } catch (_) {}
+}
+
 // Open a set of links and wrap them in a single named, coloured tab group in the
 // current window. Verbatim in intent from Vault/background.js — the two things
 // that keep each launch its own independent group are load-bearing:
@@ -63,7 +108,7 @@ function nearestGroupColor(hex) {
 //     groupId), then the rest are folded into that groupId. One tabs.group()
 //     call spanning the whole batch is what lets the browser absorb them into a
 //     neighbouring group instead of making a new one.
-async function openLinksAsGroup(urls, groupName, colorHex, adopt) {
+async function openLinksAsGroup(urls, groupName, colorHex, adopt, replace) {
   let win;
   try { win = await chrome.windows.getCurrent(); } catch (_) { win = null; }
   const windowId = adopt && adopt.windowId != null ? adopt.windowId : (win ? win.id : undefined);
@@ -82,7 +127,7 @@ async function openLinksAsGroup(urls, groupName, colorHex, adopt) {
 
   // "Open all" pressed from inside a program: that program's own tab joins the
   // group too, moved to where its app sits in the grid (adopt = {tabId, windowId, pos}).
-  let adopted = false;
+  let adopted = false, adoptedUrl = "";
   if (adopt && adopt.tabId != null) {
     try {
       const me = await chrome.tabs.get(adopt.tabId);
@@ -93,10 +138,12 @@ async function openLinksAsGroup(urls, groupName, colorHex, adopt) {
         await chrome.tabs.move(me.id, { windowId: me.windowId, index: firstNew - 1 + pos });
         ids.splice(pos, 0, me.id);
         adopted = true;
+        adoptedUrl = me.url || "";
       }
     } catch (_) { /* tab gone — group the rest */ }
   }
 
+  let groupId = null;
   if (chrome.tabs.group && ids.length) {
     try {
       // A freshly created tab can be absorbed by an adjacent group at CREATION
@@ -106,7 +153,7 @@ async function openLinksAsGroup(urls, groupName, colorHex, adopt) {
         try { await chrome.tabs.ungroup(ids); } catch (_) { /* none were grouped */ }
       }
       const createProperties = windowId != null ? { windowId } : {};
-      const groupId = await chrome.tabs.group({ createProperties, tabIds: [ids[0]] });
+      groupId = await chrome.tabs.group({ createProperties, tabIds: [ids[0]] });
       if (ids.length > 1) await chrome.tabs.group({ groupId, tabIds: ids.slice(1) });
       if (chrome.tabGroups && chrome.tabGroups.update) {
         await chrome.tabGroups.update(groupId, {
@@ -115,6 +162,9 @@ async function openLinksAsGroup(urls, groupName, colorHex, adopt) {
         });
       }
     } catch (_) { /* grouping unsupported — tabs already opened */ }
+  }
+  if (replace && groupId != null) {
+    try { await replaceOldGroups((groupName || "Group").slice(0, 60), groupId, ids, adoptedUrl ? urls.concat(adoptedUrl) : urls); } catch (_) {}
   }
 
   if (ids.length && !adopted) { try { await chrome.tabs.update(ids[0], { active: true }); } catch (_) {} }
