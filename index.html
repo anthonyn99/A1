@@ -9928,7 +9928,7 @@ function App(){
     }));
   },[setHabits]);
 
-  // Toggling done: when a goal is FIRST checked off, auto-move it to the bottom of the list.
+  // Toggling done: when a goal is FIRST checked off, auto-move it to the top of the checked group (just below the unchecked).
   // Unchecking leaves it in place (manual position preserved). Manual drags always win afterward.
   const togM=useCallback(id=>{setMg(prev=>{const i=prev.findIndex(g=>g.id===id);if(i<0)return prev;const g=prev[i],nd=!g.done;let ng;if(nd){ng={...g,done:true,completedAt:Date.now()};const rest=prev.filter(x=>x.id!==id);{let at=rest.findIndex(x=>x.done);if(at<0)at=rest.length;return[...rest.slice(0,at),ng,...rest.slice(at)];}}ng={...g,done:false};delete ng.completedAt;const rest=prev.filter(x=>x.id!==id);let ins=rest.findIndex(x=>x.done);if(ins<0)ins=rest.length;return[...rest.slice(0,ins),ng,...rest.slice(ins)];});},[setMg]);
   const delM=useCallback(id=>setMg(prev=>prev.filter(g=>g.id!==id)),[setMg]);
@@ -16192,7 +16192,7 @@ function App(){
   },[setHabits]);
   const renameM=useCallback((id,title)=>setMg(prev=>prev.map(g=>g.id===id?{...g,title}:g)),[setMg]);
 
-  // When a goal is FIRST checked off, auto-move it to the bottom; unchecking leaves it in place.
+  // When a goal is FIRST checked off, auto-move it to the top of the checked group; unchecking leaves it in place.
   const togM=useCallback(id=>{setMg(p=>{const i=p.findIndex(g=>g.id===id);if(i<0)return p;const g=p[i],nd=!g.done;let ng;if(nd){ng={...g,done:true,completedAt:Date.now()};const rest=p.filter(x=>x.id!==id);{let at=rest.findIndex(x=>x.done);if(at<0)at=rest.length;return[...rest.slice(0,at),ng,...rest.slice(at)];}}ng={...g,done:false};delete ng.completedAt;const rest=p.filter(x=>x.id!==id);let ins=rest.findIndex(x=>x.done);if(ins<0)ins=rest.length;return[...rest.slice(0,ins),ng,...rest.slice(ins)];});},[]);
   const delM=useCallback(id=>{setMg(p=>p.filter(g=>g.id!==id));},[]);
   const addM=useCallback(()=>{if(!nmt.trim())return;setMg(p=>[...p,{id:uid(),title:nmt.trim(),done:false}]);setNmt("");},[nmt]);
