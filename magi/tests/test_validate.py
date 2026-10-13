@@ -341,3 +341,14 @@ def test_a_one_token_value_is_an_answer_not_a_cut_off():
     for body in ("The function", "Thinking", "Reading", "hello there"):
         v = validate_answer(body, q, display_name="ChatGPT")
         assert not v.ok and v.reason == Rejection.TRUNCATED, body
+
+
+def test_a_reply_in_kind_to_a_bare_prompt_is_an_answer():
+    """2026-10-13: "HEHEHEHEHEHEHEHE" was sent and DeepSeek answered it in
+    kind; MAGI called the reply cut off and dropped it from the verdict. A
+    prompt of a few bare words asks for nothing a sentence would satisfy."""
+    for q, body in (("HEHEHEHEHEHEHEHE", "HEHEHEHEHEHEHEHE"), ("hi", "Hey there"), ("test", "Received")):
+        assert validate_answer(q and body, q, display_name="DeepSeek").ok, (q, body)
+    # A spinner is still a spinner, and a short QUESTION still wants an answer.
+    assert validate_answer("Thinking", "HEHEHE").reason is Rejection.TRUNCATED
+    assert validate_answer("The scheduler", "Which scheduler wins?").reason is Rejection.TRUNCATED
