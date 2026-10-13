@@ -82,7 +82,7 @@ const OLD_ALARM = `function(ctx){const notes=[523.25,659.25,783.99,659.25,783.99
   ok("Tony's Start is MAGI purple #c0aeea", tLook.bg === 'rgb(192, 174, 234)', tLook.bg);
   ok("Tony's numbers are Inter tabular", /Inter/.test(tLook.font) && /tabular/.test(tLook.num), JSON.stringify(tLook));
   ok("Tony's buttons carry MAGI hover fx", tLook.fx);
-  await c.send('Page.captureScreenshot', { format: 'png' }).then(r => require('fs').writeFileSync(shotPath('timer-tony.png'), Buffer.from(r.data, 'base64')));
+  await c.send('Page.captureScreenshot', { format: 'png' }).then(r => require('fs').writeFileSync(shotPath('timer-tony'), Buffer.from(r.result.data, 'base64')));
 
   // Drag from the header (not a button) up and left.
   await mouseDrag(c, b.x + 120, b.y + 20, -600, -400);
@@ -128,7 +128,7 @@ const OLD_ALARM = `function(ctx){const notes=[523.25,659.25,783.99,659.25,783.99
   ok("Veda's Start is her mauve #8D769A", vLook && vLook.bg === 'rgb(141, 118, 154)', JSON.stringify(vLook));
   ok("Veda's card is her S1 #26272A", vLook && vLook.card === 'rgb(38, 39, 42)', vLook && vLook.card);
   ok("Veda's numbers are IBM Plex Mono", vLook && /Plex Mono/.test(vLook.font), vLook && vLook.font);
-  await c.send('Page.captureScreenshot', { format: 'png' }).then(r => require('fs').writeFileSync(shotPath('timer-veda.png'), Buffer.from(r.data, 'base64')));
+  await c.send('Page.captureScreenshot', { format: 'png' }).then(r => require('fs').writeFileSync(shotPath('timer-veda'), Buffer.from(r.result.data, 'base64')));
   ok('voice hook still wired', await J(c, "return typeof window._vdTimerExec === 'function';"));
   await evalJs(c, "window._vdTimerExec('set', '10'); 1"); await sleep(300);
   ok('voice "set 10" sets 10:00', await J(c, "return /10:00/.test(document.querySelector('.a1-timer').textContent);"));
@@ -141,7 +141,7 @@ const OLD_ALARM = `function(ctx){const notes=[523.25,659.25,783.99,659.25,783.99
   await touchDrag(c, b.x + 140, b.y + 20, -40, -300);
   b2 = await box(c);
   ok('finger drag moves it', b2 && Math.abs(b2.y - (b.y - 300)) <= 3, JSON.stringify({ b, b2 }));
-  await c.send('Page.captureScreenshot', { format: 'png' }).then(r => require('fs').writeFileSync(shotPath('timer-veda-phone.png'), Buffer.from(r.data, 'base64')));
+  await c.send('Page.captureScreenshot', { format: 'png' }).then(r => require('fs').writeFileSync(shotPath('timer-veda-phone'), Buffer.from(r.result.data, 'base64')));
 
   console.log('\nSound');
   const lvl = await J(c, `
