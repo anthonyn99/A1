@@ -2,7 +2,7 @@
  * TaskHub Worker — reminders cron + auth/journal/profile API
  *
  * Reminder read budget per cron tick:
- *   - Normal tick (nothing due): query is bounded to [now-90s, now+10min],
+ *   - Normal tick (nothing due): query is bounded to [now-16min, now+10min],
  *     so it returns 0–2 docs → ~0–2 reads. Firestore bills ONE READ PER
  *     DOCUMENT RETURNED (an empty result is billed as a minimum of 1).
  *   - Top-of-hour tick: widens the lower bound to -2h to recover stale
@@ -124,9 +124,9 @@ const LOOKAHEAD_GRACE_MS  = 15 * 60 * 1000; // never skip within 15min of a due 
 // DO NOT RAISE THIS to save KV writes without also raising the query lower
 // bound (startAtIso) past it -- tests/notif-delivery.test.js enforces
 // lookback > MAX_AGE and will fail. Raising both is still wrong: a reminder
-// first seen more than 90s late is marked stale and deliberately NOT sent, so a
-// longer skip window turns a lost wake poke into a DROPPED alarm rather than a
-// late one. 15min was tried at 30min and reverted for exactly this reason; the
+// first seen more than LATE_SEND_MS (10min) late is marked stale and NOT sent,
+// so a longer skip window turns a lost wake poke into a DROPPED alarm rather
+// than a late one. 15min was tried at 30min and reverted for exactly this reason; the
 // ~96 KV writes/day this costs is the price of the alarm guarantee.
 const LOOKAHEAD_MAX_AGE_MS = 15 * 60 * 1000;
 
@@ -1863,9 +1863,9 @@ async function runReminders(env, scheduledTime) {
   //   lower bound: now - 16min (see below)
   //   upper bound: now + 10min  (anything sooner than the next few ticks)
   //
-  // The lower bound is 16 minutes, not the 90s the DUE test uses, because the
-  // two answer different questions. 90s is how late a SCHEDULED alarm may be and
-  // still ring. 16 minutes is how far back this query must look to be sure it
+  // The lower bound is 16 minutes, wider than LATE_SEND_MS, because the two
+  // answer different questions. LATE_SEND_MS is how late a SCHEDULED alarm may
+  // be and still ring. 16 minutes is how far back this query must look to be sure it
   // SEES an event push (deliverNow, below) written since the last tick that
   // actually ran — and with the lookahead skip in place, that gap can be a full
   // LOOKAHEAD_MAX_AGE_MS. An event push dated by a browser whose clock lags, or
@@ -1915,11 +1915,11 @@ async function runReminders(env, scheduledTime) {
   // query logs a single-digit count; ~100 means the old unbounded query is
   // still live (redeploy needed).
   const _docCount = results.filter(r => r.document).length;
-  console.log(`[reminders] tick read ${_docCount} doc(s) | window ${doStaleSweep ? '(stale sweep -2h)' : '-90s..+10m'}`);
+  console.log(`[reminders] tick read ${_docCount} doc(s) | window ${doStaleSweep ? '(stale sweep -2h)' : '-16m..+10m'}`);
 
   // A reminder is a SCHEDULED alarm: ringing it long after its minute is worse
-  // than staying quiet, so anything more than 90s late is dropped — marked fired
-  // and never sent. An EVENT push is the opposite. `deliverNow` means "this just
+  // than staying quiet, so anything more than LATE_SEND_MS late is dropped —
+  // marked fired and never sent (see classifyReminder). An EVENT push is the opposite. `deliverNow` means "this just
   // happened, deliver it at the first opportunity": it has no meaningful minute,
   // so no amount of lateness can make it undeliverable. A missed tick, a lost
   // wake poke, a lagging client clock or an offline stretch must DELAY one,
