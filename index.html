@@ -6057,6 +6057,10 @@ try{ if(localStorage.getItem('td6_mainDash')==='veda') document.getElementById('
 </div>
 <!-- ══ Icon set (window.TNI): tni.js, shared with Notebook. ══ -->
 <script src="tni.js?v=20261009a"></script>
+<!-- ══ Catalysts debrief (window.A1Debrief): the ▶ on a catalyst card, ten
+     minutes after the release, opens MAGI on a debrief of that event. Shared
+     with TradeHub's Catalysts settings, so unpinned. ══ -->
+<script src="catdebrief.js"></script>
 <!-- ══ VDI — Veda's icon set. Same Lucide-style 24px grid / 1.5 stroke as TNI,
         but its own registry so Tony's chrome is never touched by a change made
         for Veda. Two differences from TNI, both learned from the emoji they
@@ -10713,6 +10717,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   let _kcSaveTimer = null;
   let _unsubscribe    = null;
   let _mcCalUnsub     = null;
+  let _cdCfgUnsub     = null;   // Catalysts debrief settings (TradeHub writes)
   let _vdUnsubscribe  = null;
   let _kcUnsubscribe  = null;
   let _sosMirrorUnsub = null;   // StudyOS → TaskHub task mirror (read-only)
@@ -11335,6 +11340,14 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         window.dispatchEvent(new CustomEvent("fb-marketcal-update", { detail: snap.data().events }));
       }
     });
+    // ── Catalysts debrief settings (read-only; TradeHub Catalysts writes) ──
+    // Which MAGI units each profile's ▶ convenes, and the prompt templates.
+    // Its own doc, because TradeHub rewrites market_calendar whole. Until it
+    // arrives (or if it never existed) catdebrief.js uses its defaults.
+    if (_cdCfgUnsub) { _cdCfgUnsub(); _cdCfgUnsub = null; }
+    _cdCfgUnsub = onSnapshot(doc(db, "dashboards/catalyst_debrief"), (snap) => {
+      if (window.A1Debrief) window.A1Debrief.setConfig(snap.exists() ? snap.data() : null);
+    }, (err) => { console.warn('[Catalyst debrief] onSnapshot error:', err && err.code); });
 
 
     // ── Veda's TaskHub load ───────────────────────────────────────────────────
