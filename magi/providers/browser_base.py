@@ -225,6 +225,61 @@ class BrowserProvider(Provider):
         on_event: ProgressFn | None = None,
         cancel: asyncio.Event | None = None,
     ) -> Answer:
+        """Ask once; when the SITE broke, ask once more in a fresh chat.
+
+        Gemini answered "Sorry, something went wrong. Please try your request
+        again." twice on 2026-10-13 -- a TradeHub market question among them --
+        and had answered the same question the night before. Its servers
+        refusing the send outright (the "(1099)" toast) is the same fault
+        caught earlier. Neither is the model's answer, and the site itself
+        says to try again, so one retry is made here, where every caller
+        gets it: deliberations (TradeHub's handoffs are one), the chairman,
+        Brainstorm, Code Mode, Studio and Refine all come through ask().
+
+        Exactly one: on 2026-09-22 these lines came back on every retry for
+        a while, and each retry is a full browser turn. A model refusing
+        ("I can't help with that") is not retried here; the orchestrator
+        handles the one refusal worth a second throw (no live access).
+        """
+        a = await self._ask_site(question, ctx=ctx, on_event=on_event, cancel=cancel)
+        if not self._site_hiccup(a) or self._halted(ctx, cancel):
+            return a
+        await self._emit(
+            on_event, ProviderState.LAUNCHING,
+            message=f"{self.display_name}'s site errored; asking again in a fresh chat",
+        )
+        if cancel is not None:
+            with contextlib.suppress(asyncio.TimeoutError):
+                await asyncio.wait_for(cancel.wait(), SITE_RETRY_PAUSE_S)
+        else:
+            await asyncio.sleep(SITE_RETRY_PAUSE_S)
+        if self._halted(ctx, cancel):
+            return a
+        return await self._ask_site(question, ctx=ctx, on_event=on_event, cancel=cancel)
+
+    @staticmethod
+    def _site_hiccup(a: Answer) -> bool:
+        if a.ok or a.interrupted:
+            return False
+        if a.failure == FailureKind.SITE_ERROR:
+            return True
+        return a.degraded and validate.is_site_hiccup(a.text)
+
+    @staticmethod
+    def _halted(ctx: RunContext, cancel: asyncio.Event | None) -> bool:
+        return bool(
+            (cancel is not None and cancel.is_set())
+            or (ctx.interrupt is not None and ctx.interrupt.is_set())
+        )
+
+    async def _ask_site(
+        self,
+        question: str,
+        *,
+        ctx: RunContext,
+        on_event: ProgressFn | None = None,
+        cancel: asyncio.Event | None = None,
+    ) -> Answer:
         site = self.site
         started_at = datetime.now(timezone.utc)
         t0 = time.monotonic()
