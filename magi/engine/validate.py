@@ -392,6 +392,15 @@ def validate_answer(
             and all(_VALUE_TOKEN.fullmatch(w) for w in body.split())
             and not _LOADING_LABEL.match(body)
         )
+        # A reply in kind to a prompt that is itself a few bare words:
+        # "HEHEHEHEHE" answered "HEHEHEHEHE" by DeepSeek (2026-10-13) and was
+        # called cut off. The truncations this rule exists for were all
+        # answers to real questions; a 4-word, unpunctuated prompt sets no
+        # expectation of a sentence back. Spinner labels still fail.
+        and not (
+            0 < len((question or "").split()) <= 4
+            and not _LOADING_LABEL.match(body)
+        )
     ):
         return Validation(
             False,
