@@ -6964,12 +6964,18 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
     const wasNotRepeating=!wasRepeating;
     const titleChanged=initial?.id&&wasRepeating&&isNowRepeating&&title.trim()!==initial.title;
     const typeChanged=initial?.id&&wasRepeating&&isNowRepeating&&type!==(initial.type||"task");
+    // A changed reminder time (or one switched on/off) on a repeating task asks
+    // the same this-day / all-future question; "all future" moves the whole
+    // series (thSeriesNotifyEdit). Saved silently, it changed this row only and
+    // the series kept ringing at the old time on every other date.
+    const _hm=iso=>{if(!iso)return"";const d=new Date(iso);return d.getHours()+":"+d.getMinutes();};
+    const notifyChanged=!!(initial?.id&&wasRepeating&&isNowRepeating&&!wasAltSeq&&_hm(item.notifyAt)!==_hm(initial.notifyAt));
     if(wasRepeating&&repeat==="none"){
       onSave(startDateKey,{...item,altSeqId:initial?.altSeqId},"cancelRepeat");onClose();
     } else if(isNowRepeating&&wasNotRepeating&&initial?.id){
       onSave(startDateKey,{...item,_originalId:initial.id},{mode:repeat,days:repeatDays,endDate});onClose();
-    } else if(titleChanged||typeChanged){
-      onSave(startDateKey,item,"titleEditChoice");
+    } else if(titleChanged||typeChanged||notifyChanged){
+      onSave(startDateKey,notifyChanged?{...item,_notifyEdit:true}:item,"titleEditChoice");
     } else if(!isNowRepeating||!endDate){
       onSave(startDateKey,item,null);onClose();
     } else if(initial?.id&&wasRepeating){
@@ -9613,6 +9619,8 @@ function App(){
   const titleEditThisOnly=useCallback(()=>{
     if(!titleEditConfirm)return;
     const{dateKey,item,isAltSeq}=titleEditConfirm;
+    const _old=((stateRef.current&&stateRef.current.data&&stateRef.current.data[dateKey])||[]).find(t=>t&&t.id===item.id)||null;
+    let _oneOff=null,_handOff=null;
     setData(prev=>{
       const arr=[...(prev[dateKey]||[])];
       const idx=arr.findIndex(t=>t.id===item.id);
@@ -9623,10 +9631,33 @@ function App(){
       } else {
         // Detach this occurrence: new id, strip repeat group membership
         const detached={...item,id:uid(),repeat:"none",repeatId:undefined,repeatDays:undefined,repeatEndDate:undefined};
+        if(item._notifyEdit){
+          // Its reminder becomes a one-off for this day; the series is untouched.
+          delete detached._notifyEdit;delete detached._notifyView;
+          detached.notifyRepeat="none";detached.notifyRepeatDays=[];detached.notifyRepeatId=null;
+          _oneOff=detached.notifyAt?detached:null;
+        }
         if(idx>=0)arr[idx]=detached;else arr.push(detached);
       }
-      return{...prev,[dateKey]:arr};
+      let out={...prev,[dateKey]:arr};
+      // The detached row may have been the one defining the series' reminder:
+      // hand it to the next date so the other occurrences keep ringing.
+      if(item._notifyEdit&&_old&&_old.repeatId&&_old.notifyRepeat&&_old.notifyRepeat!=="none"){
+        const nd=new Date(dateKey+"T12:00:00");nd.setDate(nd.getDate()+1);
+        const r=thSeriesNotifyEdit(out,_old.repeatId,dkey(nd.getFullYear(),nd.getMonth(),nd.getDate()),_old);
+        out=r.next;_handOff=r.definer;
+      }
+      return out;
     });
+    if(item._notifyEdit&&!isAltSeq){
+      // The series' own push for this date was at the old time.
+      if(_old&&_old.notifyAt&&window.thCancelNotif){try{window.thCancelNotif(_old.id,null,{notifyAt:_old.notifyAt});}catch(e){}}
+      if(window.thScheduleNotif){
+        const one=_oneOff||(item.notifyAt?{...item,notifyRepeat:"none",notifyRepeatDays:[],notifyRepeatId:null}:null);
+        if(one&&new Date(one.notifyAt).getTime()>Date.now())window.thScheduleNotif({...one,dashboard:'tony'});
+        if(_handOff)window.thScheduleNotif({..._handOff,dashboard:'tony'});
+      }
+    }
     setTitleEditConfirm(null);
   },[titleEditConfirm,setData]);
 
@@ -9665,9 +9696,18 @@ function App(){
           const kd=new Date(k);
           if(kd>=cutoff&&rid)next[k]=(next[k]||[]).map(t=>{if(t.repeatId!==rid)return t;const nt={...t,...shared};if(item.type!=="event"){delete nt.time;delete nt.tz;}return nt;});
         });
+        // A changed reminder moves the whole series from this date on.
+        if(item._notifyEdit&&rid)return thSeriesNotifyEdit(next,rid,dateKey,item).next;
       }
       return next;
     });
+    // Arm (or cancel) the moved series. Computed again from the ref because the
+    // updater above may not have run yet; same inputs, same answer.
+    if(!isAltSeq&&item._notifyEdit&&item.repeatId){
+      const r=thSeriesNotifyEdit((stateRef.current&&stateRef.current.data)||{},item.repeatId,dateKey,item);
+      if(r.definer&&window.thScheduleNotif)window.thScheduleNotif({...r.definer,dashboard:'tony'});
+      else if(!r.definer&&r.seriesId&&window.thCancelNotif){try{window.thCancelNotif(item.id,r.seriesId);}catch(e){}}
+    }
     setTitleEditConfirm(null);
   },[titleEditConfirm,setData]);
 
