@@ -156,8 +156,11 @@ ok('Escape backs out of the picker, but only on a profile that is already open',
 ok('the gate says the store is full', /MAGI_STORAGE_FULL\) \{[\s\S]{0,200}gate-storage/.test(MAGI));
 ok('a working browser strips it again', /else u\.searchParams\.delete\(PROFILE_QS\)/.test(rel));
 ok('the url pick is read at load', /if \(urlProfile\(\)\) return urlProfile\(\)/.test(MAGI));
-ok('a handoff is not stashed into memory that a reload would lose',
-   /MAGI_STORAGE_BLOCKED\) return false/.test(lift('function adoptHandoffProfile(h)')));
+ok('a handoff is not stashed into memory that a reload would lose -- it rides in the url',
+   /MAGI_STORAGE_BLOCKED\) return carryHandoffInUrl\(h, to\)/.test(lift('function adoptHandoffProfile(h)')));
+ok('the url carry keeps the fragment and the profile',
+   /searchParams\.set\(PROFILE_QS, to\)/.test(lift('function carryHandoffInUrl(h, to)')) &&
+   /u\.hash = "tb=" \+ h\.raw/.test(lift('function carryHandoffInUrl(h, to)')));
 ok('the gate says storage is blocked', /gate-storage/.test(MAGI));
 ok('the choice is remembered first', /setItem\(LAST_PROFILE_LS, id\)/.test(sel));
 ok('PROFILE.id is resolved from storage at load', /localStorage\.getItem\(key\)/.test(MAGI));
@@ -184,7 +187,15 @@ console.log('\nA handed-over prompt lands in the profile it belongs to');
 // council against her accounts and file the verdict in her history.
 ok('a handoff names its profile', /const HANDOFF_PROFILE = "tony"/.test(MAGI));
 ok('it outranks the favourite and last-used',
-   /if \(hasHandoffHash\(\) \|\| sessionStorage\.getItem\(HANDOFF_SS\)\) return HANDOFF_PROFILE;/.test(MAGI));
+   /if \(hasHandoffHash\(\) \|\| sessionStorage\.getItem\(HANDOFF_SS\)\) return pendingHandoffProfile\(\);/.test(MAGI));
+// Catalysts debriefs come from BOTH TaskHubs and say whose they are (`p`).
+ok('a link may name its person, and only a real profile counts',
+   /const handoffProfileOf = \(h\) => \(h && MAGI_PROFILES\[h\.p\]\) \? h\.p : HANDOFF_PROFILE;/.test(MAGI));
+ok('the load reads that person from the stash or the fragment',
+   /handoffProfileOf\(JSON\.parse\(st\)\)/.test(lift('function pendingHandoffProfile()')) &&
+   /handoffProfileOf\(JSON\.parse\(b64uDecode/.test(lift('function pendingHandoffProfile()')));
+ok('a switch to the other person never interrupts a live run',
+   /if \(S\.running \|\| S\.refining\) return;\s*if \(adoptHandoffProfile\(HANDOFF\)\)/.test(lift('function handoffTry()')));
 // The fragment is stripped before the payload is read (so a reload cannot fire
 // a second council run), which means a reload to switch profile would lose it.
 ok('one arriving in the wrong profile is carried across the reload',
