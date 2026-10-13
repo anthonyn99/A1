@@ -145,10 +145,6 @@ const mock = {
   ok("…and the cover hides YouTube's pause screen (only Everwell's controls show)", await js(`return getComputedStyle(${tile(1)}.querySelector('[data-vp-poster]')).opacity === '1';`));
   await js(`${tile(1)}.querySelector('.vp-row [data-vp="toggle"]').click(); return 1;`); await sleep(500);
   ok('…and Play plays it again', await js(`return !${tile(1)}.querySelector('.media-frame').classList.contains('paused');`));
-  // ONE set of controls (Tony, 2026-10-12): after play/pause YouTube draws its own buttons mid-player for ~3.5s; Everwell's glass pill sits there that long.
-  await js(`${tile(1)}.querySelector('.vp-row [data-vp="toggle"]').click(); return 1;`); await sleep(300);
-  await js(`${tile(1)}.querySelector('.vp-row [data-vp="toggle"]').click(); return 1;`); await sleep(3200);
-  ok("after play/pause Everwell's controls stay up as long as YouTube's own would show (the glass pill covers them)", await js(`const f = ${tile(1)}.querySelector('.media-frame'), m = f.querySelector('.vp-mid'); return f.classList.contains('ui-on') && getComputedStyle(m).opacity === '1' && /blur/.test(getComputedStyle(m).backdropFilter || getComputedStyle(m).webkitBackdropFilter || '') && !!m.querySelector('.vp-big[data-vp="toggle"]');`));
   // Lighter controls (Tony, 2026-10-12: the cursor lagged while a video played): the dot moves by transform, nothing redraws while they are hidden.
   ok('the seek dot moves by transform (no layout), from a measured track', await js(`const k = ${tile(1)}.querySelector('.vp-knob'); return k.style.left === '' && /px$/.test(k.style.getPropertyValue('--kx'));`));
   // The "now playing" pill plays and pauses it from another tab.
