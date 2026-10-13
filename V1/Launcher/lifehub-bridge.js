@@ -25,7 +25,7 @@
       if (!urls.length) return;
       try {
         chrome.runtime.sendMessage(
-          { action: 'openLinks', urls: urls, group: urls.length > 1 || d.adoptPos != null, groupName: d.name || 'Links', groupColor: d.color || '', adoptPos: typeof d.adoptPos === 'number' ? d.adoptPos : null },
+          { action: 'openLinks', urls: urls, group: urls.length > 1 || d.adoptPos != null, groupName: d.name || 'Links', groupColor: d.color || '', adoptPos: typeof d.adoptPos === 'number' ? d.adoptPos : null, replace: !!d.replace },
           function () { void chrome.runtime.lastError; }
         );
         window.postMessage({ source: 'vault-extension', action: 'openLinkGroupAck' }, e.origin || '*');

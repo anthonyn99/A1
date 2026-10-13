@@ -1637,7 +1637,7 @@
       items = items.filter(function (x) { return !claimedElsewhere(storeKey(x.a.tab || ('lh_' + x.a.id))); });
       try {
         window.postMessage({ source: 'vault-page', action: 'openLinkGroup', urls: items.map(function (x) { return x.url; }),
-          name: 'LifeHub', color: '#a855f7', adoptPos: adoptPos }, location.origin);
+          name: 'LifeHub', color: '#a855f7', adoptPos: adoptPos, replace: true }, location.origin);
       } catch (e) {}
     } else {
       items.forEach(function (x) {
