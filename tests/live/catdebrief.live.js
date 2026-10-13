@@ -171,7 +171,7 @@ const CFG = { tony: { units: ['grok'] }, veda: { units: ['gemini', 'claude'] }, 
     ok('the default one stays empty (so a better default reaches it)', d.templates.macro === '');
     await js(`[...document.querySelectorAll('button')].find(b=>/^Preview/.test(b.textContent.trim())).click(); 1`);
     await sleep(300);
-    ok('the preview fills the template in', await js(`var p=document.querySelector('pre'); return !!p && /^(TSM|NFLX) earnings just came out\\./.test(p.textContent);`), await js(`var p=document.querySelector('pre'); return p && p.textContent.slice(0,80);`));
+    ok('the preview fills the template in', await js(`var p=document.querySelector('pre'); return !!p && /^[A-Z]+ earnings just came out\\. Give me the results/.test(p.textContent);`), await js(`var p=document.querySelector('pre'); return p && p.textContent.slice(0,80);`));
     await shot('tradehub-desktop-edited');
     await js(`[...document.querySelectorAll('button')].find(b=>/Reset to default/.test(b.textContent)).click(); 1`);
     await sleep(1800);
