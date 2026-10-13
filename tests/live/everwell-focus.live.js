@@ -147,7 +147,8 @@ const mock = {
   ok('…and Play plays it again', await js(`return !${tile(1)}.querySelector('.media-frame').classList.contains('paused');`));
   // Ads (Tony, 2026-10-12): YouTube's Skip button sits under Everwell's layers, so they must step aside.
   const adState = () => js(`const f = ${tile(1)}.querySelector('.media-frame'), hit = f.querySelector('[data-vp-hit]'), r = f.getBoundingClientRect();
-    return JSON.stringify({ ad: f.classList.contains('ad'), hit: getComputedStyle(hit).pointerEvents, top: (document.elementFromPoint(r.right - 60, r.bottom - 70) || {}).tagName });`).then(JSON.parse);
+    return JSON.stringify({ ad: f.classList.contains('ad'), hit: getComputedStyle(hit).pointerEvents, top: (document.elementFromPoint(r.right - 60, r.bottom - 70) || {}).tagName,
+      mid: (document.elementFromPoint(r.left + r.width * 0.35, r.top + r.height * 0.4) || {}).tagName });`).then(JSON.parse);
   let ad = await adState();
   ok('playing normally (the clock moves), Everwell\'s layers take the clicks', !ad.ad && ad.hit !== 'none' && ad.top !== 'IFRAME', JSON.stringify(ad));
   await js(`${tile(1)}.querySelector('iframe').contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'testAd', args: [true] }), '*'); return 1;`); await sleep(3600);
