@@ -50,7 +50,7 @@
 
   var CSS =
     '.a1-app-ic{display:inline-block;width:1em;height:1em;margin-right:.4em;vertical-align:-.15em;flex-shrink:0;' +
-      'color:var(--a1-app-ic,var(--ac,#c0aeea));line-height:0}' +
+      'color:var(--a1-app-ic,var(--ac,var(--accent,#c0aeea)));line-height:0}' +
     '.a1-app-ic svg{width:100%;height:100%;display:block}' +
     // Inside a flex title the gap is the title's own; the margin is dropped.
     '.a1-app-ic.a1-flex{margin-right:0}' +

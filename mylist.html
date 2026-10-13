@@ -227,12 +227,7 @@ body:not([data-profile=veda]) .wordmark{
 #topbar-inner{max-width:760px;margin:0 auto;display:flex;align-items:center;gap:10px;}
 #topbar .tb-title{font-size:clamp(21px,2.6vw,28px);flex-shrink:0;}
 #topbar .tb-spacer{flex:1;}
-.sync-pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--textdim);font-family:var(--font-btn);padding:5px 9px;border-radius:20px;border:1px solid var(--border);white-space:nowrap;transition:opacity .45s;}
-.sync-pill.idle{opacity:0;pointer-events:none;}
-.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--textmute);flex-shrink:0;}
-.sync-pill.ok .sync-dot{background:var(--good);}
-.sync-pill.busy .sync-dot{background:var(--gold-primary);animation:pulse 1s infinite;}
-.sync-pill.err{color:var(--bad);border-color:rgba(212,122,106,0.5);} .sync-pill.err .sync-dot{background:var(--bad);}
+/* The sync pill is apphead.js's: Everwell's dot and word, no outline (Tony, 2026-10-13). */
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 
 #main{flex:1;max-width:760px;width:100%;margin:0 auto;padding:14px clamp(12px,4vw,22px) calc(env(safe-area-inset-bottom,0px) + 170px);}
@@ -762,8 +757,7 @@ body:not([data-profile=veda]) .dev-item{border-radius:8px;}
 body:not([data-profile=veda]) .list-chip,
 body:not([data-profile=veda]) .vs-tab,
 body:not([data-profile=veda]) .lt-pill,
-body:not([data-profile=veda]) #manual-fab,
-body:not([data-profile=veda]) .sync-pill{border-radius:6px;}
+body:not([data-profile=veda]) #manual-fab{border-radius:6px;}
 body:not([data-profile=veda]) #view-switch{border-radius:8px;border-color:var(--hair);}
 body:not([data-profile=veda]) .item .chk{border-radius:4px;}
 body:not([data-profile=veda]) .pw-badge,
@@ -791,8 +785,6 @@ body:not([data-profile=veda]) .pw-price,
 body:not([data-profile=veda]) .pw-bd-price,
 body:not([data-profile=veda]) .pw-hist-price,
 body:not([data-profile=veda]) .pw-variant-price{font-family:'Inter',system-ui,-apple-system,sans-serif;font-weight:500;}
-/* Gold only where it means something: the busy (amber) sync dot. */
-body:not([data-profile=veda]) .sync-pill.busy .sync-dot{background:var(--gold);}
 /* No washes: the best-price row and the price-drop banner are solid. */
 body:not([data-profile=veda]) .pw-bd-row.best{background:var(--surface);}
 body:not([data-profile=veda]) .pw-drops{background:var(--surface);border-color:var(--border2);}
@@ -855,6 +847,7 @@ body { max-width: 2000px; margin-inline: auto; }
 <!-- The one A1 scrollbar (scrollbar.js): native bars hidden, overlay thumb.
      In <head> so it is there before this page's own code. -->
 <script src="scrollbar.js"></script>
+<script src="apphead.js"></script>
 </head>
 <body data-profile="tony">
 
@@ -881,9 +874,9 @@ body { max-width: 2000px; margin-inline: auto; }
 <!-- ── App ── -->
 <div id="app">
   <div id="topbar"><div id="topbar-inner">
-    <span class="wordmark tb-title">MyList</span>
+    <span class="wordmark tb-title"><span class="a1-app-ic" data-a1-app="mylist"></span>MyList</span>
     <span class="tb-spacer"></span>
-    <span class="sync-pill" id="sync-pill"><span class="sync-dot"></span><span id="sync-text">Offline</span></span>
+    <span class="a1-sync idle" id="sync-pill"></span>
     <button class="icon-btn" id="lock-mgr-btn" title="Lock" onclick="ML.manageLock()">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
     </button>
@@ -1790,14 +1783,10 @@ function jq(s){ return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"
 var toastTimer=null;
 function toast(msg, isErr){ var t=$('toast'); t.textContent=msg; t.className='toast show'+(isErr?' err':''); clearTimeout(toastTimer); toastTimer=setTimeout(function(){ t.className='toast'; }, 2600); }
 
-var syncIdleTimer=null;
+// Everwell's sync pill, shared by every A1 program (apphead.js): "Synced"
+// fades after two seconds; only "Sync failed" stays put.
 function setSync(kind){
-  var p=$('sync-pill'), t=$('sync-text');
-  clearTimeout(syncIdleTimer);
-  p.className='sync-pill '+(kind==='busy'?'busy':kind==='ok'?'ok':kind==='err'?'err':'');
-  t.textContent = kind==='busy'?'Syncing…':kind==='ok'?'Synced':kind==='err'?'Sync failed':'Synced';
-  // "Synced" fades out after ~2s; only "Sync failed" stays put
-  if(kind==='ok'||kind===undefined){ syncIdleTimer=setTimeout(function(){ var pp=$('sync-pill'); if(pp) pp.classList.add('idle'); }, 2000); }
+  if(window.A1Head) A1Head.sync($('sync-pill'), kind||'ok');
 }
 window.addEventListener('ml-syncing', function(){ setSync('busy'); });
 window.addEventListener('ml-saved',   function(){ setSync('ok'); });
