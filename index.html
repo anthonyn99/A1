@@ -9675,6 +9675,8 @@ function App(){
     if(!titleEditConfirm)return;
     const{dateKey,item,isAltSeq}=titleEditConfirm;
     const cutoff=new Date(dateKey);
+    const _t=new Date(),_tk=dkey(_t.getFullYear(),_t.getMonth(),_t.getDate());
+    const _ncut=dateKey<_tk?dateKey:_tk;
     setData(prev=>{
       const next={...prev};
       if(isAltSeq){
@@ -9706,15 +9708,17 @@ function App(){
           const kd=new Date(k);
           if(kd>=cutoff&&rid)next[k]=(next[k]||[]).map(t=>{if(t.repeatId!==rid)return t;const nt={...t,...shared};if(item.type!=="event"){delete nt.time;delete nt.tz;}return nt;});
         });
-        // A changed reminder moves the whole series from this date on.
-        if(item._notifyEdit&&rid)return thSeriesNotifyEdit(next,rid,dateKey,item).next;
+        // A changed reminder moves the whole series from this date on — from
+        // today when the edited date is ahead, since the cloud series has no end:
+        // the dates in between would otherwise be left with no reminder at all.
+        if(item._notifyEdit&&rid)return thSeriesNotifyEdit(next,rid,_ncut,item).next;
       }
       return next;
     });
     // Arm (or cancel) the moved series. Computed again from the ref because the
     // updater above may not have run yet; same inputs, same answer.
     if(!isAltSeq&&item._notifyEdit&&item.repeatId){
-      const r=thSeriesNotifyEdit((stateRef.current&&stateRef.current.data)||{},item.repeatId,dateKey,item);
+      const r=thSeriesNotifyEdit((stateRef.current&&stateRef.current.data)||{},item.repeatId,_ncut,item);
       if(r.definer&&window.thScheduleNotif)window.thScheduleNotif({...r.definer,dashboard:'tony'});
       else if(!r.definer&&r.seriesId&&window.thCancelNotif){try{window.thCancelNotif(item.id,r.seriesId);}catch(e){}}
     }
@@ -18396,7 +18400,8 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   //
   // A series is LIVE when its task still has a day today or later (a reminder
   // that repeats on a one-off row, with no task series, is always live). When
-  // several rows share one series id, the latest live row defines it. A series
+  // several rows share one series id, the latest one on or before today defines
+  // it (else the earliest upcoming one). A series
   // that only dead rows hold is DEAD: never armed, and its cloud docs are
   // deleted. A habit whose reminder was switched off is dead the same way.
   //   raw    = the day map (td6_data / td_data); habits = the habits array.
@@ -18416,7 +18421,13 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
         if(!it||!it.notifyAt||!it.id||it._notifyView)return;
         if(!it.notifyRepeat||it.notifyRepeat==='none')return;
         var key=it.notifyRepeatId||it.id;
-        if(!it.repeatId||future[it.repeatId])live[key]=it;   // days are sorted: the latest wins
+        if(!it.repeatId||future[it.repeatId]){
+          // Days are sorted, so this keeps the latest row on or before today (the
+          // one in effect), else the earliest upcoming one. NOT simply the latest:
+          // rows saved before July 2026 each carry the series, and the last of
+          // them can be a year out — arming from there skips everything between.
+          if(k<=today||!live[key])live[key]=it;
+        }
         else dead[key]=1;
       });
     });
