@@ -98,7 +98,7 @@ var html = `
 
     <span id="bj-sync-pill" class="bj-sync-pill bj-sync-idle">
       <span class="bj-sync-dot"></span>
-      <span id="bj-sync-text">Idle</span>
+      <span id="bj-sync-text">Synced</span>
     </span>
   </div>
 
@@ -395,20 +395,28 @@ function _bjSetSync(status) {
   var txt  = document.getElementById('bj-sync-text');
   var bb   = document.getElementById('bj-bb-saved');
   if (!pill || !txt) return;
-  pill.className = 'bj-sync-pill bj-sync-' + status;
-  var labels = { idle:'Saved', syncing:'Saving…', synced:'Synced', error:'Sync Failed' };
-  txt.textContent = labels[status] || status;
-  // Bottom bar indicator on mobile
+  // Everwell's pill (apphead.js): "Synced" fades after two seconds, "Sync
+  // failed" stays. Offline, a success reads "Offline".
+  var shown = status === 'synced' && navigator.onLine === false ? 'offline' : status;
+  pill.className = 'bj-sync-pill bj-sync-' + shown;
+  var labels = { syncing:'Syncing…', synced:'Synced', error:'Sync failed', offline:'Offline' };
+  // Idle keeps the last word, so it fades out rather than changing first.
+  if (labels[shown]) txt.textContent = labels[shown];
+  // The mobile bottom bar's copy: the same dot and word.
   if (bb) {
-    if (status === 'syncing') { bb.innerHTML = window.TNI.arrowUp + '<span>Syncing…</span>'; bb.style.color = 'var(--cyan)'; bb.style.opacity = '1'; }
-    else if (status === 'synced') { bb.innerHTML = window.TNI.check + '<span>Synced</span>'; bb.style.color = 'var(--green)'; bb.style.opacity = '1'; clearTimeout(bb._t); bb._t = setTimeout(() => { bb.style.opacity='0'; }, 3000); }
-    else if (status === 'error') { bb.innerHTML = window.TNI.alert + '<span>Failed</span>'; bb.style.color = 'var(--red)'; bb.style.opacity = '1'; }
-    else { bb.style.opacity = '0'; }
+    var dot = { syncing:'#e0b874', synced:'#a4b986', error:'#d68a7c', offline:'#8d8d94' }[shown];
+    clearTimeout(bb._t);
+    if (dot) {
+      bb.innerHTML = '<span class="bj-sync-dot" style="background:' + dot + '"></span><span>' + labels[shown] + '</span>';
+      bb.style.color = shown === 'error' ? '#d68a7c' : '#adadb2';
+      bb.style.opacity = '1';
+      if (shown === 'synced' || shown === 'offline') bb._t = setTimeout(() => { bb.style.opacity = '0'; }, 2000);
+    }
+    else bb.style.opacity = '0';
   }
-  // Auto-reset synced → idle after 4s
   if (status === 'synced') {
     clearTimeout(_bjSyncResetTimer);
-    _bjSyncResetTimer = setTimeout(() => _bjSetSync('idle'), 4000);
+    _bjSyncResetTimer = setTimeout(() => _bjSetSync('idle'), 2000);
   }
 }
 var _bjSyncResetTimer = null;

@@ -79,7 +79,7 @@ var html = `
 
     <span id="tj-sync-pill" class="tj-sync-pill tj-sync-idle">
       <span class="tj-sync-dot"></span>
-      <span id="tj-sync-text">Idle</span>
+      <span id="tj-sync-text">Synced</span>
     </span>
   </div>
 
@@ -391,7 +391,6 @@ let saveTimer = null;
 let _tjDomOwner  = null;
 let _tjUserEdited = false;
 let tjSyncStatus = 'idle'; // idle | saving | saved | error
-let _tjSavedOnce = false;   // idle reads "Saved" only after this session saved something
 
 function _tjSetSync(status) {
   tjSyncStatus = status;
@@ -399,22 +398,28 @@ function _tjSetSync(status) {
   var txt  = document.getElementById('tj-sync-text');
   var bb   = document.getElementById('tj-bb-saved');
   if (!pill || !txt) return;
-  pill.className = 'tj-sync-pill tj-sync-' + status;
-  if (status === 'syncing') _tjSavedOnce = true;
-  // Before anything was saved here, idle only means the screen matches the cloud.
-  var labels = { idle: _tjSavedOnce ? 'Saved' : 'Synced', syncing:'Saving…', synced:'Synced', error:'Sync Failed' };
-  txt.textContent = labels[status] || status;
-  // Bottom bar indicator on mobile
+  // Everwell's pill (apphead.js): "Synced" fades after two seconds, "Sync
+  // failed" stays. Offline, a success reads "Offline".
+  var shown = status === 'synced' && navigator.onLine === false ? 'offline' : status;
+  pill.className = 'tj-sync-pill tj-sync-' + shown;
+  var labels = { syncing:'Syncing…', synced:'Synced', error:'Sync failed', offline:'Offline' };
+  // Idle keeps the last word, so it fades out rather than changing first.
+  if (labels[shown]) txt.textContent = labels[shown];
+  // The mobile bottom bar's copy: the same dot and word.
   if (bb) {
-    if (status === 'syncing') { bb.textContent = 'Syncing…'; bb.style.color = 'var(--cyan)'; bb.style.opacity = '1'; }
-    else if (status === 'synced') { bb.textContent = 'Synced'; bb.style.color = 'var(--green)'; bb.style.opacity = '1'; clearTimeout(bb._t); bb._t = setTimeout(() => { bb.style.opacity='0'; }, 3000); }
-    else if (status === 'error') { bb.textContent = 'Failed'; bb.style.color = 'var(--red)'; bb.style.opacity = '1'; }
-    else { bb.style.opacity = '0'; }
+    var dot = { syncing:'#e0b874', synced:'#a4b986', error:'#d68a7c', offline:'#8d8d94' }[shown];
+    clearTimeout(bb._t);
+    if (dot) {
+      bb.innerHTML = '<span class="tj-sync-dot" style="background:' + dot + '"></span><span>' + labels[shown] + '</span>';
+      bb.style.color = shown === 'error' ? '#d68a7c' : '#adadb2';
+      bb.style.opacity = '1';
+      if (shown === 'synced' || shown === 'offline') bb._t = setTimeout(() => { bb.style.opacity = '0'; }, 2000);
+    }
+    else bb.style.opacity = '0';
   }
-  // Auto-reset synced → idle after 4s
   if (status === 'synced') {
     clearTimeout(_tjSyncResetTimer);
-    _tjSyncResetTimer = setTimeout(() => _tjSetSync('idle'), 4000);
+    _tjSyncResetTimer = setTimeout(() => _tjSetSync('idle'), 2000);
   }
 }
 var _tjSyncResetTimer = null;

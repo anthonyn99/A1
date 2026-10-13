@@ -889,64 +889,42 @@
   }
 #bj-root [data-tip]:hover::after { opacity: 1; }
 
-/* ── BJ SYNC PILL ───────────────────────────────────────────────── */
+/* ── BJ SYNC PILL ──────────────────────────────────────────────────
+   Everwell's design, the same in every A1 program (apphead.js; Tony,
+   2026-10-13): a dot and a word, no outline. "Syncing…" pulses gold,
+   "Synced" fades after two seconds, "Sync failed" stays. Styled here, not by
+   apphead.js, so every Notebook instance gets it whatever its host loads. */
 #bj-root .bj-sync-pill {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 9px;
-  border-radius: 20px;
-  font-family: var(--font-mono);
-  font-size: 10px;
+  gap: 6px;
+  padding: 0 4px;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 10.5px;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
+  line-height: 1.2;
+  color: #adadb2;
   white-space: nowrap;
-  border: 1px solid transparent;
-  transition: background 0.2s, color 0.2s, border-color 0.2s;
+  border: 0;
+  background: transparent;
+  transition: opacity .45s;
   flex-shrink: 0;
 }
 #bj-root .bj-sync-dot {
-  width: 6px; height: 6px;
+  width: 7px; height: 7px;
   border-radius: 50%;
   flex-shrink: 0;
-  transition: background 0.2s;
+  background: #8d8d94;
 }
-/* Idle */
-#bj-root .bj-sync-pill.bj-sync-idle {
-  color: var(--text3);
-  background: transparent;
-  border-color: transparent;
-}
-#bj-root .bj-sync-pill.bj-sync-idle .bj-sync-dot { background: var(--text3); opacity: 0.4; }
-/* Syncing */
-#bj-root .bj-sync-pill.bj-sync-syncing {
-  color: var(--cyan);
-  background: rgba(34,211,238,0.07);
-  border-color: rgba(34,211,238,0.2);
-}
-#bj-root .bj-sync-pill.bj-sync-syncing .bj-sync-dot {
-  background: var(--cyan);
-  animation: bj-pulse 0.8s ease-in-out infinite;
-}
-/* Synced */
-#bj-root .bj-sync-pill.bj-sync-synced {
-  color: var(--green);
-  background: rgba(93,175,109,0.07);
-  border-color: rgba(93,175,109,0.22);
-}
-#bj-root .bj-sync-pill.bj-sync-synced .bj-sync-dot { background: var(--green); }
-/* Error */
-#bj-root .bj-sync-pill.bj-sync-error {
-  color: var(--red);
-  background: rgba(231,76,60,0.07);
-  border-color: rgba(231,76,60,0.22);
-}
-#bj-root .bj-sync-pill.bj-sync-error .bj-sync-dot { background: var(--red); }
-@keyframes bj-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(0.75); }
-}
+#bj-root .bj-sync-pill.bj-sync-idle { opacity: 0; pointer-events: none; }
+#bj-root .bj-sync-pill.bj-sync-synced .bj-sync-dot { background: #a4b986; }
+#bj-root .bj-sync-pill.bj-sync-syncing .bj-sync-dot { background: #e0b874; animation: bj-sync-pulse 1s infinite; }
+#bj-root .bj-sync-pill.bj-sync-error { color: #d68a7c; }
+#bj-root .bj-sync-pill.bj-sync-error .bj-sync-dot { background: #d68a7c; }
+#bj-root .bj-sync-pill.bj-sync-offline .bj-sync-dot { background: #8d8d94; }
+@keyframes bj-sync-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 
 /* ── BJ MOBILE / IPAD ────────────────────────────────────────────── */
 /* Prevent iOS zoom on input focus — all inputs min 16px */

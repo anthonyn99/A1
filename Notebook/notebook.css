@@ -790,8 +790,10 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   #tj-root #tj-bb-saved, #bj-root #bj-bb-saved {
     position: absolute; right: 12px; top: -26px;
     max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis;
-    background: var(--bg2); border: 1px solid var(--border);
-    border-radius: 999px; padding: 2px 10px; font-size: 10px !important;
+    /* Everwell's dot and word, no outline; the fill only keeps it legible
+       over the page it floats above. */
+    background: var(--bg2); border: 0;
+    border-radius: 4px; padding: 2px 6px; font-size: 10.5px !important;
     pointer-events: none;
   }
   #tj-root #tj-bb-edit, #tj-root #tj-bb-new,
