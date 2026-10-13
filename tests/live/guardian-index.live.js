@@ -89,7 +89,7 @@ const mock = {
   console.log('\nPrograms');
   await evalJs(c, `window.showTonyJournal(); return 1;`); await sleep(600);
   d = await dlg();
-  ok('MyJournal gate opens over a locked program', d.open && d.title === 'MyJournal', JSON.stringify(d));
+  ok('Notebook gate opens over a locked program', d.open && d.title === 'Notebook', JSON.stringify(d));
   ok('its content is hidden while locked', await evalJs(c, `document.getElementById('tj-root').style.display === 'none'`));
   await type('mj'); await click('Unlock'); await sleep(1200);
   ok('MyJournal opens after the password', !(await dlg()).open && (await evalJs(c, `document.getElementById('tj-root').style.display !== 'none'`)));
@@ -102,7 +102,7 @@ const mock = {
   ok('locked program menu: lock now / change / remove', ['Lock this device now', 'Change password', 'Remove lock', 'Cancel'].every((t) => d.buttons.includes(t)), JSON.stringify(d.buttons));
   await click('Lock this device now'); await sleep(800);
   d = await dlg();
-  ok('lock now on the visible program re-gates it at once', d.open && d.title === 'MyJournal', JSON.stringify(d));
+  ok('lock now on the visible program re-gates it at once', d.open && d.title === 'Notebook', JSON.stringify(d));
   ok('…and hides it', await evalJs(c, `document.getElementById('tj-root').style.display === 'none'`));
   await click('Cancel'); await sleep(400);
 
