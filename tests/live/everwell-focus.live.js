@@ -314,6 +314,28 @@ const mock = {
   ok('re-sync while a video in the group plays: the player is left alone', await js(`return EWFocus.playing() === 'p1~listvideo01' && ${q('[data-id="p1~listvideo01"] iframe')} === window.__frame && ${q('.media-group[data-id="p1"]')}.querySelectorAll('.media-grid .media-tile').length === 4;`));
   await js(`${q('[data-id="p1~listvideo01"] [data-stop]')}.click(); return 1;`); await sleep(1500);
   ok('…and catches up once it stops (the removed video goes)', await js(`return !${q('[data-id="p1~listvideo00"]')} && ${q('.media-group[data-id="p1"]')}.querySelectorAll('.media-grid .media-tile').length === 3;`));
+
+  // Its videos drag to reorder, like an Instagram collection's covers (Tony, 2026-10-13).
+  const order = () => js(`return [...${q('.media-group[data-id="p1"]')}.querySelectorAll('.media-grid .media-tile')].map(t => t.dataset.id.split('~')[1]).join();`);
+  const saved = () => js(`const p = __fakeFs.docs['dashboards/everwell_tony'].focusMedia.find(x => x.id === 'p1'); return p.videos.map(v => v.id).join() + '|' + (p.order || []).join();`);
+  const rect = (id) => js(`const r = ${q('[data-id="p1~' + id + '"] .media-meta .t')}.getBoundingClientRect(); return JSON.stringify({ x: r.left + r.width / 2, y: r.top + r.height / 2 });`).then(JSON.parse);
+  const mouse = (type, x, y) => c.send('Input.dispatchMouseEvent', { type, x, y, button: 'left', buttons: type === 'mouseReleased' ? 0 : 1, clickCount: 1 });
+  const a = await rect('listvideo01'), b = await rect('blockedvid1');
+  await mouse('mousePressed', a.x, a.y); await sleep(350);
+  for (let i = 1; i <= 16; i++) { await mouse('mouseMoved', a.x + (b.x - a.x + 30) * i / 16, a.y + (b.y - a.y) * i / 16); await sleep(16); }
+  await sleep(200); await mouse('mouseReleased', b.x + 30, b.y); await sleep(1800);
+  ok('a playlist\'s videos drag to reorder', (await order()) === 'listvideo02,blockedvid1,listvideo01', await order());
+  ok('…and Tony\'s order is saved with it', (await saved()) === 'listvideo02,blockedvid1,listvideo01|listvideo02,blockedvid1,listvideo01', await saved());
+  PLAYLISTS.PLgoodlist01 = [{ id: 'listvideo00', title: 'New on YouTube' }].concat(ORIG);
+  await js(`EWFocus.resync(); return 1;`); await sleep(1500);
+  ok('re-sync keeps Tony\'s order, a video new on YouTube on top', (await order()) === 'listvideo00,listvideo02,blockedvid1,listvideo01', await order());
+  await js(`${q('[data-id="p1~listvideo02"] [data-play]')}.click(); return 1;`); await sleep(1000);
+  ok('a video then plays the rest in Tony\'s order, not YouTube\'s', await js(`const f = ${q('[data-id="p1~listvideo02"] iframe')}; return !!f && /embed\\/listvideo02\\?.*&playlist=blockedvid1,listvideo01$/.test(f.src) && !/&list=/.test(f.src);`),
+    await js(`const f = ${q('[data-id="p1~listvideo02"] iframe')}; return f ? f.src : 'none';`));
+  ok('…with the playlist\'s previous / next still on it', await js(`return !!${q('[data-id="p1~listvideo02"] [data-vp="next"]')};`));
+  await js(`${q('[data-id="p1~listvideo02"] [data-stop]')}.click(); return 1;`); await sleep(500);
+  PLAYLISTS.PLgoodlist01 = ORIG.slice();
+  await js(`EWFocus.resync(); return 1;`); await sleep(1500);
   delete PLAYLISTS.PLgoodlist01; w0 = await tonyWrites();
   await js(`EWFocus.resync(); return 1;`); await sleep(1200);
   ok('re-sync failing (private now, or YouTube silent) keeps the stored list', (await tonyWrites()) === w0 && await js(`return ${q('.media-group[data-id="p1"]')}.querySelectorAll('.media-grid .media-tile').length === 3 && !${q('.media-group[data-id="p1"] [data-msg="nolist"]')};`));
