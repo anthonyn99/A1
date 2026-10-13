@@ -120,6 +120,17 @@ const mock = {
   ok('the tile buttons are small and quiet (28px, no box until hovered)', await js(`const b = ${tile(2)}.querySelector('[data-rm]'), s = getComputedStyle(b); return b.offsetWidth === 28 && s.borderTopColor === 'rgba(0, 0, 0, 0)';`),
     await js(`const b = ${tile(2)}.querySelector('[data-rm]'); return b.offsetWidth + ' ' + getComputedStyle(b).borderTopColor;`));
   ok('a good video keeps playing (its messages are not errors)', await js(`return EWFocus.playing() !== null && !!${tile(1)}.querySelector('iframe');`));
+  // Light on a busy PC (Tony, 2026-10-13): over 3 s of play with the controls up
+  // (12 reports from the player), no button is redrawn and the bar is not drawn
+  // every frame (a 2:00 video moves its bar about a pixel every 0.2 s).
+  const cost = JSON.parse(await js(`const f = ${tile(1)}.querySelector('.media-frame'); let icons = 0, frames = 0, stop = false;
+    const mo = new MutationObserver((l) => l.forEach((m) => { if (m.type === 'childList' && m.target.closest && m.target.closest('.vp-b, .vp-mid')) icons++; }));
+    mo.observe(f, { childList: true, subtree: true });
+    const raf0 = window.requestAnimationFrame; window.requestAnimationFrame = (cb) => raf0((t) => { frames++; cb(t); });
+    const keep = setInterval(() => f.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerType: 'mouse' })), 400);
+    await new Promise((r) => setTimeout(r, 3000)); clearInterval(keep); mo.disconnect(); window.requestAnimationFrame = raf0;
+    return JSON.stringify({ icons, frames, on: f.classList.contains('ui-on'), time: f.querySelector('[data-vp-time]').textContent });`));
+  ok('while it plays, no button icon is redrawn and the controls are not drawn every frame', cost.on && cost.icons === 0 && cost.frames < 40, JSON.stringify(cost));
 
   console.log('\nThe player\'s own controls');
   ok("YouTube's controls are off (controls=0); Everwell draws its own over the video", await js(`const t = ${tile(1)}; return /controls=0/.test(t.querySelector('iframe').src) && !!t.querySelector('.vp-ui [data-vp="toggle"]') && !!t.querySelector('[data-vp-seek]') && !!t.querySelector('[data-vp="fill"]') && !!t.querySelector('[data-vp="fs"]');`));
