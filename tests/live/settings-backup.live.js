@@ -25,7 +25,7 @@ async function load(c, w, h, mobile) {
   await c.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile });
   await c.send('Emulation.setTouchEmulationEnabled', { enabled: mobile, maxTouchPoints: mobile ? 5 : 0 });
   await c.send('Page.navigate', { url: ORIGIN + '/A1/oneinbox.html' }); await sleep(800);
-  await evalJs(c, "localStorage.clear(); localStorage.setItem('td6_mainDash','tony'); indexedDB.deleteDatabase && 1");
+  await evalJs(c, "localStorage.clear(); localStorage.setItem('td6_mainDash','tony'); return new Promise(r=>{const q=indexedDB.deleteDatabase('a1-backups'); q.onsuccess=q.onerror=q.onblocked=()=>r(1);});");
   await c.send('Page.navigate', { url: ORIGIN + '/A1/index.html' });
   await sleep(9000);
   await evalJs(c, "var l=document.getElementById('th-boot-loader'); if(l) l.remove(); 1");
