@@ -382,17 +382,18 @@ ported; MAGI loads it too since phase 11):
 - JS `A1Resize.attach(box, grip, key, onAuto)` + `A1Resize.grip(label)`.
 
 **What "MAGI's resize" means, all of it required:**
-- The grip is a real `<button>` (title "Drag to resize. Click to expand or
-  compress.", an aria-label naming the box). No native `resize:` corner.
+- The grip is a real `<button>` (title "Drag to resize.", an aria-label
+  naming the box). No native `resize:` corner.
 - Pointer events, so mouse, touch and pen are one path; pointer capture on
   the grip; vertical only.
 - **Drag** (3px or more) sets the height, clamped between 26px and
   `max(160px, 60% of the viewport)`. A chosen height overrides the box's own
   CSS min- AND max-height, so the drag never stops halfway (phase 2 found a
   34vh min-height doing exactly that).
-- **Click** (under 3px) toggles: compressed → expanded (+120px, at least
-  260px, under the cap); expanded/hand-sized → back to auto.
-- Enter / Space on the focused grip do the same toggle.
+- A **click** does nothing (since 2026-10-14: it used to toggle, and a drag
+  that barely moved kept snapping the box).
+- Enter / Space on the focused grip toggle: natural → expanded (+120px, at
+  least 260px, under the cap); hand-sized → back to auto.
 - A hand-chosen height stops auto-grow until the grip hands it back.
 - The height is remembered per box in localStorage (behind the storage guard;
   Veda's Brave throws).
