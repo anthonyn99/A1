@@ -643,7 +643,7 @@
     if (!pass) throw new Error('passphrase cannot be empty');
     await deriveKey(pass);
     lsSet(A1B.PASS_KEY, pass);
-    chipRefresh().catch(function () {});
+    announce();
     // Prove it round-trips before declaring success, so a broken WebCrypto or a
     // storage failure surfaces now rather than at restore time.
     var probe = await encryptStr('a1b-probe');
@@ -847,7 +847,7 @@
     // Mirror off-device, debounced. Deliberately not awaited: the local vault
     // is the copy that must never be delayed by a network round trip.
     try { schedulePush(); } catch (e) {}
-    chipRefresh().catch(function () {});
+    announce();
     return { at: manifest.at, docs: paths.length, stored: stored, reused: reused,
              bytes: manifest.bytes };
   }
@@ -1273,7 +1273,7 @@
       notePush();
       await vPut('meta', 'lastPushedAt', at);
       await vPut('meta', 'lastPushOkAt', Date.now());
-      chipRefresh().catch(function () {});
+      announce();
       return { at: at, uploaded: uploaded, deduped: deduped, failed: failed,
                repaired: repaired, device: deviceSlug(), pushesToday: pushesToday() };
     } catch (e) {
@@ -1409,8 +1409,8 @@
     setInterval(function () { healthCheckLoud().catch(function () {}); }, CHECK_EVERY_MS);
   }
 
-  // A human-readable summary, for people rather than for code. Exposed so it
-  // can be wired to a button later without touching this file again.
+  // A human-readable summary as one dialog, for the console. Settings →
+  // Backup reads summary() instead and lays the same facts out itself.
   async function report() {
     var st = await status();
     var h = await healthCheck();
