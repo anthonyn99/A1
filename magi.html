@@ -8380,8 +8380,21 @@ const CODE_LANGS = new Set(("python py javascript js typescript ts jsx tsx json 
   "bash sh shell zsh powershell ps1 sql java kotlin swift go golang rust c cpp c++ csharp c# " +
   "ruby php r matlab yaml yml toml xml markdown md plaintext text lua perl scala dart haskell").split(" "));
 
+/* "\*\*Label:\*\*" is bold the chat site failed to render, escaped by the
+ *  engine as if the model meant the asterisks (DeepSeek, tripped by the $ in
+ *  "**Oil above $100:**", 2026-10-14). The engine no longer escapes a pair;
+ *  answers saved before that are repaired here. Code blocks are left alone. */
+const ESC_BOLD = /\\\*\\\*(?=[^\s*\\])([^*\n]{0,200}?[^\s*\\])\\\*\\\*/g;
+function unescapeBold(lines) {
+  let fence = false;
+  return lines.map((l) => {
+    if (MD.fence.test(l)) { fence = !fence; return l; }
+    return fence ? l : l.replace(ESC_BOLD, "**$1**");
+  });
+}
+
 function mdParse(text) {
-  const lines = String(text || "").replace(/\r\n?/g, "\n").replace(/\t/g, "    ").split("\n");
+  const lines = unescapeBold(String(text || "").replace(/\r\n?/g, "\n").replace(/\t/g, "    ").split("\n"));
   const out = [];
   const notes = [];
   let i = 0;
