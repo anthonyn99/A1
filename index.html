@@ -15172,11 +15172,28 @@ function playAlarm(ctxIn){
   _tmBell(ctx,out,1046.5,t0+3.0,0.25);_tmBell(ctx,out,523.25,t0+3.0,0.17);
   if(own)setTimeout(()=>{try{ctx.close();}catch(e){}},7000);
 }
-// Quiet single-note cues for start (up a fifth) and pause (down).
+// A soft mallet note for the button cues: a rounder, shorter cousin of the
+// bell (fundamental, a quiet octave, a faint marimba overtone), lowpassed so
+// it never sounds sharp.
+function _tmMallet(ctx,out,freq,t,vel,len){
+  const lp=ctx.createBiquadFilter();lp.type="lowpass";lp.frequency.setValueAtTime(Math.min(9000,freq*6),t);lp.Q.value=0.4;lp.connect(out);
+  [[1,1,len],[2,.2,len*.5],[3.98,.07,len*.2]].forEach(([mul,amp,l])=>{
+    const o=ctx.createOscillator(),g=ctx.createGain();
+    o.type="sine";o.frequency.setValueAtTime(freq*mul,t);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.linearRampToValueAtTime(vel*amp,t+0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+l);
+    o.connect(g);g.connect(lp);o.start(t);o.stop(t+l+0.05);
+  });
+}
+// Button cues, all in G major so they sit with each other and the chime:
+// start = a rising G-B-D triad, resume = G up to D, pause = D down to G.
 function playTimerCue(kind,ctxIn){
   const {ctx,own}=_tmCtx(ctxIn);const out=_tmChain(ctx);const t=ctx.currentTime+0.02;
-  if(kind==="start"){_tmBell(ctx,out,659.25,t,0.1);_tmBell(ctx,out,987.77,t+0.09,0.085);}
-  else _tmBell(ctx,out,587.33,t,0.085);
+  const seq=kind==="start"?[[783.99,0,.19],[987.77,.075,.16],[1174.66,.15,.17]]
+    :kind==="resume"?[[783.99,0,.18],[1174.66,.085,.16]]
+    :[[1174.66,0,.14],[783.99,.09,.15]];
+  seq.forEach(([f,d,v])=>_tmMallet(ctx,out,f,t+d,v,kind==="pause"?0.7:0.95));
   if(own)setTimeout(()=>{try{ctx.close();}catch(e){}},3000);
 }
 const workerBlob=new Blob([`let iv=null,end=0;onmessage=function(e){if(e.data.cmd==="start"){clearInterval(iv);end=Date.now()+e.data.secs*1000;iv=setInterval(function(){const rem=Math.round((end-Date.now())/1000);if(rem<=0){clearInterval(iv);iv=null;postMessage({type:"done"});}else postMessage({type:"tick",left:rem});},250);}else if(e.data.cmd==="stop"){clearInterval(iv);iv=null;}};`],{type:"application/javascript"});
@@ -15200,26 +15217,33 @@ function Pomodoro({onClose,T,look,profile}){
   const[mode,setMode]=useState(0);const[left,setLeft]=useState(25*60);const[total,setTotal]=useState(25*60);const[running,setRunning]=useState(false);const[done,setDone]=useState(false);
   const workerRef=useRef(null);const audioCtxRef=useRef(null);
   const ac=()=>audioCtxRef.current||undefined;
-  useEffect(()=>{const w=new Worker(workerUrl);workerRef.current=w;w.onmessage=(e)=>{if(e.data.type==="tick"){setLeft(e.data.left);}else if(e.data.type==="done"){setLeft(0);setRunning(false);setDone(true);playAlarm(ac());}};return()=>{w.terminate();try{audioCtxRef.current&&audioCtxRef.current.close();}catch(e){}};},[]);
+  useEffect(()=>{const w=new Worker(workerUrl);workerRef.current=w;w.onmessage=(e)=>{if(e.data.type==="tick"){setLeft(e.data.left);}else if(e.data.type==="done"){endRef.current=0;remRef.current=null;setLeft(0);setRunning(false);setDone(true);playAlarm(ac());}};return()=>{w.terminate();try{audioCtxRef.current&&audioCtxRef.current.close();}catch(e){}};},[]);
   // Created on the first Start (a user gesture), so the alarm can still sound
   // when it fires later from the worker with no gesture in sight.
   const warmAudio=()=>{if(!audioCtxRef.current){try{audioCtxRef.current=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}else if(audioCtxRef.current.state==="suspended"){audioCtxRef.current.resume();}};
   const modes=getModes(workMin);
-  const startTimer=(secs)=>{workerRef.current?.postMessage({cmd:"start",secs});};
-  const stopTimer=()=>{workerRef.current?.postMessage({cmd:"stop"});};
+  // The worker ticks whole seconds for the digits; the ring runs off the exact
+  // end time instead (endRef while running, remRef once paused) so it moves
+  // every frame rather than once a second.
+  const endRef=useRef(0);const remRef=useRef(null);
+  const exactMs=()=>endRef.current?Math.max(0,endRef.current-Date.now()):(remRef.current!=null?remRef.current:left*1000);
+  const startTimer=(secs)=>{endRef.current=Date.now()+secs*1000;remRef.current=null;workerRef.current?.postMessage({cmd:"start",secs});};
+  const stopTimer=(keep)=>{remRef.current=keep&&endRef.current?Math.max(0,endRef.current-Date.now()):null;endRef.current=0;workerRef.current?.postMessage({cmd:"stop"});};
   const pickMode=(i)=>{stopTimer();setMode(i);const s=getModes(workMin)[i].secs;setLeft(s);setTotal(s);setRunning(false);setDone(false);};
-  const toggle=()=>{if(done){setDone(false);setLeft(total);return;}if(!running){warmAudio();playTimerCue("start",ac());startTimer(left);setRunning(true);}else{stopTimer();setRunning(false);playTimerCue("pause",ac());}};
+  const toggle=()=>{if(done){setDone(false);setLeft(total);return;}if(!running){warmAudio();const ms=exactMs();playTimerCue(ms>=total*1000?"start":"resume",ac());startTimer(ms/1000);setRunning(true);}else{stopTimer(true);setRunning(false);playTimerCue("pause",ac());}};
   const cancel=()=>{stopTimer();setRunning(false);setDone(false);setLeft(total);};
-  const addMin=()=>{const nl=(done?0:left)+60,nt=Math.max(total,nl);setLeft(nl);setTotal(nt);if(done){setDone(false);}if(running)startTimer(nl);};
-  useEffect(()=>{window._vdTimerExec=(cmd,arg)=>{if(cmd==="set"){const m=Math.max(1,Math.min(120,parseInt(arg)||25));setWorkMin(m);setMode(0);setLeft(m*60);setTotal(m*60);setRunning(false);setDone(false);stopTimer();}else if(cmd==="start"){warmAudio();startTimer(left);setRunning(true);setDone(false);}else if(cmd==="stop"){stopTimer();setRunning(false);}else if(cmd==="reset"){stopTimer();setRunning(false);setDone(false);setLeft(total);}};return()=>{if(window._vdTimerExec)delete window._vdTimerExec;};},[left,total,running,done,workMin]);
-  const adjWork=(delta)=>{const nw=Math.max(1,Math.min(120,workMin+delta));setWorkMin(nw);if(mode===0){const s=nw*60;setLeft(s);setTotal(s);}};
+  useEffect(()=>{window._vdTimerExec=(cmd,arg)=>{if(cmd==="set"){const m=Math.max(1,Math.min(120,parseInt(arg)||25));setWorkMin(m);setMode(0);setLeft(m*60);setTotal(m*60);setRunning(false);setDone(false);stopTimer();}else if(cmd==="start"){warmAudio();if(!running)startTimer(exactMs()/1000);setRunning(true);setDone(false);}else if(cmd==="stop"){if(running)stopTimer(true);setRunning(false);}else if(cmd==="reset"){stopTimer();setRunning(false);setDone(false);setLeft(total);}};return()=>{if(window._vdTimerExec)delete window._vdTimerExec;};},[left,total,running,done,workMin]);
+  const adjWork=(delta)=>{remRef.current=null;const nw=Math.max(1,Math.min(120,workMin+delta));setWorkMin(nw);if(mode===0){const s=nw*60;setLeft(s);setTotal(s);}};
 
   // ── Position + drag ─────────────────────────────────────────────────────
   const posKey="a1_timer_pos_"+(profile||"veda");
   const boxRef=useRef(null);const dragRef=useRef(null);
   const[pos,setPos]=useState(()=>{try{const p=JSON.parse(localStorage.getItem(posKey)||"null");return p&&isFinite(p.x)&&isFinite(p.y)?p:null;}catch(e){return null;}});
   const[dragging,setDragging]=useState(false);
-  const clamp=(p)=>{const el=boxRef.current;const w=el?el.offsetWidth:280,h=el?el.offsetHeight:380;const vw=window.innerWidth,vh=window.innerHeight;return{x:Math.round(Math.max(6,Math.min(vw-w-6,p.x))),y:Math.round(Math.max(6,Math.min(vh-h-6,p.y)))};};
+  // It never goes over the program's header: both TaskHubs tag their sticky
+  // header bar data-sb-top, so the top limit is the lowest pinned one showing.
+  const topLimit=()=>{let b=0;document.querySelectorAll("[data-sb-top]").forEach(hd=>{const r=hd.getBoundingClientRect();if(r.height>0&&r.width>0&&r.top<=1&&r.bottom>b)b=r.bottom;});return b;};
+  const clamp=(p)=>{const el=boxRef.current;const w=el?el.offsetWidth:280,h=el?el.offsetHeight:380;const vw=window.innerWidth,vh=window.innerHeight,top=topLimit()+6;return{x:Math.round(Math.max(6,Math.min(vw-w-6,p.x))),y:Math.round(Math.max(top,Math.min(vh-h-6,p.y)))};};
   useEffect(()=>{const fit=()=>setPos(p=>p?clamp(p):p);fit();window.addEventListener("resize",fit);return()=>window.removeEventListener("resize",fit);},[]);
   const onDown=(e)=>{
     if(e.button!==undefined&&e.button!==0)return;
@@ -15248,7 +15272,12 @@ function Pomodoro({onClose,T,look,profile}){
 
   // ── Render ──────────────────────────────────────────────────────────────
   const mm=String(Math.floor(left/60)).padStart(2,"0"),ss=String(left%60).padStart(2,"0");
-  const pct=total>0?left/total:0;const SZ=184,R=80,C=2*Math.PI*R;const ang=(-90+360*pct)*Math.PI/180;
+  const SZ=184,R=80,C=2*Math.PI*R;const pctOf=(ms)=>total>0?Math.min(1,ms/(total*1000)):0;const pct=done?0:pctOf(exactMs());
+  const arcRef=useRef(null);const dotRef=useRef(null);
+  // While running, a frame loop writes the ring straight to the DOM (the same
+  // style properties render sets, so the two never fight).
+  useEffect(()=>{if(!running)return;let id;const f=()=>{const p=pctOf(exactMs());if(arcRef.current)arcRef.current.style.strokeDashoffset=C*(1-p);if(dotRef.current){dotRef.current.style.transform="rotate("+(360*p)+"deg)";dotRef.current.style.opacity=p>0.004?1:0;}id=requestAnimationFrame(f);};id=requestAnimationFrame(f);return()=>cancelAnimationFrame(id);},[running,total]);
+  const ease=running?"none":"stroke-dashoffset .6s cubic-bezier(.4,0,.2,1), stroke .3s";
   const canAdj=mode===0&&!running&&!done;const ring=done?OK:AC;
   const hfx=magi?{"data-hoverfx":"magi"}:{};
   const sel=(T.SEL||GLOW)(AC);
@@ -15284,8 +15313,9 @@ function Pomodoro({onClose,T,look,profile}){
     RC("div",{style:{position:"relative",width:SZ,height:SZ,margin:"8px auto 6px"}},
       RC("svg",{width:SZ,height:SZ,viewBox:"0 0 "+SZ+" "+SZ,style:{display:"block"}},
         RC("circle",{cx:SZ/2,cy:SZ/2,r:R,fill:"none",stroke:magi?S2c:BDc,strokeWidth:5}),
-        RC("circle",{cx:SZ/2,cy:SZ/2,r:R,fill:"none",stroke:ring,strokeWidth:5,strokeLinecap:"round",strokeDasharray:C,strokeDashoffset:C*(1-pct),transform:"rotate(-90 "+SZ/2+" "+SZ/2+")",style:{transition:"stroke-dashoffset .4s linear, stroke .3s"}}),
-        pct>0.004&&RC("circle",{cx:SZ/2+R*Math.cos(ang),cy:SZ/2+R*Math.sin(ang),r:6,fill:ring,stroke:S1c,strokeWidth:3,style:{transition:"cx .4s linear, cy .4s linear"}})),
+        RC("circle",{cx:SZ/2,cy:SZ/2,r:R,fill:"none",stroke:ring,strokeWidth:5,strokeLinecap:"round",ref:arcRef,strokeDasharray:C,transform:"rotate(-90 "+SZ/2+" "+SZ/2+")",style:{strokeDashoffset:C*(1-pct),transition:ease}}),
+        RC("g",{ref:dotRef,style:{transformOrigin:SZ/2+"px "+SZ/2+"px",transform:"rotate("+(360*pct)+"deg)",opacity:pct>0.004?1:0,transition:running?"none":"transform .6s cubic-bezier(.4,0,.2,1), opacity .3s"}},
+          RC("circle",{cx:SZ/2,cy:SZ/2-R,r:6,fill:ring,stroke:S1c,strokeWidth:3}))),
       RC("div",{style:{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",pointerEvents:"none"}},
         RC("div",{style:{...NUM,fontSize:44,lineHeight:1,letterSpacing:magi?-1:-.5,color:done?OK:TXc}},mm+":"+ss),
         RC("div",{style:{marginTop:8,fontSize:10,fontWeight:600,letterSpacing:1.6,textTransform:"uppercase",color:done?OK:TXDc}},status))),
@@ -15303,7 +15333,7 @@ function Pomodoro({onClose,T,look,profile}){
         done?icon([RC("path",{key:1,d:"M5 12.5l4.5 4.5L19 7.5"})],24)
           :running?RC("svg",{width:22,height:22,viewBox:"0 0 24 24",fill:"currentColor","aria-hidden":true},RC("rect",{x:6,y:5,width:4,height:14,rx:1.2}),RC("rect",{x:14,y:5,width:4,height:14,rx:1.2}))
           :RC("svg",{width:22,height:22,viewBox:"0 0 24 24",fill:"currentColor","aria-hidden":true,style:{marginLeft:3}},RC("path",{d:"M7 4.8v14.4a1 1 0 0 0 1.5.86l12-7.2a1 1 0 0 0 0-1.72l-12-7.2A1 1 0 0 0 7 4.8z"}))),
-      RC("button",{type:"button",...hfx,onClick:addMin,title:"Add a minute","aria-label":"Add a minute",style:{...roundBtn(40,false),fontSize:11,fontWeight:700,...(magi?{fontVariantNumeric:"tabular-nums"}:{})}},"+1")));
+      RC("span",{"aria-hidden":true,style:{width:40,height:40,flexShrink:0}})));
 }
 
 // ─── GITA QUOTE MODAL ─────────────────────────────────────────────────
