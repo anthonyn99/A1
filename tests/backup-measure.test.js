@@ -221,19 +221,19 @@ section('Nothing assumes a DOM or swallows an async failure');
 // backup.js runs in the node suites with no DOM at all. An async function
 // guarded by try/catch around the CALL is not guarded: the body runs to its
 // first await and any error becomes a rejected promise the catch never sees.
-// Four call sites did that, and the unhandled rejection crashed the suite.
-t('chipRefresh is never wrapped in a synchronous try/catch',
-  !/try \{ chipRefresh\(\); \} catch/.test(SRC),
-  'try/catch cannot catch an async rejection.');
-t('every chipRefresh call handles its own rejection',
-  (SRC.match(/chipRefresh\(\)\.catch\(/g) || []).length >= 4,
-  'An unhandled rejection is a crash, not a warning.');
-t('chipRefresh returns early without a DOM',
-  /if \(typeof document === 'undefined'\) return;/.test(SRC),
-  'The tests, and any future non-browser consumer, have no document.');
-t('the chip only mounts once a body exists',
-  /if \(!document\.body\) return;/.test(SRC) &&
-  /document\.readyState === 'loading'/.test(SRC));
+// Four call sites did that (the old floating status chip's refresh), and the
+// unhandled rejection crashed the suite. The chip is gone — status now lives
+// in Settings → Backup, which reads summary() — and its replacement is sync.
+t('no floating status chip is drawn any more',
+  !/chipRefresh|mountChip|a1b-chip/.test(SRC),
+  'It sat over Notebook and TaskHub controls on phones; Settings → Backup replaced it.');
+t('announce() is synchronous and needs no DOM',
+  /function announce\(\) \{\s*if \(typeof window === 'undefined'\) return;/.test(SRC) &&
+  (SRC.match(/announce\(\);/g) || []).length >= 4,
+  'Every change that used to refresh the chip now tells Settings instead.');
+t('summary() never rejects',
+  /async function summary\(\) \{\s*var out = [^;]+;\s*try \{/.test(SRC),
+  'Settings awaits it directly; a vault error must come back as state "warn".');
 
 section('Anyone can turn backups on, on any device');
 

@@ -15265,10 +15265,9 @@ function Pomodoro({onClose,T,look,profile}){
   };
   // Double-click the empty card to send it home to the corner.
   const onDbl=(e)=>{if(e.target.closest&&e.target.closest("button"))return;setPos(null);try{localStorage.removeItem(posKey);}catch(_){}};
-  // Undragged, it sits bottom-RIGHT, lifted on a phone so Start never lands in
-  // the row of backup.js's bottom-left chip (which outranks every z-index here).
+  // Undragged, it sits bottom-RIGHT, tighter to the corner on a phone.
   const mobile=window.innerWidth<640;
-  const anchor=pos?{left:pos.x,top:pos.y}:{right:mobile?10:22,bottom:mobile?(window.A1_BACKUP_CHIP_CLEAR||44):22};
+  const anchor=pos?{left:pos.x,top:pos.y}:{right:mobile?10:22,bottom:mobile?10:22};
 
   // ── Render ──────────────────────────────────────────────────────────────
   const mm=String(Math.floor(left/60)).padStart(2,"0"),ss=String(left%60).padStart(2,"0");
