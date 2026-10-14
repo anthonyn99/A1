@@ -15217,7 +15217,7 @@ function Pomodoro({onClose,T,look,profile}){
   const[mode,setMode]=useState(0);const[left,setLeft]=useState(25*60);const[total,setTotal]=useState(25*60);const[running,setRunning]=useState(false);const[done,setDone]=useState(false);
   const workerRef=useRef(null);const audioCtxRef=useRef(null);
   const ac=()=>audioCtxRef.current||undefined;
-  useEffect(()=>{const w=new Worker(workerUrl);workerRef.current=w;w.onmessage=(e)=>{if(e.data.type==="tick"){setLeft(e.data.left);}else if(e.data.type==="done"){endRef.current=0;remRef.current=null;setLeft(0);setRunning(false);setDone(true);playAlarm(ac());}};return()=>{w.terminate();try{audioCtxRef.current&&audioCtxRef.current.close();}catch(e){}};},[]);
+  useEffect(()=>{const w=new Worker(workerUrl);workerRef.current=w;w.onmessage=(e)=>{if(e.data.type==="tick"){if(endRef.current)setLeft(e.data.left);}else if(e.data.type==="done"){endRef.current=0;remRef.current=null;setLeft(0);setRunning(false);setDone(true);playAlarm(ac());}};return()=>{w.terminate();try{audioCtxRef.current&&audioCtxRef.current.close();}catch(e){}};},[]);
   // Created on the first Start (a user gesture), so the alarm can still sound
   // when it fires later from the worker with no gesture in sight.
   const warmAudio=()=>{if(!audioCtxRef.current){try{audioCtxRef.current=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}else if(audioCtxRef.current.state==="suspended"){audioCtxRef.current.resume();}};
@@ -15276,7 +15276,7 @@ function Pomodoro({onClose,T,look,profile}){
   const arcRef=useRef(null);const dotRef=useRef(null);
   // While running, a frame loop writes the ring straight to the DOM (the same
   // style properties render sets, so the two never fight).
-  useEffect(()=>{if(!running)return;let id;const f=()=>{const p=pctOf(exactMs());if(arcRef.current)arcRef.current.style.strokeDashoffset=C*(1-p);if(dotRef.current){dotRef.current.style.transform="rotate("+(360*p)+"deg)";dotRef.current.style.opacity=p>0.004?1:0;}id=requestAnimationFrame(f);};id=requestAnimationFrame(f);return()=>cancelAnimationFrame(id);},[running,total]);
+  useEffect(()=>{if(!running)return;let id;const f=()=>{if(!endRef.current)return;const p=pctOf(exactMs());if(arcRef.current)arcRef.current.style.strokeDashoffset=C*(1-p);if(dotRef.current){dotRef.current.style.transform="rotate("+(360*p)+"deg)";dotRef.current.style.opacity=p>0.004?1:0;}id=requestAnimationFrame(f);};id=requestAnimationFrame(f);return()=>cancelAnimationFrame(id);},[running,total]);
   const ease=running?"none":"stroke-dashoffset .6s cubic-bezier(.4,0,.2,1), stroke .3s";
   const canAdj=mode===0&&!running&&!done;const ring=done?OK:AC;
   const hfx=magi?{"data-hoverfx":"magi"}:{};
