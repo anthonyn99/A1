@@ -16,7 +16,11 @@
  * dashboards/market_calendar: TradeHub rewrites that doc whole on every
  * publish, so anything else stored there would be wiped by the next build.
  *   { tony:{units:[...]}, veda:{units:[...]},
- *     templates:{earnings:"...", macro:"..."}, savedAt }
+ *     templates:{earnings:"...", macro:"..."},
+ *     defaults:{earnings:"...", macro:"..."}, savedAt }
+ * `defaults` is a template Tony set as his own default ("Set as default",
+ * 2026-10-14): a blank template falls back to it, and a blank default to the
+ * built-in TEMPLATES.
  * TradeHub is the only writer; index.html only listens.
  *
  * THE HANDOFF is MAGI's own #tb= fragment (see magi.html "handoff"), with
@@ -100,19 +104,22 @@
   /* Any stored shape → a complete config. An ARRAY of units, even an empty
    * one, is a choice and is kept (empty = "whatever MAGI already has
    * ticked"); only a profile that never chose gets the defaults. A blank
-   * template falls back to the default, so a wiped textarea cannot send
-   * MAGI an empty prompt. */
+   * template falls back to the default (the one set in TradeHub, else the
+   * built-in), so a wiped textarea cannot send MAGI an empty prompt. */
   function normalize(raw) {
     raw = (raw && typeof raw === 'object') ? raw : {};
-    var out = { templates: {} };
+    var out = { templates: {}, defaults: {} };
     PROFILES.forEach(function (p) {
       var u = cleanUnits(raw[p] && raw[p].units);
       out[p] = { units: u === null ? DEFAULT_UNITS.slice() : u };
     });
     var t = (raw.templates && typeof raw.templates === 'object') ? raw.templates : {};
+    var d = (raw.defaults && typeof raw.defaults === 'object') ? raw.defaults : {};
     ['earnings', 'macro'].forEach(function (k) {
+      var ds = typeof d[k] === 'string' ? d[k].slice(0, 6000) : '';
+      out.defaults[k] = ds.trim() ? ds : TEMPLATES[k];
       var s = typeof t[k] === 'string' ? t[k].slice(0, 6000) : '';
-      out.templates[k] = s.trim() ? s : TEMPLATES[k];
+      out.templates[k] = s.trim() ? s : out.defaults[k];
     });
     return out;
   }
