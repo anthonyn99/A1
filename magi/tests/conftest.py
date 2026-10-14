@@ -10,3 +10,25 @@ def _map_cache_in_tmp(tmp_path_factory, monkeypatch):
     from magi.code.agents import symbols
     d = tmp_path_factory.mktemp("maps")
     monkeypatch.setattr(symbols, "_cache_file", lambda root: d / "map.json")
+
+
+@pytest.fixture(autouse=True)
+def _no_sandbox_links_from_scratch_homes(monkeypatch):
+    # slots.share_sandbox junctions a Codex home's sandbox folders to the real
+    # ~/.codex. A test's scratch slot must not get one; a real slot (the live
+    # sandbox tests) keeps the real behaviour.
+    import tempfile
+    from pathlib import Path
+    from magi.code.agents import slots
+    real = slots.share_sandbox
+    tmp = Path(tempfile.gettempdir()).resolve()
+
+    def guarded(home):
+        try:
+            if home is not None and Path(home).resolve().is_relative_to(tmp):
+                return None
+        except OSError:
+            return None
+        return real(home)
+
+    monkeypatch.setattr(slots, "share_sandbox", guarded)
