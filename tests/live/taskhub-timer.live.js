@@ -5,9 +5,12 @@
 //      panel wears her own palette
 //   3. mouse drag moves it, the spot is saved per profile and survives a reload;
 //      a plain click on a button does not drag; double-click sends it home
-//   4. phone width: a finger drags it, and it stays inside the viewport
-//   5. Start / Pause still drive the timer
-//   6. the new chime is louder than the old one (rendered offline, no speakers)
+//   4. phone width: a finger drags it, and it stays inside the viewport; on
+//      both TaskHubs it can never be dragged over the program's header
+//   5. Start / Pause still drive the timer, and the ring moves smoothly (it
+//      changes between whole-second ticks) and holds still when paused
+//   6. the new chime is louder than the old one; the start/resume/pause cues
+//      render cleanly (all rendered offline, no speakers)
 //
 // Run: node tests/live/taskhub-timer.live.js
 'use strict';
@@ -21,6 +24,8 @@ const ok = (name, cond, extra) => {
 const ORIGIN = 'https://anthonyn99.github.io';
 const J = async (c, js) => JSON.parse(await evalJs(c, `return JSON.stringify((() => { ${js} })());`));
 const box = (c) => J(c, "const b=document.querySelector('.a1-timer'); if(!b) return null; const r=b.getBoundingClientRect(); return {x:r.left,y:r.top,w:r.width,h:r.height};");
+const hdrBottom = (c) => J(c, "let b=0; document.querySelectorAll('[data-sb-top]').forEach(h=>{const r=h.getBoundingClientRect(); if(r.height>0&&r.width>0&&r.top<=1&&r.bottom>b) b=r.bottom;}); return b;");
+const arcOff = (c) => J(c, "const a=[...document.querySelectorAll('.a1-timer circle')][1]; return parseFloat(a.style.strokeDashoffset);");
 const timerBtn = "[...document.querySelectorAll('button[title=\"Timer\"]')].find(b=>b.offsetParent)";
 
 async function load(c, who, w, h, mobile, keepStorage) {
@@ -96,20 +101,31 @@ const OLD_ALARM = `function(ctx){const notes=[523.25,659.25,783.99,659.25,783.99
   const st = await J(c, "const r=document.querySelector('.a1-timer'); return {t:r.textContent, pause:!!r.querySelector('button[aria-label=Pause]')};");
   ok('Start runs the timer', st.pause && /Focusing/.test(st.t) && /24:5\d/.test(st.t), st.t);
   ok('clicking a button does not move it', JSON.stringify(await box(c)) === JSON.stringify(before));
+  ok('no +1 button', await J(c, "return !document.querySelector('.a1-timer button[aria-label=\"Add a minute\"]') && ![...document.querySelectorAll('.a1-timer button')].some(b=>b.textContent.trim()==='+1');"));
+  // Smooth: sample the arc 5 times inside ONE second -- every sample differs
+  // and keeps shrinking (a once-a-second ring would repeat values).
+  const offs = [];
+  for (let i = 0; i < 5; i++) { offs.push(await arcOff(c)); await sleep(150); }
+  ok('ring moves between ticks (smooth)', offs.every((v, i) => i === 0 || v > offs[i - 1]), JSON.stringify(offs));
   await evalJs(c, "document.querySelector('.a1-timer button[aria-label=Pause]').click(); 1");
   await sleep(300);
   ok('Pause pauses', await J(c, "return /Paused/.test(document.querySelector('.a1-timer').textContent);"));
+  const p1 = await arcOff(c); await sleep(1200); const p2 = await arcOff(c);
+  ok('ring holds still when paused', Math.abs(p1 - p2) < 0.01, p1 + ' vs ' + p2);
+  ok('paused ring keeps its exact spot (not snapped to the second)', Math.abs(p1 - offs[offs.length - 1]) < 2, p1 + ' vs ' + offs[offs.length - 1]);
   // Drag past the edge: it stays inside.
   b = await box(c);
   await mouseDrag(c, b.x + 120, b.y + 20, -2000, -2000);
   b2 = await box(c);
-  ok('cannot be dragged off-screen', b2.x >= 6 && b2.y >= 6 && b2.x <= 8 && b2.y <= 8, JSON.stringify(b2));
+  let hb = await hdrBottom(c);
+  ok("Tony's header found", hb > 40, hb);
+  ok('cannot be dragged off-screen or over the header', b2.x >= 6 && b2.x <= 8 && Math.abs(b2.y - (hb + 6)) <= 1, JSON.stringify({ b2, hb }));
 
   // Reload: the spot comes back.
   await load(c, 'tony', 1440, 900, false, true);
   await openTimer(c);
   b = await box(c);
-  ok('position survives a reload', b && b.x <= 8 && b.y <= 8, JSON.stringify(b));
+  ok('position survives a reload', b && b.x <= 8 && Math.abs(b.y - (hb + 6)) <= 1, JSON.stringify(b));
   await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: b.x + 120, y: b.y + 20 });
   for (const n of [1, 2]) {
     await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: b.x + 120, y: b.y + 20, button: 'left', clickCount: n });
@@ -129,6 +145,11 @@ const OLD_ALARM = `function(ctx){const notes=[523.25,659.25,783.99,659.25,783.99
   ok("Veda's card is her S1 #26272A", vLook && vLook.card === 'rgb(38, 39, 42)', vLook && vLook.card);
   ok("Veda's numbers are IBM Plex Mono", vLook && /Plex Mono/.test(vLook.font), vLook && vLook.font);
   await c.send('Page.captureScreenshot', { format: 'png' }).then(r => require('fs').writeFileSync(shotPath('timer-veda'), Buffer.from(r.result.data, 'base64')));
+  b = await box(c);
+  await mouseDrag(c, b.x + 120, b.y + 20, 0, -2000);
+  b2 = await box(c); hb = await hdrBottom(c);
+  ok("Veda's header found", hb > 30, hb);
+  ok("can't be dragged over Veda's header", Math.abs(b2.y - (hb + 6)) <= 1, JSON.stringify({ b2, hb }));
   ok('voice hook still wired', await J(c, "return typeof window._vdTimerExec === 'function';"));
   await evalJs(c, "window._vdTimerExec('set', '10'); 1"); await sleep(300);
   ok('voice "set 10" sets 10:00', await J(c, "return /10:00/.test(document.querySelector('.a1-timer').textContent);"));
@@ -141,6 +162,9 @@ const OLD_ALARM = `function(ctx){const notes=[523.25,659.25,783.99,659.25,783.99
   await touchDrag(c, b.x + 140, b.y + 20, -40, -300);
   b2 = await box(c);
   ok('finger drag moves it', b2 && Math.abs(b2.y - (b.y - 300)) <= 3, JSON.stringify({ b, b2 }));
+  await touchDrag(c, b2.x + 140, b2.y + 20, 0, -1000);
+  b2 = await box(c); hb = await hdrBottom(c);
+  ok("finger can't drag it over Veda's phone header", hb > 30 && Math.abs(b2.y - (hb + 6)) <= 1, JSON.stringify({ b2, hb }));
   await c.send('Page.captureScreenshot', { format: 'png' }).then(r => require('fs').writeFileSync(shotPath('timer-veda-phone'), Buffer.from(r.result.data, 'base64')));
 
   console.log('\nSound');
@@ -159,7 +183,9 @@ const OLD_ALARM = `function(ctx){const notes=[523.25,659.25,783.99,659.25,783.99
       };
       const oldA = await meas(${OLD_ALARM}, 6);
       const newA = await meas((ctx) => playAlarm(ctx), 7);
-      window.__lv = { oldA, newA };
+      const cues = {};
+      for (const k of ['start', 'resume', 'pause']) cues[k] = await meas((ctx) => playTimerCue(k, ctx), 2);
+      window.__lv = { oldA, newA, cues };
     })();
     return 1;`);
   await sleep(4000);
@@ -168,6 +194,7 @@ const OLD_ALARM = `function(ctx){const notes=[523.25,659.25,783.99,659.25,783.99
   ok('new chime is louder than the old (300ms RMS)', lv && lv.newA.rms > lv.oldA.rms * 1.15, JSON.stringify(lv));
   ok('…but only somewhat (under 1.6x)', lv && lv.newA.rms < lv.oldA.rms * 1.6, JSON.stringify(lv));
   ok('no clipping', lv && lv.newA.peak < 1, JSON.stringify(lv));
+  for (const k of ['start', 'resume', 'pause']) ok('cue "' + k + '" is audible and clean', lv && lv.cues[k].rms > 0.02 && lv.cues[k].peak < 0.9, JSON.stringify(lv && lv.cues[k]));
 
   ok('no page errors', errs.length === 0, errs.join(' | '));
   console.log(`\n${pass} passed, ${fail} failed`);
