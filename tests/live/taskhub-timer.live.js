@@ -90,9 +90,9 @@ const OLD_ALARM = `function(ctx){const notes=[523.25,659.25,783.99,659.25,783.99
   await c.send('Page.captureScreenshot', { format: 'png' }).then(r => require('fs').writeFileSync(shotPath('timer-tony'), Buffer.from(r.result.data, 'base64')));
 
   // Drag from the header (not a button) up and left.
-  await mouseDrag(c, b.x + 120, b.y + 20, -600, -400);
+  await mouseDrag(c, b.x + 120, b.y + 20, -600, -300);
   let b2 = await box(c);
-  ok('mouse drag moves it', b2 && Math.abs(b2.x - (b.x - 600)) <= 3 && Math.abs(b2.y - (b.y - 400)) <= 3, JSON.stringify({ b, b2 }));
+  ok('mouse drag moves it', b2 && Math.abs(b2.x - (b.x - 600)) <= 3 && Math.abs(b2.y - (b.y - 300)) <= 3, JSON.stringify({ b, b2 }));
   ok('spot saved for tony', await J(c, "return !!localStorage.getItem('a1_timer_pos_tony') && !localStorage.getItem('a1_timer_pos_veda');"));
   // A click on Start must start, not drag.
   const before = await box(c);
