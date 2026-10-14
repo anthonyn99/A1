@@ -15275,7 +15275,10 @@ function Pomodoro({onClose,T,look,profile}){
   const SZ=184,R=80,C=2*Math.PI*R;const pctOf=(ms)=>total>0?Math.min(1,ms/(total*1000)):0;const pct=done?0:pctOf(exactMs());
   const arcRef=useRef(null);const dotRef=useRef(null);
   // While running, a frame loop writes the ring straight to the DOM (the same
-  // style properties render sets, so the two never fight).
+  // style properties render sets, so the two never fight). Every stop clears
+  // endRef synchronously, and the loop (and the worker's tick handler) bail
+  // once it is 0: the effect cleanup runs only after React paints, and one
+  // stale frame in that gap used to redraw the old arc over a Reset.
   useEffect(()=>{if(!running)return;let id;const f=()=>{if(!endRef.current)return;const p=pctOf(exactMs());if(arcRef.current)arcRef.current.style.strokeDashoffset=C*(1-p);if(dotRef.current){dotRef.current.style.transform="rotate("+(360*p)+"deg)";dotRef.current.style.opacity=p>0.004?1:0;}id=requestAnimationFrame(f);};id=requestAnimationFrame(f);return()=>cancelAnimationFrame(id);},[running,total]);
   const ease=running?"none":"stroke-dashoffset .6s cubic-bezier(.4,0,.2,1), stroke .3s";
   const canAdj=mode===0&&!running&&!done;const ring=done?OK:AC;

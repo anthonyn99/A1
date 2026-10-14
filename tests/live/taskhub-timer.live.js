@@ -110,6 +110,24 @@ const OLD_ALARM = `function(ctx){const notes=[523.25,659.25,783.99,659.25,783.99
   await evalJs(c, "document.querySelector('.a1-timer button[aria-label=Pause]').click(); 1");
   await sleep(300);
   ok('Pause pauses', await J(c, "return /Paused/.test(document.querySelector('.a1-timer').textContent);"));
+  // Reset while running sends the ring back to the top every time (a stale
+  // animation frame once redrew the old arc after the reset).
+  await evalJs(c, "window._vdTimerExec('set', '1'); 1"); await sleep(200);
+  let resetBad = [];
+  for (const run of [1500, 2300, 3100, 1700, 2600, 900]) {
+    await evalJs(c, "document.querySelector('.a1-timer button[aria-label=Start]').click(); 1");
+    await sleep(run);
+    await evalJs(c, "document.querySelector('.a1-timer button[aria-label=Reset]').click(); 1");
+    await sleep(900);
+    const r = await J(c, "const t=document.querySelector('.a1-timer'); return {off:parseFloat([...t.querySelectorAll('circle')][1].style.strokeDashoffset), g:t.querySelector('g').style.transform, txt:/01:00/.test(t.textContent)};");
+    if (!(r.off === 0 && r.g === 'rotate(360deg)' && r.txt)) resetBad.push(run + ':' + JSON.stringify(r));
+  }
+  ok('Reset while running puts the ring back at the top (6 runs)', resetBad.length === 0, resetBad.join(' '));
+  await evalJs(c, "window._vdTimerExec('set', '25'); document.querySelector('.a1-timer button[aria-label=Start]').click(); 1");
+  await sleep(1200);
+  await evalJs(c, "document.querySelector('.a1-timer button[aria-label=Pause]').click(); 1");
+  await sleep(300);
+  const pAt = await arcOff(c);
   const p1 = await arcOff(c); await sleep(1200); const p2 = await arcOff(c);
   ok('ring holds still when paused', Math.abs(p1 - p2) < 0.01, p1 + ' vs ' + p2);
   ok('paused ring keeps its exact spot (not snapped to the second)', Math.abs(p1 - offs[offs.length - 1]) < 2, p1 + ' vs ' + offs[offs.length - 1]);
