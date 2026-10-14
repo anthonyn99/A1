@@ -132,11 +132,12 @@ def test_which_lines_are_the_site_failing():
         "I seem to be encountering an error. Can I try something else for you?",
         "I encountered an error doing what you asked. Could you try again?",
         "The server is busy. Please try again later.",
+        # Gemini, signed in, on a TaskHub CPI debrief (2026-10-14).
+        "I'm having a hard time fulfilling your request. Can I help you with something else instead?",
     ):
         assert validate.is_site_hiccup(line), line
     for line in (
         "I can't help with that.",
-        "I'm having a hard time fulfilling your request. Can I help you with something else instead?",
         "I am unable to perform real-time web searches or access live market data.",
         "",
         # A real answer that mentions an error in passing is long.
