@@ -15255,7 +15255,7 @@ function Pomodoro({onClose,T,look,profile}){
   const icon=(d,sz)=>RC("svg",{width:sz||16,height:sz||16,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round","aria-hidden":true},d);
   const roundBtn=(sz,primary)=>({width:sz,height:sz,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontFamily:FONT,padding:0,flexShrink:0,
     background:primary?(done?OK:AC):"transparent",color:primary?BGc:TXDc,border:primary?"none":"1px solid "+BDLc,
-    boxShadow:primary?"0 6px 18px "+(done?OK:AC)+"40":"none",transition:"background .2s, color .15s, border-color .15s, transform .12s"});
+    boxShadow:primary&&!magi?"0 6px 18px "+(done?OK:AC)+"40":"none",transition:"background .2s, color .15s, border-color .15s, transform .12s"});
   const step=(lbl,d,w)=>RC("button",{type:"button",...hfx,onClick:()=>canAdj&&adjWork(d),disabled:!canAdj,"aria-label":(d>0?"Add ":"Remove ")+Math.abs(d)+" minutes",
     style:{width:w,height:28,borderRadius:8,border:"1px solid "+BDLc,background:"transparent",color:canAdj?TXc:TXMc,opacity:canAdj?1:.35,cursor:canAdj?"pointer":"default",fontSize:12,fontWeight:600,fontFamily:FONT,...(magi?{fontVariantNumeric:"tabular-nums"}:{}),display:"flex",alignItems:"center",justifyContent:"center",padding:0,transition:"opacity .2s, border-color .15s"}},lbl);
   const status=done?"Complete":running?(mode===0?"Focusing":"On break"):(left<total?"Paused":"Ready");
@@ -15271,7 +15271,7 @@ function Pomodoro({onClose,T,look,profile}){
     // Header
     RC("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}},
       RC("div",{style:{display:"flex",alignItems:"center",gap:8}},
-        RC("span",{style:{width:7,height:7,borderRadius:"50%",background:ring,opacity:running||done?1:.45,boxShadow:running?"0 0 0 3px "+ring+"30":"none",transition:"all .3s"}}),
+        RC("span",{style:{width:7,height:7,borderRadius:"50%",background:ring,opacity:running||done?1:.45,boxShadow:running&&!magi?"0 0 0 3px "+ring+"30":"none",transition:"all .3s"}}),
         RC("span",{style:{fontFamily:HEAD,fontSize:11,fontWeight:magi?800:700,color:magi?ACL:AC,textTransform:"uppercase",letterSpacing:magi?1.8:2}},"Timer")),
       RC("button",{type:"button",...hfx,onClick:onClose,title:"Close","aria-label":"Close timer",style:{width:26,height:26,borderRadius:8,border:"none",background:"transparent",color:TXMc,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0}},
         icon([RC("path",{key:1,d:"M6 6l12 12"}),RC("path",{key:2,d:"M18 6L6 18"})],14))),
