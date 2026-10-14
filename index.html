@@ -24808,6 +24808,9 @@ function openSettings(profile){
   clearInterval(_lockPoll);
   // reflect lock changes made via the applock overlay — programs AND custom buttons
   _lockPoll=setInterval(function(){ refreshLocks(); refreshLinkPills(); },700);
+  // keeps "12m ago" honest while the panel stays open
+  clearInterval(_bkTimer);
+  _bkTimer=setInterval(refreshBackup,30000);
 }
 
 // ── Background scroll lock (no more scrolling the page behind the modal) ──
@@ -24829,6 +24832,7 @@ function closeSettings(){
   _overlay.style.display='none';
   unlockBgScroll();
   clearInterval(_lockPoll); _lockPoll=null;
+  clearInterval(_bkTimer); _bkTimer=null;
 }
 
 // Block touch scroll from leaking to the page behind the modal (iOS/Android).
