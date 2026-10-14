@@ -15160,7 +15160,7 @@ function _tmChain(ctx){
 }
 function _tmCtx(ctx){
   const own=!ctx;if(own)ctx=new(window.AudioContext||window.webkitAudioContext)();
-  if(ctx.state==="suspended"&&ctx.resume)ctx.resume();
+  if(own||!(ctx instanceof (window.OfflineAudioContext||Object))){try{const r=ctx.state==="suspended"&&ctx.resume();r&&r.catch&&r.catch(()=>{});}catch(e){}}
   return {ctx,own};
 }
 // The end-of-timer chime: a rising Cmaj7 arpeggio played twice, then a
@@ -15168,15 +15168,15 @@ function _tmCtx(ctx){
 function playAlarm(ctxIn){
   const {ctx,own}=_tmCtx(ctxIn);const out=_tmChain(ctx);const t0=ctx.currentTime+0.05;
   const arp=[523.25,659.25,783.99,987.77];
-  [0,1.5].forEach(off=>arp.forEach((f,i)=>_tmBell(ctx,out,f,t0+off+i*0.17,0.34-i*0.02)));
-  _tmBell(ctx,out,1046.5,t0+3.0,0.36);_tmBell(ctx,out,523.25,t0+3.0,0.24);
+  [0,1.5].forEach(off=>arp.forEach((f,i)=>_tmBell(ctx,out,f,t0+off+i*0.17,0.24-i*0.015)));
+  _tmBell(ctx,out,1046.5,t0+3.0,0.25);_tmBell(ctx,out,523.25,t0+3.0,0.17);
   if(own)setTimeout(()=>{try{ctx.close();}catch(e){}},7000);
 }
 // Quiet single-note cues for start (up a fifth) and pause (down).
 function playTimerCue(kind,ctxIn){
   const {ctx,own}=_tmCtx(ctxIn);const out=_tmChain(ctx);const t=ctx.currentTime+0.02;
-  if(kind==="start"){_tmBell(ctx,out,659.25,t,0.14);_tmBell(ctx,out,987.77,t+0.09,0.12);}
-  else _tmBell(ctx,out,587.33,t,0.12);
+  if(kind==="start"){_tmBell(ctx,out,659.25,t,0.1);_tmBell(ctx,out,987.77,t+0.09,0.085);}
+  else _tmBell(ctx,out,587.33,t,0.085);
   if(own)setTimeout(()=>{try{ctx.close();}catch(e){}},3000);
 }
 const workerBlob=new Blob([`let iv=null,end=0;onmessage=function(e){if(e.data.cmd==="start"){clearInterval(iv);end=Date.now()+e.data.secs*1000;iv=setInterval(function(){const rem=Math.round((end-Date.now())/1000);if(rem<=0){clearInterval(iv);iv=null;postMessage({type:"done"});}else postMessage({type:"tick",left:rem});},250);}else if(e.data.cmd==="stop"){clearInterval(iv);iv=null;}};`],{type:"application/javascript"});
