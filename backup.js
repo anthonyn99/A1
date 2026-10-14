@@ -1624,7 +1624,7 @@
     try {
       if (killed()) { out.label = 'Backups paused'; out.why = 'paused on this device'; return out; }
       if (!setupDone()) {
-        out.label = 'Backups off'; out.why = 'no passphrase set on this device';
+        out.label = 'Backups off'; out.why = 'no passphrase set yet';
         out.canSetUp = true;
         return out;
       }
