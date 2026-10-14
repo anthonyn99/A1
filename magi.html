@@ -383,8 +383,13 @@ input, select, textarea, button { font-variant-numeric: tabular-nums; }
 .turn-file-n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .turn-file-x { flex: none; color: var(--txm); white-space: nowrap; }
 @media (max-width: 600px) { .turn-file { font-size: 11.5px; max-width: 100%; } }
+.turn-qbox { position: relative; min-width: 0; max-width: 100%; display: flex; }
+.turn-qbox .turn-q { padding-right: 26px; }
+.turn-qbox .a1-grip { border-radius: 0 0 4px 0; }
 .turn-q.clamped { display: -webkit-box; -webkit-line-clamp: 4;
                   -webkit-box-orient: vertical; overflow: hidden; }
+/* Dragged open by hand: show the whole prompt in the chosen height. */
+.turn-q[data-user-h] { display: block; overflow-y: auto; -webkit-line-clamp: unset; }
 .turn-tag { display: flex; align-items: center; gap: 6px; align-self: flex-end;
             font-size: 10px; font-weight: 700; letter-spacing: 1px;
             text-transform: uppercase; color: var(--txm); }
@@ -10768,8 +10773,14 @@ function qBubble(q, files) {
   const copy = copyButton(() => ({ md: String(q || "") }),
                           { cls: "turn-q-copy", plain: true });
   copy.title = "Copy this prompt";
+  // The corner grip (resizegrip.js, the same one every prompt box uses) lets
+  // a long sent prompt be dragged open; the box is its positioned frame.
+  const box = el("div", "turn-qbox");
+  const grip = A1Resize.grip("this prompt");
+  box.append(b, grip);
+  A1Resize.attach(b, grip, null, () => b.classList.add("clamped"));
   const row = el("div", "turn-qrow");
-  row.append(copy, b);
+  row.append(copy, box);
   const names = (files || []).filter(Boolean);
   if (!names.length) return row;
   // Attached files sit under the prompt as a wrapped, right-aligned list of
