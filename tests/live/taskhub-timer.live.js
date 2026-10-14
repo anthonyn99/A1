@@ -166,7 +166,7 @@ const OLD_ALARM = `function(ctx){const notes=[523.25,659.25,783.99,659.25,783.99
   const lv = await J(c, 'return window.__lv;');
   console.log('       ' + JSON.stringify(lv));
   ok('new chime is louder than the old (300ms RMS)', lv && lv.newA.rms > lv.oldA.rms * 1.15, JSON.stringify(lv));
-  ok('…but only somewhat (under 1.7x)', lv && lv.newA.rms < lv.oldA.rms * 1.7, JSON.stringify(lv));
+  ok('…but only somewhat (under 1.6x)', lv && lv.newA.rms < lv.oldA.rms * 1.6, JSON.stringify(lv));
   ok('no clipping', lv && lv.newA.peak < 1, JSON.stringify(lv));
 
   ok('no page errors', errs.length === 0, errs.join(' | '));

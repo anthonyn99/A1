@@ -15151,7 +15151,7 @@ function _tmChain(ctx){
   comp.threshold.setValueAtTime(-14,ctx.currentTime);comp.knee.setValueAtTime(12,ctx.currentTime);
   comp.ratio.setValueAtTime(3,ctx.currentTime);comp.attack.setValueAtTime(0.004,ctx.currentTime);comp.release.setValueAtTime(0.25,ctx.currentTime);
   comp.connect(ctx.destination);
-  const dry=ctx.createGain();dry.gain.value=1;dry.connect(comp);
+  const dry=ctx.createGain();dry.gain.value=0.8;dry.connect(comp);
   const len=Math.floor(ctx.sampleRate*1.8),ir=ctx.createBuffer(2,len,ctx.sampleRate);
   for(let ch=0;ch<2;ch++){const d=ir.getChannelData(ch);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,3);}
   const rev=ctx.createConvolver();rev.buffer=ir;const wet=ctx.createGain();wet.gain.value=0.2;
