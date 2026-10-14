@@ -752,3 +752,43 @@ def test_codex_windows_are_named_the_way_you_would_say_them():
     assert codex_cli._window_name(43200) == "30d"
     assert codex_cli._window_name(10080) == "7d"
     assert codex_cli._window_name(45) == "45m"
+
+
+# ── one Codex sandbox state for every CODEX_HOME ───────────────────────────
+
+@pytest.mark.skipif(os.name != "nt", reason="junctions and Codex's elevated sandbox are Windows-only")
+def test_every_codex_slot_shares_one_sandbox_state(tmp_path, monkeypatch):
+    """Each home's own copy of the sandbox passwords went stale whenever
+    another home ran setup, and the next command there asked Windows for an
+    admin Yes again: ~125 prompts on Tony's PC (2026-10-14)."""
+    share = slots.share_sandbox.real
+    shared = tmp_path / "dot-codex"
+    monkeypatch.setattr(slots, "shared_codex_home", lambda: shared)
+    home = tmp_path / "cli" / "codex-work"
+    (home / ".sandbox-secrets").mkdir(parents=True)
+    (home / ".sandbox-secrets" / "sandbox_users.json").write_text("stale")
+    (home / "auth.json").write_text("{}")
+    share(home)
+    for name in slots.SANDBOX_DIRS:
+        assert (home / name).is_junction(), name
+        assert (home / name).resolve() == (shared / name).resolve()
+    assert not (shared / ".sandbox-secrets" / "sandbox_users.json").exists(), "the stale copy is gone"
+    assert (home / "auth.json").read_text() == "{}", "the login is untouched"
+    (shared / ".sandbox" / "setup_marker.json").write_text("ok")
+    assert (home / ".sandbox" / "setup_marker.json").read_text() == "ok", "one state, seen from both"
+    share(home)                                  # again: nothing changes
+    assert all((home / n).is_junction() for n in slots.SANDBOX_DIRS)
+
+
+def test_share_sandbox_never_makes_a_slot(tmp_path, monkeypatch):
+    monkeypatch.setattr(slots, "shared_codex_home", lambda: tmp_path / "dot-codex")
+    slots.share_sandbox.real(tmp_path / "cli" / "codex-ghost")
+    assert not (tmp_path / "cli").exists()
+
+
+def test_the_shared_home_itself_is_left_alone(tmp_path, monkeypatch):
+    shared = tmp_path / "dot-codex"
+    (shared / ".sandbox").mkdir(parents=True)
+    monkeypatch.setattr(slots, "shared_codex_home", lambda: shared)
+    slots.share_sandbox.real(shared)
+    assert not (shared / ".sandbox").is_junction()

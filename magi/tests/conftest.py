@@ -31,4 +31,5 @@ def _no_sandbox_links_from_scratch_homes(monkeypatch):
             return None
         return real(home)
 
+    guarded.real = real   # for the tests of share_sandbox itself
     monkeypatch.setattr(slots, "share_sandbox", guarded)
