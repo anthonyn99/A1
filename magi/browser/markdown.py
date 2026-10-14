@@ -69,7 +69,7 @@ DOM_TO_MARKDOWN_JS = """
   // "**Oil above $100:** Brent at $106+" unbolded (the $ signs trip it), and
   // escaped, it reached the console as literal asterisks (2026-10-14).
   const esc = (s) => s.split(/(\\*\\*(?=[^\\s*])[^*\\n]{0,200}?[^\\s*\\\\]\\*\\*)/)
-    .map((part, k) => k % 2 ? '**' + esc1(part.slice(2, -2)) + '**' : esc1(part))
+    .map((part, k) => k %% 2 ? '**' + esc1(part.slice(2, -2)) + '**' : esc1(part))
     .join('');
 
   // KaTeX keeps the TeX the model wrote in an annotation; everything visible
