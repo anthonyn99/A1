@@ -24644,6 +24644,105 @@ window._thsetRefreshOrder=refreshOrder;
 var _overlay=document.getElementById('thset-overlay');
 var _box=document.getElementById('thset-box');
 
+// ── Backup — this device's backup status (backup.js), collapsed to one row ──
+// It used to be a floating "Backed up" chip pinned bottom-left, which on a phone
+// sat on top of Notebook's edit/view button and TaskHub rows. backup.js owns
+// the words (A1Backup.summary); this owns the layout. Read-only, so opening it
+// costs nothing: no capture, no push, no KV write.
+var BK_CHEVRON='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+var _bkOpen=false, _bkTimer=null, _bkSeq=0;
+function bkAgo(t){
+  if(!t) return '';
+  var m=Math.round((Date.now()-Number(t))/60000);
+  if(m<1) return 'just now';
+  if(m<60) return m+'m ago';
+  var h=Math.round(m/60);
+  if(h<48) return h+'h ago';
+  return Math.round(h/24)+'d ago';
+}
+function bkWhen(t){
+  try{ return new Date(Number(t)).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}); }catch(e){ return ''; }
+}
+function bkEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+function bkStat(label,value,sub){
+  return '<div class="thset-bk-stat"><div class="thset-bk-k">'+bkEsc(label)+'</div>'+
+    '<div class="thset-bk-v">'+bkEsc(value)+'</div>'+
+    (sub?'<div class="thset-bk-s">'+bkEsc(sub)+'</div>':'')+'</div>';
+}
+function renderBackupRow(container,profile){
+  container.innerHTML='';
+  var card=document.createElement('div');
+  card.className='thset-row thset-bk'; card.id='thset-bk'; card.setAttribute('data-state','off');
+  var head=document.createElement('button');
+  head.type='button'; head.className='thset-bk-head';
+  head.setAttribute('aria-expanded',_bkOpen?'true':'false');
+  head.setAttribute('aria-controls','thset-bk-body');
+  head.innerHTML='<i class="thset-bk-dot"></i>'+
+    '<span class="thset-label">Backup</span>'+
+    '<span class="thset-bk-sum">Checking…</span>'+
+    '<span class="thset-bk-chev">'+BK_CHEVRON+'</span>';
+  var body=document.createElement('div');
+  body.className='thset-bk-body'; body.id='thset-bk-body';
+  body.hidden=!_bkOpen;
+  head.addEventListener('click',function(){
+    _bkOpen=!_bkOpen;
+    head.setAttribute('aria-expanded',_bkOpen?'true':'false');
+    body.hidden=!_bkOpen;
+    if(_bkOpen) refreshBackup();
+  });
+  card.appendChild(head); card.appendChild(body);
+  container.appendChild(card);
+  refreshBackup();
+}
+async function refreshBackup(){
+  var card=document.getElementById('thset-bk'); if(!card) return;
+  var seq=++_bkSeq;
+  var sum;
+  if(!window.A1Backup||typeof A1Backup.summary!=='function'){
+    sum={state:'off',label:'Unavailable',why:'backups are not loaded on this page'};
+  } else {
+    try{ sum=await A1Backup.summary(); }catch(e){ sum={state:'warn',label:'Backup problem',why:String(e&&(e.message||e))}; }
+  }
+  if(seq!==_bkSeq||!document.body.contains(card)) return;   // a newer refresh or a re-render won
+  var st=sum.status||{};
+  card.setAttribute('data-state',sum.state);
+  var short=sum.state==='ok'&&st.lastSnapshot ? (st.pushedOffDevice?'Backed up':'Saved locally')+' · '+bkAgo(st.lastSnapshot) : sum.label;
+  card.querySelector('.thset-bk-sum').textContent=short;
+  card.querySelector('.thset-bk-head').title=sum.label+(sum.why?' — '+sum.why:'');
+
+  var body=card.querySelector('.thset-bk-body');
+  var msg = sum.state==='ok'
+    ? (st.pushedOffDevice ? 'Healthy. Everything on this device is saved, encrypted, and copied off the device.'
+                          : 'Healthy. Saved and encrypted on this device; the off-device copy follows on the next sync.')
+    : sum.state==='warn' ? 'Problem: '+sum.why+'. Your data still syncs normally; this is the extra backup copy. Reloading usually restarts it.'
+    : (sum.label==='Backups paused' ? 'Backups are paused on this device.'
+       : 'Backups are off on this device — '+(sum.why||'not set up')+'.');
+  var html='<div class="thset-bk-msg">'+bkEsc(msg)+'</div>';
+  if(sum.status){
+    html+='<div class="thset-bk-grid">'+
+      bkStat('Last backup', st.lastSnapshot?bkAgo(st.lastSnapshot):'Never', st.lastSnapshot?bkWhen(st.lastSnapshot):'')+
+      bkStat('Off device', st.pushedOffDevice?'Yes':'Not yet', st.lastPushedAt?'last '+bkAgo(st.lastPushedAt):'local copy only')+
+      bkStat('Snapshots', st.snapshots||0, 'kept on this device')+
+      bkStat('Documents', st.observed||0, 'being watched')+
+      bkStat('Stored pieces', st.objects||0, 'encrypted')+
+      bkStat('Uploads today', st.pushesToday||0, '')+
+    '</div>';
+    if(st.device) html+='<div class="thset-bk-foot">This device · '+bkEsc(st.device)+'</div>';
+  }
+  if(sum.canSetUp&&window.A1Backup&&A1Backup.setup){
+    html+='<button type="button" class="thset-btn thset-bk-on" style="background:'+ACCENT[_curProfile]+';color:'+(_curProfile==='tony'?'#1a1a1d':'#fff')+';">Turn on backups</button>';
+  }
+  body.innerHTML=html;
+  var on=body.querySelector('.thset-bk-on');
+  if(on) on.addEventListener('click',function(){
+    Promise.resolve(A1Backup.setup()).catch(function(){}).then(refreshBackup);
+  });
+}
+// backup.js announces captures, pushes, a new passphrase and the pause switch.
+window.addEventListener('a1backup:change',function(){
+  if(_overlay.style.display!=='none') refreshBackup();
+});
+
 function openSettings(profile){
   _curProfile=profile;
   var accent=ACCENT[profile];
@@ -24661,6 +24760,10 @@ function openSettings(profile){
       '<div class="thset-sec-title">Profile Lock</div>'+
       '<div id="thset-suitelock"></div>'+
       '<div id="thset-mainrow"></div>'+
+    '</div>'+
+    '<div class="thset-sec">'+
+      '<div class="thset-sec-title">Backup</div>'+
+      '<div id="thset-backup"></div>'+
     '</div>'+
     '<div class="thset-sec">'+
       '<div class="thset-sec-title">Internal Programs</div>'+
@@ -24682,6 +24785,8 @@ function openSettings(profile){
   _box.querySelector('.thset-close').addEventListener('click',closeSettings);
   renderSuiteLock(document.getElementById('thset-suitelock'),profile);
   renderMainDeviceRow(document.getElementById('thset-mainrow'),profile);
+  _bkOpen=false;
+  renderBackupRow(document.getElementById('thset-backup'),profile);
   renderLockList(document.getElementById('thset-locklist'),profile);
   renderLinkList(document.getElementById('thset-linklist'),profile);
 
