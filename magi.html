@@ -6034,7 +6034,7 @@ body { max-width: 2000px; margin-inline: auto; }
         <button type="button" class="btn qbar-queue" id="btnQueue"
                 title="Add this prompt to the queue instead of running it now">Queue</button>
         <button type="button" class="a1-grip" id="composerGrip"
-                title="Drag to resize. Click to expand or compress."
+                title="Drag to resize."
                 aria-label="Resize the prompt box"></button>
       </div>
     </div>
@@ -9952,7 +9952,7 @@ function autosize() {
 }
 
 /* The prompt boxes resize with resizegrip.js (A1Resize): drag the corner
- * grip for a height, click it to expand or compress. While a height is
+ * grip for a height (a click does nothing). While a height is
  * chosen by hand the box carries data-user-h and autosize leaves it alone.
  * Heights are kept as a1.h.magi.<box>; MAGI's own copy kept them as
  * magi.h.<box>, carried over once here. */
