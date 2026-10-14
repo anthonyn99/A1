@@ -60,10 +60,17 @@ DOM_TO_MARKDOWN_JS = """
   // gives the same thing. Without this, an answer that displayed
   // "*This is not italicized*" arrived as italics. An underscore inside a word
   // (snake_case) is left alone: it cannot start emphasis anyway.
-  const esc = (s) => s
+  const esc1 = (s) => s
     .replace(/([\\\\`*~])/g, '\\\\$1')
     .replace(/_/g, (m, off, str) =>
       (/\\w/.test(str[off - 1] || '') && /\\w/.test(str[off + 1] || '')) ? '_' : '\\\\_');
+  // Except a "**phrase**" pair: that is the site's renderer missing bold the
+  // model wrote, not the model showing asterisks. DeepSeek left
+  // "**Oil above $100:** Brent at $106+" unbolded (the $ signs trip it), and
+  // escaped, it reached the console as literal asterisks (2026-10-14).
+  const esc = (s) => s.split(/(\\*\\*(?=[^\\s*])[^*\\n]{0,200}?[^\\s*\\\\]\\*\\*)/)
+    .map((part, k) => k % 2 ? '**' + esc1(part.slice(2, -2)) + '**' : esc1(part))
+    .join('');
 
   // KaTeX keeps the TeX the model wrote in an annotation; everything visible
   // is layout, and flattening it gave "∫0∞e−xdx=1".
