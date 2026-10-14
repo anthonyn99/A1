@@ -136,6 +136,23 @@ def site_error_detail(name: str, said: str) -> str:
     return (f"{name}'s servers refused the message: \"{said}\". This is on "
             f"{name}'s side, not MAGI's; it was not sent.")
 
+
+async def open_site(page, site: SiteSelectors, *, tries: int = 2) -> None:
+    """Navigate to the site, retrying once. Waits for the DOM, not "load":
+    the composer wait that follows is the real readiness check, and a slow
+    third-party resource once held Perplexity's load event past 45s
+    (2026-10-14) on a page that was otherwise usable."""
+    for attempt in range(tries):
+        try:
+            await page.goto(site.url, timeout=site.nav_timeout_s * 1000,
+                            wait_until="domcontentloaded")
+            return
+        except Exception:
+            if attempt == tries - 1:
+                raise
+            await asyncio.sleep(2)
+
+
 class BrowserProvider(Provider):
     kind = "browser"
 
@@ -348,7 +365,7 @@ class BrowserProvider(Provider):
                 # -- navigate ------------------------------------------------
                 await self._emit(on_event, ProviderState.NAVIGATING, started=t0)
                 try:
-                    await page.goto(site.url, timeout=site.nav_timeout_s * 1000)
+                    await open_site(page, site)
                 except Exception as e:
                     return fail(FailureKind.NAVIGATION, str(e)[:400])
                 await asyncio.sleep(self.settings.pacing.sample_post_nav())
@@ -799,7 +816,7 @@ class BrowserProvider(Provider):
             headless=True if site.headless_ok else None,
         ) as browser_ctx:
             page = browser_ctx.pages[0] if browser_ctx.pages else await browser_ctx.new_page()
-            await page.goto(site.url, timeout=site.nav_timeout_s * 1000)
+            await open_site(page, site)
             await asyncio.sleep(self.settings.pacing.sample_post_nav())
             if await resolve.resolve(page, site.input, timeout_ms=site.ready_timeout_s * 1000) is None:
                 return []
@@ -818,7 +835,7 @@ class BrowserProvider(Provider):
             async with launcher.launch(self.id, self.settings.browser) as ctx:
                 page = ctx.pages[0] if ctx.pages else await ctx.new_page()
                 try:
-                    await page.goto(site.url, timeout=site.nav_timeout_s * 1000)
+                    await open_site(page, site)
                 except Exception as e:
                     report.error = f"Navigation failed: {str(e)[:200]}"
                     return report
