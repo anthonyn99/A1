@@ -77,6 +77,7 @@ def env_for(agent: str, slot: str) -> dict[str, str]:
         env["DISABLE_AUTOUPDATER"] = "1"
     elif agent == "codex":
         env["CODEX_HOME"] = str(d)
+        share_sandbox(d)
         # Codex's unelevated sandbox cannot start anything under a WindowsApps
         # folder (Store apps and their aliases): "CreateProcessAsUserW failed:
         # 5 (Access is denied.)". With the Store PowerShell 7 on PATH, every
@@ -87,6 +88,54 @@ def env_for(agent: str, slot: str) -> dict[str, str]:
             env[k] = os.pathsep.join(p for p in env[k].split(os.pathsep)
                                      if "windowsapps" not in re.split(r"[\\/]", p.lower()))
     return env
+
+
+# ── one Codex sandbox for every CODEX_HOME ─────────────────────────────────
+# Codex keeps its elevated sandbox's state in CODEX_HOME: the setup marker
+# (.sandbox), the two sandbox accounts' passwords (.sandbox-secrets) and its
+# helper copies (.sandbox-bin). The ACCOUNTS, CodexSandboxOffline/Online, are
+# one pair per PC. So every home that ran setup set new passwords and left
+# every other home's stored ones stale, and that home's next sandboxed
+# command found "sandbox users missing or incompatible" and ran the setup
+# again -- behind a Windows admin prompt. The shell (~/.codex) and each slot
+# took turns: ~125 prompts on Tony's PC, 2026-09-24..10-14. Every slot's three
+# folders are junctions to ~/.codex's instead, so one setup serves them all.
+SANDBOX_DIRS = (".sandbox", ".sandbox-secrets", ".sandbox-bin")
+
+
+def shared_codex_home() -> Path:
+    """The home the agents' shell (code/shell.py) runs Codex's sandbox under:
+    Codex's default, as it sets no CODEX_HOME."""
+    return Path.home() / ".codex"
+
+
+def share_sandbox(home: Path | None) -> None:
+    """Point `home`'s sandbox folders at the shared ones. Never raises: a
+    folder that cannot be replaced yet (a helper in it still running) is
+    tried again on the next run."""
+    if os.name != "nt" or home is None:
+        return
+    shared = shared_codex_home()
+    try:
+        if home.resolve() == shared.resolve():
+            return
+    except OSError:
+        return
+    for name in SANDBOX_DIRS:
+        link, target = home / name, shared / name
+        try:
+            if link.is_junction():
+                continue
+            target.mkdir(parents=True, exist_ok=True)
+            home.mkdir(parents=True, exist_ok=True)
+            if link.exists() or os.path.lexists(link):
+                # This home's own copy: stale passwords, its own marker and
+                # log. Nothing in it is needed once the shared one is used.
+                shutil.rmtree(link) if link.is_dir() else link.unlink()
+            proc.run(["cmd.exe", "/d", "/c", "mklink", "/J", str(link), str(target)],
+                     capture_output=True, timeout=20)
+        except (OSError, subprocess.SubprocessError):
+            continue
 
 
 def cli_path(agent: str) -> str | None:
