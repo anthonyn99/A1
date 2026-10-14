@@ -222,7 +222,13 @@ _SITE_HICCUP = re.compile(
     r"|\b(?:an? )?(?:error|problem) (?:occurred|has occurred|was encountered)"
     r"|\bserver is busy\b|\bnetwork error\b"
     r"|\bthe (?:response|request) (?:was )?(?:interrupted|failed|timed out)\b"
-    r"|\bunable to (?:generate|load|complete) (?:a |the )?(?:response|answer)\b",
+    r"|\bunable to (?:generate|load|complete) (?:a |the )?(?:response|answer)\b"
+    # "I'm having a hard time fulfilling your request. Can I help you with
+    # something else instead?" -- Gemini's third wording of the same signed-in
+    # failure: a TaskHub CPI debrief got it on 2026-10-14, the morning after
+    # its signed-out retry answered the market report. Not the model judging
+    # the question; it is the line Gemini shows when its search step fails.
+    r"|\bhaving (?:a )?(?:hard|difficult) time fulfilling (?:your|this|the) request\b",
     re.IGNORECASE,
 )
 
