@@ -194,6 +194,32 @@ const CFG = { tony: { units: ['grok'] }, veda: { units: ['gemini', 'claude'] }, 
     await sleep(1800);
     d = JSON.parse(await js(`return JSON.stringify(__fakeFs.docs['dashboards/catalyst_debrief']);`));
     ok('Reset to default stores it empty again', d.templates.earnings === '', d.templates.earnings);
+
+    // "Set as default" (2026-10-14): the prompt becomes what Reset restores.
+    const type = (v) => js(`var ta=document.querySelector('textarea[aria-label="Earnings debrief template"]'); var set=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set; set.call(ta,${JSON.stringify(v)}); ta.dispatchEvent(new Event('input',{bubbles:true})); 1`);
+    const press = (re) => js(`var b=[...document.querySelectorAll('button')].find(b=>${re}.test(b.textContent)); if(b) b.click(); return !!b && !b.disabled;`);
+    const tplVal = () => js(`return document.querySelector('textarea[aria-label="Earnings debrief template"]').value;`);
+    ok('Set as default is held while the prompt IS the default', await js(`return [...document.querySelectorAll('button')].find(b=>/Set as default/.test(b.textContent)).disabled;`));
+    await type('My default for {ticker}');
+    await sleep(300);
+    await press('/Set as default/');
+    await sleep(1800);
+    d = JSON.parse(await js(`return JSON.stringify(__fakeFs.docs['dashboards/catalyst_debrief']);`));
+    ok('Set as default stores the prompt as the default', d.defaults && d.defaults.earnings === 'My default for {ticker}', JSON.stringify(d.defaults));
+    ok('…and the template, now equal to it, is stored empty', d.templates.earnings === '', d.templates.earnings);
+    ok('…and the macro default stays the built-in one (empty)', d.defaults.macro === '');
+    await shot('tradehub-set-default');
+    await type('A one-off edit');
+    await sleep(300);
+    await press('/Reset to default/');
+    await sleep(1800);
+    ok('Reset to default restores the one Tony set', await tplVal() === 'My default for {ticker}', await tplVal());
+    ok('…then offers Reset to built-in', await js(`return [...document.querySelectorAll('button')].some(b=>/Reset to built-in/.test(b.textContent)&&!b.disabled);`));
+    await press('/Reset to built-in/');
+    await sleep(1800);
+    d = JSON.parse(await js(`return JSON.stringify(__fakeFs.docs['dashboards/catalyst_debrief']);`));
+    ok('Reset to built-in brings back the built-in prompt', await tplVal() === await js(`return window.A1Debrief.TEMPLATES.earnings;`));
+    ok('…and clears the stored default', d.defaults.earnings === '' && d.templates.earnings === '', JSON.stringify(d));
   }
 
   const real = errs.filter((e) => !/firebase|gstatic|googleapis|Failed to fetch|NetworkError|recaptcha|appCheck|App Check/i.test(e));
