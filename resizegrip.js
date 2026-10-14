@@ -8,9 +8,11 @@
  * The grip is a real button pinned over the box's bottom-right corner: 38px
  * of invisible hit area under a small two-stroke hatch. Drag it (3px or more)
  * and the box takes that height, between 26px and max(160px, 60% of the
- * viewport). Click it, or press Enter / Space on it, and it toggles: a box at
- * its natural height expands (+120px, at least 260px); a box sized by hand
- * goes back to auto. A hand-chosen height overrides the box's own CSS min- and
+ * viewport). A click does nothing: it used to toggle expand / compress, and a
+ * drag that barely moved kept snapping the box (Tony, 2026-10-14). Enter /
+ * Space on it still toggle, so a keyboard can resize: a box at its natural
+ * height expands (+120px, at least 260px); a box sized by hand goes back to
+ * auto. A hand-chosen height overrides the box's own CSS min- and
  * max-height, so the drag never stops halfway, and is remembered per box in
  * localStorage.
  *
@@ -32,7 +34,7 @@
   if (window.A1Resize) return;
 
   var MIN = 26;
-  var CLICK_PX = 3;
+  var DRAG_PX = 3;
   var STORE = 'a1.h.';
 
   var CSS = [
@@ -83,7 +85,7 @@
     var g = document.createElement('button');
     g.type = 'button';
     g.className = 'a1-grip';
-    g.title = 'Drag to resize. Click to expand or compress.';
+    g.title = 'Drag to resize.';
     g.setAttribute('aria-label', 'Resize ' + (label || 'the box'));
     return g;
   }
@@ -130,20 +132,18 @@
       if (e.pointerId !== id) return;
       var dy = e.clientY - y0;
       moved = Math.max(moved, Math.abs(dy));
-      if (moved < CLICK_PX) return;         // not a drag yet, just a press
+      if (moved < DRAG_PX) return;         // not a drag yet, just a press
       apply(Math.max(MIN, Math.min(h0 + dy, cap())));
     });
     var end = function (e) {
       if (e.pointerId !== id) return;
       try { g.releasePointerCapture(id); } catch (err) {}
       id = null;
-      // A press that went nowhere is a click: toggle instead of resize.
-      if (moved < CLICK_PX && e.type === 'pointerup') toggle(h0);
     };
     g.addEventListener('pointerup', end);
     g.addEventListener('pointercancel', end);
-    // A click the pointer path already handled must not toggle twice; a
-    // keyboard Enter / Space arrives as keydown, below.
+    // A click is not a resize; a keyboard Enter / Space arrives as keydown,
+    // below.
     g.addEventListener('click', function (e) { e.preventDefault(); });
     g.addEventListener('keydown', function (e) {
       if (e.key !== 'Enter' && e.key !== ' ') return;
