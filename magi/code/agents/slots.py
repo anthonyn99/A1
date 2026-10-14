@@ -122,6 +122,7 @@ def share_sandbox(home: Path | None) -> None:
             return
     except OSError:
         return
+    _adopt_newer_setup(home, shared)
     for name in SANDBOX_DIRS:
         link, target = home / name, shared / name
         try:
@@ -136,6 +137,29 @@ def share_sandbox(home: Path | None) -> None:
                      capture_output=True, timeout=20)
         except (OSError, subprocess.SubprocessError):
             continue
+
+
+_MARKER = (".sandbox", "setup_marker.json")
+_USERS = (".sandbox-secrets", "sandbox_users.json")
+
+
+def _adopt_newer_setup(home: Path, shared: Path) -> None:
+    """Before `home`'s own copy goes: when its setup is the newer one, its
+    passwords are the ones Windows has now, so they become the shared copy --
+    otherwise the switch itself would cost one more admin prompt. The marker
+    and the passwords move together; they are one setup."""
+    mine, theirs = home.joinpath(*_MARKER), shared.joinpath(*_MARKER)
+    try:
+        if home.joinpath(_MARKER[0]).is_junction() or not mine.is_file() \
+                or not home.joinpath(*_USERS).is_file():
+            return
+        if theirs.is_file() and theirs.stat().st_mtime >= mine.stat().st_mtime:
+            return
+        for parts in (_USERS, _MARKER):
+            shared.joinpath(parts[0]).mkdir(parents=True, exist_ok=True)
+            shutil.copy2(home.joinpath(*parts), shared.joinpath(*parts))
+    except OSError:
+        pass
 
 
 def cli_path(agent: str) -> str | None:
