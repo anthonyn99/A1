@@ -72,7 +72,7 @@ console.log('resizegrip.js');
 {
   const w = boot();
   const { ta, g } = make(w, null, 100);
-  ok('grip is a real button with the MAGI title', g.tagName === 'BUTTON' && g.type === 'button' && /Drag to resize\. Click to expand or compress\./.test(g.title));
+  ok('grip is a real button with the MAGI title', g.tagName === 'BUTTON' && g.type === 'button' && g.title === 'Drag to resize.');
   ok('grip aria-label names the box', g.getAttribute('aria-label') === 'Resize the test box');
   ok('CSS injected once', w.document.querySelectorAll('#a1-resizegrip-css').length === 1);
   ok('native resize corner is switched off', ta.classList.contains('a1-grip-box') && /\.a1-grip-box \{ resize: none !important; \}/.test(w.document.getElementById('a1-resizegrip-css').textContent));
@@ -92,17 +92,22 @@ console.log('resizegrip.js');
   const w = boot();
   let autos = 0;
   const { ta, g } = make(w, null, 100, () => autos++);
+  // A click used to toggle expand / compress; a drag that barely moved kept
+  // snapping the box (Tony, 2026-10-14). Only the keyboard toggles now.
   click(w, g);
-  ok('click on a natural box expands to at least 260px', ta.style.height === '260px', ta.style.height);
+  ok('a click does not resize', ta.style.height === '' && !ta.hasAttribute('data-user-h'), ta.style.height);
+  dragBy(w, g, 40);
   click(w, g);
-  ok('click on a sized box hands it back to auto', ta.style.height === '' && ta.style.minHeight === '' && ta.style.maxHeight === '' && !ta.hasAttribute('data-user-h') && !g.classList.contains('on'));
-  ok('handing back calls onAuto', autos === 1, autos);
-  ta.dataset.h = '400';
-  click(w, g);
-  ok('expand is +120px when that is more than 260', ta.style.height === '520px', ta.style.height);
-  click(w, g);
+  ok('a click does not hand a sized box back either', ta.style.height === '140px', ta.style.height);
   key(w, g, 'Enter');
-  ok('Enter toggles like a click', ta.style.height === '520px', ta.style.height);
+  ok('Enter on a sized box hands it back to auto', ta.style.height === '' && ta.style.minHeight === '' && ta.style.maxHeight === '' && !ta.hasAttribute('data-user-h') && !g.classList.contains('on'));
+  ok('handing back calls onAuto', autos === 1, autos);
+  key(w, g, 'Enter');
+  ok('Enter on a natural box expands to at least 260px', ta.style.height === '260px', ta.style.height);
+  key(w, g, 'Enter');
+  ta.dataset.h = '400';
+  key(w, g, 'Enter');
+  ok('expand is +120px when that is more than 260', ta.style.height === '520px', ta.style.height);
   key(w, g, ' ');
   ok('Space toggles back', ta.style.height === '');
   key(w, g, 'a');
@@ -118,7 +123,7 @@ console.log('resizegrip.js');
   w.localStorage.setItem('a1.h.big', '9000');
   const c = make(w, 'big', 100);
   ok('a stored height above the cap is clamped', c.ta.style.height === '600px', c.ta.style.height);
-  click(w, b.g);
+  key(w, b.g, 'Enter');
   ok('handing back clears the stored height', w.localStorage.getItem('a1.h.mj.prompt') === null);
   const d = make(w, null, 100);
   dragBy(w, d.g, 40);
@@ -127,7 +132,7 @@ console.log('resizegrip.js');
 {
   const w = boot(true);
   let threw = null, r;
-  try { r = make(w, 'x', 100); dragBy(w, r.g, 60); click(w, r.g); click(w, r.g); } catch (e) { threw = e; }
+  try { r = make(w, 'x', 100); dragBy(w, r.g, 60); key(w, r.g, 'Enter'); key(w, r.g, 'Enter'); } catch (e) { threw = e; }
   ok('storage that throws does not break the grip', !threw && r && r.ta.style.height === '260px', threw || (r && r.ta.style.height));
 }
 {
