@@ -20,6 +20,12 @@ while the person is at the screen, and the check waits up to PROBE_TIMEOUT_S
 for the Yes. One sandboxed `echo`, remembered per Codex version (an update
 may need the setup again); a No is asked again only after RETRY_FAILED_S.
 
+ONE setup per PC, not per Codex home: the sandbox ACCOUNTS are one pair per
+PC, but Codex keeps their passwords per CODEX_HOME, so each slot and the
+shell's ~/.codex used to undo each other's setup and ask Windows again
+(~125 prompts, found 2026-10-14). slots.share_sandbox links every slot's
+sandbox folders to ~/.codex's.
+
 Nothing ever waits on it: a task that finds a check in progress does not
 queue behind it -- Codex is "not ready yet" for that task and the chain hands
 on. MAGI never falls back to the unelevated sandbox.
