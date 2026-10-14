@@ -792,3 +792,39 @@ def test_the_shared_home_itself_is_left_alone(tmp_path, monkeypatch):
     monkeypatch.setattr(slots, "shared_codex_home", lambda: shared)
     slots.share_sandbox.real(shared)
     assert not (shared / ".sandbox").is_junction()
+
+
+def _setup_in(home: Path, tag: str, mtime: float) -> None:
+    for d, f in (slots._MARKER, slots._USERS):
+        (home / d).mkdir(parents=True, exist_ok=True)
+        (home / d / f).write_text(tag)
+        os.utime(home / d / f, (mtime, mtime))
+
+
+@pytest.mark.skipif(os.name != "nt", reason="junctions are Windows-only")
+def test_a_slot_with_the_newer_setup_hands_its_passwords_over(tmp_path, monkeypatch):
+    """Tony's PC, 2026-10-14: the slot had the passwords Windows has now
+    (the last Yes), ~/.codex an older set. Linking the slot to the old set
+    would have cost one more admin prompt."""
+    shared = tmp_path / "dot-codex"
+    monkeypatch.setattr(slots, "shared_codex_home", lambda: shared)
+    _setup_in(shared, "old", 1_000_000)
+    home = tmp_path / "cli" / "codex-work"
+    _setup_in(home, "new", 2_000_000)
+    slots.share_sandbox.real(home)
+    for parts in (slots._MARKER, slots._USERS):
+        assert shared.joinpath(*parts).read_text() == "new"
+        assert home.joinpath(*parts).read_text() == "new"
+
+
+@pytest.mark.skipif(os.name != "nt", reason="junctions are Windows-only")
+def test_a_slot_with_an_older_setup_does_not(tmp_path, monkeypatch):
+    shared = tmp_path / "dot-codex"
+    monkeypatch.setattr(slots, "shared_codex_home", lambda: shared)
+    _setup_in(shared, "current", 2_000_000)
+    home = tmp_path / "cli" / "codex-work"
+    _setup_in(home, "stale", 1_000_000)
+    slots.share_sandbox.real(home)
+    for parts in (slots._MARKER, slots._USERS):
+        assert shared.joinpath(*parts).read_text() == "current"
+        assert home.joinpath(*parts).read_text() == "current"
