@@ -199,6 +199,13 @@ def test_text_shown_literally_stays_literal(page):
     assert render(page, "<p>snake_case</p>") == "snake_case"
 
 
+def test_unrendered_bold_pair_is_bold_not_escaped(page):
+    """DeepSeek left "**Oil above $100:**" unbolded; escaped, it showed asterisks."""
+    assert (render(page, "<ol><li>**Oil above $100:** Brent at $106+ *risk*</li></ol>")
+            == r"1. **Oil above $100:** Brent at $106+ \*risk\*")
+    assert render(page, "<p>a ** b ** c</p>") == r"a \*\* b \*\* c"
+
+
 def test_code_label_is_the_language_not_a_line_of_code(page):
     html = ('<pre><div><div>Python</div><button>Copy</button></div>'
             '<div><code>print(1)</code></div></pre>')
