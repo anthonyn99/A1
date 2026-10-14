@@ -113,7 +113,8 @@ def share_sandbox(home: Path | None) -> None:
     """Point `home`'s sandbox folders at the shared ones. Never raises: a
     folder that cannot be replaced yet (a helper in it still running) is
     tried again on the next run."""
-    if os.name != "nt" or home is None:
+    # Only a slot that exists: a made folder would list as a slot.
+    if os.name != "nt" or home is None or not home.is_dir():
         return
     shared = shared_codex_home()
     try:
@@ -127,7 +128,6 @@ def share_sandbox(home: Path | None) -> None:
             if link.is_junction():
                 continue
             target.mkdir(parents=True, exist_ok=True)
-            home.mkdir(parents=True, exist_ok=True)
             if link.exists() or os.path.lexists(link):
                 # This home's own copy: stale passwords, its own marker and
                 # log. Nothing in it is needed once the shared one is used.
