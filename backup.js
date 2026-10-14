@@ -95,7 +95,6 @@
     try { scheduleSetupPrompt(); } catch (e) {}
     try { startWatchdog(); } catch (e) {}
     try { flushPushOnHide(); } catch (e) {}
-    try { startChip(); } catch (e) {}
     return true;
   }
 
@@ -1600,110 +1599,54 @@
     }
   }
 
-  /* ── Status chip ──────────────────────────────────────────────────────────
+  /* ── Status summary (Settings → Backup) ──────────────────────────────────
    *
    * Everything in here has been driveable only from a console, which means it
    * has been driveable only by one person on one device. Phones have no
    * console, and Veda has no way to check her own backup at all — so "is this
-   * working?" has been a question only I could answer, by being asked.
+   * working?" has to be answerable from the UI.
    *
-   * A small chip fixes that. It is drawn by this file rather than by the app,
-   * so it costs Index no markup, cannot disturb its React tree, and appears on
-   * any app that registers later without further work.
+   * It used to be a floating chip pinned bottom-left above everything else on
+   * the page. On a phone that chip sat on top of real controls (Notebook's
+   * edit/view button, TaskHub rows), so it moved into each TaskHub's Settings
+   * as a collapsible "Backup" row (index.html, renderBackupRow). This file
+   * owns the WORDS, so every surface agrees on what "backed up" means; the
+   * page owns the layout.
    *
-   * It is quiet by default: a muted dot that says "Backed up". It only demands
-   * attention when something is actually wrong, because a warning that is
-   * always on is a warning nobody reads.
+   * Quiet by default: 'ok' unless something is actually wrong, because a
+   * warning that is always on is a warning nobody reads.
    * ===================================================================== */
 
-  var CHIP_ID = 'a1b-chip';
-
-  /* The chip is fixed at the bottom-left above everything else on the page
-     (see chipStyles), so a floating panel anchored to the bottom lands
-     UNDERNEATH it. This is how much room to leave: the 10px offset plus the
-     pill itself plus a small gap. It is published from here, next to the
-     styles it is derived from, so the number cannot drift away from the
-     thing it describes -- TaskHub's timer panel reads it. */
-  var CHIP_CLEAR = 44;
-  if (typeof window !== 'undefined') window.A1_BACKUP_CHIP_CLEAR = CHIP_CLEAR;
-
-  function chipStyles() {
-    if (document.getElementById(CHIP_ID + '-css')) return;
-    var css = document.createElement('style');
-    css.id = CHIP_ID + '-css';
-    css.textContent =
-      '#' + CHIP_ID + '{position:fixed;left:10px;bottom:10px;z-index:2147483000;' +
-      'display:flex;align-items:center;gap:6px;padding:5px 9px;border-radius:999px;' +
-      'font:500 11px/1 "Inter",system-ui,-apple-system,sans-serif;letter-spacing:.02em;' +
-      'background:rgba(26,26,29,.82);color:#8d8d94;border:1px solid rgba(255,255,255,.09);' +
-      'cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);' +
-      'opacity:.55;transition:opacity .18s,color .18s,border-color .18s;' +
-      'user-select:none;-webkit-tap-highlight-color:transparent;}' +
-      '#' + CHIP_ID + ':hover,#' + CHIP_ID + ':focus-visible{opacity:1;outline:none;' +
-      'border-color:rgba(224,184,116,.4);color:#e0b874;}' +
-      '#' + CHIP_ID + ' i{width:6px;height:6px;border-radius:50%;background:#5c8d5c;' +
-      'flex:0 0 auto;display:block;}' +
-      '#' + CHIP_ID + '[data-state="warn"]{opacity:1;color:#d6a35c;' +
-      'border-color:rgba(214,163,92,.45);}' +
-      '#' + CHIP_ID + '[data-state="warn"] i{background:#d6a35c;}' +
-      '#' + CHIP_ID + '[data-state="off"]{opacity:1;color:#d68a7c;' +
-      'border-color:rgba(214,138,124,.45);}' +
-      '#' + CHIP_ID + '[data-state="off"] i{background:#d68a7c;}' +
-      '@media (prefers-reduced-motion:reduce){#' + CHIP_ID + '{transition:none;}}';
-    document.head.appendChild(css);
-  }
-
-  async function chipRefresh() {
-    if (typeof document === 'undefined') return;   // no DOM: tests, workers
-    var el = document.getElementById(CHIP_ID);
-    if (!el) return;
-    if (killed()) { el.setAttribute('data-state', 'off'); el.lastChild.textContent = 'Backups paused'; return; }
-    if (!setupDone()) { el.setAttribute('data-state', 'off'); el.lastChild.textContent = 'Backups off'; return; }
-    var h = await healthCheck();
-    var st = await status();
-    if (!h.ok) {
-      el.setAttribute('data-state', 'warn');
-      el.lastChild.textContent = 'Backup problem';
-      return;
+  // state: 'ok' | 'warn' | 'off'. Never rejects — a vault that cannot be read
+  // is reported as a problem, not thrown at the caller.
+  async function summary() {
+    var out = { state: 'off', label: '', why: '' };
+    try {
+      if (killed()) { out.label = 'Backups paused'; out.why = 'paused on this device'; return out; }
+      if (!setupDone()) {
+        out.label = 'Backups off'; out.why = 'no passphrase set on this device';
+        out.canSetUp = true;
+        return out;
+      }
+      var h = await healthCheck();
+      var st = await status();
+      out.status = st;
+      if (!h.ok) { out.state = 'warn'; out.label = 'Backup problem'; out.why = h.why; return out; }
+      out.state = 'ok';
+      // "Backed up" is a claim about the LOCAL copy. Say when it has not also
+      // left the device, because that is the difference between surviving a
+      // Firebase failure and surviving a lost phone.
+      out.label = st.pushedOffDevice ? 'Backed up' : 'Backed up (local)';
+    } catch (e) {
+      out.state = 'warn'; out.label = 'Backup problem'; out.why = String(e && (e.message || e));
     }
-    el.setAttribute('data-state', 'ok');
-    // "Backed up" is a claim about the LOCAL copy. Say when it has not also
-    // left the device, because that is the difference between surviving a
-    // Firebase failure and surviving a lost phone.
-    el.lastChild.textContent = st.pushedOffDevice ? 'Backed up' : 'Backed up (local)';
+    return out;
   }
 
-  function mountChip() {
-    if (document.getElementById(CHIP_ID)) return;
-    if (!document.body) return;
-    chipStyles();
-    var el = document.createElement('div');
-    el.id = CHIP_ID;
-    el.setAttribute('role', 'button');
-    el.setAttribute('tabindex', '0');
-    el.setAttribute('aria-label', 'Backup status');
-    el.setAttribute('data-state', 'ok');
-    var dot = document.createElement('i');
-    var label = document.createElement('span');
-    label.textContent = 'Backup';
-    el.appendChild(dot);
-    el.appendChild(label);
-    var open = function () { report().catch(function () {}); };
-    el.addEventListener('click', open);
-    el.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
-    });
-    document.body.appendChild(el);
-    chipRefresh().catch(function () {});
-    setInterval(function () { chipRefresh().catch(function () {}); }, 60000);
-  }
-
-  function startChip() {
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', mountChip);
-    } else {
-      mountChip();
-    }
+  // Tell an open surface (Settings) that the answer may have changed.
+  function announce() {
+    if (typeof window === 'undefined') return;
+    try { window.dispatchEvent(new Event('a1backup:change')); } catch (e) {}
   }
 
   window.A1Backup = {
@@ -1717,7 +1660,7 @@
     setup: promptSetup,             // the in-UI first-run dialog
     push: pushNow,                  // mirror to the worker now
     drill: drill,                   // read the PUBLIC repo copy back and check it
-    chip: mountChip,                // the on-screen status chip
+    summary: summary,               // {state,label,why,status} for Settings → Backup
     fleet: fleet,                   // what every device has, from the worker
     device: deviceSlug,
     health: healthCheck,            // quiet: returns {ok, why}
@@ -1733,7 +1676,7 @@
     status: status,
     kill: function (on) {
       lsSet(A1B.DISABLED_KEY, on === false ? '0' : '1');
-      chipRefresh().catch(function () {});
+      announce();
       return on !== false;
     },
 
