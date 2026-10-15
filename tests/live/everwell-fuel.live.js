@@ -378,7 +378,9 @@ const mock = {
   console.log('\nReload and lock');
   const aiBefore = AI.calls.length;
   await reload();
-  ok('after a reload: the plan, the ticks and the chosen person come back from Firestore', /2,600|2,500/.test(await text('#dash-body')) && /Meals complete/.test(await text('#dash-fuel .card-head')));
+  const fd = (await doc('everwell_fuel')).d[pid][today];
+  ok('after a reload: the plan, the ticks and the chosen person come back from Firestore', /2,600|2,500/.test(await text('#dash-body')) &&
+    (await js(`return [...document.querySelectorAll('#dash-fuel [data-fx="meal"]')].map(b => b.classList.contains('done') ? 1 : 0).join('');`)) === [0, 1, 2].map((i) => (fd.m[i] ? 1 : 0)).join('') && /Water complete/.test(await text('#dash-fuel .card-head')));
   ok('no AI call on load (a plan exists)', AI.calls.length === aiBefore, AI.calls.length + ' vs ' + aiBefore);
   recs['applock:tony_everwell_tab_nutrition'] = 'eat';
   await reload();
