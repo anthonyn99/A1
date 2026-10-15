@@ -114,9 +114,26 @@ sites:
     # composer's hidden file input, kept in the DOM regardless of whether the
     # visible "+" attach button is showing. set_input_files targets this
     # directly and never needs to click the styled button.
+    # VERIFIED 2026-10-15: the FIRST input[type=file] in the form is the
+    # disabled "Take a photo" camera input (image/*, capture). The general
+    # uploader is the one with no `accept` and `multiple`; the camera input
+    # is skipped so files never go to it.
     file_input:
-      - "input[type='file']"
+      - "form input[type='file'][multiple]:not([accept]):not([disabled])"
+      - "form input[type='file'][multiple]:not([disabled])"
+      - "input[type='file']:not([capture]):not([disabled])"
       - "input[data-testid='file-upload-input']"
+    # VERIFIED 2026-10-15 (free account): with uploads used up, the files
+    # are silently dropped; only the "+" menu says why -- "Get Plus for more
+    # uploads / Or wait 3 hours to upload again".
+    upload_limit:
+      - "[role=menuitem]:has-text('to upload again')"
+      - "[role=menuitem]:has-text('for more uploads')"
+      - "text=/wait .{0,24} to upload again/i"
+    upload_limit_open:
+      - "#composer-plus-btn"
+      - "button[data-testid='composer-plus-btn']"
+      - "form button[aria-label*='Add' i]"
     assistant_turn:
       # VERIFIED: [data-assistant-markdown] is the answer body ONLY. The outer
       # [data-message-role='assistant'] wrapper also contains the "ChatGPT
