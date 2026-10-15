@@ -2226,7 +2226,7 @@ function healApply(job, d){
     l.items=l.items.filter(function(x){ return x!==it; });
     persist(); renderSoon(); return;
   }
-  it.link=lk;
+  it.link=Object.assign({}, it.link, lk);   // keep what this read didn't find (a price from an earlier read)
   if(urlNamed && d.name) it.name=String(d.name);
   if(!it.desc && d.detail) it.desc=String(d.detail);
   delete it.pendingName;
