@@ -2222,7 +2222,7 @@ function healApply(job, d){
     || (d.name && normNm(it.name)!==normNm(d.name) && normNm(it.name).slice(-normNm(d.name).length)===normNm(d.name) && /^(member|great value|kirkland|good gather|market pantry|equate|up up)/.test(normNm(it.name)));
   // The same page already on the list under its proper name → this is a leftover copy.
   var twin=(l.items||[]).filter(function(x){ return x!==it && x.link && x.link.url===job.url; })[0];
-  if(urlNamed && twin && !it.done && !it.qty && !it.desc && !it.watchId){
+  if(urlNamed && twin && !it.pendingName && !it.done && !it.qty && !it.desc && !it.watchId){
     l.items=l.items.filter(function(x){ return x!==it; });
     persist(); renderSoon(); return;
   }
