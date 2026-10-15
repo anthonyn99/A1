@@ -2185,7 +2185,7 @@ function healLinksSoon(){
   var l=curList(); if(!l) return;
   (l.items||[]).forEach(function(it){
     var u=it.link && it.link.url;
-    if(!u || it.link.image || healTried[u]) return;
+    if(!u || (it.link.image && it.desc) || healTried[u]) return;
     healTried[u]=1; healQueue.push({ listId:l.id, itemId:it.id, url:u });
   });
   healPump();
@@ -2204,7 +2204,9 @@ function healApply(job, d){
   var it=(l.items||[]).filter(function(x){ return x.id===job.itemId; })[0]; if(!it || !it.link || it.link.url!==job.url) return;
   var lk=cleanLink(d.link); if(!lk) return;
   // Still named from its URL (or never named) → the page's clean name.
-  var urlNamed = it.pendingName || normNm(it.name)===normNm(linkSlugName(job.url));
+  var urlNamed = it.pendingName || normNm(it.name)===normNm(linkSlugName(job.url))
+    // …or the page's name with the store brand still on ("Member's Mark …").
+    || (d.name && normNm(it.name)!==normNm(d.name) && normNm(it.name).slice(-normNm(d.name).length)===normNm(d.name) && /^(member|great value|kirkland|good gather|market pantry|equate|up up)/.test(normNm(it.name)));
   // The same page already on the list under its proper name → this is a leftover copy.
   var twin=(l.items||[]).filter(function(x){ return x!==it && x.link && x.link.url===job.url; })[0];
   if(urlNamed && twin && !it.done && !it.qty && !it.desc && !it.watchId){
