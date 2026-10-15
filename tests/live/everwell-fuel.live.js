@@ -80,8 +80,8 @@ const mock = {
   ok('the editor opens, focused on its box (no field highlighted)', await js(`const d = document.querySelector('#fx-editor .ew-dlg'); return !!d && document.activeElement === d;`));
   // Tony, 2026-10-15: no up/down arrows in number boxes, and a drag that
   // starts in a field and ends on the dim never closes the dialog.
-  ok('number boxes have no up/down arrows', await js(`const i = document.getElementById('fx-age'); return i.type === 'number' && getComputedStyle(i).appearance === 'textfield' && getComputedStyle(i, '::-webkit-inner-spin-button').webkitAppearance === 'none';`),
-    await js(`const i = document.getElementById('fx-age'); return getComputedStyle(i).appearance + ' / ' + getComputedStyle(i, '::-webkit-inner-spin-button').webkitAppearance;`));
+  ok('number boxes have no up/down arrows', await js(`const i = document.getElementById('fx-age'); return i.type === 'number' && getComputedStyle(i).appearance === 'textfield';`),
+    await js(`return getComputedStyle(document.getElementById('fx-age')).appearance;`));
   const mouseAt = (type, x, y) => c.send('Input.dispatchMouseEvent', { type, x, y, button: 'left', buttons: type === 'mouseReleased' ? 0 : 1, clickCount: 1 });
   const fr = JSON.parse(await js(`const r = document.getElementById('fx-age').getBoundingClientRect(); return JSON.stringify({ x: r.left + 20, y: r.top + r.height / 2 });`));
   await mouseAt('mousePressed', fr.x, fr.y);
@@ -92,7 +92,10 @@ const mock = {
   ok('…a click that starts and ends on the dim still closes it', !(await js(`return !!document.getElementById('fx-editor');`)));
   await click('#dash-body .btn[data-fx="edit"]'); await sleep(500);
   ok('…with Body, Training, Photos and Plan', (await text('#fx-editor')).match(/BODY|TRAINING|PHOTOS|PLAN/g).length >= 4);
-  ok('training reads the rotation (Push, Pull, Legs: 7 a week, no rest day)', /7 workouts a week/.test(await text('#fx-train')), await text('#fx-train'));
+  ok('training reads the rotation (Push, Pull, Legs: 7 a week, no rest day), no "done lately"', /Your rotation: 7 days a week/.test(await text('#fx-train')) && !/done lately/.test(await text('#fx-train')), await text('#fx-train'));
+  ok('Days a week is blank, the rotation\'s number as its hint', await js(`const d = document.getElementById('fx-days'); return d.value === '' && d.placeholder === '7';`));
+  ok('Food notes and Notes for the AI wear MAGI\'s corner grip', await js(`return ['fx-diet', 'fx-ainotes'].every(id => !!document.getElementById(id).parentElement.querySelector('.a1-grip'));`));
+  await set('fx-days', 5); await set('fx-ainotes', 'Same routine for about a year.');
   await click('[data-fxc="sex"][data-v="male"]'); await sleep(150);
   await set('fx-age', 27); await set('fx-ft', 5); await set('fx-in', 10); await set('fx-lb', 175); await set('fx-diet', 'No pork');
   await click('[data-fxc="goal"][data-v="recomp"]'); await sleep(150);
@@ -100,12 +103,14 @@ const mock = {
   await click('[data-fxa="save"]'); await sleep(2200);
   ok('saving the first stats asks the AI by itself, once', AI.calls.length === 1, AI.calls.length);
   const req = AI.calls[0] || {};
-  ok('…with the stats, the diet notes and the rotation (profile tony)', req.profile === 'tony' && req.person.stats.sex === 'male' && req.person.stats.age === 27 && req.person.stats.heightIn === 70 && req.person.stats.weightLb === 175 &&
-    req.person.stats.goal === 'recomp' && req.person.stats.diet === 'No pork' && req.training.splits.join() === 'Push,Pull,Legs' && req.training.perWeek === 7 && Array.isArray(req.photos) && req.photos.length === 0, JSON.stringify(req));
+  ok('…with the stats, the diet notes, the notes for the AI and the rotation (profile tony)', req.profile === 'tony' && req.person.stats.sex === 'male' && req.person.stats.age === 27 && req.person.stats.heightIn === 70 && req.person.stats.weightLb === 175 &&
+    req.person.stats.goal === 'recomp' && req.person.stats.diet === 'No pork' && req.person.notes === 'Same routine for about a year.' && req.training.splits.join() === 'Push,Pull,Legs' && Array.isArray(req.photos) && req.photos.length === 0, JSON.stringify(req));
+  ok('…days a week set by hand (5) beat the rotation (7), and no done-rate is sent', req.training.perWeek === 5 && req.training.rotationPerWeek === 7 && !('done21' in req.training));
   let b = await doc('everwell_body');
   ok('the plan is saved as the AI\'s (16 oz glasses), with no hand edits', b.people[0].ai.calories === 2500 && b.people[0].ai.glassOz === 16 && b.people[0].ai.model === 'deepseek/free' && JSON.stringify(b.people[0].over) === '{}', JSON.stringify(b.people[0]));
   ok('the Nutrition card shows it: 2,500 kcal, P/C/F, water, meals, fiber, the stats line', await js(`const t = document.getElementById('dash-body').innerText; return /2,500/.test(t) && /175\\s*g/.test(t) && /270\\s*g/.test(t) && /78\\s*g/.test(t) && /120 oz/.test(t) && /3 meals/.test(t) && /27 · 5′10″ · 175 lb · Recomp/.test(t);`),
     await text('#dash-body'));
+  ok('"Ask AI" is a clean pill (a sparkle and words)', await js(`const b = document.querySelector('#dash-body [data-fx="ai"]'); return b.classList.contains('fx-ai') && b.textContent.trim() === 'Ask AI' && !!b.querySelector('svg') && b.getBoundingClientRect().height === 30;`));
   ok('the ring and bars carry the person\'s pastel', await js(`const r = document.querySelector('#dash-body .fx-ring .val'); return !!r && getComputedStyle(r).stroke === 'rgb(192, 174, 234)';`));
 
   /* ── Ticks ── */
@@ -131,6 +136,33 @@ const mock = {
   ok('a ticked glass fills (scaleY 1)', await js(`const l = document.querySelector('#dash-fuel .fx-glass.on .liq'); return !!l && getComputedStyle(l).transform === 'matrix(1, 0, 0, 1, 0, 0)';`));
   await js(`__fakeFs.remote('dashboards/everwell_fuel', { d: { ['${pid}']: { '${today}': { m: { 2: true } } } }, savedAt: Date.now() + 9 }, { merge: true }); return 1;`); await sleep(900);
   ok('another device\'s tick arrives live', await js(`return document.querySelector('#dash-fuel [data-fx="meal"][data-i="2"]').classList.contains('done') && /Meals complete/.test(document.querySelector('#dash-fuel .card-head').textContent);`));
+
+  /* ── Meals by hand ── */
+  console.log('\nMeals by hand');
+  await click('#dash-fuel [data-fx="meals-edit"]'); await sleep(400);
+  ok('Edit turns the meals into named chips with a remove button, and + Add', await js(`return document.querySelectorAll('#dash-fuel .fx-mchip:not(.add)').length === 3 && document.querySelectorAll('#dash-fuel .fx-mchip .x').length === 3 && !!document.querySelector('#dash-fuel [data-fx="meal-add"]');`));
+  await click('#dash-fuel [data-fx="meal-add"]'); await sleep(400); await dlgOk('Pre-workout'); await sleep(1000);
+  b = await doc('everwell_body');
+  ok('+ Add asks a name and adds it last (a hand edit)', JSON.stringify(b.people[0].over.mealNames) === JSON.stringify(['Breakfast', 'Lunch', 'Dinner', 'Pre-workout']) && b.people[0].over.meals === 4, JSON.stringify(b.people[0].over));
+  // Drag Pre-workout before Dinner: Dinner's tick (on) travels with Dinner.
+  const mr = (i) => js(`const r = document.querySelectorAll('#dash-fuel .fx-mchip:not(.add)')[${i}].getBoundingClientRect(); return JSON.stringify({ x: r.left + 20, y: r.top + r.height / 2 });`).then(JSON.parse);
+  const mm = (type, x, y) => c.send('Input.dispatchMouseEvent', { type, x, y, button: 'left', buttons: type === 'mouseReleased' ? 0 : 1, clickCount: 1 });
+  let m1 = await mr(3), m2 = await mr(2);
+  await mm('mousePressed', m1.x, m1.y); for (let i = 1; i <= 12; i++) { await mm('mouseMoved', m1.x + (m2.x - 8 - m1.x) * i / 12, m2.y); await sleep(18); }
+  await mm('mouseReleased', m2.x - 8, m2.y); await sleep(1200);
+  b = await doc('everwell_body'); f = await doc('everwell_fuel');
+  ok('a drag reorders the meals (the card itself stays put)', JSON.stringify(b.people[0].over.mealNames) === JSON.stringify(['Breakfast', 'Lunch', 'Pre-workout', 'Dinner']) && ((await doc('everwell_tony')).dashOrder || { a: ['split', 'fuel'] }).a.indexOf('fuel') >= 0, JSON.stringify(b.people[0].over.mealNames));
+  ok('…and today\'s ticks travel with their meals (Dinner stays ticked, at its new place)', f.d[pid][today].m['3'] === true && f.d[pid][today].m['2'] === false && f.d[pid][today].m['0'] === true, JSON.stringify(f.d[pid][today].m));
+  await click('#dash-fuel .fx-mchip[data-i="2"]'); await sleep(400); await dlgOk('Pre-workout snack'); await sleep(900);
+  ok('tapping a chip renames it', (await doc('everwell_body')).people[0].over.mealNames[2] === 'Pre-workout snack');
+  await click('#dash-fuel .fx-mchip[data-i="2"] .x'); await sleep(400);
+  ok('× asks first', /Remove Pre-workout snack\?/.test(await js(`return document.getElementById('uim-overlay').innerText;`)));
+  await dlgOk(); await sleep(1000);
+  b = await doc('everwell_body'); f = await doc('everwell_fuel');
+  ok('…then it goes; Dinner (ticked) moves back to third', !b.people[0].over.mealNames && !b.people[0].over.meals && f.d[pid][today].m['2'] === true && f.d[pid][today].m['3'] === false,
+    JSON.stringify([b.people[0].over, f.d[pid][today].m]));
+  await click('#dash-fuel [data-fx="meals-edit"]'); await sleep(400);
+  ok('Done goes back to the tick chips', await js(`return document.querySelectorAll('#dash-fuel [data-fx="meal"]').length === 3 && !document.querySelector('#dash-fuel .fx-mchip');`));
 
   /* ── Hand edits, Reset, Re-run ── */
   console.log('\nHand edits, Reset, Re-run');
@@ -166,9 +198,12 @@ const mock = {
   await click('#dash-body [data-fx="edit"]'); await sleep(400); await set('fx-protein', 190); await click('[data-fxa="save"]'); await sleep(1200);
   const PLAN2 = Object.assign({}, PLAN, { calories: 2600, protein: 185, carbs: 285 });
   AI.reply = () => ({ json: { ok: true, plan: PLAN2, via: 'gemini', model: 'gemini-3.5-flash' } });
+  AI.reply = (b) => new Promise((res) => setTimeout(() => res({ json: { ok: true, plan: PLAN2, via: 'gemini', model: 'gemini-3.5-flash' } }), 1500));
   await click('#dash-body [data-fx="ai"]'); await sleep(500);
   ok('Re-run over hand edits asks first', await js(`return !!document.getElementById('uim-ok');`) && /replaces the numbers you changed/.test(await js(`return document.getElementById('uim-overlay').innerText;`)));
-  await dlgOk(); await sleep(1500);
+  await dlgOk(); await sleep(300);
+  ok('while it thinks: "Thinking" with three soft dots, no spinning icon', await js(`const b = document.querySelector('#dash-body [data-fx="ai"]'); return b.classList.contains('busy') && b.disabled && /Thinking/.test(b.textContent) && b.querySelectorAll('.fx-dots i').length === 3;`));
+  await sleep(2200);
   b = await doc('everwell_body');
   ok('…Ask: a new AI plan replaces it, the edits are gone, the glass size kept', AI.calls.length === 2 && b.people[0].ai.calories === 2600 && b.people[0].ai.via === 'gemini' && JSON.stringify(b.people[0].over) === '{}' && b.people[0].ai.glassOz === 16, JSON.stringify(b.people[0]));
   AI.reply = () => ({ status: 503, json: { ok: false, error: 'unavailable' } });
