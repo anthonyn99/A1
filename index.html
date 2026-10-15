@@ -22149,7 +22149,12 @@ window._sosResUseBrowser = function(on){
   var SITES = {
     perplexity: { name: 'Perplexity', url: function(q){ return 'https://www.perplexity.ai/search?q=' + encodeURIComponent(q); } },
     chatgpt:    { name: 'ChatGPT',    url: function(q){ return 'https://chatgpt.com/?q=' + encodeURIComponent(q); } },
-    claude:     { name: 'Claude',     url: function(q){ return 'https://claude.ai/new?q=' + encodeURIComponent(q); } }
+    claude:     { name: 'Claude',     url: function(q){ return 'https://claude.ai/new?q=' + encodeURIComponent(q); } },
+    // Gemini takes no prompt from its URL (tested 2026-10-15, signed in and out:
+    // ?q=, ?prompt=, ?text= and Chrome's /prompt?q= all leave the box empty).
+    // So the prompt is put on the clipboard by the same click (paste: true)
+    // and the panel says to press Ctrl+V.
+    gemini:     { name: 'Gemini',     paste: true, url: function(){ return 'https://gemini.google.com/app'; } }
   };
   // The prompt rides in a query string. Past ~6k characters some of these sites
   // drop the request outright, so a long one is cut rather than lost.
@@ -22202,6 +22207,100 @@ window._sosResUseBrowser = function(on){
   window._vdPrepAssistantUrl = function(site, prompt){
     var s = SITES[site] || SITES.perplexity;
     return s.url(String(prompt || '').slice(0, URL_PROMPT_MAX));
+  };
+
+  // Copy text inside the click that asked for it (the clipboard needs that
+  // gesture). execCommand is the fallback for a browser without the async API.
+  window._vdPrepCopy = function(text){
+    text = String(text || '');
+    var legacy = function(){
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = text; ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed'; ta.style.top = '-1000px'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        var ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        return !!ok;
+      } catch(e){ return false; }
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText)
+        return navigator.clipboard.writeText(text).then(function(){ return true; }, legacy);
+    } catch(e){}
+    return Promise.resolve(legacy());
+  };
+  // Open the assistant; for one that cannot take the prompt from its URL, the
+  // prompt goes to the clipboard first. The panel shows the paste hint while
+  // _vdPrepPasted names this task.
+  window._vdPrepOpenAssistant = function(site, prompt, itemId){
+    var s = SITES[site] || SITES.perplexity;
+    if (s.paste) {
+      window._vdPrepCopy(prompt);
+      window._vdPrepPasted = itemId || '';
+    }
+    return window._vdPrepAssistantUrl(site, prompt);
+  };
+
+  // The Gmail compose link, built from the kit's draft. Straight to Gmail's own
+  // compose URL: the older /mail/?view=cm link (kits saved before 2026-10-15)
+  // is redirected by Gmail when signed in, and that redirect drops every line
+  // break, so the email opened as one run-on paragraph. The worker builds the
+  // same link now (prepGmailUrl); rebuilding here fixes the saved kits too.
+  window._vdPrepGmailUrl = function(d){
+    var q = ['fs=1', 'tf=cm'];
+    if (d.to) q.push('to=' + encodeURIComponent(d.to));
+    if (d.subject) q.push('su=' + encodeURIComponent(d.subject));
+    if (d.body) q.push('body=' + encodeURIComponent(String(d.body).replace(/\r\n?/g, '\n')));
+    return 'https://mail.google.com/mail/u/0/?' + q.join('&');
+  };
+  window._vdPrepKitSites = function(kit){
+    var d = kit && kit.draft;
+    return ((kit && kit.sites) || []).filter(function(x){ return x && x.url; }).map(function(x){
+      if (d && d.kind === 'email' && d.body && /^https:\/\/mail\.google\.com\//i.test(x.url))
+        return { label: x.label, url: window._vdPrepGmailUrl(d) };
+      return x;
+    });
+  };
+
+  // ── Tabs without the bridge ──────────────────────────────────────────────
+  // A click may open ONE tab unless pop-ups are allowed for the site; then it
+  // may open several. Whether they are is learned, per browser, from a click
+  // that tried (a1PrepTabs; the same answer for both TaskHubs, as it is the
+  // site's pop-up setting). Until it is known: the assistant first (that tab
+  // always opens), then the sites. Once known: the sites first and the
+  // assistant LAST, so it is the tab in front. Returns the urls that did NOT
+  // open, for the bridge to try.
+  var openTab = function(u){
+    try {
+      var w = window.open(u, '_blank');
+      if (w) { try { w.opener = null; } catch(e){} }
+      return !!w;
+    } catch(e){ return false; }
+  };
+  var tabsOk = function(v){
+    try {
+      if (v === undefined) return localStorage.getItem('a1PrepTabs') === '1';
+      if (v) localStorage.setItem('a1PrepTabs', '1'); else localStorage.removeItem('a1PrepTabs');
+    } catch(e){}
+    return !!v;
+  };
+  window._vdPrepTabsBlocked = false;
+  window._vdPrepOpenTabs = function(aiUrl, urls){
+    urls = urls || [];
+    if (!urls.length) { openTab(aiUrl); return []; }
+    var left = [];
+    if (tabsOk()) {
+      urls.forEach(function(u){ if (!openTab(u)) left.push(u); });
+      if (!openTab(aiUrl)) { tabsOk(false); window._vdPrepTabsBlocked = true; }
+      else window._vdPrepTabsBlocked = left.length > 0;
+      return left;
+    }
+    if (!openTab(aiUrl)) return urls;
+    urls.forEach(function(u){ if (!openTab(u)) left.push(u); });
+    if (left.length < urls.length) tabsOk(true);
+    window._vdPrepTabsBlocked = left.length > 0;
+    return left;
   };
 
   // ── PC apps and sites through the StudyOS bridge ─────────────────────────
@@ -22393,8 +22492,11 @@ window._sosResUseBrowser = function(on){
   //  - bridge reachable (her PC): the bridge opens apps, then sites, then the
   //    assistant. The page opens no tab itself; one it opened first would end
   //    up buried behind the sites opened after it (her report, 2026-10-03).
-  //  - otherwise (phone, bridge down or blocked): the page opens the assistant
-  //    in the one tab the click allows, and the panel's links do the rest.
+  //  - otherwise (phone, no bridge, or it is blocked): the page opens the tabs
+  //    itself, all of them where the site may open pop-ups, else the assistant
+  //    alone and the panel's links do the rest (see _vdPrepOpenTabs). Apps,
+  //    and any site whose tab was blocked, still go to the bridge in case it
+  //    answers after all.
   // If the bridge was believed up but the call fails, the gesture is gone and
   // nothing opened; the panel says so and its "Open in …" button opens it.
   window._vdPrepLaunch = function(item, dateKey){
@@ -22403,13 +22505,14 @@ window._sosResUseBrowser = function(on){
     var site = window._vdPrepSite(item);
     // A stale kit was built for an older title or note, so its prompt is wrong now.
     var prompt = (kit && got.fresh && kit.prompt) || window._vdPrepFallbackPrompt(item, dateKey);
-    var aiUrl = window._vdPrepAssistantUrl(site, prompt);
-    var extras = !!(kit && got.fresh && ((kit.sites && kit.sites.length) || (kit.apps && kit.apps.length)));
-    if (extras && window._vdBridgeUp && onWindows()) {
-      window._vdPrepOpenLocal(kit.apps || [], (kit.sites || []).map(function(x){ return x.url; }), aiUrl);
+    var aiUrl = window._vdPrepOpenAssistant(site, prompt, item.id);
+    var urls = (kit && got.fresh) ? window._vdPrepKitSites(kit).map(function(x){ return x.url; }) : [];
+    var apps = (kit && got.fresh && kit.apps) || [];
+    if ((urls.length || apps.length) && window._vdBridgeUp && onWindows()) {
+      window._vdPrepOpenLocal(apps, urls, aiUrl);
     } else {
-      try { window.open(aiUrl, '_blank', 'noopener'); } catch(e){}
-      if (extras) window._vdPrepOpenLocal(kit.apps || [], (kit.sites || []).map(function(x){ return x.url; }));
+      var left = window._vdPrepOpenTabs(aiUrl, urls);
+      if (apps.length || left.length) window._vdPrepOpenLocal(apps, left);
     }
     if (!got || !got.fresh) window._vdPrepRequest(item, dateKey);
     window.dispatchEvent(new CustomEvent('vd-prep-open', { detail: { id: item.id, dateKey: dateKey } }));
