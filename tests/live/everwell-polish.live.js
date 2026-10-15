@@ -143,7 +143,8 @@ const NAMELESS = `JSON.stringify([...document.querySelectorAll('#ew-head button,
   const DIALOGS = [
     ['dashboard', 'Edit rotation', `document.querySelector('#ew-body-dashboard [data-act="edit-rot"]').click()`],
     ['dashboard', 'Routines', `document.querySelector('#ew-body-dashboard [data-act="pairs"]').click()`],
-    ['nutrition', 'a recipe', `document.querySelector('#ew-body-nutrition .rec-row .rec-name').click()`],
+    ['nutrition', 'a recipe', `document.getElementById('nut-tab-book').click(); document.querySelector('#ew-body-nutrition .rec-row .rec-name').click()`],
+    ['nutrition', 'the person editor', `document.getElementById('nut-tab-plan').click(); document.querySelector('#nut-plan [data-fx="edit"]').click()`, '#fx-editor .ew-dlg'],
     ['fitness', 'a circuit sheet', `document.querySelector('#ew-body-fitness .circuit-card .fx-name').click()`],
     ['mindset', 'the reader', `EWMindset.show('writings'); document.querySelector('#ew-body-mindset .wr-card .wr-title').click()`],
   ];
@@ -213,6 +214,7 @@ const NAMELESS = `JSON.stringify([...document.querySelectorAll('#ew-head button,
 
   console.log('\nPhone: Nutrition\'s last card clears the voice bar');
   await js(`EWApp.go('nutrition'); return 1;`); await sleep(1400);
+  await js(`document.getElementById('nut-tab-book').click(); return 1;`); await sleep(500);
   await js(`window.scrollTo(0, document.documentElement.scrollHeight); return 1;`); await sleep(400);
   ok('scrolled to the bottom, the last recipe card ends above the voice bar', await js(`const cards = document.querySelectorAll('#rec-root .rb-card'), v = document.getElementById('float-voice'); if (!cards.length || !v) return false;
     return cards[cards.length - 1].getBoundingClientRect().bottom <= v.getBoundingClientRect().top;`),

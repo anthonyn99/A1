@@ -238,6 +238,8 @@ const mock = {
 
   console.log('\nNutrition (dashboards/mealsuite)');
   await js(`EWApp.go('nutrition'); return 1;`); await sleep(1500);
+  ok('Nutrition opens on Plan; Recipe Book is the other sub-tab (2026-10-15)', await js(`return document.getElementById('nut-tab-plan').getAttribute('aria-selected') === 'true' && document.getElementById('nut-book').hidden;`));
+  await js(`document.getElementById('nut-tab-book').click(); return 1;`); await sleep(600);
   ok('your recipes load from the same doc Solace uses', await js(`return [...document.querySelectorAll('#rec-root .rec-name')].map(e => e.textContent).join() === 'Overnight Oats,Steak Night';`));
   ok("Tony gets the voice/type bar", await js(`return getComputedStyle(document.getElementById('float-voice')).display !== 'none';`));
   ok('recipe cards are clean: no ingredient list on them', await js(`return document.querySelectorAll('#rec-root .rb-card').length === 2 && !document.querySelector('#rec-root .rb-card .rb-ings') && !/Oats ·|1\\/2 cup/.test(document.getElementById('rec-list-rows').textContent);`));
@@ -392,7 +394,7 @@ const mock = {
   ok('the R card dragged into the left column lands there, and the order is saved', await js(`const o = (__fakeFs.docs['dashboards/everwell_tony'] || {}).dashOrder; return !!o && o.a.indexOf('r') >= 0 && !o.b.includes('r') && !!document.querySelector('#dash-col-a [data-card="r"]');`),
     await js(`return JSON.stringify((__fakeFs.docs['dashboards/everwell_tony'] || {}).dashOrder) + ' | ' + [...document.querySelectorAll('#dash-col-a > *')].map(e => e.dataset.card).join();`));
   await js(`__fakeFs.remote('dashboards/everwell_tony', { dashOrder: { a: ['split', 'quote'], b: ['faith', 'r'] }, savedAt: Date.now() + 7 }, { merge: true }); return 1;`); await sleep(900);
-  ok("another device's card order arrives live", await js(`return [...document.querySelectorAll('#dash-col-b > .dash-card')].map(e => e.dataset.card).join() === 'faith,r';`));
+  ok("another device's card order arrives live", await js(`return [...document.querySelectorAll('#dash-col-b > .dash-card')].map(e => e.dataset.card).join() === 'faith,r,body';`));
 
   console.log('\nDashboard: routine pairings');
   ok('auto-paired ONCE by name: Legs → Leg Day; "Push Day A" is not an exact match, so Push stays free', await js(`const r = __fakeFs.docs['dashboards/everwell_tony'].rotation;
@@ -523,6 +525,7 @@ const mock = {
   await sleep(500);
   ok('Fitness: no sideways scroll', await js(`return document.documentElement.scrollWidth <= innerWidth;`), await js(`return document.documentElement.scrollWidth;`));
   await js(`EWApp.go('nutrition'); return 1;`); await sleep(1200);
+  await js(`document.getElementById('nut-tab-book').click(); return 1;`); await sleep(500);
   ok('Nutrition: no sideways scroll, the voice bar fits', await js(`const r = document.getElementById('float-voice').getBoundingClientRect(); return document.documentElement.scrollWidth <= innerWidth && r.left >= 0 && r.right <= innerWidth;`));
   await c.send('Emulation.clearDeviceMetricsOverride');
 
