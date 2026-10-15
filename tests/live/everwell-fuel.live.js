@@ -287,6 +287,25 @@ const mock = {
   ok('…and the photo leaves the index and its doc', (await doc('everwell_body')).people.find((p) => p.id === pid).photos.length === 0 && await js(`return !__fakeFs.docs['dashboards/everwell_photo_${ph.id}'];`) && !(await js(`return document.getElementById('fx-view');`)));
   await click('[data-fxa="cancel"]'); await sleep(300);
 
+  /* ── Photos rearrange ── */
+  console.log('\nPhotos rearrange');
+  await click('#dash-body [data-fx="edit"]'); await sleep(400);
+  await js(`EWFuel.addPhotos('${pid}', [window.__f1]); return 1;`); await sleep(3500);
+  await js(`EWFuel.addPhotos('${pid}', [window.__f1]); return 1;`); await sleep(3500);
+  let ord = (await doc('everwell_body')).people.find((p) => p.id === pid).photos.map((x) => x.id);
+  ok('two photos, the newest first', ord.length === 2);
+  const pr = (i) => js(`const r = document.querySelectorAll('#fx-editor .fx-ph[data-ph]')[${i}].getBoundingClientRect(); return JSON.stringify({ x: r.left + r.width / 2, y: r.top + r.height / 2 });`).then(JSON.parse);
+  const pm = (type, x, y) => c.send('Input.dispatchMouseEvent', { type, x, y, button: 'left', buttons: type === 'mouseReleased' ? 0 : 1, clickCount: 1 });
+  let p0 = await pr(0), p1 = await pr(1);
+  await pm('mousePressed', p1.x, p1.y); for (let i = 1; i <= 12; i++) { await pm('mouseMoved', p1.x + (p0.x - 20 - p1.x) * i / 12, p0.y); await sleep(18); }
+  await pm('mouseReleased', p0.x - 20, p0.y); await sleep(1200);
+  const ord2 = (await doc('everwell_body')).people.find((p) => p.id === pid).photos.map((x) => x.id);
+  ok('a drag reorders the photos (saved), and the drop opens no viewer', ord2[0] === ord[1] && ord2[1] === ord[0] && !(await js(`return document.getElementById('fx-view');`)), JSON.stringify([ord, ord2]));
+  await click('[data-fxa="cancel"]'); await sleep(300);
+  await click('#dash-body [data-fx="ai"]'); await sleep(2500);
+  const lastAi = AI.calls[AI.calls.length - 1];
+  ok('the AI gets the photos in that order', lastAi.photos.length === 2);
+
   /* ── Remove a person ── */
   console.log('\nRemoving a person');
   await click(`#dash-body .fx-person[data-id="${sam.id}"]`); await sleep(400);
