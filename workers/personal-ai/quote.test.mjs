@@ -56,6 +56,7 @@ r = await call('profile=tony&date=' + today);
 ok('the same day again costs NO AI call and the same text comes back', r.body.ok && r.body.cached && CALLS.length === 1 && r.body.quote.startsWith('Keep the promise') && puts === 1);
 ok('a day older than the cached one is never generated', (await call('profile=tony&date=' + day(-1))).body.ok === false && CALLS.length === 1);
 ok('the prompt carries today\'s theme and the JSON instruction', /Today's theme: /.test(CALLS[0].prompt) && /Reply with JSON only/.test(CALLS[0].prompt));
+ok('…and asks for a motivational, mindset-first line that may touch faith, health, work (Tony, 2026-10-15)', /motivational quote/.test(CALLS[0].prompt) && /mainly about MINDSET/.test(CALLS[0].prompt) && /spirituality, health and wellness, fitness, work/.test(CALLS[0].prompt));
 
 console.log('\nFallbacks');
 reset(); ORCA = () => resp(503, { error: { kind: 'no_eligible_backend' } }, { 'Retry-After': '120' }); GEMINI = geminiSays('Strength grows in the quiet reps you choose when skipping would be easier.');
