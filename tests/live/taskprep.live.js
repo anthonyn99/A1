@@ -239,7 +239,7 @@ const APPS = [{ id: 'app_word', name: 'Microsoft Word' }, { id: 'app_zoom', name
   const glb = gl ? JSON.parse(gl[2]) : null;
   ok('✦ opens Gemini last, on the bridge', glb && glb.focus === 'https://gemini.google.com/app', JSON.stringify(glb));
   ok('…with the prompt on the clipboard (Gemini takes none from a link)', await js(`return window.__clip.length === 1 && window.__clip[0] === 'PROMPT FOR Tony';`), await js(`return JSON.stringify(window.__clip);`));
-  ok('the panel says to paste it', await js(`const p = document.querySelector('[data-th-prep-panel] [data-prep-paste]'); return !!p && /Ctrl\+V/.test(p.textContent) && /Gemini/.test(p.textContent);`));
+  ok('the panel says to paste it', await js(`const p = document.querySelector('[data-th-prep-panel] [data-prep-paste]'); return !!p && /Ctrl\+V/.test(p.textContent) && /Gemini/.test(p.textContent);`), await js(`const p = document.querySelector('[data-th-prep-panel]'); return p ? p.innerText : 'no panel';`));
   await c.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
   await sleep(700);
   await shot('taskprep-panel-gemini-390');
