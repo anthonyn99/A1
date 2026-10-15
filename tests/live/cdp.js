@@ -157,7 +157,21 @@ async function servePagesFromWorkingCopy(ws, send, mock) {
       return;
     }
     if (mock && !request.url.startsWith(PAGES)) {
-      const r = mock.handle(request);
+      let r = mock.handle(request);
+      // A promise: a slow upstream (a test can catch the page mid-wait).
+      if (r && typeof r.then === 'function') {
+        r.then((v) => send('Fetch.fulfillRequest', {
+          requestId, responseCode: (v && v.status) || 200,
+          responseHeaders: [
+            { name: 'Content-Type', value: (v && v.type) || 'application/json' },
+            { name: 'Access-Control-Allow-Origin', value: '*' },
+            { name: 'Access-Control-Allow-Headers', value: '*' },
+            { name: 'Access-Control-Allow-Methods', value: 'POST, GET, OPTIONS' },
+          ],
+          body: Buffer.from(v && v.text != null ? v.text : v && v.json != null ? JSON.stringify(v.json) : '').toString('base64'),
+        }));
+        return;
+      }
       if (r) {
         send('Fetch.fulfillRequest', {
           requestId, responseCode: r.status || 200,
