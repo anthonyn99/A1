@@ -133,8 +133,11 @@ const mock = {
   await js(`${rnTile('Good')}.querySelector('[data-rename]').click(); return 1;`); await sleep(400);
   await js(`document.querySelector('#uim-fields input').value = 'Changed my mind'; document.getElementById('uim-cancel') ? document.getElementById('uim-cancel').click() : document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return 1;`); await sleep(800);
   ok('Cancel keeps the name', await js(`return !!${rnTile('Good')};`));
-  await js(`${rnTile('Rain')}.querySelector('[data-rename]').click(); return 1;`); await sleep(400);
+  // Back to "Rain" for the tests below (found by its link: its name is the label now).
+  await js(`const it = __fakeFs.docs['dashboards/everwell_tony'].focusMedia.find(x => x.url === 'https://audio.test/rain.wav');
+    document.querySelector('#focus-grid .media-tile[data-id="' + it.id + '"] [data-rename]').click(); return 1;`); await sleep(400);
   await js(`document.querySelector('#uim-fields input').value = 'Rain'; document.getElementById('uim-ok').click(); return 1;`); await sleep(1200);
+  ok('…and renamed back', await js(`return !!${rnTile('Rain')};`));
   ok('a failed thumbnail (offline / blocked) leaves placeholder art, not a black box', await js(`return !document.querySelector('#focus-grid img') && document.querySelectorAll('#focus-grid .media-ph').length === 5;`));
 
   console.log('\nPlaying');
