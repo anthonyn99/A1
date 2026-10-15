@@ -129,7 +129,7 @@ const mock = {
   ok('four meals → four name boxes (the defaults for four), the edited values kept', mn === 'Breakfast,Lunch,Snack,Dinner|2300', mn);
   await click('[data-fxa="save"]'); await sleep(1500);
   b = await doc('everwell_body');
-  ok('only what differs from the AI is kept as a hand edit', JSON.stringify(Object.keys(b.people[0].over).sort()) === JSON.stringify(['calories', 'glassOz', 'mealNames', 'meals']) && b.people[0].ai.calories === 2500, JSON.stringify(b.people[0].over));
+  ok('only what differs from the AI is kept as a hand edit (default names for four meals are not an edit)', JSON.stringify(Object.keys(b.people[0].over).sort()) === JSON.stringify(['calories', 'glassOz', 'meals']) && b.people[0].ai.calories === 2500, JSON.stringify(b.people[0].over));
   ok('the card shows the edits (2,300 kcal, a gold "changed" dot on meals) and Reset appears', /2,300/.test(await text('#dash-body')) && !!(await js(`return document.querySelector('#dash-body .fx-fact .fx-dot') && document.querySelector('#dash-body [data-fx="reset"]');`)));
   ok('…and Today\'s fuel follows: four meals, six 20 oz glasses', await js(`return document.querySelectorAll('#dash-fuel [data-fx="meal"]').length === 4 && document.querySelectorAll('#dash-fuel [data-fx="glass"]').length === 6;`));
   await click('#dash-body [data-fx="reset"]'); await sleep(1200);
