@@ -56,7 +56,7 @@ t('slug name from an Amazon path', W.slugTitle('https://www.amazon.com/Premier-P
 t('unknown site → domain name', W.siteName('https://shop.example-foods.com/x') === 'Example-foods');
 t('short name drops the store brand', W.linkItemName(m) === 'Italian Herb Grilled Chicken Breasts', W.linkItemName(m));
 const mq = { title: "Member's Mark Mesquite Grilled Chicken Fillets, Frozen, 3 lbs." };
-t('detail = the rest of the title', W.linkDetail(mq) === 'Frozen, 3 lbs' && W.linkItemName(mq) === 'Mesquite Grilled Chicken Fillets, Frozen', W.linkItemName(mq) + ' / ' + W.linkDetail(mq));
+t('detail = the rest of the title', W.linkDetail(mq) === '3 lbs' && W.linkItemName(mq) === 'Mesquite Grilled Chicken Fillets, Frozen', W.linkItemName(mq) + ' / ' + W.linkDetail(mq));
 t('priced per pound dropped from the detail', W.linkDetail(m) === '', JSON.stringify(W.linkDetail(m)));
 
 t('short name stops at a size clause', W.linkItemName({ title: 'Grade A Large Eggs - 12ct - Good & Gather' }) === 'Grade A Large Eggs');

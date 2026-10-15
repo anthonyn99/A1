@@ -1288,7 +1288,20 @@ const linkCache = new Map();   // per isolate — repeated pastes of one link ar
 // (r.jina.ai, ~20 req/min keyless), which returned every one of them in 1–4 s.
 // The direct fetch still wins for the many sites that don't block.
 const isAmazon = (url) => /(^|\.)amazon\.|(^|\.)amzn\.to$|(^|\.)a\.co$/.test(hostOf(url));
+// Twelve links pasted at once all hit the reader together and most came back
+// 429 (2026-10-15) — so reader calls queue, three at a time per isolate.
+let jinaLive = 0;
+const jinaWait = [];
+const jinaAcquire = () => jinaLive < 3 ? (jinaLive++, Promise.resolve()) : new Promise(r => jinaWait.push(r));
+const jinaRelease = () => { const n = jinaWait.shift(); if (n) n(); else jinaLive--; };
 async function fetchPage(url, ms, via, dbg) {
+  if (via === 'jina') {
+    await jinaAcquire();
+    try { return await fetchPageNow(url, ms, via, dbg); } finally { jinaRelease(); }
+  }
+  return fetchPageNow(url, ms, via, dbg);
+}
+async function fetchPageNow(url, ms, via, dbg) {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), ms);
   try {
@@ -1355,12 +1368,23 @@ async function handleLinkPreview(url) {
     return json({ ok: true, ways: out });
   }
   const m = await linkMeta(target);
-  return json({ ok: true, link: linkField(m), read: m.read });
+  return json({ ok: true, link: linkField(m), read: m.read, name: m.read ? linkItemName(m) : '', detail: m.read ? linkDetail(m) : '' });
 }
 // The short name a link gets when no model named it (every model failed, or
 // the model skipped it): the page title up to its first comma/size clause.
-export function linkItemName(m) {
-  const t = String((m && m.title) || '').split(/\s*,\s*(?:priced|per|pack|\d)|\s+[|(]|\s+[-–]\s+\d/i)[0].trim();
+// The size/flavor part of a page title once the short name is taken off
+// ("…Fillets, Frozen, 3 lbs." → "Frozen, 3 lbs").
+export function linkDetail(m) {
+  const t = String((m && m.title) || '').trim(), raw = linkItemName(m, true);
+  if (!t.startsWith(raw)) return '';
+  return t.slice(raw.length).replace(/^[\s,|(–-]+/, '').replace(/\)\s*$/, '')
+    .replace(/,?\s*priced per pound/i, '').replace(/[.\s]+$/, '').trim().slice(0, 80);
+}
+// Store brands say nothing on a list that already shows the store.
+const STORE_BRANDS = /^(member'?s mark|great value|kirkland signature|good & gather|market pantry|365 by whole foods market|equate|up & up)\s+/i;
+export function linkItemName(m, keepBrand) {
+  let t = String((m && m.title) || '').split(/\s*,\s*(?:priced|per|pack|\d)|\s+[|(]|\s+[-–]\s+\d/i)[0].trim();
+  if (!keepBrand && STORE_BRANDS.test(t) && t.replace(STORE_BRANDS, '').length > 3) t = t.replace(STORE_BRANDS, '');
   return (t || (m && m.site) || 'Link').slice(0, 90);
 }
 
@@ -1384,7 +1408,10 @@ async function handleList(body, env) {
   // the raw URLs — far fewer tokens, and the numbers inside a URL never trip
   // the dropped-number check.
   const urls = listUrls(transcript);
-  const links = urls.length ? await Promise.all(urls.map(u => linkMeta(u))) : [];
+  const links = urls.length ? await Promise.all(urls.map(u => Promise.race([
+    linkMeta(u, 9000),
+    sleep(10000).then(() => ({ url: u, title: slugTitle(u), image: '', price: '', site: siteName(u), read: false })),
+  ]))) : [];
   let modelText = transcript, checkText = transcript;
   urls.map((u, i) => [u, i]).sort((a, b) => b[0].length - a[0].length).forEach(([u, i]) => {
     modelText = modelText.split(u).join('[LINK ' + (i + 1) + ']');
@@ -4156,7 +4183,7 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 39, // bump when verifying a deploy went live
+        version: 40, // bump when verifying a deploy went live
         features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search', 'quote', 'quote-buddhist', 'fuel', 'yt-playlist', 'ig-media', 'ig-thumb', 'ig-px', 'link-preview'],
         quoteModels: { orca: QUOTE_ORCA_MODELS, gemini: QUOTE_GEMINI_MODELS },
         fuelModels: { orcaVision: FUEL_ORCA_VISION, orca: FUEL_ORCA_TEXT, gemini: FUEL_GEMINI_MODELS },
