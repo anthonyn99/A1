@@ -96,6 +96,62 @@ section('assistant');
   t('long prompts are cut to 6000 chars', long.searchParams.get('q').length === 6000);
 }
 
+section('Gemini (2026-10-15)');
+{
+  const { W } = sandbox();
+  t('Gemini is an assistant, and it takes the prompt by paste', W._vdPrepSites.gemini && W._vdPrepSites.gemini.paste === true && W._vdPrepSite({ aiSite: 'gemini' }) === 'gemini');
+  t('its url carries no prompt (Gemini ignores one)', W._vdPrepAssistantUrl('gemini', 'secret') === 'https://gemini.google.com/app');
+  const clip = [];
+  W.navigator.clipboard = { writeText: (x) => { clip.push(x); return Promise.resolve(); } };
+  const u = W._vdPrepOpenAssistant('gemini', 'PROMPT', 'task1');
+  t('opening it copies the prompt', u === 'https://gemini.google.com/app' && clip.join() === 'PROMPT' && W._vdPrepPasted === 'task1');
+  W._vdPrepOpenAssistant('chatgpt', 'P2', 'task2');
+  t('a URL assistant copies nothing', clip.length === 1);
+}
+{
+  const html2 = html;
+  const both = ['function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){', 'function ItemModal('];
+  t('both editors offer Gemini', (html2.match(/\["gemini","Gemini"\]/g) || []).length === 2);
+  t('both editors use the A1 grip note box', /RC\(VdPrepNote,\{gripKey:"vd\.prepnote"/.test(html2) && /React\.createElement\(ThPrepNote,\{gripKey:"th\.prepnote"/.test(html2) && both.every((x) => html2.includes(x)));
+  t('both panels carry the paste hint and the pop-up hint', (html2.match(/data-prep-paste/g) || []).length === 2 && (html2.match(/data-prep-tabs-blocked/g) || []).length === 2);
+  t("both panels list the kit's sites through _xxPrepKitSites", /window\._vdPrepKitSites\(kit\)\.map\(\(s,i\)/.test(html2) && /window\._thPrepKitSites\(kit\)\.map\(\(s,i\)/.test(html2));
+}
+
+section('Gmail link keeps line breaks (2026-10-15)');
+{
+  const { W } = sandbox();
+  const draft = { kind: 'email', to: 'a@b.co', subject: 'Hi & bye', body: 'Hi Anthony,\r\n\r\nLine two.\n\nTony' };
+  const old = 'https://mail.google.com/mail/?view=cm&fs=1&su=x&body=Hi%20Anthony%2C';
+  const sites = W._vdPrepKitSites({ draft, sites: [{ label: 'Gmail draft', url: old }, { label: 'Portal', url: 'https://p.example/' }] });
+  const g = new URL(sites[0].url);
+  t("an old kit's view=cm link is rebuilt as the direct compose link", g.pathname === '/mail/u/0/' && g.searchParams.get('tf') === 'cm' && !g.searchParams.has('view'));
+  t('…with to, subject and every line break', g.searchParams.get('to') === 'a@b.co' && g.searchParams.get('su') === 'Hi & bye' && g.searchParams.get('body') === 'Hi Anthony,\n\nLine two.\n\nTony');
+  t('other sites are untouched', sites[1].url === 'https://p.example/' && sites.length === 2);
+  t('no draft, no rebuild', W._vdPrepKitSites({ sites: [{ label: 'Gmail', url: old }] })[0].url === old);
+}
+
+section('tabs without the bridge (2026-10-15)');
+{
+  const run = (allow, learned) => {
+    const sb = sandbox({ ls: learned ? { a1PrepTabs: '1' } : {} });
+    let n = 0;
+    sb.W.open = (u) => { sb.order.push(u); return (allow || n++ === 0) ? {} : null; };
+    const left = sb.W._vdPrepOpenTabs('AI', ['S1', 'S2']);
+    return { left, order: sb.order, store: sb.store, blocked: sb.W._vdPrepTabsBlocked };
+  };
+  let r = run(false, false);
+  t('blocked: the assistant first, the sites left for the bridge, a hint', r.order[0] === 'AI' && r.left.join() === 'S1,S2' && r.blocked && !r.store.a1PrepTabs);
+  r = run(true, false);
+  t('allowed: all open, and it is learned', r.order.join() === 'AI,S1,S2' && !r.left.length && r.store.a1PrepTabs === '1' && !r.blocked);
+  r = run(true, true);
+  t('learned: the sites first, the assistant last (the tab in front)', r.order.join() === 'S1,S2,AI' && !r.left.length);
+  r = run(false, true);
+  t('learned but blocked again: forgotten, hint shown', r.store.a1PrepTabs === undefined && r.blocked);
+  const sb = sandbox(); sb.W.open = (u) => { sb.order.push(u); return {}; };
+  sb.W._vdPrepOpenTabs('AI', []);
+  t('no sites: just the assistant', sb.order.join() === 'AI');
+}
+
 section('due and stale');
 {
   const { W } = sandbox();
