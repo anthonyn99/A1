@@ -125,7 +125,8 @@ const mock = {
   ok('the Plan fields are filled with the AI\'s numbers', (await js(`return ['fx-calories','fx-protein','fx-carbs','fx-fat','fx-woz','fx-goz','fx-meals'].map(i => document.getElementById(i).value).join();`)) === '2500,175,270,78,120,16,3');
   await set('fx-calories', 2300); await set('fx-goz', 20); await set('fx-meals', 4);
   await js(`document.getElementById('fx-meals').dispatchEvent(new Event('change')); return 1;`); await sleep(300);
-  ok('four meals → four name boxes (the 4th a default name), the edited values kept', (await js(`return [...document.querySelectorAll('.fx-mealnames input')].map(i => i.value).join() + '|' + document.getElementById('fx-calories').value;`)) === 'Breakfast,Lunch,Dinner,Snack|2300');
+  const mn = await js(`return [...document.querySelectorAll('.fx-mealnames input')].map(i => i.value).join() + '|' + document.getElementById('fx-calories').value;`);
+  ok('four meals → four name boxes (the defaults for four), the edited values kept', mn === 'Breakfast,Lunch,Snack,Dinner|2300', mn);
   await click('[data-fxa="save"]'); await sleep(1500);
   b = await doc('everwell_body');
   ok('only what differs from the AI is kept as a hand edit', JSON.stringify(Object.keys(b.people[0].over).sort()) === JSON.stringify(['calories', 'glassOz', 'mealNames', 'meals']) && b.people[0].ai.calories === 2500, JSON.stringify(b.people[0].over));
@@ -166,7 +167,8 @@ const mock = {
   f = await doc('everwell_fuel');
   ok('Sam\'s tick goes under Sam; Tony\'s day is untouched', f.d[sam.id][today].w['0'] === true && f.d[pid][today].m['0'] === true);
   await click(`#dash-body .fx-person[data-id="${pid}"]`); await sleep(500);
-  ok('tapping Tony switches both cards back to his numbers and ticks', /2,600/.test(await text('#dash-body')) && /Water complete/.test(await text('#dash-fuel .card-head')) && ((await doc('everwell_tony')) || {}).fuelPerson === pid);
+  ok('tapping Tony switches both cards back to his numbers and ticks', /2,600/.test(await text('#dash-body')) && /Water complete/.test(await text('#dash-fuel .card-head')) && ((await doc('everwell_tony')) || {}).fuelPerson === pid,
+    (await text('#dash-body')).slice(0, 80) + ' // ' + await text('#dash-fuel .card-head') + ' // ' + ((await doc('everwell_tony')) || {}).fuelPerson);
 
   /* ── Photos ── */
   console.log('\nPhotos');
@@ -176,8 +178,9 @@ const mock = {
     for (let i = 0; i < im.data.length; i += 4) { im.data[i] = Math.random() * 255; im.data[i + 1] = Math.random() * 255; im.data[i + 2] = Math.random() * 255; im.data[i + 3] = 255; }
     g.putImageData(im, 0, 0);
     cv.toBlob(bl => { window.__f1 = new File([bl], 'me.png', { type: 'image/png' }); }, 'image/png'); return 1;`); await sleep(2500);
-  await js(`EWFuel.addPhotos('${pid}', [window.__f1]); return 1;`); await sleep(400);
-  ok('while it uploads, a shimmering placeholder sits in the gallery', await js(`return !!document.querySelector('#fx-editor .fx-ph.up');`));
+  const hasFile = await js(`return !!window.__f1;`);
+  await js(`EWFuel.addPhotos('${pid}', [window.__f1]); return 1;`); await sleep(150);
+  ok('while it uploads, a shimmering placeholder sits in the gallery', await js(`return !!document.querySelector('#fx-editor .fx-ph.up');`), 'file ready: ' + hasFile + ' editor: ' + await js(`return !!document.getElementById('fx-editor');`));
   await sleep(4000);
   b = await doc('everwell_body');
   const ph = (b.people.find((p) => p.id === pid).photos || [])[0];
