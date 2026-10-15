@@ -114,7 +114,7 @@ ok('kind=buddhist keeps the guard rails (profile, date)', (await call('profile=v
 
 console.log('\nThe health route advertises it');
 const h = await (await worker.fetch(new Request('https://personal-ai.av1.workers.dev/health'), ENV)).json();
-ok('/health: version 28, features "quote" + "quote-buddhist" + "yt-playlist" + "ig-media", orcaKey true, no key material', h.version === 28 && h.features.includes('quote') && h.features.includes('quote-buddhist') && h.features.includes('yt-playlist') && h.features.includes('ig-media') && h.orcaKey === true && !JSON.stringify(h).includes('orca_sk_test'));
+ok('/health: version 30 or later, features "quote" + "quote-buddhist" + "yt-playlist" + "ig-media", orcaKey true, no key material', h.version >= 30 && h.features.includes('quote') && h.features.includes('quote-buddhist') && h.features.includes('yt-playlist') && h.features.includes('ig-media') && h.orcaKey === true && !JSON.stringify(h).includes('orca_sk_test'));
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

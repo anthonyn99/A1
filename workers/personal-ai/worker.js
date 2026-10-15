@@ -9,6 +9,7 @@
 //   POST /taskhub/prep    — one flagged task → AI prep kit (prompt, draft, sites, apps)
 //   POST /journal/format  (was journal-ai /format)    — messy text → clean HTML
 //   GET  /quote/daily     — Everwell's quote of the day (ORCA → Gemini, cached per day); &kind=buddhist: a real Buddhist quote + its source
+//   POST /fuel/plan       — Everwell's nutrition plan: a person's stats, training and photos → calories, macros, meals, water (ORCA → Gemini)
 //   GET  /health          — status (which keys are configured)
 //
 // Each person (Tony / Veda) has a SINGLE key shared across all three features.
@@ -298,6 +299,7 @@ async function geminiOnce(model, key, o, timeoutMs) {
   if (tc) gc.thinkingConfig = tc;
   const parts = [{ text: o.prompt }];
   if (o.audio) parts.push({ inlineData: { mimeType: o.mimeType || 'audio/wav', data: o.audio } });
+  (o.images || []).forEach((im) => parts.push({ inlineData: { mimeType: im.mimeType, data: im.data } }));
   const body = JSON.stringify({ contents: [{ parts }], generationConfig: gc });
 
   const ac = new AbortController();
@@ -3378,6 +3380,231 @@ async function handleQuote(url, env) {
   return json({ ok: true, date, quote: res.text, source: res.via });
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// FEATURE — Everwell's nutrition plan  (POST /fuel/plan)
+//
+// One person's stats, their training (Everwell's rotation, routines, circuits
+// and how often a workout was actually ticked) and up to three photos → daily
+// calories, macros, meals and water (A1-Priv/docs/Everwell/plan.md, refinement
+// round 5). Asked only when the person presses Re-run, or the first time a
+// profile has the stats it needs: nothing is cached and nothing goes to KV.
+//
+//   1. ORCA (TONY_ORCA_KEY), FREE models only, never Claude and never ORCA's
+//      own pick. With photos, the units that can SEE them go first (ChatGPT,
+//      then Gemini's web app; DeepSeek cannot read images), then the text
+//      chain DeepSeek-first without the photos.
+//   2. Gemini (TONY_GEMINI_KEY), the photos sent inline.
+//   3. Nothing: { ok:false, error:'unavailable' }; the page keeps its last plan.
+//
+// Every answer is checked before it is returned: numbers in range, the macros
+// adding up to the calories (±12%), and the calories within ±40% of a
+// Mifflin–St Jeor estimate made here. A plan that fails goes to the next model.
+// Profile 'tony' only (his keys pay for it).
+// ════════════════════════════════════════════════════════════════════════════
+const FUEL_ORCA_TEXT = QUOTE_ORCA_MODELS;
+const FUEL_ORCA_VISION = ['chatgpt/free', 'gemini_web/free'];
+const FUEL_ORCA_BUDGET_MS = 100000;                     // long prompts and photos: browser units are slower here
+const FUEL_ORCA_TRY_MS = 45000;
+const FUEL_GEMINI_MODELS = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite'];
+const FUEL_GOALS = ['lose', 'maintain', 'gain', 'recomp'];
+const FUEL_DAY = { desk: 1.2, feet: 1.35, active: 1.5 };
+const FUEL_LEVELS = ['sedentary', 'light', 'moderate', 'active', 'very active'];
+const FUEL_MAX_PHOTOS = 3;
+const FUEL_MAX_PHOTO_CHARS = 1600000;                   // a 1024px JPEG is ~150-300 KB of base64
+
+const fuelNum = (v, lo, hi) => { const n = Number(v); return isFinite(n) && n >= lo && n <= hi ? n : null; };
+const fuelStr = (v, max) => String(v == null ? '' : v).replace(/[\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+
+// The request, cleaned: only known fields, every number in range, text capped.
+export function fuelInput(body) {
+  const p = (body && body.person) || {}, s = p.stats || p, t = (body && body.training) || {};
+  const stats = {
+    sex: s.sex === 'female' ? 'female' : s.sex === 'male' ? 'male' : null,
+    age: fuelNum(s.age, 13, 100),
+    heightIn: fuelNum(s.heightIn, 48, 96),
+    weightLb: fuelNum(s.weightLb, 70, 700),
+    bodyFat: fuelNum(s.bodyFat, 3, 60),
+    goal: FUEL_GOALS.includes(s.goal) ? s.goal : 'maintain',
+    targetLb: fuelNum(s.targetLb, 70, 700),
+    dayActivity: FUEL_DAY[s.dayActivity] ? s.dayActivity : 'desk',
+    diet: fuelStr(s.diet, 300),
+  };
+  if (!stats.sex || stats.age == null || stats.heightIn == null || stats.weightLb == null) return null;
+  const list = (a, n) => (Array.isArray(a) ? a : []).slice(0, n);
+  const training = {
+    perWeek: fuelNum(t.perWeek, 0, 14) || 0,
+    minutes: fuelNum(t.minutes, 0, 300) || 0,
+    kind: fuelStr(t.kind, 80),
+    splits: list(t.splits, 10).map((x) => fuelStr(x, 40)).filter(Boolean),
+    routines: list(t.routines, 8).map((r) => ({ name: fuelStr(r && r.name, 40), lines: list(r && r.lines, 8).map((x) => fuelStr(x, 80)).filter(Boolean) })).filter((r) => r.name),
+    circuits: list(t.circuits, 8).map((c) => ({ name: fuelStr(c && c.name, 40), minutes: fuelNum(c && c.minutes, 0, 300) || 0 })).filter((c) => c.name),
+    done: t.done21 ? { done: fuelNum(t.done21.done, 0, 21) || 0, planned: fuelNum(t.done21.planned, 0, 21) || 0 } : null,
+  };
+  const photos = list(body && body.photos, 12).map((u) => {
+    const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(String(u || ''));
+    return m && u.length <= FUEL_MAX_PHOTO_CHARS ? { url: u, mimeType: m[1], data: m[2] } : null;
+  }).filter(Boolean).slice(0, FUEL_MAX_PHOTOS);
+  return { name: fuelStr(p.name, 40), stats, training, photos };
+}
+
+// Mifflin–St Jeor, an activity factor from the day job plus training hours,
+// and the goal's adjustment: the yardstick an AI answer has to land near.
+export function fuelEstimate(stats, training) {
+  const kg = stats.weightLb * 0.45359237, cm = stats.heightIn * 2.54;
+  const bmr = 10 * kg + 6.25 * cm - 5 * stats.age + (stats.sex === 'male' ? 5 : -161);
+  const hours = (training.perWeek || 0) * (training.minutes || 0) / 60;
+  const factor = FUEL_DAY[stats.dayActivity] + Math.min(0.4, hours * 0.035);
+  const tdee = bmr * factor;
+  const adj = { lose: 0.82, maintain: 1, gain: 1.1, recomp: 0.95 }[stats.goal];
+  return { bmr: Math.round(bmr), tdee: Math.round(tdee), target: Math.round(tdee * adj), factor: Math.round(factor * 100) / 100 };
+}
+
+export function fuelPrompt(inp, est) {
+  const s = inp.stats, t = inp.training;
+  const ft = Math.floor(s.heightIn / 12), inch = Math.round(s.heightIn - ft * 12);
+  const lines = [
+    'You are a sports nutritionist. Recommend ONE person\'s daily nutrition from the facts below.',
+    '',
+    'Person:',
+    `- ${s.sex}, ${s.age} years, ${ft} ft ${inch} in, ${s.weightLb} lb` + (s.bodyFat != null ? `, about ${s.bodyFat}% body fat` : ''),
+    `- Goal: ${{ lose: 'lose fat', maintain: 'maintain weight', gain: 'gain muscle', recomp: 'lose fat and build muscle (recomposition)' }[s.goal]}` + (s.targetLb ? `, target ${s.targetLb} lb` : ''),
+    `- Day job / daily movement: ${{ desk: 'mostly sitting', feet: 'on their feet much of the day', active: 'physically active work' }[s.dayActivity]}`,
+    s.diet ? `- Diet notes: ${s.diet}` : '',
+    '',
+    'Training:',
+    `- About ${t.perWeek} workouts a week` + (t.minutes ? `, ${t.minutes} minutes each` : '') + (t.kind ? ` (${t.kind})` : ''),
+    t.splits.length ? `- Rotation: ${t.splits.join(', ')}` : '',
+    ...t.routines.map((r) => `- Routine "${r.name}": ${r.lines.join('; ')}`),
+    ...t.circuits.map((c) => `- Circuit "${c.name}": ${c.minutes} min`),
+    t.done ? `- Last 3 weeks: ${t.done.done} of ${t.done.planned} planned workouts done` : '',
+    '',
+    `For reference, a Mifflin-St Jeor estimate puts maintenance near ${est.tdee} kcal/day. Use your judgement; stay realistic.`,
+    inp.photos.length ? `${inp.photos.length} photo(s) of this person are attached. Use them ONLY to judge build and body composition. Never describe or comment on their appearance.` : '',
+    '',
+    'Rules:',
+    '- protein*4 + carbs*4 + fat*9 must equal the calories (within 5%).',
+    '- water in US fluid ounces for the whole day, training included.',
+    '- meals: how many meals a day suit this person (2 to 6), with a short name for each in order (e.g. Breakfast, Lunch, Dinner, Snack).',
+    '- notes: at most 3 short, specific tips (under 15 words each), no fluff.',
+    `- activity: one of ${FUEL_LEVELS.join(', ')}.`,
+    '',
+    'Reply with JSON only, no prose:',
+    '{"calories": 0, "protein": 0, "carbs": 0, "fat": 0, "fiber": 0, "waterOz": 0, "meals": 3, "mealNames": ["Breakfast", "Lunch", "Dinner"], "activity": "moderate", "notes": ["..."]}',
+  ];
+  return lines.filter((l, i, a) => l !== '' || (a[i - 1] !== '' && i > 0)).join('\n');
+}
+
+// An answer → a clean plan, or null (the next model is asked).
+export function fuelPlan(raw, inp, est) {
+  let v = raw;
+  if (typeof v === 'string') {
+    const s = v.replace(/```(?:json)?/gi, '');
+    try { v = JSON.parse(s); } catch (e) {
+      const a = s.indexOf('{'), b = s.lastIndexOf('}');
+      if (a < 0 || b <= a) return null;
+      try { v = JSON.parse(s.slice(a, b + 1)); } catch (e2) { return null; }
+    }
+  }
+  if (!v || typeof v !== 'object') return null;
+  const cal = fuelNum(v.calories, 1000, 7000), p = fuelNum(v.protein, 30, 500), c = fuelNum(v.carbs, 20, 900), f = fuelNum(v.fat, 15, 350);
+  if (cal == null || p == null || c == null || f == null) return null;
+  if (Math.abs(p * 4 + c * 4 + f * 9 - cal) > cal * 0.12) return null;                 // the macros must add up
+  if (Math.abs(cal - est.target) > est.target * 0.4) return null;                      // far from any sane estimate
+  const water = fuelNum(v.waterOz, 40, 260);
+  if (water == null) return null;
+  const meals = Math.round(fuelNum(v.meals, 2, 6) || 3);
+  const DEF = { 2: ['Lunch', 'Dinner'], 3: ['Breakfast', 'Lunch', 'Dinner'], 4: ['Breakfast', 'Lunch', 'Snack', 'Dinner'], 5: ['Breakfast', 'Snack', 'Lunch', 'Snack', 'Dinner'], 6: ['Breakfast', 'Snack', 'Lunch', 'Snack', 'Dinner', 'Snack'] };
+  let names = (Array.isArray(v.mealNames) ? v.mealNames : []).map((x) => fuelStr(x, 24).replace(/[*_#`]/g, '')).filter(Boolean);
+  if (names.length !== meals) names = DEF[meals];
+  const notes = (Array.isArray(v.notes) ? v.notes : []).map((x) => fuelStr(x, 140).replace(/^[-*\d.)\s]+/, '').replace(/[*_#`]/g, '')).filter(Boolean).slice(0, 3);
+  const act = FUEL_LEVELS.includes(String(v.activity || '').toLowerCase()) ? String(v.activity).toLowerCase() : null;
+  return {
+    calories: Math.round(cal / 10) * 10, protein: Math.round(p), carbs: Math.round(c), fat: Math.round(f),
+    fiber: Math.round(fuelNum(v.fiber, 10, 90) || Math.max(25, Math.round(cal / 1000 * 14))),
+    waterOz: Math.round(water), meals, mealNames: names, activity: act || 'moderate', notes,
+  };
+}
+
+async function orcaFuel(env, models, prompt, photos, inp, est, deadline) {
+  let why = 'orca:no-usable-answer';
+  for (const model of models) {
+    const left = deadline - Date.now();
+    if (left < 5000) return { ok: false, why: 'orca:budget-spent' };
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), Math.min(left, FUEL_ORCA_TRY_MS));
+    const content = photos.length ? [{ type: 'text', text: prompt }].concat(photos.map((ph) => ({ type: 'image_url', image_url: { url: ph.url } }))) : prompt;
+    let r;
+    try {
+      r = await fetch(QUOTE_ORCA_URL, { method: 'POST', signal: ac.signal,
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + env.TONY_ORCA_KEY },
+        body: JSON.stringify({ model, messages: [{ role: 'user', content }], max_tokens: 700, temperature: 0.3 }) });
+    } catch (e) {
+      clearTimeout(timer);
+      if (e && e.name === 'AbortError') { why = 'orca:timeout-' + model; continue; }
+      return { ok: false, why: 'orca:network', stop: true };
+    } finally { clearTimeout(timer); }
+    if (r.status === 401 || r.status === 403) return { ok: false, why: 'orca:auth', stop: true };
+    if (r.status === 503) return { ok: false, why: 'orca:unavailable', stop: true };   // the PC bridge is away: every browser unit is
+    if (r.status === 429) return { ok: false, why: 'orca:rate-limited', stop: true };
+    if (r.status === 404) { why = 'orca:no-backend-for-' + model; continue; }
+    if (!r.ok) { why = 'orca:' + r.status; continue; }
+    let d = null;
+    try { d = await r.json(); } catch (e) { why = 'orca:bad-envelope'; continue; }
+    const text = d && d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+    const plan = fuelPlan(text, inp, est);
+    if (plan) return { ok: true, plan, via: 'orca', model: (d && d.model) || model, sawPhotos: photos.length > 0 };
+    why = 'orca:invalid-output-' + model;
+  }
+  return { ok: false, why };
+}
+
+const FUEL_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    calories: { type: 'NUMBER' }, protein: { type: 'NUMBER' }, carbs: { type: 'NUMBER' }, fat: { type: 'NUMBER' }, fiber: { type: 'NUMBER' },
+    waterOz: { type: 'NUMBER' }, meals: { type: 'NUMBER' }, mealNames: { type: 'ARRAY', items: { type: 'STRING' } },
+    activity: { type: 'STRING' }, notes: { type: 'ARRAY', items: { type: 'STRING' } },
+  },
+  required: ['calories', 'protein', 'carbs', 'fat', 'waterOz', 'meals', 'mealNames', 'notes'],
+};
+
+async function handleFuel(body, env) {
+  if (!body || body.profile !== 'tony') return json({ ok: false, error: 'unsupported profile' }, 400);
+  const inp = fuelInput(body);
+  if (!inp) return json({ ok: false, error: 'missing stats' }, 400);
+  const est = fuelEstimate(inp.stats, inp.training);
+  const prompt = fuelPrompt(inp, est);
+  const why = [];
+  let res = null;
+  if (env.TONY_ORCA_KEY) {
+    const deadline = Date.now() + FUEL_ORCA_BUDGET_MS;
+    if (inp.photos.length) {
+      const v = await orcaFuel(env, FUEL_ORCA_VISION, prompt, inp.photos, inp, est, deadline);
+      if (v.ok) res = v; else { why.push(v.why); if (v.stop) res = false; }
+    }
+    if (res === null) {
+      const textPrompt = inp.photos.length ? fuelPrompt(Object.assign({}, inp, { photos: [] }), est) : prompt;
+      const t = await orcaFuel(env, FUEL_ORCA_TEXT.filter((m) => !(inp.photos.length && FUEL_ORCA_VISION.includes(m))), textPrompt, [], inp, est, deadline);
+      if (t.ok) res = t; else why.push(t.why);
+    }
+  } else why.push('orca:no-key');
+  if (!res && env.TONY_GEMINI_KEY) {
+    try {
+      const g = await runModelChain(FUEL_GEMINI_MODELS, env.TONY_GEMINI_KEY, {
+        prompt, feature: 'fuel', maxOutputTokens: 900, deadlineMs: 40000, timeoutMs: 20000, schema: FUEL_SCHEMA,
+        images: inp.photos.map((ph) => ({ mimeType: ph.mimeType, data: ph.data })),
+        validate: (v) => !!fuelPlan(v, inp, est),
+      });
+      const plan = !g.soft && fuelPlan(g.value, inp, est);
+      if (plan) res = { ok: true, plan, via: 'gemini', model: g.model, sawPhotos: inp.photos.length > 0 };
+      else why.push('gemini:invalid-output');
+    } catch (e) { why.push('gemini:failed'); }
+  } else if (!res) why.push('gemini:no-key');
+  if (!res) { console.warn('[fuel] no source answered: ' + why.join(' | ')); return json({ ok: false, error: 'unavailable' }, 503); }
+  if (why.length) console.log('[fuel] ' + res.via + ' after: ' + why.join(' | '));
+  return json({ ok: true, plan: res.plan, via: res.via, model: res.model, sawPhotos: res.sawPhotos, estimate: est });
+}
+
 // ── YouTube playlist contents (Everwell's "Expand", A1-Priv/everwell.html) ──
 // GET /yt/playlist?list=<id> → { ok, list, title, videos: [{ id, title }], more }
 // No API key: the public playlist page (ytInitialData) gives the first 100,
@@ -3585,9 +3812,10 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 29, // bump when verifying a deploy went live
-        features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search', 'quote', 'quote-buddhist', 'yt-playlist', 'ig-media', 'ig-thumb', 'ig-px'],
+        version: 30, // bump when verifying a deploy went live
+        features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search', 'quote', 'quote-buddhist', 'fuel', 'yt-playlist', 'ig-media', 'ig-thumb', 'ig-px'],
         quoteModels: { orca: QUOTE_ORCA_MODELS, gemini: QUOTE_GEMINI_MODELS },
+        fuelModels: { orcaVision: FUEL_ORCA_VISION, orca: FUEL_ORCA_TEXT, gemini: FUEL_GEMINI_MODELS },
         orcaKey: !!env.TONY_ORCA_KEY,
         models: MODELS,
         listModels: LIST_MODELS,
@@ -3620,6 +3848,7 @@ export default {
 
       if (path === '/list/parse')     return handleList(body, env);
       if (path === '/recipe/parse')   return handleRecipe(body, env);
+      if (path === '/fuel/plan')      return handleFuel(body, env);
       if (path === '/taskhub/parse')  return handleTaskhub(body, env);
       if (path === '/taskhub/prep')   return handleTaskPrep(body, env);
       if (path === '/journal/format') return handleFormat(body, env);
