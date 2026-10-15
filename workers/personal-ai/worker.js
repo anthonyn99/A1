@@ -1289,17 +1289,20 @@ const linkCache = new Map();   // per isolate — repeated pastes of one link ar
 // The direct fetch still wins for the many sites that don't block.
 const isAmazon = (url) => /(^|\.)amazon\.|(^|\.)amzn\.to$|(^|\.)a\.co$/.test(hostOf(url));
 // Twelve links pasted at once all hit the reader together and most came back
-// 429 (2026-10-15) — so reader calls queue, three at a time per isolate.
-let jinaLive = 0;
-const jinaWait = [];
-const jinaAcquire = () => jinaLive < 3 ? (jinaLive++, Promise.resolve()) : new Promise(r => jinaWait.push(r));
-const jinaRelease = () => { const n = jinaWait.shift(); if (n) n(); else jinaLive--; };
-async function fetchPage(url, ms, via, dbg) {
-  if (via === 'jina') {
-    await jinaAcquire();
-    try { return await fetchPageNow(url, ms, via, dbg); } finally { jinaRelease(); }
-  }
-  return fetchPageNow(url, ms, via, dbg);
+// 429 (2026-10-15) — so one request's reader calls queue, three at a time.
+// The queue is PER REQUEST: a module-level one woke waiters from another
+// request's context, which Workers never resolves (the request hung → 1101).
+export function makeLimiter(n) {
+  let live = 0;
+  const wait = [];
+  const next = () => { if (live < n && wait.length) { live++; wait.shift()(); } };
+  return (fn) => new Promise((resolve) => {
+    wait.push(() => Promise.resolve().then(fn).then(resolve, () => resolve(null)).finally(() => { live--; next(); }));
+    next();
+  });
+}
+function fetchPage(url, ms, via, dbg, lim) {
+  return (via === 'jina' && lim) ? lim(() => fetchPageNow(url, ms, via, dbg)) : fetchPageNow(url, ms, via, dbg);
 }
 async function fetchPageNow(url, ms, via, dbg) {
   const ac = new AbortController();
@@ -1333,7 +1336,7 @@ function okLinkUrl(url) {
 // Read one link: the direct fetches and the reader race, the first page that
 // names a product wins (one with a photo beats one without, briefly), and a
 // page that can't be read still yields a slug name + store.
-export async function linkMeta(url, ms = 7000) {
+export async function linkMeta(url, ms = 7000, lim) {
   const fallback = { url, title: slugTitle(url), image: '', price: '', site: siteName(url), read: false };
   if (!okLinkUrl(url)) return fallback;
   const hit = linkCache.get(url);
@@ -1342,7 +1345,7 @@ export async function linkMeta(url, ms = 7000) {
     const ways = [...LINK_UAS, 'jina'];
     let left = ways.length, noPhoto = null, grace = null;
     const done = (m) => { clearTimeout(grace); resolve(m); };
-    ways.forEach((via) => fetchPage(url, ms, via).then((m) => {
+    ways.forEach((via) => fetchPage(url, ms, via, false, lim).then((m) => {
       if (m && m.image) return done(m);
       if (m && !noPhoto) { noPhoto = m; grace = setTimeout(() => done(noPhoto), 1500); }
       if (--left === 0) done(noPhoto || fallback);
@@ -1408,8 +1411,9 @@ async function handleList(body, env) {
   // the raw URLs — far fewer tokens, and the numbers inside a URL never trip
   // the dropped-number check.
   const urls = listUrls(transcript);
+  const lim = makeLimiter(3);
   const links = urls.length ? await Promise.all(urls.map(u => Promise.race([
-    linkMeta(u, 9000),
+    linkMeta(u, 9000, lim),
     sleep(10000).then(() => ({ url: u, title: slugTitle(u), image: '', price: '', site: siteName(u), read: false })),
   ]))) : [];
   let modelText = transcript, checkText = transcript;
@@ -4183,7 +4187,7 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 40, // bump when verifying a deploy went live
+        version: 41, // bump when verifying a deploy went live
         features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search', 'quote', 'quote-buddhist', 'fuel', 'yt-playlist', 'ig-media', 'ig-thumb', 'ig-px', 'link-preview'],
         quoteModels: { orca: QUOTE_ORCA_MODELS, gemini: QUOTE_GEMINI_MODELS },
         fuelModels: { orcaVision: FUEL_ORCA_VISION, orca: FUEL_ORCA_TEXT, gemini: FUEL_GEMINI_MODELS },

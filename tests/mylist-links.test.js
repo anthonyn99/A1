@@ -25,7 +25,7 @@ const src = fs.readFileSync(file, 'utf8')
   .replace(/^export (?=(?:async )?function |const |let )/gm, '');
 const ctx = { console, URL, Response: function () {}, fetch: () => Promise.reject(new Error('no network in tests')), setTimeout, clearTimeout, AbortController };
 vm.createContext(ctx);
-vm.runInContext(src + '\n;globalThis.__T = { linkDetail, applyListOps, buildListPrompt, sanitizeItems, extractLinkMeta, listUrls, slugTitle, siteName, cleanTitle, linkItemName, linkMeta };', ctx);
+vm.runInContext(src + '\n;globalThis.__T = { makeLimiter, linkDetail, applyListOps, buildListPrompt, sanitizeItems, extractLinkMeta, listUrls, slugTitle, siteName, cleanTitle, linkItemName, linkMeta };', ctx);
 const W = ctx.__T;
 
 const SAMS = 'https://www.samsclub.com/ip/members-mark-italian-herb-grilled-chicken-breast-5-count/13590050893';
