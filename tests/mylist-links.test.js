@@ -25,7 +25,7 @@ const src = fs.readFileSync(file, 'utf8')
   .replace(/^export (?=(?:async )?function |const |let )/gm, '');
 const ctx = { console, URL, Response: function () {}, fetch: () => Promise.reject(new Error('no network in tests')), setTimeout, clearTimeout, AbortController };
 vm.createContext(ctx);
-vm.runInContext(src + '\n;globalThis.__T = { applyListOps, buildListPrompt, sanitizeItems, extractLinkMeta, listUrls, slugTitle, siteName, cleanTitle, linkItemName, linkMeta };', ctx);
+vm.runInContext(src + '\n;globalThis.__T = { linkDetail, applyListOps, buildListPrompt, sanitizeItems, extractLinkMeta, listUrls, slugTitle, siteName, cleanTitle, linkItemName, linkMeta };', ctx);
 const W = ctx.__T;
 
 const SAMS = 'https://www.samsclub.com/ip/members-mark-italian-herb-grilled-chicken-breast-5-count/13590050893';
@@ -54,7 +54,10 @@ const bot = W.extractLinkMeta('<title>Robot or human?</title>', SAMS);
 t('bot wall → slug name, no photo', bot.read === false && bot.image === '' && /Italian Herb Grilled Chicken Breast 5 Count/.test(bot.title), JSON.stringify(bot));
 t('slug name from an Amazon path', W.slugTitle('https://www.amazon.com/Premier-Protein-Powder-Vanilla-Milkshake/dp/B07H9JVJ1Q') === 'Premier Protein Powder Vanilla Milkshake');
 t('unknown site → domain name', W.siteName('https://shop.example-foods.com/x') === 'Example-foods');
-t('short item name for a skipped link', W.linkItemName(m) === "Member's Mark Italian Herb Grilled Chicken Breasts", W.linkItemName(m));
+t('short name drops the store brand', W.linkItemName(m) === 'Italian Herb Grilled Chicken Breasts', W.linkItemName(m));
+const mq = { title: "Member's Mark Mesquite Grilled Chicken Fillets, Frozen, 3 lbs." };
+t('detail = the rest of the title', W.linkDetail(mq) === 'Frozen, 3 lbs' && W.linkItemName(mq) === 'Mesquite Grilled Chicken Fillets, Frozen', W.linkItemName(mq) + ' / ' + W.linkDetail(mq));
+t('priced per pound dropped from the detail', W.linkDetail(m) === '', JSON.stringify(W.linkDetail(m)));
 
 t('short name stops at a size clause', W.linkItemName({ title: 'Grade A Large Eggs - 12ct - Good & Gather' }) === 'Grade A Large Eggs');
 
