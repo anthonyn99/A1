@@ -252,9 +252,10 @@ const mock = {
 
   /* ── Reload, then a Nutrition lock ── */
   console.log('\nReload and lock');
+  const aiBefore = AI.calls.length;
   await reload();
   ok('after a reload: the plan, the ticks and the chosen person come back from Firestore', /2,600|2,500/.test(await text('#dash-body')) && /Meals complete/.test(await text('#dash-fuel .card-head')));
-  ok('no second AI call on load (a plan exists)', AI.calls.length === 5 || true);
+  ok('no AI call on load (a plan exists)', AI.calls.length === aiBefore, AI.calls.length + ' vs ' + aiBefore);
   recs['applock:tony_everwell_tab_nutrition'] = 'eat';
   await reload();
   ok('a Nutrition lock hides both cards on the Dashboard', /Nutrition is locked/.test(await text('#dash-fuel')) && /Nutrition is locked/.test(await text('#dash-body')) && !(await js(`return document.querySelector('#dash-body .fx-ring, #dash-fuel .fx-glass');`)));
