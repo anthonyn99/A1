@@ -26,7 +26,7 @@ const TODAY = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.
   await sleep(10000);
   await js("var l=document.getElementById('th-boot-loader'); if(l) l.remove(); if(window._profileGoVeda) window._profileGoVeda(); 1");
   await sleep(2500);
-  if (window) {}
+
   const btns = await js(`return JSON.stringify([...document.querySelectorAll('button')].filter(b => b.offsetParent).map(b => b.textContent.trim()).filter(Boolean).slice(0, 60));`);
   console.log(btns);
   await js(`window._vdVoice && window._vdVoice.setEdit && window._vdVoice.setEdit(true); 1`); await sleep(800);
