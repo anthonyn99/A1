@@ -3444,7 +3444,7 @@ export function fuelInput(body) {
     const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(String(u || ''));
     return m && u.length <= FUEL_MAX_PHOTO_CHARS ? { url: u, mimeType: m[1], data: m[2] } : null;
   }).filter(Boolean).slice(0, FUEL_MAX_PHOTOS);
-  return { name: fuelStr(p.name, 40), stats, training, photos };
+  return { name: fuelStr(p.name, 40), notes: fuelStr(p.notes, 1000), stats, training, photos };
 }
 
 // Mifflin–St Jeor, an activity factor from the day job plus training hours,
@@ -3477,6 +3477,9 @@ export function fuelPrompt(inp, est) {
     ...t.routines.map((r) => `- Routine "${r.name}": ${r.lines.join('; ')}`),
     ...t.circuits.map((c) => `- Circuit "${c.name}": ${c.minutes} min`),
     t.done ? `- Last 3 weeks: ${t.done.done} of ${t.done.planned} planned workouts done` : '',
+    '',
+    inp.notes ? 'In their own words (weigh this: it may say how long they have trained, injuries, schedule or what has worked):' : '',
+    inp.notes ? '"' + inp.notes.replace(/"/g, "'") + '"' : '',
     '',
     `For reference, a Mifflin-St Jeor estimate puts maintenance near ${est.tdee} kcal/day. Use your judgement; stay realistic.`,
     inp.photos.length ? `${inp.photos.length} photo(s) of this person are attached. Use them ONLY to judge build and body composition. Never describe or comment on their appearance.` : '',
@@ -3812,7 +3815,7 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 30, // bump when verifying a deploy went live
+        version: 31, // bump when verifying a deploy went live
         features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search', 'quote', 'quote-buddhist', 'fuel', 'yt-playlist', 'ig-media', 'ig-thumb', 'ig-px'],
         quoteModels: { orca: QUOTE_ORCA_MODELS, gemini: QUOTE_GEMINI_MODELS },
         fuelModels: { orcaVision: FUEL_ORCA_VISION, orca: FUEL_ORCA_TEXT, gemini: FUEL_GEMINI_MODELS },

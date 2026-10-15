@@ -8,7 +8,7 @@ import { join } from 'path';
 import { pathToFileURL } from 'url';
 
 const SP = mkdtempSync(join(tmpdir(), 'fueltest-'));
-writeFileSync(SP + '/_w.mjs', readFileSync(new URL('./worker.js', import.meta.url), 'utf8'));
+writeFileSync(SP + '/_w.mjs', readFileSync(new URL(process.env.PA_WORKER_FILE || './worker.js', import.meta.url), 'utf8'));
 
 // Upstream script: each test sets ORCA(body) / GEMINI(body) to a response.
 let ORCA = null, GEMINI = null;
@@ -73,6 +73,13 @@ ok('one ORCA call, to DeepSeek, with the ORCA key; nothing to Gemini', r.body.ok
 ok('the plan is clean: calories rounded, notes stripped of Markdown, meal names kept', r.body.plan.calories === 2500 && r.body.plan.notes[1] === 'Front-load carbs around training.' && r.body.plan.mealNames.join() === 'Breakfast,Lunch,Dinner' && r.body.plan.meals === 3, r.body.plan);
 ok('the prompt carries the stats, the rotation, a routine, the completion rate and the JSON shape', /male, 27 years, 5 ft 10 in, 175 lb/.test(CALLS[0].prompt) && /Rotation: Push, Pull, Legs/.test(CALLS[0].prompt) && /Bench Press - 4 x 8/.test(CALLS[0].prompt) && /12 of 15 planned/.test(CALLS[0].prompt) && /Reply with JSON only/.test(CALLS[0].prompt) && /No pork/.test(CALLS[0].prompt));
 ok('the answer carries the estimate, never a key', r.body.estimate && r.body.estimate.bmr > 0 && !JSON.stringify(r.body).includes('orca_sk_test') && !JSON.stringify(r.body).includes('gk_test'));
+
+reset(); ORCA = orcaSays(GOOD);
+r = await call({ profile: 'tony', person: Object.assign({}, PERSON, { notes: 'Lifting 5 days a week for about a year. Bad left knee, "no squats".' }), training: TRAINING });
+ok('the person\'s own notes for the AI go in the prompt (quotes made safe)', /In their own words/.test(CALLS[0].prompt) && /about a year\. Bad left knee, 'no squats'\./.test(CALLS[0].prompt), CALLS[0] && CALLS[0].prompt);
+reset(); ORCA = orcaSays(GOOD);
+await call({ profile: 'tony', person: PERSON, training: TRAINING });
+ok('no notes: no notes section, and never the word "null"', !/In their own words/.test(CALLS[0].prompt) && !/\bnull\b/.test(CALLS[0].prompt));
 
 console.log('\nPhotos: the units that can see them go first');
 reset(); ORCA = orcaSays(GOOD, 'chatgpt/free');
