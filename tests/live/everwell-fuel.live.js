@@ -93,7 +93,7 @@ const mock = {
   await click('#dash-body .btn[data-fx="edit"]'); await sleep(500);
   ok('…with Body, Training, Photos and Plan', (await text('#fx-editor')).match(/BODY|TRAINING|PHOTOS|PLAN/g).length >= 4);
   ok('training reads the rotation (Push, Pull, Legs: 7 a week, no rest day), no "done lately"', /Your rotation: 7 days a week/.test(await text('#fx-train')) && !/done lately/.test(await text('#fx-train')), await text('#fx-train'));
-  ok('Days a week is blank, the rotation\'s number as its hint', await js(`const d = document.getElementById('fx-days'); return d.value === '' && d.placeholder === '7';`));
+  ok('Days a week is blank, the rotation\'s number as its hint', await js(`const d = document.getElementById('fx-days'); return d.value === '' && d.placeholder === '7';`), await js(`const d = document.getElementById('fx-days'); return d ? JSON.stringify([d.value, d.placeholder]) : 'none';`));
   ok('Food notes and Notes for the AI wear MAGI\'s corner grip', await js(`return ['fx-diet', 'fx-ainotes'].every(id => !!document.getElementById(id).parentElement.querySelector('.a1-grip'));`));
   await set('fx-days', 5); await set('fx-ainotes', 'Same routine for about a year.');
   await click('[data-fxc="sex"][data-v="male"]'); await sleep(150);
