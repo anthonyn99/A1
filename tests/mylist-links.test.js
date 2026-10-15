@@ -103,6 +103,11 @@ t('no links → no link section', !/LINK RULES/.test(W.buildListPrompt('milk', [
   const local = await W.linkMeta('http://127.0.0.1/admin', 500);
   t('private address is never fetched', local.read === false);
 
+  section('reader queue');
+  const lim = W.makeLimiter(3); let live = 0, peak = 0;
+  const res = await Promise.all([...Array(8)].map((_, i) => lim(async () => { live++; peak = Math.max(peak, live); await new Promise(r => setTimeout(r, 20)); live--; if (i === 2) throw new Error('x'); return i; })));
+  t('never more than 3 at once, every call settles, a throw becomes null', peak === 3 && res.length === 8 && res[2] === null && res[7] === 7, peak + ' ' + JSON.stringify(res));
+
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   if (fail) { console.log('\nFAILURES:\n  ' + failures.join('\n  ')); process.exit(1); }
 })();
