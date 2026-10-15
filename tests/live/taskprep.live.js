@@ -44,6 +44,7 @@ const VEDA = { data: { [TODAY]: [task('vedaT1', 'Email Prof Kim about extension'
 
 const prepCalls = [];      // bodies sent to /taskhub/prep
 const bridge = [];         // [method, path, body]
+let bridgeDown = false;   // the "another PC" case: nothing answers on 127.0.0.1
 const APPS = [{ id: 'app_word', name: 'Microsoft Word' }, { id: 'app_zoom', name: 'Zoom' }];
 
 (async () => {
@@ -53,6 +54,7 @@ const APPS = [{ id: 'app_word', name: 'Microsoft Word' }, { id: 'app_zoom', name
     patterns: [...fb.patterns, 'http://127.0.0.1:8781/*', 'https://personal-ai.av1.workers.dev/*'],
     handle(r) {
       if (r.url.startsWith('http://127.0.0.1:8781')) {
+        if (bridgeDown) return { status: 502, text: 'down' };
         if (r.method === 'OPTIONS') return { status: 204, text: '' };
         const p = new URL(r.url).pathname;
         bridge.push([r.method, p, r.postData || '']);
@@ -239,7 +241,7 @@ const APPS = [{ id: 'app_word', name: 'Microsoft Word' }, { id: 'app_zoom', name
   const glb = gl ? JSON.parse(gl[2]) : null;
   ok('✦ opens Gemini last, on the bridge', glb && glb.focus === 'https://gemini.google.com/app', JSON.stringify(glb));
   ok('…with the prompt on the clipboard (Gemini takes none from a link)', await js(`return window.__clip.length === 1 && window.__clip[0] === 'PROMPT FOR Tony';`), await js(`return JSON.stringify(window.__clip);`));
-  ok('the panel says to paste it', await js(`const p = document.querySelector('[data-th-prep-panel] [data-prep-paste]'); return !!p && /Ctrl\+V/.test(p.textContent) && /Gemini/.test(p.textContent);`), await js(`const p = document.querySelector('[data-th-prep-panel]'); return p ? p.innerText : 'no panel';`));
+  ok('the panel says to paste it', await js(`const p = document.querySelector('[data-th-prep-panel] [data-prep-paste]'); return !!p && /Ctrl\\+V/.test(p.textContent) && /Gemini/.test(p.textContent);`), await js(`const p = document.querySelector('[data-th-prep-panel]'); return p ? p.innerText : 'no panel';`));
   await c.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
   await sleep(700);
   await shot('taskprep-panel-gemini-390');
@@ -251,6 +253,7 @@ const APPS = [{ id: 'app_word', name: 'Microsoft Word' }, { id: 'app_zoom', name
   console.log('\nNo bridge: tabs from the page');
   // The bridge is gone (another PC): launches go nowhere, and window.open is
   // the only way. First with pop-ups blocked (one tab per click), then allowed.
+  bridgeDown = true;
   const noBridge = `window._thBridgeUp = false; window._thBridgeProbe = function(){ return Promise.resolve(false); }; 1`;
   await js(noBridge);
   await js(`localStorage.removeItem('a1PrepTabs'); window.__opened = []; window.__n = 0; window.open = function(u){ window.__opened.push(u); return (window.__n++ === 0) ? {} : null; }; 1`);
@@ -277,6 +280,8 @@ const APPS = [{ id: 'app_word', name: 'Microsoft Word' }, { id: 'app_zoom', name
   ok('once learned: the sites first and the assistant LAST, so it is the tab in front', op.length === 3 && /^https:\/\/claude\.ai\//.test(op[2]), JSON.stringify(op));
   await js(`[...document.querySelectorAll('[data-th-prep-panel] button')].find(b => b.textContent === 'Close').click(); 1`);
   await sleep(300);
+
+  bridgeDown = false;
 
   console.log('\nSeparation in the page');
   ok("Tony's default assistant is stored under his key only", await js(`window._thPrepSetDefaultSite('chatgpt'); return localStorage.getItem('thAiSite') === 'chatgpt' && localStorage.getItem('vdAiSite') === null;`));
