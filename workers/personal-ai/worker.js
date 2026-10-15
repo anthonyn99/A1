@@ -1501,7 +1501,7 @@ async function handleTaskhub(body, env) {
 // The Gmail compose link is BUILT here from the draft fields, never written by
 // the model — models mis-encode query strings, and a half-encoded body loses
 // everything after its first '&'.
-const PREP_SITES = { perplexity: 'Perplexity', chatgpt: 'ChatGPT', claude: 'Claude' };
+const PREP_SITES = { perplexity: 'Perplexity', chatgpt: 'ChatGPT', claude: 'Claude', gemini: 'Gemini' };
 const PREP_DRAFT_KINDS = ['email', 'message', 'document', 'none'];
 
 const PREP_SCHEMA = {
@@ -1563,12 +1563,17 @@ function prepIsWebUrl(u) {
   } catch (e) { return false; }
 }
 
+// Straight to Gmail's own compose URL (/mail/u/0/?fs=1&tf=cm). The older
+// /mail/?view=cm form is redirected by Gmail when signed in, and that redirect
+// drops every line break from the body: Tony's draft arrived as one run-on
+// paragraph, "Hi Anthony,I hope…" (2026-10-15). The page builds the same link
+// (_vdPrepGmailUrl), so kits saved before this get the fix too.
 function prepGmailUrl(d) {
-  const q = ['view=cm', 'fs=1'];
+  const q = ['fs=1', 'tf=cm'];
   if (d.to) q.push('to=' + encodeURIComponent(d.to));
   if (d.subject) q.push('su=' + encodeURIComponent(d.subject));
-  if (d.body) q.push('body=' + encodeURIComponent(d.body));
-  return 'https://mail.google.com/mail/?' + q.join('&');
+  if (d.body) q.push('body=' + encodeURIComponent(String(d.body).replace(/\r\n?/g, '\n')));
+  return 'https://mail.google.com/mail/u/0/?' + q.join('&');
 }
 
 // Whose planner it is. Veda's wording is the original; Tony's says only what
@@ -1581,6 +1586,8 @@ const PREP_PEOPLE = {
 function buildPrepPrompt({ profile, task, note, site, today, weekday, apps }) {
   const P = PREP_PEOPLE[profile === 'tony' ? 'tony' : 'veda'];
   const siteName = PREP_SITES[site] || 'Perplexity';
+  const siteWeb = site === 'perplexity' || site === 'gemini'
+    ? `${siteName} searches the web, so ask it to cite sources and current info where that helps.` : '';
   const appLines = apps.length
     ? apps.map(a => `${a.id}: ${a.name}`).join('\n')
     : '(none reported — return an empty apps list)';
@@ -1603,14 +1610,20 @@ function buildPrepPrompt({ profile, task, note, site, today, weekday, apps }) {
     `  what this JSON actually contains (never say you drafted an email unless draft.body holds it).`,
     `- prompt: a complete, self-contained message ${P.name} will paste into ${siteName}. Write it in ${P.their} voice ("I need to…"),`,
     `  include every detail from the task and notes, and ask for the concrete finished output (the full email, a`,
-    `  comparison with links, a step-by-step plan, etc.). ${siteName === 'Perplexity' ? 'Perplexity searches the web, so ask it to cite sources and current info where that helps.' : ''}`,
+    `  comparison with links, a step-by-step plan, etc.). ${siteWeb}`,
     `  The assistant knows nothing else about ${P.them}, so the prompt must stand alone. Max ~1200 words.`,
+    `  ${siteName} has NO access to ${P.their} email, calendar, files, accounts or PC, so never ask it to send,`,
+    `  open, check, read or schedule anything there (it answers "I don't have access to Gmail"). Ask it only for`,
+    `  text and information. ${P.name}'s planner already opens the Gmail draft, the sites and the apps for ${P.them}.`,
     `- draft: your own best first draft of the deliverable, so ${P.they} ${P.has} something even before opening ${siteName}.`,
     `  The COMPLETE text goes in draft.body; a draft with an empty body is discarded. Always fill every draft field`,
     `  (use "" for ones that do not apply).`,
     `  kind "email" when the task is to email/write to someone: fill to (only an address that appears in ${P.their} notes,`,
     `  else empty), subject, and body (complete, polite, signed "${P.name}", placeholders like [date] only where a fact`,
-    `  is genuinely unknown). kind "message" for a text/DM, "document" for notes/outlines/lists, "none" if no draft fits.`,
+    `  is genuinely unknown).`,
+    `  Write the body with real line breaks: the greeting on its own line, a blank line, short paragraphs`,
+    `  separated by blank lines, then the sign-off and the name on their own lines.`,
+    `  kind "message" for a text/DM, "document" for notes/outlines/lists, "none" if no draft fits.`,
     `- sites: up to ${PREP_MAX_SITES} websites ${P.they} will actually need for THIS task (the real https URL of the`,
     `  specific service: a booking page, a portal, a form, docs). Do NOT include Gmail (it is added automatically`,
     `  for email drafts), the AI assistant itself, or generic search pages. Empty when none clearly fit.`,
