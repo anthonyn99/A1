@@ -205,12 +205,12 @@ const mock = {
   await click('#dash-body [data-fx="edit"]'); await sleep(400);
   await js(`const i = [...document.querySelectorAll('.fx-mealnames input')].find(x => x.value === 'Lunch'); i.closest('.ew-clr').querySelector('.ew-clr-x').click(); return 1;`); await sleep(150);
   ok('a cleared meal box stays (empty) until Save', await js(`return [...document.querySelectorAll('.fx-mealnames input')].map(i => i.value).join() === 'Breakfast,,Dinner';`));
-  const before = (await doc('everwell_fuel')).d[pid][today].m;
+  const mBefore = (await doc('everwell_fuel')).d[pid][today].m;
   await click('[data-fxa="save"]'); await sleep(1300);
   b = await doc('everwell_body'); f = await doc('everwell_fuel');
   ok('Save drops the cleared meal (no "Snack" in its place)', JSON.stringify(b.people[0].over.mealNames) === JSON.stringify(['Breakfast', 'Dinner']) && b.people[0].over.meals === 2 &&
     (await js(`return [...document.querySelectorAll('#dash-fuel [data-fx="meal"]')].map(x => x.textContent).join();`)) === 'Breakfast,Dinner', JSON.stringify(b.people[0].over));
-  ok('…today\'s ticks follow by name (Dinner keeps its tick)', !!f.d[pid][today].m['1'] === !!before['2'] && !!f.d[pid][today].m['0'] === !!before['0'], JSON.stringify([before, f.d[pid][today].m]));
+  ok('…today\'s ticks follow by name (Dinner keeps its tick)', !!f.d[pid][today].m['1'] === !!mBefore['2'] && !!f.d[pid][today].m['0'] === !!mBefore['0'], JSON.stringify([mBefore, f.d[pid][today].m]));
   await click('#dash-body [data-fx="edit"]'); await sleep(400);
   await js(`[...document.querySelectorAll('.fx-mealnames input')].forEach(i => { i.value = ''; }); return 1;`);
   await click('[data-fxa="save"]'); await sleep(600);
