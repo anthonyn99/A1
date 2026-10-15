@@ -83,6 +83,7 @@ def test_refused_files_have_their_own_kind():
     assert "did not take" in cause and "upload" in remedy
 
 
+@pytest.mark.asyncio
 async def test_chatgpt_files_go_to_the_general_uploader_not_the_camera():
     p, browser, page = await _page()
     try:
@@ -95,6 +96,7 @@ async def test_chatgpt_files_go_to_the_general_uploader_not_the_camera():
         await browser.close(); await p.stop()
 
 
+@pytest.mark.asyncio
 async def test_a_file_the_site_shows_has_landed(png):
     p, browser, page = await _page()
     try:
@@ -107,6 +109,7 @@ async def test_a_file_the_site_shows_has_landed(png):
         await browser.close(); await p.stop()
 
 
+@pytest.mark.asyncio
 async def test_a_file_the_site_drops_has_not(png):
     p, browser, page = await _page()
     try:
@@ -119,6 +122,7 @@ async def test_a_file_the_site_drops_has_not(png):
         await browser.close(); await p.stop()
 
 
+@pytest.mark.asyncio
 async def test_chatgpt_reads_its_upload_cap_from_the_menu():
     p, browser, page = await _page()
     try:
