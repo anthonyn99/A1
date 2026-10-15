@@ -119,7 +119,6 @@ const mock = {
 
   console.log('\nRenaming (Tony, 2026-10-15)');
   const rnTile = (name) => `[...document.querySelectorAll('#focus-grid .media-tile')].find(t => t.querySelector('.t').textContent === ${JSON.stringify(name)})`;
-  console.log('    tiles: ' + await js(`return [...document.querySelectorAll('#focus-grid .media-tile')].map(t => t.dataset.id + '=' + (t.querySelector('.t') || {}).textContent).join(' | ');`));
   ok('every tile has a Rename button beside Remove', await js(`return [...document.querySelectorAll('#focus-grid .media-tile')].every(t => !!t.querySelector('[data-rename]') && t.querySelector('[data-rename]').nextElementSibling.matches('.rm'));`));
   await js(`${rnTile('Rain')}.querySelector('[data-rename]').click(); return 1;`); await sleep(400);
   ok('Rename asks in the in-page dialog, filled with the current name, no field focused', await js(`const i = document.querySelector('#uim-fields input'); return !!i && i.value === 'Rain' && document.activeElement !== i;`));
