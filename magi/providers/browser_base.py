@@ -247,10 +247,11 @@ class BrowserProvider(Provider):
         """Why nothing was sent (FailureKind.ATTACH_REFUSED): the site's own
         words for its upload cap when it gave any."""
         why = await self._upload_limit_notice(page)
+        files = "file" if n == 1 else f"{n} files"
         return (
-            (f"{self.display_name} says: {why}" if why else
-             f"{self.display_name} did not take the "
-             f"{n} attached file{'s' if n != 1 else ''}")
+            (f"{self.display_name} is not taking uploads right now (it says "
+             f"\"{why}\")" if why else
+             f"{self.display_name} did not take the attached {files}")
             + " -- so the question was not sent without "
             + ("it." if n == 1 else "them.")
         )
