@@ -76,6 +76,9 @@ t('non-shopping list: skipped link added without a group', r.items.length === 1 
 r = W.applyListOps([], [], [{ op: 'add', link: 7, name: 'Ghost' }], 'shopping', []);
 t('a bad link number is ignored', r.items.length === 1 && !r.items[0].link);
 
+r = W.applyListOps([], [], [{ op: 'add', name: 'Hickory Bacon', store: 'Meat' }, { op: 'add', name: 'Tofu' }], 'shopping', links);
+t('no link number: the link goes to the item its title matches, nothing duplicated', r.items.length === 3 && r.items[0].link && r.items[0].link.url === links[1].url && !r.items[1].link && r.items[2].link.url === SAMS, JSON.stringify(r.items.map(i => [i.name, i.link && i.link.url])));
+
 section('existing links survive edits');
 const kept = W.sanitizeItems([{ id: 'a', name: 'Chicken', link: { url: SAMS, image: 'https://i5.samsclubimages.com/x.jpeg', price: '$12.94', site: "Sam's Club", junk: 1 } }]);
 t('sanitizeItems keeps the link (and only its fields)', kept[0].link && kept[0].link.url === SAMS && !('junk' in kept[0].link));
