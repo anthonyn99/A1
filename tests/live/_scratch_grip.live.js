@@ -1,0 +1,33 @@
+'use strict';
+const { connect, evalJs, sleep, shotPath } = require('./cdp.js');
+const { firebaseMock } = require('./fake-firebase.js');
+const fs = require('fs');
+const ORIGIN = 'https://anthonyn99.github.io';
+(async () => {
+  const fb = firebaseMock();
+  const mock = { patterns: [...fb.patterns, 'http://127.0.0.1:8781/*', 'https://personal-ai.av1.workers.dev/*'],
+    handle(r) { if (r.url.startsWith('http://127.0.0.1:8781') || r.url.startsWith('https://personal-ai')) return { status: 502, text: 'x' }; return fb.handle(r); } };
+  const c = await connect({ mock });
+  await c.send('Page.enable'); await c.send('Runtime.enable');
+  const js = (e) => evalJs(c, e);
+  await c.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 1000, deviceScaleFactor: 1, mobile: false });
+  await c.send('Storage.clearDataForOrigin', { origin: ORIGIN, storageTypes: 'all' });
+  await c.send('Page.navigate', { url: ORIGIN + '/A1/tni.js' }); await sleep(400);
+  await js(`localStorage.clear(); localStorage.setItem('td6_mainDash','tony'); localStorage.setItem('td6_lastDash','tony'); localStorage.setItem('a1b_disabled','1'); 1`);
+  await c.send('Page.navigate', { url: ORIGIN + '/A1/index.html' });
+  await sleep(10000);
+  await js("var l=document.getElementById('th-boot-loader'); if(l) l.remove(); if(window._profileGoTony) window._profileGoTony(); 1");
+  await sleep(1500);
+  await js(`window._thVoice.setEdit(true); 1`); await sleep(800);
+  await js(`[...document.querySelectorAll('#root button')].find(b => b.textContent.trim() === '+ Add').click(); 1`);
+  await sleep(800);
+  await js(`const l=[...document.querySelectorAll('#root label')].find(l => /AI prep/.test(l.textContent)); l.querySelector('input').click(); l.scrollIntoView({block:'center'}); 1`);
+  await sleep(500);
+  const g = JSON.parse(await js(`const g=document.querySelector('#root .a1-grip').getBoundingClientRect(); return JSON.stringify({x:g.left+g.width/2,y:g.top+g.height/2});`));
+  await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: g.x, y: g.y });
+  await sleep(500);
+  console.log(await js(`const g=document.querySelector('#root .a1-grip'); const s=getComputedStyle(g); return JSON.stringify({cls:g.className, attrs:[...g.attributes].map(a=>a.name+'='+a.value), outline:s.outline, border:s.border, shadow:s.boxShadow, bg:s.backgroundColor, filter:s.filter, focus:document.activeElement===g});`));
+  const r = await c.send('Page.captureScreenshot', { format: 'png', clip: { x: g.x - 300, y: g.y - 150, width: 400, height: 220, scale: 1 } });
+  fs.writeFileSync(shotPath('grip-hover'), Buffer.from(r.result.data, 'base64'));
+  process.exit(0);
+})().catch((e) => { console.error(e); process.exit(1); });
