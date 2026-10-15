@@ -162,7 +162,8 @@ const mock = {
   const sam = b.people.find((p) => p.name === 'Sam');
   ok('Sam is saved with her own pastel, and her first plan came from the AI (manual training sent)', !!sam && sam.hue !== b.people[0].hue && !!sam.ai && AI.calls[AI.calls.length - 1].training.perWeek === 3 && AI.calls[AI.calls.length - 1].training.kind === 'running', JSON.stringify(sam));
   ok('Sam is the one chosen now (synced in EWSettings fuelPerson)', ((await doc('everwell_tony')) || {}).fuelPerson === sam.id);
-  ok('two chips; Today\'s fuel says whose day it is; Sam has no ticks yet', await js(`return document.querySelectorAll('#dash-body .fx-person:not(.add)').length === 2;`) && /Sam/.test(await text('#dash-fuel .panel-title')) && /0\/3 meals/.test(await text('#dash-fuel .card-head')));
+  ok('two chips; Today\'s fuel says whose day it is; Sam has no ticks yet', await js(`return document.querySelectorAll('#dash-body .fx-person:not(.add)').length === 2;`) && /Sam/.test(await text('#dash-fuel .panel-title')) && /0\/3 meals/.test(await text('#dash-fuel .card-head')),
+    (await text('#dash-body')).slice(0, 80) + ' // ' + await text('#dash-fuel .card-head') + ' // ' + await js(`return EWFuel.people().length + ' loaded ' + EWFuel.loaded() + ' chosen ' + JSON.stringify(EWFuel.chosen() && EWFuel.chosen().name) + ' doc ' + JSON.stringify(__fakeFs.docs['dashboards/everwell_body']).slice(0, 300);`));
   await click('#dash-fuel [data-fx="glass"][data-i="0"]'); await sleep(700);
   f = await doc('everwell_fuel');
   ok('Sam\'s tick goes under Sam; Tony\'s day is untouched', f.d[sam.id][today].w['0'] === true && f.d[pid][today].m['0'] === true);
