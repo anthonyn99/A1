@@ -259,9 +259,9 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   ok('…and Show brings them back', await js(`const s = document.querySelector('[data-igstage]'); return !s.classList.contains('bare') && getComputedStyle(s.querySelector('.ig-side')).display !== 'none' && localStorage.getItem('ew.tony.igSide') === '1';`));
   await click('#media-grid [data-igs="close"]'); await sleep(400);
   await click('#media-grid [data-igcollapse="col2"]'); await sleep(500);
-  ok('a collapsed collection: its name, one quiet line, and icon buttons on their own row', await js(`const t = document.querySelector('#media-grid .igc-tile[data-id="col2"]'); if (!t) return false;
+  ok('a collapsed collection: its name, one quiet line, and icon buttons on their own row (Rename among them)', await js(`const t = document.querySelector('#media-grid .igc-tile[data-id="col2"]'); if (!t) return false;
     const ttl = t.querySelector('.igc-ttl').getBoundingClientRect(), acts = t.querySelector('.igc-acts').getBoundingClientRect();
-    return t.querySelector('.igc-ttl .t').textContent === 'Blocked' && /^Instagram · synced [0-9]+ min ago$/.test(t.querySelector('.igc-ttl .s').textContent) && acts.top >= ttl.bottom - 1 && t.querySelectorAll('.igc-acts .igc-ib').length === 5;`));
+    return t.querySelector('.igc-ttl .t').textContent === 'Blocked' && /^Instagram · synced [0-9]+ min ago$/.test(t.querySelector('.igc-ttl .s').textContent) && acts.top >= ttl.bottom - 1 && t.querySelectorAll('.igc-acts .igc-ib').length === 6 && !!t.querySelector('.igc-acts [data-rename]');`));
 
   console.log('\nA pasted reel');
   await click('#media-grid .media-tile[data-id="m1"] [data-play]'); await sleep(900);
