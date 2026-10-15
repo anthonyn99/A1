@@ -102,6 +102,12 @@ const mock = {
   await add('https://www.youtube.com/watch?v=goodvideo01', 'Good');
   await add('https://www.youtube.com/watch?v=goodvideo01');
   ok('a duplicate is refused', /already here/.test(await js(`return document.getElementById('focus-err').textContent;`)));
+  await add('', '');
+  ok('Enter on empty boxes does nothing: no error, nothing added (Tony, 2026-10-15)', await js(`return document.getElementById('focus-err').textContent === '' && document.querySelectorAll('#focus-grid .media-tile').length === 5;`),
+    await js(`return document.getElementById('focus-err').textContent;`));
+  await add('   ', 'Only a title');
+  ok('…a blank link with a title typed is ignored the same way', await js(`return document.getElementById('focus-err').textContent === '' && document.querySelectorAll('#focus-grid .media-tile').length === 5;`));
+  await js(`document.getElementById('focus-title').value = ''; return 1;`);
   ok('the link and title boxes each get a clear x once they hold text (typed or pasted)', await js(`const u = document.getElementById('focus-url'), t = document.getElementById('focus-title'); u.value = 'https://pasted.example/x'; u.dispatchEvent(new Event('input', { bubbles: true })); return !!u.closest('.ew-clr') && !!t.closest('.ew-clr') && u.closest('.ew-clr').classList.contains('has');`));
   await js(`document.getElementById('focus-url').closest('.ew-clr').querySelector('.ew-clr-x').click(); return 1;`); await sleep(200);
   ok('…and the x clears it', await js(`return document.getElementById('focus-url').value === '' && !document.getElementById('focus-url').closest('.ew-clr').classList.contains('has');`));
@@ -110,6 +116,25 @@ const mock = {
   ok('every tile has an "open on the site" link (new tab, no opener)', await js(`return [...document.querySelectorAll('#focus-grid .media-meta a')].length === 5 && [...document.querySelectorAll('#focus-grid .media-meta a')].every(a => a.target === '_blank' && /noopener/.test(a.rel));`));
   await sleep(1500);
   ok('saved as its own field, focusMedia (Mindset\'s list untouched)', await js(`const d = __fakeFs.docs['dashboards/everwell_tony'] || {}; return (d.focusMedia || []).length === 5 && !d.mindsetMedia;`), await js(`return JSON.stringify(__fakeFs.docs['dashboards/everwell_tony']);`));
+
+  console.log('\nRenaming (Tony, 2026-10-15)');
+  const rnTile = (name) => `[...document.querySelectorAll('#focus-grid .media-tile')].find(t => t.querySelector('.t').textContent === ${JSON.stringify(name)})`;
+  ok('every tile has a Rename button beside Remove', await js(`return [...document.querySelectorAll('#focus-grid .media-tile')].every(t => !!t.querySelector('[data-rename]') && t.querySelector('[data-rename]').nextElementSibling.matches('.rm'));`));
+  await js(`${rnTile('Rain')}.querySelector('[data-rename]').click(); return 1;`); await sleep(400);
+  ok('Rename asks in the in-page dialog, filled with the current name, no field focused', await js(`const i = document.querySelector('#uim-fields input'); return !!i && i.value === 'Rain' && document.activeElement !== i;`));
+  await js(`document.querySelector('#uim-fields input').value = '  Rain at night  '; document.getElementById('uim-ok').click(); return 1;`); await sleep(1500);
+  ok('the tile takes the new name (trimmed), and it is saved', await js(`const t = ${rnTile('Rain at night')}; const d = (__fakeFs.docs['dashboards/everwell_tony'] || {}).focusMedia || [];
+    return !!t && t.dataset.named === '1' && d.some(x => x.title === 'Rain at night' && x.url === 'https://audio.test/rain.wav') && document.querySelectorAll('#focus-grid .media-tile').length === 5;`),
+    await js(`return JSON.stringify(((__fakeFs.docs['dashboards/everwell_tony'] || {}).focusMedia || []).map(x => x.title));`));
+  await js(`${rnTile('Rain at night')}.querySelector('[data-rename]').click(); return 1;`); await sleep(400);
+  await js(`document.querySelector('#uim-fields input').value = ''; document.getElementById('uim-ok').click(); return 1;`); await sleep(1500);
+  ok('an empty name goes back to the link\'s own label', await js(`const d = (__fakeFs.docs['dashboards/everwell_tony'] || {}).focusMedia || []; const it = d.find(x => x.url === 'https://audio.test/rain.wav');
+    const t = [...document.querySelectorAll('#focus-grid .media-tile')].find(t => t.dataset.id === it.id); return it.title === '' && !!t && t.querySelector('.t').textContent === t.querySelector('.k').textContent && !t.dataset.named;`));
+  await js(`${rnTile('Good')}.querySelector('[data-rename]').click(); return 1;`); await sleep(400);
+  await js(`document.querySelector('#uim-fields input').value = 'Changed my mind'; document.getElementById('uim-cancel') ? document.getElementById('uim-cancel').click() : document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return 1;`); await sleep(800);
+  ok('Cancel keeps the name', await js(`return !!${rnTile('Good')};`));
+  await js(`${rnTile('Rain')}.querySelector('[data-rename]').click(); return 1;`); await sleep(400);
+  await js(`document.querySelector('#uim-fields input').value = 'Rain'; document.getElementById('uim-ok').click(); return 1;`); await sleep(1200);
   ok('a failed thumbnail (offline / blocked) leaves placeholder art, not a black box', await js(`return !document.querySelector('#focus-grid img') && document.querySelectorAll('#focus-grid .media-ph').length === 5;`));
 
   console.log('\nPlaying');
