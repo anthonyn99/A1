@@ -2194,10 +2194,33 @@ function healPump(){
   while(healLive<3 && healQueue.length){
     var job=healQueue.shift(); healLive++;
     (function(job){
-      fetch(API+'/link/preview?url='+encodeURIComponent(job.url)).then(function(r){ return r.json(); }).catch(function(){ return null; })
-        .then(function(d){ healLive--; if(d && d.ok && d.read && d.link) healApply(job, d); healPump(); });
+      readLink(job.url).then(function(d){
+        healLive--;
+        if(d) healApply(job, d);
+        else if(!job.retried){ job.retried=1; setTimeout(function(){ healQueue.push(job); healPump(); }, 6000); }
+        healPump();
+      });
     })(job);
   }
+}
+// Read one page: the worker first (its direct fetch works for many stores and
+// it caches), then — when the worker's shared Cloudflare IPs are rate-limited by
+// the page reader — the reader straight from this browser, on this viewer's own
+// quota, with the worker only parsing the HTML. Resolves the preview or null.
+function readLink(url){
+  var good=function(d){ return (d && d.ok && d.read && d.link) ? d : null; };
+  return fetch(API+'/link/preview?url='+encodeURIComponent(url)).then(function(r){ return r.json(); }).catch(function(){ return null; })
+    .then(function(d){
+      if(good(d)) return d;
+      var amazon=/(^|\.)amazon\.|(^|\.)amzn\.to$|(^|\.)a\.co$/.test(linkHost(url));
+      var hdr={ 'X-Return-Format':'html' }; if(!amazon) hdr['X-Target-Selector']='head';
+      return fetch('https://r.jina.ai/'+url, { headers:hdr }).then(function(r){ return r.ok ? r.text() : ''; })
+        .then(function(html){
+          if(!html) return null;
+          return fetch(API+'/link/parse', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ url:url, html:html }) })
+            .then(function(r){ return r.json(); }).then(good);
+        }).catch(function(){ return null; });
+    });
 }
 function healApply(job, d){
   var l=lists().filter(function(x){ return x.id===job.listId; })[0]; if(!l) return;
