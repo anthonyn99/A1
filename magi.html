@@ -10986,7 +10986,8 @@ function settleFromState(p, message) {
   } else if (p.state === "failed") {
     p.ok = false; p.degraded = false;
     if (message) p.error_detail = message;
-    if (message && /rate.?limit|limit is gone|reached your/i.test(message)) p.failure = "rate_limited";
+    if (message && /question was not sent without (it|them)/i.test(message)) p.failure = "attach_refused";
+    else if (message && /rate.?limit|limit is gone|reached your/i.test(message)) p.failure = "rate_limited";
     else if (message && /characters over the limit/i.test(message)) p.failure = "prompt_too_long";
     else if (message && /servers refused the message/i.test(message)) p.failure = "site_error";
   } else if (p.state === "launching" || p.state === "navigating") {
@@ -11993,6 +11994,7 @@ const DOC_KIND = {
   rate_limited: "Usage limit",
   prompt_too_long: "Prompt too long",
   site_error: "Site error",
+  attach_refused: "Files refused",
   timeout: "Timed out",
   empty_response: "Empty response",
   not_logged_in: "Signed out",

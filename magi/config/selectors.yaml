@@ -531,6 +531,11 @@ sites:
     send_key: Enter
     file_input:
       - "input[type='file']"
+    # VERIFIED 2026-10-15 (free account): images still attach, but a document
+    # (a .txt) past the free allowance is dropped and this upsell covers the
+    # page instead.
+    upload_limit:
+      - "text=/Upgrade for additional document analysis/i"
     assistant_turn:
       # VERIFIED: exactly one .prose per answer, holding the answer body.
       # Scoped to main first so a sidebar or a preview card can never be
