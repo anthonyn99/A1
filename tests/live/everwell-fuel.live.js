@@ -167,7 +167,7 @@ const mock = {
   /* ── Hand edits, Reset, Re-run ── */
   console.log('\nHand edits, Reset, Re-run');
   await click('#dash-body [data-fx="edit"]'); await sleep(500);
-  ok('the Plan fields are filled with the AI\'s numbers', (await js(`return ['fx-calories','fx-protein','fx-carbs','fx-fat','fx-woz','fx-goz','fx-meals'].map(i => document.getElementById(i).value).join();`)) === '2500,175,270,78,120,16,3');
+  ok('the Plan fields are filled with the AI\'s numbers', (await js(`return ['fx-calories','fx-protein','fx-carbs','fx-fat','fx-woz','fx-goz'].map(i => document.getElementById(i).value).join() + '|' + document.querySelectorAll('.fx-mealnames input').length;`)) === '2500,175,270,78,120,16|3');
   ok('every box in the editor has a clear x (the link boxes\' own)', await js(`return [...document.querySelectorAll('#fx-editor input[type=text], #fx-editor input[type=number], #fx-editor textarea')].every(i => i.parentElement.classList.contains('ew-clr') && !!i.parentElement.querySelector('.ew-clr-x'));`));
   await js(`document.getElementById('fx-fiber').closest('.ew-clr').querySelector('.ew-clr-x').click(); return 1;`); await sleep(150);
   ok('…one click empties it', (await js(`return document.getElementById('fx-fiber').value;`)) === '');
