@@ -48,6 +48,8 @@ t('Open Graph fallback, attribute order free', og.title === 'Cool Lamp', og.titl
 t('relative image made absolute', og.image === 'https://www.wayfair.com/img/lamp.jpg', og.image);
 t('meta price', og.price === '$49.50', og.price);
 t('Amazon title prefix/suffix stripped', W.cleanTitle('Amazon.com: Orgain Plant Based Protein Powder, Chocolate : Grocery &amp; Gourmet Food', 'Amazon') === 'Orgain Plant Based Protein Powder, Chocolate');
+const amz = W.extractLinkMeta('<title>Amazon.com: Instant Pot Duo 6 Qt, Stainless Steel</title><img id="landingImage" data-old-hires="https://m.media-amazon.com/images/I/71ML.jpg"> {"priceAmount":79.00}', 'https://www.amazon.com/dp/B00FLYWNYQ');
+t('Amazon: photo and price from the page body', amz.image === 'https://m.media-amazon.com/images/I/71ML.jpg' && amz.price === '$79.00' && amz.title === 'Instant Pot Duo 6 Qt, Stainless Steel', JSON.stringify(amz));
 const bot = W.extractLinkMeta('<title>Robot or human?</title>', SAMS);
 t('bot wall → slug name, no photo', bot.read === false && bot.image === '' && /Italian Herb Grilled Chicken Breast 5 Count/.test(bot.title), JSON.stringify(bot));
 t('slug name from an Amazon path', W.slugTitle('https://www.amazon.com/Premier-Protein-Powder-Vanilla-Milkshake/dp/B07H9JVJ1Q') === 'Premier Protein Powder Vanilla Milkshake');

@@ -1252,8 +1252,11 @@ export function extractLinkMeta(html, url) {
   const raw = ld.name || meta['og:title'] || meta['twitter:title'] || titleTag;
   const blocked = /robot|captcha|access denied|are you a human|page not found|just a moment|sign in/i.test(titleTag) && !ld.name && !meta['og:title'];
   const title = blocked ? '' : cleanTitle(raw, site);
-  const image = blocked ? '' : absUrl(ld.image || meta['og:image'] || meta['og:image:url'] || meta['twitter:image'] || meta['twitter:image:src'] || '', url);
-  const price = fmtPrice(ld.price ?? meta['product:price:amount'] ?? meta['og:price:amount'], ld.currency || meta['product:price:currency'] || meta['og:price:currency']);
+  // Amazon keeps its photo and price in the body, not the head.
+  const bodyImg = (/data-old-hires="(https:[^"]+)"/.exec(h) || /id="landingImage"[^>]*?src="(https:[^"]+)"/.exec(h) || [])[1] || '';
+  const bodyPrice = (/"priceAmount":\s*([0-9.]+)/.exec(h) || [])[1];
+  const image = blocked ? '' : absUrl(ld.image || meta['og:image'] || meta['og:image:url'] || meta['twitter:image'] || meta['twitter:image:src'] || bodyImg, url);
+  const price = fmtPrice(ld.price ?? meta['product:price:amount'] ?? meta['og:price:amount'] ?? bodyPrice, ld.currency || meta['product:price:currency'] || meta['og:price:currency']);
   return { url, title: title || slugTitle(url), image, price, site, read: !!title };
 }
 const LINK_UAS = [
@@ -1261,16 +1264,24 @@ const LINK_UAS = [
   'Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)',   // many stores serve link-preview bots their OG tags
 ];
 const linkCache = new Map();   // per isolate — repeated pastes of one link are free
-async function fetchPage(url, ua, ms) {
+// Measured 2026-10-15: from Cloudflare's IPs Sam's Club, Walmart, Target and
+// Amazon all answer with a bot wall, so the worker ALSO asks Jina's free reader
+// (r.jina.ai, ~20 req/min keyless), which returned every one of them in 1–4 s.
+// The direct fetch still wins for the many sites that don't block.
+const isAmazon = (url) => /(^|\.)amazon\.|(^|\.)amzn\.to$|(^|\.)a\.co$/.test(hostOf(url));
+async function fetchPage(url, ms, via) {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), ms);
   try {
-    const r = await fetch(url, { signal: ac.signal, redirect: 'follow', headers: {
-      'User-Agent': ua, 'Accept': 'text/html,application/xhtml+xml', 'Accept-Language': 'en-US,en;q=0.9' } });
-    if (!r.ok || !/html/i.test(r.headers.get('content-type') || 'html')) return null;
-    const html = (await r.text()).slice(0, 1500000);
+    const target = via === 'jina' ? 'https://r.jina.ai/' + url : url;
+    const headers = via === 'jina'
+      ? Object.assign({ 'X-Return-Format': 'html' }, isAmazon(url) ? {} : { 'X-Target-Selector': 'head' })
+      : { 'User-Agent': via, 'Accept': 'text/html,application/xhtml+xml', 'Accept-Language': 'en-US,en;q=0.9' };
+    const r = await fetch(target, { signal: ac.signal, redirect: 'follow', headers });
+    if (!r.ok || !/html|text\/plain/i.test(r.headers.get('content-type') || 'html')) return null;
+    const html = (await r.text()).slice(0, 3500000);
     const m = extractLinkMeta(html, url);
-    if (r.url && r.url !== url) { const finalSite = siteName(r.url); if (finalSite) m.site = finalSite; }
+    if (via !== 'jina' && r.url && r.url !== url) { const finalSite = siteName(r.url); if (finalSite) m.site = finalSite; }
     return m.read ? m : null;
   } catch (e) { return null; } finally { clearTimeout(timer); }
 }
@@ -1279,17 +1290,22 @@ function okLinkUrl(url) {
   if (!/^https?:$/.test(u.protocol)) return false;
   return !/^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[)/i.test(u.hostname) && u.hostname.includes('.');
 }
-// Read one link: both user agents race, the first page that names a product
-// wins, and a page that can't be read still yields a slug name + store.
-export async function linkMeta(url, ms = 6000) {
+// Read one link: the direct fetches and the reader race, the first page that
+// names a product wins (one with a photo beats one without, briefly), and a
+// page that can't be read still yields a slug name + store.
+export async function linkMeta(url, ms = 7000) {
   const fallback = { url, title: slugTitle(url), image: '', price: '', site: siteName(url), read: false };
   if (!okLinkUrl(url)) return fallback;
   const hit = linkCache.get(url);
   if (hit && Date.now() - hit.at < 6 * 3600e3) return hit.v;
   const v = await new Promise((resolve) => {
-    let left = LINK_UAS.length;
-    LINK_UAS.forEach((ua) => fetchPage(url, ua, ms).then((m) => {
-      if (m) resolve(m); else if (--left === 0) resolve(fallback);
+    const ways = [...LINK_UAS, 'jina'];
+    let left = ways.length, noPhoto = null, grace = null;
+    const done = (m) => { clearTimeout(grace); resolve(m); };
+    ways.forEach((via) => fetchPage(url, ms, via).then((m) => {
+      if (m && m.image) return done(m);
+      if (m && !noPhoto) { noPhoto = m; grace = setTimeout(() => done(noPhoto), 1500); }
+      if (--left === 0) done(noPhoto || fallback);
     }));
   });
   if (v.read) { linkCache.set(url, { at: Date.now(), v }); if (linkCache.size > 300) linkCache.delete(linkCache.keys().next().value); }
@@ -4107,7 +4123,7 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 33, // bump when verifying a deploy went live
+        version: 34, // bump when verifying a deploy went live
         features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search', 'quote', 'quote-buddhist', 'fuel', 'yt-playlist', 'ig-media', 'ig-thumb', 'ig-px', 'link-preview'],
         quoteModels: { orca: QUOTE_ORCA_MODELS, gemini: QUOTE_GEMINI_MODELS },
         fuelModels: { orcaVision: FUEL_ORCA_VISION, orca: FUEL_ORCA_TEXT, gemini: FUEL_GEMINI_MODELS },
