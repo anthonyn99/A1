@@ -23,6 +23,8 @@ const TARGET = 'https://www.target.com/p/good-gather-large-grade-a-eggs-12ct/-/A
 const list = () => ({ id: 'L_shop', name: 'Groceries', type: 'shopping', stores: ["Sam's Club"], createdAt: 1, items: [
   { id: 'a', name: 'Italian Herb Grilled Chicken Breasts', qty: '', store: "Sam's Club", desc: '', done: false,
     link: { url: SAMS, title: "Member's Mark Italian Herb Grilled Chicken Breasts", image: 'https://i5.samsclubimages.com/asr/5cfbe04b-9ef5-4ab2-8aea-1a659ce01462.b0ab5affda49f73ea9daa3160feacc9d.jpeg', price: '$12.94', site: "Sam's Club" } },
+  { id: 'c', name: 'Members Mark Mesquite Chicken 3lbs', qty: '', store: "Sam's Club", desc: '', done: false, link: { url: 'https://www.samsclub.com/ip/members-mark-mesquite-chicken-3lbs/13585924222', title: 'Members Mark Mesquite Chicken 3lbs', site: "Sam's Club" } },
+  { id: 'd', name: 'Mesquite Grilled Chicken Fillets', qty: '', store: "Sam's Club", desc: '3 lbs', done: false, link: { url: 'https://www.samsclub.com/ip/members-mark-mesquite-chicken-3lbs/13585924222', image: 'https://i5.samsclubimages.com/x.jpeg', site: "Sam's Club" } },
   { id: 'b', name: 'Tofu', qty: '', store: '', desc: 'find somewhere to get', done: false },
 ] });
 const boot = (who) => `(()=>{ if(window.top!==window) return;
@@ -72,6 +74,11 @@ const items = `(()=>{ const s=window.__saves[window.__saves.length-1]; const p=s
     ok('linked row: photo, store chip opening the page in a new tab, price', R.img && R.href === SAMS && R.tgt === '_blank' && R.site === "Sam's Club" && R.price === '$12.94', row);
     ok('plain row unchanged (no photo, no chip)', await evalJs(c, `const r=document.querySelector('.item[data-id="b"]'); return !r.querySelector('.lk-thumb') && !r.querySelector('.lk-chip')`));
     ok('photo loads', await waitFor(c, `const i=document.querySelector('.item[data-id="a"] img.lk-thumb'); return !!i && i.complete && i.naturalWidth>0`, 10000));
+    if (who === 'tony') {
+      ok('repair: a URL-named copy of a page already on the list is removed', await waitFor(c, "const it=" + items + "; return !!it && !it.find(i=>i.id==='c')", 30000));
+    } else {
+      await evalJs(c, "const l=ML && null; return 1");
+    }
     await shot(c, 'mylist-links-' + who + '-1280');
 
     // 2. manual add from a link only
