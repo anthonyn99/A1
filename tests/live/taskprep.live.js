@@ -11,6 +11,13 @@
 //     and opens Tony's Prep panel (MAGI look) with the draft and the sites.
 //   • Tony's editor: flag a new task, write a note, save -> the task carries
 //     aiPrep/aiNote, a kit is built for it at once; unflag -> the fields go.
+//   • A kit's old /mail/?view=cm Gmail link (its redirect drops the email's
+//     line breaks) is rebuilt as the direct compose link everywhere.
+//   • The note box has A1's corner grip, and dragging it resizes the box.
+//   • Gemini: picked in the editor, ✦ copies the prompt (Gemini takes none
+//     from its URL) and the panel says to paste it.
+//   • No bridge: pop-ups blocked -> the assistant alone + a hint; allowed ->
+//     every site, and once learned, the assistant last (in front).
 //
 // Run: node tests/live/taskprep.live.js
 'use strict';
@@ -129,10 +136,15 @@ const APPS = [{ id: 'app_word', name: 'Microsoft Word' }, { id: 'app_zoom', name
   const lb = launch[0] ? JSON.parse(launch[0][2]) : null;
   ok('the bridge gets his kit, with his assistant (Claude) as focus, opened last', lb && /^https:\/\/claude\.ai\/new\?q=PROMPT%20FOR%20Tony/.test(lb.focus) && lb.urls.includes('https://portal.example.com/') && lb.apps[0] === 'app_word', JSON.stringify(lb));
   ok('the page opens no tab of its own (it would end up buried)', await js(`return window.__opened.length === 0;`), await js(`return JSON.stringify(window.__opened);`));
+  const gm = lb && lb.urls.find((u) => /mail\.google\.com/.test(u));
+  ok("the kit's old view=cm Gmail link goes out as the direct compose link, line breaks kept",
+    gm && gm.startsWith('https://mail.google.com/mail/u/0/?fs=1&tf=cm&') && !/view=cm/.test(gm)
+    && new URL(gm).searchParams.get('body') === 'Hi,\n\nI would like to renew.\n\nTony', gm);
   ok("Tony's Prep panel opens", await js(`return !!document.querySelector('[data-th-prep-panel]');`));
   const panelTxt = await js(`return document.querySelector('[data-th-prep-panel]').innerText;`);
   ok('it shows his summary, the email draft and the sites', /KIT FOR Tony/.test(panelTxt) && /Lease renewal/.test(panelTxt) && /I would like to renew/.test(panelTxt) && /Lease portal/i.test(panelTxt), panelTxt);
   ok('…and the app by name, from his own list', /Microsoft Word/.test(panelTxt));
+  ok("the panel's Gmail draft link is the direct one too", await js(`const a = [...document.querySelectorAll('[data-th-prep-panel] a')].find(x => /Gmail/.test(x.textContent)); return !!a && a.href.startsWith('https://mail.google.com/mail/u/0/?fs=1&tf=cm&') && /%0A%0A/.test(a.href);`));
   ok('MAGI look: solid purple primary button, s1 box, radius 8', await js(`const p = document.querySelector('[data-th-prep-panel]'); const s = getComputedStyle(p);
     const prim = [...p.querySelectorAll('button')].find(b => /Open in Claude/i.test(b.textContent)); const ps = getComputedStyle(prim);
     return s.backgroundColor === 'rgb(35, 35, 39)' && s.borderRadius === '8px' && ps.backgroundColor === 'rgb(192, 174, 234)' && ps.color === 'rgb(26, 26, 29)';`));
@@ -160,6 +172,18 @@ const APPS = [{ id: 'app_word', name: 'Microsoft Word' }, { id: 'app_zoom', name
   await js(`[...document.querySelectorAll('#root label')].find(l => /AI prep/.test(l.textContent)).querySelector('input').click(); 1`);
   await sleep(300);
   ok('flagging shows the note and assistant picker', await js(`return !!document.querySelector('#root textarea[placeholder^="Details for the AI"]') && [...document.querySelectorAll('#root button')].some(b => b.textContent === 'ChatGPT');`));
+  ok('Gemini is one of the assistants', await js(`return [...document.querySelectorAll('#root button')].some(b => b.textContent === 'Gemini');`));
+  ok("the note box has A1's corner grip, not the native one", await js(`const ta = document.querySelector('#root textarea[placeholder^="Details for the AI"]');
+    return !!ta.parentElement.querySelector(':scope > .a1-grip') && getComputedStyle(ta).resize === 'none';`));
+  {
+    const r = JSON.parse(await js(`const ta = document.querySelector('#root textarea[placeholder^="Details for the AI"]'); ta.scrollIntoView({ block: 'center' });
+      const g = ta.parentElement.querySelector('.a1-grip').getBoundingClientRect(); return JSON.stringify({ x: g.left + g.width / 2, y: g.top + g.height / 2, h: ta.getBoundingClientRect().height });`));
+    await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: r.x, y: r.y, button: 'left', clickCount: 1 });
+    for (let i = 1; i <= 6; i++) await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: r.x, y: r.y + i * 10, button: 'left' });
+    await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: r.x, y: r.y + 60, button: 'left', clickCount: 1 });
+    const h2 = await js(`return document.querySelector('#root textarea[placeholder^="Details for the AI"]').getBoundingClientRect().height;`);
+    ok('dragging the grip down 60px grows the box by 60px', Math.abs(h2 - r.h - 60) <= 2, r.h + ' -> ' + h2);
+  }
   await setVal(`document.querySelector('#root textarea[placeholder^="Details for the AI"]')`, 'Dr Lee, any weekday morning');
   await js(`[...document.querySelectorAll('#root label')].find(l => /AI prep/.test(l.textContent)).scrollIntoView({ block: 'center' }); 1`); await sleep(300);
   await shot('taskprep-editor');
@@ -190,6 +214,69 @@ const APPS = [{ id: 'app_word', name: 'Microsoft Word' }, { id: 'app_zoom', name
   ok('unflagging removes the AI fields from the task', dentist2 && !dentist2.aiPrep && !('aiNote' in dentist2), JSON.stringify(dentist2));
   await js(`window._thVoice.setEdit(false); 1`); await sleep(800);
   ok('…and its ✦ is gone', await js(`return !document.querySelector('#root [data-th-prep-btn="${dentist2 && dentist2.id}"]');`));
+
+  console.log('\nGemini');
+  await js(`window._thVoice.setEdit(true); 1`); await sleep(800);
+  await js(`[...document.querySelectorAll('#root button')].find(b => b.textContent.trim() === '+ Add').click(); 1`);
+  await sleep(800);
+  await setVal(`document.querySelector('#root textarea[placeholder="Enter title..."], #root [placeholder="Enter title..."]')`, 'Plan the Denver trip');
+  await js(`[...document.querySelectorAll('#root label')].find(l => /AI prep/.test(l.textContent)).querySelector('input').click(); 1`);
+  await sleep(300);
+  await js(`[...document.querySelectorAll('#root button')].find(b => b.textContent === 'Gemini').click(); 1`);
+  await sleep(200);
+  const nG = prepCalls.length;
+  await js(`[...document.querySelectorAll('#root button')].find(b => b.textContent.trim().toLowerCase() === 'save').click(); 1`);
+  await waitFor(async () => { const x = await docs(); const t = Object.values(x['dashboards/main'].data).flat().find((i) => i && i.title === 'Plan the Denver trip'); return !!(t && ((x['dashboards/tony_taskprep'] || {}).kits || {})[t.id]); });
+  const gCall = prepCalls.slice(nG).find((b) => b.task.title === 'Plan the Denver trip');
+  ok('a task set to Gemini is prepped for Gemini', gCall && gCall.site === 'gemini' && gCall.profile === 'tony', JSON.stringify(prepCalls.slice(nG)));
+  await js(`window._thVoice.setEdit(false); 1`); await sleep(800);
+  const gId = (Object.values((await docs())['dashboards/main'].data).flat().find((t) => t && t.title === 'Plan the Denver trip') || {}).id;
+  await js(`window.__clip = []; try { Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: (t) => { window.__clip.push(t); return Promise.resolve(); } } }); } catch (e) {} 1`);
+  const nL2 = bridge.filter((x) => x[1] === '/api/launch').length;
+  await js(`document.querySelector('#root [data-th-prep-btn="${gId}"]').click(); 1`);
+  await sleep(1200);
+  const gl = bridge.filter((x) => x[1] === '/api/launch').slice(nL2)[0];
+  const glb = gl ? JSON.parse(gl[2]) : null;
+  ok('✦ opens Gemini last, on the bridge', glb && glb.focus === 'https://gemini.google.com/app', JSON.stringify(glb));
+  ok('…with the prompt on the clipboard (Gemini takes none from a link)', await js(`return window.__clip.length === 1 && window.__clip[0] === 'PROMPT FOR Tony';`), await js(`return JSON.stringify(window.__clip);`));
+  ok('the panel says to paste it', await js(`const p = document.querySelector('[data-th-prep-panel] [data-prep-paste]'); return !!p && /Ctrl\+V/.test(p.textContent) && /Gemini/.test(p.textContent);`));
+  await c.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+  await sleep(700);
+  await shot('taskprep-panel-gemini-390');
+  ok('the Gemini panel fits at 390px', await js(`const b = document.querySelector('[data-th-prep-panel]').getBoundingClientRect(); return b.left >= 0 && b.right <= innerWidth + 0.5;`));
+  await c.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
+  await js(`[...document.querySelectorAll('[data-th-prep-panel] button')].find(b => b.textContent === 'Close').click(); 1`);
+  await sleep(400);
+
+  console.log('\nNo bridge: tabs from the page');
+  // The bridge is gone (another PC): launches go nowhere, and window.open is
+  // the only way. First with pop-ups blocked (one tab per click), then allowed.
+  const noBridge = `window._thBridgeUp = false; window._thBridgeProbe = function(){ return Promise.resolve(false); }; 1`;
+  await js(noBridge);
+  await js(`localStorage.removeItem('a1PrepTabs'); window.__opened = []; window.__n = 0; window.open = function(u){ window.__opened.push(u); return (window.__n++ === 0) ? {} : null; }; 1`);
+  await js(`document.querySelector('#root [data-th-prep-btn="tonyT1"]').click(); 1`);
+  await sleep(800);
+  let op = JSON.parse(await js(`return JSON.stringify(window.__opened);`));
+  ok('blocked: the assistant opens first (the one tab a click may open)', /^https:\/\/claude\.ai\/new\?q=PROMPT/.test(op[0] || ''), JSON.stringify(op));
+  ok('…the sites were tried, and the panel says to allow pop-ups', op.length === 3 && await js(`return !!document.querySelector('[data-th-prep-panel] [data-prep-tabs-blocked]');`), JSON.stringify(op));
+  ok('…and nothing is learned', await js(`return localStorage.getItem('a1PrepTabs') === null;`));
+  await js(`[...document.querySelectorAll('[data-th-prep-panel] button')].find(b => b.textContent === 'Close').click(); 1`);
+  await sleep(300);
+  await js(noBridge + `; window.__opened = []; window.open = function(u){ window.__opened.push(u); return {}; }; 1`);
+  await js(`document.querySelector('#root [data-th-prep-btn="tonyT1"]').click(); 1`);
+  await sleep(800);
+  op = JSON.parse(await js(`return JSON.stringify(window.__opened);`));
+  ok('allowed: every tab opens (assistant, Gmail draft, portal)', op.length === 3 && op.some((u) => /mail\.google\.com\/mail\/u\/0\/\?fs=1&tf=cm/.test(u)) && op.includes('https://portal.example.com/'), JSON.stringify(op));
+  ok('…learned for this browser, and no pop-up hint', await js(`return localStorage.getItem('a1PrepTabs') === '1' && !document.querySelector('[data-th-prep-panel] [data-prep-tabs-blocked]');`));
+  await js(`[...document.querySelectorAll('[data-th-prep-panel] button')].find(b => b.textContent === 'Close').click(); 1`);
+  await sleep(300);
+  await js(noBridge + `; window.__opened = []; 1`);
+  await js(`document.querySelector('#root [data-th-prep-btn="tonyT1"]').click(); 1`);
+  await sleep(800);
+  op = JSON.parse(await js(`return JSON.stringify(window.__opened);`));
+  ok('once learned: the sites first and the assistant LAST, so it is the tab in front', op.length === 3 && /^https:\/\/claude\.ai\//.test(op[2]), JSON.stringify(op));
+  await js(`[...document.querySelectorAll('[data-th-prep-panel] button')].find(b => b.textContent === 'Close').click(); 1`);
+  await sleep(300);
 
   console.log('\nSeparation in the page');
   ok("Tony's default assistant is stored under his key only", await js(`window._thPrepSetDefaultSite('chatgpt'); return localStorage.getItem('thAiSite') === 'chatgpt' && localStorage.getItem('vdAiSite') === null;`));
