@@ -252,7 +252,9 @@ const mock = {
   await js(`document.getElementById('uim-cancel').click(); return 1;`); await sleep(300);
   ok('Cancel keeps it', await js(`return document.querySelectorAll('#focus-grid .media-tile').length === 6;`));
   await js(`${tile(1)}.querySelector('[data-rm]').click(); return 1;`); await sleep(300);
-  await js(`const ov = document.getElementById('uim-overlay'); ov.dispatchEvent(new MouseEvent('click', { bubbles: true })); return 1;`); await sleep(300);
+  // A real tap: the press AND the click on the dim (a press that began in the
+  // box and ended on the dim no longer closes a dialog, 2026-10-15).
+  await js(`const ov = document.getElementById('uim-overlay'); ov.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); ov.dispatchEvent(new MouseEvent('click', { bubbles: true })); return 1;`); await sleep(300);
   ok('a tap on the backdrop cancels too', await js(`return !document.getElementById('uim-overlay').classList.contains('show') && document.querySelectorAll('#focus-grid .media-tile').length === 6;`));
   await js(`${tile(1)}.querySelector('[data-rm]').click(); return 1;`); await sleep(300);
   await js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return 1;`); await sleep(300);
