@@ -74,6 +74,7 @@ console.log('resizegrip.js');
   const { ta, g } = make(w, null, 100);
   ok('grip is a real button with the MAGI title', g.tagName === 'BUTTON' && g.type === 'button' && g.title === 'Drag to resize.');
   ok('grip aria-label names the box', g.getAttribute('aria-label') === 'Resize the test box');
+  ok('grip opts out of the page-wide hover ring (data-noglow)', g.hasAttribute('data-noglow'));
   ok('CSS injected once', w.document.querySelectorAll('#a1-resizegrip-css').length === 1);
   ok('native resize corner is switched off', ta.classList.contains('a1-grip-box') && /\.a1-grip-box \{ resize: none !important; \}/.test(w.document.getElementById('a1-resizegrip-css').textContent));
 
