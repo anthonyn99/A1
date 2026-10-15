@@ -49,10 +49,47 @@ in their own dashboard doc.
 
 ## The PC bridge on Tony's PC
 
-The StudyOS bridge runs on Veda's PC from logon. Tony's PC doesn't run it
-yet. Without it, ✦ opens the assistant and the panel's links do the rest. His
-panel hides the bridge box until a bridge has been seen on his PC. If he
-installs the bridge, his app list publishes to `tony_pc_apps` by itself.
+Since 2026-10-15 Tony's PC runs the **A1 Prep Bridge**
+(`V1/tools/sos-browser/prep_bridge.py`): only the two AI prep routes of the
+StudyOS bridge (`/api/apps`, `/api/launch`, same port 8781, same origin gate,
+`launcher.py` underneath), standard library only, started at logon by the
+"A1 Prep Bridge" shortcut in his Startup folder (`C:\Python314\pythonw.exe`).
+It exits quietly if the port is taken. With it, ✦ opens his Gmail draft, the
+sites and his PC apps, then the assistant last, and his app list publishes to
+`tony_pc_apps` by itself. The first time, Brave asks to let the site reach
+"apps on this device": Allow. His panel names this bridge, not StudyOS.
+
+## Assistants
+
+Perplexity, ChatGPT, Claude and Gemini (Gemini since 2026-10-15). The first
+three take the prompt in their URL. **Gemini takes none** (tested signed in
+and out: `?q=`, `?prompt=`, `?text=`, Chrome's `/prompt?q=` all leave the box
+empty), so its `SITES` entry has `paste: true`: ✦ and "Open in Gemini" put
+the prompt on the clipboard in the same click, and the panel says to press
+Ctrl+V. The worker tells every assistant it has no access to the person's
+email, calendar, files or accounts, so the prompt asks only for text (before,
+Perplexity answered "I don't have access to Gmail").
+
+## The Gmail draft link
+
+Built as `https://mail.google.com/mail/u/0/?fs=1&tf=cm&to=&su=&body=`, by the
+worker (`prepGmailUrl`) and again by the page from the kit's draft
+(`_vdPrepKitSites`), so kits saved earlier are fixed too. The old
+`/mail/?view=cm` link is redirected by Gmail when signed in, and that redirect
+drops every line break: the email opened as one run-on paragraph (2026-10-15).
+
+## Without a bridge
+
+A click may open one tab, or several where the site may open pop-ups. The
+page learns which (`a1PrepTabs` in localStorage, one answer per browser):
+until known, the assistant opens first and then the sites; once known, the
+sites first and the assistant last, so it is the tab in front. Blocked tabs
+go to the bridge in case it answers, and the panel says how to allow pop-ups.
+
+## The note box
+
+The AI prep note in both editors has A1's corner grip (`resizegrip.js`),
+tinted per profile, remembered as `a1.h.th.prepnote` / `a1.h.vd.prepnote`.
 
 ## Tests
 
@@ -61,4 +98,6 @@ installs the bridge, his app list publishes to `tony_pc_apps` by itself.
 - `node tests/taskprep-kit.test.js`: the worker's kit rules and the
   per-profile prompt.
 - `node tests/live/taskprep.live.js`: both TaskHubs in a real browser
-  against fake Firestore, a fake worker and a fake bridge.
+  against fake Firestore, a fake worker and a fake bridge (also Gemini, the
+  Gmail link, the grip drag and the no-bridge tabs).
+- `python V1/tools/sos-browser/test_prep_bridge.py`: Tony's bridge.
