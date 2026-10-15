@@ -22538,7 +22538,8 @@ window._sosResUseBrowser = function(on){
   var SITES = {
     perplexity: { name: 'Perplexity', url: function(q){ return 'https://www.perplexity.ai/search?q=' + encodeURIComponent(q); } },
     chatgpt:    { name: 'ChatGPT',    url: function(q){ return 'https://chatgpt.com/?q=' + encodeURIComponent(q); } },
-    claude:     { name: 'Claude',     url: function(q){ return 'https://claude.ai/new?q=' + encodeURIComponent(q); } }
+    claude:     { name: 'Claude',     url: function(q){ return 'https://claude.ai/new?q=' + encodeURIComponent(q); } },
+    gemini:     { name: 'Gemini',     paste: true, url: function(){ return 'https://gemini.google.com/app'; } }
   };
   var URL_PROMPT_MAX = 6000;
   var RETRY_AFTER_MS = 10 * 60 * 1000;
@@ -22586,6 +22587,82 @@ window._sosResUseBrowser = function(on){
   window._thPrepAssistantUrl = function(site, prompt){
     var s = SITES[site] || SITES.perplexity;
     return s.url(String(prompt || '').slice(0, URL_PROMPT_MAX));
+  };
+
+  window._thPrepCopy = function(text){
+    text = String(text || '');
+    var legacy = function(){
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = text; ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed'; ta.style.top = '-1000px'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        var ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        return !!ok;
+      } catch(e){ return false; }
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText)
+        return navigator.clipboard.writeText(text).then(function(){ return true; }, legacy);
+    } catch(e){}
+    return Promise.resolve(legacy());
+  };
+  window._thPrepOpenAssistant = function(site, prompt, itemId){
+    var s = SITES[site] || SITES.perplexity;
+    if (s.paste) {
+      window._thPrepCopy(prompt);
+      window._thPrepPasted = itemId || '';
+    }
+    return window._thPrepAssistantUrl(site, prompt);
+  };
+
+  window._thPrepGmailUrl = function(d){
+    var q = ['fs=1', 'tf=cm'];
+    if (d.to) q.push('to=' + encodeURIComponent(d.to));
+    if (d.subject) q.push('su=' + encodeURIComponent(d.subject));
+    if (d.body) q.push('body=' + encodeURIComponent(String(d.body).replace(/\r\n?/g, '\n')));
+    return 'https://mail.google.com/mail/u/0/?' + q.join('&');
+  };
+  window._thPrepKitSites = function(kit){
+    var d = kit && kit.draft;
+    return ((kit && kit.sites) || []).filter(function(x){ return x && x.url; }).map(function(x){
+      if (d && d.kind === 'email' && d.body && /^https:\/\/mail\.google\.com\//i.test(x.url))
+        return { label: x.label, url: window._thPrepGmailUrl(d) };
+      return x;
+    });
+  };
+
+  var openTab = function(u){
+    try {
+      var w = window.open(u, '_blank');
+      if (w) { try { w.opener = null; } catch(e){} }
+      return !!w;
+    } catch(e){ return false; }
+  };
+  var tabsOk = function(v){
+    try {
+      if (v === undefined) return localStorage.getItem('a1PrepTabs') === '1';
+      if (v) localStorage.setItem('a1PrepTabs', '1'); else localStorage.removeItem('a1PrepTabs');
+    } catch(e){}
+    return !!v;
+  };
+  window._thPrepTabsBlocked = false;
+  window._thPrepOpenTabs = function(aiUrl, urls){
+    urls = urls || [];
+    if (!urls.length) { openTab(aiUrl); return []; }
+    var left = [];
+    if (tabsOk()) {
+      urls.forEach(function(u){ if (!openTab(u)) left.push(u); });
+      if (!openTab(aiUrl)) { tabsOk(false); window._thPrepTabsBlocked = true; }
+      else window._thPrepTabsBlocked = left.length > 0;
+      return left;
+    }
+    if (!openTab(aiUrl)) return urls;
+    urls.forEach(function(u){ if (!openTab(u)) left.push(u); });
+    if (left.length < urls.length) tabsOk(true);
+    window._thPrepTabsBlocked = left.length > 0;
+    return left;
   };
 
   var BRIDGE = 'http://127.0.0.1:8781';
@@ -22744,13 +22821,14 @@ window._sosResUseBrowser = function(on){
     var kit = got && got.kit;
     var site = window._thPrepSite(item);
     var prompt = (kit && got.fresh && kit.prompt) || window._thPrepFallbackPrompt(item, dateKey);
-    var aiUrl = window._thPrepAssistantUrl(site, prompt);
-    var extras = !!(kit && got.fresh && ((kit.sites && kit.sites.length) || (kit.apps && kit.apps.length)));
-    if (extras && window._thBridgeUp && onWindows()) {
-      window._thPrepOpenLocal(kit.apps || [], (kit.sites || []).map(function(x){ return x.url; }), aiUrl);
+    var aiUrl = window._thPrepOpenAssistant(site, prompt, item.id);
+    var urls = (kit && got.fresh) ? window._thPrepKitSites(kit).map(function(x){ return x.url; }) : [];
+    var apps = (kit && got.fresh && kit.apps) || [];
+    if ((urls.length || apps.length) && window._thBridgeUp && onWindows()) {
+      window._thPrepOpenLocal(apps, urls, aiUrl);
     } else {
-      try { window.open(aiUrl, '_blank', 'noopener'); } catch(e){}
-      if (extras) window._thPrepOpenLocal(kit.apps || [], (kit.sites || []).map(function(x){ return x.url; }));
+      var left = window._thPrepOpenTabs(aiUrl, urls);
+      if (apps.length || left.length) window._thPrepOpenLocal(apps, left);
     }
     if (!got || !got.fresh) window._thPrepRequest(item, dateKey);
     window.dispatchEvent(new CustomEvent('th-prep-open', { detail: { id: item.id, dateKey: dateKey } }));
