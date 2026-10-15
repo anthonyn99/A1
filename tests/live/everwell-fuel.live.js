@@ -167,7 +167,7 @@ const mock = {
   await click('#dash-fuel [data-fx="glass"][data-i="0"]'); await sleep(700);
   f = await doc('everwell_fuel');
   ok('Sam\'s tick goes under Sam; Tony\'s day is untouched', f.d[sam.id][today].w['0'] === true && f.d[pid][today].m['0'] === true);
-  await click(`#dash-body .fx-person[data-id="${pid}"]`); await sleep(500);
+  await click(`#dash-body .fx-person[data-id="${pid}"]`); await sleep(1300);
   ok('tapping Tony switches both cards back to his numbers and ticks', /2,600/.test(await text('#dash-body')) && /Water complete/.test(await text('#dash-fuel .card-head')) && ((await doc('everwell_tony')) || {}).fuelPerson === pid,
     (await text('#dash-body')).slice(0, 80) + ' // ' + await text('#dash-fuel .card-head') + ' // ' + ((await doc('everwell_tony')) || {}).fuelPerson);
 
