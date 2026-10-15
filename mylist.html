@@ -2165,8 +2165,57 @@ function enrichItemLink(listId, itemId, url){
     var l=lists().filter(function(x){return x.id===listId;})[0]; if(!l) return;
     var it=(l.items||[]).filter(function(x){return x.id===itemId;})[0]; if(!it || !it.link || it.link.url!==url) return;
     it.link=lk; if(it.pendingName){ it.name=linkShortName(lk); delete it.pendingName; }
+    if(lk.image) healTried[url]=1;
     persist(); render();
   });
+}
+// ── Link repair: a linked item with no photo was not read when it was added
+// (the page reader was busy). Each time a list is shown, those are re-read in
+// the background, three at a time, once per page per session; a read page fills
+// in the photo and price, a clean name for an item still named from its URL,
+// and a description when it has none. ──
+var healTried={}, healLive=0, healQueue=[];
+function linkSlugName(url){
+  var segs=[]; try{ segs=new URL(url).pathname.split('/').map(decodeURIComponent); }catch(e){ return ''; }
+  var best=segs.filter(function(x){ return /[a-z]/i.test(x) && /[-_+]/.test(x) && !/^[A-Z0-9]{10}$/.test(x); }).sort(function(a,b){ return b.length-a.length; })[0];
+  return best ? best.replace(/\.(html?|aspx?|php)$/i,'').replace(/[-_+]+/g,' ').trim() : '';
+}
+function healLinksSoon(){
+  if(view!=='lists') return;
+  var l=curList(); if(!l) return;
+  (l.items||[]).forEach(function(it){
+    var u=it.link && it.link.url;
+    if(!u || it.link.image || healTried[u]) return;
+    healTried[u]=1; healQueue.push({ listId:l.id, itemId:it.id, url:u });
+  });
+  healPump();
+}
+function healPump(){
+  while(healLive<3 && healQueue.length){
+    var job=healQueue.shift(); healLive++;
+    (function(job){
+      fetch(API+'/link/preview?url='+encodeURIComponent(job.url)).then(function(r){ return r.json(); }).catch(function(){ return null; })
+        .then(function(d){ healLive--; if(d && d.ok && d.read && d.link) healApply(job, d); healPump(); });
+    })(job);
+  }
+}
+function healApply(job, d){
+  var l=lists().filter(function(x){ return x.id===job.listId; })[0]; if(!l) return;
+  var it=(l.items||[]).filter(function(x){ return x.id===job.itemId; })[0]; if(!it || !it.link || it.link.url!==job.url) return;
+  var lk=cleanLink(d.link); if(!lk) return;
+  // Still named from its URL (or never named) → the page's clean name.
+  var urlNamed = it.pendingName || normNm(it.name)===normNm(linkSlugName(job.url));
+  // The same page already on the list under its proper name → this is a leftover copy.
+  var twin=(l.items||[]).filter(function(x){ return x!==it && x.link && x.link.url===job.url; })[0];
+  if(urlNamed && twin && !it.done && !it.qty && !it.desc && !it.watchId){
+    l.items=l.items.filter(function(x){ return x!==it; });
+    persist(); renderSoon(); return;
+  }
+  it.link=lk;
+  if(urlNamed && d.name) it.name=String(d.name);
+  if(!it.desc && d.detail) it.desc=String(d.detail);
+  delete it.pendingName;
+  persist(); renderSoon();
 }
 function linkShortName(lk){ var t=String((lk&&lk.title)||'').split(/\s*,\s*(?:priced|per|pack|\d)|\s+[|(]|\s+[-–]\s+\d/i)[0].trim(); return (t||(lk&&lk.site)||'Link').slice(0,90); }
 function linkThumbHtml(it){
@@ -3363,6 +3412,7 @@ var GRIP_OLD='<div class="resize-grip"><svg viewBox="0 0 16 16" fill="none" stro
 function gripOld(){ return activeProfile==='tony' ? '' : GRIP_OLD; }
 function render(){
   if(!activeProfile) return;
+  setTimeout(healLinksSoon, 0);
   // A redraw must never land under a lifted row (Tony's A1Drag): it would drop
   // the row out from under the pointer. Once it is down, render once.
   if(window.A1Drag && A1Drag.active){ if(!render._q){ render._q=true; A1Drag.later(function(){ render._q=false; render(); }); } return; }
