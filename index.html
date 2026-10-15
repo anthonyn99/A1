@@ -6888,6 +6888,23 @@ function useScrollLock(active){
   },[active]);
 }
 
+// The AI prep note box with A1's corner grip (resizegrip.js, theme plan §2
+// "Resize handles") in place of the native resize corner: the same grip as
+// every other A1 box, and one a phone can drag. tint colours it per profile.
+function ThPrepNote({gripKey,tint,style,...rest}){
+  const ta=useRef(null),wrap=useRef(null);
+  useEffect(()=>{
+    const t=ta.current,w=wrap.current;
+    if(!t||!w||!window.A1Resize)return;
+    const g=window.A1Resize.grip("the AI prep notes");w.appendChild(g);
+    window.A1Resize.attach(t,g,gripKey||null);
+    return()=>{try{g.remove();}catch(e){}};
+  },[]);
+  const vars=tint?{"--ds-ac":tint.ac,"--ds-tx":tint.tx,"--ds-txd":tint.txd}:{};
+  return React.createElement("div",{ref:wrap,"data-prep-note":"1",style:{position:"relative",...vars}},
+    React.createElement("textarea",{ref:ta,...rest,style:{...style,display:"block",resize:"none"}}));
+}
+
 function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
   const CC=CC_DARK;
   const[type,setType]=useState("task");const[title,setTitle]=useState("");const[cat,setCat]=useState("");
@@ -7055,7 +7072,7 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
           React.createElement("span",{style:{width:14,height:14,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.sparkle}}),"AI prep"),
         aiPrep&&React.createElement(React.Fragment,null,
           React.createElement("div",{style:{fontSize:11,color:T.TXD,marginBottom:8,lineHeight:1.5}},"An AI gets this ready ahead of time: a draft, the sites and apps you’ll need, and a prompt for your assistant. Press ✦ on the task to open it all. Nothing is ever sent for you."),
-          React.createElement("textarea",{style:{...mi,minHeight:64,resize:"vertical",lineHeight:1.45},value:aiNote,onChange:e=>setAiNote(e.target.value),placeholder:"Details for the AI: who it’s for, email address, what to say, links…"}),
+          React.createElement(ThPrepNote,{gripKey:"th.prepnote",tint:{ac:T.AC,tx:T.TX,txd:T.TXD},style:{...mi,minHeight:64,lineHeight:1.45},value:aiNote,onChange:e=>setAiNote(e.target.value),placeholder:"Details for the AI: who it’s for, email address, what to say, links…"}),
           React.createElement("div",{style:{display:"flex",gap:6,marginTop:10,flexWrap:"wrap",alignItems:"center"}},
             React.createElement("span",{style:{fontSize:11,color:T.TXD,fontWeight:700,marginRight:2}},"Assistant"),
             [["","Default"],["perplexity","Perplexity"],["chatgpt","ChatGPT"],["claude","Claude"],["gemini","Gemini"]].map(([v,l])=>React.createElement("button",{key:v||"def",type:"button",onClick:()=>setAiSite(v),style:tb(aiSite===v,false)},l))))),
@@ -14927,6 +14944,23 @@ function VdIcon({name,size,color,style}){
   const html=(window.VDI&&window.VDI[name])||"";
   return RC("span",{"aria-hidden":"true",style:{display:"inline-flex",alignItems:"center",justifyContent:"center",lineHeight:0,flex:"none",...(size?{fontSize:size}:null),...(color?{color:color}:null),...(style||null)},dangerouslySetInnerHTML:{__html:html}});
 }
+// The AI prep note box with A1's corner grip (resizegrip.js, theme plan §2
+// "Resize handles") in place of the native resize corner: the same grip as
+// every other A1 box, and one a phone can drag. tint colours it per profile.
+function VdPrepNote({gripKey,tint,style,...rest}){
+  const ta=useRef(null),wrap=useRef(null);
+  useEffect(()=>{
+    const t=ta.current,w=wrap.current;
+    if(!t||!w||!window.A1Resize)return;
+    const g=window.A1Resize.grip("the AI prep notes");w.appendChild(g);
+    window.A1Resize.attach(t,g,gripKey||null);
+    return()=>{try{g.remove();}catch(e){}};
+  },[]);
+  const vars=tint?{"--ds-ac":tint.ac,"--ds-tx":tint.tx,"--ds-txd":tint.txd}:{};
+  return React.createElement("div",{ref:wrap,"data-prep-note":"1",style:{position:"relative",...vars}},
+    React.createElement("textarea",{ref:ta,...rest,style:{...style,display:"block",resize:"none"}}));
+}
+
 function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
   const[type,setType]=useState("task");const[title,setTitle]=useState("");const[cat,setCat]=useState("");
   const[time,setTime]=useState("");const[repeat,setRepeat]=useState("none");
@@ -15042,7 +15076,7 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
           RC("span",{style:{width:11,height:11,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.sparkle}}),"AI prep"),
         aiPrep&&RC(React.Fragment,null,
           RC("div",{style:{fontSize:11,color:TXD,marginBottom:8,lineHeight:1.5}},"An AI gets this ready ahead of time: a draft, the sites and apps you’ll need, and a prompt for your assistant. Press ✦ on the task to open it all. Nothing is ever sent for you."),
-          RC("textarea",{style:{...mi,minHeight:64,resize:"vertical",fontWeight:500,fontSize:13,lineHeight:1.45},value:aiNote,onChange:e=>setAiNote(e.target.value),placeholder:"Details for the AI: who it’s for, email address, what to say, links…"}),
+          RC(VdPrepNote,{gripKey:"vd.prepnote",tint:{ac:A,tx:TX,txd:TXD},style:{...mi,minHeight:64,fontWeight:500,fontSize:13,lineHeight:1.45},value:aiNote,onChange:e=>setAiNote(e.target.value),placeholder:"Details for the AI: who it’s for, email address, what to say, links…"}),
           RC("div",{style:{display:"flex",gap:6,marginTop:8,flexWrap:"wrap",alignItems:"center"}},
             RC("span",{style:{fontSize:11,color:TXD,fontWeight:700,marginRight:2}},"Assistant"),
             [["","Default"],["perplexity","Perplexity"],["chatgpt","ChatGPT"],["claude","Claude"],["gemini","Gemini"]].map(([v,l])=>RC("button",{key:v||"def",type:"button",onClick:()=>setAiSite(v),style:tb(aiSite===v)},l))))),
