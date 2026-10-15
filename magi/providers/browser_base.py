@@ -486,24 +486,44 @@ class BrowserProvider(Provider):
                             f"so the {len(ctx.attachments)} attachment(s) could not be "
                             f"sent. Run `python -m magi doctor`.",
                         )
+                    names = attachment_names(ctx.attachments)
                     try:
+                        seen_before = await page.evaluate(ATTACH_SIGNS_JS, names)
                         await file_box.locator.first.set_input_files(
                             [str(p) for p in ctx.attachments]
                         )
                         if opened_menu:
                             # The menu stays open over the composer otherwise.
                             await page.keyboard.press("Escape")
-                        # Sites render the upload preview and finish reading the
-                        # file asynchronously after set_input_files resolves, so
-                        # a short pause here gives that a chance to settle before
-                        # the message is typed and sent.
-                        await asyncio.sleep(self.settings.pacing.sample_post_nav())
                     except Exception as e:
                         artifacts = await self._save_artifacts(page, "attach-failed")
                         return fail(
                             FailureKind.SELECTOR_MISS,
                             f"Could not attach files: {str(e)[:300]}",
                         )
+                    # A file input taking the files is not the site taking
+                    # them: ChatGPT with its free uploads used up (2026-10-15)
+                    # dropped the image without a word, the question went out
+                    # alone, and the answer said there was no image. Every
+                    # site that takes one shows it -- a blob: thumbnail, or
+                    # the file's name (Gemini without the extension) -- so
+                    # wait for that, and send nothing if it never comes.
+                    if not await attachments_landed(page, names, seen_before):
+                        artifacts = await self._save_artifacts(page, "attach-refused")
+                        why = await self._upload_limit_notice(page)
+                        n = len(ctx.attachments)
+                        return fail(
+                            FailureKind.ATTACH_REFUSED,
+                            (f"{self.display_name} says: {why}" if why else
+                             f"{self.display_name} did not take the "
+                             f"{n} attached file{'s' if n != 1 else ''}")
+                            + " -- so the question was not sent without "
+                            + ("it." if n == 1 else "them."),
+                        )
+                    # Sites finish reading the file asynchronously after the
+                    # preview shows, so a short pause here gives that a chance
+                    # to settle before the message is typed and sent.
+                    await asyncio.sleep(self.settings.pacing.sample_post_nav())
 
                 # -- clear whatever the site painted over its own composer ----
                 # Before the baseline, so a dialog closing cannot be mistaken
