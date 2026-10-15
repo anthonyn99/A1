@@ -2154,20 +2154,10 @@ function cleanLink(lk){
 }
 function linkHost(u){ try{ var h=new URL(u).hostname.replace(/^www\./,''); return h; }catch(e){ return ''; } }
 function normLinkInput(v){ v=String(v||'').trim(); if(!v) return ''; if(!/^https?:\/\//i.test(v) && /^[\w-]+(\.[\w-]+)+(\/|$)/.test(v)) v='https://'+v; return /^https?:\/\/\S+\.\S+/i.test(v) ? v : ''; }
-function fetchLinkPreview(url){
-  return fetch(API+'/link/preview?url='+encodeURIComponent(url)).then(function(r){ return r.json(); })
-    .then(function(d){ return (d && d.ok && d.link) ? cleanLink(d.link) : null; }).catch(function(){ return null; });
-}
-// Fill an item's link from its page in the background (photo, price, store).
+// Fill an item's link from its page in the background (photo, price, store,
+// and a name + description when it was added from the link alone).
 function enrichItemLink(listId, itemId, url){
-  fetchLinkPreview(url).then(function(lk){
-    if(!lk) return;
-    var l=lists().filter(function(x){return x.id===listId;})[0]; if(!l) return;
-    var it=(l.items||[]).filter(function(x){return x.id===itemId;})[0]; if(!it || !it.link || it.link.url!==url) return;
-    it.link=lk; if(it.pendingName){ it.name=linkShortName(lk); delete it.pendingName; }
-    if(lk.image) healTried[url]=1;
-    persist(); render();
-  });
+  healTried[url]=1; healQueue.push({ listId:listId, itemId:itemId, url:url }); healPump();
 }
 // ── Link repair: a linked item with no photo was not read when it was added
 // (the page reader was busy). Each time a list is shown, those are re-read in
@@ -2242,7 +2232,6 @@ function healApply(job, d){
   delete it.pendingName;
   persist(); renderSoon();
 }
-function linkShortName(lk){ var t=String((lk&&lk.title)||'').split(/\s*,\s*(?:priced|per|pack|\d)|\s+[|(]|\s+[-–]\s+\d/i)[0].trim(); return (t||(lk&&lk.site)||'Link').slice(0,90); }
 function linkThumbHtml(it){
   var lk=it.link; if(!lk || !lk.image) return '';
   return '<img class="lk-thumb" src="'+esc(lk.image)+'" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">';
