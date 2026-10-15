@@ -97,6 +97,22 @@ async def test_chatgpt_files_go_to_the_general_uploader_not_the_camera():
 
 
 @pytest.mark.asyncio
+async def test_a_disabled_uploader_is_still_found_so_it_reads_as_refused():
+    # Uploads used up: ChatGPT disables all four inputs. Not finding one
+    # would say "Page changed" -- the wrong cause, with the wrong remedy.
+    p, browser, page = await _page()
+    try:
+        await page.set_content(CHATGPT_FORM.replace('type="file"', 'type="file" disabled'))
+        box = await resolve.resolve(page, load_settings().site("chatgpt").file_input,
+                                    timeout_ms=1000, require_visible=False)
+        assert box is not None
+        assert await box.locator.first.get_attribute("id") == "any"
+        assert await box.locator.first.is_disabled()
+    finally:
+        await browser.close(); await p.stop()
+
+
+@pytest.mark.asyncio
 async def test_a_file_the_site_shows_has_landed(png):
     p, browser, page = await _page()
     try:
