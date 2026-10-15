@@ -243,19 +243,16 @@ class BrowserProvider(Provider):
             )
         )
 
-    async def _attach_refused(self, page, ctx: RunContext, fail) -> Answer:
-        """The site did not take the files: say so, in its words if it gave
-        any, and send nothing (FailureKind.ATTACH_REFUSED)."""
-        fail.artifacts[:] = await self._save_artifacts(page, "attach-refused")
+    async def _attach_refused_detail(self, page, n: int) -> str:
+        """Why nothing was sent (FailureKind.ATTACH_REFUSED): the site's own
+        words for its upload cap when it gave any."""
         why = await self._upload_limit_notice(page)
-        n = len(ctx.attachments)
-        return fail(
-            FailureKind.ATTACH_REFUSED,
+        return (
             (f"{self.display_name} says: {why}" if why else
              f"{self.display_name} did not take the "
              f"{n} attached file{'s' if n != 1 else ''}")
             + " -- so the question was not sent without "
-            + ("it." if n == 1 else "them."),
+            + ("it." if n == 1 else "them.")
         )
 
     async def _upload_limit_notice(self, page) -> str:
@@ -574,9 +571,13 @@ class BrowserProvider(Provider):
                     names = attachment_names(ctx.attachments)
                     # A disabled uploader is the site refusing before a file
                     # is even offered (ChatGPT, uploads used up).
+                    refused = False
                     with contextlib.suppress(Exception):
-                        if await file_box.locator.first.is_disabled():
-                            return await self._attach_refused(page, ctx, fail)
+                        refused = await file_box.locator.first.is_disabled()
+                    if refused:
+                        artifacts = await self._save_artifacts(page, "attach-refused")
+                        return fail(FailureKind.ATTACH_REFUSED, await self._attach_refused_detail(
+                            page, len(ctx.attachments)))
                     try:
                         try:
                             seen_before = await page.evaluate(ATTACH_SIGNS_JS, names)
@@ -602,7 +603,9 @@ class BrowserProvider(Provider):
                     # the file's name (Gemini without the extension) -- so
                     # wait for that, and send nothing if it never comes.
                     if not await attachments_landed(page, names, seen_before):
-                        return await self._attach_refused(page, ctx, fail)
+                        artifacts = await self._save_artifacts(page, "attach-refused")
+                        return fail(FailureKind.ATTACH_REFUSED, await self._attach_refused_detail(
+                            page, len(ctx.attachments)))
                     # Sites finish reading the file asynchronously after the
                     # preview shows, so a short pause here gives that a chance
                     # to settle before the message is typed and sent.
