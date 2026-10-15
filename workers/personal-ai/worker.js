@@ -748,8 +748,17 @@ const WHEN_ONLY = /^(?:(?:at|around|about|by|~)\s*)?(?:\d{1,2}(?::\d{2})?\s*(?:a
 const LEADING_CLOCK = /^((?:~|around |about |at )?\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?))\s*[;,·—–-]\s*(.+)$/i;
 function looksLikeWhen(v) { const t = String(v || '').trim(); return !!t && t.length <= 24 && WHEN_ONLY.test(t) && /[a-z]|:/i.test(t); }
 
-function applyListOps(items, stores, ops, type) {
+function applyListOps(items, stores, ops, type, links) {
   const timed = TIMED_LIST_TYPES.includes(type);
+  // [LINK n] → the page the worker read. Each link attaches to at most one item.
+  const linkList = Array.isArray(links) ? links : [];
+  const usedLinks = new Set();
+  const takeLink = (op) => {
+    const n = parseInt(op && (op.link ?? (op.set && op.set.link)), 10);
+    if (!(n >= 1 && n <= linkList.length) || usedLinks.has(n)) return null;
+    usedLinks.add(n);
+    return linkField(linkList[n - 1]);
+  };
   // Move a time-only desc into when (only when no when was given).
   const fixWhen = (f) => {
     if (!timed || !f || typeof f !== 'object') return;
@@ -866,25 +875,34 @@ function applyListOps(items, stores, ops, type) {
         // A DIFFERENT group means the user wants a copy there — keep both.
         const dup = t.list.find(it => !it.done && normName(it.name) === normName(name) &&
           (!store || !it.store || normName(it.store) === normName(store)));
-        if (dup) {
+        const lk = takeLink(op);
+        if (dup && lk && dup.link && dup.link.url !== lk.url) {
+          // Same name, different product page — keep both.
+          t.list.push({ name, qty: String(f.qty || '').trim(), when: String(f.when || '').trim(), store, desc: String(f.desc || '').trim(), done: false, link: lk });
+        } else if (dup) {
+          if (lk) dup.link = lk;
           if (String(f.qty || '').trim()) dup.qty = String(f.qty).trim();
           if (String(f.when || '').trim()) dup.when = String(f.when).trim();
           if (store) dup.store = store;
           if (String(f.desc || '').trim()) dup.desc = String(f.desc).trim();
         } else {
-          t.list.push({ name, qty: String(f.qty || '').trim(), when: String(f.when || '').trim(), store, desc: String(f.desc || '').trim(), done: false });
+          const row = { name, qty: String(f.qty || '').trim(), when: String(f.when || '').trim(), store, desc: String(f.desc || '').trim(), done: false };
+          if (lk) row.link = lk;
+          t.list.push(row);
         }
         break;
       }
       case 'update': {
         const set = effSet(op, ['name', 'qty', 'when', 'store', 'desc', 'done']);
         const it = resolve(t, op.index, op.match || op.name);
-        if (it) { applySet(t, it, set, true); break; }
+        const lk = takeLink(op);
+        if (it) { applySet(t, it, set, true); if (lk) it.link = lk; break; }
         // Target not found (e.g. user thinks it's on the list) — add it so the command still lands.
         const name = String(set.name || op.match || '').trim();
         if (name) {
           const fresh = { name, qty: '', when: '', store: '', desc: '', done: false };
           applySet(t, fresh, set, true);
+          if (lk) fresh.link = lk;
           t.list.push(fresh);
         }
         break;
@@ -965,6 +983,14 @@ function applyListOps(items, stores, ops, type) {
     }
   }
 
+  // A link the model skipped still lands: named from its page, under its store
+  // on a shopping list. Nothing the user pasted is ever dropped.
+  linkList.forEach((m, i) => {
+    if (usedLinks.has(i + 1) || !m || !m.url) return;
+    if ((nl || cur).list.some(it => it.link && it.link.url === m.url)) return;
+    const store = type === 'shopping' || (nl && nl.type === 'shopping') ? canonStore(nl || cur, m.site) : '';
+    (nl || cur).list.push({ name: linkItemName(m), qty: '', when: '', store, desc: '', done: false, link: linkField(m) });
+  });
   cur.list.forEach(it => addStore(cur, it.store));
   const out = { items: cur.list, stores: [...cur.storeMap.values()], listName: cur.name, listType: cur.type };
   if (nl) {
