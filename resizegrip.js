@@ -87,6 +87,10 @@
     g.className = 'a1-grip';
     g.title = 'Drag to resize.';
     g.setAttribute('aria-label', 'Resize ' + (label || 'the box'));
+    // Only the strokes answer the cursor (they light up, see the CSS). Without
+    // this, index.html's "every button glows on hover" rule drew a 38px ring
+    // around the whole hit area (Tony, 2026-10-15).
+    g.setAttribute('data-noglow', '');
     return g;
   }
 
