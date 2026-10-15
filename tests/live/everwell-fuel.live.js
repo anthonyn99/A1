@@ -153,32 +153,7 @@ const mock = {
   await js(`__fakeFs.remote('dashboards/everwell_fuel', { d: { ['${pid}']: { '${today}': { m: { 2: true } } } }, savedAt: Date.now() + 9 }, { merge: true }); return 1;`); await sleep(900);
   ok('another device\'s tick arrives live', await js(`return document.querySelector('#dash-fuel [data-fx="meal"][data-i="2"]').classList.contains('done') && /Meals complete/.test(document.querySelector('#dash-fuel .card-head').textContent);`));
 
-  /* ── Meals by hand ── */
-  console.log('\nMeals by hand');
-  await click('#dash-fuel [data-fx="meals-edit"]'); await sleep(400);
-  ok('Edit turns the meals into named chips with a remove button, and + Add', await js(`return document.querySelectorAll('#dash-fuel .fx-mchip:not(.add)').length === 3 && document.querySelectorAll('#dash-fuel .fx-mchip .x').length === 3 && !!document.querySelector('#dash-fuel [data-fx="meal-add"]');`));
-  await click('#dash-fuel [data-fx="meal-add"]'); await sleep(400); await dlgOk('Pre-workout'); await sleep(1000);
-  b = await doc('everwell_body');
-  ok('+ Add asks a name and adds it last (a hand edit)', JSON.stringify(b.people[0].over.mealNames) === JSON.stringify(['Breakfast', 'Lunch', 'Dinner', 'Pre-workout']) && b.people[0].over.meals === 4, JSON.stringify(b.people[0].over));
-  // Drag Pre-workout before Dinner: Dinner's tick (on) travels with Dinner.
-  const mr = (i) => js(`const r = document.querySelectorAll('#dash-fuel .fx-mchip:not(.add)')[${i}].getBoundingClientRect(); return JSON.stringify({ x: r.left + 20, y: r.top + r.height / 2 });`).then(JSON.parse);
-  const mm = (type, x, y) => c.send('Input.dispatchMouseEvent', { type, x, y, button: 'left', buttons: type === 'mouseReleased' ? 0 : 1, clickCount: 1 });
-  let m1 = await mr(3), m2 = await mr(2);
-  await mm('mousePressed', m1.x, m1.y); for (let i = 1; i <= 12; i++) { await mm('mouseMoved', m1.x + (m2.x - 8 - m1.x) * i / 12, m2.y); await sleep(18); }
-  await mm('mouseReleased', m2.x - 8, m2.y); await sleep(1200);
-  b = await doc('everwell_body'); f = await doc('everwell_fuel');
-  ok('a drag reorders the meals (the card itself stays put)', JSON.stringify(b.people[0].over.mealNames) === JSON.stringify(['Breakfast', 'Lunch', 'Pre-workout', 'Dinner']) && ((await doc('everwell_tony')).dashOrder || { a: ['split', 'fuel'] }).a.indexOf('fuel') >= 0, JSON.stringify(b.people[0].over.mealNames));
-  ok('…and today\'s ticks travel with their meals (Dinner stays ticked, at its new place)', f.d[pid][today].m['3'] === true && f.d[pid][today].m['2'] === false && f.d[pid][today].m['0'] === true, JSON.stringify(f.d[pid][today].m));
-  await click('#dash-fuel .fx-mchip[data-i="2"]'); await sleep(400); await dlgOk('Pre-workout snack'); await sleep(900);
-  ok('tapping a chip renames it', (await doc('everwell_body')).people[0].over.mealNames[2] === 'Pre-workout snack');
-  await click('#dash-fuel .fx-mchip[data-i="2"] .x'); await sleep(400);
-  ok('× asks first', /Remove Pre-workout snack\?/.test(await js(`return document.getElementById('uim-overlay').innerText;`)));
-  await dlgOk(); await sleep(1000);
-  b = await doc('everwell_body'); f = await doc('everwell_fuel');
-  ok('…then it goes; Dinner (ticked) moves back to third', !b.people[0].over.mealNames && !b.people[0].over.meals && f.d[pid][today].m['2'] === true && f.d[pid][today].m['3'] === false,
-    JSON.stringify([b.people[0].over, f.d[pid][today].m]));
-  await click('#dash-fuel [data-fx="meals-edit"]'); await sleep(400);
-  ok('Done goes back to the tick chips', await js(`return document.querySelectorAll('#dash-fuel [data-fx="meal"]').length === 3 && !document.querySelector('#dash-fuel .fx-mchip');`));
+  ok('Today\'s fuel has no meal editor (meals are edited in Nutrition)', await js(`return !document.querySelector('#dash-fuel [data-fx="meals-edit"], #dash-fuel .fx-mchip') && document.querySelectorAll('#dash-fuel [data-fx="meal"]').length === 3;`));
 
   /* ── Hand edits, Reset, Re-run ── */
   console.log('\nHand edits, Reset, Re-run');
