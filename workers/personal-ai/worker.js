@@ -1277,7 +1277,13 @@ async function fetchPage(url, ms, via, dbg) {
     const headers = via === 'jina'
       ? Object.assign({ 'X-Return-Format': 'html' }, isAmazon(url) ? {} : { 'X-Target-Selector': 'head' })
       : { 'User-Agent': via, 'Accept': 'text/html,application/xhtml+xml', 'Accept-Language': 'en-US,en;q=0.9' };
-    const r = await fetch(target, { signal: ac.signal, redirect: 'follow', headers });
+    let r = await fetch(target, { signal: ac.signal, redirect: 'follow', headers });
+    // The keyless reader rate-limits PER IP, and Cloudflare's egress IPs are
+    // shared — a 429 asks for ~2 s, and the retry usually leaves from another IP.
+    for (let i = 0; via === 'jina' && r.status === 429 && i < 3; i++) {
+      await sleep(600 + i * 700);
+      r = await fetch(target, { signal: ac.signal, redirect: 'follow', headers });
+    }
     if (dbg && !r.ok) return { status: r.status, body: (await r.text()).slice(0, 300) };
     if (!r.ok || !/html|text\/plain/i.test(r.headers.get('content-type') || 'html')) return null;
     const html = (await r.text()).slice(0, 3500000);
@@ -4131,7 +4137,7 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 36, // bump when verifying a deploy went live
+        version: 37, // bump when verifying a deploy went live
         features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search', 'quote', 'quote-buddhist', 'fuel', 'yt-playlist', 'ig-media', 'ig-thumb', 'ig-px', 'link-preview'],
         quoteModels: { orca: QUOTE_ORCA_MODELS, gemini: QUOTE_GEMINI_MODELS },
         fuelModels: { orcaVision: FUEL_ORCA_VISION, orca: FUEL_ORCA_TEXT, gemini: FUEL_GEMINI_MODELS },
