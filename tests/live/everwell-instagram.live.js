@@ -11,7 +11,6 @@
 //     unsaved gone) and a new collection lands in Mindset; the REAL bookmarklet
 //     run on a fake instagram.com collection page (its API, then its links)
 //   - linking: a pasted collection link, the dialog; removal asks first
-//   - Display: a sample collection, nothing touches Instagram or the worker
 //   - phones: the player and a playing YouTube video fit, every control shows
 //   - recipes: tools with quantities (old string tools still read), the tools
 //     checklist; the routine sheet's numbers and totals
@@ -450,14 +449,6 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   ok('an unflagged cover for a reel still prefers the synced video', s.v === 'https://personal-ai.av1.workers.dev/ig/px?u=' + encodeURIComponent('https://scontent-x.cdninstagram.com/OLDreel04.mp4'), JSON.stringify(s));
   await js(`EWMedia.stopAll(); return 1;`); await sleep(300);
 
-  console.log('\nDisplay');
-  net.length = 0;
-  await fresh({ display: true }); await go('focus');
-  ok('Focus shows a sample collection with placeholder covers', await js(`const t = document.querySelector('#focus-grid .igc-tile[data-id="demo-f5"]'); return !!t && t.querySelectorAll('.igc-strip .igc-ph').length === 4 && !t.querySelector('img');`));
-  await click('#focus-grid .igc-tile [data-igplay]'); await sleep(400);
-  ok('tapping it plays nothing and says so', /Nothing plays here/.test(await toast()) && !(await js(`return !!document.querySelector('[data-igstage]');`)));
-  await go('mindset');
-  ok('Display touched no Instagram, CDN or /ig worker route', net.length === 0, net.join(' '));
 
   ok('no page errors', errs.length === 0, errs.join(' | '));
   console.log('\n' + pass + ' passed, ' + fail + ' failed');

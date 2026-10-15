@@ -9,8 +9,7 @@
 //   - a tab lock keeps its pane EMPTY until unlocked (with Cancel), and "Lock
 //     this device now" empties it again; the app lock is a hard gate after
 //     the intro
-//   - the Display profile loads no Firebase and no Tony launcher, writes none
-//     of Tony's keys, and is reached and left without touching the URL
+//   - no profile switch is left (the Display profile was removed 2026-10-15)
 //   - phone width: no sideways scroll; reduced motion: the backdrop is still
 //
 // Run: node tests/live/everwell.live.js
@@ -85,7 +84,7 @@ const mock = {
     opts = opts || {};
     await c.send('Page.navigate', { url: BASE + 'LifeHub/lifehub.js' }); await sleep(300);
     await js(`localStorage.clear(); sessionStorage.clear(); document.cookie.split(';').forEach(k => document.cookie = k.split('=')[0].trim() + '=; path=/; max-age=0');
-      ${opts.display ? "sessionStorage.setItem('ew.profile', 'display');" : ''} ${opts.seed || ''} return 1;`);
+      ${opts.seed || ''} return 1;`);
     reqs.length = 0;
     await c.send('Page.navigate', { url: PAGE }); await sleep(opts.wait || 2500);
   };
@@ -382,6 +381,12 @@ const mock = {
   await mouse('mousePressed', a.x, a.y);
   for (let i = 1; i <= 18; i++) { await mouse('mouseMoved', a.x + (b.x - a.x) * i / 18, a.y + (b.y - b.w * 0 - a.y - 120) * i / 18); await sleep(16); }
   await sleep(200);
+  // Mid-drag, the lifted card is UNDER the pointer: an entrance animation that
+  // held its end state (fill both) used to pin it in place (2026-10-15).
+  ok('mid-drag, the lifted card follows the pointer (the drag shows what moves)', await js(`const d = document.querySelector('.dash-card.dsort-drag'); if (!d) return false; const r = d.getBoundingClientRect(), x = ${b.x}, y = ${b.y - 120};
+    return getComputedStyle(d).transform !== 'none' && getComputedStyle(d).transform !== 'matrix(1, 0, 0, 1, 0, 0)' && x >= r.left && x <= r.right && y >= r.top - 40 && y <= r.bottom + 40;`),
+    await js(`const d = document.querySelector('.dsort-drag'); return d ? d.dataset.card + ' ' + getComputedStyle(d).transform + ' ' + JSON.stringify(d.getBoundingClientRect()) : 'no lifted row';`));
+  ok('…and the column it is over opens a gap for it', await js(`return [...document.querySelectorAll('#dash-col-a > .dash-card:not(.dsort-drag)')].some(e => /matrix/.test(getComputedStyle(e).transform) && getComputedStyle(e).transform !== 'matrix(1, 0, 0, 1, 0, 0)');`));
   const dropAt = await rect('#dash-split'); await mouse('mouseMoved', dropAt.x, dropAt.y - 120); await sleep(120);
   await mouse('mouseReleased', dropAt.x, dropAt.y - 120); await sleep(1800);
   ok('the R card dragged into the left column lands there, and the order is saved', await js(`const o = (__fakeFs.docs['dashboards/everwell_tony'] || {}).dashOrder; return !!o && o.a.indexOf('r') >= 0 && !o.b.includes('r') && !!document.querySelector('#dash-col-a [data-card="r"]');`),
@@ -439,14 +444,11 @@ const mock = {
   ok("another device's rotation arrives live", (await js(`return document.getElementById('dash-split-name').textContent;`)) === 'Lower');
 
   console.log('\nDashboard: faith, R, quote');
+  ok('the header has no profile switch (Display was removed): sync, lock and LifeHub only', await js(`return !document.getElementById('ew-profile-btn') && !document.getElementById('ew-display-btn') && !document.querySelector('.ew-pill') && !!document.getElementById('ew-lock-btn') && !!document.querySelector('a1-lifehub');`));
   ok('the Data Dragon version came from RiftIQ\'s worker first', riotCalls[0] === 'worker/api/ddragon-version' && riotCalls.includes('dd/cdn/16.99.1/data/en_US/champion/Yunara.json'), riotCalls.join(' '));
   ok('"The Unbroken Faith" (Riot\'s title) with a check', await js(`return document.getElementById('dash-faith-title').textContent === 'The Unbroken Faith' && !!document.querySelector('.faith-line .ew-check');`));
   ok('"I have unbreakable faith" with its own check', await js(`const l = document.querySelector('.faith-line.mine'); return l.textContent.trim() === 'I have unbreakable faith' && !!l.querySelector('.ew-check');`));
   ok('the small caption "Yunara\'s title from League of Legends"; no R-card credit', await js(`const cap = document.querySelector('#dash-faith .faith-cap'); return !!cap && cap.textContent === "Yunara's title from League of Legends" && parseFloat(getComputedStyle(cap).fontSize) <= 12 && !document.querySelector('.rcard-credit');`));
-  ok("Tony's profile pill shows his purple fleur-de-lis", await js(`const s = document.querySelector('#ew-profile-btn .ew-fleur path'); return !!s && s.getAttribute('fill') === '#c0aeea';`));
-  ok("…alone, in a circle the lock button's size, the mark bigger than before", await js(`const b = document.getElementById('ew-profile-btn'), r = b.getBoundingClientRect(), l = document.getElementById('ew-lock-btn').getBoundingClientRect(), f = b.querySelector('.ew-fleur').getBoundingClientRect();
-    return !b.textContent.trim() && Math.round(r.width) === Math.round(l.width) && Math.round(r.height) === Math.round(l.height) && getComputedStyle(b).borderRadius === '50%' && f.width >= 17 && /Tony/.test(b.getAttribute('aria-label'));`),
-    await js(`const b = document.getElementById('ew-profile-btn'); return JSON.stringify([b.getBoundingClientRect().width, document.getElementById('ew-lock-btn').getBoundingClientRect().width, getComputedStyle(b).borderRadius, b.querySelector('.ew-fleur').getBoundingClientRect().width]);`));
   ok('R card: icon from Data Dragon, "R  Transcend One\'s Self"', await js(`return /\\/cdn\\/16\\.99\\.1\\/img\\/spell\\/YunaraR\\.png$/.test(document.querySelector('.rcard-icon').src) && document.querySelector('.rcard-name').textContent === "Transcend One's Self";`));
   ok('"Yunara enters" and "her basic Abilities" struck through, new words beneath', await js(`const sw = [...document.querySelectorAll('#dash-rdesc .swap')];
     return sw.length === 2 && sw[0].querySelector('s').textContent === 'Yunara enters' && sw[0].querySelector('.new').textContent === 'I enter' &&
@@ -524,39 +526,6 @@ const mock = {
   ok('Nutrition: no sideways scroll, the voice bar fits', await js(`const r = document.getElementById('float-voice').getBoundingClientRect(); return document.documentElement.scrollWidth <= innerWidth && r.left >= 0 && r.right <= innerWidth;`));
   await c.send('Emulation.clearDeviceMetricsOverride');
 
-  /* ── Display ── */
-  console.log('\nDisplay profile');
-  await fresh({ display: true });
-  ok('Display loads no Firebase at all', !reqs.some((u) => /firebasejs|firestore\.googleapis|identitytoolkit|securetoken/.test(u)), reqs.filter((u) => /firebase|google/.test(u)).join(' '));
-  // Real requests only: the data: manifest names this host in its JSON.
-  const net = reqs.filter((u) => /^https?:/.test(u));
-  ok('…and calls no worker', !net.some((u) => /^https:\/\/[^/]*\.workers\.dev\//.test(u)), net.filter((u) => /workers\.dev/.test(u)).join(' '));
-  ok("the intro offers Tony's profile, not the Display one", await js(`return getComputedStyle(document.getElementById('ew-intro-tony')).display !== 'none' && getComputedStyle(document.getElementById('ew-intro-display')).display === 'none';`));
-  await tapIntro();
-  ok("no Tony launcher, no lock button; the pill has the same grey outline as Tony's, uppercase, no icon, Display in a softer gold", await js(`const b = document.getElementById('ew-display-btn'), t = getComputedStyle(document.getElementById('ew-profile-btn')), s = getComputedStyle(b);
-    return !document.querySelector('a1-lifehub') && getComputedStyle(document.getElementById('ew-lock-btn')).display === 'none' &&
-    s.display !== 'none' && b.textContent === 'Display' && !b.querySelector('svg') && s.color === 'rgb(205, 182, 140)' && s.borderTopColor === t.borderTopColor && s.textTransform === 'uppercase';`),
-    await js(`const s = getComputedStyle(document.getElementById('ew-display-btn')); return s.color + ' ' + s.borderTopColor + ' / ' + getComputedStyle(document.getElementById('ew-profile-btn')).borderTopColor;`));
-  ok('no "demo data" chip under any tab (Tony, 2026-10-11)', await js(`return !document.querySelector('.ew-demo-note') && !/Display profile · demo data/.test(document.getElementById('ew-main').textContent);`));
-  await js(`EWApp.go('fitness'); return 1;`); await sleep(400);
-  ok('Display Fitness shows demo circuits and Push/Pull/Legs routines', await js(`return EWFitness.circuits()[0].id.indexOf('demo-') === 0 && EWFitness.routines().map(r => r.name).join() === 'Push,Pull,Legs';`));
-  await js(`EWApp.go('nutrition'); return 1;`); await sleep(400);
-  ok('Display Nutrition shows demo recipes and NO voice bar', await js(`return EWRec.recipes().length === 3 && EWRec.recipes()[0].id.indexOf('demo-') === 0 && !document.getElementById('float-voice');`));
-  ok('Display never loaded the Firebase fake at all', await js(`return typeof window.__fakeFs === 'undefined' && !window.EWFB;`));
-  await js(`EWApp.go('prayer'); return 1;`); await sleep(400);
-  await js(`document.getElementById('pray-btn').click(); return 1;`); await sleep(300);
-  ok('Display Prayer ticks in memory only (demo), still no Firebase', await js(`return document.getElementById('pray-big').textContent === 'Prayed today' && typeof window.__fakeFs === 'undefined' && /demo/i.test(document.querySelector('.pray-note').textContent);`));
-  await js(`EWApp.go('dashboard'); return 1;`); await sleep(300);
-  a = await rect('#ew-tab-goals'); b = await rect('#ew-tab-dashboard');
-  await mouse('mousePressed', a.x, a.y);
-  for (let i = 1; i <= 12; i++) { await mouse('mouseMoved', a.x + (b.x - b.w / 2 - a.x) * i / 12, a.y); await sleep(16); }
-  await mouse('mouseReleased', b.x - b.w / 2, a.y); await sleep(1200);
-  ok('Display can reorder (in memory)', (await js(`return EWApp.order()[0];`)) === 'goals');
-  ok("…and writes none of Tony's keys", await js(`return Object.keys(localStorage).filter(k => k.indexOf('ew.') === 0).length === 0;`), await js(`return Object.keys(localStorage).join();`));
-  ok('the address never changed', (await js(`return location.href;`)) === PAGE);
-  await js(`document.getElementById('ew-display-btn').click(); return 1;`); await sleep(2500);
-  ok("leaving Display reloads into Tony's profile, skipping the intro once", (await js(`return document.documentElement.dataset.ewProfile;`)) === 'tony' && !(await introUp()) && (await appOn()));
-  ok("…with Display's reorder gone (it was memory only)", (await js(`return EWApp.order()[0];`)) === 'dashboard');
 
   /* ── Phone ── */
   console.log('\nPhone (390px, touch)');

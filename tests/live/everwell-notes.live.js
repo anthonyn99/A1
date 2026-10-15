@@ -306,12 +306,6 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   await js(`document.getElementById('ew-now-stop').click(); return 1;`); await sleep(400);
   ok('its Stop stops it, and the pill goes', await js(`return !document.querySelector('#media-grid iframe') && !document.getElementById('ew-now').classList.contains('on');`));
 
-  console.log('\nDisplay');
-  await fresh(PAGE, `sessionStorage.setItem('ew.profile', 'display'); sessionStorage.setItem('ew.skipIntro', '1');`);
-  await js(`EWApp.go('goals'); return 1;`); await sleep(600);
-  ok('Display shows demo pages, with no Edit and no Firebase', await js(`return !!document.querySelector('#goals-notes .lyric h2') && !document.querySelector('[data-note-edit], [data-rd="edit"]') && typeof window.__fakeFs === 'undefined';`));
-  await js(`EWApp.go('mindset'); return 1;`); await sleep(500);
-  ok('Display Mindset has no add form', await js(`return !document.getElementById('media-add') && /appear here/.test(document.getElementById('media-grid').textContent);`));
 
   console.log('\nPage errors');
   ok('no uncaught exceptions', errs.length === 0, errs.join(' | '));

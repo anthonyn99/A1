@@ -17,7 +17,7 @@ const ok = (name, cond, extra) => {
 const BASE = 'https://anthonyn99.github.io/A1/';
 const PAGE = BASE + 'everwell.html';
 const recs = {};
-const media = [];   // every request to a media host, for the Display check
+const media = [];   // every request to a media host
 // The fake player: answers "listening" with onError <code>, or with
 // infoDelivery for a good video.
 const CODES = { blockedvid1: 150, removedvid1: 100 };
@@ -367,17 +367,6 @@ const mock = {
   ok('360px: a tile with Expand fits, no sideways scroll', await js(`return document.documentElement.scrollWidth <= 360;`), await js(`return document.documentElement.scrollWidth;`));
   await c.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
 
-  console.log('\nDisplay');
-  media.length = 0;
-  await fresh(`sessionStorage.setItem('ew.profile', 'display'); sessionStorage.setItem('ew.skipIntro', '1');`);
-  await js(`EWApp.go('focus'); return 1;`); await sleep(800);
-  ok('Display shows five sample tiles (one a collection), no add form, no remove, no site links', await js(`return document.querySelectorAll('#focus-grid .media-tile').length === 5 && !!document.querySelector('#focus-grid .igc-tile') && !document.getElementById('focus-add') && !document.querySelector('#focus-grid [data-rm], #focus-grid .media-meta a');`));
-  await js(`document.querySelector('#focus-grid [data-play]').click(); return 1;`); await sleep(600);
-  ok('a tap plays nothing and says why', await js(`return !document.querySelector('#focus-grid iframe, #focus-grid audio') && /Nothing plays here/.test(document.getElementById('ew-toast').textContent);`));
-  await js(`document.querySelector('#focus-grid [data-expand]').click(); return 1;`); await sleep(500);
-  ok('Display: the sample playlist expands to its sample videos, and collapses', await js(`return document.querySelectorAll('.media-group .media-tile').length === 3;`) &&
-    await js(`document.querySelector('[data-collapse]').click(); return !document.querySelector('.media-group');`));
-  ok('Display touched no media host (no thumbnails, no player) and no Firebase', media.length === 0 && await js(`return typeof window.__fakeFs === 'undefined';`), media.join(' '));
 
   console.log('\nPage errors');
   ok('no uncaught exceptions', errs.length === 0, errs.join(' | '));
