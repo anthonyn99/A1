@@ -137,7 +137,7 @@ const NAMELESS = `JSON.stringify([...document.querySelectorAll('#ew-head button,
     document.querySelectorAll('#mc-root .modal-backdrop.open, #mc-root .modal-overlay.open').forEach(m => m.classList.remove('open'));
     const rm = document.getElementById('rec-modal'); if (rm) rm.style.display = 'none';
     const fx = document.querySelector('#fx-editor [data-fxa="cancel"]'); if (fx) fx.click();
-    const back = [...document.querySelectorAll('#ew-body-nutrition button')].find(b => /back to recipes|recipe book/i.test(b.textContent)); if (back) back.click();
+    const back = [...document.querySelectorAll('#rec-root button')].find(b => /back to recipes|recipe book/i.test(b.textContent)); if (back) back.click();
     if (window.EWReader) EWReader.close(); return 1;`);
 
   // Each dialog a phone opens: [tab, label, js that opens it, selector of its box].
