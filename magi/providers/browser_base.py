@@ -137,6 +137,58 @@ def site_error_detail(name: str, said: str) -> str:
             f"{name}'s side, not MAGI's; it was not sent.")
 
 
+# What a site shows once it has taken an attachment, counted before and after
+# set_input_files. Verified live 2026-10-15 with an image and a .txt on each:
+# Claude, Gemini, Perplexity and DeepSeek show the image as a blob: thumbnail;
+# Claude, Grok and DeepSeek show the file's name, Gemini its name without the
+# extension. A new <img> inside a form counts too (a site whose preview is
+# already uploaded). Erring towards "landed" only ever sends, as before.
+ATTACH_SIGNS_JS = """(names) => {
+  const imgs = [...document.querySelectorAll('img')];
+  const blobs = imgs.filter(i => /^(blob:|data:image)/.test(i.currentSrc || i.src || '')).length;
+  const inForm = imgs.filter(i => i.closest('form')).length;
+  const text = document.body ? document.body.innerText : '';
+  return { blobs, inForm, names: names.filter(n => text.includes(n)) };
+}"""
+
+#: How long a site gets to show an attachment it has taken. Every site in the
+#: 2026-10-15 check showed one within a second.
+ATTACH_LAND_S = 12.0
+
+
+def attachment_names(paths: list[Path]) -> list[str]:
+    """Each file's name and, where different, its stem (Gemini shows that)."""
+    out: list[str] = []
+    for p in paths:
+        for n in (p.name, p.stem):
+            if len(n) >= 3 and n not in out:
+                out.append(n)
+    return out
+
+
+def attach_landed(before: dict, after: dict) -> bool:
+    return (
+        after.get("blobs", 0) > before.get("blobs", 0)
+        or after.get("inForm", 0) > before.get("inForm", 0)
+        or bool(set(after.get("names") or []) - set(before.get("names") or []))
+    )
+
+
+async def attachments_landed(page, names: list[str], before: dict,
+                             wait_s: float = ATTACH_LAND_S) -> bool:
+    deadline = time.monotonic() + wait_s
+    while True:
+        try:
+            if attach_landed(before, await page.evaluate(ATTACH_SIGNS_JS, names)):
+                return True
+        except Exception:
+            # A page that cannot be read is no evidence the file was refused.
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        await asyncio.sleep(0.5)
+
+
 async def open_site(page, site: SiteSelectors, *, tries: int = 2) -> None:
     """Navigate to the site, retrying once. Waits for the DOM, not "load":
     the composer wait that follows is the real readiness check, and a slow
