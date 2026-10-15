@@ -56,6 +56,8 @@ t('slug name from an Amazon path', W.slugTitle('https://www.amazon.com/Premier-P
 t('unknown site → domain name', W.siteName('https://shop.example-foods.com/x') === 'Example-foods');
 t('short item name for a skipped link', W.linkItemName(m) === "Member's Mark Italian Herb Grilled Chicken Breasts", W.linkItemName(m));
 
+t('short name stops at a size clause', W.linkItemName({ title: 'Grade A Large Eggs - 12ct - Good & Gather' }) === 'Grade A Large Eggs');
+
 section('finding links in input');
 const urls = W.listUrls('get this ' + SAMS + ', and https://a.co/d/abc123. Also ' + SAMS);
 t('urls found, trailing punctuation dropped, deduped', urls.length === 2 && urls[0] === SAMS && urls[1] === 'https://a.co/d/abc123', JSON.stringify(urls));

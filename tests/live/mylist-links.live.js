@@ -18,6 +18,7 @@ const fs = require('fs');
 
 const URL = 'https://anthonyn99.github.io/A1/mylist.html';
 const SAMS = 'https://www.samsclub.com/ip/members-mark-italian-herb-grilled-chicken-breast-5-count/13590050893';
+const WALMART = 'https://www.walmart.com/ip/Great-Value-Large-White-Eggs-12-Count/145051970';
 const TARGET = 'https://www.target.com/p/good-gather-large-grade-a-eggs-12ct/-/A-14713534';
 const list = () => ({ id: 'L_shop', name: 'Groceries', type: 'shopping', stores: ["Sam's Club"], createdAt: 1, items: [
   { id: 'a', name: 'Italian Herb Grilled Chicken Breasts', qty: '', store: "Sam's Club", desc: '', done: false,
@@ -77,7 +78,7 @@ const items = `(()=>{ const s=window.__saves[window.__saves.length-1]; const p=s
     await evalJs(c, `document.getElementById('manual-fab').click(); return 1`);
     ok('manual form has a Link field', await waitFor(c, `!!document.getElementById('add-link')`));
     await evalJs(c, `document.getElementById('add-link').value=${JSON.stringify(TARGET)}; ML.addItem(); return 1`);
-    ok('link-only add fills name, photo and store from the page', await waitFor(c, `const it=${items}; const x=it&&it.find(i=>i.link&&i.link.url===${JSON.stringify(TARGET)}); return !!(x && x.link.image && x.link.site==='Target' && /Eggs/.test(x.name) && !x.pendingName)`, 25000),
+    ok('link-only add fills name, photo and store from the page', await waitFor(c, `const it=${items}; const x=it&&it.find(i=>i.link&&i.link.url===${JSON.stringify(TARGET)}); return !!(x && x.link.image && x.link.site==='Target' && x.name==='Grade A Large Eggs' && !x.pendingName)`, 25000),
       await evalJs(c, `return JSON.stringify((${items}||[]).slice(-1))`));
     await evalJs(c, `document.getElementById('manual-fab').click(); return 1`);
 
@@ -95,8 +96,8 @@ const items = `(()=>{ const s=window.__saves[window.__saves.length-1]; const p=s
 
     // 5. AI with a link (only once — it spends Gemini quota)
     if (who === 'tony') {
-      await evalJs(c, `const ta=document.getElementById('float-text'); ta.value='Snacks: ${TARGET}'; ML.sendFloatText(); return 1`);
-      ok('AI adds the link as a clean item carrying its link', await waitFor(c, `const it=${items}; return !!(it && it.filter(i=>i.link&&i.link.url===${JSON.stringify(TARGET)}).length && it.length>=3)`, 40000),
+      await evalJs(c, `const ta=document.getElementById('float-text'); ta.value='Breakfast: ${WALMART}'; ML.sendFloatText(); return 1`);
+      ok('AI adds the link as a clean item carrying its link', await waitFor(c, `const it=${items}; return !!(it && it.filter(i=>i.link&&i.link.url===${JSON.stringify(WALMART)} && !/walmart|https?:/i.test(i.name)).length)`, 40000),
         await evalJs(c, `return JSON.stringify((${items}||[]).map(i=>[i.name,i.store,i.link&&i.link.site]))`));
     }
 

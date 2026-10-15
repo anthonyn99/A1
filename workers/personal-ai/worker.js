@@ -1360,7 +1360,7 @@ async function handleLinkPreview(url) {
 // The short name a link gets when no model named it (every model failed, or
 // the model skipped it): the page title up to its first comma/size clause.
 export function linkItemName(m) {
-  const t = String((m && m.title) || '').split(/\s*,\s*(?:priced|per|pack|\d)|\s+[|(]/i)[0].trim();
+  const t = String((m && m.title) || '').split(/\s*,\s*(?:priced|per|pack|\d)|\s+[|(]|\s+[-–]\s+\d/i)[0].trim();
   return (t || (m && m.site) || 'Link').slice(0, 90);
 }
 
@@ -4156,7 +4156,7 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 38, // bump when verifying a deploy went live
+        version: 39, // bump when verifying a deploy went live
         features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search', 'quote', 'quote-buddhist', 'fuel', 'yt-playlist', 'ig-media', 'ig-thumb', 'ig-px', 'link-preview'],
         quoteModels: { orca: QUOTE_ORCA_MODELS, gemini: QUOTE_GEMINI_MODELS },
         fuelModels: { orcaVision: FUEL_ORCA_VISION, orca: FUEL_ORCA_TEXT, gemini: FUEL_GEMINI_MODELS },
