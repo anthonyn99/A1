@@ -561,6 +561,21 @@ const LIST_TYPE_GUIDE = {
 };
 
 // The pasted links, one line each, and how to turn them into items.
+// 1-based number of the unused link whose page title (or URL slug) best
+// matches an item name, or 0.
+export function linkForName(name, links, used) {
+  const n = normName(name);
+  if (!n) return 0;
+  let best = 0, score = 0;
+  (links || []).forEach((m, i) => {
+    if (used && used.has(i + 1)) return;
+    const t = normName((m && m.title) || '') + ' ' + normName(slugTitle((m && m.url) || ''));
+    const sc = tokenOverlap(t, n);
+    if (sc > score) { score = sc; best = i + 1; }
+  });
+  return score >= 0.6 ? best : 0;
+}
+
 function linkPromptLines(links, type) {
   if (!links || !links.length) return [];
   return [
@@ -568,10 +583,11 @@ function linkPromptLines(links, type) {
     ...links.map((m, i) => `[LINK ${i + 1}] page title: "${m.title || '(unreadable)'}" | store/site: ${m.site || '?'}${m.price ? ' | price: ' + m.price : ''}`),
     `LINK RULES: every [LINK n] is an item — an "add" with "link": n (or, when the user says the link is FOR an item already on the list, an "update" of that item with "link": n). Never put a link, URL or "[LINK n]" in any text field.`,
     `- "name": a clean, short product name from the page title (or the user's own wording next to the link, which wins): drop the store/site, "priced per pound", SEO filler and pack sizes; keep the brand only when it identifies the product ("Premier Protein Powder, Vanilla" keeps Premier; "Member's Mark Italian Herb Grilled Chicken Breasts" → "Italian Herb Grilled Chicken Breasts").`,
-    `- Size, weight or count from the title or the user ("3 lbs", "24 ct", "16 oz") goes in "desc", unless the user says how many to buy (that's "qty").`,
+    `- "desc": ONLY the size/weight/count/flavor/color ("3 lbs", "24 ct", "Vanilla") or the user's own note — never marketing or feature text from the title. A count of how many to BUY is "qty".`,
     type === 'shopping'
       ? `- "store": the heading the user put the link under when they gave headings; otherwise the link's store/site name (e.g. "Sam's Club").`
       : `- "store": the heading the user put the link under, if any.`,
+    `Example: input "Proteins: Grilled chicken [LINK 1], [LINK 2]" with [LINK 2] = "Premier Protein Powder, Vanilla, 3 lbs" → [{"op":"add","link":1,"name":"Grilled Chicken","store":"Proteins"},{"op":"add","link":2,"name":"Premier Protein Powder","store":"Proteins","desc":"Vanilla, 3 lbs"}]`,
     ``,
   ];
 }
@@ -764,9 +780,12 @@ function applyListOps(items, stores, ops, type, links) {
   // [LINK n] → the page the worker read. Each link attaches to at most one item.
   const linkList = Array.isArray(links) ? links : [];
   const usedLinks = new Set();
-  const takeLink = (op) => {
-    const n = parseInt(op && (op.link ?? (op.set && op.set.link)), 10);
-    if (!(n >= 1 && n <= linkList.length) || usedLinks.has(n)) return null;
+  // The op's "link" number, or — the lite models often leave it out — the
+  // unused link whose page title best matches the item's name.
+  const takeLink = (op, name) => {
+    let n = parseInt(op && (op.link ?? (op.set && op.set.link)), 10);
+    if (!(n >= 1 && n <= linkList.length) || usedLinks.has(n)) n = linkForName(name, linkList, usedLinks);
+    if (!n) return null;
     usedLinks.add(n);
     return linkField(linkList[n - 1]);
   };
@@ -886,7 +905,7 @@ function applyListOps(items, stores, ops, type, links) {
         // A DIFFERENT group means the user wants a copy there — keep both.
         const dup = t.list.find(it => !it.done && normName(it.name) === normName(name) &&
           (!store || !it.store || normName(it.store) === normName(store)));
-        const lk = takeLink(op);
+        const lk = takeLink(op, name);
         if (dup && lk && dup.link && dup.link.url !== lk.url) {
           // Same name, different product page — keep both.
           t.list.push({ name, qty: String(f.qty || '').trim(), when: String(f.when || '').trim(), store, desc: String(f.desc || '').trim(), done: false, link: lk });
@@ -906,7 +925,7 @@ function applyListOps(items, stores, ops, type, links) {
       case 'update': {
         const set = effSet(op, ['name', 'qty', 'when', 'store', 'desc', 'done']);
         const it = resolve(t, op.index, op.match || op.name);
-        const lk = takeLink(op);
+        const lk = takeLink(op, String(set.name || (it && it.name) || op.match || ''));
         if (it) { applySet(t, it, set, true); if (lk) it.link = lk; break; }
         // Target not found (e.g. user thinks it's on the list) — add it so the command still lands.
         const name = String(set.name || op.match || '').trim();
@@ -1395,7 +1414,7 @@ async function handleList(body, env) {
     if (!audio && missingNumbers(checkText, v.ops).length) return false;
     // Every link must be used — a skipped one escalates (and still lands via
     // applyListOps' fallback if no model does better).
-    if (links.length && links.some((_, i) => !v.ops.some(o => o && parseInt(o.link ?? (o.set && o.set.link), 10) === i + 1))) return false;
+    if (links.length && v.ops.filter(o => o && (o.op === 'add' || o.op === 'update')).length < links.length) return false;
     return true;
   };
 
@@ -4137,7 +4156,7 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 37, // bump when verifying a deploy went live
+        version: 38, // bump when verifying a deploy went live
         features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search', 'quote', 'quote-buddhist', 'fuel', 'yt-playlist', 'ig-media', 'ig-thumb', 'ig-px', 'link-preview'],
         quoteModels: { orca: QUOTE_ORCA_MODELS, gemini: QUOTE_GEMINI_MODELS },
         fuelModels: { orcaVision: FUEL_ORCA_VISION, orca: FUEL_ORCA_TEXT, gemini: FUEL_GEMINI_MODELS },
