@@ -135,6 +135,21 @@ const mock = {
   await click('#dash-body [data-fx="reset"]'); await sleep(1200);
   b = await doc('everwell_body');
   ok('Reset goes back to the AI\'s last plan (the edits are cleared)', JSON.stringify(b.people[0].over) === '{}' && /2,500/.test(await text('#dash-body')) && !(await js(`return document.querySelector('#dash-body [data-fx="reset"]');`)));
+  // Metric: switching units and saving changes no number (the boxes show rounded conversions).
+  await click('#dash-body [data-fx="edit"]'); await sleep(400);
+  await click('#fx-units [data-seg="met"]'); await sleep(300);
+  ok('kg · cm shows the stats and water converted', (await js(`return ['fx-cm','fx-kg','fx-wml','fx-gml'].map(i => document.getElementById(i).value).join();`)) === '178,79.4,3.5,470');
+  await click('[data-fxa="save"]'); await sleep(1200);
+  b = await doc('everwell_body');
+  ok('…saving untouched keeps every stored number (no hand edit appears)', b.people[0].units === 'met' && b.people[0].stats.heightIn === 70 && b.people[0].stats.weightLb === 175 && JSON.stringify(b.people[0].over) === '{}', JSON.stringify([b.people[0].stats, b.people[0].over]));
+  ok('…and the cards speak metric (litres, cm, kg)', /3\.5 L water/.test(await text('#dash-body')) && /178 cm · 79\.4 kg/.test(await text('#dash-body')) && /470 ml each/.test(await text('#dash-fuel')));
+  await click('#dash-body [data-fx="edit"]'); await sleep(400); await set('fx-kg', 80); await click('#fx-units [data-seg="imp"]'); await sleep(300);
+  ok('a changed kg value converts when the units switch back', (await js(`return document.getElementById('fx-lb').value;`)) === '176.4');
+  await click('[data-fxa="save"]'); await sleep(1200);
+  b = await doc('everwell_body');
+  ok('…and is saved in pounds', b.people[0].units === 'imp' && b.people[0].stats.weightLb === 176.4);
+  await click('#dash-body [data-fx="edit"]'); await sleep(400); await set('fx-lb', 175); await click('[data-fxa="save"]'); await sleep(1000);
+
   await click('#dash-body [data-fx="edit"]'); await sleep(400); await set('fx-protein', 190); await click('[data-fxa="save"]'); await sleep(1200);
   const PLAN2 = Object.assign({}, PLAN, { calories: 2600, protein: 185, carbs: 285 });
   AI.reply = () => ({ json: { ok: true, plan: PLAN2, via: 'gemini', model: 'gemini-3.5-flash' } });
