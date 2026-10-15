@@ -83,6 +83,18 @@ const mock = {
   ok('number boxes have no up/down arrows', await js(`const i = document.getElementById('fx-age'); return i.type === 'number' && getComputedStyle(i).appearance === 'textfield';`),
     await js(`return getComputedStyle(document.getElementById('fx-age')).appearance;`));
   const mouseAt = (type, x, y) => c.send('Input.dispatchMouseEvent', { type, x, y, button: 'left', buttons: type === 'mouseReleased' ? 0 : 1, clickCount: 1 });
+  ok('every number box has Everwell\'s own − | + (tap-sized)', await js(`return [...document.querySelectorAll('#fx-editor input[type=number]')].every(i => { const s = i.closest('.fx-num').querySelector('.fx-step'); return s && s.querySelectorAll('.fx-st').length === 2 && s.querySelector('.fx-st').getBoundingClientRect().width >= 34 && s.getBoundingClientRect().height >= 38; });`));
+  const stp = async (id, dir, holdMs) => { const r = JSON.parse(await js(`const b = document.querySelector('.fx-st[data-for="${id}"][data-st="${dir}"]'); b.scrollIntoView({ block: 'center' }); const q = b.getBoundingClientRect(); return JSON.stringify({ x: q.left + q.width / 2, y: q.top + q.height / 2 });`));
+    await mouseAt('mousePressed', r.x, r.y); await sleep(holdMs || 40); await mouseAt('mouseReleased', r.x, r.y); await sleep(120); };
+  await stp('fx-age', 1);
+  ok('+ on an empty box starts at its minimum (age 13)', (await js(`return document.getElementById('fx-age').value;`)) === '13');
+  await stp('fx-age', 1); await stp('fx-age', -1); await stp('fx-age', 1);
+  ok('…each tap is one step (13 → 14 → 13 → 14), and focus stays put', (await js(`return document.getElementById('fx-age').value + '|' + (document.activeElement.id || document.activeElement.className);`)).split('|')[0] === '14');
+  await stp('fx-age', 1, 1000);
+  ok('holding + repeats', +(await js(`return document.getElementById('fx-age').value;`)) >= 20);
+  await stp('fx-age', -1, 2500);
+  ok('…and never goes below the minimum', (await js(`return document.getElementById('fx-age').value;`)) === '13');
+  await js(`document.getElementById('fx-age').value = ''; document.getElementById('fx-age').dispatchEvent(new Event('input', { bubbles: true })); document.querySelector('#fx-editor .ew-dlg').focus(); return 1;`);
   const fr = JSON.parse(await js(`const r = document.getElementById('fx-age').getBoundingClientRect(); return JSON.stringify({ x: r.left + 20, y: r.top + r.height / 2 });`));
   await mouseAt('mousePressed', fr.x, fr.y);
   for (let i = 1; i <= 8; i++) { await mouseAt('mouseMoved', fr.x - (fr.x - 8) * i / 8, fr.y + 300 * i / 8); await sleep(16); }
@@ -118,7 +130,11 @@ const mock = {
   const pid = b.people[0].id;
   ok('three meal chips (the AI\'s names) and eight glasses (120 / 16 oz)', await js(`return [...document.querySelectorAll('#dash-fuel [data-fx="meal"]')].map(x => x.textContent).join() === 'Breakfast,Lunch,Dinner' && document.querySelectorAll('#dash-fuel [data-fx="glass"]').length === 8;`));
   ok('the pills read 0/3 meals and 0/8 water', /0\/3 meals/.test(await text('#dash-fuel .card-head')) && /0\/8 water/.test(await text('#dash-fuel .card-head')));
-  await click('#dash-fuel [data-fx="meal"][data-i="1"]'); await sleep(700);
+  const ringAt = () => js(`return parseFloat(getComputedStyle(document.querySelector('#dash-body .fx-ring .val')).strokeDashoffset);`);
+  const r0 = await ringAt();
+  await click('#dash-fuel [data-fx="meal"][data-i="1"]'); await sleep(150);
+  const rMid = await ringAt(); await sleep(1000); const r1 = await ringAt();
+  ok('ticking a meal grows the ring smoothly (mid-way 150ms in, not a jump)', r1 < r0 && rMid < r0 - 1 && rMid > r1 + 1, [r0, rMid, r1].join(' → '));
   let f = await doc('everwell_fuel');
   ok('one tap ticks one meal: ONE merge at d.<person>.<today>.m.1, sent at once', !!f && f.d[pid][today].m['1'] === true && !f.d[pid][today].m['0'], JSON.stringify(f));
   ok('…the chip turns green like Workout complete (wk-btn done)', await js(`const b = document.querySelector('#dash-fuel [data-fx="meal"][data-i="1"]'); return b.classList.contains('wk-btn') && b.classList.contains('done') && b.getAttribute('aria-pressed') === 'true';`));
@@ -369,6 +385,14 @@ const mock = {
   ok('opening a recipe editor from anywhere shows the Recipe Book first', await js(`return !document.getElementById('nut-book').hidden && document.getElementById('nut-tab-book').getAttribute('aria-selected') === 'true';`));
   await js(`EWRec.recCloseModal ? EWRec.recCloseModal() : document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return 1;`); await sleep(400);
   await click('#nut-tab-plan'); await sleep(600);
+  ok('the Plan card stays on top; Meal by meal and Notes are their own pair (only they reorder)', await js(`const pair = document.querySelector('#nut-plan .fx-pv-pair'); return document.querySelector('#nut-plan > [data-card="plan"]') === document.querySelector('#nut-plan').firstElementChild && !!pair && pair.querySelectorAll(':scope > .card').length === 2 && pair.classList.contains('dsort');`));
+  const cr = (s) => js(`const r = document.querySelector(${JSON.stringify(s)}).getBoundingClientRect(); return JSON.stringify({ x: r.left + r.width / 2, y: r.top + 30 });`).then(JSON.parse);
+  await js(`document.querySelector('#nut-plan .fx-pv-pair').scrollIntoView({ block: 'center' }); return 1;`); await sleep(300);
+  const ca = await cr('#nut-plan [data-card="meals"] .panel-title'), cb = await cr('#nut-plan [data-card="tips"] .panel-title');
+  await mouseAt('mousePressed', ca.x, ca.y); for (let i = 1; i <= 14; i++) { await mouseAt('mouseMoved', ca.x + (cb.x + 60 - ca.x) * i / 14, ca.y); await sleep(18); }
+  ok('mid-drag nothing else overlaps the lifted card (the other card makes room, the Plan card stays)', await js(`const d = document.querySelector('#nut-plan .dsort-drag'); const p = document.querySelector('#nut-plan [data-card="plan"]'); return !!d && getComputedStyle(p).transform === 'none' && d.dataset.card === 'meals';`));
+  await mouseAt('mouseReleased', cb.x + 60, ca.y); await sleep(1200);
+  ok('the pair swaps and the order is saved', ((await doc('everwell_tony')).nutPlanOrder || []).join() === 'tips,meals' && await js(`return [...document.querySelectorAll('#nut-plan .fx-pv-pair > .card')].map(c => c.dataset.card).join() === 'tips,meals';`));
   await click('#nut-plan [data-fx="edit"]'); await sleep(400);
   ok('Edit on Plan opens the same editor', await js(`return !!document.getElementById('fx-editor');`));
   await click('[data-fxa="cancel"]'); await sleep(300);
