@@ -80,11 +80,15 @@ section('email draft → Gmail compose link');
   t('4 other sites still fit next to it', k.sites.length === 5);
   const u = new URL(k.sites[0].url);
   t('round-trips to, subject and body exactly',
-    u.hostname === 'mail.google.com' && u.searchParams.get('view') === 'cm'
+    u.hostname === 'mail.google.com' && u.pathname === '/mail/u/0/' && u.searchParams.get('tf') === 'cm'
     && u.searchParams.get('to') === 'kim@ksu.edu'
     && u.searchParams.get('su') === 'Extension request: A3 & A4'
     && u.searchParams.get('body') === body, k.sites[0].url);
   const bad = W.cleanPrepKit({ prompt: 'p', draft: { kind: 'email', to: 'Prof Kim', subject: 's', body: 'b' } }, APPS);
+  // Gmail's signed-in redirect from /mail/?view=cm drops the body's line breaks
+  // (Tony's run-on draft, 2026-10-15), so the link must skip it.
+  t('the link skips the view=cm redirect and keeps the line breaks',
+    !u.searchParams.has('view') && /%0A%0A/.test(k.sites[0].url));
   t('a "to" that is not an address is cleared', bad.draft.to === '' && !new URL(bad.sites[0].url).searchParams.has('to'));
   const empty = W.cleanPrepKit({ prompt: 'p', draft: { kind: 'email', subject: 's', body: '' } }, APPS);
   t('an email with no body becomes no draft and no Gmail link', empty.draft.kind === 'none' && empty.sites.length === 0);
