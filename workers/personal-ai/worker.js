@@ -1269,7 +1269,7 @@ const linkCache = new Map();   // per isolate — repeated pastes of one link ar
 // (r.jina.ai, ~20 req/min keyless), which returned every one of them in 1–4 s.
 // The direct fetch still wins for the many sites that don't block.
 const isAmazon = (url) => /(^|\.)amazon\.|(^|\.)amzn\.to$|(^|\.)a\.co$/.test(hostOf(url));
-async function fetchPage(url, ms, via) {
+async function fetchPage(url, ms, via, dbg) {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), ms);
   try {
@@ -1282,8 +1282,9 @@ async function fetchPage(url, ms, via) {
     const html = (await r.text()).slice(0, 3500000);
     const m = extractLinkMeta(html, url);
     if (via !== 'jina' && r.url && r.url !== url) { const finalSite = siteName(r.url); if (finalSite) m.site = finalSite; }
+    if (dbg) return { status: r.status, read: m.read, title: m.title, image: !!m.image };
     return m.read ? m : null;
-  } catch (e) { return null; } finally { clearTimeout(timer); }
+  } catch (e) { return dbg ? { error: String(e && e.message) } : null; } finally { clearTimeout(timer); }
 }
 function okLinkUrl(url) {
   let u; try { u = new URL(url); } catch (e) { return false; }
@@ -1321,6 +1322,12 @@ export function linkField(m) {
 async function handleLinkPreview(url) {
   const target = String(url.searchParams.get('url') || '').trim();
   if (!okLinkUrl(target)) return json({ ok: false, error: 'not a web link' }, 400);
+  if (url.searchParams.get('debug')) {
+    // Which way in works for this site (direct with each user agent, the reader).
+    const ways = [...LINK_UAS, 'jina'];
+    const out = await Promise.all(ways.map(async (via) => { const t0 = Date.now(); const m = await fetchPage(target, 9000, via, true); return { via: via.slice(0, 30), ms: Date.now() - t0, ...m }; }));
+    return json({ ok: true, ways: out });
+  }
   const m = await linkMeta(target);
   return json({ ok: true, link: linkField(m), read: m.read });
 }
@@ -4123,7 +4130,7 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 34, // bump when verifying a deploy went live
+        version: 35, // bump when verifying a deploy went live
         features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search', 'quote', 'quote-buddhist', 'fuel', 'yt-playlist', 'ig-media', 'ig-thumb', 'ig-px', 'link-preview'],
         quoteModels: { orca: QUOTE_ORCA_MODELS, gemini: QUOTE_GEMINI_MODELS },
         fuelModels: { orcaVision: FUEL_ORCA_VISION, orca: FUEL_ORCA_TEXT, gemini: FUEL_GEMINI_MODELS },
