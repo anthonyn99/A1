@@ -36,6 +36,11 @@ class FailureKind(StrEnum):
     # prompt left in the box). Neither a quota nor our selectors: logged as a
     # TIMEOUT 120s later, or as the straggler "cut off", until this.
     SITE_ERROR = "site_error"
+    # The files were handed to the site and it never took them (2026-10-15:
+    # ChatGPT's free uploads were used up for 3 hours, and Perplexity's free
+    # document uploads, so the file silently went nowhere). Sending anyway
+    # got an answer that had never seen the image and read as though it had.
+    ATTACH_REFUSED = "attach_refused"
     NAVIGATION = "navigation"
     EMPTY_RESPONSE = "empty_response"
     BROWSER_CRASH = "browser_crash"
@@ -79,6 +84,13 @@ EXPLANATIONS: dict[FailureKind, tuple[str, str]] = {
         "The site refused the prompt because it is too long for this unit.",
         "Shorten the prompt (or its attachments' text), or leave this unit out "
         "of long runs. Waiting will not help: this is a length cap, not a quota.",
+    ),
+    FailureKind.ATTACH_REFUSED: (
+        "The site did not take the attached files, so nothing was sent: an "
+        "answer that never saw them would read as though it had.",
+        "Usually a free account's upload allowance (the cause above quotes the "
+        "site when it says so). Wait for it to come back, or ask this unit "
+        "without the files.",
     ),
     FailureKind.NAVIGATION: (
         "The page failed to load.",

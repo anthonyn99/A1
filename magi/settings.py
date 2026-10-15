@@ -311,6 +311,7 @@ U1_LIST_KEYS = (
     "model_more", "effort_open", "effort_option", "think_toggle", "think_confirm",
     "model_label", "downgrade_notice", "limit_notice", "usage_readout",
     "prompt_too_long", "model_known", "send_error", "needs_you",
+    "upload_limit", "upload_limit_open",
 )
 
 
@@ -408,6 +409,11 @@ class SiteSelectors:
     # check); MAGI says so instead of waiting. browser_base.NEEDS_YOU adds
     # the common ones for every site.
     needs_you: list[str] = field(default_factory=list)
+    # The site saying its uploads are used up, read only when an attachment
+    # did not land (-> FailureKind.ATTACH_REFUSED, quoted). Where the notice
+    # sits behind a menu (ChatGPT's "+"), upload_limit_open opens it first.
+    upload_limit: list[str] = field(default_factory=list)
+    upload_limit_open: list[str] = field(default_factory=list)
 
     poll_ms: int = 400
     stability_samples: int = 7
