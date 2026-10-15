@@ -1278,6 +1278,7 @@ async function fetchPage(url, ms, via, dbg) {
       ? Object.assign({ 'X-Return-Format': 'html' }, isAmazon(url) ? {} : { 'X-Target-Selector': 'head' })
       : { 'User-Agent': via, 'Accept': 'text/html,application/xhtml+xml', 'Accept-Language': 'en-US,en;q=0.9' };
     const r = await fetch(target, { signal: ac.signal, redirect: 'follow', headers });
+    if (dbg && !r.ok) return { status: r.status, body: (await r.text()).slice(0, 300) };
     if (!r.ok || !/html|text\/plain/i.test(r.headers.get('content-type') || 'html')) return null;
     const html = (await r.text()).slice(0, 3500000);
     const m = extractLinkMeta(html, url);
@@ -4130,7 +4131,7 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 35, // bump when verifying a deploy went live
+        version: 36, // bump when verifying a deploy went live
         features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search', 'quote', 'quote-buddhist', 'fuel', 'yt-playlist', 'ig-media', 'ig-thumb', 'ig-px', 'link-preview'],
         quoteModels: { orca: QUOTE_ORCA_MODELS, gemini: QUOTE_GEMINI_MODELS },
         fuelModels: { orcaVision: FUEL_ORCA_VISION, orca: FUEL_ORCA_TEXT, gemini: FUEL_GEMINI_MODELS },
