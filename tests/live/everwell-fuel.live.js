@@ -171,6 +171,20 @@ const mock = {
   ok('tapping Tony switches both cards back to his numbers and ticks', /2,600/.test(await text('#dash-body')) && /Water complete/.test(await text('#dash-fuel .card-head')) && ((await doc('everwell_tony')) || {}).fuelPerson === pid,
     (await text('#dash-body')).slice(0, 80) + ' // ' + await text('#dash-fuel .card-head') + ' // ' + ((await doc('everwell_tony')) || {}).fuelPerson);
 
+  // Another device renames Sam while this one edits Tony: Sam's change waits,
+  // then Tony's edit goes on top of it (neither is lost).
+  await click('#dash-body [data-fx="edit"]'); await sleep(400);
+  await js(`const d = JSON.parse(JSON.stringify(__fakeFs.docs['dashboards/everwell_body'])); d.people.find(p => p.name === 'Sam').name = 'Samantha'; d.savedAt = Date.now() + 50;
+    __fakeFs.remote('dashboards/everwell_body', d); return 1;`); await sleep(800);
+  ok('a change from another device waits while the editor is open (the form is untouched)', (await js(`return document.getElementById('fx-name').value;`)) === 'Tony' && /Sam\b/.test(await text('#dash-body .fx-people')));
+  await set('fx-diet', 'No pork, no shellfish'); await click('[data-fxa="save"]'); await sleep(1500);
+  b = await doc('everwell_body');
+  ok('…and Save keeps both: the remote rename and this edit', b.people.some((p) => p.name === 'Samantha') && b.people.find((p) => p.id === pid).stats.diet === 'No pork, no shellfish' && /Samantha/.test(await text('#dash-body .fx-people')),
+    JSON.stringify(b.people.map((p) => [p.name, p.stats.diet])));
+  await js(`const d = JSON.parse(JSON.stringify(__fakeFs.docs['dashboards/everwell_body'])); d.people.find(p => p.name === 'Samantha').name = 'Sam'; d.savedAt = Date.now() + 60;
+    __fakeFs.remote('dashboards/everwell_body', d); return 1;`); await sleep(900);
+  ok('outside the editor, another device\'s change shows at once', /Sam\b/.test(await text('#dash-body .fx-people')) && !/Samantha/.test(await text('#dash-body .fx-people')));
+
   /* ── Photos ── */
   console.log('\nPhotos');
   await click('#dash-body [data-fx="edit"]'); await sleep(400);
@@ -244,6 +258,10 @@ const mock = {
   await click('#nut-tab-book'); await sleep(800);
   ok('Recipe Book: the book and its voice bar', await js(`return !document.getElementById('nut-book').hidden && document.getElementById('float-voice').getClientRects().length > 0 && !!document.getElementById('rec-root');`));
   ok('the choice is remembered on this device', await js(`return localStorage.getItem('ew.tony.nutSub') === 'book';`));
+  await click('#nut-tab-plan'); await sleep(400);
+  await js(`EWRec.recOpenAdd(); return 1;`); await sleep(600);
+  ok('opening a recipe editor from anywhere shows the Recipe Book first', await js(`return !document.getElementById('nut-book').hidden && document.getElementById('nut-tab-book').getAttribute('aria-selected') === 'true';`));
+  await js(`EWRec.recCloseModal ? EWRec.recCloseModal() : document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return 1;`); await sleep(400);
   await click('#nut-tab-plan'); await sleep(600);
   await click('#nut-plan [data-fx="edit"]'); await sleep(400);
   ok('Edit on Plan opens the same editor', await js(`return !!document.getElementById('fx-editor');`));
