@@ -1375,6 +1375,16 @@ async function handleLinkPreview(url) {
 }
 // The short name a link gets when no model named it (every model failed, or
 // the model skipped it): the page title up to its first comma/size clause.
+// POST /link/parse {url, html} — the app read the page itself (through the
+// reader, on the viewer's own IP and quota, when the worker's shared Cloudflare
+// IPs are rate-limited) and only needs it understood. Nothing is fetched here.
+async function handleLinkParse(body) {
+  const target = String(body.url || '').trim();
+  if (!okLinkUrl(target)) return json({ ok: false, error: 'not a web link' }, 400);
+  const m = extractLinkMeta(String(body.html || '').slice(0, 2500000), target);
+  if (m.read) { linkCache.set(target, { at: Date.now(), v: m }); if (linkCache.size > 300) linkCache.delete(linkCache.keys().next().value); }
+  return json({ ok: true, link: linkField(m), read: m.read, name: m.read ? linkItemName(m) : '', detail: m.read ? linkDetail(m) : '' });
+}
 // The size/flavor part of a page title once the short name is taken off
 // ("…Fillets, Frozen, 3 lbs." → "Frozen, 3 lbs").
 export function linkDetail(m) {
@@ -4187,8 +4197,8 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 41, // bump when verifying a deploy went live
-        features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search', 'quote', 'quote-buddhist', 'fuel', 'yt-playlist', 'ig-media', 'ig-thumb', 'ig-px', 'link-preview'],
+        version: 42, // bump when verifying a deploy went live
+        features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'cloud-search', 'quote', 'quote-buddhist', 'fuel', 'yt-playlist', 'ig-media', 'ig-thumb', 'ig-px', 'link-preview', 'link-parse'],
         quoteModels: { orca: QUOTE_ORCA_MODELS, gemini: QUOTE_GEMINI_MODELS },
         fuelModels: { orcaVision: FUEL_ORCA_VISION, orca: FUEL_ORCA_TEXT, gemini: FUEL_GEMINI_MODELS },
         orcaKey: !!env.TONY_ORCA_KEY,
@@ -4224,6 +4234,7 @@ export default {
       try { body = await req.json(); } catch (e) { return json({ ok: false, error: 'bad json' }, 400); }
 
       if (path === '/list/parse')     return handleList(body, env);
+      if (path === '/link/parse')     return handleLinkParse(body);
       if (path === '/recipe/parse')   return handleRecipe(body, env);
       if (path === '/fuel/plan')      return handleFuel(body, env);
       if (path === '/taskhub/parse')  return handleTaskhub(body, env);
