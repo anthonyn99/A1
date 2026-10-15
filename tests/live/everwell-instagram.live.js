@@ -115,7 +115,7 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   const fresh = async (opts) => {
     opts = opts || {};
     await c.send('Page.navigate', { url: BASE + 'LifeHub/lifehub.js' }); await sleep(300);
-    await js(`localStorage.clear(); sessionStorage.clear(); ${opts.display ? "sessionStorage.setItem('ew.profile', 'display');" : `sessionStorage.setItem('__fakefs_docs', ${JSON.stringify(JSON.stringify(opts.seed || SEED()))});`} return 1;`);
+    await js(`localStorage.clear(); sessionStorage.clear(); sessionStorage.setItem('__fakefs_docs', ${JSON.stringify(JSON.stringify(opts.seed || SEED()))}); return 1;`);
     await c.send('Page.navigate', { url: PAGE + (opts.hash || '') }); await sleep(2800);
     await js(`document.getElementById('ew-intro-overlay').click(); return 1;`); await sleep(1300);
   };

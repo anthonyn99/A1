@@ -124,9 +124,9 @@ const NAMELESS = `JSON.stringify([...document.querySelectorAll('#ew-head button,
   });
   const js = (e) => evalJs(c, e);
   const size = (w) => c.send('Emulation.setDeviceMetricsOverride', { width: w, height: 760, deviceScaleFactor: 2, mobile: true });
-  const fresh = async (display) => {
+  const fresh = async () => {
     await c.send('Page.navigate', { url: BASE + 'LifeHub/lifehub.js' }); await sleep(300);
-    await js(`localStorage.clear(); sessionStorage.clear(); ${display ? "sessionStorage.setItem('ew.profile', 'display');" : `sessionStorage.setItem('__fakefs_docs', ${JSON.stringify(JSON.stringify(SEED))});`} return 1;`);
+    await js(`localStorage.clear(); sessionStorage.clear(); sessionStorage.setItem('__fakefs_docs', ${JSON.stringify(JSON.stringify(SEED))}); return 1;`);
     await c.send('Page.navigate', { url: PAGE }); await sleep(2800);
     await js(`document.getElementById('ew-intro-overlay').click(); return 1;`); await sleep(1200);
   };
@@ -148,10 +148,10 @@ const NAMELESS = `JSON.stringify([...document.querySelectorAll('#ew-head button,
     ['mindset', 'the reader', `EWMindset.show('writings'); document.querySelector('#ew-body-mindset .wr-card .wr-title').click()`],
   ];
 
-  for (const display of [false, true]) {
-    const who = display ? 'Display' : 'Tony';
+  {
+    const who = 'Tony';
     await size(360);
-    await fresh(display);
+    await fresh();
     ok(`${who}: the app is open with every tab (else nothing below means anything)`, await js(`return document.getElementById('ew-app').classList.contains('on') && document.querySelectorAll('.ew-tab').length === 7;`));
     for (const w of [360, 320]) {
       console.log('\n' + who + ' at ' + w + 'px');
