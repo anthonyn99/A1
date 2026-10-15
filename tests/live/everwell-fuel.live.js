@@ -105,6 +105,10 @@ const mock = {
   await click('#dash-body .btn[data-fx="edit"]'); await sleep(500);
   ok('…with Body, Training, Photos and Plan', (await text('#fx-editor')).match(/BODY|TRAINING|PHOTOS|PLAN/g).length >= 4);
   ok('training reads the rotation (Push, Pull, Legs: 7 a week, no rest day), no "done lately"', /Your rotation: 7 days a week/.test(await text('#fx-train')) && !/done lately/.test(await text('#fx-train')), await text('#fx-train'));
+  await set('fx-days', 6); await js(`document.getElementById('fx-days').dispatchEvent(new Event('input', { bubbles: true })); return 1;`);
+  ok('the clear x sits clear of the unit, even a long one ("days")', await js(`const u = document.getElementById('fx-days').closest('.fx-u'), x = u.querySelector('.ew-clr-x').getBoundingClientRect(), em = u.querySelector('em').getBoundingClientRect(); return x.right <= em.left - 2;`),
+    await js(`const u = document.getElementById('fx-days').closest('.fx-u'); return JSON.stringify([u.querySelector('.ew-clr-x').getBoundingClientRect().right, u.querySelector('em').getBoundingClientRect().left]);`));
+  await set('fx-days', ''); await js(`document.getElementById('fx-days').dispatchEvent(new Event('input', { bubbles: true })); return 1;`);
   ok('Days a week is blank, the rotation\'s number as its hint', await js(`const d = document.getElementById('fx-days'); return d.value === '' && d.placeholder === '7';`), await js(`const d = document.getElementById('fx-days'); return d ? JSON.stringify([d.value, d.placeholder]) : 'none';`));
   ok('Food notes and Notes for the AI wear MAGI\'s corner grip', await js(`return ['fx-diet', 'fx-ainotes'].every(id => !!document.getElementById(id).parentElement.querySelector('.a1-grip'));`));
   await set('fx-days', 5); await set('fx-ainotes', 'Same routine for about a year.');
@@ -120,9 +124,9 @@ const mock = {
   ok('…days a week set by hand (5) beat the rotation (7), and no done-rate is sent', req.training.perWeek === 5 && req.training.rotationPerWeek === 7 && !('done21' in req.training));
   let b = await doc('everwell_body');
   ok('the plan is saved as the AI\'s (16 oz glasses), with no hand edits', b.people[0].ai.calories === 2500 && b.people[0].ai.glassOz === 16 && b.people[0].ai.model === 'deepseek/free' && JSON.stringify(b.people[0].over) === '{}', JSON.stringify(b.people[0]));
-  ok('the Nutrition card shows it: 2,500 kcal, P/C/F, water, meals, fiber, the stats line', await js(`const t = document.getElementById('dash-body').innerText; return /2,500/.test(t) && /175\\s*g/.test(t) && /270\\s*g/.test(t) && /78\\s*g/.test(t) && /120 oz/.test(t) && /3 meals/.test(t) && /27 · 5′10″ · 175 lb · Recomp/.test(t);`),
+  ok('the Nutrition card shows it: 2,500 kcal, P/C/F, water, meals, fiber, and NO stats line', await js(`const t = document.getElementById('dash-body').innerText; return /2,500/.test(t) && /175\\s*g/.test(t) && /270\\s*g/.test(t) && /78\\s*g/.test(t) && /120 oz/.test(t) && /3 meals/.test(t) && !/5′10″|175 lb|Recomp/.test(t) && !document.querySelector('#dash-body .fx-stats');`),
     await text('#dash-body'));
-  ok('"Ask AI" is a clean pill (a sparkle and words)', await js(`const b = document.querySelector('#dash-body [data-fx="ai"]'); return b.classList.contains('fx-ai') && b.textContent.trim() === 'Ask AI' && !!b.querySelector('svg') && b.getBoundingClientRect().height === 30;`));
+  ok('the AI button is the sparkle alone (no words), titled "Ask AI"', await js(`const b = document.querySelector('#dash-body [data-fx="ai"]'); return b.classList.contains('fx-ai') && b.textContent.trim() === '' && !!b.querySelector('svg') && b.title === 'Ask AI' && b.getBoundingClientRect().width === 30;`));
   ok('the ring and bars carry the person\'s pastel', await js(`const r = document.querySelector('#dash-body .fx-ring .val'); return !!r && getComputedStyle(r).stroke === 'rgb(192, 174, 234)';`));
 
   /* ── Ticks ── */
@@ -172,7 +176,10 @@ const mock = {
   await click('[data-fxa="save"]'); await sleep(1500);
   b = await doc('everwell_body');
   ok('only what differs from the AI is kept as a hand edit', JSON.stringify(Object.keys(b.people[0].over).sort()) === JSON.stringify(['calories', 'glassOz', 'mealNames', 'meals']) && b.people[0].ai.calories === 2500 && b.people[0].over.meals === 4, JSON.stringify(b.people[0].over));
-  ok('the card shows the edits (2,300 kcal, a gold "changed" dot on meals) and Reset appears', /2,300/.test(await text('#dash-body')) && !!(await js(`return document.querySelector('#dash-body .fx-fact .fx-dot') && document.querySelector('#dash-body [data-fx="reset"]');`)));
+  ok('the card shows the edits (2,300 kcal) with NO "changed" dots, and Reset appears', /2,300/.test(await text('#dash-body')) && !(await js(`return document.querySelector('#dash-body .fx-dot, #dash-body .fx-edit-dot');`)) && !!(await js(`return document.querySelector('#dash-body [data-fx="reset"]');`)));
+  await click('#dash-body [data-fx="edit"]'); await sleep(400);
+  ok('…the editor is where the gold dots show (calories, glass, meals)', await js(`return document.querySelectorAll('#fx-editor .fx-edit-dot').length >= 3;`));
+  await click('[data-fxa="cancel"]'); await sleep(300);
   ok('…and Today\'s fuel follows: four meals, six 20 oz glasses', await js(`return document.querySelectorAll('#dash-fuel [data-fx="meal"]').length === 4 && document.querySelectorAll('#dash-fuel [data-fx="glass"]').length === 6;`));
   await click('#dash-body [data-fx="reset"]'); await sleep(1200);
   b = await doc('everwell_body');
@@ -184,7 +191,7 @@ const mock = {
   await click('[data-fxa="save"]'); await sleep(1200);
   b = await doc('everwell_body');
   ok('…saving untouched keeps every stored number (no hand edit appears)', b.people[0].units === 'met' && b.people[0].stats.heightIn === 70 && b.people[0].stats.weightLb === 175 && JSON.stringify(b.people[0].over) === '{}', JSON.stringify([b.people[0].stats, b.people[0].over]));
-  ok('…and the cards speak metric (litres, cm, kg)', /3\.5 L water/.test(await text('#dash-body')) && /178 cm · 79\.4 kg/.test(await text('#dash-body')) && /470 ml each/.test(await text('#dash-fuel')));
+  ok('…and the cards speak metric (litres, ml)', /3\.5 L water/.test(await text('#dash-body')) && /470 ml each/.test(await text('#dash-fuel')));
   await click('#dash-body [data-fx="edit"]'); await sleep(400); await set('fx-kg', 80); await click('#fx-units [data-seg="imp"]'); await sleep(300);
   ok('a changed kg value converts when the units switch back', (await js(`return document.getElementById('fx-lb').value;`)) === '176.4');
   await click('[data-fxa="save"]'); await sleep(1200);
@@ -216,7 +223,7 @@ const mock = {
   await click('#dash-body [data-fx="ai"]'); await sleep(500);
   ok('Re-run over hand edits asks first', await js(`return !!document.getElementById('uim-ok');`) && /replaces the numbers you changed/.test(await js(`return document.getElementById('uim-overlay').innerText;`)));
   await dlgOk(); await sleep(300);
-  ok('while it thinks: "Thinking" with three soft dots, no spinning icon', await js(`const b = document.querySelector('#dash-body [data-fx="ai"]'); return b.classList.contains('busy') && b.disabled && /Thinking/.test(b.textContent) && b.querySelectorAll('.fx-dots i').length === 3;`));
+  ok('while it thinks: three soft dots in the same round button, no words, no spinning icon', await js(`const b = document.querySelector('#dash-body [data-fx="ai"]'); return b.classList.contains('busy') && b.disabled && b.textContent.trim() === '' && b.querySelectorAll('.fx-dots i').length === 3 && !b.querySelector('svg');`));
   await sleep(2200);
   b = await doc('everwell_body');
   ok('…Ask: a new AI plan replaces it, the edits are gone, the glass size kept', AI.calls.length === 2 && b.people[0].ai.calories === 2600 && b.people[0].ai.via === 'gemini' && JSON.stringify(b.people[0].over) === '{}' && b.people[0].ai.glassOz === 16, JSON.stringify(b.people[0]));
