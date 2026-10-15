@@ -168,18 +168,24 @@ const mock = {
   console.log('\nHand edits, Reset, Re-run');
   await click('#dash-body [data-fx="edit"]'); await sleep(500);
   ok('the Plan fields are filled with the AI\'s numbers', (await js(`return ['fx-calories','fx-protein','fx-carbs','fx-fat','fx-woz','fx-goz','fx-meals'].map(i => document.getElementById(i).value).join();`)) === '2500,175,270,78,120,16,3');
-  await set('fx-calories', 2300); await set('fx-goz', 20); await set('fx-meals', 4);
-  await js(`document.getElementById('fx-meals').dispatchEvent(new Event('change')); return 1;`); await sleep(300);
+  ok('every box in the editor has a clear x (the link boxes\' own)', await js(`return [...document.querySelectorAll('#fx-editor input[type=text], #fx-editor input[type=number], #fx-editor textarea')].every(i => i.parentElement.classList.contains('ew-clr') && !!i.parentElement.querySelector('.ew-clr-x'));`));
+  await js(`document.getElementById('fx-fiber').closest('.ew-clr').querySelector('.ew-clr-x').click(); return 1;`); await sleep(150);
+  ok('…one click empties it', (await js(`return document.getElementById('fx-fiber').value;`)) === '');
+  await set('fx-fiber', 35);
+  ok('no "Meals" count box: the names are the meals', !(await js(`return document.getElementById('fx-meals');`)));
+  await set('fx-calories', 2300); await set('fx-goz', 20);
+  await click('[data-fxa="meal-add"]'); await sleep(300);
+  await js(`const i = [...document.querySelectorAll('.fx-mealnames input')].pop(); i.value = 'Snack'; return 1;`);
   const mn = await js(`return [...document.querySelectorAll('.fx-mealnames input')].map(i => i.value).join() + '|' + document.getElementById('fx-calories').value;`);
-  ok('four meals → four name boxes (the defaults for four), the edited values kept', mn === 'Breakfast,Lunch,Snack,Dinner|2300', mn);
+  ok('+ Add meal adds a box; the other edits stay', mn === 'Breakfast,Lunch,Dinner,Snack|2300', mn);
   await click('[data-fxa="save"]'); await sleep(1500);
   b = await doc('everwell_body');
-  ok('only what differs from the AI is kept as a hand edit (default names for four meals are not an edit)', JSON.stringify(Object.keys(b.people[0].over).sort()) === JSON.stringify(['calories', 'glassOz', 'meals']) && b.people[0].ai.calories === 2500, JSON.stringify(b.people[0].over));
+  ok('only what differs from the AI is kept as a hand edit', JSON.stringify(Object.keys(b.people[0].over).sort()) === JSON.stringify(['calories', 'glassOz', 'mealNames', 'meals']) && b.people[0].ai.calories === 2500 && b.people[0].over.meals === 4, JSON.stringify(b.people[0].over));
   ok('the card shows the edits (2,300 kcal, a gold "changed" dot on meals) and Reset appears', /2,300/.test(await text('#dash-body')) && !!(await js(`return document.querySelector('#dash-body .fx-fact .fx-dot') && document.querySelector('#dash-body [data-fx="reset"]');`)));
   ok('…and Today\'s fuel follows: four meals, six 20 oz glasses', await js(`return document.querySelectorAll('#dash-fuel [data-fx="meal"]').length === 4 && document.querySelectorAll('#dash-fuel [data-fx="glass"]').length === 6;`));
   await click('#dash-body [data-fx="reset"]'); await sleep(1200);
   b = await doc('everwell_body');
-  ok('Reset goes back to the AI\'s last plan (the edits are cleared)', JSON.stringify(b.people[0].over) === '{}' && /2,500/.test(await text('#dash-body')) && !(await js(`return document.querySelector('#dash-body [data-fx="reset"]');`)));
+  ok('Reset goes back to the AI\'s last plan (the edits are cleared) ', JSON.stringify(b.people[0].over) === '{}' && /2,500/.test(await text('#dash-body')) && !(await js(`return document.querySelector('#dash-body [data-fx="reset"]');`)));
   // Metric: switching units and saving changes no number (the boxes show rounded conversions).
   await click('#dash-body [data-fx="edit"]'); await sleep(400);
   await click('#fx-units [data-seg="met"]'); await sleep(300);
@@ -194,6 +200,23 @@ const mock = {
   b = await doc('everwell_body');
   ok('…and is saved in pounds', b.people[0].units === 'imp' && b.people[0].stats.weightLb === 176.4);
   await click('#dash-body [data-fx="edit"]'); await sleep(400); await set('fx-lb', 175); await click('[data-fxa="save"]'); await sleep(1000);
+
+  // Clear "Lunch" in the editor: the meal goes, Dinner's tick moves with it.
+  await click('#dash-body [data-fx="edit"]'); await sleep(400);
+  await js(`const i = [...document.querySelectorAll('.fx-mealnames input')].find(x => x.value === 'Lunch'); i.closest('.ew-clr').querySelector('.ew-clr-x').click(); return 1;`); await sleep(150);
+  ok('a cleared meal box stays (empty) until Save', await js(`return [...document.querySelectorAll('.fx-mealnames input')].map(i => i.value).join() === 'Breakfast,,Dinner';`));
+  const before = (await doc('everwell_fuel')).d[pid][today].m;
+  await click('[data-fxa="save"]'); await sleep(1300);
+  b = await doc('everwell_body'); f = await doc('everwell_fuel');
+  ok('Save drops the cleared meal (no "Snack" in its place)', JSON.stringify(b.people[0].over.mealNames) === JSON.stringify(['Breakfast', 'Dinner']) && b.people[0].over.meals === 2 &&
+    (await js(`return [...document.querySelectorAll('#dash-fuel [data-fx="meal"]')].map(x => x.textContent).join();`)) === 'Breakfast,Dinner', JSON.stringify(b.people[0].over));
+  ok('…today\'s ticks follow by name (Dinner keeps its tick)', !!f.d[pid][today].m['1'] === !!before['2'] && !!f.d[pid][today].m['0'] === !!before['0'], JSON.stringify([before, f.d[pid][today].m]));
+  await click('#dash-body [data-fx="edit"]'); await sleep(400);
+  await js(`[...document.querySelectorAll('.fx-mealnames input')].forEach(i => { i.value = ''; }); return 1;`);
+  await click('[data-fxa="save"]'); await sleep(600);
+  ok('clearing every meal is refused (keep at least one)', /at least one meal/.test(await toastText()) && !!(await js(`return document.getElementById('fx-editor');`)));
+  await click('[data-fxa="cancel"]'); await sleep(300);
+  await click('#dash-body [data-fx="reset"]'); await sleep(1200);
 
   await click('#dash-body [data-fx="edit"]'); await sleep(400); await set('fx-protein', 190); await click('[data-fxa="save"]'); await sleep(1200);
   const PLAN2 = Object.assign({}, PLAN, { calories: 2600, protein: 185, carbs: 285 });
@@ -296,6 +319,7 @@ const mock = {
   ok('two photos, the newest first', ord.length === 2);
   const pr = (i) => js(`const r = document.querySelectorAll('#fx-editor .fx-ph[data-ph]')[${i}].getBoundingClientRect(); return JSON.stringify({ x: r.left + r.width / 2, y: r.top + r.height / 2 });`).then(JSON.parse);
   const pm = (type, x, y) => c.send('Input.dispatchMouseEvent', { type, x, y, button: 'left', buttons: type === 'mouseReleased' ? 0 : 1, clickCount: 1 });
+  await js(`document.querySelector('#fx-editor .fx-gal').scrollIntoView({ block: 'center' }); return 1;`); await sleep(300);
   let p0 = await pr(0), p1 = await pr(1);
   await pm('mousePressed', p1.x, p1.y); for (let i = 1; i <= 12; i++) { await pm('mouseMoved', p1.x + (p0.x - 20 - p1.x) * i / 12, p0.y); await sleep(18); }
   await pm('mouseReleased', p0.x - 20, p0.y); await sleep(1200);
