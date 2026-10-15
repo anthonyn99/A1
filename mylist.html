@@ -392,6 +392,15 @@ body:not([data-profile=veda]) .wordmark{
 .item .qty-tag{color:var(--accent);font-weight:700;}
 .item .when-tag{display:inline-flex;align-items:center;gap:4px;color:var(--text);font-weight:600;}
 .item .when-tag svg{width:12px;height:12px;color:var(--accent);flex-shrink:0;}
+/* Links: a product photo on the left, the store as a tappable chip, the page's price. */
+.item .lk-thumb{width:48px;height:48px;border-radius:9px;object-fit:contain;background:#fff;border:1px solid var(--border);flex-shrink:0;display:block;}
+.item.done .lk-thumb{filter:grayscale(1);}
+.item .lk-chip{display:inline-flex;align-items:center;gap:4px;max-width:100%;color:var(--accent);font-weight:700;text-decoration:none;border:1px solid var(--border2);border-radius:999px;padding:1px 8px 1px 7px;line-height:1.5;}
+.item .lk-chip:hover{border-color:var(--accent);}
+.item .lk-chip svg{width:11px;height:11px;flex-shrink:0;}
+.item .lk-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.item .lk-price{color:var(--text);font-weight:700;}
+@media (max-width:420px){ .item .lk-thumb{width:42px;height:42px;} }
 @media (pointer:coarse){ .item .acts .ib{width:34px;height:34px;} .item{padding:11px 10px 11px 12px;} }
 .item .acts{display:flex;gap:4px;flex-shrink:0;}
 .item .acts .ib{width:30px;height:30px;border-radius:7px;border:1px solid transparent;background:transparent;color:var(--textmute);display:flex;align-items:center;justify-content:center;cursor:pointer;}
@@ -781,6 +790,7 @@ body:not([data-profile=veda]) textarea,
 body:not([data-profile=veda]) button{font-variant-numeric:tabular-nums;}
 body:not([data-profile=veda]) .list-chip .cnt,
 body:not([data-profile=veda]) .item .qty-tag,
+body:not([data-profile=veda]) .item .lk-price,
 body:not([data-profile=veda]) .pw-price,
 body:not([data-profile=veda]) .pw-bd-price,
 body:not([data-profile=veda]) .pw-hist-price,
@@ -905,7 +915,7 @@ body { max-width: 2000px; margin-inline: auto; }
 <div id="float-voice">
   <button id="float-mic" onclick="ML.micTap()" aria-label="Voice"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></button>
   <button id="float-dev" title="Choose microphone" onclick="ML.openDevicePicker()"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><circle cx="18.5" cy="5.5" r="3" fill="currentColor" stroke="none"/></svg></button>
-  <div class="fv-input"><textarea id="float-text" rows="1" placeholder="Type what you need…" oninput="ML.autoGrow(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();ML.sendFloatText();}"></textarea></div>
+  <div class="fv-input"><textarea id="float-text" rows="1" placeholder="Type what you need or paste links…" oninput="ML.autoGrow(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();ML.sendFloatText();}"></textarea></div>
   <button class="btn solid fgo" onclick="ML.sendFloatText()">Go</button>
   <span id="float-rec-hint">Tap mic again to stop &amp; process</span>
 </div>
@@ -2133,16 +2143,91 @@ function ensureStore(l, name){
   if(found) return found;
   l.stores.push(name); return name;
 }
+// ── Links: an item may carry link:{url,title,image,price,site} (the worker reads
+// the page). Paste links into the bar for the AI, or use the Link field. ──
+function cleanLink(lk){
+  if(!lk || typeof lk!=='object' || !/^https?:\/\//i.test(String(lk.url||''))) return null;
+  var o={ url:String(lk.url) };
+  ['title','image','price','site'].forEach(function(k){ if(lk[k]) o[k]=String(lk[k]); });
+  if(o.image && !/^https:\/\//i.test(o.image)) delete o.image;
+  return o;
+}
+function linkHost(u){ try{ var h=new URL(u).hostname.replace(/^www\./,''); return h; }catch(e){ return ''; } }
+function normLinkInput(v){ v=String(v||'').trim(); if(!v) return ''; if(!/^https?:\/\//i.test(v) && /^[\w-]+(\.[\w-]+)+(\/|$)/.test(v)) v='https://'+v; return /^https?:\/\/\S+\.\S+/i.test(v) ? v : ''; }
+function fetchLinkPreview(url){
+  return fetch(API+'/link/preview?url='+encodeURIComponent(url)).then(function(r){ return r.json(); })
+    .then(function(d){ return (d && d.ok && d.link) ? cleanLink(d.link) : null; }).catch(function(){ return null; });
+}
+// Fill an item's link from its page in the background (photo, price, store).
+function enrichItemLink(listId, itemId, url){
+  fetchLinkPreview(url).then(function(lk){
+    if(!lk) return;
+    var l=lists().filter(function(x){return x.id===listId;})[0]; if(!l) return;
+    var it=(l.items||[]).filter(function(x){return x.id===itemId;})[0]; if(!it || !it.link || it.link.url!==url) return;
+    it.link=lk; if(it.pendingName){ it.name=linkShortName(lk); delete it.pendingName; }
+    persist(); render();
+  });
+}
+function linkShortName(lk){ var t=String((lk&&lk.title)||'').split(/\s*,\s*(?:priced|per|pack|\d)|\s+[|(]/i)[0].trim(); return (t||(lk&&lk.site)||'Link').slice(0,90); }
+function linkThumbHtml(it){
+  var lk=it.link; if(!lk || !lk.image) return '';
+  return '<img class="lk-thumb" src="'+esc(lk.image)+'" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">';
+}
+function linkChipHtml(it){
+  var lk=it.link; if(!lk || !lk.url) return '';
+  var ext='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>';
+  return '<a class="lk-chip" href="'+esc(lk.url)+'" target="_blank" rel="noopener noreferrer" title="'+esc(lk.title||lk.url)+'" onclick="event.stopPropagation()">'+ext+'<span>'+esc(lk.site||linkHost(lk.url)||'Link')+'</span></a>'
+    +(lk.price?'<span class="lk-price">'+esc(lk.price)+'</span>':'');
+}
+// Rich text pasted into the bar (a doc with "Item – Sam's Club" where the store
+// is a hyperlink) keeps its links: each <a> becomes "text URL", blocks become lines.
+function htmlToLinkText(html){
+  var doc=new DOMParser().parseFromString(html,'text/html');
+  if(!doc.querySelector('a[href^="http"]')) return null;
+  var BLOCK=/^(P|DIV|LI|UL|OL|H[1-6]|TR|TABLE|SECTION|ARTICLE|BLOCKQUOTE|PRE)$/;
+  var out='';
+  (function walk(n){
+    n.childNodes.forEach(function(c){
+      if(c.nodeType===3){ out+=c.nodeValue.replace(/\s+/g,' '); return; }
+      if(c.nodeType!==1 || /^(SCRIPT|STYLE|HEAD|TITLE)$/.test(c.tagName)) return;
+      if(c.tagName==='BR'){ out+='\n'; return; }
+      var blk=BLOCK.test(c.tagName); if(blk) out+='\n';
+      if(c.tagName==='LI') out+='- ';
+      if(c.tagName==='A' && /^https?:/i.test(c.getAttribute('href')||'')){
+        var txt=(c.textContent||'').trim(), href=c.getAttribute('href');
+        out+=(txt && txt!==href ? txt+' ' : '')+href+' '; return;
+      }
+      walk(c); if(blk) out+='\n';
+    });
+  })(doc.body);
+  return out.split('\n').map(function(x){ return x.replace(/[ \t]+/g,' ').trim(); }).filter(Boolean).join('\n');
+}
+function onBarPaste(e){
+  var ta=e.target; if(!ta || ta.id!=='float-text' || !e.clipboardData) return;
+  var html=e.clipboardData.getData('text/html'); if(!html) return;
+  var txt; try{ txt=htmlToLinkText(html); }catch(err){ txt=null; }
+  if(!txt) return;
+  e.preventDefault();
+  var a=ta.selectionStart, b=ta.selectionEnd;
+  ta.value=ta.value.slice(0,a)+txt+ta.value.slice(b);
+  ta.selectionStart=ta.selectionEnd=a+txt.length; autoGrow(ta);
+}
+document.addEventListener('paste', onBarPaste, true);
+
 function addItem(){
   var l=curList(); if(!l) return;
-  var nm=($('add-name').value||'').trim(); if(!nm){ $('add-name').focus(); return; }
+  var url=normLinkInput($('add-link') ? $('add-link').value : '');
+  if($('add-link') && $('add-link').value.trim() && !url){ toast('That link doesn\'t look like a web address', true); $('add-link').focus(); return; }
+  var nm=($('add-name').value||'').trim(); if(!nm && !url){ $('add-name').focus(); return; }
   var qty= $('add-qty') ? ($('add-qty').value||'').trim() : '';
   var when= $('add-when') ? ($('add-when').value||'').trim() : '';
   var store= $('add-store') ? ensureStore(l, $('add-store').value) : '';
   var desc= $('add-desc') ? ($('add-desc').value||'').trim() : '';
-  var row={ id:uid(), name:nm, qty:qty, store:store, desc:desc, done:false }; if(when) row.when=when;
+  var row={ id:uid(), name:nm||linkHost(url), qty:qty, store:store, desc:desc, done:false }; if(when) row.when=when;
+  if(url){ row.link={ url:url, site:linkHost(url) }; if(!nm) row.pendingName=true; }
   l.items=l.items||[]; l.items.push(row);
   persist(); render(); var n=$('add-name'); if(n){ n.value=''; n.focus(); }
+  if(url){ var al=$('add-link'); if(al) al.value=''; enrichItemLink(l.id, row.id, url); }
 }
 function toggleDone(id){ var l=curList(); if(!l) return; var it=l.items.filter(function(x){return x.id===id;})[0]; if(it){ it.done=!it.done; persist(); render(); } }
 function delItem(id){
@@ -2162,7 +2247,16 @@ function saveEdit(id){
   if($('edit-when-'+id)){ var w=($('edit-when-'+id).value||'').trim(); if(w) it.when=w; else delete it.when; }
   if($('edit-store-'+id)) it.store=ensureStore(l, $('edit-store-'+id).value);
   if($('edit-desc-'+id)) it.desc=($('edit-desc-'+id).value||'').trim();
+  var le=$('edit-link-'+id), fetchUrl='';
+  if(le){
+    var u=normLinkInput(le.value);
+    if(!le.value.trim()) delete it.link;
+    else if(!u){ toast('That link doesn\'t look like a web address', true); le.focus(); return; }
+    else if(!it.link || it.link.url!==u){ it.link={ url:u, site:linkHost(u) }; fetchUrl=u; }
+  }
+  delete it.pendingName;
   editingItemId=null; persist(); render();
+  if(fetchUrl) enrichItemLink(l.id, it.id, fetchUrl);
 }
 function cancelEdit(){ editingItemId=null; render(); }
 function clearDone(){
@@ -2324,6 +2418,7 @@ function handleVoiceText(text){
   if(isUndoCommand(text)){ hideCaption(); doUndo(); return; }
   if(isRedoCommand(text)){ hideCaption(); doRedo(); return; }
   showProcessing(); voice.busy=true;
+  if(view!=='recipes' && /https?:\/\//i.test(text)){ var b=$('top-caption-body'); if(b) b.innerHTML='<div style="display:flex;align-items:center;gap:9px;font-weight:700"><span class="spin"></span> Reading links…</div>'; }
   routeAI({ transcript:text }).then(function(){ hideCaption(); voice.busy=false; });
 }
 // Voice/typed input and undo/redo route to the Recipes engine when the Recipes
@@ -2377,6 +2472,8 @@ function applyParsed(l, d){
     // re-attach it from the matched previous item). Store/reorder/unrelated edits
     // keep the same item identity → keep watching + its cached prices.
     if(prev && prev.watchId) o.watchId = prev.watchId;
+    var lk = cleanLink(p.link) || (prev && cleanLink(prev.link));
+    if(lk) o.link = lk;
     return o;
   }).filter(function(x){return x.name;});
   // Keep each linked watch entry's name/qty in step with its (possibly renamed)
@@ -2407,7 +2504,7 @@ function createListFromAI(nl){
   var name=String(nl.name||'New List');
   var lst={ id:uid(), name:name, type:(LT[nl.type] ? nl.type : inferListType({name:name})),
     stores:(nl.stores||[]).map(String),
-    items:(nl.items||[]).map(function(p){ var o={ id:uid(), name:p.name||'', qty:p.qty||'', store:p.store||'', desc:p.desc||'', done:!!p.done }; if(p.when) o.when=String(p.when); return o; }).filter(function(x){return x.name;}),
+    items:(nl.items||[]).map(function(p){ var o={ id:uid(), name:p.name||'', qty:p.qty||'', store:p.store||'', desc:p.desc||'', done:!!p.done }; if(p.when) o.when=String(p.when); var lk=cleanLink(p.link); if(lk) o.link=lk; return o; }).filter(function(x){return x.name;}),
     createdAt:Date.now() };
   lists().push(lst); activeListId=lst.id;
   try{ localStorage.setItem('ml_last_list_'+activeProfile,lst.id); }catch(e){}
@@ -3372,6 +3469,7 @@ function manualBodyHtml(){
       +(T.when ? '<label class="field"><span class="lbl">'+esc(T.whenLbl)+'</span><input id="add-when" placeholder="'+esc(T.whenPh)+'"'+enter+'></label>' : '')
       +'<label class="field"><span class="lbl">'+esc(T.group)+'</span>'+storeFieldInner('add-store','')+'</label>'
     +'</div>'
+    +'<label class="field"><span class="lbl">Link (optional)</span><input id="add-link" type="url" inputmode="url" placeholder="Paste a product link — name, photo and price fill in"'+enter+'></label>'
     +'<label class="field"><span class="lbl">Details (optional)</span><div class="ta-wrap"><textarea id="add-desc" rows="1" placeholder="'+esc(T.descPh)+'" oninput="ML.autoGrow(this)"></textarea>'+gripOld()+'</div></label>'
     +'<div class="actions"><button class="btn solid" onclick="ML.addItem()">Add item</button></div>'
   +'</div></div>';
@@ -3431,6 +3529,7 @@ function itemHtml(it){
         +((T.when||it.when) ? '<label class="field"><span class="lbl">'+esc(T.whenLbl||'When')+'</span><input id="edit-when-'+it.id+'" value="'+esc(it.when||'')+'" placeholder="'+esc(T.whenPh||'')+'"></label>' : '')
         +'<label class="field"><span class="lbl">'+esc(T.group)+'</span>'+storeFieldInner('edit-store-'+it.id, it.store||'')+'</label>'
       +'</div></div>'
+      +'<label class="field"><span class="lbl">Link</span><input id="edit-link-'+it.id+'" type="url" inputmode="url" value="'+esc((it.link&&it.link.url)||'')+'" placeholder="Paste a product link (optional)"></label>'
       +'<label class="field"><span class="lbl">Details</span><div class="ta-wrap"><textarea id="edit-desc-'+it.id+'" rows="1" placeholder="Add details…" oninput="ML.autoGrow(this)">'+esc(it.desc||'')+'</textarea>'+gripOld()+'</div></label>'
       +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn ghost sm" onclick="ML.cancelEdit()">Cancel</button><button class="btn solid sm" onclick="ML.saveEdit(\''+it.id+'\')">Save</button></div>'
     +'</div>';
@@ -3441,11 +3540,13 @@ function itemHtml(it){
     return '<div class="item selmode'+(on?' sel':'')+(it.done?' done':'')+'" onclick="ML.toggleSel(\''+it.id+'\')">'
       +'<div class="selcircle'+(on?' on':'')+'">'+(on?ck:'')+'</div>'
       +'<div class="chk" aria-hidden="true">'+(it.done?ck:'')+'</div>'
+      +linkThumbHtml(it)
       +'<div class="body"><div class="nm">'+esc(it.name)+'</div>'+itemSubHtml(it)+'</div></div>';
   }
   var tg = activeProfile==='tony' && window.A1Drag;
   return '<div class="item'+(it.done?' done':'')+'" data-id="'+it.id+'"'+(tg?' data-dkey="'+it.id+'"':'')+'>'
     +'<div class="chk" onclick="ML.toggleDone(\''+it.id+'\')">'+(it.done?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':'')+'</div>'
+    +linkThumbHtml(it)
     +'<div class="body"><div class="nm">'+esc(it.name)+'</div>'+itemSubHtml(it)+'</div>'
     +'<div class="acts">'
       +pwWatchToggleBtn(it)
@@ -3458,6 +3559,7 @@ function itemSubHtml(it){
   var sub='';
   if(it.when) sub+='<span class="when-tag">'+MLI.clock+esc(it.when)+'</span>';
   if(it.qty) sub+='<span class="qty-tag">×'+esc(it.qty)+'</span>';
+  sub+=linkChipHtml(it);
   var s = sub?'<div class="sub">'+sub+'</div>':'';
   if(it.desc) s+='<div class="desc">'+esc(it.desc)+'</div>';
   s += itemWatchLine(it);
