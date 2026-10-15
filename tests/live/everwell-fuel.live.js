@@ -78,6 +78,19 @@ const mock = {
   ok('no AI call before there are stats', AI.calls.length === 0);
   await click('#dash-body .btn[data-fx="edit"]'); await sleep(500);
   ok('the editor opens, focused on its box (no field highlighted)', await js(`const d = document.querySelector('#fx-editor .ew-dlg'); return !!d && document.activeElement === d;`));
+  // Tony, 2026-10-15: no up/down arrows in number boxes, and a drag that
+  // starts in a field and ends on the dim never closes the dialog.
+  ok('number boxes have no up/down arrows', await js(`const i = document.getElementById('fx-age'); return i.type === 'number' && getComputedStyle(i).appearance === 'textfield' && getComputedStyle(i, '::-webkit-inner-spin-button').webkitAppearance === 'none';`),
+    await js(`const i = document.getElementById('fx-age'); return getComputedStyle(i).appearance + ' / ' + getComputedStyle(i, '::-webkit-inner-spin-button').webkitAppearance;`));
+  const mouseAt = (type, x, y) => c.send('Input.dispatchMouseEvent', { type, x, y, button: 'left', buttons: type === 'mouseReleased' ? 0 : 1, clickCount: 1 });
+  const fr = JSON.parse(await js(`const r = document.getElementById('fx-age').getBoundingClientRect(); return JSON.stringify({ x: r.left + 20, y: r.top + r.height / 2 });`));
+  await mouseAt('mousePressed', fr.x, fr.y);
+  for (let i = 1; i <= 8; i++) { await mouseAt('mouseMoved', fr.x - (fr.x - 8) * i / 8, fr.y + 300 * i / 8); await sleep(16); }
+  await mouseAt('mouseReleased', 8, fr.y + 300); await sleep(500);
+  ok('pressing in a field and letting go outside the dialog keeps it open', await js(`return !!document.getElementById('fx-editor');`));
+  await mouseAt('mousePressed', 8, 400); await mouseAt('mouseReleased', 8, 400); await sleep(400);
+  ok('…a click that starts and ends on the dim still closes it', !(await js(`return !!document.getElementById('fx-editor');`)));
+  await click('#dash-body .btn[data-fx="edit"]'); await sleep(500);
   ok('…with Body, Training, Photos and Plan', (await text('#fx-editor')).match(/BODY|TRAINING|PHOTOS|PLAN/g).length >= 4);
   ok('training reads the rotation (Push, Pull, Legs: 7 a week, no rest day)', /7 workouts a week/.test(await text('#fx-train')), await text('#fx-train'));
   await click('[data-fxc="sex"][data-v="male"]'); await sleep(150);
