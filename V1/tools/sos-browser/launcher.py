@@ -193,7 +193,9 @@ def public_list() -> list[dict]:
 
 
 def is_web_url(u) -> bool:
-    if not isinstance(u, str) or len(u) > 4000:
+    # 16000, not 4000: a kit's Gmail draft link carries the whole email, and a
+    # long one was silently dropped from the sites that open.
+    if not isinstance(u, str) or len(u) > 16000:
         return False
     p = urlparse(u.strip())
     return p.scheme in ("http", "https") and bool(p.hostname)

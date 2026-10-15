@@ -93,9 +93,22 @@ class Handler(BaseHTTPRequestHandler):
         return self._send(res)
 
 
+class Server(ThreadingHTTPServer):
+    # HTTPServer turns SO_REUSEADDR on, and on Windows that lets a second
+    # server bind a port that is already in use. Exclusive, so a running
+    # bridge is never shadowed and the bind below fails instead.
+    allow_reuse_address = False
+
+    def server_bind(self):
+        import socket
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+
 def main() -> int:
     try:
-        srv = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+        srv = Server(("127.0.0.1", PORT), Handler)
     except OSError:
         return 0                          # a bridge already answers on this port
     srv.daemon_threads = True
