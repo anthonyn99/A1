@@ -243,6 +243,24 @@ class BrowserProvider(Provider):
             )
         )
 
+    async def _upload_limit_notice(self, page) -> str:
+        """The site's own words for why it did not take a file, or ""."""
+        site = self.site
+        if not site.upload_limit:
+            return ""
+        try:
+            said = await resolve.notice(page, site.upload_limit)
+            if not said and site.upload_limit_open:
+                opener = await resolve.resolve(page, site.upload_limit_open, timeout_ms=2000)
+                if opener is not None:
+                    await opener.locator.first.click()
+                    await asyncio.sleep(1.0)
+                    said = await resolve.notice(page, site.upload_limit)
+                    await page.keyboard.press("Escape")
+        except Exception:
+            return ""
+        return " ".join((said or "").split())[:200]
+
     async def _save_artifacts(self, page, tag: str) -> list[str]:
         """Screenshot + DOM on failure, so a broken selector is diagnosable later."""
         if not self.settings.artifacts_on_failure:
@@ -540,7 +558,10 @@ class BrowserProvider(Provider):
                         )
                     names = attachment_names(ctx.attachments)
                     try:
-                        seen_before = await page.evaluate(ATTACH_SIGNS_JS, names)
+                        try:
+                            seen_before = await page.evaluate(ATTACH_SIGNS_JS, names)
+                        except Exception:
+                            seen_before = {}
                         await file_box.locator.first.set_input_files(
                             [str(p) for p in ctx.attachments]
                         )
