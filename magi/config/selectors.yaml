@@ -115,13 +115,14 @@ sites:
     # visible "+" attach button is showing. set_input_files targets this
     # directly and never needs to click the styled button.
     # VERIFIED 2026-10-15: the FIRST input[type=file] in the form is the
-    # disabled "Take a photo" camera input (image/*, capture). The general
-    # uploader is the one with no `accept` and `multiple`; the camera input
-    # is skipped so files never go to it.
+    # "Take a photo" camera input (image/*, capture). The general uploader is
+    # the one with no `accept` and `multiple`; the camera input is skipped so
+    # files never go to it. With uploads used up, ChatGPT DISABLES all four a
+    # second after load -- that is the refusal, and browser_base says so.
     file_input:
-      - "form input[type='file'][multiple]:not([accept]):not([disabled])"
-      - "form input[type='file'][multiple]:not([disabled])"
-      - "input[type='file']:not([capture]):not([disabled])"
+      - "form input[type='file'][multiple]:not([accept])"
+      - "form input[type='file'][multiple]"
+      - "input[type='file']:not([capture])"
       - "input[data-testid='file-upload-input']"
     # VERIFIED 2026-10-15 (free account): with uploads used up, the files
     # are silently dropped; only the "+" menu says why -- "Get Plus for more
