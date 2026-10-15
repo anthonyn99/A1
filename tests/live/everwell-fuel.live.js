@@ -370,6 +370,23 @@ const mock = {
   ok('mid-drag the Nutrition card follows the pointer', await js(`const d = document.querySelector('.dsort-drag'); return !!d && d.id === 'dash-body' && /matrix/.test(getComputedStyle(d).transform);`));
   await mouse('mouseReleased', b1.x, b1.y - 10); await sleep(1500);
   ok('dropped above Today\'s split: saved in dashOrder', ((await doc('everwell_tony')).dashOrder || { a: [] }).a[0] === 'body', JSON.stringify((await doc('everwell_tony')).dashOrder));
+  // Across, into the EMPTY space under the shorter column: the columns are as
+  // tall as the grid, so that space is the other column (Tony: it took wiggling).
+  ok('both columns are as tall as the grid', await js(`const a = document.getElementById('dash-col-a').getBoundingClientRect(), b = document.getElementById('dash-col-b').getBoundingClientRect(); return Math.abs(a.height - b.height) < 1;`));
+  const tgtPt = JSON.parse(await js(`const col = document.getElementById('dash-col-b'), cards = col.querySelectorAll('.dash-card'), last = cards[cards.length - 1].getBoundingClientRect(), cb = col.getBoundingClientRect();
+    return JSON.stringify({ x: cb.left + cb.width / 2, y: Math.min(cb.bottom - 20, last.bottom + 80), room: cb.bottom - last.bottom });`));
+  await js(`window.scrollTo(0, 0); return 1;`); await sleep(200);
+  const sp = await rect('#dash-split .panel-title');
+  const vis = JSON.parse(await js(`return JSON.stringify({ h: innerHeight });`));
+  ok('…(there is empty room under the right column to drop into)', tgtPt.room > 60, tgtPt.room);
+  await c.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: Math.max(1000, Math.ceil(tgtPt.y + 120)), deviceScaleFactor: 1, mobile: false }); await sleep(300);
+  await mouse('mousePressed', sp.x, sp.y);
+  for (let i = 1; i <= 20; i++) { await mouse('mouseMoved', sp.x + (tgtPt.x - sp.x) * i / 20, sp.y + (tgtPt.y - sp.y) * i / 20); await sleep(18); }
+  ok('mid-drag, in the empty space under the right column, that column takes it (no wiggling needed)', await js(`return document.getElementById('dash-col-b').classList.contains('dsort-on');`));
+  await mouse('mouseReleased', tgtPt.x, tgtPt.y); await sleep(1500);
+  ok('…dropped there, last in the right column', ((await doc('everwell_tony')).dashOrder || { b: [] }).b.slice(-1)[0] === 'split', JSON.stringify((await doc('everwell_tony')).dashOrder));
+  ok('…and no card replays its entrance on the drop (no flash)', await js(`return [...document.querySelectorAll('.dash-card')].every(c => getComputedStyle(c).animationName === 'none');`));
+  await c.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 1000, deviceScaleFactor: 1, mobile: false }); await sleep(300);
 
   /* ── Nutrition sub-tabs ── */
   console.log('\nNutrition: Plan | Recipe Book');
