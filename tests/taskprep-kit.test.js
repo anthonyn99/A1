@@ -123,6 +123,12 @@ section('prompt');
   t("Veda's prompt is hers (and the default when no profile is given)", v === W.buildPrepPrompt(args) && v.includes("You are Veda's task-prep assistant. Veda is a university student.") && v.includes('signed "Veda"'));
   const tp = W.buildPrepPrompt(Object.assign({ profile: 'tony' }, args));
   t("Tony's prompt is his: his name, his signature, nothing of Veda's", tp.includes("You are Tony's task-prep assistant.") && tp.includes('signed "Tony"') && !/Veda|university|\bher\b|\bshe\b|\bHER\b/.test(tp), tp.slice(0, 300));
+  const gm = W.buildPrepPrompt({ profile: 'tony', task: { title: 'Email Anthony', type: 'task' }, note: '', site: 'gemini', today: '2026-10-15', apps: [] });
+  t('Gemini is an assistant: the prompt is written for it, and it searches the web',
+    gm.includes('paste into Gemini') && gm.includes('Gemini searches the web'), gm.slice(0, 200));
+  t('the assistant is told it cannot reach email or accounts (no "no access to Gmail" replies)',
+    /Gemini has NO access to their email/.test(gm) && /never ask it to send/.test(gm));
+  t('an email body is asked for with real line breaks', /real line breaks/.test(gm));
 }
 
 section('route');
