@@ -64,14 +64,16 @@
       '3. The biggest takeaways from the release and the call: margins, demand, capex, buybacks, management tone.\n' +
       '4. Market reaction: how {ticker} is trading after hours or pre-market vs. the move options priced in, and the read-through to peers, its sector and the indices.\n' +
       '5. Expected market movement into the next session, and the levels and catalysts to watch.\n\n' +
-      'Use the latest data available. If the report is not out yet, say so plainly instead of guessing.',
+      'Use the latest data available. If the report is not out yet, say so plainly instead of guessing.\n\n' +
+      'Use very organized, clean Markdown formatting.',
     macro:
       'The {event} just came out ({time}, {date}). Debrief this release:\n\n' +
       '1. The actual numbers vs. consensus and the prior reading: headline and core or key components, plus any revisions.\n' +
       '2. What surprised, and what it means for the Fed path and rate expectations.\n' +
       '3. The immediate market reaction: S&P 500 and Nasdaq futures, 2y and 10y Treasury yields, the dollar, and anything else that moved.\n' +
       '4. Expected market movement for the rest of the session, and what to watch next.\n\n' +
-      'Use the latest data available. If the release is not out yet, say so plainly instead of guessing.'
+      'Use the latest data available. If the release is not out yet, say so plainly instead of guessing.\n\n' +
+      'Use very organized, clean Markdown formatting.'
   };
 
   // What the settings screen lists under each template.
