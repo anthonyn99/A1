@@ -3558,8 +3558,8 @@ const QUOTE_STYLE = ['The mind is everything. What you think you become.',
   'Doubt kills more dreams than failure ever will.',
   'In life, you are offered two choices: evolve, or repeat.',
   'What you lack in talent, you make up for with desire, hustle, and giving 110% all the time.',
-  'The future is built through today's mindset.',
-  'Life isn't about finding yourself. Life is about creating yourself.'];
+  "The future is built through today's mindset.",
+  "Life isn't about finding yourself. Life is about creating yourself."];
 
 function quoteDateOk(date, nowMs) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) return false;
@@ -3574,9 +3574,7 @@ function quotePrompt(date, recent) {
   return [
     'Write ONE original quote of the day for Everwell, a personal app for growing in mind, health and faith.',
     'It is about MINDSET, SUCCESS and OVERCOMING ADVERSITY: how you think, the decisions that shape who you become, and pushing through hard things.',
-    'Match the tone of these quotes the reader already loves (style only: do not copy, paraphrase or echo them):
-' + QUOTE_STYLE.map(r => '  * ' + r).join('
-'),
+    'Match the tone of these quotes the reader already loves (style only: do not copy, paraphrase or echo them):\n' + QUOTE_STYLE.map(r => '  * ' + r).join('\n'),
     `Today's theme: ${theme}.`,
     'Rules:',
     '- 6 to 22 words, one or two short, punchy sentences. A sharp contrast or turn of phrase is welcome.',
