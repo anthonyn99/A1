@@ -3545,12 +3545,21 @@ const QUOTE_ORCA_TRY_MS = 20000;                       // one hung unit must not
 const QUOTE_GEMINI_MODELS = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite'];
 const QUOTE_KV_PREFIX = 'ew_quote:';
 const QUOTE_RECENT = 30;
-// Mindset first (Tony, 2026-10-15), each day from a different side of life:
-// faith, health and wellness, training, work, and the rest.
-const QUOTE_THEMES = ['discipline when motivation fades', 'resilience after a setback', 'a growth mindset', 'confidence and self-belief',
-  'focus and deep work', 'consistency over intensity', 'health and energy as a daily choice', 'faith and purpose',
-  'patience with slow progress', 'the courage to start', 'gratitude', 'ambition and hard work at your job', 'rest and recovery',
-  'owning your choices', 'mental toughness in training', 'calm under pressure', 'small daily wins', 'keeping promises to yourself'];
+// Mindset, success and overcoming adversity only (Tony, 2026-10-16), in the
+// voice of the quotes he keeps in his TaskHub (QUOTE_STYLE): short, punchy,
+// about deciding who you become and pushing through hard things.
+const QUOTE_THEMES = ['overcoming adversity', 'resilience after a setback', 'a growth mindset', 'confidence and self-belief',
+  'discipline when motivation fades', 'success as a daily decision', 'outworking your talent', 'owning your choices',
+  'the courage to start', 'mental toughness', 'turning failure into fuel', 'doubt versus action', 'evolving instead of repeating',
+  'consistency over intensity', 'becoming who you decide to be', 'calm under pressure', 'small daily wins', 'keeping promises to yourself'];
+// Tony's own TaskHub quotes: the TONE to aim for, never lines to reuse.
+const QUOTE_STYLE = ['The mind is everything. What you think you become.',
+  'I am not a product of my circumstances. I am a product of my decisions.',
+  'Doubt kills more dreams than failure ever will.',
+  'In life, you are offered two choices: evolve, or repeat.',
+  'What you lack in talent, you make up for with desire, hustle, and giving 110% all the time.',
+  'The future is built through today's mindset.',
+  'Life isn't about finding yourself. Life is about creating yourself.'];
 
 function quoteDateOk(date, nowMs) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) return false;
@@ -3563,14 +3572,17 @@ function quotePrompt(date, recent) {
   const day = Math.round(Date.parse(date + 'T00:00:00Z') / 86400000);
   const theme = QUOTE_THEMES[((day % QUOTE_THEMES.length) + QUOTE_THEMES.length) % QUOTE_THEMES.length];
   return [
-    'Write ONE original, motivational quote of the day for Everwell, a personal app for growing in mind, health and faith.',
-    'It is mainly about MINDSET: how to think, act and keep going. It may tie into spirituality, health and wellness, fitness, work or any part of life.',
+    'Write ONE original quote of the day for Everwell, a personal app for growing in mind, health and faith.',
+    'It is about MINDSET, SUCCESS and OVERCOMING ADVERSITY: how you think, the decisions that shape who you become, and pushing through hard things.',
+    'Match the tone of these quotes the reader already loves (style only: do not copy, paraphrase or echo them):
+' + QUOTE_STYLE.map(r => '  * ' + r).join('
+'),
     `Today's theme: ${theme}.`,
     'Rules:',
-    '- 8 to 24 words, one or two short sentences.',
+    '- 6 to 22 words, one or two short, punchy sentences. A sharp contrast or turn of phrase is welcome.',
     '- Original wording. Never a famous or existing quote, never a paraphrase of one.',
     '- No author, no attribution, no quotation marks, no hashtags, no emoji.',
-    '- Motivating, grounded and specific, not sentimental or cheesy. Speak directly to someone who wants to grow.',
+    '- Strong, direct and grounded, not sentimental or cheesy. No religion, diet or wellness talk.',
     recent.length ? '- Do not repeat or closely echo any of these recent lines:\n' + recent.slice(-QUOTE_RECENT).map(r => '  * ' + r).join('\n') : '',
     'Reply with JSON only: {"quote": "..."}',
   ].filter(Boolean).join('\n');
@@ -3594,7 +3606,7 @@ function cleanQuote(raw, recent) {
   if (/\b(once said|as .{1,30} said|according to)\b/i.test(s)) return null;
   if (/#|[\u{1F300}-\u{1FAFF}]/u.test(s)) return null;
   const norm = (x) => String(x).toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim();
-  if ((recent || []).some(r => norm(r) === norm(s))) return null;
+  if ((recent || []).concat(QUOTE_STYLE).some(r => norm(r) === norm(s))) return null;
   return s;
 }
 async function orcaQuote(env, prompt, recent) {
