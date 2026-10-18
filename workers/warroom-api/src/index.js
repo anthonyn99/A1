@@ -65,7 +65,7 @@ function corsFor(request) {
     'Access-Control-Max-Age': '86400',
     // Let the page read how much of the Riot budget is left.
     'Access-Control-Expose-Headers':
-      'X-App-Rate-Limit, X-App-Rate-Limit-Count, X-Method-Rate-Limit, X-Method-Rate-Limit-Count, Retry-After, X-WR-Cache',
+      'X-App-Rate-Limit, X-App-Rate-Limit-Count, X-Method-Rate-Limit, X-Method-Rate-Limit-Count, Retry-After, X-Rate-Limit-Type, X-WR-Cache',
     'Content-Type': 'application/json'
   };
   if (origin && isAllowedOrigin(origin)) {
@@ -92,7 +92,11 @@ const PASS_THROUGH = [
   'x-app-rate-limit-count',
   'x-method-rate-limit',
   'x-method-rate-limit-count',
-  'retry-after'
+  'retry-after',
+  // Whose limit a 429 is: 'application' / 'method' (this key's budget) or
+  // 'service' (Riot's backend throttling one endpoint for everyone). The page
+  // only pauses its whole queue for the first kind.
+  'x-rate-limit-type'
 ];
 
 export default {
