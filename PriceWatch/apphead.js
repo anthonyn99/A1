@@ -30,7 +30,7 @@
     mylist: '<path d="M42 32h30"/><path d="M42 48h30"/><path d="M42 64h30"/><circle cx="28" cy="32" r="3.5" fill="currentColor" stroke="none"/><circle cx="28" cy="48" r="3.5" fill="currentColor" stroke="none"/><circle cx="28" cy="64" r="3.5" fill="currentColor" stroke="none"/>',
     insight: '<path d="M48 24a24 24 0 1 0 24 24H48Z"/><path d="M60 20a20 20 0 0 1 16 16H60Z"/>',
     vault: '<rect x="22" y="42" width="52" height="34" rx="7"/><path d="M33 42v-9a15 15 0 0 1 30 0v9"/><path d="M48 55v8"/>',
-    everwell: '<path d="M28 72 48 52 68 72"/><path d="M28 54 48 34 68 54"/><circle cx="48" cy="20" r="5.5" fill="currentColor" stroke="none"/>',
+    everwell: '<path d="M48 30C38 43 38 59 48 72 58 59 58 43 48 30Z"/><path d="M48 72C34 70 24 59 22 47 36 49 44 58 48 72Z"/><path d="M48 72C62 70 72 59 74 47 60 49 52 58 48 72Z"/><circle cx="48" cy="19" r="5.5" fill="currentColor" stroke="none"/>',
     shield: '<path d="M48 18 24 26.5v19.5c0 16 12 26 24 32 12-6 24-16 24-32V26.5Z"/><circle cx="48" cy="44" r="6.5"/><path d="M48 50.5v10"/>',
     riftiq: '<path d="M48 19 73 33.5v29L48 77 23 62.5v-29Z" stroke-width="4"/><path d="M48 26l5 12v18H43V38Z" fill="currentColor" stroke="none"/><rect x="33" y="56" width="30" height="6" rx="3" fill="currentColor" stroke="none"/><rect x="45" y="62" width="6" height="11" rx="3" fill="currentColor" stroke="none"/>',
     proview: '<rect x="18" y="24" width="60" height="42" rx="6"/><path d="M42 37l16 9-16 9Z" fill="currentColor" stroke="none"/><path d="M36 76h24"/>',
