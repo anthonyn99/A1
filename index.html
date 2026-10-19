@@ -24389,6 +24389,12 @@ if(document.readyState==='loading'){
 #thset-box.veda .thset-bk-stat{border-radius:8px;}
 #thset-box.veda .thset-bk-head:focus-visible{outline-color:#8D769A;}
 @media(prefers-reduced-motion:reduce){.thset-bk-body{animation:none;}.thset-bk-chev{transition:none;}}
+/* Restore — the way into backup-restore.html, under the Backup card. */
+.thset-row.thset-rs{gap:12px;}
+.thset-rs-txt{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0;}
+.thset-rs-sub{font-size:11px;font-weight:500;line-height:1.4;color:#8d8d94;}
+.thset-rs .thset-btn{flex-shrink:0;text-decoration:none;display:inline-flex;align-items:center;}
+#thset-box.veda .thset-rs-sub{color:#9a9aa8;}
 @media(max-width:520px){
   .thset-bk-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
 }
@@ -24995,6 +25001,20 @@ async function refreshBackup(){
     Promise.resolve(A1Backup.setup()).catch(function(){}).then(refreshBackup);
   });
 }
+// ── Restore — opens backup-restore.html on this person's TaskHub ──────────
+// Same tab on purpose: an installed app (iOS above all) keeps its own storage,
+// so a new browser tab would not have this device's saved passphrase. Leaving
+// also flushes TaskHub's pending save, so no open copy here can write back over
+// the restore.
+function renderRestoreRow(container,profile){
+  var href='backup-restore.html?profile='+profile;
+  try{ if(window.A1Backup&&A1Backup.device) href+='&device='+encodeURIComponent(A1Backup.device()); }catch(e){}
+  container.innerHTML='<div class="thset-row thset-rs">'+
+    '<div class="thset-rs-txt"><span class="thset-label">Restore</span>'+
+    '<span class="thset-rs-sub">Put '+(profile==='veda'?'your':'your')+' TaskHub back to an earlier backup, or undo a restore.</span></div>'+
+    '<a class="thset-btn" id="thset-rs-go" href="'+bkEsc(href)+'" style="background:'+ACCENT[profile]+';color:'+(profile==='tony'?'#1a1a1d':'#fff')+';">Open</a>'+
+  '</div>';
+}
 // backup.js announces captures, pushes, a new passphrase and the pause switch.
 window.addEventListener('a1backup:change',function(){
   if(_overlay.style.display!=='none') refreshBackup();
@@ -25021,6 +25041,7 @@ function openSettings(profile){
     '<div class="thset-sec">'+
       '<div class="thset-sec-title">Backup</div>'+
       '<div id="thset-backup"></div>'+
+      '<div id="thset-restore"></div>'+
     '</div>'+
     '<div class="thset-sec">'+
       '<div class="thset-sec-title">Internal Programs</div>'+
@@ -25044,6 +25065,7 @@ function openSettings(profile){
   renderMainDeviceRow(document.getElementById('thset-mainrow'),profile);
   _bkOpen=false;
   renderBackupRow(document.getElementById('thset-backup'),profile);
+  renderRestoreRow(document.getElementById('thset-restore'),profile);
   renderLockList(document.getElementById('thset-locklist'),profile);
   renderLinkList(document.getElementById('thset-linklist'),profile);
 
