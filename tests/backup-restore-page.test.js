@@ -79,6 +79,13 @@ async function makeFixture() {
   await snap('dev-v', enc, T0 + 3600e3 + 60e3, good);     // the good one
   await snap('dev-v', enc, T0 + 7200e3, reset);           // captured after the reset
   await snap('dev-t', encOther, T0 + 7200e3, good);       // the other person's device
+  // EXTRA=n: n more older versions, for screenshots of a long list.
+  for (let i = 1; i <= Number(process.env.EXTRA || 0); i++) {
+    const old = JSON.parse(JSON.stringify(reset));
+    old.main.savedAt = old.vedasdash.savedAt = T0 - i * 3 * 3600e3;
+    old.main.goals.push({ id: 'x' + i, title: 'Older goal ' + i });
+    await snap('dev-v', enc, T0 - i * 3 * 3600e3 + 60e3, old);
+  }
   const idx = { devices: {} };
   for (const [d, s] of Object.entries(stamps)) idx.devices[d] = { at: Math.max(...s), count: s.length, stamps: s };
   worker['/index'] = JSON.stringify(idx);
@@ -95,7 +102,14 @@ const STUBS = {
     export const getFirestore = () => ({});
     export const doc = (db, p) => p;
     export const getDocFromServer = async (p) => { const v = window.__fs[p.split('/')[1]]; return { data: () => v === undefined ? undefined : JSON.parse(JSON.stringify(v)) }; };
-    export const setDoc = async (p, v) => { (window.__writes = window.__writes || []).push(p); window.__fs[p.split('/')[1]] = JSON.parse(JSON.stringify(v)); };`
+    export const setDoc = async (p, v) => { (window.__writes = window.__writes || []).push(p); window.__fs[p.split('/')[1]] = JSON.parse(JSON.stringify(v)); };
+    export const runTransaction = async (db, fn) => {
+      const sets = [];
+      const out = await fn({ get: async (p) => { const v = window.__fs[p.split('/')[1]]; return { exists: () => v !== undefined, data: () => JSON.parse(JSON.stringify(v)) }; },
+                             set: (p, v) => { sets.push([p, v]); } });
+      for (const [p, v] of sets) await setDoc(p, v);
+      return out;
+    };`
 };
 
 function findEdge() {
@@ -183,7 +197,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     ok(await until('document.querySelectorAll("#tl .row").length >= 2 && !/Reading/.test(document.getElementById("tlaside").textContent)'),
        'the right passphrase lists Tony\u2019s backups from the worker');
     ok(/Tony/.test(await txt('#tabs [aria-pressed=true]')), '?profile=tony opens Tony\u2019s tab');
-    ok(await evalJs('document.querySelectorAll("#tl .row").length') === 2, 'one row per distinct version (copies deduped)');
+    if (!process.env.EXTRA) ok(await evalJs('document.querySelectorAll("#tl .row").length') === 2, 'one row per distinct version (copies deduped)');
     ok(!/dev-t/.test(await txt('#tl')), 'a device under the other passphrase is skipped');
     ok(/Suggested/.test(await txt('#tl .row[aria-pressed=true]')), 'the pre-reset backup is suggested and selected');
     ok(/Current/.test(await txt('#tl')), 'the version TaskHub holds now is marked Current');
@@ -203,8 +217,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
     await pressGo();
     ok(await until('!document.getElementById("done").hidden'), 'restore reports success');
+    await shot('phone-after', 390, 1400);
+    await shot('desktop-after', 1280, 1000);
     let w = await writes();
-    ok(w.join() === 'dashboards/main_prerestore,dashboards/main_restored,dashboards/main', 'state before saved first, then the record, then TaskHub');
+    ok(w.join() === 'dashboards/main_prerestore,dashboards/main_restored,dashboards/main,dashboards/main_head', 'state before saved first, then the record, then TaskHub with its version');
+    ok((await live('main')).rev === 1 && (await live('main_head')).rev === 1, 'the restore goes through TaskHub\u2019s version check (doc and head move together)');
     let m = await live('main');
     ok(m.goals.find((g) => g.id === 'g1').done === true && m.goals.some((g) => g.id === 'g2') && m.data[day(18)], 'Tony\u2019s TaskHub restored');
     ok(m.savedAt > good.main.savedAt, 'the restored doc gets a fresh savedAt, so every device takes it');

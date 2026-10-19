@@ -226,18 +226,26 @@ t('the NavOrder caller passes a getter',
 section('Static: listener ordering (the bug that reverted the desktop)');
 
 // The fatal pattern was: unlock the guard, THEN discard the snapshot via an early
-// return on savePending. Assert the drop-stale-write check precedes the unlock.
+// return on savePending. The fix used to DROP a pending save whose clock said it
+// was older than the server copy; since the versioned save (2026-10-19) a pending
+// save is never dropped (it merges with the newer copy instead), so the listener
+// must hold the snapshot and must not touch the pending payload at all.
 for (const [label, markFn, pendingVar] of [
   ['TaskHub', '_thMarkServerSeen', '_savePending'],
   ['Veda',    '_vdMarkServerSeen', '_vdSavePending'],
 ]) {
   const body = HTML.slice(HTML.indexOf('onSnapshot(' + (label === 'Veda' ? 'vdDocRef' : 'docRef') + ', { includeMetadataChanges'));
   const cb = body.slice(0, body.indexOf('}, (err)'));
-  const idxDrop = cb.search(new RegExp(pendingVar + '\\s*&&\\s*\\(d\\.savedAt'));
+  const payloadVar = label === 'Veda' ? '_vdPendingPayload' : '_pendingPayload';
+  t(label + ': the listener never drops a pending save',
+    cb.indexOf(payloadVar + ' = null') === -1 && !new RegExp(pendingVar + '\\s*&&\\s*\\(d\\.savedAt').test(cb),
+    'Dropping a pending save because the clock says it is older is how real edits were thrown away.');
   // NOTE: the `!snap.exists()` early-return line contains its own MarkServerSeen
-  // call. We care about the one gating the MAIN path, i.e. the first occurrence
-  // AFTER the stale-write check — not that incidental earlier one.
-  const idxMark = cb.indexOf(markFn + '()', idxDrop === -1 ? 0 : idxDrop);
+  // call. We care about the one gating the MAIN path: the first one after the
+  // document data is read.
+  const idxData = cb.indexOf('const d = snap.data();');
+  const idxDrop = idxData;
+  const idxMark = cb.indexOf(markFn + '()', idxData === -1 ? 0 : idxData);
   // Likewise anchor the `if (savePending) …return` to after the unlock, so we
   // measure the real early-return and not an unrelated one further up. The body may
   // now park the snapshot before returning (`{ _thDeferredRemote = d; return; }`):
@@ -248,9 +256,11 @@ for (const [label, markFn, pendingVar] of [
   const tailFrom = idxMark === -1 ? 0 : idxMark;
   const relEarly = cb.slice(tailFrom).search(reEarly);
   const idxEarly = relEarly === -1 ? -1 : tailFrom + relEarly;
-  t(label + ': stale-write check runs BEFORE the guard unlocks',
+  t(label + ': the snapshot is read BEFORE the guard unlocks',
     idxDrop !== -1 && idxMark !== -1 && idxDrop < idxMark,
     'Unlocking writes on a snapshot that is then discarded is exactly the bug.');
+  t(label + ': a held snapshot is kept for replay, not discarded',
+    new RegExp('if \\(' + pendingVar + '\\) \\{ _(th|vd)DeferredRemote = d; return; \\}').test(cb));
   t(label + ': guard unlocks BEFORE the savePending early-return',
     idxMark !== -1 && idxEarly !== -1 && idxMark < idxEarly,
     'Otherwise a pending save permanently blocks the unlock.');
@@ -279,8 +289,9 @@ t('Pending writes are flushed BEFORE teardown bumps the generation',
 // against a rejecting backend AND kept the stall watchdog from ever arming.
 t('Loader only unlocks on a genuine server read',
   (HTML.match(/const fromServer = _fbIsServerSnap\(snap\);/g) || []).length >= 2 &&
-  /if \(fromServer\) _thMarkServerSeen\(\);/.test(HTML) &&
-  /if \(fromServer\) \{ _vdNoteServer\([^\n]*\); _vdMarkServerSeen\(\); \}/.test(HTML) &&
+  /if \(fromServer\) \{\s*await _casHeadCheck\('main', docRef\);\s*[\s\S]{0,400}?_thMarkServerSeen\(\);/.test(HTML) &&
+  /if \(fromServer\) \{\s*await _casHeadCheck\('vedasdash', vdDocRef\);\s*[\s\S]{0,200}?_vdMarkServerSeen\(\);/.test(HTML) &&
+  /if \(_fbIsServerSnap\(snap\)\) _vdMarkServerSeen\(\);/.test(HTML) &&
   /function _fbIsServerSnap\(snap\)/.test(HTML) &&
   /snap\[_FB_FROM_SERVER\] === true/.test(HTML),
   'A cache fallback must NOT count as confirmation.');
@@ -318,11 +329,15 @@ t('Loaders tag cache-fallback reads so the caller can tell them apart',
   (HTML.match(/_fromCache/g) || []).length >= 6,
   'A cache read must be distinguishable from a genuine server read.');
 
-t('Both applyRemote implementations reject an older document',
-  /if\(rs&&ls&&rs<ls\)\{/.test(HTML) &&
-  // Veda's has one exception: a doc force-applied after the base check refused our write.
-  /if\(rs&&ls&&rs<ls&&!remote\._rebase\)\{/.test(HTML),
-  'savedAt older than what we already applied carries no news and must be dropped.');
+t('Both applyRemote implementations reject an older UNCONFIRMED document',
+  (HTML.match(/if\(rs&&ls&&rs<ls&&!remote\._trusted\)\{/g) || []).length === 2,
+  'A cache copy older than what we applied carries no news. A server-confirmed copy always '
+  + 'applies: judging it by the clock is how a device that saved on waking ignored the newer cloud copy (2026-10-19).');
+t('Only server-confirmed copies (and merges of them) are trusted',
+  /return fromServer \? _casTrusted\(out\) : out;/.test(HTML) &&
+  (HTML.match(/return fromServer \? _casTrusted\(out\) : out;/g) || []).length === 2 &&
+  /detail: _casTrusted\(d\)/.test(HTML),
+  'A cache fallback must never skip the stale check.');
 
 t('Both applyRemote implementations ignore a tie from the cache',
   (HTML.match(/if\(remote\._fromCache&&rs&&ls&&rs===ls\)return;/g) || []).length >= 2,
@@ -818,55 +833,40 @@ for (const [who, marker] of [['Tony', 6344], ['Veda', 12630]]) {
 // ─────────────── 2026-10-10: write built on an older copy (base check) ───────────────
 // A phone tab asleep since Oct 7 woke, took a tap before the fresh doc was applied,
 // and pushed its 3-day-old state with a fresh savedAt over two days of edits.
-section('Static: Veda base check (2026-10-10 revert)');
-t('Every Veda payload carries the base it was built on',
-  /if\(window\._vdGetBase\)payload\._base=window\._vdGetBase\(\);/.test(HTML) &&
-  /_vdRebuildPayload=\(\)=>\{const pl=buildVdPayload\(\);if\(window\._vdGetBase\)pl\._base=window\._vdGetBase\(\);/.test(HTML),
-  'vdFbPush and _vdRebuildPayload must both stamp _base.');
-t('_doVedaSave refuses a payload whose base is not what the server holds',
-  /if \(base !== undefined && _vdServerDoc && _vdServerSavedAt !== base\s*&& !_vdOwnWrites\.has\(_vdServerSavedAt\)\)/.test(HTML),
-  'Compare by equality (clock-independent) and exempt our own writes.');
-t('Server doc is noted BEFORE every Veda unlock',
-  (HTML.match(/_vdNoteServer\([^\n]*\);?\s*_vdMarkServerSeen\(\)/g) || []).length >= 3 &&
-  /_vdNoteServer\(d\);\s*\/\/ before the unlock/.test(HTML),
-  'Loader, stall retry and listener must all note the server doc before unlocking.');
-t('Base advances only on a successful write',
-  /if \(ok\) window\._vdSetBase\(payload\.savedAt\);/.test(HTML));
-t('_base is stripped before the doc is written', /delete payload\._base;/.test(HTML));
-t('applyRemote records the applied doc as the new base',
-  /if\(window\._vdSetBase\)window\._vdSetBase\(rs\);/.test(HTML));
-
-section('Behavioural: resumed phone taps before the fresh doc lands');
-{
-  // Minimal model of the Veda write path with the base check.
-  function makeDevice(base) {
-    const dev = { base, own: new Set(), serverSeen: false, pending: null, applied: null, alerts: 0 };
-    dev.push = (state, now) => { dev.pending = { state, savedAt: now, _base: dev.base }; if (dev.serverSeen) dev.flush(); };
-    dev.flush = () => {
-      const pl = dev.pending; if (!pl) return; dev.pending = null;
-      const sv = server.doc;
-      if (pl._base !== undefined && sv && sv.savedAt !== pl._base && !dev.own.has(sv.savedAt)) {
-        dev.applied = sv; dev.base = sv.savedAt; dev.alerts++; return;   // refused → rebase
-      }
-      server.doc = { state: pl.state, savedAt: pl.savedAt }; dev.own.add(pl.savedAt); dev.base = pl.savedAt;
-    };
-    dev.serverRead = () => { dev.serverSeen = true; dev.flush(); if (!dev.applied || dev.applied !== server.doc) { dev.applied = server.doc; dev.base = server.doc.savedAt; } };
-    return dev;
-  }
-  const server = { doc: { state: 'oct7', savedAt: 100 } };
-  const phone = makeDevice(100);                       // last synced Oct 7
-  const pc = makeDevice(100); pc.serverSeen = true;
-  pc.push('oct9', 200);                                // two days of edits on the PC
-  t('PC edits reach the cloud', server.doc.state === 'oct9');
-  phone.push('oct7+tap', 300);                         // tap on the stale screen, parked
-  phone.serverRead();                                  // connection confirms → parked write replays
-  t('Stale phone write is refused — the cloud keeps the newer edits', server.doc.state === 'oct9');
-  t('Phone repaints with the cloud copy and tells the user', phone.applied.state === 'oct9' && phone.alerts === 1);
-  phone.push('oct9+tap', 400);
-  t('The redone tap on fresh state saves normally', server.doc.state === 'oct9+tap' && phone.alerts === 1);
-  pc.push('pc-again', 500);
-  t('PC (still built on its own last write) is now refused, not clobbering the phone', server.doc.state === 'oct9+tap');
-}
+section('Static: versioned save (2026-10-19 reset; replaces the 2026-10-10 Veda base check)');
+// The behaviour itself is proven end to end by tests/taskhub-sync.test.js (two
+// browsers, the real index.html). These pin the pieces it depends on.
+t('Both TaskHub saves go through the versioned save, not a blind setDoc',
+  /_casWrite\('main', docRef, payload, 'TaskHub'/.test(HTML) &&
+  /_casWrite\('vedasdash', vdDocRef, payload, 'TaskHub \(Veda\)'/.test(HTML) &&
+  !/_guardedWrite\((docRef|vdDocRef),/.test(HTML),
+  'A whole-document write that does not check what it was built on erased a day of tasks.');
+t('A save is a transaction that writes only if the head is still on our version',
+  /runTransaction\(db_, async \(tx\) => \{\s*const h = await tx\.get\(headRef\);/.test(HTML) &&
+  /if \(!base \|\| cur !== base\.rev\) return \{ conflict: true/.test(HTML) &&
+  /tx\.set\(ref, Object\.assign\(\{\}, body, \{ rev \}\)\);\s*tx\.set\(headRef,/.test(HTML),
+  'The doc and its head must move together, and only from the version this device saw.');
+t('A refused save merges with the newer copy instead of overwriting it',
+  /window\.THMerge\.syncMerge\(base \? base\.doc : null, mine, theirs\)/.test(HTML) &&
+  /<script src="taskhub-merge\.js"><\/script>/.test(HTML));
+t('The merge is built from the CURRENT state, so edits made meanwhile are kept',
+  /const fresh = rebuild && rebuild\(\); if \(fresh\) mine = _casStrip\(fresh\);/.test(HTML));
+t('Each payload records the version it was built on',
+  /payload\._baseRev = _cas\.main\.base \? _cas\.main\.base\.rev : undefined;/.test(HTML) &&
+  /payload\._baseRev = _cas\.vedasdash\.base \? _cas\.vedasdash\.base\.rev : undefined;/.test(HTML));
+t('The base moves only to an applied server copy or our own successful save',
+  (HTML.match(/_casNote\('(main|vedasdash)', d\);/g) || []).length >= 4 &&
+  /st\.base = \{ rev: res\.rev, doc:/.test(HTML),
+  'Never while a save of ours is pending: that state is not built on the new copy.');
+t('Loaders never take a new base while a save of ours is pending',
+  /if \(!_savePending\) _casNote\('main', d\);/.test(HTML) &&
+  /if \(!_vdSavePending\) _casNote\('vedasdash', d\);/.test(HTML));
+t('A failed save is kept and retried, not dropped',
+  (HTML.match(/_casRetry\('(main|vedasdash)', r,/g) || []).length === 2);
+t('Internal fields never reach the document',
+  /delete o\._gen; delete o\._bg; delete o\._baseRev; delete o\.rev;/.test(HTML));
+t('The old Veda-only base check is gone (no leftovers to drift)',
+  !/_vdNoteServer|_vdSetBase|_vdGetBase|_rebase/.test(HTML));
 
 // ───────────────────────────────── summary ─────────────────────────────────
 console.log('\n' + '─'.repeat(64));

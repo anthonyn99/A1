@@ -9,6 +9,16 @@
 
 ## 0. Hand-off — read this first
 
+**Current track (2026-10-19): Track M — MAGI in the cloud** (§8 "Track M").
+Tony wants magi.html to work on the phones with the PC off -- same accounts,
+history and sync -- and runs that finish with the browser closed. Agreed: the
+existing engine on a free always-on Oracle VM, Code Mode on GitHub repos
+there, Tony first. **Next phase: M0** (feasibility, go/no-go per unit),
+**waiting on Tony**: he creates the Oracle Cloud account and an OCI API key
+([magi-cloud-setup.md](magi-cloud-setup.md) "Step 1 -- Tony"). When he says
+it's done, do M0 from that runbook, record the per-unit table there, then
+rewrite this paragraph. Nothing is built yet; nothing is half-built.
+
 **Last updated:** 2026-10-08 (evening): **Track W COMPLETE.** W3 (Problems)
 was finished and live-tested on Veda's PC after Tony's session hit its limit
 mid-test; W4 (What's open: File viewer, selection to every agent) built and
@@ -3287,6 +3297,71 @@ What's manual after W3/W4 (for Tony and Veda):
 - CLOSED 2026-10-08: Tony's engine live-tested for W3 (Claude and Codex, after a
   fix: `python` in the sandbox was the Store's Python Install Manager under
   WindowsApps -- shell.python_dirs() now leads PATH) and W4 (17/17).
+
+## Track M — MAGI in the cloud (Tony, 2026-10-19)
+
+Tony: "I would like to have magi.html be able to run independently on mobile
+too without any engine tunnel. Signed into the same accounts as on my PC.
+Same history, sync, everything ... if we are running a task (deliberation,
+brainstorm, code mode), we can close the browser and come back later and it
+will be done." Plus: "fix any bugs you find along the way, don't break any
+existing features." Phones: Tony's Android (Z Fold 7), Veda's iPhone 15.
+
+**Why a cloud engine and not the page.** The accounts are signed-in websites
+driven by a real Chrome. A page cannot drive other sites, and nothing in a
+closed tab keeps running, so something always-on must hold the logins.
+Tony chose (2026-10-19): **the existing engine on an always-on Linux VM**,
+**free only** (Oracle Cloud Always Free, Ampere A1: 2 OCPU / 12 GB since
+Oracle's 2026-06-15 cut), Code Mode on **GitHub repos** in the cloud, **Tony
+first**, Veda after. The PC engine and the tunnel stay exactly as they are;
+everything here is additive.
+
+```
+ phone / PC  magi.html (GitHub Pages) ──► https://<dashed-ip>.sslip.io (Caddy, Let's Encrypt)
+ Oracle VM: Caddy :443 → engine 127.0.0.1:8000 · noVNC /vnc (token-gated) → Xvfb
+            Chrome ARM64 headful on Xvfb · claude + codex CLIs · clones of GitHub repos
+            systemd: magi-engine@<profile>, magi-xvfb, magi-selfupdate.timer
+ engine ──► taskhub-reminders /magi/sync + /magi/notify (token-checked, dashboards/magi* only)
+            ──► Firestore + FCM push to the phones
+```
+
+**What the phone gets:** everything the PC console has -- Deliberation,
+follow-ups, notes/steering, Brainstorm, Studio, Refine, History, both queues,
+Units, Accounts, the TradeHub hand-off, Code Mode on GitHub repos (diff,
+approve, check, commit, push, PR). Exceptions, always said in the UI: a unit
+that fails M0's bot-check test stays PC-only; Code Mode on folders that exist
+only on the PC needs the PC engine; PC-specific actions (power, the `system`
+Claude slot) are the PC's. New on top: push notifications, and work that
+finishes with every device closed.
+
+**Bugs found while mapping, fixed inside the phases:**
+1. No "live runs" route: a new tab/device cannot find a deliberation already
+   running (reattach is a per-tab sessionStorage pin). -> M4
+2. A Code task's cloud body is written only by the tab that watched it end
+   (`codeSyncTaskEnd`); unwatched tasks never reach History. -> M4
+3. An unanswered Write approval is a No after 300 s (`APPROVAL_TIMEOUT`,
+   code/tasks.py) even when no one could see the card. -> M4
+4. Code tasks live in memory only (`KEEP_FINISHED = 40`); a restart loses
+   them. -> M4
+5. Brainstorm sessions never sync to another device/engine. -> M4
+6. §2 above says Code Mode uses claude-agent-sdk; the code runs the `claude`
+   CLI (code/agents/claude_cli.py). -> doc fix in M1
+
+| # | Phase | What it adds | Status |
+|---|---|---|---|
+| M0 | Feasibility on the VM | Tony creates the Oracle account + OCI API key (the one thing Claude cannot do; PAYG upgrade + $1 budget alert to avoid idle reclamation, Always Free still $0). Claude provisions A1.Flex 2/12, Ubuntu 24.04, reserved IP, 443 open (security list + iptables); Chrome ARM64 (else Chromium); engine as-is on Xvfb; sign in each unit over noVNC; one question each; claude/codex CLI login on Linux. **Gate:** a failing unit is "PC only"; if ChatGPT AND both Claudes fail, stop and report to Tony. | **waiting on Tony** (Oracle account; runbook docs/MAGI/magi-cloud-setup.md) |
+| M1 | Engine on Linux | Behind platform checks, Windows unchanged: agent_guard Linux path (psutil socket->pid, process group instead of Job), keyring file backend (0600) when no OS keyring, junction->symlink (check/sandbox/workspace/ws_mcp), power no-op, winhide skipped, shell via bash, token in /etc/magi/<profile>.env not setx, Codex's Linux sandbox, Claude login URL + pasted code, restart via systemctl. pytest on ubuntu-24.04-arm CI. Doc fix (bug 6). | planned |
+| M2 | One-command host | `magi/cloud/setup.sh <profile>`: user, venv, Chrome, CLIs, Xvfb/x11vnc/noVNC, Caddy (sslip.io; /vnc behind forward_auth -> new `GET /api/auth/check`), systemd units, engine.json `kind: cloud` + `url` (health reports both), no tunnel. Accounts: "Open the sign-in screen" (noVNC ticket). Clone A1, A1-Priv, ORCA as projects. | planned |
+| M3 | Console uses it | ENG registry `{kind:"cloud", url}`; connectTo probes it directly (no askLink); order: device's choice, loopback, cloud, tunnel; phone default cloud, PC "Use: this PC / Cloud" (default this PC). PC-only units greyed with reason; cloud Code Mode lists GitHub projects only. tests/magi-engines.test.js extended. | planned |
+| M4 | Results without a tab | Worker `POST /magi/sync` (token check like /claude-resets; only dashboards/<doc>, runs/, code/, brainstorm/; index merge in a transaction with updateTime precondition). Engine `magi/cloudsync.py` SQLite outbox. Console backfill idempotent. `GET /api/live` + resumeLive on load/visibility/pageshow. Code tasks in SQLite. Unwatched approvals park (7 days) instead of a No. Brainstorm syncs. Fixes bugs 1-5. | planned |
+| M5 | Queue in the engine | `magi/engine/queue.py`, `PUT/GET /api/queue/{lane}`, SQLite rows; drain, limit hold, generation, failed-row-continues move from the console; lease = engine; attachments uploaded with the row. PC engine keeps console drain unless health says `queue: server`. | planned |
+| M6 | Push | Real `magi.webmanifest` (same id/start_url as the inline one) + `magi-sw.js` scoped `./magi` (never replaces TaskHub's firebase-messaging-sw.js). "Notify me": FCM getToken with that registration from a tap; iOS outside standalone shows Add-to-Home-Screen steps. Tokens in `dashboards/<doc>.push`, never fcm_tokens. Worker `/magi/notify`: run done, round done, task done, needs approval, queue stopped. | planned |
+| M7 | Mobile pass | 344/412/884 (Fold 7), 393 (iPhone 15), 1280; safe areas, keyboard, standalone, pull-to-refresh, EventSource reattach, Brave blocked storage. `tests/live/magi-cloud.live.js` (close mid-run, reopen, History + push) under CDP mobile emulation and Playwright WebKit. Real-device checklist for Tony and Veda. | planned |
+| M8 | Veda's cloud engine | Her own Oracle tenancy, or a veda engine (8001) on the same VM -- decide then. Re-run magi-veda-isolation-check.md against the cloud. | planned |
+
+Rules for every M phase: the PC engine through the tunnel must still serve a
+phone afterwards; Windows pytest + `npm test` stay green; the Linux suite
+joins from M1; never mutate source in place to prove a test fails.
 
 ---
 

@@ -128,30 +128,59 @@ button,[role="button"],input[type="button"],input[type="submit"],input[type="res
   @media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
 
   /* ── Timeline ─────────────────────────────────────────────────────────── */
-  .tl { display: flex; flex-direction: column; gap: 4px; max-height: min(68vh, 760px); overflow: auto; margin: 0 -6px; padding: 0 6px; }
-  @media (max-width: 900px) { .tl { max-height: 46vh; } }
+  .tl { display: flex; flex-direction: column; gap: 6px; max-height: min(68vh, 760px); overflow: auto; margin: 0 -6px; padding: 0 6px 2px; }
+  .tl > * { flex-shrink: 0; }
+  .more { margin-top: 8px; width: 100%; }
   .day { font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--txm);
          padding: 12px 2px 4px; position: sticky; top: 0; background: var(--s1); z-index: 1; }
   .day:first-child { padding-top: 0; }
-  .row { display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%;
+  .row { display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; grid-template-areas: "t m tags"; align-items: center; gap: 12px; width: 100%;
          text-align: left; padding: 10px 12px; min-height: 52px; border-radius: 6px; border: 1px solid transparent;
          background: var(--s2); color: inherit; cursor: pointer; font: inherit; }
   .row:hover { border-color: var(--bdl); }
   .row[aria-pressed="true"] { border-color: var(--ac); box-shadow: inset 0 0 0 1px var(--ac); }
   .row:focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; }
-  .row .t { font-weight: 600; color: var(--tx); }
-  .row .m { min-width: 0; display: flex; flex-direction: column; }
+  .row .t { grid-area: t; font-weight: 600; color: var(--tx); }
+  .row .m { grid-area: m; min-width: 0; display: flex; flex-direction: column; }
+  .row .tags { grid-area: tags; }
   .row .m b { font-weight: 500; color: var(--txd); font-size: 13px; }
   .row .m span { color: var(--txm); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .tags { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
-  .tag { font-size: 10px; font-weight: 700; letter-spacing: .6px; padding: 3px 7px; border-radius: 4px; white-space: nowrap;
+  .tags { display: flex; gap: 6px; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
+  .tag { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; height: 22px; line-height: 1;
+         font-size: 10px; font-weight: 700; letter-spacing: .6px; padding: 0 7px; border-radius: 4px; white-space: nowrap;
          border: 1px solid var(--bdl); color: var(--txd); text-transform: uppercase; }
   .tag.back { color: var(--acl); border-color: color-mix(in srgb, var(--ac) 55%, var(--bdl)); }
   .tag.same { color: var(--grn); border-color: color-mix(in srgb, var(--grn) 45%, var(--bdl)); }
   .tag.sug { background: var(--ac); border-color: var(--ac); color: var(--bg); }
-  @media (max-width: 520px) {
-    .row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 2px; }
-    .row .t { grid-column: 1; } .row .m { grid-column: 1; grid-row: 2; } .row .tags { grid-column: 2; grid-row: 1 / span 2; flex-direction: column; align-items: flex-end; }
+
+  /* ── Phones and narrow windows ────────────────────────────────────────── */
+  @media (max-width: 900px) {
+    /* One page scroll, no box scrolling inside it. */
+    .tl { max-height: none; overflow: visible; margin: 0; padding: 0; }
+    .day { position: static; padding: 14px 2px 2px; }
+    .day:first-child { padding-top: 0; }
+  }
+  @media (max-width: 600px) {
+    .wrap { padding-top: 12px; }
+    .top { display: grid; grid-template-columns: auto 1fr; grid-template-areas: "back seg" "title title"; gap: 14px; padding-bottom: 16px; }
+    .back { grid-area: back; justify-self: start; }
+    .seg { grid-area: seg; justify-self: end; }
+    .title { grid-area: title; }
+    .title h1 { font-size: 22px; }
+    .card { padding: 16px 14px; }
+    .undo { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: start; }
+    .undo .btn { grid-column: 1 / -1; width: 100%; }
+    /* Time + tags on one line, items and device under it. */
+    .row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "t tags" "m m"; row-gap: 4px; column-gap: 10px;
+           padding: 12px 14px; min-height: 0; }
+    .row .t { font-size: 15px; }
+    .row .m { flex-direction: row; align-items: baseline; gap: 6px; }
+    .row .m b { flex-shrink: 0; }
+    .row .m span::before { content: '·'; margin-right: 6px; color: var(--txm); }
+    .tags { flex-wrap: nowrap; }
+    .plan-h { font-size: 16px; }
+    .sum { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    details li { flex-direction: column; gap: 0; }
   }
 
   /* ── Plan ─────────────────────────────────────────────────────────────── */
@@ -268,7 +297,7 @@ button,[role="button"],input[type="button"],input[type="submit"],input[type="res
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js';
 import { initializeAppCheck, ReCaptchaV3Provider, getToken } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js';
 import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js';
-import { getFirestore, doc, getDocFromServer, setDoc } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js';
+import { getFirestore, doc, getDocFromServer, setDoc, runTransaction } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js';
 
 const $ = (id) => document.getElementById(id);
 const WORKER = 'https://index-backups.av1-2.workers.dev';
@@ -600,14 +629,24 @@ function renderUndo() {
   $('undobtn').onclick = () => { SEL[CUR] = 'undo'; render(); scrollToPlan(); };
 }
 
+const SHOWALL = { main: false, vedasdash: false };
+// After a restore nothing is pre-selected, so Restore is not offered again
+// until a version is picked on purpose.
+const NOPICK = { main: false, vedasdash: false };
+const PHONE_ROWS = 8;
 function renderTimeline() {
-  const name = CUR, list = sorted(name), p = PROG[name];
-  $('tlaside').textContent = p ? 'Reading ' + p.n + ' of ' + p.of + '…' : plural(list.length, 'version');
-  if (SEL[name] == null && !p && list.length) {
+  const name = CUR, all = sorted(name), p = PROG[name];
+  if (SEL[name] == null && !p && all.length && !NOPICK[name]) {
     const want = qs.get('good');
-    const g = want && list.find((s) => s.devices.has(want));
-    SEL[name] = (g || suggestion(name) || list[0]).doc.savedAt;
+    const g = want && all.find((s) => s.devices.has(want));
+    SEL[name] = (g || suggestion(name) || all[0]).doc.savedAt;
   }
+  // Phones: the newest few (always down to the selected one), then "Show older".
+  const phone = matchMedia('(max-width: 900px)').matches;
+  const selAt = all.findIndex((x) => x.doc.savedAt === SEL[name]);
+  const cut = phone && !SHOWALL[name] ? Math.max(PHONE_ROWS, selAt + 1) : all.length;
+  const list = all.slice(0, cut);
+  $('tlaside').textContent = p ? 'Reading ' + p.n + ' of ' + p.of + '…' : plural(all.length, 'version');
   const sug = p ? null : suggestion(name);
   let html = '', day = '';
   for (const st of list) {
@@ -620,10 +659,13 @@ function renderTimeline() {
       '<span class="m"><b>' + plural(st.items, 'item') + '</b><span>' + esc([...st.devices].map(devName).join(', ')) + '</span></span>' +
       '<span class="tags">' + tags + '</span></button>';
   }
+  if (all.length > list.length) html += '<button class="btn more" type="button" id="more">Show ' + plural(all.length - list.length, 'older version') + '</button>';
   if (!list.length) html = '<p class="none">' + (p ? 'Reading backups…' : 'No backups of ' + esc(DOCS[name]) + '’s TaskHub open with this passphrase.') + '</p>';
   const tl = $('tl'), top = tl.scrollTop;
   tl.innerHTML = html;
   tl.scrollTop = top;
+  const more = $('more');
+  if (more) more.onclick = () => { SHOWALL[name] = true; renderTimeline(); };
   tl.querySelectorAll('.row').forEach((b) => b.addEventListener('click', () => {
     SEL[name] = Number(b.dataset.k); render();
     if (matchMedia('(max-width: 900px)').matches) scrollToPlan();
@@ -705,11 +747,29 @@ async function commit(w) {
   }
   const at = Date.now();
   const out = Object.assign({}, w.doc, { savedAt: at });
+  delete out.rev;
   const pre = Object.assign({ at, kind: w.kind, doc: LIVE[w.name], restoredSavedAt: at, by: HERE || null }, w.meta);
   await setDoc(ref(w.name + '_prerestore'), pre);
   await setDoc(ref(w.name + '_restored'), { at, doc: out });
-  await setDoc(ref(w.name), out);
-  PRE[w.name] = pre; RESTORED[w.name] = { at, doc: out };
+  // TaskHub's versioned save (index.html, _casWrite): the doc and its head move
+  // together, one version past the head, and only if the head is still on the
+  // version this page read. Otherwise every TaskHub would skip this as older.
+  const rev = await runTransaction(db, async (tx) => {
+    const h = await tx.get(ref(w.name + '_head'));
+    const cur = h.exists() ? (h.data().rev || 0) : 0;
+    if (h.exists() && cur !== (LIVE[w.name].rev || 0)) return null;
+    tx.set(ref(w.name), Object.assign({}, out, { rev: cur + 1 }));
+    tx.set(ref(w.name + '_head'), { rev: cur + 1, savedAt: at, by: 'restore' });
+    return cur + 1;
+  });
+  if (rev == null) {
+    setLive(w.name, await readDoc(w.name) || {});
+    render();
+    throw new Error(DOCS[w.name] + '’s TaskHub changed while this page was open. The preview is updated: check it and press again.');
+  }
+  out.rev = rev;
+  RESTORED[w.name] = { at, doc: out };
+  PRE[w.name] = pre;
   setLive(w.name, out);
 }
 
@@ -723,7 +783,7 @@ $('go').onclick = async () => {
   try {
     await commit(w);
     DONE = { name: w.name, kind: w.kind };
-    SEL[w.name] = null;
+    SEL[w.name] = null; NOPICK[w.name] = true;
     say('');
     render();
     window.scrollTo({ top: 0, behavior: 'smooth' });

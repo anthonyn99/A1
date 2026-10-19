@@ -3,6 +3,11 @@
 - **Setting up MAGI on a PC** ("set up MAGI", Veda's PC, a new engine):
   follow [docs/MAGI/magi-setup.md](docs/MAGI/magi-setup.md). It's one command, then the
   sign-ins.
+- **MAGI in the cloud** ("the Oracle account is ready", "next cloud phase",
+  "MAGI on the phone without the PC"): Track M in
+  [docs/MAGI/magi-plan.md](docs/MAGI/magi-plan.md) §8; §0 names the next
+  phase and [docs/MAGI/magi-cloud-setup.md](docs/MAGI/magi-cloud-setup.md) is
+  the runbook. One phase per session; the PC engine and tunnel must keep working.
 - **Checking Veda's MAGI is separate from Tony's** ("do the isolation check",
   "run the Veda check", "check MAGI is separate"), on Veda's PC: follow
   [docs/MAGI/magi-veda-isolation-check.md](docs/MAGI/magi-veda-isolation-check.md)

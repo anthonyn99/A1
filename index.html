@@ -8822,14 +8822,17 @@ function App(){
     // applyRemote for the full account. _freshGet falls back to the IndexedDB
     // cache when the server is slow; rendering that hours-old copy is what made
     // recent edits appear to revert until the page was reloaded.
+    // _trusted: a server-confirmed copy (or a merge of one). Those always apply,
+    // whatever their clock says: comparing savedAt to our own last save is how a
+    // device that saved on waking ignored the newer cloud copy (2026-10-19).
     const rs=remote.savedAt||0, ls=thLastAppliedRef.current||0;
-    if(rs&&ls&&rs<ls){
+    if(rs&&ls&&rs<ls&&!remote._trusted){
       console.warn("[TaskHub] ignoring stale doc (savedAt "+rs+" < applied "+ls+")"
         +(remote._fromCache?" [cache fallback]":""));
       return;
     }
     if(remote._fromCache&&rs&&ls&&rs===ls)return;
-    thLastAppliedRef.current=rs||ls;
+    thLastAppliedRef.current=remote._trusted?rs:(rs||ls);
     const now2=new Date(),cw=getMondayKey(now2);
     // ── Habit checks: reset on a new week, but NEVER off a stale read ─────────
     // The reset is destructive — the blanked map is written to localStorage here
@@ -10999,14 +11002,29 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       return { ok: false, err: e };
     }
   }
+  // Does the head exist yet? Before it does (the first save after this ships),
+  // a copy without rev is simply the old format, not an old app's save.
+  async function _casHeadCheck(name, ref) {
+    if (_cas[name].headSeen) return;
+    try { const h = await getDocFromServer(doc(ref.firestore, ref.path + '_head')); if (h.exists()) _cas[name].headSeen = true; }
+    catch (e) {}
+  }
+  // A load that found a save of ours waiting: let that save settle (it merges
+  // with the server copy and shows the result), then hand back what it saved.
+  async function _casAfterSave(name, pending, inFlight) {
+    try { await (inFlight() || Promise.resolve()); } catch (e) {}
+    const b = _cas[name].base;
+    return pending() || !b || !b.doc ? null : _casTrusted(Object.assign({}, b.doc));
+  }
   // A failed save is retried: on reconnect when offline, else with backoff.
   const _casRetryTimer = { main: 0, vedasdash: 0 }, _casRetryN = { main: 0, vedasdash: 0 };
   function _casRetry(name, r, flush) {
+    _casRetryN[name] = Math.max(1, _casRetryN[name]);
     if (r.offline) {
       window.addEventListener('online', function go() { window.removeEventListener('online', go); try { flush(); } catch (e) {} });
       return;
     }
-    const delay = [2000, 5000, 15000, 30000, 60000][Math.min(_casRetryN[name]++, 4)];
+    const delay = [2000, 5000, 15000, 30000, 60000][Math.min(_casRetryN[name]++ - 1, 4)];
     clearTimeout(_casRetryTimer[name]);
     _casRetryTimer[name] = setTimeout(() => { try { flush(); } catch (e) {} }, delay);
   }
@@ -11284,27 +11302,8 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     }, 10000);
   }
   let _vdServerSeen = false, _vdPendingWrites = [];
-  // ── Base check: a write must be built on the doc the server actually holds ──
-  // THE 2026-10-10 REVERT: a phone tab asleep since Oct 7 woke, took a tap before
-  // the fresh doc was applied, and that tap queued a WHOLE-document payload built
-  // from the 3-day-old state. It carried a brand-new savedAt and the current
-  // generation, and it was a user edit (not _bg), so every other guard passed. The
-  // server read then unlocked writes BEFORE the app applied the data, the stale
-  // payload went out, and applyRemote rejected the real doc as "older".
-  // Fix: each payload records `_base`, the exact savedAt of the doc its state was
-  // built on (persisted across reloads). If the server now holds a savedAt that is
-  // neither that base nor one of our own writes, someone else's newer data is up
-  // there and this payload would erase it. It is refused, and the server doc is
-  // force-applied. Comparing for EQUALITY, never order, keeps this clock-independent.
-  let _vdServerSavedAt = null, _vdServerDoc = null;
-  const VD_BASE_KEY = 'td_base_saved_at';
-  window._vdGetBase = () => { try { return Number(localStorage.getItem(VD_BASE_KEY)) || 0; } catch (e) { return 0; } };
-  window._vdSetBase = (sa) => { try { localStorage.setItem(VD_BASE_KEY, String(sa || 0)); } catch (e) {} };
-  function _vdNoteServer(d) { _vdServerDoc = d || null; _vdServerSavedAt = d ? (d.savedAt || 0) : 0; }
-  // Automated pushes (goal pruning, rollover) can be refused too; only tell her to
-  // redo something if she actually touched the page recently.
-  let _vdLastInputAt = 0;
-  ['pointerdown', 'keydown'].forEach(evt => document.addEventListener(evt, () => { _vdLastInputAt = Date.now(); }, { passive: true, capture: true }));
+  // THE 2026-10-10 REVERT (a phone asleep since Oct 7 woke and saved its 3-day-old
+  // state over Veda's newer edits) is handled by the versioned save, _casWrite.
   // dashboards/navorder (header button order + the External Links list). Whole-doc
   // setDoc, and the in-memory order it serialises starts life as the hardcoded
   // DEFAULT order — so an ungated write before this connection has confirmed
@@ -11399,14 +11398,23 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         // believed-nonexistent doc also reports. See _fbIsServerSnap.
         const fromServer = _fbIsServerSnap(snap);
         const fromCache = !fromServer;
-        if (fromServer) _thMarkServerSeen();
-        if (snap && snap.exists()) {
+        const d = snap && snap.exists() ? snap.data() : null;
+        if (fromServer) {
+          await _casHeadCheck('main', docRef);
+          // The version our state is about to be built on — unless a save of ours
+          // is waiting: that state is not built on this copy, and the save will
+          // merge with it (see _casWrite).
+          if (!_savePending) _casNote('main', d);
+          _thMarkServerSeen();
+          if (_savePending) return _casAfterSave('main', () => _savePending, () => _thSaveInFlight);
+        }
+        if (d) {
           // See the Veda loader: tag cache-fallback reads so the caller can refuse
           // to repaint newer local state with an hours-old cached document.
-          const out = snap.data();
+          const out = d;
           try { Object.defineProperty(out, '_fromCache', { value: fromCache, enumerable: false }); }
           catch(_) { out._fromCache = fromCache; }
-          return out;
+          return fromServer ? _casTrusted(out) : out;
         }
         return null;
       } catch(e) {
@@ -11437,9 +11445,29 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       if (!d || _savePending) return;
       // Our own echo, or something we have already superseded — no news.
       if (_thOwnWrites.has(d.savedAt || 0)) return;
-      if ((d.savedAt || 0) <= _lastWrittenSavedAt) return;
+      _thTakeRemote(d);
+    }
+    // A server copy from another device: apply it, and it becomes our base. One
+    // we have already merged into a save of ours (an older version) is no news.
+    // One written by an old app version is not applied over our state; ours is
+    // saved over it instead (see _casIsRogue).
+    function _thTakeRemote(d) {
+      const b = _cas.main.base;
+      if (b && d.rev !== undefined && d.rev < b.rev) return;
+      if (b && d.rev !== undefined && d.rev === b.rev && b.doc && b.doc.savedAt === d.savedAt) return;
+      if (_casIsRogue('main', d)) {
+        console.warn('[TaskHub] the cloud copy was saved by an old app version, outside the version check — saving ours over it');
+        const pl = window._thRebuildPayload && window._thRebuildPayload();
+        if (pl && window._fbSave) window._fbSave(pl);
+        return;
+      }
+      _casNote('main', d);
+      window.dispatchEvent(new CustomEvent("fb-remote-update", { detail: _casTrusted(d) }));
+    }
+    function _thApplyMerged(d) {
       window.dispatchEvent(new CustomEvent("fb-remote-update", { detail: d }));
     }
+
     // ══ WIPE GUARD + ROLLING BACKUPS ═════════════════════════════════════════
     // 2026-08-25: a full set of goals disappeared from BOTH profiles. Cloud and
     // local agreed exactly, the archives only ever held day-keyed task data, and
@@ -11541,6 +11569,9 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       // asserts against.
       _saveFirstQueuedAt = 0;
       if (!_pendingPayload) return _thSaveInFlight || Promise.resolve();
+      // One save at a time: each names the version it builds on, so a second one
+      // racing the first would only collide with it. It goes when this one settles.
+      if (_thSaveInFlight) return _thSaveInFlight;
       // Generation check — the clock-independent backstop (see _fbGen). A payload
       // composed before the last disconnect is stale by construction, regardless of
       // what its timestamp claims, so it must never overwrite the whole document.
@@ -11581,10 +11612,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       }
       const payload = _pendingPayload; _pendingPayload = null;
       delete payload._gen;                       // internal only — never persisted
-      delete payload._bg;                        // ditto
-      _lastWrittenSavedAt = payload.savedAt || Date.now();
-      _thOwnWrites.add(_lastWrittenSavedAt);
-      if (_thOwnWrites.size > 50) _thOwnWrites.delete(_thOwnWrites.values().next().value);
+      delete payload._bg;                        // ditto (_baseRev is _casWrite's)
       // Refuse a catastrophic shrink before it can reach the cloud (and before
       // any other device pulls it down). See the WIPE GUARD note above.
       if (!_thbAllow('main', 'TaskHub', payload)) {
@@ -11596,12 +11624,31 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       _thSaveInFlight = (async () => {
         try {
           _lastOwnSaveAt = Date.now();
-          const ok = await _guardedWrite(docRef, payload, 'TaskHub');
-          if (ok) _thbSnapshot('main', payload);   // best-effort, never awaited
+          const r = await _casWrite('main', docRef, payload, 'TaskHub',
+            () => window._thRebuildPayload && window._thRebuildPayload(), _thApplyMerged);
+          if (r.ok) {
+            // Our own echo is recognised by its savedAt.
+            _lastWrittenSavedAt = r.payload.savedAt;
+            _thOwnWrites.add(_lastWrittenSavedAt);
+            if (_thOwnWrites.size > 50) _thOwnWrites.delete(_thOwnWrites.values().next().value);
+            _casRetryN.main = 0;
+            _thbSnapshot('main', r.payload);   // best-effort, never awaited
+          } else if (!r.fatal) {
+            // Not saved: keep it (as the current state) and try again.
+            if (!_pendingPayload) {
+              _pendingPayload = (window._thRebuildPayload && window._thRebuildPayload()) || payload;
+              _pendingPayload._gen = _fbGen;
+            }
+            _casRetry('main', r, () => window._fbFlush && window._fbFlush());
+          }
           _lastOwnSaveAt = Date.now();
-          window.dispatchEvent(new CustomEvent(ok ? "fb-saved" : "fb-error"));
+          window.dispatchEvent(new CustomEvent(r.ok ? "fb-saved" : "fb-error"));
         } finally {
-          _savePending = false; _thSaveInFlight = null;
+          _thSaveInFlight = null;
+          // Edits made while this was in flight are still waiting: they stay
+          // pending (so no remote copy repaints over them) and go next.
+          _savePending = !!_pendingPayload;
+          if (_pendingPayload && !_casRetryN.main) setTimeout(() => _thWhenServerSeen(_doTaskHubSave), 0);
           _thDrainDeferred();   // replay any remote doc held back during this write
         }
       })();
@@ -11618,6 +11665,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         return;
       }
       payload._gen = _fbGen;                     // stamp the generation it was built in
+      payload._baseRev = _cas.main.base ? _cas.main.base.rev : undefined;   // the version it was built on
       _pendingPayload = payload;
       _savePending = true;
       _lastOwnSaveAt = Date.now();
@@ -11701,18 +11749,10 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       if (!snap.exists()) { if (!fromCache) _thMarkServerSeen(); return; }
       if (fromCache) return;                          // cached echo, not remote news
       const d = snap.data();
-      // Drop a pending local write that is OLDER than the server copy — see the
       _a1b('dashboards/main', d);
-      // Veda listener for the full account. Unlocking writes on a snapshot we then
-      // discard is what let a resumed phone flush its stale queued save over newer
-      // edits from another device.
-      if (_savePending && (d.savedAt || 0) > (_pendingPayload ? (_pendingPayload.savedAt || 0) : 0)) {
-        _pendingPayload = null;
-        if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; }
-        _savePending = false;
-        _saveFirstQueuedAt = 0;                 // burst abandoned with the payload
-      }
-      // Unlock only after the snapshot has been allowed to take effect.
+      // A pending save of ours is NEVER dropped for being "older" by the clock:
+      // that is how a device's real edits were thrown away. It names the version
+      // it was built on, and if this copy is newer the save merges with it.
       _thMarkServerSeen();
       // A genuinely newer local edit is pending, so this remote doc must not repaint
       // over it — but it must NOT be thrown away either. Firestore never re-sends an
@@ -11727,7 +11767,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       // after a newer write, and matching only the latest would let that stale echo
       // through and visibly revert the user's newest change.
       if (_thOwnWrites.has(d.savedAt || 0)) return;
-      window.dispatchEvent(new CustomEvent("fb-remote-update", { detail: d }));
+      _thTakeRemote(d);
     }, (err) => { console.warn('[TaskHub] onSnapshot error:', err && err.code); });
 
     // ── Market Calendar (read-only; written by TradeHub Catalysts) ────────────
@@ -11758,7 +11798,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // Same escape hatch as TaskHub's — see _stallRetry['main'].
     _stallRetry['vedasdash'] = async () => {
       const snap = await _freshGet(vdDocRef);
-      if (_fbIsServerSnap(snap)) { _vdNoteServer(snap.exists() ? snap.data() : null); _vdMarkServerSeen(); }
+      if (_fbIsServerSnap(snap)) _vdMarkServerSeen();
     };
 
     window._fbLoadVeda = async () => {
@@ -11770,18 +11810,24 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         // See the TaskHub loader — only a real server round-trip may unlock.
         const fromServer = _fbIsServerSnap(snap);
         const fromCache = !fromServer;
-        // Note what the server holds BEFORE unlocking: the unlock replays any parked
-        // write synchronously, and _doVedaSave's base check needs this to judge it.
-        if (fromServer) { _vdNoteServer(snap && snap.exists() ? snap.data() : null); _vdMarkServerSeen(); }
-        if (snap && snap.exists()) {
+        const d = snap && snap.exists() ? snap.data() : null;
+        // Note the version BEFORE unlocking: the unlock replays any parked write
+        // synchronously. See the TaskHub loader.
+        if (fromServer) {
+          await _casHeadCheck('vedasdash', vdDocRef);
+          if (!_vdSavePending) _casNote('vedasdash', d);
+          _vdMarkServerSeen();
+          if (_vdSavePending) return _casAfterSave('vedasdash', () => _vdSavePending, () => _vdSaveInFlight);
+        }
+        if (d) {
           // Tag the origin. The caller MUST NOT repaint the UI from a cache-fallback
           // read that is older than what it already has: _freshGet falls back to the
           // IndexedDB copy when the server is slow, and that copy can be hours stale.
           // Rendering it is what made edits "disappear until you reload".
-          const out = snap.data();
+          const out = d;
           try { Object.defineProperty(out, '_fromCache', { value: fromCache, enumerable: false }); }
           catch(_) { out._fromCache = fromCache; }
-          return out;
+          return fromServer ? _casTrusted(out) : out;
         }
         return null;
       } catch(e) {
@@ -11804,11 +11850,28 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       const d = _vdDeferredRemote; _vdDeferredRemote = null;
       if (!d || _vdSavePending) return;
       if (_vdOwnWrites.has(d.savedAt || 0)) return;
-      if ((d.savedAt || 0) <= _vdLastWrittenSavedAt) return;
+      _vdTakeRemote(d);
+    }
+    // See _thTakeRemote — same rules, Veda's document.
+    function _vdTakeRemote(d) {
+      const b = _cas.vedasdash.base;
+      if (b && d.rev !== undefined && d.rev < b.rev) return;
+      if (b && d.rev !== undefined && d.rev === b.rev && b.doc && b.doc.savedAt === d.savedAt) return;
+      if (_casIsRogue('vedasdash', d)) {
+        console.warn('[Veda] the cloud copy was saved by an old app version, outside the version check — saving ours over it');
+        const pl = window._vdRebuildPayload && window._vdRebuildPayload();
+        if (pl && window._fbSaveVeda) window._fbSaveVeda(pl);
+        return;
+      }
+      _casNote('vedasdash', d);
+      window.dispatchEvent(new CustomEvent("fb-vd-remote-update", { detail: _casTrusted(d) }));
+    }
+    function _vdApplyMerged(d) {
       window.dispatchEvent(new CustomEvent("fb-vd-remote-update", { detail: d }));
     }
     const _doVedaSave = () => {
       if (!_vdPendingPayload) return _vdSaveInFlight || Promise.resolve();
+      if (_vdSaveInFlight) return _vdSaveInFlight;   // one at a time — see _doTaskHubSave
       // Generation check — clock-independent backstop; see _fbGen and the TaskHub
       // equivalent above. A payload built before the last disconnect is stale by
       // construction and may not overwrite the document, whatever its timestamp says.
@@ -11829,35 +11892,9 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
           return Promise.resolve();
         }
       }
-      // Base check — see the note at _vdServerSavedAt. Only judged once a server doc
-      // exists (nothing to clobber otherwise) and only for payloads that carry a base.
-      const base = _vdPendingPayload._base;
-      if (base !== undefined && _vdServerDoc && _vdServerSavedAt !== base
-          && !_vdOwnWrites.has(_vdServerSavedAt)) {
-        const userEdit = !_vdPendingPayload._bg && Date.now() - _vdLastInputAt < 60000;
-        console.warn('[Veda] refused a write built on an older copy (base ' + base
-          + ', server has ' + _vdServerSavedAt + ') — loading the cloud copy instead');
-        _vdPendingPayload = null; _vdSavePending = false; _vdDeferredRemote = null;
-        const fresh = { ..._vdServerDoc };
-        try { Object.defineProperty(fresh, '_rebase', { value: true, enumerable: false }); }
-        catch (_) { fresh._rebase = true; }
-        window.dispatchEvent(new CustomEvent("fb-vd-remote-update", { detail: fresh }));
-        if (userEdit) {
-          try {
-            alert("TaskHub (Veda): this screen was out of date, so your last change was NOT saved "
-              + "— saving it would have erased newer changes from another device.\n\n"
-              + "The latest copy is now loaded. Please redo that last change.");
-          } catch (_) {}
-        }
-        return Promise.resolve();
-      }
       const payload = _vdPendingPayload; _vdPendingPayload = null;
       delete payload._gen;                       // internal only — never persisted
-      delete payload._bg;                        // internal only — never persisted
-      delete payload._base;                      // internal only — never persisted
-      _vdLastWrittenSavedAt = payload.savedAt || Date.now();
-      _vdOwnWrites.add(_vdLastWrittenSavedAt);
-      if (_vdOwnWrites.size > 50) _vdOwnWrites.delete(_vdOwnWrites.values().next().value);
+      delete payload._bg;                        // internal only (_baseRev is _casWrite's)
       // Same wipe guard as TaskHub — see the WIPE GUARD note above.
       if (!_thbAllow('vedasdash', 'TaskHub (Veda)', payload)) {
         _vdSavePending = false;
@@ -11868,15 +11905,27 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       _vdSaveInFlight = (async () => {
         try {
           _vdLastOwnSaveAt = Date.now();
-          const ok = await _guardedWrite(vdDocRef, payload, 'Veda');
-          // Our write is now the doc the next payload builds on. Only on success: a
-          // failed write leaves the server on the old base, which must stay valid.
-          if (ok) window._vdSetBase(payload.savedAt);
-          if (ok) _thbSnapshot('vedasdash', payload);   // best-effort, never awaited
+          const r = await _casWrite('vedasdash', vdDocRef, payload, 'TaskHub (Veda)',
+            () => window._vdRebuildPayload && window._vdRebuildPayload(), _vdApplyMerged);
+          if (r.ok) {
+            _vdLastWrittenSavedAt = r.payload.savedAt;
+            _vdOwnWrites.add(_vdLastWrittenSavedAt);
+            if (_vdOwnWrites.size > 50) _vdOwnWrites.delete(_vdOwnWrites.values().next().value);
+            _casRetryN.vedasdash = 0;
+            _thbSnapshot('vedasdash', r.payload);   // best-effort, never awaited
+          } else if (!r.fatal) {
+            if (!_vdPendingPayload) {
+              _vdPendingPayload = (window._vdRebuildPayload && window._vdRebuildPayload()) || payload;
+              _vdPendingPayload._gen = _fbGen;
+            }
+            _casRetry('vedasdash', r, () => window._fbFlushVeda && window._fbFlushVeda());
+          }
           _vdLastOwnSaveAt = Date.now();
-          window.dispatchEvent(new CustomEvent(ok ? "fb-vd-saved" : "fb-vd-error"));
+          window.dispatchEvent(new CustomEvent(r.ok ? "fb-vd-saved" : "fb-vd-error"));
         } finally {
-          _vdSavePending = false; _vdSaveInFlight = null;
+          _vdSaveInFlight = null;
+          _vdSavePending = !!_vdPendingPayload;   // see the TaskHub save
+          if (_vdPendingPayload && !_casRetryN.vedasdash) setTimeout(() => _vdWhenServerSeen(_doVedaSave), 0);
           _vdDrainDeferred();   // replay any remote doc held back during this write
         }
       })();
@@ -11895,6 +11944,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         return;
       }
       payload._gen = _fbGen;                     // stamp the generation it was built in
+      payload._baseRev = _cas.vedasdash.base ? _cas.vedasdash.base.rev : undefined;   // the version it was built on
       _vdPendingPayload = payload;
       _vdSavePending = true;
       _vdLastOwnSaveAt = Date.now();
@@ -11914,31 +11964,18 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     if (_vdUnsubscribe) { _vdUnsubscribe(); _vdUnsubscribe = null; }
     _vdUnsubscribe = onSnapshot(vdDocRef, { includeMetadataChanges: true }, (snap) => {
       const fromCache = snap.metadata && snap.metadata.fromCache;
-      if (!snap.exists()) { if (!fromCache) { _vdNoteServer(null); _vdMarkServerSeen(); } return; }
+      if (!snap.exists()) { if (!fromCache) _vdMarkServerSeen(); return; }
       if (fromCache) return;                 // cached echo, not remote news
       const d = snap.data();
-      _vdNoteServer(d);                      // before the unlock below replays parked writes
-      // A PENDING LOCAL WRITE THAT IS OLDER THAN THE SERVER COPY MUST BE DROPPED.
       _a1b('dashboards/vedasdash', d);
-      // This is the bug that reverted the desktop: on resume the phone had an
-      // autosave queued from its stale in-memory state. The fresh server snapshot
-      // unlocked writes (below) but the old `if (_vdSavePending) return;` threw the
-      // snapshot away — so the phone stayed stale AND then flushed that stale queued
-      // write over the newer desktop edits. Unlocking on data we discard is exactly
-      // backwards. savedAt is the authority: if the server copy is newer than what
-      // we have queued, the queued write lost the race and is abandoned.
-      if (_vdSavePending && (d.savedAt || 0) > (_vdPendingPayload ? (_vdPendingPayload.savedAt || 0) : 0)) {
-        _vdPendingPayload = null;
-        if (_vdSaveTimer) { clearTimeout(_vdSaveTimer); _vdSaveTimer = null; }
-        _vdSavePending = false;
-      }
-      // Unlock only now — after the snapshot has been allowed to take effect.
+      // A pending save is never dropped for being "older" by the clock — see the
+      // TaskHub listener. If this copy is newer, the save merges with it.
       _vdMarkServerSeen();
       // Hold, never discard — see the TaskHub listener above for why a bare
       // `return` here silently lost the other device's edit in both directions.
       if (_vdSavePending) { _vdDeferredRemote = d; return; }
       if (_vdOwnWrites.has(d.savedAt || 0)) return;   // any of our own echoes
-      window.dispatchEvent(new CustomEvent("fb-vd-remote-update", { detail: d }));
+      _vdTakeRemote(d);
     }, (err) => { console.warn('[Veda TaskHub] onSnapshot error:', err && err.code); });
 
     // ── StudyOS task mirror ───────────────────────────────────────────────────
@@ -15882,9 +15919,6 @@ function App(){
   const vdFbPush=useCallback((bg)=>{
     if(!window._fbSaveVeda)return;
     const payload=buildVdPayload();
-    // The doc this state was built on — the Firebase layer refuses the write if the
-    // server has moved past it (see _vdServerSavedAt).
-    if(window._vdGetBase)payload._base=window._vdGetBase();
     if(bg)payload._bg=true;
     else setVdSync("saving");
     // Our own edit is now the newest state we know of — record it BEFORE the write
@@ -15895,7 +15929,7 @@ function App(){
 
   // See Tony's _thRebuildPayload — same contract, Veda's document.
   useEffect(()=>{
-    window._vdRebuildPayload=()=>{const pl=buildVdPayload();if(window._vdGetBase)pl._base=window._vdGetBase();vdLastAppliedRef.current=pl.savedAt||Date.now();return pl;};
+    window._vdRebuildPayload=()=>{const pl=buildVdPayload();vdLastAppliedRef.current=pl.savedAt||Date.now();return pl;};
     return()=>{delete window._vdRebuildPayload;};
   },[buildVdPayload]);
 
@@ -15975,10 +16009,9 @@ function App(){
     // carries no news. Dropping it is always safe — the live onSnapshot listener
     // delivers the real server state the moment it arrives.
     const rs=remote.savedAt||0, ls=vdLastAppliedRef.current||0;
-    // _rebase: the Firebase layer refused our write because it was built on an older
-    // copy than the server's. Our local state is the stale one, so the server doc must
-    // land even though our refused payload carried a newer timestamp.
-    if(rs&&ls&&rs<ls&&!remote._rebase){
+    // _trusted: a server-confirmed copy (or a merge of one) always applies — see
+    // Tony's applyRemote.
+    if(rs&&ls&&rs<ls&&!remote._trusted){
       console.warn("[Veda] ignoring stale doc (savedAt "+rs+" < applied "+ls+")"
         +(remote._fromCache?" [cache fallback]":""));
       return;
@@ -15986,9 +16019,7 @@ function App(){
     // A cache-fallback read that merely TIES the applied timestamp is also news-free;
     // applying it would clobber unsaved in-flight edits made since that snapshot.
     if(remote._fromCache&&rs&&ls&&rs===ls)return;
-    vdLastAppliedRef.current=remote._rebase?rs:(rs||ls);
-    // Whatever doc we apply is now what our state is built on.
-    if(window._vdSetBase)window._vdSetBase(rs);
+    vdLastAppliedRef.current=remote._trusted?rs:(rs||ls);
     const now2=new Date(),cw=getMondayKey(now2);
     // Same rule as Tony's TaskHub: the weekly reset is destructive (it is saved
     // locally and re-uploaded on the next edit), so it may only run on trusted
