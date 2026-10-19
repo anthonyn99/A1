@@ -46,8 +46,9 @@ Nothing is written until the person confirms. Then, in this order:
 1. `dashboards/<doc>_prerestore`: `{ at, kind: 'restore'|'undo', doc, from, mode, restoredSavedAt, by }`.
    `doc` is the state before the restore.
 2. `dashboards/<doc>_restored`: `{ at, doc }`, the state that was written.
-3. `dashboards/<doc>`: the new state, with a fresh `savedAt`, so every open
-   TaskHub picks it up.
+3. `dashboards/<doc>` and `dashboards/<doc>_head`, in one transaction: the new
+   state, with a fresh `savedAt` and the next version (`rev`), so every open
+   TaskHub picks it up. See [versioned-save.md](versioned-save.md).
 
 `<doc>` is `main` (Tony) or `vedasdash` (Veda). If the doc changed after the
 page read it, the page redoes the preview and asks again; it does not write
