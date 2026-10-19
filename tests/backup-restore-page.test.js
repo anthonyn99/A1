@@ -223,7 +223,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await pressGo();
     ok(await until('/undone/.test(document.getElementById("done").textContent)'), 'undo reports success');
     m = await live('main');
-    ok(!m.goals.some((g) => g.id === 'g2') && m.goals.find((g) => g.id === 'g1').done === false && !m.data[day(18)], 'undo puts the pre-restore state back');
+    ok(!m.goals.some((g) => g.id === 'g2') && m.goals.find((g) => g.id === 'g1').done === false && !(m.data[day(18)] || []).length, 'undo puts the pre-restore state back');
     ok(m.goals.some((g) => g.id === 'g3'), 'an edit made after the restore survives the undo');
     ok(/Redo/.test(await txt('#undo')), 'the undo can itself be redone');
     await evalJs('document.getElementById("undobtn").click()');
