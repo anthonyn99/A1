@@ -30,6 +30,9 @@
      register(). Placed here so it is defined before the deferred Firebase
      module runs. See backup.js for the full contract. -->
 <script src="backup.js"></script>
+<!-- Three-way merge for two TaskHub saves that raced (window.THMerge). The
+     versioned save (_casWrite) uses it when another device saved first. -->
+<script src="taskhub-merge.js"></script>
 <!-- ── Cache-Control: forces browser to always revalidate, never serve stale GitHub Pages assets ── -->
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
@@ -10622,7 +10625,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
   import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
   import { initializeAppCheck, ReCaptchaV3Provider, getToken as getAppCheckToken } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js";
-  import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, persistentSingleTabManager, terminate, clearIndexedDbPersistence, doc, setDoc, updateDoc, onSnapshot, getDoc, getDocFromServer, getDocFromCache, deleteField, deleteDoc, collection, getDocs, query, orderBy, limit, startAt, startAfter, endBefore, documentId } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
+  import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, persistentSingleTabManager, terminate, clearIndexedDbPersistence, doc, setDoc, updateDoc, runTransaction, onSnapshot, getDoc, getDocFromServer, getDocFromCache, deleteField, deleteDoc, collection, getDocs, query, orderBy, limit, startAt, startAfter, endBefore, documentId } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
   import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-storage.js";
 
   const firebaseConfig = {
@@ -10877,6 +10880,135 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       }
       return false;
     }
+  }
+
+  // ══ VERSIONED SAVE — the two TaskHub documents ════════════════════════════
+  // THE 2026-10-19 RESET: a device that last synced the afternoon before woke up
+  // and saved its whole TaskHub with a brand-new savedAt. Nothing checked what
+  // that save was BUILT ON, so it replaced the cloud copy and erased everything
+  // added since (yesterday's tasks and that morning's). Veda's side had a
+  // client-side guard for the same thing (2026-10-10); Tony's had none, and
+  // neither was atomic.
+  //
+  // Every save now names the version it was built on. dashboards/<doc>_head is a
+  // tiny { rev } document kept in step with dashboards/<doc>.rev; a save is a
+  // transaction that reads ONLY the head and writes both, and only if the head
+  // still holds the version this device last saw. If another device saved in
+  // between, nothing is overwritten: the cloud copy is fetched, the two sets of
+  // changes are merged item by item (taskhub-merge.js), the merge is shown here
+  // and saved instead. A transaction is never queued offline, so an old save can
+  // no longer replay later either.
+  //
+  // _cas[name].base is the version this device's state is built on: set when a
+  // server copy is applied and after each successful save, never while a save of
+  // ours is pending (that state is not built on it yet). Module-level, so it
+  // survives the teardown/re-init a phone does on every app switch.
+  //
+  // A save from an old app version (no rev) after the head exists did not go
+  // through this check. A device that has a base keeps its own state and saves
+  // it over that copy (_casIsRogue); a fresh page has nothing better and takes it.
+  const _cas = { main: { base: null, headSeen: false }, vedasdash: { base: null, headSeen: false } };
+  function _casNote(name, d) { _cas[name].base = { rev: (d && d.rev) || 0, doc: d || {} }; }
+  function _casIsRogue(name, d) { return !!(d && _cas[name].headSeen && _cas[name].base && d.rev === undefined); }
+  function _casTrusted(d) {
+    try { Object.defineProperty(d, '_trusted', { value: true, enumerable: false, configurable: true }); }
+    catch (_) { d._trusted = true; }
+    return d;
+  }
+  function _casDevice() { try { return (window.A1Backup && window.A1Backup.device()) || null; } catch (e) { return null; } }
+  function _casStrip(p) {
+    const o = Object.assign({}, p);
+    delete o._gen; delete o._bg; delete o._baseRev; delete o.rev;
+    return o;
+  }
+  function _casTimeout(p, ms, what) {
+    let to;
+    return Promise.race([p, new Promise((_, rej) => { to = setTimeout(() => rej(new Error(what + '-timeout')), ms); })])
+      .finally(() => clearTimeout(to));
+  }
+  // → { ok, rev, payload } | { ok:false, offline } | { ok:false, fatal } | { ok:false, err }
+  //   rebuild()  : the app's CURRENT state as a payload (includes edits made since)
+  //   apply(doc) : show a merged doc in the app (trusted; no save is triggered)
+  async function _casWrite(name, ref, payload, label, rebuild, apply) {
+    const st = _cas[name];
+    let body = payload;
+    // Built on an older version than the one now applied here: the state has
+    // moved on since (a remote copy was applied), so take the current state.
+    if (body._baseRev !== undefined && st.base && body._baseRev !== st.base.rev) {
+      try { const fresh = rebuild && rebuild(); if (fresh) body = fresh; } catch (e) {}
+    }
+    body = _casStrip(body);
+    const bytes = _fbByteSize(body);
+    if (bytes > FB_MAX_WRITE_BYTES) {
+      console.error('[Firebase] ' + label + ' write blocked: ' + bytes + ' bytes over safe limit — not submitting. Data kept locally.');
+      _fbLoudFailure(label, 'This device has more data than fits in one cloud document ('
+        + Math.round(bytes/1024) + ' KB). It is saved HERE but is NOT syncing.\n\n'
+        + 'Do not rely on your other devices until this is fixed — they still show the older copy.');
+      return { ok: false, fatal: true };
+    }
+    if (navigator.onLine === false) return { ok: false, offline: true };
+    const db_ = ref.firestore, headRef = doc(db_, ref.path + '_head');
+    let base = st.base;
+    try {
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const res = await _casTimeout(runTransaction(db_, async (tx) => {
+          const h = await tx.get(headRef);
+          const cur = h.exists() ? (h.data().rev || 0) : 0;
+          if (!base || cur !== base.rev) return { conflict: true, cur, seen: h.exists() };
+          const rev = cur + 1;
+          tx.set(ref, Object.assign({}, body, { rev }));
+          tx.set(headRef, { rev, savedAt: body.savedAt || Date.now(), by: _casDevice() });
+          return { rev };
+        }), 15000, 'cas');
+        if (!res.conflict) {
+          st.headSeen = true;
+          st.base = { rev: res.rev, doc: Object.assign({}, body, { rev: res.rev }) };
+          _fbWriteFailStreak = 0;
+          return { ok: true, rev: res.rev, payload: body };
+        }
+        if (res.seen) st.headSeen = true;
+        // Another device saved first. Merge its changes with ours — never overwrite.
+        const snap = await _casTimeout(getDocFromServer(ref), 12000, 'cas-read');
+        const theirs = snap.exists() ? snap.data() : {};
+        let mine = body;
+        try { const fresh = rebuild && rebuild(); if (fresh) mine = _casStrip(fresh); } catch (e) {}
+        const rogue = res.seen && theirs.rev === undefined && !!base;
+        const merged = rogue ? mine : window.THMerge.syncMerge(base ? base.doc : null, mine, theirs);
+        merged.savedAt = Date.now();
+        console.warn('[' + label + '] another device saved first (cloud v' + res.cur + ', ours built on v'
+          + (base ? base.rev : 'none') + ') — ' + (rogue ? 'its copy came from an old app version; keeping ours' : 'merged both') + '.');
+        base = { rev: res.cur, doc: rogue ? base.doc : theirs };
+        st.base = base;
+        try { apply && apply(_casTrusted(Object.assign({}, merged, { rev: res.cur }))); } catch (e) {}
+        body = merged;
+      }
+      return { ok: false, err: new Error('too many saves at once') };
+    } catch (e) {
+      console.warn('[Firebase] ' + label + ' save failed:', e && (e.code || e.message || e));
+      if (navigator.onLine === false) return { ok: false, offline: true };
+      if (!_fbRecovering) {
+        _fbWriteFailStreak++;
+        if (_fbWriteFailStreak >= 3) _fbRecover();
+        if (_fbWriteFailStreak >= 6) {
+          _fbLoudFailure(label, 'Changes are saving on this device but are NOT reaching the cloud '
+            + '(' + _fbWriteFailStreak + ' failed attempts).\n\n'
+            + 'They are kept here and retried, and they will be merged with your other devices, not '
+            + 'overwrite them.\n\nTry reloading. If it keeps failing, tell Tony.');
+        }
+      }
+      return { ok: false, err: e };
+    }
+  }
+  // A failed save is retried: on reconnect when offline, else with backoff.
+  const _casRetryTimer = { main: 0, vedasdash: 0 }, _casRetryN = { main: 0, vedasdash: 0 };
+  function _casRetry(name, r, flush) {
+    if (r.offline) {
+      window.addEventListener('online', function go() { window.removeEventListener('online', go); try { flush(); } catch (e) {} });
+      return;
+    }
+    const delay = [2000, 5000, 15000, 30000, 60000][Math.min(_casRetryN[name]++, 4)];
+    clearTimeout(_casRetryTimer[name]);
+    _casRetryTimer[name] = setTimeout(() => { try { flush(); } catch (e) {} }, delay);
   }
 
   // Initial-load helper: fetch the freshest server copy so the first open is
