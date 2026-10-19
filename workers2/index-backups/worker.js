@@ -359,10 +359,15 @@ export default {
             bytes: meta.bytes || null,
             docs: meta.docs || null,
             count: prev ? prev.count : 0,
+            stamps: prev ? prev.stamps : [],
           };
         }
         devices[d].count = (devices[d].count || 0) + 1;
+        // Every stamp, so backup-restore.html can offer each kept snapshot
+        // (GET /s/<device>?at=<stamp>), not only the newest.
+        (devices[d].stamps = devices[d].stamps || []).push(at);
       }
+      for (const d of Object.keys(devices)) devices[d].stamps.sort((a, b) => a - b);
 
       // Storage, so "is this quietly filling up?" is answerable without
       // guessing. Object bytes dominate — snapshots are small manifests.
