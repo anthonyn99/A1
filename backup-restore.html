@@ -489,11 +489,37 @@ let DONE = null;                                   // { name, kind } after a wri
 function sorted(name) { return [...STATES[name].values()].sort((a, b) => b.doc.savedAt - a.doc.savedAt); }
 function suggestion(name) { return sorted(name).find((s) => !s.same && s.back > 0) || null; }
 
+// A1BackupMerge.pickBase, with each version's item map built once instead of
+// once per comparison: the same answer, fast enough to re-plan on every tap.
+const MAPS = new WeakMap();
+function itemMap(d) {
+  if (MAPS.has(d)) return MAPS.get(d);
+  const o = new Map(), norm = A1BackupMerge._norm;
+  const add = (w, a) => { if (Array.isArray(a)) a.forEach((x, i) => o.set(w + '|' + ((x && x.id != null ? String(x.id) : null) || i), norm(x))); };
+  LISTS.forEach((f) => add(f, (d || {})[f]));
+  const data = (d || {}).data || {};
+  Object.keys(data).forEach((k) => add('data/' + k, data[k]));
+  MAPS.set(d, o);
+  return o;
+}
+function pickBase(cands, live) {
+  const lm = itemMap(live);
+  let best = null, bestD = Infinity;
+  for (const c of cands) {
+    const cm = itemMap(c);
+    let n = 0;
+    cm.forEach((v, k) => { if (lm.get(k) !== v) n++; });
+    lm.forEach((v, k) => { if (!cm.has(k)) n++; });
+    if (n < bestD) { bestD = n; best = c; }
+  }
+  return { base: best, distance: bestD };
+}
+
 function planFor(name, st, mode) {
   const k = name + '|' + st.doc.savedAt + '|' + mode + '|' + (LIVE[name] || {}).savedAt;
   if (PLANS.has(k)) return PLANS.get(k);
-  const older = sorted(name).filter((s) => s.doc.savedAt < st.doc.savedAt).slice(0, 30).map((s) => s.doc);
-  const pb = A1BackupMerge.pickBase(older, LIVE[name]);
+  const older = sorted(name).filter((s) => s.doc.savedAt < st.doc.savedAt).map((s) => s.doc);
+  const pb = pickBase(older, LIVE[name]);
   const r = mode === 'exact' ? A1BackupMerge.rollbackDoc(pb.base || {}, st.doc, LIVE[name])
                              : A1BackupMerge.mergeDoc(pb.base || {}, st.doc, LIVE[name]);
   const out = { doc: r.doc, report: r.report, base: pb.base };
