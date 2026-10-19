@@ -1,0 +1,1 @@
+{"v":1,"alg":"AES-256-GCM","gz":true,"kdf":{"name":"PBKDF2","hash":"SHA-256","iter":600000,"salt":"CpHsW6+TdPzVVxJUb8itLw=="},"iv":"COwOA7lWUQFlpXEX","ct":"kR/YdTMXYk+6YZ/uq8EwhzPks9U4fRcAixL8AIDLB4biTIX+RhjzDwWxuAbO2AIg9JNMBvjJiIUq4qNEzaxUT0Xy+rL1yjiABb0DpWbGh6n2nu/apKThiRy0PkPO9AKEurvEnfHWfJlWOYj0vDkRyn8F0xtj9YbF2Ij1Gxa1Ys+xkuMTWpzdrqFGvLbo0+mhyl7rSm6/fBMqweaAKLowcPHtx14="}
