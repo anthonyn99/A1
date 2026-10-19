@@ -25011,7 +25011,7 @@ function renderRestoreRow(container,profile){
   try{ if(window.A1Backup&&A1Backup.device) href+='&device='+encodeURIComponent(A1Backup.device()); }catch(e){}
   container.innerHTML='<div class="thset-row thset-rs">'+
     '<div class="thset-rs-txt"><span class="thset-label">Restore</span>'+
-    '<span class="thset-rs-sub">Put '+(profile==='veda'?'your':'your')+' TaskHub back to an earlier backup, or undo a restore.</span></div>'+
+    '<span class="thset-rs-sub">Put your TaskHub back to an earlier backup, or undo a restore.</span></div>'+
     '<a class="thset-btn" id="thset-rs-go" href="'+bkEsc(href)+'" style="background:'+ACCENT[profile]+';color:'+(profile==='tony'?'#1a1a1d':'#fff')+';">Open</a>'+
   '</div>';
 }
