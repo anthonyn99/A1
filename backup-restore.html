@@ -2,321 +2,767 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Backup Restore</title>
-<!-- Puts the TaskHubs back to a backup (backup-merge.js). Uses this browser's
-     saved passphrase, or asks for Tony's or Veda's (kept in memory only): every
-     snapshot holds BOTH TaskHubs, so either passphrase restores both. No data
-     leaves the browser. Backups come from Index Backups/ (tools/pull-backups.mjs
-     — run it first) plus this browser's own vault. The person picks the backup,
-     Merge (keep what was done since) or Full rollback, and which TaskHubs.
-     ?good=<device> preselects that device's newest backup. Nothing is written
-     until Restore is clicked, and the current state is copied to
-     dashboards/<doc>_prerestore first. Does not run TaskHub, so no stale local
-     copy can write back. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1a1a1d">
+<title>Restore TaskHub</title>
+<!-- Restore a TaskHub from its encrypted backups, or undo a restore. Opened from
+     TaskHub → Settings → Backup → Restore (?profile=tony|veda picks the tab).
+
+     WHERE THE BACKUPS COME FROM
+       1. The index-backups worker: every device's last 14 snapshots, read with
+          this page's App Check token. Nobody has to pull anything first.
+       2. This browser's own vault (last 72h), when it holds the passphrase.
+       3. The repo copy in Index Backups/, only if the worker can't be reached.
+     Each person's devices use their own passphrase; every snapshot holds BOTH
+     TaskHubs, so either passphrase can restore either one. A typed passphrase
+     stays in memory only.
+
+     WHAT A RESTORE WRITES (only after Restore is pressed and confirmed)
+       dashboards/<doc>_prerestore  {at, kind, doc: the state before, from, mode}
+       dashboards/<doc>_restored    {at, doc: the state written}
+       dashboards/<doc>             the restored state, with a fresh savedAt
+     Undo reads those two back and three-way merges (backup-merge.js), so edits
+     made after the restore survive the undo. An undo is itself a restore, so it
+     can be undone (redo). Does not run TaskHub, so no stale local copy here can
+     write back over the result. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600..800&display=swap" rel="stylesheet">
 <style id="no-tap-box">/* Phones: no blue box when anything is tapped or held, and a held control never selects its label or opens the callout. */
 *,*::before,*::after{-webkit-tap-highlight-color:transparent}
 button,[role="button"],input[type="button"],input[type="submit"],input[type="reset"],summary,label,select{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 </style>
+<style id="ui-cap-2000">html{background:#1a1a1d}body{max-width:2000px;margin-left:auto!important;margin-right:auto!important}</style>
+<script src="scrollbar.js"></script>
+<script src="apphead.js"></script>
+<script src="hoverfx.js"></script>
 <style>
   :root {
-    --bg: #131316; --card: #1b1b20; --raise: #23232a; --line: #2c2c34; --fg: #ececf1;
-    --muted: #9b9ba6; --faint: #6c6c78; --accent: #c0aeea; --accent-ink: #1a1424; --accent-2: #8D769A;
-    --good: #8fd1a8; --bad: #f08a8a; --warn: #e6c27a; --radius: 14px;
-  }
-  @media (prefers-color-scheme: light) {
-    :root:not([data-theme="dark"]) {
-      --bg: #f6f5f8; --card: #ffffff; --raise: #f1eff5; --line: #e4e1ea; --fg: #1d1b22;
-      --muted: #67646f; --faint: #9a97a3; --accent: #6f58a3; --accent-ink: #ffffff; --accent-2: #8D769A;
-      --good: #2f8a55; --bad: #c44747; --warn: #a77a1c;
-    }
+    --bg: #1a1a1d; --s1: #232327; --s2: #2c2c31; --s3: #34343a;
+    --hair: rgba(255,255,255,.06); --bdl: #45454c;
+    --tx: #f4f3f0; --txd: #adadb2; --txm: #8d8d94;
+    --ac: #c0aeea; --acl: #dbd0f5; --acd: #9a86c9;
+    --gold: #e0b874; --grn: #a4b986; --red: #d68a7c; --blue: #8fa6d8;
+    --bar-h: 76px;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--fg);
-         font: 15px/1.55 Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
-  main { max-width: 720px; margin: 0 auto; padding: 48px 16px 120px; }
-  header h1 { font-size: 26px; font-weight: 600; letter-spacing: -.01em; margin: 0 0 6px; }
-  header p { margin: 0; color: var(--muted); }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; margin-top: 20px; }
-  .label { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); margin: 0 0 12px; }
-  #st { margin-top: 20px; color: var(--muted); white-space: pre-line; min-height: 1.5em; }
-  #st.ok { color: var(--good); } #st.bad { color: var(--bad); }
-  #st.ok, #st.bad { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--tx);
+         font: 500 14px/1.5 Inter, system-ui, -apple-system, sans-serif; font-variant-numeric: tabular-nums;
+         -webkit-font-smoothing: antialiased; min-height: 100dvh; }
+  input, select, textarea, button { font-family: inherit; font-variant-numeric: tabular-nums; }
+  [hidden] { display: none !important; }
+  a { color: inherit; }
 
-  form#pf { display: flex; gap: 10px; flex-wrap: wrap; }
-  form#pf p { flex-basis: 100%; margin: 0 0 4px; color: var(--muted); }
-  input[type=password] { flex: 1 1 240px; font: inherit; color: var(--fg); background: var(--raise);
-    border: 1px solid var(--line); border-radius: 10px; padding: 11px 14px; outline: none; }
-  input[type=password]:focus { border-color: var(--accent); }
-  button { font: inherit; font-weight: 500; border: 0; border-radius: 10px; padding: 11px 20px; cursor: pointer;
-           background: var(--accent); color: var(--accent-ink); }
-  button:disabled { opacity: .45; cursor: default; }
+  .wrap { max-width: 1120px; margin: 0 auto;
+          padding: 20px max(16px, env(safe-area-inset-right)) calc(var(--bar-h) + 40px) max(16px, env(safe-area-inset-left)); }
 
-  .backups { display: grid; gap: 8px; max-height: 340px; overflow: auto; padding-right: 2px; }
-  .opt { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--line);
-         border-radius: 10px; background: var(--raise); cursor: pointer; }
-  .opt:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
-  .opt input { accent-color: var(--accent); margin-top: 3px; }
-  .opt .t { font-weight: 500; } .opt .s { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
-  .newest { font-size: 11px; font-weight: 600; color: var(--accent); margin-left: 6px; letter-spacing: .04em; }
+  /* ── Header ───────────────────────────────────────────────────────────── */
+  .top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 6px 0 22px; }
+  .back { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px 0 8px; border-radius: 6px;
+          border: 1px solid var(--bdl); color: var(--txd); text-decoration: none; font-size: 10px; font-weight: 700;
+          letter-spacing: 1px; text-transform: uppercase; }
+  .back:hover { border-color: var(--ac); color: var(--acl); }
+  .back svg { width: 16px; height: 16px; }
+  .title { display: flex; flex-direction: column; min-width: 0; margin-right: auto; }
+  .title h1 { margin: 0; font: 800 20px/1.2 Manrope, Inter, sans-serif; color: var(--acl); letter-spacing: -.01em;
+              display: flex; align-items: center; }
+  .title p { margin: 2px 0 0; color: var(--txm); font-size: 12px; }
 
-  .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .seg .opt { flex-direction: column; gap: 2px; }
-  .seg .opt input { position: absolute; opacity: 0; pointer-events: none; }
-  .who { display: flex; gap: 8px; flex-wrap: wrap; }
-  .who .opt { align-items: center; padding: 9px 14px; }
+  .seg { display: inline-flex; padding: 3px; gap: 3px; background: var(--s1); border: 1px solid var(--hair); border-radius: 8px; }
+  .seg button { border: 0; background: transparent; color: var(--txd); padding: 8px 16px; border-radius: 6px; cursor: pointer;
+                font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; min-height: 34px; }
+  .seg button[aria-pressed="true"] { background: var(--ac); color: var(--bg); }
+  .seg button:focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; }
 
-  .doc { margin-top: 20px; }
-  .doc h2 { font-size: 17px; font-weight: 600; margin: 0 0 4px; }
-  .doc .meta { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
-  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
-  .chip { font-size: 13px; padding: 4px 10px; border-radius: 999px; background: var(--raise); border: 1px solid var(--line);
-          color: var(--muted); font-variant-numeric: tabular-nums; }
-  .chip b { color: var(--fg); font-weight: 600; margin-right: 4px; }
-  details { border-top: 1px solid var(--line); padding: 10px 0 2px; }
-  details:first-of-type { border-top: 0; }
-  summary { cursor: pointer; color: var(--fg); font-weight: 500; list-style: none; display: flex; justify-content: space-between; }
+  /* ── Cards ────────────────────────────────────────────────────────────── */
+  .card { background: var(--s1); border: 1px solid var(--hair); border-radius: 8px; padding: 18px; min-width: 0; }
+  .card + .card, .stack > * + * { margin-top: 14px; }
+  .ptitle { margin: 0 0 14px; font: 800 11px/1.2 Manrope, Inter, sans-serif; letter-spacing: 1.8px; text-transform: uppercase;
+            color: var(--acl); display: flex; align-items: center; gap: 10px; }
+  .ptitle .aside { margin-left: auto; font: 500 12px Inter, sans-serif; letter-spacing: 0; text-transform: none; color: var(--txm); }
+  .muted { color: var(--txm); }
+  .lead { color: var(--txd); margin: 0 0 14px; }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 38px; padding: 0 16px;
+         border-radius: 6px; border: 1px solid var(--bdl); background: transparent; color: var(--tx); cursor: pointer;
+         font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; text-decoration: none; white-space: nowrap; }
+  .btn:hover { border-color: var(--ac); color: var(--acl); }
+  .btn:focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; }
+  .btn.primary { background: var(--ac); border-color: var(--ac); color: var(--bg); }
+  .btn.primary:hover { color: var(--bg); }
+  .btn.warn { border-color: color-mix(in srgb, var(--gold) 55%, var(--bdl)); color: var(--gold); }
+  .btn:disabled { opacity: .4; cursor: default; }
+  .linkbtn { border: 0; background: none; padding: 0; color: var(--ac); cursor: pointer; font: inherit; text-decoration: underline;
+             text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, var(--ac) 45%, transparent); }
+
+  /* ── Status / progress ────────────────────────────────────────────────── */
+  #st { display: flex; align-items: flex-start; gap: 12px; }
+  #st .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gold); margin-top: 6px; flex: 0 0 auto; }
+  #st.ok .dot { background: var(--grn); } #st.bad .dot { background: var(--red); }
+  #st.busy .dot { animation: pulse 1.2s ease-in-out infinite; }
+  #st .txt { white-space: pre-line; color: var(--txd); }
+  #st.bad .txt { color: var(--red); }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .prog { height: 3px; border-radius: 3px; background: var(--s3); overflow: hidden; margin-top: 10px; }
+  .prog i { display: block; height: 100%; width: 0; background: var(--gold); transition: width .25s ease; }
+
+  /* ── Passphrase ───────────────────────────────────────────────────────── */
+  #pf { display: flex; gap: 10px; flex-wrap: wrap; }
+  #pf input { flex: 1 1 240px; min-height: 42px; font-size: 15px; color: var(--tx); background: var(--bg);
+              border: 1px solid var(--bdl); border-radius: 6px; padding: 0 14px; outline: none; }
+  #pf input:focus { border-color: var(--ac); }
+
+  /* ── Undo strip ───────────────────────────────────────────────────────── */
+  .undo { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; border-color: color-mix(in srgb, var(--gold) 30%, var(--hair)); }
+  .undo .ic { width: 34px; height: 34px; border-radius: 6px; display: grid; place-items: center; color: var(--gold);
+              border: 1px solid color-mix(in srgb, var(--gold) 40%, var(--bdl)); flex: 0 0 auto; }
+  .undo .ic svg { width: 17px; height: 17px; }
+  .undo .tx { flex: 1 1 260px; min-width: 0; }
+  .undo .tx b { display: block; font-weight: 600; color: var(--tx); }
+  .undo .tx span { color: var(--txm); font-size: 13px; }
+  .undo[aria-current="true"] { border-color: var(--gold); }
+
+  /* ── Layout ───────────────────────────────────────────────────────────── */
+  .grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 14px; align-items: start; margin-top: 14px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+
+  /* ── Timeline ─────────────────────────────────────────────────────────── */
+  .tl { display: flex; flex-direction: column; gap: 4px; max-height: min(68vh, 760px); overflow: auto; margin: 0 -6px; padding: 0 6px; }
+  @media (max-width: 900px) { .tl { max-height: 46vh; } }
+  .day { font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--txm);
+         padding: 12px 2px 4px; position: sticky; top: 0; background: var(--s1); z-index: 1; }
+  .day:first-child { padding-top: 0; }
+  .row { display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%;
+         text-align: left; padding: 10px 12px; min-height: 52px; border-radius: 6px; border: 1px solid transparent;
+         background: var(--s2); color: inherit; cursor: pointer; font: inherit; }
+  .row:hover { border-color: var(--bdl); }
+  .row[aria-pressed="true"] { border-color: var(--ac); box-shadow: inset 0 0 0 1px var(--ac); }
+  .row:focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; }
+  .row .t { font-weight: 600; color: var(--tx); }
+  .row .m { min-width: 0; display: flex; flex-direction: column; }
+  .row .m b { font-weight: 500; color: var(--txd); font-size: 13px; }
+  .row .m span { color: var(--txm); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tags { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+  .tag { font-size: 10px; font-weight: 700; letter-spacing: .6px; padding: 3px 7px; border-radius: 4px; white-space: nowrap;
+         border: 1px solid var(--bdl); color: var(--txd); text-transform: uppercase; }
+  .tag.back { color: var(--acl); border-color: color-mix(in srgb, var(--ac) 55%, var(--bdl)); }
+  .tag.same { color: var(--grn); border-color: color-mix(in srgb, var(--grn) 45%, var(--bdl)); }
+  .tag.sug { background: var(--ac); border-color: var(--ac); color: var(--bg); }
+  @media (max-width: 520px) {
+    .row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 2px; }
+    .row .t { grid-column: 1; } .row .m { grid-column: 1; grid-row: 2; } .row .tags { grid-column: 2; grid-row: 1 / span 2; flex-direction: column; align-items: flex-end; }
+  }
+
+  /* ── Plan ─────────────────────────────────────────────────────────────── */
+  .plan-h { font: 700 17px/1.3 Manrope, Inter, sans-serif; margin: 0 0 4px; color: var(--tx); }
+  .plan-m { color: var(--txm); font-size: 13px; margin: 0 0 16px; }
+  .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+  .mode { position: relative; display: flex; flex-direction: column; gap: 2px; padding: 11px 13px; border-radius: 6px;
+          border: 1px solid var(--bdl); background: var(--s2); cursor: pointer; }
+  .mode input { position: absolute; opacity: 0; pointer-events: none; }
+  .mode b { font-size: 13px; font-weight: 600; color: var(--tx); display: flex; gap: 8px; align-items: center; }
+  .mode span { font-size: 12px; color: var(--txm); }
+  .mode:has(input:checked) { border-color: var(--ac); box-shadow: inset 0 0 0 1px var(--ac); }
+  .mode:has(input:focus-visible) { outline: 2px solid var(--ac); outline-offset: 2px; }
+  .mode em { font-style: normal; font-size: 9px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; color: var(--ac); }
+  @media (max-width: 520px) { .modes { grid-template-columns: 1fr; } }
+
+  .sum { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; margin-bottom: 14px; }
+  .stat { background: var(--s2); border: 1px solid var(--hair); border-radius: 6px; padding: 10px 12px; }
+  .stat .k { font-size: 9px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--txm); }
+  .stat .v { font-size: 20px; font-weight: 500; color: var(--tx); margin-top: 2px; }
+  .stat.pos .v { color: var(--acl); } .stat.neg .v { color: var(--red); }
+  details { border-top: 1px solid var(--hair); }
+  details:last-of-type { border-bottom: 1px solid var(--hair); }
+  summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 10px; padding: 12px 2px; color: var(--tx); font-weight: 600; }
   summary::-webkit-details-marker { display: none; }
-  summary::after { content: '+'; color: var(--faint); } details[open] summary::after { content: '−'; }
-  details ul { margin: 8px 0 6px; padding-left: 18px; color: var(--muted); }
-  details li { margin: 3px 0; } details li span { color: var(--faint); font-size: 13px; font-variant-numeric: tabular-nums; }
-  .none { color: var(--muted); }
+  summary .n { color: var(--txm); font-weight: 500; }
+  summary svg { width: 14px; height: 14px; margin-left: auto; color: var(--txm); transition: transform .2s ease; }
+  details[open] summary svg { transform: rotate(180deg); }
+  summary:focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; border-radius: 4px; }
+  details ul { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  details li { display: flex; gap: 10px; justify-content: space-between; padding: 6px 10px; border-radius: 4px; background: var(--s2); }
+  details li span { color: var(--txd); min-width: 0; overflow-wrap: anywhere; }
+  details li small { color: var(--txm); font-size: 12px; white-space: nowrap; }
+  .none { color: var(--txd); padding: 14px; border-radius: 6px; background: var(--s2); border: 1px solid var(--hair); }
+  .note { margin-top: 14px; font-size: 12px; color: var(--txm); }
+  .note.warn { color: var(--gold); }
 
-  .bar { position: fixed; left: 0; right: 0; bottom: 0; background: color-mix(in srgb, var(--bg) 88%, transparent);
-         backdrop-filter: blur(10px); border-top: 1px solid var(--line); }
-  .bar div { max-width: 720px; margin: 0 auto; padding: 14px 16px; display: flex; gap: 12px; align-items: center; justify-content: space-between; }
-  .bar small { color: var(--muted); }
-  @media (max-width: 520px) { .seg { grid-template-columns: 1fr; } main { padding-top: 32px; } }
+  /* ── Done ─────────────────────────────────────────────────────────────── */
+  .done { border-color: color-mix(in srgb, var(--grn) 40%, var(--hair)); }
+  .done h2 { margin: 0 0 6px; font: 700 17px Manrope, Inter, sans-serif; color: var(--grn); }
+  .done p { margin: 0 0 14px; color: var(--txd); }
+  .acts { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  /* ── Action bar ───────────────────────────────────────────────────────── */
+  .bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 94%, transparent);
+         backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-top: 1px solid var(--hair);
+         max-width: 2000px; margin: 0 auto; }
+  .bar > div { max-width: 1120px; margin: 0 auto; display: flex; align-items: center; gap: 14px;
+               padding: 12px max(16px, env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+  .bar small { color: var(--txm); font-size: 12px; flex: 1; min-width: 0; }
+  .bar .btn { min-height: 44px; padding: 0 22px; }
+  @media (max-width: 520px) { .bar small { display: none; } .bar .btn { flex: 1; } }
+
+  /* ── Dialog ───────────────────────────────────────────────────────────── */
+  .dlg { position: fixed; inset: 0; z-index: 20; background: rgba(0,0,0,.62); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+         display: grid; place-items: center; padding: 16px; }
+  .dlg > div { width: min(440px, 100%); background: var(--s1); border: 1px solid var(--hair); border-radius: 8px; padding: 20px; }
+  .dlg h3 { margin: 0 0 8px; font: 800 11px Manrope, Inter, sans-serif; letter-spacing: 1.8px; text-transform: uppercase; color: var(--acl); }
+  .dlg p { margin: 0 0 18px; color: var(--txd); white-space: pre-line; }
+  .dlg .acts { justify-content: flex-end; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
 <script src="backup.js"></script>
 <script src="backup-merge.js"></script>
 </head>
 <body>
-<main>
-  <header>
-    <h1>Restore TaskHubs</h1>
-    <p>Put Tony's and Veda's TaskHubs back to a backup. Nothing changes until you press Restore.</p>
+<div class="wrap">
+  <header class="top">
+    <a class="back" id="back" href="index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>TaskHub</a>
+    <div class="title">
+      <h1><span class="a1-app-ic" data-a1-app="taskhub"></span>Restore</h1>
+      <p>Put a TaskHub back to an earlier backup. Nothing changes until you confirm.</p>
+    </div>
+    <div class="seg" id="tabs" role="group" aria-label="Whose TaskHub">
+      <button type="button" data-doc="main" aria-pressed="true">Tony</button>
+      <button type="button" data-doc="vedasdash" aria-pressed="false">Veda</button>
+    </div>
   </header>
 
+  <section class="card" id="stcard">
+    <div id="st" class="busy"><i class="dot"></i><div style="flex:1;min-width:0"><div class="txt">Starting…</div><div class="prog" id="prog" hidden><i></i></div></div></div>
+  </section>
+
   <section class="card" id="passcard" hidden>
-    <p class="label">Passphrase</p>
-    <form id="pf" hidden>
-      <p>Type Tony's or Veda's backup passphrase. Either one restores both TaskHubs. It is only used on this page and never saved.</p>
-      <input id="pw" type="password" autocomplete="off" placeholder="Backup passphrase">
-      <button>Open backups</button>
+    <p class="ptitle">Passphrase</p>
+    <p class="lead">Type Tony’s or Veda’s backup passphrase. Either one can restore either TaskHub. It is used on this page only and never saved.</p>
+    <form id="pf">
+      <input id="pw" type="password" autocomplete="off" placeholder="Backup passphrase" aria-label="Backup passphrase">
+      <button class="btn primary" type="submit">Open backups</button>
     </form>
   </section>
 
-  <div id="st"></div>
+  <section class="card done" id="done" hidden></section>
+  <section class="card undo" id="undo" hidden></section>
 
-  <div id="choices" hidden>
+  <div class="grid" id="main" hidden>
     <section class="card">
-      <p class="label">Restore from</p>
-      <div class="backups" id="backups"></div>
+      <p class="ptitle">Backups<span class="aside" id="tlaside"></span></p>
+      <div class="tl" id="tl" role="list"></div>
+      <p class="note">Newest first. <span id="otherpass"><button class="linkbtn" type="button" id="otherbtn">Use a different passphrase</button> to see more devices.</span></p>
     </section>
-    <section class="card">
-      <p class="label">How</p>
-      <div class="seg">
-        <label class="opt"><input type="radio" name="mode" value="merge" checked><span class="t">Merge</span>
-          <span class="s">The backup, plus anything done since it. Recommended.</span></label>
-        <label class="opt"><input type="radio" name="mode" value="rollback"><span class="t">Full rollback</span>
-          <span class="s">Exactly as the backup was. Later changes are dropped.</span></label>
-      </div>
-      <p class="label" style="margin-top:18px">Which TaskHubs</p>
-      <div class="who" id="who"></div>
-    </section>
+    <section class="card" id="plan"></section>
   </div>
+</div>
 
-  <div id="plan"></div>
-</main>
-<div class="bar" id="bar" hidden><div><small id="barnote"></small><button id="go">Restore</button></div></div>
+<div class="bar" id="bar" hidden><div><small id="barnote"></small><button class="btn primary" id="go" type="button">Restore</button></div></div>
+<div class="dlg" id="dlg" hidden role="dialog" aria-modal="true" aria-labelledby="dlgh"><div>
+  <h3 id="dlgh"></h3><p id="dlgp"></p>
+  <div class="acts"><button class="btn" type="button" id="dlgno">Cancel</button><button class="btn primary" type="button" id="dlgyes">Restore</button></div>
+</div></div>
 
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js';
-import { initializeAppCheck, ReCaptchaV3Provider } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js';
+import { initializeAppCheck, ReCaptchaV3Provider, getToken } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-app-check.js';
 import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js';
 import { getFirestore, doc, getDocFromServer, setDoc } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js';
 
 const $ = (id) => document.getElementById(id);
-const st = $('st'), plan = $('plan'), go = $('go');
-const say = (t, cls) => { st.textContent = t; st.className = cls || ''; };
-const DOCS = [['main', 'Tony'], ['vedasdash', 'Veda']];
-const when = (ms) => new Date(ms).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const KNOWN = { 'android-no8fj5': 'Tony’s phone', 'pc-1cw70x': 'Tony’s PC (Brave)' };
-const devName = (d) => KNOWN[d] || ({ android: 'Android phone', iphone: 'iPhone', pc: 'PC', mac: 'Mac' }[d.split('-')[0]] || 'Device') + ' · ' + d.split('-').pop();
+const WORKER = 'https://index-backups.av1-2.workers.dev';
+const DOCS = { main: 'Tony', vedasdash: 'Veda' };
+const LISTS = ['goals', 'monthlyGoals', 'habits', 'rules', 'rulesDaily'];
+const qs = new URLSearchParams(location.search);
+let CUR = qs.get('profile') === 'veda' ? 'vedasdash' : 'main';
+const HERE = (() => { try { return qs.get('device') || A1Backup.device(); } catch (e) { return qs.get('device') || ''; } })();
+const CHEV = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
 
-// Same project, config and App Check key as index.html.
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const time = (ms) => new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+const when = (ms) => new Date(ms).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+const dayKey = (ms) => { const d = new Date(ms); return d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(); };
+function dayLabel(ms) {
+  const k = dayKey(ms), now = Date.now();
+  if (k === dayKey(now)) return 'Today';
+  if (k === dayKey(now - 86400000)) return 'Yesterday';
+  return new Date(ms).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+}
+const KNOWN = { 'android-no8fj5': 'Tony’s phone', 'pc-1cw70x': 'Tony’s PC' };
+function devName(d) {
+  if (d === HERE) return 'This device';
+  if (KNOWN[d]) return KNOWN[d];
+  const kind = { android: 'Android', iphone: 'iPhone', pc: 'PC', mac: 'Mac', ipad: 'iPad' }[String(d).split('-')[0]] || 'Device';
+  return kind + ' ' + String(d).split('-').pop().slice(0, 4);
+}
+const dayName = (k) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(k); return m ? new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }) : k; };
+const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
+
+// Run `fn` over `xs`, at most `n` at a time.
+async function pool(xs, n, fn) {
+  let i = 0;
+  await Promise.all(Array.from({ length: Math.min(n, xs.length) }, async () => { while (i < xs.length) { const x = xs[i++]; await fn(x); } }));
+}
+
+// ── Firebase (same project, config and App Check key as index.html) ────────
 const app = initializeApp({
   apiKey: 'AIzaSyC2aKunOKj5WS8NpgZhpyMzOYecBr5t2_4',
   authDomain: 'task-dashboard-d2b53.firebaseapp.com',
   projectId: 'task-dashboard-d2b53',
   appId: '1:982539604706:web:e93da1aef499fcee2044bb'
 });
-initializeAppCheck(app, { provider: new ReCaptchaV3Provider('6LeUyAstAAAAAEciRypd1i4Akq6ueFUYfXLaLaUX'), isTokenAutoRefreshEnabled: true });
+const appCheck = initializeAppCheck(app, { provider: new ReCaptchaV3Provider('6LeUyAstAAAAAEciRypd1i4Akq6ueFUYfXLaLaUX'), isTokenAutoRefreshEnabled: true });
 const db = getFirestore(app);
+const ref = (p) => doc(db, 'dashboards/' + p);
+const readDoc = async (p) => { const s = await getDocFromServer(ref(p)); return (s && s.data && s.data()) || null; };
+async function acHeaders() {
+  try { const t = await getToken(appCheck, false); return t && t.token ? { 'X-Firebase-AppCheck': t.token } : {}; } catch (e) { return {}; }
+}
 
-// Snapshots from the repo copy (Index Backups/, filled by tools/pull-backups.mjs)
-// that `dec` can open: each device's newest one plus its last 7 daily ones, so a
-// browser with no local vault still has older states to find the reset point in.
-// Every snapshot holds BOTH TaskHubs, so either person's passphrase restores both.
-async function repoSnapshots(dec) {
-  const base = 'Index%20Backups/', out = [], objs = {};
-  const getJson = async (u) => { const r = await fetch(u, { cache: 'no-store' }); if (!r.ok) throw new Error(r.status); return r.json(); };
-  const idx = await getJson(base + 'index.json');
+// ── Status ──────────────────────────────────────────────────────────────────
+function say(text, cls, frac) {
+  $('stcard').hidden = !text;
+  $('st').className = cls || 'busy';
+  $('st').querySelector('.txt').textContent = text || '';
+  $('prog').hidden = frac == null;
+  if (frac != null) $('prog').firstElementChild.style.width = Math.round(Math.max(0, Math.min(1, frac)) * 100) + '%';
+}
+
+// ── Backups: snapshots (manifests) and the documents they point at ──────────
+let DEC = null;                 // envelope → plaintext
+let SNAPS = [];                 // { device, at, hashes: { main, vedasdash } }
+const LOADERS = new Map();      // hash → () => Promise<doc>
+const OBJ = new Map();          // hash → Promise<doc>
+const getObj = (h) => { if (!OBJ.has(h)) OBJ.set(h, LOADERS.get(h)()); return OBJ.get(h); };
+function addSnap(device, at, man, loader) {
+  const hashes = {};
+  for (const n of Object.keys(DOCS)) {
+    const h = man && man.docs && man.docs['dashboards/' + n];
+    if (!h) continue;
+    hashes[n] = h;
+    if (!LOADERS.has(h)) LOADERS.set(h, () => loader(h));
+  }
+  if (Object.keys(hashes).length) SNAPS.push({ device, at, hashes });
+}
+
+// 1. The worker: every device's kept snapshots. A device whose newest manifest
+//    this passphrase cannot open belongs to the other person: skipped.
+async function fromWorker() {
+  const r = await fetch(WORKER + '/index', { headers: await acHeaders(), cache: 'no-store' });
+  if (!r.ok) throw new Error('backup server answered ' + r.status);
+  const devices = Object.entries(((await r.json()) || {}).devices || {});
+  const getJ = async (p) => {
+    const x = await fetch(WORKER + p, { headers: await acHeaders(), cache: 'no-store' });
+    if (!x.ok) throw new Error(p + ' ' + x.status);
+    return x.json();
+  };
+  const loader = async (h) => JSON.parse(await DEC(await getJ('/o/' + encodeURIComponent(h))));
+  let opened = 0, done = 0, total = devices.length;
+  await Promise.all(devices.map(async ([device, info]) => {
+    const stamps = ((info.stamps && info.stamps.length) ? info.stamps.slice() : [info.at]).sort((a, b) => b - a);
+    const man = async (at) => JSON.parse(await DEC(await getJ('/s/' + encodeURIComponent(device) + '?at=' + at)));
+    let first = null;
+    try { first = await man(stamps[0]); } catch (e) {}
+    if (first) {
+      opened++;
+      addSnap(device, first.at || stamps[0], first, loader);
+      total += stamps.length - 1;
+      await pool(stamps.slice(1), 3, async (at) => {
+        try { const m = await man(at); addSnap(device, m.at || at, m, loader); } catch (e) {}
+        done++; say('Opening backups…', 'busy', done / total);
+      });
+    }
+    done++; say('Opening backups…', 'busy', done / total);
+  }));
+  return opened;
+}
+
+// 2. This browser's own vault (finer-grained: it captures on every change).
+async function fromVault() {
+  const ex = await A1Backup.exportDocs(/^dashboards\/(main|vedasdash)$/, Date.now() - 72 * 3600000);
+  for (const s of ex.snapshots) {
+    addSnap(ex.device, s.at, s, async (h) => {
+      const o = ex.objects[h];
+      if (!o || o._error) throw new Error('unreadable');
+      return o;
+    });
+  }
+  // The vault's copies are already decrypted: prefer them over a download.
+  for (const [h, o] of Object.entries(ex.objects)) if (o && !o._error) LOADERS.set(h, async () => o);
+  return ex.snapshots.length;
+}
+
+// 3. The repo copy (tools/pull-backups.mjs), only when the worker is unreachable.
+async function fromRepo() {
+  const base = 'Index%20Backups/';
+  const getJ = async (u) => { const r = await fetch(u, { cache: 'no-store' }); if (!r.ok) throw new Error(r.status); return r.json(); };
+  const idx = await getJ(base + 'index.json');
+  let opened = 0;
   for (const dev of idx.devices || []) {
     const dir = base + encodeURIComponent(dev.device) + '/';
+    const loader = async (h) => JSON.parse(await DEC(await getJ(dir + 'objects/' + h + '.enc.json')));
     const days = [String(dev.iso).slice(0, 10)];
     for (let i = 1; i <= 7; i++) days.push(new Date(dev.at - i * 86400000).toISOString().slice(0, 10));
     for (const day of [...new Set(days)]) {
       let man;
-      try { man = JSON.parse(await dec(await getJson(dir + 'snapshots/' + day + '.enc.json'))); }
-      catch (e) { if (day === days[0]) break; continue; }   // newest fails = other passphrase
-      const docs = {};
-      for (const [name] of DOCS) {
-        const h = man.docs['dashboards/' + name];
-        if (!h) continue;
-        try { docs[name] = objs[h] || (objs[h] = JSON.parse(await dec(await getJson(dir + 'objects/' + h + '.enc.json')))); } catch (e) {}
-      }
-      out.push({ device: dev.device, at: man.at || dev.at, latest: day === days[0], docs });
+      try { man = JSON.parse(await DEC(await getJ(dir + 'snapshots/' + day + '.enc.json'))); }
+      catch (e) { if (day === days[0]) break; continue; }
+      if (day === days[0]) opened++;
+      addSnap(dev.device, man.at || dev.at, man, loader);
     }
   }
+  return opened;
+}
+
+// ── States of one TaskHub: distinct documents, keyed by their savedAt ───────
+const STATES = { main: new Map(), vedasdash: new Map() };
+const LOADING = { main: null, vedasdash: null };
+const PROG = { main: null, vedasdash: null };
+const LIVE = {}, PRE = {}, RESTORED = {}, LIVEKEYS = {};
+
+function keysOf(d) {
+  const s = new Set();
+  const add = (w, a) => { if (Array.isArray(a)) a.forEach((x, i) => s.add(w + '|' + (x && x.id != null ? x.id : i))); };
+  LISTS.forEach((f) => add(f, (d || {})[f]));
+  const data = (d || {}).data || {};
+  Object.keys(data).forEach((k) => add('data/' + k, data[k]));
+  return s;
+}
+function liveMinDay(name) {
+  const ks = Object.keys((LIVE[name] || {}).data || {}).sort();
+  return ks[0] || '';
+}
+// How many of a backup's items this TaskHub no longer has. Days older than the
+// live doc's oldest day were archived (they live in the sidecars), not lost.
+function statsFor(name, st) {
+  const live = LIVEKEYS[name] || new Set(), min = liveMinDay(name), keys = keysOf(st.doc);
+  let back = 0;
+  keys.forEach((k) => {
+    if (live.has(k)) return;
+    const m = /^data\/([^|]+)\|/.exec(k);
+    if (m && m[1] < min) return;
+    back++;
+  });
+  st.items = keys.size; st.back = back;
+  st.same = st.doc.savedAt === (LIVE[name] || {}).savedAt;
+}
+function setLive(name, d) {
+  LIVE[name] = d || {};
+  LIVEKEYS[name] = keysOf(LIVE[name]);
+  STATES[name].forEach((st) => statsFor(name, st));
+  PLANS.clear();
+}
+
+function loadStates(name) {
+  if (LOADING[name]) return LOADING[name];
+  const seen = new Set(), hs = [];
+  SNAPS.slice().sort((a, b) => b.at - a.at).forEach((s) => {
+    const h = s.hashes[name];
+    if (h && !seen.has(h)) { seen.add(h); hs.push(h); }
+  });
+  let n = 0;
+  PROG[name] = { n: 0, of: hs.length };
+  let paint = 0;
+  LOADING[name] = pool(hs, 4, async (h) => {
+    try {
+      const d = await getObj(h);
+      if (d && typeof d.savedAt === 'number') {
+        const devs = SNAPS.filter((s) => s.hashes[name] === h);
+        const prev = STATES[name].get(d.savedAt);
+        const st = prev || { doc: d, devices: new Set(), captured: Infinity };
+        devs.forEach((s) => { st.devices.add(s.device); st.captured = Math.min(st.captured, s.at); });
+        if (!prev) { statsFor(name, st); STATES[name].set(d.savedAt, st); }
+      }
+    } catch (e) { /* one unreadable copy never blocks the rest */ }
+    PROG[name].n = ++n;
+    if (name === CUR && Date.now() - paint > 250) { paint = Date.now(); render(); }
+  }).then(() => { PROG[name] = null; if (name === CUR) render(); });
+  return LOADING[name];
+}
+
+// ── Selection and plan ──────────────────────────────────────────────────────
+const SEL = { main: null, vedasdash: null };       // savedAt | 'undo'
+const MODE = { main: 'merge', vedasdash: 'merge' };
+const PLANS = new Map();
+let DONE = null;                                   // { name, kind } after a write
+
+function sorted(name) { return [...STATES[name].values()].sort((a, b) => b.doc.savedAt - a.doc.savedAt); }
+function suggestion(name) { return sorted(name).find((s) => !s.same && s.back > 0) || null; }
+
+function planFor(name, st, mode) {
+  const k = name + '|' + st.doc.savedAt + '|' + mode + '|' + (LIVE[name] || {}).savedAt;
+  if (PLANS.has(k)) return PLANS.get(k);
+  const older = sorted(name).filter((s) => s.doc.savedAt < st.doc.savedAt).slice(0, 30).map((s) => s.doc);
+  const pb = A1BackupMerge.pickBase(older, LIVE[name]);
+  const r = mode === 'exact' ? A1BackupMerge.rollbackDoc(pb.base || {}, st.doc, LIVE[name])
+                             : A1BackupMerge.mergeDoc(pb.base || {}, st.doc, LIVE[name]);
+  const out = { doc: r.doc, report: r.report, base: pb.base };
+  PLANS.set(k, out);
+  return out;
+}
+// Undo = three-way merge from the state the restore wrote back to the state
+// before it, so whatever was done after the restore stays. Without the record
+// of what was written (restores made before 2026-10-19), it is an exact copy.
+function undoPlan(name) {
+  const pre = PRE[name], live = LIVE[name];
+  const k = name + '|undo|' + pre.at + '|' + live.savedAt;
+  if (PLANS.has(k)) return PLANS.get(k);
+  const base = RESTORED[name] && RESTORED[name].at === pre.at ? RESTORED[name].doc : null;
+  const r = base ? A1BackupMerge.mergeDoc(base, pre.doc, live) : A1BackupMerge.rollbackDoc({}, pre.doc, live);
+  const out = { doc: r.doc, report: r.report, exact: !base, since: base ? live.savedAt !== base.savedAt : live.savedAt !== pre.restoredSavedAt };
+  PLANS.set(k, out);
   return out;
 }
 
 const VS = (x) => / vs .+ · /.test(x.title || '');
 function preview(report) {
   const by = (op) => report.filter((x) => x.op === op);
-  const label = (x) => esc(x.title || x.where) + (x.where && x.where.startsWith('data/') ? ' <span>' + esc(x.where.slice(5)) + '</span>' : '');
   const checks = by('updated').filter((x) => x.changes && x.changes.includes('done'));
   const edits = by('updated').filter((x) => x.title && !(x.changes && x.changes.includes('done')));
   const groups = [
-    ['Brought back', by('restored')],
-    ['Check-offs changed', checks],
-    ['Edited back', edits],
-    ['Removed', by('removed')],
-    ['Re-typed copies replaced', by('dropped-copy').map((x) => Object.assign({}, x, { title: x.title + '  →  ' + x.original }))],
-    ['Kept from since the backup', by('kept-new')]
+    ['Brought back', by('restored'), 'pos'],
+    ['Removed', by('removed'), 'neg'],
+    ['Check-offs changed', checks, ''],
+    ['Edited back', edits, ''],
+    ['Re-typed copies replaced', by('dropped-copy').map((x) => Object.assign({}, x, { title: x.title + '  →  ' + x.original })), ''],
+    ['Kept from since the backup', by('kept-new'), '']
   ].filter(([, xs]) => xs.length);
-  if (!groups.length && !by('updated').some((x) => x.where === 'hc')) return '<p class="none">Already matches this backup — nothing to change.</p>';
-  const chips = groups.map(([t, xs]) => '<span class="chip"><b>' + xs.length + '</b>' + t + '</span>').join('') +
-    (by('updated').some((x) => x.where === 'hc') ? '<span class="chip">Habit check-offs</span>' : '');
+  const hc = by('updated').some((x) => x.where === 'hc');
+  if (!groups.length && !hc) return '<p class="none">Already matches — nothing would change.</p>';
+  const stats = groups.slice(0, 4).map(([t, xs, c]) => '<div class="stat ' + c + '"><div class="k">' + esc(t) + '</div><div class="v">' + xs.length + '</div></div>').join('') +
+    (hc ? '<div class="stat"><div class="k">Habit check-offs</div><div class="v">✓</div></div>' : '');
+  const where = (w) => !w ? '' : w.startsWith('data/') ? dayName(w.slice(5)) : ({ goals: 'Goals', monthlyGoals: 'Monthly goals', habits: 'Habits', rules: 'Rules', rulesDaily: 'Daily rules' }[w] || w);
   const lists = groups.map(([t, xs]) => {
     const plain = xs.filter((x) => !VS(x)), vs = xs.filter(VS);
-    const items = plain.slice(0, 60).map((x) => '<li>' + label(x) + '</li>').join('') +
-      (plain.length > 60 ? '<li>…and ' + (plain.length - 60) + ' more</li>' : '') +
-      (vs.length ? '<li>' + vs.length + ' esports match entries</li>' : '');
-    return '<details><summary>' + t + ' (' + xs.length + ')</summary><ul>' + items + '</ul></details>';
+    const items = plain.slice(0, 80).map((x) => '<li><span>' + esc(x.title || where(x.where)) + '</span><small>' + esc(x.title ? where(x.where) : '') + '</small></li>').join('') +
+      (plain.length > 80 ? '<li><span>…and ' + (plain.length - 80) + ' more</span></li>' : '') +
+      (vs.length ? '<li><span>' + plural(vs.length, 'esports match entry').replace('entrys', 'entries') + '</span></li>' : '');
+    return '<details><summary>' + esc(t) + ' <span class="n">' + xs.length + '</span>' + CHEV + '</summary><ul>' + items + '</ul></details>';
   }).join('');
-  return '<div class="chips">' + chips + '</div>' + lists;
+  return '<div class="sum">' + stats + '</div>' + lists;
 }
 
-let ALL = [], LIVE = {}, WORK = [];
-
-function choices() {
-  const id = (document.querySelector('input[name=bk]:checked') || {}).value;
-  return {
-    snap: ALL.find((s) => s.key === id),
-    mode: document.querySelector('input[name=mode]:checked').value,
-    who: [...document.querySelectorAll('input[name=who]:checked')].map((x) => x.value)
-  };
-}
-
+// ── Rendering ───────────────────────────────────────────────────────────────
 function render() {
-  const { snap, mode, who } = choices();
-  WORK = [];
-  plan.innerHTML = '';
-  if (!snap) return;
-  for (const [name, person] of DOCS) {
-    const g = snap.docs[name];
-    if (!g || !who.includes(name)) continue;
-    const live = LIVE[name];
-    const cands = ALL.map((s) => s.docs[name]).filter((d) => d && d.savedAt < g.savedAt);
-    const pb = A1BackupMerge.pickBase(cands, live);
-    const r = mode === 'rollback' ? A1BackupMerge.rollbackDoc(pb.base || {}, g, live) : A1BackupMerge.mergeDoc(pb.base || {}, g, live);
-    WORK.push({ name, who: person, live, merged: r.doc });
-    plan.insertAdjacentHTML('beforeend', '<section class="card doc"><h2>' + person + '’s TaskHub</h2><div class="meta">Backup saved ' +
-      esc(when(g.savedAt)) + (mode === 'merge' && pb.base ? ' · currently matches the ' + esc(when(pb.base.savedAt)) + ' state' : '') +
-      '</div>' + preview(r.report) + '</section>');
-  }
-  $('bar').hidden = !WORK.length;
-  go.disabled = !WORK.length;
-  go.textContent = mode === 'rollback' ? 'Roll back ' + (WORK.length === 2 ? 'both' : WORK[0] ? WORK[0].who + '’s' : '') : 'Restore ' + (WORK.length === 2 ? 'both TaskHubs' : WORK[0] ? WORK[0].who + '’s TaskHub' : '');
-  $('barnote').textContent = 'The current state is saved first, so this can be undone.';
+  document.querySelectorAll('#tabs button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.doc === CUR)));
+  document.title = 'Restore · ' + DOCS[CUR] + '’s TaskHub';
+  renderDone(); renderUndo(); renderTimeline(); renderPlan();
 }
 
-// `pass` = a typed passphrase (kept in memory only); null = this browser's saved one.
-async function run(pass) {
+function renderDone() {
+  const el = $('done');
+  if (!DONE || DONE.name !== CUR) { el.hidden = true; return; }
+  el.hidden = false;
+  const undo = DONE.kind === 'undo';
+  el.innerHTML = '<h2>' + (undo ? 'Restore undone' : 'Restored') + '</h2>' +
+    '<p>' + esc(DOCS[CUR]) + '’s TaskHub is updated. Open TaskHub on your devices: they pick it up within seconds (reload one that was offline).' +
+    ' The state before this is kept, so this can be ' + (undo ? 'redone' : 'undone') + ' below.</p>' +
+    '<div class="acts"><a class="btn primary" href="index.html">Open TaskHub</a></div>';
+}
+
+function renderUndo() {
+  const el = $('undo'), pre = PRE[CUR];
+  if (!pre || !pre.doc || !LIVE[CUR]) { el.hidden = true; return; }
+  el.hidden = false;
+  const undo = pre.kind === 'undo', on = SEL[CUR] === 'undo';
+  el.setAttribute('aria-current', String(on));
+  el.innerHTML = '<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></span>' +
+    '<div class="tx"><b>' + (undo ? 'Last restore was undone ' : 'Last restore ') + esc(when(pre.at)) + '</b><span>' +
+    (undo ? 'Redo puts back what that restore wrote.' : 'Undo puts ' + esc(DOCS[CUR]) + '’s TaskHub back to how it was just before' + (pre.from ? ' (it was restored to ' + esc(when(pre.from)) + ')' : '') + '.') +
+    '</span></div><button class="btn warn" type="button" id="undobtn">' + (on ? 'Showing below' : undo ? 'Review redo' : 'Review undo') + '</button>';
+  $('undobtn').onclick = () => { SEL[CUR] = 'undo'; render(); scrollToPlan(); };
+}
+
+function renderTimeline() {
+  const name = CUR, list = sorted(name), p = PROG[name];
+  $('tlaside').textContent = p ? 'Reading ' + p.n + ' of ' + p.of + '…' : plural(list.length, 'version');
+  if (SEL[name] == null && !p && list.length) {
+    const want = qs.get('good');
+    const g = want && list.find((s) => s.devices.has(want));
+    SEL[name] = (g || suggestion(name) || list[0]).doc.savedAt;
+  }
+  const sug = p ? null : suggestion(name);
+  let html = '', day = '';
+  for (const st of list) {
+    const d = dayLabel(st.doc.savedAt);
+    if (d !== day) { day = d; html += '<div class="day">' + esc(d) + '</div>'; }
+    const tags = (st === sug ? '<span class="tag sug">Suggested</span>' : '') +
+      (st.same ? '<span class="tag same">Current</span>' : st.back ? '<span class="tag back">+' + st.back + ' back</span>' : '<span class="tag">No losses</span>');
+    html += '<button class="row" type="button" role="listitem" data-k="' + st.doc.savedAt + '" aria-pressed="' + (SEL[name] === st.doc.savedAt) + '">' +
+      '<span class="t">' + esc(time(st.doc.savedAt)) + '</span>' +
+      '<span class="m"><b>' + plural(st.items, 'item') + '</b><span>' + esc([...st.devices].map(devName).join(', ')) + '</span></span>' +
+      '<span class="tags">' + tags + '</span></button>';
+  }
+  if (!list.length) html = '<p class="none">' + (p ? 'Reading backups…' : 'No backups of ' + esc(DOCS[name]) + '’s TaskHub open with this passphrase.') + '</p>';
+  const tl = $('tl'), top = tl.scrollTop;
+  tl.innerHTML = html;
+  tl.scrollTop = top;
+  tl.querySelectorAll('.row').forEach((b) => b.addEventListener('click', () => {
+    SEL[name] = Number(b.dataset.k); render();
+    if (matchMedia('(max-width: 900px)').matches) scrollToPlan();
+  }));
+}
+
+function scrollToPlan() { $('plan').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+
+let WORK = null;   // what Restore would write: { name, kind, doc, meta, label }
+function renderPlan() {
+  const name = CUR, el = $('plan'), sel = SEL[name];
+  WORK = null;
+  if (sel === 'undo' && PRE[name]) {
+    const pre = PRE[name], u = undoPlan(name), redo = pre.kind === 'undo';
+    el.innerHTML = '<p class="ptitle">' + (redo ? 'Redo' : 'Undo') + ' the last restore</p>' +
+      '<h2 class="plan-h">Back to ' + esc(when(pre.doc.savedAt || pre.at)) + '</h2>' +
+      '<p class="plan-m">The state from just before the ' + (redo ? 'undo' : 'restore') + ' on ' + esc(when(pre.at)) + '.</p>' +
+      preview(u.report) +
+      (u.since ? '<p class="note ' + (u.exact ? 'warn' : '') + '">' + (u.exact
+        ? esc(DOCS[name]) + '’s TaskHub changed after that restore, and this older restore did not record what it wrote, so those later changes are undone too.'
+        : 'Changes made after the restore are kept.') + '</p>' : '') +
+      '<p class="note"><button class="linkbtn" type="button" id="backto">Back to the backups</button></p>';
+    $('backto').onclick = () => { SEL[name] = null; render(); };
+    WORK = { name, kind: redo ? 'restore' : 'undo', doc: u.doc, changes: u.report.length,
+             meta: { from: pre.doc.savedAt || null, mode: u.exact ? 'exact' : 'merge' },
+             label: redo ? 'Redo restore' : 'Undo restore',
+             ask: (redo ? 'Redo' : 'Undo') + ' the restore of ' + DOCS[name] + '’s TaskHub?' };
+  } else {
+    const st = STATES[name].get(sel);
+    if (!st) {
+      el.innerHTML = '<p class="ptitle">What changes</p><p class="none">' + (PROG[name] ? 'Reading backups…' : 'Pick a backup on the left to see what it would change.') + '</p>';
+    } else {
+      const mode = MODE[name], p = planFor(name, st, mode);
+      el.innerHTML = '<p class="ptitle">What changes</p>' +
+        '<h2 class="plan-h">' + esc(when(st.doc.savedAt)) + '</h2>' +
+        '<p class="plan-m">' + esc(DOCS[name]) + '’s TaskHub as it was then · ' + plural(st.items, 'item') +
+        (mode === 'merge' && p.base ? ' · TaskHub now looks like ' + esc(when(p.base.savedAt)) : '') + '</p>' +
+        '<div class="modes">' +
+          '<label class="mode"><input type="radio" name="mode" value="merge"' + (mode === 'merge' ? ' checked' : '') + '><b>Merge <em>Recommended</em></b><span>The backup, plus anything done since it.</span></label>' +
+          '<label class="mode"><input type="radio" name="mode" value="exact"' + (mode === 'exact' ? ' checked' : '') + '><b>Exact copy</b><span>Exactly as it was. Later changes are dropped.</span></label>' +
+        '</div>' + preview(p.report);
+      el.querySelectorAll('input[name=mode]').forEach((r) => r.addEventListener('change', () => { MODE[name] = r.value; render(); }));
+      if (!st.same) WORK = { name, kind: 'restore', doc: p.doc, changes: p.report.length,
+        meta: { from: st.doc.savedAt, mode },
+        label: 'Restore ' + DOCS[name] + '’s TaskHub',
+        ask: 'Restore ' + DOCS[name] + '’s TaskHub to ' + when(st.doc.savedAt) + '?' };
+    }
+  }
+  const show = !!WORK && WORK.changes > 0;
+  $('bar').hidden = !show;
+  if (show) {
+    $('go').textContent = WORK.label;
+    $('go').disabled = false;
+    $('barnote').textContent = 'What it is now is saved first, so this can be undone.';
+  }
+}
+
+// ── Writing ─────────────────────────────────────────────────────────────────
+function confirmDlg(title, text, yes) {
+  return new Promise((res) => {
+    $('dlgh').textContent = title; $('dlgp').textContent = text; $('dlgyes').textContent = yes;
+    $('dlg').hidden = false; $('dlgyes').focus();
+    const end = (v) => { $('dlg').hidden = true; document.removeEventListener('keydown', key); res(v); };
+    const key = (e) => { if (e.key === 'Escape') end(false); };
+    document.addEventListener('keydown', key);
+    $('dlgno').onclick = () => end(false); $('dlgyes').onclick = () => end(true);
+    $('dlg').onclick = (e) => { if (e.target === $('dlg')) end(false); };
+  });
+}
+
+async function commit(w) {
+  // Someone edited since this page read it: re-plan against the new state and
+  // let the person look again, rather than write a plan made for an old one.
+  const now = await readDoc(w.name) || {};
+  if ((now.savedAt || 0) !== (LIVE[w.name].savedAt || 0)) {
+    setLive(w.name, now);
+    render();
+    throw new Error(DOCS[w.name] + '’s TaskHub changed while this page was open. The preview is updated: check it and press again.');
+  }
+  const at = Date.now();
+  const out = Object.assign({}, w.doc, { savedAt: at });
+  const pre = Object.assign({ at, kind: w.kind, doc: LIVE[w.name], restoredSavedAt: at, by: HERE || null }, w.meta);
+  await setDoc(ref(w.name + '_prerestore'), pre);
+  await setDoc(ref(w.name + '_restored'), { at, doc: out });
+  await setDoc(ref(w.name), out);
+  PRE[w.name] = pre; RESTORED[w.name] = { at, doc: out };
+  setLive(w.name, out);
+}
+
+$('go').onclick = async () => {
+  const w = WORK;
+  if (!w) return;
+  const ok = await confirmDlg(w.label, w.ask + '\n\n' + (w.kind === 'undo' ? 'The restored state is kept, so you can redo it.' : 'What it holds now is kept, so you can undo this.'), w.label);
+  if (!ok) return;
+  $('go').disabled = true;
+  say('Writing…', 'busy');
   try {
-    say('Opening backups…');
-    await signInAnonymously(getAuth(app));
-    const dec = pass ? (env) => A1Backup._internals.decryptEnvWith(env, pass) : A1Backup._internals.decryptEnv;
-
-    const repo = await repoSnapshots(dec);
-    let local = [];
-    if (!pass) {
-      const ex = await A1Backup.exportDocs(null, Date.now() - 72 * 3600000);
-      local = ex.snapshots.map((s) => ({ device: ex.device, at: s.at, docs: Object.fromEntries(
-        DOCS.map(([n]) => [n, ex.objects[s.docs['dashboards/' + n]]]).filter(([, v]) => v)) }));
-    }
-    if (!repo.length && !local.length) {
-      $('passcard').hidden = false; $('pf').hidden = false;
-      return say(pass ? 'That passphrase did not open any backup. Check it, or try the other person’s.'
-                      : 'This browser’s saved passphrase did not open any backup.', 'bad');
-    }
-    $('passcard').hidden = true;
-
-    for (const [name] of DOCS) LIVE[name] = (await getDocFromServer(doc(db, 'dashboards/' + name))).data();
-
-    // One option per distinct state (same saved times = same backup), newest first.
-    const seen = new Set();
-    ALL = repo.concat(local).filter((s) => {
-      const k = DOCS.map(([n]) => (s.docs[n] || {}).savedAt).join('|');
-      s.key = k;
-      if (seen.has(k)) return false; seen.add(k); return true;
-    }).sort((a, b) => Math.max(...DOCS.map(([n]) => (b.docs[n] || {}).savedAt || 0)) - Math.max(...DOCS.map(([n]) => (a.docs[n] || {}).savedAt || 0)));
-
-    const want = new URLSearchParams(location.search).get('good');
-    const pick = (want && ALL.find((s) => s.device === want && s.latest)) || ALL[0];
-    $('backups').innerHTML = ALL.slice(0, 40).map((s, i) => '<label class="opt"><input type="radio" name="bk" value="' + esc(s.key) + '"' +
-      (s === pick ? ' checked' : '') + '><span><span class="t">' + esc(devName(s.device)) + (i === 0 ? '<span class="newest">NEWEST</span>' : '') +
-      '</span><br><span class="s">' + DOCS.map(([n, p]) => p + ' ' + (s.docs[n] ? esc(when(s.docs[n].savedAt)) : '—')).join(' · ') + '</span></span></label>').join('');
-    $('who').innerHTML = DOCS.map(([n, p]) => '<label class="opt"><input type="checkbox" name="who" value="' + n + '" checked> ' + p + '</label>').join('');
-    $('choices').hidden = false;
-    document.querySelectorAll('#choices input').forEach((el) => el.addEventListener('change', render));
+    await commit(w);
+    DONE = { name: w.name, kind: w.kind };
+    SEL[w.name] = null;
     say('');
     render();
-  } catch (e) { say('Could not open the backups: ' + (e && e.message || e), 'bad'); }
-}
-
-go.onclick = async () => {
-  go.disabled = true; say('Restoring…');
-  try {
-    for (const w of WORK) {
-      // Refuse if someone edited since this page read it — the plan would be stale.
-      const now = (await getDocFromServer(doc(db, 'dashboards/' + w.name))).data();
-      if (now.savedAt !== w.live.savedAt) throw new Error(w.who + '’s TaskHub changed while this page was open. Reload this page and try again.');
-      await setDoc(doc(db, 'dashboards/' + w.name + '_prerestore'), { at: Date.now(), doc: w.live });
-      await setDoc(doc(db, 'dashboards/' + w.name), Object.assign({}, w.merged, { savedAt: Date.now() }));
-    }
-    say('Restored. Reload TaskHub on every device. The previous state was saved to dashboards/' +
-        WORK.map((w) => w.name + '_prerestore').join(' and ') + '.', 'ok');
-    $('bar').hidden = true; $('choices').hidden = true;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     window.__restored = Date.now();
-  } catch (e) { say('Restore failed: ' + (e && e.message || e) + '\nNothing after this point was written.', 'bad'); go.disabled = false; }
+  } catch (e) {
+    say(String(e && e.message || e) + (/changed while/.test(String(e && e.message)) ? '' : '\nNothing was changed.'), 'bad');
+    $('go').disabled = false;
+  }
 };
 
-// A saved passphrase is used straight away; otherwise ask for either person's.
+// ── Opening ─────────────────────────────────────────────────────────────────
+async function open(pass) {
+  say('Opening backups…', 'busy');
+  $('passcard').hidden = true;
+  DEC = pass ? (env) => A1Backup._internals.decryptEnvWith(env, pass) : A1Backup._internals.decryptEnv;
+  SNAPS = []; LOADERS.clear(); OBJ.clear(); PLANS.clear();
+  for (const n of Object.keys(DOCS)) { STATES[n] = new Map(); LOADING[n] = null; PROG[n] = null; SEL[n] = null; }
+  try {
+    await signInAnonymously(getAuth(app));
+    let opened = 0, workerErr = null;
+    try { opened += await fromWorker(); } catch (e) { workerErr = e; }
+    if (!pass) { try { opened += (await fromVault()) ? 1 : 0; } catch (e) {} }
+    if (workerErr) { try { opened += await fromRepo(); } catch (e) {} }
+    if (!SNAPS.length) {
+      $('passcard').hidden = false;
+      $('pw').focus();
+      return say(workerErr && !opened ? 'Could not reach the backups (' + (workerErr.message || workerErr) + '). Check the connection and reload.'
+        : pass ? 'That passphrase did not open any backup. Check it, or try the other person’s.'
+               : 'This browser’s saved passphrase did not open any backup. Type one below.', 'bad');
+    }
+    say('Reading ' + DOCS[CUR] + '’s TaskHub…', 'busy');
+    const [m, v, pm, pv, rm, rv] = await Promise.all(['main', 'vedasdash', 'main_prerestore', 'vedasdash_prerestore', 'main_restored', 'vedasdash_restored'].map(readDoc));
+    setLive('main', m); setLive('vedasdash', v);
+    PRE.main = pm; PRE.vedasdash = pv; RESTORED.main = rm; RESTORED.vedasdash = rv;
+    $('otherpass').hidden = !!pass;
+    $('main').hidden = false;
+    say(workerErr ? 'The backup server could not be reached, so only older copies are listed.' : '', workerErr ? 'bad' : 'ok');
+    render();
+    loadStates(CUR).then(() => { for (const n of Object.keys(DOCS)) loadStates(n); });
+  } catch (e) {
+    say('Could not open the backups: ' + (e && e.message || e), 'bad');
+  }
+}
+
+document.querySelectorAll('#tabs button').forEach((b) => b.addEventListener('click', () => {
+  if (CUR === b.dataset.doc) return;
+  CUR = b.dataset.doc;
+  try { history.replaceState(null, '', '?' + new URLSearchParams(Object.assign(Object.fromEntries(qs), { profile: CUR === 'vedasdash' ? 'veda' : 'tony' }))); } catch (e) {}
+  if (!$('main').hidden) loadStates(CUR);
+  render();
+}));
+$('back').addEventListener('click', (e) => {
+  // Came from TaskHub: go back to it rather than stacking a second copy.
+  if (history.length > 1 && /index\.html|\/A1\/?$|\/$/.test(document.referrer)) { e.preventDefault(); history.back(); }
+});
+$('otherbtn').onclick = () => { $('passcard').hidden = false; $('pw').focus(); };
 $('pf').onsubmit = (e) => {
   e.preventDefault();
   const pw = $('pw'), pass = pw.value;
   pw.value = '';
-  if (pass) run(pass);
+  if (pass) open(pass);
 };
-if (A1Backup.isSetUp()) run(null);
-else { $('passcard').hidden = false; $('pf').hidden = false; }
+
+render();
+if (A1Backup.isSetUp()) open(null);
+else { say(''); $('passcard').hidden = false; }
 </script>
 </body>
 </html>
