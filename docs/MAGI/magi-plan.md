@@ -13,11 +13,15 @@
 Tony wants magi.html to work on the phones with the PC off -- same accounts,
 history and sync -- and runs that finish with the browser closed. Agreed: the
 existing engine on a free always-on Oracle VM, Code Mode on GitHub repos
-there, Tony first. **Next phase: M0** (feasibility, go/no-go per unit),
-**waiting on Tony**: he creates the Oracle Cloud account and an OCI API key
-([magi-cloud-setup.md](magi-cloud-setup.md) "Step 1 -- Tony"). When he says
-it's done, do M0 from that runbook, record the per-unit table there, then
-rewrite this paragraph. Nothing is built yet; nothing is half-built.
+there, Tony first. **ON HOLD (Tony, 2026-10-19: "I'll think about it")**
+after he asked whether a server would get the browser AI accounts flagged.
+Yes, the risk rises: datacenter IP, new-location sign-ins, and the Google
+account behind Gemini being the costliest to lose. He was offered three
+options: (1) an always-on box at home (recommended; about $80-100 once),
+(2) Oracle with the main Google and Claude Pro accounts kept PC-only, and
+(3) the plan as written. Don't push the Oracle sign-up; wait for his pick,
+then adjust Track M and [magi-cloud-setup.md](magi-cloud-setup.md).
+Nothing is built yet; nothing is half-built.
 
 **Last updated:** 2026-10-08 (evening): **Track W COMPLETE.** W3 (Problems)
 was finished and live-tested on Veda's PC after Tony's session hit its limit

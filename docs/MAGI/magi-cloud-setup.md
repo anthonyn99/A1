@@ -5,8 +5,10 @@ already runs onto an always-on free Oracle Cloud VM, so `magi.html` works on
 the phones with the PC off. It's written for the Claude session that does the
 work. Tony only does Step 1.
 
-**Status (2026-10-19):** Step 1 is waiting on Tony. Nothing has been
-provisioned yet.
+**Status (2026-10-19): ON HOLD.** Tony is deciding between a home box, Oracle
+with the main accounts kept PC-only, and this plan as written (the account-risk
+question; see [magi-plan.md](magi-plan.md) §0). Nothing has been provisioned,
+and no account has signed in from a server.
 
 ---
 
