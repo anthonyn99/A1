@@ -8522,13 +8522,16 @@ function TgScrollBox(props){
   }
 
   const pad=props.trackInset||6;
+  // Tony's side: scrollbar.js already draws the one A1 bar on this scroller, so
+  // this older thumb stands down (Veda's side, where it is off, keeps this one).
+  const oneBar=!!(window.A1Scrollbar&&window.A1Scrollbar.active&&window.A1Scrollbar.active());
   return React.createElement("div",{style:{position:"relative",flex:1,minHeight:0,display:"flex",flexDirection:"column"}},
     React.createElement("div",{ref:boxRef,onScroll:function(){ sync(); wake(); },className:"tg-scrollbox",
       style:Object.assign({flex:1,minHeight:0,overflowY:"auto",overscrollBehavior:"contain",WebkitOverflowScrolling:"touch",scrollbarWidth:"none"},props.style||{})},
       props.children),
     // No track of its own: an invisible hit strip with a slim thumb floating on
     // the page background. Still click-to-jump and drag with mouse or finger.
-    React.createElement("div",{ref:trackRef,onPointerDown:onTrackDown,
+    !oneBar&&React.createElement("div",{ref:trackRef,onPointerDown:onTrackDown,
       onMouseEnter:function(){ hovRef.current=true; if(sb.show) setAct(true); },
       onMouseLeave:function(){ hovRef.current=false; wake(); },
       style:{position:"absolute",top:pad,bottom:pad,right:2,width:14,
