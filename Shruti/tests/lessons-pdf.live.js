@@ -76,6 +76,7 @@ async function download(c, sel) {
     if (f) { await sleep(300); return { name: f, data: new TextDecoder('windows-1252').decode(fs.readFileSync(path.join(DL, f))) }; }
     await sleep(150);
   }
+  console.log('   no PDF; folder has', fs.readdirSync(DL), await ev(c, `const b=document.querySelector('#ls-pdf'); return b && b.textContent + ' ' + b.title`));
   return null;
 }
 // jsPDF writes text uncompressed: "(…) Tj". Joined, a wrapped title reads whole again.
