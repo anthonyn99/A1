@@ -1,0 +1,93 @@
+{
+  "v": 1,
+  "book": "gita",
+  "n": 14,
+  "title": "Three modes (Gunas) of nature",
+  "hosts": [
+    { "id": "A", "name": "Ava", "voice": "en-US-AvaMultilingualNeural" },
+    { "id": "B", "name": "Andrew", "voice": "en-US-AndrewMultilingualNeural" }
+  ],
+  "segments": [
+    {
+      "title": "Welcome",
+      "turns": [
+        { "s": "A", "t": "Welcome to Shruti. I'm Ava." },
+        { "s": "B", "t": "And I'm Andrew. Today, Chapter Fourteen: the Three Modes, the Gunas, of Nature." },
+        { "s": "A", "t": "The gunas have come up again and again. This chapter finally explains them properly. And once you understand them, you start noticing them everywhere, in your moods, your habits, even your sleep." },
+        { "s": "B", "t": "Five lessons. Story first." }
+      ]
+    },
+    {
+      "title": "The story",
+      "turns": [
+        { "s": "A", "t": "Krishna opens, fourteen point one: I shall further explain that supreme knowledge, the best of all knowledge, knowing which all the sages have attained supreme perfection." },
+        { "s": "B", "t": "Then the origin of life, fourteen point three: My material Nature is the womb of creation, wherein I place the seed of consciousness from which all beings are born.", "L": ["L1"] },
+        { "s": "A", "t": "Fourteen point four: whatever forms are produced in all wombs, material Nature is their body-giving mother, and I am the life-giving father.", "L": ["L1"] },
+        { "s": "B", "t": "Then the three. Fourteen point five: Sattva, goodness; Rajas, passion and activity; and Tamas, ignorance and inertia. These three modes of material Nature fetter the eternal soul to the body.", "L": ["L2"] },
+        { "s": "A", "t": "And our book gives the Sanskrit word's other meaning: guna also means a rope, or strand. Three ropes, braided together.", "L": ["L2"] },
+        { "s": "B", "t": "Fourteen point six: goodness is illuminating and pure. But even it binds, by attachment to happiness and knowledge.", "L": ["L2"] },
+        { "s": "A", "t": "That's the surprising part. Even goodness is a rope. A golden rope, but a rope.", "L": ["L2"] },
+        { "s": "B", "t": "Fourteen point seven: passion is intense craving, the source of desire and attachment, and binds by attachment to the fruits of work. Fourteen point eight: ignorance, born of inertia, binds by carelessness, laziness and excessive sleep.", "L": ["L2"] },
+        { "s": "A", "t": "And they compete. Fourteen point ten: goodness prevails by suppressing the other two; passion by suppressing the other two; ignorance by suppressing the other two.", "L": ["L3"] },
+        { "s": "B", "t": "How to tell which one is in charge, fourteen point eleven to thirteen. When the light of knowledge shines through all the senses, goodness is predominant. When passion dominates, greed, restless activity, selfish undertakings and excitement arise. When inertia dominates, ignorance, inactivity, carelessness and delusion arise.", "L": ["L3"] },
+        { "s": "A", "t": "You can check that against your own day. The calm, clear morning. The busy, grasping afternoon. The heavy, scrolling evening.", "L": ["L3"] },
+        { "s": "B", "t": "And they shape what comes after death, fourteen point fourteen and fifteen: one who dies when goodness dominates goes to the pure world of the knowers; when passion dominates, is reborn among those attached to action; when ignorance dominates, is reborn as a lower creature.", "L": ["L3"] },
+        { "s": "A", "t": "Fourteen point seventeen: Self-knowledge arises from goodness, greed from passion, and negligence and delusion from ignorance.", "L": ["L3"] },
+        { "s": "B", "t": "Then the way out. Fourteen point nineteen and twenty: when one sees no doer other than the three modes, and knows the Supreme beyond them, one attains liberation. Rising above the three modes, one is freed from the pains of birth, old age and death.", "L": ["L4"] },
+        { "s": "A", "t": "Arjuna asks, fourteen point twenty-one: what are the marks of one who has gone beyond them? How do they behave? And how does one get there?" },
+        { "s": "B", "t": "Krishna answers, fourteen point twenty-two and twenty-three: one who neither hates clarity, activity or delusion when they come, nor longs for them when they go; who remains like a witness, unaffected, thinking: only the modes of nature are operating.", "L": ["L4"] },
+        { "s": "A", "t": "Fourteen point twenty-four and twenty-five: to whom pain and pleasure, a clod, a stone and gold are alike; calm in praise and blame, honor and disgrace; impartial to friend and foe; who has given up the sense of doership and ownership.", "L": ["L4"] },
+        { "s": "B", "t": "And how? Not by grim effort. Fourteen point twenty-six: one who offers service to Me with love and unswerving devotion rises above the three modes and becomes fit for Nirvana.", "L": ["L5"] },
+        { "s": "A", "t": "Fourteen point twenty-seven: because I am the basis of the immortal Eternal Being, of everlasting order, and of absolute bliss.", "L": ["L5"] }
+      ]
+    },
+    {
+      "title": "Lesson 1 · Seed and womb",
+      "turns": [
+        { "s": "B", "t": "Lesson one: all beings are born from the union of Spirit and matter.", "L": ["L1"] },
+        { "s": "A", "t": "God places the seed of consciousness in material nature, which is the womb. Every living being, in all its variety, comes from that union.", "L": ["L1"] },
+        { "s": "B", "t": "Nature is the mother, God the father. Which makes every creature family.", "L": ["L1"] }
+      ]
+    },
+    {
+      "title": "Lesson 2 · Three ropes",
+      "turns": [
+        { "s": "A", "t": "Lesson two: the three modes bind the soul to the body.", "L": ["L2"] },
+        { "s": "B", "t": "Goodness binds through attachment to knowledge and happiness. Passion binds through craving and attachment to results. Ignorance binds through laziness, carelessness and delusion.", "L": ["L2"] },
+        { "s": "A", "t": "All three are chains, even goodness. The goal isn't just to be good. It's to be free.", "L": ["L2"] }
+      ]
+    },
+    {
+      "title": "Lesson 3 · What rules you",
+      "turns": [
+        { "s": "B", "t": "Lesson three: the modes shape character, actions, and rebirth.", "L": ["L3"] },
+        { "s": "A", "t": "Goodness brings clarity and lightness. Passion brings greed and restlessness. Ignorance brings delusion and dullness.", "L": ["L3"] },
+        { "s": "B", "t": "And whichever dominates at death shapes the next birth: higher, human, or lower. So it matters which one you feed each day.", "L": ["L3"] }
+      ]
+    },
+    {
+      "title": "Lesson 4 · The witness",
+      "turns": [
+        { "s": "A", "t": "Lesson four: rising above the three modes brings liberation.", "L": ["L4"] },
+        { "s": "B", "t": "The one who goes beyond doesn't hate the modes when they come or crave them when they go. They watch them like weather, without being moved.", "L": ["L4"] },
+        { "s": "A", "t": "Depending only on God, steady through every pair of opposites, no longer claiming to be the doer. That person is free of birth, death and suffering.", "L": ["L4"] }
+      ]
+    },
+    {
+      "title": "Lesson 5 · Love cuts the ropes",
+      "turns": [
+        { "s": "B", "t": "And lesson five: devotional love cuts the bonds of the modes.", "L": ["L5"] },
+        { "s": "A", "t": "The method isn't suppression, and it isn't endless analysis. It's unswerving love offered to God.", "L": ["L5"] },
+        { "s": "B", "t": "Freely given, that love lifts the soul above all three ropes and makes it fit for Nirvana.", "L": ["L5"] }
+      ]
+    },
+    {
+      "title": "Wrap-up",
+      "turns": [
+        { "s": "A", "t": "So, Chapter Fourteen. Three strands, goodness, passion and inertia, weave through everything we do. Watch them, don't be ruled by them, and let love carry you beyond them.", "L": ["L2", "L4", "L5"] },
+        { "s": "B", "t": "Five lessons: seed and womb, three ropes, what rules you, the witness, and love cuts the ropes.", "L": ["L1", "L2", "L3", "L4", "L5"] },
+        { "s": "A", "t": "Next time, Chapter Fifteen: the upside-down tree, and the Supreme Being. Thanks for listening to Shruti." }
+      ]
+    }
+  ]
+}
