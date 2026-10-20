@@ -120,7 +120,7 @@ export async function viewLibrary(el, { go }) {
     '<div class="sec-h"><h2>Shared</h2><span class="n">Tony and Veda</span></div>' +
     '<div class="shelf" id="shelf-shared">' + sharedBooks.map(card).join('') + '</div>' +
     '<div class="sec-h"><h2>Mine</h2></div>' +
-    '<div class="empty">' + IC.plus + '<b>Your own books will sit here</b><span>Importing a PDF, EPUB, Word file or pasted text is coming to Shruti soon.</span></div>';
+    '<div class="mine-empty">' + IC.plus + '<span><b>Your own books will sit here.</b> Importing a PDF, EPUB, Word file or text is coming soon.</span></div>';
   el.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => { if (!(window.A1Drag && A1Drag.active)) go(b.dataset.go); }));
   const shelf = el.querySelector('#shelf-shared');
   if (window.A1Drag && shelf && sharedBooks.length > 1) {
