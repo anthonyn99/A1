@@ -251,7 +251,7 @@ dump(book, "book.json")
 # Fidelity check: every letter of the source body region must survive extraction (order-independent
 # multiset of letters, so line joins and hyphen fixes don't count as differences).
 src_letters = collections.Counter(c for l in lines for c in text(l) if c.isalpha())
-out_letters = collections.Counter("INTRODUCTION")
+out_letters = collections.Counter("INTRODUCTION" + "Verse")   # "(Verse 1.47)" becomes v: "1.47"
 for c in [intro] + chapters:
     if c["n"]: out_letters.update(ch for ch in "CHAPTER" + c["title"] if ch.isalpha())
     for b in c["blocks"]:
@@ -260,3 +260,4 @@ for c in [intro] + chapters:
 missing = src_letters - out_letters; extra = out_letters - src_letters
 print("letters source", sum(src_letters.values()), "extracted", sum(out_letters.values()),
       "missing", dict(missing), "extra", dict(extra))
+if missing or extra: sys.exit("FIDELITY CHECK FAILED: extracted text differs from the PDF")
