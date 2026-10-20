@@ -27,6 +27,7 @@ export function joinLines(lines) {
     if (!l) continue;
     if (!out) { out = l; continue; }
     if (ENDS_HYPHEN.test(out) && STARTS_LOWER.test(l)) out = out.slice(0, -1) + l;
+    else if (ENDS_HYPHEN.test(out)) out += l;   // "Self-" "Realization": a real compound
     else out += ' ' + l;
   }
   return out;

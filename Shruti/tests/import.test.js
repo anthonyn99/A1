@@ -74,7 +74,7 @@ function fakeFirestore() {
 
   console.log('\nText');
   ok('a word broken over a line is put back', X.joinLines(['the cour-', 'age of Arjuna']) === 'the courage of Arjuna');
-  ok('a hyphen before a capital is not taken out', X.joinLines(['Self-', 'Realization']) === 'Self- Realization');
+  ok('a real hyphen before a capital stays, with no space', X.joinLines(['Self-', 'Realization']) === 'Self-Realization');
   ok('soft hyphens and odd spaces go', X.clean('in­deed  now\t') === 'indeed now');
   const txt = '# The Book\n\nChapter 1\nThe first para-\ngraph runs on.\n\nSecond paragraph.\n\nCHAPTER TWO\n\nIn the end.';
   const tp = X.fromText(txt);
