@@ -436,7 +436,7 @@ const mock = {
   await js(`document.getElementById('ew-intro-overlay') && document.getElementById('ew-intro-overlay').click(); return 1;`); await sleep(1200);
   await js(`EWApp.go('focus'); return 1;`); await sleep(1000);
   await js(`${q('[data-id="l1"] [data-play]')}.click(); return 1;`); await sleep(1800);
-  const lv = () => js(`const f = ${q('[data-id="l1"] .media-frame')}; const fill = f.querySelector('.vp-fill').style.transform; return JSON.stringify({ live: f.classList.contains('live'), head: f.classList.contains('at-head'), time: f.querySelector('[data-vp-time]').textContent, btn: getComputedStyle(f.querySelector('.vp-live')).display, fill: parseFloat((fill.match(/scaleX\(([^)]+)\)/) || [])[1]) });`).then(JSON.parse);
+  const lv = () => js(`const f = ${q('[data-id="l1"] .media-frame')}; const fill = f.querySelector('.vp-fill').style.transform; return JSON.stringify({ live: f.classList.contains('live'), head: f.classList.contains('at-head'), time: f.querySelector('[data-vp-time]').textContent, btn: getComputedStyle(f.querySelector('.vp-live')).display, fill: parseFloat((fill.match(/scaleX\\(([^)]+)\\)/) || [])[1]) });`).then(JSON.parse);
   const key = (k) => js(`const h = ${q('[data-id="l1"] [data-vp-hit]')}; h.focus(); h.dispatchEvent(new KeyboardEvent('keydown', { key: ${JSON.stringify(k)}, bubbles: true })); return 1;`);
   await key('m'); await key('m'); await sleep(400);   // a key wakes the controls
   let L = await lv();
