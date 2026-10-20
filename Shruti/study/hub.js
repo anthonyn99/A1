@@ -116,6 +116,15 @@ export async function renderStudy(body, ctx) {
       draw();
     }));
     body.querySelector('.sh-head').innerHTML = '<span class="sh-ic k-' + sel.kind + '">' + IC[sel.kind] + '</span><div><b>' + KIND_NAME[sel.kind] + '</b><span>' + esc(cur.shipped ? (ctx.n ? 'Chapter ' + ctx.n + ' · ' : '') + ctx.title : cur.scope.label) + '</span></div>';
+    // A tool saved progress: its tag in the sidebar follows at once.
+    const retag = (e) => {
+      if (!side.isConnected) { removeEventListener('shruti:study', retag); return; }
+      const { set, kind } = e.detail, s = sets.find((x) => x.id === set), row = side.querySelector('.sh-kind[data-set="' + set + '"][data-kind="' + kind + '"] em');
+      if (!s || !row) return;
+      const stt = status(ctx.book, set, kind, s.kinds[kind]);
+      row.textContent = stt.t; row.className = stt.c;
+    };
+    addEventListener('shruti:study', retag);
     const root = body.querySelector('.sh-tool');
     const dispose = TOOL[sel.kind].mount(root, cur.kinds[sel.kind], { book: ctx.book, set: cur.id, title: ctx.title });
     live = { dispose, root, ctx };

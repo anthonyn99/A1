@@ -190,7 +190,7 @@ const prog = (c, path) => ev(c, `return JSON.stringify(window.Shruti.core.me.get
   ok('the set is in the shared doc, scoped to the section', await waitFor(c, `const s=Object.values(window.Shruti.core.shared.get('sets.gita',{})); return s.length===1 && s[0].scope.t==='section' && s[0].kinds.quiz.length===2 && s[0].model==='deepseek/free' && s[0].by==='tony'`), await ev(c, `return JSON.stringify(window.Shruti.core.shared.get('sets.gita',{})).slice(0,300)`));
   await click(c, '#sm-run [data-open]');
   ok('Study it: the new set is in the sidebar, its quiz open', await waitFor(c, `document.querySelectorAll('.sh-set').length===2 && document.querySelector('.sh-kind.on').dataset.kind==='quiz' && /Question 1 of 2/.test(document.querySelector('.qz-kicker').textContent)`));
-  ok('the head names its scope', await waitFor(c, `/in chapter 4/.test(document.querySelector('.sh-head span').textContent)`));
+  ok('the head names its scope', await waitFor(c, `/in chapter 4/.test(document.querySelector('.sh-head div span').textContent)`));
 
   console.log('\nA selection from Read, and the introduction');
   await ev(c, `location.hash='#/b/gita/4'; return 1`);

@@ -90,6 +90,7 @@ export function saveProgress(book, set, kind, fields, opt) {
   const out = {};
   for (const [k, v] of Object.entries(fields)) out[key(book, set, kind) + '.' + k] = v;
   C.me.set(out, opt);
+  dispatchEvent(new CustomEvent('shruti:study', { detail: { book, set, kind } }));
 }
 export const now = () => Date.now();
 export const DAY = 86400000;
