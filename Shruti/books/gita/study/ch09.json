@@ -1,0 +1,44 @@
+{
+  "n": 9,
+  "title": "Supreme knowledge and the big mystery",
+  "flashcards": [
+    { "front": "The king of knowledge", "back": "This knowledge is the most sacred and secret, directly perceived, in keeping with Dharma, easy to practise and timeless.", "L": ["L1"] },
+    { "front": "All beings depend on God (9.4)", "back": "The universe is his expansion; all beings depend on him, but he does not depend on them.", "ref": "9.04", "L": ["L2"] },
+    { "front": "The divine mystery (9.5)", "back": "In reality God, creator and sustainer, does not depend on beings, and they do not depend on him.", "ref": "9.05", "L": ["L2"] },
+    { "front": "Wind in space (9.6)", "back": "All beings remain in God without contact, as the mighty wind, moving everywhere, remains in space.", "ref": "9.06", "L": ["L2"] },
+    { "front": "Who does the work of creation?", "back": "Material nature, under God's supervision. He creates again and again but stays unattached, a witness.", "L": ["L3"] },
+    { "front": "Everything is God", "back": "He is the ritual, the offering, the fire, the mantra, father, mother, goal, refuge, origin and end.", "L": ["L4"] },
+    { "front": "God's care for devotees (9.22)", "back": "He personally looks after the material and spiritual welfare of those who always remember him.", "ref": "9.22", "L": ["L5"] },
+    { "front": "A leaf, a flower, a fruit, water (9.26)", "back": "Whatever is offered with devotion by the pure-hearted, God accepts and eats.", "ref": "9.26", "L": ["L5"] },
+    { "front": "Do everything as an offering (9.27)", "back": "Whatever you do, eat, offer, give or endure, do it as an offering to God.", "ref": "9.27", "L": ["L5"] },
+    { "front": "No unforgivable sinner (9.30)", "back": "Even the most sinful who resolves to worship God with single-minded love is to be regarded a saint.", "ref": "9.30", "L": ["L6"] },
+    { "front": "Equally present, yet close (9.29)", "back": "God is equal to all, none hateful or dear; but those who worship him with love are in him, and he in them.", "ref": "9.29", "L": ["L7"] },
+    { "front": "The four instructions of 9.34", "back": "Fix your mind on God, be devoted, worship him and bow down: with him as goal and refuge, you will reach him.", "ref": "9.34", "L": ["L7"] }
+  ],
+  "quiz": [
+    { "text": "Why is this called the king of knowledge?", "options": { "A": "Only kings may learn it", "B": "It is the most sacred, directly perceived and easy to practise", "C": "It brings power", "D": "It is the oldest book" }, "correct": "B", "why": "Supreme, secret, in keeping with Dharma, timeless.", "L": ["L1"] },
+    { "text": "\"All beings remain in Me as the wind remains in space\" teaches:", "options": { "A": "God is far away", "B": "God pervades all yet is untouched", "C": "Beings are air", "D": "Space is God" }, "correct": "B", "why": "9.6: without connection or contact.", "L": ["L2"] },
+    { "text": "Who does the actual work of creation?", "options": { "A": "God, with effort", "B": "Material nature under God's watch", "C": "The gods", "D": "Human beings" }, "correct": "B", "why": "God remains the unattached witness.", "L": ["L3"] },
+    { "text": "God is the ritual, the fire and also:", "options": { "A": "Only the fire", "B": "Father, mother, goal and refuge", "C": "Nothing else", "D": "Only the priest" }, "correct": "B", "why": "Everything is a manifestation of God.", "L": ["L4"] },
+    { "text": "What offering does God accept in 9.26?", "options": { "A": "Only gold", "B": "A leaf, a flower, a fruit or water, with devotion", "C": "Only large sacrifices", "D": "Nothing" }, "correct": "B", "why": "Love, not value, makes the offering.", "L": ["L5"] },
+    { "text": "How should the most sinful person who resolves to worship God be regarded?", "options": { "A": "As lost", "B": "As a saint", "C": "As a beginner only", "D": "As unforgivable" }, "correct": "B", "why": "9.30: the right resolution makes the saint.", "L": ["L6"] },
+    { "text": "Who may reach the supreme abode by devotion?", "options": { "A": "Only priests", "B": "Only men", "C": "Anyone who takes refuge in God", "D": "Only scholars" }, "correct": "C", "why": "The path of devotional love is open to all.", "L": ["L7"] }
+  ],
+  "mindmap": {
+    "root": "Supreme knowledge, the big mystery",
+    "branches": [
+      { "text": "The king of knowledge", "L": ["L1"], "children": [{ "text": "Sacred, secret, timeless", "L": ["L1"] }, { "text": "Easy to practise" }] },
+      { "text": "God and the world", "L": ["L2", "L3"], "children": [{ "text": "All in him, he in none (9.4)", "L": ["L2"] }, { "text": "Wind in space (9.6)", "L": ["L2"] }, { "text": "Nature works, he witnesses", "L": ["L3"] }] },
+      { "text": "Everything is God", "L": ["L4"], "children": [{ "text": "Ritual, fire, offering", "L": ["L4"] }, { "text": "Father, mother, refuge" }] },
+      { "text": "Devotion", "L": ["L5", "L6", "L7"], "children": [{ "text": "A leaf, a flower (9.26)", "L": ["L5"] }, { "text": "Do all as offering (9.27)", "L": ["L5"] }, { "text": "No unforgivable sinner (9.30)", "L": ["L6"] }, { "text": "Open to all (9.34)", "L": ["L7"] }] }
+    ]
+  },
+  "slides": [
+    { "title": "The big mystery", "bullets": ["Chapter 9", "The king of knowledge and the path of love"] },
+    { "title": "The king of knowledge", "bullets": ["Most sacred and secret", "Directly perceived, easy to practise, timeless"], "L": ["L1"] },
+    { "title": "In him, yet untouched", "bullets": ["All beings depend on God, not he on them (9.4)", "Like wind moving in space (9.6)", "Nature works; God is the witness"], "L": ["L2", "L3"] },
+    { "title": "Everything is God", "bullets": ["The ritual, the fire, the mantra, the offering", "Father, mother, goal, refuge, origin, end"], "L": ["L4"] },
+    { "title": "Offerings of love", "bullets": ["A leaf, a flower, a fruit, water (9.26)", "Whatever you do, offer it to God (9.27)", "He cares for the steadfast (9.22)"], "L": ["L5"] },
+    { "title": "Open to everyone", "bullets": ["The sinner who turns to God is a saint (9.30)", "Fix your mind on God, bow down, take refuge (9.34)"], "L": ["L6", "L7"] }
+  ]
+}

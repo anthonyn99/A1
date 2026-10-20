@@ -1,0 +1,41 @@
+{
+  "n": 8,
+  "title": "The eternal being, God",
+  "flashcards": [
+    { "front": "Eternal Being, Adhyatma and Karma (8.3)", "back": "The immutable Spirit is God; his nature, with cognition and desire, is Adhyatma; his creative power that brings beings forth is Karma.", "ref": "8.03" },
+    { "front": "What you think of at the end (8.6)", "back": "Whatever one remembers on leaving the body, one attains, because of constantly thinking of it through life.", "ref": "8.06", "L": ["L1"] },
+    { "front": "The simple method (8.7)", "back": "Always remember God and do your duty; with mind and intellect fixed on him, you will reach him.", "ref": "8.07", "L": ["L2"] },
+    { "front": "Leaving the body with OM (8.12-13)", "back": "Senses controlled, mind on God, meditating and uttering OM, one reaches the supreme abode.", "ref": "8.12-13", "L": ["L1"] },
+    { "front": "Who finds God easy to reach? (8.14)", "back": "The ever-steadfast yogi who always thinks of him, mind going nowhere else.", "ref": "8.14", "L": ["L2"] },
+    { "front": "Is a heavenly world the end?", "back": "No. All worlds, heaven included, return to rebirth; only reaching God ends it.", "L": ["L3"] },
+    { "front": "Brahma's day and night (8.19)", "back": "Beings come forth again and again at the dawn of Brahma's day and dissolve at his night.", "ref": "8.19", "L": ["L4"] },
+    { "front": "Two paths after death (8.26)", "back": "Light, the path of Self-knowledge, leads to liberation; darkness, the path of ignorance, leads to rebirth.", "ref": "8.26", "L": ["L5"] },
+    { "front": "What surpasses Vedic study, sacrifice and charity?", "back": "The yogi fixed in God goes beyond all their merit and reaches the eternal abode.", "L": ["L6"] }
+  ],
+  "quiz": [
+    { "text": "According to 8.6, what does one attain after death?", "options": { "A": "Whatever one remembers at the end", "B": "Always heaven", "C": "Nothing", "D": "What others pray for" }, "correct": "A", "why": "Constant thought in life shapes the last thought, and the destination.", "L": ["L1"] },
+    { "text": "What simple method does 8.7 give?", "options": { "A": "Leave all duties", "B": "Always remember God and do your duty", "C": "Perform many rituals", "D": "Fast often" }, "correct": "B", "why": "Duty with constant remembrance.", "L": ["L2"] },
+    { "text": "Who does not return to rebirth?", "options": { "A": "Those in heaven", "B": "Those who reach God's abode", "C": "Every good person", "D": "The wealthy" }, "correct": "B", "why": "All other worlds are still subject to rebirth.", "L": ["L3"] },
+    { "text": "What happens at the start of Brahma's day?", "options": { "A": "All beings come forth again", "B": "The world ends", "C": "God sleeps", "D": "Nothing changes" }, "correct": "A", "why": "8.19: creation is cyclic.", "L": ["L4"] },
+    { "text": "The path of light leads to:", "options": { "A": "Rebirth", "B": "Heaven forever", "C": "Liberation", "D": "Darkness" }, "correct": "C", "why": "8.26: light of Self-knowledge to salvation; darkness to rebirth.", "L": ["L5"] },
+    { "text": "What does the yogi fixed in God go beyond?", "options": { "A": "All merit of Vedas, sacrifice, austerity, charity", "B": "Only bad Karma", "C": "Nothing", "D": "The need to eat" }, "correct": "A", "why": "Inner union outweighs outer ritual merit.", "L": ["L6"] },
+    { "text": "What sacred sound is uttered when leaving the body in 8.12-13?", "options": { "A": "Amen", "B": "OM", "C": "Krishna's name only", "D": "Silence" }, "correct": "B", "why": "OM, the sacred monosyllable, with the mind on God.", "L": ["L1", "L2"] }
+  ],
+  "mindmap": {
+    "root": "The eternal being, God",
+    "branches": [
+      { "text": "Definitions (8.3)", "children": [{ "text": "Eternal Being: God" }, { "text": "Adhyatma: his nature" }, { "text": "Karma: his creative power" }] },
+      { "text": "The last thought", "L": ["L1", "L2"], "children": [{ "text": "You become what you remember (8.6)", "L": ["L1"] }, { "text": "Remember God, do your duty (8.7)", "L": ["L2"] }, { "text": "OM at the end (8.12-13)" }] },
+      { "text": "Cycles", "L": ["L3", "L4"], "children": [{ "text": "Brahma's day and night (8.19)", "L": ["L4"] }, { "text": "Reaching God ends rebirth", "L": ["L3"] }] },
+      { "text": "Two paths", "L": ["L5", "L6"], "children": [{ "text": "Light: liberation (8.26)", "L": ["L5"] }, { "text": "Darkness: rebirth", "L": ["L5"] }, { "text": "Beyond all ritual merit", "L": ["L6"] }] }
+    ]
+  },
+  "slides": [
+    { "title": "The eternal being, God", "bullets": ["Chapter 8", "Remembering God, cycles, and two paths"] },
+    { "title": "Three words defined (8.3)", "bullets": ["Eternal Being: the immutable Spirit, God", "Adhyatma: his nature", "Karma: his power that brings beings forth"] },
+    { "title": "The last thought", "bullets": ["What you remember at death, you attain (8.6)", "OM and a mind on God (8.12-13)"], "L": ["L1"] },
+    { "title": "The simple method", "bullets": ["Always remember God and do your duty (8.7)", "He is easy to reach for the steadfast (8.14)"], "L": ["L2"] },
+    { "title": "Everything is cyclic", "bullets": ["Beings come and go with Brahma's day and night (8.19)", "Only God's abode is beyond return"], "L": ["L3", "L4"] },
+    { "title": "Two paths after death", "bullets": ["Light of knowledge: liberation (8.26)", "Darkness of ignorance: rebirth", "The yogi goes beyond all ritual merit"], "L": ["L5", "L6"] }
+  ]
+}
