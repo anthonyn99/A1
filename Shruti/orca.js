@@ -99,6 +99,62 @@ export async function chat({ key, messages, models, onDelta, onModel, signal, fe
   throw Object.assign(new Error('No unit could answer (' + tried.join(', ') + ').'), { code: 'none', tried });
 }
 
+/* ── speech: POST /v1/audio/speech with timestamps (Edge neural voices) ───── */
+export const DEFAULT_VOICE = 'en-US-AvaMultilingualNeural';
+/** Used when /audio/voices cannot be asked (no key yet): the same vetted set. */
+export const VOICES = [
+  ['en-US-AvaMultilingualNeural', 'Ava', 'en-US', 'female'], ['en-US-AndrewMultilingualNeural', 'Andrew', 'en-US', 'male'],
+  ['en-US-EmmaMultilingualNeural', 'Emma', 'en-US', 'female'], ['en-US-BrianMultilingualNeural', 'Brian', 'en-US', 'male'],
+  ['en-US-JennyNeural', 'Jenny', 'en-US', 'female'], ['en-US-GuyNeural', 'Guy', 'en-US', 'male'],
+  ['en-GB-SoniaNeural', 'Sonia', 'en-GB', 'female'], ['en-GB-RyanNeural', 'Ryan', 'en-GB', 'male'],
+  ['en-GB-LibbyNeural', 'Libby', 'en-GB', 'female'], ['en-AU-NatashaNeural', 'Natasha', 'en-AU', 'female'],
+  ['en-IN-NeerjaNeural', 'Neerja', 'en-IN', 'female'], ['en-IN-PrabhatNeural', 'Prabhat', 'en-IN', 'male'],
+  ['en-IE-EmilyNeural', 'Emily', 'en-IE', 'female'],
+].map(([id, name, locale, gender]) => ({ id, name, locale, gender, engine: 'edge' }));
+
+export async function voices(key, { fetch: f = fetch } = {}) {
+  try {
+    const r = await f(ORCA + '/audio/voices', { headers: { authorization: 'Bearer ' + key } });
+    if (!r.ok) return VOICES;
+    const j = await r.json();
+    return Array.isArray(j.voices) && j.voices.length ? j.voices : VOICES;
+  } catch (e) { return VOICES; }
+}
+
+const b64ToBytes = (b64) => { const s = atob(b64); const out = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i); return out; };
+
+/** Speak text: resolves {audio: Blob (mp3), words: [[t, d, w]] | null, engine, voice}.
+ *  Throws {code:'key'} for a refused key, {code:'abort'}, else {code:'tts'}. */
+export async function speak({ key, text, voice, signal, fetch: f = fetch }) {
+  if (!key) throw Object.assign(new Error('Read-aloud needs your Orca key (Settings).'), { code: 'key' });
+  let waited = false;
+  for (;;) {
+    let r;
+    try {
+      r = await f(ORCA + '/audio/speech', {
+        method: 'POST', signal,
+        headers: { authorization: 'Bearer ' + key, 'content-type': 'application/json' },
+        body: JSON.stringify({ model: 'edge-neural', input: text, voice: voice || DEFAULT_VOICE, timestamps: true }),
+      });
+    } catch (e) {
+      if (e && e.name === 'AbortError') throw Object.assign(new Error('Cancelled'), { code: 'abort' });
+      throw Object.assign(new Error('Orca could not be reached.'), { code: 'tts' });
+    }
+    if (r.status === 401 || r.status === 403) throw Object.assign(new Error('Orca rejected the key. Check it in Settings.'), { code: 'key' });
+    if ((r.status === 429 || r.status === 503 || r.status === 502) && !waited) {
+      waited = true;
+      await sleep(Math.min(10, Math.max(1, Number(r.headers.get('retry-after')) || 2)) * 1000, signal);
+      continue;
+    }
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      throw Object.assign(new Error((j.error && j.error.message) || 'Orca answered ' + r.status), { code: 'tts', status: r.status });
+    }
+    const j = await r.json();
+    return { audio: new Blob([b64ToBytes(j.audio)], { type: 'audio/mpeg' }), words: Array.isArray(j.words) ? j.words : null, engine: j.engine, voice: j.voice };
+  }
+}
+
 /** OpenAI SSE (data: {...choices[0].delta.content}) or a plain JSON reply. */
 export async function readStream(r, onDelta) {
   const ct = r.headers.get('content-type') || '';
