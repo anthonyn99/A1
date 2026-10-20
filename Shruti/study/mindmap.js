@@ -5,19 +5,70 @@
 // the outline copied as text.
 //
 //   mount(root, map, {book, set, title}) -> dispose()
-// Progress: study.<book>.<set>.mindmap = {closed: [branch index]}
+// Progress: study.<book>.<set>.mindmap = {closedK: [branch key]} (older:
+// closed = [branch index in the set]).
+// Order: "Arrange" shows the map as an outline, where branches, and the
+// points under a branch, are dragged into the person's own order (ui.js
+// ordered: order.items.<book>.<set>.mindmap, and ….mmkids.<branch key>).
 
-import { h, btn, esc, IC, keys, progress, saveProgress } from './ui.js';
+import { h, btn, esc, IC, keys, progress, saveProgress, ordered, saveOrder, orderPath, OR } from './ui.js';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 export function outline(map) {
   return ['# ' + map.root, ...map.branches.flatMap((b) => ['- ' + b.text, ...b.children.map((c) => '  - ' + c.text)])].join('\n');
 }
 
-export function mount(rootEl, map, { book, set, title }) {
+/** The map in this person's order: {map, bkeys, ckeys:[[...]], orig}. */
+export function arranged(book, set, map) {
+  const B = ordered(book, set, 'mindmap', map.branches);
+  const kids = B.items.map((b, i) => ordered(book, set, 'mindmap', b.children || [], orderPath(book, set, 'mmkids') + '.' + B.keys[i]));
+  return { map: { root: map.root, branches: B.items.map((b, i) => Object.assign({}, b, { children: kids[i].items })) }, bkeys: B.keys, ckeys: kids.map((k) => k.keys), orig: B.orig };
+}
+
+export function mount(rootEl, setMap, opts) {
+  let off = null, arrange = false;
+  const show = () => {
+    if (off) off();
+    const A = arranged(opts.book, opts.set, setMap);
+    off = arrange ? mountOutline(rootEl, A, opts, show, () => { arrange = false; show(); }) : mountMap(rootEl, A, opts, () => { arrange = true; show(); });
+  };
+  show();
+  return () => { if (off) off(); };
+}
+
+/** The outline: drag branches, and points within a branch, into order. */
+function mountOutline(rootEl, A, { book, set }, redraw, done) {
+  const wrap = h('div', 'mm mm-arr');
+  rootEl.replaceChildren(wrap);
+  const bar = h('div', 'st-bar');
+  bar.append(h('span', 'st-meta', 'Drag branches and their points into the order you want'));
+  const acts = h('div', 'st-actions');
+  acts.append(btn('Done', 'tick', done, 'sm solid'));
+  bar.append(acts);
+  const ol = h('ol', 'mm-ol');
+  A.map.branches.forEach((b, bi) => {
+    const li = h('li', 'mm-ob b' + (A.orig[bi] % 6), '<div class="mm-ob-h"><span>' + esc(b.text) + '</span>' + (b.children.length ? '<em>' + b.children.length + '</em>' : '') + '</div>');
+    li.dataset.dkey = A.bkeys[bi]; li.tabIndex = 0; li.title = OR.HINT;
+    if (b.children.length) {
+      const kids = h('ol', 'mm-ok');
+      b.children.forEach((c, ci) => { const k = h('li', 'mm-oc', esc(c.text)); k.dataset.dkey = A.ckeys[bi][ci]; k.tabIndex = 0; k.title = OR.HINT; kids.append(k); });
+      li.append(kids);
+      OR.sortable(kids, { row: '.mm-oc', onMove: (ks) => { saveOrder(book, set, 'mindmap', ks, orderPath(book, set, 'mmkids') + '.' + A.bkeys[bi]); redraw(); } });
+    }
+    ol.append(li);
+  });
+  wrap.append(bar, ol);
+  OR.sortable(ol, { row: '.mm-ob', onMove: (ks) => { saveOrder(book, set, 'mindmap', ks); redraw(); } });
+  return () => {};
+}
+
+function mountMap(rootEl, A, { book, set, title }, toArrange) {
+  const map = A.map, bk = A.bkeys;
   const wrap = h('div', 'mm');
   rootEl.replaceChildren(wrap);
-  const closed = new Set((progress(book, set, 'mindmap').closed || []).map(Number));
+  const p0 = progress(book, set, 'mindmap');
+  const closed = new Set(Array.isArray(p0.closedK) ? p0.closedK
+    : (p0.closed || []).map(Number).map((oi) => bk[A.orig.indexOf(oi)]).filter(Boolean));
   const view = { z: 1, x: 0, y: 0 };
   let fitted = false;
 
