@@ -202,7 +202,7 @@ export async function run(o, on = {}, { signal, chat = O.chat, speak = O.speak, 
     if (kind === 'read') {
       if (!drive) throw new Error('Google Drive is not connected yet (Settings → Google Drive). A read-aloud is kept there.');
       stage('speak', 'Speaking the chapter in ' + voiceName(o.voice));
-      const rec = await NR.saveNarration({ book, n, ch: o.ch, title: o.title }, o.voice, step, () => stage('upload', 'Uploading to Drive'), { length: null });
+      const rec = await NR.saveNarration({ book, n, ch: o.ch, title: o.title }, o.voice, step, () => stage('upload', 'Uploading to Drive'), {});
       stage('done', 'Saved');
       return { kind, rec };
     }
@@ -277,14 +277,17 @@ const CLOSE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
 const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 export const ICON = SPARK;
 const TAB = { podcast: 'listen', video: 'watch', lessons: 'lessons', read: '' };
+// running: the run on this device; kept after it ends (finished) so the sheet
+// can still show how it went, but only an unfinished one blocks another.
 let modelsCache = null, running = null;
-export const busy = () => running;
+const isBusy = () => !!(running && !running.finished);
+export const busy = isBusy;
 
 /** Open "Make with AI" for a chapter. ctx: {book, bookTitle, n, title, ch, lessons, shipped:{podcast, video, read}}. */
 export function openSheet(ctx, kind) {
   if (document.getElementById('gen-sheet')) return;
   const p = prefs();
-  const st = { kind: kind || (running && running.ctx.n === ctx.n ? running.kind : p.kind) };
+  const st = { kind: kind || (isBusy() && running.ctx.n === ctx.n ? running.kind : p.kind) };
   if (ctx.n === 0 || !M.KINDS.includes(st.kind)) st.kind = 'read';
   const dim = document.createElement('div');
   dim.className = 'sheet-dim'; dim.id = 'gen-sheet';
@@ -386,8 +389,8 @@ function drawRun(box, ctx, kind, close) {
   const other = !mine && M.jobOf(ctx.book, ctx.n, kind);
   if (!mine) {
     const L = (ctx.lessons && ctx.lessons.lessons) || [];
-    box.innerHTML = '<div class="gen-go"><button class="btn solid" data-make' + (running || other ? ' disabled' : '') + '>' + SPARK + 'Make ' + M.KIND_NAME[kind].toLowerCase() + '</button>' +
-      '<span class="hint">' + esc(running ? 'One thing at a time: ' + M.KIND_NAME[running.kind].toLowerCase() + ' for chapter ' + running.ctx.n + ' is being made.' : kind === 'read' ? 'Takes a few minutes.' : kind === 'lessons' ? 'About a minute.' : 'A few minutes: written, checked' + (L.length ? ' for all ' + L.length + ' lessons' : '') + ', then spoken.') + '</span></div>';
+    box.innerHTML = '<div class="gen-go"><button class="btn solid" data-make' + (isBusy() || other ? ' disabled' : '') + '>' + SPARK + 'Make ' + M.KIND_NAME[kind].toLowerCase() + '</button>' +
+      '<span class="hint">' + esc(isBusy() ? 'One thing at a time: ' + M.KIND_NAME[running.kind].toLowerCase() + ' for chapter ' + running.ctx.n + ' is being made.' : kind === 'read' ? 'Takes a few minutes.' : kind === 'lessons' ? 'About a minute.' : 'A few minutes: written, checked' + (L.length ? ' for all ' + L.length + ' lessons' : '') + ', then spoken.') + '</span></div>';
     const b = box.querySelector('[data-make]');
     b.addEventListener('click', () => start(ctx, kind, box, close));
     return;
@@ -414,7 +417,7 @@ function paintRun(box, R) {
   const a = box.querySelector('[data-again]'); if (a) a.addEventListener('click', () => { running = null; drawRun(box, R.ctx, R.kind, R.close); });
 }
 async function start(ctx, kind, box, close) {
-  if (running) return;
+  if (isBusy()) return;
   if (!keyOf()) { const go = await window.uiConfirm('Making uses Orca with your own key. Paste it once in Settings.', { title: 'Your Orca key is needed', okLabel: 'Open Settings' }); if (go) { close(); ui.openSettings(); } return; }
   const p = prefs();
   const models = O.chain(C.me.get('units', {}) || {}, modelsCache);
@@ -440,5 +443,6 @@ async function start(ctx, kind, box, close) {
   } catch (e) {
     R.error = e && e.code === 'abort' ? 'Cancelled.' : (e && e.message) || String(e);
   }
+  R.finished = true;
   paintRun(box2(), R);
 }
