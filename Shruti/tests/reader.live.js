@@ -163,6 +163,7 @@ const flush = (c) => ev(c, `return window.Shruti.core.me.flush().then(()=>1)`);
   ok('the mini-player shows with -15, play/pause, +15', await waitFor(c, `!document.getElementById('mini').hidden && !!document.querySelector('#mini [data-mp=back]') && !!document.querySelector('#mini [data-mp=fwd]') && document.querySelector('#mini [data-mp=toggle]').getAttribute('aria-label')==='Pause'`));
   ok('the word being said is lit, in the block being read', await waitFor(c, `!!document.querySelector('.rd .speaking .w.on')`, 8000));
   const lit1 = await ev(c, `return document.querySelector('.rd .w.on').textContent`);
+  if (process.env.DBG) { for (let k = 0; k < 8; k++) { console.log('   dbg', await ev(c, `return JSON.stringify({u:location.href, S:!!window.Shruti, lit:document.querySelector('.rd .w.on')&&document.querySelector('.rd .w.on').textContent, i:window.Shruti&&window.Shruti.narrate.state.i, t:document.querySelector('audio')&&0, e:window.__errs})`)); await sleep(400); } }
   await sleep(1200);
   ok('…and moves on as the voice does', await ev(c, `return document.querySelector('.rd .w.on') && document.querySelector('.rd .w.on').textContent`) !== null && await waitFor(c, `document.querySelector('.rd .w.on') && document.querySelector('.rd .w.on').textContent!==${JSON.stringify(lit1)}`, 4000));
   ok('the lock screen knows what is playing', await ev(c, `return navigator.mediaSession && navigator.mediaSession.metadata && /Chapter 2/.test(navigator.mediaSession.metadata.title)`));
