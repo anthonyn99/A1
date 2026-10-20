@@ -10,6 +10,7 @@ import * as VID from './video.js';
 import * as M from './media.js';
 import * as G from './generate.js';
 import * as T from './text.js';
+import * as PDF from './pdf.js';
 
 export const SHIPPED = ['gita'];
 const COVERS = { gita: { bg: '#2b2235', tx: '#f2ead8', ac: '#e0b874', kicker: 'Shared' } };
@@ -243,7 +244,7 @@ export async function viewChapter(el, { id, n, mode, at, go }) {
     const b2 = body.querySelector('[data-make-now]'); if (b2) b2.addEventListener('click', () => G.openSheet(ctx, kind));
   };
   if (mode === 'read') renderRead(body, ch, id, n, { title: meta.title, at });
-  else if (mode === 'lessons') { if (L && L.lessons && L.lessons.length) renderLessons(body, L); else notMade('lessons', 'lessons'); }
+  else if (mode === 'lessons') { if (L && L.lessons && L.lessons.length) renderLessons(body, L, { bookTitle: b.title, n, title: meta.title }); else notMade('lessons', 'lessons'); }
   else if (mode === 'listen' && (av.listen || POD.active(id, n))) renderListen(body, id, n, meta, L, () => notMade('listen', 'podcast'));
   else if (mode === 'watch' && (av.watch || VID.active(id, n))) renderWatch(body, id, n, meta, L, () => notMade('watch', 'video'));
   else notMade(mode, { listen: 'podcast', watch: 'video' }[mode]);
@@ -261,10 +262,21 @@ async function renderWatch(body, id, n, meta, L, none) {
   if (ok === false) none();
 }
 
-function renderLessons(body, L) {
+function renderLessons(body, L, meta = {}) {
   if (!L || !L.lessons || !L.lessons.length) { body.innerHTML = '<div class="empty">' + IC.lessons + '<b>No lessons for this chapter yet</b></div>'; return; }
-  body.innerHTML = '<div class="ls"><p class="ls-k">' + L.lessons.length + (L.by ? ' lessons drawn by ' + esc(G.modelName(L.by)) + ' (Make with AI)' : ' lessons from Tony and Veda’s notes') + '</p>' + L.lessons.map((l) =>
+  body.innerHTML = '<div class="ls"><div class="ls-top"><p class="ls-k">' + L.lessons.length + (L.by ? ' lessons drawn by ' + esc(G.modelName(L.by)) + ' (Make with AI)' : ' lessons from Tony and Veda’s notes') + '</p>' +
+    '<button class="btn sm" id="ls-pdf">' + IC.pdf + '<span>Save as PDF</span></button></div>' + L.lessons.map((l) =>
     '<div class="ls-i"><div class="h"><span class="id">' + esc(l.id) + '</span><span class="tt">' + esc(l.title || '') + '</span></div>' +
     (l.body ? '<div class="bd">' + esc(l.body) + '</div>' : '') + '</div>').join('') +
     (L.summary ? '<div class="ls-sum"><b>Chapter summary</b>' + esc(L.summary) + '</div>' : '') + '</div>';
+  const btn = body.querySelector('#ls-pdf'), label = btn.querySelector('span');
+  btn.addEventListener('click', async () => {
+    if (btn.disabled) return;
+    btn.disabled = true; label.textContent = 'Making the PDF…';
+    try {
+      await PDF.lessonsPDF({ bookTitle: meta.bookTitle, bookShort: meta.bookTitle, n: meta.n, title: meta.title, L, byName: L.by ? G.modelName(L.by) : '' });
+      label.textContent = 'Save as PDF';
+    } catch (e) { label.textContent = 'Could not make it: try again'; btn.title = e.message || ''; }
+    btn.disabled = false;
+  });
 }

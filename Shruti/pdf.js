@@ -39,7 +39,7 @@ export async function lessonsPDF(o) {
   const JsPDF = await loadJsPDF();
   const doc = new JsPDF({ unit: 'pt', format: 'a4' });
   const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
-  const M = 56, TW = W - 2 * M, veda = C.profile === 'veda';
+  const M = 56, TW = W - 2 * M, veda = C.P === 'veda';
   const AC = veda ? [122, 95, 134] : [104, 82, 176], TX = [28, 28, 32], MU = [96, 96, 104], LN = [222, 220, 228];
   let y = M;
   const room = (h) => { if (y + h > H - M) { doc.addPage(); y = M; } };
