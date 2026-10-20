@@ -146,7 +146,7 @@ export async function renderStudy(body, ctx) {
     if (!body.isConnected) { off(); return; }
     if (!e.remote) return;
     const ids = setsFor(ctx.book, ctx.n).map((s) => s.id).join();
-    if (ids !== draw.ids) { draw.ids = ids; if (!document.querySelector('#study-make')) draw(); }
+    if (ids !== draw.ids) { draw.ids = ids; if (!document.querySelector('#study-make')) (window.A1Drag ? A1Drag.later(draw) : draw()); }
   });
   draw.ids = setsFor(ctx.book, ctx.n).map((s) => s.id).join();
   if (pending && pending.book === ctx.book && pending.n === ctx.n) { pending = null; openMaker(ctx, draw); }
