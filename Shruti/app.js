@@ -341,7 +341,7 @@ async function connectDrive() {
 }
 addEventListener('focus', () => { if ($('#st-drive') && /Google tab/.test($('#st-drive').textContent)) drawDrive(); });
 
-/* ── mini-player: read-aloud now; the podcast and the video use it too ───── */
+/* ── mini-player: read-aloud, the podcast and the video share it ────────── */
 const PLAY_I = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg>';
 const PAUSE_I = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6.5" y="5" width="4" height="14" rx="1"/><rect x="13.5" y="5" width="4" height="14" rx="1"/></svg>';
 const BACK_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><text x="12" y="15.5" font-size="7.5" font-weight="700" text-anchor="middle" fill="currentColor" stroke="none" font-family="Inter,sans-serif">15</text></svg>';
@@ -357,7 +357,7 @@ export const player = {
     player.owner = o.kind || null;
     const m = $('#mini');
     const b = (k, icon, label, cls) => '<button class="ib' + (cls ? ' ' + cls : '') + '" data-mp="' + k + '" aria-label="' + label + '" title="' + label + '">' + icon + '</button>';
-    m.innerHTML = '<div class="mp"><button class="art" data-mp="open" aria-label="Open the chapter">' + L.IC.listen + '</button>' +
+    m.innerHTML = '<div class="mp"><button class="art" data-mp="open" aria-label="Open the chapter">' + (o.kind === 'video' ? L.IC.watch : L.IC.listen) + '</button>' +
       '<button class="tt" data-mp="open"><b>' + esc(o.title || '') + '</b><span>' + esc(o.sub || '') + '</span></button>' +
       '<div class="ctl">' + (o.onBack ? b('back', BACK_I, 'Back 15 seconds', 'skip') : '') + b('toggle', PLAY_I, 'Play', 'pp') + (o.onFwd ? b('fwd', FWD_I, 'Forward 15 seconds', 'skip') : '') +
       (o.onMore ? b('more', MORE_I, 'Voice, speed and sleep timer', 'more') : '') + b('close', CLOSE_I, 'Close') + '</div><div class="bar"></div></div>';
