@@ -96,7 +96,7 @@ async function load(c, { w, h, mobile, store, hash = '' }) {
 
   await ev(c, `document.querySelector('.book').click(); return 1`);
   ok('the book lists 18 chapters with rings and mode badges', await waitFor(c, `document.querySelectorAll('.ch').length===18 && document.querySelectorAll('.ch .ring').length===18 && document.querySelectorAll('.ch .bdg').length===72`));
-  ok('Read and Watch are available on every chapter; Study not yet', await ev(c, `return [...document.querySelectorAll('.ch .badges')].every(x=>x.children[0].classList.contains('av') && x.children[2].classList.contains('av') && !x.children[3].classList.contains('av'))`));
+  ok('Read, Watch and Study are available on every chapter', await waitFor(c, `[...document.querySelectorAll('.ch .badges')].every(x=>x.children[0].classList.contains('av') && x.children[2].classList.contains('av') && x.children[3].classList.contains('av'))`));
   await shot(c, 'tony-book-1280');
 
   await ev(c, `document.querySelectorAll('.ch')[1].click(); return 1`);
@@ -129,7 +129,7 @@ async function load(c, { w, h, mobile, store, hash = '' }) {
   await ev(c, `document.querySelector('.modes [data-mode=lessons]').click(); return 1`);
   ok('Lessons shows all 12 of chapter 2', await waitFor(c, `location.hash==='#/b/gita/2/lessons' && document.querySelectorAll('.ls-i').length===12`));
   await ev(c, `document.querySelector('.modes [data-mode=study]').click(); return 1`);
-  ok('Study says plainly it is not made yet', await waitFor(c, `/not made for this chapter yet/.test(document.getElementById('mode-body').textContent)`));
+  ok('Study opens the ready-made set (study.live.js tests it in full)', await waitFor(c, `location.hash==='#/b/gita/2/study' && document.querySelectorAll('.sh-kind').length===4`));
 
   console.log('\nAnother device moves on');
   await ev(c, `location.hash='#/b/gita'; return 1`);
