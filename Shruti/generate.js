@@ -88,8 +88,9 @@ export function buildPrompt(o) {
   } else {
     task = [
       'Write the lessons a careful reader takes from this chapter: ' + len.lessons + ' or so, in the order the chapter teaches them.',
-      'Each lesson has a short title (a sentence that states it) and a body of two to four sentences that explains it and says how to live it.',
-      'Then a summary of the chapter in three to five sentences.',
+      'Each lesson has a title (one plain sentence that states it, at most ' + LESSON_TITLE_WORDS + ' words) and a body of one or two short sentences, at most ' + LESSON_BODY_WORDS + ' words: what the chapter teaches there and how to live it.',
+      'Be concise, true and to the point: say only what this chapter says, no filler, no flourishes, no retelling, and do not repeat the title in the body.',
+      'Then a summary of the chapter in two or three sentences.',
     ];
     format = '{"lessons":[{"id":"L1","title":"…","body":"…"}],"summary":"…"}';
   }
@@ -168,6 +169,14 @@ export function normVideo(obj, lessonIds) {
   if (!scenes.length) throw new Error('The reply had no video scenes.');
   return { scenes };
 }
+/** How long a made lesson may be (Tony, 2026-10-20: "concise, true, to the
+ *  point"). The prompt asks for it; a reply over it is sent back once to shorten. */
+export const LESSON_TITLE_WORDS = 12, LESSON_BODY_WORDS = 40;
+const wordCount = (t) => String(t || '').split(/\s+/).filter(Boolean).length;
+/** The lessons that run long (a little slack over the asked-for limits). */
+export function longLessons(script) {
+  return ((script && script.lessons) || []).filter((l) => wordCount(l.body) > LESSON_BODY_WORDS + 15 || wordCount(l.title) > LESSON_TITLE_WORDS + 4).map((l) => l.id);
+}
 /** Lessons from a parsed reply, numbered L1… in order. */
 export function normLessons(obj) {
   const lessons = (Array.isArray(obj && obj.lessons) ? obj.lessons : []).map((l) => ({ title: str(l.title, 160), body: str(l.body) })).filter((l) => l.title)
@@ -226,10 +235,13 @@ export async function run(o, on = {}, { signal, chat = O.chat, speak = O.speak, 
     try { script = norm(text); } catch (e) { problem = e.message; }
     let cov = script ? coverage(kind, script, lessonIds) : { covered: [], missing: lessonIds };
     on.coverage && on.coverage(cov);
-    if (problem || cov.missing.length) {
-      stage('repair', problem ? 'Asking ' + modelName(model) + ' to fix its reply' : 'Asking ' + modelName(model) + ' to add ' + cov.missing.join(', '));
+    const long = !problem && kind === 'lessons' ? longLessons(script) : [];
+    if (problem || cov.missing.length || long.length) {
+      stage('repair', problem ? 'Asking ' + modelName(model) + ' to fix its reply' : long.length ? 'Asking ' + modelName(model) + ' to shorten ' + long.join(', ') : 'Asking ' + modelName(model) + ' to add ' + cov.missing.join(', '));
       const want = problem
         ? 'Your reply could not be used: ' + problem + ' Reply again with the complete JSON object only, in the format asked for.'
+        : long.length
+        ? 'These lessons are too long: ' + long.join(', ') + '. Every title is at most ' + LESSON_TITLE_WORDS + ' words and every body at most ' + LESSON_BODY_WORDS + ' words, one or two plain sentences, true to the chapter. Shorten them (keep the others as they are) and reply with the complete JSON object only.'
         : 'Your script does not teach these lessons: ' + cov.missing.map((id) => { const l = L.find((x) => x.id === id); return id + ' (' + (l && l.title || '') + ')'; }).join('; ') +
           '. Add each one in its own ' + (kind === 'podcast' ? 'segment, its turns tagged' : 'scene, tagged') + ' with its id, keep everything else, and reply with the complete JSON object only.';
       on.delta && on.delta('\n\n');
