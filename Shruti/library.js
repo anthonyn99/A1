@@ -1,9 +1,10 @@
-// Library -> book -> chapter. Books ship in the repo (books/<id>/book.json and
-// one file per chapter), so the Gita works with no network beyond the page.
-// Progress is per person (dashboards/shruti[_veda] -> progress.<book>.ch<n>),
-// even on shared books.
+// Library -> book -> chapter. Shipped books live in the repo (books/<id>/
+// book.json and one file per chapter), so the Gita works with no network
+// beyond the page; imported books (Phase 8) live in Firestore (books.js), on
+// the Shared shelf or the person's own (Mine). Progress is per person
+// (dashboards/shruti[_veda] -> progress.<book>.ch<n>), even on shared books.
 
-import { me, shared, ls, lsKey } from './core.js';
+import { me, ls, lsKey, SHIPPED as SHIPPED_IDS, isShipped, P as PROFILE, PROFILES } from './core.js';
 import { renderRead } from './reader.js';
 import * as POD from './podcast.js';
 import * as VID from './video.js';
@@ -12,9 +13,18 @@ import * as G from './generate.js';
 import * as T from './text.js';
 import * as PDF from './pdf.js';
 import * as H from './study/hub.js';
+import * as B from './books.js';
+import * as OR from './order.js';
+import * as IMP from './import.js';
 
-export const SHIPPED = ['gita'];
+export const SHIPPED = SHIPPED_IDS;
 const COVERS = { gita: { bg: '#2b2235', tx: '#f2ead8', ac: '#e0b874', kicker: 'Shared' } };
+// Imported books get one of these, chosen by their id, so a cover never changes.
+const PALETTE = [
+  { bg: '#23303a', tx: '#e8eef2', ac: '#8fc1d4' }, { bg: '#2f2a22', tx: '#f1e9dc', ac: '#d9a960' },
+  { bg: '#26302a', tx: '#e7efe8', ac: '#93c49f' }, { bg: '#332630', tx: '#f2e6ee', ac: '#d49bbd' },
+  { bg: '#2a2b38', tx: '#e9e9f4', ac: '#a9a6e6' }, { bg: '#352a26', tx: '#f3e8e2', ac: '#e09a7e' },
+];
 
 /* ── icons (Lucide-style lines) ───────────────────────────────────────────── */
 const I = (b) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + b + '</svg>';
@@ -34,6 +44,9 @@ export const IC = {
   ribbon: I('<path d="M6 3h12v18l-6-4-6 4z"/>'),
   undo: I('<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/>'),
   key: I('<circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3 21 2"/><path d="M16 7l3 3"/><path d="M18.5 4.5l2 2"/>'),
+  upload: I('<path d="M12 15V3"/><path d="M7 8l5-5 5 5"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>'),
+  pen: I('<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>'),
+  trash: I('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>'),
   book: '<svg viewBox="14 14 68 68" fill="none" stroke="currentColor" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M48 40c-6-4-14-6-24-6v38c10 0 18 2 24 6 6-4 14-6 24-6V34c-10 0-18 2-24 6Z"/><path d="M48 40v38"/><path d="M41 28a10 10 0 0 1 14 0"/><path d="M35 21a19 19 0 0 1 26 0"/></svg>',
 };
 const NRname = (id) => String(id || '').replace(/^[a-z]{2}-[A-Z]{2}-/, '').replace(/(Multilingual)?Neural$/, '');
@@ -49,9 +62,9 @@ async function getJSON(url) {
   if (!cache.has(url)) cache.set(url, fetch(url).then((r) => { if (!r.ok) throw new Error(url + ' ' + r.status); return r.json(); }).catch((e) => { cache.delete(url); throw e; }));
   return cache.get(url);
 }
-export const loadBook = (id) => getJSON('books/' + id + '/book.json');
-export const loadChapter = (id, file) => getJSON('books/' + id + '/' + file);
-export const loadLessons = (id) => getJSON('books/' + id + '/lessons.json').catch(() => ({}));
+export const loadBook = (id) => (isShipped(id) ? getJSON('books/' + id + '/book.json') : B.get(id));
+export const loadChapter = (id, file) => (isShipped(id) ? getJSON('books/' + id + '/' + file) : B.chapter(id, file));
+export const loadLessons = (id) => (isShipped(id) ? getJSON('books/' + id + '/lessons.json').catch(() => ({})) : Promise.resolve({}));
 
 export const chKey = (n) => 'ch' + n;
 export function progressOf(book, n) { return me.get('progress.' + book + '.' + chKey(n), {}) || {}; }
@@ -66,7 +79,7 @@ export function fracOf(book, n) {
 // media/podcasts.json and media/videos.json); Study from the book's study.json
 // (study) or study sets made with AI (study/hub.js).
 export function available(book, n, lessons, pods, vids, study) {
-  const a = shared.get('assets.' + book + '.' + chKey(n), {}) || {};
+  const a = M.docFor(book).get('assets.' + book + '.' + chKey(n), {}) || {};
   return {
     read: true,
     listen: !!a.podcast || !!(pods && pods[String(n)]),
@@ -101,7 +114,7 @@ export function markOpened(book, n) {
 
 /* ── pieces ───────────────────────────────────────────────────────────────── */
 function cover(b) {
-  const c = COVERS[b.id] || { bg: '#2a2f3a', tx: '#eef', ac: '#c0aeea', kicker: b.shared ? 'Shared' : 'Mine' };
+  const c = COVERS[b.id] || Object.assign({ kicker: b.where === 'mine' ? 'Mine' : 'Shared' }, PALETTE[parseInt(OR.hashKey(b.id).slice(1), 36) % PALETTE.length]);
   return '<div class="cover" style="--cv-bg:' + c.bg + ';--cv-tx:' + c.tx + ';--cv-ac:' + c.ac + '">' +
     '<div><div class="cv-kicker">' + esc(c.kicker) + '</div><div class="cv-title" style="margin-top:14px">' + esc(b.title) + '</div>' +
     (b.subtitle ? '<div class="cv-sub">' + esc(b.subtitle) + '</div>' : '') + '</div>' +
@@ -120,35 +133,31 @@ export function bookFrac(b) {
 
 /* ── views ────────────────────────────────────────────────────────────────── */
 export async function viewLibrary(el, { go }) {
-  const books = await Promise.all(SHIPPED.map((id) => loadBook(id).catch(() => null)));
-  const sharedBooks = books.filter(Boolean);
-  // Personal shelves come with Import (Phase 8); the order is per person.
-  const order = me.get('shelf.order', []) || [];
-  sharedBooks.sort((a, b) => (order.indexOf(a.id) + 1 || 999) - (order.indexOf(b.id) + 1 || 999));
+  const shipped = (await Promise.all(SHIPPED.map((id) => loadBook(id).catch(() => null)))).filter(Boolean);
+  const imp = B.list();
+  // Each shelf in the person's own order (shelf.order is the Shared one's,
+  // kept from before Mine existed).
+  const sharedBooks = OR.arrange([...shipped, ...imp.shared.map((b) => Object.assign({ where: 'shared' }, b))], (b) => b.id, me.get('shelf.order', []) || []);
+  const mine = OR.arrange(imp.mine.map((b) => Object.assign({ where: 'mine' }, b)), (b) => b.id, me.get('shelf.mine', []) || []);
   const card = (b) => {
     const f = bookFrac(b);
-    return '<button class="book" data-dkey="' + esc(b.id) + '" data-go="#/b/' + esc(b.id) + '">' + cover(b) +
+    return '<button class="book" data-dkey="' + esc(b.id) + '" data-go="#/b/' + esc(b.id) + '" title="' + esc(OR.HINT) + '">' + cover(b) +
       '<div class="bk-meta"><div class="bk-t">' + esc(b.title) + '</div><div class="bk-a">' + esc(b.translator || b.author || '') + '</div>' +
       '<div class="bk-bar"><i style="width:' + (f * 100).toFixed(1) + '%"></i></div></div></button>';
   };
+  const importBtn = '<button class="btn sm" data-import>' + IC.upload + 'Import a book</button>';
   el.innerHTML =
     '<div class="lib-hero"><h1>Library</h1><p>Read, listen, watch and study, one chapter at a time.</p></div>' +
     '<div class="sec-h"><h2>Shared</h2><span class="n">Tony and Veda</span></div>' +
     '<div class="shelf" id="shelf-shared">' + sharedBooks.map(card).join('') + '</div>' +
-    '<div class="sec-h"><h2>Mine</h2></div>' +
-    '<div class="mine-empty">' + IC.plus + '<span><b>Your own books will sit here.</b> Importing a PDF, EPUB, Word file or text is coming soon.</span></div>';
+    '<div class="sec-h"><h2>Mine</h2><span class="n">' + esc(PROFILES[PROFILE] ? 'Only ' + PROFILES[PROFILE].label : '') + '</span>' + (mine.length ? '<span class="sp"></span>' + importBtn : '') + '</div>' +
+    (mine.length ? '<div class="shelf" id="shelf-mine">' + mine.map(card).join('') + '</div>'
+      : '<button class="mine-empty" data-import>' + IC.upload + '<span><b>Import a book.</b> A PDF, EPUB, Word file or text: Shruti finds its chapters, and read-aloud, Make with AI and Study work on it like the Gita.</span></button>');
   el.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => { if (!(window.A1Drag && A1Drag.active)) go(b.dataset.go); }));
-  const shelf = el.querySelector('#shelf-shared');
-  if (window.A1Drag && shelf && sharedBooks.length > 1) {
-    A1Drag.sort(shelf, {
-      row: '.book', axis: 'grid', hold: 300,
-      onDrop(from, to) {
-        const ids = sharedBooks.map((b) => b.id);
-        ids.splice(to, 0, ids.splice(from, 1)[0]);
-        me.set({ 'shelf.order': ids }, { now: true });
-      },
-    });
-  }
+  el.querySelectorAll('[data-import]').forEach((b) => b.addEventListener('click', () => IMP.open({ go })));
+  const redraw = () => { if (el.isConnected) viewLibrary(el, { go }); };
+  OR.sortable(el.querySelector('#shelf-shared'), { row: '.book', axis: 'grid', onMove: (ids) => { me.set({ 'shelf.order': ids }, { now: true }); redraw(); } });
+  OR.sortable(el.querySelector('#shelf-mine'), { row: '.book', axis: 'grid', onMove: (ids) => { me.set({ 'shelf.mine': ids }, { now: true }); redraw(); } });
 }
 
 export async function viewBook(el, { id, go }) {
@@ -166,26 +175,42 @@ export async function viewBook(el, { id, go }) {
       '<div><div class="t">' + esc(c.title) + '</div><div class="m">' + esc(meta) + '</div></div>' +
       '<div class="badges">' + ['read', 'listen', 'watch', 'study'].map(badge).join('') + '</div></button>';
   };
+  const unit = b.unit || 'Chapter', plural = unit.toLowerCase() + (b.chapters.length === 1 ? '' : 's');
   el.innerHTML =
     '<div class="bk-head">' + cover(b) + '<div><h1>' + esc(b.title) + '</h1>' +
     '<div class="by">' + esc([b.author, b.translator && 'rendered by ' + b.translator].filter(Boolean).join(', ')) + '</div>' +
-    '<div class="stats"><span><b>' + b.chapters.length + '</b> chapters</span><span><b>' + done + '</b> finished</span><span><b>' + lessonCount + '</b> lessons</span></div>' +
-    '<div class="acts"><button class="btn solid" data-go="#/b/' + esc(id) + '/' + startN + '">' + IC.play + (cur != null ? 'Continue chapter ' + startN : 'Start reading') + '</button>' +
-    (b.intro ? '<button class="btn" data-go="#/b/' + esc(id) + '/0">Introduction</button>' : '') + '</div></div></div>' +
-    '<div class="sec-h"><h2>Chapters</h2></div><div class="chs">' + b.chapters.map(row).join('') + '</div>' + bookmarksHtml(b);
-  el.querySelectorAll('[data-go]').forEach((x) => x.addEventListener('click', () => go(x.dataset.go)));
+    '<div class="stats"><span><b>' + b.chapters.length + '</b> ' + esc(plural) + '</span><span><b>' + done + '</b> finished</span>' + (b.imported ? '<span><b>' + Number(b.words || 0).toLocaleString() + '</b> words</span>' : '<span><b>' + lessonCount + '</b> lessons</span>') + '</div>' +
+    '<div class="acts"><button class="btn solid" data-go="#/b/' + esc(id) + '/' + startN + '">' + IC.play + (cur != null ? 'Continue ' + esc(unit.toLowerCase()) + ' ' + startN : 'Start reading') + '</button>' +
+    (b.intro ? '<button class="btn" data-go="#/b/' + esc(id) + '/0">Introduction</button>' : '') +
+    (b.imported ? '<button class="btn ghost" data-rename>' + IC.pen + 'Rename</button><button class="btn ghost danger" data-delete>' + IC.trash + 'Delete</button>' : '') + '</div>' +
+    (b.imported ? '<p class="bk-src">' + esc((b.where === 'mine' ? 'Only yours' : 'Shared with ' + (PROFILE === 'veda' ? 'Tony' : 'Veda')) + ' · imported from ' + ((b.src && b.src.name) || 'pasted text') + (b.by && PROFILES[b.by] ? ' by ' + PROFILES[b.by].label : '')) + '</p>' : '') + '</div></div>' +
+    '<div class="sec-h"><h2>' + esc(unit + 's') + '</h2></div><div class="chs">' + b.chapters.map(row).join('') + '</div>' + bookmarksHtml(b);
+  el.querySelectorAll('[data-go]').forEach((x) => x.addEventListener('click', () => { if (!(window.A1Drag && A1Drag.active)) go(x.dataset.go); }));
+  const rn = el.querySelector('[data-rename]');
+  if (rn) rn.addEventListener('click', () => IMP.rename(b, () => viewBook(el, { id, go })));
+  const del = el.querySelector('[data-delete]');
+  if (del) del.addEventListener('click', async () => {
+    const both = b.where !== 'mine';
+    if (!await window.uiConfirm('Delete “' + b.title + '”' + (both ? ' for both of you' : '') + '? Its text and everything made from it (podcasts, videos, study sets) go too.', { title: 'Delete book', okLabel: 'Delete' })) return;
+    await B.remove(id);
+    window.Shruti && window.Shruti.toast('Deleted “' + b.title + '”');
+    go('#/');
+  });
+  OR.sortable(el.querySelector('.bmks'), { row: '.bmk', axis: 'grid', onMove: (keys) => { OR.put('bmk.' + id, keys); viewBook(el, { id, go }); } });
 }
 
-/** Every bookmark this person keeps in a book, chapter by chapter. */
+/** Every bookmark this person keeps in a book: in book order, or the order
+ *  they dragged them into (order.bmk.<book>). */
 function bookmarksHtml(b) {
   const all = me.get('bookmarks.' + b.id, {}) || {};
-  const rows = [];
+  const marks = [];
   for (const c of [{ n: 0, title: b.intro && b.intro.title }, ...b.chapters]) {
     const m = all[chKey(c.n)] || {};
-    Object.keys(m).map((k) => Number(k.slice(1))).sort((x, y) => x - y).forEach((blk) =>
-      rows.push('<button class="bmk" data-go="#/b/' + esc(b.id) + '/' + c.n + '/read/' + blk + '">' + IC.ribbon +
-        '<span><b>' + esc(m['b' + blk].label || '') + '</b><span>' + esc(c.n ? (b.unit || 'Chapter') + ' ' + c.n + ' · ' + c.title : c.title || 'Introduction') + '</span></span></button>'));
+    Object.keys(m).map((k) => Number(k.slice(1))).sort((x, y) => x - y).forEach((blk) => marks.push({ c, blk, m: m['b' + blk], key: chKey(c.n) + '.b' + blk }));
   }
+  const rows = OR.arrange(marks, (x) => x.key, OR.get('bmk.' + b.id)).map(({ c, blk, m, key }) =>
+    '<button class="bmk" data-dkey="' + esc(key) + '" title="' + esc(OR.HINT) + '" data-go="#/b/' + esc(b.id) + '/' + c.n + '/read/' + blk + '">' + IC.ribbon +
+    '<span><b>' + esc(m.label || '') + '</b><span>' + esc(c.n ? (b.unit || 'Chapter') + ' ' + c.n + ' · ' + c.title : c.title || 'Introduction') + '</span></span></button>');
   return rows.length ? '<div class="sec-h"><h2>Bookmarks</h2><span class="n">' + rows.length + '</span></div><div class="bmks">' + rows.join('') + '</div>' : '';
 }
 
@@ -194,7 +219,7 @@ export async function viewChapter(el, { id, n, mode, at, go }) {
   const isIntro = n === 0;
   const meta = isIntro ? { n: 0, title: b.intro.title, file: b.intro.file } : b.chapters.find((c) => c.n === n);
   if (!meta) { go('#/b/' + id); return; }
-  const [ch, lessons, pods, vids, reads, study] = await Promise.all([loadChapter(id, meta.file), loadLessons(id), POD.shipped(id), VID.shipped(id), getJSON('books/' + id + '/media/index.json').catch(() => ({})), H.shippedIndex(id)]);
+  const [ch, lessons, pods, vids, reads, study] = await Promise.all([loadChapter(id, meta.file), loadLessons(id), POD.shipped(id), VID.shipped(id), (isShipped(id) ? getJSON('books/' + id + '/media/index.json').catch(() => ({})) : {}), H.shippedIndex(id)]);
   const av = available(id, n, lessons, pods, vids, study);
   mode = MODES.some((m) => m.id === mode) && (!isIntro || mode === 'study') ? mode : 'read';
   const idx = b.chapters.findIndex((c) => c.n === n);
