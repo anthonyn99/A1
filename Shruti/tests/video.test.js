@@ -57,7 +57,7 @@ const XREF = /\s*\((?:also\s+)?see\b[^)]*\)/gi;
     console.log('\nChapter ' + n + ' (' + sc.scenes.length + ' scenes)');
     ok('one narrator, an Edge voice that is not a podcast host', sc.n === n && /^en-[A-Z]{2}-\w+Neural$/.test(sc.narrator.voice) && !hosts.has(sc.narrator.voice) && sc.narrator.name);
     ok('known layouts; a title first and a summary last', sc.scenes.every((s) => VID.LAYOUTS.includes(s.layout)) && sc.scenes[0].layout === 'title' && sc.scenes[sc.scenes.length - 1].layout === 'closing');
-    ok('every scene says something', sc.scenes.every((s) => s.say && s.say.trim().split(/\s+/).length >= 8));
+    ok('every scene says something (a verse scene at least names its verse)', sc.scenes.every((s) => s.say && s.say.trim().split(/\s+/).length >= (s.layout === 'verse' ? 3 : 8)));
     const tagged = new Set(sc.scenes.flatMap((s) => s.L || []));
     ok('every lesson (' + ids.length + ') is taught', ids.length > 0 && ids.every((id) => tagged.has(id)), ids.filter((id) => !tagged.has(id)).join(','));
     ok('…each on its own lesson scene', ids.every((id) => sc.scenes.some((s) => ['lesson', 'compare', 'steps'].includes(s.layout) && (s.L || [])[0] === id && /^Lesson /.test(s.say.trim()))), ids.filter((id) => !sc.scenes.some((s) => (s.L || [])[0] === id && /^Lesson /.test(s.say.trim()))).join(','));
