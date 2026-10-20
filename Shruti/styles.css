@@ -601,21 +601,20 @@ body[data-profile=veda] .ls-sum b { text-transform: none; letter-spacing: 0; fon
 .vid-stage.fs canvas, .vid-stage.pfs canvas { width: min(100vw, calc(100vh * 16 / 9)); height: auto; aspect-ratio: 16 / 9; }
 .vid-stage.pfs { position: fixed; inset: 0; z-index: 300; }
 html.vid-pfs, html.vid-pfs body { overflow: hidden; }
+/* An upright phone with no real full screen: the whole stage turns sideways. */
 @media (orientation: portrait) {
-  .vid-stage.pfs canvas { width: min(100vh, calc(100vw * 16 / 9)); width: min(100dvh, calc(100vw * 16 / 9)); transform: rotate(90deg); }
+  .vid-stage.pfs { inset: auto; top: 0; left: 100vw; width: 100vh; width: 100dvh; height: 100vw; transform-origin: top left; transform: rotate(90deg); }
+  .vid-stage.pfs canvas { width: min(100vh, calc(100vw * 16 / 9)); width: min(100dvh, calc(100vw * 16 / 9)); }
 }
 .vid-stage.fs .vid-ov, .vid-stage.pfs .vid-ov {
   display: flex; align-items: center; gap: 8px; position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
-  background: linear-gradient(transparent, rgba(0,0,0,.6)); color: #fff; opacity: 0; transition: opacity .25s; pointer-events: none;
+  background: rgba(0,0,0,.55); color: #fff; opacity: 0; transition: opacity .25s; pointer-events: none;
 }
 .vid-stage.fs.awake .vid-ov, .vid-stage.pfs.awake .vid-ov, .vid-stage.fs:not(.playing) .vid-ov, .vid-stage.pfs:not(.playing) .vid-ov { opacity: 1; pointer-events: auto; }
 .vid-ov .ib { color: #fff; }
 .vid-ov .ib.on { color: var(--acl); }
 .vid-ov .sp { flex: 1; }
 .vid-ov-t { font-size: 13px; font-variant-numeric: tabular-nums; }
-@media (orientation: portrait) {
-  .vid-stage.pfs .vid-ov { transform-origin: top left; transform: rotate(90deg) translateY(-100%); width: 100vh; width: 100dvh; left: 0; top: 0; bottom: auto; }
-}
 
 @media (max-width: 760px) {
   :root { --bnav-h: calc(62px + env(safe-area-inset-bottom)); --top-h: 54px; }

@@ -202,10 +202,26 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
     document.execCommand('insertHTML', false, '<p>Show up daily.</p>'); ed.dispatchEvent(new Event('input', { bubbles: true })); return 'ok';`);
   await sleep(2500); await js(`document.getElementById('ew-nb-done').click(); return 1;`); await sleep(2500);
   ok('what is written there shows on the new card (the same beautiful reader)', typed2 === 'ok' && await js(`return /Show up daily/.test(document.querySelector('.wr-card[data-wr="${newId}"] .wr-ex').textContent);`), typed2);
+  // Renamed in Notebook's own title box (Tony 2026-10-20: the card kept the old name).
+  const nbTitle = async (t) => {
+    await js(`document.querySelector('[data-wr-edit="${newId}"]').click(); return 1;`);
+    for (let i = 0; i < 40 && !(await js(`const a = document.querySelector('#ewn-entries-list .entry-item.active'); return !!a && a.dataset.entryId === '${newId}';`)); i++) await sleep(250);
+    await sleep(500);
+    if (t != null) await js(`const i = document.getElementById('ewn-entry-title-input'); i.focus(); i.value = ${JSON.stringify(t)}; i.dispatchEvent(new Event('input', { bubbles: true })); i.blur(); return 1;`);
+    await sleep(2500);
+    const shown = await js(`return document.getElementById('ewn-entry-title-input').value + '|' + document.getElementById('ew-nb-title').textContent;`);
+    await js(`document.getElementById('ew-nb-done').click(); return 1;`); await sleep(2500);
+    return shown;
+  };
+  const cardNames = () => js(`return [document.querySelector('.wr-card[data-wr="${newId}"] .wr-title').textContent, __fakeFs.docs['dashboards/everwell_tony'].mindsetPages.find(p => p.id === '${newId}').title, __fakeFs.docs['dashboards/everwell_notes']['e_${newId}'].title].join('|');`);
+  let shown = await nbTitle('Discipline Notes');
+  ok('a title typed in the Notebook editor renames the card, its list entry and the editor's header', (await cardNames()) === 'Discipline Notes|Discipline Notes|Discipline Notes' && shown === 'Discipline Notes|Discipline Notes', (await cardNames()) + ' / ' + shown);
   await js(`document.querySelector('[data-wr-rename="${newId}"]').click(); return 1;`); await sleep(400);
   await js(`document.querySelector('#uim-fields input').value = 'Discipline Rules'; document.getElementById('uim-ok').click(); return 1;`); await sleep(1800);
   ok('Rename renames the card, its list entry and its page', await js(`return document.querySelector('.wr-card[data-wr="${newId}"] .wr-title').textContent === 'Discipline Rules' &&
     __fakeFs.docs['dashboards/everwell_tony'].mindsetPages[2].title === 'Discipline Rules' && __fakeFs.docs['dashboards/everwell_notes']['e_${newId}'].title === 'Discipline Rules';`));
+  shown = await nbTitle(null);
+  ok('...then the editor opens with the button's name, and closing it keeps that name everywhere', shown === 'Discipline Rules|Discipline Rules' && (await cardNames()) === 'Discipline Rules|Discipline Rules|Discipline Rules', shown + ' / ' + (await cardNames()));
   a = await js(`const r = document.querySelector('.wr-card[data-wr="${newId}"] .wr-title').getBoundingClientRect(); return JSON.stringify({ x: r.left + r.width / 2, y: r.top + r.height / 2 });`).then(JSON.parse);
   b = await js(`const r = document.querySelector('.wr-card[data-wr="relationship-principles"]').getBoundingClientRect(); return JSON.stringify({ x: r.left + 20, y: r.top + r.height / 2 });`).then(JSON.parse);
   const mouse = (type, x, y) => c.send('Input.dispatchMouseEvent', { type, x, y, button: 'left', buttons: type === 'mouseReleased' ? 0 : 1, clickCount: 1 });
@@ -227,6 +243,20 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   await tap(); await sleep(1500);
   d = await doc();
   ok('a second import leaves the existing page untouched', d.e_prayer.data.html === TEST.pages.prayer);
+
+  console.log('
+An import link can add a Mindset card');
+  const carry = async () => `sessionStorage.setItem('__fakefs_docs', ${JSON.stringify(JSON.stringify(await js(`return JSON.stringify({ 'dashboards/everwell_notes': __fakeFs.docs['dashboards/everwell_notes'], 'dashboards/everwell_tony': __fakeFs.docs['dashboards/everwell_tony'] });`).then(JSON.parse)))});`;
+  const vLink = link({ mindset: [{ title: "Veda's Expectations", html: '<h2>How We Handle Things</h2><h3>1. Ask, don't assume.</h3><p>Ask me directly.</p><p><em>Me: I'll answer openly.</em></p><ul><li>One</li></ul>' }] });
+  const before = await js(`return __fakeFs.docs['dashboards/everwell_tony'].mindsetPages.length;`);
+  await fresh(vLink, await carry()); await tap(); await sleep(3000);
+  const vp = await js(`return JSON.stringify(__fakeFs.docs['dashboards/everwell_tony'].mindsetPages);`).then(JSON.parse);
+  const ve = vp.filter((p) => p.title === "Veda's Expectations");
+  d = await doc();
+  ok('a { mindset } import adds the card at the end of the list, keeping the others', ve.length === 1 && vp.length === before + 1 && vp[vp.length - 1].title === "Veda's Expectations", JSON.stringify(vp));
+  ok('...with its formatted text as a Notebook page', !!ve[0] && !!d['e_' + ve[0].id] && /<h3>1\. Ask/.test(d['e_' + ve[0].id].data.html) && d['e_' + ve[0].id].title === "Veda's Expectations");
+  await fresh(vLink, await carry()); await tap(); await sleep(3000);
+  ok('...and the same link again adds nothing', (await js(`return __fakeFs.docs['dashboards/everwell_tony'].mindsetPages.filter(p => p.title === "Veda's Expectations").length;`)) === 1);
 
   console.log('\nThe recovery copy (#ew-backup, Phase 9)');
   // Catch the download in the page: the anchor's click is recorded with the
