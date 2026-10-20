@@ -114,7 +114,8 @@ const pdfWords = (pdf) => (pdf.match(/\((?:\\.|[^\\)])*\) Tj/g) || []).map((s) =
   await waitFor(c, `!!window.Shruti && !!window.Shruti.core.shared.loaded`, 15000);
   await ev(c,`window.Shruti.core.shared.set({'assets.gita.ch4.lessons': {id:'v1', model:'deepseek/free', lessons:[{id:'L1', title:'Karma-yoga is ancient (Śrī Kṛṣṇa’s words).', body:'Receive it as old wisdom — kept by saintly kings.'},{id:'L2', title:'God comes by his own power.', body:'Not by karma.'}], summary:'Selfless work, offered to God, frees.'}},{now:true}); return 1`);
   await load(c, { w: 1280, h: 900, mobile: false, hash: '#/b/gita/4/lessons' });
-  ok('it shows the AI set', await waitFor(c, `/drawn by DeepSeek/.test(document.querySelector('.ls-k')?.textContent||'')`));
+  const shows = await waitFor(c, `/drawn by DeepSeek/.test(document.querySelector('.ls-k')?.textContent||'')`);
+  ok('it shows the AI set', shows, await ev(c, `return document.body.dataset.profile+' '+JSON.stringify(window.Shruti.core.shared.get('assets.gita.ch4.lessons',null))+' '+(document.querySelector('.ls-k')?.textContent)`));
   const ai = await download(c, '#ls-pdf');
   const aw = ai ? pdfWords(ai.data) : '';
   ok('its PDF is named for the unit', ai && ai.name === 'Bhagavad-Gita - Chapter 4 lessons (DeepSeek).pdf', ai && ai.name);
