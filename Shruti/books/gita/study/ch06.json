@@ -1,53 +1,474 @@
 {
-  "n": 6,
-  "title": "Path of meditation",
-  "flashcards": [
-    { "front": "Who is a true renunciant (Samnyasi)?", "back": "One who does their duty without attachment to its results, not one who only gives up work or rituals.", "L": ["L1"] },
-    { "front": "Action, then calm", "back": "For the seeker, Karma-yoga is the means to calm; once yoga is reached, calmness becomes the means to Self-realization.", "L": ["L2"] },
-    { "front": "Friend or enemy (6.5-6)", "back": "The mind is the friend of those who control it and the enemy of those who don't. Lift yourself by your own mind.", "ref": "6.05-06", "L": ["L3"] },
-    { "front": "The conquered self", "back": "One who has mastered mind and senses stays calm in heat and cold, pleasure and pain, honour and dishonour.", "L": ["L4"] },
-    { "front": "Impartial to all (6.9)", "back": "Superior is one impartial to friends, enemies, neutrals, haters, relatives, saints and sinners.", "ref": "6.09", "L": ["L5"] },
-    { "front": "How to sit for meditation", "back": "A clean, quiet place; spine, neck and head erect; gaze steady; mind and senses restrained.", "L": ["L6"] },
-    { "front": "Too much or too little", "back": "Yoga fails for those who eat or sleep too much or too little. Moderation in all things is needed.", "L": ["L7"] },
-    { "front": "Samadhi", "back": "When the disciplined mind is free of all desire and rests in the Self, one is united with the Eternal.", "L": ["L8"] },
-    { "front": "The sheltered lamp", "back": "A lamp in a windless place does not flicker: so is the yogi's mind, sheltered from desire.", "L": ["L9"] },
-    { "front": "The highest gain", "back": "After Self-realization one sees no gain as higher, and is not shaken by even the greatest sorrow.", "L": ["L10"] },
-    { "front": "What yoga is", "back": "Severing the union with sorrow: practised with firm resolve and without doubt.", "L": ["L11"] },
-    { "front": "When the mind wanders (6.26)", "back": "Just witness it, under the supervision of the Self, and bring it gently back.", "ref": "6.26", "L": ["L12"] },
-    { "front": "How is the restless mind subdued? (6.35)", "back": "By constant, vigorous practice with perseverance, Self-knowledge and detachment.", "ref": "6.35", "L": ["L12"] },
-    { "front": "The best yogi (6.32)", "back": "One who regards every being like oneself and feels others' pain and pleasure as their own.", "ref": "6.32", "L": ["L5"] },
-    { "front": "The unsuccessful yogi (6.44)", "back": "Carried toward God by past practice; even the seeker of yoga surpasses those who only perform rituals.", "ref": "6.44" },
-    { "front": "Best of all yogis (6.47)", "back": "The yogi-devotee who lovingly contemplates God with supreme faith, mind ever absorbed in him.", "ref": "6.47", "L": ["L13"] }
-  ],
-  "quiz": [
-    { "text": "Who is the true renunciant in Chapter 6?", "options": { "A": "One who stops all work", "B": "One who works without attachment to results", "C": "One who lives in a forest", "D": "One who stops rituals" }, "correct": "B", "why": "Renunciation is of selfish motive, not of duty.", "L": ["L1"] },
-    { "text": "The mind is the enemy of whom?", "options": { "A": "Of those who control it", "B": "Of those who don't control it", "C": "Of every yogi", "D": "Of no one" }, "correct": "B", "why": "6.5-6: controlled, it is a friend; uncontrolled, an enemy.", "L": ["L3"] },
-    { "text": "What is needed for success in yoga, regarding food and sleep?", "options": { "A": "Fasting", "B": "Little sleep", "C": "Moderation", "D": "Feasting" }, "correct": "C", "why": "Too much or too little of either makes yoga fail.", "L": ["L7"] },
-    { "text": "The steady mind is compared to:", "options": { "A": "A storm at sea", "B": "A lamp in a windless place", "C": "A wheel", "D": "A lotus leaf" }, "correct": "B", "why": "It does not flicker when sheltered from desire.", "L": ["L9"] },
-    { "text": "When the mind wanders in meditation, one should:", "options": { "A": "Stop meditating", "B": "Punish it", "C": "Witness it and bring it back to the Self", "D": "Follow it" }, "correct": "C", "why": "6.26: gentle watching under the Self.", "L": ["L12"] },
-    { "text": "How is yoga defined in this chapter?", "options": { "A": "Union with pleasure", "B": "Severing the union with sorrow", "C": "Physical exercise", "D": "Withdrawal from people" }, "correct": "B", "why": "Practised with firm resolve.", "L": ["L11", "L8"] },
-    { "text": "Who is the best yogi in 6.32?", "options": { "A": "The strongest", "B": "One who feels others' pain and joy as their own", "C": "One who meditates longest", "D": "One who knows all scriptures" }, "correct": "B", "why": "Seeing every being like oneself.", "L": ["L5"] },
-    { "text": "Who is best of all yogis (6.47)?", "options": { "A": "The ascetic", "B": "The scholar", "C": "The yogi-devotee absorbed in God", "D": "The ritualist" }, "correct": "C", "why": "Loving contemplation with supreme faith.", "L": ["L13"] },
-    { "text": "After Self-realization, what changes?", "options": { "A": "No gain seems higher, and sorrow cannot shake one", "B": "Nothing", "C": "One stops working", "D": "One seeks heaven" }, "correct": "A", "why": "The highest gain.", "L": ["L10", "L4"] }
-  ],
-  "mindmap": {
-    "root": "The path of meditation",
-    "branches": [
-      { "text": "Renunciation rightly seen", "L": ["L1", "L2"], "children": [{ "text": "The Karma-yogi renounces", "L": ["L1"] }, { "text": "Action leads to calm", "L": ["L2"] }] },
-      { "text": "The mind", "L": ["L3", "L4", "L12"], "children": [{ "text": "Friend or enemy (6.5-6)", "L": ["L3"] }, { "text": "Mastered senses, steady self", "L": ["L4"] }, { "text": "Witness the wandering (6.26)", "L": ["L12"] }] },
-      { "text": "Practice", "L": ["L6", "L7"], "children": [{ "text": "Quiet place, erect posture", "L": ["L6"] }, { "text": "Moderation in all things", "L": ["L7"] }, { "text": "Practice and detachment (6.35)" }] },
-      { "text": "The goal", "L": ["L8", "L9", "L10", "L11"], "children": [{ "text": "Samadhi", "L": ["L8"] }, { "text": "The sheltered lamp", "L": ["L9"] }, { "text": "The highest gain", "L": ["L10"] }, { "text": "Freedom from sorrow", "L": ["L11"] }] },
-      { "text": "Who is the best yogi", "L": ["L5", "L13"], "children": [{ "text": "Sees all with equal eye", "L": ["L5"] }, { "text": "The yogi-devotee (6.47)", "L": ["L13"] }] }
-    ]
+ "n": 6,
+ "title": "Path of meditation",
+ "flashcards": [
+  {
+   "front": "Who is a true renunciant (Samnyasi)?",
+   "back": "One who does their duty without attachment to its results, not one who only gives up work or rituals.",
+   "L": [
+    "L1"
+   ]
   },
-  "slides": [
-    { "title": "The path of meditation", "bullets": ["Chapter 6", "The mind, its practice, and the best yogi"] },
-    { "title": "The true renunciant", "bullets": ["Works without attachment to results", "Action leads to calm; calm to realization"], "L": ["L1", "L2"] },
-    { "title": "Your mind: friend or enemy", "bullets": ["Lift yourself by your own mind (6.5-6)", "The conquered self is calm in every opposite"], "L": ["L3", "L4"] },
-    { "title": "Equal vision", "bullets": ["Impartial to friend and foe, saint and sinner (6.9)", "The best yogi feels others' pain as their own (6.32)"], "L": ["L5"] },
-    { "title": "How to meditate", "bullets": ["A clean, quiet place; an erect posture", "Restrain mind and senses", "Moderate in food, sleep, work"], "L": ["L6", "L7"] },
-    { "title": "The steady mind", "bullets": ["A lamp in a windless place", "When it wanders, witness and return (6.26)", "Subdued by practice and detachment (6.35)"], "L": ["L9", "L12"] },
-    { "title": "The goal", "bullets": ["Samadhi: the mind merged in God", "Yoga severs the union with sorrow", "No gain is higher than Self-realization"], "L": ["L8", "L10", "L11"] },
-    { "title": "The best of all yogis", "bullets": ["No effort is lost (6.44)", "The yogi-devotee, absorbed in God with faith (6.47)"], "L": ["L13"] }
+  {
+   "front": "Action, then calm",
+   "back": "For the seeker, Karma-yoga is the means to calm; once yoga is reached, calmness becomes the means to Self-realization.",
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "front": "Friend or enemy (6.5-6)",
+   "back": "The mind is the friend of those who control it and the enemy of those who don't. Lift yourself by your own mind.",
+   "ref": "6.05-06",
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "front": "The conquered self",
+   "back": "One who has mastered mind and senses stays calm in heat and cold, pleasure and pain, honour and dishonour.",
+   "L": [
+    "L4"
+   ]
+  },
+  {
+   "front": "Impartial to all (6.9)",
+   "back": "Superior is one impartial to friends, enemies, neutrals, haters, relatives, saints and sinners.",
+   "ref": "6.09",
+   "L": [
+    "L5"
+   ]
+  },
+  {
+   "front": "How to sit for meditation",
+   "back": "A clean, quiet place; spine, neck and head erect; gaze steady; mind and senses restrained.",
+   "L": [
+    "L6"
+   ]
+  },
+  {
+   "front": "Too much or too little",
+   "back": "Yoga fails for those who eat or sleep too much or too little. Moderation in all things is needed.",
+   "L": [
+    "L7"
+   ]
+  },
+  {
+   "front": "Samadhi",
+   "back": "When the disciplined mind is free of all desire and rests in the Self, one is united with the Eternal.",
+   "L": [
+    "L8"
+   ]
+  },
+  {
+   "front": "The sheltered lamp",
+   "back": "A lamp in a windless place does not flicker: so is the yogi's mind, sheltered from desire.",
+   "L": [
+    "L9"
+   ]
+  },
+  {
+   "front": "The highest gain",
+   "back": "After Self-realization one sees no gain as higher, and is not shaken by even the greatest sorrow.",
+   "L": [
+    "L10"
+   ]
+  },
+  {
+   "front": "What yoga is",
+   "back": "Severing the union with sorrow: practised with firm resolve and without doubt.",
+   "L": [
+    "L11"
+   ]
+  },
+  {
+   "front": "When the mind wanders (6.26)",
+   "back": "Just witness it, under the supervision of the Self, and bring it gently back.",
+   "ref": "6.26",
+   "L": [
+    "L12"
+   ]
+  },
+  {
+   "front": "How is the restless mind subdued? (6.35)",
+   "back": "By constant, vigorous practice with perseverance, Self-knowledge and detachment.",
+   "ref": "6.35",
+   "L": [
+    "L12"
+   ]
+  },
+  {
+   "front": "The best yogi (6.32)",
+   "back": "One who regards every being like oneself and feels others' pain and pleasure as their own.",
+   "ref": "6.32",
+   "L": [
+    "L5"
+   ]
+  },
+  {
+   "front": "The unsuccessful yogi (6.44)",
+   "back": "Carried toward God by past practice; even the seeker of yoga surpasses those who only perform rituals.",
+   "ref": "6.44"
+  },
+  {
+   "front": "Best of all yogis (6.47)",
+   "back": "The yogi-devotee who lovingly contemplates God with supreme faith, mind ever absorbed in him.",
+   "ref": "6.47",
+   "L": [
+    "L13"
+   ]
+  }
+ ],
+ "quiz": [
+  {
+   "text": "Who is the true renunciant in Chapter 6?",
+   "options": {
+    "A": "One who stops all work",
+    "B": "One who lives in a forest",
+    "C": "One who works without attachment to results",
+    "D": "One who stops rituals"
+   },
+   "correct": "C",
+   "why": "Renunciation is of selfish motive, not of duty.",
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "text": "The mind is the enemy of whom?",
+   "options": {
+    "A": "Of those who control it",
+    "B": "Of those who don't control it",
+    "C": "Of every yogi",
+    "D": "Of no one"
+   },
+   "correct": "B",
+   "why": "6.5-6: controlled, it is a friend; uncontrolled, an enemy.",
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "text": "What is needed for success in yoga, regarding food and sleep?",
+   "options": {
+    "A": "Moderation",
+    "B": "Little sleep",
+    "C": "Fasting",
+    "D": "Feasting"
+   },
+   "correct": "A",
+   "why": "Too much or too little of either makes yoga fail.",
+   "L": [
+    "L7"
+   ]
+  },
+  {
+   "text": "The steady mind is compared to:",
+   "options": {
+    "A": "A storm at sea",
+    "B": "A lotus leaf",
+    "C": "A wheel",
+    "D": "A lamp in a windless place"
+   },
+   "correct": "D",
+   "why": "It does not flicker when sheltered from desire.",
+   "L": [
+    "L9"
+   ]
+  },
+  {
+   "text": "When the mind wanders in meditation, one should:",
+   "options": {
+    "A": "Stop meditating",
+    "B": "Punish it",
+    "C": "Witness it and bring it back to the Self",
+    "D": "Follow it"
+   },
+   "correct": "C",
+   "why": "6.26: gentle watching under the Self.",
+   "L": [
+    "L12"
+   ]
+  },
+  {
+   "text": "How is yoga defined in this chapter?",
+   "options": {
+    "A": "Union with pleasure",
+    "B": "Severing the union with sorrow",
+    "C": "Physical exercise",
+    "D": "Withdrawal from people"
+   },
+   "correct": "B",
+   "why": "Practised with firm resolve.",
+   "L": [
+    "L11",
+    "L8"
+   ]
+  },
+  {
+   "text": "Who is the best yogi in 6.32?",
+   "options": {
+    "A": "One who feels others' pain and joy as their own",
+    "B": "The strongest",
+    "C": "One who meditates longest",
+    "D": "One who knows all scriptures"
+   },
+   "correct": "A",
+   "why": "Seeing every being like oneself.",
+   "L": [
+    "L5"
+   ]
+  },
+  {
+   "text": "Who is best of all yogis (6.47)?",
+   "options": {
+    "A": "The ascetic",
+    "B": "The scholar",
+    "C": "The ritualist",
+    "D": "The yogi-devotee absorbed in God"
+   },
+   "correct": "D",
+   "why": "Loving contemplation with supreme faith.",
+   "L": [
+    "L13"
+   ]
+  },
+  {
+   "text": "After Self-realization, what changes?",
+   "options": {
+    "A": "One stops working",
+    "B": "Nothing",
+    "C": "No gain seems higher, and sorrow cannot shake one",
+    "D": "One seeks heaven"
+   },
+   "correct": "C",
+   "why": "The highest gain.",
+   "L": [
+    "L10",
+    "L4"
+   ]
+  }
+ ],
+ "mindmap": {
+  "root": "The path of meditation",
+  "branches": [
+   {
+    "text": "Renunciation rightly seen",
+    "L": [
+     "L1",
+     "L2"
+    ],
+    "children": [
+     {
+      "text": "The Karma-yogi renounces",
+      "L": [
+       "L1"
+      ]
+     },
+     {
+      "text": "Action leads to calm",
+      "L": [
+       "L2"
+      ]
+     }
+    ]
+   },
+   {
+    "text": "The mind",
+    "L": [
+     "L3",
+     "L4",
+     "L12"
+    ],
+    "children": [
+     {
+      "text": "Friend or enemy (6.5-6)",
+      "L": [
+       "L3"
+      ]
+     },
+     {
+      "text": "Mastered senses, steady self",
+      "L": [
+       "L4"
+      ]
+     },
+     {
+      "text": "Witness the wandering (6.26)",
+      "L": [
+       "L12"
+      ]
+     }
+    ]
+   },
+   {
+    "text": "Practice",
+    "L": [
+     "L6",
+     "L7"
+    ],
+    "children": [
+     {
+      "text": "Quiet place, erect posture",
+      "L": [
+       "L6"
+      ]
+     },
+     {
+      "text": "Moderation in all things",
+      "L": [
+       "L7"
+      ]
+     },
+     {
+      "text": "Practice and detachment (6.35)"
+     }
+    ]
+   },
+   {
+    "text": "The goal",
+    "L": [
+     "L8",
+     "L9",
+     "L10",
+     "L11"
+    ],
+    "children": [
+     {
+      "text": "Samadhi",
+      "L": [
+       "L8"
+      ]
+     },
+     {
+      "text": "The sheltered lamp",
+      "L": [
+       "L9"
+      ]
+     },
+     {
+      "text": "The highest gain",
+      "L": [
+       "L10"
+      ]
+     },
+     {
+      "text": "Freedom from sorrow",
+      "L": [
+       "L11"
+      ]
+     }
+    ]
+   },
+   {
+    "text": "Who is the best yogi",
+    "L": [
+     "L5",
+     "L13"
+    ],
+    "children": [
+     {
+      "text": "Sees all with equal eye",
+      "L": [
+       "L5"
+      ]
+     },
+     {
+      "text": "The yogi-devotee (6.47)",
+      "L": [
+       "L13"
+      ]
+     }
+    ]
+   }
   ]
+ },
+ "slides": [
+  {
+   "title": "The path of meditation",
+   "bullets": [
+    "Chapter 6",
+    "The mind, its practice, and the best yogi"
+   ]
+  },
+  {
+   "title": "The true renunciant",
+   "bullets": [
+    "Works without attachment to results",
+    "Action leads to calm; calm to realization"
+   ],
+   "L": [
+    "L1",
+    "L2"
+   ]
+  },
+  {
+   "title": "Your mind: friend or enemy",
+   "bullets": [
+    "Lift yourself by your own mind (6.5-6)",
+    "The conquered self is calm in every opposite"
+   ],
+   "L": [
+    "L3",
+    "L4"
+   ]
+  },
+  {
+   "title": "Equal vision",
+   "bullets": [
+    "Impartial to friend and foe, saint and sinner (6.9)",
+    "The best yogi feels others' pain as their own (6.32)"
+   ],
+   "L": [
+    "L5"
+   ]
+  },
+  {
+   "title": "How to meditate",
+   "bullets": [
+    "A clean, quiet place; an erect posture",
+    "Restrain mind and senses",
+    "Moderate in food, sleep, work"
+   ],
+   "L": [
+    "L6",
+    "L7"
+   ]
+  },
+  {
+   "title": "The steady mind",
+   "bullets": [
+    "A lamp in a windless place",
+    "When it wanders, witness and return (6.26)",
+    "Subdued by practice and detachment (6.35)"
+   ],
+   "L": [
+    "L9",
+    "L12"
+   ]
+  },
+  {
+   "title": "The goal",
+   "bullets": [
+    "Samadhi: the mind merged in God",
+    "Yoga severs the union with sorrow",
+    "No gain is higher than Self-realization"
+   ],
+   "L": [
+    "L8",
+    "L10",
+    "L11"
+   ]
+  },
+  {
+   "title": "The best of all yogis",
+   "bullets": [
+    "No effort is lost (6.44)",
+    "The yogi-devotee, absorbed in God with faith (6.47)"
+   ],
+   "L": [
+    "L13"
+   ]
+  }
+ ]
 }

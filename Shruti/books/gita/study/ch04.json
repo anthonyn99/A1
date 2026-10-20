@@ -1,53 +1,476 @@
 {
-  "n": 4,
-  "title": "Path of renunciation with Self-knowledge",
-  "flashcards": [
-    { "front": "How old is Karma-yoga?", "back": "Ancient: Krishna taught it to Vivasvan, who passed it to Manu, then Ikshvaku and the saintly kings. When it was lost, he taught it again to Arjuna.", "L": ["L1"] },
-    { "front": "When does God manifest? (4.7-8)", "back": "Whenever Dharma declines and Adharma prevails: to protect the good, transform the wicked and establish world order.", "ref": "4.07-08", "L": ["L2"] },
-    { "front": "What does understanding God's birth and deeds bring?", "back": "Liberation: one who truly knows them is not born again after leaving the body.", "L": ["L3"] },
-    { "front": "How does God answer worshippers?", "back": "According to their motive. People seek him for different ends, and each is met on their own path.", "L": ["L4"] },
-    { "front": "The four divisions (4.13)", "back": "Created by God by aptitude and vocation; yet he is the non-doer and eternal.", "ref": "4.13", "L": ["L5"] },
-    { "front": "Why does Karma not bind God?", "back": "He has no desire for the fruits of work. Whoever knows and lives this is not bound either.", "L": ["L5"] },
-    { "front": "Inaction in action (4.18)", "back": "One who sees inaction in action and action in inaction is wise: a yogi who has done everything.", "ref": "4.18", "L": ["L6"] },
-    { "front": "Working, yet doing nothing (4.20)", "back": "One content, unattached to fruits and dependent only on God does nothing at all, though active, and incurs no Karmic reaction.", "ref": "4.20", "L": ["L7"] },
-    { "front": "Everything an act of God (4.24)", "back": "God is realized by one who sees everything as a manifestation or an act of God.", "ref": "4.24", "L": ["L8"] },
-    { "front": "Many kinds of sacrifice", "back": "Worship, study, sense restraint, breath control, charity and more: practised selflessly, each purifies.", "L": ["L8"] },
-    { "front": "The highest offering (4.33)", "back": "Gaining and sharing Self-knowledge is above any material gift: all actions culminate in knowledge.", "ref": "4.33", "L": ["L9"] },
-    { "front": "How to receive Self-knowledge", "back": "From a Self-realized teacher, approached with humility, sincere questions and service.", "L": ["L10"] },
-    { "front": "The fire of knowledge", "back": "As fire turns wood to ash, Self-knowledge burns away all Karma; even the worst sinner crosses on its raft.", "L": ["L11"] },
-    { "front": "Who gains knowledge?", "back": "One with faith, sincere practice and control of the senses. The faithless and doubting do not.", "L": ["L12"] },
-    { "front": "Krishna's closing command", "back": "Cut the doubt in your heart with the sword of Self-knowledge, take up Karma-yoga, and rise to act.", "L": ["L13"] },
-    { "front": "The nectar of selfless service (4.31)", "back": "Those who serve selflessly gain the nectar of Self-knowledge and reach the Eternal. Even this world is unhappy for the non-sacrificer.", "ref": "4.31", "L": ["L9"] }
-  ],
-  "quiz": [
-    { "text": "When does God manifest, according to 4.7-8?", "options": { "A": "Once, at creation", "B": "Whenever Dharma declines", "C": "Only when asked", "D": "Every thousand years" }, "correct": "B", "why": "To protect the good, transform the wicked and establish Dharma.", "L": ["L2"] },
-    { "text": "To whom did Krishna first teach this yoga?", "options": { "A": "Arjuna", "B": "Vivasvan", "C": "Janaka", "D": "Sanjaya" }, "correct": "B", "why": "Vivasvan to Manu to Ikshvaku: the line of saintly kings.", "L": ["L1"] },
-    { "text": "How does God respond to different worshippers?", "options": { "A": "Only the learned are answered", "B": "According to their motive", "C": "All receive the same", "D": "He ignores desires" }, "correct": "B", "why": "Each is met on the path and with the motive they bring.", "L": ["L4"] },
-    { "text": "Who is wise, per 4.18?", "options": { "A": "One who never acts", "B": "One who sees inaction in action and action in inaction", "C": "One who acts for reward", "D": "One who studies all Vedas" }, "correct": "B", "why": "Selfless work leaves no Karma: inaction in action.", "L": ["L6"] },
-    { "text": "Why does the Karma-yogi incur no Karmic reaction?", "options": { "A": "He does nothing", "B": "He is unattached to fruits and content", "C": "He is born pure", "D": "He follows rituals" }, "correct": "B", "why": "4.20: active, yet doing nothing, because attachment is gone.", "L": ["L7", "L5"] },
-    { "text": "What is superior to any material gift (4.33)?", "options": { "A": "Gold", "B": "Rituals", "C": "Gaining and sharing Self-knowledge", "D": "Fasting" }, "correct": "C", "why": "All actions culminate in knowledge.", "L": ["L9"] },
-    { "text": "How should one learn Self-knowledge?", "options": { "A": "From books alone", "B": "From a realized teacher, with humility and service", "C": "By arguing", "D": "By wealth" }, "correct": "B", "why": "Approach the teacher humbly, ask sincerely, serve.", "L": ["L10"] },
-    { "text": "What does the fire of knowledge burn?", "options": { "A": "The body", "B": "All Karma and sin", "C": "Only small mistakes", "D": "Faith" }, "correct": "B", "why": "Like fire to wood: even the most sinful cross over.", "L": ["L11"] },
-    { "text": "With what does Krishna tell Arjuna to cut doubt?", "options": { "A": "His bow", "B": "Prayer alone", "C": "The sword of Self-knowledge", "D": "Silence" }, "correct": "C", "why": "Destroy the doubt, take up Karma-yoga, and stand up.", "L": ["L13", "L12"] }
-  ],
-  "mindmap": {
-    "root": "Renunciation with Self-knowledge",
-    "branches": [
-      { "text": "An ancient teaching", "L": ["L1", "L2"], "children": [{ "text": "Vivasvan, Manu, the kings", "L": ["L1"] }, { "text": "God comes when Dharma declines", "L": ["L2"] }] },
-      { "text": "Knowing God", "L": ["L3", "L4", "L5"], "children": [{ "text": "Understanding frees from rebirth", "L": ["L3"] }, { "text": "Met by one's motive", "L": ["L4"] }, { "text": "Karma doesn't bind him", "L": ["L5"] }] },
-      { "text": "Action and inaction", "L": ["L6", "L7"], "children": [{ "text": "Inaction in action (4.18)", "L": ["L6"] }, { "text": "No Karmic debt (4.20)", "L": ["L7"] }] },
-      { "text": "Sacrifices", "L": ["L8", "L9"], "children": [{ "text": "Many paths are valid", "L": ["L8"] }, { "text": "Knowledge is the highest (4.33)", "L": ["L9"] }] },
-      { "text": "Gaining knowledge", "L": ["L10", "L11", "L12", "L13"], "children": [{ "text": "A realized teacher", "L": ["L10"] }, { "text": "Burns all Karma", "L": ["L11"] }, { "text": "Faith and sincerity", "L": ["L12"] }, { "text": "Cut doubt, then act", "L": ["L13"] }] }
-    ]
+ "n": 4,
+ "title": "Path of renunciation with Self-knowledge",
+ "flashcards": [
+  {
+   "front": "How old is Karma-yoga?",
+   "back": "Ancient: Krishna taught it to Vivasvan, who passed it to Manu, then Ikshvaku and the saintly kings. When it was lost, he taught it again to Arjuna.",
+   "L": [
+    "L1"
+   ]
   },
-  "slides": [
-    { "title": "Renunciation with Self-knowledge", "bullets": ["Chapter 4", "Ancient yoga, God's coming, and the fire of knowledge"] },
-    { "title": "An ancient science", "bullets": ["Taught to Vivasvan, Manu, Ikshvaku", "Lost over time, taught again to Arjuna"], "L": ["L1"] },
-    { "title": "Why God comes", "bullets": ["When Dharma declines (4.7-8)", "Protect the good, transform the wicked", "Knowing this frees one from rebirth"], "L": ["L2", "L3"] },
-    { "title": "Met by our motive", "bullets": ["God answers each by their path", "He is the non-doer, untouched by Karma (4.13)", "So is one who lives this"], "L": ["L4", "L5"] },
-    { "title": "Inaction in action", "bullets": ["The wise see both (4.18)", "Unattached work leaves no Karmic debt (4.20)"], "L": ["L6", "L7"] },
-    { "title": "Many sacrifices, one highest", "bullets": ["Worship, study, restraint, breath, charity", "See everything as God's act (4.24)", "Knowledge is above all gifts (4.33)"], "L": ["L8", "L9"] },
-    { "title": "How knowledge comes", "bullets": ["From a realized teacher, approached humbly", "To those with faith and sense control", "It burns all Karma like fire burns wood"], "L": ["L10", "L11", "L12"] },
-    { "title": "Cut doubt and act", "bullets": ["Doubt, not difficulty, is the obstacle", "Use the sword of Self-knowledge", "Take up Karma-yoga and stand up"], "L": ["L13"] }
+  {
+   "front": "When does God manifest? (4.7-8)",
+   "back": "Whenever Dharma declines and Adharma prevails: to protect the good, transform the wicked and establish world order.",
+   "ref": "4.07-08",
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "front": "What does understanding God's birth and deeds bring?",
+   "back": "Liberation: one who truly knows them is not born again after leaving the body.",
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "front": "How does God answer worshippers?",
+   "back": "According to their motive. People seek him for different ends, and each is met on their own path.",
+   "L": [
+    "L4"
+   ]
+  },
+  {
+   "front": "The four divisions (4.13)",
+   "back": "Created by God by aptitude and vocation; yet he is the non-doer and eternal.",
+   "ref": "4.13",
+   "L": [
+    "L5"
+   ]
+  },
+  {
+   "front": "Why does Karma not bind God?",
+   "back": "He has no desire for the fruits of work. Whoever knows and lives this is not bound either.",
+   "L": [
+    "L5"
+   ]
+  },
+  {
+   "front": "Inaction in action (4.18)",
+   "back": "One who sees inaction in action and action in inaction is wise: a yogi who has done everything.",
+   "ref": "4.18",
+   "L": [
+    "L6"
+   ]
+  },
+  {
+   "front": "Working, yet doing nothing (4.20)",
+   "back": "One content, unattached to fruits and dependent only on God does nothing at all, though active, and incurs no Karmic reaction.",
+   "ref": "4.20",
+   "L": [
+    "L7"
+   ]
+  },
+  {
+   "front": "Everything an act of God (4.24)",
+   "back": "God is realized by one who sees everything as a manifestation or an act of God.",
+   "ref": "4.24",
+   "L": [
+    "L8"
+   ]
+  },
+  {
+   "front": "Many kinds of sacrifice",
+   "back": "Worship, study, sense restraint, breath control, charity and more: practised selflessly, each purifies.",
+   "L": [
+    "L8"
+   ]
+  },
+  {
+   "front": "The highest offering (4.33)",
+   "back": "Gaining and sharing Self-knowledge is above any material gift: all actions culminate in knowledge.",
+   "ref": "4.33",
+   "L": [
+    "L9"
+   ]
+  },
+  {
+   "front": "How to receive Self-knowledge",
+   "back": "From a Self-realized teacher, approached with humility, sincere questions and service.",
+   "L": [
+    "L10"
+   ]
+  },
+  {
+   "front": "The fire of knowledge",
+   "back": "As fire turns wood to ash, Self-knowledge burns away all Karma; even the worst sinner crosses on its raft.",
+   "L": [
+    "L11"
+   ]
+  },
+  {
+   "front": "Who gains knowledge?",
+   "back": "One with faith, sincere practice and control of the senses. The faithless and doubting do not.",
+   "L": [
+    "L12"
+   ]
+  },
+  {
+   "front": "Krishna's closing command",
+   "back": "Cut the doubt in your heart with the sword of Self-knowledge, take up Karma-yoga, and rise to act.",
+   "L": [
+    "L13"
+   ]
+  },
+  {
+   "front": "The nectar of selfless service (4.31)",
+   "back": "Those who serve selflessly gain the nectar of Self-knowledge and reach the Eternal. Even this world is unhappy for the non-sacrificer.",
+   "ref": "4.31",
+   "L": [
+    "L9"
+   ]
+  }
+ ],
+ "quiz": [
+  {
+   "text": "When does God manifest, according to 4.7-8?",
+   "options": {
+    "A": "Whenever Dharma declines",
+    "B": "Once, at creation",
+    "C": "Only when asked",
+    "D": "Every thousand years"
+   },
+   "correct": "A",
+   "why": "To protect the good, transform the wicked and establish Dharma.",
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "text": "To whom did Krishna first teach this yoga?",
+   "options": {
+    "A": "Arjuna",
+    "B": "Sanjaya",
+    "C": "Janaka",
+    "D": "Vivasvan"
+   },
+   "correct": "D",
+   "why": "Vivasvan to Manu to Ikshvaku: the line of saintly kings.",
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "text": "How does God respond to different worshippers?",
+   "options": {
+    "A": "Only the learned are answered",
+    "B": "All receive the same",
+    "C": "According to their motive",
+    "D": "He ignores desires"
+   },
+   "correct": "C",
+   "why": "Each is met on the path and with the motive they bring.",
+   "L": [
+    "L4"
+   ]
+  },
+  {
+   "text": "Who is wise, per 4.18?",
+   "options": {
+    "A": "One who never acts",
+    "B": "One who sees inaction in action and action in inaction",
+    "C": "One who acts for reward",
+    "D": "One who studies all Vedas"
+   },
+   "correct": "B",
+   "why": "Selfless work leaves no Karma: inaction in action.",
+   "L": [
+    "L6"
+   ]
+  },
+  {
+   "text": "Why does the Karma-yogi incur no Karmic reaction?",
+   "options": {
+    "A": "He is unattached to fruits and content",
+    "B": "He does nothing",
+    "C": "He is born pure",
+    "D": "He follows rituals"
+   },
+   "correct": "A",
+   "why": "4.20: active, yet doing nothing, because attachment is gone.",
+   "L": [
+    "L7",
+    "L5"
+   ]
+  },
+  {
+   "text": "What is superior to any material gift (4.33)?",
+   "options": {
+    "A": "Gold",
+    "B": "Rituals",
+    "C": "Fasting",
+    "D": "Gaining and sharing Self-knowledge"
+   },
+   "correct": "D",
+   "why": "All actions culminate in knowledge.",
+   "L": [
+    "L9"
+   ]
+  },
+  {
+   "text": "How should one learn Self-knowledge?",
+   "options": {
+    "A": "From books alone",
+    "B": "By arguing",
+    "C": "From a realized teacher, with humility and service",
+    "D": "By wealth"
+   },
+   "correct": "C",
+   "why": "Approach the teacher humbly, ask sincerely, serve.",
+   "L": [
+    "L10"
+   ]
+  },
+  {
+   "text": "What does the fire of knowledge burn?",
+   "options": {
+    "A": "The body",
+    "B": "All Karma and sin",
+    "C": "Only small mistakes",
+    "D": "Faith"
+   },
+   "correct": "B",
+   "why": "Like fire to wood: even the most sinful cross over.",
+   "L": [
+    "L11"
+   ]
+  },
+  {
+   "text": "With what does Krishna tell Arjuna to cut doubt?",
+   "options": {
+    "A": "The sword of Self-knowledge",
+    "B": "Prayer alone",
+    "C": "His bow",
+    "D": "Silence"
+   },
+   "correct": "A",
+   "why": "Destroy the doubt, take up Karma-yoga, and stand up.",
+   "L": [
+    "L13",
+    "L12"
+   ]
+  }
+ ],
+ "mindmap": {
+  "root": "Renunciation with Self-knowledge",
+  "branches": [
+   {
+    "text": "An ancient teaching",
+    "L": [
+     "L1",
+     "L2"
+    ],
+    "children": [
+     {
+      "text": "Vivasvan, Manu, the kings",
+      "L": [
+       "L1"
+      ]
+     },
+     {
+      "text": "God comes when Dharma declines",
+      "L": [
+       "L2"
+      ]
+     }
+    ]
+   },
+   {
+    "text": "Knowing God",
+    "L": [
+     "L3",
+     "L4",
+     "L5"
+    ],
+    "children": [
+     {
+      "text": "Understanding frees from rebirth",
+      "L": [
+       "L3"
+      ]
+     },
+     {
+      "text": "Met by one's motive",
+      "L": [
+       "L4"
+      ]
+     },
+     {
+      "text": "Karma doesn't bind him",
+      "L": [
+       "L5"
+      ]
+     }
+    ]
+   },
+   {
+    "text": "Action and inaction",
+    "L": [
+     "L6",
+     "L7"
+    ],
+    "children": [
+     {
+      "text": "Inaction in action (4.18)",
+      "L": [
+       "L6"
+      ]
+     },
+     {
+      "text": "No Karmic debt (4.20)",
+      "L": [
+       "L7"
+      ]
+     }
+    ]
+   },
+   {
+    "text": "Sacrifices",
+    "L": [
+     "L8",
+     "L9"
+    ],
+    "children": [
+     {
+      "text": "Many paths are valid",
+      "L": [
+       "L8"
+      ]
+     },
+     {
+      "text": "Knowledge is the highest (4.33)",
+      "L": [
+       "L9"
+      ]
+     }
+    ]
+   },
+   {
+    "text": "Gaining knowledge",
+    "L": [
+     "L10",
+     "L11",
+     "L12",
+     "L13"
+    ],
+    "children": [
+     {
+      "text": "A realized teacher",
+      "L": [
+       "L10"
+      ]
+     },
+     {
+      "text": "Burns all Karma",
+      "L": [
+       "L11"
+      ]
+     },
+     {
+      "text": "Faith and sincerity",
+      "L": [
+       "L12"
+      ]
+     },
+     {
+      "text": "Cut doubt, then act",
+      "L": [
+       "L13"
+      ]
+     }
+    ]
+   }
   ]
+ },
+ "slides": [
+  {
+   "title": "Renunciation with Self-knowledge",
+   "bullets": [
+    "Chapter 4",
+    "Ancient yoga, God's coming, and the fire of knowledge"
+   ]
+  },
+  {
+   "title": "An ancient science",
+   "bullets": [
+    "Taught to Vivasvan, Manu, Ikshvaku",
+    "Lost over time, taught again to Arjuna"
+   ],
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "title": "Why God comes",
+   "bullets": [
+    "When Dharma declines (4.7-8)",
+    "Protect the good, transform the wicked",
+    "Knowing this frees one from rebirth"
+   ],
+   "L": [
+    "L2",
+    "L3"
+   ]
+  },
+  {
+   "title": "Met by our motive",
+   "bullets": [
+    "God answers each by their path",
+    "He is the non-doer, untouched by Karma (4.13)",
+    "So is one who lives this"
+   ],
+   "L": [
+    "L4",
+    "L5"
+   ]
+  },
+  {
+   "title": "Inaction in action",
+   "bullets": [
+    "The wise see both (4.18)",
+    "Unattached work leaves no Karmic debt (4.20)"
+   ],
+   "L": [
+    "L6",
+    "L7"
+   ]
+  },
+  {
+   "title": "Many sacrifices, one highest",
+   "bullets": [
+    "Worship, study, restraint, breath, charity",
+    "See everything as God's act (4.24)",
+    "Knowledge is above all gifts (4.33)"
+   ],
+   "L": [
+    "L8",
+    "L9"
+   ]
+  },
+  {
+   "title": "How knowledge comes",
+   "bullets": [
+    "From a realized teacher, approached humbly",
+    "To those with faith and sense control",
+    "It burns all Karma like fire burns wood"
+   ],
+   "L": [
+    "L10",
+    "L11",
+    "L12"
+   ]
+  },
+  {
+   "title": "Cut doubt and act",
+   "bullets": [
+    "Doubt, not difficulty, is the obstacle",
+    "Use the sword of Self-knowledge",
+    "Take up Karma-yoga and stand up"
+   ],
+   "L": [
+    "L13"
+   ]
+  }
+ ]
 }

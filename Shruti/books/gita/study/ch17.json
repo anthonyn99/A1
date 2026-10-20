@@ -1,40 +1,298 @@
 {
-  "n": 17,
-  "title": "Threefold faith",
-  "flashcards": [
-    { "front": "Faith and nature (17.3)", "back": "Each person's faith follows their nature, shaped by Karmic impressions. One is known by one's faith.", "ref": "17.03", "L": ["L1"] },
-    { "front": "You become what you contemplate", "back": "One can become whatever one wants by constantly contemplating it with faith.", "ref": "17.03", "L": ["L1"] },
-    { "front": "Whom does each mode worship?", "back": "Goodness worships God and divine beings; passion worships power and supernatural forces; ignorance worships ghosts and spirits.", "L": ["L1"] },
-    { "front": "Food in the three modes", "back": "Goodness: nourishing, wholesome food. Passion: very bitter, sour, salty, hot. Ignorance: stale, tasteless, impure.", "L": ["L2"] },
-    { "front": "Sacrifice in the mode of goodness", "back": "Done as duty, by scripture, with no desire for reward.", "L": ["L2"] },
-    { "front": "Charity in the mode of passion (17.21)", "back": "Given unwillingly, or to get something back, or for some fruit.", "ref": "17.21", "L": ["L2"] },
-    { "front": "Charity in the mode of goodness", "back": "Given as duty, at the right time and place, to a worthy person, expecting nothing in return.", "L": ["L2"] },
-    { "front": "Austerity of word (17.15)", "back": "Speech that is non-offensive, truthful, pleasant and helpful, and the regular study of scripture.", "ref": "17.15", "L": ["L3"] },
-    { "front": "Austerity of deed and of thought", "back": "Deed: purity, honesty, nonviolence, service to the wise. Thought: serenity, gentleness, silence, self-control, purity.", "L": ["L3"] },
-    { "front": "ASAT (17.28)", "back": "Whatever is done without faith, whether sacrifice, charity or austerity, has no value here or hereafter.", "ref": "17.28", "L": ["L4"] }
-  ],
-  "quiz": [
-    { "text": "Per 17.3, what shapes each person's faith?", "options": { "A": "Their wealth", "B": "Their own nature and Karmic impressions", "C": "Their teachers only", "D": "Chance" }, "correct": "B", "why": "One is known by one's faith.", "L": ["L1"] },
-    { "text": "Those in the mode of ignorance worship:", "options": { "A": "God", "B": "Power", "C": "Ghosts and spirits", "D": "No one" }, "correct": "C", "why": "Faith follows the dominant mode.", "L": ["L1"] },
-    { "text": "Charity given to get something back is in which mode?", "options": { "A": "Goodness", "B": "Passion", "C": "Ignorance", "D": "Beyond the modes" }, "correct": "B", "why": "17.21.", "L": ["L2"] },
-    { "text": "Which describes austerity of word (17.15)?", "options": { "A": "Silence always", "B": "Truthful, pleasant, helpful, non-offensive speech", "C": "Chanting loudly", "D": "Speaking only scripture" }, "correct": "B", "why": "With regular study of scripture.", "L": ["L3"] },
-    { "text": "Austerity has which three dimensions?", "options": { "A": "Food, sleep, work", "B": "Deed, word and thought", "C": "Past, present, future", "D": "Body, wealth, fame" }, "correct": "B", "why": "Austerity of deed, word and thought.", "L": ["L3"] },
-    { "text": "What is \"ASAT\" in 17.28?", "options": { "A": "The highest sacrifice", "B": "Any act done without faith", "C": "A sacred name", "D": "A kind of food" }, "correct": "B", "why": "It has no value here or hereafter.", "L": ["L4"] }
-  ],
-  "mindmap": {
-    "root": "Threefold faith",
-    "branches": [
-      { "text": "Faith follows nature", "L": ["L1"], "children": [{ "text": "Known by your faith (17.3)", "L": ["L1"] }, { "text": "Each mode worships differently" }] },
-      { "text": "Three of everything", "L": ["L2"], "children": [{ "text": "Food", "L": ["L2"] }, { "text": "Sacrifice" }, { "text": "Charity (17.21)" }] },
-      { "text": "Austerity", "L": ["L3"], "children": [{ "text": "Of deed" }, { "text": "Of word (17.15)", "L": ["L3"] }, { "text": "Of thought" }] },
-      { "text": "Faith is essential", "L": ["L4"], "children": [{ "text": "Without faith: ASAT (17.28)", "L": ["L4"] }, { "text": "No value here or hereafter" }] }
-    ]
+ "n": 17,
+ "title": "Threefold faith",
+ "flashcards": [
+  {
+   "front": "Faith and nature (17.3)",
+   "back": "Each person's faith follows their nature, shaped by Karmic impressions. One is known by one's faith.",
+   "ref": "17.03",
+   "L": [
+    "L1"
+   ]
   },
-  "slides": [
-    { "title": "Threefold faith", "bullets": ["Chapter 17", "Faith, food, sacrifice, austerity and charity"] },
-    { "title": "You are your faith", "bullets": ["Faith follows one's nature (17.3)", "Each mode worships something different", "You become what you contemplate with faith"], "L": ["L1"] },
-    { "title": "Three modes in daily life", "bullets": ["Food: wholesome, harsh, or stale", "Sacrifice: as duty, for show, or without rule", "Charity: freely, for return (17.21), or carelessly"], "L": ["L2"] },
-    { "title": "Austerity, three ways", "bullets": ["Deed: purity, honesty, nonviolence", "Word: truthful, kind, helpful (17.15)", "Thought: serenity, gentleness, self-control"], "L": ["L3"] },
-    { "title": "Faith gives value", "bullets": ["Done without faith, it is ASAT (17.28)", "No value here or hereafter"], "L": ["L4"] }
+  {
+   "front": "You become what you contemplate",
+   "back": "One can become whatever one wants by constantly contemplating it with faith.",
+   "ref": "17.03",
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "front": "Whom does each mode worship?",
+   "back": "Goodness worships God and divine beings; passion worships power and supernatural forces; ignorance worships ghosts and spirits.",
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "front": "Food in the three modes",
+   "back": "Goodness: nourishing, wholesome food. Passion: very bitter, sour, salty, hot. Ignorance: stale, tasteless, impure.",
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "front": "Sacrifice in the mode of goodness",
+   "back": "Done as duty, by scripture, with no desire for reward.",
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "front": "Charity in the mode of passion (17.21)",
+   "back": "Given unwillingly, or to get something back, or for some fruit.",
+   "ref": "17.21",
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "front": "Charity in the mode of goodness",
+   "back": "Given as duty, at the right time and place, to a worthy person, expecting nothing in return.",
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "front": "Austerity of word (17.15)",
+   "back": "Speech that is non-offensive, truthful, pleasant and helpful, and the regular study of scripture.",
+   "ref": "17.15",
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "front": "Austerity of deed and of thought",
+   "back": "Deed: purity, honesty, nonviolence, service to the wise. Thought: serenity, gentleness, silence, self-control, purity.",
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "front": "ASAT (17.28)",
+   "back": "Whatever is done without faith, whether sacrifice, charity or austerity, has no value here or hereafter.",
+   "ref": "17.28",
+   "L": [
+    "L4"
+   ]
+  }
+ ],
+ "quiz": [
+  {
+   "text": "Per 17.3, what shapes each person's faith?",
+   "options": {
+    "A": "Their wealth",
+    "B": "Their own nature and Karmic impressions",
+    "C": "Their teachers only",
+    "D": "Chance"
+   },
+   "correct": "B",
+   "why": "One is known by one's faith.",
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "text": "Those in the mode of ignorance worship:",
+   "options": {
+    "A": "Ghosts and spirits",
+    "B": "Power",
+    "C": "God",
+    "D": "No one"
+   },
+   "correct": "A",
+   "why": "Faith follows the dominant mode.",
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "text": "Charity given to get something back is in which mode?",
+   "options": {
+    "A": "Goodness",
+    "B": "Beyond the modes",
+    "C": "Ignorance",
+    "D": "Passion"
+   },
+   "correct": "D",
+   "why": "17.21.",
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "text": "Which describes austerity of word (17.15)?",
+   "options": {
+    "A": "Silence always",
+    "B": "Chanting loudly",
+    "C": "Truthful, pleasant, helpful, non-offensive speech",
+    "D": "Speaking only scripture"
+   },
+   "correct": "C",
+   "why": "With regular study of scripture.",
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "text": "Austerity has which three dimensions?",
+   "options": {
+    "A": "Food, sleep, work",
+    "B": "Deed, word and thought",
+    "C": "Past, present, future",
+    "D": "Body, wealth, fame"
+   },
+   "correct": "B",
+   "why": "Austerity of deed, word and thought.",
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "text": "What is \"ASAT\" in 17.28?",
+   "options": {
+    "A": "Any act done without faith",
+    "B": "The highest sacrifice",
+    "C": "A sacred name",
+    "D": "A kind of food"
+   },
+   "correct": "A",
+   "why": "It has no value here or hereafter.",
+   "L": [
+    "L4"
+   ]
+  }
+ ],
+ "mindmap": {
+  "root": "Threefold faith",
+  "branches": [
+   {
+    "text": "Faith follows nature",
+    "L": [
+     "L1"
+    ],
+    "children": [
+     {
+      "text": "Known by your faith (17.3)",
+      "L": [
+       "L1"
+      ]
+     },
+     {
+      "text": "Each mode worships differently"
+     }
+    ]
+   },
+   {
+    "text": "Three of everything",
+    "L": [
+     "L2"
+    ],
+    "children": [
+     {
+      "text": "Food",
+      "L": [
+       "L2"
+      ]
+     },
+     {
+      "text": "Sacrifice"
+     },
+     {
+      "text": "Charity (17.21)"
+     }
+    ]
+   },
+   {
+    "text": "Austerity",
+    "L": [
+     "L3"
+    ],
+    "children": [
+     {
+      "text": "Of deed"
+     },
+     {
+      "text": "Of word (17.15)",
+      "L": [
+       "L3"
+      ]
+     },
+     {
+      "text": "Of thought"
+     }
+    ]
+   },
+   {
+    "text": "Faith is essential",
+    "L": [
+     "L4"
+    ],
+    "children": [
+     {
+      "text": "Without faith: ASAT (17.28)",
+      "L": [
+       "L4"
+      ]
+     },
+     {
+      "text": "No value here or hereafter"
+     }
+    ]
+   }
   ]
+ },
+ "slides": [
+  {
+   "title": "Threefold faith",
+   "bullets": [
+    "Chapter 17",
+    "Faith, food, sacrifice, austerity and charity"
+   ]
+  },
+  {
+   "title": "You are your faith",
+   "bullets": [
+    "Faith follows one's nature (17.3)",
+    "Each mode worships something different",
+    "You become what you contemplate with faith"
+   ],
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "title": "Three modes in daily life",
+   "bullets": [
+    "Food: wholesome, harsh, or stale",
+    "Sacrifice: as duty, for show, or without rule",
+    "Charity: freely, for return (17.21), or carelessly"
+   ],
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "title": "Austerity, three ways",
+   "bullets": [
+    "Deed: purity, honesty, nonviolence",
+    "Word: truthful, kind, helpful (17.15)",
+    "Thought: serenity, gentleness, self-control"
+   ],
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "title": "Faith gives value",
+   "bullets": [
+    "Done without faith, it is ASAT (17.28)",
+    "No value here or hereafter"
+   ],
+   "L": [
+    "L4"
+   ]
+  }
+ ]
 }

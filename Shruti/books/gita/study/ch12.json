@@ -1,40 +1,308 @@
 {
-  "n": 12,
-  "title": "Path of devotion",
-  "flashcards": [
-    { "front": "Arjuna's question (12.1)", "back": "Who knows yoga best: devotees of God's personal aspect, or those who worship the impersonal Eternal Being?", "ref": "12.01", "L": ["L1"] },
-    { "front": "Krishna's answer (12.2)", "back": "The best yogis are steadfast devotees who worship with supreme faith, mind fixed on him as their personal God.", "ref": "12.02", "L": ["L1"] },
-    { "front": "Why is the unmanifest harder? (12.5)", "back": "The unmanifest is hard for embodied beings to grasp, so that path is more difficult.", "ref": "12.05", "L": ["L1"] },
-    { "front": "Focus your mind on Me (12.8)", "back": "Let mind and intellect dwell on God through meditation and contemplation, and you will reach him.", "ref": "12.08", "L": ["L2"] },
-    { "front": "If you cannot do that...", "back": "Practise any spiritual discipline; if not, work for God; if not, give up the fruits of all work.", "L": ["L2"] },
-    { "front": "The ladder of 12.12", "back": "Scriptural knowledge beats ritual; meditation beats knowledge; renouncing attachment to fruits beats meditation.", "ref": "12.12", "L": ["L3"] },
-    { "front": "What follows renunciation of fruits?", "back": "Peace, immediately.", "ref": "12.12", "L": ["L3"] },
-    { "front": "Dear to God (12.17)", "back": "One who neither rejoices nor grieves, neither likes nor dislikes, beyond good and evil, and full of devotion.", "ref": "12.17", "L": ["L4"] },
-    { "front": "Very dear to God (12.20)", "back": "Faithful devotees with God as their goal who follow, or just sincerely try to develop, these virtues.", "ref": "12.20", "L": ["L4"] },
-    { "front": "A few marks of a devotee", "back": "Hates no creature, is friendly and compassionate, free of ego and possessiveness, forgiving, content, even-minded.", "L": ["L4"] }
-  ],
-  "quiz": [
-    { "text": "Whom does Krishna call the best yogis in 12.2?", "options": { "A": "Ascetics in the forest", "B": "Steadfast devotees of his personal form", "C": "Scholars", "D": "Kings" }, "correct": "B", "why": "Worship with supreme faith, mind fixed on him.", "L": ["L1"] },
-    { "text": "Why is worship of the unmanifest harder?", "options": { "A": "It is forbidden", "B": "The unmanifest is hard for humans to grasp", "C": "It takes money", "D": "It is not real" }, "correct": "B", "why": "12.5.", "L": ["L1"] },
-    { "text": "If you cannot fix your mind on God, Krishna says:", "options": { "A": "Give up", "B": "Practise a discipline, or work for him, or give up the fruits", "C": "Only pray", "D": "Leave the world" }, "correct": "B", "why": "Four ascending levels: each person starts where they can.", "L": ["L2"] },
-    { "text": "In 12.12, what is better than meditation?", "options": { "A": "Ritual", "B": "Scriptural knowledge", "C": "Renouncing attachment to the fruits of work", "D": "Fasting" }, "correct": "C", "why": "And peace follows it immediately.", "L": ["L3"] },
-    { "text": "What follows renunciation of attachment to fruits?", "options": { "A": "Wealth", "B": "Immediate peace", "C": "Rebirth", "D": "Fame" }, "correct": "B", "why": "12.12.", "L": ["L3"] },
-    { "text": "Who is \"very dear\" to God in 12.20?", "options": { "A": "Only the perfect", "B": "Those who sincerely try to develop these values", "C": "Those born devout", "D": "No one" }, "correct": "B", "why": "Even sincere trying is dear to him.", "L": ["L4"] }
-  ],
-  "mindmap": {
-    "root": "The path of devotion",
-    "branches": [
-      { "text": "Personal or impersonal?", "L": ["L1"], "children": [{ "text": "Devotees are best (12.2)", "L": ["L1"] }, { "text": "Unmanifest is harder (12.5)" }] },
-      { "text": "Four levels", "L": ["L2"], "children": [{ "text": "Fix the mind on God", "L": ["L2"] }, { "text": "Practise a discipline" }, { "text": "Work for God" }, { "text": "Give up the fruits" }] },
-      { "text": "The ladder (12.12)", "L": ["L3"], "children": [{ "text": "Ritual < knowledge < meditation" }, { "text": "< renouncing fruits", "L": ["L3"] }, { "text": "Then peace, at once" }] },
-      { "text": "The devotee", "L": ["L4"], "children": [{ "text": "Hates no one, kind to all", "L": ["L4"] }, { "text": "Even-minded (12.17)" }, { "text": "Sincere effort is dear (12.20)" }] }
-    ]
+ "n": 12,
+ "title": "Path of devotion",
+ "flashcards": [
+  {
+   "front": "Arjuna's question (12.1)",
+   "back": "Who knows yoga best: devotees of God's personal aspect, or those who worship the impersonal Eternal Being?",
+   "ref": "12.01",
+   "L": [
+    "L1"
+   ]
   },
-  "slides": [
-    { "title": "The path of devotion", "bullets": ["Chapter 12", "Love of a personal God, and the true devotee"] },
-    { "title": "Personal or impersonal?", "bullets": ["Arjuna asks who knows yoga best (12.1)", "Steadfast devotees are best (12.2)", "The unmanifest is harder to grasp (12.5)"], "L": ["L1"] },
-    { "title": "Start where you can", "bullets": ["Fix your mind on God (12.8)", "Or practise a discipline, or work for him", "Or give up the fruits of work"], "L": ["L2"] },
-    { "title": "The ladder to peace", "bullets": ["Knowledge over ritual, meditation over knowledge", "Renouncing fruits over meditation (12.12)", "Peace follows at once"], "L": ["L3"] },
-    { "title": "The qualities of a devotee", "bullets": ["Hates no creature; friendly and compassionate", "Free of ego; forgiving, content, even-minded (12.17)", "Even sincere trying is very dear (12.20)"], "L": ["L4"] }
+  {
+   "front": "Krishna's answer (12.2)",
+   "back": "The best yogis are steadfast devotees who worship with supreme faith, mind fixed on him as their personal God.",
+   "ref": "12.02",
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "front": "Why is the unmanifest harder? (12.5)",
+   "back": "The unmanifest is hard for embodied beings to grasp, so that path is more difficult.",
+   "ref": "12.05",
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "front": "Focus your mind on Me (12.8)",
+   "back": "Let mind and intellect dwell on God through meditation and contemplation, and you will reach him.",
+   "ref": "12.08",
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "front": "If you cannot do that...",
+   "back": "Practise any spiritual discipline; if not, work for God; if not, give up the fruits of all work.",
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "front": "The ladder of 12.12",
+   "back": "Scriptural knowledge beats ritual; meditation beats knowledge; renouncing attachment to fruits beats meditation.",
+   "ref": "12.12",
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "front": "What follows renunciation of fruits?",
+   "back": "Peace, immediately.",
+   "ref": "12.12",
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "front": "Dear to God (12.17)",
+   "back": "One who neither rejoices nor grieves, neither likes nor dislikes, beyond good and evil, and full of devotion.",
+   "ref": "12.17",
+   "L": [
+    "L4"
+   ]
+  },
+  {
+   "front": "Very dear to God (12.20)",
+   "back": "Faithful devotees with God as their goal who follow, or just sincerely try to develop, these virtues.",
+   "ref": "12.20",
+   "L": [
+    "L4"
+   ]
+  },
+  {
+   "front": "A few marks of a devotee",
+   "back": "Hates no creature, is friendly and compassionate, free of ego and possessiveness, forgiving, content, even-minded.",
+   "L": [
+    "L4"
+   ]
+  }
+ ],
+ "quiz": [
+  {
+   "text": "Whom does Krishna call the best yogis in 12.2?",
+   "options": {
+    "A": "Steadfast devotees of his personal form",
+    "B": "Ascetics in the forest",
+    "C": "Scholars",
+    "D": "Kings"
+   },
+   "correct": "A",
+   "why": "Worship with supreme faith, mind fixed on him.",
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "text": "Why is worship of the unmanifest harder?",
+   "options": {
+    "A": "It is forbidden",
+    "B": "It is not real",
+    "C": "It takes money",
+    "D": "The unmanifest is hard for humans to grasp"
+   },
+   "correct": "D",
+   "why": "12.5.",
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "text": "If you cannot fix your mind on God, Krishna says:",
+   "options": {
+    "A": "Give up",
+    "B": "Only pray",
+    "C": "Practise a discipline, or work for him, or give up the fruits",
+    "D": "Leave the world"
+   },
+   "correct": "C",
+   "why": "Four ascending levels: each person starts where they can.",
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "text": "In 12.12, what is better than meditation?",
+   "options": {
+    "A": "Ritual",
+    "B": "Renouncing attachment to the fruits of work",
+    "C": "Scriptural knowledge",
+    "D": "Fasting"
+   },
+   "correct": "B",
+   "why": "And peace follows it immediately.",
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "text": "What follows renunciation of attachment to fruits?",
+   "options": {
+    "A": "Immediate peace",
+    "B": "Wealth",
+    "C": "Rebirth",
+    "D": "Fame"
+   },
+   "correct": "A",
+   "why": "12.12.",
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "text": "Who is \"very dear\" to God in 12.20?",
+   "options": {
+    "A": "Only the perfect",
+    "B": "No one",
+    "C": "Those born devout",
+    "D": "Those who sincerely try to develop these values"
+   },
+   "correct": "D",
+   "why": "Even sincere trying is dear to him.",
+   "L": [
+    "L4"
+   ]
+  }
+ ],
+ "mindmap": {
+  "root": "The path of devotion",
+  "branches": [
+   {
+    "text": "Personal or impersonal?",
+    "L": [
+     "L1"
+    ],
+    "children": [
+     {
+      "text": "Devotees are best (12.2)",
+      "L": [
+       "L1"
+      ]
+     },
+     {
+      "text": "Unmanifest is harder (12.5)"
+     }
+    ]
+   },
+   {
+    "text": "Four levels",
+    "L": [
+     "L2"
+    ],
+    "children": [
+     {
+      "text": "Fix the mind on God",
+      "L": [
+       "L2"
+      ]
+     },
+     {
+      "text": "Practise a discipline"
+     },
+     {
+      "text": "Work for God"
+     },
+     {
+      "text": "Give up the fruits"
+     }
+    ]
+   },
+   {
+    "text": "The ladder (12.12)",
+    "L": [
+     "L3"
+    ],
+    "children": [
+     {
+      "text": "Ritual < knowledge < meditation"
+     },
+     {
+      "text": "< renouncing fruits",
+      "L": [
+       "L3"
+      ]
+     },
+     {
+      "text": "Then peace, at once"
+     }
+    ]
+   },
+   {
+    "text": "The devotee",
+    "L": [
+     "L4"
+    ],
+    "children": [
+     {
+      "text": "Hates no one, kind to all",
+      "L": [
+       "L4"
+      ]
+     },
+     {
+      "text": "Even-minded (12.17)"
+     },
+     {
+      "text": "Sincere effort is dear (12.20)"
+     }
+    ]
+   }
   ]
+ },
+ "slides": [
+  {
+   "title": "The path of devotion",
+   "bullets": [
+    "Chapter 12",
+    "Love of a personal God, and the true devotee"
+   ]
+  },
+  {
+   "title": "Personal or impersonal?",
+   "bullets": [
+    "Arjuna asks who knows yoga best (12.1)",
+    "Steadfast devotees are best (12.2)",
+    "The unmanifest is harder to grasp (12.5)"
+   ],
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "title": "Start where you can",
+   "bullets": [
+    "Fix your mind on God (12.8)",
+    "Or practise a discipline, or work for him",
+    "Or give up the fruits of work"
+   ],
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "title": "The ladder to peace",
+   "bullets": [
+    "Knowledge over ritual, meditation over knowledge",
+    "Renouncing fruits over meditation (12.12)",
+    "Peace follows at once"
+   ],
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "title": "The qualities of a devotee",
+   "bullets": [
+    "Hates no creature; friendly and compassionate",
+    "Free of ego; forgiving, content, even-minded (12.17)",
+    "Even sincere trying is very dear (12.20)"
+   ],
+   "L": [
+    "L4"
+   ]
+  }
+ ]
 }

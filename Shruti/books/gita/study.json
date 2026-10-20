@@ -10,5 +10,107 @@
   "quiz": 8,
   "mindmap": 5,
   "slides": 7
+ },
+ "2": {
+  "flashcards": 15,
+  "quiz": 10,
+  "mindmap": 5,
+  "slides": 8
+ },
+ "3": {
+  "flashcards": 16,
+  "quiz": 9,
+  "mindmap": 5,
+  "slides": 8
+ },
+ "4": {
+  "flashcards": 16,
+  "quiz": 9,
+  "mindmap": 5,
+  "slides": 8
+ },
+ "5": {
+  "flashcards": 15,
+  "quiz": 9,
+  "mindmap": 5,
+  "slides": 7
+ },
+ "6": {
+  "flashcards": 16,
+  "quiz": 9,
+  "mindmap": 5,
+  "slides": 8
+ },
+ "7": {
+  "flashcards": 11,
+  "quiz": 8,
+  "mindmap": 4,
+  "slides": 6
+ },
+ "8": {
+  "flashcards": 9,
+  "quiz": 7,
+  "mindmap": 4,
+  "slides": 6
+ },
+ "9": {
+  "flashcards": 12,
+  "quiz": 7,
+  "mindmap": 4,
+  "slides": 6
+ },
+ "10": {
+  "flashcards": 8,
+  "quiz": 6,
+  "mindmap": 4,
+  "slides": 5
+ },
+ "11": {
+  "flashcards": 8,
+  "quiz": 6,
+  "mindmap": 4,
+  "slides": 5
+ },
+ "12": {
+  "flashcards": 10,
+  "quiz": 6,
+  "mindmap": 4,
+  "slides": 5
+ },
+ "13": {
+  "flashcards": 9,
+  "quiz": 6,
+  "mindmap": 4,
+  "slides": 5
+ },
+ "14": {
+  "flashcards": 10,
+  "quiz": 6,
+  "mindmap": 4,
+  "slides": 5
+ },
+ "15": {
+  "flashcards": 10,
+  "quiz": 6,
+  "mindmap": 4,
+  "slides": 5
+ },
+ "16": {
+  "flashcards": 10,
+  "quiz": 6,
+  "mindmap": 5,
+  "slides": 5
+ },
+ "17": {
+  "flashcards": 10,
+  "quiz": 6,
+  "mindmap": 4,
+  "slides": 5
+ },
+ "18": {
+  "flashcards": 15,
+  "quiz": 8,
+  "mindmap": 5,
+  "slides": 8
  }
 }

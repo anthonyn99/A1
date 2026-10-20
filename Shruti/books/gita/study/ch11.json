@@ -1,38 +1,288 @@
 {
-  "n": 11,
-  "title": "Vision of the universal form",
-  "flashcards": [
-    { "front": "Arjuna's request (11.3)", "back": "\"You are as You have said, yet I wish to see Your divine cosmic form.\"", "ref": "11.03", "L": ["L1"] },
-    { "front": "Why give Arjuna a divine eye? (11.8)", "back": "He cannot see the cosmic form with physical eyes, so Krishna gives him the divine eye.", "ref": "11.08", "L": ["L1"] },
-    { "front": "What Arjuna sees (11.16)", "back": "God everywhere, with infinite forms, arms, faces and eyes, and no beginning, middle or end.", "ref": "11.16", "L": ["L2"] },
-    { "front": "Why is Arjuna frightened?", "back": "The form holds all beings, worlds and time, and is both awe-inspiring and terrifying: beyond human grasp.", "L": ["L2"] },
-    { "front": "\"Be only an instrument\"", "back": "The warriors are already destroyed by God's will; Arjuna is only the instrument. We act, but are not the doers.", "L": ["L3"] },
-    { "front": "Can study or ritual show this form? (11.53)", "back": "No: not the Vedas, austerity, charity or ritual.", "ref": "11.53", "L": ["L4"] },
-    { "front": "How then can God be seen?", "back": "By devotional love. He can be seen in any form the devotee holds dear; he returns to his gentle human form for Arjuna.", "L": ["L4"] },
-    { "front": "The whole practice in one verse (11.55)", "back": "Dedicate all work to God, make him the supreme goal, be devoted, unattached, and without enmity toward any being.", "ref": "11.55", "L": ["L5"] }
-  ],
-  "quiz": [
-    { "text": "What does Arjuna ask to see in 11.3?", "options": { "A": "Heaven", "B": "The cosmic form of God", "C": "His future", "D": "The end of the war" }, "correct": "B", "why": "Every seeker's deepest longing: to see the Divine directly.", "L": ["L1"] },
-    { "text": "How can Arjuna see the cosmic form?", "options": { "A": "With his own eyes", "B": "With a divine eye God gives him", "C": "In a dream", "D": "By meditation alone" }, "correct": "B", "why": "11.8: physical eyes cannot see it.", "L": ["L1"] },
-    { "text": "How does Arjuna react to the vision?", "options": { "A": "With boredom", "B": "With awe and fear", "C": "With anger", "D": "With laughter" }, "correct": "B", "why": "The form is overwhelming, beyond comprehension.", "L": ["L2"] },
-    { "text": "\"Be only an instrument\" means:", "options": { "A": "Do nothing", "B": "Act, knowing God is the real doer", "C": "Play music", "D": "Obey kings" }, "correct": "B", "why": "The outcome is already in God's will; we do our part.", "L": ["L3"] },
-    { "text": "Per 11.53, which reveals the four-armed form?", "options": { "A": "Vedic study", "B": "Charity", "C": "None of these: only devotion", "D": "Rituals" }, "correct": "C", "why": "Only devotional love reveals him.", "L": ["L4"] },
-    { "text": "Who attains God, according to 11.55?", "options": { "A": "The richest", "B": "One devoted, unattached, without enmity, working for God", "C": "One who sees the cosmic form", "D": "One who leaves the world" }, "correct": "B", "why": "The complete practice in one verse.", "L": ["L5"] }
-  ],
-  "mindmap": {
-    "root": "Vision of the universal form",
-    "branches": [
-      { "text": "The longing", "L": ["L1"], "children": [{ "text": "\"I wish to see\" (11.3)", "L": ["L1"] }, { "text": "The divine eye (11.8)" }] },
-      { "text": "The cosmic form", "L": ["L2"], "children": [{ "text": "Infinite faces, no end (11.16)", "L": ["L2"] }, { "text": "Awe and terror" }] },
-      { "text": "The instrument", "L": ["L3"], "children": [{ "text": "Already decided by God" }, { "text": "We act, God does", "L": ["L3"] }] },
-      { "text": "The way to see him", "L": ["L4", "L5"], "children": [{ "text": "Not by study or ritual (11.53)", "L": ["L4"] }, { "text": "By devotion, in any form", "L": ["L4"] }, { "text": "Full dedication (11.55)", "L": ["L5"] }] }
-    ]
+ "n": 11,
+ "title": "Vision of the universal form",
+ "flashcards": [
+  {
+   "front": "Arjuna's request (11.3)",
+   "back": "\"You are as You have said, yet I wish to see Your divine cosmic form.\"",
+   "ref": "11.03",
+   "L": [
+    "L1"
+   ]
   },
-  "slides": [
-    { "title": "Vision of the universal form", "bullets": ["Chapter 11", "Arjuna sees God as all"] },
-    { "title": "The seeker's longing", "bullets": ["Arjuna asks to see the cosmic form (11.3)", "Krishna gives him a divine eye (11.8)"], "L": ["L1"] },
-    { "title": "Overwhelming", "bullets": ["Infinite arms, faces and eyes (11.16)", "No beginning, middle or end", "Awe and fear: beyond the human mind"], "L": ["L2"] },
-    { "title": "Only an instrument", "bullets": ["The outcome is already in God's will", "Do your part; God is the doer"], "L": ["L3"] },
-    { "title": "Seen by love", "bullets": ["Not by Vedas, austerity, charity, ritual (11.53)", "By devotion, in any form one loves", "Dedicate all work to God (11.55)"], "L": ["L4", "L5"] }
+  {
+   "front": "Why give Arjuna a divine eye? (11.8)",
+   "back": "He cannot see the cosmic form with physical eyes, so Krishna gives him the divine eye.",
+   "ref": "11.08",
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "front": "What Arjuna sees (11.16)",
+   "back": "God everywhere, with infinite forms, arms, faces and eyes, and no beginning, middle or end.",
+   "ref": "11.16",
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "front": "Why is Arjuna frightened?",
+   "back": "The form holds all beings, worlds and time, and is both awe-inspiring and terrifying: beyond human grasp.",
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "front": "\"Be only an instrument\"",
+   "back": "The warriors are already destroyed by God's will; Arjuna is only the instrument. We act, but are not the doers.",
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "front": "Can study or ritual show this form? (11.53)",
+   "back": "No: not the Vedas, austerity, charity or ritual.",
+   "ref": "11.53",
+   "L": [
+    "L4"
+   ]
+  },
+  {
+   "front": "How then can God be seen?",
+   "back": "By devotional love. He can be seen in any form the devotee holds dear; he returns to his gentle human form for Arjuna.",
+   "L": [
+    "L4"
+   ]
+  },
+  {
+   "front": "The whole practice in one verse (11.55)",
+   "back": "Dedicate all work to God, make him the supreme goal, be devoted, unattached, and without enmity toward any being.",
+   "ref": "11.55",
+   "L": [
+    "L5"
+   ]
+  }
+ ],
+ "quiz": [
+  {
+   "text": "What does Arjuna ask to see in 11.3?",
+   "options": {
+    "A": "Heaven",
+    "B": "The end of the war",
+    "C": "His future",
+    "D": "The cosmic form of God"
+   },
+   "correct": "D",
+   "why": "Every seeker's deepest longing: to see the Divine directly.",
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "text": "How can Arjuna see the cosmic form?",
+   "options": {
+    "A": "With his own eyes",
+    "B": "In a dream",
+    "C": "With a divine eye God gives him",
+    "D": "By meditation alone"
+   },
+   "correct": "C",
+   "why": "11.8: physical eyes cannot see it.",
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "text": "How does Arjuna react to the vision?",
+   "options": {
+    "A": "With boredom",
+    "B": "With awe and fear",
+    "C": "With anger",
+    "D": "With laughter"
+   },
+   "correct": "B",
+   "why": "The form is overwhelming, beyond comprehension.",
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "text": "\"Be only an instrument\" means:",
+   "options": {
+    "A": "Act, knowing God is the real doer",
+    "B": "Do nothing",
+    "C": "Play music",
+    "D": "Obey kings"
+   },
+   "correct": "A",
+   "why": "The outcome is already in God's will; we do our part.",
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "text": "Per 11.53, which reveals the four-armed form?",
+   "options": {
+    "A": "Vedic study",
+    "B": "Charity",
+    "C": "Rituals",
+    "D": "None of these: only devotion"
+   },
+   "correct": "D",
+   "why": "Only devotional love reveals him.",
+   "L": [
+    "L4"
+   ]
+  },
+  {
+   "text": "Who attains God, according to 11.55?",
+   "options": {
+    "A": "The richest",
+    "B": "One who sees the cosmic form",
+    "C": "One devoted, unattached, without enmity, working for God",
+    "D": "One who leaves the world"
+   },
+   "correct": "C",
+   "why": "The complete practice in one verse.",
+   "L": [
+    "L5"
+   ]
+  }
+ ],
+ "mindmap": {
+  "root": "Vision of the universal form",
+  "branches": [
+   {
+    "text": "The longing",
+    "L": [
+     "L1"
+    ],
+    "children": [
+     {
+      "text": "\"I wish to see\" (11.3)",
+      "L": [
+       "L1"
+      ]
+     },
+     {
+      "text": "The divine eye (11.8)"
+     }
+    ]
+   },
+   {
+    "text": "The cosmic form",
+    "L": [
+     "L2"
+    ],
+    "children": [
+     {
+      "text": "Infinite faces, no end (11.16)",
+      "L": [
+       "L2"
+      ]
+     },
+     {
+      "text": "Awe and terror"
+     }
+    ]
+   },
+   {
+    "text": "The instrument",
+    "L": [
+     "L3"
+    ],
+    "children": [
+     {
+      "text": "Already decided by God"
+     },
+     {
+      "text": "We act, God does",
+      "L": [
+       "L3"
+      ]
+     }
+    ]
+   },
+   {
+    "text": "The way to see him",
+    "L": [
+     "L4",
+     "L5"
+    ],
+    "children": [
+     {
+      "text": "Not by study or ritual (11.53)",
+      "L": [
+       "L4"
+      ]
+     },
+     {
+      "text": "By devotion, in any form",
+      "L": [
+       "L4"
+      ]
+     },
+     {
+      "text": "Full dedication (11.55)",
+      "L": [
+       "L5"
+      ]
+     }
+    ]
+   }
   ]
+ },
+ "slides": [
+  {
+   "title": "Vision of the universal form",
+   "bullets": [
+    "Chapter 11",
+    "Arjuna sees God as all"
+   ]
+  },
+  {
+   "title": "The seeker's longing",
+   "bullets": [
+    "Arjuna asks to see the cosmic form (11.3)",
+    "Krishna gives him a divine eye (11.8)"
+   ],
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "title": "Overwhelming",
+   "bullets": [
+    "Infinite arms, faces and eyes (11.16)",
+    "No beginning, middle or end",
+    "Awe and fear: beyond the human mind"
+   ],
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "title": "Only an instrument",
+   "bullets": [
+    "The outcome is already in God's will",
+    "Do your part; God is the doer"
+   ],
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "title": "Seen by love",
+   "bullets": [
+    "Not by Vedas, austerity, charity, ritual (11.53)",
+    "By devotion, in any form one loves",
+    "Dedicate all work to God (11.55)"
+   ],
+   "L": [
+    "L4",
+    "L5"
+   ]
+  }
+ ]
 }

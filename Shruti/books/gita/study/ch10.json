@@ -1,38 +1,284 @@
 {
-  "n": 10,
-  "title": "Manifestation of the absolute",
-  "flashcards": [
-    { "front": "The origin of all (10.8)", "back": "God is the origin of all, and everything emanates from him. Knowing this, the wise adore him with love.", "ref": "10.08", "L": ["L1", "L2"] },
-    { "front": "Where do human qualities come from?", "back": "Intelligence, knowledge, forgiveness, truth, fearlessness, contentment, even suffering: all arise from God.", "L": ["L1"] },
-    { "front": "What does knowing God's glories lead to?", "back": "Unwavering devotion: one who truly knows his manifestations is united with him.", "L": ["L2"] },
-    { "front": "The lamp of knowledge", "back": "To those who love and worship him always, God gives the understanding by which they reach him, dispelling ignorance from within.", "L": ["L3"] },
-    { "front": "\"You alone know Yourself\" (10.15)", "back": "Arjuna says only God knows himself by himself: no sage or god fully knows his nature.", "ref": "10.15", "L": ["L4"] },
-    { "front": "God in the good and the bad (10.36)", "back": "He is the gambling of cheats and the splendour of the splendid, victory, resolve, and the goodness of the good.", "ref": "10.36", "L": ["L5"] },
-    { "front": "Whatever has glory or power", "back": "Know it to be a spark of a fraction of God's splendour.", "L": ["L5"] },
-    { "front": "How much of God is the universe?", "back": "Only a small fraction: he sustains the whole creation with a fragment of himself.", "L": ["L5", "L4"] }
-  ],
-  "quiz": [
-    { "text": "What does 10.8 say God is?", "options": { "A": "One god among many", "B": "The origin of all", "C": "A part of nature", "D": "Unknowable to all, always" }, "correct": "B", "why": "Everything emanates from him; the wise adore him.", "L": ["L1"] },
-    { "text": "Where do qualities like forgiveness and truth come from?", "options": { "A": "From education", "B": "From God", "C": "From parents only", "D": "From effort alone" }, "correct": "B", "why": "Every quality in beings arises from God.", "L": ["L1"] },
-    { "text": "Knowing God's manifestations leads to:", "options": { "A": "Pride", "B": "Unwavering devotion", "C": "Fear", "D": "Indifference" }, "correct": "B", "why": "Knowledge of his glory fuels love.", "L": ["L2"] },
-    { "text": "What does God give to those who always worship him?", "options": { "A": "Wealth", "B": "The understanding by which they reach him", "C": "Long life", "D": "Fame" }, "correct": "B", "why": "He dispels the darkness of ignorance from within.", "L": ["L3"] },
-    { "text": "Who fully knows God's nature (10.15)?", "options": { "A": "The sages", "B": "The gods", "C": "Only God himself", "D": "Arjuna" }, "correct": "C", "why": "\"You alone know Yourself by Yourself.\"", "L": ["L4"] },
-    { "text": "Whatever has glory, brilliance or power is:", "options": { "A": "Separate from God", "B": "A fragment of God's splendour", "C": "Maya only", "D": "Evil" }, "correct": "B", "why": "And the whole universe is but a small part of him.", "L": ["L5"] }
-  ],
-  "mindmap": {
-    "root": "Manifestation of the absolute",
-    "branches": [
-      { "text": "God the origin", "L": ["L1"], "children": [{ "text": "All emanates from him (10.8)", "L": ["L1"] }, { "text": "Every quality is his" }] },
-      { "text": "Knowing leads to love", "L": ["L2", "L3"], "children": [{ "text": "Unwavering devotion", "L": ["L2"] }, { "text": "He lights the lamp of knowledge", "L": ["L3"] }] },
-      { "text": "Beyond knowing", "L": ["L4"], "children": [{ "text": "Only he knows himself (10.15)", "L": ["L4"] }, { "text": "Humility before the infinite" }] },
-      { "text": "His glories", "L": ["L5"], "children": [{ "text": "Splendour of the splendid (10.36)", "L": ["L5"] }, { "text": "All glory is his spark" }, { "text": "Creation: a small part" }] }
-    ]
+ "n": 10,
+ "title": "Manifestation of the absolute",
+ "flashcards": [
+  {
+   "front": "The origin of all (10.8)",
+   "back": "God is the origin of all, and everything emanates from him. Knowing this, the wise adore him with love.",
+   "ref": "10.08",
+   "L": [
+    "L1",
+    "L2"
+   ]
   },
-  "slides": [
-    { "title": "Manifestation of the absolute", "bullets": ["Chapter 10", "God's glories in everything"] },
-    { "title": "The origin of all", "bullets": ["Everything emanates from God (10.8)", "Every human quality arises from him"], "L": ["L1"] },
-    { "title": "Knowledge becomes devotion", "bullets": ["Knowing his glories unites one with him", "He gives inner understanding to the devoted"], "L": ["L2", "L3"] },
-    { "title": "Only God knows God", "bullets": ["\"You alone know Yourself by Yourself\" (10.15)", "The finite mind can only approach the infinite"], "L": ["L4"] },
-    { "title": "A spark of his splendour", "bullets": ["Splendour, victory, resolve, goodness (10.36)", "Whatever has glory is a fraction of God", "The universe is a small part of him"], "L": ["L5"] }
+  {
+   "front": "Where do human qualities come from?",
+   "back": "Intelligence, knowledge, forgiveness, truth, fearlessness, contentment, even suffering: all arise from God.",
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "front": "What does knowing God's glories lead to?",
+   "back": "Unwavering devotion: one who truly knows his manifestations is united with him.",
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "front": "The lamp of knowledge",
+   "back": "To those who love and worship him always, God gives the understanding by which they reach him, dispelling ignorance from within.",
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "front": "\"You alone know Yourself\" (10.15)",
+   "back": "Arjuna says only God knows himself by himself: no sage or god fully knows his nature.",
+   "ref": "10.15",
+   "L": [
+    "L4"
+   ]
+  },
+  {
+   "front": "God in the good and the bad (10.36)",
+   "back": "He is the gambling of cheats and the splendour of the splendid, victory, resolve, and the goodness of the good.",
+   "ref": "10.36",
+   "L": [
+    "L5"
+   ]
+  },
+  {
+   "front": "Whatever has glory or power",
+   "back": "Know it to be a spark of a fraction of God's splendour.",
+   "L": [
+    "L5"
+   ]
+  },
+  {
+   "front": "How much of God is the universe?",
+   "back": "Only a small fraction: he sustains the whole creation with a fragment of himself.",
+   "L": [
+    "L5",
+    "L4"
+   ]
+  }
+ ],
+ "quiz": [
+  {
+   "text": "What does 10.8 say God is?",
+   "options": {
+    "A": "One god among many",
+    "B": "A part of nature",
+    "C": "The origin of all",
+    "D": "Unknowable to all, always"
+   },
+   "correct": "C",
+   "why": "Everything emanates from him; the wise adore him.",
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "text": "Where do qualities like forgiveness and truth come from?",
+   "options": {
+    "A": "From education",
+    "B": "From God",
+    "C": "From parents only",
+    "D": "From effort alone"
+   },
+   "correct": "B",
+   "why": "Every quality in beings arises from God.",
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "text": "Knowing God's manifestations leads to:",
+   "options": {
+    "A": "Unwavering devotion",
+    "B": "Pride",
+    "C": "Fear",
+    "D": "Indifference"
+   },
+   "correct": "A",
+   "why": "Knowledge of his glory fuels love.",
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "text": "What does God give to those who always worship him?",
+   "options": {
+    "A": "Wealth",
+    "B": "Fame",
+    "C": "Long life",
+    "D": "The understanding by which they reach him"
+   },
+   "correct": "D",
+   "why": "He dispels the darkness of ignorance from within.",
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "text": "Who fully knows God's nature (10.15)?",
+   "options": {
+    "A": "The sages",
+    "B": "The gods",
+    "C": "Only God himself",
+    "D": "Arjuna"
+   },
+   "correct": "C",
+   "why": "\"You alone know Yourself by Yourself.\"",
+   "L": [
+    "L4"
+   ]
+  },
+  {
+   "text": "Whatever has glory, brilliance or power is:",
+   "options": {
+    "A": "Separate from God",
+    "B": "A fragment of God's splendour",
+    "C": "Maya only",
+    "D": "Evil"
+   },
+   "correct": "B",
+   "why": "And the whole universe is but a small part of him.",
+   "L": [
+    "L5"
+   ]
+  }
+ ],
+ "mindmap": {
+  "root": "Manifestation of the absolute",
+  "branches": [
+   {
+    "text": "God the origin",
+    "L": [
+     "L1"
+    ],
+    "children": [
+     {
+      "text": "All emanates from him (10.8)",
+      "L": [
+       "L1"
+      ]
+     },
+     {
+      "text": "Every quality is his"
+     }
+    ]
+   },
+   {
+    "text": "Knowing leads to love",
+    "L": [
+     "L2",
+     "L3"
+    ],
+    "children": [
+     {
+      "text": "Unwavering devotion",
+      "L": [
+       "L2"
+      ]
+     },
+     {
+      "text": "He lights the lamp of knowledge",
+      "L": [
+       "L3"
+      ]
+     }
+    ]
+   },
+   {
+    "text": "Beyond knowing",
+    "L": [
+     "L4"
+    ],
+    "children": [
+     {
+      "text": "Only he knows himself (10.15)",
+      "L": [
+       "L4"
+      ]
+     },
+     {
+      "text": "Humility before the infinite"
+     }
+    ]
+   },
+   {
+    "text": "His glories",
+    "L": [
+     "L5"
+    ],
+    "children": [
+     {
+      "text": "Splendour of the splendid (10.36)",
+      "L": [
+       "L5"
+      ]
+     },
+     {
+      "text": "All glory is his spark"
+     },
+     {
+      "text": "Creation: a small part"
+     }
+    ]
+   }
   ]
+ },
+ "slides": [
+  {
+   "title": "Manifestation of the absolute",
+   "bullets": [
+    "Chapter 10",
+    "God's glories in everything"
+   ]
+  },
+  {
+   "title": "The origin of all",
+   "bullets": [
+    "Everything emanates from God (10.8)",
+    "Every human quality arises from him"
+   ],
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "title": "Knowledge becomes devotion",
+   "bullets": [
+    "Knowing his glories unites one with him",
+    "He gives inner understanding to the devoted"
+   ],
+   "L": [
+    "L2",
+    "L3"
+   ]
+  },
+  {
+   "title": "Only God knows God",
+   "bullets": [
+    "\"You alone know Yourself by Yourself\" (10.15)",
+    "The finite mind can only approach the infinite"
+   ],
+   "L": [
+    "L4"
+   ]
+  },
+  {
+   "title": "A spark of his splendour",
+   "bullets": [
+    "Splendour, victory, resolve, goodness (10.36)",
+    "Whatever has glory is a fraction of God",
+    "The universe is a small part of him"
+   ],
+   "L": [
+    "L5"
+   ]
+  }
+ ]
 }

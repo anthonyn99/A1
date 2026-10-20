@@ -1,51 +1,438 @@
 {
-  "n": 18,
-  "title": "Attaining liberation by giving up ego",
-  "flashcards": [
-    { "front": "Renunciation and sacrifice (18.2)", "back": "Renunciation is giving up work done for personal profit; sacrifice is freedom from attachment to the fruits of all work.", "ref": "18.02", "L": ["L1"] },
-    { "front": "Who is a Tyagi? (18.11)", "back": "No one can give up work completely, so a Tyagi is one who gives up attachment to its fruits.", "ref": "18.11", "L": ["L1"] },
-    { "front": "Five causes of every action", "back": "The body, the doer (the modes), the organs, the life forces, and fate. The Self alone is not the doer.", "L": ["L2"] },
-    { "front": "Knowledge in the mode of goodness", "back": "Sees one Reality in all beings, undivided in the divided.", "L": ["L3"] },
-    { "front": "The agent in three modes", "back": "Goodness: steady, free of ego. Passion: craving, greedy, swayed by joy and grief. Ignorance: careless, stubborn, lazy.", "L": ["L3"] },
-    { "front": "Intellect in the mode of goodness", "back": "Knows right from wrong, bondage from liberation; passion confuses them; ignorance takes wrong for right.", "L": ["L4"] },
-    { "front": "Pleasure in passion (18.38)", "back": "Sense pleasure is nectar at first and poison in the end. The pleasure of goodness is bitter at first, sweet at the end.", "ref": "18.38", "L": ["L5"] },
-    { "front": "On what is the division of labour based?", "back": "On one's natural qualities and ability, not on birth.", "L": ["L6"] },
-    { "front": "Perfection through one's own duty (18.46)", "back": "One reaches perfection by worshipping God, from whom all beings come, through one's natural work.", "ref": "18.46", "L": ["L6", "L7"] },
-    { "front": "The path in brief (18.51-53)", "back": "Purified intellect, firm resolve, sense control, no likes and dislikes, solitude, light eating, meditation, detachment, no ego.", "ref": "18.51-53", "L": ["L7"] },
-    { "front": "The puppet of Karma (18.61)", "back": "God abides in all hearts and makes beings work out their Karma, which their own past choices created.", "ref": "18.61", "L": ["L8"] },
-    { "front": "Surrender (18.66)", "back": "Set aside doership, ownership and attachment; surrender to God's will. He frees you from all Karma: do not grieve.", "ref": "18.66", "L": ["L9"] },
-    { "front": "Depend on Me (18.57)", "back": "Offer all actions to God, make him your goal, depend on him, keep your mind on him, and practise Karma-yoga.", "ref": "18.57", "L": ["L9"] },
-    { "front": "The Gita's last verse (18.78)", "back": "Where Krishna, Lord of yoga, and Arjuna, with the weapons of duty, are together, there are prosperity, victory and morality.", "ref": "18.78", "L": ["L10"] },
-    { "front": "Knowledge and action", "back": "Neither alone frees: wisdom and devoted duty together lead to liberation.", "L": ["L10"] }
-  ],
-  "quiz": [
-    { "text": "What does true renunciation give up?", "options": { "A": "All duties", "B": "Attachment to the fruits of work", "C": "Family", "D": "Food" }, "correct": "B", "why": "18.2 and 18.11: duty stays; attachment goes.", "L": ["L1"] },
-    { "text": "How many causes of action does Krishna name?", "options": { "A": "Two", "B": "Three", "C": "Five", "D": "Nine" }, "correct": "C", "why": "Body, doer, organs, life forces, fate.", "L": ["L2"] },
-    { "text": "Knowledge in the mode of goodness sees:", "options": { "A": "Many separate realities", "B": "One Reality in all beings", "C": "Only the body", "D": "Only itself" }, "correct": "B", "why": "The undivided in the divided.", "L": ["L3"] },
-    { "text": "Which intellect takes wrong for right?", "options": { "A": "Goodness", "B": "Passion", "C": "Ignorance", "D": "None" }, "correct": "C", "why": "Passion confuses them; ignorance inverts them.", "L": ["L4"] },
-    { "text": "Pleasure that is nectar at first and poison at the end is in the mode of:", "options": { "A": "Goodness", "B": "Passion", "C": "Ignorance", "D": "Devotion" }, "correct": "B", "why": "18.38: sense pleasure.", "L": ["L5"] },
-    { "text": "The division of labour is based on:", "options": { "A": "Birth", "B": "Wealth", "C": "Natural qualities and ability", "D": "Chance" }, "correct": "C", "why": "Natural ability, not family.", "L": ["L6"] },
-    { "text": "What does God promise in 18.66?", "options": { "A": "Wealth", "B": "Victory in war", "C": "Freedom from all sin and Karma", "D": "A long life" }, "correct": "C", "why": "Surrender to his will; do not grieve.", "L": ["L9", "L8"] },
-    { "text": "Which pair, per 18.78, brings victory and prosperity?", "options": { "A": "Wealth and power", "B": "Krishna and Arjuna: wisdom and duty", "C": "Kings and priests", "D": "Gods and demons" }, "correct": "B", "why": "Knowledge and devoted action together.", "L": ["L10", "L7"] }
-  ],
-  "mindmap": {
-    "root": "Liberation by giving up ego",
-    "branches": [
-      { "text": "Renunciation", "L": ["L1", "L2"], "children": [{ "text": "Give up fruits, not duty (18.2)", "L": ["L1"] }, { "text": "Five causes of action", "L": ["L2"] }] },
-      { "text": "Three modes again", "L": ["L3", "L4", "L5"], "children": [{ "text": "Knowledge, action, agent", "L": ["L3"] }, { "text": "Intellect and resolve", "L": ["L4"] }, { "text": "Pleasure: bitter, then sweet", "L": ["L5"] }] },
-      { "text": "Duty", "L": ["L6", "L7"], "children": [{ "text": "Work by nature, not birth", "L": ["L6"] }, { "text": "Perfection by one's duty (18.46)" }, { "text": "Duty, discipline, devotion", "L": ["L7"] }] },
-      { "text": "God and will", "L": ["L8", "L9"], "children": [{ "text": "Puppet of Karma (18.61)", "L": ["L8"] }, { "text": "Surrender (18.66)", "L": ["L9"] }] },
-      { "text": "The close", "L": ["L10"], "children": [{ "text": "Knowledge with action", "L": ["L10"] }, { "text": "Krishna and Arjuna (18.78)" }] }
-    ]
+ "n": 18,
+ "title": "Attaining liberation by giving up ego",
+ "flashcards": [
+  {
+   "front": "Renunciation and sacrifice (18.2)",
+   "back": "Renunciation is giving up work done for personal profit; sacrifice is freedom from attachment to the fruits of all work.",
+   "ref": "18.02",
+   "L": [
+    "L1"
+   ]
   },
-  "slides": [
-    { "title": "Liberation by giving up ego", "bullets": ["Chapter 18", "The Gita's summary and final word"] },
-    { "title": "What renunciation is", "bullets": ["Give up attachment to fruits, not duty (18.2)", "No one can stop working (18.11)", "Five causes act, not the Self alone"], "L": ["L1", "L2"] },
-    { "title": "Three modes, everywhere", "bullets": ["Knowledge, action and agent", "Intellect and resolve", "Pleasure: nectar then poison, or bitter then sweet (18.38)"], "L": ["L3", "L4", "L5"] },
-    { "title": "Your own duty", "bullets": ["Work follows nature, not birth", "Worship God through your work (18.46)"], "L": ["L6"] },
-    { "title": "The complete path", "bullets": ["Purified intellect, firm resolve (18.51-53)", "Solitude, moderation, meditation, no ego", "By devotion one knows God (18.55)"], "L": ["L7"] },
-    { "title": "God, Karma and will", "bullets": ["God makes beings work out their Karma (18.61)", "That Karma is made by our past choices"], "L": ["L8"] },
-    { "title": "Surrender", "bullets": ["Offer all actions to God (18.57)", "Drop doership and ownership; do not grieve (18.66)"], "L": ["L9"] },
-    { "title": "Knowledge and action together", "bullets": ["Neither alone frees", "Krishna and Arjuna together: victory and morality (18.78)"], "L": ["L10"] }
+  {
+   "front": "Who is a Tyagi? (18.11)",
+   "back": "No one can give up work completely, so a Tyagi is one who gives up attachment to its fruits.",
+   "ref": "18.11",
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "front": "Five causes of every action",
+   "back": "The body, the doer (the modes), the organs, the life forces, and fate. The Self alone is not the doer.",
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "front": "Knowledge in the mode of goodness",
+   "back": "Sees one Reality in all beings, undivided in the divided.",
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "front": "The agent in three modes",
+   "back": "Goodness: steady, free of ego. Passion: craving, greedy, swayed by joy and grief. Ignorance: careless, stubborn, lazy.",
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "front": "Intellect in the mode of goodness",
+   "back": "Knows right from wrong, bondage from liberation; passion confuses them; ignorance takes wrong for right.",
+   "L": [
+    "L4"
+   ]
+  },
+  {
+   "front": "Pleasure in passion (18.38)",
+   "back": "Sense pleasure is nectar at first and poison in the end. The pleasure of goodness is bitter at first, sweet at the end.",
+   "ref": "18.38",
+   "L": [
+    "L5"
+   ]
+  },
+  {
+   "front": "On what is the division of labour based?",
+   "back": "On one's natural qualities and ability, not on birth.",
+   "L": [
+    "L6"
+   ]
+  },
+  {
+   "front": "Perfection through one's own duty (18.46)",
+   "back": "One reaches perfection by worshipping God, from whom all beings come, through one's natural work.",
+   "ref": "18.46",
+   "L": [
+    "L6",
+    "L7"
+   ]
+  },
+  {
+   "front": "The path in brief (18.51-53)",
+   "back": "Purified intellect, firm resolve, sense control, no likes and dislikes, solitude, light eating, meditation, detachment, no ego.",
+   "ref": "18.51-53",
+   "L": [
+    "L7"
+   ]
+  },
+  {
+   "front": "The puppet of Karma (18.61)",
+   "back": "God abides in all hearts and makes beings work out their Karma, which their own past choices created.",
+   "ref": "18.61",
+   "L": [
+    "L8"
+   ]
+  },
+  {
+   "front": "Surrender (18.66)",
+   "back": "Set aside doership, ownership and attachment; surrender to God's will. He frees you from all Karma: do not grieve.",
+   "ref": "18.66",
+   "L": [
+    "L9"
+   ]
+  },
+  {
+   "front": "Depend on Me (18.57)",
+   "back": "Offer all actions to God, make him your goal, depend on him, keep your mind on him, and practise Karma-yoga.",
+   "ref": "18.57",
+   "L": [
+    "L9"
+   ]
+  },
+  {
+   "front": "The Gita's last verse (18.78)",
+   "back": "Where Krishna, Lord of yoga, and Arjuna, with the weapons of duty, are together, there are prosperity, victory and morality.",
+   "ref": "18.78",
+   "L": [
+    "L10"
+   ]
+  },
+  {
+   "front": "Knowledge and action",
+   "back": "Neither alone frees: wisdom and devoted duty together lead to liberation.",
+   "L": [
+    "L10"
+   ]
+  }
+ ],
+ "quiz": [
+  {
+   "text": "What does true renunciation give up?",
+   "options": {
+    "A": "All duties",
+    "B": "Family",
+    "C": "Attachment to the fruits of work",
+    "D": "Food"
+   },
+   "correct": "C",
+   "why": "18.2 and 18.11: duty stays; attachment goes.",
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "text": "How many causes of action does Krishna name?",
+   "options": {
+    "A": "Two",
+    "B": "Three",
+    "C": "Five",
+    "D": "Nine"
+   },
+   "correct": "C",
+   "why": "Body, doer, organs, life forces, fate.",
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "text": "Knowledge in the mode of goodness sees:",
+   "options": {
+    "A": "One Reality in all beings",
+    "B": "Many separate realities",
+    "C": "Only the body",
+    "D": "Only itself"
+   },
+   "correct": "A",
+   "why": "The undivided in the divided.",
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "text": "Which intellect takes wrong for right?",
+   "options": {
+    "A": "Goodness",
+    "B": "Passion",
+    "C": "None",
+    "D": "Ignorance"
+   },
+   "correct": "D",
+   "why": "Passion confuses them; ignorance inverts them.",
+   "L": [
+    "L4"
+   ]
+  },
+  {
+   "text": "Pleasure that is nectar at first and poison at the end is in the mode of:",
+   "options": {
+    "A": "Goodness",
+    "B": "Ignorance",
+    "C": "Passion",
+    "D": "Devotion"
+   },
+   "correct": "C",
+   "why": "18.38: sense pleasure.",
+   "L": [
+    "L5"
+   ]
+  },
+  {
+   "text": "The division of labour is based on:",
+   "options": {
+    "A": "Birth",
+    "B": "Natural qualities and ability",
+    "C": "Wealth",
+    "D": "Chance"
+   },
+   "correct": "B",
+   "why": "Natural ability, not family.",
+   "L": [
+    "L6"
+   ]
+  },
+  {
+   "text": "What does God promise in 18.66?",
+   "options": {
+    "A": "Freedom from all sin and Karma",
+    "B": "Victory in war",
+    "C": "Wealth",
+    "D": "A long life"
+   },
+   "correct": "A",
+   "why": "Surrender to his will; do not grieve.",
+   "L": [
+    "L9",
+    "L8"
+   ]
+  },
+  {
+   "text": "Which pair, per 18.78, brings victory and prosperity?",
+   "options": {
+    "A": "Wealth and power",
+    "B": "Gods and demons",
+    "C": "Kings and priests",
+    "D": "Krishna and Arjuna: wisdom and duty"
+   },
+   "correct": "D",
+   "why": "Knowledge and devoted action together.",
+   "L": [
+    "L10",
+    "L7"
+   ]
+  }
+ ],
+ "mindmap": {
+  "root": "Liberation by giving up ego",
+  "branches": [
+   {
+    "text": "Renunciation",
+    "L": [
+     "L1",
+     "L2"
+    ],
+    "children": [
+     {
+      "text": "Give up fruits, not duty (18.2)",
+      "L": [
+       "L1"
+      ]
+     },
+     {
+      "text": "Five causes of action",
+      "L": [
+       "L2"
+      ]
+     }
+    ]
+   },
+   {
+    "text": "Three modes again",
+    "L": [
+     "L3",
+     "L4",
+     "L5"
+    ],
+    "children": [
+     {
+      "text": "Knowledge, action, agent",
+      "L": [
+       "L3"
+      ]
+     },
+     {
+      "text": "Intellect and resolve",
+      "L": [
+       "L4"
+      ]
+     },
+     {
+      "text": "Pleasure: bitter, then sweet",
+      "L": [
+       "L5"
+      ]
+     }
+    ]
+   },
+   {
+    "text": "Duty",
+    "L": [
+     "L6",
+     "L7"
+    ],
+    "children": [
+     {
+      "text": "Work by nature, not birth",
+      "L": [
+       "L6"
+      ]
+     },
+     {
+      "text": "Perfection by one's duty (18.46)"
+     },
+     {
+      "text": "Duty, discipline, devotion",
+      "L": [
+       "L7"
+      ]
+     }
+    ]
+   },
+   {
+    "text": "God and will",
+    "L": [
+     "L8",
+     "L9"
+    ],
+    "children": [
+     {
+      "text": "Puppet of Karma (18.61)",
+      "L": [
+       "L8"
+      ]
+     },
+     {
+      "text": "Surrender (18.66)",
+      "L": [
+       "L9"
+      ]
+     }
+    ]
+   },
+   {
+    "text": "The close",
+    "L": [
+     "L10"
+    ],
+    "children": [
+     {
+      "text": "Knowledge with action",
+      "L": [
+       "L10"
+      ]
+     },
+     {
+      "text": "Krishna and Arjuna (18.78)"
+     }
+    ]
+   }
   ]
+ },
+ "slides": [
+  {
+   "title": "Liberation by giving up ego",
+   "bullets": [
+    "Chapter 18",
+    "The Gita's summary and final word"
+   ]
+  },
+  {
+   "title": "What renunciation is",
+   "bullets": [
+    "Give up attachment to fruits, not duty (18.2)",
+    "No one can stop working (18.11)",
+    "Five causes act, not the Self alone"
+   ],
+   "L": [
+    "L1",
+    "L2"
+   ]
+  },
+  {
+   "title": "Three modes, everywhere",
+   "bullets": [
+    "Knowledge, action and agent",
+    "Intellect and resolve",
+    "Pleasure: nectar then poison, or bitter then sweet (18.38)"
+   ],
+   "L": [
+    "L3",
+    "L4",
+    "L5"
+   ]
+  },
+  {
+   "title": "Your own duty",
+   "bullets": [
+    "Work follows nature, not birth",
+    "Worship God through your work (18.46)"
+   ],
+   "L": [
+    "L6"
+   ]
+  },
+  {
+   "title": "The complete path",
+   "bullets": [
+    "Purified intellect, firm resolve (18.51-53)",
+    "Solitude, moderation, meditation, no ego",
+    "By devotion one knows God (18.55)"
+   ],
+   "L": [
+    "L7"
+   ]
+  },
+  {
+   "title": "God, Karma and will",
+   "bullets": [
+    "God makes beings work out their Karma (18.61)",
+    "That Karma is made by our past choices"
+   ],
+   "L": [
+    "L8"
+   ]
+  },
+  {
+   "title": "Surrender",
+   "bullets": [
+    "Offer all actions to God (18.57)",
+    "Drop doership and ownership; do not grieve (18.66)"
+   ],
+   "L": [
+    "L9"
+   ]
+  },
+  {
+   "title": "Knowledge and action together",
+   "bullets": [
+    "Neither alone frees",
+    "Krishna and Arjuna together: victory and morality (18.78)"
+   ],
+   "L": [
+    "L10"
+   ]
+  }
+ ]
 }

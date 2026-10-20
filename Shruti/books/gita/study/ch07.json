@@ -1,44 +1,362 @@
 {
-  "n": 7,
-  "title": "Self-knowledge and enlightenment",
-  "flashcards": [
-    { "front": "God's two natures (7.5)", "back": "The lower nature is material energy; the higher nature is Spirit (Purusha), which sustains the whole universe.", "ref": "7.05", "L": ["L2"] },
-    { "front": "Lower nature: what is in it?", "back": "Earth, water, fire, air, ether, mind, intellect and ego.", "L": ["L2"] },
-    { "front": "Source of origin and dissolution (7.6)", "back": "All creatures evolve from God's twofold energy, and God is the origin and dissolution of the whole universe.", "ref": "7.06", "L": ["L1"] },
-    { "front": "Jewels on a thread (7.7)", "back": "Nothing is higher than God; everything is strung on him like jewels on the thread of a necklace.", "ref": "7.07", "L": ["L1"] },
-    { "front": "Maya (7.14)", "back": "God's divine power of the three modes, very hard to overcome. Only those who surrender to him cross it easily.", "ref": "7.14", "L": ["L3"] },
-    { "front": "Four who seek God (7.16)", "back": "The distressed, the seeker of Self-knowledge, the seeker of wealth, and the enlightened one.", "ref": "7.16", "L": ["L4"] },
-    { "front": "Which of the four is highest?", "back": "The enlightened devotee with single-minded love, who sees that everything is God (7.19). Such a soul is very rare.", "ref": "7.19", "L": ["L4", "L6"] },
-    { "front": "Worship of any deity (7.21-22)", "back": "God steadies the faith of whoever worships any deity with faith, and their wishes are granted, but only by him.", "ref": "7.21-22", "L": ["L5"] },
-    { "front": "Why do few know God?", "back": "Among thousands who strive, scarcely one knows him truly; most are deluded by likes and dislikes.", "L": ["L6"] },
-    { "front": "The mistake of the ignorant (7.24)", "back": "Not understanding God's transcendental form, they think he is formless and takes form as humans do.", "ref": "7.24", "L": ["L6"] },
-    { "front": "Krishna's promise", "back": "Complete Self-knowledge with enlightenment, after which nothing more remains to be known.", "L": ["L7"] }
-  ],
-  "quiz": [
-    { "text": "What is God's higher nature, per 7.5?", "options": { "A": "The five elements", "B": "Mind and ego", "C": "Spirit, which sustains the universe", "D": "Maya" }, "correct": "C", "why": "Material energy is the lower nature; Spirit (Purusha) is the higher.", "L": ["L2"] },
-    { "text": "\"Like jewels on a thread\" describes:", "options": { "A": "The four seekers", "B": "Everything strung on God", "C": "The three modes", "D": "Rebirth" }, "correct": "B", "why": "7.7: there is nothing higher than God.", "L": ["L1"] },
-    { "text": "Who can easily cross Maya?", "options": { "A": "The clever", "B": "The rich", "C": "Those who surrender to God", "D": "No one" }, "correct": "C", "why": "7.14: willpower alone cannot; surrender can.", "L": ["L3"] },
-    { "text": "Which is NOT one of the four who seek God (7.16)?", "options": { "A": "The distressed", "B": "The seeker of wealth", "C": "The faithless", "D": "The enlightened" }, "correct": "C", "why": "The four are the distressed, the seeker of knowledge, the seeker of wealth, the enlightened.", "L": ["L4"] },
-    { "text": "Who grants the wishes of a deity's worshippers?", "options": { "A": "That deity alone", "B": "Only God", "C": "The priests", "D": "No one" }, "correct": "B", "why": "7.21-22: faith in any form is steadied by God; wishes come from him.", "L": ["L5"] },
-    { "text": "Why is the enlightened soul who knows God \"very rare\"?", "options": { "A": "Few are born", "B": "Most are deluded by opposites", "C": "God hides from all", "D": "It needs wealth" }, "correct": "B", "why": "Among thousands, scarcely one truly knows him.", "L": ["L6"] },
-    { "text": "What remains to be known after this knowledge?", "options": { "A": "The Vedas", "B": "Nothing more", "C": "The future", "D": "Other gods" }, "correct": "B", "why": "Krishna's promise: complete knowledge and enlightenment.", "L": ["L7"] },
-    { "text": "What do the ignorant wrongly think of God (7.24)?", "options": { "A": "That he is formless and takes form as humans do", "B": "That he is eternal", "C": "That he is the source", "D": "That he is kind" }, "correct": "A", "why": "They miss his unborn, transcendental form." }
-  ],
-  "mindmap": {
-    "root": "Self-knowledge and enlightenment",
-    "branches": [
-      { "text": "God is everything", "L": ["L1", "L2"], "children": [{ "text": "Jewels on a thread (7.7)", "L": ["L1"] }, { "text": "Lower nature: matter", "L": ["L2"] }, { "text": "Higher nature: Spirit (7.5)", "L": ["L2"] }] },
-      { "text": "Maya", "L": ["L3"], "children": [{ "text": "Three modes of nature" }, { "text": "Hard to overcome" }, { "text": "Crossed by surrender (7.14)", "L": ["L3"] }] },
-      { "text": "Who seeks God", "L": ["L4", "L5"], "children": [{ "text": "Distressed, knowledge, wealth, wise", "L": ["L4"] }, { "text": "Faith made steady (7.21-22)", "L": ["L5"] }] },
-      { "text": "Knowing God", "L": ["L6", "L7"], "children": [{ "text": "Rare among thousands", "L": ["L6"] }, { "text": "Not formless, as the ignorant think" }, { "text": "Nothing more to know", "L": ["L7"] }] }
-    ]
+ "n": 7,
+ "title": "Self-knowledge and enlightenment",
+ "flashcards": [
+  {
+   "front": "God's two natures (7.5)",
+   "back": "The lower nature is material energy; the higher nature is Spirit (Purusha), which sustains the whole universe.",
+   "ref": "7.05",
+   "L": [
+    "L2"
+   ]
   },
-  "slides": [
-    { "title": "Self-knowledge and enlightenment", "bullets": ["Chapter 7", "What God is, and who comes to know him"] },
-    { "title": "The source of all", "bullets": ["Everything strung on God like jewels (7.7)", "He is origin and dissolution (7.6)"], "L": ["L1"] },
-    { "title": "Two natures", "bullets": ["Lower: elements, mind, intellect, ego", "Higher: Spirit, sustaining all (7.5)"], "L": ["L2"] },
-    { "title": "Maya", "bullets": ["The three modes delude almost everyone", "Surrender to God crosses it (7.14)"], "L": ["L3"] },
-    { "title": "Four who seek God", "bullets": ["The distressed, the curious, the seeker of wealth, the wise (7.16)", "Faith in any form is steadied by God (7.21-22)"], "L": ["L4", "L5"] },
-    { "title": "Rare is the knower", "bullets": ["One among thousands knows him truly", "The enlightened sees God in all (7.19)", "Then nothing more remains to be known"], "L": ["L6", "L7"] }
+  {
+   "front": "Lower nature: what is in it?",
+   "back": "Earth, water, fire, air, ether, mind, intellect and ego.",
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "front": "Source of origin and dissolution (7.6)",
+   "back": "All creatures evolve from God's twofold energy, and God is the origin and dissolution of the whole universe.",
+   "ref": "7.06",
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "front": "Jewels on a thread (7.7)",
+   "back": "Nothing is higher than God; everything is strung on him like jewels on the thread of a necklace.",
+   "ref": "7.07",
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "front": "Maya (7.14)",
+   "back": "God's divine power of the three modes, very hard to overcome. Only those who surrender to him cross it easily.",
+   "ref": "7.14",
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "front": "Four who seek God (7.16)",
+   "back": "The distressed, the seeker of Self-knowledge, the seeker of wealth, and the enlightened one.",
+   "ref": "7.16",
+   "L": [
+    "L4"
+   ]
+  },
+  {
+   "front": "Which of the four is highest?",
+   "back": "The enlightened devotee with single-minded love, who sees that everything is God (7.19). Such a soul is very rare.",
+   "ref": "7.19",
+   "L": [
+    "L4",
+    "L6"
+   ]
+  },
+  {
+   "front": "Worship of any deity (7.21-22)",
+   "back": "God steadies the faith of whoever worships any deity with faith, and their wishes are granted, but only by him.",
+   "ref": "7.21-22",
+   "L": [
+    "L5"
+   ]
+  },
+  {
+   "front": "Why do few know God?",
+   "back": "Among thousands who strive, scarcely one knows him truly; most are deluded by likes and dislikes.",
+   "L": [
+    "L6"
+   ]
+  },
+  {
+   "front": "The mistake of the ignorant (7.24)",
+   "back": "Not understanding God's transcendental form, they think he is formless and takes form as humans do.",
+   "ref": "7.24",
+   "L": [
+    "L6"
+   ]
+  },
+  {
+   "front": "Krishna's promise",
+   "back": "Complete Self-knowledge with enlightenment, after which nothing more remains to be known.",
+   "L": [
+    "L7"
+   ]
+  }
+ ],
+ "quiz": [
+  {
+   "text": "What is God's higher nature, per 7.5?",
+   "options": {
+    "A": "The five elements",
+    "B": "Mind and ego",
+    "C": "Maya",
+    "D": "Spirit, which sustains the universe"
+   },
+   "correct": "D",
+   "why": "Material energy is the lower nature; Spirit (Purusha) is the higher.",
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "text": "\"Like jewels on a thread\" describes:",
+   "options": {
+    "A": "The four seekers",
+    "B": "The three modes",
+    "C": "Everything strung on God",
+    "D": "Rebirth"
+   },
+   "correct": "C",
+   "why": "7.7: there is nothing higher than God.",
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "text": "Who can easily cross Maya?",
+   "options": {
+    "A": "The clever",
+    "B": "Those who surrender to God",
+    "C": "The rich",
+    "D": "No one"
+   },
+   "correct": "B",
+   "why": "7.14: willpower alone cannot; surrender can.",
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "text": "Which is NOT one of the four who seek God (7.16)?",
+   "options": {
+    "A": "The faithless",
+    "B": "The seeker of wealth",
+    "C": "The distressed",
+    "D": "The enlightened"
+   },
+   "correct": "A",
+   "why": "The four are the distressed, the seeker of knowledge, the seeker of wealth, the enlightened.",
+   "L": [
+    "L4"
+   ]
+  },
+  {
+   "text": "Who grants the wishes of a deity's worshippers?",
+   "options": {
+    "A": "That deity alone",
+    "B": "No one",
+    "C": "The priests",
+    "D": "Only God"
+   },
+   "correct": "D",
+   "why": "7.21-22: faith in any form is steadied by God; wishes come from him.",
+   "L": [
+    "L5"
+   ]
+  },
+  {
+   "text": "Why is the enlightened soul who knows God \"very rare\"?",
+   "options": {
+    "A": "Few are born",
+    "B": "God hides from all",
+    "C": "Most are deluded by opposites",
+    "D": "It needs wealth"
+   },
+   "correct": "C",
+   "why": "Among thousands, scarcely one truly knows him.",
+   "L": [
+    "L6"
+   ]
+  },
+  {
+   "text": "What remains to be known after this knowledge?",
+   "options": {
+    "A": "The Vedas",
+    "B": "Nothing more",
+    "C": "The future",
+    "D": "Other gods"
+   },
+   "correct": "B",
+   "why": "Krishna's promise: complete knowledge and enlightenment.",
+   "L": [
+    "L7"
+   ]
+  },
+  {
+   "text": "What do the ignorant wrongly think of God (7.24)?",
+   "options": {
+    "A": "That he is formless and takes form as humans do",
+    "B": "That he is eternal",
+    "C": "That he is the source",
+    "D": "That he is kind"
+   },
+   "correct": "A",
+   "why": "They miss his unborn, transcendental form."
+  }
+ ],
+ "mindmap": {
+  "root": "Self-knowledge and enlightenment",
+  "branches": [
+   {
+    "text": "God is everything",
+    "L": [
+     "L1",
+     "L2"
+    ],
+    "children": [
+     {
+      "text": "Jewels on a thread (7.7)",
+      "L": [
+       "L1"
+      ]
+     },
+     {
+      "text": "Lower nature: matter",
+      "L": [
+       "L2"
+      ]
+     },
+     {
+      "text": "Higher nature: Spirit (7.5)",
+      "L": [
+       "L2"
+      ]
+     }
+    ]
+   },
+   {
+    "text": "Maya",
+    "L": [
+     "L3"
+    ],
+    "children": [
+     {
+      "text": "Three modes of nature"
+     },
+     {
+      "text": "Hard to overcome"
+     },
+     {
+      "text": "Crossed by surrender (7.14)",
+      "L": [
+       "L3"
+      ]
+     }
+    ]
+   },
+   {
+    "text": "Who seeks God",
+    "L": [
+     "L4",
+     "L5"
+    ],
+    "children": [
+     {
+      "text": "Distressed, knowledge, wealth, wise",
+      "L": [
+       "L4"
+      ]
+     },
+     {
+      "text": "Faith made steady (7.21-22)",
+      "L": [
+       "L5"
+      ]
+     }
+    ]
+   },
+   {
+    "text": "Knowing God",
+    "L": [
+     "L6",
+     "L7"
+    ],
+    "children": [
+     {
+      "text": "Rare among thousands",
+      "L": [
+       "L6"
+      ]
+     },
+     {
+      "text": "Not formless, as the ignorant think"
+     },
+     {
+      "text": "Nothing more to know",
+      "L": [
+       "L7"
+      ]
+     }
+    ]
+   }
   ]
+ },
+ "slides": [
+  {
+   "title": "Self-knowledge and enlightenment",
+   "bullets": [
+    "Chapter 7",
+    "What God is, and who comes to know him"
+   ]
+  },
+  {
+   "title": "The source of all",
+   "bullets": [
+    "Everything strung on God like jewels (7.7)",
+    "He is origin and dissolution (7.6)"
+   ],
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "title": "Two natures",
+   "bullets": [
+    "Lower: elements, mind, intellect, ego",
+    "Higher: Spirit, sustaining all (7.5)"
+   ],
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "title": "Maya",
+   "bullets": [
+    "The three modes delude almost everyone",
+    "Surrender to God crosses it (7.14)"
+   ],
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "title": "Four who seek God",
+   "bullets": [
+    "The distressed, the curious, the seeker of wealth, the wise (7.16)",
+    "Faith in any form is steadied by God (7.21-22)"
+   ],
+   "L": [
+    "L4",
+    "L5"
+   ]
+  },
+  {
+   "title": "Rare is the knower",
+   "bullets": [
+    "One among thousands knows him truly",
+    "The enlightened sees God in all (7.19)",
+    "Then nothing more remains to be known"
+   ],
+   "L": [
+    "L6",
+    "L7"
+   ]
+  }
+ ]
 }

@@ -1,46 +1,362 @@
 {
-  "n": 1,
-  "title": "Arjuna’s Dilemma",
-  "flashcards": [
-    { "front": "What does the blind king ask Sanjaya in verse 1.1?", "back": "What his sons and the Pandavas did on the battlefield before the war began.", "ref": "1.01" },
-    { "front": "What did Arjuna ask Krishna, his charioteer, to do?", "back": "Drive his chariot between the two armies so he could see who stood on both sides." },
-    { "front": "Duty vs. emotion", "back": "Arjuna's duty was to fight for justice; his love for his relatives pulled the other way. Acknowledge both; dismiss neither.", "L": ["L1"] },
-    { "front": "Why does facing reality matter here?", "back": "Arjuna saw the people he loved in the opposing army and could not unsee it. Facing a painful truth is the first step to wisdom.", "L": ["L2"] },
-    { "front": "Is doubt a weakness?", "back": "No. Arjuna admitted he did not know what to do instead of pretending to be brave. Doubt is honest, not weak.", "L": ["L3"] },
-    { "front": "When no choice avoids suffering", "back": "Whatever Arjuna chose, someone would suffer. Choose by principle, not by trying to avoid all pain.", "L": ["L4"] },
-    { "front": "What did Arjuna do instead of deciding alone?", "back": "He turned to Krishna. In life's big questions, seek out wise counsel.", "L": ["L5"] },
-    { "front": "Arjuna's role", "back": "A warrior whose duty was to fight injustice. Know your role and its responsibilities; avoiding duty has consequences too.", "L": ["L6"] },
-    { "front": "Does compassion mean avoiding hard choices?", "back": "No. Loving those on the other side did not let Arjuna ignore injustice. Kindness does not require abandoning what is right.", "L": ["L7"] },
-    { "front": "Where does wisdom begin, in this chapter?", "back": "With Arjuna's admission, \"I don't know what to do.\" Humility opened the door to Krishna's teaching.", "L": ["L8"] },
-    { "front": "How does the chapter end?", "back": "Arjuna sits down on the back seat of the chariot, his mind overwhelmed with sorrow, and refuses to fight.", "ref": "1.47" }
-  ],
-  "quiz": [
-    { "text": "Who asks the question that opens the Gita?", "options": { "A": "Arjuna", "B": "The blind king Dhritarashtra", "C": "Krishna", "D": "Duryodhana" }, "correct": "B", "why": "In 1.1 the blind king asks Sanjaya what happened on the battlefield." },
-    { "text": "Why did Arjuna ask for his chariot to go between the armies?", "options": { "A": "To attack first", "B": "To see who stood on both sides", "C": "To surrender", "D": "To meet Duryodhana" }, "correct": "B", "why": "He wanted to see the armies on both sides, and there he saw his friends and relatives." },
-    { "text": "What two forces pull on Arjuna?", "options": { "A": "Wealth and fame", "B": "Duty and emotion", "C": "Fear and greed", "D": "Pride and envy" }, "correct": "B", "why": "Duty to fight for justice against love for his relatives: both are acknowledged.", "L": ["L1"] },
-    { "text": "What does Arjuna's confusion teach?", "options": { "A": "The strong never doubt", "B": "Doubt is honest, not weak", "C": "Hide your fears", "D": "Decide quickly to end doubt" }, "correct": "B", "why": "He admitted he didn't know what to do; doubt is a natural part of life.", "L": ["L3"] },
-    { "text": "If every option causes some suffering, how should one choose?", "options": { "A": "By avoiding all pain", "B": "By principle", "C": "By what others want", "D": "By chance" }, "correct": "B", "why": "No choice would please everyone; choose on principle.", "L": ["L4"] },
-    { "text": "Whom does Arjuna turn to when he is lost?", "options": { "A": "His brothers", "B": "His guru on the other side", "C": "Krishna", "D": "No one" }, "correct": "C", "why": "Seeking wisdom from someone wiser, not deciding alone.", "L": ["L5"] },
-    { "text": "\"Compassion doesn't mean avoiding hard choices\" means:", "options": { "A": "Never be kind to enemies", "B": "Kindness can still do what is right", "C": "Feelings don't matter", "D": "Avoid all conflict" }, "correct": "B", "why": "Loving his relatives did not let Arjuna ignore injustice.", "L": ["L7"] },
-    { "text": "Where does the beginning of wisdom lie, in this chapter?", "options": { "A": "In winning the war", "B": "In admitting what you don't know", "C": "In confident action", "D": "In leaving the battlefield" }, "correct": "B", "why": "Arjuna's humble admission opens the door to Krishna's teachings.", "L": ["L8"] }
-  ],
-  "mindmap": {
-    "root": "Arjuna's Dilemma",
-    "branches": [
-      { "text": "The scene", "children": [{ "text": "The blind king asks Sanjaya" }, { "text": "Chariot between the armies" }, { "text": "Friends and relatives on both sides" }] },
-      { "text": "The conflict inside", "L": ["L1", "L2"], "children": [{ "text": "Duty vs. emotion", "L": ["L1"] }, { "text": "Facing a painful truth", "L": ["L2"] }] },
-      { "text": "The honest response", "L": ["L3", "L8"], "children": [{ "text": "It's okay to doubt", "L": ["L3"] }, { "text": "Admit what you don't know", "L": ["L8"] }] },
-      { "text": "Hard choices", "L": ["L4", "L7"], "children": [{ "text": "No perfect solution", "L": ["L4"] }, { "text": "Compassion still does what is right", "L": ["L7"] }] },
-      { "text": "The way forward", "L": ["L5", "L6"], "children": [{ "text": "Seek wisdom when lost", "L": ["L5"] }, { "text": "Your role matters", "L": ["L6"] }] }
-    ]
+ "n": 1,
+ "title": "Arjuna’s Dilemma",
+ "flashcards": [
+  {
+   "front": "What does the blind king ask Sanjaya in verse 1.1?",
+   "back": "What his sons and the Pandavas did on the battlefield before the war began.",
+   "ref": "1.01"
   },
-  "slides": [
-    { "title": "Arjuna's Dilemma", "bullets": ["Chapter 1 of the Gita", "Where the teaching begins: in a crisis"] },
-    { "title": "The scene", "bullets": ["The blind king asks Sanjaya what happened", "Krishna drives Arjuna's chariot between the armies", "Arjuna sees friends and relatives on both sides"] },
-    { "title": "Duty and emotion", "bullets": ["Duty: fight for justice", "Emotion: love for his relatives", "Acknowledge both, dismiss neither"], "L": ["L1"] },
-    { "title": "Facing reality, admitting doubt", "bullets": ["He cannot unsee the truth before him", "He does not pretend to be brave", "Honest doubt is not weakness"], "L": ["L2", "L3"] },
-    { "title": "No perfect solution", "bullets": ["Every choice brings someone suffering", "Choose by principle, not to avoid all pain", "Compassion does not mean abandoning what is right"], "L": ["L4", "L7"] },
-    { "title": "Know your role, seek counsel", "bullets": ["Arjuna is a warrior with a duty", "Avoiding duty has consequences too", "He turns to Krishna instead of deciding alone"], "L": ["L5", "L6"] },
-    { "title": "Where wisdom begins", "bullets": ["Arjuna sets down his bow, overwhelmed with sorrow", "\"I don't know what to do\"", "Humility opens the door to the teaching"], "L": ["L8"] }
+  {
+   "front": "What did Arjuna ask Krishna, his charioteer, to do?",
+   "back": "Drive his chariot between the two armies so he could see who stood on both sides."
+  },
+  {
+   "front": "Duty vs. emotion",
+   "back": "Arjuna's duty was to fight for justice; his love for his relatives pulled the other way. Acknowledge both; dismiss neither.",
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "front": "Why does facing reality matter here?",
+   "back": "Arjuna saw the people he loved in the opposing army and could not unsee it. Facing a painful truth is the first step to wisdom.",
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "front": "Is doubt a weakness?",
+   "back": "No. Arjuna admitted he did not know what to do instead of pretending to be brave. Doubt is honest, not weak.",
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "front": "When no choice avoids suffering",
+   "back": "Whatever Arjuna chose, someone would suffer. Choose by principle, not by trying to avoid all pain.",
+   "L": [
+    "L4"
+   ]
+  },
+  {
+   "front": "What did Arjuna do instead of deciding alone?",
+   "back": "He turned to Krishna. In life's big questions, seek out wise counsel.",
+   "L": [
+    "L5"
+   ]
+  },
+  {
+   "front": "Arjuna's role",
+   "back": "A warrior whose duty was to fight injustice. Know your role and its responsibilities; avoiding duty has consequences too.",
+   "L": [
+    "L6"
+   ]
+  },
+  {
+   "front": "Does compassion mean avoiding hard choices?",
+   "back": "No. Loving those on the other side did not let Arjuna ignore injustice. Kindness does not require abandoning what is right.",
+   "L": [
+    "L7"
+   ]
+  },
+  {
+   "front": "Where does wisdom begin, in this chapter?",
+   "back": "With Arjuna's admission, \"I don't know what to do.\" Humility opened the door to Krishna's teaching.",
+   "L": [
+    "L8"
+   ]
+  },
+  {
+   "front": "How does the chapter end?",
+   "back": "Arjuna sits down on the back seat of the chariot, his mind overwhelmed with sorrow, and refuses to fight.",
+   "ref": "1.47"
+  }
+ ],
+ "quiz": [
+  {
+   "text": "Who asks the question that opens the Gita?",
+   "options": {
+    "A": "Arjuna",
+    "B": "The blind king Dhritarashtra",
+    "C": "Krishna",
+    "D": "Duryodhana"
+   },
+   "correct": "B",
+   "why": "In 1.1 the blind king asks Sanjaya what happened on the battlefield."
+  },
+  {
+   "text": "Why did Arjuna ask for his chariot to go between the armies?",
+   "options": {
+    "A": "To see who stood on both sides",
+    "B": "To attack first",
+    "C": "To surrender",
+    "D": "To meet Duryodhana"
+   },
+   "correct": "A",
+   "why": "He wanted to see the armies on both sides, and there he saw his friends and relatives."
+  },
+  {
+   "text": "What two forces pull on Arjuna?",
+   "options": {
+    "A": "Wealth and fame",
+    "B": "Pride and envy",
+    "C": "Fear and greed",
+    "D": "Duty and emotion"
+   },
+   "correct": "D",
+   "why": "Duty to fight for justice against love for his relatives: both are acknowledged.",
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "text": "What does Arjuna's confusion teach?",
+   "options": {
+    "A": "The strong never doubt",
+    "B": "Hide your fears",
+    "C": "Doubt is honest, not weak",
+    "D": "Decide quickly to end doubt"
+   },
+   "correct": "C",
+   "why": "He admitted he didn't know what to do; doubt is a natural part of life.",
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "text": "If every option causes some suffering, how should one choose?",
+   "options": {
+    "A": "By avoiding all pain",
+    "B": "By principle",
+    "C": "By what others want",
+    "D": "By chance"
+   },
+   "correct": "B",
+   "why": "No choice would please everyone; choose on principle.",
+   "L": [
+    "L4"
+   ]
+  },
+  {
+   "text": "Whom does Arjuna turn to when he is lost?",
+   "options": {
+    "A": "Krishna",
+    "B": "His guru on the other side",
+    "C": "His brothers",
+    "D": "No one"
+   },
+   "correct": "A",
+   "why": "Seeking wisdom from someone wiser, not deciding alone.",
+   "L": [
+    "L5"
+   ]
+  },
+  {
+   "text": "\"Compassion doesn't mean avoiding hard choices\" means:",
+   "options": {
+    "A": "Never be kind to enemies",
+    "B": "Avoid all conflict",
+    "C": "Feelings don't matter",
+    "D": "Kindness can still do what is right"
+   },
+   "correct": "D",
+   "why": "Loving his relatives did not let Arjuna ignore injustice.",
+   "L": [
+    "L7"
+   ]
+  },
+  {
+   "text": "Where does the beginning of wisdom lie, in this chapter?",
+   "options": {
+    "A": "In winning the war",
+    "B": "In confident action",
+    "C": "In admitting what you don't know",
+    "D": "In leaving the battlefield"
+   },
+   "correct": "C",
+   "why": "Arjuna's humble admission opens the door to Krishna's teachings.",
+   "L": [
+    "L8"
+   ]
+  }
+ ],
+ "mindmap": {
+  "root": "Arjuna's Dilemma",
+  "branches": [
+   {
+    "text": "The scene",
+    "children": [
+     {
+      "text": "The blind king asks Sanjaya"
+     },
+     {
+      "text": "Chariot between the armies"
+     },
+     {
+      "text": "Friends and relatives on both sides"
+     }
+    ]
+   },
+   {
+    "text": "The conflict inside",
+    "L": [
+     "L1",
+     "L2"
+    ],
+    "children": [
+     {
+      "text": "Duty vs. emotion",
+      "L": [
+       "L1"
+      ]
+     },
+     {
+      "text": "Facing a painful truth",
+      "L": [
+       "L2"
+      ]
+     }
+    ]
+   },
+   {
+    "text": "The honest response",
+    "L": [
+     "L3",
+     "L8"
+    ],
+    "children": [
+     {
+      "text": "It's okay to doubt",
+      "L": [
+       "L3"
+      ]
+     },
+     {
+      "text": "Admit what you don't know",
+      "L": [
+       "L8"
+      ]
+     }
+    ]
+   },
+   {
+    "text": "Hard choices",
+    "L": [
+     "L4",
+     "L7"
+    ],
+    "children": [
+     {
+      "text": "No perfect solution",
+      "L": [
+       "L4"
+      ]
+     },
+     {
+      "text": "Compassion still does what is right",
+      "L": [
+       "L7"
+      ]
+     }
+    ]
+   },
+   {
+    "text": "The way forward",
+    "L": [
+     "L5",
+     "L6"
+    ],
+    "children": [
+     {
+      "text": "Seek wisdom when lost",
+      "L": [
+       "L5"
+      ]
+     },
+     {
+      "text": "Your role matters",
+      "L": [
+       "L6"
+      ]
+     }
+    ]
+   }
   ]
+ },
+ "slides": [
+  {
+   "title": "Arjuna's Dilemma",
+   "bullets": [
+    "Chapter 1 of the Gita",
+    "Where the teaching begins: in a crisis"
+   ]
+  },
+  {
+   "title": "The scene",
+   "bullets": [
+    "The blind king asks Sanjaya what happened",
+    "Krishna drives Arjuna's chariot between the armies",
+    "Arjuna sees friends and relatives on both sides"
+   ]
+  },
+  {
+   "title": "Duty and emotion",
+   "bullets": [
+    "Duty: fight for justice",
+    "Emotion: love for his relatives",
+    "Acknowledge both, dismiss neither"
+   ],
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "title": "Facing reality, admitting doubt",
+   "bullets": [
+    "He cannot unsee the truth before him",
+    "He does not pretend to be brave",
+    "Honest doubt is not weakness"
+   ],
+   "L": [
+    "L2",
+    "L3"
+   ]
+  },
+  {
+   "title": "No perfect solution",
+   "bullets": [
+    "Every choice brings someone suffering",
+    "Choose by principle, not to avoid all pain",
+    "Compassion does not mean abandoning what is right"
+   ],
+   "L": [
+    "L4",
+    "L7"
+   ]
+  },
+  {
+   "title": "Know your role, seek counsel",
+   "bullets": [
+    "Arjuna is a warrior with a duty",
+    "Avoiding duty has consequences too",
+    "He turns to Krishna instead of deciding alone"
+   ],
+   "L": [
+    "L5",
+    "L6"
+   ]
+  },
+  {
+   "title": "Where wisdom begins",
+   "bullets": [
+    "Arjuna sets down his bow, overwhelmed with sorrow",
+    "\"I don't know what to do\"",
+    "Humility opens the door to the teaching"
+   ],
+   "L": [
+    "L8"
+   ]
+  }
+ ]
 }

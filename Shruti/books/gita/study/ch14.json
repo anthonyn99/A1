@@ -1,40 +1,301 @@
 {
-  "n": 14,
-  "title": "Three modes (Gunas) of nature",
-  "flashcards": [
-    { "front": "The womb and the seed (14.3)", "back": "Material nature is the womb of creation; God places in it the seed of consciousness, and all beings are born.", "ref": "14.03", "L": ["L1"] },
-    { "front": "The three modes (14.5)", "back": "Sattva (goodness), Rajas (passion, activity), Tamas (ignorance, inertia): they bind the eternal soul to the body.", "ref": "14.05", "L": ["L2"] },
-    { "front": "How does each mode bind?", "back": "Goodness by attachment to knowledge and happiness; passion by craving for fruits; ignorance by delusion, laziness and sleep.", "L": ["L2"] },
-    { "front": "Signs of goodness", "back": "Clarity, knowledge and lightness shine through the senses.", "L": ["L3"] },
-    { "front": "Signs of passion", "back": "Greed, restlessness, craving and endless activity.", "L": ["L3"] },
-    { "front": "Signs of ignorance", "back": "Delusion, inactivity and carelessness.", "L": ["L3"] },
-    { "front": "The modes at death", "back": "The mode that dominates at death shapes the next birth.", "L": ["L3"] },
-    { "front": "Rising above the modes (14.20)", "back": "One who rises above the three modes attains immortality, free from the pains of birth, old age and death.", "ref": "14.20", "L": ["L4"] },
-    { "front": "Who has gone beyond the modes?", "back": "One who neither hates them when present nor longs for them when gone, and watches them unmoved.", "L": ["L4"] },
-    { "front": "How to rise above the modes (14.26)", "back": "By serving God with love and unswerving devotion: one becomes fit for Nirvana.", "ref": "14.26", "L": ["L5"] }
-  ],
-  "quiz": [
-    { "text": "In 14.3, material nature is called:", "options": { "A": "The seed", "B": "The womb of creation", "C": "Illusion only", "D": "The soul" }, "correct": "B", "why": "God places the seed of consciousness in it.", "L": ["L1"] },
-    { "text": "Which are the three modes?", "options": { "A": "Body, mind, soul", "B": "Goodness, passion, ignorance", "C": "Past, present, future", "D": "Earth, water, fire" }, "correct": "B", "why": "Sattva, Rajas, Tamas (14.5).", "L": ["L2"] },
-    { "text": "How does goodness (Sattva) bind?", "options": { "A": "By laziness", "B": "By attachment to knowledge and happiness", "C": "By craving fruits", "D": "It doesn't bind" }, "correct": "B", "why": "Even goodness binds through attachment.", "L": ["L2"] },
-    { "text": "Greed and restlessness are signs of:", "options": { "A": "Goodness", "B": "Passion", "C": "Ignorance", "D": "Liberation" }, "correct": "B", "why": "Rajas brings craving and endless activity.", "L": ["L3"] },
-    { "text": "What happens to one who rises above the three modes (14.20)?", "options": { "A": "Rebirth in heaven", "B": "Freedom from birth, old age and death", "C": "Greater wealth", "D": "Nothing" }, "correct": "B", "why": "One attains immortality.", "L": ["L4"] },
-    { "text": "What cuts the bonds of the modes (14.26)?", "options": { "A": "Analysis", "B": "Suppression", "C": "Loving, unswerving devotion", "D": "Fasting" }, "correct": "C", "why": "Devotional love lifts one above them.", "L": ["L5"] }
-  ],
-  "mindmap": {
-    "root": "The three modes of nature",
-    "branches": [
-      { "text": "Birth of beings", "L": ["L1"], "children": [{ "text": "Nature: the womb (14.3)", "L": ["L1"] }, { "text": "God: the seed" }] },
-      { "text": "The modes bind", "L": ["L2"], "children": [{ "text": "Goodness: to happiness", "L": ["L2"] }, { "text": "Passion: to craving" }, { "text": "Ignorance: to delusion" }] },
-      { "text": "Their signs", "L": ["L3"], "children": [{ "text": "Clarity, greed, inertia", "L": ["L3"] }, { "text": "Shape the next birth" }] },
-      { "text": "Going beyond", "L": ["L4", "L5"], "children": [{ "text": "Unmoved witness", "L": ["L4"] }, { "text": "Free of birth and death (14.20)" }, { "text": "By loving devotion (14.26)", "L": ["L5"] }] }
-    ]
+ "n": 14,
+ "title": "Three modes (Gunas) of nature",
+ "flashcards": [
+  {
+   "front": "The womb and the seed (14.3)",
+   "back": "Material nature is the womb of creation; God places in it the seed of consciousness, and all beings are born.",
+   "ref": "14.03",
+   "L": [
+    "L1"
+   ]
   },
-  "slides": [
-    { "title": "The three modes of nature", "bullets": ["Chapter 14", "Goodness, passion and ignorance"] },
-    { "title": "How beings are born", "bullets": ["Nature is the womb, God the seed (14.3)", "All life comes from spirit and matter"], "L": ["L1"] },
-    { "title": "Three ropes", "bullets": ["Sattva, Rajas, Tamas bind the soul (14.5)", "Goodness to joy, passion to craving, ignorance to delusion"], "L": ["L2"] },
-    { "title": "Reading the modes", "bullets": ["Clarity and light: goodness", "Greed and restlessness: passion", "Delusion and inertia: ignorance"], "L": ["L3"] },
-    { "title": "Beyond the modes", "bullets": ["Watch them without being moved", "Freedom from birth, age and death (14.20)", "Devotional love cuts the bonds (14.26)"], "L": ["L4", "L5"] }
+  {
+   "front": "The three modes (14.5)",
+   "back": "Sattva (goodness), Rajas (passion, activity), Tamas (ignorance, inertia): they bind the eternal soul to the body.",
+   "ref": "14.05",
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "front": "How does each mode bind?",
+   "back": "Goodness by attachment to knowledge and happiness; passion by craving for fruits; ignorance by delusion, laziness and sleep.",
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "front": "Signs of goodness",
+   "back": "Clarity, knowledge and lightness shine through the senses.",
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "front": "Signs of passion",
+   "back": "Greed, restlessness, craving and endless activity.",
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "front": "Signs of ignorance",
+   "back": "Delusion, inactivity and carelessness.",
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "front": "The modes at death",
+   "back": "The mode that dominates at death shapes the next birth.",
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "front": "Rising above the modes (14.20)",
+   "back": "One who rises above the three modes attains immortality, free from the pains of birth, old age and death.",
+   "ref": "14.20",
+   "L": [
+    "L4"
+   ]
+  },
+  {
+   "front": "Who has gone beyond the modes?",
+   "back": "One who neither hates them when present nor longs for them when gone, and watches them unmoved.",
+   "L": [
+    "L4"
+   ]
+  },
+  {
+   "front": "How to rise above the modes (14.26)",
+   "back": "By serving God with love and unswerving devotion: one becomes fit for Nirvana.",
+   "ref": "14.26",
+   "L": [
+    "L5"
+   ]
+  }
+ ],
+ "quiz": [
+  {
+   "text": "In 14.3, material nature is called:",
+   "options": {
+    "A": "The seed",
+    "B": "Illusion only",
+    "C": "The womb of creation",
+    "D": "The soul"
+   },
+   "correct": "C",
+   "why": "God places the seed of consciousness in it.",
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "text": "Which are the three modes?",
+   "options": {
+    "A": "Body, mind, soul",
+    "B": "Goodness, passion, ignorance",
+    "C": "Past, present, future",
+    "D": "Earth, water, fire"
+   },
+   "correct": "B",
+   "why": "Sattva, Rajas, Tamas (14.5).",
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "text": "How does goodness (Sattva) bind?",
+   "options": {
+    "A": "By attachment to knowledge and happiness",
+    "B": "By laziness",
+    "C": "By craving fruits",
+    "D": "It doesn't bind"
+   },
+   "correct": "A",
+   "why": "Even goodness binds through attachment.",
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "text": "Greed and restlessness are signs of:",
+   "options": {
+    "A": "Goodness",
+    "B": "Liberation",
+    "C": "Ignorance",
+    "D": "Passion"
+   },
+   "correct": "D",
+   "why": "Rajas brings craving and endless activity.",
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "text": "What happens to one who rises above the three modes (14.20)?",
+   "options": {
+    "A": "Rebirth in heaven",
+    "B": "Greater wealth",
+    "C": "Freedom from birth, old age and death",
+    "D": "Nothing"
+   },
+   "correct": "C",
+   "why": "One attains immortality.",
+   "L": [
+    "L4"
+   ]
+  },
+  {
+   "text": "What cuts the bonds of the modes (14.26)?",
+   "options": {
+    "A": "Analysis",
+    "B": "Loving, unswerving devotion",
+    "C": "Suppression",
+    "D": "Fasting"
+   },
+   "correct": "B",
+   "why": "Devotional love lifts one above them.",
+   "L": [
+    "L5"
+   ]
+  }
+ ],
+ "mindmap": {
+  "root": "The three modes of nature",
+  "branches": [
+   {
+    "text": "Birth of beings",
+    "L": [
+     "L1"
+    ],
+    "children": [
+     {
+      "text": "Nature: the womb (14.3)",
+      "L": [
+       "L1"
+      ]
+     },
+     {
+      "text": "God: the seed"
+     }
+    ]
+   },
+   {
+    "text": "The modes bind",
+    "L": [
+     "L2"
+    ],
+    "children": [
+     {
+      "text": "Goodness: to happiness",
+      "L": [
+       "L2"
+      ]
+     },
+     {
+      "text": "Passion: to craving"
+     },
+     {
+      "text": "Ignorance: to delusion"
+     }
+    ]
+   },
+   {
+    "text": "Their signs",
+    "L": [
+     "L3"
+    ],
+    "children": [
+     {
+      "text": "Clarity, greed, inertia",
+      "L": [
+       "L3"
+      ]
+     },
+     {
+      "text": "Shape the next birth"
+     }
+    ]
+   },
+   {
+    "text": "Going beyond",
+    "L": [
+     "L4",
+     "L5"
+    ],
+    "children": [
+     {
+      "text": "Unmoved witness",
+      "L": [
+       "L4"
+      ]
+     },
+     {
+      "text": "Free of birth and death (14.20)"
+     },
+     {
+      "text": "By loving devotion (14.26)",
+      "L": [
+       "L5"
+      ]
+     }
+    ]
+   }
   ]
+ },
+ "slides": [
+  {
+   "title": "The three modes of nature",
+   "bullets": [
+    "Chapter 14",
+    "Goodness, passion and ignorance"
+   ]
+  },
+  {
+   "title": "How beings are born",
+   "bullets": [
+    "Nature is the womb, God the seed (14.3)",
+    "All life comes from spirit and matter"
+   ],
+   "L": [
+    "L1"
+   ]
+  },
+  {
+   "title": "Three ropes",
+   "bullets": [
+    "Sattva, Rajas, Tamas bind the soul (14.5)",
+    "Goodness to joy, passion to craving, ignorance to delusion"
+   ],
+   "L": [
+    "L2"
+   ]
+  },
+  {
+   "title": "Reading the modes",
+   "bullets": [
+    "Clarity and light: goodness",
+    "Greed and restlessness: passion",
+    "Delusion and inertia: ignorance"
+   ],
+   "L": [
+    "L3"
+   ]
+  },
+  {
+   "title": "Beyond the modes",
+   "bullets": [
+    "Watch them without being moved",
+    "Freedom from birth, age and death (14.20)",
+    "Devotional love cuts the bonds (14.26)"
+   ],
+   "L": [
+    "L4",
+    "L5"
+   ]
+  }
+ ]
 }
