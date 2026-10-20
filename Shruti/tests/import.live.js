@@ -92,6 +92,7 @@ async function mouseDrag(c, sel, from, to, { dx = 0, edge = 0.12 } = {}) {
   await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: x0, y: y0, button: 'left', buttons: 1, clickCount: 1 });
   for (let i = 1; i <= 16; i++) { await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x0 + (x1 - x0) * i / 16, y: y0 + (y1 - y0) * i / 16, button: 'left', buttons: 1 }); await sleep(16); }
   await sleep(60);
+  if (global.PROBE) console.log('    (probe) ' + await ev(c, `return JSON.stringify({drag: !!document.querySelector('.dsort-drag'), at: document.elementFromPoint(${x0},${y0})?.className, x0:${x0}, y0:${y0}})`));
   await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: x1, y: y1, button: 'left', clickCount: 1 });
   await sleep(420);
 }
@@ -347,7 +348,7 @@ const imp = (x) => `const IMP = await import(new URL('import.js', location.href)
   await waitFor(c, `!!document.querySelector('#make-ai')`);
   await click(c, '#make-ai');
   ok('three versions: your notes, then newest first', await waitFor(c, `[...document.querySelectorAll('.gv')].map(e=>e.dataset.dkey).join()==='orig,v2,v1'`), await keysOf(c, '.gv'));
-  await mouseDrag(c, '.gv', 2, 0, { edge: 0.5 });
+  global.PROBE = 1; await mouseDrag(c, '.gv', 2, 0, { edge: 0.5 }); global.PROBE = 0;
   console.log('    (debug) ' + await ev(c, `return JSON.stringify({o: window.Shruti.core.me.get('order.ver',null), cls: document.querySelector('.gvs')?.className, a: !!window.A1Drag})`));
   ok('a version drags to the top (order.ver.gita.ch4.lessons)', (await keysOf(c, '.gv')) === 'v1|orig|v2' && (await ev(c, `return (window.Shruti.core.me.get('order.ver.gita.ch4.lessons',[])||[]).join()`)) === 'v1,orig,v2', await keysOf(c, '.gv'));
   ok('…and the drop did not feature it', await ev(c, `return !window.Shruti.core.shared.get('assets.gita.ch4.lessons',null)`));
