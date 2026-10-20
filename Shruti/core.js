@@ -30,6 +30,11 @@ export const P = window.SHRUTI_PROFILE;            // 'tony' | 'veda' | null (pi
 export const prof = () => PROFILES[P];
 export const lsKey = (name) => 'shruti.' + P + '.' + name;
 
+/** Books that ship in the repo (books/<id>/); every other book was imported
+ *  (books.js) and has no shipped media, study sets or lessons to fetch. */
+export const SHIPPED = ['gita'];
+export const isShipped = (id) => SHIPPED.includes(id);
+
 /* ── storage that never throws (Veda's Brave blocks it; a full store throws on write) */
 export const ls = {
   get(k, d = null) { try { const v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; } },
