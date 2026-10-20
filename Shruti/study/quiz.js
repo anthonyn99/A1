@@ -61,8 +61,10 @@ export function mount(root, setQs, { book, set }) {
     const acts = h('div', 'st-actions');
     if (answered()) acts.append(btn('Restart', 'undo', () => reset(), 'sm'));
     if (!st.results && answered()) acts.append(btn('Results', 'tick', showResults, 'sm'));
+    acts.append(btn('', st.list ? 'deck' : 'list', () => { st.list = !st.list; paint(); }, 'sm ic' + (st.list ? ' on' : ''), st.list ? 'One question at a time' : 'All questions (drag to reorder)'));
     bar.append(acts);
     box.append(bar);
+    if (st.list) return paintList();
 
     const segs = h('div', 'qz-segs');
     questions.forEach((q, i) => {
@@ -103,6 +105,20 @@ export function mount(root, setQs, { book, set }) {
     box.append(h('div', 'st-keys', '1–4 or A–D answer · Enter next · ← back'));
   };
 
+  // Every question in this person's order: tap one to go to it, drag to reorder.
+  const paintList = () => {
+    const list = h('div', 'qz-list');
+    questions.forEach((q, i) => {
+      const pk = st.picked[i];
+      const row = h('button', 'qz-li' + (i === st.i ? ' cur' : '') + (!pk ? '' : pk === q.correct ? ' ok' : ' bad'), '<span class="qz-li-n">' + (i + 1) + '</span><span class="qz-li-q">' + rich(q.text) + '</span>' + (!pk ? '' : pk === q.correct ? IC.tick : IC.x));
+      row.type = 'button'; row.dataset.dkey = O.keys[i]; row.title = OR.HINT;
+      row.addEventListener('click', () => go(i));
+      list.append(row);
+    });
+    box.append(list);
+    OR.sortable(list, { row: '.qz-li', onMove: (ks) => reorder(ks) });
+  };
+
   const paintResults = () => {
     const s = score(questions, st.picked), pct = Math.round((s / n) * 100);
     const R = 42, Cc = 2 * Math.PI * R;
@@ -131,7 +147,7 @@ export function mount(root, setQs, { book, set }) {
   };
 
   const off = keys(box, (e) => {
-    if (st.results) return;
+    if (st.results || st.list) return;
     const q = questions[st.i], letters = Object.keys(q.options), k = e.key.toUpperCase();
     const byNum = /^[1-4]$/.test(k) ? letters[+k - 1] : null;
     const L = byNum || (letters.includes(k) ? k : null);
