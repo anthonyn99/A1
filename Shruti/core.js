@@ -105,7 +105,9 @@ export class Doc {
     this.ref = fs.doc(db, this.path);
     this.unsub = fs.onSnapshot(this.ref, (snap) => {
       // A delivered snapshot proves reads work: that alone lifts the write barrier.
+      const first = !this.loaded;
       this.loaded = true; this.error = null;
+      if (first && !this.writing) emit('sync', 'ok');
       const d = snap.exists() ? snap.data() : {};
       // Keep what this device has not sent yet on top of the server copy.
       for (const [k, v] of Object.entries(this.pending)) setPath(d, k, v === DELETE ? undefined : v);
