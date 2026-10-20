@@ -1,0 +1,53 @@
+{
+  "n": 2,
+  "title": "Spiritual knowledge",
+  "flashcards": [
+    { "front": "\"The wise grieve neither for the living nor for the dead.\" Why?", "back": "Because the Spirit is eternal. Arjuna grieves for those not worthy of grief while speaking words of wisdom.", "ref": "2.11", "L": ["L1"] },
+    { "front": "Childhood, youth, old age, and then?", "back": "Just as the soul passes through these bodies in one life, it acquires a new body after death. The wise are not deluded by this.", "ref": "2.13", "L": ["L4"] },
+    { "front": "Who slays, and who is slain?", "back": "Neither. One who thinks the Spirit slays or is slain is ignorant: the Spirit neither slays nor is slain.", "ref": "2.19", "L": ["L5"] },
+    { "front": "The image of old garments", "back": "As a person puts on new clothes after discarding old ones, the soul takes new bodies after casting off the old.", "ref": "2.22", "L": ["L4"] },
+    { "front": "Unmanifest before birth and after death", "back": "Beings are visible only between birth and death. What is there to grieve about?", "ref": "2.28", "L": ["L1", "L9"] },
+    { "front": "Pleasure and pain, gain and loss, victory and defeat", "back": "Treat them alike and do your duty; done this way, duty brings no sin.", "ref": "2.38", "L": ["L3", "L10"] },
+    { "front": "Verse 2.47 in one line", "back": "You control your duty only, never its results. Results should not be your only motive, and you should never be inactive.", "ref": "2.47", "L": ["L2", "L11"] },
+    { "front": "Karma-yoga, as 2.48 defines it", "back": "Doing your best with your mind on the Lord, free of worry and attachment to results, calm in success and failure. That calmness is Karma-yoga.", "ref": "2.48", "L": ["L7"] },
+    { "front": "Running away vs. true compassion", "back": "Arjuna thought avoiding battle was compassion. Krishna shows that compassion includes doing what is right, even when painful.", "L": ["L8"] },
+    { "front": "Why can the soul's eternity give courage?", "back": "If death is not the end, danger loses its hold, and one can do what is right even when afraid.", "L": ["L6"] },
+    { "front": "Same act, two minds", "back": "Arjuna could fight from anger or fear, or with understanding of the soul and his duty. The inner understanding changes the act.", "L": ["L12"] },
+    { "front": "A sage of steady mind (2.56)", "back": "Unperturbed by sorrow, free of craving, and free from attachment, fear and anger.", "ref": "2.56", "L": ["L10"] },
+    { "front": "From thinking of objects to anger (2.62)", "back": "Thinking of sense objects breeds attachment; attachment breeds desire; unfulfilled desire becomes anger.", "ref": "2.62" },
+    { "front": "The boat in the storm", "back": "A mind run by roving senses steals away the intellect, as a storm carries a boat away from the spiritual shore.", "ref": "2.67" },
+    { "front": "Rivers into the ocean (2.70)", "back": "Peace comes when desires enter the mind without disturbing it, as rivers enter the full ocean. One who craves objects is never peaceful.", "ref": "2.70", "L": ["L10"] }
+  ],
+  "quiz": [
+    { "text": "According to 2.47, what do we have control over?", "options": { "A": "The results of our work", "B": "Our duty only", "C": "Other people's actions", "D": "Neither duty nor results" }, "correct": "B", "why": "We control our duty, never its fruits, and should never be inactive.", "L": ["L2", "L11"] },
+    { "text": "Why do the wise not grieve for the living or the dead?", "options": { "A": "They feel nothing", "B": "Grief is forbidden", "C": "The Spirit is eternal", "D": "Death is rare" }, "correct": "C", "why": "2.11 and what follows: the soul never dies, so grief for it is misplaced.", "L": ["L1"] },
+    { "text": "Which image does 2.22 use for rebirth?", "options": { "A": "A lamp in a windless place", "B": "A lotus leaf on water", "C": "Changing old garments for new", "D": "A tree with roots above" }, "correct": "C", "why": "The soul casts off old bodies and takes new ones, as we change clothes.", "L": ["L4"] },
+    { "text": "What does 2.48 call Karma-yoga?", "options": { "A": "Renouncing all work", "B": "Calmness of mind in success and failure", "C": "Winning every battle", "D": "Performing rituals" }, "correct": "B", "why": "Doing your best, unattached to results, calm in both outcomes: that calm is Karma-yoga.", "L": ["L7"] },
+    { "text": "Arjuna thought avoiding the battle was compassion. Krishna says:", "options": { "A": "He is right", "B": "True compassion includes doing what is right", "C": "Compassion is weakness", "D": "Feelings should be ignored" }, "correct": "B", "why": "Running from duty is not kindness; compassion and duty go together.", "L": ["L8"] },
+    { "text": "In 2.62, what does unfulfilled desire become?", "options": { "A": "Peace", "B": "Wisdom", "C": "Anger", "D": "Detachment" }, "correct": "C", "why": "Thinking of objects breeds attachment, then desire, and unfulfilled desire becomes anger." },
+    { "text": "\"Spirit neither slays nor is slain\" corrects which assumption?", "options": { "A": "That duty matters", "B": "That killing bodies kills souls", "C": "That the senses are restless", "D": "That God exists" }, "correct": "B", "why": "Arjuna assumed killing bodies meant killing souls; wisdom questions that.", "L": ["L5", "L9"] },
+    { "text": "What makes the same outer action wise or ignorant?", "options": { "A": "Its result", "B": "Who watches it", "C": "The inner understanding behind it", "D": "Its size" }, "correct": "C", "why": "Fighting from anger or fear differs completely from fighting with knowledge of the soul and duty.", "L": ["L12"] },
+    { "text": "Per 2.70, who is never peaceful?", "options": { "A": "One who desires material objects", "B": "One who does their duty", "C": "One who meditates", "D": "One who is a warrior" }, "correct": "A", "why": "Peace is like the full ocean receiving rivers; craving objects destroys it.", "L": ["L10"] },
+    { "text": "Why does knowing the soul is eternal let one act with courage?", "options": { "A": "Danger stops existing", "B": "Death is not the end", "C": "Others will protect you", "D": "Results are guaranteed" }, "correct": "B", "why": "Physical danger loses its power when death is not the end.", "L": ["L6", "L3"] }
+  ],
+  "mindmap": {
+    "root": "Spiritual knowledge",
+    "branches": [
+      { "text": "The eternal Self", "L": ["L1", "L4"], "children": [{ "text": "Soul never dies (2.11, 2.19)", "L": ["L1"] }, { "text": "Body changes like garments", "L": ["L4"] }, { "text": "Unmanifest before birth, after death" }] },
+      { "text": "Seeing truly", "L": ["L5", "L9", "L12"], "children": [{ "text": "Question what you assume", "L": ["L5"] }, { "text": "Understanding changes everything", "L": ["L9"] }, { "text": "Same act, wise or ignorant", "L": ["L12"] }] },
+      { "text": "Duty", "L": ["L3", "L6", "L8"], "children": [{ "text": "Duty over comfort", "L": ["L3"] }, { "text": "Courage: the soul can't perish", "L": ["L6"] }, { "text": "True compassion, not escape", "L": ["L8"] }] },
+      { "text": "Karma-yoga", "L": ["L2", "L7", "L11"], "children": [{ "text": "Effort, not results (2.47)", "L": ["L2"] }, { "text": "Detachment brings freedom", "L": ["L7"] }, { "text": "Outcomes beyond your control", "L": ["L11"] }] },
+      { "text": "Steady mind", "L": ["L10"], "children": [{ "text": "Free of fear and anger (2.56)" }, { "text": "Desire → anger (2.62)" }, { "text": "Peace like the full ocean", "L": ["L10"] }] }
+    ]
+  },
+  "slides": [
+    { "title": "Spiritual knowledge", "bullets": ["Chapter 2: Krishna begins to teach", "The Self, duty, and Karma-yoga"] },
+    { "title": "The Self is eternal", "bullets": ["The wise grieve for neither living nor dead (2.11)", "Spirit neither slays nor is slain (2.19)", "Beings are unmanifest before birth and after death"], "L": ["L1"] },
+    { "title": "Body temporary, Self permanent", "bullets": ["Childhood, youth, old age, then a new body (2.13)", "Old garments set aside for new (2.22)", "Losses can't touch your true self"], "L": ["L4"] },
+    { "title": "Seeing beyond appearances", "bullets": ["Arjuna assumed killing bodies killed souls", "Understanding changes everything", "The same act can be wise or ignorant"], "L": ["L5", "L9", "L12"] },
+    { "title": "Duty with courage", "bullets": ["Duty matters more than comfort", "Treat gain and loss alike (2.38)", "Fear loses its grip: the soul can't perish"], "L": ["L3", "L6"] },
+    { "title": "Compassion, not escape", "bullets": ["Avoiding duty is not kindness", "True compassion does what is right, even when painful"], "L": ["L8"] },
+    { "title": "Karma-yoga", "bullets": ["You control the work, not its fruit (2.47)", "Calm in success and failure (2.48)", "Your effort is yours; outcomes are not"], "L": ["L2", "L7", "L11"] },
+    { "title": "The steady mind", "bullets": ["Free of craving, fear and anger (2.56)", "Thinking of objects → desire → anger (2.62)", "Peace: the full ocean taking in rivers (2.70)"], "L": ["L10"] }
+  ]
+}
