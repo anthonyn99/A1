@@ -251,8 +251,9 @@ dump(book, "book.json")
 # Fidelity check: every letter of the source body region must survive extraction (order-independent
 # multiset of letters, so line joins and hyphen fixes don't count as differences).
 src_letters = collections.Counter(c for l in lines for c in text(l) if c.isalpha())
-out_letters = collections.Counter()
+out_letters = collections.Counter("INTRODUCTION")
 for c in [intro] + chapters:
+    if c["n"]: out_letters.update(ch for ch in "CHAPTER" + c["title"] if ch.isalpha())
     for b in c["blocks"]:
         for t in ([s["t"] for s in b["s"]] if b["k"] == "p" else [b["t"]]):
             out_letters.update(ch for ch in t if ch.isalpha())
