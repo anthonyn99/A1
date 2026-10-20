@@ -21,6 +21,8 @@ export const IC = {
   next: I('<path d="M9 6l6 6-6 6"/>'),
   prev: I('<path d="M15 6l-6 6 6 6"/>'),
   plus: I('<path d="M12 5v14M5 12h14"/>'),
+  check: I('<path d="M20 6 9 17l-5-5"/>'),
+  undo: I('<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/>'),
   key: I('<circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3 21 2"/><path d="M16 7l3 3"/><path d="M18.5 4.5l2 2"/>'),
   book: '<svg viewBox="14 14 68 68" fill="none" stroke="currentColor" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M48 40c-6-4-14-6-24-6v38c10 0 18 2 24 6 6-4 14-6 24-6V34c-10 0-18 2-24 6Z"/><path d="M48 40v38"/><path d="M41 28a10 10 0 0 1 14 0"/><path d="M35 21a19 19 0 0 1 26 0"/></svg>',
 };
@@ -170,13 +172,30 @@ export async function viewChapter(el, { id, n, mode, go }) {
   el.innerHTML =
     '<div class="cp-head"><div class="k">' + (isIntro ? esc(b.title) : esc(b.unit || 'Chapter') + ' ' + n) + '</div>' +
     '<h1>' + esc(meta.title) + '</h1>' +
-    (isIntro ? '' : '<div class="m">' + esc([meta.verses && meta.verses + ' verses', meta.key && meta.key + ' key verses', meta.lessons && meta.lessons + ' lessons'].filter(Boolean).join(' · ')) + '</div>') + '</div>' +
+    (isIntro ? '' : '<div class="m">' + esc([meta.verses && meta.verses + ' verses', meta.key && meta.key + ' key verses', meta.lessons && meta.lessons + ' lessons'].filter(Boolean).join(' · ')) + '</div>') +
+    '<button class="btn ghost mark" id="mark-read"></button></div>' +
     '<nav class="modes" role="tablist">' + tabs + '</nav><div id="mode-body"></div>' +
     '<div class="cp-nav">' + (prev ? '<button class="btn ghost" data-go="#/b/' + id + '/' + prev.n + '">' + IC.prev + esc(prev.n ? prev.n + '. ' + prev.title : prev.title) + '</button>' : '<span></span>') +
     (next ? '<button class="btn ghost" data-go="#/b/' + id + '/' + next.n + '">' + esc(next.n + '. ' + next.title) + IC.next + '</button>' : '<span></span>') + '</div>';
   el.querySelectorAll('[data-go]').forEach((x) => x.addEventListener('click', () => go(x.dataset.go)));
   el.querySelectorAll('[data-mode]').forEach((x) => x.addEventListener('click', () => go('#/b/' + id + '/' + n + (x.dataset.mode === 'read' ? '' : '/' + x.dataset.mode), { replace: true })));
   const body = el.querySelector('#mode-body');
+  // Read / unread by hand: unread clears the ring, so the chapter counts as
+  // not finished again (until it is read to the end once more).
+  const mark = el.querySelector('#mark-read');
+  const paintMark = () => {
+    const isDone = fracOf(id, n) >= 1;
+    mark.innerHTML = (isDone ? IC.undo + 'Mark as unread' : IC.check + 'Mark as read');
+    mark.title = isDone ? 'This chapter counts as read. Mark it unread to start it over.' : 'Count this chapter as read.';
+  };
+  paintMark();
+  mark.addEventListener('click', () => {
+    const toDone = fracOf(id, n) < 1;
+    setProgress(id, n, toDone ? { f: 1, done: true, 'modes.read': 1 } : { f: 0, done: false, 'modes.read': 0 });
+    me.flush && me.flush();
+    paintMark();
+    body.dispatchEvent(new CustomEvent('shruti:mark', { detail: { done: toDone } }));
+  });
   if (mode === 'read') renderRead(body, ch, id, n);
   else if (mode === 'lessons') renderLessons(body, lessons[n]);
   else body.innerHTML = '<div class="empty">' + IC[mode] + '<b>' + esc(MODES.find((m) => m.id === mode).label) + ' is not made for this chapter yet</b>' +
@@ -197,8 +216,9 @@ function renderRead(body, ch, book, n) {
   body.innerHTML = '<article class="rd">' + out.join('') + '</article>';
   // How far down the text this person has read: the ring on the chapter list.
   const art = body.querySelector('.rd');
-  const had = fracOf(book, n);
-  let best = had;
+  let best = fracOf(book, n);
+  // Marked unread by hand: count afresh from here.
+  body.addEventListener('shruti:mark', (e) => { best = e.detail.done ? 1 : 0; });
   const measure = () => {
     if (!art.isConnected) { removeEventListener('scroll', measure); return; }
     const r = art.getBoundingClientRect();
