@@ -133,7 +133,8 @@ function enter() {
 // #/b/<book>/<n>    chapter, Read    #/b/<book>/<n>/<mode>
 function parse() {
   const h = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
-  if (h[0] === 'b' && h[1]) return { view: h[2] != null ? 'chapter' : 'book', id: h[1], n: h[2] != null ? Number(h[2]) : null, mode: h[3] || 'read' };
+  // #/b/<book>/<n>/read/<block> opens the reader at that block (a bookmark).
+  if (h[0] === 'b' && h[1]) return { view: h[2] != null ? 'chapter' : 'book', id: h[1], n: h[2] != null ? Number(h[2]) : null, mode: h[3] || 'read', at: h[4] != null ? Number(h[4]) : null };
   return { view: 'library' };
 }
 export function go(hash, { replace = false } = {}) {
@@ -148,12 +149,12 @@ let routeSeq = 0, lastView = null;
 async function route() {
   const r = parse(), seq = ++routeSeq;
   const el = $('#view');
-  const sameChapter = lastView && lastView.view === 'chapter' && r.view === 'chapter' && lastView.id === r.id && lastView.n === r.n;
+  const sameChapter = lastView && lastView.view === 'chapter' && r.view === 'chapter' && lastView.id === r.id && lastView.n === r.n && r.at == null;
   const holder = document.createElement('div');
   try {
     if (r.view === 'library') await L.viewLibrary(holder, { go });
     else if (r.view === 'book') await L.viewBook(holder, { id: r.id, go });
-    else await L.viewChapter(holder, { id: r.id, n: r.n, mode: r.mode, go });
+    else await L.viewChapter(holder, { id: r.id, n: r.n, mode: r.mode, at: r.at, go });
   } catch (e) {
     console.error(e);
     holder.innerHTML = '<div class="empty"><b>That page could not be opened</b><span>' + esc(e.message || e) + '</span><button class="btn" data-home>Back to the library</button></div>';

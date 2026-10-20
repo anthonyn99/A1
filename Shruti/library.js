@@ -4,6 +4,7 @@
 // even on shared books.
 
 import { me, shared, ls, lsKey } from './core.js';
+import { renderRead } from './reader.js';
 
 export const SHIPPED = ['gita'];
 const COVERS = { gita: { bg: '#2b2235', tx: '#f2ead8', ac: '#e0b874', kicker: 'Shared' } };
@@ -22,6 +23,7 @@ export const IC = {
   prev: I('<path d="M15 6l-6 6 6 6"/>'),
   plus: I('<path d="M12 5v14M5 12h14"/>'),
   check: I('<path d="M20 6 9 17l-5-5"/>'),
+  ribbon: I('<path d="M6 3h12v18l-6-4-6 4z"/>'),
   undo: I('<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/>'),
   key: I('<circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3 21 2"/><path d="M16 7l3 3"/><path d="M18.5 4.5l2 2"/>'),
   book: '<svg viewBox="14 14 68 68" fill="none" stroke="currentColor" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M48 40c-6-4-14-6-24-6v38c10 0 18 2 24 6 6-4 14-6 24-6V34c-10 0-18 2-24 6Z"/><path d="M48 40v38"/><path d="M41 28a10 10 0 0 1 14 0"/><path d="M35 21a19 19 0 0 1 26 0"/></svg>',
@@ -152,11 +154,24 @@ export async function viewBook(el, { id, go }) {
     '<div class="stats"><span><b>' + b.chapters.length + '</b> chapters</span><span><b>' + done + '</b> finished</span><span><b>' + lessonCount + '</b> lessons</span></div>' +
     '<div class="acts"><button class="btn solid" data-go="#/b/' + esc(id) + '/' + startN + '">' + IC.play + (cur != null ? 'Continue chapter ' + startN : 'Start reading') + '</button>' +
     (b.intro ? '<button class="btn" data-go="#/b/' + esc(id) + '/0">Introduction</button>' : '') + '</div></div></div>' +
-    '<div class="sec-h"><h2>Chapters</h2></div><div class="chs">' + b.chapters.map(row).join('') + '</div>';
+    '<div class="sec-h"><h2>Chapters</h2></div><div class="chs">' + b.chapters.map(row).join('') + '</div>' + bookmarksHtml(b);
   el.querySelectorAll('[data-go]').forEach((x) => x.addEventListener('click', () => go(x.dataset.go)));
 }
 
-export async function viewChapter(el, { id, n, mode, go }) {
+/** Every bookmark this person keeps in a book, chapter by chapter. */
+function bookmarksHtml(b) {
+  const all = me.get('bookmarks.' + b.id, {}) || {};
+  const rows = [];
+  for (const c of [{ n: 0, title: b.intro && b.intro.title }, ...b.chapters]) {
+    const m = all[chKey(c.n)] || {};
+    Object.keys(m).map((k) => Number(k.slice(1))).sort((x, y) => x - y).forEach((blk) =>
+      rows.push('<button class="bmk" data-go="#/b/' + esc(b.id) + '/' + c.n + '/read/' + blk + '">' + IC.ribbon +
+        '<span><b>' + esc(m['b' + blk].label || '') + '</b><span>' + esc(c.n ? (b.unit || 'Chapter') + ' ' + c.n + ' · ' + c.title : c.title || 'Introduction') + '</span></span></button>'));
+  }
+  return rows.length ? '<div class="sec-h"><h2>Bookmarks</h2><span class="n">' + rows.length + '</span></div><div class="bmks">' + rows.join('') + '</div>' : '';
+}
+
+export async function viewChapter(el, { id, n, mode, at, go }) {
   const b = await loadBook(id);
   const isIntro = n === 0;
   const meta = isIntro ? { n: 0, title: b.intro.title, file: b.intro.file } : b.chapters.find((c) => c.n === n);
@@ -197,7 +212,7 @@ export async function viewChapter(el, { id, n, mode, go }) {
     paintMark();
     body.dispatchEvent(new CustomEvent('shruti:mark', { detail: { done: toDone } }));
   });
-  if (mode === 'read') renderRead(body, ch, id, n);
+  if (mode === 'read') renderRead(body, ch, id, n, { title: meta.title, at });
   else if (mode === 'lessons') renderLessons(body, lessons[n]);
   else body.innerHTML = '<div class="empty">' + IC[mode] + '<b>' + esc(MODES.find((m) => m.id === mode).label) + ' is not made for this chapter yet</b>' +
     '<span>' + (av[mode] ? '' : mode === 'study' ? 'Flashcards, a quiz, a mind map and slides will be built here from the chapter.' : 'It will tell the chapter\'s story and teach every lesson.') + '</span></div>';
@@ -205,38 +220,10 @@ export async function viewChapter(el, { id, n, mode, go }) {
   markOpened(id, n);
 }
 
-function renderRead(body, ch, book, n) {
-  const out = [];
-  for (const bl of ch.blocks || []) {
-    if (bl.k === 'h') out.push(bl.minor ? '<h4>' + esc(bl.t) + '</h4>' : '<h3>' + esc(bl.t) + '</h3>');
-    else if (bl.k === 'p') {
-      out.push('<p>' + (bl.s || []).map((s) => (s.v ? '<span class="vn">' + esc(s.v) + '</span>' : '') +
-        (s.key ? '<span class="key">' + esc(s.t) + '</span>' : esc(s.t))).join(' ') + '</p>');
-    } else if (bl.k === 'a') out.push('<aside class="' + esc(bl.style || '') + '">' + esc(bl.t) + '</aside>');
-  }
-  body.innerHTML = '<article class="rd">' + out.join('') + '</article>';
-  // How far down the text this person has read: the ring on the chapter list.
-  const art = body.querySelector('.rd');
-  let best = fracOf(book, n);
-  // Marked unread by hand: count afresh from here.
-  body.addEventListener('shruti:mark', (e) => { best = e.detail.done ? 1 : 0; });
-  const measure = () => {
-    if (!art.isConnected) { removeEventListener('scroll', measure); return; }
-    const r = art.getBoundingClientRect();
-    const seen = Math.min(1, Math.max(0, (innerHeight - r.top) / Math.max(1, r.height)));
-    if (seen > best + 0.02 || (seen >= 0.98 && best < 1)) {
-      best = seen >= 0.98 ? 1 : seen;
-      setProgress(book, n, best >= 1 ? { f: 1, done: true, 'modes.read': 1 } : { f: +best.toFixed(3) });
-      if (best >= 1) body.dispatchEvent(new CustomEvent('shruti:read'));
-    }
-  };
-  addEventListener('scroll', measure, { passive: true });
-}
-
 function renderLessons(body, L) {
   if (!L || !L.lessons || !L.lessons.length) { body.innerHTML = '<div class="empty">' + IC.lessons + '<b>No lessons for this chapter yet</b></div>'; return; }
-  body.innerHTML = '<div class="ls">' + L.lessons.map((l) =>
+  body.innerHTML = '<div class="ls"><p class="ls-k">' + L.lessons.length + ' lessons from Tony and Veda's notes</p>' + L.lessons.map((l) =>
     '<div class="ls-i"><div class="h"><span class="id">' + esc(l.id) + '</span><span class="tt">' + esc(l.title || '') + '</span></div>' +
     (l.body ? '<div class="bd">' + esc(l.body) + '</div>' : '') + '</div>').join('') +
-    (L.summary ? '<div class="ls-sum">' + esc(L.summary) + '</div>' : '') + '</div>';
+    (L.summary ? '<div class="ls-sum"><b>Chapter summary</b>' + esc(L.summary) + '</div>' : '') + '</div>';
 }
