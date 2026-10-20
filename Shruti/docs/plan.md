@@ -43,6 +43,12 @@ phase is done so he can open a fresh session for the next one.
   - Also: the Mine shelf is one slim line; Veda's header star is a centred SVG (the ✦ glyph sat off-centre).
   - Tests: `podcast.test.js` (every script and episode), live `podcast.live.js` (27), `reader.live.js` (44), `shell.live.js` (52). The introduction has read-aloud but no episode (no lessons); decide with Tony if it should get one.
 
+- **Phase 5: Watch (2026-10-20).**
+  - Video scripts for **all 18 chapters**, written by Claude (`books/gita/scripts/chNN-video.json`, ~15,500 words, 15 to 27 scenes): one narrator (Brian, `en-US-BrianMultilingualNeural`, neither podcast host); layouts title, verse, story, lesson, compare, steps, closing; every lesson on its own scene, in order; `beyond` marks what comes from the full Gita or the Mahabharata. Verse scenes name a `ref`; `tools/video.py` copies the book's exact text onto the screen and into the narration (`{verse}`). Rendered byte for byte like the podcast; 4 to 9 minutes each, 110 minutes in all, `media/chNN-video.{mp3,json}` + `videos.json`.
+  - `video.js`: MAGI's canvas painters ported into Shruti's colours and type (per profile), plus verse (lit word by word as it is read), story and lesson layouts; word-level captions; scrubber with scene ticks, scene board, lessons covered; speed; full screen (landscape on phones, the picture turned sideways where the browser can't); keys Space/←/→/F/C; MP4 export (MediaRecorder; WebM where MP4 isn't offered); mini-player and lock screen; `progress…vid.t`, `modes.watch`; `video.{speed,cc}`; `save()` for Phase 6. The Watch badge reads `videos.json`.
+  - Tests: `video.test.js` (every script and video, ~420 checks), live `video.live.js` (41; every layout saved as `shruti-frame-*.png`), `shell.live.js` updated (Watch is now made). `npm test`: Shruti all green; `taskhub-sync.test.js` fails because of another session's `index.html` change at 10:10, not Shruti.
+  - Not done: no music bed (MAGI has one; Shruti's videos are voice only). The introduction has no video (no lessons), like the podcast.
+
 **Waiting on Tony (not blocking):** each person pastes their Orca key once in Settings (Tony's is in). Read-aloud of every chapter in Ava and every episode work without a key; other voices need it.
 
 **Fix at the end (Tony, 2026-10-20: "note these down, we'll fix at the end"):**
