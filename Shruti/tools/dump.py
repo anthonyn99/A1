@@ -15,13 +15,13 @@ for pno in range(doc.page_count):
             for s in l["spans"]:
                 txt = "".join(c["c"] for c in s["chars"])
                 if not txt: continue
-                hl = 0
+                h = ""
                 for c in s["chars"]:
-                    r = pymupdf.Rect(c["bbox"]); cx, cy = (r.x0+r.x1)/2, (r.y0+r.y1)/2
-                    if any(y.contains(pymupdf.Point(cx, cy)) for y in yel): hl += 1
+                    r = pymupdf.Rect(c["bbox"]); pt = pymupdf.Point((r.x0+r.x1)/2, (r.y0+r.y1)/2)
+                    h += "1" if any(y.contains(pt) for y in yel) else "0"
                 colors[hex(s["color"])] += len(txt)
                 spans.append({"t": txt, "c": hex(s["color"]), "f": s["font"], "z": round(s["size"], 1),
-                              "it": bool(s["flags"] & 2), "b": bool(s["flags"] & 16), "hl": round(hl/len(txt), 2)})
+                              "it": bool(s["flags"] & 2), "b": bool(s["flags"] & 16), "h": h})
             if spans:
                 out.append({"p": pno, "y": round(l["bbox"][1], 1), "x": round(l["bbox"][0], 1), "s": spans})
 json.dump(out, open(sys.argv[1], "w", encoding="utf-8"), ensure_ascii=False)
