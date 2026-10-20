@@ -82,22 +82,46 @@ para = None   # {"cls", "buf": [(ch, hl)]}
 def flush():
     global para
     if not para: return
-    para["buf"] = resolve(para["buf"])
+    para["buf"] = fix_buf(resolve(para["buf"]))
     s = "".join(c for c, _ in para["buf"])
-    hl = [h for _, h in para["buf"]]
     s2 = re.sub(r"[ \t]+", " ", s).strip()
     if para["cls"] == "body": cur["blocks"].append(split_verses(para["buf"]))
     else:
         style = para["cls"]
         if s2.startswith("NOTE"): style = "note"
-        cur["blocks"].append({"k": "a", "style": {"aside": "commentary", "gloss": "gloss"}.get(style, style), "t": fix(s2)})
+        cur["blocks"].append({"k": "a", "style": {"aside": "commentary", "gloss": "gloss"}.get(style, style), "t": s2})
     para = None
 
 # Line-break joins the vocabulary rule gets wrong, checked by hand against the PDF.
 FIXES = {"senserestraint": "sense-restraint", "Con-cealed": "Concealed", "Who-ever": "Whoever"}
-def fix(t):
-    for a, b in FIXES.items(): t = t.replace(a, b)
-    return t
+def fix_buf(buf):
+    for a, b in FIXES.items():
+        s = "".join(c for c, _ in buf)
+        i = s.find(a)
+        while i >= 0:
+            h = buf[i][1]
+            buf = buf[:i] + [(c, h) for c in b] + buf[i + len(a):]
+            s = "".join(c for c, _ in buf); i = s.find(a, i + len(b))
+    return buf
+
+def segment(chars_):
+    """Collapse whitespace; return (text, highlighted [start, end) ranges, mostly-highlighted)."""
+    t, flags = [], []
+    for c, h in chars_:
+        if c.isspace():
+            if t and t[-1] != " ": t.append(" "); flags.append(None)
+        else: t.append(c); flags.append(h)
+    while t and t[-1] == " ": t.pop(); flags.pop()
+    ranges, start = [], None
+    for i, f in enumerate(flags + [False]):
+        if f is None: continue                      # a space joins neighbouring highlighted words
+        if f and start is None: start = i
+        if not f and start is not None:
+            end = i
+            while end > start and t[end - 1] == " ": end -= 1
+            ranges.append([start, end]); start = None
+    real = [f for f in flags if f is not None]
+    return "".join(t), ranges, bool(real) and sum(real) / len(real) > 0.5
 
 REF = re.compile(r"\((?:Verse\s+)?(\d{1,2})\.(\d{2})(?:\s*-\s*(\d{2}))?\)")
 def split_verses(buf):
@@ -109,10 +133,13 @@ def split_verses(buf):
     if s[start:].strip(): segs.append((start, len(s), None))
     out = []
     for a, b, v in segs:
-        t = re.sub(r"\s+", " ", s[a:b]).strip()
+        piece = buf[a:b]
+        while piece and piece[0][0].isspace(): piece = piece[1:]
+        t, ranges, key = segment(piece)
         if not t: continue
-        span = [hl[i] for i in range(a, b) if not s[i].isspace()]
-        out.append({"t": fix(t), "v": v, "key": bool(span) and sum(span) / len(span) > 0.5})
+        seg = {"t": t, "v": v, "key": key}
+        if ranges and not (len(ranges) == 1 and ranges[0] == [0, len(t)]): seg["hl"] = ranges
+        out.append(seg)
     return {"k": "p", "s": out}
 
 def add_line(l, kind):
