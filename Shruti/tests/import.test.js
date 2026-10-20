@@ -54,6 +54,7 @@ function fakeFirestore() {
   global.window = { SHRUTI_PROFILES: { tony: { label: 'Tony', doc: 'shruti' }, veda: { label: 'Veda', doc: 'shruti_veda' } }, SHRUTI_PROFILE: 'tony' };
   global.addEventListener = () => {};
   global.dispatchEvent = () => {};
+  global.document = { addEventListener() {}, querySelector() { return null; } };
   global.CustomEvent = class { constructor(t, o) { this.type = t; this.detail = o && o.detail; } };
   global.fetch = async () => ({ ok: false, status: 404, json: async () => ({}) });
   const X = await import(pathToFileURL(path.join(DIR, 'extract.js')).href);
