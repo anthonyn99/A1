@@ -5,8 +5,10 @@
 //
 //   mount(root, cards, {book, set}) -> dispose()
 // Progress: study.<book>.<set>.flashcards = {b: {cardKey: box 0-5}, d: {cardKey: due ms}}
+// Order: the grid of all cards can be dragged; the deck then follows that
+// order (ui.js ordered), and shuffle and review still work on top of it.
 
-import { h, btn, esc, rich, IC, keys, swipe, justSwiped, progress, saveProgress, now, DAY } from './ui.js';
+import { h, btn, esc, rich, IC, keys, swipe, justSwiped, progress, saveProgress, now, DAY, ordered, saveOrder, OR } from './ui.js';
 
 export const INTERVALS = [0, 1, 3, 7, 16, 35];   // days, per box
 /** A card's key: survives reordering and small edits elsewhere in the set. */
@@ -40,7 +42,8 @@ export function summary(cards, p, t = now()) {
   return out;
 }
 
-export function mount(root, cards, { book, set }) {
+export function mount(root, setCards, { book, set }) {
+  let O = ordered(book, set, 'flashcards', setCards), cards = O.items;
   const n = cards.length;
   const P = () => progress(book, set, 'flashcards');
   const st = { order: cards.map((_, i) => i), pos: 0, flipped: false, grid: false, done: false, review: false, gridFlip: new Set(), marked: 0 };
@@ -104,13 +107,20 @@ export function mount(root, cards, { book, set }) {
     if (st.grid) {
       const grid = h('div', 'fc-grid');
       cards.forEach((c, idx) => {
-        const s = stateOf(p, cardKey(c));
-        const card = h('button', 'fc-card fc-mini ' + (st.gridFlip.has(idx) ? 'flipped ' : '') + s, faces(c, idx));
-        card.type = 'button';
-        card.addEventListener('click', () => { st.gridFlip.has(idx) ? st.gridFlip.delete(idx) : st.gridFlip.add(idx); card.classList.toggle('flipped', st.gridFlip.has(idx)); });
+        const s = stateOf(p, cardKey(c)), k = O.keys[idx];
+        const card = h('button', 'fc-card fc-mini ' + (st.gridFlip.has(k) ? 'flipped ' : '') + s, faces(c, idx));
+        card.type = 'button'; card.dataset.dkey = k; card.title = OR.HINT;
+        card.addEventListener('click', () => { st.gridFlip.has(k) ? st.gridFlip.delete(k) : st.gridFlip.add(k); card.classList.toggle('flipped', st.gridFlip.has(k)); });
         grid.append(card);
       });
       box.append(grid);
+      // Drag a card to a new place: the deck plays in this order from now on.
+      OR.sortable(grid, { row: '.fc-card', axis: 'grid', onMove(ks) {
+        saveOrder(book, set, 'flashcards', ks);
+        O = ordered(book, set, 'flashcards', setCards); cards = O.items;
+        st.review = false; st.order = cards.map((_, i) => i); st.pos = 0; st.flipped = false; st.done = false;
+        paint();
+      } });
       return;
     }
 
