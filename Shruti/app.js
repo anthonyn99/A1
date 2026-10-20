@@ -386,7 +386,7 @@ VID.setUI({ player, toast, go: (h) => go(h) });
 
 // Space plays and pauses whatever owns the player, unless typing or on a control.
 addEventListener('keydown', (e) => {
-  if (e.key !== ' ' || e.target.closest('input,textarea,select,button,a,[contenteditable],[role=radio]')) return;
+  if (e.key !== ' ' || (e.target.closest && e.target.closest('input,textarea,select,button,a,[contenteditable],[role=radio]'))) return;
   if (player.owner === 'podcast' && POD.state.meta) { e.preventDefault(); POD.toggle(); }
   else if ((player.owner === 'video' || (!player.owner && VID.state.view && VID.state.view.root.isConnected)) && VID.state.meta) { e.preventDefault(); if (!VID.state.rec) VID.toggle(); }
   else if (NR.state.mode) { e.preventDefault(); NR.toggle(); }

@@ -367,7 +367,7 @@ const PAINT = {
   closing(ctx, sc, t, acc, v) {
     const a = vin(t, 0.1, 0.9);
     ctx.globalAlpha = a;
-    kicker(ctx, 'Chapter ' + v.meta.n + ' · in one breath', W / 2, 180, acc, 'center');
+    kicker(ctx, 'Chapter ' + v.meta.n + ' · Summary', W / 2, 180, acc, 'center');
     const f = fit(ctx, sc.headline, fDisplay, 92, 1500, 2, 52);
     ctx.fillStyle = K.tx; ctx.font = fDisplay(f.size);
     const h = text(ctx, f.lines, W / 2, 240 + (1 - a) * 30, f.size, 1.1, 'center');
@@ -878,9 +878,10 @@ export async function renderWatch(body, { book, n, title, lessons }) {
   // Keys, while this tab is on screen (Space is the shell's: app.js).
   const onKey = (e) => {
     if (!root.isConnected) { removeEventListener('keydown', onKey); return; }
-    if (e.target.closest('input,textarea,select,[contenteditable]') || V.rec) return;
-    if (e.key === 'ArrowRight' && !e.target.closest('[data-track]')) stepScene(1);
-    else if (e.key === 'ArrowLeft' && !e.target.closest('[data-track]')) stepScene(-1);
+    const tg = e.target && e.target.closest ? e.target : document.body;
+    if (tg.closest('input,textarea,select,[contenteditable],.sheet,.sheet-dim') || V.rec || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === 'ArrowRight' && !tg.closest('[data-track]')) stepScene(1);
+    else if (e.key === 'ArrowLeft' && !tg.closest('[data-track]')) stepScene(-1);
     else if (e.key === 'f' || e.key === 'F') toggleFs();
     else if (e.key === 'c' || e.key === 'C') setPref('cc', !prefs().cc);
     else if (e.key === 'Escape' && stage.classList.contains('pfs')) exitFs();

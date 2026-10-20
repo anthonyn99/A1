@@ -5,7 +5,7 @@
   "title": "Spiritual knowledge",
   "narrator": { "name": "Brian", "voice": "en-US-BrianMultilingualNeural" },
   "scenes": [
-    { "layout": "title", "headline": "Spiritual Knowledge", "visual": ["Chapter 2 · The Gita in miniature"],
+    { "layout": "title", "headline": "Spiritual Knowledge", "visual": ["The Gita in miniature"],
       "say": "Chapter Two. Spiritual Knowledge. Many readers call it the Gita in miniature, because almost every great idea of the book appears here for the first time." },
     { "layout": "story", "headline": "A warrior in tears", "visual": ["Arjuna sits in his chariot, his bow on the floor", "Sanjaya reports every word to the blind king", "Krishna, as if smiling, begins to speak"],
       "say": "We left Arjuna sitting in his chariot between two armies, his bow on the floor, his eyes full of tears. Sanjaya, reporting to the blind king, tells us that Krishna looked at his friend and, as if smiling, began to speak. Here the book marks a line: the teachings of the Gita begin." },
@@ -55,7 +55,7 @@
     { "layout": "compare", "headline": "The same action, two different worlds", "L": ["L12"],
       "visual": ["With ignorance | With wisdom", "Fighting from anger or fear | Fighting from duty and understanding", "Bound by the result | Free in the result", "The ego acts | The Self is at peace"],
       "say": "Lesson twelve. The same action can be done with wisdom or with ignorance. Arjuna could fight out of anger, or fear, or pride. Or he could fight knowing the eternal Self and his duty. From outside, the two look identical. Inside, they are completely different, and that inner difference is what the Gita cares about." },
-    { "layout": "closing", "headline": "Spiritual knowledge, in one breath", "visual": ["The Self is eternal; the body is a garment", "Do your duty; let go of the fruits", "Master the senses and find the ocean's peace"],
+    { "layout": "closing", "headline": "The Self, the duty, the peace", "visual": ["The Self is eternal; the body is a garment", "Do your duty; let go of the fruits", "Master the senses and find the ocean's peace"],
       "say": "So, Chapter Two in one breath. The Self is eternal, and the body is a garment it wears. Do your duty, and let go of the fruits. Master the senses, and you will find a peace as deep as the ocean. Next, Arjuna asks the obvious question: if knowledge is better than action, why fight at all?" }
   ]
 }
