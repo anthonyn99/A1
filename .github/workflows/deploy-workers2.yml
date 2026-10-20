@@ -40,6 +40,9 @@ on:
     branches: [main]
     paths:
       - 'workers2/**'
+      # Program-owned workers that live in their program's folder (Shruti moves
+      # as one folder, its worker included).
+      - 'Shruti/worker/**'
       - '.github/workflows/deploy-workers2.yml'
   workflow_dispatch:
     inputs:
@@ -87,8 +90,9 @@ jobs:
         run: |
           set -euo pipefail
           list='[]'
+          # workers2/<name>/ plus program-owned workers (Shruti/worker/).
           if [ -d workers2 ]; then
-            list=$(find workers2 -maxdepth 2 \
+            list=$(find workers2 Shruti/worker -maxdepth 2 \
                      \( -name 'wrangler.toml' -o -name 'wrangler.jsonc' -o -name 'wrangler.json' \) \
                      -printf '%h\n' | sort -u | jq -R -s -c 'split("\n") | map(select(length > 0))')
           fi
