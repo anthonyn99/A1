@@ -140,7 +140,7 @@ export function go(hash, { replace = false } = {}) {
   if (location.hash === hash) { route(); return; }
   if (replace) { history.replaceState(null, '', hash); route(); } else location.hash = hash;
 }
-addEventListener('hashchange', () => { if (entered) route(); });
+// Shruti scrolls each view itself. A restored scroll position after a reload (a\n// profile switch) would otherwise count as reading in the reader.\ntry { history.scrollRestoration = 'manual'; } catch (e) {}\naddEventListener('hashchange', () => { if (entered) route(); });
 let routeSeq = 0, lastView = null;
 async function route() {
   const r = parse(), seq = ++routeSeq;

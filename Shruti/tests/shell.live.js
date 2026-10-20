@@ -170,7 +170,7 @@ async function load(c, { w, h, mobile, store, hash = '' }) {
   ok('her look: StudyOS purple, Lora headings, Nunito body, classic hover', await ev(c, `return getComputedStyle(document.body).getPropertyValue('--ac').trim()==='#A892B0' && /Lora/.test(getComputedStyle(document.querySelector('.lib-hero h1')).fontFamily) && /Nunito/.test(getComputedStyle(document.body).fontFamily) && !document.body.dataset.hoverfx`));
   ok('her tab icon is her colour', await ev(c, `return /%23A892B0/.test(document.querySelector('link[rel=icon]').href)`));
   ok('her document is dashboards/shruti_veda', await waitFor(c, `return window.Shruti.core.me.loaded && window.Shruti.core.me.path==='dashboards/shruti_veda'`));
-  ok("Tony's progress is not hers (the shelf bar is empty)", await ev(c, `return document.querySelector('.bk-bar i').style.width==='0.0%'`));
+  ok("Tony's progress is not hers (the shelf bar is empty)", await ev(c, `return document.querySelector('.bk-bar i').style.width==='0.0%'`), await ev(c, `return document.querySelector('.bk-bar i').style.width+' '+JSON.stringify(window.__fakeFs.docs['dashboards/shruti_veda'])`));
   ok("…and neither is his key", await ev(c, `return !window.Shruti.core.me.get('orcaKey')`));
   await shot(c, 'veda-library-390');
   await load(c, { w: 1280, h: 860, mobile: false, hash: '#/b/gita/2' });
