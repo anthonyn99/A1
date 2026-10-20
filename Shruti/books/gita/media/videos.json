@@ -61,5 +61,68 @@
     "duration": 354.216,
     "scenes": 19,
     "narrator": "Brian"
+  },
+  "10": {
+    "mp3": "ch10-video.mp3",
+    "json": "ch10-video.json",
+    "duration": 279.48,
+    "scenes": 15,
+    "narrator": "Brian"
+  },
+  "11": {
+    "mp3": "ch11-video.mp3",
+    "json": "ch11-video.json",
+    "duration": 346.68,
+    "scenes": 18,
+    "narrator": "Brian"
+  },
+  "12": {
+    "mp3": "ch12-video.mp3",
+    "json": "ch12-video.json",
+    "duration": 276.744,
+    "scenes": 14,
+    "narrator": "Brian"
+  },
+  "13": {
+    "mp3": "ch13-video.mp3",
+    "json": "ch13-video.json",
+    "duration": 316.056,
+    "scenes": 16,
+    "narrator": "Brian"
+  },
+  "14": {
+    "mp3": "ch14-video.mp3",
+    "json": "ch14-video.json",
+    "duration": 278.28,
+    "scenes": 15,
+    "narrator": "Brian"
+  },
+  "15": {
+    "mp3": "ch15-video.mp3",
+    "json": "ch15-video.json",
+    "duration": 276.096,
+    "scenes": 14,
+    "narrator": "Brian"
+  },
+  "16": {
+    "mp3": "ch16-video.mp3",
+    "json": "ch16-video.json",
+    "duration": 244.176,
+    "scenes": 12,
+    "narrator": "Brian"
+  },
+  "17": {
+    "mp3": "ch17-video.mp3",
+    "json": "ch17-video.json",
+    "duration": 281.424,
+    "scenes": 15,
+    "narrator": "Brian"
+  },
+  "18": {
+    "mp3": "ch18-video.mp3",
+    "json": "ch18-video.json",
+    "duration": 550.488,
+    "scenes": 27,
+    "narrator": "Brian"
   }
 }
