@@ -48,7 +48,8 @@ export function unitRows(prefs, models) {
     const on = prefs.on && id in prefs.on ? !!prefs.on[id] : u.on;
     const status = !models ? 'unknown' : !m ? 'missing' : m.routable ? 'ready' : 'offline';
     return { id, name: u.name, on, status, optional: !!u.optional };
-  }).filter((r) => !(r.optional && (r.status === 'missing' || r.status === 'unknown') && !r.on));
+  // An optional unit (Groq) only shows once Orca says it routes it, or after the person ticked it.
+  }).filter((r) => !(r.optional && (r.status === 'missing' || r.status === 'unknown') && !(prefs.on && prefs.on[r.id])));
 }
 
 /** The models to try, in order: ticked, and routable when that is known. */

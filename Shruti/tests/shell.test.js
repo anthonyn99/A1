@@ -74,7 +74,7 @@ const ok = (name, cond, extra) => {
   const app = read('app.js');
   const boots = [...app.matchAll(/C\.boot\(\)/g)].length;
   ok('Firestore starts in one place only: enter()', boots === 1 && /function enter\(\) \{[\s\S]{0,300}C\.boot\(\);/.test(app));
-  ok('enter() runs only after Guardian.gate opens', /Guardian\.gate\(GID\)\.then\(\(ok\) => \{ if \(ok\) enter\(\)/.test(app) && [...app.matchAll(/\benter\(\)/g)].length === 2);
+  ok('enter() runs only after Guardian.gate opens', /Guardian\.gate\(GID\)\.then\(\(ok\) => \{ if \(ok\) enter\(\)/.test(app) && [...app.replace(/^\s*\/\/.*$/gm, '').matchAll(/\benter\(\)/g)].length === 2);
   ok('switching person reloads the page (no state carried over)', /function choose\(id\)[\s\S]{0,700}location\.(?:reload|replace)/.test(app));
   ok('a lock change rings the other devices (lockV) and they ask the worker', /C\.me\.set\(\{ lockV: Date\.now\(\) \}/.test(app) && /Guardian\.refresh\(\[GID\], true\)/.test(app));
   ok('no native alert/confirm dialogs', !/(?<![\w.])confirm\(/.test(app) && /window\.uiConfirm = /.test(app));
