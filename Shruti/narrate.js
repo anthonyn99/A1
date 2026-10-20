@@ -527,10 +527,9 @@ async function drawSave(box, ctx, esc) {
   });
 }
 /** Exported for the live test. Resolves the shared-doc record. */
-export async function saveNarration(ctx, voice, onStep, onUpload) {
+export async function saveNarration(ctx, voice, onStep, onUpload, extra = {}) {
   const key = keyOf(), segs = T.segmentsFor(ctx.ch);
-  const h = await fetch(DRIVE + '/health').then((r) => r.json()).catch(() => null);
-  if (!h || !h.connected) throw new Error('Google Drive is not connected yet (Settings → Google Drive).');
+  if (!await M.driveReady()) throw new Error('Google Drive is not connected yet (Settings → Google Drive).');
   const parts = [], out = [];
   let t = 0, done = 0, engine = 'edge';
   const one = async (i) => {
@@ -547,15 +546,10 @@ export async function saveNarration(ctx, voice, onStep, onUpload) {
   const mp3 = new Blob(parts.map((p) => p.bytes), { type: 'audio/mpeg' });
   const meta = { v: 1, book: ctx.book, n: ctx.n, voice, engine, duration: +t.toFixed(3), segs: out };
   onUpload && onUpload();
-  const owner = C.P || 'tony', name = 'read-' + voiceName(voice).toLowerCase();
-  const up = async (body, type, ext) => {
-    const r = await fetch(DRIVE + '/f?book=' + encodeURIComponent(ctx.book) + '&chapter=ch' + ctx.n + '&name=' + name + '.' + ext + '&owner=' + owner, { method: 'PUT', headers: { authorization: 'Bearer ' + key, 'content-type': type }, body });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.id) throw new Error('Drive upload failed (' + (j.error || r.status) + ')');
-    return { id: j.id, size: j.size, store: j.store || 'gdrive' };
-  };
-  const rec = { voice, engine, duration: meta.duration, mp3: await up(mp3, 'audio/mpeg', 'mp3'), json: await up(JSON.stringify(meta), 'application/json', 'json'), by: owner, at: Date.now() };
-  C.shared.set({ ['assets.' + ctx.book + '.ch' + ctx.n + '.read']: rec }, { now: true });
+  const name = 'read-' + voiceName(voice).toLowerCase();
+  const up = (body, type, ext) => M.upload({ book: ctx.book, n: ctx.n, body, type, name: name + '.' + ext, key });
+  const rec = Object.assign({ voice, voices: [voice], engine, duration: meta.duration, mp3: await up(mp3, 'audio/mpeg', 'mp3'), json: await up(JSON.stringify(meta), 'application/json', 'json') }, extra);
+  rec.id = M.record(ctx.book, ctx.n, 'read', rec);
   return rec;
 }
 async function decodeDuration(bytes) {

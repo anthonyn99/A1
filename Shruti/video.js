@@ -21,8 +21,9 @@
 
 import * as C from './core.js';
 import * as T from './text.js';
+import * as M from './media.js';
 
-const DRIVE = 'https://shruti-drive.av1-2.workers.dev';
+const DRIVE = M.DRIVE;
 export const W = 1920, H = 1080;
 export const LAYOUTS = ['title', 'verse', 'story', 'lesson', 'compare', 'steps', 'closing'];
 export const SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2];
@@ -902,18 +903,12 @@ export async function renderWatch(body, { book, n, title, lessons }) {
   return true;
 }
 
-/* ── for Phase 6: record a video made in the browser for both profiles ───── */
-/** Upload a built video (mp3 Blob + meta) to Drive and record it in the shared doc. */
+/* ── a video made in the browser (Phase 6) ─────────────────────────────── */
+/** Upload a built video to Drive and keep it as a new version, playing it. */
 export async function save(book, n, { mp3, meta }, extra = {}) {
-  const key = keyOf(), owner = C.P || 'tony';
-  const up = async (body, type, name) => {
-    const r = await fetch(DRIVE + '/f?book=' + encodeURIComponent(book) + '&chapter=ch' + n + '&name=' + name + '&owner=' + owner, { method: 'PUT', headers: { authorization: 'Bearer ' + key, 'content-type': type }, body });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.id) throw new Error('Drive upload failed (' + (j.error || r.status) + ')');
-    return { id: j.id, size: j.size, store: j.store || 'gdrive' };
-  };
+  const up = (body, type, name) => M.upload({ book, n, body, type, name });
   const clean = Object.assign({}, meta, { scenes: meta.scenes.map((s) => { const c = Object.assign({}, s); delete c.cc; return c; }) });
-  const rec = Object.assign({ narrator: meta.narrator && meta.narrator.name, duration: meta.duration, scenes: meta.scenes.length, mp3: await up(mp3, 'audio/mpeg', 'video.mp3'), json: await up(JSON.stringify(clean), 'application/json', 'video.json'), by: owner, at: Date.now() }, extra);
-  C.shared.set({ ['assets.' + book + '.ch' + n + '.video']: rec }, { now: true });
+  const rec = Object.assign({ narrator: meta.narrator && meta.narrator.name, voices: [meta.narrator && meta.narrator.voice], duration: meta.duration, scenes: meta.scenes.length, mp3: await up(mp3, 'audio/mpeg', 'video.mp3'), json: await up(JSON.stringify(clean), 'application/json', 'video.json') }, extra);
+  rec.id = M.record(book, n, 'video', rec);
   return rec;
 }
