@@ -150,6 +150,18 @@ const ok = (name, cond, extra) => {
   let streamed = '';
   const res = await O.chat({ key: 'k', messages: [], models: ['a', 'b', 'c'], fetch: fake, onDelta: (t) => { streamed += t; } });
   ok('404 moves on; 429 waits once then moves on; the answer streams', res.text === 'hello' && res.model === 'c' && streamed === 'hello' && seen.join() === 'a,b,b,c', seen.join());
+  // ChatGPT, 2026-10-20: a 200 stream that ends empty, or carries Orca's error frame, is a failed unit.
+  const seen2 = [];
+  const res2 = await O.chat({ key: 'k', messages: [], models: ['empty', 'err', 'ok'], fetch: async (u, i) => {
+    const m = JSON.parse(i.body).model; seen2.push(m);
+    if (m === 'empty') return new Response('data: [DONE]\n\n', { headers: { 'content-type': 'text/event-stream' } });
+    if (m === 'err') return new Response('data: ' + JSON.stringify({ error: { message: 'no reply started' } }) + '\n\n', { headers: { 'content-type': 'text/event-stream' } });
+    return sse('fine');
+  } });
+  ok('an empty or errored stream moves on to the next unit', res2.text === 'fine' && res2.model === 'ok' && seen2.join() === 'empty,err,ok', seen2.join());
+  let allEmpty = null;
+  try { await O.chat({ key: 'k', messages: [], models: ['e1'], fetch: async () => new Response('data: [DONE]\n\n', { headers: { 'content-type': 'text/event-stream' } }) }); } catch (e) { allEmpty = e; }
+  ok('only empty replies is an error that names them', allEmpty && allEmpty.code === 'none' && /e1: empty reply/.test(allEmpty.message));
   let stopped = null;
   try { await O.chat({ key: 'k', messages: [], models: ['x', 'y'], fetch: async () => new Response('', { status: 401 }) }); } catch (e) { stopped = e; }
   ok('401 stops the chain and points at the key', stopped && stopped.code === 'key');
