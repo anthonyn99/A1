@@ -15,8 +15,9 @@
 import * as C from './core.js';
 import * as O from './orca.js';
 import * as T from './text.js';
+import * as M from './media.js';
 
-const DRIVE = 'https://shruti-drive.av1-2.workers.dev';
+const DRIVE = M.DRIVE;
 export const SPEEDS = [0.5, 0.75, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5];
 export const SLEEPS = [0, 5, 10, 15, 30, 45, 60];
 const ACCENT = { 'en-US': 'American', 'en-GB': 'British', 'en-AU': 'Australian', 'en-IN': 'Indian', 'en-IE': 'Irish', 'en-CA': 'Canadian' };
