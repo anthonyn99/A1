@@ -205,7 +205,8 @@ export function fromDocx(files) {
     if (/^title$/i.test(style)) h = 1;
     else if (sm) h = Math.min(3, Math.max(1, Number(sm[1])));
     else if (lvl != null) h = Math.min(3, Number(lvl) + 1);
-    paras.push({ t, h });
+    // A "Title" paragraph is the book's name, never a chapter (detect skips it).
+    paras.push(/^title$/i.test(style) ? { t, h, ttl: true } : { t, h });
   }
   const core = String(files['docProps/core.xml'] || '');
   const title = clean(unxml((/<dc:title>([\s\S]*?)<\/dc:title>/.exec(core) || [])[1] || ''));
@@ -350,7 +351,7 @@ export function detect(paras, { toc } = {}) {
   // The highest heading level that comes back at least twice; a single h1
   // (the book's own title) does not count.
   for (const lv of [1, 2, 3]) {
-    const at = paras.map((p, i) => (p.h === lv ? i : -1)).filter((i) => i >= 0);
+    const at = paras.map((p, i) => (p.h === lv && !p.ttl ? i : -1)).filter((i) => i >= 0);
     if (at.length >= 2 && at.length <= Math.max(2, n / 2)) return { starts: tidyStarts(at.map((i) => ({ title: paras[i].t, at: i })), n), how: 'headings' };
   }
   const lines = paras.map((p, i) => (CHAPTER_LINE.test(p.t) && p.t.length < 120 ? i : -1)).filter((i) => i >= 0);

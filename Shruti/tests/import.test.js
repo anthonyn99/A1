@@ -74,7 +74,7 @@ function fakeFirestore() {
 
   console.log('\nText');
   ok('a word broken over a line is put back', X.joinLines(['the cour-', 'age of Arjuna']) === 'the courage of Arjuna');
-  ok('a real hyphen before a capital stays', X.joinLines(['Self-', 'Realization']) === 'Self- Realization' || X.joinLines(['Self-', 'Realization']) === 'Self-Realization');
+  ok('a hyphen before a capital is not taken out', X.joinLines(['Self-', 'Realization']) === 'Self- Realization');
   ok('soft hyphens and odd spaces go', X.clean('in­deed  now\t') === 'indeed now');
   const txt = '# The Book\n\nChapter 1\nThe first para-\ngraph runs on.\n\nSecond paragraph.\n\nCHAPTER TWO\n\nIn the end.';
   const tp = X.fromText(txt);
@@ -110,10 +110,10 @@ function fakeFirestore() {
     '<w:p><w:r><w:t>The end.</w:t></w:r></w:p></w:body></w:document>',
   'docProps/core.xml': '<cp:coreProperties><dc:title>My Notes</dc:title><dc:creator>Tony</dc:creator></cp:coreProperties>' };
   const dx = X.fromDocx(docx);
-  ok('Word: title, headings, text with entities and tabs; tracked deletions left out', JSON.stringify(dx.paras.map((p) => [p.h, p.t])) === JSON.stringify([[1, 'My Notes'], [1, 'Part one'], [0, 'Dharma & duty, said Kṛṣṇa.'], [1, 'Part two'], [0, 'The end.']]), JSON.stringify(dx.paras));
+  ok('Word: title, headings, text with entities and tabs; tracked deletions left out', dx.paras[0].ttl === true && JSON.stringify(dx.paras.map((p) => [p.h, p.t])) === JSON.stringify([[1, 'My Notes'], [1, 'Part one'], [0, 'Dharma & duty, said Kṛṣṇa.'], [1, 'Part two'], [0, 'The end.']]), JSON.stringify(dx.paras));
   ok('Word: its title and author', dx.title === 'My Notes' && dx.author === 'Tony');
   const dd = X.detect(dx.paras);
-  ok('Word: chapters at the repeated heading level, the book title not one', dd.how === 'headings' && dd.starts.map((s) => s.title).join('|') === 'My Notes|Part one|Part two' || dd.starts.map((s) => s.title).join('|') === 'Part one|Part two', JSON.stringify(dd));
+  ok('Word: chapters at the repeated heading level, the book title not one', dd.how === 'headings' && dd.starts.map((s) => s.title).join('|') === 'Part one|Part two', JSON.stringify(dd));
 
   console.log('\nEPUB');
   const { JSDOM } = require('jsdom');
