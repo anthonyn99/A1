@@ -932,7 +932,7 @@ export function fill(script, ch, lessons) {
     if (sc.beyond) s.beyond = true;
     if (layout === 'verse') {
       const v = vs[sc.ref] || vs[padRef(sc.ref)];
-      if (!v) { s.layout = layout = 'story'; s.headline = s.headline || 'From the text'; say = say.replace('{verse}', '').trim(); }
+      if (!v) { s.layout = layout = 'story'; s.headline = s.headline || 'From the text'; say = say.replace(/\s*\{verse\}/g, '').trim(); }
       else {
         if (!say.includes('{verse}')) say = (say + ' {verse}').trim();
         const spoken = v.t.replace(XREF, '').trim(), pre = say.split('{verse}')[0];
@@ -940,7 +940,7 @@ export function fill(script, ch, lessons) {
         Object.assign(s, { ref: v.v, verse: v.t, key: !!v.key, vs: [k, k + spoken.split(/\s+/).filter(Boolean).length] });
         say = say.replace('{verse}', spoken);
       }
-    } else say = say.replace(/\{verse\}/g, '').trim();
+    } else say = say.replace(/\s*\{verse\}/g, '').trim();
     if (layout === 'lesson' && !s.headline && s.L[0]) s.headline = L.get(s.L[0]).title || '';
     s.say = say;
     return s;

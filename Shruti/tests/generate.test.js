@@ -106,7 +106,7 @@ const ok = (name, cond, extra) => {
   const S = 1728 / 6000, m = built.meta;
   ok('build(): a title is padded to 5 s', m.scenes[0].start === 0 && m.scenes[0].at === +(2 * S).toFixed(3) && m.scenes[0].end >= 5 && m.scenes[0].end < 5 + S + 0.001);
   ok('…a verse gets the book\'s words and 5 clips after it', m.scenes[1].verse.startsWith('You have control') && m.scenes[1].say.startsWith('Listen. You have control') && Math.abs(m.scenes[1].end - m.scenes[1].at - (1 + 5 * S)) < 0.002);
-  ok('…a verse the book lacks becomes a story; a stray {verse} is dropped', m.scenes[2].layout === 'story' && m.scenes[2].say === 'Missing  here.'.replace('  ', ' ') || m.scenes[2].say === 'Missing here.', m.scenes[2].say);
+  ok('…a verse the book lacks becomes a story; a stray {verse} is dropped', m.scenes[2].layout === 'story' && m.scenes[2].say === 'Missing here.' && m.scenes[3].say === 'A story.', m.scenes[2].say + ' | ' + m.scenes[3].say);
   ok('…scenes follow each other; the length is the bytes', m.scenes.every((s, i) => i === 0 || s.start === m.scenes[i - 1].end) && m.duration === +((await built.mp3.arrayBuffer()).byteLength / 6000).toFixed(3));
 
   console.log('\nA run');
