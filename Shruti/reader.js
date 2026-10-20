@@ -55,11 +55,12 @@ export function markLabel(ch, b) {
 }
 const marksOf = (book, n) => C.me.get('bookmarks.' + book + '.ch' + n, {}) || {};
 
+/** The person's look, on the reader's container so its bar shares the width. */
 function applyLook(art) {
-  const s = settings();
-  art.style.setProperty('--rd-size', (SIZES[s.size] || 18) + 'px');
-  art.style.setProperty('--rd-lead', LEADS[s.lead] || 1.75);
-  art.style.setProperty('--rd-width', (WIDTHS[s.width] || 720) + 'px');
+  const s = settings(), box = art.parentElement;
+  box.style.setProperty('--rd-size', (SIZES[s.size] || 18) + 'px');
+  box.style.setProperty('--rd-lead', LEADS[s.lead] || 1.75);
+  box.style.setProperty('--rd-width', (WIDTHS[s.width] || 720) + 'px');
   art.classList.toggle('sans', s.font === 'sans');
 }
 
