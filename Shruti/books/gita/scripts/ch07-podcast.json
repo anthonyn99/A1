@@ -1,0 +1,112 @@
+{
+  "v": 1,
+  "book": "gita",
+  "n": 7,
+  "title": "Self-knowledge and enlightenment",
+  "hosts": [
+    { "id": "A", "name": "Ava", "voice": "en-US-AvaMultilingualNeural" },
+    { "id": "B", "name": "Andrew", "voice": "en-US-AndrewMultilingualNeural" }
+  ],
+  "segments": [
+    {
+      "title": "Welcome",
+      "turns": [
+        { "s": "A", "t": "Welcome to Shruti. I'm Ava." },
+        { "s": "B", "t": "And I'm Andrew. Today, Chapter Seven: Self-knowledge and Enlightenment." },
+        { "s": "A", "t": "The first six chapters were mostly about us: our duty, our actions, our minds. With Chapter Seven, the Gita turns toward God. What is God made of? Where can you find God in the world? And who actually goes looking?" },
+        { "s": "B", "t": "Seven lessons today, and some of the most beautiful verses in the book. Story first." }
+      ]
+    },
+    {
+      "title": "The story",
+      "turns": [
+        { "s": "A", "t": "Krishna opens with a promise. Seven point one and two: listen how you shall know Me fully without any doubt. I shall impart to you Self-knowledge, together with enlightenment, after knowing which nothing more remains to be known in this world.", "L": ["L7"] },
+        { "s": "B", "t": "And a sobering line right after, seven point three: scarcely one out of thousands of persons strives for perfection. And scarcely one among those successful strivers truly understands Me.", "L": ["L6"] },
+        { "s": "A", "t": "Then a map of reality. Seven point four: the mind, intellect, ego, ether, air, fire, water and earth are the eightfold division of My material energy, Prakriti.", "L": ["L2"] },
+        { "s": "B", "t": "Seven point five: the material energy is My lower Nature. My other, higher Nature is Spirit, Purusha, by which this entire universe is sustained.", "L": ["L2"] },
+        { "s": "A", "t": "Interesting that mind, intellect and ego are on the matter side of that list. In the Gita's view, even your thoughts are part of nature. The Spirit is what's aware of them.", "L": ["L2"] },
+        { "s": "B", "t": "Seven point six: all creatures have evolved from this twofold energy, and I am the source of origin, as well as dissolution, of the entire universe.", "L": ["L1"] },
+        { "s": "A", "t": "And then one of the great images, seven point seven: there is nothing higher than Me, O Arjuna. Everything in the universe is strung on Me like jewels are strung on the thread of a necklace.", "L": ["L1"] },
+        { "s": "B", "t": "You see the jewels. You don't see the thread. But take the thread away and the necklace falls apart.", "L": ["L1"] },
+        { "s": "A", "t": "Then Krishna shows where to look for him in ordinary things. Seven point eight and nine: I am the taste in water, the radiance in the sun and the moon, the sacred syllable Om in all the Vedas, the sound in the ether, and potency in human beings. I am the sweet fragrance in the earth, the heat in the fire, the life in all living beings.", "L": ["L1"] },
+        { "s": "B", "t": "Seven point ten and eleven: know Me to be the eternal seed of all creatures. I am the intelligence of the intelligent, the brilliance of the brilliant, the strength of the strong that is devoid of lust and attachment.", "L": ["L1"] },
+        { "s": "A", "t": "Then the three modes of nature, the gunas: goodness, passion, and ignorance. They come from Krishna, but he isn't caught by them. And seven point thirteen: people are deluded by these three, so they don't know Me, who is above them.", "L": ["L3"] },
+        { "s": "B", "t": "Which leads to a key verse, seven point fourteen: this divine power, Maya, made of the three modes, is very difficult to overcome. Only those who surrender unto Me can easily cross over this Maya.", "L": ["L3"] },
+        { "s": "A", "t": "And who comes to God? Seven point sixteen: four types of virtuous ones worship Me. The distressed, the seeker of Self-knowledge, the seeker of wealth, and the enlightened one who has experienced the Supreme.", "L": ["L4"] },
+        { "s": "B", "t": "Seven point seventeen: among them, the enlightened devotee, ever united with Me and single-minded, is the best, because I am very dear to the enlightened, and the enlightened is very dear to Me.", "L": ["L4"] },
+        { "s": "A", "t": "But notice seven point eighteen: all these seekers are indeed noble. Even the one who comes in distress, or for wealth. Nobody is turned away.", "L": ["L4"] },
+        { "s": "B", "t": "Seven point nineteen: after many births the enlightened one comes to Me, realizing that everything is My manifestation. Such a great soul is very rare.", "L": ["L6"] },
+        { "s": "A", "t": "Then a remarkably open verse, seven point twenty-one and twenty-two: whosoever desires to worship whatever deity, using any name, form and method, with faith, I make their faith steady in that very deity. They worship it and their wishes are fulfilled, but those wishes are, indeed, granted only by Me.", "L": ["L5"] },
+        { "s": "B", "t": "With a caveat, seven point twenty-three: such material gains are temporary. Those who worship the celestial powers go to them, but My devotees come to Me.", "L": ["L5"] },
+        { "s": "A", "t": "Then two verses this rendition reads in its own way. Seven point twenty-four and twenty-five: the ignorant, unable to understand My immutable, incomparable, transcendental form, assume that I am formless, or that I take form just as humans do. Concealed by My Maya, I do not reveal Myself to them.", "L": ["L6"] },
+        { "s": "B", "t": "Translators read these two verses differently. Some stress God's unmanifest nature, some God's personal form. We're giving you this book's reading, which is that God's real form is beyond both of our usual ideas.", "L": ["L6"] },
+        { "s": "A", "t": "Seven point twenty-six: I know the beings of the past, the present and the future, but no one really knows Me. And twenty-seven and twenty-eight: all beings are deluded by the pairs of opposites, born of likes and dislikes. But persons of unselfish deeds, whose Karma has come to an end, become free from that delusion and worship Me with firm resolve.", "L": ["L6"] },
+        { "s": "B", "t": "And the chapter closes with a hint of what's next. Those who know Me as everything, even at the time of death, attain Me. Which is exactly where Chapter Eight begins: what happens at death?", "L": ["L7"] }
+      ]
+    },
+    {
+      "title": "Lesson 1 · The thread",
+      "turns": [
+        { "s": "A", "t": "Lesson one: God is the source and substance of everything.", "L": ["L1"] },
+        { "s": "B", "t": "Matter, energy, consciousness: all of it comes from God. The whole universe is strung on the Supreme like jewels on a thread.", "L": ["L1"] },
+        { "s": "A", "t": "Nothing exists on its own. And the practical side is lovely: you can notice God in the taste of water, in the light of the sun, in the strength of someone strong and kind.", "L": ["L1"] }
+      ]
+    },
+    {
+      "title": "Lesson 2 · Two natures",
+      "turns": [
+        { "s": "B", "t": "Lesson two: God has two natures, a lower one, matter, and a higher one, Spirit.", "L": ["L2"] },
+        { "s": "A", "t": "The lower nature is the material world: earth, water, fire, air, ether, and also mind, intellect and ego. The higher nature is the living Spirit that holds it all up.", "L": ["L2"] },
+        { "s": "B", "t": "Understanding both is the key to understanding reality, and to understanding yourself. You have a body and a mind, and you are the awareness that knows them.", "L": ["L2"] }
+      ]
+    },
+    {
+      "title": "Lesson 3 · Maya",
+      "turns": [
+        { "s": "A", "t": "Lesson three: Maya, the divine illusion, is extremely difficult to overcome.", "L": ["L3"] },
+        { "s": "B", "t": "The three modes of nature delude almost everyone. Only those who surrender to God can cross beyond them.", "L": ["L3"] },
+        { "s": "A", "t": "And notice what Krishna doesn't say. He doesn't say you can out-think Maya, or out-muscle it. Willpower and intellect alone aren't enough. Surrender is the way across.", "L": ["L3"] }
+      ]
+    },
+    {
+      "title": "Lesson 4 · Four who seek",
+      "turns": [
+        { "s": "B", "t": "Lesson four: four types of people seek God.", "L": ["L4"] },
+        { "s": "A", "t": "The one in distress, the one curious for knowledge, the one seeking wealth, and the wise one who has already tasted the Supreme.", "L": ["L4"] },
+        { "s": "B", "t": "All are noble. But the enlightened devotee, with single-minded love, is the highest. They are dear to God, and God is dear to them.", "L": ["L4"] }
+      ]
+    },
+    {
+      "title": "Lesson 5 · According to faith",
+      "turns": [
+        { "s": "A", "t": "Lesson five: God fulfills every seeker according to their faith.", "L": ["L5"] },
+        { "s": "B", "t": "Whatever form a person worships sincerely, God makes that faith steady and answers through it. All sincere worship reaches the Supreme in the end.", "L": ["L5"] },
+        { "s": "A", "t": "But if what you ask for is material, what you get is temporary. The worship reaches God either way. The question is what you're asking for.", "L": ["L5"] }
+      ]
+    },
+    {
+      "title": "Lesson 6 · Rare understanding",
+      "turns": [
+        { "s": "B", "t": "Lesson six: rare is the one who truly knows God.", "L": ["L6"] },
+        { "s": "A", "t": "Among thousands who strive, scarcely one truly understands. Most stay caught in likes and dislikes, pleasure and pain.", "L": ["L6"] },
+        { "s": "B", "t": "Only those whose Karma has been purified by unselfish action come to real understanding. It's rare, but it's not closed. The door is selfless living.", "L": ["L6"] }
+      ]
+    },
+    {
+      "title": "Lesson 7 · Knowing everything",
+      "turns": [
+        { "s": "A", "t": "And lesson seven: knowing God means knowing everything.", "L": ["L7"] },
+        { "s": "B", "t": "Krishna promises Arjuna complete knowledge, after which nothing more remains to be known.", "L": ["L7"] },
+        { "s": "A", "t": "Real knowledge of the Supreme isn't one more fact on the pile. It's the thread that makes sense of all the jewels.", "L": ["L7"] }
+      ]
+    },
+    {
+      "title": "Wrap-up",
+      "turns": [
+        { "s": "B", "t": "So, Chapter Seven. God as the thread through everything, the two natures of reality, the illusion we can only cross by surrender, and the four kinds of people who come looking.", "L": ["L1", "L2", "L3", "L4"] },
+        { "s": "A", "t": "Seven lessons: the thread, two natures, Maya, four who seek, according to faith, rare understanding, and knowing everything.", "L": ["L1", "L2", "L3", "L4", "L5", "L6", "L7"] },
+        { "s": "B", "t": "Next time, Chapter Eight: what we think of at the end, and where it takes us. Thanks for listening to Shruti." }
+      ]
+    }
+  ]
+}
