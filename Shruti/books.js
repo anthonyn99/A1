@@ -51,19 +51,19 @@ export async function get(id) {
 /* ── chapter texts ───────────────────────────────────────────────────────── */
 const texts = new Map();   // "<book>/<file>" -> Promise<chapter>
 const bytes = (s) => new TextEncoder().encode(s).length;
-/** Cut a JSON string into parts of at most PART bytes (never inside a character). */
-export function parts(json) {
-  if (bytes(json) <= PART) return [json];
+/** Cut a JSON string into parts of at most `max` UTF-8 bytes. A surrogate
+ *  pair counts 4 on its first half and 0 on its second, so it is never split. */
+export function parts(json, max = PART) {
+  if (bytes(json) <= max) return [json];
   const out = [];
-  let i = 0;
-  while (i < json.length) {
-    let j = Math.min(json.length, i + Math.floor(PART / 3));
-    // Grow while it still fits; a UTF-16 pair is never split.
-    while (j < json.length && bytes(json.slice(i, Math.min(json.length, j + 20000))) <= PART) j = Math.min(json.length, j + 20000);
-    if (j < json.length && /[\uD800-\uDBFF]/.test(json[j - 1])) j--;
-    out.push(json.slice(i, j));
-    i = j;
+  let start = 0, size = 0;
+  for (let i = 0; i < json.length; i++) {
+    const c = json.charCodeAt(i);
+    const b = c < 0x80 ? 1 : c < 0x800 ? 2 : c >= 0xD800 && c <= 0xDBFF ? 4 : c >= 0xDC00 && c <= 0xDFFF ? 0 : 3;
+    if (size + b > max) { out.push(json.slice(start, i)); start = i; size = 0; }
+    size += b;
   }
+  out.push(json.slice(start));
   return out;
 }
 const textRef = async (where, id, file, part) => {
