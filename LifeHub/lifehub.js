@@ -161,6 +161,7 @@
     riftiq: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='#1a1a1d'/><path d='M48 19 73 33.5v29L48 77 23 62.5v-29Z' fill='none' stroke='#c0aeea' stroke-width='4' stroke-linejoin='round'/><path d='M48 26l5 12v18H43V38Z' fill='#c0aeea'/><rect x='33' y='56' width='30' height='6' rx='3' fill='#dbd0f5'/><rect x='45' y='62' width='6' height='11' rx='3' fill='#9a86c9'/></svg>",
     magi: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='#1a1a1d'/><g fill='none' stroke='#c0aeea' stroke-width='4.2'><circle cx='48' cy='35.3' r='14.5'/><circle cx='36.4' cy='54.4' r='14.5'/><circle cx='59.6' cy='54.4' r='14.5'/></g><circle cx='48' cy='47.7' r='5.4' fill='#dbd0f5'/></svg>",
     taskhub: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='#1a1a1d'/><g fill='none' stroke='#c0aeea' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'><path d='M26 34l7 7 12-13'/><path d='M56 36h16'/><path d='M26 58h46'/><path d='M26 72h46'/></g></svg>",
+    shruti: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='#1a1a1d'/><g fill='none' stroke='#c0aeea' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'><path d='M48 40c-6-4-14-6-24-6v38c10 0 18 2 24 6 6-4 14-6 24-6V34c-10 0-18 2-24 6Z'/><path d='M48 40v38'/><path d='M41 28a10 10 0 0 1 14 0'/><path d='M35 21a19 19 0 0 1 26 0'/></g></svg>",
     link: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='#1a1a1d'/><g fill='none' stroke='#c0aeea' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'><circle cx='48' cy='48' r='24'/><path d='M24 48h48'/><path d='M48 24c7 7 10 15 10 24s-3 17-10 24c-7-7-10-15-10-24s3-17 10-24z'/></g></svg>"
   };
   var ICON_KEYS = Object.keys(ICONS);
@@ -231,15 +232,22 @@
     { id: 'shield', name: 'Shield', url: SHIELD_EXE.tony, icon: 'a1:shield-desktop', tab: 'shield_app' },
     { id: 'shield_html', name: 'Shield (HTML)', url: BASE + 'shield.html', icon: 'a1:shield', tab: 'shield_tony' },
     { id: 'riftiq', name: 'RiftIQ', url: PRIV + 'riftiq.html', icon: 'a1:riftiq', tab: 'warroom' },
-    { id: 'magi', name: 'MAGI', url: BASE + 'magi.html', icon: 'a1:magi', tab: 'magi' }
+    { id: 'magi', name: 'MAGI', url: BASE + 'magi.html', icon: 'a1:magi', tab: 'magi' },
+    { id: 'shruti', name: 'Shruti', url: BASE + 'Shruti/shruti.html', icon: 'a1:shruti', tab: 'shruti' }
   ];
   // Veda's own list: the programs that carry a Veda profile. Tab keys follow
   // TaskHub's per-profile ones (shield_veda), so both open the same tab.
   var VEDA_APPS = [
     { id: 'mylist', name: 'MyList', url: BASE + 'mylist.html', icon: 'a1:mylist', tab: 'mylist' },
     { id: 'shield', name: 'Shield', url: SHIELD_EXE.veda, icon: 'a1:shield-desktop', tab: 'shield_app' },
-    { id: 'shield_html', name: 'Shield (HTML)', url: BASE + 'shield.html', icon: 'a1:shield', tab: 'shield_veda' }
+    { id: 'shield_html', name: 'Shield (HTML)', url: BASE + 'shield.html', icon: 'a1:shield', tab: 'shield_veda' },
+    { id: 'shruti', name: 'Shruti', url: BASE + 'Shruti/shruti.html', icon: 'a1:shruti', tab: 'shruti' }
   ];
+  // Programs added to the defaults after the lists were first written. The
+  // defaults only seed a missing document, so each of these is added to an
+  // existing list once per device and profile (a marker in localStorage); a
+  // tile removed afterwards stays removed on that device.
+  var ADDED_LATER = ['shruti'];
 
   // One list per profile, each its own document and its own local mirror.
   // Tony's keeps the original names so nothing existing moves.
@@ -524,6 +532,12 @@
   // Tiles on a MOVED program's old address go to its new one the same way:
   // one patch per tile, by id, so an edit from another device still merges.
   function migrate(st, list) {
+    ADDED_LATER.forEach(function (id) {
+      var app = byId(st.defaults, id), mark = st.lsKey + ':added:' + id;
+      if (!app) return;
+      try { if (localStorage.getItem(mark)) return; localStorage.setItem(mark, '1'); } catch (e) { return; }
+      if (!byId(list, id)) commit(st, addOp(clone(app)));
+    });
     var a = byId(list, 'shield'), d = byId(st.defaults, 'shield');
     if (a && d && a.url === LEGACY_SHIELD_LINK && !st.migrated) {
       st.migrated = true;
