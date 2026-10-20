@@ -23,6 +23,7 @@ Everwell) are in A1-Priv's own `docs/`.
 | [Notebook/](Notebook/) | The journals: `README.md` (the contract), `plan.md` (done 2026-10-09), `myjournal-strip-plan.md` (done 2026-09-29) |
 | [PriceWatch/](PriceWatch/) | The extension, and `STORE_NOTES.md` (per-store notes; read before touching a store module) |
 | [TaskHub/](TaskHub/) | `notifications.md` (how a reminder reaches a phone; live vs dead series; worker timing), `taskhub-archive-handoff.md` (read before touching the day-archiver), `plans-section-design.md` (the Plans section's spec), `catalyst-debrief.md` (the Catalysts ▶ that debriefs an event in MAGI), `ai-prep.md` (AI prep on both TaskHubs: who owns which doc, the generated TH-PREP block), `backup-restore.md` (Settings → Restore: where backups come from, what a restore writes, undo), `versioned-save.md` (how a save checks the version it was built on and merges instead of overwriting; the 2026-10-19 reset) |
+| [../Shruti/docs/](../Shruti/docs/) | **Shruti** (read / listen / watch / study; the Gita first). Its docs stay inside `Shruti/` so the program moves as one folder: `README.md` (the contract), `plan.md` (§0 is the session hand-off) |
 | [shield/](shield/) | The Shield desktop agent |
 | [tools/](tools/) | App Check maintenance |
 | [workers2/](workers2/) | The Cloudflare account-2 deploy lane |
