@@ -60,32 +60,21 @@ export function available(book, n, lessons) {
   };
 }
 
-/* ── progress writes: local at once, the server at most every 30 s ─────────── */
-const queued = {};
-let qTimer = null, lastSent = 0;
+/* ── progress: shown here at once, sent within 30 s (and on hide / leave) ──── */
 export function setProgress(book, n, patch) {
-  const base = 'progress.' + book + '.' + chKey(n);
-  for (const [k, v] of Object.entries(patch)) queued[base + '.' + k] = v;
-  queued[base + '.at'] = Date.now();
-  queued.last = { book, n, at: Date.now() };
-  const wait = Math.max(0, 30000 - (Date.now() - lastSent));
-  if (!qTimer) qTimer = setTimeout(flushProgress, wait);
-  // Show it here straight away.
-  emit('progress', { book, n });
+  const base = 'progress.' + book + '.' + chKey(n), out = {};
+  for (const [k, v] of Object.entries(patch)) out[base + '.' + k] = v;
+  out[base + '.at'] = Date.now();
+  out.last = { book, n, at: Date.now() };
+  me.set(out, { lazy: true });
 }
-export function flushProgress() {
-  clearTimeout(qTimer); qTimer = null;
-  if (!Object.keys(queued).length) return;
-  const out = Object.assign({}, queued);
-  for (const k of Object.keys(queued)) delete queued[k];
-  lastSent = Date.now();
-  me.set(out);
+/** Where this person is: written when a chapter opens, so another device's
+ *  "Continue" lands here too. */
+export function markOpened(book, n) {
+  const last = me.get('last', null);
+  if (last && last.book === book && last.n === n) return;
+  me.set({ last: { book, n, at: Date.now() } });
 }
-export function queuedFrac(book, n) {
-  const k = 'progress.' + book + '.' + chKey(n) + '.f';
-  return k in queued ? queued[k] : null;
-}
-addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushProgress(); });
 
 /* ── pieces ───────────────────────────────────────────────────────────────── */
 function cover(b) {

@@ -121,11 +121,14 @@ export class Doc {
   }
   stop() { if (this.unsub) this.unsub(); this.unsub = null; }
   get(path, d) { const v = getPath(this.data, path); return v === undefined ? d : v; }
-  /** Change fields: {"progress.gita.ch2.f": 0.4, ...}. Applied here at once; sent soon. */
-  set(fields, { now = false } = {}) {
+  /** Change fields: {"progress.gita.ch2.f": 0.4, ...}. Applied here at once; sent
+   *  soon, at once (now), or for progress (lazy) within 30 s, riding along with
+   *  any sooner write. Hiding the page sends whatever is waiting. */
+  set(fields, { now = false, lazy = false } = {}) {
     for (const [k, v] of Object.entries(fields)) { this.pending[k] = v; setPath(this.data, k, v === DELETE ? undefined : v); }
     emit('doc:' + this.name, { remote: false, data: this.data });
-    this.flushSoon(now ? 0 : 1200);
+    if (lazy) { if (!this.timer) this.flushSoon(30000); }
+    else this.flushSoon(now ? 0 : 1200);
   }
   flushSoon(ms) {
     clearTimeout(this.timer);
