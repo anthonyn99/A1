@@ -601,6 +601,7 @@ body[data-profile=veda] .ls-sum b { text-transform: none; letter-spacing: 0; fon
 .vid-stage.fs canvas, .vid-stage.pfs canvas { width: min(100vw, calc(100vh * 16 / 9)); height: auto; aspect-ratio: 16 / 9; }
 .vid-stage.pfs { position: fixed; inset: 0; z-index: 300; }
 html.vid-pfs, html.vid-pfs body { overflow: hidden; }
+.vid-stage.fs.rot canvas { width: min(100vh, calc(100vw * 16 / 9)); width: min(100dvh, calc(100vw * 16 / 9)); transform: rotate(90deg); }
 /* An upright phone with no real full screen: the whole stage turns sideways. */
 @media (orientation: portrait) {
   .vid-stage.pfs { inset: auto; top: 0; left: 100vw; width: 100vh; width: 100dvh; height: 100vw; transform-origin: top left; transform: rotate(90deg); }
@@ -651,6 +652,7 @@ html.vid-pfs, html.vid-pfs body { overflow: hidden; }
   .vid-track { order: -1; flex-basis: 100%; margin: 0 4px 2px; }
   .vid-time { margin-left: auto; }
   .vid-board { grid-auto-columns: minmax(170px, 72%); }
+  .vid-tools [data-speed="0.75"], .vid-tools [data-speed="1.75"] { display: none; }
   .vid-cover .vc-ic { width: 60px; height: 60px; }
   /* All five modes in one row: icon over label, equal widths. */
   .modes { gap: 2px; margin: 0 -4px 18px; padding: 4px; }

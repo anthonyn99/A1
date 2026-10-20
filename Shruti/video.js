@@ -867,7 +867,11 @@ export async function renderWatch(body, { book, n, title, lessons }) {
   const toggleFs = () => (isFs() ? exitFs() : enterFs());
   fsBtn.addEventListener('click', toggleFs);
   root.querySelector('[data-ov-fs]').addEventListener('click', (e) => { e.stopPropagation(); exitFs(); });
-  const onFs = () => { const on = isFs(); stage.classList.toggle('fs', on); fsBtn.innerHTML = on ? I.shrink : I.full; if (!root.isConnected) { document.removeEventListener('fullscreenchange', onFs); return; } setTimeout(() => view.resize(), 80); };
+  // Real full screen on a phone that stays upright (the rotation lock is on,
+  // or the browser will not turn): the picture turns sideways instead.
+  const orient = () => stage.classList.toggle('rot', (document.fullscreenElement === stage || document.webkitFullscreenElement === stage) && matchMedia('(orientation: portrait)').matches && matchMedia('(pointer: coarse)').matches);
+  const onFs = () => { const on = isFs(); stage.classList.toggle('fs', on); orient(); fsBtn.innerHTML = on ? I.shrink : I.full; if (!root.isConnected) { document.removeEventListener('fullscreenchange', onFs); return; } setTimeout(() => view.resize(), 80); };
+  addEventListener('resize', () => { if (root.isConnected) orient(); });
   document.addEventListener('fullscreenchange', onFs);
   document.addEventListener('webkitfullscreenchange', onFs);
   // The overlay controls show on a touch or a move, and while paused.
