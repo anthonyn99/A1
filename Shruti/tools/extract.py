@@ -247,3 +247,15 @@ book = {
     } for c in chapters],
 }
 dump(book, "book.json")
+
+# Fidelity check: every letter of the source body region must survive extraction (order-independent
+# multiset of letters, so line joins and hyphen fixes don't count as differences).
+src_letters = collections.Counter(c for l in lines for c in text(l) if c.isalpha())
+out_letters = collections.Counter()
+for c in [intro] + chapters:
+    for b in c["blocks"]:
+        for t in ([s["t"] for s in b["s"]] if b["k"] == "p" else [b["t"]]):
+            out_letters.update(ch for ch in t if ch.isalpha())
+missing = src_letters - out_letters; extra = out_letters - src_letters
+print("letters source", sum(src_letters.values()), "extracted", sum(out_letters.values()),
+      "missing", dict(missing), "extra", dict(extra))
