@@ -80,6 +80,10 @@ async function load(c, { w, h, mobile, store, hash = '' }) {
   await c.send('Emulation.setTouchEmulationEnabled', { enabled: mobile, maxTouchPoints: mobile ? 5 : 0 });
   if (inj) await c.send('Page.removeScriptToEvaluateOnNewDocument', { identifier: inj.identifier });
   inj = await c.send('Page.addScriptToEvaluateOnNewDocument', { source: BOOT(store) });
+  // From a blank page: the tab may still be on this URL from an earlier run,
+  // and a change of #hash alone would not load the page (or its code) again.
+  await c.send('Page.navigate', { url: 'about:blank' });
+  await sleep(150);
   await c.send('Page.navigate', { url: URL + hash });
   await sleep(400);
 }
