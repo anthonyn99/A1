@@ -1239,7 +1239,7 @@ onSnapshot(AL_DOC, snap => {
    index.html's _isLocalPath exactly, or a button that TaskHub itself treats as
    a local path silently does nothing here. */
 function isLocalPath(u){
-  return typeof u === 'string' && !/^https?:\/\//i.test(u) && (/^[A-Za-z]:[\\/]/.test(u) || /^\\\\/.test(u));
+  return typeof u === 'string' && !/^https?:\/\//i.test(u) && (/^[A-Za-z]:[\\/]/.test(u) || /^\\\\/.test(u) || /^shell:AppsFolder\\[\w.-]+_[a-z0-9]{13}![\w.-]+$/.test(u));
 }
 // Only with an agent. This listener exists for exactly one purpose: handing
 // local-link paths down to the desktop agent (see sh_set_links below). On a
@@ -1305,6 +1305,12 @@ function _appsForPicker(apps){
   // the shortcut scan never sees them — but they are running right now, which
   // is decent evidence the user wants them.
   (apps.runningOnly || []).forEach(function(a){ push(a.name, a.exe, a.file, a.folder, true); });
+  // Microsoft Store apps (Claude, ChatGPT, Calculator...) have no shortcut, so
+  // without these the picker offered only a same-named CLI: "Claude" was the
+  // Claude Code claude.exe and opened a terminal. Launched by app id.
+  (apps.store || []).forEach(function(a){
+    if (a && isLocalPath(a.path)) push(a.name, '', '', a.path, false);
+  });
   out.sort(function(x, y){ return x.name.toLowerCase() < y.name.toLowerCase() ? -1 : 1; });
   // A hard ceiling so this can never approach the document size limit; the
   // picker has a search box, and nobody scrolls past 400 programs.

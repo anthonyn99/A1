@@ -297,7 +297,7 @@
   // index.html's _isLocalPath and shield.html's isLocalPath exactly — the
   // agent only ever accepts what that same test accepts.
   function isLocalPath(u) {
-    return typeof u === 'string' && !/^https?:\/\//i.test(u) && (/^[A-Za-z]:[\\/]/.test(u) || /^\\\\/.test(u));
+    return typeof u === 'string' && !/^https?:\/\//i.test(u) && (/^[A-Za-z]:[\\/]/.test(u) || /^\\\\/.test(u) || /^shell:AppsFolder\\[\w.-]+_[a-z0-9]{13}![\w.-]+$/.test(u));
   }
   // Only Windows can launch one (through the Shield agent). Elsewhere those
   // tiles would be dead buttons, so they are left out of the grid.
@@ -313,6 +313,9 @@
     if (fm) { try { u = decodeURIComponent(fm[1]).replace(/\//g, '\\'); } catch (e) { return ''; } }
     // No control characters or characters Windows forbids in a path — they
     // could only be a mistake or an attempt to split the agent's command line.
+    // A Store app (shell:AppsFolder\<id>) is already fully validated by
+    // isLocalPath's own pattern; the drive-path checks below would refuse its ':'.
+    if (/^shell:/.test(u) && isLocalPath(u)) return u;
     if (isLocalPath(u)) return /[\x00-\x1f"<>|?*]/.test(u) || /:/.test(u.slice(2)) ? '' : u;
     if (/^[a-z][a-z0-9+.-]*:/i.test(u) && !/^[a-z]:[\\/]/i.test(u)) return BAD_SCHEME.test(u) ? '' : u;
     if (/^\/\//.test(u)) return 'https:' + u;

@@ -23305,7 +23305,7 @@ function _isCustom(app){ return typeof app === 'string' && app.indexOf('custom:'
 // Shield desktop agent instead of opening a tab (see _doOpen below). Must stay
 // in sync with shield.html's own copy of this same check.
 function _isLocalPath(u){
-  return typeof u === 'string' && !/^https?:\/\//i.test(u) && (/^[A-Za-z]:[\\/]/.test(u) || /^\\\\/.test(u));
+  return typeof u === 'string' && !/^https?:\/\//i.test(u) && (/^[A-Za-z]:[\\/]/.test(u) || /^\\\\/.test(u) || /^shell:AppsFolder\\[\w.-]+_[a-z0-9]{13}![\w.-]+$/.test(u));
 }
 function _linksFor(p){ return p === 'tony' ? tonyLinks : vedaLinks; }
 function linkById(p, id){ var a = _linksFor(p); for (var i=0;i<a.length;i++){ if(a[i].id===id) return a[i]; } return null; }

@@ -1018,7 +1018,16 @@ function saveEditClass() {
 // isLocalPath. A string one file treats as a local path and another treats as
 // a URL either opens a dead tab or silently launches nothing.
 function _sosIsLocalPath(u){
-  return typeof u === 'string' && !/^https?:\/\//i.test(u) && (/^[A-Za-z]:[\\/]/.test(u) || /^\\\\/.test(u));
+  return typeof u === 'string' && !/^https?:\/\//i.test(u) && (/^[A-Za-z]:[\\/]/.test(u) || /^\\\\/.test(u) || /^shell:AppsFolder\\[\w.-]+_[a-z0-9]{13}![\w.-]+$/.test(u));
+}
+
+/* What to show under a program's name. A Store app's path is an opaque app id
+ * (shell:AppsFolder\Claude_pzs8sxrjxfjjc!Claude), so it is named for what it
+ * is -- that is also what tells the Claude desktop app apart from the Claude
+ * Code CLI (C:\Users\...\.local\bin\claude.exe), which opens a terminal. */
+function _sosAppWhere(p){
+  p = String(p || '');
+  return /^shell:AppsFolder\\/.test(p) ? 'Microsoft Store app' : p;
 }
 
 let editingResourceId = null;
@@ -1057,7 +1066,8 @@ function renderClassResources(cls) {
     item.className = 'class-event-item';
     item.style.cursor = 'default';
     const target = r.kind === 'app' ? (r.path || '') : (r.url || '');
-    const shown = target.length > 40 ? target.slice(0, 40) + '\u2026' : target;
+    const where = r.kind === 'app' ? _sosAppWhere(target) : target;
+    const shown = where.length > 40 ? where.slice(0, 40) + '\u2026' : where;
     const icon = r.kind === 'app' ? SOI.monitor : SOI.globe;
     item.innerHTML = `
       <div style="width:14px;flex-shrink:0;margin-top:3px;color:${cls.color};font-size:12px;display:flex">${icon}</div>
@@ -1206,7 +1216,7 @@ function _sosRenderBrowseList() {
       : '';
     row.innerHTML =
       '<div style="font-size:13px;font-weight:500">' + dot + escHtml(String(a.name)) + '</div>' +
-      '<div style="font-size:10px;color:var(--text3);margin-top:2px;word-break:break-all">' + escHtml(String(a.path)) + '</div>';
+      '<div style="font-size:10px;color:var(--text3);margin-top:2px;word-break:break-all">' + escHtml(_sosAppWhere(a.path)) + '</div>';
     row.onclick = function () { _sosPickBrowseApp(a); };
     listEl.appendChild(row);
   });

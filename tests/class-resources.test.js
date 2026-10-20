@@ -462,6 +462,31 @@ t('the picker drops lists that are not Veda\'s once any list is tagged',
   /if \(tagged && d\.profile !== 'veda'\) return;/.test(STUDYOS),
   'Without it the picker still offers paths that do not exist on her PC.');
 
+// ---------- Store apps can be class resources (2026-10-20) ------------------
+section('Microsoft Store apps are offered and launchable');
+
+const isLocal = new Function('u', bStudyos);
+t('a Store app path counts as a program',
+  isLocal('shell:AppsFolder\\Claude_pzs8sxrjxfjjc!Claude') &&
+  isLocal('shell:AppsFolder\\OpenAI.ChatGPT-Desktop_2p2nqsd0c76g0!ChatGPT'),
+  'Claude, ChatGPT, Calculator... have no .exe path; picking "Claude" found only\n' +
+  '      the Claude Code CLI, which opens a terminal.');
+t('anything else under shell: is refused (same rule as proc::store_aumid)',
+  !isLocal('shell:AppsFolder\\Claude!Claude') &&
+  !isLocal('shell:AppsFolder\\Claude_PZS8SXRJXFJJC!Claude') &&
+  !isLocal('shell:AppsFolder\\x_pzs8sxrjxfjjc!x" & calc') &&
+  !isLocal('shell:AppsFolder\\..\\x_pzs8sxrjxfjjc!x') &&
+  !isLocal('shell:startup'));
+t('Shield adds sh_apps store entries to the published list',
+  /\(apps\.store \|\| \[\]\)\.forEach/.test(SHIELD));
+t('sh_apps returns the Store apps',
+  /"store": shortcuts::list_store_apps\(\)/.test(R('desktop/shield/src-tauri/src/lib.rs')));
+t('open_path launches a Store app by id before the file-exists check',
+  (() => { const p = R('desktop/shield/src-tauri/src/proc.rs');
+    const i = p.indexOf('if let Some(aumid) = store_aumid(path)'), j = p.indexOf('if !std::path::Path::new(path).exists()');
+    return i > 0 && j > i; })(),
+  'A shell:AppsFolder path is not a file, so the exists() check would drop it.');
+
 // ---------------------------- summary ---------------------------------------
 console.log('\n' + (fail ? 'FAIL' : 'PASS') + ' class-resources: ' + pass + ' passed, ' + fail + ' failed');
 if (fail) { console.log('\nFailures:\n  - ' + failures.join('\n  - ')); process.exit(1); }

@@ -816,3 +816,78 @@ pub fn list_installed_apps() -> Vec<InstalledApp> {
     out.sort_by_key(|a| a.name.to_ascii_lowercase());
     out
 }
+
+/// One Microsoft Store (packaged) app, as the launch picker shows it.
+#[derive(Debug, Clone, Serialize)]
+pub struct StoreApp {
+    pub name: String,
+    /// `shell:AppsFolder\<AUMID>` — the only launchable handle a packaged app
+    /// has. See `proc::store_aumid`.
+    pub path: String,
+}
+
+/// Every packaged app in the Start menu's "All apps" list.
+///
+/// `list_installed_apps` cannot see these: a Store app has no `.lnk` (Claude,
+/// ChatGPT, Calculator, WhatsApp...), so a class resource could never name one.
+/// Worse, picking "Claude" there found only the Claude Code CLI's claude.exe,
+/// which opens a terminal. This reads the same shell folder Get-StartApps does
+/// (FOLDERID_AppsFolder) and keeps only packaged ids; desktop apps in that
+/// folder are already covered by their shortcuts.
+pub fn list_store_apps() -> Vec<StoreApp> {
+    use windows::Win32::Foundation::HANDLE;
+    use windows::Win32::System::Com::{CoInitializeEx, CoTaskMemFree, COINIT_APARTMENTTHREADED};
+    use windows::Win32::UI::Shell::PropertiesSystem::PROPERTYKEY;
+    use windows::Win32::UI::Shell::{
+        BHID_EnumItems, FOLDERID_AppsFolder, IEnumShellItems, IShellItem, IShellItem2,
+        SHGetKnownFolderItem, KF_FLAG_DEFAULT, SIGDN_NORMALDISPLAY,
+    };
+
+    // PKEY_AppUserModel_ID, spelled out so it needs no extra crate feature.
+    const PKEY_AUMID: PROPERTYKEY = PROPERTYKEY {
+        fmtid: windows::core::GUID::from_u128(0x9F4C2855_9F79_4B39_A8D0_E1D42DE1D5F3),
+        pid: 5,
+    };
+
+    let mut out: Vec<StoreApp> = Vec::new();
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        let Ok(folder) = SHGetKnownFolderItem::<_, IShellItem>(&FOLDERID_AppsFolder, KF_FLAG_DEFAULT, HANDLE::default()) else {
+            return out;
+        };
+        let Ok(items) = folder.BindToHandler::<_, IEnumShellItems>(None, &BHID_EnumItems) else {
+            return out;
+        };
+        loop {
+            let mut one: [Option<IShellItem>; 1] = [None];
+            let mut got = 0u32;
+            if items.Next(&mut one, Some(&mut got)).is_err() || got == 0 {
+                break;
+            }
+            let Some(item) = one[0].take() else { break };
+            let Ok(item2) = windows::core::Interface::cast::<IShellItem2>(&item) else { continue };
+            let Ok(p) = item2.GetString(&PKEY_AUMID) else { continue };
+            let aumid = p.to_string().unwrap_or_default();
+            CoTaskMemFree(Some(p.0 as *const _));
+            let path = format!("shell:AppsFolder\\{aumid}");
+            if crate::proc::store_aumid(&path).is_none() {
+                continue;
+            }
+            let name = match item.GetDisplayName(SIGDN_NORMALDISPLAY) {
+                Ok(n) => {
+                    let s = n.to_string().unwrap_or_default();
+                    CoTaskMemFree(Some(n.0 as *const _));
+                    s
+                }
+                Err(_) => continue,
+            };
+            if name.is_empty() {
+                continue;
+            }
+            out.push(StoreApp { name, path });
+        }
+    }
+    out.sort_by_key(|a| a.name.to_ascii_lowercase());
+    out.dedup_by(|a, b| a.path.eq_ignore_ascii_case(&b.path));
+    out
+}
