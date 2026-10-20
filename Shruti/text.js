@@ -49,6 +49,12 @@ export function segmentsFor(ch, max = SEG_MAX) {
   return out;
 }
 
+/** The text of one segment {b, part} of a chapter, cut as segmentsFor cuts it. */
+export function blockTextPart(ch, seg) {
+  const bl = ch && ch.blocks && ch.blocks[seg.b];
+  return splitSentences(blockText(bl))[seg.part || 0] || '';
+}
+
 /** Letters and digits only, lower case: how two spellings of a word compare. */
 export const norm = (w) => String(w || '').toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}]/gu, '');
 

@@ -34,7 +34,7 @@ const N = {
   cache: new Map(),                    // live: i -> Promise<{url, words, dur}>
   playing: false, voice: null,
   view: null, maps: new Map(), lit: null, litBlock: null,
-  follow: true, userAt: 0,
+  follow: true, away: false,
   sleepUntil: 0, raf: 0, savedAt: 0, ended: false,
 };
 export const state = N;
@@ -115,7 +115,7 @@ export async function start({ book, n, ch, title, from }) {
       N.mode = 'live';
       N.voice = want;
     }
-    if (audio) audio.src = N.mode === 'file' ? N.file.url : '';
+    if (audio && N.mode === 'file') audio.src = N.file.url;
   }
   let i = 0, t = 0;
   if (from && from.b != null) {
@@ -172,7 +172,7 @@ async function locate(b, word) {
   const k = map.findIndex((m) => m >= word - off);
   return { i, t: k > 0 ? Math.max(0, d.words[k][0] - 0.05) : 0 };
 }
-const textOf = (i) => (N.mode === 'file' ? T.blockTextPart(N.ch, N.file.segs[i]) : N.segs[i].text);
+const textOf = (i) => { const s = segList()[i]; return s.text != null ? s.text : T.blockTextPart(N.ch, s); };
 
 /** Go to segment i at t seconds into it, and play. */
 let seekSeq = 0;
@@ -182,7 +182,9 @@ async function seek(i, t = 0, play = true) {
   N.i = i; N.ended = false;
   unlight();
   if (N.mode === 'file') {
-    audio.currentTime = (list[i].start || 0) + t;
+    const at = (list[i].start || 0) + t;
+    if (audio.readyState >= 1) audio.currentTime = at;
+    else audio.addEventListener('loadedmetadata', () => { audio.currentTime = at; }, { once: true });
   } else {
     let d;
     setBusy(true);
@@ -321,16 +323,27 @@ function tick() {
 }
 /** Keep the voice's word in view, unless the person is reading elsewhere. */
 function followTo(el) {
-  if (!N.follow || Date.now() - N.userAt < 400) return;
-  if (N.view.paused && N.view.paused()) return;
+  if (!N.follow) return;
   const r = el.getBoundingClientRect();
   const top = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--top-h')) || 58) + 70;
   const bottom = innerHeight - (document.querySelector('.mini:not([hidden])') ? 110 : 30) - (document.querySelector('.bnav') && getComputedStyle(document.querySelector('.bnav')).display !== 'none' ? 70 : 0);
-  if (r.top >= top && r.bottom <= bottom) return;
+  if (r.top >= top && r.bottom <= bottom) { if (N.away) { N.away = false; emit(); } return; }
+  // Scrolled away to read elsewhere: wait (the reader offers "Back to the voice").
+  if (N.away) return;
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  N.view.scrolling && N.view.scrolling();
   scrollTo({ top: scrollY + r.top - (top + (bottom - top) * 0.3), behavior: reduce ? 'auto' : 'smooth' });
 }
+
+/** The person scrolled the page themselves: stop following until they come back. */
+function userScrolled(e) {
+  if (!N.playing || !viewOk() || !N.follow) return;
+  if (e.type === 'keydown' && !['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(e.key)) return;
+  if (e.type === 'keydown' && e.target && e.target.closest && e.target.closest('input,textarea,button,[role=radio]')) return;
+  if (!N.away) { N.away = true; emit(); }
+}
+['wheel', 'touchmove', 'keydown'].forEach((t) => addEventListener(t, userScrolled, { passive: true }));
+/** "Back to the voice": follow again and scroll to the word now. */
+export function backToVoice() { N.away = false; emit(); if (N.lit) { const el = N.lit; N.lit = null; el.classList.remove('on'); } }
 
 /* ── where they are: synced, so another device resumes here ──────────────── */
 function savePos(now) {
@@ -408,8 +421,10 @@ function unlockAudio() {
     s(0, 'RIFF'); v.setUint32(4, 36 + n, true); s(8, 'WAVE'); s(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
     v.setUint32(24, rate, true); v.setUint32(28, rate, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true); s(36, 'data'); v.setUint32(40, n, true);
     for (let i = 0; i < n; i++) v.setUint8(44 + i, 128);
-    audio.src = URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
-    audio.play().then(() => audio.pause()).catch(() => {});
+    const silent = URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+    audio.src = silent;
+    // Paused only if the voice has not taken over the element meanwhile.
+    audio.play().then(() => { if (audio.src === silent) audio.pause(); }).catch(() => {});
   } catch (e) {}
 }
 
@@ -523,7 +538,7 @@ export async function saveNarration(ctx, voice, onStep, onUpload) {
     onStep && onStep(++done, segs.length);
   };
   for (let i = 0; i < segs.length; i += 3) await Promise.all([i, i + 1, i + 2].filter((k) => k < segs.length).map(one));
-  segs.forEach((s, i) => { out.push({ b: s.b, part: s.part, start: +t.toFixed(3), dur: +parts[i].dur.toFixed(3), words: parts[i].words }); t += parts[i].dur; });
+  segs.forEach((s, i) => { out.push({ b: s.b, part: s.part, text: s.text, start: +t.toFixed(3), dur: +parts[i].dur.toFixed(3), words: parts[i].words }); t += parts[i].dur; });
   const mp3 = new Blob(parts.map((p) => p.bytes), { type: 'audio/mpeg' });
   const meta = { v: 1, book: ctx.book, n: ctx.n, voice, engine, duration: +t.toFixed(3), segs: out };
   onUpload && onUpload();
