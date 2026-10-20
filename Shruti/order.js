@@ -65,10 +65,11 @@ export function sortable(list, o) {
     if (window.A1Drag) A1Drag.later(fire); else fire();
   };
   if (window.A1Drag) {
-    A1Drag.sort(list, {
-      row: o.row, axis: o.axis || 'y', hold: 300, canDrag: o.canDrag, ignore: o.ignore,
-      onDrop(from, to) { done(move(keys(), from, to), from, to); },
-    });
+    // Only options that are set: an undefined canDrag would replace dragsort's default.
+    const opt = { row: o.row, axis: o.axis || 'y', hold: 300, onDrop(from, to) { done(move(keys(), from, to), from, to); } };
+    if (o.canDrag) opt.canDrag = o.canDrag;
+    if (o.ignore) opt.ignore = o.ignore;
+    A1Drag.sort(list, opt);
   }
   if (list._shrutiKeys) { list._shrutiKeys.o = o; return; }
   const me = { o };
