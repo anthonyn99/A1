@@ -1,0 +1,26 @@
+{
+  "0": {
+    "voice": "en-US-AvaMultilingualNeural",
+    "mp3": "ch00-read.mp3",
+    "json": "ch00-read.json",
+    "duration": 369.312
+  },
+  "1": {
+    "voice": "en-US-AvaMultilingualNeural",
+    "mp3": "ch01-read.mp3",
+    "json": "ch01-read.json",
+    "duration": 50.472
+  },
+  "2": {
+    "voice": "en-US-AvaMultilingualNeural",
+    "mp3": "ch02-read.mp3",
+    "json": "ch02-read.json",
+    "duration": 808.656
+  },
+  "3": {
+    "voice": "en-US-AvaMultilingualNeural",
+    "mp3": "ch03-read.mp3",
+    "json": "ch03-read.json",
+    "duration": 476.928
+  }
+}
