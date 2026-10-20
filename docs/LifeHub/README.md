@@ -53,6 +53,10 @@ Code that needs `window.LifeHub` after page load should wait for the
 **A new program doesn't need a code change to appear in the grid.** Add it from the
 popup (pencil, then **Add**). If you want it in the initial list for a brand-new
 install, add it to `DEFAULT_APPS` in `lifehub.js` with its favicon in `ICONS`.
+The defaults only seed a missing list, so to put a new program into the lists
+that already exist, also name its id in `ADDED_LATER`: each device adds it once
+per profile (a localStorage marker), and a tile removed afterwards stays removed.
+Shruti arrived this way (2026-10-19).
 
 ### Special cases
 

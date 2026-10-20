@@ -37,6 +37,7 @@ moving another program there.
 | Path | What it is |
 | --- | --- |
 | `LifeHub/` | **LifeHub** — the A1 app switcher, built once (`lifehub.js`) and dropped into each program with an `<a1-lifehub>` tag + one script. Not in Index or any Veda profile. See `docs/LifeHub/README.md` |
+| `Shruti/` | **Shruti** — read, listen, watch and study a book a chapter at a time (the Gita first), both profiles, all AI through Orca. One folder holds everything it owns: `shruti.html`, its modules, books, tests, docs and its Drive worker (see `Shruti/docs/README.md`) |
 | `PriceWatch/` | Price Watch browser extension — reads store pages for MyList |
 | `desktop/shield/` | Shield desktop agent (Tauri / Rust). Rebuild and reinstall with `powershell -File desktop\shield\launch.ps1`; the installed copy has its own Start-menu shortcut |
 | `trading-auto-launch/` | Python helper that opens TradeHub on a schedule |
