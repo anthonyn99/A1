@@ -1,0 +1,182 @@
+{
+  "v": 1,
+  "book": "gita",
+  "n": 3,
+  "title": "Path of Selfless service, Karma-yoga",
+  "hosts": [
+    { "id": "A", "name": "Ava", "voice": "en-US-AvaMultilingualNeural" },
+    { "id": "B", "name": "Andrew", "voice": "en-US-AndrewMultilingualNeural" }
+  ],
+  "segments": [
+    {
+      "title": "Welcome",
+      "turns": [
+        { "s": "A", "t": "Welcome to Shruti. I'm Ava." },
+        { "s": "B", "t": "And I'm Andrew. Today, Chapter Three of the Bhagavad-Gita: the Path of Selfless Service, Karma-yoga." },
+        { "s": "A", "t": "If Chapter Two was about who you really are, Chapter Three is about what you should do with your days. It's the most practical chapter so far." },
+        { "s": "B", "t": "It has fifteen lessons, so we'll move along. Story first, in the book's own words, then each lesson." }
+      ]
+    },
+    {
+      "title": "The story",
+      "turns": [
+        { "s": "A", "t": "Arjuna has listened to all of Chapter Two, and he's confused in a new way. Krishna praised steady wisdom and an intellect fixed on the Supreme. So, verse three point one: if You consider acquiring spiritual knowledge is better than working, then why do You want me to engage in this horrible war? You seem to confuse my mind. Tell me, decisively, one thing.", "L": ["L13"] },
+        { "s": "B", "t": "It's a fair question. If wisdom is the goal, why not go sit in a forest and meditate? Why the battle?" },
+        { "s": "A", "t": "Krishna's answer, three point three: in this world a twofold path has been stated: the path of Self-knowledge for the contemplative, and the path of unselfish work, Karma-yoga, for all others.", "L": ["L13"] },
+        { "s": "B", "t": "And then he takes apart the idea of escaping into inaction. One does not attain freedom by merely abstaining from work. Because, verse three point five, no one can remain actionless even for a moment; everyone is driven to action, helplessly indeed, by the forces of nature.", "L": ["L1"] },
+        { "s": "A", "t": "Then a sharp verse, three point six. The deluded ones, who restrain their organs of action but mentally dwell upon sense enjoyment, are called hypocrites.", "L": ["L14"] },
+        { "s": "B", "t": "Whereas, three point seven, one who controls the senses with a trained mind and engages in selfless service is superior. Working is better than sitting idle. Even keeping your body alive would be impossible without work.", "L": ["L1", "L14"] },
+        { "s": "A", "t": "Then the key move of the chapter, three point nine. Human beings are bound by work that is not performed as a selfless service. So, free from attachment to the fruits of work, do your duty efficiently as a service to Me.", "L": ["L4", "L3"] },
+        { "s": "B", "t": "Krishna then tells a creation story, and our book calls it the first commandment of the creator. Three point ten: Brahma, the creator, in the beginning created human beings together with selfless service and said: by Seva, by sacrifice of self-interest, you shall prosper.", "L": ["L2"] },
+        { "s": "A", "t": "Help the celestial controllers, the Devas, with selfless service, and they will help you. Helping each other, you shall attain the Supreme goal. And one who enjoys their gifts without offering anything in return is, in the book's word, a thief.", "L": ["L2", "L15"] },
+        { "s": "B", "t": "There's a memorable line about food, three point thirteen. The righteous who eat the remnants of selfless service are freed from all sins, but those who cook only for themselves, in truth, eat sin." },
+        { "s": "A", "t": "Then the wheel. Three point sixteen: one who does not help to keep the wheel of creation in motion by sacrificial duty, and who rejoices in sense pleasures only, that person lives in vain.", "L": ["L15"] },
+        { "s": "B", "t": "A small aside from Krishna: for a fully Self-realized person, who is content in God alone, there's technically no duty left. But, three point nineteen, therefore, always perform your duty efficiently and without attachment, because by working without attachment one attains the Supreme.", "L": ["L4"] },
+        { "s": "A", "t": "And here comes King Janaka. Three point twenty: King Janaka and others attained perfection by selfless service alone. You should also act to guide people, and for the welfare of society." },
+        { "s": "B", "t": "A word on Janaka, from outside our book: he appears in other Indian texts as the model of a king who was wise as any sage while still running a kingdom. Krishna is saying, you don't have to leave the world to be free.", "L": ["L5"] },
+        { "s": "A", "t": "Then, three point twenty-one: whatever noble persons do, others follow. Whatever standard they set, the world follows.", "L": ["L5"] },
+        { "s": "B", "t": "And Krishna uses himself as the example. There is nothing in the three worlds I need to do, nothing I need to gain, yet I engage in action. If I stopped, people would follow me, and these worlds would perish.", "L": ["L5"] },
+        { "s": "A", "t": "Three point twenty-six: the wise should not unsettle the minds of the ignorant, who are attached to the fruits of work, but should inspire others by performing all works efficiently, without attachment.", "L": ["L7"] },
+        { "s": "B", "t": "Now, all works are the works of nature. Three point twenty-seven: all work is done by the energy and power of nature, but through ignorance people assume themselves to be the doer, and so they incur Karmic bondage.", "L": ["L6"] },
+        { "s": "A", "t": "And the instruction that ties it together, three point thirty: do your duty, dedicating all work to Me, in a spiritual frame of mind, free from desire, attachment, and mental grief. Those who practice this teaching with faith are freed from the bondage of Karma.", "L": ["L8", "L3"] },
+        { "s": "B", "t": "Then a sober note, three point thirty-three: all beings follow their nature; even the wise act according to their own nature. And three point thirty-five: one's inferior natural work is better than superior unnatural work.", "L": ["L9"] },
+        { "s": "A", "t": "In between, three point thirty-four: likes and dislikes for sense objects remain in the senses. One should not come under their control, because they are two major stumbling blocks.", "L": ["L10"] },
+        { "s": "B", "t": "And then Arjuna asks the question everyone asks. Three point thirty-six: O Krishna, what impels one to commit sin, as if unwillingly, forced against one's will?" },
+        { "s": "A", "t": "Krishna's answer, three point thirty-seven: it is lust, intense desire for material and sensual pleasures, born of passion, that becomes anger when unfulfilled. Lust is insatiable and is a great devil. Know this as the enemy.", "L": ["L11"] },
+        { "s": "B", "t": "Three images, three point thirty-eight: as fire is covered by smoke, as a mirror by dust, and as an embryo by the womb, Self-knowledge becomes covered by lust.", "L": ["L11"] },
+        { "s": "A", "t": "It lives, he says, in the senses, the mind and the intellect. So control the senses first." },
+        { "s": "B", "t": "And the chapter closes with a ladder. Three point forty-two: the senses are superior to the body; the mind is superior to the senses; the intellect is superior to the mind; and Spirit is superior to the intellect.", "L": ["L12"] },
+        { "s": "A", "t": "Three point forty-three: knowing the Spirit to be superior to the intellect, and controlling the mind by an intellect purified by spiritual practice, one must kill this mighty enemy, lust.", "L": ["L12"] }
+      ]
+    },
+    {
+      "title": "Lesson 1 · No one is idle",
+      "turns": [
+        { "s": "B", "t": "Now the fifteen lessons. Lesson one: action is unavoidable. No one can be truly idle.", "L": ["L1"] },
+        { "s": "A", "t": "No living being can stay without action, even for a moment. We're all driven to act by the forces of nature, the three gunas. Just stopping work doesn't lead to freedom.", "L": ["L1"] },
+        { "s": "B", "t": "True renunciation isn't inaction. It's acting without selfish attachment. Seeing that action is constant and inevitable is the first step to channeling it wisely.", "L": ["L1"] }
+      ]
+    },
+    {
+      "title": "Lesson 2 · Seva is the foundation",
+      "turns": [
+        { "s": "A", "t": "Lesson two: selfless service, Seva, is the foundation of a well-ordered life.", "L": ["L2"] },
+        { "s": "B", "t": "In Krishna's story, the creator built human life around selfless service from the start. When you work for the good of others, not for personal gain, you're aligned with the natural order.", "L": ["L2"] },
+        { "s": "A", "t": "That brings prosperity and fulfillment, and in the end the highest goal of life. Selfishness disrupts the order. Selflessness sustains it.", "L": ["L2"] }
+      ]
+    },
+    {
+      "title": "Lesson 3 · Work as worship",
+      "turns": [
+        { "s": "B", "t": "Lesson three: all work done as duty is a form of worship.", "L": ["L3"] },
+        { "s": "A", "t": "Any obligatory duty, done without attachment to its fruits and offered to God, or to the greater good, becomes an act of worship.", "L": ["L3"] },
+        { "s": "B", "t": "You're never just doing a task. You're taking part in a cosmic cycle. Even dull or difficult work stops being a burden and becomes a sacred contribution to the whole.", "L": ["L3"] }
+      ]
+    },
+    {
+      "title": "Lesson 4 · For everyone's welfare",
+      "turns": [
+        { "s": "A", "t": "Lesson four: perform your duty for universal welfare, not personal reward.", "L": ["L4"] },
+        { "s": "B", "t": "Work done only for yourself creates Karmic bondage. Work done as selfless service, for the welfare of society and without attachment to outcomes, liberates.", "L": ["L4"] },
+        { "s": "A", "t": "That's the essence of Karma-yoga. Same action, different inner orientation, completely different result. Freedom lies in the motivation, not the activity.", "L": ["L4"] }
+      ]
+    },
+    {
+      "title": "Lesson 5 · Leaders set the example",
+      "turns": [
+        { "s": "B", "t": "Lesson five: leaders and wise persons must set the example.", "L": ["L5"] },
+        { "s": "A", "t": "Whatever noble people do, others follow. Even Krishna, who has nothing to gain, keeps acting so the world doesn't fall into chaos.", "L": ["L5"] },
+        { "s": "B", "t": "If the wise act selfishly, the ignorant copy them and are harmed. Anyone with understanding, a parent, a teacher, a manager, carries a responsibility to model right action.", "L": ["L5"] }
+      ]
+    },
+    {
+      "title": "Lesson 6 · Nature does the work",
+      "turns": [
+        { "s": "A", "t": "Lesson six: nature does all the work; the ego falsely claims it.", "L": ["L6"] },
+        { "s": "B", "t": "All action is carried out by the three forces of nature, the gunas: activity, inertia and clarity. The ego, the sense of being a separate doer, takes the credit, and that's what creates the bondage.", "L": ["L6"] },
+        { "s": "A", "t": "Knowing this frees you. When you stop claiming personal ownership of results, you stop piling up the burden of outcomes. The work continues, but you're no longer trapped by it.", "L": ["L6"] }
+      ]
+    },
+    {
+      "title": "Lesson 7 · Don't unsettle others",
+      "turns": [
+        { "s": "B", "t": "Lesson seven: do not unsettle the minds of the spiritually immature.", "L": ["L7"] },
+        { "s": "A", "t": "The wise shouldn't abruptly disturb people who are still attached to the fruits of their work. Instead, inspire them by doing every duty well, without attachment, and let their understanding shift gradually.", "L": ["L7"] },
+        { "s": "B", "t": "Wisdom isn't a weapon to knock people off balance. It's modeled, patiently and with compassion.", "L": ["L7"] }
+      ]
+    },
+    {
+      "title": "Lesson 8 · Dedicate every action",
+      "turns": [
+        { "s": "A", "t": "Lesson eight: dedicate all your actions to God, or to truth.", "L": ["L8"] },
+        { "s": "B", "t": "Verse three point thirty. Do every duty in a spiritual frame of mind, free from desire, attachment and grief, mentally offering each action to the Divine.", "L": ["L8"] },
+        { "s": "A", "t": "That dedication turns ordinary work into practice. It dissolves the ego's ownership of actions and keeps you anchored in peace whatever happens. Those who follow it with faith are freed from Karmic bondage.", "L": ["L8"] }
+      ]
+    },
+    {
+      "title": "Lesson 9 · Act from your own nature",
+      "turns": [
+        { "s": "B", "t": "Lesson nine: everyone acts according to their own nature.", "L": ["L9"] },
+        { "s": "A", "t": "Even the wisest person acts from their deep nature, their svabhava. Forcing yourself into work that's completely unnatural to you brings strain, stress and failure.", "L": ["L9"] },
+        { "s": "B", "t": "Your own natural work, even done imperfectly, is better than unnatural work done perfectly. Know yourself, and act accordingly.", "L": ["L9"] }
+      ]
+    },
+    {
+      "title": "Lesson 10 · Likes and dislikes",
+      "turns": [
+        { "s": "A", "t": "Lesson ten: likes and dislikes are the two great stumbling blocks.", "L": ["L10"] },
+        { "s": "B", "t": "Craving and aversion are natural features of the senses. The problem is letting them run you. They pull you away from clear judgment and right action.", "L": ["L10"] },
+        { "s": "A", "t": "The practice isn't to have no preferences. It's to make sure they don't make your decisions or enslave your will.", "L": ["L10"] }
+      ]
+    },
+    {
+      "title": "Lesson 11 · Lust, the root enemy",
+      "turns": [
+        { "s": "B", "t": "Lesson eleven: lust, intense desire, is the root enemy of wisdom.", "L": ["L11"] },
+        { "s": "A", "t": "That's Krishna's answer to why we do wrong almost against our will. Insatiable desire for material and sensual pleasure. Frustrated, it turns into anger. Left alone, it clouds judgment and destroys self-knowledge.", "L": ["L11"] },
+        { "s": "B", "t": "Fire covered by smoke: it hides the truth of who you are. And you can't overcome an enemy you haven't recognized.", "L": ["L11"] }
+      ]
+    },
+    {
+      "title": "Lesson 12 · The ladder of the Self",
+      "turns": [
+        { "s": "A", "t": "Lesson twelve: the path to overcoming lust is to master the hierarchy of the Self.", "L": ["L12"] },
+        { "s": "B", "t": "The senses are above the body, the mind above the senses, the intellect above the mind, and the Spirit above the intellect. Discipline the senses, train the mind, purify the intellect through spiritual practice, and anchor your identity in the eternal Spirit.", "L": ["L12"] },
+        { "s": "A", "t": "Then lust loses its grip. Self-mastery isn't suppression. It's rising to a higher level of awareness.", "L": ["L12"] }
+      ]
+    },
+    {
+      "title": "Lesson 13 · Two paths",
+      "turns": [
+        { "s": "B", "t": "Lesson thirteen: two paths exist, Self-knowledge and selfless action.", "L": ["L13"] },
+        { "s": "A", "t": "The answer to Arjuna's opening question. For the contemplative and introspective, the path of Self-knowledge, jnana. For most people living active lives, Karma-yoga.", "L": ["L13"] },
+        { "s": "B", "t": "Neither is superior in itself. What matters is that the path fits your nature and you walk it sincerely.", "L": ["L13"] }
+      ]
+    },
+    {
+      "title": "Lesson 14 · Against hypocrisy",
+      "turns": [
+        { "s": "A", "t": "Lesson fourteen: hypocrisy is worse than honest action.", "L": ["L14"] },
+        { "s": "B", "t": "People who hold back their actions to look like renunciates while inwardly dwelling on pleasures, Krishna calls hypocrites. Real discipline is internal, not just external.", "L": ["L14"] },
+        { "s": "A", "t": "Doing your duties honestly and actively, even imperfectly, is far better than the appearance of holiness without real change inside.", "L": ["L14"] }
+      ]
+    },
+    {
+      "title": "Lesson 15 · Keep the wheel turning",
+      "turns": [
+        { "s": "B", "t": "And lesson fifteen: the wheel of creation must be kept in motion.", "L": ["L15"] },
+        { "s": "A", "t": "There's a sacred interdependence built into creation. Humans serve through selfless action, the world responds with abundance, and life sustains itself.", "L": ["L15"] },
+        { "s": "B", "t": "Someone who only takes, who lives for personal pleasure and contributes nothing, lives in vain. Taking part in the cycle of giving and receiving isn't optional for a meaningful life. It's the point of it.", "L": ["L15"] }
+      ]
+    },
+    {
+      "title": "Wrap-up",
+      "turns": [
+        { "s": "A", "t": "So that's Chapter Three. Arjuna asked why he should act at all, and Krishna's answer is: you can't not act, so act well. Selflessly, according to your nature, for everyone's good, offered to something greater than yourself.", "L": ["L1", "L4", "L9"] },
+        { "s": "B", "t": "Fifteen lessons: no one is idle, Seva is the foundation, work is worship, work for everyone's welfare, leaders set the example, nature does the work, don't unsettle others, dedicate every action, act from your own nature, watch likes and dislikes, know lust as the enemy, climb the ladder of the Self, two paths, no hypocrisy, and keep the wheel turning.", "L": ["L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "L9", "L10", "L11", "L12", "L13", "L14", "L15"] },
+        { "s": "A", "t": "Act always, act selflessly, act according to your nature, dedicate your efforts to something greater than yourself, and master the inner enemies, lust, attachment and ego, that keep you from true freedom." },
+        { "s": "B", "t": "Thanks for listening to Shruti." }
+      ]
+    }
+  ]
+}
