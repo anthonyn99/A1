@@ -426,6 +426,7 @@ async function start(ctx, kind, box, close) {
   let t = 0;
   const paint = (force) => { if (force || Date.now() - t > 120) { t = Date.now(); paintRun(box2(), R); } };
   paint(true);
+  try { box2().scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) {}
   const o = {
     kind, book: ctx.book, bookTitle: ctx.bookTitle, n: ctx.n, title: ctx.title, ch: ctx.ch, lessons: ctx.lessons, length: p.length, extra: p.extra,
     hosts: hostsOf(p), narrator: { name: voiceName(p.narrator), voice: p.narrator }, voice: p.voice, models,
