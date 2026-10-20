@@ -11,6 +11,7 @@ import * as M from './media.js';
 import * as G from './generate.js';
 import * as T from './text.js';
 import * as PDF from './pdf.js';
+import * as H from './study/hub.js';
 
 export const SHIPPED = ['gita'];
 const COVERS = { gita: { bg: '#2b2235', tx: '#f2ead8', ac: '#e0b874', kicker: 'Shared' } };
@@ -60,16 +61,17 @@ export function fracOf(book, n) {
   if (p.done) return 1;
   return Math.max(0, Math.min(1, Number(p.f) || 0));
 }
-// What a chapter offers, per mode. Listen/Watch/Study come from generated
+// What a chapter offers, per mode. Listen/Watch come from generated
 // assets recorded in the shared doc, or shipped ones (pods, vids: the book's
-// media/podcasts.json and media/videos.json).
-export function available(book, n, lessons, pods, vids) {
+// media/podcasts.json and media/videos.json); Study from the book's study.json
+// (study) or study sets made with AI (study/hub.js).
+export function available(book, n, lessons, pods, vids, study) {
   const a = shared.get('assets.' + book + '.' + chKey(n), {}) || {};
   return {
     read: true,
     listen: !!a.podcast || !!(pods && pods[String(n)]),
     watch: !!a.video || !!(vids && vids[String(n)]),
-    study: !!(a.study && Object.keys(a.study).length),
+    study: H.hasStudy(book, n, study),
     lessons: !!(lessons && lessons[n] && lessons[n].lessons && lessons[n].lessons.length) || !!(a.lessons && a.lessons.lessons),
   };
 }
@@ -150,14 +152,14 @@ export async function viewLibrary(el, { go }) {
 }
 
 export async function viewBook(el, { id, go }) {
-  const [b, lessons, pods, vids] = await Promise.all([loadBook(id), loadLessons(id), POD.shipped(id), VID.shipped(id)]);
+  const [b, lessons, pods, vids, study] = await Promise.all([loadBook(id), loadLessons(id), POD.shipped(id), VID.shipped(id), H.shippedIndex(id)]);
   const last = me.get('last', null);
   const cur = last && last.book === id ? last.n : null;
   const done = b.chapters.filter((c) => fracOf(id, c.n) >= 1).length;
   const lessonCount = b.chapters.reduce((s, c) => s + (c.lessons || 0), 0);
   const startN = cur != null ? cur : (b.chapters.find((c) => fracOf(id, c.n) < 1) || b.chapters[0]).n;
   const row = (c) => {
-    const f = fracOf(id, c.n), av = available(id, c.n, lessons, pods, vids), p = progressOf(id, c.n), md = p.modes || {};
+    const f = fracOf(id, c.n), av = available(id, c.n, lessons, pods, vids, study), p = progressOf(id, c.n), md = p.modes || {};
     const badge = (m) => '<span class="bdg ' + (md[m] ? 'done' : av[m] ? 'av' : '') + '" title="' + esc(MODES.find((x) => x.id === m).label + (md[m] ? ': done' : av[m] ? '' : ': not made yet')) + '">' + IC[m] + '</span>';
     const meta = [c.verses ? c.verses + ' verses' : '', c.key ? c.key + ' key' : '', c.lessons ? c.lessons + ' lessons' : ''].filter(Boolean).join(' · ');
     return '<button class="ch' + (cur === c.n ? ' cur' : '') + '" data-go="#/b/' + esc(id) + '/' + c.n + '">' + ring(f, c.n) +
@@ -192,13 +194,13 @@ export async function viewChapter(el, { id, n, mode, at, go }) {
   const isIntro = n === 0;
   const meta = isIntro ? { n: 0, title: b.intro.title, file: b.intro.file } : b.chapters.find((c) => c.n === n);
   if (!meta) { go('#/b/' + id); return; }
-  const [ch, lessons, pods, vids, reads] = await Promise.all([loadChapter(id, meta.file), loadLessons(id), POD.shipped(id), VID.shipped(id), getJSON('books/' + id + '/media/index.json').catch(() => ({}))]);
-  const av = available(id, n, lessons, pods, vids);
+  const [ch, lessons, pods, vids, reads, study] = await Promise.all([loadChapter(id, meta.file), loadLessons(id), POD.shipped(id), VID.shipped(id), getJSON('books/' + id + '/media/index.json').catch(() => ({})), H.shippedIndex(id)]);
+  const av = available(id, n, lessons, pods, vids, study);
   mode = MODES.some((m) => m.id === mode) ? mode : 'read';
   const idx = b.chapters.findIndex((c) => c.n === n);
   const prev = isIntro ? null : idx > 0 ? b.chapters[idx - 1] : (b.intro ? { n: 0, title: b.intro.title } : null);
   const next = isIntro ? b.chapters[0] : b.chapters[idx + 1];
-  const tabs = MODES.filter((m) => !isIntro || m.id === 'read').map((m) =>
+  const tabs = MODES.filter((m) => !isIntro || m.id === 'read' || m.id === 'study').map((m) =>
     '<button data-mode="' + m.id + '" class="' + (m.id === mode ? 'on' : '') + '">' + IC[m.id] + m.label + '</button>').join('');
   el.innerHTML =
     '<div class="cp-head"><div class="k">' + (isIntro ? esc(b.title) : esc(b.unit || 'Chapter') + ' ' + n) + '</div>' +
@@ -248,6 +250,7 @@ export async function viewChapter(el, { id, n, mode, at, go }) {
   else if (mode === 'lessons') { if (L && L.lessons && L.lessons.length) renderLessons(body, L, { bookTitle: b.title, n, title: meta.title }); else notMade('lessons', 'lessons'); }
   else if (mode === 'listen' && (av.listen || POD.active(id, n))) renderListen(body, id, n, meta, L, () => notMade('listen', 'podcast'));
   else if (mode === 'watch' && (av.watch || VID.active(id, n))) renderWatch(body, id, n, meta, L, () => notMade('watch', 'video'));
+  else if (mode === 'study') H.renderStudy(body, { book: id, bookTitle: b.title, n, title: meta.title, ch, lessons: L, chapters: [...(b.intro ? [{ n: 0, title: b.intro.title, file: b.intro.file }] : []), ...b.chapters], loadChapter: (file) => loadChapter(id, file) });
   else notMade(mode, { listen: 'podcast', watch: 'video' }[mode]);
   ls.put(lsKey('lastRoute'), { id, n, mode });
   markOpened(id, n);
