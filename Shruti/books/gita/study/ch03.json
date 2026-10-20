@@ -1,0 +1,53 @@
+{
+  "n": 3,
+  "title": "Path of Selfless service, Karma-yoga",
+  "flashcards": [
+    { "front": "The twofold path of 3.3", "back": "Self-knowledge for the contemplative, and selfless work (Seva, Karma-yoga) for all others.", "ref": "3.03", "L": ["L13"] },
+    { "front": "Can anyone stay without action?", "back": "No one can stay idle even for a moment: the forces of nature drive every being to act.", "L": ["L1"] },
+    { "front": "Who is superior, says 3.7?", "back": "One who controls the senses with a purified mind and intellect and engages the organs of action in selfless service.", "ref": "3.07", "L": ["L14"] },
+    { "front": "What binds us, says 3.9?", "back": "Work not done as selfless service. So work efficiently, free of attachment to fruits, as a service to God.", "ref": "3.09", "L": ["L2", "L3"] },
+    { "front": "The wheel of creation (3.16)", "back": "One who does not help keep it moving by sacrificial duty, living only for sense pleasure, lives in vain.", "ref": "3.16", "L": ["L15"] },
+    { "front": "Work for whose welfare?", "back": "Janaka and others reached perfection by selfless service alone. Work to guide people and for the welfare of society.", "ref": "3.20", "L": ["L4"] },
+    { "front": "Why must leaders keep acting?", "back": "Others follow what the noble do. Even Krishna, with nothing to gain, keeps working to set an example.", "L": ["L5"] },
+    { "front": "Don't unsettle the ignorant (3.26)", "back": "The wise should not confuse those attached to results, but inspire them by working well, without attachment.", "ref": "3.26", "L": ["L7"] },
+    { "front": "Who really does the work? (3.27)", "back": "The energy of nature. Out of ignorance, people think they are the doer and so incur Karmic bondage.", "ref": "3.27", "L": ["L6"] },
+    { "front": "Dedicate all work to Me (3.30)", "back": "Do your duty in a spiritual frame of mind, free from desire, attachment and grief, offering it all to God.", "ref": "3.30", "L": ["L8"] },
+    { "front": "Acting by one's own nature", "back": "Even the wise act by their nature. One's own work, even imperfect, is better than forcing a role that isn't one's own.", "L": ["L9"] },
+    { "front": "The two stumbling blocks (3.34)", "back": "Likes and dislikes for sense objects. Do not come under their control.", "ref": "3.34", "L": ["L10"] },
+    { "front": "The enemy, per 3.37", "back": "Lust, born of passion, which becomes anger when unfulfilled. It is insatiable: know it as the enemy.", "ref": "3.37", "L": ["L11"] },
+    { "front": "Fire, mirror, embryo (3.38)", "back": "As smoke covers fire, dust a mirror and the amnion an embryo, lust covers Self-knowledge.", "ref": "3.38", "L": ["L11"] },
+    { "front": "How to kill lust (3.43)", "back": "Know the Spirit is above the intellect; control the mind with an intellect purified by practice; then slay lust.", "ref": "3.43", "L": ["L12"] },
+    { "front": "Hypocrisy", "back": "Restraining the body while the mind dwells on pleasures is hypocrisy; honest selfless action is better.", "L": ["L14"] }
+  ],
+  "quiz": [
+    { "text": "Which two paths does 3.3 name?", "options": { "A": "Wealth and power", "B": "Self-knowledge and selfless work", "C": "Ritual and pilgrimage", "D": "Fasting and silence" }, "correct": "B", "why": "Self-knowledge for the contemplative, Karma-yoga for all others.", "L": ["L13"] },
+    { "text": "What does 3.9 say binds human beings?", "options": { "A": "All work", "B": "Work not done as selfless service", "C": "Meditation", "D": "Charity" }, "correct": "B", "why": "Selfish work binds; work done as service to God frees.", "L": ["L3", "L4"] },
+    { "text": "Why does Krishna keep working though he has nothing to gain?", "options": { "A": "He enjoys it", "B": "To set an example", "C": "He must", "D": "To win the war" }, "correct": "B", "why": "Whatever the great do, others follow.", "L": ["L5"] },
+    { "text": "Per 3.27, who performs all work?", "options": { "A": "The ego", "B": "The energy of nature", "C": "Only God", "D": "No one" }, "correct": "B", "why": "Nature acts; the deluded ego claims to be the doer.", "L": ["L6"] },
+    { "text": "What should the wise do with people attached to results?", "options": { "A": "Correct them harshly", "B": "Ignore them", "C": "Inspire them by working without attachment", "D": "Leave society" }, "correct": "C", "why": "3.26: don't unsettle their minds; set the example.", "L": ["L7"] },
+    { "text": "What are the two great stumbling blocks of 3.34?", "options": { "A": "Hunger and thirst", "B": "Likes and dislikes", "C": "Birth and death", "D": "Wealth and poverty" }, "correct": "B", "why": "Attraction and aversion for sense objects.", "L": ["L10"] },
+    { "text": "What veils Self-knowledge like smoke over fire?", "options": { "A": "Lust", "B": "Doubt", "C": "Duty", "D": "Sleep" }, "correct": "A", "why": "3.38: lust obscures Self-knowledge.", "L": ["L11"] },
+    { "text": "What is higher than the intellect, per 3.43?", "options": { "A": "The senses", "B": "The mind", "C": "The Spirit", "D": "The body" }, "correct": "C", "why": "Knowing the Spirit is above the intellect, control the mind and kill lust.", "L": ["L12"] },
+    { "text": "Who \"lives in vain\" in 3.16?", "options": { "A": "One who doesn't help turn the wheel of creation", "B": "One who meditates daily", "C": "One who serves society", "D": "One who studies scripture" }, "correct": "A", "why": "Living only for pleasure, without sacrificial duty, breaks the cycle.", "L": ["L15", "L2"] }
+  ],
+  "mindmap": {
+    "root": "Karma-yoga: selfless service",
+    "branches": [
+      { "text": "Why act at all", "L": ["L1", "L13", "L15"], "children": [{ "text": "No one can be idle", "L": ["L1"] }, { "text": "Two paths (3.3)", "L": ["L13"] }, { "text": "Keep the wheel turning", "L": ["L15"] }] },
+      { "text": "Work as worship", "L": ["L2", "L3", "L4", "L8"], "children": [{ "text": "Seva is life's foundation", "L": ["L2"] }, { "text": "Duty offered becomes worship", "L": ["L3"] }, { "text": "For universal welfare", "L": ["L4"] }, { "text": "Dedicate all to God (3.30)", "L": ["L8"] }] },
+      { "text": "Example and nature", "L": ["L5", "L7", "L9"], "children": [{ "text": "Leaders set the example", "L": ["L5"] }, { "text": "Don't unsettle the immature", "L": ["L7"] }, { "text": "Act by your own nature", "L": ["L9"] }] },
+      { "text": "Who acts", "L": ["L6", "L14"], "children": [{ "text": "Nature acts; ego claims (3.27)", "L": ["L6"] }, { "text": "Hypocrisy vs. honest action", "L": ["L14"] }] },
+      { "text": "The enemies", "L": ["L10", "L11", "L12"], "children": [{ "text": "Likes and dislikes (3.34)", "L": ["L10"] }, { "text": "Lust veils knowledge", "L": ["L11"] }, { "text": "Spirit over intellect over mind", "L": ["L12"] }] }
+    ]
+  },
+  "slides": [
+    { "title": "Karma-yoga", "bullets": ["Chapter 3: the path of selfless service", "Why act, how to act, what stands in the way"] },
+    { "title": "Action is unavoidable", "bullets": ["No one can be idle even for a moment", "Two paths: knowledge, or selfless work (3.3)", "Pretending to renounce is hypocrisy"], "L": ["L1", "L13", "L14"] },
+    { "title": "Seva at the heart of creation", "bullets": ["Selfish work binds; service frees (3.9)", "Duty offered to God becomes worship", "Keep the wheel of creation turning (3.16)"], "L": ["L2", "L3", "L15"] },
+    { "title": "Work for the welfare of all", "bullets": ["Janaka reached perfection by service (3.20)", "Not for personal reward", "Dedicate every action to God (3.30)"], "L": ["L4", "L8"] },
+    { "title": "Lead by example", "bullets": ["Others follow what the great do", "Krishna works with nothing to gain", "Inspire, don't unsettle the attached (3.26)"], "L": ["L5", "L7"] },
+    { "title": "Who is the doer?", "bullets": ["Nature does all the work (3.27)", "The ego falsely claims it", "Everyone acts by their own nature"], "L": ["L6", "L9"] },
+    { "title": "The stumbling blocks", "bullets": ["Likes and dislikes (3.34)", "Lust, the enemy that becomes anger (3.37)", "It veils knowledge like smoke over fire"], "L": ["L10", "L11"] },
+    { "title": "Defeating lust", "bullets": ["Senses, mind, intellect, then Spirit", "Control the mind with a purified intellect", "Slay the mighty enemy (3.43)"], "L": ["L12"] }
+  ]
+}
