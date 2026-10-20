@@ -213,7 +213,7 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
     await js(`document.getElementById('ew-nb-done').click(); return 1;`); await sleep(2500);
     return shown;
   };
-  const cardNames = () => js(`return [(document.querySelector('.wr-card[data-wr="${newId}"] .wr-title') || { textContent: 'NO CARD:' + [...document.querySelectorAll('.wr-card')].map(c => c.dataset.wr).join() + ':' + location.hash + ':' + (document.querySelector('.ew-pane.on, [aria-selected="true"]') || {}).id }).textContent, __fakeFs.docs['dashboards/everwell_tony'].mindsetPages.find(p => p.id === '${newId}').title, __fakeFs.docs['dashboards/everwell_notes']['e_${newId}'].title].join('|');`);
+  const cardNames = () => js(`return [(document.querySelector('.wr-card[data-wr="${newId}"] .wr-title') || {}).textContent, __fakeFs.docs['dashboards/everwell_tony'].mindsetPages.find(p => p.id === '${newId}').title, __fakeFs.docs['dashboards/everwell_notes']['e_${newId}'].title].join('|');`);
   let shown = await nbTitle('Discipline Notes');
   ok('a title typed in the Notebook editor renames the card, its list entry and the editor header', (await cardNames()) === 'Discipline Notes|Discipline Notes|Discipline Notes' && shown === 'Discipline Notes|Discipline Notes', (await cardNames()) + ' / ' + shown);
   await js(`document.querySelector('[data-wr-rename="${newId}"]').click(); return 1;`); await sleep(400);
@@ -221,7 +221,6 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   ok('Rename renames the card, its list entry and its page', await js(`return document.querySelector('.wr-card[data-wr="${newId}"] .wr-title').textContent === 'Discipline Rules' &&
     __fakeFs.docs['dashboards/everwell_tony'].mindsetPages[2].title === 'Discipline Rules' && __fakeFs.docs['dashboards/everwell_notes']['e_${newId}'].title === 'Discipline Rules';`));
   shown = await nbTitle(null);
-  console.log('DBG', shown, await js(`return [...document.querySelectorAll('.wr-card')].map(c => c.dataset.wr + '=' + c.querySelector('.wr-title').textContent).join(); `), await js(`return JSON.stringify(__fakeFs.docs['dashboards/everwell_tony'].mindsetPages);`));
   ok('...then the editor opens with the Rename button name, and closing it keeps that name everywhere', shown === 'Discipline Rules|Discipline Rules' && (await cardNames()) === 'Discipline Rules|Discipline Rules|Discipline Rules', shown + ' / ' + (await cardNames()));
   a = await js(`const r = document.querySelector('.wr-card[data-wr="${newId}"] .wr-title').getBoundingClientRect(); return JSON.stringify({ x: r.left + r.width / 2, y: r.top + r.height / 2 });`).then(JSON.parse);
   b = await js(`const r = document.querySelector('.wr-card[data-wr="relationship-principles"]').getBoundingClientRect(); return JSON.stringify({ x: r.left + 20, y: r.top + r.height / 2 });`).then(JSON.parse);
@@ -248,12 +247,14 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   console.log('\nAn import link can add a Mindset card');
   const carry = async () => `sessionStorage.setItem('__fakefs_docs', ${JSON.stringify(JSON.stringify(await js(`return JSON.stringify({ 'dashboards/everwell_notes': __fakeFs.docs['dashboards/everwell_notes'], 'dashboards/everwell_tony': __fakeFs.docs['dashboards/everwell_tony'] });`).then(JSON.parse)))});`;
   const vLink = link({ mindset: [{ title: "Veda's Expectations", html: '<h2>How We Handle Things</h2><h3>1. Ask, do not assume.</h3><p>Ask me directly.</p><p><em>Me: I will answer openly.</em></p><ul><li>One</li></ul>' }] });
-  const vBefore = await js(`return __fakeFs.docs['dashboards/everwell_tony'].mindsetPages.length;`);
+  // The re-import above started from an empty settings doc: give Mindset a list of its own to keep.
+  await js(`const t = __fakeFs.docs['dashboards/everwell_tony'] = __fakeFs.docs['dashboards/everwell_tony'] || {}; t.mindsetPages = [{ id: 'with-parents', title: 'With Parents' }, { id: 'relationship-principles', title: 'Relationship Principles' }]; return 1;`);
+  const vBefore = 2;
   await fresh(vLink, await carry()); await tap(); await sleep(3000);
   const vp = await js(`return JSON.stringify(__fakeFs.docs['dashboards/everwell_tony'].mindsetPages);`).then(JSON.parse);
   const ve = vp.filter((p) => p.title === "Veda's Expectations");
   d = await doc();
-  ok('a { mindset } import adds the card at the end of the list, keeping the others', ve.length === 1 && vp.length === vBefore + 1 && vp[vp.length - 1].title === "Veda's Expectations", JSON.stringify(vp));
+  ok('a { mindset } import adds the card at the end of the list, keeping the others in their order', ve.length === 1 && vp.length === vBefore + 1 && vp[0].id === 'with-parents' && vp[vp.length - 1].title === "Veda's Expectations", JSON.stringify(vp));
   ok('...with its formatted text as a Notebook page', !!ve[0] && !!d['e_' + ve[0].id] && /<h3>1\. Ask/.test(d['e_' + ve[0].id].data.html) && d['e_' + ve[0].id].title === "Veda's Expectations");
   await fresh(vLink, await carry()); await tap(); await sleep(3000);
   ok('...and the same link again adds nothing', (await js(`return __fakeFs.docs['dashboards/everwell_tony'].mindsetPages.filter(p => p.title === "Veda's Expectations").length;`)) === 1);
