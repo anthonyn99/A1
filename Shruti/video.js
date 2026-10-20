@@ -22,6 +22,8 @@
 import * as C from './core.js';
 import * as T from './text.js';
 import * as M from './media.js';
+import * as O from './orca.js';
+import { SILENCE_B64 } from './podcast.js';
 
 const DRIVE = M.DRIVE;
 export const W = 1920, H = 1080;
@@ -904,6 +906,88 @@ export async function renderWatch(body, { book, n, title, lessons }) {
 }
 
 /* ── a video made in the browser (Phase 6) ─────────────────────────────── */
+// The same rules as tools/video.py, so a video made here is shaped exactly
+// like the shipped ones: silences in clips of 0.288 s around each scene's
+// narration, a verse's text copied from the book, never retyped.
+export const GAP = { lead: 2, tail: 3, tailVerse: 5 };
+export const MIN_SCENE = { title: 5, closing: 6 };
+const XREF = /\s*\((?:also\s+)?see\b[^)]*\)/gi;
+const BPS = 6000;
+/** '2.5' -> '2.05', '4.7-8' -> '4.07-08': the book pads verse numbers. */
+export const padRef = (ref) => { const [c, v = ''] = String(ref || '').split('.'); return c + '.' + v.split('-').map((p) => p.padStart(2, '0')).join('-'); };
+export function versesOf(ch) {
+  const out = {};
+  (ch && ch.blocks || []).forEach((b) => { if (b.k === 'p') (b.s || []).forEach((x) => { if (x.v) out[x.v] = x; }); });
+  return out;
+}
+/** A script's scenes, ready to speak: verse text from the book, a lesson
+ *  scene's title from the lessons. Tolerant: a verse the book does not have
+ *  becomes a story scene, an unknown layout a story. */
+export function fill(script, ch, lessons) {
+  const vs = versesOf(ch), L = new Map(((lessons && lessons.lessons) || []).map((l) => [l.id, l]));
+  return script.scenes.map((sc) => {
+    let layout = LAYOUTS.includes(sc.layout) ? sc.layout : 'story';
+    let say = String(sc.say || '').trim();
+    const s = { layout, headline: String(sc.headline || ''), visual: (sc.visual || []).map(String), L: (sc.L || []).filter((id) => L.has(id)) };
+    if (sc.beyond) s.beyond = true;
+    if (layout === 'verse') {
+      const v = vs[sc.ref] || vs[padRef(sc.ref)];
+      if (!v) { s.layout = layout = 'story'; s.headline = s.headline || 'From the text'; say = say.replace('{verse}', '').trim(); }
+      else {
+        if (!say.includes('{verse}')) say = (say + ' {verse}').trim();
+        const spoken = v.t.replace(XREF, '').trim(), pre = say.split('{verse}')[0];
+        const k = pre.split(/\s+/).filter(Boolean).length;
+        Object.assign(s, { ref: v.v, verse: v.t, key: !!v.key, vs: [k, k + spoken.split(/\s+/).filter(Boolean).length] });
+        say = say.replace('{verse}', spoken);
+      }
+    } else say = say.replace(/\{verse\}/g, '').trim();
+    if (layout === 'lesson' && !s.headline && s.L[0]) s.headline = L.get(s.L[0]).title || '';
+    s.say = say;
+    return s;
+  }).filter((s) => s.say);
+}
+const b64ToBytes = (b64) => { const s = atob(b64); const out = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i); return out; };
+/** script: {book, n, title, narrator:{name, voice}, scenes}; ch and lessons
+ *  fill in what comes from the book. Resolves {mp3: Blob, meta}. */
+export async function build(script, { ch, lessons, key = keyOf(), onStep, parallel = 3, speak = O.speak, signal } = {}) {
+  const scenes = fill(script, ch, lessons), voice = script.narrator.voice;
+  const spoken = new Array(scenes.length);
+  let done = 0, next = 0;
+  const lane = async () => {
+    while (next < scenes.length) {
+      const i = next++;
+      const r = await speak({ key, text: scenes[i].say, voice, signal });
+      const bytes = new Uint8Array(await r.audio.arrayBuffer());
+      spoken[i] = { bytes, words: r.words || T.spreadWords(scenes[i].say, bytes.length / BPS) };
+      onStep && onStep(++done, scenes.length);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(parallel, scenes.length) }, lane));
+  const silence = b64ToBytes(SILENCE_B64), parts = [];
+  let bytes = 0;
+  const add = (b) => { parts.push(b); bytes += b.length; };
+  scenes.forEach((s, i) => {
+    s.start = +(bytes / BPS).toFixed(3);
+    for (let g = 0; g < GAP.lead; g++) add(silence);
+    s.at = +(bytes / BPS).toFixed(3);
+    add(spoken[i].bytes);
+    for (let g = 0; g < (s.layout === 'verse' ? GAP.tailVerse : GAP.tail); g++) add(silence);
+    while (bytes / BPS - s.start < (MIN_SCENE[s.layout] || 0)) add(silence);
+    s.end = +(bytes / BPS).toFixed(3);
+    s.words = spoken[i].words;
+  });
+  const meta = { v: 1, book: script.book, n: script.n, title: script.title, narrator: script.narrator, duration: +(bytes / BPS).toFixed(3), scenes };
+  return { mp3: new Blob(parts, { type: 'audio/mpeg' }), meta };
+}
+/** Play a video made here before (or without) saving it: this device only. */
+export function useLocal(book, n, title, { mp3, meta }) {
+  stop();
+  const url = URL.createObjectURL(mp3);
+  Object.assign(V, { book, n, title, meta: prepare(JSON.parse(JSON.stringify(meta))), url, scene: -1 });
+  if (audio) audio.src = url;
+  emit();
+}
+
 /** Upload a built video to Drive and keep it as a new version, playing it. */
 export async function save(book, n, { mp3, meta }, extra = {}) {
   const up = (body, type, name) => M.upload({ book, n, body, type, name });

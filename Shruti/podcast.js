@@ -378,6 +378,14 @@ export async function build(script, { key = keyOf(), onStep, parallel = 3, speak
   const meta = { v: 1, book: script.book, n: script.n, title: script.title, hosts: script.hosts, duration: +(bytes / BPS).toFixed(3), segments, turns };
   return { mp3: new Blob(parts, { type: 'audio/mpeg' }), meta };
 }
+/** Play an episode made here before (or without) saving it: this device only. */
+export function useLocal(book, n, title, { mp3, meta }) {
+  stop();
+  const url = URL.createObjectURL(mp3);
+  Object.assign(P, { book, n, title, meta, url, turn: -1, word: null, away: false });
+  if (audio) audio.src = url;
+  emit();
+}
 /** Upload a built episode to Drive and keep it as a new version, playing it
  *  (both profiles, on a shared book). Resolves the record. */
 export async function save(book, n, { mp3, meta }, extra = {}) {
