@@ -71,7 +71,7 @@ Tony and Veda are reading the Bhagavad-Gita (IGS / Ramananda Prasad rendition, `
 - Listen: a two-host podcast, very high quality, with many voices. It has **proper synced subtitles and a clear turn-based view of the back-and-forth** (speaker bubbles, the active turn highlighted, tap to jump).
 - Watch: a narrated video covering the story and every lesson.
 - **Study (from MAGI's Studio): Flashcards, Quiz, Mind Map, Slide Deck**, for any scope: a chapter, a section, a selection, several chapters or a whole book. The UI is close to MAGI's but more modern and elegant.
-- **Ch 1–3 pre-built in all modes** (Listen and Watch tell the full traditional story of each chapter together with this rendition and every lesson, and say when they go beyond this book's text). All 18 chapters are parsed now. Ch 4+ is generated on demand.
+- **Every chapter of the Gita pre-built in every mode, at the highest quality** (Tony, 2026-10-20: "not just the first 3 chapters, all of them fully prebuilt, very high quality"). The introduction and all 18 chapters ship with read-aloud, a podcast, a video and study sets, written by Claude (not generated on demand). Listen and Watch tell the full traditional story of each chapter together with this rendition and every lesson, and say when they go beyond this book's text. On-demand generation (Phase 6) remains for imported books, other voices or lengths, and re-makes.
 - Import books (PDF / EPUB / DOCX / TXT / paste). AI finds the chapters; the text stays exact.
 - **The Gita is in a Shared section both profiles see.** Personal books per profile; progress and settings per person, even on shared books.
 - **Everything syncs across all devices through Firebase.** Large media goes to Tony's Google Drive through a worker; Veda's Drive or Dropbox can be added later.
@@ -224,7 +224,7 @@ Each phase ends with:
   - 0.5–2.5× speed (`playbackRate` with `preservesPitch`) and a voice picker;
   - "Save narration" to Drive;
   - Media Session lock-screen controls, a sleep timer and ±15 s skips;
-  - pre-rendered Ch 1–3 read-aloud.
+  - pre-rendered read-aloud for the introduction and every chapter.
 
 **Phase 4: Listen.**
 - The podcast player:
@@ -234,7 +234,7 @@ Each phase ends with:
   - segment chips (Story, Lesson 1…n) and a subtitles overlay;
   - speed, download and the mini-player.
 - The mix, encode and upload pipeline.
-- **I write the Ch 1–3 podcast scripts** (full story plus every lesson: 8, 12 and 15, tagged), render them through Orca TTS and ship them.
+- **I write the podcast scripts for all 18 chapters** (full story plus every lesson, each tagged), render them in the Edge voices and ship them.
 
 **Phase 5: Watch.**
 - The canvas video player:
@@ -242,9 +242,9 @@ Each phase ends with:
   - captions;
   - fullscreen and landscape on mobile;
   - MP4 export.
-- **I write the Ch 1–3 video scripts**, render the narration and ship them.
+- **I write the video scripts for all 18 chapters**, render the narration and ship them.
 
-**Phase 6: Generate (Ch 4+ and any book).**
+**Phase 6: Generate (any book, other voices, re-makes).**
 - The per-chapter Generate panel:
   - kind: Podcast, Video, Lessons or Read-aloud;
   - the unit picker and chain, and length (concise, standard or deep);
@@ -258,6 +258,7 @@ Each phase ends with:
 - The scope picker (chapter, section, selection, several chapters, book) and the Study hub.
 - Synced progress and scores.
 - A Study sidebar styled like MAGI's (icon per kind with its accent, status tag).
+- **Ready-made study sets for the introduction and all 18 chapters** (flashcards, a quiz, a mind map and a slide deck each), written by Claude and shipped.
 
 **Phase 8: Import.**
 - Upload or paste. Text is extracted client-side (pdf.js already vendored at `V1/vendor/pdfjs-6.3.289`; JSZip for EPUB and DOCX), and the original goes to Drive.
