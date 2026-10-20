@@ -226,12 +226,27 @@ export async function viewChapter(el, { id, n, mode, at, go }) {
     paintMark();
     body.dispatchEvent(new CustomEvent('shruti:mark', { detail: { done: toDone } }));
   });
+  // What "Make with AI" needs, and what ships for each kind.
+  const L = lessonsFor(id, n, lessons);
+  const p = pods && pods[String(n)], v = vids && vids[String(n)], r = reads && reads[String(n)];
+  const ctx = { book: id, bookTitle: b.title, n, title: meta.title, ch, lessons: L, shipped: {
+    podcast: p && (p.hosts || []).join(' & ') + ' · ' + T.fmtTime(p.duration),
+    video: v && v.narrator + ' · ' + T.fmtTime(v.duration),
+    read: r && NRname(r.voice) + ' · ' + T.fmtTime(r.duration),
+    lessons: lessons && lessons[n] && lessons[n].lessons ? lessons[n].lessons.length + ' lessons from Tony and Veda’s notes' : null,
+  } };
+  el.querySelector('#make-ai').addEventListener('click', () => G.openSheet(ctx, { listen: 'podcast', watch: 'video', lessons: 'lessons' }[mode]));
+  const notMade = (md, kind) => {
+    body.innerHTML = '<div class="empty">' + IC[md] + '<b>' + esc(MODES.find((m) => m.id === md).label) + ' is not made for this chapter yet</b>' +
+      '<span>' + (md === 'study' ? 'Flashcards, a quiz, a mind map and slides will be built here from the chapter.' : md === 'lessons' ? 'Lessons can be drawn from the chapter with AI.' : 'It will tell the chapter’s story and teach every lesson.') + '</span>' +
+      (kind ? '<button class="btn solid" data-make-now>' + G.ICON + 'Make it now</button>' : '') + '</div>';
+    const b2 = body.querySelector('[data-make-now]'); if (b2) b2.addEventListener('click', () => G.openSheet(ctx, kind));
+  };
   if (mode === 'read') renderRead(body, ch, id, n, { title: meta.title, at });
-  else if (mode === 'lessons') renderLessons(body, lessons[n]);
-  else if (mode === 'listen' && av.listen) renderListen(body, id, n, meta, lessons);
-  else if (mode === 'watch' && av.watch) renderWatch(body, id, n, meta, lessons);
-  else body.innerHTML = '<div class="empty">' + IC[mode] + '<b>' + esc(MODES.find((m) => m.id === mode).label) + ' is not made for this chapter yet</b>' +
-    '<span>' + (av[mode] ? '' : mode === 'study' ? 'Flashcards, a quiz, a mind map and slides will be built here from the chapter.' : 'It will tell the chapter\'s story and teach every lesson.') + '</span></div>';
+  else if (mode === 'lessons') { if (L && L.lessons && L.lessons.length) renderLessons(body, L); else notMade('lessons', 'lessons'); }
+  else if (mode === 'listen' && (av.listen || POD.active(id, n))) renderListen(body, id, n, meta, L, () => notMade('listen', 'podcast'));
+  else if (mode === 'watch' && (av.watch || VID.active(id, n))) renderWatch(body, id, n, meta, L, () => notMade('watch', 'video'));
+  else notMade(mode, { listen: 'podcast', watch: 'video' }[mode]);
   ls.put(lsKey('lastRoute'), { id, n, mode });
   markOpened(id, n);
 }
@@ -248,7 +263,7 @@ async function renderWatch(body, id, n, meta, L, none) {
 
 function renderLessons(body, L) {
   if (!L || !L.lessons || !L.lessons.length) { body.innerHTML = '<div class="empty">' + IC.lessons + '<b>No lessons for this chapter yet</b></div>'; return; }
-  body.innerHTML = '<div class="ls"><p class="ls-k">' + L.lessons.length + ' ' + (L.by ? ' lessons drawn by ' + esc(G.modelName(L.by)) + ' (Make with AI)' : ' lessons from Tony and Veda’s notes') + '</p>' + L.lessons.map((l) =>
+  body.innerHTML = '<div class="ls"><p class="ls-k">' + L.lessons.length + (L.by ? ' lessons drawn by ' + esc(G.modelName(L.by)) + ' (Make with AI)' : ' lessons from Tony and Veda’s notes') + '</p>' + L.lessons.map((l) =>
     '<div class="ls-i"><div class="h"><span class="id">' + esc(l.id) + '</span><span class="tt">' + esc(l.title || '') + '</span></div>' +
     (l.body ? '<div class="bd">' + esc(l.body) + '</div>' : '') + '</div>').join('') +
     (L.summary ? '<div class="ls-sum"><b>Chapter summary</b>' + esc(L.summary) + '</div>' : '') + '</div>';
