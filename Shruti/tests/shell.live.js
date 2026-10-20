@@ -159,6 +159,7 @@ async function load(c, { w, h, mobile, store, hash = '' }) {
   await ev(c, `window.Shruti.player.hide(); location.hash='#/b/gita/2'; return 1`);
   await waitFor(c, `!!document.querySelector('.rd p')`);
   ok('the chapter reads at phone width with no sideways scroll', await ev(c, `return document.documentElement.scrollWidth<=innerWidth`));
+  ok('all five modes fit across the phone', await ev(c, `const m=document.querySelector('.modes'); return m.scrollWidth<=m.clientWidth && [...m.children].every(b=>b.getBoundingClientRect().right<=innerWidth)`));
   await shot(c, 'tony-chapter-390');
 
   console.log('\nVeda');
