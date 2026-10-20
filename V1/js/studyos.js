@@ -1133,9 +1133,17 @@ async function openResourceBrowse() {
     // Flatten every device that has reported in. Two PCs each publish their
     // own list; showing them together with a device label is more useful than
     // making the user pick a machine first, and the paths stay distinct.
+    // Only Veda's PCs. Tony's PC publishes into the same document, and a path
+    // picked from it (C:\Users\antho\...) does not exist on hers, so the class's
+    // app silently never opened. Shield now tags each list with its profile;
+    // once any list carries one, an untagged list is an old one from a PC that
+    // has not re-published yet and cannot be told apart, so it is left out too.
+    const devs = devices || {};
+    const tagged = Object.keys(devs).some(function (k) { return devs[k] && devs[k].profile; });
     const out = [];
-    Object.keys(devices || {}).forEach(function (devId) {
-      const d = devices[devId] || {};
+    Object.keys(devs).forEach(function (devId) {
+      const d = devs[devId] || {};
+      if (tagged && d.profile !== 'veda') return;
       (d.apps || []).forEach(function (a) {
         if (a && a.path) out.push({ name: a.name || a.path, path: a.path, running: !!a.running });
       });

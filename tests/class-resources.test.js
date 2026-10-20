@@ -450,6 +450,18 @@ t('the blob is base64-ed in chunks',
   'String.fromCharCode(...bytes) on a whole PDF exceeds the argument limit and\n' +
   '      throws, so every large file would fail to stage.');
 
+// ---------- Browse picker offers only Veda's PCs (2026-10-20) ---------------
+section('Browse picker offers only programs from Veda\'s own PCs');
+
+t('Shield tags each published program list with its profile',
+  /payload\[devId\] = \{[^}]*profile: profile/.test(SHIELD),
+  'Every PC publishes into one document. Untagged, StudyOS listed Tony\'s\n' +
+  '      programs as "This PC", and a C:\\Users\\antho\\ path saved from it never\n' +
+  '      opened on Veda\'s PC.');
+t('the picker drops lists that are not Veda\'s once any list is tagged',
+  /if \(tagged && d\.profile !== 'veda'\) return;/.test(STUDYOS),
+  'Without it the picker still offers paths that do not exist on her PC.');
+
 // ---------------------------- summary ---------------------------------------
 console.log('\n' + (fail ? 'FAIL' : 'PASS') + ' class-resources: ' + pass + ' passed, ' + fail + ' failed');
 if (fail) { console.log('\nFailures:\n  - ' + failures.join('\n  - ')); process.exit(1); }

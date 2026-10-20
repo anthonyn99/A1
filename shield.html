@@ -1335,6 +1335,20 @@ function _whenAgentReady(){
   });
 }
 
+/* The profile this agent is signed into ('veda' | 'tony'), or '' if none is
+   entered within 30s (the gate is still showing). */
+function _whenProfileKnown(){
+  return new Promise(function(resolve){
+    var waited = 0;
+    (function tick(){
+      var p = (window.S && window.S.profile) || '';
+      if (p === 'veda' || p === 'tony') return resolve(p);
+      if ((waited += 250) > 30000) return resolve('');
+      setTimeout(tick, 250);
+    })();
+  });
+}
+
 async function _pushShieldApps(){
   var devId = await _whenAgentReady();
   if (!devId) { console.info('[Shield] no agent here — no program inventory to publish.'); return; }
@@ -1343,10 +1357,17 @@ async function _pushShieldApps(){
     var list = apps ? _appsForPicker(apps) : [];
     if (!list.length) { console.warn('[Shield] sh_apps returned no usable programs.'); return; }
     await authReady;
-    // Field-scoped by device id, so this machine can never drop another's
-    // inventory. merge:true because the document may not exist yet.
+    // Whose PC this is. Every PC that runs Shield publishes into this one
+    // document, and StudyOS (Veda's) used to list them all, every one named
+    // "This PC" -- so she picked a program from Tony's PC, saved a
+    // C:\Users\antho\... path, and the class's app never opened on hers
+    // (open_path refuses a path that does not exist, silently). StudyOS keeps
+    // only her own PCs by this field. Waited for, because the profile is
+    // entered after the agent is ready.
+    var profile = await _whenProfileKnown();
+    var rec = (profile && typeof devRec === 'function') ? devRec(devId) : null;
     var payload = {};
-    payload[devId] = { name: 'This PC', apps: list, at: Date.now() };
+    payload[devId] = { name: (rec && rec.name) || 'This PC', profile: profile, apps: list, at: Date.now() };
     await setDoc(doc(db, SOS_APPS_DOC), { devices: payload }, { merge: true });
     console.info('[Shield] published ' + list.length + ' programs for StudyOS.');
   } catch (e) { console.warn('[Shield] app inventory push failed', e); }
