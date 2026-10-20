@@ -49,8 +49,12 @@ shadow('LifeHub/lifehub.js', /':host,\*,\*::before,\*::after\{-webkit-tap-highli
 
 const orca = path.join(M.ROOT, '..', 'ORCA', 'app', 'web', 'static', 'app.css');
 if (fs.existsSync(orca)) {
-  const c = fs.readFileSync(orca, 'utf8');
-  ok('ORCA app.css carries the same rules', NO_HIGHLIGHT.test(c) && NO_SELECT.test(c));
+  // ORCA's stylesheet is formatted (spaces, one rule per line) and folds the
+  // highlight into its box-sizing reset, so only the rules themselves are matched.
+  const c = fs.readFileSync(orca, 'utf8').replace(/\s+/g, ' ');
+  const ORCA_HIGHLIGHT = /\*, ?\*::before, ?\*::after ?\{[^}]*-webkit-tap-highlight-color: ?transparent/;
+  const ORCA_SELECT = /button, ?\[role="button"\][^{]*\{[^}]*-webkit-touch-callout: ?none;[^}]*-webkit-user-select: ?none;[^}]*user-select: ?none/;
+  ok('ORCA app.css carries the same rules', ORCA_HIGHLIGHT.test(c) && ORCA_SELECT.test(c));
 } else console.log('  · skipped ORCA: no ../ORCA checkout here');
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
