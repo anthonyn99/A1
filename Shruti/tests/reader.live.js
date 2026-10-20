@@ -214,7 +214,7 @@ const flush = (c) => ev(c, `return window.Shruti.core.me.flush().then(()=>1)`);
 
   console.log('\nVeda on a phone (390)');
   await load(c, { w: 390, h: 844, mobile: true, store: "sessionStorage.setItem('shruti.pick','veda');", hash: '#/b/gita/3' });
-  await ev(c, `try{sessionStorage.setItem('shruti.pick','veda')}catch(e){} return 1`);
+  await ev(c, `try{sessionStorage.setItem('shruti.pick','veda');}catch(e){} return 1`);
   await ev(c, `location.reload(); return 1`);
   ok('Veda\'s reader opens', await waitFor(c, `window.SHRUTI_PROFILE==='veda' && !!document.querySelector('.rd p')`));
   ok('her look is her own (Tony\'s Aa choices did not follow her)', await ev(c, `return getComputedStyle(document.querySelector('.rd')).fontSize==='18px'`));
