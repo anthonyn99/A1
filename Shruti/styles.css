@@ -945,4 +945,5 @@ body.sd-presenting { overflow: hidden; }
   .mm-port { height: 58vh; }
   .sd-strip { grid-auto-columns: 118px; }
   .st-keys { display: none; }
+  .btn.ic { width: 44px; }
 }
