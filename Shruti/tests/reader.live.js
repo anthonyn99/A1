@@ -196,7 +196,8 @@ const flush = (c) => ev(c, `return window.Shruti.core.me.flush().then(()=>1)`);
 
   console.log('\nRead-aloud through Orca (a voice with no ready-made narration)');
   await ev(c, `document.querySelector('#mini [data-mp=close]').click(); window.Shruti.core.me.set({orcaKey:${JSON.stringify(KEY)}, 'narration.voice':'en-GB-RyanNeural', 'narration.speed':1},{now:true}); location.hash='#/b/gita/4'; return 1`);
-  await waitFor(c, `!!document.querySelector('.rd [data-b="3"]')`);
+  await waitFor(c, `/renunciation/.test(document.querySelector('.cp-head h1').textContent) && !!document.querySelector('.rd [data-b="3"]')`);
+  await sleep(500);
   await click(c, '.rd-bar [data-ra]');
   ok('chapter 4 is spoken live by Orca in Ryan\'s voice', await waitFor(c, `window.Shruti.narrate.state.mode==='live' && window.Shruti.narrate.state.playing`, 10000) && speech.length >= 1 && speech[0].voice === 'en-GB-RyanNeural' && speech[0].timestamps === true,
     JSON.stringify(speech.slice(0, 1)));
