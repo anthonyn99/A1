@@ -365,6 +365,77 @@ body[data-profile=veda] .cp-head .k { text-transform: none; letter-spacing: 0; f
 .sw input { width: 18px; height: 18px; accent-color: var(--ac); }
 .ra-list { margin: 0 0 12px; padding-left: 18px; color: var(--txm); font-size: 13.5px; }
 
+/* listen: the two-host episode */
+:root { --h0: var(--ac); --h1: #9fc7d4; }
+.pod { max-width: 760px; margin: 0 auto; }
+.pod-loading { text-align: center; color: var(--txm); padding: 40px 0; }
+.pod-head { display: flex; align-items: center; gap: 14px; padding: 16px; background: var(--s1); border: 1px solid var(--line); border-radius: var(--r2); }
+.pod-hosts { display: flex; }
+.pod-hosts .av + .av { margin-left: -10px; }
+.av { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font: 700 15px var(--f-ui); color: var(--ac-ink); flex-shrink: 0; box-shadow: 0 0 0 2px var(--s1); }
+.av.h0 { background: var(--h0); }
+.av.h1 { background: var(--h1); }
+.pod-t { flex: 1; min-width: 0; }
+.pod-t b { display: block; font-size: 15.5px; }
+.pod-t span { display: block; color: var(--txm); font-size: 13px; }
+.pod-play svg { width: 15px; height: 15px; }
+.pod-tools { display: flex; align-items: center; gap: 6px; margin: 12px 0 4px; }
+.pod-tools .sp { flex: 1; }
+.pod-tools .chips { margin: 0; }
+.pod-tools .chip { min-height: 30px; padding: 0 10px; font-size: 12.5px; }
+.pod-tools .ib.on { color: var(--ac); border-color: var(--ac-line); background: var(--ac-soft); }
+.pod-chips {
+  position: sticky; top: calc(var(--top-h) + 62px); z-index: 15; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none;
+  padding: 10px 0; margin-bottom: 6px; background: color-mix(in srgb, var(--bg) 90%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+.pod-chips::-webkit-scrollbar { display: none; }
+.pchip { white-space: nowrap; min-height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line2); background: var(--s1); color: var(--txm); font-size: 12.5px; font-weight: 650; cursor: pointer; transition: color .15s, background .15s, border-color .15s; }
+.pchip:hover { color: var(--tx); }
+.pchip.on { color: var(--ac-ink); background: var(--ac); border-color: var(--ac); }
+.pod-turns { display: flex; flex-direction: column; gap: 10px; padding: 6px 0 10px; }
+.pod-sec { margin: 14px 0 0; color: var(--ac); font: 650 11.5px var(--f-ui); letter-spacing: .14em; text-transform: uppercase; display: flex; align-items: center; gap: 12px; }
+.pod-sec::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+body[data-profile=veda] .pod-sec { text-transform: none; letter-spacing: 0; font-size: 13px; }
+.turn { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.turn.r { flex-direction: row-reverse; }
+.turn .av { width: 32px; height: 32px; font-size: 13px; margin-top: 4px; }
+.turn .bub {
+  max-width: min(600px, 86%); padding: 10px 14px 11px; background: var(--s1); border: 1px solid var(--line); border-radius: 4px 16px 16px 16px;
+  transition: background .25s, border-color .25s, box-shadow .25s;
+}
+.turn.r .bub { border-radius: 16px 4px 16px 16px; }
+.turn:hover .bub { border-color: var(--line2); }
+.turn .who { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 2px; }
+.turn .who b { font-size: 13px; }
+.turn.h0 .who b { color: var(--h0); }
+.turn.h1 .who b { color: var(--h1); }
+.turn .who span { color: var(--txd); font-size: 11.5px; }
+.ltag { font: 700 10.5px var(--f-ui); font-style: normal; color: var(--gold); border: 1px solid color-mix(in srgb, var(--gold) 40%, transparent); border-radius: 6px; padding: 1px 5px; }
+.turn p { margin: 0; font: 400 15.5px/1.6 var(--f-read); color: var(--txm); }
+.turn.on .bub { background: var(--s2); border-color: var(--ac-line); box-shadow: var(--sh1); }
+.turn.on p { color: var(--tx); }
+.turn .w { border-radius: 4px; transition: background .12s, color .12s; }
+.turn .w.on { background: var(--ac-soft); color: var(--acl); box-shadow: 0 0 0 2px var(--ac-soft); }
+.pod-cov { margin-top: 22px; padding: 16px; background: var(--s1); border: 1px solid var(--line); border-radius: var(--r2); }
+.pod-cov h3 { font-size: 15px; display: flex; gap: 10px; align-items: baseline; margin-bottom: 10px; }
+.pod-cov h3 span { font: 650 12.5px var(--f-ui); }
+.pod-cov h3 .good { color: var(--good); }
+.pod-cov h3 .bad { color: var(--bad); }
+.pod-ls { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; }
+.pl { display: flex; gap: 8px; align-items: baseline; text-align: left; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--s2); color: var(--tx); cursor: pointer; font-size: 13px; }
+.pl:hover { border-color: var(--ac-line); }
+.pl i { font: 700 11px var(--f-ui); font-style: normal; color: var(--gold); min-width: 24px; }
+.pl[disabled] { opacity: .45; cursor: default; }
+.pod-subs {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(22px + var(--bnav-h) + var(--mini-h, 0px)); z-index: 57;
+  width: min(720px, calc(100% - 32px)); padding: 10px 16px; border-radius: 12px; background: rgba(10,10,12,.82); color: #f2f2f5;
+  font: 500 16.5px/1.45 var(--f-ui); text-align: center; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); pointer-events: none;
+}
+.pod-subs b { display: block; font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 2px; }
+.pod-subs b.h0 { color: var(--h0); }
+.pod-subs b.h1 { color: var(--h1); }
+.pod-subs span.on { color: var(--acl); text-decoration: underline; text-decoration-color: var(--ac); text-underline-offset: 4px; }
+
 /* lessons */
 .ls { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
 .ls-i { background: var(--s1); border: 1px solid var(--line); border-radius: var(--r2); padding: 16px 18px; }
@@ -493,6 +564,12 @@ body[data-profile=veda] .ls-sum b { text-transform: none; letter-spacing: 0; fon
   .mini .ctl .more { display: none; }
   .mini .ctl .ib { width: 40px; height: 40px; min-height: 40px; }
   .mini .ctl .pp { width: 42px; height: 42px; }
+  .pod-head { flex-wrap: wrap; }
+  .pod-head .pod-play { width: 100%; justify-content: center; }
+  .pod-tools .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .pod-chips { top: calc(var(--top-h) + 64px); }
+  .turn .bub { max-width: 88%; }
+  .turn p { font-size: 15px; }
   /* All five modes in one row: icon over label, equal widths. */
   .modes { gap: 2px; margin: 0 -4px 18px; padding: 4px; }
   .modes button { flex: 1 1 0; min-width: 0; flex-direction: column; gap: 3px; padding: 7px 2px; font-size: 11.5px; }
