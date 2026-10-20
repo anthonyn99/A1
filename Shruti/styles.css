@@ -372,7 +372,7 @@ body[data-profile=veda] .cp-head .k { text-transform: none; letter-spacing: 0; f
 .pod-head { display: flex; align-items: center; gap: 14px; padding: 16px; background: var(--s1); border: 1px solid var(--line); border-radius: var(--r2); }
 .pod-hosts { display: flex; }
 .pod-hosts .av + .av { margin-left: -10px; }
-.av { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font: 700 15px var(--f-ui); color: var(--ac-ink); flex-shrink: 0; box-shadow: 0 0 0 2px var(--s1); }
+.av { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font: 700 13.5px var(--f-ui); color: var(--ac-ink); flex-shrink: 0; box-shadow: 0 0 0 2px var(--s1); }
 .av.h0 { background: var(--h0); }
 .av.h1 { background: var(--h1); }
 .pod-t { flex: 1; min-width: 0; }
@@ -398,7 +398,7 @@ body[data-profile=veda] .cp-head .k { text-transform: none; letter-spacing: 0; f
 body[data-profile=veda] .pod-sec { text-transform: none; letter-spacing: 0; font-size: 13px; }
 .turn { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
 .turn.r { flex-direction: row-reverse; }
-.turn .av { width: 32px; height: 32px; font-size: 13px; margin-top: 4px; }
+.turn .av { width: 32px; height: 32px; font-size: 11.5px; margin-top: 4px; }
 .turn .bub {
   max-width: min(600px, 86%); padding: 10px 14px 11px; background: var(--s1); border: 1px solid var(--line); border-radius: 4px 16px 16px 16px;
   transition: background .25s, border-color .25s, box-shadow .25s;

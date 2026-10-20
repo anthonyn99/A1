@@ -181,7 +181,8 @@ function paintNow() {
     const si = segs.findIndex((s, x) => t >= s.start && (x + 1 >= segs.length || t < segs[x + 1].start));
     v.chips.forEach((c, x) => { c.classList.toggle('on', x === si); if (x === si && c.scrollIntoView && v.chipRow) { const r = c.getBoundingClientRect(), rr = v.chipRow.getBoundingClientRect(); if (r.left < rr.left || r.right > rr.right) v.chipRow.scrollTo({ left: c.offsetLeft - 40, behavior: 'smooth' }); } });
   }
-  const span = i >= 0 && k >= 0 && v.wordEls[i] ? v.wordEls[i][k] : null;
+  const idx = i >= 0 && k >= 0 && v.maps[i] ? v.maps[i][k] : -1;
+  const span = idx >= 0 ? v.wordEls[i][idx] : null;
   if (span !== P.word) { if (P.word) P.word.classList.remove('on'); P.word = span; if (span) span.classList.add('on'); }
 }
 function follow(el) {
@@ -255,6 +256,18 @@ const PAUSE_I = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"
 const DL_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>';
 const CC_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 10.5a2 2 0 1 0 0 3M16 10.5a2 2 0 1 0 0 3"/></svg>';
 
+/** A turn's text as written, each word a span (punctuation kept). */
+function textHtml(text) {
+  let out = '', at = 0, k = 0;
+  for (const m of String(text).matchAll(T.WORD_RE)) {
+    out += esc(text.slice(at, m.index)) + '<span class="w" data-k="' + (k++) + '">' + esc(m[0]) + '</span>';
+    at = m.index + m[0].length;
+  }
+  return out + esc(text.slice(at));
+}
+/** Two letters, so two hosts who share an initial still differ. */
+const initials = (name) => String(name || '?').slice(0, 2);
+
 export async function renderListen(body, { book, n, title, lessons }) {
   body.innerHTML = '<div class="pod-loading">Loading the episode…</div>';
   let meta;
@@ -267,7 +280,7 @@ export async function renderListen(body, { book, n, title, lessons }) {
   body.innerHTML =
     '<div class="pod">' +
       '<div class="pod-head">' +
-        '<div class="pod-hosts">' + meta.hosts.map((h, i) => '<span class="av h' + i + '" title="' + esc(h.name) + '">' + esc(h.name[0]) + '</span>').join('') + '</div>' +
+        '<div class="pod-hosts">' + meta.hosts.map((h, i) => '<span class="av h' + i + '" title="' + esc(h.name) + '">' + esc(initials(h.name)) + '</span>').join('') + '</div>' +
         '<div class="pod-t"><b>A conversation about chapter ' + n + '</b><span>' + esc(meta.hosts.map((h) => h.name).join(' and ')) + ' · ' + T.fmtTime(meta.duration) + ' · the full story and all ' + L.length + ' lessons</span></div>' +
         '<button class="btn solid pod-play" data-play>' + PLAY_I + '<span>Play</span></button>' +
       '</div>' +
@@ -283,10 +296,10 @@ export async function renderListen(body, { book, n, title, lessons }) {
         const seg = meta.segments.find((s) => Math.abs(s.start - t.start) < 0.01);
         return (seg ? '<div class="pod-sec">' + esc(seg.title) + '</div>' : '') +
           '<div class="turn h' + hi + (hi ? ' r' : '') + '" data-turn="' + i + '">' +
-          '<span class="av h' + hi + '" aria-hidden="true">' + esc(h.name[0]) + '</span>' +
+          '<span class="av h' + hi + '" aria-hidden="true">' + esc(initials(h.name)) + '</span>' +
           '<div class="bub"><div class="who"><b>' + esc(h.name) + '</b><span>' + T.fmtTime(t.start) + '</span>' +
           (t.L || []).map((id) => { const l = L.find((x) => x.id === id); return '<i class="ltag" title="' + esc(l ? l.title : id) + '">' + esc(id) + '</i>'; }).join('') + '</div>' +
-          '<p>' + t.words.map((w, k) => '<span class="w" data-k="' + k + '">' + esc(w[2]) + '</span>').join(' ') + '</p></div></div>';
+          '<p>' + textHtml(t.text) + '</p></div></div>';
       }).join('') + '</div>' +
       '<section class="pod-cov"><h3>Lessons in this episode <span class="' + (cov.missing.length ? 'bad' : 'good') + '">' + cov.covered.length + ' of ' + L.length + '</span></h3>' +
         '<div class="pod-ls">' + L.map((l) => '<button class="pl" data-lesson="' + esc(l.id) + '"' + (firstTurnOf(l.id) < 0 ? ' disabled' : '') + '><i>' + esc(l.id) + '</i><span>' + esc(l.title || '') + '</span></button>').join('') + '</div></section>' +
@@ -295,7 +308,9 @@ export async function renderListen(body, { book, n, title, lessons }) {
   const root = body.querySelector('.pod');
   const turnEls = [...root.querySelectorAll('.turn')];
   const wordEls = turnEls.map((el) => [...el.querySelectorAll('.w')]);
-  attach({ book, n, root, turnEls, wordEls, chips: [...root.querySelectorAll('.pchip')], chipRow: root.querySelector('.pod-chips'), litTurn: null });
+  // The voice's words, lined up with the words as written.
+  const maps = meta.turns.map((tr, i) => T.align(tr.words.map((w) => w[2]), wordEls[i].map((s) => s.textContent)));
+  attach({ book, n, root, turnEls, wordEls, maps, chips: [...root.querySelectorAll('.pchip')], chipRow: root.querySelector('.pod-chips'), litTurn: null });
 
   const playBtn = root.querySelector('[data-play]');
   const paintTab = () => {
@@ -319,7 +334,8 @@ export async function renderListen(body, { book, n, title, lessons }) {
     const tr = meta.turns[Number(turn.dataset.turn)];
     const w = e.target.closest('.w');
     // A word: from that word. Anywhere else on the bubble: from the turn's start.
-    play(w ? tr.start + tr.words[Number(w.dataset.k)][0] : tr.start);
+    const k = w ? maps[Number(turn.dataset.turn)].findIndex((m) => m >= Number(w.dataset.k)) : -1;
+    play(k >= 0 ? tr.start + tr.words[k][0] : tr.start);
   });
   return true;
 }
