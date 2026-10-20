@@ -92,7 +92,15 @@ export async function chat({ key, messages, models, onDelta, onModel, signal, fe
       }
       if (!r.ok) { tried.push(model + ': ' + r.status); break; }
       if (onModel) onModel(model);
-      const text = await readStream(r, onDelta);
+      // A unit that fails mid-stream (Orca sends an error frame, or the
+      // stream just ends empty) is a failed unit: the chain moves on.
+      let text;
+      try { text = await readStream(r, onDelta); }
+      catch (e) {
+        if (e && e.name === 'AbortError') throw Object.assign(new Error('Cancelled'), { code: 'abort' });
+        tried.push(model + ': ' + (e && e.message || 'failed')); break;
+      }
+      if (!String(text || '').trim()) { tried.push(model + ': empty reply'); break; }
       return { text, model };
     }
   }
@@ -178,9 +186,10 @@ export async function readStream(r, onDelta) {
       if (d === '[DONE]') return out;
       try {
         const j = JSON.parse(d);
+        if (j.error) throw Object.assign(new Error(String(j.error.message || j.error)), { orca: true });
         const t = j.choices && j.choices[0] && j.choices[0].delta && j.choices[0].delta.content;
         if (t) { out += t; if (onDelta) onDelta(t); }
-      } catch (e) {}
+      } catch (e) { if (e && e.orca) throw e; }
     }
   }
   return out;
