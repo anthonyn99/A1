@@ -111,7 +111,8 @@ export function mount(root, slides, { book, set, title }) {
       // Fetch the next slide's voice while this one plays.
       if (i + 1 < n && !narr.cache.has(i + 1 + voice)) O.speak({ key, text: sayOf(slides[i + 1]), voice }).then((r) => narr.cache.set(i + 1 + voice, URL.createObjectURL(r.audio))).catch(() => {});
     } catch (e) {
-      if (e && e.code === 'abort') return;
+      // Stopped, or moved on, while the voice was starting: not an error.
+      if (!narr.on || ctrl.signal.aborted || (e && (e.code === 'abort' || e.name === 'AbortError'))) return;
       stopNarration();
       window.Shruti && window.Shruti.toast(e && e.code === 'key' ? 'Narration needs your Orca key (Settings).' : 'The deck could not be narrated: ' + (e.message || e), true);
     }
