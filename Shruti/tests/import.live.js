@@ -175,7 +175,7 @@ const imp = (x) => `const IMP = await import(new URL('import.js', location.href)
   await click(c, '[data-skip]', 0);
   ok('Leave out: the opening pages are struck through and not counted', await waitFor(c, `document.querySelectorAll('.imp-ch.skip').length===1 && /Save 3 chapters/.test(document.querySelector('[data-save]').textContent)`));
   await click(c, '[data-tidy]');
-  ok('Tidy with AI: the reworded paragraph is refused', await waitFor(c, `[...document.querySelectorAll('.imp-run')].some(e=>/1 changes refused/.test(e.textContent))`, 15000), await ev(c, `return [...document.querySelectorAll('.imp-run')].map(e=>e.textContent).join(' / ')`));
+  ok('Tidy with AI: the reworded paragraph is refused', await waitFor(c, `[...document.querySelectorAll('.imp-run')].some(e=>/1 change refused/.test(e.textContent))`, 15000), await ev(c, `return [...document.querySelectorAll('.imp-run')].map(e=>e.textContent).join(' / ')`));
   ok('…and the text still says "loud"', /loud with voices/.test(await ev(c, `return [...document.querySelectorAll('.imp-m')].map(e=>e.textContent).join(' ')`)));
   await ev(c, `const i=document.querySelectorAll('.imp-t')[1]; i.value='The Morning'; i.dispatchEvent(new Event('input')); return 1`);
   await shot(c, 'import-review-tony-1280');

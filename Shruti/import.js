@@ -326,7 +326,7 @@ export function open({ go } = {}) {
       }
     }
     T.doing = false;
-    if (!T.error) T.text = (st.abort && st.abort.signal.aborted ? 'Stopped. ' : '') + T.taken + ' paragraph' + (T.taken === 1 ? '' : 's') + ' fixed' + (T.refused ? ', ' + T.refused + ' changes refused (more than a typo)' : '') + (failed ? ', ' + failed + ' part' + (failed === 1 ? '' : 's') + ' could not be asked' : '') + (long ? ', ' + long + ' long part' + (long === 1 ? '' : 's') + ' not sent' : '') + '.';
+    if (!T.error) T.text = (st.abort && st.abort.signal.aborted ? 'Stopped. ' : '') + T.taken + ' paragraph' + (T.taken === 1 ? '' : 's') + ' fixed' + (T.refused ? ', ' + T.refused + ' change' + (T.refused === 1 ? '' : 's') + ' refused (more than a typo)' : '') + (failed ? ', ' + failed + ' part' + (failed === 1 ? '' : 's') + ' could not be asked' : '') + (long ? ', ' + long + ' long part' + (long === 1 ? '' : 's') + ' not sent' : '') + '.';
     st.abort = null;
     if (dim.isConnected) paint();
   }
