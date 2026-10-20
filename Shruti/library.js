@@ -7,6 +7,9 @@ import { me, shared, ls, lsKey } from './core.js';
 import { renderRead } from './reader.js';
 import * as POD from './podcast.js';
 import * as VID from './video.js';
+import * as M from './media.js';
+import * as G from './generate.js';
+import * as T from './text.js';
 
 export const SHIPPED = ['gita'];
 const COVERS = { gita: { bg: '#2b2235', tx: '#f2ead8', ac: '#e0b874', kicker: 'Shared' } };
@@ -30,6 +33,7 @@ export const IC = {
   key: I('<circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3 21 2"/><path d="M16 7l3 3"/><path d="M18.5 4.5l2 2"/>'),
   book: '<svg viewBox="14 14 68 68" fill="none" stroke="currentColor" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M48 40c-6-4-14-6-24-6v38c10 0 18 2 24 6 6-4 14-6 24-6V34c-10 0-18 2-24 6Z"/><path d="M48 40v38"/><path d="M41 28a10 10 0 0 1 14 0"/><path d="M35 21a19 19 0 0 1 26 0"/></svg>',
 };
+const NRname = (id) => String(id || '').replace(/^[a-z]{2}-[A-Z]{2}-/, '').replace(/(Multilingual)?Neural$/, '');
 export const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const MODES = [
   { id: 'read', label: 'Read' }, { id: 'listen', label: 'Listen' }, { id: 'watch', label: 'Watch' },
@@ -64,8 +68,15 @@ export function available(book, n, lessons, pods, vids) {
     listen: !!a.podcast || !!(pods && pods[String(n)]),
     watch: !!a.video || !!(vids && vids[String(n)]),
     study: !!(a.study && Object.keys(a.study).length),
-    lessons: !!(lessons && lessons[n] && lessons[n].lessons && lessons[n].lessons.length),
+    lessons: !!(lessons && lessons[n] && lessons[n].lessons && lessons[n].lessons.length) || !!(a.lessons && a.lessons.lessons),
   };
+}
+
+/** The lessons a chapter teaches: a featured AI-made set, else the readers' notes. */
+export function lessonsFor(book, n, lessons) {
+  const a = M.docFor(book).get('assets.' + book + '.' + chKey(n) + '.lessons', null);
+  if (a && a.lessons && a.lessons.length) return { lessons: a.lessons, summary: a.summary, by: a.model };
+  return (lessons && lessons[n]) || null;
 }
 
 /* ── progress: shown here at once, sent within 30 s (and on hide / leave) ──── */
@@ -179,7 +190,7 @@ export async function viewChapter(el, { id, n, mode, at, go }) {
   const isIntro = n === 0;
   const meta = isIntro ? { n: 0, title: b.intro.title, file: b.intro.file } : b.chapters.find((c) => c.n === n);
   if (!meta) { go('#/b/' + id); return; }
-  const [ch, lessons, pods, vids] = await Promise.all([loadChapter(id, meta.file), loadLessons(id), POD.shipped(id), VID.shipped(id)]);
+  const [ch, lessons, pods, vids, reads] = await Promise.all([loadChapter(id, meta.file), loadLessons(id), POD.shipped(id), VID.shipped(id), getJSON('books/' + id + '/media/index.json').catch(() => ({}))]);
   const av = available(id, n, lessons, pods, vids);
   mode = MODES.some((m) => m.id === mode) ? mode : 'read';
   const idx = b.chapters.findIndex((c) => c.n === n);
@@ -191,7 +202,7 @@ export async function viewChapter(el, { id, n, mode, at, go }) {
     '<div class="cp-head"><div class="k">' + (isIntro ? esc(b.title) : esc(b.unit || 'Chapter') + ' ' + n) + '</div>' +
     '<h1>' + esc(meta.title) + '</h1>' +
     (isIntro ? '' : '<div class="m">' + esc([meta.verses && meta.verses + ' verses', meta.key && meta.key + ' key verses', meta.lessons && meta.lessons + ' lessons'].filter(Boolean).join(' · ')) + '</div>') +
-    '<button class="btn ghost mark" id="mark-read"></button></div>' +
+    '<div class="cp-acts"><button class="btn ghost mark" id="mark-read"></button><button class="btn ghost" id="make-ai">' + G.ICON + 'Make with AI</button></div></div>' +
     '<nav class="modes" role="tablist">' + tabs + '</nav><div id="mode-body"></div>' +
     '<div class="cp-nav">' + (prev ? '<button class="btn ghost" data-go="#/b/' + id + '/' + prev.n + '">' + IC.prev + esc(prev.n ? prev.n + '. ' + prev.title : prev.title) + '</button>' : '<span></span>') +
     (next ? '<button class="btn ghost" data-go="#/b/' + id + '/' + next.n + '">' + esc(next.n + '. ' + next.title) + IC.next + '</button>' : '<span></span>') + '</div>';
@@ -225,19 +236,19 @@ export async function viewChapter(el, { id, n, mode, at, go }) {
   markOpened(id, n);
 }
 
-async function renderListen(body, id, n, meta, lessons) {
-  const ok = await POD.renderListen(body, { book: id, n, title: meta.title, lessons: lessons[n] });
-  if (ok === false) body.innerHTML = '<div class="empty">' + IC.listen + '<b>Listen is not made for this chapter yet</b><span>It will tell the chapter\u2019s story and teach every lesson.</span></div>';
+async function renderListen(body, id, n, meta, L, none) {
+  const ok = await POD.renderListen(body, { book: id, n, title: meta.title, lessons: L });
+  if (ok === false) none();
 }
 
-async function renderWatch(body, id, n, meta, lessons) {
-  const ok = await VID.renderWatch(body, { book: id, n, title: meta.title, lessons: lessons[n] });
-  if (ok === false) body.innerHTML = '<div class="empty">' + IC.watch + '<b>Watch is not made for this chapter yet</b><span>It will tell the chapter’s story and teach every lesson.</span></div>';
+async function renderWatch(body, id, n, meta, L, none) {
+  const ok = await VID.renderWatch(body, { book: id, n, title: meta.title, lessons: L });
+  if (ok === false) none();
 }
 
 function renderLessons(body, L) {
   if (!L || !L.lessons || !L.lessons.length) { body.innerHTML = '<div class="empty">' + IC.lessons + '<b>No lessons for this chapter yet</b></div>'; return; }
-  body.innerHTML = '<div class="ls"><p class="ls-k">' + L.lessons.length + ' lessons from Tony and Veda’s notes</p>' + L.lessons.map((l) =>
+  body.innerHTML = '<div class="ls"><p class="ls-k">' + L.lessons.length + ' ' + (L.by ? ' lessons drawn by ' + esc(G.modelName(L.by)) + ' (Make with AI)' : ' lessons from Tony and Veda’s notes') + '</p>' + L.lessons.map((l) =>
     '<div class="ls-i"><div class="h"><span class="id">' + esc(l.id) + '</span><span class="tt">' + esc(l.title || '') + '</span></div>' +
     (l.body ? '<div class="bd">' + esc(l.body) + '</div>' : '') + '</div>').join('') +
     (L.summary ? '<div class="ls-sum"><b>Chapter summary</b>' + esc(L.summary) + '</div>' : '') + '</div>';
