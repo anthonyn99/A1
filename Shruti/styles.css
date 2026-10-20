@@ -599,7 +599,7 @@ body[data-profile=veda] .ls-sum b { text-transform: none; letter-spacing: 0; fon
 /* Full screen: the real thing, or the stage filling the window. */
 .vid-stage.fs, .vid-stage.pfs { border-radius: 0; box-shadow: none; background: #000; display: grid; place-items: center; aspect-ratio: auto; }
 .vid-stage.fs canvas, .vid-stage.pfs canvas { width: min(100vw, calc(100vh * 16 / 9)); height: auto; aspect-ratio: 16 / 9; }
-.vid-stage.pfs { position: fixed; inset: 0; z-index: 300; }
+.vid-stage.pfs { position: fixed; inset: 0; z-index: 300; max-width: 2000px; margin-inline: auto; }
 html.vid-pfs, html.vid-pfs body { overflow: hidden; }
 .vid-stage.fs.rot canvas { width: min(100vh, calc(100vw * 16 / 9)); width: min(100dvh, calc(100vw * 16 / 9)); transform: rotate(90deg); }
 /* An upright phone with no real full screen: the whole stage turns sideways. */
