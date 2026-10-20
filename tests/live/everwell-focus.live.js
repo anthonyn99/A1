@@ -22,11 +22,20 @@ const media = [];   // every request to a media host
 // infoDelivery for a good video.
 const CODES = { blockedvid1: 150, removedvid1: 100 };
 // A good one also obeys Everwell's controls (play / pause / seek) and reports
-// back like the real player (infoDelivery).
-const player = (code) => `<!doctype html><title>fake player</title><script>
-var st = { playerState: 1, currentTime: 0, duration: 120, muted: false }, heard = false, ad = false;
+// back like the real player (infoDelivery). A LIVE one (livestream1) reports
+// what a real live did (2026-10-20, Al Jazeera's): videoData.isLive, a clock
+// and duration of the stream's whole age (~82 days of seconds), and the 12-hour
+// window YouTube keeps in progressState, whose end moves with the wall clock.
+const player = (code, live) => `<!doctype html><title>fake player</title><script>
+var LIVE = ${live ? 'true' : 'false'}, T0 = 7143229.9;
+var st = LIVE ? { playerState: 1, currentTime: T0, duration: T0 + 3600, muted: false, videoData: { video_id: 'livestream1', title: 'Live', isLive: true },
+  progressState: { seekableStart: T0 - 43189, seekableEnd: T0, isAtLiveHead: true, allowSeeking: true } }
+  : { playerState: 1, currentTime: 0, duration: 120, muted: false }, heard = false, ad = false;
 // Like the real player, it reports its clock several times a second while playing.
-setInterval(function(){ if (!heard || st.playerState !== 1 || ad) return; st.currentTime = Math.min(st.duration, st.currentTime + 0.25); parent.postMessage(JSON.stringify({ event: 'infoDelivery', info: { currentTime: st.currentTime } }), '*'); }, 250);
+setInterval(function(){
+  if (LIVE && heard) st.progressState.seekableEnd += 0.25;
+  if (!heard || st.playerState !== 1 || ad) return; st.currentTime = Math.min(st.duration, st.currentTime + 0.25);
+  parent.postMessage(JSON.stringify({ event: 'infoDelivery', info: LIVE ? { currentTime: st.currentTime, progressState: st.progressState } : { currentTime: st.currentTime } }), '*'); }, 250);
 addEventListener('message', function(e){ var d; try { d = JSON.parse(e.data); } catch (x) { return; }
   if (d.event === 'command') {
     if (d.func === 'pauseVideo') st.playerState = 2; if (d.func === 'playVideo') st.playerState = 1;
@@ -43,6 +52,7 @@ addEventListener('message', function(e){ var d; try { d = JSON.parse(e.data); } 
 const le = (n, w) => { let s = ''; for (let i = 0; i < w; i++) s += String.fromCharCode((n >> (8 * i)) & 255); return s; };
 const WAV = 'RIFF' + le(36 + 4096, 4) + 'WAVEfmt ' + le(16, 4) + le(1, 2) + le(1, 2) + le(4112, 4) + le(8224, 4) + le(2, 2) + le(16, 2) + 'data' + le(4096, 4) + '\0'.repeat(4096);
 const lists = [];   // playlists asked of personal-ai /yt/playlist
+const freshAsks = [];   // ...of them, past its cache (&fresh=1: the Refresh button)
 const PLAYLISTS = { PLgoodlist01: [{ id: 'listvideo01', title: 'One' }, { id: 'listvideo02', title: 'Two' }, { id: 'blockedvid1', title: 'Three' }] };
 const mock = {
   patterns: ['https://taskhub-reminders.av1.workers.dev/*', 'https://www.youtube-nocookie.com/*', 'https://i.ytimg.com/*', 'https://audio.test/*', 'https://example.com/*', 'https://www.instagram.com/*', 'https://personal-ai.av1.workers.dev/*'],
@@ -50,12 +60,12 @@ const mock = {
     const u = new URL(req.url);
     if (u.hostname === 'personal-ai.av1.workers.dev') {
       if (u.pathname !== '/yt/playlist') return { json: { ok: false, error: 'unavailable' } };   // the quote: use the local line
-      const id = u.searchParams.get('list'); lists.push(id);
+      const id = u.searchParams.get('list'); lists.push(id); if (u.searchParams.get('fresh') === '1') freshAsks.push(id);
       return { json: PLAYLISTS[id] ? { ok: true, list: id, title: 'x', videos: PLAYLISTS[id], more: false } : { ok: false, error: 'unavailable' } };
     }
     if (u.hostname !== 'taskhub-reminders.av1.workers.dev') {
       if (/^(www\.youtube-nocookie\.com|i\.ytimg\.com|audio\.test|example\.com|www\.instagram\.com)$/.test(u.hostname)) media.push(req.url);
-      if (u.hostname === 'www.youtube-nocookie.com') { const id = u.pathname.split('/').pop(); return { text: player(CODES[id]), type: 'text/html' }; }
+      if (u.hostname === 'www.youtube-nocookie.com') { const id = u.pathname.split('/').pop(); return { text: player(CODES[id], id === 'livestream1'), type: 'text/html' }; }
       if (u.pathname === '/rain.wav') return { text: WAV, type: 'audio/wav' };
       if (u.hostname === 'audio.test') return { status: 404, text: 'not found', type: 'text/plain' };
       return null;   // thumbnails and the rest: refused, as if offline
@@ -375,6 +385,29 @@ const mock = {
     await js(`const f = ${q('[data-id="p1~listvideo02"] iframe')}; return f ? f.src : 'none';`));
   ok('…with the playlist\'s previous / next still on it', await js(`return !!${q('[data-id="p1~listvideo02"] [data-vp="next"]')};`));
   await js(`${q('[data-id="p1~listvideo02"] [data-stop]')}.click(); return 1;`); await sleep(500);
+
+  // The Refresh button (Tony, 2026-10-20: a live he added on YouTube had not come in).
+  const toastTxt = () => js(`const t = [...document.querySelectorAll('.toast')].pop(); return t ? t.textContent : '';`);
+  ok('an expanded playlist has a Refresh button', await js(`const b = ${q('.media-group[data-id="p1"] .media-group-head [data-ytsync="p1"]')}; return !!b && /Refresh/.test(b.textContent);`));
+  PLAYLISTS.PLgoodlist01 = [{ id: 'livenew0001', title: 'A live added on YouTube' }, { id: 'listvideo00', title: 'New on YouTube' }].concat(ORIG);
+  const f0 = freshAsks.length;
+  await js(`${q('[data-ytsync="p1"]')}.click(); return 1;`); await sleep(1500);
+  ok('Refresh asks personal-ai past its cache (&fresh=1)', freshAsks.length === f0 + 1 && freshAsks[f0] === 'PLgoodlist01', freshAsks);
+  ok('...brings in what was added on YouTube, on top, and keeps Tony\'s order', (await order()) === 'livenew0001,listvideo00,listvideo02,blockedvid1,listvideo01', await order());
+  ok('...and says so', /1 new video/.test(await toastTxt()), await toastTxt());
+  ok('...saved with Tony\'s order intact', /^livenew0001,listvideo00,listvideo02,blockedvid1,listvideo01\|listvideo02,blockedvid1,listvideo01$/.test(await saved()), await saved());
+  w0 = await tonyWrites();
+  await js(`${q('[data-ytsync="p1"]')}.click(); return 1;`); await sleep(1500);
+  ok('Refresh with nothing new says "Up to date" and writes nothing', /Up to date/.test(await toastTxt()) && (await tonyWrites()) === w0, await toastTxt());
+  delete PLAYLISTS.PLgoodlist01;
+  await js(`${q('[data-ytsync="p1"]')}.click(); return 1;`); await sleep(1500);
+  ok('Refresh failing says so and keeps the list', /Could not reach YouTube/.test(await toastTxt()) && (await order()) === 'livenew0001,listvideo00,listvideo02,blockedvid1,listvideo01', await toastTxt());
+  PLAYLISTS.PLgoodlist01 = [{ id: 'livenew0001', title: 'A live added on YouTube' }].concat(ORIG);
+  await js(`${q('[data-id="p1~listvideo02"] [data-play]')}.click(); return 1;`); await sleep(1000);
+  await js(`window.__frame = ${q('[data-id="p1~listvideo02"] iframe')}; ${q('[data-ytsync="p1"]')}.click(); return 1;`); await sleep(1500);
+  ok('Refresh while a video in it plays: the player is left alone, the change waits for Stop', await js(`return EWFocus.playing() === 'p1~listvideo02' && ${q('[data-id="p1~listvideo02"] iframe')} === window.__frame;`) && /shows when you stop/.test(await toastTxt()), await toastTxt());
+  await js(`${q('[data-id="p1~listvideo02"] [data-stop]')}.click(); return 1;`); await sleep(1200);
+  ok('...and shows it at Stop', !(await order()).includes('listvideo00'), await order());
   PLAYLISTS.PLgoodlist01 = ORIG.slice();
   await js(`EWFocus.resync(); return 1;`); await sleep(1500);
   delete PLAYLISTS.PLgoodlist01; w0 = await tonyWrites();
@@ -397,6 +430,26 @@ const mock = {
   ok('360px: a tile with Expand fits, no sideways scroll', await js(`return document.documentElement.scrollWidth <= 360;`), await js(`return document.documentElement.scrollWidth;`));
   await c.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
 
+  console.log('\nA live stream (Tony, 2026-10-20)');
+  await fresh(`sessionStorage.setItem('ew.skipIntro', '1'); sessionStorage.setItem('__fakefs_docs', JSON.stringify({ 'dashboards/everwell_tony': { focusMedia: [
+    { id: 'l1', url: 'https://www.youtube.com/live/livestream1', title: 'A live' }] } }));`);
+  await js(`document.getElementById('ew-intro-overlay') && document.getElementById('ew-intro-overlay').click(); return 1;`); await sleep(1200);
+  await js(`EWApp.go('focus'); return 1;`); await sleep(1000);
+  await js(`${q('[data-id="l1"] [data-play]')}.click(); return 1;`); await sleep(1800);
+  const lv = () => js(`const f = ${q('[data-id="l1"] .media-frame')}; const fill = f.querySelector('.vp-fill').style.transform; return JSON.stringify({ live: f.classList.contains('live'), head: f.classList.contains('at-head'), time: f.querySelector('[data-vp-time]').textContent, btn: getComputedStyle(f.querySelector('.vp-live')).display, fill: parseFloat((fill.match(/scaleX\(([^)]+)\)/) || [])[1]) });`).then(JSON.parse);
+  const key = (k) => js(`const h = ${q('[data-id="l1"] [data-vp-hit]')}; h.focus(); h.dispatchEvent(new KeyboardEvent('keydown', { key: ${JSON.stringify(k)}, bubbles: true })); return 1;`);
+  await key('m'); await key('m'); await sleep(400);   // a key wakes the controls
+  let L = await lv();
+  ok('a live plays and is known as live (its LIVE button shows, red at the live edge)', L.live && L.head && L.btn !== 'none', JSON.stringify(L));
+  ok('...its clock is not the stream\'s age ("1984:..."): blank at the live edge', L.time === '', JSON.stringify(L));
+  ok('...and the bar spans what YouTube keeps, so it sits at the end', L.fill > 0.99, JSON.stringify(L));
+  await key('j'); await key('j'); await key('j'); await sleep(600);
+  L = await lv();
+  ok('seeking back 30s: the clock says how far behind live, the dot is no longer red', !L.head && /^−0:(29|3\d)$/.test(L.time), JSON.stringify(L));
+  await js(`${q('[data-id="l1"] [data-vp="live"]')}.click(); return 1;`); await sleep(600);
+  L = await lv();
+  ok('LIVE jumps back to the live edge', L.head && L.time === '', JSON.stringify(L));
+  await js(`${q('[data-id="l1"] [data-stop]')}.click(); return 1;`); await sleep(400);
 
   console.log('\nPage errors');
   ok('no uncaught exceptions', errs.length === 0, errs.join(' | '));
