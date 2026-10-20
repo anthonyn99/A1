@@ -150,6 +150,13 @@ document.addEventListener('selectionchange', () => {
 export const selection = (book, n) => (lastSel && lastSel.book === book && lastSel.n === n ? lastSel : null);
 /** Open the maker for a chapter from elsewhere (Make with AI → Study set). */
 export function makeFor(book, n) { pending = { book, n }; }
+addEventListener('shruti:make-study', (e) => {
+  const { book, n } = e.detail;
+  makeFor(book, n);
+  const want = '#/b/' + book + '/' + n + '/study';
+  if (location.hash === want && live && live.ctx.book === book && live.ctx.n === n) { pending = null; openMaker(live.ctx, () => dispatchEvent(new HashChangeEvent('hashchange'))); }
+  else location.hash = want;
+});
 
 /** The text a scope covers, as the model reads it (headings, [verse] numbers). */
 export function sectionsOf(ch) {

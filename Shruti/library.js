@@ -196,7 +196,7 @@ export async function viewChapter(el, { id, n, mode, at, go }) {
   if (!meta) { go('#/b/' + id); return; }
   const [ch, lessons, pods, vids, reads, study] = await Promise.all([loadChapter(id, meta.file), loadLessons(id), POD.shipped(id), VID.shipped(id), getJSON('books/' + id + '/media/index.json').catch(() => ({})), H.shippedIndex(id)]);
   const av = available(id, n, lessons, pods, vids, study);
-  mode = MODES.some((m) => m.id === mode) ? mode : 'read';
+  mode = MODES.some((m) => m.id === mode) && (!isIntro || mode === 'study') ? mode : 'read';
   const idx = b.chapters.findIndex((c) => c.n === n);
   const prev = isIntro ? null : idx > 0 ? b.chapters[idx - 1] : (b.intro ? { n: 0, title: b.intro.title } : null);
   const next = isIntro ? b.chapters[0] : b.chapters[idx + 1];

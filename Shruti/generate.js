@@ -362,7 +362,8 @@ export function openSheet(ctx, kind) {
   dim.innerHTML = '<aside class="sheet gen" role="dialog" aria-modal="true" aria-labelledby="gen-h"><div class="sh-h"><h2 id="gen-h">Make with AI</h2>' +
     '<button class="ib" data-close aria-label="Close">' + CLOSE + '</button></div>' +
     '<p class="gen-sub">Chapter ' + ctx.n + ' · ' + esc(ctx.title) + '</p>' +
-    '<div class="chips gen-kinds" role="radiogroup" aria-label="What to make">' + M.KINDS.filter((k) => ctx.n !== 0 || k === 'read').map((k) => '<button class="chip" role="radio" data-kind="' + k + '">' + M.KIND_NAME[k] + '</button>').join('') + '</div>' +
+    '<div class="chips gen-kinds" role="radiogroup" aria-label="What to make">' + M.KINDS.filter((k) => ctx.n !== 0 || k === 'read').map((k) => '<button class="chip" role="radio" data-kind="' + k + '">' + M.KIND_NAME[k] + '</button>').join('') +
+    '<button class="chip" data-study title="Flashcards, a quiz, a mind map or slides">Study set</button></div>' +
     '<section class="card" id="gen-vers"></section><section class="card" id="gen-opts"></section><section class="card" id="gen-run"></section></aside>';
   document.body.appendChild(dim);
   const off = [];
@@ -371,6 +372,8 @@ export function openSheet(ctx, kind) {
   addEventListener('keydown', onKey);
   dim.addEventListener('click', (e) => { if (e.target === dim || e.target.closest('[data-close]')) close(); });
   dim.querySelectorAll('[data-kind]').forEach((b) => b.addEventListener('click', () => { st.kind = b.dataset.kind; setPref('kind', st.kind); draw(); }));
+  // Study sets have their own maker, with a scope picker, on the Study tab.
+  dim.querySelector('[data-study]').addEventListener('click', () => { close(); dispatchEvent(new CustomEvent('shruti:make-study', { detail: { book: ctx.book, n: ctx.n } })); });
   const draw = () => {
     dim.querySelectorAll('[data-kind]').forEach((b) => { const on = b.dataset.kind === st.kind; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
     drawVersions(dim.querySelector('#gen-vers'), ctx, st.kind);
