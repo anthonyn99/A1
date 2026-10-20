@@ -70,14 +70,13 @@ const DL = fs.mkdtempSync(path.join(os.tmpdir(), 'shruti-pdf-'));
 async function download(c, sel) {
   for (const f of fs.readdirSync(DL)) fs.unlinkSync(path.join(DL, f));
   await click(c, sel);
-  console.log('   clicked:', await waitFor(c, `!!window.jspdf`, 8000));
+  await waitFor(c, `!!window.jspdf`, 8000);
   const t0 = Date.now();
   while (Date.now() - t0 < 15000) {
     const f = fs.readdirSync(DL).find((x) => x.endsWith('.pdf'));
     if (f) { await sleep(300); return { name: f, data: new TextDecoder('windows-1252').decode(fs.readFileSync(path.join(DL, f))) }; }
     await sleep(150);
   }
-  console.log('   no PDF; folder has', fs.readdirSync(DL), await ev(c, `const b=document.querySelector('#ls-pdf'); return b && b.textContent + ' ' + b.title`));
   return null;
 }
 // jsPDF writes text uncompressed: "(…) Tj". Joined, a wrapped title reads whole again.
@@ -114,9 +113,11 @@ const pdfWords = (pdf) => (pdf.match(/\((?:\\.|[^\\)])*\) Tj/g) || []).map((s) =
   RUN = String(Date.now());
   await load(c, { w: 1280, h: 900, mobile: false, store: "sessionStorage.removeItem('__fakefs_docs'); sessionStorage.setItem('shruti.pick','tony');", hash: '#/b/gita/4/lessons' });
   await waitFor(c, `!!window.Shruti && !!window.Shruti.core.me.loaded && !!document.querySelector('#ls-pdf')`, 15000);
-  console.log('   shared loaded:', await waitFor(c, `!!window.Shruti.core.shared.loaded`, 5000));
+  await waitFor(c, `!!window.Shruti.core.shared.loaded`, 5000);
   await ev(c,`window.Shruti.core.shared.set({'assets.gita.ch4.lessons': {id:'v1', model:'deepseek/free', lessons:[{id:'L1', title:'Karma-yoga is ancient (Śrī Kṛṣṇa’s words).', body:'Receive it as old wisdom — kept by saintly kings.'},{id:'L2', title:'God comes by his own power.', body:'Not by karma.'}], summary:'Selfless work, offered to God, frees.'}},{now:true}); return 1`);
-  console.log('   stored:', await waitFor(c, `!!window.Shruti.core.shared.get('assets.gita.ch4.lessons',null) && (JSON.parse(sessionStorage.getItem('__fakefs_docs')||'{}')['dashboards/shruti_shared']||{}).assets`, 8000));
+  await waitFor(c, `!!window.Shruti.core.shared.get('assets.gita.ch4.lessons',null) && (JSON.parse(sessionStorage.getItem('__fakefs_docs')||'{}')['dashboards/shruti_shared']||{}).assets`, 8000);
+  // A view transition can stall in a headless tab and cover the page: none here.
+  await c.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
   await ev(c, `location.hash='#/b/gita/3'; return 1`); await sleep(800);
   await ev(c, `location.hash='#/b/gita/4/lessons'; return 1`);
   const shows = await waitFor(c, `/drawn by DeepSeek/.test(document.querySelector('.ls-k')?.textContent||'')`);
