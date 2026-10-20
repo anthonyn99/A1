@@ -23,6 +23,7 @@ import * as M from './media.js';
 import * as POD from './podcast.js';
 import * as VID from './video.js';
 import * as NR from './narrate.js';
+import * as OR from './order.js';
 
 let ui = { toast: () => {}, go: () => {}, openSettings: () => {} };
 export function setUI(x) { ui = Object.assign(ui, x); }
@@ -389,8 +390,11 @@ export function openSheet(ctx, kind) {
 
 function drawVersions(box, ctx, kind) {
   const list = M.versions(ctx.book, ctx.n, kind), cur = M.featured(ctx.book, ctx.n, kind);
+  const orderKey = 'ver.' + ctx.book + '.ch' + ctx.n + '.' + kind;
   const shipped = ctx.shipped && ctx.shipped[kind];
-  const row = (id, title, meta, canDelete) => '<div class="gv' + ((cur || null) === id ? ' on' : '') + '"><button class="gv-pick" data-feature="' + esc(id || '') + '" role="radio" aria-checked="' + ((cur || null) === id) + '"><span class="dot"></span><span><b>' + esc(title) + '</b><span>' + esc(meta) + '</span></span></button>' +
+  // The pick is a radio div, not a button, so a mouse can take the row by it
+  // to drag (each person's own order of versions, order.ver.<book>.ch<n>.<kind>).
+  const row = (id, title, meta, canDelete) => '<div class="gv' + ((cur || null) === id ? ' on' : '') + '" data-dkey="' + esc(id || 'orig') + '" title="' + esc(OR.HINT) + '"><div class="gv-pick" tabindex="0" data-feature="' + esc(id || '') + '" role="radio" aria-checked="' + ((cur || null) === id) + '"><span class="dot"></span><span><b>' + esc(title) + '</b><span>' + esc(meta) + '</span></span></div>' +
     (canDelete ? '<button class="ib" data-del="' + esc(id) + '" title="Delete this version" aria-label="Delete this version"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>' : '') + '</div>';
   const when = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : '');
   const desc = (r) => [r.model && modelName(r.model), r.voices && r.voices.filter(Boolean).map(voiceName).join(' & '), r.duration && T.fmtTime(r.duration), r.lessons && r.lessons.length + ' lessons', r.by && (C.PROFILES[r.by] ? C.PROFILES[r.by].label : r.by), when(r.at)].filter(Boolean).join(' · ');
@@ -398,10 +402,13 @@ function drawVersions(box, ctx, kind) {
   box.innerHTML = '<h3>Versions</h3>' +
     (job && !(running && running.kind === kind && running.ctx.n === ctx.n) ? '<div class="stat busy gen-other"><i></i><span>' + esc((C.PROFILES[job.by] ? C.PROFILES[job.by].label : job.by) + ' is making this' + (job.text ? ': ' + job.text.toLowerCase() : '') + '…') + '</span></div>' : '') +
     '<div class="gvs">' +
-    (shipped ? row(null, kind === 'lessons' ? 'Your own notes' : 'Comes with Shruti', shipped, false) : '') +
-    list.map((r) => row(r.id, kind === 'lessons' ? 'Lessons by ' + modelName(r.model) : (M.KIND_NAME[kind] + (r.length ? ' · ' + (LENGTHS[r.length] || {}).label : '')), desc(r), true)).join('') +
+    OR.arrange([...(shipped ? [{ k: 'orig', html: row(null, kind === 'lessons' ? 'Your own notes' : 'Comes with Shruti', shipped, false) }] : []),
+      ...list.map((r) => ({ k: r.id, html: row(r.id, kind === 'lessons' ? 'Lessons by ' + modelName(r.model) : (M.KIND_NAME[kind] + (r.length ? ' · ' + (LENGTHS[r.length] || {}).label : '')), desc(r), true) }))],
+    (x) => x.k, OR.get(orderKey)).map((x) => x.html).join('') +
     (!shipped && !list.length ? '<p class="hint">Nothing made yet.</p>' : '') + '</div>' +
     (list.length || shipped ? '<p class="hint gv-h">The ticked one is what plays, on every device' + (C.shared === M.docFor(ctx.book) ? ' and for both of you' : '') + '.</p>' : '');
+  OR.sortable(box.querySelector('.gvs'), { row: '.gv', onMove: (ks) => { OR.put(orderKey, ks); drawVersions(box, ctx, kind); } });
+  box.querySelectorAll('[data-feature]').forEach((b) => b.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && !e.altKey) { e.preventDefault(); b.click(); } }));
   box.querySelectorAll('[data-feature]').forEach((b) => b.addEventListener('click', () => {
     const id = b.dataset.feature || null;
     if (id === (cur || null)) return;
