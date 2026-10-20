@@ -1,0 +1,39 @@
+{
+  "n": 13,
+  "title": "Creation and the creator",
+  "flashcards": [
+    { "front": "Spiritual knowledge, per 13.2", "back": "Truly understanding both the creator and the creation.", "ref": "13.02", "L": ["L1"] },
+    { "front": "The field and its knower", "back": "The field is the body with mind, ego, senses and their objects; the knower of the field is the eternal Spirit.", "L": ["L1"] },
+    { "front": "What true knowledge looks like (13.7-8)", "back": "Humility, modesty, nonviolence, forgiveness, honesty, service to the guru, purity, steadiness, self-control, absence of ego.", "ref": "13.07-08", "L": ["L2"] },
+    { "front": "Reflection, as part of knowledge", "back": "Constant reflection on the pain in birth, old age, disease and death is listed among the marks of knowledge.", "ref": "13.07-08", "L": ["L2"] },
+    { "front": "How can God be described?", "back": "Only by parables: without senses yet perceiving through all, inside and outside all beings, near and far.", "L": ["L3"] },
+    { "front": "Purusha and Prakriti", "back": "Spirit and material nature are both beginningless. Body and senses come from nature; pleasure and pain from the soul's tie to it.", "L": ["L4"] },
+    { "front": "What causes birth in good and evil wombs? (13.21)", "back": "Purusha's attachment to the modes of nature, out of ignorance caused by past Karma.", "ref": "13.21", "L": ["L4"] },
+    { "front": "Who truly sees? (13.27)", "back": "One who sees the same eternal Lord dwelling equally in all mortal beings.", "ref": "13.27", "L": ["L5"] },
+    { "front": "Five paths to liberation (13.34)", "back": "Selfless service, knowledge, devotion, meditation and surrender, seen with the eye of Self-knowledge.", "ref": "13.34", "L": ["L6"] }
+  ],
+  "quiz": [
+    { "text": "In Chapter 13, what is the \"field\"?", "options": { "A": "The battlefield", "B": "The body, with mind, senses and their objects", "C": "Heaven", "D": "The soul" }, "correct": "B", "why": "The Spirit is the knower of the field.", "L": ["L1"] },
+    { "text": "Which is listed as a mark of true knowledge (13.7-8)?", "options": { "A": "Wealth", "B": "Humility and forgiveness", "C": "Fame", "D": "Debating skill" }, "correct": "B", "why": "Knowledge is a way of being, not information.", "L": ["L2"] },
+    { "text": "How can the Supreme be described?", "options": { "A": "Fully, in words", "B": "Only by parables", "C": "By numbers", "D": "Not at all" }, "correct": "B", "why": "He is inside and outside all, near and far.", "L": ["L3"] },
+    { "text": "Spirit and material nature are:", "options": { "A": "Both created at birth", "B": "Both beginningless", "C": "One eternal, one created", "D": "Illusions" }, "correct": "B", "why": "Purusha and Prakriti have no beginning.", "L": ["L4"] },
+    { "text": "Who truly sees, per 13.27?", "options": { "A": "One with good eyesight", "B": "One who sees the same Lord in all beings", "C": "One who sees the future", "D": "One who reads scripture" }, "correct": "B", "why": "Equal vision across all beings.", "L": ["L5"] },
+    { "text": "Which is NOT one of the five paths of 13.34?", "options": { "A": "Selfless service", "B": "Devotion", "C": "Wealth", "D": "Meditation" }, "correct": "C", "why": "Service, knowledge, devotion, meditation, surrender.", "L": ["L6"] }
+  ],
+  "mindmap": {
+    "root": "Creation and the creator",
+    "branches": [
+      { "text": "Field and knower", "L": ["L1"], "children": [{ "text": "Body: the field", "L": ["L1"] }, { "text": "Spirit: its knower" }, { "text": "Know both (13.2)" }] },
+      { "text": "Marks of knowledge", "L": ["L2"], "children": [{ "text": "Humility, nonviolence (13.7-8)", "L": ["L2"] }, { "text": "Reflect on birth, age, death" }] },
+      { "text": "The Supreme", "L": ["L3", "L4"], "children": [{ "text": "Described by parables", "L": ["L3"] }, { "text": "Purusha and Prakriti, beginningless", "L": ["L4"] }, { "text": "Attachment causes birth (13.21)" }] },
+      { "text": "Liberation", "L": ["L5", "L6"], "children": [{ "text": "One Lord in all (13.27)", "L": ["L5"] }, { "text": "Five paths (13.34)", "L": ["L6"] }] }
+    ]
+  },
+  "slides": [
+    { "title": "Creation and the creator", "bullets": ["Chapter 13", "The field, its knower, and the way out"] },
+    { "title": "The field and its knower", "bullets": ["The body, mind and senses: the field", "The eternal Spirit: its knower", "Knowing both is spiritual knowledge (13.2)"], "L": ["L1"] },
+    { "title": "What knowledge looks like", "bullets": ["Humility, nonviolence, forgiveness, honesty (13.7-8)", "Self-control, no ego, service to the guru"], "L": ["L2"] },
+    { "title": "Beyond description", "bullets": ["God is told only in parables", "Spirit and nature are both beginningless", "Attachment to the modes brings birth (13.21)"], "L": ["L3", "L4"] },
+    { "title": "The one who truly sees", "bullets": ["Sees one Lord in every being (13.27)", "Five paths: service, knowledge, devotion, meditation, surrender (13.34)"], "L": ["L5", "L6"] }
+  ]
+}
