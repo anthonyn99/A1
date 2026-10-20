@@ -51,7 +51,6 @@ export const setsFor = (book, n) => aiSets(book).filter((s) => covers(s, n)).sor
 export function saveSet(book, rec) {
   const d = doc(book);
   d.set({ ['sets.' + book + '.' + rec.id]: rec }, { now: true });
-  if (d === C.me) return;
 }
 export const removeSet = (book, id) => doc(book).set({ ['sets.' + book + '.' + id]: C.DELETE }, { now: true });
 /** Whether a chapter has anything to study (the library's Study badge). */
