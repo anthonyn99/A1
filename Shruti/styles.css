@@ -224,13 +224,17 @@ body[data-profile=veda] .sec-h h2 { text-transform: none; letter-spacing: 0; fon
 .ch .t { font-weight: 650; font-size: 15px; line-height: 1.3; }
 .ch .m { color: var(--txd); font-size: 12.5px; margin-top: 3px; }
 .badges { display: flex; gap: 4px; }
-.bdg {
-  width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; color: var(--txd);
+/* Every badge is the same circle (Tony, 2026-10-20): not made = dashed and dim,
+   made = solid, done = the same circle lit. `.bdg.av` restates the size because
+   the avatar rule `.av` (38px, shadow) shares the class name. */
+.bdg, .bdg.av, .bdg.done {
+  width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0;
+  box-shadow: none; font: inherit; background: transparent; color: var(--txd);
   border: 1px dashed var(--line2); opacity: .55;
 }
-.bdg svg { width: 14px; height: 14px; }
-.bdg.av { opacity: 1; border-style: solid; border-color: var(--line2); color: var(--txm); }
-.bdg.done { opacity: 1; border: 1px solid var(--ac-line); background: var(--ac-soft); color: var(--ac); }
+.bdg svg { width: 15px; height: 15px; }
+.bdg.av { opacity: 1; border-style: solid; color: var(--txm); }
+.bdg.done { opacity: 1; border-style: solid; border-color: var(--ac-line); background: var(--ac-soft); color: var(--ac); }
 
 /* == chapter ================================================================ */
 .cp-head { margin: 2px 0 18px; }
