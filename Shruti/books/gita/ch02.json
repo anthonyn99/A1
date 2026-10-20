@@ -28,11 +28,6 @@
    "t": "Important verses are highlighted. First time readers should read and understand these verses first."
   },
   {
-   "k": "a",
-   "style": "gloss",
-   "t": "read and understand these verses first."
-  },
-  {
    "k": "p",
    "s": [
     {
@@ -180,24 +175,14 @@
    "t": "The righteous war is not a religious war against the followers of other religions. The righteous war may be waged even against our own evil-doer kith and kin (RigVeda 6.75.19). Life is a continuous battle between the forces of evil"
   },
   {
-   "k": "p",
-   "s": [
-    {
-     "t": "and goodness. “Whosoever kills an innocent human being, it shall be regarded as if he has killed the entire humanity.” (Surah 5.32).",
-     "v": null,
-     "key": true
-    }
-   ]
+   "k": "a",
+   "style": "commentary",
+   "t": "and goodness. “Whosoever kills an innocent human being, it shall be regarded as if he has killed the entire humanity.” (Surah 5.32)."
   },
   {
-   "k": "p",
-   "s": [
-    {
-     "t": "It is better to die for a right cause and acquire the grace of sacrifice than to die an ordinary but compulsory death. The gates of heaven open wide for those who stand up to vindicate justice and righteousness (Dharma). Not to oppose an evil is to indirectly support it. Very similar ideas are expressed in other scriptures of the world. The Bible says: Happy are those who suffer persecution because they do what God requires. The kingdom of heaven belongs to them (MATTHEW 5.10). There is no sin in killing an aggressor. Whosoever helps and supports an aggressor is also an aggressor. Thus, all those who supported Kauravas were basically aggressors and deserved to be eliminated.",
-     "v": null,
-     "key": false
-    }
-   ]
+   "k": "a",
+   "style": "commentary",
+   "t": "It is better to die for a right cause and acquire the grace of sacrifice than to die an ordinary but compulsory death. The gates of heaven open wide for those who stand up to vindicate justice and righteousness (Dharma). Not to oppose an evil is to indirectly support it. Very similar ideas are expressed in other scriptures of the world. The Bible says: Happy are those who suffer persecution because they do what God requires. The kingdom of heaven belongs to them (MATTHEW 5.10). There is no sin in killing an aggressor. Whosoever helps and supports an aggressor is also an aggressor. Thus, all those who supported Kauravas were basically aggressors and deserved to be eliminated."
   },
   {
    "k": "p",

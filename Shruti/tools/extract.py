@@ -27,7 +27,7 @@ def cls(l):
     for ch, _, s in chars(l):
         if ch.isspace(): continue
         if s["c"] == "0xff0000": w["red"] += 1
-        elif s["f"].startswith("ArialMT") and s["z"] == 11.0 and not s["it"]: w["body"] += 1
+        elif s["f"].startswith("ArialMT") and 10.4 <= s["z"] <= 11.4 and not s["it"]: w["body"] += 1
         elif s["it"] or "Italic" in s["f"]: w["gloss"] += 1
         else: w["aside"] += 1
     return w.most_common(1)[0][0] if w else None
@@ -113,7 +113,8 @@ def add_line(l, kind):
     global para
     cs = [(c, h) for c, h, _ in chars(l)]
     indent = l["x"] > 35
-    if para and (para["cls"] != kind or indent): flush()
+    same = para and (para["cls"] == kind or (para["cls"] != "body" and kind != "body"))
+    if para and (not same or indent): flush()
     if not para:
         para = {"cls": kind, "buf": []}
         while cs and cs[0][0].isspace(): cs.pop(0)
@@ -143,10 +144,25 @@ for l in lines:
         flush(); cur["blocks"].append({"k": "h", "t": t, "minor": True}); continue
     if t == "Teachings of the Gita begins":
         flush(); cur["blocks"].append({"k": "a", "style": "marker", "t": t}); continue
+    if t.startswith("read and understand these verses first"): continue
     if t.startswith("Important verses are high"):
         flush(); cur["blocks"].append({"k": "a", "style": "gloss", "t": "Important verses are highlighted. First time readers should read and understand these verses first."}); continue
     add_line(l, k)
 flush()
+
+def commentary_pass(ch):
+    """Body-font paragraphs under a 'Commentary' heading are commentary until verses resume."""
+    on, out = False, []
+    for b in ch["blocks"]:
+        if b["k"] == "h": on = b.get("minor", False)
+        elif on and b["k"] == "p":
+            if any(s["v"] for s in b["s"]): on = False
+            else:
+                b = {"k": "a", "style": "commentary", "t": " ".join(s["t"] for s in b["s"])}
+        elif on and b["k"] == "a" and b["style"] == "aside": b["style"] = "commentary"
+        out.append(b)
+    ch["blocks"] = out
+for c in [intro] + chapters: commentary_pass(c)
 
 os.makedirs(OUT, exist_ok=True)
 def dump(obj, name):
