@@ -181,7 +181,7 @@ async function load(c, { w, h, mobile, store, hash = '' }) {
   await ev(c, `location.hash='#/'; return 1`);
   await waitFor(c, `!!document.querySelector('.book')`);
   ok('her look: StudyOS purple, Lora headings, Nunito body, classic hover', await ev(c, `return getComputedStyle(document.body).getPropertyValue('--ac').trim()==='#A892B0' && /Lora/.test(getComputedStyle(document.querySelector('.lib-hero h1')).fontFamily) && /Nunito/.test(getComputedStyle(document.body).fontFamily) && !document.body.dataset.hoverfx`));
-  ok('her profile button is her star in a ring', await ev(c, `const a=document.querySelector('#switch-btn .pf-av'); return a && a.textContent==='✦' && getComputedStyle(a).borderRadius==='50%'`));
+  ok('her profile button is her star in a ring', await ev(c, `const a=document.querySelector('#switch-btn .pf-av'); return a && !!a.querySelector('svg path') && getComputedStyle(a).borderRadius==='50%' && (()=>{const r=a.getBoundingClientRect(), q=a.querySelector('svg').getBoundingClientRect(); return Math.abs((r.left+r.right)/2-(q.left+q.right)/2)<1 && Math.abs((r.top+r.bottom)/2-(q.top+q.bottom)/2)<1})()`));
   ok('her tab icon is her colour', await ev(c, `return /%23A892B0/.test(document.querySelector('link[rel=icon]').href)`));
   ok('her document is dashboards/shruti_veda', await waitFor(c, `return window.Shruti.core.me.loaded && window.Shruti.core.me.path==='dashboards/shruti_veda'`));
   ok("Tony's progress is not hers (the shelf bar is empty)", await ev(c, `return parseFloat(document.querySelector('.bk-bar i').style.width)===0`), await ev(c, `return document.querySelector('.bk-bar i').style.width+' '+JSON.stringify(window.__fakeFs.docs['dashboards/shruti_veda'])`));

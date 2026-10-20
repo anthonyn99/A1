@@ -152,6 +152,7 @@ body[data-profile=veda] #top .brand { font-weight: 600; }
 /* Whose Shruti this is: the person's mark in a ring (MAGI's ⚜ / ✦). */
 #switch-btn .pf-av { width: 26px; height: 26px; border-radius: 50%; border: 1.6px solid currentColor; display: grid; place-items: center; font-size: 15px; line-height: 1; color: var(--ac); }
 #switch-btn .pf-av svg { width: 15px; height: 14px; }
+body[data-profile=veda] #switch-btn .pf-av svg { width: 14px; height: 14px; }
 #switch-btn:hover .pf-av { color: var(--tx); }
 
 #view { flex: 1; width: 100%; max-width: 1180px; margin: 0 auto; padding: 22px 24px calc(40px + var(--bnav-h) + var(--mini-h, 0px)); }

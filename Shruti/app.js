@@ -209,7 +209,9 @@ C.on('doc:shared', ({ remote }) => { if (remote) redraw(); });
 
 /* ── header buttons ───────────────────────────────────────────────────────── */
 $('#lock-btn').addEventListener('click', () => Guardian.manage(GID).then(updateLockBtn));
-$('#switch-btn').innerHTML = '<span class="pf-av">' + (P === 'veda' ? '✦' : FLEUR) + '</span>';
+// Veda's star is drawn, not the ✦ glyph: a font's glyph sits off-centre in the ring.
+const SPARK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.3 7.2L21.5 12l-7.2 2.3L12 21.5l-2.3-7.2L2.5 12l7.2-2.3z" fill="currentColor"/></svg>';
+$('#switch-btn').innerHTML = '<span class="pf-av">' + (P === 'veda' ? SPARK : FLEUR) + '</span>';
 $('#switch-btn').addEventListener('click', () => showPicker());
 $('#settings-btn').addEventListener('click', () => openSettings());
 
