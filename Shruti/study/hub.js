@@ -154,7 +154,8 @@ addEventListener('shruti:make-study', (e) => {
   const { book, n } = e.detail;
   makeFor(book, n);
   const want = '#/b/' + book + '/' + n + '/study';
-  if (location.hash === want && live && live.ctx.book === book && live.ctx.n === n) { pending = null; openMaker(live.ctx, () => dispatchEvent(new HashChangeEvent('hashchange'))); }
+  // Already there: draw the tab again, which opens the maker.
+  if (location.hash === want) dispatchEvent(new HashChangeEvent('hashchange'));
   else location.hash = want;
 });
 
