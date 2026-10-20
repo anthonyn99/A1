@@ -56,6 +56,7 @@ const keyOf = () => String(C.me.get('orcaKey', '') || '');
 /* ── ready-made narrations ───────────────────────────────────────────────── */
 const shippedIndex = new Map();
 function shipped(book) {
+  if (!C.isShipped(book)) return Promise.resolve({});
   if (!shippedIndex.has(book)) shippedIndex.set(book, fetch('books/' + book + '/media/index.json').then((r) => (r.ok ? r.json() : {})).catch(() => ({})));
   return shippedIndex.get(book);
 }
@@ -65,7 +66,7 @@ export async function readyFor(book, n) {
   const idx = await shipped(book);
   const s = idx && idx[String(n)];
   if (s) out.push({ where: 'shipped', voice: s.voice, mp3: 'books/' + book + '/media/' + s.mp3, json: 'books/' + book + '/media/' + s.json, duration: s.duration });
-  const a = C.shared.get('assets.' + book + '.ch' + n + '.read', null);
+  const a = M.docFor(book).get('assets.' + book + '.ch' + n + '.read', null);
   if (a && a.mp3 && a.json) out.push({ where: 'drive', voice: a.voice, mp3: a.mp3, json: a.json, duration: a.duration, by: a.by, at: a.at });
   return out;
 }

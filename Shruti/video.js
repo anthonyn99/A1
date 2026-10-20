@@ -49,12 +49,13 @@ export const now = () => (audio ? audio.currentTime || 0 : 0);
 /* ── what exists ─────────────────────────────────────────────────────────── */
 const shippedIdx = new Map();
 export function shipped(book) {
+  if (!C.isShipped(book)) return Promise.resolve({});
   if (!shippedIdx.has(book)) shippedIdx.set(book, fetch('books/' + book + '/media/videos.json').then((r) => (r.ok ? r.json() : {})).catch(() => ({})));
   return shippedIdx.get(book);
 }
 /** The video for a chapter: a saved (Drive) one first, else the shipped one. */
 export async function sourceFor(book, n) {
-  const a = C.shared.get('assets.' + book + '.ch' + n + '.video', null);
+  const a = M.docFor(book).get('assets.' + book + '.ch' + n + '.video', null);
   if (a && a.mp3 && a.json) return { where: 'drive', mp3: a.mp3, json: a.json, duration: a.duration };
   const s = (await shipped(book))[String(n)];
   if (s) return { where: 'shipped', mp3: 'books/' + book + '/media/' + s.mp3, json: 'books/' + book + '/media/' + s.json, duration: s.duration };

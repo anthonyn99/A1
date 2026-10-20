@@ -32,7 +32,7 @@ const getJSON = (url) => {
   return cache.get(url);
 };
 /** The book's study index: {"4": {flashcards: 16, quiz: 8, mindmap: 5, slides: 9}, ...} or {}. */
-export const shippedIndex = (book) => getJSON('books/' + book + '/study.json').then((x) => x || {});
+export const shippedIndex = (book) => !C.isShipped(book) ? Promise.resolve({}) : getJSON('books/' + book + '/study.json').then((x) => x || {});
 export async function shippedSet(book, n) {
   const idx = await shippedIndex(book);
   if (!idx[String(n)]) return null;
