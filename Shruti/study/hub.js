@@ -19,7 +19,7 @@ import * as FC from './flashcards.js';
 import * as QZ from './quiz.js';
 import * as MM from './mindmap.js';
 import * as SD from './slides.js';
-import { h, esc, IC, progress } from './ui.js';
+import { h, esc, IC, progress, OR } from './ui.js';
 
 export const KIND_NAME = { flashcards: 'Flashcards', quiz: 'Quiz', mindmap: 'Mind map', slides: 'Slides' };
 const TOOL = { flashcards: FC, quiz: QZ, mindmap: MM, slides: SD };
@@ -87,7 +87,8 @@ export async function renderStudy(body, ctx) {
   const ready = await shippedSet(ctx.book, ctx.n);
   const draw = () => {
     if (live) { live.dispose(); live = null; }
-    const sets = [...(ready ? [ready] : []), ...setsFor(ctx.book, ctx.n)];
+    // Sets, and the kinds inside each, in this person's order (order.sets.<book>, order.kinds.<book>.<set>).
+    const sets = OR.arrange([...(ready ? [ready] : []), ...setsFor(ctx.book, ctx.n)], (s) => s.id, OR.get('sets.' + ctx.book));
     if (!sets.length) {
       body.innerHTML = '<div class="empty">' + IC.flashcards + '<b>Nothing to study here yet</b><span>Make flashcards, a quiz, a mind map or slides from this chapter, a section of it or what you select in Read.</span>' +
         '<button class="btn solid" data-make>' + IC.spark + 'Make a study set</button></div>';
@@ -97,16 +98,16 @@ export async function renderStudy(body, ctx) {
     let sel = pick(ctx);
     if (!sel || !sets.some((s) => s.id === sel.set && s.kinds[sel.kind])) {
       const s0 = sets[0];
-      sel = { set: s0.id, kind: P.KINDS.find((k) => s0.kinds[k]) };
+      sel = { set: s0.id, kind: kindsOf(ctx.book, s0)[0] };
     }
     const cur = sets.find((s) => s.id === sel.set);
     body.innerHTML = '<div class="sh"><aside class="sh-side" aria-label="Study sets"></aside><section class="sh-main"><div class="sh-head"></div><div class="sh-tool"></div></section></div>';
     const side = body.querySelector('.sh-side');
     side.innerHTML = sets.map((s) => {
       const meta = s.shipped ? 'Comes with Shruti' : [G.modelName(s.model), s.by && C.PROFILES[s.by] ? C.PROFILES[s.by].label : '', s.at ? new Date(s.at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : ''].filter(Boolean).join(' · ');
-      return '<div class="sh-set' + (s.id === sel.set ? ' on' : '') + '"><div class="sh-set-h"><span><b>' + esc(s.shipped ? s.label : s.scope.label ? s.scope.label[0].toUpperCase() + s.scope.label.slice(1) : 'Study set') + '</b><span>' + esc(meta) + '</span></span>' +
+      return '<div class="sh-set' + (s.id === sel.set ? ' on' : '') + '" data-dkey="' + esc(s.id) + '" title="' + esc(OR.HINT) + '"><div class="sh-set-h"><span><b>' + esc(s.shipped ? s.label : s.scope.label ? s.scope.label[0].toUpperCase() + s.scope.label.slice(1) : 'Study set') + '</b><span>' + esc(meta) + '</span></span>' +
         (s.shipped ? '' : '<button class="ib sm" data-del="' + esc(s.id) + '" title="Delete this set" aria-label="Delete this set">' + IC.trash + '</button>') + '</div>' +
-        P.KINDS.filter((k) => s.kinds[k]).map((k) => { const stt = status(ctx.book, s.id, k, s.kinds[k]); return '<button class="sh-kind k-' + k + (s.id === sel.set && k === sel.kind ? ' on' : '') + '" data-set="' + esc(s.id) + '" data-kind="' + k + '"><i>' + IC[k] + '</i><span>' + KIND_NAME[k] + '</span><em class="' + stt.c + '">' + esc(stt.t) + '</em></button>'; }).join('') + '</div>';
+        kindsOf(ctx.book, s).map((k) => { const stt = status(ctx.book, s.id, k, s.kinds[k]); return '<button class="sh-kind k-' + k + (s.id === sel.set && k === sel.kind ? ' on' : '') + '" data-set="' + esc(s.id) + '" data-kind="' + k + '" data-dkey="' + k + '"><i>' + IC[k] + '</i><span>' + KIND_NAME[k] + '</span><em class="' + stt.c + '">' + esc(stt.t) + '</em></button>'; }).join('') + '</div>';
     }).join('') + '<button class="btn sh-make" data-make>' + IC.spark + 'Make a study set</button>';
     side.querySelectorAll('[data-kind]').forEach((b) => b.addEventListener('click', () => { remember(ctx, { set: b.dataset.set, kind: b.dataset.kind }); draw(); if (matchMedia('(max-width: 760px)').matches) body.querySelector('.sh-main').scrollIntoView({ block: 'start', behavior: 'smooth' }); }));
     side.querySelector('[data-make]').addEventListener('click', () => openMaker(ctx, draw));
