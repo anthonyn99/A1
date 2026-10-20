@@ -137,6 +137,19 @@ Secrets (`wrangler secret put`) are per account too and must be re-set here:
 Until those are set, `tools/pull-backups.mjs` gets a 401 and trade-dashboard's
 `/calendar` returns no earnings dates. Nothing else is affected.
 
+## Program-owned workers (outside workers2/)
+
+A program that moves as one folder keeps its worker inside that folder, and
+this lane deploys it from there too. Today that is one:
+
+| worker       | folder          | namespace    | secrets                                            |
+| ------------ | --------------- | ------------ | -------------------------------------------------- |
+| shruti-drive | `Shruti/worker` | SHRUTI_DRIVE | GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, SIGN_KEY   |
+
+`deploy-workers2.yml` lists the folder in its push paths and in its `find`, and
+runs `kv-provision.mjs` by its workspace path, so it resolves `kv:` titles from
+any folder. Adding another means adding its folder to those two lines.
+
 ## canary
 
 `workers2/canary` is the smoke test for this lane, not a real project. It holds
