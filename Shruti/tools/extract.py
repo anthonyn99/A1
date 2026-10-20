@@ -90,8 +90,14 @@ def flush():
     else:
         style = para["cls"]
         if s2.startswith("NOTE"): style = "note"
-        cur["blocks"].append({"k": "a", "style": {"aside": "commentary", "gloss": "gloss"}.get(style, style), "t": s2})
+        cur["blocks"].append({"k": "a", "style": {"aside": "commentary", "gloss": "gloss"}.get(style, style), "t": fix(s2)})
     para = None
+
+# Line-break joins the vocabulary rule gets wrong, checked by hand against the PDF.
+FIXES = {"senserestraint": "sense-restraint", "Con-cealed": "Concealed", "Who-ever": "Whoever"}
+def fix(t):
+    for a, b in FIXES.items(): t = t.replace(a, b)
+    return t
 
 REF = re.compile(r"\((?:Verse\s+)?(\d{1,2})\.(\d{2})(?:\s*-\s*(\d{2}))?\)")
 def split_verses(buf):
@@ -106,7 +112,7 @@ def split_verses(buf):
         t = re.sub(r"\s+", " ", s[a:b]).strip()
         if not t: continue
         span = [hl[i] for i in range(a, b) if not s[i].isspace()]
-        out.append({"t": t, "v": v, "key": bool(span) and sum(span) / len(span) > 0.5})
+        out.append({"t": fix(t), "v": v, "key": bool(span) and sum(span) / len(span) > 0.5})
     return {"k": "p", "s": out}
 
 def add_line(l, kind):
