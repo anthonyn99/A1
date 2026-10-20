@@ -90,6 +90,8 @@ export function firebase() {
   })();
   return fbReady;
 }
+// Tests hand in a fake Firestore ({db, fs}) instead of the network one.
+export function _useFirebase(f) { fb = f; fbReady = Promise.resolve(f); }
 // LifeHub shares this Firestore instead of starting its own.
 window.LifeHubFirebase = () => firebase().then((f) => ({ db: f.db, fs: f.fs }));
 
