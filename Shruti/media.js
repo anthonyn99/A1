@@ -30,10 +30,11 @@ export async function driveReady() {
   const h = await fetch(DRIVE + '/health').then((r) => r.json()).catch(() => null);
   return !!(h && h.connected);
 }
-/** Upload one file to Shruti/<book>/ch<n>/ on Drive. Resolves {id, size, store}. */
-export async function upload({ book, n, body, type, name, key = keyOf() }) {
+/** Upload one file to Shruti/<book>/ch<n>/ on Drive (or Shruti/<book>/<chapter>/,
+ *  e.g. "source" for an imported book's original). Resolves {id, size, store}. */
+export async function upload({ book, n, chapter, body, type, name, key = keyOf() }) {
   const owner = C.P || 'tony';
-  const r = await fetch(DRIVE + '/f?book=' + encodeURIComponent(book) + '&chapter=ch' + n + '&name=' + encodeURIComponent(name) + '&owner=' + owner,
+  const r = await fetch(DRIVE + '/f?book=' + encodeURIComponent(book) + '&chapter=' + encodeURIComponent(chapter || 'ch' + n) + '&name=' + encodeURIComponent(name) + '&owner=' + owner,
     { method: 'PUT', headers: { authorization: 'Bearer ' + key, 'content-type': type }, body });
   const j = await r.json().catch(() => ({}));
   if (!r.ok || !j.id) throw new Error('Drive upload failed (' + (j.error || r.status) + ')');
