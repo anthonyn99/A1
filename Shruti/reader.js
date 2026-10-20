@@ -163,16 +163,15 @@ export function renderRead(body, ch, book, n, { title, at } = {}) {
 
   /* ── read-aloud ── */
   const raBtn = body.querySelector('[data-ra]');
+  let shownOnce = false;
   const paintRa = () => {
-    if (!art.isConnected && raBtn.isConnected === false && document.body.contains(body) === false) return;
     const on = NR.active(book, n), st = NR.state;
     raBtn.innerHTML = on && st.playing ? PAUSE + '<span>Pause</span>' : IC.play + '<span>' + (on ? 'Resume' : 'Listen') + '</span>';
     body.querySelector('#rd-follow').hidden = !(on && st.playing && st.away && st.follow);
     art.classList.toggle('ra-on', on);
   };
-  const offNR = NR.onChange(() => { if (!body.isConnected && art.isConnected === false && whenGone()) return; paintRa(); });
-  let shownOnce = false;
-  const whenGone = () => { if (shownOnce && !art.isConnected) { offNR(); return true; } return false; };
+  // Listens until this view leaves the page.
+  const offNR = NR.onChange(() => { if (shownOnce && !art.isConnected) { offNR(); return; } paintRa(); });
   raBtn.addEventListener('click', () => {
     if (NR.active(book, n)) { NR.toggle(); return; }
     // From the resume point, else from where the reader is, else the start.
