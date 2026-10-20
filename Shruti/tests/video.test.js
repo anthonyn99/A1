@@ -67,8 +67,10 @@ const XREF = /\s*\((?:also\s+)?see\b[^)]*\)/gi;
     ok('verse scenes (' + vs.length + ') name verses in the book and say {verse}', vs.every((s) => verses[pad(s.ref)] && s.say.includes('{verse}')), vs.filter((s) => !verses[pad(s.ref)]).map((s) => s.ref).join(','));
     ok('{verse} only on verse scenes', sc.scenes.every((s) => s.layout === 'verse' || !s.say.includes('{verse}')));
     ok('story scenes mark what goes beyond this rendition', sc.scenes.filter((s) => s.beyond).every((s) => /full Gita|Mahabharata|leaves out|our book (skips|leaves|does not)|not in (this|our) book|beyond (this|our)/i.test(s.say)));
-    ok('on-screen text fits: headlines ≤ 64, items ≤ 64, ≤ 4 points, ≤ 6 steps', sc.scenes.every((s) => (s.headline || '').length <= 64 && (s.visual || []).every((v) => v.length <= 64) && (s.visual || []).length <= (s.layout === 'steps' ? 6 : s.layout === 'compare' ? 5 : 4)),
-      sc.scenes.filter((s) => (s.headline || '').length > 64 || (s.visual || []).some((v) => v.length > 64)).map((s) => s.headline || s.visual.find((v) => v.length > 64)).join(' | '));
+    // A compare row is two sides, each in half the width.
+    const long = (s, v) => s.layout === 'compare' ? v.split('|').some((x) => x.trim().length > 48) : v.length > 64;
+    ok('on-screen text fits: headlines ≤ 64, items ≤ 64 (≤ 48 a side), ≤ 4 points, ≤ 6 steps', sc.scenes.every((s) => (s.headline || '').length <= 64 && !(s.visual || []).some((v) => long(s, v)) && (s.visual || []).length <= (s.layout === 'steps' ? 6 : s.layout === 'compare' ? 5 : 4)),
+      sc.scenes.filter((s) => (s.headline || '').length > 64 || (s.visual || []).some((v) => long(s, v))).map((s) => (s.headline || '').length > 64 ? s.headline : s.visual.find((v) => long(s, v))).join(' | '));
     ok('content scenes have a headline and points; compare rows have two sides', sc.scenes.every((s) => !['story', 'compare', 'steps', 'closing'].includes(s.layout) || (s.headline && s.visual.length >= 2)) && sc.scenes.filter((s) => s.layout === 'compare').every((s) => s.visual.every((r) => r.split('|').length === 2)));
 
     const e = index[String(n)];
