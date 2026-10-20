@@ -120,6 +120,13 @@ def segment(chars_):
             end = i
             while end > start and t[end - 1] == " ": end -= 1
             ranges.append([start, end]); start = None
+    # The PDF paints small white boxes over a few accented letters (Maya, Karma); bridge those
+    # gaps and drop specks such as a lone highlighted dash.
+    merged = []
+    for r in ranges:
+        if merged and r[0] - merged[-1][1] <= 6: merged[-1][1] = r[1]
+        else: merged.append(r)
+    ranges = [r for r in merged if r[1] - r[0] >= 3]
     real = [f for f in flags if f is not None]
     return "".join(t), ranges, bool(real) and sum(real) / len(real) > 0.5
 

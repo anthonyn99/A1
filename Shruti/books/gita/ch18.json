@@ -81,17 +81,7 @@
     {
      "t": "Human beings cannot completely abstain from work. Therefore, one who completely renounces attachment to the fruits of all work is considered a Tyagi.",
      "v": "18.11",
-     "key": true,
-     "hl": [
-      [
-       0,
-       145
-      ],
-      [
-       146,
-       149
-      ]
-     ]
+     "key": true
     },
     {
      "t": "The threefold fruit of works — desirable, undesirable, and mixed — accrues after death to the one who is not a Tyagi, but never to a Tyagi.",
@@ -367,17 +357,7 @@
     {
      "t": "Learn from Me briefly, O Arjuna, how one who has attained such perfection — the freedom from the bondage of Karma — attains the Supreme Person, the goal of spiritual knowledge.",
      "v": "18.50",
-     "key": false,
-     "hl": [
-      [
-       74,
-       75
-      ],
-      [
-       114,
-       115
-      ]
-     ]
+     "key": false
     },
     {
      "t": "Endowed with purified intellect, subduing the mind with firm resolve, turning away from sound and other objects of the senses, giving up likes and dislikes; living in solitude; eating lightly; controlling the mind, speech, and organs of action; ever absorbed in yoga of meditation; taking refuge in detachment; and relinquishing egotism, violence, pride, lust, anger, and proprietorship — one becomes peaceful, free from the notion of \"I” and “my\", and fit for attaining oneness with the Supreme Being.",
@@ -509,21 +489,7 @@
     {
      "t": "Setting aside doership, ownership and attachment to the fruits of all works, just surrender to— or gladly abide by— My Will. I shall liberate you from all sins or bondage of Karma. Do not grieve.",
      "v": "18.66",
-     "key": true,
-     "hl": [
-      [
-       0,
-       94
-      ],
-      [
-       96,
-       114
-      ],
-      [
-       116,
-       195
-      ]
-     ]
+     "key": true
     }
    ]
   },
