@@ -227,3 +227,23 @@ for c in chapters: dump(c, f"ch{c['n']:02d}.json")
 nverse = sum(1 for c in chapters for b in c["blocks"] if b["k"] == "p" for s in b["s"] if s["v"])
 nkey = sum(1 for c in chapters for b in c["blocks"] if b["k"] == "p" for s in b["s"] if s["key"])
 print(len(chapters), "chapters,", nverse, "verse refs,", nkey, "key verses")
+
+# book.json: the table of contents the library and chapter list read
+def count(c, pred):
+    return sum(1 for b in c["blocks"] if b["k"] == "p" for s in b["s"] if pred(s))
+lessons_path = os.path.join(OUT, "lessons.json")
+lessons = json.load(open(lessons_path, encoding="utf-8")) if os.path.exists(lessons_path) else {}
+book = {
+    "id": "gita", "title": "Bhagavad-Gita", "subtitle": "The Song of God",
+    "author": "Sage Veda Vyasa", "translator": "Ramananda Prasad, Ph.D.",
+    "publisher": "International Gita Society", "source": "https://www.gita-society.com/Read-bhagavad-gita.html",
+    "shared": True, "unit": "Chapter",
+    "intro": {"title": intro["title"], "file": "ch00.json"},
+    "chapters": [{
+        "n": c["n"], "title": c["title"], "file": f"ch{c['n']:02d}.json",
+        "verses": count(c, lambda s: s["v"]), "key": count(c, lambda s: s["key"]),
+        "sections": [b["t"] for b in c["blocks"] if b["k"] == "h" and not b.get("minor")],
+        "lessons": len(lessons.get(str(c["n"]), {}).get("lessons", [])),
+    } for c in chapters],
+}
+dump(book, "book.json")

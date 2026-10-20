@@ -1,0 +1,322 @@
+{
+ "id": "gita",
+ "title": "Bhagavad-Gita",
+ "subtitle": "The Song of God",
+ "author": "Sage Veda Vyasa",
+ "translator": "Ramananda Prasad, Ph.D.",
+ "publisher": "International Gita Society",
+ "source": "https://www.gita-society.com/Read-bhagavad-gita.html",
+ "shared": true,
+ "unit": "Chapter",
+ "intro": {
+  "title": "Introduction",
+  "file": "ch00.json"
+ },
+ "chapters": [
+  {
+   "n": 1,
+   "title": "Arjuna’s Dilemma",
+   "file": "ch01.json",
+   "verses": 2,
+   "key": 0,
+   "sections": [
+    "Chapter Summary"
+   ],
+   "lessons": 8
+  },
+  {
+   "n": 2,
+   "title": "Spiritual knowledge",
+   "file": "ch02.json",
+   "verses": 62,
+   "key": 15,
+   "sections": [
+    "The spirit is eternal, body is transitory",
+    "Death and Reincarnation of the soul",
+    "Duty of a warrior",
+    "Importance of Karma-yoga, the selfless action",
+    "Material and spiritual aspects of life",
+    "Theory and practice of Karma-yoga",
+    "Marks of a Self-realized person",
+    "Dangers of unrestrained senses",
+    "Peace through sense control and Self-knowledge"
+   ],
+   "lessons": 12
+  },
+  {
+   "n": 3,
+   "title": "Path of Selfless service, Karma-yoga",
+   "file": "ch03.json",
+   "verses": 39,
+   "key": 15,
+   "sections": [
+    "Why one should serve others?",
+    "The first commandment of the creator",
+    "Leaders should set an example",
+    "All works are the works of Nature",
+    "Two stumbling blocks on the path",
+    "Lust is the origin of sin",
+    "How to control lust"
+   ],
+   "lessons": 15
+  },
+  {
+   "n": 4,
+   "title": "Path of renunciation with Self-knowledge",
+   "file": "ch04.json",
+   "verses": 36,
+   "key": 7,
+   "sections": [
+    "Karma-yoga is an ancient law",
+    "The purpose of incarnation of God",
+    "Path of worship and prayer",
+    "Attached, detached, and forbidden action",
+    "A Karma-yogi is not subject  to the Karmic laws",
+    "Different types of spiritual practices",
+    "A superior spiritual practice",
+    "Spiritual knowledge is revealed to a Karma-yogi",
+    "Knowledge, Karma-yoga are needed for Nirvana"
+   ],
+   "lessons": 13
+  },
+  {
+   "n": 5,
+   "title": "Path of renunciation",
+   "file": "ch05.json",
+   "verses": 27,
+   "key": 7,
+   "sections": [
+    "Both paths lead to the Supreme",
+    "A Karma-yogi works for God only",
+    "The path of Self-knowledge",
+    "Additional marks of an enlightened person",
+    "Path of meditation and contemplation"
+   ],
+   "lessons": 13
+  },
+  {
+   "n": 6,
+   "title": "Path of meditation",
+   "file": "ch06.json",
+   "verses": 40,
+   "key": 9,
+   "sections": [
+    "A Karma-yogi is also a renunciant",
+    "A definition of yoga and yogi",
+    "Mind is both a friend and an enemy",
+    "Techniques of meditation",
+    "Who is a yogi?",
+    "Two methods to subdue the mind",
+    "Destination of unsuccessful yogi",
+    "Who is the best yogi?"
+   ],
+   "lessons": 13
+  },
+  {
+   "n": 7,
+   "title": "Self-knowledge and enlightenment",
+   "file": "ch07.json",
+   "verses": 26,
+   "key": 9,
+   "sections": [
+    "Definitions of matter, consciousness, and spirit",
+    "The Supreme spirit is the basis of everything",
+    "Who seeks God?",
+    "God can be seen in any image of worship"
+   ],
+   "lessons": 7
+  },
+  {
+   "n": 8,
+   "title": "The eternal being, God",
+   "file": "ch08.json",
+   "verses": 24,
+   "key": 7,
+   "sections": [
+    "Definitions of supreme spirit, spirit, individual soul",
+    "Theory of reincarnation and Karma",
+    "A simple method of God-realization",
+    "Attain salvation by meditating on God",
+    "Everything in the creation is cyclic",
+    "Two basic paths of departure after death",
+    "Spiritual knowledge leads to salvation"
+   ],
+   "lessons": 6
+  },
+  {
+   "n": 9,
+   "title": "Supreme knowledge and the big mystery",
+   "file": "ch09.json",
+   "verses": 31,
+   "key": 9,
+   "sections": [
+    "Knowledge of the supreme is the biggest mystery",
+    "The theory of evolution and involution",
+    "The ways of the wise and of the ignorant",
+    "Everything is a manifestation of God",
+    "Attaining salvation by devotional love",
+    "The Lord accepts and eats the offering of love",
+    "There is no unforgivable sinner",
+    "The path of devotional love is easier"
+   ],
+   "lessons": 7
+  },
+  {
+   "n": 10,
+   "title": "Manifestation of the absolute",
+   "file": "ch10.json",
+   "verses": 38,
+   "key": 3,
+   "sections": [
+    "God is the origin of everything",
+    "God gives spiritual knowledge to His devotees",
+    "Nobody can know the real nature of Reality",
+    "Everything is a manifestation of the Absolute",
+    "A brief description of divine manifestations",
+    "Creation is a small part of the Absolute"
+   ],
+   "lessons": 5
+  },
+  {
+   "n": 11,
+   "title": "Vision of the universal form",
+   "file": "ch11.json",
+   "verses": 50,
+   "key": 5,
+   "sections": [
+    "The vision of God is the ultimate aim of a seeker",
+    "Lord Krishna shows His cosmic form",
+    "One may not be prepared or qualified to see God",
+    "Arjuna is frightened to see the Cosmic form",
+    "We are only a divine instrument",
+    "Arjuna’s prayers to the Cosmic form",
+    "One may see God in any form",
+    "God can be seen by devotional love"
+   ],
+   "lessons": 5
+  },
+  {
+   "n": 12,
+   "title": "Path of devotion",
+   "file": "ch12.json",
+   "verses": 16,
+   "key": 7,
+   "sections": [
+    "Worship a personal or impersonal God?",
+    "Reasons for worshipping a personal God",
+    "The four paths to God",
+    "Karma-yoga is the best Path",
+    "The attributes of a devotee",
+    "One should sincerely try to develop divine qualities"
+   ],
+   "lessons": 4
+  },
+  {
+   "n": 13,
+   "title": "Creation and the creator",
+   "file": "ch13.json",
+   "verses": 29,
+   "key": 5,
+   "sections": [
+    "The theory of creation",
+    "The fourfold noble truth as means of Nirvana",
+    "God can be described by parables only",
+    "A description of the supreme spirit, spirit, and jiva",
+    "The faith alone can lead to Nirvana",
+    "Attributes of the spirit"
+   ],
+   "lessons": 6
+  },
+  {
+   "n": 14,
+   "title": "Three modes (Gunas) of nature",
+   "file": "ch14.json",
+   "verses": 25,
+   "key": 5,
+   "sections": [
+    "Beings are born from the union of spirit and matter",
+    "How three modes of material nature bind us",
+    "Characteristics of three modes of nature",
+    "Three modes are also the vehicles of transmigration",
+    "Attain Nirvana after rising above three modes",
+    "The process of rising above three modes",
+    "Bonds of three modes can be cut by devotional love"
+   ],
+   "lessons": 5
+  },
+  {
+   "n": 15,
+   "title": "The supreme being",
+   "file": "ch15.json",
+   "verses": 18,
+   "key": 5,
+   "sections": [
+    "Creation is like a tree created by of Maya",
+    "Cut the tree of attachment to attain salvation",
+    "The embodied soul is the enjoyer",
+    "Spirit is the essence of everything",
+    "Supreme spirit, spirit and the created beings"
+   ],
+   "lessons": 4
+  },
+  {
+   "n": 16,
+   "title": "Divine and the demonic qualities",
+   "file": "ch16.json",
+   "verses": 22,
+   "key": 3,
+   "sections": [
+    "A list of divine qualities to be cultivated",
+    "A list of demonic qualities to be given up",
+    "There are only two types of human beings",
+    "Suffering is the destiny of the ignorant",
+    "Lust, anger, and greed are the three gates to hell",
+    "One must follow the scripture"
+   ],
+   "lessons": 4
+  },
+  {
+   "n": 17,
+   "title": "Threefold faith",
+   "file": "ch17.json",
+   "verses": 27,
+   "key": 4,
+   "sections": [
+    "Three types of faith",
+    "Three types of food",
+    "Three types of sacrifices",
+    "Austerity of thought, word, and deed",
+    "Three types of austerity",
+    "Three types of charity",
+    "Threefold name of God"
+   ],
+   "lessons": 4
+  },
+  {
+   "n": 18,
+   "title": "Attaining liberation by giving up ego",
+   "file": "ch18.json",
+   "verses": 75,
+   "key": 12,
+   "sections": [
+    "Definition of renunciation and sacrifice",
+    "Three types of sacrifice",
+    "Five causes of an action",
+    "Three types of spiritual knowledge",
+    "Three types of action",
+    "Three types of person",
+    "Three types of intellect",
+    "Three types of resolve, four goals of human life",
+    "Three types of pleasure",
+    "Division of labor is based on one’s ability",
+    "Attain salvation by duty, discipline, devotion",
+    "Karmic bondage and the free will",
+    "Path of surrender is the ultimate path to God",
+    "The highest service to God, and the best charity",
+    "The Grace of the Gita",
+    "Both spiritual knowledge and action are needed"
+   ],
+   "lessons": 10
+  }
+ ]
+}
