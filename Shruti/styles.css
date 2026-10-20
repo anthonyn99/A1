@@ -890,7 +890,7 @@ body[data-profile=veda] .qz-kicker { text-transform: none; letter-spacing: 0; fo
 .mm-leaf { color: var(--txm); font-size: 13px; }
 .mm-note { position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); padding: 7px 14px; border-radius: 999px; background: var(--s3); box-shadow: var(--sh2); font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; }
 .mm-note.on { opacity: 1; }
-.mm.max { position: fixed; inset: 0; z-index: 90; background: var(--bg); padding: 14px; display: flex; flex-direction: column; max-width: none; }
+.mm.max { position: fixed; inset: 0; z-index: 90; background: var(--bg); padding: 14px; display: flex; flex-direction: column; max-width: 2000px; margin-inline: auto; }
 .mm.max .mm-port { flex: 1; height: auto; }
 body.mm-maxed { overflow: hidden; }
 
