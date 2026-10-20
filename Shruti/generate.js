@@ -383,7 +383,7 @@ export function openSheet(ctx, kind) {
   };
   draw();
   // Another device's job, a version saved elsewhere: redraw (unless typing).
-  const redraw = () => { if (!dim.isConnected) return; if (document.activeElement && document.activeElement.closest('#gen-opts')) return; drawVersions(dim.querySelector('#gen-vers'), ctx, st.kind); if (!running) drawRun(dim.querySelector('#gen-run'), ctx, st.kind, close); };
+  const redraw = () => { if (!dim.isConnected) return; if (window.A1Drag && A1Drag.active) { A1Drag.later(redraw); return; } if (document.activeElement && document.activeElement.closest('#gen-opts')) return; drawVersions(dim.querySelector('#gen-vers'), ctx, st.kind); if (!running) drawRun(dim.querySelector('#gen-run'), ctx, st.kind, close); };
   off.push(C.on('doc:shared', redraw), C.on('doc:me', redraw));
   if (!modelsCache && keyOf()) O.checkKey(keyOf()).then((r) => { if (r.ok) { modelsCache = r.models; if (dim.isConnected) drawOptions(dim.querySelector('#gen-opts'), ctx, st.kind); } });
 }

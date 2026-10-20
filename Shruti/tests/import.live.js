@@ -92,7 +92,7 @@ async function mouseDrag(c, sel, from, to, { dx = 0, edge = 0.12 } = {}) {
   await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: x0, y: y0, button: 'left', buttons: 1, clickCount: 1 });
   for (let i = 1; i <= 16; i++) { await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x0 + (x1 - x0) * i / 16, y: y0 + (y1 - y0) * i / 16, button: 'left', buttons: 1 }); await sleep(16); }
   await sleep(60);
-  if (global.PROBE) console.log('    (probe) ' + await ev(c, `return JSON.stringify({drag: !!document.querySelector('.dsort-drag'), at: document.elementFromPoint(${x0},${y0})?.className, x0:${x0}, y0:${y0}})`));
+  if (global.PROBE) console.log('    (probe) ' + await ev(c, `return JSON.stringify({drag: !!document.querySelector('.dsort-drag'), at: (()=>{const e=document.elementFromPoint(${x0},${y0}); return e ? e.tagName+'.'+e.className+' in '+(e.closest('.gv')?'gv':'-')+' list:'+!!e.closest('.gvs')?._a1drag : 'none';})(), x0:${x0}, y0:${y0}})`));
   await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: x1, y: y1, button: 'left', clickCount: 1 });
   await sleep(420);
 }
