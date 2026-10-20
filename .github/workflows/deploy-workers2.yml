@@ -44,7 +44,7 @@ on:
   workflow_dispatch:
     inputs:
       only:
-        description: "Deploy just one worker (directory name under workers2/). Leave blank for all."
+        description: "Deploy just one worker (directory name under workers2/, or Shruti/worker). Leave blank for all."
         required: false
         default: ""
 
@@ -95,7 +95,7 @@ jobs:
 
           # workflow_dispatch with an `only` input narrows the matrix.
           if [ -n "${ONLY:-}" ]; then
-            list=$(printf '%s' "$list" | jq -c --arg o "workers2/$ONLY" 'map(select(. == $o))')
+            list=$(printf '%s' "$list" | jq -c --arg o "workers2/$ONLY" --arg p "$ONLY" 'map(select(. == $o or . == $p))')
           fi
 
           count=$(printf '%s' "$list" | jq 'length')
@@ -153,7 +153,7 @@ jobs:
         env:
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN_2 }}
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID_2 }}
-        run: node ../kv-provision.mjs
+        run: node "$GITHUB_WORKSPACE/workers2/kv-provision.mjs"
 
       - name: Deploy
         uses: cloudflare/wrangler-action@v3
