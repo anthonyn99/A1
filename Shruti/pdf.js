@@ -40,7 +40,7 @@ export async function lessonsPDF(o) {
   const doc = new JsPDF({ unit: 'pt', format: 'a4' });
   const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
   const M = 56, TW = W - 2 * M, veda = C.P === 'veda';
-  const AC = veda ? [122, 95, 134] : [104, 82, 176], TX = [28, 28, 32], MU = [96, 96, 104], LN = [222, 220, 228];
+  const AC = veda ? [122, 95, 134] : [104, 82, 176], TX = [28, 28, 32], MU = [96, 96, 104], LN = [222, 220, 228], BODY = [62, 62, 70];
   let y = M;
   const room = (h) => { if (y + h > H - M) { doc.addPage(); y = M; } };
   const lines = (text, size, style, width) => { doc.setFont('helvetica', style); doc.setFontSize(size); return doc.splitTextToSize(pdfText(text), width); };
@@ -64,7 +64,7 @@ export async function lessonsPDF(o) {
     room(tl.length * 16 + Math.min(bl.length, 2) * 15 + 6);   // keep a title with its first lines
     doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...AC); doc.text(pdfText(l.id || ''), M, y + 12);
     put(tl, 12.5, 'bold', TX, M + IDW, 16);
-    if (bl.length) { y += 3; put(bl, 11, 'normal', MU, M + IDW, 15.5); }
+    if (bl.length) { y += 3; put(bl, 11, 'normal', BODY, M + IDW, 15.5); }
     y += 16;
   }
   if (L.summary) {
