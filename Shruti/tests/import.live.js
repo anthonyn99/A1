@@ -96,10 +96,10 @@ async function mouseDrag(c, sel, from, to, { dx = 0, edge = 0.12 } = {}) {
   await sleep(420);
 }
 /** A finger: hold 450 ms (the 300 ms hold), then move and lift. */
-async function touchDrag(c, sel, from, to) {
+async function touchDrag(c, sel, from, to, { edge = 0.5 } = {}) {
   const a = await at(c, sel, from);
-  const b = JSON.parse(await ev(c, `const e=document.querySelectorAll(${JSON.stringify(sel)})[${to}]; const r=e.getBoundingClientRect(); return JSON.stringify({x:r.left+r.width/2,y:r.top+r.height/2})`));
-  const x0 = a.x, y0 = a.y, x1 = b.x + (b.x > a.x + 4 ? 6 : b.x < a.x - 4 ? -6 : 0), y1 = b.y + (b.y > a.y + 4 ? 6 : b.y < a.y - 4 ? -6 : 0);
+  const b = JSON.parse(await ev(c, `const e=document.querySelectorAll(${JSON.stringify(sel)})[${to}]; const r=e.getBoundingClientRect(); return JSON.stringify({x:r.left+Math.max(6, r.width*${edge}),y:r.top+r.height/2})`));
+  const x0 = a.x - a.w / 2 + Math.max(6, a.w * edge), y0 = a.y, x1 = b.x + (b.x > a.x + 4 ? 6 : b.x < a.x - 4 ? -6 : 0), y1 = b.y + (b.y > a.y + 4 ? 6 : b.y < a.y - 4 ? -6 : 0);
   await c.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y: y0 }] });
   await sleep(450);
   for (let i = 1; i <= 16; i++) { await c.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x0 + (x1 - x0) * i / 16, y: y0 + (y1 - y0) * i / 16 }] }); await sleep(16); }
@@ -160,7 +160,7 @@ const imp = (x) => `const IMP = await import(new URL('import.js', location.href)
   await click(c, '[data-ai]');
   ok('Find chapters with AI asks Orca, streaming', await waitFor(c, `/found/.test(document.querySelector('.imp-run')?.textContent||'')`, 15000), await ev(c, `return document.querySelector('.imp-run')?.textContent`));
   ok('…3 found, 1 moved to its real first words, 1 left out', /3 found, 1 moved .* 1 left out/.test(await ev(c, `return document.querySelector('.imp-run .stat').textContent`)), await ev(c, `return document.querySelector('.imp-run .stat').textContent`));
-  ok('…the ask was the numbered paragraphs', S.chats.length === 1 && /2 \| Chapter 1: Morning/.test(S.chats[0].body) && /"anchor"/.test(S.chats[0].body));
+  ok('…the ask was the numbered paragraphs', S.chats.length === 1 && /2 \[H2\] \| Chapter 1: Morning/.test(S.chats[0].body) && /"anchor"/.test(S.chats[0].body));
   ok('the parts: the opening pages, then the AI\'s three, titles and author from it', (await texts(c, '.imp-ch', '.imp-t')) === 'Opening pages|Morning|Noon|Night' && (await ev(c, `return document.querySelector('#imp-title').value+'/'+document.querySelector('#imp-author').value`)) === 'The Little Book of Days/A. Writer', await texts(c, '.imp-ch', '.imp-t'));
   await click(c, '[data-split]', 1);
   ok('Split lists where a new part can start', await waitFor(c, `document.querySelectorAll('.imp-split [data-at]').length===1`));
@@ -329,7 +329,7 @@ const imp = (x) => `const IMP = await import(new URL('import.js', location.href)
   await waitFor(c, `!!document.querySelector('.mm-branch')`);
   await ev(c, `[...document.querySelectorAll('.st-actions .btn')].find(b=>/Arrange/.test(b.title)).click(); return 1`);
   ok('Arrange shows the map as an outline', await waitFor(c, `document.querySelectorAll('.mm-ob').length===${set4.mindmap.branches.length}`));
-  await mouseDrag(c, '.mm-ob', 2, 0, { edge: 0.5 });
+  await mouseDrag(c, '.mm-ob-h', 2, 0, { edge: 0.5 });
   ok('a branch drags to the top', (await ev(c, `return document.querySelector('.mm-ob .mm-ob-h span').textContent`)) === set4.mindmap.branches[2].text, await ev(c, `return [...document.querySelectorAll('.mm-ob-h span')].map(e=>e.textContent).join(' | ')`));
   const kidsSel = '.mm-ob:first-child .mm-oc';
   const k0 = await ev(c, `return [...document.querySelectorAll('${kidsSel}')].map(e=>e.textContent).join('|')`);
@@ -400,7 +400,7 @@ const imp = (x) => `const IMP = await import(new URL('import.js', location.href)
   await click(c, '#imp-use');
   await waitFor(c, `document.querySelectorAll('.imp-ch').length===4`);
   ok('the review fits the phone', await waitFor(c, `document.documentElement.scrollWidth<=innerWidth && document.querySelector('#imp-sheet .sheet').getBoundingClientRect().right<=innerWidth+1`));
-  await touchDrag(c, '.imp-ch', 3, 2);
+  await touchDrag(c, '.imp-ch', 3, 2, { edge: 0.03 });
   ok('a held finger drags a part on the review screen', (await texts(c, '.imp-ch', '.imp-t')).split('|')[2] === 'Chapter 3: Night', await texts(c, '.imp-ch', '.imp-t'));
   await shot(c, 'import-review-veda-390');
   ok('no page errors for Veda', !(await errs(c)), await errs(c));
