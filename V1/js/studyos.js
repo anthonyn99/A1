@@ -1018,19 +1018,20 @@ function saveEditClass() {
 // isLocalPath. A string one file treats as a local path and another treats as
 // a URL either opens a dead tab or silently launches nothing.
 function _sosIsLocalPath(u){
-  return typeof u === 'string' && !/^https?:\/\//i.test(u) && (/^[A-Za-z]:[\\/]/.test(u) || /^\\\\/.test(u) || /^shell:AppsFolder\\[\w.-]+_[a-z0-9]{13}![\w.-]+$/.test(u));
-}
-
-/* What to show under a program's name. A Store app's path is an opaque app id
- * (shell:AppsFolder\Claude_pzs8sxrjxfjjc!Claude), so it is named for what it
- * is -- that is also what tells the Claude desktop app apart from the Claude
- * Code CLI (C:\Users\...\.local\bin\claude.exe), which opens a terminal. */
-function _sosAppWhere(p){
-  p = String(p || '');
-  return /^shell:AppsFolder\\/.test(p) ? 'Microsoft Store app' : p;
+  return typeof u === 'string' && !/^https?:\/\//i.test(u) && (/^[A-Za-z]:[\\/]/.test(u) || /^\\\\/.test(u));
 }
 
 let editingResourceId = null;
+
+/* The program chosen with Browse…, as {id, name}: the StudyOS bridge's opaque
+ * app id, never a path. TaskHub's ▶ hands the id to the bridge on her PC,
+ * which opens it the way the Start menu does -- so Store apps like the Claude
+ * desktop app work too. Cleared when the target text stops being its name. */
+let _sosPickedApp = null;
+
+function _sosPickedFor(v) {
+  return _sosPickedApp && v === _sosPickedApp.name ? _sosPickedApp : null;
+}
 
 /* Live feedback on how the single target input was classified. A radio the
  * user could set to disagree with the text they typed would be a bug source;
@@ -1039,15 +1040,19 @@ function _sosResHint() {
   const el = _sosEl('res-kind-hint');
   if (!el) return;
   const v = (_sosEl('inp-res-target').value || '').trim();
+  if (!_sosPickedFor(v)) _sosPickedApp = null;
   if (!v) { el.textContent = ''; return; }
-  if (_sosIsLocalPath(v)) {
-    el.textContent = 'Program on this PC — opens through Shield on your desktop.';
+  if (_sosPickedApp) {
+    el.textContent = 'Program on your PC — the ▶ button in TaskHub opens it through the StudyOS bridge.';
     el.style.color = 'var(--text3)';
+  } else if (_sosIsLocalPath(v)) {
+    el.textContent = 'A typed path cannot be opened. Use Browse… to pick the program.';
+    el.style.color = '#ef9f9f';
   } else if (/^https?:\/\//i.test(v)) {
     el.textContent = 'Website — opens in a browser tab anywhere.';
     el.style.color = 'var(--text3)';
   } else {
-    el.textContent = 'Not recognised. Use a full https:// URL or a path like C:\\...';
+    el.textContent = 'Not recognised. Use a full https:// URL, or Browse… for a program.';
     el.style.color = '#ef9f9f';
   }
 }
@@ -1065,15 +1070,19 @@ function renderClassResources(cls) {
     const item = document.createElement('div');
     item.className = 'class-event-item';
     item.style.cursor = 'default';
-    const target = r.kind === 'app' ? (r.path || '') : (r.url || '');
-    const where = r.kind === 'app' ? _sosAppWhere(target) : target;
-    const shown = where.length > 40 ? where.slice(0, 40) + '\u2026' : where;
+    // An app saved before Browse used the bridge has only a path; TaskHub
+    // matches it by label, which can miss, so ask for a re-pick.
+    const legacyApp = r.kind === 'app' && !r.appId;
+    const target = r.kind === 'app'
+      ? (legacyApp ? 'Pick again with Browse\u2026 so it opens reliably' : 'Program on your PC' + (r.appName && r.appName !== r.label ? ' \u00b7 ' + r.appName : ''))
+      : (r.url || '');
+    const shown = target.length > 46 ? target.slice(0, 46) + '\u2026' : target;
     const icon = r.kind === 'app' ? SOI.monitor : SOI.globe;
     item.innerHTML = `
       <div style="width:14px;flex-shrink:0;margin-top:3px;color:${cls.color};font-size:12px;display:flex">${icon}</div>
       <div style="flex:1;min-width:0">
         <div class="class-event-name">${escHtml(r.label)}</div>
-        <div class="class-event-meta">${escHtml(shown)}</div>
+        <div class="class-event-meta"${legacyApp ? ' style="color:#ef9f9f"' : ''}>${escHtml(shown)}</div>
       </div>
       <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 4px;border-radius:3px;transition:0.15s" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text3)'" title="Edit" aria-label="Edit" onclick="openEditResource('${r.id}')">${SOI.pencil}</button>
       <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 4px;border-radius:3px;transition:0.15s" onmouseover="this.style.color='#ef9f9f'" onmouseout="this.style.color='var(--text3)'" title="Delete" aria-label="Delete" onclick="deleteResource('${r.id}')">${SOI.x}</button>
@@ -1088,6 +1097,7 @@ function openAddResource() {
   _sosEl('resource-modal-title').textContent = 'Add Resource';
   _sosEl('inp-res-label').value = '';
   _sosEl('inp-res-target').value = '';
+  _sosPickedApp = null;
   _sosResHint();
   _sosOpen('modal-resource');
 }
@@ -1100,26 +1110,30 @@ function openEditResource(id) {
   editingResourceId = id;
   _sosEl('resource-modal-title').textContent = 'Edit Resource';
   _sosEl('inp-res-label').value = r.label || '';
-  _sosEl('inp-res-target').value = (r.kind === 'app' ? r.path : r.url) || '';
+  if (r.kind === 'app' && r.appId) {
+    _sosPickedApp = { id: r.appId, name: r.appName || r.label };
+    _sosEl('inp-res-target').value = _sosPickedApp.name;
+  } else {
+    _sosPickedApp = null;
+    _sosEl('inp-res-target').value = (r.kind === 'app' ? r.path : r.url) || '';
+  }
   _sosResHint();
   _sosOpen('modal-resource');
 }
 
 /* ── BROWSE PROGRAMS ───────────────────────────────────────────────────────
- * Fills the target field by picking a program instead of typing its path.
+ * Picks a program for the class from her PC's app list.
  *
  * Why this is not a native file dialog: StudyOS is a web page, and a browser
- * has no API to enumerate installed programs. <input type="file"> looks like
- * the answer but is not — it reports "C:\fakepath\matlab.exe" by design, so a
- * resource built from it would fail _sosIsLocalPath and, if it slipped past,
- * hand Shield a path that launches nothing. The list therefore comes from the
- * one component that legitimately knows: the Shield desktop agent, which
- * enumerates real shortcuts and running processes and publishes them for this
- * page to read (shield.html _pushShieldApps → firebase-sync _fbLoadShieldApps).
+ * has no API to enumerate installed programs. <input type="file"> reports
+ * "C:\fakepath\matlab.exe" by design. The list comes from the StudyOS bridge
+ * on her PC, which reads the Start menu (Microsoft Store apps included); her
+ * TaskHub publishes its names and opaque ids to dashboards/veda_pc_apps
+ * (index.html _vdBridgeProbe), and this reads that doc (firebase-sync
+ * _fbLoadPcApps). Only her PC's list, never Tony's, and never a path.
  *
- * Consequence worth stating plainly: this button can only offer programs from
- * a PC that has run Shield. That is not a limitation of the picker, it is the
- * only place the information exists.
+ * Shield is NOT used (Veda's call, 2026-10-20). Its picker listed only apps
+ * with a shortcut, so "Claude" was the Claude Code CLI, which opens a terminal.
  */
 
 // Cached for the session. The inventory changes when software is installed,
@@ -1135,36 +1149,15 @@ async function openResourceBrowse() {
   if (listEl) listEl.innerHTML = '<div style="padding:18px 4px;color:var(--text3);font-size:12px">Loading programs…</div>';
   _sosOpen('modal-res-browse');
 
-  if (!_sosBrowseApps) {
-    let devices = null;
+  if (!_sosBrowseApps || !_sosBrowseApps.length) {
+    let apps = null;
     try {
-      if (window._fbLoadShieldApps) devices = await window._fbLoadShieldApps();
-    } catch (e) { devices = null; }
-    // Flatten every device that has reported in. Two PCs each publish their
-    // own list; showing them together with a device label is more useful than
-    // making the user pick a machine first, and the paths stay distinct.
-    // Only Veda's PCs. Tony's PC publishes into the same document, and a path
-    // picked from it (C:\Users\antho\...) does not exist on hers, so the class's
-    // app silently never opened. Shield now tags each list with its profile;
-    // once any list carries one, an untagged list is an old one from a PC that
-    // has not re-published yet and cannot be told apart, so it is left out too.
-    const devs = devices || {};
-    const tagged = Object.keys(devs).some(function (k) { return devs[k] && devs[k].profile; });
-    const out = [];
-    Object.keys(devs).forEach(function (devId) {
-      const d = devs[devId] || {};
-      if (tagged && d.profile !== 'veda') return;
-      (d.apps || []).forEach(function (a) {
-        if (a && a.path) out.push({ name: a.name || a.path, path: a.path, running: !!a.running });
-      });
-    });
-    // Same target published by two devices is one entry, not two.
-    const seen = {};
-    _sosBrowseApps = out.filter(function (a) {
-      const k = a.path.toLowerCase();
-      if (seen[k]) return false;
-      seen[k] = 1; return true;
-    });
+      if (window._fbLoadPcApps) apps = await window._fbLoadPcApps();
+    } catch (e) { apps = null; }
+    _sosBrowseApps = (apps || [])
+      .filter(function (a) { return a && typeof a.id === 'string' && /^[0-9a-f]{6,40}$/.test(a.id) && a.name; })
+      .map(function (a) { return { id: a.id, name: String(a.name) }; })
+      .sort(function (x, y) { return x.name.toLowerCase() < y.name.toLowerCase() ? -1 : 1; });
   }
   _sosRenderBrowseList();
   if (search) try { search.focus(); } catch (e) {}
@@ -1176,25 +1169,20 @@ function _sosRenderBrowseList() {
   const apps = _sosBrowseApps || [];
 
   if (!apps.length) {
-    // An empty list is almost always "Shield has not run on this PC", not "you
-    // have no programs" — say which, or the button looks broken. The manual
-    // path still works, so point back at it rather than dead-ending.
+    // Empty means her TaskHub has not yet reached the bridge on her PC, not
+    // "no programs" -- say which, or the button looks broken.
     listEl.innerHTML =
       '<div style="padding:16px 4px;color:var(--text3);font-size:12px;line-height:1.6">' +
       'No programs available yet.<br>' +
-      'This list comes from the <strong>Shield</strong> desktop agent, which is the only part of the ' +
-      'suite that can see what is installed on a PC. Open Shield on that computer once and the list ' +
-      'will appear here.<br><br>' +
-      'In the meantime you can paste a full path such as <code>C:\\Program Files\\MATLAB\\bin\\matlab.exe</code>.' +
+      'This list comes from the <strong>StudyOS Bridge</strong> on your PC. Open TaskHub on your PC ' +
+      'once while the bridge is running, then try Browse… again.' +
       '</div>';
     return;
   }
 
   const q = ((_sosEl('inp-res-browse-search') || {}).value || '').trim().toLowerCase();
   const shown = q
-    ? apps.filter(function (a) {
-        return a.name.toLowerCase().indexOf(q) >= 0 || a.path.toLowerCase().indexOf(q) >= 0;
-      })
+    ? apps.filter(function (a) { return a.name.toLowerCase().indexOf(q) >= 0; })
     : apps;
 
   if (!shown.length) {
@@ -1211,20 +1199,16 @@ function _sosRenderBrowseList() {
       'padding:8px 10px;cursor:pointer;color:var(--text);font:inherit;transition:0.15s';
     row.onmouseover = function () { row.style.background = 'var(--bg3, rgba(255,255,255,0.06))'; };
     row.onmouseout  = function () { row.style.background = 'none'; };
-    const dot = a.running
-      ? '<span title="Running now" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#8fd6ad;margin-right:6px;vertical-align:middle"></span>'
-      : '';
-    row.innerHTML =
-      '<div style="font-size:13px;font-weight:500">' + dot + escHtml(String(a.name)) + '</div>' +
-      '<div style="font-size:10px;color:var(--text3);margin-top:2px;word-break:break-all">' + escHtml(_sosAppWhere(a.path)) + '</div>';
+    row.innerHTML = '<div style="font-size:13px;font-weight:500">' + escHtml(String(a.name)) + '</div>';
     row.onclick = function () { _sosPickBrowseApp(a); };
     listEl.appendChild(row);
   });
 }
 
 function _sosPickBrowseApp(a) {
+  _sosPickedApp = { id: a.id, name: a.name };
   const target = _sosEl('inp-res-target');
-  if (target) target.value = a.path;
+  if (target) target.value = a.name;
   // Only fill the label when it is still blank: someone who typed "Simulink"
   // and then browsed for the exe meant to keep their own name for it.
   const label = _sosEl('inp-res-label');
@@ -1239,27 +1223,35 @@ function saveResource() {
   const label  = _sosEl('inp-res-label').value.trim();
   const target = _sosEl('inp-res-target').value.trim();
   if (!label)  { alert('Label required.'); return; }
-  if (!target) { alert('Website URL or program path required.'); return; }
-  const local = _sosIsLocalPath(target);
-  // Reject anything that is neither http(s) nor a Windows path. A bare
-  // "google.com" fails both tests and would ship a button that does nothing.
-  if (!local && !/^https?:\/\//i.test(target)) {
-    alert('Enter a full website URL starting with http:// or https://, or a Windows path like C:\\...');
+  if (!target) { alert('Website URL required, or pick a program with Browse….'); return; }
+  const picked = _sosPickedFor(target);
+  // A typed path is refused: the bridge opens only programs from its own list.
+  if (!picked && _sosIsLocalPath(target)) {
+    alert('A typed path cannot be opened. Use Browse… to pick the program.');
     return;
   }
+  // A bare "google.com" would ship a button that does nothing.
+  if (!picked && !/^https?:\/\//i.test(target)) {
+    alert('Enter a full website URL starting with http:// or https://, or pick a program with Browse….');
+    return;
+  }
+  // Drop every key of the other kind, or an app->web edit leaves a stale
+  // app id (or an old path) behind.
+  const fill = (r) => {
+    r.label = label;
+    r.kind = picked ? 'app' : 'web';
+    delete r.path; delete r.url; delete r.appId; delete r.appName;
+    if (picked) { r.appId = picked.id; r.appName = picked.name; }
+    else r.url = target;
+  };
   cls.resources = cls.resources || [];
   if (editingResourceId) {
     const r = cls.resources.find(r => r.id === editingResourceId);
     if (!r) return;
-    r.label = label;
-    r.kind  = local ? 'app' : 'web';
-    // Drop the opposite key, or an app->web edit leaves a stale path that
-    // Shield would still happily launch.
-    if (local) { r.path = target; delete r.url; }
-    else       { r.url  = target; delete r.path; }
+    fill(r);
   } else {
-    const r = { id: 'r' + Date.now().toString(36), kind: local ? 'app' : 'web', label: label };
-    if (local) r.path = target; else r.url = target;
+    const r = { id: 'r' + Date.now().toString(36) };
+    fill(r);
     cls.resources.push(r);
   }
   persist();

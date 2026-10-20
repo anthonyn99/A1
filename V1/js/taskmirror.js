@@ -139,7 +139,9 @@ function buildClasses() {
     if (!c || !c.id) return;
     const res = (c.resources || []).map(r => r.kind === 'app'
       // r.path is deliberately omitted — see classAppsDoc in config §taskMirror.
-      ? { id: r.id, kind: 'app', label: r.label }
+      // appId is the StudyOS bridge's opaque id (never a path); TaskHub's ▶
+      // hands it to the bridge on her PC.
+      ? Object.assign({ id: r.id, kind: 'app', label: r.label }, r.appId ? { appId: r.appId } : {})
       : { id: r.id, kind: 'web', label: r.label, url: r.url });
     if (!res.length) return;              // only classes that actually have any
     out[c.id] = { name: c.name, color: c.color, resources: res };

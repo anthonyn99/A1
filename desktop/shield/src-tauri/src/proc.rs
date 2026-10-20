@@ -1011,14 +1011,6 @@ pub fn open_path(path: &str) -> Result<(), String> {
     if path.trim().is_empty() {
         return Err("empty path".into());
     }
-    // A Store app has no file to test or `start`; explorer launches it by its
-    // app id exactly as the Start menu does.
-    if let Some(aumid) = store_aumid(path) {
-        return match Command::new("explorer.exe").arg(format!("shell:AppsFolder\\{aumid}")).spawn() {
-            Ok(_) => Ok(()),
-            Err(e) => Err(classify(&e.to_string())),
-        };
-    }
     if !std::path::Path::new(path).exists() {
         return Err("notfound".into());
     }
@@ -1029,27 +1021,6 @@ pub fn open_path(path: &str) -> Result<(), String> {
         Ok(_) => Ok(()),
         Err(e) => Err(classify(&e.to_string())),
     }
-}
-
-/// The app id in a `shell:AppsFolder\<AUMID>` Store-app path, if it is one.
-///
-/// Only the packaged form `<PackageFamily>_<13-char publisher id>!<AppId>` is
-/// accepted (all 65 Store apps on Veda's PC fit it). The narrow character set
-/// is what makes it safe to hand to explorer: no spaces, quotes, slashes or
-/// `..`, so a synced value cannot become anything but an app id. Must agree
-/// with the `shell:AppsFolder` branch of isLocalPath in index.html,
-/// shield.html and V1/js/studyos.js.
-pub(crate) fn store_aumid(path: &str) -> Option<&str> {
-    let id = path.trim().strip_prefix("shell:AppsFolder\\")?;
-    let (family, app) = id.split_once('!')?;
-    let (_, publisher) = family.rsplit_once('_')?;
-    let word = |s: &str| !s.is_empty() && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_');
-    let ok = word(family)
-        && word(app)
-        && publisher.len() == 13
-        && publisher.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
-        && family.len() > 14;
-    if ok { Some(id) } else { None }
 }
 
 /// True for an `http(s)://` URL that is safe to hand to the shell.
@@ -1283,29 +1254,7 @@ pub fn open_class_web_grouped(urls: &[String]) -> Result<(), String> {
 
 #[cfg(test)]
 mod open_target_tests {
-    use super::{is_web_url, store_aumid};
-
-    #[test]
-    fn store_app_paths_yield_their_app_id() {
-        assert_eq!(store_aumid("shell:AppsFolder\\Claude_pzs8sxrjxfjjc!Claude"), Some("Claude_pzs8sxrjxfjjc!Claude"));
-        assert_eq!(
-            store_aumid("shell:AppsFolder\\OpenAI.ChatGPT-Desktop_2p2nqsd0c76g0!ChatGPT"),
-            Some("OpenAI.ChatGPT-Desktop_2p2nqsd0c76g0!ChatGPT")
-        );
-    }
-
-    /// Anything else must not reach explorer as an app id.
-    #[test]
-    fn store_app_gate_refuses_everything_else() {
-        assert_eq!(store_aumid("C:\\Windows\\notepad.exe"), None);
-        assert_eq!(store_aumid("shell:AppsFolder\\Claude!Claude"), None); // no publisher id
-        assert_eq!(store_aumid("shell:AppsFolder\\Claude_PZS8SXRJXFJJC!Claude"), None);
-        assert_eq!(store_aumid("shell:AppsFolder\\Claude_pzs8sxrjxfjjc!"), None);
-        assert_eq!(store_aumid("shell:AppsFolder\\a b_pzs8sxrjxfjjc!x"), None);
-        assert_eq!(store_aumid("shell:AppsFolder\\..\\x_pzs8sxrjxfjjc!x"), None);
-        assert_eq!(store_aumid("shell:AppsFolder\\x_pzs8sxrjxfjjc!x\" & calc"), None);
-        assert_eq!(store_aumid("shell:startup"), None);
-    }
+    use super::is_web_url;
 
     #[test]
     fn accepts_http_and_https_in_any_case() {

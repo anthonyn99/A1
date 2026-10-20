@@ -465,13 +465,10 @@ fn sh_apps() -> serde_json::Value {
         })
         .collect();
 
-    // Store apps are launch-only: the closer picker ignores this field, because
-    // it has no exe to match a running process against.
     json!({
         "installed": installed,
         "running": running,
         "runningOnly": extra,
-        "store": shortcuts::list_store_apps(),
     })
 }
 

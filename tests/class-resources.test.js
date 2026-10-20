@@ -84,9 +84,12 @@ if (bStudyos) {
   // as kind:web and open a dead tab.
   t('bare "google.com" is NOT local (and is not a URL either)',
     isLocal('google.com') === false);
-  t('saveResource rejects a target that is neither a URL nor a path',
-    /!local\s*&&\s*!\/\^https\?:\\\/\\\/\/i\.test\(target\)/.test(STUDYOS),
+  t('saveResource rejects a target that is neither a URL nor a picked program',
+    /!picked && !\/\^https\?:\\\/\\\/\/i\.test\(target\)/.test(STUDYOS),
     'Without this check a bare host is saved as kind:web and opens nothing.');
+  t('saveResource refuses a typed path',
+    /!picked && _sosIsLocalPath\(target\)/.test(STUDYOS),
+    'The bridge opens only programs from its own list; a saved path would open nothing.');
   t('non-string input is safe', isLocal(undefined) === false && isLocal(null) === false);
 }
 
@@ -169,43 +172,42 @@ const codeOnly = s => String(s)
   .replace(/(^|[^:])\/\/[^\n]*/g, (m, p) => p + m.slice(p.length).replace(/./g, ' '));
 const LH = lh ? codeOnly(lh[0]) : '';
 
-/* THE SHIELD HANDOFF COMES FIRST, and returns.
+/* THE BRIDGE HANDOFF COMES FIRST, and returns.
  *
  * A browser grants one new tab per user gesture - measured in Brave and Edge:
  * three consecutive window.open('', name) calls in one click return a window,
  * null, null, and a real anchor click and a trusted CDP click do the same. It
  * is not the popup blocker (reproduced with pop-ups allowed and shields off).
- * So the page CANNOT open a two-site class by itself, and the only thing that
- * opens them all is handing the class to Shield, which is not a page.
+ * So the page CANNOT open a two-site class by itself; the StudyOS bridge on
+ * her PC, which is not a page, opens them all. Shield is never used (Veda's
+ * call, 2026-10-20).
  *
- * If a future edit moves the tab loop above this handoff, every Shield user
- * gets a stray browser tab before the agent opens the same site again. */
-const shieldIdx = LH.indexOf("'shieldopen:class/");
+ * If a future edit moves the tab loop above this handoff, every site opens
+ * twice: once as a browser tab, once from the bridge. */
+const bridgeIdx = LH.search(/if \(useBridge\)/);
 const fallbackIdx = LH.search(/var\s+blocked\s*=\s*0/);
-t('the shield handoff exists', shieldIdx >= 0);
-t('shield is tried before the browser fallback',
-  shieldIdx >= 0 && fallbackIdx >= 0 && shieldIdx < fallbackIdx,
-  'Opening tabs first would double-open every site on a machine with Shield.');
-t('the shield path returns instead of falling through',
-  /return\s*\{[^}]*via:\s*'shield'/.test(LH),
+t('the bridge handoff exists', bridgeIdx >= 0);
+t('the bridge is tried before the browser fallback',
+  bridgeIdx >= 0 && fallbackIdx >= 0 && bridgeIdx < fallbackIdx,
+  'Opening tabs first would double-open every site.');
+t('the bridge path returns instead of falling through',
+  /return\s*\{[^}]*via:\s*'bridge'/.test(LH),
   'Falling through would run the browser opens as well.');
+t('the bridge is skipped only when known down, or off Windows',
+  /useBridge = \/Windows\/i\.test\(navigator\.userAgent \|\| ''\)[\s\S]{0,140}?window\._vdBridgeUp !== false/.test(LH),
+  'The page cannot find out after the click (the gesture is spent), so an\n' +
+  '      unknown state must still try the bridge.');
+t('nothing in the ▶ path goes through Shield',
+  !/shieldopen:class/.test(LH) &&
+  !/shieldopen:/.test(codeOnly((/window\._sosLaunchClassClick\s*=\s*function[\s\S]*?\n};/.exec(INDEX) || [''])[0])),
+  'Veda does not want Shield involved in the play button at all.');
 
-/* Within the FALLBACK, the old ordering rule still holds: the protocol call
- * for native apps can raise a dialog that ends the gesture, so any tab not yet
- * requested when it fires is refused. Measure from the fallback's start so the
- * early shield handoff does not satisfy this by accident. */
 const FB = fallbackIdx >= 0 ? LH.slice(fallbackIdx) : '';
 const firstOpen = (function(){
   const m = /window\.open\s*\(/.exec(FB);
   return m ? m.index : -1;
 })();
-t('fallback opens tabs with a real window.open', firstOpen >= 0,
-  'If this stops matching, the assertion below is comparing -1 and passes for free.');
-t('fallback requests tabs before the protocol navigation',
-  firstOpen >= 0 && FB.indexOf("'shieldopen:class/") >= 0 &&
-  firstOpen < FB.indexOf("'shieldopen:class/"),
-  'The protocol call can raise a dialog that ends the user gesture, blocking\n' +
-  '      every tab that had not been requested yet.');
+t('fallback opens tabs with a real window.open', firstOpen >= 0);
 t('launch handler defers nothing out of the user gesture',
   !!lh && !/setTimeout|requestAnimationFrame|\.then\(/.test(lh[0]),
   'Anything asynchronous here is guaranteed to be popup-blocked.\n' +
@@ -244,9 +246,42 @@ t('the blocked count comes from re-probing, not from a.click()',
 // one-click goal just as thoroughly as the tabs not opening.
 const lc = /window\._sosLaunchClassClick\s*=\s*function[\s\S]*?\n};/.exec(INDEX);
 t('a click wrapper exists', !!lc);
-t('the wrapper only speaks up when tabs were actually blocked',
-  !!lc && /if\s*\(\s*!r\s*\|\|\s*!r\.blocked\s*\)\s*return/.test(lc[0]),
-  'Any prompt on the success path defeats the point of one-click launch.');
+t('the wrapper hands the bridge path its apps and sites',
+  !!lc && /r\.via === 'bridge'[\s\S]{0,120}?_sosBridgeLaunch\(r\.appIds, r\.urls\)/.test(lc[0]),
+  'The fetch must happen in the wrapper: _sosLaunchClass has to stay synchronous.');
+{
+  // Run _sosLaunchProblem: silent when everything opened, specific otherwise.
+  const m = /window\._sosLaunchProblem = function[\s\S]*?\n};/.exec(INDEX);
+  const ctx = { window: { _vdBridgeErr: '' }, navigator: { userAgent: 'Windows NT 10.0' } };
+  const fn = m ? new Function('window', 'navigator', m[0] + '; return window._sosLaunchProblem;')(ctx.window, ctx.navigator) : null;
+  const ok = { ok: true, opened: ['Claude', 'https://x.com'], unknown: [], failed: [] };
+  t('the wrapper stays silent when everything opened',
+    !!fn && fn({ via: 'bridge', missing: [] }, ok) === '',
+    'Any prompt on the success path defeats the point of one-click launch.');
+  t('an unreachable bridge is reported, not swallowed',
+    !!fn && /not running/.test(fn({ via: 'bridge', missing: [] }, null)));
+  ctx.window._vdBridgeErr = 'blocked';
+  t('a browser-blocked bridge says how to allow it',
+    !!fn && /Local network access/.test(fn({ via: 'bridge', missing: [] }, null)));
+  t('an app the PC does not have is named',
+    !!fn && /Could not find Claude/.test(fn({ via: 'bridge', missing: ['Claude'] }, ok)));
+}
+{
+  // Run _sosAppIdFor: a picked id wins; legacy resources match on label.
+  const m = /window\._sosAppIdFor = function[\s\S]*?\n};/.exec(INDEX);
+  const w = { _vdPcApps: [{ id: 'e1dd48202bd5', name: 'Claude' }, { id: 'd60328fc0230', name: 'IntelliJ IDEA 2026.1.1' },
+                          { id: 'aaaaaaaaaaaa', name: 'Claude Code' }] };
+  const fn = m ? new Function('window', m[0] + '; return window._sosAppIdFor;')(w) : null;
+  t('a picked app id is used as is',
+    !!fn && fn({ kind: 'app', label: 'x', appId: 'abc123def456' }) === 'abc123def456');
+  t('an old path-only resource matches its label exactly first',
+    !!fn && fn({ kind: 'app', label: 'Claude', path: 'C:\\Users\\vedap\\.local\\bin\\claude.exe' }) === 'e1dd48202bd5',
+    '"Claude" must be the desktop app, not "Claude Code".');
+  t('then a name that starts with the label',
+    !!fn && fn({ kind: 'app', label: 'IntelliJ' }) === 'd60328fc0230');
+  t('no match is reported as missing, not guessed',
+    !!fn && fn({ kind: 'app', label: 'Matlab' }) === '');
+}
 t('every play button routes through the wrapper',
   (INDEX.match(/_sosLaunchClassClick\s*&&\s*window\._sosLaunchClassClick\(/g) || []).length === 4 &&
   !/onClick:[^}]*window\._sosLaunchClass\(/.test(INDEX),
@@ -306,10 +341,9 @@ t('each listener records its own half before pushing',
 t('the StudyOS class page opens from the play button',
   /_sosStudyOsClassUrl\(classId\)[\s\S]{0,300}?_tnOpenTab\(sosUrl, window\._sosStudyOsTabKey\(\)\)/.test(LH),
   'Pressing play should open the class in StudyOS as well as its sites/apps.');
-t('the StudyOS tab is opened BEFORE the shieldopen navigation',
-  LH.indexOf("_tnOpenTab(sosUrl, 'studyos')") < LH.indexOf("'shieldopen:class/'"),
-  'The protocol navigation can raise a dialog that ends the user gesture, and',
-  'anything opened after it is refused.');
+t('the StudyOS tab is opened inside the click, on the bridge path',
+  /if \(useBridge\) \{[\s\S]{0,200}?_tnOpenTab\(sosUrl/.test(LH),
+  'It is the one tab the gesture allows; the bridge opens everything else.');
 t('an unconfigured StudyOS url changes nothing',
   /if \(sosUrl\)/.test(LH) && /if \(sosUrlB\)/.test(LH),
   'Both call sites must guard on a truthy url, so with none configured the play button behaves exactly as before.');
@@ -321,8 +355,8 @@ t('a StudyOS resource is dropped so it does not open a second tab',
   /window\._sosIsSameStudyOs\(r\.url, sosClassUrl\)/.test(LH),
   'The button already opens StudyOS at this class; keeping the resource opens a second tab at StudyOS in general.');
 t('the drop happens at the split, so BOTH launch paths get it',
-  LH.indexOf('_sosIsSameStudyOs(r.url, sosClassUrl)') < LH.indexOf("'shieldopen:class/'"),
-  'Filtering after the split would leave the Shield path still opening it.');
+  LH.indexOf('_sosIsSameStudyOs(r.url, sosClassUrl)') < LH.search(/if \(useBridge\)/),
+  'Filtering after the split would leave the bridge path still opening it.');
 t('the resource is kept when no StudyOS url is configured',
   /sosClassUrl && window\._sosIsSameStudyOs/.test(LH),
   'With no class url available the resource is the only thing that opens StudyOS -- swallowing it would lose the tab.');
@@ -449,43 +483,6 @@ t('the blob is base64-ed in chunks',
   /const CHUNK = 0x8000;/.test(STUDYOS),
   'String.fromCharCode(...bytes) on a whole PDF exceeds the argument limit and\n' +
   '      throws, so every large file would fail to stage.');
-
-// ---------- Browse picker offers only Veda's PCs (2026-10-20) ---------------
-section('Browse picker offers only programs from Veda\'s own PCs');
-
-t('Shield tags each published program list with its profile',
-  /payload\[devId\] = \{[^}]*profile: profile/.test(SHIELD),
-  'Every PC publishes into one document. Untagged, StudyOS listed Tony\'s\n' +
-  '      programs as "This PC", and a C:\\Users\\antho\\ path saved from it never\n' +
-  '      opened on Veda\'s PC.');
-t('the picker drops lists that are not Veda\'s once any list is tagged',
-  /if \(tagged && d\.profile !== 'veda'\) return;/.test(STUDYOS),
-  'Without it the picker still offers paths that do not exist on her PC.');
-
-// ---------- Store apps can be class resources (2026-10-20) ------------------
-section('Microsoft Store apps are offered and launchable');
-
-const isLocal = new Function('u', bStudyos);
-t('a Store app path counts as a program',
-  isLocal('shell:AppsFolder\\Claude_pzs8sxrjxfjjc!Claude') &&
-  isLocal('shell:AppsFolder\\OpenAI.ChatGPT-Desktop_2p2nqsd0c76g0!ChatGPT'),
-  'Claude, ChatGPT, Calculator... have no .exe path; picking "Claude" found only\n' +
-  '      the Claude Code CLI, which opens a terminal.');
-t('anything else under shell: is refused (same rule as proc::store_aumid)',
-  !isLocal('shell:AppsFolder\\Claude!Claude') &&
-  !isLocal('shell:AppsFolder\\Claude_PZS8SXRJXFJJC!Claude') &&
-  !isLocal('shell:AppsFolder\\x_pzs8sxrjxfjjc!x" & calc') &&
-  !isLocal('shell:AppsFolder\\..\\x_pzs8sxrjxfjjc!x') &&
-  !isLocal('shell:startup'));
-t('Shield adds sh_apps store entries to the published list',
-  /\(apps\.store \|\| \[\]\)\.forEach/.test(SHIELD));
-t('sh_apps returns the Store apps',
-  /"store": shortcuts::list_store_apps\(\)/.test(R('desktop/shield/src-tauri/src/lib.rs')));
-t('open_path launches a Store app by id before the file-exists check',
-  (() => { const p = R('desktop/shield/src-tauri/src/proc.rs');
-    const i = p.indexOf('if let Some(aumid) = store_aumid(path)'), j = p.indexOf('if !std::path::Path::new(path).exists()');
-    return i > 0 && j > i; })(),
-  'A shell:AppsFolder path is not a file, so the exists() check would drop it.');
 
 // ---------------------------- summary ---------------------------------------
 console.log('\n' + (fail ? 'FAIL' : 'PASS') + ' class-resources: ' + pass + ' passed, ' + fail + ' failed');

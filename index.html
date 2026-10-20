@@ -21993,17 +21993,16 @@ window._tnOpenTab = function(url, key){
      class ▸ Resources). The ▶ button on a mirrored TaskHub card opens the whole
      set in one click, so a study block starts with one tap instead of six.
 
-     Two transports, because a page cannot launch a program:
-       • Websites   → _tnOpenTab, one stable named tab each.
-       • Native apps → shieldopen:class/<classId>, resolved by the Shield
-         desktop agent against paths it synced separately. The link carries an
-         opaque class id and never a path, so a page that merely knows the
-         scheme name still cannot make Shield run something arbitrary.
+     On her PC the page opens the StudyOS class tab and hands every app and
+     site to the StudyOS bridge (the launcher AI prep's ✨ uses), which is not a
+     page and so is not limited to one tab per click. Apps are named by the
+     bridge's opaque id, never a path. Shield is NOT involved (Veda's call,
+     2026-10-20). Elsewhere, or with the bridge known to be down, the page
+     opens what a browser can by itself.
 
-     Order matters: tabs are requested FIRST. The protocol navigation can raise
-     an external-app dialog that takes focus and ends the user gesture, and
-     anything deferred out of that gesture is guaranteed to be popup-blocked —
-     which is also why nothing here is wrapped in a setTimeout.
+     Nothing inside _sosLaunchClass is deferred: anything moved out of the user
+     gesture is popup-blocked. The bridge call is a fetch, so it lives outside
+     it, in _sosBridgeLaunch.
 
      Popup blockers, honestly: _tnOpenTab's first call is window.open('', NAME),
      and re-targeting a tab that already exists is not treated as a popup — so
@@ -22120,12 +22119,8 @@ window._sosLaunchClass = function(classId, className){
   // one — matching on the badge text keeps those cards working.
   if (!c && className) {
     Object.keys(cs).forEach(function(k){
-      // Adopt the matched KEY as the class id, not just its value. Every
-      // shieldopen: link below sends `classId`, so resolving by name while
-      // leaving it empty built "shieldopen:class/" with no id at all: Shield
-      // rejects that (class_id_of refuses an empty id), launches nothing, and
-      // Windows still foregrounds Shield to handle the protocol — so the
-      // button appeared to "open Shield instead of the app".
+      // Adopt the matched KEY as the class id, not just its value: the
+      // StudyOS class tab and the per-resource tab keys are built from it.
       if (!c && cs[k] && cs[k].name === className) { c = cs[k]; classId = k; }
     });
   }
@@ -22143,14 +22138,14 @@ window._sosLaunchClass = function(classId, className){
     // StudyOS at THIS class (see _sosStudyOsClassUrl below), so keeping it
     // would open a second tab at StudyOS in general -- same app, no class,
     // one redundant tab every press. Dropped here, at the split, so it is
-    // gone from the Shield path and the browser path alike rather than
+    // gone from the bridge path and the browser path alike rather than
     // filtered twice. Only when a class url is actually available: with no
     // StudyOS url configured the resource is the only thing that opens it,
     // and silently swallowing it would lose the tab entirely.
     else if (r.url && !(sosClassUrl && window._sosIsSameStudyOs(r.url, sosClassUrl))) web.push(r);
   });
 
-  /* ── How a class opens, and why Shield does the work ──────────────────────
+  /* ── How a class opens, and why the bridge does the work ──────────────────
    * MEASURED CONSTRAINT: a browser grants exactly ONE new tab per user
    * gesture. Three consecutive window.open('', name) calls in a single click
    * return a window, then null, then null - and a real <a target> click, and
@@ -22162,35 +22157,33 @@ window._sosLaunchClass = function(classId, className){
    * press for the other: one press, one gesture, one tab. There is no version
    * of this function that opens two sites from one click by itself.
    *
-   * So the class is handed to the Shield desktop agent, which is not a page
-   * and has no gesture budget: one shieldopen: navigation, and Shield opens
-   * every resource - websites and native apps alike (see lib.rs
-   * open_from_link and proc::open_target). The url never travels in the link;
-   * Shield resolves the class id against what it already synced, so a page
-   * that merely knows the scheme name still cannot name a target of its own.
+   * So on her PC the page spends its one tab on the StudyOS class page and
+   * hands the apps and sites to the StudyOS bridge (V1/tools/sos-browser/
+   * launcher.py, the same launcher AI prep's ✨ uses). It is not a page, has
+   * no gesture budget, and opens Start-menu apps including Microsoft Store
+   * ones such as the Claude desktop app, which has no .exe path at all. The
+   * hand-off itself is a fetch, so the caller (_sosLaunchClassClick) makes it.
    *
-   * WHEN SHIELD ISN'T THERE: a plain browser tab cannot detect whether a
-   * custom-protocol navigation was handled, so this cannot auto-fall-back
-   * without double-opening every site on machines that DO have Shield. The
-   * choice is therefore explicit and remembered: browser mode opens what it
-   * can (one tab per press, the old behaviour) and is what a phone gets. */
-  var useShield = true;
+   * WHEN THE BRIDGE ISN'T THERE: the page only learns that after the click,
+   * when the gesture is spent. So the bridge is used unless the last probe
+   * said it is down (_vdBridgeUp === false); then, and on a phone, this opens
+   * what a browser can (one tab per press). */
+  var useBridge = false;
   try {
-    var pref = localStorage.getItem('sosResLaunchMode');
-    if (pref === 'browser') useShield = false;
-    // No Shield on a phone or any non-Windows device, so never strand the
-    // button there waiting for an agent that cannot exist.
-    if (!/Windows/i.test(navigator.userAgent || '')) useShield = false;
+    useBridge = /Windows/i.test(navigator.userAgent || '')
+      && typeof window._vdPrepOpenLocal === 'function' && window._vdBridgeUp !== false;
   } catch(e){}
 
-  if (useShield && classId) {
-    // BEFORE the protocol navigation, which can raise an external-app dialog
-    // that takes focus and ends the user gesture — anything opened after it is
-    // refused. Costs the one tab the gesture allows; Shield opens the rest.
+  if (useBridge) {
     var sosUrl = window._sosStudyOsClassUrl(classId);
     if (sosUrl) { try { window._tnOpenTab(sosUrl, window._sosStudyOsTabKey()); } catch(e){} }
-    try { location.href = 'shieldopen:class/' + encodeURIComponent(classId); } catch(e){}
-    return { web: web.length, app: app.length, blocked: 0, blockedUrls: [], via: 'shield' };
+    var appIds = [], missing = [];
+    app.forEach(function(r){
+      var id = window._sosAppIdFor(r);
+      if (id) appIds.push(id); else missing.push(r.label || 'an app');
+    });
+    return { web: web.length, app: app.length, blocked: 0, blockedUrls: [], via: 'bridge',
+             appIds: appIds, urls: web.map(function(r){ return r.url; }), missing: missing };
   }
 
   /* ── Browser fallback ─────────────────────────────────────────────────────
@@ -22273,65 +22266,116 @@ window._sosLaunchClass = function(classId, className){
     try { w.focus(); } catch(e){}
   });
 
-  // Native apps still need the agent even in browser mode - a page cannot
-  // launch a program at all. Last, because the protocol navigation can raise a
-  // dialog that ends the gesture and refuses every tab not yet requested.
-  if (app.length) {
-    try { location.href = 'shieldopen:class/' + encodeURIComponent(classId || ''); } catch(e){}
-  }
+  // A page cannot start a program, so in this mode the class's apps do not
+  // open; the click wrapper says so rather than staying silent.
   return { web: web.length, app: app.length, blocked: blocked, blockedUrls: blockedUrls, via: 'browser' };
 };
 
-/* Click wrapper for the ▶ button.
+/* The bridge app id for an app resource.
  *
- * The blank-first two-pass open above is what makes one click open everything,
- * so on a normal browser this wrapper does nothing visible and MUST stay
- * silent — a dialog on the happy path would defeat the point.
- *
- * It exists only for the genuine last resort: a hard-locked blocker that
- * refuses even a blank named window.open. That leaves no in-page recovery —
- * every retry we could attempt is refused by the same rule — so the honest
- * move is to say which sites did not open rather than pretend they did. The
- * count is trustworthy now: it comes from re-probing for the named tab, not
- * from a.click(), which never reports failure. */
+ * A resource picked in StudyOS since 2026-10-20 carries the bridge's own id
+ * (appId). Older ones carry only a path (synced to Shield, never to this
+ * page), so they are matched on their label against her PC's app list
+ * (dashboards/veda_pc_apps): exact name first, then a name that starts with
+ * the label ("IntelliJ" -> "IntelliJ IDEA 2026.1.1"). '' when nothing fits;
+ * the caller reports it by name. */
+window._sosAppIdFor = function(r){
+  if (!r) return '';
+  if (typeof r.appId === 'string' && /^[0-9a-f]{6,40}$/.test(r.appId)) return r.appId;
+  var label = String(r.label || '').trim().toLowerCase();
+  var list = Array.isArray(window._vdPcApps) ? window._vdPcApps : [];
+  if (!label) return '';
+  var hit = null;
+  list.forEach(function(a){ if (!hit && a && String(a.name || '').toLowerCase() === label) hit = a; });
+  list.forEach(function(a){
+    var n = String((a && a.name) || '').toLowerCase();
+    if (!hit && n.indexOf(label) === 0 && /^[\s(-]/.test(n.charAt(label.length) || ' ')) hit = a;
+  });
+  return hit ? String(hit.id) : '';
+};
+
+/* Hand a class's apps and sites to the bridge. The bridge takes at most 3 apps
+ * and 5 sites per request (launcher.py MAX_APPS/MAX_URLS), so a bigger class
+ * goes over in several. Resolves to the merged answer, or null when the
+ * bridge could not be reached. */
+window._sosBridgeLaunch = function(appIds, urls){
+  var a = (appIds || []).slice(), u = (urls || []).slice();
+  var all = { ok: true, opened: [], unknown: [], failed: [] };
+  function step(){
+    if (!a.length && !u.length) return Promise.resolve(all);
+    return window._vdPrepOpenLocal(a.splice(0, 3), u.splice(0, 5)).then(function(j){
+      if (!j || !j.ok) return null;
+      ['opened', 'unknown', 'failed'].forEach(function(k){ all[k] = all[k].concat(j[k] || []); });
+      return step();
+    });
+  }
+  return step();
+};
+
+/* What to tell her when a launch went wrong, or '' when nothing did. */
+window._sosLaunchProblem = function(r, j){
+  if (r.via === 'bridge' && !j) {
+    if (window._vdBridgeErr === 'blocked' || window._vdBridgeErr === 'blocked-or-down') {
+      return 'Your browser is blocking TaskHub from reaching the StudyOS Bridge, so this class’s apps and sites did not open.\n\n'
+        + 'Click the icon left of the address bar → Site settings → allow “Local network access”, then press ▶ again.';
+    }
+    return 'The StudyOS Bridge is not running on this PC, so this class’s apps and sites did not open.\n\n'
+      + 'Start it from the Start menu (“StudyOS Bridge”), then press ▶ again.';
+  }
+  var notes = [];
+  var lost = (r.missing || []).concat((j && j.unknown && j.unknown.length) ? ['an app that is no longer installed'] : []);
+  if (lost.length) {
+    notes.push('Could not find ' + lost.join(', ') + ' on this PC. In StudyOS, open the class → Resources, '
+      + 'edit it and pick the program again with Browse.');
+  }
+  if (j && j.failed && j.failed.length) notes.push('Windows refused to open: ' + j.failed.join(', ') + '.');
+  if (r.via === 'browser' && r.blocked) {
+    notes.push('Your browser opened 1 of this class’s ' + r.web + ' sites. A browser tab may open only one new tab '
+      + 'per click, so press ▶ again for the next one.');
+  }
+  if (r.via === 'browser' && r.app && /Windows/i.test(navigator.userAgent || '')) {
+    notes.push('This class’s apps did not open: the StudyOS Bridge is not reachable on this PC. '
+      + 'Start it from the Start menu (“StudyOS Bridge”), then press ▶ again.');
+  }
+  return notes.join('\n\n');
+};
+
+/* Click wrapper for the ▶ button. Silent when everything opened. */
 window._sosLaunchClassClick = function(classId, className){
   var r = null;
   try { r = window._sosLaunchClass ? window._sosLaunchClass(classId, className) : null; } catch(e){ r = null; }
-  if (!r || !r.blocked) return r;
-  // Only browser mode can report a refusal, and it is not a settings problem:
-  // one gesture buys one tab no matter how the blocker is configured, so the
-  // old "allow pop-ups and press again" advice was simply wrong. Offer the
-  // thing that actually fixes it instead.
-  var n = r.blocked;
-  var ok = window.confirm(
-    'Your browser opened 1 of this class’s ' + r.web + ' sites. It will not open '
-    + 'the other ' + n + ' from a single click — a browser tab is allowed to open '
-    + 'only one new tab per click, whatever your pop-up settings say.\n\n'
-    + 'Shield can open all of them at once, because it is not a browser tab.\n\n'
-    + 'OK — use Shield from now on (needs Shield running on this PC).\n'
-    + 'Cancel — keep using the browser; press ▶ again for the rest.'
-  );
-  if (ok) {
-    try { localStorage.removeItem('sosResLaunchMode'); } catch(e){}
-    try { location.href = 'shieldopen:class/' + encodeURIComponent(classId || ''); } catch(e){}
+  if (!r) return r;
+  if (r.via === 'bridge') {
+    window._sosBridgeLaunch(r.appIds, r.urls).then(function(j){
+      var msg = window._sosLaunchProblem(r, j);
+      if (msg) window.alert(msg);
+    });
+    return r;
   }
+  var msg = window._sosLaunchProblem(r, null);
+  // A known-down bridge may have come back since: probe now, so the next press
+  // uses it if it has.
+  if (window._vdBridgeProbe && /Windows/i.test(navigator.userAgent || '')) { try { window._vdBridgeProbe(); } catch(e){} }
+  if (msg) window.alert(msg);
   return r;
 };
 
-/* Escape hatch for a machine where Shield is not installed or not running.
- * A shieldopen: navigation is silent when nothing handles it, so from inside
- * the page "Shield opened everything" and "nothing happened at all" look
- * identical — there is no event to listen for. This is what lets someone in
- * that state get the browser behaviour back without editing storage by hand.
- * Exposed on window so it can be called from the console or wired to a
- * settings row later. */
-window._sosResUseBrowser = function(on){
-  try {
-    if (on === false) localStorage.removeItem('sosResLaunchMode');
-    else localStorage.setItem('sosResLaunchMode', 'browser');
-  } catch(e){}
-  return on === false ? 'shield' : 'browser';
-};
+/* Know whether the bridge is up BEFORE the click, since the click itself
+ * cannot wait to find out. Only on Veda's TaskHub on Windows: the probe asks
+ * the browser for loopback access, which Tony's PC has no reason to prompt for. */
+(function(){
+  var last = 0;
+  function probe(){
+    try {
+      if (!/Windows/i.test(navigator.userAgent || '') || localStorage.getItem('td6_mainDash') === 'tony') return;
+    } catch(e){ return; }
+    if (!window._vdBridgeProbe || Date.now() - last < 60000) return;
+    last = Date.now();
+    window._vdBridgeProbe();
+  }
+  window.addEventListener('load', function(){ setTimeout(probe, 3000); });
+  window.addEventListener('focus', probe);
+})();
 </script>
 
 <!-- ── AI task prep (Veda's TaskHub only) ─────────────────────────────────────
@@ -23305,7 +23349,7 @@ function _isCustom(app){ return typeof app === 'string' && app.indexOf('custom:'
 // Shield desktop agent instead of opening a tab (see _doOpen below). Must stay
 // in sync with shield.html's own copy of this same check.
 function _isLocalPath(u){
-  return typeof u === 'string' && !/^https?:\/\//i.test(u) && (/^[A-Za-z]:[\\/]/.test(u) || /^\\\\/.test(u) || /^shell:AppsFolder\\[\w.-]+_[a-z0-9]{13}![\w.-]+$/.test(u));
+  return typeof u === 'string' && !/^https?:\/\//i.test(u) && (/^[A-Za-z]:[\\/]/.test(u) || /^\\\\/.test(u));
 }
 function _linksFor(p){ return p === 'tony' ? tonyLinks : vedaLinks; }
 function linkById(p, id){ var a = _linksFor(p); for (var i=0;i<a.length;i++){ if(a[i].id===id) return a[i]; } return null; }

@@ -1239,7 +1239,7 @@ onSnapshot(AL_DOC, snap => {
    index.html's _isLocalPath exactly, or a button that TaskHub itself treats as
    a local path silently does nothing here. */
 function isLocalPath(u){
-  return typeof u === 'string' && !/^https?:\/\//i.test(u) && (/^[A-Za-z]:[\\/]/.test(u) || /^\\\\/.test(u) || /^shell:AppsFolder\\[\w.-]+_[a-z0-9]{13}![\w.-]+$/.test(u));
+  return typeof u === 'string' && !/^https?:\/\//i.test(u) && (/^[A-Za-z]:[\\/]/.test(u) || /^\\\\/.test(u));
 }
 // Only with an agent. This listener exists for exactly one purpose: handing
 // local-link paths down to the desktop agent (see sh_set_links below). On a
@@ -1305,12 +1305,6 @@ function _appsForPicker(apps){
   // the shortcut scan never sees them — but they are running right now, which
   // is decent evidence the user wants them.
   (apps.runningOnly || []).forEach(function(a){ push(a.name, a.exe, a.file, a.folder, true); });
-  // Microsoft Store apps (Claude, ChatGPT, Calculator...) have no shortcut, so
-  // without these the picker offered only a same-named CLI: "Claude" was the
-  // Claude Code claude.exe and opened a terminal. Launched by app id.
-  (apps.store || []).forEach(function(a){
-    if (a && isLocalPath(a.path)) push(a.name, '', '', a.path, false);
-  });
   out.sort(function(x, y){ return x.name.toLowerCase() < y.name.toLowerCase() ? -1 : 1; });
   // A hard ceiling so this can never approach the document size limit; the
   // picker has a search box, and nobody scrolls past 400 programs.
@@ -1341,20 +1335,6 @@ function _whenAgentReady(){
   });
 }
 
-/* The profile this agent is signed into ('veda' | 'tony'), or '' if none is
-   entered within 30s (the gate is still showing). */
-function _whenProfileKnown(){
-  return new Promise(function(resolve){
-    var waited = 0;
-    (function tick(){
-      var p = (window.S && window.S.profile) || '';
-      if (p === 'veda' || p === 'tony') return resolve(p);
-      if ((waited += 250) > 30000) return resolve('');
-      setTimeout(tick, 250);
-    })();
-  });
-}
-
 async function _pushShieldApps(){
   var devId = await _whenAgentReady();
   if (!devId) { console.info('[Shield] no agent here — no program inventory to publish.'); return; }
@@ -1363,17 +1343,10 @@ async function _pushShieldApps(){
     var list = apps ? _appsForPicker(apps) : [];
     if (!list.length) { console.warn('[Shield] sh_apps returned no usable programs.'); return; }
     await authReady;
-    // Whose PC this is. Every PC that runs Shield publishes into this one
-    // document, and StudyOS (Veda's) used to list them all, every one named
-    // "This PC" -- so she picked a program from Tony's PC, saved a
-    // C:\Users\antho\... path, and the class's app never opened on hers
-    // (open_path refuses a path that does not exist, silently). StudyOS keeps
-    // only her own PCs by this field. Waited for, because the profile is
-    // entered after the agent is ready.
-    var profile = await _whenProfileKnown();
-    var rec = (profile && typeof devRec === 'function') ? devRec(devId) : null;
+    // Field-scoped by device id, so this machine can never drop another's
+    // inventory. merge:true because the document may not exist yet.
     var payload = {};
-    payload[devId] = { name: (rec && rec.name) || 'This PC', profile: profile, apps: list, at: Date.now() };
+    payload[devId] = { name: 'This PC', apps: list, at: Date.now() };
     await setDoc(doc(db, SOS_APPS_DOC), { devices: payload }, { merge: true });
     console.info('[Shield] published ' + list.length + ' programs for StudyOS.');
   } catch (e) { console.warn('[Shield] app inventory push failed', e); }
