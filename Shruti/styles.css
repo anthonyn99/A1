@@ -146,6 +146,13 @@ body[data-profile=veda] #top .brand { font-weight: 600; }
 #top .tnav button:hover { color: var(--tx); }
 #top .tnav button.on { color: var(--ac); background: var(--ac-soft); }
 #top a1-lifehub { margin-left: 2px; }
+/* The sync pill keeps a fixed slot right of the nav, so Library / Continue
+   never shift as it changes between Syncing, Synced and nothing. */
+#top #sync-pill { width: 84px; flex-shrink: 0; justify-content: flex-start; }
+/* Whose Shruti this is: the person's mark in a ring (MAGI's ⚜ / ✦). */
+#switch-btn .pf-av { width: 26px; height: 26px; border-radius: 50%; border: 1.6px solid currentColor; display: grid; place-items: center; font-size: 15px; line-height: 1; color: var(--ac); }
+#switch-btn .pf-av svg { width: 15px; height: 14px; }
+#switch-btn:hover .pf-av { color: var(--tx); }
 
 #view { flex: 1; width: 100%; max-width: 1180px; margin: 0 auto; padding: 22px 24px calc(40px + var(--bnav-h) + var(--mini-h, 0px)); }
 .v-enter { animation: vIn .32s var(--ease) both; }

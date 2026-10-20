@@ -206,6 +206,7 @@ C.on('doc:shared', ({ remote }) => { if (remote) redraw(); });
 
 /* ── header buttons ───────────────────────────────────────────────────────── */
 $('#lock-btn').addEventListener('click', () => Guardian.manage(GID).then(updateLockBtn));
+$('#switch-btn').innerHTML = '<span class="pf-av">' + (P === 'veda' ? '✦' : FLEUR) + '</span>';
 $('#switch-btn').addEventListener('click', () => showPicker());
 $('#settings-btn').addEventListener('click', () => openSettings());
 
