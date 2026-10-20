@@ -280,6 +280,62 @@ export async function run(o, on = {}, { signal, chat = O.chat, speak = O.speak, 
     M.job(book, n, kind, null);
   }
 }
+/* ── study sets (Phase 7) ────────────────────────────────────────────────── */
+// MAGI Studio's prompts (magi/engine/studio.py), reworded from "the question
+// and its answer" to "this reading", sized by length and scope, and asking
+// for MAGI's labelled formats so its tolerant parsers (study/parse.js) read
+// the reply.
+export const STUDY_SIZES = {
+  concise: { flashcards: '6 to 10', quiz: '5', mindmap: '3 to 5', slides: '5 to 7' },
+  standard: { flashcards: '10 to 16', quiz: '8', mindmap: '4 to 6', slides: '8 to 10' },
+  deep: { flashcards: '16 to 24', quiz: '12', mindmap: '5 to 7', slides: '10 to 14' },
+};
+const STUDY_TASK = {
+  flashcards: (z) => 'Turn this reading into study flashcards: ' + z + ' cards, each covering one distinct teaching, term or idea from it. Use exactly this format, one card per block, nothing else in the response:\n\nCARD 1\nFRONT: the term or question\nBACK: the explanation or answer\n\nCARD 2\nFRONT: ...\nBACK: ...\n\nKeep each FRONT short (a term or a one-line question) and each BACK one to three plain sentences. Name a verse number in [brackets] on the BACK when one verse says it.',
+  quiz: (z) => 'Turn this reading into a multiple-choice quiz: ' + z + ' questions, each testing understanding of one distinct point from it. Use exactly this format, one question per block, nothing else in the response:\n\nQ1. the question text\nA. option\nB. option\nC. option\nD. option\nCORRECT: B\nWHY: one line explaining why that option is correct\n\nQ2. ...\n\nExactly four lettered options per question, exactly one CORRECT line naming the right letter, exactly one WHY line. Wrong options are plausible, never silly.',
+  mindmap: (z) => 'Turn this reading into a mind map outline: a central topic with ' + z + ' main branches and their sub-points. Use exactly this format, nothing else in the response:\n\nROOT: the central topic, a few words\n- first main branch\n  - a sub-point under it\n  - another sub-point\n- second main branch\n  - a sub-point under it\n\nUse a 2-space indent per nesting level, dash bullets, and go no deeper than one level of sub-points. Keep each line short: a few words to one phrase, not a sentence.',
+  slides: (z) => 'Turn this reading into a slide deck: ' + z + ' slides that walk through it in order. Use exactly this format, one block per slide, nothing else in the response:\n\nSLIDE 1\nTITLE: the slide\'s title\n- first bullet point\n- second bullet point\n\nSLIDE 2\nTITLE: ...\n- ...\n\nKeep bullets short: a phrase, not a paragraph, two to five per slide. The first slide introduces the reading; the last sums up what it teaches.',
+};
+/** The messages for one study kind. o: {kind, book, bookTitle, scope:{label}, text, lessons, length, extra}. */
+export function studyPrompt(o) {
+  const what = o.book === 'gita' ? 'the Bhagavad-Gita (the IGS rendition by Ramananda Prasad)' : 'the book "' + (o.bookTitle || o.book) + '"';
+  const z = (STUDY_SIZES[o.length] || STUDY_SIZES.standard)[o.kind];
+  const L = (o.lessons && o.lessons.lessons) || [];
+  const sys = 'You make study material for Shruti, a reading app. Stay faithful to the reading: be concise, true and to the point, and say only what it teaches. When you add anything that is not in it, say so plainly. Reply with ONLY the format asked for, nothing before or after it.';
+  const user = 'This reading is ' + o.scope.label + ' of ' + what + '.\n\n' + STUDY_TASK[o.kind](z) +
+    (L.length ? '\n\nThe readers wrote these lessons for it; make sure every one of them is covered.' : '') +
+    (o.extra ? '\n\nThe reader also asks: ' + o.extra : '') +
+    '\n\n<source>\n' + o.text + '\n</source>' +
+    (L.length ? '\n\n<lessons>\n' + lessonsText(o.lessons) + '\n</lessons>' : '');
+  return [{ role: 'system', content: sys }, { role: 'user', content: spill(user) }];
+}
+/** Make the chosen study kinds, one call each, through the person's units.
+ *  o: {kinds, book, bookTitle, scope, text, lessons, length, extra, models}.
+ *  on: {kind(k, i), delta(t), model(m), done(k, count)}. Resolves {kinds:{k: items}, model}.
+ *  A reply nothing can be read from is asked for once more, with its own reply. */
+export async function runStudy(o, on = {}, { signal, chat = O.chat, parse } = {}) {
+  const key = keyOf();
+  if (!key) throw Object.assign(new Error('Making needs your Orca key (Settings).'), { code: 'key' });
+  const out = {}, P = parse;
+  let model = null;
+  for (const [i, kind] of o.kinds.entries()) {
+    on.kind && on.kind(kind, i);
+    const msgs = studyPrompt(Object.assign({}, o, { kind }));
+    const ask = (m, models) => chat({ key, messages: m, models, signal, onDelta: (t) => on.delta && on.delta(t), onModel: (x) => { model = x; on.model && on.model(x); } });
+    let r = await ask(msgs, model ? [model, ...o.models.filter((x) => x !== model)] : o.models);
+    let it = P.items(kind, r.text);
+    if (!P.count(kind, it)) {
+      on.delta && on.delta('\n\n');
+      r = await ask(msgs.concat([{ role: 'assistant', content: r.text }, { role: 'user', content: 'That could not be read. Reply again in exactly the format asked for, nothing else.' }]), [r.model, ...o.models.filter((x) => x !== r.model)]);
+      it = P.items(kind, r.text);
+      if (!P.count(kind, it)) throw new Error(modelName(r.model) + '\'s ' + kind + ' could not be read.');
+    }
+    out[kind] = it;
+    on.done && on.done(kind, P.count(kind, it));
+  }
+  return { kinds: out, model };
+}
+
 export const modelName = (id) => { const u = O.UNITS.find((x) => x.id === id); return u ? u.name : String(id || '').split('/')[0]; };
 
 /* ── the sheet ───────────────────────────────────────────────────────────── */
