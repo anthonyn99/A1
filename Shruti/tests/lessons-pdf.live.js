@@ -109,7 +109,10 @@ const pdfWords = (pdf) => (pdf.match(/\((?:\\.|[^\\)])*\) Tj/g) || []).map((s) =
   }
 
   console.log('\nAn AI-made set');
-  await ev(c, `window.Shruti.core.shared.set({'assets.gita.ch4.lessons': {id:'v1', model:'deepseek/free', lessons:[{id:'L1', title:'Karma-yoga is ancient (Śrī Kṛṣṇa’s words).', body:'Receive it as old wisdom — kept by saintly kings.'},{id:'L2', title:'God comes by his own power.', body:'Not by karma.'}], summary:'Selfless work, offered to God, frees.'}},{now:true}); return 1`);
+  RUN = String(Date.now());
+  await load(c, { w: 1280, h: 900, mobile: false, store: "sessionStorage.removeItem('__fakefs_docs'); sessionStorage.setItem('shruti.pick','tony');", hash: '#/b/gita/4/lessons' });
+  await waitFor(c, `!!window.Shruti && !!window.Shruti.core.shared.loaded`, 15000);
+  await ev(c,`window.Shruti.core.shared.set({'assets.gita.ch4.lessons': {id:'v1', model:'deepseek/free', lessons:[{id:'L1', title:'Karma-yoga is ancient (Śrī Kṛṣṇa’s words).', body:'Receive it as old wisdom — kept by saintly kings.'},{id:'L2', title:'God comes by his own power.', body:'Not by karma.'}], summary:'Selfless work, offered to God, frees.'}},{now:true}); return 1`);
   await load(c, { w: 1280, h: 900, mobile: false, hash: '#/b/gita/4/lessons' });
   ok('it shows the AI set', await waitFor(c, `/drawn by DeepSeek/.test(document.querySelector('.ls-k')?.textContent||'')`));
   const ai = await download(c, '#ls-pdf');
