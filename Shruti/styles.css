@@ -354,7 +354,7 @@ body[data-profile=veda] .cp-head .k { text-transform: none; letter-spacing: 0; f
 /* == phones ================================================================= */
 @media (max-width: 760px) {
   :root { --bnav-h: calc(62px + env(safe-area-inset-bottom)); --top-h: 54px; }
-  .bnav { display: flex; }
+  .bnav { display: flex; height: var(--bnav-h); }
   #top { padding: 0 6px 0 12px; }
   #top .tnav, #top .crumbs { display: none; }
   #view { padding: 16px 16px calc(28px + var(--bnav-h) + var(--mini-h, 0px)); }

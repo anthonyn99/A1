@@ -152,6 +152,7 @@ async function load(c, { w, h, mobile, store, hash = '' }) {
   ok('touch targets are at least 44px', await ev(c, `return [...document.querySelectorAll('#top .ib')].every(b=>b.getBoundingClientRect().height>=44)`));
   await shot(c, 'tony-book-390');
   await ev(c, `window.Shruti.player.show({title:'Chapter 2 · Spiritual knowledge', sub:'Read-aloud'}); return 1`);
+  await sleep(700);   // its slide-in has settled
   ok('the mini-player sits above the bottom nav', await ev(c, `const m=document.querySelector('#mini .mp').getBoundingClientRect(), n=document.querySelector('.bnav').getBoundingClientRect(); return m.bottom<=n.top+1 && m.height>40`));
   await shot(c, 'tony-mini-390');
   await ev(c, `window.Shruti.player.hide(); location.hash='#/b/gita/2'; return 1`);
@@ -163,7 +164,9 @@ async function load(c, { w, h, mobile, store, hash = '' }) {
   await ev(c, `document.getElementById('switch-btn').click(); return 1`);
   ok('the profile button brings back the picker', await waitFor(c, `!document.getElementById('picker').hidden`));
   await ev(c, `document.querySelector('.pk-card.veda').click(); return 1`);
-  ok("choosing Veda reloads into hers", await waitFor(c, `window.SHRUTI_PROFILE==='veda' && !document.getElementById('app').hidden && !!document.querySelector('.book')`));
+  ok("choosing Veda reloads into hers, on the same page", await waitFor(c, `window.SHRUTI_PROFILE==='veda' && !document.getElementById('app').hidden && !!document.querySelector('.rd p')`));
+  await ev(c, `location.hash='#/'; return 1`);
+  await waitFor(c, `!!document.querySelector('.book')`);
   ok('her look: StudyOS purple, Lora headings, Nunito body, classic hover', await ev(c, `return getComputedStyle(document.body).getPropertyValue('--ac').trim()==='#A892B0' && /Lora/.test(getComputedStyle(document.querySelector('.lib-hero h1')).fontFamily) && /Nunito/.test(getComputedStyle(document.body).fontFamily) && !document.body.dataset.hoverfx`));
   ok('her tab icon is her colour', await ev(c, `return /%23A892B0/.test(document.querySelector('link[rel=icon]').href)`));
   ok('her document is dashboards/shruti_veda', await waitFor(c, `return window.Shruti.core.me.loaded && window.Shruti.core.me.path==='dashboards/shruti_veda'`));
