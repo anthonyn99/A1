@@ -113,7 +113,7 @@ const pdfWords = (pdf) => (pdf.match(/\((?:\\.|[^\\)])*\) Tj/g) || []).map((s) =
   const ai = await download(c, '#ls-pdf');
   const aw = ai ? pdfWords(ai.data) : '';
   ok('its PDF is named for the unit', ai && ai.name === 'Bhagavad-Gita - Chapter 4 lessons (DeepSeek).pdf', ai && ai.name);
-  ok('diacritics lose only their marks; dashes and quotes stay', /Sri Krsna/.test(aw) && aw.includes('\x97') && aw.includes('\x92'), aw.slice(0, 200));
+  ok('diacritics lose only their marks; dashes and quotes stay', /Sri Krsna/.test(aw) && aw.includes('—') && aw.includes('’'), aw.slice(0, 200));
   ok('the summary is in it', /CHAPTER SUMMARY/.test(aw) && /Selfless work, offered to God, frees/.test(aw));
   ok('no page errors', !(await ev(c, `return (window.__errs||[]).join(' | ')`)), await ev(c, `return (window.__errs||[]).join(' | ')`));
 
