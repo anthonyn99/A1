@@ -10,7 +10,8 @@ const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
 
-const BOOK = path.join(__dirname, '..', 'books', 'gita');
+// SHRUTI_BOOK points the test at another copy (used to prove it fails on a broken book).
+const BOOK = process.env.SHRUTI_BOOK || path.join(__dirname, '..', 'books', 'gita');
 const read = (f) => JSON.parse(fs.readFileSync(path.join(BOOK, f), 'utf8'));
 let checks = 0;
 const ok = (cond, msg) => { assert.ok(cond, msg); checks++; };
