@@ -67,7 +67,8 @@ const ok = (name, cond, extra) => {
 
   console.log('\nThe shipped narrations');
   const index = JSON.parse(read('books/gita/media/index.json'));
-  ok('the introduction and chapters 1-3 come with a narration', ['0', '1', '2', '3'].every((k) => index[k]));
+  const missingRead = Array.from({ length: 19 }, (_, i) => String(i)).filter((k) => !index[k]);
+  ok('the introduction and all 18 chapters come with a narration', !missingRead.length, 'missing: ' + missingRead.join(','));
   for (const [n, e] of Object.entries(index)) {
     const meta = JSON.parse(read('books/gita/media/' + e.json));
     const ch = JSON.parse(read('books/gita/ch' + String(n).padStart(2, '0') + '.json'));

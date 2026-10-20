@@ -45,6 +45,8 @@ const frames = (buf) => { const out = []; let at = 0; while (at + 4 <= buf.lengt
   const lessons = JSON.parse(read('books/gita/lessons.json'));
   const index = JSON.parse(read('books/gita/media/podcasts.json'));
   const scripts = fs.readdirSync(path.join(DIR, 'books/gita/scripts')).filter((f) => /^ch\d\d-podcast\.json$/.test(f)).sort();
+  const missingPod = Array.from({ length: 18 }, (_, i) => String(i + 1)).filter((k) => !index[k]);
+  ok('all 18 chapters have an episode', !missingPod.length, 'missing: ' + missingPod.join(','));
   ok('there is a script for every shipped episode', Object.keys(index).every((n) => scripts.includes('ch' + String(n).padStart(2, '0') + '-podcast.json')));
   for (const f of scripts) {
     const n = Number(f.slice(2, 4)), sc = JSON.parse(read('books/gita/scripts/' + f));
