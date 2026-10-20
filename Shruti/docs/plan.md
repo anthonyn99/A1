@@ -26,15 +26,22 @@ phase is done so he can open a fresh session for the next one.
   - Tests: `shell.test.js` (54), `worker.test.js` (29), live `shell.live.js` (46, both profiles, 390/1280). `npm test` 79/79.
   - Also fixed: `tests/no-tap-box.test.js` now reads ORCA's formatted stylesheet (it failed since ORCA's UI overhaul, though the rules were there).
 
-**Waiting on Tony (not blocking Phase 3's Read work):** the Google client for Drive. Steps are in README "Connecting Google Drive" (enable Drive API, add the redirect URI, two `wrangler secret put`, then Settings → Connect). Until then `/health` says `configured:false` and Settings says so. Also each person pastes their Orca key once in Settings.
+- **Phase 3: Orca TTS and Read (2026-10-20).**
+  - ORCA (`accounts`, deployed): `POST /v1/audio/speech` (OpenAI-shaped; `timestamps: true` gives `{audio base64, words [[t,d,w]], engine, voice}`) and `GET /v1/audio/voices`, in `worker/src/tts.ts`, `edgeToken.ts`, `api/audio.ts`; 16 tests in `tts.test.ts`; README "Text to speech". Edge's neural voices work from Cloudflare. **Microsoft moved to a v2 `Sec-MS-GEC` token on 2026-10-13** (edge-tts 7.3.0); v1 gets 403 everywhere. The v2 port matches edge-tts 7.3.1 exactly. Edge sends audio at about 1.5x real time, so text is cut at sentence ends and spoken over 5 sockets. Aura is the fallback. Speech is not counted against a key's limits.
+  - MAGI's `requirements.txt` now asks for `edge-tts>=7.3.1` (Studio narration was failing with 403 too); engines pick it up on their next self-update.
+  - Shruti: `reader.js` (Aa look synced in `reader.*`, partial `hl` highlights, styled asides, bookmarks with a book-page list and `#/b/<book>/<n>/read/<block>` links, "back where you were" from `progress…pos`, Mark as read/unread in the chapter header), `narrate.js` (read-aloud: live Orca or a ready-made MP3, word lighting, follow-scroll with "Back to the voice", tap a word to read from there, mini-player −15/+15, Media Session, Space, speed 0.5–2.5x with pitch kept, voices with a preview, sleep timer, Save narration to Drive into `shruti_shared assets…read`), `text.js` (segments, words, alignment). The header's profile button is the person's ⚜/✦ in a ring; the sync pill has a fixed slot so the nav never moves.
+  - Shipped narrations for the introduction and Ch 1–3 in Ava (`books/gita/media/`, 10 MB, built by `tools/narrate.py`); every spoken word lines up with the text.
+  - Tests: `reader.test.js` (53, also parses every module, so a syntax error cannot ship a blank page again: one did on 2026-10-19 evening), live `reader.live.js` (44), `shell.live.js` (52). `npm test` 79/79.
+  - Test tooling: `tests/live/cdp.js` now answers `Range` (206) like GitHub Pages and allows PUT/DELETE in mocked CORS. A live test must load from `about:blank` first: a tab left on the same URL only changes `#hash` and keeps old code.
 
-**Next: Phase 3 — Orca TTS and Read** (see "Phases" below). Notes for it:
-- ORCA first (repo `C:\Users\antho\Desktop\ORCA`, branch `accounts`, its own tests and deploy): `POST /v1/audio/speech` and `GET /v1/audio/voices`, Edge neural voices with word timings, Aura fallback. Test whether Microsoft accepts Cloudflare's addresses before building on it.
-- The reader is `renderRead` in `library.js` (plain blocks; `.rd` styles). Phase 3 adds typography settings, aside styling, bookmarks and resume-to-position (`progress.<book>.ch<n>` already holds `f`; add a position). Lessons already render (`renderLessons`); polish only.
-- Read-aloud plays through `Shruti.player` (`show({title, sub, onToggle})`, `progress(f)`, `hide()`), which sits above the bottom nav. Media Session, sleep timer and ±15 s go there.
-- AI calls: `orca.js` `chat()` and `chain(prefs, models)`; the person's key is `me.get('orcaKey')`, units `me.get('units')`.
-- "Save narration" uploads with `PUT https://shruti-drive.av1-2.workers.dev/f?book&chapter&name&owner` (Bearer = the Orca key) and plays via `POST /sign`. Record what exists in `dashboards/shruti_shared` `assets.<book>.ch<n>`; the mode badges read that.
-- Live tests copy `Shruti/tests/shell.live.js` (fake Firestore, Orca and Drive answered in the mock).
+**Waiting on Tony (not blocking):** the Google client for Drive. Steps are in README "Connecting Google Drive" (enable the Drive API, add the redirect URI, two `wrangler secret put`, then Settings → Connect). Until then `/health` says `configured:false`, and "Save narration" says Drive is not connected. Also each person pastes their Orca key once in Settings. Read-aloud of the introduction and Ch 1–3 works without a key; other chapters and voices need it. The live Orca path was tested with a mock and the deployed endpoint answers 401 without a key; the first real call with Tony's key is the remaining end-to-end check.
+
+**Next: Phase 4 — Listen** (see "Phases" below). Notes for it:
+- The podcast is voiced through `orca.js speak()` (one request per turn, `voice` per host), so word timings come with every turn. `narrate.js saveNarration` shows the speak → concatenate → upload → `shruti_shared` record path; the podcast adds the mix (OfflineAudioContext, gaps, intro/outro) and lamejs encoding.
+- Player: reuse the mini-player API in `app.js` (`player.show({title, sub, onToggle, onBack, onFwd, onMore, onOpen, onClose})`, `setPlaying`, `setSub`, `progress`) and the Media Session pattern in `narrate.js`. Only one thing should play at a time: stop read-aloud (`narrate.js` `pause`/reset) when a podcast starts.
+- Turn view: lining up words to turns and lighting the current word can reuse `text.js` `wordAt` and `align`.
+- Ship Ch 1–3 podcasts in `books/gita/media/` next to the read-aloud files, listed in the same `index.json` under a `podcast` key (extend `readyFor` or add a sibling), and light the Listen badge from it (`library.js available()` reads only `shruti_shared` today).
+- Edge voices for two hosts: Andrew + Ava, or Brian + Emma (the multilingual ones sound the most natural).
 
 **Standing rules:**
 - Everything Shruti owns stays in `A1/Shruti/` (see README "Moving Shruti").
