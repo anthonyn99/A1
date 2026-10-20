@@ -122,7 +122,6 @@ const pdfWords = (pdf) => (pdf.match(/\((?:\\.|[^\\)])*\) Tj/g) || []).map((s) =
   await ev(c, `location.hash='#/b/gita/4/lessons'; return 1`);
   const shows = await waitFor(c, `/drawn by DeepSeek/.test(document.querySelector('.ls-k')?.textContent||'')`);
   ok('it shows the AI set', shows, await ev(c, `return document.body.dataset.profile+' '+JSON.stringify(window.Shruti.core.shared.get('assets.gita.ch4.lessons',null))+' '+(document.querySelector('.ls-k')?.textContent)`));
-  console.log('   hit:', await ev(c, `const e=document.querySelector('#ls-pdf'); e.scrollIntoView({block:'center', behavior:'instant'}); const r=e.getBoundingClientRect(); const h=document.elementFromPoint(r.left+r.width/2, r.top+r.height/2); return JSON.stringify(r)+' '+(h&&h.outerHTML.slice(0,160))`));
   const ai = await download(c, '#ls-pdf');
   const aw = ai ? pdfWords(ai.data) : '';
   ok('its PDF is named for the unit', ai && ai.name === 'Bhagavad-Gita - Chapter 4 lessons (DeepSeek).pdf', ai && ai.name);
