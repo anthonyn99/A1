@@ -27,7 +27,8 @@ const ok = (name, cond, extra) => {
   console.log('\nThe files');
   let babel = null;
   try { babel = require('@babel/parser'); } catch (e) {}
-  for (const f of ['text.js', 'reader.js', 'narrate.js']) {
+  ok('the parser is there (a missing one would let a syntax error ship a blank page)', !!babel);
+  for (const f of ['text.js', 'reader.js', 'narrate.js', 'library.js', 'app.js', 'orca.js', 'core.js']) {
     let err = null;
     if (babel) { try { babel.parse(read(f), { sourceType: 'module' }); } catch (e) { err = e.message; } }
     ok(f + ' parses as a module', !err, err);
