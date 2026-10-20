@@ -40,6 +40,7 @@ const HOSTS = {
   'shield.html':   { lock: 'guardian', profile: true },
   'riftiq.html':   { lock: 'guardian' },
   'magi.html':     { lock: '#lockScreen' },
+  'Shruti/shruti.html': { lock: 'guardian', profile: true },
 };
 // Deliberately without it: Veda's own program.
 const NEVER = ['wellness.html'];
@@ -176,8 +177,10 @@ console.log('\nThe initial configuration');
 const block = (name) => (new RegExp('var ' + name + ' = \\[([\\s\\S]*?)\\n  \\];').exec(src) || [])[1] || '';
 const names = (b) => [...b.matchAll(/\{ id: '([a-z_]+)', name: '([^']+)'/g)].map((m) => m[2]);
 const tony = block('DEFAULT_APPS'), veda = block('VEDA_APPS');
-ok("seeds exactly Tony's ten programs, in order", names(tony).join() === 'OneInbox,TradeHub,MyList,Insight,Vault,Everwell,Shield,Shield (HTML),RiftIQ,MAGI', names(tony));
-ok("seeds Veda's own list: the programs with a Veda profile", names(veda).join() === 'MyList,Shield,Shield (HTML)', names(veda));
+ok("seeds exactly Tony's eleven programs, in order", names(tony).join() === 'OneInbox,TradeHub,MyList,Insight,Vault,Everwell,Shield,Shield (HTML),RiftIQ,MAGI,Shruti', names(tony));
+ok("seeds Veda's own list: the programs with a Veda profile", names(veda).join() === 'MyList,Shield,Shield (HTML),Shruti', names(veda));
+// A program added after the lists exist reaches them once per device, never twice.
+ok('a later program is added to existing lists once (ADDED_LATER)', /var ADDED_LATER = \['shruti'\];/.test(src) && /ADDED_LATER\.forEach\([\s\S]{0,400}localStorage\.setItem\(mark, '1'\)[\s\S]{0,120}if \(!byId\(list, id\)\) commit\(st, addOp/.test(src));
 ok("each profile has its own document and mirror (Tony's unchanged)",
   /tony: \{ doc: 'lifehub', ls: 'lifehub:v1'/.test(src) && /veda: \{ doc: 'lifehub_veda', ls: 'lifehub:v1:veda'/.test(src));
 ok("Veda's Shield (HTML) opens under TaskHub's Veda key 'shield_veda'", /\{ id: 'shield_html'[^}]*tab: 'shield_veda'/.test(veda));
@@ -251,7 +254,7 @@ console.log('\nIcons');
   // launcher keeps showing the old mark. Each built-in icon is checked against
   // its program's <link rel="icon"> (private-repo pages when that repo is here).
   const PAGES = { oneinbox: 'oneinbox.html', tradehub: '../A1-Priv/tradehub.html', mylist: 'mylist.html', insight: '../A1-Priv/insight.html', vault: '../A1-Priv/vault.html',
-    everwell: '../A1-Priv/everwell.html', shield: 'shield.html', riftiq: '../A1-Priv/riftiq.html', magi: 'magi.html', taskhub: 'index.html' };
+    everwell: '../A1-Priv/everwell.html', shield: 'shield.html', riftiq: '../A1-Priv/riftiq.html', magi: 'magi.html', taskhub: 'index.html', shruti: 'Shruti/shruti.html' };
   const svgs = {};
   for (const m of keys.matchAll(/^\s*'?([a-z-]+)'?:\s*"([^"]*)"/gm)) svgs[m[1]] = m[2];
   const favicon = (f) => {
