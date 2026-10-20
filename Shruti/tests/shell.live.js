@@ -86,6 +86,8 @@ async function load(c, { w, h, mobile, store, hash = '' }) {
   ok('choosing Tony opens his Shruti (one reload)', await waitFor(c, `window.SHRUTI_PROFILE==='tony' && !document.getElementById('app').hidden && !!document.querySelector('.book')`));
   ok("his look: MAGI purple, Manrope headings, MAGI hover", await ev(c, `return getComputedStyle(document.body).getPropertyValue('--ac').trim()==='#c0aeea' && /Manrope/.test(getComputedStyle(document.querySelector('.lib-hero h1')).fontFamily) && document.body.dataset.hoverfx==='magi'`));
   ok('the header mark is the Heard book', await ev(c, `return !!document.querySelector('#top .a1-app-ic[data-a1-filled="shruti"] svg')`));
+  ok('the profile button is his fleur-de-lis in a ring', await ev(c, `const a=document.querySelector('#switch-btn .pf-av'); return !!(a && a.querySelector('svg')) && parseFloat(getComputedStyle(a).borderTopWidth)>1 && getComputedStyle(a).borderRadius==='50%'`));
+  ok('Library and Continue stay put while the sync pill changes', await ev(c, `const n=document.querySelector('#top .tnav'), pill=document.getElementById('sync-pill'); const x=()=>n.getBoundingClientRect().left; const xs=[]; for (const k of ['idle','busy','ok','err','idle']) { A1Head.sync(pill,k); xs.push(x()); } return xs.every(v=>v===xs[0]) && pill.getBoundingClientRect().left>=n.getBoundingClientRect().right`));
   ok('LifeHub sits in the header', await ev(c, `return !!document.querySelector('#top a1-lifehub')`));
   ok('the Gita is on the Shared shelf with its progress bar', await ev(c, `return document.querySelector('#shelf-shared .book .bk-t').textContent==='Bhagavad-Gita' && !!document.querySelector('.bk-bar i')`));
   ok('his document is dashboards/shruti, read after the unlock', await waitFor(c, `return window.Shruti.core.me.loaded && window.Shruti.core.me.path==='dashboards/shruti'`));
@@ -113,6 +115,14 @@ async function load(c, { w, h, mobile, store, hash = '' }) {
   await ev(c, `return window.Shruti.core.me.flush()`);
   ok('reading to the end marks chapter 2 read, in his doc', await waitFor(c, `const d=window.__fakeFs.docs['dashboards/shruti']; return !!(d && d.progress && d.progress.gita && d.progress.gita.ch2 && d.progress.gita.ch2.done===true && d.progress.gita.ch2.modes.read===1)`),
     await ev(c, `return JSON.stringify(window.__fakeFs.docs['dashboards/shruti'])`));
+  ok('the header button then offers "Mark as unread"', await ev(c, `return /Mark as unread/.test(document.getElementById('mark-read').textContent)`));
+  await ev(c, `document.getElementById('mark-read').click(); return 1`);
+  await ev(c, `return window.Shruti.core.me.flush()`);
+  ok('marking it unread clears it in his doc (no longer read)', await waitFor(c, `const g=window.__fakeFs.docs['dashboards/shruti'].progress.gita.ch2; return g.done===false && g.f===0 && g.modes.read===0`) &&
+    await ev(c, `return /Mark as read/.test(document.getElementById('mark-read').textContent)`));
+  await ev(c, `document.getElementById('mark-read').click(); return 1`);
+  await ev(c, `return window.Shruti.core.me.flush()`);
+  ok('…and "Mark as read" sets it back', await waitFor(c, `window.__fakeFs.docs['dashboards/shruti'].progress.gita.ch2.done===true`));
   ok('…and where he is (last)', await ev(c, `const d=window.__fakeFs.docs['dashboards/shruti']; return d.last && d.last.book==='gita' && d.last.n===2`));
 
   await ev(c, `document.querySelector('.modes [data-mode=lessons]').click(); return 1`);
@@ -170,6 +180,7 @@ async function load(c, { w, h, mobile, store, hash = '' }) {
   await ev(c, `location.hash='#/'; return 1`);
   await waitFor(c, `!!document.querySelector('.book')`);
   ok('her look: StudyOS purple, Lora headings, Nunito body, classic hover', await ev(c, `return getComputedStyle(document.body).getPropertyValue('--ac').trim()==='#A892B0' && /Lora/.test(getComputedStyle(document.querySelector('.lib-hero h1')).fontFamily) && /Nunito/.test(getComputedStyle(document.body).fontFamily) && !document.body.dataset.hoverfx`));
+  ok('her profile button is her star in a ring', await ev(c, `const a=document.querySelector('#switch-btn .pf-av'); return a && a.textContent==='✦' && getComputedStyle(a).borderRadius==='50%'`));
   ok('her tab icon is her colour', await ev(c, `return /%23A892B0/.test(document.querySelector('link[rel=icon]').href)`));
   ok('her document is dashboards/shruti_veda', await waitFor(c, `return window.Shruti.core.me.loaded && window.Shruti.core.me.path==='dashboards/shruti_veda'`));
   ok("Tony's progress is not hers (the shelf bar is empty)", await ev(c, `return parseFloat(document.querySelector('.bk-bar i').style.width)===0`), await ev(c, `return document.querySelector('.bk-bar i').style.width+' '+JSON.stringify(window.__fakeFs.docs['dashboards/shruti_veda'])`));
