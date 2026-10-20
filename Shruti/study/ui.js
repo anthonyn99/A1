@@ -3,6 +3,7 @@
 // person's synced progress (me doc: study.<book>.<set>.<kind>).
 
 import * as C from '../core.js';
+import * as OR from '../order.js';
 
 export const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 /** Text with **bold** kept (models and the ready-made sets both use it). */
@@ -94,3 +95,24 @@ export function saveProgress(book, set, kind, fields, opt) {
 }
 export const now = () => Date.now();
 export const DAY = 86400000;
+
+/* ── each person's order of a set's items (Phase 8) ─────────────────────── */
+// Kept at order.items.<book>.<set>.<kind> in the person's doc as item keys (a
+// hash of the item's own text), so a ready-made or shared set is never
+// rewritten and Tony's order never moves Veda's.
+const TEXT = {
+  flashcards: (c) => c.front, quiz: (q) => q.text, mindmap: (b) => b.text,
+  slides: (s) => (s.title || '') + '|' + ((s.bullets || [])[0] || ''),
+};
+export const orderPath = (book, set, kind) => 'items.' + book + '.' + set + '.' + kind;
+/** items in this person's order: {items, keys, orig} (orig = each one's index in the set). */
+export function ordered(book, set, kind, items, path = orderPath(book, set, kind)) {
+  const keys = OR.uniq(items.map((it) => OR.hashKey((TEXT[kind] || TEXT.mindmap)(it))));
+  const pairs = OR.arrange(items.map((it, i) => ({ it, k: keys[i], i })), (x) => x.k, OR.get(path));
+  return { items: pairs.map((p) => p.it), keys: pairs.map((p) => p.k), orig: pairs.map((p) => p.i) };
+}
+export const saveOrder = (book, set, kind, keys, path = orderPath(book, set, kind)) => {
+  OR.put(path, keys);
+  dispatchEvent(new CustomEvent('shruti:study', { detail: { book, set, kind } }));
+};
+export { OR };
