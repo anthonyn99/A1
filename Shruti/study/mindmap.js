@@ -84,7 +84,7 @@ function mountMap(rootEl, A, { book, set, title }, toArrange) {
   };
   acts.append(btn('', 'minus', () => zoomBy(1 / 1.2), 'sm ic', 'Zoom out (−)'), btn('', 'plus', () => zoomBy(1.2), 'sm ic', 'Zoom in (+)'), btn('', 'fit', () => fit(), 'sm ic', 'Fit to view (0)'),
     btn('', 'full', () => toggleFull(), 'sm ic', 'Full screen (F)'), btn('', 'image', () => png(), 'sm ic', 'Save as a picture (PNG)'),
-    btn('', 'copy', async () => { try { await navigator.clipboard.writeText(outline(map)); flash('Outline copied'); } catch (e) { flash('Could not copy'); } }, 'sm ic', 'Copy the outline'));
+    btn('', 'copy', async () => { try { await navigator.clipboard.writeText(outline(map)); flash('Outline copied'); } catch (e) { flash('Could not copy'); } }, 'sm ic', 'Copy the outline'), btn('', 'list', toArrange, 'sm ic', 'Arrange: drag branches and points into order'));
   bar.append(acts);
   const port = h('div', 'mm-port');
   const canvas = h('div', 'mm-canvas');
@@ -94,16 +94,16 @@ function mountMap(rootEl, A, { book, set, title }, toArrange) {
   const branchBox = h('div', 'mm-branches');
   const nodes = [];   // {el, parent: el|null, b: branch index}
   map.branches.forEach((b, bi) => {
-    const col = h('div', 'mm-col b' + (bi % 6));
+    const col = h('div', 'mm-col b' + (A.orig[bi] % 6));
     const node = h('button', 'mm-node mm-branch', '<span>' + esc(b.text) + '</span>' + (b.children.length ? '<em>' + b.children.length + '</em>' : ''));
     node.type = 'button';
-    node.setAttribute('aria-expanded', String(!closed.has(bi)));
+    node.setAttribute('aria-expanded', String(!closed.has(bk[bi])));
     if (b.children.length) node.title = 'Show or hide its points';
-    node.addEventListener('click', (e) => { if (moved) return; if (!b.children.length) return; closed.has(bi) ? closed.delete(bi) : closed.add(bi); saveProgress(book, set, 'mindmap', { closed: [...closed] }); paintClosed(); e.stopPropagation(); });
+    node.addEventListener('click', (e) => { if (moved) return; if (!b.children.length) return; closed.has(bk[bi]) ? closed.delete(bk[bi]) : closed.add(bk[bi]); saveProgress(book, set, 'mindmap', { closedK: [...closed] }); paintClosed(); e.stopPropagation(); });
     col.append(node);
-    nodes.push({ el: node, parent: rootNode, b: bi });
+    nodes.push({ el: node, parent: rootNode, b: A.orig[bi] });
     const kids = h('div', 'mm-kids');
-    b.children.forEach((c) => { const k = h('div', 'mm-node mm-leaf', esc(c.text)); kids.append(k); nodes.push({ el: k, parent: node, b: bi }); });
+    b.children.forEach((c) => { const k = h('div', 'mm-node mm-leaf', esc(c.text)); kids.append(k); nodes.push({ el: k, parent: node, b: A.orig[bi] }); });
     if (b.children.length) col.append(kids);
     branchBox.append(col);
   });
@@ -141,7 +141,7 @@ function mountMap(rootEl, A, { book, set, title }, toArrange) {
     apply();
   };
   const paintClosed = () => {
-    branchBox.querySelectorAll('.mm-col').forEach((col, bi) => { col.classList.toggle('closed', closed.has(bi)); col.querySelector('.mm-branch').setAttribute('aria-expanded', String(!closed.has(bi))); });
+    branchBox.querySelectorAll('.mm-col').forEach((col, bi) => { col.classList.toggle('closed', closed.has(bk[bi])); col.querySelector('.mm-branch').setAttribute('aria-expanded', String(!closed.has(bk[bi]))); });
     requestAnimationFrame(draw);
   };
 
