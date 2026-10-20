@@ -114,7 +114,10 @@ def add_line(l, kind):
     cs = [(c, h) for c, h, _ in chars(l)]
     indent = l["x"] > 35
     same = para and (para["cls"] == kind or (para["cls"] != "body" and kind != "body"))
-    if para and (not same or indent): flush()
+    if para:
+        tail = "".join(c for c, _ in para["buf"]).rstrip()
+        midsentence = tail and tail[-1] not in '.!?:)"”’'
+        if not midsentence and (not same or indent): flush()
     if not para:
         para = {"cls": kind, "buf": []}
         while cs and cs[0][0].isspace(): cs.pop(0)
@@ -163,6 +166,18 @@ def commentary_pass(ch):
         out.append(b)
     ch["blocks"] = out
 for c in [intro] + chapters: commentary_pass(c)
+
+for c in chapters:
+    out, closing = [], False
+    for b in c["blocks"]:
+        if c["n"] >= 2 and b["k"] == "p" and not any(s["v"] for s in b["s"]):
+            t = " ".join(s["t"] for s in b["s"])
+            b = {"k": "a", "style": "note" if t.startswith("NOTE") else "commentary", "t": t}
+        if b["k"] == "a" and b["style"] == "closing": closing = True
+        elif closing and b["k"] == "a": out[-1]["t"] += "
+" + b["t"]; continue
+        out.append(b)
+    c["blocks"] = out
 
 os.makedirs(OUT, exist_ok=True)
 def dump(obj, name):
