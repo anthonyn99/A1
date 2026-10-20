@@ -222,7 +222,7 @@ export async function viewChapter(el, { id, n, mode, at, go }) {
 
 function renderLessons(body, L) {
   if (!L || !L.lessons || !L.lessons.length) { body.innerHTML = '<div class="empty">' + IC.lessons + '<b>No lessons for this chapter yet</b></div>'; return; }
-  body.innerHTML = '<div class="ls"><p class="ls-k">' + L.lessons.length + ' lessons from Tony and Veda's notes</p>' + L.lessons.map((l) =>
+  body.innerHTML = '<div class="ls"><p class="ls-k">' + L.lessons.length + ' lessons from Tony and Veda’s notes</p>' + L.lessons.map((l) =>
     '<div class="ls-i"><div class="h"><span class="id">' + esc(l.id) + '</span><span class="tt">' + esc(l.title || '') + '</span></div>' +
     (l.body ? '<div class="bd">' + esc(l.body) + '</div>' : '') + '</div>').join('') +
     (L.summary ? '<div class="ls-sum"><b>Chapter summary</b>' + esc(L.summary) + '</div>' : '') + '</div>';
