@@ -389,6 +389,15 @@ const mock = {
   // The Refresh button (Tony, 2026-10-20: a live he added on YouTube had not come in).
   const toastTxt = () => js(`const t = [...document.querySelectorAll('.toast')].pop(); return t ? t.textContent : '';`);
   ok('an expanded playlist has a Refresh button', await js(`const b = ${q('.media-group[data-id="p1"] .media-group-head [data-ytsync="p1"]')}; return !!b && /Refresh/.test(b.textContent);`));
+  // On a phone the head's buttons sat over the title (Tony, 2026-10-20): they get a row of their own.
+  const headFits = () => js(`const g = ${q('.media-group[data-id="p1"]')}, gr = g.getBoundingClientRect(), tr = g.querySelector('.media-group-title').getBoundingClientRect();
+    const bs = [...g.querySelectorAll('.media-group-head .media-meta > *')].map(b => b.getBoundingClientRect());
+    return bs.length === 5 && bs.every(b => b.top >= tr.bottom - 0.5 && b.right <= gr.right - 4 && b.left >= gr.left) && bs.every((b, i) => !i || b.left >= bs[i - 1].right) && document.documentElement.scrollWidth <= innerWidth;`);
+  for (const w of [390, 360]) {
+    await c.send('Emulation.setDeviceMetricsOverride', { width: w, height: 800, deviceScaleFactor: 2, mobile: true }); await sleep(500);
+    ok(w + 'px: the playlist\'s buttons sit in their own row under the title, none overlapping or past the edge', await headFits());
+  }
+  await c.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }); await sleep(500);
   PLAYLISTS.PLgoodlist01 = [{ id: 'livenew0001', title: 'A live added on YouTube' }, { id: 'listvideo00', title: 'New on YouTube' }].concat(ORIG);
   const f0 = freshAsks.length;
   await js(`${q('[data-ytsync="p1"]')}.click(); return 1;`); await sleep(1500);
