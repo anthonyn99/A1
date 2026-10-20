@@ -170,7 +170,7 @@ export async function viewBook(el, { id, go }) {
   const row = (c) => {
     const f = fracOf(id, c.n), av = available(id, c.n, lessons, pods, vids, study), p = progressOf(id, c.n), md = p.modes || {};
     const badge = (m) => '<span class="bdg ' + (md[m] ? 'done' : av[m] ? 'av' : '') + '" title="' + esc(MODES.find((x) => x.id === m).label + (md[m] ? ': done' : av[m] ? '' : ': not made yet')) + '">' + IC[m] + '</span>';
-    const meta = [c.verses ? c.verses + ' verses' : '', c.key ? c.key + ' key' : '', c.lessons ? c.lessons + ' lessons' : ''].filter(Boolean).join(' · ');
+    const meta = [c.verses ? c.verses + ' verses' : '', c.key ? c.key + ' key' : '', c.lessons ? c.lessons + ' lessons' : '', c.words ? Number(c.words).toLocaleString() + ' words' : ''].filter(Boolean).join(' · ');
     return '<button class="ch' + (cur === c.n ? ' cur' : '') + '" data-go="#/b/' + esc(id) + '/' + c.n + '">' + ring(f, c.n) +
       '<div><div class="t">' + esc(c.title) + '</div><div class="m">' + esc(meta) + '</div></div>' +
       '<div class="badges">' + ['read', 'listen', 'watch', 'study'].map(badge).join('') + '</div></button>';
@@ -230,7 +230,7 @@ export async function viewChapter(el, { id, n, mode, at, go }) {
   el.innerHTML =
     '<div class="cp-head"><div class="k">' + (isIntro ? esc(b.title) : esc(b.unit || 'Chapter') + ' ' + n) + '</div>' +
     '<h1>' + esc(meta.title) + '</h1>' +
-    (isIntro ? '' : '<div class="m">' + esc([meta.verses && meta.verses + ' verses', meta.key && meta.key + ' key verses', meta.lessons && meta.lessons + ' lessons'].filter(Boolean).join(' · ')) + '</div>') +
+    (isIntro ? '' : '<div class="m">' + esc([meta.verses && meta.verses + ' verses', meta.key && meta.key + ' key verses', meta.lessons && meta.lessons + ' lessons', meta.words && Number(meta.words).toLocaleString() + ' words'].filter(Boolean).join(' · ')) + '</div>') +
     '<div class="cp-acts"><button class="btn ghost mark" id="mark-read"></button><button class="btn ghost" id="make-ai">' + G.ICON + 'Make with AI</button></div></div>' +
     '<nav class="modes" role="tablist">' + tabs + '</nav><div id="mode-body"></div>' +
     '<div class="cp-nav">' + (prev ? '<button class="btn ghost" data-go="#/b/' + id + '/' + prev.n + '">' + IC.prev + esc(prev.n ? prev.n + '. ' + prev.title : prev.title) + '</button>' : '<span></span>') +
