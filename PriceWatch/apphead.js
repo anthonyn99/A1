@@ -39,6 +39,7 @@
     journal: '<path d="M30 20h32a6 6 0 0 1 6 6v44a6 6 0 0 1-6 6H30Z"/><path d="M30 20a6 6 0 0 0-6 6v44a6 6 0 0 0 6 6"/><path d="M40 36h16"/><path d="M40 48h16"/>',
     brainstorm: '<path d="M48 20a18 18 0 0 0-10 33v7h20v-7a18 18 0 0 0-10-33Z"/><path d="M40 68h16"/><path d="M43 76h10"/>',
     gita: '<path d="M48 30c-6-5-14-7-24-7v44c10 0 18 2 24 7 6-5 14-7 24-7V23c-10 0-18 2-24 7Z"/><path d="M48 30v44"/>',
+    shruti: '<path d="M48 40c-6-4-14-6-24-6v38c10 0 18 2 24 6 6-4 14-6 24-6V34c-10 0-18 2-24 6Z"/><path d="M48 40v38"/><path d="M41 28a10 10 0 0 1 14 0"/><path d="M35 21a19 19 0 0 1 26 0"/>',
     pricewatch: '<path d="M22 46V24a2 2 0 0 1 2-2h22l28 28a3 3 0 0 1 0 4L54 74a3 3 0 0 1-4 0Z"/><circle cx="35" cy="35" r="4" fill="currentColor" stroke="none"/>',
     launcher: '<rect x="22" y="22" width="20" height="20" rx="5"/><rect x="54" y="22" width="20" height="20" rx="5"/><rect x="22" y="54" width="20" height="20" rx="5"/><rect x="54" y="54" width="20" height="20" rx="5"/>',
     wellness: '<path d="M26 52c0-10 8-18 18-18s18 8 18 18"/><path d="M22 62h12l5-10 6 20 5-10h24"/>'
