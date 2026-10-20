@@ -174,8 +174,7 @@ for c in chapters:
             t = " ".join(s["t"] for s in b["s"])
             b = {"k": "a", "style": "note" if t.startswith("NOTE") else "commentary", "t": t}
         if b["k"] == "a" and b["style"] == "closing": closing = True
-        elif closing and b["k"] == "a": out[-1]["t"] += "
-" + b["t"]; continue
+        elif closing and b["k"] == "a": out[-1]["t"] += "\n" + b["t"]; continue
         out.append(b)
     c["blocks"] = out
 
