@@ -154,6 +154,7 @@ async function load(c, { w, h, mobile, store, hash = '' }) {
   ok('Export records from the start at 1×, controls locked', await waitFor(c, `const V=window.Shruti.video.state; return V.rec && V.rec.state==='recording' && V.playing && document.querySelector('audio')===null && !document.querySelector('.vid-recb').hidden && document.querySelector('[data-play]').disabled`, 8000));
   ok('…the picture is recorded at 1920×1080', await ev(c, `return document.querySelector('.vid-stage canvas').width===1920`));
   await sleep(1500);
+  if (!await ev(c, `return !!document.querySelector('[data-export]')`)) console.log('    page now: ' + await ev(c, `return location.hash+' | '+document.getElementById('view')?.innerHTML.slice(0,400)`));
   await ev(c, `document.querySelector('[data-export]').click(); return 1`);
   ok('stopping cancels it cleanly', await waitFor(c, `!window.Shruti.video.state.rec && !window.Shruti.video.state.playing && /cancelled/.test(document.querySelector('.vid-note').textContent) && document.querySelector('.vid-stage canvas').width<1920`, 5000));
   await ev(c, `document.querySelector('#mini [data-mp=close]')?.click(); return 1`);
