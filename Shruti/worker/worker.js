@@ -184,7 +184,7 @@ async function callback(env, url) {
     email = (await u.json()).email || null;
   } catch (e) {}
   await env.DRIVE.put(TOKEN_KEY, JSON.stringify({ refresh_token: t.refresh_token, email, at: Date.now() }));
-  access = { token: t.access_token, exp: Date.now() + (t.expires_in - 60) * 1000 };
+  access = { token: t.access_token, exp: Date.now() + ((t.expires_in || 3600) - 60) * 1000 };
   folders.clear();
   return page('Google Drive connected', 'Shruti can now keep its audio and video in ' + (email || 'your Drive') + '. You can close this tab.');
 }

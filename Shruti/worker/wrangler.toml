@@ -1,0 +1,23 @@
+# shruti-drive: Shruti's media store in Tony's Google Drive (see worker.js).
+# Lives in A1/Shruti/worker so Shruti moves as one folder; deployed to
+# "My Account 2" (av1-2.workers.dev) by .github/workflows/deploy-workers2.yml,
+# which discovers this folder by path. NO account_id on purpose: the workflow
+# supplies it from CF_ACCOUNT_ID_2.
+#
+# Deploy by hand:  CLOUDFLARE_ACCOUNT_ID=<account 2 id> npx wrangler deploy
+# Verify:          curl https://shruti-drive.av1-2.workers.dev/health
+name = "shruti-drive"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# The Google refresh token (one key, written once per connect). `kv:<TITLE>` is
+# resolved to the real account-2 id by workers2/kv-provision.mjs at deploy time.
+[[kv_namespaces]]
+binding = "DRIVE"
+id = "kv:SHRUTI_DRIVE"
+
+# Secrets (CLOUDFLARE_ACCOUNT_ID=<account 2 id> npx wrangler secret put <NAME>):
+#   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET  the OAuth 2.0 Web client (task-dashboard-d2b53),
+#       with https://shruti-drive.av1-2.workers.dev/callback as a redirect URI
+#       and the Google Drive API enabled in that project
+#   SIGN_KEY  random; signs playback links and the consent state
