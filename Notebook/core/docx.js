@@ -2692,11 +2692,24 @@ function selLineBlocks(ctx, reselect) {
     // Work out which of b's lines the selection covers BEFORE the split, while the live
     // range still points into b. Offsets survive the split: it only moves nodes around.
     var off = _rangeOffsetsIn(range, b);
+    // A collapsed caret at the start of a line shares its text offset with the end of the line
+    // above (the <br> has no length), so find its line by counting the <br>s before it instead.
+    var caretLine = -1;
+    if (off[0] === off[1]) {
+      caretLine = 0;
+      Array.prototype.forEach.call(b.querySelectorAll('br'), function(br) {
+        try {
+          var m = document.createRange(); m.setStartAfter(br); m.collapse(true);
+          if (m.compareBoundaryPoints(Range.START_TO_START, range) <= 0) caretLine++;
+        } catch (e) {}
+      });
+    }
     var parts = _splitBlockLines(b);
     if (parts.length < 2) { out.push(b); return; }
     split = true;
     var pos = 0, picked = [];
-    for (var i = 0; i < parts.length; i++) {
+    if (caretLine >= 0) picked = [parts[Math.min(caretLine, parts.length - 1)]];
+    for (var i = 0; i < parts.length && caretLine < 0; i++) {
       var len = (parts[i].textContent || '').length, a = pos, z = pos + len;
       pos = z;
       if (off[0] === off[1]) { if (off[0] <= z) { picked = [parts[i]]; break; } }   // collapsed caret
@@ -3862,6 +3875,9 @@ function toggleListPreserve(ctx, cmd) {
     var off0 = _selOffsets(ctx.edEl);
     if (_normalizeBareLines(ctx.edEl) && off0) _restoreSelOffsets(ctx.edEl, off0);
   }
+  // A line after a <br> shares its block with the line above (a heading, say) and execCommand
+  // would turn the WHOLE block into the list: split to real per-line blocks first.
+  selLineBlocks(ctx, true);
   var before = selBlocks(ctx);
   if (_unwrapInPlace(ctx, before, _isClItem)) {
     _selectBlocks(before);
