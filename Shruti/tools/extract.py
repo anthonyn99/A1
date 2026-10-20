@@ -12,6 +12,8 @@ The text is never reworded: only line joins, de-hyphenation and spacing are touc
 """
 import json, re, sys, os, collections
 
+BR = "\x00"   # marks a source line break inside a paragraph buffer
+
 LINES, OUT = sys.argv[1], sys.argv[2]
 L = json.load(open(LINES, encoding="utf-8"))
 
@@ -117,8 +119,7 @@ def add_line(l, kind):
         while cs and cs[0][0].isspace(): cs.pop(0)
     else:
         while cs and cs[0][0].isspace(): cs.pop(0)
-        para["buf"].append(("
-", False))
+        para["buf"].append((BR, False))
     para["buf"].extend(cs)
 
 pending_title = False
