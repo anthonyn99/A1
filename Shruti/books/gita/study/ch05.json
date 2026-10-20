@@ -1,0 +1,51 @@
+{
+  "n": 5,
+  "title": "Path of renunciation",
+  "flashcards": [
+    { "front": "Renunciation and Karma-yoga: two goals?", "back": "No. Only the ignorant think them different; mastering one brings the benefit of both.", "ref": "5.04", "L": ["L1"] },
+    { "front": "Which path is easier, per 5.6?", "back": "True renunciation is hard to reach without Karma-yoga; a sage with Karma-yoga quickly attains God.", "ref": "5.06", "L": ["L2"] },
+    { "front": "Who is a true renunciant?", "back": "One who neither desires nor hates, free of the pairs of opposites. Renunciation is inside, not outside.", "L": ["L3"] },
+    { "front": "\"I do nothing at all\"", "back": "The yogi acts through body, senses and mind, knowing nature moves them, not the Self.", "L": ["L4"] },
+    { "front": "The lotus leaf (5.10)", "back": "One who offers all work to the Lord, without attachment, is untouched by sin, as water never wets a lotus leaf.", "ref": "5.10", "L": ["L5"] },
+    { "front": "Why do yogis keep working?", "back": "To purify the mind: they act with body, mind and intellect, but without attachment.", "L": ["L6"] },
+    { "front": "Bliss or bondage (5.12)", "back": "Giving up attachment to fruits brings supreme bliss; attachment to them binds.", "ref": "5.12", "L": ["L5", "L6"] },
+    { "front": "The city of nine gates", "back": "The body. The Self dwells in it as its master, neither acting nor making others act.", "L": ["L7"] },
+    { "front": "Does God create our doership or our Karma?", "back": "No. Nature does; God takes neither anyone's sin nor merit. Ignorance veils this.", "L": ["L8"] },
+    { "front": "Equal vision (5.18)", "back": "The enlightened see the Lord in all: a learned priest, an outcast, a cow, an elephant, a dog.", "ref": "5.18", "L": ["L9"] },
+    { "front": "Sense pleasures", "back": "They come from contact, begin and end, and are wombs of pain. The wise don't delight in them.", "L": ["L10"] },
+    { "front": "Joy within (5.21)", "back": "Unattached to sense pleasures, one finds the joy of the Self through contemplation and enjoys spiritual bliss.", "ref": "5.21", "L": ["L11"] },
+    { "front": "Who is a happy yogi?", "back": "One who can withstand the force of desire and anger before leaving the body.", "L": ["L12"] },
+    { "front": "No more birth (5.17)", "back": "Those merged in the Source, devoted to it as goal and refuge, their impurities removed by its knowledge, are not born again.", "ref": "5.17", "L": ["L13"] },
+    { "front": "The meditating sage", "back": "Senses outside shut out, gaze steady, breath even, free of desire, fear and anger: knowing God, they reach peace.", "L": ["L13"] }
+  ],
+  "quiz": [
+    { "text": "Who thinks renunciation and Karma-yoga are different?", "options": { "A": "The wise", "B": "The ignorant", "C": "The gods", "D": "Krishna" }, "correct": "B", "why": "5.4: master one and you get the fruit of both.", "L": ["L1"] },
+    { "text": "Why is Karma-yoga called the more accessible path?", "options": { "A": "It needs no effort", "B": "Renunciation is hard to attain without it", "C": "It brings wealth", "D": "It avoids duty" }, "correct": "B", "why": "5.6: with Karma-yoga a sage quickly reaches God.", "L": ["L2"] },
+    { "text": "True renunciation is:", "options": { "A": "Leaving home", "B": "Wearing robes", "C": "Inner freedom from desire and hate", "D": "Silence" }, "correct": "C", "why": "It is internal, not external.", "L": ["L3"] },
+    { "text": "What image shows freedom from sin in 5.10?", "options": { "A": "A lamp in still air", "B": "A lotus leaf on water", "C": "A tortoise drawing in its limbs", "D": "A tree of Maya" }, "correct": "B", "why": "Work offered to the Lord leaves no stain, like water on a lotus leaf.", "L": ["L5"] },
+    { "text": "What is the \"city of nine gates\"?", "options": { "A": "The kingdom", "B": "Heaven", "C": "The body", "D": "The battlefield" }, "correct": "C", "why": "The Self dwells in the body as its master.", "L": ["L7", "L4"] },
+    { "text": "Who creates our sense of doership and Karma?", "options": { "A": "God", "B": "Nature", "C": "Our parents", "D": "The gods" }, "correct": "B", "why": "God is not the author of Karma; nature operates through beings.", "L": ["L8"] },
+    { "text": "What does the enlightened see in a priest, an outcast and a dog?", "options": { "A": "Differences of birth", "B": "The same Lord", "C": "Their Karma", "D": "Their usefulness" }, "correct": "B", "why": "5.18: equal vision, the mark of wisdom.", "L": ["L9"] },
+    { "text": "Pleasures born of sense contact are:", "options": { "A": "Lasting", "B": "The goal of yoga", "C": "Sources of pain with a beginning and end", "D": "Neutral" }, "correct": "C", "why": "So the wise find happiness within.", "L": ["L10", "L11"] },
+    { "text": "Which two forces must be mastered before leaving the body?", "options": { "A": "Hunger and sleep", "B": "Desire and anger", "C": "Pride and shame", "D": "Heat and cold" }, "correct": "B", "why": "Who withstands them is a yogi and a happy person.", "L": ["L12", "L13"] }
+  ],
+  "mindmap": {
+    "root": "The path of renunciation",
+    "branches": [
+      { "text": "Two paths, one goal", "L": ["L1", "L2"], "children": [{ "text": "Master one, gain both (5.4)", "L": ["L1"] }, { "text": "Karma-yoga is easier (5.6)", "L": ["L2"] }] },
+      { "text": "Inner renunciation", "L": ["L3", "L4", "L7"], "children": [{ "text": "Neither desire nor hate", "L": ["L3"] }, { "text": "\"I do nothing\"", "L": ["L4"] }, { "text": "Master of the nine gates", "L": ["L7"] }] },
+      { "text": "Offering work", "L": ["L5", "L6", "L8"], "children": [{ "text": "Lotus leaf on water (5.10)", "L": ["L5"] }, { "text": "Work purifies the mind", "L": ["L6"] }, { "text": "God isn't Karma's author", "L": ["L8"] }] },
+      { "text": "The enlightened", "L": ["L9", "L10", "L11"], "children": [{ "text": "Equal vision (5.18)", "L": ["L9"] }, { "text": "Sense joys end in pain", "L": ["L10"] }, { "text": "Joy within (5.21)", "L": ["L11"] }] },
+      { "text": "Supreme peace", "L": ["L12", "L13"], "children": [{ "text": "Master desire and anger", "L": ["L12"] }, { "text": "Meditation and surrender", "L": ["L13"] }, { "text": "No more birth (5.17)" }] }
+    ]
+  },
+  "slides": [
+    { "title": "The path of renunciation", "bullets": ["Chapter 5", "Renunciation and Karma-yoga reach the same goal"] },
+    { "title": "Two roads, one destination", "bullets": ["Only the ignorant see them as different (5.4)", "Renunciation is hard without Karma-yoga (5.6)"], "L": ["L1", "L2"] },
+    { "title": "Renunciation is inside", "bullets": ["Free of desire, hate and opposites", "The yogi acts but knows \"I do nothing\"", "The Self rules the city of nine gates"], "L": ["L3", "L4", "L7"] },
+    { "title": "The lotus leaf", "bullets": ["Offer all work to the Lord (5.10)", "Sin no more wets you than water a lotus leaf", "Work done this way purifies the mind"], "L": ["L5", "L6"] },
+    { "title": "Who makes Karma?", "bullets": ["Not God: nature acts through beings", "God takes neither sin nor merit", "Ignorance veils this knowledge"], "L": ["L8"] },
+    { "title": "Equal vision", "bullets": ["The same Lord in priest, outcast, cow, elephant, dog (5.18)", "Sense pleasures begin, end, and bring pain", "Happiness is found within (5.21)"], "L": ["L9", "L10", "L11"] },
+    { "title": "Supreme peace", "bullets": ["Withstand desire and anger in this life", "Meditate, restrain the senses, surrender", "Merged in the Source, one is not born again (5.17)"], "L": ["L12", "L13"] }
+  ]
+}
