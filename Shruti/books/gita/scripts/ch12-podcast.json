@@ -1,0 +1,85 @@
+{
+  "v": 1,
+  "book": "gita",
+  "n": 12,
+  "title": "Path of devotion",
+  "hosts": [
+    { "id": "A", "name": "Ava", "voice": "en-US-AvaMultilingualNeural" },
+    { "id": "B", "name": "Andrew", "voice": "en-US-AndrewMultilingualNeural" }
+  ],
+  "segments": [
+    {
+      "title": "Welcome",
+      "turns": [
+        { "s": "A", "t": "Welcome to Shruti. I'm Ava." },
+        { "s": "B", "t": "And I'm Andrew. Today, Chapter Twelve: the Path of Devotion." },
+        { "s": "A", "t": "It's one of the shortest chapters, just twenty verses, and many people's favorite. After the overwhelming vision of Chapter Eleven, it's gentle, practical, and full of encouragement. It even has a ladder of steps for people who find the first step too hard." },
+        { "s": "B", "t": "Four lessons. Story first." }
+      ]
+    },
+    {
+      "title": "The story",
+      "turns": [
+        { "s": "A", "t": "Arjuna has just seen God both as the infinite cosmic form and as his friend Krishna. So he asks, twelve point one: which devotees have the best knowledge of yoga? Those who worship You as Krishna, Your personal aspect, or those who worship the impersonal, the Eternal Being?", "L": ["L1"] },
+        { "s": "B", "t": "Twelve point two: I consider the best yogis to be those ever-steadfast devotees who worship with supreme faith by fixing their mind on Me as their personal God.", "L": ["L1"] },
+        { "s": "A", "t": "But he doesn't exclude the other path. Twelve point three and four: they also attain Me who worship the unchangeable, the invisible, the omnipresent, the inconceivable Eternal Being, with senses restrained, even-minded, and engaged in the welfare of all creatures.", "L": ["L1"] },
+        { "s": "B", "t": "The difference is difficulty. Twelve point five: Self-realization is more difficult for those who fix their mind on the impersonal, because comprehension of the unmanifest is attained by human beings with difficulty.", "L": ["L1"] },
+        { "s": "A", "t": "It's hard to love an abstraction. It's natural to love a person.", "L": ["L1"] },
+        { "s": "B", "t": "And for those who love the personal God, twelve point six and seven: I swiftly become their savior from the ocean of death and rebirth.", "L": ["L1"] },
+        { "s": "A", "t": "Then the ladder. Twelve point eight: focus your mind on Me, let your intellect dwell on Me, and you shall certainly attain Me.", "L": ["L2"] },
+        { "s": "B", "t": "Twelve point nine: if you are unable to focus your mind steadily on Me, then long to attain Me by practice of any other spiritual discipline that suits you.", "L": ["L2"] },
+        { "s": "A", "t": "Twelve point ten: if you are unable even to do any spiritual discipline, then be intent on performing all your duty for Me. You shall attain perfection just by working for Me as an instrument.", "L": ["L2"] },
+        { "s": "B", "t": "And twelve point eleven: if you are unable even to work for Me, then just surrender to My will, and renounce attachment to and anxiety for the fruits of all work, learning to accept all results as God's grace.", "L": ["L2", "L3"] },
+        { "s": "A", "t": "Every rung leads to the same place. There's always a step you can take.", "L": ["L2"] },
+        { "s": "B", "t": "Then a ranking, twelve point twelve: the knowledge of scriptures is better than mere ritual; meditation is better than scriptural knowledge; renunciation of attachment to the fruits of work is better than meditation; and peace immediately follows renunciation.", "L": ["L3"] },
+        { "s": "A", "t": "Immediately. That's the word that stands out." },
+        { "s": "B", "t": "And then the rest of the chapter is a portrait: who is dear to God. Twelve point thirteen and fourteen: one who does not hate any creature, who is friendly and compassionate, free from the notion of I and my, even-minded in pain and pleasure, forgiving, ever content, firm in resolve, and devoted to Me, is dear to Me.", "L": ["L4"] },
+        { "s": "A", "t": "Twelve point fifteen, a verse I love: the one by whom others are not agitated, and who is not agitated by others, free from envy, fear and anxiety, is also dear to Me.", "L": ["L4"] },
+        { "s": "B", "t": "Twelve point seventeen: one who neither rejoices nor grieves, neither likes nor dislikes, and is full of devotion, is dear to Me.", "L": ["L4"] },
+        { "s": "A", "t": "Twelve point eighteen and nineteen: the same toward friend or foe, in honor or disgrace, heat or cold, pleasure or pain. Indifferent to censure or praise, quiet, content with whatever one has, unattached to a place, a country or a house. That person is dear to Me.", "L": ["L4"] },
+        { "s": "B", "t": "And the last verse, which is the kindest in the chapter. Twelve point twenty: but those faithful devotees are very dear to Me who set Me as their supreme goal and follow, or just sincerely try to develop, these values.", "L": ["L4"] },
+        { "s": "A", "t": "Just sincerely try. Nobody has all of those qualities. Trying counts." }
+      ]
+    },
+    {
+      "title": "Lesson 1 · A personal God",
+      "turns": [
+        { "s": "B", "t": "Lesson one: personal devotion to God is superior to impersonal worship.", "L": ["L1"] },
+        { "s": "A", "t": "Loving God as a person, with form and relationship, is easier and more direct for most people than meditating on the formless Absolute.", "L": ["L1"] },
+        { "s": "B", "t": "Both reach the same goal. But to those devoted to His personal form, God personally becomes the rescuer.", "L": ["L1"] }
+      ]
+    },
+    {
+      "title": "Lesson 2 · The ladder",
+      "turns": [
+        { "s": "A", "t": "Lesson two: four ascending levels of spiritual practice.", "L": ["L2"] },
+        { "s": "B", "t": "If you can't fix your mind on God, practice any discipline. If you can't do that, work for God without selfish motive. If you can't do that, surrender the results and accept everything as grace.", "L": ["L2"] },
+        { "s": "A", "t": "Each level leads to the same destination. There's a starting point for everyone, wherever they are today.", "L": ["L2"] }
+      ]
+    },
+    {
+      "title": "Lesson 3 · Peace follows letting go",
+      "turns": [
+        { "s": "B", "t": "Lesson three: renouncing attachment to results brings immediate peace.", "L": ["L3"] },
+        { "s": "A", "t": "Ritual, then scripture, then meditation, then letting go of attachment to outcomes. That last one is the highest, and the peace comes at once.", "L": ["L3"] },
+        { "s": "B", "t": "It's the most direct bridge between action and freedom. You can cross it in the middle of a busy day.", "L": ["L3"] }
+      ]
+    },
+    {
+      "title": "Lesson 4 · Dear to God",
+      "turns": [
+        { "s": "A", "t": "And lesson four: the qualities of a true devotee.", "L": ["L4"] },
+        { "s": "B", "t": "No hatred toward any creature. Friendly and compassionate. Free of ego and possessiveness. Even-minded, forgiving, content, steady, devoted, pure, free from anxiety, the same toward praise and blame, friend and foe.", "L": ["L4"] },
+        { "s": "A", "t": "Not agitating others, and not agitated by them. These are the marks of someone dear to God, and God says it's enough to sincerely try.", "L": ["L4"] }
+      ]
+    },
+    {
+      "title": "Wrap-up",
+      "turns": [
+        { "s": "B", "t": "So, Chapter Twelve. Love God as a person, take whatever step on the ladder you can, let go of results, and grow the qualities that make you dear to God.", "L": ["L1", "L2", "L3", "L4"] },
+        { "s": "A", "t": "Four lessons: a personal God, the ladder, peace follows letting go, and dear to God.", "L": ["L1", "L2", "L3", "L4"] },
+        { "s": "B", "t": "Next time, Chapter Thirteen: the body, the Spirit, and how to tell them apart. Thanks for listening to Shruti." }
+      ]
+    }
+  ]
+}
