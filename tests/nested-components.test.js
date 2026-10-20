@@ -18,7 +18,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const PAGES = ['tradehub.html', 'index.html', 'mylist.html', 'magi.html']
+const PAGES = ['tradehub.html', 'index.html', 'mylist.html', 'magi.html', 'Shruti/shruti.html']
   .filter(f => fs.existsSync(path.join(ROOT, f)));
 
 let failures = 0;

@@ -30,6 +30,8 @@ const PAGES = [
   'index.html', 'riftiq.html', 'tradehub.html', 'shield.html', 'mylist.html',
   'vault.html', 'insight.html', 'oneinbox.html', 'wellness.html',
   'everwell.html',
+  // A page in its program's own folder loads ../hoverfx.js.
+  'Shruti/shruti.html',
 ];
 
 // Folders that ship their own copy, and the page in each that loads it.

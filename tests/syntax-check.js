@@ -23,6 +23,8 @@ const FILES = [
   'index.html', 'shield.html', 'tradehub.html', 'vault.html', 'insight.html',
   'mylist.html', 'oneinbox.html', 'solace.html', 'riftiq.html', 'wellness.html',
   'magi.html',
+  // Program folders (Shruti moves as one folder).
+  'Shruti/shruti.html',
 ];
 
 let babelParse = null;
@@ -50,7 +52,7 @@ const ROOT_SCRIPTS = ['backup.js', 'dragsort.js', 'tni.js', 'hoverfx.js', 'resiz
 //
 // A red workflow is only visible if someone looks at it. This fails in the
 // same run as everything else instead.
-const WORKER_DIRS = ['workers', 'workers2', path.join('V1', 'workers')];
+const WORKER_DIRS = ['workers', 'workers2', path.join('V1', 'workers'), 'Shruti'];
 const WORKER_ENTRIES = ['worker.js', path.join('src', 'index.js'), 'index.js'];
 
 function findWorkerScripts() {

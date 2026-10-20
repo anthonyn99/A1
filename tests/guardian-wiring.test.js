@@ -38,6 +38,8 @@ const HOSTS = {
   'mylist.html': [],
   'oneinbox.html': [],
   'magi.html': [],
+  // Program folders load it as ../Guardian/guardian.js.
+  'Shruti/shruti.html': ['Shruti/app.js'],
   // A1-Priv (loaded by absolute URL; tests/moved.js reads them from ../A1-Priv).
   'tradehub.html': [],
   'insight.html': [],

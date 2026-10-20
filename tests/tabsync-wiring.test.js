@@ -40,7 +40,7 @@ const ROOT = path.join(__dirname, '..');
 const PAGES = [
   'index.html', 'magi.html', 'riftiq.html', 'tradehub.html', 'shield.html',
   'mylist.html', 'vault.html', 'insight.html', 'oneinbox.html',
-  'wellness.html', 'everwell.html',
+  'wellness.html', 'everwell.html', 'Shruti/shruti.html',
 ];
 
 let pass = 0, fail = 0;

@@ -50,6 +50,8 @@ function scriptNames(lane) {
 }
 const ACCT1 = scriptNames('workers');    // -> av1.workers.dev
 const ACCT2 = scriptNames('workers2');   // -> av1-2.workers.dev
+// Program-owned workers deployed by the workers2 lane from their own folder.
+ACCT2['shruti-drive'] = 'Shruti/worker';
 // The private programs' host is a Worker too, deployed from the A1-Priv repo
 // (its wrangler.toml pins account 1). Known by name even without a checkout.
 ACCT1['a1-priv'] = '../A1-Priv';
@@ -62,7 +64,7 @@ t('workers2/ has workers', Object.keys(ACCT2).length > 0, Object.keys(ACCT2).len
 // Client-side files only. The workers' own configs legitimately name their own
 // hostname, and docs are prose.
 const CLIENT = ['index.html', 'tradehub.html', 'riftiq.html', 'vault.html', 'insight.html',
-  'mylist.html', 'oneinbox.html', 'shield.html', 'wellness.html',
+  'mylist.html', 'oneinbox.html', 'shield.html', 'wellness.html', 'Shruti/app.js',
   'backup.js', 'firebase-messaging-sw.js',
   'Vault/background.js', 'Vault/manifest.json', 'V1/Launcher/background.js',
   'V1/Launcher/manifest.json', 'trading-auto-launch/launch.py', 'tools/pull-backups.mjs'];

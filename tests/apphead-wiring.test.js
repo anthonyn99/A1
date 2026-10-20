@@ -32,6 +32,7 @@ const PAGES = {
   'insight.html': ['insight'],
   'vault.html': ['vault'],
   'riftiq.html': ['riftiq', 'proview'],
+  'Shruti/shruti.html': ['shruti'],
 };
 // Shield and Everwell draw their own mark (Shield's is the model; Everwell's
 // is its start-screen button), but Shield still uses the shared pill.
