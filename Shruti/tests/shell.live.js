@@ -50,8 +50,10 @@ const shot = async (c, name) => {
   const data = r && (r.result ? r.result.data : r.data);
   if (data) fs.writeFileSync(shotPath('shruti-' + name), Buffer.from(data, 'base64'));
 };
+const RUN = String(Date.now());
+// The slate is wiped once per run, not on the reloads the page itself makes.
 const BOOT = (store) => `(()=>{ if(window.top!==window) return;
-  ${store ? `try{ localStorage.clear(); sessionStorage.clear(); ${store} }catch(e){}` : ''}
+  ${store ? `try{ if(sessionStorage.getItem('__run')!=='${RUN}'){ localStorage.clear(); sessionStorage.clear(); ${store} sessionStorage.setItem('__run','${RUN}'); } }catch(e){}` : ''}
   window.__errs=[]; addEventListener('error', e=>window.__errs.push(String(e.message)));
   addEventListener('unhandledrejection', e=>window.__errs.push('rejection: '+String(e.reason && e.reason.message || e.reason)));
 })();`;
