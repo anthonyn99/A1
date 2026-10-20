@@ -49,7 +49,7 @@ async function click(c, sel) {
   if (!at) throw new Error('no ' + sel);
   for (const type of ['mousePressed', 'mouseReleased']) await c.send('Input.dispatchMouseEvent', { type, x: at.x, y: at.y, button: 'left', clickCount: 1 });
 }
-const RUN = String(Date.now());
+let RUN = String(Date.now());
 const BOOT = (store) => `(()=>{ if(window.top!==window) return;
   try{ if(sessionStorage.getItem('__run')!=='${RUN}'){ localStorage.clear(); sessionStorage.clear(); ${store || ''} sessionStorage.setItem('__run','${RUN}'); } }catch(e){}
   window.__errs=[]; addEventListener('error', e=>window.__errs.push(String(e.message)));
@@ -94,6 +94,7 @@ const pdfWords = (pdf) => (pdf.match(/\((?:\\.|[^\\)])*\) Tj/g) || []).map((s) =
     console.log('\n' + who + ' at ' + w);
     await load(c, { w, h, mobile, store: "sessionStorage.removeItem('__fakefs_docs'); sessionStorage.setItem('shruti.pick','" + who + "');", hash: '#/b/gita/4/lessons' });
     await waitFor(c, `!!window.Shruti && !!window.Shruti.core.me.loaded`, 15000);
+    ok('it is ' + who + ''s side', await waitFor(c, `document.body.dataset.profile==='` + who + `'`));
     ok('the Lessons tab has Save as PDF', await waitFor(c, `!!document.querySelector('#ls-pdf') && document.querySelectorAll('.ls-i').length===${lessons[4].lessons.length}`));
     ok('the button sits on the count line, inside the page', await waitFor(c, `const b=document.querySelector('#ls-pdf').getBoundingClientRect(); return b.width>0 && b.right<=innerWidth && document.documentElement.scrollWidth<=innerWidth`));
     await shot(c, 'lessons-pdf-' + who + '-' + w);
