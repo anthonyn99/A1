@@ -73,7 +73,7 @@ async function download(c, sel) {
   const t0 = Date.now();
   while (Date.now() - t0 < 15000) {
     const f = fs.readdirSync(DL).find((x) => x.endsWith('.pdf'));
-    if (f) { await sleep(300); return { name: f, data: fs.readFileSync(path.join(DL, f)).toString('latin1') }; }
+    if (f) { await sleep(300); return { name: f, data: new TextDecoder('windows-1252').decode(fs.readFileSync(path.join(DL, f))) }; }
     await sleep(150);
   }
   return null;
