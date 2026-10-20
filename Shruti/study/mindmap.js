@@ -83,7 +83,10 @@ export function mount(rootEl, map, { book, set, title }) {
     const r = port.getBoundingClientRect(), w = canvas.scrollWidth, hh = canvas.scrollHeight;
     if (!r.width || !w) return;
     view.z = Math.max(0.3, Math.min(1, (r.width - 24) / w, (r.height - 24) / hh));
-    view.x = (r.width - w * view.z) / 2; view.y = Math.max(12, (r.height - hh * view.z) / 2);
+    // A phone would shrink a wide map past reading: start readable, root at the left.
+    const small = view.z < 0.62 && r.width < 600;
+    if (small) view.z = Math.min(0.62, (r.height - 24) / hh);
+    view.x = small ? 4 : (r.width - w * view.z) / 2; view.y = Math.max(12, (r.height - hh * view.z) / 2);
     apply();
   };
   const paintClosed = () => {

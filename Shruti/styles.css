@@ -755,6 +755,7 @@ body[data-profile=veda] { --k-flashcards: #A892B0; --k-quiz: #9bb08a; --k-mindma
 .sh-kind em.due { color: var(--k); background: color-mix(in srgb, var(--k) 15%, transparent); }
 .sh-kind em.good { color: var(--good); background: color-mix(in srgb, var(--good) 14%, transparent); }
 .sh-make { width: 100%; }
+.sh-main { min-width: 0; }
 .sh-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
 .sh-head > div { display: flex; flex-direction: column; min-width: 0; }
 .sh-head b { font-family: var(--f-head); font-size: 19px; line-height: 1.2; }
@@ -930,7 +931,7 @@ body[data-profile=veda] .sd-top, body[data-profile=veda] .sd-foot { text-transfo
 body.sd-presenting { overflow: hidden; }
 
 @media (max-width: 760px) {
-  .sh { grid-template-columns: 1fr; gap: 14px; }
+  .sh { grid-template-columns: minmax(0, 1fr); gap: 14px; }
   .sh-side { position: static; max-height: none; flex-direction: row; overflow-x: auto; scroll-snap-type: x mandatory; margin: 0 -16px; padding: 0 16px 4px; scrollbar-width: none; }
   .sh-set { flex: 0 0 auto; width: min(290px, 82vw); scroll-snap-align: start; }
   .sh-make { flex: 0 0 auto; width: auto; align-self: center; }
