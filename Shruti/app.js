@@ -7,6 +7,7 @@ import * as C from './core.js';
 import * as O from './orca.js';
 import * as L from './library.js';
 import * as NR from './narrate.js';
+import * as POD from './podcast.js';
 
 const P = C.P, PROFILES = C.PROFILES, GID = window.SHRUTI_GID;
 const DRIVE = 'https://shruti-drive.av1-2.workers.dev';
@@ -377,15 +378,17 @@ export const player = {
   hide() { player.owner = null; const m = $('#mini'); m.hidden = true; m.innerHTML = ''; document.documentElement.style.removeProperty('--mini-h'); },
 };
 NR.setUI({ player, toast, openSettings: () => openSettings(), go: (h) => go(h) });
+POD.setUI({ player, toast, go: (h) => go(h) });
 
 // Space plays and pauses read-aloud, unless typing or on a control.
 addEventListener('keydown', (e) => {
-  if (e.key !== ' ' || !NR.state.mode || e.target.closest('input,textarea,select,button,[contenteditable],[role=radio]')) return;
-  e.preventDefault(); NR.toggle();
+  if (e.key !== ' ' || e.target.closest('input,textarea,select,button,a,[contenteditable],[role=radio]')) return;
+  if (player.owner === 'podcast' && POD.state.meta) { e.preventDefault(); POD.toggle(); }
+  else if (NR.state.mode) { e.preventDefault(); NR.toggle(); }
 });
 
 /* ── start ────────────────────────────────────────────────────────────────── */
-window.Shruti = { go, player, toast, core: C, orca: O, library: L, narrate: NR, openSettings };
+window.Shruti = { go, player, toast, core: C, orca: O, library: L, narrate: NR, podcast: POD, openSettings };
 if (window.SHRUTI_STORAGE_BLOCKED) setTimeout(() => toast('This browser blocks storage: Shruti works, but this device will not remember choices.', true), 1200);
 if (!P) showPicker();
 else openGate();

@@ -5,6 +5,7 @@
 
 import { me, shared, ls, lsKey } from './core.js';
 import { renderRead } from './reader.js';
+import * as POD from './podcast.js';
 
 export const SHIPPED = ['gita'];
 const COVERS = { gita: { bg: '#2b2235', tx: '#f2ead8', ac: '#e0b874', kicker: 'Shared' } };
@@ -52,13 +53,14 @@ export function fracOf(book, n) {
   if (p.done) return 1;
   return Math.max(0, Math.min(1, Number(p.f) || 0));
 }
-// What a chapter offers, per mode. Listen/Watch/Study come from generated or
-// shipped assets (Phases 4-7), recorded in the shared doc.
-export function available(book, n, lessons) {
+// What a chapter offers, per mode. Listen/Watch/Study come from generated
+// assets recorded in the shared doc, or shipped ones (pods: the book's
+// media/podcasts.json).
+export function available(book, n, lessons, pods) {
   const a = shared.get('assets.' + book + '.' + chKey(n), {}) || {};
   return {
     read: true,
-    listen: !!a.podcast,
+    listen: !!a.podcast || !!(pods && pods[String(n)]),
     watch: !!a.video,
     study: !!(a.study && Object.keys(a.study).length),
     lessons: !!(lessons && lessons[n] && lessons[n].lessons && lessons[n].lessons.length),
@@ -134,14 +136,14 @@ export async function viewLibrary(el, { go }) {
 }
 
 export async function viewBook(el, { id, go }) {
-  const [b, lessons] = await Promise.all([loadBook(id), loadLessons(id)]);
+  const [b, lessons, pods] = await Promise.all([loadBook(id), loadLessons(id), POD.shipped(id)]);
   const last = me.get('last', null);
   const cur = last && last.book === id ? last.n : null;
   const done = b.chapters.filter((c) => fracOf(id, c.n) >= 1).length;
   const lessonCount = b.chapters.reduce((s, c) => s + (c.lessons || 0), 0);
   const startN = cur != null ? cur : (b.chapters.find((c) => fracOf(id, c.n) < 1) || b.chapters[0]).n;
   const row = (c) => {
-    const f = fracOf(id, c.n), av = available(id, c.n, lessons), p = progressOf(id, c.n), md = p.modes || {};
+    const f = fracOf(id, c.n), av = available(id, c.n, lessons, pods), p = progressOf(id, c.n), md = p.modes || {};
     const badge = (m) => '<span class="bdg ' + (md[m] ? 'done' : av[m] ? 'av' : '') + '" title="' + esc(MODES.find((x) => x.id === m).label + (md[m] ? ': done' : av[m] ? '' : ': not made yet')) + '">' + IC[m] + '</span>';
     const meta = [c.verses ? c.verses + ' verses' : '', c.key ? c.key + ' key' : '', c.lessons ? c.lessons + ' lessons' : ''].filter(Boolean).join(' · ');
     return '<button class="ch' + (cur === c.n ? ' cur' : '') + '" data-go="#/b/' + esc(id) + '/' + c.n + '">' + ring(f, c.n) +
@@ -176,8 +178,8 @@ export async function viewChapter(el, { id, n, mode, at, go }) {
   const isIntro = n === 0;
   const meta = isIntro ? { n: 0, title: b.intro.title, file: b.intro.file } : b.chapters.find((c) => c.n === n);
   if (!meta) { go('#/b/' + id); return; }
-  const [ch, lessons] = await Promise.all([loadChapter(id, meta.file), loadLessons(id)]);
-  const av = available(id, n, lessons);
+  const [ch, lessons, pods] = await Promise.all([loadChapter(id, meta.file), loadLessons(id), POD.shipped(id)]);
+  const av = available(id, n, lessons, pods);
   mode = MODES.some((m) => m.id === mode) ? mode : 'read';
   const idx = b.chapters.findIndex((c) => c.n === n);
   const prev = isIntro ? null : idx > 0 ? b.chapters[idx - 1] : (b.intro ? { n: 0, title: b.intro.title } : null);
@@ -214,10 +216,16 @@ export async function viewChapter(el, { id, n, mode, at, go }) {
   });
   if (mode === 'read') renderRead(body, ch, id, n, { title: meta.title, at });
   else if (mode === 'lessons') renderLessons(body, lessons[n]);
+  else if (mode === 'listen' && av.listen) renderListen(body, id, n, meta, lessons);
   else body.innerHTML = '<div class="empty">' + IC[mode] + '<b>' + esc(MODES.find((m) => m.id === mode).label) + ' is not made for this chapter yet</b>' +
     '<span>' + (av[mode] ? '' : mode === 'study' ? 'Flashcards, a quiz, a mind map and slides will be built here from the chapter.' : 'It will tell the chapter\'s story and teach every lesson.') + '</span></div>';
   ls.put(lsKey('lastRoute'), { id, n, mode });
   markOpened(id, n);
+}
+
+async function renderListen(body, id, n, meta, lessons) {
+  const ok = await POD.renderListen(body, { book: id, n, title: meta.title, lessons: lessons[n] });
+  if (ok === false) body.innerHTML = '<div class="empty">' + IC.listen + '<b>Listen is not made for this chapter yet</b><span>It will tell the chapter\u2019s story and teach every lesson.</span></div>';
 }
 
 function renderLessons(body, L) {
