@@ -4008,7 +4008,8 @@ async function handleFuel(body, env) {
 // before; both are read). Answers sit in the edge cache for 10 minutes (Everwell
 // re-syncs expanded playlists, so a change on YouTube shows soon); nothing
 // goes to KV (its writes are the daily limit). Mixes (RD…) and private lists
-// have no playlist page: { ok: false, error: 'unavailable' }.
+// have no playlist page: { ok: false, error: 'unavailable' }. &fresh=1 (the
+// playlist's Refresh button) skips the cached answer and stores the new one.
 const YT_MAX = 500;
 const YT_CACHE_S = 600;
 const YT_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
@@ -4040,7 +4041,8 @@ async function handleYtPlaylist(url, ctx) {
   const list = url.searchParams.get('list') || '';
   if (!/^[A-Za-z0-9_-]{10,64}$/.test(list)) return json({ ok: false, error: 'bad list' }, 400);
   const cache = caches.default, ckey = new Request('https://personal-ai.cache/yt/playlist?list=' + list);
-  const hit = await cache.match(ckey); if (hit) return new Response(hit.body, { headers: { 'Content-Type': 'application/json', ...cors() } });
+  const hit = url.searchParams.get('fresh') === '1' ? null : await cache.match(ckey);
+  if (hit) return new Response(hit.body, { headers: { 'Content-Type': 'application/json', ...cors() } });
   let page;
   try {
     const r = await fetch('https://www.youtube.com/playlist?list=' + encodeURIComponent(list) + '&hl=en', { headers: { 'User-Agent': YT_UA, 'Accept-Language': 'en-US,en;q=0.9', Cookie: 'SOCS=CAI; CONSENT=YES+1' } });
@@ -4129,7 +4131,8 @@ async function handleIgMedia(url, ctx) {
   const code = url.searchParams.get('code') || '';
   if (!/^[A-Za-z0-9_-]{5,40}$/.test(code)) return json({ ok: false, error: 'bad code' }, 400);
   const cache = caches.default, ckey = new Request('https://personal-ai.cache/ig/media?code=' + code);
-  const hit = await cache.match(ckey); if (hit) return new Response(hit.body, { headers: { 'Content-Type': 'application/json', ...cors() } });
+  const hit = url.searchParams.get('fresh') === '1' ? null : await cache.match(ckey);
+  if (hit) return new Response(hit.body, { headers: { 'Content-Type': 'application/json', ...cors() } });
   let page;
   try {
     const r = await fetch('https://www.instagram.com/p/' + code + '/embed/captioned/', { headers: {
