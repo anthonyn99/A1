@@ -53,6 +53,8 @@ const ok = (n, c, d) => {
 };
 const waitFor = async (c, expr, ms = 15000) => {
   const t0 = Date.now();
+  // An expression with statements needs its own return (evalJs wraps it in a function).
+  if (expr.indexOf(';') >= 0 && !/^\s*return/.test(expr) && !/return/.test(expr.split(';').pop())) expr = 'return ' + expr;
   while (Date.now() - t0 < ms) { try { if (await ev(c, expr)) return true; } catch {} await sleep(150); }
   return false;
 };
@@ -105,17 +107,17 @@ const flush = (c) => ev(c, `return window.Shruti.core.me.flush().then(()=>1)`);
 
   console.log('\nPartial highlights (chapter 3)');
   await ev(c, `location.hash='#/b/gita/3'; return 1`);
-  await waitFor(c, `!!document.querySelector('.rd [data-b="6"]')`);
+  await waitFor(c, `/Karma-yoga/.test(document.querySelector('.cp-head h1').textContent) && !!document.querySelector('.rd [data-b="6"]')`);
   const v319 = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'books', 'gita', 'ch03.json'), 'utf8')).blocks[6].s.find((s) => s.v === '3.19');
   ok('verse 3.19 marks only its highlighted words', await ev(c, `const p=document.querySelector('.rd [data-b="6"]'); const k=[...p.querySelectorAll('.key')].map(x=>x.textContent); return k.includes(${JSON.stringify(v319.t.slice(64, 162))}) && !k.includes(${JSON.stringify(v319.t)})`));
 
   console.log('\nThe look (Aa), synced');
   await ev(c, `location.hash='#/b/gita/2'; return 1`);
-  await waitFor(c, `!!document.querySelector('.rd [data-b="12"]')`);
+  await waitFor(c, `/Spiritual knowledge/.test(document.querySelector('.cp-head h1').textContent) && !!document.querySelector('.rd [data-b="12"]')`);
   await ev(c, `document.querySelector('[data-aa]').click(); return 1`);
   ok('Aa opens size, spacing, type and width', await waitFor(c, `!document.getElementById('rd-aa').hidden && document.querySelectorAll('#rd-aa .seg').length===4`));
   await ev(c, `document.querySelector('#rd-aa [data-k=size][data-v="4"]').click(); document.querySelector('#rd-aa [data-k=width][data-v="2"]').click(); document.querySelector('#rd-aa [data-k=font][data-v=sans]').click(); document.querySelector('#rd-aa [data-k=lead][data-v="2"]').click(); return 1`);
-  ok('the text grows, widens, turns sans and opens up', await ev(c, `const r=document.querySelector('.rd'), s=getComputedStyle(r); return s.fontSize==='22px' && s.maxWidth==='860px' && r.classList.contains('sans') && Math.abs(parseFloat(s.lineHeight)/22-1.95)<0.01`),
+  ok('the text grows, widens, turns sans and opens up', await waitFor(c, `const r=document.querySelector('.rd'), s=getComputedStyle(r); return s.fontSize==='22px' && s.maxWidth==='860px' && r.classList.contains('sans') && Math.abs(parseFloat(s.lineHeight)/22-1.95)<0.01`),
     await ev(c, `const s=getComputedStyle(document.querySelector('.rd')); return s.fontSize+' '+s.maxWidth+' '+s.lineHeight`));
   ok('the bar keeps the text\'s width', await ev(c, `return getComputedStyle(document.querySelector('.rd-bar')).maxWidth==='860px'`));
   await flush(c);

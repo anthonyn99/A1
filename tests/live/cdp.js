@@ -212,9 +212,28 @@ async function servePagesFromWorkingCopy(ws, send, mock) {
       send('Fetch.continueRequest', { requestId });
       return;
     }
+    // Range, as GitHub Pages answers it: audio and video can only seek with it.
+    const all = fs.readFileSync(file);
+    const range = /^bytes=(\d+)-(\d*)$/.exec((request.headers && (request.headers.Range || request.headers.range)) || '');
+    if (range) {
+      const a = Number(range[1]), b = Math.min(all.length - 1, range[2] ? Number(range[2]) : all.length - 1);
+      send('Fetch.fulfillRequest', {
+        requestId, responseCode: 206,
+        responseHeaders: [
+          { name: 'Content-Type', value: TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream' },
+          { name: 'Content-Range', value: `bytes ${a}-${b}/${all.length}` },
+          { name: 'Accept-Ranges', value: 'bytes' },
+          { name: 'Cache-Control', value: 'no-store' },
+          { name: 'Access-Control-Allow-Origin', value: '*' },
+        ],
+        body: all.subarray(a, b + 1).toString('base64'),
+      });
+      return;
+    }
     send('Fetch.fulfillRequest', {
       requestId, responseCode: 200,
       responseHeaders: [
+        { name: 'Accept-Ranges', value: 'bytes' },
         { name: 'Content-Type', value: (TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream') + '; charset=utf-8' },
         { name: 'Cache-Control', value: 'no-store' },
         // GitHub Pages sends this on every file. A1-Priv's pages fetch A1 files
@@ -222,7 +241,7 @@ async function servePagesFromWorkingCopy(ws, send, mock) {
         // fail here and nowhere else.
         { name: 'Access-Control-Allow-Origin', value: '*' },
       ],
-      body: fs.readFileSync(file).toString('base64'),
+      body: all.toString('base64'),
     });
   });
   await send('Fetch.enable', { patterns: [PAGES + '*', STATUS_MANY, ...BLOCK, ...((mock && mock.patterns) || [])]
