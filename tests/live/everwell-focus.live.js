@@ -388,7 +388,7 @@ const mock = {
 
   // The Refresh button (Tony, 2026-10-20: a live he added on YouTube had not come in).
   const toastTxt = () => js(`const t = [...document.querySelectorAll('.toast')].pop(); return t ? t.textContent : '';`);
-  ok('an expanded playlist has a Refresh button', await js(`const b = ${q('.media-group[data-id="p1"] .media-group-head [data-ytsync="p1"]')}; return !!b && /Refresh/.test(b.textContent);`));
+  ok('an expanded playlist has a Refresh button', await js(`const b = ${q('.media-group[data-id="p1"] .media-group-head [data-ytsync="p1"]')}; return !!b && /^Refresh /.test(b.getAttribute("aria-label")) && !b.textContent.trim();`));
   // On a phone the head's buttons sat over the title (Tony, 2026-10-20): they get a row of their own.
   const headFits = () => js(`const g = ${q('.media-group[data-id="p1"]')}, gr = g.getBoundingClientRect(), tr = g.querySelector('.media-group-title').getBoundingClientRect();
     const bs = [...g.querySelectorAll('.media-group-head .media-meta > *')].map(b => b.getBoundingClientRect());
