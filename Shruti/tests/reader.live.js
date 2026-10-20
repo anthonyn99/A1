@@ -163,7 +163,6 @@ const flush = (c) => ev(c, `return window.Shruti.core.me.flush().then(()=>1)`);
   ok('the mini-player shows with -15, play/pause, +15', await waitFor(c, `!document.getElementById('mini').hidden && !!document.querySelector('#mini [data-mp=back]') && !!document.querySelector('#mini [data-mp=fwd]') && document.querySelector('#mini [data-mp=toggle]').getAttribute('aria-label')==='Pause'`));
   ok('the word being said is lit, in the block being read', await waitFor(c, `!!document.querySelector('.rd .speaking .w.on')`, 8000));
   const lit1 = await ev(c, `return document.querySelector('.rd .w.on').textContent`);
-  if (process.env.DBG) { for (let k = 0; k < 8; k++) { console.log('   dbg', await ev(c, `return JSON.stringify({u:location.href, S:!!window.Shruti, lit:document.querySelector('.rd .w.on')&&document.querySelector('.rd .w.on').textContent, i:window.Shruti&&window.Shruti.narrate.state.i, t:document.querySelector('audio')&&0, e:window.__errs})`)); await sleep(400); } }
   await sleep(1200);
   ok('…and moves on as the voice does', await ev(c, `return document.querySelector('.rd .w.on') && document.querySelector('.rd .w.on').textContent`) !== null && await waitFor(c, `document.querySelector('.rd .w.on') && document.querySelector('.rd .w.on').textContent!==${JSON.stringify(lit1)}`, 4000));
   ok('the lock screen knows what is playing', await ev(c, `return navigator.mediaSession && navigator.mediaSession.metadata && /Chapter 2/.test(navigator.mediaSession.metadata.title)`));
@@ -201,7 +200,7 @@ const flush = (c) => ev(c, `return window.Shruti.core.me.flush().then(()=>1)`);
   await click(c, '.rd-bar [data-ra]');
   ok('chapter 4 is spoken live by Orca in Ryan\'s voice', await waitFor(c, `window.Shruti.narrate.state.mode==='live' && window.Shruti.narrate.state.playing`, 10000) && speech.length >= 1 && speech[0].voice === 'en-GB-RyanNeural' && speech[0].timestamps === true,
     JSON.stringify(speech.slice(0, 1)));
-  ok('the first request is the chapter\'s first block, exactly', speech[0] && speech[0].input === JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'books', 'gita', 'ch04.json'), 'utf8')).blocks[0].t);
+  ok('the first request is the chapter\'s first block, exactly', speech[0] && (() => { const b0 = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'books', 'gita', 'ch04.json'), 'utf8')).blocks[0]; return speech[0].input === (b0.k === 'p' ? b0.s.map((x) => x.t).join(' ') : b0.t); })(), speech[0] && speech[0].input.slice(0, 80));
   ok('the next two are fetched ahead', await waitFor(c, `true`) && (await sleep(800), speech.length >= 3));
   ok('the word is lit here too', await waitFor(c, `!!document.querySelector('.rd .speaking .w.on')`, 8000));
   await ev(c, `document.querySelector('#mini [data-mp=close]').click(); return 1`);
