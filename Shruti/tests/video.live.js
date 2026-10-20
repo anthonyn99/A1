@@ -130,7 +130,7 @@ async function load(c, { w, h, mobile, store, hash = '' }) {
 
   console.log('\nOne thing at a time');
   await click(c, '[data-play]');
-  ok('Play plays at 1.5×', await waitFor(c, `window.Shruti.video.state.playing`, 6000) && await ev(c, `return /1\\.5×/.test(document.querySelector('#mini .tt span').textContent)`));
+  ok('Play plays at 1.5×', await waitFor(c, `window.Shruti.video.state.playing`, 6000) && await waitFor(c,`return /1\\.5×/.test(document.querySelector('#mini .tt span').textContent)`));
   await ev(c, `location.hash='#/b/gita/2/listen'; return 1`);
   ok('the video keeps playing on another tab, in the mini-player', await waitFor(c, `document.querySelectorAll('.turn').length>0 && window.Shruti.video.state.playing && window.Shruti.player.owner==='video'`, 15000));
   await click(c, '[data-play]');

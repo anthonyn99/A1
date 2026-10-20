@@ -213,7 +213,7 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
     await js(`document.getElementById('ew-nb-done').click(); return 1;`); await sleep(2500);
     return shown;
   };
-  const cardNames = () => js(`return [document.querySelector('.wr-card[data-wr="${newId}"] .wr-title').textContent, __fakeFs.docs['dashboards/everwell_tony'].mindsetPages.find(p => p.id === '${newId}').title, __fakeFs.docs['dashboards/everwell_notes']['e_${newId}'].title].join('|');`);
+  const cardNames = () => js(`return [(document.querySelector('.wr-card[data-wr="${newId}"] .wr-title') || { textContent: 'NO CARD:' + [...document.querySelectorAll('.wr-card')].map(c => c.dataset.wr).join() + ':' + location.hash + ':' + (document.querySelector('.ew-pane.on, [aria-selected="true"]') || {}).id }).textContent, __fakeFs.docs['dashboards/everwell_tony'].mindsetPages.find(p => p.id === '${newId}').title, __fakeFs.docs['dashboards/everwell_notes']['e_${newId}'].title].join('|');`);
   let shown = await nbTitle('Discipline Notes');
   ok('a title typed in the Notebook editor renames the card, its list entry and the editor header', (await cardNames()) === 'Discipline Notes|Discipline Notes|Discipline Notes' && shown === 'Discipline Notes|Discipline Notes', (await cardNames()) + ' / ' + shown);
   await js(`document.querySelector('[data-wr-rename="${newId}"]').click(); return 1;`); await sleep(400);
