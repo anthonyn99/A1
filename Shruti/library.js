@@ -189,6 +189,7 @@ export async function viewChapter(el, { id, n, mode, go }) {
     mark.title = isDone ? 'This chapter counts as read. Mark it unread to start it over.' : 'Count this chapter as read.';
   };
   paintMark();
+  body.addEventListener('shruti:read', paintMark);
   mark.addEventListener('click', () => {
     const toDone = fracOf(id, n) < 1;
     setProgress(id, n, toDone ? { f: 1, done: true, 'modes.read': 1 } : { f: 0, done: false, 'modes.read': 0 });
@@ -226,6 +227,7 @@ function renderRead(body, ch, book, n) {
     if (seen > best + 0.02 || (seen >= 0.98 && best < 1)) {
       best = seen >= 0.98 ? 1 : seen;
       setProgress(book, n, best >= 1 ? { f: 1, done: true, 'modes.read': 1 } : { f: +best.toFixed(3) });
+      if (best >= 1) body.dispatchEvent(new CustomEvent('shruti:read'));
     }
   };
   addEventListener('scroll', measure, { passive: true });
