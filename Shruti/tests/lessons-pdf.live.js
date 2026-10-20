@@ -70,6 +70,7 @@ const DL = fs.mkdtempSync(path.join(os.tmpdir(), 'shruti-pdf-'));
 async function download(c, sel) {
   for (const f of fs.readdirSync(DL)) fs.unlinkSync(path.join(DL, f));
   await click(c, sel);
+  console.log('   clicked:', await waitFor(c, `!!window.jspdf`, 8000));
   const t0 = Date.now();
   while (Date.now() - t0 < 15000) {
     const f = fs.readdirSync(DL).find((x) => x.endsWith('.pdf'));
