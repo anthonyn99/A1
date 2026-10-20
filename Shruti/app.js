@@ -9,6 +9,7 @@ import * as L from './library.js';
 import * as NR from './narrate.js';
 import * as POD from './podcast.js';
 import * as VID from './video.js';
+import * as G from './generate.js';
 
 const P = C.P, PROFILES = C.PROFILES, GID = window.SHRUTI_GID;
 const DRIVE = 'https://shruti-drive.av1-2.workers.dev';
@@ -383,6 +384,7 @@ export const player = {
 NR.setUI({ player, toast, openSettings: () => openSettings(), go: (h) => go(h) });
 POD.setUI({ player, toast, go: (h) => go(h) });
 VID.setUI({ player, toast, go: (h) => go(h) });
+G.setUI({ toast, go: (h) => go(h), openSettings: () => openSettings() });
 
 // Space plays and pauses whatever owns the player, unless typing or on a control.
 addEventListener('keydown', (e) => {
@@ -393,7 +395,7 @@ addEventListener('keydown', (e) => {
 });
 
 /* ── start ────────────────────────────────────────────────────────────────── */
-window.Shruti = { go, player, toast, core: C, orca: O, library: L, narrate: NR, podcast: POD, video: VID, openSettings };
+window.Shruti = { go, player, toast, core: C, orca: O, library: L, narrate: NR, podcast: POD, video: VID, generate: G, openSettings };
 if (window.SHRUTI_STORAGE_BLOCKED) setTimeout(() => toast('This browser blocks storage: Shruti works, but this device will not remember choices.', true), 1200);
 if (!P) showPicker();
 else openGate();

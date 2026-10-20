@@ -544,6 +544,59 @@ body[data-profile=veda] .ls-sum b { text-transform: none; letter-spacing: 0; fon
 .toast.err { border-color: var(--bad); }
 
 /* == phones ================================================================= */
+/* ── Make with AI (generate.js) ────────────────────────────────────────────── */
+.cp-acts { display: flex; flex-wrap: wrap; gap: 4px; margin: 10px 0 0 -12px; }
+.cp-acts .mark { margin: 0; }
+.cp-acts .btn { font-size: 13px; padding-top: 6px; padding-bottom: 6px; }
+.cp-acts .btn svg, .empty .btn svg, .gen-go .btn svg { width: 16px; height: 16px; }
+.empty .btn { margin-top: 6px; }
+.gen-sub { margin: -8px 0 14px; color: var(--txm); font-size: 13.5px; }
+.gen-kinds { margin: 0 0 14px; }
+.gvs { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.gv { display: flex; align-items: center; gap: 6px; border-radius: var(--r); background: var(--s2); border: 1px solid transparent; }
+.gv.on { border-color: var(--ac-line); }
+.gv-pick { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 9px 12px; background: none; border: 0; color: var(--tx); text-align: left; cursor: pointer; font: inherit; }
+.gv-pick .dot { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--line2); flex-shrink: 0; }
+.gv.on .gv-pick .dot { border: 5px solid var(--ac); }
+.gv-pick b { display: block; font-size: 14px; }
+.gv-pick span > span { display: block; font-size: 12px; color: var(--txm); }
+.gv .ib svg { width: 16px; height: 16px; }
+.card p.gv-h { margin: 10px 0 0; }
+.gen-other { margin: 8px 0 0; }
+.gen-f { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; }
+.gen-f > span { font-size: 12.5px; font-weight: 650; color: var(--txm); }
+.gen-f .chips { margin-top: 0; }
+.gen-f textarea { width: 100%; resize: vertical; min-height: 60px; }
+.gen-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.gen-units .chip { display: inline-flex; align-items: center; gap: 5px; }
+.gen-units .chip svg { width: 13px; height: 13px; }
+.gen-units .chip.off { text-decoration: line-through; text-decoration-color: var(--bad); }
+.lk { align-self: flex-start; background: none; border: 0; padding: 2px 0; color: var(--ac); font: inherit; font-size: 12.5px; cursor: pointer; }
+.gen-go { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+.gen-go .hint { font-size: 12.5px; color: var(--txm); flex: 1; min-width: 160px; }
+.gen-model { margin-left: auto; font: 650 11.5px var(--f-ui); color: var(--ac); border: 1px solid var(--ac-line); border-radius: 999px; padding: 2px 8px; }
+.gen-steps { list-style: none; padding: 0; margin: 12px 0; display: flex; flex-direction: column; gap: 6px; }
+.gen-steps li { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--txd); }
+.gen-steps li::before { content: ''; width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--line2); flex-shrink: 0; }
+.gen-steps li.done { color: var(--txm); }
+.gen-steps li.done::before { background: var(--good); border-color: var(--good); }
+.gen-steps li.cur { color: var(--tx); font-weight: 650; }
+.gen-steps li.cur::before { background: var(--gold); border-color: var(--gold); animation: pulse 1s infinite; }
+.gen-steps li.bad { color: var(--bad); }
+.gen-steps li.bad::before { background: var(--bad); border-color: var(--bad); }
+.gen-steps li span { font-weight: 400; color: var(--txm); }
+.gen-bar { height: 4px; border-radius: 2px; background: var(--s3); overflow: hidden; margin: -4px 0 12px; }
+.gen-bar i { display: block; height: 100%; background: var(--ac); transition: width .3s var(--ease); }
+.gen-cov { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 0 0 12px; }
+.gen-cov span { font: 700 11px var(--f-ui); border-radius: 6px; padding: 2px 6px; border: 1px solid var(--line2); color: var(--txd); }
+.gen-cov span.ok { color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, transparent); }
+.gen-cov span.no { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
+.gen-cov em { font-style: normal; font-size: 12px; color: var(--txm); margin-left: 4px; }
+.gen-live { margin: 0 0 12px; }
+.gen-live summary { cursor: pointer; font-size: 12.5px; color: var(--txm); }
+.gen-live pre { max-height: 220px; overflow: auto; white-space: pre-wrap; word-break: break-word; font: 12px/1.5 ui-monospace, Consolas, monospace; background: var(--s2); border-radius: var(--r); padding: 10px; margin: 8px 0 0; color: var(--txm); }
+@media (max-width: 760px) { .gen-2 { grid-template-columns: 1fr; } }
+
 /* ── Watch: the canvas video ───────────────────────────────────────────────── */
 .vid { max-width: 980px; margin: 0 auto; }
 .vid-stage { position: relative; border-radius: var(--r2); overflow: hidden; background: #0e0e11; box-shadow: var(--sh2, 0 12px 40px rgba(0,0,0,.35)); outline: none; aspect-ratio: 16 / 9; }
