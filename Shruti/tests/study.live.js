@@ -151,7 +151,7 @@ const prog = (c, path) => ev(c, `return JSON.stringify(window.Shruti.core.me.get
   ok('dragging pans it', await waitFor(c, `document.querySelector('.mm-canvas').style.transform !== ${JSON.stringify(before)}`));
   await key(c, '0', 'Digit0');
   await ev(c, `document.querySelectorAll('.mm-branch')[1].click(); return 1`);
-  ok('tapping a branch folds it, synced for Tony', await waitFor(c, `document.querySelectorAll('.mm-col')[1].classList.contains('closed') && JSON.stringify(window.Shruti.core.me.get('study.gita.ch4.mindmap.closed',[]))==='[1]'`));
+  ok('tapping a branch folds it, synced for Tony', await waitFor(c, `document.querySelectorAll('.mm-col')[1].classList.contains('closed') && (window.Shruti.core.me.get('study.gita.ch4.mindmap.closedK',[])||[]).length===1`));
   ok('…its links go with it', await waitFor(c, `document.querySelectorAll('.mm-links path').length===${set4.mindmap.branches.length + set4.mindmap.branches.reduce((s, b, i) => s + (i === 1 ? 0 : b.children.length), 0)}`));
   await ev(c, `document.querySelectorAll('.mm-branch')[1].click(); return 1`);
   await shot(c, 'study-mindmap-tony-1280');
