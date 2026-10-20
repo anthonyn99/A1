@@ -17,11 +17,24 @@ phase is done so he can open a fresh session for the next one.
   - Tools: `tools/dump.py`, then `tools/extract.py` (it refuses to write unless every letter of the PDF survives), and `tools/lessons.py`. Sources: `C:\Users\antho\Desktop\Gita\`.
   - Test: `tests/content.test.js` (about 3,000 checks), run by the A1 shim `tests/shruti.test.js`.
 
-**Next: Phase 2 — shell and sync** (see "Phases" below). Notes for it:
-- The page is `Shruti/shruti.html`, so shared A1 scripts load as `../Guardian/guardian.js`, `../LifeHub/lifehub.js` and so on. Check that each shared script works from a subfolder page (asset paths, LifeHub's `BASE + url`). A1's wiring tests list root pages by filename; add `Shruti/shruti.html` and make sure each test resolves the path.
-- Glyph for `apphead.js` `G.shruti` and the favicon are at the top of this plan. The PriceWatch and V1 Launcher copies of apphead.js must stay byte-identical (`tests/apphead-wiring.test.js`).
-- Orca key flow: Settings → paste the key → `GET https://orca.vedapatel05.workers.dev/v1/models`. Its `routable` field drives the unit picker.
-- The Drive worker lives in `Shruti/worker/`; add its path to `.github/workflows/deploy-workers2.yml`. Tony's one manual step is the Google consent click.
+- **Phase 2: shell and sync (2026-10-19).**
+  - `shruti.html` + `app.js` (picker, Guardian gate, hash router, header, Settings, bottom nav, mini-player, in-UI dialogs), `core.js` (profiles, safe storage, Firestore `Doc`), `orca.js` (key check, unit rows, fallback chain, streaming `chat`), `library.js` (library, chapter list with progress rings and mode badges, chapter page with Read (plain exact text, key verses marked) and Lessons), `styles.css`.
+  - Profiles: head script resolves pick → `?profile=` → favourite → last → picker; a switch reloads. Locks `tony_shruti` / `veda_shruti`; Firestore starts only after `Guardian.gate`.
+  - Docs `dashboards/shruti`, `shruti_veda`, `shruti_shared` (layout in README "Data"). Progress writes are lazy (≤30 s).
+  - Drive worker `shruti-drive` deployed to account 2 (KV `SHRUTI_DRIVE`, `SIGN_KEY` set); CI deploys `Shruti/worker` via `deploy-workers2.yml`. Auth = a working Orca key; playback = signed links; Range passes through.
+  - LifeHub tile (both profiles; `ADDED_LATER` adds it to existing lists once per device), `apphead.js` `G.shruti` (+ copies, incl. `Vault/` = A1-Priv), every wiring list, `tests/moved.js` accepts `../` script paths.
+  - Tests: `shell.test.js` (54), `worker.test.js` (29), live `shell.live.js` (46, both profiles, 390/1280). `npm test` 79/79.
+  - Also fixed: `tests/no-tap-box.test.js` now reads ORCA's formatted stylesheet (it failed since ORCA's UI overhaul, though the rules were there).
+
+**Waiting on Tony (not blocking Phase 3's Read work):** the Google client for Drive. Steps are in README "Connecting Google Drive" (enable Drive API, add the redirect URI, two `wrangler secret put`, then Settings → Connect). Until then `/health` says `configured:false` and Settings says so. Also each person pastes their Orca key once in Settings.
+
+**Next: Phase 3 — Orca TTS and Read** (see "Phases" below). Notes for it:
+- ORCA first (repo `C:\Users\antho\Desktop\ORCA`, branch `accounts`, its own tests and deploy): `POST /v1/audio/speech` and `GET /v1/audio/voices`, Edge neural voices with word timings, Aura fallback. Test whether Microsoft accepts Cloudflare's addresses before building on it.
+- The reader is `renderRead` in `library.js` (plain blocks; `.rd` styles). Phase 3 adds typography settings, aside styling, bookmarks and resume-to-position (`progress.<book>.ch<n>` already holds `f`; add a position). Lessons already render (`renderLessons`); polish only.
+- Read-aloud plays through `Shruti.player` (`show({title, sub, onToggle})`, `progress(f)`, `hide()`), which sits above the bottom nav. Media Session, sleep timer and ±15 s go there.
+- AI calls: `orca.js` `chat()` and `chain(prefs, models)`; the person's key is `me.get('orcaKey')`, units `me.get('units')`.
+- "Save narration" uploads with `PUT https://shruti-drive.av1-2.workers.dev/f?book&chapter&name&owner` (Bearer = the Orca key) and plays via `POST /sign`. Record what exists in `dashboards/shruti_shared` `assets.<book>.ch<n>`; the mode badges read that.
+- Live tests copy `Shruti/tests/shell.live.js` (fake Firestore, Orca and Drive answered in the mock).
 
 **Standing rules:**
 - Everything Shruti owns stays in `A1/Shruti/` (see README "Moving Shruti").
