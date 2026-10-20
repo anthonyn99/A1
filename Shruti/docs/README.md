@@ -19,10 +19,12 @@ Live: https://anthonyn99.github.io/A1/Shruti/shruti.html
 | `library.js` | library, book (chapter list, bookmarks) and chapter views; progress |
 | `reader.js` | the Read tab: the exact text, the person's look (Aa), key-verse marks, bookmarks, "back where you were", read-aloud hooks |
 | `narrate.js` | read-aloud: one narrator per page; live Orca speech or a ready-made MP3; word lighting, follow-scroll, mini-player, lock screen, sleep timer, voice/speed sheet, Save narration |
+| `podcast.js` | Listen: the two-host episode player (turn bubbles, lit word, part chips, subtitles, lessons covered, speed, download, mini-player, lock screen) and `build()`/`save()`, which make an episode in the browser from a script (Phase 6 uses them) |
 | `text.js` | DOM-free helpers: a block's spoken text, segments, words, lining the voice's words up with the page's |
 | `styles.css` | the one stylesheet (Tony = MAGI look, Veda = StudyOS look) |
 | `books/gita/` | the shipped Gita: `book.json` (contents), `ch00.json` (introduction), `ch01.json`–`ch18.json`, `lessons.json` |
-| `books/gita/media/` | ready-made read-aloud for the introduction and Ch 1–3 (Ava): `chNN-read.mp3` + `chNN-read.json`, listed in `index.json` |
+| `books/gita/media/` | ready-made media: read-aloud for the introduction and all 18 chapters (Ava; `chNN-read.mp3/.json`, listed in `index.json`) and the podcast for all 18 chapters (Ava and Andrew; `chNN-podcast.mp3/.json`, listed in `podcasts.json`) |
+| `books/gita/scripts/` | the podcast scripts, written by Claude: `chNN-podcast.json` = `{hosts, segments:[{title, turns:[{s, t, L}]}]}`; every lesson of the chapter is tagged (`L`) on the turns that teach it and has its own segment |
 | `worker/` | `shruti-drive`, the Google Drive media worker (deployed to account 2) |
 | `tools/` | dev tools that build `books/gita` from the PDFs (not loaded by the page) |
 | `tests/` | `*.test.js` run by A1's `npm test` through `tests/shruti.test.js`; `*.live.js` run by hand |
@@ -48,8 +50,8 @@ wiring tests accept that `../` form (`tests/moved.js` `src()`).
 
 | Document | Holds |
 |---|---|
-| `dashboards/shruti` (Tony), `dashboards/shruti_veda` | `orcaKey`; `units.{order,on}`; `progress.<book>.ch<n>.{f, done, modes.<mode>, pos, ra.{i,t}, at}` (`pos` = the block at the top of the reader, `ra` = the read-aloud segment and seconds into it); `last.{book,n,at}`; `reader.{size,lead,font,width}`; `narration.{voice,speed,follow}`; `bookmarks.<book>.ch<n>.b<block>.{label,at}`; `shelf.order`; `lockV` |
-| `dashboards/shruti_shared` | the shared library's assets: `assets.<book>.ch<n>.read.{voice, engine, duration, mp3:{id}, json:{id}, by, at}` (a narration saved to Drive); from Phase 4 `podcast`, `video`, `study` (a mode badge lights when its asset exists) |
+| `dashboards/shruti` (Tony), `dashboards/shruti_veda` | `orcaKey`; `units.{order,on}`; `progress.<book>.ch<n>.{f, done, modes.<mode>, pos, ra.{i,t}, pod.t, at}` (`pos` = the block at the top of the reader, `ra` = the read-aloud segment and seconds into it, `pod.t` = seconds into the episode); `podcast.{speed,subs}`; `last.{book,n,at}`; `reader.{size,lead,font,width}`; `narration.{voice,speed,follow}`; `bookmarks.<book>.ch<n>.b<block>.{label,at}`; `shelf.order`; `lockV` |
+| `dashboards/shruti_shared` | the shared library's assets: `assets.<book>.ch<n>.read.{voice, engine, duration, mp3:{id}, json:{id}, by, at}` (a narration saved to Drive), `assets.<book>.ch<n>.podcast.{hosts, duration, mp3:{id}, json:{id}, by, at}` (an episode made in Shruti; it wins over the shipped one); later `video`, `study`. A mode badge lights when its asset exists, shipped or saved |
 
 Writes are field-path merges (`updateDoc` with `a.b.c`); the first write of a missing document is a
 `setDoc` merge. Nothing is written before the document's first snapshot arrives (the write
@@ -97,6 +99,14 @@ Text is exactly the source's. `tools/extract.py` only joins lines, removes line-
 - **Save narration:** speaks the whole chapter in the chosen voice, uploads one MP3 and its timings
   to Drive (`read-<voice>.mp3/.json`), and records it in `shruti_shared`.
 
+## Listen (the podcast)
+
+- **Episodes:** every chapter ships one: two hosts (Ava, Andrew; Edge voices) tell the chapter's story with this rendition's key verses, say when they add something from the full Gita or the Mahabharata, and teach every lesson in its own part.
+- **Built byte for byte:** Edge's MP3 is 24 kHz mono 48 kbps CBR (144-byte frames). Turns are joined with `tools/silence.mp3` (0.288 s, the same format, made with lamejs; embedded in `podcast.js` as `SILENCE_B64`): one clip between turns, three between parts. Nothing is decoded or re-encoded; every time is a byte count / 6000.
+- **Transcript:** `{v, book, n, title, hosts, duration, segments:[{title, start}], turns:[{s, start, end, text, L, words:[[t, d, w]]}]}`, word times relative to the turn. The page shows the script's own text (punctuation kept) and lines the voice's words up with it (`text.js align`).
+- **Player:** Play / Resume (from `progress…pod.t`), part chips, tap a turn or a word, subtitles (`podcast.subs`), speed (`podcast.speed`), download, the lessons list (each jumps to the first turn that teaches it), the mini-player and the lock screen (previous/next = parts). One thing plays at a time: read-aloud and the episode pause each other (`shruti:playing` event); the mini-player has one `owner`.
+- **Rebuilding:** edit a script, then `magi\.venv\Scripts\python -I Shruti\tools\podcast.py <chapters>` and `node Shruti/tests/podcast.test.js`.
+
 ## The Drive worker (`worker/`, https://shruti-drive.av1-2.workers.dev)
 
 Media (podcasts, videos, narrations, transcripts, imported originals) goes to Tony's Google Drive,
@@ -140,6 +150,8 @@ In Google Cloud Console, project `task-dashboard-d2b53` (the one OneInbox uses):
 - `node Shruti/tests/reader.live.js`: the reader and read-aloud (Aa, partial highlights, bookmarks,
   resume, the shipped narration playing and lighting words, seek, speed, sleep, live Orca speech,
   Save narration), Tony at 1280 and Veda at 390. Clicks that start audio are real mouse events.
+- `node Shruti/tests/podcast.test.js`: the silent clip's format, every script (two hosts, every lesson tagged and given a part), every episode (matches its script, times from bytes, word timings), `build()` with a fake voice.
+- `node Shruti/tests/podcast.live.js`: the Listen tab (turns, parts, lessons, play, lit turn and word, part chips, tap a word, subtitles, speed, read-aloud and the episode pausing each other, `build()`/`save()`), Tony at 1280 and Veda at 390.
 - ORCA's side: `npx vitest run src/tts.test.ts` in `ORCA/worker`.
 
 ## Rebuilding the Gita
