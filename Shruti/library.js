@@ -28,6 +28,7 @@ export const IC = {
   next: I('<path d="M9 6l6 6-6 6"/>'),
   prev: I('<path d="M15 6l-6 6 6 6"/>'),
   plus: I('<path d="M12 5v14M5 12h14"/>'),
+  pdf: I('<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M12 12v6"/><path d="M9 15l3 3 3-3"/>'),
   check: I('<path d="M20 6 9 17l-5-5"/>'),
   ribbon: I('<path d="M6 3h12v18l-6-4-6 4z"/>'),
   undo: I('<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/>'),

@@ -451,7 +451,10 @@ body[data-profile=veda] .pod-sec { text-transform: none; letter-spacing: 0; font
 .ls-sum { margin-top: 10px; padding: 16px 18px; border-radius: var(--r2); background: var(--ac-soft); border: 1px solid var(--ac-line); white-space: pre-wrap; }
 .ls-sum b { display: block; color: var(--ac); font: 650 12px var(--f-ui); letter-spacing: .12em; text-transform: uppercase; margin-bottom: 6px; }
 body[data-profile=veda] .ls-sum b { text-transform: none; letter-spacing: 0; font-size: 13px; }
-.ls-k { color: var(--txm); font-size: 13.5px; margin: 0 0 4px; }
+.ls-k { color: var(--txm); font-size: 13.5px; margin: 0; }
+.ls-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+.ls-top .btn { padding: 6px 12px; font-size: 13px; }
+.ls-top .btn svg { width: 15px; height: 15px; }
 
 /* == settings sheet ========================================================= */
 .sheet-dim {
