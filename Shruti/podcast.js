@@ -201,7 +201,7 @@ function subtitle(tr, k) {
   if (!el) { el = document.createElement('div'); el.id = 'pod-subs'; el.className = 'pod-subs'; el.setAttribute('aria-hidden', 'true'); document.body.appendChild(el); }
   // A window of about a dozen words around the one being said.
   const ws = tr.words.map((w) => w[2]);
-  const at = Math.max(0, k), from = Math.max(0, at - 6 - (at % 6 === 0 ? 0 : 0)) - (Math.max(0, at - 6) % 12 ? 0 : 0);
+  const at = Math.max(0, k);
   const start = Math.floor(at / 12) * 12, end = Math.min(ws.length, start + 12);
   const host = P.meta.hosts.findIndex((h) => h.id === tr.s);
   const key = P.turn + ':' + start;
@@ -213,20 +213,18 @@ function subtitle(tr, k) {
   el.querySelectorAll('span.on').forEach((s) => s.classList.remove('on'));
   const cur = el.querySelector('[data-x="' + at + '"]');
   if (cur) cur.classList.add('on');
-  void from;
 }
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 /* ── mini-player and lock screen ─────────────────────────────────────────── */
 function showPlayer() {
-  if (!ui.player || ui.player.owner === 'podcast') { paint(); return; }
+  if (!ui.player || (ui.player.owner === 'podcast' && document.querySelector('#mini:not([hidden])'))) { paint(); return; }
   ui.player.show({
     title: 'Chapter ' + P.n + ' · ' + P.title, kind: 'podcast',
     onToggle: toggle, onBack: () => skip(-15), onFwd: () => skip(15),
     onOpen: () => ui.go('#/b/' + P.book + '/' + P.n + '/listen'),
     onClose: () => { stop(); if (navigator.mediaSession) navigator.mediaSession.metadata = null; const s = document.getElementById('pod-subs'); if (s) s.hidden = true; },
   });
-  ui.player.owner = 'podcast';
   paint();
 }
 function paint() {

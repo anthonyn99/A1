@@ -207,10 +207,14 @@ function fail(e) {
 export async function resume() {
   if (!N.mode) return;
   if (N.ended) { await seek(0, 0, true); return; }
+  // One thing plays at a time: an episode playing pauses for the voice.
+  dispatchEvent(new CustomEvent('shruti:playing', { detail: { who: 'read' } }));
+  if (!mine()) showPlayer();
   try { await audio.play(); N.playing = true; } catch (e) { N.playing = false; if (e && e.name !== 'AbortError') ui.toast('Tap play to start read-aloud', true); }
   tick(); emit(); paintPlayer(); mediaSession();
 }
 export function pause() { if (audio) audio.pause(); N.playing = false; savePos(true); emit(); paintPlayer(); }
+addEventListener('shruti:playing', (e) => { if (e.detail.who !== 'read' && N.playing) pause(); });
 export const toggle = () => (N.playing ? pause() : resume());
 
 if (audio) {
@@ -381,8 +385,9 @@ function showPlayer() {
   });
   paintPlayer();
 }
+const mine = () => ui.player && ui.player.owner === 'read';
 function paintPlayer() {
-  if (!ui.player || !N.mode) return;
+  if (!mine() || !N.mode) return;
   ui.player.setPlaying(N.playing, busy);
   const sl = sleepLeft();
   ui.player.setSub([busy ? 'Getting the voice ready…' : blockLabel(), voiceName(N.voice), (prefs().speed || 1) + '×', sl ? 'sleep ' + sl + ' min' : ''].filter(Boolean).join(' · '));
@@ -390,7 +395,7 @@ function paintPlayer() {
 }
 let lastProg = 0;
 function paintProgress() {
-  if (!ui.player || Date.now() - lastProg < 250) return;
+  if (!mine() || Date.now() - lastProg < 250) return;
   lastProg = Date.now();
   ui.player.progress(fraction());
 }

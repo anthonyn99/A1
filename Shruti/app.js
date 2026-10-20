@@ -347,7 +347,10 @@ const CLOSE_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stro
 export const player = {
   /** show({title, sub, onToggle, onBack, onFwd, onMore, onOpen, onClose}): a
    *  control appears only when its handler is given. */
+  /** Who the player belongs to now ('read', 'podcast'): the others leave it alone. */
+  owner: null,
   show(o = {}) {
+    player.owner = o.kind || null;
     const m = $('#mini');
     const b = (k, icon, label, cls) => '<button class="ib' + (cls ? ' ' + cls : '') + '" data-mp="' + k + '" aria-label="' + label + '" title="' + label + '">' + icon + '</button>';
     m.innerHTML = '<div class="mp"><button class="art" data-mp="open" aria-label="Open the chapter">' + L.IC.listen + '</button>' +
@@ -371,7 +374,7 @@ export const player = {
   },
   setSub(sub) { const s = $('#mini .tt span'); if (s) s.textContent = sub || ''; },
   progress(f) { const b = $('#mini .bar'); if (b) b.style.width = (Math.max(0, Math.min(1, f)) * 100).toFixed(2) + '%'; },
-  hide() { const m = $('#mini'); m.hidden = true; m.innerHTML = ''; document.documentElement.style.removeProperty('--mini-h'); },
+  hide() { player.owner = null; const m = $('#mini'); m.hidden = true; m.innerHTML = ''; document.documentElement.style.removeProperty('--mini-h'); },
 };
 NR.setUI({ player, toast, openSettings: () => openSettings(), go: (h) => go(h) });
 
