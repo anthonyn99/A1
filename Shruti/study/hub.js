@@ -76,6 +76,9 @@ export function status(book, set, kind, it) {
   return { t: it.branches.length + ' branches', c: 'new' };
 }
 
+/** A set's kinds in this person's order. */
+export const kindsOf = (book, s) => OR.arrange(P.KINDS.filter((k) => s.kinds[k]), (k) => k, OR.get('kinds.' + book + '.' + s.id));
+
 /* ── the tab ─────────────────────────────────────────────────────────────── */
 let live = null;   // {dispose, root, ctx}
 const pick = (ctx) => C.ls.json(C.lsKey('study.' + ctx.book + '.' + ctx.n), null);
@@ -111,6 +114,13 @@ export async function renderStudy(body, ctx) {
     }).join('') + '<button class="btn sh-make" data-make>' + IC.spark + 'Make a study set</button>';
     side.querySelectorAll('[data-kind]').forEach((b) => b.addEventListener('click', () => { remember(ctx, { set: b.dataset.set, kind: b.dataset.kind }); draw(); if (matchMedia('(max-width: 760px)').matches) body.querySelector('.sh-main').scrollIntoView({ block: 'start', behavior: 'smooth' }); }));
     side.querySelector('[data-make]').addEventListener('click', () => openMaker(ctx, draw));
+    // Drag sets (sideways on a phone, where they scroll that way) and the kinds in a set.
+    OR.sortable(side, { row: '.sh-set', axis: matchMedia('(max-width: 760px)').matches ? 'x' : 'y', onMove(ks) {
+      const all = OR.get('sets.' + ctx.book);
+      OR.put('sets.' + ctx.book, ks.concat(all.filter((k) => !ks.includes(k))));
+      draw();
+    } });
+    side.querySelectorAll('.sh-set').forEach((el) => OR.sortable(el, { row: '.sh-kind', onMove(ks) { OR.put('kinds.' + ctx.book + '.' + el.dataset.dkey, ks); draw(); } }));
     side.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
       if (!await window.uiConfirm('Delete this study set? Its progress goes with it.', { title: 'Delete study set', okLabel: 'Delete' })) return;
       removeSet(ctx.book, b.dataset.del);
