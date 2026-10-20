@@ -54,7 +54,7 @@ const ok = (n, c, d) => {
 const waitFor = async (c, expr, ms = 15000) => {
   const t0 = Date.now();
   // An expression with statements needs its own return (evalJs wraps it in a function).
-  if (expr.indexOf(';') >= 0 && !/^\s*return/.test(expr) && !/return/.test(expr.split(';').pop())) expr = 'return ' + expr;
+  if (expr.indexOf(';') >= 0 && !/^\s*(return|const|let|var|if|for)\W/.test(expr)) expr = 'return ' + expr;
   while (Date.now() - t0 < ms) { try { if (await ev(c, expr)) return true; } catch {} await sleep(150); }
   return false;
 };
@@ -119,7 +119,7 @@ const flush = (c) => ev(c, `return window.Shruti.core.me.flush().then(()=>1)`);
   await ev(c, `document.querySelector('#rd-aa [data-k=size][data-v="4"]').click(); document.querySelector('#rd-aa [data-k=width][data-v="2"]').click(); document.querySelector('#rd-aa [data-k=font][data-v=sans]').click(); document.querySelector('#rd-aa [data-k=lead][data-v="2"]').click(); return 1`);
   ok('the text grows, widens, turns sans and opens up', await waitFor(c, `const r=document.querySelector('.rd'), s=getComputedStyle(r); return s.fontSize==='22px' && s.maxWidth==='860px' && r.classList.contains('sans') && Math.abs(parseFloat(s.lineHeight)/22-1.95)<0.01`),
     await ev(c, `const s=getComputedStyle(document.querySelector('.rd')); return s.fontSize+' '+s.maxWidth+' '+s.lineHeight`));
-  ok('the bar keeps the text\'s width', await ev(c, `return getComputedStyle(document.querySelector('.rd-bar')).maxWidth==='860px'`));
+  ok('the bar keeps the text\'s width', await waitFor(c, `getComputedStyle(document.querySelector('.rd-bar')).maxWidth==='860px'`));
   await flush(c);
   ok('…saved to his doc', await waitFor(c, `const d=window.__fakeFs.docs['dashboards/shruti']; return d && d.reader && d.reader.size===4 && d.reader.width===2 && d.reader.font==='sans' && d.reader.lead===2`));
   await shot(c, 'reader-aa-1280');
