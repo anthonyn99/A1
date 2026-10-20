@@ -20,11 +20,12 @@ Live: https://anthonyn99.github.io/A1/Shruti/shruti.html
 | `reader.js` | the Read tab: the exact text, the person's look (Aa), key-verse marks, bookmarks, "back where you were", read-aloud hooks |
 | `narrate.js` | read-aloud: one narrator per page; live Orca speech or a ready-made MP3; word lighting, follow-scroll, mini-player, lock screen, sleep timer, voice/speed sheet, Save narration |
 | `podcast.js` | Listen: the two-host episode player (turn bubbles, lit word, part chips, subtitles, lessons covered, speed, download, mini-player, lock screen) and `build()`/`save()`, which make an episode in the browser from a script (Phase 6 uses them) |
+| `video.js` | Watch: the canvas video player (MAGI Studio's painters in Shruti's colours plus verse, story and lesson layouts; word-level captions; the verse lit as it is read; scrubber, scene board, lessons covered, speed, full screen with landscape on phones, MP4 export, mini-player, lock screen) and `save()` for videos made in Shruti (Phase 6) |
 | `text.js` | DOM-free helpers: a block's spoken text, segments, words, lining the voice's words up with the page's |
 | `styles.css` | the one stylesheet (Tony = MAGI look, Veda = StudyOS look) |
 | `books/gita/` | the shipped Gita: `book.json` (contents), `ch00.json` (introduction), `ch01.json`–`ch18.json`, `lessons.json` |
-| `books/gita/media/` | ready-made media: read-aloud for the introduction and all 18 chapters (Ava; `chNN-read.mp3/.json`, listed in `index.json`) and the podcast for all 18 chapters (Ava and Andrew; `chNN-podcast.mp3/.json`, listed in `podcasts.json`) |
-| `books/gita/scripts/` | the podcast scripts, written by Claude: `chNN-podcast.json` = `{hosts, segments:[{title, turns:[{s, t, L}]}]}`; every lesson of the chapter is tagged (`L`) on the turns that teach it and has its own segment |
+| `books/gita/media/` | ready-made media: read-aloud for the introduction and all 18 chapters (Ava; `chNN-read.mp3/.json`, listed in `index.json`) the podcast for all 18 chapters (Ava and Andrew; `chNN-podcast.mp3/.json`, listed in `podcasts.json`) and the video narration for all 18 chapters (Brian; `chNN-video.mp3/.json`, listed in `videos.json`) |
+| `books/gita/scripts/` | the podcast and video scripts, written by Claude: `chNN-podcast.json` = `{hosts, segments:[{title, turns:[{s, t, L}]}]}`; `chNN-video.json` = `{narrator, scenes:[{layout, headline, visual, say, L, ref, beyond}]}`. Every lesson of the chapter is tagged (`L`) where it is taught and has its own part or scene |
 | `worker/` | `shruti-drive`, the Google Drive media worker (deployed to account 2) |
 | `tools/` | dev tools that build `books/gita` from the PDFs (not loaded by the page) |
 | `tests/` | `*.test.js` run by A1's `npm test` through `tests/shruti.test.js`; `*.live.js` run by hand |
@@ -50,8 +51,8 @@ wiring tests accept that `../` form (`tests/moved.js` `src()`).
 
 | Document | Holds |
 |---|---|
-| `dashboards/shruti` (Tony), `dashboards/shruti_veda` | `orcaKey`; `units.{order,on}`; `progress.<book>.ch<n>.{f, done, modes.<mode>, pos, ra.{i,t}, pod.t, at}` (`pos` = the block at the top of the reader, `ra` = the read-aloud segment and seconds into it, `pod.t` = seconds into the episode); `podcast.{speed,subs}`; `last.{book,n,at}`; `reader.{size,lead,font,width}`; `narration.{voice,speed,follow}`; `bookmarks.<book>.ch<n>.b<block>.{label,at}`; `shelf.order`; `lockV` |
-| `dashboards/shruti_shared` | the shared library's assets: `assets.<book>.ch<n>.read.{voice, engine, duration, mp3:{id}, json:{id}, by, at}` (a narration saved to Drive), `assets.<book>.ch<n>.podcast.{hosts, duration, mp3:{id}, json:{id}, by, at}` (an episode made in Shruti; it wins over the shipped one); later `video`, `study`. A mode badge lights when its asset exists, shipped or saved |
+| `dashboards/shruti` (Tony), `dashboards/shruti_veda` | `orcaKey`; `units.{order,on}`; `progress.<book>.ch<n>.{f, done, modes.<mode>, pos, ra.{i,t}, pod.t, at}` (`pos` = the block at the top of the reader, `ra` = the read-aloud segment and seconds into it, `pod.t` = seconds into the episode, `vid.t` = seconds into the video); `podcast.{speed,subs}`; `video.{speed,cc}`; `last.{book,n,at}`; `reader.{size,lead,font,width}`; `narration.{voice,speed,follow}`; `bookmarks.<book>.ch<n>.b<block>.{label,at}`; `shelf.order`; `lockV` |
+| `dashboards/shruti_shared` | the shared library's assets: `assets.<book>.ch<n>.read.{voice, engine, duration, mp3:{id}, json:{id}, by, at}` (a narration saved to Drive), `assets.<book>.ch<n>.podcast.{hosts, duration, mp3:{id}, json:{id}, by, at}` (an episode made in Shruti; it wins over the shipped one); `assets.<book>.ch<n>.video.{narrator, duration, scenes, mp3:{id}, json:{id}, by, at}` (the same for a video); later `study`. A mode badge lights when its asset exists, shipped or saved |
 
 Writes are field-path merges (`updateDoc` with `a.b.c`); the first write of a missing document is a
 `setDoc` merge. Nothing is written before the document's first snapshot arrives (the write
@@ -107,6 +108,15 @@ Text is exactly the source's. `tools/extract.py` only joins lines, removes line-
 - **Player:** Play / Resume (from `progress…pod.t`), part chips, tap a turn or a word, subtitles (`podcast.subs`), speed (`podcast.speed`), download, the lessons list (each jumps to the first turn that teaches it), the mini-player and the lock screen (previous/next = parts). One thing plays at a time: read-aloud and the episode pause each other (`shruti:playing` event); the mini-player has one `owner`.
 - **Rebuilding:** edit a script, then `magi\.venv\Scripts\python -I Shruti\tools\podcast.py <chapters>` and `node Shruti/tests/podcast.test.js`.
 
+## Watch (the video)
+
+- **Videos:** every chapter ships one: a single narrator (Brian, an Edge voice that is neither podcast host) tells the story with this rendition's verses on screen, flags what comes from the full Gita or the Mahabharata (`beyond`, shown as "The story · beyond this rendition"), and teaches every lesson on its own scene, in order. 5 to 9 minutes each.
+- **Scripts** (`books/gita/scripts/chNN-video.json`): scenes `{layout, headline, visual, say, L, ref, beyond}`. Layouts: `title`, `verse`, `story`, `lesson`, `compare` (rows `left | right`), `steps`, `closing`. A verse scene names `ref`; `tools/video.py` copies the verse from the chapter file exactly as printed (the reader rule: no retyped source text) and puts it where `{verse}` is in `say`, dropping "(Also see …)" for the voice. A lesson scene with no headline takes the lesson's own title from `lessons.json`.
+- **Built byte for byte** like the podcast (`tools/video.py`): each scene is 2 silent clips, the narration, then 3 clips (5 after a verse, so it can be read), padded to a minimum for the title and summary; one MP3 per chapter. Built file: `{v, book, n, title, narrator, duration, scenes:[{…the script…, verse, key, vs, say, start, at, end, words}]}`; `at` is when the voice begins, `words` are relative to it, `vs` are the tokens of `say` that are the verse.
+- **Player:** the pictures are painted live on a 1920×1080 canvas (drawn at the stage's own size, full size for export); each frame is a pure function of the time, so pausing, scrubbing and export land on exactly what played. Word-level captions (`video.cc`) come from the narration's word timings; on a verse scene the verse itself lights word by word instead. Scrubber with scene ticks (lessons gold), previous/next scene, scene board, lessons list (each jumps to the first scene that teaches it), speed (`video.speed`), full screen (a phone turns to landscape; where it can't, the picture turns sideways), keys Space/←/→/F/C, the mini-player and the lock screen (previous/next = scenes). Progress `progress…vid.t`; finishing sets `modes.watch`.
+- **Export:** MediaRecorder records the canvas and the narration (through an AudioContext made on the first export) in real time at 1×, as MP4 where the browser can (Chrome, Edge), else WebM. Browsers without it (iPhone Safari) get a note instead of the button.
+- **Rebuilding:** edit a script, then `magi\.venv\Scripts\python -I Shruti	oolsideo.py <chapters>` and `node Shruti/tests/video.test.js`.
+
 ## The Drive worker (`worker/`, https://shruti-drive.av1-2.workers.dev)
 
 Media (podcasts, videos, narrations, transcripts, imported originals) goes to Tony's Google Drive,
@@ -152,6 +162,8 @@ In Google Cloud Console, project `task-dashboard-d2b53` (the one OneInbox uses):
   Save narration), Tony at 1280 and Veda at 390. Clicks that start audio are real mouse events.
 - `node Shruti/tests/podcast.test.js`: the silent clip's format, every script (two hosts, every lesson tagged and given a part), every episode (matches its script, times from bytes, word timings), `build()` with a fake voice.
 - `node Shruti/tests/podcast.live.js`: the Listen tab (turns, parts, lessons, play, lit turn and word, part chips, tap a word, subtitles, speed, read-aloud and the episode pausing each other, `build()`/`save()`), Tony at 1280 and Veda at 390.
+- `node Shruti/tests/video.test.js`: every video script (one narrator, layouts, every lesson on its own scene in order, verses that exist, text that fits) and every built video (matches its script, verses exactly the book's, times from bytes, whole Edge frames, words line up, captions cover every word), and the timing helpers.
+- `node Shruti/tests/video.live.js`: the Watch tab (cover, play, scene board, lesson jumps, the verse lit as read, every layout drawn and saved as `shruti-frame-*.png`, speed, captions, the video and the podcast pausing each other, `vid.t`, full screen, export start and cancel), Tony at 1280 and Veda at 390.
 - ORCA's side: `npx vitest run src/tts.test.ts` in `ORCA/worker`.
 
 ## Rebuilding the Gita
