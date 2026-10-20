@@ -3,7 +3,7 @@
 // Progress is per person (dashboards/shruti[_veda] -> progress.<book>.ch<n>),
 // even on shared books.
 
-import { me, shared, emit, ls, lsKey } from './core.js';
+import { me, shared, ls, lsKey } from './core.js';
 
 export const SHIPPED = ['gita'];
 const COVERS = { gita: { bg: '#2b2235', tx: '#f2ead8', ac: '#e0b874', kicker: 'Shared' } };
@@ -181,6 +181,7 @@ export async function viewChapter(el, { id, n, mode, go }) {
   else body.innerHTML = '<div class="empty">' + IC[mode] + '<b>' + esc(MODES.find((m) => m.id === mode).label) + ' is not made for this chapter yet</b>' +
     '<span>' + (av[mode] ? '' : mode === 'study' ? 'Flashcards, a quiz, a mind map and slides will be built here from the chapter.' : 'It will tell the chapter\'s story and teach every lesson.') + '</span></div>';
   ls.put(lsKey('lastRoute'), { id, n, mode });
+  markOpened(id, n);
 }
 
 function renderRead(body, ch, book, n) {
