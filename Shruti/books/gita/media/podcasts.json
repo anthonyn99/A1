@@ -1,0 +1,29 @@
+{
+  "1": {
+    "mp3": "ch01-podcast.mp3",
+    "json": "ch01-podcast.json",
+    "duration": 581.424,
+    "hosts": [
+      "Ava",
+      "Andrew"
+    ]
+  },
+  "2": {
+    "mp3": "ch02-podcast.mp3",
+    "json": "ch02-podcast.json",
+    "duration": 900.984,
+    "hosts": [
+      "Ava",
+      "Andrew"
+    ]
+  },
+  "3": {
+    "mp3": "ch03-podcast.mp3",
+    "json": "ch03-podcast.json",
+    "duration": 892.224,
+    "hosts": [
+      "Ava",
+      "Andrew"
+    ]
+  }
+}
