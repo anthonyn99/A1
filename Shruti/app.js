@@ -6,6 +6,7 @@
 import * as C from './core.js';
 import * as O from './orca.js';
 import * as L from './library.js';
+import * as NR from './narrate.js';
 
 const P = C.P, PROFILES = C.PROFILES, GID = window.SHRUTI_GID;
 const DRIVE = 'https://shruti-drive.av1-2.workers.dev';
@@ -336,24 +337,52 @@ async function connectDrive() {
 }
 addEventListener('focus', () => { if ($('#st-drive') && /Google tab/.test($('#st-drive').textContent)) drawDrive(); });
 
-/* ── mini-player (filled by read-aloud, the podcast and the video from Phase 3) */
+/* ── mini-player: read-aloud now; the podcast and the video use it too ───── */
+const PLAY_I = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg>';
+const PAUSE_I = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6.5" y="5" width="4" height="14" rx="1"/><rect x="13.5" y="5" width="4" height="14" rx="1"/></svg>';
+const BACK_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><text x="12" y="15.5" font-size="7.5" font-weight="700" text-anchor="middle" fill="currentColor" stroke="none" font-family="Inter,sans-serif">15</text></svg>';
+const FWD_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/><text x="12" y="15.5" font-size="7.5" font-weight="700" text-anchor="middle" fill="currentColor" stroke="none" font-family="Inter,sans-serif">15</text></svg>';
+const MORE_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>';
+const CLOSE_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
 export const player = {
-  show({ title, sub, onToggle } = {}) {
+  /** show({title, sub, onToggle, onBack, onFwd, onMore, onOpen, onClose}): a
+   *  control appears only when its handler is given. */
+  show(o = {}) {
     const m = $('#mini');
-    m.innerHTML = '<div class="mp"><div class="art">' + L.IC.listen + '</div><div class="tt"><b>' + esc(title || '') + '</b><span>' + esc(sub || '') + '</span></div>' +
-      '<div class="ctl"><button class="ib" data-mp="toggle" aria-label="Play or pause">' + L.IC.play + '</button>' +
-      '<button class="ib" data-mp="close" aria-label="Close">' + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div><div class="bar"></div></div>';
+    const b = (k, icon, label, cls) => '<button class="ib' + (cls ? ' ' + cls : '') + '" data-mp="' + k + '" aria-label="' + label + '" title="' + label + '">' + icon + '</button>';
+    m.innerHTML = '<div class="mp"><button class="art" data-mp="open" aria-label="Open the chapter">' + L.IC.listen + '</button>' +
+      '<button class="tt" data-mp="open"><b>' + esc(o.title || '') + '</b><span>' + esc(o.sub || '') + '</span></button>' +
+      '<div class="ctl">' + (o.onBack ? b('back', BACK_I, 'Back 15 seconds', 'skip') : '') + b('toggle', PLAY_I, 'Play', 'pp') + (o.onFwd ? b('fwd', FWD_I, 'Forward 15 seconds', 'skip') : '') +
+      (o.onMore ? b('more', MORE_I, 'Voice, speed and sleep timer', 'more') : '') + b('close', CLOSE_I, 'Close') + '</div><div class="bar"></div></div>';
     m.hidden = false;
     document.documentElement.style.setProperty('--mini-h', '74px');
-    m.querySelector('[data-mp="toggle"]').addEventListener('click', () => onToggle && onToggle());
-    m.querySelector('[data-mp="close"]').addEventListener('click', () => player.hide());
+    const on = { toggle: o.onToggle, back: o.onBack, fwd: o.onFwd, more: o.onMore, open: o.onOpen };
+    m.querySelectorAll('[data-mp]').forEach((x) => x.addEventListener('click', () => {
+      const k = x.dataset.mp;
+      if (k === 'close') { if (o.onClose) o.onClose(); player.hide(); return; }
+      if (on[k]) on[k]();
+    }));
   },
+  setPlaying(playing, busy) {
+    const t = $('#mini [data-mp="toggle"]'); if (!t) return;
+    t.innerHTML = playing ? PAUSE_I : PLAY_I;
+    t.setAttribute('aria-label', playing ? 'Pause' : 'Play'); t.title = playing ? 'Pause' : 'Play';
+    t.classList.toggle('busy', !!busy);
+  },
+  setSub(sub) { const s = $('#mini .tt span'); if (s) s.textContent = sub || ''; },
   progress(f) { const b = $('#mini .bar'); if (b) b.style.width = (Math.max(0, Math.min(1, f)) * 100).toFixed(2) + '%'; },
   hide() { const m = $('#mini'); m.hidden = true; m.innerHTML = ''; document.documentElement.style.removeProperty('--mini-h'); },
 };
+NR.setUI({ player, toast, openSettings: () => openSettings(), go: (h) => go(h) });
+
+// Space plays and pauses read-aloud, unless typing or on a control.
+addEventListener('keydown', (e) => {
+  if (e.key !== ' ' || !NR.state.mode || e.target.closest('input,textarea,select,button,[contenteditable],[role=radio]')) return;
+  e.preventDefault(); NR.toggle();
+});
 
 /* ── start ────────────────────────────────────────────────────────────────── */
-window.Shruti = { go, player, toast, core: C, orca: O, library: L, openSettings };
+window.Shruti = { go, player, toast, core: C, orca: O, library: L, narrate: NR, openSettings };
 if (window.SHRUTI_STORAGE_BLOCKED) setTimeout(() => toast('This browser blocks storage: Shruti works, but this device will not remember choices.', true), 1200);
 if (!P) showPicker();
 else openGate();
