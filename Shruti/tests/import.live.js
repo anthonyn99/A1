@@ -160,7 +160,7 @@ const imp = (x) => `const IMP = await import(new URL('import.js', location.href)
   await click(c, '[data-ai]');
   ok('Find chapters with AI asks Orca, streaming', await waitFor(c, `/found/.test(document.querySelector('.imp-run')?.textContent||'')`, 15000), await ev(c, `return document.querySelector('.imp-run')?.textContent`));
   ok('…3 found, 1 moved to its real first words, 1 left out', /3 found, 1 moved .* 1 left out/.test(await ev(c, `return document.querySelector('.imp-run .stat').textContent`)), await ev(c, `return document.querySelector('.imp-run .stat').textContent`));
-  ok('…the ask was the numbered paragraphs', S.chats.length === 1 && /2 \[H2\] \| Chapter 1: Morning/.test(S.chats[0].body) && /"anchor"/.test(S.chats[0].body));
+  ok('…the ask was the numbered paragraphs', S.chats.length === 1 && /2 \[H2\] \| Chapter 1: Morning/.test(S.chats[0].body) && /\\"anchor\\"/.test(S.chats[0].body), S.chats.length + ' ' + (S.chats[0] && S.chats[0].body.slice(0, 900)));
   ok('the parts: the opening pages, then the AI\'s three, titles and author from it', (await texts(c, '.imp-ch', '.imp-t')) === 'Opening pages|Morning|Noon|Night' && (await ev(c, `return document.querySelector('#imp-title').value+'/'+document.querySelector('#imp-author').value`)) === 'The Little Book of Days/A. Writer', await texts(c, '.imp-ch', '.imp-t'));
   await click(c, '[data-split]', 1);
   ok('Split lists where a new part can start', await waitFor(c, `document.querySelectorAll('.imp-split [data-at]').length===1`));
@@ -348,6 +348,7 @@ const imp = (x) => `const IMP = await import(new URL('import.js', location.href)
   await click(c, '#make-ai');
   ok('three versions: your notes, then newest first', await waitFor(c, `[...document.querySelectorAll('.gv')].map(e=>e.dataset.dkey).join()==='orig,v2,v1'`), await keysOf(c, '.gv'));
   await mouseDrag(c, '.gv', 2, 0, { edge: 0.5 });
+  console.log('    (debug) ' + await ev(c, `return JSON.stringify({o: window.Shruti.core.me.get('order.ver',null), cls: document.querySelector('.gvs')?.className, a: !!window.A1Drag})`));
   ok('a version drags to the top (order.ver.gita.ch4.lessons)', (await keysOf(c, '.gv')) === 'v1|orig|v2' && (await ev(c, `return (window.Shruti.core.me.get('order.ver.gita.ch4.lessons',[])||[]).join()`)) === 'v1,orig,v2', await keysOf(c, '.gv'));
   ok('…and the drop did not feature it', await ev(c, `return !window.Shruti.core.shared.get('assets.gita.ch4.lessons',null)`));
   await ev(c, `document.querySelector('.gv[data-dkey=v2] .gv-pick').click(); return 1`);
@@ -410,7 +411,7 @@ const imp = (x) => `const IMP = await import(new URL('import.js', location.href)
   const docs2 = await ev(c, `return sessionStorage.getItem('__fakefs_docs')`);
   await load(c, { w: 390, h: 844, mobile: true, store: "sessionStorage.setItem('__fakefs_docs'," + JSON.stringify(docs2) + "); sessionStorage.setItem('shruti.pick','tony');", hash: '#/' });
   await waitFor(c, `!!window.Shruti && window.Shruti.core.me.loaded && !!document.querySelector('#shelf-mine')`, 15000);
-  ok('Tony\'s shelves on his phone: his order followed him', (await keysOf(c, '#shelf-shared .book')) === 'gita|' + sharedId && document && (await ev(c, `return document.documentElement.scrollWidth<=innerWidth`)));
+  ok('Tony\'s shelves on his phone: his order followed him', (await keysOf(c, '#shelf-shared .book')) === 'gita|' + sharedId && (await ev(c, `return document.documentElement.scrollWidth<=innerWidth`)));
   await shot(c, 'import-library-tony-390');
   RUN = String(Date.now());
   await load(c, { w: 1280, h: 900, mobile: false, store: "sessionStorage.setItem('__fakefs_docs'," + JSON.stringify(docs2) + "); sessionStorage.setItem('shruti.pick','veda');", hash: '#/b/' + sharedId });
