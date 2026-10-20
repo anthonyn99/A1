@@ -244,8 +244,7 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   d = await doc();
   ok('a second import leaves the existing page untouched', d.e_prayer.data.html === TEST.pages.prayer);
 
-  console.log('
-An import link can add a Mindset card');
+  console.log('\nAn import link can add a Mindset card');
   const carry = async () => `sessionStorage.setItem('__fakefs_docs', ${JSON.stringify(JSON.stringify(await js(`return JSON.stringify({ 'dashboards/everwell_notes': __fakeFs.docs['dashboards/everwell_notes'], 'dashboards/everwell_tony': __fakeFs.docs['dashboards/everwell_tony'] });`).then(JSON.parse)))});`;
   const vLink = link({ mindset: [{ title: "Veda's Expectations", html: '<h2>How We Handle Things</h2><h3>1. Ask, do not assume.</h3><p>Ask me directly.</p><p><em>Me: I will answer openly.</em></p><ul><li>One</li></ul>' }] });
   const vBefore = await js(`return __fakeFs.docs['dashboards/everwell_tony'].mindsetPages.length;`);
