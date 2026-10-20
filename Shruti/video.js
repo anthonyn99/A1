@@ -40,7 +40,7 @@ export function onChange(f) { listeners.add(f); return () => listeners.delete(f)
 const emit = () => listeners.forEach((f) => { try { f(V); } catch (e) {} });
 const keyOf = () => String(C.me.get('orcaKey', '') || '');
 export const prefs = () => Object.assign({ speed: 1, cc: true }, C.me.get('video', {}) || {});
-export function setPref(k, v) { C.me.set({ ['video.' + k]: v }); if (k === 'speed' && audio && !V.rec) audio.playbackRate = v; emit(); if (V.view) V.view.draw(); }
+export function setPref(k, v) { C.me.set({ ['video.' + k]: v }); if (k === 'speed' && audio && !V.rec) audio.playbackRate = v; emit(); paint(); if (V.view) V.view.draw(); }
 export const now = () => (audio ? audio.currentTime || 0 : 0);
 
 /* ── what exists ─────────────────────────────────────────────────────────── */
