@@ -745,6 +745,15 @@ function _tjApplyRemote(remote) {
     } else {
       localById[remoteEntry.id] = remoteEntry;
     }
+    // The title box too (the Brainstorm twin does it per template). Left stale,
+    // the next save read the old title out of it and wrote it back over the
+    // newer one (Everwell's Rename, 2026-10-20). While Tony types in it, his
+    // title stays.
+    var _tiR = document.getElementById('tj-entry-title-input'), _mR = localById[remoteEntry.id];
+    if (_tiR && _mR && _mR !== local && _tjDomOwner === remoteEntry.id) {
+      if (focused === _tiR) _mR.title = _tiR.value;
+      else _tiR.value = _mR.title || '';
+    }
   });
 
   // Apply the authoritative trash/recover winner to the merged entries so a
