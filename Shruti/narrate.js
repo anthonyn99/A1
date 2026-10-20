@@ -337,7 +337,7 @@ function followTo(el) {
 /** The person scrolled the page themselves: stop following until they come back. */
 function userScrolled(e) {
   if (!N.playing || !viewOk() || !N.follow) return;
-  if (e.type === 'keydown' && !['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(e.key)) return;
+  if (e.type === 'keydown' && !['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(e.key)) return;
   if (e.type === 'keydown' && e.target && e.target.closest && e.target.closest('input,textarea,button,[role=radio]')) return;
   if (!N.away) { N.away = true; emit(); }
 }
