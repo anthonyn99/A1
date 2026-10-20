@@ -45,7 +45,13 @@
     {
      "t": "Basically, there are only two types of human beings in this world: The divine, and the demonic. The divine has been described at length. Now hear from Me about the demonic, O Arjuna.",
      "v": "16.06",
-     "key": true
+     "key": true,
+     "hl": [
+      [
+       0,
+       95
+      ]
+     ]
     },
     {
      "t": "Persons of demonic nature do not know what to do and what not to do. They have neither purity nor good conduct nor truthfulness.",

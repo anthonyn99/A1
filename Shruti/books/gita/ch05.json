@@ -66,7 +66,17 @@
     {
      "t": "One who does all work as an offering to the Lord — abandoning attachment to the results — remains untouched by Karmic reaction or sin as a lotus leaf never gets wet by water, while living in it.",
      "v": "5.10",
-     "key": true
+     "key": true,
+     "hl": [
+      [
+       0,
+       112
+      ],
+      [
+       113,
+       194
+      ]
+     ]
     },
     {
      "t": "The Karma-yogis perform action —without attachment — with their body, mind, intellect, and senses only for self-purification.",
@@ -124,7 +134,21 @@
     {
      "t": "An enlightened person — by perceiving the Lord in all — looks at a learned and humble priest, an outcast, even a cow, an elephant, or a dog with an equal eye.",
      "v": "5.18",
-     "key": true
+     "key": true,
+     "hl": [
+      [
+       0,
+       21
+      ],
+      [
+       24,
+       53
+      ],
+      [
+       56,
+       158
+      ]
+     ]
     },
     {
      "t": "Everything has been accomplished in this very life by the one whose mind is set in equality. Such a person has realized God, because God is flawless and impartial.",
@@ -139,7 +163,17 @@
     {
      "t": "Such a person who is in union with the Supreme Being becomes unattached to sensual pleasures by discovering the joy of the Self through contemplation, and enjoys spiritual bliss.",
      "v": "5.21",
-     "key": true
+     "key": true,
+     "hl": [
+      [
+       0,
+       34
+      ],
+      [
+       47,
+       178
+      ]
+     ]
     },
     {
      "t": "Sensual pleasures are, in truth, the source of misery, and have a beginning and an end. Therefore, the wise do not rejoice sensual pleasures.",

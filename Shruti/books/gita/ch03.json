@@ -13,7 +13,17 @@
     {
      "t": "The Supreme Lord said: In this world, O Arjuna, a twofold path of spiritual discipline has been stated by Me in the past — the path of Self-knowledge for the contemplative, introverts and the path of unselfish work (Seva, Karma-yoga) for all others.",
      "v": "3.03",
-     "key": true
+     "key": true,
+     "hl": [
+      [
+       0,
+       219
+      ],
+      [
+       220,
+       249
+      ]
+     ]
     },
     {
      "t": "One does not attain freedom from the bondage of Karma by merely abstaining from work. No one attains perfection by merely giving up work.",
@@ -86,7 +96,13 @@
     {
      "t": ". The physical body of living beings is made up of and sustained by food; food is created by God from five basic elements. God is pleased by the sacrifice (Qurbani) of self-interest: The selfless philanthropic work, and blesses selfless persons. Selfless work or sacrifice is our duty. Duty is prescribed in the scriptures. The scriptures come from God. Thus, the all-pervading God is ever present in selfless service, Seva.",
      "v": "3.14-15",
-     "key": false
+     "key": false,
+     "hl": [
+      [
+       123,
+       245
+      ]
+     ]
     },
     {
      "t": "One who does not help to keep the wheel of creation in motion by sacrificial duty and who rejoices sense pleasures only, that sinful person lives in vain, O Arjuna.",
@@ -101,7 +117,13 @@
     {
      "t": "Such a person has no interest, whatsoever, in what is done or what is not done. A Self-realized person does not depend on anybody, except God, for anything.",
      "v": "3.18",
-     "key": true
+     "key": true,
+     "hl": [
+      [
+       80,
+       156
+      ]
+     ]
     }
    ]
   },
@@ -115,7 +137,13 @@
     {
      "t": "Therefore, always perform your duty efficiently and without any attachment to the results, because by doing work without attachment one attains the Supreme Being.",
      "v": "3.19",
-     "key": true
+     "key": true,
+     "hl": [
+      [
+       64,
+       162
+      ]
+     ]
     },
     {
      "t": "King Janaka and others attained perfection (or Self-realization) by selfless service (Karma-yoga) alone. You should also perform your duty with a view to guide people, and for universal welfare of the society.",

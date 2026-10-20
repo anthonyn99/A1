@@ -217,7 +217,29 @@
     {
      "t": "They attain the Supreme, who perceive the difference between body and spirit with the eye of Self-knowledge, and know the techniques — by using any one of the five paths: Selfless service, Knowledge, Devotion, Meditation, and Surrender — of liberation of the living entity (Jiva) from the trap of divine illusory energy (Maya).",
      "v": "13.34",
-     "key": true
+     "key": true,
+     "hl": [
+      [
+       0,
+       69
+      ],
+      [
+       77,
+       132
+      ],
+      [
+       238,
+       322
+      ],
+      [
+       323,
+       324
+      ],
+      [
+       325,
+       327
+      ]
+     ]
     }
    ]
   }

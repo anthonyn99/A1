@@ -27,7 +27,21 @@
     {
      "t": "O Arjuna, the faith of each is in accordance with one’s own natural disposition governed by Karmic impressions. One is known by one’s faith. One can become whatever one wants to be — if one constantly contemplates the object of desire with faith.",
      "v": "17.03",
-     "key": true
+     "key": true,
+     "hl": [
+      [
+       0,
+       93
+      ],
+      [
+       94,
+       180
+      ],
+      [
+       183,
+       246
+      ]
+     ]
     },
     {
      "t": "Persons in the mode of goodness worship celestial controllers; those in the mode of passion worship supernatural rulers and demons; and those in the mode of ignorance worship ghosts and spirits.",

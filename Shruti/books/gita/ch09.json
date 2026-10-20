@@ -192,7 +192,13 @@
     {
      "t": "Whosoever offers Me a leaf, a flower, a fruit, or water with devotion, I accept and eat the offering of devotion by the purehearted.",
      "v": "9.26",
-     "key": true
+     "key": true,
+     "hl": [
+      [
+       63,
+       132
+      ]
+     ]
     },
     {
      "t": "O Arjuna, whatever you do, whatever you eat, whatever you offer as oblation to the sacred fire, whatever charity you give, whatever austerity you perform, do all that as an offering unto Me.",

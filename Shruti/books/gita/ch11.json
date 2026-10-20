@@ -193,7 +193,13 @@
     {
      "t": "Therefore get up and attain glory. Conquer your enemies, and enjoy a prosperous kingdom. All these warriors have already been destroyed by Me. You be a mere My instrument, O Arjuna.",
      "v": "11.33",
-     "key": false
+     "key": false,
+     "hl": [
+      [
+       143,
+       181
+      ]
+     ]
     }
    ]
   },

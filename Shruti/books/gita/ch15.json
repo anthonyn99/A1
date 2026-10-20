@@ -109,7 +109,21 @@
     {
      "t": "And I am seated in the inner psyche of all beings. Memory, Self-knowledge, and removal of doubts and wrong notions (about the Eternal Being by reasoning or in trance (Samadhi)) come from Me. I am to be known by the study of all the Vedas. I am, indeed, the author of the Vedanta and the knower of the Vedas.",
      "v": "15.15",
-     "key": true
+     "key": true,
+     "hl": [
+      [
+       0,
+       170
+      ],
+      [
+       171,
+       274
+      ],
+      [
+       275,
+       307
+      ]
+     ]
     }
    ]
   },

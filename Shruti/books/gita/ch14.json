@@ -148,7 +148,13 @@
     {
      "t": "When one rises above the three modes of material Nature that originate in the body, one attains immortality or salvation (Mukti) and is freed from the pains of birth, old age, and death.",
      "v": "14.20",
-     "key": true
+     "key": true,
+     "hl": [
+      [
+       5,
+       186
+      ]
+     ]
     }
    ]
   },
@@ -186,7 +192,17 @@
     {
      "t": "One who offers service to Me with love and unswerving devotion, rises above three modes of material Nature and becomes fit for Nirvana.",
      "v": "14.26",
-     "key": true
+     "key": true,
+     "hl": [
+      [
+       0,
+       131
+      ],
+      [
+       132,
+       135
+      ]
+     ]
     },
     {
      "t": "Because I am the basis of the immortal Eternal Being, of everlasting order (Dharma), and of the absolute bliss.",

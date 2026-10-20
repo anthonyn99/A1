@@ -90,7 +90,29 @@
     {
      "t": "This divine power (Maya) of Mine, consisting of three modes (Gunas) of Nature, is very difficult to overcome. Only those who surrender unto Me can easily cross over this Maya.",
      "v": "7.14",
-     "key": true
+     "key": true,
+     "hl": [
+      [
+       0,
+       20
+      ],
+      [
+       21,
+       22
+      ],
+      [
+       23,
+       171
+      ],
+      [
+       172,
+       173
+      ],
+      [
+       174,
+       175
+      ]
+     ]
     },
     {
      "t": "The evil doers, the ignorant, the lowest persons who are attached to demonic nature and whose power of discrimination has been taken away by divine illusive power (Maya) do not worship or seek Me.",
@@ -159,7 +181,25 @@
     {
      "t": "Concealed by My divine power (Maya), I do not reveal Myself to the ignorant ones, who do not know and understand My unborn, eternal, transcendental form and personality — and consider Me formless!",
      "v": "7.25",
-     "key": true
+     "key": true,
+     "hl": [
+      [
+       0,
+       31
+      ],
+      [
+       32,
+       33
+      ],
+      [
+       34,
+       168
+      ],
+      [
+       171,
+       196
+      ]
+     ]
     }
    ]
   },
