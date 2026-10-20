@@ -98,7 +98,9 @@ export function cuesFor(sc) {
   let from = 0, len = 0;
   toks.forEach((tk, k) => {
     len += tk.length + 1;
-    const end = /[.!?]["'’”)]*$/.test(tk) ? len > 18 : /[,;:—–]["'’”)]*$/.test(tk) ? len > 34 : false;
+    // A verse is never split across a piece with the words around it.
+    const edge = sc.vs && (k + 1 === sc.vs[0] || k + 1 === sc.vs[1]);
+    const end = edge || (/[.!?]["'’”)]*$/.test(tk) ? len > 18 : /[,;:—–]["'’”)]*$/.test(tk) ? len > 34 : false);
     const next = toks[k + 1];
     if (end || k === toks.length - 1 || (next && len + next.length > CUE_MAX)) { cues.push({ from, to: k + 1, t0: at[from] }); from = k + 1; len = 0; }
   });
@@ -173,7 +175,6 @@ function kicker(ctx, s, x, y, col, align = 'left', size = 26) {
 function chip(ctx, s, x, y, col) {
   ctx.font = fLabel(22);
   const w = ctx.measureText(s).width + 36;
-  ctx.globalAlpha *= 1;
   ctx.fillStyle = 'rgba(255,255,255,.06)'; rr(ctx, x, y, w, 44, 22); ctx.fill();
   ctx.strokeStyle = col; ctx.lineWidth = 2; rr(ctx, x, y, w, 44, 22); ctx.stroke();
   ctx.fillStyle = col; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(s, x + 18, y + 23);
@@ -436,7 +437,8 @@ export function frame(ctx, meta, T0, opts = {}) {
   let lit = -1;
   if (sc.layout === 'verse' && sc.vs) {
     const k = tokenAt(sc.cc, sc.words, into);
-    lit = opts.still && T0 - sc.start < 0.3 ? Infinity : k < sc.vs[0] ? -1 : k >= sc.vs[1] || into > sc.cc.cues[sc.cc.cues.length - 1].t1 ? Infinity : k - sc.vs[0];
+    const cues = sc.cc.cues, over = !cues.length || into > cues[cues.length - 1].t1;
+    lit = opts.still && T0 - sc.start < 0.3 ? Infinity : k < sc.vs[0] ? -1 : k >= sc.vs[1] || over ? Infinity : k - sc.vs[0];
   }
   const v = { meta, i, lit, speech: Math.max(1, sc.end - sc.at - 0.9), lessonCount: opts.lessonCount || 0 };
   const L = opts.layer || ctx;
@@ -451,7 +453,7 @@ export function frame(ctx, meta, T0, opts = {}) {
     ctx.globalAlpha = 1;
   }
   chrome(ctx, meta, i, T0, sc, t);
-  if (opts.cc && sc.layout !== 'verse') caption(ctx, sc, into, acc);
+  if (opts.cc) caption(ctx, sc, into, acc);
 }
 function chrome(ctx, meta, i, T0, sc, t) {
   ctx.font = fLabel(22); ctx.fillStyle = K.txd; ctx.textBaseline = 'top';
@@ -473,7 +475,8 @@ function caption(ctx, sc, into, acc) {
   const cc = sc.cc;
   if (!cc || !cc.cues.length || into < 0 || into > cc.cues[cc.cues.length - 1].t1) return;
   const k = tokenAt(cc, sc.words, into);
-  if (k < 0) return;
+  // On a verse scene the verse lights on its own; captions only around it.
+  if (k < 0 || (sc.vs && k >= sc.vs[0] && k < sc.vs[1])) return;
   const cue = cc.cues.find((c) => k >= c.from && k < c.to) || cc.cues[0];
   const toks = cc.toks.slice(cue.from, cue.to);
   ctx.font = fBody(600)(42);
@@ -812,7 +815,11 @@ export async function renderWatch(body, { book, n, title, lessons }) {
   playBtn.addEventListener('click', toggleHere);
   ovPlay.addEventListener('click', (e) => { e.stopPropagation(); toggleHere(); });
   cover.addEventListener('click', (e) => { e.stopPropagation(); toggleHere(); });
-  canvas.addEventListener('click', () => { if (stage.classList.contains('pfs') || document.fullscreenElement === stage) { wake(); if (!V.playing) toggleHere(); else if (Date.now() - wokeAt > 400) toggleHere(); } else toggleHere(); });
+  // Full screen on a phone: a tap first shows the controls, a second pauses.
+  canvas.addEventListener('click', () => {
+    if (isFs() && V.playing && !stage.classList.contains('awake')) { wake(); return; }
+    wake(); toggleHere();
+  });
   root.querySelector('[data-prev]').addEventListener('click', () => !V.rec && stepScene(-1));
   root.querySelector('[data-next]').addEventListener('click', () => !V.rec && stepScene(1));
   root.querySelectorAll('[data-speed]').forEach((b) => b.addEventListener('click', () => setPref('speed', Number(b.dataset.speed))));
@@ -864,8 +871,8 @@ export async function renderWatch(body, { book, n, title, lessons }) {
   document.addEventListener('fullscreenchange', onFs);
   document.addEventListener('webkitfullscreenchange', onFs);
   // The overlay controls show on a touch or a move, and while paused.
-  let wokeAt = 0, sleepT = 0;
-  function wake() { wokeAt = Date.now(); stage.classList.add('awake'); clearTimeout(sleepT); sleepT = setTimeout(() => stage.classList.remove('awake'), 2600); }
+  let sleepT = 0;
+  function wake() { stage.classList.add('awake'); clearTimeout(sleepT); sleepT = setTimeout(() => stage.classList.remove('awake'), 2600); }
   stage.addEventListener('pointermove', wake);
 
   // Keys, while this tab is on screen (Space is the shell's: app.js).
