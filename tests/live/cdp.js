@@ -113,7 +113,7 @@ const PAGES_URL = PAGES + 'magi.html';
 // (tests/live/theme-shots.live.js).
 const A1 = path.resolve(process.env.A1_ROOT || path.join(__dirname, '..', '..'));
 const MOVED = /^(?:(?:tradehub|insight|vault|riftiq|everwell)\.html$|Vault\/)/;   // tests/moved.js
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css',
   '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.mp3': 'audio/mpeg' };
 
 // On the real origin, App Check could succeed where file:// never could, and a
