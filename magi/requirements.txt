@@ -10,4 +10,4 @@ pytest>=8.0
 pytest-asyncio>=0.24
 httpx>=0.27
 keyring>=25.0
-edge-tts>=7.0
+edge-tts>=7.3.1  # 7.3 speaks Microsoft's v2 Sec-MS-GEC token (2026-10); older gets 403
