@@ -1,0 +1,49 @@
+{
+  "n": 0,
+  "title": "Introduction",
+  "flashcards": [
+    { "front": "What does \"Bhagavad-Gita\" mean?", "back": "Bhagavad means the Supreme Being (Bhagavan); Gita means song. So it is the Song of God, the Celestial Song, sung by Lord Krishna." },
+    { "front": "The two universal questions the Gita answers", "back": "Who am I? And how can I lead a happy and peaceful life in a world full of dualities and dilemmas?" },
+    { "front": "The prime message of the Gita", "back": "The ultimate purpose of life is to realize one's essential nature and become one with the Supreme Self within all of us." },
+    { "front": "Humanity's greatest predicament, says the introduction", "back": "Ignorance of spiritual knowledge: not knowing our real identity." },
+    { "front": "Three paths the Gita harmonizes without conflict", "back": "Duty, devotion and Self-knowledge." },
+    { "front": "Religion and spirituality, as the introduction contrasts them", "back": "Religion tends to build walls of division; spirituality unites people by breaking those walls. A spiritual person is a friend of all and a foe of none." },
+    { "front": "How many verses and chapters, and where are they recorded?", "back": "700 verses in 18 chapters, recorded in the Mahabharata, the world's longest epic, with over 100,000 verses." },
+    { "front": "Pandavas and Kauravas", "back": "The five sons of King Pandu are the Pandavas. The hundred sons of the blind Dhritarashtra are the Kauravas; Duryodhana is the eldest." },
+    { "front": "Why the war became inevitable", "back": "Duryodhana unlawfully took the Pandavas' whole kingdom and refused to return even an acre without a war. All mediation, Krishna's included, failed." },
+    { "front": "Arjuna's dilemma", "back": "Fight for his right as a matter of duty, killing his revered guru, friends and relatives, or run from the battlefield for the sake of peace and nonviolence." },
+    { "front": "Why call Arjuna's dilemma universal?", "back": "Every person faces dilemmas, big or small, in doing their duties every day. Arjuna's was simply a big one." },
+    { "front": "Who narrates the Gita, and to whom?", "back": "Sanjaya, the charioteer, tells the blind king Dhritarashtra as an eyewitness war report." },
+    { "front": "Where does the discourse happen?", "back": "Not in a temple, forest or on a mountain, but on a battlefield, on the eve of a great war, near present-day New Delhi." }
+  ],
+  "quiz": [
+    { "text": "What does \"Gita\" mean?", "options": { "A": "Book", "B": "Song", "C": "Battle", "D": "Teacher" }, "correct": "B", "why": "Bhagavad-Gita means the Song of God: Bhagavad is the Supreme Being, Gita is song." },
+    { "text": "According to the introduction, what is humanity's greatest predicament?", "options": { "A": "War and conflict", "B": "Poverty", "C": "Not knowing our real identity", "D": "Too many religions" }, "correct": "C", "why": "Ignorance of spiritual knowledge, not knowing who we really are, is called our greatest predicament." },
+    { "text": "How many verses does the Gita have?", "options": { "A": "100", "B": "700", "C": "1,800", "D": "100,000" }, "correct": "B", "why": "700 verses in 18 chapters; the Mahabharata around it has over 100,000." },
+    { "text": "Who tells the blind king what happened on the battlefield?", "options": { "A": "Arjuna", "B": "Duryodhana", "C": "Sanjaya", "D": "Pandu" }, "correct": "C", "why": "Sanjaya, his charioteer, gives an eyewitness war report." },
+    { "text": "Why did Pandu, not Dhritarashtra, inherit the kingdom?", "options": { "A": "Pandu was older", "B": "Dhritarashtra was born blind", "C": "Dhritarashtra refused it", "D": "Krishna chose Pandu" }, "correct": "B", "why": "Dhritarashtra was born blind, so the kingdom passed to Pandu." },
+    { "text": "Which three teachings does the Gita harmonize?", "options": { "A": "Wealth, power and fame", "B": "Ritual, sacrifice and law", "C": "Duty, devotion and Self-knowledge", "D": "Fasting, silence and pilgrimage" }, "correct": "C", "why": "The introduction says duty, devotion and Self-knowledge are synthesized without conflict." },
+    { "text": "What change does the Gita ask of a reader's faith or lifestyle?", "options": { "A": "A full conversion", "B": "Living as a monk", "C": "None: anyone can be helped by a few of its teachings", "D": "Joining a temple" }, "correct": "C", "why": "\"No change of one's faith or life-style is needed!\"" },
+    { "text": "Why does the introduction tell the history of the war?", "options": { "A": "To praise warfare", "B": "So Krishna's advice to fight is not mistaken for rejecting nonviolence", "C": "To list the kings of India", "D": "To date the Vedas" }, "correct": "B", "why": "Without the background, \"get up and fight\" could be misread against the principle of nonviolence (Ahinsa)." }
+  ],
+  "mindmap": {
+    "root": "The Bhagavad-Gita",
+    "branches": [
+      { "text": "What it is", "children": [{ "text": "The Song of God" }, { "text": "700 verses, 18 chapters" }, { "text": "Part of the Mahabharata" }] },
+      { "text": "Its prime message", "children": [{ "text": "Realize your essential nature" }, { "text": "Become one with the Supreme Self" }, { "text": "Who am I? How to live in peace?" }] },
+      { "text": "Its method", "children": [{ "text": "Duty" }, { "text": "Devotion" }, { "text": "Self-knowledge" }] },
+      { "text": "The background", "children": [{ "text": "Pandavas and Kauravas" }, { "text": "Duryodhana seizes the kingdom" }, { "text": "Mediation fails: war" }] },
+      { "text": "The setting", "children": [{ "text": "A battlefield, not a temple" }, { "text": "Krishna and Arjuna" }, { "text": "Sanjaya reports to the blind king" }] },
+      { "text": "Arjuna's dilemma", "children": [{ "text": "Fight as duty" }, { "text": "Or run away for peace" }, { "text": "Everyone's dilemma" }] }
+    ]
+  },
+  "slides": [
+    { "title": "The Song of God", "bullets": ["An introduction to the Bhagavad-Gita", "Krishna and Arjuna on the eve of war"] },
+    { "title": "Two universal questions", "bullets": ["Who am I?", "How can I live happily and peacefully in a world of dualities?"] },
+    { "title": "The prime message", "bullets": ["Realize your essential nature", "Become one with the Supreme Self within all", "Ignorance of who we are is our greatest predicament"] },
+    { "title": "One harmony of three paths", "bullets": ["Duty, devotion and Self-knowledge", "Brought together without conflict", "Spirituality unites where religion can divide"] },
+    { "title": "Where the Gita comes from", "bullets": ["700 verses in 18 chapters", "Inside the Mahabharata, over 100,000 verses", "Sanjaya reports it to the blind king Dhritarashtra"] },
+    { "title": "How the war came", "bullets": ["Pandavas: the five sons of Pandu", "Kauravas: the hundred sons of Dhritarashtra", "Duryodhana seized the kingdom; mediation failed"] },
+    { "title": "Arjuna's dilemma is ours", "bullets": ["Fight as duty, or flee for peace?", "Every person faces dilemmas in their duties", "The Gita is the answer, one verse at a time"] }
+  ]
+}
