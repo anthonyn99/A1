@@ -169,7 +169,9 @@ const prog = (c, path) => ev(c, `return JSON.stringify(window.Shruti.core.me.get
   await key(c, 'Escape', 'Escape');
   ok('Esc leaves the presentation on that slide', await waitFor(c, `!document.querySelector('.sd-present') && document.querySelector('.sd-count').textContent==='3 / ${set4.slides.length}'`));
   await ev(c, `[...document.querySelectorAll('.st-actions .btn')].find(b=>/Narrate deck/.test(b.textContent)).click(); return 1`);
-  ok('Narrate deck asks Orca for the slide\'s voice and plays', await waitFor(c, `[...document.querySelectorAll('.st-actions .btn')].some(b=>/Stop narration|Getting the voice/.test(b.textContent))`) && (await waitFor(c, `true`)) && S.speech >= 1, 'speech calls: ' + S.speech);
+  const started = await waitFor(c, `[...document.querySelectorAll('.st-actions .btn')].some(b=>/Stop narration|Getting the voice/.test(b.textContent))`);
+  for (const t0 = Date.now(); S.speech < 1 && Date.now() - t0 < 8000;) await sleep(100);
+  ok('Narrate deck asks Orca for the slide\'s voice and plays', started && S.speech >= 1, 'speech calls: ' + S.speech);
   await ev(c, `[...document.querySelectorAll('.st-actions .btn')].find(b=>/Stop narration|Getting/.test(b.textContent)).click(); return 1`);
   ok('…and stops', await waitFor(c, `[...document.querySelectorAll('.st-actions .btn')].some(b=>/Narrate deck/.test(b.textContent))`));
   await shot(c, 'study-slides-tony-1280');
