@@ -8,6 +8,7 @@ import * as O from './orca.js';
 import * as L from './library.js';
 import * as NR from './narrate.js';
 import * as POD from './podcast.js';
+import * as VID from './video.js';
 
 const P = C.P, PROFILES = C.PROFILES, GID = window.SHRUTI_GID;
 const DRIVE = 'https://shruti-drive.av1-2.workers.dev';
@@ -350,7 +351,7 @@ const CLOSE_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stro
 export const player = {
   /** show({title, sub, onToggle, onBack, onFwd, onMore, onOpen, onClose}): a
    *  control appears only when its handler is given. */
-  /** Who the player belongs to now ('read', 'podcast'): the others leave it alone. */
+  /** Who the player belongs to now ('read', 'podcast', 'video'): the others leave it alone. */
   owner: null,
   show(o = {}) {
     player.owner = o.kind || null;
@@ -381,16 +382,18 @@ export const player = {
 };
 NR.setUI({ player, toast, openSettings: () => openSettings(), go: (h) => go(h) });
 POD.setUI({ player, toast, go: (h) => go(h) });
+VID.setUI({ player, toast, go: (h) => go(h) });
 
-// Space plays and pauses read-aloud, unless typing or on a control.
+// Space plays and pauses whatever owns the player, unless typing or on a control.
 addEventListener('keydown', (e) => {
   if (e.key !== ' ' || e.target.closest('input,textarea,select,button,a,[contenteditable],[role=radio]')) return;
   if (player.owner === 'podcast' && POD.state.meta) { e.preventDefault(); POD.toggle(); }
+  else if ((player.owner === 'video' || (!player.owner && VID.state.view && VID.state.view.root.isConnected)) && VID.state.meta) { e.preventDefault(); if (!VID.state.rec) VID.toggle(); }
   else if (NR.state.mode) { e.preventDefault(); NR.toggle(); }
 });
 
 /* ── start ────────────────────────────────────────────────────────────────── */
-window.Shruti = { go, player, toast, core: C, orca: O, library: L, narrate: NR, podcast: POD, openSettings };
+window.Shruti = { go, player, toast, core: C, orca: O, library: L, narrate: NR, podcast: POD, video: VID, openSettings };
 if (window.SHRUTI_STORAGE_BLOCKED) setTimeout(() => toast('This browser blocks storage: Shruti works, but this device will not remember choices.', true), 1200);
 if (!P) showPicker();
 else openGate();
