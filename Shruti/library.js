@@ -131,6 +131,10 @@ export function bookFrac(b) {
   return b.chapters.reduce((s, c) => s + fracOf(b.id, c.n), 0) / b.chapters.length;
 }
 
+/** A view draws into a holder the router then empties into #view: redrawing
+ *  later (after a drop, a rename) goes to where the view now is. */
+const live = (el) => (el.isConnected ? el : document.getElementById('view') || el);
+
 /* ── views ────────────────────────────────────────────────────────────────── */
 export async function viewLibrary(el, { go }) {
   const shipped = (await Promise.all(SHIPPED.map((id) => loadBook(id).catch(() => null)))).filter(Boolean);
@@ -155,7 +159,7 @@ export async function viewLibrary(el, { go }) {
       : '<button class="mine-empty" data-import>' + IC.upload + '<span><b>Import a book.</b> A PDF, EPUB, Word file or text: Shruti finds its chapters, and read-aloud, Make with AI and Study work on it like the Gita.</span></button>');
   el.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => { if (!(window.A1Drag && A1Drag.active)) go(b.dataset.go); }));
   el.querySelectorAll('[data-import]').forEach((b) => b.addEventListener('click', () => IMP.open({ go })));
-  const redraw = () => { if (el.isConnected) viewLibrary(el, { go }); };
+  const redraw = () => viewLibrary(live(el), { go });
   OR.sortable(el.querySelector('#shelf-shared'), { row: '.book', axis: 'grid', onMove: (ids) => { me.set({ 'shelf.order': ids }, { now: true }); redraw(); } });
   OR.sortable(el.querySelector('#shelf-mine'), { row: '.book', axis: 'grid', onMove: (ids) => { me.set({ 'shelf.mine': ids }, { now: true }); redraw(); } });
 }
@@ -187,7 +191,7 @@ export async function viewBook(el, { id, go }) {
     '<div class="sec-h"><h2>' + esc(unit + 's') + '</h2></div><div class="chs">' + b.chapters.map(row).join('') + '</div>' + bookmarksHtml(b);
   el.querySelectorAll('[data-go]').forEach((x) => x.addEventListener('click', () => { if (!(window.A1Drag && A1Drag.active)) go(x.dataset.go); }));
   const rn = el.querySelector('[data-rename]');
-  if (rn) rn.addEventListener('click', () => IMP.rename(b, () => viewBook(el, { id, go })));
+  if (rn) rn.addEventListener('click', () => IMP.rename(b, () => viewBook(live(el), { id, go })));
   const del = el.querySelector('[data-delete]');
   if (del) del.addEventListener('click', async () => {
     const both = b.where !== 'mine';
@@ -196,7 +200,7 @@ export async function viewBook(el, { id, go }) {
     window.Shruti && window.Shruti.toast('Deleted “' + b.title + '”');
     go('#/');
   });
-  OR.sortable(el.querySelector('.bmks'), { row: '.bmk', axis: 'grid', onMove: (keys) => { OR.put('bmk.' + id, keys); viewBook(el, { id, go }); } });
+  OR.sortable(el.querySelector('.bmks'), { row: '.bmk', axis: 'grid', onMove: (keys) => { OR.put('bmk.' + id, keys); viewBook(live(el), { id, go }); } });
 }
 
 /** Every bookmark this person keeps in a book: in book order, or the order
