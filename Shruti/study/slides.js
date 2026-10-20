@@ -5,11 +5,12 @@
 // speech (the person's read-aloud voice) and moves on by itself.
 //
 //   mount(root, slides, {book, set, title}) -> dispose()
-// Progress: study.<book>.<set>.slides = {i}
+// Progress: study.<book>.<set>.slides = {i} (the place in the person's order).
+// The filmstrip and the grid can be dragged to reorder (ui.js ordered).
 
 import * as C from '../core.js';
 import * as O from '../orca.js';
-import { h, btn, esc, rich, IC, keys, swipe, justSwiped, progress, saveProgress } from './ui.js';
+import { h, btn, esc, rich, IC, keys, swipe, justSwiped, progress, saveProgress, ordered, saveOrder, OR } from './ui.js';
 
 /** What a slide says when narrated: its own `say`, else its title and points. */
 export const sayOf = (s) => s.say || [s.title, ...(s.bullets || [])].filter(Boolean).map((t) => t.replace(/\*\*/g, '').replace(/[.:;!?]?$/, '.')).join(' ');
@@ -22,8 +23,19 @@ export function slideEl(s, idx, n, deck) {
     '<div class="sd-foot"><span>' + esc(kind === 'is-title' ? deck || '' : kind === 'is-end' ? 'Summary' : '') + '</span><span>' + (idx + 1) + ' / ' + n + '</span></div></div>');
 }
 
-export function mount(root, slides, { book, set, title }) {
+export function mount(root, setSlides, { book, set, title }) {
+  let OD = ordered(book, set, 'slides', setSlides), slides = OD.items;
   const n = slides.length;
+  // A drop: the slide being shown stays the one shown.
+  const reorder = (ks) => {
+    const cur = OD.keys[st.i];
+    saveOrder(book, set, 'slides', ks);
+    OD = ordered(book, set, 'slides', setSlides); slides = OD.items;
+    narr.cache.forEach((u) => URL.revokeObjectURL(u)); narr.cache.clear();
+    st.i = Math.max(0, OD.keys.indexOf(cur)); dir = 0;
+    saveProgress(book, set, 'slides', { i: st.i });
+    paint();
+  };
   const st = { i: Math.min(n - 1, Number(progress(book, set, 'slides').i) || 0), grid: false };
   const box = h('div', 'sd');
   root.replaceChildren(box);
@@ -148,12 +160,13 @@ export function mount(root, slides, { book, set, title }) {
       const grid = h('div', 'sd-grid');
       slides.forEach((s, i) => {
         const t = h('button', 'sd-thumb' + (i === st.i ? ' on' : ''));
-        t.type = 'button'; t.setAttribute('aria-label', 'Slide ' + (i + 1));
+        t.type = 'button'; t.setAttribute('aria-label', 'Slide ' + (i + 1)); t.dataset.dkey = OD.keys[i]; t.title = OR.HINT;
         t.append(slideEl(s, i, n, title));
         t.addEventListener('click', () => { st.grid = false; dir = 0; st.i = i; saveProgress(book, set, 'slides', { i }); paint(); });
         grid.append(t);
       });
       box.append(grid);
+      OR.sortable(grid, { row: '.sd-thumb', axis: 'grid', onMove: reorder });
       return;
     }
     const stage = h('div', 'sd-stage' + (dir > 0 ? ' in-next' : dir < 0 ? ' in-prev' : ''));
@@ -169,12 +182,13 @@ export function mount(root, slides, { book, set, title }) {
     const strip = h('div', 'sd-strip');
     slides.forEach((s, i) => {
       const t = h('button', 'sd-thumb' + (i === st.i ? ' on' : ''));
-      t.type = 'button'; t.setAttribute('aria-label', 'Slide ' + (i + 1));
+      t.type = 'button'; t.setAttribute('aria-label', 'Slide ' + (i + 1)); t.dataset.dkey = OD.keys[i]; t.title = OR.HINT;
       t.append(slideEl(s, i, n, title));
       t.addEventListener('click', () => go(i));
       strip.append(t);
     });
     box.append(strip);
+    OR.sortable(strip, { row: '.sd-thumb', axis: 'x', onMove: reorder });
     const on = strip.children[st.i];
     if (on) requestAnimationFrame(() => { try { strip.scrollTo({ left: on.offsetLeft - strip.clientWidth / 2 + on.clientWidth / 2, behavior: 'smooth' }); } catch (e) {} });
     box.append(h('div', 'st-keys', '← → move · P present · N narrate · G all slides'));
