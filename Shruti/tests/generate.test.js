@@ -135,6 +135,25 @@ const ok = (name, cond, extra) => {
   ok('…and nothing was saved as a version', M.versions('gita', 2, 'podcast').length === 0);
   ok('the job was cleared at the end', !C.shared.get('jobs.gita.ch2.podcast', null));
 
+  // Lessons must be concise (Tony, 2026-10-20): the prompt says so, and a long reply goes back once.
+  const lp = G.buildPrompt(Object.assign({}, base, { kind: 'lessons' }));
+  const lpText = JSON.stringify(lp);
+  ok('the lessons prompt asks for short, true lessons', lpText.includes('at most ' + G.LESSON_BODY_WORDS + ' words') && /concise, true and to the point/.test(lpText));
+  const longBody = Array(80).fill('word').join(' ');
+  const lchats = [];
+  const lchat = async ({ messages, models, onModel }) => {
+    lchats.push(messages);
+    onModel && onModel(models[0]);
+    const reply = { lessons: [{ title: 'Act without craving.', body: lchats.length === 1 ? longBody : 'Work, and let the result go.' }, { title: 'Offer each deed.', body: 'Give the work to God.' }], summary: 'S.' };
+    return { text: JSON.stringify(reply), model: models[0] };
+  };
+  const lstages = [];
+  const lres = await G.run(Object.assign({}, base, { kind: 'lessons', n: 5, models: ['deepseek/free'] }), { stage: (id) => lstages.push(id) }, { chat: lchat, saveDrive: false });
+  ok('a long lesson is sent back once to shorten, naming it', lstages.join() === 'write,check,repair,done' && /too long: L1\b/.test(lchats[1][lchats[1].length - 1].content), lstages.join());
+  ok('…and the short one is kept', lres.rec && lres.rec.lessons[0].body === 'Work, and let the result go.');
+  ok('longLessons ignores lessons within the limit', G.longLessons({ lessons: [{ id: 'L1', title: 'Short.', body: Array(45).fill('w').join(' ') }] }).length === 0);
+  M.remove('gita', 5, 'lessons', lres.rec.id);
+
   console.log('\nVersions');
   const id1 = M.record('gita', 3, 'podcast', { mp3: { id: 'm1' }, json: { id: 'j1' }, model: 'deepseek/free', at: 1000 });
   const id2 = M.record('gita', 3, 'podcast', { mp3: { id: 'm2' }, json: { id: 'j2' }, model: 'chatgpt/free', at: 2000 });
