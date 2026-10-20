@@ -5,24 +5,38 @@
 //
 //   mount(root, questions, {book, set}) -> dispose()
 // Progress: study.<book>.<set>.quiz = {picked: {i: 'B'}, i, scores: [{s, n, at}]}
+// (picked is keyed by each question's place in the set, so it survives the
+// person's own order; i is the place in that order). "All questions" lists
+// them, and dragging there sets the order (ui.js ordered).
 
-import { h, btn, esc, rich, IC, keys, progress, saveProgress, now } from './ui.js';
+import { h, btn, esc, rich, IC, keys, progress, saveProgress, now, ordered, saveOrder, OR } from './ui.js';
 
 export const score = (qs, picked) => qs.filter((q, i) => picked[i] === q.correct).length;
 export const best = (scores) => (scores || []).reduce((b, x) => (!b || x.s / x.n > b.s / b.n ? x : b), null);
 const MAX_SCORES = 20;
 
-export function mount(root, questions, { book, set }) {
+export function mount(root, setQs, { book, set }) {
+  let O = ordered(book, set, 'quiz', setQs), questions = O.items;
   const n = questions.length;
   const P = () => progress(book, set, 'quiz');
   const p0 = P();
-  const st = { i: Math.min(n - 1, Number(p0.i) || 0), picked: Object.assign({}, p0.picked || {}), results: false, logged: false };
+  // Shown index <-> the question's index in the set.
+  const toShown = (pk) => { const out = {}; O.orig.forEach((oi, di) => { if (pk && pk[oi] != null) out[di] = pk[oi]; }); return out; };
+  const toSet = (pk) => { const out = {}; Object.keys(pk).forEach((di) => { out[O.orig[di]] = pk[di]; }); return out; };
+  const st = { i: Math.min(n - 1, Number(p0.i) || 0), picked: toShown(p0.picked || {}), results: false, logged: false, list: false };
   const box = h('div', 'qz');
   root.replaceChildren(box);
 
   const answered = () => Object.keys(st.picked).length;
-  const save = (extra) => saveProgress(book, set, 'quiz', Object.assign({ picked: st.picked, i: st.i }, extra || {}));
-  const go = (i) => { st.results = false; st.i = Math.max(0, Math.min(n - 1, i)); save(); paint(); };
+  const save = (extra) => saveProgress(book, set, 'quiz', Object.assign({ picked: toSet(st.picked), i: st.i }, extra || {}));
+  const go = (i) => { st.results = false; st.list = false; st.i = Math.max(0, Math.min(n - 1, i)); save(); paint(); };
+  const reorder = (ks) => {
+    const cur = O.orig[st.i], picked = toSet(st.picked);
+    saveOrder(book, set, 'quiz', ks);
+    O = ordered(book, set, 'quiz', setQs); questions = O.items;
+    st.picked = toShown(picked); st.i = Math.max(0, O.orig.indexOf(cur));
+    save(); paint();
+  };
   const showResults = () => {
     st.results = true;
     // A finished attempt is logged once: every question answered.
