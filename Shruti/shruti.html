@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Shruti</title>
+<!-- Single-tab handoff: the newest tab of a program wins and older ones close
+     (full rationale in tradehub.html; same code as mylist.html). Opt out with
+     window.__a1BlockTabHandoff = true. -->
+<script>
+(function(){
+  if (typeof BroadcastChannel !== 'function') return;
+  var PAGE = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
+  var BORN = Date.now() + Math.random();   // random breaks ties on same-ms opens
+  var bc; try { bc = new BroadcastChannel('a1-single-tab'); } catch(e){ return; }
+  function announce(){ try { bc.postMessage({ type:'claim', page:PAGE, born:BORN }); } catch(e){} }
+  bc.onmessage = function(e){
+    var d = e.data || {};
+    if (!d || d.type !== 'claim' || d.page !== PAGE) return;
+    if (d.born > BORN) {
+      if (window.__a1BlockTabHandoff) return;
+      try { window.close(); } catch(_){}
+    } else {
+      announce();   // older tab was still loading when we announced; retell it
+    }
+  };
+  announce();
+})();
+</script>
+<meta name="theme-color" content="#1a1a1d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Shruti">
+<!-- App icon "Heard book" (Tony, 2026-10-19): MAGI purple on the suite charcoal.
+     Veda's tab swaps to her #A892B0 copy once her profile opens. -->
+<link rel="manifest" href="data:application/json,%7B%22name%22%3A%22Shruti%22%2C%22short_name%22%3A%22Shruti%22%2C%22display%22%3A%22standalone%22%2C%22id%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2FShruti%2Fshruti.html%22%2C%22start_url%22%3A%22https%3A%2F%2Fanthonyn99.github.io%2FA1%2FShruti%2Fshruti.html%22%2C%22background_color%22%3A%22%231a1a1d%22%2C%22theme_color%22%3A%22%231a1a1d%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%253D'http%253A%252F%252Fwww.w3.org%252F2000%252Fsvg'%2520viewBox%253D'0%25200%252096%252096'%253E%253Crect%2520width%253D'96'%2520height%253D'96'%2520rx%253D'22'%2520fill%253D'%25231a1a1d'%252F%253E%253Cg%2520fill%253D'none'%2520stroke%253D'%2523c0aeea'%2520stroke-width%253D'5'%2520stroke-linecap%253D'round'%2520stroke-linejoin%253D'round'%253E%253Cpath%2520d%253D'M48%252040c-6-4-14-6-24-6v38c10%25200%252018%25202%252024%25206%25206-4%252014-6%252024-6V34c-10%25200-18%25202-24%25206Z'%252F%253E%253Cpath%2520d%253D'M48%252040v38'%252F%253E%253Cpath%2520d%253D'M41%252028a10%252010%25200%25200%25201%252014%25200'%252F%253E%253Cpath%2520d%253D'M35%252021a19%252019%25200%25200%25201%252026%25200'%252F%253E%253C%252Fg%253E%253C%252Fsvg%253E%22%2C%22sizes%22%3A%22any%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%2C%22launch_handler%22%3A%7B%22client_mode%22%3A%22navigate-existing%22%7D%7D">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2096%2096'%3E%3Crect%20width%3D'96'%20height%3D'96'%20rx%3D'22'%20fill%3D'%231a1a1d'%2F%3E%3Cg%20fill%3D'none'%20stroke%3D'%23c0aeea'%20stroke-width%3D'5'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M48%2040c-6-4-14-6-24-6v38c10%200%2018%202%2024%206%206-4%2014-6%2024-6V34c-10%200-18%202-24%206Z'%2F%3E%3Cpath%20d%3D'M48%2040v38'%2F%3E%3Cpath%20d%3D'M41%2028a10%2010%200%200%201%2014%200'%2F%3E%3Cpath%20d%3D'M35%2021a19%2019%200%200%201%2026%200'%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2096%2096'%3E%3Crect%20width%3D'96'%20height%3D'96'%20rx%3D'22'%20fill%3D'%231a1a1d'%2F%3E%3Cg%20fill%3D'none'%20stroke%3D'%23c0aeea'%20stroke-width%3D'5'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M48%2040c-6-4-14-6-24-6v38c10%200%2018%202%2024%206%206-4%2014-6%2024-6V34c-10%200-18%202-24%206Z'%2F%3E%3Cpath%20d%3D'M48%2040v38'%2F%3E%3Cpath%20d%3D'M41%2028a10%2010%200%200%201%2014%200'%2F%3E%3Cpath%20d%3D'M35%2021a19%2019%200%200%201%2026%200'%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600..800&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Nunito:wght@400;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<style id="no-tap-box">/* Phones: no blue box when anything is tapped or held, and a held control never selects its label or opens the callout. */
+*,*::before,*::after{-webkit-tap-highlight-color:transparent}
+button,[role="button"],summary,label,select{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+</style>
+<style id="ui-cap-2000">
+/* Suite-wide 2000px UI cap (tests/ui-width-cap.test.js): past 2000px only the
+   background keeps growing. The fixed bars (.bnav, .mini) restate it in
+   styles.css, because a fixed box ignores its ancestor's max-width. */
+body { max-width: 2000px; margin-inline: auto; }
+</style>
+<link rel="stylesheet" href="styles.css">
+<script id="storage-guard">
+/* A browser that blocks site storage (Veda's Brave) makes every touch of
+   localStorage/sessionStorage throw. Swap in memory stores so everything works
+   for the session; the page says nothing will be remembered (MAGI's shim). */
+(function () {
+  function mem() {
+    var m = new Map();
+    return {
+      getItem: function (k) { k = String(k); return m.has(k) ? m.get(k) : null; },
+      setItem: function (k, v) { m.set(String(k), String(v)); },
+      removeItem: function (k) { m.delete(String(k)); },
+      clear: function () { m.clear(); },
+      key: function (i) { return Array.from(m.keys())[i] || null; },
+      get length() { return m.size; }
+    };
+  }
+  window.SHRUTI_STORAGE_BLOCKED = false;
+  ['localStorage', 'sessionStorage'].forEach(function (name) {
+    try { window[name].getItem('shruti.probe'); } catch (e) {
+      window.SHRUTI_STORAGE_BLOCKED = true;
+      try { Object.defineProperty(window, name, { value: mem(), configurable: true, writable: true }); } catch (e2) {}
+    }
+  });
+})();
+</script>
+<script id="profile-resolve">
+/* Who is here, decided before first paint (MAGI's order): this tab's explicit
+   pick, ?profile= (a pick that had to survive a reload without storage), this
+   device's favourite, whoever was here last. None of those: the picker.
+   A switch reloads the page, so every key below is one person's from the start. */
+(function () {
+  var PROFILES = {
+    tony: { label: 'Tony', doc: 'shruti', color: '#c0aeea' },
+    veda: { label: 'Veda', doc: 'shruti_veda', color: '#A892B0' }
+  };
+  function g(store, k) { try { return window[store].getItem(k); } catch (e) { return null; } }
+  var q = null; try { q = new URL(location.href).searchParams.get('profile'); } catch (e) {}
+  var cand = [g('sessionStorage', 'shruti.pick'), q, g('localStorage', 'shruti.favProfile'), g('localStorage', 'shruti.lastProfile')];
+  var p = null;
+  for (var i = 0; i < cand.length; i++) if (cand[i] && PROFILES[cand[i]]) { p = cand[i]; break; }
+  window.SHRUTI_PROFILES = PROFILES;
+  window.SHRUTI_PROFILE = p;
+  window.SHRUTI_GID = p ? p + '_shruti' : null;
+})();
+</script>
+<script src="../dragsort.js"></script>
+<!-- Guardian: the one A1 lock (docs/Guardian/README.md). Loaded before first
+     paint, unpinned, so every Guardian upgrade reaches this page. -->
+<script src="../Guardian/guardian.js"></script>
+<script>
+// Each person's Shruti is a Guardian lock: <p>_shruti. Declared and painted
+// over before first paint; app.js gates on it before any network use.
+if (window.SHRUTI_PROFILE) {
+  ['tony', 'veda'].forEach(function (p) { Guardian.define(p + '_shruti', { owner: p, label: 'Shruti', appName: 'Shruti', root: '#app' }); });
+  Guardian.prepaint([window.SHRUTI_GID]);
+}
+</script>
+<!-- The one A1 scrollbar, and the shared header mark + sync pill. -->
+<script src="../scrollbar.js"></script>
+<script src="../apphead.js"></script>
+</head>
+<body data-profile="tony">
+<script>
+(function () {
+  var p = window.SHRUTI_PROFILE || 'tony';
+  document.body.setAttribute('data-profile', p);
+  // MAGI's hover lift / press / focus ring (hoverfx.js) is Tony's; Veda keeps classic.
+  if (p === 'tony') document.body.setAttribute('data-hoverfx', 'magi');
+  if (p === 'veda') {
+    document.querySelector('meta[name=theme-color]').setAttribute('content', '#1B1C1E');
+    var ic = document.querySelector('link[rel=icon]');
+    if (ic) ic.setAttribute('href', 'data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2096%2096'%3E%3Crect%20width%3D'96'%20height%3D'96'%20rx%3D'22'%20fill%3D'%231a1a1d'%2F%3E%3Cg%20fill%3D'none'%20stroke%3D'%23A892B0'%20stroke-width%3D'5'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M48%2040c-6-4-14-6-24-6v38c10%200%2018%202%2024%206%206-4%2014-6%2024-6V34c-10%200-18%202-24%206Z'%2F%3E%3Cpath%20d%3D'M48%2040v38'%2F%3E%3Cpath%20d%3D'M41%2028a10%2010%200%200%201%2014%200'%2F%3E%3Cpath%20d%3D'M35%2021a19%2019%200%200%201%2026%200'%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E');
+  }
+})();
+</script>
+
+<!-- Profile picker -->
+<div id="picker" hidden>
+  <div class="pk-mark"><svg viewBox="14 14 68 68" fill="none" stroke="currentColor" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M48 40c-6-4-14-6-24-6v38c10 0 18 2 24 6 6-4 14-6 24-6V34c-10 0-18 2-24 6Z"/><path d="M48 40v38"/><path d="M41 28a10 10 0 0 1 14 0"/><path d="M35 21a19 19 0 0 1 26 0"/></svg></div>
+  <h1>Shruti</h1>
+  <div class="pk-sub">Choose your profile · tap ★ to make it this device's default</div>
+  <div class="pk-cards" id="pk-cards"></div>
+</div>
+
+<!-- App -->
+<div id="app" hidden>
+  <header id="top">
+    <button class="brand" id="brand" title="Library"><span class="a1-app-ic" data-a1-app="shruti"></span>Shruti</button>
+    <nav class="crumbs" id="crumbs" aria-label="Where you are"></nav>
+    <span class="sp"></span>
+    <nav class="tnav" aria-label="Sections">
+      <button data-nav="library">Library</button>
+      <button data-nav="continue">Continue</button>
+    </nav>
+    <span class="a1-sync idle" id="sync-pill"></span>
+    <button class="ib" id="settings-btn" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg></button>
+    <button class="ib" id="lock-btn" title="Lock" aria-label="Lock"></button>
+    <button class="ib" id="switch-btn" title="Switch profile" aria-label="Switch profile"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1.5l2.45 8.05L22 12l-7.55 2.45L12 22.5l-2.45-8.05L2 12l7.55-2.45z"/></svg></button>
+    <!-- LifeHub app switcher: follows body[data-profile]; hidden while a Guardian card is up. -->
+    <a1-lifehub style="--lh-size:36px"></a1-lifehub>
+  </header>
+  <main id="view"></main>
+</div>
+
+<div class="mini" id="mini" hidden></div>
+<nav class="bnav" aria-label="Sections">
+  <button data-nav="library"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v16"/><path d="M9 4v16"/><path d="M14 5l4 15"/><path d="M3 20h18"/></svg>Library</button>
+  <button data-nav="continue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5h6a4 4 0 0 1 4 4v11a3 3 0 0 0-3-3H2z"/><path d="M22 5h-6a4 4 0 0 0-4 4v11a3 3 0 0 1 3-3h7z"/></svg>Continue</button>
+  <button data-nav="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Settings</button>
+</nav>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script type="module" src="app.js"></script>
+<script src="../tabsync.js"></script>
+<script src="../hoverfx.js"></script>
+<script src="../LifeHub/lifehub.js" data-lock="guardian" data-profile-attr="data-profile" defer></script>
+</body>
+</html>
