@@ -92,9 +92,10 @@ const pdfWords = (pdf) => (pdf.match(/\((?:\\.|[^\\)])*\) Tj/g) || []).map((s) =
 
   for (const [who, w, h, mobile] of [['tony', 1280, 900, false], ['veda', 390, 844, true]]) {
     console.log('\n' + who + ' at ' + w);
+    RUN = String(Date.now());   // a fresh store, so this profile's pick applies
     await load(c, { w, h, mobile, store: "sessionStorage.removeItem('__fakefs_docs'); sessionStorage.setItem('shruti.pick','" + who + "');", hash: '#/b/gita/4/lessons' });
     await waitFor(c, `!!window.Shruti && !!window.Shruti.core.me.loaded`, 15000);
-    ok('it is ' + who + ''s side', await waitFor(c, `document.body.dataset.profile==='` + who + `'`));
+    ok('it is ' + who + '’s side', await waitFor(c, `document.body.dataset.profile==='${who}'`));
     ok('the Lessons tab has Save as PDF', await waitFor(c, `!!document.querySelector('#ls-pdf') && document.querySelectorAll('.ls-i').length===${lessons[4].lessons.length}`));
     ok('the button sits on the count line, inside the page', await waitFor(c, `const b=document.querySelector('#ls-pdf').getBoundingClientRect(); return b.width>0 && b.right<=innerWidth && document.documentElement.scrollWidth<=innerWidth`));
     await shot(c, 'lessons-pdf-' + who + '-' + w);
