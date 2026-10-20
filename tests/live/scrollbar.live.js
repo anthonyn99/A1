@@ -15,7 +15,7 @@ const { connect, evalJs, sleep } = require('./cdp');
 
 const BASE = 'https://anthonyn99.github.io/A1/';
 const PAGES = ['index.html', 'magi.html', 'mylist.html', 'oneinbox.html', 'shield.html',
-  'insight.html', 'tradehub.html', 'riftiq.html', 'everwell.html', 'vault.html'];
+  'insight.html', 'tradehub.html', 'riftiq.html', 'everwell.html', 'vault.html', 'Shruti/shruti.html'];
 
 let pass = 0, fail = 0;
 function ok(name, cond, extra) {
