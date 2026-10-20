@@ -1,0 +1,40 @@
+{
+  "n": 15,
+  "title": "The supreme being",
+  "flashcards": [
+    { "front": "The tree of Maya", "back": "Creation is like an upside-down tree, rooted above in the Supreme. Ego, attachment and desire are its roots.", "L": ["L1"] },
+    { "front": "How is the tree cut?", "back": "With the axe of Self-knowledge and detachment; then one seeks the Supreme, from which there is no return.", "L": ["L1"] },
+    { "front": "Who reaches the eternal goal? (15.5)", "back": "Those free of pride and delusion, who have conquered attachment, dwell in the Self, desires stilled, beyond pleasure and pain.", "ref": "15.05", "L": ["L1"] },
+    { "front": "The soul, God's integral part (15.7)", "back": "The individual soul is part of God; it gathers the six senses, mind included, and activates them.", "ref": "15.07", "L": ["L2"] },
+    { "front": "Air and the flower's scent (15.8)", "back": "As air carries scent from a flower, the soul carries the senses from the body it leaves to the next.", "ref": "15.08", "L": ["L2"] },
+    { "front": "Who can see the soul leave?", "back": "Not the ignorant; only those with the eye of Self-knowledge.", "L": ["L2"] },
+    { "front": "God's light in nature", "back": "The light of sun, moon and fire is his; he sustains beings through the earth and nourishes plants.", "L": ["L3"] },
+    { "front": "God seated in all (15.15)", "back": "Memory, Self-knowledge and the removal of doubt come from him; he is known through the Vedas and is their author.", "ref": "15.15", "L": ["L3"] },
+    { "front": "Three entities", "back": "Temporal beings, which change; the eternal Spirit, which doesn't; and the Supreme, beyond both.", "L": ["L4"] },
+    { "front": "Why \"Supreme Being\"? (15.18)", "back": "Because God is beyond both the temporal and the eternal.", "ref": "15.18", "L": ["L4"] }
+  ],
+  "quiz": [
+    { "text": "What are the roots of the tree of Maya?", "options": { "A": "Knowledge and duty", "B": "Ego, attachment and desire", "C": "The Vedas", "D": "Earth and water" }, "correct": "B", "why": "They hold beings in the world.", "L": ["L1"] },
+    { "text": "With what is the tree cut?", "options": { "A": "Fire", "B": "Wealth", "C": "The axe of Self-knowledge and detachment", "D": "Prayer alone" }, "correct": "C", "why": "Then one reaches the goal of no return.", "L": ["L1"] },
+    { "text": "In 15.8, the soul moving to a new body is like:", "options": { "A": "A river into the sea", "B": "Air carrying a flower's scent", "C": "A lamp going out", "D": "Changing clothes" }, "correct": "B", "why": "It carries the senses with it.", "L": ["L2"] },
+    { "text": "Where does the light of sun, moon and fire come from?", "options": { "A": "From nature alone", "B": "From God", "C": "From the gods", "D": "From the soul" }, "correct": "B", "why": "He is the light and sustainer of all life.", "L": ["L3"] },
+    { "text": "Per 15.15, what comes from God seated in all?", "options": { "A": "Memory, knowledge and the removal of doubt", "B": "Only Karma", "C": "Wealth", "D": "Desire" }, "correct": "A", "why": "He is in the inner psyche of all beings.", "L": ["L3"] },
+    { "text": "Why is God called the Supreme Being (15.18)?", "options": { "A": "He is the strongest god", "B": "He is beyond both the temporal and the eternal", "C": "He was first", "D": "The Vedas say nothing else" }, "correct": "B", "why": "Three entities: temporal, eternal, and the Supreme beyond both.", "L": ["L4"] }
+  ],
+  "mindmap": {
+    "root": "The supreme being",
+    "branches": [
+      { "text": "The tree of Maya", "L": ["L1"], "children": [{ "text": "Roots: ego, attachment, desire" }, { "text": "Cut with Self-knowledge", "L": ["L1"] }, { "text": "The wise reach the goal (15.5)" }] },
+      { "text": "The soul", "L": ["L2"], "children": [{ "text": "God's integral part (15.7)" }, { "text": "Carries the senses (15.8)", "L": ["L2"] }] },
+      { "text": "God within", "L": ["L3"], "children": [{ "text": "Light of sun, moon, fire", "L": ["L3"] }, { "text": "Seated in all hearts (15.15)" }] },
+      { "text": "Three entities", "L": ["L4"], "children": [{ "text": "Temporal beings" }, { "text": "Eternal Spirit" }, { "text": "The Supreme, beyond both (15.18)", "L": ["L4"] }] }
+    ]
+  },
+  "slides": [
+    { "title": "The supreme being", "bullets": ["Chapter 15", "The tree, the soul, and the Supreme"] },
+    { "title": "The tree of Maya", "bullets": ["Rooted above, branching into the world", "Its roots: ego, attachment, desire", "Cut it with Self-knowledge and detachment"], "L": ["L1"] },
+    { "title": "The soul travels", "bullets": ["An integral part of God (15.7)", "Takes the senses on, as air takes scent (15.8)", "Seen only with the eye of knowledge"], "L": ["L2"] },
+    { "title": "God, the inner light", "bullets": ["The light of sun, moon and fire is his", "Seated in all; memory and knowledge come from him (15.15)"], "L": ["L3"] },
+    { "title": "Three entities", "bullets": ["Temporal beings change", "The eternal Spirit does not", "The Supreme is beyond both (15.18)"], "L": ["L4"] }
+  ]
+}

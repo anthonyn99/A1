@@ -1,0 +1,41 @@
+{
+  "n": 16,
+  "title": "Divine and the demonic qualities",
+  "flashcards": [
+    { "front": "Two types of human beings (16.6)", "back": "The divine and the demonic. The divine was described; now Krishna describes the demonic.", "ref": "16.06", "L": ["L1"] },
+    { "front": "Some divine qualities", "back": "Fearlessness, purity, nonviolence, truthfulness, compassion, forgiveness, contentment, and freedom from pride and malice.", "L": ["L1"] },
+    { "front": "Where do the two natures lead?", "back": "Divine qualities lead to liberation; demonic ones to bondage.", "L": ["L1"] },
+    { "front": "Some demonic qualities", "back": "Hypocrisy, arrogance, pride, anger, harshness and ignorance.", "L": ["L1", "L2"] },
+    { "front": "What the demonic believe", "back": "That the world has no God, no moral order and no purpose beyond pleasure.", "L": ["L2"] },
+    { "front": "Where that belief leads", "back": "To insatiable desire, exploitation and cruelty, and to lower births: suffering is the destiny of the ignorant.", "L": ["L2"] },
+    { "front": "The three gates to hell (16.21)", "back": "Lust, anger and greed lead to bondage. Learn to give up these three.", "ref": "16.21", "L": ["L3"] },
+    { "front": "Who escapes the three gates?", "back": "One freed from them does what is good for the soul and reaches the supreme abode.", "L": ["L3"] },
+    { "front": "Let scripture guide you (16.24)", "back": "Let scripture be your authority on what to do and not do, and do your duty by it.", "ref": "16.24", "L": ["L4"] },
+    { "front": "Acting on desire alone", "back": "One who ignores scripture and follows only personal desire reaches neither perfection, happiness nor the goal.", "L": ["L4"] }
+  ],
+  "quiz": [
+    { "text": "How many types of human beings does 16.6 name?", "options": { "A": "One", "B": "Two", "C": "Three", "D": "Four" }, "correct": "B", "why": "The divine and the demonic.", "L": ["L1"] },
+    { "text": "Which is a divine quality?", "options": { "A": "Arrogance", "B": "Hypocrisy", "C": "Forgiveness", "D": "Harshness" }, "correct": "C", "why": "Fearlessness, purity, compassion, forgiveness...", "L": ["L1"] },
+    { "text": "What do the demonic believe about the world?", "options": { "A": "God is in all", "B": "It has no God or moral order", "C": "Duty is sacred", "D": "All are equal" }, "correct": "B", "why": "That view breeds endless desire and cruelty.", "L": ["L2"] },
+    { "text": "What are the three gates to hell (16.21)?", "options": { "A": "Fear, doubt, sleep", "B": "Lust, anger, greed", "C": "Pride, envy, sloth", "D": "Wealth, fame, power" }, "correct": "B", "why": "Give up these three.", "L": ["L3"] },
+    { "text": "What should be the authority for right action (16.24)?", "options": { "A": "Personal desire", "B": "Popular opinion", "C": "Scripture", "D": "The king" }, "correct": "C", "why": "Do your duty following the scripture.", "L": ["L4"] },
+    { "text": "One who ignores scripture and follows desire attains:", "options": { "A": "Perfection", "B": "Happiness", "C": "Neither perfection nor happiness", "D": "Heaven" }, "correct": "C", "why": "Desire alone is no guide.", "L": ["L4", "L2"] }
+  ],
+  "mindmap": {
+    "root": "Divine and demonic qualities",
+    "branches": [
+      { "text": "Two kinds of people", "L": ["L1"], "children": [{ "text": "Divine: to liberation", "L": ["L1"] }, { "text": "Demonic: to bondage" }] },
+      { "text": "Divine qualities", "L": ["L1"], "children": [{ "text": "Fearlessness, purity" }, { "text": "Truth, compassion, forgiveness" }] },
+      { "text": "The demonic view", "L": ["L2"], "children": [{ "text": "No God, no moral order", "L": ["L2"] }, { "text": "Endless desire, cruelty" }, { "text": "Suffering follows" }] },
+      { "text": "Three gates to hell", "L": ["L3"], "children": [{ "text": "Lust, anger, greed (16.21)", "L": ["L3"] }, { "text": "Escape them, reach the goal" }] },
+      { "text": "Scripture", "L": ["L4"], "children": [{ "text": "Your authority (16.24)", "L": ["L4"] }, { "text": "Desire alone fails" }] }
+    ]
+  },
+  "slides": [
+    { "title": "Divine and demonic qualities", "bullets": ["Chapter 16", "Two natures, three gates, one guide"] },
+    { "title": "Two kinds of people", "bullets": ["Divine and demonic (16.6)", "Fearlessness, purity, truth, compassion lead to freedom"], "L": ["L1"] },
+    { "title": "The demonic view", "bullets": ["No God, no moral order, only pleasure", "It breeds desire, exploitation, cruelty"], "L": ["L2"] },
+    { "title": "Three gates to hell", "bullets": ["Lust, anger and greed (16.21)", "Give up these three", "Then one reaches the supreme abode"], "L": ["L3"] },
+    { "title": "Let scripture guide", "bullets": ["Scripture decides what to do and not do (16.24)", "Desire alone brings neither peace nor perfection"], "L": ["L4"] }
+  ]
+}
