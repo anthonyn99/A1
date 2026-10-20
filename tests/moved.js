@@ -11,7 +11,8 @@
 //   M.read('tradehub.html')   → its text
 //   M.has('tradehub.html')    → false when the file is not on this machine
 //   M.src('dragsort.js')      → regex source for a <script src> of a shared A1
-//                               file: relative here, absolute in A1-Priv
+//                               file: relative here (`../` from a page in a
+//                               program folder, e.g. Shruti/), absolute in A1-Priv
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -26,7 +27,7 @@ const file = (rel) => path.join(isMoved(rel) ? PRIV : ROOT, rel);
 const has = (rel) => fs.existsSync(file(rel));
 const read = (rel) => fs.readFileSync(file(rel), 'utf8');
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const src = (shared) => '(?:https://anthonyn99\\.github\\.io/A1/)?' + esc(shared);
+const src = (shared) => '(?:https://anthonyn99\\.github\\.io/A1/|(?:\\.\\./)+)?' + esc(shared);
 
 let warned = false;
 function skipNote(rel) {
