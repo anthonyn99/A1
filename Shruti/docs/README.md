@@ -15,10 +15,14 @@ Live: https://anthonyn99.github.io/A1/Shruti/shruti.html
 | `shruti.html` | the page: head boilerplate, profile resolution, the Guardian declaration, the shell markup |
 | `app.js` | the shell: picker, lock gate, router, header, Settings (Orca key, AI units, Drive), bottom nav, mini-player, in-UI dialogs |
 | `core.js` | profiles, storage that never throws, the Firestore layer (`Doc`: snapshot, field-path writes, write barrier) |
-| `orca.js` | the AI client: key check, unit picker rows, the fallback chain, streaming chat |
-| `library.js` | library, book (chapter list) and chapter views; progress |
+| `orca.js` | the AI client: key check, unit picker rows, the fallback chain, streaming chat, speech (`speak`, `voices`) |
+| `library.js` | library, book (chapter list, bookmarks) and chapter views; progress |
+| `reader.js` | the Read tab: the exact text, the person's look (Aa), key-verse marks, bookmarks, "back where you were", read-aloud hooks |
+| `narrate.js` | read-aloud: one narrator per page; live Orca speech or a ready-made MP3; word lighting, follow-scroll, mini-player, lock screen, sleep timer, voice/speed sheet, Save narration |
+| `text.js` | DOM-free helpers: a block's spoken text, segments, words, lining the voice's words up with the page's |
 | `styles.css` | the one stylesheet (Tony = MAGI look, Veda = StudyOS look) |
 | `books/gita/` | the shipped Gita: `book.json` (contents), `ch00.json` (introduction), `ch01.json`–`ch18.json`, `lessons.json` |
+| `books/gita/media/` | ready-made read-aloud for the introduction and Ch 1–3 (Ava): `chNN-read.mp3` + `chNN-read.json`, listed in `index.json` |
 | `worker/` | `shruti-drive`, the Google Drive media worker (deployed to account 2) |
 | `tools/` | dev tools that build `books/gita` from the PDFs (not loaded by the page) |
 | `tests/` | `*.test.js` run by A1's `npm test` through `tests/shruti.test.js`; `*.live.js` run by hand |
@@ -44,8 +48,8 @@ wiring tests accept that `../` form (`tests/moved.js` `src()`).
 
 | Document | Holds |
 |---|---|
-| `dashboards/shruti` (Tony), `dashboards/shruti_veda` | `orcaKey`; `units.{order,on}`; `progress.<book>.ch<n>.{f, done, modes.<mode>, at}`; `last.{book,n,at}`; `shelf.order`; `lockV` |
-| `dashboards/shruti_shared` | the shared library's generated assets, from Phase 4: `assets.<book>.ch<n>.{podcast, video, study}` (a mode badge lights when its asset exists) |
+| `dashboards/shruti` (Tony), `dashboards/shruti_veda` | `orcaKey`; `units.{order,on}`; `progress.<book>.ch<n>.{f, done, modes.<mode>, pos, ra.{i,t}, at}` (`pos` = the block at the top of the reader, `ra` = the read-aloud segment and seconds into it); `last.{book,n,at}`; `reader.{size,lead,font,width}`; `narration.{voice,speed,follow}`; `bookmarks.<book>.ch<n>.b<block>.{label,at}`; `shelf.order`; `lockV` |
+| `dashboards/shruti_shared` | the shared library's assets: `assets.<book>.ch<n>.read.{voice, engine, duration, mp3:{id}, json:{id}, by, at}` (a narration saved to Drive); from Phase 4 `podcast`, `video`, `study` (a mode badge lights when its asset exists) |
 
 Writes are field-path merges (`updateDoc` with `a.b.c`); the first write of a missing document is a
 `setDoc` merge. Nothing is written before the document's first snapshot arrives (the write
@@ -71,6 +75,27 @@ the page is hidden.
 Text is exactly the source's. `tools/extract.py` only joins lines, removes line-break hyphens and normalises spaces, and it refuses to write unless every letter of the PDF survives.
 
 `lessons.json` is `{ "<chapter>": { "lessons": [{ "id": "L1", "title", "body" }], "summary" } }`: Tony and Veda's own notes, word for word. Generated podcasts and videos must cover every lesson id.
+
+## Read-aloud
+
+- **Voices:** Orca's `POST /v1/audio/speech` with `timestamps: true` (ORCA repo, `worker/src/tts.ts`):
+  Microsoft Edge's neural voices spoken from the Worker, word timings included; Deepgram Aura
+  when Edge refuses (no timings: `text.js spreadWords` spreads the words by length). Speech is not
+  counted against an Orca key's limits.
+- **Segments:** one per block (headings, verses, the book's asides), long blocks cut at sentence ends
+  at 1,500 characters (`text.js segmentsFor`). Live, each is one request, two fetched ahead.
+- **Ready-made first:** a narration in the chosen voice (shipped in `books/<book>/media/`, or saved to
+  Drive and recorded in `shruti_shared`) plays as one MP3 with no Orca call; with no key, any
+  ready-made one plays. A narration file is `{v, book, n, voice, engine, duration, segs:[{b, part,
+  text, start, dur, words:[[t, d, w]]}]}`, times in seconds, words relative to their segment.
+- **On the page:** the reader wraps a block's words in spans when the voice reaches it and lines the
+  voice's words up with them (`text.js align`), so the text stays exactly the source's. The page
+  follows the voice; scrolling away stops that until "Back to the voice" or the word is in view again.
+  While read-aloud is on, tapping a word reads from there.
+- **Controls:** mini-player (−15 s, play/pause, +15 s, settings, close), Space, the lock screen (Media
+  Session), speed 0.5–2.5× (`playbackRate`, pitch kept), voices, a sleep timer.
+- **Save narration:** speaks the whole chapter in the chosen voice, uploads one MP3 and its timings
+  to Drive (`read-<voice>.mp3/.json`), and records it in `shruti_shared`.
 
 ## The Drive worker (`worker/`, https://shruti-drive.av1-2.workers.dev)
 
@@ -107,9 +132,15 @@ In Google Cloud Console, project `task-dashboard-d2b53` (the one OneInbox uses):
 - `node Shruti/tests/content.test.js`: the Gita's text and lessons (Phase 1).
 - `node Shruti/tests/shell.test.js`: profiles, lock order, the sync layer, the Orca client.
 - `node Shruti/tests/worker.test.js`: the Drive worker offline (fake Orca, Google and KV).
+- `node Shruti/tests/reader.test.js`: every module parses, the text helpers, the shipped narrations
+  (every block, times that add up to the MP3, words that line up with the text), the speech client.
 - `CDP_ALLOW_FONTS=1 node Shruti/tests/shell.live.js`: headless Edge, both profiles, 390 and 1280
   px, fake Firestore; screenshots in `%TEMP%\magi-live-shots\shruti-*.png`. Never run two live
   tests at once.
+- `node Shruti/tests/reader.live.js`: the reader and read-aloud (Aa, partial highlights, bookmarks,
+  resume, the shipped narration playing and lighting words, seek, speed, sleep, live Orca speech,
+  Save narration), Tony at 1280 and Veda at 390. Clicks that start audio are real mouse events.
+- ORCA's side: `npx vitest run src/tts.test.ts` in `ORCA/worker`.
 
 ## Rebuilding the Gita
 
@@ -122,6 +153,14 @@ node ../tests/content.test.js
 ```
 
 The sources are in `C:\Users\antho\Desktop\Gita\` (the IGS PDF and the notes PDFs).
+
+The ready-made narrations (need edge-tts 7.3.1 or newer, which MAGI's venv has):
+
+```
+magi\.venv\Scripts\python -I Shruti\tools\narrate.py            # introduction + Ch 1-3 in Ava
+magi\.venv\Scripts\python -I Shruti\tools\narrate.py 4 5 --voice en-GB-RyanNeural
+node Shruti/tests/reader.test.js
+```
 
 ## Moving Shruti
 
