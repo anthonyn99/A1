@@ -1,0 +1,158 @@
+{
+  "v": 1,
+  "book": "gita",
+  "n": 5,
+  "title": "Path of renunciation",
+  "hosts": [
+    { "id": "A", "name": "Ava", "voice": "en-US-AvaMultilingualNeural" },
+    { "id": "B", "name": "Andrew", "voice": "en-US-AndrewMultilingualNeural" }
+  ],
+  "segments": [
+    {
+      "title": "Welcome",
+      "turns": [
+        { "s": "A", "t": "Welcome to Shruti. I'm Ava." },
+        { "s": "B", "t": "And I'm Andrew. Today, Chapter Five: the Path of Renunciation." },
+        { "s": "A", "t": "Arjuna has now heard Krishna praise two things: giving up action through knowledge, and acting selflessly. He wants a straight answer. Which one? This chapter is Krishna's answer, and it turns out the question was slightly wrong." },
+        { "s": "B", "t": "Thirteen lessons. Story first, then each one." }
+      ]
+    },
+    {
+      "title": "The story",
+      "turns": [
+        { "s": "A", "t": "Verse five point one. Arjuna said: O Krishna, You praise spiritual knowledge and also performance of selfless service. Tell me, definitely, which one is the better of the two." },
+        { "s": "B", "t": "Krishna, five point two: the path of Self-knowledge and the path of selfless service both lead to the supreme goal. But, of the two, selfless service is superior to Self-knowledge.", "L": ["L1", "L2"] },
+        { "s": "A", "t": "And then he redefines the renunciant. Five point three: a person should be considered a true Samnyasi, a renunciant, who neither likes nor dislikes. One is easily liberated by becoming free from the pairs of opposites.", "L": ["L3"] },
+        { "s": "B", "t": "Five point four: the ignorant, not the wise, consider the path of knowledge and the path of selfless service as different. The person who has truly mastered one gets the benefits of both.", "L": ["L1"] },
+        { "s": "A", "t": "And five point six: true renunciation is difficult to attain without Karma-yoga. A sage equipped with Karma-yoga quickly attains God.", "L": ["L2"] },
+        { "s": "B", "t": "Then Krishna describes how the wise experience their own actions. Five point eight and nine: the wise who knows the truth thinks, I do nothing at all. In seeing, hearing, touching, smelling, eating, walking, sleeping, breathing, speaking, even opening and closing the eyes, only the senses are operating upon their objects.", "L": ["L4"] },
+        { "s": "A", "t": "Then one of the loveliest images in the Gita, five point ten: one who does all work as an offering to the Lord, abandoning attachment to the results, remains untouched by Karmic reaction or sin, as a lotus leaf never gets wet by water, while living in it.", "L": ["L5"] },
+        { "s": "B", "t": "Five point eleven: Karma-yogis act, without attachment, with body, mind, intellect and senses, only for self-purification.", "L": ["L6"] },
+        { "s": "A", "t": "Five point thirteen: a person who has completely renounced attachment to the fruits of all works lives happily, neither performing nor directing any action. In the full Gita, this verse adds that such a person lives in the city of nine gates, meaning the body with its nine openings, as its calm resident. Our rendition leaves that image out, but the idea is the same.", "L": ["L7"] },
+        { "s": "B", "t": "Then a verse that answers a question people ask all the time: is God responsible for what we do? Five point fourteen and fifteen: the Lord neither creates the urge for action, nor the feeling of doership, nor attachment to results. All these are done by the powers of Nature. The Lord does not take responsibility for the good or evil deeds of anybody.", "L": ["L8"] },
+        { "s": "A", "t": "Self-knowledge, he says, gets covered by ignorance, and so people are deluded and do wrong. And five point sixteen: spiritual knowledge destroys that ignorance and reveals the Supreme, just as the Sun reveals the beauty of the world.", "L": ["L8"] },
+        { "s": "B", "t": "Then the famous verse on equal vision, five point eighteen: an enlightened person, by perceiving the Lord in all, looks at a learned and humble priest, an outcast, even a cow, an elephant, or a dog with an equal eye.", "L": ["L9"] },
+        { "s": "A", "t": "Five point nineteen: everything has been accomplished in this very life by the one whose mind is set in equality, because God is flawless and impartial.", "L": ["L9"] },
+        { "s": "B", "t": "On pleasure, five point twenty-two: sensual pleasures are, in truth, the source of misery, and have a beginning and an end. Therefore, the wise do not rejoice in them.", "L": ["L10"] },
+        { "s": "A", "t": "Five point twenty-one: the one in union with the Supreme becomes unattached to sensual pleasures by discovering the joy of the Self through contemplation.", "L": ["L11"] },
+        { "s": "B", "t": "Five point twenty-three: one who is able to withstand the impulse of lust and anger before death is a yogi, and a happy person.", "L": ["L12"] },
+        { "s": "A", "t": "Five point twenty-four: one who finds happiness with the Eternal Being, who rejoices within, and who is illuminated by Self-knowledge, attains Nirvana. And such seers, five point twenty-five, are engaged in the welfare of all beings.", "L": ["L11"] },
+        { "s": "B", "t": "The chapter closes with a first glimpse of meditation, which Chapter Six will develop. Five point twenty-seven and twenty-eight: focusing the eyes and mind between the eyebrows, equalizing the breath, keeping senses, mind and intellect under control, free from lust, anger, greed and fear.", "L": ["L13"] },
+        { "s": "A", "t": "And the last verse, five point twenty-nine: My devotee attains peace by knowing Me as the enjoyer of sacrifices and austerities, the great Lord of all the universe, and the friend of all beings.", "L": ["L13"] }
+      ]
+    },
+    {
+      "title": "Lesson 1 · One goal, two roads",
+      "turns": [
+        { "s": "B", "t": "Lesson one: both renunciation and Karma-yoga lead to the same goal.", "L": ["L1"] },
+        { "s": "A", "t": "Giving up action and acting selflessly aren't opposites. They're two roads to the same place. What one reaches, the other reaches.", "L": ["L1"] },
+        { "s": "B", "t": "Only the spiritually immature see them as rivals. Arjuna's either-or question was the immature version, and Krishna gently says so.", "L": ["L1"] }
+      ]
+    },
+    {
+      "title": "Lesson 2 · The accessible path",
+      "turns": [
+        { "s": "A", "t": "Lesson two: Karma-yoga is the more accessible path.", "L": ["L2"] },
+        { "s": "B", "t": "For most people, Krishna recommends selfless action. Total renunciation of action is extremely hard to sustain, and without Karma-yoga it rarely works at all.", "L": ["L2"] },
+        { "s": "A", "t": "Doing your duty while free from ego and attachment is more natural for an active person, and it purifies more.", "L": ["L2"] }
+      ]
+    },
+    {
+      "title": "Lesson 3 · Renunciation is inside",
+      "turns": [
+        { "s": "B", "t": "Lesson three: true renunciation is internal, not external.", "L": ["L3"] },
+        { "s": "A", "t": "A real renunciant isn't someone who left the world physically. It's someone who neither craves nor hates, who is free of the pairs of opposites: pleasure and pain, success and failure.", "L": ["L3"] },
+        { "s": "B", "t": "Such a person is free while still living and acting right here in the world. The robes are optional.", "L": ["L3"] }
+      ]
+    },
+    {
+      "title": "Lesson 4 · Never the doer",
+      "turns": [
+        { "s": "A", "t": "Lesson four: the yogi acts, but is never the doer.", "L": ["L4"] },
+        { "s": "B", "t": "The body, senses, mind and intellect act. But the yogi understands that it's Nature moving through them, not the Self.", "L": ["L4"] },
+        { "s": "A", "t": "Holding the quiet conviction, I do nothing, keeps the yogi untouched by the Karma of action. The Self is always the witness, never the agent.", "L": ["L4"] }
+      ]
+    },
+    {
+      "title": "Lesson 5 · The lotus leaf",
+      "turns": [
+        { "s": "B", "t": "Lesson five: offering all actions to the Divine removes Karmic bondage.", "L": ["L5"] },
+        { "s": "A", "t": "Dedicate every action to God, without personal craving for the result, and you aren't stained by it, just as a lotus leaf sits on water and never gets wet.", "L": ["L5"] },
+        { "s": "B", "t": "The act of offering turns ordinary work into spiritual practice, and cuts the chain of cause and effect.", "L": ["L5"] }
+      ]
+    },
+    {
+      "title": "Lesson 6 · Action purifies",
+      "turns": [
+        { "s": "A", "t": "Lesson six: selfless action purifies the mind.", "L": ["L6"] },
+        { "s": "B", "t": "Karma-yoga is practiced for purification of the mind, chitta shuddhi. Action done with body, senses and intellect, but without ego, steadily cleans the inner instrument.", "L": ["L6"] },
+        { "s": "A", "t": "Until Self-realization becomes natural. You don't think your way to clarity. You work your way there.", "L": ["L6"] }
+      ]
+    },
+    {
+      "title": "Lesson 7 · The city of nine gates",
+      "turns": [
+        { "s": "B", "t": "Lesson seven: the body is a city of nine gates, and the Self is its master.", "L": ["L7"] },
+        { "s": "A", "t": "The Self lives in the body like a ruler in a city with nine gates, neither acting nor directing action. Nature carries out all the functions.", "L": ["L7"] },
+        { "s": "B", "t": "Seeing that difference, between the unchanging inner Self and the busy body and mind, is central to both freedom and equanimity.", "L": ["L7"] }
+      ]
+    },
+    {
+      "title": "Lesson 8 · God is not the author of Karma",
+      "turns": [
+        { "s": "A", "t": "Lesson eight: God is not the author of Karma.", "L": ["L8"] },
+        { "s": "B", "t": "The Lord doesn't create anyone's sense of doership, their actions, or the results. Nature operates through all beings. God takes on neither anyone's sin nor anyone's merit.", "L": ["L8"] },
+        { "s": "A", "t": "Ignorance hides this. Self-knowledge removes the veil, like the sun showing the world as it is.", "L": ["L8"] }
+      ]
+    },
+    {
+      "title": "Lesson 9 · Equal vision",
+      "turns": [
+        { "s": "B", "t": "Lesson nine: equal vision is the mark of true wisdom.", "L": ["L9"] },
+        { "s": "A", "t": "The wise see the same Divine in a learned priest, an outcast, a cow, an elephant and a dog. This is sama-darshana, equal vision.", "L": ["L9"] },
+        { "s": "B", "t": "It isn't a social slogan. It's a spiritual perception, and it arises naturally when you recognize the one Self living equally in every form.", "L": ["L9"] }
+      ]
+    },
+    {
+      "title": "Lesson 10 · Pleasures end in pain",
+      "turns": [
+        { "s": "A", "t": "Lesson ten: sense pleasures are the root of suffering.", "L": ["L10"] },
+        { "s": "B", "t": "Pleasures born from the senses meeting their objects are temporary, and they end in pain. They have a beginning and an end.", "L": ["L10"] },
+        { "s": "A", "t": "The wise don't look for lasting happiness there. Seeing how fleeting they are is where real dispassion begins.", "L": ["L10"] }
+      ]
+    },
+    {
+      "title": "Lesson 11 · Happiness within",
+      "turns": [
+        { "s": "B", "t": "Lesson eleven: find happiness within, not in the world.", "L": ["L11"] },
+        { "s": "A", "t": "The yogi who rejoices within, delights within, and is lit from within attains the Divine. Outer circumstances neither add to that fullness nor take from it.", "L": ["L11"] },
+        { "s": "B", "t": "That kind of happiness is stable and unconditional. It doesn't depend on anything happening, or not happening.", "L": ["L11"] }
+      ]
+    },
+    {
+      "title": "Lesson 12 · Master desire and anger",
+      "turns": [
+        { "s": "A", "t": "Lesson twelve: master desire and anger before leaving the body.", "L": ["L12"] },
+        { "s": "B", "t": "Whoever can withstand the force of desire and anger while still alive is a yogi, and a happy person. Those two impulses drive the cycle of suffering.", "L": ["L12"] },
+        { "s": "A", "t": "Mastering them isn't repression. It comes naturally as Self-knowledge and inner steadiness deepen.", "L": ["L12"] }
+      ]
+    },
+    {
+      "title": "Lesson 13 · Meditation and surrender",
+      "turns": [
+        { "s": "B", "t": "And lesson thirteen: meditation, self-control and surrender lead to supreme peace.", "L": ["L13"] },
+        { "s": "A", "t": "Senses restrained, gaze steady, breath even, free from desire and fear. And knowing God as the one who receives every offering, the ruler of all worlds, and the friend of all beings.", "L": ["L13"] },
+        { "s": "B", "t": "Such a person attains supreme and lasting peace. And that sets up Chapter Six, which is all about meditation.", "L": ["L13"] }
+      ]
+    },
+    {
+      "title": "Wrap-up",
+      "turns": [
+        { "s": "A", "t": "So, Chapter Five. Arjuna asked, knowledge or action? And Krishna said: they're one path, properly understood, and for most of us, selfless action is the way in.", "L": ["L1", "L2"] },
+        { "s": "B", "t": "Thirteen lessons: one goal, two roads; the accessible path; renunciation is inside; never the doer; the lotus leaf; action purifies; the city of nine gates; God isn't the author of Karma; equal vision; pleasures end in pain; happiness within; master desire and anger; and meditation and surrender.", "L": ["L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "L9", "L10", "L11", "L12", "L13"] },
+        { "s": "A", "t": "Right action needs detachment, self-knowledge, equal vision and surrender. Action and renunciation, rightly understood, aren't two paths but one." },
+        { "s": "B", "t": "Thanks for listening to Shruti." }
+      ]
+    }
+  ]
+}
