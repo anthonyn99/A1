@@ -58,12 +58,10 @@ def hyphen_rule(left, right):
     return "drop"
 
 def resolve(buf):
-    """buf holds (char, hl) with ('
-', False) between source lines; glue the lines."""
+    """buf holds (char, hl) with (BR, False) between source lines; glue the lines."""
     out = []
     for i, (c, h) in enumerate(buf):
-        if c != "
-": out.append((c, h)); continue
+        if c != BR: out.append((c, h)); continue
         while out and out[-1][0] == " ": out.pop()
         if out and out[-1][0] == "-":
             prev = "".join(x for x, _ in out)
