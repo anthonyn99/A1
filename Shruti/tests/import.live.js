@@ -175,7 +175,7 @@ const imp = (x) => `const IMP = await import(new URL('import.js', location.href)
   await click(c, '[data-skip]', 0);
   ok('Leave out: the opening pages are struck through and not counted', await waitFor(c, `document.querySelectorAll('.imp-ch.skip').length===1 && /Save 3 chapters/.test(document.querySelector('[data-save]').textContent)`));
   await click(c, '[data-tidy]');
-  ok('Tidy with AI: the reworded paragraph is refused', await waitFor(c, `/refused/.test(document.querySelector('.imp-run:last-of-type')?.textContent||'') && !/noisy/.test(JSON.stringify(1))`, 15000), await ev(c, `return [...document.querySelectorAll('.imp-run')].map(e=>e.textContent).join(' / ')`));
+  ok('Tidy with AI: the reworded paragraph is refused', await waitFor(c, `[...document.querySelectorAll('.imp-run')].some(e=>/1 changes refused/.test(e.textContent))`, 15000), await ev(c, `return [...document.querySelectorAll('.imp-run')].map(e=>e.textContent).join(' / ')`));
   ok('…and the text still says "loud"', /loud with voices/.test(await ev(c, `return [...document.querySelectorAll('.imp-m')].map(e=>e.textContent).join(' ')`)));
   await ev(c, `const i=document.querySelectorAll('.imp-t')[1]; i.value='The Morning'; i.dispatchEvent(new Event('input')); return 1`);
   await shot(c, 'import-review-tony-1280');
@@ -192,8 +192,8 @@ const imp = (x) => `const IMP = await import(new URL('import.js', location.href)
   await click(c, '#make-ai');
   await waitFor(c, `!!document.querySelector('#gen-sheet [data-kind=lessons]')`);
   await ev(c, `document.querySelector('#gen-sheet [data-kind=lessons]').click(); return 1`);
-  await waitFor(c, `!!document.querySelector('#gen-run [data-go], #gen-run .btn.solid')`);
-  await ev(c, `(document.querySelector('#gen-run [data-go]')||document.querySelector('#gen-run .btn.solid')).click(); return 1`);
+  await waitFor(c, `!!document.querySelector('#gen-run [data-make]')`);
+  await ev(c, `document.querySelector('#gen-run [data-make]').click(); return 1`);
   ok('Make with AI works on it: lessons drawn, kept in Tony\'s own doc', await waitFor(c, `!!window.Shruti.core.me.get('assets.${mineId}.ch1.lessons',null) && !window.Shruti.core.shared.get('assets.${mineId}',null)`, 15000), await ev(c, `return document.querySelector('#gen-run')?.textContent.slice(0,300)`));
   ok('…the ask carried the chapter\'s own text and its title', /The sun came up over the hills/.test(S.chats[S.chats.length - 1].body) && /The Little Book of Days/.test(S.chats[S.chats.length - 1].body));
   await ev(c, `document.querySelector('#gen-sheet [data-close]').click(); return 1`);
