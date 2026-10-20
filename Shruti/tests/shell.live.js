@@ -46,6 +46,7 @@ const waitFor = async (c, expr, ms = 15000) => {
   return false;
 };
 const shot = async (c, name) => {
+  await sleep(800);   // view transitions and toasts settle
   const r = await c.send('Page.captureScreenshot', { format: 'png' });
   const data = r && (r.result ? r.result.data : r.data);
   if (data) fs.writeFileSync(shotPath('shruti-' + name), Buffer.from(data, 'base64'));

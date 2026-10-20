@@ -238,7 +238,7 @@ function drawOrca(state) {
   const box = $('#st-orca'); if (!box) return;
   const k = keyOf();
   const st = state || (modelsCache ? { kind: 'good', text: 'Working · ' + modelsCache.filter((m) => m.routable).length + ' of ' + modelsCache.length + ' models ready' } : k ? { kind: '', text: 'Saved · not checked yet' } : { kind: 'bad', text: 'No key yet: AI features are off' });
-  box.innerHTML = '<h3>' + L.IC.lessons + 'Orca key</h3>' +
+  box.innerHTML = '<h3>' + L.IC.key + 'Orca key</h3>' +
     '<p class="hint">Every AI feature in Shruti (podcasts, videos, study sets) runs through Orca with your own key. Make one on Orca\'s Keys page and paste it here once; it then works on all your devices.</p>' +
     '<div class="row"><input id="orca-key" type="password" autocomplete="off" spellcheck="false" placeholder="' + (k ? esc(masked(k)) : 'orca_sk_…') + '" aria-label="Orca key">' +
     '<button class="btn solid" id="orca-save">' + (k ? 'Replace' : 'Save') + '</button></div>' +
