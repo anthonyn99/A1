@@ -221,6 +221,7 @@ const link = (o) => PAGE + '#ew-import=' + Buffer.from(JSON.stringify(o)).toStri
   ok('Rename renames the card, its list entry and its page', await js(`return document.querySelector('.wr-card[data-wr="${newId}"] .wr-title').textContent === 'Discipline Rules' &&
     __fakeFs.docs['dashboards/everwell_tony'].mindsetPages[2].title === 'Discipline Rules' && __fakeFs.docs['dashboards/everwell_notes']['e_${newId}'].title === 'Discipline Rules';`));
   shown = await nbTitle(null);
+  console.log('DBG', shown, await js(`return [...document.querySelectorAll('.wr-card')].map(c => c.dataset.wr + '=' + c.querySelector('.wr-title').textContent).join(); `), await js(`return JSON.stringify(__fakeFs.docs['dashboards/everwell_tony'].mindsetPages)`));
   ok('...then the editor opens with the Rename button name, and closing it keeps that name everywhere', shown === 'Discipline Rules|Discipline Rules' && (await cardNames()) === 'Discipline Rules|Discipline Rules|Discipline Rules', shown + ' / ' + (await cardNames()));
   a = await js(`const r = document.querySelector('.wr-card[data-wr="${newId}"] .wr-title').getBoundingClientRect(); return JSON.stringify({ x: r.left + r.width / 2, y: r.top + r.height / 2 });`).then(JSON.parse);
   b = await js(`const r = document.querySelector('.wr-card[data-wr="relationship-principles"]').getBoundingClientRect(); return JSON.stringify({ x: r.left + 20, y: r.top + r.height / 2 });`).then(JSON.parse);
