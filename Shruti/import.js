@@ -141,6 +141,8 @@ export function open({ go } = {}) {
   const onKey = (e) => { if (e.key === 'Escape' && !busy() && !document.querySelector('.ui-dim')) close(); };
   addEventListener('keydown', onKey);
   dim.addEventListener('click', (e) => { if ((e.target === dim || e.target.closest('[data-close]')) && !busy()) close(); });
+  // A problem box's "Open Settings" (G.problemHTML): Settings opens over the sheet, which keeps the work.
+  dim.addEventListener('click', (e) => { if (e.target.closest('[data-ai-settings]') && window.Shruti) window.Shruti.openSettings(); });
 
   const paint = () => {
     if (st.step === 'source') return paintSource();
@@ -265,14 +267,16 @@ export function open({ go } = {}) {
     (c.paras.length > 601 ? '<p class="hint">Only the first 600 paragraphs are listed: split again further on.</p>' : '') + '</div></div>';
   const runHtml = (R) => '<div class="imp-run">' +
     (R.done ? '<div class="stat good"><i></i><span>' + esc(R.done) + '</span></div>'
-      : R.error ? '<div class="stat bad"><i></i><span>' + esc(R.error) + '</span></div>'
+      : R.error ? G.problemHTML(R.error)
         : '<div class="stat busy"><i></i><span>' + esc((R.model ? G.modelName(R.model) + ' is reading the book' : 'Asking') + '…') + '</span><button class="btn ghost sm" data-cancel-run>Cancel</button></div>') +
     (R.stream ? '<details class="gen-live"' + (R.done || R.error ? '' : ' open') + '><summary>What ' + esc(G.modelName(R.model) || 'the unit') + ' wrote</summary><pre>' + esc(R.stream.slice(-4000)) + '</pre></details>' : '') + '</div>';
-  const tidyHtml = (T) => '<div class="imp-run"><div class="stat ' + (T.error ? 'bad' : T.doing ? 'busy' : 'good') + '"><i></i><span>' + esc(T.error || T.text) + '</span>' + (T.doing ? '<button class="btn ghost sm" data-cancel-run>Cancel</button>' : '') + '</div></div>';
+  const tidyHtml = (T) => '<div class="imp-run">' + (T.error ? G.problemHTML(T.error) : '<div class="stat ' + (T.doing ? 'busy' : 'good') + '"><i></i><span>' + esc(T.text) + '</span>' + (T.doing ? '<button class="btn ghost sm" data-cancel-run>Cancel</button>' : '') + '</div>') + '</div>';
 
+  /** Nothing is sent when it cannot work: no key, a refused key, no unit allowed. */
   async function needKey() {
-    if (keyOf()) return true;
-    const goS = await window.uiConfirm('This uses Orca with your own key. Paste it once in Settings.', { title: 'Your Orca key is needed', okLabel: 'Open Settings' });
+    const stop = await G.aiReady();
+    if (!stop) return true;
+    const goS = await window.uiConfirm(stop.text, { title: stop.title, okLabel: 'Open Settings' });
     if (goS && window.Shruti) window.Shruti.openSettings();
     return false;
   }
@@ -286,7 +290,7 @@ export function open({ go } = {}) {
     try {
       const msgs = X.tocPrompt(st.paras, { title: st.title });
       msgs[1].content = G.spill(msgs[1].content);
-      const r = await O.chat({ key: keyOf(), messages: msgs, models: O.chain(C.me.get('units', {}) || {}, null), signal: st.abort.signal,
+      const r = await O.chat({ key: keyOf(), messages: msgs, models: O.chain(C.me.get('units', {}) || {}, O.cachedModels(keyOf())), signal: st.abort.signal,
         onDelta: (d) => { R.stream += d; repaint(); }, onModel: (m) => { R.model = m; repaint(true); } });
       R.model = r.model;
       const res = X.checkToc(st.paras, G.parseJSON(r.text));
@@ -296,7 +300,8 @@ export function open({ go } = {}) {
       if (res.author && !st.author) st.author = res.author;
       R.done = res.starts.length + ' found' + (res.moved ? ', ' + res.moved + ' moved to where their first words really are' : '') + (res.dropped ? ', ' + res.dropped + ' left out (their first words are not in the text)' : '') + '.';
     } catch (e) {
-      R.error = e && e.code === 'abort' ? 'Cancelled.' : (e && e.message) || String(e);
+      R.error = O.explain(e);
+      if (e && e.code === 'key') O.forget();
     }
     st.abort = null;
     repaint(true);
@@ -316,12 +321,12 @@ export function open({ go } = {}) {
       try {
         const msgs = X.tidyPrompt(c.title, c.paras);
         msgs[1].content = G.spill(msgs[1].content);
-        const r = await O.chat({ key: keyOf(), messages: msgs, models: O.chain(C.me.get('units', {}) || {}, null), signal: st.abort.signal, temperature: 0 });
+        const r = await O.chat({ key: keyOf(), messages: msgs, models: O.chain(C.me.get('units', {}) || {}, O.cachedModels(keyOf())), signal: st.abort.signal, temperature: 0 });
         const res = X.applyTidy(c.paras, G.parseJSON(r.text));
         c.paras = res.paras; T.taken += res.taken; T.refused += res.refused;
       } catch (e) {
         if (e && e.code === 'abort') break;
-        if (e && (e.code === 'key' || e.code === 'none') && i === 0) { T.error = e.message; break; }
+        if (e && (e.code === 'key' || e.code === 'none') && i === 0) { T.error = O.explain(e); if (e.code === 'key') O.forget(); break; }
         failed++;
       }
     }
