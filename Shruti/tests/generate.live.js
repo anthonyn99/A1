@@ -184,7 +184,9 @@ const sheetKind = (c, k) => ev(c, `document.querySelector('#gen-sheet [data-kind
   await ev(c, `document.querySelector('#gen-vers [data-del]').click(); return 1`);
   await waitFor(c, `!!document.querySelector('.sheet-dim [data-r="1"]')`);
   await ev(c, `[...document.querySelectorAll('.sheet-dim [data-r="1"]')].pop().click(); return 1`);
-  ok('Delete removes the version and both its files on Drive', await waitFor(c, `document.querySelectorAll('#gen-vers .gv').length===1`, 6000) && S.dels.sort().join() === 'drive-1,drive-2', S.dels.join());
+  const gone = await waitFor(c, `document.querySelectorAll('#gen-vers .gv').length===1`, 6000);
+  for (const t0 = Date.now(); S.dels.length < 2 && Date.now() - t0 < 5000;) await sleep(100);
+  ok('Delete removes the version and both its files on Drive', gone && S.dels.sort().join() === 'drive-1,drive-2', S.dels.join());
 
   console.log('\nLessons');
   await sheetKind(c, 'lessons');
