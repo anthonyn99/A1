@@ -15,7 +15,9 @@ import * as PDF from './pdf.js';
 import * as H from './study/hub.js';
 import * as B from './books.js';
 import * as OR from './order.js';
-import * as IMP from './import.js';
+// Import (and its extractor) loads the first time someone imports or renames a
+// book: most visits never need its ~1,000 lines.
+const IMP = () => import('./import.js');
 
 export const SHIPPED = SHIPPED_IDS;
 const COVERS = { gita: { bg: '#2b2235', tx: '#f2ead8', ac: '#e0b874', kicker: 'Shared' } };
@@ -158,7 +160,7 @@ export async function viewLibrary(el, { go }) {
     (mine.length ? '<div class="shelf" id="shelf-mine">' + mine.map(card).join('') + '</div>'
       : '<button class="mine-empty" data-import>' + IC.upload + '<span><b>Import a book.</b> A PDF, EPUB, Word file or text: Shruti finds its chapters, and read-aloud, Make with AI and Study work on it like the Gita.</span></button>');
   el.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => { if (!(window.A1Drag && A1Drag.active)) go(b.dataset.go); }));
-  el.querySelectorAll('[data-import]').forEach((b) => b.addEventListener('click', () => IMP.open({ go })));
+  el.querySelectorAll('[data-import]').forEach((b) => b.addEventListener('click', () => IMP().then((m) => m.open({ go }))));
   const redraw = () => viewLibrary(live(el), { go });
   OR.sortable(el.querySelector('#shelf-shared'), { row: '.book', axis: 'grid', onMove: (ids) => { me.set({ 'shelf.order': ids }, { now: true }); redraw(); } });
   OR.sortable(el.querySelector('#shelf-mine'), { row: '.book', axis: 'grid', onMove: (ids) => { me.set({ 'shelf.mine': ids }, { now: true }); redraw(); } });
@@ -191,7 +193,7 @@ export async function viewBook(el, { id, go }) {
     '<div class="sec-h"><h2>' + esc(unit + 's') + '</h2></div><div class="chs">' + b.chapters.map(row).join('') + '</div>' + bookmarksHtml(b);
   el.querySelectorAll('[data-go]').forEach((x) => x.addEventListener('click', () => { if (!(window.A1Drag && A1Drag.active)) go(x.dataset.go); }));
   const rn = el.querySelector('[data-rename]');
-  if (rn) rn.addEventListener('click', () => IMP.rename(b, () => viewBook(live(el), { id, go })));
+  if (rn) rn.addEventListener('click', () => IMP().then((m) => m.rename(b, () => viewBook(live(el), { id, go }))));
   const del = el.querySelector('[data-delete]');
   if (del) del.addEventListener('click', async () => {
     const both = b.where !== 'mine';
