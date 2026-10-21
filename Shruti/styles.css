@@ -12,7 +12,7 @@ body { max-width: 2000px; margin-inline: auto; }
 :root {
   --bg: #1a1a1d; --s1: #232327; --s2: #2c2c31; --s3: #34343a;
   --line: rgba(255,255,255,.07); --line2: rgba(255,255,255,.12);
-  --tx: #e9e9ee; --txm: #adadb2; --txd: #85858c;
+  --tx: #e9e9ee; --txm: #adadb2; --txd: #93939a;
   --ac: #c0aeea; --acl: #dbd0f5; --acd: #9a86c9; --ac-ink: #1a1a1d;
   --ac-soft: rgba(192,174,234,.12); --ac-line: rgba(192,174,234,.35);
   --gold: #e0b874; --good: #a4b986; --bad: #d68a7c;
@@ -32,8 +32,8 @@ body { max-width: 2000px; margin-inline: auto; }
 body[data-profile=veda] {
   --bg: #1B1C1E; --s1: #1f2022; --s2: #26272A; --s3: #2e2f33;
   --line: rgba(255,255,255,.09); --line2: #4A4B51;
-  --tx: #ECECEE; --txm: #AFB0B5; --txd: #76777C;
-  --ac: #A892B0; --acl: #c9b8d0; --acd: #8D769A; --ac-ink: #fff;
+  --tx: #ECECEE; --txm: #AFB0B5; --txd: #919297;
+  --ac: #A892B0; --acl: #c9b8d0; --acd: #8D769A; --ac-ink: #1B1C1E;
   --ac-soft: rgba(141,118,154,.16); --ac-line: rgba(168,146,176,.45);
   --f-ui: 'Nunito', system-ui, sans-serif;
   --f-head: 'Lora', Georgia, serif;
@@ -78,13 +78,15 @@ h1, h2, h3 { font-family: var(--f-head); font-weight: 700; letter-spacing: -.01e
 }
 .ib:hover { color: var(--ac); border-color: var(--line2); }
 body[data-profile=veda] .btn { border-radius: 999px; font-weight: 700; }
-body[data-profile=veda] .btn.solid { background: var(--acd); border-color: var(--acd); }
+body[data-profile=veda] .btn.solid { background: #856e92; border-color: #856e92; color: #fff; }
 input, select, textarea {
   font: inherit; color: var(--tx); background: var(--s1); border: 1px solid var(--line2);
   border-radius: 8px; padding: 10px 12px; min-height: 42px; width: 100%; outline: none;
   transition: border-color .15s, box-shadow .15s;
 }
 input:focus, select:focus, textarea:focus { border-color: var(--ac); box-shadow: 0 0 0 3px var(--ac-soft); }
+/* The keyboard focus ring, on both profiles (a mouse click shows none). */
+:is(button, a, [role=button], [role=checkbox], [role=radio], [role=tab], [tabindex]):focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; }
 @media (pointer: coarse) { input, select, textarea { font-size: 16px; } }
 
 /* == profile picker ========================================================= */
@@ -492,7 +494,7 @@ body[data-profile=veda] .ls-sum b { text-transform: none; letter-spacing: 0; fon
   border: 1px solid transparent; user-select: none;
 }
 .unit .tick {
-  width: 22px; height: 22px; border-radius: 6px; border: 1.5px solid var(--line2); display: grid; place-items: center;
+  width: 24px; height: 24px; border-radius: 6px; border: 1.5px solid var(--line2); display: grid; place-items: center;
   background: transparent; cursor: pointer; color: var(--ac-ink); flex-shrink: 0; padding: 0;
 }
 .unit .tick svg { width: 14px; height: 14px; opacity: 0; }
@@ -578,7 +580,7 @@ body[data-profile=veda] .ls-sum b { text-transform: none; letter-spacing: 0; fon
 .gen-units .chip { display: inline-flex; align-items: center; gap: 5px; }
 .gen-units .chip svg { width: 13px; height: 13px; }
 .gen-units .chip.off { text-decoration: line-through; text-decoration-color: var(--bad); }
-.lk { align-self: flex-start; background: none; border: 0; padding: 2px 0; color: var(--ac); font: inherit; font-size: 12.5px; cursor: pointer; }
+.lk { align-self: flex-start; background: none; border: 0; padding: 4px 0; min-height: 24px; color: var(--ac); font: inherit; font-size: 12.5px; cursor: pointer; }
 .gen-go { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
 .gen-go .hint { font-size: 12.5px; color: var(--txm); flex: 1; min-width: 160px; }
 .gen-model { margin-left: auto; font: 650 11.5px var(--f-ui); color: var(--ac); border: 1px solid var(--ac-line); border-radius: 999px; padding: 2px 8px; }
@@ -751,7 +753,7 @@ body[data-profile=veda] { --k-flashcards: #A892B0; --k-quiz: #9bb08a; --k-mindma
 .sh-kind i { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; color: var(--k); background: color-mix(in srgb, var(--k) 13%, transparent); flex-shrink: 0; }
 .sh-kind i svg { width: 16px; height: 16px; }
 .sh-kind span { flex: 1; font-weight: 650; font-size: 13.5px; }
-.sh-kind em { font-style: normal; font-size: 11.5px; font-weight: 650; color: var(--txd); padding: 2px 8px; border-radius: 999px; background: var(--s3); white-space: nowrap; }
+.sh-kind em { font-style: normal; font-size: 11.5px; font-weight: 650; color: var(--txm); padding: 2px 8px; border-radius: 999px; background: var(--s3); white-space: nowrap; }
 .sh-kind em.due { color: var(--k); background: color-mix(in srgb, var(--k) 15%, transparent); }
 .sh-kind em.good { color: var(--good); background: color-mix(in srgb, var(--good) 14%, transparent); }
 .sh-make { width: 100%; }
