@@ -38,25 +38,25 @@ export async function checkKey(key, { fetch: f = fetch, signal } = {}) {
 /* ── what Orca says this key can use, once per key per page ─────────────── */
 // Settings, Make with AI, Study and Import all read the same answer, so a unit
 // shows the same state everywhere and a run never starts blind.
-let known = { key: null, models: null, at: 0, pending: null, rejected: false };
+let asked = { key: null, models: null, at: 0, pending: null, rejected: false };
 /** The last /models answer for this key (null when not asked yet). */
-export const cachedModels = (key) => (known.key === String(key || '').trim() ? known.models : null);
+export const cachedModels = (key) => (asked.key === String(key || '').trim() ? asked.models : null);
 /** Ask Orca, or reuse an answer under 5 minutes old. Resolves checkKey's result. */
 export function models(key, { fresh = false, fetch: f } = {}) {
   key = String(key || '').trim();
-  if (!fresh && known.key === key && known.models && Date.now() - known.at < 5 * 60e3) return Promise.resolve({ ok: true, models: known.models });
-  if (!fresh && known.key === key && known.pending) return known.pending;
+  if (!fresh && asked.key === key && asked.models && Date.now() - asked.at < 5 * 60e3) return Promise.resolve({ ok: true, models: asked.models });
+  if (!fresh && asked.key === key && asked.pending) return asked.pending;
   const p = checkKey(key, f ? { fetch: f } : {}).then((r) => {
-    if (known.key !== key) return r;
-    if (r.ok) known = { key, models: r.models, at: Date.now(), pending: null, rejected: false };
-    else known = { key, models: null, at: 0, pending: null, rejected: r.status === 401 || r.status === 403 };
+    if (asked.key !== key) return r;
+    if (r.ok) asked = { key, models: r.models, at: Date.now(), pending: null, rejected: false };
+    else asked = { key, models: null, at: 0, pending: null, rejected: r.status === 401 || r.status === 403 };
     return r;
   });
-  known = { key, models: known.key === key ? known.models : null, at: known.key === key ? known.at : 0, pending: p, rejected: false };
+  asked = { key, models: asked.key === key ? asked.models : null, at: asked.key === key ? asked.at : 0, pending: p, rejected: false };
   return p;
 }
 /** Forget the answer (the key was removed or replaced). */
-export function forget() { known = { key: null, models: null, at: 0, pending: null, rejected: false }; }
+export function forget() { asked = { key: null, models: null, at: 0, pending: null, rejected: false }; }
 
 /** The picker's rows: the person's order and ticks over what Orca reports.
  *  prefs = {order:[ids], on:{id:bool}}; models = /models data (or null when unknown). */
