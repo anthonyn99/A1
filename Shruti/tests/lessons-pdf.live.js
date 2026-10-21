@@ -3,8 +3,9 @@
 //
 //   node Shruti/tests/lessons-pdf.live.js
 //
-// jsPDF is fetched once from cdnjs by this script and served to the page
-// (the test browser blocks every outside site). Both profiles, 390 and 1280:
+// The page loads jsPDF from cdnjs itself (cdnjs is not blocked). Serving it
+// through the test's network mock crashed headless Edge's renderer the moment
+// the script ran (2026-10-20), so it is not mocked. Both profiles, 390 and 1280:
 // the readers' notes for chapter 4, then an AI-made set with diacritics.
 'use strict';
 const path = require('path');
@@ -17,15 +18,7 @@ const ev = (c, x) => evalJs(c, /^\s*return\b/.test(x) && x.indexOf(';') < 0 ? x 
 const URL = 'https://anthonyn99.github.io/A1/Shruti/shruti.html';
 const JSPDF = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
 const lessons = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'books', 'gita', 'lessons.json'), 'utf8'));
-let jspdfText = '';
-
-const mock = firebaseMock({
-  patterns: ['https://cdnjs.cloudflare.com/*'],
-  handle(req) {
-    if (req.url === JSPDF) return { type: 'application/javascript', text: jspdfText };
-    return null;
-  },
-});
+const mock = firebaseMock({});
 
 let pass = 0, fail = 0;
 const ok = (n, c, d) => {
@@ -88,9 +81,8 @@ async function download(c, sel) {
 const pdfWords = (pdf) => (pdf.match(/\((?:\\.|[^\\)])*\) Tj/g) || []).map((s) => s.slice(1, -4).replace(/\\(.)/g, '$1')).join(' ').replace(/\s+/g, ' ');
 
 (async () => {
-  const r = await fetch(JSPDF);
-  if (!r.ok) throw new Error('jsPDF could not be fetched: ' + r.status);
-  jspdfText = await r.text();
+  const r = await fetch(JSPDF, { method: 'HEAD' });
+  if (!r.ok) throw new Error('jsPDF is not on cdnjs: ' + r.status);
   const c = await connect({ mock });
   await c.send('Page.enable');
   await c.send('Runtime.enable');
