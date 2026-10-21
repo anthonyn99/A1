@@ -490,10 +490,13 @@ function drawRun(box, ctx, kind, close) {
   const other = !mine && M.jobOf(ctx.book, ctx.n, kind);
   if (!mine) {
     const L = (ctx.lessons && ctx.lessons.lessons) || [];
-    box.innerHTML = '<div class="gen-go"><button class="btn solid" data-make' + (isBusy() || other ? ' disabled' : '') + '>' + SPARK + 'Make ' + M.KIND_NAME[kind].toLowerCase() + '</button>' +
+    // Said before pressing Make: no key, a refused key, no unit this key may use.
+    const pre = isBusy() || other ? null : kind === 'read' ? (keyOf() ? null : O.preflight('')) : O.preflight(keyOf(), C.me.get('units', {}) || {}, modelsNow());
+    box.innerHTML = problemHTML(pre) + '<div class="gen-go"><button class="btn solid" data-make' + (isBusy() || other ? ' disabled' : '') + '>' + SPARK + 'Make ' + M.KIND_NAME[kind].toLowerCase() + '</button>' +
       '<span class="hint">' + esc(isBusy() ? 'One thing at a time: ' + M.KIND_NAME[running.kind].toLowerCase() + ' for chapter ' + running.ctx.n + ' is being made.' : kind === 'read' ? 'Takes a few minutes.' : kind === 'lessons' ? 'About a minute.' : 'A few minutes: written, checked' + (L.length ? ' for all ' + L.length + ' lessons' : '') + ', then spoken.') + '</span></div>';
     const b = box.querySelector('[data-make]');
     b.addEventListener('click', () => start(ctx, kind, box, close));
+    bindProblem(box, close);
     return;
   }
   paintRun(box, running);
