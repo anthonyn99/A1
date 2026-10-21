@@ -76,12 +76,54 @@ export function unitRows(prefs, models) {
   // An optional unit (Groq) only shows once Orca says it routes it, or after the person ticked it.
   }).filter((r) => !(r.optional && (r.status === 'missing' || r.status === 'unknown') && !(prefs.on && prefs.on[r.id])));
 }
+/** A row's status in words, the same in Settings and every maker. */
+export const STATUS = { ready: 'ready', offline: 'offline', missing: 'not on Orca', scope: 'not allowed on this key', unknown: '' };
+const usable = (r) => r.status === 'ready' || r.status === 'unknown';
 
-/** The models to try, in order: ticked, and routable when that is known. */
+/** The models to try, in order: ticked, and routable when that is known.
+ *  When none is ready, the ticked offline ones are still tried (one may be
+ *  back by now); a unit the key may not use never is. */
 export function chain(prefs, models) {
   const rows = unitRows(prefs, models).filter((r) => r.on);
-  const ready = rows.filter((r) => r.status === 'ready' || r.status === 'unknown');
-  return (ready.length ? ready : rows).map((r) => r.id);
+  const ready = rows.filter(usable);
+  return (ready.length ? ready : rows.filter((r) => r.status === 'offline')).map((r) => r.id);
+}
+
+const NAME = Object.fromEntries(UNITS.map((u) => [u.id, u.name]));
+const names = (rows) => rows.map((r) => r.name).join(', ').replace(/, ([^,]*)$/, ' and $1');
+
+/** Why the AI cannot run, said before anything is sent. null when it can,
+ *  else {code, title, text, action: 'settings'}. mdl = cachedModels(key). */
+export function preflight(key, prefs, mdl) {
+  key = String(key || '').trim();
+  if (!key) return { code: 'nokey', title: 'Your Orca key is needed', text: 'Every AI feature runs through Orca with your own key. Paste it once in Settings and it works on all your devices.', action: 'settings' };
+  if (asked.rejected && asked.key === key) return explain({ code: 'key' });
+  const on = unitRows(prefs, mdl).filter((r) => r.on);
+  if (!on.length) return { code: 'none', title: 'No AI units are ticked', text: 'Tick at least one unit in Settings: DeepSeek, ChatGPT, Gemini or Perplexity.', action: 'settings' };
+  if (mdl && !on.some((r) => r.status === 'ready' || r.status === 'offline')) {
+    const scope = on.filter((r) => r.status === 'scope');
+    return { code: 'scope', title: 'Your key may not use these units',
+      text: (scope.length ? names(scope) + (scope.length > 1 ? ' are' : ' is') + ' not allowed on this key. ' : 'None of the ticked units is on Orca. ') +
+        'Tick another unit in Settings, or allow more models for the key on Orca\'s Keys page.', action: 'settings' };
+  }
+  return null;
+}
+
+/** An error from chat(), speak() or preflight() as {code, title, text, action}:
+ *  action 'settings' (the fix is there) or 'retry'. */
+export function explain(e) {
+  const code = e && e.code;
+  if (code === 'abort') return { code, title: 'Cancelled', text: 'Cancelled.', action: null };
+  if (code === 'key') return { code, title: 'Orca rejected your key', text: 'It may have been deleted or changed on Orca\'s Keys page. Paste a working key in Settings.', action: 'settings' };
+  if (e && e.title && e.text) return e;
+  if (code === 'none' && Array.isArray(e.tried) && e.tried.length) {
+    if (e.tried.every((t) => /: unreachable$/.test(t))) return { code: 'net', title: 'Orca could not be reached', text: 'Check the connection and try again.', action: 'retry' };
+    const why = (w) => (/^(429|503)$/.test(w) ? 'busy' : /^(500|502|504)$/.test(w) ? 'offline' : w === '404' ? 'not on Orca' : w);
+    const each = e.tried.map((t) => { const i = t.indexOf(': '); const id = t.slice(0, i); return (NAME[id] || id) + ' ' + why(t.slice(i + 2)); });
+    return { code: 'down', title: 'No unit could answer just now', text: 'Tried ' + each.join(', ') + '. Try again in a minute, or tick another unit in Settings.', action: 'retry' };
+  }
+  if (code === 'none') return { code, title: 'No AI units are ticked', text: 'Tick at least one unit in Settings.', action: 'settings' };
+  return { code: code || 'error', title: 'It stopped', text: (e && e.message) || String(e), action: 'retry' };
 }
 
 const sleep = (ms, signal) => new Promise((res, rej) => {
