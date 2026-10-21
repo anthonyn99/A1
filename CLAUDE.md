@@ -52,9 +52,10 @@
   unpinned; legacy adoption is retired after 2026-11-10 by its checklist).
 - **Shruti** ("continue Shruti", "next Shruti phase", the Gita reader/podcast/video
   program): everything lives in `Shruti/` (page, data, tools, tests, docs, worker), so it
-  moves as one folder; its docs are the exception to "docs go in docs/". Read §0 of
-  [Shruti/docs/plan.md](Shruti/docs/plan.md), build exactly the phase it names (one per
-  session), test, then rewrite §0. All AI goes through Orca with each person's own key.
+  moves as one folder; its docs are the exception to "docs go in docs/". **All 9 phases
+  are done (2026-10-20).** Read §0 of [Shruti/docs/plan.md](Shruti/docs/plan.md) (what is
+  left with Tony, what to do with a new ask), then test and update §0. All AI goes
+  through Orca with each person's own key.
 - **Theme overhaul** ("continue theme", "next theme phase"): MAGI's look on
   Tony's side of every program, plus MAGI's drag and drop everywhere except
   Tony's TaskHub. **All 11 phases are done (2026-10-03).** §0 of
