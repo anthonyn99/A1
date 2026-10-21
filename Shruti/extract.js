@@ -154,6 +154,8 @@ export function fromPdf(pages) {
     let h = levelOf(l);
     if (h && l.t.length > 140) h = 0;
     let fresh = !cur || cur.h !== h;
+    // "CHAPTER 6" always starts a paragraph, and so does the line after it.
+    if (!fresh && (CHAPTER_LINE.test(l.t) || (CHAPTER_LINE.test(prev.t) && prev.t.length < 40))) fresh = true;
     if (!fresh && h) {
       // A heading over two lines stays one heading.
       fresh = prev.pg !== l.pg || prev.y - l.y > gap * 2.2;
@@ -349,16 +351,54 @@ export function detect(paras, { toc } = {}) {
     const use = top.length >= 2 ? top : toc;
     return { starts: tidyStarts(use.map((e) => ({ title: e.title, at: e.at })), n), how: 'contents' };
   }
+  // A printed contents page ("1. Arjuna's Dilemma ........ 3").
+  const ct = contentsToc(paras);
+  if (ct.length >= 2) return { starts: tidyStarts(ct, n), how: 'contents page' };
   // The highest heading level that comes back at least twice; a single h1
-  // (the book's own title) does not count.
+  // (the book's own title) and contents lines do not count.
   for (const lv of [1, 2, 3]) {
-    const at = paras.map((p, i) => (p.h === lv && !p.ttl ? i : -1)).filter((i) => i >= 0);
+    const at = paras.map((p, i) => (p.h === lv && !p.ttl && !LEADER.test(p.t) ? i : -1)).filter((i) => i >= 0);
     if (at.length >= 2 && at.length <= Math.max(2, n / 2)) return { starts: tidyStarts(at.map((i) => ({ title: paras[i].t, at: i })), n), how: 'headings' };
   }
   const lines = paras.map((p, i) => (CHAPTER_LINE.test(p.t) && p.t.length < 120 ? i : -1)).filter((i) => i >= 0);
   if (lines.length >= 2) return { starts: tidyStarts(lines.map((i) => ({ title: paras[i].t, at: i })), n), how: 'chapter lines' };
   return { starts: n ? [{ title: 'The whole text', at: 0 }] : [], how: 'none' };
 }
+/* A printed contents page: entries "title .......... page", often several to a
+   paragraph once a PDF's lines are joined. Numbered entries are the chapters
+   (with any unnumbered ones before the first, like an introduction); each is
+   found in the text after the contents, where its title starts a paragraph
+   ("1. Arjuna's Dilemma", or "CHAPTER 6 6. Path of meditation"). A "CHAPTER N"
+   line just before it belongs to that chapter. */
+const LEADER = /(?:\.\s?){4,}\s*\d+\s*$/;
+const ENTRY = /\s*(.+?)\s*(?:\.\s?){4,}\s*(\d+)/g;
+const bare = (t) => fold(String(t).replace(/^(?:chapter|part|book|canto)\s+\S+\s*/i, '').replace(/^\d+\s*[.):-]\s*/, ''));
+export function contentsToc(paras) {
+  const entries = [];
+  let last = -1;
+  paras.forEach((p, i) => {
+    if (i > paras.length / 2 || !/(?:\.\s?){4,}\s*\d+/.test(p.t)) return;
+    for (const m of p.t.matchAll(ENTRY)) entries.push({ raw: m[1].replace(/^contents\s+/i, '').trim() });
+    last = i;
+  });
+  if (entries.length < 2) return [];
+  const numbered = entries.map((e, i) => (/^\d+\s*[.)]\s+\S/.test(e.raw) ? i : -1)).filter((i) => i >= 0);
+  const use = numbered.length >= 2 ? entries.filter((e, i) => /^\d+\s*[.)]\s+\S/.test(e.raw) || i < numbered[0]) : entries;
+  const out = [];
+  let from = last + 1;
+  for (const e of use) {
+    const want = bare(e.raw);
+    if (!want) continue;
+    let at = -1;
+    for (let i = from; i < paras.length; i++) { const b = bare(paras[i].t); if (b === want || (b.startsWith(want + ' ') && paras[i].t.length < want.length + 160) || b.startsWith(want) && b.length === want.length) { at = i; break; } }
+    if (at < 0) continue;
+    const start = at > 0 && CHAPTER_LINE.test(paras[at - 1].t) && paras[at - 1].t.length < 40 && at - 1 >= from ? at - 1 : at;
+    out.push({ title: e.raw.replace(/^\d+\s*[.)]\s*/, ''), at: start, depth: 0 });
+    from = at + 1;
+  }
+  return out;
+}
+
 /** pdf.js outline entries resolved to pages [{title, page, depth}] -> toc
  *  entries pointing at the first paragraph of that page whose text matches
  *  the title (else the first on the page). */
