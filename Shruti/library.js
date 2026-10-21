@@ -17,7 +17,10 @@ import * as B from './books.js';
 import * as OR from './order.js';
 // Import (and its extractor) loads the first time someone imports or renames a
 // book: most visits never need its ~1,000 lines.
-const IMP = () => import('./import.js');
+const IMP = () => import('./import.js').catch(() => {
+  if (window.Shruti) window.Shruti.toast('Import could not be loaded. Check the connection and try again.', true);
+  return { open() {}, rename() {} };
+});
 
 export const SHIPPED = SHIPPED_IDS;
 const COVERS = { gita: { bg: '#2b2235', tx: '#f2ead8', ac: '#e0b874', kicker: 'Shared' } };
