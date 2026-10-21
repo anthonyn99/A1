@@ -29,6 +29,28 @@ let ui = { toast: () => {}, go: () => {}, openSettings: () => {} };
 export function setUI(x) { ui = Object.assign(ui, x); }
 const keyOf = () => String(C.me.get('orcaKey', '') || '');
 
+/* ── when the AI cannot run: one look and one fix everywhere ─────────────── */
+// Make with AI, Study sets and Import show the same box: what is wrong in plain
+// words and, when the fix is in Settings, a button that opens it.
+/** Ask Orca what the key may use (cached), then say what stops a run, or null. */
+export async function aiReady() {
+  const key = keyOf();
+  if (key) await O.models(key).catch(() => null);
+  return O.preflight(key, C.me.get('units', {}) || {}, O.cachedModels(key));
+}
+/** p: from O.explain / O.preflight (or a plain string). */
+export function problemHTML(p) {
+  if (!p) return '';
+  if (typeof p === 'string') p = { title: '', text: p };
+  return '<div class="stat bad ai-prob" role="alert"><i></i><span>' + (p.title && p.title !== 'It stopped' ? '<b>' + esc(p.title) + '.</b> ' : '') + esc(p.text) + '</span>' +
+    (p.action === 'settings' ? '<button class="btn sm" data-ai-settings>Open Settings</button>' : '') + '</div>';
+}
+/** Wire the box's "Open Settings": close the sheet it sits in, then open Settings. */
+export function bindProblem(box, close) {
+  box.querySelectorAll('[data-ai-settings]').forEach((b) => b.addEventListener('click', () => { if (close) close(); ui.openSettings(); }));
+}
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
 export const LENGTHS = {
   concise: { label: 'Concise', podcast: 30, video: 12, lessons: 6 },
   standard: { label: 'Standard', podcast: 55, video: 20, lessons: 9 },
