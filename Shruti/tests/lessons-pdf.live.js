@@ -33,8 +33,7 @@ const waitFor = async (c, expr, ms = 15000) => {
 };
 const shot = async (c, name) => {
   await sleep(500);
-  // Headless Edge sometimes never answers the first capture on this page (it
-  // hung the whole test, on commits before Phase 8 too); a second one does.
+  // A capture that never answers must not hang the whole test.
   let r = null;
   for (let i = 0; i < 2 && !r; i++) r = await Promise.race([c.send('Page.captureScreenshot', { format: 'png' }), sleep(6000).then(() => null)]);
   const data = r && (r.result ? r.result.data : r.data);
@@ -65,9 +64,7 @@ async function load(c, { w, h, mobile, store, hash = '' }) {
 const DL = fs.mkdtempSync(path.join(os.tmpdir(), 'shruti-pdf-'));
 async function download(c, sel) {
   for (const f of fs.readdirSync(DL)) fs.unlinkSync(path.join(DL, f));
-  // A script click: on this page headless Edge can stop answering Input events
-  // (the same stall as the screenshot above), which hung the test for good.
-  await ev(c, `document.querySelector(${JSON.stringify(sel)}).click(); return 1`);
+  await click(c, sel);
   await waitFor(c, `!!window.jspdf`, 8000);
   const t0 = Date.now();
   while (Date.now() - t0 < 15000) {
