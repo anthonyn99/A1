@@ -40,7 +40,10 @@ const waitFor = async (c, expr, ms = 15000) => {
 };
 const shot = async (c, name) => {
   await sleep(500);
-  const r = await c.send('Page.captureScreenshot', { format: 'png' });
+  // Headless Edge sometimes never answers the first capture on this page (it
+  // hung the whole test, on commits before Phase 8 too); a second one does.
+  let r = null;
+  for (let i = 0; i < 2 && !r; i++) r = await Promise.race([c.send('Page.captureScreenshot', { format: 'png' }), sleep(6000).then(() => null)]);
   const data = r && (r.result ? r.result.data : r.data);
   if (data) fs.writeFileSync(shotPath('shruti-' + name), Buffer.from(data, 'base64'));
 };
