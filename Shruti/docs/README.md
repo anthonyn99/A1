@@ -137,6 +137,17 @@ Every chapter page has **Make with AI** (and an empty Listen, Watch or Lessons t
 - **A unit that fails mid-stream** (Orca's error frame, or a 200 that ends empty) counts as failed and the chain moves to the next unit (`orca.js chat`).
 - **One at a time:** a device makes one thing at a time; while it runs, `jobs…` shows the other devices "Tony is making this: speaking 12 of 40…" and holds their Make button for that kind.
 
+## When the AI cannot run (`orca.js`, Phase 9)
+
+Make with AI, Make a study set and Import's AI steps all say the same thing in the same box (`generate.js problemHTML`), in plain words, with **Open Settings** when the fix is there. Nothing is sent to Orca when it cannot work.
+
+- **What Orca says the key may use** is asked once per key per page and shared by Settings and every maker (`O.models(key)`, `O.cachedModels(key)`, 5 minutes; `O.forget()` when the key is removed, replaced or refused).
+- **A unit's state** (`O.STATUS`): ready, offline (Orca has it but cannot reach it now), **not allowed on this key** (`in_key_scope: false`: the key is limited on Orca's Keys page), not on Orca. The chain (`O.chain`) tries ready units first, then offline ones (one may be back), never a unit the key may not use.
+- **Before a run** (`O.preflight`, shown as soon as a maker opens): no key; a key Orca refused (401/403); no unit ticked; no ticked unit this key may use (names them).
+- **After a run fails** (`O.explain`): the key refused mid-run; Orca unreachable; every unit down, each named with why ("DeepSeek busy, ChatGPT offline"), with Try again.
+- **Drive not connected:** Make with AI → Read-aloud says so with Open Settings; the read-aloud sheet's Save narration is off and says why. Podcasts and videos made without Drive still play on that device until reload.
+- **Read-aloud** with no key or a refused key opens one dialog that leads to Settings.
+
 ## Study (`study/`)
 
 - **The tab:** a sidebar like MAGI Studio's: each set (the ready-made one, "Comes with Shruti", then every AI set covering this chapter, newest first, with its scope, unit, who and when; AI sets can be deleted), each of its kinds with an icon in the kind's accent and a status tag that follows you as you study ("16 cards", "3 due", "1 of 16 known", "Best 8/9", "Slide 3 of 8"). The chosen tool is beside it (on a phone the sets scroll sideways above it). The introduction has Read and Study.
@@ -199,7 +210,8 @@ In Google Cloud Console, project `task-dashboard-d2b53` (the one OneInbox uses):
 - `node Shruti/tests/study.live.js`: the Study tab for real: badges, the sidebar and its tags, flashcards (flip, got it, still learning, synced boxes, review, grid), the quiz (keys, lock, WHY, results, the logged score, best in the sidebar), the mind map (fit, zoom, pan, fold synced), slides (keys, Present, Narrate deck through Orca speech), a section set made with a fake unit and saved, a selection from Read, the introduction, Veda's progress kept apart, Tony's following him; 390 and 1280, both profiles.
 - `node Shruti/tests/import.test.js`: text, PDF, Word and EPUB to paragraphs; chapter detection; the AI's chapters checked (kept, moved, dropped); the cut keeps every word; the tidy-up's typo gate; books in a fake Firestore (parts, Mine and Shared, read back, rename, delete); each person's order.
 - `node Shruti/tests/import.live.js`: Import for real (a text paste, a Word file and an EPUB built in the page with JSZip, a PDF made with jsPDF, AI chapters through a fake Orca, split, merge, leave out, drag, save to Mine and Shared, read it, Make with AI on it, rename, delete) and drag to reorder on every list, by mouse, by a held finger and by Alt + arrows; Tony at 1280, Veda at 390.
-- `node Shruti/tests/lessons-pdf.live.js`: Save as PDF on the Lessons tab (the notes and an AI set, both profiles; every lesson title in the file, diacritics kept readable).
+- `node Shruti/tests/lessons-pdf.live.js`: Save as PDF on the Lessons tab (the notes and an AI set, both profiles; every lesson title in the file, diacritics kept readable). The page loads jsPDF from cdnjs itself: serving it through the test's network mock crashed headless Edge's renderer (2026-10-20).
+- `node Shruti/tests/qa.live.js` (Phase 9): every empty and error state above (no key, a refused key, a key limited to other units, every unit down, Drive not connected), Import's code loading only when Import opens, and an **accessibility audit** of every view and sheet for both profiles at 390 and 1280: every control named, text at WCAG AA contrast (4.5:1, 3:1 when large), controls at least 24 px (WCAG 2.2; inline verse numbers and a checkbox inside a bigger label excepted), the keyboard focus ring, unique ids, no sideways scroll. Also times the reader (chapter 2 paints in about 120 ms, so the reader needs no `content-visibility`, which would also clip the bookmark ribbon and the read-aloud glow).
 - ORCA's side: `npx vitest run src/tts.test.ts` in `ORCA/worker`.
 
 ## Import (`import.js`, `extract.js`, `books.js`)
