@@ -231,7 +231,7 @@ export async function run(o, on = {}, { signal, chat = O.chat, speak = O.speak, 
   const drive = saveDrive != null ? saveDrive : await M.driveReady();
   try {
     if (kind === 'read') {
-      if (!drive) throw new Error('Google Drive is not connected yet (Settings → Google Drive). A read-aloud is kept there.');
+      if (!drive) throw Object.assign(new Error('Google Drive is not connected yet (Settings → Google Drive). A read-aloud is kept there.'), { code: 'drive', title: 'Google Drive is not connected', text: 'A made read-aloud is kept on Drive, so it plays on every device. Connect Drive in Settings first.', action: 'settings' });
       stage('speak', 'Speaking the chapter in ' + voiceName(o.voice));
       const rec = await NR.saveNarration({ book, n, ch: o.ch, title: o.title }, o.voice, step, () => stage('upload', 'Uploading to Drive'), {});
       stage('done', 'Saved');
