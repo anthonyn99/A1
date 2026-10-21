@@ -370,7 +370,7 @@ const TAB = { podcast: 'listen', video: 'watch', lessons: 'lessons', read: '' };
 // running: the run on this device; kept after it ends (finished) so the sheet
 // can still show how it went, but only an unfinished one blocks another.
 let running = null;
-const models = () => O.cachedModels(keyOf());
+const modelsNow = () => O.cachedModels(keyOf());
 const isBusy = () => !!(running && !running.finished);
 export const busy = isBusy;
 
@@ -408,7 +408,7 @@ export function openSheet(ctx, kind) {
   const redraw = () => { if (!dim.isConnected) return; if (window.A1Drag && A1Drag.active) { A1Drag.later(redraw); return; } if (document.activeElement && document.activeElement.closest('#gen-opts')) return; drawVersions(dim.querySelector('#gen-vers'), ctx, st.kind); if (!running) drawRun(dim.querySelector('#gen-run'), ctx, st.kind, close); };
   off.push(C.on('doc:shared', redraw), C.on('doc:me', redraw));
   // What the key may use, so the unit chips say ready / offline / not allowed.
-  if (keyOf() && !models()) O.models(keyOf()).then(() => { if (dim.isConnected && !running) { drawOptions(dim.querySelector('#gen-opts'), ctx, st.kind); drawRun(dim.querySelector('#gen-run'), ctx, st.kind, close); } });
+  if (keyOf() && !modelsNow()) O.models(keyOf()).then(() => { if (dim.isConnected && !running) { drawOptions(dim.querySelector('#gen-opts'), ctx, st.kind); drawRun(dim.querySelector('#gen-run'), ctx, st.kind, close); } });
 }
 
 function drawVersions(box, ctx, kind) {
@@ -460,7 +460,7 @@ export function hostsOf(p) {
 }
 function drawOptions(box, ctx, kind) {
   const p = prefs();
-  const rows = O.unitRows(C.me.get('units', {}) || {}, models());
+  const rows = O.unitRows(C.me.get('units', {}) || {}, modelsNow());
   const units = '<div class="gen-f"><span>Units, in order</span><div class="chips gen-units">' + rows.map((r) => '<button class="chip' + (r.on ? ' on' : '') + (r.status !== 'ready' && r.status !== 'unknown' ? ' off' : '') + '" data-unit="' + esc(r.id) + '" role="checkbox" aria-checked="' + r.on + '" title="' + esc(O.STATUS[r.status] ? r.name + ': ' + O.STATUS[r.status] : '') + '" aria-label="' + esc(r.name + (O.STATUS[r.status] ? ', ' + O.STATUS[r.status] : '')) + '">' + (r.on ? CHECK : '') + esc(r.name) + '</button>').join('') + '</div><button class="lk" data-units>Order them in Settings</button></div>';
   const len = '<div class="gen-f"><span>Length</span><div class="chips">' + Object.entries(LENGTHS).map(([k, v]) => '<button class="chip' + (p.length === k ? ' on' : '') + '" data-len="' + k + '">' + v.label + '</button>').join('') + '</div></div>';
   const hosts = hostsOf(p);
