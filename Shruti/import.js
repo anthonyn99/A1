@@ -191,7 +191,7 @@ export function open({ go } = {}) {
   const useDetect = () => {
     const d = X.detect(st.paras, { toc: st.toc });
     st.chs = fromStarts(d.starts);
-    st.how = { contents: 'the file’s own contents', headings: 'its headings', 'chapter lines': 'its “Chapter …” lines', none: 'nothing: it is one part for now' }[d.how];
+    st.how = { contents: 'the file’s own contents', 'contents page': 'its contents page', headings: 'its headings', 'chapter lines': 'its “Chapter …” lines', none: 'nothing: it is one part for now' }[d.how];
     st.run = null;
   };
 

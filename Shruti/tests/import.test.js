@@ -148,6 +148,25 @@ function fakeFirestore() {
   ];
   const dl = X.detect(paras);
   ok('"Chapter N" lines are found without AI', dl.how === 'chapter lines' && dl.starts.map((s) => s.at).join() === '2,5,7');
+  // Like the IGS Gita PDF: a contents page in big type, entries run together,
+  // sub-entries among them; the chapters themselves in body type.
+  const gita = [
+    { t: 'BHAGAVAD-GITA in ENGLISH', h: 1 },
+    { t: 'CONTENTS INTRODUCTION ........................ 1 1. Arjuna’s Dilemma ........................ 3 2. Spiritual knowledge........................ 3', h: 2 },
+    { t: '3. Path of Selfless service, Karma-yoga .................... 8', h: 2 },
+    { t: 'Importance of Karma-yoga, the selfless action .......... 5', h: 0 },
+    { t: 'Introduction', h: 0 }, { t: 'The Gita is a dialogue.', h: 0 },
+    { t: 'CHAPTER 1', h: 0 }, { t: '1. Arjuna’s Dilemma', h: 0 }, { t: 'Dhritarashtra said: …', h: 0 },
+    { t: 'CHAPTER 2', h: 0 }, { t: '2. Spiritual knowledge', h: 0 }, { t: 'Sanjaya said: …', h: 0 },
+    { t: 'Importance of Karma-yoga, the selfless action', h: 0 }, { t: 'The wisdom …', h: 0 },
+    { t: 'CHAPTER 3 3. Path of Selfless service, Karma-yoga', h: 0 }, { t: 'Arjuna said: …', h: 0 },
+  ];
+  const gd = X.detect(gita);
+  ok('a printed contents page finds the chapters, not its own lines', gd.how === 'contents page' && gd.starts.map((s) => s.title + '@' + s.at).join('|') === 'INTRODUCTION@4|Arjuna’s Dilemma@6|Spiritual knowledge@9|Path of Selfless service, Karma-yoga@14', JSON.stringify(gd));
+  ok('…sub-entries are not chapters, and "CHAPTER N" goes with its chapter', !gd.starts.some((s) => /Importance/.test(s.title)) && gita[gd.starts[1].at].t === 'CHAPTER 1');
+  ok('contents lines never count as headings', X.detect(gita.slice(0, 3)).how !== 'headings');
+  const pp2 = X.fromPdf([X.pdfPage({ items: [it('the end of the summary.', 72, 700), it('CHAPTER 10', 72, 688), it('10. Manifestation of the absolute', 72, 676), it('The Lord said: …', 72, 664)] }, 792)]);
+  ok('in a PDF, a "CHAPTER N" line and the line after it start paragraphs', pp2.map((p) => p.t).join('|') === 'the end of the summary.|CHAPTER 10|10. Manifestation of the absolute|The Lord said: …', JSON.stringify(pp2.map((p) => p.t)));
   ok('nothing to go on: one part', X.detect([{ t: 'just text', h: 0 }]).starts.length === 1);
   const parts = X.split(paras, dl.starts);
   ok('the pages before chapter 1 are a part of their own (nothing is lost)', parts.length === 4 && parts[0].front && parts[0].paras.length === 2);
