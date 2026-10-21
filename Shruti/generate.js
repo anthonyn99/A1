@@ -369,7 +369,8 @@ export const ICON = SPARK;
 const TAB = { podcast: 'listen', video: 'watch', lessons: 'lessons', read: '' };
 // running: the run on this device; kept after it ends (finished) so the sheet
 // can still show how it went, but only an unfinished one blocks another.
-let modelsCache = null, running = null;
+let running = null;
+const models = () => O.cachedModels(keyOf());
 const isBusy = () => !!(running && !running.finished);
 export const busy = isBusy;
 
@@ -406,7 +407,8 @@ export function openSheet(ctx, kind) {
   // Another device's job, a version saved elsewhere: redraw (unless typing).
   const redraw = () => { if (!dim.isConnected) return; if (window.A1Drag && A1Drag.active) { A1Drag.later(redraw); return; } if (document.activeElement && document.activeElement.closest('#gen-opts')) return; drawVersions(dim.querySelector('#gen-vers'), ctx, st.kind); if (!running) drawRun(dim.querySelector('#gen-run'), ctx, st.kind, close); };
   off.push(C.on('doc:shared', redraw), C.on('doc:me', redraw));
-  if (!modelsCache && keyOf()) O.checkKey(keyOf()).then((r) => { if (r.ok) { modelsCache = r.models; if (dim.isConnected) drawOptions(dim.querySelector('#gen-opts'), ctx, st.kind); } });
+  // What the key may use, so the unit chips say ready / offline / not allowed.
+  if (keyOf() && !models()) O.models(keyOf()).then(() => { if (dim.isConnected && !running) { drawOptions(dim.querySelector('#gen-opts'), ctx, st.kind); drawRun(dim.querySelector('#gen-run'), ctx, st.kind, close); } });
 }
 
 function drawVersions(box, ctx, kind) {
@@ -458,8 +460,8 @@ export function hostsOf(p) {
 }
 function drawOptions(box, ctx, kind) {
   const p = prefs();
-  const rows = O.unitRows(C.me.get('units', {}) || {}, modelsCache);
-  const units = '<div class="gen-f"><span>Units, in order</span><div class="chips gen-units">' + rows.map((r) => '<button class="chip' + (r.on ? ' on' : '') + (r.status === 'offline' || r.status === 'missing' ? ' off' : '') + '" data-unit="' + esc(r.id) + '" role="checkbox" aria-checked="' + r.on + '" title="' + esc(r.status === 'ready' ? 'Ready' : r.status === 'offline' ? 'Offline' : r.status === 'missing' ? 'Not allowed on this key' : '') + '">' + (r.on ? CHECK : '') + esc(r.name) + '</button>').join('') + '</div><button class="lk" data-units>Order them in Settings</button></div>';
+  const rows = O.unitRows(C.me.get('units', {}) || {}, models());
+  const units = '<div class="gen-f"><span>Units, in order</span><div class="chips gen-units">' + rows.map((r) => '<button class="chip' + (r.on ? ' on' : '') + (r.status !== 'ready' && r.status !== 'unknown' ? ' off' : '') + '" data-unit="' + esc(r.id) + '" role="checkbox" aria-checked="' + r.on + '" title="' + esc(O.STATUS[r.status] ? r.name + ': ' + O.STATUS[r.status] : '') + '" aria-label="' + esc(r.name + (O.STATUS[r.status] ? ', ' + O.STATUS[r.status] : '')) + '">' + (r.on ? CHECK : '') + esc(r.name) + '</button>').join('') + '</div><button class="lk" data-units>Order them in Settings</button></div>';
   const len = '<div class="gen-f"><span>Length</span><div class="chips">' + Object.entries(LENGTHS).map(([k, v]) => '<button class="chip' + (p.length === k ? ' on' : '') + '" data-len="' + k + '">' + v.label + '</button>').join('') + '</div></div>';
   const hosts = hostsOf(p);
   let voices = '';
@@ -507,19 +509,22 @@ function paintRun(box, R) {
     (R.total ? '<div class="gen-bar"><i style="width:' + (100 * R.done / R.total).toFixed(1) + '%"></i></div>' : '') +
     (R.cov && L.length && R.kind !== 'lessons' && R.kind !== 'read' ? '<div class="gen-cov">' + L.map((l) => '<span class="' + (R.cov.covered.includes(l.id) ? 'ok' : 'no') + '" title="' + esc(l.title || '') + '">' + esc(l.id) + '</span>').join('') + '<em>' + R.cov.covered.length + ' of ' + L.length + ' lessons</em></div>' : '') +
     (R.text && R.stream ? '<details class="gen-live"' + (R.stage === 'write' || R.stage === 'repair' ? ' open' : '') + '><summary>What ' + esc(modelName(R.model) || 'the unit') + ' wrote</summary><pre>' + esc(R.stream.slice(-6000)) + '</pre></details>' : '') +
-    (R.error ? '<div class="stat bad"><i></i><span>' + esc(R.error) + '</span></div>' : '') +
+    (R.error ? problemHTML(R.error) : '') +
     (R.stage === 'done' && !R.error ? '<div class="stat good"><i></i><span>' + esc(R.local ? 'Made. Google Drive is not connected, so it plays on this device only, until the page is reloaded.' : 'Saved, and it plays now on every device.') + '</span></div>' : '') +
     '<div class="gen-go">' + (R.stage === 'done' || R.error ? (TAB[R.kind] !== undefined && !R.error ? '<button class="btn solid" data-open>' + (R.kind === 'lessons' ? 'See the lessons' : R.kind === 'read' ? 'Read along' : 'Play it') + '</button>' : '') + '<button class="btn" data-again>' + (R.error ? 'Try again' : 'Make another') + '</button>' : '<button class="btn" data-cancel>Cancel</button>') + '</div>';
   const pre = box.querySelector('.gen-live pre'); if (pre) pre.scrollTop = pre.scrollHeight;
   const c = box.querySelector('[data-cancel]'); if (c) c.addEventListener('click', () => R.abort.abort());
   const o = box.querySelector('[data-open]'); if (o) o.addEventListener('click', () => { const sh = document.getElementById('gen-sheet'); if (sh) sh.remove(); running = null; ui.go('#/b/' + R.ctx.book + '/' + R.ctx.n + (TAB[R.kind] ? '/' + TAB[R.kind] : '')); });
+  bindProblem(box, () => { const sh = document.getElementById('gen-sheet'); if (sh) sh.remove(); });
   const a = box.querySelector('[data-again]'); if (a) a.addEventListener('click', () => { running = null; drawRun(box, R.ctx, R.kind, R.close); });
 }
 async function start(ctx, kind, box, close) {
   if (isBusy()) return;
-  if (!keyOf()) { const go = await window.uiConfirm('Making uses Orca with your own key. Paste it once in Settings.', { title: 'Your Orca key is needed', okLabel: 'Open Settings' }); if (go) { close(); ui.openSettings(); } return; }
+  // Nothing is sent when it cannot work: no key, a refused key, no unit allowed.
+  const stop = kind === 'read' ? (keyOf() ? null : O.preflight('')) : await aiReady();
+  if (stop) { const p = box.querySelector('.ai-prob'); if (p) p.remove(); box.insertAdjacentHTML('afterbegin', problemHTML(stop)); bindProblem(box, close); return; }
+  const models = O.chain(C.me.get('units', {}) || {}, O.cachedModels(keyOf()));
   const p = prefs();
-  const models = O.chain(C.me.get('units', {}) || {}, modelsCache);
   const R = running = { ctx, kind, stage: kind === 'read' ? 'speak' : 'write', text: '', stream: '', model: null, cov: null, done: 0, total: 0, abort: new AbortController(), close };
   const box2 = () => document.querySelector('#gen-run') || box;
   let t = 0;
@@ -541,7 +546,8 @@ async function start(ctx, kind, box, close) {
     R.local = !!res.local; R.stage = 'done'; R.total = 0;
     ui.toast(M.KIND_NAME[kind] + ' for chapter ' + ctx.n + (res.local ? ' is ready on this device' : ' is saved'));
   } catch (e) {
-    R.error = e && e.code === 'abort' ? 'Cancelled.' : (e && e.message) || String(e);
+    R.error = O.explain(e);
+    if (e && e.code === 'key') O.forget();
   }
   R.finished = true;
   paintRun(box2(), R);
