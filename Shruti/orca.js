@@ -35,6 +35,29 @@ export async function checkKey(key, { fetch: f = fetch, signal } = {}) {
   return { ok: true, models };
 }
 
+/* ── what Orca says this key can use, once per key per page ─────────────── */
+// Settings, Make with AI, Study and Import all read the same answer, so a unit
+// shows the same state everywhere and a run never starts blind.
+let known = { key: null, models: null, at: 0, pending: null, rejected: false };
+/** The last /models answer for this key (null when not asked yet). */
+export const cachedModels = (key) => (known.key === String(key || '').trim() ? known.models : null);
+/** Ask Orca, or reuse an answer under 5 minutes old. Resolves checkKey's result. */
+export function models(key, { fresh = false, fetch: f } = {}) {
+  key = String(key || '').trim();
+  if (!fresh && known.key === key && known.models && Date.now() - known.at < 5 * 60e3) return Promise.resolve({ ok: true, models: known.models });
+  if (!fresh && known.key === key && known.pending) return known.pending;
+  const p = checkKey(key, f ? { fetch: f } : {}).then((r) => {
+    if (known.key !== key) return r;
+    if (r.ok) known = { key, models: r.models, at: Date.now(), pending: null, rejected: false };
+    else known = { key, models: null, at: 0, pending: null, rejected: r.status === 401 || r.status === 403 };
+    return r;
+  });
+  known = { key, models: known.key === key ? known.models : null, at: known.key === key ? known.at : 0, pending: p, rejected: false };
+  return p;
+}
+/** Forget the answer (the key was removed or replaced). */
+export function forget() { known = { key: null, models: null, at: 0, pending: null, rejected: false }; }
+
 /** The picker's rows: the person's order and ticks over what Orca reports.
  *  prefs = {order:[ids], on:{id:bool}}; models = /models data (or null when unknown). */
 export function unitRows(prefs, models) {
@@ -46,7 +69,9 @@ export function unitRows(prefs, models) {
     const u = UNITS.find((x) => x.id === id);
     const m = known.get(id);
     const on = prefs.on && id in prefs.on ? !!prefs.on[id] : u.on;
-    const status = !models ? 'unknown' : !m ? 'missing' : m.routable ? 'ready' : 'offline';
+    // in_key_scope:false = Orca has the unit but this key may not use it (the
+    // key is limited on Orca's Keys page), which is not the same as offline.
+    const status = !models ? 'unknown' : !m ? 'missing' : m.in_key_scope === false ? 'scope' : m.routable ? 'ready' : 'offline';
     return { id, name: u.name, on, status, optional: !!u.optional };
   // An optional unit (Groq) only shows once Orca says it routes it, or after the person ticked it.
   }).filter((r) => !(r.optional && (r.status === 'missing' || r.status === 'unknown') && !(prefs.on && prefs.on[r.id])));
