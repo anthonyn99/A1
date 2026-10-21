@@ -72,7 +72,9 @@ async function load(c, { w, h, mobile, store, hash = '' }) {
 const DL = fs.mkdtempSync(path.join(os.tmpdir(), 'shruti-pdf-'));
 async function download(c, sel) {
   for (const f of fs.readdirSync(DL)) fs.unlinkSync(path.join(DL, f));
-  await click(c, sel);
+  // A script click: on this page headless Edge can stop answering Input events
+  // (the same stall as the screenshot above), which hung the test for good.
+  await ev(c, `document.querySelector(${JSON.stringify(sel)}).click(); return 1`);
   await waitFor(c, `!!window.jspdf`, 8000);
   const t0 = Date.now();
   while (Date.now() - t0 < 15000) {
