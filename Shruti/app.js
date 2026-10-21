@@ -218,7 +218,8 @@ $('#switch-btn').addEventListener('click', () => showPicker());
 $('#settings-btn').addEventListener('click', () => openSettings());
 
 /* ── Settings ─────────────────────────────────────────────────────────────── */
-let modelsCache = null;   // last /models answer for this key, this session
+// The last /models answer for this key is orca.js's (shared with every maker).
+const modelsNow = () => O.cachedModels(keyOf());
 function openSettings() {
   if ($('#settings')) return;
   const dim = document.createElement('div');
@@ -238,14 +239,15 @@ function openSettings() {
   dim.querySelector('[data-lock]').addEventListener('click', () => Guardian.manage(GID).then(updateLockBtn));
   drawOrca(); drawUnits(); drawDrive();
   const offMe = C.on('doc:me', ({ remote }) => { if (remote && !dim.contains(document.activeElement)) { drawOrca(); drawUnits(); } });
-  if (C.me.get('orcaKey') && !modelsCache) refreshModels();
+  if (C.me.get('orcaKey') && !modelsNow()) refreshModels();
 }
 const keyOf = () => String(C.me.get('orcaKey', '') || '');
 const masked = (k) => k ? k.slice(0, 12) + '…' + k.slice(-4) : '';
 function drawOrca(state) {
   const box = $('#st-orca'); if (!box) return;
   const k = keyOf();
-  const st = state || (modelsCache ? { kind: 'good', text: 'Working · ' + modelsCache.filter((m) => m.routable).length + ' of ' + modelsCache.length + ' models ready' } : k ? { kind: '', text: 'Saved · not checked yet' } : { kind: 'bad', text: 'No key yet: AI features are off' });
+  const mdl = modelsNow();
+  const st = state || (mdl ? { kind: 'good', text: 'Working · ' + mdl.filter((m) => m.routable).length + ' of ' + mdl.length + ' models ready for this key' } : k ? { kind: '', text: 'Saved · not checked yet' } : { kind: 'bad', text: 'No key yet: AI features are off. Read-aloud of the shipped chapters, the podcasts and the videos still play.' });
   box.innerHTML = '<h3>' + L.IC.key + 'Orca key</h3>' +
     '<p class="hint">Every AI feature in Shruti (podcasts, videos, study sets) runs through Orca with your own key. Make one on Orca\'s Keys page and paste it here once; it then works on all your devices.</p>' +
     '<div class="row"><input id="orca-key" type="password" autocomplete="off" spellcheck="false" placeholder="' + (k ? esc(masked(k)) : 'orca_sk_…') + '" aria-label="Orca key">' +
@@ -258,16 +260,15 @@ function drawOrca(state) {
   const chk = box.querySelector('#orca-check'); if (chk) chk.addEventListener('click', () => refreshModels(true));
   const del = box.querySelector('#orca-del'); if (del) del.addEventListener('click', async () => {
     if (!(await window.uiConfirm('Remove your Orca key from Shruti on every device?', { okLabel: 'Remove' }))) return;
-    modelsCache = null; C.me.set({ orcaKey: C.DELETE }, { now: true }); drawOrca(); drawUnits(); drawDrive();
+    O.forget(); C.me.set({ orcaKey: C.DELETE }, { now: true }); drawOrca(); drawUnits(); drawDrive();
   });
 }
 async function saveKey(v) {
   v = String(v || '').trim();
   if (!v) return;
   drawOrca({ kind: 'busy', text: 'Checking with Orca…' });
-  const r = await O.checkKey(v);
-  if (!r.ok) { drawOrca({ kind: 'bad', text: r.error }); return; }
-  modelsCache = r.models;
+  const r = await O.models(v, { fresh: true });
+  if (!r.ok) { drawOrca({ kind: 'bad', text: keyProblem(r) }); return; }
   C.me.set({ orcaKey: v }, { now: true });
   toast('Orca key saved for ' + PROFILES[P].label);
   drawOrca(); drawUnits(); drawDrive();
@@ -275,20 +276,21 @@ async function saveKey(v) {
 async function refreshModels(loud) {
   const k = keyOf(); if (!k) return;
   drawOrca({ kind: 'busy', text: 'Checking with Orca…' });
-  const r = await O.checkKey(k);
-  if (r.ok) { modelsCache = r.models; drawOrca(); drawUnits(); if (loud) toast('Orca key works'); }
-  else { modelsCache = null; drawOrca({ kind: 'bad', text: r.error }); drawUnits(); }
+  const r = await O.models(k, { fresh: !!loud });
+  if (r.ok) { drawOrca(); drawUnits(); if (loud) toast('Orca key works'); }
+  else { drawOrca({ kind: 'bad', text: keyProblem(r) }); drawUnits(); }
 }
+// A refused key says what to do about it; the rest say what happened.
+const keyProblem = (r) => (r.status === 401 || r.status === 403 ? 'Orca rejected this key: it may have been deleted or changed on Orca\'s Keys page. Paste a working one.' : r.error);
 function unitPrefs() { return C.me.get('units', {}) || {}; }
 function drawUnits() {
   const box = $('#st-units'); if (!box) return;
-  const rows = O.unitRows(unitPrefs(), modelsCache);
-  const label = { ready: 'ready', offline: 'offline', missing: 'not on this key', unknown: '' };
+  const rows = O.unitRows(unitPrefs(), modelsNow());
   box.innerHTML = '<h3>AI units</h3><p class="hint">Tick the units Shruti may use and drag them into order. It tries them top to bottom and moves on when one is busy or offline. Claude stays off unless you tick it.</p>' +
     '<div class="units" id="unit-list">' + rows.map((r, i) =>
       '<div class="unit' + (r.on ? ' on' : '') + '" data-dkey="' + esc(r.id) + '"><span class="ord">' + (i + 1) + '</span>' +
-      '<button class="tick" data-tick="' + esc(r.id) + '" role="checkbox" aria-checked="' + r.on + '" aria-label="' + esc(r.name) + '">' + CHECK + '</button>' +
-      '<span class="nm">' + esc(r.name) + '</span><span class="st ' + (r.status === 'ready' ? 'ok' : r.status === 'offline' || r.status === 'missing' ? 'off' : '') + '">' + esc(label[r.status]) + '</span></div>').join('') + '</div>';
+      '<button class="tick" data-tick="' + esc(r.id) + '" role="checkbox" aria-checked="' + r.on + '" aria-label="' + esc(r.name + (O.STATUS[r.status] ? ', ' + O.STATUS[r.status] : '')) + '">' + CHECK + '</button>' +
+      '<span class="nm">' + esc(r.name) + '</span><span class="st ' + (r.status === 'ready' ? 'ok' : r.status === 'unknown' ? '' : 'off') + '">' + esc(O.STATUS[r.status]) + '</span></div>').join('') + '</div>';
   box.querySelectorAll('[data-tick]').forEach((b) => b.addEventListener('click', () => {
     const p = unitPrefs(), on = Object.assign({}, p.on || {});
     const row = rows.find((r) => r.id === b.dataset.tick);
