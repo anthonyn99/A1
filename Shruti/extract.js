@@ -154,8 +154,10 @@ export function fromPdf(pages) {
     let h = levelOf(l);
     if (h && l.t.length > 140) h = 0;
     let fresh = !cur || cur.h !== h;
-    // "CHAPTER 6" always starts a paragraph, and so does the line after it.
-    if (!fresh && (CHAPTER_LINE.test(l.t) || (CHAPTER_LINE.test(prev.t) && prev.t.length < 40))) fresh = true;
+    // "CHAPTER 6" always starts a paragraph, and so do its title line after it
+    // and the text after that title.
+    const chLine = (x) => x && CHAPTER_LINE.test(x.t) && x.t.length < 40;
+    if (!fresh && (CHAPTER_LINE.test(l.t) || chLine(prev) || (chLine(lines[i - 2]) && prev.t.length < 90 && prev.pg === l.pg))) fresh = true;
     if (!fresh && h) {
       // A heading over two lines stays one heading.
       fresh = prev.pg !== l.pg || prev.y - l.y > gap * 2.2;
