@@ -49,7 +49,6 @@ export function problemHTML(p) {
 export function bindProblem(box, close) {
   box.querySelectorAll('[data-ai-settings]').forEach((b) => b.addEventListener('click', () => { if (close) close(); ui.openSettings(); }));
 }
-const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 export const LENGTHS = {
   concise: { label: 'Concise', podcast: 30, video: 12, lessons: 6 },
