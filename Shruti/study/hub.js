@@ -231,10 +231,10 @@ function openMaker(ctx, redraw) {
   };
   const drawWhat = () => {
     const box = dim.querySelector('#sm-what'), q = G.prefs();
-    const rows = O.unitRows(C.me.get('units', {}) || {}, null).filter((r) => r.on);
+    const rows = O.unitRows(C.me.get('units', {}) || {}, O.cachedModels(String(C.me.get('orcaKey', '') || ''))).filter((r) => r.on);
     box.innerHTML = '<h3>What</h3><div class="chips">' + P.KINDS.map((k) => '<button class="chip k-' + k + (st.kinds.has(k) ? ' on' : '') + '" role="checkbox" aria-checked="' + st.kinds.has(k) + '" data-k="' + k + '">' + IC[k] + KIND_NAME[k] + '</button>').join('') + '</div>' +
       '<div class="gen-f"><span>Length</span><div class="chips">' + Object.entries(G.LENGTHS).map(([k, v]) => '<button class="chip' + (q.length === k ? ' on' : '') + '" data-len="' + k + '">' + v.label + '</button>').join('') + '</div></div>' +
-      '<p class="hint">Units, in your order: ' + esc(rows.map((r) => r.name).join(' → ') || 'none ticked') + ' (Settings).</p>' +
+      '<p class="hint">Units, in your order: ' + esc(rows.map((r) => r.name + (r.status !== 'ready' && O.STATUS[r.status] ? ' (' + O.STATUS[r.status] + ')' : '')).join(' → ') || 'none ticked') + ' (Settings).</p>' +
       '<label class="gen-f"><span>Anything else? (optional)</span><textarea id="sm-extra" rows="2" maxlength="600" placeholder="e.g. focus on the Sanskrit terms; harder questions">' + esc(q.extra) + '</textarea></label>';
     box.querySelectorAll('[data-k]').forEach((b) => b.addEventListener('click', () => { const k = b.dataset.k; st.kinds.has(k) && st.kinds.size > 1 ? st.kinds.delete(k) : st.kinds.add(k); G.setPref('studyKinds', P.KINDS.filter((x) => st.kinds.has(x))); drawWhat(); }));
     box.querySelectorAll('[data-len]').forEach((b) => b.addEventListener('click', () => { G.setPref('length', b.dataset.len); drawWhat(); }));
@@ -243,17 +243,21 @@ function openMaker(ctx, redraw) {
   const drawRun = (R) => {
     const box = dim.querySelector('#sm-run');
     if (!R) {
-      box.innerHTML = '<div class="gen-go"><button class="btn solid" data-go>' + IC.spark + 'Make it</button><span class="hint">One unit call per kind, about a minute each.</span></div>';
+      // Said before pressing Make: no key, a refused key, no unit this key may use.
+      const pre = O.preflight(String(C.me.get('orcaKey', '') || ''), C.me.get('units', {}) || {}, O.cachedModels(String(C.me.get('orcaKey', '') || '')));
+      box.innerHTML = G.problemHTML(pre) + '<div class="gen-go"><button class="btn solid" data-go>' + IC.spark + 'Make it</button><span class="hint">One unit call per kind, about a minute each.</span></div>';
       box.querySelector('[data-go]').addEventListener('click', start);
+      G.bindProblem(box, close);
       return;
     }
     box.innerHTML = '<h3>' + (R.error ? 'It stopped' : R.done ? 'Made' : 'Making') + (R.model ? '<span class="gen-model">' + esc(G.modelName(R.model)) + '</span>' : '') + '</h3>' +
       '<ol class="gen-steps">' + R.kinds.map((k, i) => '<li class="' + (R.counts[k] != null ? 'done' : R.error && i === R.i ? 'bad' : i === R.i && !R.done ? 'cur' : '') + '">' + KIND_NAME[k] + (R.counts[k] != null ? ' <span>' + R.counts[k] + '</span>' : '') + '</li>').join('') + '</ol>' +
       (R.stream ? '<details class="gen-live"' + (R.done || R.error ? '' : ' open') + '><summary>What ' + esc(G.modelName(R.model) || 'the unit') + ' wrote</summary><pre>' + esc(R.stream.slice(-5000)) + '</pre></details>' : '') +
-      (R.error ? '<div class="stat bad"><i></i><span>' + esc(R.error) + '</span></div>' : '') +
+      (R.error ? G.problemHTML(R.error) : '') +
       '<div class="gen-go">' + (R.done ? '<button class="btn solid" data-open>Study it</button>' : R.error ? '<button class="btn" data-again>Try again</button>' : '<button class="btn" data-cancel>Cancel</button>') + '</div>';
     const pre = box.querySelector('.gen-live pre'); if (pre) pre.scrollTop = pre.scrollHeight;
     const c = box.querySelector('[data-cancel]'); if (c) c.addEventListener('click', () => st.abort && st.abort.abort());
+    G.bindProblem(box, close);
     const a = box.querySelector('[data-again]'); if (a) a.addEventListener('click', () => drawRun(null));
     const o = box.querySelector('[data-open]'); if (o) o.addEventListener('click', () => { close(); redraw(); });
   };
@@ -272,7 +276,8 @@ function openMaker(ctx, redraw) {
     return { t: st.scope, ch: nums, label: st.scope === 'book' ? 'the whole book' : 'chapters ' + nums.filter(Boolean).join(', ') + (nums.includes(0) ? ' and the introduction' : ''), text, lessons: null };
   }
   async function start() {
-    if (!C.me.get('orcaKey', '')) { const go = await window.uiConfirm('Making uses Orca with your own key. Paste it once in Settings.', { title: 'Your Orca key is needed', okLabel: 'Open Settings' }); if (go) { close(); window.Shruti && window.Shruti.openSettings(); } return; }
+    const stop = await G.aiReady();
+    if (stop) { drawRun(null); return; }
     if (st.scope === 'selection' && !sel) return;
     const q = G.prefs(), kinds = P.KINDS.filter((k) => st.kinds.has(k));
     const R = { kinds, counts: {}, i: 0, stream: '', model: null };
@@ -282,7 +287,7 @@ function openMaker(ctx, redraw) {
     const paint = (force) => { if (force || Date.now() - t > 150) { t = Date.now(); drawRun(R); } };
     try {
       const sc = await scopeOf();
-      const res = await G.runStudy({ kinds, book: ctx.book, bookTitle: ctx.bookTitle, scope: sc, text: sc.text, lessons: sc.lessons, length: q.length, extra: q.extra, models: O.chain(C.me.get('units', {}) || {}, null) }, {
+      const res = await G.runStudy({ kinds, book: ctx.book, bookTitle: ctx.bookTitle, scope: sc, text: sc.text, lessons: sc.lessons, length: q.length, extra: q.extra, models: O.chain(C.me.get('units', {}) || {}, O.cachedModels(String(C.me.get('orcaKey', '') || ''))) }, {
         kind: (k, i) => { R.i = i; paint(true); },
         delta: (d) => { R.stream += d; paint(); },
         model: (m) => { R.model = m; paint(true); },
@@ -294,10 +299,14 @@ function openMaker(ctx, redraw) {
       R.done = true;
       window.Shruti && window.Shruti.toast('Study set saved');
     } catch (e) {
-      R.error = e && e.code === 'abort' ? 'Cancelled.' : (e && e.message) || String(e);
+      R.error = O.explain(e);
+      if (e && e.code === 'key') O.forget();
     }
     st.running = false;
     drawRun(R);
   }
   drawScope(); drawWhat(); drawRun(null);
+  // What the key may use, so the units line and the warning are right.
+  const k0 = String(C.me.get('orcaKey', '') || '');
+  if (k0 && !O.cachedModels(k0)) O.models(k0).then(() => { if (dim.isConnected && !st.running) { drawWhat(); drawRun(null); } });
 }
