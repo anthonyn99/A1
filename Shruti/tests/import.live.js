@@ -243,6 +243,7 @@ const imp = (x) => `const IMP = await import(new URL('import.js', location.href)
   const sharedId = await ev(c, `return location.hash.split('/')[2]`);
   ok('…its book page says Shared with Veda', /Shared with Veda · imported from river-book\.pdf/.test(await ev(c, `return document.querySelector('.bk-src')?.textContent`)));
   await click(c, '[data-rename]');
+  await waitFor(c, `!!document.querySelector('#rn-title')`);   // Import's code loads on first use
   await ev(c, `const t=document.querySelector('#rn-title'); t.value='The River Book'; return 1`);
   await click(c, '#imp-rename [data-r="1"]');
   ok('Rename', await waitFor(c, `document.querySelector('.bk-head h1').textContent==='The River Book' && window.Shruti.core.shared.get('books.${sharedId}.title')==='The River Book'`));
