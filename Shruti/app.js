@@ -180,8 +180,8 @@ async function crumbs(r) {
   if (r.view === 'library') { c.innerHTML = ''; return; }
   const b = await L.loadBook(r.id).catch(() => null);
   if (!b) { c.innerHTML = ''; return; }
-  let h = '<span class="sep">/</span><button data-go="#/b/' + esc(b.id) + '">' + esc(b.title) + '</button>';
-  if (r.view === 'chapter') h += '<span class="sep">/</span><button data-go="#/b/' + esc(b.id) + '/' + r.n + '">' + (r.n ? esc((b.unit || 'Chapter') + ' ' + r.n) : 'Introduction') + '</button>';
+  let h = '<span class="sep" aria-hidden="true">/</span><button data-go="#/b/' + esc(b.id) + '">' + esc(b.title) + '</button>';
+  if (r.view === 'chapter') h += '<span class="sep" aria-hidden="true">/</span><button data-go="#/b/' + esc(b.id) + '/' + r.n + '">' + (r.n ? esc((b.unit || 'Chapter') + ' ' + r.n) : 'Introduction') + '</button>';
   c.innerHTML = h;
   c.querySelectorAll('[data-go]').forEach((x) => x.addEventListener('click', () => go(x.dataset.go)));
 }

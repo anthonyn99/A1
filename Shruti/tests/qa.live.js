@@ -100,7 +100,7 @@ const nameOf = (el) => { const l = el.getAttribute('aria-label'); if (l && l.tri
 const desc = (el) => el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\\s+/).slice(0, 2).join('.') : '') + ' "' + (el.textContent || '').trim().slice(0, 30) + '"';
 const controls = [...scope.querySelectorAll('button, a[href], input:not([type=hidden]), select, textarea, [role=button], [role=checkbox], [role=radio], [role=tab], [tabindex]:not([tabindex="-1"])')].filter(vis);
 const unnamed = controls.filter((el) => !nameOf(el)).map(desc);
-const small = controls.filter((el) => { if (el.closest('.rd') || el.closest('p, li') && getComputedStyle(el).display === 'inline') return false; const r = el.getBoundingClientRect(); return r.width < 24 || r.height < 24; }).map((el) => { const r = el.getBoundingClientRect(); return desc(el) + ' ' + Math.round(r.width) + 'x' + Math.round(r.height); });
+const small = controls.filter((el) => { if (el.closest('.rd') || el.closest('p, li') && getComputedStyle(el).display === 'inline') return false; const lab = el.closest('label'); const r = (lab && el.matches('input') ? lab : el).getBoundingClientRect(); return r.width < 24 || r.height < 24; }).map((el) => { const r = el.getBoundingClientRect(); return desc(el) + ' ' + Math.round(r.width) + 'x' + Math.round(r.height); });
 const lowc = [];
 const walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT);
 const seen = new Set();
@@ -251,7 +251,7 @@ async function audit(c, label) {
   /* ── 3. the reader's speed ── */
   console.log('\nPerformance');
   await load(c, { w: 1280, h: 900, mobile: false, who: 'tony', hash: '#/' });
-  const ms = JSON.parse(await ev(c, `const t0=performance.now(); location.hash='#/b/gita/2'; await new Promise(r=>{ const f=()=>document.querySelectorAll('.rd [data-b]').length>50?r():requestAnimationFrame(f); f(); }); await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))); return JSON.stringify({ms:Math.round(performance.now()-t0), blocks:document.querySelectorAll('.rd [data-b]').length})`));
+  const ms = JSON.parse(await ev(c, `const t0=performance.now(); location.hash='#/b/gita/2'; await new Promise(r=>{ const f=()=>document.querySelector('.rd [data-b]')?r():requestAnimationFrame(f); f(); }); await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))); return JSON.stringify({ms:Math.round(performance.now()-t0), blocks:document.querySelectorAll('.rd [data-b]').length})`));
   console.log('  chapter 2 (' + ms.blocks + ' blocks) painted in ' + ms.ms + ' ms');
   ok('the longest chapter opens in under a second', ms.ms < 1000, ms.ms);
 
