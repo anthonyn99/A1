@@ -131,8 +131,11 @@ export async function start({ book, n, ch, title, from }) {
   return true;
 }
 
-function needKey() {
-  window.uiConfirm('Read-aloud uses Orca\'s neural voices with your own Orca key. Paste it once in Settings and it works on all your devices.', { title: 'Read-aloud needs your Orca key', okLabel: 'Open Settings' })
+/** No key, or (rejected) a key Orca refused: one dialog that leads to Settings. */
+function needKey(rejected) {
+  const p = rejected ? O.explain({ code: 'key' }) : { title: 'Read-aloud needs your Orca key', text: 'Read-aloud uses Orca\'s neural voices with your own Orca key. Paste it once in Settings and it works on all your devices.' };
+  if (rejected) O.forget();
+  window.uiConfirm(p.text, { title: p.title, okLabel: 'Open Settings' })
     .then((go) => { if (go) ui.openSettings(); });
 }
 export const voiceName = (id) => { const v = O.VOICES.find((x) => x.id === id); return v ? v.name : String(id || '').replace(/^[a-z]{2}-[A-Z]{2}-/, '').replace(/(Multilingual)?Neural$/, ''); };
@@ -203,7 +206,7 @@ async function seek(i, t = 0, play = true) {
 }
 function fail(e) {
   pause();
-  if (e && e.code === 'key') { needKey(); return; }
+  if (e && e.code === 'key') { needKey(true); return; }
   ui.toast('Read-aloud stopped: ' + (e && e.message || e), true);
 }
 export async function resume() {
@@ -514,9 +517,14 @@ async function drawSave(box, ctx, esc) {
   const want = prefs().voice;
   const lines = ready.map((r) => '<li>' + esc(voiceName(r.voice)) + ' · ' + (r.where === 'shipped' ? 'comes with Shruti' : 'saved to Drive') + (r.duration ? ' · ' + T.fmtTime(r.duration) : '') + '</li>').join('');
   const has = ready.some((r) => r.voice === want);
+  const drive = has || await M.driveReady();
+  if (!box.isConnected) return;
   box.innerHTML = '<h3>Ready-made narration</h3><p class="hint">Saved once, it plays on every device and both profiles with no Orca calls, and can be listened to with the screen off.</p>' +
     (lines ? '<ul class="ra-list">' + lines + '</ul>' : '<p class="hint">None for this chapter yet.</p>') +
-    '<div class="row"><button class="btn" id="ra-save-btn"' + (has ? ' disabled' : '') + '>' + (has ? 'Saved in ' + esc(voiceName(want)) : 'Save this chapter in ' + esc(voiceName(want))) + '</button></div><div class="stat" id="ra-save-stat" hidden><i></i><span></span></div>';
+    // It is kept on Drive: without Drive, say so (and where to fix it) instead of failing at the end.
+    (!drive ? '<div class="stat"><i></i><span>Google Drive is not connected, so a narration cannot be kept yet.</span><button class="btn sm" data-ra-drive>Open Settings</button></div>' : '') +
+    '<div class="row"><button class="btn" id="ra-save-btn"' + (has || !drive ? ' disabled' : '') + '>' + (has ? 'Saved in ' + esc(voiceName(want)) : 'Save this chapter in ' + esc(voiceName(want))) + '</button></div><div class="stat" id="ra-save-stat" hidden><i></i><span></span></div>';
+  const dr = box.querySelector('[data-ra-drive]'); if (dr) dr.addEventListener('click', () => { const sh = box.closest('.sheet-dim'); if (sh) sh.remove(); ui.openSettings(); });
   const btn = box.querySelector('#ra-save-btn');
   btn.addEventListener('click', async () => {
     const stat = box.querySelector('#ra-save-stat'), say = (kind, t) => { stat.hidden = false; stat.className = 'stat ' + kind; stat.querySelector('span').textContent = t; };
