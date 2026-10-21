@@ -180,7 +180,7 @@ In Google Cloud Console, project `task-dashboard-d2b53` (the one OneInbox uses):
 1. APIs & Services → Library → enable **Google Drive API**.
 2. Credentials → the OAuth 2.0 **Web application** client (OneInbox's, or a new one) → add the
    authorized redirect URI `https://shruti-drive.av1-2.workers.dev/callback`.
-3. Give the worker that client's id and secret (in `Shruti/worker`):
+3. Give the worker that client's id and secret: `powershell -ExecutionPolicy Bypass -File Shruti\tools\connect-drive.ps1` asks for both and stores them. By hand (in `Shruti/worker`):
    `CLOUDFLARE_ACCOUNT_ID=dbde452fc0d60264a7e9339460b7188c npx wrangler secret put GOOGLE_CLIENT_ID`
    and the same for `GOOGLE_CLIENT_SECRET`.
 4. In Shruti: Settings → Google Drive → **Connect Google Drive**, and allow it.
