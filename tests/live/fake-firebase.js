@@ -36,7 +36,8 @@ const fs = W.__fakeFs || (W.__fakeFs = (() => {
   let docs = {};
   try { docs = JSON.parse(sessionStorage.getItem('__fakefs_docs') || '{}') || {}; } catch (e) {}
   const listeners = [];
-  const api = { docs, log: [], listeners, appInit: false, fsInit: false };
+  const api = { docs, log: [], listeners, appInit: false, fsInit: false, failSnapshots: 0 };
+  try { api.failSnapshots = +sessionStorage.getItem('__fakefs_fail') || 0; sessionStorage.removeItem('__fakefs_fail'); } catch (e) {}
   api.persist = () => { try { sessionStorage.setItem('__fakefs_docs', JSON.stringify(api.docs)); } catch (e) {} };
   api.reset = () => { Object.keys(api.docs).forEach((k) => delete api.docs[k]); api.log.length = 0; api.persist(); };
   return api;
