@@ -524,7 +524,7 @@ async function drawSave(box, ctx, esc) {
   if (!box.isConnected || want !== prefs().voice) return;
   const J = await import('./jobs.js');
   const busy = J.active().some((t) => t.kind === 'read' && t.book === ctx.book && t.n === ctx.n && t.opts.voice === want);
-  box.innerHTML = '<div class="mk-label">Ready-made<span>Plays offline-fast, no Orca calls</span></div>' +
+  box.innerHTML = '<div class="mk-label">Ready-made<span>Starts at once, no Orca calls</span></div>' +
     '<div class="st-card ra-ready">' + (ready.length ? ready.map((r) => '<div class="ra-r"><b>' + esc(voiceName(r.voice)) + '</b><span>' + (r.where === 'shipped' ? 'Comes with Shruti' : 'Saved to Drive') + (r.duration ? ' · ' + T.fmtTime(r.duration) : '') + '</span></div>').join('') : '<p class="hint">None yet for this chapter.</p>') + '</div>' +
     (!drive ? '<div class="stat ra-nodrive"><i></i><span>Google Drive is not connected.</span><button class="btn sm" data-ra-drive>Open Settings</button></div>' : '') +
     '<div class="st-row"><button class="btn" id="ra-save-btn"' + (has || !drive || busy ? ' disabled' : '') + '>' + (has ? 'Ready in ' + esc(voiceName(want)) : busy ? 'Being made in ' + esc(voiceName(want)) + '…' : 'Make it in ' + esc(voiceName(want))) + '</button></div>';
