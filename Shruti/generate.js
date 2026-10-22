@@ -244,7 +244,7 @@ export function studyPrompt(o) {
   const what = o.book === 'gita' ? 'the Bhagavad-Gita (the IGS rendition by Ramananda Prasad)' : 'the book "' + (o.bookTitle || o.book) + '"';
   const z = (STUDY_SIZES[o.length] || STUDY_SIZES.standard)[o.kind];
   const L = (o.lessons && o.lessons.lessons) || [];
-  const sys = 'You make study material for Shruti, a reading app. Stay faithful to the reading: be concise, true and to the point, and say only what it teaches. When you add anything that is not in it, say so plainly. Reply with ONLY the format asked for, nothing before or after it.';
+  const sys = 'You make study material for Shruti, a reading app. Stay faithful to the reading: be concise, true and to the point, and say only what it teaches. When you add anything that is not in it, say so plainly. Reply with ONLY the format asked for, as plain text (no JSON, no code block, no citations like [1]), nothing before or after it. Do not search the web: the reading is below.';
   const user = 'This reading is ' + o.scope.label + ' of ' + what + '.\n\n' + STUDY_TASK[o.kind](z) +
     (L.length ? '\n\nThe readers wrote these lessons for it; make sure every one of them is covered.' : '') +
     (o.extra ? '\n\nThe reader also asks: ' + o.extra : '') +
@@ -256,6 +256,8 @@ export function studyPrompt(o) {
  *  o: {kinds, book, bookTitle, scope, text, lessons, length, extra, models}.
  *  on: {kind(k, i), delta(t), model(m), done(k, count)}. Resolves {kinds:{k: items}, model}.
  *  A reply nothing can be read from is asked for once more, with its own reply. */
+/** Perplexity's citations ([1], [2, 3]) are not part of a card or a slide. */
+const noCites = (t) => String(t || '').replace(/[ 	]*\[(?:\d{1,3}(?:\s*[,–-]\s*\d{1,3})*)\]/g, '');
 export async function runStudy(o, on = {}, { signal, chat = O.chat, parse } = {}) {
   const key = keyOf();
   if (!key) throw Object.assign(new Error('Making needs your Orca key (Settings).'), { code: 'key' });
@@ -273,11 +275,11 @@ export async function runStudy(o, on = {}, { signal, chat = O.chat, parse } = {}
       const ask = (msgs2) => chat({ key, messages: msgs2, models: [m], signal, onDelta: (t) => on.delta && on.delta(t), onModel: (x) => { model = x; on.model && on.model(x); } });
       try {
         let r = await ask(msgs);
-        it = P.items(kind, r.text);
+        it = P.items(kind, noCites(r.text));
         if (!P.count(kind, it)) {
           on.delta && on.delta('\n\n');
           r = await ask(msgs.concat([{ role: 'assistant', content: r.text }, { role: 'user', content: 'That could not be read. Reply again in exactly the format asked for, as plain text (no JSON, no code block), nothing else.' }]));
-          it = P.items(kind, r.text);
+          it = P.items(kind, noCites(r.text));
         }
         if (P.count(kind, it)) break;
         tried.push(m + ': its ' + kind + ' could not be read');
