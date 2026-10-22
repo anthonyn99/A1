@@ -82,79 +82,8 @@ function showPicker() {
   renderPicker();
   $('#picker').hidden = false;
   if (!entered) $('#app').hidden = true;
-  pickerBackdrop(true);
 }
-function hidePicker() { $('#picker').hidden = true; pickerBackdrop(false); }
-
-/** The picker's backdrop, Shruti's own (Tony, 2026-10-22: "not just like
- *  Everwell"): Shruti is "that which is heard", so sound rings rise out of the
- *  mark and fade as they spread, and a few waveform lines flow slowly across
- *  the lower screen, in Tony's lilac and Veda's mauve. 30 fps, only while the
- *  picker shows and the page is visible; one still frame for reduced motion. */
-const pickerBackdrop = (() => {
-  const LILAC = '192,174,234', MAUVE = '183,159,196', VIOLET = '150,128,214';
-  const RING_EVERY = 2600, RING_LIFE = 10400;          // a new ring every 2.6 s; each lives 10.4 s (4 at once)
-  const WAVES = [                                        // [colour, height (share of H), amplitude, wavelength, speed, alpha]
-    [LILAC, .74, 26, 520, .00018, .26], [MAUVE, .78, 34, 760, -.00012, .2],
-    [VIOLET, .82, 20, 380, .00025, .17], [LILAC, .87, 30, 640, -.00009, .13], [MAUVE, .92, 16, 300, .0003, .11],
-  ];
-  let cv, ctx, W = 0, H = 0, cx = 0, cy = 0, raf = 0, on = false, last = 0, t0 = 0;
-  const still = matchMedia('(prefers-reduced-motion: reduce)');
-  function size() {
-    const dpr = Math.min(devicePixelRatio || 1, 2);
-    W = innerWidth; H = innerHeight;
-    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const m = $('#picker .pk-mark'), r = m && m.getBoundingClientRect();   // the rings come from the mark
-    cx = r && r.width ? r.left + r.width / 2 : W / 2; cy = r && r.width ? r.top + r.height / 2 : H * .3;
-  }
-  function frame(now) {
-    const t = now - t0;
-    ctx.fillStyle = '#131317'; ctx.fillRect(0, 0, W, H);
-    // A quiet light behind the mark; it breathes with the rings.
-    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(W, H) * .55);
-    glow.addColorStop(0, 'rgba(' + LILAC + ',' + (.13 + .03 * Math.sin(t / RING_EVERY * 6.283)).toFixed(3) + ')'); glow.addColorStop(1, 'rgba(' + LILAC + ',0)');
-    ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
-    // Sound rings: spread with an ease-out, thin and fading as they go.
-    const reach = Math.hypot(Math.max(cx, W - cx), Math.max(cy, H - cy));
-    for (let k = Math.floor(t / RING_EVERY); k >= 0 && (t - k * RING_EVERY) < RING_LIFE; k--) {
-      const p = (t - k * RING_EVERY) / RING_LIFE, e = 1 - Math.pow(1 - p, 2.2);
-      const a = (1 - p) * (1 - p) * .34 * Math.min(1, p * 12);
-      ctx.strokeStyle = 'rgba(' + (k % 2 ? MAUVE : LILAC) + ',' + a.toFixed(3) + ')';
-      ctx.lineWidth = 1.4 - p * .8;
-      ctx.beginPath(); ctx.arc(cx, cy, 34 + e * reach, 0, 6.283); ctx.stroke();
-    }
-    // Waveforms: each line is two sines beating together, so it swells and settles like a voice.
-    for (const [col, at, amp, len, sp, al] of WAVES) {
-      const y0 = H * at, k1 = 6.283 / len, k2 = k1 * 1.7, ph = t * sp * 6.283;
-      ctx.strokeStyle = 'rgba(' + col + ',' + al + ')'; ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      for (let x = -4; x <= W + 4; x += 6) {
-        const env = .55 + .45 * Math.sin(x / W * 3.1416);                        // quieter at the edges
-        const y = y0 + env * amp * (Math.sin(x * k1 + ph) * .7 + Math.sin(x * k2 - ph * 1.3) * .3);
-        x < 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-    }
-  }
-  function loop(now) {
-    raf = 0;
-    if (!on || document.hidden) return;
-    if (now - last >= 33) { last = now; frame(now); }
-    if (!still.matches) raf = requestAnimationFrame(loop);
-  }
-  addEventListener('resize', () => { if (on) { size(); frame(performance.now()); } });
-  document.addEventListener('visibilitychange', () => { if (on && !document.hidden && !raf) raf = requestAnimationFrame(loop); });
-  return (show) => {
-    on = show;
-    if (!show) { cancelAnimationFrame(raf); raf = 0; return; }
-    cv = cv || $('#pk-backdrop'); if (!cv) return;
-    ctx = ctx || cv.getContext('2d');
-    t0 = performance.now() - (still.matches ? RING_EVERY * 1.6 : 0);   // a still frame shows rings already spreading
-    size(); frame(performance.now());
-    if (!raf) raf = requestAnimationFrame(loop);
-  };
-})();
+function hidePicker() { $('#picker').hidden = true; }
 $('#pk-cards').addEventListener('click', (e) => {
   const star = e.target.closest('[data-fav]');
   if (star) {
