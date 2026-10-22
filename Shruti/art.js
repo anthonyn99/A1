@@ -59,19 +59,22 @@ function figure(c, s, t, k, { pose = 'stand', col = k.ac, crown = false, feather
 const M = {
   battlefield(c, s, t, k) {
     const w = s * 0.5;
-    c.strokeStyle = alpha(k.tx, 0.35); line(c, [[-w, s * 0.28], [w, s * 0.28]]);
+    c.strokeStyle = alpha(k.tx, 0.35); line(c, [[-w, s * 0.3], [w, s * 0.3]]);
+    // A low sun over the field.
+    c.save(); c.translate(0, -s * 0.18); c.scale(0.35, 0.35); M.sun(c, s, t, k); c.restore();
     // Two armies: rows of spears and banners that wave, facing each other.
-    for (const side of [-1, 1]) for (let row = 0; row < 3; row++) for (let i = 0; i < 7; i++) {
-      const x = side * (w * 0.18 + i * w * 0.11 + row * w * 0.05), y = s * (0.27 - row * 0.07), hgt = s * (0.13 - row * 0.02);
+    for (const side of [-1, 1]) for (let row = 0; row < 4; row++) for (let i = 0; i < 6; i++) {
+      const x = side * (w * 0.14 + i * w * 0.14 + row * w * 0.04), y = s * (0.29 - row * 0.09), hgt = s * (0.24 - row * 0.035);
       c.strokeStyle = alpha(side < 0 ? k.rose : k.ac, 0.5 + 0.15 * row); line(c, [[x, y], [x, y - hgt]]);
       if (i % 2 === 0) { const f = wob(t, 3, i + row) * 0.25; c.fillStyle = alpha(side < 0 ? k.rose : k.ac, 0.55); c.beginPath(); c.moveTo(x, y - hgt); c.quadraticCurveTo(x - side * hgt * 0.25, y - hgt * (0.85 + f * 0.1), x - side * hgt * 0.45, y - hgt * 0.75); c.lineTo(x, y - hgt * 0.62); c.fill(); }
     }
     // Dust drifting up between them.
     c.fillStyle = alpha(k.gold, 0.5);
-    for (let i = 0; i < 18; i++) { const p = ((t * 0.12 + i * 0.137) % 1); circle(c, (Math.sin(i * 12.9) * 0.16) * s, s * (0.26 - p * 0.42), 2 + (i % 3), true); }
+    for (let i = 0; i < 18; i++) { const p = ((t * 0.12 + i * 0.137) % 1); circle(c, (Math.sin(i * 12.9) * 0.12) * s, s * (0.28 - p * 0.5), 2 + (i % 3), true); }
   },
   chariot(c, s, t, k) {
     const u = s / 10;
+    c.translate(1.7 * u, 0);   // the horses lead: the whole team sits in the middle
     c.strokeStyle = k.gold;
     // The wheel turns.
     c.save(); c.translate(0.6 * u, 2.2 * u); c.rotate(t * 0.9);
@@ -166,7 +169,9 @@ const M = {
   },
   moon(c, s, t, k) {
     const u = s / 10;
-    c.fillStyle = alpha(k.tx, 0.85); c.beginPath(); c.arc(0, 0, 2.6 * u, 0, TAU); c.arc(1.1 * u, -0.6 * u, 2.3 * u, 0, TAU, true); c.fill('evenodd');
+    // A crescent: the outer edge round the left, back along a wider inner arc.
+    const R = 2.6 * u, d = 1.3 * u, r = Math.hypot(d, R);
+    c.fillStyle = alpha(k.tx, 0.85); c.beginPath(); c.arc(0, 0, R, -Math.PI / 2, Math.PI / 2, true); c.arc(d, 0, r, Math.atan2(R, -d), Math.atan2(-R, -d), false); c.closePath(); c.fill();
     M.stars(c, s, t, k, 14);
   },
   stars(c, s, t, k, n = 30) {
