@@ -181,10 +181,13 @@ export const VOICES = [
   ['en-US-AvaMultilingualNeural', 'Ava', 'en-US', 'female'], ['en-US-AndrewMultilingualNeural', 'Andrew', 'en-US', 'male'],
   ['en-US-EmmaMultilingualNeural', 'Emma', 'en-US', 'female'], ['en-US-BrianMultilingualNeural', 'Brian', 'en-US', 'male'],
   ['en-US-JennyNeural', 'Jenny', 'en-US', 'female'], ['en-US-GuyNeural', 'Guy', 'en-US', 'male'],
+  ['en-US-AriaNeural', 'Aria', 'en-US', 'female'], ['en-US-ChristopherNeural', 'Christopher', 'en-US', 'male'],
+  ['en-US-MichelleNeural', 'Michelle', 'en-US', 'female'], ['en-US-SteffanNeural', 'Steffan', 'en-US', 'male'],
   ['en-GB-SoniaNeural', 'Sonia', 'en-GB', 'female'], ['en-GB-RyanNeural', 'Ryan', 'en-GB', 'male'],
-  ['en-GB-LibbyNeural', 'Libby', 'en-GB', 'female'], ['en-AU-NatashaNeural', 'Natasha', 'en-AU', 'female'],
+  ['en-GB-LibbyNeural', 'Libby', 'en-GB', 'female'], ['en-GB-ThomasNeural', 'Thomas', 'en-GB', 'male'],
+  ['en-AU-NatashaNeural', 'Natasha', 'en-AU', 'female'], ['en-AU-WilliamMultilingualNeural', 'William', 'en-AU', 'male'],
   ['en-IN-NeerjaNeural', 'Neerja', 'en-IN', 'female'], ['en-IN-PrabhatNeural', 'Prabhat', 'en-IN', 'male'],
-  ['en-IE-EmilyNeural', 'Emily', 'en-IE', 'female'],
+  ['en-IE-EmilyNeural', 'Emily', 'en-IE', 'female'], ['en-IE-ConnorNeural', 'Connor', 'en-IE', 'male'],
 ].map(([id, name, locale, gender]) => ({ id, name, locale, gender, engine: 'edge' }));
 
 export async function voices(key, { fetch: f = fetch } = {}) {

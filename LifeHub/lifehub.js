@@ -176,41 +176,8 @@
      launchers land on one tab per program. */
   var BASE = 'https://anthonyn99.github.io/A1/';
   // Programs that moved to the private repo's host on 2026-10-10
-  // (docs/a1-priv-move-plan.md). Their old A1 pages are gone (2026-10-22).
+  // (docs/a1-priv-move-plan.md).
   var PRIV = 'https://a1-priv.av1.workers.dev/';
-  // Old address → new, by origin + path. Stored tiles still on an old one are
-  // rewritten once on sync (migrate below), keeping any query or hash. To move
-  // another program, add its line here.
-  var MOVED = {
-    'https://anthonyn99.github.io/a1/tradehub.html': PRIV + 'tradehub.html',
-    'https://anthonyn99.github.io/a1/insight.html': PRIV + 'insight.html',
-    'https://anthonyn99.github.io/a1/vault.html': PRIV + 'vault.html',
-    'https://anthonyn99.github.io/a1/riftiq.html': PRIV + 'riftiq.html',
-    // RiftIQ's name before the rename, still on some saved tiles.
-    'https://anthonyn99.github.io/a1/warroom.html': PRIV + 'riftiq.html',
-    // Solace was replaced by Everwell (2026-10-11); both of its addresses lead
-    // there, and the tile takes Everwell's name, icon and tab (see migrate).
-    'https://anthonyn99.github.io/a1/solace.html': PRIV + 'everwell.html',
-    'https://a1-priv.av1.workers.dev/solace.html': PRIV + 'everwell.html'
-  };
-  // The patch for a tile on a moved address. A Solace tile also takes
-  // Everwell's name, icon and tab, unless Tony renamed or re-iconed it.
-  function movedPatch(x) {
-    var to = movedUrl(x.url), out = { url: to };
-    if (/\/everwell\.html/.test(to) && /\/solace\.html/i.test(x.url)) {
-      if (x.name === 'Solace') out.name = 'Everwell';
-      if (!x.icon || x.icon === 'a1:solace') out.icon = 'a1:everwell';
-      if (!x.tab || x.tab === 'solace') out.tab = 'everwell';
-    }
-    return out;
-  }
-  function movedUrl(u) {
-    try {
-      var x = new URL(u);
-      var to = MOVED[(x.origin + x.pathname).toLowerCase()];
-      return to ? to + x.search + x.hash : '';
-    } catch (e) { return ''; }
-  }
   var SHIELD_EXE = {
     tony: 'C:\\Users\\antho\\AppData\\Local\\Shield\\shield-agent.exe',
     veda: 'C:\\Users\\vedap\\AppData\\Local\\Shield\\shield-agent.exe'
@@ -545,8 +512,6 @@
   // The Shield tile used to hand off with shieldopen:show. Move a list that
   // still carries it to the agent's real path — once, as an ordinary patch,
   // so it merges and is never written twice (an identical result is skipped).
-  // Tiles on a MOVED program's old address go to its new one the same way:
-  // one patch per tile, by id, so an edit from another device still merges.
   function migrate(st, list) {
     ADDED_LATER.forEach(function (id) {
       var app = byId(st.defaults, id), mark = st.lsKey + ':added:' + id;
@@ -558,13 +523,6 @@
     if (a && d && a.url === LEGACY_SHIELD_LINK && !st.migrated) {
       st.migrated = true;
       commit(st, patchOp('shield', { url: d.url }));
-    }
-    if (!st.movedDone) {
-      var hits = list.filter(function (x) { return isWeb(x.url) && movedUrl(x.url); });
-      if (hits.length) {
-        st.movedDone = true;
-        hits.forEach(function (x) { commit(st, patchOp(x.id, movedPatch(x))); });
-      }
     }
     // TaskHub's one-time import of Tony's old header links (index.html
     // _lhImport, 2026-10-12) adds tiles with a 'link_<profile>_' tab. On a device

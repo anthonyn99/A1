@@ -494,7 +494,7 @@ export async function openSheet(ctx) {
   if (!voiceList && keyOf()) O.voices(keyOf()).then((v) => { voiceList = v; if (dim.isConnected) drawVoices(); });
 }
 let previewAudio = null;
-async function preview(id, btn) {
+export async function preview(id, btn) {
   if (!keyOf()) { needKey(); return; }
   btn.disabled = true;
   try {
