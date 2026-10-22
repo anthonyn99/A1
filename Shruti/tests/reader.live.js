@@ -119,7 +119,7 @@ const flush = (c) => ev(c, `return window.Shruti.core.me.flush().then(()=>1)`);
   await ev(c, `document.querySelector('#rd-aa [data-k=size][data-v="4"]').click(); document.querySelector('#rd-aa [data-k=width][data-v="2"]').click(); document.querySelector('#rd-aa [data-k=font][data-v=sans]').click(); document.querySelector('#rd-aa [data-k=lead][data-v="2"]').click(); return 1`);
   ok('the text grows, widens, turns sans and opens up', await waitFor(c, `const r=document.querySelector('.rd'), s=getComputedStyle(r); return s.fontSize==='22px' && s.maxWidth==='860px' && r.classList.contains('sans') && Math.abs(parseFloat(s.lineHeight)/22-1.95)<0.01`),
     await ev(c, `const s=getComputedStyle(document.querySelector('.rd')); return s.fontSize+' '+s.maxWidth+' '+s.lineHeight`));
-  ok('the bar keeps the text\'s width', await waitFor(c, `getComputedStyle(document.querySelector('.rd-bar')).maxWidth==='860px'`));
+  ok('the reading page keeps the text\'s width', await waitFor(c, `getComputedStyle(document.querySelector('.rd-card')).maxWidth==='972px'`));
   await flush(c);
   ok('…saved to his doc', await waitFor(c, `const d=window.__fakeFs.docs['dashboards/shruti']; return d && d.reader && d.reader.size===4 && d.reader.width===2 && d.reader.font==='sans' && d.reader.lead===2`));
   await shot(c, 'reader-aa-1280');
@@ -152,7 +152,7 @@ const flush = (c) => ev(c, `return window.Shruti.core.me.flush().then(()=>1)`);
   await ev(c, `location.hash='#/b/gita'; return 1`);
   await waitFor(c, `document.querySelectorAll('.ch').length===18`);
   await ev(c, `location.hash='#/b/gita/2'; return 1`);
-  ok('coming back opens there, and says so', await waitFor(c, `!document.getElementById('rd-resume').hidden && (()=>{const r=document.querySelector('.rd [data-b="${pos}"]').getBoundingClientRect(); return r.top>40 && r.top<320})()`, 6000));
+  ok('coming back opens exactly there (Tony, 2026-10-22)', await waitFor(c, `(()=>{const r=document.querySelector('.rd [data-b="${pos}"]').getBoundingClientRect(); return r.top>40 && r.top<320})()`, 6000));
   await shot(c, 'reader-resume-1280');
 
   console.log('\nRead-aloud from the shipped narration (no key)');
@@ -181,13 +181,13 @@ const flush = (c) => ev(c, `return window.Shruti.core.me.flush().then(()=>1)`);
 
   console.log('\nVoice, speed, sleep');
   await ev(c, `document.querySelector('#mini [data-mp=more]').click(); return 1`);
-  ok('the read-aloud sheet opens', await waitFor(c, `!!document.getElementById('ra-sheet') && document.querySelectorAll('#ra-speed .chip').length===9`));
+  ok('the read-aloud sheet opens', await waitFor(c, `!!document.getElementById('ra-sheet') && document.querySelectorAll('#ra-speed .chip').length===8 && ![...document.querySelectorAll('#ra-speed .chip')].some(b=>b.textContent==='1.1×')`));
   await ev(c, `[...document.querySelectorAll('#ra-speed .chip')].find(b=>b.textContent==='1.5×').click(); return 1`);
   ok('1.5× speeds the voice up, pitch kept', await ev(c, `const a=[...document.querySelectorAll('audio')][0]; return true`) && await waitFor(c, `window.Shruti.narrate.state.mode && document.querySelector('#mini .tt span').textContent.includes('1.5×')`));
   ok('…and is saved for him', await waitFor(c, `const d=window.__fakeFs.docs['dashboards/shruti']; return d.narration && d.narration.speed===1.5`, 5000) || (await flush(c), await waitFor(c, `window.__fakeFs.docs['dashboards/shruti'].narration.speed===1.5`)));
   await ev(c, `[...document.querySelectorAll('#ra-sleep .chip')].find(b=>b.textContent==='15 min').click(); return 1`);
   ok('a 15-minute sleep timer shows in the player', await waitFor(c, `/sleep 15 min/.test(document.querySelector('#mini .tt span').textContent)`));
-  ok('the shipped narration is listed as ready', await waitFor(c, `/Ava · comes with Shruti/.test(document.getElementById('ra-save').textContent)`));
+  ok('the shipped narration is listed as ready', await waitFor(c, `/Ava\s*Comes with Shruti/.test(document.getElementById('ra-save').textContent)`));
   await shot(c, 'reader-sheet-1280');
   await ev(c, `document.querySelector('#ra-sheet [data-close]').click(); document.querySelector('#mini [data-mp=toggle]').click(); return 1`);
   ok('pause pauses', await waitFor(c, `!window.Shruti.narrate.state.playing && document.querySelector('#mini [data-mp=toggle]').getAttribute('aria-label')==='Play'`));
