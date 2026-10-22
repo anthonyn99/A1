@@ -4,81 +4,375 @@
   "n": 17,
   "title": "Threefold faith",
   "hosts": [
-    { "id": "A", "name": "Ava", "voice": "en-US-AvaMultilingualNeural" },
-    { "id": "B", "name": "Andrew", "voice": "en-US-AndrewMultilingualNeural" }
+    {
+      "id": "A",
+      "name": "Emma",
+      "voice": "en-US-EmmaMultilingualNeural"
+    },
+    {
+      "id": "B",
+      "name": "Brian",
+      "voice": "en-US-BrianMultilingualNeural"
+    }
   ],
   "segments": [
     {
       "title": "Welcome",
       "turns": [
-        { "s": "A", "t": "Welcome to Shruti. I'm Ava." },
-        { "s": "B", "t": "And I'm Andrew. Today, Chapter Seventeen: Threefold Faith." },
-        { "s": "A", "t": "Chapter Fourteen introduced the three modes: goodness, passion and inertia. This chapter applies them to everyday life: your faith, your food, how you give, how you discipline yourself, even how you speak." },
-        { "s": "B", "t": "Four lessons. Story first." }
+        {
+          "s": "A",
+          "t": "Welcome to Shruti. I'm Emma."
+        },
+        {
+          "s": "B",
+          "t": "And I'm Brian. Today, Chapter Seventeen: Threefold Faith."
+        },
+        {
+          "s": "A",
+          "t": "Chapter Fourteen introduced the three modes: goodness, passion and inertia. This chapter applies them to everyday life: your faith, your food, how you give, how you discipline yourself, even how you speak."
+        },
+        {
+          "s": "B",
+          "t": "Even how you speak. I'll admit, that's the part that got me. I thought this would be a chapter about rituals, and it turned out to be about my lunch and my tone of voice."
+        },
+        {
+          "s": "A",
+          "t": "That's the Gita's way, isn't it. The highest ideas, brought right down to the kitchen table."
+        },
+        {
+          "s": "B",
+          "t": "Four lessons today. And it's a very practical chapter, so stay with us even if you think you know it. Story first."
+        }
       ]
     },
     {
       "title": "The story",
       "turns": [
-        { "s": "A", "t": "Chapter Sixteen ended by telling Arjuna to follow scripture. So he asks a fair question, seventeen point one: what about people who practice with faith, but without following the scriptures? Is that goodness, passion, or ignorance?" },
-        { "s": "B", "t": "Krishna, seventeen point two: the natural faith of embodied beings is of three kinds, goodness, passion and ignorance.", "L": ["L1"] },
-        { "s": "A", "t": "And then a profound line, seventeen point three: the faith of each is in accordance with one's own nature. One is known by one's faith. One can become whatever one wants to be, if one constantly contemplates the object of desire with faith.", "L": ["L1"] },
-        { "s": "B", "t": "You become what you put your faith in. That's a sentence to sit with.", "L": ["L1"] },
-        { "s": "A", "t": "Seventeen point four: those in goodness worship the divine powers; those in passion worship powerful beings and demons; those in ignorance worship ghosts and spirits.", "L": ["L1"] },
-        { "s": "B", "t": "And a warning against extreme self-punishment, seventeen point five and six: those who practice severe austerities not prescribed by scripture, full of hypocrisy and ego, senselessly torture the body, and Me who dwells within it.", "L": ["L3"] },
-        { "s": "A", "t": "Then food. Seventeen point eight: foods that promote longevity, virtue, strength, health, happiness and joy, that are juicy, smooth, substantial and nutritious, are liked by people in goodness.", "L": ["L2"] },
-        { "s": "B", "t": "Seventeen point nine: people in passion like foods that are very bitter, sour, salty, hot, pungent, dry and burning, which cause pain, grief and disease.", "L": ["L2"] },
-        { "s": "A", "t": "And seventeen point ten, in our book's words: people in ignorance like foods that are stale, tasteless, putrid, rotten, impure, such as meat and alcohol.", "L": ["L2"] },
-        { "s": "B", "t": "Then sacrifice, or selfless service, in three modes. Seventeen point eleven: done as duty, without desire for the fruit, it's goodness. Done for show and for reward, passion. Done carelessly, without faith, without sharing food, ignorance.", "L": ["L2"] },
-        { "s": "A", "t": "Then a beautiful passage on three kinds of austerity. Seventeen point fourteen, austerity of deed: worship of the divine and the wise, purity, honesty, self-restraint, and nonviolence.", "L": ["L3"] },
-        { "s": "B", "t": "Seventeen point fifteen, austerity of word: speech that is non-offensive, truthful, pleasant and beneficial, and the regular study of scripture.", "L": ["L3"] },
-        { "s": "A", "t": "Truthful and pleasant and beneficial. All three at once. That's a high bar for every conversation.", "L": ["L3"] },
-        { "s": "B", "t": "Seventeen point sixteen, austerity of thought: serenity of mind, gentleness, calmness, self-control, and purity of thought.", "L": ["L3"] },
-        { "s": "A", "t": "And those austerities also come in three modes. With faith and no desire for reward, goodness. For respect and show, passion. With stubbornness, self-torture or to harm others, ignorance.", "L": ["L2", "L3"] },
-        { "s": "B", "t": "Then charity. Seventeen point twenty: given as a duty, at the right place and time, to a deserving person who gives nothing back, it's goodness. Seventeen point twenty-one: given unwillingly, or to get something back, passion. Seventeen point twenty-two: given at the wrong place and time, to the unworthy, or with disrespect, ignorance.", "L": ["L2"] },
-        { "s": "A", "t": "Then the chapter ends with three sacred words. Seventeen point twenty-three: Om Tat Sat is said to be the threefold name of God." },
-        { "s": "B", "t": "Om begins every sacred act. Tat, meaning that, or He is all, is said when acting without seeking a reward. And Sat means reality and goodness, and is used for any auspicious act, and for faith itself." },
-        { "s": "A", "t": "And the last verse, seventeen point twenty-eight: whatever is done without faith, whether sacrifice, charity, austerity or any other act, is called Asat. It has no value here or hereafter.", "L": ["L4"] }
+        {
+          "s": "A",
+          "t": "Chapter Sixteen ended by telling Arjuna to follow scripture. So he asks a fair question, seventeen point one: what about people who practice with faith, but without following the scriptures? Is that goodness, passion, or ignorance?"
+        },
+        {
+          "s": "B",
+          "t": "Krishna, seventeen point two: the natural faith of embodied beings is of three kinds, goodness, passion and ignorance.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And then a profound line, seventeen point three: the faith of each is in accordance with one's own nature. One is known by one's faith. One can become whatever one wants to be, if one constantly contemplates the object of desire with faith.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "You become what you put your faith in. That's a sentence to sit with.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "It cuts both ways, too. It's encouraging, because it means we can grow into what we love. And it's sobering, because it means we're always becoming something, whether we choose it or not."
+        },
+        {
+          "s": "B",
+          "t": "So the real question isn't, do I have faith. Everyone does. It's, faith in what, and what is it turning me into."
+        },
+        {
+          "s": "A",
+          "t": "Seventeen point four: those in goodness worship the divine powers; those in passion worship powerful beings and demons; those in ignorance worship ghosts and spirits.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "And a warning against extreme self-punishment, seventeen point five and six: those who practice severe austerities not prescribed by scripture, full of hypocrisy and ego, senselessly torture the body, and Me who dwells within it.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "I'm glad that's in there. Spiritual life can attract a kind of grim competition, who can fast the longest, who can suffer the most. The Gita says no. Torturing the body is torturing the Divine who lives in it."
+        },
+        {
+          "s": "A",
+          "t": "Then food. Seventeen point eight: foods that promote longevity, virtue, strength, health, happiness and joy, that are juicy, smooth, substantial and nutritious, are liked by people in goodness.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Seventeen point nine: people in passion like foods that are very bitter, sour, salty, hot, pungent, dry and burning, which cause pain, grief and disease.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And seventeen point ten, in our book's words: people in ignorance like foods that are stale, tasteless, putrid, rotten, impure, such as meat and alcohol.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "A note from us, not from the book. In the wider tradition, this teaching is the root of the idea that food affects the mind, and not just the body. Heavy, stale food makes us dull; fiery food makes us restless; fresh, simple food leaves us clear."
+        },
+        {
+          "s": "A",
+          "t": "Which anyone who's had a big lunch and then tried to meditate already knows."
+        },
+        {
+          "s": "B",
+          "t": "Then sacrifice, or selfless service, in three modes. Seventeen point eleven: done as duty, without desire for the fruit, it's goodness. Done for show and for reward, passion. Done carelessly, without faith, without sharing food, ignorance.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "That detail about sharing food is lovely. In the Gita's picture, a sacrifice where nobody is fed has missed the point. Worship and generosity belong together."
+        },
+        {
+          "s": "A",
+          "t": "Then a beautiful passage on three kinds of austerity. Seventeen point fourteen, austerity of deed: worship of the divine and the wise, purity, honesty, self-restraint, and nonviolence.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Seventeen point fifteen, austerity of word: speech that is non-offensive, truthful, pleasant and beneficial, and the regular study of scripture.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Truthful and pleasant and beneficial. All three at once. That's a high bar for every conversation.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Seventeen point sixteen, austerity of thought: serenity of mind, gentleness, calmness, self-control, and purity of thought.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Deed, word and thought. It's the same order we usually notice our faults in, isn't it? First we catch what we do. Later we catch what we say. Last of all, we catch what we think."
+        },
+        {
+          "s": "A",
+          "t": "And the Gita treats all three as places to practice. Not just as places to fail."
+        },
+        {
+          "s": "A",
+          "t": "And those austerities also come in three modes. With faith and no desire for reward, goodness. For respect and show, passion. With stubbornness, self-torture or to harm others, ignorance.",
+          "L": [
+            "L2",
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Then charity. Seventeen point twenty: given as a duty, at the right place and time, to a deserving person who gives nothing back, it's goodness. Seventeen point twenty-one: given unwillingly, or to get something back, passion. Seventeen point twenty-two: given at the wrong place and time, to the unworthy, or with disrespect, ignorance.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "I love that the giver of goodness wants nothing back. Not even thanks, really. The gift is complete the moment it leaves your hands."
+        },
+        {
+          "s": "B",
+          "t": "And notice that even generous giving can be spoiled by disrespect. How you give matters as much as what you give."
+        },
+        {
+          "s": "A",
+          "t": "Then the chapter ends with three sacred words. Seventeen point twenty-three: Om Tat Sat is said to be the threefold name of God."
+        },
+        {
+          "s": "B",
+          "t": "Om begins every sacred act. Tat, meaning that, or He is all, is said when acting without seeking a reward. And Sat means reality and goodness, and is used for any auspicious act, and for faith itself."
+        },
+        {
+          "s": "A",
+          "t": "Om Tat Sat. You may have heard those words at the end of a prayer or a reading. Here's where they come from, and what they mean: the sacred sound, then, all is His, then, this is real and good."
+        },
+        {
+          "s": "A",
+          "t": "And the last verse, seventeen point twenty-eight: whatever is done without faith, whether sacrifice, charity, austerity or any other act, is called Asat. It has no value here or hereafter.",
+          "L": [
+            "L4"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 1 · You are your faith",
       "turns": [
-        { "s": "B", "t": "Lesson one: faith is shaped by one's dominant mode of nature.", "L": ["L1"] },
-        { "s": "A", "t": "Each person's natural faith reflects which mode rules them. Goodness turns toward God and the divine; passion toward power; ignorance toward ghosts and dark forces.", "L": ["L1"] },
-        { "s": "B", "t": "What you worship reveals your inner state. And what you keep contemplating with faith, you become.", "L": ["L1"] }
+        {
+          "s": "B",
+          "t": "Lesson one: faith is shaped by one's dominant mode of nature.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Each person's natural faith reflects which mode rules them. Goodness turns toward God and the divine; passion toward power; ignorance toward ghosts and dark forces.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "What you worship reveals your inner state. And what you keep contemplating with faith, you become.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "One practical way to use it: notice what you think about most when your mind is free. On the bus, in the shower, before sleep. That's a pretty honest picture of where your faith is pointed right now."
+        },
+        {
+          "s": "B",
+          "t": "And it can be pointed somewhere else, gently, day by day. That's the hopeful part of seventeen point three."
+        }
       ]
     },
     {
       "title": "Lesson 2 · Everything in three modes",
       "turns": [
-        { "s": "A", "t": "Lesson two: food, sacrifice, austerity and charity each come in three modes.", "L": ["L2"] },
-        { "s": "B", "t": "Goodness: nourishing food, duty-based service, sincere discipline, and giving at the right time and place to a worthy person, with no expectation.", "L": ["L2"] },
-        { "s": "A", "t": "Passion: stimulating food, showy worship, self-promoting discipline, conditional giving. Ignorance: stale food, ritual without faith, self-torture, disrespectful giving. Every act takes on the color of the mode behind it.", "L": ["L2"] }
+        {
+          "s": "A",
+          "t": "Lesson two: food, sacrifice, austerity and charity each come in three modes.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Goodness: nourishing food, duty-based service, sincere discipline, and giving at the right time and place to a worthy person, with no expectation.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Passion: stimulating food, showy worship, self-promoting discipline, conditional giving. Ignorance: stale food, ritual without faith, self-torture, disrespectful giving. Every act takes on the color of the mode behind it.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "The same act can be three different acts, depending on the heart behind it. A donation, a fast, a prayer, even a meal. The outside looks identical. The mode underneath is what decides."
+        }
       ]
     },
     {
       "title": "Lesson 3 · Deed, word, thought",
       "turns": [
-        { "s": "B", "t": "Lesson three: austerity has three dimensions, deed, word and thought.", "L": ["L3"] },
-        { "s": "A", "t": "Deed: purity, honesty, nonviolence, service to the wise. Word: truthful, kind, helpful speech. Thought: serenity, gentleness, self-control, a clean mind.", "L": ["L3"] },
-        { "s": "B", "t": "All three together, sincerely, and without wanting credit. Discipline isn't punishment. It's refinement.", "L": ["L3"] }
+        {
+          "s": "B",
+          "t": "Lesson three: austerity has three dimensions, deed, word and thought.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Deed: purity, honesty, nonviolence, service to the wise. Word: truthful, kind, helpful speech. Thought: serenity, gentleness, self-control, a clean mind.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "All three together, sincerely, and without wanting credit. Discipline isn't punishment. It's refinement.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Speech is the one I'd pick to start with. Before speaking, ask: is it true, is it kind, is it helpful. If you only did that for a week, you'd feel the difference."
+        },
+        {
+          "s": "B",
+          "t": "And thought is the deepest. Serenity, gentleness, purity of mind. That's not something you force. It's something that grows when deed and word are already being looked after."
+        }
       ]
     },
     {
       "title": "Lesson 4 · Without faith, nothing",
       "turns": [
-        { "s": "A", "t": "And lesson four: action without faith has no spiritual value.", "L": ["L4"] },
-        { "s": "B", "t": "Any act, sacrifice, charity or discipline, done without faith, is Asat. It brings no benefit, here or hereafter.", "L": ["L4"] },
-        { "s": "A", "t": "Faith isn't optional. It's what turns an outer action into a living offering.", "L": ["L4"] }
+        {
+          "s": "A",
+          "t": "And lesson four: action without faith has no spiritual value.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Any act, sacrifice, charity or discipline, done without faith, is Asat. It brings no benefit, here or hereafter.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Faith isn't optional. It's what turns an outer action into a living offering.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "It also connects back to Arjuna's question at the start. He asked about people with faith but without scripture. And the chapter ends by saying: whatever you do, without faith, it's empty. So faith is the thread through all of it."
+        }
       ]
     },
     {
       "title": "Wrap-up",
       "turns": [
-        { "s": "B", "t": "So, Chapter Seventeen. Faith, food, service, discipline and giving all come in three flavors, and faith is what gives any of it value.", "L": ["L1", "L2", "L4"] },
-        { "s": "A", "t": "Four lessons: you are your faith, everything in three modes, deed, word and thought, and without faith, nothing.", "L": ["L1", "L2", "L3", "L4"] },
-        { "s": "B", "t": "Next time, the final chapter, Eighteen: liberation through renunciation, and Arjuna's answer. Thanks for listening to Shruti." }
+        {
+          "s": "B",
+          "t": "So, Chapter Seventeen. Faith, food, service, discipline and giving all come in three flavors, and faith is what gives any of it value.",
+          "L": [
+            "L1",
+            "L2",
+            "L4"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Four lessons: you are your faith, everything in three modes, deed, word and thought, and without faith, nothing.",
+          "L": [
+            "L1",
+            "L2",
+            "L3",
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Next time, the final chapter, Eighteen: liberation through renunciation, and Arjuna's answer. Thanks for listening to Shruti."
+        }
       ]
     }
   ]
