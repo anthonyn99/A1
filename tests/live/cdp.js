@@ -199,7 +199,7 @@ async function servePagesFromWorkingCopy(ws, send, mock) {
     }
     const rel = decodeURIComponent(new global.URL(request.url).pathname.slice('/A1/'.length)) || 'index.html';
     // TradeHub, Insight, Vault (+ Vault/), RiftIQ (and Everwell, built there) are in ../A1-Priv since 2026-10-10;
-    // A1 holds redirect stubs. Serve the real pages from that checkout, still
+    // A1 has no copy. Serve the real pages from that checkout, still
     // under this origin, so their tests exercise the code that ships.
     const priv = path.join(A1, '..', 'A1-Priv');
     const moved = MOVED.test(rel) && fs.existsSync(path.join(priv, rel));

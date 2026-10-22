@@ -121,17 +121,9 @@ console.log('\nPrograms that moved to A1-Priv (docs/a1-priv-move-plan.md)');
     /_sameDest\(a\.url, _movedUrl\(l\.url\) \|\| l\.url\)/.test(idx) && !/id:'solace'/.test(idx));
   ok("Index's MOVED_PROGRAMS sends both Solace addresses to Everwell",
     idx.includes("'https://anthonyn99.github.io/a1/solace.html':   'https://a1-priv.av1.workers.dev/everwell.html'") && idx.includes("'https://a1-priv.av1.workers.dev/solace.html':   'https://a1-priv.av1.workers.dev/everwell.html'"));
-  // A stub forwards whatever it was given; a plain launch (an icon made before
-  // the move) also carries the tab key, so the app's open tab is found.
-  const forwards = (stub, to, key) => stub.includes("var q = location.search + location.hash;") &&
-    stub.includes("if (!q && !window.opener && !window.name) q = '?a1tab=" + key + "';") &&
-    stub.includes("location.replace('https://a1-priv.av1.workers.dev/" + to + ".html' + q)");
-  ok('A1/solace.html forwards to Everwell with query + hash', forwards(read('solace.html'), 'everwell', 'everwell'));
-  for (const p of moved) {
-    const stub = read(p + '.html');
-    ok('A1/' + p + '.html is a stub that forwards query + hash',
-      stub.length < 4000 && forwards(stub, p, p === 'riftiq' ? 'warroom' : p));
-  }
+  // Their old A1 pages were removed on 2026-10-22: every stored link is
+  // rewritten by the MOVED maps above, so nothing may bring a copy back here.
+  for (const p of [...moved, 'solace']) ok('A1 holds no copy of ' + p + '.html', !fs.existsSync(path.join(ROOT, p + '.html')));
 }
 
 console.log("\nIndex: Tony's External Links are his LifeHub list");

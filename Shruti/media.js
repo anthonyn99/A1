@@ -41,7 +41,8 @@ export async function driveHealth(fresh) {
 }
 /** Whether the Drive this book's media goes to is connected. */
 export async function driveReady(book) {
-  const h = await driveHealth();
+  // Asked fresh: Drive may have just been connected on another device.
+  const h = await driveHealth(true);
   const a = book ? acctFor(book) : 'tony';
   return !!(h && (h.accounts ? h.accounts[a] && h.accounts[a].connected : a === 'tony' && h.connected));
 }

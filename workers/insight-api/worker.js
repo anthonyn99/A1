@@ -49,19 +49,16 @@
  */
 
 const ALLOWED_ORIGIN = 'https://anthonyn99.github.io';
-// Insight moved to A1-Priv's host on 2026-10-10 (docs/a1-priv-move-plan.md);
-// both origins are served while old links redirect.
+// Insight moved to A1-Priv's host on 2026-10-10 (docs/a1-priv-move-plan.md).
 const ALLOWED_ORIGINS = [ALLOWED_ORIGIN, 'https://a1-priv.av1.workers.dev'];
 
 // Must be registered verbatim under Plaid Dashboard → Developers → API →
 // Allowed redirect URIs before OAuth banks (Chase, Capital One, Wells Fargo)
 // can be linked. See the fallback in /link/token/create. The page itself is
-// the redirect target, so the URI follows the origin the request came from.
-const REDIRECT_URI = 'https://anthonyn99.github.io/A1/insight.html';
-const PRIV_REDIRECT_URI = 'https://a1-priv.av1.workers.dev/insight.html';
-function redirectUriFor(origin) {
-  return origin === 'https://a1-priv.av1.workers.dev' ? PRIV_REDIRECT_URI : REDIRECT_URI;
-}
+// the redirect target, and it only lives on A1-Priv's host (A1's old
+// insight.html was removed 2026-10-22).
+const REDIRECT_URI = 'https://a1-priv.av1.workers.dev/insight.html';
+function redirectUriFor() { return REDIRECT_URI; }
 
 function corsHeaders(origin) {
   const allow = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGIN;

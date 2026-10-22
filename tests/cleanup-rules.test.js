@@ -107,8 +107,9 @@ for (const it of RULES.items) {
   if (it.origin !== undefined) ok(`${it.id}: origin '${it.origin}' is a known host`, !!ORIGINS[it.origin]);
 }
 // Every A1-Priv page loads the sweep, so an item for any of them just works.
-// A forwarding stub (solace.html → Everwell) is not a program and runs nothing.
-const isStub = (page) => { const s = M.read(page); return s.length < 4000 && /location\.replace\('https:/.test(s); };
+// A forwarding stub (A1-Priv's solace.html → Everwell) is not a program and runs nothing.
+// Read from A1-Priv itself: M.read sends solace.html to A1, which has none.
+const isStub = (page) => { const s = fs.readFileSync(path.join(M.PRIV, page), 'utf8'); return s.length < 4000 && /location\.replace\('https:/.test(s); };
 for (const page of fs.existsSync(M.PRIV) ? fs.readdirSync(M.PRIV).filter((f) => f.endsWith('.html') && !isStub(f)) : []) {
   const prog = page.replace(/\.html$/, '');
   ok(`A1-Priv ${page} loads sweep.js as data-program="${prog}"`,

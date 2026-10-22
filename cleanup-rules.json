@@ -364,7 +364,7 @@
         "vault_cloud_tok_"
       ],
       "owner": "tradehub.html, insight.html, vault.html, riftiq.html, solace.html (moved to A1-Priv, 2026-10-10; Solace is Everwell since 2026-10-11)",
-      "reason": "These five programs now run on a1-priv.av1.workers.dev, and their A1 files are redirect stubs that read nothing, so this origin's copies of their keys are never read again. They are local mirrors and settings (the data is in Firestore) taking room that TaskHub's journal caches need. Left out on purpose: keys a page here still uses (al_locks, td6_mainDash, pl_device_name, kc_icon_cache_v1, bio_cred_*), pv_sched_v1 (index clears it itself) and Vault's device keys (vault.deviceId, vault.deviceKey), which are key material. Keep it a dry run until 2026-11-10, a month after the move, so the old copies stay as a fallback.",
+      "reason": "These five programs now run on a1-priv.av1.workers.dev, and their A1 files were removed (redirect stubs until 2026-10-22), so this origin's copies of their keys are never read again. They are local mirrors and settings (the data is in Firestore) taking room that TaskHub's journal caches need. Left out on purpose: keys a page here still uses (al_locks, td6_mainDash, pl_device_name, kc_icon_cache_v1, bio_cred_*), pv_sched_v1 (index clears it itself) and Vault's device keys (vault.deviceId, vault.deviceKey), which are key material. Keep it a dry run until 2026-11-10, a month after the move, so the old copies stay as a fallback.",
       "delete": false
     },
     {

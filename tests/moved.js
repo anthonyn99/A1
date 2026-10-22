@@ -1,10 +1,10 @@
 // Programs that left A1 for the private repo (anthonyn99/A1-Priv) on
 // 2026-10-10 (TradeHub, Insight, Vault, then RiftIQ and Solace, which Everwell
 // replaced on 2026-10-11) —
-// docs/a1-priv-move-plan.md. Their A1 copies are redirect stubs,
-// but the suites here still guard the REAL code: they read it from the sibling
-// checkout next to this one (Desktop\A1-Priv). Without that checkout (CI,
-// another PC) a suite skips those files and says so, instead of failing on a stub.
+// docs/a1-priv-move-plan.md. A1 has no copy of them, but the suites here still
+// guard the REAL code: they read it from the sibling checkout next to this one
+// (Desktop\A1-Priv). Without that checkout (CI, another PC) a suite skips those
+// files and says so.
 //
 //   const M = require('./moved');
 //   M.file('tradehub.html')   → absolute path, in A1-Priv when it moved

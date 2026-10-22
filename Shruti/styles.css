@@ -1021,3 +1021,11 @@ button.mine-empty:hover { border-color: var(--ac-line); color: var(--tx); }
   .imp-ch { grid-template-columns: 20px 1fr; }
   .imp-acts { grid-column: 2; }
 }
+
+/* Settings → Google Drive: one row per Drive (shared books on Tony's, each person's own on theirs). */
+.drv { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.drv-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 12px; padding: 10px 12px; border-radius: var(--r); background: var(--s2); }
+.drv-row > div:first-child b { display: block; font-size: 14px; }
+.drv-row > div:first-child span { display: block; font-size: 12.5px; color: var(--txm); }
+.drv-row .stat { margin: 0; justify-self: end; }
+.drv-row .btn { grid-column: 1 / -1; justify-self: start; }

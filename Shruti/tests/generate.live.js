@@ -67,7 +67,7 @@ const mock = firebaseMock({
       if (/json$/.test(name)) S.stored[id] = req.postData || null;
       return { json: { ok: true, id, size: 1, store: 'gdrive' } };
     }
-    if (u.startsWith(DRIVE + '/f/') && req.method === 'DELETE') { S.dels.push(u.split('/').pop()); return { json: { ok: true } }; }
+    if (u.startsWith(DRIVE + '/f/') && req.method === 'DELETE') { S.dels.push(u.split('/').pop().split('?')[0]); return { json: { ok: true } }; }
     if (u.startsWith(DRIVE + '/sign')) {
       const ids = JSON.parse(req.postData || '{}').ids || [];
       // The MP3 is a shipped one (any audio plays); the transcript is the one uploaded.
@@ -151,8 +151,7 @@ const sheetKind = (c, k) => ev(c, `document.querySelector('#gen-sheet [data-kind
   await shot(c, 'make-done-1280');
   await click(c, '#gen-run [data-open]');
   ok('"Play it" opens Listen with the new episode: Emma and Brian, every turn', await waitFor(c, `location.hash==='#/b/gita/5/listen' && document.querySelectorAll('.turn').length===${2 + ids5.length + 1} && /Emma and Brian/.test(document.querySelector('.pod-t span').textContent) && /13 of 13/.test(document.querySelector('.pod-cov h3').textContent)`, 10000));
-  await click(c, '[data-play]');
-  ok('…and it plays', await waitFor(c, `window.Shruti.podcast.state.playing`, 8000));
+  ok('…and it starts playing by itself (Tony, 2026-10-22: it played the old one)', await waitFor(c, `window.Shruti.podcast.state.playing && /Emma and Brian/.test(window.Shruti.podcast.state.meta.hosts.map(h=>h.name).join(' and '))`, 8000));
   await ev(c, `window.Shruti.podcast.pause(); return 1`);
 
   console.log('\nA video, Drive connected');

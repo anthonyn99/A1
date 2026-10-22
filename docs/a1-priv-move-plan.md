@@ -7,12 +7,12 @@ account 1, deployed from this PC. Everything below moved in on 2026-10-10:
 
 | Program | New address | Old A1 file |
 | --- | --- | --- |
-| TradeHub | https://a1-priv.av1.workers.dev/tradehub.html | `tradehub.html`, now a redirect stub |
-| Insight | https://a1-priv.av1.workers.dev/insight.html | `insight.html`, now a redirect stub |
-| Vault | https://a1-priv.av1.workers.dev/vault.html | `vault.html`, now a redirect stub |
+| TradeHub | https://a1-priv.av1.workers.dev/tradehub.html | `tradehub.html`, a redirect stub until 2026-10-22, now removed |
+| Insight | https://a1-priv.av1.workers.dev/insight.html | `insight.html`, a redirect stub until 2026-10-22, now removed |
+| Vault | https://a1-priv.av1.workers.dev/vault.html | `vault.html`, a redirect stub until 2026-10-22, now removed |
 | Vault Launcher extension + Vault modules | `A1-Priv/Vault/` | `A1\Vault`, now a git-ignored junction to it |
-| RiftIQ (second move) | https://a1-priv.av1.workers.dev/riftiq.html | `riftiq.html`, now a redirect stub |
-| Solace (second move) | https://a1-priv.av1.workers.dev/solace.html | `solace.html`, now a redirect stub |
+| RiftIQ (second move) | https://a1-priv.av1.workers.dev/riftiq.html | `riftiq.html`, a redirect stub until 2026-10-22, now removed |
+| Solace (second move) | https://a1-priv.av1.workers.dev/solace.html | `solace.html`, a redirect stub until 2026-10-22, now removed |
 
 A1 stays public on GitHub Pages. The moved pages still use A1's shared files
 (LifeHub, Notebook, tabsync, dragsort, hoverfx, resizegrip, sweep). They load
@@ -100,8 +100,10 @@ used.
   - The morning launcher's `TRADEHUB_URL`.
   - The TradeHub to MAGI hand-off needed no change: a cross-origin tab can
     still be re-targeted.
-- **Redirect stubs** keep the query, hash and window.name. Bookmarks, installed
-  PWAs and old extension builds still land.
+- **Redirect stubs** kept the query, hash and window.name, so bookmarks, installed
+  PWAs and old extension builds still landed. Tony had them removed on
+  2026-10-22, after reinstalling the home-screen icons from the new address; an
+  old address is now a GitHub 404.
 - **Tests:** A1 suites that guard these programs read them from `../A1-Priv`
   via `tests/moved.js` and skip without it. The live CDP harness serves them
   from there too. The cleanup-rules "unused key" proof scans A1-Priv as well,
@@ -130,8 +132,8 @@ used.
   Firestore snapshot copy is unaffected.
 - **Tab de-duplication after a browser restart** (tabsync) only works within one
   origin. While the browser runs, named tabs still pair across origins.
-- **Installed PWAs** of the old URLs still open, through the stub. Reinstall
-  from the new URL for a clean app window.
+- **Installed PWAs** of the old URLs no longer open (the stubs are gone).
+  Reinstall from the new URL.
 
 ## Moving another program later
 1. Copy the page, plus any folder only it uses, into A1-Priv. Point its
@@ -143,7 +145,8 @@ used.
 4. Add its old URL to LifeHub's `MOVED`, Index's `MOVED_PROGRAMS` (and
    `prevUrls` if it is a built-in button), and `tests/moved.js` / `cdp.js`'s
    `MOVED` patterns.
-5. Replace the A1 copy with a redirect stub (copy one of the three).
+5. Replace the A1 copy with a redirect stub. The old ones were removed on
+   2026-10-22; take one from git history (`git show 9da9a1e5:riftiq.html`).
 6. Cleanup: give the page `<script src="https://anthonyn99.github.io/A1/sweep.js"
    data-program="<name>" defer></script>` (tests/cleanup-rules.test.js checks
    every A1-Priv page has it), and add its localStorage keys to the

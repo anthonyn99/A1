@@ -10,6 +10,7 @@ import * as NR from './narrate.js';
 import * as POD from './podcast.js';
 import * as VID from './video.js';
 import * as G from './generate.js';
+import * as M from './media.js';
 
 const P = C.P, PROFILES = C.PROFILES, GID = window.SHRUTI_GID;
 const DRIVE = 'https://shruti-drive.av1-2.workers.dev';
@@ -208,6 +209,10 @@ let redrawT = null;
 const redraw = () => { clearTimeout(redrawT); redrawT = setTimeout(() => { const r = parse(); if (entered && r.view !== 'chapter' && !(window.A1Drag && A1Drag.active)) route(); }, 250); };
 C.on('doc:me', ({ remote }) => { if (remote) redraw(); });
 C.on('doc:shared', ({ remote }) => { if (remote) redraw(); });
+// Older Drive records get links that never expire, so the other profile plays
+// them with no key (once both docs are in, by whoever has a key).
+const upgrade = () => { if (C.me.loaded && C.shared.loaded) setTimeout(() => M.upgradeLinks(), 1500); };
+C.on('doc:me', upgrade); C.on('doc:shared', upgrade);
 
 /* ── header buttons ───────────────────────────────────────────────────────── */
 $('#lock-btn').addEventListener('click', () => Guardian.manage(GID).then(updateLockBtn));
@@ -309,40 +314,46 @@ function drawUnits() {
     },
   });
 }
-async function drawDrive(state) {
+// Two Drives (Tony, 2026-10-22): shared books keep their media in Tony's, each
+// person's own books in their own. Tony sees one line (both are his); Veda
+// sees the shared one (Tony's) and her own, with its Connect button.
+let driveWaiting = null;   // the account a Google tab was opened for
+async function drawDrive() {
   const box = $('#st-drive'); if (!box) return;
-  const paint = (s) => {
-    box.innerHTML = '<h3>Google Drive</h3><p class="hint">Podcasts, videos and narrations are kept in Tony\'s Google Drive (a folder named Shruti) and stream to every device and both profiles. The Gita\'s text never depends on it.</p>' +
-      '<div class="stat ' + s.kind + '"><i></i><span>' + esc(s.text) + '</span></div>' +
-      (s.action ? '<div class="row" style="margin-top:10px"><button class="btn" id="drive-act">' + esc(s.action) + '</button></div>' : '');
-    const a = box.querySelector('#drive-act'); if (a) a.addEventListener('click', s.onAction);
+  const rows = P === 'veda' ? [['tony', 'Shared books', 'Tony\'s Drive'], ['veda', 'Your books', 'your Drive']] : [['tony', 'Shared and your books', 'your Drive']];
+  const paint = (h) => {
+    box.innerHTML = '<h3>Google Drive</h3><p class="hint">Where podcasts, videos and narrations are kept.</p>' +
+      '<div class="drv">' + rows.map(([a, label, whose]) => {
+        const s = !h ? { k: 'busy', t: 'Checking…' } : h.err ? { k: 'bad', t: 'Unreachable' } : !h.configured ? { k: 'bad', t: 'Not set up' }
+          : h.accounts && h.accounts[a] && h.accounts[a].connected ? { k: 'good', t: h.accounts[a].email || 'Connected' }
+          : driveWaiting === a ? { k: 'busy', t: 'Finish in the Google tab' } : { k: '', t: 'Not connected' };
+        const can = h && !h.err && h.configured && keyOf() && (a === P || (P === 'tony' && a === 'tony'));
+        const btn = can && s.k !== 'good' ? '<button class="btn sm" data-drive="' + a + '">' + (driveWaiting === a ? 'Check again' : 'Connect ' + (a === P ? 'your' : 'Tony\'s') + ' Drive') + '</button>' : '';
+        return '<div class="drv-row"><div><b>' + esc(label) + '</b><span>' + esc(whose) + '</span></div><div class="stat ' + s.k + '"><i></i><span>' + esc(s.t) + '</span></div>' + btn + '</div>';
+      }).join('') + '</div>' +
+      (h && !h.err && h.configured && !keyOf() ? '<p class="hint">Connecting needs your Orca key first.</p>' : '');
+    box.querySelectorAll('[data-drive]').forEach((b) => b.addEventListener('click', () => (driveWaiting === b.dataset.drive ? (driveWaiting = null, drawDrive()) : connectDrive(b.dataset.drive))));
   };
-  if (state) { paint(state); return; }
-  paint({ kind: 'busy', text: 'Checking…' });
-  let h = null;
-  try { h = await (await fetch(DRIVE + '/health', { cache: 'no-store' })).json(); } catch (e) {}
+  paint(null);
+  const h = await M.driveHealth(true).catch(() => null);
   if (!$('#st-drive')) return;
-  if (!h) { paint({ kind: 'bad', text: 'The Drive service could not be reached.' }); return; }
-  if (h.connected) { paint({ kind: 'good', text: 'Connected' + (h.email ? ' · ' + h.email : '') }); return; }
-  if (!h.configured) { paint({ kind: 'bad', text: 'Not set up yet: the Google sign-in for Shruti still has to be created (see Shruti/docs/README.md).' }); return; }
-  if (!keyOf()) { paint({ kind: '', text: 'Not connected. Save an Orca key first; it is what lets this device talk to the Drive service.' }); return; }
-  paint({ kind: '', text: 'Not connected', action: 'Connect Google Drive', onAction: connectDrive });
+  paint(h || { err: true });
 }
-async function connectDrive() {
+async function connectDrive(acct) {
   // Open the window inside the click, so a popup blocker lets it through.
   const w = window.open('', '_blank');
   try {
-    const r = await fetch(DRIVE + '/connect', { method: 'POST', headers: { authorization: 'Bearer ' + keyOf() } });
+    const r = await fetch(DRIVE + '/connect?acct=' + acct, { method: 'POST', headers: { authorization: 'Bearer ' + keyOf() } });
     const j = await r.json();
     if (!r.ok || !j.url) throw new Error(j.error || r.status);
     if (w) w.location = j.url; else location.href = j.url;
-    drawDrive({ kind: 'busy', text: 'Finish in the Google tab, then come back here.', action: 'I have connected it', onAction: () => drawDrive() });
+    driveWaiting = acct; drawDrive();
   } catch (e) {
     if (w) w.close();
-    drawDrive({ kind: 'bad', text: 'Could not start: ' + (e.message || e), action: 'Try again', onAction: connectDrive });
+    toast('Google Drive could not be started: ' + (e.message || e), true);
   }
 }
-addEventListener('focus', () => { if ($('#st-drive') && /Google tab/.test($('#st-drive').textContent)) drawDrive(); });
+addEventListener('focus', () => { if ($('#st-drive') && driveWaiting) { M.driveHealth(true).then((h) => { if (h && h.accounts && h.accounts[driveWaiting] && h.accounts[driveWaiting].connected) driveWaiting = null; drawDrive(); }); } });
 
 /* ── mini-player: read-aloud, the podcast and the video share it ────────── */
 const PLAY_I = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg>';

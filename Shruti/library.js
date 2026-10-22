@@ -4,7 +4,7 @@
 // the Shared shelf or the person's own (Mine). Progress is per person
 // (dashboards/shruti[_veda] -> progress.<book>.ch<n>), even on shared books.
 
-import { me, ls, lsKey, SHIPPED as SHIPPED_IDS, isShipped, P as PROFILE, PROFILES } from './core.js';
+import { me, ls, lsKey, on as onDoc, SHIPPED as SHIPPED_IDS, isShipped, P as PROFILE, PROFILES } from './core.js';
 import { renderRead } from './reader.js';
 import * as POD from './podcast.js';
 import * as VID from './video.js';
@@ -280,12 +280,30 @@ export async function viewChapter(el, { id, n, mode, at, go }) {
       (kind ? '<button class="btn solid" data-make-now>' + G.ICON + 'Make it now</button>' : '') + '</div>';
     const b2 = body.querySelector('[data-make-now]'); if (b2) b2.addEventListener('click', () => G.openSheet(ctx, kind));
   };
-  if (mode === 'read') renderRead(body, ch, id, n, { title: meta.title, at });
-  else if (mode === 'lessons') { if (L && L.lessons && L.lessons.length) renderLessons(body, L, { bookTitle: b.title, n, title: meta.title }); else notMade('lessons', 'lessons'); }
-  else if (mode === 'listen' && (av.listen || POD.active(id, n))) renderListen(body, id, n, meta, L, () => notMade('listen', 'podcast'));
-  else if (mode === 'watch' && (av.watch || VID.active(id, n))) renderWatch(body, id, n, meta, L, () => notMade('watch', 'video'));
-  else if (mode === 'study') H.renderStudy(body, { book: id, bookTitle: b.title, n, title: meta.title, ch, lessons: L, chapters: [...(b.intro ? [{ n: 0, title: b.intro.title, file: b.intro.file }] : []), ...b.chapters], loadChapter: (file) => loadChapter(id, file) });
-  else notMade(mode, { listen: 'podcast', watch: 'video' }[mode]);
+  const drawMode = () => {
+    const L = ctx.lessons = lessonsFor(id, n, lessons), av = available(id, n, lessons, pods, vids, study);
+    if (mode === 'read') renderRead(body, ch, id, n, { title: meta.title, at });
+    else if (mode === 'lessons') { if (L && L.lessons && L.lessons.length) renderLessons(body, L, { bookTitle: b.title, n, title: meta.title }); else notMade('lessons', 'lessons'); }
+    else if (mode === 'listen' && (av.listen || POD.active(id, n))) renderListen(body, id, n, meta, L, () => notMade('listen', 'podcast'));
+    else if (mode === 'watch' && (av.watch || VID.active(id, n))) renderWatch(body, id, n, meta, L, () => notMade('watch', 'video'));
+    else if (mode === 'study') H.renderStudy(body, { book: id, bookTitle: b.title, n, title: meta.title, ch, lessons: L, chapters: [...(b.intro ? [{ n: 0, title: b.intro.title, file: b.intro.file }] : []), ...b.chapters], loadChapter: (file) => loadChapter(id, file) });
+    else notMade(mode, { listen: 'podcast', watch: 'video' }[mode]);
+  };
+  drawMode();
+  // Another version ticked (in Make with AI here, or on another device), or a
+  // new one made: the tab shows it at once (Tony, 2026-10-22: it waited until
+  // the tab was opened again). Never under something playing.
+  const doc = M.docFor(id), assetSig = () => JSON.stringify(doc.get('assets.' + id + '.' + chKey(n), {}) || {});
+  let sig = assetSig();
+  const offA = onDoc(doc === me ? 'doc:me' : 'doc:shared', () => {
+    if (!body.isConnected) { offA(); return; }
+    const now = assetSig();
+    if (now === sig) return;
+    sig = now;
+    if (mode === 'lessons' || (mode === 'listen' && !(POD.active(id, n) && POD.state.playing)) || (mode === 'watch' && !(VID.active(id, n) && VID.state.playing))) {
+      if (window.A1Drag && A1Drag.active) A1Drag.later(drawMode); else drawMode();
+    }
+  });
   ls.put(lsKey('lastRoute'), { id, n, mode });
   markOpened(id, n);
 }

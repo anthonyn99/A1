@@ -146,7 +146,7 @@ async function scan(c, label, scope) {
   const num = await evalJs(c, 'typeof TB_NUM!=="undefined" ? TB_NUM : "(none)"');
   ok('tradehub: TB_NUM is Inter', /^'Inter'/.test(num), num);
   await scan(c, 'tradehub');
-  // TradeHub lives in ../A1-Priv; A1 holds a redirect stub (tests/moved.js).
+  // TradeHub lives in ../A1-Priv; A1 has no copy (tests/moved.js).
   const src = require('../moved').read('tradehub.html');
   const plex = src.split('\n').filter((l) => /Plex Mono/.test(l) && !/fonts\.googleapis/.test(l));
   ok('tradehub source: Plex Mono only on code blocks', plex.length === 2 && plex.every((l) => / code\{/.test(l)), plex.map((l) => l.trim().slice(0, 90)).join(' | '));

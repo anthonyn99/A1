@@ -18,10 +18,10 @@ const path = require('path');
 const vm = require('vm');
 
 // Every page served straight from the repo root. A new single-file app belongs
-// in this list the day it ships.
+// in this list the day it ships. The programs that moved to A1-Priv are checked
+// by A1-Priv's own tests/syntax-check.js.
 const FILES = [
-  'index.html', 'shield.html', 'tradehub.html', 'vault.html', 'insight.html',
-  'mylist.html', 'oneinbox.html', 'solace.html', 'riftiq.html', 'wellness.html',
+  'index.html', 'shield.html', 'mylist.html', 'oneinbox.html', 'wellness.html',
   'magi.html',
   // Program folders (Shruti moves as one folder).
   'Shruti/shruti.html',

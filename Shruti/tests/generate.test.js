@@ -165,7 +165,7 @@ const ok = (name, cond, extra) => {
   M.feature('gita', 3, 'podcast', id2);
   calls.length = 0;
   await M.remove('gita', 3, 'podcast', id2);
-  ok('remove deletes the version and its two files on Drive, and the next one plays', M.versions('gita', 3, 'podcast').length === 1 && calls.filter((c) => c.method === 'DELETE').map((c) => c.url.split('/').pop()).sort().join() === 'j2,m2' && C.shared.get('assets.gita.ch3.podcast').id === id1);
+  ok('remove deletes the version and its two files on Drive, and the next one plays', M.versions('gita', 3, 'podcast').length === 1 && calls.filter((c) => c.method === 'DELETE').map((c) => c.url.split('/').pop()).sort().join() === 'j2?a=tony,m2?a=tony' && C.shared.get('assets.gita.ch3.podcast').id === id1);
   M.job('gita', 3, 'video', { kind: 'video', stage: 'speak', text: 'Speaking 3 of 9' }, { now: true });
   ok('a job is seen while fresh', M.jobOf('gita', 3, 'video').text === 'Speaking 3 of 9' && M.jobOf('gita', 3, 'video').by === 'tony');
   C.shared.set({ 'jobs.gita.ch3.video.at': Date.now() - 11 * 60000 });
@@ -173,6 +173,36 @@ const ok = (name, cond, extra) => {
   M.markPersonal('mybook');
   M.record('mybook', 1, 'lessons', { lessons: [{ id: 'L1', title: 't' }], model: 'deepseek/free' });
   ok('a personal book keeps its versions in the person\'s own doc', !!C.me.get('versions.mybook.ch1.lessons') && !C.shared.get('versions.mybook', null));
+
+  console.log('\nOne Drive per person, links that need no key');
+  ok('a shared book\'s media goes to Tony\'s Drive, a personal one to its owner\'s', M.acctFor('gita') === 'tony' && M.acctFor('mybook') === 'tony');
+  const realFetch = global.fetch;
+  const seen = [];
+  global.fetch = async (url, o = {}) => {
+    seen.push({ url, o });
+    if (/\/health/.test(url)) return { ok: true, status: 200, json: async () => ({ ok: true, configured: true, connected: true, accounts: { tony: { connected: true }, veda: { connected: false } } }) };
+    if (/\/f\?/.test(url)) return { ok: true, status: 200, json: async () => ({ ok: true, id: 'file_' + seen.length, size: 3, acct: /acct=veda/.test(url) ? 'veda' : 'tony', url: 'https://x/f/file_' + seen.length + '?e=0&s=sig' }) };
+    if (/\/sign$/.test(url)) { const b = JSON.parse(o.body); return { ok: true, status: 200, json: async () => ({ ok: true, urls: Object.fromEntries(b.ids.map((id) => [id, 'https://x/f/' + id + '?' + (b.acct === 'veda' ? 'a=veda&' : '') + 'e=0&s=p'])) }) }; }
+    return { ok: true, status: 200, json: async () => ({}) };
+  };
+  ok('driveReady asks the book\'s own Drive', (await M.driveReady('gita')) === true);
+  const up = await M.upload({ book: 'gita', n: 3, body: 'abc', type: 'audio/mpeg', name: 'podcast.mp3', key: 'orca_sk_x' });
+  ok('an upload keeps its Drive and its permanent link', up.acct === 'tony' && /e=0/.test(up.url) && /&acct=tony/.test(seen[seen.length - 1].url), JSON.stringify(up));
+  const ls1 = await M.links({ mp3: { id: 'a1', url: 'https://x/keep' }, json: { id: 'a2', url: 'https://x/keep2' } });
+  ok('a record with its links plays with no call at all', ls1.mp3 === 'https://x/keep' && ls1.json === 'https://x/keep2' && !/\/sign$/.test(seen[seen.length - 1].url));
+  C.me.set({ orcaKey: 'orca_sk_testkey123' });
+  const n0 = seen.length;
+  const ls2 = await M.links({ mp3: { id: 'old_mp3_id_1' }, json: { id: 'old_json_id', acct: 'veda' } });
+  ok('an older record is signed for good, each file on its own Drive', ls2.mp3 === 'https://x/f/old_mp3_id_1?e=0&s=p' && ls2.json === 'https://x/f/old_json_id?a=veda&e=0&s=p' && seen.slice(n0).filter((c) => /\/sign$/.test(c.url)).length === 2);
+  C.shared.set({ 'assets.gita.ch5.video': { id: 'v9', mp3: { id: 'mp3_upgrade_1' }, json: { id: 'json_upgrade1' } }, 'versions.gita.ch5.video.v9': { id: 'v9', mp3: { id: 'mp3_upgrade_1' }, json: { id: 'json_upgrade1' } } });
+  C.shared.loaded = true; C.me.loaded = true;
+  await M.upgradeLinks();
+  ok('upgradeLinks gives older records their links, in assets and versions', /e=0/.test(C.shared.get('assets.gita.ch5.video.mp3.url') || '') && /e=0/.test(C.shared.get('versions.gita.ch5.video.v9.json.url') || '') && C.shared.get('assets.gita.ch5.video.mp3.acct') === 'tony');
+  C.me.set({ orcaKey: C.DELETE });
+  let noKey = null;
+  try { await M.links({ mp3: { id: 'old_mp3_id_2' } }); } catch (e) { noKey = e; }
+  ok('without a key, an unlinked older file says why in plain words', noKey && noKey.code === 'nolink' && /Orca key/.test(noKey.message));
+  global.fetch = realFetch;
 
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
