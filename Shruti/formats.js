@@ -168,6 +168,8 @@ export function clean(raw) {
 /** Whether a reply reached its END (or, without one, its natural last part). */
 export function finished(kind, raw) {
   const t = clean(raw).trim();
+  // An older-style reply that is one whole JSON object is finished too.
+  try { const j = parseJSON(raw); if (j && typeof j === 'object') return true; } catch (e) {}
   if (/(?:^|\n)\s*END\s*\.?\s*$/i.test(t) || /(?<![A-Za-z])END\s*\.?$/.test(t)) return true;
   if (kind === 'lessons') return /(?:(?:^|\n)\s*summary|SUMMARY)\s*[:：]\s*\S[\s\S]*[.!?]["'’”)]*\s*$/i.test(t);
   return false;
