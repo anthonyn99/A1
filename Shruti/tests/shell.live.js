@@ -198,7 +198,7 @@ async function load(c, { w, h, mobile, store, hash = '' }) {
   await shot(c, 'veda-book-1280');
 
   console.log('\nFirestore refuses the first reads (sign-in late, the network briefly gone)');
-  await load(c, { w: 1280, h: 860, mobile: false, store: "sessionStorage.setItem('shruti.pick','tony'); sessionStorage.setItem('__fakefs_fail','2');", hash: '#/' });
+  await load(c, { w: 1280, h: 860, mobile: false, store: "sessionStorage.setItem('shruti.pick','tony'); sessionStorage.setItem('__fakefs_fail', JSON.stringify({'dashboards/shruti': 2, 'dashboards/shruti_shared': 1}));", hash: '#/' });
   ok('while it tries again the pill says syncing, not failed', await waitFor(c, `!!window.Shruti && !!window.Shruti.core.me.error && document.getElementById('sync-pill').classList.contains('busy')`, 8000));
   ok('his key is there before sync loads (kept on this device)', await ev(c, `return !window.Shruti.core.me.loaded && window.Shruti.core.orcaKey()===${JSON.stringify(KEY)}`));
   ok('it listens again by itself: loaded, and the pill says synced', await waitFor(c, `const C=window.Shruti.core; return C.me.loaded && C.shared.loaded && !C.me.error && document.getElementById('sync-pill').classList.contains('ok')`, 15000),

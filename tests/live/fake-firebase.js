@@ -36,8 +36,8 @@ const fs = W.__fakeFs || (W.__fakeFs = (() => {
   let docs = {};
   try { docs = JSON.parse(sessionStorage.getItem('__fakefs_docs') || '{}') || {}; } catch (e) {}
   const listeners = [];
-  const api = { docs, log: [], listeners, appInit: false, fsInit: false, failSnapshots: 0 };
-  try { api.failSnapshots = +sessionStorage.getItem('__fakefs_fail') || 0; sessionStorage.removeItem('__fakefs_fail'); } catch (e) {}
+  const api = { docs, log: [], listeners, appInit: false, fsInit: false, failSnapshots: {} };
+  try { api.failSnapshots = JSON.parse(sessionStorage.getItem('__fakefs_fail') || '{}') || {}; sessionStorage.removeItem('__fakefs_fail'); } catch (e) {}
   api.persist = () => { try { sessionStorage.setItem('__fakefs_docs', JSON.stringify(api.docs)); } catch (e) {} };
   api.reset = () => { Object.keys(api.docs).forEach((k) => delete api.docs[k]); api.log.length = 0; api.persist(); };
   return api;
@@ -207,8 +207,8 @@ export const onSnapshot = (ref, a, b, c) => {
   if (typeof a === 'function') { next = a; err = b; } else if (a && typeof a.next === 'function') { next = a.next.bind(a); err = a.error && a.error.bind(a); } else { opts = a || {}; next = b; err = c; }
   const l = { path: ref.path, kind: ref.type === 'collection' ? 'col' : 'doc', next, err, meta: !!opts.includeMetadataChanges, dead: false };
   fs.listeners.push(l);
-  // fs.failSnapshots = n: the next n listeners fail like a read refused before sign-in.
-  if (fs.failSnapshots > 0) { fs.failSnapshots--; l.dead = true; setTimeout(() => err && err(Object.assign(new Error('Missing or insufficient permissions.'), { code: 'permission-denied' })), 0); return () => {}; }
+  // fs.failSnapshots = {path: n}: the next n listeners on that path fail like a read refused before sign-in.
+  if (fs.failSnapshots[ref.path] > 0) { fs.failSnapshots[ref.path]--; l.dead = true; setTimeout(() => err && err(Object.assign(new Error('Missing or insufficient permissions.'), { code: 'permission-denied' })), 0); return () => {}; }
   setTimeout(() => { if (!l.dead) try { next(l.kind === 'doc' ? docSnap(l.path) : colSnap(l.path)); } catch (e) { console.error(e); } }, 0);
   return () => { l.dead = true; };
 };
