@@ -4,92 +4,386 @@
   "n": 10,
   "title": "Manifestation of the absolute",
   "hosts": [
-    { "id": "A", "name": "Ava", "voice": "en-US-AvaMultilingualNeural" },
-    { "id": "B", "name": "Andrew", "voice": "en-US-AndrewMultilingualNeural" }
+    {
+      "id": "A",
+      "name": "Emma",
+      "voice": "en-US-EmmaMultilingualNeural"
+    },
+    {
+      "id": "B",
+      "name": "Brian",
+      "voice": "en-US-BrianMultilingualNeural"
+    }
   ],
   "segments": [
     {
       "title": "Welcome",
       "turns": [
-        { "s": "A", "t": "Welcome to Shruti. I'm Ava." },
-        { "s": "B", "t": "And I'm Andrew. Today, Chapter Ten: Manifestation of the Absolute." },
-        { "s": "A", "t": "Chapter Nine said God has become everything. Chapter Ten answers the obvious follow-up: then where should I look? Krishna gives Arjuna a long, vivid list of the places where the Divine shines brightest." },
-        { "s": "B", "t": "Five lessons, a wonderful list, and one sentence at the end that puts the whole universe in perspective. Story first." }
+        {
+          "s": "A",
+          "t": "Welcome to Shruti. I'm Emma."
+        },
+        {
+          "s": "B",
+          "t": "And I'm Brian. Today, Chapter Ten: Manifestation of the Absolute."
+        },
+        {
+          "s": "A",
+          "t": "Chapter Nine said God has become everything. Chapter Ten answers the obvious follow-up: then where should I look? Krishna gives Arjuna a long, vivid list of the places where the Divine shines brightest."
+        },
+        {
+          "s": "B",
+          "t": "Five lessons, a wonderful list, and one sentence at the end that puts the whole universe in perspective. Story first."
+        }
       ]
     },
     {
       "title": "The story",
       "turns": [
-        { "s": "A", "t": "Krishna begins warmly, ten point one: listen once again to My supreme word, that I shall speak to you, who are very dear to Me, for your welfare." },
-        { "s": "B", "t": "Ten point two: neither the celestial powers nor the great sages know My origin, because I am the origin of all of them. And ten point three: one who knows Me as unborn, beginningless, and the Supreme Lord of the universe is wise, and is freed from Karma.", "L": ["L4"] },
-        { "s": "A", "t": "Then a list of human qualities, ten point four and five: intelligence, Self-knowledge, non-delusion, forgiveness, truthfulness, self-control, tranquility, pleasure, pain, birth, death, fear, fearlessness, nonviolence, contentment, austerity, charity, fame, ill fame. These diverse qualities in human beings also arise from Me.", "L": ["L1"] },
-        { "s": "B", "t": "Notice that it's not only the nice ones. Pain, fear and ill fame are on the list too. Everything we go through comes from the same source.", "L": ["L1"] },
-        { "s": "A", "t": "Ten point seven and eight: one who truly understands My manifestations is united with Me by unswerving devotion. I am the origin of all; everything emanates from Me. Understanding this, the wise adore Me with love.", "L": ["L2"] },
-        { "s": "B", "t": "And a lovely picture of a spiritual community, ten point nine: My devotees remain ever content and delighted, their minds absorbed in Me, and they always enlighten each other by talking about Me.", "L": ["L2"] },
-        { "s": "A", "t": "Then a promise, ten point ten and eleven: to those who are ever united with Me and lovingly adore Me, I give the understanding by which they come to Me. Dwelling within them as consciousness, I destroy the darkness born of ignorance by the shining lamp of knowledge, as an act of compassion.", "L": ["L3"] },
-        { "s": "B", "t": "Arjuna is moved. Ten point twelve to fifteen: You are the Supreme Being, the Supreme Abode, the primal God, unborn and everywhere. All the sages said so, and now You tell me Yourself. Neither gods nor demons fully understand You. You alone know Yourself by Yourself.", "L": ["L4"] },
-        { "s": "A", "t": "And then his very personal question, ten point seventeen: how may I know You by constant contemplation? In what forms am I to think of You? Ten point eighteen: tell me again, in detail, because I am not satiated by hearing Your nectar-like words." },
-        { "s": "B", "t": "Krishna's answer is a list, and he warns first, ten point nineteen: I shall tell you My prominent manifestations, because My manifestations are endless.", "L": ["L5"] },
-        { "s": "A", "t": "Ten point twenty: I am the Spirit abiding in the heart of all beings. I am the beginning, the middle, and the end of all beings." },
-        { "s": "B", "t": "And then: I am the radiant sun among the luminaries, the moon among the stars. I am the mind among the senses, the consciousness in living beings. I am the ocean among the bodies of water. I am the Himalaya among the mountains.", "L": ["L5"] },
-        { "s": "A", "t": "Ten point twenty-five, in our book's rendering: I am the monosyllable cosmic sound, Om, Amin, Allah, among the words. I am the silent repetition of a mantra among the spiritual disciplines.", "L": ["L5"] },
-        { "s": "B", "t": "That's this book's own choice, to place Amen and Allah beside Om, in line with the commentary's habit of drawing on all the world's scriptures." },
-        { "s": "A", "t": "More from the list: I am the holy fig tree among the trees, the lion among the beasts, the king of birds among birds, the Ganga among the rivers. And among warriors, Lord Rama.", "L": ["L5"] },
-        { "s": "B", "t": "Ten point thirty-three: I am the letter A among the alphabets. I am endless time. And thirty-five: I am the spring among the seasons. The month the book gives as November to December is Margashirsha in the Indian calendar, the gentle season after the monsoon and harvest." },
-        { "s": "A", "t": "And one line that surprises everyone, ten point thirty-six: I am the gambling of the cheats, the splendor of the splendid, the victory of the victorious, the resolution of the resolute, and the goodness of the good.", "L": ["L1", "L5"] },
-        { "s": "B", "t": "Even the cheat's skill is a borrowed power. It doesn't make cheating good. It means no power anywhere is independent of the source.", "L": ["L1"] },
-        { "s": "A", "t": "Then, ten point thirty-seven: among the Vrishnis, the family, I am Krishna, among the Pandavas, Arjuna, among the sages, Vyasa. So Arjuna himself is on the list. And ten point thirty-eight: I am silence among the secrets." },
-        { "s": "B", "t": "And the conclusion, which is breathtaking. Ten point forty and forty-one: there is no end to My divine manifestations. Whatever is endowed with glory, brilliance and power, know that to be a manifestation of a very small fraction of My splendor.", "L": ["L5"] },
-        { "s": "A", "t": "And ten point forty-two: what is the need for all this detail, Arjuna? I support the entire universe by a small fraction of My divine power.", "L": ["L5"] },
-        { "s": "B", "t": "The whole universe, all of it, is a small fraction. Which sets up Chapter Eleven, where Arjuna asks to see it for himself." }
+        {
+          "s": "A",
+          "t": "Krishna begins warmly, ten point one: listen once again to My supreme word, that I shall speak to you, who are very dear to Me, for your welfare."
+        },
+        {
+          "s": "B",
+          "t": "Who are very dear to Me. After nine chapters of philosophy, that's how Krishna opens this one. It sets the tone. This isn't a lecture, it's a friend sharing something precious."
+        },
+        {
+          "s": "B",
+          "t": "Ten point two: neither the celestial powers nor the great sages know My origin, because I am the origin of all of them. And ten point three: one who knows Me as unborn, beginningless, and the Supreme Lord of the universe is wise, and is freed from Karma.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Then a list of human qualities, ten point four and five: intelligence, Self-knowledge, non-delusion, forgiveness, truthfulness, self-control, tranquility, pleasure, pain, birth, death, fear, fearlessness, nonviolence, contentment, austerity, charity, fame, ill fame. These diverse qualities in human beings also arise from Me.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Notice that it's not only the nice ones. Pain, fear and ill fame are on the list too. Everything we go through comes from the same source.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "That's hard to hear, and also strangely freeing. Even the painful seasons of life aren't outside God's hand."
+        },
+        {
+          "s": "A",
+          "t": "Ten point seven and eight: one who truly understands My manifestations is united with Me by unswerving devotion. I am the origin of all; everything emanates from Me. Understanding this, the wise adore Me with love.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "And a lovely picture of a spiritual community, ten point nine: My devotees remain ever content and delighted, their minds absorbed in Me, and they always enlighten each other by talking about Me.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "I love that picture. They enlighten each other by talking about Me. It's basically a description of friends who share what they're learning, and lift each other up in the process."
+        },
+        {
+          "s": "B",
+          "t": "Which is a good description of a study circle, or even of what we're trying to do here."
+        },
+        {
+          "s": "A",
+          "t": "Then a promise, ten point ten and eleven: to those who are ever united with Me and lovingly adore Me, I give the understanding by which they come to Me. Dwelling within them as consciousness, I destroy the darkness born of ignorance by the shining lamp of knowledge, as an act of compassion.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "As an act of compassion. Not as a reward for being clever. The lamp is lit out of love."
+        },
+        {
+          "s": "B",
+          "t": "Arjuna is moved. Ten point twelve to fifteen: You are the Supreme Being, the Supreme Abode, the primal God, unborn and everywhere. All the sages said so, and now You tell me Yourself. Neither gods nor demons fully understand You. You alone know Yourself by Yourself.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And then his very personal question, ten point seventeen: how may I know You by constant contemplation? In what forms am I to think of You? Ten point eighteen: tell me again, in detail, because I am not satiated by hearing Your nectar-like words."
+        },
+        {
+          "s": "A",
+          "t": "Not satiated by hearing. Anyone who has loved a story, or a person, knows that feeling. You want to hear it again, and again."
+        },
+        {
+          "s": "B",
+          "t": "Krishna's answer is a list, and he warns first, ten point nineteen: I shall tell you My prominent manifestations, because My manifestations are endless.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Ten point twenty: I am the Spirit abiding in the heart of all beings. I am the beginning, the middle, and the end of all beings."
+        },
+        {
+          "s": "B",
+          "t": "And then: I am the radiant sun among the luminaries, the moon among the stars. I am the mind among the senses, the consciousness in living beings. I am the ocean among the bodies of water. I am the Himalaya among the mountains.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Notice the pattern. Out of every group, Krishna names the best, the brightest, the one that stands out. Among the senses, the mind. Among the waters, the ocean. It's a training in where to look."
+        },
+        {
+          "s": "A",
+          "t": "Ten point twenty-five, in our book's rendering: I am the monosyllable cosmic sound, Om, Amin, Allah, among the words. I am the silent repetition of a mantra among the spiritual disciplines.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "That's this book's own choice, to place Amen and Allah beside Om, in line with the commentary's habit of drawing on all the world's scriptures."
+        },
+        {
+          "s": "A",
+          "t": "More from the list: I am the holy fig tree among the trees, the lion among the beasts, the king of birds among birds, the Ganga among the rivers. And among warriors, Lord Rama.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Lord Rama among the warriors is a lovely touch, too. For Arjuna, the warrior, Krishna points to the most righteous warrior of all as a picture of Himself."
+        },
+        {
+          "s": "B",
+          "t": "Ten point thirty-three: I am the letter A among the alphabets. I am endless time. And thirty-five: I am the spring among the seasons. The month the book gives as November to December is Margashirsha in the Indian calendar, the gentle season after the monsoon and harvest."
+        },
+        {
+          "s": "A",
+          "t": "And one line that surprises everyone, ten point thirty-six: I am the gambling of the cheats, the splendor of the splendid, the victory of the victorious, the resolution of the resolute, and the goodness of the good.",
+          "L": [
+            "L1",
+            "L5"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Even the cheat's skill is a borrowed power. It doesn't make cheating good. It means no power anywhere is independent of the source.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Then, ten point thirty-seven: among the Vrishnis, the family, I am Krishna, among the Pandavas, Arjuna, among the sages, Vyasa. So Arjuna himself is on the list. And ten point thirty-eight: I am silence among the secrets."
+        },
+        {
+          "s": "B",
+          "t": "Silence among the secrets. I keep coming back to that one. The deepest things aren't said, they're kept."
+        },
+        {
+          "s": "B",
+          "t": "And the conclusion, which is breathtaking. Ten point forty and forty-one: there is no end to My divine manifestations. Whatever is endowed with glory, brilliance and power, know that to be a manifestation of a very small fraction of My splendor.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And ten point forty-two: what is the need for all this detail, Arjuna? I support the entire universe by a small fraction of My divine power.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "The whole universe, all of it, is a small fraction. Which sets up Chapter Eleven, where Arjuna asks to see it for himself."
+        }
       ]
     },
     {
       "title": "Lesson 1 · Every quality from one source",
       "turns": [
-        { "s": "A", "t": "Lesson one: God is the origin of all, including all the qualities in human beings.", "L": ["L1"] },
-        { "s": "B", "t": "Intelligence, forgiveness, truthfulness, fearlessness, nonviolence, contentment, even fame and suffering: every quality that shows up in us comes from God.", "L": ["L1"] },
-        { "s": "A", "t": "Seeing that deepens devotion and dissolves ego. Your gifts aren't trophies. They're on loan.", "L": ["L1"] }
+        {
+          "s": "A",
+          "t": "Lesson one: God is the origin of all, including all the qualities in human beings.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Intelligence, forgiveness, truthfulness, fearlessness, nonviolence, contentment, even fame and suffering: every quality that shows up in us comes from God.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Seeing that deepens devotion and dissolves ego. Your gifts aren't trophies. They're on loan.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "A practice from us, not from the book. When someone compliments you, quietly say inside, thank you, it's on loan. It keeps the gift and drops the pride."
+        }
       ]
     },
     {
       "title": "Lesson 2 · Seeing leads to loving",
       "turns": [
-        { "s": "B", "t": "Lesson two: understanding God's manifestations leads to unwavering devotion.", "L": ["L2"] },
-        { "s": "A", "t": "Those who truly see God's glory in the world become united with Him through steady love.", "L": ["L2"] },
-        { "s": "B", "t": "This isn't only intellectual knowledge. It fuels love and commitment, and people who share it light each other up.", "L": ["L2"] }
+        {
+          "s": "B",
+          "t": "Lesson two: understanding God's manifestations leads to unwavering devotion.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Those who truly see God's glory in the world become united with Him through steady love.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "This isn't only intellectual knowledge. It fuels love and commitment, and people who share it light each other up.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And ten point nine shows what that looks like day to day: contentment, delight, and good conversation. Devotion, here, sounds like a happy life."
+        }
       ]
     },
     {
       "title": "Lesson 3 · The lamp within",
       "turns": [
-        { "s": "A", "t": "Lesson three: God gives inner spiritual knowledge to devoted seekers.", "L": ["L3"] },
-        { "s": "B", "t": "To those who love and worship constantly, God gives the understanding by which they come to Him, lighting a lamp of knowledge inside their own consciousness.", "L": ["L3"] },
-        { "s": "A", "t": "God isn't a distant examiner. God is an active guide for anyone who sincerely seeks.", "L": ["L3"] }
+        {
+          "s": "A",
+          "t": "Lesson three: God gives inner spiritual knowledge to devoted seekers.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "To those who love and worship constantly, God gives the understanding by which they come to Him, lighting a lamp of knowledge inside their own consciousness.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "God isn't a distant examiner. God is an active guide for anyone who sincerely seeks.",
+          "L": [
+            "L3"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 4 · Beyond full knowing",
       "turns": [
-        { "s": "B", "t": "Lesson four: no one can fully know God's real nature.", "L": ["L4"] },
-        { "s": "A", "t": "Not the gods, not the great sages. Only God knows God, by Himself.", "L": ["L4"] },
-        { "s": "B", "t": "That calls for humility. The infinite can't be fully held by a finite mind. It can be approached, and loved.", "L": ["L4"] }
+        {
+          "s": "B",
+          "t": "Lesson four: no one can fully know God's real nature.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Not the gods, not the great sages. Only God knows God, by Himself.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "That calls for humility. The infinite can't be fully held by a finite mind. It can be approached, and loved.",
+          "L": [
+            "L4"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 5 · A fragment of splendor",
       "turns": [
-        { "s": "A", "t": "And lesson five: whatever has glory, brilliance or power is a fragment of God.", "L": ["L5"] },
-        { "s": "B", "t": "Light, strength, beauty, wisdom, courage, the ocean, the Himalaya, the spring: each is a tiny piece of God's splendor. And the whole universe is held up by a small portion of His power.", "L": ["L5"] },
-        { "s": "A", "t": "Recognizing that changes how you see the world. Every time something takes your breath away, that's a glimpse.", "L": ["L5"] }
+        {
+          "s": "A",
+          "t": "And lesson five: whatever has glory, brilliance or power is a fragment of God.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Light, strength, beauty, wisdom, courage, the ocean, the Himalaya, the spring: each is a tiny piece of God's splendor. And the whole universe is held up by a small portion of His power.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Recognizing that changes how you see the world. Every time something takes your breath away, that's a glimpse.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "A sunrise, a great piece of music, an act of real courage. Next time one of those stops you in your tracks, try remembering ten point forty-one. That's a fraction of His splendor."
+        },
+        {
+          "s": "A",
+          "t": "And then imagine the whole."
+        }
       ]
     },
     {
       "title": "Wrap-up",
       "turns": [
-        { "s": "B", "t": "So, Chapter Ten. Arjuna asks where to find God, and Krishna answers: wherever there's glory, brilliance or power, in the sun, the mountains, the good, even in you. And all of it is just a fraction.", "L": ["L1", "L5"] },
-        { "s": "A", "t": "Five lessons: every quality from one source, seeing leads to loving, the lamp within, beyond full knowing, and a fragment of splendor.", "L": ["L1", "L2", "L3", "L4", "L5"] },
-        { "s": "B", "t": "Next time, Chapter Eleven: Arjuna asks to see the cosmic form. Thanks for listening to Shruti." }
+        {
+          "s": "B",
+          "t": "So, Chapter Ten. Arjuna asks where to find God, and Krishna answers: wherever there's glory, brilliance or power, in the sun, the mountains, the good, even in you. And all of it is just a fraction.",
+          "L": [
+            "L1",
+            "L5"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Five lessons: every quality from one source, seeing leads to loving, the lamp within, beyond full knowing, and a fragment of splendor.",
+          "L": [
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Next time, Chapter Eleven: Arjuna asks to see the cosmic form. Thanks for listening to Shruti."
+        }
       ]
     }
   ]
