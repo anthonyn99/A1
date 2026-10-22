@@ -14,7 +14,7 @@ const ev = (c, x) => evalJs(c, /^\s*return\b/.test(x) && x.indexOf(';') < 0 ? x 
 
 const URL = 'https://anthonyn99.github.io/A1/Shruti/shruti.html';
 const KEY = 'orca_sk_live_test_key_123';
-const CLIP = fs.readFileSync(path.join(__dirname, '..', 'books', 'gita', 'media', 'ch01-podcast.mp3')).subarray(0, 6000 * 2).toString('base64');
+const CLIP = fs.readFileSync(path.join(__dirname, '..', 'books', 'gita', 'media', 'ch01-podcast.mp3')).subarray(0, 6048 * 2).toString('base64');  // whole 144-byte frames, as Edge sends
 const uploads = [], speech = [];
 const mock = firebaseMock({
   patterns: ['https://orca.vedapatel05.workers.dev/*', 'https://shruti-drive.av1-2.workers.dev/*'],

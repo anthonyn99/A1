@@ -19,7 +19,7 @@ const KEY = 'orca_sk_live_test_key_123';
 const ORCA = 'https://orca.vedapatel05.workers.dev/v1';
 const DRIVE = 'https://shruti-drive.av1-2.workers.dev';
 const PAGES_MEDIA = 'https://anthonyn99.github.io/A1/Shruti/books/gita/media/';
-const CLIP = fs.readFileSync(path.join(__dirname, '..', 'books', 'gita', 'media', 'ch01-podcast.mp3')).subarray(0, 6000).toString('base64');
+const CLIP = fs.readFileSync(path.join(__dirname, '..', 'books', 'gita', 'media', 'ch01-podcast.mp3')).subarray(0, 6048).toString('base64');  // whole 144-byte frames, as Edge sends
 const lessons = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'books', 'gita', 'lessons.json'), 'utf8'));
 const ids5 = lessons[5].lessons.map((l) => l.id);
 

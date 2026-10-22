@@ -16,7 +16,7 @@ const ev = (c, x) => evalJs(c, /^\s*return\b/.test(x) && x.indexOf(';') < 0 ? x 
 const URL = 'https://anthonyn99.github.io/A1/Shruti/shruti.html';
 const KEY = 'orca_sk_live_test_key_123';
 const ORCA = 'https://orca.vedapatel05.workers.dev/v1';
-const CLIP = fs.readFileSync(path.join(__dirname, '..', 'books', 'gita', 'media', 'ch01-podcast.mp3')).subarray(0, 6000).toString('base64');
+const CLIP = fs.readFileSync(path.join(__dirname, '..', 'books', 'gita', 'media', 'ch01-podcast.mp3')).subarray(0, 6048).toString('base64');  // whole 144-byte frames, as Edge sends
 const set4 = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'books', 'gita', 'study', 'ch04.json'), 'utf8'));
 const QUIZ = 'Q1. What does 4.18 call wise?\nA. Never acting\nB. Seeing inaction in action\nC. Acting for reward\nD. Rituals\nCORRECT: B\nWHY: Selfless work leaves no Karma.\n\nQ2. When does God manifest?\nA. Never\nB. Once\nC. When Dharma declines\nD. At night\nCORRECT: C\nWHY: 4.7-8.';
 
