@@ -93,9 +93,9 @@ for (const [file, want] of Object.entries(HOSTS)) {
 console.log('\nPrograms that moved to A1-Priv (docs/a1-priv-move-plan.md)');
 {
   const moved = ['tradehub', 'insight', 'vault', 'riftiq'];
-  for (const p of moved) ok(p + ' seeds on its new host', new RegExp("\{ id: '" + p + "'[^}]*url: PRIV \+ '" + p + "\.html'").test(src));
-  ok("LifeHub's PRIV is the private host", /var PRIV = 'https://a1-priv.av1.workers.dev/';/.test(src));
-  ok('LifeHub has no Solace icon or seed left', !/solace: "<svg/.test(src) && !/id: 'solace'/.test(src));
+  for (const p of moved) ok(p + ' seeds on its new host', new RegExp("\\{ id: '" + p + "'[^}]*url: PRIV \\+ '" + p + "\\.html'").test(src));
+  ok("LifeHub's PRIV is the private host", /var PRIV = 'https:\/\/a1-priv\.av1\.workers\.dev\/';/.test(src));
+  ok('LifeHub has no Solace icon or seed left', !/\bsolace: "<svg/.test(src) && !/id: 'solace'/.test(src));
   // Every stored link was checked on the server to be on its new address
   // (2026-10-22), so neither launcher keeps an old-to-new table any more, and
   // the old pages are gone: no redirects anywhere.
