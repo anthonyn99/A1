@@ -194,6 +194,26 @@ export function verseSpan(ch, from, to) {
   (ch.blocks || []).slice(from, to).forEach((b) => (b.s || []).forEach((s) => { if (s.v) vs.push(s.v); }));
   return vs.length ? (vs.length === 1 ? 'verse ' + vs[0] : 'verses ' + vs[0] + '–' + vs[vs.length - 1].split('.').pop()) : '';
 }
+/** What a scope covers, as the model reads it. scope: {t: chapter|section|
+ *  selection|chapters|book, ch:[n], sec (a heading's block), sel (the text)}.
+ *  ctx: {n, title, ch, lessons, chapters, loadChapter}. Resolves {t, ch, label, text, lessons}.
+ *  (A background task keeps only the scope and gets the text when it runs.) */
+export async function scopeText(ctx, scope) {
+  const t = (scope && scope.t) || 'chapter';
+  if (t === 'section') {
+    const secs = sectionsOf(ctx.ch), s = secs.find((x) => x.i === scope.sec) || secs[0];
+    const end = (ctx.ch.blocks || []).findIndex((b, j) => j > s.i && b.k === 'h');
+    const vs = verseSpan(ctx.ch, s.i, end < 0 ? undefined : end);
+    return { t, ch: [ctx.n], label: '“' + s.title + '”' + (vs ? ' (' + vs + ')' : '') + ' in chapter ' + ctx.n, text: sectionText(ctx.ch, s.i), lessons: null };
+  }
+  if (t === 'selection') return { t, ch: [ctx.n], label: 'a passage selected in chapter ' + ctx.n, text: scope.sel, lessons: null };
+  if (t === 'chapter') return { t, ch: [ctx.n], label: ctx.n ? 'chapter ' + ctx.n + ' (“' + ctx.title + '”)' : 'the introduction', text: G.sourceText(ctx.ch), lessons: ctx.lessons };
+  const list = t === 'book' ? ctx.chapters : ctx.chapters.filter((c) => (scope.ch || []).includes(c.n));
+  const chs = await Promise.all(list.map((c) => ctx.loadChapter(c.file)));
+  const text = list.map((c, i) => '# ' + (c.n ? 'Chapter ' + c.n + ': ' : '') + c.title + '\n\n' + G.sourceText(chs[i])).join('\n\n');
+  const nums = list.map((c) => c.n);
+  return { t, ch: nums, label: t === 'book' ? 'the whole book' : 'chapters ' + nums.filter(Boolean).join(', ') + (nums.includes(0) ? ' and the introduction' : ''), text, lessons: null };
+}
 
 function openMaker(ctx, redraw) {
   if (document.getElementById('study-make')) return;
