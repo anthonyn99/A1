@@ -55,6 +55,25 @@ function figure(c, s, t, k, { pose = 'stand', col = k.ac, crown = false, feather
   c.restore();
 }
 
+/** A horse in profile, facing left, its legs in a trot. */
+function horse(c, u, t, dx, ph, col) {
+  c.save(); c.translate(dx * u, 0.5 * u);
+  c.strokeStyle = col; c.fillStyle = alpha(k0(col), 0.12);
+  // body
+  c.beginPath(); c.moveTo(1.5 * u, -0.5 * u); c.bezierCurveTo(1.6 * u, 0.5 * u, -1.2 * u, 0.6 * u, -1.4 * u, -0.3 * u); c.bezierCurveTo(-1.2 * u, -0.9 * u, 1.2 * u, -1 * u, 1.5 * u, -0.5 * u); c.closePath(); c.fill(); c.stroke();
+  // neck and head
+  c.beginPath(); c.moveTo(-1 * u, -0.6 * u); c.quadraticCurveTo(-1.5 * u, -1.6 * u, -2 * u, -2.2 * u); c.lineTo(-2.7 * u, -1.6 * u); c.lineTo(-2.5 * u, -1.3 * u); c.lineTo(-1.6 * u, -1.5 * u); c.quadraticCurveTo(-1.3 * u, -0.9 * u, -1.2 * u, -0.2 * u); c.stroke();
+  // mane, tail
+  line(c, [[-1.9 * u, -2.1 * u], [-1.5 * u, -1.6 * u], [-1.2 * u, -1.1 * u]]);
+  const sw = wob(t, 3, ph) * 0.2 * u;
+  c.beginPath(); c.moveTo(1.5 * u, -0.6 * u); c.quadraticCurveTo(2.3 * u, -0.3 * u + sw, 2.1 * u, 0.9 * u + sw); c.stroke();
+  // legs: the trot moves opposite pairs together
+  const g = wob(t, 5, ph) * 0.35 * u;
+  for (const [x, s] of [[-1 * u, 1], [-0.6 * u, -1], [0.9 * u, -1], [1.2 * u, 1]]) line(c, [[x, 0.2 * u], [x + s * g * 0.6, 1.1 * u], [x + s * g, 2 * u]]);
+  c.restore();
+}
+const k0 = (c) => (/^#/.test(c) ? c : '#f3f1f8');
+
 /* ── the motifs ──────────────────────────────────────────────────────────── */
 const M = {
   battlefield(c, s, t, k) {
@@ -86,17 +105,10 @@ const M = {
     c.beginPath(); c.moveTo(-1.8 * u, 1.6 * u); c.lineTo(3.4 * u, 1.6 * u); c.lineTo(3 * u, -0.6 * u); c.lineTo(-1.2 * u, -0.6 * u); c.closePath(); c.fill(); c.stroke();
     line(c, [[2.6 * u, -0.6 * u], [2.6 * u, -4.4 * u]]);
     const f = wob(t, 2.4) * 0.3; c.fillStyle = alpha(k.gold, 0.6); c.beginPath(); c.moveTo(2.6 * u, -4.4 * u); c.quadraticCurveTo(3.6 * u, -4.4 * u + f * u, 4.4 * u, -3.9 * u); c.lineTo(2.6 * u, -3.3 * u); c.fill();
-    // Two horses, mid-stride.
-    c.strokeStyle = k.tx;
-    for (const dx of [-4.2, -5.6]) {
-      const g = wob(t, 4, dx) * 0.4 * u;
-      c.save(); c.translate(dx * u, 0.4 * u);
-      c.beginPath(); c.ellipse(0, 0, 1.6 * u, 0.7 * u, 0, 0, TAU); c.stroke();
-      line(c, [[-1.3 * u, -0.2 * u], [-2.2 * u, -1.6 * u], [-2.8 * u, -1.3 * u]]);
-      line(c, [[-1 * u, 0.5 * u], [-1.2 * u + g, 2.4 * u]]); line(c, [[1 * u, 0.5 * u], [1.2 * u - g, 2.4 * u]]);
-      c.restore();
-    }
-    c.strokeStyle = alpha(k.tx, 0.5); line(c, [[-5 * u, -0.2 * u], [-1.8 * u, 0.6 * u]]);
+    // Two horses, mid-stride, the far one a shade behind.
+    horse(c, u, t, -5.9, 0, alpha(k.tx, 0.55));
+    horse(c, u, t, -4.4, 0.6, k.tx);
+    c.strokeStyle = alpha(k.gold, 0.6); line(c, [[-5.4 * u, -0.6 * u], [-1.8 * u, 0.4 * u]]);
   },
   conch(c, s, t, k) {
     const u = s / 10;
@@ -449,7 +461,8 @@ export function pick(sc) {
 export function draw(ctx, names, box, t, k, { fade = 1 } = {}) {
   const list = names.filter((n) => M[n]);
   if (!list.length) return;
-  const slots = list.length === 1 ? [[0.5, 0.52, 0.9]] : list.length === 2 ? [[0.42, 0.5, 0.78], [0.8, 0.74, 0.4]] : [[0.45, 0.48, 0.7], [0.82, 0.76, 0.36], [0.16, 0.2, 0.3]];
+  // One large; a second smaller beneath it, as the ground of the scene; a third small, high.
+  const slots = list.length === 1 ? [[0.5, 0.52, 0.9]] : list.length === 2 ? [[0.5, 0.4, 0.7], [0.5, 0.86, 0.34]] : [[0.5, 0.42, 0.66], [0.5, 0.87, 0.32], [0.86, 0.12, 0.24]];
   // A soft glow behind, in the scene's colour.
   const cx = box.x + box.w / 2, cy = box.y + box.h / 2, R = Math.min(box.w, box.h) * 0.6;
   const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R); g.addColorStop(0, alpha(k.acc || k.ac, 0.12 * fade)); g.addColorStop(1, alpha(k.acc || k.ac, 0));
