@@ -4,107 +4,428 @@
   "n": 9,
   "title": "Supreme knowledge and the big mystery",
   "hosts": [
-    { "id": "A", "name": "Ava", "voice": "en-US-AvaMultilingualNeural" },
-    { "id": "B", "name": "Andrew", "voice": "en-US-AndrewMultilingualNeural" }
+    {
+      "id": "A",
+      "name": "Emma",
+      "voice": "en-US-EmmaMultilingualNeural"
+    },
+    {
+      "id": "B",
+      "name": "Brian",
+      "voice": "en-US-BrianMultilingualNeural"
+    }
   ],
   "segments": [
     {
       "title": "Welcome",
       "turns": [
-        { "s": "A", "t": "Welcome to Shruti. I'm Ava." },
-        { "s": "B", "t": "And I'm Andrew. Today, Chapter Nine: Supreme Knowledge and the Big Mystery." },
-        { "s": "A", "t": "Traditionally this chapter is called the yoga of the royal knowledge and the royal secret. It's the heart of the Gita's message of love: God is in everything, God accepts the smallest offering, and no one, no one at all, is beyond reach." },
-        { "s": "B", "t": "Seven lessons. Story first." }
+        {
+          "s": "A",
+          "t": "Welcome to Shruti. I'm Emma."
+        },
+        {
+          "s": "B",
+          "t": "And I'm Brian. Today, Chapter Nine: Supreme Knowledge and the Big Mystery."
+        },
+        {
+          "s": "A",
+          "t": "Traditionally this chapter is called the yoga of the royal knowledge and the royal secret. It's the heart of the Gita's message of love: God is in everything, God accepts the smallest offering, and no one, no one at all, is beyond reach."
+        },
+        {
+          "s": "B",
+          "t": "Seven lessons. Story first."
+        }
       ]
     },
     {
       "title": "The story",
       "turns": [
-        { "s": "A", "t": "Krishna begins, nine point one: I shall reveal to you, who do not disbelieve, the most profound, secret, spiritual knowledge, together with spiritual experience. Knowing this, you will be freed from the miseries of worldly existence." },
-        { "s": "B", "t": "Nine point two: this Self-knowledge is the king of all knowledge, the most secret, very sacred. It can be perceived by instinct, it conforms to righteousness, it is very easy to practice, and it is timeless.", "L": ["L1"] },
-        { "s": "A", "t": "Very easy to practice. That's worth noticing in a chapter about the deepest secret. And nine point three: those without faith in it don't attain Me, and stay in the cycle of birth and death.", "L": ["L1"] },
-        { "s": "B", "t": "Then a riddle. Nine point four: this entire universe is an expansion of Mine. All beings depend on Me; I do not depend on them. And then, nine point five: look at My divine mystery. In reality, I do not depend on them, and they also do not depend on Me.", "L": ["L2"] },
-        { "s": "A", "t": "Our book's note untangles it beautifully. A gold chain depends on gold. But in fact the chain doesn't depend on gold: the chain is nothing but gold. Things are both different from God and not different.", "L": ["L2"] },
-        { "s": "B", "t": "And the image, nine point six: all beings remain in Me without any contact, as the mighty wind, moving everywhere in the sky, eternally remains in space.", "L": ["L2"] },
-        { "s": "A", "t": "Then creation as a rhythm. Nine point seven: all beings merge into My primal nature at the end of a cycle, which the book gives as just over three hundred and eleven trillion solar years, and I create them again at the beginning of the next.", "L": ["L3"] },
-        { "s": "B", "t": "Nine point nine and ten: these acts of creation do not bind Me, because I remain indifferent and unattached. My energy, with material nature, creates everything under My supervision.", "L": ["L3"] },
-        { "s": "A", "t": "Then two ways of seeing Krishna. Nine point eleven: the ignorant hate Me when I appear in human form, taking Me for an ordinary human. Nine point thirteen: but great souls know Me as the cause of creation, and worship Me single-mindedly with loving devotion." },
-        { "s": "B", "t": "And then a cascade of identity, nine point sixteen to eighteen: I am the ritual, I am the sacrifice, I am the offering, the herb, the mantra, the butter, the fire, and the oblation. I am the father, the mother, the grandfather of the universe. I am the goal, the supporter, the Lord, the witness, the abode, the refuge, the friend, the origin, the dissolution, and the immutable seed.", "L": ["L4"] },
-        { "s": "A", "t": "Nine point nineteen: I give heat. I send, as well as withhold, the rain. I am immortality, as well as death. And our book's short gloss says it all: the Supreme Being has become everything.", "L": ["L4"] },
-        { "s": "B", "t": "Then the limits of ritual. Those who perform rituals for heaven go to heaven, enjoy it, and come back when their merit runs out. But nine point twenty-two: I personally take care of both the material and spiritual welfare of those ever-steadfast devotees who always remember and adore Me.", "L": ["L5"] },
-        { "s": "A", "t": "And then my favourite verse in the Gita. Nine point twenty-six: whosoever offers Me a leaf, a flower, a fruit, or water with devotion, I accept and eat the offering of devotion by the pure-hearted.", "L": ["L5"] },
-        { "s": "B", "t": "The tradition tells a story to go with it. When Krishna visited the Pandavas' court, he turned down the grand feast offered by the powerful and went to eat simple food at the home of Vidura, a humble, devoted man. It's the love that counts, not the size of the offering.", "L": ["L5"] },
-        { "s": "A", "t": "And it widens out, nine point twenty-seven: whatever you do, whatever you eat, whatever you offer, whatever you give, whatever austerity you perform, do all that as an offering unto Me. Nine point twenty-eight: by this attitude, you become free from the bondage of Karma, good and bad.", "L": ["L5"] },
-        { "s": "B", "t": "Then, nine point twenty-nine: the Self is present equally in all beings. There is no one hateful or dear to Me. But those who worship Me with love are very close to Me, and I am very close to them.", "L": ["L6"] },
-        { "s": "A", "t": "And the verse of hope, nine point thirty: even if the most sinful person resolves to worship Me with single-minded, loving devotion, such a person must be regarded as a saint, because of making the right resolution.", "L": ["L6"] },
-        { "s": "B", "t": "Our book's commentary: there are no unforgivable sins or sinners. The fire of sincere repentance burns all sins. And nine point thirty-one: My devotee shall never perish.", "L": ["L6"] },
-        { "s": "A", "t": "Then nine point thirty-two: anybody, including women, merchants, laborers, and even the evil-minded, can attain the supreme abode by surrendering with loving devotion.", "L": ["L7"] },
-        { "s": "B", "t": "A word of context. In the society of the time, these were groups shut out of formal Vedic learning and ritual. The verse names them to say: this door is open to everyone. That was radical then.", "L": ["L7"] },
-        { "s": "A", "t": "And the chapter closes with a direct, tender invitation, nine point thirty-four: fix your mind on Me, be devoted to Me, worship Me, and bow down to Me. Setting Me as the supreme goal and sole refuge, you shall certainly come to Me.", "L": ["L7"] }
+        {
+          "s": "A",
+          "t": "Krishna begins, nine point one: I shall reveal to you, who do not disbelieve, the most profound, secret, spiritual knowledge, together with spiritual experience. Knowing this, you will be freed from the miseries of worldly existence."
+        },
+        {
+          "s": "B",
+          "t": "Nine point two: this Self-knowledge is the king of all knowledge, the most secret, very sacred. It can be perceived by instinct, it conforms to righteousness, it is very easy to practice, and it is timeless.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Very easy to practice. That's worth noticing in a chapter about the deepest secret. And nine point three: those without faith in it don't attain Me, and stay in the cycle of birth and death.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "It's a bit like a secret that's hidden in plain sight. Not locked away, just overlooked."
+        },
+        {
+          "s": "B",
+          "t": "Then a riddle. Nine point four: this entire universe is an expansion of Mine. All beings depend on Me; I do not depend on them. And then, nine point five: look at My divine mystery. In reality, I do not depend on them, and they also do not depend on Me.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Our book's note untangles it beautifully. A gold chain depends on gold. But in fact the chain doesn't depend on gold: the chain is nothing but gold. Things are both different from God and not different.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "And the image, nine point six: all beings remain in Me without any contact, as the mighty wind, moving everywhere in the sky, eternally remains in space.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "The wind can roar across the whole sky, and the sky isn't torn or moved by it. That's how close, and how untouched, God is."
+        },
+        {
+          "s": "A",
+          "t": "Then creation as a rhythm. Nine point seven: all beings merge into My primal nature at the end of a cycle, which the book gives as just over three hundred and eleven trillion solar years, and I create them again at the beginning of the next.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Nine point nine and ten: these acts of creation do not bind Me, because I remain indifferent and unattached. My energy, with material nature, creates everything under My supervision.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Then two ways of seeing Krishna. Nine point eleven: the ignorant hate Me when I appear in human form, taking Me for an ordinary human. Nine point thirteen: but great souls know Me as the cause of creation, and worship Me single-mindedly with loving devotion."
+        },
+        {
+          "s": "B",
+          "t": "Which happens to all of us, in a smaller way. We look at the ordinary and miss the sacred in it."
+        },
+        {
+          "s": "B",
+          "t": "And then a cascade of identity, nine point sixteen to eighteen: I am the ritual, I am the sacrifice, I am the offering, the herb, the mantra, the butter, the fire, and the oblation. I am the father, the mother, the grandfather of the universe. I am the goal, the supporter, the Lord, the witness, the abode, the refuge, the friend, the origin, the dissolution, and the immutable seed.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Nine point nineteen: I give heat. I send, as well as withhold, the rain. I am immortality, as well as death. And our book's short gloss says it all: the Supreme Being has become everything.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Then the limits of ritual. Those who perform rituals for heaven go to heaven, enjoy it, and come back when their merit runs out. But nine point twenty-two: I personally take care of both the material and spiritual welfare of those ever-steadfast devotees who always remember and adore Me.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And then my favourite verse in the Gita. Nine point twenty-six: whosoever offers Me a leaf, a flower, a fruit, or water with devotion, I accept and eat the offering of devotion by the pure-hearted.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Mine too. A leaf. It's hard to think of anything cheaper or more available. Nobody is too poor for this kind of worship."
+        },
+        {
+          "s": "B",
+          "t": "The tradition tells a story to go with it. When Krishna visited the Pandavas' court, he turned down the grand feast offered by the powerful and went to eat simple food at the home of Vidura, a humble, devoted man. It's the love that counts, not the size of the offering.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And it widens out, nine point twenty-seven: whatever you do, whatever you eat, whatever you offer, whatever you give, whatever austerity you perform, do all that as an offering unto Me. Nine point twenty-eight: by this attitude, you become free from the bondage of Karma, good and bad.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Then, nine point twenty-nine: the Self is present equally in all beings. There is no one hateful or dear to Me. But those who worship Me with love are very close to Me, and I am very close to them.",
+          "L": [
+            "L6"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And the verse of hope, nine point thirty: even if the most sinful person resolves to worship Me with single-minded, loving devotion, such a person must be regarded as a saint, because of making the right resolution.",
+          "L": [
+            "L6"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Because of making the right resolution. That's the key. Not because the past disappears overnight, but because the direction has changed."
+        },
+        {
+          "s": "B",
+          "t": "Our book's commentary: there are no unforgivable sins or sinners. The fire of sincere repentance burns all sins. And nine point thirty-one: My devotee shall never perish.",
+          "L": [
+            "L6"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Then nine point thirty-two: anybody, including women, merchants, laborers, and even the evil-minded, can attain the supreme abode by surrendering with loving devotion.",
+          "L": [
+            "L7"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "A word of context. In the society of the time, these were groups shut out of formal Vedic learning and ritual. The verse names them to say: this door is open to everyone. That was radical then.",
+          "L": [
+            "L7"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And the chapter closes with a direct, tender invitation, nine point thirty-four: fix your mind on Me, be devoted to Me, worship Me, and bow down to Me. Setting Me as the supreme goal and sole refuge, you shall certainly come to Me.",
+          "L": [
+            "L7"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 1 · The king of knowledge",
       "turns": [
-        { "s": "B", "t": "Lesson one: Self-knowledge is the king of all knowledge.", "L": ["L1"] },
-        { "s": "A", "t": "Most sacred, most secret, and yet directly perceivable. It fits with right living, it's easy to practice, and it never goes out of date.", "L": ["L1"] },
-        { "s": "B", "t": "But it takes faith to receive it. Without faith, people stay on the wheel of birth and death, with the key in their pocket.", "L": ["L1"] }
+        {
+          "s": "B",
+          "t": "Lesson one: Self-knowledge is the king of all knowledge.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Most sacred, most secret, and yet directly perceivable. It fits with right living, it's easy to practice, and it never goes out of date.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "But it takes faith to receive it. Without faith, people stay on the wheel of birth and death, with the key in their pocket.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Faith here doesn't mean believing without thinking. It means being willing to try it, and see."
+        }
       ]
     },
     {
       "title": "Lesson 2 · The wind in space",
       "turns": [
-        { "s": "A", "t": "Lesson two: God pervades everything, yet is bound by nothing.", "L": ["L2"] },
-        { "s": "B", "t": "The universe exists within God, but God doesn't depend on it, the way the wind moves everywhere within space without limiting it.", "L": ["L2"] },
-        { "s": "A", "t": "He sustains everything and is touched by nothing. Like gold, which is the whole chain, and is still simply gold.", "L": ["L2"] }
+        {
+          "s": "A",
+          "t": "Lesson two: God pervades everything, yet is bound by nothing.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "The universe exists within God, but God doesn't depend on it, the way the wind moves everywhere within space without limiting it.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "He sustains everything and is touched by nothing. Like gold, which is the whole chain, and is still simply gold.",
+          "L": [
+            "L2"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 3 · Creation without a doer",
       "turns": [
-        { "s": "B", "t": "Lesson three: creation is a continuous divine act, yet God is not the doer.", "L": ["L3"] },
-        { "s": "A", "t": "God brings all beings forth again and again, in each cosmic cycle, and stays unattached. Material nature does the work, under God's eye.", "L": ["L3"] },
-        { "s": "B", "t": "God is the witness and the source, not an actor driven by ego. And that's the model for us too: act fully, cling to nothing.", "L": ["L3"] }
+        {
+          "s": "B",
+          "t": "Lesson three: creation is a continuous divine act, yet God is not the doer.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "God brings all beings forth again and again, in each cosmic cycle, and stays unattached. Material nature does the work, under God's eye.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "God is the witness and the source, not an actor driven by ego. And that's the model for us too: act fully, cling to nothing.",
+          "L": [
+            "L3"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 4 · God has become everything",
       "turns": [
-        { "s": "A", "t": "Lesson four: everything is a manifestation of God.", "L": ["L4"] },
-        { "s": "B", "t": "The ritual and the fire, the food and the mantra, father and mother, the goal and the refuge, the beginning and the end.", "L": ["L4"] },
-        { "s": "A", "t": "The whole universe is God made visible. Seeing God in everything is the mark of real wisdom.", "L": ["L4"] }
+        {
+          "s": "A",
+          "t": "Lesson four: everything is a manifestation of God.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "The ritual and the fire, the food and the mantra, father and mother, the goal and the refuge, the beginning and the end.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "The whole universe is God made visible. Seeing God in everything is the mark of real wisdom.",
+          "L": [
+            "L4"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 5 · A leaf, a flower",
       "turns": [
-        { "s": "B", "t": "Lesson five: worship with devotion is personally received by God.", "L": ["L5"] },
-        { "s": "A", "t": "Whatever is offered with sincere love, even a leaf, a flower, a fruit, or a little water, God accepts personally.", "L": ["L5"] },
-        { "s": "B", "t": "And everything you do, eat, give or practice can be that offering. That attitude dissolves Karmic bondage entirely. Your ordinary day becomes a gift.", "L": ["L5"] }
+        {
+          "s": "B",
+          "t": "Lesson five: worship with devotion is personally received by God.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Whatever is offered with sincere love, even a leaf, a flower, a fruit, or a little water, God accepts personally.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "And everything you do, eat, give or practice can be that offering. That attitude dissolves Karmic bondage entirely. Your ordinary day becomes a gift.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "A small practice from us, not the book. Before eating, or before starting work, say inside, this is for You. It takes one second, and it quietly changes the whole action."
+        }
       ]
     },
     {
       "title": "Lesson 6 · No unforgivable sinners",
       "turns": [
-        { "s": "A", "t": "Lesson six: there are no unforgivable sinners.", "L": ["L6"] },
-        { "s": "B", "t": "Even the worst person, once they resolve to turn to God with single-minded love, must be counted a saint, because of that resolve.", "L": ["L6"] },
-        { "s": "A", "t": "Sincere repentance and devotion burn away all sin, and God's devotee never perishes. Nobody is written off.", "L": ["L6"] }
+        {
+          "s": "A",
+          "t": "Lesson six: there are no unforgivable sinners.",
+          "L": [
+            "L6"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Even the worst person, once they resolve to turn to God with single-minded love, must be counted a saint, because of that resolve.",
+          "L": [
+            "L6"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Sincere repentance and devotion burn away all sin, and God's devotee never perishes. Nobody is written off.",
+          "L": [
+            "L6"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "If you ever feel too far gone, this is the verse to come back to. Nine point thirty. It was written for exactly that feeling."
+        }
       ]
     },
     {
       "title": "Lesson 7 · Open to all",
       "turns": [
-        { "s": "B", "t": "And lesson seven: the path of devotional love is open to all.", "L": ["L7"] },
-        { "s": "A", "t": "Whatever your background, gender, work or past, you can reach the highest by surrendering to God with love.", "L": ["L7"] },
-        { "s": "B", "t": "Fix your mind on God, be devoted, worship, bow down. And the promise is: you shall certainly come to Me.", "L": ["L7"] }
+        {
+          "s": "B",
+          "t": "And lesson seven: the path of devotional love is open to all.",
+          "L": [
+            "L7"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Whatever your background, gender, work or past, you can reach the highest by surrendering to God with love.",
+          "L": [
+            "L7"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Fix your mind on God, be devoted, worship, bow down. And the promise is: you shall certainly come to Me.",
+          "L": [
+            "L7"
+          ]
+        }
       ]
     },
     {
       "title": "Wrap-up",
       "turns": [
-        { "s": "A", "t": "So, Chapter Nine. God has become everything, accepts the smallest gift given with love, and turns no one away.", "L": ["L4", "L5", "L6"] },
-        { "s": "B", "t": "Seven lessons: the king of knowledge, the wind in space, creation without a doer, God has become everything, a leaf and a flower, no unforgivable sinners, and open to all.", "L": ["L1", "L2", "L3", "L4", "L5", "L6", "L7"] },
-        { "s": "A", "t": "Next time, Chapter Ten, where Krishna names where he shines brightest in the world. Thanks for listening to Shruti." }
+        {
+          "s": "A",
+          "t": "So, Chapter Nine. God has become everything, accepts the smallest gift given with love, and turns no one away.",
+          "L": [
+            "L4",
+            "L5",
+            "L6"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Seven lessons: the king of knowledge, the wind in space, creation without a doer, God has become everything, a leaf and a flower, no unforgivable sinners, and open to all.",
+          "L": [
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5",
+            "L6",
+            "L7"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Next time, Chapter Ten, where Krishna names where he shines brightest in the world. Thanks for listening to Shruti."
+        }
       ]
     }
   ]
