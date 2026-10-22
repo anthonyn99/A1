@@ -11,6 +11,8 @@ import * as POD from './podcast.js';
 import * as VID from './video.js';
 import * as G from './generate.js';
 import * as M from './media.js';
+import * as J from './jobs.js';
+import * as MK from './make.js';
 
 const P = C.P, PROFILES = C.PROFILES, GID = window.SHRUTI_GID;
 const DRIVE = 'https://shruti-drive.av1-2.workers.dev';
@@ -24,10 +26,17 @@ const FLEUR = '<svg width="0.78em" height="0.78em" viewBox="0 0 24 22" aria-hidd
 
 /* ── toast and in-UI dialogs (no native alert/confirm) ────────────────────── */
 let toastT = null;
-export function toast(msg, err) {
+/** A short note at the bottom; with action {label, fn} it carries a button and stays longer. */
+export function toast(msg, err, action) {
   const t = $('#toast');
-  t.textContent = msg; t.className = 'toast show' + (err ? ' err' : '');
-  clearTimeout(toastT); toastT = setTimeout(() => { t.className = 'toast'; }, 2800);
+  t.textContent = msg; t.className = 'toast show' + (err ? ' err' : '') + (action ? ' act' : '');
+  if (action) {
+    const b = document.createElement('button');
+    b.className = 'toast-b'; b.textContent = action.label;
+    b.addEventListener('click', () => { t.className = 'toast'; action.fn(); });
+    t.appendChild(b);
+  }
+  clearTimeout(toastT); toastT = setTimeout(() => { t.className = 'toast'; }, action ? 7000 : 2800);
 }
 function dialog({ title, message, ok = 'OK', cancel }) {
   return new Promise((res) => {
@@ -213,6 +222,15 @@ C.on('doc:shared', ({ remote }) => { if (remote) redraw(); });
 // them with no key (once both docs are in, by whoever has a key).
 const upgrade = () => { if (C.me.loaded && C.shared.loaded) setTimeout(() => M.upgradeLinks(), 1500); };
 C.on('doc:me', upgrade); C.on('doc:shared', upgrade);
+// What was being made on this device before a reload goes on (jobs.js).
+let resumed = false;
+const resumeJobs = () => {
+  if (resumed || !C.me.loaded || !C.shared.loaded) return;
+  resumed = true;
+  const n = J.resume();
+  if (n) toast('Carrying on with ' + n + ' thing' + (n === 1 ? '' : 's') + ' being made', false, { label: 'See', fn: MK.openJobs });
+};
+C.on('doc:me', resumeJobs); C.on('doc:shared', resumeJobs);
 
 /* ── header buttons ───────────────────────────────────────────────────────── */
 $('#lock-btn').addEventListener('click', () => Guardian.manage(GID).then(updateLockBtn));
@@ -398,6 +416,10 @@ NR.setUI({ player, toast, openSettings: () => openSettings(), go: (h) => go(h) }
 POD.setUI({ player, toast, go: (h) => go(h) });
 VID.setUI({ player, toast, go: (h) => go(h) });
 G.setUI({ toast, go: (h) => go(h), openSettings: () => openSettings() });
+MK.setUI({ toast, go: (h) => go(h), openSettings: () => openSettings() });
+J.setUI({ toast, go: (h) => go(h), context: L.taskContext, made: MK.made, openJobs: MK.openJobs,
+  playWhenShown: (kind, book, n) => (kind === 'podcast' ? POD : VID).playWhenShown(book, n) });
+MK.bindPill($('#jobs-pill'));
 
 // Space plays and pauses whatever owns the player, unless typing or on a control.
 addEventListener('keydown', (e) => {
@@ -408,7 +430,7 @@ addEventListener('keydown', (e) => {
 });
 
 /* ── start ────────────────────────────────────────────────────────────────── */
-window.Shruti = { go, player, toast, core: C, orca: O, library: L, narrate: NR, podcast: POD, video: VID, generate: G, openSettings };
+window.Shruti = { go, player, toast, core: C, orca: O, library: L, narrate: NR, podcast: POD, video: VID, generate: G, jobs: J, make: MK, openSettings };
 if (window.SHRUTI_STORAGE_BLOCKED) setTimeout(() => toast('This browser blocks storage: Shruti works, but this device will not remember choices.', true), 1200);
 if (!P) showPicker();
 else openGate();
