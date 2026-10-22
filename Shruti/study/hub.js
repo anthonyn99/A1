@@ -95,7 +95,7 @@ function setFocus(on) {
 }
 addEventListener('keydown', (e) => {
   if (e.key !== 'Escape' || !focused || e.defaultPrevented) return;
-  if (document.querySelector('.sheet-dim, .ui-dim, .mm.max')) return;
+  if (document.querySelector('.sheet-dim, .ui-dim, .mm.max') || document.body.classList.contains('sd-presenting')) return;
   setFocus(false);
 });
 // Leaving the Study tab (or the chapter) brings the headers back.
