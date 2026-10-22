@@ -105,7 +105,7 @@ const RUN = String(Date.now());
 const BOOT = (store) => `(()=>{ if(window.top!==window) return;
   try{ if(sessionStorage.getItem('__run')!=='${RUN}'){ localStorage.clear(); sessionStorage.clear(); ${store || ''} sessionStorage.setItem('__run','${RUN}'); } }catch(e){}
   window.__errs=[]; addEventListener('error', e=>window.__errs.push(String(e.message)));
-  window.__up={}; const f0=window.fetch; window.fetch=function(u,o){ try{ if(o&&o.method==='PUT'&&/\/f\?/.test(String(u))&&typeof o.body==='string') window.__up[new URL(String(u)).searchParams.get('name')]=o.body; }catch(e){} return f0.apply(this,arguments); };
+  window.__up={}; const f0=window.fetch; window.fetch=function(u,o){ try{ if(o&&o.method==='PUT'&&String(u).indexOf('/f?')>=0&&typeof o.body==='string') window.__up[new URL(String(u)).searchParams.get('name')]=o.body; }catch(e){} return f0.apply(this,arguments); };
   addEventListener('unhandledrejection', e=>window.__errs.push('rejection: '+String(e.reason && e.reason.message || e.reason)));
 })();`;
 let inj = null;
