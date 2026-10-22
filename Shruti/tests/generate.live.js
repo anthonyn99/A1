@@ -234,7 +234,7 @@ const closeSheet = (c) => ev(c, `const s=document.querySelector('#gen-sheet [dat
   await ev(c, `location.hash='#/b/gita'; return 1`);
   await waitFor(c, `!!document.querySelector('[data-build]')`, 8000);
   await click(c, '[data-build]');
-  ok('the book page opens Build everything: what, how, which chapters', await waitFor(c, `!!document.querySelector('#build-sheet [data-build]') && document.querySelectorAll('#build-sheet [data-kind]').length===5 && document.querySelectorAll('#build-sheet [data-ch]').length===19`, 8000));
+  ok('the book page opens Build everything: what, how, which chapters', await waitFor(c, `!!document.querySelector('#build-sheet [data-build]') && document.querySelectorAll('#build-sheet [data-kind]').length===5 && document.querySelectorAll('#build-sheet [data-ch]').length===19`, 8000), await ev(c, `const s=document.querySelector('#build-sheet'); return s ? 'kinds '+s.querySelectorAll('[data-kind]').length+' chs '+s.querySelectorAll('[data-ch]').length : 'no sheet: '+location.hash+' '+document.querySelectorAll('.sheet-dim').length`));
   await ev(c, `const k=(n,on)=>{const x=document.querySelector('#build-sheet [data-kind='+n+']'); if(x.checked!==on){x.checked=on; x.dispatchEvent(new Event('change'));}}; k('read',false); k('podcast',false); k('video',false); k('study',false); k('lessons',true); return 1`);
   await ev(c, `const all=document.querySelector('#build-sheet [data-chall]'); if(/None/.test(all.textContent)) all.click(); return 1`);
   await ev(c, `[...document.querySelectorAll('#build-sheet [data-ch]')].filter(b=>['5','6'].includes(b.dataset.ch)).forEach(b=>b.click()); return 1`);
