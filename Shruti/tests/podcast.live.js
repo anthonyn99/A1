@@ -138,7 +138,7 @@ const t = (c) => ev(c, `return document.querySelector('audio') ? -1 : window.Shr
   await ev(c, `return window.Shruti.core.me.set({orcaKey:${JSON.stringify(KEY)}},{now:true}) || 1`);
   const res = await ev(c, `return (async()=>{ const P=window.Shruti.podcast; const s={book:'gita', n:4, title:'t', hosts:[{id:'A',name:'Ava',voice:'en-US-AvaMultilingualNeural'},{id:'B',name:'Andrew',voice:'en-US-AndrewMultilingualNeural'}], segments:[{title:'Welcome', turns:[{s:'A',t:'Hello and welcome.'},{s:'B',t:'Thanks, Ava.'}]},{title:'Lesson 1 · x', turns:[{s:'A',t:'The first lesson.',L:['L1']}]}]}; const b=await P.build(s); const rec=await P.save('gita',4,b); return JSON.stringify({size:b.mp3.size, turns:b.meta.turns.map(t=>t.start), rec}); })()`).then(JSON.parse);
   ok('build() speaks each turn in its host\'s voice', speech.length === 3 && speech[0].voice === 'en-US-AvaMultilingualNeural' && speech[1].voice === 'en-US-AndrewMultilingualNeural');
-  ok('…joins them with silences, byte for byte', res.size === 3 * 12000 + 1728 * 4 && res.turns[1] === +(2 + 0.288).toFixed(3), JSON.stringify(res));
+  ok('…joins them with silences, byte for byte', res.size === 3 * 12096 + 1728 * 4 && res.turns[1] === +(12096 / 6000 + 0.288).toFixed(3), JSON.stringify(res));
   ok('save() uploads the MP3 and transcript and records it for both', uploads.join() === 'podcast.mp3,podcast.json' && await waitFor(c, `const d=window.__fakeFs.docs['dashboards/shruti_shared']; return d && d.assets.gita.ch4.podcast.mp3.id==='drive-1'`));
   await ev(c, `location.hash='#/b/gita'; return 1`);
   ok('…and chapter 4\'s Listen badge lights', await waitFor(c, `document.querySelectorAll('.ch').length===18 && document.querySelectorAll('.ch')[3].querySelectorAll('.bdg')[1].classList.contains('av')`));
