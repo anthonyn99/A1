@@ -857,6 +857,7 @@ html.vid-pfs, html.vid-pfs body { overflow: hidden; }
   .turn p { font-size: 15px; }
   .vid-bar { flex-wrap: wrap; gap: 4px; }
   .vid-track { order: -1; flex-basis: 100%; margin: 0 4px 2px; }
+  .pbar .vid-track { order: 0; flex-basis: auto; margin: 0; }
   .vid-time { margin-left: auto; }
   .vid-board { grid-auto-columns: minmax(170px, 72%); }
   .vid-cover .vc-ic { width: 60px; height: 60px; }
