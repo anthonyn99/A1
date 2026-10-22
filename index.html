@@ -21959,6 +21959,14 @@ window._tnOpenTab = function(url, key){
     try { if (d) d.opener = null; } catch(e){}
     return d;
   }
+  // The other A1 origin (A1-Priv) carries the key in the url: Brave wipes
+  // window.name on a cross-site navigation, and that tab's heartbeat is in
+  // storage this page cannot read — tabsync.js there does the check instead.
+  // Keep in step with LifeHub's keyed().
+  try {
+    var ku = new URL(url, location.href);
+    if (ku.origin !== location.origin && /^https?:$/.test(ku.protocol)) { ku.searchParams.set('a1tab', storeKey(key)); url = ku.href; }
+  } catch(e){}
   var name = tabName(key);
   var w = null;
   try { w = window.open('', name); } catch(e){ w = null; }
