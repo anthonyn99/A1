@@ -4,78 +4,359 @@
   "n": 16,
   "title": "Divine and the demonic qualities",
   "hosts": [
-    { "id": "A", "name": "Ava", "voice": "en-US-AvaMultilingualNeural" },
-    { "id": "B", "name": "Andrew", "voice": "en-US-AndrewMultilingualNeural" }
+    {
+      "id": "A",
+      "name": "Emma",
+      "voice": "en-US-EmmaMultilingualNeural"
+    },
+    {
+      "id": "B",
+      "name": "Brian",
+      "voice": "en-US-BrianMultilingualNeural"
+    }
   ],
   "segments": [
     {
       "title": "Welcome",
       "turns": [
-        { "s": "A", "t": "Welcome to Shruti. I'm Ava." },
-        { "s": "B", "t": "And I'm Andrew. Today, Chapter Sixteen: the Divine and the Demonic Qualities." },
-        { "s": "A", "t": "This chapter is the Gita's character study. Two lists: the qualities that free us, and the ones that bind us. The second list has a portrait that is uncomfortably recognizable, even today." },
-        { "s": "B", "t": "Four lessons. Story first." }
+        {
+          "s": "A",
+          "t": "Welcome to Shruti. I'm Emma."
+        },
+        {
+          "s": "B",
+          "t": "And I'm Brian. Today, Chapter Sixteen: the Divine and the Demonic Qualities."
+        },
+        {
+          "s": "A",
+          "t": "This chapter is the Gita's character study. Two lists: the qualities that free us, and the ones that bind us. The second list has a portrait that is uncomfortably recognizable, even today."
+        },
+        {
+          "s": "B",
+          "t": "I like that you said recognizable. When I first read it, I kept thinking of people I know. And then, a little later, I kept thinking of myself."
+        },
+        {
+          "s": "A",
+          "t": "That's exactly the right order, I think. Start with the neighbours, end with the mirror."
+        },
+        {
+          "s": "B",
+          "t": "Four lessons today. But first, the story, such as it is, because this chapter is less a scene than a long, careful look in the mirror."
+        }
       ]
     },
     {
       "title": "The story",
       "turns": [
-        { "s": "A", "t": "Krishna begins with the divine qualities, sixteen point one to three: fearlessness, purity of heart, perseverance in Self-knowledge, charity, self-restraint, sacrifice, study of scripture, austerity, honesty.", "L": ["L1"] },
-        { "s": "B", "t": "Nonviolence, truthfulness, absence of anger, renunciation, calmness, abstaining from malicious talk, compassion for all creatures, freedom from greed, gentleness, modesty, steadiness.", "L": ["L1"] },
-        { "s": "A", "t": "Splendor, forgiveness, fortitude, cleanliness, absence of malice, and absence of pride. Our book counts twenty-six qualities. Notice the first one: fearlessness.", "L": ["L1"] },
-        { "s": "B", "t": "Then the other list, sixteen point four, much shorter: hypocrisy, arrogance, pride, anger, harshness, and ignorance.", "L": ["L1"] },
-        { "s": "A", "t": "Sixteen point five: divine qualities lead to liberation; the demonic ones to bondage. And then a lovely aside to Arjuna: do not grieve, Arjuna, you are born with divine qualities.", "L": ["L1"] },
-        { "s": "B", "t": "Krishna noticed his friend getting worried, and reassured him. That's a teacher's kindness." },
-        { "s": "A", "t": "Sixteen point six: there are basically two types of human beings in this world, the divine and the demonic. Now hear about the demonic.", "L": ["L1"] },
-        { "s": "B", "t": "And the portrait begins, sixteen point seven and eight: they don't know what to do and what not to do. They have neither purity nor good conduct nor truthfulness. They say the world is unreal, without a basis, without God, without an order.", "L": ["L2"] },
-        { "s": "A", "t": "Sixteen point ten and eleven: filled with insatiable desires, hypocrisy, pride and arrogance, obsessed with endless anxiety until death, convinced that sense pleasure is everything.", "L": ["L2"] },
-        { "s": "B", "t": "And then the inner monologue, sixteen point thirteen to fifteen, which reads like it was written yesterday. This has been gained by me today. I shall fulfill this desire. I have this much wealth, and I'll have more. That enemy has been slain by me, and I shall slay others too. I am the lord. I am the enjoyer. I am successful, powerful and happy. I am rich and well-born. Who is equal to me?", "L": ["L2"] },
-        { "s": "A", "t": "And even their generosity is for show, sixteen point seventeen: they perform sacrifice and charity only in name, out of pride.", "L": ["L2"] },
-        { "s": "B", "t": "Sixteen point eighteen: clinging to ego, power, arrogance, lust, anger and greed, they deny My presence in their own bodies and in others'. And sixteen point nineteen and twenty: they sink, birth after birth, lower and lower, without ever attaining Me.", "L": ["L2"] },
-        { "s": "A", "t": "Then the summary verse of the chapter, sixteen point twenty-one: lust, anger, and greed are the three gates of hell leading to bondage. Therefore, one must learn to give up these three.", "L": ["L3"] },
-        { "s": "B", "t": "Sixteen point twenty-two: one who is freed from these three gates does what is best, and attains the supreme abode.", "L": ["L3"] },
-        { "s": "A", "t": "And the close, sixteen point twenty-three and twenty-four: one who acts only on desire, ignoring the scriptures, attains neither perfection nor happiness. Therefore, let the scripture be your authority in deciding what should be done and what should not.", "L": ["L4"] },
-        { "s": "B", "t": "One thought from us, not the book. Most readers take these two lists not as two tribes of people, but as two sets of seeds inside everyone. The question each day is which ones we water.", "L": ["L1"] }
+        {
+          "s": "A",
+          "t": "Krishna begins with the divine qualities, sixteen point one to three: fearlessness, purity of heart, perseverance in Self-knowledge, charity, self-restraint, sacrifice, study of scripture, austerity, honesty.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Nonviolence, truthfulness, absence of anger, renunciation, calmness, abstaining from malicious talk, compassion for all creatures, freedom from greed, gentleness, modesty, steadiness.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Splendor, forgiveness, fortitude, cleanliness, absence of malice, and absence of pride. Our book counts twenty-six qualities. Notice the first one: fearlessness.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Why fearlessness first, do you think? Of all the virtues, it leads the list."
+        },
+        {
+          "s": "A",
+          "t": "Remember where this whole conversation began. Arjuna, trembling on the battlefield, afraid of losing everyone he loves. Fear is what knocked him down in chapter one. So it makes a kind of sense that the very first mark of a divine nature is that fear no longer runs the show."
+        },
+        {
+          "s": "B",
+          "t": "And notice how practical the rest of the list is. Honesty, gentleness, not gossiping, not being fickle. These aren't mystical powers. They're the things your grandmother told you to do."
+        },
+        {
+          "s": "B",
+          "t": "Then the other list, sixteen point four, much shorter: hypocrisy, arrogance, pride, anger, harshness, and ignorance.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Sixteen point five: divine qualities lead to liberation; the demonic ones to bondage. And then a lovely aside to Arjuna: do not grieve, Arjuna, you are born with divine qualities.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Krishna noticed his friend getting worried, and reassured him. That's a teacher's kindness."
+        },
+        {
+          "s": "A",
+          "t": "It also tells us something about how to read the next part. Krishna isn't sorting people into heaven and hell from a distance. He's speaking to someone he loves, and he wants him to see clearly, not to despair."
+        },
+        {
+          "s": "A",
+          "t": "Sixteen point six: there are basically two types of human beings in this world, the divine and the demonic. Now hear about the demonic.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "And the portrait begins, sixteen point seven and eight: they don't know what to do and what not to do. They have neither purity nor good conduct nor truthfulness. They say the world is unreal, without a basis, without God, without an order.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Sixteen point ten and eleven: filled with insatiable desires, hypocrisy, pride and arrogance, obsessed with endless anxiety until death, convinced that sense pleasure is everything.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Sixteen point twelve fills in the motive. Bound by hundreds of ties of desire, enslaved by lust and anger, they strive to get wealth by unlawful means, just to feed their pleasures."
+        },
+        {
+          "s": "A",
+          "t": "Hundreds of ties. That image stays with me. Not one big chain, but hundreds of little threads, each one a want, and together they hold you down completely."
+        },
+        {
+          "s": "B",
+          "t": "And then the inner monologue, sixteen point thirteen to fifteen, which reads like it was written yesterday. This has been gained by me today. I shall fulfill this desire. I have this much wealth, and I'll have more. That enemy has been slain by me, and I shall slay others too. I am the lord. I am the enjoyer. I am successful, powerful and happy. I am rich and well-born. Who is equal to me?",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "What strikes me about that monologue is how ordinary it sounds. Nobody in it is twirling a moustache. It's just a person keeping score. Gained this, will gain that, beat him, will beat the next one."
+        },
+        {
+          "s": "B",
+          "t": "And the last line of it, sixteen point fifteen, is almost funny: I shall perform sacrifice, I shall give charity, and I shall rejoice. Even the good deeds are on the list of things to own."
+        },
+        {
+          "s": "A",
+          "t": "And even their generosity is for show, sixteen point seventeen: they perform sacrifice and charity only in name, out of pride.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Sixteen point eighteen: clinging to ego, power, arrogance, lust, anger and greed, they deny My presence in their own bodies and in others'. And sixteen point nineteen and twenty: they sink, birth after birth, lower and lower, without ever attaining Me.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Those are some of the hardest verses in the Gita to hear. Our book's word is hell, the lowest hell. It's a picture of where that road goes if nothing ever turns it around."
+        },
+        {
+          "s": "B",
+          "t": "Though the next verses show there is a way to turn around, and it's simpler than you'd think."
+        },
+        {
+          "s": "A",
+          "t": "Then the summary verse of the chapter, sixteen point twenty-one: lust, anger, and greed are the three gates of hell leading to bondage. Therefore, one must learn to give up these three.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Sixteen point twenty-two: one who is freed from these three gates does what is best, and attains the supreme abode.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And the close, sixteen point twenty-three and twenty-four: one who acts only on desire, ignoring the scriptures, attains neither perfection nor happiness. Therefore, let the scripture be your authority in deciding what should be done and what should not.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "One thought from us, not the book. Most readers take these two lists not as two tribes of people, but as two sets of seeds inside everyone. The question each day is which ones we water.",
+          "L": [
+            "L1"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 1 · Two natures",
       "turns": [
-        { "s": "A", "t": "Lesson one: there are two kinds of nature, divine and demonic.", "L": ["L1"] },
-        { "s": "B", "t": "Divine qualities lead to freedom: fearlessness, purity, nonviolence, truthfulness, compassion, forgiveness, contentment, honesty, freedom from pride and malice.", "L": ["L1"] },
-        { "s": "A", "t": "Demonic ones lead to bondage: hypocrisy, arrogance, pride, anger, harshness, cruelty and ignorance. The list is a mirror. Use it gently, but use it.", "L": ["L1"] }
+        {
+          "s": "A",
+          "t": "Lesson one: there are two kinds of nature, divine and demonic.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Divine qualities lead to freedom: fearlessness, purity, nonviolence, truthfulness, compassion, forgiveness, contentment, honesty, freedom from pride and malice.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Demonic ones lead to bondage: hypocrisy, arrogance, pride, anger, harshness, cruelty and ignorance. The list is a mirror. Use it gently, but use it.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Gently is the important word there. The point isn't to label anyone. It's to notice, in a single day, when we're acting from fear or pride, and when we're acting from honesty and compassion."
+        },
+        {
+          "s": "A",
+          "t": "And to remember Krishna's aside to Arjuna. Do not grieve. You are born with divine qualities. That's said to a man in the middle of his worst day."
+        }
       ]
     },
     {
       "title": "Lesson 2 · Denial of God and order",
       "turns": [
-        { "s": "B", "t": "Lesson two: demonic nature is rooted in denying God and moral order.", "L": ["L2"] },
-        { "s": "A", "t": "If the world has no God, no moral order, and no purpose beyond pleasure, then nothing stops desire. It becomes endless, and turns into exploitation and cruelty.", "L": ["L2"] },
-        { "s": "B", "t": "And the Gita says it leads downward, birth after birth. The I am the lord, who is equal to me voice is the sound of that road.", "L": ["L2"] }
+        {
+          "s": "B",
+          "t": "Lesson two: demonic nature is rooted in denying God and moral order.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "If the world has no God, no moral order, and no purpose beyond pleasure, then nothing stops desire. It becomes endless, and turns into exploitation and cruelty.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "And the Gita says it leads downward, birth after birth. The I am the lord, who is equal to me voice is the sound of that road.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "There's a quiet logic in it. If nothing is sacred and nothing matters except pleasure, then of course the only rule left is, get more. The chapter isn't just moralizing. It's following an idea all the way to where it leads."
+        }
       ]
     },
     {
       "title": "Lesson 3 · Three gates",
       "turns": [
-        { "s": "A", "t": "Lesson three: lust, anger and greed are the three gates to hell.", "L": ["L3"] },
-        { "s": "B", "t": "They're the root of every demonic behavior and of spiritual ruin. Whoever closes those three gates closes the road to hell and reaches the supreme abode.", "L": ["L3"] },
-        { "s": "A", "t": "They have to be named and renounced on purpose. They don't leave on their own.", "L": ["L3"] }
+        {
+          "s": "A",
+          "t": "Lesson three: lust, anger and greed are the three gates to hell.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "They're the root of every demonic behavior and of spiritual ruin. Whoever closes those three gates closes the road to hell and reaches the supreme abode.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "They have to be named and renounced on purpose. They don't leave on their own.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "What I find helpful is that they're gates, not walls. A gate is something you walk through, one step at a time. Lust says, I need that. Greed says, I need more of that. Anger says, how dare you stand between me and that."
+        },
+        {
+          "s": "A",
+          "t": "So the practice is to catch the step at the gate. To notice, oh, here's wanting, here's grasping, here's anger rising, and not walk through."
+        }
       ]
     },
     {
       "title": "Lesson 4 · Scripture as guide",
       "turns": [
-        { "s": "B", "t": "And lesson four: scripture must be the authority for right action.", "L": ["L4"] },
-        { "s": "A", "t": "Acting from personal desire alone, ignoring guidance, leads to neither perfection nor peace.", "L": ["L4"] },
-        { "s": "B", "t": "The scriptures exist to make clear what should and shouldn't be done. Duty done in line with them is the safe path, especially when our own desires are loud.", "L": ["L4"] }
+        {
+          "s": "B",
+          "t": "And lesson four: scripture must be the authority for right action.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Acting from personal desire alone, ignoring guidance, leads to neither perfection nor peace.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "The scriptures exist to make clear what should and shouldn't be done. Duty done in line with them is the safe path, especially when our own desires are loud.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "A thought from us, not from the book. Scripture here doesn't have to mean a rulebook used to judge others. It can mean a guide wiser than my moods: something steady to check my wants against, before they decide for me."
+        },
+        {
+          "s": "B",
+          "t": "Which is really what Arjuna is doing for the whole Gita. He stopped trusting his own panic, and asked for a wiser voice."
+        }
       ]
     },
     {
       "title": "Wrap-up",
       "turns": [
-        { "s": "A", "t": "So, Chapter Sixteen. Two lists of qualities, a portrait of the arrogant mind, and three gates to close: lust, anger and greed.", "L": ["L1", "L2", "L3"] },
-        { "s": "B", "t": "Four lessons: two natures, denial of God and order, three gates, and scripture as guide.", "L": ["L1", "L2", "L3", "L4"] },
-        { "s": "A", "t": "Next time, Chapter Seventeen: three kinds of faith, and even three kinds of food. Thanks for listening to Shruti." }
+        {
+          "s": "A",
+          "t": "So, Chapter Sixteen. Two lists of qualities, a portrait of the arrogant mind, and three gates to close: lust, anger and greed.",
+          "L": [
+            "L1",
+            "L2",
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Four lessons: two natures, denial of God and order, three gates, and scripture as guide.",
+          "L": [
+            "L1",
+            "L2",
+            "L3",
+            "L4"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Next time, Chapter Seventeen: three kinds of faith, and even three kinds of food. Thanks for listening to Shruti."
+        }
       ]
     }
   ]
