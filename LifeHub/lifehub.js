@@ -380,12 +380,26 @@
     };
     try { bc.postMessage({ t: 'claim', k: key, rid: rid }); } catch (e) { finish(false); }
   }
+  // A destination on the other A1 origin gets its key as ?a1tab=: Brave wipes
+  // window.name on a cross-site navigation, and that tab's heartbeat lives in
+  // storage this page cannot read, so tabsync.js there names itself from the
+  // url and runs the duplicate check on its own side. Same-origin urls stay
+  // as they are (atDest compares them with the tab's address).
+  function keyed(url, key) {
+    try {
+      var u = new URL(url, location.href);
+      if (u.origin === location.origin || !/^https?:$/.test(u.protocol)) return url;
+      u.searchParams.set('a1tab', storeKey(key));
+      return u.href;
+    } catch (e) { return url; }
+  }
   // `keep` (Open all): an existing tab that answers is left exactly as it is
   // — never retired — and the blank tab we hold is closed instead.
   // Must run synchronously inside the click: opening the tab is what spends
   // the user gesture. Deliberately never 'noopener' — the opener link is what
   // keeps the named tab findable (see index.html).
   function openTab(url, key, keep) {
+    url = keyed(url, key);
     var name = tabName(key);
     var w = null;
     try { w = window.open('', name); } catch (e) { w = null; }
@@ -1603,6 +1617,16 @@
       return;
     }
     var key = a.tab || ('lh_' + a.id);
+    if (tabExtOk) {
+      // Desktop with the Vault extension: it sees every tab — opened by hand,
+      // restored after a restart, on either origin — so it switches to the
+      // app's tab if there is one and opens it only if there is not.
+      try {
+        window.postMessage({ source: 'a1-tabs', action: 'focusOrOpen', url: url, key: storeKey(key) }, location.origin);
+        close(true);
+        return;
+      } catch (e) {}
+    }
     var w = null;
     try { w = openTab(url, key); } catch (e) { w = null; }
     if (!w) {
@@ -1610,7 +1634,7 @@
       // lands in the paired tab (no rel=noopener — it would break the name).
       try {
         var an = document.createElement('a');
-        an.href = url; an.target = tabName(key);
+        an.href = keyed(url, key); an.target = tabName(key);
         document.body.appendChild(an); an.click(); document.body.removeChild(an);
       } catch (e) {}
     }
@@ -1629,14 +1653,21 @@
      a group left empty disappears. Whether the
      extension is there is learned ahead of the click (its answer is async, and
      a plain window.open is only allowed inside the click itself). */
-  var extOk = false;
+  // tabExtOk: the extension build can also switch to an app's existing tab
+  // (launch). Asked separately, so an older build never swallows a tap.
+  var extOk = false, tabExtOk = false;
   window.addEventListener('message', function (e) {
     var d = e.data;
-    if (e.source === window && d && d.source === 'vault-extension' && d.action === 'aiLaunchPong') extOk = !!d.ok;
+    if (e.source !== window || !d || d.source !== 'vault-extension') return;
+    if (d.action === 'aiLaunchPong') extOk = !!d.ok;
+    if (d.action === 'tabPong') tabExtOk = !!d.ok;
   });
   function pingExt() {
     try { window.postMessage({ source: 'tradehub-vault', action: 'aiLaunchPing' }, location.origin); } catch (e) {}
+    try { window.postMessage({ source: 'a1-tabs', action: 'tabPing' }, location.origin); } catch (e) {}
   }
+  // Also at load: hosts call LifeHub.launch without ever opening the panel.
+  setTimeout(pingExt, 0);
   function openAll() {
     var all = S.apps.filter(function (a) { return !a.hidden; }).map(function (a) {
       return { a: a, url: normUrl(a.url) };

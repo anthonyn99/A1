@@ -272,4 +272,5 @@
       try { bc.postMessage({ t: 'claimed', k: key, rid: d.rid, id: ID, ok: ok, busy: busy, closable: closable }); } catch (e) {}
     }, 90);
   };
+  if (urlKey) dedupe();
 })();
