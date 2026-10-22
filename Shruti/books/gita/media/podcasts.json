@@ -29,136 +29,136 @@
   "4": {
     "mp3": "ch04-podcast.mp3",
     "json": "ch04-podcast.json",
-    "duration": 798.96,
+    "duration": 660.072,
     "hosts": [
-      "Ava",
-      "Andrew"
+      "Emma",
+      "Brian"
     ]
   },
   "5": {
     "mp3": "ch05-podcast.mp3",
     "json": "ch05-podcast.json",
-    "duration": 684.816,
+    "duration": 656.448,
     "hosts": [
-      "Ava",
-      "Andrew"
+      "Emma",
+      "Brian"
     ]
   },
   "6": {
     "mp3": "ch06-podcast.mp3",
     "json": "ch06-podcast.json",
-    "duration": 744.696,
+    "duration": 643.488,
     "hosts": [
-      "Ava",
-      "Andrew"
+      "Emma",
+      "Brian"
     ]
   },
   "7": {
     "mp3": "ch07-podcast.mp3",
     "json": "ch07-podcast.json",
-    "duration": 561.696,
+    "duration": 639.168,
     "hosts": [
-      "Ava",
-      "Andrew"
+      "Emma",
+      "Brian"
     ]
   },
   "8": {
     "mp3": "ch08-podcast.mp3",
     "json": "ch08-podcast.json",
-    "duration": 496.176,
+    "duration": 636.456,
     "hosts": [
-      "Ava",
-      "Andrew"
+      "Emma",
+      "Brian"
     ]
   },
   "9": {
     "mp3": "ch09-podcast.mp3",
     "json": "ch09-podcast.json",
-    "duration": 554.616,
+    "duration": 618.24,
     "hosts": [
-      "Ava",
-      "Andrew"
+      "Emma",
+      "Brian"
     ]
   },
   "10": {
     "mp3": "ch10-podcast.mp3",
     "json": "ch10-podcast.json",
-    "duration": 504.264,
+    "duration": 624.096,
     "hosts": [
-      "Ava",
-      "Andrew"
+      "Emma",
+      "Brian"
     ]
   },
   "11": {
     "mp3": "ch11-podcast.mp3",
     "json": "ch11-podcast.json",
-    "duration": 525.84,
+    "duration": 655.944,
     "hosts": [
-      "Ava",
-      "Andrew"
+      "Emma",
+      "Brian"
     ]
   },
   "12": {
     "mp3": "ch12-podcast.mp3",
     "json": "ch12-podcast.json",
-    "duration": 390.984,
+    "duration": 598.896,
     "hosts": [
-      "Ava",
-      "Andrew"
+      "Emma",
+      "Brian"
     ]
   },
   "13": {
     "mp3": "ch13-podcast.mp3",
     "json": "ch13-podcast.json",
-    "duration": 484.872,
+    "duration": 666.552,
     "hosts": [
-      "Ava",
-      "Andrew"
+      "Emma",
+      "Brian"
     ]
   },
   "14": {
     "mp3": "ch14-podcast.mp3",
     "json": "ch14-podcast.json",
-    "duration": 418.032,
+    "duration": 605.208,
     "hosts": [
-      "Ava",
-      "Andrew"
+      "Emma",
+      "Brian"
     ]
   },
   "15": {
     "mp3": "ch15-podcast.mp3",
     "json": "ch15-podcast.json",
-    "duration": 372.576,
+    "duration": 571.632,
     "hosts": [
-      "Ava",
-      "Andrew"
+      "Emma",
+      "Brian"
     ]
   },
   "16": {
     "mp3": "ch16-podcast.mp3",
     "json": "ch16-podcast.json",
-    "duration": 376.944,
+    "duration": 607.776,
     "hosts": [
-      "Ava",
-      "Andrew"
+      "Emma",
+      "Brian"
     ]
   },
   "17": {
     "mp3": "ch17-podcast.mp3",
     "json": "ch17-podcast.json",
-    "duration": 416.736,
+    "duration": 621.36,
     "hosts": [
-      "Ava",
-      "Andrew"
+      "Emma",
+      "Brian"
     ]
   },
   "18": {
     "mp3": "ch18-podcast.mp3",
     "json": "ch18-podcast.json",
-    "duration": 837.264,
+    "duration": 653.76,
     "hosts": [
-      "Ava",
-      "Andrew"
+      "Emma",
+      "Brian"
     ]
   }
 }
