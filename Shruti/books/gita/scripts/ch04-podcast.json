@@ -4,159 +4,496 @@
   "n": 4,
   "title": "Path of renunciation with Self-knowledge",
   "hosts": [
-    { "id": "A", "name": "Ava", "voice": "en-US-AvaMultilingualNeural" },
-    { "id": "B", "name": "Andrew", "voice": "en-US-AndrewMultilingualNeural" }
+    {
+      "id": "A",
+      "name": "Emma",
+      "voice": "en-US-EmmaMultilingualNeural"
+    },
+    {
+      "id": "B",
+      "name": "Brian",
+      "voice": "en-US-BrianMultilingualNeural"
+    }
   ],
   "segments": [
     {
       "title": "Welcome",
       "turns": [
-        { "s": "A", "t": "Welcome to Shruti. I'm Ava." },
-        { "s": "B", "t": "And I'm Andrew. Today, Chapter Four of the Bhagavad-Gita: the Path of Renunciation with Self-knowledge." },
-        { "s": "A", "t": "Chapter Three told Arjuna to act, and to act selflessly. Chapter Four adds the missing piece: knowledge. Why does selfless action work? Who is really acting? And this is the chapter where Krishna says, for the first time, who he is." },
-        { "s": "B", "t": "Thirteen lessons today. Story first, in the book's words, then each lesson. And as always, we'll flag anything we bring in from outside this rendition." }
+        {
+          "s": "A",
+          "t": "Welcome to Shruti. I'm Emma."
+        },
+        {
+          "s": "B",
+          "t": "And I'm Brian. Today, Chapter Four of the Bhagavad-Gita: the Path of Renunciation with Self-knowledge."
+        },
+        {
+          "s": "A",
+          "t": "Chapter Three told Arjuna to act, and to act selflessly. Chapter Four adds the missing piece: knowledge. Why does selfless action work? Who is really acting? And this is the chapter where Krishna says, for the first time, who he is."
+        },
+        {
+          "s": "B",
+          "t": "Thirteen lessons today. Story first."
+        }
       ]
     },
     {
       "title": "The story",
       "turns": [
-        { "s": "A", "t": "The chapter opens with a surprising claim. Verses four point one to three: I taught this Karma-yoga, the eternal science of selfless action, to King Vivasvan. Vivasvan taught it to Manu. Manu taught it to Ikshvaku. Thus handed down in succession, the saintly kings knew this.", "L": ["L1"] },
-        { "s": "B", "t": "Some background that isn't in our book. In Indian tradition, Vivasvan is the Sun, Manu is his son and the father of humankind, and Ikshvaku founds the great solar dynasty of kings, the line that later includes Rama. So Krishna is tracing this teaching back to the very beginning of human history.", "L": ["L1"] },
-        { "s": "A", "t": "And then: after a long time the science of Karma-yoga was lost from this earth. Today I have described the same ancient science to you, because you are my sincere devotee and friend.", "L": ["L1"] },
-        { "s": "B", "t": "Arjuna, quite reasonably, objects. Verse four point four: You were born later, but Vivasvan was born in ancient time. How am I to understand that You taught this in the beginning of creation?" },
-        { "s": "A", "t": "And Krishna answers, four point five: Both you and I have taken many births. I remember them all, O Arjuna, but you do not remember." },
-        { "s": "B", "t": "Then the verses that are among the most famous in the whole Gita, four point seven and eight: Whenever there is a decline of Dharma, righteousness, and a predominance of Adharma, unrighteousness, O Arjuna, then I manifest Myself. I appear from time to time for protecting the good, for transforming the wicked, and for establishing world order.", "L": ["L2"] },
-        { "s": "A", "t": "Tradition fills this in with the avatars, the forms God takes across the ages: Rama, Krishna himself, and others. Our book doesn't list them, but that's the idea behind the verse.", "L": ["L2"] },
-        { "s": "B", "t": "And then, four point nine: the one who truly understands My transcendental appearance and activities attains My supreme abode and is not born again. Many, he says, have become free from attachment, fear and anger, and been purified by the fire of Self-knowledge.", "L": ["L3"] },
-        { "s": "A", "t": "Four point eleven: with whatever motive people worship Me, I fulfill their desires accordingly. People worship Me with different motives.", "L": ["L4"] },
-        { "s": "B", "t": "Then a verse that's often misunderstood, four point thirteen. The four divisions, based on aptitude and vocation, of human society were created by Me. Notice the book's words: based on aptitude and vocation. Not birth. And even as their author, Krishna says, I do nothing and I am eternal." },
-        { "s": "A", "t": "Four point fourteen: Work does not bind Me, because I have no desire for the fruits of work. The one who fully understands and practices this truth is also not bound by Karma. The ancients did their duty this way, so you should too.", "L": ["L5"] },
-        { "s": "B", "t": "Now Krishna warns that this gets subtle. Even the wise are confused about what is action and what is inaction. There's attached action, detached action, and forbidden action." },
-        { "s": "A", "t": "And the key verse, four point eighteen: The one who sees inaction in action, and action in inaction, is a wise person. Such a person is a yogi and has accomplished everything.", "L": ["L6"] },
-        { "s": "B", "t": "Our book explains it in a note: the Lord does all the work through His power, using us. He is the inactive actor. We are actively inactive. We are not the doer, just an instrument in His hands.", "L": ["L6"] },
-        { "s": "A", "t": "Then a portrait of the free worker. Four point twenty: the one who has abandoned attachment to the fruits of work, and remains ever content and dependent on no one but God, though engaged in activity, does nothing at all and incurs no Karmic reaction, good or bad.", "L": ["L7"] },
-        { "s": "B", "t": "Content with whatever comes, free from envy, calm in success and failure. And four point twenty-three: all Karmic bonds of such a person, who works as a service to the Lord, dissolve away.", "L": ["L7"] },
-        { "s": "A", "t": "Then a short verse with a big idea, four point twenty-four: God shall be realized by the one who considers everything as a manifestation or an act of God." },
-        { "s": "B", "t": "Next Krishna lists many kinds of spiritual practice. Some worship, some study scripture for Self-knowledge, some restrain their senses, some do breathing practices, some give charity, some fast. All these people, he says, are knowers of sacrifice, and are purified by it.", "L": ["L8"] },
-        { "s": "A", "t": "And four point thirty-one: even this world is not a happy place for the non-sacrificer. How can the other world be?", "L": ["L8"] },
-        { "s": "B", "t": "Then he ranks them. Four point thirty-three: the acquisition and propagation of Self-knowledge are superior to any material gain or gift, because all actions in their entirety culminate in knowledge.", "L": ["L9"] },
-        { "s": "A", "t": "And how do you get it? Four point thirty-four: acquire this spiritual knowledge from a Self-realized guru by humble reverence, by sincere inquiry, and by service. The wise ones who have realized the Truth will teach you.", "L": ["L10"] },
-        { "s": "B", "t": "Then two great images of what knowledge does. Four point thirty-six: even if one is the most sinful of all sinners, one shall yet cross over the ocean of sin by the raft of Self-knowledge. And four point thirty-seven: as the blazing fire reduces wood to ashes, the fire of Self-knowledge reduces all bonds of Karma to ashes.", "L": ["L11"] },
-        { "s": "A", "t": "But it isn't handed to just anyone. Four point thirty-nine: the one who has faith, is sincere in practice, and has control over the senses gains this knowledge, and at once attains supreme peace. And the faithless and the irrational, four point forty, find neither this world nor the next.", "L": ["L12"] },
-        { "s": "B", "t": "And the chapter ends the way a general would end a briefing. Four point forty-two: cut the ignorance-born doubt about the Supreme Being abiding in your mind by the sword of Self-knowledge, resort to Karma-yoga, and get up for the war, O Arjuna.", "L": ["L13"] }
+        {
+          "s": "A",
+          "t": "The chapter opens with a surprising claim. Verses four point one to three: I taught this Karma-yoga, the eternal science of selfless action, to King Vivasvan. Vivasvan taught it to Manu. Manu taught it to Ikshvaku. Thus handed down in succession, the saintly kings knew this.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Some background from outside our book: in Indian tradition, Vivasvan is the Sun, and Manu the father of humankind. So Krishna traces this teaching to the dawn of history.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And then: after a long time the science of Karma-yoga was lost from this earth. Today I have described the same ancient science to you, because you are my sincere devotee and friend.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Arjuna, quite reasonably, objects. Verse four point four: You were born later, but Vivasvan was born in ancient time. How am I to understand that You taught this in the beginning of creation?"
+        },
+        {
+          "s": "A",
+          "t": "And Krishna answers, four point five: Both you and I have taken many births. I remember them all, O Arjuna, but you do not remember."
+        },
+        {
+          "s": "B",
+          "t": "Then the verses that are among the most famous in the whole Gita, four point seven and eight: Whenever there is a decline of Dharma, righteousness, and a predominance of Adharma, unrighteousness, O Arjuna, then I manifest Myself. I appear from time to time for protecting the good, for transforming the wicked, and for establishing world order.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "And then, four point nine: the one who truly understands My transcendental appearance and activities attains My supreme abode and is not born again. Many, he says, have become free from attachment, fear and anger, and been purified by the fire of Self-knowledge.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Four point eleven: with whatever motive people worship Me, I fulfill their desires accordingly. People worship Me with different motives.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Then a verse that's often misunderstood, four point thirteen. The four divisions, based on aptitude and vocation, of human society were created by Me. Notice the book's words: based on aptitude and vocation. Not birth. And even as their author, Krishna says, I do nothing and I am eternal."
+        },
+        {
+          "s": "A",
+          "t": "Four point fourteen: Work does not bind Me, because I have no desire for the fruits of work. The one who fully understands and practices this truth is also not bound by Karma. The ancients did their duty this way, so you should too.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And the key verse, four point eighteen: The one who sees inaction in action, and action in inaction, is a wise person. Such a person is a yogi and has accomplished everything.",
+          "L": [
+            "L6"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Our book explains it in a note: the Lord does all the work through His power, using us. He is the inactive actor. We are actively inactive. We are not the doer, just an instrument in His hands.",
+          "L": [
+            "L6"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Then a portrait of the free worker. Four point twenty: the one who has abandoned attachment to the fruits of work, and remains ever content and dependent on no one but God, though engaged in activity, does nothing at all and incurs no Karmic reaction, good or bad.",
+          "L": [
+            "L7"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Content with whatever comes, free from envy, calm in success and failure. And four point twenty-three: all Karmic bonds of such a person, who works as a service to the Lord, dissolve away.",
+          "L": [
+            "L7"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Then a short verse with a big idea, four point twenty-four: God shall be realized by the one who considers everything as a manifestation or an act of God."
+        },
+        {
+          "s": "B",
+          "t": "Next Krishna lists many kinds of spiritual practice. Some worship, some study scripture for Self-knowledge, some restrain their senses, some do breathing practices, some give charity, some fast. All these people, he says, are knowers of sacrifice, and are purified by it.",
+          "L": [
+            "L8"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And four point thirty-one: even this world is not a happy place for the non-sacrificer. How can the other world be?",
+          "L": [
+            "L8"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Then he ranks them. Four point thirty-three: the acquisition and propagation of Self-knowledge are superior to any material gain or gift, because all actions in their entirety culminate in knowledge.",
+          "L": [
+            "L9"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And how do you get it? Four point thirty-four: acquire this spiritual knowledge from a Self-realized guru by humble reverence, by sincere inquiry, and by service. The wise ones who have realized the Truth will teach you.",
+          "L": [
+            "L10"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Then two great images of what knowledge does. Four point thirty-six: even if one is the most sinful of all sinners, one shall yet cross over the ocean of sin by the raft of Self-knowledge. And four point thirty-seven: as the blazing fire reduces wood to ashes, the fire of Self-knowledge reduces all bonds of Karma to ashes.",
+          "L": [
+            "L11"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "But it isn't handed to just anyone. Four point thirty-nine: the one who has faith, is sincere in practice, and has control over the senses gains this knowledge, and at once attains supreme peace. And the faithless and the irrational, four point forty, find neither this world nor the next.",
+          "L": [
+            "L12"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "And the chapter ends the way a general would end a briefing. Four point forty-two: cut the ignorance-born doubt about the Supreme Being abiding in your mind by the sword of Self-knowledge, resort to Karma-yoga, and get up for the war, O Arjuna.",
+          "L": [
+            "L13"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 1 · An ancient science",
       "turns": [
-        { "s": "A", "t": "Lesson one: Karma-yoga is an ancient, eternal science.", "L": ["L1"] },
-        { "s": "B", "t": "Selfless action isn't a new idea or Krishna's personal opinion. It was taught at the beginning of creation and handed down through saintly rulers. When it gets lost, it's restored.", "L": ["L1"] },
-        { "s": "A", "t": "So it's not a philosophy you take or leave. It's presented as a timeless law built into how existence works, like gravity for the spirit.", "L": ["L1"] }
+        {
+          "s": "A",
+          "t": "Lesson one: Karma-yoga is an ancient, eternal science.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Selfless action isn't a new idea or Krishna's personal opinion. It was taught at the beginning of creation and handed down through saintly rulers. When it gets lost, it's restored.",
+          "L": [
+            "L1"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 2 · God restores righteousness",
       "turns": [
-        { "s": "B", "t": "Lesson two: God incarnates to restore righteousness.", "L": ["L2"] },
-        { "s": "A", "t": "Whenever right order declines and corruption rises, God appears, to protect the good, transform the wicked, and set things right again. It isn't random. It's purposeful and it recurs.", "L": ["L2"] },
-        { "s": "B", "t": "And that gives some perspective on suffering and disorder. The universe has a self-correcting nature. The bad stretch isn't the end of the story.", "L": ["L2"] }
+        {
+          "s": "B",
+          "t": "Lesson two: God incarnates to restore righteousness.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Whenever right order declines and corruption rises, God appears, to protect the good, transform the wicked, and set things right again. It isn't random. It's purposeful and it recurs.",
+          "L": [
+            "L2"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 3 · Understanding liberates",
       "turns": [
-        { "s": "A", "t": "Lesson three: understanding God's nature leads to liberation.", "L": ["L3"] },
-        { "s": "B", "t": "Krishna says the one who truly understands his divine appearance and actions isn't born again. So liberation isn't only about behaving well. It needs real understanding of who and what God is.", "L": ["L3"] },
-        { "s": "A", "t": "And worship that comes from that understanding, rather than from fear or wanting something, is the highest kind.", "L": ["L3"] }
+        {
+          "s": "A",
+          "t": "Lesson three: understanding God's nature leads to liberation.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Krishna says the one who truly understands his divine appearance and actions isn't born again. So liberation isn't only about behaving well. It needs real understanding of who and what God is.",
+          "L": [
+            "L3"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 4 · Met where you are",
       "turns": [
-        { "s": "B", "t": "Lesson four: God fulfills devotees according to their motive.", "L": ["L4"] },
-        { "s": "A", "t": "People come to the Divine for many reasons: success, knowledge, love, freedom. Krishna says all of them are met where they are.", "L": ["L4"] },
-        { "s": "B", "t": "That's inclusive, and it's also a mirror. Your motive shapes what you receive. So it's worth asking honestly what you're really asking for.", "L": ["L4"] }
+        {
+          "s": "B",
+          "t": "Lesson four: God fulfills devotees according to their motive.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "People come to the Divine for many reasons: success, knowledge, love, freedom. Krishna says all of them are met where they are.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "That's inclusive, and it's also a mirror. Your motive shapes what you receive. So it's worth asking honestly what you're really asking for.",
+          "L": [
+            "L4"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 5 · Karma doesn't bind the unattached",
       "turns": [
-        { "s": "A", "t": "Lesson five: Karma does not bind God, or those who understand this.", "L": ["L5"] },
-        { "s": "B", "t": "God acts constantly, running all of creation, and yet isn't touched by Karma, because there's no personal desire for results.", "L": ["L5"] },
-        { "s": "A", "t": "And anyone who lives the same principle, acting without craving the outcome, is freed in the same way. The key isn't what you do. It's whether you're attached to what you get.", "L": ["L5"] }
+        {
+          "s": "A",
+          "t": "Lesson five: Karma does not bind God, or those who understand this.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "God acts constantly, running all of creation, and yet isn't touched by Karma, because there's no personal desire for results.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And anyone who lives the same principle, acting without craving the outcome, is freed in the same way. The key isn't what you do. It's whether you're attached to what you get.",
+          "L": [
+            "L5"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 6 · Inaction in action",
       "turns": [
-        { "s": "B", "t": "Lesson six, one of the deepest in the book: selfless action is inaction; selfish inaction is action.", "L": ["L6"] },
-        { "s": "A", "t": "Truly selfless work, done without ego or desire, creates no Karmic reaction. It's as if nothing was done. That's inaction in action.", "L": ["L6"] },
-        { "s": "B", "t": "And the reverse: sitting idle while your mind churns with desire and ego is still very much action. What binds you is your inner state, not your outer movement.", "L": ["L6"] }
+        {
+          "s": "B",
+          "t": "Lesson six, one of the deepest in the book: selfless action is inaction; selfish inaction is action.",
+          "L": [
+            "L6"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Truly selfless work, done without ego or desire, creates no Karmic reaction. It's as if nothing was done. That's inaction in action.",
+          "L": [
+            "L6"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "And the reverse: sitting idle while your mind churns with desire and ego is still very much action. What binds you is your inner state, not your outer movement.",
+          "L": [
+            "L6"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 7 · No Karmic debt",
       "turns": [
-        { "s": "A", "t": "Lesson seven: a Karma-yogi accumulates no Karmic debt.", "L": ["L7"] },
-        { "s": "B", "t": "Free from attachment, mind and senses in hand, no claim of ownership over the results, working as service: such a person incurs no Karmic reaction, whatever they do.", "L": ["L7"] },
-        { "s": "A", "t": "Content with whatever comes, unshaken by success or failure. They move through life freely, unbound.", "L": ["L7"] }
+        {
+          "s": "A",
+          "t": "Lesson seven: a Karma-yogi accumulates no Karmic debt.",
+          "L": [
+            "L7"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Free from attachment, mind and senses in hand, no claim of ownership over the results, working as service: such a person incurs no Karmic reaction, whatever they do.",
+          "L": [
+            "L7"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 8 · Many valid paths",
       "turns": [
-        { "s": "B", "t": "Lesson eight: many paths of spiritual practice are valid.", "L": ["L8"] },
-        { "s": "A", "t": "Worship, scripture study, sense restraint, breathwork, charity, fasting. Krishna lists them all, and says all of them, done sincerely and selflessly, purify and lead toward the same goal.", "L": ["L8"] },
-        { "s": "B", "t": "No single method is the only way. The variety of paths reflects the variety of people.", "L": ["L8"] }
+        {
+          "s": "B",
+          "t": "Lesson eight: many paths of spiritual practice are valid.",
+          "L": [
+            "L8"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Worship, scripture study, sense restraint, breathwork, charity, fasting. Krishna lists them all, and says all of them, done sincerely and selflessly, purify and lead toward the same goal.",
+          "L": [
+            "L8"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 9 · Knowledge above all",
       "turns": [
-        { "s": "A", "t": "Lesson nine: Self-knowledge is superior to all other spiritual offerings.", "L": ["L9"] },
-        { "s": "B", "t": "Of all the sacrifices, gaining and sharing Self-knowledge is the highest, because every action, at its deepest, ends in knowledge.", "L": ["L9"] },
-        { "s": "A", "t": "Gifts, rituals and disciplines all have their place. But real understanding of the Self and of God goes beyond them in value and in power to change you.", "L": ["L9"] }
+        {
+          "s": "A",
+          "t": "Lesson nine: Self-knowledge is superior to all other spiritual offerings.",
+          "L": [
+            "L9"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Of all the sacrifices, gaining and sharing Self-knowledge is the highest, because every action, at its deepest, ends in knowledge.",
+          "L": [
+            "L9"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 10 · A realized teacher",
       "turns": [
-        { "s": "B", "t": "Lesson ten: seek truth from a Self-realized teacher.", "L": ["L10"] },
-        { "s": "A", "t": "Self-knowledge can't be fully gotten from books. Krishna says to approach someone who has realized it, with humility, sincere questions, and a spirit of service.", "L": ["L10"] },
-        { "s": "B", "t": "Someone who has actually lived the truth, not just studied it, can pass on understanding that changes the student at the deepest level.", "L": ["L10"] }
+        {
+          "s": "B",
+          "t": "Lesson ten: seek truth from a Self-realized teacher.",
+          "L": [
+            "L10"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Self-knowledge can't be fully gotten from books. Krishna says to approach someone who has realized it, with humility, sincere questions, and a spirit of service.",
+          "L": [
+            "L10"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 11 · The fire of knowledge",
       "turns": [
-        { "s": "A", "t": "Lesson eleven: Self-knowledge destroys all sin and Karmic bondage.", "L": ["L11"] },
-        { "s": "B", "t": "Like fire turning wood to ash, the fire of Self-knowledge burns away all accumulated Karma, however great. Even the most fallen person can cross the ocean of wrongdoing on the raft of knowledge.", "L": ["L11"] },
-        { "s": "A", "t": "That's not a license to be reckless. It's an assurance. Real understanding is the most powerful purifier there is. No one is beyond it.", "L": ["L11"] }
+        {
+          "s": "A",
+          "t": "Lesson eleven: Self-knowledge destroys all sin and Karmic bondage.",
+          "L": [
+            "L11"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Like fire turning wood to ash, the fire of Self-knowledge burns away all accumulated Karma, however great. Even the most fallen person can cross the ocean of wrongdoing on the raft of knowledge.",
+          "L": [
+            "L11"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 12 · Faith and sincerity",
       "turns": [
-        { "s": "B", "t": "Lesson twelve: faith and sincerity are prerequisites for receiving knowledge.", "L": ["L12"] },
-        { "s": "A", "t": "Self-knowledge reveals itself naturally to people who have faith, practice sincerely, and keep their senses in check. Without those, it can't take root.", "L": ["L12"] },
-        { "s": "B", "t": "Receptivity isn't passive. It has to be cultivated, the way you prepare soil before you plant.", "L": ["L12"] }
+        {
+          "s": "B",
+          "t": "Lesson twelve: faith and sincerity are prerequisites for receiving knowledge.",
+          "L": [
+            "L12"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Self-knowledge reveals itself naturally to people who have faith, practice sincerely, and keep their senses in check. Without those, it can't take root.",
+          "L": [
+            "L12"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 13 · Cut doubt, then act",
       "turns": [
-        { "s": "A", "t": "And lesson thirteen: cut doubt with the sword of Self-knowledge, then act.", "L": ["L13"] },
-        { "s": "B", "t": "Krishna's closing command. Destroy the doubt in your heart with knowledge, take up Karma-yoga, and rise.", "L": ["L13"] },
-        { "s": "A", "t": "Doubt, not difficulty, is the real obstacle. Once you understand the eternal Self and the freedom of selfless action, there's no reason left to hesitate.", "L": ["L13"] }
+        {
+          "s": "A",
+          "t": "And lesson thirteen: cut doubt with the sword of Self-knowledge, then act.",
+          "L": [
+            "L13"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Krishna's closing command. Destroy the doubt in your heart with knowledge, take up Karma-yoga, and rise.",
+          "L": [
+            "L13"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Doubt, not difficulty, is the real obstacle. Once you understand the eternal Self and the freedom of selfless action, there's no reason left to hesitate.",
+          "L": [
+            "L13"
+          ]
+        }
       ]
     },
     {
       "title": "Wrap-up",
       "turns": [
-        { "s": "B", "t": "So, Chapter Four. Krishna reveals that this teaching is as old as creation, that he himself appears in every age when right order falls, and that knowledge is what makes action free.", "L": ["L1", "L2", "L9"] },
-        { "s": "A", "t": "Thirteen lessons: an ancient science, God restores righteousness, understanding liberates, you're met where you are, Karma doesn't bind the unattached, inaction in action, no Karmic debt, many valid paths, knowledge above all, seek a realized teacher, the fire of knowledge, faith and sincerity, and cut doubt, then act.", "L": ["L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "L9", "L10", "L11", "L12", "L13"] },
-        { "s": "B", "t": "Right action alone isn't enough. It has to rest on true understanding of the Self, of God, and of Karma. Knowledge and action together are the complete path." },
-        { "s": "A", "t": "Thanks for listening to Shruti." }
+        {
+          "s": "B",
+          "t": "So, Chapter Four. Krishna reveals that this teaching is as old as creation, that he himself appears in every age when right order falls, and that knowledge is what makes action free.",
+          "L": [
+            "L1",
+            "L2",
+            "L9"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Thirteen lessons, one thread: knowledge and action together are the complete path.",
+          "L": [
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5",
+            "L6",
+            "L7",
+            "L8",
+            "L9",
+            "L10",
+            "L11",
+            "L12",
+            "L13"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Thanks for listening to Shruti."
+        }
       ]
     }
   ]
