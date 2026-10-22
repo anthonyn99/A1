@@ -74,10 +74,22 @@
  * is allowed to know about another origin's tabs.
  *
  * Include it on every A1 page. A page opened directly — bookmark, typed URL,
- * the very first tab — has no key and this file does nothing at all, UNLESS
- * the page names itself before loading this file (magi.html does: there is
- * only ever meant to be one console, however it was opened). A page may also
- * define window.a1TabBusy() so a claim answer can say "do not retire me".
+ * the very first tab — names itself after its program (OWN below, the same
+ * keys LifeHub's tiles and TaskHub's buttons use), so a tab Tony opened by
+ * hand still answers when a launcher looks for it. A page not in OWN has no
+ * key and this file does nothing at all, UNLESS the page names itself before
+ * loading this file (magi.html does). A page may also define
+ * window.a1TabBusy() so a claim answer can say "do not retire me".
+ *
+ * THE OTHER ORIGIN
+ * A1 is split over two origins (anthonyn99.github.io and a1-priv.av1.workers.dev),
+ * and the heartbeat and channel above are per-origin: a launcher on one cannot
+ * see a RiftIQ tab on the other. Brave also wipes window.name on a cross-site
+ * navigation, so even the name pairing is lost on the way over. Launchers
+ * therefore hand a cross-origin destination its key as ?a1tab=<key>, and the
+ * tab that arrives that way runs the handshake ITSELF, on its own origin, where
+ * the existing tab can hear it (see `dedupe`): if that tab comes forward this
+ * one closes; if it cannot, it is retired and this one stays. One tab either way.
  */
 (function () {
   'use strict';
@@ -130,6 +142,25 @@
       if (key) window.name = PREFIX + key;
     }
   } catch (e) {}
+  // Opened by hand: take the program's own key. Only a top-level tab with no
+  // name at all — a popup named for something else (vault.html's OAuth window)
+  // keeps its name. Keys match LifeHub's DEFAULT_APPS `tab` and index.html's
+  // _tnOpenTab calls; shield.html is left out (its key is per profile).
+  var OWN = {
+    'oneinbox.html': 'oneinbox', 'tradehub.html': 'tradehub', 'mylist.html': 'mylist',
+    'insight.html': 'insight', 'vault.html': 'vault', 'everwell.html': 'everwell',
+    'riftiq.html': 'warroom', 'magi.html': 'magi', 'shruti.html': 'shruti'
+  };
+  if (!key) {
+    try {
+      var own = OWN[location.pathname.split('/').pop().toLowerCase()];
+      if (own && window.top === window && !window.name) {
+        key = own;
+        window.name = PREFIX + key;
+        sessionStorage.setItem('a1TabKey', key);
+      }
+    } catch (e) {}
+  }
   if (!key) return;
 
   var LS = LS_PREFIX + key;
@@ -182,9 +213,34 @@
     catch (e) { return false; }
   }
 
+  // Arrived by ?a1tab=: a launcher sent us here, possibly from the other origin,
+  // where it could not see a tab that already holds this key. Ask here. Same
+  // rules as the opener's handOver (index.html): the old tab came forward, or
+  // must not be retired (busy / not closable) → this tab goes; otherwise the
+  // old one retires and this one stays. No answer → nobody else, carry on.
+  // Closing ourselves is allowed: a launcher opened us, at one history entry.
+  var askRid = null;
+  function dedupe() {
+    askRid = Math.random().toString(36).slice(2);
+    setTimeout(function () { askRid = null; }, 400);
+    try { bc.postMessage({ t: 'claim', k: key, rid: askRid }); } catch (e) { askRid = null; }
+  }
+  function answered(d) {
+    askRid = null;
+    if (d.ok || d.busy || d.closable === false) {
+      retired = true;
+      clearInterval(hb);
+      release();
+      try { window.close(); } catch (e) {}
+    } else {
+      try { bc.postMessage({ t: 'retire', k: key, except: ID }); } catch (e) {}
+    }
+  }
+
   bc.onmessage = function (ev) {
     var d = ev && ev.data;
     if (!d || d.k !== key || retired) return;
+    if (d.t === 'claimed') { if (askRid && d.rid === askRid && d.id !== ID) answered(d); return; }
     // `except` lets a tab retire every OTHER claimant without retiring itself.
     if (d.t === 'retire') { if (!(d.except && d.except === ID)) retire(); return; }
     if (d.t === 'deliver') {
