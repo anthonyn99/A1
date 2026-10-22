@@ -228,7 +228,7 @@ export async function run(o, on = {}, { signal, chat = O.chat, speak = O.speak, 
   };
   if (!key) throw Object.assign(new Error('Making needs your Orca key (Settings).'), { code: 'key' });
   const L = (o.lessons && o.lessons.lessons) || [], lessonIds = kind === 'lessons' ? [] : L.map((l) => l.id);
-  const drive = saveDrive != null ? saveDrive : await M.driveReady();
+  const drive = saveDrive != null ? saveDrive : await M.driveReady(book);
   try {
     if (kind === 'read') {
       if (!drive) throw Object.assign(new Error('Google Drive is not connected yet (Settings → Google Drive). A read-aloud is kept there.'), { code: 'drive', title: 'Google Drive is not connected', text: 'A made read-aloud is kept on Drive, so it plays on every device. Connect Drive in Settings first.', action: 'settings' });

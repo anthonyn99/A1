@@ -353,7 +353,7 @@ export function open({ go } = {}) {
     st.step = 'saving'; st.saving = 'Saving the text…'; paint();
     try {
       // The original goes to Drive first when Drive is there (never required).
-      if (st.file && keyOf() && await M.driveReady().catch(() => false)) {
+      if (st.file && keyOf() && await M.driveReady(id).catch(() => false)) {
         st.saving = 'Keeping the original in Drive…'; paint();
         try { const f = await M.upload({ book: id, chapter: 'source', body: st.file.blob, type: st.file.blob.type || 'application/octet-stream', name: st.file.name }); book.src.drive = { id: f.id, size: f.size }; } catch (e) { console.warn('Shruti import: original not kept in Drive', e); }
       }

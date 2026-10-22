@@ -475,6 +475,8 @@ export async function openSheet(ctx) {
         if (row.dataset.v === p().voice) return;
         setPref('voice', row.dataset.v);
         drawVoices();
+        // "Save this chapter in …" names the voice now ticked (it said the old one).
+        if (ctx) drawSave(dim.querySelector('#ra-save'), ctx, esc);
         // A new voice for what is playing: start this segment again in it.
         if (N.mode) { const at = { b: segList()[N.i].b, word: 0 }, playing = N.playing, cur = { book: N.book, n: N.n, ch: N.ch, title: N.title }; reset(); if (playing) start(Object.assign(cur, { from: at })); else { N.book = null; ui.player && ui.player.hide(); } }
       };
@@ -510,8 +512,9 @@ async function drawSave(box, ctx, esc) {
   const want = prefs().voice;
   const lines = ready.map((r) => '<li>' + esc(voiceName(r.voice)) + ' · ' + (r.where === 'shipped' ? 'comes with Shruti' : 'saved to Drive') + (r.duration ? ' · ' + T.fmtTime(r.duration) : '') + '</li>').join('');
   const has = ready.some((r) => r.voice === want);
-  const drive = has || await M.driveReady();
-  if (!box.isConnected) return;
+  const drive = has || await M.driveReady(ctx.book);
+  // A newer draw (the voice changed meanwhile) wins.
+  if (!box.isConnected || want !== prefs().voice) return;
   box.innerHTML = '<h3>Ready-made narration</h3><p class="hint">Saved once, it plays on every device and both profiles with no Orca calls, and can be listened to with the screen off.</p>' +
     (lines ? '<ul class="ra-list">' + lines + '</ul>' : '<p class="hint">None for this chapter yet.</p>') +
     // It is kept on Drive: without Drive, say so (and where to fix it) instead of failing at the end.
@@ -532,7 +535,7 @@ async function drawSave(box, ctx, esc) {
 /** Exported for the live test. Resolves the shared-doc record. */
 export async function saveNarration(ctx, voice, onStep, onUpload, extra = {}) {
   const key = keyOf(), segs = T.segmentsFor(ctx.ch);
-  if (!await M.driveReady()) throw new Error('Google Drive is not connected yet (Settings → Google Drive).');
+  if (!await M.driveReady(ctx.book)) throw new Error('Google Drive is not connected yet (Settings → Google Drive).');
   const parts = [], out = [];
   let t = 0, done = 0, engine = 'edge';
   const one = async (i) => {
