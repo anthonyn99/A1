@@ -1000,7 +1000,9 @@ body.sd-presenting { overflow: hidden; }
   .sh-set { flex: 0 0 auto; width: min(290px, 82vw); scroll-snap-align: start; }
   .sh-make { flex: 0 0 auto; width: auto; align-self: center; }
   .sh-main { scroll-margin-top: calc(var(--top-h) + 8px); }
-  .fc-stage .fc-card { height: clamp(280px, 52vh, 420px); }
+  .fc-stage .fc-card { height: clamp(230px, 42vh, 360px); }
+  /* The sets above already name the kind: no second heading on a phone. */
+  .sh-head { display: none; }
   .fc-face { padding: 16px 18px; }
   .fc-ctl .btn:not(.round) { flex: 1; }
   .qz-card, .qz-results { padding: 16px; }
