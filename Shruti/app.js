@@ -95,8 +95,8 @@ const pickerBackdrop = (() => {
   const LILAC = '192,174,234', MAUVE = '183,159,196', VIOLET = '150,128,214';
   const RING_EVERY = 2600, RING_LIFE = 10400;          // a new ring every 2.6 s; each lives 10.4 s (4 at once)
   const WAVES = [                                        // [colour, height (share of H), amplitude, wavelength, speed, alpha]
-    [LILAC, .74, 26, 520, .00018, .16], [MAUVE, .78, 34, 760, -.00012, .12],
-    [VIOLET, .82, 20, 380, .00025, .10], [LILAC, .87, 30, 640, -.00009, .08], [MAUVE, .92, 16, 300, .0003, .07],
+    [LILAC, .74, 26, 520, .00018, .26], [MAUVE, .78, 34, 760, -.00012, .2],
+    [VIOLET, .82, 20, 380, .00025, .17], [LILAC, .87, 30, 640, -.00009, .13], [MAUVE, .92, 16, 300, .0003, .11],
   ];
   let cv, ctx, W = 0, H = 0, cx = 0, cy = 0, raf = 0, on = false, last = 0, t0 = 0;
   const still = matchMedia('(prefers-reduced-motion: reduce)');
