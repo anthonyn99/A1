@@ -159,7 +159,7 @@ const LABELS = 'PART|SEGMENT|SCENE|LAYOUT|HEADLINE|VISUAL|ART|VERSE|REF|LESSON|B
 export function clean(raw) {
   return String(raw || '').replace(/\r/g, '')
     .replace(/```[a-z]*\n?/gi, '')
-    .replace(/(\*\*|__)\s*([A-Za-z][A-Za-z ]{0,16}?\s*\d{0,3})\s*(:?)\s*\1\s*(:?)/g, (m, _w, label, c1, c2) => (/^(PART|SEGMENT|SCENE|LAYOUT|HEADLINE|VISUAL|ART|VERSE|REF|LESSON|BEYOND|NARRATION|SAY|TITLE|BODY|SUMMARY|AFTER|HOST|[AB])\b/i.test(label.trim()) ? label + (c1 || c2) : label))
+    .replace(/(\*\*|__)\s*([A-Za-z][A-Za-z ]{0,16}?\s*\d{0,3})\s*(:?)\s*\1\s*(:?)/g, (m, _w, label, c1, c2) => label.trim() + (c1 || c2))
     .replace(/\*\*|__/g, '')
     .replace(/^[ \t]*#{1,6}[ \t]*/gm, '')
     .replace(/[ \t]*\[(?:\d{1,3}(?:\s*[,–-]\s*\d{1,3})*)\]/g, '')   // Perplexity's citations: [1], [2, 3]
@@ -168,11 +168,11 @@ export function clean(raw) {
 /** Whether a reply reached its END (or, without one, its natural last part). */
 export function finished(kind, raw) {
   const t = clean(raw).trim();
-  if (/(?:^|\n)\s*END\s*\.?\s*$/i.test(t)) return true;
-  if (kind === 'lessons') return /(?:^|\n)\s*SUMMARY\s*[:：]\s*\S[\s\S]*[.!?]["'’”)]*\s*$/i.test(t);
+  if (/(?:^|\n)\s*END\s*\.?\s*$/i.test(t) || /(?<![A-Za-z])END\s*\.?$/.test(t)) return true;
+  if (kind === 'lessons') return /(?:(?:^|\n)\s*summary|SUMMARY)\s*[:：]\s*\S[\s\S]*[.!?]["'’”)]*\s*$/i.test(t);
   return false;
 }
-const toWordsEnd = (t) => String(t || '').replace(/(?:^|\n)\s*END\s*\.?\s*$/i, '').trim();
+const toWordsEnd = (t) => String(t || '').replace(/(?:^|\n)\s*END\s*\.?\s*$/i, '').replace(/(?<![A-Za-z])END\s*\.?$/, '').trim();
 const str = (x, max) => { const s = String(x == null ? '' : x).replace(/\s+/g, ' ').trim(); return max && s.length > max ? s.slice(0, max - 1).replace(/\s+\S*$/, '') + '…' : s; };
 const escRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 /** "SCENE 3", "LESSON 2": in capitals anywhere (even glued on, as when a
