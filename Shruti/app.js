@@ -285,7 +285,7 @@ function drawOrca(state) {
   const chk = box.querySelector('#orca-check'); if (chk) chk.addEventListener('click', () => refreshModels(true));
   const del = box.querySelector('#orca-del'); if (del) del.addEventListener('click', async () => {
     if (!(await window.uiConfirm('Remove your Orca key from Shruti on every device?', { okLabel: 'Remove' }))) return;
-    O.forget(); C.me.set({ orcaKey: C.DELETE }, { now: true }); drawOrca(); drawUnits(); drawDrive();
+    O.forget(); C.me.set({ orcaKey: C.DELETE }, { now: true }); C.ls.del(C.lsKey('orcaKey')); drawOrca(); drawUnits(); drawDrive();
   });
 }
 async function saveKey(v) {
@@ -294,7 +294,7 @@ async function saveKey(v) {
   drawOrca({ kind: 'busy', text: 'Checking with Orca…' });
   const r = await O.models(v, { fresh: true });
   if (!r.ok) { drawOrca({ kind: 'bad', text: keyProblem(r) }); return; }
-  C.me.set({ orcaKey: v }, { now: true });
+  C.me.set({ orcaKey: v }, { now: true }); C.ls.set(C.lsKey('orcaKey'), v);
   toast('Orca key saved for ' + PROFILES[P].label);
   drawOrca(); drawUnits(); drawDrive();
 }

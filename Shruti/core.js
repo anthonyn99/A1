@@ -195,8 +195,8 @@ export const shared = new Doc('dashboards/shruti_shared', 'shared');
  *  AI and read-aloud work while sync is still starting or cannot reach Firestore
  *  (before, Settings then said "No key yet"). Once the doc has loaded, the doc wins. */
 export function orcaKey() {
-  if (!me.loaded) return ls.get(lsKey('orcaKey'), '') || '';
   const k = String(me.get('orcaKey', '') || '');
+  if (!me.loaded) return k || ls.get(lsKey('orcaKey'), '') || '';
   if (k !== (ls.get(lsKey('orcaKey'), '') || '')) { if (k) ls.set(lsKey('orcaKey'), k); else ls.del(lsKey('orcaKey')); }
   return k;
 }
