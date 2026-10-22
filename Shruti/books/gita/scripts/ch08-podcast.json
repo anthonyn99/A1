@@ -4,99 +4,417 @@
   "n": 8,
   "title": "The eternal being, God",
   "hosts": [
-    { "id": "A", "name": "Ava", "voice": "en-US-AvaMultilingualNeural" },
-    { "id": "B", "name": "Andrew", "voice": "en-US-AndrewMultilingualNeural" }
+    {
+      "id": "A",
+      "name": "Emma",
+      "voice": "en-US-EmmaMultilingualNeural"
+    },
+    {
+      "id": "B",
+      "name": "Brian",
+      "voice": "en-US-BrianMultilingualNeural"
+    }
   ],
   "segments": [
     {
       "title": "Welcome",
       "turns": [
-        { "s": "A", "t": "Welcome to Shruti. I'm Ava." },
-        { "s": "B", "t": "And I'm Andrew. Today, Chapter Eight: the Eternal Being, God." },
-        { "s": "A", "t": "This is the Gita's chapter about death, and about time on a scale that's hard to imagine. But its main message is very simple, and very practical, for how we live today." },
-        { "s": "B", "t": "Six lessons. Story first." }
+        {
+          "s": "A",
+          "t": "Welcome to Shruti. I'm Emma."
+        },
+        {
+          "s": "B",
+          "t": "And I'm Brian. Today, Chapter Eight: the Eternal Being, God."
+        },
+        {
+          "s": "A",
+          "t": "This is the Gita's chapter about death, and about time on a scale that's hard to imagine. But its main message is very simple, and very practical, for how we live today."
+        },
+        {
+          "s": "B",
+          "t": "Which is the surprise of this chapter, I think. You expect a chapter about death to be gloomy. It actually ends up being about how to spend an ordinary Tuesday."
+        },
+        {
+          "s": "B",
+          "t": "Six lessons today, and one of the most practical instructions in the whole Gita. Story first."
+        }
       ]
     },
     {
       "title": "The story",
       "turns": [
-        { "s": "A", "t": "Chapter Seven ended with a hint that those who know God as everything reach God even at death. Arjuna picks that up with a burst of questions. Verses eight point one and two: who is the Eternal Being? What is its nature? What is Karma? Who are the mortal beings, and the divine beings? Who is the Supersoul, and how does He dwell in the body? And how can You be remembered at the time of death?" },
-        { "s": "B", "t": "Krishna answers each in a sentence. Eight point three: the immutable Spirit is called Eternal Being, or God. God's nature, including the power of knowing and willing, is called Adhyatma. And the creative power that brings living beings into being is called Karma." },
-        { "s": "A", "t": "Eight point four: mortal beings are called Adhibhuta. And: I am the Supersoul, residing inside every cell of living beings as the supreme controller." },
-        { "s": "B", "t": "Then the last question, about death. Eight point five: the one who remembers Me exclusively, even while leaving the body at the time of death, attains Me. There is no doubt about it.", "L": ["L1"] },
-        { "s": "A", "t": "And the general law behind it, eight point six: remembering whatever object one leaves the body at the end of life, one attains that object, because of constant thought of that object.", "L": ["L1"] },
-        { "s": "B", "t": "There's a well-known story from outside the Gita that's often told with this verse. King Bharata, a great sage-king, spent his last days so attached to a young deer he had rescued that he died thinking of it, and was reborn as a deer. The point isn't the deer. It's that what fills your mind in life is what fills it at the end.", "L": ["L1"] },
-        { "s": "A", "t": "So the instruction, eight point seven, is beautifully simple: therefore, always remember Me and do your duty. You shall certainly attain Me if your mind and intellect are ever focused on Me.", "L": ["L2"] },
-        { "s": "B", "t": "Not: retire and think of God. Remember God and do your duty. Both at once.", "L": ["L2"] },
-        { "s": "A", "t": "Then Krishna describes the yogi's way of leaving the body. Eight point nine and ten: meditating on the Supreme as the all-knowing, the oldest, smaller than the smallest and bigger than the biggest, self-luminous like the sun, with the life force raised by yoga to the point between the eyebrows." },
-        { "s": "B", "t": "And eight point twelve and thirteen: controlling the senses, focusing the mind on God, and uttering Om, the sacred sound of the Eternal Being, one attains the supreme abode.", "L": ["L6"] },
-        { "s": "A", "t": "But then, the most encouraging verse of the chapter, eight point fourteen: I am easily attainable, O Arjuna, by that ever steadfast yogi who always thinks of Me.", "L": ["L2"] },
-        { "s": "B", "t": "Eight point fifteen and sixteen: after attaining Me, great souls do not incur rebirth in this miserable, transitory world. Even the dwellers of all the worlds, up to the world of Brahma the creator, are subject to repeated birth and death. But after attaining Me, one does not take birth again.", "L": ["L3"] },
-        { "s": "A", "t": "So even heaven is temporary. That's a striking claim.", "L": ["L3"] },
-        { "s": "B", "t": "Then the scale of time. Eight point seventeen: the day of the creator, Brahma, lasts one thousand Yugas, which the book gives as four point three two billion solar years, and his night lasts as long.", "L": ["L4"] },
-        { "s": "A", "t": "Eight point eighteen and nineteen: at the arrival of Brahma's day, all manifestations come out of primal nature, and at the coming of his night, they merge back into it. The same multitude of beings comes into existence again and again.", "L": ["L4"] },
-        { "s": "B", "t": "As an aside, four point three two billion years is in the same range as the age of the Earth, which is often remarked on. The Gita isn't doing geology, but it's thinking in deep time.", "L": ["L4"] },
-        { "s": "A", "t": "And beyond all that cycling, eight point twenty: there is another eternal existence, higher than changeable nature, that does not perish when all created beings perish. That is the supreme abode. And eight point twenty-two: it is attainable by unswerving devotion.", "L": ["L3", "L4"] },
-        { "s": "B", "t": "Then two paths for the departing soul. Eight point twenty-four: passing through the powers of fire, light, daytime, the bright fortnight and the northern course of the sun, yogis who know the Self reach the supreme abode and do not come back.", "L": ["L5"] },
-        { "s": "A", "t": "Eight point twenty-five: passing through smoke, night, the dark fortnight and the southern course of the sun, the righteous person attains heaven and comes back to earth again.", "L": ["L5"] },
-        { "s": "B", "t": "And our book gives the key to reading those images, eight point twenty-six: the path of light of Self-knowledge and the path of darkness of ignorance are the world's two eternal paths. The first leads to liberation, the second to rebirth.", "L": ["L5"] },
-        { "s": "A", "t": "And the closing, eight point twenty-seven and twenty-eight: knowing these two paths, a yogi is not bewildered. So be steadfast in union with Me at all times. Such a yogi goes beyond the merit of Vedic study, sacrifices, austerities and charity, and attains My supreme abode.", "L": ["L5", "L6"] }
+        {
+          "s": "A",
+          "t": "Chapter Seven ended with a hint that those who know God as everything reach God even at death. Arjuna picks that up with a burst of questions. Verses eight point one and two: who is the Eternal Being? What is its nature? What is Karma? Who are the mortal beings, and the divine beings? Who is the Supersoul, and how does He dwell in the body? And how can You be remembered at the time of death?"
+        },
+        {
+          "s": "B",
+          "t": "Krishna answers each in a sentence. Eight point three: the immutable Spirit is called Eternal Being, or God. God's nature, including the power of knowing and willing, is called Adhyatma. And the creative power that brings living beings into being is called Karma."
+        },
+        {
+          "s": "A",
+          "t": "Eight point four: mortal beings are called Adhibhuta. And: I am the Supersoul, residing inside every cell of living beings as the supreme controller."
+        },
+        {
+          "s": "B",
+          "t": "Inside every cell. That's an intimate picture. God isn't only up above, watching. God is closer than our own breath, steering from within."
+        },
+        {
+          "s": "B",
+          "t": "Then the last question, about death. Eight point five: the one who remembers Me exclusively, even while leaving the body at the time of death, attains Me. There is no doubt about it.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And the general law behind it, eight point six: remembering whatever object one leaves the body at the end of life, one attains that object, because of constant thought of that object.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "It's a sobering verse. But it's also very fair. Nothing magical happens at the end. The mind simply goes where it has been trained to go."
+        },
+        {
+          "s": "B",
+          "t": "There's a well-known story from outside the Gita that's often told with this verse. King Bharata, a great sage-king, spent his last days so attached to a young deer he had rescued that he died thinking of it, and was reborn as a deer. The point isn't the deer. It's that what fills your mind in life is what fills it at the end.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "So the instruction, eight point seven, is beautifully simple: therefore, always remember Me and do your duty. You shall certainly attain Me if your mind and intellect are ever focused on Me.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Not: retire and think of God. Remember God and do your duty. Both at once.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And that's the line Arjuna needed most. He's standing on a battlefield. He can't run off to a cave. Krishna says, you don't have to. Remember Me, and fight."
+        },
+        {
+          "s": "A",
+          "t": "Then Krishna describes the yogi's way of leaving the body. Eight point nine and ten: meditating on the Supreme as the all-knowing, the oldest, smaller than the smallest and bigger than the biggest, self-luminous like the sun, with the life force raised by yoga to the point between the eyebrows."
+        },
+        {
+          "s": "B",
+          "t": "And eight point twelve and thirteen: controlling the senses, focusing the mind on God, and uttering Om, the sacred sound of the Eternal Being, one attains the supreme abode.",
+          "L": [
+            "L6"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Smaller than the smallest and bigger than the biggest. I love that the Gita keeps using pairs like that. Any single picture would be too small."
+        },
+        {
+          "s": "A",
+          "t": "But then, the most encouraging verse of the chapter, eight point fourteen: I am easily attainable, O Arjuna, by that ever steadfast yogi who always thinks of Me.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Easily attainable. After all the talk of yogic breath and the point between the eyebrows, that's such a relief. The door isn't a technique. It's steady remembrance."
+        },
+        {
+          "s": "B",
+          "t": "Eight point fifteen and sixteen: after attaining Me, great souls do not incur rebirth in this miserable, transitory world. Even the dwellers of all the worlds, up to the world of Brahma the creator, are subject to repeated birth and death. But after attaining Me, one does not take birth again.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "So even heaven is temporary. That's a striking claim.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Then the scale of time. Eight point seventeen: the day of the creator, Brahma, lasts one thousand Yugas, which the book gives as four point three two billion solar years, and his night lasts as long.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Eight point eighteen and nineteen: at the arrival of Brahma's day, all manifestations come out of primal nature, and at the coming of his night, they merge back into it. The same multitude of beings comes into existence again and again.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Again and again. There's something calming in that rhythm, almost like breathing. The universe breathes out, and breathes back in."
+        },
+        {
+          "s": "B",
+          "t": "As an aside, four point three two billion years is in the same range as the age of the Earth, which is often remarked on. The Gita isn't doing geology, but it's thinking in deep time.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And beyond all that cycling, eight point twenty: there is another eternal existence, higher than changeable nature, that does not perish when all created beings perish. That is the supreme abode. And eight point twenty-two: it is attainable by unswerving devotion.",
+          "L": [
+            "L3",
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Then two paths for the departing soul. Eight point twenty-four: passing through the powers of fire, light, daytime, the bright fortnight and the northern course of the sun, yogis who know the Self reach the supreme abode and do not come back.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Eight point twenty-five: passing through smoke, night, the dark fortnight and the southern course of the sun, the righteous person attains heaven and comes back to earth again.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "And our book gives the key to reading those images, eight point twenty-six: the path of light of Self-knowledge and the path of darkness of ignorance are the world's two eternal paths. The first leads to liberation, the second to rebirth.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "So the fire and smoke and the course of the sun aren't a travel itinerary. They're pictures of two inner states: a mind that's lit, and a mind that's clouded."
+        },
+        {
+          "s": "A",
+          "t": "And the closing, eight point twenty-seven and twenty-eight: knowing these two paths, a yogi is not bewildered. So be steadfast in union with Me at all times. Such a yogi goes beyond the merit of Vedic study, sacrifices, austerities and charity, and attains My supreme abode.",
+          "L": [
+            "L5",
+            "L6"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 1 · The last thought",
       "turns": [
-        { "s": "B", "t": "Lesson one: whatever one thinks of at death, one attains.", "L": ["L1"] },
-        { "s": "A", "t": "The state of mind at the moment of death shapes what comes next. Whoever remembers God then, attains God.", "L": ["L1"] },
-        { "s": "B", "t": "But you can't cram for that exam. Whatever dominates your mind through life will dominate the last moment. So the real lesson is: train the mind now.", "L": ["L1"] }
+        {
+          "s": "B",
+          "t": "Lesson one: whatever one thinks of at death, one attains.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "The state of mind at the moment of death shapes what comes next. Whoever remembers God then, attains God.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "But you can't cram for that exam. Whatever dominates your mind through life will dominate the last moment. So the real lesson is: train the mind now.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "A note from us, not from the book. A simple way to start: pick a few small anchors in your day. Waking up, before a meal, going to sleep. At each one, remember God for one breath. Over the years, those breaths add up."
+        },
+        {
+          "s": "B",
+          "t": "And by the time the last moment comes, the remembering has become a habit, not a struggle."
+        }
       ]
     },
     {
       "title": "Lesson 2 · Remember and work",
       "turns": [
-        { "s": "A", "t": "Lesson two: always remember God while doing your duty.", "L": ["L2"] },
-        { "s": "B", "t": "This is the simple, reliable method: keep mind and intellect resting on God all the time, while doing everything else you have to do.", "L": ["L2"] },
-        { "s": "A", "t": "Constant remembrance, not ritual alone, is what leads to union. And Krishna says, for someone who does that, he is easily attainable.", "L": ["L2"] }
+        {
+          "s": "A",
+          "t": "Lesson two: always remember God while doing your duty.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "This is the simple, reliable method: keep mind and intellect resting on God all the time, while doing everything else you have to do.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Constant remembrance, not ritual alone, is what leads to union. And Krishna says, for someone who does that, he is easily attainable.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "In practice, it might be a name repeated quietly while you work, or simply doing each task as if you were offering it. The work stays the same. Where the mind rests changes."
+        }
       ]
     },
     {
       "title": "Lesson 3 · Beyond rebirth",
       "turns": [
-        { "s": "B", "t": "Lesson three: attaining God ends the cycle of rebirth.", "L": ["L3"] },
-        { "s": "A", "t": "Those who reach God's supreme abode aren't reborn into this world of suffering and change. Every other world, even the heavenly ones, still turns on the wheel.", "L": ["L3"] },
-        { "s": "B", "t": "Only union with the Supreme gives a freedom that doesn't run out.", "L": ["L3"] }
+        {
+          "s": "B",
+          "t": "Lesson three: attaining God ends the cycle of rebirth.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Those who reach God's supreme abode aren't reborn into this world of suffering and change. Every other world, even the heavenly ones, still turns on the wheel.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Only union with the Supreme gives a freedom that doesn't run out.",
+          "L": [
+            "L3"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 4 · Cycles",
       "turns": [
-        { "s": "A", "t": "Lesson four: everything in creation is cyclic.", "L": ["L4"] },
-        { "s": "B", "t": "Universes appear at the dawn of Brahma's day and dissolve at his night, again and again, over billions of years.", "L": ["L4"] },
-        { "s": "A", "t": "Only God's supreme abode is outside that cycle. Which puts our own worries in rather humbling perspective.", "L": ["L4"] }
+        {
+          "s": "A",
+          "t": "Lesson four: everything in creation is cyclic.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Universes appear at the dawn of Brahma's day and dissolve at his night, again and again, over billions of years.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Only God's supreme abode is outside that cycle. Which puts our own worries in rather humbling perspective.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Next time a deadline feels like the end of the world, try holding it against four point three two billion years. It shrinks rather quickly."
+        }
       ]
     },
     {
       "title": "Lesson 5 · Light and darkness",
       "turns": [
-        { "s": "B", "t": "Lesson five: two paths after death, light and darkness.", "L": ["L5"] },
-        { "s": "A", "t": "The path of light, Self-knowledge, leads to liberation and no return. The path of darkness, ignorance, leads to heaven for a while, and then rebirth.", "L": ["L5"] },
-        { "s": "B", "t": "The yogi who knows this isn't confused or anxious about it. They just stay steady in God, every day.", "L": ["L5"] }
+        {
+          "s": "B",
+          "t": "Lesson five: two paths after death, light and darkness.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "The path of light, Self-knowledge, leads to liberation and no return. The path of darkness, ignorance, leads to heaven for a while, and then rebirth.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "The yogi who knows this isn't confused or anxious about it. They just stay steady in God, every day.",
+          "L": [
+            "L5"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 6 · Beyond ritual merit",
       "turns": [
-        { "s": "A", "t": "And lesson six: spiritual practice surpasses all ritual merit.", "L": ["L6"] },
-        { "s": "B", "t": "The yogi fixed on God goes beyond every merit earned from study, sacrifice, austerity and charity.", "L": ["L6"] },
-        { "s": "A", "t": "Inner union outweighs outer religious performance. The outer things are good. The inner one is the point.", "L": ["L6"] }
+        {
+          "s": "A",
+          "t": "And lesson six: spiritual practice surpasses all ritual merit.",
+          "L": [
+            "L6"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "The yogi fixed on God goes beyond every merit earned from study, sacrifice, austerity and charity.",
+          "L": [
+            "L6"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Inner union outweighs outer religious performance. The outer things are good. The inner one is the point.",
+          "L": [
+            "L6"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Which ties back to lesson two. The ritual is good. The remembering inside it is what makes it alive."
+        }
       ]
     },
     {
       "title": "Wrap-up",
       "turns": [
-        { "s": "B", "t": "So, Chapter Eight. What fills your mind in life fills it at the end. So remember God and do your work, every day, and the path of light opens.", "L": ["L1", "L2", "L5"] },
-        { "s": "A", "t": "Six lessons: the last thought, remember and work, beyond rebirth, cycles, light and darkness, and beyond ritual merit.", "L": ["L1", "L2", "L3", "L4", "L5", "L6"] },
-        { "s": "B", "t": "Next time, Chapter Nine, which the Gita itself calls the king of secrets. Thanks for listening to Shruti." }
+        {
+          "s": "B",
+          "t": "So, Chapter Eight. What fills your mind in life fills it at the end. So remember God and do your work, every day, and the path of light opens.",
+          "L": [
+            "L1",
+            "L2",
+            "L5"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Six lessons: the last thought, remember and work, beyond rebirth, cycles, light and darkness, and beyond ritual merit.",
+          "L": [
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5",
+            "L6"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Next time, Chapter Nine, which the Gita itself calls the king of secrets. Thanks for listening to Shruti."
+        }
       ]
     }
   ]
