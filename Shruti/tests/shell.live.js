@@ -116,14 +116,14 @@ async function load(c, { w, h, mobile, store, hash = '' }) {
   await ev(c, `return window.Shruti.core.me.flush()`);
   ok('reading to the end marks chapter 2 read, in his doc', await waitFor(c, `const d=window.__fakeFs.docs['dashboards/shruti']; return !!(d && d.progress && d.progress.gita && d.progress.gita.ch2 && d.progress.gita.ch2.done===true && d.progress.gita.ch2.modes.read===1)`),
     await ev(c, `return JSON.stringify(window.__fakeFs.docs['dashboards/shruti'])`));
-  ok('the header button then offers "Mark as unread"', await ev(c, `return /Mark as unread/.test(document.getElementById('mark-read').textContent)`));
+  ok('the header button then shows it read (pressed)', await ev(c, `const m=document.getElementById('mark-read'); return m.getAttribute('aria-pressed')==='true' && /^Read$/.test(m.textContent.trim())`));
   await ev(c, `document.getElementById('mark-read').click(); return 1`);
   await ev(c, `return window.Shruti.core.me.flush()`);
   ok('marking it unread clears it in his doc (no longer read)', await waitFor(c, `const g=window.__fakeFs.docs['dashboards/shruti'].progress.gita.ch2; return g.done===false && g.f===0 && g.modes.read===0`) &&
-    await ev(c, `return /Mark as read/.test(document.getElementById('mark-read').textContent)`));
+    await ev(c, `const m=document.getElementById('mark-read'); return m.getAttribute('aria-pressed')==='false' && /Mark read/.test(m.textContent)`));
   await ev(c, `document.getElementById('mark-read').click(); return 1`);
   await ev(c, `return window.Shruti.core.me.flush()`);
-  ok('…and "Mark as read" sets it back', await waitFor(c, `window.__fakeFs.docs['dashboards/shruti'].progress.gita.ch2.done===true`));
+  ok('…and "Mark read" sets it back', await waitFor(c, `window.__fakeFs.docs['dashboards/shruti'].progress.gita.ch2.done===true`));
   ok('…and where he is (last)', await ev(c, `const d=window.__fakeFs.docs['dashboards/shruti']; return d.last && d.last.book==='gita' && d.last.n===2`));
 
   await ev(c, `document.querySelector('.modes [data-mode=lessons]').click(); return 1`);
