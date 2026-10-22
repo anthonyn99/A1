@@ -257,7 +257,7 @@ export function studyPrompt(o) {
  *  on: {kind(k, i), delta(t), model(m), done(k, count)}. Resolves {kinds:{k: items}, model}.
  *  A reply nothing can be read from is asked for once more, with its own reply. */
 /** Perplexity's citations ([1], [2, 3]) are not part of a card or a slide. */
-const noCites = (t) => String(t || '').replace(/[ 	]*\[(?:\d{1,3}(?:\s*[,–-]\s*\d{1,3})*)\]/g, '');
+const noCites = (t) => String(t || '').replace(/[ \t]*\[(?:\d{1,3}(?:\s*[,–-]\s*\d{1,3})*)\]/g, '');
 export async function runStudy(o, on = {}, { signal, chat = O.chat, parse } = {}) {
   const key = keyOf();
   if (!key) throw Object.assign(new Error('Making needs your Orca key (Settings).'), { code: 'key' });
