@@ -43,8 +43,8 @@ const listeners = new Set();
 export function onChange(f) { listeners.add(f); return () => listeners.delete(f); }
 const emit = () => listeners.forEach((f) => { try { f(V); } catch (e) {} });
 const keyOf = () => String(C.me.get('orcaKey', '') || '');
-export const prefs = () => Object.assign({ speed: 1, cc: true }, C.me.get('video', {}) || {});
-export function setPref(k, v) { C.me.set({ ['video.' + k]: v }); if (k === 'speed' && audio && !V.rec) audio.playbackRate = v; emit(); paint(); if (V.view) V.view.draw(); }
+export const prefs = () => Object.assign({ speed: 1, cc: true, music: true }, C.me.get('video', {}) || {});
+export function setPref(k, v) { C.me.set({ ['video.' + k]: v }); if (k === 'speed' && audio && !V.rec) audio.playbackRate = v; if (k === 'music') bedSync(V.playing); emit(); paint(); if (V.view) V.view.draw(); }
 export const now = () => (audio ? audio.currentTime || 0 : 0);
 
 /* ── what exists ─────────────────────────────────────────────────────────── */
@@ -538,17 +538,49 @@ export async function play(at) {
   }
   audio.playbackRate = V.rec ? 1 : prefs().speed || 1;
   try { await audio.play(); V.playing = true; } catch (e) { V.playing = false; if (e && e.name !== 'AbortError') ui.toast('Tap play to start the video', true); }
+  bedSync(V.playing);
   showPlayer(); tick(); emit(); mediaSession();
 }
-export function pause() { if (audio) audio.pause(); V.playing = false; savePos(true); emit(); paint(); if (V.view) V.view.draw(); }
+export function pause() { if (audio) audio.pause(); V.playing = false; bedSync(false); savePos(true); emit(); paint(); if (V.view) V.view.draw(); }
 export const toggle = () => (V.playing ? pause() : play());
 export function seek(t) {
   return new Promise((res) => {
     const go = () => { audio.currentTime = Math.max(0, Math.min((V.meta.duration || audio.duration) - 0.05, t)); res(); };
     if (audio.readyState >= 1) go(); else audio.addEventListener('loadedmetadata', go, { once: true });
-  }).then(() => { paintNow(true); });
+  }).then(() => { bedSync(V.playing); paintNow(true); });
 }
 export const skip = (s) => seek(now() + s);
+
+/* ── the music under every video (Tony, 2026-10-22: "soft music in the
+   background, elegant, fitting") ── tools/music.js makes the loops: a
+   tanpura drone with a bansuri line ("dawn") or with a soft pad ("stillness");
+   a chapter's number picks one. It plays at a low level, a little lower
+   while the narrator speaks, and follows play, pause and seeking (the loop
+   position is the video's time). Off with the music button (video.music). */
+const bed = typeof Audio === 'function' ? new Audio() : null;
+if (bed) { bed.loop = true; bed.preload = 'auto'; }
+export const BEDS = ['media/music/stillness.mp3', 'media/music/dawn.mp3'];
+const BED_LEN = 144, BED_UP = 0.2, BED_DOWN = 0.11;
+let bedGain = null, bedVol = BED_DOWN;
+function setBedVol(v) { bedVol = v; if (bedGain) bedGain.gain.value = v; else if (bed) bed.volume = v; }
+function bedSync(playing) {
+  if (!bed) return;
+  if (!V.meta || !prefs().music) { bed.pause(); return; }
+  const want = BEDS[(Number(V.n) || 0) % BEDS.length];
+  if (!bed.src || !bed.src.endsWith(want)) bed.src = want;
+  const at = now() % (bed.duration || BED_LEN);
+  if (Math.abs((bed.currentTime || 0) - at) > 0.6) { try { bed.currentTime = at; } catch (e) {} }
+  if (playing) { setBedVol(bedVol); bed.play().catch(() => {}); } else bed.pause();
+}
+/** Down while the narrator speaks, up in the pauses between scenes. */
+function bedDuck(t) {
+  if (!bed || !V.playing || !prefs().music || !V.meta) return;
+  const sc = V.meta.scenes[sceneAt(V.meta.scenes, t)];
+  const w = sc && sc.words && sc.words.length ? sc.words[sc.words.length - 1] : null;
+  const speaking = sc && t >= sc.at - 0.3 && t <= sc.at + (w ? w[0] + w[1] : 0) + 0.4;
+  const target = speaking ? BED_DOWN : BED_UP;
+  setBedVol(bedVol + (target - bedVol) * 0.06);
+}
 export function stepScene(dir) {
   const sc = V.meta.scenes, t = now();
   let i = sceneAt(sc, t);
@@ -561,6 +593,7 @@ export function stepScene(dir) {
 export function stop(keep) {
   if (V.rec) stopExport(true);
   if (audio) audio.pause();
+  if (bed) bed.pause();
   if (V.playing) savePos(true);
   V.playing = false;
   if (!keep) { V.book = null; V.meta = null; }
@@ -571,13 +604,14 @@ addEventListener('shruti:playing', (e) => { if (e.detail.who !== 'video' && V.pl
 if (audio) {
   audio.addEventListener('ended', () => {
     V.playing = false;
+    if (bed) bed.pause();
     const base = 'progress.' + V.book + '.ch' + V.n;
     C.me.set({ [base + '.modes.watch']: 1, [base + '.vid']: C.DELETE, [base + '.at']: Date.now() });
     if (V.rec) finishExport();
     emit(); paint(); if (V.view) V.view.draw();
     ui.toast('Video finished');
   });
-  audio.addEventListener('pause', () => { if (V.playing && !audio.ended) { V.playing = false; emit(); paint(); } });
+  audio.addEventListener('pause', () => { if (bed) bed.pause(); if (V.playing && !audio.ended) { V.playing = false; emit(); paint(); } });
 }
 function savePos(force) {
   if (!V.meta || !audio || V.rec) return;
@@ -600,6 +634,7 @@ function paintNow(force) {
   const t = now(), i = sceneAt(V.meta.scenes, t);
   if (force || Date.now() - lastBar > 250) { lastBar = Date.now(); ui.player && ui.player.owner === 'video' && ui.player.progress(t / (V.meta.duration || 1)); }
   if (i !== V.scene) { V.scene = i; paint(); }
+  bedDuck(t);
   const view = V.view;
   if (view && view.root.isConnected && view.book === V.book && view.n === V.n) view.draw();
 }
@@ -642,7 +677,11 @@ function audioGraph() {
   // this is made on the first export only (the shipped MP3s are same-origin).
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC || !audio) return null;
-  if (!actx) { actx = new AC(); srcNode = actx.createMediaElementSource(audio); srcNode.connect(actx.destination); }
+  if (!actx) {
+    actx = new AC(); srcNode = actx.createMediaElementSource(audio); srcNode.connect(actx.destination);
+    // The music goes through it too, so an export carries it.
+    if (bed) { bedGain = actx.createGain(); bedGain.gain.value = bedVol; actx.createMediaElementSource(bed).connect(bedGain); bedGain.connect(actx.destination); bed.volume = 1; }
+  }
   return actx;
 }
 export function pickMime() {
@@ -663,13 +702,13 @@ async function startExport() {
   view.full = true; view.resize();
   const stream = view.canvas.captureStream(30);
   let dest = null;
-  if (ac) { dest = ac.createMediaStreamDestination(); srcNode.connect(dest); dest.stream.getAudioTracks().forEach((tr) => stream.addTrack(tr)); }
+  if (ac) { dest = ac.createMediaStreamDestination(); srcNode.connect(dest); if (bedGain) bedGain.connect(dest); dest.stream.getAudioTracks().forEach((tr) => stream.addTrack(tr)); }
   const chunks = [];
   const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8000000 });
   rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
   rec.onstop = () => {
     stream.getTracks().forEach((t) => t.stop());
-    if (dest) try { srcNode.disconnect(dest); } catch (e) {}
+    if (dest) { try { srcNode.disconnect(dest); } catch (e) {} try { if (bedGain) bedGain.disconnect(dest); } catch (e) {} }
     const keep = rec._keep;
     V.rec = null; view.full = false; view.resize();
     if (audio) audio.playbackRate = prefs().speed || 1;
@@ -708,6 +747,7 @@ const I = {
   prev: SV('<path d="M6 5v14"/><path d="M18 6l-9 6 9 6z"/>'),
   next: SV('<path d="M18 5v14"/><path d="M6 6l9 6-9 6z"/>'),
   cc: SV('<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 10.5a2 2 0 1 0 0 3M16 10.5a2 2 0 1 0 0 3"/>'),
+  music: SV('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>'),
   full: SV('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>'),
   shrink: SV('<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>'),
   rec: SV('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5" fill="currentColor"/>'),
@@ -746,6 +786,7 @@ export async function renderWatch(body, { book, n, title, lessons }) {
       '<div class="pod-tools vid-tools">' +
         '<div class="chips pod-speed" role="radiogroup" aria-label="Speed">' + SPEEDS.map((s) => '<button class="chip" data-speed="' + s + '" role="radio">' + s + '×</button>').join('') + '</div>' +
         '<span class="sp"></span>' +
+        '<button class="ib" data-music title="Music" aria-label="Music" aria-pressed="true">' + I.music + '</button>' +
         '<button class="ib" data-cc title="Captions" aria-label="Captions" aria-pressed="true">' + I.cc + '</button>' +
         '<button class="ib" data-export title="Export the video as a file" aria-label="Export the video as a file">' + I.rec + '</button>' +
         '<button class="ib" data-fs title="Full screen" aria-label="Full screen">' + I.full + '</button>' +
@@ -814,6 +855,7 @@ export async function renderWatch(body, { book, n, title, lessons }) {
     stage.classList.toggle('playing', on);
     const sp = prefs().speed || 1;
     root.querySelectorAll('[data-speed]').forEach((b) => { const o = Number(b.dataset.speed) === sp; b.classList.toggle('on', o); b.setAttribute('aria-checked', o); b.disabled = !!V.rec; });
+    const mu = root.querySelector('[data-music]'); mu.classList.toggle('on', !!prefs().music); mu.setAttribute('aria-pressed', !!prefs().music);
     const cc = !!prefs().cc;
     root.querySelectorAll('[data-cc],[data-ov-cc]').forEach((b) => { b.classList.toggle('on', cc); b.setAttribute('aria-pressed', cc); });
     const ex = root.querySelector('[data-export]');
@@ -839,6 +881,7 @@ export async function renderWatch(body, { book, n, title, lessons }) {
   root.querySelectorAll('[data-speed]').forEach((b) => b.addEventListener('click', () => setPref('speed', Number(b.dataset.speed))));
   root.querySelectorAll('[data-cc],[data-ov-cc]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); setPref('cc', !prefs().cc); }));
   root.querySelector('[data-export]').addEventListener('click', () => (V.rec ? stopExport(true) : startExport()));
+  root.querySelector('[data-music]').addEventListener('click', () => setPref('music', !prefs().music));
   root.querySelectorAll('[data-scene]').forEach((b) => b.addEventListener('click', () => { if (V.rec) return; const s = meta.scenes[Number(b.dataset.scene)]; V.playing ? play(s.start) : seek(s.start); }));
   root.querySelectorAll('[data-lesson]').forEach((b) => b.addEventListener('click', () => { const i = firstSceneOf(b.dataset.lesson); if (i >= 0 && !V.rec) { play(meta.scenes[i].start); stage.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } }));
 
