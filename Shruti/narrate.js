@@ -510,9 +510,8 @@ const PREV_STOP = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="tru
 const prev = { audio: null, btn: null, html: '', seq: 0, cache: new Map() };
 const clipURL = async (id) => {
   if (prev.cache.has(id)) return prev.cache.get(id);
-  const shipped = 'media/voices/' + id + '.mp3';
-  let url = null;
-  try { const r = await fetch(shipped, { method: 'HEAD' }); if (r.ok) url = shipped; } catch (e) {}
+  // Every voice in O.VOICES has a clip (tools/voices.py reads that list).
+  let url = O.VOICES.some((v) => v.id === id) ? 'media/voices/' + id + '.mp3' : null;
   if (!url) {
     if (!keyOf()) { needKey(); return null; }
     const r = await O.speak({ key: keyOf(), text: 'Hello, I\'m ' + voiceName(id) + '. Welcome to Shruti, where we read, listen to and study the Bhagavad-Gita together.', voice: id });
