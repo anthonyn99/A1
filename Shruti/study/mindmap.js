@@ -100,6 +100,7 @@ function mountMap(rootEl, A, { book, set, title }, toArrange) {
   map.branches.forEach((b, bi) => {
     const side = bi < half ? 1 : -1;
     const col = h('div', 'mm-col b' + (A.orig[bi] % 6) + (side < 0 ? ' rev' : ''));
+    col.dataset.bi = bi;   // the left side comes first on the page: fold by this, not by place
     const node = h('button', 'mm-node mm-branch', '<span>' + esc(b.text) + '</span>' + (b.children.length ? '<em>' + b.children.length + '</em>' : ''));
     node.type = 'button';
     node.setAttribute('aria-expanded', String(!closed.has(bk[bi])));
@@ -157,7 +158,7 @@ function mountMap(rootEl, A, { book, set, title }, toArrange) {
     apply();
   };
   const paintClosed = () => {
-    branchBox.querySelectorAll('.mm-col').forEach((col, bi) => { col.classList.toggle('closed', closed.has(bk[bi])); col.querySelector('.mm-branch').setAttribute('aria-expanded', String(!closed.has(bk[bi]))); });
+    branchBox.querySelectorAll('.mm-col').forEach((col) => { const bi = Number(col.dataset.bi); col.classList.toggle('closed', closed.has(bk[bi])); col.querySelector('.mm-branch').setAttribute('aria-expanded', String(!closed.has(bk[bi]))); });
     requestAnimationFrame(draw);
   };
 
@@ -227,6 +228,7 @@ function mountMap(rootEl, A, { book, set, title }, toArrange) {
       g.beginPath(); g.roundRect(r.x, r.y, r.w, r.hh, rad);
       g.fillStyle = cs.backgroundColor; g.fill();
       if (parseFloat(cs.borderTopWidth)) { g.strokeStyle = cs.borderTopColor; g.lineWidth = parseFloat(cs.borderTopWidth); g.stroke(); }
+      else if (parseFloat(cs.borderBottomWidth)) { g.fillStyle = cs.borderBottomColor; g.fillRect(r.x, r.y + r.hh - parseFloat(cs.borderBottomWidth), r.w, parseFloat(cs.borderBottomWidth)); }
       g.fillStyle = cs.color; g.font = cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily; g.textBaseline = 'top';
       const padL = parseFloat(cs.paddingLeft), padT = parseFloat(cs.paddingTop), lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.3;
       const span = el.querySelector('span'), text = (span || el).textContent, maxW = r.w - padL - parseFloat(cs.paddingRight) - (el.querySelector('em') ? 26 : 0);
