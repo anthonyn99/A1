@@ -537,14 +537,13 @@ export async function saveNarration(ctx, voice, onStep, onUpload, extra = {}) {
   const key = keyOf(), segs = T.segmentsFor(ctx.ch);
   if (!await M.driveReady(ctx.book)) throw new Error('Google Drive is not connected yet (Settings → Google Drive).');
   const parts = [], out = [];
-  let t = 0, done = 0, engine = 'edge';
+  let t = 0, done = 0;
+  const engine = 'edge';
   const one = async (i) => {
-    const r = await O.speak({ key, text: segs[i].text, voice });
-    const bytes = new Uint8Array(await r.audio.arrayBuffer());
-    // Edge's MP3 is 48 kbps constant bitrate: its length gives the time exactly.
-    let dur = bytes.length / 6000;
-    if (r.engine !== 'edge') { engine = r.engine; dur = await decodeDuration(bytes); }
-    parts[i] = { bytes, dur, words: r.words || T.spreadWords(segs[i].text, dur) };
+    // Whole Edge frames with word timings only (orca.js speakExact): the
+    // narration is timed from its bytes, 48 kbps constant bitrate.
+    const r = await O.speakExact(O.speak, { key, text: segs[i].text, voice });
+    parts[i] = { bytes: r.bytes, dur: r.bytes.length / O.BYTES_PER_SECOND, words: r.words };
     onStep && onStep(++done, segs.length);
   };
   for (let i = 0; i < segs.length; i += 3) await Promise.all([i, i + 1, i + 2].filter((k) => k < segs.length).map(one));
@@ -558,11 +557,4 @@ export async function saveNarration(ctx, voice, onStep, onUpload, extra = {}) {
   rec.id = M.record(ctx.book, ctx.n, 'read', rec);
   return rec;
 }
-async function decodeDuration(bytes) {
-  try {
-    const AC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-    const ac = new AC(1, 1, 44100);
-    const b = await ac.decodeAudioData(bytes.buffer.slice(0));
-    return b.duration;
-  } catch (e) { return bytes.length / 6000; }
-}
+
