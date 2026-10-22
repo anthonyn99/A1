@@ -62,7 +62,7 @@ function sheet(id, cls, label) {
   document.body.appendChild(dim);
   const aside = dim.firstChild;
   const offs = [];
-  const close = () => { dim.remove(); removeEventListener('keydown', onKey); offs.forEach((f) => f()); };
+  const close = () => { NR.stopPreview(); dim.remove(); removeEventListener('keydown', onKey); offs.forEach((f) => f()); };
   const onKey = (e) => { if (e.key === 'Escape' && !document.querySelector('.sheet-dim:not(#' + id + ') ~ .sheet-dim, #settings')) close(); };
   addEventListener('keydown', onKey);
   dim.addEventListener('click', (e) => { if (e.target === dim || e.target.closest('[data-close]')) close(); });
@@ -157,6 +157,8 @@ function voiceSelect(id, value, label) {
   return '<div class="mk-f"><label for="' + id + '">' + esc(label) + '</label><div class="mk-vsel"><select id="' + id + '">' + O.VOICES.map((v) => '<option value="' + esc(v.id) + '"' + (v.id === value ? ' selected' : '') + '>' + esc(v.name + ' · ' + (ACCENT[v.locale] || v.locale) + ' ' + v.gender) + '</option>').join('') + '</select>' +
     '<button class="ib sm" data-try-sel="' + id + '" aria-label="Hear this voice" title="Hear this voice">' + IC.play + '</button></div></div>';
 }
+/** A chip and, joined to it, a button to hear its voice (or pair: "a,b"). */
+const tryChip = (chip, ids, name) => '<span class="try-chip">' + chip + '<button class="try-b" data-try="' + esc(ids) + '" aria-label="Hear ' + esc(name) + '" title="Hear ' + esc(name) + '">' + IC.play + '</button></span>';
 /** Wire every hear button in box: [data-try] (a voice, or "a,b" for a pair) and [data-try-sel] (the voice its list shows). */
 function bindTry(box) {
   box.querySelectorAll('[data-try]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); NR.preview(b.dataset.try.split(','), b); }));
@@ -405,10 +407,11 @@ export async function openBuild(book) {
   const p = G.prefs();
   const st = Object.assign({
     kinds: { read: true, podcast: true, video: true, lessons: false, study: true },
-    voices: [p.voice], hosts: p.hosts || 0, narrator: p.narrator, length: p.length, studyKinds: ['flashcards', 'quiz', 'mindmap', 'slides'],
+    voices: [p.voice], hosts: G.presetId(p.hosts), narrator: p.narrator, length: p.length, studyKinds: ['flashcards', 'quiz', 'mindmap', 'slides'],
     unit: { all: '' }, chs: chapters.map((c) => c.n), skip: true,
   }, saved);
   st.chs = new Set(st.chs);
+  st.hosts = G.presetId(st.hosts);
   const S = sheet('build-sheet', 'build');
   const keepPrefs = () => C.me.set({ ['build.' + book]: Object.assign({}, st, { chs: [...st.chs] }) });
   const rows = () => O.unitRows(C.me.get('units', {}) || {}, O.cachedModels(keyOf())).filter((r) => r.status !== 'scope' && r.status !== 'missing');
@@ -437,8 +440,8 @@ export async function openBuild(book) {
     S.aside.innerHTML = head('build-sheet', IC.layers, 'Build everything', b.title) +
       '<p class="mk-lead">Everything made ahead, in the background. Come back any time: the bar at the top shows how far it has come.</p>' +
       '<section class="mk-sec"><div class="mk-label">What to make</div>' +
-        row('read', '<div class="mk-f"><span>Voices</span><div class="chips">' + O.VOICES.map((v) => '<button class="chip' + (st.voices.includes(v.id) ? ' on' : '') + '" data-v="' + esc(v.id) + '">' + esc(v.name) + '</button>').join('') + '</div></div>') +
-        row('podcast', '<div class="mk-f"><span>Hosts</span><div class="chips">' + G.HOST_PRESETS.map((h, i) => '<button class="chip' + (st.hosts === i ? ' on' : '') + '" data-h="' + i + '">' + esc(h.name) + '</button>').join('') + '</div></div>') +
+        row('read', '<div class="mk-f"><span>Voices</span><div class="chips">' + O.VOICES.map((v) => tryChip('<button class="chip' + (st.voices.includes(v.id) ? ' on' : '') + '" data-v="' + esc(v.id) + '">' + esc(v.name) + '</button>', v.id, v.name)).join('') + '</div></div>') +
+        row('podcast', '<div class="mk-f"><span>Hosts</span><div class="chips">' + G.HOST_PRESETS.map((h) => tryChip('<button class="chip' + (st.hosts === h.id ? ' on' : '') + '" data-h="' + h.id + '">' + esc(h.name) + '</button>', h.hosts[0][1] + ',' + h.hosts[1][1], h.name)).join('') + '</div></div>') +
         row('video', voiceSelect('bd-nar', st.narrator, 'Narrator')) +
         row('lessons', '<p class="hint">Only where a chapter has none yet; your own notes are never replaced.</p>') +
         row('study', '<div class="mk-f"><span>Kinds</span><div class="chips">' + Object.keys(KN).map((k) => '<button class="chip' + (st.studyKinds.includes(k) ? ' on' : '') + '" data-sk="' + k + '">' + KN[k] + '</button>').join('') + '</div></div>') +
@@ -453,7 +456,8 @@ export async function openBuild(book) {
         '<div class="gen-go"><button class="btn solid mk-go" data-build' + (pl.list.length ? '' : ' disabled') + '>' + IC.spark + 'Build ' + pl.list.length + ' thing' + (pl.list.length === 1 ? '' : 's') + '</button><span class="hint">' + (pl.list.length ? 'About ' + (mins >= 90 ? Math.round(mins / 60) + ' hours' : mins + ' minutes') + (st.skip ? ', less for what is already made' : '') + '.' : 'Choose something to make.') + '</span></div></section>';
     S.aside.querySelectorAll('[data-kind]').forEach((x) => x.addEventListener('change', () => { st.kinds[x.dataset.kind] = x.checked; keepPrefs(); draw(); }));
     S.aside.querySelectorAll('[data-v]').forEach((x) => x.addEventListener('click', () => { const v = x.dataset.v; st.voices = st.voices.includes(v) ? (st.voices.length > 1 ? st.voices.filter((y) => y !== v) : st.voices) : st.voices.concat([v]); keepPrefs(); draw(); }));
-    S.aside.querySelectorAll('[data-h]').forEach((x) => x.addEventListener('click', () => { st.hosts = Number(x.dataset.h); keepPrefs(); draw(); }));
+    S.aside.querySelectorAll('[data-h]').forEach((x) => x.addEventListener('click', () => { st.hosts = x.dataset.h; keepPrefs(); draw(); }));
+    bindTry(S.aside);
     S.aside.querySelectorAll('[data-sk]').forEach((x) => x.addEventListener('click', () => { const k = x.dataset.sk; st.studyKinds = st.studyKinds.includes(k) ? (st.studyKinds.length > 1 ? st.studyKinds.filter((y) => y !== k) : st.studyKinds) : st.studyKinds.concat([k]); keepPrefs(); draw(); }));
     const nar = S.aside.querySelector('#bd-nar'); if (nar) nar.addEventListener('change', () => { st.narrator = nar.value; keepPrefs(); });
     S.aside.querySelectorAll('[data-unit-of]').forEach((x) => x.addEventListener('change', () => { st.unit[x.dataset.unitOf] = x.value; keepPrefs(); }));
