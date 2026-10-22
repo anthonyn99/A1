@@ -575,11 +575,6 @@ body[data-profile=veda] .pod-sec { text-transform: none; letter-spacing: 0; font
 .turn.on p { color: var(--tx); }
 .turn .w { border-radius: 4px; transition: background .12s, color .12s; }
 .turn .w.on { background: var(--ac-soft); color: var(--acl); box-shadow: 0 0 0 2px var(--ac-soft); }
-.pod-cov { margin-top: 22px; padding: 16px; background: var(--s1); border: 1px solid var(--line); border-radius: var(--r2); }
-.pod-cov h3 { font-size: 15px; display: flex; gap: 10px; align-items: baseline; margin-bottom: 10px; }
-.pod-cov h3 span { font: 650 12.5px var(--f-ui); }
-.pod-cov h3 .good { color: var(--good); }
-.pod-cov h3 .bad { color: var(--bad); }
 .pod-ls { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; }
 .pl { display: flex; gap: 8px; align-items: baseline; text-align: left; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--s2); color: var(--tx); cursor: pointer; font-size: 13px; }
 .pl:hover { border-color: var(--ac-line); }
