@@ -156,16 +156,19 @@ export async function viewLibrary(el, { go }) {
       '<div class="bk-meta"><div class="bk-t">' + esc(b.title) + '</div><div class="bk-a">' + esc(b.translator || b.author || '') + '</div>' +
       '<div class="bk-bar"><i style="width:' + (f * 100).toFixed(1) + '%"></i></div></div></button>';
   };
-  const importBtn = '<button class="btn sm" data-import>' + IC.upload + 'Import a book</button>';
+  // Each shelf ends with a quiet "Import a book" tile, the size of a book; what
+  // it takes shows only on hover (Tony, 2026-10-22). Shared imports land on the
+  // Shared shelf, for both of them.
+  const addTile = (where) => '<button class="shelf-add" data-import="' + where + '" aria-label="Import a book to ' + (where === 'mine' ? 'Mine' : 'Shared') + '">' +
+    '<span class="sa-cover"><span class="sa-plus">' + IC.plus + '</span><b>Import a book</b><span class="sa-desc">PDF, EPUB, Word or text. Shruti finds the chapters.</span></span></button>';
   el.innerHTML =
-    '<div class="lib-hero"><h1>Library</h1><p>Read, listen, watch and study, one chapter at a time.</p></div>' +
-    '<div class="sec-h"><h2>Shared</h2><span class="n">Tony and Veda</span></div>' +
-    '<div class="shelf" id="shelf-shared">' + sharedBooks.map(card).join('') + '</div>' +
-    '<div class="sec-h"><h2>Mine</h2><span class="n">' + esc(PROFILES[PROFILE] ? 'Only ' + PROFILES[PROFILE].label : '') + '</span>' + (mine.length ? '<span class="sp"></span>' + importBtn : '') + '</div>' +
-    (mine.length ? '<div class="shelf" id="shelf-mine">' + mine.map(card).join('') + '</div>'
-      : '<button class="mine-empty" data-import>' + IC.upload + '<span><b>Import a book.</b> A PDF, EPUB, Word file or text: Shruti finds its chapters, and read-aloud, Make with AI and Study work on it like the Gita.</span></button>');
+    '<div class="lib-hero"><h1>Library</h1><p>Read, listen, watch and study.</p></div>' +
+    '<section class="lib-sec"><div class="sec-h lib-h"><h2>Shared</h2><span class="n">Tony and Veda</span></div>' +
+    '<div class="shelf" id="shelf-shared">' + sharedBooks.map(card).join('') + addTile('shared') + '</div></section>' +
+    '<section class="lib-sec"><div class="sec-h lib-h"><h2>Mine</h2><span class="n">' + esc(PROFILES[PROFILE] ? 'Only ' + PROFILES[PROFILE].label : '') + '</span></div>' +
+    '<div class="shelf" id="shelf-mine">' + mine.map(card).join('') + addTile('mine') + '</div></section>';
   el.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => { if (!(window.A1Drag && A1Drag.active)) go(b.dataset.go); }));
-  el.querySelectorAll('[data-import]').forEach((b) => b.addEventListener('click', () => IMP().then((m) => m.open({ go }))));
+  el.querySelectorAll('[data-import]').forEach((b) => b.addEventListener('click', () => IMP().then((m) => m.open({ go, where: b.dataset.import }))));
   const redraw = () => viewLibrary(live(el), { go });
   OR.sortable(el.querySelector('#shelf-shared'), { row: '.book', axis: 'grid', onMove: (ids) => { me.set({ 'shelf.order': ids }, { now: true }); redraw(); } });
   OR.sortable(el.querySelector('#shelf-mine'), { row: '.book', axis: 'grid', onMove: (ids) => { me.set({ 'shelf.mine': ids }, { now: true }); redraw(); } });
