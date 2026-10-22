@@ -243,8 +243,8 @@ const closeSheet = (c) => ev(c, `const s=document.querySelector('#gen-sheet [dat
   await shot(c, 'make-build-1280');
   const chats0 = S.chats.length;
   await click(c, '#build-sheet [data-build]');
-  ok('…and builds in the background: the panel lists both, the pill counts', await waitFor(c, `!document.querySelector('#build-sheet') && document.querySelectorAll('#jobs-sheet .jb').length===2 && !document.querySelector('#jobs-pill').hidden`, 6000));
-  ok('…chapters that already have lessons are skipped, never replacing their notes', await waitFor(c, `[...document.querySelectorAll('#jobs-sheet .jb')].every(j=>j.classList.contains('skipped'))`, 15000) && S.chats.length === chats0, await ev(c, `return [...document.querySelectorAll('#jobs-sheet .jb')].map(j=>j.className+':'+j.textContent).join(' | ')`));
+  ok('…and builds in the background: the panel lists them with what was made before, the pill shows', await waitFor(c, `!document.querySelector('#build-sheet') && [...document.querySelectorAll('#jobs-sheet .jb')].filter(j=>/Lessons · Chapter (5|6)/.test(j.textContent)).length>=2 && !document.querySelector('#jobs-pill').hidden`, 6000));
+  ok('…chapters that already have lessons are skipped, never replacing their notes', await waitFor(c, `const g=window.Shruti.jobs.tasks.filter(t=>t.group); return g.length===2 && g.every(t=>t.state==='skipped') && document.querySelectorAll('#jobs-sheet .jb.skipped').length===2`, 15000) && S.chats.length === chats0, await ev(c, `return [...document.querySelectorAll('#jobs-sheet .jb')].map(j=>j.className+':'+j.textContent).join(' | ')`));
   await shot(c, 'make-jobs-1280');
   await ev(c, `document.querySelector('#jobs-sheet [data-close]').click(); return 1`);
 
