@@ -115,12 +115,14 @@ export async function run(o, on = {}, { signal, chat = O.chat, speak = O.speak, 
         return r.text;
       };
       /** Ask, and go on asking the same unit until the reply reaches its END. */
+      // A reply that has begun the format but not reached END is continued
+      // (one that never began it is sent back to be fixed instead).
       const askAll = async (msgs, label) => {
         let text = await ask(msgs);
-        for (let c = 0; c < 3 && !F.finished(k, text) && !(c === 0 && label === 'main' && looksDone(k, text, pctx)); c++) {
+        for (let c = 0; c < 3 && F.started(k, text) && !F.finished(k, text) && !(c === 0 && label === 'main' && looksDone(k, text, pctx)); c++) {
           if (label === 'main') stage(k === kind ? 'write' : 'lessons', 'Going on (part ' + (c + 2) + ')');
           on.delta && on.delta('\n');
-          text += '\n' + await ask(F.continuePrompt(msgs, text));
+          text = F.joinReply(k, text, await ask(F.continuePrompt(msgs, text, k)));
         }
         return text;
       };
