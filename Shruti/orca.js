@@ -243,7 +243,7 @@ export async function speak({ key, text, voice, signal, fetch: f = fetch }) {
       r = await f(ORCA + '/audio/speech', {
         method: 'POST', signal,
         headers: { authorization: 'Bearer ' + key, 'content-type': 'application/json' },
-        body: JSON.stringify({ model: 'edge-neural', input: text, voice: voice || DEFAULT_VOICE, timestamps: true }),
+        body: JSON.stringify({ model: 'edge-neural', input: said, voice: voice || DEFAULT_VOICE, timestamps: true }),
       });
     } catch (e) {
       if (e && e.name === 'AbortError') throw Object.assign(new Error('Cancelled'), { code: 'abort' });
@@ -260,7 +260,7 @@ export async function speak({ key, text, voice, signal, fetch: f = fetch }) {
       throw Object.assign(new Error((j.error && j.error.message) || 'Orca answered ' + r.status), { code: 'tts', status: r.status });
     }
     const j = await r.json();
-    return { audio: new Blob([b64ToBytes(j.audio)], { type: 'audio/mpeg' }), words: Array.isArray(j.words) ? j.words : null, engine: j.engine, voice: j.voice };
+    return { audio: new Blob([b64ToBytes(j.audio)], { type: 'audio/mpeg' }), words: Array.isArray(j.words) ? unspell(j.words, back) : null, engine: j.engine, voice: j.voice };
   }
 }
 
