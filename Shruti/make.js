@@ -102,6 +102,8 @@ export function open(ctx, tab) {
   const st = { kind, ctx, study: { scope: 'chapter', sec: null, chs: new Set([ctx.n]) } };
   const draw = () => { drawVersions(S, st); drawOptions(S, st); drawRun(S, st); };
   draw();
+  // A narration that is already there (shipped or saved) is not made twice.
+  if (kind === 'read') NR.readyFor(ctx.book, ctx.n).then((r) => { st.ready = r; if (S.dim.isConnected) drawRun(S, st); });
   // A task moving, another device's job, a version saved elsewhere: repaint
   // the parts that show them (not the options while one is being changed).
   const repaint = () => {
@@ -240,10 +242,11 @@ function drawRun(S, st) {
   const pre = kind === 'read' ? (keyOf() ? null : O.preflight('')) : O.preflight(keyOf(), C.me.get('units', {}) || {}, O.cachedModels(keyOf()));
   const ahead = J.active().length;
   const p = G.prefs();
-  const label = kind === 'read' ? 'Make it in ' + vName(p.voice) : kind === 'study' ? 'Make the set' : 'Make ' + J.KIND_NAME[kind].toLowerCase();
+  const have = kind === 'read' && (st.ready || []).some((r) => r.voice === p.voice);
+  const label = have ? 'Ready in ' + vName(p.voice) : kind === 'read' ? 'Make it in ' + vName(p.voice) : kind === 'study' ? 'Make the set' : 'Make ' + J.KIND_NAME[kind].toLowerCase();
   box.innerHTML = G.problemHTML(pre) +
-    '<div class="gen-go"><button class="btn solid mk-go" data-make' + (remote ? ' disabled' : '') + '>' + IC.spark + esc(ahead ? 'Add to the queue' : label) + '</button>' +
-    '<span class="hint">' + esc(remote ? who(remote.by) + ' is making one now.' : ahead ? ahead + ' ahead of it. It carries on in the background.' : 'Carries on in the background: you can close this.') + '</span></div>';
+    '<div class="gen-go"><button class="btn solid mk-go" data-make' + (remote || have ? ' disabled' : '') + '>' + (have ? IC.check : IC.spark) + esc(ahead && !have ? 'Add to the queue' : label) + '</button>' +
+    '<span class="hint">' + esc(have ? 'Choose another voice to make one.' : remote ? who(remote.by) + ' is making one now.' : ahead ? ahead + ' ahead of it. It carries on in the background.' : 'Carries on in the background: you can close this.') + '</span></div>';
   box.querySelector('[data-make]').addEventListener('click', () => start(S, st));
   G.bindProblem(box, S.close);
 }
