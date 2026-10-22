@@ -143,6 +143,9 @@ const prog = (c, path) => ev(c, `return JSON.stringify(window.Shruti.core.me.get
   const z0 = await ev(c, `return +/scale\\(([\\d.]+)\\)/.exec(document.querySelector('.mm-canvas').style.transform)[1]`);
   await key(c, '+', 'Equal');
   ok('+ zooms in', await waitFor(c, `+/scale\\(([\\d.]+)\\)/.exec(document.querySelector('.mm-canvas').style.transform)[1] > ${z0}`));
+  const zw = await ev(c, `return +/scale\(([\d.]+)\)/.exec(document.querySelector('.mm-canvas').style.transform)[1]`);
+  await ev(c, `const p=document.querySelector('.mm-port'), r=p.getBoundingClientRect(); p.dispatchEvent(new WheelEvent('wheel',{deltaY:-240, clientX:r.left+r.width/2, clientY:r.top+r.height/2, bubbles:true, cancelable:true})); return 1`);
+  ok('the mouse wheel zooms, no key needed (Tony, 2026-10-22)', await waitFor(c, `+/scale\(([\d.]+)\)/.exec(document.querySelector('.mm-canvas').style.transform)[1] > ${zw}`));
   const before = await ev(c, `return document.querySelector('.mm-canvas').style.transform`);
   const at = JSON.parse(await ev(c, `const r=document.querySelector('.mm-port').getBoundingClientRect(); return JSON.stringify({x:r.left+40,y:r.top+r.height-40})`));
   await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: at.x, y: at.y, button: 'left', clickCount: 1 });

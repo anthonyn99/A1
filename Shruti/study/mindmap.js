@@ -146,7 +146,7 @@ function mountMap(rootEl, A, { book, set, title }, toArrange) {
   const fit = () => {
     const r = port.getBoundingClientRect(), w = canvas.scrollWidth, hh = canvas.scrollHeight;
     if (!r.width || !w) return;
-    view.z = Math.max(0.3, Math.min(1, (r.width - 24) / w, (r.height - 24) / hh));
+    view.z = Math.max(0.3, Math.min(1.2, (r.width - 24) / w, (r.height - 24) / hh));
     // A phone would shrink a wide map past reading: start readable, the root in view.
     const small = view.z < 0.55 && r.width < 600;
     if (small) {
