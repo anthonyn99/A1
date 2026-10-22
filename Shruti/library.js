@@ -10,6 +10,8 @@ import * as POD from './podcast.js';
 import * as VID from './video.js';
 import * as M from './media.js';
 import * as G from './generate.js';
+import * as MK from './make.js';
+import * as NR from './narrate.js';
 import * as T from './text.js';
 import * as PDF from './pdf.js';
 import * as H from './study/hub.js';
@@ -191,10 +193,12 @@ export async function viewBook(el, { id, go }) {
     '<div class="stats"><span><b>' + b.chapters.length + '</b> ' + esc(plural) + '</span><span><b>' + done + '</b> finished</span>' + (b.imported ? '<span><b>' + Number(b.words || 0).toLocaleString() + '</b> words</span>' : '<span><b>' + lessonCount + '</b> lessons</span>') + '</div>' +
     '<div class="acts"><button class="btn solid" data-go="#/b/' + esc(id) + '/' + startN + '">' + IC.play + (cur != null ? 'Continue ' + esc(unit.toLowerCase()) + ' ' + startN : 'Start reading') + '</button>' +
     (b.intro ? '<button class="btn" data-go="#/b/' + esc(id) + '/0">Introduction</button>' : '') +
+    '<button class="btn" data-build>' + G.ICON + 'Build everything</button>' +
     (b.imported ? '<button class="btn ghost" data-rename>' + IC.pen + 'Rename</button><button class="btn ghost danger" data-delete>' + IC.trash + 'Delete</button>' : '') + '</div>' +
     (b.imported ? '<p class="bk-src">' + esc((b.where === 'mine' ? 'Only yours' : 'Shared with ' + (PROFILE === 'veda' ? 'Tony' : 'Veda')) + ' · imported from ' + ((b.src && b.src.name) || 'pasted text') + (b.by && PROFILES[b.by] ? ' by ' + PROFILES[b.by].label : '')) + '</p>' : '') + '</div></div>' +
     '<div class="sec-h"><h2>' + esc(unit + 's') + '</h2></div><div class="chs">' + b.chapters.map(row).join('') + '</div>' + bookmarksHtml(b);
   el.querySelectorAll('[data-go]').forEach((x) => x.addEventListener('click', () => { if (!(window.A1Drag && A1Drag.active)) go(x.dataset.go); }));
+  el.querySelector('[data-build]').addEventListener('click', () => MK.openBuild(id));
   const rn = el.querySelector('[data-rename]');
   if (rn) rn.addEventListener('click', () => IMP().then((m) => m.rename(b, () => viewBook(live(el), { id, go }))));
   const del = el.querySelector('[data-delete]');
@@ -273,12 +277,17 @@ export async function viewChapter(el, { id, n, mode, at, go }) {
     read: r && NRname(r.voice) + ' · ' + T.fmtTime(r.duration),
     lessons: lessons && lessons[n] && lessons[n].lessons ? lessons[n].lessons.length + ' lessons from Tony and Veda’s notes' : null,
   } };
-  el.querySelector('#make-ai').addEventListener('click', () => G.openSheet(ctx, { listen: 'podcast', watch: 'video', lessons: 'lessons' }[mode]));
+  // Make with AI makes what this tab shows (Tony, 2026-10-22), and shows when
+  // something for this chapter is being made in the background.
+  Object.assign(ctx, { chapters: [...(b.intro ? [{ n: 0, title: b.intro.title, file: b.intro.file }] : []), ...b.chapters], loadChapter: (file) => loadChapter(id, file) });
+  const mk = el.querySelector('#make-ai');
+  mk.addEventListener('click', () => MK.open(ctx, mode));
+  MK.watchButton(mk, id, n);
   const notMade = (md, kind) => {
     body.innerHTML = '<div class="empty">' + IC[md] + '<b>' + esc(MODES.find((m) => m.id === md).label) + ' is not made for this chapter yet</b>' +
       '<span>' + (md === 'study' ? 'Flashcards, a quiz, a mind map and slides will be built here from the chapter.' : md === 'lessons' ? 'Lessons can be drawn from the chapter with AI.' : 'It will tell the chapter’s story and teach every lesson.') + '</span>' +
       (kind ? '<button class="btn solid" data-make-now>' + G.ICON + 'Make it now</button>' : '') + '</div>';
-    const b2 = body.querySelector('[data-make-now]'); if (b2) b2.addEventListener('click', () => G.openSheet(ctx, kind));
+    const b2 = body.querySelector('[data-make-now]'); if (b2) b2.addEventListener('click', () => MK.open(ctx, md));
   };
   const drawMode = () => {
     const L = ctx.lessons = lessonsFor(id, n, lessons), av = available(id, n, lessons, pods, vids, study);
@@ -306,6 +315,22 @@ export async function viewChapter(el, { id, n, mode, at, go }) {
   });
   ls.put(lsKey('lastRoute'), { id, n, mode });
   markOpened(id, n);
+}
+
+/** What a background task needs of its chapter (jobs.js runs with only the
+ *  book and chapter number, so a reload can pick a task up again). */
+export async function taskContext(book, n) {
+  const b = await loadBook(book);
+  const meta = n === 0 ? { n: 0, title: b.intro.title, file: b.intro.file } : b.chapters.find((c) => c.n === n);
+  if (!meta) throw new Error('That chapter is not in the book any more');
+  const [ch, lessons, pods, vids, study, ready] = await Promise.all([loadChapter(book, meta.file), loadLessons(book), POD.shipped(book), VID.shipped(book), H.shippedIndex(book), NR.readyFor(book, n)]);
+  return {
+    bookTitle: b.title, title: meta.title, ch, lessons: lessonsFor(book, n, lessons), ready,
+    shipped: { podcast: !!(pods && pods[String(n)]), video: !!(vids && vids[String(n)]) },
+    hasStudy: H.hasStudy(book, n, study),
+    chapters: [...(b.intro ? [{ n: 0, title: b.intro.title, file: b.intro.file }] : []), ...b.chapters],
+    loadChapter: (file) => loadChapter(book, file),
+  };
 }
 
 async function renderListen(body, id, n, meta, L, none) {
