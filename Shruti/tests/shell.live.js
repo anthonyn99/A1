@@ -197,8 +197,7 @@ async function load(c, { w, h, mobile, store, hash = '' }) {
   await waitFor(c, `document.querySelectorAll('.ch').length===18`);
   await shot(c, 'veda-book-1280');
 
-  console.log('
-Firestore refuses the first reads (sign-in late, the network briefly gone)');
+  console.log('\nFirestore refuses the first reads (sign-in late, the network briefly gone)');
   await load(c, { w: 1280, h: 860, mobile: false, store: "sessionStorage.setItem('shruti.pick','tony'); sessionStorage.setItem('__fakefs_fail','2');", hash: '#/' });
   ok('while it tries again the pill says syncing, not failed', await waitFor(c, `!!window.Shruti && !!window.Shruti.core.me.error && document.getElementById('sync-pill').classList.contains('busy')`, 8000));
   ok('his key is there before sync loads (kept on this device)', await ev(c, `return !window.Shruti.core.me.loaded && window.Shruti.core.orcaKey()===${JSON.stringify(KEY)}`));
