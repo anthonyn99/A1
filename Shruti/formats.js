@@ -102,11 +102,52 @@ export function buildPrompt(o) {
   return [{ role: 'system', content: sys }, { role: 'user', content: spill(user) }];
 }
 
-/** "Go on from where you stopped": the reply so far goes back as the unit's own. */
-export function continuePrompt(messages, sofar) {
+/** "Go on from where you stopped": the reply so far goes back as the unit's
+ *  own, and the unit writes the item it was in the middle of again, from its
+ *  start, so the pieces join on a whole PART, SCENE or LESSON (joinReply). */
+export function continuePrompt(messages, sofar, kind) {
   const tail = String(sofar).trim().slice(-240);
+  const last = lastMarker(kind, sofar);
   return messages.concat([{ role: 'assistant', content: sofar }, { role: 'user',
-    content: 'Your reply stopped before the end. It ended with:\n"…' + tail + '"\nContinue exactly from there, in the same format, without repeating anything already written, and finish with the line END.' }]);
+    content: 'Your reply stopped before the end. It ended with:\n"…' + tail + '"\n' +
+      (last ? 'Write "' + last.label + '" again from its start, then go on to the end,' : 'Continue exactly from there,') +
+      ' in the same format, without repeating anything before it, and finish with the line END.' }]);
+}
+const MARK = { podcast: /(?:^|\n)[ \t]*(PART\s*\d{0,2}\s*[:：][^\n]*)/gi, video: /(?<![A-Za-z0-9])(SCENE\s*\d{1,3})\b/g, lessons: /(?<![A-Za-z0-9])(LESSON\s*\d{1,3})\b/g };
+/** The last PART / SCENE n / LESSON n begun in a reply: {at, label}. */
+export function lastMarker(kind, text) {
+  const re = MARK[kind];
+  if (!re) return null;
+  let last = null;
+  for (const m of String(text || '').matchAll(re)) last = { at: m.index + m[0].indexOf(m[1]), label: m[1].trim() };
+  return last;
+}
+/** A reply and its continuation as one: the continuation's copy of the item
+ *  that was cut replaces the cut one; without one, the words are joined. */
+export function joinReply(kind, a, b) {
+  const last = lastMarker(kind, a);
+  b = String(b || '');
+  if (last) {
+    let at = null;
+    if (kind === 'podcast') {
+      const title = flat(last.label.replace(/^PART\s*\d{0,2}\s*[:：]/i, ''));
+      for (const x of b.matchAll(MARK.podcast)) if (flat(x[1].replace(/^PART\s*\d{0,2}\s*[:：]/i, '')) === title) { at = x.index + x[0].indexOf(x[1]); break; }
+    } else {
+      const x = new RegExp('(?<![A-Za-z0-9])' + (kind === 'video' ? 'SCENE' : 'LESSON') + '\\s*' + last.label.match(/\d+/)[0] + '\\b', 'i').exec(b);
+      if (x) at = x.index;
+    }
+    if (at != null) return a.slice(0, last.at).replace(/\s+$/, '') + '\n\n' + b.slice(at);
+  }
+  const cont = b.replace(/^\s+/, '');
+  return /[\s]$/.test(a) || /^[A-Z]/.test(cont) ? a.replace(/\s+$/, '') + '\n' + cont : a + (/^[a-z,;.!?)'’”]/.test(cont) ? '' : ' ') + cont;
+}
+const flat = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+/** Whether a reply has begun the format at all (else it is not continued, but sent back to be fixed). */
+export function started(kind, raw) {
+  const t = clean(raw);
+  return kind === 'podcast' ? /(?:^|\n)\s*(?:PART\s*\d{0,2}\s*[:：]|[AB]\s*[:：])/i.test(t) || /PART\s*[:：]/.test(t)
+    : kind === 'video' ? /SCENE\s*\d/i.test(t) && /(?:LAYOUT|NARRATION)\s*[:：]/i.test(t)
+    : /LESSON\s*\d/i.test(t) || /TITLE\s*[:：]/i.test(t);
 }
 /** Write only the lessons a podcast or video missed. */
 export function missingPrompt(kind, messages, sofar, missing, L) {
