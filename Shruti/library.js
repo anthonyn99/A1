@@ -72,6 +72,9 @@ async function getJSON(url) {
 export const loadBook = (id) => (isShipped(id) ? getJSON('books/' + id + '/book.json') : B.get(id));
 export const loadChapter = (id, file) => (isShipped(id) ? getJSON('books/' + id + '/' + file) : B.chapter(id, file));
 export const loadLessons = (id) => (isShipped(id) ? getJSON('books/' + id + '/lessons.json').catch(() => ({})) : Promise.resolve({}));
+/** Each lesson's detail for the Lessons popup (books/<id>/lessons-more.json):
+ *  {"<n>": {"L1": {verses, meaning, example, practice}}}. Only shipped books have it. */
+export const loadLessonMore = (id) => (isShipped(id) ? getJSON('books/' + id + '/lessons-more.json').catch(() => ({})) : Promise.resolve({}));
 
 export const chKey = (n) => 'ch' + n;
 export function progressOf(book, n) { return me.get('progress.' + book + '.' + chKey(n), {}) || {}; }
@@ -349,7 +352,7 @@ export async function viewChapter(el, { id, n, mode, at, go }) {
   const drawMode = () => {
     const L = ctx.lessons = lessonsFor(id, n, lessons), av = available(id, n, lessons, pods, vids, study);
     if (mode === 'read') renderRead(body, ch, id, n, { title: meta.title, at });
-    else if (mode === 'lessons') { if (L && L.lessons && L.lessons.length) renderLessons(body, L, { bookTitle: b.title, n, title: meta.title }); else notMade('lessons', 'lessons'); }
+    else if (mode === 'lessons') { if (L && L.lessons && L.lessons.length) renderLessons(body, L, { book: id, bookTitle: b.title, n, title: meta.title, ch, go }); else notMade('lessons', 'lessons'); }
     else if (mode === 'listen' && (av.listen || POD.active(id, n))) renderListen(body, id, n, meta, L, () => notMade('listen', 'podcast'));
     else if (mode === 'watch' && (av.watch || VID.active(id, n))) renderWatch(body, id, n, meta, L, () => notMade('watch', 'video'));
     else if (mode === 'study') H.renderStudy(body, { book: id, bookTitle: b.title, n, title: meta.title, ch, lessons: L, chapters: [...(b.intro ? [{ n: 0, title: b.intro.title, file: b.intro.file }] : []), ...b.chapters], loadChapter: (file) => loadChapter(id, file) });
@@ -402,11 +405,16 @@ async function renderWatch(body, id, n, meta, L, none) {
 
 function renderLessons(body, L, meta = {}) {
   if (!L || !L.lessons || !L.lessons.length) { body.innerHTML = '<div class="empty">' + IC.lessons + '<b>No lessons for this chapter yet</b></div>'; return; }
+  // Each lesson opens (Tony, 2026-10-22: like Veda's TaskHub lessons, "a bit
+  // more advanced"): what it means, a real-world example, one thing to try and
+  // the verse it stands on, with arrows to the next and previous.
   body.innerHTML = '<div class="ls"><div class="ls-top"><p class="ls-k">' + L.lessons.length + (L.by ? ' lessons drawn by ' + esc(G.modelName(L.by)) + ' (Make with AI)' : ' lessons from Tony and Veda’s notes') + '</p>' +
-    '<button class="btn sm" id="ls-pdf">' + IC.pdf + '<span>Save as PDF</span></button></div>' + L.lessons.map((l) =>
-    '<div class="ls-i"><div class="h"><span class="id">' + esc(l.id) + '</span><span class="tt">' + esc(l.title || '') + '</span></div>' +
-    (l.body ? '<div class="bd">' + esc(l.body) + '</div>' : '') + '</div>').join('') +
+    '<button class="btn sm" id="ls-pdf">' + IC.pdf + '<span>Save as PDF</span></button></div>' + L.lessons.map((l, i) =>
+    '<button class="ls-i" data-li="' + i + '" aria-haspopup="dialog"><div class="h"><span class="id">' + esc(l.id) + '</span><span class="tt">' + esc(l.title || '') + '</span><span class="ls-go" aria-hidden="true">' + IC.next + '</span></div>' +
+    (l.body ? '<div class="bd">' + esc(l.body) + '</div>' : '') + '</button>').join('') +
     (L.summary ? '<div class="ls-sum"><b>Chapter summary</b>' + esc(L.summary) + '</div>' : '') + '</div>';
+  const more = L.by ? Promise.resolve({}) : loadLessonMore(meta.book).then((m) => (m && m[meta.n]) || {});
+  body.querySelectorAll('[data-li]').forEach((b) => b.addEventListener('click', async () => openLesson(L, Number(b.dataset.li), Object.assign({ more: await more }, meta))));
   const btn = body.querySelector('#ls-pdf'), label = btn.querySelector('span');
   btn.addEventListener('click', async () => {
     if (btn.disabled) return;
@@ -417,4 +425,89 @@ function renderLessons(body, L, meta = {}) {
     } catch (e) { label.textContent = 'Could not make it: try again'; btn.title = e.message || ''; }
     btn.disabled = false;
   });
+}
+
+/* ── one lesson, opened: arrows to the next and previous ─────────────────── */
+const LX = {
+  meaning: I('<circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><path d="M12 7.5h.01"/>'),
+  example: I('<path d="M3 21h18"/><path d="M5 21V8l7-5 7 5v13"/><path d="M9 21v-6h6v6"/>'),
+  practice: I('<path d="M20 6 9 17l-5-5"/>'),
+  verse: I('<path d="M4 4h12a4 4 0 0 1 4 4v12H8a4 4 0 0 1-4-4z"/><path d="M8 9h8M8 13h5"/>'),
+  x: I('<path d="M6 6l12 12M18 6L6 18"/>'),
+};
+/** "2.47" against the chapter's verses ("2.47", "2.23-24"): the block it is in
+ *  and the book's exact words for it. */
+export function verseIn(ch, ref) {
+  const span = (v) => { const m = /^(\d+)\.(\d+)(?:-(\d+))?$/.exec(String(v || '')); return m ? [+m[1], +m[2], +(m[3] || m[2])] : null; };
+  const want = span(ref);
+  if (!want || !ch || !ch.blocks) return null;
+  for (let i = 0; i < ch.blocks.length; i++) {
+    const hit = (ch.blocks[i].s || []).filter((x) => { const q = span(x.v); return q && q[0] === want[0] && q[1] <= want[1] && want[1] <= q[2]; });
+    if (hit.length) return { block: i, v: hit[0].v, text: hit.map((x) => x.t).join(' '), key: hit.some((x) => x.key) };
+  }
+  return null;
+}
+function openLesson(L, start, meta) {
+  document.getElementById('lx')?.remove();
+  const n = L.lessons.length;
+  let i = start, dir = 0;
+  const dim = document.createElement('div');
+  dim.className = 'lx-dim'; dim.id = 'lx';
+  dim.innerHTML = '<div class="lx" role="dialog" aria-modal="true" aria-labelledby="lx-t"><header class="lx-top"><span class="lx-k"></span><div class="lx-dots" aria-hidden="true">' +
+    L.lessons.map((_, k) => '<i data-k="' + k + '"></i>').join('') + '</div><button class="ib lx-x" data-x aria-label="Close (Esc)" title="Close (Esc)">' + LX.x + '</button></header>' +
+    '<div class="lx-body" tabindex="-1"></div>' +
+    '<footer class="lx-nav"><button class="lx-arrow prev" data-step="-1"><span class="lx-ar">' + IC.prev + '</span><span class="lx-at"><em>Previous</em><b></b></span></button>' +
+    '<button class="lx-arrow next" data-step="1"><span class="lx-at"><em>Next</em><b></b></span><span class="lx-ar">' + IC.next + '</span></button></footer></div>';
+  document.body.appendChild(dim);
+  document.body.classList.add('lx-open');
+  const box = dim.querySelector('.lx'), bodyEl = dim.querySelector('.lx-body');
+  const unit = meta.n ? 'Chapter ' + meta.n : '';
+  const paint = () => {
+    const l = L.lessons[i], d = (meta.more && meta.more[l.id]) || {};
+    const v = d.verses ? verseIn(meta.ch, d.verses) : null;
+    dim.querySelector('.lx-k').textContent = [unit, 'Lesson ' + (i + 1) + ' of ' + n].filter(Boolean).join(' · ');
+    dim.querySelectorAll('.lx-dots i').forEach((dot, k) => { dot.classList.toggle('on', k === i); dot.classList.toggle('seen', k < i); });
+    const sec = (cls, icon, label, html) => '<section class="lx-sec ' + cls + '"><h3>' + icon + '<span>' + label + '</span></h3>' + html + '</section>';
+    bodyEl.innerHTML = '<div class="lx-in' + (dir > 0 ? ' from-r' : dir < 0 ? ' from-l' : '') + '">' +
+      '<div class="lx-id">' + esc(l.id) + '</div><h2 id="lx-t">' + esc(l.title || '') + '</h2>' +
+      (l.body ? '<p class="lx-note">' + esc(l.body) + '</p>' : '') +
+      (d.meaning ? sec('m', LX.meaning, 'What it means', '<p>' + esc(d.meaning) + '</p>') : '') +
+      (d.example ? sec('e', LX.example, 'In real life', '<p>' + esc(d.example) + '</p>') : '') +
+      (d.practice ? sec('p', LX.practice, 'Try this', '<p>' + esc(d.practice) + '</p>') : '') +
+      (v ? sec('v', LX.verse, 'In the book · verse ' + esc(v.v), '<blockquote class="' + (v.key ? 'key' : '') + '">' + esc(v.text) + '</blockquote>' +
+        '<button class="lk lx-read" data-read="' + v.block + '">Read it in the chapter' + IC.next + '</button>') : '') +
+      '</div>';
+    bodyEl.scrollTop = 0;
+    const prev = L.lessons[i - 1], next = L.lessons[i + 1];
+    const pb = dim.querySelector('.lx-arrow.prev'), nb = dim.querySelector('.lx-arrow.next');
+    pb.disabled = !prev; nb.disabled = !next;
+    pb.querySelector('b').textContent = prev ? prev.title : '';
+    nb.querySelector('b').textContent = next ? next.title : 'That was the last one';
+    pb.setAttribute('aria-label', prev ? 'Previous lesson: ' + prev.title : 'No previous lesson');
+    nb.setAttribute('aria-label', next ? 'Next lesson: ' + next.title : 'No next lesson');
+    const rd = bodyEl.querySelector('[data-read]');
+    if (rd) rd.addEventListener('click', () => { close(); meta.go('#/b/' + meta.book + '/' + meta.n + '/read/' + rd.dataset.read); });
+  };
+  const step = (d) => { const j = i + d; if (j < 0 || j >= n) return; dir = d; i = j; paint(); };
+  const close = () => { dim.classList.add('out'); document.body.classList.remove('lx-open'); removeEventListener('keydown', onKey); setTimeout(() => dim.remove(), 180); };
+  const onKey = (e) => {
+    if (!dim.isConnected) { removeEventListener('keydown', onKey); return; }
+    if (e.key === 'Escape') { e.preventDefault(); close(); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); step(1); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); step(-1); }
+  };
+  addEventListener('keydown', onKey);
+  dim.addEventListener('click', (e) => { if (e.target === dim || e.target.closest('[data-x]')) close(); });
+  dim.querySelectorAll('[data-step]').forEach((b) => b.addEventListener('click', () => step(Number(b.dataset.step))));
+  dim.querySelectorAll('.lx-dots i').forEach((dot) => dot.addEventListener('click', () => { const k = Number(dot.dataset.k); dir = k > i ? 1 : -1; i = k; paint(); }));
+  // A finger swipe sideways moves between lessons (a vertical one scrolls).
+  let x0 = null, y0 = 0;
+  box.addEventListener('touchstart', (e) => { const t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; }, { passive: true });
+  box.addEventListener('touchend', (e) => {
+    if (x0 == null) return;
+    const t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0; x0 = null;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > 1.6 * Math.abs(dy)) step(dx < 0 ? 1 : -1);
+  }, { passive: true });
+  paint();
+  dim.querySelector('[data-x]').focus({ preventScroll: true });
 }
