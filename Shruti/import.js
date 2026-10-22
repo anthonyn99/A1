@@ -125,7 +125,7 @@ const UNITS = ['Chapter', 'Part', 'Section'];
 
 /** Open the Import sheet. go: the router's go(hash). */
 /** where: the shelf it was opened from (Mine or Shared), the review's first choice. */
-export function open({ go, where = 'mine' } = {}) {
+export function open({ go, where = 'mine', file = null, text = '' } = {}) {
   if (document.getElementById('imp-sheet')) return;
   const st = { step: 'source', file: null, paras: [], toc: null, title: '', author: '', chs: [], how: '', where: where === 'shared' ? 'shared' : 'mine', unit: 'Chapter', run: null, split: null, abort: null, tidy: null };
   const dim = document.createElement('div');
@@ -370,6 +370,13 @@ export function open({ go, where = 'mine' } = {}) {
     }
   }
 
+  // Dropped on the library (library.js dropImport): start with it at once.
+  if (file) take(file);
+  else if (text && text.trim()) {
+    const paras = X.fromText(text);
+    const first = paras.find((p) => p.h);
+    if (paras.length) begin({ kind: 'paste', paras, title: first && first.h === 1 ? first.t : 'Dropped text' }, null);
+  }
   paint();
   return { state: st, paint, take, begin };
 }

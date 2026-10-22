@@ -161,17 +161,65 @@ export async function viewLibrary(el, { go }) {
   // Shared shelf, for both of them.
   const addTile = (where) => '<button class="shelf-add" data-import="' + where + '" aria-label="Import a book to ' + (where === 'mine' ? 'Mine' : 'Shared') + '">' +
     '<span class="sa-cover"><span class="sa-plus">' + IC.plus + '</span><b>Import a book</b><span class="sa-desc">PDF, EPUB, Word or text. Shruti finds the chapters.</span></span></button>';
+  const dropNote = (where) => '<div class="lib-drop" aria-hidden="true"><span>' + IC.upload + 'Drop to import to ' + (where === 'mine' ? 'Mine' : 'Shared') + '</span></div>';
   el.innerHTML =
     '<div class="lib-hero"><h1>Library</h1><p>Read, listen, watch and study.</p></div>' +
-    '<section class="lib-sec"><div class="sec-h lib-h"><h2>Shared</h2><span class="n">Tony and Veda</span></div>' +
-    '<div class="shelf" id="shelf-shared">' + sharedBooks.map(card).join('') + addTile('shared') + '</div></section>' +
-    '<section class="lib-sec"><div class="sec-h lib-h"><h2>Mine</h2><span class="n">' + esc(PROFILES[PROFILE] ? 'Only ' + PROFILES[PROFILE].label : '') + '</span></div>' +
-    '<div class="shelf" id="shelf-mine">' + mine.map(card).join('') + addTile('mine') + '</div></section>';
+    '<div class="lib">' +
+    '<section class="lib-sec" data-where="shared"><div class="sec-h lib-h"><h2>Shared</h2><span class="n">Tony and Veda</span></div>' +
+    '<div class="shelf" id="shelf-shared">' + sharedBooks.map(card).join('') + addTile('shared') + '</div>' + dropNote('shared') + '</section>' +
+    '<section class="lib-sec" data-where="mine"><div class="sec-h lib-h"><h2>Mine</h2><span class="n">' + esc(PROFILES[PROFILE] ? 'Only ' + PROFILES[PROFILE].label : '') + '</span></div>' +
+    '<div class="shelf" id="shelf-mine">' + mine.map(card).join('') + addTile('mine') + '</div>' + dropNote('mine') + '</section></div>';
   el.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => { if (!(window.A1Drag && A1Drag.active)) go(b.dataset.go); }));
   el.querySelectorAll('[data-import]').forEach((b) => b.addEventListener('click', () => IMP().then((m) => m.open({ go, where: b.dataset.import }))));
+  dropImport(el.querySelector('.lib'), go);
   const redraw = () => viewLibrary(live(el), { go });
   OR.sortable(el.querySelector('#shelf-shared'), { row: '.book', axis: 'grid', onMove: (ids) => { me.set({ 'shelf.order': ids }, { now: true }); redraw(); } });
   OR.sortable(el.querySelector('#shelf-mine'), { row: '.book', axis: 'grid', onMove: (ids) => { me.set({ 'shelf.mine': ids }, { now: true }); redraw(); } });
+}
+
+/** Text or a file dragged onto the library imports it (Tony, 2026-10-22):
+ *  to the shelf the pointer is nearest, Shared above the line between the two
+ *  shelves and Mine below it. */
+const dragKind = (dt) => {
+  const ts = [...((dt && dt.types) || [])];
+  return ts.includes('Files') ? 'file' : ts.includes('text/plain') ? 'text' : null;
+};
+function dropImport(lib, go) {
+  const secs = [...lib.querySelectorAll('.lib-sec')];
+  const whereAt = (y) => {
+    const mine = secs.find((x) => x.dataset.where === 'mine'), shared = secs.find((x) => x.dataset.where === 'shared');
+    const line = (shared.getBoundingClientRect().bottom + mine.getBoundingClientRect().top) / 2;
+    return y < line ? 'shared' : 'mine';
+  };
+  const light = (w) => secs.forEach((x) => x.classList.toggle('drop-on', x.dataset.where === w));
+  let leaveT = 0;
+  // On the whole page, so a drop just past a shelf still lands; only while the
+  // library is the view.
+  const over = (e) => {
+    if (!lib.isConnected) { off(); return; }
+    if (!dragKind(e.dataTransfer) || (window.A1Drag && A1Drag.active) || document.querySelector('.sheet-dim')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    clearTimeout(leaveT);
+    light(whereAt(e.clientY));
+  };
+  const leave = () => { clearTimeout(leaveT); leaveT = setTimeout(() => light(null), 80); };
+  const drop = (e) => {
+    if (!lib.isConnected) { off(); return; }
+    const kind = dragKind(e.dataTransfer);
+    if (!kind || document.querySelector('.sheet-dim')) return;
+    e.preventDefault();
+    light(null);
+    const where = whereAt(e.clientY);
+    const file = kind === 'file' ? e.dataTransfer.files[0] : null;
+    const text = kind === 'text' ? e.dataTransfer.getData('text/plain') : '';
+    if (!file && !text.trim()) return;
+    IMP().then((m) => m.open({ go, where, file, text }));
+  };
+  const off = () => { removeEventListener('dragover', over); removeEventListener('dragleave', leave); removeEventListener('drop', drop); };
+  if (window.__shrutiLibDrop) window.__shrutiLibDrop();
+  window.__shrutiLibDrop = off;
+  addEventListener('dragover', over); addEventListener('dragleave', leave); addEventListener('drop', drop);
 }
 
 export async function viewBook(el, { id, go }) {
