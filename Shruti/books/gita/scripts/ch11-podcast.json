@@ -4,95 +4,406 @@
   "n": 11,
   "title": "Vision of the universal form",
   "hosts": [
-    { "id": "A", "name": "Ava", "voice": "en-US-AvaMultilingualNeural" },
-    { "id": "B", "name": "Andrew", "voice": "en-US-AndrewMultilingualNeural" }
+    {
+      "id": "A",
+      "name": "Emma",
+      "voice": "en-US-EmmaMultilingualNeural"
+    },
+    {
+      "id": "B",
+      "name": "Brian",
+      "voice": "en-US-BrianMultilingualNeural"
+    }
   ],
   "segments": [
     {
       "title": "Welcome",
       "turns": [
-        { "s": "A", "t": "Welcome to Shruti. I'm Ava." },
-        { "s": "B", "t": "And I'm Andrew. Today, Chapter Eleven: Vision of the Universal Form." },
-        { "s": "A", "t": "This is the most dramatic chapter of the Gita. Arjuna has heard that God is everything. Now he asks to see it. And what he sees is so vast and so terrifying that he begs Krishna to turn back into his friend." },
-        { "s": "B", "t": "Five lessons today, but the story is the star. Let's tell it." }
+        {
+          "s": "A",
+          "t": "Welcome to Shruti. I'm Emma."
+        },
+        {
+          "s": "B",
+          "t": "And I'm Brian. Today, Chapter Eleven: Vision of the Universal Form."
+        },
+        {
+          "s": "A",
+          "t": "This is the most dramatic chapter of the Gita. Arjuna has heard that God is everything. Now he asks to see it. And what he sees is so vast and so terrifying that he begs Krishna to turn back into his friend."
+        },
+        {
+          "s": "B",
+          "t": "Five lessons today, but the story is the star. Let's tell it."
+        }
       ]
     },
     {
       "title": "The story",
       "turns": [
-        { "s": "A", "t": "Arjuna begins grateful. Eleven point one: my illusion is dispelled by the profound words You spoke out of compassion for me." },
-        { "s": "B", "t": "And then he asks for more. Eleven point three and four: You are as You have said, yet I wish to see Your divine cosmic form. If You think it is possible for me, show me Your transcendental form.", "L": ["L1"] },
-        { "s": "A", "t": "Krishna agrees, eleven point five to seven: behold My hundreds and thousands of divine forms, of different colors and shapes. Behold the entire creation, all in one place in My body." },
-        { "s": "B", "t": "And then the key line, eleven point eight: but you are not able to see Me with your physical eye; therefore, I give you the divine eye.", "L": ["L1"] },
-        { "s": "A", "t": "Sanjaya, narrating for the blind king, describes what happens next. Eleven point twelve: if the splendor of thousands of suns were to blaze forth all at once in the sky, even that would not resemble the splendor of that exalted being.", "L": ["L2"] },
-        { "s": "B", "t": "Eleven point thirteen: Arjuna saw the entire universe, divided in many ways, but standing as all in One, in the body of Krishna." },
-        { "s": "A", "t": "And Arjuna, his hair standing on end, bows with folded hands. Eleven point sixteen: I see You everywhere with infinite forms, with many arms, stomachs, faces and eyes. I see neither Your beginning, nor middle, nor end.", "L": ["L2"] },
-        { "s": "B", "t": "Then the vision turns frightening. Eleven point nineteen and twenty: with the sun and moon as Your eyes, Your mouth a blazing fire, scorching the universe. Seeing Your marvelous and terrible form, the three worlds are trembling with fear.", "L": ["L2"] },
-        { "s": "A", "t": "Eleven point twenty-four: I am frightened and find neither peace nor courage, O Krishna. Have mercy on me.", "L": ["L2"] },
-        { "s": "B", "t": "And then he sees the battle itself inside the vision. Eleven point twenty-six and twenty-seven: all my cousins, the kings and warriors on the other side, and chief warriors on our side too, are rushing into Your fearful mouths. Some are caught between the tusks with their heads crushed.", "L": ["L3"] },
-        { "s": "A", "t": "Two images: like rivers rushing into the ocean, eleven point twenty-eight, and like moths rushing into a blazing flame, eleven point twenty-nine." },
-        { "s": "B", "t": "Arjuna, shaking, asks, eleven point thirty-one: tell me who You are, in such a fierce form. I do not know Your mission." },
-        { "s": "A", "t": "And Krishna's answer is one of the most famous lines ever written. Eleven point thirty-two: I am death, the mighty destroyer of the world. I have come here to destroy all these people. Even without your participation, all the warriors arrayed in the opposing armies shall cease to exist.", "L": ["L3"] },
-        { "s": "B", "t": "A note from outside our book: this is the line J. Robert Oppenheimer remembered at the first atomic test in 1945, often quoted as, now I am become death, the destroyer of worlds.", "L": ["L3"] },
-        { "s": "A", "t": "And then the point of it all, eleven point thirty-three: therefore, get up and attain glory. All these warriors have already been destroyed by Me. You be merely My instrument, O Arjuna.", "L": ["L3"] },
-        { "s": "B", "t": "Our book's commentary: this is My battle, not yours. I use you only as an instrument. One must remember at all times that all battles are His, not ours.", "L": ["L3"] },
-        { "s": "A", "t": "Arjuna responds with a hymn of praise, eleven point thirty-six to forty: You are the primal God, the most ancient Person. Salutations to You a thousand times, and again and again. Salutations from the front and from behind, from all sides." },
-        { "s": "B", "t": "And then a very human moment. Eleven point forty-one and forty-two: considering You merely as a friend, I have carelessly called You, O Krishna, O friend. In whatever way I may have insulted You in jokes, while playing, resting, sitting or at meals, I implore You for forgiveness." },
-        { "s": "A", "t": "Eleven point forty-four: bear with me as a father with his son, as a friend with a friend, as a husband with his wife." },
-        { "s": "B", "t": "And then he asks for something smaller. Eleven point forty-five and forty-six: I am delighted to see what has never been seen, and yet my mind is tormented with fear. Have mercy on me and show me Your four-armed form.", "L": ["L4"] },
-        { "s": "A", "t": "Krishna answers, eleven point forty-seven and forty-eight: being pleased with you, I have shown you this form, which no one but you has seen. Not by study of the Vedas, nor sacrifice, nor charity, nor rituals, nor severe austerities can I be seen this way.", "L": ["L2", "L4"] },
-        { "s": "B", "t": "Eleven point forty-nine: do not be confused by this terrible form. With a fearless and cheerful mind, now behold My four-armed form. And then, eleven point fifty, Krishna takes his pleasant human form again, and consoles his terrified friend.", "L": ["L4"] },
-        { "s": "A", "t": "Eleven point fifty-one, Arjuna: seeing this lovely human form of Yours, I have become tranquil, and I am normal again.", "L": ["L4"] },
-        { "s": "B", "t": "And the chapter ends with the way in. Eleven point fifty-four: through single-minded devotion alone, I can be seen in this form, known in essence, and reached.", "L": ["L4"] },
-        { "s": "A", "t": "And eleven point fifty-five, which many call the essence of the whole Gita in one verse: one who dedicates all works to Me, to whom I am the supreme goal, who is My devotee, who has no attachment, and is free from enmity toward any being, attains Me, O Arjuna.", "L": ["L5"] }
+        {
+          "s": "A",
+          "t": "Arjuna begins grateful. Eleven point one: my illusion is dispelled by the profound words You spoke out of compassion for me."
+        },
+        {
+          "s": "B",
+          "t": "And then he asks for more. Eleven point three and four: You are as You have said, yet I wish to see Your divine cosmic form. If You think it is possible for me, show me Your transcendental form.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "I love the humility in that. If You think it is possible for me. He isn't demanding a show. He's asking a friend for something he isn't sure he can handle."
+        },
+        {
+          "s": "A",
+          "t": "Krishna agrees, eleven point five to seven: behold My hundreds and thousands of divine forms, of different colors and shapes. Behold the entire creation, all in one place in My body."
+        },
+        {
+          "s": "B",
+          "t": "And then the key line, eleven point eight: but you are not able to see Me with your physical eye; therefore, I give you the divine eye.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "That's a quiet but important point. Some things can't be seen with ordinary eyes, however hard you look. The seeing itself has to be given."
+        },
+        {
+          "s": "A",
+          "t": "Sanjaya, narrating for the blind king, describes what happens next. Eleven point twelve: if the splendor of thousands of suns were to blaze forth all at once in the sky, even that would not resemble the splendor of that exalted being.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Eleven point thirteen: Arjuna saw the entire universe, divided in many ways, but standing as all in One, in the body of Krishna."
+        },
+        {
+          "s": "B",
+          "t": "All in One. That phrase is really the whole chapter. Everything Arjuna knows, every person, every star, held in one body, standing right in front of him on a chariot."
+        },
+        {
+          "s": "A",
+          "t": "And Arjuna, his hair standing on end, bows with folded hands. Eleven point sixteen: I see You everywhere with infinite forms, with many arms, stomachs, faces and eyes. I see neither Your beginning, nor middle, nor end.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Then the vision turns frightening. Eleven point nineteen and twenty: with the sun and moon as Your eyes, Your mouth a blazing fire, scorching the universe. Seeing Your marvelous and terrible form, the three worlds are trembling with fear.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Eleven point twenty-four: I am frightened and find neither peace nor courage, O Krishna. Have mercy on me.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "It's striking how fast the wonder turns to fear. He asked to see the truth, and the truth is bigger than his comfort."
+        },
+        {
+          "s": "B",
+          "t": "And then he sees the battle itself inside the vision. Eleven point twenty-six and twenty-seven: all my cousins, the kings and warriors on the other side, and chief warriors on our side too, are rushing into Your fearful mouths. Some are caught between the tusks with their heads crushed.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Two images: like rivers rushing into the ocean, eleven point twenty-eight, and like moths rushing into a blazing flame, eleven point twenty-nine."
+        },
+        {
+          "s": "B",
+          "t": "Rivers into the ocean, moths into a flame. Both images say the same thing: everything that's born is already flowing toward its end. Time is moving, whether we look at it or not."
+        },
+        {
+          "s": "B",
+          "t": "Arjuna, shaking, asks, eleven point thirty-one: tell me who You are, in such a fierce form. I do not know Your mission."
+        },
+        {
+          "s": "A",
+          "t": "And Krishna's answer is one of the most famous lines ever written. Eleven point thirty-two: I am death, the mighty destroyer of the world. I have come here to destroy all these people. Even without your participation, all the warriors arrayed in the opposing armies shall cease to exist.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "A note from outside our book: this is the line J. Robert Oppenheimer remembered at the first atomic test in 1945, often quoted as, now I am become death, the destroyer of worlds.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And then the point of it all, eleven point thirty-three: therefore, get up and attain glory. All these warriors have already been destroyed by Me. You be merely My instrument, O Arjuna.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Our book's commentary: this is My battle, not yours. I use you only as an instrument. One must remember at all times that all battles are His, not ours.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And it answers the question Arjuna asked back in chapter one. He was terrified of being the one who caused all this destruction. Krishna is saying, you are not the cause. You are not carrying that alone."
+        },
+        {
+          "s": "A",
+          "t": "Arjuna responds with a hymn of praise, eleven point thirty-six to forty: You are the primal God, the most ancient Person. Salutations to You a thousand times, and again and again. Salutations from the front and from behind, from all sides."
+        },
+        {
+          "s": "B",
+          "t": "And then a very human moment. Eleven point forty-one and forty-two: considering You merely as a friend, I have carelessly called You, O Krishna, O friend. In whatever way I may have insulted You in jokes, while playing, resting, sitting or at meals, I implore You for forgiveness."
+        },
+        {
+          "s": "A",
+          "t": "Eleven point forty-four: bear with me as a father with his son, as a friend with a friend, as a husband with his wife."
+        },
+        {
+          "s": "B",
+          "t": "That might be my favorite moment in the chapter. After seeing the face of the cosmos, what Arjuna really wants is his friend back."
+        },
+        {
+          "s": "A",
+          "t": "Which says something lovely about devotion. Awe is real, but love is where we can actually live."
+        },
+        {
+          "s": "B",
+          "t": "And then he asks for something smaller. Eleven point forty-five and forty-six: I am delighted to see what has never been seen, and yet my mind is tormented with fear. Have mercy on me and show me Your four-armed form.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Krishna answers, eleven point forty-seven and forty-eight: being pleased with you, I have shown you this form, which no one but you has seen. Not by study of the Vedas, nor sacrifice, nor charity, nor rituals, nor severe austerities can I be seen this way.",
+          "L": [
+            "L2",
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Eleven point forty-nine: do not be confused by this terrible form. With a fearless and cheerful mind, now behold My four-armed form. And then, eleven point fifty, Krishna takes his pleasant human form again, and consoles his terrified friend.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Eleven point fifty-one, Arjuna: seeing this lovely human form of Yours, I have become tranquil, and I am normal again.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "And the chapter ends with the way in. Eleven point fifty-four: through single-minded devotion alone, I can be seen in this form, known in essence, and reached.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And eleven point fifty-five, which many call the essence of the whole Gita in one verse: one who dedicates all works to Me, to whom I am the supreme goal, who is My devotee, who has no attachment, and is free from enmity toward any being, attains Me, O Arjuna.",
+          "L": [
+            "L5"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 1 · To see God",
       "turns": [
-        { "s": "B", "t": "Lesson one: seeing God's true form is the ultimate aim of a seeker.", "L": ["L1"] },
-        { "s": "A", "t": "Arjuna's request is every seeker's deepest wish: not to know about God, but to see. To perceive the Divine directly.", "L": ["L1"] },
-        { "s": "B", "t": "And God grants it, with a divine eye, because physical eyes can't see it. The vision is a gift, not an achievement.", "L": ["L1"] }
+        {
+          "s": "B",
+          "t": "Lesson one: seeing God's true form is the ultimate aim of a seeker.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Arjuna's request is every seeker's deepest wish: not to know about God, but to see. To perceive the Divine directly.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "And God grants it, with a divine eye, because physical eyes can't see it. The vision is a gift, not an achievement.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "A note from us, not from the book. In daily life, the divine eye might look like this: a moment when the ordinary suddenly seems sacred. A child's face, a quiet morning. You didn't make it happen. It was given."
+        }
       ]
     },
     {
       "title": "Lesson 2 · Beyond comprehension",
       "turns": [
-        { "s": "A", "t": "Lesson two: God's cosmic form is overwhelming, beyond human comprehension.", "L": ["L2"] },
-        { "s": "B", "t": "It holds all beings, all worlds, all time. It's terrifying and awe-inspiring at once.", "L": ["L2"] },
-        { "s": "A", "t": "No study, ritual, charity or austerity earns that vision. Only God's grace, meeting a devotee's sincere longing.", "L": ["L2"] }
+        {
+          "s": "A",
+          "t": "Lesson two: God's cosmic form is overwhelming, beyond human comprehension.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "It holds all beings, all worlds, all time. It's terrifying and awe-inspiring at once.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "No study, ritual, charity or austerity earns that vision. Only God's grace, meeting a devotee's sincere longing.",
+          "L": [
+            "L2"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 3 · Instruments, not doers",
       "turns": [
-        { "s": "B", "t": "Lesson three: we are instruments, not doers.", "L": ["L3"] },
-        { "s": "A", "t": "The warriors Arjuna feared to kill had already been destroyed by the Divine will. Arjuna is only the instrument.", "L": ["L3"] },
-        { "s": "B", "t": "Our part is to act as a willing vehicle of that will, not to claim authorship. And there's freedom in that: the weight of the whole outcome was never ours to carry.", "L": ["L3"] }
+        {
+          "s": "B",
+          "t": "Lesson three: we are instruments, not doers.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "The warriors Arjuna feared to kill had already been destroyed by the Divine will. Arjuna is only the instrument.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Our part is to act as a willing vehicle of that will, not to claim authorship. And there's freedom in that: the weight of the whole outcome was never ours to carry.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Think of a musician who plays beautifully and says afterwards, the music played me. That's the attitude. Full effort, and no grasping at credit."
+        },
+        {
+          "s": "B",
+          "t": "And notice it doesn't make Arjuna passive. Krishna says, get up. The instrument still has to be played."
+        }
       ]
     },
     {
       "title": "Lesson 4 · Any form, through love",
       "turns": [
-        { "s": "A", "t": "Lesson four: God can be approached in any form, but is best reached through devotion.", "L": ["L4"] },
-        { "s": "B", "t": "After the cosmic form, Krishna returns to his gentle human form because Arjuna asks. God can be met in the form that suits the devotee.", "L": ["L4"] },
-        { "s": "A", "t": "But none of the usual routes, scripture, sacrifice, austerity, grant that vision. Single-minded love does.", "L": ["L4"] }
+        {
+          "s": "A",
+          "t": "Lesson four: God can be approached in any form, but is best reached through devotion.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "After the cosmic form, Krishna returns to his gentle human form because Arjuna asks. God can be met in the form that suits the devotee.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "But none of the usual routes, scripture, sacrifice, austerity, grant that vision. Single-minded love does.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "There's a tenderness in that. God could stay in the overwhelming form. Instead, He becomes small enough to be loved."
+        }
       ]
     },
     {
       "title": "Lesson 5 · The whole practice in one verse",
       "turns": [
-        { "s": "B", "t": "And lesson five: full dedication to God is the direct path to liberation.", "L": ["L5"] },
-        { "s": "A", "t": "Dedicate all your work to God. Make God your highest goal. Be devoted. Be free of attachment. Hold no enmity toward any being.", "L": ["L5"] },
-        { "s": "B", "t": "That person attains God. It's the complete practice, in one verse, eleven fifty-five.", "L": ["L5"] }
+        {
+          "s": "B",
+          "t": "And lesson five: full dedication to God is the direct path to liberation.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Dedicate all your work to God. Make God your highest goal. Be devoted. Be free of attachment. Hold no enmity toward any being.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "That person attains God. It's the complete practice, in one verse, eleven fifty-five.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "It's a good verse to memorize, honestly. Five short phrases, and each one is a whole practice of its own."
+        }
       ]
     },
     {
       "title": "Wrap-up",
       "turns": [
-        { "s": "A", "t": "So, Chapter Eleven. Arjuna asks to see God, sees more than he can bear, learns that he's only an instrument, and is comforted when God becomes his friend again.", "L": ["L1", "L2", "L3", "L4"] },
-        { "s": "B", "t": "Five lessons: to see God, beyond comprehension, instruments not doers, any form through love, and the whole practice in one verse.", "L": ["L1", "L2", "L3", "L4", "L5"] },
-        { "s": "A", "t": "Next time, Chapter Twelve, the shortest and maybe sweetest chapter: the path of devotion. Thanks for listening to Shruti." }
+        {
+          "s": "A",
+          "t": "So, Chapter Eleven. Arjuna asks to see God, sees more than he can bear, learns that he's only an instrument, and is comforted when God becomes his friend again.",
+          "L": [
+            "L1",
+            "L2",
+            "L3",
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Five lessons: to see God, beyond comprehension, instruments not doers, any form through love, and the whole practice in one verse.",
+          "L": [
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Next time, Chapter Twelve, the shortest and maybe sweetest chapter: the path of devotion. Thanks for listening to Shruti."
+        }
       ]
     }
   ]
