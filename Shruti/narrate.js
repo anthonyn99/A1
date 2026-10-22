@@ -18,7 +18,7 @@ import * as T from './text.js';
 import * as M from './media.js';
 
 const DRIVE = M.DRIVE;
-export const SPEEDS = [0.5, 0.75, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5];
+export const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5];
 export const SLEEPS = [0, 5, 10, 15, 30, 45, 60];
 const ACCENT = { 'en-US': 'American', 'en-GB': 'British', 'en-AU': 'Australian', 'en-IN': 'Indian', 'en-IE': 'Irish', 'en-CA': 'Canadian' };
 
@@ -431,21 +431,25 @@ function unlockAudio() {
   } catch (e) {}
 }
 
-/* ── the read-aloud sheet: voice, speed, sleep, follow, save to Drive ────── */
+/* ── the read-aloud sheet: speed, voice, sleep, follow, a ready-made copy ── */
+// Rebuilt 2026-10-22 (Tony: "far more elegant"): the Make with AI sheets' look.
 let voiceList = null;
+const RA_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 14v-2a9 9 0 0 1 18 0v2"/><path d="M21 15a2 2 0 0 1-2 2h-1v-6h1a2 2 0 0 1 2 2z"/><path d="M3 15a2 2 0 0 0 2 2h1v-6H5a2 2 0 0 0-2 2z"/></svg>';
+const PLAY_SM = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg>';
 export async function openSheet(ctx) {
   ctx = ctx || (N.book ? { book: N.book, n: N.n, ch: N.ch, title: N.title } : null);
   if (document.getElementById('ra-sheet')) return;
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const dim = document.createElement('div');
   dim.className = 'sheet-dim'; dim.id = 'ra-sheet';
-  dim.innerHTML = '<aside class="sheet" role="dialog" aria-modal="true" aria-labelledby="ra-h"><div class="sh-h"><h2 id="ra-h">Read-aloud</h2>' +
-    '<button class="ib" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>' +
-    '<section class="card"><h3>Speed</h3><div class="chips" id="ra-speed"></div></section>' +
-    '<section class="card"><h3>Voice</h3><p class="hint">Neural voices through Orca, with your key. A chapter with a ready-made narration in this voice plays without asking Orca.</p><div class="voices" id="ra-voices"></div></section>' +
-    '<section class="card"><h3>Sleep timer</h3><div class="chips" id="ra-sleep"></div></section>' +
-    '<section class="card"><label class="sw"><input type="checkbox" id="ra-follow"><span>Follow the voice</span></label><p class="hint" style="margin-bottom:0">The page scrolls with the word being read. Scroll away and it waits until you tap the word again.</p></section>' +
-    (ctx ? '<section class="card" id="ra-save"></section>' : '') + '</aside>';
+  dim.innerHTML = '<aside class="sheet mk ra" role="dialog" aria-modal="true" aria-labelledby="ra-h">' +
+    '<header class="mk-head"><span class="mk-ic">' + RA_ICON + '</span><div class="mk-ht"><h2 id="ra-h">Read-aloud</h2>' + (ctx ? '<p>' + esc((ctx.n ? 'Chapter ' + ctx.n + ' · ' : '') + (ctx.title || '')) + '</p>' : '') + '</div>' +
+    '<button class="ib" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>' +
+    '<section class="mk-sec"><div class="mk-label">Speed</div><div class="chips ra-chips" id="ra-speed"></div></section>' +
+    '<section class="mk-sec"><div class="mk-label">Voice<span>Tap ▶ to hear one</span></div><div class="mk-voices" id="ra-voices" role="radiogroup" aria-label="Voice"></div></section>' +
+    '<section class="mk-sec"><div class="mk-label">Sleep timer</div><div class="chips ra-chips" id="ra-sleep"></div></section>' +
+    '<section class="mk-sec"><label class="st-card ra-follow"><span><b>Follow the voice</b><span>The page scrolls with the word being read.</span></span><input type="checkbox" class="sw-in" id="ra-follow"></label></section>' +
+    (ctx ? '<section class="mk-sec" id="ra-save"></section>' : '') + '</aside>';
   document.body.appendChild(dim);
   const close = () => { dim.remove(); removeEventListener('keydown', k); off(); };
   const k = (e) => { if (e.key === 'Escape') close(); };
@@ -460,22 +464,23 @@ export async function openSheet(ctx) {
   const drawSleep = () => {
     const box = dim.querySelector('#ra-sleep'), left = sleepLeft();
     box.innerHTML = SLEEPS.map((m) => '<button class="chip' + ((m === 0 && !left) ? ' on' : '') + '" data-m="' + m + '">' + (m ? m + ' min' : 'Off') + '</button>').join('') +
-      (left ? '<span class="hint" style="align-self:center">Pausing in ' + left + ' min</span>' : '');
+      (left ? '<span class="hint ra-left">Pausing in ' + left + ' min</span>' : '');
     box.querySelectorAll('[data-m]').forEach((b) => b.addEventListener('click', () => { setSleep(Number(b.dataset.m)); drawSleep(); }));
   };
+  let scrolled = false;
   const drawVoices = () => {
     const box = dim.querySelector('#ra-voices'), cur = p().voice;
     const list = voiceList || O.VOICES;
     box.innerHTML = list.filter((v) => v.engine !== 'aura').map((v) =>
-      '<div class="voice' + (v.id === cur ? ' on' : '') + '" data-v="' + esc(v.id) + '" role="radio" aria-checked="' + (v.id === cur) + '" tabindex="0">' +
-      '<span class="dot"></span><span class="vn2"><b>' + esc(v.name) + '</b><span>' + esc((ACCENT[v.locale] || v.locale) + ' · ' + v.gender) + '</span></span>' +
-      '<button class="ib" data-try="' + esc(v.id) + '" aria-label="Hear ' + esc(v.name) + '" title="Hear ' + esc(v.name) + '"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button></div>').join('');
+      '<div class="mk-voice voice' + (v.id === cur ? ' on' : '') + '" data-v="' + esc(v.id) + '" role="radio" aria-checked="' + (v.id === cur) + '" tabindex="0">' +
+      '<span class="dot"></span><span class="mk-vn"><b>' + esc(v.name) + '</b><span>' + esc((ACCENT[v.locale] || v.locale) + ' · ' + v.gender) + '</span></span>' +
+      '<button class="ib sm" data-try="' + esc(v.id) + '" aria-label="Hear ' + esc(v.name) + '" title="Hear ' + esc(v.name) + '">' + PLAY_SM + '</button></div>').join('');
     box.querySelectorAll('[data-v]').forEach((row) => {
       const choose = () => {
         if (row.dataset.v === p().voice) return;
         setPref('voice', row.dataset.v);
         drawVoices();
-        // "Save this chapter in …" names the voice now ticked (it said the old one).
+        // "Make it in …" names the voice now ticked (it once said the old one).
         if (ctx) drawSave(dim.querySelector('#ra-save'), ctx, esc);
         // A new voice for what is playing: start this segment again in it.
         if (N.mode) { const at = { b: segList()[N.i].b, word: 0 }, playing = N.playing, cur = { book: N.book, n: N.n, ch: N.ch, title: N.title }; reset(); if (playing) start(Object.assign(cur, { from: at })); else { N.book = null; ui.player && ui.player.hide(); } }
@@ -484,6 +489,8 @@ export async function openSheet(ctx) {
       row.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(); } });
     });
     box.querySelectorAll('[data-try]').forEach((b) => b.addEventListener('click', () => preview(b.dataset.try, b)));
+    const on = box.querySelector('.on');
+    if (on && !scrolled) { scrolled = true; requestAnimationFrame(() => { box.scrollTop += on.getBoundingClientRect().top - box.getBoundingClientRect().top - 8; }); }
   };
   drawSpeed(); drawSleep(); drawVoices();
   const fol = dim.querySelector('#ra-follow');
@@ -506,30 +513,27 @@ export async function preview(id, btn) {
   btn.disabled = false;
 }
 
-/* ── "Save narration": the whole chapter in the chosen voice, to Drive ───── */
+/* ── a ready-made narration: the whole chapter in the chosen voice, to Drive ─ */
+// Made in the background (jobs.js), like Make with AI's narration.
 async function drawSave(box, ctx, esc) {
   const ready = await readyFor(ctx.book, ctx.n);
   const want = prefs().voice;
-  const lines = ready.map((r) => '<li>' + esc(voiceName(r.voice)) + ' · ' + (r.where === 'shipped' ? 'comes with Shruti' : 'saved to Drive') + (r.duration ? ' · ' + T.fmtTime(r.duration) : '') + '</li>').join('');
   const has = ready.some((r) => r.voice === want);
   const drive = has || await M.driveReady(ctx.book);
   // A newer draw (the voice changed meanwhile) wins.
   if (!box.isConnected || want !== prefs().voice) return;
-  box.innerHTML = '<h3>Ready-made narration</h3><p class="hint">Saved once, it plays on every device and both profiles with no Orca calls, and can be listened to with the screen off.</p>' +
-    (lines ? '<ul class="ra-list">' + lines + '</ul>' : '<p class="hint">None for this chapter yet.</p>') +
-    // It is kept on Drive: without Drive, say so (and where to fix it) instead of failing at the end.
-    (!drive ? '<div class="stat"><i></i><span>Google Drive is not connected, so a narration cannot be kept yet.</span><button class="btn sm" data-ra-drive>Open Settings</button></div>' : '') +
-    '<div class="row"><button class="btn" id="ra-save-btn"' + (has || !drive ? ' disabled' : '') + '>' + (has ? 'Saved in ' + esc(voiceName(want)) : 'Save this chapter in ' + esc(voiceName(want))) + '</button></div><div class="stat" id="ra-save-stat" hidden><i></i><span></span></div>';
+  const J = await import('./jobs.js');
+  const busy = J.active().some((t) => t.kind === 'read' && t.book === ctx.book && t.n === ctx.n && t.opts.voice === want);
+  box.innerHTML = '<div class="mk-label">Ready-made<span>Plays offline-fast, no Orca calls</span></div>' +
+    '<div class="st-card ra-ready">' + (ready.length ? ready.map((r) => '<div class="ra-r"><b>' + esc(voiceName(r.voice)) + '</b><span>' + (r.where === 'shipped' ? 'Comes with Shruti' : 'Saved to Drive') + (r.duration ? ' · ' + T.fmtTime(r.duration) : '') + '</span></div>').join('') : '<p class="hint">None yet for this chapter.</p>') + '</div>' +
+    (!drive ? '<div class="stat ra-nodrive"><i></i><span>Google Drive is not connected.</span><button class="btn sm" data-ra-drive>Open Settings</button></div>' : '') +
+    '<div class="st-row"><button class="btn" id="ra-save-btn"' + (has || !drive || busy ? ' disabled' : '') + '>' + (has ? 'Ready in ' + esc(voiceName(want)) : busy ? 'Being made in ' + esc(voiceName(want)) + '…' : 'Make it in ' + esc(voiceName(want))) + '</button></div>';
   const dr = box.querySelector('[data-ra-drive]'); if (dr) dr.addEventListener('click', () => { const sh = box.closest('.sheet-dim'); if (sh) sh.remove(); ui.openSettings(); });
-  const btn = box.querySelector('#ra-save-btn');
-  btn.addEventListener('click', async () => {
-    const stat = box.querySelector('#ra-save-stat'), say = (kind, t) => { stat.hidden = false; stat.className = 'stat ' + kind; stat.querySelector('span').textContent = t; };
+  box.querySelector('#ra-save-btn').addEventListener('click', () => {
     if (!keyOf()) { needKey(); return; }
-    btn.disabled = true;
-    try {
-      await saveNarration(ctx, want, (done, total) => say('busy', 'Speaking ' + done + ' of ' + total + '…'), () => say('busy', 'Uploading to Drive…'));
-      say('good', 'Saved. It now plays from Drive on every device.');
-    } catch (e) { say('bad', e.message || String(e)); btn.disabled = false; }
+    J.add({ kind: 'read', book: ctx.book, n: ctx.n, title: ctx.title, opts: { voice: want } });
+    ui.toast('Making the ' + voiceName(want) + ' narration in the background');
+    drawSave(box, ctx, esc);
   });
 }
 /** Exported for the live test. Resolves the shared-doc record. */
