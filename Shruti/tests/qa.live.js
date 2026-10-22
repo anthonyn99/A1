@@ -197,7 +197,7 @@ async function audit(c, label) {
   await setKey(c, null);
   ok('Study opens', await go(c, '#/b/gita/4/study', `!!document.querySelector('.sh-make, [data-make]')`));
   await ev(c, `document.querySelector('.sh-make, [data-make]').click(); return 1`);
-  ok('Make a study set says the key is needed, with Open Settings', await waitFor(c, `/Your Orca key is needed/.test(document.querySelector('#sm-run .ai-prob')?.textContent||'') && !!document.querySelector('#sm-run [data-ai-settings]')`));
+  ok('Make a study set says the key is needed, with Open Settings', await waitFor(c, `/Your Orca key is needed/.test(document.querySelector('#gen-run .ai-prob')?.textContent||'') && !!document.querySelector('#gen-run [data-ai-settings]')`));
   await closeSheets(c);
 
   // Drive not connected: saving a narration in another voice.
