@@ -129,8 +129,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--ac); box-shadow:
 #app { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
 #top {
   position: sticky; top: 0; z-index: 50; height: var(--top-h); display: flex; align-items: center; gap: 6px;
-  padding: 0 12px 0 16px; padding-top: env(safe-area-inset-top); background: color-mix(in srgb, var(--bg) 82%, transparent);
-  -webkit-backdrop-filter: blur(14px) saturate(1.2); backdrop-filter: blur(14px) saturate(1.2);
+  padding: 0 12px 0 16px; padding-top: env(safe-area-inset-top); background: color-mix(in srgb, var(--bg) 90%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5); backdrop-filter: blur(20px) saturate(1.5);
   border-bottom: 1px solid var(--line);
 }
 #top .brand {
@@ -158,18 +158,27 @@ body[data-profile=veda] #switch-btn .pf-av svg { width: 14px; height: 14px; }
 #switch-btn:hover .pf-av { color: var(--tx); }
 
 #view { flex: 1; width: 100%; max-width: 1180px; margin: 0 auto; padding: 22px 24px calc(40px + var(--bnav-h) + var(--mini-h, 0px)); }
-.v-enter { animation: vIn .32s var(--ease) both; }
+/* "backwards", not "both": a fill that lasts past the animation keeps #view a
+   compositing layer, and the sticky bars inside it stopped blurring what
+   scrolls under them (Tony, 2026-10-22: text showed through the tabs). */
+.v-enter { animation: vIn .32s var(--ease) backwards; }
 @keyframes vIn { from { opacity: 0; transform: translateY(8px); } }
 
 /* == library ================================================================ */
 .sec-h { display: flex; align-items: baseline; gap: 10px; margin: 6px 0 14px; }
 .sec-h h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .12em; color: var(--txm); font-family: var(--f-ui); font-weight: 700; }
 body[data-profile=veda] .sec-h h2 { text-transform: none; letter-spacing: 0; font: 600 18px var(--f-head); color: var(--tx); }
+/* The library's shelf headings, bigger (Tony, 2026-10-22). */
+.lib-h { margin-bottom: 16px; }
+.lib-h h2 { font-size: 15.5px; letter-spacing: .14em; color: var(--tx); }
+body[data-profile=veda] .lib-h h2 { font-size: 22px; }
+.lib-h .n { font-size: 13px; }
+.lib-sec + .lib-sec { margin-top: 8px; }
 .sec-h .n { color: var(--txd); font-size: 12.5px; }
 .sec-h .sp { flex: 1; }
 .lib-hero { margin: 4px 0 26px; }
 .lib-hero h1 { font-size: clamp(26px, 4vw, 34px); }
-.lib-hero p { margin: 6px 0 0; color: var(--txm); }
+.lib-hero p { margin: 4px 0 0; color: var(--txd); font-size: 13.5px; }
 .shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 18px; margin-bottom: 34px; }
 .book {
   position: relative; display: flex; flex-direction: column; gap: 10px; cursor: pointer; text-align: left;
@@ -239,28 +248,48 @@ body[data-profile=veda] .sec-h h2 { text-transform: none; letter-spacing: 0; fon
 .bdg.done { opacity: 1; border-style: solid; border-color: var(--ac-line); background: var(--ac-soft); color: var(--ac); }
 
 /* == chapter ================================================================ */
-.cp-head { margin: 2px 0 18px; }
+/* The header (Tony, 2026-10-22: "way cleaner"): the chapter and its title on
+   the left, one quiet line of counts, the two actions on the right. */
+.cp-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px 20px; flex-wrap: wrap; margin: 6px 0 14px; }
+.cp-t { min-width: 0; flex: 1 1 360px; }
 .cp-head .k { color: var(--ac); font: 650 12px var(--f-ui); letter-spacing: .14em; text-transform: uppercase; }
 body[data-profile=veda] .cp-head .k { text-transform: none; letter-spacing: 0; font-size: 13px; }
-.cp-head h1 { font-size: clamp(24px, 3.6vw, 34px); margin-top: 4px; }
-.cp-head .m { color: var(--txm); font-size: 13.5px; margin-top: 6px; }
-.cp-head .mark { margin: 10px 0 0 -12px; font-size: 13px; padding-top: 6px; padding-bottom: 6px; }
+.cp-head h1 { font-size: clamp(25px, 3.6vw, 36px); margin-top: 4px; line-height: 1.15; }
+.cp-head .m { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--txd); font-size: 12.5px; margin-top: 8px; }
+.cp-head .m span + span::before { content: ''; display: inline-block; width: 3px; height: 3px; border-radius: 50%; background: var(--txd); margin: 0 14px 0 -8px; vertical-align: 3px; opacity: .7; }
+.cp-head .m span + span { margin-left: 0; }
+.cp-acts { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.cp-acts .btn { min-height: 38px; font-size: 13.5px; }
+.cp-acts .btn svg { width: 16px; height: 16px; }
+.cp-head .mark { color: var(--txm); }
+.cp-head .mark.on { color: var(--good); }
+.cp-head .mark.on:hover { color: var(--tx); }
+/* The tabs: a segmented bar, sticky under the top bar, blurring what scrolls
+   under it; opaque enough that text never reads through where blur is off. */
 .modes {
-  position: sticky; top: var(--top-h); z-index: 20; display: flex; gap: 4px; padding: 6px; margin: 0 -6px 22px;
-  background: color-mix(in srgb, var(--bg) 88%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-  overflow-x: auto; scrollbar-width: none;
+  position: sticky; top: var(--top-h); z-index: 20; margin: 0 -24px 22px; padding: 8px 24px;
+  background: color-mix(in srgb, var(--bg) 86%, transparent); -webkit-backdrop-filter: blur(20px) saturate(1.5); backdrop-filter: blur(20px) saturate(1.5);
+  border-bottom: 1px solid transparent; transition: border-color .2s;
 }
-.modes::-webkit-scrollbar { display: none; }
+.modes-in { display: flex; gap: 2px; padding: 4px; border-radius: 14px; background: var(--s1); border: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; width: max-content; max-width: 100%; }
+.modes-in::-webkit-scrollbar { display: none; }
 .modes button {
-  display: inline-flex; align-items: center; gap: 7px; padding: 9px 14px; border-radius: 9px; border: 1px solid transparent;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 8px 16px; border-radius: 10px; border: 1px solid transparent;
   background: none; color: var(--txm); font-weight: 650; font-size: 14px; cursor: pointer; white-space: nowrap;
-  transition: color .15s, background .15s, border-color .15s;
+  transition: color .15s, background .15s, border-color .15s, box-shadow .15s;
 }
 .modes button svg { width: 16px; height: 16px; }
 .modes button:hover { color: var(--tx); }
-.modes button.on { color: var(--ac); background: var(--ac-soft); border-color: var(--ac-line); }
-.cp-nav { display: flex; justify-content: space-between; gap: 10px; margin-top: 34px; padding-top: 18px; border-top: 1px solid var(--line); }
-.cp-nav .btn { max-width: 48%; overflow: hidden; text-overflow: ellipsis; }
+.modes button.on { color: var(--ac); background: var(--s3); border-color: var(--line2); box-shadow: var(--sh1); }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .modes, #top { background: var(--bg); } }
+/* Previous / next chapter: two cards whose titles wrap, never cut off (Tony, 2026-10-22). */
+.cp-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 34px; padding-top: 18px; border-top: 1px solid var(--line); }
+.cpn { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 12px 16px; border-radius: var(--r2); border: 1px solid var(--line); background: var(--s1); color: var(--tx); text-align: left; cursor: pointer; font: inherit; transition: border-color .15s, background .15s; }
+.cpn:hover { border-color: var(--ac-line); }
+.cpn.next { text-align: right; align-items: flex-end; grid-column: 2; }
+.cpn-k { display: inline-flex; align-items: center; gap: 4px; color: var(--txd); font-size: 12px; font-weight: 650; }
+.cpn-k svg { width: 14px; height: 14px; }
+.cpn b { font-size: 14px; font-weight: 650; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
 /* reader: the exact text, set per person (size, spacing, type, width) */
 .rd {
@@ -277,7 +306,9 @@ body[data-profile=veda] .cp-head .k { text-transform: none; letter-spacing: 0; f
   border: 1px solid var(--line); background: transparent; cursor: pointer; transition: color .15s, border-color .15s, background .15s;
 }
 .rd .vn:hover { color: var(--ac); border-color: var(--ac-line); }
-.rd .key { background: linear-gradient(transparent 62%, color-mix(in srgb, var(--gold) 22%, transparent) 62%); }
+/* A key verse: a soft highlighter stroke under the words (Tony, 2026-10-22: a
+   little more visible, still quiet). */
+.rd .key { background: linear-gradient(transparent 56%, color-mix(in srgb, var(--gold) 34%, transparent) 56%, color-mix(in srgb, var(--gold) 34%, transparent) 94%, transparent 94%); }
 /* a bookmark: a ribbon in the margin, the verse number filled */
 .rd .bm::before {
   content: ''; position: absolute; left: -22px; top: .35em; width: 9px; height: 15px; background: var(--ac);
@@ -303,10 +334,19 @@ body[data-profile=veda] .cp-head .k { text-transform: none; letter-spacing: 0; f
 .rd .flash { animation: flash 1.8s var(--ease); }
 @keyframes flash { 0%, 30% { background: var(--ac-soft); } }
 
-/* the reader's bar: Listen, bookmarks, read-aloud settings, Aa */
-.rd-bar { display: flex; align-items: center; gap: 4px; max-width: var(--rd-width, 720px); margin: -8px auto 18px; }
+/* The reading page (Tony, 2026-10-22): the text on a lighter surface than the
+   program, its tools along the top edge. */
+:root { --paper: #222226; --paper-line: rgba(255,255,255,.06); }
+body[data-profile=veda] { --paper: #232427; }
+.rd-card { max-width: calc(var(--rd-width, 720px) + 112px); margin: 0 auto; padding: 14px 56px 44px; border-radius: 22px; background: var(--paper); border: 1px solid var(--paper-line); box-shadow: 0 1px 0 rgba(255,255,255,.02) inset, 0 18px 50px rgba(0,0,0,.22); }
+.rd-card .rd-bar, .rd-card .rd-pop, .rd-card .rd-resume { max-width: none; }
+.rd-card .rd-pop { background: var(--s2); }
+.rd-card .rd aside { background: color-mix(in srgb, var(--paper) 70%, var(--s2)); }
+.rd-bar { display: flex; align-items: center; gap: 4px; max-width: var(--rd-width, 720px); margin: 0 auto 22px; padding: 0 0 14px; border-bottom: 1px solid var(--paper-line); }
 .rd-bar .sp { flex: 1; }
 .rd-bar .btn { padding-left: 14px; }
+.rd-listen { min-height: 36px; border-radius: 999px; padding-right: 16px; }
+.rd-tools { display: flex; gap: 2px; }
 .rd-bar .btn svg { width: 15px; height: 15px; }
 .rd-bar .aa { font: 700 15px var(--f-read); width: 40px; }
 .rd-bar .cnt-b { position: relative; }
