@@ -109,8 +109,8 @@ const ok = (name, cond, extra) => {
   const add = F.parsePodcast('PART: Welcome\nA: Hi again.\nPART: Lesson 2 · b [L2]\nB: two.\nPART: Lesson 3 · c [L3]\nA: again.\nEND', hosts, ['L1', 'L2', 'L3']);
   const m3 = F.mergeLessons('podcast', pod3, add, ['L2']);
   ok('a missing lesson part goes in its place, and only what was missing is taken', m3.segments.map((s) => s.title).join('|') === 'Welcome|Lesson 1 · a|Lesson 2 · b|Lesson 3 · c|Wrap-up', m3.segments.map((s) => s.title).join('|'));
-  const longOne = { lessons: [{ id: 'L1', title: 'Short.', body: 'word '.repeat(30) }, { id: 'L2', title: 'Fine.', body: 'Two words.' }] };
-  ok('lengths: 30 words is long for concise, fine for standard', F.longLessons(longOne, 'concise').join() === '1' && F.longLessons(longOne, 'standard').length === 0);
+  const longOne = { lessons: [{ id: 'L1', title: 'Short.', body: 'word '.repeat(40) }, { id: 'L2', title: 'Fine.', body: 'Two words.' }] };
+  ok('lengths: 40 words is long for concise, fine for standard', F.longLessons(longOne, 'concise').join() === '1' && F.longLessons(longOne, 'standard').length === 0);
 
   console.log('\nThe same shape as tools/video.py');
   let same = 0, scenesAll = 0, firstBad = '';
@@ -127,17 +127,19 @@ const ok = (name, cond, extra) => {
     });
   }
   ok('fill() gives the shipped scenes exactly, all 18 chapters (' + same + ' of ' + scenesAll + ')', same === scenesAll, firstBad);
-  const fake = (len) => async ({ text }) => ({ audio: new Blob([new Uint8Array(len(text))]), words: text.split(' ').map((w, i) => [i * 0.1, 0.08, w]) });
+  // Speech as Edge sends it: whole 144-byte frames (24 kHz mono 48 kbps), word timings inside the clip.
+  const frames = (n) => { const b = new Uint8Array(Math.round(n / 144) * 144); for (let k = 0; k < b.length; k += 144) b.set([0xff, 0xf3, 0x64, 0xc4], k); return b; };
+  const fake = (len, engine = 'edge') => async ({ text }) => { const b = frames(len(text)), ws = text.split(' '); return { audio: new Blob([b]), engine, words: ws.map((w, i) => [+(i * (b.length / 6000) * 0.9 / ws.length).toFixed(3), 0.05, w]) }; };
   const script = { book: 'gita', n: 2, title: 't', narrator: { name: 'Brian', voice: 'v' }, scenes: [
     { layout: 'title', headline: 'T', visual: [], say: 'Hello.' },
     { layout: 'verse', ref: '2.47', say: 'Listen. {verse}' },
     { layout: 'verse', ref: '9.99', say: 'Missing {verse} here.' },
     { layout: 'story', headline: 'S', visual: ['a', 'b'], say: 'A story {verse}.' },
   ] };
-  const built = await VID.build(script, { key: 'k', ch: ch2, lessons: L2, speak: fake(() => 6000) });
-  const S = 1728 / 6000, m = built.meta;
+  const built = await VID.build(script, { key: 'k', ch: ch2, lessons: L2, speak: fake(() => 6048) });
+  const S = 1728 / 6000, m = built.meta, ONE = 6048 / 6000;
   ok('build(): a title is padded to 5 s', m.scenes[0].start === 0 && m.scenes[0].at === +(2 * S).toFixed(3) && m.scenes[0].end >= 5 && m.scenes[0].end < 5 + S + 0.001);
-  ok('…a verse gets the book\'s words and 5 clips after it', m.scenes[1].verse.startsWith('You have control') && m.scenes[1].say.startsWith('Listen. You have control') && Math.abs(m.scenes[1].end - m.scenes[1].at - (1 + 5 * S)) < 0.002);
+  ok('…a verse gets the book\'s words and 5 clips after it', m.scenes[1].verse.startsWith('You have control') && m.scenes[1].say.startsWith('Listen. You have control') && Math.abs(m.scenes[1].end - m.scenes[1].at - (ONE + 5 * S)) < 0.002);
   ok('…a verse the book lacks becomes a story; a stray {verse} is dropped', m.scenes[2].layout === 'story' && m.scenes[2].say === 'Missing here.' && m.scenes[3].say === 'A story.', m.scenes[2].say + ' | ' + m.scenes[3].say);
   ok('…scenes follow each other; the length is the bytes', m.scenes.every((s, i) => i === 0 || s.start === m.scenes[i - 1].end) && m.duration === +((await built.mp3.arrayBuffer()).byteLength / 6000).toFixed(3));
 
@@ -158,7 +160,7 @@ const ok = (name, cond, extra) => {
   const stages = [], covs = [];
   let deltas = '';
   const res = await G.run(Object.assign({ kind: 'podcast', models: ['deepseek/free', 'chatgpt/free'] }, base), { stage: (id) => stages.push(id), delta: (t) => { deltas += t; }, coverage: (c) => covs.push(c.missing.length) },
-    { chat, speak: fake(() => 6000), saveDrive: false });
+    { chat, speak: fake(() => 6048), saveDrive: false });
   ok('it writes, checks, repairs, speaks and is done', stages.join() === 'write,check,repair,speak,done', stages.join());
   ok('the repair goes to the model that answered, with its own reply and the missing lesson named', chats.length === 2 && chats[1].models[0] === 'chatgpt/free' && chats[1].messages.length === 4 && chats[1].messages[2].role === 'assistant' && /L12 \(/.test(chats[1].messages[3].content));
   ok('the checklist went from 1 missing to none', JSON.stringify(covs) === '[1,0]');
