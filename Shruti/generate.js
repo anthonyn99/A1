@@ -304,6 +304,51 @@ export async function runStudy(o, on = {}, { signal, chat = O.chat, parse } = {}
 
 export const modelName = (id) => { const u = O.UNITS.find((x) => x.id === id); return u ? u.name : String(id || '').split('/')[0]; };
 
+/* ── "Test each unit" (Settings) ─────────────────────────────────────────── */
+// A small real ask of each kind through one unit, read by the same parsers a
+// real run uses: whether this unit can make a podcast, a video, lessons and a
+// study set right now, and if not, why (Tony, 2026-10-22: "ensure ALL units
+// can create anything").
+const TEST_SOURCE = { blocks: [{ k: 'h', t: 'Karma-yoga' }, { k: 'p', s: [{ v: '2.47', t: 'You have control over doing your respective duty, but no control or claim over the result. Fear of failure, from being emotionally attached to the fruits of work, is the greatest impediment to success.' }, { v: '2.48', t: 'Do your duty to the best of your ability, O Arjuna, with your mind attached to the Lord, abandoning worry and attachment to the results, and remaining calm in both success and failure.' }] }] };
+const TEST_LESSONS = { lessons: [{ id: 'L1', title: 'Do the work; let go of its fruits.' }] };
+export const TEST_KINDS = ['podcast', 'video', 'lessons', 'study'];
+function testAsk(kind) {
+  const base = { book: 'gita', n: 2, title: 'A short passage', ch: TEST_SOURCE, lessons: TEST_LESSONS, length: 'concise', hosts: [{ id: 'A', name: 'Ava' }, { id: 'B', name: 'Andrew' }] };
+  if (kind === 'study') return studyPrompt({ kind: 'flashcards', book: 'gita', scope: { label: 'two verses of chapter two' }, text: F.sourceText(TEST_SOURCE), lessons: null, length: 'concise' });
+  const m = F.buildPrompt(Object.assign({ kind }, base, kind === 'lessons' ? { lessons: null } : {}));
+  // The same format, kept tiny: a test, not an episode.
+  const small = kind === 'podcast' ? 'Keep it tiny: only a Welcome part and the one lesson part, two lines each.' : kind === 'video' ? 'Keep it tiny: only three scenes (title, the lesson, closing).' : 'Keep it tiny: two lessons at most.';
+  const u = m[1].content;
+  m[1].content = typeof u === 'string' ? small + '\n\n' + u : [{ type: 'text', text: small + '\n\n' + u[0].text }, ...u.slice(1)];
+  return m;
+}
+/** Try one unit at every kind. on(kind, result) as each ends. Resolves {kind: {ok, why}}. */
+export async function testUnit(model, on, { signal, chat = O.chat } = {}) {
+  const key = keyOf(), out = {};
+  for (const kind of TEST_KINDS) {
+    let res;
+    try {
+      const r = await chat({ key, messages: testAsk(kind), models: [model], signal });
+      if (kind === 'study') {
+        const P = await import('./study/parse.js');
+        const n = P.count('flashcards', P.items('flashcards', noCites(r.text)));
+        res = n >= 2 ? { ok: true } : { ok: false, why: 'its cards could not be read' };
+      } else {
+        const s = F.parseReply(kind, r.text, { hosts: [{ name: 'Ava' }, { name: 'Andrew' }], lessonIds: kind === 'lessons' ? [] : ['L1'] });
+        const n = kind === 'podcast' ? s.segments.reduce((a, g) => a + g.turns.length, 0) : kind === 'video' ? s.scenes.length : s.lessons.length;
+        res = n >= (kind === 'lessons' ? 1 : 2) ? { ok: true } : { ok: false, why: 'its reply was too short' };
+      }
+    } catch (e) {
+      if (e && e.code === 'abort') throw e;
+      const ex = O.explain(e);
+      res = { ok: false, why: e && e.code === 'none' && e.tried ? ex.text.replace(/^Tried /, '').replace(/\. Try again.*$/, '') : (e && e.message) || ex.title };
+    }
+    out[kind] = res;
+    on && on(kind, res);
+  }
+  return out;
+}
+
 /* ── shared bits for the makers (the sheets are make.js's) ───────────────── */
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const SPARK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>';
