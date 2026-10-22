@@ -155,7 +155,8 @@ const prog = (c, path) => ev(c, `return JSON.stringify(window.Shruti.core.me.get
   await key(c, '0', 'Digit0');
   await ev(c, `document.querySelectorAll('.mm-branch')[1].click(); return 1`);
   ok('tapping a branch folds it, synced for Tony', await waitFor(c, `document.querySelectorAll('.mm-col')[1].classList.contains('closed') && (window.Shruti.core.me.get('study.gita.ch4.mindmap.closedK',[])||[]).length===1`));
-  ok('…its links go with it', await waitFor(c, `document.querySelectorAll('.mm-links path').length===${set4.mindmap.branches.length + set4.mindmap.branches.reduce((s, b, i) => s + (i === 1 ? 0 : b.children.length), 0)}`));
+  // The folded branch is the second on the page (the left side comes first since 2026-10-22).
+  ok('…its links go with it', await waitFor(c, `const bi=+document.querySelectorAll('.mm-col')[1].dataset.bi, all=${JSON.stringify(set4.mindmap.branches.map((b) => b.children.length))}; return document.querySelectorAll('.mm-links path').length===all.length+all.reduce((s,n,i)=>s+(i===bi?0:n),0)`));
   await ev(c, `document.querySelectorAll('.mm-branch')[1].click(); return 1`);
   await shot(c, 'study-mindmap-tony-1280');
 
