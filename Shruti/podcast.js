@@ -359,9 +359,9 @@ export async function build(script, { key = keyOf(), onStep, parallel = 3, speak
   const lane = async () => {
     while (next < flat.length) {
       const i = next++, { t } = flat[i];
-      const r = await speak({ key, text: t.t, voice: voices[t.s] });
-      const bytes = new Uint8Array(await r.audio.arrayBuffer());
-      spoken[i] = { bytes, words: r.words || T.spreadWords(t.t, bytes.length / BPS) };
+      // Whole Edge frames with word timings only: the episode is timed from bytes.
+      const r = await O.speakExact(speak, { key, text: t.t, voice: voices[t.s] });
+      spoken[i] = { bytes: r.bytes, words: r.words };
       onStep && onStep(++done, flat.length);
     }
   };
