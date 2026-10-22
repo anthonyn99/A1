@@ -483,7 +483,14 @@ body[data-profile=veda] { --paper: #232427; }
 :root { --h0: var(--ac); --h1: #9fc7d4; }
 .pod { max-width: 760px; margin: 0 auto; }
 .pod-loading { text-align: center; color: var(--txm); padding: 40px 0; }
-.pod-head { display: flex; align-items: center; gap: 14px; padding: 16px; background: var(--s1); border: 1px solid var(--line); border-radius: var(--r2); }
+/* The Listen player card (Tony, 2026-10-22: "way cleaner"). */
+.pcard { padding: 18px 18px 14px; background: var(--s1); border: 1px solid var(--line); border-radius: var(--r3); box-shadow: var(--sh1); }
+.pod-head { display: flex; align-items: center; gap: 14px; }
+.pbar { display: flex; align-items: center; gap: 10px; margin: 14px 0 6px; }
+.pbar .vid-track { margin: 0; }
+.pbar-t { font-size: 12px; color: var(--txd); font-variant-numeric: tabular-nums; min-width: 34px; }
+.pbar-t[data-pt] { color: var(--tx); text-align: right; }
+.pod-track .vid-ticks i { background: var(--line2); }
 .pod-hosts { display: flex; }
 .pod-hosts .av + .av { margin-left: -10px; }
 .av { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font: 700 13.5px var(--f-ui); color: var(--ac-ink); flex-shrink: 0; box-shadow: 0 0 0 2px var(--s1); }
@@ -492,12 +499,50 @@ body[data-profile=veda] { --paper: #232427; }
 .pod-t { flex: 1; min-width: 0; }
 .pod-t b { display: block; font-size: 15.5px; }
 .pod-t span { display: block; color: var(--txm); font-size: 13px; }
-.pod-play svg { width: 15px; height: 15px; }
-.pod-tools { display: flex; align-items: center; gap: 6px; margin: 12px 0 4px; }
-.pod-tools .sp { flex: 1; }
-.pod-tools .chips { margin: 0; }
-.pod-tools .chip { min-height: 30px; padding: 0 10px; font-size: 12.5px; }
-.pod-tools .ib.on { color: var(--ac); border-color: var(--ac-line); background: var(--ac-soft); }
+/* Transport in the middle, speed on the left, tools on the right. */
+.pctl { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; }
+.pctl-l { display: flex; justify-content: flex-start; }
+.pctl-c { display: flex; align-items: center; gap: 10px; }
+.pctl-r { display: flex; justify-content: flex-end; }
+.pod-play { width: 52px; height: 52px; border-radius: 50%; border: none; display: grid; place-items: center; cursor: pointer; background: var(--ac); color: var(--ac-ink); box-shadow: 0 6px 18px color-mix(in srgb, var(--ac) 28%, transparent); transition: transform .15s var(--ease), box-shadow .2s; }
+body[data-profile=veda] .pod-play { background: #856e92; color: #fff; }
+.pod-play:hover { box-shadow: 0 8px 24px color-mix(in srgb, var(--ac) 40%, transparent); }
+.pod-play:active { transform: scale(.94); }
+.pod-play svg { width: 22px; height: 22px; }
+.pskip { width: 40px; height: 40px; border-radius: 50%; border-color: transparent; color: var(--txm); }
+.pskip svg { width: 22px; height: 22px; }
+/* The speed pill: shows the speed; the speeds open under it only when asked. */
+.tl-speed { display: inline-flex; align-items: center; gap: 4px; min-height: 34px; padding: 0 10px 0 12px; border-radius: 999px; border: 1px solid var(--line2); background: transparent; color: var(--txm); font: 650 13px var(--f-ui); font-variant-numeric: tabular-nums; cursor: pointer; transition: color .15s, border-color .15s, background .15s; }
+.tl-speed svg { width: 14px; height: 14px; transition: transform .2s var(--ease); }
+.tl-speed:hover { color: var(--tx); border-color: var(--ac-line); }
+.tl-speed.set { color: var(--ac); border-color: var(--ac-line); }
+.tl-speed.open { color: var(--ac); background: var(--ac-soft); border-color: var(--ac-line); }
+.tl-speed.open svg { transform: rotate(180deg); }
+.tl-speed[disabled] { opacity: .4; pointer-events: none; }
+.tl-speeds { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; animation: tlIn .2s var(--ease) both; }
+.tl-speeds[hidden] { display: none; }
+.tl-speeds .chip { min-height: 32px; padding: 0 12px; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+@keyframes tlIn { from { opacity: 0; transform: translateY(-4px); } }
+/* One group of tools: a quiet segmented strip. */
+.tl-group { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); }
+body[data-profile=veda] .tl-group { border-radius: 999px; }
+.tl-b { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 11px; border: 0; border-radius: 9px; background: none; color: var(--txm); font: 600 12.5px var(--f-ui); cursor: pointer; text-decoration: none; white-space: nowrap; transition: color .15s, background .15s; }
+body[data-profile=veda] .tl-b { border-radius: 999px; font-weight: 700; }
+.tl-b svg { width: 16px; height: 16px; flex-shrink: 0; }
+.tl-b:hover { color: var(--tx); background: var(--s2); }
+.tl-b.on { color: var(--ac); background: var(--ac-soft); }
+.tl-b[disabled] { opacity: .4; pointer-events: none; }
+/* A section that folds (the lessons under Listen and Watch). */
+.fold { margin-top: 22px; background: var(--s1); border: 1px solid var(--line); border-radius: var(--r2); }
+.fold-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 14px 16px; border: 0; background: none; color: var(--tx); cursor: pointer; text-align: left; border-radius: inherit; }
+.fold-h h3 { font-size: 15px; display: flex; gap: 10px; align-items: baseline; margin: 0; }
+.fold-h h3 span { font: 650 12.5px var(--f-ui); }
+.fold-h h3 .good { color: var(--good); } .fold-h h3 .bad { color: var(--bad); }
+.fold-h > svg { width: 18px; height: 18px; color: var(--txm); transition: transform .25s var(--ease); flex-shrink: 0; }
+.fold.open .fold-h > svg { transform: rotate(180deg); }
+.fold-h:hover > svg { color: var(--tx); }
+.fold-b { padding: 0 16px 16px; animation: tlIn .2s var(--ease) both; }
+.fold-b[hidden] { display: none; }
 .pod-chips {
   position: sticky; top: calc(var(--top-h) + 62px); z-index: 15; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none;
   padding: 10px 0; margin-bottom: 6px; background: color-mix(in srgb, var(--bg) 90%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
@@ -742,8 +787,8 @@ body[data-profile=veda] .ls-sum b { text-transform: none; letter-spacing: 0; fon
 .vid-ticks i.v { background: var(--acl); opacity: .5; }
 .vid-time { font-size: 12.5px; color: var(--txm); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .vid-time b { color: var(--tx); font-weight: 600; }
-.vid-tools .ib[disabled] { opacity: .4; cursor: default; }
-.vid-tools [data-export].on { color: #e2584f; border-color: rgba(226,88,79,.5); background: rgba(226,88,79,.1); }
+.vid-tools { margin-top: 10px; grid-template-columns: auto 1fr; }
+.vid-tools [data-export].on { color: #e2584f; background: rgba(226,88,79,.1); }
 .vid-note { margin: 8px 0 0; padding: 10px 14px; border-radius: 10px; background: var(--s1); border: 1px solid var(--line); color: var(--txm); font-size: 13px; }
 .vid-note[hidden] { display: none; }
 .vid .sec-h { margin-top: 22px; }
@@ -807,9 +852,11 @@ html.vid-pfs, html.vid-pfs body { overflow: hidden; }
   .mini .ctl .more { display: none; }
   .mini .ctl .ib { width: 40px; height: 40px; min-height: 40px; }
   .mini .ctl .pp { width: 42px; height: 42px; }
-  .pod-head { flex-wrap: wrap; }
-  .pod-head .pod-play { width: 100%; justify-content: center; }
-  .pod-tools .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .pcard { padding: 16px 14px 12px; }
+  .pctl { grid-template-columns: auto 1fr auto; gap: 6px; }
+  .pctl-c { justify-content: center; gap: 4px; }
+  .tl-b span { display: none; }
+  .tl-b { padding: 0 9px; }
   .pod-chips { top: calc(var(--top-h) + 64px); }
   .turn .bub { max-width: 88%; }
   .turn p { font-size: 15px; }
@@ -817,7 +864,6 @@ html.vid-pfs, html.vid-pfs body { overflow: hidden; }
   .vid-track { order: -1; flex-basis: 100%; margin: 0 4px 2px; }
   .vid-time { margin-left: auto; }
   .vid-board { grid-auto-columns: minmax(170px, 72%); }
-  .vid-tools [data-speed="0.75"], .vid-tools [data-speed="1.75"] { display: none; }
   .vid-cover .vc-ic { width: 60px; height: 60px; }
   /* All five modes in one row: icon over label, equal widths. */
   .modes { margin: 0 -16px 16px; padding: 6px 12px; }
