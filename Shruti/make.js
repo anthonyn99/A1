@@ -299,8 +299,10 @@ async function start(S, st) {
 /* ── the Make with AI button: shows what is being made for this chapter ─── */
 export function watchButton(btn, book, n) {
   const label = btn.innerHTML;
+  let shown = false;   // the view is built off the page, then swapped in
   const paint = () => {
-    if (!btn.isConnected) { off1(); off2(); return; }
+    if (!btn.isConnected) { if (shown) { off1(); off2(); } else requestAnimationFrame(paint); return; }
+    shown = true;
     const mine = J.active().filter((t) => t.book === book && t.n === n);
     const remote = ['podcast', 'video', 'lessons', 'read'].map((k) => M.jobOf(book, n, k)).find(Boolean);
     const busy = mine.length || remote;
