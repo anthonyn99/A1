@@ -90,7 +90,8 @@ function mountMap(rootEl, A, { book, set, title }, toArrange) {
   // No hover filter from hoverfx.js in here (Tony, 2026-10-22: a node
   // "flashes" on hover): a filter on a node inside the scaled canvas puts it on
   // its own layer, so its text is drawn again, blurred then sharp. The branch
-  // has its own quiet hover in styles.css.
+  // has its own quiet hover in styles.css. (The mark goes on each node: the
+  // walk stops at the first button it meets.)
   port.setAttribute('data-no-hoverfx', '');
   const canvas = h('div', 'mm-canvas');
   const svg = document.createElementNS(SVGNS, 'svg');
@@ -108,6 +109,7 @@ function mountMap(rootEl, A, { book, set, title }, toArrange) {
     col.dataset.bi = bi;   // the left side comes first on the page: fold by this, not by place
     const node = h('button', 'mm-node mm-branch', '<span>' + esc(b.text) + '</span>' + (b.children.length ? '<em>' + b.children.length + '</em>' : ''));
     node.type = 'button';
+    node.setAttribute('data-no-hoverfx', '');
     node.setAttribute('aria-expanded', String(!closed.has(bk[bi])));
     if (b.children.length) node.title = 'Show or hide its points';
     node.addEventListener('click', (e) => { if (moved) return; if (!b.children.length) return; closed.has(bk[bi]) ? closed.delete(bk[bi]) : closed.add(bk[bi]); saveProgress(book, set, 'mindmap', { closedK: [...closed] }); paintClosed(); e.stopPropagation(); });
