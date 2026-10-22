@@ -4,79 +4,363 @@
   "n": 15,
   "title": "The supreme being",
   "hosts": [
-    { "id": "A", "name": "Ava", "voice": "en-US-AvaMultilingualNeural" },
-    { "id": "B", "name": "Andrew", "voice": "en-US-AndrewMultilingualNeural" }
+    {
+      "id": "A",
+      "name": "Emma",
+      "voice": "en-US-EmmaMultilingualNeural"
+    },
+    {
+      "id": "B",
+      "name": "Brian",
+      "voice": "en-US-BrianMultilingualNeural"
+    }
   ],
   "segments": [
     {
       "title": "Welcome",
       "turns": [
-        { "s": "A", "t": "Welcome to Shruti. I'm Ava." },
-        { "s": "B", "t": "And I'm Andrew. Today, Chapter Fifteen: the Supreme Being." },
-        { "s": "A", "t": "Only twenty verses, and in many Indian homes it's the chapter recited before meals, because Krishna says he is the fire that digests our food. It opens with one of the strangest images in the Gita: a tree growing upside down." },
-        { "s": "B", "t": "Four lessons. Story first." }
+        {
+          "s": "A",
+          "t": "Welcome to Shruti. I'm Emma."
+        },
+        {
+          "s": "B",
+          "t": "And I'm Brian. Today, Chapter Fifteen: the Supreme Being."
+        },
+        {
+          "s": "A",
+          "t": "Only twenty verses, and in many Indian homes it's the chapter recited before meals, because Krishna says he is the fire that digests our food. It opens with one of the strangest images in the Gita: a tree growing upside down."
+        },
+        {
+          "s": "B",
+          "t": "Twenty verses. It's one of the shortest chapters, and somehow one of the fullest."
+        },
+        {
+          "s": "A",
+          "t": "It's a bit like a summary of everything Krishna has said so far, packed into a few pictures you can carry around."
+        },
+        {
+          "s": "B",
+          "t": "Four lessons, and some of the most beautiful images in the whole Gita. Let's start with the story, and the tree."
+        }
       ]
     },
     {
       "title": "The story",
       "turns": [
-        { "s": "A", "t": "Fifteen point one: sages speak of the eternal banyan tree that has its root above, in the Supreme Being, and its branches below, in the cosmos, and whose leaves are the Vedic hymns. One who understands this tree knows the Vedas.", "L": ["L1"] },
-        { "s": "B", "t": "A note from outside the book: the banyan is a famous tree in India that sends roots down from its branches, so one tree can become a whole grove. A good picture for a world that keeps spreading.", "L": ["L1"] },
-        { "s": "A", "t": "Fifteen point two: the branches spread all over the cosmos. The tree is nourished by the three modes; sense pleasures are its sprouts; and its roots of ego, attachment and desire stretch down into the human world, causing Karmic bondage.", "L": ["L1"] },
-        { "s": "B", "t": "And the instruction, fifteen point three and four: its real form isn't perceptible here, nor its beginning or end. Having cut its firm roots, ego and desire, with the mighty axe of Self-knowledge and detachment, seek that supreme abode from which one does not come back.", "L": ["L1"] },
-        { "s": "A", "t": "Fifteen point five: the wise reach that goal, free from pride and delusion, having conquered attachment, desires stilled, beyond pleasure and pain.", "L": ["L1"] },
-        { "s": "B", "t": "And a description of that abode, fifteen point six: the sun does not illumine it, nor the moon, nor fire. Having reached there, people do not come back." },
-        { "s": "A", "t": "Then the soul. Fifteen point seven: the eternal individual soul in the body is, indeed, My integral part. It draws to itself the six senses, including the mind.", "L": ["L2"] },
-        { "s": "B", "t": "And a lovely image, fifteen point eight: just as the air takes aroma away from a flower, the soul takes the senses from the body it leaves at death to the new body it acquires, by the power of Karma.", "L": ["L2"] },
-        { "s": "A", "t": "Fifteen point ten and eleven: the ignorant cannot see the soul leaving the body, or staying and enjoying through it. But those with the eye of Self-knowledge can. Yogis who strive see it within; those whose minds are impure do not, even if they try.", "L": ["L2"] },
-        { "s": "B", "t": "Then God in everyday life. Fifteen point twelve: know that light from the sun that illumines the whole world, and is in the moon and in fire, to be Mine.", "L": ["L3"] },
-        { "s": "A", "t": "Fifteen point thirteen and fourteen: entering the earth, I support all beings with My energy. Becoming the moon, I nourish all the plants. Becoming the digestive fire in the body, I digest all types of food.", "L": ["L3"] },
-        { "s": "B", "t": "That's the verse behind the mealtime tradition. Saying it is a way of remembering who's really doing the digesting.", "L": ["L3"] },
-        { "s": "A", "t": "And fifteen point fifteen: I am seated in the heart of all beings. Memory, Self-knowledge, and the removal of doubts come from Me. I am to be known by all the Vedas.", "L": ["L3"] },
-        { "s": "B", "t": "Then the summit of the chapter. Fifteen point sixteen: there are two entities in the cosmos, the temporal and the unchangeable eternal. All created beings change; the Eternal does not change.", "L": ["L4"] },
-        { "s": "A", "t": "Fifteen point seventeen and eighteen: the Supreme Being is beyond both, the temporal and the eternal, sustaining both by pervading everything. Therefore I am known in the world and in the Vedas as the Supreme Being.", "L": ["L4"] },
-        { "s": "B", "t": "In Sanskrit that's Purushottama, the highest Person, and the traditional name of this chapter.", "L": ["L4"] },
-        { "s": "A", "t": "And the close, fifteen point twenty: thus I have explained this most secret science. Having understood it, one becomes enlightened, all duties are accomplished, and the goal of human life is achieved.", "L": ["L4"] }
+        {
+          "s": "A",
+          "t": "Fifteen point one: sages speak of the eternal banyan tree that has its root above, in the Supreme Being, and its branches below, in the cosmos, and whose leaves are the Vedic hymns. One who understands this tree knows the Vedas.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "A note from outside the book: the banyan is a famous tree in India that sends roots down from its branches, so one tree can become a whole grove. A good picture for a world that keeps spreading.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Fifteen point two: the branches spread all over the cosmos. The tree is nourished by the three modes; sense pleasures are its sprouts; and its roots of ego, attachment and desire stretch down into the human world, causing Karmic bondage.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "So the tree is the whole world of our experience. And it's fed by the three modes, the same goodness, passion and inertia we met in chapter fourteen."
+        },
+        {
+          "s": "A",
+          "t": "And the sprouts are sense pleasures. That's such a precise image. Every little pleasure is a new green shoot, and every shoot becomes another branch to hold on to."
+        },
+        {
+          "s": "B",
+          "t": "And the instruction, fifteen point three and four: its real form isn't perceptible here, nor its beginning or end. Having cut its firm roots, ego and desire, with the mighty axe of Self-knowledge and detachment, seek that supreme abode from which one does not come back.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Notice it isn't the tree that's the problem. It's the roots that grip us: ego, attachment, desire. And the axe isn't violence. It's Self-knowledge and detachment."
+        },
+        {
+          "s": "B",
+          "t": "There's a prayer folded into those verses, too. Thinking, I take refuge in that primal person from whom all this came forth. So the cutting comes with a turning, toward the source."
+        },
+        {
+          "s": "A",
+          "t": "Fifteen point five: the wise reach that goal, free from pride and delusion, having conquered attachment, desires stilled, beyond pleasure and pain.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "And a description of that abode, fifteen point six: the sun does not illumine it, nor the moon, nor fire. Having reached there, people do not come back."
+        },
+        {
+          "s": "B",
+          "t": "That line always moves me. A light that doesn't need the sun. It's a way of saying the goal isn't another place inside this world, it's what makes this world shine in the first place."
+        },
+        {
+          "s": "A",
+          "t": "Then the soul. Fifteen point seven: the eternal individual soul in the body is, indeed, My integral part. It draws to itself the six senses, including the mind.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "And a lovely image, fifteen point eight: just as the air takes aroma away from a flower, the soul takes the senses from the body it leaves at death to the new body it acquires, by the power of Karma.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "It's such a gentle way to talk about death. Not a crash, not a loss, just a fragrance carried on the air to somewhere new."
+        },
+        {
+          "s": "A",
+          "t": "Fifteen point ten and eleven: the ignorant cannot see the soul leaving the body, or staying and enjoying through it. But those with the eye of Self-knowledge can. Yogis who strive see it within; those whose minds are impure do not, even if they try.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "That's honest, isn't it. Effort alone isn't enough. The inner instrument has to be cleaned, and then the seeing happens on its own."
+        },
+        {
+          "s": "B",
+          "t": "Then God in everyday life. Fifteen point twelve: know that light from the sun that illumines the whole world, and is in the moon and in fire, to be Mine.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Fifteen point thirteen and fourteen: entering the earth, I support all beings with My energy. Becoming the moon, I nourish all the plants. Becoming the digestive fire in the body, I digest all types of food.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "That's the verse behind the mealtime tradition. Saying it is a way of remembering who's really doing the digesting.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And fifteen point fifteen: I am seated in the heart of all beings. Memory, Self-knowledge, and the removal of doubts come from Me. I am to be known by all the Vedas.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "So God isn't only up at the root of the upside-down tree. He's also right here, in the light we read by, in the food on the plate, in the heart, and in the moment a doubt suddenly clears."
+        },
+        {
+          "s": "A",
+          "t": "I love that memory is on that list. The next time you suddenly remember something important, this verse says that's grace too."
+        },
+        {
+          "s": "B",
+          "t": "Then the summit of the chapter. Fifteen point sixteen: there are two entities in the cosmos, the temporal and the unchangeable eternal. All created beings change; the Eternal does not change.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Fifteen point seventeen and eighteen: the Supreme Being is beyond both, the temporal and the eternal, sustaining both by pervading everything. Therefore I am known in the world and in the Vedas as the Supreme Being.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "In Sanskrit that's Purushottama, the highest Person, and the traditional name of this chapter.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Let me try to put the three side by side, because it's subtle. First, everything that changes: bodies, worlds, created beings. Second, the soul, which doesn't change. And third, the Supreme, who is beyond both and holds both."
+        },
+        {
+          "s": "B",
+          "t": "Like the ocean, the waves, and the water. Our image, not the book's. The waves come and go, the water stays, and yet the ocean is more than either picture."
+        },
+        {
+          "s": "A",
+          "t": "And the close, fifteen point twenty: thus I have explained this most secret science. Having understood it, one becomes enlightened, all duties are accomplished, and the goal of human life is achieved.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "All duties are accomplished. That's a remarkable promise for the end of such a short chapter."
+        }
       ]
     },
     {
       "title": "Lesson 1 · The upside-down tree",
       "turns": [
-        { "s": "B", "t": "Lesson one: the world is a tree of Maya. Cut it with Self-knowledge.", "L": ["L1"] },
-        { "s": "A", "t": "Creation is like an upside-down banyan, rooted above in the Supreme, branching down into the world. Its roots here are ego, attachment and desire.", "L": ["L1"] },
-        { "s": "B", "t": "Those roots have to be cut with the axe of Self-knowledge and detachment. Then you can find the eternal abode the tree hides.", "L": ["L1"] }
+        {
+          "s": "B",
+          "t": "Lesson one: the world is a tree of Maya. Cut it with Self-knowledge.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Creation is like an upside-down banyan, rooted above in the Supreme, branching down into the world. Its roots here are ego, attachment and desire.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Those roots have to be cut with the axe of Self-knowledge and detachment. Then you can find the eternal abode the tree hides.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "In daily life, the roots show up as small things. Needing to be right. Needing to have more. Needing things to go my way. Each time one of those is noticed and set down, a root gets a little looser."
+        }
       ]
     },
     {
       "title": "Lesson 2 · Fragrance on the wind",
       "turns": [
-        { "s": "A", "t": "Lesson two: the soul carries impressions from body to body.", "L": ["L2"] },
-        { "s": "B", "t": "As the wind carries a flower's fragrance, the soul carries the senses and mind from one body to the next.", "L": ["L2"] },
-        { "s": "A", "t": "The ignorant can't perceive it. Those with the eye of Self-knowledge can. That's how transmigration works, in the Gita's picture.", "L": ["L2"] }
+        {
+          "s": "A",
+          "t": "Lesson two: the soul carries impressions from body to body.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "As the wind carries a flower's fragrance, the soul carries the senses and mind from one body to the next.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "The ignorant can't perceive it. Those with the eye of Self-knowledge can. That's how transmigration works, in the Gita's picture.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "And it means the habits we build now travel with us. Like a fragrance. Which is a good reason to choose them carefully."
+        }
       ]
     },
     {
       "title": "Lesson 3 · The inner light",
       "turns": [
-        { "s": "B", "t": "Lesson three: God is the inner light and sustainer of all life.", "L": ["L3"] },
-        { "s": "A", "t": "The light of the sun, moon and fire is God's radiance. God holds up the earth, feeds the plants, and is the fire that digests our food.", "L": ["L3"] },
-        { "s": "B", "t": "And God sits in every heart as memory, understanding, and the clearing of doubt. Every meal, every insight, is a small meeting.", "L": ["L3"] }
+        {
+          "s": "B",
+          "t": "Lesson three: God is the inner light and sustainer of all life.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "The light of the sun, moon and fire is God's radiance. God holds up the earth, feeds the plants, and is the fire that digests our food.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "And God sits in every heart as memory, understanding, and the clearing of doubt. Every meal, every insight, is a small meeting.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "A tiny practice from this lesson: before eating, pause for one breath and remember that the fire inside isn't only ours. Many families recite fifteen point fourteen for exactly that reason."
+        }
       ]
     },
     {
       "title": "Lesson 4 · Beyond both",
       "turns": [
-        { "s": "A", "t": "And lesson four: three entities, the temporal, the eternal, and the Supreme.", "L": ["L4"] },
-        { "s": "B", "t": "Created beings are temporal and always changing. The soul is eternal and unchanging. And the Supreme Being is beyond both, pervading and sustaining them.", "L": ["L4"] },
-        { "s": "A", "t": "Knowing that is the most secret science, and Krishna says it completes the goal of human life.", "L": ["L4"] }
+        {
+          "s": "A",
+          "t": "And lesson four: three entities, the temporal, the eternal, and the Supreme.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Created beings are temporal and always changing. The soul is eternal and unchanging. And the Supreme Being is beyond both, pervading and sustaining them.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Knowing that is the most secret science, and Krishna says it completes the goal of human life.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "It's the answer to Arjuna's oldest worry, too. Everything he's afraid of losing belongs to the first entity, the changing one. What he really is belongs to the second. And the third holds them all."
+        }
       ]
     },
     {
       "title": "Wrap-up",
       "turns": [
-        { "s": "B", "t": "So, Chapter Fifteen. Cut the roots of the upside-down tree, see the soul travel like fragrance on the wind, notice God in sunlight and in your own digestion, and know the Supreme beyond all.", "L": ["L1", "L2", "L3", "L4"] },
-        { "s": "A", "t": "Four lessons: the upside-down tree, fragrance on the wind, the inner light, and beyond both.", "L": ["L1", "L2", "L3", "L4"] },
-        { "s": "B", "t": "Next time, Chapter Sixteen: the divine and the demonic qualities. Thanks for listening to Shruti." }
+        {
+          "s": "B",
+          "t": "So, Chapter Fifteen. Cut the roots of the upside-down tree, see the soul travel like fragrance on the wind, notice God in sunlight and in your own digestion, and know the Supreme beyond all.",
+          "L": [
+            "L1",
+            "L2",
+            "L3",
+            "L4"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Four lessons: the upside-down tree, fragrance on the wind, the inner light, and beyond both.",
+          "L": [
+            "L1",
+            "L2",
+            "L3",
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Next time, Chapter Sixteen: the divine and the demonic qualities. Thanks for listening to Shruti."
+        }
       ]
     }
   ]
