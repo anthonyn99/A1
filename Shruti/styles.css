@@ -255,9 +255,8 @@ body[data-profile=veda] .lib-h h2 { font-size: 22px; }
 .cp-head .k { color: var(--ac); font: 650 12px var(--f-ui); letter-spacing: .14em; text-transform: uppercase; }
 body[data-profile=veda] .cp-head .k { text-transform: none; letter-spacing: 0; font-size: 13px; }
 .cp-head h1 { font-size: clamp(25px, 3.6vw, 36px); margin-top: 4px; line-height: 1.15; }
-.cp-head .m { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--txd); font-size: 12.5px; margin-top: 8px; }
-.cp-head .m span + span::before { content: ''; display: inline-block; width: 3px; height: 3px; border-radius: 50%; background: var(--txd); margin: 0 14px 0 -8px; vertical-align: 3px; opacity: .7; }
-.cp-head .m span + span { margin-left: 0; }
+.cp-head .m { display: flex; flex-wrap: wrap; gap: 4px 0; color: var(--txd); font-size: 12.5px; margin-top: 8px; }
+.cp-head .m span + span::before { content: ''; display: inline-block; width: 3px; height: 3px; border-radius: 50%; background: currentColor; margin: 0 9px; vertical-align: 3px; opacity: .7; }
 .cp-acts { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .cp-acts .btn { min-height: 38px; font-size: 13.5px; }
 .cp-acts .btn svg { width: 16px; height: 16px; }
@@ -773,7 +772,8 @@ html.vid-pfs, html.vid-pfs body { overflow: hidden; }
   .cp-head { flex-direction: column; align-items: stretch; margin-top: 2px; }
   .cp-t { flex: none; }
   .cp-acts { gap: 8px; }
-  .cp-acts .btn { flex: 1; }
+  .cp-acts #make-ai { flex: 1; }
+  .cp-acts .mark { padding-left: 10px; }
   .rd-card { margin: 0 -16px; padding: 10px 18px 32px; border-radius: 0; border-left: 0; border-right: 0; box-shadow: none; }
   .rd-bar { margin-bottom: 16px; padding-bottom: 10px; }
   .cp-nav { grid-template-columns: 1fr; }
