@@ -74,7 +74,7 @@ async def build(n):
 
 
 async def main():
-    chapters = [int(a) for a in sys.argv[1:]] or [1, 2, 3]
+    chapters = [int(a) for a in sys.argv[1:]] or sorted(int(p.name[2:4]) for p in SCRIPTS.glob("ch??-podcast.json"))
     idx_path = MEDIA / "podcasts.json"
     index = json.loads(idx_path.read_text(encoding="utf-8")) if idx_path.exists() else {}
     for n in chapters:
