@@ -177,5 +177,107 @@ try {
   ok('jsdom run', false, e && e.message);
 }
 
-console.log(`\n  ${pass} passed, ${fail} failed`);
-process.exit(fail ? 1 : 0);
+console.log('\nA tab opened by hand still answers (its own key)');
+// LifeHub's tiles look a program up by its `tab` key. A page that named itself
+// something else would be a tab no launcher can find.
+const lifehub = fs.readFileSync(path.join(ROOT, 'LifeHub', 'lifehub.js'), 'utf8');
+const own = {};
+{
+  const blk = (/var OWN = \{([\s\S]*?)\};/.exec(sync) || [])[1] || '';
+  blk.replace(/'([^']+\.html)':\s*'([^']+)'/g, (_, p, k) => { own[p] = k; });
+}
+ok('tabsync names programs opened by hand', Object.keys(own).length >= 9, JSON.stringify(own));
+const defs = lifehub.slice(lifehub.indexOf('var DEFAULT_APPS'), lifehub.indexOf('var ADDED_LATER'));
+defs.replace(/url:\s*(?:BASE|PRIV)\s*\+\s*'([^']+)'[^}]*tab:\s*'([^']+)'/g, (_, u, k) => {
+  const file = u.split('/').pop().toLowerCase();
+  if (file === 'shield.html') return;   // per-profile key, deliberately not self-named
+  ok(`${file} names itself '${k}', the key its LifeHub tile opens`, own[file] === k, own[file]);
+});
+
+function page(url, name) {
+  const { JSDOM } = require('jsdom');
+  const dom = new JSDOM('<!doctype html><html><body></body></html>', { url, runScripts: 'outside-only', pretendToBeVisual: true });
+  if (name) dom.window.name = name;
+  return dom.window;
+}
+try {
+  const w = page('https://a1-priv.av1.workers.dev/riftiq.html');
+  w.eval(sync);
+  ok('RiftIQ opened from a bookmark takes its tile key', w.name === 'a1tab_warroom', w.name);
+  ok('and heartbeats under it', !!JSON.parse(w.localStorage.getItem('a1tab:warroom') || 'null'));
+  w.close();
+  const o = page('https://a1-priv.av1.workers.dev/vault.html', 'vault_oauth');
+  o.eval(sync);
+  ok('a window named for something else keeps its name', o.name === 'vault_oauth', o.name);
+  o.close();
+} catch (e) { ok('jsdom run', false, e && e.message); }
+
+// The launcher on github.io cannot see a RiftIQ tab on workers.dev, so the tab
+// it opens there (?a1tab=warroom) asks on its own origin. A shared fake channel
+// stands in for BroadcastChannel, which jsdom lacks.
+function bus() {
+  const subs = [];
+  return class FakeBC {
+    constructor(n) { this.n = n; this.onmessage = null; subs.push(this); }
+    postMessage(data) {
+      const d = JSON.parse(JSON.stringify(data));
+      subs.forEach((s) => { if (s !== this && s.n === this.n && !s.closed) setTimeout(() => s.onmessage && s.onmessage({ data: d }), 1); });
+    }
+    close() { this.closed = true; }
+  };
+}
+function scenario(oldState) {
+  return new Promise((resolve) => {
+    const BC = bus();
+    const old = page('https://a1-priv.av1.workers.dev/riftiq.html');
+    old.BroadcastChannel = BC;
+    old.document.hasFocus = () => !!oldState.focused;
+    if (oldState.entries > 1) Object.defineProperty(old.history, 'length', { get: () => oldState.entries });
+    let oldClosed = false; old.close = () => { oldClosed = true; };
+    old.eval(sync);
+    const neu = page('https://a1-priv.av1.workers.dev/riftiq.html?a1tab=warroom');
+    neu.BroadcastChannel = BC;
+    let neuClosed = false; neu.close = () => { neuClosed = true; };
+    neu.eval(sync);
+    setTimeout(() => resolve({ oldClosed, neuClosed, oldName: old.name, neuName: neu.name }), 500);
+  });
+}
+const runs = (async () => {
+  console.log('\nA tab sent over from the other origin settles on one (jsdom)');
+  let r = await scenario({ focused: true });
+  ok('the old tab came forward → the new one closes', r.neuClosed && !r.oldClosed, JSON.stringify(r));
+  r = await scenario({ focused: false });
+  ok('the old tab could not come forward → it retires, the new one stays',
+    r.oldClosed && !r.neuClosed && r.oldName === '' && r.neuName === 'a1tab_warroom', JSON.stringify(r));
+  r = await scenario({ focused: false, entries: 3 });
+  ok('the old tab cannot close → it is kept, the new one closes', r.neuClosed && !r.oldClosed, JSON.stringify(r));
+  const lone = page('https://a1-priv.av1.workers.dev/riftiq.html?a1tab=warroom');
+  lone.BroadcastChannel = bus();
+  let closed = false; lone.close = () => { closed = true; };
+  lone.eval(sync);
+  await new Promise((res) => setTimeout(res, 500));
+  ok('nobody else holds the key → the new tab just stays', !closed);
+})();
+
+console.log('\nLaunchers hand the other origin its key, and use the extension when it is there');
+ok('LifeHub keys cross-origin A1 urls', /url = keyed\(url, key\);/.test(lifehub) && /searchParams\.set\('a1tab'/.test(lifehub));
+ok('only A1 pages get the key, never other sites', /var A1_PAGE = /.test(lifehub) && /!A1_PAGE\.test\(u\.href\)/.test(lifehub));
+ok('_tnOpenTab keys them too', /ku\.searchParams\.set\('a1tab', storeKey\(key\)\)/.test(index));
+ok('LifeHub asks the extension first when it answers the tab ping',
+  /if \(tabExtOk\)/.test(lifehub) && /action: 'focusOrOpen'/.test(lifehub) && /action: 'tabPing'/.test(lifehub));
+const bg = M.has('Vault/background.js') ? M.read('Vault/background.js') : '';
+const relay = M.has('Vault/vault-bio-sync.js') ? M.read('Vault/vault-bio-sync.js') : '';
+if (!bg) M.skipNote('Vault/background.js');
+if (bg && relay) {
+  ok('the bridge relays the ping and the tap',
+    /action: 'tabFocusCapability'/.test(relay) && /action: 'focusOrOpen'/.test(relay) && /action: 'tabPong'/.test(relay));
+  ok('the background answers both', /"tabFocusCapability"/.test(bg) && /message\.action === "focusOrOpen"/.test(bg));
+  ok('it focuses an existing tab and raises its window',
+    /async function focusOrOpen/.test(bg) && /chrome\.windows\.update\(t\.windowId, \{ focused: true \}\)/.test(bg));
+  ok('a new tab it opens carries ?a1tab=', /searchParams\.set\("a1tab", k\)/.test(bg));
+}
+
+runs.then(() => {
+  console.log(`\n  ${pass} passed, ${fail} failed`);
+  process.exit(fail ? 1 : 0);
+});
