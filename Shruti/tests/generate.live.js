@@ -65,7 +65,8 @@ const mock = firebaseMock({
       const name = new global.URL(u).searchParams.get('name'), id = 'drive-' + (S.uploads.length + 1);
       S.uploads.push(name);
       if (/json$/.test(name)) S.stored[id] = req.postData || null;
-      return { json: { ok: true, id, size: 1, store: 'gdrive' } };
+      // Like the real worker: a link that never expires comes back with the file.
+      return { json: { ok: true, id, size: 1, store: 'gdrive', acct: 'tony', url: /json$/.test(name) ? DRIVE + '/raw/' + id : PAGES_MEDIA + 'ch05-video.mp3' } };
     }
     if (u.startsWith(DRIVE + '/f/') && req.method === 'DELETE') { S.dels.push(u.split('/').pop().split('?')[0]); return { json: { ok: true } }; }
     if (u.startsWith(DRIVE + '/sign')) {
@@ -104,6 +105,7 @@ const RUN = String(Date.now());
 const BOOT = (store) => `(()=>{ if(window.top!==window) return;
   try{ if(sessionStorage.getItem('__run')!=='${RUN}'){ localStorage.clear(); sessionStorage.clear(); ${store || ''} sessionStorage.setItem('__run','${RUN}'); } }catch(e){}
   window.__errs=[]; addEventListener('error', e=>window.__errs.push(String(e.message)));
+  window.__up={}; const f0=window.fetch; window.fetch=function(u,o){ try{ if(o&&o.method==='PUT'&&/\/f\?/.test(String(u))&&typeof o.body==='string') window.__up[new URL(String(u)).searchParams.get('name')]=o.body; }catch(e){} return f0.apply(this,arguments); };
   addEventListener('unhandledrejection', e=>window.__errs.push('rejection: '+String(e.reason && e.reason.message || e.reason)));
 })();`;
 let inj = null;
@@ -174,6 +176,8 @@ const sheetKind = (c, k) => ev(c, `document.querySelector('#gen-sheet [data-kind
   ok('…as a new version that plays, for both of them', await waitFor(c, `const v=document.querySelectorAll('#gen-vers .gv'); return v.length===2 && v[1].classList.contains('on') && /Sonia/.test(v[1].textContent) && /DeepSeek/.test(v[1].textContent) && /both of you/.test(document.querySelector('#gen-vers').textContent)`), await ev(c, `return document.querySelector('#gen-vers').textContent`));
   ok('the shared doc has the version and plays it', await ev(c, `const d=window.__fakeFs.docs['dashboards/shruti_shared']; const v=d.assets.gita.ch5.video; return v.mp3.id==='drive-1' && v.json.id==='drive-2' && v.model==='deepseek/free' && !!d.versions.gita.ch5.video[v.id]`));
   await shot(c, 'make-video-1280');
+  // The browser's request body never reaches the mock; the page kept it.
+  S.stored['drive-2'] = S.stored['drive-2'] || await ev(c, `return window.__up['video.json']||null`);
   await click(c, '#gen-run [data-open]');
   const madeScenes = videoFull.scenes.length;
   if (S.stored['drive-2']) {
