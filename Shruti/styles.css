@@ -933,6 +933,10 @@ body[data-profile=veda] .fc-tag { text-transform: none; letter-spacing: 0; }
 .fc-learn:hover { border-color: var(--bad); color: var(--bad); }
 .fc-know { border-color: color-mix(in srgb, var(--good) 45%, transparent); color: var(--good); }
 .fc-know:hover { border-color: var(--good); background: color-mix(in srgb, var(--good) 10%, transparent); }
+/* The card's mark, lit; pressed again it clears. */
+.fc-know.on { background: color-mix(in srgb, var(--good) 16%, transparent); border-color: var(--good); }
+.fc-learn.on { background: color-mix(in srgb, var(--bad) 14%, transparent); border-color: var(--bad); color: var(--bad); }
+.fc-card.learning .fc-front { border-color: color-mix(in srgb, var(--bad) 35%, transparent); }
 .fc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
 .fc-mini { height: 190px; }
 .fc-mini .fc-face { padding: 14px 16px; border-radius: var(--r2); }
