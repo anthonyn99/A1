@@ -1058,6 +1058,7 @@ body[data-profile=veda] .mk-label { text-transform: none; letter-spacing: 0; fon
 .mk-seg { width: 100%; }
 .mk-seg button { min-height: 38px; }
 #gen-opts > .mk-label:first-child, #gen-opts > .mk-f:first-child { margin-top: 2px; }
+.chips + .mk-label, .sm-sel + .mk-label, .mk-f + .mk-label { margin-top: 20px; }
 /* host pairs: two initials over a name */
 .mk-pairs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .mk-pair { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 10px; align-items: center; text-align: left; padding: 10px 12px; border-radius: var(--r2);

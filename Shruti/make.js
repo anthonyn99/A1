@@ -200,7 +200,7 @@ function drawOptions(S, st) {
   const ex = box.querySelector('#gen-extra'); if (ex) ex.addEventListener('change', () => G.setPref('extra', ex.value.trim()));
   if (kind === 'study') bindStudy(box, st, redraw);
   // The ticked voice stays in view in a long list.
-  const on = box.querySelector('.mk-voice.on'); if (on && on.scrollIntoView && !st.scrolled) { st.scrolled = true; requestAnimationFrame(() => { const l = on.parentElement; l.scrollTop = on.offsetTop - l.offsetTop - 8; }); }
+  const on = box.querySelector('.mk-voice.on'); if (on && !st.scrolled) { st.scrolled = true; requestAnimationFrame(() => { const l = on.parentElement; l.scrollTop += on.getBoundingClientRect().top - l.getBoundingClientRect().top - 8; }); }
 }
 
 /* the study set's scope (formerly study/hub.js openMaker) */
