@@ -156,6 +156,13 @@ const sheetKind = (c, k) => ev(c, `document.querySelector('#gen-sheet [data-kind
 
   console.log('\nA video, Drive connected');
   S.drive = true;
+  // The shipped video is loaded and was playing: "Play it" must not play it again.
+  await ev(c, `location.hash='#/b/gita/5/watch'; return 1`);
+  await waitFor(c, `!!document.querySelector('.vid [data-play]')`, 10000);
+  await ev(c, `return window.Shruti.video.load('gita',5,'x').then(()=>{window.Shruti.video.play(); return 1})`);
+  await waitFor(c, `window.Shruti.video.state.playing`, 6000);
+  await ev(c, `window.Shruti.video.pause(); return 1`);
+  const oldSrc = await ev(c, `return window.Shruti.video.state.src`);
   await click(c, '#make-ai');
   await waitFor(c, `!!document.querySelector('#gen-sheet')`);
   await sheetKind(c, 'video');
@@ -171,6 +178,8 @@ const sheetKind = (c, k) => ev(c, `document.querySelector('#gen-sheet [data-kind
   const madeScenes = videoFull.scenes.length;
   if (S.stored['drive-2']) {
     ok('Watch plays the made video from Drive: its ' + madeScenes + ' scenes, the verse from the book', await waitFor(c, `location.hash==='#/b/gita/5/watch' && document.querySelectorAll('.vsc').length===${madeScenes} && /Verse 5\\.10/.test(document.querySelectorAll('.vsc')[1].textContent)`, 15000), await ev(c, `return document.getElementById('mode-body').textContent.slice(0,200)`));
+    ok('…the new one, not the shipped one that was loaded, and it starts by itself', await waitFor(c, `window.Shruti.video.state.playing && /^drive:drive-1/.test(window.Shruti.video.state.src) && window.Shruti.video.state.meta.narrator.name==='Sonia'`, 10000), oldSrc + ' -> ' + await ev(c, `return window.Shruti.video.state.src`));
+    await ev(c, `window.Shruti.video.pause(); return 1`);
   } else ok('(the uploaded transcript could not be captured; Drive playback not checked)', true);
 
   console.log('\nVersions');
@@ -197,10 +206,11 @@ const sheetKind = (c, k) => ev(c, `document.querySelector('#gen-sheet [data-kind
   await click(c, '#make-ai');
   await waitFor(c, `!!document.querySelector('#gen-sheet [data-kind=lessons].on')`);
   await ev(c, `document.querySelector('#gen-vers [data-feature=""]').click(); return 1`);
-  await ev(c, `document.querySelector('#gen-sheet [data-close]').click(); location.hash='#/b/gita/5'; return 1`);
-  await sleep(300);
-  await ev(c, `location.hash='#/b/gita/5/lessons'; return 1`);
-  ok('…and their own notes come back when ticked', await waitFor(c, `document.querySelectorAll('.ls-i').length===13 && /notes/.test(document.querySelector('.ls-k').textContent)`, 8000));
+  ok('…and their own notes come back the moment they are ticked, with no tab change (Tony, 2026-10-22)', await waitFor(c, `document.querySelectorAll('#mode-body .ls-i').length===13 && /notes/.test(document.querySelector('.ls-k').textContent) && location.hash==='#/b/gita/5/lessons'`, 8000));
+  await ev(c, `[...document.querySelectorAll('#gen-vers [data-feature]')].find(b=>b.dataset.feature).click(); return 1`);
+  ok('…and ticking the AI set again shows it at once', await waitFor(c, `document.querySelectorAll('#mode-body .ls-i').length===2`, 8000));
+  await ev(c, `document.querySelector('#gen-vers [data-feature=""]').click(); document.querySelector('#gen-sheet [data-close]').click(); return 1`);
+  await waitFor(c, `document.querySelectorAll('#mode-body .ls-i').length===13`, 8000);
 
   console.log('\nVeda on a phone (390), while Tony makes something');
   await ev(c, `return window.Shruti.core.shared.flush().then(()=>1)`);
