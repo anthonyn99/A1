@@ -25,6 +25,8 @@ const GEAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-
 const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 const FLEUR = '<svg width="0.78em" height="0.78em" viewBox="0 0 24 22" aria-hidden="true"><path d="M12 1C14.7 3.7 15.5 7.6 13.7 13H10.3C8.5 7.6 9.3 3.7 12 1ZM13.9 13C14.4 9.1 17.3 6.7 20.3 7.7C22.7 8.5 23.4 11.6 21.4 13.4C21.6 11.8 20.6 10.4 19 10.6C17.3 10.9 16.2 12.2 15.8 13ZM10.1 13C9.6 9.1 6.7 6.7 3.7 7.7C1.3 8.5 .6 11.6 2.6 13.4C2.4 11.8 3.4 10.4 5 10.6C6.7 10.9 7.8 12.2 8.2 13ZM7.4 13.4H16.6A.85 .85 0 0 1 16.6 15.1H7.4A.85 .85 0 0 1 7.4 13.4ZM10.9 15.5H13.1C13.1 17.6 12.7 19.4 12 21.2C11.3 19.4 10.9 17.6 10.9 15.5ZM13.6 15.5H15.3C15.6 17.1 16.7 18.1 18.4 17.9C17.8 19.5 16.1 20 14.9 19.2C14.1 18.6 13.7 17.4 13.6 15.5ZM10.4 15.5H8.7C8.4 17.1 7.3 18.1 5.6 17.9C6.2 19.5 7.9 20 9.1 19.2C9.9 18.6 10.3 17.4 10.4 15.5Z" fill="currentColor"/></svg>';
 
+const SPARK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.3 7.2L21.5 12l-7.2 2.3L12 21.5l-2.3-7.2L2.5 12l7.2-2.3z" fill="currentColor"/></svg>';
+
 /* ── toast and in-UI dialogs (no native alert/confirm) ────────────────────── */
 let toastT = null;
 /** A short note at the bottom; with action {label, fn} it carries a button and stays longer. */
@@ -68,18 +70,74 @@ C.on('sync', (k) => { if (window.A1Head) A1Head.sync($('#sync-pill'), k); });
 let entered = false;
 function renderPicker() {
   const fav = C.ls.get('shruti.favProfile'), last = C.ls.get('shruti.lastProfile');
-  $('#pk-cards').innerHTML = Object.entries(PROFILES).map(([id, p]) =>
-    '<div class="pk-card ' + id + (id === (P || last) ? ' last' : '') + '" role="button" tabindex="0" data-p="' + id + '">' +
-    '<button class="pk-star' + (fav === id ? ' on' : '') + '" data-fav="' + id + '" title="' + (fav === id ? 'Default on this device (tap to clear)' : 'Make default on this device') + '" aria-label="Default profile">' + STAR + '</button>' +
-    '<div class="em">' + (id === 'tony' ? FLEUR : '✦') + '</div><div class="nm">' + esc(p.label) + '</div>' +
-    '<div class="pk-lock">' + (window.Guardian && Guardian.isLocked(id + '_shruti') ? LOCK_ON : '') + '</div></div>').join('');
+  $('#pk-cards').innerHTML = Object.entries(PROFILES).map(([id, p]) => {
+    const locked = window.Guardian && Guardian.isLocked(id + '_shruti'), here = id === (P || last);
+    return '<div class="pk-card ' + id + (here ? ' last' : '') + '" role="button" tabindex="0" data-p="' + id + '" aria-label="' + esc(p.label) + '">' +
+      '<button class="pk-star' + (fav === id ? ' on' : '') + '" data-fav="' + id + '" title="' + (fav === id ? 'Default on this device (tap to clear)' : 'Make default on this device') + '" aria-label="Default profile">' + STAR + '</button>' +
+      '<span class="pk-em">' + (id === 'tony' ? FLEUR : SPARK) + '</span><span class="nm">' + esc(p.label) + '</span>' +
+      '<span class="pk-note">' + (locked ? LOCK_ON + 'Locked' : here ? 'Last here' : '') + '</span></div>';
+  }).join('');
 }
 function showPicker() {
   renderPicker();
   $('#picker').hidden = false;
   if (!entered) $('#app').hidden = true;
+  pickerBackdrop(true);
 }
-function hidePicker() { $('#picker').hidden = true; }
+function hidePicker() { $('#picker').hidden = true; pickerBackdrop(false); }
+
+/** The picker's backdrop, Everwell's intro in Shruti's colours: three slow
+ *  light pools (Tony's lilac, a deeper violet, Veda's mauve) and motes rising
+ *  through them. 30 fps, only while the picker shows and the page is visible;
+ *  one still frame when the person asks for less motion. */
+const pickerBackdrop = (() => {
+  const GLOWS = [[192, 174, 234, .2], [120, 92, 206, .17], [183, 159, 196, .12]];
+  let cv, ctx, W = 0, H = 0, motes = [], raf = 0, on = false, last = 0;
+  const still = matchMedia('(prefers-reduced-motion: reduce)');
+  const mote = (any) => ({ x: Math.random() * W, y: any ? Math.random() * H : H + 8, r: .5 + Math.pow(Math.random(), 2.2) * 2, v: .006 + Math.random() * .016, ph: Math.random() * 6.28, tw: .0008 + Math.random() * .0016 });
+  function size() {
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    W = innerWidth; H = innerHeight;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const want = Math.round(Math.min(70, (W * H) / 16000));
+    while (motes.length < want) motes.push(mote(true));
+    motes.length = want;
+  }
+  function frame(now) {
+    ctx.fillStyle = '#141418'; ctx.fillRect(0, 0, W, H);
+    const big = Math.min(Math.max(W, H), Math.sqrt(W * H) * 1.15), tall = H > W * 1.2;
+    GLOWS.forEach((g, i) => {
+      const k = i + 1, gx = W * (.5 + (tall ? .3 : .38) * Math.sin(now * .00004 * k + i * 2.1)), gy = H * ((tall ? .45 : .42) + (tall ? .38 : .3) * Math.cos(now * .000033 * k + i * 1.3));
+      const r = big * (.55 - i * .08), grd = ctx.createRadialGradient(gx, gy, 0, gx, gy, r);
+      grd.addColorStop(0, 'rgba(' + g.join(',') + ')'); grd.addColorStop(1, 'rgba(' + g.slice(0, 3).join(',') + ',0)');
+      ctx.fillStyle = grd; ctx.fillRect(0, 0, W, H);
+    });
+    for (const m of motes) {
+      m.y -= m.v * 16 * .9; m.x += Math.sin(now * .0004 + m.ph) * .08;
+      if (m.y < -8) Object.assign(m, mote(false));
+      const a = .25 + .45 * (.5 + .5 * Math.sin(now * m.tw + m.ph));
+      ctx.fillStyle = 'rgba(225,214,250,' + (a * Math.min(1, (H - m.y) / 120)).toFixed(3) + ')';
+      ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, 6.283); ctx.fill();
+    }
+  }
+  function loop(now) {
+    raf = 0;
+    if (!on || document.hidden) return;
+    if (now - last >= 33) { last = now; frame(now); }
+    if (!still.matches) raf = requestAnimationFrame(loop);
+  }
+  addEventListener('resize', () => { if (on) { size(); frame(performance.now()); } });
+  document.addEventListener('visibilitychange', () => { if (on && !document.hidden && !raf) raf = requestAnimationFrame(loop); });
+  return (show) => {
+    on = show;
+    if (!show) { cancelAnimationFrame(raf); raf = 0; return; }
+    cv = cv || $('#pk-bg'); if (!cv) return;
+    ctx = ctx || cv.getContext('2d');
+    size(); frame(performance.now());
+    if (!raf) raf = requestAnimationFrame(loop);
+  };
+})();
 $('#pk-cards').addEventListener('click', (e) => {
   const star = e.target.closest('[data-fav]');
   if (star) {
@@ -236,7 +294,6 @@ C.on('doc:me', resumeJobs); C.on('doc:shared', resumeJobs);
 /* ── header buttons ───────────────────────────────────────────────────────── */
 $('#lock-btn').addEventListener('click', () => Guardian.manage(GID).then(updateLockBtn));
 // Veda's star is drawn, not the ✦ glyph: a font's glyph sits off-centre in the ring.
-const SPARK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.3 7.2L21.5 12l-7.2 2.3L12 21.5l-2.3-7.2L2.5 12l7.2-2.3z" fill="currentColor"/></svg>';
 $('#switch-btn').innerHTML = '<span class="pf-av">' + (P === 'veda' ? SPARK : FLEUR) + '</span>';
 $('#switch-btn').addEventListener('click', () => showPicker());
 $('#settings-btn').addEventListener('click', () => openSettings());
