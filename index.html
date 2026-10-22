@@ -18902,28 +18902,6 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   };
   if(location.hash==='#notiftest'){setTimeout(()=>{window.thNotifTest();},1500);}
   if(location.hash==='#notifdiag'){setTimeout(()=>{window.thNotifDiag();},1500);}
-  // Legacy deep link — Vault used to be this page's Keychain view, and older
-  // Vault Launcher builds (plus any bookmarks) still point at
-  // ?goto=keychain / #keychain. Vault now lives at https://a1-priv.av1.workers.dev/vault.html, so these
-  // REDIRECT there rather than switching views. Kept indefinitely: it costs
-  // nothing and means an un-updated extension still lands in the right place.
-  //
-  // Any ?vaulttab= rides along, so ?goto=keychain&vaulttab=payments still opens
-  // Vault on Payments. location.replace so Back doesn't bounce straight here.
-  window._gotoKeychain=function(){
-    var q='';
-    try{ var vt=new URLSearchParams(location.search).get('vaulttab'); if(vt) q='?vaulttab='+encodeURIComponent(vt); }catch(_){}
-    var V='https://a1-priv.av1.workers.dev/vault.html';
-    try{ location.replace(V+q); }catch(_){ location.href=V+q; }
-  };
-  (function(){
-    var wants=false;
-    try{ wants=new URLSearchParams(location.search).get('goto')==='keychain'; }catch(_){}
-    // No delay — we're leaving the page, so there's nothing here to wait for.
-    if(wants||location.hash==='#keychain'){ window._gotoKeychain(); }
-  })();
-  window.addEventListener('hashchange',function(){ if(location.hash==='#keychain') window._gotoKeychain(); });
-
   // Warden — Veda's Links moved to her own repo, Firebase and Cloudflare:
   //   https://vedacpatel.github.io/warden/warden.html
   // This page no longer reads or writes dashboards/veda_links at all, so the
@@ -23425,24 +23403,6 @@ function _legacyUrl(profile, id, fallback){
 var EXTERNAL_LOCK_IDS = ['tony_tradehub','tony_keychain','tony_warroom','tony_everwell','tony_magi','tony_shield','veda_shield'];
 function _isLegacyLockId(lockId){ return EXTERNAL_LOCK_IDS.indexOf(lockId) >= 0; }
 
-// Programs that left A1 for the private repo's host (docs/a1-priv-move-plan.md).
-// Their old pages are gone (stubs removed 2026-10-22). _lhImport reads Tony's stored links
-// through this, so a link still on an old address is recognised as the
-// LifeHub app it is. Mirrors LifeHub's MOVED map.
-var MOVED_PROGRAMS = {
-  'https://anthonyn99.github.io/a1/tradehub.html': 'https://a1-priv.av1.workers.dev/tradehub.html',
-  'https://anthonyn99.github.io/a1/insight.html':  'https://a1-priv.av1.workers.dev/insight.html',
-  'https://anthonyn99.github.io/a1/vault.html':    'https://a1-priv.av1.workers.dev/vault.html',
-  'https://anthonyn99.github.io/a1/riftiq.html':   'https://a1-priv.av1.workers.dev/riftiq.html',
-  'https://anthonyn99.github.io/a1/warroom.html':  'https://a1-priv.av1.workers.dev/riftiq.html',
-  // Solace was replaced by Everwell (2026-10-11); both of its addresses lead there.
-  'https://anthonyn99.github.io/a1/solace.html':   'https://a1-priv.av1.workers.dev/everwell.html',
-  'https://a1-priv.av1.workers.dev/solace.html':   'https://a1-priv.av1.workers.dev/everwell.html'
-};
-function _movedUrl(u){
-  try { var x = new URL(u); var to = MOVED_PROGRAMS[(x.origin + x.pathname).toLowerCase()]; return to ? to + x.search + x.hash : ''; }
-  catch(e){ return ''; }
-}
 // Same program? Local paths ignoring case; web links by origin + path,
 // ignoring a trailing index.html and slashes (LifeHub's destKey rule).
 function _sameDest(a, b){
@@ -23506,7 +23466,7 @@ function _lhImport(){
   stored.forEach(function(l){ if (seq.indexOf(l) < 0) seq.push(l); });
   var apps = _lhApps.slice(), used = {}, hit = [];
   var tests = [
-    function(l, a){ return _sameDest(a.url, _movedUrl(l.url) || l.url); },
+    function(l, a){ return _sameDest(a.url, l.url); },
     function(l, a){ return a.id === l.id; },
     function(l, a){ return String(a.name).toLowerCase() === String(l.label).toLowerCase(); }
   ];
@@ -23519,7 +23479,7 @@ function _lhImport(){
   var order = [];
   seq.forEach(function(l, i){
     if (hit[i]){ order.push(hit[i]); return; }
-    var nid = LH.add('tony', { id:l.id, name:l.label, url:_movedUrl(l.url) || l.url, tab:'link_tony_' + l.id });
+    var nid = LH.add('tony', { id:l.id, name:l.label, url:l.url, tab:'link_tony_' + l.id });
     if (nid) order.push(nid);
   });
   if (order.length) LH.reorder('tony', order);
