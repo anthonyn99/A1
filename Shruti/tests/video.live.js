@@ -92,7 +92,7 @@ async function load(c, { w, h, mobile, store, hash = '' }) {
 
   await click(c, '.vid-cover');
   ok('the cover plays it', await waitFor(c, `window.Shruti.video.state.playing && window.Shruti.video.now()>0.3`, 10000), await ev(c, `return JSON.stringify(window.__errs)`));
-  ok('soft music plays under it (stillness for chapter 2), lower than the voice', await waitFor(c, `const m=window.Shruti.video.music(); return m && m.playing && /media\/music\/stillness\.mp3$/.test(m.src) && m.vol<=0.2`, 8000), await ev(c, `return JSON.stringify(window.Shruti.video.music())`));
+  ok('soft music plays under it (stillness for chapter 2), lower than the voice', await waitFor(c, `const m=window.Shruti.video.music(); return m && m.playing && m.src.endsWith('media/music/stillness.mp3') && m.vol<=0.2`, 8000), await ev(c, `return JSON.stringify(window.Shruti.video.music())`));
   await ev(c, `document.querySelector('.vid [data-music]').click(); return 1`);
   ok('…the music button turns it off, and keeps that', await waitFor(c, `!window.Shruti.video.music().playing && window.Shruti.core.me.get('video.music')===false && document.querySelector('.vid [data-music]').getAttribute('aria-pressed')==='false'`));
   await ev(c, `document.querySelector('.vid [data-music]').click(); return 1`);
