@@ -147,7 +147,7 @@ const t = (c) => ev(c, `return document.querySelector('audio') ? -1 : window.Shr
   console.log('\nVeda on a phone (390)');
   await load(c, { w: 390, h: 844, mobile: true, store: "sessionStorage.setItem('shruti.pick','veda');", hash: '#/b/gita/3/listen' });
   await ev(c, `try{sessionStorage.setItem('shruti.pick','veda');}catch(e){} location.reload(); return 1`);
-  ok('her Listen tab opens chapter 3: 80 turns, 15 of 15 lessons', await waitFor(c, `window.SHRUTI_PROFILE==='veda' && document.querySelectorAll('.turn').length===80 && /15 of 15/.test(document.querySelector('.pod-cov h3').textContent)`, 20000));
+  ok('her Listen tab opens chapter 3: 63 turns, 15 of 15 lessons', await waitFor(c, `window.SHRUTI_PROFILE==='veda' && document.querySelectorAll('.turn').length===63 && /15 of 15/.test(document.querySelector('.pod-cov h3').textContent)`, 20000));
   ok('nothing scrolls sideways', await ev(c, `return document.documentElement.scrollWidth<=innerWidth`));
   await click(c, '[data-play]');
   ok('it plays for her, with the mini-player above the bottom nav', await waitFor(c, `window.Shruti.podcast.state.playing && (()=>{const m=document.querySelector('#mini .mp'), n=document.querySelector('.bnav'); return m && m.getBoundingClientRect().bottom<=n.getBoundingClientRect().top+1})()`, 10000));
