@@ -78,7 +78,7 @@ const frames = (buf) => { const out = []; let at = 0; while (at + 4 <= buf.lengt
   const turns = [{ start: 0 }, { start: 2 }, { start: 5 }];
   ok('turnAt finds the turn playing', POD.turnAt(turns, 0) === 0 && POD.turnAt(turns, 3) === 1 && POD.turnAt(turns, 9) === 2);
   ok('coverage() names what is missing', JSON.stringify(POD.coverage({ turns: [{ L: ['L1'] }, { L: ['L3'] }] }, ['L1', 'L2', 'L3']).missing) === '["L2"]');
-  const clip = fs.readFileSync(path.join(DIR, 'books/gita/media/ch01-podcast.mp3')).subarray(0, 6000);   // exactly 1 s
+  const clip = fs.readFileSync(path.join(DIR, 'books/gita/media/ch01-podcast.mp3')).subarray(0, 6048);   // 42 whole frames, 1.008 s (a build takes whole Edge frames only)
   const fake = async ({ text, voice }) => ({ audio: new Blob([clip]), words: text.split(' ').map((w, i) => [i * 0.2, 0.15, w]), engine: 'edge', voice });
   const script = { book: 'gita', n: 9, title: 't', hosts: [{ id: 'A', name: 'Ava', voice: 'v1' }, { id: 'B', name: 'Andrew', voice: 'v2' }],
     segments: [{ title: 'One', turns: [{ s: 'A', t: 'Hello there', L: ['L1'] }, { s: 'B', t: 'Hi' }] }, { title: 'Two', turns: [{ s: 'B', t: 'Again here' }] }] };
@@ -86,8 +86,8 @@ const frames = (buf) => { const out = []; let at = 0; while (at + 4 <= buf.lengt
   const built = await POD.build(script, { key: 'k', speak: fake, onStep: () => steps++ });
   const buf = Buffer.from(await built.mp3.arrayBuffer());
   const S = silence.length / 6000;
-  ok('build() joins turns and silences byte for byte', buf.length === 3 * 6000 + silence.length * (POD.GAPS.turn + POD.GAPS.segment) && steps === 3);
-  ok('…with times from byte counts', built.meta.turns[0].start === 0 && built.meta.turns[1].start === +(1 + S).toFixed(3) && built.meta.turns[2].start === +(2 + S + 3 * S).toFixed(3), JSON.stringify(built.meta.turns.map((t) => t.start)));
+  ok('build() joins turns and silences byte for byte', buf.length === 3 * 6048 + silence.length * (POD.GAPS.turn + POD.GAPS.segment) && steps === 3);
+  ok('…with times from byte counts', built.meta.turns[0].start === 0 && built.meta.turns[1].start === +(1.008 + S).toFixed(3) && built.meta.turns[2].start === +(2.016 + S + 3 * S).toFixed(3), JSON.stringify(built.meta.turns.map((t) => t.start)));
   ok('…segments and lesson tags kept', built.meta.segments.length === 2 && built.meta.segments[1].start === built.meta.turns[2].start && JSON.stringify(built.meta.turns[0].L) === '["L1"]' && built.meta.duration === +(buf.length / 6000).toFixed(3));
   ok('…every turn in its host\'s voice', built.meta.turns.length === 3);
 
