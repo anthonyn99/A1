@@ -1,0 +1,12 @@
+{
+ "dawn": {
+  "file": "dawn.mp3",
+  "duration": 144,
+  "mood": "tanpura and bansuri"
+ },
+ "stillness": {
+  "file": "stillness.mp3",
+  "duration": 144,
+  "mood": "tanpura and pad"
+ }
+}
