@@ -90,10 +90,11 @@ input:focus, select:focus, textarea:focus { border-color: var(--ac); box-shadow:
 @media (pointer: coarse) { input, select, textarea { font-size: 16px; } }
 
 /* == profile picker =========================================================
-   Everwell's title screen in Shruti's colours (Tony, 2026-10-22): slow light
-   pools and rising motes on a canvas (app.js pickerBackdrop), the mark rising,
-   the word settling from wide letter-spacing, a thin rule, a spaced subtitle,
-   then two frosted cards whose emblem glows in that person's colour. */
+   A title screen (Tony, 2026-10-22): sound rings rising out of the mark and
+   waveforms flowing across the lower screen on a canvas (app.js
+   pickerBackdrop), the mark rising, the word settling from wide letter-spacing,
+   a thin rule, a spaced subtitle, then two frosted cards whose emblem glows in
+   that person's colour. */
 #picker {
   position: fixed; inset: 0; z-index: 9000; display: flex; align-items: center; justify-content: center;
   padding: calc(env(safe-area-inset-top, 0px) + 24px) 16px calc(env(safe-area-inset-bottom, 0px) + 24px);
