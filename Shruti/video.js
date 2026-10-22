@@ -213,6 +213,8 @@ function points(ctx, items, t, acc, y, speech, size = 48, maxW = 1440) {
 // ctx is in 1920x1080 units; t is seconds into the scene; v = {meta, i, lit}.
 const PAINT = {
   title(ctx, sc, t, acc, v) {
+    // The opening's artwork, faint behind the title.
+    ART.draw(ctx, ART.pick(sc), { x: W / 2 - 560, y: 80, w: 1120, h: 920 }, t, Object.assign({ acc }, K), { fade: 0.3 });
     const a = vin(t, 0.15, 1.0);
     ctx.globalAlpha = vin(t, 0, 0.6) * 0.9;
     kicker(ctx, 'Shruti · ' + (v.meta.book === 'gita' ? 'Bhagavad-Gita' : v.meta.book), W / 2, 270, acc, 'center');
@@ -368,6 +370,7 @@ const PAINT = {
   },
 
   closing(ctx, sc, t, acc, v) {
+    ART.draw(ctx, ART.pick(sc), { x: W / 2 - 560, y: 80, w: 1120, h: 920 }, t, Object.assign({ acc }, K), { fade: 0.22 });
     const a = vin(t, 0.1, 0.9);
     ctx.globalAlpha = a;
     kicker(ctx, 'Chapter ' + v.meta.n + ' · Summary', W / 2, 180, acc, 'center');
