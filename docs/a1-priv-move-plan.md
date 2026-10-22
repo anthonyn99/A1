@@ -31,8 +31,8 @@ follow "Moving another program later" at the bottom.
   taskhub-reminders already allowed it.
 - RiftIQ had TradeHub's sign-in race (listeners attached before anonymous
   auth). It is fixed the same way, behind `_fbAuthed`.
-- LifeHub's `MOVED` and Index's `MOVED_PROGRAMS` also map the old
-  `warroom.html`. Both stores were verified on the server.
+- LifeHub's `MOVED` and Index's `MOVED_PROGRAMS` also mapped the old
+  `warroom.html` (both removed 2026-10-22). Both stores were verified on the server.
 - RiftIQ's live game card reads the local WarRoom Live Link proxy
   (127.0.0.1:2998), which accepts any origin. Brave asks once per site for
   local-network access, so allow it the first time on the new host.
@@ -87,6 +87,13 @@ used.
   made every browser fresh. `init()` now waits for auth.
 
 ### Phase 3: cut over
+> **2026-10-22: every redirect is gone.** Tony asked for no redirects at all.
+> The server copies of `dashboards/lifehub`, `lifehub_veda`, `navorder`,
+> `main` and `vedasdash` were read and hold no old address, so LifeHub's
+> `MOVED`, Index's `MOVED_PROGRAMS`, the `?goto=keychain` forward and every
+> stub (A1's five and A1-Priv's `solace.html`) were removed. What follows is
+> the record of how the cut-over was done.
+
 - **LifeHub:** defaults moved to the new host, and the `MOVED` map rewrites
   stored tiles once, through the normal patch path. Verified on the server:
   `dashboards/lifehub` holds the new URLs.
@@ -142,11 +149,14 @@ used.
 2. Fix its inline PWA manifest `id`/`start_url` and any self-URLs.
 3. Add `https://a1-priv.av1.workers.dev` to every worker it calls that pins an
    origin (grep the worker for `ALLOWED`).
-4. Add its old URL to LifeHub's `MOVED`, Index's `MOVED_PROGRAMS` (and
-   `prevUrls` if it is a built-in button), and `tests/moved.js` / `cdp.js`'s
-   `MOVED` patterns.
-5. Replace the A1 copy with a redirect stub. The old ones were removed on
-   2026-10-22; take one from git history (`git show 9da9a1e5:riftiq.html`).
+4. Point every link at the new address directly. No redirects (Tony,
+   2026-10-22). Change LifeHub's `DEFAULT_APPS` and TaskHub's built-in opener
+   fallback, then edit the stored tiles themselves: in the LifeHub popup, or
+   `LifeHub.patch` from a page. Read `dashboards/lifehub`, `lifehub_veda` and
+   `navorder` back from a headed off-screen browser (App Check refuses REST)
+   to prove no old address is left. Add the page to `tests/moved.js` /
+   `cdp.js`'s `MOVED` patterns, which only tell the tests where the code lives.
+5. Delete the A1 copy. Don't leave a redirect stub.
 6. Cleanup: give the page `<script src="https://anthonyn99.github.io/A1/sweep.js"
    data-program="<name>" defer></script>` (tests/cleanup-rules.test.js checks
    every A1-Priv page has it), and add its localStorage keys to the
