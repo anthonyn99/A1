@@ -146,9 +146,9 @@ const imp = (x) => `const IMP = await import(new URL('import.js', location.href)
   await load(c, { w: 1280, h: 900, mobile: false, store: "sessionStorage.removeItem('__fakefs_docs'); sessionStorage.setItem('shruti.pick','tony');", hash: '#/' });
   await waitFor(c, `!!window.Shruti && window.Shruti.core.me.loaded && window.Shruti.core.shared.loaded`, 15000);
   await ev(c, `return window.Shruti.core.me.set({orcaKey:${JSON.stringify(KEY)}},{now:true}) || 1`);
-  ok('Mine is empty and offers Import', await waitFor(c, `/Import a book/.test(document.querySelector('.mine-empty')?.textContent||'')`));
+  ok('Mine is empty and offers Import', await waitFor(c, `/Import a book/.test(document.querySelector('#shelf-mine .shelf-add')?.textContent||'')`));
   await shot(c, 'import-library-tony-1280');
-  await click(c, '.mine-empty');
+  await click(c, '#shelf-mine .shelf-add');
   ok('the Import sheet opens on a file or paste', await waitFor(c, `!!document.querySelector('#imp-sheet .imp-drop input[type=file]') && !!document.querySelector('#imp-paste')`));
   await shot(c, 'import-source-tony-1280');
 
@@ -372,7 +372,7 @@ const imp = (x) => `const IMP = await import(new URL('import.js', location.href)
   await waitFor(c, `!!window.Shruti && window.Shruti.core.me.loaded && window.Shruti.core.shared.loaded`, 15000);
   ok('it is Veda\'s side', await waitFor(c, `document.body.dataset.profile==='veda'`));
   ok('she sees the shared River Book, in her own order (the Gita first)', await waitFor(c, `[...document.querySelectorAll('#shelf-shared .book')].map(b=>b.dataset.dkey).join('|')==='gita|${sharedId}'`), await keysOf(c, '#shelf-shared .book'));
-  ok('Tony\'s own book is not on her shelves', !(await ev(c, `return !!document.querySelector('[data-dkey="${mineId}"]')`)) && /Import a book/.test(await ev(c, `return document.querySelector('.mine-empty')?.textContent||''`)));
+  ok('Tony\'s own book is not on her shelves', !(await ev(c, `return !!document.querySelector('[data-dkey="${mineId}"]')`)) && /Import a book/.test(await ev(c, `return document.querySelector('#shelf-mine .shelf-add')?.textContent||''`)));
   ok('nothing wider than the phone', await waitFor(c, `document.documentElement.scrollWidth<=innerWidth`));
   await shot(c, 'import-library-veda-390');
   await touchDrag(c, '#shelf-shared .book', 1, 0);
@@ -394,8 +394,8 @@ const imp = (x) => `const IMP = await import(new URL('import.js', location.href)
   ok('a held finger drags a question', (await ev(c, `return document.querySelectorAll('.qz-li .qz-li-q')[1].textContent`)) === set4.quiz[0].text.replace(/\*\*/g, ''), await ev(c, `return [...document.querySelectorAll('.qz-li .qz-li-q')].slice(0,2).map(e=>e.textContent).join(' | ')`));
   await shot(c, 'import-quiz-list-veda-390');
   await ev(c, `location.hash='#/'; return 1`);
-  await waitFor(c, `!!document.querySelector('.mine-empty')`);
-  await click(c, '.mine-empty');
+  await waitFor(c, `!!document.querySelector('#shelf-mine .shelf-add')`);
+  await click(c, '#shelf-mine .shelf-add');
   await waitFor(c, `!!document.querySelector('#imp-paste')`);
   await ev(c, `const t=document.querySelector('#imp-paste'); t.value=${JSON.stringify(BOOK)}; return 1`);
   await click(c, '#imp-use');
