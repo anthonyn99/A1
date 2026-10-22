@@ -113,6 +113,23 @@ const XREF = /\s*\((?:also\s+)?see\b[^)]*\)/gi;
   ok('…a token the voice skipped (the dash) takes the time before it', cc.at[6] === cc.at[5]);
   ok('tokenAt follows the voice', VID.tokenAt(cc, words, 0) === 0 && VID.tokenAt(cc, words, 1.1) === 2 && VID.tokenAt(cc, words, 3.1) === 7 && VID.tokenAt(cc, words, -1) === -1, [0, 1.1, 3.1].map((t) => VID.tokenAt(cc, words, t)).join());
 
+  console.log('\nThe artwork (art.js) and the music (2026-10-22)');
+  const ART = await import(pathToFileURL(path.join(DIR, 'art.js')).href);
+  const FMT = await import(pathToFileURL(path.join(DIR, 'formats.js')).href);
+  ok('every artwork a unit may name has a drawing', FMT.ART.every((a) => ART.MOTIFS.includes(a)), FMT.ART.filter((a) => !ART.MOTIFS.includes(a)).join());
+  ok('a scene\'s own art is used, unknown names dropped', ART.pick({ art: ['lotus', 'zebra', 'conch'] }).join() === 'lotus,conch');
+  ok('words choose it for the shipped scripts', ART.pick({ layout: 'story', headline: 'The conches sound', say: 'Krishna blew his conch.' })[0] === 'conch' && ART.pick({ layout: 'story', headline: 'A warrior in tears', say: 'Arjuna sat in his chariot.' }).includes('chariot'));
+  let scenesArt = 0, story = 0;
+  for (let n = 1; n <= 18; n++) {
+    const sc = JSON.parse(fs.readFileSync(path.join(DIR, 'books', 'gita', 'scripts', 'ch' + String(n).padStart(2, '0') + '-video.json'), 'utf8')).scenes.filter((s) => s.layout === 'story');
+    story += sc.length; scenesArt += sc.filter((s) => ART.pick(s).every((a) => ART.MOTIFS.includes(a)) && ART.pick(s).length).length;
+  }
+  ok('every story scene of all 18 shipped videos gets artwork (' + story + ')', scenesArt === story && story > 0);
+  const music = JSON.parse(fs.readFileSync(path.join(DIR, 'media', 'music', 'index.json'), 'utf8'));
+  ok('the two music loops are there, as video.js names them', VID.BEDS.every((b) => fs.existsSync(path.join(DIR, b)) && fs.statSync(path.join(DIR, b)).size > 500000) && Object.keys(music).length === 2);
+  const mp3 = fs.readFileSync(path.join(DIR, 'media', 'music', 'dawn.mp3'));
+  ok('…real MP3 (an MPEG frame at the start)', mp3[0] === 0xff && (mp3[1] & 0xe0) === 0xe0);
+
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
 })();
