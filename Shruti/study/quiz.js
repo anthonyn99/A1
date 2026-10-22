@@ -102,7 +102,6 @@ export function mount(root, setQs, { book, set }) {
     const last = st.i === n - 1;
     nav.append(prev, btn(!chosen ? 'Skip' : last ? 'See results' : 'Next question', last && chosen ? 'tick' : 'right', next, 'ic-end' + (chosen ? ' solid' : '')));
     box.append(nav);
-    box.append(h('div', 'st-keys', '1–4 or A–D answer · Enter next · ← back'));
   };
 
   // Every question in this person's order: tap one to go to it, drag to reorder.

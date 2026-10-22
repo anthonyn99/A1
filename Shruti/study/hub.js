@@ -125,7 +125,7 @@ export async function renderStudy(body, ctx) {
       removeSet(ctx.book, b.dataset.del);
       draw();
     }));
-    body.querySelector('.sh-head').innerHTML = '<span class="sh-ic k-' + sel.kind + '">' + IC[sel.kind] + '</span><div><b>' + KIND_NAME[sel.kind] + '</b><span>' + esc(cur.shipped ? (ctx.n ? 'Chapter ' + ctx.n + ' · ' : '') + ctx.title : cur.scope.label) + '</span></div>';
+    body.querySelector('.sh-head').innerHTML = '<span class="sh-ic k-' + sel.kind + '">' + IC[sel.kind] + '</span><div><b>' + KIND_NAME[sel.kind] + '</b>' + (cur.shipped ? '' : '<span>' + esc(cur.scope.label) + '</span>') + '</div>';
     // A tool saved progress: its tag in the sidebar follows at once.
     const retag = (e) => {
       if (!side.isConnected) { removeEventListener('shruti:study', retag); return; }
