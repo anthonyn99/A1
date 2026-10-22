@@ -152,7 +152,7 @@ used.
 4. Point every link at the new address directly. No redirects (Tony,
    2026-10-22). Change LifeHub's `DEFAULT_APPS` and TaskHub's built-in opener
    fallback, then edit the stored tiles themselves: in the LifeHub popup, or
-   `LifeHub.patch` from a page. Read `dashboards/lifehub`, `lifehub_veda` and
+   `LifeHub.update` from a page. Read `dashboards/lifehub`, `lifehub_veda` and
    `navorder` back from a headed off-screen browser (App Check refuses REST)
    to prove no old address is left. Add the page to `tests/moved.js` /
    `cdp.js`'s `MOVED` patterns, which only tell the tests where the code lives.
