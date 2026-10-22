@@ -11,7 +11,6 @@
 // on) is theirs: study.<book>.<set>.<kind> in their doc (ui.js).
 
 import * as C from '../core.js';
-import * as O from '../orca.js';
 import * as M from '../media.js';
 import * as G from '../generate.js';
 import * as P from './parse.js';
@@ -141,7 +140,7 @@ export async function renderStudy(body, ctx) {
     live = { dispose, root, ctx };
   };
   draw();
-  // Another device made or deleted a set, or progress moved: refresh the sidebar only when idle.
+  // A set made here (in the background) or on another device, or deleted: the sidebar follows.
   const off = C.on('doc:' + (doc(ctx.book) === C.me ? 'me' : 'shared'), (e) => {
     if (!body.isConnected) { off(); return; }
     const ids = setsFor(ctx.book, ctx.n).map((s) => s.id).join();
