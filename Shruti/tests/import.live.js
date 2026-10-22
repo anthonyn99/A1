@@ -339,7 +339,7 @@ const imp = (x) => `const IMP = await import(new URL('import.js', location.href)
   const k1 = await ev(c, `return [...document.querySelectorAll('${kidsSel}')].map(e=>e.textContent).join('|')`);
   ok('a point drags within its branch', k1.split('|')[0] === k0.split('|')[1] && k1.split('|').length === k0.split('|').length, k0 + ' -> ' + k1);
   await ev(c, `[...document.querySelectorAll('.st-actions .btn')].find(b=>/Done/.test(b.textContent)).click(); return 1`);
-  ok('Done: the map follows the new order', await waitFor(c, `document.querySelector('.mm-branch span')?.textContent===${JSON.stringify(set4.mindmap.branches[2].text)} && document.querySelector('.mm-col .mm-leaf')?.textContent===${JSON.stringify(k0.split('|')[1])}`));
+  ok('Done: the map follows the new order', await waitFor(c, `document.querySelector('.mm-col[data-bi="0"] .mm-branch span')?.textContent===${JSON.stringify(set4.mindmap.branches[2].text)} && document.querySelector('.mm-col[data-bi="0"] .mm-leaf')?.textContent===${JSON.stringify(k0.split('|')[1])}`));
   await ev(c, `document.querySelectorAll('.mm-branch')[0].click(); return 1`);
   ok('a fold is kept by its branch, not its place', await waitFor(c, `(window.Shruti.core.me.get('study.gita.ch4.mindmap.closedK',[])||[]).length===1 && document.querySelectorAll('.mm-col')[0].classList.contains('closed')`));
   await shot(c, 'import-mindmap-tony-1280');

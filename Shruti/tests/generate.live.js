@@ -148,7 +148,7 @@ const closeSheet = (c) => ev(c, `const s=document.querySelector('#gen-sheet [dat
   ok('the units come from Orca, in his order, Claude off (under More options)', await waitFor(c, `const u=[...document.querySelectorAll('#gen-sheet [data-unit]')]; return u.length>=5 && u[0].textContent.includes('DeepSeek') && u.find(b=>/Claude/.test(b.textContent)).getAttribute('aria-checked')==='false' && u.find(b=>/Gemini/.test(b.textContent)).classList.contains('off') && !document.querySelector('#gen-sheet .mk-more:not(.mk-any)').open`));
   await ev(c, `document.querySelector('#gen-sheet [data-len="concise"]').click(); return 1`);
   await ev(c, `[...document.querySelectorAll('#gen-sheet [data-preset]')].find(b=>/Emma/.test(b.textContent)).click(); return 1`);
-  ok('length and hosts are his, synced', await waitFor(c, `const g=window.Shruti.core.me.get('gen'); return g.length==='concise' && g.hosts===1 && document.querySelector('#gen-a').value==='en-US-EmmaMultilingualNeural' && document.querySelector('#gen-sheet [data-preset="1"]').getAttribute('aria-checked')==='true'`));
+  ok('length and hosts are his, synced', await waitFor(c, `const g=window.Shruti.core.me.get('gen'); return g.length==='concise' && g.hosts===0 && document.querySelector('#gen-a').value==='en-US-EmmaMultilingualNeural' && document.querySelector('#gen-sheet [data-preset="0"]').getAttribute('aria-checked')==='true'`));
   await ev(c, `const t=document.querySelector('#gen-extra'); t.value='Explain the lotus leaf.'; t.dispatchEvent(new Event('change')); return 1`);
   await shot(c, 'make-sheet-1280');
 
@@ -258,7 +258,7 @@ const closeSheet = (c) => ev(c, `const s=document.querySelector('#gen-sheet [dat
   ok('her Make with AI shows Tony is making something here', await waitFor(c, `document.querySelector('#make-ai').classList.contains('busy') && /Tony/.test(document.querySelector('#make-ai').textContent)`, 6000), await ev(c, `return document.querySelector('#make-ai').textContent`));
   await click(c, '#make-ai');
   ok('her sheet shows Tony making a podcast, and waits', await waitFor(c, `/Tony is making this: speaking 12 of 40/.test(document.querySelector('#gen-vers').textContent) && document.querySelector('#gen-sheet [data-make]').disabled`, 8000), await ev(c, `return document.querySelector('#gen-vers')?.textContent`));
-  ok('her own settings: the default length and hosts', await ev(c, `return document.querySelector('#gen-sheet [data-len=standard]').getAttribute('aria-checked')==='true' && document.querySelector('#gen-a').value==='en-US-AvaMultilingualNeural'`));
+  ok('her own settings: the default length and hosts (Emma & Brian)', await ev(c, `return document.querySelector('#gen-sheet [data-len=standard]').getAttribute('aria-checked')==='true' && document.querySelector('#gen-a').value==='en-US-EmmaMultilingualNeural'`));
   ok('the sheet fits her phone', await ev(c, `const s=document.querySelector('#gen-sheet .sheet'); return s.scrollWidth<=s.clientWidth+1`));
   await shot(c, 'make-veda-390');
   await ev(c, `window.__fakeFs.remote('dashboards/shruti_shared', {jobs:{gita:{ch5:{podcast:null}}}}, {merge:true}); return 1`);

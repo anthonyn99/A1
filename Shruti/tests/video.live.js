@@ -98,7 +98,7 @@ async function load(c, { w, h, mobile, store, hash = '' }) {
   await ev(c, `document.querySelector('.vid [data-music]').click(); return 1`);
   ok('the cover goes; the first scene card is lit', await waitFor(c, `document.querySelector('.vid-cover').hidden && document.querySelector('.vsc.on')?.dataset.scene==='0'`));
   ok('the mini-player is the video\'s, naming the scene', await waitFor(c, `window.Shruti.player.owner==='video' && /^Video · Spiritual Knowledge/.test(document.querySelector('#mini .tt span').textContent)`));
-  ok('the lock screen knows the video', await ev(c, `return /Chapter 2/.test(navigator.mediaSession.metadata.title) && /Video · Brian/.test(navigator.mediaSession.metadata.artist)`));
+  ok('the lock screen knows the video', await ev(c, `return /Chapter 2/.test(navigator.mediaSession.metadata.title) && /Video · Sonia/.test(navigator.mediaSession.metadata.artist)`));
 
   // A scene card: the first verse.
   const vi = await ev(c, `return window.Shruti.video.state.meta.scenes.findIndex(s=>s.layout==='verse')`);

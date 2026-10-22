@@ -89,7 +89,7 @@ const t = (c) => ev(c, `return document.querySelector('audio') ? -1 : window.Shr
 
   console.log('\nChapter 2\'s episode');
   await ev(c, `location.hash='#/b/gita/2/listen'; return 1`);
-  ok('the Listen tab shows the conversation: 75 turns, 15 parts', await waitFor(c, `document.querySelectorAll('.turn').length===75 && document.querySelectorAll('.pchip').length===15`, 20000));
+  ok('the Listen tab shows the conversation: 57 turns, 15 parts', await waitFor(c, `document.querySelectorAll('.turn').length===57 && document.querySelectorAll('.pchip').length===15`, 20000));
   ok('two hosts, one each side, in their colours', await ev(c, `const a=document.querySelector('.turn.h0'), b=document.querySelector('.turn.h1'); return !!a && !!b && b.classList.contains('r') && !a.classList.contains('r') && getComputedStyle(a.querySelector('.av')).backgroundColor!==getComputedStyle(b.querySelector('.av')).backgroundColor`));
   ok('every lesson is listed as covered (12 of 12)', await ev(c, `return /12 of 12/.test(document.querySelector('.pod-cov h3').textContent) && document.querySelectorAll('.pl:not([disabled])').length===12`));
   ok('lesson tags sit on the turns that teach them', await ev(c, `return document.querySelectorAll('.turn .ltag').length>20`));
@@ -99,8 +99,8 @@ const t = (c) => ev(c, `return document.querySelector('audio') ? -1 : window.Shr
   await click(c, '[data-play]');
   ok('Play plays it', await waitFor(c, `window.Shruti.podcast.state.playing`, 10000), await ev(c, `return JSON.stringify(window.__errs)`));
   ok('the first turn is lit, and a word in it', await waitFor(c, `document.querySelector('.turn.on')?.dataset.turn==='0' && !!document.querySelector('.turn.on .w.on')`, 8000));
-  ok('the mini-player shows the part and the host', await waitFor(c, `!document.getElementById('mini').hidden && /Welcome · Ava/.test(document.querySelector('#mini .tt span').textContent)`));
-  ok('the lock screen knows the episode', await ev(c, `return /Chapter 2/.test(navigator.mediaSession.metadata.title) && /Ava & Andrew/.test(navigator.mediaSession.metadata.artist)`));
+  ok('the mini-player shows the part and the host', await waitFor(c, `!document.getElementById('mini').hidden && /Welcome · Emma/.test(document.querySelector('#mini .tt span').textContent)`));
+  ok('the lock screen knows the episode', await ev(c, `return /Chapter 2/.test(navigator.mediaSession.metadata.title) && /Emma & Brian/.test(navigator.mediaSession.metadata.artist)`));
 
   // A segment chip: "Lesson 7".
   await ev(c, `[...document.querySelectorAll('.pchip')].find(b=>/^Lesson 7/.test(b.textContent)).click(); return 1`);
@@ -110,8 +110,8 @@ const t = (c) => ev(c, `return document.querySelector('audio') ? -1 : window.Shr
   await shot(c, 'listen-playing-1280');
 
   // Tap a word in a later turn.
-  await ev(c, `const tr=document.querySelector('[data-turn="60"]'); tr.scrollIntoView({block:'center'}); tr.querySelectorAll('.w')[3].click(); return 1`);
-  ok('tapping a word plays from that word', await waitFor(c, `document.querySelector('.turn.on')?.dataset.turn==='60' && +document.querySelector('.turn.on .w.on')?.dataset.k>=3`, 6000), await ev(c, `return document.querySelector('.turn.on')?.dataset.turn+' '+document.querySelector('.turn.on .w.on')?.dataset.k`));
+  await ev(c, `const tr=document.querySelector('[data-turn="50"]'); tr.scrollIntoView({block:'center'}); tr.querySelectorAll('.w')[3].click(); return 1`);
+  ok('tapping a word plays from that word', await waitFor(c, `document.querySelector('.turn.on')?.dataset.turn==='50' && +document.querySelector('.turn.on .w.on')?.dataset.k>=3`, 6000), await ev(c, `return document.querySelector('.turn.on')?.dataset.turn+' '+document.querySelector('.turn.on .w.on')?.dataset.k`));
 
   await ev(c, `document.querySelector('[data-subs]').click(); return 1`);
   ok('subtitles show the host and the line, the word marked', await waitFor(c, `const s=document.getElementById('pod-subs'); return s && !s.hidden && s.querySelector('b').textContent.length>0 && !!s.querySelector('span.on')`, 6000));
