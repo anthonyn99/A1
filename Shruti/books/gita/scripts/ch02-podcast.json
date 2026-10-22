@@ -4,158 +4,481 @@
   "n": 2,
   "title": "Spiritual knowledge",
   "hosts": [
-    { "id": "A", "name": "Ava", "voice": "en-US-AvaMultilingualNeural" },
-    { "id": "B", "name": "Andrew", "voice": "en-US-AndrewMultilingualNeural" }
+    {
+      "id": "A",
+      "name": "Emma",
+      "voice": "en-US-EmmaMultilingualNeural"
+    },
+    {
+      "id": "B",
+      "name": "Brian",
+      "voice": "en-US-BrianMultilingualNeural"
+    }
   ],
   "segments": [
     {
       "title": "Welcome",
       "turns": [
-        { "s": "A", "t": "Welcome back to Shruti. I'm Ava." },
-        { "s": "B", "t": "I'm Andrew. Last time we left Arjuna sitting in his chariot between two armies, his bow on the floor, overwhelmed with sorrow. Today, Chapter Two: Spiritual Knowledge. This is where Krishna speaks." },
-        { "s": "A", "t": "Many people call this chapter the Gita in miniature. Almost every big idea of the book appears here in a first form: the eternal Self, duty, acting without clinging to results, and what a truly steady person looks like." },
-        { "s": "B", "t": "We'll tell the story of the chapter first, with the key verses in the book's own words, and then go through all twelve lessons. As before, when we add something from the full Gita that this rendition leaves out, we'll say so." }
+        {
+          "s": "A",
+          "t": "Welcome back to Shruti. I'm Emma."
+        },
+        {
+          "s": "B",
+          "t": "I'm Brian. Last time we left Arjuna sitting in his chariot between two armies, his bow on the floor, overwhelmed with sorrow. Today, Chapter Two: Spiritual Knowledge. This is where Krishna speaks."
+        },
+        {
+          "s": "A",
+          "t": "Many people call this chapter the Gita in miniature. Almost every big idea of the book appears here in a first form: the eternal Self, duty, acting without clinging to results, and what a truly steady person looks like."
+        },
+        {
+          "s": "B",
+          "t": "Story first, in the book's own words, then all twelve lessons."
+        }
       ]
     },
     {
       "title": "The story",
       "turns": [
-        { "s": "A", "t": "The chapter opens with Sanjaya, still reporting to the blind king. Verse two point one: Lord Krishna spoke these words to Arjuna whose eyes were tearful and downcast, and who was overwhelmed with compassion and despair." },
-        { "s": "B", "t": "Our book then skips to verse two point ten, but the verses in between, in the full Gita, are worth knowing. Krishna first speaks sharply. Where does this weakness come from, at a moment like this? Stand up. And Arjuna answers: how can I shoot arrows at Bhishma and Drona, who deserve my worship? It would be better to live as a beggar." },
-        { "s": "A", "t": "And then, also in those omitted verses, comes the turning point. Arjuna says: my mind is confused about my duty. I am your disciple. I take refuge in you. Teach me what is truly good for me. And then he says, I will not fight, and falls silent.", "L": ["L5"] },
-        { "s": "B", "t": "That's the moment the friend in the driver's seat becomes the teacher. Verse two point ten, back in our book: O King, Lord Krishna, as if smiling, spoke these words to distressed Arjuna in the midst of the two armies." },
-        { "s": "A", "t": "As if smiling. In the middle of all that despair. And here our book marks a line: Teachings of the Gita begins." },
-        { "s": "B", "t": "The very first words of the teaching, verse two point eleven: You grieve for those who are not worthy of grief; and yet speak words of wisdom. The wise grieve neither for the living nor for the dead.", "L": ["L5"] },
-        { "s": "A", "t": "Then Krishna goes straight to the deepest point. Verse two point twelve: There was never a time when these monarchs, you, or I did not exist, nor shall we ever cease to exist in the future.", "L": ["L1"] },
-        { "s": "B", "t": "And the image that makes it concrete, two point thirteen: just as a living being acquires a childhood body, a youth body, and an old-age body during this life; similarly, it acquires another new body after death. The wise are not deluded by this.", "L": ["L4"] },
-        { "s": "A", "t": "He says pleasure and pain, heat and cold, come and go. Learn to endure them. A calm person, steady in pain and pleasure, becomes fit for immortality." },
-        { "s": "B", "t": "Then a run of verses about the Spirit, the true Self. It pervades everything and cannot be destroyed. Verse two point nineteen: One who thinks that Spirit is a slayer, and one who thinks Spirit is slain, are both ignorant. Because Spirit neither slays nor is slain.", "L": ["L1", "L5"] },
-        { "s": "A", "t": "Two point twenty: The Spirit is neither born nor does it die at any time. It is unborn, eternal, permanent, and primeval. The Spirit is not destroyed when the body is destroyed.", "L": ["L1"] },
-        { "s": "B", "t": "And the most famous image of all, two point twenty-two: Just as a person puts on new garments after discarding the old ones; similarly, the living entity acquires new bodies after casting away the old bodies.", "L": ["L4"] },
-        { "s": "A", "t": "Weapons do not cut this Spirit, fire does not burn it, water does not make it wet, and the wind does not make it dry. Knowing this, Krishna says, you should not grieve.", "L": ["L1", "L6"] },
-        { "s": "B", "t": "Then he adds a second argument, for anyone who doesn't accept the first. Even if you think beings are born and die over and over, death is certain for one who is born, and birth is certain for one who dies. You should not lament over the inevitable." },
-        { "s": "A", "t": "Then Krishna changes register completely and speaks to Arjuna as a warrior. Verse two point thirty-one: Considering also your duty as a warrior, you should not waver. Because there is nothing more auspicious for a warrior than a righteous war.", "L": ["L3"] },
-        { "s": "B", "t": "Our book adds a commentary here that's worth hearing. It says the righteous war is not a religious war against the followers of other religions. It may be waged even against our own wrongdoing kith and kin. And: not to oppose an evil is to indirectly support it.", "L": ["L8"] },
-        { "s": "A", "t": "Krishna is blunt about the other path too. If you don't fight this righteous war, you fail in your duty and lose your honor. Great warriors will say you ran away out of fear. And then a key verse, two point thirty-eight: Treating pleasure and pain, gain and loss, and victory and defeat alike, engage yourself in your duty. By doing your duty this way, you will not incur sin.", "L": ["L3", "L8", "L12"] },
-        { "s": "B", "t": "Now the second big movement of the chapter. Verse two point thirty-nine: The wisdom of spiritual knowledge has been imparted to you. Now listen to the wisdom of Karma-yoga, the selfless service, endowed with which you will free yourself from the bondage of Karma." },
-        { "s": "A", "t": "And a gentle promise, two point forty: In Karma-yoga, no effort is ever lost and there is no adverse effect. Even a little practice of this discipline protects one from great fear.", "L": ["L2"] },
-        { "s": "B", "t": "Krishna warns about people who treat scripture as a recipe book for rewards, chanting for heaven and prosperity, and says their judgment is clouded. To someone who has realized the Self, he says, scriptures are like a small reservoir when a huge lake is right there." },
-        { "s": "A", "t": "And then the single most quoted verse of the Gita. Two point forty-seven: You have control over your respective duty only, but no control or claim over the results. The fruits of work should not be your only motive and you should never be inactive.", "L": ["L2", "L11"] },
-        { "s": "B", "t": "Followed immediately by two point forty-eight: Do your duty to the best of your ability, O Arjuna, with your mind attached to the Lord, abandoning worry and attachment to the results, and remaining calm in both success and failure. The calmness of mind is called Karma-yoga.", "L": ["L2", "L7", "L10"] },
-        { "s": "A", "t": "Those who work only to enjoy the fruits of their labor, he says, are in truth unhappy, because one has no control over the results.", "L": ["L7", "L11"] },
-        { "s": "B", "t": "Then Arjuna asks his one question in this chapter, verse two point fifty-four: O Krishna, what are the marks of an enlightened person whose intellect is steady? How does such a person speak, sit and walk?" },
-        { "s": "A", "t": "And the last part of the chapter is Krishna's portrait of that person. Two point fifty-six: A person whose mind is unperturbed by sorrow, who does not crave pleasures, and who is completely free from attachment, fear, and anger, is called a sage of steady mind.", "L": ["L10"] },
-        { "s": "B", "t": "Such a person can withdraw the senses from their objects the way a tortoise withdraws its limbs into its shell." },
-        { "s": "A", "t": "And then a chain reaction that feels very modern. Two point sixty-two and sixty-three: By thinking about sense objects, one develops attachment. From attachment comes desire, and anger comes from unfulfilled desires. From anger, delusion. Delusion bewilders the mind, reasoning is destroyed, and one falls from the right path.", "L": ["L12"] },
-        { "s": "B", "t": "The book's image for it, two point sixty-seven: the mind, when controlled by roving senses, steals away the intellect as a storm takes away a boat on the sea." },
-        { "s": "A", "t": "And the closing picture, two point seventy: One attains peace when all desires dissipate within the mind without creating any disturbance, just as river waters enter the full ocean without creating any disturbance.", "L": ["L10"] },
-        { "s": "B", "t": "The chapter ends by calling this the superconscious state. Reaching it, even at the end of one's life, one attains Nirvana, oneness with the Absolute." },
-        { "s": "A", "t": "And notice: Arjuna doesn't pick up his bow yet. He has more questions. That's Chapter Three. But his whole way of seeing the battle has started to shift.", "L": ["L9"] }
+        {
+          "s": "A",
+          "t": "The chapter opens with Sanjaya, still reporting to the blind king. Verse two point one: Lord Krishna spoke these words to Arjuna whose eyes were tearful and downcast, and who was overwhelmed with compassion and despair."
+        },
+        {
+          "s": "A",
+          "t": "Our book skips a few verses here, but they hold the turning point. Arjuna says: my mind is confused about my duty. I am your disciple. Teach me what is truly good for me. Then he says, I will not fight, and falls silent.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "That's the moment the friend in the driver's seat becomes the teacher. Verse two point ten, back in our book: O King, Lord Krishna, as if smiling, spoke these words to distressed Arjuna in the midst of the two armies."
+        },
+        {
+          "s": "A",
+          "t": "As if smiling. In the middle of all that despair. And here our book marks a line: Teachings of the Gita begins."
+        },
+        {
+          "s": "B",
+          "t": "The very first words of the teaching, verse two point eleven: You grieve for those who are not worthy of grief; and yet speak words of wisdom. The wise grieve neither for the living nor for the dead.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Then Krishna goes straight to the deepest point. Verse two point twelve: There was never a time when these monarchs, you, or I did not exist, nor shall we ever cease to exist in the future.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "And the image that makes it concrete, two point thirteen: just as a living being acquires a childhood body, a youth body, and an old-age body during this life; similarly, it acquires another new body after death. The wise are not deluded by this.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Then a run of verses about the Spirit, the true Self. It pervades everything and cannot be destroyed. Verse two point nineteen: One who thinks that Spirit is a slayer, and one who thinks Spirit is slain, are both ignorant. Because Spirit neither slays nor is slain.",
+          "L": [
+            "L1",
+            "L5"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Two point twenty: The Spirit is neither born nor does it die at any time. It is unborn, eternal, permanent, and primeval. The Spirit is not destroyed when the body is destroyed.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "And the most famous image of all, two point twenty-two: Just as a person puts on new garments after discarding the old ones; similarly, the living entity acquires new bodies after casting away the old bodies.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Weapons do not cut this Spirit, fire does not burn it, water does not make it wet, and the wind does not make it dry. Knowing this, Krishna says, you should not grieve.",
+          "L": [
+            "L1",
+            "L6"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Then Krishna changes register completely and speaks to Arjuna as a warrior. Verse two point thirty-one: Considering also your duty as a warrior, you should not waver. Because there is nothing more auspicious for a warrior than a righteous war.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Our book's commentary adds: the righteous war is not a religious war against other faiths. It may be waged even against our own wrongdoing kin. And not to oppose an evil is to indirectly support it.",
+          "L": [
+            "L8"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Then a key verse, two point thirty-eight: Treating pleasure and pain, gain and loss, and victory and defeat alike, engage yourself in your duty. By doing your duty this way, you will not incur sin.",
+          "L": [
+            "L3",
+            "L8",
+            "L12"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Then Krishna turns from knowledge to action, two point thirty-nine: now listen to the wisdom of Karma-yoga, selfless service."
+        },
+        {
+          "s": "A",
+          "t": "And a gentle promise, two point forty: In Karma-yoga, no effort is ever lost and there is no adverse effect. Even a little practice of this discipline protects one from great fear.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And then the single most quoted verse of the Gita. Two point forty-seven: You have control over your respective duty only, but no control or claim over the results. The fruits of work should not be your only motive and you should never be inactive.",
+          "L": [
+            "L2",
+            "L11"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Followed immediately by two point forty-eight: Do your duty to the best of your ability, O Arjuna, with your mind attached to the Lord, abandoning worry and attachment to the results, and remaining calm in both success and failure. The calmness of mind is called Karma-yoga.",
+          "L": [
+            "L2",
+            "L7",
+            "L10"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Then Arjuna asks his one question in this chapter, verse two point fifty-four: O Krishna, what are the marks of an enlightened person whose intellect is steady? How does such a person speak, sit and walk?"
+        },
+        {
+          "s": "A",
+          "t": "And the last part of the chapter is Krishna's portrait of that person. Two point fifty-six: A person whose mind is unperturbed by sorrow, who does not crave pleasures, and who is completely free from attachment, fear, and anger, is called a sage of steady mind.",
+          "L": [
+            "L10"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And then a chain reaction that feels very modern. Two point sixty-two and sixty-three: By thinking about sense objects, one develops attachment. From attachment comes desire, and anger comes from unfulfilled desires. From anger, delusion. Delusion bewilders the mind, reasoning is destroyed, and one falls from the right path.",
+          "L": [
+            "L12"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And the closing picture, two point seventy: One attains peace when all desires dissipate within the mind without creating any disturbance, just as river waters enter the full ocean without creating any disturbance.",
+          "L": [
+            "L10"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And notice: Arjuna doesn't pick up his bow yet. He has more questions. That's Chapter Three. But his whole way of seeing the battle has started to shift.",
+          "L": [
+            "L9"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 1 · The soul is eternal",
       "turns": [
-        { "s": "B", "t": "So, the twelve lessons. Lesson one: the soul is eternal. Nothing can destroy it.", "L": ["L1"] },
-        { "s": "A", "t": "This is the foundation for everything else. The soul never dies, never changes, and can't be harmed by anything physical. Weapons don't cut it, fire doesn't burn it.", "L": ["L1"] },
-        { "s": "B", "t": "And it's not just metaphysics. If you really take it in, it puts our fears about death, loss and destruction in a different light. It can free you from a lot of existential anxiety.", "L": ["L1"] }
+        {
+          "s": "B",
+          "t": "So, the twelve lessons. Lesson one: the soul is eternal. Nothing can destroy it.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "This is the foundation for everything else. The soul never dies, never changes, and can't be harmed by anything physical. Weapons don't cut it, fire doesn't burn it.",
+          "L": [
+            "L1"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 2 · Effort, not results",
       "turns": [
-        { "s": "A", "t": "Lesson two: focus on effort and action, not results.", "L": ["L2"] },
-        { "s": "B", "t": "Verse two point forty-seven. You can't control outcomes. You can control your effort, your intention, and how you act.", "L": ["L2"] },
-        { "s": "A", "t": "Peace comes from doing your best and accepting whatever happens. And here's the practical part: obsessing over results creates anxiety, and anxiety actually makes you perform worse. Athletes and musicians know this. The ones who play the next note, not the scoreboard, play better.", "L": ["L2"] }
+        {
+          "s": "A",
+          "t": "Lesson two: focus on effort and action, not results.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Verse two point forty-seven. You can't control outcomes. You can control your effort, your intention, and how you act.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Peace comes from doing your best and accepting what happens. Obsessing over results breeds anxiety, and anxiety makes you perform worse.",
+          "L": [
+            "L2"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 3 · Duty over comfort",
       "turns": [
-        { "s": "B", "t": "Lesson three: your duty, your dharma, is more important than your comfort.", "L": ["L3"] },
-        { "s": "A", "t": "Every person has a role and responsibilities. Following your duty with integrity matters more than avoiding discomfort, or doing whatever feels good right now.", "L": ["L3"] },
-        { "s": "B", "t": "And duty sometimes requires sacrifice. Krishna doesn't pretend the battle will be easy for Arjuna. He says it's his to do.", "L": ["L3"] }
+        {
+          "s": "B",
+          "t": "Lesson three: your duty, your dharma, is more important than your comfort.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Every person has a role and responsibilities. Following your duty with integrity matters more than avoiding discomfort, or doing whatever feels good right now.",
+          "L": [
+            "L3"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 4 · The body is temporary",
       "turns": [
-        { "s": "A", "t": "Lesson four: the body is temporary; the Self is permanent.", "L": ["L4"] },
-        { "s": "B", "t": "Like changing clothes, verse two point twenty-two. The practical version: separate who you really are, your essential self, your values, your character, from your circumstances, your body, possessions, status.", "L": ["L4"] },
-        { "s": "A", "t": "External losses don't damage your true self. A job, a title, even your health can change. Your worth can't be shattered by setbacks.", "L": ["L4"] }
+        {
+          "s": "A",
+          "t": "Lesson four: the body is temporary; the Self is permanent.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Like changing clothes, verse two point twenty-two. The practical version: separate who you really are, your essential self, your values, your character, from your circumstances, your body, possessions, status.",
+          "L": [
+            "L4"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 5 · See beyond appearances",
       "turns": [
-        { "s": "B", "t": "Lesson five: wisdom means seeing beyond surface appearances.", "L": ["L5"] },
-        { "s": "A", "t": "Arjuna assumed that killing bodies meant killing souls. Krishna's first move is to show him that assumption is false: Spirit neither slays nor is slain.", "L": ["L5"] },
-        { "s": "B", "t": "Real wisdom comes from questioning your assumptions and understanding the deeper truth of things. Question what you think you know, especially when it's making you suffer.", "L": ["L5"] }
+        {
+          "s": "B",
+          "t": "Lesson five: wisdom means seeing beyond surface appearances.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Arjuna assumed that killing bodies meant killing souls. Krishna's first move is to show him that assumption is false: Spirit neither slays nor is slain.",
+          "L": [
+            "L5"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 6 · Act without fear",
       "turns": [
-        { "s": "A", "t": "Lesson six: act without fear, because the soul cannot perish.", "L": ["L6"] },
-        { "s": "B", "t": "If you truly understand that the soul is eternal, you can act with courage. Physical danger loses its power over you, because death is not the end.", "L": ["L6"] },
-        { "s": "A", "t": "Which lets you do what's right even when you're afraid. Courage isn't the absence of fear. It's fear that no longer gets the final vote.", "L": ["L6"] }
+        {
+          "s": "A",
+          "t": "Lesson six: act without fear, because the soul cannot perish.",
+          "L": [
+            "L6"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "If you truly understand that the soul is eternal, you can act with courage. Physical danger loses its power over you, because death is not the end.",
+          "L": [
+            "L6"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 7 · Detachment is freedom",
       "turns": [
-        { "s": "B", "t": "Lesson seven: detachment from results brings freedom.", "L": ["L7"] },
-        { "s": "A", "t": "Stop being enslaved by wanting specific outcomes. When you do your duty for its own sake, not for the reward, you become free from anxiety, disappointment and desperation.", "L": ["L7"] },
-        { "s": "B", "t": "And this detachment has a name in the Gita. It's called yoga. Not the exercise. Calmness of mind in success and failure, verse two point forty-eight.", "L": ["L7"] }
+        {
+          "s": "B",
+          "t": "Lesson seven: detachment from results brings freedom.",
+          "L": [
+            "L7"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Stop being enslaved by wanting specific outcomes. When you do your duty for its own sake, not for the reward, you become free from anxiety, disappointment and desperation.",
+          "L": [
+            "L7"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "And this detachment has a name in the Gita. It's called yoga. Not the exercise. Calmness of mind in success and failure, verse two point forty-eight.",
+          "L": [
+            "L7"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 8 · Compassion is not running away",
       "turns": [
-        { "s": "A", "t": "Lesson eight: there's a difference between running away and true compassion.", "L": ["L8"] },
-        { "s": "B", "t": "Arjuna thought walking away from the battle was compassion. Krishna shows him that true compassion includes doing what's right and just, even when it's painful.", "L": ["L8"] },
-        { "s": "A", "t": "Avoiding your duty isn't kindness. The book's word for it is cowardice. Or, as the commentary says: not to oppose an evil is to indirectly support it.", "L": ["L8"] }
+        {
+          "s": "A",
+          "t": "Lesson eight: there's a difference between running away and true compassion.",
+          "L": [
+            "L8"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Arjuna thought walking away from the battle was compassion. Krishna shows him that true compassion includes doing what's right and just, even when it's painful.",
+          "L": [
+            "L8"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 9 · Understanding changes everything",
       "turns": [
-        { "s": "B", "t": "Lesson nine: understanding changes everything.", "L": ["L9"] },
-        { "s": "A", "t": "Nothing on the battlefield changed between Chapter One and the end of Chapter Two. Same armies, same people. What changed is how Arjuna understands it.", "L": ["L9"] },
-        { "s": "B", "t": "Once he sees that the soul is eternal, the battle is no longer about killing. It's about playing his role in a larger order. Understanding the real nature of things transforms how you see your problems.", "L": ["L9"] }
+        {
+          "s": "B",
+          "t": "Lesson nine: understanding changes everything.",
+          "L": [
+            "L9"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Nothing on the battlefield changed between Chapter One and the end of Chapter Two. Same armies, same people. What changed is how Arjuna understands it.",
+          "L": [
+            "L9"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 10 · Peace through alignment",
       "turns": [
-        { "s": "A", "t": "Lesson ten: peace comes from alignment with truth and duty.", "L": ["L10"] },
-        { "s": "B", "t": "When you act in line with what is true, the eternal nature of the soul, with your duty and role, and with your values and integrity, you find peace, even in difficulty.", "L": ["L10"] },
-        { "s": "A", "t": "That's the yoga Krishna is teaching: union with truth. It's the river entering the full ocean without making a ripple.", "L": ["L10"] }
+        {
+          "s": "A",
+          "t": "Lesson ten: peace comes from alignment with truth and duty.",
+          "L": [
+            "L10"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "When you act in line with what is true, the eternal nature of the soul, with your duty and role, and with your values and integrity, you find peace, even in difficulty.",
+          "L": [
+            "L10"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "That's the yoga Krishna is teaching: union with truth. It's the river entering the full ocean without making a ripple.",
+          "L": [
+            "L10"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 11 · Not your burden",
       "turns": [
-        { "s": "B", "t": "Lesson eleven: you are not responsible for things beyond your control.", "L": ["L11"] },
-        { "s": "A", "t": "You're responsible for your effort and your intention. Not for outcomes you can't control. That removes an impossible burden.", "L": ["L11"] },
-        { "s": "B", "t": "Do your part, and let the universe handle the rest. That's not giving up. It's putting your full weight exactly where it belongs.", "L": ["L11"] }
+        {
+          "s": "B",
+          "t": "Lesson eleven: you are not responsible for things beyond your control.",
+          "L": [
+            "L11"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "You're responsible for your effort and your intention. Not for outcomes you can't control. That removes an impossible burden.",
+          "L": [
+            "L11"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 12 · Wisdom or ignorance",
       "turns": [
-        { "s": "A", "t": "And lesson twelve: the same action can be done with wisdom or with ignorance.", "L": ["L12"] },
-        { "s": "B", "t": "Arjuna might fight out of anger or fear. That's ignorance, the chain Krishna described: attachment, desire, anger, delusion. Or he might fight understanding the eternal soul and his duty. That's wisdom.", "L": ["L12"] },
-        { "s": "A", "t": "From the outside, it's the same action. Same bow, same battlefield. On the inside, it's completely different. Your inner understanding changes what the action is.", "L": ["L12"] }
+        {
+          "s": "A",
+          "t": "And lesson twelve: the same action can be done with wisdom or with ignorance.",
+          "L": [
+            "L12"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Arjuna might fight out of anger or fear. That's ignorance, the chain Krishna described: attachment, desire, anger, delusion. Or he might fight understanding the eternal soul and his duty. That's wisdom.",
+          "L": [
+            "L12"
+          ]
+        }
       ]
     },
     {
       "title": "Wrap-up",
       "turns": [
-        { "s": "B", "t": "So, Chapter Two. A broken man asks for help, and Krishna answers with the whole picture: you are not your body, do your duty, act without clinging to results, and become steady like the ocean.", "L": ["L1", "L3", "L7", "L10"] },
-        { "s": "A", "t": "Twelve lessons: the soul is eternal, focus on effort, duty over comfort, the body is temporary, see beyond appearances, act without fear, detachment is freedom, compassion isn't running away, understanding changes everything, peace through alignment, you're not responsible for what you can't control, and the same act can be wise or ignorant.", "L": ["L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "L9", "L10", "L11", "L12"] },
-        { "s": "B", "t": "Together, they answer Arjuna's despair with a complete framework for living with courage, peace and integrity, despite life's uncertainties." },
-        { "s": "A", "t": "Next time, Chapter Three, where Arjuna pushes back: if knowledge is better than action, why fight at all? Thanks for listening to Shruti." }
+        {
+          "s": "B",
+          "t": "So, Chapter Two. A broken man asks for help, and Krishna answers with the whole picture: you are not your body, do your duty, act without clinging to results, and become steady like the ocean.",
+          "L": [
+            "L1",
+            "L3",
+            "L7",
+            "L10"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Twelve lessons, and together they answer Arjuna's despair with a whole way of living: with courage, with peace, and with integrity.",
+          "L": [
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5",
+            "L6",
+            "L7",
+            "L8",
+            "L9",
+            "L10",
+            "L11",
+            "L12"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Next time, Chapter Three, where Arjuna pushes back: if knowledge is better than action, why fight at all? Thanks for listening to Shruti."
+        }
       ]
     }
   ]
