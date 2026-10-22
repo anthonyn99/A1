@@ -93,36 +93,16 @@ for (const [file, want] of Object.entries(HOSTS)) {
 console.log('\nPrograms that moved to A1-Priv (docs/a1-priv-move-plan.md)');
 {
   const moved = ['tradehub', 'insight', 'vault', 'riftiq'];
-  for (const p of moved) {
-    ok(p + ' seeds on its new host', new RegExp("\\{ id: '" + p + "'[^}]*url: PRIV \\+ '" + p + "\\.html'").test(src));
-    ok(p + "'s old address is in LifeHub's MOVED map",
-      src.includes("'https://anthonyn99.github.io/a1/" + p + ".html': PRIV + '" + p + ".html'"));
-  }
-  ok("LifeHub's PRIV is the private host", /var PRIV = 'https:\/\/a1-priv\.av1\.workers\.dev\/';/.test(src));
-  ok('stored tiles are migrated by patch, once per sync', /if \(!st\.movedDone\)/.test(src) && /patchOp\(x\.id, movedPatch\(x\)\)/.test(src));
-  // Run the real movedUrl: keeps query + hash, ignores case, leaves others alone.
-  const body = /var MOVED = \{[\s\S]*?\n  function movedUrl\(u\) \{[\s\S]*?\n  \}/.exec(src);
-  let mv = null, mp = null;
-  try { [mv, mp] = new Function("var PRIV = 'https://a1-priv.av1.workers.dev/';\n" + body[0] + '\nreturn [movedUrl, movedPatch];')(); } catch (e) {}
-  ok('movedUrl keeps the query and hash', mv && mv('https://anthonyn99.github.io/A1/vault.html?vaulttab=payments#x') === 'https://a1-priv.av1.workers.dev/vault.html?vaulttab=payments#x');
-  ok('movedUrl leaves programs that stayed alone', mv && mv('https://anthonyn99.github.io/A1/magi.html') === '');
-  // Everwell Phase 9: both Solace addresses lead to Everwell, and the tile
-  // takes Everwell's name, icon and tab unless Tony changed them.
-  ok('a Solace tile becomes Everwell (url, name, icon, tab)', mp && JSON.stringify(mp({ url: 'https://a1-priv.av1.workers.dev/solace.html', name: 'Solace', icon: 'a1:solace', tab: 'solace' })) ===
-    JSON.stringify({ url: 'https://a1-priv.av1.workers.dev/everwell.html', name: 'Everwell', icon: 'a1:everwell', tab: 'everwell' }));
-  ok("…from A1's old address too, keeping a name Tony gave it", mp && JSON.stringify(mp({ url: 'https://anthonyn99.github.io/A1/solace.html', name: 'Health', icon: 'a1:solace', tab: 'solace' })) ===
-    JSON.stringify({ url: 'https://a1-priv.av1.workers.dev/everwell.html', icon: 'a1:everwell', tab: 'everwell' }));
-  ok('LifeHub has no Solace icon or seed left', !/\bsolace: "<svg/.test(src) && !/id: 'solace'/.test(src));
-  ok("movedUrl sends RiftIQ's old WarRoom name to RiftIQ", mv && mv('https://anthonyn99.github.io/A1/warroom.html') === 'https://a1-priv.av1.workers.dev/riftiq.html');
-  // Index moves Tony's stored buttons the same way.
+  for (const p of moved) ok(p + ' seeds on its new host', new RegExp("\{ id: '" + p + "'[^}]*url: PRIV \+ '" + p + "\.html'").test(src));
+  ok("LifeHub's PRIV is the private host", /var PRIV = 'https://a1-priv.av1.workers.dev/';/.test(src));
+  ok('LifeHub has no Solace icon or seed left', !/solace: "<svg/.test(src) && !/id: 'solace'/.test(src));
+  // Every stored link was checked on the server to be on its new address
+  // (2026-10-22), so neither launcher keeps an old-to-new table any more, and
+  // the old pages are gone: no redirects anywhere.
   const idx = read('index.html');
-  for (const p of moved) ok("Index's MOVED_PROGRAMS has " + p, idx.includes("'https://anthonyn99.github.io/a1/" + p + ".html'") && idx.includes("'https://a1-priv.av1.workers.dev/" + p + ".html'"));
-  ok("Index reads Tony's old links through MOVED_PROGRAMS when it brings them into LifeHub",
-    /_sameDest\(a\.url, _movedUrl\(l\.url\) \|\| l\.url\)/.test(idx) && !/id:'solace'/.test(idx));
-  ok("Index's MOVED_PROGRAMS sends both Solace addresses to Everwell",
-    idx.includes("'https://anthonyn99.github.io/a1/solace.html':   'https://a1-priv.av1.workers.dev/everwell.html'") && idx.includes("'https://a1-priv.av1.workers.dev/solace.html':   'https://a1-priv.av1.workers.dev/everwell.html'"));
-  // Their old A1 pages were removed on 2026-10-22: every stored link is
-  // rewritten by the MOVED maps above, so nothing may bring a copy back here.
+  ok('LifeHub has no old-address table', !/var MOVED = {/.test(src) && !/movedUrl|movedPatch/.test(src));
+  ok('Index has no old-address table', !/MOVED_PROGRAMS|_movedUrl/.test(idx) && !/id:'solace'/.test(idx));
+  ok('Index no longer forwards ?goto=keychain', !/_gotoKeychain/.test(idx));
   for (const p of [...moved, 'solace']) ok('A1 holds no copy of ' + p + '.html', !fs.existsSync(path.join(ROOT, p + '.html')));
 }
 
