@@ -124,9 +124,10 @@ const keyOf = () => String(C.me.get('orcaKey', '') || '');
 const UNITS = ['Chapter', 'Part', 'Section'];
 
 /** Open the Import sheet. go: the router's go(hash). */
-export function open({ go } = {}) {
+/** where: the shelf it was opened from (Mine or Shared), the review's first choice. */
+export function open({ go, where = 'mine' } = {}) {
   if (document.getElementById('imp-sheet')) return;
-  const st = { step: 'source', file: null, paras: [], toc: null, title: '', author: '', chs: [], how: '', where: 'mine', unit: 'Chapter', run: null, split: null, abort: null, tidy: null };
+  const st = { step: 'source', file: null, paras: [], toc: null, title: '', author: '', chs: [], how: '', where: where === 'shared' ? 'shared' : 'mine', unit: 'Chapter', run: null, split: null, abort: null, tidy: null };
   const dim = document.createElement('div');
   dim.className = 'sheet-dim'; dim.id = 'imp-sheet';
   dim.innerHTML = '<aside class="sheet gen imp" role="dialog" aria-modal="true" aria-labelledby="imp-h"><div class="sh-h"><h2 id="imp-h">Import a book</h2><button class="ib" data-close aria-label="Close">' + IC.x + '</button></div><div id="imp-body"></div></aside>';
