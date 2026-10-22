@@ -205,6 +205,7 @@ async function load(c, { w, h, mobile, store, hash = '' }) {
     const store = "sessionStorage.setItem('__fakefs_docs'," + JSON.stringify(JSON.stringify(docs)) + "); sessionStorage.setItem('shruti.pick','tony'); " +
       "localStorage.setItem('shruti.tony.orcaKey'," + JSON.stringify(KEY) + "); " +
       "sessionStorage.setItem('__fakefs_fail'," + JSON.stringify(JSON.stringify({ 'dashboards/shruti': 2, 'dashboards/shruti_shared': 1 })) + ");";
+    await c.send('Page.navigate', { url: 'about:blank' }); await sleep(300);   // else only the #hash changes and nothing reloads
     await load(c, { w: 1280, h: 860, mobile: false, store, hash: '#/' });
   }
   ok('while it tries again the pill says syncing, not failed', await waitFor(c, `!!window.Shruti && !!window.Shruti.core.me.error && document.getElementById('sync-pill').classList.contains('busy')`, 8000),
