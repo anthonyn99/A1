@@ -87,7 +87,6 @@ function bindVoices(box, name, pick) {
     row.addEventListener('click', (e) => { if (!e.target.closest('[data-try]')) go(); });
     row.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
   });
-  box.querySelectorAll('[data-try]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); NR.preview(b.dataset.try, b); }));
 }
 
 /* ── the chapter's maker ─────────────────────────────────────────────────── */
@@ -153,8 +152,15 @@ function drawVersions(S, st) {
   }));
 }
 
+/** A voice list with a button beside it to hear the voice chosen. */
 function voiceSelect(id, value, label) {
-  return '<label class="mk-f"><span>' + esc(label) + '</span><select id="' + id + '">' + O.VOICES.map((v) => '<option value="' + esc(v.id) + '"' + (v.id === value ? ' selected' : '') + '>' + esc(v.name + ' · ' + (ACCENT[v.locale] || v.locale) + ' ' + v.gender) + '</option>').join('') + '</select></label>';
+  return '<div class="mk-f"><label for="' + id + '">' + esc(label) + '</label><div class="mk-vsel"><select id="' + id + '">' + O.VOICES.map((v) => '<option value="' + esc(v.id) + '"' + (v.id === value ? ' selected' : '') + '>' + esc(v.name + ' · ' + (ACCENT[v.locale] || v.locale) + ' ' + v.gender) + '</option>').join('') + '</select>' +
+    '<button class="ib sm" data-try-sel="' + id + '" aria-label="Hear this voice" title="Hear this voice">' + IC.play + '</button></div></div>';
+}
+/** Wire every hear button in box: [data-try] (a voice, or "a,b" for a pair) and [data-try-sel] (the voice its list shows). */
+function bindTry(box) {
+  box.querySelectorAll('[data-try]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); NR.preview(b.dataset.try.split(','), b); }));
+  box.querySelectorAll('[data-try-sel]').forEach((b) => b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); const sel = box.querySelector('#' + b.dataset.trySel); if (sel) NR.preview(sel.value, b); }));
 }
 const LEN_HINT = {
   podcast: { concise: 'about 7 min', standard: 'about 10 min', deep: 'about 13 min' },
@@ -173,9 +179,12 @@ function drawOptions(S, st) {
   let html = '';
   if (kind === 'podcast') {
     const hosts = G.hostsOf(p), custom = !!(p.hostA || p.hostB);
-    html = '<div class="mk-label">Voices</div><div class="mk-pairs" role="radiogroup" aria-label="Hosts">' + G.HOST_PRESETS.map((h, i) => {
-      const on = !custom && p.hosts === i;
-      return '<button class="mk-pair' + (on ? ' on' : '') + '" role="radio" aria-checked="' + on + '" data-preset="' + i + '"><span class="mk-avs"><i>' + esc(h.hosts[0][0].slice(0, 1)) + '</i><i>' + esc(h.hosts[1][0].slice(0, 1)) + '</i></span><b>' + esc(h.name) + '</b><span>' + esc((ACCENT[vInfo(h.hosts[0][1]).locale] || '')) + '</span></button>';
+    // Each pair can be heard first: its two hosts introduce themselves in turn.
+    const cur = G.presetId(p.hosts);
+    html = '<div class="mk-label">Voices</div><div class="mk-pairs" role="radiogroup" aria-label="Hosts">' + G.HOST_PRESETS.map((h) => {
+      const on = !custom && cur === h.id;
+      return '<div class="mk-pair' + (on ? ' on' : '') + '" role="radio" tabindex="0" aria-checked="' + on + '" data-preset="' + h.id + '"><span class="mk-avs"><i>' + esc(h.hosts[0][0].slice(0, 1)) + '</i><i>' + esc(h.hosts[1][0].slice(0, 1)) + '</i></span><span class="mk-pn"><b>' + esc(h.name) + '</b><span>' + esc((ACCENT[vInfo(h.hosts[0][1]).locale] || '')) + '</span></span>' +
+        '<button class="ib sm" data-try="' + esc(h.hosts[0][1] + ',' + h.hosts[1][1]) + '" aria-label="Hear ' + esc(h.name) + '" title="Hear ' + esc(h.name) + '">' + IC.play + '</button></div>';
     }).join('') + '</div>' +
       '<details class="mk-more mk-any"' + (custom ? ' open' : '') + '><summary>' + IC.chev + 'Any two voices</summary><div class="mk-more-in mk-2">' + voiceSelect('gen-a', hosts[0].voice, 'Host A') + voiceSelect('gen-b', hosts[1].voice, 'Host B') + '</div></details>' +
       length('podcast') + more(units + extra);
@@ -194,10 +203,15 @@ function drawOptions(S, st) {
   bindUnits(box, redraw);
   const u = box.querySelector('[data-units]'); if (u) u.addEventListener('click', () => { S.close(); ui.openSettings(); });
   box.querySelectorAll('[data-len]').forEach((b) => b.addEventListener('click', () => { G.setPref('length', b.dataset.len); redraw(); }));
-  box.querySelectorAll('[data-preset]').forEach((b) => b.addEventListener('click', () => { C.me.set({ 'gen.hosts': Number(b.dataset.preset), 'gen.hostA': null, 'gen.hostB': null }); redraw(); }));
+  box.querySelectorAll('[data-preset]').forEach((b) => {
+    const pick = () => { C.me.set({ 'gen.hosts': b.dataset.preset, 'gen.hostA': null, 'gen.hostB': null }); redraw(); };
+    b.addEventListener('click', (e) => { if (!e.target.closest('[data-try]')) pick(); });
+    b.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+  });
   const bindSel = (id, k) => { const el = box.querySelector('#' + id); if (el) el.addEventListener('change', () => { G.setPref(k, el.value); if (k === 'hostA' || k === 'hostB') redraw(); }); };
   bindSel('gen-a', 'hostA'); bindSel('gen-b', 'hostB');
   bindVoices(box, 'nar', (v) => { G.setPref('narrator', v); redraw(); });
+  bindTry(box);
   bindVoices(box, 'voice', (v) => { G.setPref('voice', v); redraw(); drawRun(S, st); });
   const ex = box.querySelector('#gen-extra'); if (ex) ex.addEventListener('change', () => G.setPref('extra', ex.value.trim()));
   if (kind === 'study') bindStudy(box, st, redraw);

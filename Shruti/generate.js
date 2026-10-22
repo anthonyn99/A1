@@ -57,17 +57,32 @@ export function bindProblem(box, close) {
 // The asks and the reading of replies live in formats.js (labelled text, not
 // JSON, since 2026-10-22); these names stay here for the rest of Shruti.
 export const { LENGTHS, sourceText, lessonsText, buildPrompt, spill, SPILL_CHARS, parseJSON, normPodcast, normVideo, normLessons, coverage, longLessons } = F;
-// Emma and Brian first (Tony, 2026-10-22: Ava and Andrew sounded robotic):
-// the shipped podcasts use them too.
+// The host pairs (redone 2026-10-22): each a woman and a man of one accent,
+// so the two sound like they belong together. Emma and Brian stay first and
+// the default (Ava and Andrew sounded robotic, 2026-10-22; the shipped
+// podcasts use Emma and Brian); Sonia (Tony's pick) and Ryan next. A choice is
+// kept by its id (gen.hosts); older choices were kept by place in the old
+// list of four, which LEGACY_PRESETS reads.
 export const HOST_PRESETS = [
-  { name: 'Emma & Brian', hosts: [['Emma', 'en-US-EmmaMultilingualNeural'], ['Brian', 'en-US-BrianMultilingualNeural']] },
-  { name: 'Ava & Andrew', hosts: [['Ava', 'en-US-AvaMultilingualNeural'], ['Andrew', 'en-US-AndrewMultilingualNeural']] },
-  { name: 'Sonia & Ryan', hosts: [['Sonia', 'en-GB-SoniaNeural'], ['Ryan', 'en-GB-RyanNeural']] },
-  { name: 'Neerja & Prabhat', hosts: [['Neerja', 'en-IN-NeerjaNeural'], ['Prabhat', 'en-IN-PrabhatNeural']] },
+  { id: 'emma-brian', name: 'Emma & Brian', hosts: [['Emma', 'en-US-EmmaMultilingualNeural'], ['Brian', 'en-US-BrianMultilingualNeural']] },
+  { id: 'sonia-ryan', name: 'Sonia & Ryan', hosts: [['Sonia', 'en-GB-SoniaNeural'], ['Ryan', 'en-GB-RyanNeural']] },
+  { id: 'ava-andrew', name: 'Ava & Andrew', hosts: [['Ava', 'en-US-AvaMultilingualNeural'], ['Andrew', 'en-US-AndrewMultilingualNeural']] },
+  { id: 'jenny-guy', name: 'Jenny & Guy', hosts: [['Jenny', 'en-US-JennyNeural'], ['Guy', 'en-US-GuyNeural']] },
+  { id: 'libby-thomas', name: 'Libby & Thomas', hosts: [['Libby', 'en-GB-LibbyNeural'], ['Thomas', 'en-GB-ThomasNeural']] },
+  { id: 'natasha-william', name: 'Natasha & William', hosts: [['Natasha', 'en-AU-NatashaNeural'], ['William', 'en-AU-WilliamMultilingualNeural']] },
+  { id: 'neerja-prabhat', name: 'Neerja & Prabhat', hosts: [['Neerja', 'en-IN-NeerjaNeural'], ['Prabhat', 'en-IN-PrabhatNeural']] },
+  { id: 'emily-connor', name: 'Emily & Connor', hosts: [['Emily', 'en-IE-EmilyNeural'], ['Connor', 'en-IE-ConnorNeural']] },
 ];
+const LEGACY_PRESETS = ['emma-brian', 'ava-andrew', 'sonia-ryan', 'neerja-prabhat'];
+/** A stored choice (an id, or an old list place) as the preset's id. */
+export function presetId(v) {
+  if (typeof v === 'number') v = LEGACY_PRESETS[v];
+  return HOST_PRESETS.some((h) => h.id === v) ? v : HOST_PRESETS[0].id;
+}
+export const presetOf = (v) => HOST_PRESETS.find((h) => h.id === presetId(v));
 /** A video's narrator unless the person picks another (Tony, 2026-10-22: Sonia). */
 export const DEFAULT_NARRATOR = 'en-GB-SoniaNeural';
-export const prefs = () => Object.assign({ kind: 'podcast', length: 'standard', hosts: 0, hostA: null, hostB: null, narrator: DEFAULT_NARRATOR, voice: O.DEFAULT_VOICE, extra: '' }, C.me.get('gen', {}) || {});
+export const prefs = () => Object.assign({ kind: 'podcast', length: 'standard', hosts: HOST_PRESETS[0].id, hostA: null, hostB: null, narrator: DEFAULT_NARRATOR, voice: O.DEFAULT_VOICE, extra: '' }, C.me.get('gen', {}) || {});
 export function setPref(k, v) { C.me.set({ ['gen.' + k]: v }); }
 const voiceName = (id) => NR.voiceName(id);
 const str = (x, max) => { const s = String(x == null ? '' : x).replace(/\s+/g, ' ').trim(); return max && s.length > max ? s.slice(0, max - 1).replace(/\s+\S*$/, '') + '…' : s; };
@@ -357,7 +372,7 @@ const SPARK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
 export const ICON = SPARK;
 /** The two hosts the person chose: a preset pair, or any two voices. */
 export function hostsOf(p) {
-  const pre = HOST_PRESETS[p.hosts] || HOST_PRESETS[0];
+  const pre = presetOf(p.hosts);
   const a = p.hostA || pre.hosts[0][1], b = p.hostB || pre.hosts[1][1];
   return [{ id: 'A', name: voiceName(a), voice: a }, { id: 'B', name: voiceName(b), voice: b }];
 }

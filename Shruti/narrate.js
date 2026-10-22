@@ -500,18 +500,63 @@ export async function openSheet(ctx) {
   const off = onChange(() => { if (dim.isConnected) drawSleep(); });
   if (!voiceList && keyOf()) O.voices(keyOf()).then((v) => { voiceList = v; if (dim.isConnected) drawVoices(); });
 }
-let previewAudio = null;
-export async function preview(id, btn) {
-  if (!keyOf()) { needKey(); return; }
-  btn.disabled = true;
-  try {
-    const r = await O.speak({ key: keyOf(), text: 'This is ' + voiceName(id) + ', reading the Bhagavad-Gita for you.', voice: id });
-    if (previewAudio) previewAudio.pause();
-    previewAudio = new Audio(URL.createObjectURL(r.audio));
-    previewAudio.play().catch(() => {});
-  } catch (e) { ui.toast(e.message || String(e), true); }
-  btn.disabled = false;
+/* ── hearing a voice before using it (Tony, 2026-10-22) ──────────────────── */
+// Every voice Shruti offers has a short clip in media/voices (tools/voices.py),
+// so a preview needs no key and no Orca call; a voice without one is asked of
+// Orca. A pair (podcast hosts) plays both clips, one after the other. The
+// button pressed shows it is playing; pressed again it stops. One preview at a
+// time, and never over something else playing.
+const PREV_STOP = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>';
+const prev = { audio: null, btn: null, html: '', seq: 0, cache: new Map() };
+const clipURL = async (id) => {
+  if (prev.cache.has(id)) return prev.cache.get(id);
+  const shipped = 'media/voices/' + id + '.mp3';
+  let url = null;
+  try { const r = await fetch(shipped, { method: 'HEAD' }); if (r.ok) url = shipped; } catch (e) {}
+  if (!url) {
+    if (!keyOf()) { needKey(); return null; }
+    const r = await O.speak({ key: keyOf(), text: 'Hello, I\'m ' + voiceName(id) + '. Welcome to Shruti, where we read, listen to and study the Bhagavad-Gita together.', voice: id });
+    url = URL.createObjectURL(r.audio);
+  }
+  prev.cache.set(id, url);
+  return url;
+};
+export function stopPreview() {
+  prev.seq++;
+  if (prev.audio) { prev.audio.pause(); prev.audio = null; }
+  if (prev.btn) { prev.btn.classList.remove('playing', 'loading'); prev.btn.innerHTML = prev.html; prev.btn.setAttribute('aria-pressed', 'false'); prev.btn = null; }
 }
+/** Hear one voice, or several in turn (a pair). btn: the button pressed. */
+export async function preview(ids, btn) {
+  ids = [].concat(ids);
+  const again = prev.btn === btn;
+  stopPreview();
+  if (again) return;
+  const seq = prev.seq;
+  prev.btn = btn; prev.html = btn.innerHTML;
+  btn.classList.add('playing', 'loading'); btn.setAttribute('aria-pressed', 'true');
+  btn.innerHTML = PREV_STOP;
+  dispatchEvent(new CustomEvent('shruti:playing', { detail: { who: 'preview' } }));
+  try {
+    for (const id of ids) {
+      const url = await clipURL(id);
+      if (seq !== prev.seq) return;
+      if (!url) { stopPreview(); return; }
+      btn.classList.remove('loading');
+      await new Promise((res) => {
+        const a = prev.audio = new Audio(url);
+        a.addEventListener('ended', res, { once: true });
+        a.addEventListener('error', res, { once: true });
+        a.addEventListener('pause', res, { once: true });
+        a.play().catch(res);
+      });
+      if (seq !== prev.seq) return;
+    }
+    stopPreview();
+  } catch (e) { if (seq === prev.seq) { stopPreview(); ui.toast(e.message || String(e), true); } }
+}
+// Something else starting stops a preview (and a preview pauses it: above).
+addEventListener('shruti:playing', (e) => { if (e.detail.who !== 'preview' && prev.btn) stopPreview(); });
 
 /* ── a ready-made narration: the whole chapter in the chosen voice, to Drive ─ */
 // Made in the background (jobs.js), like Make with AI's narration.
