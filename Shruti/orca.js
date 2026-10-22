@@ -230,6 +230,34 @@ export async function speak({ key, text, voice, signal, fetch: f = fetch }) {
   }
 }
 
+/* ── exact clips: what a podcast, video or saved narration is built from ── */
+// A made episode or video is timed from byte counts (Edge's MP3 is 24 kHz mono
+// 48 kbps, 144-byte frames: 6000 bytes a second) and its captions from Edge's
+// word timings. A clip from the fallback voice (Aura: another bitrate, no
+// timings) would throw every time after it off (Tony, 2026-10-22: a video's
+// voice and captions did not match). So a build takes only clips that are
+// whole Edge frames with timings, asks again when one is not, and says so
+// plainly if the voice service keeps refusing; it never mixes them.
+export const FRAME = 144, BYTES_PER_SECOND = 6000;
+/** Whole frames of Edge's format: MPEG-2 layer III, 24 kHz, 48 kbps. */
+export function edgeClip(bytes) {
+  return !!bytes && bytes.length >= FRAME && bytes.length % FRAME === 0 && bytes[0] === 0xff && (bytes[1] & 0xfe) === 0xf2 && (bytes[2] >> 4) === 6;
+}
+/** Words that fit inside the clip (a timing past its end is not Edge's). */
+const wordsFit = (words, dur) => Array.isArray(words) && words.length > 0 && words.every((w) => w[0] >= 0 && w[0] <= dur + 0.25);
+/** Speak one clip for a build: {bytes, words, voice}. speak = O.speak or a test's. */
+export async function speakExact(speakFn, args, { tries = 4, wait = 1500 } = {}) {
+  let last = null;
+  for (let k = 0; k < tries; k++) {
+    if (k) await sleep(wait * 2 ** (k - 1), args.signal);
+    const r = await speakFn(args);
+    const bytes = new Uint8Array(await r.audio.arrayBuffer());
+    if (r.engine === 'edge' && edgeClip(bytes) && wordsFit(r.words, bytes.length / BYTES_PER_SECOND)) return { bytes, words: r.words, voice: r.voice };
+    last = r.engine !== 'edge' ? 'the fallback voice answered' : !edgeClip(bytes) ? 'the audio was not whole frames' : 'the word timings did not fit';
+  }
+  throw Object.assign(new Error('The voice service kept giving audio that cannot be timed exactly (' + last + '), so nothing was built. Try again in a minute.'), { code: 'tts' });
+}
+
 /** OpenAI SSE (data: {...choices[0].delta.content}) or a plain JSON reply. */
 export async function readStream(r, onDelta) {
   const ct = r.headers.get('content-type') || '';
