@@ -1,6 +1,9 @@
-// The Study tab: a sidebar like MAGI Studio's (each set, each kind with its
-// icon, accent and status) and the chosen tool beside it. Sets come from two
-// places:
+// The Study tab: the sets in a row across the top, the chosen set's kinds as
+// tabs under it (each with its icon, accent and status; Tony, 2026-10-22:
+// "a horizontal header instead of vertical"), and the chosen tool below.
+// Focus hides every header (the app bar, the chapter, the mode tabs, these
+// rows) so only the tool shows; Esc or the button brings them back. Sets come
+// from two places:
 //   - ready-made: books/<book>/study/chNN.json, written with the book (Claude
 //     wrote the Gita's), listed in books/<book>/study.json;
 //   - made with AI: <doc>.sets.<book>.<id>, for any scope (a chapter, a
@@ -78,6 +81,26 @@ export function status(book, set, kind, it) {
 /** A set's kinds in this person's order. */
 export const kindsOf = (book, s) => OR.arrange(P.KINDS.filter((k) => s.kinds[k]), (k) => k, OR.get('kinds.' + book + '.' + s.id));
 
+/* ── focus: only the tool on the page ────────────────────────────────────── */
+let focused = false;
+function setFocus(on) {
+  focused = !!on;
+  document.body.classList.toggle('sh-focusing', focused);
+  const fb = document.querySelector('.sh-focus');
+  if (!fb) return;
+  fb.classList.toggle('on', focused);
+  fb.innerHTML = (focused ? IC.shrink : IC.full) + '<span>' + (focused ? 'Exit focus' : 'Focus') + '</span>';
+  fb.title = focused ? 'Show the headers again (Esc)' : 'Focus: only the ' + (fb.dataset.kind || 'tool') + ', no headers';
+  fb.setAttribute('aria-label', fb.title); fb.setAttribute('aria-pressed', String(focused));
+}
+addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || !focused || e.defaultPrevented) return;
+  if (document.querySelector('.sheet-dim, .ui-dim, .mm.max')) return;
+  setFocus(false);
+});
+// Leaving the Study tab (or the chapter) brings the headers back.
+addEventListener('hashchange', () => { if (focused && !/\/study(\/|$)/.test(location.hash)) setFocus(false); });
+
 /* ── the tab ─────────────────────────────────────────────────────────────── */
 let live = null;   // {dispose, root, ctx}
 const pick = (ctx) => C.ls.json(C.lsKey('study.' + ctx.book + '.' + ctx.n), null);
@@ -103,33 +126,49 @@ export async function renderStudy(body, ctx) {
       sel = { set: s0.id, kind: kindsOf(ctx.book, s0)[0] };
     }
     const cur = sets.find((s) => s.id === sel.set);
-    body.innerHTML = '<div class="sh"><aside class="sh-side" aria-label="Study sets"></aside><section class="sh-main"><div class="sh-head"></div><div class="sh-tool"></div></section></div>';
-    const side = body.querySelector('.sh-side');
+    body.innerHTML = '<div class="sh"><div class="sh-top"><div class="sh-sets" role="tablist" aria-label="Study sets"></div></div>' +
+      '<div class="sh-bar"><div class="sh-kinds" role="tablist" aria-label="Study tools"></div>' +
+      '<button class="ib sh-focus" data-focus aria-pressed="false"></button></div>' +
+      '<section class="sh-main"><div class="sh-tool"></div></section></div>';
+    const side = body.querySelector('.sh-sets'), kindsRow = body.querySelector('.sh-kinds');
     side.innerHTML = sets.map((s) => {
       const meta = s.shipped ? 'Comes with Shruti' : [G.modelName(s.model), s.by && C.PROFILES[s.by] ? C.PROFILES[s.by].label : '', s.at ? new Date(s.at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : ''].filter(Boolean).join(' · ');
-      return '<div class="sh-set' + (s.id === sel.set ? ' on' : '') + '" data-dkey="' + esc(s.id) + '" title="' + esc(OR.HINT) + '"><div class="sh-set-h"><span><b>' + esc(s.shipped ? s.label : s.scope.label ? s.scope.label[0].toUpperCase() + s.scope.label.slice(1) : 'Study set') + '</b><span>' + esc(meta) + '</span></span>' +
-        (s.shipped ? '' : '<button class="ib sm" data-del="' + esc(s.id) + '" title="Delete this set" aria-label="Delete this set">' + IC.trash + '</button>') + '</div>' +
-        kindsOf(ctx.book, s).map((k) => { const stt = status(ctx.book, s.id, k, s.kinds[k]); return '<button class="sh-kind k-' + k + (s.id === sel.set && k === sel.kind ? ' on' : '') + '" data-set="' + esc(s.id) + '" data-kind="' + k + '" data-dkey="' + k + '"><i>' + IC[k] + '</i><span>' + KIND_NAME[k] + '</span><em class="' + stt.c + '">' + esc(stt.t) + '</em></button>'; }).join('') + '</div>';
-    }).join('') + '<button class="btn sh-make" data-make>' + IC.spark + 'Make a study set</button>';
-    side.querySelectorAll('[data-kind]').forEach((b) => b.addEventListener('click', () => { remember(ctx, { set: b.dataset.set, kind: b.dataset.kind }); draw(); if (matchMedia('(max-width: 760px)').matches) body.querySelector('.sh-main').scrollIntoView({ block: 'start', behavior: 'smooth' }); }));
+      const label = s.shipped ? s.label : s.scope.label ? s.scope.label[0].toUpperCase() + s.scope.label.slice(1) : 'Study set';
+      return '<div class="sh-set' + (s.id === sel.set ? ' on' : '') + '" data-dkey="' + esc(s.id) + '" title="' + esc(label + ' · ' + meta + '\n' + OR.HINT) + '">' +
+        '<button class="sh-set-b" role="tab" aria-selected="' + (s.id === sel.set) + '" data-pick="' + esc(s.id) + '"><b>' + esc(label) + '</b><span>' + esc(meta) + '</span></button>' +
+        (s.shipped ? '' : '<button class="ib sm" data-del="' + esc(s.id) + '" title="Delete this set" aria-label="Delete this set">' + IC.trash + '</button>') + '</div>';
+    }).join('') + '<button class="btn sm sh-make" data-make>' + IC.spark + '<span>Make a study set</span></button>';
+    kindsRow.dataset.dkey = cur.id;
+    kindsRow.innerHTML = kindsOf(ctx.book, cur).map((k) => { const stt = status(ctx.book, cur.id, k, cur.kinds[k]); return '<button class="sh-kind k-' + k + (k === sel.kind ? ' on' : '') + '" role="tab" aria-selected="' + (k === sel.kind) + '" data-set="' + esc(cur.id) + '" data-kind="' + k + '" data-dkey="' + k + '"><i>' + IC[k] + '</i><span>' + KIND_NAME[k] + '</span><em class="' + stt.c + '">' + esc(stt.t) + '</em></button>'; }).join('');
+    kindsRow.querySelectorAll('[data-kind]').forEach((b) => b.addEventListener('click', () => { if (window.A1Drag && A1Drag.active) return; remember(ctx, { set: b.dataset.set, kind: b.dataset.kind }); draw(); }));
+    side.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', () => {
+      if (window.A1Drag && A1Drag.active) return;
+      const s = sets.find((x) => x.id === b.dataset.pick);
+      if (!s || s.id === sel.set) return;
+      remember(ctx, { set: s.id, kind: s.kinds[sel.kind] ? sel.kind : kindsOf(ctx.book, s)[0] });
+      draw();
+    }));
     side.querySelector('[data-make]').addEventListener('click', () => openMaker(ctx));
-    // Drag sets (sideways on a phone, where they scroll that way) and the kinds in a set.
-    OR.sortable(side, { row: '.sh-set', axis: matchMedia('(max-width: 760px)').matches ? 'x' : 'y', onMove(ks) {
+    // Drag sets, and the kinds of the chosen set, sideways.
+    OR.sortable(side, { row: '.sh-set', axis: 'x', onMove(ks) {
       const all = OR.get('sets.' + ctx.book);
       OR.put('sets.' + ctx.book, ks.concat(all.filter((k) => !ks.includes(k))));
       draw();
     } });
-    side.querySelectorAll('.sh-set').forEach((el) => OR.sortable(el, { row: '.sh-kind', onMove(ks) { OR.put('kinds.' + ctx.book + '.' + el.dataset.dkey, ks); draw(); } }));
+    OR.sortable(kindsRow, { row: '.sh-kind', axis: 'x', onMove(ks) { OR.put('kinds.' + ctx.book + '.' + cur.id, ks); draw(); } });
     side.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
       if (!await window.uiConfirm('Delete this study set? Its progress goes with it.', { title: 'Delete study set', okLabel: 'Delete' })) return;
       removeSet(ctx.book, b.dataset.del);
       draw();
     }));
-    body.querySelector('.sh-head').innerHTML = '<span class="sh-ic k-' + sel.kind + '">' + IC[sel.kind] + '</span><div><b>' + KIND_NAME[sel.kind] + '</b>' + (cur.shipped ? '' : '<span>' + esc(cur.scope.label) + '</span>') + '</div>';
-    // A tool saved progress: its tag in the sidebar follows at once.
+    const fb = body.querySelector('[data-focus]');
+    fb.dataset.kind = KIND_NAME[sel.kind].toLowerCase();
+    fb.addEventListener('click', () => setFocus(!focused));
+    setFocus(focused);
+    // A tool saved progress: its tag in the tabs follows at once.
     const retag = (e) => {
-      if (!side.isConnected) { removeEventListener('shruti:study', retag); return; }
-      const { set, kind } = e.detail, s = sets.find((x) => x.id === set), row = side.querySelector('.sh-kind[data-set="' + set + '"][data-kind="' + kind + '"] em');
+      if (!kindsRow.isConnected) { removeEventListener('shruti:study', retag); return; }
+      const { set, kind } = e.detail, s = sets.find((x) => x.id === set), row = kindsRow.querySelector('.sh-kind[data-set="' + set + '"][data-kind="' + kind + '"] em');
       if (!s || !row) return;
       const stt = status(ctx.book, set, kind, s.kinds[kind]);
       row.textContent = stt.t; row.className = stt.c;
