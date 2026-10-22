@@ -22,6 +22,7 @@ import * as C from './core.js';
 import * as O from './orca.js';
 import * as T from './text.js';
 import * as M from './media.js';
+import * as PT from './ptools.js';
 
 const DRIVE = M.DRIVE;
 const BPS = 6000;   // bytes per second of 48 kbps audio
@@ -178,6 +179,7 @@ function paintNow() {
   subtitle(tr, k);
   if (!viewOk()) return;
   const v = P.view;
+  paintBar(t);
   if (v.litTurn !== i) {
     if (v.litTurn != null && v.turnEls[v.litTurn]) v.turnEls[v.litTurn].classList.remove('on');
     v.litTurn = i;
@@ -190,6 +192,14 @@ function paintNow() {
   const idx = i >= 0 && k >= 0 && v.maps[i] ? v.maps[i][k] : -1;
   const span = idx >= 0 ? v.wordEls[i][idx] : null;
   if (span !== P.word) { if (P.word) P.word.classList.remove('on'); P.word = span; if (span) span.classList.add('on'); }
+}
+/** The Listen tab's bar and clock (when that tab is on the page). */
+function paintBar(t, force) {
+  const v = P.view;
+  if (!v || !v.fill || !v.root.isConnected || (!force && !viewOk())) return;
+  const d = v.dur || 1, f = (100 * Math.max(0, Math.min(1, t / d))).toFixed(3) + '%';
+  v.fill.style.width = f; v.knob.style.left = f;
+  v.timeEl.textContent = T.fmtTime(t);
 }
 function follow(el) {
   if (P.away || !P.playing) return;
@@ -260,6 +270,8 @@ function mediaSession() {
 const PLAY_I = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg>';
 const PAUSE_I = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6.5" y="5" width="4" height="14" rx="1"/><rect x="13.5" y="5" width="4" height="14" rx="1"/></svg>';
 const DL_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>';
+const BACK_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><text x="12" y="15.4" font-size="7.5" font-weight="700" text-anchor="middle" fill="currentColor" stroke="none" font-family="Inter,system-ui,sans-serif">15</text></svg>';
+const FWD_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/><text x="12" y="15.4" font-size="7.5" font-weight="700" text-anchor="middle" fill="currentColor" stroke="none" font-family="Inter,system-ui,sans-serif">15</text></svg>';
 const CC_I = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 10.5a2 2 0 1 0 0 3M16 10.5a2 2 0 1 0 0 3"/></svg>';
 
 /** A turn's text as written, each word a span (punctuation kept). */
@@ -283,18 +295,32 @@ export async function renderListen(body, { book, n, title, lessons }) {
   const cov = coverage(meta, L.map((l) => l.id));
   const hostIx = (id) => Math.max(0, meta.hosts.findIndex((h) => h.id === id));
   const firstTurnOf = (id) => meta.turns.findIndex((t) => (t.L || []).includes(id));
+  // One player card (Tony, 2026-10-22: "way cleaner"): who and what, a bar
+  // with the parts marked, the transport, and the tools; the speeds open only
+  // from the speed pill.
   body.innerHTML =
     '<div class="pod">' +
-      '<div class="pod-head">' +
-        '<div class="pod-hosts">' + meta.hosts.map((h, i) => '<span class="av h' + i + '" title="' + esc(h.name) + '">' + esc(initials(h.name)) + '</span>').join('') + '</div>' +
-        '<div class="pod-t"><b>A conversation about chapter ' + n + '</b><span>' + esc(meta.hosts.map((h) => h.name).join(' and ')) + ' · ' + T.fmtTime(meta.duration) + ' · the full story and all ' + L.length + ' lessons</span></div>' +
-        '<button class="btn solid pod-play" data-play>' + PLAY_I + '<span>Play</span></button>' +
-      '</div>' +
-      '<div class="pod-tools">' +
-        '<div class="chips pod-speed" role="radiogroup" aria-label="Speed">' + SPEEDS.map((s) => '<button class="chip" data-speed="' + s + '" role="radio">' + s + '×</button>').join('') + '</div>' +
-        '<span class="sp"></span>' +
-        '<button class="ib" data-subs title="Subtitles" aria-label="Subtitles" aria-pressed="false">' + CC_I + '</button>' +
-        '<a class="ib" data-dl href="' + esc(P.url) + '" download="Shruti - Chapter ' + n + ' - ' + esc(title) + '.mp3" title="Download the episode" aria-label="Download the episode">' + DL_I + '</a>' +
+      '<div class="pcard">' +
+        '<div class="pod-head">' +
+          '<div class="pod-hosts">' + meta.hosts.map((h, i) => '<span class="av h' + i + '" title="' + esc(h.name) + '">' + esc(initials(h.name)) + '</span>').join('') + '</div>' +
+          '<div class="pod-t"><b>A conversation about chapter ' + n + '</b><span>' + esc(meta.hosts.map((h) => h.name).join(' & ')) + ' · ' + T.fmtTime(meta.duration) + (L.length ? ' · the story and all ' + L.length + ' lessons' : '') + '</span></div>' +
+        '</div>' +
+        '<div class="pbar"><span class="pbar-t" data-pt>0:00</span>' +
+          '<div class="vid-track pod-track" data-track role="slider" aria-label="Position" aria-valuemin="0" aria-valuemax="' + Math.round(meta.duration) + '" tabindex="0">' +
+            '<div class="vid-ticks">' + meta.segments.slice(1).map((sg) => '<i style="left:' + (100 * sg.start / meta.duration).toFixed(3) + '%"></i>').join('') + '</div>' +
+            '<div class="vid-fill"></div><div class="vid-knob"></div></div>' +
+          '<span class="pbar-t">' + T.fmtTime(meta.duration) + '</span></div>' +
+        '<div class="pctl">' +
+          '<div class="pctl-l">' + PT.speedHTML() + '</div>' +
+          '<div class="pctl-c"><button class="ib pskip" data-back title="Back 15 seconds" aria-label="Back 15 seconds">' + BACK_I + '</button>' +
+            '<button class="pod-play" data-play aria-label="Play">' + PLAY_I + '</button>' +
+            '<button class="ib pskip" data-fwd title="Forward 15 seconds" aria-label="Forward 15 seconds">' + FWD_I + '</button></div>' +
+          '<div class="pctl-r"><div class="tl-group">' +
+            PT.tool('data-subs title="Subtitles" aria-label="Subtitles" aria-pressed="false"', CC_I, 'Subtitles') +
+            '<a class="tl-b" data-dl href="' + esc(P.url) + '" download="Shruti - Chapter ' + n + ' - ' + esc(title) + '.mp3" title="Download the episode" aria-label="Download the episode">' + DL_I + '<span>Download</span></a>' +
+          '</div></div>' +
+        '</div>' +
+        PT.speedsRowHTML(SPEEDS) +
       '</div>' +
       '<div class="pod-chips" role="tablist" aria-label="Parts">' + meta.segments.map((s, i) => '<button class="pchip" data-seg="' + i + '">' + esc(s.title) + '</button>').join('') + '</div>' +
       '<div class="pod-turns" id="pod-turns">' + meta.turns.map((t, i) => {
@@ -307,8 +333,8 @@ export async function renderListen(body, { book, n, title, lessons }) {
           (t.L || []).map((id) => { const l = L.find((x) => x.id === id); return '<i class="ltag" title="' + esc(l ? l.title : id) + '">' + esc(id) + '</i>'; }).join('') + '</div>' +
           '<p>' + textHtml(t.text) + '</p></div></div>';
       }).join('') + '</div>' +
-      '<section class="pod-cov"><h3>Lessons in this episode <span class="' + (cov.missing.length ? 'bad' : 'good') + '">' + cov.covered.length + ' of ' + L.length + '</span></h3>' +
-        '<div class="pod-ls">' + L.map((l) => '<button class="pl" data-lesson="' + esc(l.id) + '"' + (firstTurnOf(l.id) < 0 ? ' disabled' : '') + '><i>' + esc(l.id) + '</i><span>' + esc(l.title || '') + '</span></button>').join('') + '</div></section>' +
+      (L.length ? PT.foldHTML('podLessons', 'Lessons in this episode <span class="' + (cov.missing.length ? 'bad' : 'good') + '">' + cov.covered.length + ' of ' + L.length + '</span>',
+        '<div class="pod-ls">' + L.map((l) => '<button class="pl" data-lesson="' + esc(l.id) + '"' + (firstTurnOf(l.id) < 0 ? ' disabled' : '') + '><i>' + esc(l.id) + '</i><span>' + esc(l.title || '') + '</span></button>').join('') + '</div>') : '') +
     '</div>' +
     '<button class="rd-follow" id="pod-follow" hidden>' + 'Back to the conversation</button>';
   const root = body.querySelector('.pod');
@@ -316,21 +342,43 @@ export async function renderListen(body, { book, n, title, lessons }) {
   const wordEls = turnEls.map((el) => [...el.querySelectorAll('.w')]);
   // The voice's words, lined up with the words as written.
   const maps = meta.turns.map((tr, i) => T.align(tr.words.map((w) => w[2]), wordEls[i].map((s) => s.textContent)));
-  attach({ book, n, root, turnEls, wordEls, maps, chips: [...root.querySelectorAll('.pchip')], chipRow: root.querySelector('.pod-chips'), litTurn: null });
+  const track = root.querySelector('[data-track]');
+  attach({ book, n, root, turnEls, wordEls, maps, chips: [...root.querySelectorAll('.pchip')], chipRow: root.querySelector('.pod-chips'), litTurn: null,
+    fill: track.querySelector('.vid-fill'), knob: track.querySelector('.vid-knob'), timeEl: root.querySelector('[data-pt]'), dur: meta.duration });
 
   const playBtn = root.querySelector('[data-play]');
+  const paintSpeed = PT.bindSpeed(root, { get: () => prefs().speed, set: (v) => setPref('speed', v) });
+  PT.bindFolds(root);
   const paintTab = () => {
     const on = active(book, n) && P.playing;
-    playBtn.innerHTML = (on ? PAUSE_I : PLAY_I) + '<span>' + (on ? 'Pause' : audio && audio.currentTime > 1 && active(book, n) ? 'Resume' : 'Play') + '</span>';
-    const sp = prefs().speed || 1;
-    root.querySelectorAll('[data-speed]').forEach((b) => { const on2 = Number(b.dataset.speed) === sp; b.classList.toggle('on', on2); b.setAttribute('aria-checked', on2); });
+    playBtn.innerHTML = on ? PAUSE_I : PLAY_I;
+    playBtn.setAttribute('aria-label', on ? 'Pause' : audio && audio.currentTime > 1 && active(book, n) ? 'Resume' : 'Play');
+    playBtn.classList.toggle('on', on);
+    paintSpeed();
     const subs = root.querySelector('[data-subs]'); subs.setAttribute('aria-pressed', !!prefs().subs); subs.classList.toggle('on', !!prefs().subs);
     body.querySelector('#pod-follow').hidden = !(on && P.away);
   };
   const off = onChange(() => { if (!root.isConnected) { off(); return; } paintTab(); });
   paintTab();
   playBtn.addEventListener('click', async () => { if (!active(book, n)) await load(book, n, title); toggle(); });
-  root.querySelectorAll('[data-speed]').forEach((b) => b.addEventListener('click', () => setPref('speed', Number(b.dataset.speed))));
+  const here = async () => { if (!active(book, n)) await load(book, n, title); };
+  root.querySelector('[data-back]').addEventListener('click', async () => { await here(); skip(-15); });
+  root.querySelector('[data-fwd]').addEventListener('click', async () => { await here(); skip(15); });
+  // The bar: tap or drag to a place; arrows step 5 s.
+  const at = (x) => { const r = track.getBoundingClientRect(); return Math.max(0, Math.min(1, (x - r.left) / r.width)) * meta.duration; };
+  const seekTo = async (t) => { await here(); if (P.playing) seek(t); else play(t); };
+  track.addEventListener('pointerdown', (e) => {
+    try { track.setPointerCapture(e.pointerId); } catch (err) {}
+    paintBar(at(e.clientX), true);
+    const mv = (ev) => paintBar(at(ev.clientX), true);
+    const upH = (ev) => { track.removeEventListener('pointermove', mv); track.removeEventListener('pointerup', upH); track.removeEventListener('pointercancel', upH); seekTo(at(ev.clientX)); };
+    track.addEventListener('pointermove', mv); track.addEventListener('pointerup', upH); track.addEventListener('pointercancel', upH);
+  });
+  track.addEventListener('keydown', async (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault(); e.stopPropagation(); await here(); skip(e.key === 'ArrowLeft' ? -5 : 5);
+  });
+  paintBar(active(book, n) && audio && audio.currentTime ? audio.currentTime : Number(C.me.get('progress.' + book + '.ch' + n + '.pod.t', 0)) || 0, true);
   root.querySelector('[data-subs]').addEventListener('click', () => setPref('subs', !prefs().subs));
   root.querySelectorAll('[data-seg]').forEach((b) => b.addEventListener('click', () => play(meta.segments[Number(b.dataset.seg)].start)));
   root.querySelectorAll('[data-lesson]').forEach((b) => b.addEventListener('click', () => { const i = firstTurnOf(b.dataset.lesson); if (i >= 0) play(meta.turns[i].start); }));
