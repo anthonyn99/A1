@@ -80,18 +80,27 @@ export function turnAt(turns, t) {
 
 /* ── playback ────────────────────────────────────────────────────────────── */
 export const active = (book, n) => P.book === book && P.n === n && !!P.meta;
-/** Load a chapter's episode (no sound yet). */
+/** Which file a source is: a new version (made here, or ticked in Make with
+ *  AI on any device) is a different source, so it replaces the loaded one. */
+export const srcKey = (src) => (src ? src.where + ':' + (src.mp3 && src.mp3.id || src.mp3) : '');
+/** Load a chapter's episode (no sound yet): the one that plays now. */
 export async function load(book, n, title) {
-  if (active(book, n)) return P.meta;
+  // One made on this device without Drive stays until the page reloads.
+  if (active(book, n) && P.src === 'local') return P.meta;
   const src = await sourceFor(book, n);
+  if (active(book, n) && P.src === srcKey(src)) return P.meta;
   if (!src) return null;
   const { url, meta } = await open(src);
   stop(true);
-  Object.assign(P, { book, n, title, meta, url, turn: -1, word: null, away: false });
-  if (audio) audio.src = url;
+  Object.assign(P, { book, n, title, meta, url, src: srcKey(src), turn: -1, word: null, away: false });
+  if (audio) { audio.src = url; audio.currentTime = 0; }
   emit();
   return meta;
 }
+/** "Play it" after making one: the Listen tab starts it on its own. */
+let autoplay = null;
+export function playWhenShown(book, n) { autoplay = { book, n, at: Date.now() }; }
+const takeAutoplay = (book, n) => { const a = autoplay; autoplay = null; return !!(a && a.book === book && a.n === n && Date.now() - a.at < 60000); };
 export async function play(at) {
   if (!P.meta || !audio) return;
   dispatchEvent(new CustomEvent('shruti:playing', { detail: { who: 'podcast' } }));
@@ -378,7 +387,7 @@ export async function build(script, { key = keyOf(), onStep, parallel = 3, speak
 export function useLocal(book, n, title, { mp3, meta }) {
   stop();
   const url = URL.createObjectURL(mp3);
-  Object.assign(P, { book, n, title, meta, url, turn: -1, word: null, away: false });
+  Object.assign(P, { book, n, title, meta, url, src: 'local', turn: -1, word: null, away: false });
   if (audio) audio.src = url;
   emit();
 }
