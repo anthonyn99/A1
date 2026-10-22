@@ -233,11 +233,11 @@ function scenario(oldState) {
     old.BroadcastChannel = BC;
     old.document.hasFocus = () => !!oldState.focused;
     if (oldState.entries > 1) Object.defineProperty(old.history, 'length', { get: () => oldState.entries });
-    let oldClosed = false; old.close = () => { oldClosed = true; };
+    let oldClosed = false; old.close = () => { oldClosed = true; }; old.focus = () => {};
     old.eval(sync);
     const neu = page('https://a1-priv.av1.workers.dev/riftiq.html?a1tab=warroom');
     neu.BroadcastChannel = BC;
-    let neuClosed = false; neu.close = () => { neuClosed = true; };
+    let neuClosed = false; neu.close = () => { neuClosed = true; }; neu.focus = () => {};
     neu.eval(sync);
     setTimeout(() => resolve({ oldClosed, neuClosed, oldName: old.name, neuName: neu.name }), 500);
   });
