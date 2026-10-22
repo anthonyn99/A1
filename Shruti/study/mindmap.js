@@ -87,6 +87,11 @@ function mountMap(rootEl, A, { book, set, title }, toArrange) {
     btn('', 'copy', async () => { try { await navigator.clipboard.writeText(outline(map)); flash('Outline copied'); } catch (e) { flash('Could not copy'); } }, 'sm ic', 'Copy the outline'), btn('', 'list', toArrange, 'sm ic', 'Arrange: drag branches and points into order'));
   bar.append(acts);
   const port = h('div', 'mm-port');
+  // No hover filter from hoverfx.js in here (Tony, 2026-10-22: a node
+  // "flashes" on hover): a filter on a node inside the scaled canvas puts it on
+  // its own layer, so its text is drawn again, blurred then sharp. The branch
+  // has its own quiet hover in styles.css.
+  port.setAttribute('data-no-hoverfx', '');
   const canvas = h('div', 'mm-canvas');
   const svg = document.createElementNS(SVGNS, 'svg');
   svg.setAttribute('class', 'mm-links'); svg.setAttribute('aria-hidden', 'true');
