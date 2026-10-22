@@ -132,7 +132,7 @@ const sheetKind = (c, k) => ev(c, `document.querySelector('#gen-sheet [data-kind
   await ev(c, `return window.Shruti.core.me.set({orcaKey:${JSON.stringify(KEY)}},{now:true}) || 1`);
   ok('the chapter has "Make with AI"', await waitFor(c, `!!document.querySelector('#make-ai')`));
   await click(c, '#make-ai');
-  ok('it opens: four kinds, Comes with Shruti ticked for the podcast', await waitFor(c, `document.querySelectorAll('#gen-sheet [data-kind]').length===4 && /Comes with Shruti/.test(document.querySelector('#gen-vers .gv.on')?.textContent||'')`));
+  ok('it opens: four kinds, Comes with Shruti ticked for the podcast', await waitFor(c, `document.querySelectorAll('#gen-sheet [data-kind]').length===4 && /Comes with Shruti/.test(document.querySelector('#gen-vers .gv.on')?.textContent||'')`), await ev(c, `return (document.querySelector('#gen-sheet')||{}).textContent||'no sheet'`));
   ok('the units come from Orca, in his order, Claude off', await waitFor(c, `const u=[...document.querySelectorAll('#gen-sheet [data-unit]')]; return u.length>=5 && u[0].textContent.includes('DeepSeek') && u.find(b=>/Claude/.test(b.textContent)).getAttribute('aria-checked')==='false' && u.find(b=>/Gemini/.test(b.textContent)).classList.contains('off')`));
   await ev(c, `document.querySelector('#gen-sheet [data-len="concise"]').click(); return 1`);
   await ev(c, `[...document.querySelectorAll('#gen-sheet [data-preset]')].find(b=>/Emma/.test(b.textContent)).click(); return 1`);
