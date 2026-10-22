@@ -89,41 +89,83 @@ input:focus, select:focus, textarea:focus { border-color: var(--ac); box-shadow:
 :is(button, a, [role=button], [role=checkbox], [role=radio], [role=tab], [tabindex]):focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; }
 @media (pointer: coarse) { input, select, textarea { font-size: 16px; } }
 
-/* == profile picker ========================================================= */
+/* == profile picker =========================================================
+   Everwell's title screen in Shruti's colours (Tony, 2026-10-22): slow light
+   pools and rising motes on a canvas (app.js pickerBackdrop), the mark rising,
+   the word settling from wide letter-spacing, a thin rule, a spaced subtitle,
+   then two frosted cards whose emblem glows in that person's colour. */
 #picker {
-  position: fixed; inset: 0; z-index: 9000; display: flex; flex-direction: column; align-items: center;
-  justify-content: center; padding: 24px 16px; background: #1a1a1d; text-align: center;
+  position: fixed; inset: 0; z-index: 9000; display: flex; align-items: center; justify-content: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 24px) 16px calc(env(safe-area-inset-bottom, 0px) + 24px);
+  background: #141418; text-align: center; overflow-y: auto;
+  --pk-ease: cubic-bezier(.2, .8, .2, 1);
 }
-#picker .pk-mark { width: 64px; height: 64px; color: #c0aeea; margin-bottom: 14px; }
-#picker .pk-mark svg { width: 100%; height: 100%; }
-#picker h1 { font: 750 34px/1.15 'Manrope', system-ui, sans-serif; color: #fff; letter-spacing: -.4px; }
-#picker .pk-sub { color: #9898a8; font: 14px 'Nunito', sans-serif; margin: 6px 0 32px; }
+#pk-bg { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+#picker::after { content: ''; position: fixed; inset: 0; pointer-events: none;
+  background: radial-gradient(120% 90% at 50% 0%, rgba(20,20,24,0) 0%, rgba(20,20,24,.45) 72%, rgba(20,20,24,.78) 100%); }
+.pk-in { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 760px; }
+#picker .pk-mark { width: 52px; height: 52px; color: #c0aeea; margin-bottom: 18px; opacity: 0; animation: pkRise .9s .05s var(--pk-ease) forwards; }
+#picker .pk-mark svg { width: 100%; height: 100%; filter: drop-shadow(0 0 18px rgba(192,174,234,.35)); }
+#picker h1 { font: 800 clamp(54px, 12vw, 104px)/1 'Manrope', system-ui, sans-serif; letter-spacing: -2px; color: #ece6fb;
+  opacity: 0; animation: pkWord 1.1s .15s var(--pk-ease) forwards; }
+.pk-rule { width: 56px; height: 1px; margin: 22px 0 16px; background: rgba(192,174,234,.55); opacity: 0; animation: pkRise .8s .55s var(--pk-ease) forwards; }
+.pk-sub { font: 600 clamp(10.5px, 1.6vw, 12.5px) 'Inter', system-ui, sans-serif; letter-spacing: 5px; text-transform: uppercase; color: #9a9aa6;
+  opacity: 0; animation: pkRise .9s .7s var(--pk-ease) forwards; }
+.pk-ask { margin: clamp(40px, 7vh, 64px) 0 16px; font: 700 10.5px 'Inter', system-ui, sans-serif; letter-spacing: 2.4px; text-transform: uppercase; color: #8a8a96;
+  opacity: 0; animation: pkRise .8s .95s var(--pk-ease) forwards; }
 .pk-cards { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
 .pk-card {
-  position: relative; width: 160px; aspect-ratio: 1; display: flex; flex-direction: column; align-items: center;
-  justify-content: center; gap: 10px; background: #232327; border: 2px solid rgba(255,255,255,.08);
-  border-radius: 20px; cursor: pointer; transition: transform .2s var(--ease), box-shadow .2s, border-color .2s;
+  --pk: #c0aeea; --pk-rgb: 192,174,234;
+  position: relative; width: 176px; padding: 30px 16px 22px; display: flex; flex-direction: column; align-items: center; gap: 14px;
+  background: rgba(32,32,38,.52); border: 1px solid rgba(255,255,255,.08); border-radius: 24px; cursor: pointer; overflow: hidden;
+  -webkit-backdrop-filter: blur(18px) saturate(1.2); backdrop-filter: blur(18px) saturate(1.2);
+  box-shadow: 0 1px 0 rgba(255,255,255,.05) inset, 0 18px 50px rgba(0,0,0,.35);
+  opacity: 0; animation: pkRise .9s 1.05s var(--pk-ease) forwards;
+  transition: transform .35s var(--pk-ease), border-color .35s, box-shadow .35s, background .35s;
 }
-.pk-card:hover { transform: translateY(-4px); box-shadow: 0 16px 48px rgba(0,0,0,.6); }
-.pk-card .em { font-size: 42px; line-height: 1; }
-.pk-card .nm { font: 800 19px 'Nunito', sans-serif; }
-.pk-card.tony { border-color: #c0aeea44; color: #c0aeea; }
-.pk-card.tony:hover { border-color: #c0aeea; }
-.pk-card.tony .nm { font-family: 'Manrope', system-ui, sans-serif; letter-spacing: -.2px; }
-.pk-card.veda { border-color: rgba(141,118,154,.5); color: #b79fc4; }
-.pk-card.veda:hover { border-color: rgba(183,159,196,.85); box-shadow: 0 8px 24px rgba(141,118,154,.24); }
-.pk-card.veda .nm { font-family: 'Playfair Display', serif; }
-.pk-card.last { box-shadow: 0 0 0 3px rgba(255,255,255,.06); }
+.pk-card + .pk-card { animation-delay: 1.15s; }
+.pk-card.veda { --pk: #b79fc4; --pk-rgb: 183,159,196; }
+/* A soft pool of the person's colour behind the emblem, brighter on hover. */
+.pk-card::before { content: ''; position: absolute; left: 50%; top: -40px; width: 220px; height: 200px; transform: translateX(-50%); pointer-events: none;
+  background: radial-gradient(closest-side, rgba(var(--pk-rgb), .22), rgba(var(--pk-rgb), 0)); opacity: .55; transition: opacity .35s; }
+.pk-card:hover, .pk-card:focus-visible { transform: translateY(-6px); border-color: rgba(var(--pk-rgb), .5); background: rgba(36,36,44,.62);
+  box-shadow: 0 1px 0 rgba(255,255,255,.06) inset, 0 24px 60px rgba(0,0,0,.45), 0 0 0 1px rgba(var(--pk-rgb), .12); }
+.pk-card:hover::before, .pk-card:focus-visible::before { opacity: 1; }
+.pk-card:active { transform: translateY(-2px) scale(.985); }
+.pk-card:focus-visible { outline: none; }
+.pk-em { position: relative; width: 76px; height: 76px; display: grid; place-items: center; border-radius: 50%; color: var(--pk);
+  background: radial-gradient(circle at 50% 38%, rgba(var(--pk-rgb), .2), rgba(var(--pk-rgb), .05) 70%);
+  box-shadow: 0 0 0 1px rgba(var(--pk-rgb), .32) inset, 0 0 28px rgba(var(--pk-rgb), .14); transition: box-shadow .35s, transform .35s var(--pk-ease); }
+.pk-em::after { content: ''; position: absolute; inset: -7px; border-radius: 50%; border: 1px solid rgba(var(--pk-rgb), .18); transition: inset .35s var(--pk-ease), border-color .35s; }
+.pk-card:hover .pk-em, .pk-card:focus-visible .pk-em { transform: scale(1.04); box-shadow: 0 0 0 1px rgba(var(--pk-rgb), .5) inset, 0 0 40px rgba(var(--pk-rgb), .3); }
+.pk-card:hover .pk-em::after, .pk-card:focus-visible .pk-em::after { inset: -10px; border-color: rgba(var(--pk-rgb), .34); }
+.pk-em svg { width: 32px; height: 32px; display: block; }
+.pk-card .nm { position: relative; font: 750 20px/1.1 'Manrope', system-ui, sans-serif; letter-spacing: -.3px; color: #f1eef8; }
+.pk-card.veda .nm { font: 700 21px/1.1 'Playfair Display', serif; letter-spacing: 0; }
+.pk-note { position: relative; height: 14px; display: flex; align-items: center; justify-content: center; gap: 5px;
+  font: 700 9.5px 'Inter', system-ui, sans-serif; letter-spacing: 1.6px; text-transform: uppercase; color: rgba(var(--pk-rgb), .85); }
+.pk-note svg { width: 11px; height: 11px; }
 .pk-star {
-  position: absolute; top: 7px; right: 8px; width: 32px; height: 32px; display: grid; place-items: center;
-  border-radius: 50%; color: #6c6c78; border: 0; background: transparent; cursor: pointer;
+  position: absolute; top: 8px; right: 8px; z-index: 1; width: 32px; height: 32px; display: grid; place-items: center;
+  border-radius: 50%; color: #8a8a96; border: 0; background: transparent; cursor: pointer; opacity: 0; transition: opacity .25s, background .2s, color .2s;
 }
-.pk-star svg { width: 17px; height: 17px; }
-.pk-star:hover { background: rgba(255,255,255,.08); }
+.pk-card:hover .pk-star, .pk-card:focus-within .pk-star, .pk-star.on { opacity: 1; }
+@media (hover: none) { .pk-star { opacity: .7; } }
+.pk-star svg { width: 15px; height: 15px; }
+.pk-star:hover { background: rgba(255,255,255,.08); color: #d6d6de; }
 .pk-star.on { color: var(--gold); }
 .pk-star.on svg { fill: currentColor; }
-.pk-lock { position: absolute; left: 0; right: 0; bottom: 10px; display: flex; justify-content: center; color: #9898a8; }
-.pk-lock svg { width: 13px; height: 13px; }
+@keyframes pkRise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes pkWord { from { opacity: 0; letter-spacing: 8px; transform: translateY(6px); } to { opacity: 1; letter-spacing: -2px; transform: none; } }
+@media (max-width: 420px) {
+  .pk-cards { gap: 12px; }
+  .pk-card { width: calc(50vw - 24px); max-width: 168px; padding: 26px 10px 18px; }
+  .pk-em { width: 68px; height: 68px; }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .pk-card { background: rgba(32,32,38,.92); } }
+@media (prefers-reduced-motion: reduce) {
+  #picker .pk-mark, #picker h1, .pk-rule, .pk-sub, .pk-ask, .pk-card { animation: none; opacity: 1; }
+}
 
 /* == app shell ============================================================== */
 #app { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
