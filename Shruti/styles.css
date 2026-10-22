@@ -1242,3 +1242,36 @@ body[data-profile=veda] .toast-b { background: #856e92; color: #fff; }
   .jobs-pill span { display: none; }
   .jobs-pill { padding: 0 7px; }
 }
+
+/* == Settings and Read-aloud (rebuilt 2026-10-22): the Make with AI sheets' look == */
+.sheet.st .mk-sec, .sheet.ra .mk-sec { padding-top: 18px; }
+.sheet.st .mk-sec:last-child, .sheet.ra .mk-sec:last-child { padding-bottom: 28px; }
+.st-card { background: var(--s1); border: 1px solid var(--line); border-radius: var(--r2); padding: 12px; }
+.st-key { display: flex; gap: 8px; }
+.st-key input { flex: 1; min-width: 0; }
+.st-foot { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.st-foot .stat { margin: 0; }
+.st-foot .sp { flex: 1; }
+.st-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.st-row .hint { color: var(--txd); font-size: 12.5px; flex: 1; min-width: 180px; }
+.st-prof { display: flex; align-items: center; gap: 12px; }
+.st-prof .pf-av { width: 36px; height: 36px; border-radius: 50%; border: 1.6px solid currentColor; display: grid; place-items: center; color: var(--ac); flex-shrink: 0; font-size: 18px; }
+.st-prof .pf-av svg { width: 18px; height: 18px; }
+.st-prof b { display: block; font-size: 14.5px; }
+.st-prof span { display: block; font-size: 12.5px; color: var(--txm); }
+.sheet.st .units { margin-top: 0; padding: 6px; }
+.sheet.st .unit { flex-wrap: wrap; background: transparent; border-radius: var(--r); }
+.sheet.st .unit:hover { background: var(--s2); }
+.ut { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 0 2px 50px; }
+.ut-k { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px 2px 6px; border-radius: 999px; font-size: 11.5px; font-weight: 650; border: 1px solid var(--line2); color: var(--txm); }
+.ut-k svg { width: 11px; height: 11px; }
+.ut-k .mk-spin { width: 10px; height: 10px; border-width: 1.5px; }
+.ut-k.ok { color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, transparent); }
+.ut-k.no { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
+.ut-why { flex-basis: 100%; margin: 4px 0 0; font-size: 12px; color: var(--bad); line-height: 1.4; }
+.st-row .btn .mk-spin { margin-right: 2px; }
+.sheet.st .drv-row { background: var(--s1); border: 1px solid var(--line); }
+@media (max-width: 760px) {
+  .ut { padding-left: 4px; }
+  .st-key .btn { padding-left: 14px; padding-right: 14px; }
+}
