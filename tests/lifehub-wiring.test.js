@@ -100,7 +100,7 @@ console.log('\nPrograms that moved to A1-Priv (docs/a1-priv-move-plan.md)');
   // (2026-10-22), so neither launcher keeps an old-to-new table any more, and
   // the old pages are gone: no redirects anywhere.
   const idx = read('index.html');
-  ok('LifeHub has no old-address table', !/var MOVED = {/.test(src) && !/movedUrl|movedPatch/.test(src));
+  ok('LifeHub has no old-address table', !/var MOVED = \{/.test(src) && !/movedUrl|movedPatch/.test(src));
   ok('Index has no old-address table', !/MOVED_PROGRAMS|_movedUrl/.test(idx) && !/id:'solace'/.test(idx));
   ok('Index no longer forwards ?goto=keychain', !/_gotoKeychain/.test(idx));
   for (const p of [...moved, 'solace']) ok('A1 holds no copy of ' + p + '.html', !fs.existsSync(path.join(ROOT, p + '.html')));
