@@ -5,10 +5,13 @@
 //
 //   mount(root, cards, {book, set}) -> dispose()
 // Progress: study.<book>.<set>.flashcards = {b: {cardKey: box 0-5}, d: {cardKey: due ms}}
+// A mark can be taken back (Tony, 2026-10-22): the lit "Got it" / "Still
+// learning" pressed again clears it, and the card is new again.
 // Order: the grid of all cards can be dragged; the deck then follows that
 // order (ui.js ordered), and shuffle and review still work on top of it.
 
 import { h, btn, esc, rich, IC, keys, swipe, justSwiped, progress, saveProgress, now, DAY, ordered, saveOrder, OR } from './ui.js';
+import { DELETE } from '../core.js';
 
 export const INTERVALS = [0, 1, 3, 7, 16, 35];   // days, per box
 /** A card's key: survives reordering and small edits elsewhere in the set. */
@@ -71,6 +74,12 @@ export function mount(root, setCards, { book, set }) {
   };
   const mark = (knows) => {
     const c = cards[st.order[st.pos]], k = cardKey(c), p = P();
+    const s = stateOf(p, k);
+    // Pressing the mark the card already has takes it back, and stays here.
+    if ((knows && (s === 'known' || s === 'due')) || (!knows && s === 'learning')) {
+      saveProgress(book, set, 'flashcards', { ['b.' + k]: DELETE, ['d.' + k]: DELETE });
+      paint(); return;
+    }
     const a = answer(p.b && p.b[k], knows);
     saveProgress(book, set, 'flashcards', { ['b.' + k]: a.box, ['d.' + k]: a.due });
     st.marked++;
@@ -86,6 +95,15 @@ export function mount(root, setCards, { book, set }) {
     st.review = true; st.order = order.length ? order : reviewOrder(cards, p);
     st.pos = 0; st.flipped = false; st.done = false; st.grid = false; dir = 0; paint();
   };
+  const clearAll = async () => {
+    const p = P(), ks = Object.keys(p.b || {});
+    if (!ks.length) return;
+    if (!await window.uiConfirm('Clear "Got it" and "Still learning" from all ' + n + ' cards? They all count as new again.', { title: 'Clear marks', okLabel: 'Clear' })) return;
+    const f = {};
+    ks.forEach((k) => { f['b.' + k] = DELETE; f['d.' + k] = DELETE; });
+    saveProgress(book, set, 'flashcards', f, { now: true });
+    st.review = false; st.order = cards.map((_, i) => i); st.pos = 0; st.flipped = false; st.done = false; dir = 0; paint();
+  };
   const restart = () => { st.review = false; st.order = cards.map((_, i) => i); st.pos = 0; st.flipped = false; st.done = false; dir = 0; paint(); };
 
   const paint = () => {
@@ -99,6 +117,7 @@ export function mount(root, setCards, { book, set }) {
     const acts = h('div', 'st-actions');
     const toReview = sm.due + sm.learning;
     if (toReview && !st.review) acts.append(btn('Review ' + toReview, 'clock', startReview, 'sm', 'Review the cards that are due or still being learned'));
+    if (sm.known + sm.due + sm.learning) acts.append(btn('', 'undo', clearAll, 'sm ic', 'Clear every mark'));
     acts.append(btn('', 'shuffle', shuffle, 'sm ic', 'Shuffle'),
       btn('', st.grid ? 'deck' : 'grid', () => { st.grid = !st.grid; paint(); }, 'sm ic', st.grid ? 'One card at a time' : 'All cards'));
     bar.append(acts);
@@ -153,7 +172,11 @@ export function mount(root, setCards, { book, set }) {
     const ctl = h('div', 'fc-ctl');
     const prev = btn('', 'left', () => go(-1), 'round', 'Previous card (←)');
     prev.disabled = st.pos === 0;
-    ctl.append(prev, btn('Still learning', 'x', () => mark(false), 'fc-learn'), btn('Got it', 'tick', () => mark(true), 'fc-know'), btn('', 'right', () => go(1), 'round', 'Next card (→)'));
+    const knew = s === 'known' || s === 'due', learning = s === 'learning';
+    const bL = btn('Still learning', 'x', () => mark(false), 'fc-learn' + (learning ? ' on' : ''), learning ? 'Marked still learning: press to clear (1)' : 'Still learning (1)');
+    const bK = btn('Got it', 'tick', () => mark(true), 'fc-know' + (knew ? ' on' : ''), knew ? 'Marked got it: press to clear (2)' : 'Got it (2)');
+    bL.setAttribute('aria-pressed', String(learning)); bK.setAttribute('aria-pressed', String(knew));
+    ctl.append(prev, bL, bK, btn('', 'right', () => go(1), 'round', 'Next card (→)'));
     box.append(ctl);
   };
 
