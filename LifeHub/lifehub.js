@@ -384,11 +384,13 @@
   // window.name on a cross-site navigation, and that tab's heartbeat lives in
   // storage this page cannot read, so tabsync.js there names itself from the
   // url and runs the duplicate check on its own side. Same-origin urls stay
-  // as they are (atDest compares them with the tab's address).
+  // as they are (atDest compares them with the tab's address), and so does
+  // any site that isn't A1 — the key would only be junk in its address.
+  var A1_PAGE = /^https:\/\/(a1-priv\.av1\.workers\.dev\/|anthonyn99\.github\.io\/a1\/)/i;
   function keyed(url, key) {
     try {
       var u = new URL(url, location.href);
-      if (u.origin === location.origin || !/^https?:$/.test(u.protocol)) return url;
+      if (u.origin === location.origin || !A1_PAGE.test(u.href)) return url;
       u.searchParams.set('a1tab', storeKey(key));
       return u.href;
     } catch (e) { return url; }
