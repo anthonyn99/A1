@@ -113,7 +113,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--ac); box-shadow:
 .pk-in { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 760px; }
 #picker .pk-mark { width: 52px; height: 52px; color: #c0aeea; margin-bottom: 18px; opacity: 0; animation: pkRise .5s 0s var(--pk-ease) forwards; }
 #picker .pk-mark svg { width: 100%; height: 100%; filter: drop-shadow(0 0 18px rgba(192,174,234,.35)); }
-#picker h1 { font: 800 clamp(54px, 12vw, 104px)/1 'Manrope', system-ui, sans-serif; letter-spacing: -2px; color: #ece6fb;
+#picker h1 { font: 500 clamp(54px, 12vw, 104px)/1 'Manrope', system-ui, sans-serif; letter-spacing: -1.5px; color: #ece6fb;
   opacity: 0; animation: pkWord .6s .05s var(--pk-ease) forwards; }
 .pk-rule { width: 56px; height: 1px; margin: 22px 0 16px; background: rgba(192,174,234,.55); opacity: 0; animation: pkRise .45s .25s var(--pk-ease) forwards; }
 .pk-sub { font: 600 clamp(10.5px, 1.6vw, 12.5px) 'Inter', system-ui, sans-serif; letter-spacing: 5px; text-transform: uppercase; color: #9a9aa6;
