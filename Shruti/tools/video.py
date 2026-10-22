@@ -33,7 +33,10 @@ import re
 import sys
 from pathlib import Path
 
-import edge_tts
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))   # -I leaves the tool's folder off the path
+from speech import speak  # noqa: E402  the lexicon, word timings, whole frames
+
 
 ROOT = Path(__file__).resolve().parent.parent
 BOOK = ROOT / "books" / "gita"
@@ -67,24 +70,6 @@ def norm_ref(ref):
     return c + "." + "-".join(p.zfill(2) for p in v.split("-"))
 
 
-async def speak(text, voice, sem):
-    async with sem:
-        for attempt in range(5):
-            try:
-                audio, words = bytearray(), []
-                async for c in edge_tts.Communicate(text, voice, boundary="WordBoundary").stream():
-                    if c["type"] == "audio":
-                        audio += c["data"]
-                    elif c["type"] == "WordBoundary":
-                        words.append([round(c["offset"] / 1e7, 3), round(c["duration"] / 1e7, 3), c["text"]])
-                if not audio:
-                    raise RuntimeError("no audio")
-                return bytes(audio), words
-            except Exception as e:  # a dropped socket: try again
-                if attempt == 4:
-                    raise
-                print(f"    retry ({e})")
-                await asyncio.sleep(1 + attempt)
 
 
 def prepare(n, script, lessons, verses):
