@@ -4,98 +4,436 @@
   "n": 13,
   "title": "Creation and the creator",
   "hosts": [
-    { "id": "A", "name": "Ava", "voice": "en-US-AvaMultilingualNeural" },
-    { "id": "B", "name": "Andrew", "voice": "en-US-AndrewMultilingualNeural" }
+    {
+      "id": "A",
+      "name": "Emma",
+      "voice": "en-US-EmmaMultilingualNeural"
+    },
+    {
+      "id": "B",
+      "name": "Brian",
+      "voice": "en-US-BrianMultilingualNeural"
+    }
   ],
   "segments": [
     {
       "title": "Welcome",
       "turns": [
-        { "s": "A", "t": "Welcome to Shruti. I'm Ava." },
-        { "s": "B", "t": "And I'm Andrew. Today, Chapter Thirteen: Creation and the Creator." },
-        { "s": "A", "t": "This chapter opens the last third of the Gita, which is more philosophical. Its question is: what are you, exactly? A body? A mind? Or the one who knows them?" },
-        { "s": "B", "t": "Six lessons. Story first." }
+        {
+          "s": "A",
+          "t": "Welcome to Shruti. I'm Emma."
+        },
+        {
+          "s": "B",
+          "t": "And I'm Brian. Today, Chapter Thirteen: Creation and the Creator."
+        },
+        {
+          "s": "A",
+          "t": "This chapter opens the last third of the Gita, which is more philosophical. Its question is: what are you, exactly? A body? A mind? Or the one who knows them?"
+        },
+        {
+          "s": "B",
+          "t": "Which sounds abstract, but it's actually a very personal question. When you say I'm tired, or I'm angry, who is the I?"
+        },
+        {
+          "s": "A",
+          "t": "And this chapter gives a surprisingly clear answer. Let's see how Krishna builds it."
+        },
+        {
+          "s": "B",
+          "t": "Six lessons today. It's a dense chapter, so we'll take it slowly. Story first."
+        }
       ]
     },
     {
       "title": "The story",
       "turns": [
-        { "s": "A", "t": "Krishna begins, thirteen point one: this physical body, a miniature universe, may be called the creation. One who knows the creation is called the creator by the seers of truth.", "L": ["L1"] },
-        { "s": "B", "t": "A word on terms. Most translations call these the field and the knower of the field, kshetra and kshetrajna in Sanskrit. The body is the field where life grows. The Spirit is the one who knows it. Our book says creation and creator. It's the same pair.", "L": ["L1"] },
-        { "s": "A", "t": "Thirteen point two: know Me to be the creator, the knower, in all the creation. The true understanding of both is spiritual knowledge.", "L": ["L1"] },
-        { "s": "B", "t": "Then what's in the field, thirteen point five and six: primal nature, intellect, ego, the five elements, the ten organs, the mind, the five sense objects, and also desire, hatred, pleasure, pain, the body, consciousness, and resolve.", "L": ["L1"] },
-        { "s": "A", "t": "So desire and pain and even resolve are in the field. They happen to you. They aren't you.", "L": ["L1"] },
-        { "s": "B", "t": "Then a remarkable definition of knowledge, thirteen point seven to eleven. Humility, modesty, nonviolence, forgiveness, honesty, service to the teacher, purity of thought, word and deed, steadfastness, self-control.", "L": ["L2"] },
-        { "s": "A", "t": "Absence of ego, reflection on the pain inherent in birth, old age, disease and death, detached attachment to family and home, calmness whether things go well or badly, unswerving devotion, a taste for solitude.", "L": ["L2"] },
-        { "s": "B", "t": "This is said to be knowledge, and what is contrary to it is ignorance. Notice: it's a list of virtues, not facts. Knowledge, here, is a way of being.", "L": ["L2"] },
-        { "s": "A", "t": "Our book's heading calls this the fourfold noble truth as means of Nirvana. The reflection on birth, old age, disease and death will remind many listeners of the Buddha's teaching on suffering.", "L": ["L2"] },
-        { "s": "B", "t": "Then God described in paradoxes. Thirteen point thirteen: the Eternal Being has hands, feet, eyes, heads and mouths everywhere, because He is all-pervading.", "L": ["L3"] },
-        { "s": "A", "t": "Thirteen point fourteen: He perceives all sense objects without physical senses; unattached, yet the sustainer of all. Thirteen point fifteen: He is inside and outside all beings. He is very near, in one's own heart, and also far away.", "L": ["L3"] },
-        { "s": "B", "t": "Thirteen point sixteen: He is undivided, yet appears divided in beings, as Brahma the creator, Vishnu the sustainer, and Shiva the destroyer. And seventeen: He is the source of all light, beyond darkness.", "L": ["L3"] },
-        { "s": "A", "t": "Then the two great principles. Thirteen point nineteen and twenty: both material Nature, Prakriti, and Spirit, Purusha, are beginningless. Nature produces the body and the organs. Spirit is the cause of experiencing pleasure and pain.", "L": ["L4"] },
-        { "s": "B", "t": "Thirteen point twenty-one: Spirit experiences the modes of nature by associating with nature. Attachment to them, due to ignorance from past Karma, is the cause of birth in good and evil wombs.", "L": ["L4"] },
-        { "s": "A", "t": "And thirteen point twenty-three: those who truly understand Spirit and Nature with its three modes are not born again, regardless of their way of life.", "L": ["L4"] },
-        { "s": "B", "t": "Then ways in. Thirteen point twenty-four: some perceive the Supersoul within through meditation, some through knowledge, some through Karma-yoga. And twenty-five: others, who know none of these, worship with faith in what they have heard from the sages, and they too transcend death.", "L": ["L6"] },
-        { "s": "A", "t": "And the great verse of this chapter, thirteen point twenty-seven: the one who sees the same eternal Supreme Lord dwelling as Spirit equally within all mortal beings, truly sees.", "L": ["L5"] },
-        { "s": "B", "t": "With its consequence, thirteen point twenty-eight: because of beholding the same Lord in every being, one does not injure anybody, and attains the supreme abode.", "L": ["L5"] },
-        { "s": "A", "t": "Two images for the untouched Spirit. Thirteen point thirty-two: just as space is everywhere but is not tainted, Spirit abiding in all bodies is not tainted. Thirteen point thirty-three: just as one sun illuminates the entire world, the Eternal Being gives light and life to the entire creation." },
-        { "s": "B", "t": "And the last verse, thirteen point thirty-four: they attain the Supreme who see the difference between body and spirit with the eye of Self-knowledge, and know the ways to free the soul from Maya. Our book names five: selfless service, knowledge, devotion, meditation, and surrender.", "L": ["L6"] }
+        {
+          "s": "A",
+          "t": "Krishna begins, thirteen point one: this physical body, a miniature universe, may be called the creation. One who knows the creation is called the creator by the seers of truth.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "A word on terms. Most translations call these the field and the knower of the field, kshetra and kshetrajna in Sanskrit. The body is the field where life grows. The Spirit is the one who knows it. Our book says creation and creator. It's the same pair.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Thirteen point two: know Me to be the creator, the knower, in all the creation. The true understanding of both is spiritual knowledge.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Then what's in the field, thirteen point five and six: primal nature, intellect, ego, the five elements, the ten organs, the mind, the five sense objects, and also desire, hatred, pleasure, pain, the body, consciousness, and resolve.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "So desire and pain and even resolve are in the field. They happen to you. They aren't you.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "That's a liberating thought. If anger is in the field, then I can watch it come and go, instead of believing I am anger."
+        },
+        {
+          "s": "A",
+          "t": "Like a farmer watching weeds come up. The weeds are real, they need tending, but the farmer isn't a weed."
+        },
+        {
+          "s": "B",
+          "t": "Then a remarkable definition of knowledge, thirteen point seven to eleven. Humility, modesty, nonviolence, forgiveness, honesty, service to the teacher, purity of thought, word and deed, steadfastness, self-control.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Absence of ego, reflection on the pain inherent in birth, old age, disease and death, detached attachment to family and home, calmness whether things go well or badly, unswerving devotion, a taste for solitude.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "This is said to be knowledge, and what is contrary to it is ignorance. Notice: it's a list of virtues, not facts. Knowledge, here, is a way of being.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "I love that. We usually think a knowledgeable person is someone who's read a lot. Here a knowledgeable person is someone who is humble, forgiving and steady."
+        },
+        {
+          "s": "B",
+          "t": "And detached attachment with family is such an honest phrase. Not cold, not indifferent. Loving, but not clinging."
+        },
+        {
+          "s": "A",
+          "t": "Our book's heading calls this the fourfold noble truth as means of Nirvana. The reflection on birth, old age, disease and death will remind many listeners of the Buddha's teaching on suffering.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "That's our book's framing, of course. The Gita itself simply calls this list knowledge, and everything opposite to it ignorance."
+        },
+        {
+          "s": "B",
+          "t": "Then God described in paradoxes. Thirteen point thirteen: the Eternal Being has hands, feet, eyes, heads and mouths everywhere, because He is all-pervading.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Thirteen point fourteen: He perceives all sense objects without physical senses; unattached, yet the sustainer of all. Thirteen point fifteen: He is inside and outside all beings. He is very near, in one's own heart, and also far away.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Thirteen point sixteen: He is undivided, yet appears divided in beings, as Brahma the creator, Vishnu the sustainer, and Shiva the destroyer. And seventeen: He is the source of all light, beyond darkness.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And thirteen point twelve, just before this, says something striking: the Supreme is neither being nor non-being. Every word we use falls short, so the chapter keeps turning the picture over, showing both sides at once."
+        },
+        {
+          "s": "A",
+          "t": "Then the two great principles. Thirteen point nineteen and twenty: both material Nature, Prakriti, and Spirit, Purusha, are beginningless. Nature produces the body and the organs. Spirit is the cause of experiencing pleasure and pain.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Thirteen point twenty-one: Spirit experiences the modes of nature by associating with nature. Attachment to them, due to ignorance from past Karma, is the cause of birth in good and evil wombs.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And thirteen point twenty-three: those who truly understand Spirit and Nature with its three modes are not born again, regardless of their way of life.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "There's comfort in that, too. Regardless of their way of life. Understanding isn't reserved for monks. A parent, a farmer, a soldier can see it."
+        },
+        {
+          "s": "B",
+          "t": "Then ways in. Thirteen point twenty-four: some perceive the Supersoul within through meditation, some through knowledge, some through Karma-yoga. And twenty-five: others, who know none of these, worship with faith in what they have heard from the sages, and they too transcend death.",
+          "L": [
+            "L6"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "That second verse is so generous. Not everyone can meditate or study. Some just trust what they've heard from wise people, and worship with faith. And the Gita says, that's enough to cross over."
+        },
+        {
+          "s": "A",
+          "t": "And the great verse of this chapter, thirteen point twenty-seven: the one who sees the same eternal Supreme Lord dwelling as Spirit equally within all mortal beings, truly sees.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "With its consequence, thirteen point twenty-eight: because of beholding the same Lord in every being, one does not injure anybody, and attains the supreme abode.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "I find that the most practical verse in the chapter. If I really saw the same Lord in the person who cut me off in traffic, I couldn't stay angry for long."
+        },
+        {
+          "s": "A",
+          "t": "And thirteen point twenty-nine adds the humility to go with it: one who sees that all work is done by the powers of nature, and does not think, I am the doer, truly understands."
+        },
+        {
+          "s": "A",
+          "t": "Two images for the untouched Spirit. Thirteen point thirty-two: just as space is everywhere but is not tainted, Spirit abiding in all bodies is not tainted. Thirteen point thirty-three: just as one sun illuminates the entire world, the Eternal Being gives light and life to the entire creation."
+        },
+        {
+          "s": "A",
+          "t": "Space and the sun. Both are everywhere, touching everything, and neither is stained by what they touch. That's how the Spirit lives in us, even in our worst moments."
+        },
+        {
+          "s": "B",
+          "t": "And the last verse, thirteen point thirty-four: they attain the Supreme who see the difference between body and spirit with the eye of Self-knowledge, and know the ways to free the soul from Maya. Our book names five: selfless service, knowledge, devotion, meditation, and surrender.",
+          "L": [
+            "L6"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 1 · The field and the knower",
       "turns": [
-        { "s": "A", "t": "Lesson one: the body is the field; the soul is the knower of the field.", "L": ["L1"] },
-        { "s": "B", "t": "The body, with the mind, the ego, the senses and everything they touch, is the field. The eternal Spirit that perceives it is the knower.", "L": ["L1"] },
-        { "s": "A", "t": "True wisdom begins by telling the two apart. You can watch your moods like weather in a field. You're the one watching.", "L": ["L1"] }
+        {
+          "s": "A",
+          "t": "Lesson one: the body is the field; the soul is the knower of the field.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "The body, with the mind, the ego, the senses and everything they touch, is the field. The eternal Spirit that perceives it is the knower.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "True wisdom begins by telling the two apart. You can watch your moods like weather in a field. You're the one watching.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "One small practice from us, not the book. Next time a strong feeling arrives, try saying, there is anger here, instead of, I am angry. It's a tiny shift, but it puts you back in the knower's seat."
+        }
       ]
     },
     {
       "title": "Lesson 2 · Knowledge as virtue",
       "turns": [
-        { "s": "B", "t": "Lesson two: true knowledge is marked by humility and spiritual virtues.", "L": ["L2"] },
-        { "s": "A", "t": "Real knowledge isn't information. It's a state of being: humility, nonviolence, forgiveness, service, purity, self-control, detachment, awareness of birth, old age, disease and death, and steady devotion.", "L": ["L2"] },
-        { "s": "B", "t": "By that measure, a very learned person can be ignorant, and a very simple one wise.", "L": ["L2"] }
+        {
+          "s": "B",
+          "t": "Lesson two: true knowledge is marked by humility and spiritual virtues.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Real knowledge isn't information. It's a state of being: humility, nonviolence, forgiveness, service, purity, self-control, detachment, awareness of birth, old age, disease and death, and steady devotion.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "By that measure, a very learned person can be ignorant, and a very simple one wise.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "So if you ever want to check how wise you're becoming, don't count the books you've read. Count how quickly you forgive."
+        }
       ]
     },
     {
       "title": "Lesson 3 · Near and far",
       "turns": [
-        { "s": "A", "t": "Lesson three: God is omnipresent yet beyond all description.", "L": ["L3"] },
-        { "s": "B", "t": "Without a fixed form, yet perceiving through every sense. Sustaining everything, bound by nothing. Inside and outside all beings.", "L": ["L3"] },
-        { "s": "A", "t": "Near and far, divided and undivided, creator and destroyer. Only paradox gets close.", "L": ["L3"] }
+        {
+          "s": "A",
+          "t": "Lesson three: God is omnipresent yet beyond all description.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Without a fixed form, yet perceiving through every sense. Sustaining everything, bound by nothing. Inside and outside all beings.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Near and far, divided and undivided, creator and destroyer. Only paradox gets close.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "And maybe that's why the verse calls Him very near, in one's own heart. Too vast to describe, and yet closer than your own breath."
+        }
       ]
     },
     {
       "title": "Lesson 4 · Nature and Spirit",
       "turns": [
-        { "s": "B", "t": "Lesson four: Nature and Spirit are both beginningless.", "L": ["L4"] },
-        { "s": "A", "t": "Matter and consciousness are both eternal. The body and senses come from nature. Pleasure and pain arise from the soul's association with it.", "L": ["L4"] },
-        { "s": "B", "t": "And the soul's attachment to the modes of nature, carried by past Karma, is what drives rebirth in better or worse conditions.", "L": ["L4"] }
+        {
+          "s": "B",
+          "t": "Lesson four: Nature and Spirit are both beginningless.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Matter and consciousness are both eternal. The body and senses come from nature. Pleasure and pain arise from the soul's association with it.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "And the soul's attachment to the modes of nature, carried by past Karma, is what drives rebirth in better or worse conditions.",
+          "L": [
+            "L4"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 5 · Truly seeing",
       "turns": [
-        { "s": "A", "t": "Lesson five: perceiving God equally in all beings is the highest vision.", "L": ["L5"] },
-        { "s": "B", "t": "Whoever sees the same eternal Spirit in every being truly sees. And because of that, they harm no one.", "L": ["L5"] },
-        { "s": "A", "t": "Equal vision across all life is the fruit of real Self-knowledge, and it shows up as kindness.", "L": ["L5"] }
+        {
+          "s": "A",
+          "t": "Lesson five: perceiving God equally in all beings is the highest vision.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Whoever sees the same eternal Spirit in every being truly sees. And because of that, they harm no one.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Equal vision across all life is the fruit of real Self-knowledge, and it shows up as kindness.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "That's the moral heart of the chapter, I think. All the philosophy about field and knower ends in a very simple rule: because the same Lord is in everyone, do no harm."
+        }
       ]
     },
     {
       "title": "Lesson 6 · Five paths",
       "turns": [
-        { "s": "B", "t": "And lesson six: liberation is available through five paths.", "L": ["L6"] },
-        { "s": "A", "t": "Selfless service, Self-knowledge, devotion, meditation, or surrender. Any of them can free the soul from the trap of Maya.", "L": ["L6"] },
-        { "s": "B", "t": "All five lead to the same goal. Choose the one that matches your nature, and walk it sincerely.", "L": ["L6"] }
+        {
+          "s": "B",
+          "t": "And lesson six: liberation is available through five paths.",
+          "L": [
+            "L6"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Selfless service, Self-knowledge, devotion, meditation, or surrender. Any of them can free the soul from the trap of Maya.",
+          "L": [
+            "L6"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "All five lead to the same goal. Choose the one that matches your nature, and walk it sincerely.",
+          "L": [
+            "L6"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Which echoes thirteen point twenty-four and twenty-five. Meditation, knowledge, work, or simple faith. The Gita keeps refusing to give only one door."
+        }
       ]
     },
     {
       "title": "Wrap-up",
       "turns": [
-        { "s": "A", "t": "So, Chapter Thirteen. You are not the field. You are the knower. And the same knower lives in every being, so harm no one.", "L": ["L1", "L5"] },
-        { "s": "B", "t": "Six lessons: the field and the knower, knowledge as virtue, near and far, Nature and Spirit, truly seeing, and five paths.", "L": ["L1", "L2", "L3", "L4", "L5", "L6"] },
-        { "s": "A", "t": "Next time, Chapter Fourteen: the three forces of nature, and how to rise above them. Thanks for listening to Shruti." }
+        {
+          "s": "A",
+          "t": "So, Chapter Thirteen. You are not the field. You are the knower. And the same knower lives in every being, so harm no one.",
+          "L": [
+            "L1",
+            "L5"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Six lessons: the field and the knower, knowledge as virtue, near and far, Nature and Spirit, truly seeing, and five paths.",
+          "L": [
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5",
+            "L6"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Next time, Chapter Fourteen: the three forces of nature, and how to rise above them. Thanks for listening to Shruti."
+        }
       ]
     }
   ]
