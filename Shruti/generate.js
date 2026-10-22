@@ -24,6 +24,7 @@ import * as POD from './podcast.js';
 import * as VID from './video.js';
 import * as NR from './narrate.js';
 import * as OR from './order.js';
+import * as F from './formats.js';
 
 let ui = { toast: () => {}, go: () => {}, openSettings: () => {} };
 export function setUI(x) { ui = Object.assign(ui, x); }
@@ -50,173 +51,44 @@ export function bindProblem(box, close) {
   box.querySelectorAll('[data-ai-settings]').forEach((b) => b.addEventListener('click', () => { if (close) close(); ui.openSettings(); }));
 }
 
-export const LENGTHS = {
-  concise: { label: 'Concise', podcast: 30, video: 12, lessons: 6 },
-  standard: { label: 'Standard', podcast: 55, video: 20, lessons: 9 },
-  deep: { label: 'Deep', podcast: 85, video: 28, lessons: 12 },
-};
+// The asks and the reading of replies live in formats.js (labelled text, not
+// JSON, since 2026-10-22); these names stay here for the rest of Shruti.
+export const { LENGTHS, sourceText, lessonsText, buildPrompt, spill, SPILL_CHARS, parseJSON, normPodcast, normVideo, normLessons, coverage, longLessons } = F;
 export const HOST_PRESETS = [
   { name: 'Ava & Andrew', hosts: [['Ava', 'en-US-AvaMultilingualNeural'], ['Andrew', 'en-US-AndrewMultilingualNeural']] },
   { name: 'Emma & Brian', hosts: [['Emma', 'en-US-EmmaMultilingualNeural'], ['Brian', 'en-US-BrianMultilingualNeural']] },
   { name: 'Sonia & Ryan', hosts: [['Sonia', 'en-GB-SoniaNeural'], ['Ryan', 'en-GB-RyanNeural']] },
   { name: 'Neerja & Prabhat', hosts: [['Neerja', 'en-IN-NeerjaNeural'], ['Prabhat', 'en-IN-PrabhatNeural']] },
 ];
-export const prefs = () => Object.assign({ kind: 'podcast', length: 'standard', hosts: 0, hostA: null, hostB: null, narrator: 'en-US-BrianMultilingualNeural', voice: O.DEFAULT_VOICE, extra: '' }, C.me.get('gen', {}) || {});
+/** A video's narrator unless the person picks another (Tony, 2026-10-22: Sonia). */
+export const DEFAULT_NARRATOR = 'en-GB-SoniaNeural';
+export const prefs = () => Object.assign({ kind: 'podcast', length: 'standard', hosts: 0, hostA: null, hostB: null, narrator: DEFAULT_NARRATOR, voice: O.DEFAULT_VOICE, extra: '' }, C.me.get('gen', {}) || {});
 export function setPref(k, v) { C.me.set({ ['gen.' + k]: v }); }
 const voiceName = (id) => NR.voiceName(id);
-
-/* ── the prompt ──────────────────────────────────────────────────────────── */
-/** The chapter as the model reads it: headings, [verse] numbers, asides. */
-export function sourceText(ch) {
-  return (ch && ch.blocks || []).map((b) => {
-    if (b.k === 'h') return '## ' + b.t;
-    if (b.k === 'a') return '(' + b.t + ')';
-    return (b.s || []).map((s) => (s.v ? '[' + s.v + '] ' : '') + s.t).join('\n');
-  }).join('\n\n');
-}
-export const lessonsText = (L) => ((L && L.lessons) || []).map((l) => l.id + ': ' + (l.title || '') + (l.body ? ' — ' + l.body : '')).join('\n');
-
-const SHARED_RULES = [
-  'Write for the ear: natural spoken English, no markdown, no stage directions, no emojis. Write numbers and verse numbers as words where they are spoken ("verse forty-seven").',
-  'Stay faithful to the source text. When you quote it, quote it exactly. When you add anything that is not in this text (background, the wider tradition, other translations), say so in the words themselves ("this part is not in our book").',
-];
-/** The messages for one kind. o: {kind, book, title, n, ch, lessons, length, hosts, extra}. */
-export function buildPrompt(o) {
-  const L = (o.lessons && o.lessons.lessons) || [], len = LENGTHS[o.length] || LENGTHS.standard;
-  const what = (o.book === 'gita' ? 'the Bhagavad-Gita (the IGS rendition by Ramananda Prasad)' : 'the book "' + (o.bookTitle || o.book) + '"');
-  const head = 'This is chapter ' + o.n + ' ("' + o.title + '") of ' + what + '.';
-  const lessonRule = L.length
-    ? 'Teach EVERY one of these ' + L.length + ' lessons (they are the readers\' own notes), in order, each in its own part, and tag each part with its lesson id: ' + L.map((l) => l.id).join(', ') + '.'
-    : 'There are no lesson notes for this chapter: teach its main ideas clearly.';
-  let task, format;
-  if (o.kind === 'podcast') {
-    const [a, b] = o.hosts;
-    task = [
-      'Write a two-host podcast episode about this chapter. Host A is ' + a.name + ', host B is ' + b.name + '. They are warm, curious and precise, and they talk with each other, not at the listener.',
-      'Start with a short welcome, then tell the chapter\'s story in order, with its key passages quoted exactly, then the lessons, then a short wrap-up that points to the next chapter.',
-      lessonRule + ' A lesson part is titled "Lesson N · a short title".',
-      'About ' + len.podcast + ' turns in all; each turn one to four sentences.',
-    ];
-    format = '{"segments":[{"title":"Welcome","turns":[{"s":"A","t":"…","L":[]}]},{"title":"The story","turns":[…]},{"title":"Lesson 1 · …","turns":[{"s":"B","t":"…","L":["L1"]}]},{"title":"Wrap-up","turns":[…]}]}';
-  } else if (o.kind === 'video') {
-    task = [
-      'Write a narrated explainer video about this chapter as a list of scenes. One narrator speaks every scene; the picture is drawn from each scene\'s layout and on-screen text.',
-      'Layouts: "title" (first scene: headline = the chapter title, visual = one subtitle), "story" (headline + 2-4 short visual points), "verse" (ref = a verse number from the [brackets] in the source, e.g. "2.47"; its say contains {verse} exactly where the verse is read, and the app fills in the book\'s own words), "lesson" (L = [its id]; visual = 2-3 short points; headline may be left empty), "compare" (headline + visual rows "left | right", the first row being the two column titles), "steps" (headline + 3-6 very short steps), "closing" (last scene: headline + 3 short takeaways).',
-      lessonRule + ' A lesson\'s own scene has layout lesson, compare or steps, its L, and its say starts "Lesson N."',
-      'Tell the chapter\'s story first, with its most important verses as verse scenes, then the lessons, then the closing. Set "beyond": true on a story scene that tells something not in this text.',
-      'On-screen text is short: headlines up to 60 characters, each visual item up to 60 (a compare side up to 45). Each say is 2-5 sentences. About ' + len.video + ' scenes.',
-    ];
-    format = '{"scenes":[{"layout":"title","headline":"…","visual":["…"],"say":"…"},{"layout":"story","headline":"…","visual":["…","…"],"say":"…","L":[]},{"layout":"verse","ref":"2.47","say":"… {verse}","L":[]},{"layout":"lesson","L":["L1"],"visual":["…","…"],"say":"Lesson one. …"},{"layout":"closing","headline":"…","visual":["…","…","…"],"say":"…"}]}';
-  } else {
-    task = [
-      'Write the lessons a careful reader takes from this chapter: ' + len.lessons + ' or so, in the order the chapter teaches them.',
-      'Each lesson has a title (one plain sentence that states it, at most ' + LESSON_TITLE_WORDS + ' words) and a body of one or two short sentences, at most ' + LESSON_BODY_WORDS + ' words: what the chapter teaches there and how to live it.',
-      'Be concise, true and to the point: say only what this chapter says, no filler, no flourishes, no retelling, and do not repeat the title in the body.',
-      'Then a summary of the chapter in two or three sentences.',
-    ];
-    format = '{"lessons":[{"id":"L1","title":"…","body":"…"}],"summary":"…"}';
-  }
-  const sys = 'You write study media for Shruti, a reading app. ' + SHARED_RULES.join(' ') + ' Reply with ONLY the JSON object described, nothing before or after it.';
-  const user = head + '\n\n' + task.join('\n') + (o.extra ? '\n\nThe reader also asks: ' + o.extra : '') +
-    '\n\nReply format (JSON only):\n' + format +
-    '\n\n<source>\n' + sourceText(o.ch) + '\n</source>' +
-    (L.length && o.kind !== 'lessons' ? '\n\n<lessons>\n' + lessonsText(o.lessons) + '\n</lessons>' : '');
-  return [{ role: 'system', content: sys }, { role: 'user', content: spill(user) }];
-}
-
-/* Long asks: the big blocks go as attached .txt files (StudyOS's spillText). */
-export const SPILL_CHARS = 12000;
-function b64utf8(s) {
-  const bytes = new TextEncoder().encode(s);
-  let bin = '';
-  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
-  return btoa(bin);
-}
-export function spill(text) {
-  if (text.length <= SPILL_CHARS) return text;
-  const files = [];
-  let out = text;
-  for (const tag of ['source', 'lessons']) {
-    const m = out.match(new RegExp('<' + tag + '>\\n?([\\s\\S]*?)\\n?</' + tag + '>'));
-    if (!m || m[1].length < 2000) continue;
-    files.push({ type: 'file', file: { filename: tag + '.txt', file_data: 'data:text/plain;base64,' + b64utf8(m[1]) } });
-    out = out.replace(m[0], '<' + tag + '>\n(in the attached file ' + tag + '.txt; read ALL of it)\n</' + tag + '>');
-  }
-  if (out.length > SPILL_CHARS) {
-    files.push({ type: 'file', file: { filename: 'request.txt', file_data: 'data:text/plain;base64,' + b64utf8(out) } });
-    out = 'Your complete task is in the attached file request.txt. Read ALL of it, then do exactly what it says, including its reply format.';
-  }
-  return [{ type: 'text', text: out }, ...files];
-}
-
-/* ── reading the reply ───────────────────────────────────────────────────── */
-/** The JSON object in a reply: fences, chatter and trailing commas forgiven. */
-export function parseJSON(text) {
-  let s = String(text || '').replace(/```(?:json)?/gi, '');
-  const a = s.indexOf('{'), b = s.lastIndexOf('}');
-  if (a < 0 || b <= a) throw new Error('The reply had no JSON in it.');
-  s = s.slice(a, b + 1);
-  try { return JSON.parse(s); } catch (e) {}
-  const fixed = s.replace(/[“”]/g, '"').replace(/,\s*([\]}])/g, '$1');
-  try { return JSON.parse(fixed); } catch (e) { throw new Error('The reply\'s JSON could not be read (' + e.message + ').'); }
-}
 const str = (x, max) => { const s = String(x == null ? '' : x).replace(/\s+/g, ' ').trim(); return max && s.length > max ? s.slice(0, max - 1).replace(/\s+\S*$/, '') + '…' : s; };
-const ids = (x, known) => (Array.isArray(x) ? x : x ? [x] : []).map((v) => String(v).toUpperCase().replace(/^(\d+)$/, 'L$1')).filter((v) => known.has(v));
-
-/** A podcast script from a parsed reply: hosts A/B, empty turns dropped. */
-export function normPodcast(obj, hosts, lessonIds) {
-  const known = new Set(lessonIds);
-  const segs = (Array.isArray(obj && obj.segments) ? obj.segments : []).map((sg, i) => ({
-    title: str(sg.title, 80) || (i ? 'Part ' + (i + 1) : 'Welcome'),
-    turns: (Array.isArray(sg.turns) ? sg.turns : []).map((t, k) => {
-      const who = String(t.s || t.speaker || '').trim();
-      const s = /^b$/i.test(who) || (hosts[1] && who === hosts[1].name) ? 'B' : /^a$/i.test(who) || (hosts[0] && who === hosts[0].name) ? 'A' : (k % 2 ? 'B' : 'A');
-      return { s, t: str(t.t || t.text), L: ids(t.L || t.lessons, known) };
-    }).filter((t) => t.t.length > 1),
-  })).filter((sg) => sg.turns.length);
-  if (!segs.length) throw new Error('The reply had no podcast turns.');
-  return { segments: segs };
-}
-/** A video script from a parsed reply (layouts checked; text trimmed to fit). */
-export function normVideo(obj, lessonIds) {
-  const known = new Set(lessonIds);
-  const scenes = (Array.isArray(obj && obj.scenes) ? obj.scenes : []).map((sc) => {
-    const layout = VID.LAYOUTS.includes(String(sc.layout || '').toLowerCase()) ? String(sc.layout).toLowerCase() : 'story';
-    const vis = (Array.isArray(sc.visual) ? sc.visual : sc.visual ? [sc.visual] : []).map((v) => str(v, layout === 'compare' ? 100 : 64)).filter(Boolean);
-    const out = { layout, headline: str(sc.headline, 64), visual: vis.slice(0, layout === 'steps' ? 6 : layout === 'compare' ? 5 : 4), say: str(sc.say || sc.narration), L: ids(sc.L || sc.lessons, known) };
-    if (layout === 'verse') out.ref = str(sc.ref);
-    if (sc.beyond) out.beyond = true;
-    return out;
-  }).filter((s) => s.say);
-  if (!scenes.length) throw new Error('The reply had no video scenes.');
-  return { scenes };
-}
-/** How long a made lesson may be (Tony, 2026-10-20: "concise, true, to the
- *  point"). The prompt asks for it; a reply over it is sent back once to shorten. */
-export const LESSON_TITLE_WORDS = 12, LESSON_BODY_WORDS = 40;
-const wordCount = (t) => String(t || '').split(/\s+/).filter(Boolean).length;
-/** The lessons that run long (a little slack over the asked-for limits). */
-export function longLessons(script) {
-  return ((script && script.lessons) || []).filter((l) => wordCount(l.body) > LESSON_BODY_WORDS + 15 || wordCount(l.title) > LESSON_TITLE_WORDS + 4).map((l) => l.id);
-}
-/** Lessons from a parsed reply, numbered L1… in order. */
-export function normLessons(obj) {
-  const lessons = (Array.isArray(obj && obj.lessons) ? obj.lessons : []).map((l) => ({ title: str(l.title, 160), body: str(l.body) })).filter((l) => l.title)
-    .map((l, i) => Object.assign({ id: 'L' + (i + 1) }, l));
-  if (!lessons.length) throw new Error('The reply had no lessons.');
-  return { lessons, summary: str(obj.summary) };
-}
-/** Which lessons a script teaches. */
-export function coverage(kind, script, lessonIds) {
-  const have = new Set(kind === 'podcast' ? script.segments.flatMap((s) => s.turns.flatMap((t) => t.L)) : kind === 'video' ? script.scenes.flatMap((s) => s.L) : lessonIds);
-  return { covered: lessonIds.filter((id) => have.has(id)), missing: lessonIds.filter((id) => !have.has(id)) };
+/** Lessons as the unit wrote them, to hand back for a shortening. */
+const lessonsAsText = (script) => script.lessons.map((l, i) => 'LESSON ' + (i + 1) + '\nTITLE: ' + l.title + '\nBODY: ' + l.body).join('\n\n') + (script.summary ? '\n\nSUMMARY: ' + script.summary : '') + '\n\nEND';
+/** A script that reached its natural last part, though it never wrote END. */
+function looksDone(kind, text, ctx) {
+  try {
+    const s = F.parseReply(kind, text, ctx);
+    if (kind === 'podcast') return /wrap|clos|goodbye|farewell|until next|next time/i.test(s.segments[s.segments.length - 1].title);
+    if (kind === 'video') return s.scenes[s.scenes.length - 1].layout === 'closing';
+    return !!s.summary;
+  } catch (e) { return false; }
 }
 
 /* ── one run ─────────────────────────────────────────────────────────────── */
 /** Make one thing. o: {kind, book, bookTitle, n, title, ch, lessons, length,
  *  hosts:[{id,name,voice}], narrator:{name,voice}, voice, extra, models}.
- *  on: {stage(id, text), delta(t), model(m), coverage(cov), step(done, total)}.
- *  Resolves {kind, script?, rec?, local?, model?}. */
+ *  on: {stage(id, text), delta(t), model(m), coverage(cov), step(done, total), lessons(L)}.
+ *  Resolves {kind, script?, rec?, local?, model?}.
+ *
+ *  Each unit in the person's order gets the whole job: it writes; a reply that
+ *  stops before its END is continued by the same unit (up to three times); one
+ *  that cannot be read goes back once to be fixed; a lesson it missed is asked
+ *  for on its own and put in its place (twice at most). Only when a unit still
+ *  cannot finish does the next one start, from the beginning. */
 export async function run(o, on = {}, { signal, chat = O.chat, speak = O.speak, saveDrive } = {}) {
   const key = keyOf(), book = o.book, n = o.n, kind = o.kind;
   const stage = (id, text, extra) => { on.stage && on.stage(id, text); M.job(book, n, kind, Object.assign({ kind, stage: id, text }, extra || {}), { now: true }); };
@@ -227,8 +99,78 @@ export async function run(o, on = {}, { signal, chat = O.chat, speak = O.speak, 
     if (pct !== lastPct) { lastPct = pct; M.job(book, n, kind, { kind, stage: 'speak', text: 'Speaking ' + done + ' of ' + total, done, total }, { lazy: done < total }); }
   };
   if (!key) throw Object.assign(new Error('Making needs your Orca key (Settings).'), { code: 'key' });
-  const L = (o.lessons && o.lessons.lessons) || [], lessonIds = kind === 'lessons' ? [] : L.map((l) => l.id);
   const drive = saveDrive != null ? saveDrive : await M.driveReady(book);
+
+  /** One kind written by the units in turn: {script, model}. */
+  const write = async (k, oo) => {
+    const L = (oo.lessons && oo.lessons.lessons) || [], ids = k === 'lessons' ? [] : L.map((l) => l.id);
+    const pctx = { hosts: oo.hosts, lessonIds: ids };
+    const messages = F.buildPrompt(Object.assign({}, oo, { kind: k }));
+    const tried = [];
+    for (const model of oo.models) {
+      if (signal && signal.aborted) throw Object.assign(new Error('Cancelled'), { code: 'abort' });
+      const name = modelName(model);
+      const ask = async (msgs) => {
+        const r = await chat({ key, messages: msgs, models: [model], signal, onDelta: (t) => { on.delta && on.delta(t); }, onModel: (m) => { on.model && on.model(m); M.job(book, n, kind, { kind, stage: k === kind ? 'write' : 'lessons', text: 'Writing', model: m }, { lazy: true }); } });
+        return r.text;
+      };
+      /** Ask, and go on asking the same unit until the reply reaches its END. */
+      const askAll = async (msgs, label) => {
+        let text = await ask(msgs);
+        for (let c = 0; c < 3 && !F.finished(k, text) && !(c === 0 && label === 'main' && looksDone(k, text, pctx)); c++) {
+          if (label === 'main') stage(k === kind ? 'write' : 'lessons', 'Going on (part ' + (c + 2) + ')');
+          on.delta && on.delta('\n');
+          text += '\n' + await ask(F.continuePrompt(msgs, text));
+        }
+        return text;
+      };
+      try {
+        let text = await askAll(messages, 'main');
+        if (k === kind) stage('check', 'Checking');
+        let script;
+        try { script = F.parseReply(k, text, pctx); }
+        catch (e) {
+          stage('repair', 'Asking ' + name + ' to fix its reply');
+          on.delta && on.delta('\n\n');
+          text = await askAll(messages.concat([{ role: 'assistant', content: text }, { role: 'user', content: 'Your reply could not be read: ' + e.message + ' Reply again with the whole thing, in exactly the format asked for (plain text, no JSON, no code block), and finish with the line END.' }]), 'fix');
+          script = F.parseReply(k, text, pctx);
+        }
+        if (k === 'podcast' || k === 'video') {
+          let cov = F.coverage(k, script, ids);
+          on.coverage && on.coverage(cov);
+          for (let r = 0; r < 2 && cov.missing.length; r++) {
+            stage('repair', 'Asking ' + name + ' to add ' + cov.missing.join(', '));
+            on.delta && on.delta('\n\n');
+            const more = await askAll(F.missingPrompt(k, messages, text, cov.missing, L), 'more');
+            try { script = F.mergeLessons(k, script, F.parseReply(k, more, pctx)); } catch (e) {}
+            cov = F.coverage(k, script, ids);
+            on.coverage && on.coverage(cov);
+          }
+        } else {
+          // Every lesson (Tony, 2026-10-22): a second look for any it missed.
+          stage(k === kind ? 'check' : 'lessons', 'Checking for any lesson missed');
+          on.delta && on.delta('\n\n');
+          const more = await askAll(F.completePrompt(messages, text), 'more');
+          try { const found = F.parseLessons(more); if (found.lessons.length) script = F.mergeFound(script, found); } catch (e) {}
+          const long = F.longLessons(script, oo.length);
+          if (long.length) {
+            stage('repair', 'Asking ' + name + ' to shorten ' + long.map((x) => 'L' + x).join(', '));
+            on.delta && on.delta('\n\n');
+            const sh = await askAll(F.shortenPrompt(messages, lessonsAsText(script), long, oo.length), 'more');
+            try { script = F.mergeShort(script, F.parseLessons(sh)); } catch (e) {}
+          }
+        }
+        return { script, model };
+      } catch (e) {
+        if (e && (e.code === 'abort' || e.code === 'key')) throw e;
+        const why = e && e.code === 'none' && e.tried ? e.tried.map((x) => x.split(': ').slice(1).join(': ')).join(', ') : (e && e.message) || String(e);
+        tried.push(model + ': ' + why);
+        on.delta && on.delta('\n\n[' + name + ' could not finish: ' + why + ']\n\n');
+      }
+    }
+    throw Object.assign(new Error('No unit could make it (' + tried.join('; ') + ').'), { code: 'none', tried });
+  };
+
   try {
     if (kind === 'read') {
       if (!drive) throw Object.assign(new Error('Google Drive is not connected yet (Settings → Google Drive). A read-aloud is kept there.'), { code: 'drive', title: 'Google Drive is not connected', text: 'A made read-aloud is kept on Drive, so it plays on every device. Connect Drive in Settings first.', action: 'settings' });
@@ -237,58 +179,37 @@ export async function run(o, on = {}, { signal, chat = O.chat, speak = O.speak, 
       stage('done', 'Saved');
       return { kind, rec };
     }
-    // 1-2: write.
-    stage('write', 'Writing');
-    const messages = buildPrompt(o);
-    let text = '', model = null;
-    const ask = async (msgs, models) => {
-      const r = await chat({ key, messages: msgs, models, signal, onDelta: (t) => { on.delta && on.delta(t); }, onModel: (m) => { model = m; on.model && on.model(m); M.job(book, n, kind, { kind, stage: 'write', text: 'Writing', model: m }, { lazy: true }); } });
-      return r;
-    };
-    let r = await ask(messages, o.models);
-    text = r.text; model = r.model;
-    // 3-4: read, check, repair once.
-    stage('check', 'Checking');
-    const norm = (t) => {
-      const obj = parseJSON(t);
-      return kind === 'podcast' ? normPodcast(obj, o.hosts, lessonIds) : kind === 'video' ? normVideo(obj, lessonIds) : normLessons(obj);
-    };
-    let script = null, problem = null;
-    try { script = norm(text); } catch (e) { problem = e.message; }
-    let cov = script ? coverage(kind, script, lessonIds) : { covered: [], missing: lessonIds };
-    on.coverage && on.coverage(cov);
-    const long = !problem && kind === 'lessons' ? longLessons(script) : [];
-    if (problem || cov.missing.length || long.length) {
-      stage('repair', problem ? 'Asking ' + modelName(model) + ' to fix its reply' : long.length ? 'Asking ' + modelName(model) + ' to shorten ' + long.join(', ') : 'Asking ' + modelName(model) + ' to add ' + cov.missing.join(', '));
-      const want = problem
-        ? 'Your reply could not be used: ' + problem + ' Reply again with the complete JSON object only, in the format asked for.'
-        : long.length
-        ? 'These lessons are too long: ' + long.join(', ') + '. Every title is at most ' + LESSON_TITLE_WORDS + ' words and every body at most ' + LESSON_BODY_WORDS + ' words, one or two plain sentences, true to the chapter. Shorten them (keep the others as they are) and reply with the complete JSON object only.'
-        : 'Your script does not teach these lessons: ' + cov.missing.map((id) => { const l = L.find((x) => x.id === id); return id + ' (' + (l && l.title || '') + ')'; }).join('; ') +
-          '. Add each one in its own ' + (kind === 'podcast' ? 'segment, its turns tagged' : 'scene, tagged') + ' with its id, keep everything else, and reply with the complete JSON object only.';
-      on.delta && on.delta('\n\n');
-      r = await ask(messages.concat([{ role: 'assistant', content: text }, { role: 'user', content: want }]), [model, ...o.models.filter((m) => m !== model)]);
-      text = r.text; model = r.model;
-      script = norm(text);   // a second failure is final
-      cov = coverage(kind, script, lessonIds);
-      on.coverage && on.coverage(cov);
+    const extra = { length: o.length, ...(o.extra ? { asked: str(o.extra, 300) } : {}) };
+    let lessons = o.lessons;
+    // A podcast or video teaches the chapter's lessons. With none yet (an
+    // imported book), every lesson is drawn first and kept as the chapter's.
+    if ((kind === 'podcast' || kind === 'video') && !((lessons && lessons.lessons) || []).length) {
+      stage('lessons', 'Finding every lesson first');
+      const got = await write('lessons', Object.assign({}, o, { kind: 'lessons' }));
+      const rec = Object.assign({ lessons: got.script.lessons, summary: got.script.summary, model: got.model }, extra);
+      rec.id = M.record(book, n, 'lessons', rec);
+      lessons = { lessons: got.script.lessons, summary: got.script.summary, by: got.model };
+      on.lessons && on.lessons(lessons);
     }
-    const extra = { model, length: o.length, ...(o.extra ? { asked: str(o.extra, 300) } : {}) };
+    stage('write', 'Writing');
+    const got = await write(kind, Object.assign({}, o, { lessons }));
+    const { script, model } = got;
+    extra.model = model;
     if (kind === 'lessons') {
       const rec = Object.assign({ lessons: script.lessons, summary: script.summary }, extra);
       rec.id = M.record(book, n, 'lessons', rec);
       stage('done', 'Saved');
       return { kind, script, rec, model };
     }
-    // 5: speak.
+    // Speak.
     stage('speak', 'Speaking');
     const full = kind === 'podcast'
       ? Object.assign({ v: 1, book, n, title: o.title, hosts: o.hosts }, script)
       : Object.assign({ v: 1, book, n, title: o.title, narrator: o.narrator }, script);
     const built = kind === 'podcast'
       ? await POD.build(full, { key, onStep: step, speak: (a) => speak(Object.assign({ signal }, a)) })
-      : await VID.build(full, { key, ch: o.ch, lessons: o.lessons, onStep: step, speak: (a) => speak(Object.assign({ signal }, a)) });
-    // 6: keep.
+      : await VID.build(full, { key, ch: o.ch, lessons, onStep: step, speak: (a) => speak(Object.assign({ signal }, a)) });
+    // Keep.
     if (!drive) {
       (kind === 'podcast' ? POD : VID).useLocal(book, n, o.title, built);
       stage('done', 'Ready on this device');
