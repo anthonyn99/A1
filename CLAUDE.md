@@ -64,9 +64,8 @@
 - **TradeHub, Insight, Vault, RiftIQ, Everwell and the Vault Launcher are NOT
   in A1** (moved 2026-10-10). They live in the private repo `C:\Users\antho\Desktop\A1-Priv`
   (anthonyn99/A1-Priv), served at `https://a1-priv.av1.workers.dev/<page>.html`.
-  Edit them there; its own CLAUDE.md applies. A1's `tradehub.html`,
-  `insight.html`, `vault.html` and `riftiq.html` are only redirect stubs (`solace.html` forwards to Everwell), and `Vault/` is a
-  junction into A1-Priv. Shared files (LifeHub, Notebook, tabsync, ...) and
+  Edit them there; its own CLAUDE.md applies. A1 has no copy of them (its old
+  redirect stubs were removed 2026-10-22); `Vault/` is a junction into A1-Priv. Shared files (LifeHub, Notebook, tabsync, ...) and
   workers stay here. **Moving another program to A1-Priv** ("move X to the
   private repo"): follow
   [docs/a1-priv-move-plan.md](docs/a1-priv-move-plan.md), section "Moving

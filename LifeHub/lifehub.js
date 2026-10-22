@@ -176,7 +176,7 @@
      launchers land on one tab per program. */
   var BASE = 'https://anthonyn99.github.io/A1/';
   // Programs that moved to the private repo's host on 2026-10-10
-  // (docs/a1-priv-move-plan.md). Their old A1 pages are redirect stubs.
+  // (docs/a1-priv-move-plan.md). Their old A1 pages are gone (2026-10-22).
   var PRIV = 'https://a1-priv.av1.workers.dev/';
   // Old address → new, by origin + path. Stored tiles still on an old one are
   // rewritten once on sync (migrate below), keeping any query or hash. To move
