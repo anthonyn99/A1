@@ -343,6 +343,7 @@ export async function renderListen(body, { book, n, title, lessons }) {
     const k = w ? maps[Number(turn.dataset.turn)].findIndex((m) => m >= Number(w.dataset.k)) : -1;
     play(k >= 0 ? tr.start + tr.words[k][0] : tr.start);
   });
+  if (takeAutoplay(book, n)) play(0);
   return true;
 }
 
