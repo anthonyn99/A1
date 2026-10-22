@@ -100,6 +100,15 @@ export function _useFirebase(f) { fb = f; fbReady = Promise.resolve(f); }
 // LifeHub shares this Firestore instead of starting its own.
 window.LifeHubFirebase = () => firebase().then((f) => ({ db: f.db, fs: f.fs }));
 
+/* The header has one sync pill for both documents: it shows the worse of the two
+ * (failed over syncing over synced), so one doc recovering does not hide the other. */
+const docSync = {};
+function report(name, kind) {
+  docSync[name] = kind;
+  const v = Object.values(docSync);
+  emit('sync', v.includes('err') ? 'err' : v.includes('busy') ? 'busy' : 'ok');
+}
+
 /** One synced document: live snapshot, local echo, throttled field-path writes. */
 export class Doc {
   constructor(path, name) {
@@ -125,7 +134,7 @@ export class Doc {
       // A delivered snapshot proves reads work: that alone lifts the write barrier.
       const first = !this.loaded, back = !!this.error;
       this.loaded = true; this.error = null; this.retries = 0;
-      if ((first || back) && !this.writing) emit('sync', 'ok');
+      if ((first || back) && !this.writing) report(this.name, 'ok');
       const d = snap.exists() ? snap.data() : {};
       // Keep what this device has not sent yet on top of the server copy.
       for (const [k, v] of Object.entries(this.pending)) setPath(d, k, v === DELETE ? undefined : v);
@@ -136,7 +145,7 @@ export class Doc {
       console.warn('Shruti snapshot ' + this.path, err);
       this.error = err; this.unsub = null;
       // Still starting: say "syncing" while it tries again, "failed" only once it keeps failing.
-      emit('sync', this.retries < 2 && !this.loaded ? 'busy' : 'err');
+      report(this.name, this.retries < 2 && !this.loaded ? 'busy' : 'err');
       this.retryTimer = setTimeout(() => this.listen(), Math.min(30000, 2000 * 2 ** this.retries++));
     });
   }
@@ -165,7 +174,7 @@ export class Doc {
     const { fs } = fb;
     const out = {};
     for (const [k, v] of Object.entries(batch)) out[k] = v === DELETE ? fs.deleteField() : v;
-    emit('sync', 'busy');
+    report(this.name, 'busy');
     this.writing = (async () => {
       try { await fs.updateDoc(this.ref, out); }
       catch (e) {
@@ -176,12 +185,12 @@ export class Doc {
         } else throw e;
       }
     })();
-    try { await this.writing; emit('sync', 'ok'); }
+    try { await this.writing; report(this.name, this.error ? 'err' : 'ok'); }
     catch (e) {
       console.warn('Shruti save ' + this.path, e);
       // Put it back (unless something newer replaced it) and try again later.
       for (const [k, v] of Object.entries(batch)) if (!(k in this.pending)) this.pending[k] = v;
-      emit('sync', 'err');
+      report(this.name, 'err');
       this.flushSoon(15000);
     } finally { this.writing = null; }
   }

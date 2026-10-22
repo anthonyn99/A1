@@ -198,6 +198,7 @@ async function load(c, { w, h, mobile, store, hash = '' }) {
   await shot(c, 'veda-book-1280');
 
   console.log('\nFirestore refuses the first reads (sign-in late, the network briefly gone)');
+  await ev(c, `const d=window.__fakeFs.docs; d['dashboards/shruti']=Object.assign(d['dashboards/shruti']||{}, {orcaKey:${JSON.stringify(KEY)}}); window.__fakeFs.persist(); localStorage.setItem('shruti.tony.orcaKey', ${JSON.stringify(KEY)}); return 1`);
   await load(c, { w: 1280, h: 860, mobile: false, store: "sessionStorage.setItem('shruti.pick','tony'); sessionStorage.setItem('__fakefs_fail', JSON.stringify({'dashboards/shruti': 2, 'dashboards/shruti_shared': 1}));", hash: '#/' });
   ok('while it tries again the pill says syncing, not failed', await waitFor(c, `!!window.Shruti && !!window.Shruti.core.me.error && document.getElementById('sync-pill').classList.contains('busy')`, 8000),
     await ev(c, `const C=window.Shruti&&window.Shruti.core; return C ? (C.me.loaded+' err:'+!!C.me.error+' '+document.getElementById('sync-pill').className+' fail:'+JSON.stringify(window.__fakeFs.failSnapshots)) : 'no Shruti'`));
