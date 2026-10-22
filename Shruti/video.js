@@ -503,16 +503,24 @@ function caption(ctx, sc, into, acc) {
 export const active = (book, n) => V.book === book && V.n === n && !!V.meta;
 /** Load a chapter's video (no sound yet). */
 export async function load(book, n, title) {
-  if (active(book, n)) return V.meta;
+  // One made on this device without Drive stays until the page reloads.
+  if (active(book, n) && V.src === 'local') return V.meta;
   const src = await sourceFor(book, n);
+  // A new version (made here, or ticked on any device) replaces the loaded one.
+  if (active(book, n) && V.src === srcKey(src)) return V.meta;
   if (!src) return null;
   const { url, meta } = await open(src);
   stop(true);
-  Object.assign(V, { book, n, title, meta, url, scene: -1 });
-  if (audio) audio.src = url;
+  Object.assign(V, { book, n, title, meta, url, src: srcKey(src), scene: -1 });
+  if (audio) { audio.src = url; audio.currentTime = 0; }
   emit();
   return meta;
 }
+export const srcKey = (src) => (src ? src.where + ':' + (src.mp3 && src.mp3.id || src.mp3) : '');
+/** "Play it" after making one: the Watch tab starts it on its own. */
+let autoplay = null;
+export function playWhenShown(book, n) { autoplay = { book, n, at: Date.now() }; }
+const takeAutoplay = (book, n) => { const a = autoplay; autoplay = null; return !!(a && a.book === book && a.n === n && Date.now() - a.at < 60000); };
 export async function play(at) {
   if (!V.meta || !audio) return;
   dispatchEvent(new CustomEvent('shruti:playing', { detail: { who: 'video' } }));
@@ -898,6 +906,7 @@ export async function renderWatch(body, { book, n, title, lessons }) {
   // The first frame goes up at once; again when the typefaces arrive.
   view.resize();
   if (document.fonts && document.fonts.load) Promise.all([fDisplay(80), fBody(500)(40), fBody(600)(40), fVerse(60), fLabel(26)].map((f) => document.fonts.load(f))).catch(() => {}).then(() => view.draw());
+  if (takeAutoplay(book, n)) play(0);
   return true;
 }
 
@@ -979,7 +988,7 @@ export async function build(script, { ch, lessons, key = keyOf(), onStep, parall
 export function useLocal(book, n, title, { mp3, meta }) {
   stop();
   const url = URL.createObjectURL(mp3);
-  Object.assign(V, { book, n, title, meta: prepare(JSON.parse(JSON.stringify(meta))), url, scene: -1 });
+  Object.assign(V, { book, n, title, meta: prepare(JSON.parse(JSON.stringify(meta))), url, src: 'local', scene: -1 });
   if (audio) audio.src = url;
   emit();
 }
