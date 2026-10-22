@@ -240,7 +240,9 @@ export function renderRead(body, ch, book, n, { title, at } = {}) {
   const measure = () => {
     if (!art.isConnected) { if (shownOnce) { removeEventListener('scroll', measure); offNR(); } return; }
     const r = art.getBoundingClientRect();
-    spots.set(spotKey, Math.round(-r.top));
+    // The first block still on screen, and where its top is: what comes back.
+    const vis = [...art.querySelectorAll('[data-b]')].find((el) => el.getBoundingClientRect().bottom > 0);
+    if (vis) spots.set(spotKey, { b: vis.dataset.b, dy: vis.getBoundingClientRect().top });
     const seen = Math.min(1, Math.max(0, (innerHeight - r.top) / Math.max(1, r.height)));
     if (seen > best + 0.02 || (seen >= 0.98 && best < 1)) {
       best = seen >= 0.98 ? 1 : seen;
@@ -260,7 +262,13 @@ export function renderRead(body, ch, book, n, { title, at } = {}) {
     if (at != null) { scrollToBlock(art, at, false); flash(art, at); }
     else if (spot != null) {
       // Back from another tab: exactly where it was, no "back where you were".
-      scrollTo({ top: Math.max(0, scrollY + art.getBoundingClientRect().top + spot), behavior: 'auto' });
+      // Put once more after the page settles (fonts, the header's buttons).
+      const put = () => { const el = art.querySelector('[data-b="' + spot.b + '"]'); if (el) scrollTo({ top: Math.max(0, scrollY + el.getBoundingClientRect().top - spot.dy), behavior: 'auto' }); };
+      put();
+      let moved = false;
+      const mark = () => { moved = true; };
+      addEventListener('wheel', mark, { once: true, passive: true }); addEventListener('touchstart', mark, { once: true, passive: true });
+      setTimeout(() => { if (!moved && art.isConnected) put(); removeEventListener('wheel', mark); removeEventListener('touchstart', mark); }, 350);
       lastPos = topBlock(art);
     } else if (pos > 0 && pos < (ch.blocks || []).length) {
       scrollToBlock(art, pos, false);
