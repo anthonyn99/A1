@@ -145,7 +145,8 @@ async def main():
     index = json.loads(idx_path.read_text(encoding="utf-8")) if idx_path.exists() else {}
     for n in chapters:
         index[str(n)] = await build(n, lessons)
-    idx_path.write_text(json.dumps(dict(sorted(index.items(), key=lambda kv: int(kv[0]))), indent=2), encoding="utf-8")
+        # after every chapter, so a run cut short (the network drops) keeps what it built
+        idx_path.write_text(json.dumps(dict(sorted(index.items(), key=lambda kv: int(kv[0]))), indent=2), encoding="utf-8")
 
 
 if __name__ == "__main__":

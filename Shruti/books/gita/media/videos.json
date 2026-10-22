@@ -2,58 +2,58 @@
   "1": {
     "mp3": "ch01-video.mp3",
     "json": "ch01-video.json",
-    "duration": 305.064,
+    "duration": 308.232,
     "scenes": 15,
-    "narrator": "Brian"
+    "narrator": "Sonia"
   },
   "2": {
     "mp3": "ch02-video.mp3",
     "json": "ch02-video.json",
-    "duration": 495.624,
+    "duration": 497.712,
     "scenes": 25,
-    "narrator": "Brian"
+    "narrator": "Sonia"
   },
   "3": {
     "mp3": "ch03-video.mp3",
     "json": "ch03-video.json",
-    "duration": 530.424,
+    "duration": 529.176,
     "scenes": 27,
-    "narrator": "Brian"
+    "narrator": "Sonia"
   },
   "4": {
     "mp3": "ch04-video.mp3",
     "json": "ch04-video.json",
-    "duration": 502.176,
+    "duration": 500.208,
     "scenes": 26,
-    "narrator": "Brian"
+    "narrator": "Sonia"
   },
   "5": {
     "mp3": "ch05-video.mp3",
     "json": "ch05-video.json",
-    "duration": 425.136,
+    "duration": 427.824,
     "scenes": 24,
-    "narrator": "Brian"
+    "narrator": "Sonia"
   },
   "6": {
     "mp3": "ch06-video.mp3",
     "json": "ch06-video.json",
-    "duration": 454.992,
+    "duration": 456.696,
     "scenes": 25,
-    "narrator": "Brian"
+    "narrator": "Sonia"
   },
   "7": {
     "mp3": "ch07-video.mp3",
     "json": "ch07-video.json",
-    "duration": 345.768,
+    "duration": 347.352,
     "scenes": 17,
-    "narrator": "Brian"
+    "narrator": "Sonia"
   },
   "8": {
     "mp3": "ch08-video.mp3",
     "json": "ch08-video.json",
-    "duration": 304.728,
+    "duration": 307.128,
     "scenes": 16,
-    "narrator": "Brian"
+    "narrator": "Sonia"
   },
   "9": {
     "mp3": "ch09-video.mp3",
