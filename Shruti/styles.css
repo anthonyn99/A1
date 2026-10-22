@@ -636,7 +636,7 @@ body[data-profile=veda] .lx-k { text-transform: none; letter-spacing: 0; font-si
 .lx-dots i.seen { background: var(--ac-line); }
 .lx-dots i.on { width: 18px; background: var(--ac); }
 .lx-x { flex-shrink: 0; }
-.lx-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 26px 30px 10px; scrollbar-width: thin; outline: none; }
+.lx-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 26px 30px 26px; scrollbar-width: thin; outline: none; }
 .lx-in { animation: lxIn .28s var(--ease) both; }
 .lx-in.from-r { animation-name: lxInR; } .lx-in.from-l { animation-name: lxInL; }
 @keyframes lxIn { from { opacity: 0; } }
