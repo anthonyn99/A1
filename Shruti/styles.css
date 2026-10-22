@@ -1301,3 +1301,7 @@ body[data-profile=veda] .toast-b { background: #856e92; color: #fff; }
 body[data-profile=veda] .sw-in:checked { background: #856e92; border-color: #856e92; }
 body[data-profile=veda] .sw-in:checked::after { background: #fff; }
 .sw-in:focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; box-shadow: none; }
+
+/* A textarea and its A1 corner grip (resizegrip.js; app.js gripAll). */
+.a1-gripwrap { position: relative; display: block; width: 100%; }
+.a1-gripwrap textarea { display: block; }

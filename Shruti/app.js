@@ -456,6 +456,25 @@ addEventListener('keydown', (e) => {
   else if (NR.state.mode) { e.preventDefault(); NR.toggle(); }
 });
 
+/* ── text boxes: A1's corner grip (resizegrip.js), the same as MAGI's ─────── */
+// Tony, 2026-10-22: every box that drags to grow does it the A1 way. Each
+// textarea, wherever it appears, is wrapped once and given the grip; its
+// height is remembered per box (by id) on this device.
+function gripAll(root) {
+  if (!window.A1Resize) return;
+  root.querySelectorAll('textarea:not([data-grip])').forEach((ta) => {
+    ta.dataset.grip = '1';
+    const w = document.createElement('div');
+    w.className = 'a1-gripwrap';
+    ta.parentNode.insertBefore(w, ta);
+    w.appendChild(ta);
+    const g = A1Resize.grip(ta.getAttribute('aria-label') || ta.placeholder || 'the text box');
+    w.appendChild(g);
+    A1Resize.attach(ta, g, ta.id ? 'shruti.' + ta.id : null);
+  });
+}
+new MutationObserver((ms) => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) gripAll(n.tagName === 'TEXTAREA' ? n.parentNode : n); }).observe(document.body, { childList: true, subtree: true });
+
 /* ── start ────────────────────────────────────────────────────────────────── */
 window.Shruti = { go, player, toast, core: C, orca: O, library: L, narrate: NR, podcast: POD, video: VID, generate: G, jobs: J, make: MK, openSettings };
 if (window.SHRUTI_STORAGE_BLOCKED) setTimeout(() => toast('This browser blocks storage: Shruti works, but this device will not remember choices.', true), 1200);
