@@ -115,6 +115,8 @@ async function exec(t, lane) {
       const id = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       H.saveSet(t.book, { id, kinds: res.kinds, model: res.model, by: C.P, at: Date.now(), length: o.length, scope: { t: sc.t, ch: sc.ch, label: sc.label }, ...(o.extra ? { asked: o.extra.slice(0, 300) } : {}) });
       t.result = { set: id, kinds: o.kinds };
+      // The Study tab opens on the new set (its first kind), as the old maker did.
+      C.ls.put(C.lsKey('study.' + t.book + '.' + t.n), { set: id, kind: o.kinds[0] });
     } else {
       const res = await G.run({
         kind: t.kind, book: t.book, bookTitle: ctx.bookTitle, n: t.n, title: ctx.title, ch: ctx.ch, lessons: ctx.lessons,
