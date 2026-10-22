@@ -14,7 +14,10 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const lamejs = require('lamejs');
+// lamejs 1.2.1's Node entry breaks (MPEGMode is not defined); its one-file
+// build works, so that is what is loaded.
+const lamejs = new Function(fs.readFileSync(require.resolve('lamejs/lame.all.js'), 'utf8') + '
+return lamejs;')();
 
 const RATE = 32000;
 const OUT = path.join(__dirname, '..', 'media', 'music');
