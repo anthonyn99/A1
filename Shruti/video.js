@@ -562,6 +562,8 @@ if (bed) { bed.loop = true; bed.preload = 'auto'; }
 export const BEDS = ['media/music/stillness.mp3', 'media/music/dawn.mp3'];
 const BED_LEN = 144, BED_UP = 0.2, BED_DOWN = 0.11;
 let bedGain = null, bedVol = BED_DOWN;
+/** What the music is doing (for the live test). */
+export const music = () => (bed ? { src: bed.src, playing: !bed.paused, vol: bedVol } : null);
 function setBedVol(v) { bedVol = v; if (bedGain) bedGain.gain.value = v; else if (bed) bed.volume = v; }
 function bedSync(playing) {
   if (!bed) return;
