@@ -89,21 +89,32 @@ function topBlock(art) {
   return best;
 }
 
+/** Where each chapter was scrolled to, this visit: back on Read after another
+ *  tab, the page is exactly where it was (Tony, 2026-10-22). Pixels from the
+ *  top of the text, so a header of another height does not move it. */
+const spots = new Map();
+
 export function renderRead(body, ch, book, n, { title, at } = {}) {
   const marks = marksOf(book, n);
   const nMarks = Object.keys(marks).length;
+  // The text on a lighter page of its own (Tony, 2026-10-22: the program's dark
+  // background was too stark to read on), its tools along the top edge.
   body.innerHTML =
+    '<div class="rd-card">' +
     '<div class="rd-bar">' +
-      '<button class="btn solid" data-ra>' + IC.play + '<span>Listen</span></button>' +
+      '<button class="btn solid rd-listen" data-ra>' + IC.play + '<span>Listen</span></button>' +
       '<span class="sp"></span>' +
+      '<div class="rd-tools">' +
       '<button class="ib" data-bmhere title="Bookmark this spot" aria-label="Bookmark this spot">' + RIBBON + '</button>' +
       '<button class="ib cnt-b" data-bms title="Bookmarks" aria-label="Bookmarks" aria-expanded="false">' + LIST + '<i class="cnt"' + (nMarks ? '' : ' hidden') + '>' + nMarks + '</i></button>' +
       '<button class="ib" data-voice title="Read-aloud: voice, speed, sleep timer" aria-label="Read-aloud settings">' + SLIDERS + '</button>' +
       '<button class="ib aa" data-aa title="Text size and spacing" aria-label="Text size and spacing" aria-expanded="false">Aa</button>' +
+      '</div>' +
     '</div>' +
     '<div class="rd-pop" id="rd-aa" hidden></div><div class="rd-pop" id="rd-bms" hidden></div>' +
     '<div class="rd-resume" id="rd-resume" hidden></div>' +
     '<article class="rd">' + (ch.blocks || []).map((bl, b) => blockHtml(bl, b, marks)).join('') + '</article>' +
+    '</div>' +
     '<button class="rd-follow" id="rd-follow" hidden>' + IC.listen + 'Back to the voice</button>';
   const art = body.querySelector('.rd');
   applyLook(art);
@@ -225,9 +236,11 @@ export function renderRead(body, ch, book, n, { title, at } = {}) {
 
   /* ── where they are, and how far they read ── */
   let posT = 0, lastPos = -1;
+  const spotKey = book + '/' + n;
   const measure = () => {
     if (!art.isConnected) { if (shownOnce) { removeEventListener('scroll', measure); offNR(); } return; }
     const r = art.getBoundingClientRect();
+    spots.set(spotKey, Math.round(-r.top));
     const seen = Math.min(1, Math.max(0, (innerHeight - r.top) / Math.max(1, r.height)));
     if (seen > best + 0.02 || (seen >= 0.98 && best < 1)) {
       best = seen >= 0.98 ? 1 : seen;
@@ -243,8 +256,13 @@ export function renderRead(body, ch, book, n, { title, at } = {}) {
   whenShown(art, () => {
     shownOnce = true;
     const pos = Number((C.me.get('progress.' + book + '.ch' + n, {}) || {}).pos) || 0;
+    const spot = spots.get(spotKey);
     if (at != null) { scrollToBlock(art, at, false); flash(art, at); }
-    else if (pos > 0 && pos < (ch.blocks || []).length) {
+    else if (spot != null) {
+      // Back from another tab: exactly where it was, no "back where you were".
+      scrollTo({ top: Math.max(0, scrollY + art.getBoundingClientRect().top + spot), behavior: 'auto' });
+      lastPos = topBlock(art);
+    } else if (pos > 0 && pos < (ch.blocks || []).length) {
       scrollToBlock(art, pos, false);
       lastPos = pos;
       const chip = body.querySelector('#rd-resume');
