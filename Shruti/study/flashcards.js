@@ -53,7 +53,7 @@ export function mount(root, setCards, { book, set }) {
 
   const faces = (c, idx) =>
     '<div class="fc-inner"><div class="fc-face fc-front"><div class="fc-hd"><span class="fc-tag">Card</span><span class="fc-num">' + (idx + 1) + ' / ' + n + '</span></div>' +
-    '<div class="fc-text">' + rich(c.front) + '</div><div class="fc-hint">Tap to turn over</div></div>' +
+    '<div class="fc-text">' + rich(c.front) + '</div></div>' +
     '<div class="fc-face fc-back"><div class="fc-hd"><span class="fc-tag">Answer</span><span class="fc-num">' + (c.ref ? 'Verse ' + esc(c.ref) + ' · ' : '') + (idx + 1) + ' / ' + n + '</span></div>' +
     '<div class="fc-q">' + rich(c.front) + '</div><div class="fc-text fc-text-back' + (c.back.length > 220 ? ' long' : '') + '">' + rich(c.back) + '</div></div></div>';
 
@@ -155,7 +155,6 @@ export function mount(root, setCards, { book, set }) {
     prev.disabled = st.pos === 0;
     ctl.append(prev, btn('Still learning', 'x', () => mark(false), 'fc-learn'), btn('Got it', 'tick', () => mark(true), 'fc-know'), btn('', 'right', () => go(1), 'round', 'Next card (→)'));
     box.append(ctl);
-    box.append(h('div', 'st-keys', 'Space turn over · ← → move · 1 still learning · 2 got it'));
   };
 
   const off = keys(box, (e) => {

@@ -848,8 +848,10 @@ body[data-profile=veda] { --k-flashcards: #A892B0; --k-quiz: #9bb08a; --k-mindma
 .st-keys { color: var(--txd); font-size: 12px; text-align: center; margin-top: 14px; }
 .st-done { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 36px 18px; background: var(--s1); border: 1px solid var(--line); border-radius: var(--r3); }
 .st-done > svg { width: 44px; height: 44px; padding: 10px; border-radius: 50%; color: var(--good); background: color-mix(in srgb, var(--good) 14%, transparent); }
-.st-done b { font-family: var(--f-head); font-size: 20px; margin-top: 4px; }
-.st-done span { color: var(--txm); }
+.st-done > b { font-family: var(--f-head); font-size: 20px; margin-top: 4px; }
+/* Only the line under the title: a span inside a button is its label (Tony,
+   2026-10-22: "Review 1" was grey on purple). */
+.st-done > span { color: var(--txm); }
 .st-done-acts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 12px; }
 
 /* flashcards */

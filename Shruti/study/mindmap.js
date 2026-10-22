@@ -110,7 +110,7 @@ function mountMap(rootEl, A, { book, set, title }, toArrange) {
   canvas.append(svg, rootNode, branchBox);
   port.append(canvas);
   const note = h('div', 'mm-note', '');
-  wrap.append(bar, port, note, h('div', 'st-keys', 'Drag to move · pinch or ctrl + scroll to zoom · tap a branch to fold it · + − 0 F'));
+  wrap.append(bar, port, note);
   const flash = (t) => { note.textContent = t; note.classList.add('on'); clearTimeout(flash.t); flash.t = setTimeout(() => note.classList.remove('on'), 1600); };
 
   // Positions inside the canvas, untouched by its transform.

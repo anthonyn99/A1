@@ -191,7 +191,6 @@ export function mount(root, setSlides, { book, set, title }) {
     OR.sortable(strip, { row: '.sd-thumb', axis: 'x', onMove: reorder });
     const on = strip.children[st.i];
     if (on) requestAnimationFrame(() => { try { strip.scrollTo({ left: on.offsetLeft - strip.clientWidth / 2 + on.clientWidth / 2, behavior: 'smooth' }); } catch (e) {} });
-    box.append(h('div', 'st-keys', '← → move · P present · N narrate · G all slides'));
     dir = 0;
   };
 
