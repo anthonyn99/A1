@@ -74,7 +74,7 @@ const M = {
   },
   chariot(c, s, t, k) {
     const u = s / 10;
-    c.translate(1.7 * u, 0);   // the horses lead: the whole team sits in the middle
+    c.translate(1.3 * u, 0); c.scale(0.8, 0.8);   // the horses lead: the whole team sits in the middle
     c.strokeStyle = k.gold;
     // The wheel turns.
     c.save(); c.translate(0.6 * u, 2.2 * u); c.rotate(t * 0.9);
