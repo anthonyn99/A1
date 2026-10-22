@@ -178,19 +178,19 @@ const prog = (c, path) => ev(c, `return JSON.stringify(window.Shruti.core.me.get
 
   console.log('\nMake a study set');
   await click(c, '.sh-make');
-  ok('the maker opens with the scopes', await waitFor(c, `const s=[...document.querySelectorAll('#study-make [data-scope]')].map(b=>b.textContent); return s.join('|')==='This chapter|A section|Your selection|Several chapters|The whole book'`), await ev(c, `return [...document.querySelectorAll('#study-make [data-scope]')].map(b=>b.textContent).join('|')`));
-  ok('Your selection is off until something is selected in Read', await waitFor(c, `document.querySelector('#study-make [data-scope=selection]').disabled`));
-  await ev(c, `document.querySelector('#study-make [data-scope=section]').click(); return 1`);
+  ok('the maker opens with the scopes', await waitFor(c, `const s=[...document.querySelectorAll('#gen-sheet [data-scope]')].map(b=>b.textContent); return s.join('|')==='This chapter|A section|Your selection|Several chapters|The whole book'`), await ev(c, `return [...document.querySelectorAll('#gen-sheet [data-scope]')].map(b=>b.textContent).join('|')`));
+  ok('Your selection is off until something is selected in Read', await waitFor(c, `document.querySelector('#gen-sheet [data-scope=selection]').disabled`));
+  await ev(c, `document.querySelector('#gen-sheet [data-scope=section]').click(); return 1`);
   ok('A section offers the chapter\'s headings', await waitFor(c, `document.querySelectorAll('#sm-sec option').length>=5`));
   await ev(c, `const s=document.querySelector('#sm-sec'); s.selectedIndex=3; s.dispatchEvent(new Event('change')); return 1`);
-  for (const k of ['flashcards', 'mindmap', 'slides']) await ev(c, `document.querySelector('#study-make [data-k=${k}]').click(); return 1`);
-  ok('only Quiz is ticked', await waitFor(c, `[...document.querySelectorAll('#study-make [data-k]')].filter(b=>b.classList.contains('on')).map(b=>b.dataset.k).join()==='quiz'`));
+  for (const k of ['flashcards', 'mindmap', 'slides']) await ev(c, `document.querySelector('#gen-sheet [data-k=${k}]').click(); return 1`);
+  ok('only Quiz is ticked', await waitFor(c, `[...document.querySelectorAll('#gen-sheet [data-k]')].filter(b=>b.classList.contains('on')).map(b=>b.dataset.k).join()==='quiz'`));
   await shot(c, 'study-maker-tony-1280');
-  await click(c, '#study-make [data-go]');
-  ok('it is made and saved', await waitFor(c, `/Made/.test(document.querySelector('#sm-run h3')?.textContent||'') && !!document.querySelector('#sm-run [data-open]')`, 15000), await ev(c, `return document.querySelector('#sm-run')?.textContent`));
+  await click(c, '#gen-sheet [data-make]');
+  ok('it is made and saved', await waitFor(c, `/Made/.test(document.querySelector('#gen-run .mk-prog-h b')?.textContent||'') && !!document.querySelector('#gen-run [data-open]')`, 15000), await ev(c, `return document.querySelector('#gen-run')?.textContent`));
   ok('the ask was the section, with MAGI\'s quiz format', S.chats.length === 1 && /CORRECT: B/.test(S.chats[0].body) && /This reading is \\u201c|This reading is “/.test(S.chats[0].body) && /in chapter 4/.test(S.chats[0].body), S.chats[0] && S.chats[0].body.slice(0, 300));
   ok('the set is in the shared doc, scoped to the section', await waitFor(c, `const s=Object.values(window.Shruti.core.shared.get('sets.gita',{})); return s.length===1 && s[0].scope.t==='section' && s[0].kinds.quiz.length===2 && s[0].model==='deepseek/free' && s[0].by==='tony'`), await ev(c, `return JSON.stringify(window.Shruti.core.shared.get('sets.gita',{})).slice(0,300)`));
-  await click(c, '#sm-run [data-open]');
+  await click(c, '#gen-run [data-open]');
   ok('Study it: the new set is in the sidebar, its quiz open', await waitFor(c, `document.querySelectorAll('.sh-set').length===2 && document.querySelector('.sh-kind.on').dataset.kind==='quiz' && /Question 1 of 2/.test(document.querySelector('.qz-kicker').textContent)`));
   ok('the head names its scope', await waitFor(c, `/in chapter 4/.test(document.querySelector('.sh-head div span').textContent)`));
 
@@ -202,10 +202,10 @@ const prog = (c, path) => ev(c, `return JSON.stringify(window.Shruti.core.me.get
   await ev(c, `location.hash='#/b/gita/4/study'; return 1`);
   await waitFor(c, `!!document.querySelector('.sh-make')`);
   await click(c, '.sh-make');
-  ok('Your selection is offered once text was selected in Read', await waitFor(c, `!document.querySelector('#study-make [data-scope=selection]').disabled`));
-  await ev(c, `document.querySelector('#study-make [data-scope=selection]').click(); return 1`);
+  ok('Your selection is offered once text was selected in Read', await waitFor(c, `!document.querySelector('#gen-sheet [data-scope=selection]').disabled`));
+  await ev(c, `document.querySelector('#gen-sheet [data-scope=selection]').click(); return 1`);
   ok('…and shows it', await waitFor(c, `document.querySelector('.sm-sel') && document.querySelector('.sm-sel').textContent.length>40`));
-  await ev(c, `document.querySelector('#study-make [data-close]').click(); return 1`);
+  await ev(c, `document.querySelector('#gen-sheet [data-close]').click(); return 1`);
   await ev(c, `location.hash='#/b/gita/0/study'; return 1`);
   ok('the introduction has Read and Study, and its ready-made set', await waitFor(c, `document.querySelectorAll('.modes button').length===2 && document.querySelectorAll('.sh-kind').length===4 && /The introduction/.test(document.querySelector('.sh-set-h b').textContent)`));
   ok('no page errors for Tony', !(await ev(c, `return (window.__errs||[]).join(' | ')`)), await ev(c, `return (window.__errs||[]).join(' | ')`));

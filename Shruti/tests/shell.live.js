@@ -152,7 +152,7 @@ async function load(c, { w, h, mobile, store, hash = '' }) {
   await ev(c, `document.querySelector('.unit[data-dkey="claude/free"] .tick').click(); return 1`);
   await ev(c, `return window.Shruti.core.me.flush()`);
   ok('ticking Claude is saved to his doc', await waitFor(c, `const d=window.__fakeFs.docs['dashboards/shruti']; return d.units && d.units.on && d.units.on['claude/free']===true`));
-  ok('Drive offers the connect button once a key exists', await waitFor(c, `!!document.getElementById('drive-act')`));
+  ok('Drive offers the connect button once a key exists', await waitFor(c, `!!document.querySelector('#st-drive [data-drive]')`));
   await shot(c, 'tony-settings-1280');
   await ev(c, `document.querySelector('#settings [data-close]').click(); return 1`);
 
