@@ -51,7 +51,7 @@ const shot = async (c, name) => {
   const data = r && (r.result ? r.result.data : r.data);
   if (data) fs.writeFileSync(shotPath('shruti-' + name), Buffer.from(data, 'base64'));
 };
-const RUN = String(Date.now());
+let RUN = String(Date.now());
 // The slate is wiped once per run, not on the reloads the page itself makes.
 const BOOT = (store) => `(()=>{ if(window.top!==window) return;
   ${store ? `try{ if(sessionStorage.getItem('__run')!=='${RUN}'){ localStorage.clear(); sessionStorage.clear(); ${store} sessionStorage.setItem('__run','${RUN}'); } }catch(e){}` : ''}
@@ -198,8 +198,15 @@ async function load(c, { w, h, mobile, store, hash = '' }) {
   await shot(c, 'veda-book-1280');
 
   console.log('\nFirestore refuses the first reads (sign-in late, the network briefly gone)');
-  await ev(c, `const d=window.__fakeFs.docs; d['dashboards/shruti']=Object.assign(d['dashboards/shruti']||{}, {orcaKey:${JSON.stringify(KEY)}}); window.__fakeFs.persist(); localStorage.setItem('shruti.tony.orcaKey', ${JSON.stringify(KEY)}); return 1`);
-  await load(c, { w: 1280, h: 860, mobile: false, store: "sessionStorage.setItem('shruti.pick','tony'); sessionStorage.setItem('__fakefs_fail', JSON.stringify({'dashboards/shruti': 2, 'dashboards/shruti_shared': 1}));", hash: '#/' });
+  {
+    const docs = JSON.parse(await ev(c, `return sessionStorage.getItem('__fakefs_docs') || '{}'`));
+    docs['dashboards/shruti'] = Object.assign(docs['dashboards/shruti'] || {}, { orcaKey: KEY });
+    RUN = String(Date.now());   // a fresh run: the store below is applied (it clears storage first)
+    const store = "sessionStorage.setItem('__fakefs_docs'," + JSON.stringify(JSON.stringify(docs)) + "); sessionStorage.setItem('shruti.pick','tony'); " +
+      "localStorage.setItem('shruti.tony.orcaKey'," + JSON.stringify(KEY) + "); " +
+      "sessionStorage.setItem('__fakefs_fail'," + JSON.stringify(JSON.stringify({ 'dashboards/shruti': 2, 'dashboards/shruti_shared': 1 })) + ");";
+    await load(c, { w: 1280, h: 860, mobile: false, store, hash: '#/' });
+  }
   ok('while it tries again the pill says syncing, not failed', await waitFor(c, `!!window.Shruti && !!window.Shruti.core.me.error && document.getElementById('sync-pill').classList.contains('busy')`, 8000),
     await ev(c, `const C=window.Shruti&&window.Shruti.core; return C ? (C.me.loaded+' err:'+!!C.me.error+' '+document.getElementById('sync-pill').className+' fail:'+JSON.stringify(window.__fakeFs.failSnapshots)) : 'no Shruti'`));
   ok('his key is there before sync loads (kept on this device)', await ev(c, `return !window.Shruti.core.me.loaded && window.Shruti.core.orcaKey()===${JSON.stringify(KEY)}`),
