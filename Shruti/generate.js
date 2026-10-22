@@ -405,7 +405,7 @@ function drawOptions(box, ctx, kind) {
   const ex = box.querySelector('#gen-extra'); if (ex) ex.addEventListener('change', () => setPref('extra', ex.value.trim()));
 }
 
-const STAGES = { write: 'Write', check: 'Check every lesson', repair: 'Repair', speak: 'Speak', upload: 'Save to Drive', done: 'Done' };
+const STAGES = { lessons: 'Find every lesson', write: 'Write', check: 'Check every lesson', repair: 'Repair', speak: 'Speak', upload: 'Save to Drive', done: 'Done' };
 function drawRun(box, ctx, kind, close) {
   const mine = running && running.ctx.n === ctx.n && running.ctx.book === ctx.book && running.kind === kind;
   const other = !mine && M.jobOf(ctx.book, ctx.n, kind);
@@ -427,6 +427,7 @@ function paintRun(box, R) {
   const L = (R.ctx.lessons && R.ctx.lessons.lessons) || [];
   const stages = R.kind === 'read' ? ['speak', 'upload', 'done'] : R.kind === 'lessons' ? ['write', 'check', 'done'] : ['write', 'check', 'speak', R.local ? 'done' : 'upload', 'done'].filter((s, i, a) => a.indexOf(s) === i);
   if (R.repaired && !stages.includes('repair')) stages.splice(2, 0, 'repair');
+  if (R.lessonsFirst) stages.unshift('lessons');
   const idx = stages.indexOf(R.stage);
   box.innerHTML = '<h3>' + (R.error ? 'It stopped' : R.stage === 'done' ? 'Made' : 'Making ' + M.KIND_NAME[R.kind].toLowerCase()) + (R.model ? '<span class="gen-model">' + esc(modelName(R.model)) + '</span>' : '') + '</h3>' +
     '<ol class="gen-steps">' + stages.map((s, i) => '<li class="' + (R.error && i === idx ? 'bad' : i < idx || R.stage === 'done' ? 'done' : i === idx ? 'cur' : '') + '">' + esc(STAGES[s]) + (s === R.stage && R.text && !/^(Writing|Checking|Saved)$/.test(R.text) ? ' <span>' + esc(R.text) + '</span>' : '') + '</li>').join('') + '</ol>' +
@@ -461,7 +462,7 @@ async function start(ctx, kind, box, close) {
   };
   try {
     const res = await run(o, {
-      stage: (id, text) => { R.stage = id; R.text = text; if (id === 'repair') R.repaired = true; paint(true); },
+      stage: (id, text) => { R.stage = id; R.text = text; if (id === 'repair') R.repaired = true; if (id === 'lessons' && kind !== 'lessons') R.lessonsFirst = true; paint(true); },
       delta: (d) => { R.stream += d; paint(); },
       model: (m) => { R.model = m; paint(true); },
       coverage: (cov) => { R.cov = cov; paint(true); },
