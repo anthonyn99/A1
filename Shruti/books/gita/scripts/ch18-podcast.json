@@ -4,143 +4,469 @@
   "n": 18,
   "title": "Attaining liberation by giving up ego",
   "hosts": [
-    { "id": "A", "name": "Ava", "voice": "en-US-AvaMultilingualNeural" },
-    { "id": "B", "name": "Andrew", "voice": "en-US-AndrewMultilingualNeural" }
+    {
+      "id": "A",
+      "name": "Emma",
+      "voice": "en-US-EmmaMultilingualNeural"
+    },
+    {
+      "id": "B",
+      "name": "Brian",
+      "voice": "en-US-BrianMultilingualNeural"
+    }
   ],
   "segments": [
     {
       "title": "Welcome",
       "turns": [
-        { "s": "A", "t": "Welcome to Shruti. I'm Ava." },
-        { "s": "B", "t": "And I'm Andrew. Today, the final chapter, Eighteen: Attaining Liberation by Giving Up Ego." },
-        { "s": "A", "t": "It's the longest chapter, and it gathers the whole Gita together: renunciation, the three modes, your own nature, devotion, and finally the most secret teaching of all, surrender. And at the end, we finally hear Arjuna's answer." },
-        { "s": "B", "t": "Ten lessons. Story first, then each one." }
+        {
+          "s": "A",
+          "t": "Welcome to Shruti. I'm Emma."
+        },
+        {
+          "s": "B",
+          "t": "And I'm Brian. Today, the final chapter, Eighteen: Attaining Liberation by Giving Up Ego."
+        },
+        {
+          "s": "A",
+          "t": "It's the longest chapter, and it gathers the whole Gita together: renunciation, the three modes, your own nature, devotion, and finally the most secret teaching of all, surrender. And at the end, we finally hear Arjuna's answer."
+        },
+        {
+          "s": "B",
+          "t": "Ten lessons. Story first, then each one."
+        }
       ]
     },
     {
       "title": "The story",
       "turns": [
-        { "s": "A", "t": "Arjuna asks one more question, eighteen point one: I wish to know the nature of renunciation, Samnyasa, and sacrifice, Tyaga, and the difference between the two." },
-        { "s": "B", "t": "Krishna, eighteen point two: the sages call renunciation the giving up of work for personal profit. The wise define sacrifice as freedom from attachment to the fruits of all work.", "L": ["L1"] },
-        { "s": "A", "t": "And his own conclusion, eighteen point five and six: acts of service, charity and austerity should not be abandoned, because they purify the wise. But even these should be done without attachment to the fruits. This is My definite, supreme advice.", "L": ["L1"] },
-        { "s": "B", "t": "Giving up duty out of delusion is ignorance, eighteen point seven. Giving it up because it's hard or painful is passion, eighteen point eight. Doing it as duty, without attachment to the result, is goodness. And eighteen point eleven: human beings cannot completely abstain from work, so the one who renounces attachment to its fruits is the true renunciant.", "L": ["L1"] },
-        { "s": "A", "t": "Then the five causes of every action, eighteen point fourteen: the body, the modes of nature as the doer, the eleven organs, the life forces, and fate. And sixteen: those who think the body or the soul is the sole agent don't understand.", "L": ["L2"] },
-        { "s": "B", "t": "Eighteen point seventeen, which speaks straight to Arjuna's battle: one who is free from the notion of doership, whose intellect isn't polluted by desire for the fruit, even after slaying all these people, neither slays nor is bound.", "L": ["L2"] },
-        { "s": "A", "t": "Then a grand tour of the three modes. Knowledge, eighteen point twenty: seeing a single immutable Reality in all beings, undivided in the divided, is knowledge in goodness. Seeing only separate things is passion. Clinging to one small thing, like the body, as if it were everything, is ignorance.", "L": ["L3"] },
-        { "s": "B", "t": "Action: duty without likes, dislikes or selfish motive is goodness; action driven by ego and strain is passion; action from delusion, ignoring consequences and harm, is ignorance. And the person: free from attachment and ego, enthusiastic, steady in success and failure, that's the good person.", "L": ["L3"] },
-        { "s": "A", "t": "Intellect, eighteen point thirty to thirty-two: in goodness, it knows right from wrong, bondage from liberation. In passion, it can't tell righteousness from unrighteousness. In ignorance, it takes wrong for right, and sees everything upside down.", "L": ["L4"] },
-        { "s": "B", "t": "And resolve: in goodness, steadying mind, breath and senses for God. In passion, clinging to wealth and pleasure. In ignorance, refusing to let go of sleep, fear, grief, despair and carelessness.", "L": ["L4"] },
-        { "s": "A", "t": "And then pleasure, eighteen point thirty-seven and thirty-eight, one of the most useful verses in the book: the pleasure that is like poison in the beginning but nectar in the end is in goodness. Sensual pleasures that are like nectar in the beginning but poison in the end are in passion.", "L": ["L5"] },
-        { "s": "B", "t": "And eighteen point thirty-nine: pleasure that confuses a person at the beginning and the end, from sleep, laziness and carelessness, is ignorance.", "L": ["L5"] },
-        { "s": "A", "t": "Then work and nature. Eighteen point forty-one, and our book is emphatic: the division of labor into four categories is based on the qualities inherent in people's nature, and not necessarily as one's birthright.", "L": ["L6"] },
-        { "s": "B", "t": "The thinkers, with serenity, self-control and knowledge. The warriors and leaders, with courage, firmness and skill in administration. Those good at farming, business and industry. And those good at service and labor.", "L": ["L6"] },
-        { "s": "A", "t": "And eighteen point forty-six: one attains perfection by worshipping the Supreme through the performance of one's own natural duty. And forty-eight: don't abandon your natural work even if it has defects, because all undertakings are covered by defects, as fire by smoke.", "L": ["L6"] },
-        { "s": "B", "t": "Then the whole path in one breath, eighteen point fifty-one to fifty-three: a purified intellect, a mind steadied by resolve, turning from sense objects, giving up likes and dislikes, solitude, light eating, control of speech and action, meditation, detachment, and letting go of ego, violence, pride, lust, anger and possessiveness. One becomes peaceful, free of I and my, and fit for oneness with the Supreme.", "L": ["L7"] },
-        { "s": "A", "t": "Eighteen point fifty-four and fifty-five: serene, neither grieving nor desiring, impartial to all beings, one gains the highest devotion. And by devotion one truly understands who I am, and immediately merges with Me.", "L": ["L7"] },
-        { "s": "B", "t": "Then a hard truth about free will. Eighteen point fifty-nine and sixty: if, out of ego, you think, I shall not fight, your resolve is in vain. Your own nature will compel you. You are bound by your own nature-born impressions.", "L": ["L8"] },
-        { "s": "A", "t": "Eighteen point sixty-one: the Supreme Lord, abiding in the heart of all beings, causes them to work out their Karma, like puppets mounted on a machine.", "L": ["L8"] },
-        { "s": "B", "t": "And our book's commentary adds the crucial point: we become the puppet of our own Karma, created by our own free will. We are the product of our past thinking and action. So we must think and act wisely now.", "L": ["L8"] },
-        { "s": "A", "t": "And then, after all of it, eighteen point sixty-three: thus I have explained the knowledge that is more secret than the secret. After fully reflecting on this, do as you wish.", "L": ["L8"] },
-        { "s": "B", "t": "Do as you wish. After eighteen chapters, God doesn't command. He leaves the choice to Arjuna." },
-        { "s": "A", "t": "And then the final, most secret word. Eighteen point sixty-five: fix your mind on Me, be devoted to Me, serve Me, bow down to Me, and you shall certainly reach Me. I promise you, because you are My very dear friend.", "L": ["L9"] },
-        { "s": "B", "t": "And eighteen point sixty-six, called the final verse of the Gita's teaching: setting aside doership, ownership and attachment to the fruits of all works, just surrender to My will. I shall liberate you from all sins and bondage of Karma. Do not grieve.", "L": ["L9"] },
-        { "s": "A", "t": "Our book's gloss: this doesn't mean abandoning duties. It means doing them without ego and attachment, as an offering, and depending totally on God, who then takes full responsibility.", "L": ["L9", "L1"] },
-        { "s": "B", "t": "Krishna then says that whoever shares this teaching with sincere seekers does Him the highest service. And whoever studies this dialogue with faith performs a sacrifice of knowledge." },
-        { "s": "A", "t": "And then the question we've waited eighteen chapters for. Eighteen point seventy-two: Arjuna, did you listen with single-minded attention? Has your delusion born of ignorance been destroyed?" },
-        { "s": "B", "t": "Eighteen point seventy-three, Arjuna: by Your grace my delusion is destroyed. I have gained Self-knowledge. My confusion about body and Spirit is gone. And I shall obey Your command." },
-        { "s": "A", "t": "The man who sat down in his chariot in Chapter One, bow on the floor, stands up." },
-        { "s": "B", "t": "And Sanjaya, who has been narrating all along to the blind king, says, eighteen point seventy-six and seventy-seven: by repeatedly remembering this dialogue and that marvelous form of Krishna, I am thrilled at every moment, and I rejoice over and over again." },
-        { "s": "A", "t": "And his last words, eighteen point seventy-eight: wherever there is Krishna, the Lord of yoga, and Arjuna with the weapons of duty, there will be everlasting prosperity, victory, happiness and morality.", "L": ["L10"] },
-        { "s": "B", "t": "What happens next is in the Mahabharata, not the Gita. Arjuna picks up his bow, the war lasts eighteen days, and the Pandavas win, at a terrible cost. The Gita doesn't pretend that doing your duty makes life painless. It teaches how to act rightly anyway, free inside." }
+        {
+          "s": "A",
+          "t": "Arjuna asks one more question, eighteen point one: I wish to know the nature of renunciation, Samnyasa, and sacrifice, Tyaga, and the difference between the two."
+        },
+        {
+          "s": "B",
+          "t": "Krishna, eighteen point two: the sages call renunciation the giving up of work for personal profit. The wise define sacrifice as freedom from attachment to the fruits of all work.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And his own conclusion, eighteen point five and six: acts of service, charity and austerity should not be abandoned, because they purify the wise. But even these should be done without attachment to the fruits. This is My definite, supreme advice.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Giving up duty out of delusion is ignorance. Giving it up because it's hard is passion. Doing it as duty, without attachment to the result, is goodness. That's the true renunciant.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Then the five causes of every action, eighteen point fourteen: the body, the modes of nature as the doer, the eleven organs, the life forces, and fate. And sixteen: those who think the body or the soul is the sole agent don't understand.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Eighteen point seventeen, which speaks straight to Arjuna's battle: one who is free from the notion of doership, whose intellect isn't polluted by desire for the fruit, even after slaying all these people, neither slays nor is bound.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Then a grand tour of the three modes. Knowledge, eighteen point twenty: seeing a single immutable Reality in all beings, undivided in the divided, is knowledge in goodness. Seeing only separate things is passion. Clinging to one small thing, like the body, as if it were everything, is ignorance.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Action, too: duty without selfish motive is goodness, action driven by ego and strain is passion, and action from delusion, blind to harm, is ignorance.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Intellect, eighteen point thirty to thirty-two: in goodness, it knows right from wrong, bondage from liberation. In passion, it can't tell righteousness from unrighteousness. In ignorance, it takes wrong for right, and sees everything upside down.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And then pleasure, eighteen point thirty-seven and thirty-eight, one of the most useful verses in the book: the pleasure that is like poison in the beginning but nectar in the end is in goodness. Sensual pleasures that are like nectar in the beginning but poison in the end are in passion.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Then work and nature. Eighteen point forty-one, and our book is emphatic: the division of labor into four categories is based on the qualities inherent in people's nature, and not necessarily as one's birthright.",
+          "L": [
+            "L6"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And eighteen point forty-six: one attains perfection by worshipping the Supreme through the performance of one's own natural duty. And forty-eight: don't abandon your natural work even if it has defects, because all undertakings are covered by defects, as fire by smoke.",
+          "L": [
+            "L6"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Then the whole path in one breath, eighteen point fifty-one to fifty-three: a purified intellect, a steady mind, simple living, meditation, and letting go of ego, pride, lust, anger and possessiveness. One becomes peaceful, free of I and my.",
+          "L": [
+            "L7"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Eighteen point fifty-four and fifty-five: serene, neither grieving nor desiring, impartial to all beings, one gains the highest devotion. And by devotion one truly understands who I am, and immediately merges with Me.",
+          "L": [
+            "L7"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Then a hard truth about free will. Eighteen point fifty-nine and sixty: if, out of ego, you think, I shall not fight, your resolve is in vain. Your own nature will compel you. You are bound by your own nature-born impressions.",
+          "L": [
+            "L8"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Eighteen point sixty-one: the Supreme Lord, abiding in the heart of all beings, causes them to work out their Karma, like puppets mounted on a machine.",
+          "L": [
+            "L8"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And then, after all of it, eighteen point sixty-three: thus I have explained the knowledge that is more secret than the secret. After fully reflecting on this, do as you wish.",
+          "L": [
+            "L8"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Do as you wish. After eighteen chapters, God doesn't command. He leaves the choice to Arjuna."
+        },
+        {
+          "s": "A",
+          "t": "And then the final, most secret word. Eighteen point sixty-five: fix your mind on Me, be devoted to Me, serve Me, bow down to Me, and you shall certainly reach Me. I promise you, because you are My very dear friend.",
+          "L": [
+            "L9"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "And eighteen point sixty-six, called the final verse of the Gita's teaching: setting aside doership, ownership and attachment to the fruits of all works, just surrender to My will. I shall liberate you from all sins and bondage of Karma. Do not grieve.",
+          "L": [
+            "L9"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Our book's gloss: this doesn't mean abandoning duties. It means doing them without ego and attachment, as an offering, and depending totally on God, who then takes full responsibility.",
+          "L": [
+            "L9",
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And then the question we've waited eighteen chapters for. Eighteen point seventy-two: Arjuna, did you listen with single-minded attention? Has your delusion born of ignorance been destroyed?"
+        },
+        {
+          "s": "B",
+          "t": "Eighteen point seventy-three, Arjuna: by Your grace my delusion is destroyed. I have gained Self-knowledge. My confusion about body and Spirit is gone. And I shall obey Your command."
+        },
+        {
+          "s": "A",
+          "t": "The man who sat down in his chariot in Chapter One, bow on the floor, stands up."
+        },
+        {
+          "s": "B",
+          "t": "And Sanjaya, narrating to the blind king, says: remembering this dialogue, I rejoice over and over again."
+        },
+        {
+          "s": "A",
+          "t": "And his last words, eighteen point seventy-eight: wherever there is Krishna, the Lord of yoga, and Arjuna with the weapons of duty, there will be everlasting prosperity, victory, happiness and morality.",
+          "L": [
+            "L10"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "What follows is in the Mahabharata. Arjuna picks up his bow, and the war is won, at terrible cost. The Gita never says duty is painless. It teaches how to act rightly anyway."
+        }
       ]
     },
     {
       "title": "Lesson 1 · Renounce attachment, not duty",
       "turns": [
-        { "s": "A", "t": "Lesson one: true renunciation is releasing attachment to results, not abandoning duty.", "L": ["L1"] },
-        { "s": "B", "t": "Service, charity and discipline must not be dropped. They purify the doer. What you give up is your grip on the outcome.", "L": ["L1"] },
-        { "s": "A", "t": "Dropping duty out of delusion or laziness is ignorance. Dropping attachment while you act is wisdom.", "L": ["L1"] }
+        {
+          "s": "A",
+          "t": "Lesson one: true renunciation is releasing attachment to results, not abandoning duty.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Service, charity and discipline must not be dropped. They purify the doer. What you give up is your grip on the outcome.",
+          "L": [
+            "L1"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 2 · Five causes",
       "turns": [
-        { "s": "B", "t": "Lesson two: five causes drive every action, not the Self alone.", "L": ["L2"] },
-        { "s": "A", "t": "The body, the modes of nature, the organs, the life forces, and fate. Every act has all five behind it.", "L": ["L2"] },
-        { "s": "B", "t": "Whoever understands this doesn't falsely claim to be the doer, and isn't bound, even in battle.", "L": ["L2"] }
+        {
+          "s": "B",
+          "t": "Lesson two: five causes drive every action, not the Self alone.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "The body, the modes of nature, the organs, the life forces, and fate. Every act has all five behind it.",
+          "L": [
+            "L2"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 3 · Knowledge, action, agent",
       "turns": [
-        { "s": "A", "t": "Lesson three: knowledge, action and the actor all come in three modes.", "L": ["L3"] },
-        { "s": "B", "t": "Goodness sees one Reality in everyone, acts from duty without ego, and stays steady. Passion sees only separateness and acts from craving. Ignorance clings to a narrow view and acts blindly, ignoring harm.", "L": ["L3"] },
-        { "s": "A", "t": "The mode behind an act decides its spiritual effect, more than the act itself.", "L": ["L3"] }
+        {
+          "s": "A",
+          "t": "Lesson three: knowledge, action and the actor all come in three modes.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Goodness sees one Reality in everyone, acts from duty without ego, and stays steady. Passion sees only separateness and acts from craving. Ignorance clings to a narrow view and acts blindly, ignoring harm.",
+          "L": [
+            "L3"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 4 · Intellect and resolve",
       "turns": [
-        { "s": "B", "t": "Lesson four: intellect and resolve also come in three modes.", "L": ["L4"] },
-        { "s": "A", "t": "A clear intellect knows right from wrong and bondage from freedom. A passionate one confuses them. A dark one calls wrong right.", "L": ["L4"] },
-        { "s": "B", "t": "And resolve in goodness steadies mind and senses for God; in passion it clings to wealth and pleasure; in ignorance it can't let go of sleep, fear, grief and carelessness.", "L": ["L4"] }
+        {
+          "s": "B",
+          "t": "Lesson four: intellect and resolve also come in three modes.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "A clear intellect knows right from wrong and bondage from freedom. A passionate one confuses them. A dark one calls wrong right.",
+          "L": [
+            "L4"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 5 · Bitter first, sweet later",
       "turns": [
-        { "s": "A", "t": "Lesson five: the highest pleasure is bitter at first and sweet at the end.", "L": ["L5"] },
-        { "s": "B", "t": "Spiritual practice is hard at first and blissful in the end. Sensual pleasure is sweet at first and poison in the end. And the pleasure of laziness and dullness is confused from start to finish.", "L": ["L5"] },
-        { "s": "A", "t": "It's a simple test for any choice: how will this taste at the end? Choose accordingly.", "L": ["L5"] }
+        {
+          "s": "A",
+          "t": "Lesson five: the highest pleasure is bitter at first and sweet at the end.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Spiritual practice is hard at first and blissful in the end. Sensual pleasure is sweet at first and poison in the end. And the pleasure of laziness and dullness is confused from start to finish.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "It's a simple test for any choice: how will this taste at the end? Choose accordingly.",
+          "L": [
+            "L5"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 6 · Work by nature",
       "turns": [
-        { "s": "B", "t": "Lesson six: the division of work is based on natural ability, not birth.", "L": ["L6"] },
-        { "s": "A", "t": "Thinkers, leaders, makers and traders, and those who serve: four kinds of work, matched to people's inner qualities, not to the family they were born in.", "L": ["L6"] },
-        { "s": "B", "t": "Doing your own natural work with dedication and without selfish motive is itself the path to the highest perfection.", "L": ["L6"] }
+        {
+          "s": "B",
+          "t": "Lesson six: the division of work is based on natural ability, not birth.",
+          "L": [
+            "L6"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Thinkers, leaders, makers and traders, and those who serve: four kinds of work, matched to people's inner qualities, not to the family they were born in.",
+          "L": [
+            "L6"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 7 · Duty, discipline, devotion",
       "turns": [
-        { "s": "A", "t": "Lesson seven: attain liberation through duty, discipline, and devotion.", "L": ["L7"] },
-        { "s": "B", "t": "Purify the intellect, steady the mind, step back from sense objects, drop likes and dislikes, live simply, guard your speech, meditate, and let go of ego, violence, pride, lust, anger and possessiveness.", "L": ["L7"] },
-        { "s": "A", "t": "That brings peace, and readiness for union with the Supreme, which devotion then completes.", "L": ["L7"] }
+        {
+          "s": "A",
+          "t": "Lesson seven: attain liberation through duty, discipline, and devotion.",
+          "L": [
+            "L7"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Purify the intellect, steady the mind, step back from sense objects, drop likes and dislikes, live simply, guard your speech, meditate, and let go of ego, violence, pride, lust, anger and possessiveness.",
+          "L": [
+            "L7"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 8 · Will within Karma",
       "turns": [
-        { "s": "B", "t": "Lesson eight: human will operates within God's Karmic law.", "L": ["L8"] },
-        { "s": "A", "t": "God, in every heart, makes beings work out their Karma. But the Karma we work out was made by our own past choices. We're the product of our own thinking and action.", "L": ["L8"] },
-        { "s": "B", "t": "So the freedom we have is now. Think and act wisely today, with scripture as a guide. And remember Krishna's respect for that freedom: do as you wish.", "L": ["L8"] }
+        {
+          "s": "B",
+          "t": "Lesson eight: human will operates within God's Karmic law.",
+          "L": [
+            "L8"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "God, in every heart, makes beings work out their Karma. But the Karma we work out was made by our own past choices. We're the product of our own thinking and action.",
+          "L": [
+            "L8"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "So the freedom we have is now. Think and act wisely today, with scripture as a guide. And remember Krishna's respect for that freedom: do as you wish.",
+          "L": [
+            "L8"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 9 · Surrender",
       "turns": [
-        { "s": "A", "t": "Lesson nine: surrender to God is the ultimate path.", "L": ["L9"] },
-        { "s": "B", "t": "Let go of ego-driven doership and ownership. Surrender to God's will. Offer every action with love.", "L": ["L9"] },
-        { "s": "A", "t": "And God's promise: I shall liberate you from all bondage. Do not grieve. The most secret of all secrets turns out to be trust.", "L": ["L9"] }
+        {
+          "s": "A",
+          "t": "Lesson nine: surrender to God is the ultimate path.",
+          "L": [
+            "L9"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Let go of ego-driven doership and ownership. Surrender to God's will. Offer every action with love.",
+          "L": [
+            "L9"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And God's promise: I shall liberate you from all bondage. Do not grieve. The most secret of all secrets turns out to be trust.",
+          "L": [
+            "L9"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 10 · Knowledge and action together",
       "turns": [
-        { "s": "B", "t": "And lesson ten: both knowledge and devoted action are required for liberation.", "L": ["L10"] },
-        { "s": "A", "t": "The Gita ends where Krishna and Arjuna stand together: wisdom and duty, the teacher and the warrior.", "L": ["L10"] },
-        { "s": "B", "t": "Neither knowledge alone nor action alone is enough. Where both are united, there is prosperity, victory, happiness and right order.", "L": ["L10"] }
+        {
+          "s": "B",
+          "t": "And lesson ten: both knowledge and devoted action are required for liberation.",
+          "L": [
+            "L10"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "The Gita ends where Krishna and Arjuna stand together: wisdom and duty, the teacher and the warrior.",
+          "L": [
+            "L10"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Neither knowledge alone nor action alone is enough. Where both are united, there is prosperity, victory, happiness and right order.",
+          "L": [
+            "L10"
+          ]
+        }
       ]
     },
     {
       "title": "Wrap-up",
       "turns": [
-        { "s": "A", "t": "So, Chapter Eighteen, and the whole Gita. Renounce attachment, not duty. See the three modes in everything. Do your own natural work as worship. Act wisely now. And in the end, surrender, and do not grieve.", "L": ["L1", "L3", "L6", "L8", "L9"] },
-        { "s": "B", "t": "Ten lessons: renounce attachment, not duty; five causes; knowledge, action, agent; intellect and resolve; bitter first, sweet later; work by nature; duty, discipline, devotion; will within Karma; surrender; and knowledge and action together.", "L": ["L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "L9", "L10"] },
-        { "s": "A", "t": "Arjuna began this book unable to stand. He ends it saying, my delusion is destroyed, and I shall act. We hope these eighteen conversations helped you along the same road." },
-        { "s": "B", "t": "As the book itself ends: may we all be blessed with goodness, prosperity and peace. Thanks for listening to Shruti." }
+        {
+          "s": "A",
+          "t": "So, Chapter Eighteen, and the whole Gita. Renounce attachment, not duty. See the three modes in everything. Do your own natural work as worship. Act wisely now. And in the end, surrender, and do not grieve.",
+          "L": [
+            "L1",
+            "L3",
+            "L6",
+            "L8",
+            "L9"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Ten lessons, and the whole Gita gathered into them.",
+          "L": [
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5",
+            "L6",
+            "L7",
+            "L8",
+            "L9",
+            "L10"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Arjuna began this book unable to stand. He ends it saying, my delusion is destroyed, and I shall act. We hope these eighteen conversations helped you along the same road."
+        },
+        {
+          "s": "B",
+          "t": "As the book itself ends: may we all be blessed with goodness, prosperity and peace. Thanks for listening to Shruti."
+        }
       ]
     }
   ]
