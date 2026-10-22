@@ -197,6 +197,15 @@ async function load(c, { w, h, mobile, store, hash = '' }) {
   await waitFor(c, `document.querySelectorAll('.ch').length===18`);
   await shot(c, 'veda-book-1280');
 
+  console.log('
+Firestore refuses the first reads (sign-in late, the network briefly gone)');
+  await load(c, { w: 1280, h: 860, mobile: false, store: "sessionStorage.setItem('shruti.pick','tony'); sessionStorage.setItem('__fakefs_fail','2');", hash: '#/' });
+  ok('while it tries again the pill says syncing, not failed', await waitFor(c, `!!window.Shruti && !!window.Shruti.core.me.error && document.getElementById('sync-pill').classList.contains('busy')`, 8000));
+  ok('his key is there before sync loads (kept on this device)', await ev(c, `return !window.Shruti.core.me.loaded && window.Shruti.core.orcaKey()===${JSON.stringify(KEY)}`));
+  ok('it listens again by itself: loaded, and the pill says synced', await waitFor(c, `const C=window.Shruti.core; return C.me.loaded && C.shared.loaded && !C.me.error && document.getElementById('sync-pill').classList.contains('ok')`, 15000),
+    await ev(c, `const C=window.Shruti.core; return C.me.loaded+' '+C.shared.loaded+' '+document.getElementById('sync-pill').className`));
+  ok('…and Settings shows his key, not "No key yet"', await (async () => { await ev(c, `document.querySelector('[data-settings], #settings-btn')?.click(); return 1`); return waitFor(c, `const s=document.getElementById('orca-stat'); return s && !/No key yet/.test(s.textContent) && /Replace/.test(document.getElementById('orca-save').textContent)`, 8000); })());
+
   const errs = await ev(c, `return JSON.stringify(window.__errs||[])`);
   ok('no page errors', errs === '[]', errs);
   console.log('\nScreenshots: ' + path.dirname(shotPath('x')));
