@@ -134,7 +134,8 @@ async function audit(c, label) {
 
   /* ── 1. error states ── */
   console.log('\nError states (Tony, 1280)');
-  await load(c, { w: 1280, h: 900, mobile: false, who: 'tony', hash: '#/b/gita/4' });
+  // On Listen, Make with AI makes a podcast (each tab makes its own kind).
+  await load(c, { w: 1280, h: 900, mobile: false, who: 'tony', hash: '#/b/gita/4/listen' });
   ok('chapter 4 opens', await waitFor(c, `!!document.getElementById('make-ai')`));
   ok('Import is not loaded yet', await ev(c, `return !performance.getEntriesByType('resource').some(r=>/\\/(import|extract)\\.js/.test(r.name))`));
 
@@ -179,10 +180,11 @@ async function audit(c, label) {
   // Every unit down.
   await setKey(c, GOOD);
   chatStatus = 502;
+  await ev(c, `location.hash='#/b/gita/4/lessons'; return 1`);
+  await waitFor(c, `location.hash.endsWith('/lessons') && !!document.getElementById('make-ai')`);
+  await sleep(400);
   await ev(c, `document.getElementById('make-ai').click(); return 1`);
   await waitFor(c, `!!document.querySelector('#gen-run [data-make]') && !document.querySelector('#gen-run .ai-prob')`);
-  await ev(c, `document.querySelector('#gen-sheet [data-kind=lessons]').click(); return 1`);
-  await waitFor(c, `!!document.querySelector('#gen-run [data-make]')`);
   await ev(c, `document.querySelector('#gen-run [data-make]').click(); return 1`);
   ok('every unit down: "No unit could answer just now", each named', await waitFor(c, `const t=document.querySelector('#gen-run .ai-prob')?.textContent||''; return /No unit could answer just now/.test(t) && /DeepSeek offline/.test(t) && /Perplexity offline/.test(t)`, 30000),
     await ev(c, `return document.getElementById('gen-run').textContent`));

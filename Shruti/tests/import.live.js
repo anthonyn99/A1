@@ -189,10 +189,11 @@ const imp = (x) => `const IMP = await import(new URL('import.js', location.href)
   await ev(c, `location.hash='#/b/${mineId}/1'; return 1`);
   ok('Read shows the chapter\'s exact text', await waitFor(c, `/The sun came up over the hills, and the village woke slowly\\. Birds sang in the old fig tree by the well\\./.test(document.querySelector('article.rd')?.textContent||'')`));
   ok('…titled as saved, with its word count', /The Morning/.test(await ev(c, `return document.querySelector('.cp-head h1').textContent`)) && /words/.test(await ev(c, `return document.querySelector('.cp-head .m').textContent`)));
+  await ev(c, `location.hash='#/b/${mineId}/1/lessons'; return 1`);
+  await waitFor(c, `location.hash.endsWith('/lessons') && !!document.querySelector('#make-ai')`);
+  await sleep(500);
   await click(c, '#make-ai');
-  await waitFor(c, `!!document.querySelector('#gen-sheet [data-kind=lessons]')`);
-  await ev(c, `document.querySelector('#gen-sheet [data-kind=lessons]').click(); return 1`);
-  await waitFor(c, `!!document.querySelector('#gen-run [data-make]')`);
+  await waitFor(c, `/Draw the lessons/.test(document.querySelector('#gen-sheet h2')?.textContent||'') && !!document.querySelector('#gen-run [data-make]')`);
   await ev(c, `document.querySelector('#gen-run [data-make]').click(); return 1`);
   ok('Make with AI works on it: lessons drawn, kept in Tony\'s own doc', await waitFor(c, `!!window.Shruti.core.me.get('assets.${mineId}.ch1.lessons',null) && !window.Shruti.core.shared.get('assets.${mineId}',null)`, 15000), await ev(c, `return document.querySelector('#gen-run')?.textContent.slice(0,300)`));
   ok('…the ask carried the chapter\'s own text and its title', /The sun came up over the hills/.test(S.chats[S.chats.length - 1].body) && /The Little Book of Days/.test(S.chats[S.chats.length - 1].body));
