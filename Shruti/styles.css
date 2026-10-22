@@ -1322,3 +1322,9 @@ body[data-profile=veda] .sw-in:checked::after { background: #fff; }
 /* A textarea and its A1 corner grip (resizegrip.js; app.js gripAll). */
 .a1-gripwrap { position: relative; display: block; width: 100%; }
 .a1-gripwrap textarea { display: block; }
+
+/* Slides: which voice narrates the deck (Tony, 2026-10-22) */
+.sd-vpick { margin: -2px 0 14px; padding: 12px 14px 14px; border-radius: var(--r2); background: var(--s1); border: 1px solid var(--line2); box-shadow: var(--sh1); animation: popIn .22s var(--ease) both; }
+.sd-vp-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.sd-vp-h b { font-size: 13.5px; }
+.sd-vpick .chips { margin: 0 0 12px; }

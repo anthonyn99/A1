@@ -173,6 +173,10 @@ const prog = (c, path) => ev(c, `return JSON.stringify(window.Shruti.core.me.get
   await key(c, 'Escape', 'Escape');
   ok('Esc leaves the presentation on that slide', await waitFor(c, `!document.querySelector('.sd-present') && document.querySelector('.sd-count').textContent==='3 / ${set4.slides.length}'`));
   await ev(c, `[...document.querySelectorAll('.st-actions .btn')].find(b=>/Narrate deck/.test(b.textContent)).click(); return 1`);
+  ok('Narrate deck first asks which voice (Tony, 2026-10-22)', await waitFor(c, `document.querySelectorAll('.sd-vpick [data-v]').length>=13`));
+  await ev(c, `document.querySelector('.sd-vpick [data-v="en-GB-SoniaNeural"]').click(); return 1`);
+  ok('…a voice picked is kept for him', await waitFor(c, `window.Shruti.core.me.get('slidesVoice')==='en-GB-SoniaNeural' && /Narrate in Sonia/.test(document.querySelector('.sd-vp-go').textContent)`));
+  await ev(c, `document.querySelector('.sd-vp-go').click(); return 1`);
   const started = await waitFor(c, `[...document.querySelectorAll('.st-actions .btn')].some(b=>/Stop narration|Getting the voice/.test(b.textContent))`);
   for (const t0 = Date.now(); S.speech < 1 && Date.now() - t0 < 8000;) await sleep(100);
   ok('Narrate deck asks Orca for the slide\'s voice and plays', started && S.speech >= 1, 'speech calls: ' + S.speech);

@@ -83,7 +83,7 @@ export function mount(root, setSlides, { book, set, title }) {
     swipe(stage, () => go(st.i + 1), () => go(st.i - 1));
     const hud = h('div', 'sd-present-hud');
     hud.append(btn('', 'left', () => go(st.i - 1), 'round', 'Previous'), h('span', 'sd-present-count'), btn('', 'right', () => go(st.i + 1), 'round', 'Next'),
-      btn('', narr.on ? 'pause' : 'voice', () => { toggleNarration(); hud.querySelector('[data-nar]').innerHTML = narr.on ? IC.pause : IC.voice; }, 'round', 'Narrate'), btn('', 'x', closePresent, 'round', 'Exit (Esc)'));
+      btn('', narr.on ? 'pause' : 'voice', () => { toggleNarration(false); hud.querySelector('[data-nar]').innerHTML = narr.on ? IC.pause : IC.voice; }, 'round', 'Narrate'), btn('', 'x', closePresent, 'round', 'Exit (Esc)'));
     hud.children[3].dataset.nar = '1';
     overlay.append(stage, hud);
     document.body.append(overlay);
