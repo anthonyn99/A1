@@ -142,7 +142,7 @@ export async function run(o, on = {}, { signal, chat = O.chat, speak = O.speak, 
             stage('repair', 'Asking ' + name + ' to add ' + cov.missing.join(', '));
             on.delta && on.delta('\n\n');
             const more = await askAll(F.missingPrompt(k, messages, text, cov.missing, L), 'more');
-            try { script = F.mergeLessons(k, script, F.parseReply(k, more, pctx)); } catch (e) {}
+            try { script = F.mergeLessons(k, script, F.parseReply(k, more, pctx), cov.missing); } catch (e) {}
             cov = F.coverage(k, script, ids);
             on.coverage && on.coverage(cov);
           }

@@ -374,13 +374,16 @@ export function coverage(kind, script, lessonIds) {
 const firstL = (xs) => xs.map((x) => Number(String(x).slice(1))).filter((n) => n > 0)[0];
 /** Missing lesson parts or scenes, each put after the last one that teaches an
  *  earlier lesson (else before the wrap-up / closing). */
-export function mergeLessons(kind, script, extra) {
+export function mergeLessons(kind, script, extra, missing) {
   const list = kind === 'podcast' ? script.segments.slice() : script.scenes.slice();
   const more = kind === 'podcast' ? extra.segments : extra.scenes;
   const lOf = (x) => firstL(kind === 'podcast' ? x.turns.flatMap((t) => t.L) : x.L || []);
+  const want = missing ? new Set(missing) : null;
   for (const piece of more) {
     const n = lOf(piece);
-    if (!n) continue;
+    // Only what was missing: a unit that sends the whole script again adds nothing twice.
+    if (!n || (want && !want.has('L' + n))) continue;
+    if (want) want.delete('L' + n);
     let at = -1;
     list.forEach((x, i) => { const m = lOf(x); if (m && m < n) at = i; });
     if (at < 0) {
