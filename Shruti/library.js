@@ -334,7 +334,7 @@ export async function taskContext(book, n) {
   if (!meta) throw new Error('That chapter is not in the book any more');
   const [ch, lessons, pods, vids, study, ready] = await Promise.all([loadChapter(book, meta.file), loadLessons(book), POD.shipped(book), VID.shipped(book), H.shippedIndex(book), NR.readyFor(book, n)]);
   return {
-    bookTitle: b.title, title: meta.title, ch, lessons: lessonsFor(book, n, lessons), ready,
+    book, n, bookTitle: b.title, title: meta.title, ch, lessons: lessonsFor(book, n, lessons), ready,
     shipped: { podcast: !!(pods && pods[String(n)]), video: !!(vids && vids[String(n)]) },
     hasStudy: H.hasStudy(book, n, study),
     chapters: [...(b.intro ? [{ n: 0, title: b.intro.title, file: b.intro.file }] : []), ...b.chapters],
