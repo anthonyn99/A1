@@ -132,7 +132,7 @@ const pickerBackdrop = (() => {
   return (show) => {
     on = show;
     if (!show) { cancelAnimationFrame(raf); raf = 0; return; }
-    cv = cv || $('#pk-bg'); if (!cv) return;
+    cv = cv || $('#pk-backdrop'); if (!cv) return;
     ctx = ctx || cv.getContext('2d');
     size(); frame(performance.now());
     if (!raf) raf = requestAnimationFrame(loop);

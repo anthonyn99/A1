@@ -130,10 +130,19 @@ const flush = (c) => ev(c, `return window.Shruti.core.me.flush().then(()=>1)`);
   await ev(c, `[...document.querySelectorAll('.rd .vn')].find(v=>v.textContent==='2.11').click(); return 1`);
   ok('tapping verse 2.11\'s number bookmarks it (ribbon, count)', await waitFor(c, `document.querySelector('.rd [data-b="${vb}"]').classList.contains('bm') && document.querySelector('.rd-bar .cnt').textContent==='1'`));
   ok('…in his doc, named by its verse', await waitFor(c, `const d=window.__fakeFs.docs['dashboards/shruti']; return d.bookmarks && d.bookmarks.gita.ch2['b${vb}'].label==='Verse 2.11'`));
+  const textTop = await ev(c, `return document.querySelector('.rd').getBoundingClientRect().top`);
   await ev(c, `document.querySelector('[data-bms]').click(); return 1`);
   ok('the bookmarks list shows it', await waitFor(c, `/Verse 2\\.11/.test(document.getElementById('rd-bms').textContent)`));
+  ok('…as a drop-down over the text: the reading text does not move', await ev(c, `const p=document.getElementById('rd-bms'); return getComputedStyle(p).position==='absolute' && Math.abs(document.querySelector('.rd').getBoundingClientRect().top-${textTop})<1 && p.getBoundingClientRect().right<=document.querySelector('.rd-bar').getBoundingClientRect().right+1`),
+    await ev(c, `return document.querySelector('.rd').getBoundingClientRect().top+' vs ${textTop}'`));
   await shot(c, 'reader-bookmarks-1280');
-  await ev(c, `document.querySelector('[data-bms]').click(); location.hash='#/b/gita'; return 1`);
+  await ev(c, `document.querySelector('.rd p').dispatchEvent(new PointerEvent('pointerdown', {bubbles:true})); return 1`);
+  ok('a tap outside closes it', await waitFor(c, `document.getElementById('rd-bms').hidden && document.querySelector('[data-bms]').getAttribute('aria-expanded')==='false'`));
+  await ev(c, `document.querySelector('[data-bms]').click(); return 1`);
+  await waitFor(c, `!document.getElementById('rd-bms').hidden`);
+  await ev(c, `document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true})); return 1`);
+  ok('…and so does Esc', await waitFor(c, `document.getElementById('rd-bms').hidden`));
+  await ev(c, `location.hash='#/b/gita'; return 1`);
   ok('the book page lists his bookmarks', await waitFor(c, `[...document.querySelectorAll('.bmk')].some(b=>/Verse 2\\.11/.test(b.textContent))`));
   await ev(c, `document.querySelector('.bmk').click(); return 1`);
   ok('a bookmark opens the chapter at that verse', await waitFor(c, `location.hash==='#/b/gita/2/read/${vb}' && (()=>{const r=document.querySelector('.rd [data-b="${vb}"]').getBoundingClientRect(); return r.top>40 && r.top<300})()`, 6000),
