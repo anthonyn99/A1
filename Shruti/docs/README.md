@@ -174,15 +174,20 @@ Make with AI, Make a study set and Import's AI steps all say the same thing in t
 
 ## The Drive worker (`worker/`, https://shruti-drive.av1-2.workers.dev)
 
-Media (podcasts, videos, narrations, transcripts, imported originals) goes to Tony's Google Drive,
-folder `Shruti/<book>/<chapter>/`, through this worker. The refresh token lives only in its KV
-(`SHRUTI_DRIVE`); scope is `drive.file`, so it sees only the files it made.
+Media (podcasts, videos, narrations, transcripts, imported originals) goes to Google Drive,
+folder `Shruti/<book>/<chapter>/`, through this worker. **Two Drives (2026-10-22):** Veda's own
+things go to her Drive (`acct=veda`, KV key `google:veda`), Tony's and everything shared to his
+(`acct=tony`, KV key `google`); `media.js acctFor(book)` decides. Each person connects theirs in
+Settings → Google Drive. Uploads return a **permanent** signed link (`e=0`), stored with the file,
+so a shared book plays the same on both sides without signing again; older records are upgraded
+once on load (`M.upgradeLinks`). Scope is `drive.file`, so it sees only the files it made.
 
 - **Who may call it:** a working Orca key (`Authorization: Bearer orca_sk_…`), checked against
   Orca's `/v1/models` and cached for 10 minutes. Optional `ALLOWED_KEYS` (SHA-256 hex, comma
   separated) narrows it to named keys.
-- **Playback:** `<audio>` cannot send a header, so `POST /sign {ids}` returns `/f/<id>?e=&s=` links
-  good for 6 hours. `GET /f/<id>` passes `Range` through, so audio seeks.
+- **Playback:** `<audio>` cannot send a header, so `POST /sign {ids, acct, permanent}` returns
+  `/f/<id>?a=&e=&s=` links (6 hours, or permanent with `e=0`). `GET /f/<id>` passes `Range` through, so audio seeks.
+  `/health` lists both accounts (`accounts.tony`, `accounts.veda`).
 - **Routes:** `GET /health`, `POST /connect`, `GET /callback`, `POST /disconnect`,
   `PUT /f?book&chapter&name&owner`, `POST /sign`, `GET|HEAD|DELETE /f/<id>`.
 - **Deploy:** pushes to `Shruti/worker/**` deploy it through `.github/workflows/deploy-workers2.yml`.
