@@ -25,6 +25,7 @@ import * as M from './media.js';
 import * as O from './orca.js';
 import { SILENCE_B64 } from './podcast.js';
 import * as ART from './art.js';
+import * as PT from './ptools.js';
 
 const DRIVE = M.DRIVE;
 export const W = 1920, H = 1080;
@@ -785,14 +786,17 @@ export async function renderWatch(body, { book, n, title, lessons }) {
           '<div class="vid-fill"></div><div class="vid-knob"></div></div>' +
         '<span class="vid-time"><b>0:00</b> / ' + T.fmtTime(meta.duration) + '</span>' +
       '</div>' +
-      '<div class="pod-tools vid-tools">' +
-        '<div class="chips pod-speed" role="radiogroup" aria-label="Speed">' + SPEEDS.map((s) => '<button class="chip" data-speed="' + s + '" role="radio">' + s + '×</button>').join('') + '</div>' +
-        '<span class="sp"></span>' +
-        '<button class="ib" data-music title="Music" aria-label="Music" aria-pressed="true">' + I.music + '</button>' +
-        '<button class="ib" data-cc title="Captions" aria-label="Captions" aria-pressed="true">' + I.cc + '</button>' +
-        '<button class="ib" data-export title="Export the video as a file" aria-label="Export the video as a file">' + I.rec + '</button>' +
-        '<button class="ib" data-fs title="Full screen" aria-label="Full screen">' + I.full + '</button>' +
-      '</div>' +
+      // Under the picture (Tony, 2026-10-22: "way cleaner"): the speed pill
+      // (speeds open only from it) and one group of tools.
+      '<div class="pctl vid-tools">' +
+        '<div class="pctl-l">' + PT.speedHTML() + '</div>' +
+        '<div class="pctl-r"><div class="tl-group">' +
+          PT.tool('data-music title="Music" aria-label="Music" aria-pressed="true"', I.music, 'Music') +
+          PT.tool('data-cc title="Captions" aria-label="Captions" aria-pressed="true"', I.cc, 'Captions') +
+          PT.tool('data-export title="Export the video as a file" aria-label="Export the video as a file"', I.rec, 'Export') +
+          PT.tool('data-fs title="Full screen" aria-label="Full screen"', I.full, 'Full screen') +
+        '</div></div>' +
+      '</div>' + PT.speedsRowHTML(SPEEDS) +
       '<div class="vid-note" hidden></div>' +
       '<div class="sec-h"><h2>Scenes</h2><span class="n">' + meta.scenes.length + '</span></div>' +
       '<div class="vid-board">' + meta.scenes.map((s, i) =>
@@ -801,8 +805,9 @@ export async function renderWatch(body, { book, n, title, lessons }) {
           '<b>' + esc(s.layout === 'verse' ? 'Verse ' + s.ref : s.headline) + '</b>' +
           ((s.L || []).length ? '<span class="vsc-l">' + s.L.map((id) => '<i class="ltag">' + esc(id) + '</i>').join('') + '</span>' : '') +
         '</button>').join('') + '</div>' +
-      '<section class="pod-cov"><h3>Lessons in this video <span class="' + (cov.missing.length ? 'bad' : 'good') + '">' + cov.covered.length + ' of ' + Ls.length + '</span></h3>' +
-        '<div class="pod-ls">' + Ls.map((l) => '<button class="pl" data-lesson="' + esc(l.id) + '"' + (firstSceneOf(l.id) < 0 ? ' disabled' : '') + '><i>' + esc(l.id) + '</i><span>' + esc(l.title || '') + '</span></button>').join('') + '</div></section>' +
+      // The lessons fold away (Tony, 2026-10-22), closed until opened.
+      (Ls.length ? PT.foldHTML('vidLessons', 'Lessons in this video <span class="' + (cov.missing.length ? 'bad' : 'good') + '">' + cov.covered.length + ' of ' + Ls.length + '</span>',
+        '<div class="pod-ls">' + Ls.map((l) => '<button class="pl" data-lesson="' + esc(l.id) + '"' + (firstSceneOf(l.id) < 0 ? ' disabled' : '') + '><i>' + esc(l.id) + '</i><span>' + esc(l.title || '') + '</span></button>').join('') + '</div>') : '') +
     '</div>';
   const root = body.querySelector('.vid'), stage = root.querySelector('.vid-stage'), canvas = stage.querySelector('canvas');
   const ctx = canvas.getContext('2d');
@@ -848,6 +853,8 @@ export async function renderWatch(body, { book, n, title, lessons }) {
   }
 
   const playBtn = root.querySelector('[data-play]'), ovPlay = root.querySelector('[data-ov-play]'), cover = root.querySelector('[data-cover]');
+  const paintSpeed = PT.bindSpeed(root, { get: () => prefs().speed, set: (v) => setPref('speed', v) });
+  PT.bindFolds(root);
   const paintTab = () => {
     if (!root.isConnected) return;
     const on = active(book, n) && V.playing;
@@ -855,8 +862,8 @@ export async function renderWatch(body, { book, n, title, lessons }) {
     ovPlay.innerHTML = on ? I.pause : I.play; ovPlay.setAttribute('aria-label', on ? 'Pause' : 'Play');
     cover.hidden = on || (active(book, n) && now() > 0.05) || !!V.rec;
     stage.classList.toggle('playing', on);
-    const sp = prefs().speed || 1;
-    root.querySelectorAll('[data-speed]').forEach((b) => { const o = Number(b.dataset.speed) === sp; b.classList.toggle('on', o); b.setAttribute('aria-checked', o); b.disabled = !!V.rec; });
+    paintSpeed();
+    root.querySelectorAll('[data-speed],[data-speed-pill]').forEach((b) => { b.disabled = !!V.rec; });
     const mu = root.querySelector('[data-music]'); mu.classList.toggle('on', !!prefs().music); mu.setAttribute('aria-pressed', !!prefs().music);
     const cc = !!prefs().cc;
     root.querySelectorAll('[data-cc],[data-ov-cc]').forEach((b) => { b.classList.toggle('on', cc); b.setAttribute('aria-pressed', cc); });
@@ -880,7 +887,6 @@ export async function renderWatch(body, { book, n, title, lessons }) {
   });
   root.querySelector('[data-prev]').addEventListener('click', () => !V.rec && stepScene(-1));
   root.querySelector('[data-next]').addEventListener('click', () => !V.rec && stepScene(1));
-  root.querySelectorAll('[data-speed]').forEach((b) => b.addEventListener('click', () => setPref('speed', Number(b.dataset.speed))));
   root.querySelectorAll('[data-cc],[data-ov-cc]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); setPref('cc', !prefs().cc); }));
   root.querySelector('[data-export]').addEventListener('click', () => (V.rec ? stopExport(true) : startExport()));
   root.querySelector('[data-music]').addEventListener('click', () => setPref('music', !prefs().music));
