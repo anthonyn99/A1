@@ -1,6 +1,8 @@
-// Make with AI: a podcast, a video, lessons or a read-aloud for any chapter,
-// through Orca with the person's own key (Phase 6). The Gita ships with all of
-// these; this is for imported books, other voices or lengths, and re-makes.
+// Make with AI's engine: a podcast, a video, lessons or a read-aloud for any
+// chapter, through Orca with the person's own key (Phase 6). The Gita ships with
+// all of these; this is for imported books, other voices or lengths, and
+// re-makes. The sheets are make.js's; the queue that runs this in the
+// background is jobs.js's; what is asked and how replies are read, formats.js's.
 //
 // The pipeline, the same for every kind:
 //   1. the chapter's exact text and its lessons go into the prompt (long text
@@ -18,12 +20,10 @@
 
 import * as C from './core.js';
 import * as O from './orca.js';
-import * as T from './text.js';
 import * as M from './media.js';
 import * as POD from './podcast.js';
 import * as VID from './video.js';
 import * as NR from './narrate.js';
-import * as OR from './order.js';
 import * as F from './formats.js';
 
 let ui = { toast: () => {}, go: () => {}, openSettings: () => {} };

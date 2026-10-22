@@ -39,7 +39,6 @@ const IC = {
   layers: I('<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>'),
   chev: I('<path d="M9 6l6 6-6 6"/>'),
 };
-IC.read = IC.read; IC.lessons = IC.lessons;
 const KIND_OF_TAB = { read: 'read', listen: 'podcast', watch: 'video', study: 'study', lessons: 'lessons' };
 const HEAD = {
   read: ['Make a narration', 'The chapter read aloud in one voice, kept for every device.'],
