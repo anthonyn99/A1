@@ -479,6 +479,9 @@ body[data-profile=veda] { --paper: #232427; }
 .shelf-add:hover .sa-cover, .shelf-add:focus-visible .sa-cover { border-color: var(--ac-line); background: var(--ac-soft); }
 .shelf-add:hover .sa-plus, .shelf-add:focus-visible .sa-plus { transform: scale(1.08); background: var(--s2); }
 .shelf-add:hover .sa-desc, .shelf-add:focus-visible .sa-desc { max-height: 80px; opacity: 1; }
+/* A shelf with no books yet: the tile at the top, no tall blank cell. */
+.shelf-add:only-child { aspect-ratio: auto; justify-content: flex-start; }
+.shelf-add:only-child .sa-cover { width: 132px; }
 /* Text or a file dragged over the library: the shelf it will land on lights. */
 .lib-sec { position: relative; }
 .lib-drop { position: absolute; inset: -8px -10px 18px; display: flex; align-items: center; justify-content: center; border-radius: var(--r3); border: 2px dashed var(--ac); background: color-mix(in srgb, var(--bg) 70%, var(--ac) 12%); opacity: 0; pointer-events: none; transition: opacity .15s; z-index: 2; }
