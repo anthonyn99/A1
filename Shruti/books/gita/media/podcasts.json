@@ -2,28 +2,28 @@
   "1": {
     "mp3": "ch01-podcast.mp3",
     "json": "ch01-podcast.json",
-    "duration": 581.424,
+    "duration": 603.264,
     "hosts": [
-      "Ava",
-      "Andrew"
+      "Emma",
+      "Brian"
     ]
   },
   "2": {
     "mp3": "ch02-podcast.mp3",
     "json": "ch02-podcast.json",
-    "duration": 900.984,
+    "duration": 641.616,
     "hosts": [
-      "Ava",
-      "Andrew"
+      "Emma",
+      "Brian"
     ]
   },
   "3": {
     "mp3": "ch03-podcast.mp3",
     "json": "ch03-podcast.json",
-    "duration": 892.224,
+    "duration": 675.336,
     "hosts": [
-      "Ava",
-      "Andrew"
+      "Emma",
+      "Brian"
     ]
   },
   "4": {
