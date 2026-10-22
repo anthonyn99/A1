@@ -1094,7 +1094,7 @@ body[data-profile=veda] .mk-label { text-transform: none; letter-spacing: 0; fon
 .mk-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .mk-any { border-top: 0; margin-top: 8px; padding-top: 0; }
 /* the run card */
-.mk-run { position: sticky; bottom: 0; margin-top: auto; padding: 14px 20px calc(18px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--bg) 70%, transparent); }
+.mk-run { position: sticky; bottom: 0; margin-top: auto; padding: 14px 20px calc(18px + env(safe-area-inset-bottom)); background: var(--bg); border-top: 1px solid var(--line); }
 .mk-run .ai-prob { display: flex; margin: 0 0 12px; }
 .mk-go { min-height: 46px; padding: 10px 20px; font-size: 14.5px; }
 .mk-run .gen-go .hint { color: var(--txd); }
