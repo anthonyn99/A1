@@ -3,60 +3,287 @@
   "book": "gita",
   "n": 4,
   "title": "Path of renunciation with Self-knowledge",
-  "narrator": { "name": "Brian", "voice": "en-US-BrianMultilingualNeural" },
+  "narrator": {
+    "name": "Sonia",
+    "voice": "en-GB-SoniaNeural"
+  },
   "scenes": [
-    { "layout": "title", "headline": "Renunciation with Self-Knowledge", "visual": ["Who Krishna really is, and what action really is"],
-      "say": "Chapter Four. The Path of Renunciation with Self-Knowledge. Here Krishna reveals two secrets: who he really is, and what action really is." },
-    { "layout": "verse", "ref": "4.01-03", "L": ["L1"],
-      "say": "He begins with a surprising claim about the teaching itself. {verse}" },
-    { "layout": "story", "headline": "How can that be?", "visual": ["Arjuna: you were born after Vivasvan", "Krishna: we have both had many births", "I remember them all; you do not"],
-      "say": "Arjuna is puzzled. You were born long after the sun-king Vivasvan, he says. How could you have taught him in the beginning? Krishna answers calmly: both you and I have taken many births. I remember them all, Arjuna. You do not. Though I am unborn and eternal, I take form through my own divine power." },
-    { "layout": "verse", "ref": "4.07-08", "L": ["L2"],
-      "say": "And then he says why. These may be the most quoted lines in India. {verse}" },
-    { "layout": "story", "headline": "Every seeker is met", "L": ["L3", "L4"], "visual": ["Whoever understands this is not born again", "Many reached freedom by taking refuge in Him", "With whatever motive people worship, He answers"],
-      "say": "Whoever truly understands these divine appearances, Krishna says, is not born again. Many before Arjuna became free from attachment, fear and anger by taking refuge in him. And whatever the motive with which people come to him, he meets them there and answers them accordingly." },
-    { "layout": "verse", "ref": "4.18", "L": ["L6"],
-      "say": "Then Krishna turns to the riddle at the heart of the chapter: what is action, and what is inaction? Even the wise are confused about it. Verse eighteen. {verse}" },
-    { "layout": "verse", "ref": "4.20", "L": ["L7"],
-      "say": "He explains what he means. Verse twenty. {verse}" },
-    { "layout": "story", "headline": "Many kinds of offering", "L": ["L8"], "visual": ["Worship, study and sense restraint", "Breath control, fasting and charity", "All purify those who practise them"],
-      "say": "Krishna then describes many kinds of spiritual practice, each one a form of sacrifice: worship, the study of scripture, restraint of the senses, control of the breath, a simple diet, charity. All of these, done sincerely, purify the person who practises them." },
-    { "layout": "verse", "ref": "4.33", "L": ["L9"],
-      "say": "But one offering stands above the rest. Verse thirty-three. {verse}" },
-    { "layout": "verse", "ref": "4.34", "L": ["L10"],
-      "say": "And where does such knowledge come from? Verse thirty-four. {verse}" },
-    { "layout": "verse", "ref": "4.37", "L": ["L11"],
-      "say": "Its power is total. Verse thirty-seven. {verse}" },
-    { "layout": "verse", "ref": "4.42", "L": ["L13"],
-      "say": "And the chapter ends, as so many do, with a call to rise. Verse forty-two. {verse}" },
-    { "layout": "lesson", "L": ["L1"], "visual": ["Taught at the beginning of creation", "Passed down through saintly kings", "Restored by God whenever it is lost"],
-      "say": "Lesson one. Karma-yoga is an ancient, eternal science. Selfless action is not a new idea Krishna invents on the battlefield. It was taught at the dawn of creation and handed down through saintly rulers, and when it is forgotten, God restores it." },
-    { "layout": "lesson", "L": ["L2"], "visual": ["When righteousness declines, God appears", "To protect the good", "To transform the wicked and restore order"],
-      "say": "Lesson two. God incarnates to restore righteousness. Whenever dharma declines and wrong rises, the Divine takes form, to protect the good, to transform the wicked, and to set the world right again. It is not random. It has a purpose." },
-    { "layout": "lesson", "L": ["L3"], "visual": ["Knowing God's appearances truly", "Frees one from rebirth", "Liberation needs understanding, not only behaviour"],
-      "say": "Lesson three. Understanding God's nature leads to liberation. Whoever truly understands the divine nature of God's appearances and works is freed from rebirth. Freedom is not only about good behaviour; it needs real understanding." },
-    { "layout": "lesson", "L": ["L4"], "visual": ["People seek God for many reasons", "Success, knowledge, love or freedom", "Each is met on their own path"],
-      "say": "Lesson four. God fulfils devotees according to their motive. People turn to the Divine for many reasons: success, knowledge, love, freedom. Krishna does not reject any of them. He meets each person on the path they have chosen." },
-    { "layout": "lesson", "L": ["L5"], "visual": ["God acts constantly, yet is not bound", "He has no desire for the results", "Whoever lives this is not bound either"],
-      "say": "Lesson five. Karma does not bind God, or those who understand this. God acts all the time, creating and sustaining, yet no karma touches him, because he wants nothing from the results. Anyone who understands and lives the same way is not bound either." },
-    { "layout": "compare", "headline": "Inaction in action, action in inaction", "L": ["L6"],
-      "visual": ["Selfless action | Selfish inaction", "Busy, yet free of ego | Idle, yet full of desire", "Creates no karma | Still creates karma", "Truly inaction | Truly action"],
-      "say": "Lesson six. Selfless action is inaction; selfish inaction is action. A person working hard without ego or desire is, in the deepest sense, not acting at all, because nothing binds them. A person sitting idle, but burning with desire, is acting all the time. What matters is the inner state, not the outer motion." },
-    { "layout": "lesson", "L": ["L7"], "visual": ["Free from attachment and craving", "Mind and senses under control", "Work as service creates no karmic debt"],
-      "say": "Lesson seven. A Karma-yogi accumulates no karmic debt. When you are free from attachment, your mind and senses are steady, you claim no ownership of the outcome, and you work as service to God, no karma clings to you, whatever the work." },
-    { "layout": "lesson", "L": ["L8"], "visual": ["Worship, study, breath, charity, fasting", "Practised sincerely, all are valid", "There is more than one way in"],
-      "say": "Lesson eight. Many paths of spiritual practice are valid. Krishna lists a wide range: worship, study, restraint, breath, charity, fasting. Practised with sincerity and selflessness, every one of them purifies. There is more than one way in." },
-    { "layout": "lesson", "L": ["L9"], "visual": ["Of all offerings, knowledge is highest", "All actions culminate in knowledge", "Sharing it is the greatest gift"],
-      "say": "Lesson nine. Self-knowledge is superior to all other spiritual offerings. Rituals, gifts and disciplines all have value, but they all point toward something. The acquisition and the sharing of self-knowledge is where every action finally leads." },
-    { "layout": "lesson", "L": ["L10"], "visual": ["Approach a realised teacher", "With humility, honest questions and service", "Some knowledge can't come from books alone"],
-      "say": "Lesson ten. Seek truth from a self-realised teacher. Some knowledge cannot come from books alone. Approach someone who has lived it, with humility, with sincere questions, and with a spirit of service, and they will show you the way." },
-    { "layout": "lesson", "L": ["L11"], "visual": ["As fire turns wood to ash", "Knowledge burns away all karma", "Even the worst can cross on this raft"],
-      "say": "Lesson eleven. Self-knowledge destroys all sin and karmic bondage. As a blazing fire turns wood to ash, the fire of knowledge burns away all karma. Even the most sinful person can cross the ocean of wrongdoing on the raft of self-knowledge. No one is beyond it." },
-    { "layout": "lesson", "L": ["L12"], "visual": ["Faith, sincere practice, control of the senses", "Then knowledge reveals itself", "Without them it cannot take root"],
-      "say": "Lesson twelve. Faith and sincerity are prerequisites for receiving knowledge. Knowledge reveals itself, naturally and in time, to the person who has faith, practises sincerely and keeps the senses in check. Without these, it has nowhere to take root." },
-    { "layout": "lesson", "L": ["L13"], "visual": ["Doubt, not difficulty, is the real obstacle", "Cut it with the sword of knowledge", "Then stand up and act"],
-      "say": "Lesson thirteen. Cut doubt with the sword of self-knowledge, then act. Krishna's last words here are a command. Doubt, not difficulty, is the real obstacle. Destroy it with knowledge, take up selfless action, and stand up." },
-    { "layout": "closing", "headline": "Knowledge that frees the hands", "visual": ["The teaching is ancient, and God renews it", "Selfless action binds no one", "Knowledge burns karma; doubt must be cut"],
-      "say": "So, Chapter Four. The teaching is ancient, and God himself renews it whenever it is lost. Selfless action is the deepest kind of stillness, and binds no one. The fire of knowledge burns away all karma. And doubt must be cut, so that we can rise and act. Next, Arjuna asks once more: renunciation or action, which is better?" }
+    {
+      "layout": "title",
+      "headline": "Renunciation with Self-Knowledge",
+      "visual": [
+        "Who Krishna really is, and what action really is"
+      ],
+      "say": "Chapter Four. The Path of Renunciation with Self-Knowledge. Here Krishna reveals two secrets: who he really is, and what action really is."
+    },
+    {
+      "layout": "verse",
+      "ref": "4.01-03",
+      "L": [
+        "L1"
+      ],
+      "say": "He begins with a surprising claim about the teaching itself. {verse}"
+    },
+    {
+      "layout": "story",
+      "headline": "How can that be?",
+      "visual": [
+        "Arjuna: you were born after Vivasvan",
+        "Krishna: we have both had many births",
+        "I remember them all; you do not"
+      ],
+      "say": "Arjuna is puzzled. You were born long after the sun-king Vivasvan, he says. How could you have taught him in the beginning? Krishna answers calmly: both you and I have taken many births. I remember them all, Arjuna. You do not. Though I am unborn and eternal, I take form through my own divine power."
+    },
+    {
+      "layout": "verse",
+      "ref": "4.07-08",
+      "L": [
+        "L2"
+      ],
+      "say": "And then he says why. These may be the most quoted lines in India. {verse}"
+    },
+    {
+      "layout": "story",
+      "headline": "Every seeker is met",
+      "L": [
+        "L3",
+        "L4"
+      ],
+      "visual": [
+        "Whoever understands this is not born again",
+        "Many reached freedom by taking refuge in Him",
+        "With whatever motive people worship, He answers"
+      ],
+      "say": "Whoever truly understands these divine appearances, Krishna says, is not born again. Many before Arjuna became free from attachment, fear and anger by taking refuge in him. And whatever the motive with which people come to him, he meets them there and answers them accordingly."
+    },
+    {
+      "layout": "verse",
+      "ref": "4.18",
+      "L": [
+        "L6"
+      ],
+      "say": "Then Krishna turns to the riddle at the heart of the chapter: what is action, and what is inaction? Even the wise are confused about it. Verse eighteen. {verse}"
+    },
+    {
+      "layout": "verse",
+      "ref": "4.20",
+      "L": [
+        "L7"
+      ],
+      "say": "He explains what he means. Verse twenty. {verse}"
+    },
+    {
+      "layout": "story",
+      "headline": "Many kinds of offering",
+      "L": [
+        "L8"
+      ],
+      "visual": [
+        "Worship, study and sense restraint",
+        "Breath control, fasting and charity",
+        "All purify those who practise them"
+      ],
+      "say": "Krishna then describes many kinds of spiritual practice, each one a form of sacrifice: worship, the study of scripture, restraint of the senses, control of the breath, a simple diet, charity. All of these, done sincerely, purify the person who practises them."
+    },
+    {
+      "layout": "verse",
+      "ref": "4.33",
+      "L": [
+        "L9"
+      ],
+      "say": "But one offering stands above the rest. Verse thirty-three. {verse}"
+    },
+    {
+      "layout": "verse",
+      "ref": "4.34",
+      "L": [
+        "L10"
+      ],
+      "say": "And where does such knowledge come from? Verse thirty-four. {verse}"
+    },
+    {
+      "layout": "verse",
+      "ref": "4.37",
+      "L": [
+        "L11"
+      ],
+      "say": "Its power is total. Verse thirty-seven. {verse}"
+    },
+    {
+      "layout": "verse",
+      "ref": "4.42",
+      "L": [
+        "L13"
+      ],
+      "say": "And the chapter ends, as so many do, with a call to rise. Verse forty-two. {verse}"
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L1"
+      ],
+      "visual": [
+        "Taught at the beginning of creation",
+        "Passed down through saintly kings",
+        "Restored by God whenever it is lost"
+      ],
+      "say": "Lesson one. Karma-yoga is an ancient, eternal science. Selfless action is not a new idea Krishna invents on the battlefield. It was taught at the dawn of creation and handed down through saintly rulers, and when it is forgotten, God restores it."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L2"
+      ],
+      "visual": [
+        "When righteousness declines, God appears",
+        "To protect the good",
+        "To transform the wicked and restore order"
+      ],
+      "say": "Lesson two. God incarnates to restore righteousness. Whenever dharma declines and wrong rises, the Divine takes form, to protect the good, to transform the wicked, and to set the world right again. It is not random. It has a purpose."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L3"
+      ],
+      "visual": [
+        "Knowing God's appearances truly",
+        "Frees one from rebirth",
+        "Liberation needs understanding, not only behaviour"
+      ],
+      "say": "Lesson three. Understanding God's nature leads to liberation. Whoever truly understands the divine nature of God's appearances and works is freed from rebirth. Freedom is not only about good behaviour; it needs real understanding."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L4"
+      ],
+      "visual": [
+        "People seek God for many reasons",
+        "Success, knowledge, love or freedom",
+        "Each is met on their own path"
+      ],
+      "say": "Lesson four. God fulfils devotees according to their motive. People turn to the Divine for many reasons: success, knowledge, love, freedom. Krishna does not reject any of them. He meets each person on the path they have chosen."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L5"
+      ],
+      "visual": [
+        "God acts constantly, yet is not bound",
+        "He has no desire for the results",
+        "Whoever lives this is not bound either"
+      ],
+      "say": "Lesson five. Karma does not bind God, or those who understand this. God acts all the time, creating and sustaining, yet no karma touches him, because he wants nothing from the results. Anyone who understands and lives the same way is not bound either."
+    },
+    {
+      "layout": "compare",
+      "headline": "Inaction in action, action in inaction",
+      "L": [
+        "L6"
+      ],
+      "visual": [
+        "Selfless action | Selfish inaction",
+        "Busy, yet free of ego | Idle, yet full of desire",
+        "Creates no karma | Still creates karma",
+        "Truly inaction | Truly action"
+      ],
+      "say": "Lesson six. Selfless action is inaction; selfish inaction is action. A person working hard without ego or desire is, in the deepest sense, not acting at all, because nothing binds them. A person sitting idle, but burning with desire, is acting all the time. What matters is the inner state, not the outer motion."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L7"
+      ],
+      "visual": [
+        "Free from attachment and craving",
+        "Mind and senses under control",
+        "Work as service creates no karmic debt"
+      ],
+      "say": "Lesson seven. A Karma-yogi accumulates no karmic debt. When you are free from attachment, your mind and senses are steady, you claim no ownership of the outcome, and you work as service to God, no karma clings to you, whatever the work."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L8"
+      ],
+      "visual": [
+        "Worship, study, breath, charity, fasting",
+        "Practised sincerely, all are valid",
+        "There is more than one way in"
+      ],
+      "say": "Lesson eight. Many paths of spiritual practice are valid. Krishna lists a wide range: worship, study, restraint, breath, charity, fasting. Practised with sincerity and selflessness, every one of them purifies. There is more than one way in."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L9"
+      ],
+      "visual": [
+        "Of all offerings, knowledge is highest",
+        "All actions culminate in knowledge",
+        "Sharing it is the greatest gift"
+      ],
+      "say": "Lesson nine. Self-knowledge is superior to all other spiritual offerings. Rituals, gifts and disciplines all have value, but they all point toward something. The acquisition and the sharing of self-knowledge is where every action finally leads."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L10"
+      ],
+      "visual": [
+        "Approach a realised teacher",
+        "With humility, honest questions and service",
+        "Some knowledge can't come from books alone"
+      ],
+      "say": "Lesson ten. Seek truth from a self-realised teacher. Some knowledge cannot come from books alone. Approach someone who has lived it, with humility, with sincere questions, and with a spirit of service, and they will show you the way."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L11"
+      ],
+      "visual": [
+        "As fire turns wood to ash",
+        "Knowledge burns away all karma",
+        "Even the worst can cross on this raft"
+      ],
+      "say": "Lesson eleven. Self-knowledge destroys all sin and karmic bondage. As a blazing fire turns wood to ash, the fire of knowledge burns away all karma. Even the most sinful person can cross the ocean of wrongdoing on the raft of self-knowledge. No one is beyond it."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L12"
+      ],
+      "visual": [
+        "Faith, sincere practice, control of the senses",
+        "Then knowledge reveals itself",
+        "Without them it cannot take root"
+      ],
+      "say": "Lesson twelve. Faith and sincerity are prerequisites for receiving knowledge. Knowledge reveals itself, naturally and in time, to the person who has faith, practises sincerely and keeps the senses in check. Without these, it has nowhere to take root."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L13"
+      ],
+      "visual": [
+        "Doubt, not difficulty, is the real obstacle",
+        "Cut it with the sword of knowledge",
+        "Then stand up and act"
+      ],
+      "say": "Lesson thirteen. Cut doubt with the sword of self-knowledge, then act. Krishna's last words here are a command. Doubt, not difficulty, is the real obstacle. Destroy it with knowledge, take up selfless action, and stand up."
+    },
+    {
+      "layout": "closing",
+      "headline": "Knowledge that frees the hands",
+      "visual": [
+        "The teaching is ancient, and God renews it",
+        "Selfless action binds no one",
+        "Knowledge burns karma; doubt must be cut"
+      ],
+      "say": "So, Chapter Four. The teaching is ancient, and God himself renews it whenever it is lost. Selfless action is the deepest kind of stillness, and binds no one. The fire of knowledge burns away all karma. And doubt must be cut, so that we can rise and act. Next, Arjuna asks once more: renunciation or action, which is better?"
+    }
   ]
 }

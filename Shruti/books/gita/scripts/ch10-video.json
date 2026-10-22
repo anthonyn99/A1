@@ -3,37 +3,166 @@
   "book": "gita",
   "n": 10,
   "title": "Manifestation of the absolute",
-  "narrator": { "name": "Brian", "voice": "en-US-BrianMultilingualNeural" },
+  "narrator": {
+    "name": "Sonia",
+    "voice": "en-GB-SoniaNeural"
+  },
   "scenes": [
-    { "layout": "title", "headline": "Manifestation of the Absolute", "visual": ["Where to look for God in the world"],
-      "say": "Chapter Ten. Manifestation of the Absolute. Arjuna wants to know where, in this world, he can find God. Krishna shows him." },
-    { "layout": "story", "headline": "The origin of all", "L": ["L1"], "visual": ["Neither gods nor sages know His origin", "He is the origin of them all", "Every human quality arises from Him"],
-      "say": "Listen once more, Krishna says, because you are dear to me. Neither the gods nor the great sages know my origin, because I am the origin of them all. Intelligence, knowledge, forgiveness, truthfulness, calm, joy and sorrow, birth and death, fear and fearlessness, nonviolence and contentment: all the different qualities of beings arise from me alone." },
-    { "layout": "verse", "ref": "10.08", "L": ["L2"],
-      "say": "And knowing this changes how the wise live. Verse eight. {verse}" },
-    { "layout": "story", "headline": "A lamp lit from within", "L": ["L3"], "visual": ["Devotees delight in speaking of Him", "He gives them the understanding to reach Him", "He lights the lamp of knowledge in their hearts"],
-      "say": "His devotees, Krishna says, are always content. Their minds rest in him; they enlighten one another by speaking of him. To those who love him, he gives the understanding by which they come to him. And out of compassion, dwelling in their hearts, he destroys the darkness of ignorance with the shining lamp of knowledge." },
-    { "layout": "verse", "ref": "10.15", "L": ["L4"],
-      "say": "Arjuna is moved. He accepts all of it as true, and admits that no one, neither gods nor demons, fully understands Krishna. Verse fifteen. {verse}" },
-    { "layout": "story", "headline": "In what form shall I think of You?", "visual": ["How may I know You by constant thought?", "Tell me again of Your glories", "I never tire of hearing your words"],
-      "say": "So Arjuna asks a practical question. How should I think of you, Lord? In which forms should I look for you? Tell me again, in detail, about your power and your glory. I can never have enough of your words." },
-    { "layout": "story", "headline": "I am the best of each kind", "L": ["L5"], "visual": ["The Self in the heart of every being", "The sun among lights, the ocean among waters", "The spring among seasons, the silence among secrets"],
-      "say": "Krishna answers with a long and beautiful list. I am the Self in the heart of every being, the beginning, the middle and the end. Among lights, I am the radiant sun. Among bodies of water, the ocean. Among trees, the holy fig. Among rivers, the Ganga. Among seasons, the spring. Among secrets, I am silence. And among the wise, I am their wisdom." },
-    { "layout": "verse", "ref": "10.36",
-      "say": "Even the surprising ones are part of the list. Verse thirty-six. {verse}" },
-    { "layout": "verse", "ref": "10.41", "L": ["L5"],
-      "say": "And then the key that unlocks the whole chapter. Verse forty-one. {verse}" },
-    { "layout": "lesson", "L": ["L1"], "visual": ["Intelligence, truthfulness, forgiveness", "Fearlessness, contentment, even suffering", "Every quality in us arises from God"],
-      "say": "Lesson one. God is the origin of all, including every quality in human beings. Intelligence, knowledge, forgiveness, truthfulness, fearlessness, contentment, even suffering: all of it arises from him. Seeing this deepens humility, and gratitude for whatever good we have." },
-    { "layout": "lesson", "L": ["L2"], "visual": ["Knowing God's glory fuels love", "Not mere information", "It leads to unwavering devotion"],
-      "say": "Lesson two. Understanding God's manifestations leads to unwavering devotion. Knowing his glory is not just information. Whoever truly understands it is drawn into love, and that love becomes steady." },
-    { "layout": "lesson", "L": ["L3"], "visual": ["God dwells within as consciousness", "He gives understanding to those who love Him", "He lights the lamp of knowledge within"],
-      "say": "Lesson three. God gives inner spiritual knowledge to devoted seekers. He is not distant. Dwelling within us as consciousness, he gives understanding to those who love him, and out of compassion lights the lamp of knowledge in the dark." },
-    { "layout": "lesson", "L": ["L4"], "visual": ["Neither gods nor sages know Him fully", "Only God knows Himself by Himself", "The finite mind can only approach"],
-      "say": "Lesson four. No one can fully know God's real nature. Neither the gods nor the sages comprehend it. Only God knows himself by himself. This calls for humility: the finite mind cannot hold the infinite. It can only come closer." },
-    { "layout": "lesson", "L": ["L5"], "visual": ["Whatever has glory, brilliance or power", "Is a tiny spark of His splendour", "The universe rests on a fraction of Him"],
-      "say": "Lesson five. Whatever has glory, brilliance or power is a fragment of God. The beauty of a sunrise, the strength of the ocean, the wisdom of a teacher: each is a tiny spark of his splendour. And Krishna says the whole universe is held up by just a small fraction of him." },
-    { "layout": "closing", "headline": "Look for the splendour", "visual": ["Every quality we have comes from God", "Every glory is a spark of His", "He lights the lamp within those who love Him"],
-      "say": "So, Chapter Ten. Every good quality we have, and every glory in the world, is a spark of God's splendour. Wherever something shines, look there. And he lights the lamp of knowledge in the hearts of those who love him. Next, Arjuna asks to see that splendour with his own eyes." }
+    {
+      "layout": "title",
+      "headline": "Manifestation of the Absolute",
+      "visual": [
+        "Where to look for God in the world"
+      ],
+      "say": "Chapter Ten. Manifestation of the Absolute. Arjuna wants to know where, in this world, he can find God. Krishna shows him."
+    },
+    {
+      "layout": "story",
+      "headline": "The origin of all",
+      "L": [
+        "L1"
+      ],
+      "visual": [
+        "Neither gods nor sages know His origin",
+        "He is the origin of them all",
+        "Every human quality arises from Him"
+      ],
+      "say": "Listen once more, Krishna says, because you are dear to me. Neither the gods nor the great sages know my origin, because I am the origin of them all. Intelligence, knowledge, forgiveness, truthfulness, calm, joy and sorrow, birth and death, fear and fearlessness, nonviolence and contentment: all the different qualities of beings arise from me alone."
+    },
+    {
+      "layout": "verse",
+      "ref": "10.08",
+      "L": [
+        "L2"
+      ],
+      "say": "And knowing this changes how the wise live. Verse eight. {verse}"
+    },
+    {
+      "layout": "story",
+      "headline": "A lamp lit from within",
+      "L": [
+        "L3"
+      ],
+      "visual": [
+        "Devotees delight in speaking of Him",
+        "He gives them the understanding to reach Him",
+        "He lights the lamp of knowledge in their hearts"
+      ],
+      "say": "His devotees, Krishna says, are always content. Their minds rest in him; they enlighten one another by speaking of him. To those who love him, he gives the understanding by which they come to him. And out of compassion, dwelling in their hearts, he destroys the darkness of ignorance with the shining lamp of knowledge."
+    },
+    {
+      "layout": "verse",
+      "ref": "10.15",
+      "L": [
+        "L4"
+      ],
+      "say": "Arjuna is moved. He accepts all of it as true, and admits that no one, neither gods nor demons, fully understands Krishna. Verse fifteen. {verse}"
+    },
+    {
+      "layout": "story",
+      "headline": "In what form shall I think of You?",
+      "visual": [
+        "How may I know You by constant thought?",
+        "Tell me again of Your glories",
+        "I never tire of hearing your words"
+      ],
+      "say": "So Arjuna asks a practical question. How should I think of you, Lord? In which forms should I look for you? Tell me again, in detail, about your power and your glory. I can never have enough of your words."
+    },
+    {
+      "layout": "story",
+      "headline": "I am the best of each kind",
+      "L": [
+        "L5"
+      ],
+      "visual": [
+        "The Self in the heart of every being",
+        "The sun among lights, the ocean among waters",
+        "The spring among seasons, the silence among secrets"
+      ],
+      "say": "Krishna answers with a long and beautiful list. I am the Self in the heart of every being, the beginning, the middle and the end. Among lights, I am the radiant sun. Among bodies of water, the ocean. Among trees, the holy fig. Among rivers, the Ganga. Among seasons, the spring. Among secrets, I am silence. And among the wise, I am their wisdom."
+    },
+    {
+      "layout": "verse",
+      "ref": "10.36",
+      "say": "Even the surprising ones are part of the list. Verse thirty-six. {verse}"
+    },
+    {
+      "layout": "verse",
+      "ref": "10.41",
+      "L": [
+        "L5"
+      ],
+      "say": "And then the key that unlocks the whole chapter. Verse forty-one. {verse}"
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L1"
+      ],
+      "visual": [
+        "Intelligence, truthfulness, forgiveness",
+        "Fearlessness, contentment, even suffering",
+        "Every quality in us arises from God"
+      ],
+      "say": "Lesson one. God is the origin of all, including every quality in human beings. Intelligence, knowledge, forgiveness, truthfulness, fearlessness, contentment, even suffering: all of it arises from him. Seeing this deepens humility, and gratitude for whatever good we have."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L2"
+      ],
+      "visual": [
+        "Knowing God's glory fuels love",
+        "Not mere information",
+        "It leads to unwavering devotion"
+      ],
+      "say": "Lesson two. Understanding God's manifestations leads to unwavering devotion. Knowing his glory is not just information. Whoever truly understands it is drawn into love, and that love becomes steady."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L3"
+      ],
+      "visual": [
+        "God dwells within as consciousness",
+        "He gives understanding to those who love Him",
+        "He lights the lamp of knowledge within"
+      ],
+      "say": "Lesson three. God gives inner spiritual knowledge to devoted seekers. He is not distant. Dwelling within us as consciousness, he gives understanding to those who love him, and out of compassion lights the lamp of knowledge in the dark."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L4"
+      ],
+      "visual": [
+        "Neither gods nor sages know Him fully",
+        "Only God knows Himself by Himself",
+        "The finite mind can only approach"
+      ],
+      "say": "Lesson four. No one can fully know God's real nature. Neither the gods nor the sages comprehend it. Only God knows himself by himself. This calls for humility: the finite mind cannot hold the infinite. It can only come closer."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L5"
+      ],
+      "visual": [
+        "Whatever has glory, brilliance or power",
+        "Is a tiny spark of His splendour",
+        "The universe rests on a fraction of Him"
+      ],
+      "say": "Lesson five. Whatever has glory, brilliance or power is a fragment of God. The beauty of a sunrise, the strength of the ocean, the wisdom of a teacher: each is a tiny spark of his splendour. And Krishna says the whole universe is held up by just a small fraction of him."
+    },
+    {
+      "layout": "closing",
+      "headline": "Look for the splendour",
+      "visual": [
+        "Every quality we have comes from God",
+        "Every glory is a spark of His",
+        "He lights the lamp within those who love Him"
+      ],
+      "say": "So, Chapter Ten. Every good quality we have, and every glory in the world, is a spark of God's splendour. Wherever something shines, look there. And he lights the lamp of knowledge in the hearts of those who love him. Next, Arjuna asks to see that splendour with his own eyes."
+    }
   ]
 }

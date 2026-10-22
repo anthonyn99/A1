@@ -3,58 +3,281 @@
   "book": "gita",
   "n": 6,
   "title": "Path of meditation",
-  "narrator": { "name": "Brian", "voice": "en-US-BrianMultilingualNeural" },
+  "narrator": {
+    "name": "Sonia",
+    "voice": "en-GB-SoniaNeural"
+  },
   "scenes": [
-    { "layout": "title", "headline": "The Path of Meditation", "visual": ["The mind: your best friend or your worst enemy"],
-      "say": "Chapter Six. The Path of Meditation. Krishna turns from the battlefield outside to the one inside: the mind." },
-    { "layout": "story", "headline": "Who is a true renunciant?", "L": ["L1"], "visual": ["Not the one who stops lighting the sacred fire", "Not the one who stops working", "The one who works without selfish motive"],
-      "say": "Krishna starts by tying together the last two chapters. A true renunciant is not someone who simply stops their duties or their rituals. It is the one who does their work without seeking its fruit for themselves. What we call renunciation, he says, is the same as Karma-yoga." },
-    { "layout": "verse", "ref": "6.05-06", "L": ["L3"],
-      "say": "Then comes a verse that puts the whole responsibility in our own hands. {verse}" },
-    { "layout": "story", "headline": "How to sit", "L": ["L6"], "visual": ["A clean, quiet place, alone", "A firm seat, neither too high nor too low", "Waist, spine, chest, neck and head erect"],
-      "say": "And now, practical instruction. Sit alone, in a clean and quiet place, on a firm seat that is neither too high nor too low. Hold the waist, spine, chest, neck and head erect and still. Rest the gaze. Bring the mind and the senses under control, and turn the mind toward the Supreme." },
-    { "layout": "story", "headline": "Not too much, not too little", "L": ["L7"], "visual": ["Not for one who eats too much, or not at all", "Not for one who sleeps too much, or too little", "Moderation makes meditation work"],
-      "say": "Krishna adds a warning that sounds surprisingly modern. This yoga is not for the one who eats too much, or does not eat at all; who sleeps too much, or stays awake. For the one who is moderate in eating, recreation, work, sleep and waking, meditation destroys all sorrow." },
-    { "layout": "verse", "ref": "6.19", "L": ["L9"],
-      "say": "He describes the settled mind with a beautiful image. Verse nineteen. {verse}" },
-    { "layout": "verse", "ref": "6.26", "L": ["L12"],
-      "say": "But what about the moments when the mind wanders, as it always does? Verse twenty-six. {verse}" },
-    { "layout": "verse", "ref": "6.32",
-      "say": "And what does such a yogi feel toward others? Verse thirty-two. {verse}" },
-    { "layout": "story", "headline": "\"The mind is like the wind\"", "visual": ["Arjuna: the mind is restless, turbulent, strong", "Restraining it is like holding the wind", "Krishna does not disagree"],
-      "say": "Arjuna is honest. Krishna, he says, the mind is restless, turbulent, powerful and stubborn. I think, he says, that restraining the mind is as difficult as restraining the wind. And Krishna does not disagree." },
-    { "layout": "verse", "ref": "6.35",
-      "say": "He simply tells him how. Verse thirty-five. {verse}" },
-    { "layout": "story", "headline": "What if I fail?", "visual": ["Arjuna: what of the one who tries and falls short?", "Krishna: no one who does good comes to grief", "They begin again where they left off"],
-      "say": "Then Arjuna asks the question every beginner asks. What about the person who has faith but falls short, whose mind wanders away from the path? Do they lose everything, like a scattered cloud? Krishna's answer is tender. There is no destruction for such a person, my dear friend, either here or hereafter. They are born again where they can pick up the practice, and they carry on from where they stopped." },
-    { "layout": "lesson", "L": ["L1"], "visual": ["Renunciation is giving up selfish motives", "Not giving up duties or rituals", "A Karma-yogi is a true samnyasi"],
-      "say": "Lesson one. A Karma-yogi is truly a renunciant. Renunciation is not about dropping your duties or your rituals. It is about dropping the selfish motive behind them. The one who works without seeking the fruit is the true samnyasi." },
-    { "layout": "steps", "headline": "The ladder to calm", "L": ["L2"], "visual": ["Selfless action", "A purified mind", "Calmness", "Self-realisation"],
-      "say": "Lesson two. Yoga is the path to calmness for the seeker. For someone who wants a calm, meditative mind, selfless action is the proven means. And once calm is reached, calm itself becomes the vehicle for self-realisation. Action first, then stillness." },
-    { "layout": "lesson", "L": ["L3"], "visual": ["Lift yourself by your own mind", "The mind is a friend to those who master it", "An enemy to those who do not"],
-      "say": "Lesson three. The mind is your truest friend or your fiercest enemy. You rise or fall by your own mind. It becomes a friend to those who master it, and an enemy to those who do not. No one else can do this work for you." },
-    { "layout": "lesson", "L": ["L4"], "visual": ["Heat and cold, pleasure and pain", "Honour and dishonour", "The mastered mind stays steady"],
-      "say": "Lesson four. Control over the senses brings unwavering stability. Whoever has conquered the lower self stays tranquil in heat and cold, pleasure and pain, honour and dishonour. That stability is the stability of the Supreme Self, untouched by circumstance." },
-    { "layout": "lesson", "L": ["L5"], "visual": ["Friend and enemy, saint and sinner", "A clod, a stone and gold", "The yogi sees them with an equal eye"],
-      "say": "Lesson five. A true yogi sees all beings with equanimity. Friends and enemies, relatives and strangers, saints and sinners: the yogi treats them all impartially. To such a person, a clod of earth, a stone and a piece of gold are the same." },
-    { "layout": "lesson", "L": ["L6"], "visual": ["A clean, quiet place and a firm seat", "Spine, neck and head erect, gaze steady", "Mind and senses restrained"],
-      "say": "Lesson six. Meditation requires solitude, control and proper technique. A clean and quiet space, an erect posture with the spine, neck and head aligned, a steady gaze, and the mind and senses gently restrained. The body's stillness supports the mind's." },
-    { "layout": "compare", "headline": "The middle way", "L": ["L7"],
-      "visual": ["Extremes | Moderation", "Eating too much, or not at all | Eating in measure", "Sleeping too much, or too little | Sleeping enough", "Yoga fails | Meditation destroys sorrow"],
-      "say": "Lesson seven. Moderation in all things is essential for success. Yoga fails for those who eat too much or too little, who sleep too much or too little. Only the person who is balanced in eating, working, sleeping and waking can use meditation to end sorrow." },
-    { "layout": "lesson", "L": ["L8"], "visual": ["A disciplined mind, free from all desires", "Merges with the Eternal in samadhi", "This is union, not the end of awareness"],
-      "say": "Lesson eight. Samadhi is the goal of all meditation practice. When the disciplined mind becomes free of every desire and rests completely in God, that is union, samadhi. It is not the end of consciousness, but its fullness." },
-    { "layout": "lesson", "L": ["L9"], "visual": ["A lamp in a windless place", "Does not flicker", "So is the mind sheltered from desire"],
-      "say": "Lesson nine. The steady mind is like a sheltered lamp. A flame in a place where no wind blows does not flicker. In the same way, the mind of the yogi, sheltered from the winds of desire, burns steady and clear." },
-    { "layout": "lesson", "L": ["L10"], "visual": ["Infinite bliss, beyond the senses", "No gain seems greater", "Even great sorrow cannot shake it"],
-      "say": "Lesson ten. Self-realisation is the highest gain. Once the purified mind beholds the Eternal, it knows a bliss beyond the reach of the senses. After that, no other gain seems greater, and not even the heaviest sorrow can shake the person who has it." },
-    { "layout": "lesson", "L": ["L11"], "visual": ["Yoga is breaking the bond with sorrow", "Practise it with firm determination", "Without inner reservation"],
-      "say": "Lesson eleven. Yoga is freedom from the union with sorrow. Krishna's own definition of yoga is the cutting of our bond with suffering. It should be practised with firm determination, wholeheartedly, without holding anything back." },
-    { "layout": "lesson", "L": ["L12"], "visual": ["The mind will wander", "Don't judge it; simply witness it", "And gently bring it home"],
-      "say": "Lesson twelve. The wandering mind must be gently returned to the Self. Wherever the restless mind wanders during meditation, don't fight it or judge it. Just watch it, under the quiet supervision of the Self, and bring it gently home." },
-    { "layout": "lesson", "L": ["L13"], "visual": ["The yogi is above the ascetic and the scholar", "Above the ritualist", "Highest of all: the yogi who loves God"],
-      "say": "Lesson thirteen. The yogi-devotee is the greatest of all yogis. The yogi stands above the ascetic, the scholar and the ritualist. And among all yogis, Krishna says, the best is the one who contemplates him with love and supreme faith, whose mind is always absorbed in him." },
-    { "layout": "closing", "headline": "A steady flame within", "visual": ["Your mind is yours to lift or lower", "Sit, breathe, and live in moderation", "When the mind wanders, bring it home"],
-      "say": "So, Chapter Six. Your mind is yours, to lift you up or to drag you down. Sit well, live in moderation, and when the mind wanders, bring it home without anger. Practice and detachment will steady the flame. And no sincere effort is ever lost. Next, Krishna begins to describe himself." }
+    {
+      "layout": "title",
+      "headline": "The Path of Meditation",
+      "visual": [
+        "The mind: your best friend or your worst enemy"
+      ],
+      "say": "Chapter Six. The Path of Meditation. Krishna turns from the battlefield outside to the one inside: the mind."
+    },
+    {
+      "layout": "story",
+      "headline": "Who is a true renunciant?",
+      "L": [
+        "L1"
+      ],
+      "visual": [
+        "Not the one who stops lighting the sacred fire",
+        "Not the one who stops working",
+        "The one who works without selfish motive"
+      ],
+      "say": "Krishna starts by tying together the last two chapters. A true renunciant is not someone who simply stops their duties or their rituals. It is the one who does their work without seeking its fruit for themselves. What we call renunciation, he says, is the same as Karma-yoga."
+    },
+    {
+      "layout": "verse",
+      "ref": "6.05-06",
+      "L": [
+        "L3"
+      ],
+      "say": "Then comes a verse that puts the whole responsibility in our own hands. {verse}"
+    },
+    {
+      "layout": "story",
+      "headline": "How to sit",
+      "L": [
+        "L6"
+      ],
+      "visual": [
+        "A clean, quiet place, alone",
+        "A firm seat, neither too high nor too low",
+        "Waist, spine, chest, neck and head erect"
+      ],
+      "say": "And now, practical instruction. Sit alone, in a clean and quiet place, on a firm seat that is neither too high nor too low. Hold the waist, spine, chest, neck and head erect and still. Rest the gaze. Bring the mind and the senses under control, and turn the mind toward the Supreme."
+    },
+    {
+      "layout": "story",
+      "headline": "Not too much, not too little",
+      "L": [
+        "L7"
+      ],
+      "visual": [
+        "Not for one who eats too much, or not at all",
+        "Not for one who sleeps too much, or too little",
+        "Moderation makes meditation work"
+      ],
+      "say": "Krishna adds a warning that sounds surprisingly modern. This yoga is not for the one who eats too much, or does not eat at all; who sleeps too much, or stays awake. For the one who is moderate in eating, recreation, work, sleep and waking, meditation destroys all sorrow."
+    },
+    {
+      "layout": "verse",
+      "ref": "6.19",
+      "L": [
+        "L9"
+      ],
+      "say": "He describes the settled mind with a beautiful image. Verse nineteen. {verse}"
+    },
+    {
+      "layout": "verse",
+      "ref": "6.26",
+      "L": [
+        "L12"
+      ],
+      "say": "But what about the moments when the mind wanders, as it always does? Verse twenty-six. {verse}"
+    },
+    {
+      "layout": "verse",
+      "ref": "6.32",
+      "say": "And what does such a yogi feel toward others? Verse thirty-two. {verse}"
+    },
+    {
+      "layout": "story",
+      "headline": "\"The mind is like the wind\"",
+      "visual": [
+        "Arjuna: the mind is restless, turbulent, strong",
+        "Restraining it is like holding the wind",
+        "Krishna does not disagree"
+      ],
+      "say": "Arjuna is honest. Krishna, he says, the mind is restless, turbulent, powerful and stubborn. I think, he says, that restraining the mind is as difficult as restraining the wind. And Krishna does not disagree."
+    },
+    {
+      "layout": "verse",
+      "ref": "6.35",
+      "say": "He simply tells him how. Verse thirty-five. {verse}"
+    },
+    {
+      "layout": "story",
+      "headline": "What if I fail?",
+      "visual": [
+        "Arjuna: what of the one who tries and falls short?",
+        "Krishna: no one who does good comes to grief",
+        "They begin again where they left off"
+      ],
+      "say": "Then Arjuna asks the question every beginner asks. What about the person who has faith but falls short, whose mind wanders away from the path? Do they lose everything, like a scattered cloud? Krishna's answer is tender. There is no destruction for such a person, my dear friend, either here or hereafter. They are born again where they can pick up the practice, and they carry on from where they stopped."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L1"
+      ],
+      "visual": [
+        "Renunciation is giving up selfish motives",
+        "Not giving up duties or rituals",
+        "A Karma-yogi is a true samnyasi"
+      ],
+      "say": "Lesson one. A Karma-yogi is truly a renunciant. Renunciation is not about dropping your duties or your rituals. It is about dropping the selfish motive behind them. The one who works without seeking the fruit is the true samnyasi."
+    },
+    {
+      "layout": "steps",
+      "headline": "The ladder to calm",
+      "L": [
+        "L2"
+      ],
+      "visual": [
+        "Selfless action",
+        "A purified mind",
+        "Calmness",
+        "Self-realisation"
+      ],
+      "say": "Lesson two. Yoga is the path to calmness for the seeker. For someone who wants a calm, meditative mind, selfless action is the proven means. And once calm is reached, calm itself becomes the vehicle for self-realisation. Action first, then stillness."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L3"
+      ],
+      "visual": [
+        "Lift yourself by your own mind",
+        "The mind is a friend to those who master it",
+        "An enemy to those who do not"
+      ],
+      "say": "Lesson three. The mind is your truest friend or your fiercest enemy. You rise or fall by your own mind. It becomes a friend to those who master it, and an enemy to those who do not. No one else can do this work for you."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L4"
+      ],
+      "visual": [
+        "Heat and cold, pleasure and pain",
+        "Honour and dishonour",
+        "The mastered mind stays steady"
+      ],
+      "say": "Lesson four. Control over the senses brings unwavering stability. Whoever has conquered the lower self stays tranquil in heat and cold, pleasure and pain, honour and dishonour. That stability is the stability of the Supreme Self, untouched by circumstance."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L5"
+      ],
+      "visual": [
+        "Friend and enemy, saint and sinner",
+        "A clod, a stone and gold",
+        "The yogi sees them with an equal eye"
+      ],
+      "say": "Lesson five. A true yogi sees all beings with equanimity. Friends and enemies, relatives and strangers, saints and sinners: the yogi treats them all impartially. To such a person, a clod of earth, a stone and a piece of gold are the same."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L6"
+      ],
+      "visual": [
+        "A clean, quiet place and a firm seat",
+        "Spine, neck and head erect, gaze steady",
+        "Mind and senses restrained"
+      ],
+      "say": "Lesson six. Meditation requires solitude, control and proper technique. A clean and quiet space, an erect posture with the spine, neck and head aligned, a steady gaze, and the mind and senses gently restrained. The body's stillness supports the mind's."
+    },
+    {
+      "layout": "compare",
+      "headline": "The middle way",
+      "L": [
+        "L7"
+      ],
+      "visual": [
+        "Extremes | Moderation",
+        "Eating too much, or not at all | Eating in measure",
+        "Sleeping too much, or too little | Sleeping enough",
+        "Yoga fails | Meditation destroys sorrow"
+      ],
+      "say": "Lesson seven. Moderation in all things is essential for success. Yoga fails for those who eat too much or too little, who sleep too much or too little. Only the person who is balanced in eating, working, sleeping and waking can use meditation to end sorrow."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L8"
+      ],
+      "visual": [
+        "A disciplined mind, free from all desires",
+        "Merges with the Eternal in samadhi",
+        "This is union, not the end of awareness"
+      ],
+      "say": "Lesson eight. Samadhi is the goal of all meditation practice. When the disciplined mind becomes free of every desire and rests completely in God, that is union, samadhi. It is not the end of consciousness, but its fullness."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L9"
+      ],
+      "visual": [
+        "A lamp in a windless place",
+        "Does not flicker",
+        "So is the mind sheltered from desire"
+      ],
+      "say": "Lesson nine. The steady mind is like a sheltered lamp. A flame in a place where no wind blows does not flicker. In the same way, the mind of the yogi, sheltered from the winds of desire, burns steady and clear."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L10"
+      ],
+      "visual": [
+        "Infinite bliss, beyond the senses",
+        "No gain seems greater",
+        "Even great sorrow cannot shake it"
+      ],
+      "say": "Lesson ten. Self-realisation is the highest gain. Once the purified mind beholds the Eternal, it knows a bliss beyond the reach of the senses. After that, no other gain seems greater, and not even the heaviest sorrow can shake the person who has it."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L11"
+      ],
+      "visual": [
+        "Yoga is breaking the bond with sorrow",
+        "Practise it with firm determination",
+        "Without inner reservation"
+      ],
+      "say": "Lesson eleven. Yoga is freedom from the union with sorrow. Krishna's own definition of yoga is the cutting of our bond with suffering. It should be practised with firm determination, wholeheartedly, without holding anything back."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L12"
+      ],
+      "visual": [
+        "The mind will wander",
+        "Don't judge it; simply witness it",
+        "And gently bring it home"
+      ],
+      "say": "Lesson twelve. The wandering mind must be gently returned to the Self. Wherever the restless mind wanders during meditation, don't fight it or judge it. Just watch it, under the quiet supervision of the Self, and bring it gently home."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L13"
+      ],
+      "visual": [
+        "The yogi is above the ascetic and the scholar",
+        "Above the ritualist",
+        "Highest of all: the yogi who loves God"
+      ],
+      "say": "Lesson thirteen. The yogi-devotee is the greatest of all yogis. The yogi stands above the ascetic, the scholar and the ritualist. And among all yogis, Krishna says, the best is the one who contemplates him with love and supreme faith, whose mind is always absorbed in him."
+    },
+    {
+      "layout": "closing",
+      "headline": "A steady flame within",
+      "visual": [
+        "Your mind is yours to lift or lower",
+        "Sit, breathe, and live in moderation",
+        "When the mind wanders, bring it home"
+      ],
+      "say": "So, Chapter Six. Your mind is yours, to lift you up or to drag you down. Sit well, live in moderation, and when the mind wanders, bring it home without anger. Practice and detachment will steady the flame. And no sincere effort is ever lost. Next, Krishna begins to describe himself."
+    }
   ]
 }

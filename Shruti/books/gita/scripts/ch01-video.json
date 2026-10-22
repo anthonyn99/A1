@@ -3,38 +3,174 @@
   "book": "gita",
   "n": 1,
   "title": "Arjuna’s Dilemma",
-  "narrator": { "name": "Brian", "voice": "en-US-BrianMultilingualNeural" },
+  "narrator": {
+    "name": "Sonia",
+    "voice": "en-GB-SoniaNeural"
+  },
   "scenes": [
-    { "layout": "title", "headline": "Arjuna’s Dilemma", "visual": ["Where the Gita begins: on a battlefield"],
-      "say": "Chapter One. Arjuna's Dilemma. The Bhagavad-Gita does not begin in a temple or a forest. It begins on a battlefield, a few moments before a war." },
-    { "layout": "story", "headline": "Two families, one kingdom", "beyond": true, "visual": ["The Pandavas and the Kauravas are cousins", "The Kauravas took the kingdom by deceit", "Every attempt at peace has failed"],
-      "say": "First, the background, which comes from the Mahabharata, the great epic the Gita belongs to, and not from our book. Two branches of one royal family, the five Pandava brothers and the hundred Kaurava brothers, both claim the kingdom. The Kauravas cheated the Pandavas out of it, sent them into exile, and refused to return even five villages. Krishna himself went to plead for peace, and was turned away." },
-    { "layout": "verse", "ref": "1.01",
-      "say": "Our book opens where the Gita opens, in a palace far from the fighting. The old king Dhritarashtra is blind, and his charioteer Sanjaya has been given the gift of seeing the battlefield from afar. Verse one. {verse}" },
-    { "layout": "story", "headline": "Between the two armies", "visual": ["Arjuna asks Krishna to drive between the armies", "On the other side: teachers, uncles, cousins, friends", "His limbs fail, his bow slips from his hand"],
-      "say": "Arjuna, the greatest archer of his age, asks his charioteer and friend, Krishna, to drive the chariot into the open ground between the two armies, so he can see who he must fight. And there he sees them: his grandfather Bhishma, his teacher Drona, uncles, cousins, friends. Compassion floods him. His mouth goes dry, his limbs tremble, and his great bow slips from his hand.", "L": ["L2"] },
-    { "layout": "story", "headline": "The case against fighting", "beyond": true, "visual": ["What good is a kingdom won by killing family?", "War destroys families and their traditions", "Better to be killed than to kill them"],
-      "say": "In the full Gita, Arjuna then argues at length, and our book summarises his words. What good is a kingdom, he asks, if it is won by killing the very people we wanted to share it with? War destroys families, and with them their traditions and their sense of right. It would be better, he says, to be killed unarmed than to raise a weapon against them." },
-    { "layout": "verse", "ref": "1.47", "L": ["L3"],
-      "say": "And the chapter ends with one of the most honest images in all of scripture: a hero who cannot go on. Verse forty-seven. {verse}" },
-    { "layout": "compare", "headline": "The two pulls on Arjuna", "L": ["L1"],
-      "visual": ["Duty | Emotion", "Fight for justice | Love for his relatives", "Protect the innocent | Spare his teachers", "The role of a warrior | The heart of a grandson"],
-      "say": "Lesson one. Duty versus emotion, and both matter. Arjuna is pulled between what he should do, which is to fight for justice, and what he feels, which is love for the people on the other side. The chapter does not mock his feelings. The lesson is to acknowledge both, and to dismiss neither." },
-    { "layout": "lesson", "L": ["L2"], "visual": ["Arjuna looked and recognised the people he loved", "He could not unsee it", "Facing a hard truth is the first step"],
-      "say": "Lesson two. Ignorance is not bliss, so face reality. Arjuna chose to drive into the middle and look. Once he saw the faces of the people he loved, he could not unsee them. Don't avoid difficult truths. Facing reality, even when it hurts, is the first step toward wisdom." },
-    { "layout": "lesson", "L": ["L3"], "visual": ["Arjuna admits he does not know what to do", "He does not pretend to be brave", "Doubt is honest, not weak"],
-      "say": "Lesson three. It's okay to doubt and to feel lost. The greatest warrior of his time sits down and admits that he does not know what to do. He doesn't pretend. Confusion and doubt are a natural part of life. They don't make you weak; they make you honest." },
-    { "layout": "lesson", "L": ["L4"], "visual": ["Whatever Arjuna chose, someone would suffer", "You cannot make everyone happy", "Choose by principle, not by avoiding all pain"],
-      "say": "Lesson four. Some situations have no perfect solution. If Arjuna fights, people he loves will die. If he walks away, injustice wins and the innocent suffer. In situations like this, accept that you cannot make everyone happy. Choose by principle, not by trying to avoid every pain." },
-    { "layout": "lesson", "L": ["L5"], "visual": ["Arjuna does not decide alone", "He turns to Krishna", "Wise counsel brings perspective"],
-      "say": "Lesson five. Seek wisdom when you're lost. Instead of deciding alone, in the middle of his despair, Arjuna turns to Krishna. When you face the big questions of your life, talk to a mentor, a counsellor, or someone wise who can see what you cannot." },
-    { "layout": "lesson", "L": ["L6"], "visual": ["Arjuna is a warrior, sworn to resist injustice", "Every role carries responsibilities", "Avoiding duty has consequences too"],
-      "say": "Lesson six. Your role and your responsibility matter. Arjuna is a warrior, and his duty is to stand against injustice. Understand your own role in life and what it asks of you. Walking away from a duty is also a choice, and it has consequences of its own." },
-    { "layout": "lesson", "L": ["L7"], "visual": ["Loving his enemies is good", "Ignoring injustice is not", "Kindness never requires abandoning what is right"],
-      "say": "Lesson seven. Compassion doesn't mean avoiding hard choices. Arjuna's love for the people across the field is real and good. But it cannot be a reason to let injustice stand. Being kind and caring never requires you to abandon what is right." },
-    { "layout": "lesson", "L": ["L8"], "visual": ["\"I don't know what to do\"", "That admission opens the door to the teaching", "Humility is where learning begins"],
-      "say": "Lesson eight. The beginning of wisdom is admitting what you don't know. Arjuna lays down his weapons and says, in effect, I don't know what to do. That admission opens the door to everything Krishna is about to teach. Confidence without wisdom is dangerous. Humility is where learning begins." },
-    { "layout": "closing", "headline": "A hero who stops", "visual": ["Duty and emotion both deserve a hearing", "Face the truth, even when it hurts", "Admit you are lost, and ask for wisdom"],
-      "say": "So, Chapter One. A hero stops in the middle of a battlefield because he sees too clearly to go on. Duty and emotion both deserve a hearing. Face the truth, even when it hurts. And when you are lost, say so, and ask for wisdom. In Chapter Two, Krishna begins to answer." }
+    {
+      "layout": "title",
+      "headline": "Arjuna’s Dilemma",
+      "visual": [
+        "Where the Gita begins: on a battlefield"
+      ],
+      "say": "Chapter One. Arjuna's Dilemma. The Bhagavad-Gita does not begin in a temple or a forest. It begins on a battlefield, a few moments before a war."
+    },
+    {
+      "layout": "story",
+      "headline": "Two families, one kingdom",
+      "beyond": true,
+      "visual": [
+        "The Pandavas and the Kauravas are cousins",
+        "The Kauravas took the kingdom by deceit",
+        "Every attempt at peace has failed"
+      ],
+      "say": "First, the background, which comes from the Mahabharata, the great epic the Gita belongs to, and not from our book. Two branches of one royal family, the five Pandava brothers and the hundred Kaurava brothers, both claim the kingdom. The Kauravas cheated the Pandavas out of it, sent them into exile, and refused to return even five villages. Krishna himself went to plead for peace, and was turned away."
+    },
+    {
+      "layout": "verse",
+      "ref": "1.01",
+      "say": "Our book opens where the Gita opens, in a palace far from the fighting. The old king Dhritarashtra is blind, and his charioteer Sanjaya has been given the gift of seeing the battlefield from afar. Verse one. {verse}"
+    },
+    {
+      "layout": "story",
+      "headline": "Between the two armies",
+      "visual": [
+        "Arjuna asks Krishna to drive between the armies",
+        "On the other side: teachers, uncles, cousins, friends",
+        "His limbs fail, his bow slips from his hand"
+      ],
+      "say": "Arjuna, the greatest archer of his age, asks his charioteer and friend, Krishna, to drive the chariot into the open ground between the two armies, so he can see who he must fight. And there he sees them: his grandfather Bhishma, his teacher Drona, uncles, cousins, friends. Compassion floods him. His mouth goes dry, his limbs tremble, and his great bow slips from his hand.",
+      "L": [
+        "L2"
+      ]
+    },
+    {
+      "layout": "story",
+      "headline": "The case against fighting",
+      "beyond": true,
+      "visual": [
+        "What good is a kingdom won by killing family?",
+        "War destroys families and their traditions",
+        "Better to be killed than to kill them"
+      ],
+      "say": "In the full Gita, Arjuna then argues at length, and our book summarises his words. What good is a kingdom, he asks, if it is won by killing the very people we wanted to share it with? War destroys families, and with them their traditions and their sense of right. It would be better, he says, to be killed unarmed than to raise a weapon against them."
+    },
+    {
+      "layout": "verse",
+      "ref": "1.47",
+      "L": [
+        "L3"
+      ],
+      "say": "And the chapter ends with one of the most honest images in all of scripture: a hero who cannot go on. Verse forty-seven. {verse}"
+    },
+    {
+      "layout": "compare",
+      "headline": "The two pulls on Arjuna",
+      "L": [
+        "L1"
+      ],
+      "visual": [
+        "Duty | Emotion",
+        "Fight for justice | Love for his relatives",
+        "Protect the innocent | Spare his teachers",
+        "The role of a warrior | The heart of a grandson"
+      ],
+      "say": "Lesson one. Duty versus emotion, and both matter. Arjuna is pulled between what he should do, which is to fight for justice, and what he feels, which is love for the people on the other side. The chapter does not mock his feelings. The lesson is to acknowledge both, and to dismiss neither."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L2"
+      ],
+      "visual": [
+        "Arjuna looked and recognised the people he loved",
+        "He could not unsee it",
+        "Facing a hard truth is the first step"
+      ],
+      "say": "Lesson two. Ignorance is not bliss, so face reality. Arjuna chose to drive into the middle and look. Once he saw the faces of the people he loved, he could not unsee them. Don't avoid difficult truths. Facing reality, even when it hurts, is the first step toward wisdom."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L3"
+      ],
+      "visual": [
+        "Arjuna admits he does not know what to do",
+        "He does not pretend to be brave",
+        "Doubt is honest, not weak"
+      ],
+      "say": "Lesson three. It's okay to doubt and to feel lost. The greatest warrior of his time sits down and admits that he does not know what to do. He doesn't pretend. Confusion and doubt are a natural part of life. They don't make you weak; they make you honest."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L4"
+      ],
+      "visual": [
+        "Whatever Arjuna chose, someone would suffer",
+        "You cannot make everyone happy",
+        "Choose by principle, not by avoiding all pain"
+      ],
+      "say": "Lesson four. Some situations have no perfect solution. If Arjuna fights, people he loves will die. If he walks away, injustice wins and the innocent suffer. In situations like this, accept that you cannot make everyone happy. Choose by principle, not by trying to avoid every pain."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L5"
+      ],
+      "visual": [
+        "Arjuna does not decide alone",
+        "He turns to Krishna",
+        "Wise counsel brings perspective"
+      ],
+      "say": "Lesson five. Seek wisdom when you're lost. Instead of deciding alone, in the middle of his despair, Arjuna turns to Krishna. When you face the big questions of your life, talk to a mentor, a counsellor, or someone wise who can see what you cannot."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L6"
+      ],
+      "visual": [
+        "Arjuna is a warrior, sworn to resist injustice",
+        "Every role carries responsibilities",
+        "Avoiding duty has consequences too"
+      ],
+      "say": "Lesson six. Your role and your responsibility matter. Arjuna is a warrior, and his duty is to stand against injustice. Understand your own role in life and what it asks of you. Walking away from a duty is also a choice, and it has consequences of its own."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L7"
+      ],
+      "visual": [
+        "Loving his enemies is good",
+        "Ignoring injustice is not",
+        "Kindness never requires abandoning what is right"
+      ],
+      "say": "Lesson seven. Compassion doesn't mean avoiding hard choices. Arjuna's love for the people across the field is real and good. But it cannot be a reason to let injustice stand. Being kind and caring never requires you to abandon what is right."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L8"
+      ],
+      "visual": [
+        "\"I don't know what to do\"",
+        "That admission opens the door to the teaching",
+        "Humility is where learning begins"
+      ],
+      "say": "Lesson eight. The beginning of wisdom is admitting what you don't know. Arjuna lays down his weapons and says, in effect, I don't know what to do. That admission opens the door to everything Krishna is about to teach. Confidence without wisdom is dangerous. Humility is where learning begins."
+    },
+    {
+      "layout": "closing",
+      "headline": "A hero who stops",
+      "visual": [
+        "Duty and emotion both deserve a hearing",
+        "Face the truth, even when it hurts",
+        "Admit you are lost, and ask for wisdom"
+      ],
+      "say": "So, Chapter One. A hero stops in the middle of a battlefield because he sees too clearly to go on. Duty and emotion both deserve a hearing. Face the truth, even when it hurts. And when you are lost, say so, and ask for wisdom. In Chapter Two, Krishna begins to answer."
+    }
   ]
 }

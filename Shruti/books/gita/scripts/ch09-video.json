@@ -3,45 +3,204 @@
   "book": "gita",
   "n": 9,
   "title": "Supreme knowledge and the big mystery",
-  "narrator": { "name": "Brian", "voice": "en-US-BrianMultilingualNeural" },
+  "narrator": {
+    "name": "Sonia",
+    "voice": "en-GB-SoniaNeural"
+  },
   "scenes": [
-    { "layout": "title", "headline": "The Supreme Mystery", "visual": ["The king of all knowledge"],
-      "say": "Chapter Nine. Supreme Knowledge and the Big Mystery. Krishna calls what he is about to say the king of all knowledge and the king of all secrets." },
-    { "layout": "story", "headline": "The royal secret", "L": ["L1"], "visual": ["The most sacred and secret knowledge", "Directly experienced, easy to practise", "Imperishable"],
-      "say": "To you, who do not disbelieve, he tells Arjuna, I will reveal the most profound knowledge, together with its experience. It is the king of all knowledge, the most secret, the most sacred. It can be known directly, it agrees with dharma, it is easy to practise, and it is imperishable. Without faith in it, people keep returning to the cycle of birth and death." },
-    { "layout": "verse", "ref": "9.04", "L": ["L2"],
-      "say": "Then comes the mystery itself. Verse four. {verse}" },
-    { "layout": "verse", "ref": "9.06", "L": ["L2"],
-      "say": "How can all beings rest in him without binding him? Verse six. {verse}" },
-    { "layout": "story", "headline": "Creating without being bound", "L": ["L3"], "visual": ["At the end of a cycle, all return to Nature", "At the start, God sends them forth again", "Yet He sits apart, unattached"],
-      "say": "At the end of each cosmic cycle, Krishna says, all beings return into his material nature, and at the start of the next, he sends them forth again. Nature does the work under his watch, and creation keeps turning. But these acts do not bind him, because he sits apart from them, like a witness, unattached." },
-    { "layout": "story", "headline": "I am the ritual and the fire", "L": ["L4"], "visual": ["The ritual, the offering, the mantra, the fire", "Father, mother and grandfather of the world", "The goal, the refuge, the friend"],
-      "say": "And then a great litany. I am the ritual, Krishna says. I am the sacrifice and the offering, the herb, the mantra, the butter, the fire and the oblation. I am the father of this world, and its mother. I am the goal, the support, the Lord, the witness, the home, the refuge and the friend. I am the origin and the dissolution of all." },
-    { "layout": "verse", "ref": "9.22",
-      "say": "To those who turn to him completely, he makes a promise. Verse twenty-two. {verse}" },
-    { "layout": "verse", "ref": "9.26", "L": ["L5"],
-      "say": "And what does God want from us? Something astonishingly small. Verse twenty-six. {verse}" },
-    { "layout": "verse", "ref": "9.27", "L": ["L5"],
-      "say": "Then Krishna widens it to all of life. Verse twenty-seven. {verse}" },
-    { "layout": "verse", "ref": "9.30", "L": ["L6"],
-      "say": "And no one is left out. Verse thirty. {verse}" },
-    { "layout": "verse", "ref": "9.34", "L": ["L7"],
-      "say": "The chapter closes with a verse that sums up the path of love. Verse thirty-four. {verse}" },
-    { "layout": "lesson", "L": ["L1"], "visual": ["The most sacred and secret knowledge", "Directly perceivable and easy to practise", "Timeless and in harmony with dharma"],
-      "say": "Lesson one. Self-knowledge is the king of all knowledge. It is the most sacred, the most secret, and the most directly felt. It agrees with dharma, it is easy to practise, and it never fades. Those without faith in it miss it, and keep returning to birth and death." },
-    { "layout": "lesson", "L": ["L2"], "visual": ["The universe exists within God", "God does not depend on it", "Like the wind moving within space"],
-      "say": "Lesson two. God pervades everything, yet is bound by nothing. The universe lives within God, but God does not depend on it. Like the wind moving everywhere within space, all beings move within him, without limiting or containing him." },
-    { "layout": "lesson", "L": ["L3"], "visual": ["God creates again and again, each cycle", "Nature does the work under His watch", "He remains the unattached witness"],
-      "say": "Lesson three. Creation is a continuous divine act, and God is not the doer. Again and again, at the start of each cycle, beings are sent forth. Nature does the actual work under his supervision. God is the witness, unattached, and so these acts do not bind him." },
-    { "layout": "lesson", "L": ["L4"], "visual": ["The ritual, the offering and the fire", "Father, mother, goal and refuge", "Seeing God in all things"],
-      "say": "Lesson four. Everything is a manifestation of God. He is the ritual and the fire, the food and the mantra, the father and the mother, the goal and the refuge. The universe is his expression. Learning to see him in everything is itself a spiritual practice." },
-    { "layout": "lesson", "L": ["L5"], "visual": ["A leaf, a flower, a fruit, a little water", "Offered with love, God receives it", "Do everything as an offering"],
-      "say": "Lesson five. Worship with devotion is personally received by God. A leaf, a flower, a fruit, a little water, offered with love, he accepts. And whatever you do, whatever you eat, whatever you give, do it as an offering. That attitude dissolves the bondage of karma." },
-    { "layout": "lesson", "L": ["L6"], "visual": ["Even the most sinful person", "Who turns to God with all their heart", "Must be seen as a saint"],
-      "say": "Lesson six. There are no unforgivable sinners. Even the most sinful person, once they resolve to worship God with single-minded love, must be regarded as a saint, because they have made the right resolution. They soon become righteous. God's devotee never perishes." },
-    { "layout": "lesson", "L": ["L7"], "visual": ["Open to anyone, whatever their past", "Fix the mind on God, love and bow to Him", "You shall surely come to Him"],
-      "say": "Lesson seven. The path of devotional love is open to all. Anyone, whatever their background, their work or their past, can reach the highest by surrendering to God with love. Fix your mind on him, be devoted, worship and bow down, and you shall surely come to him." },
-    { "layout": "closing", "headline": "A leaf offered with love", "visual": ["All of creation rests in God", "He asks only for love", "No one is beyond His reach"],
-      "say": "So, Chapter Nine. All of creation rests in God, the way the wind rests in the sky. And this infinite Lord asks only for love: a leaf, a flower, a little water, and a life offered to him. No one is beyond his reach. Next, Arjuna asks to hear more of God's glories." }
+    {
+      "layout": "title",
+      "headline": "The Supreme Mystery",
+      "visual": [
+        "The king of all knowledge"
+      ],
+      "say": "Chapter Nine. Supreme Knowledge and the Big Mystery. Krishna calls what he is about to say the king of all knowledge and the king of all secrets."
+    },
+    {
+      "layout": "story",
+      "headline": "The royal secret",
+      "L": [
+        "L1"
+      ],
+      "visual": [
+        "The most sacred and secret knowledge",
+        "Directly experienced, easy to practise",
+        "Imperishable"
+      ],
+      "say": "To you, who do not disbelieve, he tells Arjuna, I will reveal the most profound knowledge, together with its experience. It is the king of all knowledge, the most secret, the most sacred. It can be known directly, it agrees with dharma, it is easy to practise, and it is imperishable. Without faith in it, people keep returning to the cycle of birth and death."
+    },
+    {
+      "layout": "verse",
+      "ref": "9.04",
+      "L": [
+        "L2"
+      ],
+      "say": "Then comes the mystery itself. Verse four. {verse}"
+    },
+    {
+      "layout": "verse",
+      "ref": "9.06",
+      "L": [
+        "L2"
+      ],
+      "say": "How can all beings rest in him without binding him? Verse six. {verse}"
+    },
+    {
+      "layout": "story",
+      "headline": "Creating without being bound",
+      "L": [
+        "L3"
+      ],
+      "visual": [
+        "At the end of a cycle, all return to Nature",
+        "At the start, God sends them forth again",
+        "Yet He sits apart, unattached"
+      ],
+      "say": "At the end of each cosmic cycle, Krishna says, all beings return into his material nature, and at the start of the next, he sends them forth again. Nature does the work under his watch, and creation keeps turning. But these acts do not bind him, because he sits apart from them, like a witness, unattached."
+    },
+    {
+      "layout": "story",
+      "headline": "I am the ritual and the fire",
+      "L": [
+        "L4"
+      ],
+      "visual": [
+        "The ritual, the offering, the mantra, the fire",
+        "Father, mother and grandfather of the world",
+        "The goal, the refuge, the friend"
+      ],
+      "say": "And then a great litany. I am the ritual, Krishna says. I am the sacrifice and the offering, the herb, the mantra, the butter, the fire and the oblation. I am the father of this world, and its mother. I am the goal, the support, the Lord, the witness, the home, the refuge and the friend. I am the origin and the dissolution of all."
+    },
+    {
+      "layout": "verse",
+      "ref": "9.22",
+      "say": "To those who turn to him completely, he makes a promise. Verse twenty-two. {verse}"
+    },
+    {
+      "layout": "verse",
+      "ref": "9.26",
+      "L": [
+        "L5"
+      ],
+      "say": "And what does God want from us? Something astonishingly small. Verse twenty-six. {verse}"
+    },
+    {
+      "layout": "verse",
+      "ref": "9.27",
+      "L": [
+        "L5"
+      ],
+      "say": "Then Krishna widens it to all of life. Verse twenty-seven. {verse}"
+    },
+    {
+      "layout": "verse",
+      "ref": "9.30",
+      "L": [
+        "L6"
+      ],
+      "say": "And no one is left out. Verse thirty. {verse}"
+    },
+    {
+      "layout": "verse",
+      "ref": "9.34",
+      "L": [
+        "L7"
+      ],
+      "say": "The chapter closes with a verse that sums up the path of love. Verse thirty-four. {verse}"
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L1"
+      ],
+      "visual": [
+        "The most sacred and secret knowledge",
+        "Directly perceivable and easy to practise",
+        "Timeless and in harmony with dharma"
+      ],
+      "say": "Lesson one. Self-knowledge is the king of all knowledge. It is the most sacred, the most secret, and the most directly felt. It agrees with dharma, it is easy to practise, and it never fades. Those without faith in it miss it, and keep returning to birth and death."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L2"
+      ],
+      "visual": [
+        "The universe exists within God",
+        "God does not depend on it",
+        "Like the wind moving within space"
+      ],
+      "say": "Lesson two. God pervades everything, yet is bound by nothing. The universe lives within God, but God does not depend on it. Like the wind moving everywhere within space, all beings move within him, without limiting or containing him."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L3"
+      ],
+      "visual": [
+        "God creates again and again, each cycle",
+        "Nature does the work under His watch",
+        "He remains the unattached witness"
+      ],
+      "say": "Lesson three. Creation is a continuous divine act, and God is not the doer. Again and again, at the start of each cycle, beings are sent forth. Nature does the actual work under his supervision. God is the witness, unattached, and so these acts do not bind him."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L4"
+      ],
+      "visual": [
+        "The ritual, the offering and the fire",
+        "Father, mother, goal and refuge",
+        "Seeing God in all things"
+      ],
+      "say": "Lesson four. Everything is a manifestation of God. He is the ritual and the fire, the food and the mantra, the father and the mother, the goal and the refuge. The universe is his expression. Learning to see him in everything is itself a spiritual practice."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L5"
+      ],
+      "visual": [
+        "A leaf, a flower, a fruit, a little water",
+        "Offered with love, God receives it",
+        "Do everything as an offering"
+      ],
+      "say": "Lesson five. Worship with devotion is personally received by God. A leaf, a flower, a fruit, a little water, offered with love, he accepts. And whatever you do, whatever you eat, whatever you give, do it as an offering. That attitude dissolves the bondage of karma."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L6"
+      ],
+      "visual": [
+        "Even the most sinful person",
+        "Who turns to God with all their heart",
+        "Must be seen as a saint"
+      ],
+      "say": "Lesson six. There are no unforgivable sinners. Even the most sinful person, once they resolve to worship God with single-minded love, must be regarded as a saint, because they have made the right resolution. They soon become righteous. God's devotee never perishes."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L7"
+      ],
+      "visual": [
+        "Open to anyone, whatever their past",
+        "Fix the mind on God, love and bow to Him",
+        "You shall surely come to Him"
+      ],
+      "say": "Lesson seven. The path of devotional love is open to all. Anyone, whatever their background, their work or their past, can reach the highest by surrendering to God with love. Fix your mind on him, be devoted, worship and bow down, and you shall surely come to him."
+    },
+    {
+      "layout": "closing",
+      "headline": "A leaf offered with love",
+      "visual": [
+        "All of creation rests in God",
+        "He asks only for love",
+        "No one is beyond His reach"
+      ],
+      "say": "So, Chapter Nine. All of creation rests in God, the way the wind rests in the sky. And this infinite Lord asks only for love: a leaf, a flower, a little water, and a life offered to him. No one is beyond his reach. Next, Arjuna asks to hear more of God's glories."
+    }
   ]
 }

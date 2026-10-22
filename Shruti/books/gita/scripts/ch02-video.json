@@ -3,59 +3,288 @@
   "book": "gita",
   "n": 2,
   "title": "Spiritual knowledge",
-  "narrator": { "name": "Brian", "voice": "en-US-BrianMultilingualNeural" },
+  "narrator": {
+    "name": "Sonia",
+    "voice": "en-GB-SoniaNeural"
+  },
   "scenes": [
-    { "layout": "title", "headline": "Spiritual Knowledge", "visual": ["The Gita in miniature"],
-      "say": "Chapter Two. Spiritual Knowledge. Many readers call it the Gita in miniature, because almost every great idea of the book appears here for the first time." },
-    { "layout": "story", "headline": "A warrior in tears", "visual": ["Arjuna sits in his chariot, his bow on the floor", "Sanjaya reports every word to the blind king", "Krishna, as if smiling, begins to speak"],
-      "say": "We left Arjuna sitting in his chariot between two armies, his bow on the floor, his eyes full of tears. Sanjaya, reporting to the blind king, tells us that Krishna looked at his friend and, as if smiling, began to speak. Here the book marks a line: the teachings of the Gita begin." },
-    { "layout": "story", "headline": "I am your disciple", "beyond": true, "L": ["L8"], "visual": ["Krishna first speaks sharply: stand up", "Arjuna: my mind is confused about my duty", "Teach me what is truly good for me"],
-      "say": "Our book leaves out the verses in between, so this part comes from the full Gita. Krishna first speaks sharply: where does this weakness come from? Stand up. Arjuna answers that pity has clouded his mind. He calls it compassion, but he is running from his duty. Then he says: I am your disciple. Teach me what is truly good for me. That surrender turns a friend into a teacher." },
-    { "layout": "verse", "ref": "2.11", "L": ["L5"],
-      "say": "Krishna's first words go straight to the root of the grief. Verse eleven. {verse}" },
-    { "layout": "story", "headline": "The Self that never dies", "L": ["L1"], "visual": ["There was never a time when we did not exist", "Weapons do not cut it, fire does not burn it", "It is eternal, unchanging, all-pervading"],
-      "say": "Krishna begins with the deepest truth of all. There was never a time when Arjuna, Krishna, or these kings did not exist, and there never will be. Weapons cannot cut the Spirit, fire cannot burn it, water cannot wet it, and wind cannot dry it. What Arjuna fears to destroy cannot be destroyed." },
-    { "layout": "verse", "ref": "2.22", "L": ["L4"],
-      "say": "Then comes one of the most loved images in the whole Gita. Verse twenty-two. {verse}" },
-    { "layout": "story", "headline": "The duty of a warrior", "L": ["L3"], "visual": ["A just war is a duty, not a crime", "Running away would bring dishonour", "Treat victory and defeat alike"],
-      "say": "Krishna then speaks to Arjuna as a warrior. For one whose duty is to protect, there is nothing higher than a fight for what is right. To walk away now would not be peace. It would be a failure of duty, and the world would remember it as fear. So Krishna asks him to treat pleasure and pain, gain and loss, victory and defeat alike, and simply do what is right." },
-    { "layout": "verse", "ref": "2.47", "L": ["L2"],
-      "say": "And now the most famous verse of the Gita. Verse forty-seven. {verse}" },
-    { "layout": "verse", "ref": "2.48", "L": ["L7"],
-      "say": "Krishna gives this calm a name. Verse forty-eight. {verse}" },
-    { "layout": "story", "headline": "What does a steady person look like?", "visual": ["Not shaken by sorrow", "Not craving pleasure", "Free from attachment, fear and anger"],
-      "say": "Arjuna asks a beautifully practical question. What does a person of steady wisdom look like? How do they speak, how do they sit, how do they walk? Krishna answers: they are not shaken by sorrow, they do not crave pleasure, and they are free from attachment, fear and anger. Like a tortoise drawing in its limbs, they can draw their senses back from the world." },
-    { "layout": "steps", "headline": "How the mind is carried away", "visual": ["Thinking of objects", "Attachment", "Desire", "Anger", "Delusion"],
-      "say": "Then Krishna traces, step by step, how a person falls. Thinking about sense objects creates attachment. Attachment becomes desire. Desire that is not fulfilled becomes anger. Anger brings delusion, delusion clouds memory, and when reason is lost, the person is lost. The restless senses can carry away even a wise mind, like a storm carrying a boat away from the shore." },
-    { "layout": "verse", "ref": "2.70", "L": ["L10"],
-      "say": "And the chapter's final picture is peace. Verse seventy. {verse}" },
-    { "layout": "lesson", "L": ["L1"], "visual": ["The soul never dies and never changes", "Nothing physical can harm it", "Fear of death and loss loses its grip"],
-      "say": "Lesson one. The soul is eternal, and nothing can destroy it. Everything else in this chapter rests on this. When you know that who you really are cannot be harmed, the fears of death, loss and destruction take their proper, smaller place." },
-    { "layout": "lesson", "L": ["L2"], "visual": ["You control your effort, not the outcome", "Do your best, then accept what comes", "Obsessing over results creates anxiety"],
-      "say": "Lesson two. Focus on effort and action, not results. You can choose how hard you work, how honestly, and with what intention. You cannot choose what happens next. Peace comes from giving your best and then letting the outcome be what it will be." },
-    { "layout": "lesson", "L": ["L3"], "visual": ["Everyone has a role and responsibilities", "Integrity matters more than comfort", "Duty sometimes asks for sacrifice"],
-      "say": "Lesson three. Your duty, your dharma, matters more than your comfort. Every person has a role. Doing it with integrity is more important than avoiding what is hard or doing what feels good in the moment. Sometimes duty asks you to sacrifice, and that is part of its dignity." },
-    { "layout": "lesson", "L": ["L4"], "visual": ["Your body, possessions and status change", "Your character and values are you", "External losses cannot shatter your worth"],
-      "say": "Lesson four. The body is temporary; the Self is permanent. Like old clothes, bodies are worn and set aside. So separate who you are, your values and your character, from your circumstances. Losing something outside you does not make you less." },
-    { "layout": "lesson", "L": ["L5"], "visual": ["Question what you think you know", "Arjuna thought killing bodies meant killing souls", "Wisdom looks beneath the surface"],
-      "say": "Lesson five. Wisdom means seeing beyond surface appearances. Arjuna was sure that ending a body meant ending a person. That one false assumption caused all his grief. Before you despair, ask whether what you are certain of is actually true." },
-    { "layout": "lesson", "L": ["L6"], "visual": ["Understanding the soul brings courage", "Danger loses its power over you", "Do what is right, even when afraid"],
-      "say": "Lesson six. Act without fear, because the soul cannot perish. Courage is not the absence of fear. It is knowing that fear does not have the last word. Once you see that death is not the end, you are free to do what is right." },
-    { "layout": "lesson", "L": ["L7"], "visual": ["Stop being enslaved by outcomes", "Do your duty for its own sake", "Freedom from anxiety and despair"],
-      "say": "Lesson seven. Detachment from results brings freedom. When you work only for a reward, every result can wound you. When you work because the work is right, success and failure stop owning you. Krishna calls this evenness of mind yoga." },
-    { "layout": "compare", "headline": "Running away is not compassion", "L": ["L8"],
-      "visual": ["What Arjuna thought | What Krishna showed", "Avoiding the battle is kind | Doing what is right is kind", "Pity for those in front of him | Care for justice and the world", "Comfort now | Courage now, peace later"],
-      "say": "Lesson eight. There is a difference between running away and true compassion. Arjuna believed that avoiding the battle was kindness. Krishna shows that real compassion includes doing what is right and just, even when it hurts. Turning away from your duty is not mercy. It is fear wearing mercy's clothes." },
-    { "layout": "lesson", "L": ["L9"], "visual": ["Arjuna's whole view of the battle shifts", "Not killing, but a role in a larger order", "Knowing the truth changes how you act"],
-      "say": "Lesson nine. Understanding changes everything. Nothing on the battlefield has changed, yet once Arjuna understands the eternal Self, the battle means something else entirely. It is no longer about killing; it is about his part in a larger order. When you see the real nature of a situation, your response changes with it." },
-    { "layout": "lesson", "L": ["L10"], "visual": ["Aligned with what is true", "Aligned with your duty and role", "Aligned with your values and integrity"],
-      "say": "Lesson ten. Peace comes from alignment with truth and duty. When what you do agrees with what is true, with your role, and with your values, you can be at peace even in the middle of difficulty. Like rivers entering a full ocean, desires come and go, and the ocean stays calm." },
-    { "layout": "lesson", "L": ["L11"], "visual": ["You own your effort and intention", "You do not own outcomes", "Do your part; let the rest go"],
-      "say": "Lesson eleven. You are not responsible for things beyond your control. This lifts an impossible weight. Your part is your effort and your intention. The outcome belongs to something larger than you. Do your part well, and let the universe handle the rest." },
-    { "layout": "compare", "headline": "The same action, two different worlds", "L": ["L12"],
-      "visual": ["With ignorance | With wisdom", "Fighting from anger or fear | Fighting from duty and understanding", "Bound by the result | Free in the result", "The ego acts | The Self is at peace"],
-      "say": "Lesson twelve. The same action can be done with wisdom or with ignorance. Arjuna could fight out of anger, or fear, or pride. Or he could fight knowing the eternal Self and his duty. From outside, the two look identical. Inside, they are completely different, and that inner difference is what the Gita cares about." },
-    { "layout": "closing", "headline": "The Self, the duty, the peace", "visual": ["The Self is eternal; the body is a garment", "Do your duty; let go of the fruits", "Master the senses and find the ocean's peace"],
-      "say": "So, Chapter Two in one breath. The Self is eternal, and the body is a garment it wears. Do your duty, and let go of the fruits. Master the senses, and you will find a peace as deep as the ocean. Next, Arjuna asks the obvious question: if knowledge is better than action, why fight at all?" }
+    {
+      "layout": "title",
+      "headline": "Spiritual Knowledge",
+      "visual": [
+        "The Gita in miniature"
+      ],
+      "say": "Chapter Two. Spiritual Knowledge. Many readers call it the Gita in miniature, because almost every great idea of the book appears here for the first time."
+    },
+    {
+      "layout": "story",
+      "headline": "A warrior in tears",
+      "visual": [
+        "Arjuna sits in his chariot, his bow on the floor",
+        "Sanjaya reports every word to the blind king",
+        "Krishna, as if smiling, begins to speak"
+      ],
+      "say": "We left Arjuna sitting in his chariot between two armies, his bow on the floor, his eyes full of tears. Sanjaya, reporting to the blind king, tells us that Krishna looked at his friend and, as if smiling, began to speak. Here the book marks a line: the teachings of the Gita begin."
+    },
+    {
+      "layout": "story",
+      "headline": "I am your disciple",
+      "beyond": true,
+      "L": [
+        "L8"
+      ],
+      "visual": [
+        "Krishna first speaks sharply: stand up",
+        "Arjuna: my mind is confused about my duty",
+        "Teach me what is truly good for me"
+      ],
+      "say": "Our book leaves out the verses in between, so this part comes from the full Gita. Krishna first speaks sharply: where does this weakness come from? Stand up. Arjuna answers that pity has clouded his mind. He calls it compassion, but he is running from his duty. Then he says: I am your disciple. Teach me what is truly good for me. That surrender turns a friend into a teacher."
+    },
+    {
+      "layout": "verse",
+      "ref": "2.11",
+      "L": [
+        "L5"
+      ],
+      "say": "Krishna's first words go straight to the root of the grief. Verse eleven. {verse}"
+    },
+    {
+      "layout": "story",
+      "headline": "The Self that never dies",
+      "L": [
+        "L1"
+      ],
+      "visual": [
+        "There was never a time when we did not exist",
+        "Weapons do not cut it, fire does not burn it",
+        "It is eternal, unchanging, all-pervading"
+      ],
+      "say": "Krishna begins with the deepest truth of all. There was never a time when Arjuna, Krishna, or these kings did not exist, and there never will be. Weapons cannot cut the Spirit, fire cannot burn it, water cannot wet it, and wind cannot dry it. What Arjuna fears to destroy cannot be destroyed."
+    },
+    {
+      "layout": "verse",
+      "ref": "2.22",
+      "L": [
+        "L4"
+      ],
+      "say": "Then comes one of the most loved images in the whole Gita. Verse twenty-two. {verse}"
+    },
+    {
+      "layout": "story",
+      "headline": "The duty of a warrior",
+      "L": [
+        "L3"
+      ],
+      "visual": [
+        "A just war is a duty, not a crime",
+        "Running away would bring dishonour",
+        "Treat victory and defeat alike"
+      ],
+      "say": "Krishna then speaks to Arjuna as a warrior. For one whose duty is to protect, there is nothing higher than a fight for what is right. To walk away now would not be peace. It would be a failure of duty, and the world would remember it as fear. So Krishna asks him to treat pleasure and pain, gain and loss, victory and defeat alike, and simply do what is right."
+    },
+    {
+      "layout": "verse",
+      "ref": "2.47",
+      "L": [
+        "L2"
+      ],
+      "say": "And now the most famous verse of the Gita. Verse forty-seven. {verse}"
+    },
+    {
+      "layout": "verse",
+      "ref": "2.48",
+      "L": [
+        "L7"
+      ],
+      "say": "Krishna gives this calm a name. Verse forty-eight. {verse}"
+    },
+    {
+      "layout": "story",
+      "headline": "What does a steady person look like?",
+      "visual": [
+        "Not shaken by sorrow",
+        "Not craving pleasure",
+        "Free from attachment, fear and anger"
+      ],
+      "say": "Arjuna asks a beautifully practical question. What does a person of steady wisdom look like? How do they speak, how do they sit, how do they walk? Krishna answers: they are not shaken by sorrow, they do not crave pleasure, and they are free from attachment, fear and anger. Like a tortoise drawing in its limbs, they can draw their senses back from the world."
+    },
+    {
+      "layout": "steps",
+      "headline": "How the mind is carried away",
+      "visual": [
+        "Thinking of objects",
+        "Attachment",
+        "Desire",
+        "Anger",
+        "Delusion"
+      ],
+      "say": "Then Krishna traces, step by step, how a person falls. Thinking about sense objects creates attachment. Attachment becomes desire. Desire that is not fulfilled becomes anger. Anger brings delusion, delusion clouds memory, and when reason is lost, the person is lost. The restless senses can carry away even a wise mind, like a storm carrying a boat away from the shore."
+    },
+    {
+      "layout": "verse",
+      "ref": "2.70",
+      "L": [
+        "L10"
+      ],
+      "say": "And the chapter's final picture is peace. Verse seventy. {verse}"
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L1"
+      ],
+      "visual": [
+        "The soul never dies and never changes",
+        "Nothing physical can harm it",
+        "Fear of death and loss loses its grip"
+      ],
+      "say": "Lesson one. The soul is eternal, and nothing can destroy it. Everything else in this chapter rests on this. When you know that who you really are cannot be harmed, the fears of death, loss and destruction take their proper, smaller place."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L2"
+      ],
+      "visual": [
+        "You control your effort, not the outcome",
+        "Do your best, then accept what comes",
+        "Obsessing over results creates anxiety"
+      ],
+      "say": "Lesson two. Focus on effort and action, not results. You can choose how hard you work, how honestly, and with what intention. You cannot choose what happens next. Peace comes from giving your best and then letting the outcome be what it will be."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L3"
+      ],
+      "visual": [
+        "Everyone has a role and responsibilities",
+        "Integrity matters more than comfort",
+        "Duty sometimes asks for sacrifice"
+      ],
+      "say": "Lesson three. Your duty, your dharma, matters more than your comfort. Every person has a role. Doing it with integrity is more important than avoiding what is hard or doing what feels good in the moment. Sometimes duty asks you to sacrifice, and that is part of its dignity."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L4"
+      ],
+      "visual": [
+        "Your body, possessions and status change",
+        "Your character and values are you",
+        "External losses cannot shatter your worth"
+      ],
+      "say": "Lesson four. The body is temporary; the Self is permanent. Like old clothes, bodies are worn and set aside. So separate who you are, your values and your character, from your circumstances. Losing something outside you does not make you less."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L5"
+      ],
+      "visual": [
+        "Question what you think you know",
+        "Arjuna thought killing bodies meant killing souls",
+        "Wisdom looks beneath the surface"
+      ],
+      "say": "Lesson five. Wisdom means seeing beyond surface appearances. Arjuna was sure that ending a body meant ending a person. That one false assumption caused all his grief. Before you despair, ask whether what you are certain of is actually true."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L6"
+      ],
+      "visual": [
+        "Understanding the soul brings courage",
+        "Danger loses its power over you",
+        "Do what is right, even when afraid"
+      ],
+      "say": "Lesson six. Act without fear, because the soul cannot perish. Courage is not the absence of fear. It is knowing that fear does not have the last word. Once you see that death is not the end, you are free to do what is right."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L7"
+      ],
+      "visual": [
+        "Stop being enslaved by outcomes",
+        "Do your duty for its own sake",
+        "Freedom from anxiety and despair"
+      ],
+      "say": "Lesson seven. Detachment from results brings freedom. When you work only for a reward, every result can wound you. When you work because the work is right, success and failure stop owning you. Krishna calls this evenness of mind yoga."
+    },
+    {
+      "layout": "compare",
+      "headline": "Running away is not compassion",
+      "L": [
+        "L8"
+      ],
+      "visual": [
+        "What Arjuna thought | What Krishna showed",
+        "Avoiding the battle is kind | Doing what is right is kind",
+        "Pity for those in front of him | Care for justice and the world",
+        "Comfort now | Courage now, peace later"
+      ],
+      "say": "Lesson eight. There is a difference between running away and true compassion. Arjuna believed that avoiding the battle was kindness. Krishna shows that real compassion includes doing what is right and just, even when it hurts. Turning away from your duty is not mercy. It is fear wearing mercy's clothes."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L9"
+      ],
+      "visual": [
+        "Arjuna's whole view of the battle shifts",
+        "Not killing, but a role in a larger order",
+        "Knowing the truth changes how you act"
+      ],
+      "say": "Lesson nine. Understanding changes everything. Nothing on the battlefield has changed, yet once Arjuna understands the eternal Self, the battle means something else entirely. It is no longer about killing; it is about his part in a larger order. When you see the real nature of a situation, your response changes with it."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L10"
+      ],
+      "visual": [
+        "Aligned with what is true",
+        "Aligned with your duty and role",
+        "Aligned with your values and integrity"
+      ],
+      "say": "Lesson ten. Peace comes from alignment with truth and duty. When what you do agrees with what is true, with your role, and with your values, you can be at peace even in the middle of difficulty. Like rivers entering a full ocean, desires come and go, and the ocean stays calm."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L11"
+      ],
+      "visual": [
+        "You own your effort and intention",
+        "You do not own outcomes",
+        "Do your part; let the rest go"
+      ],
+      "say": "Lesson eleven. You are not responsible for things beyond your control. This lifts an impossible weight. Your part is your effort and your intention. The outcome belongs to something larger than you. Do your part well, and let the universe handle the rest."
+    },
+    {
+      "layout": "compare",
+      "headline": "The same action, two different worlds",
+      "L": [
+        "L12"
+      ],
+      "visual": [
+        "With ignorance | With wisdom",
+        "Fighting from anger or fear | Fighting from duty and understanding",
+        "Bound by the result | Free in the result",
+        "The ego acts | The Self is at peace"
+      ],
+      "say": "Lesson twelve. The same action can be done with wisdom or with ignorance. Arjuna could fight out of anger, or fear, or pride. Or he could fight knowing the eternal Self and his duty. From outside, the two look identical. Inside, they are completely different, and that inner difference is what the Gita cares about."
+    },
+    {
+      "layout": "closing",
+      "headline": "The Self, the duty, the peace",
+      "visual": [
+        "The Self is eternal; the body is a garment",
+        "Do your duty; let go of the fruits",
+        "Master the senses and find the ocean's peace"
+      ],
+      "say": "So, Chapter Two in one breath. The Self is eternal, and the body is a garment it wears. Do your duty, and let go of the fruits. Master the senses, and you will find a peace as deep as the ocean. Next, Arjuna asks the obvious question: if knowledge is better than action, why fight at all?"
+    }
   ]
 }

@@ -3,44 +3,184 @@
   "book": "gita",
   "n": 11,
   "title": "Vision of the universal form",
-  "narrator": { "name": "Brian", "voice": "en-US-BrianMultilingualNeural" },
+  "narrator": {
+    "name": "Sonia",
+    "voice": "en-GB-SoniaNeural"
+  },
   "scenes": [
-    { "layout": "title", "headline": "Vision of the Universal Form", "visual": ["Arjuna sees God as He is"],
-      "say": "Chapter Eleven. Vision of the Universal Form. This is the most dramatic chapter of the Gita: Arjuna sees God as he truly is." },
-    { "layout": "verse", "ref": "11.03", "L": ["L1"],
-      "say": "Arjuna has heard about God's glory. Now he wants to see it. Verse three. {verse}" },
-    { "layout": "verse", "ref": "11.08", "L": ["L1"],
-      "say": "Krishna agrees, but with a condition. Verse eight. {verse}" },
-    { "layout": "verse", "ref": "11.12", "L": ["L2"],
-      "say": "Sanjaya, watching from afar, can barely describe what Arjuna now sees. Verse twelve. {verse}" },
-    { "layout": "verse", "ref": "11.16",
-      "say": "Arjuna, his hair standing on end, bows his head and speaks. Verse sixteen. {verse}" },
-    { "layout": "story", "headline": "Wonder turns to terror", "L": ["L2"], "visual": ["Mouths blazing like the fires of dissolution", "The warriors of both sides rushing in", "Like moths into a flame"],
-      "say": "But wonder quickly turns to terror. Arjuna sees mouths with fearful tusks, glowing like the fires at the end of time. He sees the warriors of both armies, his cousins and the chiefs on his own side, rushing into those mouths, like rivers rushing to the ocean, like moths flying into a flame. Who are you, in this fierce form, he cries. Be merciful." },
-    { "layout": "verse", "ref": "11.32",
-      "say": "And Krishna answers with words that, centuries later, the physicist Robert Oppenheimer would quote after the first atomic test. Verse thirty-two. {verse}" },
-    { "layout": "verse", "ref": "11.33", "L": ["L3"],
-      "say": "And then the turning point of the whole chapter. Verse thirty-three. {verse}" },
-    { "layout": "story", "headline": "Forgive me, my friend", "visual": ["I called you friend, not knowing your greatness", "Forgive me, as a father forgives a son", "As a friend forgives a friend"],
-      "say": "Trembling, Arjuna bows again and again. He remembers all the times he called Krishna simply friend, joked with him, sat and ate with him, without knowing his greatness. Forgive me, he says, as a father forgives his son, as a friend forgives a friend, as a lover forgives the beloved." },
-    { "layout": "story", "headline": "Back to the gentle form", "L": ["L4"], "visual": ["Show me again your four-armed form", "Krishna returns to his gentle human form", "Arjuna: now I am calm again"],
-      "say": "I am delighted to have seen what no one has seen before, Arjuna says, but my mind is shaken with fear. Please show me your gentle form again. And Krishna does. He shows his four-armed form, and then returns to his familiar human shape and consoles his frightened friend. Seeing you like this, Arjuna says, I am calm again." },
-    { "layout": "verse", "ref": "11.54", "L": ["L4"],
-      "say": "Krishna then explains how such a vision is possible at all. Verse fifty-four. {verse}" },
-    { "layout": "verse", "ref": "11.55", "L": ["L5"],
-      "say": "And he closes the chapter with the whole path in a single verse. Verse fifty-five. {verse}" },
-    { "layout": "lesson", "L": ["L1"], "visual": ["Every seeker longs to see God directly", "The physical eye cannot", "God grants a divine eye"],
-      "say": "Lesson one. Seeing God's true form is the ultimate aim of a seeker. Arjuna's request is every seeker's deepest longing: to know God directly, not just as an idea. The physical eye cannot do it. The vision comes only when God himself gives the divine eye." },
-    { "layout": "lesson", "L": ["L2"], "visual": ["All beings, all worlds, all time in one form", "Awe-inspiring and terrifying at once", "No study or ritual can grant it"],
-      "say": "Lesson two. God's cosmic form is overwhelming, beyond human comprehension. It holds all beings, all worlds and all time, and it is beautiful and terrifying at once. No amount of study, ritual, charity or austerity can grant this vision. Only grace, and devotion, open it." },
-    { "layout": "compare", "headline": "Instrument, not doer", "L": ["L3"],
-      "visual": ["As the doer | As the instrument", "I will kill them | They are already in God's hands", "The weight of every outcome | The weight of one's own part", "Paralysed by fear | Free to act"],
-      "say": "Lesson three. We are instruments, not doers. Krishna shows Arjuna that the outcome is already in God's hands. Arjuna's part is to act, with courage and without ego, as an instrument. That truth does not make his choices meaningless. It takes away a weight he was never meant to carry." },
-    { "layout": "lesson", "L": ["L4"], "visual": ["God can be seen in any form", "He returns to the gentle form Arjuna loves", "Devotion is the door"],
-      "say": "Lesson four. God can be approached in any form, but is best reached through devotion. At Arjuna's request, the overwhelming cosmic form becomes the gentle, familiar friend again. No scripture, sacrifice or austerity opens this door. Single-minded devotion does." },
-    { "layout": "lesson", "L": ["L5"], "visual": ["Dedicate all work to God", "Make Him the supreme goal", "No attachment, no enmity toward anyone"],
-      "say": "Lesson five. Full dedication to God is the direct path to liberation. Dedicate all your work to him, make him your goal, love him, let go of attachment, and bear no enmity toward any being. That one verse is the whole practice." },
-    { "layout": "closing", "headline": "The friend who is also the universe", "visual": ["God is beyond what eyes can bear", "We are His instruments", "Love is the way to see Him"],
-      "say": "So, Chapter Eleven. The friend driving Arjuna's chariot is also the whole universe, and more than any eye can bear. We are his instruments, not the authors of every outcome. And the way to see him is love. Next, Krishna explains the path of devotion in detail." }
+    {
+      "layout": "title",
+      "headline": "Vision of the Universal Form",
+      "visual": [
+        "Arjuna sees God as He is"
+      ],
+      "say": "Chapter Eleven. Vision of the Universal Form. This is the most dramatic chapter of the Gita: Arjuna sees God as he truly is."
+    },
+    {
+      "layout": "verse",
+      "ref": "11.03",
+      "L": [
+        "L1"
+      ],
+      "say": "Arjuna has heard about God's glory. Now he wants to see it. Verse three. {verse}"
+    },
+    {
+      "layout": "verse",
+      "ref": "11.08",
+      "L": [
+        "L1"
+      ],
+      "say": "Krishna agrees, but with a condition. Verse eight. {verse}"
+    },
+    {
+      "layout": "verse",
+      "ref": "11.12",
+      "L": [
+        "L2"
+      ],
+      "say": "Sanjaya, watching from afar, can barely describe what Arjuna now sees. Verse twelve. {verse}"
+    },
+    {
+      "layout": "verse",
+      "ref": "11.16",
+      "say": "Arjuna, his hair standing on end, bows his head and speaks. Verse sixteen. {verse}"
+    },
+    {
+      "layout": "story",
+      "headline": "Wonder turns to terror",
+      "L": [
+        "L2"
+      ],
+      "visual": [
+        "Mouths blazing like the fires of dissolution",
+        "The warriors of both sides rushing in",
+        "Like moths into a flame"
+      ],
+      "say": "But wonder quickly turns to terror. Arjuna sees mouths with fearful tusks, glowing like the fires at the end of time. He sees the warriors of both armies, his cousins and the chiefs on his own side, rushing into those mouths, like rivers rushing to the ocean, like moths flying into a flame. Who are you, in this fierce form, he cries. Be merciful."
+    },
+    {
+      "layout": "verse",
+      "ref": "11.32",
+      "say": "And Krishna answers with words that, centuries later, the physicist Robert Oppenheimer would quote after the first atomic test. Verse thirty-two. {verse}"
+    },
+    {
+      "layout": "verse",
+      "ref": "11.33",
+      "L": [
+        "L3"
+      ],
+      "say": "And then the turning point of the whole chapter. Verse thirty-three. {verse}"
+    },
+    {
+      "layout": "story",
+      "headline": "Forgive me, my friend",
+      "visual": [
+        "I called you friend, not knowing your greatness",
+        "Forgive me, as a father forgives a son",
+        "As a friend forgives a friend"
+      ],
+      "say": "Trembling, Arjuna bows again and again. He remembers all the times he called Krishna simply friend, joked with him, sat and ate with him, without knowing his greatness. Forgive me, he says, as a father forgives his son, as a friend forgives a friend, as a lover forgives the beloved."
+    },
+    {
+      "layout": "story",
+      "headline": "Back to the gentle form",
+      "L": [
+        "L4"
+      ],
+      "visual": [
+        "Show me again your four-armed form",
+        "Krishna returns to his gentle human form",
+        "Arjuna: now I am calm again"
+      ],
+      "say": "I am delighted to have seen what no one has seen before, Arjuna says, but my mind is shaken with fear. Please show me your gentle form again. And Krishna does. He shows his four-armed form, and then returns to his familiar human shape and consoles his frightened friend. Seeing you like this, Arjuna says, I am calm again."
+    },
+    {
+      "layout": "verse",
+      "ref": "11.54",
+      "L": [
+        "L4"
+      ],
+      "say": "Krishna then explains how such a vision is possible at all. Verse fifty-four. {verse}"
+    },
+    {
+      "layout": "verse",
+      "ref": "11.55",
+      "L": [
+        "L5"
+      ],
+      "say": "And he closes the chapter with the whole path in a single verse. Verse fifty-five. {verse}"
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L1"
+      ],
+      "visual": [
+        "Every seeker longs to see God directly",
+        "The physical eye cannot",
+        "God grants a divine eye"
+      ],
+      "say": "Lesson one. Seeing God's true form is the ultimate aim of a seeker. Arjuna's request is every seeker's deepest longing: to know God directly, not just as an idea. The physical eye cannot do it. The vision comes only when God himself gives the divine eye."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L2"
+      ],
+      "visual": [
+        "All beings, all worlds, all time in one form",
+        "Awe-inspiring and terrifying at once",
+        "No study or ritual can grant it"
+      ],
+      "say": "Lesson two. God's cosmic form is overwhelming, beyond human comprehension. It holds all beings, all worlds and all time, and it is beautiful and terrifying at once. No amount of study, ritual, charity or austerity can grant this vision. Only grace, and devotion, open it."
+    },
+    {
+      "layout": "compare",
+      "headline": "Instrument, not doer",
+      "L": [
+        "L3"
+      ],
+      "visual": [
+        "As the doer | As the instrument",
+        "I will kill them | They are already in God's hands",
+        "The weight of every outcome | The weight of one's own part",
+        "Paralysed by fear | Free to act"
+      ],
+      "say": "Lesson three. We are instruments, not doers. Krishna shows Arjuna that the outcome is already in God's hands. Arjuna's part is to act, with courage and without ego, as an instrument. That truth does not make his choices meaningless. It takes away a weight he was never meant to carry."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L4"
+      ],
+      "visual": [
+        "God can be seen in any form",
+        "He returns to the gentle form Arjuna loves",
+        "Devotion is the door"
+      ],
+      "say": "Lesson four. God can be approached in any form, but is best reached through devotion. At Arjuna's request, the overwhelming cosmic form becomes the gentle, familiar friend again. No scripture, sacrifice or austerity opens this door. Single-minded devotion does."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L5"
+      ],
+      "visual": [
+        "Dedicate all work to God",
+        "Make Him the supreme goal",
+        "No attachment, no enmity toward anyone"
+      ],
+      "say": "Lesson five. Full dedication to God is the direct path to liberation. Dedicate all your work to him, make him your goal, love him, let go of attachment, and bear no enmity toward any being. That one verse is the whole practice."
+    },
+    {
+      "layout": "closing",
+      "headline": "The friend who is also the universe",
+      "visual": [
+        "God is beyond what eyes can bear",
+        "We are His instruments",
+        "Love is the way to see Him"
+      ],
+      "say": "So, Chapter Eleven. The friend driving Arjuna's chariot is also the whole universe, and more than any eye can bear. We are his instruments, not the authors of every outcome. And the way to see him is love. Next, Krishna explains the path of devotion in detail."
+    }
   ]
 }

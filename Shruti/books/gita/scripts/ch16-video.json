@@ -3,32 +3,142 @@
   "book": "gita",
   "n": 16,
   "title": "Divine and the demonic qualities",
-  "narrator": { "name": "Brian", "voice": "en-US-BrianMultilingualNeural" },
+  "narrator": {
+    "name": "Sonia",
+    "voice": "en-GB-SoniaNeural"
+  },
   "scenes": [
-    { "layout": "title", "headline": "Divine and Demonic Qualities", "visual": ["Two ways to live"],
-      "say": "Chapter Sixteen. The Divine and the Demonic Qualities. A plain-spoken chapter about the two directions a human life can take." },
-    { "layout": "story", "headline": "The divine qualities", "L": ["L1"], "visual": ["Fearlessness, purity, charity, self-control", "Truthfulness, nonviolence, compassion", "Forgiveness, modesty, absence of malice"],
-      "say": "Krishna begins with a list of qualities to grow toward: fearlessness, purity of heart, steadiness in knowledge, charity, self-control, study, honesty, nonviolence, truthfulness, freedom from anger, renunciation, peace, compassion, gentleness, modesty, forgiveness, and freedom from malice and pride. These, he says, are the marks of the divine." },
-    { "layout": "story", "headline": "Do not grieve, Arjuna", "L": ["L1"], "visual": ["Hypocrisy, arrogance, pride, anger, harshness", "Divine qualities lead to freedom", "\"You are born with divine qualities\""],
-      "say": "And their opposites: hypocrisy, arrogance, pride, anger, harshness and ignorance. The divine qualities lead to freedom; the demonic ones lead to bondage. Then Krishna adds a kind word to his worried friend. Do not grieve, Arjuna. You are born with divine qualities." },
-    { "layout": "verse", "ref": "16.06", "L": ["L1"],
-      "say": "Verse six. {verse}" },
-    { "layout": "story", "headline": "\"Who is equal to me?\"", "L": ["L2"], "visual": ["The world has no God and no moral order", "I have gained this; I will gain more", "I am the lord, the enjoyer. Who is equal to me?"],
-      "say": "Krishna then lets us hear the demonic mind from the inside. The world, it says, has no God, no moral order, no purpose but pleasure. Today I gained this, and tomorrow I will have that. I have this much wealth, and I will have more. That enemy I have destroyed, and I will destroy others. I am the lord. I am the enjoyer. Who is equal to me? The voice is uncomfortably familiar, and that is the point." },
-    { "layout": "verse", "ref": "16.21", "L": ["L3"],
-      "say": "And Krishna names the three doors that lead there. Verse twenty-one. {verse}" },
-    { "layout": "verse", "ref": "16.24", "L": ["L4"],
-      "say": "So what can guide us? The chapter ends with this answer. Verse twenty-four. {verse}" },
-    { "layout": "compare", "headline": "Two kinds of people", "L": ["L1"],
-      "visual": ["Divine | Demonic", "Fearless, pure, truthful | Hypocritical, arrogant, proud", "Compassionate and forgiving | Angry and harsh", "Leads to freedom | Leads to bondage"],
-      "say": "Lesson one. There are only two types of people, divine and demonic. Divine qualities, like fearlessness, purity, truthfulness, compassion and forgiveness, lead to liberation. Demonic qualities, like hypocrisy, arrogance, pride, anger and harshness, lead to bondage. Every one of us is choosing which to grow." },
-    { "layout": "lesson", "L": ["L2"], "visual": ["No God, no moral order, no purpose", "Only pleasure, power and more", "This view leads to exploitation and ruin"],
-      "say": "Lesson two. The demonic nature is rooted in denying God and moral order. When people believe there is no God, no right and wrong, and no purpose beyond pleasure, desire becomes endless, and exploitation and cruelty follow. That view ruins those who hold it, birth after birth." },
-    { "layout": "steps", "headline": "The three gates", "L": ["L3"], "visual": ["Lust", "Anger", "Greed"],
-      "say": "Lesson three. Lust, anger and greed are the three gates to hell. They are the root of all demonic behaviour and spiritual ruin. Whoever escapes these three does what is truly good, and reaches the supreme abode. Learn to recognise them, and to close the gates." },
-    { "layout": "lesson", "L": ["L4"], "visual": ["Acting on desire alone brings no peace", "Scripture shows what to do and what not to do", "Duty in its light leads to perfection"],
-      "say": "Lesson four. Scripture must be the authority for right action. Whoever acts only from personal desire, ignoring the guidance of scripture, finds neither perfection, nor happiness, nor the highest goal. Scripture exists to show what should and should not be done." },
-    { "layout": "closing", "headline": "Choose what you grow", "visual": ["Divine qualities free; demonic ones bind", "Close the gates of lust, anger and greed", "Let scripture light the way"],
-      "say": "So, Chapter Sixteen. Divine qualities lead to freedom, and demonic qualities lead to bondage, and every day we are growing one or the other. Close the three gates of lust, anger and greed, and let scripture light the way. Next, Krishna explains three kinds of faith." }
+    {
+      "layout": "title",
+      "headline": "Divine and Demonic Qualities",
+      "visual": [
+        "Two ways to live"
+      ],
+      "say": "Chapter Sixteen. The Divine and the Demonic Qualities. A plain-spoken chapter about the two directions a human life can take."
+    },
+    {
+      "layout": "story",
+      "headline": "The divine qualities",
+      "L": [
+        "L1"
+      ],
+      "visual": [
+        "Fearlessness, purity, charity, self-control",
+        "Truthfulness, nonviolence, compassion",
+        "Forgiveness, modesty, absence of malice"
+      ],
+      "say": "Krishna begins with a list of qualities to grow toward: fearlessness, purity of heart, steadiness in knowledge, charity, self-control, study, honesty, nonviolence, truthfulness, freedom from anger, renunciation, peace, compassion, gentleness, modesty, forgiveness, and freedom from malice and pride. These, he says, are the marks of the divine."
+    },
+    {
+      "layout": "story",
+      "headline": "Do not grieve, Arjuna",
+      "L": [
+        "L1"
+      ],
+      "visual": [
+        "Hypocrisy, arrogance, pride, anger, harshness",
+        "Divine qualities lead to freedom",
+        "\"You are born with divine qualities\""
+      ],
+      "say": "And their opposites: hypocrisy, arrogance, pride, anger, harshness and ignorance. The divine qualities lead to freedom; the demonic ones lead to bondage. Then Krishna adds a kind word to his worried friend. Do not grieve, Arjuna. You are born with divine qualities."
+    },
+    {
+      "layout": "verse",
+      "ref": "16.06",
+      "L": [
+        "L1"
+      ],
+      "say": "Verse six. {verse}"
+    },
+    {
+      "layout": "story",
+      "headline": "\"Who is equal to me?\"",
+      "L": [
+        "L2"
+      ],
+      "visual": [
+        "The world has no God and no moral order",
+        "I have gained this; I will gain more",
+        "I am the lord, the enjoyer. Who is equal to me?"
+      ],
+      "say": "Krishna then lets us hear the demonic mind from the inside. The world, it says, has no God, no moral order, no purpose but pleasure. Today I gained this, and tomorrow I will have that. I have this much wealth, and I will have more. That enemy I have destroyed, and I will destroy others. I am the lord. I am the enjoyer. Who is equal to me? The voice is uncomfortably familiar, and that is the point."
+    },
+    {
+      "layout": "verse",
+      "ref": "16.21",
+      "L": [
+        "L3"
+      ],
+      "say": "And Krishna names the three doors that lead there. Verse twenty-one. {verse}"
+    },
+    {
+      "layout": "verse",
+      "ref": "16.24",
+      "L": [
+        "L4"
+      ],
+      "say": "So what can guide us? The chapter ends with this answer. Verse twenty-four. {verse}"
+    },
+    {
+      "layout": "compare",
+      "headline": "Two kinds of people",
+      "L": [
+        "L1"
+      ],
+      "visual": [
+        "Divine | Demonic",
+        "Fearless, pure, truthful | Hypocritical, arrogant, proud",
+        "Compassionate and forgiving | Angry and harsh",
+        "Leads to freedom | Leads to bondage"
+      ],
+      "say": "Lesson one. There are only two types of people, divine and demonic. Divine qualities, like fearlessness, purity, truthfulness, compassion and forgiveness, lead to liberation. Demonic qualities, like hypocrisy, arrogance, pride, anger and harshness, lead to bondage. Every one of us is choosing which to grow."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L2"
+      ],
+      "visual": [
+        "No God, no moral order, no purpose",
+        "Only pleasure, power and more",
+        "This view leads to exploitation and ruin"
+      ],
+      "say": "Lesson two. The demonic nature is rooted in denying God and moral order. When people believe there is no God, no right and wrong, and no purpose beyond pleasure, desire becomes endless, and exploitation and cruelty follow. That view ruins those who hold it, birth after birth."
+    },
+    {
+      "layout": "steps",
+      "headline": "The three gates",
+      "L": [
+        "L3"
+      ],
+      "visual": [
+        "Lust",
+        "Anger",
+        "Greed"
+      ],
+      "say": "Lesson three. Lust, anger and greed are the three gates to hell. They are the root of all demonic behaviour and spiritual ruin. Whoever escapes these three does what is truly good, and reaches the supreme abode. Learn to recognise them, and to close the gates."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L4"
+      ],
+      "visual": [
+        "Acting on desire alone brings no peace",
+        "Scripture shows what to do and what not to do",
+        "Duty in its light leads to perfection"
+      ],
+      "say": "Lesson four. Scripture must be the authority for right action. Whoever acts only from personal desire, ignoring the guidance of scripture, finds neither perfection, nor happiness, nor the highest goal. Scripture exists to show what should and should not be done."
+    },
+    {
+      "layout": "closing",
+      "headline": "Choose what you grow",
+      "visual": [
+        "Divine qualities free; demonic ones bind",
+        "Close the gates of lust, anger and greed",
+        "Let scripture light the way"
+      ],
+      "say": "So, Chapter Sixteen. Divine qualities lead to freedom, and demonic qualities lead to bondage, and every day we are growing one or the other. Close the three gates of lust, anger and greed, and let scripture light the way. Next, Krishna explains three kinds of faith."
+    }
   ]
 }

@@ -3,38 +3,173 @@
   "book": "gita",
   "n": 14,
   "title": "Three modes (Gunas) of nature",
-  "narrator": { "name": "Brian", "voice": "en-US-BrianMultilingualNeural" },
+  "narrator": {
+    "name": "Sonia",
+    "voice": "en-GB-SoniaNeural"
+  },
   "scenes": [
-    { "layout": "title", "headline": "The Three Gunas", "visual": ["Goodness, passion and ignorance"],
-      "say": "Chapter Fourteen. The Three Modes of Nature, the gunas. Three forces that shape everything we are and do." },
-    { "layout": "verse", "ref": "14.03", "L": ["L1"],
-      "say": "Krishna begins with the origin of all life. Verse three. {verse}" },
-    { "layout": "verse", "ref": "14.05", "L": ["L2"],
-      "say": "And then he names the three forces that tie the soul to the body. Notice the word ropes. Verse five. {verse}" },
-    { "layout": "compare", "headline": "Goodness and passion", "L": ["L2"],
-      "visual": ["Sattva · goodness | Rajas · passion", "Pure and illuminating | Intense craving", "Binds by happiness and knowledge | Binds by attachment to results", "Brings clarity | Brings restlessness and greed"],
-      "say": "The mode of goodness, sattva, is pure and full of light, but even it binds, through attachment to happiness and knowledge. The mode of passion, rajas, is intense craving. It is the source of desire, and it binds us through attachment to the fruits of work." },
-    { "layout": "story", "headline": "And the third: ignorance", "L": ["L3"], "visual": ["Tamas is born of inertia", "It binds by carelessness, laziness and sleep", "It deludes the living being"],
-      "say": "The third, tamas, ignorance, is born of inertia. It deludes, and it binds us through carelessness, laziness and too much sleep. The three are always competing. Sometimes goodness rises by holding down the other two; sometimes passion does; sometimes ignorance." },
-    { "layout": "story", "headline": "How to tell which one rules", "L": ["L3"], "visual": ["Light in every sense: goodness", "Greed, restlessness, selfish work: passion", "Dullness, inactivity, confusion: ignorance"],
-      "say": "How can you tell which mode is ruling you? When the light of knowledge shines through every sense, goodness is strong. When greed, restlessness and selfish striving arise, passion is in charge. When dullness, inactivity and confusion take over, ignorance rules. And whichever mode dominates at death shapes where the soul goes next." },
-    { "layout": "verse", "ref": "14.20", "L": ["L4"],
-      "say": "But the goal is not to choose a better rope. It is to be free of all three. Verse twenty. {verse}" },
-    { "layout": "story", "headline": "Marks of one who is free", "L": ["L4"], "visual": ["Does not hate the gunas, nor long for them", "Sits like a witness, unmoved", "A clod, a stone and gold are alike"],
-      "say": "Arjuna asks the natural question: what does such a person look like? Krishna answers. They do not hate light, activity or delusion when they come, and do not long for them when they go. They sit like a witness, knowing it is only the modes at work. To them, a clod of earth, a stone and gold are alike; praise and blame are the same." },
-    { "layout": "verse", "ref": "14.26", "L": ["L5"],
-      "say": "And how do we get there? Verse twenty-six. {verse}" },
-    { "layout": "lesson", "L": ["L1"], "visual": ["Material nature is the womb", "God places the seed of consciousness", "All beings are born of their union"],
-      "say": "Lesson one. All beings are born from the union of Spirit and matter. Material nature is the womb, and God places the seed of consciousness in it. Every living being, in all its variety, comes from that union. Nature is the mother; God is the father." },
-    { "layout": "lesson", "L": ["L2"], "visual": ["Goodness binds by happiness and knowledge", "Passion binds by craving and results", "Ignorance binds by laziness and delusion"],
-      "say": "Lesson two. The three modes bind the soul to the body. Goodness binds through attachment to happiness and knowledge. Passion binds through craving and attachment to results. Ignorance binds through carelessness, laziness and delusion. Even the golden rope is still a rope." },
-    { "layout": "lesson", "L": ["L3"], "visual": ["They shape character and action", "They shape what we become", "And where we go after death"],
-      "say": "Lesson three. The modes determine character, actions and rebirth. When goodness dominates, there is clarity and lightness. When passion dominates, greed and restlessness. When ignorance dominates, delusion and inertia. And the mode that dominates at death shapes the next birth." },
-    { "layout": "lesson", "L": ["L4"], "visual": ["Neither hate the modes nor crave them", "Witness them without being moved", "Free from birth, old age and death"],
-      "say": "Lesson four. Rising above the three modes brings liberation. The one who neither hates the modes when they arrive nor longs for them when they leave, who watches them without being moved, is freed from birth, old age and death." },
-    { "layout": "lesson", "L": ["L5"], "visual": ["Not suppression, not analysis", "Unswerving loving devotion", "Lifts the soul above all three"],
-      "say": "Lesson five. Devotional love cuts the bonds of the modes. The way beyond the three ropes is not suppression or endless self-analysis. It is unswerving, loving service to God. That love lifts the soul above all three." },
-    { "layout": "closing", "headline": "Three ropes, one way out", "visual": ["Goodness, passion and ignorance all bind", "Watch them like a witness", "Love lifts you above them"],
-      "say": "So, Chapter Fourteen. Goodness, passion and ignorance are three ropes, and all three bind. Learn to recognise which one is pulling you, watch it like a witness, and let love lift you above all three. Next, Krishna describes the great tree of the world." }
+    {
+      "layout": "title",
+      "headline": "The Three Gunas",
+      "visual": [
+        "Goodness, passion and ignorance"
+      ],
+      "say": "Chapter Fourteen. The Three Modes of Nature, the gunas. Three forces that shape everything we are and do."
+    },
+    {
+      "layout": "verse",
+      "ref": "14.03",
+      "L": [
+        "L1"
+      ],
+      "say": "Krishna begins with the origin of all life. Verse three. {verse}"
+    },
+    {
+      "layout": "verse",
+      "ref": "14.05",
+      "L": [
+        "L2"
+      ],
+      "say": "And then he names the three forces that tie the soul to the body. Notice the word ropes. Verse five. {verse}"
+    },
+    {
+      "layout": "compare",
+      "headline": "Goodness and passion",
+      "L": [
+        "L2"
+      ],
+      "visual": [
+        "Sattva · goodness | Rajas · passion",
+        "Pure and illuminating | Intense craving",
+        "Binds by happiness and knowledge | Binds by attachment to results",
+        "Brings clarity | Brings restlessness and greed"
+      ],
+      "say": "The mode of goodness, sattva, is pure and full of light, but even it binds, through attachment to happiness and knowledge. The mode of passion, rajas, is intense craving. It is the source of desire, and it binds us through attachment to the fruits of work."
+    },
+    {
+      "layout": "story",
+      "headline": "And the third: ignorance",
+      "L": [
+        "L3"
+      ],
+      "visual": [
+        "Tamas is born of inertia",
+        "It binds by carelessness, laziness and sleep",
+        "It deludes the living being"
+      ],
+      "say": "The third, tamas, ignorance, is born of inertia. It deludes, and it binds us through carelessness, laziness and too much sleep. The three are always competing. Sometimes goodness rises by holding down the other two; sometimes passion does; sometimes ignorance."
+    },
+    {
+      "layout": "story",
+      "headline": "How to tell which one rules",
+      "L": [
+        "L3"
+      ],
+      "visual": [
+        "Light in every sense: goodness",
+        "Greed, restlessness, selfish work: passion",
+        "Dullness, inactivity, confusion: ignorance"
+      ],
+      "say": "How can you tell which mode is ruling you? When the light of knowledge shines through every sense, goodness is strong. When greed, restlessness and selfish striving arise, passion is in charge. When dullness, inactivity and confusion take over, ignorance rules. And whichever mode dominates at death shapes where the soul goes next."
+    },
+    {
+      "layout": "verse",
+      "ref": "14.20",
+      "L": [
+        "L4"
+      ],
+      "say": "But the goal is not to choose a better rope. It is to be free of all three. Verse twenty. {verse}"
+    },
+    {
+      "layout": "story",
+      "headline": "Marks of one who is free",
+      "L": [
+        "L4"
+      ],
+      "visual": [
+        "Does not hate the gunas, nor long for them",
+        "Sits like a witness, unmoved",
+        "A clod, a stone and gold are alike"
+      ],
+      "say": "Arjuna asks the natural question: what does such a person look like? Krishna answers. They do not hate light, activity or delusion when they come, and do not long for them when they go. They sit like a witness, knowing it is only the modes at work. To them, a clod of earth, a stone and gold are alike; praise and blame are the same."
+    },
+    {
+      "layout": "verse",
+      "ref": "14.26",
+      "L": [
+        "L5"
+      ],
+      "say": "And how do we get there? Verse twenty-six. {verse}"
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L1"
+      ],
+      "visual": [
+        "Material nature is the womb",
+        "God places the seed of consciousness",
+        "All beings are born of their union"
+      ],
+      "say": "Lesson one. All beings are born from the union of Spirit and matter. Material nature is the womb, and God places the seed of consciousness in it. Every living being, in all its variety, comes from that union. Nature is the mother; God is the father."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L2"
+      ],
+      "visual": [
+        "Goodness binds by happiness and knowledge",
+        "Passion binds by craving and results",
+        "Ignorance binds by laziness and delusion"
+      ],
+      "say": "Lesson two. The three modes bind the soul to the body. Goodness binds through attachment to happiness and knowledge. Passion binds through craving and attachment to results. Ignorance binds through carelessness, laziness and delusion. Even the golden rope is still a rope."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L3"
+      ],
+      "visual": [
+        "They shape character and action",
+        "They shape what we become",
+        "And where we go after death"
+      ],
+      "say": "Lesson three. The modes determine character, actions and rebirth. When goodness dominates, there is clarity and lightness. When passion dominates, greed and restlessness. When ignorance dominates, delusion and inertia. And the mode that dominates at death shapes the next birth."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L4"
+      ],
+      "visual": [
+        "Neither hate the modes nor crave them",
+        "Witness them without being moved",
+        "Free from birth, old age and death"
+      ],
+      "say": "Lesson four. Rising above the three modes brings liberation. The one who neither hates the modes when they arrive nor longs for them when they leave, who watches them without being moved, is freed from birth, old age and death."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L5"
+      ],
+      "visual": [
+        "Not suppression, not analysis",
+        "Unswerving loving devotion",
+        "Lifts the soul above all three"
+      ],
+      "say": "Lesson five. Devotional love cuts the bonds of the modes. The way beyond the three ropes is not suppression or endless self-analysis. It is unswerving, loving service to God. That love lifts the soul above all three."
+    },
+    {
+      "layout": "closing",
+      "headline": "Three ropes, one way out",
+      "visual": [
+        "Goodness, passion and ignorance all bind",
+        "Watch them like a witness",
+        "Love lifts you above them"
+      ],
+      "say": "So, Chapter Fourteen. Goodness, passion and ignorance are three ropes, and all three bind. Learn to recognise which one is pulling you, watch it like a witness, and let love lift you above all three. Next, Krishna describes the great tree of the world."
+    }
   ]
 }

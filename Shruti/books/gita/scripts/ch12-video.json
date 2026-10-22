@@ -3,35 +3,154 @@
   "book": "gita",
   "n": 12,
   "title": "Path of devotion",
-  "narrator": { "name": "Brian", "voice": "en-US-BrianMultilingualNeural" },
+  "narrator": {
+    "name": "Sonia",
+    "voice": "en-GB-SoniaNeural"
+  },
   "scenes": [
-    { "layout": "title", "headline": "The Path of Devotion", "visual": ["The shortest chapter, and one of the sweetest"],
-      "say": "Chapter Twelve. The Path of Devotion. It is one of the shortest chapters of the Gita, and one of the sweetest." },
-    { "layout": "verse", "ref": "12.01", "L": ["L1"],
-      "say": "Arjuna has just seen the cosmic form. Now he asks which way of loving God is best. Verse one. {verse}" },
-    { "layout": "verse", "ref": "12.02", "L": ["L1"],
-      "say": "Krishna's answer is clear. Verse two. {verse}" },
-    { "layout": "verse", "ref": "12.05", "L": ["L1"],
-      "say": "Those who worship the formless also reach him, he says. But there is a reason the personal path is easier. Verse five. {verse}" },
-    { "layout": "steps", "headline": "If you cannot, then…", "L": ["L2"], "visual": ["Fix your mind on God", "Practise a spiritual discipline", "Work for God", "Surrender the results"],
-      "say": "Then Krishna offers four ascending levels of practice, like a kind teacher. Fix your mind on me. If you can't, then practise any spiritual discipline that suits you. If you can't do even that, then do all your work for me. And if that is too hard, then simply surrender the fruits of your work to my will. There is a step for everyone." },
-    { "layout": "verse", "ref": "12.12", "L": ["L3"],
-      "say": "Then he ranks the paths in a single, surprising verse. Verse twelve. {verse}" },
-    { "layout": "story", "headline": "Who is dear to Me", "L": ["L4"], "visual": ["Hates no creature, is friendly and compassionate", "Free from \"I\" and \"mine\", forgiving, content", "Not disturbed by others, and disturbs no one"],
-      "say": "The last part of the chapter is a portrait of the devotee God loves. One who hates no creature, who is friendly and compassionate, free from I and mine, even-minded in pain and pleasure, and forgiving. One by whom the world is not disturbed, and who is not disturbed by the world. Again and again, Krishna says: such a devotee is dear to me." },
-    { "layout": "verse", "ref": "12.17", "L": ["L4"],
-      "say": "Verse seventeen. {verse}" },
-    { "layout": "verse", "ref": "12.20", "L": ["L4"],
-      "say": "And the chapter ends with a verse full of grace. Notice the words: or just sincerely try. Verse twenty. {verse}" },
-    { "layout": "lesson", "L": ["L1"], "visual": ["Loving God with a form is more direct", "The formless is reached, but with difficulty", "God becomes the saviour of His devotees"],
-      "say": "Lesson one. Personal devotion to God is easier than impersonal worship. Loving God with a form and a relationship is more direct for most people than meditating on the formless Absolute. Both arrive. But to those who love him, God quickly becomes their saviour." },
-    { "layout": "lesson", "L": ["L2"], "visual": ["Meditate on God, or practise a discipline", "Or work for Him, or surrender the results", "There is a step for everyone"],
-      "say": "Lesson two. Four ascending levels of spiritual practice. If you cannot meditate on God, practise. If you cannot practise, work for him. If you cannot work for him, surrender the results and accept what comes. No one is shut out. Every person can begin exactly where they are." },
-    { "layout": "steps", "headline": "Better, and better still", "L": ["L3"], "visual": ["Ritual", "Scripture", "Meditation", "Letting go of results", "Peace"],
-      "say": "Lesson three. Renouncing attachment to results brings immediate peace. Knowledge of scripture is better than ritual. Meditation is better than knowledge. Letting go of attachment to results is better than meditation. And peace follows immediately. Letting go is the bridge between action and spirit." },
-    { "layout": "lesson", "L": ["L4"], "visual": ["No hatred, friendly and compassionate to all", "Free from ego, forgiving and content", "Steady in honour and disgrace, heat and cold"],
-      "say": "Lesson four. The qualities of a true devotee. No hatred toward any creature. Friendly and compassionate to all. Free from ego and possessiveness. Even-minded in pain and pleasure, forgiving, content and steady. And the good news: God loves even those who are only sincerely trying." },
-    { "layout": "closing", "headline": "Begin where you are", "visual": ["Loving God with a form is the easier road", "There is a step for everyone", "Sincerely trying is already dear to God"],
-      "say": "So, Chapter Twelve. Loving God personally is the easier road for most of us. There is a step for everyone, from meditation down to simply letting go of results. And the devotee God loves is kind, forgiving and steady, or sincerely trying to be. Next, Krishna explains the creation and its creator: the body, and the one who knows it." }
+    {
+      "layout": "title",
+      "headline": "The Path of Devotion",
+      "visual": [
+        "The shortest chapter, and one of the sweetest"
+      ],
+      "say": "Chapter Twelve. The Path of Devotion. It is one of the shortest chapters of the Gita, and one of the sweetest."
+    },
+    {
+      "layout": "verse",
+      "ref": "12.01",
+      "L": [
+        "L1"
+      ],
+      "say": "Arjuna has just seen the cosmic form. Now he asks which way of loving God is best. Verse one. {verse}"
+    },
+    {
+      "layout": "verse",
+      "ref": "12.02",
+      "L": [
+        "L1"
+      ],
+      "say": "Krishna's answer is clear. Verse two. {verse}"
+    },
+    {
+      "layout": "verse",
+      "ref": "12.05",
+      "L": [
+        "L1"
+      ],
+      "say": "Those who worship the formless also reach him, he says. But there is a reason the personal path is easier. Verse five. {verse}"
+    },
+    {
+      "layout": "steps",
+      "headline": "If you cannot, then…",
+      "L": [
+        "L2"
+      ],
+      "visual": [
+        "Fix your mind on God",
+        "Practise a spiritual discipline",
+        "Work for God",
+        "Surrender the results"
+      ],
+      "say": "Then Krishna offers four ascending levels of practice, like a kind teacher. Fix your mind on me. If you can't, then practise any spiritual discipline that suits you. If you can't do even that, then do all your work for me. And if that is too hard, then simply surrender the fruits of your work to my will. There is a step for everyone."
+    },
+    {
+      "layout": "verse",
+      "ref": "12.12",
+      "L": [
+        "L3"
+      ],
+      "say": "Then he ranks the paths in a single, surprising verse. Verse twelve. {verse}"
+    },
+    {
+      "layout": "story",
+      "headline": "Who is dear to Me",
+      "L": [
+        "L4"
+      ],
+      "visual": [
+        "Hates no creature, is friendly and compassionate",
+        "Free from \"I\" and \"mine\", forgiving, content",
+        "Not disturbed by others, and disturbs no one"
+      ],
+      "say": "The last part of the chapter is a portrait of the devotee God loves. One who hates no creature, who is friendly and compassionate, free from I and mine, even-minded in pain and pleasure, and forgiving. One by whom the world is not disturbed, and who is not disturbed by the world. Again and again, Krishna says: such a devotee is dear to me."
+    },
+    {
+      "layout": "verse",
+      "ref": "12.17",
+      "L": [
+        "L4"
+      ],
+      "say": "Verse seventeen. {verse}"
+    },
+    {
+      "layout": "verse",
+      "ref": "12.20",
+      "L": [
+        "L4"
+      ],
+      "say": "And the chapter ends with a verse full of grace. Notice the words: or just sincerely try. Verse twenty. {verse}"
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L1"
+      ],
+      "visual": [
+        "Loving God with a form is more direct",
+        "The formless is reached, but with difficulty",
+        "God becomes the saviour of His devotees"
+      ],
+      "say": "Lesson one. Personal devotion to God is easier than impersonal worship. Loving God with a form and a relationship is more direct for most people than meditating on the formless Absolute. Both arrive. But to those who love him, God quickly becomes their saviour."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L2"
+      ],
+      "visual": [
+        "Meditate on God, or practise a discipline",
+        "Or work for Him, or surrender the results",
+        "There is a step for everyone"
+      ],
+      "say": "Lesson two. Four ascending levels of spiritual practice. If you cannot meditate on God, practise. If you cannot practise, work for him. If you cannot work for him, surrender the results and accept what comes. No one is shut out. Every person can begin exactly where they are."
+    },
+    {
+      "layout": "steps",
+      "headline": "Better, and better still",
+      "L": [
+        "L3"
+      ],
+      "visual": [
+        "Ritual",
+        "Scripture",
+        "Meditation",
+        "Letting go of results",
+        "Peace"
+      ],
+      "say": "Lesson three. Renouncing attachment to results brings immediate peace. Knowledge of scripture is better than ritual. Meditation is better than knowledge. Letting go of attachment to results is better than meditation. And peace follows immediately. Letting go is the bridge between action and spirit."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L4"
+      ],
+      "visual": [
+        "No hatred, friendly and compassionate to all",
+        "Free from ego, forgiving and content",
+        "Steady in honour and disgrace, heat and cold"
+      ],
+      "say": "Lesson four. The qualities of a true devotee. No hatred toward any creature. Friendly and compassionate to all. Free from ego and possessiveness. Even-minded in pain and pleasure, forgiving, content and steady. And the good news: God loves even those who are only sincerely trying."
+    },
+    {
+      "layout": "closing",
+      "headline": "Begin where you are",
+      "visual": [
+        "Loving God with a form is the easier road",
+        "There is a step for everyone",
+        "Sincerely trying is already dear to God"
+      ],
+      "say": "So, Chapter Twelve. Loving God personally is the easier road for most of us. There is a step for everyone, from meditation down to simply letting go of results. And the devotee God loves is kind, forgiving and steady, or sincerely trying to be. Next, Krishna explains the creation and its creator: the body, and the one who knows it."
+    }
   ]
 }

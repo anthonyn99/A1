@@ -3,40 +3,180 @@
   "book": "gita",
   "n": 8,
   "title": "The eternal being, God",
-  "narrator": { "name": "Brian", "voice": "en-US-BrianMultilingualNeural" },
+  "narrator": {
+    "name": "Sonia",
+    "voice": "en-GB-SoniaNeural"
+  },
   "scenes": [
-    { "layout": "title", "headline": "The Eternal Being", "visual": ["What we remember at the end"],
-      "say": "Chapter Eight. The Eternal Being. This chapter looks at the biggest moment of all: the end of a life, and what lies beyond it." },
-    { "layout": "story", "headline": "Seven questions", "visual": ["Who is the Eternal Being? What is karma?", "Who are mortal beings and divine beings?", "How are you known at the time of death?"],
-      "say": "Arjuna opens with a list of questions, almost like a student before an exam. Who is the Eternal Being? What is the Self? What is karma? Who are the mortal beings, and who are the divine? And how, at the moment of death, can you be known by those who have disciplined their minds?" },
-    { "layout": "verse", "ref": "8.03",
-      "say": "Krishna answers the definitions briefly. Verse three. {verse}" },
-    { "layout": "verse", "ref": "8.06", "L": ["L1"],
-      "say": "And then he turns to the heart of Arjuna's last question. Verse six. {verse}" },
-    { "layout": "verse", "ref": "8.07", "L": ["L2"],
-      "say": "So what should a person do? The answer is simple, and it belongs in the middle of a battlefield. Verse seven. {verse}" },
-    { "layout": "story", "headline": "The final meditation", "visual": ["The senses gathered in", "The mind fixed on God", "Uttering OM, one reaches the supreme abode"],
-      "say": "Krishna describes the yogi's departure: gathering in the senses, fixing the mind on God, and uttering OM, the sacred sound. Such a person reaches the supreme abode. And he adds a promise: I am easily reached by the steady yogi who thinks of me always, whose mind does not wander elsewhere." },
-    { "layout": "story", "headline": "Days and nights of creation", "L": ["L4"], "visual": ["Brahma's day lasts a thousand ages", "His night lasts a thousand more", "Beings appear by day, dissolve by night"],
-      "say": "Then the view widens to the scale of the cosmos. The creator's day, Krishna says, lasts a thousand ages, and his night as long. At the dawn of that day, all beings emerge. At nightfall, they dissolve again, only to reappear at the next dawn. Over and over, without end." },
-    { "layout": "story", "headline": "Beyond the cycle", "L": ["L3"], "visual": ["Every world is subject to rebirth", "Even the world of the creator", "Those who reach God are not born again"],
-      "say": "But there is something beyond this cycle: an eternal, unmanifest existence that does not perish when everything else does. All worlds, even the world of the creator himself, are subject to return. Those who reach God do not come back to this world of sorrow." },
-    { "layout": "verse", "ref": "8.26", "L": ["L5"],
-      "say": "Krishna ends by describing two paths a soul may take after death. Verse twenty-six. {verse}" },
-    { "layout": "lesson", "L": ["L1"], "visual": ["The mind at death shapes what comes next", "What fills a life fills its last moment", "So what we think about all day matters"],
-      "say": "Lesson one. Whatever one thinks of at death, one attains. The state of the mind at the end shapes what comes next. And the last thought is not a lucky accident. Whatever fills a person's mind throughout life is what fills it at the end." },
-    { "layout": "lesson", "L": ["L2"], "visual": ["Remember God at all times", "And do your duty", "Not ritual alone: constant remembrance"],
-      "say": "Lesson two. Always remember God while doing your duty. This is the simple, reliable method. Keep the mind and intellect turned toward God while you work. Not ritual alone, and not withdrawal from life, but remembrance in the middle of it." },
-    { "layout": "lesson", "L": ["L3"], "visual": ["Every world, even heaven, is subject to return", "God's supreme abode is not", "Reaching Him ends the cycle"],
-      "say": "Lesson three. Attaining God ends the cycle of rebirth. Every other world, even the heavenly ones, is still subject to coming back. Only union with the Supreme is final. Those who reach him are not reborn into this world of change and suffering." },
-    { "layout": "steps", "headline": "The great cycle", "L": ["L4"], "visual": ["Brahma's day begins", "All beings emerge", "Brahma's night falls", "All dissolve", "Day returns"],
-      "say": "Lesson four. Everything in creation is cyclic. Creation and dissolution follow each other in vast cosmic cycles. All beings emerge at the dawn of Brahma's day and dissolve at its night, then emerge again. Only God's own abode stands outside the turning wheel." },
-    { "layout": "compare", "headline": "Two paths after death", "L": ["L5"],
-      "visual": ["The path of light | The path of darkness", "Self-knowledge | Ignorance", "Leads to liberation | Leads to heaven, then rebirth", "No return | Return"],
-      "say": "Lesson five. There are two paths after death, light and darkness. The path of light, the path of self-knowledge, leads to liberation, with no return. The path of darkness, the path of ignorance, may lead to heaven for a while, but then back to rebirth. The yogi who knows this is never confused." },
-    { "layout": "lesson", "L": ["L6"], "visual": ["Study, sacrifice, austerity, charity", "All bring merit", "The steady yogi goes beyond them all"],
-      "say": "Lesson six. Spiritual practice surpasses all ritual merit. Whatever good comes from studying the Vedas, from sacrifices, austerities and charity, the yogi who knows these truths goes beyond all of it, and reaches the supreme, eternal abode. Inner union outweighs outer religion." },
-    { "layout": "closing", "headline": "Live the thought you want to end with", "visual": ["Our last thought grows from every thought", "Remember God while doing your duty", "Light leads home; darkness leads back"],
-      "say": "So, Chapter Eight. Our last thought grows out of all our other thoughts. So remember God now, while you work, and the end will take care of itself. Creation turns in vast cycles, but there is a home beyond them, reached by the path of light. Next, Krishna shares what he calls the king of all secrets." }
+    {
+      "layout": "title",
+      "headline": "The Eternal Being",
+      "visual": [
+        "What we remember at the end"
+      ],
+      "say": "Chapter Eight. The Eternal Being. This chapter looks at the biggest moment of all: the end of a life, and what lies beyond it."
+    },
+    {
+      "layout": "story",
+      "headline": "Seven questions",
+      "visual": [
+        "Who is the Eternal Being? What is karma?",
+        "Who are mortal beings and divine beings?",
+        "How are you known at the time of death?"
+      ],
+      "say": "Arjuna opens with a list of questions, almost like a student before an exam. Who is the Eternal Being? What is the Self? What is karma? Who are the mortal beings, and who are the divine? And how, at the moment of death, can you be known by those who have disciplined their minds?"
+    },
+    {
+      "layout": "verse",
+      "ref": "8.03",
+      "say": "Krishna answers the definitions briefly. Verse three. {verse}"
+    },
+    {
+      "layout": "verse",
+      "ref": "8.06",
+      "L": [
+        "L1"
+      ],
+      "say": "And then he turns to the heart of Arjuna's last question. Verse six. {verse}"
+    },
+    {
+      "layout": "verse",
+      "ref": "8.07",
+      "L": [
+        "L2"
+      ],
+      "say": "So what should a person do? The answer is simple, and it belongs in the middle of a battlefield. Verse seven. {verse}"
+    },
+    {
+      "layout": "story",
+      "headline": "The final meditation",
+      "visual": [
+        "The senses gathered in",
+        "The mind fixed on God",
+        "Uttering OM, one reaches the supreme abode"
+      ],
+      "say": "Krishna describes the yogi's departure: gathering in the senses, fixing the mind on God, and uttering OM, the sacred sound. Such a person reaches the supreme abode. And he adds a promise: I am easily reached by the steady yogi who thinks of me always, whose mind does not wander elsewhere."
+    },
+    {
+      "layout": "story",
+      "headline": "Days and nights of creation",
+      "L": [
+        "L4"
+      ],
+      "visual": [
+        "Brahma's day lasts a thousand ages",
+        "His night lasts a thousand more",
+        "Beings appear by day, dissolve by night"
+      ],
+      "say": "Then the view widens to the scale of the cosmos. The creator's day, Krishna says, lasts a thousand ages, and his night as long. At the dawn of that day, all beings emerge. At nightfall, they dissolve again, only to reappear at the next dawn. Over and over, without end."
+    },
+    {
+      "layout": "story",
+      "headline": "Beyond the cycle",
+      "L": [
+        "L3"
+      ],
+      "visual": [
+        "Every world is subject to rebirth",
+        "Even the world of the creator",
+        "Those who reach God are not born again"
+      ],
+      "say": "But there is something beyond this cycle: an eternal, unmanifest existence that does not perish when everything else does. All worlds, even the world of the creator himself, are subject to return. Those who reach God do not come back to this world of sorrow."
+    },
+    {
+      "layout": "verse",
+      "ref": "8.26",
+      "L": [
+        "L5"
+      ],
+      "say": "Krishna ends by describing two paths a soul may take after death. Verse twenty-six. {verse}"
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L1"
+      ],
+      "visual": [
+        "The mind at death shapes what comes next",
+        "What fills a life fills its last moment",
+        "So what we think about all day matters"
+      ],
+      "say": "Lesson one. Whatever one thinks of at death, one attains. The state of the mind at the end shapes what comes next. And the last thought is not a lucky accident. Whatever fills a person's mind throughout life is what fills it at the end."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L2"
+      ],
+      "visual": [
+        "Remember God at all times",
+        "And do your duty",
+        "Not ritual alone: constant remembrance"
+      ],
+      "say": "Lesson two. Always remember God while doing your duty. This is the simple, reliable method. Keep the mind and intellect turned toward God while you work. Not ritual alone, and not withdrawal from life, but remembrance in the middle of it."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L3"
+      ],
+      "visual": [
+        "Every world, even heaven, is subject to return",
+        "God's supreme abode is not",
+        "Reaching Him ends the cycle"
+      ],
+      "say": "Lesson three. Attaining God ends the cycle of rebirth. Every other world, even the heavenly ones, is still subject to coming back. Only union with the Supreme is final. Those who reach him are not reborn into this world of change and suffering."
+    },
+    {
+      "layout": "steps",
+      "headline": "The great cycle",
+      "L": [
+        "L4"
+      ],
+      "visual": [
+        "Brahma's day begins",
+        "All beings emerge",
+        "Brahma's night falls",
+        "All dissolve",
+        "Day returns"
+      ],
+      "say": "Lesson four. Everything in creation is cyclic. Creation and dissolution follow each other in vast cosmic cycles. All beings emerge at the dawn of Brahma's day and dissolve at its night, then emerge again. Only God's own abode stands outside the turning wheel."
+    },
+    {
+      "layout": "compare",
+      "headline": "Two paths after death",
+      "L": [
+        "L5"
+      ],
+      "visual": [
+        "The path of light | The path of darkness",
+        "Self-knowledge | Ignorance",
+        "Leads to liberation | Leads to heaven, then rebirth",
+        "No return | Return"
+      ],
+      "say": "Lesson five. There are two paths after death, light and darkness. The path of light, the path of self-knowledge, leads to liberation, with no return. The path of darkness, the path of ignorance, may lead to heaven for a while, but then back to rebirth. The yogi who knows this is never confused."
+    },
+    {
+      "layout": "lesson",
+      "L": [
+        "L6"
+      ],
+      "visual": [
+        "Study, sacrifice, austerity, charity",
+        "All bring merit",
+        "The steady yogi goes beyond them all"
+      ],
+      "say": "Lesson six. Spiritual practice surpasses all ritual merit. Whatever good comes from studying the Vedas, from sacrifices, austerities and charity, the yogi who knows these truths goes beyond all of it, and reaches the supreme, eternal abode. Inner union outweighs outer religion."
+    },
+    {
+      "layout": "closing",
+      "headline": "Live the thought you want to end with",
+      "visual": [
+        "Our last thought grows from every thought",
+        "Remember God while doing your duty",
+        "Light leads home; darkness leads back"
+      ],
+      "say": "So, Chapter Eight. Our last thought grows out of all our other thoughts. So remember God now, while you work, and the end will take care of itself. Creation turns in vast cycles, but there is a home beyond them, reached by the path of light. Next, Krishna shares what he calls the king of all secrets."
+    }
   ]
 }
