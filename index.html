@@ -18905,10 +18905,10 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   // Warden — Veda's Links moved to her own repo, Firebase and Cloudflare:
   //   https://vedacpatel.github.io/warden/warden.html
   // This page no longer reads or writes dashboards/veda_links at all, so the
-  // old in-app Links view is gone and every route to it REDIRECTS, the same
-  // way Vault does above. ?goto=links / #links are kept indefinitely for the
-  // same reason: her Launcher extension's gear still points there, and an
-  // un-updated extension should still land in the right place.
+  // old in-app Links view is gone and every route to it REDIRECTS.
+  // ?goto=links / #links are kept indefinitely: her Launcher extension's gear
+  // still points there, and an un-updated extension should still land in the
+  // right place.
   window._gotoWarden=function(){
     var u='https://vedacpatel.github.io/warden/warden.html';
     try{ location.replace(u); }catch(_){ location.href=u; }
