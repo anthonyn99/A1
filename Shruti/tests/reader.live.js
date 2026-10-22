@@ -149,10 +149,11 @@ const flush = (c) => ev(c, `return window.Shruti.core.me.flush().then(()=>1)`);
   await flush(c);
   const pos = (await doc(c, 'dashboards/shruti')).progress.gita.ch2.pos;
   ok('his place is saved (pos)', pos >= 17 && pos <= 20, pos);
+  const before = await ev(c, `return Math.round(document.querySelector('.rd [data-b="20"]').getBoundingClientRect().top)`);
   await ev(c, `location.hash='#/b/gita'; return 1`);
   await waitFor(c, `document.querySelectorAll('.ch').length===18`);
   await ev(c, `location.hash='#/b/gita/2'; return 1`);
-  ok('coming back opens exactly there (Tony, 2026-10-22)', await waitFor(c, `(()=>{const r=document.querySelector('.rd [data-b="${pos}"]').getBoundingClientRect(); return r.top>40 && r.top<320})()`, 6000));
+  ok('coming back opens exactly there, to the pixel (Tony, 2026-10-22)', await waitFor(c, `Math.abs(document.querySelector('.rd [data-b="20"]').getBoundingClientRect().top - (${before}))<=3`, 6000), before + ' -> ' + await ev(c, `return Math.round(document.querySelector('.rd [data-b="20"]').getBoundingClientRect().top)`));
   await shot(c, 'reader-resume-1280');
 
   console.log('\nRead-aloud from the shipped narration (no key)');
