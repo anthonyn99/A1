@@ -57,9 +57,11 @@ export function bindProblem(box, close) {
 // The asks and the reading of replies live in formats.js (labelled text, not
 // JSON, since 2026-10-22); these names stay here for the rest of Shruti.
 export const { LENGTHS, sourceText, lessonsText, buildPrompt, spill, SPILL_CHARS, parseJSON, normPodcast, normVideo, normLessons, coverage, longLessons } = F;
+// Emma and Brian first (Tony, 2026-10-22: Ava and Andrew sounded robotic):
+// the shipped podcasts use them too.
 export const HOST_PRESETS = [
-  { name: 'Ava & Andrew', hosts: [['Ava', 'en-US-AvaMultilingualNeural'], ['Andrew', 'en-US-AndrewMultilingualNeural']] },
   { name: 'Emma & Brian', hosts: [['Emma', 'en-US-EmmaMultilingualNeural'], ['Brian', 'en-US-BrianMultilingualNeural']] },
+  { name: 'Ava & Andrew', hosts: [['Ava', 'en-US-AvaMultilingualNeural'], ['Andrew', 'en-US-AndrewMultilingualNeural']] },
   { name: 'Sonia & Ryan', hosts: [['Sonia', 'en-GB-SoniaNeural'], ['Ryan', 'en-GB-RyanNeural']] },
   { name: 'Neerja & Prabhat', hosts: [['Neerja', 'en-IN-NeerjaNeural'], ['Prabhat', 'en-IN-PrabhatNeural']] },
 ];
