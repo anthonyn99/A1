@@ -352,10 +352,12 @@ export function open({ go } = {}) {
     };
     st.step = 'saving'; st.saving = 'Saving the text…'; paint();
     try {
-      // The original goes to Drive first when Drive is there (never required).
+      // The original goes to Drive first when Drive is there (never required):
+      // a book of Mine to the person's own Drive, a shared one to Tony's.
+      M.markPersonal(id, st.where === 'mine');
       if (st.file && keyOf() && await M.driveReady(id).catch(() => false)) {
         st.saving = 'Keeping the original in Drive…'; paint();
-        try { const f = await M.upload({ book: id, chapter: 'source', body: st.file.blob, type: st.file.blob.type || 'application/octet-stream', name: st.file.name }); book.src.drive = { id: f.id, size: f.size }; } catch (e) { console.warn('Shruti import: original not kept in Drive', e); }
+        try { const f = await M.upload({ book: id, chapter: 'source', body: st.file.blob, type: st.file.blob.type || 'application/octet-stream', name: st.file.name }); book.src.drive = { id: f.id, size: f.size, acct: f.acct }; } catch (e) { console.warn('Shruti import: original not kept in Drive', e); }
       }
       await B.save(st.where, book, chapters, { onStep: (i, n) => { st.saving = 'Saving ' + st.unit.toLowerCase() + ' ' + i + ' of ' + n + '…'; paint(); } });
       dim.remove(); removeEventListener('keydown', onKey);

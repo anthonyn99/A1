@@ -135,7 +135,7 @@ export async function remove(id) {
   for (const k of ['assets', 'versions', 'jobs', 'sets']) if (d.get(k + '.' + id, null)) patch[k + '.' + id] = C.DELETE;
   d.set(patch, { now: true });
   if (b.src && b.src.drive && b.src.drive.id) {
-    try { await fetch(M.DRIVE + '/f/' + encodeURIComponent(b.src.drive.id), { method: 'DELETE', headers: { authorization: 'Bearer ' + String(C.me.get('orcaKey', '') || '') } }); } catch (e) {}
+    try { await fetch(M.DRIVE + '/f/' + encodeURIComponent(b.src.drive.id) + '?a=' + (b.src.drive.acct || 'tony'), { method: 'DELETE', headers: { authorization: 'Bearer ' + String(C.me.get('orcaKey', '') || '') } }); } catch (e) {}
   }
   M.markPersonal(id, false);
 }
