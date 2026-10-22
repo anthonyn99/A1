@@ -10,6 +10,7 @@
 
 import * as C from '../core.js';
 import * as O from '../orca.js';
+import * as NR from '../narrate.js';
 import { h, btn, esc, rich, IC, keys, swipe, justSwiped, progress, saveProgress, ordered, saveOrder, OR } from './ui.js';
 
 /** What a slide says when narrated: its own `say`, else its title and points. */
@@ -150,11 +151,14 @@ export function mount(root, setSlides, { book, set, title }) {
     if (picker) { picker.remove(); picker = null; return; }
     const cur = voiceOf();
     picker = h('div', 'sd-vpick', '<div class="sd-vp-h"><b>Narrate in</b><button class="ib sm" data-x aria-label="Close">' + IC.x + '</button></div><div class="chips">' +
-      O.VOICES.map((v) => '<button class="chip' + (v.id === cur ? ' on' : '') + '" data-v="' + esc(v.id) + '" aria-pressed="' + (v.id === cur) + '">' + esc(v.name) + '</button>').join('') + '</div>' +
+      // Each voice can be heard first (its button joined to the chip).
+      O.VOICES.map((v) => '<span class="try-chip"><button class="chip' + (v.id === cur ? ' on' : '') + '" data-v="' + esc(v.id) + '" aria-pressed="' + (v.id === cur) + '">' + esc(v.name) + '</button>' +
+        '<button class="try-b" data-try="' + esc(v.id) + '" aria-label="Hear ' + esc(v.name) + '" title="Hear ' + esc(v.name) + '">' + IC.play + '</button></span>').join('') + '</div>' +
       '<button class="btn solid sm sd-vp-go">' + IC.voice + '<span>Narrate in ' + esc(nameOf(cur)) + '</span></button>');
     picker.querySelector('[data-x]').addEventListener('click', () => { picker.remove(); picker = null; });
     picker.querySelectorAll('[data-v]').forEach((b) => b.addEventListener('click', () => { C.me.set({ slidesVoice: b.dataset.v }); narr.cache.forEach((u) => URL.revokeObjectURL(u)); narr.cache.clear(); picker.remove(); picker = null; pickVoice(); }));
-    picker.querySelector('.sd-vp-go').addEventListener('click', () => { picker.remove(); picker = null; startNarration(); });
+    picker.querySelectorAll('[data-try]').forEach((b) => b.addEventListener('click', () => NR.preview(b.dataset.try, b)));
+    picker.querySelector('.sd-vp-go').addEventListener('click', () => { NR.stopPreview(); picker.remove(); picker = null; startNarration(); });
     const bar = box.querySelector('.st-bar');
     bar.after(picker);
   };
