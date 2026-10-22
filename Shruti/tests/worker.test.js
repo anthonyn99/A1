@@ -37,10 +37,10 @@ global.fetch = async (url, init = {}) => {
   }
   if (url === 'https://oauth2.googleapis.com/token') {
     const b = new URLSearchParams(init.body);
-    if (b.get('grant_type') === 'authorization_code') return Response.json({ access_token: 'at1', refresh_token: 'rt1', expires_in: 3600 });
-    return Response.json({ access_token: 'at2', expires_in: 3600 });
+    if (b.get('grant_type') === 'authorization_code') return b.get('code') === 'cv' ? Response.json({ access_token: 'atv', refresh_token: 'rtv', expires_in: 3600 }) : Response.json({ access_token: 'at1', refresh_token: 'rt1', expires_in: 3600 });
+    return Response.json({ access_token: b.get('refresh_token') === 'rtv' ? 'atv2' : 'at2', expires_in: 3600 });
   }
-  if (url.startsWith('https://www.googleapis.com/oauth2/v2/userinfo')) return Response.json({ email: 'tony@example.com' });
+  if (url.startsWith('https://www.googleapis.com/oauth2/v2/userinfo')) return Response.json({ email: h.get('authorization') === 'Bearer atv' ? 'veda@example.com' : 'tony@example.com' });
   if (url.startsWith('https://www.googleapis.com/drive/v3/files?fields=files')) return Response.json({ files: [] });
   if (url.startsWith('https://www.googleapis.com/drive/v3/files?fields=id')) return Response.json({ id: 'folder' + (++folderSeq) });
   if (url.startsWith('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable')) {

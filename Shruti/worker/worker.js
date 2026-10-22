@@ -1,26 +1,33 @@
 // shruti-drive: Shruti's media store (podcast and video audio, narrations,
-// transcripts, imported originals) in Tony's Google Drive.
+// transcripts, imported originals) in Google Drive: one Drive per person.
 //
-// The Google refresh token lives here, in KV, never in a browser: Tony connects
-// once (one consent click) and every device and both profiles stream through
-// this worker. Scope is drive.file, so the worker can only see files it made
+// Accounts (`acct`): "tony" (Tony's Drive: his own books AND every shared
+// book, whoever made it) and "veda" (Veda's Drive: her own books). Each
+// person connects once (one consent click); the refresh tokens live here, in
+// KV ("google" for Tony, kept from before there were two, "google:veda"),
+// never in a browser, and every device and both profiles stream through this
+// worker. Scope is drive.file, so the worker can only see files it made
 // itself, all under one "Shruti" folder: Shruti/<book>/<chapter>/<name>.
 //
 // Who may call it: anyone holding a working Orca key (Shruti's own trust root;
 // each person pastes theirs in Settings). The key is checked against Orca's
 // GET /v1/models and a pass is cached for ten minutes (Cache API, no KV
 // writes). An <audio> element cannot send a header, so playback uses signed
-// links instead: POST /sign returns /f/<id>?e=<expiry>&s=<hmac> for six hours.
+// links instead: /f/<id>?a=<acct>&e=<expiry>&s=<hmac>. An upload returns one
+// that never expires (e=0), kept with the file's record, so both profiles
+// play shared media with no key at all; POST /sign makes them for older
+// records (permanent:true) or for six hours.
 //
 // Routes
-//   GET    /health                 { ok, configured, connected, email }
-//   POST   /connect     (key)      { url } Google's consent page
-//   GET    /callback               Google returns here; stores the refresh token
-//   POST   /disconnect  (key)      revoke and forget
-//   PUT    /f?book&chapter&name&owner   (key)  body = the file  -> { id, size, mime, store, owner }
-//   POST   /sign        (key)      { ids: [...] } -> { urls: { id: url } }
-//   GET    /f/<id>      (key or signed)  streams the file; Range passes through, so audio can seek
-//   DELETE /f/<id>      (key)
+//   GET    /health[?acct]           { ok, configured, connected, email, accounts:{tony,veda} }
+//   POST   /connect?acct (key)      { url } Google's consent page for that person's Drive
+//   GET    /callback                Google returns here; stores the refresh token
+//   POST   /disconnect?acct (key)   revoke and forget
+//   PUT    /f?book&chapter&name&owner&acct (key)  body = the file
+//                                   -> { id, size, mime, store, owner, acct, url }
+//   POST   /sign        (key)       { ids, acct, permanent } -> { urls: { id: url } }
+//   GET    /f/<id>?a    (key or signed)  streams the file; Range passes through, so audio can seek
+//   DELETE /f/<id>?a    (key)
 //
 // Secrets (wrangler secret put): GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, SIGN_KEY.
 // Optional var ALLOWED_KEYS: comma-separated SHA-256 hex of the Orca keys that may
@@ -31,10 +38,13 @@ const SCOPE = 'https://www.googleapis.com/auth/drive.file https://www.googleapis
 const ORIGINS = [/^https:\/\/anthonyn99\.github\.io$/, /^http:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/];
 const SIGN_TTL = 6 * 3600;
 const AUTH_TTL = 600;
-const TOKEN_KEY = 'google';
+export const ACCTS = ['tony', 'veda'];
+/** Tony's token keeps the key it had before there were two Drives. */
+const tokenKey = (acct) => (acct === 'veda' ? 'google:veda' : 'google');
+const acctOf = (v) => (ACCTS.includes(String(v || '')) ? String(v) : 'tony');
 
-let access = null;          // { token, exp } for this isolate
-const folders = new Map();  // path -> Drive folder id, for this isolate
+const access = new Map();   // acct -> { token, exp }, for this isolate
+const folders = new Map();  // acct:path -> Drive folder id, for this isolate
 
 export default {
   async fetch(req, env, ctx) {
@@ -55,21 +65,24 @@ export default {
 async function route(req, env, url, ctx) {
   const p = url.pathname.replace(/\/+$/, '') || '/';
   const m = req.method;
+  const acct = acctOf(url.searchParams.get('acct') || url.searchParams.get('a'));
   if (p === '/' || p === '/health') {
-    const t = await readToken(env);
-    return json({ ok: true, configured: configured(env), connected: !!t, email: (t && t.email) || null, signing: !!env.SIGN_KEY });
+    const accounts = {};
+    for (const a of ACCTS) { const t = await readToken(env, a); accounts[a] = { connected: !!t, email: (t && t.email) || null }; }
+    // The top-level fields are the asked account's (Tony's by default), as before.
+    return json({ ok: true, configured: configured(env), connected: accounts[acct].connected, email: accounts[acct].email, acct, accounts, signing: !!env.SIGN_KEY });
   }
   if (p === '/callback' && m === 'GET') return callback(env, url);
-  if (p === '/connect' && m === 'POST') { await requireKey(req, env, ctx); return connect(env, url); }
-  if (p === '/disconnect' && m === 'POST') { await requireKey(req, env, ctx); return disconnect(env); }
-  if (p === '/f' && m === 'PUT') { await requireKey(req, env, ctx); return upload(req, env, url); }
+  if (p === '/connect' && m === 'POST') { await requireKey(req, env, ctx); return connect(env, url, acct); }
+  if (p === '/disconnect' && m === 'POST') { await requireKey(req, env, ctx); return disconnect(env, acct); }
+  if (p === '/f' && m === 'PUT') { await requireKey(req, env, ctx); return upload(req, env, url, acct); }
   if (p === '/sign' && m === 'POST') { await requireKey(req, env, ctx); return sign(req, env, url); }
   const f = /^\/f\/([\w-]{10,200})$/.exec(p);
   if (f && (m === 'GET' || m === 'HEAD')) {
-    if (!(await validSig(env, f[1], url))) await requireKey(req, env, ctx);
-    return stream(req, env, f[1]);
+    if (!(await validSig(env, f[1], acct, url))) await requireKey(req, env, ctx);
+    return stream(req, env, f[1], acct);
   }
-  if (f && m === 'DELETE') { await requireKey(req, env, ctx); return remove(env, f[1]); }
+  if (f && m === 'DELETE') { await requireKey(req, env, ctx); return remove(env, f[1], acct); }
   return json({ ok: false, error: 'not found' }, 404);
 }
 
@@ -129,46 +142,58 @@ async function hmac(env, msg) {
   const s = await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(msg));
   return btoa(String.fromCharCode(...new Uint8Array(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
-async function validSig(env, id, url) {
-  const e = Number(url.searchParams.get('e')), s = url.searchParams.get('s') || '';
-  if (!env.SIGN_KEY || !s || !(e > Date.now() / 1000)) return false;
-  const want = await hmac(env, id + '.' + e);
+/** What a link signs: Tony's six-hour links keep their old form (id.e). */
+const sigMsg = (id, acct, e) => (acct === 'tony' && e ? id + '.' + e : acct + '.' + id + '.' + e);
+async function validSig(env, id, acct, url) {
+  const raw = url.searchParams.get('e'), e = Number(raw), s = url.searchParams.get('s') || '';
+  // e=0: a link that never expires (made at upload, kept with the file's record).
+  if (!env.SIGN_KEY || !s || !(raw === '0' || e > Date.now() / 1000)) return false;
+  const want = await hmac(env, sigMsg(id, acct, e));
   if (want.length !== s.length) return false;
   let diff = 0;
   for (let i = 0; i < want.length; i++) diff |= want.charCodeAt(i) ^ s.charCodeAt(i);
   return diff === 0;
 }
+/** A playback link for one file: for six hours, or for good (e=0). */
+async function link(env, origin, id, acct, permanent) {
+  const e = permanent ? 0 : Math.floor(Date.now() / 1000) + SIGN_TTL;
+  return origin + '/f/' + id + '?' + (acct === 'tony' ? '' : 'a=' + acct + '&') + 'e=' + e + '&s=' + (await hmac(env, sigMsg(id, acct, e)));
+}
 async function sign(req, env, url) {
   if (!env.SIGN_KEY) throw fail(503, 'SIGN_KEY is not set');
   const body = await req.json().catch(() => ({}));
   const ids = Array.isArray(body.ids) ? body.ids.filter((x) => /^[\w-]{10,200}$/.test(x)).slice(0, 100) : [];
-  const e = Math.floor(Date.now() / 1000) + SIGN_TTL;
+  const acct = acctOf(body.acct), permanent = !!body.permanent;
   const urls = {};
-  for (const id of ids) urls[id] = url.origin + '/f/' + id + '?e=' + e + '&s=' + (await hmac(env, id + '.' + e));
-  return json({ ok: true, expires: e, urls });
+  for (const id of ids) urls[id] = await link(env, url.origin, id, acct, permanent);
+  return json({ ok: true, expires: permanent ? 0 : Math.floor(Date.now() / 1000) + SIGN_TTL, acct, urls });
 }
 
 /* ── Google OAuth ─────────────────────────────────────────────────────────── */
 function configured(env) { return !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET); }
 function redirectUri(url) { return url.origin + '/callback'; }
-async function readToken(env) {
+async function readToken(env, acct = 'tony') {
   if (!env.DRIVE) return null;
-  try { return await env.DRIVE.get(TOKEN_KEY, 'json'); } catch (e) { return null; }
+  try { return await env.DRIVE.get(tokenKey(acct), 'json'); } catch (e) { return null; }
 }
-async function connect(env, url) {
+async function connect(env, url, acct) {
   if (!configured(env)) throw fail(503, 'GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are not set');
   if (!env.SIGN_KEY) throw fail(503, 'SIGN_KEY is not set');
   const exp = Math.floor(Date.now() / 1000) + 900;
-  const state = exp + '.' + (await hmac(env, 'connect.' + exp));
+  // The state names whose Drive this is, signed, so the callback keeps it there.
+  const state = exp + '.' + acct + '.' + (await hmac(env, 'connect.' + acct + '.' + exp));
   const q = new URLSearchParams({
     client_id: env.GOOGLE_CLIENT_ID, redirect_uri: redirectUri(url), response_type: 'code',
-    scope: SCOPE, access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true', state,
+    scope: SCOPE, access_type: 'offline', prompt: 'consent select_account', include_granted_scopes: 'true', state,
   });
   return json({ ok: true, url: 'https://accounts.google.com/o/oauth2/v2/auth?' + q });
 }
 async function callback(env, url) {
-  const [exp, sig] = String(url.searchParams.get('state') || '').split('.');
-  if (!env.SIGN_KEY || !(Number(exp) > Date.now() / 1000) || sig !== (await hmac(env, 'connect.' + exp))) {
+  const parts = String(url.searchParams.get('state') || '').split('.');
+  // exp.acct.sig (a two-part exp.sig is Tony's, from before there were two Drives).
+  const [exp, acct, sig] = parts.length === 3 ? parts : [parts[0], 'tony', parts[1]];
+  const want = parts.length === 3 ? 'connect.' + acct + '.' + exp : 'connect.' + exp;
+  if (!env.SIGN_KEY || !ACCTS.includes(acct) || !(Number(exp) > Date.now() / 1000) || sig !== (await hmac(env, want))) {
     return page('Link expired', 'Start again from Shruti: Settings, then Connect Google Drive.');
   }
   if (url.searchParams.get('error')) return page('Not connected', 'Google said: ' + url.searchParams.get('error'));
@@ -183,52 +208,54 @@ async function callback(env, url) {
     const u = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', { headers: { authorization: 'Bearer ' + t.access_token } });
     email = (await u.json()).email || null;
   } catch (e) {}
-  await env.DRIVE.put(TOKEN_KEY, JSON.stringify({ refresh_token: t.refresh_token, email, at: Date.now() }));
-  access = { token: t.access_token, exp: Date.now() + ((t.expires_in || 3600) - 60) * 1000 };
-  folders.clear();
-  return page('Google Drive connected', 'Shruti can now keep its audio and video in ' + (email || 'your Drive') + '. You can close this tab.');
+  await env.DRIVE.put(tokenKey(acct), JSON.stringify({ refresh_token: t.refresh_token, email, at: Date.now() }));
+  access.set(acct, { token: t.access_token, exp: Date.now() + ((t.expires_in || 3600) - 60) * 1000 });
+  clearFolders(acct);
+  return page('Google Drive connected', 'Shruti can now keep ' + (acct === 'veda' ? 'Veda' : 'Tony') + '\'s audio and video in ' + (email || 'this Drive') + '. You can close this tab.');
 }
-async function disconnect(env) {
-  const t = await readToken(env);
+function clearFolders(acct) { for (const k of [...folders.keys()]) if (k.startsWith(acct + ':')) folders.delete(k); }
+async function disconnect(env, acct) {
+  const t = await readToken(env, acct);
   if (t && t.refresh_token) await fetch('https://oauth2.googleapis.com/revoke?token=' + encodeURIComponent(t.refresh_token), { method: 'POST' }).catch(() => {});
-  if (env.DRIVE) await env.DRIVE.delete(TOKEN_KEY);
-  access = null; folders.clear();
+  if (env.DRIVE) await env.DRIVE.delete(tokenKey(acct));
+  access.delete(acct); clearFolders(acct);
   return json({ ok: true });
 }
-async function accessToken(env) {
-  if (access && access.exp > Date.now()) return access.token;
-  const t = await readToken(env);
-  if (!t || !t.refresh_token) throw fail(409, 'Google Drive is not connected');
+async function accessToken(env, acct) {
+  const a = access.get(acct);
+  if (a && a.exp > Date.now()) return a.token;
+  const t = await readToken(env, acct);
+  if (!t || !t.refresh_token) throw fail(409, (acct === 'veda' ? 'Veda\'s' : 'Tony\'s') + ' Google Drive is not connected');
   const r = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ client_id: env.GOOGLE_CLIENT_ID, client_secret: env.GOOGLE_CLIENT_SECRET, refresh_token: t.refresh_token, grant_type: 'refresh_token' }),
   });
   const j = await r.json().catch(() => ({}));
   if (!r.ok || !j.access_token) throw fail(r.status === 400 ? 409 : 502, 'Google refused the Drive token (' + (j.error || r.status) + '); connect again');
-  access = { token: j.access_token, exp: Date.now() + ((j.expires_in || 3600) - 60) * 1000 };
-  return access.token;
+  access.set(acct, { token: j.access_token, exp: Date.now() + ((j.expires_in || 3600) - 60) * 1000 });
+  return j.access_token;
 }
 
 /* ── Drive ────────────────────────────────────────────────────────────────── */
 const DRIVE = 'https://www.googleapis.com/drive/v3';
 const seg = (s, fallback) => String(s || fallback).replace(/[^\w .()-]/g, '_').slice(0, 120) || fallback;
-async function gfetch(env, url, init = {}) {
-  const tok = await accessToken(env);
+async function gfetch(env, acct, url, init = {}) {
+  const tok = await accessToken(env, acct);
   const headers = new Headers(init.headers || {});
   headers.set('authorization', 'Bearer ' + tok);
   return fetch(url, { ...init, headers });
 }
-async function folder(env, parts) {
-  let parent = 'root', path = '';
+async function folder(env, acct, parts) {
+  let parent = 'root', path = acct + ':';
   for (const name of parts) {
     path += '/' + name;
     if (folders.has(path)) { parent = folders.get(path); continue; }
     const q = "name = '" + name.replace(/'/g, "\\'") + "' and mimeType = 'application/vnd.google-apps.folder' and trashed = false and '" + parent + "' in parents";
-    const r = await gfetch(env, DRIVE + '/files?fields=files(id)&pageSize=1&q=' + encodeURIComponent(q));
+    const r = await gfetch(env, acct, DRIVE + '/files?fields=files(id)&pageSize=1&q=' + encodeURIComponent(q));
     const j = await r.json();
     let id = j.files && j.files[0] && j.files[0].id;
     if (!id) {
-      const c = await gfetch(env, DRIVE + '/files?fields=id', {
+      const c = await gfetch(env, acct, DRIVE + '/files?fields=id', {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', parents: [parent] }),
       });
@@ -240,14 +267,14 @@ async function folder(env, parts) {
   }
   return parent;
 }
-async function upload(req, env, url) {
+async function upload(req, env, url, acct) {
   const book = seg(url.searchParams.get('book'), 'misc');
   const chapter = seg(url.searchParams.get('chapter'), 'book');
   const name = seg(url.searchParams.get('name'), 'file');
   const owner = /^(tony|veda)$/.test(url.searchParams.get('owner') || '') ? url.searchParams.get('owner') : 'tony';
   const mime = (req.headers.get('content-type') || 'application/octet-stream').split(';')[0];
-  const parent = await folder(env, ['Shruti', book, chapter]);
-  const start = await gfetch(env, 'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,size,mimeType', {
+  const parent = await folder(env, acct, ['Shruti', book, chapter]);
+  const start = await gfetch(env, acct, 'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,size,mimeType', {
     method: 'POST', headers: { 'content-type': 'application/json; charset=UTF-8', 'x-upload-content-type': mime },
     body: JSON.stringify({ name, parents: [parent], appProperties: { shruti: '1', owner } }),
   });
@@ -257,13 +284,16 @@ async function upload(req, env, url) {
   const put = await fetch(loc, { method: 'PUT', headers: { 'content-type': mime }, body });
   const j = await put.json().catch(() => ({}));
   if (!put.ok || !j.id) throw fail(502, 'Drive upload failed (' + put.status + ')');
-  return json({ ok: true, id: j.id, size: Number(j.size || body.byteLength), mime, store: 'gdrive', owner, path: ['Shruti', book, chapter, name].join('/') });
+  const out = { ok: true, id: j.id, size: Number(j.size || body.byteLength), mime, store: 'gdrive', owner, acct, path: ['Shruti', book, chapter, name].join('/') };
+  // A link that never expires: whoever can read the record can play the file, with no key.
+  if (env.SIGN_KEY) out.url = await link(env, url.origin, j.id, acct, true);
+  return json(out);
 }
-async function stream(req, env, id) {
+async function stream(req, env, id, acct) {
   const headers = {};
   const range = req.headers.get('range');
   if (range) headers.range = range;
-  const r = await gfetch(env, DRIVE + '/files/' + encodeURIComponent(id) + '?alt=media', { method: 'GET', headers });
+  const r = await gfetch(env, acct, DRIVE + '/files/' + encodeURIComponent(id) + '?alt=media', { method: 'GET', headers });
   if (!r.ok && r.status !== 206) throw fail(r.status === 404 ? 404 : 502, 'Drive could not send the file (' + r.status + ')');
   const out = new Headers();
   for (const h of ['content-type', 'content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified']) {
@@ -274,8 +304,8 @@ async function stream(req, env, id) {
   out.set('cache-control', 'private, max-age=3600');
   return new Response(req.method === 'HEAD' ? null : r.body, { status: r.status, headers: out });
 }
-async function remove(env, id) {
-  const r = await gfetch(env, DRIVE + '/files/' + encodeURIComponent(id), { method: 'DELETE' });
+async function remove(env, id, acct) {
+  const r = await gfetch(env, acct, DRIVE + '/files/' + encodeURIComponent(id), { method: 'DELETE' });
   if (!r.ok && r.status !== 404) throw fail(502, 'Drive could not delete it (' + r.status + ')');
   return json({ ok: true });
 }
