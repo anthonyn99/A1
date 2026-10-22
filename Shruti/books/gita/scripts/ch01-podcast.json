@@ -4,112 +4,368 @@
   "n": 1,
   "title": "Arjuna's Dilemma",
   "hosts": [
-    { "id": "A", "name": "Ava", "voice": "en-US-AvaMultilingualNeural" },
-    { "id": "B", "name": "Andrew", "voice": "en-US-AndrewMultilingualNeural" }
+    {
+      "id": "A",
+      "name": "Emma",
+      "voice": "en-US-EmmaMultilingualNeural"
+    },
+    {
+      "id": "B",
+      "name": "Brian",
+      "voice": "en-US-BrianMultilingualNeural"
+    }
   ],
   "segments": [
     {
       "title": "Welcome",
       "turns": [
-        { "s": "A", "t": "Welcome to Shruti. I'm Ava." },
-        { "s": "B", "t": "And I'm Andrew. Today we start the Bhagavad-Gita at the very beginning: Chapter One, Arjuna's Dilemma." },
-        { "s": "A", "t": "This is the chapter where nothing is taught yet. Nobody gives a lecture. A man simply falls apart, in front of everyone, at the worst possible moment. And that is exactly why it matters." },
-        { "s": "B", "t": "We'll tell the whole story first, including the parts that set the scene before the Gita even begins. Then we'll walk through the eight lessons that come out of this chapter." },
-        { "s": "A", "t": "One note before we start. The rendition we're reading, by Ramananda Prasad, keeps only the first and last verses of this chapter and gives a short summary in between. When we tell parts of the story that come from the full Gita or from the Mahabharata around it, we'll say so." }
+        {
+          "s": "A",
+          "t": "Welcome to Shruti. I'm Emma."
+        },
+        {
+          "s": "B",
+          "t": "And I'm Brian. Today we start the Bhagavad-Gita at the very beginning: Chapter One, Arjuna's Dilemma."
+        },
+        {
+          "s": "A",
+          "t": "This is the chapter where nothing is taught yet. Nobody gives a lecture. A man simply falls apart, in front of everyone, at the worst possible moment. And that is exactly why it matters."
+        },
+        {
+          "s": "B",
+          "t": "We'll tell the whole story first, including the parts that set the scene before the Gita even begins. Then we'll walk through the eight lessons that come out of this chapter."
+        },
+        {
+          "s": "A",
+          "t": "One note before we start. The rendition we're reading, by Ramananda Prasad, keeps only the first and last verses of this chapter and gives a short summary in between. When we tell parts of the story that come from the full Gita or from the Mahabharata around it, we'll say so."
+        }
       ]
     },
     {
       "title": "The story",
       "turns": [
-        { "s": "B", "t": "So, the setting. The Gita is a small part of a huge epic, the Mahabharata. Two branches of one royal family are fighting over a kingdom. On one side, the five Pandava brothers. On the other, their cousins, the hundred sons of the blind king Dhritarashtra, led by the eldest, Duryodhana." },
-        { "s": "A", "t": "And this is background from the Mahabharata, not from our book. The Pandavas had been cheated out of their share of the kingdom in a rigged game of dice, sent into exile for thirteen years, and when they came back and asked for their land, Duryodhana refused. They asked for just five villages. He said he wouldn't give them enough land to fit the point of a needle." },
-        { "s": "B", "t": "So war became unavoidable. Two enormous armies gather on the plain of Kurukshetra. And here's the clever framing: the whole Gita is told as a report. The blind king can't see the battlefield, so his charioteer, Sanjaya, who has been given the gift of seeing far-off events, describes it to him." },
-        { "s": "A", "t": "That's the first verse in our book, verse one point one. The blind King inquired from his charioteer: O Sanjaya, tell me in detail, what did my sons and the Pandavas do in the battlefield before the war started?" },
-        { "s": "B", "t": "Notice the words, my sons and the Pandavas. Even in his question, the king splits the family into us and them." },
-        { "s": "A", "t": "What follows in the full Gita, the verses our book leaves out, is the build-up. Duryodhana walks up to his teacher, Drona, and lists the great warriors on both sides. The old grandsire, Bhishma, blows his conch shell like a lion's roar. Then conches and drums and horns sound everywhere. Krishna blows his conch, Arjuna blows his, and the noise, the text says, makes the sky and the earth tremble." },
-        { "s": "B", "t": "And then the moment that starts everything. Arjuna is the great archer of the Pandavas, and Krishna is driving his chariot, as a friend. Our book's summary picks it up here: Arjuna asked his charioteer-friend, Lord Krishna, to drive his chariot between the two armies so that he could see the armies on both sides." },
-        { "s": "A", "t": "He just wants to look. To see who he'll be fighting. And Krishna parks the chariot right in the middle, facing Bhishma and Drona." },
-        { "s": "B", "t": "That detail is from the full text, and it's a pointed choice. Bhishma, who raised him. Drona, who taught him to shoot.", "L": ["L2"] },
-        { "s": "A", "t": "And Arjuna looks across, and he doesn't see an army. He sees people. Grandfathers, teachers, uncles, brothers, cousins, sons, friends. Our summary says: Arjuna felt great compassion to see his friends and relatives on the opposite side, whom he must kill to win this war.", "L": ["L2"] },
-        { "s": "B", "t": "In the full Gita, his body reacts first. His limbs give way, his mouth goes dry, he trembles, his skin burns, his great bow Gandiva slips from his hand. He says he can't even stand." },
-        { "s": "A", "t": "Then come his arguments, and they're not foolish. He says: I don't want victory, or a kingdom, or pleasures, if the price is killing these people. What would a kingdom be worth without them? Even if they want to kill me, I don't want to kill them." },
-        { "s": "B", "t": "He goes further. Wars destroy families. When families are destroyed, their traditions are lost, the moral order collapses, and society falls into chaos. He's thinking like a responsible man, not a coward. Our book puts it simply: he became confused, spoke of the evils of war, and refused to fight or do his duty as a warrior.", "L": ["L4", "L6"] },
-        { "s": "A", "t": "And the chapter ends with one of the saddest images in the whole book, verse one point forty-seven: Arjuna sat down on the back seat of the chariot with his mind overwhelmed with sorrow." },
-        { "s": "B", "t": "Bow down. Arrows down. The greatest warrior of his age, sitting in his chariot between two armies, unable to move." },
-        { "s": "A", "t": "And then, at the start of Chapter Two, he turns to Krishna and asks for help. Which is where the teaching begins. But that's next time.", "L": ["L5"] }
+        {
+          "s": "B",
+          "t": "So, the setting. The Gita is a small part of a huge epic, the Mahabharata. Two branches of one royal family are fighting over a kingdom. On one side, the five Pandava brothers. On the other, their cousins, the hundred sons of the blind king Dhritarashtra, led by the eldest, Duryodhana."
+        },
+        {
+          "s": "A",
+          "t": "And this is background from the Mahabharata, not from our book. The Pandavas had been cheated out of their share of the kingdom in a rigged game of dice, sent into exile for thirteen years, and when they came back and asked for their land, Duryodhana refused. They asked for just five villages. He said he wouldn't give them enough land to fit the point of a needle."
+        },
+        {
+          "s": "B",
+          "t": "So war became unavoidable. Two enormous armies gather on the plain of Kurukshetra. And here's the clever framing: the whole Gita is told as a report. The blind king can't see the battlefield, so his charioteer, Sanjaya, who has been given the gift of seeing far-off events, describes it to him."
+        },
+        {
+          "s": "A",
+          "t": "That's the first verse in our book, verse one point one. The blind King inquired from his charioteer: O Sanjaya, tell me in detail, what did my sons and the Pandavas do in the battlefield before the war started?"
+        },
+        {
+          "s": "B",
+          "t": "Notice the words, my sons and the Pandavas. Even in his question, the king splits the family into us and them."
+        },
+        {
+          "s": "A",
+          "t": "What follows in the full Gita, the verses our book leaves out, is the build-up. Duryodhana walks up to his teacher, Drona, and lists the great warriors on both sides. The old grandsire, Bhishma, blows his conch shell like a lion's roar. Then conches and drums and horns sound everywhere. Krishna blows his conch, Arjuna blows his, and the noise, the text says, makes the sky and the earth tremble."
+        },
+        {
+          "s": "B",
+          "t": "And then the moment that starts everything. Arjuna is the great archer of the Pandavas, and Krishna is driving his chariot, as a friend. Our book's summary picks it up here: Arjuna asked his charioteer-friend, Lord Krishna, to drive his chariot between the two armies so that he could see the armies on both sides."
+        },
+        {
+          "s": "A",
+          "t": "He just wants to look. To see who he'll be fighting. And Krishna parks the chariot right in the middle, facing Bhishma and Drona."
+        },
+        {
+          "s": "B",
+          "t": "That detail is from the full text, and it's a pointed choice. Bhishma, who raised him. Drona, who taught him to shoot.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And Arjuna looks across, and he doesn't see an army. He sees people. Grandfathers, teachers, uncles, brothers, cousins, sons, friends. Our summary says: Arjuna felt great compassion to see his friends and relatives on the opposite side, whom he must kill to win this war.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "In the full Gita, his body reacts first. His limbs give way, his mouth goes dry, he trembles, his skin burns, his great bow Gandiva slips from his hand. He says he can't even stand."
+        },
+        {
+          "s": "A",
+          "t": "Then come his arguments, and they're not foolish. He says: I don't want victory, or a kingdom, or pleasures, if the price is killing these people. What would a kingdom be worth without them? Even if they want to kill me, I don't want to kill them."
+        },
+        {
+          "s": "B",
+          "t": "He goes further. Wars destroy families. When families are destroyed, their traditions are lost, the moral order collapses, and society falls into chaos. He's thinking like a responsible man, not a coward. Our book puts it simply: he became confused, spoke of the evils of war, and refused to fight or do his duty as a warrior.",
+          "L": [
+            "L4",
+            "L6"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And the chapter ends with one of the saddest images in the whole book, verse one point forty-seven: Arjuna sat down on the back seat of the chariot with his mind overwhelmed with sorrow."
+        },
+        {
+          "s": "B",
+          "t": "Bow down. Arrows down. The greatest warrior of his age, sitting in his chariot between two armies, unable to move."
+        },
+        {
+          "s": "A",
+          "t": "And then, at the start of Chapter Two, he turns to Krishna and asks for help. Which is where the teaching begins. But that's next time.",
+          "L": [
+            "L5"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 1 · Duty and emotion",
       "turns": [
-        { "s": "B", "t": "So let's take the lessons one at a time. The first: duty versus emotion, and both matter.", "L": ["L1"] },
-        { "s": "A", "t": "Arjuna is caught between what he should do, fight for justice, and what he feels, love for his relatives. The tempting thing is to say one of those is the real Arjuna and the other is noise. Either he's a soldier who should stop feeling, or he's a loving man who should stop pretending to be a soldier.", "L": ["L1"] },
-        { "s": "B", "t": "And the lesson says no. Acknowledge both. Don't dismiss either one. His love is real. His duty is real. The Gita doesn't start by telling him to stop caring. It starts by letting him say all of it out loud.", "L": ["L1"] }
+        {
+          "s": "B",
+          "t": "So let's take the lessons one at a time. The first: duty versus emotion, and both matter.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Arjuna is caught between what he should do, fight for justice, and what he feels, love for his relatives. The tempting thing is to say one of those is the real Arjuna and the other is noise. Either he's a soldier who should stop feeling, or he's a loving man who should stop pretending to be a soldier.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "And the lesson says no. Acknowledge both. Don't dismiss either one. His love is real. His duty is real. The Gita doesn't start by telling him to stop caring. It starts by letting him say all of it out loud.",
+          "L": [
+            "L1"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 2 · Face reality",
       "turns": [
-        { "s": "A", "t": "Lesson two: ignorance is not bliss. Face reality.", "L": ["L2"] },
-        { "s": "B", "t": "Arjuna asked to see the armies. He could have charged in without looking. Once he looked and recognized the people he loved, he couldn't unsee it.", "L": ["L2"] },
-        { "s": "A", "t": "It would have been easier not to look. But the lesson is that facing a difficult truth, even a painful one, is the first step to wisdom. Everything Krishna teaches later only happens because Arjuna looked first.", "L": ["L2"] }
+        {
+          "s": "A",
+          "t": "Lesson two: ignorance is not bliss. Face reality.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Arjuna asked to see the armies. He could have charged in without looking. Once he looked and recognized the people he loved, he couldn't unsee it.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "It would have been easier not to look. But the lesson is that facing a difficult truth, even a painful one, is the first step to wisdom. Everything Krishna teaches later only happens because Arjuna looked first.",
+          "L": [
+            "L2"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 3 · Doubt is honest",
       "turns": [
-        { "s": "B", "t": "Lesson three: it's okay to doubt and feel lost.", "L": ["L3"] },
-        { "s": "A", "t": "Arjuna doesn't pretend to be brave. In front of two armies, he admits he doesn't know what to do. That takes a kind of courage too.", "L": ["L3"] },
-        { "s": "B", "t": "Confusion and doubt are natural parts of life. They don't make you weak. They make you honest. And honestly, a hero who never doubts would have nothing to learn from this book.", "L": ["L3"] }
+        {
+          "s": "B",
+          "t": "Lesson three: it's okay to doubt and feel lost.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Arjuna doesn't pretend to be brave. In front of two armies, he admits he doesn't know what to do. That takes a kind of courage too.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Confusion and doubt are natural parts of life. They don't make you weak. They make you honest. And honestly, a hero who never doubts would have nothing to learn from this book.",
+          "L": [
+            "L3"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 4 · No perfect solution",
       "turns": [
-        { "s": "A", "t": "Lesson four: some situations have no perfect solution.", "L": ["L4"] },
-        { "s": "B", "t": "Think about Arjuna's options. If he fights, people he loves will die. If he walks away, the injustice wins, the people who trusted him are abandoned, and a cruel ruler keeps the kingdom. Someone suffers either way.", "L": ["L4"] },
-        { "s": "A", "t": "So the lesson is: in complex situations, accept that you can't make everyone happy. Choose based on principle, not on avoiding all pain. Avoiding all pain isn't one of the choices on the table.", "L": ["L4"] }
+        {
+          "s": "A",
+          "t": "Lesson four: some situations have no perfect solution.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Think about Arjuna's options. If he fights, people he loves will die. If he walks away, the injustice wins, the people who trusted him are abandoned, and a cruel ruler keeps the kingdom. Someone suffers either way.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "So the lesson is: in complex situations, accept that you can't make everyone happy. Choose based on principle, not on avoiding all pain. Avoiding all pain isn't one of the choices on the table.",
+          "L": [
+            "L4"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 5 · Seek wisdom",
       "turns": [
-        { "s": "B", "t": "Lesson five: seek wisdom when you're lost.", "L": ["L5"] },
-        { "s": "A", "t": "Arjuna could have decided alone and gone home. Instead, he turns to the person beside him, Krishna, and asks. The whole Gita is the answer to that question.", "L": ["L5"] },
-        { "s": "B", "t": "For us, that means when a big life question hits, talk to mentors, counselors, wise people who can see what we can't. Arjuna had the best guide there could be, sitting in the driver's seat the whole time. He just had to ask.", "L": ["L5"] }
+        {
+          "s": "B",
+          "t": "Lesson five: seek wisdom when you're lost.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Arjuna could have decided alone and gone home. Instead, he turns to the person beside him, Krishna, and asks. The whole Gita is the answer to that question.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "For us, that means when a big life question hits, talk to mentors, counselors, wise people who can see what we can't. Arjuna had the best guide there could be, sitting in the driver's seat the whole time. He just had to ask.",
+          "L": [
+            "L5"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 6 · Your role matters",
       "turns": [
-        { "s": "A", "t": "Lesson six: your role and responsibility matter.", "L": ["L6"] },
-        { "s": "B", "t": "Arjuna is a warrior. In his world, his duty is to protect people from injustice. That role isn't a costume he can take off when it gets uncomfortable.", "L": ["L6"] },
-        { "s": "A", "t": "So the lesson is to understand your role in life and the responsibilities that come with it, as a parent, a partner, a friend, at work. And to remember that avoiding your duties has consequences too. Walking away is also a choice, and other people live with it.", "L": ["L6"] }
+        {
+          "s": "A",
+          "t": "Lesson six: your role and responsibility matter.",
+          "L": [
+            "L6"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Arjuna is a warrior. In his world, his duty is to protect people from injustice. That role isn't a costume he can take off when it gets uncomfortable.",
+          "L": [
+            "L6"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "So the lesson is to understand your role in life and the responsibilities that come with it, as a parent, a partner, a friend, at work. And to remember that avoiding your duties has consequences too. Walking away is also a choice, and other people live with it.",
+          "L": [
+            "L6"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 7 · Compassion and hard choices",
       "turns": [
-        { "s": "B", "t": "Lesson seven: compassion doesn't mean avoiding hard choices.", "L": ["L7"] },
-        { "s": "A", "t": "Arjuna loved the people across the field. That love was good. But loving them didn't mean he could ignore what they had done or what would happen if they won.", "L": ["L7"] },
-        { "s": "B", "t": "Being kind and caring doesn't require you to abandon what's right. Sometimes the most caring thing is the hardest one. Krishna will push that point much further in Chapter Two.", "L": ["L7"] }
+        {
+          "s": "B",
+          "t": "Lesson seven: compassion doesn't mean avoiding hard choices.",
+          "L": [
+            "L7"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Arjuna loved the people across the field. That love was good. But loving them didn't mean he could ignore what they had done or what would happen if they won.",
+          "L": [
+            "L7"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Being kind and caring doesn't require you to abandon what's right. Sometimes the most caring thing is the hardest one. Krishna will push that point much further in Chapter Two.",
+          "L": [
+            "L7"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 8 · Admit what you don't know",
       "turns": [
-        { "s": "A", "t": "And lesson eight, the one the whole chapter builds to: the beginning of wisdom is admitting what you don't know.", "L": ["L8"] },
-        { "s": "B", "t": "Arjuna laid down his weapons and in effect said, I don't know what to do. That admission is what opened the door to Krishna's teaching.", "L": ["L8", "L3"] },
-        { "s": "A", "t": "Confidence without wisdom is dangerous. Humility is where learning begins. If Arjuna had been certain, there would be no Gita.", "L": ["L8"] }
+        {
+          "s": "A",
+          "t": "And lesson eight, the one the whole chapter builds to: the beginning of wisdom is admitting what you don't know.",
+          "L": [
+            "L8"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Arjuna laid down his weapons and in effect said, I don't know what to do. That admission is what opened the door to Krishna's teaching.",
+          "L": [
+            "L8",
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Confidence without wisdom is dangerous. Humility is where learning begins. If Arjuna had been certain, there would be no Gita.",
+          "L": [
+            "L8"
+          ]
+        }
       ]
     },
     {
       "title": "Wrap-up",
       "turns": [
-        { "s": "B", "t": "So that's Chapter One. A family torn in two, a great warrior who looks at the other side and sees his own people, and a man brave enough to say: I'm lost.", "L": ["L1", "L2", "L3"] },
-        { "s": "A", "t": "Eight lessons: hold duty and emotion together, face reality, it's okay to doubt, some problems have no perfect answer, seek wisdom, your role matters, compassion doesn't mean running from hard choices, and wisdom begins with admitting what you don't know.", "L": ["L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8"] },
-        { "s": "B", "t": "These are the core, universal lessons that make Chapter One still relevant thousands of years later." },
-        { "s": "A", "t": "Next time, Chapter Two, where Krishna finally speaks. Thanks for listening to Shruti." }
+        {
+          "s": "B",
+          "t": "So that's Chapter One. A family torn in two, a great warrior who looks at the other side and sees his own people, and a man brave enough to say: I'm lost.",
+          "L": [
+            "L1",
+            "L2",
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Eight lessons: hold duty and emotion together, face reality, it's okay to doubt, some problems have no perfect answer, seek wisdom, your role matters, compassion doesn't mean running from hard choices, and wisdom begins with admitting what you don't know.",
+          "L": [
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5",
+            "L6",
+            "L7",
+            "L8"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "These are the core, universal lessons that make Chapter One still relevant thousands of years later."
+        },
+        {
+          "s": "A",
+          "t": "Next time, Chapter Two, where Krishna finally speaks. Thanks for listening to Shruti."
+        }
       ]
     }
   ]
