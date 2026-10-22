@@ -62,12 +62,7 @@ export async function sourceFor(book, n) {
 }
 async function open(src) {
   let mp3 = src.mp3, json = src.json;
-  if (src.where === 'drive') {
-    const res = await fetch(DRIVE + '/sign', { method: 'POST', headers: { authorization: 'Bearer ' + keyOf(), 'content-type': 'application/json' }, body: JSON.stringify({ ids: [src.mp3.id, src.json.id] }) });
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok || !j.urls) throw new Error('Drive could not be reached (' + res.status + ').');
-    mp3 = j.urls[src.mp3.id]; json = j.urls[src.json.id];
-  }
+  if (src.where === 'drive') ({ mp3, json } = await M.links({ mp3: src.mp3, json: src.json }));
   return { url: mp3, meta: await (await fetch(json)).json() };
 }
 

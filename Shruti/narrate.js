@@ -72,14 +72,7 @@ export async function readyFor(book, n) {
 }
 async function openReady(r) {
   let mp3 = r.mp3, json = r.json;
-  if (r.where === 'drive') {
-    const key = keyOf();
-    if (!key) throw new Error('A narration saved to Drive needs your Orca key to play.');
-    const res = await fetch(DRIVE + '/sign', { method: 'POST', headers: { authorization: 'Bearer ' + key, 'content-type': 'application/json' }, body: JSON.stringify({ ids: [r.mp3.id, r.json.id] }) });
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok || !j.urls) throw new Error('Drive could not be reached (' + res.status + ').');
-    mp3 = j.urls[r.mp3.id]; json = j.urls[r.json.id];
-  }
+  if (r.where === 'drive') ({ mp3, json } = await M.links({ mp3: r.mp3, json: r.json }));
   const meta = await (await fetch(json)).json();
   return { url: mp3, segs: meta.segs, voice: meta.voice, duration: meta.duration, where: r.where };
 }
