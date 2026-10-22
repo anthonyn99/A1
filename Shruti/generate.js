@@ -264,15 +264,31 @@ export async function runStudy(o, on = {}, { signal, chat = O.chat, parse } = {}
   for (const [i, kind] of o.kinds.entries()) {
     on.kind && on.kind(kind, i);
     const msgs = studyPrompt(Object.assign({}, o, { kind }));
-    const ask = (m, models) => chat({ key, messages: m, models, signal, onDelta: (t) => on.delta && on.delta(t), onModel: (x) => { model = x; on.model && on.model(x); } });
-    let r = await ask(msgs, model ? [model, ...o.models.filter((x) => x !== model)] : o.models);
-    let it = P.items(kind, r.text);
-    if (!P.count(kind, it)) {
-      on.delta && on.delta('\n\n');
-      r = await ask(msgs.concat([{ role: 'assistant', content: r.text }, { role: 'user', content: 'That could not be read. Reply again in exactly the format asked for, nothing else.' }]), [r.model, ...o.models.filter((x) => x !== r.model)]);
-      it = P.items(kind, r.text);
-      if (!P.count(kind, it)) throw new Error(modelName(r.model) + '\'s ' + kind + ' could not be read.');
+    // The unit that answered last goes first; each unit gets one fix, then the next one tries.
+    const order = model ? [model, ...o.models.filter((x) => x !== model)] : o.models.slice();
+    const tried = [];
+    let it = null;
+    for (const m of order) {
+      if (signal && signal.aborted) throw Object.assign(new Error('Cancelled'), { code: 'abort' });
+      const ask = (msgs2) => chat({ key, messages: msgs2, models: [m], signal, onDelta: (t) => on.delta && on.delta(t), onModel: (x) => { model = x; on.model && on.model(x); } });
+      try {
+        let r = await ask(msgs);
+        it = P.items(kind, r.text);
+        if (!P.count(kind, it)) {
+          on.delta && on.delta('\n\n');
+          r = await ask(msgs.concat([{ role: 'assistant', content: r.text }, { role: 'user', content: 'That could not be read. Reply again in exactly the format asked for, as plain text (no JSON, no code block), nothing else.' }]));
+          it = P.items(kind, r.text);
+        }
+        if (P.count(kind, it)) break;
+        tried.push(m + ': its ' + kind + ' could not be read');
+      } catch (e) {
+        if (e && (e.code === 'abort' || e.code === 'key')) throw e;
+        tried.push(m + ': ' + (e && e.code === 'none' && e.tried ? e.tried.map((x) => x.split(': ').slice(1).join(': ')).join(', ') : (e && e.message) || e));
+      }
+      it = null;
+      on.delta && on.delta('\n\n[' + modelName(m) + ' could not make the ' + kind + '; trying the next unit]\n\n');
     }
+    if (!it) throw Object.assign(new Error('No unit could make the ' + kind + ' (' + tried.join('; ') + ').'), { code: 'none', tried });
     out[kind] = it;
     on.done && on.done(kind, P.count(kind, it));
   }
