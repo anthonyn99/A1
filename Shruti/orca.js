@@ -201,10 +201,41 @@ export async function voices(key, { fetch: f = fetch } = {}) {
 
 const b64ToBytes = (b64) => { const s = atob(b64); const out = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i); return out; };
 
+/* ── how words are said (Shruti/lexicon.json, shared with tools/speech.py) ── */
+// A word an English voice gets wrong (Sanjaya, Kurukshetra, sattva…) is sent
+// respelled; the word timings come back with the true spelling, one word for
+// one word, so captions and highlighting still line up with the text.
+let lexP = null;
+export function lexicon(f = fetch) {
+  if (!lexP) lexP = Promise.resolve().then(() => f(new URL('lexicon.json', import.meta.url).href)).then((r) => (r && r.ok ? r.json() : {})).catch(() => ({}))
+    .then((j) => { const o = Object.assign({}, j); delete o._; return o; });
+  return lexP;
+}
+const WORD = /[A-Za-z]+/g;
+const lexKey = (w, lex) => (w in lex ? w : ((w[0] === w[0].toUpperCase() ? w[0].toLowerCase() : w[0].toUpperCase()) + w.slice(1)) in lex ? (w[0] === w[0].toUpperCase() ? w[0].toLowerCase() : w[0].toUpperCase()) + w.slice(1) : null);
+/** {said, back}: the text as the voice says it, and spoken -> written words. */
+export function respell(text, lex) {
+  const back = {};
+  const said = String(text).replace(WORD, (w) => {
+    const k = lexKey(w, lex);
+    if (!k) return w;
+    let s = lex[k];
+    if ((w[0] === w[0].toUpperCase()) !== (s[0] === s[0].toUpperCase())) s = (w[0] === w[0].toUpperCase() ? s[0].toUpperCase() : s[0].toLowerCase()) + s.slice(1);
+    back[s.toLowerCase()] = w;
+    return s;
+  });
+  return { said, back };
+}
+export function unspell(words, back) {
+  if (!words || !Object.keys(back).length) return words;
+  return words.map(([t, d, w]) => [t, d, String(w).replace(/[A-Za-z]+/, (m) => back[m.toLowerCase()] || m)]);
+}
+
 /** Speak text: resolves {audio: Blob (mp3), words: [[t, d, w]] | null, engine, voice}.
  *  Throws {code:'key'} for a refused key, {code:'abort'}, else {code:'tts'}. */
 export async function speak({ key, text, voice, signal, fetch: f = fetch }) {
   if (!key) throw Object.assign(new Error('Read-aloud needs your Orca key (Settings).'), { code: 'key' });
+  const { said, back } = respell(text, await lexicon());
   let waited = false;
   for (;;) {
     let r;
