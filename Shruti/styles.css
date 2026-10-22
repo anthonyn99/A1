@@ -380,7 +380,7 @@ body[data-profile=veda] .cp-head .k { text-transform: none; letter-spacing: 0; f
 :root { --paper: #222226; --paper-line: rgba(255,255,255,.06); }
 body[data-profile=veda] { --paper: #232427; }
 .rd-card { max-width: calc(var(--rd-width, 720px) + 112px); margin: 0 auto; padding: 14px 56px 44px; border-radius: 22px; background: var(--paper); border: 1px solid var(--paper-line); box-shadow: 0 1px 0 rgba(255,255,255,.02) inset, 0 18px 50px rgba(0,0,0,.22); }
-.rd-card .rd-bar, .rd-card .rd-pop, .rd-card .rd-resume { max-width: none; }
+.rd-card .rd-bar, .rd-card .rd-resume { max-width: none; }
 .rd-card .rd-pop { background: var(--s2); }
 .rd-card .rd aside { background: color-mix(in srgb, var(--paper) 70%, var(--s2)); }
 .rd-bar { display: flex; align-items: center; gap: 4px; max-width: var(--rd-width, 720px); margin: 0 auto 22px; padding: 0 0 14px; border-bottom: 1px solid var(--paper-line); }
@@ -393,11 +393,17 @@ body[data-profile=veda] { --paper: #232427; }
 .rd-bar .cnt-b { position: relative; }
 .rd-bar .cnt { position: absolute; top: 2px; right: 1px; min-width: 16px; height: 16px; border-radius: 8px; background: var(--ac); color: var(--ac-ink); font: 700 10px/16px var(--f-ui); font-style: normal; text-align: center; padding: 0 4px; }
 .rd-bar [aria-expanded=true] { color: var(--ac); border-color: var(--ac-line); background: var(--ac-soft); }
+/* The toolbar's drop-downs float over the text, anchored under the tools on the right. */
+.rd-bar { position: relative; }
 .rd-pop {
-  max-width: var(--rd-width, 720px); margin: -8px auto 18px; padding: 14px; background: var(--s1); border: 1px solid var(--line2);
-  border-radius: var(--r2); box-shadow: var(--sh1); animation: popIn .22s var(--ease) both;
+  position: absolute; top: calc(100% - 4px); right: 0; z-index: 30; width: min(380px, 100%); max-height: min(60vh, 460px); overflow-y: auto;
+  padding: 10px; background: var(--s1); border: 1px solid var(--line2); border-radius: 16px;
+  box-shadow: 0 1px 0 rgba(255,255,255,.04) inset, 0 22px 60px rgba(0,0,0,.45), 0 4px 14px rgba(0,0,0,.25);
+  transform-origin: top right; animation: popIn .2s var(--ease) both;
 }
-@keyframes popIn { from { transform: translateY(-6px); opacity: 0; } }
+.rd-pop#rd-aa { padding: 12px 14px; }
+@keyframes popIn { from { transform: translateY(-6px) scale(.98); opacity: 0; } }
+@media (max-width: 600px) { .rd-pop { left: 0; right: 0; width: auto; transform-origin: top center; max-height: 65vh; } }
 .seg-row { display: grid; grid-template-columns: 76px 1fr; align-items: center; gap: 10px; padding: 5px 0; }
 .seg-row > span { color: var(--txm); font-size: 13px; font-weight: 600; }
 .seg { display: flex; gap: 2px; padding: 3px; background: var(--s2); border-radius: 10px; }

@@ -110,8 +110,10 @@ export function renderRead(body, ch, book, n, { title, at } = {}) {
       '<button class="ib" data-voice title="Read-aloud: voice, speed, sleep timer" aria-label="Read-aloud settings">' + SLIDERS + '</button>' +
       '<button class="ib aa" data-aa title="Text size and spacing" aria-label="Text size and spacing" aria-expanded="false">Aa</button>' +
       '</div>' +
+      // Drop-downs float under the toolbar, over the text, so opening one never
+      // moves what is being read (Tony, 2026-10-22).
+      '<div class="rd-pop" id="rd-aa" role="dialog" aria-label="Text size and spacing" hidden></div><div class="rd-pop" id="rd-bms" role="dialog" aria-label="Bookmarks" hidden></div>' +
     '</div>' +
-    '<div class="rd-pop" id="rd-aa" hidden></div><div class="rd-pop" id="rd-bms" hidden></div>' +
     '<div class="rd-resume" id="rd-resume" hidden></div>' +
     '<article class="rd">' + (ch.blocks || []).map((bl, b) => blockHtml(bl, b, marks)).join('') + '</article>' +
     '</div>' +
@@ -136,12 +138,28 @@ export function renderRead(body, ch, book, n, { title, at } = {}) {
       scrollToBlock(art, keep, false);   // the same text stays in front of the reader
     }));
   };
+  const closePops = () => {
+    [aa, bms].forEach((p) => { p.hidden = true; });
+    body.querySelectorAll('.rd-bar [aria-expanded]').forEach((x) => x.setAttribute('aria-expanded', 'false'));
+  };
   const toggle = (pop, btn, draw) => {
     const open = pop.hidden;
-    [aa, bms].forEach((p) => { p.hidden = true; });
-    body.querySelectorAll('[aria-expanded]').forEach((x) => x.setAttribute('aria-expanded', 'false'));
+    closePops();
     if (open) { draw(); pop.hidden = false; btn.setAttribute('aria-expanded', 'true'); }
   };
+  // A tap anywhere else, or Esc, closes an open drop-down. Both listeners go
+  // when this view does (the reader is redrawn into a fresh body each time).
+  const outside = (e) => {
+    if (!body.isConnected) { document.removeEventListener('pointerdown', outside, true); document.removeEventListener('keydown', esc_, true); return; }
+    if ((aa.hidden && bms.hidden) || e.target.closest('.rd-pop, .rd-bar [aria-expanded]')) return;
+    closePops();
+  };
+  const esc_ = (e) => {
+    if (!body.isConnected) { document.removeEventListener('pointerdown', outside, true); document.removeEventListener('keydown', esc_, true); return; }
+    if (e.key === 'Escape' && !(aa.hidden && bms.hidden)) { e.stopPropagation(); const b = body.querySelector('.rd-bar [aria-expanded=true]'); closePops(); if (b) b.focus(); }
+  };
+  document.addEventListener('pointerdown', outside, true);
+  document.addEventListener('keydown', esc_, true);
   body.querySelector('[data-aa]').addEventListener('click', (e) => toggle(aa, e.currentTarget, drawAa));
 
   /* ── bookmarks ── */
