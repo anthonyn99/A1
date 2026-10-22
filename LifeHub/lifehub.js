@@ -1666,8 +1666,10 @@
     try { window.postMessage({ source: 'tradehub-vault', action: 'aiLaunchPing' }, location.origin); } catch (e) {}
     try { window.postMessage({ source: 'a1-tabs', action: 'tabPing' }, location.origin); } catch (e) {}
   }
-  // Also at load: hosts call LifeHub.launch without ever opening the panel.
-  setTimeout(pingExt, 0);
+  // Also after load (the extension's bridge starts at document_idle): hosts
+  // call LifeHub.launch without ever opening the panel.
+  if (document.readyState === 'complete') setTimeout(pingExt, 300);
+  else window.addEventListener('load', function () { setTimeout(pingExt, 300); });
   function openAll() {
     var all = S.apps.filter(function (a) { return !a.hidden; }).map(function (a) {
       return { a: a, url: normUrl(a.url) };
