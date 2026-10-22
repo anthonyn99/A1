@@ -175,6 +175,23 @@ export function finished(kind, raw) {
 const toWordsEnd = (t) => String(t || '').replace(/(?:^|\n)\s*END\s*\.?\s*$/i, '').trim();
 const str = (x, max) => { const s = String(x == null ? '' : x).replace(/\s+/g, ' ').trim(); return max && s.length > max ? s.slice(0, max - 1).replace(/\s+\S*$/, '') + '…' : s; };
 const escRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** "SCENE 3", "LESSON 2": in capitals anywhere (even glued on, as when a
+ *  newline was lost), any other casing only at the start of a line, so prose
+ *  that mentions "lesson 2" never splits a reply (MAGI's numberedBlocks rule). */
+function markers(t, word) {
+  const any = word.replace(/[A-Z]/g, (c) => '[' + c + c.toLowerCase() + ']');
+  return [...t.matchAll(new RegExp('(?<![A-Za-z0-9])' + word + '\\s*(\\d{1,3})\\s*[:.)\\-–—]?[ \\t]*|(?<=^|\\n)[ \\t]*' + any + '\\s*(\\d{1,3})\\s*(?:[:.)\\-–—]|(?=\\n)|$)[ \\t]*', 'g'))]
+    .map((m) => Object.assign(m, { num: Number(m[1] || m[2]) }));
+}
+/** The last unbroken 1, 2, 3… run of markers (a capture can hold a draft, then the final). */
+function lastRun(hits) {
+  let run = [];
+  for (const m of hits) {
+    if (m.num === 1) run = [m];
+    else if (run.length && m.num === run[run.length - 1].num + 1) run.push(m);
+  }
+  return run;
+}
 /** Lesson ids in a title or tag: "[L3]", "(L3)", "L3", or "Lesson 3". */
 function idsIn(text, known) {
   const out = [];
@@ -231,14 +248,7 @@ const LAYOUT_OF = { title: 'title', intro: 'title', opening: 'title', verse: 've
 export function parseVideo(raw, lessonIds = []) {
   const known = new Set(lessonIds);
   const t = toWordsEnd(clean(raw));
-  // Scenes are the LAST unbroken SCENE 1, 2, 3… run (MAGI: a capture can hold a draft and the final).
-  const hits = [...t.matchAll(/(?<![A-Za-z0-9])SCENE\s*(\d{1,3})\s*[:.)\-–—]?\s*/gi)];
-  let run = [];
-  for (const m of hits) {
-    const n = Number(m[1]);
-    if (n === 1) run = [m];
-    else if (run.length && n === Number(run[run.length - 1][1]) + 1) run.push(m);
-  }
+  const run = lastRun(markers(t, 'SCENE'));
   const fieldRe = /(?<![A-Za-z])(LAYOUT|HEADLINE|VISUAL|ART|VERSE|REF|LESSON|BEYOND|NARRATION|SAY)\s*[:：]\s*/gi;
   const scenes = [];
   run.forEach((m, i) => {
@@ -270,10 +280,12 @@ export function parseVideo(raw, lessonIds = []) {
 export function parseLessons(raw) {
   let t = toWordsEnd(clean(raw));
   if (/^\s*NONE\b/i.test(t)) return { lessons: [], summary: '' };
-  const sm = /(?:^|\n|\s)SUMMARY\s*[:：]\s*([\s\S]*)$/i.exec(t);
+  const sm = /(?:^|\n)[ \t]*summary\s*[:：]\s*([\s\S]*)$/i.exec(t) || /SUMMARY\s*[:：]\s*([\s\S]*)$/.exec(t);
   const summary = sm ? str(sm[1]) : '';
   if (sm) t = t.slice(0, sm.index);
-  const hits = [...t.matchAll(/(?<![A-Za-z0-9])LESSON\s*(\d{1,3})\s*[:.)\-–—]?\s*/gi)];
+  // Numbered as written (a second look's lessons start at its own 1); in order.
+  const all = markers(t, 'LESSON'), run = lastRun(all);
+  const hits = run.length ? run : all;
   const lessons = [];
   if (hits.length) {
     hits.forEach((m, i) => {
@@ -282,7 +294,7 @@ export function parseLessons(raw) {
       const bo = /BODY\s*[:：]\s*([\s\S]*?)(?=\s*AFTER\s*[:：]|$)/i.exec(block);
       const af = /AFTER\s*[:：]\s*(\d{1,3})/i.exec(block);
       const title = str(ti ? ti[1] : block.split('\n')[0]), body = str(bo ? bo[1] : '');
-      if (title) lessons.push(Object.assign({ n: Number(m[1]), title, body }, af ? { after: Number(af[1]) } : {}));
+      if (title) lessons.push(Object.assign({ n: m.num, title, body }, af ? { after: Number(af[1]) } : {}));
     });
   } else {
     // "1. Title: body" lines, when a unit numbered them its own way.
