@@ -33,10 +33,13 @@ const videoFull = { scenes: [{ layout: 'title', headline: 'The Path of Renunciat
   .concat(ids5.map((id, i) => ({ layout: 'lesson', L: [id], visual: ['Point one', 'Point two'], say: 'Lesson ' + (i + 1) + '. A short explanation.' })))
   .concat([{ layout: 'closing', headline: 'In short', visual: ['One', 'Two', 'Three'], say: 'That is chapter five.' }]) };
 const lessonsReply = { lessons: [{ title: 'Act without clinging', body: 'Work, and let go of the fruits.' }, { title: 'See all equally', body: 'The same Self is in all.' }], summary: 'A short summary.' };
+// The units answer in the labelled formats (formats.js), as asked since 2026-10-22.
+const podText = (p) => p.segments.map((sg) => 'PART: ' + sg.title + ((sg.turns[0].L || [])[0] ? ' [' + sg.turns[0].L[0] + ']' : '') + '\n' + sg.turns.map((t) => t.s + ': ' + t.t).join('\n')).join('\n\n') + '\n\nEND';
+const vidText = (v) => v.scenes.map((s, i) => 'SCENE ' + (i + 1) + '\nLAYOUT: ' + s.layout + (s.headline ? '\nHEADLINE: ' + s.headline : '') + (s.ref ? '\nVERSE: ' + s.ref : '') + ((s.L || [])[0] ? '\nLESSON: ' + s.L[0] : '') + (s.visual ? '\nVISUAL:\n' + s.visual.map((x) => '- ' + x).join('\n') : '') + '\nNARRATION: ' + s.say).join('\n\n') + '\n\nEND';
+const lesText = (l) => l.lessons.map((x, i) => 'LESSON ' + (i + 1) + '\nTITLE: ' + x.title + '\nBODY: ' + x.body).join('\n\n') + '\n\nSUMMARY: ' + l.summary + '\nEND';
 
 const S = { drive: false, chats: [], speech: [], uploads: [], dels: [], stored: {}, slow: 0 };
-const sse = (obj) => {
-  const text = 'Here it is:\n```json\n' + JSON.stringify(obj) + '\n```';
+const sse = (text) => {
   const parts = text.match(/[\s\S]{1,400}/g);
   return parts.map((p) => 'data: ' + JSON.stringify({ choices: [{ delta: { content: p } }] }) + '\n\n').join('') + 'data: [DONE]\n\n';
 };
@@ -49,8 +52,11 @@ const mock = firebaseMock({
     if (u.startsWith(ORCA + '/chat/completions')) {
       const b = JSON.parse(req.postData || '{}');
       S.chats.push({ model: b.model, n: b.messages.length });
-      const all = JSON.stringify(b.messages);
-      const reply = /two-host podcast/.test(all) ? (b.messages.length === 2 ? podcastFirst : podcastFull) : /explainer video/.test(all) ? videoFull : lessonsReply;
+      const all = JSON.stringify(b.messages), last = JSON.stringify(b.messages[b.messages.length - 1]);
+      // The podcast forgets L13, then writes only that part when asked; the lessons' second look finds nothing more.
+      const reply = /two-host podcast/.test(all) ? (b.messages.length === 2 ? podText(podcastFirst) : podText({ segments: podcastFull.segments.filter((s) => s.turns.some((t) => (t.L || []).includes('L13'))) }))
+        : /narrated video/.test(all) ? vidText(videoFull)
+        : /compare it with your list/.test(last) ? 'NONE\nEND' : lesText(lessonsReply);
       const out = { type: 'text/event-stream', text: sse(reply) };
       return S.slow ? new Promise((r) => setTimeout(() => r(out), S.slow)) : out;
     }
@@ -145,7 +151,7 @@ const sheetKind = (c, k) => ev(c, `document.querySelector('#gen-sheet [data-kind
   await click(c, '#gen-sheet [data-make]');
   ok('Write runs, and other devices can see it (jobs…podcast)', await waitFor(c, `document.querySelector('.gen-steps li.cur')?.textContent.startsWith('Write') && window.__fakeFs.docs['dashboards/shruti_shared']?.jobs?.gita?.ch5?.podcast?.stage==='write'`, 8000));
   S.slow = 0;
-  ok('the reply streams in, the unit that answered is named', await waitFor(c, `/"segments"/.test(document.querySelector('.gen-live pre')?.textContent||'') && /DeepSeek/.test(document.querySelector('.gen-model')?.textContent||'')`, 10000));
+  ok('the reply streams in, the unit that answered is named', await waitFor(c, `/PART: Welcome/.test(document.querySelector('.gen-live pre')?.textContent||'') && /DeepSeek/.test(document.querySelector('.gen-model')?.textContent||'')`, 10000));
   ok('a missing lesson is caught and repaired: 13 of 13', await waitFor(c, `/13 of 13/.test(document.querySelector('.gen-cov em')?.textContent||'') && !!document.querySelector('.gen-steps') && [...document.querySelectorAll('.gen-steps li')].some(l=>/^Repair/.test(l.textContent))`, 15000));
   ok('…by asking the same unit again, with its reply', S.chats.length === 2 && S.chats[1].model === S.chats[0].model && S.chats[1].n === 4, JSON.stringify(S.chats));
   ok('it is spoken in Emma and Brian, and ends ready on this device', await waitFor(c, `/plays on this device only/.test(document.querySelector('#gen-run').textContent)`, 20000) && S.speech.length === 2 + ids5.length + 1 && S.speech[0] === 'en-US-EmmaMultilingualNeural' && S.speech[1] === 'en-US-BrianMultilingualNeural', S.speech.slice(0, 3).join());
