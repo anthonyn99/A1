@@ -195,10 +195,11 @@ const ok = (name, cond, extra) => {
   const vScenes = ['SCENE 1\nLAYOUT: title\nHEADLINE: Knowledge\nVISUAL:\n- The field\nART: battlefield\nNARRATION: Chapter two begins.',
     'SCENE 2\nLAYOUT: verse\nVERSE: 2.47\nNARRATION: Krishna says {verse}'].concat(ids.map((id, i) => 'SCENE ' + (i + 3) + '\nLAYOUT: lesson\nLESSON: ' + id + '\nHEADLINE: Lesson ' + (i + 1) + '\nVISUAL:\n- one\nNARRATION: Lesson ' + (i + 1) + '. Teach it.'))
     .concat(['SCENE ' + (ids.length + 3) + '\nLAYOUT: closing\nHEADLINE: Done\nVISUAL:\n- a\n- b\n- c\nART: lotus\nNARRATION: That is all.\n\nEND']).join('\n\n');
-  const cut1 = vScenes.indexOf('SCENE 6'), cut2 = vScenes.indexOf('SCENE 11');
+  // Each continuation writes the cut scene again from its start, as it is asked to.
+  const s5 = vScenes.indexOf('SCENE 5'), s10 = vScenes.indexOf('SCENE 10'), cut1 = vScenes.indexOf('SCENE 6') - 30, cut2 = vScenes.indexOf('SCENE 11') - 12;
   const V2 = fakeChat((model, msgs, k) => {
     if (model === 'perplexity/free') return '{\n"lessons\n\n{\n"lessons';
-    return k === 1 ? vScenes.slice(0, cut1 - 30) : k === 2 ? vScenes.slice(cut1 - 30, cut2) : vScenes.slice(cut2);
+    return k === 1 ? vScenes.slice(0, cut1) : k === 2 ? 'Continuing:\n\n' + vScenes.slice(s5, cut2) : vScenes.slice(s10);
   });
   const vstages = [];
   const vres = await G.run(Object.assign({}, base, { kind: 'video', models: ['perplexity/free', 'gemini_web/free'], narrator: { name: 'Sonia', voice: 'en-GB-SoniaNeural' } }), { stage: (id, t) => vstages.push(id + (t ? ':' + t : '')) },
@@ -231,8 +232,13 @@ const ok = (name, cond, extra) => {
   });
   const nstages = [];
   let gotL = null;
-  const nres = await G.run(Object.assign({}, base, { kind: 'podcast', book: 'mybook', n: 4, lessons: null, models: ['deepseek/free'], ch: { blocks: [{ k: 'p', s: [{ v: null, t: 'Be kind and brave.' }] }] } }), { stage: (id) => nstages.push(id), lessons: (L) => { gotL = L; } }, { chat: NL.chat, speak: fake(() => 6048), saveDrive: false });
-  ok('no lessons yet: every lesson is drawn first, kept for the chapter, then taught', nstages[0] === 'lessons' && gotL && gotL.lessons.length === 2 && M.featured('mybook', 4, 'lessons') && G.coverage('podcast', nres.script, ['L1', 'L2']).missing.length === 0, nstages.join());
+  const nres = await G.run(Object.assign({}, base, { kind: 'podcast', book: 'newbook', n: 4, lessons: null, models: ['deepseek/free'], ch: { blocks: [{ k: 'p', s: [{ v: null, t: 'Be kind and brave.' }] }] } }), { stage: (id) => nstages.push(id), lessons: (L) => { gotL = L; } }, { chat: NL.chat, speak: fake(() => 6048), saveDrive: false });
+  ok('no lessons yet: every lesson is drawn first, kept for the chapter, then taught', nstages[0] === 'lessons' && gotL && gotL.lessons.length === 2 && M.featured('newbook', 4, 'lessons') && G.coverage('podcast', nres.script, ['L1', 'L2']).missing.length === 0, nstages.join());
+
+  const jv = F.joinReply('video', 'SCENE 1\nNARRATION: a.\n\nSCENE 2\nNARRA', 'Sure.\nSCENE 2\nNARRATION: b.\nEND');
+  const jp = F.joinReply('podcast', 'PART: Welcome\nA: Hel', 'lo there.\nB: Hi.');
+  const jp2 = F.joinReply('podcast', 'PART: Welcome\nA: Hi.\nPART: Lesson 2 · b [L2]\nB: tw', 'PART: Lesson 2 · b [L2]\nB: two.\nEND');
+  ok('a continuation that writes the cut item again replaces it; one that just goes on is joined on its word', jv === 'SCENE 1\nNARRATION: a.\n\nSCENE 2\nNARRATION: b.\nEND' && jp === 'PART: Welcome\nA: Hello there.\nB: Hi.' && jp2.split('Lesson 2').length === 2 && /B: two\.\nEND$/.test(jp2), JSON.stringify([jv, jp, jp2]));
 
   console.log('\nVoices and captions always match (Tony, 2026-10-22)');
   const O2 = await import(pathToFileURL(path.join(DIR, 'orca.js')).href);
