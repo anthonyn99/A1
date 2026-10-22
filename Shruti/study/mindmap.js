@@ -90,24 +90,32 @@ function mountMap(rootEl, A, { book, set, title }, toArrange) {
   const canvas = h('div', 'mm-canvas');
   const svg = document.createElementNS(SVGNS, 'svg');
   svg.setAttribute('class', 'mm-links'); svg.setAttribute('aria-hidden', 'true');
-  const rootNode = h('div', 'mm-node mm-root', esc(map.root));
-  const branchBox = h('div', 'mm-branches');
-  const nodes = [];   // {el, parent: el|null, b: branch index}
+  // Both sides of the root (Tony, 2026-10-22: "WAY more elegant"): the first
+  // half of the branches to the right, the rest to the left, as a mind map is
+  // drawn by hand; points under a branch are underlined in its colour.
+  const rootNode = h('div', 'mm-node mm-root', '<span>' + esc(map.root) + '</span>');
+  const right = h('div', 'mm-side mm-right'), left = h('div', 'mm-side mm-left');
+  const half = map.branches.length > 3 ? Math.ceil(map.branches.length / 2) : map.branches.length;
+  const nodes = [];   // {el, parent: el, b: branch index, side: 1 | -1, leaf}
   map.branches.forEach((b, bi) => {
-    const col = h('div', 'mm-col b' + (A.orig[bi] % 6));
+    const side = bi < half ? 1 : -1;
+    const col = h('div', 'mm-col b' + (A.orig[bi] % 6) + (side < 0 ? ' rev' : ''));
     const node = h('button', 'mm-node mm-branch', '<span>' + esc(b.text) + '</span>' + (b.children.length ? '<em>' + b.children.length + '</em>' : ''));
     node.type = 'button';
     node.setAttribute('aria-expanded', String(!closed.has(bk[bi])));
     if (b.children.length) node.title = 'Show or hide its points';
     node.addEventListener('click', (e) => { if (moved) return; if (!b.children.length) return; closed.has(bk[bi]) ? closed.delete(bk[bi]) : closed.add(bk[bi]); saveProgress(book, set, 'mindmap', { closedK: [...closed] }); paintClosed(); e.stopPropagation(); });
     col.append(node);
-    nodes.push({ el: node, parent: rootNode, b: A.orig[bi] });
+    nodes.push({ el: node, parent: rootNode, b: A.orig[bi], side });
     const kids = h('div', 'mm-kids');
-    b.children.forEach((c) => { const k = h('div', 'mm-node mm-leaf', esc(c.text)); kids.append(k); nodes.push({ el: k, parent: node, b: A.orig[bi] }); });
+    b.children.forEach((c) => { const k = h('div', 'mm-node mm-leaf', '<span>' + esc(c.text) + '</span>'); kids.append(k); nodes.push({ el: k, parent: node, b: A.orig[bi], side, leaf: true }); });
     if (b.children.length) col.append(kids);
-    branchBox.append(col);
+    (side > 0 ? right : left).append(col);
   });
-  canvas.append(svg, rootNode, branchBox);
+  const branchBox = h('div', 'mm-branches');
+  branchBox.append(left, rootNode, right);
+  if (!left.children.length) left.remove();
+  canvas.append(svg, branchBox);
   port.append(canvas);
   const note = h('div', 'mm-note', '');
   wrap.append(bar, port, note);
@@ -121,11 +129,15 @@ function mountMap(rootEl, A, { book, set, title }, toArrange) {
     svg.setAttribute('width', canvas.scrollWidth); svg.setAttribute('height', canvas.scrollHeight);
     for (const nd of nodes) {
       if (nd.el.offsetParent === null) continue;   // folded away
-      const a = at(nd.parent), b = at(nd.el);
-      const x1 = a.x + a.w, y1 = a.y + a.hh / 2, x2 = b.x, y2 = b.y + b.hh / 2, mid = (x1 + x2) / 2;
+      const a = at(nd.parent), b = at(nd.el), main = nd.parent === rootNode;
+      // Out of the parent's side, into the child's near edge; a point meets
+      // its underline, a branch its middle.
+      const x1 = nd.side > 0 ? a.x + a.w : a.x, y1 = a.y + a.hh / 2;
+      const x2 = nd.side > 0 ? b.x : b.x + b.w, y2 = nd.leaf ? b.y + b.hh - 1 : b.y + b.hh / 2;
+      const mid = x1 + (x2 - x1) * (main ? 0.5 : 0.55);
       const p = document.createElementNS(SVGNS, 'path');
-      p.setAttribute('d', `M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}`);
-      p.setAttribute('class', 'mm-link b' + (nd.b % 6) + (nd.parent === rootNode ? ' main' : ''));
+      p.setAttribute('d', `M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}` + (nd.leaf ? ` L ${nd.side > 0 ? b.x + b.w : b.x} ${y2}` : ''));
+      p.setAttribute('class', 'mm-link b' + (nd.b % 6) + (main ? ' main' : ''));
       svg.append(p);
     }
   };
@@ -134,10 +146,14 @@ function mountMap(rootEl, A, { book, set, title }, toArrange) {
     const r = port.getBoundingClientRect(), w = canvas.scrollWidth, hh = canvas.scrollHeight;
     if (!r.width || !w) return;
     view.z = Math.max(0.3, Math.min(1, (r.width - 24) / w, (r.height - 24) / hh));
-    // A phone would shrink a wide map past reading: start readable, root at the left.
-    const small = view.z < 0.62 && r.width < 600;
-    if (small) view.z = Math.min(0.62, (r.height - 24) / hh);
-    view.x = small ? 4 : (r.width - w * view.z) / 2; view.y = Math.max(12, (r.height - hh * view.z) / 2);
+    // A phone would shrink a wide map past reading: start readable, the root in view.
+    const small = view.z < 0.55 && r.width < 600;
+    if (small) {
+      view.z = Math.min(0.55, (r.height - 24) / hh);
+      const rr = at(rootNode);
+      view.x = r.width / 2 - (rr.x + rr.w / 2) * view.z;
+    } else view.x = (r.width - w * view.z) / 2;
+    view.y = Math.max(12, (r.height - hh * view.z) / 2);
     apply();
   };
   const paintClosed = () => {
@@ -172,8 +188,9 @@ function mountMap(rootEl, A, { book, set, title }, toArrange) {
   });
   const up = (e) => { pts.delete(e.pointerId); if (pts.size < 2) pinch = null; if (!pts.size) { start = null; port.classList.remove('grab'); setTimeout(() => { moved = false; }, 0); } };
   port.addEventListener('pointerup', up); port.addEventListener('pointercancel', up);
+  // The wheel zooms the map (Tony, 2026-10-22), toward the pointer; a
+  // trackpad pinch arrives as a ctrl+wheel and does the same.
   port.addEventListener('wheel', (e) => {
-    if (!e.ctrlKey && !e.metaKey && !wrap.classList.contains('max')) return;
     e.preventDefault();
     const r = port.getBoundingClientRect();
     zoomBy(Math.exp(-e.deltaY * 0.0022), e.clientX - r.left, e.clientY - r.top);
