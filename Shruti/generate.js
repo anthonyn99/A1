@@ -7,11 +7,14 @@
 // The pipeline, the same for every kind:
 //   1. the chapter's exact text and its lessons go into the prompt (long text
 //      as attached .txt files, as StudyOS sends it);
-//   2. Orca streams the reply through the person's chain of units;
-//   3. the JSON is parsed tolerantly and normalised;
-//   4. every lesson must be taught: if any is missing, the same model is asked
-//      once to add it (auto-repair), and the checklist shows the result;
-//   5. podcast and video are spoken in Edge voices and joined byte for byte
+//   2. Orca streams the reply from one unit at a time, in the person's order;
+//      a reply that stops before its END is continued by the same unit;
+//   3. the labelled text is read tolerantly (formats.js; older JSON too);
+//   4. every lesson must be taught: a missing one is asked for on its own and
+//      put in its place (twice at most), and the checklist shows the result;
+//      a unit that still cannot finish hands the job to the next one;
+//   5. podcast and video are spoken in Edge voices, whole frames with word
+//      timings only (orca.js speakExact), and joined byte for byte
 //      (podcast.js build(), video.js build()); read-aloud is narrate.js's;
 //   6. uploaded to Drive and kept as a new version that plays at once
 //      (media.js); without Drive it plays on this device only;
