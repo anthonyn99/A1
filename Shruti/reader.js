@@ -90,8 +90,8 @@ function topBlock(art) {
 }
 
 /** Where each chapter was scrolled to, this visit: back on Read after another
- *  tab, the page is exactly where it was (Tony, 2026-10-22). Pixels from the
- *  top of the text, so a header of another height does not move it. */
+ *  tab, the page is exactly where it was (Tony, 2026-10-22): the first block
+ *  on screen and its top, so nothing above the text can move it. */
 const spots = new Map();
 
 export function renderRead(body, ch, book, n, { title, at } = {}) {
