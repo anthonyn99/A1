@@ -171,8 +171,16 @@ the same as any unhandled protocol.
 
 These are inherited from the browser, the same as TaskHub's buttons.
 
-- A tab you opened yourself (bookmark, typed URL) has no name, so no web API can
-  find it. The first LifeHub click opens a paired tab, and later clicks reuse it.
+- With the Vault extension (desktop, 1.5.6+) a tap goes to the extension, which sees
+  every tab: it switches to the app's tab wherever it is (opened by hand, restored,
+  either origin) and opens one only if there is none. Without it (phones):
+- A tab you opened yourself (bookmark, typed URL) names itself after its program
+  (tabsync.js `OWN`, the tiles' tab keys), so it still answers the handshake.
+- A1 is on two origins (github.io and a1-priv). A launcher hands a page on the other
+  origin its key as `?a1tab=` (Brave wipes window.name across sites), and that page
+  runs the handshake on its own origin. If the old tab comes forward, the new one
+  closes. Otherwise the old one retires. Either way you end up with one tab.
+- A phone freezes background tabs, and a frozen tab can't answer. Then you get a second tab.
 - After a browser restart, Chrome only lets a tab focus itself if it had recent
   interaction. Otherwise the old tab retires and yours loads fresh. You still end
   up with exactly one tab.
