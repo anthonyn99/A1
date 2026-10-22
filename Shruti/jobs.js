@@ -100,7 +100,7 @@ async function exec(t, lane) {
     if (t.opts.onlyIfNone && ui.made && ui.made(t, ctx)) { Object.assign(t, { state: 'skipped', text: 'Already made' }); return; }
     const o = t.opts;
     // The units for this task: its own list (Build everything can name one), else the person's chain.
-    const models = (o.models && o.models.length ? o.models : O.chain(C.me.get('units', {}) || {}, O.cachedModels(String(C.me.get('orcaKey', '') || ''))));
+    const models = (o.models && o.models.length ? o.models : O.chain(C.me.get('units', {}) || {}, O.cachedModels(C.orcaKey())));
     if (t.kind === 'study') {
       const P = await import('./study/parse.js');
       const H = await import('./study/hub.js');

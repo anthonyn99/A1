@@ -120,7 +120,7 @@ export async function readFile(file, onStep = () => {}) {
 /* ── the sheet ───────────────────────────────────────────────────────────── */
 let seq = 0;
 const nid = () => 'c' + (++seq);
-const keyOf = () => String(C.me.get('orcaKey', '') || '');
+const keyOf = () => C.orcaKey();
 const UNITS = ['Chapter', 'Part', 'Section'];
 
 /** Open the Import sheet. go: the router's go(hash). */

@@ -41,7 +41,7 @@ export const state = P;
 const listeners = new Set();
 export function onChange(f) { listeners.add(f); return () => listeners.delete(f); }
 const emit = () => listeners.forEach((f) => { try { f(P); } catch (e) {} });
-const keyOf = () => String(C.me.get('orcaKey', '') || '');
+const keyOf = () => C.orcaKey();
 export const prefs = () => Object.assign({ speed: 1, subs: false }, C.me.get('podcast', {}) || {});
 export function setPref(k, v) { C.me.set({ ['podcast.' + k]: v }); if (k === 'speed' && audio) audio.playbackRate = v; emit(); }
 

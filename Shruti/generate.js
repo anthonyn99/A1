@@ -31,7 +31,7 @@ import * as F from './formats.js';
 
 let ui = { toast: () => {}, go: () => {}, openSettings: () => {} };
 export function setUI(x) { ui = Object.assign(ui, x); }
-const keyOf = () => String(C.me.get('orcaKey', '') || '');
+const keyOf = () => C.orcaKey();
 
 /* ── when the AI cannot run: one look and one fix everywhere ─────────────── */
 // Make with AI, Study sets and Import show the same box: what is wrong in plain

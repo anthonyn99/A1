@@ -22,7 +22,7 @@ import * as T from './text.js';
 
 let ui = { toast: () => {}, go: () => {}, openSettings: () => {} };
 export function setUI(x) { ui = Object.assign(ui, x); }
-const keyOf = () => String(C.me.get('orcaKey', '') || '');
+const keyOf = () => C.orcaKey();
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const I = (b, fill) => '<svg viewBox="0 0 24 24" ' + (fill ? 'fill="currentColor"' : 'fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"') + ' aria-hidden="true">' + b + '</svg>';
 const IC = {

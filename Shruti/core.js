@@ -191,6 +191,16 @@ export const DELETE = { __delete: true };
 export const me = new Doc('dashboards/' + (P ? PROFILES[P].doc : 'shruti'), 'me');
 export const shared = new Doc('dashboards/shruti_shared', 'shared');
 
+/** The person's Orca key. It syncs in their doc; this device keeps a copy so the
+ *  AI and read-aloud work while sync is still starting or cannot reach Firestore
+ *  (before, Settings then said "No key yet"). Once the doc has loaded, the doc wins. */
+export function orcaKey() {
+  if (!me.loaded) return ls.get(lsKey('orcaKey'), '') || '';
+  const k = String(me.get('orcaKey', '') || '');
+  if (k !== (ls.get(lsKey('orcaKey'), '') || '')) { if (k) ls.set(lsKey('orcaKey'), k); else ls.del(lsKey('orcaKey')); }
+  return k;
+}
+
 let booted = false;
 export async function boot() {
   if (booted) return; booted = true;

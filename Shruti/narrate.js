@@ -51,7 +51,7 @@ export function setPref(k, v) {
   if (k === 'follow') N.follow = !!v;
   emit();
 }
-const keyOf = () => String(C.me.get('orcaKey', '') || '');
+const keyOf = () => C.orcaKey();
 
 /* ── ready-made narrations ───────────────────────────────────────────────── */
 const shippedIndex = new Map();

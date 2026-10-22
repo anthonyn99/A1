@@ -105,7 +105,7 @@ export function mount(root, setSlides, { book, set, title }) {
   const speakCurrent = async () => {
     if (narr.ctrl) narr.ctrl.abort();
     if (narr.audio) narr.audio.pause();
-    const i = st.i, key = String(C.me.get('orcaKey', '') || '');
+    const i = st.i, key = C.orcaKey();
     const voice = voiceOf();
     const ctrl = narr.ctrl = new AbortController();
     narr.state = 'loading'; paintBar();
@@ -133,7 +133,7 @@ export function mount(root, setSlides, { book, set, title }) {
     }
   };
   const startNarration = () => {
-    if (!C.me.get('orcaKey', '')) { window.Shruti && window.Shruti.toast('Narration uses Orca: paste your key in Settings.', true); return; }
+    if (!C.orcaKey()) { window.Shruti && window.Shruti.toast('Narration uses Orca: paste your key in Settings.', true); return; }
     narr.on = true;
     dispatchEvent(new CustomEvent('shruti:playing', { detail: { who: 'slides' } }));
     speakCurrent();

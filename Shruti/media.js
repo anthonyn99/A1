@@ -17,7 +17,7 @@ export const DRIVE = 'https://shruti-drive.av1-2.workers.dev';
 export const KINDS = ['podcast', 'video', 'read', 'lessons'];
 export const KIND_NAME = { podcast: 'Podcast', video: 'Video', read: 'Read-aloud', lessons: 'Lessons' };
 const JOB_FRESH = 10 * 60 * 1000;
-const keyOf = () => String(C.me.get('orcaKey', '') || '');
+const keyOf = () => C.orcaKey();
 
 /** Shared books' media lives in the shared doc; personal books' in the person's. */
 const personal = new Set();

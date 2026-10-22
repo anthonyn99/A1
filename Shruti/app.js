@@ -265,15 +265,15 @@ function openSettings() {
   dim.querySelector('[data-lock]').addEventListener('click', () => Guardian.manage(GID).then(updateLockBtn));
   drawOrca(); drawUnits(); drawDrive();
   const offMe = C.on('doc:me', ({ remote }) => { if (remote && !dim.contains(document.activeElement)) { drawOrca(); drawUnits(); } });
-  if (C.me.get('orcaKey') && !modelsNow()) refreshModels();
+  if (keyOf() && !modelsNow()) refreshModels();
 }
-const keyOf = () => String(C.me.get('orcaKey', '') || '');
+const keyOf = () => C.orcaKey();
 const masked = (k) => k ? k.slice(0, 12) + '…' + k.slice(-4) : '';
 function drawOrca(state) {
   const box = $('#st-orca'); if (!box) return;
   const k = keyOf();
   const mdl = modelsNow();
-  const st = state || (mdl ? { kind: 'good', text: 'Working · ' + mdl.filter((m) => m.routable).length + ' of ' + mdl.length + ' models ready' } : k ? { kind: '', text: 'Saved · not checked yet' } : { kind: 'bad', text: 'No key yet: AI is off. Everything that ships still plays.' });
+  const st = state || (mdl ? { kind: 'good', text: 'Working · ' + mdl.filter((m) => m.routable).length + ' of ' + mdl.length + ' models ready' } : k ? { kind: '', text: 'Saved · not checked yet' } : !C.me.loaded ? { kind: 'busy', text: 'Loading your settings…' } : { kind: 'bad', text: 'No key yet: AI is off. Everything that ships still plays.' });
   box.innerHTML = '<div class="mk-label">Orca key<span>Every AI feature runs on it</span></div>' +
     '<div class="st-card"><div class="st-key"><input id="orca-key" type="password" autocomplete="off" spellcheck="false" placeholder="' + (k ? esc(masked(k)) : 'Paste orca_sk_…') + '" aria-label="Orca key">' +
     '<button class="btn solid" id="orca-save">' + (k ? 'Replace' : 'Save') + '</button></div>' +
