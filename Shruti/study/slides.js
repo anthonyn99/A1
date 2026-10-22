@@ -23,6 +23,9 @@ export function slideEl(s, idx, n, deck) {
     '<div class="sd-foot"><span>' + esc(kind === 'is-title' ? deck || '' : kind === 'is-end' ? 'Summary' : '') + '</span><span>' + (idx + 1) + ' / ' + n + '</span></div></div>');
 }
 
+/** The slides' narrator: the one chosen for slides, else the read-aloud voice. */
+const voiceOf = () => C.me.get('slidesVoice', null) || (C.me.get('narration', {}) || {}).voice || O.DEFAULT_VOICE;
+const nameOf = (id) => { const v = O.VOICES.find((x) => x.id === id); return v ? v.name : id; };
 export function mount(root, setSlides, { book, set, title }) {
   let OD = ordered(book, set, 'slides', setSlides), slides = OD.items;
   const n = slides.length;
@@ -103,7 +106,7 @@ export function mount(root, setSlides, { book, set, title }) {
     if (narr.ctrl) narr.ctrl.abort();
     if (narr.audio) narr.audio.pause();
     const i = st.i, key = String(C.me.get('orcaKey', '') || '');
-    const voice = (C.me.get('narration', {}) || {}).voice || O.DEFAULT_VOICE;
+    const voice = voiceOf();
     const ctrl = narr.ctrl = new AbortController();
     narr.state = 'loading'; paintBar();
     try {
@@ -129,12 +132,31 @@ export function mount(root, setSlides, { book, set, title }) {
       window.Shruti && window.Shruti.toast(e && e.code === 'key' ? 'Narration needs your Orca key (Settings).' : 'The deck could not be narrated: ' + (e.message || e), true);
     }
   };
-  const toggleNarration = () => {
-    if (narr.on) { stopNarration(); return; }
+  const startNarration = () => {
     if (!C.me.get('orcaKey', '')) { window.Shruti && window.Shruti.toast('Narration uses Orca: paste your key in Settings.', true); return; }
     narr.on = true;
     dispatchEvent(new CustomEvent('shruti:playing', { detail: { who: 'slides' } }));
     speakCurrent();
+  };
+  // Narrate asks which voice first (Tony, 2026-10-22); the choice is kept
+  // (slidesVoice in the person's doc). N on the keyboard starts at once in it.
+  const toggleNarration = (ask) => {
+    if (narr.on) { stopNarration(); return; }
+    if (ask === false) { startNarration(); return; }
+    pickVoice();
+  };
+  let picker = null;
+  const pickVoice = () => {
+    if (picker) { picker.remove(); picker = null; return; }
+    const cur = voiceOf();
+    picker = h('div', 'sd-vpick', '<div class="sd-vp-h"><b>Narrate in</b><button class="ib sm" data-x aria-label="Close">' + IC.x + '</button></div><div class="chips">' +
+      O.VOICES.map((v) => '<button class="chip' + (v.id === cur ? ' on' : '') + '" data-v="' + esc(v.id) + '" aria-pressed="' + (v.id === cur) + '">' + esc(v.name) + '</button>').join('') + '</div>' +
+      '<button class="btn solid sm sd-vp-go">' + IC.voice + '<span>Narrate in ' + esc(nameOf(cur)) + '</span></button>');
+    picker.querySelector('[data-x]').addEventListener('click', () => { picker.remove(); picker = null; });
+    picker.querySelectorAll('[data-v]').forEach((b) => b.addEventListener('click', () => { C.me.set({ slidesVoice: b.dataset.v }); narr.cache.forEach((u) => URL.revokeObjectURL(u)); narr.cache.clear(); picker.remove(); picker = null; pickVoice(); }));
+    picker.querySelector('.sd-vp-go').addEventListener('click', () => { picker.remove(); picker = null; startNarration(); });
+    const bar = box.querySelector('.st-bar');
+    bar.after(picker);
   };
   const onOther = (e) => { if (e.detail.who !== 'slides' && narr.on) stopNarration(); };
   addEventListener('shruti:playing', onOther);
@@ -200,7 +222,7 @@ export function mount(root, setSlides, { book, set, title }) {
     else if (e.key === 'Home') go(0);
     else if (e.key === 'End') go(n - 1);
     else if (e.key === 'p' || e.key === 'P') overlay ? closePresent() : present();
-    else if (e.key === 'n' || e.key === 'N') toggleNarration();
+    else if (e.key === 'n' || e.key === 'N') toggleNarration(false);
     else if (e.key === 'g' || e.key === 'G') { st.grid = !st.grid; paint(); }
     else if (e.key === 'Escape' && overlay) closePresent();
     else return;
