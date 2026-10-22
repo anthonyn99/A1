@@ -243,14 +243,18 @@ export async function viewChapter(el, { id, n, mode, at, go }) {
   const next = isIntro ? b.chapters[0] : b.chapters[idx + 1];
   const tabs = MODES.filter((m) => !isIntro || m.id === 'read' || m.id === 'study').map((m) =>
     '<button data-mode="' + m.id + '" class="' + (m.id === mode ? 'on' : '') + '">' + IC[m.id] + m.label + '</button>').join('');
+  // The header (Tony, 2026-10-22: "way cleaner"): the chapter, its title, one
+  // quiet line of counts; on the right, read-or-not and Make with AI. Then the
+  // tabs, sticky under the top bar.
+  const counts = isIntro ? [] : [meta.verses && meta.verses + ' verses', meta.key && meta.key + ' key', meta.lessons && meta.lessons + ' lessons', meta.words && Number(meta.words).toLocaleString() + ' words'].filter(Boolean);
+  const navBtn = (c, dir) => '<button class="cpn ' + dir + '" data-go="#/b/' + id + '/' + c.n + '"><span class="cpn-k">' + (dir === 'prev' ? IC.prev + 'Previous' : 'Next' + IC.next) + '</span><b>' + esc(c.n ? c.n + '. ' + c.title : c.title) + '</b></button>';
   el.innerHTML =
-    '<div class="cp-head"><div class="k">' + (isIntro ? esc(b.title) : esc(b.unit || 'Chapter') + ' ' + n) + '</div>' +
+    '<header class="cp-head"><div class="cp-t"><div class="k">' + (isIntro ? esc(b.title) : esc(b.unit || 'Chapter') + ' ' + n) + '</div>' +
     '<h1>' + esc(meta.title) + '</h1>' +
-    (isIntro ? '' : '<div class="m">' + esc([meta.verses && meta.verses + ' verses', meta.key && meta.key + ' key verses', meta.lessons && meta.lessons + ' lessons', meta.words && Number(meta.words).toLocaleString() + ' words'].filter(Boolean).join(' · ')) + '</div>') +
-    '<div class="cp-acts"><button class="btn ghost mark" id="mark-read"></button><button class="btn ghost" id="make-ai">' + G.ICON + 'Make with AI</button></div></div>' +
-    '<nav class="modes" role="tablist">' + tabs + '</nav><div id="mode-body"></div>' +
-    '<div class="cp-nav">' + (prev ? '<button class="btn ghost" data-go="#/b/' + id + '/' + prev.n + '">' + IC.prev + esc(prev.n ? prev.n + '. ' + prev.title : prev.title) + '</button>' : '<span></span>') +
-    (next ? '<button class="btn ghost" data-go="#/b/' + id + '/' + next.n + '">' + esc(next.n + '. ' + next.title) + IC.next + '</button>' : '<span></span>') + '</div>';
+    (counts.length ? '<div class="m">' + counts.map((x) => '<span>' + esc(x) + '</span>').join('') + '</div>' : '') + '</div>' +
+    '<div class="cp-acts"><button class="btn ghost mark" id="mark-read"></button><button class="btn" id="make-ai">' + G.ICON + 'Make with AI</button></div></header>' +
+    '<nav class="modes" role="tablist"><div class="modes-in">' + tabs + '</div></nav><div id="mode-body"></div>' +
+    '<nav class="cp-nav" aria-label="Chapters">' + (prev ? navBtn(prev, 'prev') : '<span></span>') + (next ? navBtn(next, 'next') : '<span></span>') + '</nav>';
   el.querySelectorAll('[data-go]').forEach((x) => x.addEventListener('click', () => go(x.dataset.go)));
   el.querySelectorAll('[data-mode]').forEach((x) => x.addEventListener('click', () => go('#/b/' + id + '/' + n + (x.dataset.mode === 'read' ? '' : '/' + x.dataset.mode), { replace: true })));
   const body = el.querySelector('#mode-body');
@@ -259,8 +263,10 @@ export async function viewChapter(el, { id, n, mode, at, go }) {
   const mark = el.querySelector('#mark-read');
   const paintMark = () => {
     const isDone = fracOf(id, n) >= 1;
-    mark.innerHTML = (isDone ? IC.undo + 'Mark as unread' : IC.check + 'Mark as read');
-    mark.title = isDone ? 'This chapter counts as read. Mark it unread to start it over.' : 'Count this chapter as read.';
+    mark.innerHTML = IC.check + '<span>' + (isDone ? 'Read' : 'Mark read') + '</span>';
+    mark.classList.toggle('on', isDone);
+    mark.setAttribute('aria-pressed', String(isDone));
+    mark.title = isDone ? 'Read. Tap to mark it unread and start over.' : 'Count this chapter as read.';
   };
   paintMark();
   body.addEventListener('shruti:read', paintMark);
