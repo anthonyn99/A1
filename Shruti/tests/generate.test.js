@@ -143,51 +143,110 @@ const ok = (name, cond, extra) => {
   ok('…a verse the book lacks becomes a story; a stray {verse} is dropped', m.scenes[2].layout === 'story' && m.scenes[2].say === 'Missing here.' && m.scenes[3].say === 'A story.', m.scenes[2].say + ' | ' + m.scenes[3].say);
   ok('…scenes follow each other; the length is the bytes', m.scenes.every((s, i) => i === 0 || s.start === m.scenes[i - 1].end) && m.duration === +((await built.mp3.arrayBuffer()).byteLength / 6000).toFixed(3));
 
-  console.log('\nA run');
-  // Chat: the first reply forgets L12; the repair adds it. Speech: 1 s each.
-  const full = { segments: [{ title: 'Welcome', turns: [{ s: 'A', t: 'Welcome.' }, { s: 'B', t: 'Hello.' }] }].concat(ids.map((id, i) => ({ title: 'Lesson ' + (i + 1) + ' · x', turns: [{ s: i % 2 ? 'B' : 'A', t: 'About ' + id + '.', L: [id] }] }))) };
-  const firstReply = JSON.parse(JSON.stringify(full)); firstReply.segments = firstReply.segments.filter((s) => !s.turns.some((t) => (t.L || []).includes('L12')));
-  const chats = [];
-  const chat = async ({ messages, models, onDelta, onModel }) => {
-    chats.push({ messages, models });
-    const model = chats.length === 1 ? models[1] : models[0];
-    onModel && onModel(model);
-    const text = 'Here you go:\n```json\n' + JSON.stringify(chats.length === 1 ? firstReply : full) + '\n```';
-    onDelta && onDelta(text);
-    return { text, model };
+  console.log('\nA run: every unit, the way each one really answers');
+  // A podcast script in the labelled format, lesson parts for the given ids.
+  const podText = (ids_, { welcome = true, wrap = true, end = true } = {}) => (welcome ? 'PART: Welcome\nA: Welcome back.\nB: Hello.\n\n' : '') +
+    ids_.map((id) => 'PART: Lesson ' + id.slice(1) + ' · about ' + id + ' [' + id + ']\nA: About ' + id + '.\nB: Yes, ' + id + '.').join('\n\n') +
+    (wrap ? '\n\nPART: Wrap-up\nA: Until next time.\nB: Bye.' : '') + (end ? '\n\nEND' : '');
+  const lastUser = (m) => { const c = m[m.length - 1].content; return typeof c === 'string' ? c : c.map((p) => p.text || '').join(' '); };
+  /** A fake Orca chat: `script(model, messages, n)` gives each reply; a unit can throw like Orca's offline one. */
+  const fakeChat = (script) => {
+    const log = [];
+    const chat = async ({ messages, models, onDelta, onModel }) => {
+      const model = models[0];
+      log.push({ model, messages, models });
+      const text = script(model, messages, log.filter((x) => x.model === model).length);
+      if (text instanceof Error) throw text;
+      onModel && onModel(model);
+      onDelta && onDelta(text);
+      return { text, model };
+    };
+    return { chat, log };
   };
   C.me.set({ orcaKey: 'orca_sk_test_key_12345' });
+  const offline = () => Object.assign(new Error('No unit could answer'), { code: 'none', tried: ['deepseek/free: 503'] });
+  const first11 = ids.slice(0, 11);
+  // DeepSeek is offline; ChatGPT answers in bold labels, stops before the end
+  // (no END), is asked to go on, then forgets L12 and is asked for just that.
+  const A = fakeChat((model, msgs, k) => {
+    if (model === 'deepseek/free') return offline();
+    if (k === 1) return 'Here is the episode!\n\n**PART:** Welcome\n**Ava:** Welcome back.\n**Andrew:** Hello.\n\n' + podText(first11.slice(0, 6), { welcome: false, wrap: false, end: false });
+    if (k === 2) return podText(first11.slice(6), { welcome: false });
+    return podText(['L12'], { welcome: false, wrap: false });
+  });
   const stages = [], covs = [];
   let deltas = '';
   const res = await G.run(Object.assign({ kind: 'podcast', models: ['deepseek/free', 'chatgpt/free'] }, base), { stage: (id) => stages.push(id), delta: (t) => { deltas += t; }, coverage: (c) => covs.push(c.missing.length) },
-    { chat, speak: fake(() => 6048), saveDrive: false });
-  ok('it writes, checks, repairs, speaks and is done', stages.join() === 'write,check,repair,speak,done', stages.join());
-  ok('the repair goes to the model that answered, with its own reply and the missing lesson named', chats.length === 2 && chats[1].models[0] === 'chatgpt/free' && chats[1].messages.length === 4 && chats[1].messages[2].role === 'assistant' && /L12 \(/.test(chats[1].messages[3].content));
-  ok('the checklist went from 1 missing to none', JSON.stringify(covs) === '[1,0]');
-  ok('the streamed text reached the page', deltas.includes('"segments"'));
-  ok('without Drive it is ready on this device, every turn spoken', res.local && res.built.meta.turns.length === 2 + ids.length && res.model === 'chatgpt/free');
+    { chat: A.chat, speak: fake(() => 6048), saveDrive: false });
+  ok('an offline unit is passed over; the next one writes, goes on, is checked, repaired, spoken', stages.join() === 'write,write,check,repair,speak,done', stages.join());
+  ok('"go on" goes to the same unit with everything it wrote so far', A.log[2].model === 'chatgpt/free' && A.log[2].messages[2].role === 'assistant' && /stopped before the end/.test(lastUser(A.log[2].messages)) && A.log[2].models.length === 1);
+  ok('the repair asks only for the missing lesson, by name', /does not teach these lessons yet: L12 \(/.test(lastUser(A.log[3].messages)) && /Write ONLY the missing parts/.test(lastUser(A.log[3].messages)));
+  ok('the checklist went from 1 missing to none', JSON.stringify(covs) === '[1,0]', JSON.stringify(covs));
+  const segTitles = res.script.segments.map((s) => s.title);
+  ok('L12 is put after L11 and before the wrap-up; nothing doubled', segTitles.length === 14 && segTitles[12] === 'Lesson 12 · about L12' && segTitles[13] === 'Wrap-up', segTitles.join('|'));
+  ok('the streamed text reached the page, and says the offline unit was passed over', /\*\*Ava:\*\* Welcome back/.test(deltas) && /DeepSeek could not finish: 503/.test(deltas));
+  ok('without Drive it is ready on this device, every turn spoken', res.local && res.built.meta.turns.length === 2 + 2 * 12 + 2 && res.model === 'chatgpt/free');
   ok('…and nothing was saved as a version', M.versions('gita', 2, 'podcast').length === 0);
   ok('the job was cleared at the end', !C.shared.get('jobs.gita.ch2.podcast', null));
 
-  // Lessons must be concise (Tony, 2026-10-20): the prompt says so, and a long reply goes back once.
-  const lp = G.buildPrompt(Object.assign({}, base, { kind: 'lessons' }));
-  const lpText = JSON.stringify(lp);
-  ok('the lessons prompt asks for short, true lessons', lpText.includes('at most ' + G.LESSON_BODY_WORDS + ' words') && /concise, true and to the point/.test(lpText));
+  // Gemini stops mid-scene twice (its own output limit) and is continued;
+  // Perplexity sends what Orca used to read back from a code block, then
+  // garbles the fix too, so the next unit (Gemini) makes the video.
+  const vScenes = ['SCENE 1\nLAYOUT: title\nHEADLINE: Knowledge\nVISUAL:\n- The field\nART: battlefield\nNARRATION: Chapter two begins.',
+    'SCENE 2\nLAYOUT: verse\nVERSE: 2.47\nNARRATION: Krishna says {verse}'].concat(ids.map((id, i) => 'SCENE ' + (i + 3) + '\nLAYOUT: lesson\nLESSON: ' + id + '\nHEADLINE: Lesson ' + (i + 1) + '\nVISUAL:\n- one\nNARRATION: Lesson ' + (i + 1) + '. Teach it.'))
+    .concat(['SCENE ' + (ids.length + 3) + '\nLAYOUT: closing\nHEADLINE: Done\nVISUAL:\n- a\n- b\n- c\nART: lotus\nNARRATION: That is all.\n\nEND']).join('\n\n');
+  const cut1 = vScenes.indexOf('SCENE 6'), cut2 = vScenes.indexOf('SCENE 11');
+  const V2 = fakeChat((model, msgs, k) => {
+    if (model === 'perplexity/free') return '{\n"lessons\n\n{\n"lessons';
+    return k === 1 ? vScenes.slice(0, cut1 - 30) : k === 2 ? vScenes.slice(cut1 - 30, cut2) : vScenes.slice(cut2);
+  });
+  const vstages = [];
+  const vres = await G.run(Object.assign({}, base, { kind: 'video', models: ['perplexity/free', 'gemini_web/free'], narrator: { name: 'Sonia', voice: 'en-GB-SoniaNeural' } }), { stage: (id, t) => vstages.push(id + (t ? ':' + t : '')) },
+    { chat: V2.chat, speak: fake(() => 6048), saveDrive: false });
+  ok('Perplexity\'s unreadable reply goes back once, then the next unit makes it', V2.log.filter((x) => x.model === 'perplexity/free').length === 2 && vres.model === 'gemini_web/free');
+  ok('Gemini, stopping mid-reply, is continued twice and its pieces joined whole', V2.log.filter((x) => x.model === 'gemini_web/free').length === 3 && vres.script.scenes.length === ids.length + 3 && vres.script.scenes[1].ref === '2.47', vres.script.scenes.length);
+  ok('…the made video teaches every lesson, the verse in the book\'s words, in Sonia\'s voice', VID.coverage(vres.built.meta, ids).missing.length === 0 && /^Krishna says You have control/.test(vres.built.meta.scenes[1].say) && vres.built.meta.narrator.voice === 'en-GB-SoniaNeural');
+  ok('…and the stage said it was going on', vstages.some((s) => /Going on \(part 2\)/.test(s)) && vstages.some((s) => /Going on \(part 3\)/.test(s)), vstages.join(' / '));
+
+  // Lessons (Tony, 2026-10-22): every lesson whatever the length; a second look
+  // adds one that was missed in its place; a long one is shortened.
   const longBody = Array(80).fill('word').join(' ');
-  const lchats = [];
-  const lchat = async ({ messages, models, onModel }) => {
-    lchats.push(messages);
-    onModel && onModel(models[0]);
-    const reply = { lessons: [{ title: 'Act without craving.', body: lchats.length === 1 ? longBody : 'Work, and let the result go.' }, { title: 'Offer each deed.', body: 'Give the work to God.' }], summary: 'S.' };
-    return { text: JSON.stringify(reply), model: models[0] };
-  };
+  const LS = fakeChat((model, msgs, k) => {
+    if (k === 1) return 'LESSON 1\nTITLE: Act without craving.\nBODY: ' + longBody + '\n\nLESSON 2\nTITLE: Offer each deed.\nBODY: Give the work to God.\n\nSUMMARY: Work freely.\nEND';
+    if (k === 2) return 'LESSON 1\nTITLE: Knowledge burns karma.\nBODY: Wisdom frees.\nAFTER: 2\nEND';
+    return 'LESSON 1\nTITLE: Act without craving.\nBODY: Work, and let the result go.\nEND';
+  });
   const lstages = [];
-  const lres = await G.run(Object.assign({}, base, { kind: 'lessons', n: 5, models: ['deepseek/free'] }), { stage: (id) => lstages.push(id) }, { chat: lchat, saveDrive: false });
-  ok('a long lesson is sent back once to shorten, naming it', lstages.join() === 'write,check,repair,done' && /too long: L1\b/.test(lchats[1][lchats[1].length - 1].content), lstages.join());
-  ok('…and the short one is kept', lres.rec && lres.rec.lessons[0].body === 'Work, and let the result go.');
-  ok('longLessons ignores lessons within the limit', G.longLessons({ lessons: [{ id: 'L1', title: 'Short.', body: Array(45).fill('w').join(' ') }] }).length === 0);
+  const lres = await G.run(Object.assign({}, base, { kind: 'lessons', n: 5, length: 'concise', models: ['deepseek/free'] }), { stage: (id) => lstages.push(id) }, { chat: LS.chat, saveDrive: false });
+  ok('lessons: written, a second look for any missed, a long one sent back to shorten', lstages.join() === 'write,check,check,repair,done' && /compare it with your list/.test(lastUser(LS.log[1].messages)) && /too long: 1\b/.test(lastUser(LS.log[2].messages)), lstages.join());
+  ok('…the missed one is kept in its place and the long one shortened', lres.rec && lres.rec.lessons.map((l) => l.id + ':' + l.title).join('|') === 'L1:Act without craving.|L2:Offer each deed.|L3:Knowledge burns karma.' && lres.rec.lessons[0].body === 'Work, and let the result go.', JSON.stringify(lres.rec && lres.rec.lessons));
   M.remove('gita', 5, 'lessons', lres.rec.id);
 
+  // An imported chapter with no lessons: a podcast first draws every lesson.
+  const NL = fakeChat((model, msgs, k) => {
+    const ask = lastUser(msgs);
+    if (/List EVERY lesson/.test(typeof msgs[1].content === 'string' ? msgs[1].content : msgs[1].content.map((p) => p.text || '').join(' ')) && msgs.length === 2) return 'LESSON 1\nTITLE: Be kind.\nBODY: Kindness first.\nLESSON 2\nTITLE: Be brave.\nBODY: Courage.\nSUMMARY: Kind and brave.\nEND';
+    if (/compare it with your list/.test(ask)) return 'NONE\nEND';
+    return podText(['L1', 'L2']);
+  });
+  const nstages = [];
+  let gotL = null;
+  const nres = await G.run(Object.assign({}, base, { kind: 'podcast', book: 'mybook', n: 4, lessons: null, models: ['deepseek/free'], ch: { blocks: [{ k: 'p', s: [{ v: null, t: 'Be kind and brave.' }] }] } }), { stage: (id) => nstages.push(id), lessons: (L) => { gotL = L; } }, { chat: NL.chat, speak: fake(() => 6048), saveDrive: false });
+  ok('no lessons yet: every lesson is drawn first, kept for the chapter, then taught', nstages[0] === 'lessons' && gotL && gotL.lessons.length === 2 && M.featured('mybook', 4, 'lessons') && G.coverage('podcast', nres.script, ['L1', 'L2']).missing.length === 0, nstages.join());
+
+  console.log('\nVoices and captions always match (Tony, 2026-10-22)');
+  const O2 = await import(pathToFileURL(path.join(DIR, 'orca.js')).href);
+  ok('edgeClip: whole 144-byte frames of 24 kHz 48 kbps only', O2.edgeClip(frames(6048)) && !O2.edgeClip(frames(6048).subarray(0, 6000)) && !O2.edgeClip(new Uint8Array(6048)));
+  let calls2 = 0;
+  const flaky = async (a) => { calls2++; return calls2 === 1 ? { audio: new Blob([new Uint8Array(5000)]), engine: 'aura', words: null } : fake(() => 6048)(a); };
+  const ex = await O2.speakExact(flaky, { text: 'one two three' }, { wait: 1 });
+  ok('a clip from the fallback voice is asked for again, never used', calls2 === 2 && ex.bytes.length === 6048 && ex.words.length === 3);
+  let err2 = null;
+  try { await O2.speakExact(fake(() => 6048, 'aura'), { text: 'x y' }, { wait: 1, tries: 3 }); } catch (e) { err2 = e; }
+  ok('…and if it keeps answering, the build stops and says why, mixing nothing', err2 && err2.code === 'tts' && /cannot be timed exactly \(the fallback voice answered\)/.test(err2.message));
+  let err3 = null;
+  try { await O2.speakExact(async () => ({ audio: new Blob([frames(1440)]), engine: 'edge', words: [[0, 0.1, 'a'], [9, 0.1, 'b']] }), { text: 'a b' }, { wait: 1, tries: 2 }); } catch (e) { err3 = e; }
+  ok('…as when word timings run past the clip', err3 && /did not fit/.test(err3.message));
   console.log('\nVersions');
   const id1 = M.record('gita', 3, 'podcast', { mp3: { id: 'm1' }, json: { id: 'j1' }, model: 'deepseek/free', at: 1000 });
   const id2 = M.record('gita', 3, 'podcast', { mp3: { id: 'm2' }, json: { id: 'j2' }, model: 'chatgpt/free', at: 2000 });
