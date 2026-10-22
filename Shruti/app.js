@@ -247,11 +247,13 @@ function openSettings() {
   if ($('#settings')) return;
   const dim = document.createElement('div');
   dim.className = 'sheet-dim'; dim.id = 'settings';
-  dim.innerHTML = '<aside class="sheet" role="dialog" aria-modal="true" aria-labelledby="st-h">' +
-    '<div class="sh-h"><h2 id="st-h">Settings</h2><button class="ib" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>' +
-    '<section class="card" id="st-orca"></section><section class="card" id="st-units"></section><section class="card" id="st-drive"></section>' +
-    '<section class="card"><h3>Profile</h3><p class="hint">Signed in here as <b>' + esc(PROFILES[P].label) + '</b>. Progress, keys and settings are yours on every device; the Gita is shared.</p>' +
-    '<div class="row"><button class="btn" data-switch>Switch profile</button><button class="btn" data-lock>' + (Guardian.isLocked(GID) ? 'Manage lock' : 'Set a password') + '</button></div></section>' +
+  // Rebuilt 2026-10-22 (Tony: "far more elegant", "descriptions more concise"):
+  // the Make with AI sheets' look, one short line under each heading.
+  dim.innerHTML = '<aside class="sheet mk st" role="dialog" aria-modal="true" aria-labelledby="st-h">' +
+    '<header class="mk-head"><span class="mk-ic">' + GEAR + '</span><div class="mk-ht"><h2 id="st-h">Settings</h2><p>' + esc(PROFILES[P].label) + ' · on every device</p></div><button class="ib" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>' +
+    '<section class="mk-sec st-sec" id="st-orca"></section><section class="mk-sec st-sec" id="st-units"></section><section class="mk-sec st-sec" id="st-drive"></section>' +
+    '<section class="mk-sec st-sec"><div class="mk-label">Profile</div><div class="st-card st-prof"><span class="pf-av">' + (P === 'veda' ? SPARK : FLEUR) + '</span><div><b>' + esc(PROFILES[P].label) + '</b><span>Your progress and settings; the shared books are both of yours.</span></div></div>' +
+    '<div class="st-row"><button class="btn" data-switch>Switch profile</button><button class="btn" data-lock>' + (Guardian.isLocked(GID) ? 'Manage lock' : 'Set a password') + '</button></div></section>' +
     '</aside>';
   document.body.appendChild(dim);
   const close = () => { dim.remove(); removeEventListener('keydown', esc1); offMe(); };
@@ -270,13 +272,12 @@ function drawOrca(state) {
   const box = $('#st-orca'); if (!box) return;
   const k = keyOf();
   const mdl = modelsNow();
-  const st = state || (mdl ? { kind: 'good', text: 'Working · ' + mdl.filter((m) => m.routable).length + ' of ' + mdl.length + ' models ready for this key' } : k ? { kind: '', text: 'Saved · not checked yet' } : { kind: 'bad', text: 'No key yet: AI features are off. Read-aloud of the shipped chapters, the podcasts and the videos still play.' });
-  box.innerHTML = '<h3>' + L.IC.key + 'Orca key</h3>' +
-    '<p class="hint">Every AI feature in Shruti (podcasts, videos, study sets) runs through Orca with your own key. Make one on Orca\'s Keys page and paste it here once; it then works on all your devices.</p>' +
-    '<div class="row"><input id="orca-key" type="password" autocomplete="off" spellcheck="false" placeholder="' + (k ? esc(masked(k)) : 'orca_sk_…') + '" aria-label="Orca key">' +
+  const st = state || (mdl ? { kind: 'good', text: 'Working · ' + mdl.filter((m) => m.routable).length + ' of ' + mdl.length + ' models ready' } : k ? { kind: '', text: 'Saved · not checked yet' } : { kind: 'bad', text: 'No key yet: AI is off. Everything that ships still plays.' });
+  box.innerHTML = '<div class="mk-label">Orca key<span>Every AI feature runs on it</span></div>' +
+    '<div class="st-card"><div class="st-key"><input id="orca-key" type="password" autocomplete="off" spellcheck="false" placeholder="' + (k ? esc(masked(k)) : 'Paste orca_sk_…') + '" aria-label="Orca key">' +
     '<button class="btn solid" id="orca-save">' + (k ? 'Replace' : 'Save') + '</button></div>' +
-    '<div class="stat ' + st.kind + '" id="orca-stat"><i></i><span>' + esc(st.text) + '</span></div>' +
-    (k ? '<div class="row" style="margin-top:10px"><button class="btn ghost" id="orca-check">Check again</button><button class="btn ghost danger" id="orca-del">Remove key</button></div>' : '');
+    '<div class="st-foot"><div class="stat ' + st.kind + '" id="orca-stat"><i></i><span>' + esc(st.text) + '</span></div>' +
+    (k ? '<span class="sp"></span><button class="btn ghost sm" id="orca-check">Check</button><button class="btn ghost sm danger" id="orca-del">Remove</button>' : '') + '</div></div>';
   const inp = box.querySelector('#orca-key');
   box.querySelector('#orca-save').addEventListener('click', () => saveKey(inp.value));
   inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveKey(inp.value); });
@@ -306,14 +307,39 @@ async function refreshModels(loud) {
 // A refused key says what to do about it; the rest say what happened.
 const keyProblem = (r) => (r.status === 401 || r.status === 403 ? 'Orca rejected this key: it may have been deleted or changed on Orca\'s Keys page. Paste a working one.' : r.error);
 function unitPrefs() { return C.me.get('units', {}) || {}; }
+// "Test each unit": a small real ask of every kind per ticked unit (generate.js testUnit).
+const unitTests = { running: false, res: {}, abort: null };
+const TEST_NAME = { podcast: 'Podcast', video: 'Video', lessons: 'Lessons', study: 'Study' };
+function testRow(id) {
+  const r = unitTests.res[id];
+  if (!r) return '';
+  return '<div class="ut">' + G.TEST_KINDS.map((k) => { const x = r[k]; return '<span class="ut-k ' + (!x ? 'wait' : x.ok ? 'ok' : 'no') + '" title="' + esc(!x ? 'Testing…' : x.ok ? TEST_NAME[k] + ': works' : TEST_NAME[k] + ': ' + x.why) + '">' + (!x ? '<i class="mk-spin"></i>' : x.ok ? CHECK : '×') + esc(TEST_NAME[k]) + '</span>'; }).join('') +
+    (G.TEST_KINDS.some((k) => r[k] && !r[k].ok) ? '<p class="ut-why">' + esc(G.TEST_KINDS.filter((k) => r[k] && !r[k].ok).map((k) => TEST_NAME[k] + ': ' + r[k].why).join(' · ')) + '</p>' : '') + '</div>';
+}
+async function testUnits() {
+  if (unitTests.running) { if (unitTests.abort) unitTests.abort.abort(); return; }
+  const stop = await G.aiReady();
+  if (stop) { toast(stop.title + '. ' + stop.text, true); return; }
+  const rows = O.unitRows(unitPrefs(), modelsNow()).filter((r) => r.on && (r.status === 'ready' || r.status === 'unknown' || r.status === 'offline'));
+  unitTests.running = true; unitTests.res = {}; unitTests.abort = new AbortController();
+  rows.forEach((r) => { unitTests.res[r.id] = {}; });
+  drawUnits();
+  await Promise.all(rows.map((r) => G.testUnit(r.id, (k, res) => { unitTests.res[r.id][k] = res; drawUnits(); }, { signal: unitTests.abort.signal }).catch(() => {})));
+  unitTests.running = false; unitTests.abort = null;
+  drawUnits();
+  const bad = rows.filter((r) => G.TEST_KINDS.some((k) => unitTests.res[r.id][k] && !unitTests.res[r.id][k].ok));
+  toast(bad.length ? bad.map((r) => r.name).join(', ') + (bad.length > 1 ? ' could not' : ' could not') + ' make everything: see Settings' : 'Every ticked unit made all four kinds', !!bad.length);
+}
 function drawUnits() {
   const box = $('#st-units'); if (!box) return;
   const rows = O.unitRows(unitPrefs(), modelsNow());
-  box.innerHTML = '<h3>AI units</h3><p class="hint">Tick the units Shruti may use and drag them into order. It tries them top to bottom and moves on when one is busy or offline. Claude stays off unless you tick it.</p>' +
-    '<div class="units" id="unit-list">' + rows.map((r, i) =>
+  box.innerHTML = '<div class="mk-label">AI units<span>Tried top to bottom · drag to reorder</span></div>' +
+    '<div class="units st-card" id="unit-list">' + rows.map((r, i) =>
       '<div class="unit' + (r.on ? ' on' : '') + '" data-dkey="' + esc(r.id) + '"><span class="ord">' + (i + 1) + '</span>' +
       '<button class="tick" data-tick="' + esc(r.id) + '" role="checkbox" aria-checked="' + r.on + '" aria-label="' + esc(r.name + (O.STATUS[r.status] ? ', ' + O.STATUS[r.status] : '')) + '">' + CHECK + '</button>' +
-      '<span class="nm">' + esc(r.name) + '</span><span class="st ' + (r.status === 'ready' ? 'ok' : r.status === 'unknown' ? '' : 'off') + '">' + esc(O.STATUS[r.status]) + '</span></div>').join('') + '</div>';
+      '<span class="nm">' + esc(r.name) + '</span><span class="st ' + (r.status === 'ready' ? 'ok' : r.status === 'unknown' ? '' : 'off') + '">' + esc(O.STATUS[r.status]) + '</span>' + testRow(r.id) + '</div>').join('') + '</div>' +
+    '<div class="st-row"><button class="btn" id="unit-test"' + (keyOf() ? '' : ' disabled') + '>' + (unitTests.running ? '<i class="mk-spin"></i>Stop the test' : 'Test each unit') + '</button><span class="hint">A small podcast, video, lessons and study set from each ticked unit.</span></div>';
+  box.querySelector('#unit-test').addEventListener('click', testUnits);
   box.querySelectorAll('[data-tick]').forEach((b) => b.addEventListener('click', () => {
     const p = unitPrefs(), on = Object.assign({}, p.on || {});
     const row = rows.find((r) => r.id === b.dataset.tick);
@@ -340,7 +366,7 @@ async function drawDrive() {
   const box = $('#st-drive'); if (!box) return;
   const rows = P === 'veda' ? [['tony', 'Shared books', 'Tony\'s Drive'], ['veda', 'Your books', 'your Drive']] : [['tony', 'Shared and your books', 'your Drive']];
   const paint = (h) => {
-    box.innerHTML = '<h3>Google Drive</h3><p class="hint">Where podcasts, videos and narrations are kept.</p>' +
+    box.innerHTML = '<div class="mk-label">Google Drive<span>Where made media is kept</span></div>' +
       '<div class="drv">' + rows.map(([a, label, whose]) => {
         const s = !h ? { k: 'busy', t: 'Checking…' } : h.err ? { k: 'bad', t: 'Unreachable' } : !h.configured ? { k: 'bad', t: 'Not set up' }
           : h.accounts && h.accounts[a] && h.accounts[a].connected ? { k: 'good', t: h.accounts[a].email || 'Connected' }
