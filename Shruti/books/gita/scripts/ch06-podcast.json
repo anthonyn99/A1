@@ -4,159 +4,521 @@
   "n": 6,
   "title": "Path of meditation",
   "hosts": [
-    { "id": "A", "name": "Ava", "voice": "en-US-AvaMultilingualNeural" },
-    { "id": "B", "name": "Andrew", "voice": "en-US-AndrewMultilingualNeural" }
+    {
+      "id": "A",
+      "name": "Emma",
+      "voice": "en-US-EmmaMultilingualNeural"
+    },
+    {
+      "id": "B",
+      "name": "Brian",
+      "voice": "en-US-BrianMultilingualNeural"
+    }
   ],
   "segments": [
     {
       "title": "Welcome",
       "turns": [
-        { "s": "A", "t": "Welcome to Shruti. I'm Ava." },
-        { "s": "B", "t": "And I'm Andrew. Today, Chapter Six: the Path of Meditation." },
-        { "s": "A", "t": "This is the Gita's practical manual for the mind. How to sit, how to eat and sleep, what to do when your thoughts wander, and Arjuna's very honest complaint that controlling the mind is like trying to hold the wind." },
-        { "s": "B", "t": "It also has one of the most comforting promises in the whole book, for anyone who tries and falls short. Thirteen lessons. Story first." }
+        {
+          "s": "A",
+          "t": "Welcome to Shruti. I'm Emma."
+        },
+        {
+          "s": "B",
+          "t": "And I'm Brian. Today, Chapter Six: the Path of Meditation."
+        },
+        {
+          "s": "A",
+          "t": "This is the Gita's practical manual for the mind. How to sit, how to eat and sleep, what to do when your thoughts wander, and Arjuna's very honest complaint that controlling the mind is like trying to hold the wind."
+        },
+        {
+          "s": "B",
+          "t": "And one of the most comforting promises in the book. Thirteen lessons. Story first."
+        }
       ]
     },
     {
       "title": "The story",
       "turns": [
-        { "s": "A", "t": "Krishna begins by tying this chapter back to the last. Six point one: one who performs the prescribed duty without seeking its fruit only for personal enjoyment is a renunciant and a Karma-yogi. One does not become a renunciant merely by not lighting the fire, and one does not become a yogi merely by abstaining from work.", "L": ["L1"] },
-        { "s": "B", "t": "Not lighting the fire refers to the old practice of renunciants giving up the household sacred fire. Krishna's point is that the outer gesture means nothing without the inner one. No one becomes a Karma-yogi, six point two, who has not renounced the selfish motive behind an action.", "L": ["L1"] },
-        { "s": "A", "t": "Then a sequence, six point three: for the one who seeks calmness of mind, Karma-yoga is the means. For the one who has attained it, calmness becomes the means of Self-realization.", "L": ["L2"] },
-        { "s": "B", "t": "And then the verse people underline, six point five and six: one must elevate, and not degrade, oneself by one's own mind. The mind alone is one's friend as well as one's enemy. The mind is the friend of those who control it, and acts like an enemy for those who do not.", "L": ["L3"] },
-        { "s": "A", "t": "Six point seven: one who has control over the lower self is tranquil in heat and cold, in pleasure and pain, in honor and dishonor.", "L": ["L4"] },
-        { "s": "B", "t": "And a yogi, six point eight and nine, is one to whom a clod, a stone and gold are the same, and who is impartial towards companions, friends, enemies, neutrals, haters, relatives, saints and sinners.", "L": ["L5"] },
-        { "s": "A", "t": "Now the technique. Six point ten to twelve: seated in solitude, the yogi sits on a firm seat, neither too high nor too low, in a clean spot, traditionally covered with grass, a deerskin and a cloth, controls the thoughts and the senses, and practices meditation for self-purification.", "L": ["L6"] },
-        { "s": "B", "t": "Six point thirteen and fourteen: hold the waist, spine, chest, neck and head erect, motionless and steady. Fix the eyes and mind steadily in front of the nostrils, without looking around. Make the mind serene and fearless, think of Me, and have Me as the supreme goal.", "L": ["L6"] },
-        { "s": "A", "t": "A small note: in this chapter our book says to fix the gaze in front of the nostrils. The gaze between the eyebrows comes in the previous chapter, verse five point twenty-seven. Both appear in the tradition.", "L": ["L6"] },
-        { "s": "B", "t": "Then one of the Gita's most practical verses, six point sixteen and seventeen: this yoga is not possible for the one who eats too much or not at all, who sleeps too much or keeps awake. But for the one who is moderate in eating, recreation, working, sleeping and waking, the yoga of meditation destroys all sorrow.", "L": ["L7"] },
-        { "s": "A", "t": "Six point eighteen: a person has achieved yoga when the perfectly disciplined mind becomes free from all desires and is completely united with God in Samadhi, trance.", "L": ["L8"] },
-        { "s": "B", "t": "And the image for it, six point nineteen: a lamp in a spot sheltered from the wind does not flicker. That's the subdued mind of a yogi.", "L": ["L9"] },
-        { "s": "A", "t": "What it feels like, six point twenty-one and twenty-two: infinite bliss, perceivable only through the intellect and beyond the senses. After Self-realization, one does not regard any other gain as superior, and is not moved even by the greatest calamity.", "L": ["L10"] },
-        { "s": "B", "t": "And a definition of yoga that's worth memorizing, six point twenty-three: the state of severance of union with sorrow is called yoga. It should be practiced with firm determination and without any mental reservation.", "L": ["L11"] },
-        { "s": "A", "t": "Then the instruction every meditator needs, six point twenty-six: wheresoever this restless and unsteady mind wanders away during meditation, one should just witness it under the supervision of the Self.", "L": ["L12"] },
-        { "s": "B", "t": "The fruit of it, six point twenty-nine and thirty: the yogi sees the Eternal Being in all beings and all beings in the Eternal Being. Those who perceive Me in everything and everything in Me are not separated from Me, and I am not separated from them.", "L": ["L5"] },
-        { "s": "A", "t": "And six point thirty-two: the best yogi is the one who regards every being like oneself, and feels the pain and pleasures of others as their own.", "L": ["L5"] },
-        { "s": "B", "t": "Now Arjuna, honest as ever. Six point thirty-three and thirty-four: the mind is very unsteady, turbulent, powerful and obstinate, O Krishna. I think restraining the mind is as difficult as restraining the wind.", "L": ["L3"] },
-        { "s": "A", "t": "And Krishna doesn't argue with him. Six point thirty-five: undoubtedly, O Arjuna, the mind is restless and difficult to restrain, but it is subdued by constant vigorous spiritual practice with perseverance, Self-knowledge and detachment.", "L": ["L3", "L12"] },
-        { "s": "B", "t": "Then Arjuna asks the question that matters to every beginner. Six point thirty-seven and thirty-eight: what about the faithful person who tries but fails? Do they perish like a scattered cloud, losing both this world and the next?" },
-        { "s": "A", "t": "And Krishna's answer, six point forty: there is no destruction, O Arjuna, for a yogi, either here or hereafter. A spiritualist is never put to grief, my dear friend." },
-        { "s": "B", "t": "He explains: such a person is reborn among the pious and prosperous, or in a family of yogis, regains the knowledge from the previous life, and strives again. Six point forty-four: carried toward God by the impressions, the samskaras, of past practice. No effort is wasted." },
-        { "s": "A", "t": "And the chapter ends with a ranking. Six point forty-six: the yogi is superior to the ascetics, to the scholars, and to the ritualists. Therefore, be a yogi.", "L": ["L13"] },
-        { "s": "B", "t": "And six point forty-seven: I consider the yogi-devotee, who lovingly contemplates Me with supreme faith and whose mind is ever absorbed in Me, to be the best of all yogis. Which opens the door to the devotion chapters ahead.", "L": ["L13"] }
+        {
+          "s": "A",
+          "t": "Krishna begins by tying this chapter back to the last. Six point one: one who performs the prescribed duty without seeking its fruit only for personal enjoyment is a renunciant and a Karma-yogi. One does not become a renunciant merely by not lighting the fire, and one does not become a yogi merely by abstaining from work.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Not lighting the fire means the renunciant giving up the household sacred fire. The outer gesture means nothing without the inner one.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Then a sequence, six point three: for the one who seeks calmness of mind, Karma-yoga is the means. For the one who has attained it, calmness becomes the means of Self-realization.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "And then the verse people underline, six point five and six: one must elevate, and not degrade, oneself by one's own mind. The mind alone is one's friend as well as one's enemy. The mind is the friend of those who control it, and acts like an enemy for those who do not.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Six point seven: one who has control over the lower self is tranquil in heat and cold, in pleasure and pain, in honor and dishonor.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "And a yogi, six point eight and nine, is one to whom a clod, a stone and gold are the same, and who is impartial towards companions, friends, enemies, neutrals, haters, relatives, saints and sinners.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Now the technique. Six point ten to twelve: seated in solitude, the yogi sits on a firm seat, neither too high nor too low, in a clean spot, traditionally covered with grass, a deerskin and a cloth, controls the thoughts and the senses, and practices meditation for self-purification.",
+          "L": [
+            "L6"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Six point thirteen and fourteen: hold the waist, spine, chest, neck and head erect, motionless and steady. Fix the eyes and mind steadily in front of the nostrils, without looking around. Make the mind serene and fearless, think of Me, and have Me as the supreme goal.",
+          "L": [
+            "L6"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Then one of the Gita's most practical verses, six point sixteen and seventeen: this yoga is not possible for the one who eats too much or not at all, who sleeps too much or keeps awake. But for the one who is moderate in eating, recreation, working, sleeping and waking, the yoga of meditation destroys all sorrow.",
+          "L": [
+            "L7"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Six point eighteen: a person has achieved yoga when the perfectly disciplined mind becomes free from all desires and is completely united with God in Samadhi, trance.",
+          "L": [
+            "L8"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "And the image for it, six point nineteen: a lamp in a spot sheltered from the wind does not flicker. That's the subdued mind of a yogi.",
+          "L": [
+            "L9"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "What it feels like, six point twenty-one and twenty-two: infinite bliss, perceivable only through the intellect and beyond the senses. After Self-realization, one does not regard any other gain as superior, and is not moved even by the greatest calamity.",
+          "L": [
+            "L10"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "And a definition of yoga that's worth memorizing, six point twenty-three: the state of severance of union with sorrow is called yoga. It should be practiced with firm determination and without any mental reservation.",
+          "L": [
+            "L11"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Then the instruction every meditator needs, six point twenty-six: wheresoever this restless and unsteady mind wanders away during meditation, one should just witness it under the supervision of the Self.",
+          "L": [
+            "L12"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "The fruit of it, six point twenty-nine and thirty: the yogi sees the Eternal Being in all beings and all beings in the Eternal Being. Those who perceive Me in everything and everything in Me are not separated from Me, and I am not separated from them.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And six point thirty-two: the best yogi is the one who regards every being like oneself, and feels the pain and pleasures of others as their own.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Now Arjuna, honest as ever. Six point thirty-three and thirty-four: the mind is very unsteady, turbulent, powerful and obstinate, O Krishna. I think restraining the mind is as difficult as restraining the wind.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And Krishna doesn't argue with him. Six point thirty-five: undoubtedly, O Arjuna, the mind is restless and difficult to restrain, but it is subdued by constant vigorous spiritual practice with perseverance, Self-knowledge and detachment.",
+          "L": [
+            "L3",
+            "L12"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Then Arjuna asks the question that matters to every beginner. Six point thirty-seven and thirty-eight: what about the faithful person who tries but fails? Do they perish like a scattered cloud, losing both this world and the next?"
+        },
+        {
+          "s": "A",
+          "t": "And Krishna's answer, six point forty: there is no destruction, O Arjuna, for a yogi, either here or hereafter. A spiritualist is never put to grief, my dear friend."
+        },
+        {
+          "s": "B",
+          "t": "He explains: such a person is reborn among the pious and prosperous, or in a family of yogis, regains the knowledge from the previous life, and strives again. Six point forty-four: carried toward God by the impressions, the samskaras, of past practice. No effort is wasted."
+        },
+        {
+          "s": "A",
+          "t": "And the chapter ends with a ranking. Six point forty-six: the yogi is superior to the ascetics, to the scholars, and to the ritualists. Therefore, be a yogi.",
+          "L": [
+            "L13"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "And six point forty-seven: I consider the yogi-devotee, who lovingly contemplates Me with supreme faith and whose mind is ever absorbed in Me, to be the best of all yogis. Which opens the door to the devotion chapters ahead.",
+          "L": [
+            "L13"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 1 · The Karma-yogi renounces",
       "turns": [
-        { "s": "A", "t": "Lesson one: a Karma-yogi is truly a renunciant.", "L": ["L1"] },
-        { "s": "B", "t": "Renunciation isn't giving up duties or rituals on the outside. It's giving up the selfish motive behind action.", "L": ["L1"] },
-        { "s": "A", "t": "Which means it's open to anyone: the householder as much as the monk. You can renounce right where you are.", "L": ["L1"] }
+        {
+          "s": "A",
+          "t": "Lesson one: a Karma-yogi is truly a renunciant.",
+          "L": [
+            "L1"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Renunciation isn't giving up duties or rituals on the outside. It's giving up the selfish motive behind action.",
+          "L": [
+            "L1"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 2 · From action to calm",
       "turns": [
-        { "s": "B", "t": "Lesson two: yoga is the path to calmness for the seeker.", "L": ["L2"] },
-        { "s": "A", "t": "For someone seeking a calm mind, selfless action is the proven means. Once calm is reached, the calm itself becomes the vehicle for Self-realization.", "L": ["L2"] },
-        { "s": "B", "t": "So the progression is action, then tranquility, then knowledge. You don't skip straight to the top of the stairs.", "L": ["L2"] }
+        {
+          "s": "B",
+          "t": "Lesson two: yoga is the path to calmness for the seeker.",
+          "L": [
+            "L2"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "For someone seeking a calm mind, selfless action is the proven means. Once calm is reached, the calm itself becomes the vehicle for Self-realization.",
+          "L": [
+            "L2"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 3 · Friend or enemy",
       "turns": [
-        { "s": "A", "t": "Lesson three: the mind is your truest friend or your fiercest enemy.", "L": ["L3"] },
-        { "s": "B", "t": "Whether you rise or fall depends on your own mind. Controlled, it's your best friend. Uncontrolled, it works against you from the inside.", "L": ["L3"] },
-        { "s": "A", "t": "That puts the responsibility squarely with us. But Krishna also admits it's hard, and gives the method: steady practice and detachment.", "L": ["L3"] }
+        {
+          "s": "A",
+          "t": "Lesson three: the mind is your truest friend or your fiercest enemy.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Whether you rise or fall depends on your own mind. Controlled, it's your best friend. Uncontrolled, it works against you from the inside.",
+          "L": [
+            "L3"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "That puts the responsibility squarely with us. But Krishna also admits it's hard, and gives the method: steady practice and detachment.",
+          "L": [
+            "L3"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 4 · Steady in all weather",
       "turns": [
-        { "s": "B", "t": "Lesson four: control over the senses brings unwavering stability.", "L": ["L4"] },
-        { "s": "A", "t": "Whoever has mastered the lower self, the mind and senses, stays calm in heat and cold, pleasure and pain, honor and dishonor.", "L": ["L4"] },
-        { "s": "B", "t": "That mastery brings the stability of the higher Self, which outside circumstances can't touch.", "L": ["L4"] }
+        {
+          "s": "B",
+          "t": "Lesson four: control over the senses brings unwavering stability.",
+          "L": [
+            "L4"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Whoever has mastered the lower self, the mind and senses, stays calm in heat and cold, pleasure and pain, honor and dishonor.",
+          "L": [
+            "L4"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 5 · Equanimity toward all",
       "turns": [
-        { "s": "A", "t": "Lesson five: a true yogi sees all beings with equanimity.", "L": ["L5"] },
-        { "s": "B", "t": "Impartial toward friends and enemies, saints and sinners. A clod, a stone and gold are the same to them, beyond preference and aversion.", "L": ["L5"] },
-        { "s": "A", "t": "And at its best, feeling others' pain and joy as your own. That's what this vision grows into.", "L": ["L5"] }
+        {
+          "s": "A",
+          "t": "Lesson five: a true yogi sees all beings with equanimity.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Impartial toward friends and enemies, saints and sinners. A clod, a stone and gold are the same to them, beyond preference and aversion.",
+          "L": [
+            "L5"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "And at its best, feeling others' pain and joy as your own. That's what this vision grows into.",
+          "L": [
+            "L5"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 6 · How to sit",
       "turns": [
-        { "s": "B", "t": "Lesson six: meditation needs solitude, control, and proper technique.", "L": ["L6"] },
-        { "s": "A", "t": "A clean, quiet place. A firm seat. Waist, spine, chest, neck and head in one straight line. A steady gaze, and the mind and senses gathered in.", "L": ["L6"] },
-        { "s": "B", "t": "These aren't arbitrary rules. They're the conditions that make stillness possible, the way a still pond needs no wind.", "L": ["L6"] }
+        {
+          "s": "B",
+          "t": "Lesson six: meditation needs solitude, control, and proper technique.",
+          "L": [
+            "L6"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "A clean, quiet place. A firm seat. Waist, spine, chest, neck and head in one straight line. A steady gaze, and the mind and senses gathered in.",
+          "L": [
+            "L6"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 7 · Moderation",
       "turns": [
-        { "s": "A", "t": "Lesson seven: moderation in all things is essential.", "L": ["L7"] },
-        { "s": "B", "t": "Meditation fails for those who eat too much or too little, sleep too much or too little. Only the moderate person can use it to end sorrow.", "L": ["L7"] },
-        { "s": "A", "t": "Extremes in any direction, even extreme spiritual discipline, get in the way. It's a very balanced, very human teaching.", "L": ["L7"] }
+        {
+          "s": "A",
+          "t": "Lesson seven: moderation in all things is essential.",
+          "L": [
+            "L7"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Meditation fails for those who eat too much or too little, sleep too much or too little. Only the moderate person can use it to end sorrow.",
+          "L": [
+            "L7"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Extremes in any direction, even extreme spiritual discipline, get in the way. It's a very balanced, very human teaching.",
+          "L": [
+            "L7"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 8 · Samadhi",
       "turns": [
-        { "s": "B", "t": "Lesson eight: Samadhi is the goal of all meditation.", "L": ["L8"] },
-        { "s": "A", "t": "Union with the Eternal Being comes when the disciplined mind is free from all desires and merges completely with God.", "L": ["L8"] },
-        { "s": "B", "t": "It isn't the end of awareness. It's awareness at its fullest, with the false self dissolved into the real.", "L": ["L8"] }
+        {
+          "s": "B",
+          "t": "Lesson eight: Samadhi is the goal of all meditation.",
+          "L": [
+            "L8"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Union with the Eternal Being comes when the disciplined mind is free from all desires and merges completely with God.",
+          "L": [
+            "L8"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 9 · The sheltered lamp",
       "turns": [
-        { "s": "A", "t": "Lesson nine: the steady mind is like a sheltered lamp.", "L": ["L9"] },
-        { "s": "B", "t": "Protected from the wind of desire, the flame doesn't flicker.", "L": ["L9"] },
-        { "s": "A", "t": "When desire stops stirring the mind, the light of awareness burns clear and still.", "L": ["L9"] }
+        {
+          "s": "A",
+          "t": "Lesson nine: the steady mind is like a sheltered lamp.",
+          "L": [
+            "L9"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Protected from the wind of desire, the flame doesn't flicker.",
+          "L": [
+            "L9"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 10 · The highest gain",
       "turns": [
-        { "s": "B", "t": "Lesson ten: Self-realization is the highest gain.", "L": ["L10"] },
-        { "s": "A", "t": "With a purified mind, one beholds the Eternal and feels a bliss beyond the senses. After that, no other gain seems greater.", "L": ["L10"] },
-        { "s": "B", "t": "And even the greatest calamity can't shake such a person. That's the certainty of someone who has found what can't be lost.", "L": ["L10"] }
+        {
+          "s": "B",
+          "t": "Lesson ten: Self-realization is the highest gain.",
+          "L": [
+            "L10"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "With a purified mind, one beholds the Eternal and feels a bliss beyond the senses. After that, no other gain seems greater.",
+          "L": [
+            "L10"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "And even the greatest calamity can't shake such a person. That's the certainty of someone who has found what can't be lost.",
+          "L": [
+            "L10"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 11 · Unyoking from sorrow",
       "turns": [
-        { "s": "A", "t": "Lesson eleven: yoga is freedom from union with sorrow.", "L": ["L11"] },
-        { "s": "B", "t": "There's a lovely play on words here. Yoga means union, and Krishna defines it as the breaking of our union with suffering.", "L": ["L11"] },
-        { "s": "A", "t": "It's reached with firm determination and no mental reservation, by dropping selfish desires and gently restraining the senses with a clear intellect.", "L": ["L11"] }
+        {
+          "s": "A",
+          "t": "Lesson eleven: yoga is freedom from union with sorrow.",
+          "L": [
+            "L11"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "There's a lovely play on words here. Yoga means union, and Krishna defines it as the breaking of our union with suffering.",
+          "L": [
+            "L11"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 12 · Gently bring it back",
       "turns": [
-        { "s": "B", "t": "Lesson twelve: the wandering mind must be gently returned to the Self.", "L": ["L12"] },
-        { "s": "A", "t": "When the mind wanders in meditation, and it will, don't scold it. Just witness the wandering, under the supervision of the Self, and come back.", "L": ["L12"] },
-        { "s": "B", "t": "That kind, patient watching, without fighting the thoughts or chasing them, is how the mind slowly settles itself.", "L": ["L12"] }
+        {
+          "s": "B",
+          "t": "Lesson twelve: the wandering mind must be gently returned to the Self.",
+          "L": [
+            "L12"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "When the mind wanders in meditation, and it will, don't scold it. Just witness the wandering, under the supervision of the Self, and come back.",
+          "L": [
+            "L12"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "That kind, patient watching, without fighting the thoughts or chasing them, is how the mind slowly settles itself.",
+          "L": [
+            "L12"
+          ]
+        }
       ]
     },
     {
       "title": "Lesson 13 · The yogi-devotee",
       "turns": [
-        { "s": "A", "t": "And lesson thirteen: the yogi-devotee is the greatest of all yogis.", "L": ["L13"] },
-        { "s": "B", "t": "Every discipline has its place, and the yogi surpasses the ascetic, the scholar and the ritualist. But the best is the one who contemplates God with supreme faith and love.", "L": ["L13"] },
-        { "s": "A", "t": "Love unites knowledge, discipline and action into one seamless whole.", "L": ["L13"] }
+        {
+          "s": "A",
+          "t": "And lesson thirteen: the yogi-devotee is the greatest of all yogis.",
+          "L": [
+            "L13"
+          ]
+        },
+        {
+          "s": "B",
+          "t": "Every discipline has its place, and the yogi surpasses the ascetic, the scholar and the ritualist. But the best is the one who contemplates God with supreme faith and love.",
+          "L": [
+            "L13"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Love unites knowledge, discipline and action into one seamless whole.",
+          "L": [
+            "L13"
+          ]
+        }
       ]
     },
     {
       "title": "Wrap-up",
       "turns": [
-        { "s": "B", "t": "So, Chapter Six. The mind as friend or enemy, a step-by-step method for sitting still, the lamp that doesn't flicker, and a promise: no sincere effort is ever lost.", "L": ["L3", "L6", "L9"] },
-        { "s": "A", "t": "Thirteen lessons: the Karma-yogi renounces; from action to calm; friend or enemy; steady in all weather; equanimity toward all; how to sit; moderation; Samadhi; the sheltered lamp; the highest gain; unyoking from sorrow; gently bring it back; and the yogi-devotee.", "L": ["L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "L9", "L10", "L11", "L12", "L13"] },
-        { "s": "B", "t": "Meditation isn't abstract philosophy. It's a precise way of training the mind, and with knowledge, discipline and practice, it leads to union with the Divine." },
-        { "s": "A", "t": "Thanks for listening to Shruti." }
+        {
+          "s": "B",
+          "t": "So, Chapter Six. The mind as friend or enemy, a step-by-step method for sitting still, the lamp that doesn't flicker, and a promise: no sincere effort is ever lost.",
+          "L": [
+            "L3",
+            "L6",
+            "L9"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Thirteen lessons, and one promise to carry home: no sincere effort is ever lost.",
+          "L": [
+            "L1",
+            "L2",
+            "L3",
+            "L4",
+            "L5",
+            "L6",
+            "L7",
+            "L8",
+            "L9",
+            "L10",
+            "L11",
+            "L12",
+            "L13"
+          ]
+        },
+        {
+          "s": "A",
+          "t": "Thanks for listening to Shruti."
+        }
       ]
     }
   ]
