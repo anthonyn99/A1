@@ -377,7 +377,7 @@ const M = {
     c.strokeStyle = k.ac; c.beginPath(); c.moveTo(-5 * u, 1 * u); c.quadraticCurveTo(0, -3 * u, 5 * u, 1 * u); c.stroke();
     line(c, [[-5 * u, 1 * u], [5 * u, 1 * u]]);
     for (let i = -4; i <= 4; i++) { const y = 1 - (1 - (i / 5) ** 2) * 2; line(c, [[i * u, y * u], [i * u, 1 * u]]); }
-    M.river.call(null, (c.save(), c.translate(0, 3 * u), c.scale(1, 0.4), c), s, t, k); c.restore();
+    c.save(); c.translate(0, 3 * u); c.scale(1, 0.4); M.river(c, s, t, k); c.restore();
   },
   city(c, s, t, k) {
     const u = s / 10;

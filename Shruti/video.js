@@ -24,6 +24,7 @@ import * as T from './text.js';
 import * as M from './media.js';
 import * as O from './orca.js';
 import { SILENCE_B64 } from './podcast.js';
+import * as ART from './art.js';
 
 const DRIVE = M.DRIVE;
 export const W = 1920, H = 1080;
@@ -182,25 +183,25 @@ function chip(ctx, s, x, y, col) {
 /** When item i of n appears: spread across the narration. */
 const stagger = (i, n, speech, first = 0.9) => first + i * Math.min(3.2, Math.max(0.4, (speech - first - 1.5) / Math.max(1, n)));
 /** Heading block for the content layouts: kicker, rule, headline. */
-function heading(ctx, sc, t, acc, label, y = 150) {
+function heading(ctx, sc, t, acc, label, y = 150, maxW = 1560) {
   const a = vin(t, 0.1, 0.8);
   ctx.globalAlpha = a;
   kicker(ctx, label, 160, y + (1 - a) * 20, acc);
   ctx.fillStyle = acc; ctx.fillRect(160, y + 46 + (1 - a) * 20, 70 * a, 3);
-  const f = fit(ctx, sc.headline, fDisplay, 80, 1560, 2, 48);
+  const f = fit(ctx, sc.headline, fDisplay, maxW < 1200 ? 72 : 80, maxW, maxW < 1200 ? 3 : 2, 44);
   ctx.fillStyle = K.tx; ctx.font = fDisplay(f.size);
   const h = text(ctx, f.lines, 160, y + 76 + (1 - a) * 30, f.size, 1.12);
   ctx.globalAlpha = 1;
   return y + 76 + h;
 }
-function points(ctx, items, t, acc, y, speech, size = 48) {
+function points(ctx, items, t, acc, y, speech, size = 48, maxW = 1440) {
   items.forEach((it, i) => {
     const p = vin(t, stagger(i, items.length, speech), 0.65);
     if (p <= 0) return;
     ctx.globalAlpha = p;
     const x = 160 + (1 - p) * -60;
     ctx.font = fBody(500)(size);
-    const lines = wrap(ctx, it, 1440).slice(0, 2), h = lines.length * size * 1.25;
+    const lines = wrap(ctx, it, maxW).slice(0, maxW < 1200 ? 3 : 2), h = lines.length * size * 1.25;
     ctx.fillStyle = acc; rr(ctx, x, y + 6, 12, h - 12, 6); ctx.fill();
     ctx.fillStyle = K.tx; text(ctx, lines, x + 48, y, size, 1.25);
     y += h + 40;
@@ -234,9 +235,12 @@ const PAINT = {
     ctx.globalAlpha = 1;
   },
 
+  // What happens, told beside artwork of it (Tony, 2026-10-22: "graphics and
+  // animations of what's going on, not just slide decks").
   story(ctx, sc, t, acc, v) {
-    const y = heading(ctx, sc, t, acc, sc.beyond ? 'The story · beyond this rendition' : 'The story') + 70;
-    points(ctx, sc.visual.slice(0, 4), t, acc, y, v.speech, sc.visual.length > 3 ? 44 : 48);
+    ART.draw(ctx, ART.pick(sc), { x: 1010, y: 190, w: 800, h: 760 }, t, Object.assign({ acc }, K));
+    const y = heading(ctx, sc, t, acc, sc.beyond ? 'The story · beyond this rendition' : 'The story', 150, 820) + 60;
+    points(ctx, sc.visual.slice(0, 4), t, acc, y, v.speech, sc.visual.length > 3 ? 38 : 42, 760);
   },
 
   lesson(ctx, sc, t, acc, v) {
