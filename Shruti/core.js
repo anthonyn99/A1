@@ -106,15 +106,26 @@ export class Doc {
     this.path = path; this.name = name;
     this.data = {}; this.loaded = false; this.error = null;
     this.pending = {}; this.timer = null; this.writing = null; this.unsub = null;
+    this.retries = 0; this.retryTimer = null;
   }
   async start() {
     const { db, fs } = await firebase();
     this.ref = fs.doc(db, this.path);
+    this.listen();
+  }
+  /** A snapshot error ends Firestore's listener for good, so listen again after
+   *  a pause (2, 4, 8 … 30 s), and at once when the network comes back. Without
+   *  this, one slow start (sign-in late, the network briefly gone) left "Sync
+   *  failed" up until the next reload, which often failed the same way. */
+  listen() {
+    const { fs } = fb;
+    clearTimeout(this.retryTimer); this.retryTimer = null;
+    if (this.unsub) this.unsub();
     this.unsub = fs.onSnapshot(this.ref, (snap) => {
       // A delivered snapshot proves reads work: that alone lifts the write barrier.
-      const first = !this.loaded;
-      this.loaded = true; this.error = null;
-      if (first && !this.writing) emit('sync', 'ok');
+      const first = !this.loaded, back = !!this.error;
+      this.loaded = true; this.error = null; this.retries = 0;
+      if ((first || back) && !this.writing) emit('sync', 'ok');
       const d = snap.exists() ? snap.data() : {};
       // Keep what this device has not sent yet on top of the server copy.
       for (const [k, v] of Object.entries(this.pending)) setPath(d, k, v === DELETE ? undefined : v);
@@ -123,10 +134,13 @@ export class Doc {
       if (Object.keys(this.pending).length && !this.timer) this.flushSoon(400);
     }, (err) => {
       console.warn('Shruti snapshot ' + this.path, err);
-      this.error = err; emit('sync', 'err');
+      this.error = err; this.unsub = null;
+      // Still starting: say "syncing" while it tries again, "failed" only once it keeps failing.
+      emit('sync', this.retries < 2 && !this.loaded ? 'busy' : 'err');
+      this.retryTimer = setTimeout(() => this.listen(), Math.min(30000, 2000 * 2 ** this.retries++));
     });
   }
-  stop() { if (this.unsub) this.unsub(); this.unsub = null; }
+  stop() { clearTimeout(this.retryTimer); this.retryTimer = null; if (this.unsub) this.unsub(); this.unsub = null; }
   get(path, d) { const v = getPath(this.data, path); return v === undefined ? d : v; }
   /** Change fields: {"progress.gita.ch2.f": 0.4, ...}. Applied here at once; sent
    *  soon, at once (now), or for progress (lazy) within 30 s, riding along with
@@ -143,8 +157,9 @@ export class Doc {
   }
   async flush() {
     if (!this.ref || !Object.keys(this.pending).length) return;
-    // The write barrier: never write a document we have not read.
-    if (!this.loaded) { emit('sync', 'err'); return; }
+    // The write barrier: never write a document we have not read. The first
+    // snapshot sends what is waiting, so this is not a failure.
+    if (!this.loaded) return;
     if (this.writing) { await this.writing.catch(() => {}); return this.flush(); }
     const batch = this.pending; this.pending = {};
     const { fs } = fb;
@@ -186,3 +201,5 @@ export async function boot() {
 // Leaving or hiding the page sends what is waiting.
 addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { me.flush(); shared.flush(); } });
 addEventListener('pagehide', () => { me.flush(); shared.flush(); });
+// Back online: a listener that failed tries again now, not after its pause.
+addEventListener('online', () => { for (const d of [me, shared]) if (d.ref && d.error) d.listen(); });

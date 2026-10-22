@@ -206,6 +206,8 @@ export const onSnapshot = (ref, a, b, c) => {
   if (typeof a === 'function') { next = a; err = b; } else if (a && typeof a.next === 'function') { next = a.next.bind(a); err = a.error && a.error.bind(a); } else { opts = a || {}; next = b; err = c; }
   const l = { path: ref.path, kind: ref.type === 'collection' ? 'col' : 'doc', next, err, meta: !!opts.includeMetadataChanges, dead: false };
   fs.listeners.push(l);
+  // fs.failSnapshots = n: the next n listeners fail like a read refused before sign-in.
+  if (fs.failSnapshots > 0) { fs.failSnapshots--; l.dead = true; setTimeout(() => err && err(Object.assign(new Error('Missing or insufficient permissions.'), { code: 'permission-denied' })), 0); return () => {}; }
   setTimeout(() => { if (!l.dead) try { next(l.kind === 'doc' ? docSnap(l.path) : colSnap(l.path)); } catch (e) { console.error(e); } }, 0);
   return () => { l.dead = true; };
 };
