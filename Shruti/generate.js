@@ -517,7 +517,7 @@ function paintRun(box, R) {
     '<div class="gen-go">' + (R.stage === 'done' || R.error ? (TAB[R.kind] !== undefined && !R.error ? '<button class="btn solid" data-open>' + (R.kind === 'lessons' ? 'See the lessons' : R.kind === 'read' ? 'Read along' : 'Play it') + '</button>' : '') + '<button class="btn" data-again>' + (R.error ? 'Try again' : 'Make another') + '</button>' : '<button class="btn" data-cancel>Cancel</button>') + '</div>';
   const pre = box.querySelector('.gen-live pre'); if (pre) pre.scrollTop = pre.scrollHeight;
   const c = box.querySelector('[data-cancel]'); if (c) c.addEventListener('click', () => R.abort.abort());
-  const o = box.querySelector('[data-open]'); if (o) o.addEventListener('click', () => { const sh = document.getElementById('gen-sheet'); if (sh) sh.remove(); running = null; ui.go('#/b/' + R.ctx.book + '/' + R.ctx.n + (TAB[R.kind] ? '/' + TAB[R.kind] : '')); });
+  const o = box.querySelector('[data-open]'); if (o) o.addEventListener('click', () => { const sh = document.getElementById('gen-sheet'); if (sh) sh.remove(); running = null; if (R.kind === 'podcast') POD.playWhenShown(R.ctx.book, R.ctx.n); if (R.kind === 'video') VID.playWhenShown(R.ctx.book, R.ctx.n); ui.go('#/b/' + R.ctx.book + '/' + R.ctx.n + (TAB[R.kind] ? '/' + TAB[R.kind] : '')); });
   bindProblem(box, () => { const sh = document.getElementById('gen-sheet'); if (sh) sh.remove(); });
   const a = box.querySelector('[data-again]'); if (a) a.addEventListener('click', () => { running = null; drawRun(box, R.ctx, R.kind, R.close); });
 }
