@@ -199,8 +199,10 @@ async function load(c, { w, h, mobile, store, hash = '' }) {
 
   console.log('\nFirestore refuses the first reads (sign-in late, the network briefly gone)');
   await load(c, { w: 1280, h: 860, mobile: false, store: "sessionStorage.setItem('shruti.pick','tony'); sessionStorage.setItem('__fakefs_fail', JSON.stringify({'dashboards/shruti': 2, 'dashboards/shruti_shared': 1}));", hash: '#/' });
-  ok('while it tries again the pill says syncing, not failed', await waitFor(c, `!!window.Shruti && !!window.Shruti.core.me.error && document.getElementById('sync-pill').classList.contains('busy')`, 8000));
-  ok('his key is there before sync loads (kept on this device)', await ev(c, `return !window.Shruti.core.me.loaded && window.Shruti.core.orcaKey()===${JSON.stringify(KEY)}`));
+  ok('while it tries again the pill says syncing, not failed', await waitFor(c, `!!window.Shruti && !!window.Shruti.core.me.error && document.getElementById('sync-pill').classList.contains('busy')`, 8000),
+    await ev(c, `const C=window.Shruti&&window.Shruti.core; return C ? (C.me.loaded+' err:'+!!C.me.error+' '+document.getElementById('sync-pill').className+' fail:'+JSON.stringify(window.__fakeFs.failSnapshots)) : 'no Shruti'`));
+  ok('his key is there before sync loads (kept on this device)', await ev(c, `return !window.Shruti.core.me.loaded && window.Shruti.core.orcaKey()===${JSON.stringify(KEY)}`),
+    await ev(c, `return window.Shruti.core.me.loaded+' key:'+String(window.Shruti.core.orcaKey()).slice(0,12)+' ls:'+String(localStorage.getItem('shruti.tony.orcaKey')).slice(0,12)`));
   ok('it listens again by itself: loaded, and the pill says synced', await waitFor(c, `const C=window.Shruti.core; return C.me.loaded && C.shared.loaded && !C.me.error && document.getElementById('sync-pill').classList.contains('ok')`, 15000),
     await ev(c, `const C=window.Shruti.core; return C.me.loaded+' '+C.shared.loaded+' '+document.getElementById('sync-pill').className`));
   ok('…and Settings shows his key, not "No key yet"', await (async () => { await ev(c, `document.querySelector('[data-settings], #settings-btn')?.click(); return 1`); return waitFor(c, `const s=document.getElementById('orca-stat'); return s && !/No key yet/.test(s.textContent) && /Replace/.test(document.getElementById('orca-save').textContent)`, 8000); })());
