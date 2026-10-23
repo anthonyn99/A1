@@ -58,14 +58,14 @@ export function bindProblem(box, close) {
 // JSON, since 2026-10-22); these names stay here for the rest of Shruti.
 export const { LENGTHS, sourceText, lessonsText, buildPrompt, spill, SPILL_CHARS, parseJSON, normPodcast, normVideo, normLessons, coverage, longLessons } = F;
 // The host pairs (redone 2026-10-22): each a woman and a man of one accent,
-// so the two sound like they belong together. Emma and Brian stay first and
-// the default (Ava and Andrew sounded robotic, 2026-10-22; the shipped
-// podcasts use Emma and Brian); Sonia (Tony's pick) and Ryan next. A choice is
+// so the two sound like they belong together. Sonia and Ryan are first and
+// the default (Tony, 2026-10-22: Sonia, and "an elegant voice" for the man;
+// every shipped podcast is in them too); Emma and Brian next. A choice is
 // kept by its id (gen.hosts); older choices were kept by place in the old
 // list of four, which LEGACY_PRESETS reads.
 export const HOST_PRESETS = [
-  { id: 'emma-brian', name: 'Emma & Brian', hosts: [['Emma', 'en-US-EmmaMultilingualNeural'], ['Brian', 'en-US-BrianMultilingualNeural']] },
   { id: 'sonia-ryan', name: 'Sonia & Ryan', hosts: [['Sonia', 'en-GB-SoniaNeural'], ['Ryan', 'en-GB-RyanNeural']] },
+  { id: 'emma-brian', name: 'Emma & Brian', hosts: [['Emma', 'en-US-EmmaMultilingualNeural'], ['Brian', 'en-US-BrianMultilingualNeural']] },
   { id: 'ava-andrew', name: 'Ava & Andrew', hosts: [['Ava', 'en-US-AvaMultilingualNeural'], ['Andrew', 'en-US-AndrewMultilingualNeural']] },
   { id: 'jenny-guy', name: 'Jenny & Guy', hosts: [['Jenny', 'en-US-JennyNeural'], ['Guy', 'en-US-GuyNeural']] },
   { id: 'libby-thomas', name: 'Libby & Thomas', hosts: [['Libby', 'en-GB-LibbyNeural'], ['Thomas', 'en-GB-ThomasNeural']] },
