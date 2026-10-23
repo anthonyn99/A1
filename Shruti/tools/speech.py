@@ -72,6 +72,11 @@ async def speak(text, voice, sem, rate="+0%", tries=5):
                         words.append([round(c["offset"] / 1e7, 3), round(c["duration"] / 1e7, 3), c["text"]])
                 if not audio or len(audio) % 144 or not words:
                     raise RuntimeError("not whole Edge frames with timings")
+                # Edge sometimes cuts a clip short while still sending every
+                # word's timing (2026-10-22: 0.36 s of audio for a whole
+                # sentence in three Libby chapters). Ask again.
+                if words[-1][0] > len(audio) / 6000 + 0.3:
+                    raise RuntimeError("audio cut short of its words")
                 return bytes(audio), unspell(words, back)
             except Exception as e:  # a dropped socket, or a clip that cannot be timed: try again
                 if attempt == tries - 1:
