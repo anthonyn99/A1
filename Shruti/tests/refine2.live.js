@@ -221,14 +221,14 @@ async function pass1(c, who, w) {
   // 2 + 11: voice previews.
   await go(c, '#/b/gita/2/listen', `!!document.querySelector('.pcard')`);
   await click(c, '#make-ai');
-  ok(tag + ': Make a podcast offers 8 pairs, each with a play button', await waitFor(c, `document.querySelectorAll('#gen-sheet .mk-pair').length===8 && document.querySelectorAll('#gen-sheet .mk-pair [data-try]').length===8 && [...document.querySelectorAll('#gen-sheet .mk-pair')].some(p=>/Sonia/.test(p.textContent))`));
-  await click(c, '#gen-sheet .mk-pair[data-preset="sonia-ryan"] [data-try]');
-  ok(tag + ': hearing a pair plays its clip, with no key', await waitFor(c, `document.querySelector('#gen-sheet .mk-pair[data-preset="sonia-ryan"] [data-try]').classList.contains('playing')`, 4000));
-  ok(tag + ': …and does not pick the pair', await ev(c, `return document.querySelector('#gen-sheet .mk-pair[data-preset="sonia-ryan"]').getAttribute('aria-checked')==='false'`));
-  await click(c, '#gen-sheet .mk-pair[data-preset="sonia-ryan"] [data-try]');
-  ok(tag + ': pressed again, it stops', await waitFor(c, `!document.querySelector('#gen-sheet .mk-pair[data-preset="sonia-ryan"] [data-try]').classList.contains('playing')`, 3000));
-  await click(c, '#gen-sheet .mk-pair[data-preset="sonia-ryan"]');
-  ok(tag + ': tapping the pair picks it (kept by id)', await waitFor(c, `window.Shruti.core.me.get('gen.hosts')==='sonia-ryan' && document.querySelector('#gen-sheet .mk-pair[data-preset="sonia-ryan"]').getAttribute('aria-checked')==='true'`, 3000));
+  ok(tag + ': Make a podcast offers 9 pairs, each with a play button, Sonia & Ryan first', await waitFor(c, `document.querySelectorAll('#gen-sheet .mk-pair').length===9 && document.querySelectorAll('#gen-sheet .mk-pair [data-try]').length===9 && document.querySelector('#gen-sheet .mk-pair').dataset.preset==='sonia-ryan'`));
+  await click(c, '#gen-sheet .mk-pair[data-preset="emily-connor"] [data-try]');
+  ok(tag + ': hearing a pair plays its clip, with no key', await waitFor(c, `document.querySelector('#gen-sheet .mk-pair[data-preset="emily-connor"] [data-try]').classList.contains('playing')`, 4000));
+  ok(tag + ': …and does not pick the pair', await ev(c, `return document.querySelector('#gen-sheet .mk-pair[data-preset="emily-connor"]').getAttribute('aria-checked')==='false'`));
+  await click(c, '#gen-sheet .mk-pair[data-preset="emily-connor"] [data-try]');
+  ok(tag + ': pressed again, it stops', await waitFor(c, `!document.querySelector('#gen-sheet .mk-pair[data-preset="emily-connor"] [data-try]').classList.contains('playing')`, 3000));
+  await click(c, '#gen-sheet .mk-pair[data-preset="emily-connor"]');
+  ok(tag + ': tapping the pair picks it (kept by id)', await waitFor(c, `window.Shruti.core.me.get('gen.hosts')==='emily-connor' && document.querySelector('#gen-sheet .mk-pair[data-preset="emily-connor"]').getAttribute('aria-checked')==='true'`, 3000));
   ok(tag + ': any two voices can be heard too', await ev(c, `return document.querySelectorAll('#gen-sheet [data-try-sel]').length===2`));
   ok(tag + ': the sheet is no wider than the screen', await noOverflow(c));
   if (!phone || who === 'veda') await shot(c, 'voices-' + who + '-' + w);
