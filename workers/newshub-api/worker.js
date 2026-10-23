@@ -756,7 +756,7 @@ function mentionedTickers(text, wl){
 // so cross-ticker dedup works cleanly in clustering.
 async function fetchFinnhub(ticker, env, fromD, toD){
   try {
-    const r = await fetch(`https://finnhub.io/api/v1/company-news?symbol=${ticker}&from=${fromD}&to=${toD}&token=${env.FINNHUB_KEY}`);
+    const r = await srcFetch(`https://finnhub.io/api/v1/company-news?symbol=${ticker}&from=${fromD}&to=${toD}&token=${env.FINNHUB_KEY}`);
     if (!r.ok) return [];
     const arr = await r.json();
     if (!Array.isArray(arr)) return [];
@@ -815,7 +815,7 @@ function finnhubId(url){
 
 async function fetchTickerTick(ticker, cutoff){
   try {
-    const r = await fetch(`https://api.tickertick.com/feed?q=tt:${ticker.toLowerCase()}&n=20`);
+    const r = await srcFetch(`https://api.tickertick.com/feed?q=tt:${ticker.toLowerCase()}&n=20`);
     if (!r.ok) return [];
     const j = await r.json();
     return (j.stories||[])
@@ -840,7 +840,7 @@ async function fetchTickerTickBulk(wl, cutoff){
     const terms = wl.slice(i, i+CHUNK).map(t => 'tt:' + t.toLowerCase());
     const q = terms.length === 1 ? terms[0] : `(or ${terms.join(' ')})`;
     try {
-      const r = await fetch(`https://api.tickertick.com/feed?q=${encodeURIComponent(q)}&n=150`);
+      const r = await srcFetch(`https://api.tickertick.com/feed?q=${encodeURIComponent(q)}&n=150`);
       if (!r.ok) continue;
       const j = await r.json();
       for (const s of (j.stories||[])){
@@ -884,7 +884,7 @@ const EDGAR_8K_ITEMS = {
 async function loadCikMap(env){
   try { const c = await env.NEWSHUB_CACHE.get('edgar:cikmap'); if (c) return JSON.parse(c); } catch(e){}
   try {
-    const r = await fetch('https://www.sec.gov/files/company_tickers.json', { headers: EDGAR_HEADERS });
+    const r = await srcFetch('https://www.sec.gov/files/company_tickers.json', { headers: EDGAR_HEADERS });
     if (!r.ok) return {};
     const j = await r.json();
     const map = {};
@@ -899,7 +899,7 @@ async function fetchEdgar8K(env, wl, cutoff){
     const cik2tk = {};                       // "CIK without leading zeros" → ticker
     for (const t of wl){ const c = cikMap[t.toUpperCase()]; if (c != null) cik2tk[String(c)] = t.toUpperCase(); }
     if (!Object.keys(cik2tk).length) return [];
-    const r = await fetch('https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&company=&dateb=&owner=include&count=100&output=atom', { headers: EDGAR_HEADERS });
+    const r = await srcFetch('https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&company=&dateb=&owner=include&count=100&output=atom', { headers: EDGAR_HEADERS });
     if (!r.ok) return [];
     const xml = await r.text();
     const out = [];
@@ -929,7 +929,7 @@ async function fetchEdgar8K(env, wl, cutoff){
 }
 async function fetchMarketaux(symbols, env, isoFrom){
   try {
-    const r = await fetch(`https://api.marketaux.com/v1/news/all?symbols=${symbols.join(',')}&filter_entities=true&language=en&published_after=${isoFrom}&limit=3&api_token=${env.MARKETAUX_KEY}`);
+    const r = await srcFetch(`https://api.marketaux.com/v1/news/all?symbols=${symbols.join(',')}&filter_entities=true&language=en&published_after=${isoFrom}&limit=3&api_token=${env.MARKETAUX_KEY}`);
     if (!r.ok) return [];
     const j = await r.json();
     const out = [];
@@ -950,7 +950,7 @@ async function fetchMarketaux(symbols, env, isoFrom){
 }
 async function fetchStockData(symbols, env, isoFrom){
   try {
-    const r = await fetch(`https://api.stockdata.org/v1/news/all?symbols=${symbols.join(',')}&filter_entities=true&language=en&published_after=${isoFrom}&limit=50&api_token=${env.STOCKDATA_KEY}`);
+    const r = await srcFetch(`https://api.stockdata.org/v1/news/all?symbols=${symbols.join(',')}&filter_entities=true&language=en&published_after=${isoFrom}&limit=50&api_token=${env.STOCKDATA_KEY}`);
     if (!r.ok) return [];
     const j = await r.json();
     const out = [];
@@ -974,7 +974,7 @@ async function fetchAlphaVantage(symbols, env, hours){
     const since = new Date(Date.now() - hours*3600*1000);
     const iso = since.toISOString();
     const timeFrom = iso.slice(0,4)+iso.slice(5,7)+iso.slice(8,10)+'T'+iso.slice(11,13)+iso.slice(14,16);
-    const r = await fetch(`https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers=${symbols.slice(0,50).join(',')}&time_from=${timeFrom}&limit=200&apikey=${env.ALPHAVANTAGE_KEY}`);
+    const r = await srcFetch(`https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers=${symbols.slice(0,50).join(',')}&time_from=${timeFrom}&limit=200&apikey=${env.ALPHAVANTAGE_KEY}`);
     if (!r.ok) return [];
     const j = await r.json();
     const out = [];
@@ -1005,7 +1005,7 @@ async function fetchAlphaVantage(symbols, env, hours){
 async function fetchPolygon(ticker, env, isoFrom){
   if (!env.POLYGON_KEY) return [];
   try {
-    const r = await fetch(`https://api.polygon.io/v2/reference/news?ticker=${ticker}&published_utc.gte=${isoFrom}Z&order=desc&limit=10&sort=published_utc&apiKey=${env.POLYGON_KEY}`);
+    const r = await srcFetch(`https://api.polygon.io/v2/reference/news?ticker=${ticker}&published_utc.gte=${isoFrom}Z&order=desc&limit=10&sort=published_utc&apiKey=${env.POLYGON_KEY}`);
     if (!r.ok) return [];
     const j = await r.json();
     return (j.results||[]).map(item => {
@@ -1032,7 +1032,7 @@ async function fetchTiingo(symbols, env, isoFrom){
   if (!env.TIINGO_KEY || !env.TIINGO_ENABLED) return [];
   try {
     const startDate = isoFrom.slice(0,10);
-    const r = await fetch(`https://api.tiingo.com/tiingo/news?tickers=${symbols.slice(0,50).join(',').toLowerCase()}&startDate=${startDate}&limit=100&sortBy=publishedDate`, {
+    const r = await srcFetch(`https://api.tiingo.com/tiingo/news?tickers=${symbols.slice(0,50).join(',').toLowerCase()}&startDate=${startDate}&limit=100&sortBy=publishedDate`, {
       headers: { 'Authorization': 'Token ' + env.TIINGO_KEY, 'Content-Type': 'application/json' },
     });
     if (!r.ok) return [];
@@ -1059,7 +1059,7 @@ async function fetchTiingo(symbols, env, isoFrom){
 // One global call; we attribute each story to any watchlist ticker it mentions. ─
 async function fetchFinnhubGeneral(env, wl, cutoff){
   try {
-    const r = await fetch(`https://finnhub.io/api/v1/news?category=general&token=${env.FINNHUB_KEY}`);
+    const r = await srcFetch(`https://finnhub.io/api/v1/news?category=general&token=${env.FINNHUB_KEY}`);
     if (!r.ok) return [];
     const arr = await r.json();
     if (!Array.isArray(arr)) return [];
@@ -1145,7 +1145,7 @@ async function fetchEntityNews(env, wl, cutoff){
     const active = ENTITY_MAP.filter(m => m.tickers.some(t => wlSet.has(t)));
     if (!active.length) return [];
     const url = `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${encodeURIComponent(ENTITY_SYMBOLS.join(','))}&region=US&lang=en-US`;
-    const r = await fetch(url, { headers:{ 'User-Agent':'Mozilla/5.0 (compatible; tradehub-newshub/1.0)' } });
+    const r = await srcFetch(url, { headers:{ 'User-Agent':'Mozilla/5.0 (compatible; tradehub-newshub/1.0)' } });
     if (!r.ok) return [];
     const xml = await r.text();
     const pick = (block, tag) => gnDecode((block.match(new RegExp('<' + tag + '(?:\\s[^>]*)?>([\\s\\S]*?)</' + tag + '>')) || [])[1] || '').trim();
