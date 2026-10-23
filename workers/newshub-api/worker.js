@@ -2391,6 +2391,92 @@ async function pushNewsToFirebase(result){
   console.log(`[news] pushed ${events.length} events to Firebase`);
 }
 
+// ── Earnings via grounded Gemini (Google Search) — the gap filler ───────────
+// Finnhub, Nasdaq and AlphaVantage between them still miss or misdate names:
+// SCCO reported on 2026-10-21 while Finnhub listed Oct 26 and Nasdaq Oct 27 up
+// to the week before, and two days AFTER the report Finnhub still had Oct 26 as
+// "upcoming". So every watchlist ticker the three sources leave with no date or
+// a single-source date is looked up with Google Search: its last report and its
+// next one. One call covers all of them, and answers are kept a day in one KV
+// key, so a new ticker costs one call and a normal day costs about one.
+const EARN_AI_KEY = 'earn:ai:v1';
+const EARN_AI_FRESH_MS = 20 * 3600 * 1000;
+const EARN_AI_MAX = 30;                       // tickers per call
+async function fetchEarningsAI(tickers, env, today, diag){
+  let cache = {};
+  try { cache = JSON.parse(await env.NEWSHUB_CACHE.get(EARN_AI_KEY) || '{}') || {}; } catch(e){ cache = {}; }
+  const now = Date.now();
+  const need = tickers.filter(t => !(cache[t] && now - (cache[t].at || 0) < EARN_AI_FRESH_MS)).slice(0, EARN_AI_MAX);
+  if (need.length && env.GEMINI_KEY){
+    const prompt =
+`You are a financial calendar API. Using Google Search, find the quarterly earnings report dates for these stock tickers: ${need.join(', ')}.
+Today is ${today} (US Eastern).
+
+For EACH ticker return:
+- "last": the date of its most recent earnings report BEFORE today, or null
+- "next": the date of its next earnings report ON OR AFTER today, or null if no date is known yet, even as an estimate
+- "nextConfirmed": true only if the company itself has announced that next date (press release / investor relations); false for analyst or data-site estimates
+- "when": "bmo" (before market open), "amc" (after market close) or null
+
+Funds and ETFs that do not report earnings get next null. Use the company's own announcement over estimates. Dates are US Eastern, YYYY-MM-DD.
+
+Return ONLY a JSON array, no prose, no markdown fences:
+[{"ticker":"AAPL","last":"YYYY-MM-DD","next":"YYYY-MM-DD","nextConfirmed":true,"when":"amc"}]`;
+    let got = null;
+    for (const model of CAL_MACRO_MODELS){
+      const blocked = await env.NEWSHUB_CACHE.get('quota_block:'+model).catch(()=>null);
+      if (blocked){ diag&&diag.push('ai-earn '+model+': KV-blocked'); continue; }
+      try {
+        const gc = { temperature: 0.1, maxOutputTokens: model === 'gemini-3.5-flash' ? 8192 : 4096 };
+        if (model.startsWith('gemini-3')) gc.thinkingConfig = { thinkingLevel: 'low' };
+        else if (model.startsWith('gemini-2.5')) gc.thinkingConfig = { thinkingBudget: 0 };
+        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_KEY}`, {
+          method:'POST', headers:{'Content-Type':'application/json'}, signal: AbortSignal.timeout(25000),
+          body: JSON.stringify({ contents:[{ parts:[{ text: prompt }] }], tools:[{ google_search:{} }], generationConfig: gc }),
+        });
+        if (r.status === 429){
+          await env.NEWSHUB_CACHE.put('quota_block:'+model, '1', { expirationTtl: QUOTA_COOLDOWN }).catch(()=>{});
+          diag&&diag.push('ai-earn '+model+': 429 quota'); continue;
+        }
+        if (!r.ok){ diag&&diag.push('ai-earn '+model+': HTTP '+r.status+' '+(await r.text()).slice(0,200)); continue; }
+        const j = await r.json();
+        let text = j.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('') || '';
+        text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+        let arr = null;
+        try { arr = JSON.parse(text); } catch(e){ arr = salvageJsonArray(text); }
+        if (!Array.isArray(arr) || !arr.length){ diag&&diag.push('ai-earn '+model+': 0 items raw='+text.slice(0,200)); continue; }
+        got = arr; diag&&diag.push('ai-earn '+model+': '+arr.length+' answers for '+need.length+' asked'); break;
+      } catch(e){ diag&&diag.push('ai-earn '+model+': EXC '+e.message); }
+    }
+    if (got){
+      const isDate = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+      const asked = new Set(need);
+      for (const it of got){
+        const t = String(it && it.ticker || '').trim().toUpperCase();
+        if (!asked.has(t)) continue;
+        const last = isDate(it.last) && it.last < today ? it.last : null;
+        const next = isDate(it.next) && it.next >= today ? it.next : null;
+        const when = /^(bmo|amc)$/.test(it.when || '') ? it.when : null;
+        cache[t] = { last, next, nextConfirmed: !!(next && it.nextConfirmed === true), when, at: now };
+      }
+      // A ticker the model skipped is remembered as "no answer" for the same day,
+      // so it is not re-asked on every build.
+      for (const t of need) if (!cache[t] || cache[t].at !== now) cache[t] = { last:null, next:null, nextConfirmed:false, when:null, at: now };
+      for (const t of Object.keys(cache)) if (now - (cache[t].at || 0) > 14 * 86400000) delete cache[t];
+      await env.NEWSHUB_CACHE.put(EARN_AI_KEY, JSON.stringify(cache), { expirationTtl: 14 * 86400 }).catch(()=>{});
+    }
+  } else if (!need.length) diag&&diag.push('ai-earn: all '+tickers.length+' from cache');
+  const out = {};
+  for (const t of tickers) if (cache[t]) out[t] = cache[t];
+  return out;
+}
+
+// Quarterly reports land ~90 days apart, so a date this soon after a report
+// that already happened is the old quarter's estimate still being served.
+const EARN_STALE_AFTER_REPORT_DAYS = 60;
+const EARN_RECENT_REPORT_DAYS = 45;
+const dayDiff = (a, b) => (Date.parse(a+'T00:00:00Z') - Date.parse(b+'T00:00:00Z')) / 86400000;
+
 async function buildCalendar(wl, env, days, diag){
   const fromD = etDateStr(0);
   const toD   = etDateStr(Math.min(days, CAL_DAYS_MAX));
