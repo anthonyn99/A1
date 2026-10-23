@@ -985,10 +985,11 @@ body[data-profile=veda] { --k-flashcards: #A892B0; --k-quiz: #9bb08a; --k-mindma
 body[data-profile=veda] .sh-set { border-radius: 999px; }
 .sh-set:hover { border-color: var(--line2); }
 .sh-set.on { border-color: var(--ac-line); background: var(--ac-soft); }
-.sh-set-b { display: flex; align-items: baseline; gap: 8px; padding: 5px 10px; border: 0; background: none; color: var(--txm); cursor: pointer; text-align: left; white-space: nowrap; max-width: 340px; }
+.sh-set { cursor: pointer; color: var(--txm); }
+.sh-set-b { display: flex; align-items: baseline; gap: 8px; padding: 5px 10px; white-space: nowrap; max-width: 340px; }
 .sh-set-b b { font-size: 13px; font-weight: 650; color: inherit; overflow: hidden; text-overflow: ellipsis; }
 .sh-set-b span { font-size: 11.5px; color: var(--txd); }
-.sh-set.on .sh-set-b { color: var(--tx); }
+.sh-set.on { color: var(--tx); }
 .sh-make { flex: 0 0 auto; margin-left: auto; }
 .ib.sm { width: 30px; height: 30px; min-height: 30px; }
 .ib.sm svg { width: 15px; height: 15px; }

@@ -134,20 +134,25 @@ export async function renderStudy(body, ctx) {
     side.innerHTML = sets.map((s) => {
       const meta = s.shipped ? 'Comes with Shruti' : [G.modelName(s.model), s.by && C.PROFILES[s.by] ? C.PROFILES[s.by].label : '', s.at ? new Date(s.at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : ''].filter(Boolean).join(' · ');
       const label = s.shipped ? s.label : s.scope.label ? s.scope.label[0].toUpperCase() + s.scope.label.slice(1) : 'Study set';
-      return '<div class="sh-set' + (s.id === sel.set ? ' on' : '') + '" data-dkey="' + esc(s.id) + '" title="' + esc(label + ' · ' + meta + '\n' + OR.HINT) + '">' +
-        '<button class="sh-set-b" role="tab" aria-selected="' + (s.id === sel.set) + '" data-pick="' + esc(s.id) + '"><b>' + esc(label) + '</b><span>' + esc(meta) + '</span></button>' +
+      // The pill itself is the tab (no button inside it), so the mouse can drag it too.
+      return '<div class="sh-set' + (s.id === sel.set ? ' on' : '') + '" role="tab" tabindex="0" aria-selected="' + (s.id === sel.set) + '" data-pick="' + esc(s.id) + '" data-dkey="' + esc(s.id) + '" title="' + esc(label + ' · ' + meta + '\n' + OR.HINT) + '">' +
+        '<span class="sh-set-b"><b>' + esc(label) + '</b><span>' + esc(meta) + '</span></span>' +
         (s.shipped ? '' : '<button class="ib sm" data-del="' + esc(s.id) + '" title="Delete this set" aria-label="Delete this set">' + IC.trash + '</button>') + '</div>';
     }).join('') + '<button class="btn sm sh-make" data-make>' + IC.spark + '<span>Make a study set</span></button>';
     kindsRow.dataset.dkey = cur.id;
     kindsRow.innerHTML = kindsOf(ctx.book, cur).map((k) => { const stt = status(ctx.book, cur.id, k, cur.kinds[k]); return '<button class="sh-kind k-' + k + (k === sel.kind ? ' on' : '') + '" role="tab" aria-selected="' + (k === sel.kind) + '" data-set="' + esc(cur.id) + '" data-kind="' + k + '" data-dkey="' + k + '"><i>' + IC[k] + '</i><span>' + KIND_NAME[k] + '</span><em class="' + stt.c + '">' + esc(stt.t) + '</em></button>'; }).join('');
     kindsRow.querySelectorAll('[data-kind]').forEach((b) => b.addEventListener('click', () => { if (window.A1Drag && A1Drag.active) return; remember(ctx, { set: b.dataset.set, kind: b.dataset.kind }); draw(); }));
-    side.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', () => {
-      if (window.A1Drag && A1Drag.active) return;
-      const s = sets.find((x) => x.id === b.dataset.pick);
-      if (!s || s.id === sel.set) return;
-      remember(ctx, { set: s.id, kind: s.kinds[sel.kind] ? sel.kind : kindsOf(ctx.book, s)[0] });
-      draw();
-    }));
+    side.querySelectorAll('[data-pick]').forEach((b) => {
+      const choose = () => {
+        if (window.A1Drag && A1Drag.active) return;
+        const s = sets.find((x) => x.id === b.dataset.pick);
+        if (!s || s.id === sel.set) return;
+        remember(ctx, { set: s.id, kind: s.kinds[sel.kind] ? sel.kind : kindsOf(ctx.book, s)[0] });
+        draw();
+      };
+      b.addEventListener('click', (e) => { if (!e.target.closest('[data-del]')) choose(); });
+      b.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === b) { e.preventDefault(); choose(); } });
+    });
     side.querySelector('[data-make]').addEventListener('click', () => openMaker(ctx));
     // Drag sets, and the kinds of the chosen set, sideways.
     OR.sortable(side, { row: '.sh-set', axis: 'x', onMove(ks) {
