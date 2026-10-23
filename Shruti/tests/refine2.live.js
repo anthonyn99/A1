@@ -74,7 +74,7 @@ async function load(c, { w, h, who, hash = '' }) {
   await waitFor(c, `!!window.Shruti && window.Shruti.core.me.loaded && !!document.querySelector('#view > *')`, 15000);
   await sleep(500);
 }
-const go = async (c, hash, cond) => { await ev(c, `location.hash=${JSON.stringify(hash)}; return 1`); return waitFor(c, cond); };
+const go = async (c, hash, cond) => { await ev(c, `location.hash=${JSON.stringify(hash)}; return 1`); const r = await waitFor(c, cond); await sleep(600); return r; };
 const noOverflow = (c) => ev(c, `return document.documentElement.scrollWidth<=innerWidth`);
 
 async function pass1(c, who, w) {
