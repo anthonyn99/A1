@@ -81,7 +81,7 @@ const words = (s) => String(s || '').trim().split(/\s+/).filter(Boolean).length;
   const G = await import(pathToFileURL(path.join(DIR, 'generate.js')).href);
   const ids = G.HOST_PRESETS.map((h) => h.id);
   ok('pairs have unique ids', new Set(ids).size === ids.length);
-  ok('the default pair is Sonia and Brian, as the shipped episodes (Tony, 2026-10-22)', G.HOST_PRESETS[0].id === 'sonia-brian' && G.hostsOf({})[0].voice === 'en-GB-SoniaNeural' && G.hostsOf({})[1].voice === 'en-US-BrianMultilingualNeural');
+  ok('the default pair is Sonia and Ryan, first in the list (Tony, 2026-10-22)', G.HOST_PRESETS[0].id === 'sonia-ryan' && G.hostsOf({})[0].voice === 'en-GB-SoniaNeural' && G.hostsOf({})[1].voice === 'en-GB-RyanNeural' && G.HOST_PRESETS[1].id === 'sonia-brian');
   ok('each pair is two offered voices', G.HOST_PRESETS.every((h) => h.hosts.length === 2 && h.hosts.every(([, v]) => voices.includes(v))), G.HOST_PRESETS.filter((h) => !h.hosts.every(([, v]) => voices.includes(v))).map((h) => h.name).join());
   ok('the default is the first pair', G.hostsOf({})[0].voice === G.HOST_PRESETS[0].hosts[0][1]);
   ok('an old choice by place still finds its pair (2 was Sonia & Ryan)', G.presetId(2) === 'sonia-ryan' && G.hostsOf({ hosts: 2 })[0].voice === 'en-GB-SoniaNeural' && G.presetId(1) === 'ava-andrew');

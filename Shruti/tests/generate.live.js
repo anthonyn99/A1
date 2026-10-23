@@ -258,7 +258,7 @@ const closeSheet = (c) => ev(c, `const s=document.querySelector('#gen-sheet [dat
   ok('her Make with AI shows Tony is making something here', await waitFor(c, `document.querySelector('#make-ai').classList.contains('busy') && /Tony/.test(document.querySelector('#make-ai').textContent)`, 6000), await ev(c, `return document.querySelector('#make-ai').textContent`));
   await click(c, '#make-ai');
   ok('her sheet shows Tony making a podcast, and waits', await waitFor(c, `/Tony is making this: speaking 12 of 40/.test(document.querySelector('#gen-vers').textContent) && document.querySelector('#gen-sheet [data-make]').disabled`, 8000), await ev(c, `return document.querySelector('#gen-vers')?.textContent`));
-  ok('her own settings: the default length and hosts (Sonia & Brian)', await ev(c, `return document.querySelector('#gen-sheet [data-len=standard]').getAttribute('aria-checked')==='true' && document.querySelector('#gen-a').value==='en-GB-SoniaNeural'`));
+  ok('her own settings: the default length and hosts (Sonia & Ryan)', await ev(c, `return document.querySelector('#gen-sheet [data-len=standard]').getAttribute('aria-checked')==='true' && document.querySelector('#gen-a').value==='en-GB-SoniaNeural'`));
   ok('the sheet fits her phone', await ev(c, `const s=document.querySelector('#gen-sheet .sheet'); return s.scrollWidth<=s.clientWidth+1`));
   await shot(c, 'make-veda-390');
   await ev(c, `window.__fakeFs.remote('dashboards/shruti_shared', {jobs:{gita:{ch5:{podcast:null}}}}, {merge:true}); return 1`);
