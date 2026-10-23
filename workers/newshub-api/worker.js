@@ -2406,24 +2406,27 @@ async function pushNewsToFirebase(result){
   console.log(`[news] pushed ${events.length} events to Firebase`);
 }
 
-// ── Earnings via grounded Gemini (Google Search) — the gap filler ───────────
+// ── Earnings via grounded Gemini (Google Search) ────────────────────────────
 // Finnhub, Nasdaq and AlphaVantage between them still miss or misdate names:
 // SCCO reported on 2026-10-21 while the sources listed Oct 26 and Oct 27 the
 // week before, and two days AFTER the report Finnhub still had Oct 26 as
-// "upcoming". So every watchlist ticker the three sources leave with no date or
-// a single-source date is looked up with Google Search: its last report and its
-// next one. One call covers all of them, and answers are kept a day in one KV
-// key, so a new ticker costs one call and a normal day costs about one.
+// "upcoming". So every watchlist ticker is looked up with Google Search too: its
+// last report and its next one, kept per ticker in one KV key.
+//
+// The searching happens in /earnings-search, which TradeHub calls just before
+// each calendar build. It runs in its own invocation because a calendar build
+// already spends ~48 of Cloudflare's 50 subrequests (Finnhub per ticker + Nasdaq
+// per weekday), and one search call covering 15 tickers came back blank for 4 of
+// them (2026-10-23) — 5 per call answers properly. buildCalendar only reads the
+// answers, plus at most one call for tickers nobody has searched yet (one added
+// since the last search, or an older TradeHub that doesn't call the endpoint).
 const EARN_AI_KEY = 'earn:ai:v1';
 const EARN_AI_FRESH_MS = 20 * 3600 * 1000;
-const EARN_AI_MAX = 30;                       // tickers per call
-async function fetchEarningsAI(tickers, env, today, diag){
-  let cache = {};
-  try { cache = JSON.parse(await env.NEWSHUB_CACHE.get(EARN_AI_KEY) || '{}') || {}; } catch(e){ cache = {}; }
-  const now = Date.now();
-  const need = tickers.filter(t => !(cache[t] && now - (cache[t].at || 0) < EARN_AI_FRESH_MS)).slice(0, EARN_AI_MAX);
-  if (need.length && env.GEMINI_KEY){
-    const prompt =
+const EARN_AI_BLANK_MS = 6 * 3600 * 1000;    // a "don't know" is re-asked sooner
+const EARN_AI_BATCH = 5;                       // tickers per search call
+const EARN_AI_MAX_CALLS = 10;                  // per /earnings-search invocation
+async function searchEarningsBatch(need, env, today, diag){
+  const prompt =
 `You are a financial calendar API. Using Google Search, find the quarterly earnings report dates for these stock tickers: ${need.join(', ')}.
 Today is ${today} (US Eastern).
 
@@ -2437,35 +2440,51 @@ Funds and ETFs that do not report earnings get next null. Use the company's own 
 
 Return ONLY a JSON array, no prose, no markdown fences:
 [{"ticker":"AAPL","last":"YYYY-MM-DD","next":"YYYY-MM-DD","nextConfirmed":true,"when":"amc"}]`;
-    let got = null;
-    for (const model of CAL_MACRO_MODELS){
-      const blocked = await env.NEWSHUB_CACHE.get('quota_block:'+model).catch(()=>null);
-      if (blocked){ diag&&diag.push('ai-earn '+model+': KV-blocked'); continue; }
-      try {
-        const gc = { temperature: 0.1, maxOutputTokens: model === 'gemini-3.5-flash' ? 8192 : 4096 };
-        if (model.startsWith('gemini-3')) gc.thinkingConfig = { thinkingLevel: 'low' };
-        else if (model.startsWith('gemini-2.5')) gc.thinkingConfig = { thinkingBudget: 0 };
-        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_KEY}`, {
-          method:'POST', headers:{'Content-Type':'application/json'}, signal: AbortSignal.timeout(25000),
-          body: JSON.stringify({ contents:[{ parts:[{ text: prompt }] }], tools:[{ google_search:{} }], generationConfig: gc }),
-        });
-        if (r.status === 429){
-          await env.NEWSHUB_CACHE.put('quota_block:'+model, '1', { expirationTtl: QUOTA_COOLDOWN }).catch(()=>{});
-          diag&&diag.push('ai-earn '+model+': 429 quota'); continue;
-        }
-        if (!r.ok){ diag&&diag.push('ai-earn '+model+': HTTP '+r.status+' '+(await r.text()).slice(0,200)); continue; }
-        const j = await r.json();
-        let text = j.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('') || '';
-        text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
-        let arr = null;
-        try { arr = JSON.parse(text); } catch(e){ arr = salvageJsonArray(text); }
-        if (!Array.isArray(arr) || !arr.length){ diag&&diag.push('ai-earn '+model+': 0 items raw='+text.slice(0,200)); continue; }
-        got = arr; diag&&diag.push('ai-earn '+model+': '+arr.length+' answers for '+need.length+' asked'); break;
-      } catch(e){ diag&&diag.push('ai-earn '+model+': EXC '+e.message); }
-    }
-    if (got){
-      const isDate = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
-      const asked = new Set(need);
+  for (const model of CAL_MACRO_MODELS){
+    const blocked = await env.NEWSHUB_CACHE.get('quota_block:'+model).catch(()=>null);
+    if (blocked){ diag&&diag.push('ai-earn '+model+': KV-blocked'); continue; }
+    try {
+      const gc = { temperature: 0.1, maxOutputTokens: model === 'gemini-3.5-flash' ? 8192 : 2048 };
+      if (model.startsWith('gemini-3')) gc.thinkingConfig = { thinkingLevel: 'low' };
+      else if (model.startsWith('gemini-2.5')) gc.thinkingConfig = { thinkingBudget: 0 };
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_KEY}`, {
+        method:'POST', headers:{'Content-Type':'application/json'}, signal: AbortSignal.timeout(25000),
+        body: JSON.stringify({ contents:[{ parts:[{ text: prompt }] }], tools:[{ google_search:{} }], generationConfig: gc }),
+      });
+      if (r.status === 429){
+        await env.NEWSHUB_CACHE.put('quota_block:'+model, '1', { expirationTtl: QUOTA_COOLDOWN }).catch(()=>{});
+        diag&&diag.push('ai-earn '+model+': 429 quota'); continue;
+      }
+      if (!r.ok){ diag&&diag.push('ai-earn '+model+': HTTP '+r.status+' '+(await r.text()).slice(0,200)); continue; }
+      const j = await r.json();
+      let text = j.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('') || '';
+      text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+      let arr = null;
+      try { arr = JSON.parse(text); } catch(e){ arr = salvageJsonArray(text); }
+      if (!Array.isArray(arr) || !arr.length){ diag&&diag.push('ai-earn '+model+': 0 items raw='+text.slice(0,200)); continue; }
+      diag&&diag.push('ai-earn '+model+': '+arr.length+' answers for '+need.join(','));
+      return arr;
+    } catch(e){ diag&&diag.push('ai-earn '+model+': EXC '+e.message); }
+  }
+  return null;
+}
+// Reads the searched answers for `tickers`, first searching the ones that are
+// missing or stale — at most `maxCalls` calls of EARN_AI_BATCH tickers each.
+async function fetchEarningsAI(tickers, env, today, diag, maxCalls){
+  let cache = {};
+  try { cache = JSON.parse(await env.NEWSHUB_CACHE.get(EARN_AI_KEY) || '{}') || {}; } catch(e){ cache = {}; }
+  const now = Date.now();
+  const isFresh = a => a && now - (a.at || 0) < ((a.last || a.next) ? EARN_AI_FRESH_MS : EARN_AI_BLANK_MS);
+  const need = tickers.filter(t => !isFresh(cache[t]));
+  let calls = 0, wrote = false;
+  if (env.GEMINI_KEY){
+    const isDate = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+    for (let i = 0; i < need.length && calls < (maxCalls || 1); i += EARN_AI_BATCH){
+      const batch = need.slice(i, i + EARN_AI_BATCH);
+      calls++;
+      const got = await searchEarningsBatch(batch, env, today, diag);
+      if (!got) break;                         // every model failed: stop spending
+      const asked = new Set(batch);
       for (const it of got){
         const t = String(it && it.ticker || '').trim().toUpperCase();
         if (!asked.has(t)) continue;
@@ -2474,13 +2493,17 @@ Return ONLY a JSON array, no prose, no markdown fences:
         const when = /^(bmo|amc)$/.test(it.when || '') ? it.when : null;
         cache[t] = { last, next, nextConfirmed: !!(next && it.nextConfirmed === true), when, at: now };
       }
-      // A ticker the model skipped is remembered as "no answer" for the same day,
-      // so it is not re-asked on every build.
-      for (const t of need) if (!cache[t] || cache[t].at !== now) cache[t] = { last:null, next:null, nextConfirmed:false, when:null, at: now };
-      for (const t of Object.keys(cache)) if (now - (cache[t].at || 0) > 14 * 86400000) delete cache[t];
-      await env.NEWSHUB_CACHE.put(EARN_AI_KEY, JSON.stringify(cache), { expirationTtl: 14 * 86400 }).catch(()=>{});
+      // A ticker the model skipped is remembered as "no answer" (re-asked after
+      // EARN_AI_BLANK_MS), so it is not searched again on every build.
+      for (const t of batch) if (!cache[t] || cache[t].at !== now) cache[t] = { last:null, next:null, nextConfirmed:false, when:null, at: now };
+      wrote = true;
     }
-  } else if (!need.length) diag&&diag.push('ai-earn: all '+tickers.length+' from cache');
+  }
+  if (wrote){
+    for (const t of Object.keys(cache)) if (now - (cache[t].at || 0) > 14 * 86400000) delete cache[t];
+    await env.NEWSHUB_CACHE.put(EARN_AI_KEY, JSON.stringify(cache), { expirationTtl: 14 * 86400 }).catch(()=>{});
+  }
+  diag&&diag.push('ai-earn: '+(tickers.length - need.length)+' cached, '+need.length+' needed, '+calls+' call(s)');
   // Search results carry the same stale estimates the sources do: on 2026-10-23
   // it answered SCCO last Oct 21 (right) AND next Oct 27 (the old estimate). A
   // "next" this close after a report that happened is not the next report.
@@ -2551,7 +2574,7 @@ async function buildCalendar(wl, env, days, diag){
   //     counts as two votes ('ai' + 'ai-confirmed'); an estimate as one.
   const agreed = new Set();
   for (const [key, srcs] of dateVotes) if (srcs.size >= 2) agreed.add(key.split('|')[0]);
-  const aiEarn = await fetchEarningsAI(wl.filter(t => !agreed.has(t)), env, fromD, diag).catch(e => { diag&&diag.push('ai-earn: EXC '+e.message); return {}; });
+  const aiEarn = await fetchEarningsAI(wl, env, fromD, diag, 1).catch(e => { diag&&diag.push('ai-earn: EXC '+e.message); return {}; });
   for (const [t, a] of Object.entries(aiEarn)){
     if (!a.next || a.next > toD) continue;
     addEarn('ai', { ticker:t, date:a.next, when:a.when });
@@ -2568,6 +2591,9 @@ async function buildCalendar(wl, env, days, diag){
     for (const key of [...earnMap.keys()]){
       const [kt, kd] = key.split('|');
       if (kt !== t || kd === a.next || dayDiff(kd, a.last) > EARN_STALE_AFTER_REPORT_DAYS) continue;
+      // Two listing sources agreeing outweighs one search answer saying the
+      // report already happened.
+      if ([...(dateVotes.get(key) || [])].filter(x => x !== 'ai' && x !== 'ai-confirmed').length >= 2) continue;
       earnMap.delete(key); dateVotes.delete(key);
       diag && diag.push('ai-earn: dropped stale '+t+' '+kd+' (reported '+a.last+')');
     }
