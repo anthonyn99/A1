@@ -26,7 +26,7 @@ const mock = firebaseMock({
     if (req.method === 'OPTIONS') return { status: 204, text: '' };
     const auth = (req.headers && (req.headers.Authorization || req.headers.authorization)) || '';
     if (req.url.startsWith('https://orca.vedapatel05.workers.dev/v1/models')) return auth === 'Bearer ' + KEY ? { json: { object: 'list', data: [{ id: 'deepseek/free', routable: true }] } } : { status: 401, json: {} };
-    if (req.url.startsWith('https://orca.vedapatel05.workers.dev/v1/audio/voices')) return { json: { default: 'en-US-AvaMultilingualNeural', voices: [{ id: 'en-US-AvaMultilingualNeural', name: 'Ava', locale: 'en-US', gender: 'female', engine: 'edge' }, { id: 'en-GB-RyanNeural', name: 'Ryan', locale: 'en-GB', gender: 'male', engine: 'edge' }] } };
+    if (req.url.startsWith('https://orca.vedapatel05.workers.dev/v1/audio/voices')) return { json: { default: 'en-GB-SoniaNeural', voices: [{ id: 'en-GB-SoniaNeural', name: 'Sonia', locale: 'en-GB', gender: 'female', engine: 'edge' }, { id: 'en-US-AvaMultilingualNeural', name: 'Ava', locale: 'en-US', gender: 'female', engine: 'edge' }, { id: 'en-GB-RyanNeural', name: 'Ryan', locale: 'en-GB', gender: 'male', engine: 'edge' }] } };
     if (req.url.startsWith('https://orca.vedapatel05.workers.dev/v1/audio/speech')) {
       if (auth !== 'Bearer ' + KEY) return { status: 401, json: {} };
       const b = JSON.parse(req.postData || '{}');
