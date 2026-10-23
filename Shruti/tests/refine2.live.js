@@ -74,6 +74,14 @@ async function load(c, { w, h, who, hash = '' }) {
   await waitFor(c, `!!window.Shruti && window.Shruti.core.me.loaded && !!document.querySelector('#view > *')`, 15000);
   await sleep(500);
 }
+// Close Import the way a person does (its "Close without saving?" too), so
+// its key handler goes with it.
+async function closeImport(c) {
+  await ev(c, `document.querySelector('#imp-sheet [data-close]').click(); return 1`);
+  await waitFor(c, `!!document.querySelector('.sheet-dim [data-r="1"]')`, 3000);
+  await ev(c, `const b=document.querySelector('.sheet-dim [data-r="1"]'); if(b) b.click(); return 1`);
+  await waitFor(c, `!document.querySelector('#imp-sheet')`, 3000);
+}
 const go = async (c, hash, cond) => { await ev(c, `location.hash=${JSON.stringify(hash)}; return 1`); const r = await waitFor(c, cond); await sleep(600); return r; };
 const noOverflow = (c) => ev(c, `return document.documentElement.scrollWidth<=innerWidth`);
 
@@ -100,9 +108,9 @@ async function pass1(c, who, w) {
   ok(tag + ': text dragged over Shared lights Shared', await drop('shared') === 'shared');
   ok(tag + ': …and dropped, the import opens at the review, set to Shared', await waitFor(c, `!!document.querySelector('#imp-sheet [data-where="shared"].on') && document.querySelectorAll('#imp-sheet .imp-ch').length>=2`, 8000),
     await ev(c, `return document.querySelector('#imp-body')?.textContent.slice(0,200)`));
-  await ev(c, `document.querySelector('#imp-sheet').remove(); return 1`);
+  await closeImport(c);
   ok(tag + ': text dropped on Mine imports to Mine', await drop('mine') === 'mine' && await waitFor(c, `!!document.querySelector('#imp-sheet [data-where="mine"].on')`, 8000));
-  await ev(c, `document.querySelector('#imp-sheet').remove(); return 1`);
+  await closeImport(c);
   ok(tag + ': the library is no wider than the screen', await noOverflow(c));
   if (who === 'tony' && !phone) await shot(c, 'library-' + w);
 
