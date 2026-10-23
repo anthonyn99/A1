@@ -1957,15 +1957,16 @@ function etDateStr(offsetDays = 0){
 //      estimate (Tesla announced Oct 21 on Oct 2; Finnhub still said Oct 20);
 //   3. then the earlier date.
 // `sources` rides along so the front-end can apply the same rule.
-// 'ai-confirmed' (a Google-searched, company-announced date; it always rides
-// with 'ai', so it is two votes) sits between Nasdaq and Finnhub; a searched
-// estimate ranks last.
+// A Google-searched date ('ai') is ONE vote. When the search says the company
+// announced it, 'ai-confirmed' rides along as a marker, not a vote: it ranks the
+// date above a lone Finnhub/AlphaVantage estimate but never above Nasdaq (the
+// search once called NVDA's Nov 17 "announced"; Nasdaq had the real Nov 18).
 const EARN_SRC_RANK = { nasdaq: 3, 'ai-confirmed': 2.5, finnhub: 2, av: 1, ai: 0.5 };
 function pickEarningsDates(earnMap, dateVotes){
   const best = new Map();   // ticker → { ev, votes, rank }
   for (const [key, ev] of earnMap){
     const srcs = [...(dateVotes.get(key) || [])];
-    const cand = { ev, votes: srcs.length, rank: Math.max(0, ...srcs.map(s => EARN_SRC_RANK[s] || 0)) };
+    const cand = { ev, votes: srcs.filter(s => s !== 'ai-confirmed').length, rank: Math.max(0, ...srcs.map(s => EARN_SRC_RANK[s] || 0)) };
     ev.confirmed = cand.votes >= 2;
     ev.sources = srcs.sort();
     const cur = best.get(ev.ticker);
@@ -2576,7 +2577,7 @@ async function buildCalendar(wl, env, days, diag){
 
   // 2c) Google-searched dates for every ticker the sources leave without a date
   //     two of them agree on (see fetchEarningsAI). A company-announced date
-  //     counts as two votes ('ai' + 'ai-confirmed'); an estimate as one.
+  //     is one vote either way (see EARN_SRC_RANK for what 'ai-confirmed' does).
   const agreed = new Set();
   for (const [key, srcs] of dateVotes) if (srcs.size >= 2) agreed.add(key.split('|')[0]);
   const aiEarn = await fetchEarningsAI(wl, env, fromD, diag, 1).catch(e => { diag&&diag.push('ai-earn: EXC '+e.message); return {}; });
