@@ -163,7 +163,7 @@ export async function renderStudy(body, ctx) {
       b.addEventListener('click', (e) => { if (!e.target.closest('[data-del]')) choose(); });
       b.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === b) { e.preventDefault(); choose(); } });
     });
-    side.querySelector('[data-make]').addEventListener('click', () => openMaker(ctx));
+    body.querySelector('.sh-make').addEventListener('click', () => openMaker(ctx));
     // Drag sets, and the kinds of the chosen set, sideways.
     OR.sortable(side, { row: '.sh-set', axis: 'x', onMove(ks) {
       const all = OR.get('sets.' + ctx.book);
