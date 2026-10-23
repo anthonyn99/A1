@@ -148,7 +148,7 @@ const closeSheet = (c) => ev(c, `const s=document.querySelector('#gen-sheet [dat
   ok('the units come from Orca, in his order, Claude off (under More options)', await waitFor(c, `const u=[...document.querySelectorAll('#gen-sheet [data-unit]')]; return u.length>=5 && u[0].textContent.includes('DeepSeek') && u.find(b=>/Claude/.test(b.textContent)).getAttribute('aria-checked')==='false' && u.find(b=>/Gemini/.test(b.textContent)).classList.contains('off') && !document.querySelector('#gen-sheet .mk-more:not(.mk-any)').open`));
   await ev(c, `document.querySelector('#gen-sheet [data-len="concise"]').click(); return 1`);
   await ev(c, `[...document.querySelectorAll('#gen-sheet [data-preset]')].find(b=>/Emma/.test(b.textContent)).click(); return 1`);
-  ok('length and hosts are his, synced', await waitFor(c, `const g=window.Shruti.core.me.get('gen'); return g.length==='concise' && g.hosts===0 && document.querySelector('#gen-a').value==='en-US-EmmaMultilingualNeural' && document.querySelector('#gen-sheet [data-preset="0"]').getAttribute('aria-checked')==='true'`));
+  ok('length and hosts are his, synced', await waitFor(c, `const g=window.Shruti.core.me.get('gen'); return g.length==='concise' && g.hosts==='emma-brian' && document.querySelector('#gen-a').value==='en-US-EmmaMultilingualNeural' && document.querySelector('#gen-sheet [data-preset="emma-brian"]').getAttribute('aria-checked')==='true'`));
   await ev(c, `const t=document.querySelector('#gen-extra'); t.value='Explain the lotus leaf.'; t.dispatchEvent(new Event('change')); return 1`);
   await shot(c, 'make-sheet-1280');
 

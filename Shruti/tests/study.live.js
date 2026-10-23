@@ -97,7 +97,7 @@ const prog = (c, path) => ev(c, `return JSON.stringify(window.Shruti.core.me.get
 
   console.log('\nThe Study tab');
   await ev(c, `location.hash='#/b/gita/4/study'; return 1`);
-  ok('the sidebar shows the ready-made set with its four kinds', await waitFor(c, `document.querySelectorAll('.sh-set').length===1 && document.querySelectorAll('.sh-kind').length===4 && /Comes with Shruti/.test(document.querySelector('.sh-set-h').textContent)`));
+  ok('the row shows the ready-made set; its four kinds are tabs', await waitFor(c, `document.querySelectorAll('.sh-set').length===1 && document.querySelectorAll('.sh-kinds .sh-kind').length===4 && /Comes with Shruti/.test(document.querySelector('.sh-set').textContent)`));
   ok('each kind has its status tag', await waitFor(c, `const t=[...document.querySelectorAll('.sh-kind em')].map(e=>e.textContent); return t[0]==='${set4.flashcards.length} cards' && t[1]==='${set4.quiz.length} questions' && /branches/.test(t[2]) && t[3]==='${set4.slides.length} slides'`), await ev(c, `return [...document.querySelectorAll('.sh-kind em')].map(e=>e.textContent).join('|')`));
   await shot(c, 'study-flashcards-tony-1280');
 
@@ -200,7 +200,7 @@ const prog = (c, path) => ev(c, `return JSON.stringify(window.Shruti.core.me.get
   ok('the set is in the shared doc, scoped to the section', await waitFor(c, `const s=Object.values(window.Shruti.core.shared.get('sets.gita',{})); return s.length===1 && s[0].scope.t==='section' && s[0].kinds.quiz.length===2 && s[0].model==='deepseek/free' && s[0].by==='tony'`), await ev(c, `return JSON.stringify(window.Shruti.core.shared.get('sets.gita',{})).slice(0,300)`));
   await click(c, '#gen-run [data-open]');
   ok('Study it: the new set is in the sidebar, its quiz open', await waitFor(c, `document.querySelectorAll('.sh-set').length===2 && document.querySelector('.sh-kind.on').dataset.kind==='quiz' && /Question 1 of 2/.test(document.querySelector('.qz-kicker').textContent)`));
-  ok('the head names its scope', await waitFor(c, `/in chapter 4/.test(document.querySelector('.sh-head div span').textContent)`));
+  ok('the chosen set names its scope', await waitFor(c, `/in chapter 4/.test(document.querySelector('.sh-set.on .sh-set-b b').textContent)`));
 
   console.log('\nA selection from Read, and the introduction');
   await ev(c, `location.hash='#/b/gita/4'; return 1`);
@@ -226,7 +226,7 @@ const prog = (c, path) => ev(c, `return JSON.stringify(window.Shruti.core.me.get
   ok('it is Veda\'s side', await waitFor(c, `document.body.dataset.profile==='veda'`));
   ok('she sees the shared AI set too', await waitFor(c, `document.querySelectorAll('.sh-set').length===2`));
   ok('Tony\'s progress is not hers: her cards are all new', await waitFor(c, `document.querySelector('.sh-kind[data-set=ch4][data-kind=flashcards] em').textContent==='${set4.flashcards.length} cards' && document.querySelector('.sh-kind[data-set=ch4][data-kind=quiz] em').textContent==='${set4.quiz.length} questions'`));
-  ok('the sets scroll sideways; nothing wider than the phone', await waitFor(c, `document.documentElement.scrollWidth<=innerWidth && getComputedStyle(document.querySelector('.sh-side')).flexDirection==='row'`));
+  ok('the sets scroll sideways; nothing wider than the phone', await waitFor(c, `document.documentElement.scrollWidth<=innerWidth && getComputedStyle(document.querySelector('.sh-sets')).flexDirection==='row' && getComputedStyle(document.querySelector('.sh-kinds')).flexDirection==='row'`));
   await shot(c, 'study-flashcards-veda-390');
   await pick(c, 'quiz');
   await waitFor(c, `!!document.querySelector('.qz-opt')`);

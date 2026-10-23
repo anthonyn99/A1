@@ -275,14 +275,16 @@ const imp = (x) => `const IMP = await import(new URL('import.js', location.href)
   ok('a bookmark drags to the front, Tony\'s own order', (await ev(c, `return [...document.querySelectorAll('.bmk b')].map(b=>b.textContent).join('|')`)) === 'Verse 6.5|Verse 2.11|Verse 4.7' && (await ev(c, `return (window.Shruti.core.me.get('order.bmk.gita',[])||[]).join()`)) === 'ch6.b2,ch2.b3,ch4.b5', await ev(c, `return [...document.querySelectorAll('.bmk b')].map(b=>b.textContent).join('|')`));
   ok('…and the drop did not open it', await ev(c, `return location.hash==='#/b/gita'`));
 
-  console.log('\nThe Study sidebar');
+  console.log('\nThe Study tab: sets in a row, the chosen set\'s kinds as tabs');
   await ev(c, `window.Shruti.core.shared.set({'sets.gita.sAI1':{id:'sAI1', kinds:{quiz:[{text:'Q one?',options:{A:'a',B:'b',C:'c',D:'d'},correct:'A',why:'w'}]}, scope:{t:'chapter',ch:[4],label:'chapter 4 by AI'}, model:'deepseek/free', by:'tony', at:Date.now()}},{now:true}); location.hash='#/b/gita/4/study'; return 1`);
   ok('two sets: the ready-made first', await waitFor(c, `document.querySelectorAll('.sh-set').length===2`) && (await keysOf(c, '.sh-set')) === 'ch4|sAI1');
-  await mouseDrag(c, '.sh-set', 1, 0, { edge: 0.5, dx: -40 });
+  await mouseDrag(c, '.sh-set', 1, 0, { edge: 0.5 });
   ok('a set drags above the other (order.sets.gita)', (await keysOf(c, '.sh-set')) === 'sAI1|ch4' && (await ev(c, `return (window.Shruti.core.me.get('order.sets.gita',[])||[]).join()`)) === 'sAI1,ch4', await keysOf(c, '.sh-set'));
-  const kinds0 = await ev(c, `return [...document.querySelectorAll('.sh-set[data-dkey=ch4] .sh-kind')].map(e=>e.dataset.kind).join()`);
-  await mouseDrag(c, '.sh-set[data-dkey=ch4] .sh-kind', 3, 0, { edge: 0.5 });
-  ok('the kinds in a set drag too (order.kinds.gita.ch4)', (await ev(c, `return [...document.querySelectorAll('.sh-set[data-dkey=ch4] .sh-kind')].map(e=>e.dataset.kind).join()`)) === 'slides,flashcards,quiz,mindmap' && (await ev(c, `return (window.Shruti.core.me.get('order.kinds.gita.ch4',[])||[]).join()`)) === 'slides,flashcards,quiz,mindmap', kinds0 + ' -> ' + await ev(c, `return [...document.querySelectorAll('.sh-set[data-dkey=ch4] .sh-kind')].map(e=>e.dataset.kind).join()`));
+  await ev(c, `document.querySelector('.sh-set[data-dkey=ch4] [data-pick]').click(); return 1`);
+  ok('picking a set shows its kinds as tabs', await waitFor(c, `document.querySelector('.sh-set.on')?.dataset.dkey==='ch4' && document.querySelectorAll('.sh-kinds[data-dkey=ch4] .sh-kind').length===4`));
+  const kinds0 = await ev(c, `return [...document.querySelectorAll('.sh-kinds[data-dkey=ch4] .sh-kind')].map(e=>e.dataset.kind).join()`);
+  await mouseDrag(c, '.sh-kinds[data-dkey=ch4] .sh-kind', 3, 0, { edge: 0.5 });
+  ok('the kinds in a set drag too (order.kinds.gita.ch4)', (await ev(c, `return [...document.querySelectorAll('.sh-kinds[data-dkey=ch4] .sh-kind')].map(e=>e.dataset.kind).join()`)) === 'slides,flashcards,quiz,mindmap' && (await ev(c, `return (window.Shruti.core.me.get('order.kinds.gita.ch4',[])||[]).join()`)) === 'slides,flashcards,quiz,mindmap', kinds0 + ' -> ' + await ev(c, `return [...document.querySelectorAll('.sh-kinds[data-dkey=ch4] .sh-kind')].map(e=>e.dataset.kind).join()`));
   await ev(c, `window.Shruti.core.shared.set({'sets.gita.sAI1': window.Shruti.core.DELETE},{now:true}); return 1`);
 
   console.log('\nFlashcards');
@@ -386,7 +388,7 @@ const imp = (x) => `const IMP = await import(new URL('import.js', location.href)
   ok('…and its chapters', await waitFor(c, `/At the sea the river slows, spreads, and is gone\\./.test(document.querySelector('article.rd')?.textContent||'')`));
   await ev(c, `location.hash='#/b/gita/4/study'; return 1`);
   await waitFor(c, `!!document.querySelector('.sh-kind[data-set=ch4]')`);
-  ok('her kinds are in the set\'s own order (Tony\'s order is his)', (await ev(c, `return [...document.querySelectorAll('.sh-set[data-dkey=ch4] .sh-kind')].map(e=>e.dataset.kind).join()`)) === 'flashcards,quiz,mindmap,slides');
+  ok('her kinds are in the set\'s own order (Tony\'s order is his)', (await ev(c, `return [...document.querySelectorAll('.sh-kinds[data-dkey=ch4] .sh-kind')].map(e=>e.dataset.kind).join()`)) === 'flashcards,quiz,mindmap,slides');
   await ev(c, `document.querySelector('.sh-kind[data-set=ch4][data-kind=quiz]').click(); return 1`);
   await waitFor(c, `!!document.querySelector('.qz-opt')`);
   await ev(c, `[...document.querySelectorAll('.st-actions .btn')].find(b=>/All questions/.test(b.title)).click(); return 1`);

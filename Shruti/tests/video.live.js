@@ -85,7 +85,7 @@ async function load(c, { w, h, mobile, store, hash = '' }) {
   await ev(c, `location.hash='#/b/gita/2/watch'; return 1`);
   const nScenes = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'books', 'gita', 'media', 'ch02-video.json'), 'utf8')).scenes.length;
   ok('the Watch tab shows the stage, the cover and ' + nScenes + ' scenes', await waitFor(c, `!!document.querySelector('.vid-stage canvas') && !document.querySelector('.vid-cover').hidden && document.querySelectorAll('.vsc').length===${nScenes}`, 20000));
-  ok('every lesson is covered (12 of 12), each a jump', await ev(c, `return /12 of 12/.test(document.querySelector('.vid .pod-cov h3').textContent) && document.querySelectorAll('.vid .pl:not([disabled])').length===12`));
+  ok('every lesson is covered (12 of 12), each a jump', await ev(c, `return /12 of 12/.test(document.querySelector('.vid [data-fold=vidLessons] h3').textContent) && document.querySelectorAll('.vid .pl:not([disabled])').length===12`));
   ok('the canvas is drawn at the stage\'s size, 16:9', await ev(c, `const cv=document.querySelector('.vid-stage canvas'), r=cv.getBoundingClientRect(); return cv.width>=640 && Math.abs(cv.width/cv.height-16/9)<0.01 && Math.abs(r.width/r.height-16/9)<0.02`));
   ok('the scrubber marks scenes, lessons in gold', await ev(c, `return document.querySelectorAll('.vid-ticks i').length===${nScenes} && document.querySelectorAll('.vid-ticks i.l').length>=12`));
   await shot(c, 'watch-1280');

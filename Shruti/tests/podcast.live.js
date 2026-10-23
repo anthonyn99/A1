@@ -91,7 +91,7 @@ const t = (c) => ev(c, `return document.querySelector('audio') ? -1 : window.Shr
   await ev(c, `location.hash='#/b/gita/2/listen'; return 1`);
   ok('the Listen tab shows the conversation: 57 turns, 15 parts', await waitFor(c, `document.querySelectorAll('.turn').length===57 && document.querySelectorAll('.pchip').length===15`, 20000));
   ok('two hosts, one each side, in their colours', await ev(c, `const a=document.querySelector('.turn.h0'), b=document.querySelector('.turn.h1'); return !!a && !!b && b.classList.contains('r') && !a.classList.contains('r') && getComputedStyle(a.querySelector('.av')).backgroundColor!==getComputedStyle(b.querySelector('.av')).backgroundColor`));
-  ok('every lesson is listed as covered (12 of 12)', await ev(c, `return /12 of 12/.test(document.querySelector('.pod-cov h3').textContent) && document.querySelectorAll('.pl:not([disabled])').length===12`));
+  ok('every lesson is listed as covered (12 of 12)', await ev(c, `return /12 of 12/.test(document.querySelector('[data-fold=podLessons] h3').textContent) && document.querySelectorAll('.pl:not([disabled])').length===12`));
   ok('lesson tags sit on the turns that teach them', await ev(c, `return document.querySelectorAll('.turn .ltag').length>20`));
   ok('the episode can be downloaded', await ev(c, `const a=document.querySelector('[data-dl]'); return a.hasAttribute('download') && /ch02-podcast\\.mp3$/.test(a.getAttribute('href'))`));
   await shot(c, 'listen-1280');
@@ -147,7 +147,7 @@ const t = (c) => ev(c, `return document.querySelector('audio') ? -1 : window.Shr
   console.log('\nVeda on a phone (390)');
   await load(c, { w: 390, h: 844, mobile: true, store: "sessionStorage.setItem('shruti.pick','veda');", hash: '#/b/gita/3/listen' });
   await ev(c, `try{sessionStorage.setItem('shruti.pick','veda');}catch(e){} location.reload(); return 1`);
-  ok('her Listen tab opens chapter 3: 63 turns, 15 of 15 lessons', await waitFor(c, `window.SHRUTI_PROFILE==='veda' && document.querySelectorAll('.turn').length===63 && /15 of 15/.test(document.querySelector('.pod-cov h3').textContent)`, 20000));
+  ok('her Listen tab opens chapter 3: 63 turns, 15 of 15 lessons', await waitFor(c, `window.SHRUTI_PROFILE==='veda' && document.querySelectorAll('.turn').length===63 && /15 of 15/.test(document.querySelector('[data-fold=podLessons] h3').textContent)`, 20000));
   ok('nothing scrolls sideways', await ev(c, `return document.documentElement.scrollWidth<=innerWidth`));
   await click(c, '[data-play]');
   ok('it plays for her, with the mini-player above the bottom nav', await waitFor(c, `window.Shruti.podcast.state.playing && (()=>{const m=document.querySelector('#mini .mp'), n=document.querySelector('.bnav'); return m && m.getBoundingClientRect().bottom<=n.getBoundingClientRect().top+1})()`, 10000));
