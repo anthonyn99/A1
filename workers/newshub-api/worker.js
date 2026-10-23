@@ -1225,6 +1225,7 @@ async function fetchQuotes(wl, env){
 //     25/day) + Tiingo (paid, disabled), reserved so their tiny quotas survive.
 async function fetchAllSources(env, useLimitedAPIs, wl){
   wl = wl || WATCHLIST;
+  _srcStats = {};
   const now = new Date();
   const cutoff = now.getTime() - HOURS*3600*1000;
   const from = new Date(cutoff);
@@ -4181,6 +4182,7 @@ export default {
       try { const le = await env.NEWSHUB_CACHE.get('stage:lasterror'); out.lastError = le ? JSON.parse(le) : null; } catch(e){ out.lastError = 'err:'+e.message; }
       try { const ws = await env.NEWSHUB_CACHE.get('stage:winstatus'); out.lastWindowStatus = ws ? JSON.parse(ws) : null; } catch(e){ out.lastWindowStatus = 'err'; }
       try { const ai = await env.NEWSHUB_CACHE.get('stage:aistats'); out.aiStats = ai ? JSON.parse(ai) : null; } catch(e){ out.aiStats = 'err'; }
+      try { const fs = await env.NEWSHUB_CACHE.get('stage:fetchstats'); out.fetchStats = fs ? JSON.parse(fs) : null; } catch(e){ out.fetchStats = 'err'; }
       // Did the 6am cron fire, and what did its build produce? null on either line
       // means that cron tick never ran at all (vs. ran and failed, which records
       // an error). Kept 7 days.
