@@ -133,8 +133,9 @@ async function pass1(c, who, w) {
   if (who === 'veda' || !phone) await shot(c, 'lesson-' + who + '-' + w);
   await key(c, 'Escape', 27);
   ok(tag + ': Esc closes it', await waitFor(c, `!document.getElementById('lx') && !document.body.classList.contains('lx-open')`, 3000));
+  await sleep(300);
   await click(c, '.ls-i[data-li="1"]');
-  await waitFor(c, `!!document.querySelector('.lx-read')`);
+  ok(tag + ': a lesson opens again straight after closing', await waitFor(c, `!!document.querySelector('.lx-read')`, 5000), await ev(c, `const e=document.querySelector('.ls-i[data-li="1"]').getBoundingClientRect(); const t=document.elementFromPoint(e.left+e.width/2, e.top+e.height/2); return (t&&t.className)+' | lx:'+document.querySelectorAll('.lx-dim').length`));
   await click(c, '.lx-read');
   ok(tag + ': "Read it in the chapter" opens Read at that verse', await waitFor(c, `/^#\\/b\\/gita\\/2\\/read\\/\\d+$/.test(location.hash) && !document.getElementById('lx') && !!document.querySelector('article.rd')`, 8000), await ev(c, `return location.hash`));
 
