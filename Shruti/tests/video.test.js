@@ -1,7 +1,8 @@
 // Shruti's Watch (Phase 5), offline:
 //  - video.js parses and loads in Node (its timing helpers have no DOM);
 //  - every chapter has a scene script and a built video;
-//  - every script: one Edge narrator (not a podcast host), known layouts,
+//  - every script: one Edge narrator (Sonia, who is also a podcast host since
+//    Tony chose her for both, 2026-10-22), known layouts,
 //    a title first and a summary last, every lesson of the chapter taught on
 //    its own scene, verses that exist in the book, on-screen text that fits;
 //  - every built video: listed, matches its script scene for scene, verse
