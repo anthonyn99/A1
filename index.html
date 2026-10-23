@@ -23436,6 +23436,17 @@ function _addMissingLegacyPrograms(){
 }
 if (!_legacyMigrated){ if (_addMissingLegacyPrograms()) persistLinks(); _markLegacyMigrated(); }
 
+// Shruti on Veda's header (Tony, 2026-10-22): added once across every device
+// (navorder.vedaShrutiSeeded, set by applyRemote on server state), and only
+// when she has no Shruti link of her own already. Removing it later sticks.
+var _vedaShrutiSeeded = false;
+function _seedVedaShruti(){
+  var has = vedaLinks.some(function(l){ return /shruti\.html/i.test(String(l.url||'')) || /^shruti$/i.test(String(l.label||'').trim()); });
+  if (has) return false;
+  vedaLinks.push({ id:'shruti', label:'Shruti', url:'https://anthonyn99.github.io/A1/Shruti/shruti.html' });
+  return true;
+}
+
 // ── Bringing Tony's old links into LifeHub — once, for every device ──────────
 // Runs when both lists have been heard from: LifeHub's, and navorder's (which
 // holds the old links and the flag). A stored link that matches a LifeHub app
@@ -24148,6 +24159,7 @@ function saveNavOrder(who){
     };
     // Same rule: once Tony's old links are in LifeHub, that is never undone.
     if (_lhImported) out.tonyLinksInLifeHub = true;
+    if (_vedaShrutiSeeded) out.vedaShrutiSeeded = true;
     return out;
   });
   pulseSynced(who);
@@ -24166,6 +24178,8 @@ function applyRemote(data){
     if(JSON.stringify(vs)!==JSON.stringify(vedaLinks.map(_sanLink))){ vedaLinks=vs; changed=true; }
   }
   var needsMigrationPush=false;
+  if(data.vedaShrutiSeeded) _vedaShrutiSeeded=true;
+  else if(!_vedaShrutiSeeded){ if(_seedVedaShruti()) changed=true; _vedaShrutiSeeded=true; needsMigrationPush=true; }
   if(data.tonyLinksInLifeHub) _markLhImported();
   // Veda's Shield seed: if Firebase hasn't confirmed it happened yet, add it
   // back on top of what was just merged in and push the result + flag up.
