@@ -1,116 +1,116 @@
 {
   "0": {
-    "voice": "en-GB-SoniaNeural",
+    "voice": "en-GB-LibbyNeural",
     "mp3": "ch00-read.mp3",
     "json": "ch00-read.json",
-    "duration": 354.672
+    "duration": 398.52
   },
   "1": {
-    "voice": "en-GB-SoniaNeural",
+    "voice": "en-GB-LibbyNeural",
     "mp3": "ch01-read.mp3",
     "json": "ch01-read.json",
-    "duration": 48.432
+    "duration": 55.416
   },
   "2": {
-    "voice": "en-GB-SoniaNeural",
+    "voice": "en-GB-LibbyNeural",
     "mp3": "ch02-read.mp3",
     "json": "ch02-read.json",
-    "duration": 767.04
+    "duration": 853.104
   },
   "3": {
-    "voice": "en-GB-SoniaNeural",
+    "voice": "en-GB-LibbyNeural",
     "mp3": "ch03-read.mp3",
     "json": "ch03-read.json",
-    "duration": 450.624
+    "duration": 501.024
   },
   "4": {
-    "voice": "en-GB-SoniaNeural",
+    "voice": "en-GB-LibbyNeural",
     "mp3": "ch04-read.mp3",
     "json": "ch04-read.json",
-    "duration": 466.536
+    "duration": 522.072
   },
   "5": {
-    "voice": "en-GB-SoniaNeural",
+    "voice": "en-GB-LibbyNeural",
     "mp3": "ch05-read.mp3",
     "json": "ch05-read.json",
-    "duration": 314.856
+    "duration": 347.112
   },
   "6": {
-    "voice": "en-GB-SoniaNeural",
+    "voice": "en-GB-LibbyNeural",
     "mp3": "ch06-read.mp3",
     "json": "ch06-read.json",
-    "duration": 486.36
+    "duration": 544.056
   },
   "7": {
-    "voice": "en-GB-SoniaNeural",
+    "voice": "en-GB-LibbyNeural",
     "mp3": "ch07-read.mp3",
     "json": "ch07-read.json",
-    "duration": 319.728
+    "duration": 349.176
   },
   "8": {
-    "voice": "en-GB-SoniaNeural",
+    "voice": "en-GB-LibbyNeural",
     "mp3": "ch08-read.mp3",
     "json": "ch08-read.json",
-    "duration": 326.28
+    "duration": 360.192
   },
   "9": {
-    "voice": "en-GB-SoniaNeural",
+    "voice": "en-GB-LibbyNeural",
     "mp3": "ch09-read.mp3",
     "json": "ch09-read.json",
-    "duration": 419.928
+    "duration": 461.376
   },
   "10": {
-    "voice": "en-GB-SoniaNeural",
+    "voice": "en-GB-LibbyNeural",
     "mp3": "ch10-read.mp3",
     "json": "ch10-read.json",
-    "duration": 380.136
+    "duration": 417.96
   },
   "11": {
-    "voice": "en-GB-SoniaNeural",
+    "voice": "en-GB-LibbyNeural",
     "mp3": "ch11-read.mp3",
     "json": "ch11-read.json",
-    "duration": 622.656
+    "duration": 695.016
   },
   "12": {
-    "voice": "en-GB-SoniaNeural",
+    "voice": "en-GB-LibbyNeural",
     "mp3": "ch12-read.mp3",
     "json": "ch12-read.json",
-    "duration": 223.32
+    "duration": 245.616
   },
   "13": {
-    "voice": "en-GB-SoniaNeural",
+    "voice": "en-GB-LibbyNeural",
     "mp3": "ch13-read.mp3",
     "json": "ch13-read.json",
-    "duration": 391.632
+    "duration": 396.816
   },
   "14": {
-    "voice": "en-GB-SoniaNeural",
+    "voice": "en-GB-LibbyNeural",
     "mp3": "ch14-read.mp3",
     "json": "ch14-read.json",
-    "duration": 292.68
+    "duration": 320.592
   },
   "15": {
-    "voice": "en-GB-SoniaNeural",
+    "voice": "en-GB-LibbyNeural",
     "mp3": "ch15-read.mp3",
     "json": "ch15-read.json",
-    "duration": 271.2
+    "duration": 300.288
   },
   "16": {
-    "voice": "en-GB-SoniaNeural",
+    "voice": "en-GB-LibbyNeural",
     "mp3": "ch16-read.mp3",
     "json": "ch16-read.json",
-    "duration": 255.552
+    "duration": 255.072
   },
   "17": {
-    "voice": "en-GB-SoniaNeural",
+    "voice": "en-GB-LibbyNeural",
     "mp3": "ch17-read.mp3",
     "json": "ch17-read.json",
-    "duration": 293.808
+    "duration": 322.584
   },
   "18": {
-    "voice": "en-GB-SoniaNeural",
+    "voice": "en-GB-LibbyNeural",
     "mp3": "ch18-read.mp3",
     "json": "ch18-read.json",
-    "duration": 1033.656
+    "duration": 1096.44
   }
 }
