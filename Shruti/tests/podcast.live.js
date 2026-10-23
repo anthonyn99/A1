@@ -100,7 +100,7 @@ const t = (c) => ev(c, `return document.querySelector('audio') ? -1 : window.Shr
   ok('Play plays it', await waitFor(c, `window.Shruti.podcast.state.playing`, 10000), await ev(c, `return JSON.stringify(window.__errs)`));
   ok('the first turn is lit, and a word in it', await waitFor(c, `document.querySelector('.turn.on')?.dataset.turn==='0' && !!document.querySelector('.turn.on .w.on')`, 8000));
   ok('the mini-player shows the part and the host', await waitFor(c, `!document.getElementById('mini').hidden && /Welcome · Sonia/.test(document.querySelector('#mini .tt span').textContent)`));
-  ok('the lock screen knows the episode', await ev(c, `return /Chapter 2/.test(navigator.mediaSession.metadata.title) && /Sonia & Ryan/.test(navigator.mediaSession.metadata.artist)`));
+  ok('the lock screen knows the episode', await ev(c, `return /Chapter 2/.test(navigator.mediaSession.metadata.title) && /Sonia & Brian/.test(navigator.mediaSession.metadata.artist)`));
 
   // A segment chip: "Lesson 7".
   await ev(c, `[...document.querySelectorAll('.pchip')].find(b=>/^Lesson 7/.test(b.textContent)).click(); return 1`);
