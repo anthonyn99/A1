@@ -57,7 +57,7 @@
     "voice": "en-GB-LibbyNeural",
     "mp3": "ch09-read.mp3",
     "json": "ch09-read.json",
-    "duration": 461.376
+    "duration": 464.136
   },
   "10": {
     "voice": "en-GB-LibbyNeural",
@@ -81,7 +81,7 @@
     "voice": "en-GB-LibbyNeural",
     "mp3": "ch13-read.mp3",
     "json": "ch13-read.json",
-    "duration": 396.816
+    "duration": 425.856
   },
   "14": {
     "voice": "en-GB-LibbyNeural",
@@ -99,7 +99,7 @@
     "voice": "en-GB-LibbyNeural",
     "mp3": "ch16-read.mp3",
     "json": "ch16-read.json",
-    "duration": 255.072
+    "duration": 276.0
   },
   "17": {
     "voice": "en-GB-LibbyNeural",
