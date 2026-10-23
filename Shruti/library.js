@@ -168,9 +168,9 @@ export async function viewLibrary(el, { go }) {
   el.innerHTML =
     '<div class="lib-hero"><h1>Library</h1><p>Read, listen, watch and study.</p></div>' +
     '<div class="lib">' +
-    '<section class="lib-sec" data-where="shared"><div class="sec-h lib-h"><h2>Shared</h2><span class="n">Tony and Veda</span></div>' +
+    '<section class="lib-sec" data-shelf="shared"><div class="sec-h lib-h"><h2>Shared</h2><span class="n">Tony and Veda</span></div>' +
     '<div class="shelf" id="shelf-shared">' + sharedBooks.map(card).join('') + addTile('shared') + '</div>' + dropNote('shared') + '</section>' +
-    '<section class="lib-sec" data-where="mine"><div class="sec-h lib-h"><h2>Mine</h2><span class="n">' + esc(PROFILES[PROFILE] ? 'Only ' + PROFILES[PROFILE].label : '') + '</span></div>' +
+    '<section class="lib-sec" data-shelf="mine"><div class="sec-h lib-h"><h2>Mine</h2><span class="n">' + esc(PROFILES[PROFILE] ? 'Only ' + PROFILES[PROFILE].label : '') + '</span></div>' +
     '<div class="shelf" id="shelf-mine">' + mine.map(card).join('') + addTile('mine') + '</div>' + dropNote('mine') + '</section></div>';
   el.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => { if (!(window.A1Drag && A1Drag.active)) go(b.dataset.go); }));
   el.querySelectorAll('[data-import]').forEach((b) => b.addEventListener('click', () => IMP().then((m) => m.open({ go, where: b.dataset.import }))));
@@ -190,11 +190,11 @@ const dragKind = (dt) => {
 function dropImport(lib, go) {
   const secs = [...lib.querySelectorAll('.lib-sec')];
   const whereAt = (y) => {
-    const mine = secs.find((x) => x.dataset.where === 'mine'), shared = secs.find((x) => x.dataset.where === 'shared');
+    const mine = secs.find((x) => x.dataset.shelf === 'mine'), shared = secs.find((x) => x.dataset.shelf === 'shared');
     const line = (shared.getBoundingClientRect().bottom + mine.getBoundingClientRect().top) / 2;
     return y < line ? 'shared' : 'mine';
   };
-  const light = (w) => secs.forEach((x) => x.classList.toggle('drop-on', x.dataset.where === w));
+  const light = (w) => secs.forEach((x) => x.classList.toggle('drop-on', x.dataset.shelf === w));
   let leaveT = 0;
   // On the whole page, so a drop just past a shelf still lands; only while the
   // library is the view.
