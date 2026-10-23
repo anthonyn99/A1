@@ -119,19 +119,19 @@
   "14": {
     "mp3": "ch14-podcast.mp3",
     "json": "ch14-podcast.json",
-    "duration": 619.272,
+    "duration": 610.872,
     "hosts": [
       "Sonia",
-      "Ryan"
+      "Brian"
     ]
   },
   "15": {
     "mp3": "ch15-podcast.mp3",
     "json": "ch15-podcast.json",
-    "duration": 586.512,
+    "duration": 577.968,
     "hosts": [
       "Sonia",
-      "Ryan"
+      "Brian"
     ]
   },
   "16": {
