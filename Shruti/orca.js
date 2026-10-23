@@ -175,8 +175,9 @@ export async function chat({ key, messages, models, onDelta, onModel, signal, fe
 }
 
 /* ── speech: POST /v1/audio/speech with timestamps (Edge neural voices) ───── */
-// Read-aloud's default (Tony, 2026-10-22: Sonia, like the podcasts and videos).
-export const DEFAULT_VOICE = 'en-GB-SoniaNeural';
+// Read-aloud's default (Tony, 2026-10-22: Libby, "another elegant female" than
+// Sonia, who hosts the podcasts and narrates the videos).
+export const DEFAULT_VOICE = 'en-GB-LibbyNeural';
 /** Used when /audio/voices cannot be asked (no key yet): the same vetted set. */
 export const VOICES = [
   ['en-US-AvaMultilingualNeural', 'Ava', 'en-US', 'female'], ['en-US-AndrewMultilingualNeural', 'Andrew', 'en-US', 'male'],

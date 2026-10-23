@@ -99,7 +99,7 @@ async def chapter(n, voice):
 
 async def main():
     args = sys.argv[1:]
-    voice = "en-GB-SoniaNeural"   # the read-aloud default (Tony, 2026-10-22)
+    voice = "en-GB-LibbyNeural"   # the read-aloud default (Tony, 2026-10-22)
     if "--voice" in args:
         i = args.index("--voice")
         voice = args[i + 1]
