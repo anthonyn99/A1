@@ -1957,7 +1957,10 @@ function etDateStr(offsetDays = 0){
 //      estimate (Tesla announced Oct 21 on Oct 2; Finnhub still said Oct 20);
 //   3. then the earlier date.
 // `sources` rides along so the front-end can apply the same rule.
-const EARN_SRC_RANK = { nasdaq: 3, finnhub: 2, av: 1 };
+// 'ai-confirmed' (a Google-searched, company-announced date; it always rides
+// with 'ai', so it is two votes) sits between Nasdaq and Finnhub; a searched
+// estimate ranks last.
+const EARN_SRC_RANK = { nasdaq: 3, 'ai-confirmed': 2.5, finnhub: 2, av: 1, ai: 0.5 };
 function pickEarningsDates(earnMap, dateVotes){
   const best = new Map();   // ticker → { ev, votes, rank }
   for (const [key, ev] of earnMap){
@@ -2393,8 +2396,8 @@ async function pushNewsToFirebase(result){
 
 // ── Earnings via grounded Gemini (Google Search) — the gap filler ───────────
 // Finnhub, Nasdaq and AlphaVantage between them still miss or misdate names:
-// SCCO reported on 2026-10-21 while Finnhub listed Oct 26 and Nasdaq Oct 27 up
-// to the week before, and two days AFTER the report Finnhub still had Oct 26 as
+// SCCO reported on 2026-10-21 while the sources listed Oct 26 and Oct 27 the
+// week before, and two days AFTER the report Finnhub still had Oct 26 as
 // "upcoming". So every watchlist ticker the three sources leave with no date or
 // a single-source date is looked up with Google Search: its last report and its
 // next one. One call covers all of them, and answers are kept a day in one KV
@@ -2522,8 +2525,42 @@ async function buildCalendar(wl, env, days, diag){
   for (const e of earn)    addEarn('finnhub', e);
   for (const e of nasEarn) addEarn('nasdaq',  e);
   for (const a of avEarn)  addEarn('av',      a);
+
+  // 2c) Google-searched dates for every ticker the sources leave without a date
+  //     two of them agree on (see fetchEarningsAI). A company-announced date
+  //     counts as two votes ('ai' + 'ai-confirmed'); an estimate as one.
+  const agreed = new Set();
+  for (const [key, srcs] of dateVotes) if (srcs.size >= 2) agreed.add(key.split('|')[0]);
+  const aiEarn = await fetchEarningsAI(wl.filter(t => !agreed.has(t)), env, fromD, diag).catch(e => { diag&&diag.push('ai-earn: EXC '+e.message); return {}; });
+  for (const [t, a] of Object.entries(aiEarn)){
+    if (!a.next || a.next > toD) continue;
+    addEarn('ai', { ticker:t, date:a.next, when:a.when });
+    if (a.nextConfirmed) dateVotes.get(t + '|' + a.next).add('ai-confirmed');
+  }
+  // A ticker that already reported this quarter has no other report coming in a
+  // 30-day window: whatever a source still lists is the old estimate (SCCO,
+  // 2026-10-23: reported Oct 21, Finnhub still said Oct 26). Removed before the
+  // pick so the AI's real next date, if in window, can win.
+  const reported = {};
+  for (const [t, a] of Object.entries(aiEarn)){
+    if (!a.last || dayDiff(fromD, a.last) > EARN_RECENT_REPORT_DAYS) continue;
+    reported[t] = a.last;
+    for (const key of [...earnMap.keys()]){
+      const [kt, kd] = key.split('|');
+      if (kt !== t || kd === a.next || dayDiff(kd, a.last) > EARN_STALE_AFTER_REPORT_DAYS) continue;
+      earnMap.delete(key); dateVotes.delete(key);
+      diag && diag.push('ai-earn: dropped stale '+t+' '+kd+' (reported '+a.last+')');
+    }
+  }
+  cov.reported = reported;
+  cov.ai = Object.keys(aiEarn).sort();
   const earnOut = pickEarningsDates(earnMap, dateVotes);
-  diag && diag.push('earnings: '+earnOut.filter(e=>e.confirmed).length+' confirmed / '+earnOut.length+' total (3 sources)');
+  diag && diag.push('earnings: '+earnOut.filter(e=>e.confirmed).length+' confirmed / '+earnOut.length+' total (3 sources + AI search)');
+  // Reports from the last two weeks, so a date no build caught beforehand still
+  // lands on the published calendar's past days (tbPublishCalendar keeps them).
+  const recent = Object.entries(reported)
+    .filter(([, d]) => dayDiff(fromD, d) <= 14)
+    .map(([t, d]) => { const ev = { kind:'earnings', ticker:t, name:`${t} Earnings`, date:d, category:'earnings', when:null, epsEst:null, confirmed:true, sources:['ai'], reported:true }; return { ...ev, id: calEventId(ev) }; });
 
   // 3) Merge: authoritative wins. The hardcoded table only covers certain YEARS
   //    (see HARDCODED_YEARS). For those years, AI guesses of hardcoded release
@@ -2579,7 +2616,7 @@ async function buildCalendar(wl, env, days, diag){
   // briefly (CAL_PARTIAL_TTL) so the next open rebuilds instead of serving the
   // holes for 12h; the front-end keeps published dates through it either way.
   const partial = !degraded && (cov.nasdaqFailed.length > 0 || cov.finnhubSyms.length < wl.length);
-  return { events, generatedAt: Date.now(), from: fromD, to: toD, earningsCount: earnOut.length, degraded, partial, coverage: cov };
+  return { events, recent, generatedAt: Date.now(), from: fromD, to: toD, earningsCount: earnOut.length, degraded, partial, coverage: cov };
 }
 
 
