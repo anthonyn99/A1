@@ -215,7 +215,7 @@ const prog = (c, path) => ev(c, `return JSON.stringify(window.Shruti.core.me.get
   ok('…and shows it', await waitFor(c, `document.querySelector('.sm-sel') && document.querySelector('.sm-sel').textContent.length>40`));
   await ev(c, `document.querySelector('#gen-sheet [data-close]').click(); return 1`);
   await ev(c, `location.hash='#/b/gita/0/study'; return 1`);
-  ok('the introduction has Read and Study, and its ready-made set', await waitFor(c, `document.querySelectorAll('.modes button').length===2 && document.querySelectorAll('.sh-kind').length===4 && /The introduction/.test(document.querySelector('.sh-set-h b').textContent)`));
+  ok('the introduction has Read and Study, and its ready-made set', await waitFor(c, `document.querySelectorAll('.modes button').length===2 && document.querySelectorAll('.sh-kind').length===4 && /The introduction/.test(document.querySelector('.sh-set-b b').textContent)`));
   ok('no page errors for Tony', !(await ev(c, `return (window.__errs||[]).join(' | ')`)), await ev(c, `return (window.__errs||[]).join(' | ')`));
 
   console.log('\nVeda at 390');
