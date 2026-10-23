@@ -280,7 +280,7 @@ const imp = (x) => `const IMP = await import(new URL('import.js', location.href)
   ok('two sets: the ready-made first', await waitFor(c, `document.querySelectorAll('.sh-set').length===2`) && (await keysOf(c, '.sh-set')) === 'ch4|sAI1');
   await mouseDrag(c, '.sh-set', 1, 0, { edge: 0.5 });
   ok('a set drags above the other (order.sets.gita)', (await keysOf(c, '.sh-set')) === 'sAI1|ch4' && (await ev(c, `return (window.Shruti.core.me.get('order.sets.gita',[])||[]).join()`)) === 'sAI1,ch4', await keysOf(c, '.sh-set'));
-  await ev(c, `document.querySelector('.sh-set[data-dkey=ch4] [data-pick]').click(); return 1`);
+  await ev(c, `document.querySelector('.sh-set[data-dkey=ch4]').click(); return 1`);
   ok('picking a set shows its kinds as tabs', await waitFor(c, `document.querySelector('.sh-set.on')?.dataset.dkey==='ch4' && document.querySelectorAll('.sh-kinds[data-dkey=ch4] .sh-kind').length===4`));
   const kinds0 = await ev(c, `return [...document.querySelectorAll('.sh-kinds[data-dkey=ch4] .sh-kind')].map(e=>e.dataset.kind).join()`);
   await mouseDrag(c, '.sh-kinds[data-dkey=ch4] .sh-kind', 3, 0, { edge: 0.5 });
