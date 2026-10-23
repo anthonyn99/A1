@@ -972,41 +972,42 @@ body[data-profile=veda] { --k-flashcards: #A892B0; --k-quiz: #9bb08a; --k-mindma
   --b0: #A892B0; --b1: #8ea6c2; --b2: #9bb08a; --b3: #c9a08f; --b4: #c497b0; --b5: #93b8b0; }
 .k-flashcards { --k: var(--k-flashcards); } .k-quiz { --k: var(--k-quiz); } .k-mindmap { --k: var(--k-mindmap); } .k-slides { --k: var(--k-slides); }
 
-/* Study: the sets in a row, the chosen set's tools as tabs, the tool below
-   (Tony, 2026-10-22: "a horizontal header instead of vertical"). */
-.sh { display: flex; flex-direction: column; gap: 12px; }
-.sh-top { display: flex; align-items: center; gap: 8px; }
-.sh-sets { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px; }
-.sh-sets::-webkit-scrollbar { display: none; }
-.sh-set { flex: 0 0 auto; display: flex; align-items: center; gap: 2px; padding: 3px; border-radius: 12px; border: 1px solid var(--line); background: transparent; transition: border-color .15s, background .15s; }
-body[data-profile=veda] .sh-set { border-radius: 999px; }
-.sh-set:hover { border-color: var(--line2); }
-.sh-set.on { border-color: var(--ac-line); background: var(--ac-soft); }
-.sh-set { cursor: pointer; color: var(--txm); }
-.sh-set-b { display: flex; align-items: baseline; gap: 8px; padding: 5px 10px; white-space: nowrap; max-width: 340px; }
-.sh-set-b b { font-size: 13px; font-weight: 650; color: inherit; overflow: hidden; text-overflow: ellipsis; }
-.sh-set-b span { font-size: 11.5px; color: var(--txd); }
-.sh-set.on { color: var(--tx); }
-.sh-make { flex: 0 0 auto; margin-left: auto; }
-.ib.sm { width: 30px; height: 30px; min-height: 30px; }
-.ib.sm svg { width: 15px; height: 15px; }
-.sh-bar { display: flex; align-items: center; gap: 8px; }
-.sh-kinds { flex: 1; min-width: 0; display: flex; gap: 4px; padding: 4px; border-radius: 14px; background: var(--s1); border: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+/* Study: one concise row (Tony, 2026-10-22): the kinds as a compact
+   segmented control (icon, name, a short tag), then on the right the sets as
+   small pills, Make (✦) and Focus. The tool below. */
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.sh { display: flex; flex-direction: column; gap: 14px; }
+.sh-bar { display: flex; align-items: center; gap: 10px; }
+.sh-kinds { display: inline-flex; gap: 2px; padding: 3px; border-radius: 12px; background: var(--s1); border: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; max-width: 100%; }
 .sh-kinds::-webkit-scrollbar { display: none; }
 body[data-profile=veda] .sh-kinds { border-radius: 999px; }
-.sh-kind { flex: 1 1 0; min-width: max-content; display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 42px; padding: 5px 12px; border: 1px solid transparent; border-radius: 10px; background: none; color: var(--txm); cursor: pointer; transition: background .15s, color .15s, border-color .15s; }
+.sh-kind { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 0 12px; border: 1px solid transparent; border-radius: 9px; background: none; color: var(--txm); cursor: pointer; transition: background .15s, color .15s, border-color .15s; }
 body[data-profile=veda] .sh-kind { border-radius: 999px; }
 .sh-kind:hover { color: var(--tx); }
 .sh-kind.on { background: var(--s3); color: var(--tx); border-color: var(--line2); box-shadow: var(--sh1); }
-.sh-kind i { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; color: var(--k); background: color-mix(in srgb, var(--k) 13%, transparent); flex-shrink: 0; }
-.sh-kind i svg { width: 15px; height: 15px; }
-.sh-kind span { font-weight: 650; font-size: 13.5px; white-space: nowrap; }
-.sh-kind em { font-style: normal; font-size: 11px; font-weight: 650; color: var(--txm); padding: 2px 8px; border-radius: 999px; background: var(--s3); white-space: nowrap; }
-.sh-kind.on em { background: var(--s2); }
-.sh-kind em.due { color: var(--k); background: color-mix(in srgb, var(--k) 15%, transparent); }
-.sh-kind em.good { color: var(--good); background: color-mix(in srgb, var(--good) 14%, transparent); }
-.sh-focus { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: auto; min-width: 44px; height: 52px; padding: 0 14px; gap: 7px; border-radius: 14px; font: 650 13px var(--f-ui); color: var(--txm); }
-body[data-profile=veda] .sh-focus { border-radius: 999px; }
+.sh-kind i { display: grid; place-items: center; color: var(--k); flex-shrink: 0; }
+.sh-kind i svg { width: 16px; height: 16px; }
+.sh-kind span { font-weight: 650; font-size: 13px; white-space: nowrap; }
+.sh-kind em { font-style: normal; font-size: 11.5px; font-weight: 600; color: var(--txd); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sh-kind em b { font-weight: 600; }
+.sh-kind em.due { color: var(--k); }
+.sh-kind em.good { color: var(--good); }
+.sh-right { margin-left: auto; min-width: 0; display: flex; align-items: center; gap: 6px; }
+.sh-sets { min-width: 0; max-width: 420px; display: flex; align-items: center; gap: 4px; overflow-x: auto; scrollbar-width: none; padding: 2px; }
+.sh-sets::-webkit-scrollbar { display: none; }
+.sh-set { flex: 0 0 auto; display: flex; align-items: center; gap: 2px; min-height: 32px; padding: 0 4px 0 2px; border-radius: 999px; border: 1px solid var(--line); background: transparent; cursor: pointer; color: var(--txm); transition: border-color .15s, background .15s, color .15s; }
+.sh-set:hover { border-color: var(--line2); color: var(--tx); }
+.sh-set.on { border-color: var(--ac-line); background: var(--ac-soft); color: var(--tx); }
+.sh-set-b { display: flex; align-items: center; padding: 0 8px; white-space: nowrap; max-width: 220px; }
+.sh-set-b b { font-size: 12.5px; font-weight: 650; color: inherit; overflow: hidden; text-overflow: ellipsis; }
+.sh-set-b span { display: none; }   /* who and when are in the pill's title */
+.sh-set .ib.sm { width: 24px; height: 24px; min-height: 24px; border-color: transparent; }
+.sh-set .ib.sm svg { width: 13px; height: 13px; }
+.ib.sm { width: 30px; height: 30px; min-height: 30px; }
+.ib.sm svg { width: 15px; height: 15px; }
+.sh-make, .sh-focus { flex: 0 0 auto; width: 36px; height: 36px; min-height: 36px; }
+.sh-focus { display: inline-flex; align-items: center; justify-content: center; gap: 7px; font: 650 13px var(--f-ui); color: var(--txm); }
+.sh-focus span { display: none; }
 .sh-focus.on { color: var(--ac); border-color: var(--ac-line); background: var(--ac-soft); }
 .sh-main { min-width: 0; margin-top: 4px; }
 /* Focus: every header away; the tool alone, with its own bar, and one small
@@ -1016,7 +1017,10 @@ body.sh-focusing .sh-top, body.sh-focusing .sh-kinds, body.sh-focusing .bnav, bo
 body.sh-focusing { --top-h: 0px; --bnav-h: 0px; }
 body.sh-focusing #view { padding-top: 16px; }
 body.sh-focusing .sh-bar { position: fixed; top: 10px; right: max(12px, calc((100vw - 2000px) / 2 + 12px)); z-index: 60; }
-body.sh-focusing .sh-focus { height: 40px; box-shadow: var(--sh2); background: var(--s2); }
+body.sh-focusing .sh-focus { width: auto; height: 40px; padding: 0 14px; box-shadow: var(--sh2); background: var(--s2); }
+body.sh-focusing .sh-focus span { display: inline; }
+body.sh-focusing .sh-right { margin-left: 0; }
+body.sh-focusing .sh-sets, body.sh-focusing .sh-make { display: none; }
 body.sh-focusing .sh-main { margin-top: 0; }
 /* Focus gives the tool the room the headers had. */
 body.sh-focusing .fc-stage .fc-card { height: clamp(300px, 64vh, 640px); }
@@ -1212,18 +1216,15 @@ body[data-profile=veda] .sd-top, body[data-profile=veda] .sd-foot { text-transfo
 body.sd-presenting { overflow: hidden; }
 
 @media (max-width: 760px) {
+  /* A phone: the kinds take the row, icon over name; the sets and buttons below. */
   .sh { gap: 10px; }
-  .sh-set-b span { display: none; }
-  .sh-make span { display: none; }
-  .sh-make { padding: 0 10px; }
-  .sh-kinds { gap: 2px; padding: 3px; }
-  .sh-kind { flex-direction: column; gap: 3px; min-width: 0; min-height: 52px; padding: 5px 2px; }
-  .sh-kind i { width: 24px; height: 24px; }
+  .sh-bar { flex-wrap: wrap; gap: 8px; }
+  .sh-kinds { display: flex; width: 100%; }
+  .sh-kind { flex: 1 1 0; min-width: 0; flex-direction: column; gap: 2px; min-height: 48px; padding: 4px 2px; }
   .sh-kind span { font-size: 11.5px; }
   .sh-kind em { display: none; }
-  .sh-focus { min-width: 48px; padding: 0 12px; height: 62px; }
-  .sh-focus span { display: none; }
-  body.sh-focusing .sh-focus { height: 40px; }
+  .sh-right { width: 100%; margin-left: 0; }
+  .sh-sets { flex: 1; max-width: none; }
   body.sh-focusing .sh-tool > * > .st-bar:first-child { padding-right: 56px; }
   .fc-stage .fc-card { height: clamp(230px, 42vh, 360px); }
   .fc-face { padding: 16px 18px; }
