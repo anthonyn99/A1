@@ -751,6 +751,21 @@ function mentionedTickers(text, wl){
 }
 
 // ─── source fetchers ──────────────────────────────────────────────────────
+// Every fetcher swallows its own failures and returns [], so a dead key or a
+// rate-limited source used to look exactly like a quiet news day (2026-10-23:
+// the 6am build got 5 articles and showed "AI quota exhausted"). srcFetch keeps
+// a per-host tally of HTTP statuses for the current build; fetchAllSources
+// saves it to stage:fetchstats, which /_stage-debug shows.
+let _srcStats = {};
+async function srcFetch(url, init){
+  const host = (String(url).match(/^https?:\/\/([^/]+)/) || [])[1] || '?';
+  const s = _srcStats[host] || (_srcStats[host] = {});
+  try {
+    const r = await fetch(url, init);
+    s[r.status] = (s[r.status] || 0) + 1;
+    return r;
+  } catch(e){ s.threw = (s.threw || 0) + 1; throw e; }
+}
 // Finnhub per-ticker with date range — but we run it AFTER other sources
 // and only for tickers that need more coverage. Real article URLs returned
 // so cross-ticker dedup works cleanly in clustering.
@@ -1253,6 +1268,11 @@ async function fetchAllSources(env, useLimitedAPIs, wl){
 
   const all = [...mx, ...sd, ...av, ...tg, ...fg, ...tt, ...ec, ...gn, ...perTicker]
     .filter(a => a.headline && a.ts >= cutoff);
+  const byFeed = {};
+  for (const a of all) byFeed[a.feed] = (byFeed[a.feed] || 0) + 1;
+  await env.NEWSHUB_CACHE.put('stage:fetchstats', JSON.stringify({
+    at: Date.now(), wl: wl.length, limited: !!useLimitedAPIs, articles: all.length, byFeed, http: _srcStats,
+  }), { expirationTtl: DIAG_TTL }).catch(()=>{});
   // Theme broadening: re-attribute sector/supply-chain articles to every
   // affected watchlist ticker (e.g. an SK-Hynix memory story → SNDK+MU+WDC),
   // so big industry news that names none of our companies still surfaces.
