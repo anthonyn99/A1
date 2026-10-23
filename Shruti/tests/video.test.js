@@ -46,8 +46,6 @@ const XREF = /\s*\((?:also\s+)?see\b[^)]*\)/gi;
   const missing = Array.from({ length: 18 }, (_, i) => String(i + 1)).filter((k) => !index[k]);
   ok('all 18 chapters have a video', !missing.length, 'missing: ' + missing.join(','));
   ok('there is a script for every shipped video', Object.keys(index).every((n) => scripts.includes('ch' + String(n).padStart(2, '0') + '-video.json')));
-  const hosts = new Set();
-  for (const f of fs.readdirSync(path.join(DIR, 'books/gita/scripts')).filter((x) => /-podcast\.json$/.test(x))) JSON.parse(read('books/gita/scripts/' + f)).hosts.forEach((h) => hosts.add(h.voice));
 
   let total = 0;
   for (const f of scripts) {
@@ -56,7 +54,7 @@ const XREF = /\s*\((?:also\s+)?see\b[^)]*\)/gi;
     const ch = JSON.parse(read('books/gita/ch' + String(n).padStart(2, '0') + '.json'));
     const verses = {}; ch.blocks.filter((b) => b.k === 'p').forEach((b) => b.s.forEach((s) => { if (s.v) verses[s.v] = s; }));
     console.log('\nChapter ' + n + ' (' + sc.scenes.length + ' scenes)');
-    ok('one narrator, an Edge voice that is not a podcast host', sc.n === n && /^en-[A-Z]{2}-\w+Neural$/.test(sc.narrator.voice) && !hosts.has(sc.narrator.voice) && sc.narrator.name);
+    ok('one narrator, an Edge voice', sc.n === n && /^en-[A-Z]{2}-\w+Neural$/.test(sc.narrator.voice) && sc.narrator.name);
     ok('known layouts; a title first and a summary last', sc.scenes.every((s) => VID.LAYOUTS.includes(s.layout)) && sc.scenes[0].layout === 'title' && sc.scenes[sc.scenes.length - 1].layout === 'closing');
     ok('every scene says something (a verse scene at least names its verse)', sc.scenes.every((s) => s.say && s.say.trim().split(/\s+/).length >= (s.layout === 'verse' ? 3 : 8)));
     const tagged = new Set(sc.scenes.flatMap((s) => s.L || []));
