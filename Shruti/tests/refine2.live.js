@@ -205,7 +205,13 @@ async function pass1(c, who, w) {
     const b = await pt(c, '.mm-branch');
     await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: b.x, y: b.y });
     await sleep(300);
-    ok(tag + ': hovering a mind map node puts no filter on it (no flash)', await ev(c, `const e=document.querySelector('.mm-branch'); return e.matches(':hover') && (getComputedStyle(e).filter==='none') && !e.style.filter`), await ev(c, `return getComputedStyle(document.querySelector('.mm-branch')).filter`));
+    const under = `const t=document.elementFromPoint(${b.x}, ${b.y}); const e=t&&t.closest('.mm-branch');`;
+    ok(tag + ': hovering a mind map node puts no filter on it (no flash)', await ev(c, under + ` return !!e && getComputedStyle(e).filter==='none' && !e.style.filter`), await ev(c, under + ` return (t&&t.className)+' '+(e&&getComputedStyle(e).filter)`));
+    // The same hover on a toolbar button does get hoverfx's filter, so the check above can fail.
+    const tb = await pt(c, '.mm ~ * .st-actions .btn, .mm .st-actions .btn');
+    await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: tb.x, y: tb.y });
+    await sleep(300);
+    ok(tag + ': …while a toolbar button beside it still lifts on hover', await ev(c, `return /brightness/.test(document.querySelector('.mm .st-actions .btn').style.filter || '') || [...document.querySelectorAll('.mm .st-actions .btn')].some(x=>/brightness/.test(x.style.filter||''))`));
   }
   ok(tag + ': Study is no wider than the screen', await noOverflow(c));
 
