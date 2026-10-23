@@ -40,7 +40,7 @@ Live: https://anthonyn99.github.io/A1/Shruti/shruti.html
 | `text.js` | DOM-free helpers: a block's spoken text, segments, words, lining the voice's words up with the page's |
 | `styles.css` | the one stylesheet (Tony = MAGI look, Veda = StudyOS look) |
 | `books/gita/` | the shipped Gita: `book.json` (contents), `ch00.json` (introduction), `ch01.json`–`ch18.json`, `lessons.json`, `lessons-more.json` (each lesson's popup detail) |
-| `books/gita/media/` | ready-made media: read-aloud for the introduction and all 18 chapters (Sonia, the default read-aloud voice since 2026-10-22; before that Ava; `chNN-read.mp3/.json`, listed in `index.json`) the podcast for all 18 chapters (Sonia and Brian; `chNN-podcast.mp3/.json`, listed in `podcasts.json`) and the video narration for all 18 chapters (Sonia; `chNN-video.mp3/.json`, listed in `videos.json`) |
+| `books/gita/media/` | ready-made media: read-aloud for the introduction and all 18 chapters (Libby, the default read-aloud voice since 2026-10-22; before that Ava; `chNN-read.mp3/.json`, listed in `index.json`) the podcast for all 18 chapters (Sonia and Brian; `chNN-podcast.mp3/.json`, listed in `podcasts.json`) and the video narration for all 18 chapters (Sonia; `chNN-video.mp3/.json`, listed in `videos.json`) |
 | `books/gita/study/`, `books/gita/study.json` | the ready-made study sets, written by Claude: `chNN.json` = `{n, title, flashcards:[{front, back, ref, L}], quiz:[{text, options:{A..D}, correct, why, L}], mindmap:{root, branches:[{text, L, children:[{text, L}]}]}, slides:[{title, bullets, L}]}` for the introduction and all 18 chapters; every lesson tagged (`L`) in the flashcards, the slides and the mind map. `study.json` lists them with their counts (`node Shruti/tools/study-index.js`) |
 | `books/gita/scripts/` | the podcast and video scripts, written by Claude: `chNN-podcast.json` = `{hosts, segments:[{title, turns:[{s, t, L}]}]}`; `chNN-video.json` = `{narrator, scenes:[{layout, headline, visual, say, L, ref, beyond}]}`. Every lesson of the chapter is tagged (`L`) where it is taught and has its own part or scene |
 | `worker/` | `shruti-drive`, the Google Drive media worker (deployed to account 2) |
@@ -280,7 +280,7 @@ The sources are in `C:\Users\antho\Desktop\Gita\` (the IGS PDF and the notes PDF
 The ready-made narrations (need edge-tts 7.3.1 or newer, which MAGI's venv has):
 
 ```
-magi\.venv\Scripts\python -I Shruti\tools\narrate.py            # introduction + Ch 1-3 in Sonia (pass all 19 numbers for every chapter)
+magi\.venv\Scripts\python -I Shruti\tools\narrate.py            # introduction + Ch 1-3 in Libby (pass all 19 numbers for every chapter)
 magi\.venv\Scripts\python -I Shruti\tools\narrate.py 4 5 --voice en-GB-RyanNeural
 node Shruti/tests/reader.test.js
 ```

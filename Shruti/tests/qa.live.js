@@ -210,7 +210,7 @@ async function audit(c, label) {
   await ev(c, `document.querySelector('#ra-save [data-ra-drive]').click(); return 1`);
   ok('…its button opens Settings at Google Drive', await waitFor(c, `!!document.getElementById('st-drive') && /Not connected/.test(document.getElementById('st-drive').textContent)`));
   await closeSheets(c);
-  await ev(c, `window.Shruti.core.me.set({'narration.voice':'en-GB-SoniaNeural'},{now:true}); return 1`);
+  await ev(c, `window.Shruti.core.me.set({'narration.voice':'en-GB-LibbyNeural'},{now:true}); return 1`);
 
   // Import loads when it opens.
   await go(c, '#/', `!!document.querySelector('[data-import]')`);

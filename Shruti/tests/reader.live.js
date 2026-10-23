@@ -26,7 +26,7 @@ const mock = firebaseMock({
     if (req.method === 'OPTIONS') return { status: 204, text: '' };
     const auth = (req.headers && (req.headers.Authorization || req.headers.authorization)) || '';
     if (req.url.startsWith('https://orca.vedapatel05.workers.dev/v1/models')) return auth === 'Bearer ' + KEY ? { json: { object: 'list', data: [{ id: 'deepseek/free', routable: true }] } } : { status: 401, json: {} };
-    if (req.url.startsWith('https://orca.vedapatel05.workers.dev/v1/audio/voices')) return { json: { default: 'en-GB-SoniaNeural', voices: [{ id: 'en-GB-SoniaNeural', name: 'Sonia', locale: 'en-GB', gender: 'female', engine: 'edge' }, { id: 'en-US-AvaMultilingualNeural', name: 'Ava', locale: 'en-US', gender: 'female', engine: 'edge' }, { id: 'en-GB-RyanNeural', name: 'Ryan', locale: 'en-GB', gender: 'male', engine: 'edge' }] } };
+    if (req.url.startsWith('https://orca.vedapatel05.workers.dev/v1/audio/voices')) return { json: { default: 'en-GB-LibbyNeural', voices: [{ id: 'en-GB-LibbyNeural', name: 'Libby', locale: 'en-GB', gender: 'female', engine: 'edge' }, { id: 'en-US-AvaMultilingualNeural', name: 'Ava', locale: 'en-US', gender: 'female', engine: 'edge' }, { id: 'en-GB-RyanNeural', name: 'Ryan', locale: 'en-GB', gender: 'male', engine: 'edge' }] } };
     if (req.url.startsWith('https://orca.vedapatel05.workers.dev/v1/audio/speech')) {
       if (auth !== 'Bearer ' + KEY) return { status: 401, json: {} };
       const b = JSON.parse(req.postData || '{}');
@@ -197,7 +197,7 @@ const flush = (c) => ev(c, `return window.Shruti.core.me.flush().then(()=>1)`);
   ok('…and is saved for him', await waitFor(c, `const d=window.__fakeFs.docs['dashboards/shruti']; return d.narration && d.narration.speed===1.5`, 5000) || (await flush(c), await waitFor(c, `window.__fakeFs.docs['dashboards/shruti'].narration.speed===1.5`)));
   await ev(c, `[...document.querySelectorAll('#ra-sleep .chip')].find(b=>b.textContent==='15 min').click(); return 1`);
   ok('a 15-minute sleep timer shows in the player', await waitFor(c, `/sleep 15 min/.test(document.querySelector('#mini .tt span').textContent)`));
-  ok('the shipped narration is listed as ready', await waitFor(c, `/Sonia\s*Comes with Shruti/.test(document.getElementById('ra-save').textContent)`));
+  ok('the shipped narration is listed as ready', await waitFor(c, `/Libby\s*Comes with Shruti/.test(document.getElementById('ra-save').textContent)`));
   await shot(c, 'reader-sheet-1280');
   await ev(c, `document.querySelector('#ra-sheet [data-close]').click(); document.querySelector('#mini [data-mp=toggle]').click(); return 1`);
   ok('pause pauses', await waitFor(c, `!window.Shruti.narrate.state.playing && document.querySelector('#mini [data-mp=toggle]').getAttribute('aria-label')==='Play'`));
