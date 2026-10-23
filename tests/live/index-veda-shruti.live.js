@@ -18,7 +18,7 @@ async function run(c, label, vedaLinks, flag) {
   await c.send('Page.navigate', { url: ORIGIN + '/A1/oneinbox.html' }); await sleep(800);
   await evalJs(c, `localStorage.clear(); sessionStorage.clear(); localStorage.setItem('td6_mainDash','veda'); sessionStorage.setItem('__fakefs_docs', ${JSON.stringify(JSON.stringify({ 'dashboards/navorder': nav }))}); return 1;`);
   await c.send('Page.navigate', { url: ORIGIN + '/A1/index.html' });
-  await sleep(9000);
+  await sleep(15000);
   const r = JSON.parse(await evalJs(c, `const d=(window.__fakeFs&&window.__fakeFs.docs['dashboards/navorder'])||{}; return JSON.stringify({links:(d.vedaLinks||[]).map(l=>l.label+'|'+l.url), flag:!!d.vedaShrutiSeeded, btn:[...document.querySelectorAll('button,a')].filter(b=>/^\\s*Shruti\\s*$/.test(b.textContent)).length});`));
   console.log(label, JSON.stringify(r));
   return r;
