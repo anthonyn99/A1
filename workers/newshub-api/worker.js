@@ -478,9 +478,11 @@ const AI_CHAIN = [
   { provider:'gemini', model:'gemini-2.5-flash-lite' },       // high-RPD lite fallback
   { provider:'gemini', model:'gemini-2.0-flash' },            // older Gemini fallback
   { provider:'gemini', model:'gemini-3.5-flash' },            // flagship but slow/thinky here → LAST-RESORT gemini (given extra output budget in geminiBody so it's usable when reached)
-  { provider:'nim',    model:'meta/llama-3.1-8b-instruct' },  // cross-provider fallback: live NIM, fast (~8b), separate quota — immune to Gemini 503/daily-cap
-  { provider:'nim',    model:'meta/llama-3.1-70b-instruct' }, // bigger NIM fallback
-  { provider:'nim',    model:'meta/llama-3.3-70b-instruct', slow:true }, // salvage only — ~107s/batch
+  // No NIM entries: NVIDIA retired every llama/mixtral model this chain used
+  // (410 Gone since 2026-08-26), and each dead try still spent one of the build's
+  // 50 subrequests. The only live NIM model that passes /test-ai at n=8
+  // (openai/gpt-oss-20b, checked 2026-10-23) takes ~59s a batch, far past
+  // AI_CALL_TIMEOUT. Re-check with /nim-scan + /test-ai?provider=nim before adding one.
 ];
 // Keep these for /health display
 const GEMINI_CHAIN = AI_CHAIN.filter(e=>e.provider==='gemini').map(e=>e.model);
