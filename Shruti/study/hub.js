@@ -78,6 +78,13 @@ export function status(book, set, kind, it) {
   return { t: it.branches.length + ' branches', c: 'new' };
 }
 
+/** A tag, short: a new kind shows only its count ("16"); the word is kept
+ *  for screen readers and the title ("16 cards"). */
+const tagHTML = (stt) => {
+  const m = stt.c === 'new' && /^(\d+)( .+)$/.exec(stt.t);
+  return m ? '<b>' + m[1] + '</b><span class="vh">' + esc(m[2]) + '</span>' : esc(stt.t);
+};
+
 /** A set's kinds in this person's order. */
 export const kindsOf = (book, s) => OR.arrange(P.KINDS.filter((k) => s.kinds[k]), (k) => k, OR.get('kinds.' + book + '.' + s.id));
 
@@ -126,9 +133,12 @@ export async function renderStudy(body, ctx) {
       sel = { set: s0.id, kind: kindsOf(ctx.book, s0)[0] };
     }
     const cur = sets.find((s) => s.id === sel.set);
-    body.innerHTML = '<div class="sh"><div class="sh-top"><div class="sh-sets" role="tablist" aria-label="Study sets"></div></div>' +
-      '<div class="sh-bar"><div class="sh-kinds" role="tablist" aria-label="Study tools"></div>' +
-      '<button class="ib sh-focus" data-focus aria-pressed="false"></button></div>' +
+    // One row (Tony, 2026-10-22: "more concise"): the kinds as a compact
+    // segmented control on the left; the sets, Make and Focus on the right.
+    body.innerHTML = '<div class="sh"><div class="sh-bar"><div class="sh-kinds" role="tablist" aria-label="Study tools"></div>' +
+      '<div class="sh-right"><div class="sh-sets" role="tablist" aria-label="Study sets"></div>' +
+      '<button class="ib sh-make" data-make title="Make a study set" aria-label="Make a study set">' + IC.spark + '</button>' +
+      '<button class="ib sh-focus" data-focus aria-pressed="false"></button></div></div>' +
       '<section class="sh-main"><div class="sh-tool"></div></section></div>';
     const side = body.querySelector('.sh-sets'), kindsRow = body.querySelector('.sh-kinds');
     side.innerHTML = sets.map((s) => {
@@ -138,9 +148,9 @@ export async function renderStudy(body, ctx) {
       return '<div class="sh-set' + (s.id === sel.set ? ' on' : '') + '" role="tab" tabindex="0" aria-selected="' + (s.id === sel.set) + '" data-pick="' + esc(s.id) + '" data-dkey="' + esc(s.id) + '" title="' + esc(label + ' · ' + meta + '\n' + OR.HINT) + '">' +
         '<span class="sh-set-b"><b>' + esc(label) + '</b><span>' + esc(meta) + '</span></span>' +
         (s.shipped ? '' : '<button class="ib sm" data-del="' + esc(s.id) + '" title="Delete this set" aria-label="Delete this set">' + IC.trash + '</button>') + '</div>';
-    }).join('') + '<button class="btn sm sh-make" data-make>' + IC.spark + '<span>Make a study set</span></button>';
+    }).join('');
     kindsRow.dataset.dkey = cur.id;
-    kindsRow.innerHTML = kindsOf(ctx.book, cur).map((k) => { const stt = status(ctx.book, cur.id, k, cur.kinds[k]); return '<button class="sh-kind k-' + k + (k === sel.kind ? ' on' : '') + '" role="tab" aria-selected="' + (k === sel.kind) + '" data-set="' + esc(cur.id) + '" data-kind="' + k + '" data-dkey="' + k + '"><i>' + IC[k] + '</i><span>' + KIND_NAME[k] + '</span><em class="' + stt.c + '">' + esc(stt.t) + '</em></button>'; }).join('');
+    kindsRow.innerHTML = kindsOf(ctx.book, cur).map((k) => { const stt = status(ctx.book, cur.id, k, cur.kinds[k]); return '<button class="sh-kind k-' + k + (k === sel.kind ? ' on' : '') + '" role="tab" aria-selected="' + (k === sel.kind) + '" data-set="' + esc(cur.id) + '" data-kind="' + k + '" data-dkey="' + k + '"><i>' + IC[k] + '</i><span>' + KIND_NAME[k] + '</span><em class="' + stt.c + '" title="' + esc(stt.t) + '">' + tagHTML(stt) + '</em></button>'; }).join('');
     kindsRow.querySelectorAll('[data-kind]').forEach((b) => b.addEventListener('click', () => { if (window.A1Drag && A1Drag.active) return; remember(ctx, { set: b.dataset.set, kind: b.dataset.kind }); draw(); }));
     side.querySelectorAll('[data-pick]').forEach((b) => {
       const choose = () => {
@@ -176,7 +186,7 @@ export async function renderStudy(body, ctx) {
       const { set, kind } = e.detail, s = sets.find((x) => x.id === set), row = kindsRow.querySelector('.sh-kind[data-set="' + set + '"][data-kind="' + kind + '"] em');
       if (!s || !row) return;
       const stt = status(ctx.book, set, kind, s.kinds[kind]);
-      row.textContent = stt.t; row.className = stt.c;
+      row.innerHTML = tagHTML(stt); row.className = stt.c; row.title = stt.t;
     };
     addEventListener('shruti:study', retag);
     const root = body.querySelector('.sh-tool');
