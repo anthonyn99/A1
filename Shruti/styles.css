@@ -988,7 +988,7 @@ body[data-profile=veda] .sh-kind { border-radius: 999px; }
 .sh-kind i { display: grid; place-items: center; color: var(--k); flex-shrink: 0; }
 .sh-kind i svg { width: 16px; height: 16px; }
 .sh-kind span { font-weight: 650; font-size: 13px; white-space: nowrap; }
-.sh-kind em { font-style: normal; font-size: 11.5px; font-weight: 600; color: var(--txd); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sh-kind em { font-style: normal; font-size: 11.5px; font-weight: 600; color: var(--txm); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .sh-kind em b { font-weight: 600; }
 .sh-kind em.due { color: var(--k); }
 .sh-kind em.good { color: var(--good); }
