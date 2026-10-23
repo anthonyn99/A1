@@ -2481,8 +2481,16 @@ Return ONLY a JSON array, no prose, no markdown fences:
       await env.NEWSHUB_CACHE.put(EARN_AI_KEY, JSON.stringify(cache), { expirationTtl: 14 * 86400 }).catch(()=>{});
     }
   } else if (!need.length) diag&&diag.push('ai-earn: all '+tickers.length+' from cache');
+  // Search results carry the same stale estimates the sources do: on 2026-10-23
+  // it answered SCCO last Oct 21 (right) AND next Oct 27 (the old estimate). A
+  // "next" this close after a report that happened is not the next report.
   const out = {};
-  for (const t of tickers) if (cache[t]) out[t] = cache[t];
+  for (const t of tickers){
+    const a = cache[t];
+    if (!a) continue;
+    out[t] = (a.last && a.next && dayDiff(a.next, a.last) <= EARN_STALE_AFTER_REPORT_DAYS)
+      ? { ...a, next: null, nextConfirmed: false } : a;
+  }
   return out;
 }
 
