@@ -1,116 +1,116 @@
 {
   "0": {
-    "voice": "en-US-AvaMultilingualNeural",
+    "voice": "en-GB-SoniaNeural",
     "mp3": "ch00-read.mp3",
     "json": "ch00-read.json",
-    "duration": 369.312
+    "duration": 354.672
   },
   "1": {
-    "voice": "en-US-AvaMultilingualNeural",
+    "voice": "en-GB-SoniaNeural",
     "mp3": "ch01-read.mp3",
     "json": "ch01-read.json",
-    "duration": 50.472
+    "duration": 48.432
   },
   "2": {
-    "voice": "en-US-AvaMultilingualNeural",
+    "voice": "en-GB-SoniaNeural",
     "mp3": "ch02-read.mp3",
     "json": "ch02-read.json",
-    "duration": 808.656
+    "duration": 767.04
   },
   "3": {
-    "voice": "en-US-AvaMultilingualNeural",
+    "voice": "en-GB-SoniaNeural",
     "mp3": "ch03-read.mp3",
     "json": "ch03-read.json",
-    "duration": 476.928
+    "duration": 450.624
   },
   "4": {
-    "voice": "en-US-AvaMultilingualNeural",
+    "voice": "en-GB-SoniaNeural",
     "mp3": "ch04-read.mp3",
     "json": "ch04-read.json",
-    "duration": 491.76
+    "duration": 466.536
   },
   "5": {
-    "voice": "en-US-AvaMultilingualNeural",
+    "voice": "en-GB-SoniaNeural",
     "mp3": "ch05-read.mp3",
     "json": "ch05-read.json",
-    "duration": 340.344
+    "duration": 314.856
   },
   "6": {
-    "voice": "en-US-AvaMultilingualNeural",
+    "voice": "en-GB-SoniaNeural",
     "mp3": "ch06-read.mp3",
     "json": "ch06-read.json",
-    "duration": 524.64
+    "duration": 486.36
   },
   "7": {
-    "voice": "en-US-AvaMultilingualNeural",
+    "voice": "en-GB-SoniaNeural",
     "mp3": "ch07-read.mp3",
     "json": "ch07-read.json",
-    "duration": 351.024
+    "duration": 319.728
   },
   "8": {
-    "voice": "en-US-AvaMultilingualNeural",
+    "voice": "en-GB-SoniaNeural",
     "mp3": "ch08-read.mp3",
     "json": "ch08-read.json",
-    "duration": 349.344
+    "duration": 326.28
   },
   "9": {
-    "voice": "en-US-AvaMultilingualNeural",
+    "voice": "en-GB-SoniaNeural",
     "mp3": "ch09-read.mp3",
     "json": "ch09-read.json",
-    "duration": 453.528
+    "duration": 419.928
   },
   "10": {
-    "voice": "en-US-AvaMultilingualNeural",
+    "voice": "en-GB-SoniaNeural",
     "mp3": "ch10-read.mp3",
     "json": "ch10-read.json",
-    "duration": 421.824
+    "duration": 380.136
   },
   "11": {
-    "voice": "en-US-AvaMultilingualNeural",
+    "voice": "en-GB-SoniaNeural",
     "mp3": "ch11-read.mp3",
     "json": "ch11-read.json",
-    "duration": 685.92
+    "duration": 622.656
   },
   "12": {
-    "voice": "en-US-AvaMultilingualNeural",
+    "voice": "en-GB-SoniaNeural",
     "mp3": "ch12-read.mp3",
     "json": "ch12-read.json",
-    "duration": 246.984
+    "duration": 223.32
   },
   "13": {
-    "voice": "en-US-AvaMultilingualNeural",
+    "voice": "en-GB-SoniaNeural",
     "mp3": "ch13-read.mp3",
     "json": "ch13-read.json",
-    "duration": 420.12
+    "duration": 391.632
   },
   "14": {
-    "voice": "en-US-AvaMultilingualNeural",
+    "voice": "en-GB-SoniaNeural",
     "mp3": "ch14-read.mp3",
     "json": "ch14-read.json",
-    "duration": 320.424
+    "duration": 292.68
   },
   "15": {
-    "voice": "en-US-AvaMultilingualNeural",
+    "voice": "en-GB-SoniaNeural",
     "mp3": "ch15-read.mp3",
     "json": "ch15-read.json",
-    "duration": 294.672
+    "duration": 271.2
   },
   "16": {
-    "voice": "en-US-AvaMultilingualNeural",
+    "voice": "en-GB-SoniaNeural",
     "mp3": "ch16-read.mp3",
     "json": "ch16-read.json",
-    "duration": 275.472
+    "duration": 255.552
   },
   "17": {
-    "voice": "en-US-AvaMultilingualNeural",
+    "voice": "en-GB-SoniaNeural",
     "mp3": "ch17-read.mp3",
     "json": "ch17-read.json",
-    "duration": 315.168
+    "duration": 293.808
   },
   "18": {
-    "voice": "en-US-AvaMultilingualNeural",
+    "voice": "en-GB-SoniaNeural",
     "mp3": "ch18-read.mp3",
     "json": "ch18-read.json",
-    "duration": 1097.232
+    "duration": 1033.656
   }
 }
