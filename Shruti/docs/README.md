@@ -28,8 +28,10 @@ Live: https://anthonyn99.github.io/A1/Shruti/shruti.html
 | `art.js` | the video's animated pictures: 49 canvas motifs picked from each scene's words, drawn beside the story text |
 | `lexicon.json` | Sanskrit respellings for the voice only (Gita → Geeta, …); the page and captions keep the book's spelling |
 | `media/music/` | the video music beds (`stillness.mp3`, `dawn.mp3`, made by `tools/music.js`) |
+| `media/voices/` | a short preview clip per offered voice (`tools/voices.py`), played with no key |
+| `ptools.js` | what Listen and Watch share under the picture: the speed pill and its speeds, the tool group, a section that folds |
 | `media.js` | Drive uploads to each person's own Drive (`acct`), permanent links, versions (keep, feature, delete with their files) and the synced job status |
-| `study/` | the Study tab (Phase 7): `hub.js` (the sidebar of sets and kinds, the tool pane, "Make a study set" with its scope picker), `parse.js` (MAGI Studio's tolerant parsers, verbatim, plus Shruti's JSON shape), `flashcards.js`, `quiz.js`, `mindmap.js`, `slides.js` (one self-contained tool each: own state, keys, dispose), `ui.js` (icons, swipe, keys, synced progress) |
+| `study/` | the Study tab (Phase 7): `hub.js` (the row of sets, the kind tabs, Focus, the tool pane, "Make a study set" with its scope picker), `parse.js` (MAGI Studio's tolerant parsers, verbatim, plus Shruti's JSON shape), `flashcards.js`, `quiz.js`, `mindmap.js`, `slides.js` (one self-contained tool each: own state, keys, dispose), `ui.js` (icons, swipe, keys, synced progress) |
 | `import.js` | Import (Phase 8): the sheet (a file or pasted text, chapters from the file or by AI, the review screen with rename, split, merge, leave out and drag, a typo-level AI tidy-up, save to Mine or Shared) and `rename()` |
 | `extract.js` | Import's page-free core: text, PDF (pdf.js text items), Word and EPUB to paragraphs; chapter detection; the AI table-of-contents ask and its check; the cut; the tidy-up's word-diff gate |
 | `books.js` | imported books: `books.<id>` in the shared doc or the person's own, each chapter's text in `dashboards/<doc>/texts/<book>_<file>` (cut into `~1`, `~2` parts over 700 KB); list, get, chapter, save, rename, delete |
@@ -37,7 +39,7 @@ Live: https://anthonyn99.github.io/A1/Shruti/shruti.html
 | `pdf.js` | Save as PDF for the Lessons tab (jsPDF 2.5.1 from cdnjs, loaded on the first press) |
 | `text.js` | DOM-free helpers: a block's spoken text, segments, words, lining the voice's words up with the page's |
 | `styles.css` | the one stylesheet (Tony = MAGI look, Veda = StudyOS look) |
-| `books/gita/` | the shipped Gita: `book.json` (contents), `ch00.json` (introduction), `ch01.json`–`ch18.json`, `lessons.json` |
+| `books/gita/` | the shipped Gita: `book.json` (contents), `ch00.json` (introduction), `ch01.json`–`ch18.json`, `lessons.json`, `lessons-more.json` (each lesson's popup detail) |
 | `books/gita/media/` | ready-made media: read-aloud for the introduction and all 18 chapters (Ava; `chNN-read.mp3/.json`, listed in `index.json`) the podcast for all 18 chapters (Emma and Brian; `chNN-podcast.mp3/.json`, listed in `podcasts.json`) and the video narration for all 18 chapters (Sonia; `chNN-video.mp3/.json`, listed in `videos.json`) |
 | `books/gita/study/`, `books/gita/study.json` | the ready-made study sets, written by Claude: `chNN.json` = `{n, title, flashcards:[{front, back, ref, L}], quiz:[{text, options:{A..D}, correct, why, L}], mindmap:{root, branches:[{text, L, children:[{text, L}]}]}, slides:[{title, bullets, L}]}` for the introduction and all 18 chapters; every lesson tagged (`L`) in the flashcards, the slides and the mind map. `study.json` lists them with their counts (`node Shruti/tools/study-index.js`) |
 | `books/gita/scripts/` | the podcast and video scripts, written by Claude: `chNN-podcast.json` = `{hosts, segments:[{title, turns:[{s, t, L}]}]}`; `chNN-video.json` = `{narrator, scenes:[{layout, headline, visual, say, L, ref, beyond}]}`. Every lesson of the chapter is tagged (`L`) where it is taught and has its own part or scene |
