@@ -2115,6 +2115,18 @@ async function fetchEarningsNasdaq(wl, env, fromD, toD, diag, cov){
 // ── Macro via grounded Gemini (Google Search) ────────────────────────────────
 // Grounding can't be combined with responseSchema, so we ask for a JSON array in
 // the text and parse + salvage it, then hard-filter against the whitelist+window.
+// The window's macro answer barely changes within a day, and each build is close
+// to Cloudflare's 50 subrequests (Finnhub per ticker + Nasdaq per weekday), so
+// it is searched once per window and reused — which is what pays for the
+// earnings search (fetchEarningsAI) on the same budget.
+async function fetchMacroCalendarCached(env, fromD, toD, diag){
+  const key = 'cal:macro:' + fromD + ':' + toD;
+  try { const c = await env.NEWSHUB_CACHE.get(key); if (c){ diag&&diag.push('macro: from cache'); return JSON.parse(c); } } catch(e){}
+  const out = await fetchMacroCalendar(env, fromD, toD, diag);
+  if (out && out.length) await env.NEWSHUB_CACHE.put(key, JSON.stringify(out), { expirationTtl: CAL_TTL }).catch(()=>{});
+  return out;
+}
+
 async function fetchMacroCalendar(env, fromD, toD, diag){
   const prompt =
 `You are a financial calendar API. Using Google Search, list scheduled US macroeconomic data releases and Federal Reserve events between ${fromD} and ${toD} (inclusive), US Eastern dates.
@@ -2498,7 +2510,7 @@ async function buildCalendar(wl, env, days, diag){
   const cov = { finnhubSyms: [], nasdaqDates: [], nasdaqFailed: [], av: false };
   const [earn, aiMacro, avEarn, nasEarn] = await Promise.all([
     fetchEarningsCalendar(wl, env, fromD, toD, diag, cov),
-    fetchMacroCalendar(env, fromD, toD, diag),
+    fetchMacroCalendarCached(env, fromD, toD, diag),
     fetchEarningsAlphaVantage(wl, env, fromD, toD, diag, cov),
     fetchEarningsNasdaq(wl, env, fromD, toD, diag, cov),
   ]);
