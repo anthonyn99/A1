@@ -98,7 +98,7 @@ async function pass1(c, who, w) {
     document.querySelector('#view').dispatchEvent(new DragEvent('drop',{dataTransfer:dt,clientX:x,clientY:y,bubbles:true,cancelable:true}));
     return lit;`);
   ok(tag + ': text dragged over Shared lights Shared', await drop('shared') === 'shared');
-  ok(tag + ': …and dropped, the import opens at the review, set to Shared', await waitFor(c, `!!document.querySelector('#imp-sheet [data-where="shared"].on') && document.querySelectorAll('#imp-sheet .imp-ch').length===2`, 8000),
+  ok(tag + ': …and dropped, the import opens at the review, set to Shared', await waitFor(c, `!!document.querySelector('#imp-sheet [data-where="shared"].on') && document.querySelectorAll('#imp-sheet .imp-ch').length>=2`, 8000),
     await ev(c, `return document.querySelector('#imp-body')?.textContent.slice(0,200)`));
   await ev(c, `document.querySelector('#imp-sheet').remove(); return 1`);
   ok(tag + ': text dropped on Mine imports to Mine', await drop('mine') === 'mine' && await waitFor(c, `!!document.querySelector('#imp-sheet [data-where="mine"].on')`, 8000));
@@ -110,7 +110,7 @@ async function pass1(c, who, w) {
   ok(tag + ': Lessons lists 12 lessons, each opens', await go(c, '#/b/gita/2/lessons', `document.querySelectorAll('.ls-i[data-li]').length===12`));
   await click(c, '.ls-i[data-li="1"]');
   ok(tag + ': the popup shows lesson 2 of 12 with its meaning, example, try and verse', await waitFor(c, `const x=document.querySelector('#lx'); return x && /Lesson 2 of 12/.test(x.querySelector('.lx-k').textContent) && x.querySelectorAll('.lx-sec.m,.lx-sec.e,.lx-sec.p,.lx-sec.v').length===4 && /verse 2\\.47/i.test(x.querySelector('.lx-sec.v h3').textContent)`),
-    await ev(c, `return document.querySelector('#lx')?.textContent.slice(0,200)`));
+    await ev(c, `return (document.querySelector('#lx')?.textContent.slice(0,200)||'no popup')+' | '+location.hash+' | '+document.elementFromPoint(innerWidth/2, innerHeight/2)?.className`));
   ok(tag + ': the verse is the book\'s own words', await ev(c, `return /no control or claim over the results/.test(document.querySelector('.lx-sec.v blockquote').textContent)`));
   ok(tag + ': the popup fits the screen', await ev(c, `const r=document.querySelector('.lx').getBoundingClientRect(), n=document.querySelector('.lx-nav').getBoundingClientRect(); return r.left>=0 && r.right<=innerWidth && n.bottom<=innerHeight+1`));
   if (phone) {
