@@ -18,7 +18,14 @@ async function run(c, label, vedaLinks, flag) {
   await c.send('Page.navigate', { url: ORIGIN + '/A1/oneinbox.html' }); await sleep(800);
   await evalJs(c, `localStorage.clear(); sessionStorage.clear(); localStorage.setItem('td6_mainDash','veda'); sessionStorage.setItem('__fakefs_docs', ${JSON.stringify(JSON.stringify({ 'dashboards/navorder': nav }))}); return 1;`);
   await c.send('Page.navigate', { url: ORIGIN + '/A1/index.html' });
-  await sleep(15000);
+  // TaskHub boots slowly in headless Edge: wait for navorder to be heard from
+  // (applyRemote saves the flag) and the header to be drawn, up to 40 s.
+  for (let t = 0; t < 80; t++) {
+    const done = await evalJs(c, `const d=(window.__fakeFs&&window.__fakeFs.docs['dashboards/navorder'])||{}; return !!d.vedaShrutiSeeded && !!document.querySelector('#th-boot-loader')===false;`).catch(() => false);
+    if (done) break;
+    await sleep(500);
+  }
+  await sleep(1500);
   const r = JSON.parse(await evalJs(c, `const d=(window.__fakeFs&&window.__fakeFs.docs['dashboards/navorder'])||{}; return JSON.stringify({links:(d.vedaLinks||[]).map(l=>l.label+'|'+l.url), flag:!!d.vedaShrutiSeeded, btn:[...document.querySelectorAll('button,a')].filter(b=>/^\\s*Shruti\\s*$/.test(b.textContent)).length});`));
   console.log(label, JSON.stringify(r));
   return r;
