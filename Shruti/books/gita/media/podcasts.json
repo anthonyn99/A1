@@ -47,19 +47,19 @@
   "6": {
     "mp3": "ch06-podcast.mp3",
     "json": "ch06-podcast.json",
-    "duration": 638.592,
+    "duration": 643.968,
     "hosts": [
       "Sonia",
-      "Ryan"
+      "Brian"
     ]
   },
   "7": {
     "mp3": "ch07-podcast.mp3",
     "json": "ch07-podcast.json",
-    "duration": 650.472,
+    "duration": 646.248,
     "hosts": [
       "Sonia",
-      "Ryan"
+      "Brian"
     ]
   },
   "8": {
