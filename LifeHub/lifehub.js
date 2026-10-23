@@ -215,6 +215,10 @@
   // existing list once per device and profile (a marker in localStorage); a
   // tile removed afterwards stays removed on that device.
   var ADDED_LATER = ['shruti'];
+  // Added once more for one profile, on every device, if it is missing (a new
+  // marker, so a device that already ran ADDED_LATER does it again). Tony,
+  // 2026-10-22: Shruti on Veda's LifeHub.
+  var READDED = { veda: [{ id: 'shruti', mark: 'shruti@2' }] };
 
   // One list per profile, each its own document and its own local mirror.
   // Tony's keeps the original names so nothing existing moves.
@@ -518,6 +522,12 @@
       if (!app) return;
       try { if (localStorage.getItem(mark)) return; localStorage.setItem(mark, '1'); } catch (e) { return; }
       if (!byId(list, id)) commit(st, addOp(clone(app)));
+    });
+    (READDED[st.profile] || []).forEach(function (r) {
+      var app = byId(st.defaults, r.id), mark = st.lsKey + ':added:' + r.mark;
+      if (!app) return;
+      try { if (localStorage.getItem(mark)) return; localStorage.setItem(mark, '1'); } catch (e) { return; }
+      if (!byId(list, r.id)) commit(st, addOp(clone(app)));
     });
     var a = byId(list, 'shield'), d = byId(st.defaults, 'shield');
     if (a && d && a.url === LEGACY_SHIELD_LINK && !st.migrated) {
