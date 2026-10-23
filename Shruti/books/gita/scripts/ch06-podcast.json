@@ -6,13 +6,13 @@
   "hosts": [
     {
       "id": "A",
-      "name": "Emma",
-      "voice": "en-US-EmmaMultilingualNeural"
+      "name": "Sonia",
+      "voice": "en-GB-SoniaNeural"
     },
     {
       "id": "B",
-      "name": "Brian",
-      "voice": "en-US-BrianMultilingualNeural"
+      "name": "Ryan",
+      "voice": "en-GB-RyanNeural"
     }
   ],
   "segments": [
@@ -21,11 +21,11 @@
       "turns": [
         {
           "s": "A",
-          "t": "Welcome to Shruti. I'm Emma."
+          "t": "Welcome to Shruti. I'm Sonia."
         },
         {
           "s": "B",
-          "t": "And I'm Brian. Today, Chapter Six: the Path of Meditation."
+          "t": "And I'm Ryan. Today, Chapter Six: the Path of Meditation."
         },
         {
           "s": "A",

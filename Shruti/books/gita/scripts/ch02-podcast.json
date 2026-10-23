@@ -6,13 +6,13 @@
   "hosts": [
     {
       "id": "A",
-      "name": "Emma",
-      "voice": "en-US-EmmaMultilingualNeural"
+      "name": "Sonia",
+      "voice": "en-GB-SoniaNeural"
     },
     {
       "id": "B",
-      "name": "Brian",
-      "voice": "en-US-BrianMultilingualNeural"
+      "name": "Ryan",
+      "voice": "en-GB-RyanNeural"
     }
   ],
   "segments": [
@@ -21,11 +21,11 @@
       "turns": [
         {
           "s": "A",
-          "t": "Welcome back to Shruti. I'm Emma."
+          "t": "Welcome back to Shruti. I'm Sonia."
         },
         {
           "s": "B",
-          "t": "I'm Brian. Last time we left Arjuna sitting in his chariot between two armies, his bow on the floor, overwhelmed with sorrow. Today, Chapter Two: Spiritual Knowledge. This is where Krishna speaks."
+          "t": "I'm Ryan. Last time we left Arjuna sitting in his chariot between two armies, his bow on the floor, overwhelmed with sorrow. Today, Chapter Two: Spiritual Knowledge. This is where Krishna speaks."
         },
         {
           "s": "A",
