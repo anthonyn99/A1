@@ -202,7 +202,10 @@ async function pass1(c, who, w) {
   await ev(c, `document.querySelector('.sh-kind[data-kind=mindmap]').click(); return 1`);
   await waitFor(c, `!!document.querySelector('.mm-branch')`);
   if (!phone) {
-    const b = await pt(c, '.mm-branch');
+    // A branch inside the visible map (scrollIntoView would scroll the map itself).
+    await ev(c, `document.querySelector('.mm-port').scrollIntoView({block:'center'}); return 1`);
+    await sleep(300);
+    const b = JSON.parse(await ev(c, `const p=document.querySelector('.mm-port').getBoundingClientRect(); const e=[...document.querySelectorAll('.mm-branch')].find(x=>{const r=x.getBoundingClientRect(); return r.left>p.left && r.right<p.right && r.top>p.top && r.bottom<p.bottom;}); const r=e.getBoundingClientRect(); return JSON.stringify({x:r.left+r.width/2,y:r.top+r.height/2});`));
     await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: b.x, y: b.y });
     await sleep(300);
     const under = `const t=document.elementFromPoint(${b.x}, ${b.y}); const e=t&&t.closest('.mm-branch');`;
