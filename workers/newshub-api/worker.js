@@ -1960,7 +1960,8 @@ function etDateStr(offsetDays = 0){
 // A Google-searched date ('ai') is ONE vote. When the search says the company
 // announced it, 'ai-confirmed' rides along as a marker, not a vote: it ranks the
 // date above a lone Finnhub/AlphaVantage estimate but never above Nasdaq (the
-// search once called NVDA's Nov 17 "announced"; Nasdaq had the real Nov 18).
+// search once called NVDA's Nov 17 "announced" while Nasdaq listed Nov 18,
+// NVIDIA's usual Wednesday).
 const EARN_SRC_RANK = { nasdaq: 3, 'ai-confirmed': 2.5, finnhub: 2, av: 1, ai: 0.5 };
 function pickEarningsDates(earnMap, dateVotes){
   const best = new Map();   // ticker → { ev, votes, rank }
