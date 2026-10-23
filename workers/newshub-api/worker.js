@@ -2479,11 +2479,16 @@ async function fetchEarningsAI(tickers, env, today, diag, maxCalls){
   let calls = 0, wrote = false;
   if (env.GEMINI_KEY){
     const isDate = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
-    for (let i = 0; i < need.length && calls < (maxCalls || 1); i += EARN_AI_BATCH){
-      const batch = need.slice(i, i + EARN_AI_BATCH);
-      calls++;
-      const got = await searchEarningsBatch(batch, env, today, diag);
-      if (!got) break;                         // every model failed: stop spending
+    const batches = [];
+    for (let i = 0; i < need.length && batches.length < (maxCalls || 1); i += EARN_AI_BATCH) batches.push(need.slice(i, i + EARN_AI_BATCH));
+    calls = batches.length;
+    // 3 at a time: quick enough that the calendar build waiting on it barely
+    // notices, gentle enough on the free per-minute limit that a 429 doesn't
+    // block the model (and with it the macro search) for the hour.
+    const results = await mapLimit(batches, 3, b => searchEarningsBatch(b, env, today, diag));
+    for (let k = 0; k < batches.length; k++){
+      const batch = batches[k], got = results[k];
+      if (!got) continue;
       const asked = new Set(batch);
       for (const it of got){
         const t = String(it && it.ticker || '').trim().toUpperCase();
@@ -4667,6 +4672,20 @@ export default {
     // ── /calendar?tickers=A,B,C&days=10 ──────────────────────────────────────
     // Earnings (Finnhub, filtered to tickers) + macro (grounded AI, whitelisted).
     // Cached 12h per watchlist+date. ?fresh=1 forces a rebuild (counts vs daily cap).
+    // /earnings-search?tickers=A,B,C — Google-search the earnings dates of every
+    // ticker whose answer is missing or stale (see fetchEarningsAI). TradeHub
+    // calls it right before each calendar build; answered tickers cost nothing,
+    // so it is cheap to call every time. Its own invocation = its own 50
+    // subrequests, which the calendar build has none of to spare.
+    if (url.pathname === '/earnings-search'){
+      const tk = parseTickers(url.searchParams.get('tickers'));
+      if (!tk || !tk.length)
+        return new Response(JSON.stringify({ ok:false, error:'no tickers' }), { status:400, headers:{ ...cors(), 'Content-Type':'application/json' } });
+      const diag = [];
+      const answers = await fetchEarningsAI(tk, env, etDateStr(0), diag, EARN_AI_MAX_CALLS).catch(e => { diag.push('EXC '+e.message); return {}; });
+      return new Response(JSON.stringify({ ok:true, answers, diag }), { headers:{ ...cors(), 'Content-Type':'application/json' } });
+    }
+
     if (url.pathname === '/calendar'){
       const days     = Math.min(parseInt(url.searchParams.get('days') || '10', 10) || 10, CAL_DAYS_MAX);
       const calFresh = url.searchParams.get('fresh') === '1';
