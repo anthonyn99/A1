@@ -96,6 +96,15 @@ phase is done so he can open a fresh session for the next one.
   - Tests: `generate.test` 76, `worker.test` 45, `video.test` 431, `podcast.test`, live generate 38, reader 44, study 57, import 81, qa 185, video 43, shell, all green; `npm test` Shruti green (`taskhub-sync.test.js` still fails from another session's `index.html` change).
   - **Not tested for real:** runs against live Orca units (Tony: Settings → Test each unit), and Veda's Drive (she must connect it).
 
+- **Refinements 2, 11 items (2026-10-22).** Tony's second list, all done, both profiles, 390 and 1280; README has the details.
+  - **Lessons popup:** each lesson opens what it means, an example from real life, one thing to try and its verse in the book's words (Read it in the chapter), with named arrows, ← →, swipe, dots and Esc. Detail for all 141 lessons in `books/gita/lessons-more.json` (written by Claude; `lessons.json` untouched). An AI-made set shows only its lessons and the arrows.
+  - **Voices:** host pairs redone (8, each one accent; Sonia & Ryan among them; kept by id, old choices read). **Every voice can be heard first**, with no key: `media/voices/` clips (`tools/voices.py`), on every picker (pairs, narrator, read-aloud, any two voices, Build everything, Slides). **Open question for Tony:** item 2 left the male voice blank ("[FILL HERE]"); Sonia is paired with Ryan (British) for now. Swapping him is one line in `generate.js HOST_PRESETS`. The shipped episodes stay Emma & Brian; re-rendering all 18 in a new pair would need `tools/podcast.py` (not asked).
+  - **Study:** sets in a row and kinds as tabs; Focus hides every header. Flashcard marks can be taken back. The mind map flash on hover was `hoverfx.js`'s filter on nodes in the scaled canvas (nodes now opt out).
+  - **Listen / Watch:** one player card (bar with parts, ±15, the speed pill that opens the speeds, a grouped Subtitles/Download); Watch's tools grouped the same way; both lessons lists fold (remembered).
+  - **Library:** small Import tiles; text or a file dropped on the page imports to the nearer shelf; the picker's "Shruti" at weight 500.
+  - Fixed on the way: a click during the popup's fade-out landed on the old backdrop (it now takes no clicks while fading); the Study set pill was a button inside a row, so the mouse could not drag it.
+  - Tests: new `refine2.test.js` (30) and `refine2.live.js` (198); live podcast 27, video 43, study 57, import 82, generate 38, shell 56, reader 47, lessons-pdf 19, qa 185, all green.
+
 **Waiting on Tony (not blocking):** each person pastes their Orca key once in Settings (Tony's is in). **Veda presses Settings → Google Drive → Connect your Drive on her PC** (her own Google account). Tony runs Settings → **Test each unit** once and reports any unit that fails. Read-aloud of every chapter in Ava and every episode work without a key; other voices need it.
 
 **Fix at the end (Tony, 2026-10-20: "note these down, we'll fix at the end"):**
