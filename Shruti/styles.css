@@ -1013,7 +1013,7 @@ body[data-profile=veda] .sh-kind { border-radius: 999px; }
 /* Focus: every header away; the tool alone, with its own bar, and one small
    button back (fixed top right). */
 body.sh-focusing #top, body.sh-focusing .cp-head, body.sh-focusing .modes, body.sh-focusing .cp-nav,
-body.sh-focusing .sh-top, body.sh-focusing .sh-kinds, body.sh-focusing .bnav, body.sh-focusing #crumbs { display: none !important; }
+body.sh-focusing .sh-kinds, body.sh-focusing .bnav, body.sh-focusing #crumbs { display: none !important; }
 body.sh-focusing { --top-h: 0px; --bnav-h: 0px; }
 body.sh-focusing #view { padding-top: 16px; }
 body.sh-focusing .sh-bar { position: fixed; top: 10px; right: max(12px, calc((100vw - 2000px) / 2 + 12px)); z-index: 60; }
@@ -1226,6 +1226,7 @@ body.sd-presenting { overflow: hidden; }
   .sh-right { width: 100%; margin-left: 0; }
   .sh-sets { flex: 1; max-width: none; }
   body.sh-focusing .sh-tool > * > .st-bar:first-child { padding-right: 56px; }
+  body.sh-focusing .sh-right { width: auto; }
   .fc-stage .fc-card { height: clamp(230px, 42vh, 360px); }
   .fc-face { padding: 16px 18px; }
   .fc-ctl .btn:not(.round) { flex: 1; }
