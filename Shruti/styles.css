@@ -468,17 +468,15 @@ body[data-profile=veda] { --paper: #232427; }
 
 /* "Import a book": a quiet tile at the end of each shelf, much smaller than a
    book so the books stand out (Tony, 2026-10-22), centred where a cover would
-   be; what it takes shows on hover or keyboard focus. */
+   be; what it takes is said in the Import sheet, not on the tile. */
 .shelf-add { display: flex; align-items: center; justify-content: center; aspect-ratio: 2 / 3; padding: 0; border: 0; background: none; cursor: pointer; text-align: center; color: var(--txm); font: inherit; border-radius: var(--r2); align-self: start; }
 .sa-cover { position: relative; width: min(132px, 72%); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 18px 10px;
   border-radius: var(--r2); border: 1.5px dashed var(--line2); background: transparent; transition: border-color .2s, background .2s, color .2s; }
 .sa-plus { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--s1); border: 1px solid var(--line2); color: var(--ac); transition: transform .25s var(--spring), background .2s; }
 .sa-plus svg { width: 18px; height: 18px; }
 .sa-cover b { font-size: 12.5px; font-weight: 650; color: var(--tx); }
-.sa-desc { font-size: 12px; line-height: 1.45; color: var(--txm); max-height: 0; opacity: 0; overflow: hidden; transition: max-height .3s var(--ease), opacity .25s; }
 .shelf-add:hover .sa-cover, .shelf-add:focus-visible .sa-cover { border-color: var(--ac-line); background: var(--ac-soft); }
 .shelf-add:hover .sa-plus, .shelf-add:focus-visible .sa-plus { transform: scale(1.08); background: var(--s2); }
-.shelf-add:hover .sa-desc, .shelf-add:focus-visible .sa-desc { max-height: 80px; opacity: 1; }
 /* A shelf with no books yet: the tile at the top, no tall blank cell. */
 .shelf-add:only-child { aspect-ratio: auto; justify-content: flex-start; }
 .shelf-add:only-child .sa-cover { width: 132px; }
@@ -957,7 +955,6 @@ html.vid-pfs, html.vid-pfs body { overflow: hidden; }
   .cp-nav { grid-template-columns: 1fr; }
   .cpn.next { grid-column: 1; }
   .cpn { padding: 10px 14px; }
-  .shelf-add .sa-desc { display: none; }
   .sheet { width: 100%; border-left: 0; }
   .btn, .ib { min-height: 44px; }
   .ib { width: 44px; height: 44px; }

@@ -159,11 +159,11 @@ export async function viewLibrary(el, { go }) {
       '<div class="bk-meta"><div class="bk-t">' + esc(b.title) + '</div><div class="bk-a">' + esc(b.translator || b.author || '') + '</div>' +
       '<div class="bk-bar"><i style="width:' + (f * 100).toFixed(1) + '%"></i></div></div></button>';
   };
-  // Each shelf ends with a quiet "Import a book" tile, the size of a book; what
-  // it takes shows only on hover (Tony, 2026-10-22). Shared imports land on the
-  // Shared shelf, for both of them.
+  // Each shelf ends with a small, quiet "Import a book" tile; what it takes is
+  // said only once it is pressed, in the Import sheet (Tony, 2026-10-22).
+  // Shared imports land on the Shared shelf, for both of them.
   const addTile = (where) => '<button class="shelf-add" data-import="' + where + '" aria-label="Import a book to ' + (where === 'mine' ? 'Mine' : 'Shared') + '">' +
-    '<span class="sa-cover"><span class="sa-plus">' + IC.plus + '</span><b>Import a book</b><span class="sa-desc">PDF, EPUB, Word or text. Shruti finds the chapters.</span></span></button>';
+    '<span class="sa-cover"><span class="sa-plus">' + IC.plus + '</span><b>Import a book</b></span></button>';
   const dropNote = (where) => '<div class="lib-drop" aria-hidden="true"><span>' + IC.upload + 'Drop to import to ' + (where === 'mine' ? 'Mine' : 'Shared') + '</span></div>';
   el.innerHTML =
     '<div class="lib-hero"><h1>Library</h1><p>Read, listen, watch and study.</p></div>' +
