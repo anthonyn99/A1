@@ -489,7 +489,8 @@ function openLesson(L, start, meta) {
     if (rd) rd.addEventListener('click', () => { close(); meta.go('#/b/' + meta.book + '/' + meta.n + '/read/' + rd.dataset.read); });
   };
   const step = (d) => { const j = i + d; if (j < 0 || j >= n) return; dir = d; i = j; paint(); };
-  const close = () => { dim.classList.add('out'); document.body.classList.remove('lx-open'); removeEventListener('keydown', onKey); setTimeout(() => dim.remove(), 180); };
+  // While it fades out it takes no clicks (one on the list behind opens the next).
+  const close = () => { dim.classList.add('out'); dim.style.pointerEvents = 'none'; dim.removeAttribute('id'); document.body.classList.remove('lx-open'); removeEventListener('keydown', onKey); setTimeout(() => dim.remove(), 180); };
   const onKey = (e) => {
     if (!dim.isConnected) { removeEventListener('keydown', onKey); return; }
     if (e.key === 'Escape') { e.preventDefault(); close(); }
