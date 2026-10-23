@@ -11,8 +11,8 @@
     },
     {
       "id": "B",
-      "name": "Ryan",
-      "voice": "en-GB-RyanNeural"
+      "name": "Brian",
+      "voice": "en-US-BrianMultilingualNeural"
     }
   ],
   "segments": [
@@ -25,7 +25,7 @@
         },
         {
           "s": "B",
-          "t": "And I'm Ryan. Today, Chapter Twelve: the Path of Devotion."
+          "t": "And I'm Brian. Today, Chapter Twelve: the Path of Devotion."
         },
         {
           "s": "A",

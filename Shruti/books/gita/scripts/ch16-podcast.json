@@ -11,8 +11,8 @@
     },
     {
       "id": "B",
-      "name": "Ryan",
-      "voice": "en-GB-RyanNeural"
+      "name": "Brian",
+      "voice": "en-US-BrianMultilingualNeural"
     }
   ],
   "segments": [
@@ -25,7 +25,7 @@
         },
         {
           "s": "B",
-          "t": "And I'm Ryan. Today, Chapter Sixteen: the Divine and the Demonic Qualities."
+          "t": "And I'm Brian. Today, Chapter Sixteen: the Divine and the Demonic Qualities."
         },
         {
           "s": "A",

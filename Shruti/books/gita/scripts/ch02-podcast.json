@@ -11,8 +11,8 @@
     },
     {
       "id": "B",
-      "name": "Ryan",
-      "voice": "en-GB-RyanNeural"
+      "name": "Brian",
+      "voice": "en-US-BrianMultilingualNeural"
     }
   ],
   "segments": [
@@ -25,7 +25,7 @@
         },
         {
           "s": "B",
-          "t": "I'm Ryan. Last time we left Arjuna sitting in his chariot between two armies, his bow on the floor, overwhelmed with sorrow. Today, Chapter Two: Spiritual Knowledge. This is where Krishna speaks."
+          "t": "I'm Brian. Last time we left Arjuna sitting in his chariot between two armies, his bow on the floor, overwhelmed with sorrow. Today, Chapter Two: Spiritual Knowledge. This is where Krishna speaks."
         },
         {
           "s": "A",

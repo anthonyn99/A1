@@ -11,8 +11,8 @@
     },
     {
       "id": "B",
-      "name": "Ryan",
-      "voice": "en-GB-RyanNeural"
+      "name": "Brian",
+      "voice": "en-US-BrianMultilingualNeural"
     }
   ],
   "segments": [
@@ -25,7 +25,7 @@
         },
         {
           "s": "B",
-          "t": "And I'm Ryan. Today, Chapter Ten: Manifestation of the Absolute."
+          "t": "And I'm Brian. Today, Chapter Ten: Manifestation of the Absolute."
         },
         {
           "s": "A",
