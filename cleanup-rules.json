@@ -386,6 +386,22 @@
       "origin": "a1-priv"
     },
     {
+      "id": "riftiq-live-shared-key",
+      "store": "localStorage",
+      "program": "riftiq",
+      "category": "unused",
+      "capDays": 0,
+      "exact": [
+        "riftiq_orca_key",
+        "riftiq_ai_on"
+      ],
+      "prefix": [],
+      "owner": "riftiq-live/ui.js before 2026-10-25 (one ORCA key for everyone)",
+      "reason": "WarRoom Live's one shared ORCA key and AI switch. Since 2026-10-25 each device says whose it is and keeps only that person's key (riftiq_orca_key_<who>, riftiq_ai_on_<who>); ui.js moves the old key to Tony's and removes these on its first load, so they only linger on a device that hasn't opened Live since.",
+      "delete": false,
+      "origin": "a1-priv"
+    },
+    {
       "id": "a1-autocommit-log",
       "store": "disk",
       "program": "A1-AutoCommit",
