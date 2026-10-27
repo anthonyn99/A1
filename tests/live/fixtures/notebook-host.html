@@ -32,7 +32,7 @@
   window.NotebookFirebase = () => ({ db, fs });
   window.__saved = [];
   window.__mount = (extra) => Notebook.mount(Object.assign({
-    app: 'myjournal', key: 'nb', store: 'nb_test', title: 'Test Notebook',
+    profile: 'tony', key: 'nb', store: 'nb_test', title: 'Test Notebook',
     container: document.getElementById('host'), templates: ['page'],
     pinned: [{ id: 'daily-reminder', title: 'Daily Reminder' }],
     onSave: (e) => window.__saved.push(e.id),
