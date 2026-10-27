@@ -866,20 +866,20 @@ body:not([data-profile="veda"]) nav.nav > .pill{
 body:not([data-profile="veda"]) nav.nav > .pill:hover{color:var(--tx);background:var(--s2)}
 body:not([data-profile="veda"]) nav.nav > .pill.on{background:var(--ac);color:var(--bg)}
 
-/* Configure's sub-tabs: underlined text, a level below the main nav. */
+/* Configure's sub-tabs: plain text; the selected one sits on a soft gray
+   pill (no underline, no purple), a level quieter than the main nav. */
 body:not([data-profile="veda"]) div.nav{
-  gap:24px;padding:0 !important;margin:0 0 26px !important;max-width:none;
-  border-bottom:1px solid var(--bd);
+  gap:4px;padding:0 !important;margin:0 0 26px !important;max-width:none;border-bottom:0;
 }
 body:not([data-profile="veda"]) div.nav .pill.sub,
 body:not([data-profile="veda"]) div.nav .pill.sub:hover,
 body[data-profile="tony"] div.nav .pill.sub.on{
-  height:38px;padding:0;border:0;border-radius:0;background:none;
-  font-size:10.5px;letter-spacing:1.2px;box-shadow:inset 0 -2px 0 transparent;
+  height:32px;padding:0 14px;border:0;border-radius:8px;box-shadow:none;
+  font-size:10.5px;letter-spacing:1.2px;
 }
-body:not([data-profile="veda"]) div.nav .pill.sub{color:var(--txm)}
-body:not([data-profile="veda"]) div.nav .pill.sub:hover{color:var(--tx)}
-body[data-profile="tony"] div.nav .pill.sub.on{color:var(--tx);box-shadow:inset 0 -2px 0 var(--ac)}
+body:not([data-profile="veda"]) div.nav .pill.sub{background:transparent;color:var(--txm)}
+body:not([data-profile="veda"]) div.nav .pill.sub:hover{background:var(--s1);color:var(--tx)}
+body[data-profile="tony"] div.nav .pill.sub.on{background:var(--s2);color:var(--tx)}
 
 /* One column. Home spreads to two only where there is room for both. */
 body:not([data-profile="veda"]) .wrap{max-width:720px;padding-top:26px}
@@ -1087,15 +1087,14 @@ body:not([data-profile="veda"]) #uim-box{border-radius:14px}
 /* Outlines: every button's border is the soft gray, at rest, on hover and when
    selected (Tony, 2026-10-27). Text keeps its colour; hover shows as a lifted
    fill instead. The solid purple primaries are filled, so they are left out. */
-body:not([data-profile="veda"]) :is(.btn,.iconbtn,.setchip,.tut-btn,.big,.hold,.pick-tab,#uim-btns button):not(#a-download):not(#a-guard-get):not([data-revert]):not(.opt .btn.ac):not(.topbar .iconbtn),
-body:not([data-profile="veda"]) :is(.btn,.iconbtn,.setchip,.tut-btn,.big,.hold,.pick-tab,#uim-btns button):not(#a-download):not(#a-guard-get):not([data-revert]):not(.opt .btn.ac):not(.topbar .iconbtn):is(:hover,:focus-visible,.on){
+body:not([data-profile="veda"]) :is(.btn,.iconbtn,.setchip,.tut-btn,.big,.hold,.pick-tab,#uim-btns button):not(#a-download):not(#a-guard-get):not([data-revert]):not(.opt .btn.ac):not(.topbar .iconbtn):not(#uim-ok),
+body:not([data-profile="veda"]) :is(.btn,.iconbtn,.setchip,.tut-btn,.big,.hold,.pick-tab,#uim-btns button):not(#a-download):not(#a-guard-get):not([data-revert]):not(.opt .btn.ac):not(.topbar .iconbtn):not(#uim-ok):is(:hover,:focus-visible,.on){
   border-color:var(--bdl) !important;
 }
 body:not([data-profile="veda"]) :is(.btn,.iconbtn,.tut-btn,.pick-tab):not(#a-download):not(#a-guard-get):not([data-revert]):not(.opt .btn.ac):not([disabled]):hover{background:var(--s2)}
 body:not([data-profile="veda"]) :is(.big,.hold):not([disabled]):hover{background:var(--s2)}
 body:not([data-profile="veda"]) .setchip:hover{background:var(--s2)}
 body:not([data-profile="veda"]) .setchip.on{background:var(--s3)}
-body:not([data-profile="veda"]) #uim-ok{border-color:var(--bdl) !important}
 
 @media (pointer:coarse){
   body:not([data-profile="veda"]) nav.nav > .pill{height:38px;padding:0 14px}
