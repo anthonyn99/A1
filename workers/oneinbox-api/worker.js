@@ -2131,7 +2131,9 @@ async function handleGmail(path, body, env, origin) {
 
   if (path === '/gmail/message') {
     const m = decodeMessage(await gapi(env, email, `/messages/${body.id}?format=full`));
-    return json({ ok: true, message: { ...m, account: email, attachments: m.attachments.filter(a => !a.inline || !a.contentId) } }, origin);
+    // Every attachment goes back, inline cid: images included: the page swaps
+    // them into the HTML itself and lists only the ones the HTML doesn't use.
+    return json({ ok: true, message: { ...m, account: email } }, origin);
   }
 
   if (path === '/gmail/attachment') {
