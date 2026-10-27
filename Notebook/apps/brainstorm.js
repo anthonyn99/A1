@@ -1323,7 +1323,7 @@ function renderSidebar() {
       // Touch drag for mobile
       const bjHandle = div.querySelector('.entry-drag-handle');
       if (bjHandle && window._attachJournalTouchDrag) {
-        window._attachJournalTouchDrag(bjHandle, div, entry, list, state, 'bj-drag-over', 'bj-dragging', () => { saveState(); renderSidebar(); _bjFbOrder(); });
+        window._attachJournalTouchDrag(bjHandle, div, entry, list, state, 'bj-drag-over', 'bj-dragging', () => { _bjPinFirst(); saveState(); renderSidebar(); _bjFbOrder(); });
       }
     }
     list.appendChild(div);
@@ -3191,6 +3191,26 @@ window._bjPersistNow = function() {
   try { clearTimeout(autoTimer); if (getActive()) saveCurrentEntry(); } catch(e) {}
   try { return _bjFbFlush(); } catch(e) {}
 };
+// Open an entry from outside (Notebook.open): what a click on its sidebar row
+// does, then edit or view mode if asked. Waits for the entry to arrive from the
+// server (a host may ask before the first load). Resolves false if it never does,
+// or if a newer open call took over while it waited.
+let _bjOpenSeq = 0;
+window._bjOpenEntry = function(id, opts) {
+  opts = opts || {};
+  const seq = ++_bjOpenSeq;
+  return new Promise(function(resolve) {
+    var tries = 0;
+    (function attempt() {
+      if (seq !== _bjOpenSeq) { resolve(false); return; }
+      var e = state.entries.find(function(x) { return x.id === id && !x.trashed; });
+      if (!e) { if (++tries < 80) setTimeout(attempt, 100); else resolve(false); return; }
+      if (state.activeId !== id) { saveCurrentEntry(); _bjFbFlush(); state.activeId = id; renderSidebar(); loadActiveEntry(); }
+      if (opts.edit !== undefined && !!opts.edit !== isEditMode) setEditMode(!!opts.edit);
+      resolve(true);
+    })();
+  });
+};
 document.getElementById('bj-entry-title-input').addEventListener('input', autoSave);
 document.getElementById('bj-page-editor').addEventListener('input', autoSave);
 ['bj-notes-main','bj-notes-links','bj-notes-questions','bj-cornell-topic','bj-cornell-cues-ta','bj-cornell-notes-ta','bj-cornell-summary-ta'].forEach(id => {
@@ -3439,7 +3459,7 @@ function _bjOJLeave() {
 }
 window._bjOJ = { enter: _bjOJEnter, leave: _bjOJLeave, active: _bjIsOJ };
 (function() {
-  if (!window.OJ) return;
+  if (!window.OJ || !_bjFeat.ourjournal) return;
   _bjOJState = window.OJ.register('bj', {
     shown: function() { return _bjIsOJ(); },
     render: function() { if (_bjIsOJ()) renderSidebar(); },
@@ -3766,7 +3786,7 @@ window.hideBrainstormJournal = function() {
     var e = blEntry(id);
     return G.define(gid(id), {
       journal: 'bj', entryId: id, kind: 'entry', owner: 'veda',
-      label: (e && e.title) || 'Untitled entry', appName: 'Journal',
+      label: (e && e.title) || 'Untitled entry', appName: _bjCfg.title || 'Journal',
       // First sight on this device: the old per-entry unlock marker decides.
       legacy: {
         locked: function() { return !!blGetLock(id); },
@@ -3813,7 +3833,7 @@ window.hideBrainstormJournal = function() {
 
   function blUpdateLockBtn() {
     var entry = getActive();
-    if (!entry) {
+    if (!entry || !_bjFeat.locks || _bjIsPinned(entry.id)) {
       lockBtn.style.display = 'none';
       if (mobileLockBtn) mobileLockBtn.style.display = 'none';
       return;
@@ -3906,5 +3926,5 @@ Notebook.registerDocx('bj', {
   mainToolbar: 'bj-toolbar', syncPill: 'bj-sync-pill', newBtn: 'bj-new-entry-btn',
   exportBtn: 'bj-btn-export-pdf', sidebarBtn: 'bj-fullscreen-btn', trashAPI: '_bjTrashAPI',
   aiProfile: 'veda', bindImg: '_bjBindImg',
-  name: 'Journal', side: 'veda'
+  name: (Notebook.mounts.bj && Notebook.mounts.bj.title) || 'Journal', side: 'veda'
 });
