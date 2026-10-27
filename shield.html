@@ -145,10 +145,62 @@ input,select,textarea,button{font-family:var(--sans)}
 body[data-gate="app"] #app{display:block}
 body[data-gate="app"] #profile-overlay{display:none}
 
-/* ══ PROFILE CHOOSER — the suite's one picker (profilepick.js), with
-      letterforms for names: the brief is explicit, T and V, never the full
-      names, anywhere in the Shield UI. Shown and hidden by data-gate above. ═ */
-#profile-overlay{z-index:1000}
+/* ══ PROFILE CHOOSER — letterforms only. The brief is explicit: T and V, never
+      the full names, anywhere in the Shield UI. ══════════════════════════════ */
+#profile-overlay{
+  position:fixed;inset:0;z-index:1000;background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:34px;
+  /* Full-screen overlays have to respect the cutout too. This one is centred,
+     so it usually clears the Dynamic Island by luck — but on a short screen in
+     landscape it did not. */
+  padding:calc(var(--safe-t) + 24px) calc(var(--safe-r) + 24px)
+          calc(var(--safe-b) + 24px) calc(var(--safe-l) + 24px);
+}
+.pf-mark{display:flex;flex-direction:column;align-items:center;gap:10px}
+.pf-mark svg{width:52px;height:52px}
+.pf-word{font-family:var(--suite-display);font-size:26px;font-weight:750;letter-spacing:-.5px;color:#dbd0f5}
+.pf-sub{font-size:10px;font-weight:600;letter-spacing:2.4px;text-transform:uppercase;color:#8d8d94}
+.pf-cards{display:flex;gap:18px;flex-wrap:wrap;justify-content:center}
+.pf-card{
+  position:relative;width:132px;height:150px;background:#232327;
+  border:1px solid #34343a;border-radius:12px;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  transition:border-color .18s,box-shadow .18s,transform .06s;
+}
+.pf-card:hover{transform:translateY(-2px)}
+.pf-card:active{transform:translateY(0)}
+.pf-card .glyph{font-size:60px;line-height:1;font-weight:800}
+.pf-card.t{border-color:#45454c}
+.pf-card.t .glyph{font-family:'Manrope',sans-serif;color:#c0aeea}
+.pf-card.t:hover{border-color:#c0aeea}
+.pf-card.v{background:#26272A;border-color:rgba(141,118,154,.30)}
+.pf-card.v .glyph{font-family:'Playfair Display',serif;font-weight:900;color:#8D769A}
+.pf-card.v:hover{border-color:#8D769A;box-shadow:0 0 14px rgba(141,118,154,.26)}
+.pf-lock{position:absolute;top:9px;right:9px;line-height:0;color:#8d8d94}
+.pf-lock svg{width:15px;height:15px}
+.pf-card.v .pf-lock{color:#76777C}
+.pf-emg{
+  position:absolute;bottom:9px;left:9px;right:9px;text-align:center;
+  font-size:8.5px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;
+  color:#d68a7c;
+}
+.pf-claim{
+  position:absolute;bottom:9px;left:9px;right:9px;text-align:center;
+  font-size:8.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
+  color:#8d8d94;
+}
+/* A profile that does not own this device stays visible and clickable — it
+   leads to the release flow — but reads as unavailable rather than normal. */
+.pf-card.foreign{opacity:.42}
+.pf-card.foreign:hover{transform:none;box-shadow:none}
+.pf-star{
+  position:absolute;top:7px;left:9px;font-size:15px;line-height:1;
+  color:#5a5a61;cursor:pointer;transition:color .15s,transform .06s;
+}
+.pf-star:hover{transform:scale(1.15)}
+.pf-card.t .pf-star.on{color:#e0b874}
+.pf-card.v .pf-star.on{color:#8D769A}
 
 /* ══ SHELL ══════════════════════════════════════════════════════════════════ */
 .topbar{
@@ -654,6 +706,8 @@ label.fld{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;tex
 
 
 @media(max-width:520px){
+  .pf-card{width:118px;height:136px}
+  .pf-card .glyph{font-size:52px}
   .nav{padding-left:12px;padding-right:12px}
 }
 
@@ -832,6 +886,265 @@ body:not([data-profile="veda"]) #uim-cancel:hover{border-color:var(--ac);box-sha
 body:not([data-profile="veda"]) .uim-label{font-size:9px}
 body:not([data-profile="veda"]) #toast{border-radius:8px}
 
+/* ══ SLEEK — Tony's side, redesigned 2026-10-27 ═══════════════════════════
+   Still MAGI (tokens, purple for selection, no gradients or glows), but
+   quieter: one centred column, a segmented main nav, underline sub-tabs,
+   rows grouped into one rounded list (1px gaps of page background as the
+   dividers), ghost buttons in section heads, controls that only appear on
+   the row under the cursor, and larger, calmer type. The desktop agent loads
+   this same page, so its window wears it too.
+
+   Markup this block relies on that Veda's side must not see: `.big .ico` and
+   `.big .txt` (Home's action tiles) are neutralised by the two unscoped rules
+   right below, so her tiles lay out exactly as before. */
+.big .ico{display:none}
+.big .txt{display:contents}
+
+body:not([data-profile="veda"]){--rg:12px;--rr:10px}
+body:not([data-profile="veda"]) .topbar{padding-bottom:10px}
+body:not([data-profile="veda"]) .brand{font-size:19px}
+
+/* Main nav: one segmented control, centred over the column. */
+body:not([data-profile="veda"]) nav.nav{
+  width:max-content;max-width:calc(100% - 28px);margin:20px auto 0;padding:3px;gap:2px;
+  background:var(--s1);border:1px solid var(--bd);border-radius:var(--rr);
+}
+body:not([data-profile="veda"]) nav.nav > .pill{
+  border:0;height:30px;padding:0 16px;border-radius:7px;background:transparent;
+  color:var(--txd);font-size:10.5px;letter-spacing:1px;
+}
+body:not([data-profile="veda"]) nav.nav > .pill:hover{color:var(--tx);background:var(--s2)}
+body:not([data-profile="veda"]) nav.nav > .pill.on{background:var(--ac);color:var(--bg)}
+
+/* Configure's sub-tabs: underlined text, a level below the main nav. */
+body:not([data-profile="veda"]) div.nav{
+  gap:24px;padding:0 !important;margin:0 0 26px !important;max-width:none;
+  border-bottom:1px solid var(--bd);
+}
+body:not([data-profile="veda"]) div.nav .pill.sub,
+body:not([data-profile="veda"]) div.nav .pill.sub:hover,
+body[data-profile="tony"] div.nav .pill.sub.on{
+  height:38px;padding:0;border:0;border-radius:0;background:none;
+  font-size:10.5px;letter-spacing:1.2px;box-shadow:inset 0 -2px 0 transparent;
+}
+body:not([data-profile="veda"]) div.nav .pill.sub{color:var(--txm)}
+body:not([data-profile="veda"]) div.nav .pill.sub:hover{color:var(--tx)}
+body[data-profile="tony"] div.nav .pill.sub.on{color:var(--tx);box-shadow:inset 0 -2px 0 var(--ac)}
+
+/* One column. Home spreads to two only where there is room for both. */
+body:not([data-profile="veda"]) .wrap{max-width:720px;padding-top:26px}
+@media (min-width:760px){
+  body:not([data-profile="veda"]) .wrap{max-width:720px}
+  body:not([data-profile="veda"]) #v-home.two-col.active{display:block}
+}
+@media (min-width:1040px){
+  body:not([data-profile="veda"]) .wrap{max-width:1040px}
+  body:not([data-profile="veda"]) :is(#v-config,#v-devices,#v-history){max-width:720px;margin-inline:auto}
+  body:not([data-profile="veda"]) #v-home.two-col.active{
+    display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 36px;
+  }
+  body:not([data-profile="veda"]) #v-home.two-col > .tut{grid-column:1;grid-row:2;align-self:start;margin-top:0}
+}
+
+/* Sections: a title and its actions, no rule under them. */
+body:not([data-profile="veda"]) .sec{margin-bottom:34px}
+body:not([data-profile="veda"]) .sec-head{border-bottom:0;padding-bottom:0;margin-bottom:12px;min-height:28px}
+body:not([data-profile="veda"]) .sec-title{font-size:10.5px;letter-spacing:1.7px}
+body:not([data-profile="veda"]) .lede{font-size:12.5px;margin:-6px 0 14px}
+body:not([data-profile="veda"]) .hint{font-size:12px;line-height:1.55}
+body:not([data-profile="veda"]) .hint b{color:var(--txd);font-weight:600}
+body:not([data-profile="veda"]) .sec > .hint{padding:0 2px}
+
+/* Buttons. In a section head they are ghosts; elsewhere a quiet outline, and
+   the one primary action of a card is solid purple. */
+body:not([data-profile="veda"]) .btn{border-radius:7px}
+body:not([data-profile="veda"]) .btn.sm{height:30px;padding:0 12px}
+body:not([data-profile="veda"]) .sec-head .btn.sm{border-color:transparent;color:var(--txd);padding:0 10px}
+body:not([data-profile="veda"]) .sec-head .btn.sm:hover{background:var(--s2);color:var(--tx)}
+body:not([data-profile="veda"]) .sec-head .btn.sm.ac{color:var(--ac)}
+body:not([data-profile="veda"]) :is(#a-download,#a-guard-get,[data-revert],.opt .btn.ac){
+  background:var(--ac);border-color:var(--ac);color:var(--bg);
+}
+body:not([data-profile="veda"]) :is(#a-download,#a-guard-get,[data-revert],.opt .btn.ac):hover{background:var(--acx);border-color:var(--acx)}
+body:not([data-profile="veda"]) .iconbtn{border-radius:7px;padding:7px}
+body:not([data-profile="veda"]) .iconbtn:hover{background:var(--s2)}
+
+/* Grouped lists: consecutive rows share one rounded block. */
+body:not([data-profile="veda"]) :is(.tgt,.dev){
+  background:var(--s1);border:0;border-radius:0;margin:0 0 1px;padding:12px 12px 12px 16px;min-height:58px;gap:12px;
+}
+body:not([data-profile="veda"]) :is(.tgt:first-child,:not(.tgt) + .tgt,.dev:first-child,:not(.dev) + .dev){
+  border-top-left-radius:var(--rg);border-top-right-radius:var(--rg);
+}
+body:not([data-profile="veda"]) :is(.tgt:not(:has(+ .tgt)),.dev:not(:has(+ .dev))){
+  border-bottom-left-radius:var(--rg);border-bottom-right-radius:var(--rg);margin-bottom:0;
+}
+body:not([data-profile="veda"]) :is(.tgt-label,.dev-name){font-size:13.5px;font-weight:600}
+body:not([data-profile="veda"]) .tgt-match{font-size:11px;margin-top:3px;font-family:var(--sans)}
+body:not([data-profile="veda"]) .dev-meta{font-size:11.5px;letter-spacing:0;margin-top:3px}
+body:not([data-profile="veda"]) .dot{width:7px;height:7px}
+body:not([data-profile="veda"]) .dev .btn.sm{border-color:transparent;color:var(--txd);padding:0 10px}
+body:not([data-profile="veda"]) .dev .btn.sm:hover{background:var(--s2);color:var(--tx)}
+@media (hover:hover){
+  body:not([data-profile="veda"]) .tgt .iconbtn{opacity:0;transition:opacity .15s,background .15s,color .15s}
+  body:not([data-profile="veda"]) :is(.tgt:hover,.tgt:focus-within) .iconbtn{opacity:1}
+}
+body:not([data-profile="veda"]) .tag{
+  border:0;border-radius:999px;background:var(--s3);color:var(--txd);
+  padding:3px 8px;font-size:8.5px;letter-spacing:1px;
+}
+body:not([data-profile="veda"]) .tag.me{color:var(--ac);background:var(--s3)}
+body:not([data-profile="veda"]) .tag.on{color:var(--grn);background:var(--s3)}
+body:not([data-profile="veda"]) .tag.locked{color:var(--err);background:var(--s3)}
+
+/* Target sets: chips and their two actions on one line. */
+body:not([data-profile="veda"]) .sets{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:14px}
+body:not([data-profile="veda"]) .sets-row{display:contents}
+body:not([data-profile="veda"]) .sets-act{margin-left:auto;gap:2px}
+body:not([data-profile="veda"]) .sets-act .btn.sm{border-color:transparent;color:var(--txm);height:28px;padding:0 9px;font-size:9.5px}
+body:not([data-profile="veda"]) .sets-act .btn.sm:hover{background:var(--s2);color:var(--tx)}
+body:not([data-profile="veda"]) .sets-act .btn.danger:hover{color:var(--err)}
+body:not([data-profile="veda"]) .setchip{
+  height:30px;padding:0 6px 0 13px;border:1px solid transparent;background:var(--s1);
+  color:var(--txd);font-size:12px;font-weight:500;letter-spacing:0;
+}
+body:not([data-profile="veda"]) .setchip:hover{border-color:var(--bdl);color:var(--tx)}
+body:not([data-profile="veda"]) .setchip.on{background:var(--s2);border-color:var(--ac);color:var(--tx)}
+body:not([data-profile="veda"]) .setchip-n{background:var(--s3);color:var(--txd);border-radius:999px;padding:2px 7px;font-size:10px}
+body:not([data-profile="veda"]) .setchip.on .setchip-n{background:var(--ac);color:var(--bg)}
+body:not([data-profile="veda"]) .setchip.add{width:30px;padding:0;justify-content:center;color:var(--txm)}
+
+/* Empty states and cards. */
+body:not([data-profile="veda"]) .empty{
+  border:1px dashed var(--s3);background:transparent;border-radius:var(--rg);
+  padding:24px 18px;font-size:12.5px;color:var(--txm);
+}
+body:not([data-profile="veda"]) .empty b{color:var(--txd);font-weight:600}
+body:not([data-profile="veda"]) .card{border:0;border-radius:var(--rg);padding:16px 18px}
+body:not([data-profile="veda"]) .card:has(> .opt){padding-block:2px}
+body:not([data-profile="veda"]) .opt{gap:16px;padding:15px 0}
+body:not([data-profile="veda"]) .opt-name{font-size:13.5px}
+body:not([data-profile="veda"]) .opt-sub{font-size:12px;line-height:1.5;margin-top:2px}
+body:not([data-profile="veda"]) .opt-sub b{color:var(--txd)}
+body:not([data-profile="veda"]) .cap{font-size:12.5px;padding:9px 0;gap:11px;border-bottom:1px solid var(--bd)}
+body:not([data-profile="veda"]) .cap:last-child{border-bottom:0}
+body:not([data-profile="veda"]) .card:has(> .cap){padding-block:4px}
+body:not([data-profile="veda"]) .ro-bar{border:0;border-radius:var(--rg);background:var(--s1)}
+
+/* The switch. */
+body:not([data-profile="veda"]) .toggle{width:38px;height:22px;border-radius:11px;background:var(--s3)}
+body:not([data-profile="veda"]) .toggle i{width:16px;height:16px;top:3px;left:3px;background:var(--txd)}
+body:not([data-profile="veda"]) .toggle.on{background:var(--ac)}
+body:not([data-profile="veda"]) .toggle.on i{left:19px;background:var(--bg)}
+body:not([data-profile="veda"]) .tgt-opt-l{font-size:9px;color:var(--txm)}
+
+/* "How it works": a quiet link that opens a card. */
+body:not([data-profile="veda"]) .tut{margin:-10px 0 30px}
+body:not([data-profile="veda"]) .tut-btn{
+  width:auto;border:0;padding:8px 2px;gap:8px;background:transparent;
+  color:var(--txm);font-size:12px;font-weight:500;letter-spacing:0;text-transform:none;
+}
+body:not([data-profile="veda"]) .tut-btn:hover{color:var(--ac)}
+body:not([data-profile="veda"]) .tut-btn .chev{margin-left:0}
+body:not([data-profile="veda"]) .tut-body{background:var(--s1);border-radius:var(--rg);padding:16px 18px;margin-top:6px}
+body:not([data-profile="veda"]) .tut-h{color:var(--acx);font-size:10px;margin-top:14px}
+body:not([data-profile="veda"]) .tut-p{font-size:12.5px}
+
+/* Home: two action tiles and the hold strip. */
+body:not([data-profile="veda"]) .qa{gap:10px;margin-bottom:34px}
+body:not([data-profile="veda"]) .big{
+  flex-direction:row;align-items:center;gap:16px;padding:18px 18px;text-align:left;
+  background:var(--s1);border:1px solid transparent;border-radius:14px;
+}
+body:not([data-profile="veda"]) .big .ico{
+  display:flex;flex-shrink:0;width:46px;height:46px;border-radius:12px;background:var(--s2);
+  align-items:center;justify-content:center;color:var(--ac);
+}
+body:not([data-profile="veda"]) .big .ico svg{width:22px;height:22px}
+body:not([data-profile="veda"]) .big .txt{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
+body:not([data-profile="veda"]) .big .lbl{font-size:17px;letter-spacing:-.2px;text-transform:none;color:var(--tx)}
+body:not([data-profile="veda"]) .big .sub{font-size:12px;letter-spacing:0;text-align:left}
+body:not([data-profile="veda"]) .big.close,
+body:not([data-profile="veda"]) .big.emg{border-color:transparent}
+body:not([data-profile="veda"]) .big.close .lbl{color:var(--tx)}
+body:not([data-profile="veda"]) .big.close:hover{border-color:var(--acl)}
+body:not([data-profile="veda"]) .big.emg .ico{color:var(--err)}
+body:not([data-profile="veda"]) .big.emg .lbl{color:var(--err)}
+body:not([data-profile="veda"]) .big.emg:hover{border-color:var(--errl)}
+body:not([data-profile="veda"]) .big .kbd{position:static;order:3;margin-left:auto;align-self:center;border-color:var(--s3)}
+body:not([data-profile="veda"]) .hold{
+  flex-direction:row;justify-content:center;gap:10px;padding:14px 16px;
+  border:1px solid var(--s3);border-radius:14px;
+}
+body:not([data-profile="veda"]) .hold:hover{border-color:var(--errl)}
+body:not([data-profile="veda"]) .hold .lbl{font-size:10.5px;letter-spacing:1.4px}
+body:not([data-profile="veda"]) .hold .sub{font-size:11.5px}
+body:not([data-profile="veda"]) .hold .kbd{top:50%;transform:translateY(-50%);right:12px;border-color:var(--s3)}
+@media (max-width:400px){
+  body:not([data-profile="veda"]) .hold{flex-direction:column;gap:3px}
+}
+
+/* History entries and the last-action report. */
+body:not([data-profile="veda"]) .card .sec-head{min-height:0}
+body:not([data-profile="veda"]) .card .dev-meta{font-size:11px}
+body:not([data-profile="veda"]) .emg-report{font-size:12.5px;line-height:1.75}
+body:not([data-profile="veda"]) .sec > .emg-report{border:0;border-radius:var(--rg)}
+body:not([data-profile="veda"]) #v-history .sec > .dev-meta{
+  font-size:10px;font-weight:700;letter-spacing:1.3px;text-transform:uppercase;color:var(--txm);
+}
+
+/* The app picker. Its box is styled inline (shared with Veda), hence !important. */
+body:not([data-profile="veda"]) #pick-overlay{background:rgba(0,0,0,.62) !important;backdrop-filter:blur(2px) !important;-webkit-backdrop-filter:blur(2px) !important}
+body:not([data-profile="veda"]) #pick-overlay > div{background:var(--s1) !important;border-color:var(--bd) !important;border-radius:16px !important;padding:22px !important}
+body:not([data-profile="veda"]) .pick-search{background:var(--s2);border-color:transparent;border-radius:var(--rr);padding:11px 14px}
+body:not([data-profile="veda"]) .pick-tabs{width:max-content;padding:3px;gap:2px;background:var(--bg);border-radius:9px}
+body:not([data-profile="veda"]) .pick-tab{border:0;height:26px;border-radius:6px;color:var(--txd)}
+body:not([data-profile="veda"]) .pick-tab:hover{color:var(--tx);background:var(--s2)}
+body:not([data-profile="veda"]) .pick-row{background:var(--s2);border:0;border-radius:0;margin:0 0 1px;padding:10px 12px}
+body:not([data-profile="veda"]) .pick-row:first-child{border-top-left-radius:var(--rr);border-top-right-radius:var(--rr)}
+body:not([data-profile="veda"]) .pick-row:last-child{border-bottom-left-radius:var(--rr);border-bottom-right-radius:var(--rr)}
+body:not([data-profile="veda"]) .pick-row:hover{background:var(--s3)}
+body:not([data-profile="veda"]) .pick-row.sel{background:var(--s3);box-shadow:inset 0 0 0 1px var(--ac)}
+body:not([data-profile="veda"]) .pick-ico{width:30px;height:30px;border:0;border-radius:8px;background:var(--s3);color:var(--ac);font-size:12px}
+body:not([data-profile="veda"]) .pick-list{height:min(46vh,380px)}
+body:not([data-profile="veda"]) .pick-name{display:block;font-size:13px}
+body:not([data-profile="veda"]) .pick-path{display:block;font-size:10.5px;font-family:var(--sans);margin-top:2px}
+body:not([data-profile="veda"]) .pick-live{border:0;background:var(--s1);padding:3px 8px}
+
+/* The emergency takeover. */
+body:not([data-profile="veda"]) .emg-wrap{gap:18px;justify-content:center;max-width:460px}
+body:not([data-profile="veda"]) .emg-icon{
+  width:76px;height:76px;border-radius:50%;border:1px solid var(--errl);
+  display:flex;align-items:center;justify-content:center;
+}
+body:not([data-profile="veda"]) .emg-icon svg{width:34px;height:34px}
+body:not([data-profile="veda"]) .emg-title{font-size:clamp(34px,10vw,52px);letter-spacing:3px}
+body:not([data-profile="veda"]) .emg-scope{font-size:10.5px;color:var(--txm);margin-top:-6px}
+body:not([data-profile="veda"]) .emg-meta{border:0;border-radius:var(--rg);padding:4px 16px;gap:0}
+body:not([data-profile="veda"]) .emg-row{padding:10px 0;border-bottom:1px solid var(--bd);font-size:12.5px}
+body:not([data-profile="veda"]) .emg-row:last-child{border-bottom:0}
+body:not([data-profile="veda"]) .emg-devs{gap:1px}
+body:not([data-profile="veda"]) .emg-dev{border:0;border-radius:0;background:var(--s1);padding:11px 16px;font-size:12.5px}
+body:not([data-profile="veda"]) .emg-dev:first-child{border-top-left-radius:var(--rg);border-top-right-radius:var(--rg)}
+body:not([data-profile="veda"]) .emg-dev:last-child{border-bottom-left-radius:var(--rg);border-bottom-right-radius:var(--rg)}
+body:not([data-profile="veda"]) .emg-actions .btn{height:46px !important;border-radius:var(--rr);font-size:10.5px}
+body:not([data-profile="veda"]) .emg-note{font-size:12px}
+
+body:not([data-profile="veda"]) #toast{border-radius:var(--rr);background:var(--s1);border-color:var(--s3)}
+body:not([data-profile="veda"]) #uim-box{border-radius:14px}
+
+@media (pointer:coarse){
+  body:not([data-profile="veda"]) nav.nav > .pill{height:38px;padding:0 14px}
+  body:not([data-profile="veda"]) div.nav .pill.sub{height:44px}
+  body:not([data-profile="veda"]) .toggle{width:44px;height:26px;border-radius:13px}
+  body:not([data-profile="veda"]) .toggle i{width:20px;height:20px}
+  body:not([data-profile="veda"]) .toggle.on i{left:21px}
+}
+@media (max-width:420px){
+  body:not([data-profile="veda"]) nav.nav > .pill{padding:0 11px;font-size:10px}
+  body:not([data-profile="veda"]) div.nav{gap:18px}
+}
+
 </style>
 <style id="ui-cap-2000">
 /* == Suite-wide 2000px UI cap ==============================================
@@ -862,7 +1175,6 @@ body { max-width: 2000px; margin-inline: auto; }
      paint, unpinned, so every Guardian upgrade reaches this page. -->
 <script src="Guardian/guardian.js"></script>
 <script src="apphead.js"></script>
-<script src="profilepick.js"></script>
 <!-- The one A1 scrollbar (scrollbar.js): native bars hidden, overlay thumb.
      In <head> so it is there before this page's own code. -->
 <script src="scrollbar.js"></script>
@@ -870,7 +1182,24 @@ body { max-width: 2000px; margin-inline: auto; }
 <body data-gate="boot" data-profile="tony">
 
 <!-- ══ Profile chooser ══════════════════════════════════════════════════════ -->
-<div id="profile-overlay"></div>
+<div id="profile-overlay">
+  <div class="pf-mark">
+    <svg viewBox="0 0 96 96" aria-hidden="true">
+      <g fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M48 14 22 23v24c0 17 13 28 26 35" stroke="#c0aeea"/>
+        <path d="M48 14 74 23v24c0 17-13 28-26 35" stroke="#8D769A"/>
+        <circle cx="48" cy="42" r="7" stroke="#adadb2"/>
+        <path d="M48 49v11" stroke="#adadb2"/>
+      </g>
+    </svg>
+    <div class="pf-word">Shield</div>
+    <div class="pf-sub">Select profile</div>
+  </div>
+  <div class="pf-cards">
+    <button class="pf-card t" id="pf-t"><span class="glyph">T</span></button>
+    <button class="pf-card v" id="pf-v"><span class="glyph">V</span></button>
+  </div>
+</div>
 
 <!-- ══ App ════════════════════════════════════════════════════════════════ -->
 <div id="app">
@@ -1552,6 +1881,8 @@ function lsSet(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
 function lsDel(k){ try { localStorage.removeItem(k); } catch(e){} }
 function jGet(k, d){ try { return JSON.parse(localStorage.getItem(k)||'null') || d; } catch(e){ return d; } }
 function jSet(k,v){ lsSet(k, JSON.stringify(v)); }
+// Copy per side: Tony's is the short 2026-10-27 wording, Veda's is unchanged.
+function cp(tony, veda){ return S.profile === 'veda' ? veda : tony; }
 
 function toast(msg, bad){
   var t=$('toast'); t.textContent=msg; t.className = bad?'show bad':'show';
@@ -2869,6 +3200,9 @@ var GLYPH = {
   check:  '<path d="m20 6-11 11-5-5"/>',
   down:   '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>',
   chev:   '<path d="m6 9 6 6 6-6"/>',
+  // Home's action tiles (Tony's side): a window with an x, and two screens.
+  closeapps: '<rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M3 9h18"/><path d="m10 12.5 4 4m0-4-4 4"/>',
+  devices:   '<rect x="2" y="4" width="14" height="10" rx="1.5"/><path d="M6 18h6"/><rect x="17" y="8" width="5" height="11" rx="1"/>',
   book:   '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/>',
   // A pen-on-paper mark for Rename. The old "+" said "add", which is the one
   // thing the button does not do.
@@ -2918,24 +3252,28 @@ function renderHome(){
     return k ? '<span class="kbd">' + esc(k) + '</span>' : '';
   }
 
+  // .ico and .txt are Tony's tile layout; on Veda's side CSS makes them inert.
   h += '<div class="qa">';
   h +=   '<button class="big close" id="a-close"' + (closerN ? '' : ' disabled') + '>'
       +    kbd('close')
+      +    '<span class="ico">' + svg(GLYPH.closeapps) + '</span><span class="txt">'
       +    '<span class="lbl">Close Apps</span>'
       +    '<span class="sub">' + (closerN
              ? closerN + ' target' + (closerN===1?'':'s')
                + (setsFor('closer', S.devId).length > 1 ? ' · ' + esc(activeSetName('closer', S.devId)) : '')
-             : 'No targets configured yet') + '</span>'
-      +  '</button>';
+             : cp('No targets yet', 'No targets configured yet')) + '</span>'
+      +  '</span></button>';
   h +=   '<button class="big emg" id="a-emg">'
       +    kbd('emergency')
+      +    '<span class="ico">' + svg(GLYPH.alert) + '</span><span class="txt">'
       +    '<span class="lbl">Emergency</span>'
-      +    '<span class="sub">Lock down this device' + (emgN ? ' · ' + emgN + ' target' + (emgN===1?'':'s') : '') + '</span>'
-      +  '</button>';
+      +    '<span class="sub">' + cp('This device', 'Lock down this device') + (emgN ? ' · ' + emgN + ' target' + (emgN===1?'':'s') : '') + '</span>'
+      +  '</span></button>';
   h +=   '<button class="hold" id="a-emg-all"><span class="fill"></span>'
       +    kbd('all')
-      +    '<span class="lbl">Emergency — All My Devices</span>'
-      +    '<span class="sub">Hold to activate on all ' + devs.length + ' device' + (devs.length===1?'':'s') + '</span>'
+      +    '<span class="lbl">' + cp('Emergency — all devices', 'Emergency — All My Devices') + '</span>'
+      +    '<span class="sub">' + cp('Hold · ' + devs.length + ' device' + (devs.length===1?'':'s'),
+                                    'Hold to activate on all ' + devs.length + ' device' + (devs.length===1?'':'s')) + '</span>'
       +  '</button>';
   h += '</div>';
 
@@ -2943,9 +3281,11 @@ function renderHome(){
   // the single most important thing on the screen — not a footnote.
   if (!c.agent){
     h += '<div class="sec"><div class="card" style="border-color:var(--errl)">'
-      +  '<div class="cap no"><span class="mk">✕</span><span class="tx"><b>No Shield agent on this device.</b> '
-      +  'A web page cannot close, hide or block other applications — there is no browser API for it. '
-      +  'Shield can still re-lock your A1 apps here and command your other devices.</span></div>'
+      +  '<div class="cap no"><span class="mk">✕</span><span class="tx">' + cp(
+           '<b>No agent on this device.</b> Shield can re-lock A1 apps and reach your other devices, but cannot close apps here.',
+           '<b>No Shield agent on this device.</b> '
+      +    'A web page cannot close, hide or block other applications — there is no browser API for it. '
+      +    'Shield can still re-lock your A1 apps here and command your other devices.') + '</span></div>'
       +  '</div></div>';
   }
 
@@ -3063,7 +3403,7 @@ function devRowHtml(d, compact){
 }
 function renderDevices(){
   var devs = devList();
-  var h = '<div class="sec"><div class="sec-head"><span class="sec-title">Devices on this profile</span></div>';
+  var h = '<div class="sec"><div class="sec-head"><span class="sec-title">' + cp('Devices', 'Devices on this profile') + '</span></div>';
   h += devs.map(function(d){ return devRowHtml(d, false); }).join('');
   h += '</div>';
   // Install on another PC. Sits in Devices because that is where you go when
@@ -3071,14 +3411,18 @@ function renderDevices(){
   h += '<div class="sec"><div class="sec-head"><span class="sec-title">Add a Windows PC</span></div>'
     +  '<div class="card">'
     +  '<div class="opt"><div class="opt-main"><div class="opt-name">Shield agent for Windows</div>'
-    +  '<div class="opt-sub" id="dl-sub">Without it a browser cannot close, hide or block anything. '
-    +  'Install it on any PC, then choose a profile on that PC.</div></div>'
+    +  '<div class="opt-sub" id="dl-sub">' + cp('Lets Shield close, hide and block apps on that PC.',
+         'Without it a browser cannot close, hide or block anything. '
+    +    'Install it on any PC, then choose a profile on that PC.') + '</div></div>'
     +  '<button class="btn sm ac" id="a-download">' + svg(GLYPH.down) + 'Download</button></div>'
-    +  '<div class="hint" style="padding-top:10px">Unsigned, so Windows will say '
-    +  '<b>\"Windows protected your PC\"</b> — choose <b>More info</b> → <b>Run anyway</b>. '
-    +  'Installs for your user only and never asks for admin.</div>'
-    +  '</div></div>';
-  h += '<div class="sec"><div class="hint">“Active” means the device checked in within the last 35 minutes.</div></div>';
+    +  cp('', '<div class="hint" style="padding-top:10px">Unsigned, so Windows will say '
+    +    '<b>\"Windows protected your PC\"</b> — choose <b>More info</b> → <b>Run anyway</b>. '
+    +    'Installs for your user only and never asks for admin.</div>')
+    +  '</div>'
+    +  cp('<div class="hint" style="padding:10px 2px 0">If Windows warns, choose <b>More info</b> → <b>Run anyway</b>. No admin needed.</div>', '')
+    +  '</div>';
+  h += '<div class="sec"><div class="hint">' + cp('Active = checked in within 35 min.',
+         '“Active” means the device checked in within the last 35 minutes.') + '</div></div>';
   h += tutorial('devices');
   $('v-devices').innerHTML = h;
   wireTutorials($('v-devices'));
@@ -3157,8 +3501,9 @@ async function downloadAgent(){
     var when = relTime(asset.updated_at || rel.published_at);
     toast('Downloading Shield-Setup.exe (' + mb + ' MB)');
     if (sub){
-      sub.innerHTML = 'Latest build, published ' + esc(when) + ' · ' + mb + ' MB. '
-        + 'Run it on the PC you want to add, then choose a profile there.';
+      sub.innerHTML = cp('Latest build · ' + esc(when) + ' · ' + mb + ' MB. Run it on the PC to add.',
+        'Latest build, published ' + esc(when) + ' · ' + mb + ' MB. '
+        + 'Run it on the PC you want to add, then choose a profile there.');
     }
   } catch(e){
     await window.uiAlert('Could not reach the build service: ' + errText(e)
@@ -3207,7 +3552,9 @@ function histCardHtml(e, opts){
       +  reportHtml(reportLines(items)) + '</div>';
   }
 
-  if (own){
+  // Tony's side drops the footer of a run that closed nothing: "Nothing was
+  // closed" already says there is nothing to reopen.
+  if (own && (items.length || S.profile === 'veda')){
     // Note there is no "emergency still active" branch here: while an emergency
     // is live the takeover screen covers the whole app, so this card cannot be
     // reached. revert() keeps the guard anyway, since it is the function that
@@ -3217,11 +3564,12 @@ function histCardHtml(e, opts){
     if (e.reverted){
       h += '<span class="hint">Reopened ' + ago(e.revertedAt) + '.</span>';
     } else if (!can){
-      h += '<span class="hint">Nothing recorded to reopen'
-        +  (c.closed ? ' — Shield could not read those applications\' paths before closing them.' : '.') + '</span>';
+      h += '<span class="hint">' + cp(c.closed ? 'Can\'t be reopened.' : 'Nothing to reopen.',
+             'Nothing recorded to reopen'
+        +  (c.closed ? ' — Shield could not read those applications\' paths before closing them.' : '.')) + '</span>';
     } else if (!caps().kill){
       h += '<button class="btn sm" disabled>Reopen ' + c.launch + '</button>'
-        +  '<span class="hint">Needs the Shield agent on this device.</span>';
+        +  '<span class="hint">' + cp('Needs the agent.', 'Needs the Shield agent on this device.') + '</span>';
     } else {
       h += '<button class="btn sm ac" data-revert="' + esc(e.id) + '">Reopen ' + c.launch
         +  ' app' + (c.launch===1?'':'s') + '</button>';
@@ -3261,7 +3609,7 @@ function renderHistory(){
     +  (mine.length ? '<button class="btn sm" id="a-hist-clear">Clear</button>' : '') + '</div>';
   h += mine.length
     ? mine.map(function(e){ return histCardHtml(e, { own:true }); }).join('')
-    : '<div class="empty">Nothing closed yet. Every run is recorded here with a button to put it all back.</div>';
+    : '<div class="empty">' + cp('Nothing closed yet.', 'Nothing closed yet. Every run is recorded here with a button to put it all back.') + '</div>';
   h += '</div>';
 
   var withHist = devs.filter(function(d){ return (d.history || []).length; });
@@ -3274,9 +3622,10 @@ function renderHistory(){
     h += '</div>';
   }
 
-  h += '<div class="sec"><div class="hint">Each process\'s path and command line are captured just before it closes — the last '
-    +  'moment they are readable — and stay on the device that closed it, since only that device can start them again. '
-    +  'Reopening starts each application fresh; unsaved work is not recovered.</div></div>';
+  h += '<div class="sec"><div class="hint">' + cp('Reopened apps start fresh; unsaved work isn\'t restored.',
+         'Each process\'s path and command line are captured just before it closes — the last '
+    +    'moment they are readable — and stay on the device that closed it, since only that device can start them again. '
+    +    'Reopening starts each application fresh; unsaved work is not recovered.') + '</div></div>';
 
   $('v-history').innerHTML = h;
   wireRevert($('v-history'));
@@ -3324,7 +3673,9 @@ function targetRowHtml(t, kind, ro, showHide){
   var h = '<div class="tgt">';
   var mk = (t.match && t.match.type) || 'exe';
   h += '<div class="tgt-main"><div class="tgt-label">' + esc(t.label || t.match && t.match.value || 'Target') + '</div>'
-    +  '<div class="tgt-match">' + esc(mk === 'folder' ? 'folder — all apps inside' : mk) + ' · ' + esc((t.match && t.match.value) || '') + '</div></div>';
+    +  '<div class="tgt-match">' + esc(cp({ exe:'App', folder:'Folder', path:'File' }[mk] || mk,
+                                          mk === 'folder' ? 'folder — all apps inside' : mk))
+    +  ' · ' + esc((t.match && t.match.value) || '') + '</div></div>';
   if (showHide){
     // Labelled, not a bare switch. An unlabelled toggle sitting next to a
     // delete button is unguessable — it read as "no hide-icons option exists".
@@ -3460,9 +3811,46 @@ var TUTORIALS = {
   }
 };
 
+/* Tony's side: the same guides, cut to what is worth knowing. */
+var TUTORIALS_T = {
+  closer: {
+    title: 'How Close Apps works',
+    body:
+        tutP('<b>App</b> <code>discord.exe</code>, <b>folder</b> <code>C:\\Riot Games</code> (everything inside), or one exact <b>file</b>. A folder is usually right.')
+      + tutP('<b>Sets</b> are separate lists, e.g. Work and Gaming. Only the highlighted set is live.')
+      + tutP('<b>Triggers</b> fire when their app starts or comes forward, then rest 45 s.')
+      + tutP('Every close can be undone from <b>History</b>. <b>Preview</b> shows what would close.')
+  },
+  emergency: {
+    title: 'How Emergency works',
+    body:
+        tutP('Closes these apps, can hide their icons, re-locks A1 apps and can lock Windows.')
+      + tutP('<b>All devices</b> also reaches sleeping devices when they wake.')
+      + tutP('Hidden icons return to the same spot. It survives a restart; only the passcode ends it.')
+  },
+  security: {
+    title: 'About the passcode',
+    body:
+        tutP('Checked by a Cloudflare Worker, never stored here.')
+      + tutP('Forgot it? Use the hint, or reset by email from the lock screen.')
+  },
+  home: {
+    title: 'Getting started',
+    body:
+        tutP('Add apps under <b>Configure</b>, then <b>Close Apps</b> shuts them down; <b>History</b> can reopen them.')
+      + tutP('<b>Emergency</b> closes and hides more, and re-locks your A1 apps.')
+  },
+  devices: {
+    title: 'About devices',
+    body:
+        tutP('Each device keeps its own setup. You can view others but only edit this one.')
+      + tutP('The agent is what closes apps on a PC, even with this window shut.')
+  }
+};
+
 /* Render a page's tutorial. Closed unless it was opened this session. */
 function tutorial(page){
-  var t = TUTORIALS[page];
+  var t = (S.profile !== 'veda' && TUTORIALS_T[page]) || TUTORIALS[page];
   if (!t) return '';
   var open = !!TUT_OPEN[page];
   return '<div class="tut' + (open ? ' open' : '') + '" data-tut="' + page + '">'
@@ -3498,35 +3886,38 @@ function tabTargets(kind, id, ro){
   var setName = activeSetName('closer', id);
 
   // ── Program Closer targets ───────────────────────────────────────────────
-  var h = '<div class="sec"><div class="sec-head"><span class="sec-title">Program closer targets</span>'
+  var h = '<div class="sec"><div class="sec-head"><span class="sec-title">' + cp('Apps to close', 'Program closer targets') + '</span>'
         + (ro ? '' : '<span style="display:flex;gap:6px">'
             + (tg.length && caps().kill ? '<button class="btn sm" data-preview="closer">' + svg(GLYPH.eye) + 'Preview</button>' : '')
             + '<button class="btn sm ac" data-add="closer">' + svg(GLYPH.plus) + 'Add</button></span>') + '</div>';
-  h += '<div class="lede">Apps the <b>Close Apps</b> button shuts down.</div>';
+  h += '<div class="lede">' + cp('What <b>Close Apps</b> shuts down.', 'Apps the <b>Close Apps</b> button shuts down.') + '</div>';
   h += setsBarHtml('closer', id, ro);
   h += tg.length ? tg.map(function(t){ return targetRowHtml(t, 'closer', ro, false); }).join('')
-                 : '<div class="empty">“' + esc(setName) + '” is empty. <b>Add</b> an app to put it in this set.</div>';
+                 : '<div class="empty">' + cp('No apps in “' + esc(setName) + '” yet.',
+                     '“' + esc(setName) + '” is empty. <b>Add</b> an app to put it in this set.') + '</div>';
   h += '</div>';
 
   // ── Auto-close triggers ──────────────────────────────────────────────────
   var trg = targetsFor('trigger', id);
   var trgSetName = activeSetName('trigger', id);
-  h += '<div class="sec"><div class="sec-head"><span class="sec-title">Close automatically when these open</span>'
+  h += '<div class="sec"><div class="sec-head"><span class="sec-title">' + cp('Triggers', 'Close automatically when these open') + '</span>'
     +  (ro ? '' : '<button class="btn sm ac" data-add="trigger">' + svg(GLYPH.plus) + 'Add</button>') + '</div>';
-  h += '<div class="lede">Open one of these and Shield runs <b>Close Apps</b> for you.</div>';
+  h += '<div class="lede">' + cp('Opening one runs <b>Close Apps</b> for you.', 'Open one of these and Shield runs <b>Close Apps</b> for you.') + '</div>';
   h += setsBarHtml('trigger', id, ro);
   h += trg.length
      ? trg.map(function(t){ return targetRowHtml(t, 'trigger', ro, false); }).join('')
-     : '<div class="empty">“' + esc(trgSetName) + '” is empty. Add a game here and everything above tidies itself away when it starts.</div>';
+     : '<div class="empty">' + cp('No triggers in “' + esc(trgSetName) + '” yet. Add a game, for example.',
+         '“' + esc(trgSetName) + '” is empty. Add a game here and everything above tidies itself away when it starts.') + '</div>';
   if (trg.length && !caps().agent){
-    h += '<div class="hint warn" style="padding-top:8px">This device has no agent, so nothing will fire here.</div>';
+    h += '<div class="hint warn" style="padding-top:8px">' + cp('No agent here, so triggers won\'t fire.', 'This device has no agent, so nothing will fire here.') + '</div>';
   }
   h += '</div>';
 
   // ── Reopen after the trigger closes ──────────────────────────────────────
-  h += '<div class="sec"><div class="sec-head"><span class="sec-title">When the trigger app closes</span></div><div class="card">';
+  h += '<div class="sec"><div class="sec-head"><span class="sec-title">' + cp('After a trigger', 'When the trigger app closes') + '</span></div><div class="card">';
   h += optHtml('reopenAfterTrigger', reopenAfterTrigger(id), 'Reopen what was closed',
-        'Quit the game and the apps it swept away come back. Only applies to closes a trigger started — the Close Apps button never reopens on its own.',
+        cp('Quit the trigger app and the closed apps come back.',
+           'Quit the game and the apps it swept away come back. Only applies to closes a trigger started — the Close Apps button never reopens on its own.'),
         ro || !caps().agent, 'data-copt');
   h += '</div></div>';
 
@@ -3538,20 +3929,20 @@ function tabEmergency(id, ro){
   var cfg = cfgEmg(id), tg = cfg.targets || [], c = (devRec(id) && devRec(id).caps) || {};
   var h = '<div class="sec"><div class="sec-head"><span class="sec-title">Emergency targets</span>'
         + (ro ? '' : '<button class="btn sm ac" data-add="emergency">' + svg(GLYPH.plus) + 'Add</button>') + '</div>';
-  h += '<div class="lede">Closed — and optionally hidden — the moment Emergency Mode starts.</div>';
+  h += '<div class="lede">' + cp('Closed, and optionally hidden, when Emergency starts.', 'Closed — and optionally hidden — the moment Emergency Mode starts.') + '</div>';
   h += tg.length ? tg.map(function(t){ return targetRowHtml(t, 'emergency', ro, true); }).join('')
                  : '<div class="empty">No emergency targets yet.</div>';
   h += '</div>';
 
-  h += '<div class="sec"><div class="sec-head"><span class="sec-title">Emergency behaviour</span></div><div class="card">';
-  h += optHtml('lockA1Apps', cfg.lockA1Apps !== false, 'Re-lock A1 apps', 'Re-locks every password-protected A1 app on this device. Instant, offline, and leaves your other devices alone.', ro);
-  h += optHtml('watchdog', cfg.watchdog !== false, 'Keep targets closed', 'Re-closes a target that starts again while Emergency Mode is on. Checks a few times a second, so an app flashes before it dies.', ro || !c.watchdog);
-  h += optHtml('lockWorkstation', !!cfg.lockWorkstation, 'Lock the workstation', 'Locks Windows right after closing. The most reliable thing Shield can do, and the fastest way to make a screen safe.', ro || !c.lockWorkstation);
+  h += '<div class="sec"><div class="sec-head"><span class="sec-title">' + cp('Behaviour', 'Emergency behaviour') + '</span></div><div class="card">';
+  h += optHtml('lockA1Apps', cfg.lockA1Apps !== false, 'Re-lock A1 apps', cp('Instant and offline. This device only.', 'Re-locks every password-protected A1 app on this device. Instant, offline, and leaves your other devices alone.'), ro);
+  h += optHtml('watchdog', cfg.watchdog !== false, 'Keep targets closed', cp('Closes them again if they reopen.', 'Re-closes a target that starts again while Emergency Mode is on. Checks a few times a second, so an app flashes before it dies.'), ro || !c.watchdog);
+  h += optHtml('lockWorkstation', !!cfg.lockWorkstation, cp('Lock Windows', 'Lock the workstation'), cp('Locks the PC right after closing.', 'Locks Windows right after closing. The most reliable thing Shield can do, and the fastest way to make a screen safe.'), ro || !c.lockWorkstation);
   h += '</div></div>';
 
   h += tabPhoneHandoff(id);
 
-  h += '<div class="sec"><div class="sec-head"><span class="sec-title">What this device can enforce</span></div><div class="card">'
+  h += '<div class="sec"><div class="sec-head"><span class="sec-title">' + cp('What this device can do', 'What this device can enforce') + '</span></div><div class="card">'
     +  capsHtml(devRec(id)) + '</div></div>';
   h += tutorial('emergency');
   return h;
@@ -3609,6 +4000,11 @@ function tabPhoneHandoff(id){
   if (p === 'ios') return iosGuardHtml(mine);
 
   var h = '<div class="sec"><div class="sec-head"><span class="sec-title">On this ' + (deviceType()==='tablet'?'tablet':'phone') + '</span></div><div class="card">';
+  if (S.profile !== 'veda'){
+    return h + '<div class="opt"><div class="opt-main"><div class="opt-name">Use Focus mode</div>'
+      +  '<div class="opt-sub">Android won\'t let Shield block other apps. Settings → Digital Wellbeing → <b>Focus mode</b>, '
+      +  'pick the apps, then add its Quick Settings tile.</div></div></div></div></div>';
+  }
   {
     h += '<div class="opt"><div class="opt-main"><div class="opt-name">Focus mode</div>'
       +  '<div class="opt-sub">Android\'s own app blocker. Add its Quick Settings tile and it is one swipe from anywhere '
@@ -3758,6 +4154,31 @@ function capsHtml(d){
   var c = (d && d.caps) || {}, p = (d && d.platform) || 'browser';
   function row(kind, txt){ return '<div class="cap ' + kind + '"><span class="mk">' + (kind==='yes'?'✓':(kind==='part'?'~':'✕')) + '</span><span class="tx">' + txt + '</span></div>'; }
   var h = '';
+  // Tony's side: the same verdicts, one short line each.
+  if (S.profile !== 'veda'){
+    h += row('yes', '<b>Re-lock A1 apps</b> — always, even offline.');
+    if (c.agent){
+      h += row('yes',  '<b>Close apps</b> — anything not running as admin.');
+      h += row('part', '<b>Keep them closed</b> — a relaunched app flashes, then closes.');
+      h += row('part', '<b>Hide shortcuts</b> — desktop and Start menu; not Store apps or pins.');
+      h += row('no',   '<b>Unpin from the taskbar</b> — Windows doesn\'t allow it.');
+      h += row('yes',  '<b>Lock Windows</b> — instant.');
+      h += row('part', '<b>Reopen what was closed</b> — apps start fresh.');
+      h += row('part', '<b>Survives a restart</b> — unless the agent is ended in Task Manager.');
+    } else {
+      h += row('no', '<b>Close, hide or block apps</b> — needs the Shield agent.');
+    }
+    if (p === 'ios'){
+      var ni = iosApps().length;
+      h += row(ni ? 'part' : 'no', '<b>Block other apps</b> — ' + (ni ? ni + ' set up; works on open, online only.' : 'set up above.'));
+      h += row('part', '<b>Hide app icons</b> — with a Focus.');
+      h += row('no', '<b>Anything pushed here</b> — iOS doesn\'t allow it.');
+    } else if (p === 'android'){
+      h += row('no', '<b>Block other apps</b> — use Digital Wellbeing\'s Focus mode.');
+    }
+    h += row('yes', '<b>Command your other devices</b>' + (c.remoteWhileClosed ? '' : ' — this one only hears back while Shield is open'));
+    return h;
+  }
   h += row('yes', '<b>Re-lock A1 apps</b> — always available, works offline.');
   if (c.agent){
     h += row('yes',  '<b>Close applications</b> — same-user processes. Elevated and service processes need Shield running as admin.');
@@ -3799,15 +4220,26 @@ function capsHtml(d){
 
 function tabSecurity(id, ro){
   var lid = lockId(), locked = window.AL.isLocked(lid), unlocked = window.AL.isUnlocked(lid);
-  var h = '<div class="sec"><div class="sec-head"><span class="sec-title">Shield passcode</span></div><div class="card">';
+  var h = '<div class="sec"><div class="sec-head"><span class="sec-title">' + cp('Passcode', 'Shield passcode') + '</span></div><div class="card">';
   h += '<div class="opt"><div class="opt-main"><div class="opt-name">' + (locked ? 'Passcode is set' : 'No passcode set') + '</div>'
     +  '<div class="opt-sub">' + (locked
-        ? 'Required to open Shield on a new device, and <b>always</b> required to disable Emergency Mode — even on a device that is already unlocked.'
-        : 'Without one, Emergency Mode can be switched off by anyone holding this device. Set a passcode.')
+        ? cp('Needed on new devices and always to end Emergency.',
+             'Required to open Shield on a new device, and <b>always</b> required to disable Emergency Mode — even on a device that is already unlocked.')
+        : cp('Without one, anyone holding this device can end Emergency.',
+             'Without one, Emergency Mode can be switched off by anyone holding this device. Set a passcode.'))
     +  '</div></div>'
     +  '<button class="btn sm ' + (locked?'':'ac') + '" id="a-manage-lock">' + (locked ? 'Manage' : 'Set passcode') + '</button></div>';
+  // Tony's side: Recovery is a row in the same card rather than its own section.
+  if (S.profile !== 'veda'){
+    h += '<div class="opt"><div class="opt-main"><div class="opt-name">Offline unlock</div>'
+      +  '<div class="opt-sub">' + (window.AL.hasOffline(lid)
+          ? 'Ready. An outage can\'t lock you out.'
+          : 'Not on this device yet. Set or change the passcode here to add it.')
+      +  '</div></div><span class="tag' + (window.AL.hasOffline(lid) ? ' on">Ready' : '">Off') + '</span></div>';
+  }
   h += '</div></div>';
 
+  if (S.profile === 'veda'){
   h += '<div class="sec"><div class="sec-head"><span class="sec-title">Recovery</span></div><div class="card">';
   h += '<div class="hint">'
     +  (window.AL.hasOffline(lid)
@@ -3815,17 +4247,20 @@ function tabSecurity(id, ro){
         : '<b>No offline verifier here yet.</b> It is written next time you set or change the passcode on this device. Until then, disabling Emergency Mode needs a connection.')
     +  '</div>';
   h += '</div></div>';
+  }
 
   h += '<div class="sec"><div class="sec-head"><span class="sec-title">This device</span></div><div class="card">';
   h += '<div class="opt"><div class="opt-main"><div class="opt-name">Device name</div>'
     +  '<div class="opt-sub">' + esc((devRec(S.devId) && devRec(S.devId).name) || defaultName()) + '</div></div>'
     +  '<button class="btn sm" id="a-rename">Rename</button></div>';
   h += '<div class="opt"><div class="opt-main"><div class="opt-name">Lock this device</div>'
-    +  '<div class="opt-sub">Forget this device\'s unlock so Shield asks for the passcode again next time.</div></div>'
+    +  '<div class="opt-sub">' + cp('Ask for the passcode again next time.', 'Forget this device\'s unlock so Shield asks for the passcode again next time.') + '</div></div>'
     +  '<button class="btn sm"' + (locked && unlocked ? '' : ' disabled') + ' id="a-relock">Lock</button></div>';
   h += '</div></div>';
 
-  h += '<div class="sec"><div class="sec-head"><span class="sec-title">Honest limits</span></div><div class="card">'
+  h += S.profile !== 'veda'
+    ? '<div class="sec"><div class="hint">Shield stops a glance over your shoulder, not someone with time alone at your unlocked PC.</div></div>'
+    : '<div class="sec"><div class="sec-head"><span class="sec-title">Honest limits</span></div><div class="card">'
     +  '<div class="hint">Shield raises the cost of a glance over your shoulder. It does not defeat someone who knows it '
     +  'exists and has your unlocked machine — they can end the agent in Task Manager. Nothing here is stronger than the OS '
     +  'underneath it, and it will not pretend otherwise.</div>'
@@ -4344,9 +4779,11 @@ function renderEmergency(){
   if (isGlobal) h += '<button class="btn danger" id="e-off-global" style="height:44px">Disable on all my devices</button>';
   h += '</div>';
 
-  h += '<div class="emg-note">The Shield passcode is required either way — being already signed in on this device is not enough.'
+  h += '<div class="emg-note">' + cp('Needs the Shield passcode.'
+    +  (isGlobal ? ' Releasing this device leaves the others locked.' : '') + ' Closed apps can be reopened after.',
+       'The Shield passcode is required either way — being already signed in on this device is not enough.'
     +  (isGlobal ? ' Releasing this device leaves the rest of your devices locked.' : '')
-    +  ' Everything closed here is recorded, and Shield can reopen all of it once the lockdown is lifted.</div>';
+    +  ' Everything closed here is recorded, and Shield can reopen all of it once the lockdown is lifted.') + '</div>';
 
   $('emg-wrap').innerHTML = h;
   $('emg-screen').classList.add('on');
@@ -4503,32 +4940,45 @@ function goProfileSelect(){
   renderProfileCards();
 }
 
-var shPick=null;
 function renderProfileCards(){
-  if(!shPick) shPick = A1Pick.mount($('profile-overlay'), {
-    app:'shield', title:'Shield', sub:'Guard · Watch · Lock · Recover',
-    profiles:[{id:'tony',label:'T',aria:'T',domId:'pf-t'},{id:'veda',label:'V',aria:'V',domId:'pf-v'}],
-    state:function(p){
-      var owner = claimedBy(), st = { fav: favProfile() === p };
-      if (owner && owner !== p){
-        // Claimed by the other profile: still tappable (it leads to the release flow).
-        st.off = true; st.tone = 'dim'; st.note = 'Claimed by ' + (owner==='veda'?'V':'T');
-      } else {
-        // Surface a live emergency on the chooser, visible before you pick.
-        var le = jGet('sh_emg_' + p, null);
-        if (le && le.active){ st.tone = 'warn'; st.note = 'Locked down'; }
-        else if (window.AL.isLocked(p + '_shield')){
-          var open = window.AL.isUnlocked(p + '_shield');
-          st.noteIcon = open ? 'unlock' : 'lock'; st.note = open ? 'Unlocked' : 'Locked';
-        }
+  var owner = claimedBy(), fav = favProfile();
+  [['tony','pf-t'],['veda','pf-v']].forEach(function(pair){
+    var p = pair[0], card = $(pair[1]);
+    if (!card) return;
+    ['.pf-lock','.pf-emg','.pf-star','.pf-claim'].forEach(function(sel){
+      var el = card.querySelector(sel); if (el) el.remove();
+    });
+    card.classList.toggle('foreign', !!(owner && owner !== p));
+
+    if (window.AL.isLocked(p + '_shield')){
+      var s = document.createElement('span');
+      s.className = 'pf-lock';
+      s.innerHTML = window.AL.isUnlocked(p + '_shield') ? window.AL.ICON.unlock : window.AL.ICON.lock;
+      card.appendChild(s);
+    }
+
+    // Favourite star — click it without entering the profile.
+    var star = document.createElement('span');
+    star.className = 'pf-star' + (fav === p ? ' on' : '');
+    star.textContent = fav === p ? '★' : '☆';
+    star.title = fav === p ? 'Opens straight to this profile — click to unset' : 'Open Shield straight to this profile';
+    star.onclick = function(ev){ ev.stopPropagation(); toggleFav(p); };
+    card.appendChild(star);
+
+    if (owner && owner !== p){
+      var c = document.createElement('span');
+      c.className = 'pf-claim'; c.textContent = 'Claimed by ' + (owner==='veda'?'V':'T');
+      card.appendChild(c);
+    } else {
+      // Surface a live emergency on the chooser, visible before you pick.
+      var le = jGet('sh_emg_' + p, null);
+      if (le && le.active){
+        var e = document.createElement('span');
+        e.className = 'pf-emg'; e.textContent = 'Locked down';
+        card.appendChild(e);
       }
-      return st;
-    },
-    starTitle:function(p,st){ return st.fav ? 'Opens straight to this profile — click to unset' : 'Open Shield straight to this profile'; },
-    onStar:function(p){ toggleFav(p); },
-    onChoose:function(p){ chooseProfile(p); }
+    }
   });
-  shPick.refresh();
 }
 
 async function chooseProfile(p){
@@ -4560,6 +5010,8 @@ function toggleFav(p){
 }
 
 function boot(){
+  $('pf-t').onclick = function(){ chooseProfile('tony'); };
+  $('pf-v').onclick = function(){ chooseProfile('veda'); };
   $('pf-badge').onclick = goProfileSelect;
   $('lock-btn').onclick = function(){ window.AL.manage(lockId()); };
   Scroll.init();

@@ -50,26 +50,22 @@ const waitFor = async (c, expr, ms = 20000) => {
         return real(u, o); }; })();` });
   await c.send('Page.navigate', { url: URL }); await sleep(3500);
   console.log('  (card classes: ' + await evalJs(c,
-    'return [...document.querySelectorAll(".gate-card")].map(n=>n.className).join(" | ");') + ')');
+    'return [...document.querySelectorAll(".pk-card")].map(n=>n.className).join(" | ");') + ')');
+  // The suite's one picker (profilepick.js): 176px cards, a 76px emblem, a 32px star.
   const box = JSON.parse(await evalJs(c, `
-    const card = document.querySelector('.gate-card:not(.open)');
-    const av = document.querySelector('.gate-av'), nm = document.querySelector('.gate-name');
-    const st = document.querySelector('.gate-fav svg, .gate-fav');
+    const card = document.querySelector('.pk-card:not(.last)');
+    const av = card.querySelector('.pk-em'), nm = card.querySelector('.nm');
+    const st = card.querySelector('.pk-star');
     const r = card.getBoundingClientRect();
-    return JSON.stringify({ w: Math.round(r.width), h: Math.round(r.height),
-      av: Math.round(av.getBoundingClientRect().width),
-      name: getComputedStyle(nm).fontSize,
-      star: Math.round(st.getBoundingClientRect().width) });`));
-  ok('the card is smaller than it was (186x218)', box.w <= 165 && box.h <= 190, JSON.stringify(box));
-  ok('the avatar is untouched at 68px', box.av === 68);
-  ok('the name is untouched at 19px', box.name === '19px');
-  ok('the star is untouched at 30px', box.star === 30);
+    return JSON.stringify({ w: Math.round(r.width), av: Math.round(av.getBoundingClientRect().width),
+      name: getComputedStyle(nm).fontSize, star: Math.round(st.getBoundingClientRect().width) });`));
+  ok('the card is the picker card', box.w === 176 && box.av === 76 && box.star === 32, JSON.stringify(box));
   await shot(c, 'gate-smaller-desktop');
   await c.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
   await sleep(500);
-  ok('the shut card is smaller on a phone too', await evalJs(c,
-     'return Math.round(document.querySelector(".gate-card:not(.open)").getBoundingClientRect().width) <= 150;'),
-     await evalJs(c, 'return Math.round(document.querySelector(".gate-card:not(.open)").getBoundingClientRect().width);'));
+  ok('two cards fit side by side on a phone', await evalJs(c,
+     'return Math.round(document.querySelector(".pk-card").getBoundingClientRect().width) <= 168;'),
+     await evalJs(c, 'return Math.round(document.querySelector(".pk-card").getBoundingClientRect().width);'));
   ok('the gate does not scroll sideways', await evalJs(c,
      'return document.documentElement.scrollWidth <= window.innerWidth;'));
   await shot(c, 'gate-smaller-phone');

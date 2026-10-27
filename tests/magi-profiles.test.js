@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 // Guards MAGI's profile split: two people, two MAGIs, one file.
 //
 // Tony and Veda each get their own AI accounts, their own history, their own
@@ -224,3 +225,231 @@ ok('it is painted from the profile', /function syncProfileBtn\(\)/.test(MAGI));
 
 console.log('\n  ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
+=======
+// Guards MAGI's profile split: two people, two MAGIs, one file.
+//
+// Tony and Veda each get their own AI accounts, their own history, their own
+// settings and their own password. The split is made of three small things,
+// and every one of them fails SILENTLY and in the worst possible direction if
+// it drifts:
+//
+//   1. The Firestore document path. `_indexDoc()` decides whose deliberations
+//      this console reads. Hard-code it back to "magi" and Veda quietly reads
+//      Tony's history -- no error, no warning, just the wrong person's
+//      transcripts on screen.
+//   2. The localStorage namespace. Every per-person key goes through lsKey().
+//      A bare `magi.<name>` key is one both profiles read and write, so the
+//      symptom is Veda inheriting Tony's API token and unit picks.
+//   3. The unlock gate on the network. cloudInit() and tryReconnect() must
+//      both refuse while PROFILE.unlocked is false, or a locked profile
+//      fetches its own document -- into a persistent IndexedDB cache that
+//      then sits on a machine its owner never unlocked.
+//
+// None of those throw. This file is the thing that notices.
+//
+// It is a static read of magi.html, like tests/magi-handoff.test.js: the
+// end-to-end behaviour is proved in a real browser over CDP (see
+// .claude/skills/verify), which needs a browser and so cannot run here.
+//
+// Run: node tests/magi-profiles.test.js
+'use strict';
+const fs = require('fs');
+const path = require('path');
+
+const ROOT = path.join(__dirname, '..');
+const MAGI = fs.readFileSync(path.join(ROOT, 'magi.html'), 'utf8');
+
+let pass = 0, fail = 0;
+const ok = (name, cond, extra) => {
+  if (cond) { pass++; console.log('  ok   ' + name); }
+  else { fail++; console.log('  FAIL ' + name + (extra !== undefined ? '  -> ' + String(extra).slice(0, 300) : '')); }
+};
+
+/** Lift a top-level function or const body out of the file by name. */
+function lift(name) {
+  const i = MAGI.indexOf(name);
+  if (i < 0) return '';
+  return MAGI.slice(i, i + 2600);
+}
+
+console.log('\nBoth profiles exist, and Tony keeps the document he already has');
+const profiles = lift('const MAGI_PROFILES = {');
+ok('there is a profile table', /const MAGI_PROFILES\s*=/.test(MAGI));
+ok('Tony is in it', /\btony:\s*\{/.test(profiles));
+ok('Veda is in it', /\bveda:\s*\{/.test(profiles));
+// Tony's doc must stay "magi". Changing it silently orphans every deliberation
+// he has ever run -- they do not move, the console just stops looking at them.
+ok('Tony still reads dashboards/magi', /tony:[^}]*doc:\s*"magi"/.test(profiles), profiles.slice(0, 200));
+ok('Veda reads a different document', /veda:[^}]*doc:\s*"magi_veda"/.test(profiles));
+ok('their lock records are separate',
+   /tony:[^}]*lock:\s*"tony_magi"/.test(profiles) && /veda:[^}]*lock:\s*"veda_magi"/.test(profiles));
+ok('they are visually distinguishable',
+   /tony:[^}]*color:\s*"#c0aeea"/.test(profiles) && /veda:[^}]*color:\s*"#8D769A"/.test(profiles));
+
+console.log('\nThe Firestore path is derived, never hard-coded');
+ok('_indexDoc asks the profile', /_indexDoc\s*=\s*\(\)\s*=>[^;]*prof\(\)\.doc/.test(MAGI));
+ok('_runDoc asks the profile', /_runDoc\s*=\s*\(id\)\s*=>[^;]*prof\(\)\.doc/.test(MAGI));
+ok('neither names a document literally',
+   !/CLOUD\.fs\.doc\(CLOUD\.db,\s*"dashboards",\s*"magi"/.test(MAGI));
+
+console.log('\nEvery per-person key is namespaced');
+// The keys that are one person's data. A bare "magi.x" for any of these is a
+// key both profiles share.
+for (const [decl, key] of [
+  ['TOKEN_KEY', 'token'], ['GOOD_TOKEN_KEY', 'token.ok'],
+  ['UNIT_ORDER_KEY', 'unitorder'], ['UNIT_PICK_KEY', 'units'],
+  ['AUDIO_PREFS_KEY', 'studio.audio'], ['QUEUE_KEY', 'queue'],
+  ['PIN_KEY', 'pins'], ['UNPIN_KEY', 'unpinned'], ['NICK_KEY', 'nicks'],
+  ['BS_PIN_KEY', 'bspins'], ['BS_NICK_KEY', 'bsnicks'], ['BS_UNPIN_KEY', 'bsunpinned'],
+]) {
+  const re = new RegExp('const ' + decl + '\\s*=\\s*lsKey\\("' + key.replace('.', '\\.') + '"\\)');
+  ok(decl + ' is per profile', re.test(MAGI));
+}
+ok('lsKey really namespaces', /const lsKey\s*=\s*\(name\)\s*=>\s*`magi\.\$\{PROFILE\.id\}\.\$\{name\}`/.test(MAGI));
+ok('the lock session is per profile', /const LOCK_LS\s*=\s*lsKey\("lock_session"\)/.test(MAGI));
+ok('the locked flag is per profile', /const LOCKED_LS\s*=\s*lsKey\("locked"\)/.test(MAGI));
+// The lock is a Guardian lock (Guardian/guardian.js) keyed by the profile's
+// own record, so each profile has its own password, unlock and biometric.
+ok('the lock record is per profile', /const GID = prof\(\)\.lock;/.test(MAGI) && /Guardian\.define\(GID,/.test(MAGI));
+ok('the lock is owned (themed, mailed) per profile', /owner: PROFILE\.id/.test(lift('Guardian.define(GID')));
+
+console.log('\nDevice-shaped settings stay shared');
+// Muting MAGI must not un-mute itself because you switched profile.
+for (const k of ['magi.muted', 'magi.nav.collapsed', 'magi.device', 'magi.cloud']) {
+  ok(k + ' is not namespaced', MAGI.indexOf('"' + k + '"') >= 0, k);
+}
+
+console.log('\nTony\'s existing keys are carried over, once');
+const mig = lift('function migrateLegacyKeys');
+ok('there is a migration', /migrateLegacyKeys/.test(MAGI));
+ok('it marks itself done', /magi\.tony\.migrated/.test(mig));
+ok('it copies rather than moves', !/removeItem/.test(mig), 'an older tab still reads the legacy names');
+for (const k of ['magi.token', 'magi.pins', 'magi_lock_session']) {
+  ok('it carries ' + k, mig.indexOf('"' + k + '"') >= 0);
+}
+
+console.log('\nNothing reaches the network while a profile is locked');
+const ci = lift('function cloudInit()');
+ok('cloudInit refuses when locked', /if\s*\(!PROFILE\.unlocked\)\s*return/.test(ci));
+// If the refusal were memoised into CLOUD.ready, sync would stay dead for the
+// rest of the session after the unlock.
+ok('and does not memoise the refusal',
+   /if\s*\(!PROFILE\.unlocked\)\s*return\s+Promise\.resolve\(false\);/.test(ci));
+const tr = lift('async function tryReconnect()');
+ok('tryReconnect refuses when locked', /if\s*\(!PROFILE\.unlocked\)\s*return;/.test(tr),
+   'pageshow fires on every load, so without this a locked console probes the engine');
+ok('discovery is not started at boot beside the gate',
+   !/^lockBoot\(\);\s*\nconnect\(\)/m.test(MAGI));
+ok('it is started by the unlock instead', /function openUp\(\)/.test(MAGI) && /openUp\(\);/.test(lift('function hideLock()')));
+
+console.log('\nThe gate is ours, not the browser\'s');
+const gate = lift('function renderLock()') + lift('function gateCard(id)');
+ok('no native dialog in the gate', !/\b(window\.)?(alert|confirm|prompt)\s*\(/.test(gate));
+// The password card itself is Guardian's: drawn, with a reveal toggle and a
+// caps-lock warning, in every program at once.
+const GUARD = fs.readFileSync(path.join(__dirname, '..', 'Guardian', 'guardian.js'), 'utf8');
+ok('MAGI loads Guardian before first paint', /<script src="Guardian\/guardian\.js"><\/script>/.test(MAGI));
+ok('the password field is drawn', /function pwField\(/.test(GUARD));
+ok('it has a reveal toggle', /'aria-label': 'Show password'/.test(GUARD));
+ok('it warns about caps lock', /getModifierState\("CapsLock"\)/.test(GUARD));
+ok('your own card raises Guardian', /if \(id === PROFILE\.id\)[\s\S]{0,200}unlockGate\(\)/.test(lift('function selectProfile(id)')));
+ok('both cards are rendered', /profiles: PROFILE_ORDER\.map/.test(lift('function renderLock()')));
+
+console.log('\nSwitching profile is a reload, not a reassignment');
+const sel = lift('function selectProfile(id)');
+const rel = lift('function reloadAsProfile(id)');
+ok('the other profile reloads', /reloadAsProfile\(id\)/.test(sel) && /location\.(reload|replace)\(/.test(rel),
+   'key constants are evaluated once at load; reassigning PROFILE.id would strand them');
+
+console.log('\nA browser that blocks site storage still works');
+ok('storage is guarded before any other script runs',
+   MAGI.indexOf('id="storage-guard"') >= 0 && MAGI.indexOf('id="storage-guard"') < MAGI.indexOf('<script', MAGI.indexOf('id="storage-guard"') + 1));
+ok('the guard probes with a read, never a write', /window\[name\]\.getItem\("magi\.probe"\)/.test(MAGI) && !/setItem\("magi\.probe"/.test(MAGI),
+   'a FULL store throws on setItem; treating it as blocked would hide saved data');
+ok('a blocked or full store\'s pick rides in the url across the reload',
+   /MAGI_STORAGE_BLOCKED \|\| window\.MAGI_STORAGE_FULL\) u\.searchParams\.set\(PROFILE_QS, id\)/.test(rel));
+// A FULL store (the shared origin's ~5 MB, filled by other A1 pages) was the
+// real cause on Veda's PC: reads work, every write throws QuotaExceededError.
+const guard = MAGI.slice(MAGI.indexOf('id="storage-guard"'), MAGI.indexOf('</script>', MAGI.indexOf('id="storage-guard"')));
+ok('a full store is detected without being called blocked',
+   /catch \(e\) \{ if \(isQuota\(e\)\) window\.MAGI_STORAGE_FULL = true; \}/.test(guard) &&
+   !/MAGI_STORAGE_BLOCKED = true;[^\n]*isQuota/.test(guard));
+ok('the pick is stashed in its own try, before the store that may refuse',
+   /try \{ sessionStorage\.setItem\(PICK_SS, id\); \} catch \{\}\s*try \{ localStorage\.setItem\(LAST_PROFILE_LS, id\); \} catch \{\}/.test(sel));
+// Setting a password was once a dead end: the form had one button. Guardian's
+// set screen always carries Cancel.
+ok('password setup has a way back', /function scrSet[\s\S]{0,2200}footer\('Cancel'/.test(GUARD));
+ok('Escape backs out of the picker, but only on a profile that is already open',
+   /if \(PROFILE\.unlocked && GATE\.picking\) hideLock\(\);/.test(MAGI));
+ok('the gate says the store is full', /MAGI_STORAGE_FULL\) \{[\s\S]{0,200}gate-storage/.test(MAGI));
+ok('a working browser strips it again', /else u\.searchParams\.delete\(PROFILE_QS\)/.test(rel));
+ok('the url pick is read at load', /if \(urlProfile\(\)\) return urlProfile\(\)/.test(MAGI));
+ok('a handoff is not stashed into memory that a reload would lose -- it rides in the url',
+   /MAGI_STORAGE_BLOCKED\) return carryHandoffInUrl\(h, to\)/.test(lift('function adoptHandoffProfile(h)')));
+ok('the url carry keeps the fragment and the profile',
+   /searchParams\.set\(PROFILE_QS, to\)/.test(lift('function carryHandoffInUrl(h, to)')) &&
+   /u\.hash = "tb=" \+ h\.raw/.test(lift('function carryHandoffInUrl(h, to)')));
+ok('the gate says storage is blocked', /gate-storage/.test(MAGI));
+ok('the choice is remembered first', /setItem\(LAST_PROFILE_LS, id\)/.test(sel));
+ok('PROFILE.id is resolved from storage at load', /localStorage\.getItem\(key\)/.test(MAGI));
+
+console.log('\nA device can be pinned to one profile');
+const fav = lift('function toggleFav(id)');
+ok('there is a favourite', /FAV_PROFILE_LS = "magi\.favProfile"/.test(MAGI));
+ok('it is per device, not synced', !/favProfile/.test(lift('function cloudSaveCode')) );
+// Starring again must leave the device with NO favourite, not switch it to
+// the other person -- 'unstar' has to be reachable or the pin is one-way.
+ok('starring the favourite again clears it', /removeItem\(FAV_PROFILE_LS\)/.test(fav));
+// The cards are the suite's one picker (profilepick.js): its corner star is
+// outside the card's click target.
+const PICK = require('fs').readFileSync(require('path').join(__dirname, '..', 'profilepick.js'), 'utf8');
+ok('the star is on every card', /onStar: \(id\) => toggleFav\(id\)/.test(lift('function renderLock()')));
+ok('it does not also open the profile', /data-corner[\s\S]{0,120}stopPropagation\(\)/.test(PICK),
+   'favouriting a card you were only bookmarking would open it too');
+// The favourite decides where a FRESH load lands, but a deliberate switch
+// has to win for this tab or picking the other profile bounces straight back.
+ok('an explicit pick beats the favourite', /sessionStorage\.setItem\(PICK_SS, id\)/.test(MAGI));
+ok('and the favourite beats last-used', /for \(const key of \[FAV_PROFILE_LS, LAST_PROFILE_LS\]\)/.test(MAGI));
+
+console.log('\nA handed-over prompt lands in the profile it belongs to');
+// TradeHub's Analysis tab and the morning launcher both build this link, and
+// both are Tony's. Without this the prompt would land in whichever profile the
+// console happened to be showing -- so a trading question could convene VEDA's
+// council against her accounts and file the verdict in her history.
+ok('a handoff names its profile', /const HANDOFF_PROFILE = "tony"/.test(MAGI));
+ok('it outranks the favourite and last-used',
+   /if \(hasHandoffHash\(\) \|\| sessionStorage\.getItem\(HANDOFF_SS\)\) return pendingHandoffProfile\(\);/.test(MAGI));
+// Catalysts debriefs come from BOTH TaskHubs and say whose they are (`p`).
+ok('a link may name its person, and only a real profile counts',
+   /const handoffProfileOf = \(h\) => \(h && MAGI_PROFILES\[h\.p\]\) \? h\.p : HANDOFF_PROFILE;/.test(MAGI));
+ok('the load reads that person from the stash or the fragment',
+   /handoffProfileOf\(JSON\.parse\(st\)\)/.test(lift('function pendingHandoffProfile()')) &&
+   /handoffProfileOf\(JSON\.parse\(b64uDecode/.test(lift('function pendingHandoffProfile()')));
+ok('a switch to the other person never interrupts a live run',
+   /if \(S\.running \|\| S\.refining\) return;\s*if \(adoptHandoffProfile\(HANDOFF\)\)/.test(lift('function handoffTry()')));
+// The fragment is stripped before the payload is read (so a reload cannot fire
+// a second council run), which means a reload to switch profile would lose it.
+ok('one arriving in the wrong profile is carried across the reload',
+   /function adoptHandoffProfile\(h\)/.test(MAGI));
+ok('the payload is stashed before reloading',
+   /sessionStorage\.setItem\(HANDOFF_SS, JSON\.stringify\(h\)\)/.test(lift('function adoptHandoffProfile')));
+ok('and picked up on the way back up', /HANDOFF = takeStashedHandoff\(\) \|\| takeHandoff\(\)/.test(MAGI));
+ok('the stash is consumed once, like the url',
+   /sessionStorage\.removeItem\(HANDOFF_SS\)/.test(lift('function takeStashedHandoff')),
+   'otherwise it re-runs on every load of that tab');
+
+console.log('\nThe cards say who, and nothing else');
+ok('no subtitle line survives', !/gate-state/.test(MAGI),
+   'it either restated the password field or claimed a lock state this page cannot check');
+ok('the avatar is outlined, not filled',
+   /\.gate-av \{[^}]*background: none;[^}]*border: 1\.5px solid var\(--pc\)/.test(MAGI));
+
+console.log('\nThe console says whose MAGI it is');
+ok('there is a profile chip', /id="profBtn"/.test(MAGI));
+ok('and one on mobile too', /id="profBtnM"/.test(MAGI),
+   'the sidebar is a shut drawer on a phone');
+ok('it is painted from the profile', /function syncProfileBtn\(\)/.test(MAGI));
+
+console.log('\n  ' + pass + ' passed, ' + fail + ' failed');
+process.exit(fail ? 1 : 0);
+>>>>>>> Stashed changes

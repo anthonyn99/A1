@@ -119,8 +119,8 @@ const api = {
   ok('the gate (picker) is up with Guardian\'s card over it', d.open && /MAGI/.test(d.text) && (await js(`return !!document.getElementById('lockScreen') && !document.getElementById('lockScreen').hidden`)), JSON.stringify(d));
   ok('nothing reaches the engine or Firestore while locked', await js(`return PROFILE.unlocked === false && LOCK.booted === true`));
   await gclick('Cancel');
-  ok('Cancel leaves the picker, with an Unlock button on the open card', !(await dlg()).open && (await js(`return !!document.querySelector('.gate-card.open .btn.active')`)));
-  await js(`document.querySelector('.gate-card.open .btn.active').click(); return 1;`); await sleep(500);
+  ok('Cancel leaves the picker, its own card marked Locked', !(await dlg()).open && (await js(`return /Locked/i.test(document.querySelector('#lockScreen .pk-card.tony .pk-note').textContent)`)));
+  await js(`document.querySelector('#lockScreen .pk-card.tony').click(); return 1;`); await sleep(500);
   await gtype('Password', 'mpw'); await gclick('Unlock'); await sleep(800);
   ok('the password opens the console', (await js(`return PROFILE.unlocked === true && document.getElementById('lockScreen').hidden`)));
   ok('the header padlock shows locked', await js(`return LOCK.hasLock === true`));
