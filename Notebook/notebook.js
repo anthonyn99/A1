@@ -378,7 +378,7 @@ function checkOptions(cfg) {
 }
 
 // Veda's faces, for a host that does not load them (index.html does).
-var VEDA_FONTS = 'https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&family=Playfair+Display:wght@900&family=Fraunces:opsz,wght@9..144,400..700&display=swap';
+var VEDA_FONTS = 'https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Playfair+Display:wght@900&family=Lora:wght@400;700&family=Fraunces:opsz,wght@9..144,400..700&display=swap';
 function vedaFonts() {
   if (document.querySelector('link[data-notebook-fonts]')) return;
   var l = document.createElement('link');
