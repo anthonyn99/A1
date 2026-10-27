@@ -6210,7 +6210,7 @@ function useTouchReorder(items, setItems, who, selfZone) {
 
   function clearClone() {
     if (clone.current) { clone.current.remove(); clone.current = null; }
-    if (lastTarget.current) { lastTarget.current.style.boxShadow = ''; lastTarget.current = null; }
+    if (lastTarget.current) { lastTarget.current.style.outline = ''; lastTarget.current.style.outlineOffset = ''; lastTarget.current = null; }
   }
 
   function reorder(srcId, targetId) {
@@ -6235,6 +6235,13 @@ function useTouchReorder(items, setItems, who, selfZone) {
       const t0=e.changedTouches[0]; if(!t0) return; // the finger that just touched down
       const touchId=t0.identifier;
       const rowEl=e.currentTarget;
+      // While this finger is down the phone must not run its own gesture on the
+      // row: a native HTML5 drag (rows are draggable for the mouse), the long-press
+      // menu or text selection each fire touchcancel and kill this drag.
+      const wasDraggable=rowEl.draggable, prevSel=rowEl.style.webkitUserSelect, prevCallout=rowEl.style.webkitTouchCallout;
+      rowEl.draggable=false; rowEl.style.webkitUserSelect='none'; rowEl.style.webkitTouchCallout='none';
+      const noMenu=ev=>ev.preventDefault();
+      document.addEventListener('contextmenu',noMenu,true);
       const dx0=t0.clientX, dy0=t0.clientY;
       let curX=dx0, curY=dy0;
       let dragStarted=false, lpTimer=null;
@@ -6246,11 +6253,13 @@ function useTouchReorder(items, setItems, who, selfZone) {
         if(hoverTab&&hoverTab!==lastHoverTab.current&&src.current&&window._goalTabHover){lastHoverTab.current=hoverTab;window._goalTabHover(hoverTab);}
         else if(!hoverTab){lastHoverTab.current=null;}
         const row=el&&el.closest('[data-dnd-id]');
-        if(lastTarget.current&&lastTarget.current!==row){lastTarget.current.style.boxShadow='';lastTarget.current.style.outline='';}
-        if(row&&row.dataset.dndId!==src.current){row.style.boxShadow='0 0 0 2px #c0aeea';lastTarget.current=row;}
+        if(lastTarget.current&&lastTarget.current!==row){lastTarget.current.style.outline='';lastTarget.current.style.outlineOffset='';}
+        if(row&&row.dataset.dndId!==src.current){row.style.outline='2px solid #c0aeea';row.style.outlineOffset='-1px';lastTarget.current=row;}
       };
       const cleanup=()=>{
         if(lpTimer){clearTimeout(lpTimer);lpTimer=null;}
+        rowEl.draggable=wasDraggable; rowEl.style.webkitUserSelect=prevSel; rowEl.style.webkitTouchCallout=prevCallout;
+        document.removeEventListener('contextmenu',noMenu,true);
         document.removeEventListener('touchmove',moveH,{passive:false});
         document.removeEventListener('touchend',endH);
         document.removeEventListener('touchcancel',endH);
@@ -6335,7 +6344,7 @@ function useTouchReorderByDay(setData, accentColor, who) {
 
   function clearClone() {
     if (clone.current) { clone.current.remove(); clone.current = null; }
-    if (lastTarget.current) { lastTarget.current.style.boxShadow = ''; lastTarget.current = null; }
+    if (lastTarget.current) { lastTarget.current.style.outline = ''; lastTarget.current.style.outlineOffset = ''; lastTarget.current = null; }
   }
 
   function reorder(k, srcId, targetId) {
@@ -6345,6 +6354,14 @@ function useTouchReorderByDay(setData, accentColor, who) {
       const si = arr.findIndex(x => x.id === srcId);
       const ti = arr.findIndex(x => x.id === targetId);
       if (si < 0 || ti < 0) return prev;
+      // Ticked tasks display by doneAt (wkSortTasks), so re-stamp instead (as onDropTask).
+      if (arr[si].done && arr[ti].done) {
+        const dm = (window._wkDoneAt = window._wkDoneAt || {});
+        const key = t => Math.max(t.doneAt || 0, dm[t.id] || 0);
+        const tk = key(arr[ti]), nk = key(arr[si]) < tk ? tk + .5 : tk - .5;
+        arr[si] = { ...arr[si], doneAt: nk }; dm[srcId] = nk;
+        return { ...prev, [k]: arr };
+      }
       const [item] = arr.splice(si, 1);
       arr.splice(ti, 0, item);
       return { ...prev, [k]: arr };
@@ -6361,6 +6378,13 @@ function useTouchReorderByDay(setData, accentColor, who) {
       const t0=e.changedTouches[0]; if(!t0) return; // the finger that just touched down
       const touchId=t0.identifier;
       const rowEl=e.currentTarget;
+      // While this finger is down the phone must not run its own gesture on the
+      // row: a native HTML5 drag (rows are draggable for the mouse), the long-press
+      // menu or text selection each fire touchcancel and kill this drag.
+      const wasDraggable=rowEl.draggable, prevSel=rowEl.style.webkitUserSelect, prevCallout=rowEl.style.webkitTouchCallout;
+      rowEl.draggable=false; rowEl.style.webkitUserSelect='none'; rowEl.style.webkitTouchCallout='none';
+      const noMenu=ev=>ev.preventDefault();
+      document.addEventListener('contextmenu',noMenu,true);
       const dx0=t0.clientX, dy0=t0.clientY;
       let curX=dx0, curY=dy0;
       let started=false, lpTimer=null;
@@ -6368,11 +6392,13 @@ function useTouchReorderByDay(setData, accentColor, who) {
       const highlight=(x,y)=>{
         const el=document.elementFromPoint(x,y);
         const row=el&&el.closest('[data-dnd-id]');
-        if(lastTarget.current&&lastTarget.current!==row)lastTarget.current.style.boxShadow='';
-        if(row&&row.dataset.dndId!==src.current){row.style.boxShadow=`0 0 0 2px ${accentColor||'#c0aeea'}`;lastTarget.current=row;}
+        if(lastTarget.current&&lastTarget.current!==row){lastTarget.current.style.outline='';lastTarget.current.style.outlineOffset='';}
+        if(row&&row.dataset.dndId!==src.current){row.style.outline=`2px solid ${accentColor||'#c0aeea'}`;row.style.outlineOffset='-1px';lastTarget.current=row;}
       };
       const cleanup=()=>{
         if(lpTimer){clearTimeout(lpTimer);lpTimer=null;}
+        rowEl.draggable=wasDraggable; rowEl.style.webkitUserSelect=prevSel; rowEl.style.webkitTouchCallout=prevCallout;
+        document.removeEventListener('contextmenu',noMenu,true);
         document.removeEventListener('touchmove',moveH,{passive:false});
         document.removeEventListener('touchend',endH);
         document.removeEventListener('touchcancel',endH);
@@ -13933,7 +13959,7 @@ function useTouchReorder(items, setItems, who, selfZone) {
 
   function clearClone() {
     if (clone.current) { clone.current.remove(); clone.current = null; }
-    if (lastTarget.current) { lastTarget.current.style.boxShadow = ''; lastTarget.current = null; }
+    if (lastTarget.current) { lastTarget.current.style.outline = ''; lastTarget.current.style.outlineOffset = ''; lastTarget.current = null; }
   }
 
   function reorder(srcId, targetId) {
@@ -13958,6 +13984,13 @@ function useTouchReorder(items, setItems, who, selfZone) {
       const t0=e.changedTouches[0]; if(!t0) return; // the finger that just touched down
       const touchId=t0.identifier;
       const rowEl=e.currentTarget;
+      // While this finger is down the phone must not run its own gesture on the
+      // row: a native HTML5 drag (rows are draggable for the mouse), the long-press
+      // menu or text selection each fire touchcancel and kill this drag.
+      const wasDraggable=rowEl.draggable, prevSel=rowEl.style.webkitUserSelect, prevCallout=rowEl.style.webkitTouchCallout;
+      rowEl.draggable=false; rowEl.style.webkitUserSelect='none'; rowEl.style.webkitTouchCallout='none';
+      const noMenu=ev=>ev.preventDefault();
+      document.addEventListener('contextmenu',noMenu,true);
       const dx0=t0.clientX, dy0=t0.clientY;
       let curX=dx0, curY=dy0;
       let dragStarted=false, lpTimer=null;
@@ -13969,11 +14002,13 @@ function useTouchReorder(items, setItems, who, selfZone) {
         if(hoverTab&&hoverTab!==lastHoverTab.current&&src.current&&window._vGoalTabHover){lastHoverTab.current=hoverTab;window._vGoalTabHover(hoverTab);}
         else if(!hoverTab){lastHoverTab.current=null;}
         const row=el&&el.closest('[data-dnd-id]');
-        if(lastTarget.current&&lastTarget.current!==row){lastTarget.current.style.boxShadow='';}
-        if(row&&row.dataset.dndId!==src.current){row.style.boxShadow='0 0 0 2px #8D769A';lastTarget.current=row;}
+        if(lastTarget.current&&lastTarget.current!==row){lastTarget.current.style.outline='';lastTarget.current.style.outlineOffset='';}
+        if(row&&row.dataset.dndId!==src.current){row.style.outline='2px solid #8D769A';row.style.outlineOffset='-1px';lastTarget.current=row;}
       };
       const cleanup=()=>{
         if(lpTimer){clearTimeout(lpTimer);lpTimer=null;}
+        rowEl.draggable=wasDraggable; rowEl.style.webkitUserSelect=prevSel; rowEl.style.webkitTouchCallout=prevCallout;
+        document.removeEventListener('contextmenu',noMenu,true);
         document.removeEventListener('touchmove',moveH,{passive:false});
         document.removeEventListener('touchend',endH);
         document.removeEventListener('touchcancel',endH);
@@ -14057,7 +14092,7 @@ function useTouchReorderByDay(setData, accentColor, who) {
 
   function clearClone() {
     if (clone.current) { clone.current.remove(); clone.current = null; }
-    if (lastTarget.current) { lastTarget.current.style.boxShadow = ''; lastTarget.current = null; }
+    if (lastTarget.current) { lastTarget.current.style.outline = ''; lastTarget.current.style.outlineOffset = ''; lastTarget.current = null; }
   }
 
   function reorder(k, srcId, targetId) {
@@ -14083,6 +14118,13 @@ function useTouchReorderByDay(setData, accentColor, who) {
       const t0=e.changedTouches[0]; if(!t0) return; // the finger that just touched down
       const touchId=t0.identifier;
       const rowEl=e.currentTarget;
+      // While this finger is down the phone must not run its own gesture on the
+      // row: a native HTML5 drag (rows are draggable for the mouse), the long-press
+      // menu or text selection each fire touchcancel and kill this drag.
+      const wasDraggable=rowEl.draggable, prevSel=rowEl.style.webkitUserSelect, prevCallout=rowEl.style.webkitTouchCallout;
+      rowEl.draggable=false; rowEl.style.webkitUserSelect='none'; rowEl.style.webkitTouchCallout='none';
+      const noMenu=ev=>ev.preventDefault();
+      document.addEventListener('contextmenu',noMenu,true);
       const dx0=t0.clientX, dy0=t0.clientY;
       let curX=dx0, curY=dy0;
       let started=false, lpTimer=null;
@@ -14090,11 +14132,13 @@ function useTouchReorderByDay(setData, accentColor, who) {
       const highlight=(x,y)=>{
         const el=document.elementFromPoint(x,y);
         const row=el&&el.closest('[data-dnd-id]');
-        if(lastTarget.current&&lastTarget.current!==row)lastTarget.current.style.boxShadow='';
-        if(row&&row.dataset.dndId!==src.current){row.style.boxShadow=`0 0 0 2px ${accentColor||'#8D769A'}`;lastTarget.current=row;}
+        if(lastTarget.current&&lastTarget.current!==row){lastTarget.current.style.outline='';lastTarget.current.style.outlineOffset='';}
+        if(row&&row.dataset.dndId!==src.current){row.style.outline=`2px solid ${accentColor||'#8D769A'}`;row.style.outlineOffset='-1px';lastTarget.current=row;}
       };
       const cleanup=()=>{
         if(lpTimer){clearTimeout(lpTimer);lpTimer=null;}
+        rowEl.draggable=wasDraggable; rowEl.style.webkitUserSelect=prevSel; rowEl.style.webkitTouchCallout=prevCallout;
+        document.removeEventListener('contextmenu',noMenu,true);
         document.removeEventListener('touchmove',moveH,{passive:false});
         document.removeEventListener('touchend',endH);
         document.removeEventListener('touchcancel',endH);
