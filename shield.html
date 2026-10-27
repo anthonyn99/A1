@@ -905,6 +905,22 @@ body:not([data-profile="veda"]) .hint{font-size:12px;line-height:1.55}
 body:not([data-profile="veda"]) .hint b{color:var(--txd);font-weight:600}
 body:not([data-profile="veda"]) .sec > .hint{padding:0 2px}
 
+/* Groups (Tony, 2026-10-27): every titled section is one outlined panel, so
+   its title, sets, rows and options read as a single unit. A hairline a shade
+   brighter than --bd and a near-invisible lift; the rows inside keep their s1
+   fill. Untitled sections (footnotes, the no-agent warning) stay bare. */
+body:not([data-profile="veda"]) .sec:has(> .sec-head){
+  border:1px solid rgba(255,255,255,.085);border-radius:14px;
+  background:rgba(255,255,255,.012);padding:14px 16px 16px;margin-bottom:18px;
+}
+body:not([data-profile="veda"]) .sec:has(> .sec-head) > .sec-head{margin-bottom:10px}
+body:not([data-profile="veda"]) .sec:has(> .sec-head) > .sec-head .sec-title{color:var(--txd)}
+body:not([data-profile="veda"]) .sec:not(:has(> .sec-head)){margin-bottom:18px}
+body:not([data-profile="veda"]) .qa{margin-bottom:18px !important}
+@media (max-width:420px){
+  body:not([data-profile="veda"]) .sec:has(> .sec-head){padding:12px 12px 14px;border-radius:12px}
+}
+
 /* Buttons. Every one is outlined (Tony, 2026-10-27); the one primary action
    of a card is solid purple. */
 body:not([data-profile="veda"]) .btn{border-radius:7px}
