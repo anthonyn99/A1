@@ -26957,6 +26957,22 @@ async function setNick(id, name) {
   mergeHistory();
 }
 
+/** Group a sheet's sections into outlined panels (Tony, 2026-10-27). Each
+ *  .sheet-lbl that is a direct child starts a group running to the next one; a
+ *  .sheet-lbl-cont label joins the group above it instead. The intro before the
+ *  first label stays loose. Call it after the body is built: the sheets redraw
+ *  by emptying the body, so it is re-run on every draw. */
+function sheetGroups(body) {
+  let grp = null;
+  for (const n of [...body.children]) {
+    if (n.classList.contains("sheet-lbl") && !(grp && n.classList.contains("sheet-lbl-cont"))) {
+      grp = el("div", "sheet-grp");
+      body.insertBefore(grp, n);
+    }
+    if (grp) grp.append(n);
+  }
+}
+
 /* Dismissing a sheet by its backdrop, without dismissing it by accident.
  *
  *  `click` fires on the nearest ancestor SHARED by where the press started
