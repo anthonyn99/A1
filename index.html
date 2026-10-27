@@ -6190,9 +6190,42 @@ window.thDragRef=function(who,zone,h){
   return function(el){
     if(!el||!window.A1Drag)return;
     el.dataset.thz=zone;el._thDrag=h;
-    A1Drag.sort(el,{row:"[data-dkey]",hold:300,group:"th-"+who,onDrop:thDragDrop});
+    A1Drag.sort(el,{row:"[data-dkey]",hold:300,group:"th-"+who,free:true,onDrop:thDragDrop,
+      segment:function(row,list){return thDragRank(who,row,list);},canMoveTo:thDragCanMove});
   };
 };
+// What a row is, for where it may go: thRowData(item[, kind]) spreads into a
+// row's props. "Stay" rows never leave their list -- Everwell's Prayer row,
+// shared plans and Veda's SOS items, whose place is set elsewhere and would
+// be put straight back.
+window.thRowData=function(x,kind){
+  const d={"data-kind":kind||(x.type==="event"?"event":"task"),"data-done":x.done?"1":"0"};
+  if(x._sosId)d["data-sos"]="1";
+  if(x._planId||x._sosId||x._ewPrayer)d["data-stay"]="1";
+  return d;
+};
+// A row's rank in a list, in the order the list draws them: a day is open
+// tasks (Veda: SOS ones first), then done tasks, then events; goals are open
+// then done. A row only lands among rows of its own rank, so nothing is
+// dropped where the next redraw would sort it straight back out. For a row
+// from another list this is the rank it WOULD have here (a habit or goal
+// becomes an open or done task, an event stays an event).
+function thDragRank(who,row,list){
+  const z=(list.dataset.thz||"").split(":")[0],d=row.dataset,done=d.done==="1";
+  if(z==="week"){
+    if(d.kind==="event")return who==="veda"?3:2;
+    return who==="veda"?(done?2:(d.sos==="1"?0:1)):(done?1:0);
+  }
+  if(z==="goal"||z==="goalm")return done?1:0;
+  return 0;
+}
+// Lists a row may never go to are left out of the drag altogether, so no gap
+// opens there: its own list's goals tab / day button, and anywhere at all for
+// a row that stays.
+function thDragCanMove(row,from,to){
+  if(to.dataset.thz===from.dataset.thz)return false;
+  return row.dataset.stay!=="1";
+}
 function thDragIds(l){return Array.prototype.filter.call(l.children,function(n){return n.matches("[data-dkey]");}).map(function(n){return n.dataset.dkey;});}
 function thDragDrop(from,to,fl,tl){
   const h=fl._thDrag,ids=thDragIds(fl),id=ids[from];
@@ -10114,14 +10147,14 @@ function App(){
                  sits in YOUR day lives in your own dashboard doc, so it is yours
                  to drag and it survives the reconcile (which now preserves the
                  slot of a plan it already knows about). */
-              ?React.createElement("div",{key:t.id,"data-dkey":t.id,style:({...wkPlanCard(td,wkPlanOverdue(t,k)),display:"flex",flexDirection:"column",gap:2,marginBottom:4,opacity:t.done?dimA*0.72:(wkPlanOverdue(t,k)?1:dimA),cursor:"grab"})},
+              ?React.createElement("div",{key:t.id,"data-dkey":t.id,...thRowData(t),style:({...wkPlanCard(td,wkPlanOverdue(t,k)),display:"flex",flexDirection:"column",gap:2,marginBottom:4,opacity:t.done?dimA*0.72:(wkPlanOverdue(t,k)?1:dimA),cursor:"grab"})},
                 React.createElement("div",{style:{display:"flex",alignItems:"center",gap:6}},
                   t.done&&React.createElement(PlanCheck,{size:11,color:T.GRN}),
                   React.createElement("span",{style:wkPlanTag},"Plan"),
                   wkPlanOverdue(t,k)&&React.createElement("span",{style:wkOverTag},"Overdue"),
                   t.time&&React.createElement("span",{style:{fontSize:10,fontWeight:700,color:T.AC,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
                 React.createElement("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?T.TXDONE:(wkPlanOverdue(t,k)?T.TX:dayTX),opacity:t.done?0.55:1,textDecoration:t.done?"line-through":"none",lineHeight:1.4,...wkTitleFit}},t.title))
-              :React.createElement("div",{key:t.id,"data-dkey":t.id,style:({...wkTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:8,marginBottom:4,opacity:t.done?0.85:1,cursor:"grab"})},
+              :React.createElement("div",{key:t.id,"data-dkey":t.id,...thRowData(t),style:({...wkTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:8,marginBottom:4,opacity:t.done?0.85:1,cursor:"grab"})},
                                 /* Completed box takes the task's category colour so a
                                    finished row still says what kind of work it was;
                                    uncategorised tasks fall back to gold. */
@@ -10138,7 +10171,7 @@ function App(){
                 !edit&&t.aiPrep&&!t._sosId&&thPrepBtn(t,k),
               edit&&React.createElement("button",{type:"button",style:{...ebtn,padding:"0 6px"},onClick:()=>{setEi(t);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,t.id)},"×"))),
-              events.map(e=>React.createElement("div",{key:e.id,"data-dkey":e.id,style:({...wkEventCard(e.category,wkEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:7,marginBottom:4,opacity:wkEvtPassed(e,k)?0.5:dimA,cursor:"grab"})},
+              events.map(e=>React.createElement("div",{key:e.id,"data-dkey":e.id,...thRowData(e),style:({...wkEventCard(e.category,wkEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:7,marginBottom:4,opacity:wkEvtPassed(e,k)?0.5:dimA,cursor:"grab"})},
                                 React.createElement("div",{style:{width:6,height:6,borderRadius:"50%",background:CC[e.category]||T.ACL,marginTop:5,flexShrink:0}}),
                 React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 (e.time||e.notifyAt)&&React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:6,marginBottom:2}},
@@ -10200,14 +10233,14 @@ function App(){
               tasks.map(t=>t._planId
               /* Shared plan — content inert, position draggable; same rule as the
                  wide grid above. */
-              ?React.createElement("div",{key:t.id,"data-dkey":t.id,style:({...wkPlanCard(td,wkPlanOverdue(t,k)),display:"flex",flexDirection:"column",gap:2,marginBottom:3,opacity:t.done?dimA*0.72:(wkPlanOverdue(t,k)?1:dimA),cursor:"grab"})},
+              ?React.createElement("div",{key:t.id,"data-dkey":t.id,...thRowData(t),style:({...wkPlanCard(td,wkPlanOverdue(t,k)),display:"flex",flexDirection:"column",gap:2,marginBottom:3,opacity:t.done?dimA*0.72:(wkPlanOverdue(t,k)?1:dimA),cursor:"grab"})},
                 React.createElement("div",{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}},
                   t.done&&React.createElement(PlanCheck,{size:10,color:T.GRN}),
                   React.createElement("span",{style:wkPlanTag},"Plan"),
                   wkPlanOverdue(t,k)&&React.createElement("span",{style:wkOverTag},"Overdue"),
                   t.time&&React.createElement("span",{style:{fontSize:9,fontWeight:700,color:T.AC,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
                 React.createElement("span",{style:{fontSize:13,fontWeight:t.done?500:700,color:t.done?T.TXDONE:(wkPlanOverdue(t,k)?T.TX:dayTX),opacity:t.done?0.55:1,textDecoration:t.done?"line-through":"none",lineHeight:1.35,whiteSpace:"normal",...wkTitleFit}},t.title))
-              :React.createElement("div",{key:t.id,"data-dkey":t.id,style:({...wkTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:6,marginBottom:3,opacity:t.done?0.85:1,cursor:"grab"})},
+              :React.createElement("div",{key:t.id,"data-dkey":t.id,...thRowData(t),style:({...wkTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:6,marginBottom:3,opacity:t.done?0.85:1,cursor:"grab"})},
                                 React.createElement("div",{onClick:()=>tog(k,t.id),style:{width:14,height:14,minWidth:14,borderRadius:3,border:"2px solid "+(t.done?(CC[t.category]||T.AC):T.BDL),background:t.done?(CC[t.category]||T.AC):"transparent",opacity:t.done?0.5:1,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&React.createElement(Chk,{s:7,col:T.BG})),
                 React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 !edit&&React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:5,marginBottom:1}},
@@ -10221,7 +10254,7 @@ function App(){
                 !edit&&t.aiPrep&&!t._sosId&&thPrepBtn(t,k),
               edit&&React.createElement("button",{type:"button",style:ebtn,onClick:()=>{setEi(t);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&React.createElement("button",{type:"button",style:dbtn,onClick:()=>del(k,t.id)},"×"))),
-              events.map(e=>React.createElement("div",{key:e.id,"data-dkey":e.id,style:({...wkEventCard(e.category,wkEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:5,marginBottom:3,opacity:wkEvtPassed(e,k)?0.5:dimA,cursor:"grab"})},
+              events.map(e=>React.createElement("div",{key:e.id,"data-dkey":e.id,...thRowData(e),style:({...wkEventCard(e.category,wkEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:5,marginBottom:3,opacity:wkEvtPassed(e,k)?0.5:dimA,cursor:"grab"})},
                                 React.createElement("div",{style:{width:5,height:5,borderRadius:"50%",background:CC[e.category]||T.ACL,marginTop:5,flexShrink:0}}),
                 React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 (e.time||e.notifyAt)&&React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:5,marginBottom:1}},
@@ -10255,7 +10288,7 @@ function App(){
               // Everwell's Prayer: its own row, ticks in dashboards/everwell_prayer
               // (Phase 5). Not a habit in `habits`: no edit, no delete. It drags
               // WITHIN Daily Habits only (habRows / setHabRows, crossMove refuses it).
-              habRows.map(h=>h._ewPrayer?React.createElement("tr",{key:EWP_ID,"data-ew-prayer":"1","data-dkey":EWP_ID,style:{cursor:"grab"}},
+              habRows.map(h=>h._ewPrayer?React.createElement("tr",{key:EWP_ID,"data-ew-prayer":"1","data-dkey":EWP_ID,"data-kind":"habit","data-stay":"1",style:{cursor:"grab"}},
                 React.createElement("td",{style:{fontSize:13,fontWeight:700,color:T.TX,paddingLeft:4,paddingTop:7,paddingBottom:7,wordBreak:"break-word",whiteSpace:"normal",borderBottom:"1px solid "+T.BD+"22",width:"100%"},title:"From Everwell: tick it here or in Everwell's Prayer tab"},
                   "Prayer",
                   React.createElement("span",{"aria-label":"from Everwell",style:{display:"inline-flex",width:20,height:20,marginLeft:7,verticalAlign:"-5px",color:T.AC},dangerouslySetInnerHTML:{__html:'<svg viewBox="0 0 96 96" width="20" height="20" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"><path d="M48 30C38 43 38 59 48 72 58 59 58 43 48 30Z"/><path d="M48 72C34 70 24 59 22 47 36 49 44 58 48 72Z"/><path d="M48 72C62 70 72 59 74 47 60 49 52 58 48 72Z"/></g><circle cx="48" cy="14" r="9" fill="currentColor"/></svg>'}})),
@@ -10265,7 +10298,7 @@ function App(){
                 React.createElement("td",{"aria-hidden":"true",style:{textAlign:"right",paddingTop:7,paddingBottom:7,borderBottom:"1px solid "+T.BD+"22",width:edit?62:0,paddingRight:edit?2:0,paddingLeft:0,overflow:"hidden",whiteSpace:"nowrap",visibility:"hidden"}},
                   React.createElement("button",{type:"button",tabIndex:-1,disabled:true,style:{...ebtn,padding:"0 6px"}},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                   React.createElement("button",{type:"button",tabIndex:-1,disabled:true,style:{...dbtn,padding:"0 6px"}},"×")))
-              :React.createElement("tr",{key:h.id,"data-dkey":h.id,style:{cursor:"grab"}},
+              :React.createElement("tr",{key:h.id,"data-dkey":h.id,"data-kind":"habit",style:{cursor:"grab"}},
                 React.createElement("td",{style:{fontSize:13,fontWeight:700,color:T.TX,paddingLeft:4,paddingTop:7,paddingBottom:7,wordBreak:"break-word",whiteSpace:"normal",borderBottom:"1px solid "+T.BD+"22",width:"100%"}},
                                     h.title,
                   h.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:0.85,whiteSpace:"nowrap",marginLeft:6},title:habReminderLabel(h)},React.createElement("span",{style:{width:12,height:12,fontSize:12,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}})," "+habTimeLabel(h))),
@@ -10322,7 +10355,7 @@ function App(){
               g.done&&React.createElement(PlanCheck,{size:11,color:T.GRN}),
               React.createElement("span",{style:wkPlanTag},"Plan")),
             React.createElement("span",{style:{fontSize:13,fontWeight:g.done?500:700,color:g.done?T.TXDONE:T.TX,textDecoration:g.done?"line-through":"none",lineHeight:1.4,wordBreak:"break-word",whiteSpace:"normal"}},g.title))
-          :React.createElement("div",{key:g.id,"data-dkey":g.id,style:({display:"flex",alignItems:"flex-start",gap:7,padding:"6px 0",opacity:g.done?0.72:1,borderBottom:"1px solid "+T.BD+"33",cursor:"grab"})},
+          :React.createElement("div",{key:g.id,"data-dkey":g.id,...thRowData(g,"goal"),style:({display:"flex",alignItems:"flex-start",gap:7,padding:"6px 0",opacity:g.done?0.72:1,borderBottom:"1px solid "+T.BD+"33",cursor:"grab"})},
                         React.createElement("div",{onClick:()=>(goalTab==="short"?togMM:togM)(g.id),style:{width:15,height:15,minWidth:15,borderRadius:3,cursor:"pointer",border:"2px solid "+(g.done?T.AC:T.BDL),background:g.done?T.AC:"transparent",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},g.done&&React.createElement(Chk,{s:8,col:T.BG})),
             React.createElement("span",{style:{fontSize:13,fontWeight:g.done?500:700,color:g.done?T.TXDONE:T.TX,textDecoration:g.done?"line-through":"none",lineHeight:1.4,flex:1,wordBreak:"break-word",whiteSpace:"normal"}},g.title),
             edit&&React.createElement("button",{type:"button",style:{...ebtn,padding:"0 6px"},onClick:()=>(goalTab==="short"?setEditingGoalM:setEditingGoal)({id:g.id,title:g.title}),title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
@@ -16496,14 +16529,14 @@ function App(){
                  Position is yours though: where a plan sits in your day lives in
                  your own dashboard doc, so it drags like any task and the
                  reconcile keeps the slot. */
-              ?RC("div",{key:t.id,"data-dkey":t.id,style:({...vdPlanCard(vdPlanOverdue(t,k)),display:"flex",flexDirection:"column",gap:2,marginBottom:5,opacity:t.done?dimA*0.7:(vdPlanOverdue(t,k)?1:dimA),cursor:"grab"})},
+              ?RC("div",{key:t.id,"data-dkey":t.id,...thRowData(t),style:({...vdPlanCard(vdPlanOverdue(t,k)),display:"flex",flexDirection:"column",gap:2,marginBottom:5,opacity:t.done?dimA*0.7:(vdPlanOverdue(t,k)?1:dimA),cursor:"grab"})},
                 RC("div",{style:{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}},
                   t.done&&RC(PlanCheck,{size:11,color:PLAN_GRN_VEDA}),
                   RC("span",{style:vdPlanTag},"Plan"),
                   vdPlanOverdue(t,k)&&RC("span",{style:vdOverTag},"Overdue"),
                   t.time&&RC("span",{style:{fontSize:9,fontWeight:700,color:A,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
                 RC("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?TXM:(vdPlanOverdue(t,k)?TX:dayTX),textDecoration:t.done?"line-through":"none",lineHeight:1.4,...vdTitleFit}},t.title))
-              :RC("div",{key:t.id,"data-dkey":t.id,style:({...vdTaskCard(t.done,td),...vdSosSpine(t),display:"flex",alignItems:"flex-start",gap:7,marginBottom:5,opacity:t.done?.45:1,cursor:"grab"})},
+              :RC("div",{key:t.id,"data-dkey":t.id,...thRowData(t),style:({...vdTaskCard(t.done,td),...vdSosSpine(t),display:"flex",alignItems:"flex-start",gap:7,marginBottom:5,opacity:t.done?.45:1,cursor:"grab"})},
                                 RC("div",{onClick:()=>tog(k,t.id),style:{width:16,height:16,minWidth:16,borderRadius:3,border:"2px solid "+(t.done?CC[t.category]||TXM:TXM),background:t.done?CC[t.category]||TXM:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&RC(Chk,{s:9})),
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 !edit&&RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:5,marginBottom:1}},
@@ -16515,7 +16548,7 @@ function App(){
                 !edit&&t.aiPrep&&!t._sosId&&vdPrepBtn(t,k),
                 edit&&RC("button",{type:"button",title:"Edit",style:vdIcoBtn(TXD),onClick:()=>{setEi(t);setMdt(k);setMo(true);}},vdIco(TNI.pencil)),
                 edit&&RC("button",{type:"button",title:"Delete",style:vdIcoBtn("#f85149"),onClick:()=>del(k,t.id)},vdIco(TNI.x)))),
-              ev.map(e=>RC("div",{key:e.id,"data-dkey":e.id,style:({...vdEventCard(e.category,vdEvtPassed(e,k)),...vdSosSpine(e,vdEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:7,marginBottom:4,opacity:vdEvtPassed(e,k)?0.5:dimA,cursor:"grab"})},
+              ev.map(e=>RC("div",{key:e.id,"data-dkey":e.id,...thRowData(e),style:({...vdEventCard(e.category,vdEvtPassed(e,k)),...vdSosSpine(e,vdEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:7,marginBottom:4,opacity:vdEvtPassed(e,k)?0.5:dimA,cursor:"grab"})},
                                 RC("div",{style:{width:6,height:6,borderRadius:"50%",background:CC[e.category]||AL,marginTop:5,flexShrink:0}}),
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:5,marginBottom:1}},
@@ -16556,14 +16589,14 @@ function App(){
               ts.map(t=>t._planId
               /* Shared plan — content inert, position draggable; same rule as the
                  single-day list. */
-              ?RC("div",{key:t.id,"data-dkey":t.id,style:({...vdPlanCard(vdPlanOverdue(t,k)),display:"flex",flexDirection:"column",gap:2,marginBottom:4,opacity:t.done?dimA*0.7:(vdPlanOverdue(t,k)?1:dimA),cursor:"grab"})},
+              ?RC("div",{key:t.id,"data-dkey":t.id,...thRowData(t),style:({...vdPlanCard(vdPlanOverdue(t,k)),display:"flex",flexDirection:"column",gap:2,marginBottom:4,opacity:t.done?dimA*0.7:(vdPlanOverdue(t,k)?1:dimA),cursor:"grab"})},
                 RC("div",{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}},
                   t.done&&RC(PlanCheck,{size:10,color:PLAN_GRN_VEDA}),
                   RC("span",{style:vdPlanTag},"Plan"),
                   vdPlanOverdue(t,k)&&RC("span",{style:vdOverTag},"Overdue"),
                   t.time&&RC("span",{style:{fontSize:9,fontWeight:700,color:A,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
                 RC("span",{style:{fontSize:12,fontWeight:t.done?500:700,color:t.done?TXM:(vdPlanOverdue(t,k)?TX:dayTX),textDecoration:t.done?"line-through":"none",lineHeight:1.35,...vdTitleFit}},t.title))
-              :RC("div",{key:t.id,"data-dkey":t.id,style:({...vdTaskCard(t.done,td),...vdSosSpine(t),display:"flex",alignItems:"flex-start",gap:6,marginBottom:4,opacity:t.done?.45:1,cursor:"grab"})},
+              :RC("div",{key:t.id,"data-dkey":t.id,...thRowData(t),style:({...vdTaskCard(t.done,td),...vdSosSpine(t),display:"flex",alignItems:"flex-start",gap:6,marginBottom:4,opacity:t.done?.45:1,cursor:"grab"})},
                                 RC("div",{onClick:()=>tog(k,t.id),style:{width:14,height:14,minWidth:14,borderRadius:3,border:"2px solid "+(t.done?CC[t.category]||TXM:TXM),background:t.done?CC[t.category]||TXM:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&RC(Chk,{s:8})),
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 !edit&&RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:5,marginBottom:1}},
@@ -16575,7 +16608,7 @@ function App(){
                 !edit&&t.aiPrep&&!t._sosId&&vdPrepBtn(t,k),
                 edit&&RC("button",{type:"button",title:"Edit",style:vdIcoBtn(TXD),onClick:()=>{setEi(t);setMdt(k);setMo(true);}},vdIco(TNI.pencil)),
                 edit&&RC("button",{type:"button",title:"Delete",style:vdIcoBtn("#f85149"),onClick:()=>del(k,t.id)},vdIco(TNI.x)))),
-              ev.map(e=>RC("div",{key:e.id,"data-dkey":e.id,style:({...vdEventCard(e.category,vdEvtPassed(e,k)),...vdSosSpine(e,vdEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:6,marginBottom:4,opacity:vdEvtPassed(e,k)?0.5:dimA,cursor:"grab"})},
+              ev.map(e=>RC("div",{key:e.id,"data-dkey":e.id,...thRowData(e),style:({...vdEventCard(e.category,vdEvtPassed(e,k)),...vdSosSpine(e,vdEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:6,marginBottom:4,opacity:vdEvtPassed(e,k)?0.5:dimA,cursor:"grab"})},
                                 RC("div",{style:{width:6,height:6,borderRadius:"50%",background:CC[e.category]||AL,marginTop:5,flexShrink:0}}),
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:5,marginBottom:1}},
@@ -16607,7 +16640,7 @@ function App(){
               RC("th",{style:{textAlign:"left",fontSize:9,color:TXM,fontWeight:700,textTransform:"uppercase",letterSpacing:1,paddingBottom:5,paddingLeft:4,width:"100%"}},""),
               ...DS.map((d,di)=>{const isTd=dkey(wd[di].year,wd[di].month,wd[di].day)===tk;return RC("th",{key:d,style:{textAlign:"center",fontSize:10,color:isTd?TX:TXD,fontWeight:700,paddingBottom:5,width:28,borderLeft:isTd?habTodayRule:undefined,borderRight:isTd?habTodayRule:undefined}},d.charAt(0));}),
               RC("th",{style:{width:edit?62:0,padding:0,overflow:"hidden",visibility:edit?"visible":"hidden"}}))),
-            RC("tbody",{ref:thDragRef("veda","habit",thDrag),style:thDragVars},habits.map((h,hi)=>RC("tr",{key:h.id,"data-dkey":h.id,style:{cursor:"grab"}},
+            RC("tbody",{ref:thDragRef("veda","habit",thDrag),style:thDragVars},habits.map((h,hi)=>RC("tr",{key:h.id,"data-dkey":h.id,"data-kind":"habit",style:{cursor:"grab"}},
               RC("td",{style:{fontSize:12,fontWeight:600,color:TXD,paddingLeft:4,paddingTop:6,paddingBottom:6,overflowWrap:"break-word",wordBreak:"break-word",width:"100%",borderBottom:"1px solid "+BD+"44"}},
                                 h.title,
                 h.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85,whiteSpace:"nowrap",marginLeft:6},title:habReminderLabel(h)},RC("span",{style:{width:12,height:12,fontSize:12,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}})," "+habTimeLabel(h))),
@@ -16643,7 +16676,7 @@ function App(){
             g.done&&RC(PlanCheck,{size:11,color:PLAN_GRN_VEDA}),
             RC("span",{style:vdPlanTag},"Plan")),
           RC("span",{style:{fontSize:13,fontWeight:g.done?500:700,color:g.done?TXM:TX,textDecoration:g.done?"line-through":"none",lineHeight:1.4,wordBreak:"break-word",whiteSpace:"normal"}},g.title))
-        :RC("div",{key:g.id,"data-dkey":g.id,style:({display:"flex",alignItems:"flex-start",gap:8,padding:"6px 0",opacity:g.done?.5:1,cursor:"grab"})},
+        :RC("div",{key:g.id,"data-dkey":g.id,...thRowData(g,"goal"),style:({display:"flex",alignItems:"flex-start",gap:8,padding:"6px 0",opacity:g.done?.5:1,cursor:"grab"})},
                     RC("div",{onClick:()=>(goalTab==="short"?togMM:togM)(g.id),style:{width:15,height:15,minWidth:15,borderRadius:3,border:"2px solid "+(g.done?A:TXM),background:g.done?A:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},g.done&&RC(Chk)),
           RC("span",{style:{fontSize:13,fontWeight:g.done?500:700,color:g.done?TXM:TX,textDecoration:g.done?"line-through":"none",lineHeight:1.4,flex:1,wordBreak:"break-word",overflowWrap:"break-word",minWidth:0}},g.title),
           edit&&RC("button",{style:{...dbtn,color:TXD,fontSize:11,padding:"0 6px"},onClick:()=>(goalTab==="short"?setEditingGoalM:setEditingGoal)({id:g.id,title:g.title})},RC("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
