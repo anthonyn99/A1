@@ -66,32 +66,32 @@ window._docxCleanHTML = function(html) {
 // quotes INSIDE an <h1> (TradeHub Playbook's "Strategy", 2026-10-27): every
 // bullet then took the heading's size and weight, so its marker came out
 // heading-sized. Each block is moved out to sit after the heading's own text;
-// a heading left with no text goes. Runs on paste and on every page load
-// (_docxOnLoad), so stored pages heal on their next save.
-var HEADING = /^H[1-6]$/, BLOCK = /^(UL|OL|P|BLOCKQUOTE|DIV|TABLE|PRE|H[1-6]|HR|DETAILS|FIGURE)$/;
+// The heading is split, in order: each block comes out as itself, each run of
+// text between them stays a heading of the same tag, and a run that is only
+// whitespace goes. Runs on paste and on every page load (_docxOnLoad), so a
+// stored page heals on its next save. Returns whether anything changed.
+var BLOCK = /^(UL|OL|P|BLOCKQUOTE|DIV|TABLE|PRE|H[1-6]|HR|DETAILS|FIGURE)$/;
 function _docxUnnestHeadings(root) {
   var changed = false;
+  // Deepest first, so a heading nested in a heading is split before its parent.
   Array.prototype.slice.call(root.querySelectorAll('h1,h2,h3,h4,h5,h6')).reverse().forEach(function (h) {
     if (!h.parentNode || !Array.prototype.some.call(h.children, function (c) { return BLOCK.test(c.tagName); })) return;
     changed = true;
-    var after = h.nextSibling, run = null;
+    var parts = [], run = null;
     Array.prototype.slice.call(h.childNodes).forEach(function (n) {
-      if (n.nodeType === 1 && BLOCK.test(n.tagName)) { run = null; h.parentNode.insertBefore(n, after); return; }
-      // Inline content stays a heading: the first run in place, later runs as new headings.
+      if (n.nodeType === 1 && BLOCK.test(n.tagName)) { parts.push(n); run = null; return; }
       if (!run) {
-        if (n.parentNode === h && !h._kept) { h._kept = true; run = h; return; }
-        run = h.ownerDocument.createElement(h.tagName); h.parentNode.insertBefore(run, after);
+        run = h.cloneNode(false);   // same tag and attributes, no children
+        parts.push(run);
       }
       run.appendChild(n);
     });
-    delete h._kept;
-    // The heading kept only the inline nodes before its first block; it now
-    // sits where it was, ahead of the blocks moved out after it.
-    if (!h.textContent.trim() && !h.querySelector('img')) h.parentNode.removeChild(h);
-  });
-  // A heading that held only blocks may leave an empty sibling heading behind.
-  Array.prototype.slice.call(root.querySelectorAll('h1,h2,h3,h4,h5,h6')).forEach(function (h) {
-    if (!h.textContent.trim() && !h.querySelector('img,br') && !h.children.length) { h.parentNode.removeChild(h); changed = true; }
+    parts.forEach(function (p) {
+      if (p !== run && p.nodeType === 1 && /^H[1-6]$/.test(p.tagName) && p.cloneNode && !p.textContent.trim() && !p.querySelector('img')) return;
+      if (/^H[1-6]$/.test(p.tagName) && !BLOCK.test(p.tagName + '') ) {}
+      h.parentNode.insertBefore(p, h);
+    });
+    h.parentNode.removeChild(h);
   });
   return changed;
 }
