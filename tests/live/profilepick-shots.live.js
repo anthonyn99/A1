@@ -8,7 +8,8 @@ const { connect, evalJs, sleep, shotPath } = require('./cdp.js');
 const PAGES = 'https://anthonyn99.github.io/A1/';
 const APPS = [
   { page: 'Shruti/shruti.html', title: 'Shruti', sub: 'Read · Listen · Watch · Study', names: 'TonyVeda' },
-  { page: 'index.html', title: 'TaskHub', sub: 'Plan · Remind · Journal · Reflect', names: 'TonyVeda' },
+  // TaskHub's cards have no corner: passwords are managed in each profile's settings.
+  { page: 'index.html', title: 'TaskHub', sub: 'Plan · Remind · Journal · Reflect', names: 'TonyVeda', corners: 0 },
   // MyList shows its picker once its lists have loaded; the harness refuses Firebase, so open it.
   { page: 'mylist.html', title: 'MyList', sub: 'Speak · List · Shop · Cook', names: 'TonyVeda', open: 'ML.goProfileSelect()' },
   { page: 'shield.html', title: 'Shield', sub: 'Guard · Watch · Lock · Recover', names: 'TV' },
@@ -43,6 +44,7 @@ const ok = (name, cond, extra) => { console.log((cond ? '  ok   ' : '  FAIL ') +
         sub: pk.querySelector('.pk-sub').textContent, ask: pk.querySelector('.pk-ask').textContent,
         names: [...pk.querySelectorAll('.pk-card .nm')].map((n) => n.textContent).join(''),
         mark: !!pk.querySelector('.pk-mark svg'),
+        corners: pk.querySelectorAll('.pk-star').length,
         cardW: Math.round(pk.querySelector('.pk-card').getBoundingClientRect().width),
       });`));
     ok('the picker is up', !r.none && r.shown, JSON.stringify(r));
@@ -52,6 +54,7 @@ const ok = (name, cond, extra) => { console.log((cond ? '  ok   ' : '  FAIL ') +
     ok('"Who goes there?"', r.ask === 'Who goes there?', r.ask);
     ok('the cards: ' + a.names, r.names === a.names, r.names);
     ok('the app mark', r.mark);
+    if (a.corners != null) ok('no button in the card corners', r.corners === a.corners, String(r.corners));
     ok('176px cards', r.cardW === 176, String(r.cardW));
     const slug = a.page.replace(/\W+/g, '-');
     let shot = await c.send('Page.captureScreenshot', { format: 'png' });
