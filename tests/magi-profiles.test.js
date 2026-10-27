@@ -211,7 +211,7 @@ console.log('\nThe cards say who, and nothing else');
 ok('no subtitle line survives', !/gate-state/.test(MAGI),
    'it either restated the password field or claimed a lock state this page cannot check');
 // Tony, 2026-10-27: every program's picker is Shruti's (profilepick.js).
-ok('the gate is the suite's one picker', /A1Pick\.mount\(scr,/.test(lift('function renderLock()')) && /<script src="profilepick\.js"><\/script>/.test(MAGI));
+ok("the gate is the suite's one picker", /A1Pick\.mount\(scr,/.test(lift('function renderLock()')) && /<script src="profilepick\.js"><\/script>/.test(MAGI));
 
 console.log('\nThe console says whose MAGI it is');
 ok('there is a profile chip', /id="profBtn"/.test(MAGI));
