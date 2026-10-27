@@ -1770,7 +1770,7 @@ function attFetch(msg, att){
       const b64 = d.data.replace(/-/g,'+').replace(/_/g,'/');
       const bin = atob(b64), type = attMime(att);
       const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
-      return { bytes, b64, type, url: URL.createObjectURL(new Blob([bytes], { type })), dataUrl: `data:${type};base64,${b64}` };
+      return { bytes, type, url: URL.createObjectURL(new Blob([bytes], { type })), get dataUrl(){ return `data:${type};base64,${b64}`; } };
     });
     p.catch(() => attCache.delete(key));
     attCache.set(key, p);
