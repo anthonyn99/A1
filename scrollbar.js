@@ -141,8 +141,10 @@
     if (extent(el, 'h').max < 2) return false;
     if (isDoc) return true;
     // A short horizontally-swiped strip (tab bar, chip row) hid its bar on
-    // purpose — a rail along its bottom would sit on top of its buttons.
-    if (el.clientHeight < 120) return false;
+    // purpose — a rail along its bottom would sit on top of its buttons. A
+    // strip that leaves room for one under its buttons opts in with
+    // `data-sb-strip`, for a mouse only: a finger swipes it.
+    if (el.clientHeight < 120 && !(el.hasAttribute('data-sb-strip') && !coarse.matches)) return false;
     var ox = getComputedStyle(el).overflowX; return ox === 'auto' || ox === 'scroll';
   }
   // Where a scroller's rail lives: the top layer it is in. A scroller that is
@@ -292,7 +294,7 @@
   function schedule(b) {
     clearTimeout(b.timer);
     b.timer = setTimeout(function () {
-      if (b.hover || b.drag) return schedule(b);
+      if (b.hover || b.drag || b.over) return schedule(b);
       ['v', 'h'].forEach(function (a) { if (b[a]) b[a].rail.classList.remove('on'); });
       // Out of layout entirely once faded, so an idle rail can never pin a
       // size (the Launcher popup sizes itself from its content).
@@ -362,6 +364,20 @@
       if (t && t.closest && t.closest('.vc-rail')) return;
       for (var el = t && t.nodeType === 1 ? t : null; el; el = el.parentElement) {
         if (el === doc.body && !bodyScrolls()) el = docScroller();
+        // A data-sb-strip shows its bar the whole time the pointer is over it,
+        // and lets it fade once the pointer has gone.
+        if (el.hasAttribute && el.hasAttribute('data-sb-strip') && canScroll(el, 'h')) {
+          var sb = barFor(el);
+          if (!sb.over) {
+            sb.over = true;
+            el.addEventListener('pointerleave', function leave() {
+              el.removeEventListener('pointerleave', leave);
+              sb.over = false; schedule(sb);
+            });
+          }
+          show(sb, ['h']);
+          return;
+        }
         var v = canScroll(el, 'v');
         var hz = canScroll(el, 'h');
         if (v || hz) {
