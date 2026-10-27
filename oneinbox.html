@@ -2907,11 +2907,12 @@ el('bottomNav').addEventListener('click', e => {
   el('listTitle').textContent = (S.activeAccount === 'all' && S.folder === 'INBOX') ? 'Unified Inbox' : S.folderLabel;
   renderSidebar(); loadMessages();
 });
-// Must match the CSS three-pane breakpoint (1024px) exactly — below it the
-// sidebar is a drawer and needs its button; at or above it the sidebar is
-// pinned and the button would do nothing.
+// Must match the CSS breakpoints (641px, 1024px) exactly. The two-pane band
+// has a drawer and nothing else to open it, so it gets the button. A phone
+// opens the drawer from the bottom nav's More, so the header leaves it out and
+// the logo sits at the left edge; at 1024px and up the sidebar is pinned.
 const syncChrome = () => {
-  el('drawerBtn').style.display = window.innerWidth <= 1023 ? '' : 'none';
+  el('drawerBtn').style.display = window.innerWidth > 640 && window.innerWidth <= 1023 ? '' : 'none';
   // Leaving the phone band while a message is open would strand the reader in
   // its slid-over state; two-pane and three-pane show both at once.
   if (window.innerWidth > 640 && el('app').dataset.view === 'read') el('app').dataset.view = 'list';
