@@ -18981,9 +18981,18 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
     var d=new Date(),p=function(n){return (n<10?'0':'')+n;};
     var today=d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
     var keys=(raw&&typeof raw==='object')?Object.keys(raw).filter(function(k){return /^\d{4}-\d{2}-\d{2}$/.test(k);}).sort():[];
+    // Series held by a repeating task's rows. A one-off row carrying one of these
+    // was cut out of that task ("This day only" title edit) and kept the series by
+    // copy; it does not own it. Treated as always live, it kept a long-finished
+    // weekly task ringing every week (Tony's trash bins, 2026-10-26).
+    var taskSeries={};
     keys.forEach(function(k){
-      var arr=raw[k];if(k<today||!Array.isArray(arr))return;
-      arr.forEach(function(it){if(it&&it.repeatId)future[it.repeatId]=1;});
+      var arr=raw[k];if(!Array.isArray(arr))return;
+      arr.forEach(function(it){
+        if(!it)return;
+        if(k>=today&&it.repeatId)future[it.repeatId]=1;
+        if(it.repeatId&&it.notifyRepeatId)taskSeries[it.notifyRepeatId]=1;
+      });
     });
     keys.forEach(function(k){
       var arr=raw[k];if(!Array.isArray(arr))return;
@@ -18991,6 +19000,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
         if(!it||!it.notifyAt||!it.id||it._notifyView)return;
         if(!it.notifyRepeat||it.notifyRepeat==='none')return;
         var key=it.notifyRepeatId||it.id;
+        if(!it.repeatId&&taskSeries[key]){dead[key]=1;return;}
         if(!it.repeatId||future[it.repeatId]){
           // Days are sorted, so this keeps the latest row on or before today (the
           // one in effect), else the earliest upcoming one. NOT simply the latest:

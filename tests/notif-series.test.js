@@ -118,6 +118,29 @@ if (plan) {
   const od = { [dk(addDays(today, -60))]: [{ id: 'one', notifyAt: at(today, 7), notifyRepeat: 'daily', notifyRepeatId: 'oneSeries' }] };
   check('a repeating reminder on a one-off row stays live', !!plan(od, null).live.oneSeries);
 
+  // Tony, 2026-10-26: "Put out trash bins, bring Hacao n other stuff over" rang
+  // every Monday 8 PM. One occurrence (2026-07-20) had its title edited "This day
+  // only": it became a one-off row that kept the weekly task's series by copy,
+  // and "one-off = always live" outlived the finished task by three months.
+  const cut = {};
+  for (let w = 0; w < 10; w++) {
+    const d = addDays(today, -7 * (20 - w));
+    (cut[dk(d)] = cut[dk(d)] || []).push({ id: 'b' + w, repeatId: 'binTask', done: true, notifyAt: at(d, 20),
+      notifyRepeat: 'weekly', notifyRepeatDays: [0], notifyRepeatId: 'binSeries' });
+  }
+  cut[dk(addDays(today, -7 * 9))] = [{ id: 'bCut', done: true, notifyAt: at(addDays(today, -7 * 9), 20),
+    notifyRepeat: 'weekly', notifyRepeatDays: [0], notifyRepeatId: 'binSeries' }];
+  const cp = plan(cut, null);
+  check('a one-off row cut out of a finished weekly task does not keep its series alive',
+    !cp.live.binSeries && cp.dead.includes('binSeries'));
+  // …while the task itself still repeats, its own row defines the series.
+  const ft = addDays(today, 7);
+  cut[dk(ft)] = [{ id: 'bNext', repeatId: 'binTask', notifyAt: at(ft, 20), notifyRepeat: 'weekly',
+    notifyRepeatDays: [0], notifyRepeatId: 'binSeries' }];
+  const cp2 = plan(cut, null);
+  check('…but a live task still arms that series from its own row',
+    !!cp2.live.binSeries && cp2.live.binSeries.id !== 'bCut');
+
   // The same series id on a dead row and a live row is live (an edit reused it).
   const rd = tonyData();
   rd[dk(addDays(today, -7 * 11))][0].notifyRepeatId = 'oldSeries';
