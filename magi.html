@@ -3928,14 +3928,14 @@ button.code-git-br:hover, button.code-git-br:focus-visible { border-color: var(-
 .code-model .code-ws-chev { font-size: 10px; }
 
 .model-box { max-width: 520px; }
-/* Sections divided by hairlines, not boxed: one sheet, not six cards. */
-.model-box .repo-body { gap: 0; padding-top: 4px; }
+/* Each section is its own outlined group, like every sheet's .sheet-grp
+   (Tony, 2026-10-27: hairlines alone did not read as groups). */
+.model-box .repo-body { gap: 12px; padding-top: 4px; }
 .model-box .repo-card {
-  border: 0; border-top: 1px solid var(--bd); border-radius: 0; background: none;
-  padding: 16px 0; gap: 10px;
+  border: 1px solid rgba(255,255,255,.09); border-radius: 10px;
+  background: color-mix(in srgb, var(--bg) 45%, transparent);
+  padding: 12px 14px 14px; gap: 10px;
 }
-.model-box .repo-body > .repo-card:first-child { border-top: 0; padding-top: 6px; }
-.model-box .repo-card:last-child { padding-bottom: 4px; }
 .model-box .cli-banner, .model-box .model-capped { margin: 0 0 10px; }
 .model-acct { color: var(--txm); font-size: 11px; margin-top: 2px; overflow-wrap: anywhere; }
 .repo-hint { color: var(--txm); font-size: 11px; }
@@ -5057,6 +5057,21 @@ html.modal-open .page, html.modal-open .sidebar { overflow: hidden; }
 }
 .sheet-err { color: var(--red); font-size: 11px; margin-top: 8px; }
 .sheet-ok  { color: var(--grn); font-size: 11px; margin-top: 8px; }
+/* A section of a sheet, outlined so its label, controls and notes read as one
+   group (sheetGroups, Tony 2026-10-27). The ground under it is a shade below
+   the sheet, so it sits in the sheet rather than on it. */
+.sheet-grp {
+  border: 1px solid rgba(255,255,255,.09); border-radius: 10px;
+  background: color-mix(in srgb, var(--bg) 45%, transparent);
+  padding: 12px 14px 14px; margin-top: 12px; min-width: 0;
+}
+.sheet-grp > .sheet-lbl:first-child { margin-top: 0; }
+.sheet-grp > .sheet-lbl.sheet-lbl-cont { margin-top: 16px; }
+.sheet-grp > :last-child { margin-bottom: 0; }
+.sheet-grp .eng-list { margin-bottom: 10px; }
+.sheet-hd2 { border-top: 0; padding-top: 0; margin-top: 22px; }
+.qedit .sheet-grp > .sheet-lbl:first-child { margin-top: 0; }
+@media (max-width: 420px) { .sheet-grp { padding: 10px 11px 12px; } }
 
 /* ── editing a queued prompt ─────────────────────────────────────────────── */
 .sheet-wide { max-width: 620px; width: 100%; }
