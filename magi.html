@@ -27688,12 +27688,12 @@ function unlockGate() {
    wrong, and the ordering IS the security property -- nothing may be fetched
    for a profile until that profile is unlocked (see cloudInit).
 
-   The profile you last used arrives expanded, because it is the one you
-   almost always want; the other sits collapsed beside it, one tap away.
-   Choosing it reloads the page -- see the PROFILES block for why a switch is
-   a reload -- and it comes back up expanded on the other card. */
+   The profile you last used is the one this page has loaded, with
+   Guardian's card already raised over the picker; the other sits beside it,
+   one tap away. Choosing it reloads the page -- see the PROFILES block for
+   why a switch is a reload -- and it comes back up as the other profile. */
 const GATE = {
-  open: null,      // which card is expanded
+  open: null,      // the profile waiting on its password, if any
   picking: false,  // opened from the profile chip: both cards shut, both offered
 };
 
@@ -27715,8 +27715,8 @@ function toggleFav(id) {
 }
 
 /** Choosing a profile. The other one is always a reload, which is what makes
- *  the swap total. The one already loaded either expands to ask for its
- *  password, or -- if this session already proved it -- simply closes the
+ *  the swap total. The one already loaded either raises Guardian's card to ask
+ *  for its password, or -- if this session already proved it -- simply closes the
  *  gate, because making you type it twice to look at the picker would teach
  *  you to avoid the picker. */
 function selectProfile(id) {
