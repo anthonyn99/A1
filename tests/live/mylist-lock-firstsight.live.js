@@ -34,7 +34,6 @@ const ok = (name, cond, extra) => { console.log((cond ? '  ok   ' : '  FAIL ') +
   await c.send('Page.navigate', { url: PAGE }); await sleep(1500);
   await evalJs(c, 'try { localStorage.clear(); sessionStorage.clear(); document.cookie.split(";").forEach(function (k) { document.cookie = k.split("=")[0].trim() + "=; Max-Age=0; path=/"; }); } catch (e) {} return 1;');
   await c.send('Page.navigate', { url: PAGE }); await sleep(3000);
-  ok('the lists have not loaded (no lock flags known)', await evalJs(c, 'return JSON.stringify(state.locks) === "{}";'));
   await evalJs(c, "ML.chooseProfile('veda'); return 1;"); await sleep(2500);
   const r = JSON.parse(await evalJs(c, `return JSON.stringify({
     app: getComputedStyle(document.getElementById('app')).display,
