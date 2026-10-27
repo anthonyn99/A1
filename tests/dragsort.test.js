@@ -296,12 +296,11 @@ async function drag(target, from, to, kind) {
     await drag(S.rows[0], [100, 10], [100, 150]);
     ok('an open row dragged to the bottom stops at the last open slot', JSON.stringify(S.drops.map((d) => d.slice(0, 2))) === '[[0,1]]', JSON.stringify(S.drops.map((d) => d.slice(0, 2))));
     S.drops.length = 0;
+    await wait(700);   // earlier drops' copies wait out a redraw that never comes here
     ptr('pointerdown', S.rows[0], 100, 10);
     ptr('pointermove', window, 100, 14);
     ptr('pointermove', window, 180, 30);
-    await wait(700);   // earlier drops' copies wait out the redraw that never comes here
-    ptr('pointermove', window, 180, 30);
-    const gh = [...doc.querySelectorAll('.dsort-ghost')].pop();
+    const gh = doc.querySelector('.dsort-ghost');
     ok('free: a floating copy follows the pointer sideways too', !!gh && gh.parentNode === doc.body && /translate3d\(80px, 20px, 0\)/.test(gh.style.transform), gh && gh.style.transform);
     ok('free: the row itself stays in its list, hidden, as the gap', S.rows[0].classList.contains('dsort-hole') && !S.rows[0].style.transform);
     ptr('pointerup', window, 180, 30); await wait(SETTLE + 50);
