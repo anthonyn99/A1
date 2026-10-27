@@ -111,8 +111,8 @@ async function side(c, name, errs) {
   const paths = JSON.parse(await js(`return JSON.stringify([...new Set(__fakeFs.log.map(l => l.path))]);`));
   ok('every write went to the instance\'s own documents', paths.length > 0 && paths.every((p) => new RegExp('^dashboards/' + S + '(_|$)').test(p)), JSON.stringify(paths));
   ok('both native journals\' documents are untouched',
-    await js(`return JSON.stringify(__fakeFs.docs['dashboards/tony_journal'])`) === JSON.stringify(SEED['dashboards/tony_journal'])
-    && await js(`return JSON.stringify(__fakeFs.docs['dashboards/journal'])`) === JSON.stringify(SEED['dashboards/journal']));
+    await js(`return JSON.stringify(__fakeFs.docs['dashboards/tony_journal']);`) === JSON.stringify(SEED['dashboards/tony_journal'])
+    && await js(`return JSON.stringify(__fakeFs.docs['dashboards/journal']);`) === JSON.stringify(SEED['dashboards/journal']));
   ok('nothing was stored locally under a native journal\'s keys', await js(`return !Object.keys(localStorage).some(k => ${localRx}.test(k));`),
     await js(`return Object.keys(localStorage).join(' ');`));
 
