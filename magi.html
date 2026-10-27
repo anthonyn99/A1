@@ -13295,7 +13295,8 @@ function codeCheckSheet(proj) {
       }
       body.append(list);
     }
-    body.append(el("label", "sheet-lbl", "When it runs"));
+    const whenLbl = el("label", "sheet-lbl", "When it runs");
+    body.append(whenLbl);
     const when = el("div", "ac-win");
     when.setAttribute("role", "radiogroup");
     for (const [v, label] of [[false, "On the card"], [true, "Automatically"]]) {
@@ -13315,7 +13316,7 @@ function codeCheckSheet(proj) {
       : "You press Run check on the card, after you have read the diff. The approval clock "
         + "waits while it runs."));
     if (hasAgents) {
-      body.append(el("label", "sheet-lbl", "While agents work"));
+      body.append(el("label", "sheet-lbl sheet-lbl-cont", "While agents work"));
       const aw = el("div", "ac-win");
       aw.setAttribute("role", "radiogroup");
       for (const [v, label] of [[false, "Only you run it"], [true, "Agents may run it"]]) {
@@ -13336,7 +13337,7 @@ function codeCheckSheet(proj) {
           + "can reach your files. It is still only this command, and only in the copy."
         : "Agents edit and finish; the check runs when you choose, as set above."));
     }
-    body.append(el("label", "sheet-lbl", "Stop it after"));
+    body.append(el("label", "sheet-lbl sheet-lbl-cont", "Stop it after"));
     const tw = el("div", "ac-win");
     for (const m of [5, 10, 20, 30, 60]) {
       const b = el("button", `code-git-act ${mins === m ? "on" : ""}`, `${m} min`);
@@ -13365,7 +13366,7 @@ function codeCheckSheet(proj) {
         }
         body.append(sw);
         if (shellSt.shell.enabled) {
-          body.append(el("label", "sheet-lbl", "Internet in the sandbox"));
+          body.append(el("label", "sheet-lbl sheet-lbl-cont", "Internet in the sandbox"));
           const nw = el("div", "ac-win");
           nw.setAttribute("role", "radiogroup");
           for (const [v, label] of [[false, "Off"], [true, "On (to install packages)"]]) {
@@ -13418,7 +13419,8 @@ function codeCheckSheet(proj) {
     };
     tryRow.append(tryB, el("span", "sheet-note", busy === "try"
       ? "Running in your real folder…" : "Runs once in your real folder — the only way to know a command works."));
-    body.append(tryRow);
+    // Trying the command belongs with the command, so it sits in that group.
+    body.insertBefore(tryRow, whenLbl);
     if (tried) {
       const ok = tried.ok;
       const res = el("div", `ck-res ${ok ? "is-ok" : "is-bad"}`);
@@ -13427,8 +13429,9 @@ function codeCheckSheet(proj) {
       const pre = el("pre", "code-check-pre");
       pre.textContent = tried.output || "(no output)";
       res.append(pre);
-      body.append(res);
+      body.insertBefore(res, whenLbl);
     }
+    sheetGroups(body);
     if (err) body.append(el("div", "sheet-err", err));
     sync();
   };
