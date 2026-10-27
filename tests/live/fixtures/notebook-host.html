@@ -4,8 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Notebook test host</title>
-<!-- A throwaway host for tests/live/notebook-host.live.js: a program that is not
-     index.html mounts MyJournal under its own key and store, inline. It has its
+<!-- A throwaway host for tests/live/notebook-host.live.js and notebook-look:
+     a program that is not index.html mounts a side of Notebook (Tony's by
+     default, Veda's with profile 'veda') under its own key and store, inline. It has its
      own (fake) Firebase and its own dialogs, and none of index's helpers. -->
 <script src="../../../Notebook/notebook.js?v=ec77f34248"></script>
 <style>
@@ -40,5 +41,7 @@
   }, extra || {}));
   window.__hostReady = true;
 </script>
+<!-- As every real host does (Everwell, TradeHub): the suite's hover layer. -->
+<script src="../../../hoverfx.js"></script>
 </body>
 </html>
