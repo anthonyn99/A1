@@ -12,8 +12,11 @@ and the `_XDRAG` registry on both sides.
   scrolls the page. Near the screen's edge the page scrolls under the drag.
 - **Any time:** edit mode is not needed (Tony, 2026-10-27).
 - The lifted row floats freely under the pointer, sideways too, the whole way
-  between days and sections (`free`). The rows it passes slide out of its way,
-  and on release it glides into its slot.
+  between days and sections (`free`). What you hold is a copy floating over the
+  page (`.dsort-ghost`); the row itself stays hidden in its list as the gap
+  (`.dsort-hole`). Weekly is its own scroll box and clipped a row dragged out
+  of it. The rows it passes slide out of its way, and on release the copy
+  glides into the slot and the row shows again.
 - **No crossovers.** A day draws open tasks (Veda: SOS ones first), then
   checked tasks, then events. Goals draw open, then done. A row only lands
   among rows of its own kind (`segment` → `thDragRank`), including in the list
