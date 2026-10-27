@@ -415,7 +415,7 @@
     var to = Math.max(0, Math.min(max, el.scrollLeft + (e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY)));
     if (to === el.scrollLeft) return;
     e.preventDefault();
-    el.scrollLeft = to;
+    el.scrollTo({ left: to, behavior: 'instant' });   // instant: a strip with CSS smooth scrolling would lag the wheel
   }, { passive: false });
   // The window or a phone's visual viewport changing size: redraw what shows.
   window.addEventListener('resize', wake);
