@@ -28,7 +28,11 @@ row in the past, still holding the old series.
 `window.thNotifyPlan(dayMap, habits)` is the one rule every scanner uses:
 
 - A series is **live** if its task (`repeatId`) still has a day today or later.
-  A repeating reminder on a one-off row is always live.
+  A repeating reminder on a one-off row is always live, **unless** a repeating
+  task's rows also hold that series id. Then the row was cut out of the task (a
+  "This day only" title edit copies the series), so it does not own the series
+  and the task decides. Before 2026-10-26 such a row kept a finished weekly task
+  ringing ("Put out trash bins, bring Hacao...").
 - If several rows hold the same series id, the one that defines it is the
   latest row on or before today, or else the earliest upcoming one. It is
   **not** simply the latest row: rows saved before July 2026 all carry the
