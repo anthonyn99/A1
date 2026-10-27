@@ -2474,8 +2474,9 @@ function purgeFromOtherProfile(){
 
 async function releaseDevice(owner){
   var ok = await window.uiConfirm(
-    'This device is claimed by profile ' + (owner === 'veda' ? 'V' : 'T') + '.\n\n'
-    + 'Releasing it removes it from that profile and lets the other one claim it. '
+    'This device belongs to ' + (owner === 'veda' ? 'V' : 'T') + '.\n\n'
+    + 'Releasing it removes it from ' + (owner === 'veda' ? 'V' : 'T') + ' so '
+    + (owner === 'veda' ? 'T' : 'V') + ' can use it here. '
     + 'Its configuration and close history on this device are cleared.',
     { title:'Release this device', okLabel:'Release', danger:true });
   if (!ok) return false;
@@ -4899,7 +4900,7 @@ function renderProfileCards(){
       var owner = claimedBy(), st = { fav: favProfile() === p };
       if (owner && owner !== p){
         // Claimed by the other profile: still tappable (it leads to the release flow).
-        st.off = true; st.tone = 'dim'; st.note = 'Claimed by ' + (owner==='veda'?'V':'T');
+        st.off = true; st.tone = 'dim'; st.note = 'This device is ' + (owner==='veda'?'V':'T') + '’s';
       } else {
         // Surface a live emergency on the chooser, visible before you pick.
         var le = jGet('sh_emg_' + p, null);

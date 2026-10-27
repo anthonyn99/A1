@@ -17409,7 +17409,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
   let _who=null;
 
   function _profLocked(who){ return !!(window.alIsLocked && window.alIsLocked("profile_"+who)); }
-  // The suite's one picker (profilepick.js), built once and refreshed in place;
+  // The suite's one picker (profilepick.js), built once and refreshed in place.
   // Passwords are managed in each profile's settings, never from the picker (Tony, 2026-10-27).
   let _pick=null;
   window._alProfileRefreshBtns=function(){ if(_pick)_pick.refresh(); };

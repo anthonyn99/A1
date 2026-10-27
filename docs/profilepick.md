@@ -8,7 +8,7 @@ in `#c0aeea`, Veda's star in `#b79fc4`).
 
 | Program | Title | Line under it | Corner of each card |
 |---|---|---|---|
-| Index (`index.html`) | TaskHub | Plan · Remind · Journal · Reflect | padlock (manages that person's password) |
+| Index (`index.html`) | TaskHub | Plan · Remind · Journal · Reflect | none (passwords are managed in each profile's settings, not here) |
 | MyList | MyList | Speak · List · Shop · Cook | ★ default on this device |
 | Shield | Shield | Guard · Watch · Lock · Recover | ★ (names stay **T** and **V**, per Shield's brief) |
 | MAGI | MAGI | Ask · Deliberate · Decide · Build | ★ |
