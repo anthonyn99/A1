@@ -112,7 +112,7 @@ const MOVED = [
   ['the board accessor', /window\._fbViz\s*=/],
   ['the OurJournal accessor', /window\._fbOJ\s*=/],
   ['the Brainstorm app', /const STORAGE_KEY = 'brainstorm_journal_v3';/],
-  ['Brainstorm\'s markup', /<div id="bj-root">/],
+  ['Brainstorm\'s markup', /<div id="bj-root"[ >]/],
   ['Brainstorm\'s CSS', /#bj-root #bj-sidebar-header \{/],
   ['Brainstorm\'s icon sizing', /#bj-root \.bji\{/],
   ['Brainstorm\'s lock', /BJ LOCK SYSTEM/],
