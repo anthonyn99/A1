@@ -85,7 +85,6 @@ const worker = {
     await c.send('Input.insertText', { text });
   };
 
-  await js(`window.dowRight=function(d){ var r=document.createRange(); r.selectNodeContents(d.querySelector('.cat-dow')); return r.getBoundingClientRect().right; }; 1`).catch(()=>{});
   await size(1280, 900);
   await c.send('Storage.clearDataForOrigin', { origin: ORIGIN, storageTypes: 'all' });
   await c.send('Page.navigate', { url: ORIGIN + '/A1/tni.js' }); await sleep(400);
@@ -162,7 +161,7 @@ const worker = {
   ok('the High tag is pastel red', await js(`var t=[...document.querySelectorAll('#tradeboard-root .cat-imp')].find(x=>x.innerText==='High'); return !!t && getComputedStyle(t).color==='rgb(239, 154, 154)';`),
     await js(`var t=[...document.querySelectorAll('#tradeboard-root .cat-imp')].find(x=>x.innerText==='High'); return t?getComputedStyle(t).color:'none';`));
   ok('an earnings row says when it lands', await js(`return [...document.querySelectorAll('#tradeboard-root .cat-time')].some(x=>x.innerText==='After close');`));
-  ok('every day label (TOMORROW too) stays clear of the times', await js(`return [...document.querySelectorAll('#tradeboard-root .cat-day')].every(d=>dowRight(d) <= d.querySelector('.cat-events').getBoundingClientRect().left - 12);`), await js(`return JSON.stringify([...document.querySelectorAll('#tradeboard-root .cat-day')].map(d=>[Math.round(dowRight(d)), Math.round(d.querySelector('.cat-events').getBoundingClientRect().left)]));`));
+  ok('every day label (TOMORROW too) stays clear of the times', await js(`return [...document.querySelectorAll('#tradeboard-root .cat-day')].every(d=>(function(e){var r=document.createRange();r.selectNodeContents(e);return r.getBoundingClientRect().right;})(d.querySelector('.cat-dow')) <= d.querySelector('.cat-events').getBoundingClientRect().left - 12);`), await js(`return JSON.stringify([...document.querySelectorAll('#tradeboard-root .cat-day')].map(d=>[Math.round((function(e){var r=document.createRange();r.selectNodeContents(e);return r.getBoundingClientRect().right;})(d.querySelector('.cat-dow'))), Math.round(d.querySelector('.cat-events').getBoundingClientRect().left)]));`));
   await shot('tradehub-catalysts');
   await js(`[...document.querySelectorAll('#tradeboard-root .cat-bar button')].find(b=>/^Earnings/.test(b.innerText)).click(); 1`); await sleep(300);
   ok('the Earnings view shows only earnings', await js(`return document.querySelectorAll('#tradeboard-root .cat-ev').length===2;`), await js(`return document.querySelectorAll('#tradeboard-root .cat-ev').length;`));
@@ -189,7 +188,7 @@ const worker = {
     await tab(id); await sleep(600);
     if (id === 'catalysts') ok('catalysts: every day label (TOMORROW too) stays clear of the times',
       await js(`return [...document.querySelectorAll('#tradeboard-root .cat-day')].every(d=>{ var w=d.querySelector('.cat-dow').getBoundingClientRect(), e=d.querySelector('.cat-events').getBoundingClientRect(); return w.right <= e.left - 4; });`),
-      await js(`return JSON.stringify([...document.querySelectorAll('#tradeboard-root .cat-day')].map(d=>[d.querySelector('.cat-dow').innerText, Math.round(dowRight(d)), Math.round(d.querySelector('.cat-events').getBoundingClientRect().left)]));`));
+      await js(`return JSON.stringify([...document.querySelectorAll('#tradeboard-root .cat-day')].map(d=>[d.querySelector('.cat-dow').innerText, Math.round((function(e){var r=document.createRange();r.selectNodeContents(e);return r.getBoundingClientRect().right;})(d.querySelector('.cat-dow'))), Math.round(d.querySelector('.cat-events').getBoundingClientRect().left)]));`));
     ok(id + ': nothing scrolls sideways', await js(`return document.documentElement.scrollWidth <= window.innerWidth + 1 && [...document.querySelectorAll('#tradeboard-root .tbx-page')].every(p=>p.scrollWidth<=p.clientWidth+1);`), await js(`return document.documentElement.scrollWidth;`));
     await shot(name);
   }
