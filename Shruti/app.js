@@ -68,34 +68,23 @@ C.on('sync', (k) => { if (window.A1Head) A1Head.sync($('#sync-pill'), k); });
 
 /* ── the profile picker and the lock ──────────────────────────────────────── */
 let entered = false;
-function renderPicker() {
-  const fav = C.ls.get('shruti.favProfile'), last = C.ls.get('shruti.lastProfile');
-  $('#pk-cards').innerHTML = Object.entries(PROFILES).map(([id, p]) => {
-    const locked = window.Guardian && Guardian.isLocked(id + '_shruti'), here = id === (P || last);
-    return '<div class="pk-card ' + id + (here ? ' last' : '') + '" role="button" tabindex="0" data-p="' + id + '" aria-label="' + esc(p.label) + '">' +
-      '<button class="pk-star' + (fav === id ? ' on' : '') + '" data-fav="' + id + '" title="' + (fav === id ? 'Default on this device (tap to clear)' : 'Make default on this device') + '" aria-label="Default profile">' + STAR + '</button>' +
-      '<span class="pk-em">' + (id === 'tony' ? FLEUR : SPARK) + '</span><span class="nm">' + esc(p.label) + '</span>' +
-      '<span class="pk-note">' + (locked ? LOCK_ON + 'Locked' : here ? 'Last here' : '') + '</span></div>';
-  }).join('');
-}
+// The suite's one picker (../profilepick.js); this page keeps who, the star and the lock.
+const picker = A1Pick.mount($('#picker'), {
+  app: 'shruti', title: 'Shruti', sub: 'Read · Listen · Watch · Study',
+  profiles: Object.entries(PROFILES).map(([id, p]) => ({ id, label: p.label })),
+  state: (id) => {
+    const locked = window.Guardian && Guardian.isLocked(id + '_shruti'), here = id === (P || C.ls.get('shruti.lastProfile'));
+    return { last: here, fav: C.ls.get('shruti.favProfile') === id, note: locked ? 'Locked' : here ? 'Last here' : '', noteIcon: locked ? 'lock' : '' };
+  },
+  onStar: (id) => { if (C.ls.get('shruti.favProfile') === id) C.ls.del('shruti.favProfile'); else C.ls.set('shruti.favProfile', id); },
+  onChoose: (id) => choose(id),
+});
 function showPicker() {
-  renderPicker();
+  picker.refresh();
   $('#picker').hidden = false;
   if (!entered) $('#app').hidden = true;
 }
 function hidePicker() { $('#picker').hidden = true; }
-$('#pk-cards').addEventListener('click', (e) => {
-  const star = e.target.closest('[data-fav]');
-  if (star) {
-    e.stopPropagation();
-    const id = star.dataset.fav;
-    if (C.ls.get('shruti.favProfile') === id) C.ls.del('shruti.favProfile'); else C.ls.set('shruti.favProfile', id);
-    renderPicker(); return;
-  }
-  const card = e.target.closest('[data-p]');
-  if (card) choose(card.dataset.p);
-});
-$('#pk-cards').addEventListener('keydown', (e) => { const c = e.target.closest('[data-p]'); if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); choose(c.dataset.p); } });
 addEventListener('keydown', (e) => { if (e.key === 'Escape' && entered && !$('#picker').hidden) hidePicker(); });
 
 /** Choosing the other person reloads the page (MAGI's rule): every key, listener

@@ -85,7 +85,9 @@ async function shot(c, name, w) {
 }
 
 async function open(c, p, emg) {
-  await c.send('Page.navigate', { url: URL_ + '?blank' }); await sleep(600);
+  // A page with no scripts: a running Shield here would persist its own fake
+  // store over the seed below.
+  await c.send('Page.navigate', { url: 'https://anthonyn99.github.io/A1/apphead.js' }); await sleep(600);
   const docs = {}; docs['dashboards/shield_' + p] = seedDoc();
   const ls = { sh_device_id: 'dev_me', sh_fav_profile: p, sh_view: 'home' };
   ls['sh_hist_' + p + '_dev_me'] = JSON.stringify(HIST);
