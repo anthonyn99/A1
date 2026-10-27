@@ -100,7 +100,10 @@
     // visibly bounced after it had landed.
     '.dsort.dsort-nt > *, .dsort.dsort-nt > .dsort-settle { transition: none !important; }',
     '.dsort-src { opacity: .4; }',
-    '.dsort-hole { visibility: hidden !important; }',
+    // The row left behind as the gap goes at once, all of it: a part with its
+    // own `transition: all` (a checkbox) faded its visibility out after the
+    // rest and hung there for a moment.
+    '.dsort-hole, .dsort-hole * { visibility: hidden !important; transition: none !important; }',
     'html.dsort-grabbing, html.dsort-grabbing * { cursor: grabbing !important; -webkit-user-select: none !important; user-select: none !important; }',
     '.dsort-grip {',
     '  flex: 0 0 auto; width: 28px; height: 36px; margin: -4px 0 -4px -4px; padding: 0;',
