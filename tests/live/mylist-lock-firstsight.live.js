@@ -11,8 +11,10 @@ const PAGE = 'https://anthonyn99.github.io/A1/mylist.html';
 const mock = {
   patterns: ['https://taskhub-reminders.av1.workers.dev/*'],
   handle(req) {
+    const m = /^https:\/\/taskhub-reminders\.av1\.workers\.dev(\/[^?]*)/.exec(req.url);
+    if (!m) return null;
     if (req.method === 'OPTIONS') return { status: 204, json: null };
-    const path = /^https:\/\/taskhub-reminders\.av1\.workers\.dev(\/[^?]*)/.exec(req.url)[1];
+    const path = m[1];
     if (path === '/auth/journal/status-many') {
       const body = JSON.parse(req.postData || '{}'), locks = {};
       for (const l of body.locks || []) locks[l.journal + ':' + l.entryId] = { hasLock: true, ver: 'v-' + l.entryId };
