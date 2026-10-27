@@ -4,9 +4,9 @@ name: Shield installer
 # Download button in shield.html always hands out the current build.
 #
 # This has to run here rather than in the browser: the agent is a Rust binary,
-# and no amount of client-side zipping can compile one. Vault's extension is
-# plain files so its page can package them itself; Shield genuinely needs a
-# build machine, and this is it.
+# and no amount of zipping can compile one. Vault's extension is plain files,
+# so A1-Priv's deploy just zips them (tools/deploy.mjs there); Shield genuinely
+# needs a build machine, and this is it.
 #
 # The release tag is ROLLING (`shield-latest`) rather than one tag per version.
 # The page asks for that single tag, so there is exactly one URL to know and no
