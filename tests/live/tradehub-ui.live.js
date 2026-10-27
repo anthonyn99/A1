@@ -158,6 +158,7 @@ const worker = {
   ok('the High tag is pastel red', await js(`var t=[...document.querySelectorAll('#tradeboard-root .cat-imp')].find(x=>x.innerText==='High'); return !!t && getComputedStyle(t).color==='rgb(239, 154, 154)';`),
     await js(`var t=[...document.querySelectorAll('#tradeboard-root .cat-imp')].find(x=>x.innerText==='High'); return t?getComputedStyle(t).color:'none';`));
   ok('an earnings row says when it lands', await js(`return [...document.querySelectorAll('#tradeboard-root .cat-time')].some(x=>x.innerText==='After close');`));
+  ok('every day label (TOMORROW too) stays clear of the times', await js(`return [...document.querySelectorAll('#tradeboard-root .cat-day')].every(d=>d.querySelector('.cat-dow').getBoundingClientRect().right <= d.querySelector('.cat-events').getBoundingClientRect().left - 12);`));
   await shot('tradehub-catalysts');
   await js(`[...document.querySelectorAll('#tradeboard-root .cat-bar button')].find(b=>/^Earnings/.test(b.innerText)).click(); 1`); await sleep(300);
   ok('the Earnings view shows only earnings', await js(`return document.querySelectorAll('#tradeboard-root .cat-ev').length===2;`), await js(`return document.querySelectorAll('#tradeboard-root .cat-ev').length;`));
