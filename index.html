@@ -160,10 +160,10 @@ html,body{height:100%;}
 /* A day button (phone strip) or goals tab with a dragged row over it: dropping
    there sends the row to that day / list (thDragRef). */
 [data-day-tab].dsort-on,[data-goal-tab].dsort-on{box-shadow:0 0 0 2px var(--ds-ac,#c0aeea)!important;border-radius:6px;}
-/* A lifted goal: its frame wraps the goal (not the empty width to its right),
-   with a little room; it stays visible in its own list while the other tab
-   is open (that list is mounted invisible, 0 tall). */
-div[data-thz^="goal"]>.dsort-drag{visibility:visible!important;width:fit-content!important;max-width:100%;padding-left:8px!important;padding-right:10px!important;margin-left:-8px!important;border-radius:6px;}
+/* A lifted goal (dragsort's floating copy): its frame wraps the goal, not the
+   empty width to its right, with a little room; `translate` keeps its text
+   exactly where the row's was. */
+.dsort-ghost[data-kind="goal"]{width:fit-content!important;max-width:min(92vw,520px);padding-left:8px!important;padding-right:10px!important;translate:-8px 0;border-radius:6px;}
 /* ── Shared Tony App Nav Bar ── */
 #tony-app-nav{
   position:fixed;top:env(safe-area-inset-top,0px);left:0;right:0;z-index:10001;
@@ -9766,11 +9766,12 @@ function App(){
   // Goals: both tabs' lists are always mounted. Holding a row over the other
   // tab opens it (thDragRef's tab watcher clicks it) and the drag goes on into
   // that list, as before the A1Drag rebuild; the list a goal was lifted from
-  // stays mounted, invisible and 0 tall, so the lifted row is not torn down.
+  // stays mounted, invisible and 0 tall, so the row (hidden while dragsort's
+  // floating copy is what you hold) is not torn down mid-drag.
   const [goalDragFrom,setGoalDragFrom]=useState(null);
   const goalTabOpen=tab=>{
     if(window.A1Drag&&A1Drag.active){
-      const r=document.querySelector(".dsort-drag"),z=r&&r.parentElement&&r.parentElement.dataset.thz;
+      const r=document.querySelector(".dsort-hole"),z=r&&r.parentElement&&r.parentElement.dataset.thz;
       if(z==="goal"||z==="goalm"){setGoalDragFrom(z==="goalm"?"short":"long");A1Drag.later(()=>setGoalDragFrom(null));}
     }
     setGoalTab(tab);
@@ -16221,11 +16222,12 @@ function App(){
   // Goals: both tabs' lists are always mounted. Holding a row over the other
   // tab opens it (thDragRef's tab watcher clicks it) and the drag goes on into
   // that list, as before the A1Drag rebuild; the list a goal was lifted from
-  // stays mounted, invisible and 0 tall, so the lifted row is not torn down.
+  // stays mounted, invisible and 0 tall, so the row (hidden while dragsort's
+  // floating copy is what you hold) is not torn down mid-drag.
   const [goalDragFrom,setGoalDragFrom]=useState(null);
   const goalTabOpen=tab=>{
     if(window.A1Drag&&A1Drag.active){
-      const r=document.querySelector(".dsort-drag"),z=r&&r.parentElement&&r.parentElement.dataset.thz;
+      const r=document.querySelector(".dsort-hole"),z=r&&r.parentElement&&r.parentElement.dataset.thz;
       if(z==="goal"||z==="goalm"){setGoalDragFrom(z==="goalm"?"short":"long");A1Drag.later(()=>setGoalDragFrom(null));}
     }
     setGoalTab(tab);

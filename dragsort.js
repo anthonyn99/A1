@@ -34,9 +34,12 @@
  *     free,                true: the lifted row follows the pointer on both
  *                          axes everywhere, not only over another list (lists
  *                          side by side); the slot still goes by the axis.
- *                          Away from its own list and over no list that takes
- *                          it, it is nowhere: the list closes up and a release
- *                          there puts it back
+ *                          What follows the pointer is a copy floating over the
+ *                          whole page (a list inside a scroll box would clip
+ *                          the row itself) while the row, hidden, holds its
+ *                          slot. Away from its own list and over no list that
+ *                          takes it, it is nowhere: the list closes up and a
+ *                          release there puts it back
  *     copy,                true: the row stays put and a floating copy is what
  *                          is carried (a palette of things to add to another
  *                          list of the group); it never reorders its own list,
@@ -97,6 +100,7 @@
     // visibly bounced after it had landed.
     '.dsort.dsort-nt > *, .dsort.dsort-nt > .dsort-settle { transition: none !important; }',
     '.dsort-src { opacity: .4; }',
+    '.dsort-hole { visibility: hidden !important; }',
     'html.dsort-grabbing, html.dsort-grabbing * { cursor: grabbing !important; -webkit-user-select: none !important; user-select: none !important; }',
     '.dsort-grip {',
     '  flex: 0 0 auto; width: 28px; height: 36px; margin: -4px 0 -4px -4px; padding: 0;',
@@ -290,6 +294,10 @@
       var live = false, to = from, lastX = e.clientX, lastY = e.clientY, raf = 0, cancelled = false;
       var tgt = null, tTo = 0;     // cross-list: the list hovered and the slot in it
       var copy = !!me.o.copy, ghost = null, r0 = null;   // copy: the floating copy and where the row sat
+      // free: a floating copy follows the pointer too, over everything, while
+      // the row itself stays in its list, hidden, as the gap it will land in.
+      var fly = free && !copy && !grid;
+      var float = function () { ghost.style.transform = lift(pos2(lastX - e.clientX, lastY - e.clientY)); };
 
       var coord = function (b) { return { x: b.x, y: b.y }; };
       var pos1 = function (r, v) { return X ? 'translate3d(' + v + 'px, 0, 0)' : 'translate3d(0, ' + v + 'px, 0)'; };
@@ -339,7 +347,7 @@
           var v = Math.max(lo, Math.min(hi, X ? d.dx : d.dy));
           // Free: the row itself goes wherever the pointer does; v (clamped to
           // its segment) only picks the slot.
-          row.style.transform = free ? lift(pos2(d.dx, d.dy)) : lift(pos1(row, v));
+          if (fly) float(); else row.style.transform = lift(pos1(row, v));
           // A neighbour gives way once the dragged row's LEADING edge passes
           // its middle -- by the dragged row's own middle, the first and last
           // slots were out of reach at the list's clamped ends.
@@ -409,7 +417,7 @@
           to = -1;
         }
         var d = drag();
-        (copy ? ghost : row).style.transform = lift(pos2(d.dx, d.dy));
+        if (fly) float(); else (copy ? ghost : row).style.transform = lift(pos2(d.dx, d.dy));
         var tb = tgt.list.getBoundingClientRect();
         var cx = lastX - tb.left + tgt.list.scrollLeft, cy = lastY - tb.top + tgt.list.scrollTop;
         var k = slotIn(tgt, cx, cy);
@@ -443,8 +451,7 @@
         return lastX >= b.left - 16 && lastX <= b.right + 16 && lastY >= b.top - 40 && lastY <= b.bottom + 40;
       };
       var placeNowhere = function () {
-        var d = drag();
-        row.style.transform = lift(pos2(d.dx, d.dy));
+        if (fly) float(); else { var d = drag(); row.style.transform = lift(pos2(d.dx, d.dy)); }
         if (to !== from) { to = from; rows.forEach(function (r) { if (r !== row) r.style.transform = ''; }); }
       };
       var place = function () {
@@ -474,10 +481,34 @@
       var start = function () {
         live = true;
         state.active = true;
-        if (copy) {
+        if (copy || fly) {
           r0 = row.getBoundingClientRect();
           ghost = row.cloneNode(true);
           ghost.removeAttribute('id');
+          if (fly) {
+            // Off its list the copy loses what it inherited there: the list's
+            // drag tint and the row's type. A table row floats in a one-row
+            // table of its own, each cell at the width it had.
+            var rcs = getComputedStyle(row), lcs = getComputedStyle(list);
+            if (row.tagName === 'TR') {
+              for (var c = 0; c < row.children.length; c++) {
+                ghost.children[c].style.width = row.children[c].getBoundingClientRect().width + 'px';
+                ghost.children[c].style.boxSizing = 'border-box';
+              }
+              var tbl = document.createElement('table'), tbd = document.createElement('tbody');
+              var otb = row.closest('table');
+              tbl.style.borderCollapse = otb ? getComputedStyle(otb).borderCollapse : 'collapse';
+              tbl.style.tableLayout = 'fixed';
+              tbd.appendChild(ghost); tbl.appendChild(tbd);
+              ghost = tbl;
+            }
+            ['--ds-ac', '--ds-s2', '--ds-tx', '--ds-txm', '--ds-shadow'].forEach(function (v) {
+              var x = lcs.getPropertyValue(v); if (x) ghost.style.setProperty(v, x);
+            });
+            ghost.style.fontFamily = rcs.fontFamily; ghost.style.fontSize = rcs.fontSize;
+            ghost.style.lineHeight = rcs.lineHeight; ghost.style.fontWeight = rcs.fontWeight;
+            if (row.dataset.kind) ghost.dataset.kind = row.dataset.kind;
+          }
           ghost.classList.add('dsort-ghost');
           var gs = ghost.style;
           gs.setProperty('position', 'fixed', 'important');
@@ -488,10 +519,10 @@
           gs.width = r0.width + 'px'; gs.height = r0.height + 'px';
           gs.boxSizing = 'border-box';
           document.body.appendChild(ghost);
-          row.classList.add('dsort-src');
+          row.classList.add(fly ? 'dsort-hole' : 'dsort-src');
         }
-        (copy ? ghost : row).classList.add('dsort-drag');
-        if (me.o.axis !== 'y') (copy ? ghost : row).classList.add('dsort-chip');
+        (copy || fly ? ghost : row).classList.add('dsort-drag');
+        if (me.o.axis !== 'y') (copy || fly ? ghost : row).classList.add('dsort-chip');
         list.classList.add('dsort-on');
         document.documentElement.classList.add('dsort-grabbing');
         try { row.setPointerCapture(pid); } catch (err) {}
@@ -541,7 +572,7 @@
         if (cross) {
           var sp = slotPos(tgt, tTo);
           var tb = tgt.list.getBoundingClientRect(), lb = list.getBoundingClientRect();
-          land = copy
+          land = copy || fly
             ? pos2(sp.x - tgt.list.scrollLeft + tb.left - r0.left, sp.y - tgt.list.scrollTop + tb.top - r0.top)
             : pos2(sp.x - tgt.list.scrollLeft + tb.left - (boxes[from].x - list.scrollLeft + lb.left),
               sp.y - tgt.list.scrollTop + tb.top - (boxes[from].y - list.scrollTop + lb.top));
@@ -553,10 +584,15 @@
           var v = to === from || to < 0 ? 0 : to > from
             ? (boxes[to][P] + boxes[to][S]) - (boxes[from][P] + boxes[from][S])
             : boxes[to][P] - boxes[from][P];
-          land = pos1(row, v);
+          if (fly) {
+            // The copy glides to where the row's slot is now on screen.
+            var lbn = list.getBoundingClientRect();
+            land = pos2(lbn.left - list.scrollLeft + boxes[from].x + (X ? v : 0) - r0.left,
+              lbn.top - list.scrollTop + boxes[from].y + (X ? 0 : v) - r0.top);
+          } else land = pos1(row, v);
         }
         if (to < 0 && !cross) to = from;
-        var mover = copy ? ghost : row;
+        var mover = copy || fly ? ghost : row;
         mover.classList.add('dsort-settle');
         mover.classList.remove('dsort-chip');
         mover.style.transform = land || '';
@@ -566,7 +602,8 @@
           var nt = [list]; if (tl) nt.push(tl.list);
           var moved = !!tl || to !== from;
           nt.forEach(function (l) { l.classList.add('dsort-nt'); });
-          if (ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
+          // A flying copy stays where it landed until the redraw shows the row.
+          if (!fly && ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
           if (tl) tl.list.classList.remove('dsort-on');
           list.classList.remove('dsort-on');
           document.documentElement.classList.remove('dsort-grabbing');
@@ -580,7 +617,8 @@
             if (done) return;
             done = true;
             obs.forEach(function (o) { o.disconnect(); });
-            rows.forEach(function (r) { r.style.transform = ''; r.classList.remove('dsort-drag', 'dsort-settle', 'dsort-chip', 'dsort-src'); });
+            rows.forEach(function (r) { r.style.transform = ''; r.classList.remove('dsort-drag', 'dsort-settle', 'dsort-chip', 'dsort-src', 'dsort-hole'); });
+            if (fly && ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
             if (tl) tl.rows.forEach(function (r) { r.style.transform = ''; });
             // Transitions come back only after the new order has painted.
             requestAnimationFrame(function () { requestAnimationFrame(function () { nt.forEach(function (l) { l.classList.remove('dsort-nt'); }); }); });
