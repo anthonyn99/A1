@@ -7,7 +7,7 @@
 (function () {
 var me = document.currentScript;
 var html = `
-<div id="bj-root">
+<div id="bj-root" data-hoverfx="classic">
 <div id="bj-nav-header" class="veda-hdr-outer">
   <div class="veda-hdr-inner">
   <div class="veda-hdr-left">
