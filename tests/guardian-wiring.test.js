@@ -52,7 +52,10 @@ const PENDING = [];
 // Never touched by Guardian (user decision 2026-10-10): StudyOS keeps its own
 // backend (V1/ is Veda's StudyOS world), and Vault/'s WebAuthn is the vault
 // MASTER-password encryption (a PRF-derived key), not a lock.
-const EXEMPT = /^(?:V1|Vault)[\\/]/;
+// host/worker.js (A1-Priv's web host) is not a lock: it is the server-side
+// check of Vault's own Guardian lock (tony_vault_standalone, fixed in code)
+// before it hands out the Vault Launcher ZIP, through the same worker route.
+const EXEMPT = /^(?:(?:V1|Vault)[\\/]|host\/worker\.js$)/;
 
 console.log('\nThe folder');
 const G = 'Guardian/guardian.js';
