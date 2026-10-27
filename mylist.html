@@ -193,32 +193,8 @@ body:not([data-profile=veda]) .wordmark{
   color:var(--acl);}
 
 /* ── Profile overlay ── */
-#profile-overlay{position:fixed;inset:0;z-index:9000;display:none;flex-direction:column;align-items:center;justify-content:center;
-  background:var(--bg);padding:calc(env(safe-area-inset-top,0px) + 24px) 22px calc(env(safe-area-inset-bottom,0px) + 24px);}
-#profile-overlay .pw-title{font-family:var(--suite-display);font-weight:750;font-size:34px;letter-spacing:-.4px;line-height:1.2;color:#fff;margin-bottom:6px;text-align:center;}
-#profile-overlay .pw-sub{color:#9898a8;font-family:'Nunito',sans-serif;font-size:14px;margin-bottom:34px;text-align:center;}
-.profile-cards{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;width:100%;max-width:400px;}
-/* Card geometry mirrors index.html's .prof-card so the two profile selectors
-   in the suite are the same object: 2px border, 20px radius, 160px, the same
-   drop shadow and the same lift-on-hover. */
-.profile-card{position:relative;flex:0 0 auto;width:160px;aspect-ratio:1;background:var(--surface,#232327);border:2px solid rgba(255,255,255,0.08);border-radius:20px;padding:32px 28px;text-align:center;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;box-shadow:0 8px 32px rgba(0,0,0,0.5);}
-.profile-card:hover{transform:translateY(-4px);box-shadow:0 16px 48px rgba(0,0,0,0.6);}
-.profile-card .emoji{font-size:42px;line-height:1;margin-bottom:0;}
-.profile-card .pname{font-family:'Nunito',sans-serif;font-weight:800;font-size:19px;color:#fff;}
-.profile-card .plock{position:absolute;left:0;right:0;bottom:8px;display:flex;align-items:center;justify-content:center;color:#9898a8;line-height:0;}
-.profile-card .plock svg{width:13px;height:13px;}
-.profile-card .fav-star{position:absolute;top:7px;right:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;
-  font-size:22px;color:#41414e;cursor:pointer;transition:all .15s;line-height:1;border-radius:50%;background:rgba(255,255,255,0.03);}
-.profile-card .fav-star:hover{background:rgba(255,255,255,0.08);}
-.profile-card .fav-star.on{color:var(--gold-secondary);text-shadow:0 0 12px rgba(245,196,81,.55);}
-/* Tony — MAGI purple. Resting border is the accent at 0x44 alpha and hover
-   goes to the full accent, exactly as index.html's selector does. */
-.profile-card.tony{border-color:#c0aeea44;}
-.profile-card.tony:hover{border-color:#c0aeea;}
-.profile-card.tony .emoji,.profile-card.tony .pname{color:#c0aeea;}
-.profile-card.tony .pname{font-family:'Manrope',system-ui,sans-serif;font-weight:800;letter-spacing:-.2px;}
-.profile-card.veda{border-color:rgba(141,118,154,0.5);} .profile-card.veda:hover{border-color:rgba(183,159,196,0.85);box-shadow:0 8px 24px rgba(141,118,154,0.24),0 0 12px rgba(141,118,154,0.18);}
-.profile-card.veda .emoji,.profile-card.veda .pname{color:#b79fc4;font-family:'Playfair Display',serif;}
+/* Drawn by profilepick.js, the suite's one picker; shown and hidden here. */
+#profile-overlay{display:none;}
 
 /* ── App shell ── */
 #app{display:none;min-height:100%;flex-direction:column;}
@@ -858,28 +834,12 @@ body { max-width: 2000px; margin-inline: auto; }
      In <head> so it is there before this page's own code. -->
 <script src="scrollbar.js"></script>
 <script src="apphead.js"></script>
+<script src="profilepick.js"></script>
 </head>
 <body data-profile="tony">
 
 <!-- ── Profile selection ── -->
-<div id="profile-overlay">
-  <div class="pw-title">MyList</div>
-  <div class="pw-sub">Choose your profile · tap ★ to set your default</div>
-  <div class="profile-cards">
-    <div class="profile-card tony" onclick="ML.chooseProfile('tony')">
-      <span class="fav-star" id="fav-tony" onclick="event.stopPropagation();ML.toggleFav('tony')" title="Set as default">★</span>
-      <div class="emoji"><svg width="0.78em" height="0.78em" viewBox="0 0 24 22" aria-hidden="true"><path d="M12 1C14.7 3.7 15.5 7.6 13.7 13H10.3C8.5 7.6 9.3 3.7 12 1ZM13.9 13C14.4 9.1 17.3 6.7 20.3 7.7C22.7 8.5 23.4 11.6 21.4 13.4C21.6 11.8 20.6 10.4 19 10.6C17.3 10.9 16.2 12.2 15.8 13ZM10.1 13C9.6 9.1 6.7 6.7 3.7 7.7C1.3 8.5 .6 11.6 2.6 13.4C2.4 11.8 3.4 10.4 5 10.6C6.7 10.9 7.8 12.2 8.2 13ZM7.4 13.4H16.6A.85 .85 0 0 1 16.6 15.1H7.4A.85 .85 0 0 1 7.4 13.4ZM10.9 15.5H13.1C13.1 17.6 12.7 19.4 12 21.2C11.3 19.4 10.9 17.6 10.9 15.5ZM13.6 15.5H15.3C15.6 17.1 16.7 18.1 18.4 17.9C17.8 19.5 16.1 20 14.9 19.2C14.1 18.6 13.7 17.4 13.6 15.5ZM10.4 15.5H8.7C8.4 17.1 7.3 18.1 5.6 17.9C6.2 19.5 7.9 20 9.1 19.2C9.9 18.6 10.3 17.4 10.4 15.5Z" fill="currentColor"/></svg></div>
-      <div class="pname">Tony</div>
-      <div class="plock" id="plock-tony"></div>
-    </div>
-    <div class="profile-card veda" onclick="ML.chooseProfile('veda')">
-      <span class="fav-star" id="fav-veda" onclick="event.stopPropagation();ML.toggleFav('veda')" title="Set as default">★</span>
-      <div class="emoji">✦</div>
-      <div class="pname">Veda</div>
-      <div class="plock" id="plock-veda"></div>
-    </div>
-  </div>
-</div>
+<div id="profile-overlay"></div>
 
 <!-- ── App ── -->
 <div id="app">
@@ -1957,13 +1917,17 @@ function updateLockBtn(){
 }
 
 // ════════ PROFILE SCREEN ════════
+var mlPick=null;
 function refreshProfileScreen(){
-  var fav = localStorage.getItem('ml_fav_profile');
-  ['tony','veda'].forEach(function(p){
-    var star=$('fav-'+p); if(star) star.className='fav-star'+(fav===p?' on':'');
-    // Lock glyph only — the card already reads as protected without the caption.
-    var lk=$('plock-'+p); if(lk){ lk.innerHTML = mlIsLocked(p) ? MLI.lock : ''; lk.title = mlIsLocked(p) ? 'Password protected' : ''; }
+  if(!mlPick) mlPick=A1Pick.mount($('profile-overlay'),{
+    app:'mylist', title:'MyList', sub:'Speak · List · Shop · Cook',
+    profiles:[{id:'tony',label:'Tony'},{id:'veda',label:'Veda'}],
+    state:function(p){ var locked=mlIsLocked(p); return { fav:localStorage.getItem('ml_fav_profile')===p, note:locked?'Locked':'', noteIcon:locked?'lock':'' }; },
+    starTitle:function(p,st){ return st.fav?'Default on this device (tap to clear)':'Set as default'; },
+    onStar:function(p){ toggleFav(p); },
+    onChoose:function(p){ chooseProfile(p); }
   });
+  mlPick.refresh();
 }
 function goProfileSelect(){
   if(voice.active){ try{ voice.stream&&voice.stream.getTracks().forEach(function(t){t.stop();}); }catch(e){} try{ voice.recog&&(voice.recog.onend=null,voice.recog.stop()); }catch(e){} voice.active=false; setMicUI(false); setBarRecording(false); }
