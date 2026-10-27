@@ -192,12 +192,19 @@ var legacy = {
       rd(sessionStorage, 'al_unlockedat_' + id);
       return best;
     }
+    // al_locks is evidence only of a lock, never of its absence: every
+    // program's cross-device bell still rewrites it from dashboards/applock,
+    // which lists only the locks that rang it (MAGI's own password does not).
+    // An id missing from it is "unknown": the worker decides, and an
+    // unanswered status fails closed. Reading it as "the old system had no lock
+    // here, so it opened" let a browser adopt a locked app on first sight
+    // (Tony, 2026-10-27; tests/guardian.test.js §5).
     return {
-      locked: function () { return hadOld() ? !!locks()[id] : null; },
+      locked: function () { return hadOld() && locks()[id] ? true : null; },
       open: function () {
         if (!hadOld()) return false;
         var L = locks()[id];
-        if (!L) return true;                       // the old system had no lock here → it opened
+        if (!L) return false;
         var a = at(); return a >= 0 && a >= ((L && L.v) || 0);
       },
       bio: function () { return legacy.bioRec(bioNs || 'applock', bioId || id, (locks()[id] || {}).v || 0); }

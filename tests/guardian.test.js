@@ -196,9 +196,21 @@ function page(W, opts) {
   }
   {
     const W = fakeWorker(); W.set('applock:tony_myjournal', 'pw');
+    // al_locks is rewritten from dashboards/applock by every program's bell, so
+    // a missing id proves nothing: with a lock on the worker, this device asks.
     const P = page(W, { storage: { al_locks: '{}' } });
     P.G.define('tony_myjournal', { legacy: P.G.legacy.al('tony_myjournal') });
-    ok('old registry had no lock → still opens (no surprise prompt)', P.G.isUnlocked('tony_myjournal'));
+    ok('an id missing from al_locks is unknown, not "no lock" (fails closed)', P.G.mustBlock('tony_myjournal') && !P.G.isUnlocked('tony_myjournal'));
+    await P.G.refresh();
+    ok('…and once the worker answers it asks for the password', P.G.mustBlock('tony_myjournal'));
+  }
+  {
+    // A lock that truly does not exist still opens, once the worker says so.
+    const W = fakeWorker();
+    const P = page(W, { storage: { al_locks: '{}' } });
+    P.G.define('tony_notalock', { legacy: P.G.legacy.al('tony_notalock') });
+    await P.G.refresh();
+    ok('no lock on the worker → opens with no prompt', !P.G.mustBlock('tony_notalock'));
   }
   {
     const W = fakeWorker(); W.set('applock:profile_tony', 'pw');
