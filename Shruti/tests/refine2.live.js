@@ -93,7 +93,7 @@ async function pass1(c, who, w) {
   await load(c, { w, h: phone ? 844 : 860, who, hash: '#/' });
 
   // 7 + 6: the library.
-  ok(tag + ': the picker title is lighter (500)', await ev(c, `return getComputedStyle(document.querySelector('#picker h1')).fontWeight`) === '500');
+  ok(tag + ': the picker title is a touch heavier (600)', await ev(c, `return getComputedStyle(document.querySelector('#picker h1')).fontWeight`) === '600');
   ok(tag + ': the Import tile is much smaller than a book', await waitFor(c, `const a=document.querySelector('#shelf-shared .sa-cover').getBoundingClientRect(), b=document.querySelector('#shelf-shared .book .cover').getBoundingClientRect(); return a.height < b.height*0.55 && a.width < b.width*0.8`),
     await ev(c, `const a=document.querySelector('#shelf-shared .sa-cover').getBoundingClientRect(), b=document.querySelector('#shelf-shared .book .cover').getBoundingClientRect(); return a.width+'x'+a.height+' vs '+b.width+'x'+b.height`));
   ok(tag + ': an empty Mine shelf has its tile at the top', await ev(c, `const s=document.querySelector('#shelf-mine'), t=s.querySelector('.sa-cover'); return !s.querySelector('.book') ? t.getBoundingClientRect().top - s.getBoundingClientRect().top < 4 : true`));
