@@ -9957,7 +9957,11 @@ function App(){
     const srcKey=dragDayKey.current,srcId=dragSrc.current;
     if(srcKey===k){
       if(srcId===targetId)return;
-      setData(prev=>{const arr=[...(prev[k]||[])];const si=arr.findIndex(t=>t.id===srcId),ti=arr.findIndex(t=>t.id===targetId);if(si<0||ti<0)return prev;const[item]=arr.splice(si,1);arr.splice(ti,0,item);return{...prev,[k]:arr};});
+      setData(prev=>{const arr=[...(prev[k]||[])];const si=arr.findIndex(t=>t.id===srcId),ti=arr.findIndex(t=>t.id===targetId);if(si<0||ti<0)return prev;
+        // Ticked tasks display by doneAt (wkSortTasks), not array position, so
+        // reordering two of them means re-stamping the dragged one beside the target.
+        if(arr[si].done&&arr[ti].done){const tk=wkDoneKey(arr[ti]),nk=wkDoneKey(arr[si])<tk?tk+.5:tk-.5;arr[si]={...arr[si],doneAt:nk};(window._wkDoneAt=window._wkDoneAt||{})[srcId]=nk;return{...prev,[k]:arr};}
+        const[item]=arr.splice(si,1);arr.splice(ti,0,item);return{...prev,[k]:arr};});
     }else if(_plGuard(stateRef.current.data[srcKey],srcId,'This is a shared plan — change its date in Add → Plan.')){
       // Reordering a plan WITHIN a day is yours to keep; moving it to another day
       // is not, because dashboards/plans owns the date and the next reconcile
