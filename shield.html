@@ -1084,6 +1084,19 @@ body:not([data-profile="veda"]) .emg-note{font-size:12px}
 body:not([data-profile="veda"]) #toast{border-radius:var(--rr);background:var(--s1);border-color:var(--s3)}
 body:not([data-profile="veda"]) #uim-box{border-radius:14px}
 
+/* Outlines: every button's border is the soft gray, at rest, on hover and when
+   selected (Tony, 2026-10-27). Text keeps its colour; hover shows as a lifted
+   fill instead. The solid purple primaries are filled, so they are left out. */
+body:not([data-profile="veda"]) :is(.btn,.iconbtn,.setchip,.tut-btn,.big,.hold,.pick-tab,#uim-btns button):not(#a-download):not(#a-guard-get):not([data-revert]):not(.opt .btn.ac):not(.topbar .iconbtn),
+body:not([data-profile="veda"]) :is(.btn,.iconbtn,.setchip,.tut-btn,.big,.hold,.pick-tab,#uim-btns button):not(#a-download):not(#a-guard-get):not([data-revert]):not(.opt .btn.ac):not(.topbar .iconbtn):is(:hover,:focus-visible,.on){
+  border-color:var(--bdl) !important;
+}
+body:not([data-profile="veda"]) :is(.btn,.iconbtn,.tut-btn,.pick-tab):not(#a-download):not(#a-guard-get):not([data-revert]):not(.opt .btn.ac):not([disabled]):hover{background:var(--s2)}
+body:not([data-profile="veda"]) :is(.big,.hold):not([disabled]):hover{background:var(--s2)}
+body:not([data-profile="veda"]) .setchip:hover{background:var(--s2)}
+body:not([data-profile="veda"]) .setchip.on{background:var(--s3)}
+body:not([data-profile="veda"]) #uim-ok{border-color:var(--bdl) !important}
+
 @media (pointer:coarse){
   body:not([data-profile="veda"]) nav.nav > .pill{height:38px;padding:0 14px}
   body:not([data-profile="veda"]) div.nav .pill.sub{height:44px}
