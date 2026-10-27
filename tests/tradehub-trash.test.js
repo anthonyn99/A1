@@ -314,7 +314,7 @@ section('The Playbook moves to Notebook');
 
 const pbHost = slice('/* ── Playbook: a Notebook instance', 'function TBApp(');
 check('the Playbook tab mounts MyJournal as a Notebook instance on its own store',
-      /app:'myjournal',key:'pb',store:'tradehub_playbook'/.test(pbHost) && /templates:\['page'\]/.test(pbHost));
+      /profile:'tony',key:'pb',store:'tradehub_playbook'/.test(pbHost) && /templates:\['page'\]/.test(pbHost));
 check('the Daily Reminder is a pinned page with its fixed id',
       /pinned:\[\{id:TB_PB_DAILY_ID,title:'Daily Reminder'/.test(pbHost));
 check('every confirmed save of it is pushed to the launcher (and only it)',
