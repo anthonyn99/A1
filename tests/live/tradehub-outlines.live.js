@@ -33,7 +33,7 @@ const worker = { patterns: ['https://trade-dashboard.av1-2.workers.dev/*', 'http
   } };
 
 const AUDIT = `
-  const skip = (b) => b.closest('.tb-navtab,.tbx-seg,.nh-pulse,.ctl-pr-list,#nb-park,[id$="-root"],a1-lifehub,.tb-desktop-header,.tb-mobile-header,guardian-lock')
+  const skip = (b) => b.closest('.tb-navtab,.tbx-seg,.nh-pulse,.ctl-pr-list,#nb-park,[id$="-root"]:not(#tradeboard-root),a1-lifehub,.tb-desktop-header,.tb-mobile-header,guardian-lock')
     || b.classList.contains('a1-grip') || b.classList.contains('dsort-grip');
   const seen = (b) => { const r = b.getBoundingClientRect(); const s = getComputedStyle(b); return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none' && +s.opacity > 0.05; };
   const outlined = (b) => { const s = getComputedStyle(b);
