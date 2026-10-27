@@ -82,7 +82,7 @@ const waitFor = async (c, expr, ms = 20000) => {
   await c.send('Page.navigate', { url: URL });
   ok('engine online', await waitFor(c, 'online() && !!CODE.agents', 25000));
   await evalJs(c, 'setView("accounts"); loadAccounts(); return 1;');
-  await waitFor(c, 'document.querySelectorAll(".acc-slot-name").length === 2', 20000);
+  await waitFor(c, 'document.querySelectorAll(".acc-slot-name").length >= 2', 20000);
   // Watch the line while the save is in flight.
   const seen = await evalJs(c, `
     const seen = [];

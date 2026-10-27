@@ -254,11 +254,11 @@ async function runTask(c, prompt, agents) {
 
       console.log('\nRemove');
       await evalJs(c, 'setView("accounts"); loadAccounts(); return 1;');
-      await waitFor(c, `[...document.querySelectorAll(".acc-slot-name")].some(n=>n.textContent===${JSON.stringify(FAKE_LOGIN)})`, 10000);
-      await evalJs(c, `[...document.querySelectorAll(".acc-slot")].find(r=>r.textContent.includes(${JSON.stringify(FAKE_LOGIN)})).querySelector(".navitem.danger").click(); return 1;`);
+      await waitFor(c, `!!document.querySelector('.acc-card[data-login=${JSON.stringify(FAKE_LOGIN)}]')`, 10000);
+      await evalJs(c, `document.querySelector('.acc-card[data-login=${JSON.stringify(FAKE_LOGIN)}] .acc-menu-items button.danger').click(); return 1;`);
       ok('removal is confirmed in-page', await waitFor(c, '/Remove GitHub account/.test((document.querySelector(".sheet .sheet-hd")||{}).textContent||"")', 3000));
       await evalJs(c, '[...document.querySelectorAll(".sheet .btn.active")].pop().click(); return 1;');
-      ok('the row goes', await waitFor(c, `![...document.querySelectorAll(".acc-slot-name")].some(n=>n.textContent===${JSON.stringify(FAKE_LOGIN)})`, 10000));
+      ok('the row goes', await waitFor(c, `!document.querySelector('.acc-card[data-login=${JSON.stringify(FAKE_LOGIN)}]')`, 10000));
       ok('and the credential is deleted from the store', !fakeStored());
     }
 

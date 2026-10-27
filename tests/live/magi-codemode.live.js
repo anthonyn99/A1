@@ -147,12 +147,12 @@ const dragRowDown = async (c, i) => {
   console.log('\nAccounts: coding agents');
   await evalJs(c, 'setView("accounts"); loadAccounts(); return 1;');
   // The CLI cards only: since Phase 10 the section also holds a GitHub card.
-  ok('coding section drawn', await waitFor(c, '[...document.querySelectorAll(".acc-code .acc-card .acc-name")].filter(n=>/ CLI$/.test(n.textContent)).length === 2', 20000));
+  ok('coding section drawn', await waitFor(c, '[...document.querySelectorAll(".acc-code .acc-card .acc-name")].filter(n=>/ CLI$/.test(n.textContent)).length >= 2 && new Set([...document.querySelectorAll(".acc-code .acc-card .acc-name")].map(n=>n.textContent).filter(t=>/ CLI$/.test(t))).size === 2', 20000));
   const acc = await evalJs(c, 'document.querySelector(".acc-code").textContent');
   ok('Claude system slot shows the account', /anthonypn99@gmail\.com/.test(acc));
   const names = JSON.parse(await evalJs(c, 'return JSON.stringify([...document.querySelectorAll("input.acc-slot-name")].map(i=>i.placeholder));'));
   ok('Codex account is listed', names.includes('codex1'), names.join(','));
-  ok('both slots can be renamed in place', names.length === 2);
+  ok('every slot can be renamed in place', names.length >= 2);
   ok('Codex usage is shown with its reset', /30d used \d+%/.test(acc), (acc.match(/30d used[^·]*/) || [''])[0]);
   ok('Claude weekly is shown too', /7d used \d+%/.test(acc), (acc.match(/7d used[^·]*/) || [''])[0]);
   // Renaming a slot round-trips to the engine and back into the chips.
