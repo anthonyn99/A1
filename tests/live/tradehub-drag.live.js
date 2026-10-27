@@ -119,14 +119,12 @@ async function gripChecks(c, name, boxJs, key, reopen) {
   await see(c, boxJs);
   const h2 = (await rect(c, boxJs)).h;
   ok(name + ': reload keeps the height', Math.abs(h2 - h1) <= 2, h1 + ' -> ' + h2);
+  // resizegrip.js: a click on the grip does nothing (it used to toggle
+  // auto / expanded; dropped 2026-10-14). Only a drag resizes.
   const g2 = await rect(c, `(${boxJs}).parentElement.querySelector(':scope > .a1-grip')`);
   await click(c, g2.x - 8, g2.y - 8);
-  ok(name + ': a click hands it back to auto', (await evalJs(c, `return (${boxJs}).getAttribute('data-user-h');`)) === null
-    && (await evalJs(c, `return localStorage.getItem('a1.h.${key}');`)) === null);
-  const g3 = await rect(c, `(${boxJs}).parentElement.querySelector(':scope > .a1-grip')`);
-  await click(c, g3.x - 8, g3.y - 8);
-  const h4 = (await rect(c, boxJs)).h;
-  ok(name + ': a second click expands it (>= 260px)', h4 >= 259, h4);
+  const h3 = (await rect(c, boxJs)).h;
+  ok(name + ': a click leaves the height alone', Math.abs(h3 - h2) <= 2 && (await evalJs(c, `return localStorage.getItem('a1.h.${key}');`)) === String(Math.round(h1)), h2 + ' -> ' + h3);
 }
 
 (async () => {
