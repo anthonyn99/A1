@@ -340,11 +340,12 @@ function instanceCss(cfg) {
   var R = '#' + cfg.key + '-root', css = [];
   var K = '#' + cfg.key;
   if (cfg.app === 'brainstorm') {
-    // What index.html gives Veda's root: her purple hover glow, her body face,
-    // and the accent face its :root names. Her header is index's nav (TaskHub,
-    // Gita, App Lock, profile); an instance lives inside its host's own.
+    // What index.html gives Veda's root: her purple hover glow and the accent
+    // face its :root names (her body face is brainstorm.css's own). Her header
+    // is index's nav (TaskHub, Gita, App Lock, profile); an instance lives
+    // inside its host's own.
     css.push(R + '{--suite-glow:0 0 0 1px rgba(141,118,154,.42),0 0 10px rgba(141,118,154,.42);'
-      + '--font-accent:\'Fraunces\',Georgia,serif;font-family:\'Nunito\',sans-serif;}');
+      + '--font-accent:\'Fraunces\',Georgia,serif;}');
     css.push(R + ' ' + K + '-nav-header{display:none!important;}');
   }
   if (cfg.mode !== 'overlay') {
