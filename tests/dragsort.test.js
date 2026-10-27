@@ -284,6 +284,34 @@ async function drag(target, from, to, kind) {
      !/scale: 1\.06/.test(doc.getElementById('a1-dragsort-css').textContent));
   ok('reduced motion: no transitions', /prefers-reduced-motion: reduce/.test(doc.getElementById('a1-dragsort-css').textContent));
 
+  console.log('\nSegments, canMoveTo, free (TaskHub)');
+  {
+    // rows 0-1 open (rank 0), 2-3 done (rank 1)
+    const rank = (r) => (r.dataset.done === '1' ? 1 : 0);
+    const S = vlist(4, 0, { group: 'seg', segment: rank, free: true });
+    S.rows[2].dataset.done = S.rows[3].dataset.done = '1';
+    await drag(S.rows[3], [100, 150], [100, 10]);
+    ok('a done row dragged to the top stops at the first done slot', JSON.stringify(S.drops.map((d) => d.slice(0, 2))) === '[[3,2]]', JSON.stringify(S.drops.map((d) => d.slice(0, 2))));
+    S.drops.length = 0;
+    await drag(S.rows[0], [100, 10], [100, 150]);
+    ok('an open row dragged to the bottom stops at the last open slot', JSON.stringify(S.drops.map((d) => d.slice(0, 2))) === '[[0,1]]', JSON.stringify(S.drops.map((d) => d.slice(0, 2))));
+    S.drops.length = 0;
+    ptr('pointerdown', S.rows[0], 100, 10);
+    ptr('pointermove', window, 100, 14);
+    ptr('pointermove', window, 180, 30);
+    ok('free: the lifted row follows the pointer sideways too', /translate3d\(80px, 20px, 0\)/.test(S.rows[0].style.transform), S.rows[0].style.transform);
+    ptr('pointerup', window, 180, 30); await wait(SETTLE);
+    const T = vlist(4, 300, { group: 'seg', segment: rank });
+    T.rows[2].dataset.done = T.rows[3].dataset.done = '1';
+    await drag(S.rows[0], [100, 10], [400, 150]);
+    ok('into another list: an open row lands among that list\'s open rows', S.drops.length === 1 && S.drops[0][1] === 2 && S.drops[0][3] === T.list, JSON.stringify(S.drops.map((d) => d[1])));
+    S.drops.length = 0;
+    const N = vlist(2, 600, { group: 'seg2' });
+    const M = vlist(2, 900, { group: 'seg2', canMoveTo: (row, from, to) => to !== N.list });
+    await drag(M.rows[0], [1000, 10], [700, 10]);
+    ok('canMoveTo false: that list never takes the row (no drop)', M.drops.length === 0 && N.rows.every((r) => !r.style.transform), JSON.stringify(M.drops.map((d) => d[1])));
+  }
+
   console.log(`\n  ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();
