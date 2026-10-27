@@ -20220,10 +20220,10 @@ window.PlansCore={
      OurJournal) and their Firestore adapters, loaded in place by notebook.js.
      MyJournal itself still lives below until Phase 3
      (docs/Notebook/plan.md). ── -->
-<script src="Notebook/notebook.js?v=4a804b33a4"></script>
+<script src="Notebook/notebook.js?v=c67c4e7871"></script>
 
 <!-- ── Brainstorm Journal: Notebook's brainstorm app (Notebook/apps/brainstorm.*). ── -->
-<script>Notebook.mount({ app: 'brainstorm', key: 'bj', store: 'journal' });</script>
+<script>Notebook.mount({ profile: 'veda' });</script>
 
 
 <!-- ── MyJournal's place in TaskHub: the program nav and how MyJournal opens and
@@ -20357,7 +20357,7 @@ if (!window._fbUnloadFlushWired) {
   });
 }
 </script>
-<script>Notebook.mount({ app: 'myjournal', key: 'tj', store: 'tony_journal' });</script>
+<script>Notebook.mount({ profile: 'tony' });</script>
 
 
 

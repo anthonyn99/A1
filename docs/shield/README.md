@@ -92,7 +92,14 @@ captures the manifest, kills it, confirms it is gone, and reopens it from what
 was captured — then proves the *captured path* is what gets started by feeding
 the same manifest a path that does not exist and requiring `notfound`.
 
-Note what it does **not** assert: that the reopened process is still alive a
+The UI itself: `node tests/live/shield-look.live.js <label>` shoots every
+view for both profiles at 1280, 520 (this window) and 390 (touch), against a
+fake Firebase and a fake agent. Tony's side is the 2026-10-27 redesign (the
+`SLEEK` block in shield.html, short copy through `cp(tony, veda)`); Veda's must
+not change, so compare her shots before and after any change (byte-identical
+PNGs). Set `CDP_PORT` (e.g. 9411) if another session is running live tests.
+
+Note what the agent test does **not** assert: that the reopened process is still alive a
 moment later. Shield starts the bare image and does not replay the captured
 command line, so a target needing arguments legitimately exits again. That is
 deliberate — see [What it does](#what-it-does).

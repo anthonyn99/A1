@@ -42,6 +42,24 @@ var GROUPS = {
 // The key each app's source is written for. Mounting it under another key
 // makes an instance (see MOUNTING above); only myjournal can be instanced.
 var NATIVE = { brainstorm: 'bj', myjournal: 'tj' };
+// Notebook's two sides. A host names a side, not an app:
+//   Notebook.mount({ profile: 'tony' })   Tony's journal (MyJournal, tj)
+//   Notebook.mount({ profile: 'veda' })   Veda's journal (bj)
+// They work and are named the same way (OurJournal + the person's own
+// journal); only the colours, fonts and Veda's extra templates differ.
+// profile + key + store mounts an instance of that side.
+var PROFILES = {
+  tony: { app: 'myjournal', key: 'tj', store: 'tony_journal' },
+  veda: { app: 'brainstorm', key: 'bj', store: 'journal' }
+};
+function resolveProfile(cfg) {
+  if (!cfg || cfg.profile === undefined) return cfg;
+  var p = PROFILES[cfg.profile];
+  if (!p || (cfg.app && cfg.app !== p.app)) throw new Error('Notebook.mount: profile is tony or veda');
+  cfg.app = p.app;
+  if (!cfg.key) { cfg.key = p.key; cfg.store = cfg.store || p.store; }
+  return cfg;
+}
 var loaded = {};
 
 function url(f) { return BASE + f + (STAMP ? '?v=' + STAMP : ''); }
@@ -306,7 +324,7 @@ function instanceCss(cfg) {
 // how a program drifts from the others: refuse it. A new setting is added
 // here, documented in docs/Notebook/README.md, and defaults so that every
 // other program keeps working unchanged.
-var OPTIONS = { app: 1, key: 1, store: 1, container: 1, mode: 1, title: 1, templates: 1, features: 1, pinned: 1, onSave: 1, onReady: 1 };
+var OPTIONS = { profile: 1, app: 1, key: 1, store: 1, container: 1, mode: 1, title: 1, templates: 1, features: 1, pinned: 1, onSave: 1, onReady: 1 };
 var FEATURES = { ourjournal: 1, locks: 1, sidebar: 1 };
 function checkOptions(cfg) {
   Object.keys(cfg).forEach(function (k) { if (!OPTIONS[k]) throw new Error('Notebook.mount: unknown option ' + k); });
@@ -345,7 +363,9 @@ window.Notebook = {
   version: STAMP,
   base: BASE,
   load: load,
-  // A host mounts an app: { app, key, store } and, for an instance:
+  // A host mounts a side: { profile: 'tony' | 'veda' } (PROFILES above; the
+  // older { app, key, store } form still works) and, for an instance, adds
+  // key + store and:
   //   container   the element it lives in (mode 'inline', the default for an
   //               instance); title (the app's name in its UI);
   //   features    { ourjournal, locks, sidebar } (an instance: ourjournal and
@@ -356,7 +376,9 @@ window.Notebook = {
   // key is the DOM/CSS/localStorage prefix (bj, tj, pb, ...), store its
   // Firestore document under dashboards/. Returns a promise of the config.
   mounts: {},
+  profiles: PROFILES,
   mount: function (cfg) {
+    cfg = resolveProfile(cfg);
     if (!cfg || !GROUPS[cfg.app] || !NATIVE[cfg.app] || !cfg.key || !/^[a-z]{2,8}$/.test(cfg.key)) throw new Error('Notebook.mount: bad config');
     if (this.mounts[cfg.key]) return this.mounts[cfg.key]._ready;
     if (NATIVE[cfg.app] === cfg.key) { this.mounts[cfg.key] = cfg; load(cfg.app); return (cfg._ready = Promise.resolve(cfg)); }
