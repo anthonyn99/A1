@@ -1592,7 +1592,16 @@ function renderReader(m, full){
   const from = parseAddr(full.from);
   const a = S.ai[full.id];
   const icon = p => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
-  const attachments = (full.attachments || []).filter(x => !x.inline);
+  // Inline images the HTML points at (cid:) are drawn inside the message;
+  // every other attachment is listed under it.
+  const html = full.html && htmlHasContent(full.html) ? full.html : '';
+  const all = full.attachments || [];
+  const cids = html ? all.filter(x => x.contentId && html.includes('cid:' + x.contentId)) : [];
+  const attachments = all.filter(x => !cids.includes(x));
+  const bodyText = (full.text || '').trim() ? full.text : (html || attachments.length ? '' : full.snippet);
+  const dlIcon = icon('<path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/>');
+  const imgs = attachments.filter(x => attKind(x) === 'image');
+  const files = attachments.filter(x => attKind(x) !== 'image');
 
   box.innerHTML = `
     <div class="readhead">
@@ -1621,33 +1630,79 @@ function renderReader(m, full){
     </div>
     <div class="readbody">
       ${aiCard(a, full)}
-      ${attachments.length?`<div class="attachrow">${attachments.map((x,i)=>`
-        <div class="attach" data-att="${i}">
-          ${icon('<path d="M21.4 11.05 12.25 20.2a5.5 5.5 0 0 1-7.78-7.78l9.2-9.19a3.67 3.67 0 0 1 5.18 5.18l-9.2 9.2a1.83 1.83 0 0 1-2.59-2.6l8.5-8.49"/>')}
-          <span>${esc(x.filename)}</span><span class="sz">${esc(fmtSize(x.size))}</span>
+      ${html
+        ? `<iframe id="mailFrame" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" style="width:100%;height:120px;border:none;border-radius:var(--radius);background:#fff;display:block" title="Message body"></iframe>`
+        : bodyText ? `<div class="emailtext">${esc(bodyText)}</div>`
+        : attachments.length ? '' : `<div class="nobody">This message has no text.</div>`}
+      ${imgs.length?`<div class="attachsec">${imgs.map(x=>`
+        <div class="attimg" data-att="${attachments.indexOf(x)}" title="Open ${esc(x.filename)}">
+          <div class="ph"><span class="spinner"></span>Loading image…</div>
+          <div class="cap"><span class="nm">${esc(x.filename)}</span><span class="sz">${esc(fmtSize(x.size))}</span>
+            <button class="attdl" data-dl="${attachments.indexOf(x)}" title="Download" aria-label="Download">${dlIcon}</button></div>
         </div>`).join('')}</div>`:''}
-      ${full.html
-        ? `<iframe id="mailFrame" sandbox="allow-popups allow-popups-to-escape-sandbox" style="width:100%;border:none;border-radius:var(--radius);background:#fff;min-height:200px" title="Message body"></iframe>`
-        : `<div class="emailtext">${esc(full.text || full.snippet)}</div>`}
+      ${files.length?`<div class="attachsec"><div class="lbl">${files.length} attachment${files.length>1?'s':''}</div><div class="attgrid">${files.map(x=>`
+        <div class="attcard" data-att="${attachments.indexOf(x)}" title="Open ${esc(x.filename)}">
+          <div class="thumb"><span class="ext">${esc(attExt(x) || 'FILE')}</span></div>
+          <div class="meta"><span class="nm">${esc(x.filename)}</span><span class="sz">${esc(fmtSize(x.size))}</span>
+            <button class="attdl" data-dl="${attachments.indexOf(x)}" title="Download" aria-label="Download">${dlIcon}</button></div>
+        </div>`).join('')}</div></div>`:''}
     </div>`;
 
-  // Remote HTML runs in a sandboxed iframe with NO allow-scripts and NO
-  // same-origin: a hostile marketing email cannot reach the lock session, the
-  // DOM, or storage. Links still work because popups are allowed to escape.
-  if (full.html){
+  // Remote HTML runs in a sandboxed iframe with NO allow-scripts: a hostile
+  // marketing email can't run anything, so it can't reach the lock session,
+  // the DOM or storage. allow-same-origin (safe without scripts) is only there
+  // so this page can measure the body and grow the frame to fit it. Links
+  // still work because popups are allowed to escape.
+  if (html){
     const f = el('mailFrame');
-    const safe = full.html.replace(/<script[\s\S]*?<\/script>/gi, '');
-    f.srcdoc = `<!doctype html><meta charset="utf-8"><base target="_blank">
-      <style>body{margin:0;padding:14px;font:14px/1.55 -apple-system,system-ui,sans-serif;color:#111;background:#fff;word-break:break-word}
-      img{max-width:100%;height:auto}table{max-width:100%!important}*{max-width:100%}</style>${safe}`;
+    const write = src => {
+      const safe = src.replace(/<script[\s\S]*?<\/script>/gi, '');
+      f.srcdoc = `<!doctype html><meta charset="utf-8"><base target="_blank">
+        <style>body{margin:0;padding:14px;font:14px/1.55 -apple-system,system-ui,sans-serif;color:#111;background:#fff;word-break:break-word}
+        img{max-width:100%;height:auto}table{max-width:100%!important}*{max-width:100%}</style>${safe}`;
+    };
     // Grow the frame to its content so the reader scrolls once, not twice.
     f.addEventListener('load', () => {
       try {
         const h = f.contentDocument.documentElement.scrollHeight;
-        f.style.height = Math.min(Math.max(h + 24, 200), 20000) + 'px';
+        f.style.height = Math.min(Math.max(h, 60), 20000) + 'px';
       } catch { f.style.height = '900px'; }
     });
+    write(html);
+    // cid: images arrive separately; redraw once they're in as data: URLs
+    // (the sandboxed frame can't read this page's blob: URLs).
+    if (cids.length) Promise.allSettled(cids.map(x => attFetch(full, x))).then(rs => {
+      if (!f.isConnected) return;
+      let out = html;
+      rs.forEach((r, i) => { if (r.status === 'fulfilled') out = out.split('cid:' + cids[i].contentId).join(r.value.dataUrl); });
+      write(out);
+    });
   }
+
+  // Images draw themselves into the message; text-like files get a peek of
+  // their first lines on the card. Images over 12 MB wait for a click.
+  box.querySelectorAll('.attimg').forEach(card => {
+    const att = attachments[+card.dataset.att], ph = card.querySelector('.ph');
+    if (att.size > 12 * 1048576){ ph.textContent = 'Large image — click to open'; return; }
+    attFetch(full, att).then(d => {
+      if (!card.isConnected) return;
+      const img = new Image();
+      img.alt = att.filename;
+      img.onload = () => ph.replaceWith(img);
+      img.onerror = () => { ph.textContent = 'Can’t preview this image — click to download'; };
+      img.src = d.url;
+    }, e => { if (card.isConnected) ph.textContent = 'Couldn’t load: ' + e.message; });
+  });
+  box.querySelectorAll('.attcard').forEach(card => {
+    const att = attachments[+card.dataset.att];
+    if (attKind(att) !== 'text' || att.size > 512 * 1024) return;
+    attFetch(full, att).then(d => {
+      if (!card.isConnected) return;
+      const pre = document.createElement('pre');
+      pre.textContent = new TextDecoder().decode(d.bytes.slice(0, 1200));
+      card.querySelector('.thumb').replaceChildren(pre);
+    }, () => {});
+  });
 
   // The reader's markup is rebuilt on every open, so its scrollbar has to be
   // re-attached to the new .readbody each time.
@@ -1669,7 +1724,102 @@ function renderReader(m, full){
   box.querySelectorAll('[data-track]').forEach(b => b.addEventListener('click', () => {
     window.open(trackUrl(b.dataset.carrier, b.dataset.track), '_blank', 'noopener');
   }));
-  box.querySelectorAll('[data-att]').forEach(b => b.addEventListener('click', () => downloadAttachment(full, attachments[+b.dataset.att])));
+  box.querySelectorAll('[data-dl]').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation(); downloadAttachment(full, attachments[+b.dataset.dl]);
+  }));
+  box.querySelectorAll('[data-att]').forEach(b => b.addEventListener('click', () => openAttachment(full, attachments[+b.dataset.att])));
+}
+
+// An HTML part with nothing to show (phones send "<div dir=auto></div>" with a
+// photo) would otherwise draw an empty white box.
+function htmlHasContent(html){
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  doc.querySelectorAll('script,style,title,head').forEach(n => n.remove());
+  if ((doc.body?.textContent || '').replace(/[\s ​-‍﻿]/g, '')) return true;
+  return [...doc.querySelectorAll('img,video,svg,canvas')].some(n =>
+    !(+n.getAttribute('width') <= 2 && n.hasAttribute('width')) && !(+n.getAttribute('height') <= 2 && n.hasAttribute('height')));
+}
+
+const attExt = att => ((att.filename || '').match(/\.([a-z0-9]{1,5})$/i) || [,''])[1].toUpperCase();
+function attKind(att){
+  const m = (att.mimeType || '').toLowerCase(), x = attExt(att);
+  if ((m.startsWith('image/') && !/tiff|heic|heif/.test(m)) || /^(JPE?G|PNG|GIF|WEBP|BMP|SVG|AVIF|ICO)$/.test(x)) return 'image';
+  if (m === 'application/pdf' || x === 'PDF') return 'pdf';
+  if (m.startsWith('video/') || /^(MP4|WEBM|MOV|M4V)$/.test(x)) return 'video';
+  if (m.startsWith('audio/') || /^(MP3|WAV|M4A|OGG|OPUS|FLAC|AAC)$/.test(x)) return 'audio';
+  if (m.startsWith('text/') || /json|xml|csv|javascript/.test(m) || /^(TXT|CSV|JSON|XML|MD|LOG|ICS|VCF|YAML|YML|INI|JS|PY|SQL)$/.test(x)) return 'text';
+  return 'file';
+}
+// What the browser should call a file it previews — Gmail often labels
+// attachments application/octet-stream.
+function attMime(att){
+  const k = attKind(att), m = att.mimeType || '';
+  if (k === 'file' || (m && m !== 'application/octet-stream')) return m || 'application/octet-stream';
+  const x = attExt(att).toLowerCase();
+  return k === 'pdf' ? 'application/pdf' : k === 'text' ? 'text/plain'
+    : `${k}/${{ jpg:'jpeg', svg:'svg+xml', mov:'quicktime', m4v:'mp4', mp3:'mpeg', m4a:'mp4' }[x] || x}`;
+}
+
+// One fetch per attachment per session: previews, the viewer and downloads
+// share it.
+const attCache = new Map();
+function attFetch(msg, att){
+  const key = msg.id + '/' + att.attachmentId;
+  if (!attCache.has(key)){
+    const p = api('/gmail/attachment', { account: msg.account, id: msg.id, attachmentId: att.attachmentId }).then(d => {
+      const b64 = d.data.replace(/-/g,'+').replace(/_/g,'/');
+      const bin = atob(b64), type = attMime(att);
+      const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+      return { bytes, b64, type, url: URL.createObjectURL(new Blob([bytes], { type })), dataUrl: `data:${type};base64,${b64}` };
+    });
+    p.catch(() => attCache.delete(key));
+    attCache.set(key, p);
+    // Keep memory bounded: the oldest previews go first.
+    if (attCache.size > 40){
+      const [k0, p0] = attCache.entries().next().value;
+      attCache.delete(k0); p0.then(d => URL.revokeObjectURL(d.url), () => {});
+    }
+  }
+  return attCache.get(key);
+}
+
+// The viewer: images, PDFs, video, audio and text open in place; anything
+// else says so and offers the download.
+function openAttachment(msg, att){
+  document.querySelector('.attview')?.remove();
+  const kind = attKind(att);
+  const v = document.createElement('div');
+  v.className = 'attview';
+  v.innerHTML = `<div class="bar">
+      <span class="nm">${esc(att.filename)}</span><span class="sz">${esc(fmtSize(att.size))}</span>
+      <button class="iconbtn" data-v="dl" title="Download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg></button>
+      <button class="iconbtn" data-v="x" title="Close (Esc)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="stage"><div class="msg"><span class="spinner"></span>Opening…</div></div>`;
+  document.body.appendChild(v);
+  const stage = v.querySelector('.stage');
+  const close = () => { v.remove(); document.removeEventListener('keydown', onKey, true); };
+  const onKey = e => { if (e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); close(); } };
+  document.addEventListener('keydown', onKey, true);
+  v.querySelector('[data-v=x]').addEventListener('click', close);
+  v.querySelector('[data-v=dl]').addEventListener('click', () => downloadAttachment(msg, att));
+  stage.addEventListener('click', e => { if (e.target === stage) close(); });
+
+  const nopreview = why => {
+    stage.innerHTML = `<div class="msg">${esc(why)}<button class="btn">Download</button></div>`;
+    stage.querySelector('button').addEventListener('click', () => downloadAttachment(msg, att));
+  };
+  if (kind === 'file') return nopreview(`No preview for ${attExt(att) || 'this'} files.`);
+  attFetch(msg, att).then(d => {
+    if (!v.isConnected) return;
+    let n;
+    if (kind === 'image'){ n = new Image(); n.alt = att.filename; n.onerror = () => nopreview('This image can’t be shown here.'); }
+    else if (kind === 'pdf'){ n = document.createElement('iframe'); n.title = att.filename; }
+    else if (kind === 'video' || kind === 'audio'){ n = document.createElement(kind); n.controls = true; n.autoplay = true; }
+    else { n = document.createElement('pre'); n.textContent = new TextDecoder().decode(d.bytes); }
+    if (kind !== 'text') n.src = d.url;
+    stage.replaceChildren(n);
+  }, e => { if (v.isConnected) nopreview('Couldn’t load it: ' + e.message); });
 }
 
 const TRACK = {
@@ -1688,13 +1838,9 @@ const trackUrl = (carrier, t) => (TRACK[carrier] ? TRACK[carrier](encodeURICompo
 async function downloadAttachment(msg, att){
   try {
     toast('Downloading ' + att.filename);
-    const d = await api('/gmail/attachment', { account: msg.account, id: msg.id, attachmentId: att.attachmentId });
-    const bin = atob(d.data.replace(/-/g,'+').replace(/_/g,'/'));
-    const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
-    const url = URL.createObjectURL(new Blob([bytes], { type: att.mimeType || 'application/octet-stream' }));
+    const d = await attFetch(msg, att);
     const a = document.createElement('a');
-    a.href = url; a.download = att.filename; a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    a.href = d.url; a.download = att.filename; a.click();
   } catch (e) { toast('Download failed: ' + e.message, false); }
 }
 
