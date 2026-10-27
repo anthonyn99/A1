@@ -78,11 +78,14 @@ const worker = {
   const prompts = () => js(`return JSON.stringify((__fakeFs.docs['dashboards/tradeboard_prompts']||{}).prompts||[]);`).then(JSON.parse);
   const store = () => js(`return JSON.stringify(__fakeFs.docs['dashboards/tradehub_prompts']||null);`).then(JSON.parse);
   const editorOpen = (needle) => until(`(function(){ var h=document.querySelector('#tradeboard-root .tb-pr-host'), r=document.getElementById('prm-root'), e=document.getElementById('prm-page-editor'); return h && r && h.contains(r) && e && e.getAttribute('contenteditable')==='true' && ${needle ? `e.innerText.indexOf(${JSON.stringify(needle)})>=0` : 'true'}; })()`, 20000);
+  // Done lives in Notebook's own title row (the done mount option), on the phone in its header.
+  const done = () => js(`var b=[...document.querySelectorAll('#prm-root .nb-done-btn')].find(x=>x.offsetParent); if(b){b.click();return true;} return false;`);
   const typeEnd = async (text) => {
     await js(`var e=document.getElementById('prm-page-editor'); e.focus(); var r=document.createRange(); r.selectNodeContents(e); r.collapse(false); var s=getSelection(); s.removeAllRanges(); s.addRange(r); 1`);
     await c.send('Input.insertText', { text });
   };
 
+  await js(`window.dowRight=function(d){ var r=document.createRange(); r.selectNodeContents(d.querySelector('.cat-dow')); return r.getBoundingClientRect().right; }; 1`).catch(()=>{});
   await size(1280, 900);
   await c.send('Storage.clearDataForOrigin', { origin: ORIGIN, storageTypes: 'all' });
   await c.send('Page.navigate', { url: ORIGIN + '/A1/tni.js' }); await sleep(400);
@@ -106,12 +109,13 @@ const worker = {
 
   await btn('#tradeboard-root .ctl-pr-bar', 'EDIT');
   ok('Edit opens the prompt in Notebook inside the Prompts card, seeded from its Markdown', await editorOpen('Rates'));
+  ok('"Editing in Notebook" and Done sit in Notebook's title row, beside the title; no bar above it', await js(`var w=document.querySelector('#prm-toolbar .nb-done'), t=document.getElementById('prm-entry-title-input'); return !!w && t.nextSibling===w && /^Editing in Notebook/.test(w.innerText) && !document.querySelector('#tradeboard-root .ctl-pr-bar');`));
   ok('...as a Notebook instance without its sidebar', await js(`var s=document.getElementById('prm-sidebar'); return !s || getComputedStyle(s).display==='none' || s.getBoundingClientRect().width===0;`));
   ok('...and the watchlist steps aside for the editor', await js(`return getComputedStyle(document.querySelector('#tradeboard-root .ctl-wl')).display==='none';`));
   await shot('tradehub-control-edit');
   await typeEnd(' Watch yields.');
   await sleep(3500);
-  await btn('#tradeboard-root .ctl-pr-bar', 'DONE');
+  await done();
   await sleep(1800);
   let P = await prompts();
   const pa = P.find((p) => p.id === 'p_a') || {};
@@ -124,7 +128,7 @@ const worker = {
   await js(`[...document.querySelectorAll('#tradeboard-root .tb-pchip')].find(b=>/Quick/.test(b.innerText)).click(); 1`); await sleep(400);
   await btn('#tradeboard-root .ctl-pr-bar', 'EDIT');
   ok('switching prompts opens the other one', await editorOpen('Be brief.'));
-  await btn('#tradeboard-root .ctl-pr-bar', 'DONE'); await sleep(1200);
+  await done(); await sleep(1200);
   P = await prompts();
   ok('opening without typing leaves the prompt as it was', (P.find((p) => p.id === 'p_b') || {}).text === 'Be brief.', JSON.stringify(P.find((p) => p.id === 'p_b')));
 
@@ -135,7 +139,7 @@ const worker = {
   await typeEnd('Focus on guidance.');
   await js(`var t=document.getElementById('prm-entry-title-input'); t.value='Earnings Debrief'; t.dispatchEvent(new Event('input',{bubbles:true})); 1`);
   await sleep(3500);
-  await btn('#tradeboard-root .ctl-pr-bar', 'DONE'); await sleep(1800);
+  await done(); await sleep(1800);
   P = await prompts();
   const pn = P.find((p) => /^p_\d+$/.test(p.id)) || {};
   ok('its text is saved to the prompt list', pn.text === 'Focus on guidance.', JSON.stringify(pn));
@@ -158,7 +162,7 @@ const worker = {
   ok('the High tag is pastel red', await js(`var t=[...document.querySelectorAll('#tradeboard-root .cat-imp')].find(x=>x.innerText==='High'); return !!t && getComputedStyle(t).color==='rgb(239, 154, 154)';`),
     await js(`var t=[...document.querySelectorAll('#tradeboard-root .cat-imp')].find(x=>x.innerText==='High'); return t?getComputedStyle(t).color:'none';`));
   ok('an earnings row says when it lands', await js(`return [...document.querySelectorAll('#tradeboard-root .cat-time')].some(x=>x.innerText==='After close');`));
-  ok('every day label (TOMORROW too) stays clear of the times', await js(`return [...document.querySelectorAll('#tradeboard-root .cat-day')].every(d=>d.querySelector('.cat-dow').getBoundingClientRect().right <= d.querySelector('.cat-events').getBoundingClientRect().left - 12);`), await js(`return JSON.stringify([...document.querySelectorAll('#tradeboard-root .cat-day')].map(d=>[Math.round(d.querySelector('.cat-dow').getBoundingClientRect().right), Math.round(d.querySelector('.cat-events').getBoundingClientRect().left)]));`));
+  ok('every day label (TOMORROW too) stays clear of the times', await js(`return [...document.querySelectorAll('#tradeboard-root .cat-day')].every(d=>dowRight(d) <= d.querySelector('.cat-events').getBoundingClientRect().left - 12);`), await js(`return JSON.stringify([...document.querySelectorAll('#tradeboard-root .cat-day')].map(d=>[Math.round(dowRight(d)), Math.round(d.querySelector('.cat-events').getBoundingClientRect().left)]));`));
   await shot('tradehub-catalysts');
   await js(`[...document.querySelectorAll('#tradeboard-root .cat-bar button')].find(b=>/^Earnings/.test(b.innerText)).click(); 1`); await sleep(300);
   ok('the Earnings view shows only earnings', await js(`return document.querySelectorAll('#tradeboard-root .cat-ev').length===2;`), await js(`return document.querySelectorAll('#tradeboard-root .cat-ev').length;`));
@@ -185,7 +189,7 @@ const worker = {
     await tab(id); await sleep(600);
     if (id === 'catalysts') ok('catalysts: every day label (TOMORROW too) stays clear of the times',
       await js(`return [...document.querySelectorAll('#tradeboard-root .cat-day')].every(d=>{ var w=d.querySelector('.cat-dow').getBoundingClientRect(), e=d.querySelector('.cat-events').getBoundingClientRect(); return w.right <= e.left - 4; });`),
-      await js(`return JSON.stringify([...document.querySelectorAll('#tradeboard-root .cat-day')].map(d=>[d.querySelector('.cat-dow').innerText, Math.round(d.querySelector('.cat-dow').getBoundingClientRect().right), Math.round(d.querySelector('.cat-events').getBoundingClientRect().left)]));`));
+      await js(`return JSON.stringify([...document.querySelectorAll('#tradeboard-root .cat-day')].map(d=>[d.querySelector('.cat-dow').innerText, Math.round(dowRight(d)), Math.round(d.querySelector('.cat-events').getBoundingClientRect().left)]));`));
     ok(id + ': nothing scrolls sideways', await js(`return document.documentElement.scrollWidth <= window.innerWidth + 1 && [...document.querySelectorAll('#tradeboard-root .tbx-page')].every(p=>p.scrollWidth<=p.clientWidth+1);`), await js(`return document.documentElement.scrollWidth;`));
     await shot(name);
   }
@@ -193,7 +197,7 @@ const worker = {
   ok('the editor opens on a phone too', await editorOpen('Be brief.'));
   await sleep(500);
   await shot('tradehub-control-edit-phone');
-  await btn('#tradeboard-root .ctl-pr-bar', 'DONE'); await sleep(800);
+  await done(); await sleep(800);
   console.log('  shots in ' + shotPath('tradehub-control').replace(/[^\\/]+$/, ''));
   ok('no page errors', errs.length === 0, errs.join(' | '));
 
