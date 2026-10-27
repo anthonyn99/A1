@@ -67,8 +67,9 @@ for (const f of hosts) {
     .map((m) => ({ app: m[1], key: m[2], store: m[3] }));
   // The profile form: { profile: 'tony' | 'veda' } for a side itself, plus key and store for an instance.
   const SIDE = { tony: { app: 'myjournal', key: 'tj', store: 'tony_journal' }, veda: { app: 'brainstorm', key: 'bj', store: 'journal' } };
-  for (const m of src.matchAll(/Notebook\.mount\(\{\s*profile\s*:\s*['"](tony|veda)['"]\s*(?:,\s*key\s*:\s*['"]([a-z]{2,8})['"]\s*,\s*store\s*:\s*['"]([a-z0-9_]+)['"])?/g))
-    mounts.push(m[2] ? { app: SIDE[m[1]].app, key: m[2], store: m[3] } : SIDE[m[1]]);
+  for (const m of src.matchAll(/Notebook\.mount\(\{\s*profile\s*:\s*['"](tony|veda)['"]\s*\}/g)) mounts.push(SIDE[m[1]]);
+  for (const m of src.matchAll(/profile\s*:\s*['"](tony|veda)['"]\s*,\s*key\s*:\s*['"]([a-z]{2,8})['"]\s*,\s*store\s*:\s*['"]([a-z0-9_]+)['"]/g))
+    mounts.push({ app: SIDE[m[1]].app, key: m[2], store: m[3] });
   ok('its mount call names a profile (or spells out app, key and store, in that order)', mounts.length > 0,
     'write Notebook.mount({ profile: \'tony\', key: \'xx\', store: \'xx_store\', ... })');
   const instances = mounts.filter((m) => NATIVE[m.app] !== m.key);
