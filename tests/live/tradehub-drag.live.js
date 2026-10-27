@@ -10,8 +10,9 @@
 //   2. desktop: mouse-drag a page tab, saved order changes, the drop's click
 //      does not navigate, a plain click does
 //   3. phone width: a held finger drags a tab; a quick swipe does not
-//   4. Control: mouse-drag a prompt chip, saved order changes, the selected
-//      prompt follows its chip; a plain click selects; a held finger drags
+//   4. Control: mouse-drag a prompt row (a list on a desktop, chips on a phone),
+//      saved order changes, the selected prompt follows it; a plain click
+//      selects; a held finger drags
 //   5. the prompt preview, the Quick Prompt box and the trade Notes box carry
 //      MAGI's grip: drag, click toggle, reload keeps the height
 //
@@ -206,7 +207,10 @@ async function gripChecks(c, name, boxJs, key, reopen) {
   await goTo(c, DESK, 'prompt');
   await see(c, chip('pa'));
   ok('three chips', JSON.stringify(await chips(c)) === '["pa","pb","pc"]', JSON.stringify(await chips(c)));
-  ok('selected chip is solid purple with a dark label', await evalJs(c, `var s=getComputedStyle(${chip('pa')}); return s.backgroundColor==='rgb(192, 174, 234)'&&s.color==='rgb(26, 26, 29)';`));
+  // Control's redesign (2026-10-27): on a desktop the prompts are a list down the
+  // card's side, and the selected row carries the accent line.
+  const isSel = (id) => `(${chip(id)}.classList.contains('on') && /192, 174, 234/.test(getComputedStyle(${chip(id)}).boxShadow))`;
+  ok('the selected row carries the accent line', await evalJs(c, `return ${isSel('pa')};`));
   const ca = await rect(c, chip('pa')), cc = await rect(c, chip('pc'));
   // Lifted, the selected chip sits on s2: its dark label went black (Tony, 2026-10-02).
   await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: ca.x, y: ca.y });
@@ -216,14 +220,14 @@ async function gripChecks(c, name, boxJs, key, reopen) {
   ok('lifted selected chip keeps a light label', liftC === 'true rgb(244, 243, 240)', liftC);
   await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: ca.x + 20, y: ca.y, button: 'left', clickCount: 1 });
   await sleep(600);
-  await mouseDrag(c, ca.x, ca.y, cc.right - ca.x - 6, 0);
+  await mouseDrag(c, ca.x, ca.y, 0, cc.bottom - ca.y - 4);
   ok('mouse drag moves Alpha to the end', JSON.stringify(await chips(c)) === '["pb","pc","pa"]', JSON.stringify(await chips(c)));
   ok('order saved (tradeboard_prompts_v2)', JSON.stringify(await savedPrompts(c)) === '["pb","pc","pa"]', JSON.stringify(await savedPrompts(c)));
-  ok('the selection follows Alpha', await evalJs(c, `return getComputedStyle(${chip('pa')}).backgroundColor==='rgb(192, 174, 234)';`));
+  ok('the selection follows Alpha', await evalJs(c, `return ${isSel('pa')};`));
   await see(c, chip('pb'));
   const cb = await rect(c, chip('pb'));
   await click(c, cb.x, cb.y);
-  ok('a plain click selects Bravo', await evalJs(c, `return getComputedStyle(${chip('pb')}).backgroundColor==='rgb(192, 174, 234)' && /bravo prompt/.test(document.querySelector('.tb-prompt-render').textContent);`));
+  ok('a plain click selects Bravo', await evalJs(c, `return ${isSel('pb')} && /bravo prompt/.test(document.querySelector('.tb-prompt-render').textContent);`));
 
   // ── 5. grips ─────────────────────────────────────────────────────────────
   console.log('grips');
