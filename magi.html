@@ -2210,94 +2210,126 @@ table.doctor, table.doctor code,
 .doctor-running > .spin { color: var(--ac); flex-shrink: 0; }
 
 /* ── accounts ─────────────────────────────────────────────────────────────
-   One card per unit, in the same language as the doctor's report: an accent
-   stripe for identity, a status chip for the answer, and the actions at the
-   bottom where they cannot be hit by accident while reading. */
-.acc-note {
-  color: var(--txd); font-size: 11.5px; line-height: 1.65;
-  padding: 11px 13px; margin-bottom: 12px;
+   ORCA's Accounts page, row for row (ORCA app.css "one card per account"):
+   a section title with its actions on the right, then one compact row per
+   account -- the unit's letter in its colour, the name with its status pill,
+   the label you gave it and the facts on one line under it, one main action
+   and a ⋯ menu for the rest. Rows of one agent share a rounded group. */
+.acc-sec-row, .acc-group, .acc-empty {
+  max-width: 820px; margin-left: auto; margin-right: auto;
+}
+.acc-sec-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  flex-wrap: wrap; margin-top: 26px; margin-bottom: 10px;
+}
+#accountsBody > .acc-sec-row:first-child { margin-top: 4px; }
+.acc-sec {
+  color: var(--txm); font-size: 11.5px; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase;
+}
+.acc-topbar { display: flex; align-items: center; gap: 10px; }
+.acc-topbar .acc-busy { margin-top: 0; font-size: 11.5px; }
+.acc-group {
   background: var(--s1); border: 1px solid var(--bd); border-radius: var(--r-card);
+  margin-bottom: 10px;
 }
-.acc-note b { color: var(--tx); }
-.acc-topbar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-.acc-topbar .acc-busy { margin-top: 0; font-size: 11px; }
-/* Seven cards of the same size, the same colour and the same four rows run
-   together into one striped wall -- the 10px gap and a hairline were not
-   enough to say where one unit ended and the next began. Three things fix it,
-   and they work together rather than any one of them being the answer: real
-   space between cards, a card surface that stands off the page instead of
-   matching it, and a full-height accent edge that ties every row of a card to
-   the unit it belongs to. */
-/* Narrower than the panel. At full width the label input ran the length of
-   the screen for a phrase like "personal gmail", and the buttons ended up a
-   forearm away from the name they act on. */
-/* Centred, not left-hugging. A 720px column pinned to the left edge of a
-   1400px panel reads as an unfinished layout rather than a deliberate
-   measure -- and every other panel in this console centres. */
-.acc-note, .acc-topbar, .acc-card { max-width: 720px; margin-left: auto; margin-right: auto; }
 .acc-card {
-  border: 1px solid var(--bdl); border-left: 4px solid var(--pa, var(--ac));
-  border-radius: var(--r-card); background: var(--s2);
-  padding: 14px 16px; margin-bottom: 18px;
-  box-shadow: 0 1px 3px var(--shadow);
-  transition: border-color .15s, box-shadow .15s;
+  position: relative; display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "mark names actions" "mark detail detail";
+  column-gap: 14px; align-items: center;
+  padding: 13px 14px 13px 16px;
 }
-.acc-card:last-child { margin-bottom: 0; }
-/* The whole card lifts on hover, so which one you are about to act on is
-   never in question when three "Check" buttons are stacked down the page. */
-.acc-card:hover {
-  border-color: color-mix(in srgb, var(--pa, var(--ac)) 45%, var(--bdl));
-  box-shadow: 0 3px 12px var(--shadow);
+.acc-card + .acc-card { border-top: 1px solid var(--bdl); }
+.acc-mark {
+  grid-area: mark; align-self: start;
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--pa, var(--ac)) 16%, transparent);
+  color: var(--pa, var(--ac));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pa, var(--ac)) 30%, transparent);
+  font-family: var(--font-display); font-size: 15px; font-weight: 800;
 }
-/* The name row is the card's header, separated from its controls the way a
-   card's title should be. */
-.acc-card .acc-hd { padding-bottom: 10px; border-bottom: 1px solid var(--bd); }
-.acc-card .acc-row { margin-top: 11px; }
-.acc-card .acc-actions { margin-top: 12px; padding-top: 11px; border-top: 1px solid var(--bd); }
-/* Outlined. `.navitem` is borderless by design -- it is the flat control used
-   inside panels -- but a row of three flat words reads as body text, and
-   "Sign out" in particular should look like something you press on purpose. */
-.acc-actions .navitem, .acc-topbar .navitem {
-  border: 1px solid var(--bdl); border-radius: 8px; padding: 6px 12px;
+.acc-names { grid-area: names; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.acc-title-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.acc-name { font-size: 14px; font-weight: 700; color: var(--tx); }
+.acc-flags { display: inline-flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.acc-flags .doc-flag { padding: 2px 9px; }
+.acc-flags .doc-flag.ok {
+  border-color: transparent; background: color-mix(in srgb, var(--grn) 14%, transparent);
 }
-.acc-actions .navitem:hover:not(:disabled),
-.acc-topbar .navitem:hover:not(:disabled) { border-color: var(--ac); }
-.acc-actions .navitem.danger { border-color: color-mix(in srgb, var(--red) 40%, transparent); }
-.acc-actions .navitem.danger:hover:not(:disabled) { border-color: var(--red); }
-.acc-actions .navitem.active { border-color: var(--ac); }
-.acc-hd { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.acc-names { min-width: 0; }
-.acc-name {
-  font-family: var(--font-display); font-size: 13px; font-weight: 800;
-  color: var(--tx); letter-spacing: .2px;
+.acc-flags .doc-flag.miss {
+  border-color: transparent; background: color-mix(in srgb, var(--red) 14%, transparent);
 }
-/* The codename stays monospaced -- it is an identifier, and MELCHIOR·01 is
-   the one place this console's Evangelion flavour belongs. It was just set
-   too small and too widely tracked to read: 8.5px with 1.3px of letter-spacing
-   is a smear at arm's length. */
 .acc-sub {
-  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .55px;
-  color: var(--txm); margin-top: 2px;
+  color: var(--txm); font-size: 12px; overflow-wrap: anywhere;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px;
 }
-.acc-flags { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
-.acc-detail { color: var(--txd); font-size: 11.5px; line-height: 1.55; margin-top: 6px; }
-.acc-row { margin-top: 9px; }
-.acc-input {
-  width: 100%; background: var(--bg); color: var(--tx);
-  border: 1px solid var(--bd); border-radius: 7px;
-  padding: 8px 10px; font-family: inherit; font-size: 12px; outline: none;
+.acc-sub .dot-sep::before { content: "·"; margin-right: 6px; }
+/* The label (and a coding account's name) reads as text until edited. */
+input.acc-input {
+  height: 22px; padding: 0 6px; margin-left: -6px; min-width: 12ch; max-width: 100%;
+  background: transparent; border: 1px solid transparent; border-radius: 6px;
+  color: var(--txd); font: inherit; font-size: 12.5px; outline: none;
+  field-sizing: content;
 }
-.acc-input:focus { border-color: var(--ac); }
-.acc-input::placeholder { color: var(--txm); }
-.acc-actions { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
-/* "87 MB · used 1m ago" is a sentence about the profile, not a reading off a
-   gauge, so it sets in the body face like one. */
-.acc-meta { color: var(--txm); font-size: 10.5px; letter-spacing: .1px; }
+input.acc-input:hover { border-color: var(--bdl); }
+input.acc-input:focus {
+  border-color: var(--ac); background: var(--bg); color: var(--tx); min-width: 24ch;
+}
+input.acc-input::placeholder { color: var(--txm); font-style: italic; }
+.acc-actions { grid-area: actions; display: flex; align-items: center; gap: 6px; }
+.acc-detail, .acc-card > .acc-busy { grid-column: 2 / -1; }
+.acc-detail { color: var(--txd); font-size: 12px; line-height: 1.55; margin-top: 7px; overflow-wrap: anywhere; }
+.acc-detail.lim { color: var(--amber); font-weight: 600; }
+.acc-btn {
+  display: inline-flex; align-items: center; height: 32px; padding: 0 13px;
+  background: transparent; color: var(--tx);
+  border: 1px solid var(--bdl); border-radius: var(--r-btn);
+  font: inherit; font-size: 12.5px; font-weight: 500; white-space: nowrap; cursor: pointer;
+}
+.acc-btn:hover:not(:disabled) { border-color: var(--ac); background: var(--s2); }
+.acc-btn.active { background: var(--ac); border-color: var(--ac); color: var(--bg); font-weight: 600; }
+.acc-btn:disabled { opacity: .45; cursor: not-allowed; }
+/* The ⋯ menu. Fixed, so a group's rounded corners never clip it; placed
+   from its button when it opens (accMenu). */
+.acc-menu { position: relative; }
+.acc-menu > summary {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; list-style: none; cursor: pointer;
+  border: 1px solid var(--bdl); border-radius: var(--r-btn);
+  color: var(--txd); font-size: 16px; line-height: 1;
+}
+.acc-menu > summary::-webkit-details-marker { display: none; }
+.acc-menu > summary:hover { color: var(--tx); background: var(--s2); }
+.acc-menu[open] > summary { color: var(--ac); border-color: var(--ac); }
+.acc-menu-items {
+  position: fixed; z-index: 60; min-width: 210px;
+  display: flex; flex-direction: column; gap: 4px; padding: 6px;
+  background: var(--s2); border: 1px solid var(--bdl); border-radius: var(--r-card);
+  box-shadow: 0 8px 28px var(--shadow);
+}
+.acc-menu-items button {
+  display: flex; align-items: center; width: 100%; padding: 8px 10px;
+  background: none; border: 1px solid var(--bd); border-radius: 7px;
+  color: var(--tx); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+}
+.acc-menu-items button:hover { border-color: var(--ac); background: var(--s1); }
+.acc-menu-items button.danger { color: var(--red); border-color: color-mix(in srgb, var(--red) 30%, transparent); }
+.acc-menu-items button.danger:hover { border-color: var(--red); }
+.acc-menu-sep { height: 1px; margin: 2px 6px; background: var(--bd); }
+.acc-empty { color: var(--txm); font-size: 12px; padding: 4px 2px 10px; }
 .acc-busy {
   display: flex; align-items: center; gap: 9px; margin-top: 10px;
   color: var(--txd); font-size: 11.5px; line-height: 1.5;
 }
 .acc-busy .spin { color: var(--ac); flex-shrink: 0; }
+@media (max-width: 560px) {
+  .acc-card { grid-template-areas: "mark names" "mark actions" "mark detail"; grid-template-columns: auto minmax(0, 1fr); }
+  .acc-actions { margin-top: 8px; }
+  .acc-detail, .acc-card > .acc-busy { grid-column: 2; }
+}
 
 /* ── the doctor's report ──────────────────────────────────────────────────
    A verdict, then one card per unit, then the full field table folded away.
@@ -4324,7 +4356,6 @@ button.code-git-br:hover, button.code-git-br:focus-visible { border-color: var(-
   .repo-tabs { padding: 0 6px; }
 }
 .code-gh-repo-t { display: flex; gap: 5px; }
-.acc-slot-name.is-static { border: 0; padding: 3px 0; margin-left: 0; }
 .code-gh-token { font-family: var(--font-mono); }
 .sheet-sub a { color: var(--acl); }
 @media (max-width: 760px) {
@@ -4664,51 +4695,6 @@ button.code-git-br:hover, button.code-git-br:focus-visible { border-color: var(-
 .code-order-row { min-height: 44px; }
 /* ── drag to reorder (dragsort.js injects the rest) ──────────────────── */
 .dsort-drag:not(.chip) { border-radius: var(--r-btn); }
-.acc-sec {
-  max-width: 720px; margin: 22px auto 9px; color: var(--txd);
-  font-size: 11px; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase;
-}
-.acc-code .acc-sec { margin-top: 6px; }
-.acc-code .doctor-running { max-width: 720px; margin: 0 auto 10px; }
-.acc-desc { color: var(--txm); font-size: 11px; line-height: 1.5; margin-top: 2px; }
-.acc-slot { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 10px 0; }
-.acc-slot + .acc-slot { border-top: 1px solid var(--bd); }
-.acc-slot-who { display: flex; flex-direction: column; gap: 2px; flex: 1 1 220px; min-width: 0; }
-.acc-slot-name {
-  font: inherit; font-weight: 700; font-size: 12.5px; color: var(--tx);
-  background: none; border: 1px solid transparent; border-radius: var(--r-btn);
-  padding: 3px 6px; margin-left: -6px; width: 100%; max-width: 280px; outline: 0;
-}
-.acc-slot-name::placeholder { color: var(--tx); opacity: .85; }
-.acc-slot-name:hover { border-color: var(--bd); }
-.acc-slot-name:focus { border-color: var(--ac); background: var(--bg); }
-.acc-slot-acct { color: var(--txd); font-size: 11.5px; overflow-wrap: anywhere; }
-.acc-slot-use { color: var(--txm); font-size: 10.5px; }
-.acc-slot-lim { color: var(--amber); font-size: 11px; font-weight: 600; }
-.acc-slot-acts { display: flex; gap: 6px; flex-wrap: wrap; }
-/* Coding agents and GitHub: condensed. They are lists of logins, read at a
-   glance -- tighter padding, the login and its account on one line, the
-   usage line under it, and smaller action buttons. The browser units'
-   cards above keep their roomier layout. */
-.acc-code .acc-card { padding: 10px 14px; margin-bottom: 10px; }
-.acc-code .acc-card .acc-hd { padding-bottom: 7px; flex-wrap: nowrap; align-items: flex-start; }
-.acc-code .acc-names { flex: 1 1 auto; }
-.acc-code .acc-flags { flex: 0 0 auto; }
-.acc-code .acc-desc { margin-top: 1px; line-height: 1.4; }
-.acc-code .acc-slot { padding: 7px 0; gap: 8px; }
-.acc-code .acc-slot-who { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 1px; }
-.acc-code .acc-slot-name { width: auto; max-width: 100%; flex: 0 1 auto; padding: 1px 6px; }
-/* The editable name hugs its text, so what follows sits beside it. */
-.acc-code input.acc-slot-name { field-sizing: content; min-width: 6ch; }
-.acc-code .acc-slot-use, .acc-code .acc-slot-lim { flex-basis: 100%; }
-.acc-code .acc-card .acc-actions { margin-top: 4px; padding-top: 8px; gap: 6px; }
-.acc-code .acc-actions .navitem, .acc-code .acc-slot-acts .navitem {
-  padding: 4px 10px; font-size: 11.5px; min-height: 28px;
-}
-.acc-code .acc-flags .doc-flag { padding-top: 1px; padding-bottom: 1px; }
-@media (max-width: 720px) {
-  .acc-code .acc-actions .navitem, .acc-code .acc-slot-acts .navitem { min-height: 36px; }
-}
 .code-login-steps { margin: 4px 0 10px 18px; padding: 0; color: var(--txd); font-size: 12px; line-height: 1.7; }
 .code-login-steps a { color: var(--acl); word-break: break-all; }
 .code-login-code {
