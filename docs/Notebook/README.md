@@ -22,10 +22,15 @@ Notes, ...). Code, ids and the data keep the old `tj` / `bj` and Brainstorm name
 Every host mounts by profile. The older `{ app, key, store }` form still
 mounts, but nothing uses it; write new hosts with `profile`.
 
-An **instance** (a program's own documents) is `{ profile: 'tony', key, store, ... }`.
-Only Tony's side can be instanced so far, because `rewriteApp` is written for
-`apps/myjournal.js`; `{ profile: 'veda', key }` throws until `apps/brainstorm.js`
-gets the same treatment.
+An **instance** (a program's own documents) is either side with its own key
+and store: `{ profile: 'tony', key, store, ... }` or `{ profile: 'veda', key,
+store, ... }` (2026-10-27). Both take the same options (below) and give the
+same API (`Notebook.open`, `attach` / `detach`, `cfg.entries()`). A Veda
+instance is her app (`apps/brainstorm.js`, rewritten by `rewriteBj`) in her
+look: her colours, IBM Plex Mono, her purple hover glow, her templates; her
+fonts load if the host has none, and index's header (TaskHub, Gita, App Lock)
+is left out. Both sides' instances save through the same store template
+(core/fb.js `@nb-store`).
 
 | Host | Profile | key | Store (`dashboards/…`) | Mode |
 |---|---|---|---|---|
@@ -44,8 +49,8 @@ mounts it, on its next load. Nothing in a host has to change. This is the rule:
 | Change in | Reaches |
 |---|---|
 | `core/` (the DOCX editor, OurJournal, boards, md, the Firestore layer), `notebook.css` | every journal in every host: MyJournal, Brainstorm, OurJournal, every instance |
-| `apps/myjournal.*` | MyJournal and every instance (Playbook, Everwell notes, any later one) |
-| `apps/brainstorm.*` | Brainstorm Journal only |
+| `apps/myjournal.*` | Tony's journal and every Tony instance (Playbook, Everwell notes, any later one) |
+| `apps/brainstorm.*` | Veda's journal and every Veda instance |
 
 - **Build features in Notebook, never in a host.** A host only loads, mounts and
   configures. A feature written into a host reaches only that host.
@@ -55,7 +60,9 @@ mounts it, on its next load. Nothing in a host has to change. This is the rule:
   every other program still gets it.
 - **Veda's side is the standing exception.** A MyJournal feature doesn't reach
   Brainstorm unless it's built in `core/` or added to `apps/brainstorm.*` on
-  purpose, because Veda's side never changes unless asked.
+  purpose, because Veda's side never changes unless asked. The mount contract
+  (features, pinned, onSave, onReady, entries, open) is the one exception: it is
+  in both apps, and `tests/live/notebook-host.live.js` runs it on both.
 - **The cache can't hold a change back.** Hosts load Notebook with a `?v=` hash of
   this folder, and the pre-commit hook rewrites it in every host, A1-Priv's
   included, whenever Notebook changes. `tests/notebook-wiring.test.js` fails on
