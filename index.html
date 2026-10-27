@@ -10283,7 +10283,7 @@ function App(){
               React.createElement("tr",null,
                 React.createElement("th",{style:{textAlign:"left",fontSize:12,color:T.TX,fontWeight:700,textTransform:"uppercase",letterSpacing:1,paddingBottom:6,paddingLeft:4,borderBottom:"1px solid "+T.BD+"44",width:"100%"}},"Habit"),
                 ...DS.map((d,di)=>{const isTd=dkey(wd[di].year,wd[di].month,wd[di].day)===tk;return React.createElement("th",{key:d,style:{textAlign:"center",fontSize:11,color:isTd?T.TX:T.TXD,fontWeight:700,paddingBottom:6,width:28,borderBottom:"1px solid "+T.BD+"44",borderLeft:isTd?habTodayRule:undefined,borderRight:isTd?habTodayRule:undefined}},d.charAt(0));}),
-                React.createElement("th",{style:{width:edit?62:0,padding:0,overflow:"hidden",borderBottom:"1px solid "+T.BD+"44",visibility:edit?"visible":"hidden"}}))),
+                edit&&React.createElement("th",{style:{width:edit?62:0,padding:0,overflow:"hidden",borderBottom:"1px solid "+T.BD+"44",visibility:edit?"visible":"hidden"}}))),
             React.createElement("tbody",{ref:thDragRef("tony","habit",thDrag),style:thDragVars},
               // Everwell's Prayer: its own row, ticks in dashboards/everwell_prayer
               // (Phase 5). Not a habit in `habits`: no edit, no delete. It drags
@@ -10295,7 +10295,7 @@ function App(){
                 ...wd.map((w2,di)=>{const k=dkey(w2.year,w2.month,w2.day),ch=!!ewPrayer[k];return habCell(ch,()=>{if(window._fbEwPrayerSet)window._fbEwPrayerSet(k,!ch);},k===tk);}),
                 // The same cell as a habit's edit/delete one (it sets the row's
                 // height), with its buttons as invisible stand-ins: same size, no actions.
-                React.createElement("td",{"aria-hidden":"true",style:{textAlign:"right",paddingTop:7,paddingBottom:7,borderBottom:"1px solid "+T.BD+"22",width:edit?62:0,paddingRight:edit?2:0,paddingLeft:0,overflow:"hidden",whiteSpace:"nowrap",visibility:"hidden"}},
+                edit&&React.createElement("td",{"aria-hidden":"true",style:{textAlign:"right",paddingTop:7,paddingBottom:7,borderBottom:"1px solid "+T.BD+"22",width:edit?62:0,paddingRight:edit?2:0,paddingLeft:0,overflow:"hidden",whiteSpace:"nowrap",visibility:"hidden"}},
                   React.createElement("button",{type:"button",tabIndex:-1,disabled:true,style:{...ebtn,padding:"0 6px"}},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                   React.createElement("button",{type:"button",tabIndex:-1,disabled:true,style:{...dbtn,padding:"0 6px"}},"×")))
               :React.createElement("tr",{key:h.id,"data-dkey":h.id,"data-kind":"habit",style:{cursor:"grab"}},
@@ -10303,7 +10303,7 @@ function App(){
                                     h.title,
                   h.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:0.85,whiteSpace:"nowrap",marginLeft:6},title:habReminderLabel(h)},React.createElement("span",{style:{width:12,height:12,fontSize:12,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}})," "+habTimeLabel(h))),
                 ...wd.map((w2,di)=>{const hk=`${h.id}-${w2.year}-${w2.month}-${w2.day}`,ch=!!hc[hk];return habCell(ch,()=>togH(h.id,di),dkey(w2.year,w2.month,w2.day)===tk);}),
-                React.createElement("td",{style:{textAlign:"right",paddingTop:7,paddingBottom:7,borderBottom:"1px solid "+T.BD+"22",width:edit?62:0,paddingRight:edit?2:0,paddingLeft:0,overflow:"hidden",whiteSpace:"nowrap",visibility:edit?"visible":"hidden"}},
+                edit&&React.createElement("td",{style:{textAlign:"right",paddingTop:7,paddingBottom:7,borderBottom:"1px solid "+T.BD+"22",width:edit?62:0,paddingRight:edit?2:0,paddingLeft:0,overflow:"hidden",whiteSpace:"nowrap",visibility:edit?"visible":"hidden"}},
                   React.createElement("button",{type:"button",style:{...ebtn,padding:"0 6px"},onClick:()=>setEditingHabit(h),title:"Edit habit & reminder"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                   React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px"},onClick:()=>delH(h.id)},"×"))))))),
         ),
@@ -16639,13 +16639,13 @@ function App(){
             RC("thead",null,RC("tr",null,
               RC("th",{style:{textAlign:"left",fontSize:9,color:TXM,fontWeight:700,textTransform:"uppercase",letterSpacing:1,paddingBottom:5,paddingLeft:4,width:"100%"}},""),
               ...DS.map((d,di)=>{const isTd=dkey(wd[di].year,wd[di].month,wd[di].day)===tk;return RC("th",{key:d,style:{textAlign:"center",fontSize:10,color:isTd?TX:TXD,fontWeight:700,paddingBottom:5,width:28,borderLeft:isTd?habTodayRule:undefined,borderRight:isTd?habTodayRule:undefined}},d.charAt(0));}),
-              RC("th",{style:{width:edit?62:0,padding:0,overflow:"hidden",visibility:edit?"visible":"hidden"}}))),
+              edit&&RC("th",{style:{width:edit?62:0,padding:0,overflow:"hidden",visibility:edit?"visible":"hidden"}}))),
             RC("tbody",{ref:thDragRef("veda","habit",thDrag),style:thDragVars},habits.map((h,hi)=>RC("tr",{key:h.id,"data-dkey":h.id,"data-kind":"habit",style:{cursor:"grab"}},
               RC("td",{style:{fontSize:12,fontWeight:600,color:TXD,paddingLeft:4,paddingTop:6,paddingBottom:6,overflowWrap:"break-word",wordBreak:"break-word",width:"100%",borderBottom:"1px solid "+BD+"44"}},
                                 h.title,
                 h.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85,whiteSpace:"nowrap",marginLeft:6},title:habReminderLabel(h)},RC("span",{style:{width:12,height:12,fontSize:12,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}})," "+habTimeLabel(h))),
               ...wd.map((w2,di)=>{const hk=`${h.id}-${w2.year}-${w2.month}-${w2.day}`,ch=!!hc[hk],isTd=dkey(w2.year,w2.month,w2.day)===tk;return RC("td",{key:di,style:{textAlign:"center",paddingTop:6,paddingBottom:6,borderBottom:"1px solid "+BD+"44",width:28,minWidth:28,borderLeft:isTd?habTodayRule:undefined,borderRight:isTd?habTodayRule:undefined}},RC("div",{onClick:()=>togH(h.id,di),style:{display:"flex",alignItems:"center",justifyContent:"center",width:16,height:16,margin:"0 auto",borderRadius:"50%",cursor:"pointer",transition:"background .15s, border-color .15s",border:ch?"2px solid "+A:"2px solid "+BDL,background:ch?A:"transparent"}},ch&&RC(Chk,{s:7})));}),
-              RC("td",{style:{textAlign:"center",paddingTop:6,paddingBottom:6,borderBottom:"1px solid "+BD+"44",whiteSpace:"nowrap",width:edit?62:0,padding:edit?"6px 0":"0",overflow:"hidden",visibility:edit?"visible":"hidden"}},RC("button",{type:"button",title:"Edit habit",style:vdIcoBtn(TXD),onClick:()=>setEditingHabit(h)},vdIco(TNI.pencil)),RC("button",{type:"button",title:"Delete habit",style:vdIcoBtn("#f85149"),onClick:()=>delH(h.id)},vdIco(TNI.x)))))))),
+              edit&&RC("td",{style:{textAlign:"center",paddingTop:6,paddingBottom:6,borderBottom:"1px solid "+BD+"44",whiteSpace:"nowrap",width:edit?62:0,padding:edit?"6px 0":"0",overflow:"hidden",visibility:edit?"visible":"hidden"}},RC("button",{type:"button",title:"Edit habit",style:vdIcoBtn(TXD),onClick:()=>setEditingHabit(h)},vdIco(TNI.pencil)),RC("button",{type:"button",title:"Delete habit",style:vdIcoBtn("#f85149"),onClick:()=>delH(h.id)},vdIco(TNI.x)))))))),
         ),
 
       RC("div",{style:{...sec,display:"flex",flexDirection:"column"}},
