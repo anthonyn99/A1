@@ -832,12 +832,12 @@ function _bjApplyRemote(remote) {
         if (pageEd) {
           if (remoteHtml.includes('bj-fbimg://') && window._fbRehydratePageImages) {
             window._fbRehydratePageImages(remoteHtml).then(function(rehydrated) {
-              if (pageEd) { pageEd.innerHTML = rehydrated; }
+              if (pageEd) { pageEd.innerHTML = rehydrated; if (window._docxUnnestHeadings) window._docxUnnestHeadings(pageEd); }
               var ae = getActive(); if (ae) { ae.data.html = rehydrated; }
               if (pageEd && typeof _pgBindImgWrap !== 'undefined') pageEd.querySelectorAll('.pg-img-wrap').forEach(_pgBindImgWrap);
             });
           } else {
-            pageEd.innerHTML = remoteHtml;
+            pageEd.innerHTML = remoteHtml; if (window._docxUnnestHeadings) window._docxUnnestHeadings(pageEd);
             if (typeof _pgBindImgWrap !== 'undefined') pageEd.querySelectorAll('.pg-img-wrap').forEach(_pgBindImgWrap);
           }
         }
@@ -1424,7 +1424,7 @@ function loadActiveEntry() {
     if (html.includes('bj-fbimg://') && window._fbRehydratePageImages) {
       window._fbRehydratePageImages(html).then(rehydrated => {
         if (rehydrated !== html) {
-          ed.innerHTML = rehydrated;
+          ed.innerHTML = rehydrated; if (window._docxUnnestHeadings) window._docxUnnestHeadings(ed);
           entry.data.html = rehydrated;
           // Rebind again after rehydration replaces innerHTML
           ed.querySelectorAll('.pg-img-wrap').forEach(_pgBindImgWrap);
