@@ -11,8 +11,14 @@ and the `_XDRAG` registry on both sides.
 - **Finger:** hold the row still for 300ms, then drag. A quick swipe still
   scrolls the page. Near the screen's edge the page scrolls under the drag.
 - **Any time:** edit mode is not needed (Tony, 2026-10-27).
-- The lifted row follows the pointer, the rows it passes slide out of its
-  way, and on release it glides into its slot.
+- The lifted row floats freely under the pointer, sideways too, the whole way
+  between days and sections (`free`). The rows it passes slide out of its way,
+  and on release it glides into its slot.
+- **No crossovers.** A day draws open tasks (Veda: SOS ones first), then
+  checked tasks, then events. Goals draw open, then done. A row only lands
+  among rows of its own kind (`segment` → `thDragRank`), including in the list
+  it is dropped into, so nothing lands where the next redraw would sort it
+  straight back out.
 
 ## What can go where
 
@@ -24,15 +30,22 @@ All of a profile's lists are one A1Drag group (`th-tony` / `th-veda`):
 | a habit | another place in Daily Habits, a day, the goals |
 | a goal | another place in its list, the other goals tab, a day, Daily Habits |
 
-- **Goals tabs** ("Short-term" / "Long-term") are drop targets. A drop on a
-  tab appends to that tab's list. Tabs do not switch while you drag, because
-  that would swap out the list the row came from.
+- **Goals tabs** ("Short-term" / "Long-term"): holding a row over the other
+  tab opens it, and the drag carries on into that list (a pointer watcher clicks
+  the tab, since a held pointer gets no hover events). Both lists are always
+  mounted. The list a goal was lifted from stays mounted, invisible and 0
+  tall (`goalListStyle`), so the lifted row survives the switch. A drop on a
+  tab itself appends to that tab's list.
 - **Phone day strip:** each day button is a drop target, so a task can reach
   a day that is not on screen. Tabs show an accent ring while a row is over
   them.
-- **Shared plans** reorder within their day but never change day: the date
-  belongs to `dashboards/plans` (`_plGuard`).
-- **Everwell's Prayer row** stays in Daily Habits (`crossMove` refuses it).
+- **Rows that stay** (`data-stay`, from `thRowData`) never leave their list,
+  and other lists ignore them during the drag (`canMoveTo` → `thDragCanMove`):
+  - shared plans: the date belongs to `dashboards/plans`;
+  - Veda's SOS items: the SOS reconcile owns them;
+  - Everwell's Prayer row.
+
+  A row also never drops onto its own list's tab or day button.
 
 ## Code (index.html)
 
