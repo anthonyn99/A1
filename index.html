@@ -2232,6 +2232,7 @@ window.THSHEET={
   border:1px solid var(--wx-bd);
   border-radius:var(--wx-radius);
   color:var(--wx-tx);
+  font-variant-numeric:tabular-nums;
   transition:border-color .2s;
 }
 /* Above the sticky TaskHub header (200) and Tony's app nav (10001) — while open,
@@ -2292,16 +2293,16 @@ window.THSHEET={
 .thwx-compact:focus-visible{outline:2px solid var(--wx-ac);outline-offset:-2px;}
 .thwx-glyph{flex-shrink:0;display:flex;align-items:center;}
 .thwx-now{flex:1;min-width:0;display:flex;align-items:baseline;gap:7px;}
-.thwx-temp{flex-shrink:0;font-size:clamp(19px,4.6vw,23px);font-weight:700;color:var(--wx-tx);
-  line-height:1.1;letter-spacing:-.5px;}
-.thwx-cond{min-width:0;font-size:10px;color:var(--wx-txd);
+.thwx-temp{flex-shrink:0;font-size:clamp(20px,4.6vw,24px);font-weight:500;color:var(--wx-tx);
+  line-height:1.1;letter-spacing:-.6px;}
+.thwx-cond{min-width:0;font-size:10.5px;font-weight:500;color:var(--wx-txd);letter-spacing:.2px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .thwx-meta{display:flex;flex-direction:column;align-items:flex-end;gap:2px;
   flex-shrink:0;font-size:10px;color:var(--wx-txd);line-height:1.3;}
-.thwx-place{font-size:11px;font-weight:700;color:var(--wx-tx);letter-spacing:.2px;
+.thwx-place{font-size:11px;font-weight:600;color:var(--wx-tx);letter-spacing:.2px;
   max-width:min(170px,38vw);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .thwx-hl{white-space:nowrap;}
-.thwx-hl b{font-weight:700;color:var(--wx-tx);}
+.thwx-hl b{font-weight:600;color:var(--wx-tx);}
 .thwx-chev{flex-shrink:0;color:var(--wx-txm);}
 
 /* Scrim: dims + blurs the ENTIRE page (not just the dashboard) and, being a
@@ -2320,79 +2321,92 @@ window.THSHEET={
 @media (prefers-reduced-motion:reduce){ .thwx-scrim{animation:none;} }
 
 /* ── Expanded: dropdown anchored under the bar ──
-   Absolutely positioned, so opening it never reflows the dashboard. Fixed
-   header + scrolling body keeps the close control reachable at any length.
-   `color` is set explicitly rather than left to inherit — that is what broke
-   when this was a <body> portal: temps and percentages fell back to black. */
-.thwx-panel{position:absolute;top:calc(100% + 6px);left:0;z-index:2;
-  width:min(560px,calc(100vw - 28px));
-  max-height:min(70vh,600px);
+   Absolutely positioned, so opening it never reflows the dashboard. A fixed
+   hero (place, now, close) over one scrolling body keeps × reachable at any
+   length. `color` is set explicitly rather than left to inherit — that is what
+   broke when this was a <body> portal: temps and percentages fell back to black.
+   Calm by design: hairlines and soft tiles, no boxes inside boxes, and solid
+   colour only (each day's bar is ONE colour for its high, no gradients). */
+.thwx-panel{position:absolute;top:calc(100% + 8px);left:0;z-index:2;
+  width:min(540px,calc(100vw - 28px));
+  max-height:min(74vh,640px);
   display:flex;flex-direction:column;box-sizing:border-box;
-  background:var(--wx-s1);border:1px solid var(--wx-bdl);
-  border-radius:calc(var(--wx-radius) + 2px);
-  box-shadow:0 14px 38px rgba(0,0,0,.5);
+  background:var(--wx-s1);border:1px solid var(--wx-bd);
+  border-radius:calc(var(--wx-radius) + 6px);
+  box-shadow:0 24px 60px -14px rgba(0,0,0,.62),0 2px 8px rgba(0,0,0,.25);
   color:var(--wx-tx);
   overflow:hidden;
-  animation:thwx-pop .17s cubic-bezier(.2,.9,.3,1);transform-origin:top left;}
-.thwx-panel-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;
-  flex-shrink:0;padding:7px 8px 7px 13px;border-bottom:1px solid var(--wx-bd);}
-.thwx-panel-t{font-size:9.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
-  color:var(--wx-txd);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+  animation:thwx-pop .19s cubic-bezier(.2,.9,.3,1);transform-origin:top left;}
+.thwx-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
+  flex-shrink:0;padding:16px 14px 15px 18px;border-bottom:1px solid var(--wx-bd);}
+.thwx-hero-l{min-width:0;}
+.thwx-hero-place{font-size:9.5px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;
+  color:var(--wx-txm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.thwx-hero-temp{font-size:46px;font-weight:500;line-height:1;letter-spacing:-1.5px;
+  color:var(--wx-tx);margin-top:9px;}
+.thwx-hero-cond{font-size:13px;font-weight:600;color:var(--wx-tx);margin-top:7px;}
+.thwx-hero-sub{font-size:11px;color:var(--wx-txd);margin-top:3px;white-space:nowrap;}
+.thwx-hero-sub b{font-weight:600;color:var(--wx-tx);}
+.thwx-hero-sub i{font-style:normal;color:var(--wx-txm);margin:0 6px;}
+.thwx-hero-r{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;}
+.thwx-hero-glyph{display:flex;margin-right:4px;}
 .thwx-panel-b{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;
-  -webkit-overflow-scrolling:touch;padding:11px 12px 13px;
+  -webkit-overflow-scrolling:touch;padding:14px 16px 16px;
   scrollbar-width:thin;scrollbar-color:var(--wx-bdl) transparent;}
 .thwx-panel-b::-webkit-scrollbar{width:5px;}
 .thwx-panel-b::-webkit-scrollbar-thumb{background:var(--wx-bdl);border-radius:3px;}
 @keyframes thwx-pop{from{opacity:0;transform:translateY(-6px) scale(.99)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){ .thwx-panel{animation:none;} }
-.thwx-blk{margin-top:14px;}
+.thwx-blk{margin-top:18px;}
 .thwx-blk:first-child{margin-top:0;}
-.thwx-sect{font-size:9px;font-weight:700;letter-spacing:1.3px;text-transform:uppercase;
-  color:var(--wx-txm);margin:0 0 7px;display:flex;align-items:center;
+.thwx-sect{font-size:9px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;
+  color:var(--wx-txm);margin:0 0 9px;display:flex;align-items:center;
   justify-content:space-between;gap:8px;}
 
 /* Hourly strip — the ONE intentionally horizontal-scrolling element */
-.thwx-hours{display:flex;gap:2px;overflow-x:auto;overscroll-behavior-x:contain;
-  -webkit-overflow-scrolling:touch;padding-bottom:5px;
+.thwx-hours{display:flex;gap:0;overflow-x:auto;overscroll-behavior-x:contain;
+  -webkit-overflow-scrolling:touch;padding-bottom:6px;margin:0 -4px;
   scrollbar-width:thin;scrollbar-color:var(--wx-bdl) transparent;}
 .thwx-hours::-webkit-scrollbar{height:4px;}
 .thwx-hours::-webkit-scrollbar-thumb{background:var(--wx-bdl);border-radius:2px;}
-.thwx-hr{flex:0 0 auto;width:50px;display:flex;flex-direction:column;align-items:center;
-  gap:5px;padding:6px 0 5px;border-radius:6px;}
-.thwx-hr-now{background:var(--wx-acg);}
-.thwx-hr-t{font-size:9.5px;font-weight:700;color:var(--wx-txd);white-space:nowrap;letter-spacing:.3px;}
-.thwx-hr-now .thwx-hr-t{color:var(--wx-ac);}
-.thwx-hr-v{font-size:12.5px;font-weight:700;color:var(--wx-tx);}
+.thwx-hr{flex:0 0 auto;width:48px;display:flex;flex-direction:column;align-items:center;
+  gap:6px;padding:7px 0 6px;border-radius:10px;}
+.thwx-hr-now{box-shadow:inset 0 0 0 1px var(--wx-bd);}
+.thwx-hr-t{font-size:9.5px;font-weight:600;color:var(--wx-txm);white-space:nowrap;letter-spacing:.3px;}
+.thwx-hr-now .thwx-hr-t{color:var(--wx-ac);font-weight:700;}
+.thwx-hr-v{font-size:13px;font-weight:500;color:var(--wx-tx);}
+.thwx-hr-now .thwx-hr-v{color:var(--wx-ac);}
 .thwx-hr-p{font-size:8.5px;font-weight:700;color:var(--wx-rain);height:11px;line-height:11px;}
 
-/* Conditions grid */
-.thwx-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;
-  background:var(--wx-bd);border:1px solid var(--wx-bd);border-radius:6px;overflow:hidden;}
-.thwx-cell{background:var(--wx-s1);padding:7px 9px;min-width:0;}
-.thwx-cell-k{font-size:8.5px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;
+/* Conditions: soft tiles, no grid lines */
+.thwx-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
+.thwx-cell{background:var(--wx-s2);border-radius:calc(var(--wx-radius) + 2px);padding:9px 11px 10px;min-width:0;}
+.thwx-cell-k{font-size:8.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
   color:var(--wx-txm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.thwx-cell-v{font-size:13px;font-weight:700;margin-top:2px;color:var(--wx-tx);
+.thwx-cell-v{font-size:15px;font-weight:500;margin-top:4px;color:var(--wx-tx);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.thwx-cell-v small{font-size:9.5px;font-weight:700;color:var(--wx-txd);margin-left:3px;}
+.thwx-cell-v small{font-size:10px;font-weight:500;color:var(--wx-txd);margin-left:3px;}
 @media (max-width:560px){ .thwx-grid{grid-template-columns:repeat(2,1fr);} }
 
-/* Daily list — condensed rows. No inner scroller: the modal body is the ONE
-   vertical scroll region, which is what mobile thumbs expect. */
-.thwx-day{display:grid;grid-template-columns:40px 20px 28px minmax(0,1fr);
-  align-items:center;gap:7px;padding:5px 0;border-top:1px solid var(--wx-bd);}
+/* Daily list. No inner scroller: the panel body is the ONE vertical scroll
+   region, which is what mobile thumbs expect. */
+.thwx-day{display:grid;grid-template-columns:44px 22px 30px minmax(0,1fr);
+  align-items:center;gap:8px;padding:7px 2px;border-top:1px solid var(--wx-bd);}
 .thwx-day:first-child{border-top:0;}
-.thwx-day-n{font-size:11.5px;font-weight:700;color:var(--wx-txd);
+.thwx-day-n{font-size:12px;font-weight:600;color:var(--wx-txd);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .thwx-day-today{color:var(--wx-ac);}
-.thwx-day-p{font-size:8.5px;font-weight:700;color:var(--wx-rain);text-align:right;}
-.thwx-range{display:flex;align-items:center;gap:6px;min-width:0;}
-.thwx-lo,.thwx-hi{font-size:11.5px;font-weight:700;flex:0 0 32px;}   /* fits 3-digit °F */
-.thwx-lo{color:var(--wx-txd);text-align:right;}
+.thwx-day-p{font-size:9px;font-weight:700;color:var(--wx-rain);text-align:right;}
+.thwx-range{display:flex;align-items:center;gap:8px;min-width:0;}
+.thwx-lo,.thwx-hi{font-size:12px;font-weight:500;flex:0 0 32px;}   /* fits 3-digit °F */
+.thwx-lo{color:var(--wx-txm);text-align:right;}
 .thwx-hi{text-align:left;color:var(--wx-tx);}
-.thwx-bar{flex:1 1 auto;min-width:26px;height:4px;border-radius:2px;
-  background:var(--wx-bd);position:relative;}
-.thwx-bar i{position:absolute;top:0;bottom:0;border-radius:2px;
-  background:linear-gradient(90deg,var(--wx-cool),var(--wx-warm));}
+.thwx-bar{flex:1 1 auto;min-width:26px;height:5px;border-radius:3px;
+  background:var(--wx-s2);position:relative;}
+.thwx-bar i{position:absolute;top:0;bottom:0;border-radius:3px;}
+/* Now, on today's bar: where the current temperature sits in the day's range */
+.thwx-bar b{position:absolute;top:50%;width:7px;height:7px;margin:-3.5px 0 0 -3.5px;border-radius:50%;
+  background:var(--wx-tx);box-shadow:0 0 0 2px var(--wx-s1);}
 
 /* "Approximate location" notice — shown only when the coords came from the
    request IP because the browser gave us no fix. */
@@ -2412,7 +2426,7 @@ window.THSHEET={
 /* Close control — 30px hit target so it stays thumb-friendly on mobile */
 .thwx-x{flex-shrink:0;
   width:30px;height:30px;display:flex;align-items:center;justify-content:center;
-  background:transparent;border:1px solid var(--wx-bd);border-radius:7px;
+  background:transparent;border:1px solid var(--wx-bd);border-radius:50%;
   color:var(--wx-txd);cursor:pointer;font:inherit;font-size:16px;line-height:1;
   transition:color .15s,border-color .15s;}
 .thwx-x:hover{color:var(--wx-ac);border-color:var(--wx-ac);}
@@ -2705,7 +2719,7 @@ function Widget(props){
   },[open]);
 
   var vars={
-    '--wx-s1':t.S1,'--wx-bg':t.BG,'--wx-bd':t.BD,'--wx-bdl':t.BDL||t.BD,
+    '--wx-s1':t.S1,'--wx-s2':t.S2||t.hov||t.BD,'--wx-bg':t.BG,'--wx-bd':t.BD,'--wx-bdl':t.BDL||t.BD,
     '--wx-tx':t.TX,'--wx-txd':t.TXD,'--wx-txm':t.TXM||t.TXD,
     '--wx-ac':t.AC,'--wx-acg':t.ACG||'transparent','--wx-hov':t.hov||t.BD,
     '--wx-radius':(t.radius==null?6:t.radius)+'px',
@@ -2781,13 +2795,19 @@ function Widget(props){
     var wid=(lo==null||hg==null)?0:Math.max(((hg-lo)/span)*100,4);
     if(left+wid>100)left=Math.max(0,100-wid);
     var pp=dly.precipitation_probability_max?dly.precipitation_probability_max[ix]:null;
+    var warm=hg==null?0:Math.round(Math.max(0,Math.min(1,(hg-gMin)/span))*100);
+    var fill='color-mix(in srgb, var(--wx-warm) '+warm+'%, var(--wx-cool))';
+    var nowT=cur.temperature_2m,dot=today&&nowT!=null&&lo!=null&&hg!=null
+      ?Math.max(left,Math.min(left+wid,((nowT-gMin)/span)*100)):null;
     return h('div',{key:iso,className:'thwx-day'},
       h('div',{key:'n',className:'thwx-day-n'+(today?' thwx-day-today':'')},dayLbl(iso,today)),
       icon(dly.weather_code?dly.weather_code[ix]:0,true,18,'i'),
       h('div',{key:'p',className:'thwx-day-p'},pp>=10?pp+'%':''),
       h('div',{key:'r',className:'thwx-range'},
         h('div',{key:'l',className:'thwx-lo'},t0(lo)),
-        h('div',{key:'b',className:'thwx-bar'},h('i',{style:{left:left+'%',width:wid+'%'}})),
+        h('div',{key:'b',className:'thwx-bar'},
+          h('i',{key:'f',style:{left:left+'%',width:wid+'%',background:fill}}),
+          dot==null?null:h('b',{key:'n',style:{left:dot+'%'},title:'Now '+t0(nowT)})),
         h('div',{key:'h',className:'thwx-hi'},t0(hg))));
   });
 
@@ -2826,12 +2846,21 @@ function Widget(props){
       h('div',{className:'thwx-sect'},h('span',null,dts.length+'-Day Forecast')),
       h('div',{className:'thwx-days'},days)));
 
-  // Panel header: the place it's forecasting for, plus the close control. Kept
-  // out of the scrolling body so × stays reachable however far down you are.
-  var head=h('div',{key:'h',className:'thwx-panel-hd'},
-    h('span',{key:'t',className:'thwx-panel-t'},d.place||'Forecast'),
-    h('button',{key:'x',type:'button',className:'thwx-x','aria-label':'Close forecast',
-      title:'Close',onClick:function(e){e.stopPropagation();setOpen(false);}},'×'));
+  // Hero: the place, now at a glance, and the close control. Kept out of the
+  // scrolling body so × stays reachable however far down you are.
+  var head=h('div',{key:'h',className:'thwx-hero'},
+    h('div',{key:'l',className:'thwx-hero-l'},
+      h('div',{key:'p',className:'thwx-hero-place'},d.place||'Forecast'),
+      h('div',{key:'t',className:'thwx-hero-temp'},t0(cur.temperature_2m)),
+      h('div',{key:'c',className:'thwx-hero-cond',style:upper},label(cur.weather_code)),
+      h('div',{key:'s',className:'thwx-hero-sub'},
+        'Feels ',h('b',{key:'f'},t0(cur.apparent_temperature)),h('i',{key:'d1'},'·'),
+        'H ',h('b',{key:'h'},hiToday),h('i',{key:'d2'},'·'),
+        'L ',h('b',{key:'o'},loToday))),
+    h('div',{key:'r',className:'thwx-hero-r'},
+      h('button',{key:'x',type:'button',className:'thwx-x','aria-label':'Close forecast',
+        title:'Close',onClick:function(e){e.stopPropagation();setOpen(false);}},'×'),
+      h('span',{key:'g',className:'thwx-hero-glyph'},icon(cur.weather_code,cur.is_day!==0,54,'i'))));
 
   // Scrim: covers the whole page and takes the click that closes the panel.
   // No target-check needed — it has no children, so every mousedown on it IS
