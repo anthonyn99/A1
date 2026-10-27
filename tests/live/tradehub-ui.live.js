@@ -43,6 +43,7 @@ const GEN = NOW - 15 * 60000;
 const CAL = [
   { id: 'c1', date: day(0), kind: 'macro', category: 'inflation', name: 'CPI Report', importance: 'high' },
   { id: 'c2', date: day(0), kind: 'earnings', category: 'earnings', name: 'NVDA Earnings', ticker: 'NVDA', when: 'amc', confirmed: true },
+  { id: 'c6', date: day(1), kind: 'macro', category: 'housing', name: 'New Home Sales', importance: 'low' },
   { id: 'c3', date: day(2), kind: 'macro', category: 'fed', name: 'FOMC Rate Decision', importance: 'high' },
   { id: 'c4', date: day(3), kind: 'earnings', category: 'earnings', name: 'MU Earnings', ticker: 'MU', when: 'bmo', confirmed: false },
   { id: 'c5', date: day(5), kind: 'macro', category: 'jobs', name: 'Jobless Claims', importance: 'medium' },
@@ -153,7 +154,7 @@ const worker = {
 
   console.log('\nCatalysts');
   await tab('catalysts');
-  ok('a row per day, today first', await until(`document.querySelectorAll('#tradeboard-root .cat-day').length===4 && document.querySelector('#tradeboard-root .cat-day').classList.contains('is-today')`, 6000), await js(`return document.querySelectorAll('#tradeboard-root .cat-day').length;`));
+  ok('a row per day, today first', await until(`document.querySelectorAll('#tradeboard-root .cat-day').length===5 && document.querySelector('#tradeboard-root .cat-day').classList.contains('is-today')`, 6000), await js(`return document.querySelectorAll('#tradeboard-root .cat-day').length;`));
   ok('the High tag is pastel red', await js(`var t=[...document.querySelectorAll('#tradeboard-root .cat-imp')].find(x=>x.innerText==='High'); return !!t && getComputedStyle(t).color==='rgb(239, 154, 154)';`),
     await js(`var t=[...document.querySelectorAll('#tradeboard-root .cat-imp')].find(x=>x.innerText==='High'); return t?getComputedStyle(t).color:'none';`));
   ok('an earnings row says when it lands', await js(`return [...document.querySelectorAll('#tradeboard-root .cat-time')].some(x=>x.innerText==='After close');`));
@@ -181,6 +182,9 @@ const worker = {
   await size(390, 844); await sleep(1000);
   for (const [id, name] of [['news', 'tradehub-news-phone'], ['catalysts', 'tradehub-catalysts-phone'], ['prompt', 'tradehub-control-phone']]) {
     await tab(id); await sleep(600);
+    if (id === 'catalysts') ok('catalysts: every day label (TOMORROW too) stays clear of the times',
+      await js(`return [...document.querySelectorAll('#tradeboard-root .cat-day')].every(d=>{ var w=d.querySelector('.cat-dow').getBoundingClientRect(), e=d.querySelector('.cat-events').getBoundingClientRect(); return w.right <= e.left - 4; });`),
+      await js(`return JSON.stringify([...document.querySelectorAll('#tradeboard-root .cat-day')].map(d=>[d.querySelector('.cat-dow').innerText, Math.round(d.querySelector('.cat-dow').getBoundingClientRect().right), Math.round(d.querySelector('.cat-events').getBoundingClientRect().left)]));`));
     ok(id + ': nothing scrolls sideways', await js(`return document.documentElement.scrollWidth <= window.innerWidth + 1 && [...document.querySelectorAll('#tradeboard-root .tbx-page')].every(p=>p.scrollWidth<=p.clientWidth+1);`), await js(`return document.documentElement.scrollWidth;`));
     await shot(name);
   }
