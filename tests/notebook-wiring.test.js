@@ -161,7 +161,7 @@ ok('the rail\'s CSS is last in notebook.css (at 1100-1180px its --sidebar-w must
   nbSrc('notebook.css').lastIndexOf('--sidebar-w') === nbSrc('notebook.css').indexOf('#tj-root { --sidebar-w: 300px; }') + 11);
 for (const [k, src] of [['tj', nbSrc('apps/myjournal.js')], ['bj', nbSrc('apps/brainstorm.js')]]) {
   const m = src.match(new RegExp("Notebook\\.registerDocx\\('" + k + "', (\\{[\\s\\S]*?\\n\\})\\);"));
-  let cfg = null; try { cfg = m && vm.runInNewContext('(' + m[1] + ')'); } catch (e) {}
+  let cfg = null; try { cfg = m && vm.runInNewContext('(' + m[1] + ')', { Notebook: { mounts: {} } }); } catch (e) {}
   ok(k + ' registers its DOCX config, with the image binder it used to be hardcoded to',
     cfg && cfg.root === k + '-root' && cfg.bindImg === '_' + k + 'BindImg' && cfg.trashAPI === '_' + k + 'TrashAPI', m && m[1]);
 }
