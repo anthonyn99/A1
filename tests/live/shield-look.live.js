@@ -78,7 +78,7 @@ async function shot(c, name, w) {
   await c.send('Emulation.setDeviceMetricsOverride', { width: w, height: w < 700 ? 860 : 900, deviceScaleFactor: 1, mobile: w < 500 });
   await sleep(450);
   const r = await c.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true,
-    clip: await evalJs(c, `return JSON.stringify({x:0,y:0,width:${w},height:Math.max(document.documentElement.scrollHeight, ${w < 700 ? 860 : 900}),scale:1})`).then(JSON.parse) });
+    clip: await evalJs(c, `JSON.stringify({x:0,y:0,width:${w},height:Math.max(document.documentElement.scrollHeight, ${w < 700 ? 860 : 900}),scale:1})`).then(JSON.parse) });
   const f = shotPath(label + '-' + name);
   fs.writeFileSync(f, Buffer.from(r.result.data, 'base64'));
   console.log('shot', f);
