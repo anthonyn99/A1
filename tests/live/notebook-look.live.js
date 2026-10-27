@@ -186,6 +186,51 @@ const HOSTS = [
     ok('under the cursor every control answers as in MyJournal (hover colours and glow, hoverfx lift, press)', d.length === 0, d.join('\n      '));
   }
 
+  // ── Veda's side: her journal in index.html is the standard, and a program's
+  // own Notebook on her side ({ profile: 'veda' }) must look exactly like it.
+  console.log('\nVeda\'s journal (index.html): her standard');
+  await fresh();
+  await js(`localStorage.clear(); sessionStorage.clear(); localStorage.setItem('td6_mainDash','veda'); localStorage.setItem('a1b_disabled','1');
+    var d = new Date(); localStorage.setItem('a1_sweep_day:index', d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2));
+    sessionStorage.setItem('__fakefs_docs', JSON.stringify({ 'dashboards/journal': { _order: ['e_a'], activeId: 'e_a', savedAt: 1, e_e_a: ${JSON.stringify(entry('e_a', 'A'))} } })); return 1;`);
+  await c.send('Page.navigate', { url: BASE + 'index.html' }); await sleep(3000);
+  await until(`(function(){ var l=document.getElementById('th-boot-loader'); return !!window._profileGoTony && (!l || l.classList.contains('th-boot-hide')); })()`, 30000);
+  await sleep(800);
+  await js(`var l=document.getElementById('th-boot-loader'); if(l) l.remove(); window._vedaNav('journal'); return 1;`); await sleep(2500);
+  await js(`document.querySelector('#bj-entries-list .entry-item .entry-item-title').click(); return 1;`); await sleep(800);
+  await js(`if (document.getElementById('bj-page-editor').getAttribute('contenteditable') !== 'true') document.getElementById('bj-btn-edit').click(); return 1;`);
+  ok('her journal opens the page in edit mode', await until(`document.querySelector('#bj-root .docx-toolbar.edit-mode')`, 10000));
+  await sleep(1000);
+  const vstd = await take('bj');
+  ok('...and its ribbon is measured', vstd.ribbon.length > 40 && vstd.ribbon.some((o) => /docx-ai-btn/.test(o.p)), vstd.ribbon.length);
+
+  console.log('\nA program\'s own Notebook on Veda\'s side (vn)');
+  await fresh();
+  await js(`localStorage.clear(); sessionStorage.clear(); sessionStorage.setItem('__fakefs_docs', JSON.stringify({ 'dashboards/vn_test': { _order: ['e_a'], activeId: 'e_a', savedAt: 1, e_e_a: ${JSON.stringify(entry('e_a', 'A'))} } })); return 1;`);
+  await c.send('Page.navigate', { url: BASE + 'tests/live/fixtures/notebook-host.html' });
+  await until('window.__hostReady', 10000);
+  await js(`window.__mount({ profile: 'veda', key: 'vn', store: 'vn_test', title: 'Veda Notes', pinned: [], templates: null }).then(() => { window.__mounted = true; }); return 1;`);
+  await until('window.__mounted && document.querySelector("#vn-entries-list .entry-item")', 15000);
+  await js(`document.querySelector('#vn-entries-list .entry-item .entry-item-title').click(); return 1;`); await sleep(800);
+  await js(`if (document.getElementById('vn-page-editor').getAttribute('contenteditable') !== 'true') document.getElementById('vn-btn-edit').click(); return 1;`);
+  ok('it opens the page in Notebook\'s editor, in edit mode', await until(`document.querySelector('#vn-root .docx-toolbar.edit-mode')`, 10000));
+  await sleep(1500);
+  const vgot = await take('vn');
+  let vd = compare(vstd.ribbon, vgot.ribbon, []);
+  ok('its ribbon is her journal\'s: every button in the same place, the same size, the same look', vd.length === 0, vd.join('\n      '));
+  vd = compare(vstd.bar, vgot.bar, [/#K-btn-lock/, /#K-sync-pill/], { sizeOnly: true, flex: /#K-entry-title-input$/ });
+  ok('its title bar is her journal\'s (less the lock, off for an instance)', vd.length === 0, vd.join('\n      '));
+  const vhm = new Map(); vgot.hover.forEach(([k, v]) => { if (!vhm.has(k)) vhm.set(k, []); vhm.get(k).push(v); });
+  const vseen = new Map();
+  vd = [];
+  for (const [k, v] of vstd.hover) {
+    const i = vseen.get(k) || 0; vseen.set(k, i + 1);
+    const w = (vhm.get(k) || [])[i];
+    if (w === undefined && /#K-btn-lock/.test('#' + k.split('#')[1])) continue;
+    if (w !== v) vd.push(k + '\n        Veda\'s journal: ' + v + '\n        instance: ' + w);
+  }
+  ok('under the cursor every control answers as in her journal (hover colours and glow, hoverfx lift, press)', vd.length === 0, vd.join('\n      '));
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
