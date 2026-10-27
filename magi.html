@@ -25585,9 +25585,13 @@ function queueEdit(id) {
   };
   drawChips();
   box.append(chips);
+  const unitGrp = el("div", "sheet-grp");
+  unitLbl.before(unitGrp);
+  unitGrp.append(unitLbl, chips);
 
   // ── attachments ──────────────────────────────────────────────────────────
-  box.append(el("div", "sheet-lbl", "Attachments"));
+  const attLbl = el("div", "sheet-lbl", "Attachments");
+  box.append(attLbl);
   const atts = el("div", "qedit-atts");
   const fileIn = el("input");
   fileIn.type = "file";
@@ -25630,6 +25634,9 @@ function queueEdit(id) {
   };
   drawAtts();
   box.append(atts, fileIn);
+  const attGrp = el("div", "sheet-grp");
+  attLbl.before(attGrp);
+  attGrp.append(attLbl, atts, fileIn);
 
   // Dropped files land here exactly as they do on the composer: anywhere on
   // the panel, with the panel lighting up so it is obvious where they go.
