@@ -10192,7 +10192,7 @@ function App(){
                                 /* Completed box takes the task's category colour so a
                                    finished row still says what kind of work it was;
                                    uncategorised tasks fall back to gold. */
-                                React.createElement("div",{onClick:()=>tog(k,t.id),style:{width:20,height:20,minWidth:20,borderRadius:6,border:"2px solid "+(t.done?(CC[t.category]||T.AC):T.BDL),background:t.done?(CC[t.category]||T.AC):"transparent",opacity:t.done?0.5:1,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:0,flexShrink:0,transition:"all .15s"}},t.done&&React.createElement(Chk,{s:10,col:T.BG})),
+                                React.createElement("div",{onClick:()=>tog(k,t.id),style:{width:20,height:20,minWidth:20,borderRadius:6,border:"2px solid "+(t.done?(CC[t.category]||T.AC):T.BDL),background:t.done?(CC[t.category]||T.AC):"transparent",opacity:t.done?0.5:1,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:-0.5,flexShrink:0,transition:"all .15s"}},t.done&&React.createElement(Chk,{s:10,col:T.BG})),
                 React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 !edit&&React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:6,marginBottom:2}},
                   /* A mirrored plan carries a real time. Render it as its own chip
@@ -16644,7 +16644,7 @@ function App(){
                   t.time&&RC("span",{style:{fontSize:9,fontWeight:700,color:A,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
                 RC("span",{style:{fontSize:12,fontWeight:t.done?500:700,color:t.done?TXM:(vdPlanOverdue(t,k)?TX:dayTX),textDecoration:t.done?"line-through":"none",lineHeight:1.35,...vdTitleFit}},t.title))
               :RC("div",{key:t.id,"data-dkey":t.id,...thRowData(t),style:({...vdTaskCard(t.done,td),...vdSosSpine(t),display:"flex",alignItems:"flex-start",gap:4,marginBottom:4,opacity:t.done?.45:1,cursor:"grab"})},
-                                RC("div",{onClick:()=>tog(k,t.id),style:{width:16,height:16,minWidth:16,borderRadius:3,border:"2px solid "+(t.done?CC[t.category]||TXM:TXM),background:t.done?CC[t.category]||TXM:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:1,flexShrink:0,transition:"all .15s"}},t.done&&RC(Chk,{s:9})),
+                                RC("div",{onClick:()=>tog(k,t.id),style:{width:16,height:16,minWidth:16,borderRadius:3,border:"2px solid "+(t.done?CC[t.category]||TXM:TXM),background:t.done?CC[t.category]||TXM:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:0,flexShrink:0,transition:"all .15s"}},t.done&&RC(Chk,{s:9})),
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 !edit&&RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:5,marginBottom:1}},
                   t.time&&RC("span",{style:{fontSize:9,fontWeight:700,color:A,opacity:(t.done?0.4:0.9)*dimA,whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz)),
