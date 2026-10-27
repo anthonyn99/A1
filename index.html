@@ -6170,310 +6170,62 @@ try{ if(localStorage.getItem('td6_mainDash')==='veda') document.getElementById('
 <script type="text/babel">
 const {useState,useCallback,useMemo,useEffect,useRef} = React;
 
-// ── Cross-list drag holders (set per-profile by the active TaskHub component) ──
-// Each profile registers its crossMove fn + dragInfo ref keyed by profile name.
-const _XDRAG={tony:null,veda:null};
-function _xRegister(who,fn,infoRef){_XDRAG[who]={fn,infoRef};}
-function _xStart(who,zone,id,dayKey){const e=_XDRAG[who];if(e&&e.infoRef)e.infoRef.current={zone,id,dayKey};}
-function _xDrop(who,destZone,targetId,destDayKey){const e=_XDRAG[who];if(!e||!e.infoRef||!e.infoRef.current)return false;const info=e.infoRef.current;const same=info.zone===destZone&&(destZone!=="week"||info.dayKey===destDayKey);if(same){return false;}e.fn&&e.fn(destZone,targetId,destDayKey);e.infoRef.current=null;return true;}
+// ── TaskHub drag and drop (Tony's and Veda's) ─────────────────────────────
+// Every list a TaskHub drags in -- a day's tasks and events, Daily Habits, the
+// goals -- is an A1Drag list (dragsort.js, A1's one drag): pointer events, so
+// mouse, touch and pen are one path; the row follows the pointer and the rows
+// it passes slide out of its way. A mouse takes a row by any part that is not
+// a control, a finger by holding it still for 300ms (a swipe still scrolls).
+// All of a profile's lists share one group, so a row can go to another day, to
+// Daily Habits or to the goals; each goals tab is a drop target of its own (a
+// drop on it appends to that tab's list). Rows carry data-dkey=<id>, lists
+// data-thz=<zone> ("week:<day>", "habit", "goal", "goalm"), and a drop is one
+// call into the profile's handlers h: h.reorder(zone, ids) with the list's ids
+// in their new displayed order, or h.move(fromZone, id, toZone, beforeId).
+window.thDragRef=function(who,zone,h){
+  return function(el){
+    if(!el||!window.A1Drag)return;
+    el.dataset.thz=zone;el._thDrag=h;
+    A1Drag.sort(el,{row:"[data-dkey]",hold:300,group:"th-"+who,
+      canDrag:function(){return !!(el._thDrag&&el._thDrag.edit());},onDrop:thDragDrop});
+  };
+};
+function thDragIds(l){return Array.prototype.filter.call(l.children,function(n){return n.matches("[data-dkey]");}).map(function(n){return n.dataset.dkey;});}
+function thDragDrop(from,to,fl,tl){
+  const h=fl._thDrag,ids=thDragIds(fl),id=ids[from];
+  if(!h||id==null)return;
+  if(fl===tl){ids.splice(from,1);ids.splice(to,0,id);h.reorder(fl.dataset.thz,ids);}
+  else h.move(fl.dataset.thz,id,tl.dataset.thz,thDragIds(tl)[to]||null);
+}
+// A list's new displayed order written back into its array: the items shown
+// take the slots the shown items held, in the new order; anything not shown
+// (hidden done goals, multi-day copies) keeps its slot.
+window.thApplyOrder=function(arr,ids){
+  const at=new Map(ids.map((id,i)=>[String(id),i])),slots=[],items=[];
+  arr.forEach((x,i)=>{if(x&&at.has(String(x.id))){slots.push(i);items.push(x);}});
+  items.sort((a,b)=>at.get(String(a.id))-at.get(String(b.id)));
+  const out=arr.slice();slots.forEach((sl,j)=>{out[sl]=items[j];});
+  return out;
+};
 
 // parse a zone string like "week:2026-5-16" | "habit" | "goal"
 function _xParseZone(zs){if(!zs)return null;const i=zs.indexOf(':');if(i<0)return{zone:zs};return{zone:zs.slice(0,i),dayKey:zs.slice(i+1)};}
 
-// Tony's ticked tasks display by doneAt (wkSortTasks), not array position, so a
-// reorder between two of them moves the dragged one in the DISPLAYED ticked list
-// (before the target going up, after it going down) and re-stamps the whole group
-// in that order. Nudging one doneAt instead skipped tied or missing stamps.
-// Returns the new day array, or null when src/target are not both ticked tasks.
-function _wkReorderDone(arr,srcId,targetId){
+// Tony's ticked tasks display by doneAt (wkSortTasks), newest first, not by
+// array position, so a reorder re-stamps them in their new displayed order --
+// only when that order changed, so a drop among open tasks leaves them alone.
+function _wkStampDone(arr,ids){
   const dm=(window._wkDoneAt=window._wkDoneAt||{});
   const key=t=>Math.max(t.doneAt||0,dm[t.id]||0);
-  const grp=arr.map((t,i)=>[t,i]).filter(x=>x[0].done&&x[0].type==="task"&&!x[0]._mc)
-    .sort((a,b)=>(key(b[0])-key(a[0]))||(a[1]-b[1])).map(x=>x[0].id);
-  const si=grp.indexOf(srcId),ti=grp.indexOf(targetId);
-  if(si<0||ti<0)return null;
-  grp.splice(si,1);grp.splice(ti,0,srcId);
-  const base=arr.reduce((m,t)=>t.done&&t.type==="task"&&!t._mc?Math.max(m,key(t)):m,0),stamp={};
+  const byId=new Map(arr.map(t=>[String(t.id),t]));
+  const grp=ids.map(String).filter(id=>{const t=byId.get(id);return t&&t.done&&t.type==="task";});
+  const shown=new Set(grp);
+  const cur=arr.map((t,i)=>[t,i]).filter(x=>shown.has(String(x[0].id)))
+    .sort((a,b)=>(key(b[0])-key(a[0]))||(a[1]-b[1])).map(x=>String(x[0].id));
+  if(cur.join("\n")===grp.join("\n"))return arr;
+  const base=grp.reduce((m,id)=>Math.max(m,key(byId.get(id))),0),stamp={};
   grp.forEach((id,j)=>{stamp[id]=base+grp.length-j;dm[id]=stamp[id];});
-  return arr.map(t=>stamp[t.id]!=null?{...t,doneAt:stamp[t.id]}:t);
-}
-
-// ── Touch drag-to-reorder hook ─────────────────────────────────────────────
-// Returns { getTouchHandlers(id), getRowProps(id) }
-// getTouchHandlers → attach to the grip ⠿ span
-// getRowProps      → attach to the draggable row element
-function useTouchReorder(items, setItems, who, selfZone) {
-  const src = useRef(null);
-  const clone = useRef(null);
-  const lastTarget = useRef(null);
-  const startY = useRef(0);
-  const startX = useRef(0);
-  const lastHoverTab = useRef(null);
-
-  function makeClone(touchEl, touch) {
-    const row = touchEl.closest('[data-dnd-id]') || touchEl.parentElement;
-    const rect = row ? row.getBoundingClientRect() : touchEl.getBoundingClientRect();
-    const el = document.createElement('div');
-    el.textContent = row ? (row.querySelector('[data-dnd-label]')?.textContent || row.textContent.replace(/[⠿✎×]/g,'').trim().slice(0,40)) : '…';
-    el.style.cssText = `position:fixed;z-index:9999;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;
-      background:rgba(192,174,234,0.18);border:1.5px solid #c0aeea;border-radius:4px;
-      padding:7px 12px;font-size:13px;font-weight:700;color:#c0aeea;
-      pointer-events:none;box-shadow:0 4px 18px rgba(0,0,0,0.22);
-      backdrop-filter:blur(2px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
-    document.body.appendChild(el);
-    clone.current = el;
-    startY.current = touch.clientY - rect.top;
-    startX.current = touch.clientX - rect.left;
-  }
-
-  function clearClone() {
-    if (clone.current) { clone.current.remove(); clone.current = null; }
-    if (lastTarget.current) { lastTarget.current.style.outline = ''; lastTarget.current.style.outlineOffset = ''; lastTarget.current = null; }
-  }
-
-  function reorder(srcId, targetId) {
-    if (!srcId || !targetId || srcId === targetId) return;
-    setItems(prev => {
-      const arr = [...prev];
-      const si = arr.findIndex(x => x.id === srcId);
-      const ti = arr.findIndex(x => x.id === targetId);
-      if (si < 0 || ti < 0) return prev;
-      const [item] = arr.splice(si, 1);
-      arr.splice(ti, 0, item);
-      return arr;
-    });
-  }
-
-  // Long-press to pick up, then drag. Holding still for ~200ms arms the drag;
-  // moving before that = scroll (drag never starts). Once dragging, only the
-  // drag finger's own moves are captured — a SECOND finger can still scroll the
-  // page (or tap a day/tab) so you can reach a far drop target, then lift to drop.
-  const getTouchHandlers = useCallback((id) => ({
-    onTouchStart(e) {
-      const t0=e.changedTouches[0]; if(!t0) return; // the finger that just touched down
-      const touchId=t0.identifier;
-      const rowEl=e.currentTarget;
-      // While this finger is down the phone must not run its own gesture on the
-      // row: a native HTML5 drag (rows are draggable for the mouse), the long-press
-      // menu or text selection each fire touchcancel and kill this drag.
-      const wasDraggable=rowEl.draggable, prevSel=rowEl.style.webkitUserSelect, prevCallout=rowEl.style.webkitTouchCallout;
-      rowEl.draggable=false; rowEl.style.webkitUserSelect='none'; rowEl.style.webkitTouchCallout='none';
-      const noMenu=ev=>ev.preventDefault();
-      document.addEventListener('contextmenu',noMenu,true);
-      const dx0=t0.clientX, dy0=t0.clientY;
-      let curX=dx0, curY=dy0;
-      let dragStarted=false, lpTimer=null;
-      const getT=(list)=>{for(let i=0;i<list.length;i++)if(list[i].identifier===touchId)return list[i];return null;};
-      const updateHighlight=(x,y)=>{
-        const el=document.elementFromPoint(x,y);
-        const tabEl=el&&(el.dataset.goalTab?el:el.closest('[data-goal-tab]'));
-        const hoverTab=tabEl?(tabEl.dataset.goalTab||tabEl.getAttribute('data-goal-tab')):null;
-        if(hoverTab&&hoverTab!==lastHoverTab.current&&src.current&&window._goalTabHover){lastHoverTab.current=hoverTab;window._goalTabHover(hoverTab);}
-        else if(!hoverTab){lastHoverTab.current=null;}
-        const row=el&&el.closest('[data-dnd-id]');
-        if(lastTarget.current&&lastTarget.current!==row){lastTarget.current.style.outline='';lastTarget.current.style.outlineOffset='';}
-        if(row&&row.dataset.dndId!==src.current){row.style.outline='2px solid #c0aeea';row.style.outlineOffset='-1px';lastTarget.current=row;}
-      };
-      const cleanup=()=>{
-        if(lpTimer){clearTimeout(lpTimer);lpTimer=null;}
-        rowEl.draggable=wasDraggable; rowEl.style.webkitUserSelect=prevSel; rowEl.style.webkitTouchCallout=prevCallout;
-        document.removeEventListener('contextmenu',noMenu,true);
-        document.removeEventListener('touchmove',moveH,{passive:false});
-        document.removeEventListener('touchend',endH);
-        document.removeEventListener('touchcancel',endH);
-      };
-      const beginDrag=()=>{
-        lpTimer=null; dragStarted=true;
-        if(who&&selfZone)_xStart(who,selfZone,id);
-        makeClone(rowEl,{clientX:curX,clientY:curY});
-        if(clone.current){clone.current.style.left=(curX-startX.current)+'px';clone.current.style.top=(curY-startY.current)+'px';clone.current.style.pointerEvents='none';}
-        try{navigator.vibrate&&navigator.vibrate(15);}catch(_){}
-        updateHighlight(curX,curY);
-      };
-      const moveH=(ev)=>{
-        const t=getT(ev.touches);
-        if(!dragStarted){
-          if(!t)return;
-          curX=t.clientX; curY=t.clientY;
-          // Finger moved before the hold completed → user is scrolling, abort the pickup.
-          if(Math.abs(t.clientX-dx0)>10||Math.abs(t.clientY-dy0)>10){cleanup();src.current=null;lastHoverTab.current=null;}
-          return; // never preventDefault while waiting → native scroll stays alive
-        }
-        if(!getT(ev.changedTouches))return; // our finger didn't move → let other fingers scroll
-        if(!t)return;
-        curX=t.clientX; curY=t.clientY;
-        ev.preventDefault();
-        if(clone.current){clone.current.style.left=(t.clientX-startX.current)+'px';clone.current.style.top=(t.clientY-startY.current)+'px';clone.current.style.pointerEvents='none';}
-        updateHighlight(t.clientX,t.clientY);
-      };
-      const endH=(ev)=>{
-        const t=getT(ev.changedTouches);
-        if(!t)return; // a different finger lifted; keep dragging
-        cleanup();
-        if(!dragStarted){src.current=null;lastHoverTab.current=null;return;}
-        const el=document.elementFromPoint(t.clientX,t.clientY);
-        const row=el&&el.closest('[data-dnd-id]');
-        const targetId=row?.dataset?.dndId;
-        clearClone();
-        lastHoverTab.current=null;
-        if(who&&selfZone){const zEl=el&&el.closest("[data-dnd-zone]");const tz=zEl?_xParseZone(zEl.getAttribute("data-dnd-zone")):null;if(tz&&tz.zone!==selfZone){if(_xDrop(who,tz.zone,targetId||null,tz.dayKey)){src.current=null;return;}}if(_XDRAG[who])_XDRAG[who].infoRef.current=null;}
-        if(targetId&&targetId!==src.current)reorder(src.current,targetId);
-        src.current=null;
-      };
-      src.current=id; lastHoverTab.current=null;
-      lpTimer=setTimeout(beginDrag,200);
-      document.addEventListener('touchmove',moveH,{passive:false});
-      document.addEventListener('touchend',endH);
-      document.addEventListener('touchcancel',endH);
-    },
-    onTouchMove(e) {},
-    onTouchEnd(e) {},
-  }), [setItems]);
-
-  const getRowProps = useCallback((id) => ({'data-dnd-id': id}), []);
-
-  return { getTouchHandlers, getRowProps };
-}
-
-// ── Touch reorder for per-day task lists ──────────────────────────────────
-function useTouchReorderByDay(setData, accentColor, who) {
-  const src = useRef(null);
-  const srcDay = useRef(null);
-  const clone = useRef(null);
-  const lastTarget = useRef(null);
-  const startY = useRef(0);
-  const startX = useRef(0);
-  const lastHoverTab = useRef(null);
-  const downX = useRef(0);
-  const downY = useRef(0);
-  const dragStarted = useRef(false);
-
-  function makeClone(touchEl, touch) {
-    const row = touchEl.closest('[data-dnd-id]') || touchEl.parentElement;
-    const rect = row ? row.getBoundingClientRect() : touchEl.getBoundingClientRect();
-    const el = document.createElement('div');
-    el.textContent = row ? (row.querySelector('[data-dnd-label]')?.textContent || row.textContent.replace(/[⠿✎×]/g,'').trim().slice(0,40)) : '…';
-    el.style.cssText = `position:fixed;z-index:9999;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;background:rgba(192,174,234,0.18);border:1.5px solid ${accentColor||'#c0aeea'};border-radius:4px;padding:7px 12px;font-size:13px;font-weight:700;color:${accentColor||'#c0aeea'};pointer-events:none;box-shadow:0 4px 18px rgba(0,0,0,0.22);backdrop-filter:blur(2px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
-    document.body.appendChild(el);
-    clone.current = el;
-    startY.current = touch.clientY - rect.top;
-    startX.current = touch.clientX - rect.left;
-  }
-
-  function clearClone() {
-    if (clone.current) { clone.current.remove(); clone.current = null; }
-    if (lastTarget.current) { lastTarget.current.style.outline = ''; lastTarget.current.style.outlineOffset = ''; lastTarget.current = null; }
-  }
-
-  function reorder(k, srcId, targetId) {
-    if (!srcId || !targetId || srcId === targetId) return;
-    setData(prev => {
-      const arr = [...(prev[k] || [])];
-      const si = arr.findIndex(x => x.id === srcId);
-      const ti = arr.findIndex(x => x.id === targetId);
-      if (si < 0 || ti < 0) return prev;
-      // Ticked tasks display by doneAt, so they reorder by re-stamping (as onDropTask).
-      const done = _wkReorderDone(arr, srcId, targetId);
-      if (done) return { ...prev, [k]: done };
-      const [item] = arr.splice(si, 1);
-      arr.splice(ti, 0, item);
-      return { ...prev, [k]: arr };
-    });
-  }
-
-  // Long-press to pick up, then drag. Holding still ~200ms arms the drag; moving
-  // before that scrolls the page (drag never starts) so taps on the checkbox /
-  // edit / delete buttons and list scrolling still work. Once dragging, only the
-  // drag finger's moves are captured — a SECOND finger can scroll the page or tap
-  // another day to bring it under the drag finger, then lift to drop there.
-  const getTaskTouchHandlers = useCallback((k, id) => ({
-    onTouchStart(e) {
-      const t0=e.changedTouches[0]; if(!t0) return; // the finger that just touched down
-      const touchId=t0.identifier;
-      const rowEl=e.currentTarget;
-      // While this finger is down the phone must not run its own gesture on the
-      // row: a native HTML5 drag (rows are draggable for the mouse), the long-press
-      // menu or text selection each fire touchcancel and kill this drag.
-      const wasDraggable=rowEl.draggable, prevSel=rowEl.style.webkitUserSelect, prevCallout=rowEl.style.webkitTouchCallout;
-      rowEl.draggable=false; rowEl.style.webkitUserSelect='none'; rowEl.style.webkitTouchCallout='none';
-      const noMenu=ev=>ev.preventDefault();
-      document.addEventListener('contextmenu',noMenu,true);
-      const dx0=t0.clientX, dy0=t0.clientY;
-      let curX=dx0, curY=dy0;
-      let started=false, lpTimer=null;
-      const getT=(list)=>{for(let i=0;i<list.length;i++)if(list[i].identifier===touchId)return list[i];return null;};
-      const highlight=(x,y)=>{
-        const el=document.elementFromPoint(x,y);
-        const row=el&&el.closest('[data-dnd-id]');
-        if(lastTarget.current&&lastTarget.current!==row){lastTarget.current.style.outline='';lastTarget.current.style.outlineOffset='';}
-        if(row&&row.dataset.dndId!==src.current){row.style.outline=`2px solid ${accentColor||'#c0aeea'}`;row.style.outlineOffset='-1px';lastTarget.current=row;}
-      };
-      const cleanup=()=>{
-        if(lpTimer){clearTimeout(lpTimer);lpTimer=null;}
-        rowEl.draggable=wasDraggable; rowEl.style.webkitUserSelect=prevSel; rowEl.style.webkitTouchCallout=prevCallout;
-        document.removeEventListener('contextmenu',noMenu,true);
-        document.removeEventListener('touchmove',moveH,{passive:false});
-        document.removeEventListener('touchend',endH);
-        document.removeEventListener('touchcancel',endH);
-      };
-      const beginDrag=()=>{
-        lpTimer=null; started=true; dragStarted.current=true;
-        if(who)_xStart(who,"week",id,k);
-        makeClone(rowEl,{clientX:curX,clientY:curY});
-        if(clone.current){clone.current.style.left=(curX-startX.current)+'px';clone.current.style.top=(curY-startY.current)+'px';clone.current.style.pointerEvents='none';}
-        try{navigator.vibrate&&navigator.vibrate(15);}catch(_){}
-        highlight(curX,curY);
-      };
-      const moveH=(ev)=>{
-        const t=getT(ev.touches);
-        if(!started){
-          if(!t)return;
-          curX=t.clientX; curY=t.clientY;
-          if(Math.abs(t.clientX-dx0)>10||Math.abs(t.clientY-dy0)>10){cleanup();src.current=null;srcDay.current=null;}
-          return; // never preventDefault while waiting → native scroll stays alive
-        }
-        if(!getT(ev.changedTouches))return; // our finger didn't move → let other fingers scroll
-        if(!t)return;
-        curX=t.clientX; curY=t.clientY;
-        ev.preventDefault();
-        if(clone.current){clone.current.style.left=(t.clientX-startX.current)+'px';clone.current.style.top=(t.clientY-startY.current)+'px';clone.current.style.pointerEvents='none';}
-        highlight(t.clientX,t.clientY);
-      };
-      const endH=(ev)=>{
-        const t=getT(ev.changedTouches);
-        if(!t)return; // a different finger lifted; keep dragging
-        cleanup();
-        if(!started){src.current=null;srcDay.current=null;return;}
-        dragStarted.current=false;
-        const el=document.elementFromPoint(t.clientX,t.clientY);
-        const row=el&&el.closest('[data-dnd-id]');
-        const targetId=row?.dataset?.dndId;
-        const dk=srcDay.current;
-        clearClone();
-        if(who){
-          const zEl=el&&el.closest('[data-dnd-zone]');
-          const tz=zEl?_xParseZone(zEl.getAttribute('data-dnd-zone')):null;
-          if(tz&&(tz.zone!=="week"||tz.dayKey!==dk)){
-            if(_xDrop(who,tz.zone,targetId||null,tz.dayKey)){src.current=null;srcDay.current=null;return;}
-          }
-          if(_XDRAG[who])_XDRAG[who].infoRef.current=null;
-        }
-        if(targetId&&targetId!==src.current&&dk)reorder(dk,src.current,targetId);
-        src.current=null; srcDay.current=null;
-      };
-      src.current=id; srcDay.current=k; dragStarted.current=false;
-      lpTimer=setTimeout(beginDrag,200);
-      document.addEventListener('touchmove',moveH,{passive:false});
-      document.addEventListener('touchend',endH);
-      document.addEventListener('touchcancel',endH);
-    },
-    onTouchMove(e) {},
-    onTouchEnd(e) {},
-  }), [setData]);
-
-  const getTaskRowProps = useCallback((id) => ({'data-dnd-id': id}), []);
-
-  return { getTaskTouchHandlers, getTaskRowProps };
+  return arr.map(t=>stamp[String(t.id)]!=null?{...t,doneAt:stamp[String(t.id)]}:t);
 }
 
 const DOW = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
@@ -8708,7 +8460,6 @@ function App(){
   const tgQValid=a=>Array.isArray(a)?a.filter(q=>q&&typeof q.id==="string"&&typeof q.text==="string"&&q.text.trim()):null;
   const[tgCustom,setTgCustomState]=useState(()=>tgQValid(loadJ("td6_quotes",null)));
   const tgCustomRef=useRef(tgCustom);
-  useEffect(()=>{window._goalTabHover=(tab)=>{setGoalTab(tab);};return()=>{delete window._goalTabHover;};},[]);
   const[marketCal,setMarketCal]=useState([]);
 
   // ── Firebase sync ──────────────────────────────────────────────────────────
@@ -9921,15 +9672,37 @@ function App(){
   const delH=useCallback(id=>{habSyncNotif({id},"tony");setHabits(prev=>prev.filter(h=>h.id!==id));},[setHabits]);
   const addH=useCallback(()=>{if(!nht.trim())return;setHabits(prev=>[...prev,{id:uid(),title:nht.trim()}]);setNht("");},[nht,setHabits]);
 
-  // ── Drag-reorder ──────────────────────────────────────────────────────────
-  const dragSrc=useRef(null);
-  const dragType=useRef(null);
-  const dragDayKey=useRef(null);
-  const crossMoveRef=useRef(null);
-  const [dragOverId,setDragOverId]=useState(null);
-  const grip=()=>({fontSize:isMobile?20:14,color:"#6b6b7a",cursor:"grab",padding:isMobile?"0 8px":"0 4px",minWidth:isMobile?32:undefined,minHeight:isMobile?32:undefined,display:"inline-flex",alignItems:"center",justifyContent:"center",userSelect:"none",touchAction:"none",flexShrink:0,lineHeight:1,opacity:1,position:"relative",zIndex:1});
-  const dndRowStyle=(id,base)=>(!isMobile&&dragOverId===id)?{...base,outline:"2px solid "+T.AC,outlineOffset:"-1px",borderRadius:6}:base;
-  const dndDayStyle=(k,base)=>(!isMobile&&dragOverId==="day-"+k)?{...base,boxShadow:"inset 0 0 0 2px "+T.AC}:base;
+  // ── Drag and drop: the handlers behind thDragRef (one A1Drag group) ──
+  const editRef=useRef(edit);editRef.current=edit;
+  const thDragVars={"--ds-ac":T.AC,"--ds-s2":T.S2,"--ds-tx":T.TX,"--ds-txm":T.TXM};
+  const thDragList={...thDragVars,display:"flex",flexDirection:"column",flexGrow:edit?1:0,minHeight:edit?28:0};
+  const thDrag={edit:()=>editRef.current,
+    reorder:(zone,ids)=>{
+      const z=_xParseZone(zone);
+      if(z.zone==="week")setData(prev=>({...prev,[z.dayKey]:_wkStampDone(thApplyOrder(prev[z.dayKey]||[],ids),ids)}));
+      else if(z.zone==="habit")setHabRows(prev=>thApplyOrder(prev,ids));
+      else if(z.zone==="goal")setMg(prev=>thApplyOrder(prev,ids));
+      else if(z.zone==="goalm")setMgMonthly(prev=>thApplyOrder(prev,ids));
+    },
+    move:(fromZone,id,toZone,beforeId)=>{
+      const f=_xParseZone(fromZone),t=_xParseZone(toZone);
+      if(f.zone===t.zone&&f.dayKey===t.dayKey)return;   // a goals tab of the list it came from
+      if(f.zone==="week"&&t.zone==="week"){
+        // Reordering a plan WITHIN a day is yours to keep; moving it to another day
+        // is not, because dashboards/plans owns the date and the next reconcile
+        // would drag it straight back. Refuse it up front instead of letting the
+        // card sit in the wrong day until it silently jumps home.
+        if(_plGuard(stateRef.current.data[f.dayKey],id,'This is a shared plan — change its date in Add → Plan.'))return;
+        setData(prev=>{const sa=[...(prev[f.dayKey]||[])],da=[...(prev[t.dayKey]||[])];const si=sa.findIndex(x=>String(x.id)===id);if(si<0)return prev;const[it]=sa.splice(si,1);const ti=beforeId==null?-1:da.findIndex(x=>String(x.id)===beforeId);if(ti<0)da.push(it);else da.splice(ti,0,it);return{...prev,[f.dayKey]:sa,[t.dayKey]:da};});
+        return;
+      }
+      const src=_findCross(f.zone,id,f.dayKey)||_findCross(f.zone,Number(id),f.dayKey);
+      if(!src)return;
+      dragInfo.current={zone:f.zone,id:src.id,dayKey:f.dayKey};
+      const tgt=beforeId==null?null:((t.zone==="week"?(stateRef.current.data[t.dayKey]||[]):t.zone==="habit"?habRowsRef.current:t.zone==="goal"?stateRef.current.goals:stateRef.current.monthlyGoals)||[]).find(x=>String(x.id)===beforeId);
+      crossMove(t.zone,tgt?tgt.id:null,t.dayKey);
+      dragInfo.current=null;
+    }};
   // ── Weekly item cards: events keep filled cards, tasks are outline-only (match Veda's TaskHub) ──
   // Padding is deliberately tight on the horizontal axis: every pixel spent on
   // side padding is a pixel the title can't use, and a 7-column grid makes titles
@@ -9980,95 +9753,6 @@ function App(){
   const mcCatLabel=c=>{c=String(c||"");const U={ecb:"ECB",gdp:"GDP"};return U[c.toLowerCase()]||(c?c.charAt(0).toUpperCase()+c.slice(1):c);};
   const wkCatalystCard=cat=>({background:OI_CARD_BG,border:"1px solid "+("#34343a"),borderLeft:"3px solid "+("#8d8d94"),borderRadius:10,padding:isMobile?"3px 11px":"2px 9px",boxShadow:"0 1px 2px rgba(0,0,0,0.35)"});
 
-  // Touch reorder for habits and goals
-  const {getTouchHandlers:habitTouchH,getRowProps:habitRowP}=useTouchReorder(habRows,setHabRows,"tony","habit");
-  const {getTouchHandlers:goalTouchH,getRowProps:goalRowP}=useTouchReorder(mg,setMg,"tony","goal");
-  const {getTouchHandlers:goalMTouchH,getRowProps:goalMRowP}=useTouchReorder(mgMonthly,setMgMonthly,"tony","goalm");
-  const {getTaskTouchHandlers:taskTouchH,getTaskRowProps:taskRowP}=useTouchReorderByDay(setData,T.AC,"tony");
-  const onDragStartTask=(e,k,id)=>{dragType.current="task";dragDayKey.current=k;dragSrc.current=id;dragInfo.current={zone:"week",id,dayKey:k};e.dataTransfer.effectAllowed="move";};
-  const onDragOverTask=(e,id)=>{e.preventDefault();e.stopPropagation();e.dataTransfer.dropEffect="move";if(!isMobile)setDragOverId(id);};
-  const onDropTask=(e,k,targetId)=>{
-    e.preventDefault();
-    e.stopPropagation();
-    setDragOverId(null);
-    if(dragInfo.current&&dragInfo.current.zone!=="week"){crossMoveRef.current&&crossMoveRef.current("week",targetId,k);dragInfo.current=null;return;}
-    if(dragType.current!=="task")return;
-    const srcKey=dragDayKey.current,srcId=dragSrc.current;
-    if(srcKey===k){
-      if(srcId===targetId)return;
-      setData(prev=>{const arr=[...(prev[k]||[])];const si=arr.findIndex(t=>t.id===srcId),ti=arr.findIndex(t=>t.id===targetId);if(si<0||ti<0)return prev;
-        // Ticked tasks display by doneAt (wkSortTasks), not array position.
-        const done=_wkReorderDone(arr,srcId,targetId);if(done)return{...prev,[k]:done};
-        const[item]=arr.splice(si,1);arr.splice(ti,0,item);return{...prev,[k]:arr};});
-    }else if(_plGuard(stateRef.current.data[srcKey],srcId,'This is a shared plan — change its date in Add → Plan.')){
-      // Reordering a plan WITHIN a day is yours to keep; moving it to another day
-      // is not, because dashboards/plans owns the date and the next reconcile
-      // would drag it straight back. Refuse it up front instead of letting the
-      // card sit in the wrong day until it silently jumps home.
-      return;
-    }else{
-      setData(prev=>{const srcArr=[...(prev[srcKey]||[])];const destArr=[...(prev[k]||[])];const si=srcArr.findIndex(t=>t.id===srcId);if(si<0)return prev;const[item]=srcArr.splice(si,1);const ti=destArr.findIndex(t=>t.id===targetId);if(ti<0)destArr.push(item);else destArr.splice(ti,0,item);return{...prev,[srcKey]:srcArr,[k]:destArr};});
-    }
-  };
-  const onDropDay=(e,k)=>{
-    e.preventDefault();
-    setDragOverId(null);
-    if(dragInfo.current&&dragInfo.current.zone!=="week"){crossMoveRef.current&&crossMoveRef.current("week",null,k);dragInfo.current=null;return;}
-    if(dragType.current!=="task"||dragDayKey.current===k)return;
-    const srcKey=dragDayKey.current,srcId=dragSrc.current;
-    // Same rule as onDropTask: a plan's DATE belongs to dashboards/plans.
-    if(_plGuard(stateRef.current.data[srcKey],srcId,'This is a shared plan — change its date in Add → Plan.'))return;
-    setData(prev=>{const srcArr=[...(prev[srcKey]||[])];const destArr=[...(prev[k]||[])];const si=srcArr.findIndex(t=>t.id===srcId);if(si<0)return prev;const[item]=srcArr.splice(si,1);destArr.push(item);return{...prev,[srcKey]:srcArr,[k]:destArr};});
-  };
-  const onDragStartHabit=(e,id)=>{dragType.current="habit";dragSrc.current=id;dragInfo.current={zone:"habit",id};e.dataTransfer.effectAllowed="move";};
-  const onDropHabit=(e,targetId)=>{
-    e.preventDefault();
-    e.stopPropagation();
-    setDragOverId(null);
-    if(dragInfo.current&&dragInfo.current.zone!=="habit"){crossMoveRef.current&&crossMoveRef.current("habit",targetId);dragInfo.current=null;return;}
-    if(dragType.current!=="habit"||dragSrc.current===targetId)return;
-    const srcId=dragSrc.current;
-    setHabRows(prev=>{
-      const arr=[...prev];
-      const si=arr.findIndex(h=>h.id===srcId),ti=arr.findIndex(h=>h.id===targetId);
-      if(si<0||ti<0)return prev;
-      const [item]=arr.splice(si,1);arr.splice(ti,0,item);
-      return arr;
-    });
-  };
-  const onDragStartGoal=(e,id)=>{dragType.current="goal";dragSrc.current=id;dragInfo.current={zone:"goal",id};e.dataTransfer.effectAllowed="move";};
-  const onDragStartGoalM=(e,id)=>{dragType.current="goalm";dragSrc.current=id;dragInfo.current={zone:"goalm",id};e.dataTransfer.effectAllowed="move";};
-  const onDropGoalM=(e,targetId)=>{
-    e.preventDefault();
-    e.stopPropagation();
-    setDragOverId(null);
-    if(dragInfo.current&&dragInfo.current.zone!=="goalm"){crossMoveRef.current&&crossMoveRef.current("goalm",targetId);dragInfo.current=null;return;}
-    if(dragType.current!=="goalm"||dragSrc.current===targetId)return;
-    const srcId=dragSrc.current;
-    setMgMonthly(prev=>{
-      const arr=[...prev];
-      const si=arr.findIndex(g=>g.id===srcId),ti=arr.findIndex(g=>g.id===targetId);
-      if(si<0||ti<0)return prev;
-      const [item]=arr.splice(si,1);arr.splice(ti,0,item);
-      return arr;
-    });
-  };
-  const onDropGoal=(e,targetId)=>{
-    e.preventDefault();
-    e.stopPropagation();
-    setDragOverId(null);
-    if(dragInfo.current&&dragInfo.current.zone!=="goal"){crossMoveRef.current&&crossMoveRef.current("goal",targetId);dragInfo.current=null;return;}
-    if(dragType.current!=="goal"||dragSrc.current===targetId)return;
-    const srcId=dragSrc.current;
-    setMg(prev=>{
-      const arr=[...prev];
-      const si=arr.findIndex(g=>g.id===srcId),ti=arr.findIndex(g=>g.id===targetId);
-      if(si<0||ti<0)return prev;
-      const [item]=arr.splice(si,1);arr.splice(ti,0,item);
-      return arr;
-    });
-  };
-
   // ── CROSS-LIST DRAG (Weekly ↔ Daily Habits ↔ Long-Term Goals) ──
   // dragInfo holds {zone, id, dayKey} for the current drag (set on dragstart/touchstart)
   const dragInfo=useRef(null);
@@ -10106,8 +9790,6 @@ function App(){
     else if(destZone==="goal"){const ni=_toGoal(item);setMg(prev=>{const arr=[...prev];const ti=targetId?arr.findIndex(x=>x.id===targetId):-1;if(ti<0)arr.push(ni);else arr.splice(ti,0,ni);return arr;});}
     else if(destZone==="goalm"){const ni=_toGoal(item);setMgMonthly(prev=>{const arr=[...prev];const ti=targetId?arr.findIndex(x=>x.id===targetId):-1;if(ti<0)arr.push(ni);else arr.splice(ti,0,ni);return arr;});}
   },[setData,setHabits,setMg,setMgMonthly]);
-  crossMoveRef.current=crossMove;
-  _xRegister("tony",crossMove,dragInfo);
 
   const renameH=useCallback((id,title)=>setHabits(prev=>prev.map(h=>h.id===id?{...h,title}:h)),[setHabits]);
   // Title + reminder in one save. The reminder is armed from the MERGED habit so a
@@ -10391,7 +10073,7 @@ function App(){
             const tasks=wkSortTasks(allItems.filter(i=>i.type==="task"));
             const pvMatches=ecByDay[k]||[];
             const events=allItems.filter(i=>i.type==="event");
-            return React.createElement("div",{"data-dnd-zone":"week:"+k,style:{background:td?(T.TODAYBG||T.S2):T.BG,border:td?"1.5px solid "+(T.TODAYBD||T.AC+"60"):"1px solid "+T.BD,borderRadius:6,padding:12,minHeight:80,display:"flex",flexDirection:"column"}},
+            return React.createElement("div",{style:{background:td?(T.TODAYBG||T.S2):T.BG,border:td?"1.5px solid "+(T.TODAYBD||T.AC+"60"):"1px solid "+T.BD,borderRadius:6,padding:12,minHeight:80,display:"flex",flexDirection:"column"}},
               edit&&React.createElement("button",{type:"button",style:{fontSize:11,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:6,padding:"9px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
               React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:tasks.length>0?6:10,gap:4}},
                 React.createElement("div",{style:{minWidth:0}},
@@ -10406,7 +10088,7 @@ function App(){
                  revised ETA moves the existing card to its new day instead of
                  leaving a stale one behind. */
               (oiByDay[k]||[]).map(c=>OI_weekCard(c,T,dayTX,edit)),
-              pvMatches.map(e=>React.createElement("div",{key:e.id,...taskRowP(e.id),style:{marginBottom:5,cursor:"default",display:"flex",alignItems:"center",gap:5}},
+              pvMatches.map(e=>React.createElement("div",{key:e.id,style:{marginBottom:5,cursor:"default",display:"flex",alignItems:"center",gap:5}},
                 React.createElement("div",{style:{border:"1px solid rgba(184,166,208,0.34)",borderLeft:"3px solid #b8a6d0",borderRadius:6,background:"rgba(184,166,208,0.08)",padding:"6px 10px",flex:1,minWidth:0}},
                   React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4,marginBottom:4}},
                     React.createElement("span",{style:{fontSize:12,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"#c2b1dc",lineHeight:1}},e.league),
@@ -10418,7 +10100,8 @@ function App(){
                     e.team2Img&&React.createElement("img",{src:e.team2Img,style:{width:26,height:26,objectFit:"contain",borderRadius:2},onError:ev=>ev.target.style.display="none"}),
                     React.createElement("span",{style:{fontSize:13,fontWeight:800,color:dayTX,lineHeight:1}},e.team2||"TBD")),
                   e.state==="completed"&&React.createElement("div",{style:{fontSize:9,fontWeight:600,color:T.TXD,opacity:.6,marginTop:3}},"")),
-                edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px",flexShrink:0},onClick:()=>del(k,e.id)},"×"))),              tasks.map(t=>t._planId
+                edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px",flexShrink:0},onClick:()=>del(k,e.id)},"×"))),              React.createElement("div",{ref:thDragRef("tony","week:"+k,thDrag),style:thDragList},
+              tasks.map(t=>t._planId
               /* ── Shared plan ──────────────────────────────────────────────
                  Owned by dashboards/plans, so its CONTENT is inert here: no
                  checkbox, no edit/delete buttons even in edit mode — every one of
@@ -10429,14 +10112,14 @@ function App(){
                  sits in YOUR day lives in your own dashboard doc, so it is yours
                  to drag and it survives the reconcile (which now preserves the
                  slot of a plan it already knows about). */
-              ?React.createElement("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkPlanCard(td,wkPlanOverdue(t,k)),display:"flex",flexDirection:"column",gap:2,marginBottom:4,opacity:t.done?dimA*0.72:(wkPlanOverdue(t,k)?1:dimA),cursor:edit?"grab":"default"})},
+              ?React.createElement("div",{key:t.id,"data-dkey":t.id,style:({...wkPlanCard(td,wkPlanOverdue(t,k)),display:"flex",flexDirection:"column",gap:2,marginBottom:4,opacity:t.done?dimA*0.72:(wkPlanOverdue(t,k)?1:dimA),cursor:edit?"grab":"default"})},
                 React.createElement("div",{style:{display:"flex",alignItems:"center",gap:6}},
                   t.done&&React.createElement(PlanCheck,{size:11,color:T.GRN}),
                   React.createElement("span",{style:wkPlanTag},"Plan"),
                   wkPlanOverdue(t,k)&&React.createElement("span",{style:wkOverTag},"Overdue"),
                   t.time&&React.createElement("span",{style:{fontSize:10,fontWeight:700,color:T.AC,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
                 React.createElement("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?T.TXDONE:(wkPlanOverdue(t,k)?T.TX:dayTX),opacity:t.done?0.55:1,textDecoration:t.done?"line-through":"none",lineHeight:1.4,...wkTitleFit}},t.title))
-              :React.createElement("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:8,marginBottom:4,opacity:t.done?0.85:1,cursor:edit?"grab":"default"})},
+              :React.createElement("div",{key:t.id,"data-dkey":t.id,style:({...wkTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:8,marginBottom:4,opacity:t.done?0.85:1,cursor:edit?"grab":"default"})},
                                 /* Completed box takes the task's category colour so a
                                    finished row still says what kind of work it was;
                                    uncategorised tasks fall back to gold. */
@@ -10453,7 +10136,7 @@ function App(){
                 !edit&&t.aiPrep&&!t._sosId&&thPrepBtn(t,k),
               edit&&React.createElement("button",{type:"button",style:{...ebtn,padding:"0 6px"},onClick:()=>{setEi(t);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,t.id)},"×"))),
-              events.map(e=>React.createElement("div",{key:e.id,...taskRowP(e.id),...(edit?taskTouchH(k,e.id):{}),draggable:edit,onDragStart:edit?ev=>onDragStartTask(ev,k,e.id):null,onDragOver:edit?ev=>onDragOverTask(ev,e.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?ev=>onDropTask(ev,k,e.id):null,style:dndRowStyle(e.id,{...wkEventCard(e.category,wkEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:7,marginBottom:4,opacity:wkEvtPassed(e,k)?0.5:dimA,cursor:edit?"grab":"default"})},
+              events.map(e=>React.createElement("div",{key:e.id,"data-dkey":e.id,style:({...wkEventCard(e.category,wkEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:7,marginBottom:4,opacity:wkEvtPassed(e,k)?0.5:dimA,cursor:edit?"grab":"default"})},
                                 React.createElement("div",{style:{width:6,height:6,borderRadius:"50%",background:CC[e.category]||T.ACL,marginTop:5,flexShrink:0}}),
                 React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 (e.time||e.notifyAt)&&React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:6,marginBottom:2}},
@@ -10462,7 +10145,7 @@ function App(){
                 React.createElement("span",{style:{fontSize:14,fontWeight:600,color:T.TXD,lineHeight:1.4,...wkTitleFit}},e.title)),
                 !edit&&e.aiPrep&&!e._sosId&&thPrepBtn(e,k),
               edit&&React.createElement("button",{type:"button",style:{...ebtn,padding:"0 6px"},onClick:()=>{setEi(e);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
-                edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,e.id)},"×"))),
+                edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,e.id)},"×")))),
               !tasks.length&&!events.length&&!mcDay.length&&!(crByDay[k]||[]).length&&!edit&&React.createElement("div",{style:{fontSize:11,fontWeight:500,color:T.TXM,textAlign:"center",padding:"24px 0"}},"—"),
               edit&&React.createElement("button",{type:"button",style:{fontSize:11,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:6,padding:"9px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"));
           })())
@@ -10484,7 +10167,7 @@ function App(){
             const tasks=wkSortTasks(allItems.filter(i=>i.type==="task"));
             const pvMatches=ecByDay[k]||[];
             const events=allItems.filter(i=>i.type==="event");
-            return React.createElement("div",{key:k,"data-dnd-zone":"week:"+k,onDragOver:edit?e=>{e.preventDefault();e.dataTransfer.dropEffect="move";if(!isMobile)setDragOverId("day-"+k);}:null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropDay(e,k):null,style:dndDayStyle(k,{background:td?(T.TODAYBG||T.S2):T.BG,border:td?"1.5px solid "+(T.TODAYBD||T.AC+"60"):"1px solid "+T.BD,borderRadius:6,padding:"clamp(8px,1.2vw,12px)",minHeight:"clamp(200px,22vh,280px)",display:"flex",flexDirection:"column"})},
+            return React.createElement("div",{key:k,style:({background:td?(T.TODAYBG||T.S2):T.BG,border:td?"1.5px solid "+(T.TODAYBD||T.AC+"60"):"1px solid "+T.BD,borderRadius:6,padding:"clamp(8px,1.2vw,12px)",minHeight:"clamp(200px,22vh,280px)",display:"flex",flexDirection:"column"})},
               edit&&React.createElement("button",{type:"button",style:{fontSize:10,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:6,padding:"5px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
               React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:tasks.length>0?4:10,gap:4}},
                 React.createElement("div",{style:{minWidth:0}},
@@ -10499,7 +10182,7 @@ function App(){
                  revised ETA moves the existing card to its new day instead of
                  leaving a stale one behind. */
               (oiByDay[k]||[]).map(c=>OI_weekCard(c,T,dayTX,edit)),
-              pvMatches.map(e=>React.createElement("div",{key:e.id,...taskRowP(e.id),style:{marginBottom:4,cursor:"default",display:"flex",alignItems:"center",gap:4}},
+              pvMatches.map(e=>React.createElement("div",{key:e.id,style:{marginBottom:4,cursor:"default",display:"flex",alignItems:"center",gap:4}},
                 React.createElement("div",{style:{border:"1px solid rgba(184,166,208,0.34)",borderLeft:"3px solid #b8a6d0",borderRadius:5,background:"rgba(184,166,208,0.08)",padding:"5px 7px",flex:1,minWidth:0}},
                   React.createElement("div",{style:{display:"flex",alignItems:"center",gap:3,marginBottom:3}},
                     React.createElement("span",{style:{fontSize:10,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"#c2b1dc",lineHeight:1}},e.league),
@@ -10511,17 +10194,18 @@ function App(){
                     e.team2Img&&React.createElement("img",{src:e.team2Img,style:{width:20,height:20,objectFit:"contain",borderRadius:2},onError:ev=>ev.target.style.display="none"}),
                     React.createElement("span",{style:{fontSize:11,fontWeight:800,color:dayTX,lineHeight:1}},e.team2||"TBD")),
                   e.state==="completed"&&React.createElement("div",{style:{fontSize:8,fontWeight:600,color:T.TXD,opacity:.6,marginTop:2}},"")),
-                edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 5px",flexShrink:0},onClick:()=>del(k,e.id)},"×"))),              tasks.map(t=>t._planId
+                edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 5px",flexShrink:0},onClick:()=>del(k,e.id)},"×"))),              React.createElement("div",{ref:thDragRef("tony","week:"+k,thDrag),style:thDragList},
+              tasks.map(t=>t._planId
               /* Shared plan — content inert, position draggable; same rule as the
                  wide grid above. */
-              ?React.createElement("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkPlanCard(td,wkPlanOverdue(t,k)),display:"flex",flexDirection:"column",gap:2,marginBottom:3,opacity:t.done?dimA*0.72:(wkPlanOverdue(t,k)?1:dimA),cursor:edit?"grab":"default"})},
+              ?React.createElement("div",{key:t.id,"data-dkey":t.id,style:({...wkPlanCard(td,wkPlanOverdue(t,k)),display:"flex",flexDirection:"column",gap:2,marginBottom:3,opacity:t.done?dimA*0.72:(wkPlanOverdue(t,k)?1:dimA),cursor:edit?"grab":"default"})},
                 React.createElement("div",{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}},
                   t.done&&React.createElement(PlanCheck,{size:10,color:T.GRN}),
                   React.createElement("span",{style:wkPlanTag},"Plan"),
                   wkPlanOverdue(t,k)&&React.createElement("span",{style:wkOverTag},"Overdue"),
                   t.time&&React.createElement("span",{style:{fontSize:9,fontWeight:700,color:T.AC,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
                 React.createElement("span",{style:{fontSize:13,fontWeight:t.done?500:700,color:t.done?T.TXDONE:(wkPlanOverdue(t,k)?T.TX:dayTX),opacity:t.done?0.55:1,textDecoration:t.done?"line-through":"none",lineHeight:1.35,whiteSpace:"normal",...wkTitleFit}},t.title))
-              :React.createElement("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartTask(e,k,t.id):null,onDragOver:edit?e=>onDragOverTask(e,t.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropTask(e,k,t.id):null,style:dndRowStyle(t.id,{...wkTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:6,marginBottom:3,opacity:t.done?0.85:1,cursor:edit?"grab":"default"})},
+              :React.createElement("div",{key:t.id,"data-dkey":t.id,style:({...wkTaskCard(t.done,td),display:"flex",alignItems:"flex-start",gap:6,marginBottom:3,opacity:t.done?0.85:1,cursor:edit?"grab":"default"})},
                                 React.createElement("div",{onClick:()=>tog(k,t.id),style:{width:14,height:14,minWidth:14,borderRadius:3,border:"2px solid "+(t.done?(CC[t.category]||T.AC):T.BDL),background:t.done?(CC[t.category]||T.AC):"transparent",opacity:t.done?0.5:1,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&React.createElement(Chk,{s:7,col:T.BG})),
                 React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 !edit&&React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:5,marginBottom:1}},
@@ -10535,7 +10219,7 @@ function App(){
                 !edit&&t.aiPrep&&!t._sosId&&thPrepBtn(t,k),
               edit&&React.createElement("button",{type:"button",style:ebtn,onClick:()=>{setEi(t);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&React.createElement("button",{type:"button",style:dbtn,onClick:()=>del(k,t.id)},"×"))),
-              events.map(e=>React.createElement("div",{key:e.id,...taskRowP(e.id),...(edit?taskTouchH(k,e.id):{}),draggable:edit,onDragStart:edit?ev=>onDragStartTask(ev,k,e.id):null,onDragOver:edit?ev=>onDragOverTask(ev,e.id):null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?ev=>onDropTask(ev,k,e.id):null,style:dndRowStyle(e.id,{...wkEventCard(e.category,wkEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:5,marginBottom:3,opacity:wkEvtPassed(e,k)?0.5:dimA,cursor:edit?"grab":"default"})},
+              events.map(e=>React.createElement("div",{key:e.id,"data-dkey":e.id,style:({...wkEventCard(e.category,wkEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:5,marginBottom:3,opacity:wkEvtPassed(e,k)?0.5:dimA,cursor:edit?"grab":"default"})},
                                 React.createElement("div",{style:{width:5,height:5,borderRadius:"50%",background:CC[e.category]||T.ACL,marginTop:5,flexShrink:0}}),
                 React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 (e.time||e.notifyAt)&&React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:5,marginBottom:1}},
@@ -10544,14 +10228,14 @@ function App(){
                 React.createElement("span",{style:{fontSize:13,fontWeight:600,color:T.TXD,lineHeight:1.35,whiteSpace:"normal",...wkTitleFit}},e.title)),
                 !edit&&e.aiPrep&&!e._sosId&&thPrepBtn(e,k),
               edit&&React.createElement("button",{type:"button",style:ebtn,onClick:()=>{setEi(e);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
-                edit&&React.createElement("button",{type:"button",style:dbtn,onClick:()=>del(k,e.id)},"×"))),
+                edit&&React.createElement("button",{type:"button",style:dbtn,onClick:()=>del(k,e.id)},"×")))),
               !tasks.length&&!events.length&&!mcDay.length&&!(crByDay[k]||[]).length&&!edit&&React.createElement("div",{style:{fontSize:10,fontWeight:500,color:T.TXM,textAlign:"center",padding:"32px 0"}},"—"),
               edit&&React.createElement("button",{type:"button",style:{fontSize:10,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:6,padding:"5px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"));
           })))),
 
     React.createElement("div",{style:{display:"grid",gridTemplateColumns:isMobile?"1fr":"minmax(0,4fr) minmax(0,2.4fr) minmax(0,4fr)",gap:"clamp(6px,1vw,10px)",flexShrink:0,alignItems:"start"}},
 
-      React.createElement("div",{"data-dnd-zone":"habit",style:{...sec},onDragOver:edit?e=>{if(dragInfo.current&&dragInfo.current.zone!=="habit"){e.preventDefault();e.dataTransfer.dropEffect="move";}}:null,onDrop:edit?e=>{if(dragInfo.current&&dragInfo.current.zone!=="habit"){e.preventDefault();crossMoveRef.current&&crossMoveRef.current("habit",null);dragInfo.current=null;}}:null},
+      React.createElement("div",{style:{...sec}},
         React.createElement("div",{style:{...stt,display:"flex",justifyContent:"space-between",alignItems:"center"}},
           React.createElement("span",null,"Daily Habits"),
           React.createElement("span",{style:{fontSize:9,fontWeight:500,color:T.TXM,fontStyle:"normal",fontFamily:"var(--font-accent)",textTransform:"none"}},"Resets every Monday")),
@@ -10565,11 +10249,11 @@ function App(){
                 React.createElement("th",{style:{textAlign:"left",fontSize:12,color:T.TX,fontWeight:700,textTransform:"uppercase",letterSpacing:1,paddingBottom:6,paddingLeft:4,borderBottom:"1px solid "+T.BD+"44",width:"100%"}},"Habit"),
                 ...DS.map((d,di)=>{const isTd=dkey(wd[di].year,wd[di].month,wd[di].day)===tk;return React.createElement("th",{key:d,style:{textAlign:"center",fontSize:11,color:isTd?T.TX:T.TXD,fontWeight:700,paddingBottom:6,width:28,borderBottom:"1px solid "+T.BD+"44",borderLeft:isTd?habTodayRule:undefined,borderRight:isTd?habTodayRule:undefined}},d.charAt(0));}),
                 React.createElement("th",{style:{width:edit?62:0,padding:0,overflow:"hidden",borderBottom:"1px solid "+T.BD+"44",visibility:edit?"visible":"hidden"}}))),
-            React.createElement("tbody",null,
+            React.createElement("tbody",{ref:thDragRef("tony","habit",thDrag),style:thDragVars},
               // Everwell's Prayer: its own row, ticks in dashboards/everwell_prayer
               // (Phase 5). Not a habit in `habits`: no edit, no delete. It drags
               // WITHIN Daily Habits only (habRows / setHabRows, crossMove refuses it).
-              habRows.map(h=>h._ewPrayer?React.createElement("tr",{key:EWP_ID,"data-ew-prayer":"1",...habitRowP(EWP_ID),...(edit?habitTouchH(EWP_ID):{}),draggable:edit,onDragStart:edit?e=>onDragStartHabit(e,EWP_ID):null,onDragOver:edit?e=>{e.preventDefault();if(!isMobile)setDragOverId(EWP_ID);}:null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropHabit(e,EWP_ID):null,style:{cursor:edit?"grab":"default",outline:(!isMobile&&dragOverId===EWP_ID)?"2px solid "+T.AC:"none",outlineOffset:"-1px"}},
+              habRows.map(h=>h._ewPrayer?React.createElement("tr",{key:EWP_ID,"data-ew-prayer":"1","data-dkey":EWP_ID,style:{cursor:edit?"grab":"default"}},
                 React.createElement("td",{style:{fontSize:13,fontWeight:700,color:T.TX,paddingLeft:4,paddingTop:7,paddingBottom:7,wordBreak:"break-word",whiteSpace:"normal",borderBottom:"1px solid "+T.BD+"22",width:"100%"},title:"From Everwell: tick it here or in Everwell's Prayer tab"},
                   "Prayer",
                   React.createElement("span",{"aria-label":"from Everwell",style:{display:"inline-flex",width:20,height:20,marginLeft:7,verticalAlign:"-5px",color:T.AC},dangerouslySetInnerHTML:{__html:'<svg viewBox="0 0 96 96" width="20" height="20" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"><path d="M48 30C38 43 38 59 48 72 58 59 58 43 48 30Z"/><path d="M48 72C34 70 24 59 22 47 36 49 44 58 48 72Z"/><path d="M48 72C62 70 72 59 74 47 60 49 52 58 48 72Z"/></g><circle cx="48" cy="14" r="9" fill="currentColor"/></svg>'}})),
@@ -10579,7 +10263,7 @@ function App(){
                 React.createElement("td",{"aria-hidden":"true",style:{textAlign:"right",paddingTop:7,paddingBottom:7,borderBottom:"1px solid "+T.BD+"22",width:edit?62:0,paddingRight:edit?2:0,paddingLeft:0,overflow:"hidden",whiteSpace:"nowrap",visibility:"hidden"}},
                   React.createElement("button",{type:"button",tabIndex:-1,disabled:true,style:{...ebtn,padding:"0 6px"}},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                   React.createElement("button",{type:"button",tabIndex:-1,disabled:true,style:{...dbtn,padding:"0 6px"}},"×")))
-              :React.createElement("tr",{key:h.id,...habitRowP(h.id),...(edit?habitTouchH(h.id):{}),draggable:edit,onDragStart:edit?e=>onDragStartHabit(e,h.id):null,onDragOver:edit?e=>{e.preventDefault();if(!isMobile)setDragOverId(h.id);}:null,onDragLeave:edit?()=>setDragOverId(null):null,onDragEnd:edit?()=>setDragOverId(null):null,onDrop:edit?e=>onDropHabit(e,h.id):null,style:{cursor:edit?"grab":"default",outline:(!isMobile&&dragOverId===h.id)?"2px solid "+T.AC:"none",outlineOffset:"-1px"}},
+              :React.createElement("tr",{key:h.id,"data-dkey":h.id,style:{cursor:edit?"grab":"default"}},
                 React.createElement("td",{style:{fontSize:13,fontWeight:700,color:T.TX,paddingLeft:4,paddingTop:7,paddingBottom:7,wordBreak:"break-word",whiteSpace:"normal",borderBottom:"1px solid "+T.BD+"22",width:"100%"}},
                                     h.title,
                   h.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:0.85,whiteSpace:"nowrap",marginLeft:6},title:habReminderLabel(h)},React.createElement("span",{style:{width:12,height:12,fontSize:12,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}})," "+habTimeLabel(h))),
@@ -10609,20 +10293,18 @@ function App(){
             return React.createElement("button",{key:i,type:"button",style:{fontSize:10,fontWeight:isSel||isToday?700:500,padding:"3px 0",borderRadius:5,cursor:"pointer",fontFamily:"inherit",transition:"all .15s",background:"transparent",color:cur?CURSOR:isToday?T.AC:has?T.ACL:T.TXD,border:cur?"1px solid "+CURSOR:isToday?"1px solid "+T.AC:"1px solid transparent",...(cur?{boxShadow:GLOW_CURSOR}:isToday?{boxShadow:GLOW_AC}:{})},onClick:()=>{setSel({year:vy,month:vm,day});const _dw=new Date(vy,vm,day).getDay();setMobDayIdx(_dw===0?6:_dw-1);}},day);
           }))),
 
-      React.createElement("div",{"data-dnd-zone":goalTab==="short"?"goalm":"goal",style:{...sec},
-        onDragOver:edit?e=>{const z=goalTab==="short"?"goalm":"goal";if(dragInfo.current&&dragInfo.current.zone!==z){e.preventDefault();e.dataTransfer.dropEffect="move";}}:null,
-        onDrop:edit?e=>{const z=goalTab==="short"?"goalm":"goal";if(dragInfo.current&&dragInfo.current.zone!==z){e.preventDefault();crossMoveRef.current&&crossMoveRef.current(z,null);dragInfo.current=null;}}:null},
+      React.createElement("div",{style:{...sec}},
 
         React.createElement("div",{style:{...stt,display:"flex",gap:16,alignItems:"center"}},
-          React.createElement("span",{"data-goal-tab":"short",onClick:()=>setGoalTab("short"),onDragOver:edit?e=>{e.preventDefault();if(dragInfo.current&&goalTab!=="short")setGoalTab("short");}:undefined,style:{cursor:"pointer",color:goalTab==="short"?T.TX:T.TXM,borderBottom:goalTab==="short"?"2px solid "+T.AC:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Short-Term Goals"),
-          React.createElement("span",{"data-goal-tab":"long",onClick:()=>setGoalTab("long"),onDragOver:edit?e=>{e.preventDefault();if(dragInfo.current&&goalTab!=="long")setGoalTab("long");}:undefined,style:{cursor:"pointer",color:goalTab==="long"?T.TX:T.TXM,borderBottom:goalTab==="long"?"2px solid "+T.AC:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Long-Term Goals"),
+          React.createElement("span",{"data-goal-tab":"short",ref:thDragRef("tony","goalm",thDrag),onClick:()=>setGoalTab("short"),style:{cursor:"pointer",color:goalTab==="short"?T.TX:T.TXM,borderBottom:goalTab==="short"?"2px solid "+T.AC:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Short-Term Goals"),
+          React.createElement("span",{"data-goal-tab":"long",ref:thDragRef("tony","goal",thDrag),onClick:()=>setGoalTab("long"),style:{cursor:"pointer",color:goalTab==="long"?T.TX:T.TXM,borderBottom:goalTab==="long"?"2px solid "+T.AC:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Long-Term Goals"),
           React.createElement("button",{type:"button",title:(goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?"Show completed goals":"Hide completed goals",onClick:()=>{const key=goalTab==="short"?"hideShort":"hideLong";setGoalPrefs(p=>({...p,[key]:!p[key]}));},style:{marginLeft:"auto",background:"transparent",border:"1px solid "+T.BD,borderRadius:6,color:T.TXM,fontSize:10,fontWeight:700,letterSpacing:0.3,padding:"3px 8px",cursor:"pointer",fontFamily:"'Inter',system-ui,-apple-system,sans-serif",whiteSpace:"nowrap",textTransform:"none",transition:"all .15s"}},(goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?"Show Completed":"Hide Completed")),
 
         React.createElement("div",{style:{display:edit?"flex":"none",gap:6,marginBottom:8}},
           React.createElement("input",{style:{...inp,flex:1},placeholder:goalTab==="short"?"New short-term goal...":"New long-term goal...",value:goalTab==="short"?nmmt:nmt,onChange:e=>(goalTab==="short"?setNmmt:setNmt)(e.target.value),onKeyDown:e=>{if(e.key==="Enter")(goalTab==="short"?addMM:addM)();}}),
           React.createElement("button",{type:"button",style:sbtn,onClick:goalTab==="short"?addMM:addM},"+")),
 
-        React.createElement("div",{style:{minHeight:(Math.max(mg.length,mgMonthly.length)*37)+"px"}},
+        React.createElement("div",{ref:thDragRef("tony",goalTab==="short"?"goalm":"goal",thDrag),style:{...thDragVars,minHeight:(Math.max(mg.length,mgMonthly.length)*37)+"px"}},
           /* OneInbox coupons ride ABOVE the hand-written goals: they are
              time-boxed (they expire) so they need to be seen first, and they
              live in OneInbox's own collection rather than in `mgMonthly`, so
@@ -10638,13 +10320,7 @@ function App(){
               g.done&&React.createElement(PlanCheck,{size:11,color:T.GRN}),
               React.createElement("span",{style:wkPlanTag},"Plan")),
             React.createElement("span",{style:{fontSize:13,fontWeight:g.done?500:700,color:g.done?T.TXDONE:T.TX,textDecoration:g.done?"line-through":"none",lineHeight:1.4,wordBreak:"break-word",whiteSpace:"normal"}},g.title))
-          :React.createElement("div",{key:g.id,...(goalTab==="short"?goalMRowP:goalRowP)(g.id),...(edit?(goalTab==="short"?goalMTouchH:goalTouchH)(g.id):{}),draggable:edit,
-            onDragStart:edit?e=>(goalTab==="short"?onDragStartGoalM:onDragStartGoal)(e,g.id):null,
-            onDragOver:edit?e=>{e.preventDefault();if(!isMobile)setDragOverId(g.id);}:null,
-            onDragLeave:edit?()=>setDragOverId(null):null,
-            onDragEnd:edit?()=>setDragOverId(null):null,
-            onDrop:edit?e=>(goalTab==="short"?onDropGoalM:onDropGoal)(e,g.id):null,
-            style:dndRowStyle(g.id,{display:"flex",alignItems:"flex-start",gap:7,padding:"6px 0",opacity:g.done?0.72:1,borderBottom:"1px solid "+T.BD+"33",cursor:edit?"grab":"default"})},
+          :React.createElement("div",{key:g.id,"data-dkey":g.id,style:({display:"flex",alignItems:"flex-start",gap:7,padding:"6px 0",opacity:g.done?0.72:1,borderBottom:"1px solid "+T.BD+"33",cursor:edit?"grab":"default"})},
                         React.createElement("div",{onClick:()=>(goalTab==="short"?togMM:togM)(g.id),style:{width:15,height:15,minWidth:15,borderRadius:3,cursor:"pointer",border:"2px solid "+(g.done?T.AC:T.BDL),background:g.done?T.AC:"transparent",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},g.done&&React.createElement(Chk,{s:8,col:T.BG})),
             React.createElement("span",{style:{fontSize:13,fontWeight:g.done?500:700,color:g.done?T.TXDONE:T.TX,textDecoration:g.done?"line-through":"none",lineHeight:1.4,flex:1,wordBreak:"break-word",whiteSpace:"normal"}},g.title),
             edit&&React.createElement("button",{type:"button",style:{...ebtn,padding:"0 6px"},onClick:()=>(goalTab==="short"?setEditingGoalM:setEditingGoal)({id:g.id,title:g.title}),title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
@@ -13944,270 +13620,6 @@ window._vedaNav=function(target){
 <script type="text/babel">
 const{useState,useCallback,useMemo,useEffect,useRef}=React;
 
-// ── Touch drag-to-reorder hook (Veda) ─────────────────────────────────────
-function useTouchReorder(items, setItems, who, selfZone) {
-  const src = useRef(null);
-  const clone = useRef(null);
-  const lastTarget = useRef(null);
-  const startY = useRef(0);
-  const startX = useRef(0);
-  const lastHoverTab = useRef(null);
-
-  function makeClone(touchEl, touch) {
-    const row = touchEl.closest('[data-dnd-id]') || touchEl.parentElement;
-    const rect = row ? row.getBoundingClientRect() : touchEl.getBoundingClientRect();
-    const el = document.createElement('div');
-    el.textContent = row ? (row.querySelector('[data-dnd-label]')?.textContent || row.textContent.replace(/[⠿✎×]/g,'').trim().slice(0,40)) : '…';
-    el.style.cssText = `position:fixed;z-index:9999;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;
-      background:rgba(141,118,154,0.18);border:1.5px solid #8D769A;border-radius:4px;
-      padding:7px 12px;font-size:13px;font-weight:700;color:#A892B0;
-      pointer-events:none;box-shadow:0 4px 18px rgba(0,0,0,0.3);
-      backdrop-filter:blur(2px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
-    document.body.appendChild(el);
-    clone.current = el;
-    startY.current = touch.clientY - rect.top;
-    startX.current = touch.clientX - rect.left;
-  }
-
-  function clearClone() {
-    if (clone.current) { clone.current.remove(); clone.current = null; }
-    if (lastTarget.current) { lastTarget.current.style.outline = ''; lastTarget.current.style.outlineOffset = ''; lastTarget.current = null; }
-  }
-
-  function reorder(srcId, targetId) {
-    if (!srcId || !targetId || srcId === targetId) return;
-    setItems(prev => {
-      const arr = [...prev];
-      const si = arr.findIndex(x => x.id === srcId);
-      const ti = arr.findIndex(x => x.id === targetId);
-      if (si < 0 || ti < 0) return prev;
-      const [item] = arr.splice(si, 1);
-      arr.splice(ti, 0, item);
-      return arr;
-    });
-  }
-
-  // Long-press to pick up, then drag. Holding still for ~200ms arms the drag;
-  // moving before that = scroll (drag never starts). Once dragging, only the
-  // drag finger's own moves are captured — a SECOND finger can still scroll the
-  // page (or tap a day/tab) so you can reach a far drop target, then lift to drop.
-  const getTouchHandlers = useCallback((id) => ({
-    onTouchStart(e) {
-      const t0=e.changedTouches[0]; if(!t0) return; // the finger that just touched down
-      const touchId=t0.identifier;
-      const rowEl=e.currentTarget;
-      // While this finger is down the phone must not run its own gesture on the
-      // row: a native HTML5 drag (rows are draggable for the mouse), the long-press
-      // menu or text selection each fire touchcancel and kill this drag.
-      const wasDraggable=rowEl.draggable, prevSel=rowEl.style.webkitUserSelect, prevCallout=rowEl.style.webkitTouchCallout;
-      rowEl.draggable=false; rowEl.style.webkitUserSelect='none'; rowEl.style.webkitTouchCallout='none';
-      const noMenu=ev=>ev.preventDefault();
-      document.addEventListener('contextmenu',noMenu,true);
-      const dx0=t0.clientX, dy0=t0.clientY;
-      let curX=dx0, curY=dy0;
-      let dragStarted=false, lpTimer=null;
-      const getT=(list)=>{for(let i=0;i<list.length;i++)if(list[i].identifier===touchId)return list[i];return null;};
-      const updateHighlight=(x,y)=>{
-        const el=document.elementFromPoint(x,y);
-        const tabEl=el&&(el.dataset.goalTab?el:el.closest('[data-goal-tab]'));
-        const hoverTab=tabEl?(tabEl.dataset.goalTab||tabEl.getAttribute('data-goal-tab')):null;
-        if(hoverTab&&hoverTab!==lastHoverTab.current&&src.current&&window._vGoalTabHover){lastHoverTab.current=hoverTab;window._vGoalTabHover(hoverTab);}
-        else if(!hoverTab){lastHoverTab.current=null;}
-        const row=el&&el.closest('[data-dnd-id]');
-        if(lastTarget.current&&lastTarget.current!==row){lastTarget.current.style.outline='';lastTarget.current.style.outlineOffset='';}
-        if(row&&row.dataset.dndId!==src.current){row.style.outline='2px solid #8D769A';row.style.outlineOffset='-1px';lastTarget.current=row;}
-      };
-      const cleanup=()=>{
-        if(lpTimer){clearTimeout(lpTimer);lpTimer=null;}
-        rowEl.draggable=wasDraggable; rowEl.style.webkitUserSelect=prevSel; rowEl.style.webkitTouchCallout=prevCallout;
-        document.removeEventListener('contextmenu',noMenu,true);
-        document.removeEventListener('touchmove',moveH,{passive:false});
-        document.removeEventListener('touchend',endH);
-        document.removeEventListener('touchcancel',endH);
-      };
-      const beginDrag=()=>{
-        lpTimer=null; dragStarted=true;
-        if(who&&selfZone)_xStart(who,selfZone,id);
-        makeClone(rowEl,{clientX:curX,clientY:curY});
-        if(clone.current){clone.current.style.left=(curX-startX.current)+'px';clone.current.style.top=(curY-startY.current)+'px';clone.current.style.pointerEvents='none';}
-        try{navigator.vibrate&&navigator.vibrate(15);}catch(_){}
-        updateHighlight(curX,curY);
-      };
-      const moveH=(ev)=>{
-        const t=getT(ev.touches);
-        if(!dragStarted){
-          if(!t)return;
-          curX=t.clientX; curY=t.clientY;
-          if(Math.abs(t.clientX-dx0)>10||Math.abs(t.clientY-dy0)>10){cleanup();src.current=null;lastHoverTab.current=null;}
-          return; // never preventDefault while waiting → native scroll stays alive
-        }
-        if(!getT(ev.changedTouches))return; // our finger didn't move → let other fingers scroll
-        if(!t)return;
-        curX=t.clientX; curY=t.clientY;
-        ev.preventDefault();
-        if(clone.current){clone.current.style.left=(t.clientX-startX.current)+'px';clone.current.style.top=(t.clientY-startY.current)+'px';clone.current.style.pointerEvents='none';}
-        updateHighlight(t.clientX,t.clientY);
-      };
-      const endH=(ev)=>{
-        const t=getT(ev.changedTouches);
-        if(!t)return; // a different finger lifted; keep dragging
-        cleanup();
-        if(!dragStarted){src.current=null;lastHoverTab.current=null;return;}
-        const el=document.elementFromPoint(t.clientX,t.clientY);
-        const row=el&&el.closest('[data-dnd-id]');
-        const targetId=row?.dataset?.dndId;
-        clearClone();
-        lastHoverTab.current=null;
-        if(who&&selfZone){const zEl=el&&el.closest("[data-dnd-zone]");const tz=zEl?_xParseZone(zEl.getAttribute("data-dnd-zone")):null;if(tz&&tz.zone!==selfZone){if(_xDrop(who,tz.zone,targetId||null,tz.dayKey)){src.current=null;return;}}if(_XDRAG[who])_XDRAG[who].infoRef.current=null;}
-        if(targetId&&targetId!==src.current)reorder(src.current,targetId);
-        src.current=null;
-      };
-      src.current=id; lastHoverTab.current=null;
-      lpTimer=setTimeout(beginDrag,200);
-      document.addEventListener('touchmove',moveH,{passive:false});
-      document.addEventListener('touchend',endH);
-      document.addEventListener('touchcancel',endH);
-    },
-    onTouchMove(e) {},
-    onTouchEnd(e) {},
-  }), [setItems]);
-
-  const getRowProps = useCallback((id) => ({'data-dnd-id': id}), []);
-
-  return { getTouchHandlers, getRowProps };
-}
-
-// ── Touch reorder for per-day task lists (Veda) ───────────────────────────
-function useTouchReorderByDay(setData, accentColor, who) {
-  const src = useRef(null);
-  const srcDay = useRef(null);
-  const clone = useRef(null);
-  const lastTarget = useRef(null);
-  const startY = useRef(0);
-  const startX = useRef(0);
-  const lastHoverTab = useRef(null);
-  const downX = useRef(0);
-  const downY = useRef(0);
-  const dragStarted = useRef(false);
-
-  function makeClone(touchEl, touch) {
-    const row = touchEl.closest('[data-dnd-id]') || touchEl.parentElement;
-    const rect = row ? row.getBoundingClientRect() : touchEl.getBoundingClientRect();
-    const el = document.createElement('div');
-    el.textContent = row ? (row.querySelector('[data-dnd-label]')?.textContent || row.textContent.replace(/[⠿✎×]/g,'').trim().slice(0,40)) : '…';
-    el.style.cssText = `position:fixed;z-index:9999;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;background:rgba(141,118,154,0.18);border:1.5px solid ${accentColor||'#8D769A'};border-radius:4px;padding:7px 12px;font-size:13px;font-weight:700;color:${accentColor||'#8D769A'};pointer-events:none;box-shadow:0 4px 18px rgba(0,0,0,0.3);backdrop-filter:blur(2px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
-    document.body.appendChild(el);
-    clone.current = el;
-    startY.current = touch.clientY - rect.top;
-    startX.current = touch.clientX - rect.left;
-  }
-
-  function clearClone() {
-    if (clone.current) { clone.current.remove(); clone.current = null; }
-    if (lastTarget.current) { lastTarget.current.style.outline = ''; lastTarget.current.style.outlineOffset = ''; lastTarget.current = null; }
-  }
-
-  function reorder(k, srcId, targetId) {
-    if (!srcId || !targetId || srcId === targetId) return;
-    setData(prev => {
-      const arr = [...(prev[k] || [])];
-      const si = arr.findIndex(x => x.id === srcId);
-      const ti = arr.findIndex(x => x.id === targetId);
-      if (si < 0 || ti < 0) return prev;
-      const [item] = arr.splice(si, 1);
-      arr.splice(ti, 0, item);
-      return { ...prev, [k]: arr };
-    });
-  }
-
-  // Long-press to pick up, then drag. Holding still ~200ms arms the drag; moving
-  // before that scrolls the page (drag never starts) so taps on the checkbox /
-  // edit / delete buttons and list scrolling still work. Once dragging, only the
-  // drag finger's moves are captured — a SECOND finger can scroll the page or tap
-  // another day to bring it under the drag finger, then lift to drop there.
-  const getTaskTouchHandlers = useCallback((k, id) => ({
-    onTouchStart(e) {
-      const t0=e.changedTouches[0]; if(!t0) return; // the finger that just touched down
-      const touchId=t0.identifier;
-      const rowEl=e.currentTarget;
-      // While this finger is down the phone must not run its own gesture on the
-      // row: a native HTML5 drag (rows are draggable for the mouse), the long-press
-      // menu or text selection each fire touchcancel and kill this drag.
-      const wasDraggable=rowEl.draggable, prevSel=rowEl.style.webkitUserSelect, prevCallout=rowEl.style.webkitTouchCallout;
-      rowEl.draggable=false; rowEl.style.webkitUserSelect='none'; rowEl.style.webkitTouchCallout='none';
-      const noMenu=ev=>ev.preventDefault();
-      document.addEventListener('contextmenu',noMenu,true);
-      const dx0=t0.clientX, dy0=t0.clientY;
-      let curX=dx0, curY=dy0;
-      let started=false, lpTimer=null;
-      const getT=(list)=>{for(let i=0;i<list.length;i++)if(list[i].identifier===touchId)return list[i];return null;};
-      const highlight=(x,y)=>{
-        const el=document.elementFromPoint(x,y);
-        const row=el&&el.closest('[data-dnd-id]');
-        if(lastTarget.current&&lastTarget.current!==row){lastTarget.current.style.outline='';lastTarget.current.style.outlineOffset='';}
-        if(row&&row.dataset.dndId!==src.current){row.style.outline=`2px solid ${accentColor||'#8D769A'}`;row.style.outlineOffset='-1px';lastTarget.current=row;}
-      };
-      const cleanup=()=>{
-        if(lpTimer){clearTimeout(lpTimer);lpTimer=null;}
-        rowEl.draggable=wasDraggable; rowEl.style.webkitUserSelect=prevSel; rowEl.style.webkitTouchCallout=prevCallout;
-        document.removeEventListener('contextmenu',noMenu,true);
-        document.removeEventListener('touchmove',moveH,{passive:false});
-        document.removeEventListener('touchend',endH);
-        document.removeEventListener('touchcancel',endH);
-      };
-      const beginDrag=()=>{
-        lpTimer=null; started=true; dragStarted.current=true;
-        if(who)_xStart(who,"week",id,k);
-        makeClone(rowEl,{clientX:curX,clientY:curY});
-        if(clone.current){clone.current.style.left=(curX-startX.current)+'px';clone.current.style.top=(curY-startY.current)+'px';clone.current.style.pointerEvents='none';}
-        try{navigator.vibrate&&navigator.vibrate(15);}catch(_){}
-        highlight(curX,curY);
-      };
-      const moveH=(ev)=>{
-        const t=getT(ev.touches);
-        if(!started){
-          if(!t)return;
-          curX=t.clientX; curY=t.clientY;
-          if(Math.abs(t.clientX-dx0)>10||Math.abs(t.clientY-dy0)>10){cleanup();src.current=null;srcDay.current=null;}
-          return; // never preventDefault while waiting → native scroll stays alive
-        }
-        if(!getT(ev.changedTouches))return; // our finger didn't move → let other fingers scroll
-        if(!t)return;
-        curX=t.clientX; curY=t.clientY;
-        ev.preventDefault();
-        if(clone.current){clone.current.style.left=(t.clientX-startX.current)+'px';clone.current.style.top=(t.clientY-startY.current)+'px';clone.current.style.pointerEvents='none';}
-        highlight(t.clientX,t.clientY);
-      };
-      const endH=(ev)=>{
-        const t=getT(ev.changedTouches);
-        if(!t)return; // a different finger lifted; keep dragging
-        cleanup();
-        if(!started){src.current=null;srcDay.current=null;return;}
-        dragStarted.current=false;
-        const el=document.elementFromPoint(t.clientX,t.clientY);
-        const row=el&&el.closest('[data-dnd-id]');
-        const targetId=row?.dataset?.dndId;
-        const dk=srcDay.current;
-        clearClone();
-        if(who){const zEl=el&&el.closest('[data-dnd-zone]');const tz=zEl?_xParseZone(zEl.getAttribute('data-dnd-zone')):null;if(tz&&(tz.zone!=="week"||tz.dayKey!==dk)){if(_xDrop(who,tz.zone,targetId||null,tz.dayKey)){src.current=null;srcDay.current=null;return;}}if(_XDRAG[who])_XDRAG[who].infoRef.current=null;}
-        if(targetId&&targetId!==src.current&&dk)reorder(dk,src.current,targetId);
-        src.current=null; srcDay.current=null;
-      };
-      src.current=id; srcDay.current=k; dragStarted.current=false;
-      lpTimer=setTimeout(beginDrag,200);
-      document.addEventListener('touchmove',moveH,{passive:false});
-      document.addEventListener('touchend',endH);
-      document.addEventListener('touchcancel',endH);
-    },
-    onTouchMove(e) {},
-    onTouchEnd(e) {},
-  }), [setData]);
-
-  const getTaskRowProps = useCallback((id) => ({'data-dnd-id': id}), []);
-
-  return { getTaskTouchHandlers, getTaskRowProps };
-}
-
 const DOW=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 const DS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const MO=["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -15903,7 +15315,6 @@ function App(){
   const[rulesDaily,setRulesDailyStateRaw]=useState(()=>({...RULES_DAILY_DEF,...(init.rulesDaily||{})}));
   const[rulesOpen,setRulesOpen]=useState(null);   // null | "gate" | "manage"
   const[goalTab,setGoalTab]=useState("short");
-  useEffect(()=>{window._vGoalTabHover=(tab)=>{setGoalTab(tab);};return()=>{delete window._vGoalTabHover;};},[]);
   const[marketCal,setMarketCal]=useState([]);
   const[mo,setMo]=useState(false);
   const[mdt,setMdt]=useState(null);
@@ -16702,101 +16113,37 @@ function App(){
   const delH=useCallback(id=>{habSyncNotif({id},"veda");setHabits(p=>p.filter(h=>h.id!==id));},[]);
   const addH=useCallback(()=>{if(!nht.trim())return;setHabits(p=>[...p,{id:uid(),title:nht.trim()}]);setNht("");},[nht]);
 
-  // ── Drag-reorder (Veda) ───────────────────────────────────────────────────
-  const vdDragSrc=useRef(null);
-  const vdDragType=useRef(null);
-  const vdDragDay=useRef(null);
+  // ── Drag and drop (Veda): the handlers behind thDragRef (one A1Drag group) ──
   const vdDragInfo=useRef(null);
-  const vCrossMoveRef=useRef(null);
-  const [vdDragOverId,setVdDragOverId]=useState(null);
-  const vgrip={fontSize:13,color:"#6b6b7a",cursor:"grab",padding:"0 3px",userSelect:"none",touchAction:"none",flexShrink:0,lineHeight:1,opacity:1,position:"relative",zIndex:1};
-  const vgripM=()=>({...vgrip,fontSize:vrMobile?20:13,padding:vrMobile?"0 8px":"0 3px",minWidth:vrMobile?32:undefined,minHeight:vrMobile?32:undefined,display:"inline-flex",alignItems:"center",justifyContent:"center"});
-  const vdndAC="#B47BFF";
-  const vdndRowStyle=(id,base)=>(!vrMobile&&vdDragOverId===id)?{...base,opacity:1,outline:"2px solid "+vdndAC,outlineOffset:"-1px",borderRadius:4}:base;
-  const vdndDayStyle=(k,base)=>(!vrMobile&&vdDragOverId==="day-"+k)?{...base,boxShadow:"inset 0 0 0 2px "+vdndAC}:base;
-
-  // Touch reorder for habits and goals
-  const {getTouchHandlers:habitTouchH,getRowProps:habitRowP}=useTouchReorder(habits,setHabits,"veda","habit");
-  const {getTouchHandlers:goalTouchH,getRowProps:goalRowP}=useTouchReorder(mg,setMg,"veda","goal");
-  const {getTouchHandlers:goalMTouchH,getRowProps:goalMRowP}=useTouchReorder(mgMonthly,setMgMonthly,"veda","goalm");
-  const {getTaskTouchHandlers:taskTouchH,getTaskRowProps:taskRowP}=useTouchReorderByDay(setData,A,"veda");
-  const vOnDragStartTask=(e,k,id)=>{vdDragType.current="task";vdDragDay.current=k;vdDragSrc.current=id;vdDragInfo.current={zone:"week",id,dayKey:k};e.dataTransfer.effectAllowed="move";};
-  const vOnDragOverTask=(e,id)=>{e.preventDefault();e.stopPropagation();e.dataTransfer.dropEffect="move";if(!vrMobile)setVdDragOverId(id);};
-  const vOnDropTask=(e,k,targetId)=>{
-    e.preventDefault();
-    e.stopPropagation();
-    setVdDragOverId(null);
-    if(vdDragInfo.current&&vdDragInfo.current.zone!=="week"){vCrossMoveRef.current&&vCrossMoveRef.current("week",targetId,k);vdDragInfo.current=null;return;}
-    if(vdDragType.current!=="task")return;
-    const srcKey=vdDragDay.current,srcId=vdDragSrc.current;
-    if(srcKey===k){
-      if(srcId===targetId)return;
-      setData(prev=>{const arr=[...(prev[k]||[])];const si=arr.findIndex(t=>t.id===srcId),ti=arr.findIndex(t=>t.id===targetId);if(si<0||ti<0)return prev;const[item]=arr.splice(si,1);arr.splice(ti,0,item);return{...prev,[k]:arr};});
-    }else if(_plGuard(vdRef.current.data[srcKey],srcId,'This is a shared plan — change its date in Add → Plan.')){
-      // Reordering within a day is hers to keep; the DATE belongs to
-      // dashboards/plans, so a cross-day move would just be reconciled back.
-      return;
-    }else{
-      setData(prev=>{const srcArr=[...(prev[srcKey]||[])];const destArr=[...(prev[k]||[])];const si=srcArr.findIndex(t=>t.id===srcId);if(si<0)return prev;const[item]=srcArr.splice(si,1);const ti=destArr.findIndex(t=>t.id===targetId);if(ti<0)destArr.push(item);else destArr.splice(ti,0,item);return{...prev,[srcKey]:srcArr,[k]:destArr};});
-    }
-  };
-  const vOnDropDay=(e,k)=>{
-    e.preventDefault();
-    setVdDragOverId(null);
-    if(vdDragInfo.current&&vdDragInfo.current.zone!=="week"){vCrossMoveRef.current&&vCrossMoveRef.current("week",null,k);vdDragInfo.current=null;return;}
-    if(vdDragType.current!=="task"||vdDragDay.current===k)return;
-    const srcKey=vdDragDay.current,srcId=vdDragSrc.current;
-    if(_plGuard(vdRef.current.data[srcKey],srcId,'This is a shared plan — change its date in Add → Plan.'))return;
-    setData(prev=>{const srcArr=[...(prev[srcKey]||[])];const destArr=[...(prev[k]||[])];const si=srcArr.findIndex(t=>t.id===srcId);if(si<0)return prev;const[item]=srcArr.splice(si,1);destArr.push(item);return{...prev,[srcKey]:srcArr,[k]:destArr};});
-  };
-  const vOnDragStartHabit=(e,id)=>{vdDragType.current="habit";vdDragSrc.current=id;vdDragInfo.current={zone:"habit",id};e.dataTransfer.effectAllowed="move";};
-  const vOnDropHabit=(e,targetId)=>{
-    e.preventDefault();
-    e.stopPropagation();
-    setVdDragOverId(null);
-    if(vdDragInfo.current&&vdDragInfo.current.zone!=="habit"){vCrossMoveRef.current&&vCrossMoveRef.current("habit",targetId);vdDragInfo.current=null;return;}
-    if(vdDragType.current!=="habit"||vdDragSrc.current===targetId)return;
-    const srcId=vdDragSrc.current;
-    setHabits(prev=>{
-      const arr=[...prev];
-      const si=arr.findIndex(h=>h.id===srcId),ti=arr.findIndex(h=>h.id===targetId);
-      if(si<0||ti<0)return prev;
-      const[item]=arr.splice(si,1);arr.splice(ti,0,item);
-      return arr;
-    });
-  };
-  const vOnDragStartGoal=(e,id)=>{vdDragType.current="goal";vdDragSrc.current=id;vdDragInfo.current={zone:"goal",id};e.dataTransfer.effectAllowed="move";};
-  const vOnDropGoal=(e,targetId)=>{
-    e.preventDefault();
-    e.stopPropagation();
-    setVdDragOverId(null);
-    if(vdDragInfo.current&&vdDragInfo.current.zone!=="goal"){vCrossMoveRef.current&&vCrossMoveRef.current("goal",targetId);vdDragInfo.current=null;return;}
-    if(vdDragType.current!=="goal"||vdDragSrc.current===targetId)return;
-    const srcId=vdDragSrc.current;
-    setMg(prev=>{
-      const arr=[...prev];
-      const si=arr.findIndex(g=>g.id===srcId),ti=arr.findIndex(g=>g.id===targetId);
-      if(si<0||ti<0)return prev;
-      const[item]=arr.splice(si,1);arr.splice(ti,0,item);
-      return arr;
-    });
-  };
-  const vOnDragStartGoalM=(e,id)=>{vdDragType.current="goalm";vdDragSrc.current=id;vdDragInfo.current={zone:"goalm",id};e.dataTransfer.effectAllowed="move";};
-  const vOnDropGoalM=(e,targetId)=>{
-    e.preventDefault();
-    e.stopPropagation();
-    setVdDragOverId(null);
-    if(vdDragInfo.current&&vdDragInfo.current.zone!=="goalm"){vCrossMoveRef.current&&vCrossMoveRef.current("goalm",targetId);vdDragInfo.current=null;return;}
-    if(vdDragType.current!=="goalm"||vdDragSrc.current===targetId)return;
-    const srcId=vdDragSrc.current;
-    setMgMonthly(prev=>{
-      const arr=[...prev];
-      const si=arr.findIndex(g=>g.id===srcId),ti=arr.findIndex(g=>g.id===targetId);
-      if(si<0||ti<0)return prev;
-      const[item]=arr.splice(si,1);arr.splice(ti,0,item);
-      return arr;
-    });
-  };
+  const vdEditRef=useRef(edit);vdEditRef.current=edit;
+  const thDragVars={"--ds-ac":A,"--ds-s2":"#303135","--ds-tx":TX,"--ds-txm":TXM};
+  const thDragList={...thDragVars,display:"flex",flexDirection:"column",flexGrow:edit?1:0,minHeight:edit?28:0};
+  const thDrag={edit:()=>vdEditRef.current,
+    reorder:(zone,ids)=>{
+      const z=_xParseZone(zone);
+      if(z.zone==="week")setData(prev=>({...prev,[z.dayKey]:thApplyOrder(prev[z.dayKey]||[],ids)}));
+      else if(z.zone==="habit")setHabits(prev=>thApplyOrder(prev,ids));
+      else if(z.zone==="goal")setMg(prev=>thApplyOrder(prev,ids));
+      else if(z.zone==="goalm")setMgMonthly(prev=>thApplyOrder(prev,ids));
+    },
+    move:(fromZone,id,toZone,beforeId)=>{
+      const f=_xParseZone(fromZone),t=_xParseZone(toZone);
+      if(f.zone===t.zone&&f.dayKey===t.dayKey)return;   // a goals tab of the list it came from
+      if(f.zone==="week"&&t.zone==="week"){
+        // Reordering within a day is hers to keep; the DATE belongs to
+        // dashboards/plans, so a cross-day move would just be reconciled back.
+        if(_plGuard(vdRef.current.data[f.dayKey],id,'This is a shared plan — change its date in Add → Plan.'))return;
+        setData(prev=>{const sa=[...(prev[f.dayKey]||[])],da=[...(prev[t.dayKey]||[])];const si=sa.findIndex(x=>String(x.id)===id);if(si<0)return prev;const[it]=sa.splice(si,1);const ti=beforeId==null?-1:da.findIndex(x=>String(x.id)===beforeId);if(ti<0)da.push(it);else da.splice(ti,0,it);return{...prev,[f.dayKey]:sa,[t.dayKey]:da};});
+        return;
+      }
+      const src=_vFindCross(f.zone,id,f.dayKey)||_vFindCross(f.zone,Number(id),f.dayKey);
+      if(!src)return;
+      vdDragInfo.current={zone:f.zone,id:src.id,dayKey:f.dayKey};
+      const r=vdRef.current;
+      const tgt=beforeId==null?null:((t.zone==="week"?(r.data[t.dayKey]||[]):t.zone==="habit"?r.habits:t.zone==="goal"?r.mg:r.mgMonthly)||[]).find(x=>String(x.id)===beforeId);
+      vCrossMove(t.zone,tgt?tgt.id:null,t.dayKey);
+      vdDragInfo.current=null;
+    }};
   // ── Veda CROSS-LIST DRAG ──
   const _vFindCross=(zone,id,dayKey)=>{
     const s=vdRef.current;
@@ -16823,8 +16170,6 @@ function App(){
     else if(destZone==="goal"){const ni=_vToGoal(item);setMg(prev=>{const arr=[...prev];const ti=targetId?arr.findIndex(x=>x.id===targetId):-1;if(ti<0)arr.push(ni);else arr.splice(ti,0,ni);return arr;});}
     else if(destZone==="goalm"){const ni=_vToGoal(item);setMgMonthly(prev=>{const arr=[...prev];const ti=targetId?arr.findIndex(x=>x.id===targetId):-1;if(ti<0)arr.push(ni);else arr.splice(ti,0,ni);return arr;});}
   },[setData,setHabits,setMg,setMgMonthly]);
-  vCrossMoveRef.current=vCrossMove;
-  _xRegister("veda",vCrossMove,vdDragInfo);
   const renameH=useCallback((id,title)=>setHabits(prev=>prev.map(h=>h.id===id?{...h,title}:h)),[setHabits]);
   // Title + reminder in one save (see Tony's saveHabit). Scoped to 'veda' so the
   // push only reaches devices with Veda's TaskHub as their main dashboard.
@@ -17130,7 +16475,7 @@ function App(){
             // Same rule as Tony's: only today is live, the rest recedes.
             const dayTX=td?TX:TXD;
             const dimA=vdDim(td);
-            return RC("div",{"data-dnd-zone":"week:"+k,style:{background:td?"#303135":BG,border:td?"1px solid "+A:"1px solid "+BD,borderRadius:8,padding:12,minHeight:80,display:"flex",flexDirection:"column"}},
+            return RC("div",{style:{background:td?"#303135":BG,border:td?"1px solid "+A:"1px solid "+BD,borderRadius:8,padding:12,minHeight:80,display:"flex",flexDirection:"column"}},
               edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,borderRadius:4,padding:"9px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
               RC("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8,gap:4}},
                 RC("div",{style:{minWidth:0}},
@@ -17140,6 +16485,7 @@ function App(){
               ts.length>0&&RC("div",{style:{width:"100%",height:3,background:BD,borderRadius:2,marginBottom:8,overflow:"hidden"}},RC("div",{style:{width:p+"%",height:"100%",background:p===100?GRN:"linear-gradient(90deg,"+AD+","+AL+")",borderRadius:2,transition:"width .35s"}})),
               mcRender(mcByDay[k]||[],dayTX),
               CR_rows(crByDay[k],{card:vdEventCard(null,false),profile:"veda",edit:edit,dbtn:dbtn,tx:"#C3B2D0",ac:A,dim:dimA,fit:vdTitleFit}),
+              RC("div",{ref:thDragRef("veda","week:"+k,thDrag),style:thDragList},
               ts.map(t=>t._planId
               /* ── Shared plan ──────────────────────────────────────────────
                  Owned by dashboards/plans, so its CONTENT is inert here: no
@@ -17148,14 +16494,14 @@ function App(){
                  Position is yours though: where a plan sits in your day lives in
                  your own dashboard doc, so it drags like any task and the
                  reconcile keeps the slot. */
-              ?RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdPlanCard(vdPlanOverdue(t,k)),display:"flex",flexDirection:"column",gap:2,marginBottom:5,opacity:t.done?dimA*0.7:(vdPlanOverdue(t,k)?1:dimA),cursor:edit?"grab":"default"})},
+              ?RC("div",{key:t.id,"data-dkey":t.id,style:({...vdPlanCard(vdPlanOverdue(t,k)),display:"flex",flexDirection:"column",gap:2,marginBottom:5,opacity:t.done?dimA*0.7:(vdPlanOverdue(t,k)?1:dimA),cursor:edit?"grab":"default"})},
                 RC("div",{style:{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}},
                   t.done&&RC(PlanCheck,{size:11,color:PLAN_GRN_VEDA}),
                   RC("span",{style:vdPlanTag},"Plan"),
                   vdPlanOverdue(t,k)&&RC("span",{style:vdOverTag},"Overdue"),
                   t.time&&RC("span",{style:{fontSize:9,fontWeight:700,color:A,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
                 RC("span",{style:{fontSize:14,fontWeight:t.done?500:700,color:t.done?TXM:(vdPlanOverdue(t,k)?TX:dayTX),textDecoration:t.done?"line-through":"none",lineHeight:1.4,...vdTitleFit}},t.title))
-              :RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdTaskCard(t.done,td),...vdSosSpine(t),display:"flex",alignItems:"flex-start",gap:7,marginBottom:5,opacity:t.done?.45:1,cursor:edit?"grab":"default"})},
+              :RC("div",{key:t.id,"data-dkey":t.id,style:({...vdTaskCard(t.done,td),...vdSosSpine(t),display:"flex",alignItems:"flex-start",gap:7,marginBottom:5,opacity:t.done?.45:1,cursor:edit?"grab":"default"})},
                                 RC("div",{onClick:()=>tog(k,t.id),style:{width:16,height:16,minWidth:16,borderRadius:3,border:"2px solid "+(t.done?CC[t.category]||TXM:TXM),background:t.done?CC[t.category]||TXM:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&RC(Chk,{s:9})),
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 !edit&&RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:5,marginBottom:1}},
@@ -17167,7 +16513,7 @@ function App(){
                 !edit&&t.aiPrep&&!t._sosId&&vdPrepBtn(t,k),
                 edit&&RC("button",{type:"button",title:"Edit",style:vdIcoBtn(TXD),onClick:()=>{setEi(t);setMdt(k);setMo(true);}},vdIco(TNI.pencil)),
                 edit&&RC("button",{type:"button",title:"Delete",style:vdIcoBtn("#f85149"),onClick:()=>del(k,t.id)},vdIco(TNI.x)))),
-              ev.map(e=>RC("div",{key:e.id,...taskRowP(e.id),...(edit?taskTouchH(k,e.id):{}),draggable:edit,onDragStart:edit?ev2=>vOnDragStartTask(ev2,k,e.id):null,onDragOver:edit?ev2=>vOnDragOverTask(ev2,e.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?ev2=>vOnDropTask(ev2,k,e.id):null,style:vdndRowStyle(e.id,{...vdEventCard(e.category,vdEvtPassed(e,k)),...vdSosSpine(e,vdEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:7,marginBottom:4,opacity:vdEvtPassed(e,k)?0.5:dimA,cursor:edit?"grab":"default"})},
+              ev.map(e=>RC("div",{key:e.id,"data-dkey":e.id,style:({...vdEventCard(e.category,vdEvtPassed(e,k)),...vdSosSpine(e,vdEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:7,marginBottom:4,opacity:vdEvtPassed(e,k)?0.5:dimA,cursor:edit?"grab":"default"})},
                                 RC("div",{style:{width:6,height:6,borderRadius:"50%",background:CC[e.category]||AL,marginTop:5,flexShrink:0}}),
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:5,marginBottom:1}},
@@ -17179,7 +16525,7 @@ function App(){
                 !edit&&sosResFor(e)&&RC("button",{type:"button",title:sosResTitle(sosResFor(e)),style:vdIcoBtn(sosPastel(e._sosClassColor)||A),onClick:ev3=>{ev3.stopPropagation();window._sosLaunchClassClick&&window._sosLaunchClassClick(e._sosClassId,e._sosClassName);}},vdIco(TNI.play,12)),
                 !edit&&e.aiPrep&&!e._sosId&&vdPrepBtn(e,k),
                 edit&&RC("button",{type:"button",title:"Edit",style:vdIcoBtn(TXD),onClick:()=>{setEi(e);setMdt(k);setMo(true);}},vdIco(TNI.pencil)),
-                edit&&RC("button",{type:"button",title:"Delete",style:vdIcoBtn("#f85149"),onClick:()=>del(k,e.id)},vdIco(TNI.x)))),
+                edit&&RC("button",{type:"button",title:"Delete",style:vdIcoBtn("#f85149"),onClick:()=>del(k,e.id)},vdIco(TNI.x))))),
               !it.length&&!(mcByDay[k]||[]).length&&!(crByDay[k]||[]).length&&!edit&&RC("div",{style:{fontSize:11,fontWeight:600,color:TXM,textAlign:"center",padding:"24px 0"}},"—"),
               edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,borderRadius:4,padding:"9px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"));
           })())
@@ -17194,7 +16540,7 @@ function App(){
             // Same rule as Tony's: only today is live, the rest recedes.
             const dayTX=td?TX:TXD;
             const dimA=vdDim(td);
-            return RC("div",{key:k,"data-dnd-zone":"week:"+k,onDragOver:edit?e=>{e.preventDefault();e.dataTransfer.dropEffect="move";if(!vrMobile)setVdDragOverId("day-"+k);}:null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropDay(e,k):null,style:vdndDayStyle(k,{background:td?"#303135":BG,border:td?"1px solid "+A:"1px solid "+BD,borderRadius:6,padding:"8px 8px",minHeight:150,display:"flex",flexDirection:"column"})},
+            return RC("div",{key:k,style:({background:td?"#303135":BG,border:td?"1px solid "+A:"1px solid "+BD,borderRadius:6,padding:"8px 8px",minHeight:150,display:"flex",flexDirection:"column"})},
               edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,borderRadius:4,padding:"4px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
               RC("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}},
                 RC("div",null,
@@ -17204,17 +16550,18 @@ function App(){
               ts.length>0&&RC("div",{style:{width:"100%",height:3,background:BD,borderRadius:2,marginBottom:7,overflow:"hidden"}},RC("div",{style:{width:p+"%",height:"100%",background:p===100?GRN:"linear-gradient(90deg,"+AD+","+AL+")",borderRadius:2,transition:"width .35s"}})),
               mcRender(mcByDay[k]||[],dayTX),
               CR_rows(crByDay[k],{card:vdEventCard(null,false),profile:"veda",edit:edit,dbtn:dbtn,tx:"#C3B2D0",ac:A,dim:dimA,fit:vdTitleFit,compact:true}),
+              RC("div",{ref:thDragRef("veda","week:"+k,thDrag),style:thDragList},
               ts.map(t=>t._planId
               /* Shared plan — content inert, position draggable; same rule as the
                  single-day list. */
-              ?RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdPlanCard(vdPlanOverdue(t,k)),display:"flex",flexDirection:"column",gap:2,marginBottom:4,opacity:t.done?dimA*0.7:(vdPlanOverdue(t,k)?1:dimA),cursor:edit?"grab":"default"})},
+              ?RC("div",{key:t.id,"data-dkey":t.id,style:({...vdPlanCard(vdPlanOverdue(t,k)),display:"flex",flexDirection:"column",gap:2,marginBottom:4,opacity:t.done?dimA*0.7:(vdPlanOverdue(t,k)?1:dimA),cursor:edit?"grab":"default"})},
                 RC("div",{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}},
                   t.done&&RC(PlanCheck,{size:10,color:PLAN_GRN_VEDA}),
                   RC("span",{style:vdPlanTag},"Plan"),
                   vdPlanOverdue(t,k)&&RC("span",{style:vdOverTag},"Overdue"),
                   t.time&&RC("span",{style:{fontSize:9,fontWeight:700,color:A,opacity:.85,marginLeft:"auto",whiteSpace:"nowrap"}},fmt12h(t.time,k,t.tz))),
                 RC("span",{style:{fontSize:12,fontWeight:t.done?500:700,color:t.done?TXM:(vdPlanOverdue(t,k)?TX:dayTX),textDecoration:t.done?"line-through":"none",lineHeight:1.35,...vdTitleFit}},t.title))
-              :RC("div",{key:t.id,...taskRowP(t.id),...(edit?taskTouchH(k,t.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartTask(e,k,t.id):null,onDragOver:edit?e=>vOnDragOverTask(e,t.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropTask(e,k,t.id):null,style:vdndRowStyle(t.id,{...vdTaskCard(t.done,td),...vdSosSpine(t),display:"flex",alignItems:"flex-start",gap:6,marginBottom:4,opacity:t.done?.45:1,cursor:edit?"grab":"default"})},
+              :RC("div",{key:t.id,"data-dkey":t.id,style:({...vdTaskCard(t.done,td),...vdSosSpine(t),display:"flex",alignItems:"flex-start",gap:6,marginBottom:4,opacity:t.done?.45:1,cursor:edit?"grab":"default"})},
                                 RC("div",{onClick:()=>tog(k,t.id),style:{width:14,height:14,minWidth:14,borderRadius:3,border:"2px solid "+(t.done?CC[t.category]||TXM:TXM),background:t.done?CC[t.category]||TXM:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},t.done&&RC(Chk,{s:8})),
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 !edit&&RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:5,marginBottom:1}},
@@ -17226,7 +16573,7 @@ function App(){
                 !edit&&t.aiPrep&&!t._sosId&&vdPrepBtn(t,k),
                 edit&&RC("button",{type:"button",title:"Edit",style:vdIcoBtn(TXD),onClick:()=>{setEi(t);setMdt(k);setMo(true);}},vdIco(TNI.pencil)),
                 edit&&RC("button",{type:"button",title:"Delete",style:vdIcoBtn("#f85149"),onClick:()=>del(k,t.id)},vdIco(TNI.x)))),
-              ev.map(e=>RC("div",{key:e.id,...taskRowP(e.id),...(edit?taskTouchH(k,e.id):{}),draggable:edit,onDragStart:edit?ev2=>vOnDragStartTask(ev2,k,e.id):null,onDragOver:edit?ev2=>vOnDragOverTask(ev2,e.id):null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?ev2=>vOnDropTask(ev2,k,e.id):null,style:vdndRowStyle(e.id,{...vdEventCard(e.category,vdEvtPassed(e,k)),...vdSosSpine(e,vdEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:6,marginBottom:4,opacity:vdEvtPassed(e,k)?0.5:dimA,cursor:edit?"grab":"default"})},
+              ev.map(e=>RC("div",{key:e.id,"data-dkey":e.id,style:({...vdEventCard(e.category,vdEvtPassed(e,k)),...vdSosSpine(e,vdEvtPassed(e,k)),display:"flex",alignItems:"flex-start",gap:6,marginBottom:4,opacity:vdEvtPassed(e,k)?0.5:dimA,cursor:edit?"grab":"default"})},
                                 RC("div",{style:{width:6,height:6,borderRadius:"50%",background:CC[e.category]||AL,marginTop:5,flexShrink:0}}),
                 RC("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
                 RC("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:5,marginBottom:1}},
@@ -17238,13 +16585,13 @@ function App(){
                 !edit&&sosResFor(e)&&RC("button",{type:"button",title:sosResTitle(sosResFor(e)),style:vdIcoBtn(sosPastel(e._sosClassColor)||A),onClick:ev3=>{ev3.stopPropagation();window._sosLaunchClassClick&&window._sosLaunchClassClick(e._sosClassId,e._sosClassName);}},vdIco(TNI.play,12)),
                 !edit&&e.aiPrep&&!e._sosId&&vdPrepBtn(e,k),
                 edit&&RC("button",{type:"button",title:"Edit",style:vdIcoBtn(TXD),onClick:()=>{setEi(e);setMdt(k);setMo(true);}},vdIco(TNI.pencil)),
-                edit&&RC("button",{type:"button",title:"Delete",style:vdIcoBtn("#f85149"),onClick:()=>del(k,e.id)},vdIco(TNI.x)))),
+                edit&&RC("button",{type:"button",title:"Delete",style:vdIcoBtn("#f85149"),onClick:()=>del(k,e.id)},vdIco(TNI.x))))),
               !it.length&&!(mcByDay[k]||[]).length&&!(crByDay[k]||[]).length&&!edit&&RC("div",{style:{fontSize:11,fontWeight:600,color:TXM,textAlign:"center",padding:"30px 0"}},"—"),
               edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,borderRadius:4,padding:"4px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"))})))),
 
     // ── Bottom panels ──
     RC("div",{style:{display:"grid",gridTemplateColumns:vrMobile?"1fr":"minmax(0,4fr) minmax(0,2.5fr) minmax(0,4fr)",gap:10}},
-      RC("div",{"data-dnd-zone":"habit",style:{...sec,display:"flex",flexDirection:"column",minHeight:280},onDragOver:edit?e=>{if(vdDragInfo.current&&vdDragInfo.current.zone!=="habit"){e.preventDefault();e.dataTransfer.dropEffect="move";}}:null,onDrop:edit?e=>{if(vdDragInfo.current&&vdDragInfo.current.zone!=="habit"){e.preventDefault();vCrossMoveRef.current&&vCrossMoveRef.current("habit",null);vdDragInfo.current=null;}}:null},
+      RC("div",{style:{...sec,display:"flex",flexDirection:"column",minHeight:280}},
         RC("div",{style:{...stt,display:"flex",justifyContent:"space-between",alignItems:"center"}},RC("span",null,"DAILY HABITS"),RC("span",{style:{fontSize:9,fontWeight:600,color:TXM,textTransform:"none",letterSpacing:0,fontStyle:"normal",fontFamily:"var(--font-accent)"}},"Resets every Monday")),
         RC("div",{style:{display:edit?"flex":"none",gap:5,marginBottom:8,flexShrink:0}},
           RC("input",{style:{...inp,flex:1},placeholder:"New habit...",value:nht,onChange:e=>setNht(e.target.value),onKeyDown:e=>{if(e.key==="Enter")addH();}}),
@@ -17258,7 +16605,7 @@ function App(){
               RC("th",{style:{textAlign:"left",fontSize:9,color:TXM,fontWeight:700,textTransform:"uppercase",letterSpacing:1,paddingBottom:5,paddingLeft:4,width:"100%"}},""),
               ...DS.map((d,di)=>{const isTd=dkey(wd[di].year,wd[di].month,wd[di].day)===tk;return RC("th",{key:d,style:{textAlign:"center",fontSize:10,color:isTd?TX:TXD,fontWeight:700,paddingBottom:5,width:28,borderLeft:isTd?habTodayRule:undefined,borderRight:isTd?habTodayRule:undefined}},d.charAt(0));}),
               RC("th",{style:{width:edit?62:0,padding:0,overflow:"hidden",visibility:edit?"visible":"hidden"}}))),
-            RC("tbody",null,habits.map((h,hi)=>RC("tr",{key:h.id,...habitRowP(h.id),...(edit?habitTouchH(h.id):{}),draggable:edit,onDragStart:edit?e=>vOnDragStartHabit(e,h.id):null,onDragOver:edit?e=>{e.preventDefault();if(!vrMobile)setVdDragOverId(h.id);}:null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>vOnDropHabit(e,h.id):null,style:{cursor:edit?"grab":"default",outline:(!vrMobile&&vdDragOverId===h.id)?"2px solid "+A:"none",outlineOffset:"-1px"}},
+            RC("tbody",{ref:thDragRef("veda","habit",thDrag),style:thDragVars},habits.map((h,hi)=>RC("tr",{key:h.id,"data-dkey":h.id,style:{cursor:edit?"grab":"default"}},
               RC("td",{style:{fontSize:12,fontWeight:600,color:TXD,paddingLeft:4,paddingTop:6,paddingBottom:6,overflowWrap:"break-word",wordBreak:"break-word",width:"100%",borderBottom:"1px solid "+BD+"44"}},
                                 h.title,
                 h.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85,whiteSpace:"nowrap",marginLeft:6},title:habReminderLabel(h)},RC("span",{style:{width:12,height:12,fontSize:12,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}})," "+habTimeLabel(h))),
@@ -17278,17 +16625,15 @@ function App(){
           RC("div",{style:{fontSize:13,fontWeight:700,color:A,marginBottom:4}},(()=>{const d=new Date(sel.year,sel.month,sel.day),dow=d.getDay();return DOW[dow===0?6:dow-1].slice(0,3);})() +", "+MO[sel.month].slice(0,3)+" "+sel.day),
           (()=>{const k=dkey(sel.year,sel.month,sel.day),it=data[k]||[];if(!it.length)return RC("div",{style:{fontSize:11,fontWeight:600,color:TXM}},"No items scheduled");const ts=it.filter(t=>t.type==="task"),ev=it.filter(t=>t.type==="event"),dn=ts.filter(t=>t.done).length;return RC("div",null,RC("div",{style:{fontSize:11,fontWeight:600,color:TXD,marginBottom:4}},ts.length+" task"+(ts.length!==1?"s":"")+" ("+dn+" done) · "+ev.length+" event"+(ev.length!==1?"s":"")),ts.length>0&&RC("div",{style:{width:"100%",height:4,background:BD,borderRadius:2,overflow:"hidden"}},RC("div",{style:{width:Math.round(dn/ts.length*100)+"%",height:"100%",background:dn===ts.length?GRN:"linear-gradient(90deg,"+AD+","+AL+")",borderRadius:2,transition:"width .35s"}})));})())),
 
-      RC("div",{"data-dnd-zone":goalTab==="short"?"goalm":"goal",style:{...sec,display:"flex",flexDirection:"column",minHeight:200},
-        onDragOver:edit?e=>{const z=goalTab==="short"?"goalm":"goal";if(vdDragInfo.current&&vdDragInfo.current.zone!==z){e.preventDefault();e.dataTransfer.dropEffect="move";}}:null,
-        onDrop:edit?e=>{const z=goalTab==="short"?"goalm":"goal";if(vdDragInfo.current&&vdDragInfo.current.zone!==z){e.preventDefault();vCrossMoveRef.current&&vCrossMoveRef.current(z,null);vdDragInfo.current=null;}}:null},
+      RC("div",{style:{...sec,display:"flex",flexDirection:"column",minHeight:200}},
         RC("div",{style:{...stt,display:"flex",gap:14,alignItems:"center",letterSpacing:1}},
-          RC("span",{"data-goal-tab":"short",onClick:()=>setGoalTab("short"),onDragOver:edit?e=>{e.preventDefault();if(vdDragInfo.current&&goalTab!=="short")setGoalTab("short");}:undefined,style:{cursor:"pointer",color:goalTab==="short"?TX:TXM,borderBottom:goalTab==="short"?"2px solid "+A:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Short-Term Goals"),
-          RC("span",{"data-goal-tab":"long",onClick:()=>setGoalTab("long"),onDragOver:edit?e=>{e.preventDefault();if(vdDragInfo.current&&goalTab!=="long")setGoalTab("long");}:undefined,style:{cursor:"pointer",color:goalTab==="long"?TX:TXM,borderBottom:goalTab==="long"?"2px solid "+A:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Long-Term Goals"),
+          RC("span",{"data-goal-tab":"short",ref:thDragRef("veda","goalm",thDrag),onClick:()=>setGoalTab("short"),style:{cursor:"pointer",color:goalTab==="short"?TX:TXM,borderBottom:goalTab==="short"?"2px solid "+A:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Short-Term Goals"),
+          RC("span",{"data-goal-tab":"long",ref:thDragRef("veda","goal",thDrag),onClick:()=>setGoalTab("long"),style:{cursor:"pointer",color:goalTab==="long"?TX:TXM,borderBottom:goalTab==="long"?"2px solid "+A:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Long-Term Goals"),
           RC("button",{type:"button",title:(goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?"Show completed goals":"Hide completed goals",onClick:()=>{const key=goalTab==="short"?"hideShort":"hideLong";setGoalPrefs(p=>({...p,[key]:!p[key]}));},style:{marginLeft:"auto",background:"transparent",border:"1px solid "+BD,borderRadius:4,color:TXM,fontSize:10,fontWeight:700,letterSpacing:0.3,padding:"3px 8px",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",textTransform:"none",transition:"all .15s"}},(goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?"Show Completed":"Hide Completed")),
         edit&&RC("div",{style:{display:"flex",gap:5,marginBottom:8,flexShrink:0}},
           RC("input",{style:{...inp,flex:1},placeholder:goalTab==="short"?"New short-term goal...":"New long-term goal...",value:goalTab==="short"?nmmt:nmt,onChange:e=>(goalTab==="short"?setNmmt:setNmt)(e.target.value),onKeyDown:e=>{if(e.key==="Enter")(goalTab==="short"?addMM:addM)();}}),
           RC("button",{style:sbtn,onClick:goalTab==="short"?addMM:addM},"+")),
-        RC("div",{style:{flex:1,minHeight:(Math.max(mg.length,mgMonthly.length)*37)+"px"}},(()=>{const _gl=goalTab==="short"?mgMonthly:mg,_act=_gl.filter(g=>!g.done);return (goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?_act:[..._act,..._gl.filter(g=>g.done)];})().map(g=>g._planId
+        RC("div",{ref:thDragRef("veda",goalTab==="short"?"goalm":"goal",thDrag),style:{...thDragVars,flex:1,minHeight:(Math.max(mg.length,mgMonthly.length)*37)+"px"}},(()=>{const _gl=goalTab==="short"?mgMonthly:mg,_act=_gl.filter(g=>!g.done);return (goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?_act:[..._act,..._gl.filter(g=>g.done)];})().map(g=>g._planId
         /* An undated confirmed plan mirrors here. Owned by dashboards/plans:
            inert, and labelled "Plan" so it is not mistaken for one of her own. */
         ?RC("div",{key:g.id,style:{...vdPlanCard(),display:"flex",flexDirection:"column",gap:2,marginBottom:5,opacity:g.done?0.62:1,cursor:"default"}},
@@ -17296,7 +16641,7 @@ function App(){
             g.done&&RC(PlanCheck,{size:11,color:PLAN_GRN_VEDA}),
             RC("span",{style:vdPlanTag},"Plan")),
           RC("span",{style:{fontSize:13,fontWeight:g.done?500:700,color:g.done?TXM:TX,textDecoration:g.done?"line-through":"none",lineHeight:1.4,wordBreak:"break-word",whiteSpace:"normal"}},g.title))
-        :RC("div",{key:g.id,...(goalTab==="short"?goalMRowP:goalRowP)(g.id),...(edit?(goalTab==="short"?goalMTouchH:goalTouchH)(g.id):{}),draggable:edit,onDragStart:edit?e=>(goalTab==="short"?vOnDragStartGoalM:vOnDragStartGoal)(e,g.id):null,onDragOver:edit?e=>{e.preventDefault();if(!vrMobile)setVdDragOverId(g.id);}:null,onDragLeave:edit?()=>setVdDragOverId(null):null,onDragEnd:edit?()=>setVdDragOverId(null):null,onDrop:edit?e=>(goalTab==="short"?vOnDropGoalM:vOnDropGoal)(e,g.id):null,style:vdndRowStyle(g.id,{display:"flex",alignItems:"flex-start",gap:8,padding:"6px 0",opacity:g.done?.5:1,cursor:edit?"grab":"default"})},
+        :RC("div",{key:g.id,"data-dkey":g.id,style:({display:"flex",alignItems:"flex-start",gap:8,padding:"6px 0",opacity:g.done?.5:1,cursor:edit?"grab":"default"})},
                     RC("div",{onClick:()=>(goalTab==="short"?togMM:togM)(g.id),style:{width:15,height:15,minWidth:15,borderRadius:3,border:"2px solid "+(g.done?A:TXM),background:g.done?A:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},g.done&&RC(Chk)),
           RC("span",{style:{fontSize:13,fontWeight:g.done?500:700,color:g.done?TXM:TX,textDecoration:g.done?"line-through":"none",lineHeight:1.4,flex:1,wordBreak:"break-word",overflowWrap:"break-word",minWidth:0}},g.title),
           edit&&RC("button",{style:{...dbtn,color:TXD,fontSize:11,padding:"0 6px"},onClick:()=>(goalTab==="short"?setEditingGoalM:setEditingGoal)({id:g.id,title:g.title})},RC("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
