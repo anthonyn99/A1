@@ -2222,6 +2222,8 @@ window.THSHEET={
   --wx-sun:#E9B949; --wx-moon:#C6C9DD; --wx-cloud:#9AA3B2;
   --wx-rain:#5FA8E0; --wx-snow:#B9D6EA;
   --wx-cool:#6FA8DC; --wx-warm:#E9A03B;
+  /* A day's bar is ONE of these, by its high (°F): ≤40 / ≤55 / ≤68 / ≤80 / hotter */
+  --wx-t1:#8FB4E6; --wx-t2:#86C2CF; --wx-t3:#D6C182; --wx-t4:#E9A03B; --wx-t5:#E07A5F;
 }
 .thwx{
   position:relative;                 /* anchor for the expanded dropdown */
@@ -2789,14 +2791,15 @@ function Widget(props){
     if(hiT[a]!=null&&hiT[a]>gMax)gMax=hiT[a];
   }
   var span=(gMax-gMin)||1;
+  var tC=/C/.test((d.daily_units&&d.daily_units.temperature_2m_max)||'');
   var days=dts.map(function(iso,ix){
     var lo=loT[ix],hg=hiT[ix],today=ix===di;
     var left=lo==null?0:((lo-gMin)/span)*100;
     var wid=(lo==null||hg==null)?0:Math.max(((hg-lo)/span)*100,4);
     if(left+wid>100)left=Math.max(0,100-wid);
     var pp=dly.precipitation_probability_max?dly.precipitation_probability_max[ix]:null;
-    var warm=hg==null?0:Math.round(Math.max(0,Math.min(1,(hg-gMin)/span))*100);
-    var fill='color-mix(in srgb, var(--wx-warm) '+warm+'%, var(--wx-cool))';
+    var hf=hg==null?null:(tC?hg*9/5+32:hg);
+    var fill='var(--wx-t'+(hf==null?3:hf<=40?1:hf<=55?2:hf<=68?3:hf<=80?4:5)+')';
     var nowT=cur.temperature_2m,dot=today&&nowT!=null&&lo!=null&&hg!=null
       ?Math.max(left,Math.min(left+wid,((nowT-gMin)/span)*100)):null;
     return h('div',{key:iso,className:'thwx-day'},
