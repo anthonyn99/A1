@@ -10136,6 +10136,7 @@ function App(){
                     React.createElement("span",{style:{fontSize:13,fontWeight:800,color:dayTX,lineHeight:1}},e.team2||"TBD")),
                   e.state==="completed"&&React.createElement("div",{style:{fontSize:9,fontWeight:600,color:T.TXD,opacity:.6,marginTop:3}},"")),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px",flexShrink:0},onClick:()=>del(k,e.id)},"×"))),              React.createElement("div",{ref:thDragRef("tony","week:"+k,thDrag),style:thDragList},
+              !tasks.length&&!events.length&&!mcDay.length&&!(crByDay[k]||[]).length&&!pvMatches.length&&!(oiByDay[k]||[]).length&&!edit&&React.createElement("div",{style:{fontSize:11,fontWeight:500,color:T.TXM,textAlign:"center",padding:"24px 0"}},"—"),
               tasks.map(t=>t._planId
               /* ── Shared plan ──────────────────────────────────────────────
                  Owned by dashboards/plans, so its CONTENT is inert here: no
@@ -10181,7 +10182,6 @@ function App(){
                 !edit&&e.aiPrep&&!e._sosId&&thPrepBtn(e,k),
               edit&&React.createElement("button",{type:"button",style:{...ebtn,padding:"0 6px"},onClick:()=>{setEi(e);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px"},onClick:()=>del(k,e.id)},"×")))),
-              !tasks.length&&!events.length&&!mcDay.length&&!(crByDay[k]||[]).length&&!edit&&React.createElement("div",{style:{fontSize:11,fontWeight:500,color:T.TXM,textAlign:"center",padding:"24px 0"}},"—"),
               edit&&React.createElement("button",{type:"button",style:{fontSize:11,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:6,padding:"9px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"));
           })())
         :
@@ -10230,6 +10230,7 @@ function App(){
                     React.createElement("span",{style:{fontSize:11,fontWeight:800,color:dayTX,lineHeight:1}},e.team2||"TBD")),
                   e.state==="completed"&&React.createElement("div",{style:{fontSize:8,fontWeight:600,color:T.TXD,opacity:.6,marginTop:2}},"")),
                 edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 5px",flexShrink:0},onClick:()=>del(k,e.id)},"×"))),              React.createElement("div",{ref:thDragRef("tony","week:"+k,thDrag),style:thDragList},
+              !tasks.length&&!events.length&&!mcDay.length&&!(crByDay[k]||[]).length&&!pvMatches.length&&!(oiByDay[k]||[]).length&&!edit&&React.createElement("div",{style:{fontSize:10,fontWeight:500,color:T.TXM,textAlign:"center",padding:"32px 0"}},"—"),
               tasks.map(t=>t._planId
               /* Shared plan — content inert, position draggable; same rule as the
                  wide grid above. */
@@ -10264,7 +10265,6 @@ function App(){
                 !edit&&e.aiPrep&&!e._sosId&&thPrepBtn(e,k),
               edit&&React.createElement("button",{type:"button",style:ebtn,onClick:()=>{setEi(e);setMdt(k);setMo(true);},title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
                 edit&&React.createElement("button",{type:"button",style:dbtn,onClick:()=>del(k,e.id)},"×")))),
-              !tasks.length&&!events.length&&!mcDay.length&&!(crByDay[k]||[]).length&&!edit&&React.createElement("div",{style:{fontSize:10,fontWeight:500,color:T.TXM,textAlign:"center",padding:"32px 0"}},"—"),
               edit&&React.createElement("button",{type:"button",style:{fontSize:10,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:6,padding:"5px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"));
           })))),
 
@@ -16521,6 +16521,7 @@ function App(){
               mcRender(mcByDay[k]||[],dayTX),
               CR_rows(crByDay[k],{card:vdEventCard(null,false),profile:"veda",edit:edit,dbtn:dbtn,tx:"#C3B2D0",ac:A,dim:dimA,fit:vdTitleFit}),
               RC("div",{ref:thDragRef("veda","week:"+k,thDrag),style:thDragList},
+              !it.length&&!(mcByDay[k]||[]).length&&!(crByDay[k]||[]).length&&!edit&&RC("div",{style:{fontSize:11,fontWeight:600,color:TXM,textAlign:"center",padding:"24px 0"}},"—"),
               ts.map(t=>t._planId
               /* ── Shared plan ──────────────────────────────────────────────
                  Owned by dashboards/plans, so its CONTENT is inert here: no
@@ -16561,7 +16562,6 @@ function App(){
                 !edit&&e.aiPrep&&!e._sosId&&vdPrepBtn(e,k),
                 edit&&RC("button",{type:"button",title:"Edit",style:vdIcoBtn(TXD),onClick:()=>{setEi(e);setMdt(k);setMo(true);}},vdIco(TNI.pencil)),
                 edit&&RC("button",{type:"button",title:"Delete",style:vdIcoBtn("#f85149"),onClick:()=>del(k,e.id)},vdIco(TNI.x))))),
-              !it.length&&!(mcByDay[k]||[]).length&&!(crByDay[k]||[]).length&&!edit&&RC("div",{style:{fontSize:11,fontWeight:600,color:TXM,textAlign:"center",padding:"24px 0"}},"—"),
               edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,borderRadius:4,padding:"9px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"));
           })())
         :
@@ -16586,6 +16586,7 @@ function App(){
               mcRender(mcByDay[k]||[],dayTX),
               CR_rows(crByDay[k],{card:vdEventCard(null,false),profile:"veda",edit:edit,dbtn:dbtn,tx:"#C3B2D0",ac:A,dim:dimA,fit:vdTitleFit,compact:true}),
               RC("div",{ref:thDragRef("veda","week:"+k,thDrag),style:thDragList},
+              !it.length&&!(mcByDay[k]||[]).length&&!(crByDay[k]||[]).length&&!edit&&RC("div",{style:{fontSize:11,fontWeight:600,color:TXM,textAlign:"center",padding:"30px 0"}},"—"),
               ts.map(t=>t._planId
               /* Shared plan — content inert, position draggable; same rule as the
                  single-day list. */
@@ -16621,7 +16622,6 @@ function App(){
                 !edit&&e.aiPrep&&!e._sosId&&vdPrepBtn(e,k),
                 edit&&RC("button",{type:"button",title:"Edit",style:vdIcoBtn(TXD),onClick:()=>{setEi(e);setMdt(k);setMo(true);}},vdIco(TNI.pencil)),
                 edit&&RC("button",{type:"button",title:"Delete",style:vdIcoBtn("#f85149"),onClick:()=>del(k,e.id)},vdIco(TNI.x))))),
-              !it.length&&!(mcByDay[k]||[]).length&&!(crByDay[k]||[]).length&&!edit&&RC("div",{style:{fontSize:11,fontWeight:600,color:TXM,textAlign:"center",padding:"30px 0"}},"—"),
               edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,borderRadius:4,padding:"4px 0",width:"100%",cursor:"pointer",marginTop:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"))})))),
 
     // ── Bottom panels ──
