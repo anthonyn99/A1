@@ -19914,8 +19914,8 @@ Notebook.load('docx');
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     </button>
   </div>
-  <textarea id="thv-txt-input" rows="3" spellcheck="true" autocomplete="off"
-    placeholder="What should change?&#10;e.g. Move every workout to Mondays and Thursdays"></textarea>
+  <div id="thv-txt-wrap"><textarea id="thv-txt-input" rows="3" spellcheck="true" autocomplete="off"
+    placeholder="What should change?&#10;e.g. Move every workout to Mondays and Thursdays"></textarea></div>
   <div class="thv-txt-foot">
     <div id="thv-txt-status"><span class="thv-txt-kbd">Ctrl</span>+<span class="thv-txt-kbd">Enter</span> to send · Shift+Enter for a new line</div>
     <button type="button" id="thv-txt-send" onclick="window._THV&&window._THV.sendText()">Send</button>
@@ -19980,6 +19980,10 @@ Notebook.load('docx');
   background:rgba(127,127,140,.10);border:1.5px solid var(--thv-border,#33333f);border-radius:11px;padding:12px 13px;
   font-family:inherit;font-size:15px;line-height:1.5;color:var(--thv-text,#f4f3f0);outline:none;transition:border-color .15s;}
 #thv-txt-input:focus{border-color:var(--thv-accent,#e0b874);}
+/* A1's corner grip (resizegrip.js) sits over the box's bottom-right corner,
+   tinted per profile like the rest of the composer. */
+#thv-txt-wrap{position:relative;--ds-ac:var(--thv-accent,#e0b874);--ds-tx:var(--thv-text,#f4f3f0);--ds-txd:var(--thv-mute,#8a8a98);}
+#thv-txt-wrap #thv-txt-input{display:block;}
 /* Placeholder sits well behind real input — it is a hint, not content. */
 #thv-txt-input::placeholder{color:var(--thv-mute,#8a8a98);opacity:.5;}
 .thv-txt-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;}
@@ -20468,7 +20472,8 @@ var TXT={open:false,busy:false,kbHandler:null,scrollLock:null};
 function txtStatus(html,cls){var s=$('thv-txt-status');if(!s)return;s.innerHTML=html;s.className=cls||'';}
 function txtIdle(){txtStatus('<span class="thv-txt-kbd">'+(isMac()?'⌘':'Ctrl')+'</span>+<span class="thv-txt-kbd">Enter</span> to send · Shift+Enter for a new line');}
 function isMac(){return /Mac|iPhone|iPad|iPod/.test(navigator.platform||navigator.userAgent||'');}
-function txtGrow(){var ta=$('thv-txt-input');if(!ta)return;ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,Math.round(innerHeight*0.42))+'px';}
+// A height dragged with the corner grip (data-user-h) wins over growing with the text.
+function txtGrow(){var ta=$('thv-txt-input');if(!ta||ta.getAttribute('data-user-h'))return;ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,Math.round(innerHeight*0.42))+'px';}
 function txtBusy(on){
   TXT.busy=!!on;
   var btn=$('thv-txt-send'),ta=$('thv-txt-input');
@@ -20524,6 +20529,8 @@ function openText(){
   themeVars();
   var who=$('thv-txt-who');if(who)who.textContent=profile()==='veda'?"Ask Veda's TaskHub":"Ask Tony's TaskHub";
   var ov=$('thv-txt-overlay'),ta=$('thv-txt-input');
+  // A1's resize grip, wired once: the same grip as every other A1 text box.
+  if(ta&&!ta._grip&&window.A1Resize){var g=window.A1Resize.grip('the message box');$('thv-txt-wrap').appendChild(g);window.A1Resize.attach(ta,g,'thv-txt',txtGrow);ta._grip=true;}
   ov.setAttribute('aria-hidden','false');
   ov.classList.add('show');TXT.open=true;
   txtBusy(false);txtIdle();txtTrackKeyboard(true);txtLockScroll(true);
