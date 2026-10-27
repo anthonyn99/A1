@@ -77,18 +77,17 @@ function _docxUnnestHeadings(root) {
   Array.prototype.slice.call(root.querySelectorAll('h1,h2,h3,h4,h5,h6')).reverse().forEach(function (h) {
     if (!h.parentNode || !Array.prototype.some.call(h.children, function (c) { return BLOCK.test(c.tagName); })) return;
     changed = true;
-    var parts = [], run = null;
+    var parts = [], runs = [], run = null;
     Array.prototype.slice.call(h.childNodes).forEach(function (n) {
       if (n.nodeType === 1 && BLOCK.test(n.tagName)) { parts.push(n); run = null; return; }
       if (!run) {
         run = h.cloneNode(false);   // same tag and attributes, no children
-        parts.push(run);
+        parts.push(run); runs.push(run);
       }
       run.appendChild(n);
     });
     parts.forEach(function (p) {
-      if (p !== run && p.nodeType === 1 && /^H[1-6]$/.test(p.tagName) && p.cloneNode && !p.textContent.trim() && !p.querySelector('img')) return;
-      if (/^H[1-6]$/.test(p.tagName) && !BLOCK.test(p.tagName + '') ) {}
+      if (runs.indexOf(p) >= 0 && !p.textContent.trim() && !p.querySelector('img')) return;
       h.parentNode.insertBefore(p, h);
     });
     h.parentNode.removeChild(h);
@@ -4714,6 +4713,9 @@ window._docxApplyPageSetup = function(app) {
 // so undo/redo history resets to the freshly-loaded entry (no cross-entry undo).
 window._docxOnLoad = function(edId, docId) {
   var ctx = ALLCTX.find(function(c) { return c.edEl.id === edId; });
+  // Blocks nested in a heading come out (see _docxUnnestHeadings), before the
+  // undo history is seeded so Undo never brings the broken shape back.
+  var _ed = $(edId); if (_ed) _docxUnnestHeadings(_ed);
   if (ctx) {
     ctx._docId = docId || edId;
     if (ctx.history) {
