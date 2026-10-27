@@ -13301,7 +13301,7 @@ function codeCheckSheet(proj) {
     input.disabled = !local || !!busy;
     const sug = (ck.suggestions || []);
     if (sug.length) {
-      body.append(el("label", "sheet-lbl", "Found in this folder"));
+      body.append(el("label", "sheet-lbl sheet-lbl-cont", "Found in this folder"));
       const list = el("div", "ck-sug");
       for (const s of sug) {
         const b = el("button", `ck-sug-b ${s.command === cmd ? "on" : ""}`);
