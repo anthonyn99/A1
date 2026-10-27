@@ -5,8 +5,10 @@ const os = require('os');
 const path = require('path');
 const fs = require('fs');
 
-const PORT = 9333;
-const UDD = path.join(os.tmpdir(), 'magi-cdp-profile');
+// CDP_PORT gives a run its own browser, so two sessions running live tests at
+// once do not close or navigate each other's pages.
+const PORT = Number(process.env.CDP_PORT) || 9333;
+const UDD = path.join(os.tmpdir(), 'magi-cdp-profile' + (PORT === 9333 ? '' : '-' + PORT));
 
 function req(url, method) {
   return new Promise((res, rej) => {
