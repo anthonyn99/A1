@@ -76,7 +76,7 @@ for (const f of hosts) {
   if (!instances.length) { ok('a native host (tj/bj) only; index.html\'s own rules apply', name === 'index.html', name); continue; }
   ok('it hands Notebook its Firestore (window.NotebookFirebase = ...)', /window\.NotebookFirebase\s*=/.test(src));
   for (const m of instances) {
-    ok(m.key + ': mounts MyJournal (the one app with instances)', m.app === 'myjournal', m.app);
+    ok(m.key + ': mounts one of the two sides (Tony\'s myjournal or Veda\'s brainstorm)', m.app === 'myjournal' || m.app === 'brainstorm', m.app);
     ok(m.key + ': has a store of its own (' + m.store + ')', m.store !== 'tony_journal' && m.store !== 'journal');
     const bad = reaches(src, m.key);
     ok(m.key + ': never reaches into the instance (Notebook.open / attach / detach / mount options instead)', !bad.length, '\n       ' + bad.join('\n       '));
