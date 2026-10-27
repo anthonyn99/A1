@@ -19,19 +19,20 @@ Settings, App Lock), and its sidebar tabs are **OurJournal** plus the person's o
 journal (**MyJournal** for Tony, **Journal** for Veda). The only differences are
 Veda's colours and fonts and her extra templates (Cornell, Mind Map, Structured
 Notes, ...). Code, ids and the data keep the old `tj` / `bj` and Brainstorm names.
-The older `{ app, key, store }` form still mounts (A1-Priv's hosts use it).
+Every host mounts by profile. The older `{ app, key, store }` form still
+mounts, but nothing uses it; write new hosts with `profile`.
 
 An **instance** (a program's own documents) is `{ profile: 'tony', key, store, ... }`.
 Only Tony's side can be instanced so far, because `rewriteApp` is written for
 `apps/myjournal.js`; `{ profile: 'veda', key }` throws until `apps/brainstorm.js`
 gets the same treatment.
 
-| Host | App | key | Store (`dashboards/…`) | Mode |
+| Host | Profile | key | Store (`dashboards/…`) | Mode |
 |---|---|---|---|---|
-| index.html, Tony | myjournal | `tj` | `tony_journal` | overlay (native) |
-| index.html, Veda | brainstorm | `bj` | `journal` | overlay (native) |
-| tradehub.html, Playbook (A1-Priv) | myjournal | `pb` | `tradehub_playbook` | inline (instance) |
-| everwell.html, notes (A1-Priv) | myjournal | `ewn` | `everwell_notes` | inline (instance) |
+| index.html, Tony | tony | `tj` | `tony_journal` | overlay (native) |
+| index.html, Veda | veda | `bj` | `journal` | overlay (native) |
+| tradehub.html, Playbook (A1-Priv) | tony | `pb` | `tradehub_playbook` | inline (instance) |
+| everwell.html, notes (A1-Priv) | tony | `ewn` | `everwell_notes` | inline (instance) |
 
 Plan and history: [plan.md](plan.md).
 
