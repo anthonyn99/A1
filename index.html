@@ -6603,7 +6603,7 @@ function DayPicker({selected,onChange,T}){
 
 function ConfirmDeleteModal({open,onClose,onConfirm,onThis,T,isAltSeq}){
   if(!open)return null;
-  return React.createElement("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3000},onClick:onClose},
+  return React.createElement("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",backdropFilter:"blur(7px) saturate(.9)",WebkitBackdropFilter:"blur(7px) saturate(.9)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3000},onClick:onClose},
     React.createElement("div",{style:{background:T.S1,border:"1px solid "+T.ERR+"50",borderRadius:6,padding:28,width:400,maxWidth:"90vw",boxShadow:"0 20px 60px "+T.SHADOW},onClick:e=>e.stopPropagation()},
       React.createElement("div",{style:{fontFamily:"'Manrope',system-ui,sans-serif",fontSize:15,fontWeight:700,color:T.ERR,marginBottom:10}},isAltSeq?"Delete Sequence Occurrence":"Delete Repeating Task"),
       React.createElement("div",{style:{fontSize:13,color:T.TXD,lineHeight:1.6,marginBottom:20}},isAltSeq?"Delete just this occurrence, or this and all future occurrences in the sequence?":"Delete just this occurrence, or this and all future repeats?"),
@@ -6615,7 +6615,7 @@ function ConfirmDeleteModal({open,onClose,onConfirm,onThis,T,isAltSeq}){
 
 function ConfirmEditTitleModal({open,onClose,onThisOnly,onAllFuture,T,isAltSeq}){
   if(!open)return null;
-  return React.createElement("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3100},onClick:onClose},
+  return React.createElement("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",backdropFilter:"blur(7px) saturate(.9)",WebkitBackdropFilter:"blur(7px) saturate(.9)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3100},onClick:onClose},
     React.createElement("div",{style:{background:T.S1,border:"1px solid "+T.BD,borderRadius:6,padding:28,width:400,maxWidth:"90vw",boxShadow:"0 20px 60px "+T.SHADOW},onClick:e=>e.stopPropagation()},
       React.createElement("div",{style:{fontFamily:"'Manrope',system-ui,sans-serif",fontSize:15,fontWeight:700,color:T.AC,marginBottom:10}},isAltSeq?"Edit Alternating Sequence":"Edit Repeating Task"),
       React.createElement("div",{style:{fontSize:13,color:T.TXD,lineHeight:1.6,marginBottom:20}},isAltSeq?"Apply sequence changes to just this occurrence, or update all future occurrences in the sequence?":"Apply your change to just this day, or to all future repeats of this task?"),
@@ -6825,7 +6825,7 @@ function ItemModal({open,onClose,onSave,initial,dateLabel,startDateKey,T}){
   // itself, so the tab is hidden once `initial` carries an id.
   const canPlan=!initial?.id;
   const isPlan=canPlan&&type==="plan";
-  return React.createElement("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000},onClick:onClose},
+  return React.createElement("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",backdropFilter:"blur(7px) saturate(.9)",WebkitBackdropFilter:"blur(7px) saturate(.9)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000},onClick:onClose},
     React.createElement("div",{style:{background:T.S1,border:"1px solid "+T.BDL,borderRadius:6,padding:28,width:isPlan?860:460,maxWidth:"94vw",maxHeight:"92vh",overflowY:"auto",overscrollBehavior:"contain",boxShadow:"0 30px 80px "+T.SHADOW,transition:"width .18s"},onClick:e=>e.stopPropagation()},
       React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:20}},
         React.createElement("div",{style:{fontFamily:"'Manrope',system-ui,sans-serif",fontSize:16,fontWeight:700,color:T.AC}},isPlan?"Plans":((initial?.id?"Edit":"New")+" — "+dateLabel)),
@@ -6959,7 +6959,7 @@ function ThPrepPanel({item,dateKey,onClose,T}){
   const extras=kit&&fresh&&((kit.sites&&kit.sites.length)||(kit.apps&&kit.apps.length))>0;
   const bridgeSeen=!!(window._thBridgeUp||(window._thPcApps||[]).length);
   const err=window._thBridgeErr;
-  return h("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.62)",backdropFilter:"blur(2px)",WebkitBackdropFilter:"blur(2px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000},onClick:onClose},
+  return h("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.62)",backdropFilter:"blur(7px) saturate(.9)",WebkitBackdropFilter:"blur(7px) saturate(.9)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000},onClick:onClose},
     h("div",{"data-th-prep-panel":"1",style:{background:T.S1,border:"1px solid rgba(255,255,255,.06)",borderRadius:8,padding:24,width:520,maxWidth:"94vw",maxHeight:"90vh",overflowY:"auto",overscrollBehavior:"contain",boxSizing:"border-box",display:"flex",flexDirection:"column",gap:16,boxShadow:"0 30px 80px "+T.SHADOW},onClick:e=>e.stopPropagation()},
       h("div",{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12}},
         h("div",{style:{minWidth:0}},
@@ -7723,7 +7723,7 @@ function PlanDialog({P,dlg,setDlg,startDateKey,busy,guard,doConfirm,doApproveEdi
 
   return React.createElement("div",{onClick:close,
     style:{position:"fixed",inset:0,background:"rgba(8,8,10,.72)",
-      backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)",display:"flex",
+      backdropFilter:"blur(7px) saturate(.9)",WebkitBackdropFilter:"blur(7px) saturate(.9)",display:"flex",
       alignItems:"center",justifyContent:"center",padding:20,zIndex:4200}},
     React.createElement("div",{onClick:e=>e.stopPropagation(),
       style:{background:P.S1,border:"1px solid "+P.BDL,borderRadius:16,padding:22,
@@ -7744,7 +7744,7 @@ function SimpleTextEditModal({open,onClose,onSave,initialText,heading,T}){
   if(!open)return null;
   const save=()=>{if(!val.trim())return;onSave(val.trim());onClose();};
   const mi={background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,color:T.TX,fontSize:13,padding:"9px 12px",fontFamily:"inherit",fontWeight:500,outline:"none",width:"100%",boxSizing:"border-box"};
-  return React.createElement("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2500},onClick:onClose},
+  return React.createElement("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",backdropFilter:"blur(7px) saturate(.9)",WebkitBackdropFilter:"blur(7px) saturate(.9)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2500},onClick:onClose},
     React.createElement("div",{style:{background:T.S1,border:"1px solid "+T.BDL,borderRadius:6,padding:24,width:400,maxWidth:"94vw",boxShadow:"0 20px 60px "+T.SHADOW},onClick:e=>e.stopPropagation()},
       React.createElement("div",{style:{fontFamily:"'Manrope',system-ui,sans-serif",fontSize:15,fontWeight:700,color:T.AC,marginBottom:16}},heading),
       React.createElement("input",{style:mi,value:val,autoFocus:true,onChange:e=>setVal(e.target.value),onKeyDown:e=>{if(e.key==="Enter")save();if(e.key==="Escape")onClose();}}),
@@ -7867,7 +7867,7 @@ function HabitModal({open,onClose,onSave,initial,T,titleFont}){
   const mi={background:T.S2,border:"1px solid "+T.BDL,borderRadius:4,color:T.TX,fontSize:13,padding:"9px 12px",fontFamily:"inherit",fontWeight:500,outline:"none",width:"100%",boxSizing:"border-box"};
   const lbl={fontSize:10,color:T.TXD,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:6};
   const tb=(active)=>({fontWeight:700,padding:"6px 14px",borderRadius:5,cursor:"pointer",fontSize:11,fontFamily:"inherit",transition:"all .15s",background:"transparent",color:active?T.ACL:T.TXD,border:"1px solid "+(active?T.AC:T.BDL),...(active?{boxShadow:(T.SEL||GLOW)(T.AC)}:{})});
-  return React.createElement("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2500},onClick:onClose},
+  return React.createElement("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",backdropFilter:"blur(7px) saturate(.9)",WebkitBackdropFilter:"blur(7px) saturate(.9)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2500},onClick:onClose},
     React.createElement("div",{style:{background:T.S1,border:"1px solid "+T.BDL,borderRadius:6,padding:24,width:420,maxWidth:"94vw",maxHeight:"92vh",overflowY:"auto",boxShadow:"0 20px 60px "+T.SHADOW},onClick:e=>e.stopPropagation()},
       React.createElement("div",{style:{fontFamily:titleFont||"'Manrope',system-ui,sans-serif",fontSize:15,fontWeight:700,color:T.AC,marginBottom:16}},"Edit Habit"),
       React.createElement("div",{style:{marginBottom:16}},
@@ -9989,7 +9989,7 @@ function App(){
     React.createElement("div",{style:{maxWidth:2200,margin:"0 auto",padding:"clamp(8px,1.8vw,16px) clamp(10px,2vw,22px) clamp(8px,1.8vw,16px)",boxSizing:"border-box",lineHeight:1.5,display:"flex",flexDirection:"column",gap:"clamp(6px,1.2vw,10px)",overflowX:"hidden"}},
 
     // Inspirational Quote + View All Modal
-    tgShowAll&&React.createElement("div",{"data-modal-open":"1",onClick:e=>{ if(e.target===e.currentTarget) setTgShowAll(false); },style:{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,.62)",backdropFilter:"blur(2px)",WebkitBackdropFilter:"blur(2px)",animation:"thwx-fade .15s ease-out",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-start",paddingTop:"calc(env(safe-area-inset-top, 0px) + 72px)",paddingBottom:"calc(env(safe-area-inset-bottom, 0px) + clamp(16px,4vw,24px))",paddingLeft:"clamp(10px,3vw,24px)",paddingRight:"clamp(10px,3vw,24px)",boxSizing:"border-box",overflow:"hidden"}},
+    tgShowAll&&React.createElement("div",{"data-modal-open":"1",onClick:e=>{ if(e.target===e.currentTarget) setTgShowAll(false); },style:{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,.62)",backdropFilter:"blur(7px) saturate(.9)",WebkitBackdropFilter:"blur(7px) saturate(.9)",animation:"thwx-fade .15s ease-out",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-start",paddingTop:"calc(env(safe-area-inset-top, 0px) + 72px)",paddingBottom:"calc(env(safe-area-inset-bottom, 0px) + clamp(16px,4vw,24px))",paddingLeft:"clamp(10px,3vw,24px)",paddingRight:"clamp(10px,3vw,24px)",boxSizing:"border-box",overflow:"hidden"}},
       React.createElement("div",{onClick:e=>e.stopPropagation(),style:{background:T.BG,border:"1px solid "+T.BD,borderRadius:12,width:"100%",maxWidth:640,boxSizing:"border-box",flex:1,minHeight:0,display:"flex",flexDirection:"column",overflow:"hidden",wordBreak:"break-word",overflowWrap:"break-word"}},
         React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"clamp(14px,3vw,20px) clamp(16px,4vw,28px)",borderBottom:"1px solid "+T.BD,flexShrink:0,background:T.BG,borderRadius:"12px 12px 0 0"}},
           React.createElement("span",{style:{fontFamily:"'Manrope',system-ui,sans-serif",fontSize:"clamp(15px,1.6vw,18px)",fontWeight:700,color:T.TX,letterSpacing:0.3}},"All Quotes"),
@@ -13294,6 +13294,7 @@ window.thDragList = function(listEl, getArr, setArr, onDrop, accentColor, placeh
 .vd-chaos-overlay {
   position:fixed; inset:0; z-index:99999;
   background:rgba(27,28,30,0.82);
+  backdrop-filter:blur(7px) saturate(.9); -webkit-backdrop-filter:blur(7px) saturate(.9);
   display:flex; flex-direction:column; align-items:center; justify-content:center;
   gap:16px;
 }
@@ -14578,8 +14579,8 @@ return{data:loadJ(SK.data,{}),habits:loadJ(SK.habits,[]),hc:hcD,goals:loadJ(SK.g
 const Chk=({s=9})=>React.createElement("svg",{width:s,height:s,viewBox:"0 0 12 12",fill:"none"},React.createElement("path",{d:"M2 6.5L5 9.5L10 3",stroke:BG,strokeWidth:"2.5",strokeLinecap:"round",strokeLinejoin:"round"}));
 function DatePicker({value,onChange,label,maxYears=1}){const now=new Date(),curY=now.getFullYear();const maxDate=new Date(curY+maxYears,now.getMonth(),now.getDate());const years=[];for(let y=curY;y<=curY+maxYears;y++)years.push(y);const selY=value?.year||curY,selM=value?.month!=null?value.month:now.getMonth(),selD=value?.day||1;const maxD=dimM(selY,selM);const days=[];for(let d=1;d<=maxD;d++)days.push(d);const sel={background:BG,border:"1px solid "+BDL,borderRadius:4,color:TX,fontSize:12,fontWeight:600,padding:"5px 5px",fontFamily:"inherit",outline:"none",cursor:"pointer"};const update=(f,v)=>{const nv={month:selM,day:selD,year:selY,...(value||{}),[f]:parseInt(v)};const mx=dimM(nv.year,nv.month);if(nv.day>mx)nv.day=mx;if(new Date(nv.year,nv.month,nv.day)>maxDate){nv.year=maxDate.getFullYear();nv.month=maxDate.getMonth();nv.day=maxDate.getDate();}onChange(nv);};return React.createElement("div",null,React.createElement("div",{style:{fontSize:10,color:TXD,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,marginBottom:5}},label),React.createElement("div",{style:{display:"flex",gap:5,alignItems:"center"}},React.createElement("select",{style:{...sel,minWidth:72},value:selM,onChange:e=>update("month",e.target.value)},MOS.map((m,i)=>React.createElement("option",{key:i,value:i},m))),React.createElement("select",{style:{...sel,minWidth:50},value:selD,onChange:e=>update("day",e.target.value)},days.map(d=>React.createElement("option",{key:d,value:d},d))),React.createElement("select",{style:{...sel,minWidth:66},value:selY,onChange:e=>update("year",e.target.value)},years.map(y=>React.createElement("option",{key:y,value:y},y)))));}
 function VedaDayPicker({selected,onChange}){const toggle=i=>{if(selected.includes(i))onChange(selected.filter(x=>x!==i));else onChange([...selected,i].sort());};return React.createElement("div",{style:{display:"flex",gap:5,flexWrap:"wrap"}},DS.map((d,i)=>React.createElement("button",{key:i,onClick:()=>toggle(i),style:{fontSize:11,fontWeight:selected.includes(i)?700:600,padding:"5px 10px",borderRadius:4,cursor:"pointer",fontFamily:"inherit",background:selected.includes(i)?A:BG,color:selected.includes(i)?BG:TXD,border:selected.includes(i)?"1px solid "+A:"1px solid "+BDL,...(selected.includes(i)?{boxShadow:GLOW_A}:{}),transition:"all .15s"}},d)));}
-function ConfirmDeleteModal({open,onClose,onConfirm,onThis,isAltSeq}){if(!open)return null;return RC("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000},onClick:onClose},RC("div",{style:{background:S1,border:"1px solid #f85149",borderRadius:4,padding:24,width:400,maxWidth:"90vw"},onClick:e=>e.stopPropagation()},RC("div",{style:{fontSize:16,fontWeight:700,color:"#f85149",marginBottom:12}},isAltSeq?"Delete Sequence Occurrence":"Delete Repeating Task"),RC("div",{style:{fontSize:13,color:TXD,lineHeight:1.6,marginBottom:18}},isAltSeq?"Delete just this occurrence, or this and all future occurrences in the sequence?":"Delete just this occurrence, or this and all future repeats?"),RC("div",{style:{display:"flex",gap:10,flexWrap:"wrap"}},RC("button",{style:{flex:1,background:"transparent",border:"1px solid "+BDL,borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:600,color:TX,cursor:"pointer",fontFamily:"inherit"},onClick:onThis},"This only"),RC("button",{style:{flex:1,background:"#f85149",color:BG,border:"none",borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"},onClick:onConfirm},"This + all future"),RC("button",{style:{background:"transparent",border:"1px solid "+BDL,borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:600,color:TXD,cursor:"pointer",fontFamily:"inherit"},onClick:onClose},"Cancel"))));}
-function VdConfirmEditTitleModal({open,onClose,onThisOnly,onAllFuture,isAltSeq}){if(!open)return null;return RC("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2100},onClick:onClose},RC("div",{style:{background:S1,border:"1px solid "+BDL,borderRadius:4,padding:24,width:400,maxWidth:"90vw"},onClick:e=>e.stopPropagation()},RC("div",{style:{fontSize:16,fontWeight:700,color:A,marginBottom:12}},isAltSeq?"Edit Alternating Sequence":"Edit Repeating Task"),RC("div",{style:{fontSize:13,color:TXD,lineHeight:1.6,marginBottom:18}},isAltSeq?"Apply changes to just this occurrence, or all future occurrences in the sequence?":"Apply your change to just this day, or all future repeats?"),RC("div",{style:{display:"flex",gap:10,flexWrap:"wrap"}},RC("button",{style:{flex:1,background:"transparent",border:"1px solid "+BDL,borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:600,color:TX,cursor:"pointer",fontFamily:"inherit"},onClick:onThisOnly},"This day only"),RC("button",{style:{flex:1,background:A,color:BG,border:"none",borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"},onClick:onAllFuture},isAltSeq?"All future in seq":"All future repeats"),RC("button",{style:{background:"transparent",border:"1px solid "+BDL,borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:600,color:TXD,cursor:"pointer",fontFamily:"inherit"},onClick:onClose},"Cancel"))));}
+function ConfirmDeleteModal({open,onClose,onConfirm,onThis,isAltSeq}){if(!open)return null;return RC("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",backdropFilter:"blur(7px) saturate(.9)",WebkitBackdropFilter:"blur(7px) saturate(.9)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000},onClick:onClose},RC("div",{style:{background:S1,border:"1px solid #f85149",borderRadius:4,padding:24,width:400,maxWidth:"90vw"},onClick:e=>e.stopPropagation()},RC("div",{style:{fontSize:16,fontWeight:700,color:"#f85149",marginBottom:12}},isAltSeq?"Delete Sequence Occurrence":"Delete Repeating Task"),RC("div",{style:{fontSize:13,color:TXD,lineHeight:1.6,marginBottom:18}},isAltSeq?"Delete just this occurrence, or this and all future occurrences in the sequence?":"Delete just this occurrence, or this and all future repeats?"),RC("div",{style:{display:"flex",gap:10,flexWrap:"wrap"}},RC("button",{style:{flex:1,background:"transparent",border:"1px solid "+BDL,borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:600,color:TX,cursor:"pointer",fontFamily:"inherit"},onClick:onThis},"This only"),RC("button",{style:{flex:1,background:"#f85149",color:BG,border:"none",borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"},onClick:onConfirm},"This + all future"),RC("button",{style:{background:"transparent",border:"1px solid "+BDL,borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:600,color:TXD,cursor:"pointer",fontFamily:"inherit"},onClick:onClose},"Cancel"))));}
+function VdConfirmEditTitleModal({open,onClose,onThisOnly,onAllFuture,isAltSeq}){if(!open)return null;return RC("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",backdropFilter:"blur(7px) saturate(.9)",WebkitBackdropFilter:"blur(7px) saturate(.9)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2100},onClick:onClose},RC("div",{style:{background:S1,border:"1px solid "+BDL,borderRadius:4,padding:24,width:400,maxWidth:"90vw"},onClick:e=>e.stopPropagation()},RC("div",{style:{fontSize:16,fontWeight:700,color:A,marginBottom:12}},isAltSeq?"Edit Alternating Sequence":"Edit Repeating Task"),RC("div",{style:{fontSize:13,color:TXD,lineHeight:1.6,marginBottom:18}},isAltSeq?"Apply changes to just this occurrence, or all future occurrences in the sequence?":"Apply your change to just this day, or all future repeats?"),RC("div",{style:{display:"flex",gap:10,flexWrap:"wrap"}},RC("button",{style:{flex:1,background:"transparent",border:"1px solid "+BDL,borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:600,color:TX,cursor:"pointer",fontFamily:"inherit"},onClick:onThisOnly},"This day only"),RC("button",{style:{flex:1,background:A,color:BG,border:"none",borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"},onClick:onAllFuture},isAltSeq?"All future in seq":"All future repeats"),RC("button",{style:{background:"transparent",border:"1px solid "+BDL,borderRadius:5,padding:"10px 16px",fontSize:13,fontWeight:600,color:TXD,cursor:"pointer",fontFamily:"inherit"},onClick:onClose},"Cancel"))));}
 const RC=React.createElement;
 // ── VdIcon — renders one glyph from the VDI registry (see the VDI <script>).
 // React has no way to drop a raw SVG string into a tree, so it goes through a
@@ -14684,7 +14685,7 @@ function Modal({open,onClose,onSave,initial,dateLabel,startDateKey}){
   const canPlan=!initial?.id;
   const isPlan=canPlan&&type==="plan";
   const typeOpts=canPlan?["task","event","plan"]:["task","event"];
-  return RC("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000},onClick:onClose},
+  return RC("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",backdropFilter:"blur(7px) saturate(.9)",WebkitBackdropFilter:"blur(7px) saturate(.9)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000},onClick:onClose},
     RC("div",{style:{background:S1,border:"1px solid "+BDL,borderRadius:10,padding:24,width:isPlan?860:430,maxWidth:"94vw",maxHeight:"90vh",overflowY:"auto",overscrollBehavior:"contain",transition:"width .18s"},onClick:e=>e.stopPropagation()},
       RC("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:16}},
         RC("div",{style:{fontSize:16,fontWeight:700,color:A,textTransform:"uppercase",letterSpacing:1}},isPlan?"Plans":((initial?.id?"Edit":"New")+" \u2014 "+dateLabel)),
@@ -14771,7 +14772,7 @@ function VdPrepPanel({item,dateKey,onClose}){
     :!kit?"Not prepared yet."
     :!fresh?"The task changed since this was prepared. Press Re-prep for a new kit."
     :kit.helpful===false?"Nothing much to prepare for this one.":"";
-  return RC("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000},onClick:onClose},
+  return RC("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",backdropFilter:"blur(7px) saturate(.9)",WebkitBackdropFilter:"blur(7px) saturate(.9)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000},onClick:onClose},
     RC("div",{style:{background:S1,border:"1px solid "+BDL,borderRadius:10,padding:22,width:520,maxWidth:"94vw",maxHeight:"90vh",overflowY:"auto",overscrollBehavior:"contain",display:"flex",flexDirection:"column",gap:14},onClick:e=>e.stopPropagation()},
       RC("div",{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12}},
         RC("div",{style:{minWidth:0}},
@@ -15092,7 +15093,7 @@ function VdSimpleEditModal({open,onClose,onSave,initialText,heading,multiline,zI
   React.useEffect(()=>{if(open)setVal(initialText||"");},[open,initialText]);
   if(!open)return null;
   const save=()=>{if(!val.trim())return;onSave(val.trim());onClose();};
-  const ov={position:"fixed",inset:0,background:"rgba(0,0,0,.65)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:zIndex||2500};
+  const ov={position:"fixed",inset:0,background:"rgba(0,0,0,.65)",backdropFilter:"blur(7px) saturate(.9)",WebkitBackdropFilter:"blur(7px) saturate(.9)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:zIndex||2500};
   const bx={background:S1,border:"1px solid "+BDL,borderRadius:14,padding:22,width:380,maxWidth:"92vw",boxShadow:"0 20px 60px rgba(0,0,0,.5)"};
   const mi={background:"#26272A",border:"1px solid "+BDL,borderRadius:7,color:TX,fontSize:13,padding:"9px 11px",fontFamily:"inherit",fontWeight:500,outline:"none",width:"100%",boxSizing:"border-box"};
   return RC("div",{style:ov,onClick:onClose},
@@ -15194,7 +15195,7 @@ function VdRulesChecklist({open,mode,rules,daily,onComplete,onClose,onSetRules,o
     onSetRules(arr);
   };
 
-  const ov={position:"fixed",inset:0,background:"rgba(6,6,10,.82)",backdropFilter:"blur(6px)",WebkitBackdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3000,padding:16};
+  const ov={position:"fixed",inset:0,background:"rgba(6,6,10,.82)",backdropFilter:"blur(7px) saturate(.9)",WebkitBackdropFilter:"blur(7px) saturate(.9)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3000,padding:16};
   const bx={background:S1,border:"1px solid "+BDL,borderRadius:14,boxShadow:"0 20px 60px rgba(0,0,0,.5)",width:560,maxWidth:"100%",maxHeight:"88vh",display:"flex",flexDirection:"column",overflow:"hidden",fontFamily:"'IBM Plex Mono',monospace"};
   // display:inline-flex + centring: these hold a 13px SVG now, not a text glyph,
   // so the button can no longer lean on the glyph's own line box to centre it.
@@ -15283,7 +15284,7 @@ function VdRulesChecklist({open,mode,rules,daily,onComplete,onClose,onSetRules,o
         onClose:()=>setEditing(null),
         onSave:(text)=>{if(editing.index>=0)editRule(editing.index,text);else addRule(text);}}),
 
-      confirmDel&&RC("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.65)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3200},onClick:()=>setConfirmDel(null)},
+      confirmDel&&RC("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.65)",backdropFilter:"blur(7px) saturate(.9)",WebkitBackdropFilter:"blur(7px) saturate(.9)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3200},onClick:()=>setConfirmDel(null)},
         RC("div",{style:{background:S1,border:"1px solid #f85149",borderRadius:14,padding:22,width:400,maxWidth:"92vw",boxShadow:"0 20px 60px rgba(0,0,0,.5)"},onClick:e=>e.stopPropagation()},
           RC("div",{style:{fontFamily:"'Lora',serif",fontSize:14,fontWeight:700,color:"#f85149",marginBottom:12}},"Delete rule"),
           RC("div",{style:{fontSize:13,color:TX,lineHeight:1.55,marginBottom:18,wordBreak:"break-word"}},'"'+confirmDel.text+'"'),
@@ -19825,7 +19826,7 @@ Notebook.load('docx');
   background:var(--thv-accent,#e0b874);color:#1a1a1d;font-weight:800;font-size:12px;font-family:'Inter',system-ui,-apple-system,sans-serif;
   padding:8px 14px;border-radius:20px;box-shadow:0 8px 26px rgba(0,0,0,.4);white-space:nowrap;}
 #thv-hint.show{display:block;}
-#thv-dev-overlay{position:fixed;inset:0;z-index:99500;display:none;align-items:center;justify-content:center;background:rgba(8,8,11,.72);backdrop-filter:blur(4px);padding:22px;}
+#thv-dev-overlay{position:fixed;inset:0;z-index:99500;display:none;align-items:center;justify-content:center;background:rgba(8,8,11,.72);backdrop-filter:blur(7px) saturate(.9);-webkit-backdrop-filter:blur(7px) saturate(.9);padding:22px;}
 #thv-dev-overlay.show{display:flex;}
 #thv-dev-box{width:100%;max-width:360px;background:var(--thv-surface,#232327);border:1px solid var(--thv-border,#33333f);border-radius:16px;padding:18px;font-family:'Inter',system-ui,-apple-system,sans-serif;color:var(--thv-text,#f4f3f0);}
 #thv-dev-box h3{font-size:17px;margin:0 0 4px;font-weight:800;}
@@ -19847,7 +19848,7 @@ Notebook.load('docx');
    Desktop: a centred card. Phones: a bottom sheet that rides above the
    on-screen keyboard (--thv-kb is kept in sync with visualViewport). */
 #thv-txt-overlay{position:fixed;inset:0;z-index:99400;display:flex;align-items:center;justify-content:center;padding:22px;box-sizing:border-box;
-  background:rgba(8,8,11,.62);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);overscroll-behavior:contain;
+  background:rgba(8,8,11,.62);backdrop-filter:blur(7px) saturate(.9);-webkit-backdrop-filter:blur(7px) saturate(.9);overscroll-behavior:contain;
   opacity:0;pointer-events:none;transition:opacity .18s ease;}
 #thv-txt-overlay.show{opacity:1;pointer-events:auto;}
 #thv-txt-box{width:100%;max-width:620px;display:flex;flex-direction:column;gap:11px;box-sizing:border-box;
@@ -20484,7 +20485,7 @@ window._THV={
   if (window.uiModal) return;
   var ACCENT = '#e0b874';
   var CSS =
-    '#uim-overlay{position:fixed;inset:0;z-index:2147483000;display:none;align-items:center;justify-content:center;background:rgba(14,14,16,.66);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);padding:20px;box-sizing:border-box;overscroll-behavior:contain;touch-action:none;}'
+    '#uim-overlay{position:fixed;inset:0;z-index:2147483000;display:none;align-items:center;justify-content:center;background:rgba(14,14,16,.66);backdrop-filter:blur(7px) saturate(.9);-webkit-backdrop-filter:blur(7px) saturate(.9);padding:20px;box-sizing:border-box;overscroll-behavior:contain;touch-action:none;}'
   + '#uim-overlay.show{display:flex;}'
   + '#uim-box{width:100%;max-width:370px;max-height:calc(100vh - 40px);overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;background:#2c2c31;border:1px solid #45454c;border-radius:9px;padding:26px 24px;box-shadow:0 30px 70px rgba(0,0,0,.48);box-sizing:border-box;font-family:\'Inter\',system-ui,-apple-system,sans-serif;animation:uimIn .16s ease;}'
   + '@keyframes uimIn{from{transform:translateY(8px) scale(.98);opacity:0}to{transform:none;opacity:1}}'
@@ -20501,7 +20502,7 @@ window._THV={
   /* Tony's profile wears MAGI's sheet (magi.html .sheet / .sheet-box /
      .sheet-hd) since the theme overhaul (docs/theme-overhaul-plan.md). Veda's
      dialogs keep everything above. */
-  + 'body[data-th-profile="tony"] #uim-overlay{background:rgba(0,0,0,.62);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);}'
+  + 'body[data-th-profile="tony"] #uim-overlay{background:rgba(0,0,0,.62);backdrop-filter:blur(7px) saturate(.9);-webkit-backdrop-filter:blur(7px) saturate(.9);}'
   + 'body[data-th-profile="tony"] #uim-box{background:#232327;border-color:rgba(255,255,255,.06);border-radius:8px;box-shadow:0 18px 48px rgba(0,0,0,.5);}'
   + 'body[data-th-profile="tony"] #uim-title{font-size:12px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#dbd0f5;}'
   + 'body[data-th-profile="tony"] .uim-label{font-size:9px;font-weight:700;color:#8d8d94;}'
@@ -23819,6 +23820,7 @@ if(document.readyState==='loading'){
   position:fixed;inset:0;z-index:2147482000;display:none;
   align-items:center;justify-content:center;
   background:rgba(0,0,0,0.78);font-family:'Inter',system-ui,-apple-system,sans-serif;
+  backdrop-filter:blur(7px) saturate(.9);-webkit-backdrop-filter:blur(7px) saturate(.9);
   padding:16px;box-sizing:border-box;
 }
 #thset-box{
