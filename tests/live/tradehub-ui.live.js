@@ -170,10 +170,10 @@ const worker = {
   ok('the feed shows every event', await until(`document.querySelectorAll('#tradeboard-root .nh-ev').length===3`, 8000), await js(`return document.querySelectorAll('#tradeboard-root .nh-ev').length;`));
   await sleep(800);
   await shot('tradehub-news');
-  await js(`[...document.querySelectorAll('#tradeboard-root .nh-pulse button')].find(b=>/Bullish/.test(b.innerText)).click(); 1`); await sleep(300);
-  ok('the Bullish count filters the feed', await js(`return document.querySelectorAll('#tradeboard-root .nh-ev').length===1 && /Bullish/.test(document.querySelector('#tradeboard-root .nh-results').innerText);`));
-  await js(`[...document.querySelectorAll('#tradeboard-root .nh-tools button')].find(b=>/Filters/.test(b.innerText)).click(); 1`); await sleep(300);
-  ok('Filters opens impact and sector', await js(`var p=document.querySelector('#tradeboard-root .nh-panel'); return !!p && /Impact/.test(p.innerText) && /Sector/.test(p.innerText);`));
+  await js(`[...document.querySelectorAll('#tradeboard-root .nh-pulse button')].find(b=>/bullish/i.test(b.innerText)).click(); 1`); await sleep(300);
+  ok('the Bullish count filters the feed', await js(`return document.querySelectorAll('#tradeboard-root .nh-ev').length===1 && /bullish/i.test(document.querySelector('#tradeboard-root .nh-results').innerText);`));
+  await js(`[...document.querySelectorAll('#tradeboard-root .nh-tools button')].find(b=>/filters/i.test(b.innerText)).click(); 1`); await sleep(300);
+  ok('Filters opens impact and sector', await js(`var p=document.querySelector('#tradeboard-root .nh-panel'); return !!p && /impact/i.test(p.innerText) && /sector/i.test(p.innerText);`));
   await js(`document.querySelector('#tradeboard-root .nh-clear').click(); 1`); await sleep(300);
   ok('Clear all brings the whole feed back', await js(`return document.querySelectorAll('#tradeboard-root .nh-ev').length===3;`));
 
