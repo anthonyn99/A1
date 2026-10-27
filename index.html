@@ -160,6 +160,10 @@ html,body{height:100%;}
 /* A day button (phone strip) or goals tab with a dragged row over it: dropping
    there sends the row to that day / list (thDragRef). */
 [data-day-tab].dsort-on,[data-goal-tab].dsort-on{box-shadow:0 0 0 2px var(--ds-ac,#c0aeea)!important;border-radius:6px;}
+/* A lifted goal: its frame wraps the goal (not the empty width to its right),
+   with a little room; it stays visible in its own list while the other tab
+   is open (that list is mounted invisible, 0 tall). */
+div[data-thz^="goal"]>.dsort-drag{visibility:visible!important;width:fit-content!important;max-width:100%;padding-left:8px!important;padding-right:10px!important;margin-left:-8px!important;border-radius:6px;}
 /* ── Shared Tony App Nav Bar ── */
 #tony-app-nav{
   position:fixed;top:env(safe-area-inset-top,0px);left:0;right:0;z-index:10001;
@@ -6194,6 +6198,22 @@ window.thDragRef=function(who,zone,h){
       segment:function(row,list){return thDragRank(who,row,list);},canMoveTo:thDragCanMove});
   };
 };
+// While a row is held, the goals tab under the pointer opens (a held pointer
+// is captured by the row, so this watches positions, not hover events).
+(function(){
+  let last=null;
+  window.addEventListener("pointermove",function(e){
+    if(!window.A1Drag||!A1Drag.active){last=null;return;}
+    let hit=null;
+    document.querySelectorAll("[data-goal-tab]").forEach(function(t){
+      if(!t.getClientRects().length)return;
+      const b=t.getBoundingClientRect();
+      if(e.clientX>=b.left&&e.clientX<=b.right&&e.clientY>=b.top&&e.clientY<=b.bottom)hit=t;
+    });
+    if(hit&&hit!==last)hit.click();
+    last=hit;
+  },{passive:true});
+})();
 // What a row is, for where it may go: thRowData(item[, kind]) spreads into a
 // row's props. "Stay" rows never leave their list -- Everwell's Prayer row,
 // shared plans and Veda's SOS items, whose place is set elsewhere and would
@@ -9711,6 +9731,19 @@ function App(){
   // ── Drag and drop: the handlers behind thDragRef (one A1Drag group) ──
   const thDragVars={"--ds-ac":T.AC,"--ds-s2":T.S2,"--ds-tx":T.TX,"--ds-txm":T.TXM};
   const thDragList={...thDragVars,display:"flex",flexDirection:"column",flexGrow:1};
+  // Goals: both tabs' lists are always mounted. Holding a row over the other
+  // tab opens it (thDragRef's tab watcher clicks it) and the drag goes on into
+  // that list, as before the A1Drag rebuild; the list a goal was lifted from
+  // stays mounted, invisible and 0 tall, so the lifted row is not torn down.
+  const [goalDragFrom,setGoalDragFrom]=useState(null);
+  const goalTabOpen=tab=>{
+    if(window.A1Drag&&A1Drag.active){
+      const r=document.querySelector(".dsort-drag"),z=r&&r.parentElement&&r.parentElement.dataset.thz;
+      if(z==="goal"||z==="goalm"){setGoalDragFrom(z==="goalm"?"short":"long");A1Drag.later(()=>setGoalDragFrom(null));}
+    }
+    setGoalTab(tab);
+  };
+  const goalListStyle=(tab,shown)=>tab===goalTab?shown:goalDragFrom===tab?{height:0,overflow:"visible",visibility:"hidden"}:{display:"none"};
   const thDrag={
     reorder:(zone,ids)=>{
       const z=_xParseZone(zone);
@@ -10331,22 +10364,22 @@ function App(){
       React.createElement("div",{style:{...sec}},
 
         React.createElement("div",{style:{...stt,display:"flex",gap:16,alignItems:"center"}},
-          React.createElement("span",{"data-goal-tab":"short",ref:thDragRef("tony","goalm",thDrag),onClick:()=>setGoalTab("short"),style:{...thDragVars,cursor:"pointer",color:goalTab==="short"?T.TX:T.TXM,borderBottom:goalTab==="short"?"2px solid "+T.AC:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Short-Term Goals"),
-          React.createElement("span",{"data-goal-tab":"long",ref:thDragRef("tony","goal",thDrag),onClick:()=>setGoalTab("long"),style:{...thDragVars,cursor:"pointer",color:goalTab==="long"?T.TX:T.TXM,borderBottom:goalTab==="long"?"2px solid "+T.AC:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Long-Term Goals"),
+          React.createElement("span",{"data-goal-tab":"short",ref:thDragRef("tony","goalm",thDrag),onClick:()=>goalTabOpen("short"),style:{...thDragVars,cursor:"pointer",color:goalTab==="short"?T.TX:T.TXM,borderBottom:goalTab==="short"?"2px solid "+T.AC:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Short-Term Goals"),
+          React.createElement("span",{"data-goal-tab":"long",ref:thDragRef("tony","goal",thDrag),onClick:()=>goalTabOpen("long"),style:{...thDragVars,cursor:"pointer",color:goalTab==="long"?T.TX:T.TXM,borderBottom:goalTab==="long"?"2px solid "+T.AC:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Long-Term Goals"),
           React.createElement("button",{type:"button",title:(goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?"Show completed goals":"Hide completed goals",onClick:()=>{const key=goalTab==="short"?"hideShort":"hideLong";setGoalPrefs(p=>({...p,[key]:!p[key]}));},style:{marginLeft:"auto",background:"transparent",border:"1px solid "+T.BD,borderRadius:6,color:T.TXM,fontSize:10,fontWeight:700,letterSpacing:0.3,padding:"3px 8px",cursor:"pointer",fontFamily:"'Inter',system-ui,-apple-system,sans-serif",whiteSpace:"nowrap",textTransform:"none",transition:"all .15s"}},(goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?"Show Completed":"Hide Completed")),
 
         React.createElement("div",{style:{display:edit?"flex":"none",gap:6,marginBottom:8}},
           React.createElement("input",{style:{...inp,flex:1},placeholder:goalTab==="short"?"New short-term goal...":"New long-term goal...",value:goalTab==="short"?nmmt:nmt,onChange:e=>(goalTab==="short"?setNmmt:setNmt)(e.target.value),onKeyDown:e=>{if(e.key==="Enter")(goalTab==="short"?addMM:addM)();}}),
           React.createElement("button",{type:"button",style:sbtn,onClick:goalTab==="short"?addMM:addM},"+")),
 
-        React.createElement("div",{ref:thDragRef("tony",goalTab==="short"?"goalm":"goal",thDrag),style:{...thDragVars,minHeight:(Math.max(mg.length,mgMonthly.length)*37)+"px"}},
+        ["short","long"].map(tab=>React.createElement("div",{key:tab,ref:thDragRef("tony",tab==="short"?"goalm":"goal",thDrag),style:{...thDragVars,...goalListStyle(tab,{minHeight:(Math.max(mg.length,mgMonthly.length)*37)+"px"})}},
           /* OneInbox coupons ride ABOVE the hand-written goals: they are
              time-boxed (they expire) so they need to be seen first, and they
              live in OneInbox's own collection rather than in `mgMonthly`, so
              they never interfere with reordering, editing or drag-and-drop of
              the real goals below. */
-          goalTab==="short"&&oiCoupons.map(c=>OI_couponRow(c,T,edit)),
-          (()=>{const _gl=goalTab==="short"?mgMonthly:mg,_act=_gl.filter(g=>!g.done);return (goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?_act:[..._act,..._gl.filter(g=>g.done)];})().map(g=>g._planId
+          tab==="short"&&oiCoupons.map(c=>OI_couponRow(c,T,edit)),
+          (()=>{const _gl=tab==="short"?mgMonthly:mg,_act=_gl.filter(g=>!g.done);return (tab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?_act:[..._act,..._gl.filter(g=>g.done)];})().map(g=>g._planId
           /* An undated confirmed plan mirrors here. Owned by dashboards/plans:
              inert, and labelled "Plan" so it is not mistaken for a goal Tony
              wrote himself. */
@@ -10356,10 +10389,10 @@ function App(){
               React.createElement("span",{style:wkPlanTag},"Plan")),
             React.createElement("span",{style:{fontSize:13,fontWeight:g.done?500:700,color:g.done?T.TXDONE:T.TX,textDecoration:g.done?"line-through":"none",lineHeight:1.4,wordBreak:"break-word",whiteSpace:"normal"}},g.title))
           :React.createElement("div",{key:g.id,"data-dkey":g.id,...thRowData(g,"goal"),style:({display:"flex",alignItems:"flex-start",gap:7,padding:"6px 0",opacity:g.done?0.72:1,borderBottom:"1px solid "+T.BD+"33",cursor:"grab"})},
-                        React.createElement("div",{onClick:()=>(goalTab==="short"?togMM:togM)(g.id),style:{width:15,height:15,minWidth:15,borderRadius:3,cursor:"pointer",border:"2px solid "+(g.done?T.AC:T.BDL),background:g.done?T.AC:"transparent",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},g.done&&React.createElement(Chk,{s:8,col:T.BG})),
+                        React.createElement("div",{onClick:()=>(tab==="short"?togMM:togM)(g.id),style:{width:15,height:15,minWidth:15,borderRadius:3,cursor:"pointer",border:"2px solid "+(g.done?T.AC:T.BDL),background:g.done?T.AC:"transparent",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},g.done&&React.createElement(Chk,{s:8,col:T.BG})),
             React.createElement("span",{style:{fontSize:13,fontWeight:g.done?500:700,color:g.done?T.TXDONE:T.TX,textDecoration:g.done?"line-through":"none",lineHeight:1.4,flex:1,wordBreak:"break-word",whiteSpace:"normal"}},g.title),
-            edit&&React.createElement("button",{type:"button",style:{...ebtn,padding:"0 6px"},onClick:()=>(goalTab==="short"?setEditingGoalM:setEditingGoal)({id:g.id,title:g.title}),title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
-            edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px"},onClick:()=>(goalTab==="short"?delMM:delM)(g.id)},"×")))),
+            edit&&React.createElement("button",{type:"button",style:{...ebtn,padding:"0 6px"},onClick:()=>(tab==="short"?setEditingGoalM:setEditingGoal)({id:g.id,title:g.title}),title:"Edit"},React.createElement("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
+            edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px"},onClick:()=>(tab==="short"?delMM:delM)(g.id)},"×"))))),
 
 )),
 
@@ -16153,6 +16186,19 @@ function App(){
   const vdDragInfo=useRef(null);
   const thDragVars={"--ds-ac":A,"--ds-s2":"#303135","--ds-tx":TX,"--ds-txm":TXM};
   const thDragList={...thDragVars,display:"flex",flexDirection:"column",flexGrow:1};
+  // Goals: both tabs' lists are always mounted. Holding a row over the other
+  // tab opens it (thDragRef's tab watcher clicks it) and the drag goes on into
+  // that list, as before the A1Drag rebuild; the list a goal was lifted from
+  // stays mounted, invisible and 0 tall, so the lifted row is not torn down.
+  const [goalDragFrom,setGoalDragFrom]=useState(null);
+  const goalTabOpen=tab=>{
+    if(window.A1Drag&&A1Drag.active){
+      const r=document.querySelector(".dsort-drag"),z=r&&r.parentElement&&r.parentElement.dataset.thz;
+      if(z==="goal"||z==="goalm"){setGoalDragFrom(z==="goalm"?"short":"long");A1Drag.later(()=>setGoalDragFrom(null));}
+    }
+    setGoalTab(tab);
+  };
+  const goalListStyle=(tab,shown)=>tab===goalTab?shown:goalDragFrom===tab?{height:0,overflow:"visible",visibility:"hidden"}:{display:"none"};
   const thDrag={
     reorder:(zone,ids)=>{
       const z=_xParseZone(zone);
@@ -16662,13 +16708,13 @@ function App(){
 
       RC("div",{style:{...sec,display:"flex",flexDirection:"column",minHeight:200}},
         RC("div",{style:{...stt,display:"flex",gap:14,alignItems:"center",letterSpacing:1}},
-          RC("span",{"data-goal-tab":"short",ref:thDragRef("veda","goalm",thDrag),onClick:()=>setGoalTab("short"),style:{...thDragVars,cursor:"pointer",color:goalTab==="short"?TX:TXM,borderBottom:goalTab==="short"?"2px solid "+A:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Short-Term Goals"),
-          RC("span",{"data-goal-tab":"long",ref:thDragRef("veda","goal",thDrag),onClick:()=>setGoalTab("long"),style:{...thDragVars,cursor:"pointer",color:goalTab==="long"?TX:TXM,borderBottom:goalTab==="long"?"2px solid "+A:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Long-Term Goals"),
+          RC("span",{"data-goal-tab":"short",ref:thDragRef("veda","goalm",thDrag),onClick:()=>goalTabOpen("short"),style:{...thDragVars,cursor:"pointer",color:goalTab==="short"?TX:TXM,borderBottom:goalTab==="short"?"2px solid "+A:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Short-Term Goals"),
+          RC("span",{"data-goal-tab":"long",ref:thDragRef("veda","goal",thDrag),onClick:()=>goalTabOpen("long"),style:{...thDragVars,cursor:"pointer",color:goalTab==="long"?TX:TXM,borderBottom:goalTab==="long"?"2px solid "+A:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Long-Term Goals"),
           RC("button",{type:"button",title:(goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?"Show completed goals":"Hide completed goals",onClick:()=>{const key=goalTab==="short"?"hideShort":"hideLong";setGoalPrefs(p=>({...p,[key]:!p[key]}));},style:{marginLeft:"auto",background:"transparent",border:"1px solid "+BD,borderRadius:4,color:TXM,fontSize:10,fontWeight:700,letterSpacing:0.3,padding:"3px 8px",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",textTransform:"none",transition:"all .15s"}},(goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?"Show Completed":"Hide Completed")),
         edit&&RC("div",{style:{display:"flex",gap:5,marginBottom:8,flexShrink:0}},
           RC("input",{style:{...inp,flex:1},placeholder:goalTab==="short"?"New short-term goal...":"New long-term goal...",value:goalTab==="short"?nmmt:nmt,onChange:e=>(goalTab==="short"?setNmmt:setNmt)(e.target.value),onKeyDown:e=>{if(e.key==="Enter")(goalTab==="short"?addMM:addM)();}}),
           RC("button",{style:sbtn,onClick:goalTab==="short"?addMM:addM},"+")),
-        RC("div",{ref:thDragRef("veda",goalTab==="short"?"goalm":"goal",thDrag),style:{...thDragVars,flex:1,minHeight:(Math.max(mg.length,mgMonthly.length)*37)+"px"}},(()=>{const _gl=goalTab==="short"?mgMonthly:mg,_act=_gl.filter(g=>!g.done);return (goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?_act:[..._act,..._gl.filter(g=>g.done)];})().map(g=>g._planId
+        ["short","long"].map(tab=>RC("div",{key:tab,ref:thDragRef("veda",tab==="short"?"goalm":"goal",thDrag),style:{...thDragVars,...goalListStyle(tab,{flex:1,minHeight:(Math.max(mg.length,mgMonthly.length)*37)+"px"})}},(()=>{const _gl=tab==="short"?mgMonthly:mg,_act=_gl.filter(g=>!g.done);return (tab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?_act:[..._act,..._gl.filter(g=>g.done)];})().map(g=>g._planId
         /* An undated confirmed plan mirrors here. Owned by dashboards/plans:
            inert, and labelled "Plan" so it is not mistaken for one of her own. */
         ?RC("div",{key:g.id,style:{...vdPlanCard(),display:"flex",flexDirection:"column",gap:2,marginBottom:5,opacity:g.done?0.62:1,cursor:"default"}},
@@ -16677,10 +16723,10 @@ function App(){
             RC("span",{style:vdPlanTag},"Plan")),
           RC("span",{style:{fontSize:13,fontWeight:g.done?500:700,color:g.done?TXM:TX,textDecoration:g.done?"line-through":"none",lineHeight:1.4,wordBreak:"break-word",whiteSpace:"normal"}},g.title))
         :RC("div",{key:g.id,"data-dkey":g.id,...thRowData(g,"goal"),style:({display:"flex",alignItems:"flex-start",gap:8,padding:"6px 0",opacity:g.done?.5:1,cursor:"grab"})},
-                    RC("div",{onClick:()=>(goalTab==="short"?togMM:togM)(g.id),style:{width:15,height:15,minWidth:15,borderRadius:3,border:"2px solid "+(g.done?A:TXM),background:g.done?A:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},g.done&&RC(Chk)),
+                    RC("div",{onClick:()=>(tab==="short"?togMM:togM)(g.id),style:{width:15,height:15,minWidth:15,borderRadius:3,border:"2px solid "+(g.done?A:TXM),background:g.done?A:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginTop:2,flexShrink:0,transition:"all .15s"}},g.done&&RC(Chk)),
           RC("span",{style:{fontSize:13,fontWeight:g.done?500:700,color:g.done?TXM:TX,textDecoration:g.done?"line-through":"none",lineHeight:1.4,flex:1,wordBreak:"break-word",overflowWrap:"break-word",minWidth:0}},g.title),
-          edit&&RC("button",{style:{...dbtn,color:TXD,fontSize:11,padding:"0 6px"},onClick:()=>(goalTab==="short"?setEditingGoalM:setEditingGoal)({id:g.id,title:g.title})},RC("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
-          edit&&RC("button",{style:{...dbtn,padding:"0 6px"},onClick:()=>(goalTab==="short"?delMM:delM)(g.id)},"×")))),
+          edit&&RC("button",{style:{...dbtn,color:TXD,fontSize:11,padding:"0 6px"},onClick:()=>(tab==="short"?setEditingGoalM:setEditingGoal)({id:g.id,title:g.title})},RC("span",{style:{width:12,height:12,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.pencil}})),
+          edit&&RC("button",{style:{...dbtn,padding:"0 6px"},onClick:()=>(tab==="short"?delMM:delM)(g.id)},"×"))))),
         (()=>{const lst=goalTab==="short"?mgMonthly:mg;const dn=lst.filter(g=>g.done).length,pct=lst.length?Math.round(dn/lst.length*100):0;return lst.length>0&&RC("div",{style:{marginTop:8,flexShrink:0}},RC("div",{style:{fontSize:11,fontWeight:700,color:TXD,marginBottom:3}},dn+"/"+lst.length+" · "+pct+"%"),RC("div",{style:{width:"100%",height:4,background:BD,borderRadius:2,overflow:"hidden"}},RC("div",{style:{width:pct+"%",height:"100%",background:pct===100?GRN:"linear-gradient(90deg,"+AD+","+AL+")",borderRadius:2,transition:"width .35s"}})));})()
         )),
 
