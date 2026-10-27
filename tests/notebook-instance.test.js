@@ -95,7 +95,7 @@ console.log('\nVeda\'s app, rewritten to vn');
 const vapp = N._rewriteApp(rd('apps/brainstorm.js'), vcfg);
 ok('it parses', parses(vapp) === true, parses(vapp));
 ok('nothing of bj survives (ids, functions, store names, loaders)', !BJ_LEFT.test(vapp), bjLeft(vapp));
-ok('its markup is vn\'s', /<div id="vn-root">/.test(vapp) && /id="vn-entries-list"/.test(vapp) && /id="vn-nav-header"/.test(vapp));
+ok('its markup is vn\'s', /<div id="vn-root"[ >]/.test(vapp) && /id="vn-entries-list"/.test(vapp) && /id="vn-nav-header"/.test(vapp));
 ok('it stores locally under the store\'s name', /const STORAGE_KEY = 'veda_notes_v3';/.test(vapp));
 ok('it reads its own mount config', /window\.Notebook\.mounts\.vn\b/.test(vapp));
 ok('its locks are its own namespace', /journal: 'vn'/.test(vapp));
