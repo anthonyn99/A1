@@ -419,8 +419,9 @@ label.fld{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;tex
   font-size:11px;font-weight:700;color:var(--txd);text-transform:uppercase;
 }
 .pick-main{flex:1;min-width:0}
-.pick-name{font-size:12.5px;font-weight:600;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pick-path{font-size:9.5px;color:var(--txm);font-family:ui-monospace,monospace;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;text-align:left}
+/* Spans in a button: block, or name and path run together on one line. */
+.pick-name{display:block;font-size:12.5px;font-weight:600;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pick-path{display:block;font-size:9.5px;color:var(--txm);font-family:ui-monospace,monospace;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;text-align:left}
 .pick-live{
   font-size:8px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;
   color:var(--grn);border:1px solid currentColor;border-radius:20px;
@@ -777,6 +778,9 @@ label.fld{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;tex
 /* ── Tablet / wide: use the width instead of stretching one column ───────── */
 @media (min-width:760px){
   .wrap{max-width:1000px}
+  /* The nav lines up with the content below it (it was 900 wide with its own
+     gutter, so it sat ~40px left of every view). */
+  .nav{max-width:1000px;padding-left:calc(clamp(12px,3vw,24px) + var(--safe-l));padding-right:calc(clamp(12px,3vw,24px) + var(--safe-r))}
   /* Actions stay left and prominent; context moves alongside rather than
      below, so nothing important needs scrolling to on a tablet. */
   /* .active is part of the selector on purpose: an id + class beats the plain
