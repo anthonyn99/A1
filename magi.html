@@ -16626,45 +16626,40 @@ function resetWhen(sec) {
 
 function renderCodeAccounts() {
   const wrap = el("div", "acc-code");
-  wrap.append(el("div", "acc-sec", "Coding agents"));
+  wrap.append(accSecRow("Coding agents"));
   const a = CODE.agents;
   if (!a) {
-    const w = el("div", "doctor-running");
+    const w = el("div", "doctor-running acc-empty");
     w.append(spinnerEl(), el("span", null, CODE.err || "Reading coding accounts…"));
     wrap.append(w);
     return wrap;
   }
   const now = Date.now() / 1000;
   for (const c of a.cli || []) {
-    const card = el("div", "acc-card");
-    card.style.setProperty("--pa", CODE_CLI_ACCENT[c.agent] || "var(--ac)");
-    const hd = el("div", "acc-hd");
-    const names = el("div", "acc-names");
-    names.append(el("div", "acc-name", `${c.label} CLI`));
-    names.append(el("div", "acc-desc", c.agent === "codex"
-      ? "Any ChatGPT account, Free included — separate from the ChatGPT unit"
-      : "Any Claude account — separate from the browser Claude units"));
-    hd.append(names);
-    const flags = el("div", "acc-flags");
-    if (!c.installed) flags.append(el("span", "doc-flag miss", "Not installed"));
-    else {
-      const n = c.slots.filter((s) => s.signed_in).length;
-      flags.append(el("span", `doc-flag ${n ? "ok" : "miss"}`,
-        n ? `${n} signed in` : "Not signed in"));
-    }
-    hd.append(flags);
-    card.append(hd);
+    const group = el("div", "acc-group");
+    const accent = CODE_CLI_ACCENT[c.agent] || "var(--ac)";
+    const name = `${c.label} CLI`;
+    const addMenu = { text: c.slots.length ? `Add another ${c.label} account` : `Add a ${c.label} account`,
+                      onclick: () => codeAddSlot(c) };
+    const modelsMenu = { text: "Models & limits", onclick: () => codeModelSheet(c.agent),
+                         title: "Which model it uses, usage, your caps, usage credits" };
 
-    if (!c.installed) {
-      card.append(el("div", "acc-detail",
-        `Install it on the engine machine: npm i -g ${c.agent === "codex" ? "@openai/codex" : "@anthropic-ai/claude-code"}`));
+    if (!c.installed || !c.slots.length) {
+      group.append(accRow({
+        accent, name,
+        flags: [["miss", c.installed ? "No account" : "Not installed"]],
+        main: c.installed ? accBtn("Add an account", () => codeAddSlot(c)) : null,
+        detail: c.installed ? null
+          : `Install it on the engine machine: npm i -g ${c.agent === "codex" ? "@openai/codex" : "@anthropic-ai/claude-code"}`,
+      }));
+      wrap.append(group);
+      continue;
     }
+
     for (const s of c.slots) {
-      const row = el("div", "acc-slot");
-      const who = el("div", "acc-slot-who");
       // The name you gave it wins over the folder name it is stored under.
       const dflt = s.slot === "system" ? "This PC's Claude Code login" : s.slot;
-      const title = el("input", "acc-slot-name");
+      const title = el("input", "acc-input acc-slot-name");
       title.type = "text";
       title.value = s.label || "";
       title.placeholder = dflt;
@@ -16674,11 +16669,13 @@ function renderCodeAccounts() {
       // On blur, like the browser units' labels: one write per edit, and no
       // request racing the next character.
       title.onblur = async () => {
-        if ((s.label || "") === title.value.trim()) return;
+        if ((s.label || "") === title.value.trim()) {
+          if (ACC.redrawAfterEdit) { ACC.redrawAfterEdit = false; setTimeout(renderAccounts, 0); }
+          return;
+        }
         // Through the same line every other save reports on. It is not a
         // Firestore write -- the name lives on the engine, beside the login
-        // it names -- but "did that stick?" is the same question, and an
-        // edit that vanished on a failed request is the same annoyance.
+        // it names -- but "did that stick?" is the same question.
         setSync("saving");
         try {
           const d = await codePost(`/agents/${c.agent}/slots/${s.slot}/label`,
@@ -16693,61 +16690,43 @@ function renderCodeAccounts() {
         if (codeMode()) renderCodeView();
       };
       title.onkeydown = (e) => { if (e.key === "Enter") title.blur(); };
-      who.append(title);
-      who.append(el("span", "acc-slot-acct",
-        (s.signed_in ? [s.account, s.plan].filter(Boolean).join(" · ") || "signed in"
-                     : "signed out")
-        + (s.label && s.slot !== "system" ? ` · ${s.slot}` : "")));
-      const ul = usageLine(s.usage);
-      if (ul) who.append(el("span", "acc-slot-use", ul));
-      if (s.limited_until > now) {
-        who.append(el("span", "acc-slot-lim", `Out of usage until ${hhmm(s.limited_until)}`));
+
+      const limited = s.limited_until > now;
+      const flags = [s.signed_in ? ["ok", "Signed in"] : ["miss", "Signed out"]];
+      if (limited) flags.push(["miss", `Out of usage until ${hhmm(s.limited_until)}`]);
+      const sub = [title];
+      if (s.signed_in) sub.push(...[s.account, s.plan].filter(Boolean));
+      if (s.label && s.slot !== "system") sub.push(s.slot);
+
+      const menu = [];
+      if (limited) {
+        menu.push({ text: "Clear limit", title: "Try this account again now rather than waiting for the remembered reset time",
+          onclick: async () => {
+            try { await codePost(`/agents/${c.agent}/slots/${s.slot}/clear-limit`, {}); } catch {}
+            codeLoad(true);
+          } });
       }
-      row.append(who);
-      const acts = el("div", "acc-slot-acts");
-      if (!s.signed_in) {
-        const si = el("button", "navitem active", "Sign in");
-        si.onclick = () => codeLogin(c.agent, s.slot);
-        acts.append(si);
-      }
-      if (s.limited_until > now) {
-        const cl = el("button", "navitem", "Clear limit");
-        cl.title = "Try this account again now rather than waiting for the remembered reset time";
-        cl.onclick = async () => {
-          try { await codePost(`/agents/${c.agent}/slots/${s.slot}/clear-limit`, {}); } catch {}
-          codeLoad(true);
-        };
-        acts.append(cl);
-      }
+      if (c.slots.some((x) => x.signed_in)) menu.push(modelsMenu);
+      menu.push(addMenu);
       if (s.slot !== "system") {
-        const out = el("button", "navitem danger", "Remove");
-        out.onclick = async () => {
+        menu.push("sep", { text: "Remove account", danger: true, onclick: async () => {
           const ok = await uiConfirmMagi(`Remove ${c.label} account "${s.slot}"?`,
             "MAGI deletes its own copy of this login. The account itself is not "
             + "touched, and you can sign it in again at any time.", "Remove");
           if (!ok) return;
           try { await codePost(`/agents/${c.agent}/slots/${s.slot}`, undefined, "DELETE"); } catch {}
           codeLoad(true);
-        };
-        acts.append(out);
+        } });
       }
-      row.append(acts);
-      card.append(row);
+      group.append(accRow({
+        accent, name, flags, sub,
+        main: s.signed_in ? accBtn("Models & limits", modelsMenu.onclick, { title: modelsMenu.title })
+                          : accBtn("Sign in", () => codeLogin(c.agent, s.slot), { active: true }),
+        menu: menu.filter((m) => m === "sep" || !(s.signed_in && m === modelsMenu)),
+        detail: usageLine(s.usage) || null,
+      }));
     }
-    if (c.installed) {
-      const bar = el("div", "acc-actions");
-      const add = el("button", "navitem", c.slots.length ? "Add another account" : "Add an account");
-      add.onclick = () => codeAddSlot(c);
-      bar.append(add);
-      if (c.slots.some((s) => s.signed_in)) {
-        const ml = el("button", "navitem", "Models & limits");
-        ml.title = "Which model it uses, usage, your caps, usage credits";
-        ml.onclick = () => codeModelSheet(c.agent);
-        bar.append(ml);
-      }
-      card.append(bar);
-    }
-    wrap.append(card);
+    wrap.append(group);
   }
   return wrap;
 }
@@ -16881,75 +16860,57 @@ async function codeRepoSheet(proj) {
 
 function renderGhAccounts() {
   const wrap = el("div", "acc-code");
-  wrap.append(el("div", "acc-sec", "GitHub"));
-  const card = el("div", "acc-card");
-  card.style.setProperty("--pa", "#8b949e");
-  const hd = el("div", "acc-hd");
-  const names = el("div", "acc-names");
-  names.append(el("div", "acc-name", "GitHub accounts"));
-  names.append(el("div", "acc-desc",
-    "Sign in once and every repository the account can reach works in MAGI, new ones too. "
-    + "Kept in this PC's credential store; never synced or given to an agent."));
-  hd.append(names);
   const gh = CODE.gh;
-  const flags = el("div", "acc-flags");
+  const reload = async () => { await codeGhLoad(); renderAccounts(); };
   const n = gh ? gh.accounts.length : 0;
-  flags.append(el("span", `doc-flag ${n ? "ok" : "miss"}`, n ? `${n} connected` : "None"));
-  hd.append(flags);
-  card.append(hd);
-  if (!gh) {
-    const w = el("div", "doctor-running");
-    w.append(spinnerEl(), el("span", null, "Reading GitHub accounts…"));
-    card.append(w);
-  } else if (gh.err) {
-    card.append(el("div", "acc-detail", gh.err));
+  wrap.append(accSecRow("GitHub"));
+  const group = el("div", "acc-group");
+  const accent = "#8b949e";
+  const signInMenu = { text: n ? "Sign in another account" : "Sign in with GitHub", onclick: () => codeGhSignIn(reload) };
+  const pasteMenu = { text: "Paste a token instead", onclick: () => codeGhAddSheet(reload) };
+  if (!gh || gh.err || !n) {
+    group.append(accRow({
+      accent, name: "GitHub",
+      flags: [gh ? ["miss", "No account"] : ["na", "Reading…"]],
+      main: gh ? accBtn("Sign in", signInMenu.onclick) : null,
+      menu: gh ? [pasteMenu] : null,
+      detail: gh && gh.err ? gh.err : null,
+      busy: gh ? null : "Reading GitHub accounts…",
+    }));
   }
   for (const a of (gh && gh.accounts) || []) {
-    const row = el("div", "acc-slot");
-    const who = el("div", "acc-slot-who");
-    who.append(el("span", "acc-slot-name is-static", a.login));
-    const bits = [a.name, a.kind === "oauth" ? "signed in with GitHub"
+    const kind = a.kind === "oauth" ? "signed in with GitHub"
       : a.kind === "fine-grained" ? "fine-grained token (only the repositories it lists)"
-      : a.kind === "classic" ? "classic token" : a.kind];
-    if ((a.scopes || []).length) bits.push(a.scopes.join(", "));
-    who.append(el("span", "acc-slot-acct", bits.filter(Boolean).join(" · ")));
-    const more = [];
-    if (a.expires) more.push(`expires ${String(a.expires).slice(0, 10)}`);
-    if (a.rate && a.rate.limit) more.push(`${a.rate.remaining}/${a.rate.limit} requests left this hour`);
-    if (more.length) who.append(el("span", "acc-slot-use", more.join(" · ")));
-    if (!a.stored) who.append(el("span", "acc-slot-lim", "Token missing from the credential store — add it again"));
-    row.append(who);
-    const acts = el("div", "acc-slot-acts");
-    const rp = el("button", "navitem", "Repositories");
-    rp.onclick = () => codeGhReposSheet(a.login);
-    const rm = el("button", "navitem danger", "Remove");
-    rm.onclick = async () => {
+      : a.kind === "classic" ? "classic token" : a.kind;
+    const sub = [a.login, a.name, kind];
+    if ((a.scopes || []).length) sub.push(a.scopes.join(", "));
+    if (a.expires) sub.push(`expires ${String(a.expires).slice(0, 10)}`);
+    if (a.rate && a.rate.limit) sub.push(`${a.rate.remaining}/${a.rate.limit} requests left this hour`);
+    const menu = [];
+    if (a.kind === "fine-grained" || !a.stored) {
+      menu.push({ text: "Sign in instead", onclick: () => codeGhSignIn(reload),
+        title: "Replace this token with a GitHub sign-in that reaches every repository, new ones included" });
+    }
+    menu.push(signInMenu, pasteMenu, "sep", { text: "Remove account", danger: true, onclick: async () => {
       const ok = await uiConfirmMagi(`Remove GitHub account ${a.login}?`,
         "MAGI deletes the token from this PC's credential store. The token itself still "
         + "works on GitHub until you revoke it there.", "Remove");
       if (!ok) return;
       try { await codePost(`/github/accounts/${encodeURIComponent(a.login)}`, undefined, "DELETE"); } catch {}
-      await codeGhLoad();
-      renderAccounts();
-    };
-    if (a.kind === "fine-grained" || !a.stored) {
-      const up = el("button", "navitem", "Sign in instead");
-      up.title = "Replace this token with a GitHub sign-in that reaches every repository, new ones included";
-      up.onclick = () => codeGhSignIn(async () => { await codeGhLoad(); renderAccounts(); });
-      acts.append(up);
-    }
-    acts.append(rp, rm);
-    row.append(acts);
-    card.append(row);
+      await reload();
+    } });
+    const row = accRow({
+      accent, name: "GitHub",
+      flags: [a.stored ? ["ok", "Connected"] : ["miss", "Token missing"]],
+      sub: sub.filter(Boolean),
+      main: accBtn("Repositories", () => codeGhReposSheet(a.login)),
+      menu,
+      lim: a.stored ? null : "Token missing from the credential store — add it again",
+    });
+    row.dataset.login = a.login;
+    group.append(row);
   }
-  const bar = el("div", "acc-actions");
-  const signin = el("button", "navitem", n ? "Sign in another account" : "Sign in with GitHub");
-  signin.onclick = () => codeGhSignIn(async () => { await codeGhLoad(); renderAccounts(); });
-  const add = el("button", "navitem", "Paste a token instead");
-  add.onclick = () => codeGhAddSheet(async () => { await codeGhLoad(); renderAccounts(); });
-  bar.append(signin, add);
-  card.append(bar);
-  wrap.append(card);
+  wrap.append(group);
   return wrap;
 }
 
