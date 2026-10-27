@@ -65,8 +65,12 @@ for (const f of hosts) {
 
   const mounts = [...src.matchAll(/app\s*:\s*['"](myjournal|brainstorm)['"]\s*,\s*key\s*:\s*['"]([a-z]{2,8})['"]\s*,\s*store\s*:\s*['"]([a-z0-9_]+)['"]/g)]
     .map((m) => ({ app: m[1], key: m[2], store: m[3] }));
-  ok('its mount call spells out app, key and store, in that order', mounts.length > 0,
-    'write Notebook.mount({ app: \'myjournal\', key: \'xx\', store: \'xx_store\', ... })');
+  // The profile form: { profile: 'tony' | 'veda' } for a side itself, plus key and store for an instance.
+  const SIDE = { tony: { app: 'myjournal', key: 'tj', store: 'tony_journal' }, veda: { app: 'brainstorm', key: 'bj', store: 'journal' } };
+  for (const m of src.matchAll(/Notebook\.mount\(\{\s*profile\s*:\s*['"](tony|veda)['"]\s*(?:,\s*key\s*:\s*['"]([a-z]{2,8})['"]\s*,\s*store\s*:\s*['"]([a-z0-9_]+)['"])?/g))
+    mounts.push(m[2] ? { app: SIDE[m[1]].app, key: m[2], store: m[3] } : SIDE[m[1]]);
+  ok('its mount call names a profile (or spells out app, key and store, in that order)', mounts.length > 0,
+    'write Notebook.mount({ profile: \'tony\', key: \'xx\', store: \'xx_store\', ... })');
   const instances = mounts.filter((m) => NATIVE[m.app] !== m.key);
   if (!instances.length) { ok('a native host (tj/bj) only; index.html\'s own rules apply', name === 'index.html', name); continue; }
   ok('it hands Notebook its Firestore (window.NotebookFirebase = ...)', /window\.NotebookFirebase\s*=/.test(src));
