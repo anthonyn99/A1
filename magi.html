@@ -3538,134 +3538,17 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
    borrowed laptop is both a diary and a spending surface. And since profiles,
    the person it keeps out might be the other person using this machine.
 
-   The cards are index.html's profile cards in MAGI's clothes: same two people,
-   same colours, same emoji, so the two programs read as one product. What is
-   different is that choosing and unlocking happen in ONE step -- the card you
-   pick expands in place into its password field rather than handing you off to
-   a second screen. */
-.gate {
-  position: fixed; inset: 0; z-index: 300;
-  display: flex; align-items: center; justify-content: center;
-  padding: 20px; background: var(--bg);
-  overflow-y: auto;
-}
-.gate-wrap {
-  width: 100%; max-width: 760px;
-  display: flex; flex-direction: column; align-items: center;
-  padding: 24px 0;
-}
-.gate-mark { display: flex; justify-content: center; }
-.gate-mark svg { width: 54px; height: 54px; }
-.gate-brand {
-  font-family: var(--font-display); font-size: 15px; font-weight: 800;
-  letter-spacing: 1.6px; text-transform: uppercase; color: var(--tx);
-  margin-top: 12px;
-}
-.gate-lede { color: var(--txd); font-size: 12px; margin-top: 8px; }
+   The screen is the suite's one profile picker (profilepick.js, Shruti's
+   title screen): the same two people, the same cards, in every program with
+   profiles. Tapping your own card raises Guardian's card over it. */
+#lockScreen { z-index: 300; }
+/* Under the cards: the notice that this browser blocks or has filled storage. */
 .gate-storage {
-  max-width: 420px; margin-top: 18px; padding: 10px 14px; border-radius: 10px;
+  max-width: 420px; padding: 10px 14px; border-radius: 10px;
   border: 1px solid color-mix(in srgb, var(--amber) 45%, transparent);
   color: var(--txd); font-size: 12px; line-height: 1.55; text-align: center;
 }
 .gate-storage strong { color: var(--amber); font-weight: 600; }
-
-/* Two cards side by side on a desktop, stacked on a phone. `align-items:
-   flex-start` matters: the expanded card must be free to grow downwards
-   without dragging its sibling's height with it, which is what made the
-   collapsed card look broken at every step of the animation. */
-.gate-cards {
-  display: flex; gap: 14px; align-items: flex-start; justify-content: center;
-  width: 100%; margin-top: 26px; flex-wrap: wrap;
-}
-/* Portrait tiles: taller than they are wide, so two of them sit as a pair of
-   plates rather than a stack of toolbars. The open one grows sideways to fit
-   a password field and stays taller than it is wide. */
-.gate-card {
-  position: relative;
-  /* The tile is sized to the portrait inside it, not the other way round:
-     the avatar, the star and the name keep their sizes and the box lost the
-     empty margin that was making a 68px disc sit in a 218px plate. */
-  flex: 0 0 auto; width: 158px; min-height: 182px;
-  display: flex; flex-direction: column; align-items: center;
-  background: var(--s1); border: 1px solid var(--bd);
-  border-radius: var(--r-card); padding: 18px 12px 14px;
-  /* No drop shadow. Two siblings each casting `0 24px 60px` means the later
-     one paints over the earlier: Veda's shadow darkened Tony's adjacent edge
-     while his was hidden beneath her card, so hers read as floating above
-     his. Their backgrounds were identical the whole time. On a flat backdrop
-     with a visible border the shadow was buying nothing anyway. */
-  transition: border-color .15s, transform .15s, width .18s ease;
-}
-.gate-card.open { width: 284px; }
-.gate-card.open { border-color: var(--pc); }
-/* The shut card stays legible rather than being dimmed into a decoration --
-   it is a button, and half of what this screen is for is pressing it. */
-.gate-card.tappable { cursor: pointer; justify-content: center; padding-top: 14px; }
-.gate-card.tappable:hover, .gate-card.tappable:focus-visible {
-  border-color: var(--pc); transform: translateY(-2px); outline: 0;
-}
-/* Stacked and centred: the avatar reads as a portrait rather than a bullet. */
-.gate-head {
-  display: flex; flex-direction: column; align-items: center; gap: 9px;
-  width: 100%;
-}
-/* Outline only. A tinted disc reads as a filled state -- "selected", or
-   "active" -- which is not what it means; it is just whose card this is. */
-.gate-av {
-  width: 68px; height: 68px; flex: 0 0 68px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 31px; line-height: 1;
-  border-radius: 50%;
-  background: none;
-  border: 1.5px solid var(--pc);
-}
-.gate-name {
-  max-width: 100%;
-  font-family: var(--font-display); font-size: 19px; font-weight: 700;
-  color: var(--tx); letter-spacing: .3px; text-align: center;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-/* The favourite. Outlined until it is set, then filled in that profile's
-   colour -- the one place on this screen where a fill means something. */
-.gate-fav {
-  position: absolute; top: 7px; right: 7px;
-  width: 30px; height: 30px; padding: 0;
-  display: flex; align-items: center; justify-content: center;
-  background: none; border: 0; border-radius: 50%;
-  color: var(--txm); cursor: pointer; opacity: .55;
-  transition: opacity .15s, color .15s;
-}
-.gate-fav svg { width: 18px; height: 18px; fill: none; }
-.gate-fav:hover { opacity: 1; color: var(--pc); }
-.gate-fav.on { opacity: 1; color: var(--pc); }
-.gate-fav.on svg { fill: var(--pc); }
-.gate-body { margin-top: 16px; width: 100%; }
-/* The primary action wears the profile's colour rather than MAGI's accent.
-   A gold-bordered card with a purple Unlock button in it reads as two
-   unrelated pieces of UI; this way the whole card says "Tony" at a glance,
-   which is the one thing this screen exists to make unambiguous. */
-.gate-card.open .btn.active {
-  background: var(--pc); border-color: var(--pc); color: var(--bg);
-}
-.gate-card.open .btn.active:not(:disabled):hover {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--pc) 22%, transparent);
-}
-
-@media (max-width: 760px) {
-  .gate { padding: 14px; align-items: flex-start; }
-  .gate-wrap { padding: 28px 0 24px; }
-  /* Stacked, full width. The expanded card is what you came for, so it goes
-     first and the other sits under it rather than above the fold it needs. */
-  /* Two tiles at 168px plus the gap still fit a 390px phone, so the pair
-     stays side by side and only the OPEN one needs the full width. */
-  .gate-cards { gap: 10px; margin-top: 20px; align-items: stretch; }
-  .gate-card.open { width: 100%; flex: 1 1 100%; order: -1; }
-}
-@media (max-width: 430px) {
-  .gate-card { padding: 16px 10px 12px; width: 150px; min-height: 172px; }
-  .gate-card.open { width: 100%; }
-  .gate-av { width: 60px; height: 60px; flex-basis: 60px; font-size: 27px; }
-}
 
 .lock-in {
   width: 100%; background: var(--bg); border: 1px solid var(--bd);
@@ -3673,8 +3556,6 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
   font-size: 15px; outline: 0; margin-bottom: 9px;
 }
 .lock-in:focus { border-color: var(--ac); }
-/* The open card's one button: Unlock, which raises Guardian's card. */
-.gate-body .btn { width: 100%; justify-content: center; }
 
 /* The profile chip. Reads as a person, not as an icon button -- a coloured
    dot with a name beside it, so "whose MAGI is this?" is answered without
@@ -5754,6 +5635,7 @@ body { max-width: 2000px; margin-inline: auto; }
      In <head> so it is there before this page's own code. -->
 <script src="scrollbar.js"></script>
 <script src="apphead.js"></script>
+<script src="profilepick.js"></script>
 </head>
 <body>
 
@@ -27800,10 +27682,6 @@ function unlockGate() {
 }
 
 /* ── the screen ─────────────────────────────────────────────────────────── */
-const MARK = "<svg viewBox='0 0 96 96' aria-hidden='true'>"
-  + "<g fill='none' stroke='var(--ac)' stroke-width='5'><circle cx='48' cy='37' r='17.5'/><circle cx='34' cy='60' r='17.5'/><circle cx='62' cy='60' r='17.5'/></g><circle cx='48' cy='52' r='6.5' fill='var(--acl)'/>"
-  + "</svg>";
-
 /* ── the gate: profile picker and lock, one screen ─────────────────────────
    These used to be two ideas: a picker that shows you the door, and a lock
    that guards it. Keeping them apart means two chances to get the ordering
@@ -27903,87 +27781,52 @@ function syncProfileBtn() {
   }
 }
 
+let _pick = null;
 function renderLock() {
   let scr = $("lockScreen");
   if (!scr) {
-    scr = el("div", "gate");
+    scr = el("div");
     scr.id = "lockScreen";
     document.body.append(scr);
   }
-  scr.hidden = false;
-  scr.textContent = "";
   if (!GATE.open && !GATE.picking) GATE.open = PROFILE.id;
-
-  const wrap = el("div", "gate-wrap");
-  const mark = el("div", "gate-mark");
-  mark.innerHTML = MARK;
-  wrap.append(mark, el("div", "gate-brand", "MAGI"));
-  if (GATE.picking) wrap.append(el("div", "gate-lede", "Choose a profile"));
-
-  const cards = el("div", "gate-cards");
-  for (const id of PROFILE_ORDER) cards.append(gateCard(id));
-  wrap.append(cards);
-  if (window.MAGI_STORAGE_BLOCKED) {
-    const n = el("div", "gate-storage");
-    n.append(el("strong", null, "This browser is blocking site storage."),
-      " Everything works, but nothing is remembered once this tab closes: the star, "
-      + "your settings, staying unlocked. In Brave, click the lion icon in the address bar "
-      + "and allow cookies for this site.");
-    wrap.append(n);
-  } else if (window.MAGI_STORAGE_FULL) {
-    const n = el("div", "gate-storage");
-    n.append(el("strong", null, "This browser's storage for the A1 apps is full."),
-      " MAGI still works and keeps your profile, star and units. The space is shared with "
-      + "TaskHub, the journals and StudyOS on this browser; freeing some there lets every app save normally again.");
-    wrap.append(n);
+  if (!_pick) {
+    _pick = A1Pick.mount(scr, {
+      app: "magi", title: "MAGI", sub: "Ask · Deliberate · Decide · Build",
+      profiles: PROFILE_ORDER.map((id) => ({ id, label: MAGI_PROFILES[id].label })),
+      // The profile on this page says whether it is waiting on its password.
+      // The other one's lock is a record on the worker under a different key,
+      // and probing it at boot would be a network call made to decorate a card.
+      state: (id) => {
+        const here = id === PROFILE.id, shut = here && !PROFILE.unlocked && Guardian.isLocked(GID);
+        return { fav: favProfile() === id, last: here, note: shut ? "Locked" : here ? "Last here" : "", noteIcon: shut ? "lock" : "" };
+      },
+      // Pin this device to a profile. Stays out of the card's click target, or
+      // favouriting would also open the profile you were only bookmarking.
+      starTitle: (id, st) => st.fav
+        ? "This device opens as " + MAGI_PROFILES[id].label + " — click to stop"
+        : "Always open this device as " + MAGI_PROFILES[id].label
+          + (window.MAGI_STORAGE_BLOCKED ? " (only until this tab closes: this browser blocks site storage)" : ""),
+      onStar: (id) => toggleFav(id),
+      onChoose: (id) => selectProfile(id),
+    });
+    let n = null;
+    if (window.MAGI_STORAGE_BLOCKED) {
+      n = el("div", "gate-storage");
+      n.append(el("strong", null, "This browser is blocking site storage."),
+        " Everything works, but nothing is remembered once this tab closes: the star, "
+        + "your settings, staying unlocked. In Brave, click the lion icon in the address bar "
+        + "and allow cookies for this site.");
+    } else if (window.MAGI_STORAGE_FULL) {
+      n = el("div", "gate-storage");
+      n.append(el("strong", null, "This browser's storage for the A1 apps is full."),
+        " MAGI still works and keeps your profile, star and units. The space is shared with "
+        + "TaskHub, the journals and StudyOS on this browser; freeing some there lets every app save normally again.");
+    }
+    _pick.extra(n);
   }
-  scr.append(wrap);
-}
-
-function gateCard(id) {
-  const p = MAGI_PROFILES[id];
-  const open = GATE.open === id;
-  const card = el("div", "gate-card" + (open ? " open" : " shut"));
-  card.style.setProperty("--pc", p.color);
-
-  // Just the name. The card used to carry a second line saying "Locked" or
-  // "Open Veda’s MAGI", which is either obvious from the password field
-  // sitting under it or a claim this page cannot actually check -- the other
-  // profile's lock state is a record on the worker under a different key, and
-  // probing it at boot would be a network call made to decorate a subtitle.
-  const head = el("div", "gate-head");
-  head.append(avatar("div", "gate-av", p));
-  head.append(el("div", "gate-name", p.label));
-
-  // Pin this device to a profile. Stays out of the card's click target, or
-  // favouriting would also open the profile you were only bookmarking.
-  const fav = el("button", "gate-fav" + (favProfile() === id ? " on" : ""));
-  fav.type = "button";
-  fav.innerHTML = STAR;
-  fav.title = favProfile() === id
-    ? "This device opens as " + p.label + " — click to stop"
-    : "Always open this device as " + p.label
-      + (window.MAGI_STORAGE_BLOCKED ? " (only until this tab closes: this browser blocks site storage)" : "");
-  fav.onclick = (e) => { e.stopPropagation(); toggleFav(id); };
-  head.append(fav);
-  card.append(head);
-
-  if (!open) {
-    card.classList.add("tappable");
-    card.onclick = () => selectProfile(id);
-    card.tabIndex = 0;
-    card.onkeydown = (e) => {
-      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectProfile(id); }
-    };
-    return card;
-  }
-
-  const body = el("div", "gate-body");
-  const b = el("button", "btn active", "Unlock");
-  b.onclick = unlockGate;
-  body.append(b);
-  card.append(body);
-  return card;
+  scr.hidden = false;
+  _pick.refresh();
 }
 
 function lockNowAction() {
