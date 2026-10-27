@@ -5913,7 +5913,7 @@ body { max-width: 2000px; margin-inline: auto; }
     <!-- Code Mode's own screen. Sits where the grid and verdict would be,
          and like Studio it REPLACES them rather than stacking above. -->
     <div class="code-view" id="codeView" hidden>
-      <div class="code-strip" id="codeStrip"></div>
+      <div class="code-strip" id="codeStrip" data-sb-strip></div>
       <div class="code-body" id="codeBody"></div>
     </div>
 
@@ -5960,7 +5960,7 @@ body { max-width: 2000px; margin-inline: auto; }
 
     <div class="drawer" id="codeHistoryDrawer" hidden>
       <div class="drawer-hd">Past code sessions</div>
-      <div class="code-hist-filter" id="codeHistFilter" hidden></div>
+      <div class="code-hist-filter" id="codeHistFilter" data-sb-strip hidden></div>
       <div id="codeHistoryRows"></div>
     </div>
 
@@ -17280,6 +17280,7 @@ async function codeRepoPanel(proj, tab = "overview") {
   hd.append(acct, x);
   box.append(hd);
   const tabs = el("div", "repo-tabs");
+  tabs.setAttribute("data-sb-strip", "");
   tabs.setAttribute("role", "tablist");
   box.append(tabs);
   const body = el("div", "repo-body");

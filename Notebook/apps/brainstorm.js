@@ -57,7 +57,7 @@ var html = `
     <input id="bj-mobile-title" type="text" placeholder="Untitled entry…" style="flex:1;background:none;border:none;outline:none;font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;color:var(--text);min-width:0;padding:0 4px;" />
     <button id="bj-mobile-lock-btn" style="display:none;background:transparent;border:none;cursor:pointer;padding:6px 8px;flex-shrink:0;touch-action:manipulation;font-size:18px;line-height:0;display:inline-flex;align-items:center;" aria-label="Lock entry"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></button>
   </div>
-  <div id="bj-toolbar">
+  <div id="bj-toolbar" data-sb-strip>
     <button id="bj-fullscreen-btn" title="Toggle sidebar">
       <svg id="bj-fs-icon-show" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
       <svg id="bj-fs-icon-hide" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="9" x2="9" y2="9" opacity="0.5"/><line x1="15" y1="12" x2="9" y2="12" opacity="0.5"/><line x1="15" y1="15" x2="9" y2="15" opacity="0.5"/></svg>
@@ -195,7 +195,7 @@ var html = `
         <div class="bj-attach-chips" id="bj-mml-attach-chips"></div>
       </div>
       <div class="bj-attach-images" id="bj-mml-attach-images"></div>
-      <div id="bj-mml-toolbar">
+      <div id="bj-mml-toolbar" data-sb-strip>
           <button class="wb-btn" id="bj-mml-add-node"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span>Add Node</span></button>
           <button class="wb-btn" id="bj-mml-connect-mode"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="12" r="2.5"/><path d="M7.5 12h9"/></svg><span>Connect</span></button>
           <button class="wb-btn" id="bj-mml-delete-node"><svg class="bji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span>Delete</span></button>

@@ -322,7 +322,7 @@ export async function renderListen(body, { book, n, title, lessons }) {
         '</div>' +
         PT.speedsRowHTML(SPEEDS) +
       '</div>' +
-      '<div class="pod-chips" role="tablist" aria-label="Parts">' + meta.segments.map((s, i) => '<button class="pchip" data-seg="' + i + '">' + esc(s.title) + '</button>').join('') + '</div>' +
+      '<div class="pod-chips" data-sb-strip role="tablist" aria-label="Parts">' + meta.segments.map((s, i) => '<button class="pchip" data-seg="' + i + '">' + esc(s.title) + '</button>').join('') + '</div>' +
       '<div class="pod-turns" id="pod-turns">' + meta.turns.map((t, i) => {
         const hi = hostIx(t.s), h = meta.hosts[hi] || { name: t.s };
         const seg = meta.segments.find((s) => Math.abs(s.start - t.start) < 0.01);

@@ -135,8 +135,8 @@ export async function renderStudy(body, ctx) {
     const cur = sets.find((s) => s.id === sel.set);
     // One row (Tony, 2026-10-22: "more concise"): the kinds as a compact
     // segmented control on the left; the sets, Make and Focus on the right.
-    body.innerHTML = '<div class="sh"><div class="sh-bar"><div class="sh-kinds" role="tablist" aria-label="Study tools"></div>' +
-      '<div class="sh-right"><div class="sh-sets" role="tablist" aria-label="Study sets"></div>' +
+    body.innerHTML = '<div class="sh"><div class="sh-bar"><div class="sh-kinds" data-sb-strip role="tablist" aria-label="Study tools"></div>' +
+      '<div class="sh-right"><div class="sh-sets" data-sb-strip role="tablist" aria-label="Study sets"></div>' +
       '<button class="ib sh-make" data-make title="Make a study set" aria-label="Make a study set">' + IC.spark + '</button>' +
       '<button class="ib sh-focus" data-focus aria-pressed="false"></button></div></div>' +
       '<section class="sh-main"><div class="sh-tool"></div></section></div>';

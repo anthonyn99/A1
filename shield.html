@@ -1167,7 +1167,7 @@ body { max-width: 2000px; margin-inline: auto; }
     <button class="pf-badge" id="pf-badge" title="Switch profile">T</button>
   </header>
 
-  <nav class="nav">
+  <nav class="nav" data-sb-strip>
     <button class="pill on" data-view="home">Home</button>
     <button class="pill" data-view="config">Configure</button>
     <button class="pill" data-view="devices">Devices</button>
@@ -3599,7 +3599,7 @@ function renderConfig(){
     +  '<button class="btn sm ac" id="a-return">' + svg(GLYPH.back) + 'Return to this device</button>'
     +  '</div>';
 
-  h += '<div class="nav" style="padding:0 0 14px;margin:0">'
+  h += '<div class="nav" data-sb-strip style="padding:0 0 14px;margin:0">'
     +  '<button class="pill sub' + (S.tab==='closer'?' on':'') + '" data-tab="closer">Close Apps</button>'
     +  '<button class="pill sub' + (S.tab==='emergency'?' on':'') + '" data-tab="emergency">Emergency</button>'
     +  '<button class="pill sub' + (S.tab==='security'?' on':'') + '" data-tab="security">Security</button>'

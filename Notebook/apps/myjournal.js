@@ -49,7 +49,7 @@ var html = `
     <input id="tj-mobile-title" type="text" placeholder="Untitled entry…" style="flex:1;background:none;border:none;outline:none;font-family:var(--font);font-size:14px;font-weight:500;color:var(--text);min-width:0;padding:0 4px;" />
     <button id="tj-mobile-lock-btn" style="display:none;background:transparent;border:none;cursor:pointer;padding:6px 8px;flex-shrink:0;touch-action:manipulation;line-height:0;display:inline-flex;align-items:center;" aria-label="Lock entry"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></button>
   </div>
-  <div id="tj-toolbar">
+  <div id="tj-toolbar" data-sb-strip>
     <button id="tj-fullscreen-btn" title="Toggle sidebar">
       <svg id="tj-fs-icon-show" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
       <svg id="tj-fs-icon-hide" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="9" x2="9" y2="9" opacity="0.5"/><line x1="15" y1="12" x2="9" y2="12" opacity="0.5"/><line x1="15" y1="15" x2="9" y2="15" opacity="0.5"/></svg>
@@ -199,7 +199,7 @@ var html = `
       <!-- Date strip: pills that scroll, with arrows + a jump menu once it overflows -->
       <div id="tj-je-tabs-bar">
         <button class="je-navbtn" id="tj-je-prev" title="Previous date" aria-label="Previous date"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
-        <div id="tj-je-strip"><div id="tj-je-tabs"></div></div>
+        <div id="tj-je-strip"><div id="tj-je-tabs" data-sb-strip></div></div>
         <button class="je-navbtn" id="tj-je-next" title="Next date" aria-label="Next date"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
         <button id="tj-je-jump" title="Jump to a date"><span id="tj-je-jump-lbl">Dates</span><span class="je-jump-count" id="tj-je-jump-count"></span><span style="font-size:9px;opacity:.7;">&#9662;</span></button>
         <button id="tj-je-add-date" title="Add a new date entry">+ Date</button>

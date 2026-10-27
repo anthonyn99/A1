@@ -304,7 +304,7 @@ export async function viewChapter(el, { id, n, mode, at, go }) {
     '<h1>' + esc(meta.title) + '</h1>' +
     (counts.length ? '<div class="m">' + counts.map((x) => '<span>' + esc(x) + '</span>').join('') + '</div>' : '') + '</div>' +
     '<div class="cp-acts"><button class="btn ghost mark" id="mark-read"></button><button class="btn" id="make-ai">' + G.ICON + 'Make with AI</button></div></header>' +
-    '<nav class="modes" role="tablist"><div class="modes-in">' + tabs + '</div></nav><div id="mode-body"></div>' +
+    '<nav class="modes" role="tablist"><div class="modes-in" data-sb-strip>' + tabs + '</div></nav><div id="mode-body"></div>' +
     '<nav class="cp-nav" aria-label="Chapters">' + (prev ? navBtn(prev, 'prev') : '<span></span>') + (next ? navBtn(next, 'next') : '<span></span>') + '</nav>';
   el.querySelectorAll('[data-go]').forEach((x) => x.addEventListener('click', () => go(x.dataset.go)));
   el.querySelectorAll('[data-mode]').forEach((x) => x.addEventListener('click', () => go('#/b/' + id + '/' + n + (x.dataset.mode === 'read' ? '' : '/' + x.dataset.mode), { replace: true })));
