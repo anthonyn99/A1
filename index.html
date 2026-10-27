@@ -157,6 +157,9 @@ html,body{height:100%;}
 /* Draggable task/habit/goal rows: long-press picks them up, so suppress the
    iOS text-selection / callout that a hold would otherwise trigger. */
 [data-dkey]{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;}
+/* A day button (phone strip) or goals tab with a dragged row over it: dropping
+   there sends the row to that day / list (thDragRef). */
+[data-day-tab].dsort-on,[data-goal-tab].dsort-on{box-shadow:0 0 0 2px var(--ds-ac,#c0aeea)!important;border-radius:6px;}
 /* ── Shared Tony App Nav Bar ── */
 #tony-app-nav{
   position:fixed;top:env(safe-area-inset-top,0px);left:0;right:0;z-index:10001;
@@ -10059,7 +10062,7 @@ function App(){
           React.createElement("div",{style:{display:"flex",gap:3,overflowX:"auto",WebkitOverflowScrolling:"touch",paddingBottom:4,marginBottom:8,scrollbarWidth:"none",msOverflowStyle:"none"},className:"th-mob-day-strip"},
             wd.map((w,i)=>{
               const k=dkey(w.year,w.month,w.day),td=k===tk,sel2=mobDayIdx===i,cur=sel2&&!td;
-              return React.createElement("button",{key:k,type:"button",onClick:()=>setMobDayIdx(i),style:{flexShrink:0,padding:"5px 9px",borderRadius:6,cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s",background:"transparent",color:cur?CURSOR:td?T.AC:T.TXD,border:cur?"1px solid "+CURSOR:td?"1px solid "+T.AC:"1px solid "+T.BD,...(cur?{boxShadow:GLOW_CURSOR}:td?{boxShadow:GLOW_AC}:{}),whiteSpace:"nowrap"}},DS[i]+" "+w.day);
+              return React.createElement("button",{key:k,type:"button","data-day-tab":k,ref:thDragRef("tony","week:"+k,thDrag),onClick:()=>setMobDayIdx(i),style:{...thDragVars,flexShrink:0,padding:"5px 9px",borderRadius:6,cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s",background:"transparent",color:cur?CURSOR:td?T.AC:T.TXD,border:cur?"1px solid "+CURSOR:td?"1px solid "+T.AC:"1px solid "+T.BD,...(cur?{boxShadow:GLOW_CURSOR}:td?{boxShadow:GLOW_AC}:{}),whiteSpace:"nowrap"}},DS[i]+" "+w.day);
             })),
           (()=>{
             const w=wd[mobDayIdx],k=dkey(w.year,w.month,w.day),td=k===tk;
@@ -10296,8 +10299,8 @@ function App(){
       React.createElement("div",{style:{...sec}},
 
         React.createElement("div",{style:{...stt,display:"flex",gap:16,alignItems:"center"}},
-          React.createElement("span",{"data-goal-tab":"short",ref:thDragRef("tony","goalm",thDrag),onClick:()=>setGoalTab("short"),style:{cursor:"pointer",color:goalTab==="short"?T.TX:T.TXM,borderBottom:goalTab==="short"?"2px solid "+T.AC:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Short-Term Goals"),
-          React.createElement("span",{"data-goal-tab":"long",ref:thDragRef("tony","goal",thDrag),onClick:()=>setGoalTab("long"),style:{cursor:"pointer",color:goalTab==="long"?T.TX:T.TXM,borderBottom:goalTab==="long"?"2px solid "+T.AC:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Long-Term Goals"),
+          React.createElement("span",{"data-goal-tab":"short",ref:thDragRef("tony","goalm",thDrag),onClick:()=>setGoalTab("short"),style:{...thDragVars,cursor:"pointer",color:goalTab==="short"?T.TX:T.TXM,borderBottom:goalTab==="short"?"2px solid "+T.AC:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Short-Term Goals"),
+          React.createElement("span",{"data-goal-tab":"long",ref:thDragRef("tony","goal",thDrag),onClick:()=>setGoalTab("long"),style:{...thDragVars,cursor:"pointer",color:goalTab==="long"?T.TX:T.TXM,borderBottom:goalTab==="long"?"2px solid "+T.AC:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Long-Term Goals"),
           React.createElement("button",{type:"button",title:(goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?"Show completed goals":"Hide completed goals",onClick:()=>{const key=goalTab==="short"?"hideShort":"hideLong";setGoalPrefs(p=>({...p,[key]:!p[key]}));},style:{marginLeft:"auto",background:"transparent",border:"1px solid "+T.BD,borderRadius:6,color:T.TXM,fontSize:10,fontWeight:700,letterSpacing:0.3,padding:"3px 8px",cursor:"pointer",fontFamily:"'Inter',system-ui,-apple-system,sans-serif",whiteSpace:"nowrap",textTransform:"none",transition:"all .15s"}},(goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?"Show Completed":"Hide Completed")),
 
         React.createElement("div",{style:{display:edit?"flex":"none",gap:6,marginBottom:8}},
@@ -16468,7 +16471,7 @@ function App(){
           RC("div",{style:{display:"flex",gap:3,overflowX:"auto",WebkitOverflowScrolling:"touch",paddingBottom:4,marginBottom:8,scrollbarWidth:"none",msOverflowStyle:"none"},className:"vd-mob-day-strip"},
             wd.map((w,i)=>{
               const k=dkey(w.year,w.month,w.day),td=k===tk,sel2=vrMobDayIdx===i;
-              return RC("button",{key:k,type:"button",onClick:()=>setVrMobDayIdx(i),style:{flexShrink:0,padding:"5px 9px",borderRadius:6,cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s",background:sel2?A:td?ABG:"transparent",color:sel2?BG:td?A:TXD,border:sel2||td?"1px solid "+A:"1px solid "+BD,...(sel2||td?{boxShadow:GLOW_A}:{}),whiteSpace:"nowrap"}},DS[i]+" "+w.day);
+              return RC("button",{key:k,type:"button","data-day-tab":k,ref:thDragRef("veda","week:"+k,thDrag),onClick:()=>setVrMobDayIdx(i),style:{...thDragVars,flexShrink:0,padding:"5px 9px",borderRadius:6,cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700,transition:"all .15s",background:sel2?A:td?ABG:"transparent",color:sel2?BG:td?A:TXD,border:sel2||td?"1px solid "+A:"1px solid "+BD,...(sel2||td?{boxShadow:GLOW_A}:{}),whiteSpace:"nowrap"}},DS[i]+" "+w.day);
             })),
           (()=>{
             const w=wd[vrMobDayIdx],k=dkey(w.year,w.month,w.day),it=data[k]||[],ts=vdSortTasks(it.filter(t=>t.type==="task")),ev=it.filter(t=>t.type==="event"),p=prog(k),l=lft(k),td=k===tk;
@@ -16627,8 +16630,8 @@ function App(){
 
       RC("div",{style:{...sec,display:"flex",flexDirection:"column",minHeight:200}},
         RC("div",{style:{...stt,display:"flex",gap:14,alignItems:"center",letterSpacing:1}},
-          RC("span",{"data-goal-tab":"short",ref:thDragRef("veda","goalm",thDrag),onClick:()=>setGoalTab("short"),style:{cursor:"pointer",color:goalTab==="short"?TX:TXM,borderBottom:goalTab==="short"?"2px solid "+A:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Short-Term Goals"),
-          RC("span",{"data-goal-tab":"long",ref:thDragRef("veda","goal",thDrag),onClick:()=>setGoalTab("long"),style:{cursor:"pointer",color:goalTab==="long"?TX:TXM,borderBottom:goalTab==="long"?"2px solid "+A:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Long-Term Goals"),
+          RC("span",{"data-goal-tab":"short",ref:thDragRef("veda","goalm",thDrag),onClick:()=>setGoalTab("short"),style:{...thDragVars,cursor:"pointer",color:goalTab==="short"?TX:TXM,borderBottom:goalTab==="short"?"2px solid "+A:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Short-Term Goals"),
+          RC("span",{"data-goal-tab":"long",ref:thDragRef("veda","goal",thDrag),onClick:()=>setGoalTab("long"),style:{...thDragVars,cursor:"pointer",color:goalTab==="long"?TX:TXM,borderBottom:goalTab==="long"?"2px solid "+A:"2px solid transparent",paddingBottom:2,transition:"all .15s"}},"Long-Term Goals"),
           RC("button",{type:"button",title:(goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?"Show completed goals":"Hide completed goals",onClick:()=>{const key=goalTab==="short"?"hideShort":"hideLong";setGoalPrefs(p=>({...p,[key]:!p[key]}));},style:{marginLeft:"auto",background:"transparent",border:"1px solid "+BD,borderRadius:4,color:TXM,fontSize:10,fontWeight:700,letterSpacing:0.3,padding:"3px 8px",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",textTransform:"none",transition:"all .15s"}},(goalTab==="short"?goalPrefs.hideShort:goalPrefs.hideLong)?"Show Completed":"Hide Completed")),
         edit&&RC("div",{style:{display:"flex",gap:5,marginBottom:8,flexShrink:0}},
           RC("input",{style:{...inp,flex:1},placeholder:goalTab==="short"?"New short-term goal...":"New long-term goal...",value:goalTab==="short"?nmmt:nmt,onChange:e=>(goalTab==="short"?setNmmt:setNmt)(e.target.value),onKeyDown:e=>{if(e.key==="Enter")(goalTab==="short"?addMM:addM)();}}),
