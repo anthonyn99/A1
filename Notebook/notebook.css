@@ -825,15 +825,6 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   #bj-root .veda-hbtns::-webkit-scrollbar { display: none; }
   #bj-root .veda-hbtns button { height: 32px !important; flex-shrink: 0; }
 }
-@media (max-width: 600px) {
-  /* "Brainstorm Journal" alone is ~200px of a 390px header — shorten it so the
-     nav buttons still get room. */
-  #bj-root .veda-hdr-left > div { font-size: 0 !important; }
-  #bj-root .veda-hdr-left > div::after {
-    content: 'Journal'; font-size: 15px; letter-spacing: 0.5px;
-  }
-}
-
 /* ════════ PHONE (≤600px) ════════ */
 @media (max-width: 600px) {
   #tj-root #tj-bb-edit, #bj-root #bj-bb-edit,
