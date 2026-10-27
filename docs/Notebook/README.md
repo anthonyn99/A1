@@ -37,6 +37,7 @@ is left out. Both sides' instances save through the same store template
 | index.html, Tony | tony | `tj` | `tony_journal` | overlay (native) |
 | index.html, Veda | veda | `bj` | `journal` | overlay (native) |
 | tradehub.html, Playbook (A1-Priv) | tony | `pb` | `tradehub_playbook` | inline (instance) |
+| tradehub.html, Control's prompts (A1-Priv) | tony | `prm` | `tradehub_prompts` | inline (instance, no sidebar) |
 | everwell.html, notes (A1-Priv) | tony | `ewn` | `everwell_notes` | inline (instance) |
 
 Plan and history: [plan.md](plan.md).
@@ -125,7 +126,7 @@ them, and its stand-ins are the browser's own dialogs.
 ### Host rules
 
 A host talks to its instance only through what this page documents: the mount
-options, `Notebook.open`, `Notebook.attach` / `Notebook.detach`, `Notebook.flushAll`,
+options, `Notebook.open`, `Notebook.attach` / `Notebook.detach`, `Notebook.pin`, `Notebook.flushAll`,
 and `cfg.entries()` (Notebook adds it to the config the host passed). Everything
 else (the instance's ids and classes, its `_<key>…` functions, its `<key>_…`
 storage keys, its ready events) is Notebook's to rename, so a host that touched
@@ -176,6 +177,12 @@ does, switches edit (`true`) or view (`false`) mode when asked, and waits for th
 mount and for the page to load. It resolves `true` once the page is open, and
 `false` if the page never turns up or a newer `open` took over. Never click or
 read Notebook's own elements from a host: their ids are Notebook's to change.
+
+A host that keeps its own list and adds to it after mounting (TradeHub's
+prompts) pins each new page with `Notebook.pin(key, { id, title, html })` before
+opening it. `Notebook.open` then makes the page if the store lacks it, seeded
+with `html`, exactly as a mount-time `pinned` page is made. It returns `false`
+when nothing is mounted under `key`.
 
 A host whose own markup comes and goes (TradeHub's React tab) moves the mounted
 instance with `Notebook.attach(key, container)` and sets it aside, hidden and
