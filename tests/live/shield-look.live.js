@@ -109,20 +109,19 @@ const tab = (c, t) => evalJs(c, `document.querySelector('[data-tab="${t}"]').cli
 
   for (const p of profiles) {
     for (const w of widths) {
-    // Touch emulation only reaches pointer:coarse on a fresh load, so each
-    // width gets its own page.
-    await c.send('Emulation.setDeviceMetricsOverride', { width: w, height: 900, deviceScaleFactor: 1, mobile: w < 500 });
-    await c.send('Emulation.setTouchEmulationEnabled', { enabled: w < 500, maxTouchPoints: w < 500 ? 5 : 1 });
-    await open(c, p);
-    const gate = await evalJs(c, `document.body.getAttribute('data-gate') + ' ' + document.body.getAttribute('data-profile')`);
-    if (gate !== 'app ' + p) { console.log('NOT IN APP:', gate); process.exitCode = 1; }
+      // Touch emulation only reaches pointer:coarse on a fresh load, so each
+      // width gets its own page.
+      await c.send('Emulation.setDeviceMetricsOverride', { width: w, height: 900, deviceScaleFactor: 1, mobile: w < 500 });
+      await c.send('Emulation.setTouchEmulationEnabled', { enabled: w < 500, maxTouchPoints: w < 500 ? 5 : 1 });
+      await open(c, p);
+      const gate = await evalJs(c, `document.body.getAttribute('data-gate') + ' ' + document.body.getAttribute('data-profile')`);
+      if (gate !== 'app ' + p) { console.log('NOT IN APP:', gate); process.exitCode = 1; }
       await go(c, 'home'); await shot(c, `${p}-${w}-home`, w);
       await go(c, 'config');
       for (const t of ['closer', 'emergency', 'security']) { await tab(c, t); await shot(c, `${p}-${w}-config-${t}`, w); }
       await tab(c, 'closer');
       await go(c, 'devices'); await shot(c, `${p}-${w}-devices`, w);
       await go(c, 'history'); await shot(c, `${p}-${w}-history`, w);
-    }
     }
     // The app picker, at the agent window's width.
     await c.send('Emulation.setDeviceMetricsOverride', { width: 520, height: 860, deviceScaleFactor: 1, mobile: false });
