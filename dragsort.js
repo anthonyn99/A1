@@ -24,6 +24,16 @@
  *                          to pick it up (0 = grip only; chip rows use 300)
  *     group,               lists with the same group take each other's rows
  *     canDrag(row),        false leaves a row where it is
+ *     canMoveTo(row, fromList, toList),
+ *                          false: that list of the group never takes this
+ *                          row -- it is ignored while dragging (no gap opens)
+ *     segment(row, list),  a rank for a row in `list`; rows are drawn in rank
+ *                          order, and a row only lands among rows of its own
+ *                          rank (open tasks stay above done ones). For another
+ *                          list it is the rank the row WOULD have there
+ *     free,                true: the lifted row follows the pointer on both
+ *                          axes everywhere, not only over another list (lists
+ *                          side by side); the slot still goes by the axis
  *     copy,                true: the row stays put and a floating copy is what
  *                          is carried (a palette of things to add to another
  *                          list of the group); it never reorders its own list,
@@ -262,6 +272,14 @@
         return bx.length > 1 ? Math.max(0, bx[1][P] - (bx[0][P] + bx[0][S])) : 0;
       };
       var shift = boxes[from][S] + gap(boxes);
+      // The slots this row may take at home: those of its own segment rank.
+      var segOf = me.o.segment, sLo = 0, sHi = n - 1;
+      if (segOf) {
+        var rk = rows.map(function (r) { return segOf(r, list); }), r0k = rk[from];
+        sLo = rk.filter(function (k) { return k < r0k; }).length;
+        sHi = rk.filter(function (k) { return k <= r0k; }).length - 1;
+      }
+      var free = !!me.o.free;
       var lb0 = list.getBoundingClientRect();
       var px0 = e.clientX - lb0.left + list.scrollLeft, py0 = e.clientY - lb0.top + list.scrollTop;   // pointer, in list content
       var pid = e.pointerId, touch = e.pointerType !== 'mouse';
@@ -283,7 +301,9 @@
       };
 
       var groupLists = function () {
-        return me.o.group ? (groups[me.o.group] || []).filter(function (g) { return g.list !== list && g.list.isConnected && !g.o.copy; }) : [];
+        return me.o.group ? (groups[me.o.group] || []).filter(function (g) {
+          return g.list !== list && g.list.isConnected && !g.o.copy && (!me.o.canMoveTo || me.o.canMoveTo(row, list, g.list));
+        }) : [];
       };
       var over = function () {
         var gl = groupLists();
@@ -306,20 +326,23 @@
           row.style.transform = lift(pos2(d.dx, d.dy));
           var cx = boxes[from].x + boxes[from].w / 2 + d.dx, cy = boxes[from].y + boxes[from].h / 2 + d.dy, best = Infinity;
           boxes.forEach(function (b, i) {
+            if (i < sLo || i > sHi) return;
             var dd = Math.pow(b.x + b.w / 2 - cx, 2) + Math.pow(b.y + b.h / 2 - cy, 2);
             if (dd < best) { best = dd; t = i; }
           });
         } else {
-          var lo = boxes[0][P] - boxes[from][P];
-          var hi = boxes[n - 1][P] + boxes[n - 1][S] - (boxes[from][P] + boxes[from][S]);
+          var lo = boxes[sLo][P] - boxes[from][P];
+          var hi = boxes[sHi][P] + boxes[sHi][S] - (boxes[from][P] + boxes[from][S]);
           var v = Math.max(lo, Math.min(hi, X ? d.dx : d.dy));
-          row.style.transform = lift(pos1(row, v));
+          // Free: the row itself goes wherever the pointer does; v (clamped to
+          // its segment) only picks the slot.
+          row.style.transform = free ? lift(pos2(d.dx, d.dy)) : lift(pos1(row, v));
           // A neighbour gives way once the dragged row's LEADING edge passes
           // its middle -- by the dragged row's own middle, the first and last
           // slots were out of reach at the list's clamped ends.
           var lead = boxes[from][P] + v, trail = lead + boxes[from][S];
-          for (var i = 0; i < from; i++) if (lead < boxes[i][P] + boxes[i][S] / 2) { t = i; break; }
-          if (t === from) for (var j = n - 1; j > from; j--) if (trail > boxes[j][P] + boxes[j][S] / 2) { t = j; break; }
+          for (var i = sLo; i < from; i++) if (lead < boxes[i][P] + boxes[i][S] / 2) { t = i; break; }
+          if (t === from) for (var j = sHi; j > from; j--) if (trail > boxes[j][P] + boxes[j][S] / 2) { t = j; break; }
         }
         if (t !== to || tgt) {
           to = t;
@@ -387,6 +410,12 @@
         var tb = tgt.list.getBoundingClientRect();
         var cx = lastX - tb.left + tgt.list.scrollLeft, cy = lastY - tb.top + tgt.list.scrollTop;
         var k = slotIn(tgt, cx, cy);
+        if (segOf) {
+          if (!tgt.rk) tgt.rk = tgt.rows.map(function (r) { return segOf(r, tgt.list); });
+          var mk = segOf(row, tgt.list);
+          var kLo = tgt.rk.filter(function (x) { return x < mk; }).length, kHi = tgt.rk.filter(function (x) { return x <= mk; }).length;
+          k = Math.max(kLo, Math.min(kHi, k));
+        }
         if (k === tTo && tgt._placed) return;
         tTo = k; tgt._placed = true;
         var ts = boxes[from][S] + (gap(tgt.boxes) || gap(boxes));
