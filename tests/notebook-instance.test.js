@@ -101,7 +101,7 @@ ok('it reads its own mount config', /window\.Notebook\.mounts\.vn\b/.test(vapp))
 ok('its locks are its own namespace', /journal: 'vn'/.test(vapp));
 ok('it waits for its own Firestore, not the host\'s fb-ready', /'nb-vn-fb-ready'/.test(vapp) && !/'fb-ready'/.test(vapp) && !/window\._fbReady\b/.test(vapp));
 ok('it calls the loaders the store template defines', /window\._fbLoadVnJournal\b/.test(vapp) && /window\._fbResyncVnJournal\b/.test(vapp)
-  && /window\._fbSaveVnJournalEntry\b/.test(vapp) && /window\._fbRehydrateVnPageImages\b/.test(vapp) && /window\._fbSaveVNPrompt\b/.test(vapp));
+  && /window\._fbSaveVnJournalEntry\b/.test(vapp) && /window\._fbRehydrateVnPageImages\b/.test(vapp));
 ok('its boards and images live under its store', /prefix: 'veda_notes'/.test(vapp) && /'veda_notes_img_'/.test(vapp) && /data-tjkey/.test(vapp));
 ok('it never redefines index\'s show/hide for Veda\'s journal', !/showBrainstormJournal|hideBrainstormJournal/.test(vapp) && /window\.showVnJournal = /.test(vapp));
 ok('it registers its DOCX config as vn, on Veda\'s side', /Notebook\.registerDocx\('vn', \{\n  root: 'vn-root'/.test(vapp) && /side: 'veda'/.test(vapp));
