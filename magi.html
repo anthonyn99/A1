@@ -7350,7 +7350,10 @@ function engineSection(box, done, reopen) {
     boot();
   };
   addWrap.append(addIn, addBtn);
-  box.append(addWrap);
+  // The engines and the key that adds one read as one group.
+  const grp = el("div", "sheet-grp");
+  grp.append(list, addWrap);
+  box.append(grp);
 }
 
 function openSetup() {
@@ -7378,14 +7381,15 @@ function openSetup() {
   input.readOnly = true;
   const edit = el("button", "btn", "Change");
   row.append(input, edit);
-  box.append(lbl, row);
 
   const note = el("div", "sheet-note");
   note.innerHTML =
     'Locked so it cannot be changed by a stray keystroke — press <b>Change</b> to edit it. ' +
     'Set the same value on the engine device with <code>setx MAGI_API_TOKEN "…"</code>, ' +
     'then run <code>magi cloud</code>. Never in the repo, which is public.';
-  box.append(note);
+  const tokGrp = el("div", "sheet-grp");
+  tokGrp.append(lbl, row, note);
+  box.append(tokGrp);
 
   const msg = el("div");
   const bar = el("div", "sheet-bar");
