@@ -17410,7 +17410,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
 
   function _profLocked(who){ return !!(window.alIsLocked && window.alIsLocked("profile_"+who)); }
   // The suite's one picker (profilepick.js), built once and refreshed in place;
-  // the corner padlock manages that person's password without opening them.
+  // Passwords are managed in each profile's settings, never from the picker (Tony, 2026-10-27).
   let _pick=null;
   window._alProfileRefreshBtns=function(){ if(_pick)_pick.refresh(); };
 
@@ -17426,8 +17426,6 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
         const locked=_profLocked(who), here=localStorage.getItem("td6_lastDash")===who;
         return { locked:locked, last:here, note:locked?"Locked":here?"Last here":"", noteIcon:locked?"lock":"" };
       },
-      lockTitle:function(who,st){ return st.locked?"Locked — manage password":"Set a password"; },
-      onLock:function(who){ if(window.alManage)window.alManage("profile_"+who); },
       onChoose:function(who){ clickCard(who); }
     });
     _pick.refresh();
