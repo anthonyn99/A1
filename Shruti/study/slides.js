@@ -206,6 +206,7 @@ export function mount(root, setSlides, { book, set, title }) {
     nav.append(prev, h('span', 'sd-count', (st.i + 1) + ' / ' + n), next);
     box.append(nav);
     const strip = h('div', 'sd-strip');
+    strip.setAttribute('data-sb-strip', '');
     slides.forEach((s, i) => {
       const t = h('button', 'sd-thumb' + (i === st.i ? ' on' : ''));
       t.type = 'button'; t.setAttribute('aria-label', 'Slide ' + (i + 1)); t.dataset.dkey = OD.keys[i]; t.title = OR.HINT;

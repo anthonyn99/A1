@@ -799,7 +799,7 @@ export async function renderWatch(body, { book, n, title, lessons }) {
       '</div>' + PT.speedsRowHTML(SPEEDS) +
       '<div class="vid-note" hidden></div>' +
       '<div class="sec-h"><h2>Scenes</h2><span class="n">' + meta.scenes.length + '</span></div>' +
-      '<div class="vid-board">' + meta.scenes.map((s, i) =>
+      '<div class="vid-board" data-sb-strip>' + meta.scenes.map((s, i) =>
         '<button class="vsc ' + s.layout + '" data-scene="' + i + '">' +
           '<span class="vsc-h"><i>' + String(i + 1).padStart(2, '0') + '</i><span>' + esc(LAYOUT_NAME[s.layout] || s.layout) + (s.beyond ? ' · beyond the book' : '') + '</span><time>' + T.fmtTime(s.start) + '</time></span>' +
           '<b>' + esc(s.layout === 'verse' ? 'Verse ' + s.ref : s.headline) + '</b>' +

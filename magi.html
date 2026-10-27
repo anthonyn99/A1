@@ -20910,6 +20910,7 @@ function renderSlides(slides) {
     box.append(nav);
 
     const strip = el("div", "sd-strip");
+    strip.setAttribute("data-sb-strip", "");
     slides.forEach((s, i) => {
       const b = el("button", `sd-thumb ${i === st.i ? "active" : ""}`);
       b.type = "button";
