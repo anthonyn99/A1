@@ -170,6 +170,7 @@ new host goes in its `HOSTS` list.
 | `pinned` | Pages always at the top, never trashed, purged, dragged or locked. A pinned page missing from the store appears empty with `updated: 0`, so the cloud copy wins as soon as it loads. |
 | `onSave(entry)` | Called when `fb-<key>-saved` confirms that entry. |
 | `onReady()` | Called once, after the first server read. |
+| `done` | `{ note, label, onClick }`: a host's way out of the editor (TradeHub's prompts: "Editing in Notebook" and Done), drawn beside the page title in the title bar and the phone header. |
 
 To open a page from the host (its own list, a link), call
 `Notebook.open(key, id, { edit: true })`. It does what a click on the page's row

@@ -370,7 +370,7 @@ function instanceCss(cfg) {
 // how a program drifts from the others: refuse it. A new setting is added
 // here, documented in docs/Notebook/README.md, and defaults so that every
 // other program keeps working unchanged.
-var OPTIONS = { profile: 1, app: 1, key: 1, store: 1, container: 1, mode: 1, title: 1, templates: 1, features: 1, pinned: 1, onSave: 1, onReady: 1 };
+var OPTIONS = { profile: 1, app: 1, key: 1, store: 1, container: 1, mode: 1, title: 1, templates: 1, features: 1, pinned: 1, onSave: 1, onReady: 1, done: 1 };
 var FEATURES = { ourjournal: 1, locks: 1, sidebar: 1 };
 function checkOptions(cfg) {
   Object.keys(cfg).forEach(function (k) { if (!OPTIONS[k]) throw new Error('Notebook.mount: unknown option ' + k); });
@@ -385,6 +385,33 @@ function vedaFonts() {
   var l = document.createElement('link');
   l.rel = 'stylesheet'; l.href = VEDA_FONTS; l.setAttribute('data-notebook-fonts', 'veda');
   document.head.appendChild(l);
+}
+
+// done: { note, label, onClick } puts a host's way out (TradeHub's prompt editor:
+// "Editing in Notebook" and Done) beside the page title, in the title bar and in
+// the phone header, so the host draws no bar of its own above the editor.
+function addDone(cfg) {
+  var d = cfg.done, K = cfg.key;
+  if (!d || typeof d.onClick !== 'function') return;
+  [[K + '-entry-title-input', true], [K + '-mobile-title', false]].forEach(function (x) {
+    var title = document.getElementById(x[0]);
+    if (!title || !title.parentNode) return;
+    var wrap = document.createElement('span');
+    wrap.className = 'nb-done';
+    wrap.style.cssText = 'display:inline-flex;align-items:center;gap:10px;flex-shrink:0;margin:0 6px;';
+    if (x[1] && d.note) {
+      var n = document.createElement('span');
+      n.className = 'nb-done-note';
+      n.style.cssText = 'font-size:11.5px;opacity:.6;white-space:nowrap;';
+      n.textContent = d.note;
+      wrap.appendChild(n);
+    }
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'tb-btn nb-done-btn'; b.textContent = d.label || 'Done';
+    b.addEventListener('click', function () { d.onClick(); });
+    wrap.appendChild(b);
+    title.parentNode.insertBefore(wrap, title.nextSibling);
+  });
 }
 
 function instantiate(cfg) {
@@ -445,7 +472,7 @@ window.Notebook = {
     // Always an array, and the app keeps this one, so Notebook.pin reaches it.
     cfg.pinned = Array.isArray(cfg.pinned) ? cfg.pinned : [];
     cfg.features = Object.assign({ ourjournal: false, locks: false, sidebar: true }, cfg.features || {});
-    return (cfg._ready = instantiate(cfg));
+    return (cfg._ready = instantiate(cfg).then(function (r) { addDone(cfg); return r; }));
   },
   // Move a mounted instance into `container` (a host that re-renders its own
   // markup, e.g. TradeHub's React tab), or set it aside, hidden and still
