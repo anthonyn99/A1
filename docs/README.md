@@ -11,6 +11,7 @@ Everwell) are in A1-Priv's own `docs/`.
 | --- | --- |
 | [a1-priv-move-plan.md](a1-priv-move-plan.md) | Moving programs to the private repo. Done 2026-10-10; its last section is the recipe for moving another one |
 | [apphead.md](apphead.md) | The app mark beside every title and Everwell's sync pill, shared through `apphead.js` (2026-10-13) |
+| [profilepick.md](profilepick.md) | The one profile picker (Shruti's title screen) in Index, MyList, Shield, MAGI, Shruti and ORCA, through `profilepick.js` (2026-10-27) |
 | [theme-overhaul-plan.md](theme-overhaul-plan.md) | MAGI's look and drag on Tony's side. Done 2026-10-03; §0 says what to do with a new theme ask, §2 is the spec |
 
 ## By project
