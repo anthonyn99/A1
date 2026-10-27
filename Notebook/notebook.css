@@ -980,3 +980,6 @@ body.tj-drawer-open #tony-app-nav, body.bj-drawer-open #tony-app-nav {
   #tj-root .mjd-rail-btn { padding: 12px 6px; }
   #tj-root .mjd-rail-btn svg { width: 16px; height: 16px; }
 }
+
+/* Top toolbar: no vertical dividers between sections (every mount, one rule) */
+#tj-root .toolbar-sep, #bj-root .toolbar-sep { display: none; }
