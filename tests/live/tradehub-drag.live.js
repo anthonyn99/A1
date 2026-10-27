@@ -239,12 +239,13 @@ async function gripChecks(c, name, boxJs, key, reopen) {
     async () => { await load(c, 1440, 900, false, true); await goTo(c, DESK, 'analysis'); });
   // Deploy: leaving the button used to fade its purple fill under hoverfx's
   // dropped brightness and flash (Tony, 2026-10-02). The fill swaps at once.
-  const depJs = "[...document.querySelectorAll('button')].find(b=>/Deploy Trading Auto Launch/.test(b.textContent))";
+  const depJs = "[...document.querySelectorAll('button')].find(b=>/Deploy Auto Launch/.test(b.textContent))";
   await see(c, depJs);
   const dp = await rect(c, depJs);
   await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: dp.x, y: dp.y }); await sleep(300);
-  const depOn = await evalJs(c, `var s=getComputedStyle(${depJs}); return s.backgroundColor+' '+s.color;`);
-  ok('Deploy hover: solid purple, dark label', depOn === 'rgb(192, 174, 234) rgb(26, 26, 29)', depOn);
+  // Analysis redesign (2026-10-27): Deploy is a MAGI button in the header; hover lights its outline.
+  const depOn = await evalJs(c, `var s=getComputedStyle(${depJs}); return s.borderTopColor;`);
+  ok('Deploy hover: the accent outline', depOn === 'rgb(192, 174, 234)', depOn);
   await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: dp.x, y: dp.bottom + 120 });
   const depOff = await evalJs(c, `var s=getComputedStyle(${depJs}); return s.backgroundColor+' | '+s.transitionProperty;`);
   // Set Password kept an old inline transparent background over the solid
