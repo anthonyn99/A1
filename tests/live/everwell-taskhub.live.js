@@ -136,30 +136,35 @@ const ROT = { steps: [{ id: 'a', name: 'Push' }, { id: 'b', name: 'Pull' }, { id
 
   console.log('\nThe Prayer row drags WITHIN Daily Habits only');
   await js(`window._thVoice.setEdit(true); 1`); await sleep(800);
-  // A desktop drag: dragstart on `src`, drop on `dst` (React's own handlers).
-  const drag = (src, dst) => js(`const dt = new DataTransfer(), q = (s) => document.querySelector(s);
-    q(${JSON.stringify(src)}).dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
-    const d = q(${JSON.stringify(dst)}); d.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
-    d.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt })); return 1;`).then(() => sleep(1200));
-  const rowIds = () => js(`return [...document.querySelector('tr[data-ew-prayer]').parentElement.children].map(r => r.dataset.dndId).join();`);
-  ok('in edit mode the Prayer row is draggable', await js(`return document.querySelector('tr[data-ew-prayer]').draggable === true;`));
+  // A mouse drag the way A1Drag (dragsort.js) sees one: a press on `src`, the
+  // pointer walked to the top of `dst`, released there.
+  const drag = (src, dst) => js(`const q = (s) => document.querySelector(s), a = q(${JSON.stringify(src)}), b = q(${JSON.stringify(dst)});
+    a.scrollIntoView({ block: 'center' });
+    const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+    const P = (t, x, y, el) => (el || window).dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, pointerId: 7, pointerType: 'mouse', button: 0, buttons: t === 'pointerup' ? 0 : 1, clientX: x, clientY: y }));
+    const x0 = ra.left + ra.width * 0.3, y0 = ra.top + ra.height / 2, x1 = rb.left + rb.width * 0.4, y1 = rb.top + Math.min(rb.height / 2, 14);
+    P('pointerdown', x0, y0, a);
+    for (let i = 1; i <= 12; i++) P('pointermove', x0 + (x1 - x0) * i / 12, y0 + (y1 - y0) * i / 12);
+    P('pointerup', x1, y1); return 1;`).then(() => sleep(1200));
+  const rowIds = () => js(`return [...document.querySelector('tr[data-ew-prayer]').parentElement.children].map(r => r.dataset.dkey).join();`);
+  ok('in edit mode the Prayer row is an A1Drag row', await js(`const r = document.querySelector('tr[data-ew-prayer]'); return r.dataset.dkey === 'ew-prayer' && r.parentElement.classList.contains('dsort') && r.parentElement.dataset.thz === 'habit';`));
   const mainW0 = await js(`return __fakeFs.log.filter(l => l.path === 'dashboards/main' && !l.remote).length;`);
-  await drag('tr[data-ew-prayer]', 'tr[data-dnd-id="h_read"]');
+  await drag('tr[data-ew-prayer]', 'tr[data-dkey="h_read"]');
   ok('dropping Prayer on the last habit moves it to the bottom', (await rowIds()) === 'h_pray,h_read,ew-prayer', await rowIds());
   ok("…its place is saved beside the ticks (row.after), ticks kept", await js(`const d = __fakeFs.docs['dashboards/everwell_prayer']; return d.row && d.row.after === 'h_read' && d.row.at === 2 && d.done['${YESTERDAY}'] === true;`),
     await js(`return JSON.stringify(__fakeFs.docs['dashboards/everwell_prayer']);`));
   ok('…and `habits` is unchanged (Prayer never enters it, order kept)', await js(`return JSON.stringify(__fakeFs.docs['dashboards/main'].habits.map(h => h.id)) === '["h_pray","h_read"]';`) &&
     (await js(`return __fakeFs.log.filter(l => l.path === 'dashboards/main' && !l.remote).length;`)) === mainW0);
-  await drag('tr[data-dnd-id="h_read"]', 'tr[data-ew-prayer]');
+  await drag('tr[data-dkey="h_read"]', 'tr[data-ew-prayer]');
   ok('a habit dropped on Prayer takes its slot (Prayer moves up past it)', (await rowIds()) === 'h_pray,ew-prayer,h_read', await rowIds());
   ok('…the habit order is saved through TaskHub, Prayer still out of it', await js(`return JSON.stringify(__fakeFs.docs['dashboards/main'].habits.map(h => h.id)) === '["h_pray","h_read"]';`) &&
     await js(`const r = __fakeFs.docs['dashboards/everwell_prayer'].row; return r.after === 'h_pray' && r.at === 1;`));
   // Out of Daily Habits: onto a week-view task and onto the Long-Term Goals zone.
-  const own = `div[data-dnd-id]`;   // any week-view card
+  const own = `#root [data-thz^="week:"] > [data-dkey]`;   // any week-view card
   await drag('tr[data-ew-prayer]', own);
   ok('dropping Prayer on a week task does nothing (it stays in Daily Habits)', (await rowIds()) === 'h_pray,ew-prayer,h_read' &&
     await js(`const m = __fakeFs.docs['dashboards/main']; return !Object.values(m.data).some(a => (a || []).some(t => t.id === 'ew-prayer' || t._ewPrayer)) && !(m.goals || []).some(g => g.id === 'ew-prayer');`));
-  await drag('tr[data-ew-prayer]', '[data-dnd-zone="goal"],[data-dnd-zone="goalm"]');
+  await drag('tr[data-ew-prayer]', '#root div[data-thz="goal"],#root div[data-thz="goalm"]');
   ok('…nor on Long-Term Goals', (await rowIds()) === 'h_pray,ew-prayer,h_read' && await js(`return !(__fakeFs.docs['dashboards/main'].goals || []).some(g => g.id === 'ew-prayer');`));
   await js(`__fakeFs.remote('dashboards/everwell_prayer', { row: { after: null, at: 0 }, savedAt: Date.now() }, { merge: true }); 1`); await sleep(1200);
   ok('a place set on another device shows here', (await rowIds()) === 'ew-prayer,h_pray,h_read', await rowIds());

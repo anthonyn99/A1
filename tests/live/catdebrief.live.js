@@ -87,7 +87,7 @@ const CFG = { tony: { units: ['grok'] }, veda: { units: ['gemini', 'claude'] }, 
       ok('a market holiday never does', !b.some((l) => /Holiday/.test(l)), b);
     }
     if (FUTURE) ok('a release still ahead has none yet', !b.some((l) => /PPI/.test(l)), b);
-    await js(`document.querySelector('.mc-debrief') && document.querySelector('.mc-debrief').closest('[data-dnd-zone]').scrollIntoView({block:'center'}); 1`);
+    await js(`document.querySelector('.mc-debrief') && document.querySelector('.mc-debrief').scrollIntoView({block:'center'}); 1`);
     await sleep(400);
     await shot(`taskhub-${who}-desktop`);
     if (PAST) {
