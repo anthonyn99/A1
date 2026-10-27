@@ -113,6 +113,9 @@ const tab = (c, t) => evalJs(c, `document.querySelector('[data-tab="${t}"]').cli
     if (gate !== 'app ' + p) { console.log('NOT IN APP:', gate); process.exitCode = 1; }
     for (const w of widths) {
       await c.send('Emulation.setDeviceMetricsOverride', { width: w, height: 900, deviceScaleFactor: 1, mobile: w < 500 });
+      // Phone width is a real touch screen, so the pointer:coarse rules apply.
+      await c.send('Emulation.setTouchEmulationEnabled', { enabled: w < 500, maxTouchPoints: w < 500 ? 5 : 0 });
+      await sleep(200);
       await go(c, 'home'); await shot(c, `${p}-${w}-home`, w);
       await go(c, 'config');
       for (const t of ['closer', 'emergency', 'security']) { await tab(c, t); await shot(c, `${p}-${w}-config-${t}`, w); }
@@ -120,6 +123,7 @@ const tab = (c, t) => evalJs(c, `document.querySelector('[data-tab="${t}"]').cli
       await go(c, 'devices'); await shot(c, `${p}-${w}-devices`, w);
       await go(c, 'history'); await shot(c, `${p}-${w}-history`, w);
     }
+    await c.send('Emulation.setTouchEmulationEnabled', { enabled: false, maxTouchPoints: 0 });
     // The app picker, at the agent window's width.
     await c.send('Emulation.setDeviceMetricsOverride', { width: 520, height: 860, deviceScaleFactor: 1, mobile: false });
     await go(c, 'config'); await tab(c, 'closer');

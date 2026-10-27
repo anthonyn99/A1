@@ -4397,8 +4397,8 @@ function wireIosGuard(root, ro){
     if (ok) mintGuardKey(true);
   };
 
-  var cp = $('a-guard-copy');
-  if (cp) cp.onclick = async function(){
+  var cpy = $('a-guard-copy');
+  if (cpy) cpy.onclick = async function(){
     var u = guardUrl(); if (!u) return;
     // A phone is exactly where clipboard permission is most likely to be
     // refused, and a silent failure here means pasting a blank URL into a
