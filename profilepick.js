@@ -13,7 +13,7 @@
      var pick = A1Pick.mount(el, {
        app: 'shruti',                       // A1Head.icon() mark (or mark: '<svg…>')
        title: 'Shruti', sub: 'Read · Listen · Watch · Study',
-       profiles: [{ id: 'tony', label: 'Tony' }, { id: 'veda', label: 'Veda' }],
+       profiles: [{ id: 'tony', label: 'Tony' }, { id: 'veda', label: 'Veda' }],  // + domId, aria, emblem
        state: function (id) { return { note, noteIcon, tone, fav, locked, off }; },
        onChoose: function (id) {},
        onStar: function (id) {},            // shows the ★ in each card's corner
@@ -160,7 +160,7 @@
     var cards = el.querySelector('.pk-cards');
     var corner = o.onStar ? 'star' : o.onLock ? 'lock' : '';
     cards.innerHTML = profiles.map(function (p) {
-      return '<div class="pk-card ' + esc(p.id) + '" role="button" tabindex="0" data-p="' + esc(p.id) + '" aria-label="' + esc(p.aria || p.label) + '">' +
+      return '<div class="pk-card ' + esc(p.id) + '"' + (p.domId ? ' id="' + esc(p.domId) + '"' : '') + ' role="button" tabindex="0" data-p="' + esc(p.id) + '" aria-label="' + esc(p.aria || p.label) + '">' +
         (corner ? '<button type="button" class="pk-star' + (corner === 'lock' ? ' lk' : '') + '" data-corner="' + esc(p.id) + '"></button>' : '') +
         '<span class="pk-em">' + (p.emblem || EMBLEM[p.id] || '') + '</span>' +
         '<span class="nm">' + esc(p.label) + '</span>' +

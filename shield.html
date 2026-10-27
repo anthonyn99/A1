@@ -145,62 +145,10 @@ input,select,textarea,button{font-family:var(--sans)}
 body[data-gate="app"] #app{display:block}
 body[data-gate="app"] #profile-overlay{display:none}
 
-/* ══ PROFILE CHOOSER — letterforms only. The brief is explicit: T and V, never
-      the full names, anywhere in the Shield UI. ══════════════════════════════ */
-#profile-overlay{
-  position:fixed;inset:0;z-index:1000;background:var(--bg);
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:34px;
-  /* Full-screen overlays have to respect the cutout too. This one is centred,
-     so it usually clears the Dynamic Island by luck — but on a short screen in
-     landscape it did not. */
-  padding:calc(var(--safe-t) + 24px) calc(var(--safe-r) + 24px)
-          calc(var(--safe-b) + 24px) calc(var(--safe-l) + 24px);
-}
-.pf-mark{display:flex;flex-direction:column;align-items:center;gap:10px}
-.pf-mark svg{width:52px;height:52px}
-.pf-word{font-family:var(--suite-display);font-size:26px;font-weight:750;letter-spacing:-.5px;color:#dbd0f5}
-.pf-sub{font-size:10px;font-weight:600;letter-spacing:2.4px;text-transform:uppercase;color:#8d8d94}
-.pf-cards{display:flex;gap:18px;flex-wrap:wrap;justify-content:center}
-.pf-card{
-  position:relative;width:132px;height:150px;background:#232327;
-  border:1px solid #34343a;border-radius:12px;cursor:pointer;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
-  transition:border-color .18s,box-shadow .18s,transform .06s;
-}
-.pf-card:hover{transform:translateY(-2px)}
-.pf-card:active{transform:translateY(0)}
-.pf-card .glyph{font-size:60px;line-height:1;font-weight:800}
-.pf-card.t{border-color:#45454c}
-.pf-card.t .glyph{font-family:'Manrope',sans-serif;color:#c0aeea}
-.pf-card.t:hover{border-color:#c0aeea}
-.pf-card.v{background:#26272A;border-color:rgba(141,118,154,.30)}
-.pf-card.v .glyph{font-family:'Playfair Display',serif;font-weight:900;color:#8D769A}
-.pf-card.v:hover{border-color:#8D769A;box-shadow:0 0 14px rgba(141,118,154,.26)}
-.pf-lock{position:absolute;top:9px;right:9px;line-height:0;color:#8d8d94}
-.pf-lock svg{width:15px;height:15px}
-.pf-card.v .pf-lock{color:#76777C}
-.pf-emg{
-  position:absolute;bottom:9px;left:9px;right:9px;text-align:center;
-  font-size:8.5px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;
-  color:#d68a7c;
-}
-.pf-claim{
-  position:absolute;bottom:9px;left:9px;right:9px;text-align:center;
-  font-size:8.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
-  color:#8d8d94;
-}
-/* A profile that does not own this device stays visible and clickable — it
-   leads to the release flow — but reads as unavailable rather than normal. */
-.pf-card.foreign{opacity:.42}
-.pf-card.foreign:hover{transform:none;box-shadow:none}
-.pf-star{
-  position:absolute;top:7px;left:9px;font-size:15px;line-height:1;
-  color:#5a5a61;cursor:pointer;transition:color .15s,transform .06s;
-}
-.pf-star:hover{transform:scale(1.15)}
-.pf-card.t .pf-star.on{color:#e0b874}
-.pf-card.v .pf-star.on{color:#8D769A}
+/* ══ PROFILE CHOOSER — the suite's one picker (profilepick.js), with
+      letterforms for names: the brief is explicit, T and V, never the full
+      names, anywhere in the Shield UI. Shown and hidden by data-gate above. ═ */
+#profile-overlay{z-index:1000}
 
 /* ══ SHELL ══════════════════════════════════════════════════════════════════ */
 .topbar{
@@ -706,8 +654,6 @@ label.fld{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.4px;tex
 
 
 @media(max-width:520px){
-  .pf-card{width:118px;height:136px}
-  .pf-card .glyph{font-size:52px}
   .nav{padding-left:12px;padding-right:12px}
 }
 
@@ -916,6 +862,7 @@ body { max-width: 2000px; margin-inline: auto; }
      paint, unpinned, so every Guardian upgrade reaches this page. -->
 <script src="Guardian/guardian.js"></script>
 <script src="apphead.js"></script>
+<script src="profilepick.js"></script>
 <!-- The one A1 scrollbar (scrollbar.js): native bars hidden, overlay thumb.
      In <head> so it is there before this page's own code. -->
 <script src="scrollbar.js"></script>
@@ -923,24 +870,7 @@ body { max-width: 2000px; margin-inline: auto; }
 <body data-gate="boot" data-profile="tony">
 
 <!-- ══ Profile chooser ══════════════════════════════════════════════════════ -->
-<div id="profile-overlay">
-  <div class="pf-mark">
-    <svg viewBox="0 0 96 96" aria-hidden="true">
-      <g fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M48 14 22 23v24c0 17 13 28 26 35" stroke="#c0aeea"/>
-        <path d="M48 14 74 23v24c0 17-13 28-26 35" stroke="#8D769A"/>
-        <circle cx="48" cy="42" r="7" stroke="#adadb2"/>
-        <path d="M48 49v11" stroke="#adadb2"/>
-      </g>
-    </svg>
-    <div class="pf-word">Shield</div>
-    <div class="pf-sub">Select profile</div>
-  </div>
-  <div class="pf-cards">
-    <button class="pf-card t" id="pf-t"><span class="glyph">T</span></button>
-    <button class="pf-card v" id="pf-v"><span class="glyph">V</span></button>
-  </div>
-</div>
+<div id="profile-overlay"></div>
 
 <!-- ══ App ════════════════════════════════════════════════════════════════ -->
 <div id="app">
@@ -4573,45 +4503,32 @@ function goProfileSelect(){
   renderProfileCards();
 }
 
+var shPick=null;
 function renderProfileCards(){
-  var owner = claimedBy(), fav = favProfile();
-  [['tony','pf-t'],['veda','pf-v']].forEach(function(pair){
-    var p = pair[0], card = $(pair[1]);
-    if (!card) return;
-    ['.pf-lock','.pf-emg','.pf-star','.pf-claim'].forEach(function(sel){
-      var el = card.querySelector(sel); if (el) el.remove();
-    });
-    card.classList.toggle('foreign', !!(owner && owner !== p));
-
-    if (window.AL.isLocked(p + '_shield')){
-      var s = document.createElement('span');
-      s.className = 'pf-lock';
-      s.innerHTML = window.AL.isUnlocked(p + '_shield') ? window.AL.ICON.unlock : window.AL.ICON.lock;
-      card.appendChild(s);
-    }
-
-    // Favourite star — click it without entering the profile.
-    var star = document.createElement('span');
-    star.className = 'pf-star' + (fav === p ? ' on' : '');
-    star.textContent = fav === p ? '★' : '☆';
-    star.title = fav === p ? 'Opens straight to this profile — click to unset' : 'Open Shield straight to this profile';
-    star.onclick = function(ev){ ev.stopPropagation(); toggleFav(p); };
-    card.appendChild(star);
-
-    if (owner && owner !== p){
-      var c = document.createElement('span');
-      c.className = 'pf-claim'; c.textContent = 'Claimed by ' + (owner==='veda'?'V':'T');
-      card.appendChild(c);
-    } else {
-      // Surface a live emergency on the chooser, visible before you pick.
-      var le = jGet('sh_emg_' + p, null);
-      if (le && le.active){
-        var e = document.createElement('span');
-        e.className = 'pf-emg'; e.textContent = 'Locked down';
-        card.appendChild(e);
+  if(!shPick) shPick = A1Pick.mount($('profile-overlay'), {
+    app:'shield', title:'Shield', sub:'Guard · Watch · Lock · Recover',
+    profiles:[{id:'tony',label:'T',aria:'T',domId:'pf-t'},{id:'veda',label:'V',aria:'V',domId:'pf-v'}],
+    state:function(p){
+      var owner = claimedBy(), st = { fav: favProfile() === p };
+      if (owner && owner !== p){
+        // Claimed by the other profile: still tappable (it leads to the release flow).
+        st.off = true; st.tone = 'dim'; st.note = 'Claimed by ' + (owner==='veda'?'V':'T');
+      } else {
+        // Surface a live emergency on the chooser, visible before you pick.
+        var le = jGet('sh_emg_' + p, null);
+        if (le && le.active){ st.tone = 'warn'; st.note = 'Locked down'; }
+        else if (window.AL.isLocked(p + '_shield')){
+          var open = window.AL.isUnlocked(p + '_shield');
+          st.noteIcon = open ? 'unlock' : 'lock'; st.note = open ? 'Unlocked' : 'Locked';
+        }
       }
-    }
+      return st;
+    },
+    starTitle:function(p,st){ return st.fav ? 'Opens straight to this profile — click to unset' : 'Open Shield straight to this profile'; },
+    onStar:function(p){ toggleFav(p); },
+    onChoose:function(p){ chooseProfile(p); }
   });
+  shPick.refresh();
 }
 
 async function chooseProfile(p){
@@ -4643,8 +4560,6 @@ function toggleFav(p){
 }
 
 function boot(){
-  $('pf-t').onclick = function(){ chooseProfile('tony'); };
-  $('pf-v').onclick = function(){ chooseProfile('veda'); };
   $('pf-badge').onclick = goProfileSelect;
   $('lock-btn').onclick = function(){ window.AL.manage(lockId()); };
   Scroll.init();
