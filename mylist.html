@@ -1883,10 +1883,14 @@ function mlDefine(p){
     journal:'mylist', entryId:'profile_'+p, owner:p, kind:'profile',
     label:PROFILE_META[p].label+"'s lists", appName:'MyList',
     // First sight on this device: the old ml_unlocked_<p> marker decides.
+    // Only a lock flag in MyList's synced state is evidence; a missing one is
+    // "unknown" (lists not loaded yet, a failed load, a flag never written), so
+    // the worker decides and an unanswered status fails closed. It used to read
+    // as "no lock, so it opened", which let a browser adopt Veda's profile as
+    // unlocked without her password (Tony, 2026-10-27).
     legacy:{
-      locked:function(){ return !!(state.locks && state.locks[p]); },
-      // No lock in MyList's synced state = the old lock opened it, marker or not.
-      open:function(){ if(!(state.locks && state.locks[p])) return true; var v=(state.lockV && state.lockV[p]) || 0; try{ return localStorage.getItem('ml_unlocked_'+p) === 'v'+v; }catch(e){ return false; } },
+      locked:function(){ return state.locks && state.locks[p] ? true : null; },
+      open:function(){ if(!(state.locks && state.locks[p])) return false; var v=(state.lockV && state.lockV[p]) || 0; try{ return localStorage.getItem('ml_unlocked_'+p) === 'v'+v; }catch(e){ return false; } },
       bio:function(){ return Guardian.legacy.bioRec('mylist', p, (state.lockV && state.lockV[p]) || 0); }
     },
     onChange:function(_g, what){
