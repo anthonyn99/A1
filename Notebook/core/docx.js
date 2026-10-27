@@ -53,6 +53,7 @@ window._docxCleanHTML = function(html) {
         }
       });
     })(doc.body);
+    _docxUnnestHeadings(doc.body);
     return doc.body.innerHTML;
   } catch (e) {
     var d = document.createElement('div');
@@ -60,6 +61,41 @@ window._docxCleanHTML = function(html) {
     return d.innerHTML;
   }
 };
+
+// A heading holds text, never blocks. Old pastes left lists, paragraphs and
+// quotes INSIDE an <h1> (TradeHub Playbook's "Strategy", 2026-10-27): every
+// bullet then took the heading's size and weight, so its marker came out
+// heading-sized. Each block is moved out to sit after the heading's own text;
+// a heading left with no text goes. Runs on paste and on every page load
+// (_docxOnLoad), so stored pages heal on their next save.
+var HEADING = /^H[1-6]$/, BLOCK = /^(UL|OL|P|BLOCKQUOTE|DIV|TABLE|PRE|H[1-6]|HR|DETAILS|FIGURE)$/;
+function _docxUnnestHeadings(root) {
+  var changed = false;
+  Array.prototype.slice.call(root.querySelectorAll('h1,h2,h3,h4,h5,h6')).reverse().forEach(function (h) {
+    if (!h.parentNode || !Array.prototype.some.call(h.children, function (c) { return BLOCK.test(c.tagName); })) return;
+    changed = true;
+    var after = h.nextSibling, run = null;
+    Array.prototype.slice.call(h.childNodes).forEach(function (n) {
+      if (n.nodeType === 1 && BLOCK.test(n.tagName)) { run = null; h.parentNode.insertBefore(n, after); return; }
+      // Inline content stays a heading: the first run in place, later runs as new headings.
+      if (!run) {
+        if (n.parentNode === h && !h._kept) { h._kept = true; run = h; return; }
+        run = h.ownerDocument.createElement(h.tagName); h.parentNode.insertBefore(run, after);
+      }
+      run.appendChild(n);
+    });
+    delete h._kept;
+    // The heading kept only the inline nodes before its first block; it now
+    // sits where it was, ahead of the blocks moved out after it.
+    if (!h.textContent.trim() && !h.querySelector('img')) h.parentNode.removeChild(h);
+  });
+  // A heading that held only blocks may leave an empty sibling heading behind.
+  Array.prototype.slice.call(root.querySelectorAll('h1,h2,h3,h4,h5,h6')).forEach(function (h) {
+    if (!h.textContent.trim() && !h.querySelector('img,br') && !h.children.length) { h.parentNode.removeChild(h); changed = true; }
+  });
+  return changed;
+}
+window._docxUnnestHeadings = _docxUnnestHeadings;
 
 // The browser's "Save as PDF" dialog seeds its filename from the document title, so the
 // printed page's <title> is the only lever we have on the saved file's name. Turn an entry
