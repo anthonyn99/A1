@@ -33,7 +33,10 @@
  *                          list it is the rank the row WOULD have there
  *     free,                true: the lifted row follows the pointer on both
  *                          axes everywhere, not only over another list (lists
- *                          side by side); the slot still goes by the axis
+ *                          side by side); the slot still goes by the axis.
+ *                          Away from its own list and over no list that takes
+ *                          it, it is nowhere: the list closes up and a release
+ *                          there puts it back
  *     copy,                true: the row stays put and a floating copy is what
  *                          is carried (a palette of things to add to another
  *                          list of the group); it never reorders its own list,
@@ -434,10 +437,21 @@
         tgt = null; tTo = 0;
       };
 
+      // Free rows only: near enough the home list to mean a slot in it.
+      var nearHome = function () {
+        var b = list.getBoundingClientRect();
+        return lastX >= b.left - 16 && lastX <= b.right + 16 && lastY >= b.top - 40 && lastY <= b.bottom + 40;
+      };
+      var placeNowhere = function () {
+        var d = drag();
+        row.style.transform = lift(pos2(d.dx, d.dy));
+        if (to !== from) { to = from; rows.forEach(function (r) { if (r !== row) r.style.transform = ''; }); }
+      };
       var place = function () {
         var g = over();
         if (g) return placeAway(g);
         if (tgt) { clearTarget(); to = -1; }
+        if (free && !copy && !grid && !nearHome()) return placeNowhere();
         placeHome();
       };
 

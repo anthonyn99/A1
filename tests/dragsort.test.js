@@ -306,6 +306,8 @@ async function drag(target, from, to, kind) {
     await drag(S.rows[0], [100, 10], [400, 150]);
     ok('into another list: an open row lands among that list\'s open rows', S.drops.length === 1 && S.drops[0][1] === 2 && S.drops[0][3] === T.list, JSON.stringify(S.drops.map((d) => d[1])));
     S.drops.length = 0;
+    await drag(S.rows[0], [100, 10], [100, 900]);
+    ok('free: released far from its list (and over none) it goes back -- no drop', S.drops.length === 0, JSON.stringify(S.drops.map((d) => d.slice(0, 2))));
     const N = vlist(2, 600, { group: 'seg2' });
     const M = vlist(2, 900, { group: 'seg2', canMoveTo: (row, from, to) => to !== N.list });
     await drag(M.rows[0], [1000, 10], [700, 10]);
