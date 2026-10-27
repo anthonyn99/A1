@@ -2820,6 +2820,8 @@ window._tjOpenEntry = function(id, opts) {
     var tries = 0;
     (function attempt() {
       if (seq !== _tjOpenSeq) { resolve(false); return; }
+      // A page pinned since the mount (Notebook.pin) is made here, as the list would.
+      if (_tjIsPinned(id) && !state.entries.some(function(x) { return x.id === id; })) _tjPinFirst();
       var e = state.entries.find(function(x) { return x.id === id && !x.trashed; });
       if (!e) { if (++tries < 80) setTimeout(attempt, 100); else resolve(false); return; }
       if (state.activeId !== id) { saveCurrentEntry(); _tjFbFlush(); state.activeId = id; renderSidebar(); loadActiveEntry(); }

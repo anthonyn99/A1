@@ -442,6 +442,8 @@ window.Notebook = {
     checkOptions(cfg);
     this.mounts[cfg.key] = cfg;
     cfg.mode = cfg.mode || 'inline';
+    // Always an array, and the app keeps this one, so Notebook.pin reaches it.
+    cfg.pinned = Array.isArray(cfg.pinned) ? cfg.pinned : [];
     cfg.features = Object.assign({ ourjournal: false, locks: false, sidebar: true }, cfg.features || {});
     return (cfg._ready = instantiate(cfg));
   },
@@ -475,6 +477,17 @@ window.Notebook = {
       if (typeof f !== 'function') throw new Error('Notebook.open: ' + key + ' cannot open entries');
       return f(id, opts);
     });
+  },
+  // Add a pinned page ({ id, title, html }) to an instance after it mounted:
+  // for a host that keeps its own list and adds to it (TradeHub's prompts).
+  // A pinned page the store lacks is made the moment Notebook.open asks for
+  // it, seeded with `html`. An id already pinned keeps its place and seed.
+  // Returns false when nothing is mounted under `key`.
+  pin: function (key, page) {
+    var cfg = this.mounts[key];
+    if (!cfg || !Array.isArray(cfg.pinned) || !page || !page.id) return false;
+    if (!cfg.pinned.some(function (p) { return p.id === page.id; })) cfg.pinned.push({ id: page.id, title: page.title || '', html: page.html || '' });
+    return true;
   },
   // Run fn once the document has parsed (now, for an instance mounted later).
   _whenReady: function (fn) {

@@ -3203,6 +3203,8 @@ window._bjOpenEntry = function(id, opts) {
     var tries = 0;
     (function attempt() {
       if (seq !== _bjOpenSeq) { resolve(false); return; }
+      // A page pinned since the mount (Notebook.pin) is made here, as the list would.
+      if (_bjIsPinned(id) && !state.entries.some(function(x) { return x.id === id; })) _bjPinFirst();
       var e = state.entries.find(function(x) { return x.id === id && !x.trashed; });
       if (!e) { if (++tries < 80) setTimeout(attempt, 100); else resolve(false); return; }
       if (state.activeId !== id) { saveCurrentEntry(); _bjFbFlush(); state.activeId = id; renderSidebar(); loadActiveEntry(); }
