@@ -46,6 +46,13 @@ var NS = 'ourjournal';
 try { NS = localStorage.getItem('oj_ns') || 'ourjournal'; } catch (e) {}
 
 var PEOPLE = { tj: 'tony', bj: 'veda' };
+// Whose journal an app key is: the two native ones, or an instance's profile
+// (Notebook.mount records it, so a program's own Notebook on either side works).
+function personOf(app) {
+  if (PEOPLE[app]) return PEOPLE[app];
+  var m = window.Notebook && window.Notebook.mounts && window.Notebook.mounts[app];
+  return (m && m.profile) || undefined;
+}
 var NAMES = { tony: 'Tony', veda: 'Veda' };
 var TEMPLATES = ['page', 'mindmap', 'whiteboard'];   // the templates BOTH journals have
 var META = ['title', 'template', 'created', 'updated', 'trashed', 'trashChangedAt', 'creator', 'ord'];
@@ -464,7 +471,7 @@ function writeCache(app) {
 function register(app, hooks) {
   if (apps[app]) return apps[app].S;
   var a = apps[app] = {
-    app: app, person: PEOPLE[app], h: hooks, S: loadCache(app), on: false,
+    app: app, person: personOf(app), h: hooks, S: loadCache(app), on: false,
     idx: { unsub: null, seen: false },
     docs: {}, kn: {}, sent: {}, dirty: {}, dels: {}, metaTimer: null, metaInflight: null, purged: false, idxFirstServer: false
   };
@@ -827,7 +834,7 @@ function maybeClose(a, s) {
 window.OJ = {
   NS: NS,
   TEMPLATES: TEMPLATES,
-  person: function (app) { return PEOPLE[app]; },
+  person: function (app) { return personOf(app); },
   name: function (p) { return NAMES[p] || ''; },
   register: register,
   state: function (app) { return apps[app] ? apps[app].S : null; },
@@ -871,7 +878,7 @@ window.OJ = {
   },
   created: function (app, e) {
     var a = apps[app]; if (!a) return;
-    e.creator = PEOPLE[app];
+    e.creator = personOf(app);
     e._ojLoaded = true; e._ojNew = true;
     session(a, e);
   },

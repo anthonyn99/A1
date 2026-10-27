@@ -46,6 +46,7 @@ const ok = (name, cond, extra) => { console.log((cond ? '  ok   ' : '  FAIL ') +
         mark: !!pk.querySelector('.pk-mark svg'),
         corners: pk.querySelectorAll('.pk-star').length,
         cardW: Math.round(pk.querySelector('.pk-card').getBoundingClientRect().width),
+        sizes: [...pk.querySelectorAll('.pk-card')].map((n) => { const r = n.getBoundingClientRect(); return Math.round(r.width) + 'x' + Math.round(r.height); }),
       });`));
     ok('the picker is up', !r.none && r.shown, JSON.stringify(r));
     if (r.none) continue;
@@ -55,6 +56,7 @@ const ok = (name, cond, extra) => { console.log((cond ? '  ok   ' : '  FAIL ') +
     ok('the cards: ' + a.names, r.names === a.names, r.names);
     ok('the app mark', r.mark);
     if (a.corners != null) ok('no button in the card corners', r.corners === a.corners, String(r.corners));
+    ok('every card is the same size', new Set(r.sizes).size === 1, r.sizes.join(' / '));
     ok('176px cards', r.cardW === 176, String(r.cardW));
     const slug = a.page.replace(/\W+/g, '-');
     let shot = await c.send('Page.captureScreenshot', { format: 'png' });
