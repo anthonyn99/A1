@@ -10,13 +10,13 @@
    The DOCX editor and its stylesheet load at a second spot the host picks with
    Notebook.load('docx'), which keeps their place in the CSS cascade.
 
-   MOUNTING. Notebook.mount({ app, key, store, ... }) puts an app on the page.
-   An app under its own key (brainstorm as bj, myjournal as tj: index.html) is
-   written in place while the page parses. Under any other key it is an
-   INSTANCE: the app's own source with its key rewritten (tj -> key, the
-   tony_journal store -> store, ...), its Firestore layer made the same way from
-   the @nb-store template in core/fb.js, mounted inline into the host's
-   container. A change to MyJournal therefore reaches every instance at once.
+   MOUNTING. Notebook.mount({ profile, ... }) puts a side on the page: 'tony'
+   (the myjournal app, key tj) or 'veda' (the brainstorm app, key bj). Under its
+   own key (index.html) an app is written in place while the page parses. Under
+   any other key it is an INSTANCE: the app's own source with its key rewritten
+   (tj or bj -> key, its store -> store, ...), its Firestore layer made from the
+   @nb-store template in core/fb.js, mounted inline into the host's container.
+   A change to either app therefore reaches every instance of that side at once.
 
    The ?v= stamp is a hash of this folder (tools/notebook-stamp.js). Every file
    written from here carries the same stamp, so one bump busts GitHub Pages'
@@ -40,7 +40,7 @@ var GROUPS = {
   myjournal: ['apps/myjournal.css', 'apps/myjournal.js']
 };
 // The key each app's source is written for. Mounting it under another key
-// makes an instance (see MOUNTING above); only myjournal can be instanced.
+// makes an instance (see MOUNTING above).
 var NATIVE = { brainstorm: 'bj', myjournal: 'tj' };
 // Notebook's two sides. A host names a side, not an app:
 //   Notebook.mount({ profile: 'tony' })   Tony's journal (MyJournal, tj)
@@ -53,7 +53,9 @@ var PROFILES = {
   veda: { app: 'brainstorm', key: 'bj', store: 'journal' }
 };
 function resolveProfile(cfg) {
-  if (!cfg || cfg.profile === undefined) return cfg;
+  if (!cfg) return cfg;
+  // The older { app } form: the profile is the app's side.
+  if (cfg.profile === undefined) { if (cfg.app === 'myjournal') cfg.profile = 'tony'; else if (cfg.app === 'brainstorm') cfg.profile = 'veda'; return cfg; }
   var p = PROFILES[cfg.profile];
   if (!p || (cfg.app && cfg.app !== p.app)) throw new Error('Notebook.mount: profile is tony or veda');
   cfg.app = p.app;
@@ -99,10 +101,11 @@ function load(group) {
 // ── Instances ───────────────────────────────────────────────────────────────
 function cap(k) { return k.charAt(0).toUpperCase() + k.slice(1); }
 
-// The app's source, rewritten from its native key (tj) to the instance's.
-// The tj sources name everything by prefix: ids and classes (tj-), functions
-// and state (_tj, tjX, TJ_), the store (tony_journal, myjournal_ai...), the
-// loader names (_fbLoadTonyJournal) and the title (MyJournal).
+// A tj source (MyJournal's app and sheet, and the store template every instance
+// uses, Veda's side included), rewritten from tj to the instance's key. The tj
+// sources name everything by prefix: ids and classes (tj-), functions and state
+// (_tj, tjX, TJ_), the store (tony_journal, myjournal_ai...), the loader names
+// (_fbLoadTonyJournal) and the title (MyJournal).
 // tests/notebook-instance.test.js holds that nothing of tj's survives a rewrite
 // to another key, and that the result still parses.
 function rewrite(text, cfg) {
@@ -115,11 +118,33 @@ function rewrite(text, cfg) {
     .replace(/(^|[^A-Za-z])tj(?![a-z])/g, '$1' + K)
     .split('MyJournal').join(cfg.title || cap(K));
 }
+// A bj source (Veda's app and sheet), rewritten from bj to the instance's key.
+// Her loader names carry no prefix (_fbLoadJournal), so they become the names
+// the store template defines (_fbLoad<Key>Journal, as MyJournal's do); her
+// store literals ('journal', 'journal_img_', brainstorm_journal_v3) become the
+// instance's store; her image marker (data-bjkey) becomes the template's
+// (data-tjkey). Her name in the UI is not text here: the app reads cfg.title.
+function rewriteBj(text, cfg) {
+  var K = cfg.key, C = cap(K);
+  return text
+    .split('brainstorm_journal').join(cfg.store)
+    .split("'journal_img_'").join("'" + cfg.store + "_img_'")
+    .split("'journal'").join("'" + cfg.store + "'")
+    .split('data-bjkey').join('data-tjkey')
+    .split("'bjcanvas:'").join("'" + K + "canvas:'")
+    .replace(/_fb(Save|Flush|Load|Resync|Delete)Journal/g, '_fb$1' + C + 'Journal')
+    .replace(/_fbMigrateJournalIfNeeded/g, '_fbMigrate' + C + 'JournalIfNeeded')
+    .replace(/_fbRehydratePageImages/g, '_fbRehydrate' + C + 'PageImages')
+    .replace(/Brainstorm(?=[A-Z])/g, C)
+    .replace(/(^|[^A-Z])BJ(?![a-z])/g, '$1' + K.toUpperCase())
+    .replace(/(^|[^A-Za-z])bj(?![a-z])/g, '$1' + K);
+}
+function rewriteFor(app) { return app === 'brainstorm' ? rewriteBj : rewrite; }
 // An instance runs after the host has parsed, so what the source waits for at
 // load (DOMContentLoaded, index's fb-ready) is routed to the instance's own.
 function rewriteApp(text, cfg) {
   var K = cfg.key;
-  return rewrite(text, cfg)
+  return rewriteFor(cfg.app)(text, cfg)
     .split("document.addEventListener('DOMContentLoaded', ").join('window.Notebook._whenReady(')
     .split("window.addEventListener('fb-ready', ").join("window.addEventListener('nb-" + K + "-fb-ready', ")
     .split('window._fbReady').join('window._nb' + cap(K) + 'FbReady');
@@ -146,11 +171,13 @@ function storeSource(fb, cfg) {
     + 'serverSeen: function () { return _tjServerSeen; }\n};\n})()';
 }
 
-// The rules of a stylesheet that are tj's (a selector naming #tj-root or a tj-
-// id/class), @media blocks kept around them. notebook.css styles MyJournal under
-// #tj-root; an instance needs those rules under its own root, and none of the
-// unscoped rest again (the host already has them, earlier in its cascade).
-function tjRules(css) {
+// The rules of a stylesheet that are one app's (a selector naming #tj-root or a
+// tj- id/class; bj for Veda's), @media blocks kept around them. notebook.css
+// styles MyJournal under #tj-root; an instance needs those rules under its own
+// root, and none of the unscoped rest again (the host already has them).
+function tjRules(css) { return keyRules(css, 'tj'); }
+function keyRules(css, nk) {
+  var own = new RegExp('#' + nk + '-root|(^|[^A-Za-z])' + nk + '-');
   css = css.replace(/\/\*[\s\S]*?\*\//g, '');
   var out = [], i = 0, n = css.length;
   function block(from) {          // index just past the } closing the block opened before `from`
@@ -163,9 +190,9 @@ function tjRules(css) {
     if (o < 0) break;
     var head = css.slice(i, o).trim(), end = block(o + 1);
     if (/^@media|^@supports/.test(head)) {
-      var inner = tjRules(css.slice(o + 1, end - 1));
+      var inner = keyRules(css.slice(o + 1, end - 1), nk);
       if (inner) out.push(head + ' {\n' + inner + '\n}');
-    } else if (/#tj-root|(^|[^A-Za-z])tj-/.test(head) && !/^@/.test(head)) {
+    } else if (own.test(head) && !/^@/.test(head)) {
       out.push(head + ' ' + css.slice(o, end));
     }
     i = end;
@@ -277,9 +304,19 @@ function hostF(h) {
 // this order to index.html's.
 var TJ_SHEETS = ['core/viz.css', 'core/oj.css', 'apps/brainstorm.css', 'notebook.css'];
 var TJ_AT = 3;
-function instanceSheet(myjournalCss, sheets, cfg) {
-  var parts = sheets.map(function (css) { return rewrite(tjRules(css), cfg); });
-  parts.splice(TJ_AT, 0, rewrite(myjournalCss, cfg));
+// Veda's side the same way: brainstorm.css goes in at BJ_AT, before
+// myjournal.css, as in index.html.
+var BJ_SHEETS = ['core/viz.css', 'core/oj.css', 'apps/myjournal.css', 'notebook.css'];
+var BJ_AT = 2;
+// What an instance of each app is made from.
+var SPEC = {
+  myjournal: { js: 'apps/myjournal.js', css: 'apps/myjournal.css', sheets: TJ_SHEETS, at: TJ_AT },
+  brainstorm: { js: 'apps/brainstorm.js', css: 'apps/brainstorm.css', sheets: BJ_SHEETS, at: BJ_AT }
+};
+function instanceSheet(ownCss, sheets, cfg) {
+  var app = cfg.app || 'myjournal', rw = rewriteFor(app), nk = NATIVE[app];
+  var parts = sheets.map(function (css) { return rw(keyRules(css, nk), cfg); });
+  parts.splice(SPEC[app].at, 0, rw(ownCss, cfg));
   return hostGuard(cfg) + '\n' + parts.join('\n') + '\n' + instanceCss(cfg);
 }
 // A host's own element rules (Everwell's `select { width: 100% }`, a form
@@ -302,6 +339,14 @@ function hostGuard(cfg) {
 function instanceCss(cfg) {
   var R = '#' + cfg.key + '-root', css = [];
   var K = '#' + cfg.key;
+  if (cfg.app === 'brainstorm') {
+    // What index.html gives Veda's root: her purple hover glow, her body face,
+    // and the accent face its :root names. Her header is index's nav (TaskHub,
+    // Gita, App Lock, profile); an instance lives inside its host's own.
+    css.push(R + '{--suite-glow:0 0 0 1px rgba(141,118,154,.42),0 0 10px rgba(141,118,154,.42);'
+      + '--font-accent:\'Fraunces\',Georgia,serif;font-family:\'Nunito\',sans-serif;}');
+    css.push(R + ' ' + K + '-nav-header{display:none!important;}');
+  }
   if (cfg.mode !== 'overlay') {
     css.push(R + '{position:relative!important;inset:auto!important;z-index:auto!important;'
       + 'display:flex!important;flex-direction:column;width:100%;height:100%;padding-top:0!important;}');
@@ -332,12 +377,22 @@ function checkOptions(cfg) {
   if (cfg.mode && cfg.mode !== 'inline' && cfg.mode !== 'overlay') throw new Error('Notebook.mount: mode is inline or overlay');
 }
 
+// Veda's faces, for a host that does not load them (index.html does).
+var VEDA_FONTS = 'https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&family=Playfair+Display:wght@900&family=Fraunces:opsz,wght@9..144,400..700&display=swap';
+function vedaFonts() {
+  if (document.querySelector('link[data-notebook-fonts]')) return;
+  var l = document.createElement('link');
+  l.rel = 'stylesheet'; l.href = VEDA_FONTS; l.setAttribute('data-notebook-fonts', 'veda');
+  document.head.appendChild(l);
+}
+
 function instantiate(cfg) {
-  var K = cfg.key;
+  var K = cfg.key, spec = SPEC[cfg.app];
+  if (cfg.app === 'brainstorm') vedaFonts();
   return helpers()
     .then(function () { return load('core'); })
     .then(function () { return load('docx'); })
-    .then(function () { return Promise.all([fetchText('apps/myjournal.css'), fetchText('apps/myjournal.js'), fetchText('core/fb.js')].concat(TJ_SHEETS.map(fetchText))); })
+    .then(function () { return Promise.all([fetchText(spec.css), fetchText(spec.js), fetchText('core/fb.js')].concat(spec.sheets.map(fetchText))); })
     .then(function (t) {
       var st = document.createElement('style');
       st.setAttribute('data-notebook', K);
@@ -347,7 +402,7 @@ function instantiate(cfg) {
       // element goes where the markup should: the host's container.
       var el = document.createElement('script');
       el.setAttribute('data-notebook', K);
-      el.text = rewriteApp(t[1], cfg) + '\n//# sourceURL=' + BASE + 'apps/myjournal.js#' + K;
+      el.text = rewriteApp(t[1], cfg) + '\n//# sourceURL=' + BASE + spec.js + '#' + K;
       (cfg.container || document.body).appendChild(el);
       var store = (0, eval)(rewrite(storeSource(t[2], cfg), cfg) + '\n//# sourceURL=' + BASE + 'core/fb.js#' + K);
       return hostFirestore().then(function (h) {
@@ -382,7 +437,6 @@ window.Notebook = {
     if (!cfg || !GROUPS[cfg.app] || !NATIVE[cfg.app] || !cfg.key || !/^[a-z]{2,8}$/.test(cfg.key)) throw new Error('Notebook.mount: bad config');
     if (this.mounts[cfg.key]) return this.mounts[cfg.key]._ready;
     if (NATIVE[cfg.app] === cfg.key) { this.mounts[cfg.key] = cfg; load(cfg.app); return (cfg._ready = Promise.resolve(cfg)); }
-    if (cfg.app !== 'myjournal') throw new Error('Notebook.mount: only myjournal can take another key');
     if (!cfg.store || !/^[a-z0-9_]+$/.test(cfg.store) || cfg.store === 'tony_journal' || cfg.store === 'journal') throw new Error('Notebook.mount: an instance needs its own store');
     checkOptions(cfg);
     this.mounts[cfg.key] = cfg;
@@ -433,6 +487,9 @@ window.Notebook = {
   _instanceSheet: instanceSheet,
   _tjSheets: TJ_SHEETS,
   _tjAt: TJ_AT,
+  _rewriteBj: rewriteBj,
+  _keyRules: keyRules,
+  _spec: SPEC,
   // DOCX editor config per app key (tj, bj, ...). core/docx.js reads this
   // object as its APPS registry; an app registered after the editor has
   // initialised is initialised on arrival.
