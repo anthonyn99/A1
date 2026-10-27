@@ -1166,42 +1166,63 @@ body { max-width: 2000px; margin-inline: auto; }
 <!-- ── Settings ────────────────────────────────────────────────────────────── -->
 <div class="modal" id="settingsModal">
   <div class="mbox">
-    <div class="mhead"><div class="t">OneInbox settings</div>
+    <div class="mhead"><div class="t">Settings<small>OneInbox</small></div>
       <button class="iconbtn" data-close="settingsModal" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="mscroll">
-      <div class="ghead" style="font-size:9.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--faint);margin-bottom:10px">Connected accounts</div>
-      <div id="settingsAccounts"></div>
-      <button class="btn ac" id="settingsAddAcct" style="width:100%;justify-content:center;margin-bottom:9px">Connect another Gmail account</button>
-      <button class="btn" id="settingsRescan" style="width:100%;justify-content:center;margin-bottom:6px">Re-scan recent mail for cards</button>
-      <div style="font-size:11.5px;color:var(--faint);margin-bottom:22px;line-height:1.5">
-        Re-reads the last week of mail and rebuilds the package, coupon and bill
-        cards on TaskHub. Use it when something that should have appeared didn't.
-      </div>
+      <section class="set-sec">
+        <div class="set-h"><span class="t">Accounts</span><span class="n" id="settingsAcctN"></span></div>
+        <div class="set-group">
+          <div id="settingsAccounts"></div>
+          <button class="set-add" id="settingsAddAcct" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            Connect another Gmail account
+          </button>
+        </div>
+      </section>
 
-      <div class="ghead" style="font-size:9.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--faint);margin-bottom:10px">Templates</div>
-      <div id="tmplList"></div>
-      <button class="btn" id="tmplAdd" style="margin-bottom:22px">Add template</button>
+      <section class="set-sec">
+        <div class="set-h"><span class="t">TaskHub cards</span></div>
+        <div class="set-group">
+          <label class="togrow">
+            <span class="tx"><span class="tt">Coupons</span>
+              <span class="td">Go to <b>Short-Term Goals</b> with copy-code and open-store buttons.</span></span>
+            <input type="checkbox" class="sw" id="optCoupons">
+          </label>
+          <label class="togrow">
+            <span class="tx"><span class="tt">Packages</span>
+              <span class="td">Sit on the <b>weekly view</b> on their delivery day and move when the ETA changes.</span></span>
+            <input type="checkbox" class="sw" id="optPackages">
+          </label>
+          <label class="togrow">
+            <span class="tx"><span class="tt">Bills, subscriptions, travel and appointments</span>
+              <span class="td">Shown as TaskHub cards too.</span></span>
+            <input type="checkbox" class="sw" id="optOther">
+          </label>
+          <div class="setstat">
+            <span class="num" id="statusNum">0</span>
+            <span class="tx" id="statusLine"></span>
+            <button class="btn" id="settingsRescan" type="button" title="Re-reads the last week of mail and rebuilds the package, coupon and bill cards. Use it when something that should have appeared didn't.">Re-scan mail</button>
+          </div>
+        </div>
+        <div class="set-note">Re-scan re-reads the last week of mail and rebuilds the cards. Use it when something that should have appeared didn't.</div>
+      </section>
 
-      <div class="ghead" style="font-size:9.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--faint);margin-bottom:10px">Automation</div>
-      <label style="display:flex;align-items:flex-start;gap:9px;font-size:13.5px;margin-bottom:11px;cursor:pointer">
-        <input type="checkbox" id="optCoupons" style="width:auto;margin-top:3px">
-        <span>Send detected coupons to <strong>TaskHub → Short-Term Goals</strong>, with copy-code and open-store buttons.</span>
-      </label>
-      <label style="display:flex;align-items:flex-start;gap:9px;font-size:13.5px;margin-bottom:11px;cursor:pointer">
-        <input type="checkbox" id="optPackages" style="width:auto;margin-top:3px">
-        <span>Put packages on the <strong>TaskHub weekly view</strong> on their delivery day, and move the card when the ETA changes.</span>
-      </label>
-      <label style="display:flex;align-items:flex-start;gap:9px;font-size:13.5px;margin-bottom:6px;cursor:pointer">
-        <input type="checkbox" id="optOther" style="width:auto;margin-top:3px">
-        <span>Also surface <strong>bills, subscriptions, travel and appointments</strong> as TaskHub cards.</span>
-      </label>
-      <div style="font-size:12px;color:var(--faint);line-height:1.5;margin-top:12px;padding-top:12px;border-top:1px solid var(--border-soft)" id="statusLine"></div>
+      <section class="set-sec">
+        <div class="set-h"><span class="t">Templates</span></div>
+        <div class="set-group">
+          <div id="tmplList"></div>
+          <button class="set-add" id="tmplAdd" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            Add template
+          </button>
+        </div>
+      </section>
     </div>
     <div class="mfoot">
-      <button class="btn ac" id="settingsSave">Save</button>
-      <span class="grow"></span>
       <button class="btn" data-close="settingsModal">Close</button>
+      <span class="grow"></span>
+      <button class="btn solid" id="settingsSave">Save changes</button>
     </div>
   </div>
 </div>
