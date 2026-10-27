@@ -610,7 +610,7 @@ function install(F) {
     // @nb-shared }
 
     window._bjCompactImages = (opts) => _compactImages({
-      ref: bjDocRef, label: 'Brainstorm Journal',
+      ref: bjDocRef, label: 'Journal',
       stripEntry: _bjStripEntry, sanitize: _bjSanitize, opts
     });
 

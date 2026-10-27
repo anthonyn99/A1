@@ -2117,7 +2117,7 @@ function aiRunSelection(ctx, range, tool) {
   });
 }
 
-function aiJournalName(app) { return (APPS[app] && APPS[app].name) || 'Brainstorm Journal'; }
+function aiJournalName(app) { return (APPS[app] && APPS[app].name) || 'Journal'; }
 // Tony's side (MAGI's look) or Veda's: each app's config says which.
 function _docxTony(app) { return !!(APPS[app] && APPS[app].side === 'tony'); }
 // The registered app whose root holds this element.

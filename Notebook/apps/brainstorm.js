@@ -3415,7 +3415,7 @@ window._bjOJ = { enter: _bjOJEnter, leave: _bjOJLeave, active: _bjIsOJ };
       '<button class="oj-tab" data-oj="1" role="tab" title="OurJournal — shared with Tony">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.2c3 .2 5.5 2.6 5.5 5.8"/></svg>' +
         '<span class="oj-lbl">OurJournal</span></button>' +
-      '<button class="oj-tab" data-oj="0" role="tab" title="Brainstorm Journal — your own entries">' +
+      '<button class="oj-tab" data-oj="0" role="tab" title="Journal — your own entries">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5V5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2.5Z"/><path d="M8 7h7"/></svg>' +
         '<span class="oj-lbl">Journal</span></button>';
     side.insertBefore(rail, nb);
@@ -3720,7 +3720,7 @@ window.hideBrainstormJournal = function() {
     var e = blEntry(id);
     return G.define(gid(id), {
       journal: 'bj', entryId: id, kind: 'entry', owner: 'veda',
-      label: (e && e.title) || 'Untitled entry', appName: 'Brainstorm Journal',
+      label: (e && e.title) || 'Untitled entry', appName: 'Journal',
       // First sight on this device: the old per-entry unlock marker decides.
       legacy: {
         locked: function() { return !!blGetLock(id); },
@@ -3860,5 +3860,5 @@ Notebook.registerDocx('bj', {
   mainToolbar: 'bj-toolbar', syncPill: 'bj-sync-pill', newBtn: 'bj-new-entry-btn',
   exportBtn: 'bj-btn-export-pdf', sidebarBtn: 'bj-fullscreen-btn', trashAPI: '_bjTrashAPI',
   aiProfile: 'veda', bindImg: '_bjBindImg',
-  name: 'Brainstorm Journal', side: 'veda'
+  name: 'Journal', side: 'veda'
 });
