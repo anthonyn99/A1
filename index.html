@@ -6180,6 +6180,24 @@ function _xDrop(who,destZone,targetId,destDayKey){const e=_XDRAG[who];if(!e||!e.
 // parse a zone string like "week:2026-5-16" | "habit" | "goal"
 function _xParseZone(zs){if(!zs)return null;const i=zs.indexOf(':');if(i<0)return{zone:zs};return{zone:zs.slice(0,i),dayKey:zs.slice(i+1)};}
 
+// Tony's ticked tasks display by doneAt (wkSortTasks), not array position, so a
+// reorder between two of them moves the dragged one in the DISPLAYED ticked list
+// (before the target going up, after it going down) and re-stamps the whole group
+// in that order. Nudging one doneAt instead skipped tied or missing stamps.
+// Returns the new day array, or null when src/target are not both ticked tasks.
+function _wkReorderDone(arr,srcId,targetId){
+  const dm=(window._wkDoneAt=window._wkDoneAt||{});
+  const key=t=>Math.max(t.doneAt||0,dm[t.id]||0);
+  const grp=arr.map((t,i)=>[t,i]).filter(x=>x[0].done&&x[0].type==="task"&&!x[0]._mc)
+    .sort((a,b)=>(key(b[0])-key(a[0]))||(a[1]-b[1])).map(x=>x[0].id);
+  const si=grp.indexOf(srcId),ti=grp.indexOf(targetId);
+  if(si<0||ti<0)return null;
+  grp.splice(si,1);grp.splice(ti,0,srcId);
+  const base=arr.reduce((m,t)=>t.done&&t.type==="task"&&!t._mc?Math.max(m,key(t)):m,0),stamp={};
+  grp.forEach((id,j)=>{stamp[id]=base+grp.length-j;dm[id]=stamp[id];});
+  return arr.map(t=>stamp[t.id]!=null?{...t,doneAt:stamp[t.id]}:t);
+}
+
 // ── Touch drag-to-reorder hook ─────────────────────────────────────────────
 // Returns { getTouchHandlers(id), getRowProps(id) }
 // getTouchHandlers → attach to the grip ⠿ span
@@ -6354,14 +6372,9 @@ function useTouchReorderByDay(setData, accentColor, who) {
       const si = arr.findIndex(x => x.id === srcId);
       const ti = arr.findIndex(x => x.id === targetId);
       if (si < 0 || ti < 0) return prev;
-      // Ticked tasks display by doneAt (wkSortTasks), so re-stamp instead (as onDropTask).
-      if (arr[si].done && arr[ti].done) {
-        const dm = (window._wkDoneAt = window._wkDoneAt || {});
-        const key = t => Math.max(t.doneAt || 0, dm[t.id] || 0);
-        const tk = key(arr[ti]), nk = key(arr[si]) < tk ? tk + .5 : tk - .5;
-        arr[si] = { ...arr[si], doneAt: nk }; dm[srcId] = nk;
-        return { ...prev, [k]: arr };
-      }
+      // Ticked tasks display by doneAt, so they reorder by re-stamping (as onDropTask).
+      const done = _wkReorderDone(arr, srcId, targetId);
+      if (done) return { ...prev, [k]: done };
       const [item] = arr.splice(si, 1);
       arr.splice(ti, 0, item);
       return { ...prev, [k]: arr };
@@ -9984,9 +9997,8 @@ function App(){
     if(srcKey===k){
       if(srcId===targetId)return;
       setData(prev=>{const arr=[...(prev[k]||[])];const si=arr.findIndex(t=>t.id===srcId),ti=arr.findIndex(t=>t.id===targetId);if(si<0||ti<0)return prev;
-        // Ticked tasks display by doneAt (wkSortTasks), not array position, so
-        // reordering two of them means re-stamping the dragged one beside the target.
-        if(arr[si].done&&arr[ti].done){const tk=wkDoneKey(arr[ti]),nk=wkDoneKey(arr[si])<tk?tk+.5:tk-.5;arr[si]={...arr[si],doneAt:nk};(window._wkDoneAt=window._wkDoneAt||{})[srcId]=nk;return{...prev,[k]:arr};}
+        // Ticked tasks display by doneAt (wkSortTasks), not array position.
+        const done=_wkReorderDone(arr,srcId,targetId);if(done)return{...prev,[k]:done};
         const[item]=arr.splice(si,1);arr.splice(ti,0,item);return{...prev,[k]:arr};});
     }else if(_plGuard(stateRef.current.data[srcKey],srcId,'This is a shared plan — change its date in Add → Plan.')){
       // Reordering a plan WITHIN a day is yours to keep; moving it to another day
