@@ -358,8 +358,10 @@ copy.
   (HTML5 `draggable`, `useTouchReorder*`, `thDragList`, `attachPanelDrag`,
   `vault-drag.js`, etc. — Vault's are gone since phase 7) with `A1Drag`. Veda's copies are untouched, as with
   the theme.
-- **NOT Tony's TaskHub.** Tony said to keep its current drag and drop: the
-  week, habits and goals, `useTouchReorder*` and `_XDRAG`. Never replace it.
+- **Tony's TaskHub** was left out of this overhaul at first (Tony,
+  2026-10-02). On 2026-10-27 Tony asked for BOTH TaskHubs to move onto A1Drag,
+  and they did: see [TaskHub/drag-and-drop.md](TaskHub/drag-and-drop.md).
+  `useTouchReorder*` and `_XDRAG` are gone.
 - A phase's drag work is verified on desktop AND phone width over CDP. Use
   `Input.dispatchMouseEvent` for the mouse, and `Input.dispatchTouchEvent` for
   the hold-then-drag. Assert the persisted order.
@@ -510,9 +512,8 @@ adding `axis` and cross-list `group`.
   hold.
 - Add the file to the root-script list in `tests/syntax-check.js`.
 
-**2. Leave the TaskHub alone.** Tony's TaskHub KEEPS its current drag and
-drop (Tony, 2026-10-02). Do not touch `useTouchReorder*`, `_XDRAG` or its
-HTML5 drags.
+**2. Leave the TaskHub alone.** Superseded 2026-10-27: both TaskHubs now
+drag with A1Drag ([TaskHub/drag-and-drop.md](TaskHub/drag-and-drop.md)).
 
 **3. Tony's chrome drags in index.html** (outside the TaskHub itself):
 - Program nav buttons and the dropdown items (`attachPanelDrag`, nav
