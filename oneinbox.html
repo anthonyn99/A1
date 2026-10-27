@@ -2196,22 +2196,27 @@ async function aiDraft(){
    SETTINGS
    ══════════════════════════════════════════════════════════════════════════ */
 function renderSettings(){
-  el('settingsAccounts').innerHTML = S.accounts.length ? S.accounts.map(a => `
+  el('settingsAcctN').textContent = S.accounts.length || '';
+  el('settingsAccounts').innerHTML = S.accounts.length ? S.accounts.map(a => {
+    const bad = needsReconnect.has(a.email), live = a.watchExpiry > Date.now();
+    return `
     <div class="acctcard" data-acct="${esc(a.email)}">
       <div class="top">
-        <span class="acctdot" style="background:${acctColor(a.email)};width:10px;height:10px"></span>
+        <span class="acctav" style="background:${acctColor(a.email)}">${esc((a.name || a.email).trim().charAt(0))}</span>
         <div class="em"><div class="a">${esc(a.email)}</div>
-          <div class="b">${needsReconnect.has(a.email)
+          <div class="b${bad ? ' bad' : live ? ' live' : ''}">${bad
             ? '<span class="needsauth">Authorisation expired — reconnect this account</span>'
-            : (a.watchExpiry > Date.now() ? 'Real-time push active' : 'Polling every 15 min')}</div></div>
-        <button class="btn danger" data-disconnect="${esc(a.email)}">Remove</button>
+            : (live ? 'Real-time push active' : 'Polling every 15 min')}</div></div>
+        <button class="acctrm" type="button" data-disconnect="${esc(a.email)}">Remove</button>
       </div>
-      <label class="fld">Display name</label>
-      <input data-name="${esc(a.email)}" value="${esc(a.name)}" style="margin-bottom:9px">
-      <label class="fld">Signature for this account</label>
-      <textarea data-sig="${esc(a.email)}" placeholder="Tony · A1">${esc(a.signature)}</textarea>
-    </div>`).join('')
-    : '<div style="color:var(--faint);font-size:13px;margin-bottom:12px">No accounts connected yet.</div>';
+      <div class="acctfields">
+        <div><label class="fld">Display name</label>
+          <input data-name="${esc(a.email)}" value="${esc(a.name)}"></div>
+        <div><label class="fld">Signature</label>
+          <textarea data-sig="${esc(a.email)}" rows="1" placeholder="Tony · A1">${esc(a.signature)}</textarea></div>
+      </div>
+    </div>`; }).join('')
+    : '<div class="set-empty">No accounts connected yet.</div>';
 
   // Signature boxes resize by MAGI's corner grip; one remembered height for all.
   if (window.A1Resize) el('settingsAccounts').querySelectorAll('textarea[data-sig]').forEach(ta => {
@@ -2238,28 +2243,42 @@ function renderSettings(){
     } catch (e) { toast('Failed: ' + e.message, false); }
   }));
 
-  const tm = S.settings.templates || [];
-  el('tmplList').innerHTML = tm.map((t,i) => `
-    <div class="tmplrow">
-      <input data-tname="${i}" value="${esc(t.name)}" placeholder="Name">
-      <input data-tbody="${i}" value="${esc(t.body)}" placeholder="Body text">
-      <button class="iconbtn" data-tdel="${i}" aria-label="Delete template">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-      </button>
-    </div>`).join('');
-  el('tmplList').querySelectorAll('[data-tdel]').forEach(b => b.addEventListener('click', () => {
-    S.settings.templates.splice(+b.dataset.tdel, 1); renderSettings();
-  }));
+  renderTemplates();
 
   el('optCoupons').checked  = S.settings.coupons !== false;
   el('optPackages').checked = S.settings.packages !== false;
   el('optOther').checked    = S.settings.other !== false;
 
   const live = S.cards.length;
+  el('statusNum').textContent = live;
   el('statusLine').innerHTML =
-    `${live} active TaskHub card${live===1?'':'s'} from OneInbox. ` +
-    `Coupons appear under <strong>Short-Term Goals</strong>; packages sit on the <strong>weekly view</strong> on their delivery day. ` +
-    `Cards retire themselves once they expire or arrive.`;
+    `active TaskHub card${live===1?'':'s'} from OneInbox. They retire themselves once they expire or arrive.`;
+}
+
+// Templates redraw on their own, so adding or deleting one never throws away
+// a name or signature typed above it and not yet saved.
+function readTemplates(){
+  const tm = [];
+  el('tmplList').querySelectorAll('[data-tname]').forEach((inp,i) => {
+    tm.push({ name: inp.value, body: el('tmplList').querySelector(`[data-tbody="${i}"]`)?.value || '' });
+  });
+  return tm;
+}
+function renderTemplates(){
+  const tm = S.settings.templates || [];
+  el('tmplList').innerHTML = tm.length ? tm.map((t,i) => `
+    <div class="tmplrow">
+      <input data-tname="${i}" value="${esc(t.name)}" placeholder="Name">
+      <input data-tbody="${i}" value="${esc(t.body)}" placeholder="Text it inserts">
+      <button class="iconbtn" data-tdel="${i}" aria-label="Delete template">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>`).join('')
+    : '<div class="set-empty">No templates yet. A template drops saved text into a message from Compose.</div>';
+  el('tmplList').querySelectorAll('[data-tdel]').forEach(b => b.addEventListener('click', () => {
+    S.settings.templates = readTemplates();
+    S.settings.templates.splice(+b.dataset.tdel, 1); renderTemplates();
+  }));
 }
 
 async function saveSettings(){
@@ -2841,8 +2860,10 @@ el('schedClear').addEventListener('click', () => {
 el('settingsBtn').addEventListener('click', () => { renderSettings(); el('settingsModal').classList.add('open'); });
 el('settingsSave').addEventListener('click', saveSettings);
 el('tmplAdd').addEventListener('click', () => {
-  (S.settings.templates ||= []).push({ name:'New template', body:'' });
-  renderSettings();
+  S.settings.templates = readTemplates();
+  S.settings.templates.push({ name:'New template', body:'' });
+  renderTemplates();
+  el('tmplList').querySelector('.tmplrow:last-child input')?.select();
 });
 // Closing a modal by any route must settle a pending ask() promise, or the
 // caller awaits forever and the flow silently dies.
