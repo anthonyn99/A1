@@ -88,6 +88,15 @@ mnb.mount({ app: 'brainstorm', key: 'bj', store: 'journal' });
 ok('...once per key, and it records the config', mb.written.length === 2 && mnb.mounts.bj.store === 'journal');
 let threw = false; try { mnb.mount({ app: 'nope', key: 'zz' }); } catch (e) { threw = true; }
 ok('...and refuses an app it does not know', threw);
+const pb = boot('loading'), pnb = pb.win.Notebook;
+pnb.mount({ profile: 'veda' });
+ok('{ profile: 'veda' } mounts Veda's side (bj, store journal)', pnb.mounts.bj && pnb.mounts.bj.app === 'brainstorm' && pnb.mounts.bj.store === 'journal' && /apps\/brainstorm\.js/.test(pb.written[1] || ''));
+pnb.mount({ profile: 'tony' });
+ok('{ profile: 'tony' } mounts Tony's side (tj, store tony_journal)', pnb.mounts.tj && pnb.mounts.tj.app === 'myjournal' && pnb.mounts.tj.store === 'tony_journal' && /apps\/myjournal\.js/.test(pb.written[2] || ''));
+threw = false; try { pnb.mount({ profile: 'bob' }); } catch (e) { threw = true; }
+ok('...and refuses a profile it does not know', threw);
+threw = false; try { pnb.mount({ profile: 'veda', app: 'myjournal' }); } catch (e) { threw = true; }
+ok('...or a profile with the other side's app', threw);
 
 console.log('Moved out of index.html, living in Notebook/ exactly once');
 const MOVED = [
@@ -131,8 +140,8 @@ const tags = idx.match(/<script[^>]*Notebook\/notebook\.js[^>]*>/g) || [];
 ok('loads notebook.js once', tags.length === 1, tags.join(' | '));
 ok('...as a classic, blocking script', tags.length && !/\b(async|defer|type=)/.test(tags[0]), tags[0]);
 const at = (s) => idx.indexOf(s);
-const bjMount = at("Notebook.mount({ app: 'brainstorm', key: 'bj', store: 'journal' });");
-const tjMount = at("Notebook.mount({ app: 'myjournal', key: 'tj', store: 'tony_journal' });");
+const bjMount = at("Notebook.mount({ profile: 'veda' });");
+const tjMount = at("Notebook.mount({ profile: 'tony' });");
 ok('...before Brainstorm and MyJournal (they use JGuard, VizEngine and OJ while booting)',
   at('Notebook/notebook.js') > 0 && at('Notebook/notebook.js') < bjMount && bjMount < tjMount);
 ok('each journal is mounted once, where its markup used to sit (Brainstorm, then MyJournal)',
