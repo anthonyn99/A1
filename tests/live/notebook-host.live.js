@@ -79,7 +79,7 @@ async function side(c, name, errs) {
   ok('the title is the host\'s', await js(`return ${$('root')}.innerText.indexOf(${JSON.stringify(nativeName)}) < 0;`));
   if (name === 'veda') {
     ok('index\'s header (TaskHub, Gita, App Lock) is not shown', await js(`var h=${$('nav-header')}; return !h || getComputedStyle(h).display === 'none';`));
-    ok('it wears Veda\'s look: her body face and accent colour', await js(`var r=getComputedStyle(${$('root')}); return /Nunito/.test(r.fontFamily) && /141,\\s*118,\\s*154|8d769a/i.test(r.getPropertyValue('--purple') + r.getPropertyValue('--suite-glow'));`),
+    ok('it wears Veda\'s look: her body face and accent colour', await js(`var r=getComputedStyle(${$('root')}); return /IBM Plex Mono/.test(r.fontFamily) && /141,\\s*118,\\s*154|8d769a/i.test(r.getPropertyValue('--purple') + r.getPropertyValue('--suite-glow'));`),
       await js(`var r=getComputedStyle(${$('root')}); return r.fontFamily + ' | ' + r.getPropertyValue('--purple') + ' | ' + r.getPropertyValue('--suite-glow');`));
     ok('her faces are loaded for a host that has none', await js(`return !!document.querySelector('link[data-notebook-fonts]');`));
   }

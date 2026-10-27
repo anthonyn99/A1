@@ -113,8 +113,8 @@ ok('notebook.css\'s bj rules come along as #vn-root\'s', /#vn-root \.docx-trash-
 ok('it takes index\'s order: core sheets, brainstorm.css, myjournal.css, notebook.css',
   JSON.stringify((() => { const o = N._spec.brainstorm.sheets.slice(); o.splice(N._spec.brainstorm.at, 0, 'apps/brainstorm.css'); return o; })())
   === JSON.stringify(coreCss.concat(['apps/brainstorm.css', 'apps/myjournal.css', 'notebook.css'])));
-ok('it gives the root Veda\'s glow, face and accent, and hides index\'s header',
-  /#vn-root\{--suite-glow:0 0 0 1px rgba\(141,118,154/.test(vsheet) && /font-family:'Nunito'/.test(vsheet) && /#vn-root #vn-nav-header\{display:none!important;\}/.test(vsheet));
+ok('it gives the root Veda\'s glow and accent face, and hides index\'s header',
+  /#vn-root\{--suite-glow:0 0 0 1px rgba\(141,118,154/.test(vsheet) && /--font-accent:'Fraunces'/.test(vsheet) && /#vn-root #vn-nav-header\{display:none!important;\}/.test(vsheet));
 ok('...balanced braces', (vsheet.match(/\{/g) || []).length === (vsheet.match(/\}/g) || []).length);
 
 console.log('\nIts Firestore layer (the same template as Tony\'s)');
