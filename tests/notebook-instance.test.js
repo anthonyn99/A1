@@ -59,7 +59,7 @@ console.log('\nIts whole sheet: every rule MyJournal gets in index.html, in inde
 const idx = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const coreCss = (rd('notebook.js').match(/core: \[([^\]]*)\]/)[1].match(/'[^']+\.css'/g) || []).map((s) => s.slice(1, -1));
 const at = (s) => idx.indexOf(s);
-ok('index.html mounts Veda's side, then Tony's, then loads the docx sheet',
+ok("index.html mounts Veda's side, then Tony's, then loads the docx sheet",
   at("Notebook.mount({ profile: 'veda' })") > 0 && at("Notebook.mount({ profile: 'veda' })") < at("Notebook.mount({ profile: 'tony' })") && at("Notebook.mount({ profile: 'tony' })") < at("Notebook.load('docx')"));
 const order = N._tjSheets.slice(); order.splice(N._tjAt, 0, 'apps/myjournal.css');
 ok('an instance takes the sheets in that order', JSON.stringify(order) === JSON.stringify(coreCss.concat(['apps/brainstorm.css', 'apps/myjournal.css', 'notebook.css'])), JSON.stringify(order));
