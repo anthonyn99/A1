@@ -219,9 +219,10 @@ async function shotsFor(c, p) {
   // ── 3. chooser ──
   console.log('chooser');
   await load(c, 1280, 900, false, null);
-  ok("Tony's card glyph is purple", (await css(c, '.pf-card.t .glyph', 'color')) === PURPLE);
-  ok("the mark's T half is purple", (await evalJs(c, "return document.querySelector('.pf-mark path').getAttribute('stroke').toLowerCase();")) === '#c0aeea');
-  ok("Veda's card is untouched", (await css(c, '.pf-card.v .glyph', 'color')) === MAUVE);
+  // The suite's one picker (profilepick.js): T and V under each person's emblem.
+  ok("Tony's card emblem is purple", (await css(c, '.pk-card.tony .pk-em', 'color')) === PURPLE);
+  ok('the cards read T and V', (await evalJs(c, "return [...document.querySelectorAll('.pk-card .nm')].map(n => n.textContent).join('');")) === 'TV');
+  ok("Veda's card emblem is her mauve", (await css(c, '.pk-card.veda .pk-em', 'color')) === 'rgb(183, 159, 196)');
 
   // ── 4. Veda ──
   console.log('veda');
