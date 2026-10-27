@@ -86,13 +86,58 @@ ok('it gives install / unsubscribe / rearm / serverSeen', ['install', 'unsubscri
 ok('...and starts not having seen the server', st.serverSeen() === false);
 ok('its loaders are pb\'s', /window\._fbLoadPbJournal = /.test(store) && /window\._fbSavePBTools = /.test(store));
 
+// ── Veda's side: Brainstorm's app under another key/store ──────────────────
+const vcfg = { app: 'brainstorm', profile: 'veda', key: 'vn', store: 'veda_notes', title: 'Veda notes' };
+const BJ_LEFT = /(^|[^A-Za-z])bj(?![a-z])|brainstorm_journal|'journal'|'journal_img_|data-bjkey|_fb(Save|Flush|Load|Resync|Delete)Journal|_fbMigrateJournal|_fbRehydratePageImages|BrainstormJournal|(^|[^A-Z])BJ(?![a-z])/;
+const bjLeft = (s) => { const m = s.match(BJ_LEFT); if (!m) return ''; const i = s.indexOf(m[0]); return s.slice(Math.max(0, i - 40), i + 40); };
+
+console.log('\nVeda\'s app, rewritten to vn');
+const vapp = N._rewriteApp(rd('apps/brainstorm.js'), vcfg);
+ok('it parses', parses(vapp) === true, parses(vapp));
+ok('nothing of bj survives (ids, functions, store names, loaders)', !BJ_LEFT.test(vapp), bjLeft(vapp));
+ok('its markup is vn\'s', /<div id="vn-root">/.test(vapp) && /id="vn-entries-list"/.test(vapp) && /id="vn-nav-header"/.test(vapp));
+ok('it stores locally under the store\'s name', /const STORAGE_KEY = 'veda_notes_v3';/.test(vapp));
+ok('it reads its own mount config', /window\.Notebook\.mounts\.vn\b/.test(vapp));
+ok('its locks are its own namespace', /journal: 'vn'/.test(vapp));
+ok('it waits for its own Firestore, not the host\'s fb-ready', /'nb-vn-fb-ready'/.test(vapp) && !/'fb-ready'/.test(vapp) && !/window\._fbReady\b/.test(vapp));
+ok('it calls the loaders the store template defines', /window\._fbLoadVnJournal\b/.test(vapp) && /window\._fbResyncVnJournal\b/.test(vapp)
+  && /window\._fbSaveVnJournalEntry\b/.test(vapp) && /window\._fbRehydrateVnPageImages\b/.test(vapp) && /window\._fbSaveVNPrompt\b/.test(vapp));
+ok('its boards and images live under its store', /prefix: 'veda_notes'/.test(vapp) && /'veda_notes_img_'/.test(vapp) && /data-tjkey/.test(vapp));
+ok('it never redefines index\'s show/hide for Veda\'s journal', !/showBrainstormJournal|hideBrainstormJournal/.test(vapp) && /window\.showVnJournal = /.test(vapp));
+ok('it registers its DOCX config as vn, on Veda\'s side', /Notebook\.registerDocx\('vn', \{\n  root: 'vn-root'/.test(vapp) && /side: 'veda'/.test(vapp));
+
+console.log('\nIts stylesheet');
+const vsheet = N._instanceSheet(rd('apps/brainstorm.css'), N._spec.brainstorm.sheets.map(rd), vcfg);
+ok('every #bj-root rule is #vn-root\'s', !/#bj-root|(^|[^A-Za-z])bj-/.test(N._rewriteBj(rd('apps/brainstorm.css'), vcfg)) && /#vn-root/.test(vsheet));
+ok('notebook.css\'s bj rules come along as #vn-root\'s', /#vn-root \.docx-trash-btn/.test(vsheet) || /#vn-root[^{]*\.docx-/.test(vsheet));
+ok('it takes index\'s order: core sheets, brainstorm.css, myjournal.css, notebook.css',
+  JSON.stringify((() => { const o = N._spec.brainstorm.sheets.slice(); o.splice(N._spec.brainstorm.at, 0, 'apps/brainstorm.css'); return o; })())
+  === JSON.stringify(coreCss.concat(['apps/brainstorm.css', 'apps/myjournal.css', 'notebook.css'])));
+ok('it gives the root Veda\'s glow, face and accent, and hides index\'s header',
+  /#vn-root\{--suite-glow:0 0 0 1px rgba\(141,118,154/.test(vsheet) && /font-family:'Nunito'/.test(vsheet) && /#vn-root #vn-nav-header\{display:none!important;\}/.test(vsheet));
+ok('...balanced braces', (vsheet.match(/\{/g) || []).length === (vsheet.match(/\}/g) || []).length);
+
+console.log('\nIts Firestore layer (the same template as Tony\'s)');
+const vstore = N._rewrite(N._storeSource(rd('core/fb.js'), vcfg), vcfg);
+ok('it parses', parses('(' + vstore + ')') === true);
+ok('its document is dashboards/veda_notes, and only that', /"dashboards\/veda_notes"/.test(vstore) && !/dashboards\/journal\b|tony_journal/.test(vstore));
+// Every store function the app calls is one the store defines.
+const called = [...new Set((vapp.match(/window\._fb[A-Za-z]+/g) || []))].map((s) => s.slice(7));
+const defined = new Set((vstore.match(/window\._fb[A-Za-z]+(?= = )/g) || []).map((s) => s.slice(7)));
+const missing = called.filter((n) => !defined.has(n) && !/^_fb(OJ|Viz|SyncAlert)$/.test(n));
+ok('every _fb… the app calls, the store defines', !missing.length, missing.join(', '));
+// Every event the store fires, the app listens for.
+const fired = [...new Set((vstore.match(/Event\(["']fb-vn-[a-z-]+/g) || []).map((s) => s.slice(7)))];
+ok('every fb-vn-… event the store fires, the app listens for', fired.length > 3 && fired.every((ev) => vapp.includes("addEventListener('" + ev + "'")), fired.join(', '));
+
 console.log('\nMounting');
 let threw = 0;
 for (const bad of [{ app: 'myjournal', key: 'pb' }, { app: 'myjournal', key: 'pb', store: 'tony_journal' },
-  { app: 'brainstorm', key: 'pb', store: 'x' }, { app: 'myjournal', key: 'P-B', store: 'x' }]) {
+  { profile: 'veda', key: 'pb', store: 'journal' }, { app: 'myjournal', key: 'P-B', store: 'x' },
+  { profile: 'veda', key: 'pb', store: 'tony_journal' }, { profile: 'veda', app: 'myjournal', key: 'pb', store: 'x' }]) {
   try { N.mount(bad); } catch (e) { threw++; }
 }
-ok('an instance needs its own store, a valid key, and myjournal', threw === 4, threw);
+ok('an instance needs its own store, a valid key, and a side that matches its app', threw === 6, threw);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
