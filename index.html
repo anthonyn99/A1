@@ -6028,6 +6028,8 @@ body { max-width: 2000px; margin-inline: auto; }
 <!-- The app mark beside each title and Everwell's sync pill (apphead.js),
      shared by every A1 program; TaskHub's React headers use its components. -->
 <script src="apphead.js"></script>
+<!-- The one profile picker (profilepick.js), shared with every program that has profiles. -->
+<script src="profilepick.js"></script>
 </head>
 <body>
 <!-- ── Boot loading screen: covers everything until profile routing + initial Firebase data are ready ── -->
@@ -17411,70 +17413,28 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
   let _who=null;
 
   function _profLocked(who){ return !!(window.alIsLocked && window.alIsLocked("profile_"+who)); }
-  function _profManageBtnHtml(who){
-    const locked=_profLocked(who);
-    const c=PROFILES[who].color;
-    const ic=locked
-      ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>'
-      : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg>';
-    return `<button class="prof-manage" data-who="${who}" title="${locked?'Locked — manage password':'Set a password'}" `+
-      `style="position:absolute;top:8px;right:8px;background:transparent;border:1px solid ${c}55;border-radius:6px;color:${c};opacity:${locked?'1':'0.5'};width:26px;height:26px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;transition:all .15s;">${ic}</button>`;
-  }
-  window._alProfileRefreshBtns=function(){
-    document.querySelectorAll(".prof-manage").forEach(function(b){
-      const who=b.getAttribute("data-who");
-      const wrap=document.createElement("div");
-      wrap.innerHTML=_profManageBtnHtml(who);
-      const fresh=wrap.firstElementChild;
-      b.replaceWith(fresh);
-      _wireManageBtn(fresh);
-    });
-  };
-  function _wireManageBtn(btn){
-    btn.onclick=function(e){
-      e.stopPropagation();
-      const who=btn.getAttribute("data-who");
-      if(window.alManage)window.alManage("profile_"+who);
-    };
-    btn.onmouseenter=function(){this.style.opacity="1";};
-    btn.onmouseleave=function(){this.style.opacity=_profLocked(this.getAttribute("data-who"))?"1":"0.5";};
-  }
+  // The suite's one picker (profilepick.js), built once and refreshed in place;
+  // the corner padlock manages that person's password without opening them.
+  let _pick=null;
+  window._alProfileRefreshBtns=function(){ if(_pick)_pick.refresh(); };
 
   function renderProfile(){
     const ov=document.getElementById("profile-overlay");
     if(!ov)return;
     _who=null;
     window._activeProfile=null;
-    ov.innerHTML=`
-      <style>
-        @keyframes td-shake2{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
-        .prof-card{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:32px 28px;background:${S1};border:2px solid rgba(255,255,255,0.08);border-radius:20px;cursor:pointer;transition:all .2s;width:160px;box-shadow:0 8px 32px rgba(0,0,0,0.5);}
-        .prof-card:hover{transform:translateY(-4px);box-shadow:0 16px 48px rgba(0,0,0,0.6);}
-      </style>
-      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:32px;">
-        <div style="font-family:'Lora',serif;font-size:clamp(28px,4vw,42px);font-weight:700;color:${TX};letter-spacing:-0.5px;">Who goes there?</div>
-        <div style="font-family:var(--font-accent);font-size:14px;color:${TXM};">• • •</div>
-      </div>
-      <div style="display:flex;gap:24px;flex-wrap:wrap;justify-content:center;">
-        <div class="prof-card" id="card-tony" style="border-color:${PROFILES.tony.color}44;">
-          ${_profManageBtnHtml("tony")}
-          <div style="font-size:42px;line-height:1;color:${PROFILES.tony.color};">${TONY_MARK_SVG}</div>
-          <div style="font-family:'Manrope',system-ui,sans-serif;font-size:22px;font-weight:800;letter-spacing:-0.2px;color:${PROFILES.tony.color};">${PROFILES.tony.label}</div>
-        </div>
-        <div class="prof-card" id="card-veda" style="border-color:${PROFILES.veda.color}44;">
-          ${_profManageBtnHtml("veda")}
-          <div style="font-size:42px;line-height:1;color:${PROFILES.veda.color};">${PROFILES.veda.emoji}</div>
-          <div style="font-family:'Lora',serif;font-size:22px;font-weight:700;color:${PROFILES.veda.color};">${PROFILES.veda.label}</div>
-        </div>
-      </div>`;
-    document.getElementById("card-tony").onclick=()=>clickCard("tony");
-    document.getElementById("card-veda").onclick=()=>clickCard("veda");
-    document.querySelectorAll(".prof-manage").forEach(_wireManageBtn);
-    // hover border colors
-    document.getElementById("card-tony").onmouseenter=function(){this.style.borderColor=PROFILES.tony.color;};
-    document.getElementById("card-tony").onmouseleave=function(){this.style.borderColor=PROFILES.tony.color+"44";};
-    document.getElementById("card-veda").onmouseenter=function(){this.style.borderColor=PROFILES.veda.color;};
-    document.getElementById("card-veda").onmouseleave=function(){this.style.borderColor=PROFILES.veda.color+"44";};
+    if(!_pick)_pick=A1Pick.mount(ov,{
+      app:"taskhub", title:"TaskHub", sub:"Plan · Remind · Journal · Reflect",
+      profiles:[{id:"tony",label:PROFILES.tony.label,domId:"card-tony"},{id:"veda",label:PROFILES.veda.label,domId:"card-veda"}],
+      state:function(who){
+        const locked=_profLocked(who), here=localStorage.getItem("td6_lastDash")===who;
+        return { locked:locked, last:here, note:locked?"Locked":here?"Last here":"", noteIcon:locked?"lock":"" };
+      },
+      lockTitle:function(who,st){ return st.locked?"Locked — manage password":"Set a password"; },
+      onLock:function(who){ if(window.alManage)window.alManage("profile_"+who); },
+      onChoose:function(who){ clickCard(who); }
+    });
+    _pick.refresh();
   }
 
   function clickCard(who){
@@ -17578,7 +17538,7 @@ ReactDOM.render(RC(App),document.getElementById("vr-root"));
   window.addEventListener("DOMContentLoaded",function(){
     const ov=document.createElement("div");
     ov.id="profile-overlay";
-    ov.style.cssText="position:fixed;inset:0;background:#1a1a1d;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10060;overflow:hidden;";
+    ov.style.cssText="display:flex;z-index:10060;";
     document.body.appendChild(ov);
     const main=localStorage.getItem("td6_mainDash");
     const last=localStorage.getItem("td6_lastDash");
