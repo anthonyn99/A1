@@ -115,7 +115,7 @@ ok('discovery is not started at boot beside the gate',
 ok('it is started by the unlock instead', /function openUp\(\)/.test(MAGI) && /openUp\(\);/.test(lift('function hideLock()')));
 
 console.log('\nThe gate is ours, not the browser\'s');
-const gate = lift('function renderLock()') + lift('function gateCard(id)');
+const gate = lift('function renderLock()') + lift('function selectProfile(id)');
 ok('no native dialog in the gate', !/\b(window\.)?(alert|confirm|prompt)\s*\(/.test(gate));
 // The password card itself is Guardian's: drawn, with a reveal toggle and a
 // caps-lock warning, in every program at once.
@@ -124,8 +124,8 @@ ok('MAGI loads Guardian before first paint', /<script src="Guardian\/guardian\.j
 ok('the password field is drawn', /function pwField\(/.test(GUARD));
 ok('it has a reveal toggle', /'aria-label': 'Show password'/.test(GUARD));
 ok('it warns about caps lock', /getModifierState\("CapsLock"\)/.test(GUARD));
-ok('the open card raises Guardian', /b\.onclick = unlockGate;/.test(lift('function gateCard(id)')));
-ok('both cards are rendered', /for \(const id of PROFILE_ORDER\) cards\.append\(gateCard\(id\)\)/.test(MAGI));
+ok('your own card raises Guardian', /if \(id === PROFILE\.id\)[\s\S]{0,200}unlockGate\(\)/.test(lift('function selectProfile(id)')));
+ok('both cards are rendered', /profiles: PROFILE_ORDER\.map/.test(lift('function renderLock()')));
 
 console.log('\nSwitching profile is a reload, not a reassignment');
 const sel = lift('function selectProfile(id)');
@@ -172,8 +172,11 @@ ok('it is per device, not synced', !/favProfile/.test(lift('function cloudSaveCo
 // Starring again must leave the device with NO favourite, not switch it to
 // the other person -- 'unstar' has to be reachable or the pin is one-way.
 ok('starring the favourite again clears it', /removeItem\(FAV_PROFILE_LS\)/.test(fav));
-ok('the star is on every card', /gate-fav/.test(lift('function gateCard(id)')));
-ok('it does not also open the profile', /stopPropagation\(\)/.test(lift('function gateCard(id)')),
+// The cards are the suite's one picker (profilepick.js): its corner star is
+// outside the card's click target.
+const PICK = require('fs').readFileSync(require('path').join(__dirname, '..', 'profilepick.js'), 'utf8');
+ok('the star is on every card', /onStar: \(id\) => toggleFav\(id\)/.test(lift('function renderLock()')));
+ok('it does not also open the profile', /data-corner[\s\S]{0,120}stopPropagation\(\)/.test(PICK),
    'favouriting a card you were only bookmarking would open it too');
 // The favourite decides where a FRESH load lands, but a deliberate switch
 // has to win for this tab or picking the other profile bounces straight back.
