@@ -13517,6 +13517,7 @@ async function codeCommandsSheet(proj) {
       + "command line an agent wrote. Like the check, they run code with your rights."));
     if (!local) body.append(el("div", "sheet-err", "Set these from the engine’s PC: they are "
       + "commands that PC will run, so the engine only takes them from its own screen."));
+    body.append(el("label", "sheet-lbl", "Commands"));
     if (!loaded) body.append(el("div", "sheet-note", "Reading…"));
     const list = el("div", "cmd-rows");
     rows.forEach((r, i) => {
@@ -13542,6 +13543,8 @@ async function codeCommandsSheet(proj) {
     add.disabled = !local || busy || rows.length >= max;
     add.onclick = () => { rows.push({ name: "", command: "", arg: false }); draw(); };
     body.append(add);
+    body.append(el("div", "sheet-note", `At most ${max}. A path argument may only be a plain `
+      + "relative path or word: no spaces, no .., nothing starting with - or /."));
     const fresh = sug.filter((s) => !rows.some((r) => r.name === s.name || r.command === s.command));
     if (fresh.length && local) {
       body.append(el("label", "sheet-lbl", "Found in this folder"));
@@ -13556,8 +13559,7 @@ async function codeCommandsSheet(proj) {
       }
       body.append(sl);
     }
-    body.append(el("div", "sheet-note", `At most ${max}. A path argument may only be a plain `
-      + "relative path or word: no spaces, no .., nothing starting with - or /."));
+    sheetGroups(body);
     if (err) body.append(el("div", "sheet-err", err));
     save.disabled = !local || busy || !loaded;
     save.textContent = busy ? "Saving…" : "Save";
@@ -14213,6 +14215,7 @@ function codeAutoSheet(proj) {
       b.onclick = () => save({ [key]: !on });
       body.append(b);
     };
+    body.append(el("label", "sheet-lbl", "Commit and push"));
     sw("commit", "Auto commit", "Commit applied changes by themselves. Refused, and said so on the "
       + "repository line, when you have other files staged or a merge or rebase is in progress.",
       a.commit, false);
@@ -14234,6 +14237,7 @@ function codeAutoSheet(proj) {
       win.append(b);
     }
     body.append(win);
+    sheetGroups(body);
     if (err) body.append(el("div", "sheet-err", err));
   };
   const save = async (change) => {
