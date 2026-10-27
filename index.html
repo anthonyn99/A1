@@ -16140,7 +16140,7 @@ function App(){
       if(!src)return;
       vdDragInfo.current={zone:f.zone,id:src.id,dayKey:f.dayKey};
       const r=vdRef.current;
-      const tgt=beforeId==null?null:((t.zone==="week"?(r.data[t.dayKey]||[]):t.zone==="habit"?r.habits:t.zone==="goal"?r.mg:r.mgMonthly)||[]).find(x=>String(x.id)===beforeId);
+      const tgt=beforeId==null?null:((t.zone==="week"?(r.data[t.dayKey]||[]):t.zone==="habit"?r.habits:t.zone==="goal"?r.goals:r.monthlyGoals)||[]).find(x=>String(x.id)===beforeId);
       vCrossMove(t.zone,tgt?tgt.id:null,t.dayKey);
       vdDragInfo.current=null;
     }};
