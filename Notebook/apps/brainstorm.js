@@ -366,6 +366,31 @@ else document.body.insertAdjacentHTML('beforeend', html);
 (function(){
 'use strict';
 const STORAGE_KEY = 'brainstorm_journal_v3';
+// ── The host's mount config (Notebook.mount; docs/Notebook/README.md) ──
+// The same contract as MyJournal's (its _tjCfg):
+// features: ourjournal / locks (both on unless a host turns them off).
+// pinned:   [{ id, title, html }] pages kept first in the list, never trashed,
+//           dragged or locked; created empty (updated 0, so the cloud copy wins)
+//           when the store does not have them yet.
+// onSave(entry) after the cloud confirms a save; onReady() after the first load.
+const _bjCfg = (window.Notebook && window.Notebook.mounts && window.Notebook.mounts.bj) || {};
+const _bjFeat = Object.assign({ ourjournal: true, locks: true }, _bjCfg.features || {});
+const _bjPinned = Array.isArray(_bjCfg.pinned) ? _bjCfg.pinned : [];
+function _bjIsPinned(id) { return _bjPinned.some(function (p) { return p.id === id; }); }
+// For the host (e.g. in onReady): the entries as they stand, live and trashed.
+_bjCfg.entries = function () { return state.entries; };
+// Make every pinned page exist, out of the trash, at the top in its given order.
+function _bjPinFirst() {
+  if (!_bjPinned.length || _bjIsOJ()) return;
+  var head = [];
+  _bjPinned.forEach(function (p) {
+    var e = state.entries.find(function (x) { return x.id === p.id; });
+    if (!e) e = { id: p.id, title: p.title || 'Untitled', template: 'page', created: 0, updated: 0, tags: [], data: { html: p.html || '', attachments: [] }, rev: 0 };
+    delete e.trashed; delete e.trashChangedAt;
+    head.push(e);
+  });
+  state.entries = head.concat(state.entries.filter(function (x) { return head.indexOf(x) < 0; }));
+}
 const BJ_CANVAS_KEY = (id) => 'bj_canvas_' + id;
 let state = { entries: [], activeId: null, deletedIds: [] };
 // ── OurJournal (see the OJ engine) ───────────────────────────────────────────
@@ -924,6 +949,12 @@ function _bjApplyRemote(remote) {
   if (_activeWasUpdated) { var _ae = getActive(); if (_ae && (_ae.template === 'mindmap' || _ae.template === 'mindmap-legacy')) loadActiveEntry(); }
 }
 
+// The host's onSave: called with the entry the cloud just confirmed.
+if (typeof _bjCfg.onSave === 'function') window.addEventListener('fb-bj-saved', function(ev) {
+  var _sid = ev && ev.detail && ev.detail.id;
+  var e = _sid && state.entries.find(function(x){ return x.id === _sid; });
+  if (e) { try { _bjCfg.onSave(e); } catch (err) { console.warn('[Notebook] onSave failed:', err); } }
+});
 // Listen for Firebase sync events
 window.addEventListener('fb-bj-saved', function(ev) {
   _bjSetSync('synced');
@@ -965,7 +996,14 @@ function _bjInitFirebase() {
   // The merge comes from the authoritative resync — a forced SERVER read applied as
   // the truth — so a cold launch shows the current document instead of this device's
   // cached memory of it. Safe to call repeatedly; that is the point.
-  if (window._fbResyncJournal) window._fbResyncJournal();
+  if (window._fbResyncJournal) {
+    var _rs = window._fbResyncJournal();
+    if (typeof _bjCfg.onReady === 'function' && !_bjCfg._readyFired && _rs && _rs.then) _rs.then(function () {
+      if (_bjCfg._readyFired) return;
+      _bjCfg._readyFired = true;
+      try { _bjCfg.onReady(); } catch (err) { console.warn('[Notebook] onReady failed:', err); }
+    });
+  }
 }
 // Re-run on EVERY fb-ready, not just the first. The connection is torn down whenever
 // the tab is hidden or the phone suspends the app, and re-established on the way
@@ -1000,7 +1038,7 @@ function createEntry(template) {
 const BJ_TRASH_TTL = 30 * 24 * 60 * 60 * 1000;
 function deleteEntry(id) {
   const entry = state.entries.find(e => e.id === id);
-  if (!entry) return;
+  if (!entry || _bjIsPinned(id)) return;
   var _bjDelTs = Date.now();
   entry.trashed = _bjDelTs;
   entry.trashChangedAt = _bjDelTs;   // trash-action clock (drives cross-device delete sync)
@@ -1028,6 +1066,7 @@ function _bjForgetDeleted(ids) {
 }
 // Permanent delete — used by the Trash UI and the 30-day auto-purge
 function hardDeleteEntry(id) {
+  if (_bjIsPinned(id)) return;
   _bjForgetDeleted([id]);
   _bjFbDelete(id);
   state.entries = state.entries.filter(e => e.id !== id);
