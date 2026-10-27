@@ -1227,6 +1227,7 @@ function _bjRenderTrashBtn() {
 
 function renderSidebar() {
   if (_bjHidden) return;
+  _bjPinFirst();
   const list = document.getElementById('bj-entries-list');
   const search = document.getElementById('bj-search-box').value.toLowerCase().trim();
   const live = state.entries.filter(e => !e.trashed);
@@ -1248,12 +1249,16 @@ function renderSidebar() {
     const div = document.createElement('div');
     div.className = 'entry-item' + (entry.id === state.activeId ? ' active' : '');
     div.dataset.entryId = entry.id;
-    if (isDraggable) div.draggable = true;
+    // A pinned page stays first: it is never dragged, nor dropped onto.
+    const pinned = _bjIsPinned(entry.id);
+    const rowDrag = isDraggable && !pinned;
+    if (rowDrag) div.draggable = true;
     const tmap = { whiteboard: 'BOARD', notes: 'NOTES', cornell: 'CORNELL', mindmap: 'MAP', 'mindmap-legacy': 'MAP', page: 'PAGE', 'journal-entries': 'JOURNAL' };
-    const date = new Date(entry.updated).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    // A pinned page the store has not saved yet has no date (updated 0).
+    const date = entry.updated ? new Date(entry.updated).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
     const titleClass = entry.title ? '' : ' untitled';
     div.innerHTML = `
-      ${isDraggable ? `<div class="entry-drag-handle" title="Drag to reorder"><span></span><span></span><span></span></div>` : ''}
+      ${rowDrag ? `<div class="entry-drag-handle" title="Drag to reorder"><span></span><span></span><span></span></div>` : ''}
       <div class="entry-item-title${titleClass}">${_bjHlTitle(entry.title || 'Untitled', search)}</div>
       <div class="entry-item-meta">
         <span class="template-badge">${tmap[entry.template]||'NOTE'}</span>
@@ -1263,6 +1268,7 @@ function renderSidebar() {
       </div>
       <button class="entry-delete" data-id="${entry.id}" title="Move to Trash" aria-label="Move to Trash">${window.TNI.x}</button>
     `;
+    if (pinned) { div.classList.add('nb-pinned'); div.querySelector('.entry-delete').style.setProperty('display', 'none', 'important'); }
     div.addEventListener('click', e => {
       if (e.target.classList.contains('entry-delete') || e.target.closest('.entry-delete')) return;
       if (e.target.classList.contains('entry-drag-handle') || e.target.closest('.entry-drag-handle')) return;
@@ -1283,7 +1289,7 @@ function renderSidebar() {
         deleteEntry(entry.id);
       }
     });
-    if (isDraggable) {
+    if (rowDrag) {
       div.addEventListener('dragstart', e => {
         dragSrcId = entry.id;
         div.classList.add('bj-dragging');
@@ -1311,6 +1317,7 @@ function renderSidebar() {
         const [moved] = state.entries.splice(fromIdx, 1);
         state.entries.splice(toIdx, 0, moved);
         dragSrcId = null;
+        _bjPinFirst();
         saveState(); renderSidebar();
       });
       // Touch drag for mobile
