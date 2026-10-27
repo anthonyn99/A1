@@ -6,10 +6,25 @@ own. A program (a *host*) loads it and mounts an app into itself. It is built on
 `Notebook/`, and every host runs those same files. A change there reaches every host
 at once, so don't copy its code into a program.
 
-**Names on Tony's side (2026-10-13):** the program is called **Notebook** in
-TaskHub's nav, its header and Settings; inside it, his own-entries tab beside
-OurJournal reads **MyJournal**. Code, ids and the data keep the MyJournal / `tj`
-names. Veda's side is unchanged (Brainstorm Journal, its tab still "Journal").
+**Two profiles (2026-10-27): Tony and Veda.** A host names a side, not an app:
+
+```js
+Notebook.mount({ profile: 'tony' });   // Tony's side: app myjournal, key tj, store tony_journal
+Notebook.mount({ profile: 'veda' });   // Veda's side: app brainstorm, key bj, store journal
+```
+
+`Notebook.profiles` holds that table (`PROFILES` in `notebook.js`). The two sides
+are named and work the same way: the program is **Notebook** (nav, header,
+Settings, App Lock), and its sidebar tabs are **OurJournal** plus the person's own
+journal (**MyJournal** for Tony, **Journal** for Veda). The only differences are
+Veda's colours and fonts and her extra templates (Cornell, Mind Map, Structured
+Notes, ...). Code, ids and the data keep the old `tj` / `bj` and Brainstorm names.
+The older `{ app, key, store }` form still mounts (A1-Priv's hosts use it).
+
+An **instance** (a program's own documents) is `{ profile: 'tony', key, store, ... }`.
+Only Tony's side can be instanced so far, because `rewriteApp` is written for
+`apps/myjournal.js`; `{ profile: 'veda', key }` throws until `apps/brainstorm.js`
+gets the same treatment.
 
 | Host | App | key | Store (`dashboards/…`) | Mode |
 |---|---|---|---|---|
@@ -82,7 +97,7 @@ window.NotebookFirebase = () => ({ db, fs });   // fs = the firebase-firestore m
 
 // 3. Mount it where it should live, once the container exists:
 Notebook.mount({
-  app: 'myjournal', key: 'pb', store: 'tradehub_playbook',
+  profile: 'tony', key: 'pb', store: 'tradehub_playbook',
   container: document.getElementById('playbook-host'),   // it fills this element
   title: 'Playbook',                                      // replaces "MyJournal" in its UI
   templates: ['page'],                                    // template cards offered (default: all)
