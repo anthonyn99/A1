@@ -108,7 +108,7 @@ const worker = {
 
   await btn('#tradeboard-root .ctl-pr-bar', 'EDIT');
   ok('Edit opens the prompt in Notebook inside the Prompts card, seeded from its Markdown', await editorOpen('Rates'));
-  ok('"Editing in Notebook" and Done sit in Notebook's title row, beside the title; no bar above it', await js(`var w=document.querySelector('#prm-toolbar .nb-done'), t=document.getElementById('prm-entry-title-input'); return !!w && t.nextSibling===w && /^Editing in Notebook/.test(w.innerText) && !document.querySelector('#tradeboard-root .ctl-pr-bar');`));
+  ok('"Editing in Notebook" and Done sit in Notebook title row, beside the title; no bar above it', await js(`var w=document.querySelector('#prm-toolbar .nb-done'), t=document.getElementById('prm-entry-title-input'); return !!w && t.nextSibling===w && /^Editing in Notebook/.test(w.innerText) && !document.querySelector('#tradeboard-root .ctl-pr-bar');`));
   ok('...as a Notebook instance without its sidebar', await js(`var s=document.getElementById('prm-sidebar'); return !s || getComputedStyle(s).display==='none' || s.getBoundingClientRect().width===0;`));
   ok('...and the watchlist steps aside for the editor', await js(`return getComputedStyle(document.querySelector('#tradeboard-root .ctl-wl')).display==='none';`));
   await shot('tradehub-control-edit');
