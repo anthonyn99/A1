@@ -127,6 +127,19 @@ const HOSTS = [
       await js(`if (document.getElementById('pb-page-editor').getAttribute('contenteditable') !== 'true') document.getElementById('pb-btn-edit').click(); return 1;`);
       return until(`document.querySelector('#pb-root .docx-toolbar.edit-mode')`, 10000);
     } },
+  // Control's prompt editor: no sidebar, opened in place by the prompt list's Edit.
+  { name: 'TradeHub prompts', key: 'prm', missing: [/#K-btn-lock/],
+    async open(c, js, until) {
+      await js(`localStorage.clear(); sessionStorage.clear(); localStorage.setItem('a1_sweep_day:tradehub', new Date().toISOString().slice(0,10));
+        sessionStorage.setItem('__fakefs_docs', JSON.stringify({ 'dashboards/tradeboard_prompts': { prompts: [{ id: 'p_look', name: 'Look', text: '## Heading' }] },
+          'dashboards/tradehub_prompts': { _order: ['p_look'], e_p_look: ${JSON.stringify(entry('p_look', 'Look'))} } })); return 1;`);
+      await c.send('Page.navigate', { url: BASE + 'tradehub.html' });
+      if (!(await until(`document.querySelector('.tb-navtab')`, 15000))) return false;
+      await sleep(2500);
+      await js(`var t=[...document.querySelectorAll('.tb-navtab[data-navid="prompt"]')].find(b=>b.offsetParent); if(t) t.click(); return 1;`); await sleep(900);
+      await js(`var b=[...document.querySelectorAll('#tradeboard-root .ctl-pr-bar button')].find(x=>/edit/i.test(x.innerText)); if(b) b.click(); return 1;`);
+      return until(`document.querySelector('#prm-root .docx-toolbar.edit-mode')`, 20000);
+    } },
 ];
 
 (async () => {
