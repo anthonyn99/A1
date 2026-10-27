@@ -8,17 +8,18 @@
    whose emblem glows in that person's colour.
 
    The host keeps everything that is its own: which profile is chosen, the
-   lock, the favourite, when the screen shows. This file only draws it.
+   lock, the favourite, when the screen shows. This file only draws it, and
+   never manages a password: that lives in each profile's settings (Tony,
+   2026-10-27).
 
      var pick = A1Pick.mount(el, {
        app: 'shruti',                       // A1Head.icon() mark (or mark: '<svg…>')
        title: 'Shruti', sub: 'Read · Listen · Watch · Study',
        profiles: [{ id: 'tony', label: 'Tony' }, { id: 'veda', label: 'Veda' }],  // + domId, aria, emblem
-       state: function (id) { return { note, noteIcon, tone, fav, locked, off }; },
+       state: function (id) { return { note, noteIcon, tone, fav, last, off }; },
        onChoose: function (id) {},
        onStar: function (id) {},            // shows the ★ in each card's corner
-       onLock: function (id) {},            // or a padlock there instead
-       starTitle / lockTitle: function (id, st) { return '…'; }
+       starTitle: function (id, st) { return '…'; }
      });
      pick.refresh();                        // re-reads state() in place
 
@@ -99,7 +100,7 @@
     "font:700 9.5px 'Inter',system-ui,sans-serif;letter-spacing:1.6px;text-transform:uppercase;color:rgba(var(--pk-rgb),.85)}",
     '.a1-pk .pk-note.warn{color:#d68a7c}.a1-pk .pk-note.dim{color:#8a8a96}',
     '.a1-pk .pk-note svg{width:11px;height:11px}',
-    // The corner: the favourite star, or (TaskHub) the padlock that manages the password.
+    // The corner: the favourite star.
     '.a1-pk .pk-star{position:absolute;top:8px;right:8px;z-index:1;width:32px;height:32px;min-width:0;min-height:0;margin:0;padding:0;display:grid;place-items:center;',
     'border-radius:50%;color:#8a8a96;border:0;background:transparent;box-shadow:none;cursor:pointer;opacity:0;transition:opacity .25s,background .2s,color .2s}',
     '.a1-pk .pk-card:hover .pk-star,.a1-pk .pk-card:focus-within .pk-star,.a1-pk .pk-star.on{opacity:1}',
@@ -107,7 +108,6 @@
     '.a1-pk .pk-star svg{width:15px;height:15px}',
     '.a1-pk .pk-star:hover{background:rgba(255,255,255,.08);color:#d6d6de}',
     '.a1-pk .pk-star.on{color:#e0b874}.a1-pk .pk-star.on svg{fill:currentColor}',
-    '.a1-pk .pk-star.lk.on{color:var(--pk)}.a1-pk .pk-star.lk.on svg{fill:none}',
     '.a1-pk .pk-extra{position:relative;margin-top:22px;max-width:420px}',
     '@keyframes a1pkRise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}',
     '@keyframes a1pkWord{from{opacity:0;letter-spacing:8px;transform:translateY(6px)}to{opacity:1;letter-spacing:-2px;transform:none}}',
@@ -158,10 +158,10 @@
         '<div class="pk-extra" hidden></div>' +
       '</div>';
     var cards = el.querySelector('.pk-cards');
-    var corner = o.onStar ? 'star' : o.onLock ? 'lock' : '';
+    var star = !!o.onStar;
     cards.innerHTML = profiles.map(function (p) {
       return '<div class="pk-card ' + esc(p.id) + '"' + (p.domId ? ' id="' + esc(p.domId) + '"' : '') + ' role="button" tabindex="0" data-p="' + esc(p.id) + '" aria-label="' + esc(p.aria || p.label) + '">' +
-        (corner ? '<button type="button" class="pk-star' + (corner === 'lock' ? ' lk' : '') + '" data-corner="' + esc(p.id) + '"></button>' : '') +
+        (star ? '<button type="button" class="pk-star" data-corner="' + esc(p.id) + '"></button>' : '') +
         '<span class="pk-em">' + (p.emblem || EMBLEM[p.id] || '') + '</span>' +
         '<span class="nm">' + esc(p.label) + '</span>' +
         '<span class="pk-note"></span></div>';
@@ -180,18 +180,11 @@
         note.innerHTML = ic + esc(st.note || '');
         var b = card.querySelector('.pk-star');
         if (!b) return;
-        if (corner === 'star') {
-          b.className = 'pk-star' + (st.fav ? ' on' : '');
-          b.innerHTML = STAR;
-          b.title = o.starTitle ? o.starTitle(p.id, st) : st.fav ? 'Default on this device (tap to clear)' : 'Make default on this device';
-          b.setAttribute('aria-label', 'Default profile');
-          b.setAttribute('aria-pressed', st.fav ? 'true' : 'false');
-        } else {
-          b.className = 'pk-star lk' + (st.locked ? ' on' : '');
-          b.innerHTML = st.locked ? LOCK : UNLOCK;
-          b.title = o.lockTitle ? o.lockTitle(p.id, st) : st.locked ? 'Locked: manage the password' : 'Set a password';
-          b.setAttribute('aria-label', b.title);
-        }
+        b.className = 'pk-star' + (st.fav ? ' on' : '');
+        b.innerHTML = STAR;
+        b.title = o.starTitle ? o.starTitle(p.id, st) : st.fav ? 'Default on this device (tap to clear)' : 'Make default on this device';
+        b.setAttribute('aria-label', 'Default profile');
+        b.setAttribute('aria-pressed', st.fav ? 'true' : 'false');
       });
     }
 
@@ -200,7 +193,7 @@
       if (c) {
         e.stopPropagation();
         var id = c.getAttribute('data-corner');
-        if (corner === 'star') o.onStar(id); else o.onLock(id);
+        o.onStar(id);
         refresh();
         return;
       }

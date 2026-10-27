@@ -22,14 +22,15 @@ const pick = A1Pick.mount(overlayEl, {
   app: 'mylist', title: 'MyList', sub: 'Speak · List · Shop · Cook',
   profiles: [{ id: 'tony', label: 'Tony' }, { id: 'veda', label: 'Veda' }],
   state: (id) => ({ fav, locked, last, off, note, noteIcon, tone }),
-  onChoose: (id) => {}, onStar: (id) => {},   // or onLock for a padlock corner
+  onChoose: (id) => {}, onStar: (id) => {},   // onStar adds the ★ corner
 });
 pick.refresh();   // after anything state() reads changes
 ```
 
 - The program keeps its own logic: who is chosen, the lock (Guardian), the favourite,
   and when the overlay shows (`hidden`, `display` or a body attribute). The file only
-  draws the screen.
+  draws the screen. A picker never manages a password: that is in each profile's
+  settings (Tony, 2026-10-27). A card can only say "Locked".
 - Cards are built once and refreshed in place, so tapping the star doesn't replay the
   entrance animation.
 - `app` picks the mark from `apphead.js`, which must load first. `domId` gives a card an
