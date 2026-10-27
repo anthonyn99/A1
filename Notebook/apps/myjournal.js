@@ -1,5 +1,5 @@
-/* MyJournal (key tj, Tony's journal) as a Notebook app.
-   Loaded by Notebook.mount({ app: 'myjournal', key: 'tj', store: 'tony_journal' }),
+/* MyJournal (key tj): Tony's side of Notebook, as an app.
+   Loaded by Notebook.mount({ profile: 'tony' }),
    which writes this script in where the host called it, while the page parses.
    It builds #tj-root right before its own <script> tag, then runs the app.
    How it opens inside TaskHub (showTonyJournal, the program nav) is the host's;

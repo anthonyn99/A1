@@ -1,9 +1,9 @@
-/* Brainstorm Journal (key bj, Veda's journal) as a Notebook app.
-   Loaded by Notebook.mount({ app: 'brainstorm', key: 'bj', store: 'journal' }),
-   which writes this script in where the host called it, while the page parses.
-   It builds #bj-root right before its own <script> tag, then runs the app.
-   Its Firestore layer (window._fbLoadJournal and friends) is still the host's
-   until it moves with MyJournal's (docs/Notebook/plan.md). */
+/* Veda's side of Notebook (key bj; Brainstorm Journal in the code) as an app.
+   Loaded by Notebook.mount({ profile: 'veda' }), which writes this script in
+   where the host called it, while the page parses. It builds #bj-root right
+   before its own <script> tag, then runs the app. Its Firestore layer is
+   core/fb.js. Under another key (an instance) notebook.js rewrites this source
+   (rewriteBj) and gives it a store made from fb.js's @nb-store template. */
 (function () {
 var me = document.currentScript;
 var html = `
