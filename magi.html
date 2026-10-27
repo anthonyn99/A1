@@ -12268,9 +12268,122 @@ function accStatus(a) {
   return { cls: "na", txt: "Not checked" };
 }
 
+/* ── account rows, ORCA's way ──────────────────────────────────────────────
+   One builder for every row on Accounts (browser units, coding agents,
+   GitHub), so the three sections read the same, and the same as ORCA's
+   Accounts page (ORCA browserAccounts.ts accountCard): the unit's letter in
+   its colour, the name with its status pills, a line of facts under it
+   (the editable label first), one main action and a ⋯ menu for the rest. */
+function accSecRow(title, ...right) {
+  const row = el("div", "acc-sec-row");
+  row.append(el("div", "acc-sec", title));
+  if (right.length) {
+    const bar = el("span", "acc-topbar");
+    bar.append(...right);
+    row.append(bar);
+  }
+  return row;
+}
+
+/** `menu` items: {text, onclick, danger, title} or "sep". */
+function accMenu(label, menu) {
+  const d = el("details", "acc-menu");
+  const sum = el("summary", null, "⋯");
+  sum.setAttribute("aria-label", `More for ${label}`);
+  const items = el("div", "acc-menu-items");
+  for (const m of menu) {
+    if (m === "sep") { items.append(el("div", "acc-menu-sep")); continue; }
+    const b = el("button", m.danger ? "danger" : null, m.text);
+    b.type = "button";
+    if (m.title) b.title = m.title;
+    b.disabled = !!m.disabled;
+    b.onclick = () => { d.open = false; m.onclick(); };
+    items.append(b);
+  }
+  d.append(sum, items);
+  // Fixed, so a group's rounded corners never clip it; placed from its
+  // button, upward when there is no room below (ORCA positionRowMenu).
+  d.addEventListener("toggle", () => {
+    if (!d.open) return;
+    document.querySelectorAll("details.acc-menu[open]").forEach((o) => { if (o !== d) o.open = false; });
+    const r = sum.getBoundingClientRect();
+    const up = r.bottom + items.offsetHeight + 8 > innerHeight && r.top > items.offsetHeight + 8;
+    items.style.right = Math.max(8, innerWidth - r.right) + "px";
+    items.style.top = up ? "auto" : (r.bottom + 4) + "px";
+    items.style.bottom = up ? (innerHeight - r.top + 4) + "px" : "auto";
+  });
+  return d;
+}
+// One listener closes an open menu on any click outside it, or on scroll
+// (it is fixed, and would float away from its row).
+document.addEventListener("click", (e) => {
+  document.querySelectorAll("details.acc-menu[open]").forEach((d) => { if (!d.contains(e.target)) d.open = false; });
+});
+document.addEventListener("scroll", (e) => {
+  if (e.target.closest && e.target.closest(".acc-menu-items")) return;
+  document.querySelectorAll("details.acc-menu[open]").forEach((d) => { d.open = false; });
+}, true);
+
+/** One row. `sub` is a list of nodes or strings, dot-separated after the
+ *  first; `main` the one button shown; `menu` what the ⋯ holds. */
+function accRow({ accent, name, mark, flags = [], sub = [], main, menu, detail, lim, busy }) {
+  const card = el("div", "acc-card");
+  card.style.setProperty("--pa", accent || "var(--ac)");
+  const mk = el("span", "acc-mark", ((mark || name).trim()[0] || "?").toUpperCase());
+  mk.setAttribute("aria-hidden", "true");
+  const names = el("div", "acc-names");
+  const tr = el("div", "acc-title-row");
+  tr.append(el("span", "acc-name", name));
+  const fl = el("span", "acc-flags");
+  for (const [cls, txt, title] of flags) {
+    const f = el("span", `doc-flag ${cls}`, txt);
+    if (title) f.title = title;
+    fl.append(f);
+  }
+  tr.append(fl);
+  names.append(tr);
+  const parts = sub.filter((s) => s !== null && s !== undefined && s !== "");
+  if (parts.length) {
+    const sl = el("div", "acc-sub");
+    parts.forEach((p, i) => {
+      if (typeof p === "string") sl.append(el("span", i ? "dot-sep" : null, p));
+      else { if (i) p.classList.add("dot-sep"); sl.append(p); }
+    });
+    names.append(sl);
+  }
+  const acts = el("div", "acc-actions");
+  if (main) acts.append(main);
+  if (menu && menu.length) acts.append(accMenu(name, menu));
+  card.append(mk, names, acts);
+  if (detail) card.append(el("div", "acc-detail", detail));
+  if (lim) card.append(el("div", "acc-detail lim", lim));
+  if (busy) {
+    const w = el("div", "acc-busy");
+    w.append(spinnerEl(), el("span", null, busy));
+    card.append(w);
+  }
+  return card;
+}
+
+function accBtn(text, onclick, { active, title, disabled } = {}) {
+  const b = el("button", "acc-btn" + (active ? " active" : ""), text);
+  b.type = "button";
+  if (title) b.title = title;
+  b.disabled = !!disabled;
+  b.onclick = onclick;
+  return b;
+}
+
 function renderAccounts() {
   const box = $("accountsBody");
   if (!box) return;
+  // A redraw mid-edit would drop what is being typed into a label.
+  const typing = document.activeElement;
+  if (typing && box.contains(typing) && typing.matches("input.acc-input")) {
+    ACC.redrawAfterEdit = true;
+    return;
+  }
+  ACC.redrawAfterEdit = false;
   box.textContent = "";
 
   if (!online()) {
@@ -12285,136 +12398,97 @@ function renderAccounts() {
     return;
   }
 
-
-  const note = el("div", "acc-note");
-  note.innerHTML =
-    "Each unit keeps its own browser profile on the engine device. " +
-    "<b>Sign in</b> opens the real site in a window <b>on that device</b> — you type your " +
-    "password into the site itself, never into MAGI. <b>Sign out</b> deletes MAGI's copy " +
-    "of that session so you can sign in as someone else; it does not sign you out at the " +
-    "provider, and it never touches your personal Chrome.";
-  box.append(note);
-
-  // Named apart from the per-card `bar` below, which it would otherwise
-  // shadow -- legal, and exactly the sort of thing that reads as a bug later.
-  const topbar = el("div", "acc-topbar");
-  const all = el("button", "navitem", "Check all");
+  // Browser units first, as ORCA's Browser sites, with Check all on the
+  // section's own row.
+  const all = el("button", "acc-btn", "Check all");
   all.title = "Opens every unit's site at once to see which sessions still work";
-  all.disabled = ACC.busy.size > 0;
+  all.disabled = ACC.busy.size > 0 || !ACC.rows.length;
   all.onclick = () => ACC.rows.forEach((r) => checkAccount(r));
-  topbar.append(all);
+  const right = [];
   if (ACC.busy.size) {
     const w = el("span", "acc-busy");
-    w.append(spinnerEl(), el("span", null, `checking ${ACC.busy.size}…`));
-    topbar.append(w);
+    w.append(spinnerEl(), el("span", null, `Checking ${ACC.busy.size}…`));
+    right.push(w);
   }
-  box.append(topbar);
+  right.push(all);
+  box.append(accSecRow("Browser units", ...right));
 
-  if (typeof renderCodeAccounts === "function") box.append(renderCodeAccounts());
-  if (typeof renderGhAccounts === "function") box.append(renderGhAccounts());
-  box.append(el("div", "acc-sec", "Browser units"));
-
+  const group = el("div", "acc-group");
   for (const a of ACC.rows) {
     const st = accStatus(a);
-    const card = el("div", "acc-card");
-    card.style.setProperty("--pa", a.accent || "var(--ac)");
-
-    const hd = el("div", "acc-hd");
-    const names = el("div", "acc-names");
-    names.append(el("div", "acc-name", a.display_name));
-    names.append(el("div", "acc-sub", UNIT[a.id] || a.id));
-    hd.append(names);
-
-    const flags = el("div", "acc-flags");
-    flags.append(el("span", `doc-flag ${st.cls}`, st.txt));
-    if (!a.enabled) flags.append(el("span", "doc-flag na", "Unticked"));
-    if (a.checked_at) flags.append(el("span", "doc-flag na", `Checked ${AGE(a.checked_at)}`));
-    hd.append(flags);
-    card.append(hd);
-
-    // "Signed in." under a pill that says "Signed in" is the same sentence
-    // twice. The detail line is for detail -- why a check failed, what is in
-    // the way -- so the ones that only restate the pill are dropped.
-    const redundant = /^(signed in|signed out)\.?$/i.test((a.detail || "").trim());
-    if (a.detail && !redundant) card.append(el("div", "acc-detail", a.detail));
+    const busy = ACC.busy.has(a.id);
+    const flags = [[st.cls, st.txt]];
+    if (!a.enabled) flags.push(["na", "Unticked"]);
 
     // The label. Written on blur rather than per keystroke: one write per
     // edit, and no request racing the next character.
-    const row = el("div", "acc-row");
     const lbl = el("input", "acc-input");
     lbl.type = "text";
     lbl.value = a.label || "";
-    lbl.placeholder = "Which account is this? e.g. personal gmail";
+    lbl.maxLength = 80;
+    lbl.placeholder = "Add a label";
+    lbl.title = "Which account is this? e.g. personal gmail";
     lbl.setAttribute("aria-label", `Account label for ${a.display_name}`);
     lbl.onblur = async () => {
-      if ((a.label || "") === lbl.value) return;
-      a.label = lbl.value;
-      const form = new FormData();
-      form.append("label", lbl.value);
-      // Reported through the same line as everything else that saves. It is
-      // not a Firestore write -- the label lives with the profile it names, on
-      // the engine -- but "did that stick?" is the same question, and an edit
-      // that silently vanished on a failed request is the same annoyance.
-      setSync("saving");
-      try {
-        const r = await fetch(`${link.api}/api/accounts/${a.id}/label`,
-                              authed({ method: "POST", body: form }));
-        if (!r.ok) throw new Error(`the engine returned ${r.status}`);
-        setSync("saved");
-      } catch (e) {
-        setSync("error", _syncFail("saving an account label", e));
+      if ((a.label || "") !== lbl.value) {
+        a.label = lbl.value;
+        const form = new FormData();
+        form.append("label", lbl.value);
+        // Reported through the same line as everything else that saves. It is
+        // not a Firestore write -- the label lives with the profile it names,
+        // on the engine -- but "did that stick?" is the same question.
+        setSync("saving");
+        try {
+          const r = await fetch(`${link.api}/api/accounts/${a.id}/label`,
+                                authed({ method: "POST", body: form }));
+          if (!r.ok) throw new Error(`the engine returned ${r.status}`);
+          setSync("saved");
+        } catch (e) {
+          setSync("error", _syncFail("saving an account label", e));
+        }
       }
+      if (ACC.redrawAfterEdit) { ACC.redrawAfterEdit = false; setTimeout(renderAccounts, 0); }
     };
     lbl.onkeydown = (e) => { if (e.key === "Enter") lbl.blur(); };
-    row.append(lbl);
-    card.append(row);
 
-    const bar = el("div", "acc-actions");
-    const busy = ACC.busy.has(a.id);
+    const facts = [];
+    if (a.checked_at) facts.push(`checked ${AGE(a.checked_at)}`);
+    const size = [];
+    if (a.size_mb) size.push(`${a.size_mb} MB`);
+    if (a.last_used) size.push(`used ${AGE(a.last_used)}`);
+    if (size.length) facts.push(size.join(", "));
 
-    // A saved session that is SIGNED OUT is not an account to switch away
-    // from -- it is an account to get back into, and "Switch account" was the
-    // wrong instruction on precisely the units that needed the right one.
-    // Highlighted there too, because on those cards it is the whole point.
+    // A saved session that is SIGNED OUT is an account to get back into:
+    // its main button is Sign in, highlighted. A working one's is Check.
     const needsLogin = !a.profile || a.signed_in === false;
-    const signin = el("button", "navitem" + (a.signed_in === false ? " active" : ""),
-                      needsLogin ? "Sign in" : "Switch account");
-    signin.disabled = busy;
-    signin.onclick = () => startLogin(a);
-    bar.append(signin);
-
-    const check = el("button", "navitem", "Check");
-    check.disabled = busy;
-    check.title = "Opens this site once to see whether the saved session still works";
-    check.onclick = () => checkAccount(a);
-    bar.append(check);
-
-    // Sign out only when there is something to sign out OF. A card that
-    // already says SIGNED OUT offering "Sign out" is nonsense, and it sat
-    // right beside the one button that card actually needed. Signing back in
-    // reuses the same profile, so nothing has to be cleared first.
+    const main = needsLogin
+      ? accBtn("Sign in", () => startLogin(a), { active: a.signed_in === false, disabled: busy,
+          title: "Opens the real site in a window on the engine device; you type your password into the site, never into MAGI" })
+      : accBtn("Check", () => checkAccount(a), { disabled: busy,
+          title: "Opens this site once to see whether the saved session still works" });
+    const menu = [];
+    if (needsLogin) menu.push({ text: "Check the session", onclick: () => checkAccount(a), disabled: busy });
+    else menu.push({ text: "Switch account", onclick: () => startLogin(a), disabled: busy });
+    // Sign out only when there is something to sign out OF.
     if (a.profile && a.signed_in !== false) {
-      const out = el("button", "navitem danger", "Sign out");
-      out.disabled = busy;
-      out.title = "Deletes MAGI's saved session for this unit so you can sign in as someone else";
-      out.onclick = () => signOutAccount(a);
-      bar.append(out);
+      menu.push("sep", { text: "Sign out", danger: true, disabled: busy, onclick: () => signOutAccount(a),
+        title: "Deletes MAGI's saved session for this unit so you can sign in as someone else" });
     }
 
-    bar.append(el("span", "qbar-spacer"));
-    const meta = [];
-    if (a.size_mb) meta.push(`${a.size_mb} MB`);
-    if (a.last_used) meta.push(`used ${AGE(a.last_used)}`);
-    if (meta.length) bar.append(el("span", "acc-meta", meta.join(" · ")));
-    card.append(bar);
-
-    if (busy) {
-      const w = el("div", "acc-busy");
-      w.append(spinnerEl(), el("span", null, ACC.busyText[a.id] || "Working…"));
-      card.append(w);
-    }
-    box.append(card);
+    // "Signed in." under a pill that says "Signed in" is the same sentence
+    // twice; the detail line is only for detail.
+    const redundant = /^(signed in|signed out)\.?$/i.test((a.detail || "").trim());
+    group.append(accRow({
+      accent: a.accent, name: a.display_name,
+      flags, sub: [lbl, UNIT[a.id] || a.id, ...facts], main, menu,
+      detail: a.detail && !redundant ? a.detail : null,
+      busy: busy ? (ACC.busyText[a.id] || "Working…") : null,
+    }));
   }
+  box.append(group);
+
+  if (typeof renderCodeAccounts === "function") box.append(renderCodeAccounts());
+  if (typeof renderGhAccounts === "function") box.append(renderGhAccounts());
 }
 
 async function checkAccount(a) {
