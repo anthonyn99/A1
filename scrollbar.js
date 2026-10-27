@@ -11,6 +11,12 @@
  *   <script src="scrollbar.js"></script>
  * Opt a subtree out with `data-native-scroll`.
  *
+ * A short sideways strip (a header's tab bar, a chip row) gets no bar unless
+ * it opts in with `data-sb-strip`. Then, with a mouse only, its bar shows the
+ * whole time the pointer is over it and fades after it leaves, sits in the
+ * strip's bottom padding or just under it, and the wheel scrolls it sideways.
+ * A finger just swipes the strip.
+ *
  * Tony's side only. Veda's side of a two-profile page (body data-profile or
  * data-th-profile = "veda") keeps the bars it always had: this file switches
  * itself off there, live, and A1Scrollbar.active() says which is in force. A
@@ -211,6 +217,9 @@
     });
     if (!m.v && !m.h) return m;
     var rect = isDoc ? { left: 0, top: 0, right: vw(), bottom: vh(), width: vw(), height: vh() } : el.getBoundingClientRect();
+    // A strip's bar sits in its bottom padding when there is room for it, and
+    // just under the strip when there isn't — never on top of its buttons.
+    if (m.h && !isDoc && el.hasAttribute('data-sb-strip')) m.strip = parseFloat(getComputedStyle(el).paddingBottom) || 0;
     // Clipped to the viewport, so a box half off-screen doesn't draw its bar
     // over the page chrome.
     // A page that pins a header (data-sb-top, the TaskHubs') starts the bar
@@ -253,7 +262,12 @@
       } else {
         put(r, r.rail, 'left', Math.round(g.left + g.border.l - s.o.x) + 'px');
         put(r, r.rail, 'width', Math.round(len) + 'px');
-        put(r, r.rail, 'top', Math.round(Math.min(g.bottom, g.rect.bottom - g.border.b) - s.hgt - s.o.y) + 'px');
+        // The thumb's middle is 8px below the rail's top (14px rail, 6px thumb
+        // 3px off its bottom).
+        var railTop = m.strip == null ? Math.min(g.bottom, g.rect.bottom - g.border.b) - s.hgt
+          : m.strip >= 10 ? g.rect.bottom - g.border.b - m.strip / 2 - 8
+          : g.rect.bottom - 2;
+        put(r, r.rail, 'top', Math.round(railTop - s.o.y) + 'px');
         put(r, r.thumb, 'width', Math.max(0, size - INSET * 2).toFixed(1) + 'px');
         put(r, r.thumb, 'transform', 'translateX(' + at.toFixed(1) + 'px)');
       }
@@ -391,6 +405,18 @@
       }
     });
   }, { passive: true });
+  // A mouse wheel over a data-sb-strip scrolls it sideways, until it reaches
+  // an end (then the page scrolls as usual).
+  doc.addEventListener('wheel', function (e) {
+    if (e.ctrlKey || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+    var el = e.target && e.target.closest ? e.target.closest('[data-sb-strip]') : null;
+    if (!el || !canScroll(el, 'h')) return;
+    var max = el.scrollWidth - el.clientWidth;
+    var to = Math.max(0, Math.min(max, el.scrollLeft + (e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY)));
+    if (to === el.scrollLeft) return;
+    e.preventDefault();
+    el.scrollLeft = to;
+  }, { passive: false });
   // The window or a phone's visual viewport changing size: redraw what shows.
   window.addEventListener('resize', wake);
   if (window.visualViewport) window.visualViewport.addEventListener('resize', wake);
