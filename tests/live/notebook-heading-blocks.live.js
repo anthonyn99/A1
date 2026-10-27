@@ -59,7 +59,7 @@ const SIDES = { tony: { K: 'nb', S: 'nb_test', mount: {} }, veda: { K: 'vn', S: 
       await js(`return ${ed}.innerHTML;`));
     const outline = JSON.parse(await js(`return JSON.stringify([...${ed}.children].map(e => e.tagName + ':' + e.textContent.trim().slice(0, 14)));`));
     ok('the content is all there, in order, headings kept as headings', JSON.stringify(outline) === JSON.stringify([
-      'H1:Plan', 'BLOCKQUOTE:"A quote."', 'H1:Rules', 'UL:First rule.Se', 'H1:Before', 'P:Ask:', 'UL:A question?', 'P:If no, stop.',
+      'H1:Plan', 'BLOCKQUOTE:"A quote."', 'H1:Rules', 'UL:First rule.Sec', 'H1:Before', 'P:Ask:', 'UL:A question?', 'P:If no, stop.',
       'H2:Mixed', 'UL:inner', 'H2:tail', 'H1:Plain heading', 'UL:Normal list.']), JSON.stringify(outline));
     const sizes = JSON.parse(await js(`var lis = [...${ed}.querySelectorAll('li')]; return JSON.stringify(lis.map(l => [getComputedStyle(l).fontSize, getComputedStyle(l).fontWeight]));`));
     const base = await js(`return getComputedStyle(${ed}).fontSize;`);
