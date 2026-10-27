@@ -182,9 +182,20 @@ const worker = {
   await js(`document.querySelector('#tradeboard-root .nh-clear').click(); 1`); await sleep(300);
   ok('Clear all brings the whole feed back', await js(`return document.querySelectorAll('#tradeboard-root .nh-ev').length===3;`));
 
+  console.log('\nAnalysis');
+  await tab('analysis');
+  ok('Launch and Deploy sit in the header', await until(`(function(){ var h=document.querySelector('#tradeboard-root .ana-page .tbx-head'); return !!h && /launch analysis/i.test(h.innerText) && /deploy auto launch/i.test(h.innerText); })()`, 6000));
+  ok('the prompt pills, the preview, Send to and Searches render', await js(`return document.querySelectorAll('#tradeboard-root .ana-pchip').length>=2 && !!document.querySelector('#tradeboard-root .ana-preview-doc h2') && /send to/i.test(document.querySelector('#tradeboard-root .ana-grid').innerText) && /searches/i.test(document.querySelector('#tradeboard-root .ana-grid').innerText);`));
+  await shot('tradehub-analysis');
+  // Tap Quick (not the starred one), then Edit in Control: Control opens on Quick.
+  await js(`[...document.querySelectorAll('#tradeboard-root .ana-pchip')].find(x=>/Quick/.test(x.innerText)).click(); 1`); await sleep(80);
+  await js(`[...document.querySelectorAll('#tradeboard-root .ana-chip')].find(x=>/edit in control/i.test(x.innerText)).click(); 1`); await sleep(900);
+  ok('Edit in Control opens Control on that prompt', await until(`(function(){ var on=document.querySelector('#tradeboard-root .tb-pchip.on'); return !!on && /Quick/.test(on.innerText); })()`, 4000),
+    await js(`var on=document.querySelector('#tradeboard-root .tb-pchip.on'); return on?on.innerText:'none';`));
+
   console.log('\nPhone width');
   await size(390, 844); await sleep(1000);
-  for (const [id, name] of [['news', 'tradehub-news-phone'], ['catalysts', 'tradehub-catalysts-phone'], ['prompt', 'tradehub-control-phone']]) {
+  for (const [id, name] of [['analysis', 'tradehub-analysis-phone'], ['news', 'tradehub-news-phone'], ['catalysts', 'tradehub-catalysts-phone'], ['prompt', 'tradehub-control-phone']]) {
     await tab(id); await sleep(600);
     if (id === 'catalysts') ok('catalysts: every day label (TOMORROW too) stays clear of the times',
       await js(`return [...document.querySelectorAll('#tradeboard-root .cat-day')].every(d=>{ var w=d.querySelector('.cat-dow').getBoundingClientRect(), e=d.querySelector('.cat-events').getBoundingClientRect(); return w.right <= e.left - 4; });`),
