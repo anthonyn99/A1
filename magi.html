@@ -14401,6 +14401,7 @@ async function codeBranchSheet(proj) {
           + "project’s GitHub account. Push the branch first."));
       }
     }
+    sheetGroups(body);
     if (st.err) body.append(el("div", "sheet-err", st.err));
   };
   draw();
