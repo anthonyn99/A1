@@ -1,6 +1,7 @@
 // LIVE test -- the real console's Refine button against the real personal-ai
 // worker (not run by run-all.js). Sends NO council question.
-// Run: node tests/live/magi-refine.live.js   (PROFILES=tony,veda by default)
+// Run: node tests/live/magi-refine.live.js   (PROFILES=tony,veda by default;
+//      CDP_PORT=9417 if another session may be running live tests)
 //
 // Checks, per profile:
 //   1. with Gemini ticked, Refine goes to personal-ai /prompt/refine with THIS
