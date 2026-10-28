@@ -10201,7 +10201,10 @@ function updateEnabled() {
   }
   // A browser agent working a Code Mode task holds its profile, and Refine
   // may want the same one; a CLI-only task holds none.
-  $("btnRefine").disabled = busy || !q || !up || (coding && codeTaskUsesBrowser());
+  // With Gemini ticked, Refine needs no engine (refineText).
+  $("btnRefine").disabled = busy || !q
+    || !refineCanRun(coding ? codeRefineUnits() : [...S.selected])
+    || (coding && codeTaskUsesBrowser());
   $("btnRefine").title = coding ? "Rewrite this into a clearer task for the agents"
     : "Rewrite this into a sharper prompt";
   // Queueing needs a prompt and units, but NOT a reachable engine: building
