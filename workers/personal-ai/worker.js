@@ -28,13 +28,19 @@
 // gemini-2.5-flash-lite and gemini-2.0-flash were retired by Google (404 on these
 // keys, checked 2026-10-02) — their slots now hold 3.5-flash-lite / 3.8-flash.
 
-// Journal formatting: long-document quality matters most → lead with 3.5-flash.
+// Notebook's AI tools (AI Format, AI Refine, every custom tool): long-document
+// quality matters most → lead with 3.5-flash. Raced by runStaggered, not walked
+// one by one. 2026-10-28: 2.5-flash answers 404 "no longer available" on both
+// keys, so it is gone from this chain, and every Gemini Flash model spent hours
+// shedding load (503), so Workers AI's models (see cfOnce) sit behind them:
+// measured on a journal page they kept every fact and image token, in 6-7 s.
 const MODELS = [
   'gemini-3.5-flash',       // newest flagship free Flash — most capable
-  'gemini-3.1-flash-lite',  // newest Flash-Lite — matches 2.5-flash quality, high RPD
-  'gemini-2.5-flash',       // proven fast Flash
+  'gemini-3.1-flash-lite',  // newest Flash-Lite — high RPD
   'gemini-3.5-flash-lite',  // fast, high-RPD lite fallback
+  '@cf/meta/llama-4-scout-17b-16e-instruct',      // Workers AI — not Google, so not down with it
   'gemini-3.8-flash',       // newest Flash — capacity fallback
+  '@cf/mistralai/mistral-small-3.1-24b-instruct', // Workers AI — last resort
 ];
 
 // MyList: interactive voice → latency matters most. 3.1-flash-lite is both the
