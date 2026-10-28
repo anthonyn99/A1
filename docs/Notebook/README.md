@@ -6,21 +6,30 @@ own. A program (a *host*) loads it and mounts an app into itself. It is built on
 `Notebook/`, and every host runs those same files. A change there reaches every host
 at once, so don't copy its code into a program.
 
-**Two profiles (2026-10-27): Tony and Veda.** A host names a side, not an app:
+**Two sides: T's Notebook and V's Notebook (named 2026-10-28).** A host names a
+side, not an app, and every program says which side it mounted:
 
-```js
-Notebook.mount({ profile: 'tony' });   // Tony's side: app myjournal, key tj, store tony_journal
-Notebook.mount({ profile: 'veda' });   // Veda's side: app brainstorm, key bj, store journal
-```
+| Side | Mount | Header | Its line in an instance | app / key / store |
+|---|---|---|---|---|
+| **T's Notebook** (Tony) | `Notebook.mount({ profile: 'tony' })` | T's Notebook | Editing in T's Notebook | myjournal / `tj` / `tony_journal` |
+| **V's Notebook** (Veda) | `Notebook.mount({ profile: 'veda' })` | V's Notebook | Editing in V's Notebook | brainstorm / `bj` / `journal` |
 
-`Notebook.profiles` holds that table (`PROFILES` in `notebook.js`). The two sides
-are named and work the same way: the program is **Notebook** (nav, header,
-Settings, App Lock), and its sidebar tabs are **OurJournal** plus the person's own
-journal (**MyJournal** for Tony, **Journal** for Veda). The only differences are
-Veda's colours and fonts and her extra templates (Cornell, Mind Map, Structured
-Notes, ...). Code, ids and the data keep the old `tj` / `bj` and Brainstorm names.
-Every host mounts by profile. The older `{ app, key, store }` form still
-mounts, but nothing uses it; write new hosts with `profile`.
+- `Notebook.side('tony')` gives `{ profile, name: "T's Notebook", editing: "Editing in T's Notebook" }`.
+  A host that labels the editor itself (Everwell's bar) takes the words from
+  here, never types them.
+- Every instance shows its side's line beside the page title by itself.
+  `sideNote: false` leaves it out (a host showing its own); `done.note` replaces it.
+- Every mounted root carries `data-notebook-side="tony"` / `"veda"`, and its
+  `aria-label` is the side's name.
+- The names live once, in `PROFILES` in `notebook.js` (`Notebook.profiles`).
+
+**The two sides are the same program.** Both sidebars are **OurJournal** and
+**MyJournal**; the editor, its ribbon and menus, locks, AI tools and every other
+feature are the same. What differs is only: the header (T's / V's Notebook), the
+colours and fonts, and Veda's extra templates (Cornell, Mind Map, Structured
+Notes, ...) with what belongs to them (her Templates button). Code, ids and data
+keep the old `tj` / `bj` and Brainstorm names. The older `{ app, key, store }`
+form still mounts, but nothing uses it; write new hosts with `profile`.
 
 An **instance** (a program's own documents) is either side with its own key
 and store: `{ profile: 'tony', key, store, ... }` or `{ profile: 'veda', key,
@@ -32,13 +41,13 @@ fonts load if the host has none, and index's header (TaskHub, Gita, App Lock)
 is left out. Both sides' instances save through the same store template
 (core/fb.js `@nb-store`).
 
-| Host | Profile | key | Store (`dashboards/…`) | Mode |
+| Host | Side | key | Store (`dashboards/…`) | Mode |
 |---|---|---|---|---|
-| index.html, Tony | tony | `tj` | `tony_journal` | overlay (native) |
-| index.html, Veda | veda | `bj` | `journal` | overlay (native) |
-| tradehub.html, Playbook (A1-Priv) | tony | `pb` | `tradehub_playbook` | inline (instance) |
-| tradehub.html, Control's prompts (A1-Priv) | tony | `prm` | `tradehub_prompts` | inline (instance, no sidebar) |
-| everwell.html, notes (A1-Priv) | tony | `ewn` | `everwell_notes` | inline (instance) |
+| index.html, Tony | T's Notebook | `tj` | `tony_journal` | overlay (native) |
+| index.html, Veda | V's Notebook | `bj` | `journal` | overlay (native) |
+| tradehub.html, Playbook (A1-Priv) | T's Notebook | `pb` | `tradehub_playbook` | inline (instance) |
+| tradehub.html, Control's prompts (A1-Priv) | T's Notebook | `prm` | `tradehub_prompts` | inline (instance, no sidebar) |
+| everwell.html, notes (A1-Priv) | T's Notebook | `ewn` | `everwell_notes` | inline (instance, its own bar: `sideNote: false`) |
 
 Plan and history: [plan.md](plan.md).
 
@@ -59,9 +68,10 @@ mounts it, on its next load. Nothing in a host has to change. This is the rule:
   (`ourjournal`, `locks`, `sidebar`), `templates`, `pinned`. A feature that some program
   should not get needs a `features` switch in Notebook, defaulting to on, so
   every other program still gets it.
-- **Veda's side is the standing exception.** A MyJournal feature doesn't reach
-  Brainstorm unless it's built in `core/` or added to `apps/brainstorm.*` on
-  purpose, because Veda's side never changes unless asked. The mount contract
+- **Both sides get every feature.** A feature built in `core/` reaches both; one
+  built in `apps/myjournal.*` must be built in `apps/brainstorm.*` too (and the
+  other way round), since the sides differ only in header, look and Veda's
+  templates (above). Never change how Veda's side looks unless asked. The mount contract
   (features, pinned, onSave, onReady, entries, open) is the one exception: it is
   in both apps, and `tests/live/notebook-host.live.js` runs it on both.
 - **The cache can't hold a change back.** Hosts load Notebook with a `?v=` hash of
@@ -109,6 +119,7 @@ Notebook.mount({
   profile: 'tony', key: 'pb', store: 'tradehub_playbook',
   container: document.getElementById('playbook-host'),   // it fills this element
   title: 'Playbook',                                      // replaces "MyJournal" in its UI
+  // It shows "Editing in T's Notebook" beside the page title (sideNote: false: not)
   templates: ['page'],                                    // template cards offered (default: all)
   features: { ourjournal: false, locks: false, sidebar: true },   // an instance's defaults
   pinned: [{ id: 'daily-reminder', title: 'Daily Reminder' }],
