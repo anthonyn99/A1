@@ -2316,6 +2316,164 @@ async function handleFormat(body, env) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// FEATURE 3b — MAGI's Refine  (POST /prompt/refine)
+//
+// MAGI's composer, Brainstorm topic and queued prompts rewrite through here,
+// on the SAME per-person Gemini key as Notebook's AI tools (keyFor). It used to
+// run on the PC engine with a key from magi/.env -- Veda's engine had none, so
+// her Refine drove a browser unit and took 2+ minutes for one sentence.
+//
+// Speed: a staggered race (runStaggered). The fastest Gemini lite model leads;
+// if it has not answered in 1.5 s, Workers AI's Llama 4 Scout (1-2 s, not
+// Google's servers) races it, and so on down the chain. Measured 2026-10-28:
+// Gemini answered 503 on nearly every model and took 11-20 s when it did, so
+// on a day like that Scout answers first; on a good day Gemini does in ~1 s.
+//
+// Fidelity: REFINE_PROMPT forbids dropping anything, and refineMissing checks
+// it -- every number, URL, path, identifier and quoted string in the request
+// must still be in the rewrite, or that answer is set aside for the next model.
+// MAGI's engine keeps the same prompt (magi/engine/refine.py, drift-tested) for
+// its browser-unit fallback.
+// ════════════════════════════════════════════════════════════════════════════
+const REFINE_MODELS = [
+  'gemini-3.5-flash-lite',                        // ~1 s when Google is healthy
+  '@cf/meta/llama-4-scout-17b-16e-instruct',      // 1-2 s, 10/10 lossless on the bench
+  'gemini-3.1-flash-lite',
+  '@cf/mistralai/mistral-small-3.1-24b-instruct',
+  'gemini-3.5-flash',
+  'gemini-3.8-flash',
+];
+
+export const REFINE_PROMPT = `You are a prompt engineer. Rewrite the request below so that it gets a better answer from a large language model.
+
+THE REQUEST
+<<<
+{question}
+>>>
+
+Rewrite it. Do not answer it, do not carry out any part of it, and do not add your own opinion -- your entire output is the rewritten request, which will be sent on to the models verbatim.
+
+Nothing may be lost. Every detail the person gave must still be in the rewrite: every question and every separate part of the request, every name, number, amount, date, time, place, quantity, URL, file name, path, identifier, code, error message and quoted text, every preference and constraint, and any pasted notes or data. Keep those specifics exactly as written -- do not round, convert, translate, abbreviate, or swap a figure for a word. If the person pasted material (notes, a list, text, code), keep all of it in full inside the rewrite rather than summarising it.
+
+What a good rewrite does:
+- Keeps the person's actual intent, subject and scope exactly. You are sharpening what they asked, not replacing it with a better question.
+- Makes vague terms specific where the intent is obvious, and leaves them alone where it is not. Never invent facts, constraints, numbers, names or context the person did not give you -- an invented detail is worse than a vague one, because it will be answered as though it were true.
+- States what form the answer should take, if the request implies one (steps, a comparison, a short factual answer, code).
+- Removes filler and pleasantries, never content.
+
+Keep it proportionate. A short, clear request needs a light touch -- do not inflate one plain sentence into a multi-paragraph specification; most short requests become one to four sentences. A long request stays as long as it needs to be to carry everything in it.
+
+If the request is already clear and specific, return it essentially unchanged rather than padding it out to look like work was done.
+
+Write the rewrite in the person's own voice, as the request itself ("Plan a...", "I am..."), not as instructions about them. No preamble, no "Here is the rewritten prompt", no quotation marks around it, no explanation of what you changed, no headings, no code fences.`;
+
+// Code Mode: the rewrite is a task for a coding agent, which acts on names literally.
+export const REFINE_CODE_NOTE = `
+
+This request is a task for an AI coding agent working inside a software repository, not a question for a chat model. Keep every file name, path, identifier, command, error message and code snippet exactly as written. Say plainly what should change or be investigated, and how to tell it worked if the person implied that. Do not invent files, functions or requirements.`;
+
+const REFINE_SCHEMA = { type: 'OBJECT', properties: { refined: { type: 'STRING' } }, required: ['refined'] };
+
+// The specifics a rewrite must carry verbatim: URLs, emails, `code`, quoted
+// text, calls, file names and paths, snake_case / camelCase / name-02 ids, and
+// every number. Names and plain words are left to the prompt -- a rewrite may
+// fairly capitalise "roth" or say "October 12" for "Oct 12".
+export function refineFacts(q) {
+  q = String(q || '');
+  const out = new Set();
+  const add = (s) => { s = String(s).trim(); if (s) out.add(s); };
+  (q.match(/\bhttps?:\/\/[^\s<>"')\]]+/gi) || []).forEach((u) => add(u.replace(/[.,;:!?]+$/, '')));
+  (q.match(/[\w.+-]+@[\w-]+\.[\w.-]+/g) || []).forEach(add);
+  (q.match(/`[^`\n]+`/g) || []).forEach((s) => add(s.slice(1, -1)));
+  (q.match(/"[^"\n]{2,200}"|“[^”\n]{2,200}”/g) || []).forEach((s) => add(s.slice(1, -1)));
+  (q.match(/\b[A-Za-z_$][\w$]*\(\)/g) || []).forEach(add);
+  (q.match(/(?:[\w~-]+[\\/])*[\w-]+\.(?:[a-z][a-z0-9]{0,5})\b/gi) || []).forEach((s) => {
+    if (!/^(?:e\.g|i\.e|etc|vs|mr|mrs|ms|dr|st|jr)\.\w*$/i.test(s) && !/^www\./i.test(s)) add(s);
+  });
+  (q.match(/\b[a-z]+(?:_[a-z0-9]+)+\b/g) || []).forEach(add);
+  (q.match(/\b[a-z]+[A-Z][A-Za-z0-9]*\b/g) || []).forEach(add);
+  (q.match(/\b[a-z]+(?:-[a-z]+)*-\d+\b/gi) || []).forEach(add);
+  (q.match(/\d+(?:[.,:/]\d+)*/g) || []).forEach(add);
+  return [...out];
+}
+const refineNorm = (s) => String(s).toLowerCase().replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/\s+/g, ' ');
+// The facts of `q` that `refined` lost. A number counts as kept when its digits
+// are there with no other digit glued on ("12" survives "October 12").
+export function refineMissing(q, refined) {
+  const r = refineNorm(refined);
+  return refineFacts(q).filter((f) => {
+    const n = refineNorm(f);
+    if (/^\d+(?:[.,:/]\d+)*$/.test(n)) {
+      return !new RegExp('(^|[^\\d])' + n.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&') + '($|[^\\d])').test(r);
+    }
+    return !r.includes(n);
+  });
+}
+
+// A model's rewrite, cleaned -- or null if it is not usable as the prompt
+// (same rules as magi/engine/refine.py's parse: no fences, no "Here is the
+// rewritten prompt:", no wrapping quotes, and not an ANSWER, which shows as
+// far more text than the request could need).
+export function cleanRefined(raw, question) {
+  let text = String(raw || '').trim();
+  if (!text) return null;
+  const fence = text.match(/^```[a-zA-Z]*\s*\n([\s\S]*?)\n\s*```$/);
+  if (fence) text = fence[1].trim();
+  text = text.replace(/^\s*(?:here(?:'s| is)\b[^\n:]*:|(?:the\s+)?(?:rewritten|refined|improved|revised)\s+(?:prompt|request|question)\s*:)/i, '').trim();
+  if (text.length >= 2 && `"'“`.includes(text[0]) && `"'”`.includes(text[text.length - 1])) text = text.slice(1, -1).trim();
+  if (!text) return null;
+  if (text.length > Math.max(4000, String(question || '').length * 3 + 500)) return null;
+  return text;
+}
+
+async function handleRefine(body, env) {
+  const profile = body.profile === 'veda' ? 'veda' : 'tony';
+  const q = String(body.question || '').trim();
+  if (!q) return json({ ok: false, error: 'no question' }, 400);
+  if (q.length > 60000) return json({ ok: false, error: 'too long to refine' }, 400);
+  const key = keyFor(env, profile);
+  // No key for this person: Workers AI alone still refines. Never the other
+  // person's key -- that is their quota.
+  const models = REFINE_MODELS.filter((m) => m.startsWith('@cf/') ? !!env.AI : !!key);
+  if (!models.length) return json({ ok: false, error: `no Gemini key configured for ${profile}` }, 500);
+
+  const prompt = REFINE_PROMPT.replace('{question}', () => q) + (body.kind === 'code' ? REFINE_CODE_NOTE : '');
+  // A long pasted request takes longer to write back out in full.
+  const long = q.length > 2000;
+  const t0 = Date.now();
+  let lossy = [];
+  try {
+    const { value, model, tried, soft } = await runStaggered(models, key, {
+      prompt,
+      env,
+      schema: REFINE_SCHEMA,
+      maxOutputTokens: Math.min(16000, Math.max(1024, Math.ceil(q.length / 2))),
+      feature: 'refine',
+      timeoutMs: long ? 30000 : 12000,
+      deadlineMs: long ? 50000 : 25000,
+      staggerMs: long ? 6000 : 1500,
+      maxLive: 3,
+      retry: false,
+      validate: (v) => {
+        const text = cleanRefined(v && v.refined, q);
+        if (!text) return false;
+        const miss = refineMissing(q, text);
+        if (miss.length && !lossy.length) lossy = miss;
+        return !miss.length;
+      },
+    });
+    const refined = cleanRefined(value && value.refined, q);
+    if (!refined) throw Object.assign(new Error('no usable rewrite'), { tried });
+    const missing = soft ? refineMissing(q, refined) : [];
+    return json({ ok: true, refined, model, tried, ms: Date.now() - t0, missing });
+  } catch (e) {
+    const err = (e && e.message) || 'all models failed';
+    const quota = /\b429\b|quota|resource_exhausted|exhaust/i.test(err);
+    return json({ ok: false, error: err, tried: (e && e.tried) || [], exhausted: quota, ms: Date.now() - t0 }, quota ? 429 : 502);
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // FEATURE 4 — MyList Recipes parser  (POST /recipe/parse)
 //
 // Same "type-to-action" system as the shopping list, but for the Recipes tab.
