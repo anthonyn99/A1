@@ -38,6 +38,9 @@
  *                              re-logs an item the bank signed out
  *   POST /link/exchange      → public_token → access_token, stored in KV
  *   GET  /items              → stored items (names/ids only — no tokens)
+ *   POST /items/remove       → unlink one item: Plaid /item/remove, its KV
+ *                              token + cursor, and its Firestore accounts and
+ *                              transactions
  *   POST /sync               → full pipeline for every item: Plaid
  *                              /transactions/sync → normalize → Firestore.
  *                              Same code path the daily cron runs.
@@ -528,6 +531,43 @@ async function runFullSync(env, trigger) {
   return out;
 }
 
+// Unlink one item everywhere. Plaid first (an already-dead item is fine),
+// then the Firestore docs it wrote, then its KV token and cursor last, so a
+// failure part-way leaves it listed and the remove can simply be retried.
+async function removeItem(env, item) {
+  const out = { item_id: item.item_id, institution: item.institution_name };
+  try { await plaidPost(env, '/item/remove', { access_token: item.access_token }); out.plaid = 'removed'; }
+  catch (e) {
+    if (!['ITEM_NOT_FOUND', 'INVALID_ACCESS_TOKEN'].includes(e.plaid?.code)) throw e;
+    out.plaid = e.plaid.code;
+  }
+  if (fsConfigured(env)) {
+    const token = await getGoogleAccessToken(env);
+    const root = fsDocRoot(env);
+    const deletes = [];
+    for (const coll of ['accounts', 'plaid_transactions']) {
+      const res = await fetch(`https://firestore.googleapis.com/v1/${root}/dashboards/insight:runQuery`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ structuredQuery: {
+          from: [{ collectionId: coll }],
+          where: { fieldFilter: { field: { fieldPath: 'item_id' }, op: 'EQUAL', value: { stringValue: item.item_id } } },
+          select: { fields: [{ fieldPath: '__name__' }] }
+        }})
+      });
+      if (!res.ok) throw new Error(`runQuery ${coll} failed (${res.status}): ${(await res.text()).slice(0, 200)}`);
+      const rows = (await res.json()).filter(r => r.document);
+      out[coll] = rows.length;
+      for (const r of rows) deletes.push({ delete: r.document.name });
+    }
+    await fsBatchWrite(env, token, deletes);
+  }
+  await env.INSIGHT_KV.delete(itemKey(item.item_id));
+  await env.INSIGHT_KV.delete(cursorKey(item.item_id));
+  _itemsCache = null;
+  return out;
+}
+
 // ── Routes ──────────────────────────────────────────────────────────────────
 
 export default {
@@ -604,7 +644,9 @@ export default {
           user: { client_user_id: 'tony' },
           client_name: 'Insight',
           products: ['transactions'],
-          transactions: { days_requested: 90 },   // plan: 90-day initial history
+          // Plaid's maximum, so a bank that is removed and linked again gets
+          // its older history back (transaction ids change with the item).
+          transactions: { days_requested: 730 },
           country_codes: ['US'],
           language: 'en'
         };
@@ -677,6 +719,19 @@ export default {
             createdAt: i.createdAt
           }))
         }, origin);
+      }
+
+      if (path === '/items/remove' && request.method === 'POST') {
+        const blocked = secretsGate(env, origin);
+        if (blocked) return blocked;
+        let body = {};
+        try { body = await request.json(); } catch { body = {}; }
+        if (!(await verifyLockOrToken(env, body))) {
+          return json({ ok: false, error: 'app lock required', lockRequired: true }, origin, 401);
+        }
+        const item = body.item_id && await env.INSIGHT_KV.get(itemKey(body.item_id), 'json');
+        if (!item) return json({ ok: false, error: 'unknown item' }, origin, 404);
+        return json({ ok: true, ...(await removeItem(env, item)) }, origin);
       }
 
       // Sandbox-only: wipe sync cursors so the next /sync re-pulls full
