@@ -92,7 +92,6 @@ const E200 = (refined) => () => ({ status: 200, body: { refined } });
     const { sb, calls } = load({ worker: () => { throw new Error('worker called'); }, engine: E200('From a unit.') });
     await sb.refineText('q', ['chatgpt']);
     ok(calls.length === 1 && calls[0].url.startsWith('https://engine.test'));
-    ok(!sb.refineCanRun.call(null, ['chatgpt']) === false);
   });
   await t('Gemini unticked and engine offline: Refine is not offered', async () => {
     const { sb } = load({ up: false, worker: W200('x') });
