@@ -58,6 +58,7 @@ var html = `
     <input id="tj-entry-title-input" type="text" placeholder="Untitled entry…" />
     <div class="toolbar-sep"></div>
     <div class="mode-toggle-wrap">
+      <svg class="mt-ic mt-ic-view" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="mt-ic mt-ic-edit" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
       <span class="mode-toggle-label" id="tj-mode-label">VIEW</span>
       <label class="mode-toggle" title="Toggle Edit / View mode">
         <input type="checkbox" id="tj-btn-edit" />
@@ -66,12 +67,12 @@ var html = `
       </label>
     </div>
     <div class="toolbar-sep"></div>
-    <button class="tb-btn" id="tj-btn-export-pdf" data-tip="Export as PDF" style="color:var(--ac);">
+    <button class="tb-btn" id="tj-btn-export-pdf" style="color:var(--ac);">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
       Export PDF
     </button>
     <div class="toolbar-sep"></div>
-    <button class="tb-btn lock-btn" id="tj-btn-lock" data-tip="Lock this entry" style="display:none;">
+    <button class="tb-btn lock-btn" id="tj-btn-lock" style="display:none;">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
       Lock
     </button>
@@ -163,7 +164,7 @@ var html = `
         <button class="pt-btn docx-r2" id="tj-pt-link" title="Insert link"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg></button>
         <button class="pt-btn docx-r2" id="tj-pt-hr" title="Divider">&#8213;</button>
         <button class="pt-btn docx-r2" id="tj-pt-table" title="Insert table">&#9783;</button>
-        <button class="pt-btn" id="tj-pt-md" title="Render Markdown — convert raw Markdown into formatted text" style="font-weight:700;font-size:11px;">Render Markdown</button>
+        <button class="pt-btn" id="tj-pt-md" title="Render Markdown — convert raw Markdown into formatted text">Render Markdown</button>
         <button class="pt-btn docx-r1" id="tj-page-img-btn" title="Insert image / attach file">
           &#128247;
           <input type="file" id="tj-page-img-file" accept="*/*" multiple>
@@ -257,7 +258,7 @@ var html = `
         <button class="pt-btn docx-r2" id="tj-je-pt-link" title="Insert link"><svg class="tji" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg></button>
         <button class="pt-btn docx-r2" id="tj-je-pt-hr" title="Divider">&#8213;</button>
         <button class="pt-btn docx-r2" id="tj-je-pt-table" title="Insert table">&#9783;</button>
-        <button class="pt-btn" id="tj-je-pt-md" title="Render Markdown — convert raw Markdown into formatted text" style="font-weight:700;font-size:11px;">Render Markdown</button>
+        <button class="pt-btn" id="tj-je-pt-md" title="Render Markdown — convert raw Markdown into formatted text">Render Markdown</button>
         <button class="pt-btn docx-r1" id="tj-je-img-btn" title="Insert image / attach file">
           &#128247;
           <input type="file" id="tj-je-img-file" accept="*/*" multiple>
