@@ -382,7 +382,8 @@ function instanceCss(cfg) {
 var OPTIONS = { profile: 1, app: 1, key: 1, store: 1, container: 1, mode: 1, title: 1, templates: 1, features: 1, pinned: 1, onSave: 1, onReady: 1, done: 1, sideNote: 1 };
 var FEATURES = { ourjournal: 1, locks: 1, sidebar: 1 };
 function checkOptions(cfg) {
-  Object.keys(cfg).forEach(function (k) { if (!OPTIONS[k]) throw new Error('Notebook.mount: unknown option ' + k); });
+  // side is mount's own (Notebook.side of the profile), not a host's option.
+  Object.keys(cfg).forEach(function (k) { if (!OPTIONS[k] && k !== 'side') throw new Error('Notebook.mount: unknown option ' + k); });
   Object.keys(cfg.features || {}).forEach(function (k) { if (!FEATURES[k]) throw new Error('Notebook.mount: unknown feature ' + k); });
   if (cfg.mode && cfg.mode !== 'inline' && cfg.mode !== 'overlay') throw new Error('Notebook.mount: mode is inline or overlay');
 }
