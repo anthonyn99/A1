@@ -133,6 +133,14 @@ async function side(c, name, errs) {
   ok('a margin drag alone is saved', D && D['e_daily-reminder'] && JSON.stringify(D['e_daily-reminder'].data.margins) === JSON.stringify({ mt: 96, mr: 96, mb: 96, ml: 150 }), JSON.stringify(D && D['e_daily-reminder'] && D['e_daily-reminder'].data.margins));
   for (let i = 0; i < 20 && (await js(`return ${$('sync-text')}.textContent.trim();`)) !== 'Synced'; i++) await sleep(250);
   ok('...and the pill comes back to Synced', await js(`return ${$('sync-text')}.textContent.trim();`) === 'Synced', await js(`return ${$('sync-text')}.textContent;`));
+  // A second drag, the way the ruler makes one: it edits the object the Get hook
+  // returns, then hands it back. When that object was the entry's own, every
+  // drag after the first changed the entry first and was never saved.
+  await js(`var m = window._${K}GetPageMargins(); m.ml = 170; window._${K}SetPageMargins(m); window._docxApplyPageSetup('${K}'); 1`);
+  for (let i = 0; i < 40; i++) { await sleep(250); D = await doc(); if (D && D['e_daily-reminder'] && D['e_daily-reminder'].data.margins && D['e_daily-reminder'].data.margins.ml === 170) break; }
+  ok('a second margin drag is saved too', D && D['e_daily-reminder'] && D['e_daily-reminder'].data.margins && D['e_daily-reminder'].data.margins.ml === 170, JSON.stringify(D && D['e_daily-reminder'] && D['e_daily-reminder'].data.margins));
+  for (let i = 0; i < 20 && (await js(`return ${$('sync-text')}.textContent.trim();`)) !== 'Synced'; i++) await sleep(250);
+  ok('...and the pill comes back to Synced again', await js(`return ${$('sync-text')}.textContent.trim();`) === 'Synced', await js(`return ${$('sync-text')}.textContent;`));
   // The trash's "delete forever" is the one path left that names it directly.
   await js(`window._${K}TrashAPI.purge(['daily-reminder']); 1`); await sleep(1500);
   R = await rows();
