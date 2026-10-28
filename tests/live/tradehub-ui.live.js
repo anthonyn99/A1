@@ -168,6 +168,8 @@ const worker = {
   await js(`[...document.querySelectorAll('#tradeboard-root .cat-bar button')].find(b=>/^All/.test(b.innerText)).click(); 1`);
   await btn('#tradeboard-root .tbx-actions', 'DEBRIEF');
   ok('Debrief opens its settings under the header', await until(`[...document.querySelectorAll('#tradeboard-root .cat-debrief')].length===1`, 3000));
+  ok('its unit rows name each person’s MAGI', await js(`return [...document.querySelectorAll('#tradeboard-root .dbf-name')].map(x=>x.innerText).join('|')==="Tony’s MAGI|Veda’s MAGI";`));
+  await sleep(300); await shot('tradehub-debrief');
   await btn('#tradeboard-root .tbx-actions', 'DEBRIEF');
 
   console.log('\nNews');
