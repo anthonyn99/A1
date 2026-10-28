@@ -35,7 +35,10 @@
  *   POST /sandbox/e2e        → full Sandbox validation chain (sandbox-only)
  *   POST /link/token/create  → link_token for the Plaid Link widget; with
  *                              item_id it's an update-mode token that
- *                              re-logs an item the bank signed out
+ *                              re-logs an item the bank signed out; with
+ *                              select:true too, it lets you pick which
+ *                              accounts the item shares (a card that moved
+ *                              banks, e.g. Discover → Capital One)
  *   POST /link/exchange      → public_token → access_token, stored in KV
  *   GET  /items              → stored items (names/ids only — no tokens)
  *   POST /items/remove       → unlink one item: Plaid /item/remove, its KV
@@ -665,6 +668,7 @@ export default {
           delete base.products;
           delete base.transactions;
           base.access_token = item.access_token;
+          if (body.select) base.update = { account_selection_enabled: true };
         }
         let data, oauthReady = true;
         try {
