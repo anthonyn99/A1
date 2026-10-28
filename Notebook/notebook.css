@@ -968,6 +968,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 /* ── Title bar: one height; Edit/View is a switch in a button-sized outline
    (the switch fills with the accent while editing); Lock is a square padlock
    (open or closed), no words. ── */
+#tj-root #tj-toolbar .tb-btn, #bj-root #bj-toolbar .tb-btn { min-height: 32px !important; max-height: 32px; }
 #tj-root #tj-toolbar .tb-btn, #bj-root #bj-toolbar .tb-btn,
 #tj-root #tj-toolbar .mode-toggle-wrap, #bj-root #bj-toolbar .mode-toggle-wrap { height: 32px !important; min-height: 32px !important; max-height: 32px; box-sizing: border-box; padding: 0 12px; flex-shrink: 0; }
 #tj-root .mode-toggle-wrap, #bj-root .mode-toggle-wrap {
