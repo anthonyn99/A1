@@ -150,7 +150,7 @@ ok('this PC\'s Claude login cannot be removed from here', /if \(s\.slot !== "sys
 ok('Queue works in Code Mode, needing a workspace and an agent',
    /!coding \? \(S\.selected\.size === 0[\s\S]{0,120}!codeProject\(\)[\s\S]{0,120}!codeChain\(\)\.length/.test(ue));
 ok('Refine works in Code Mode, held while a browser agent works',
-   /\$\("btnRefine"\)\.disabled = busy \|\| !q\s*\|\| !refineCanRun\(coding \? codeRefineUnits\(\) : \[\.\.\.S\.selected\]\)\s*\|\| \(coding && codeTaskUsesBrowser\(\)\)/.test(ue));
+   /\$\("btnRefine"\)\.disabled = busy \|\| !q \|\| \(coding && codeTaskUsesBrowser\(\)\)/.test(ue));
 ok('Code Mode\'s files are its own', /const list = coding \? CODE\.attachments : S\.attachments;/.test(MAGI));
 // Text or an image since 1f54fa4 (Veda, 2026-09-30); a binary that is
 // neither is still refused.

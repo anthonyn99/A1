@@ -2,11 +2,12 @@
 /**
  * MAGI Refine routing (magi.html refineText).
  *
- * Every Refine button rewrites through refineText. With Gemini ticked it must
- * go to the personal-ai worker with THIS profile's id -- so Tony's refines on
- * Tony's Notebook Gemini key and Veda's on hers -- and reach the engine only
- * as the fallback, with skip_api so the engine's own .env key is not used.
- * Gemini unticked: the worker (a Gemini key) is never called.
+ * Every Refine button rewrites through refineText. It must go to the
+ * personal-ai worker with THIS profile's id -- so Tony's refines on Tony's
+ * Notebook Gemini key and Veda's on hers -- whether or not the GEMINI unit is
+ * ticked (that box is the browser unit; the API key is not a unit), and reach
+ * the engine only as the fallback, with skip_api so the engine's own .env key
+ * is not used.
  *
  * Runs the real function, cut out of magi.html, against a fake fetch.
  * Run: node tests/magi-refine.test.js
@@ -47,7 +48,7 @@ function load({ profile = 'tony', up = true, worker, engine }) {
     },
   };
   vm.createContext(sb);
-  vm.runInContext(code + '\nthis.refineText = refineText; this.refineCanRun = refineCanRun; this.refineLossNote = refineLossNote;', sb);
+  vm.runInContext(code + '\nthis.refineText = refineText; this.refineLossNote = refineLossNote;', sb);
   return { sb, calls };
 }
 const W200 = (refined, missing = []) => () => ({ status: 200, body: { ok: true, refined, missing } });
@@ -68,7 +69,6 @@ const E200 = (refined) => () => ({ status: 200, body: { refined } });
   });
   await t('works with the engine offline', async () => {
     const { sb } = load({ up: false, worker: W200('Better.') });
-    ok(sb.refineCanRun(['gemini']));
     ok((await sb.refineText('q', ['gemini'])).refined === 'Better.');
   });
   await t('Code Mode sends kind "code"', async () => {
@@ -88,14 +88,18 @@ const E200 = (refined) => () => ({ status: 200, body: { refined } });
     try { await sb.refineText('q', ['gemini']); } catch (e) { err = e; }
     ok(err && /reach the refiner/.test(err.message), err && err.message);
   });
-  await t('Gemini unticked: the worker (a Gemini key) is never called', async () => {
-    const { sb, calls } = load({ worker: () => { throw new Error('worker called'); }, engine: E200('From a unit.') });
-    await sb.refineText('q', ['chatgpt']);
-    ok(calls.length === 1 && calls[0].url.startsWith('https://engine.test'));
+  await t('Gemini unticked: still the worker, on the API key', async () => {
+    const { sb, calls } = load({ worker: W200('Better.'), engine: () => { throw new Error('engine called'); } });
+    ok((await sb.refineText('q', ['chatgpt'])).refined === 'Better.');
+    ok(calls.length === 1 && calls[0].url.startsWith('https://personal-ai.'));
   });
-  await t('Gemini unticked and engine offline: Refine is not offered', async () => {
-    const { sb } = load({ up: false, worker: W200('x') });
-    ok(!sb.refineCanRun(['chatgpt']));
+  await t('nothing ticked at all: still the worker', async () => {
+    const { sb, calls } = load({ up: false, worker: W200('Better.') });
+    ok((await sb.refineText('q', [])).refined === 'Better.');
+    ok(calls.length === 1);
+  });
+  await t('no Refine button waits on the Gemini tick box', async () => {
+    ok(!/refineCanRun|units\.includes\("gemini"\)/.test(page), 'a Gemini-tick check is back');
   });
   await t('a lossy rewrite is named under the box', async () => {
     const { sb } = load({ worker: W200('Better.', ['150']) });
