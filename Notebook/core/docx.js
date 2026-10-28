@@ -3003,6 +3003,9 @@ var IC = {
   fullscreen: '<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>',
   fullscreenExit: '<path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/>',
 };
+// The Journal Entries template keeps the ribbon it had before the 2026-10-28
+// redesign (it is being retired): no groups, the old glyphs.
+function _legacyRibbon(ctx) { return /-je-toolbar$/.test(ctx.tbEl.id || ''); }
 // The one dropdown caret every ribbon control uses.
 var CARET = '<svg class="docx-caret" viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
 function svg(paths, size) {
@@ -3078,7 +3081,9 @@ function injectRibbonExtras(ctx) {
   var tb = ctx.tbEl;
   // ── AI Tools + Undo / Redo / Print at the very start (after menubar) ──
   var startFrag = document.createDocumentFragment();
-  var aiB = ptBtn(svg(IC.ai) + '<span class="docx-ai-lbl">AI Tools</span>' + CARET,
+  var aiB = ptBtn(svg(IC.ai) + (_legacyRibbon(ctx)
+                    ? '<span class="docx-ai-lbl" style="margin-left:4px;font-weight:600;">AI Tools</span><span class="docx-ai-caret">▾</span>'
+                    : '<span class="docx-ai-lbl">AI Tools</span>' + CARET),
                   'AI Tools — AI Format, AI Refine, or your own tools.\nHighlight text to run on the selection only; highlight nothing to run on the whole document.');
   aiB.className = 'pt-btn docx-ai-btn docx-r1';
   if (_docxFeatureLocked(ctx.app, 'aiFormat')) { aiB.classList.add('docx-feature-locked'); aiB.title = 'This feature has been disabled on your journal.'; }
@@ -3120,7 +3125,12 @@ function injectRibbonExtras(ctx) {
   fontLbl.className = 'docx-fontfam-lbl';
   fontLbl.textContent = 'Arial';
   fontB.appendChild(fontLbl);
-  fontB.insertAdjacentHTML('beforeend', CARET);
+  if (_legacyRibbon(ctx)) {
+    fontB.style.minWidth = '104px';
+    fontB.style.justifyContent = 'space-between';
+    fontLbl.style.cssText = 'max-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    fontB.insertAdjacentHTML('beforeend', '<span style="font-size:9px;opacity:.7;margin-left:3px;">▾</span>');
+  } else fontB.insertAdjacentHTML('beforeend', CARET);
   fontB.addEventListener('mousedown', function(e) { e.preventDefault(); saveSel(ctx); });
   fontB.addEventListener('click', function() { fontPop(ctx, fontB); });
   ctx.fontLbl = fontLbl;
@@ -3171,7 +3181,7 @@ function injectRibbonExtras(ctx) {
   // The bar is the app's own -hl-icon element (its script recolours it by id),
   // so it is kept; only the glyphs around it are replaced.
   var hlIcon = tb.querySelector('[id$="-hl-icon"]');
-  if (hlIcon && hlIcon.parentNode) {
+  if (hlIcon && hlIcon.parentNode && !_legacyRibbon(ctx)) {
     var hlTrig = hlIcon.parentNode;
     Array.prototype.slice.call(hlTrig.childNodes).forEach(function(n) { if (n !== hlIcon) hlTrig.removeChild(n); });
     hlIcon.textContent = '';
@@ -3255,6 +3265,7 @@ function groupRibbon(ctx) {
   });
   tb.appendChild(row);
   ctx.ribbonRow = row;
+  if (_legacyRibbon(ctx)) return;
   // Each run of controls between two separators becomes one .docx-grp: one
   // outline round its buttons, and it wraps as a unit, so a row never breaks
   // mid-group. The separators and the old flex spacer go (the spacer pushed
@@ -3598,10 +3609,14 @@ function rebindPageButtons(ctx) {
     if (!tb.querySelector('.docx-fs-step')) {
       var decB = document.createElement('button');
       decB.className = 'pt-btn docx-fs-step docx-r2'; decB.title = 'Decrease font size';
-      decB.innerHTML = '<span class="docx-fs-a" style="font-size:11px;">A</span><span class="docx-fs-pm">&minus;</span>';
+      decB.innerHTML = _legacyRibbon(ctx)
+        ? '<span style="font-size:10px;font-weight:800;line-height:1;">A</span><span style="font-size:8px;margin-left:1px;">▼</span>'
+        : '<span class="docx-fs-a" style="font-size:11px;">A</span><span class="docx-fs-pm">&minus;</span>';
       var incB = document.createElement('button');
       incB.className = 'pt-btn docx-fs-step docx-r2'; incB.title = 'Increase font size';
-      incB.innerHTML = '<span class="docx-fs-a" style="font-size:14px;">A</span><span class="docx-fs-pm">+</span>';
+      incB.innerHTML = _legacyRibbon(ctx)
+        ? '<span style="font-size:14px;font-weight:800;line-height:1;">A</span><span style="font-size:8px;margin-left:1px;">▲</span>'
+        : '<span class="docx-fs-a" style="font-size:14px;">A</span><span class="docx-fs-pm">+</span>';
       [decB, incB].forEach(function(b) { b.addEventListener('mousedown', function(e) { e.preventDefault(); saveSel(ctx); }); });
       decB.addEventListener('click', function() { stepFontSize(ctx, -1); });
       incB.addEventListener('click', function() { stepFontSize(ctx, 1); });
@@ -3624,6 +3639,7 @@ function rebindPageButtons(ctx) {
     if (!tb.querySelector('.docx-unmd-btn')) {
       var unmdB = document.createElement('button');
       unmdB.className = 'pt-btn docx-unmd-btn';
+      if (_legacyRibbon(ctx)) unmdB.style.cssText = 'font-weight:700;font-size:11px;';
       unmdB.textContent = 'Unrender';
       unmdB.title = 'Unrender Markdown — convert formatted content back to raw Markdown';
       if (_docxFeatureLocked(ctx.app, 'unrenderMarkdown')) { unmdB.classList.add('docx-feature-locked'); unmdB.title = 'This feature has been disabled on your journal.'; }
@@ -4566,9 +4582,11 @@ function wireColorShortcuts(ctx) {
   var btn = document.createElement('button');
   // The button takes the input's ribbon priority (.docx-r1/.docx-r2), so it
   // shows on the same screens the input was meant to.
-  btn.className = 'pt-btn docx-color-btn ' + Array.prototype.filter.call(input.classList, function (k) { return /^docx-r\d$/.test(k); }).join(' ');
+  btn.className = _legacyRibbon(ctx) ? 'pt-btn docx-color-btn' : 'pt-btn docx-color-btn ' + Array.prototype.filter.call(input.classList, function (k) { return /^docx-r\d$/.test(k); }).join(' ');
   btn.title = 'Text color';
-  btn.innerHTML = '<span class="docx-swatch-ic"><span class="docx-color-a">A</span><span class="docx-color-dot" style="background:#EDEEF0"></span></span>' + CARET;
+  btn.innerHTML = _legacyRibbon(ctx)
+    ? '<span class="docx-color-dot" style="background:#EDEEF0"></span><span style="font-size:9px;opacity:.7;margin-left:2px;">▾</span>'
+    : '<span class="docx-swatch-ic"><span class="docx-color-a">A</span><span class="docx-color-dot" style="background:#EDEEF0"></span></span>' + CARET;
   input.parentNode.insertBefore(btn, input);
   // keep the native input in the DOM (its position anchors the OS picker) but invisible
   input.style.cssText = 'position:absolute;width:22px;height:10px;opacity:0;border:none;padding:0;margin:0;pointer-events:none;';
@@ -4603,11 +4621,11 @@ function wireColorShortcuts(ctx) {
   btn.addEventListener('click', function () {
     showPop(btn, function (pop) {
       pop.classList.add('docx-colorpop');
-      pop.appendChild(mlabel('Text colour'));
+      if (!_legacyRibbon(ctx)) pop.appendChild(mlabel('Text colour'));
       var grid = document.createElement('div'); grid.className = 'docx-color-grid';
       DOCX_COLORS.forEach(function (c) {
         var s = document.createElement('button'); s.className = 'docx-color-sw'; s.title = c[1];
-        s.style.background = c[0];
+        s.style.background = c[0]; if (_legacyRibbon(ctx) && c[0] === '#FFFFFF') s.style.border = '1px solid #888';
         s.addEventListener('click', function () { closePop(); applyColor(c[0]); });
         grid.appendChild(s);
       });
