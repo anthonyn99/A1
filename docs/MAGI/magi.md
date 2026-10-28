@@ -3001,7 +3001,9 @@ string of the request (`refineMissing`); if none does, the closest comes back
 with what it lost, shown under the box. Measured that day, with Gemini
 answering 503 on most models: 2.5–3 s, 20/20 sample prompts lossless (it was
 2+ minutes on Veda's side, whose engine had no key and drove a browser unit).
-With Gemini unticked, or the worker unreachable, the engine refines on a ticked
+The GEMINI tick box does not gate it -- it is the browser unit, and the API key
+is not a unit (Tony, 2026-10-28). Only with the worker unreachable does the
+engine refine, on a ticked
 browser unit (`skip_api=1`, so its own `magi/.env` key is not used). The prompt
 lives in the worker and in `engine/refine.py`; `test_refine.py` fails if they
 drift. Tests: `workers/personal-ai/refine.test.mjs`, `tests/magi-refine.test.js`,

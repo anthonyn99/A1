@@ -75,8 +75,8 @@ the token, which would unpair her devices.
 5. **Refine needs nothing on the PC.** Since 2026-10-28 it runs on the
    personal-ai worker with her own `VEDA_GEMINI_KEY` (the same key as her
    Notebook AI tools), Workers AI behind it. No `magi\.env` key is needed or
-   read for it; the engine only refines, on a ticked browser unit, when
-   Gemini is unticked or the worker cannot be reached.
+   read for it; the engine only refines, on a ticked browser unit, when the
+   worker cannot be reached. Refine works whether Gemini is ticked or not.
 6. On her phone, she opens the same URL and picks Veda. It finds her engine
    by itself.
 
