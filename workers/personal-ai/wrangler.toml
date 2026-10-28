@@ -34,6 +34,12 @@ KROGER_LOCATION_ID_VEDA      = "01100446"
 # ── KV: shared with taskhub-reminders (price-watch uses distinct keys:
 #    pw_gat, kroger_tok, pw_cron_cursor — so it can't clobber the reminders
 #    worker's 'gat' entry). ─────────────────────────────────────────────────────
+# ── Workers AI: Cloudflare's own models (Llama 4 Scout, Mistral Small) as the
+#    non-Google fallback in the Refine and Notebook AI-tool chains (cfOnce in
+#    worker.js). No key; the account's free daily allowance. ────────────────
+[ai]
+binding = "AI"
+
 [[kv_namespaces]]
 binding = "TOKEN_CACHE"
 id = "b51e916cf3bf4f37ad146af5ca031575"
