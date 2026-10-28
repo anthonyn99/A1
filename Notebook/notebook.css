@@ -212,15 +212,19 @@ li.docx-cl-item.done > .docx-cl-text { text-decoration: line-through; opacity: .
   #bj-root .docx-toolbar.edit-mode ~ .docx-ruler { display: block; }
 }
 
-/* With the ruler showing, the page sits right under it: 5px below its bar,
+/* With the ruler showing, the page sits right under it: 6px below its bar,
    the same gap the vertical ruler keeps from the page's side (updateVRuler).
-   The bar ends 20px into the 25px strip, and the page area's own top padding
-   goes. Not with the bar hidden (page fullscreen), nor on Journal Entries. */
+   The bar runs 6px-19px in a 19px strip and the page area keeps 6px on top:
+   room for the vertical ruler's top arrow, which sits 6px above the page when
+   the top margin is 0. Not with the bar hidden (page fullscreen), nor on
+   Journal Entries. */
 @media (min-width: 900px) {
   #tj-root:not(.tj-fs-nobar) .docx-toolbar.edit-mode:not(#tj-je-toolbar) ~ .docx-ruler,
-  #bj-root:not(.bj-fs-nobar) .docx-toolbar.edit-mode ~ .docx-ruler { height: 25px; }
+  #bj-root:not(.bj-fs-nobar) .docx-toolbar.edit-mode ~ .docx-ruler { height: 19px; }
+  #tj-root:not(.tj-fs-nobar) .docx-toolbar.edit-mode:not(#tj-je-toolbar) ~ .docx-ruler .docx-ruler-in,
+  #bj-root:not(.bj-fs-nobar) .docx-toolbar.edit-mode ~ .docx-ruler .docx-ruler-in { top: 6px; }
   #tj-root:not(.tj-fs-nobar) .docx-toolbar.edit-mode:not(#tj-je-toolbar) ~ .docx-ruler + .docx-wrap:not(.docx-reflow),
-  #bj-root:not(.bj-fs-nobar) .docx-toolbar.edit-mode ~ .docx-ruler + .docx-wrap:not(.docx-reflow) { padding-top: 0 !important; }
+  #bj-root:not(.bj-fs-nobar) .docx-toolbar.edit-mode ~ .docx-ruler + .docx-wrap:not(.docx-reflow) { padding-top: 6px !important; }
 }
 
 /* ── Vertical ruler (Batch 11 #1: draggable TOP / BOTTOM margins) ── */

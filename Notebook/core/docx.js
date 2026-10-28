@@ -957,7 +957,8 @@ function updateVRuler(ctx) {
   var zi = _zoomFactor(ctx.app, wrap);
   var m = marginsGet(ctx.app);
   ruler.style.top = topInWrap + 'px';
-  ruler.style.left = Math.max(2, leftInWrap - ruler.offsetWidth - 5) + 'px';
+  // 6px from the page, as the page is from the top ruler's bar (notebook.css).
+  ruler.style.left = Math.max(2, leftInWrap - ruler.offsetWidth - (_legacyRibbon(ctx) ? 5 : 6)) + 'px';
   ruler.style.height = H + 'px';
   var mtPx = Math.round(m.mt * zi), mbPx = Math.round(m.mb * zi);
   var pageEl = ruler.querySelector('.docx-vruler-page');
