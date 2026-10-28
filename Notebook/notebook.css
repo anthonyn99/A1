@@ -785,7 +785,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   --nbt-grp: rgba(255,255,255,.022);
   --nbt-hov: rgba(255,255,255,.075);
   --nbt-pop: #232327;
-  padding: 3px 12px 9px !important;
+  padding: 6px 12px 9px !important;   /* room above for a menu button's outline and lift */
   background: #202022 !important; border-bottom: 1px solid #2c2c2f !important;
   margin: calc(-1 * var(--nb-cpt, 0px)) calc(-1 * var(--nb-cpx, 0px)) 0 !important;
   border-radius: 0 !important;
@@ -973,6 +973,13 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   gap: 8px !important; padding: 0 9px 0 11px !important; border: 1px solid var(--border2); border-radius: var(--radius);
   transition: border-color .12s;
 }
+/* The whole outline toggles: the switch's <label> reaches over it with ::before
+   (a click on a label's pseudo-element is a click on the label). */
+#tj-root .mode-toggle-wrap, #bj-root .mode-toggle-wrap { position: relative; overflow: hidden; cursor: pointer; }
+#tj-root .mode-toggle::before, #bj-root .mode-toggle::before { content: ''; position: absolute; top: -20px; bottom: -20px; left: -240px; right: -20px; }
+#tj-root .mode-toggle-label, #bj-root .mode-toggle-label { pointer-events: none; }
+#tj-root .mode-toggle-wrap:hover { border-color: color-mix(in srgb, var(--ac) 60%, var(--border2)); }
+#bj-root .mode-toggle-wrap:hover { border-color: rgba(141,118,154,.45); }
 #tj-root .mode-toggle-wrap:has(input:checked) { border-color: var(--ac); }
 #bj-root .mode-toggle-wrap:has(input:checked) { border-color: rgba(141,118,154,.55); }
 #tj-root .mode-toggle-label, #bj-root .mode-toggle-label { width: auto !important; text-align: left !important; }
