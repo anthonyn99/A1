@@ -27,7 +27,9 @@ side, not an app, and every program says which side it mounted:
 **MyJournal**; the editor, its ribbon and menus, locks, AI tools and every other
 feature are the same. What differs is only: the header (T's / V's Notebook), the
 colours and fonts, and Veda's extra templates (Cornell, Mind Map, Structured
-Notes, ...) with what belongs to them (her Templates button). Code, ids and data
+Notes, ...) with what belongs to them (her Templates button), and her tags (the
+title bar's tag row and the list's tag filter; Tony chose to keep those hers,
+2026-10-28). Code, ids and data
 keep the old `tj` / `bj` and Brainstorm names. The older `{ app, key, store }`
 form still mounts, but nothing uses it; write new hosts with `profile`.
 
