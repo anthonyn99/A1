@@ -25760,9 +25760,13 @@ function queueEdit(id) {
     err.hidden = !msg;
   }
 
+  // The row's own units, not the ticked set: this prompt is the one being
+  // rewritten, and an unticked unit must not be driven for it. A task's
+  // are its browser agents, and the rewrite is aimed at a coding agent.
+  const refineUnits = () => (isCode ? codeRefineUnits([...units]) : [...units]);
   function sync() {
     save.disabled = !text.trim() || units.size === 0;
-    refine.disabled = refining || !text.trim() || !online();
+    refine.disabled = refining || !text.trim() || !refineCanRun(refineUnits());
     refine.textContent = refining ? "Refining\u2026" : "Refine";
     // Said out loud, because a Save that is greyed for a reason you cannot
     // see is indistinguishable from a broken button.
@@ -25772,10 +25776,6 @@ function queueEdit(id) {
     unitCount.classList.toggle("empty", units.size === 0);
   }
 
-  // The row's own units, not the ticked set: this prompt is the one being
-  // rewritten, and an unticked unit must not be driven for it. A task's
-  // are its browser agents, and the rewrite is aimed at a coding agent.
-  const refineUnits = () => (isCode ? codeRefineUnits([...units]) : [...units]);
   refine.onclick = async () => {
     if (refining || !refineCanRun(refineUnits())) return;
     refining = true; setErrEl(null); sync();
