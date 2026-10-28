@@ -185,8 +185,12 @@
   // The link the Shield tile carried before local paths existed. Lists that
   // still hold it are moved to the real path once, on first sync.
   var LEGACY_SHIELD_LINK = 'shieldopen:show';
+  // OneInbox moved to the private host on 2026-10-28. Its old address is a
+  // GitHub 404, so a stored tile that still holds it is moved to the new one,
+  // once per sync, through the normal patch path (query and hash are kept).
+  var MOVED_PAGES = [{ from: /^https:\/\/anthonyn99\.github\.io\/A1\/oneinbox\.html(?=[?#]|$)/i, to: PRIV + 'oneinbox.html' }];
   var DEFAULT_APPS = [
-    { id: 'oneinbox', name: 'OneInbox', url: BASE + 'oneinbox.html', icon: 'a1:oneinbox', tab: 'oneinbox' },
+    { id: 'oneinbox', name: 'OneInbox', url: PRIV + 'oneinbox.html', icon: 'a1:oneinbox', tab: 'oneinbox' },
     { id: 'tradehub', name: 'TradeHub', url: PRIV + 'tradehub.html', icon: 'a1:tradehub', tab: 'tradehub' },
     { id: 'mylist', name: 'MyList', url: BASE + 'mylist.html', icon: 'a1:mylist', tab: 'mylist' },
     { id: 'insight', name: 'Insight', url: PRIV + 'insight.html', icon: 'a1:insight', tab: 'insight' },
@@ -529,6 +533,18 @@
       try { if (localStorage.getItem(mark)) return; localStorage.setItem(mark, '1'); } catch (e) { return; }
       if (!byId(list, r.id)) commit(st, addOp(clone(app)));
     });
+    if (!st.movedDone) {
+      var moves = [];
+      list.forEach(function (x) {
+        MOVED_PAGES.forEach(function (m) {
+          if (typeof x.url === 'string' && m.from.test(x.url)) moves.push({ id: x.id, url: x.url.replace(m.from, m.to) });
+        });
+      });
+      if (moves.length) {
+        st.movedDone = true;
+        moves.forEach(function (m) { commit(st, patchOp(m.id, { url: m.url })); });
+      }
+    }
     var a = byId(list, 'shield'), d = byId(st.defaults, 'shield');
     if (a && d && a.url === LEGACY_SHIELD_LINK && !st.migrated) {
       st.migrated = true;

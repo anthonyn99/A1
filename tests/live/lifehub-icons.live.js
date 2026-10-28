@@ -63,6 +63,9 @@ const toggle = async (c) => { await evalJs(c, "var l=document.querySelector('a1-
   await c.send('Network.setBypassServiceWorker', { bypass: true });
   await c.send('Storage.clearDataForOrigin', { origin: ORIGIN, storageTypes: 'all' });
   await c.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+  // Local tiles only show where Shield can launch them (Windows): pin the UA so
+  // the Shield checks below mean the same on any machine that runs this.
+  await c.send('Emulation.setUserAgentOverride', { userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36' });
   await c.send('Page.navigate', { url: ORIGIN + '/A1/oneinbox.html?blank' }); await sleep(800);
   const app = { id: 'orca', name: 'Orca', url: ORCA, icon: 'auto', tab: 'lh_orca', hidden: false };
   // Local Shield tiles (2026-10-13: one showed an "S"): the agent with no icon, a shortcut

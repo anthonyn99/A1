@@ -28,7 +28,7 @@ compatibility_date = "2025-06-01"
 WORKER_ORIGIN = "https://oneinbox-api.av1.workers.dev"
 # Where oneinbox.html is served from. Used to build the OAuth redirect target
 # and to bounce the browser back after Google consent.
-APP_URL = "https://anthonyn99.github.io/A1/oneinbox.html"
+APP_URL = "https://a1-priv.av1.workers.dev/oneinbox.html"
 # Pub/Sub topic Gmail publishes change notifications to. NOT a secret (it is a
 # resource path, and the push endpoint is guarded by PUBSUB_TOKEN instead).
 # Leave empty until the topic exists — real-time push is then simply off and the
@@ -123,7 +123,9 @@ id = "b51e916cf3bf4f37ad146af5ca031575"
 #       Authorized JavaScript origin : https://anthonyn99.github.io
 #       Authorized redirect URI      : https://oneinbox-api.av1.workers.dev/oauth/callback
 #     The redirect URI must go in the REDIRECT box, not the origins box — the
-#     usual cause of a later redirect_uri_mismatch.
+#     usual cause of a later redirect_uri_mismatch. The page itself moved to
+#     https://a1-priv.av1.workers.dev on 2026-10-28; the consent flow is the
+#     worker's redirect URI above, so the client needed no change for that.
 #
 #  4. OPTIONAL — real-time push. Without it the /cron history poll ingests
 #     everything within ~15 min (see runCron), which is why this is optional and

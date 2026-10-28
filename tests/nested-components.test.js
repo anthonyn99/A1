@@ -53,8 +53,8 @@ for (const page of PAGES) {
   check('no nested component wraps children or renders an input', bad.length === 0, bad.join(', '));
 }
 
-if (M.has('tradehub.html')) check('the Analysis card lives at top level',
-      /^function TBAnalysisCard\(/m.test(M.read('tradehub.html')));
+if (M.has('tradehub.html')) check('the Analysis page lives at top level',
+      /^function TBAnalysisPage\(/m.test(M.read('tradehub.html')));
 
 console.log('');
 if (failures) { console.error(failures + ' check(s) failed.'); process.exit(1); }

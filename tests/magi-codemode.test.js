@@ -145,7 +145,7 @@ ok('renaming does not touch the login',
    /Renaming it does not touch the login/.test(block));
 ok('Codex sign-in shows the device code', /code-login-code/.test(block));
 ok('with a phishing warning', /Device codes are a common phishing trick/.test(block));
-ok('Codex is not tied to the ChatGPT unit', /separate from the ChatGPT unit/.test(block));
+ok('Codex is not tied to the ChatGPT unit', /sign in to the ChatGPT account you want Codex to use/.test(block));
 ok('this PC\'s Claude login cannot be removed from here', /if \(s\.slot !== "system"\)/.test(block));
 ok('Queue works in Code Mode, needing a workspace and an agent',
    /!coding \? \(S\.selected\.size === 0[\s\S]{0,120}!codeProject\(\)[\s\S]{0,120}!codeChain\(\)\.length/.test(ue));

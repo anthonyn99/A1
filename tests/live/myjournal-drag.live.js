@@ -139,13 +139,17 @@ async function load(c, w, h, mobile, keepStorage) {
     ok('the height is remembered', await evalJs(c, "return localStorage.getItem('a1.h.mj.ai-prompt');") === String(Math.round(ta1.h)), await evalJs(c, "return localStorage.getItem('a1.h.mj.ai-prompt');"));
     await c.send('Page.captureScreenshot', { format: 'png' }).then((r) => fs.writeFileSync(shotPath('p2-prompt-grip'), Buffer.from(r.result.data, 'base64')));
     // The dialog is centred, so the grip moves by half the change: re-measure.
+    // A click does nothing since 2026-10-14 (resizegrip.js); Enter / Space on
+    // the grip is the toggle.
     const g1 = await rect(c, "document.querySelector('.docx-ait-pane .a1-grip')");
     await click(c, g1.x, g1.y);
-    ok('a click hands a sized box back to auto', await evalJs(c, "var t=document.querySelector('.docx-ait-pane .docx-prompt-ta'); return t.style.height==='' && !t.hasAttribute('data-user-h') && localStorage.getItem('a1.h.mj.ai-prompt')===null;"));
-    const g2 = await rect(c, "document.querySelector('.docx-ait-pane .a1-grip')");
-    await click(c, g2.x, g2.y);
+    ok('a click leaves the chosen height alone', Math.abs((await rect(c, "document.querySelector('.docx-ait-pane .docx-prompt-ta')")).h - ta1.h) <= 3);
+    const enter = () => evalJs(c, "var g=document.querySelector('.docx-ait-pane .a1-grip'); g.focus(); g.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true})); return 1;");
+    await enter(); await sleep(150);
+    ok('Enter hands a sized box back to auto', await evalJs(c, "var t=document.querySelector('.docx-ait-pane .docx-prompt-ta'); return t.style.height==='' && !t.hasAttribute('data-user-h') && localStorage.getItem('a1.h.mj.ai-prompt')===null;"));
+    await enter(); await sleep(150);
     const h2 = await evalJs(c, "return document.querySelector('.docx-ait-pane .docx-prompt-ta').style.height;");
-    ok('a second click expands it', /px$/.test(h2) && parseInt(h2, 10) >= 260, h2);
+    ok('a second Enter expands it', /px$/.test(h2) && parseInt(h2, 10) >= 260, h2);
 
     console.log('\nDesktop: reload keeps the chosen height');
     await load(c, 1440, 900, false, true);

@@ -235,9 +235,14 @@ async function shot(c, name, w, h) {
     const h1 = (await rect(c, ta)).h;
     ok('dragging the grip grows the box', Math.abs(h1 - (h0 + 90)) <= 3, h0 + ' -> ' + h1);
     ok('the height is remembered', !!(await evalJs(c, "return localStorage.getItem('a1.h.oi.sig');")));
+    // A click does nothing since 2026-10-14 (resizegrip.js); Enter on the
+    // grip is what hands a hand-sized box back to auto.
     await click(c, g.x, g.y + 90);
+    ok('a click leaves the chosen height alone', Math.abs((await rect(c, ta)).h - h1) <= 3);
+    await evalJs(c, `const g=${ta}.parentElement.querySelector('.a1-grip'); g.focus(); g.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true})); return 1;`);
+    await sleep(200);
     const h2 = (await rect(c, ta)).h;
-    ok('a click hands it back to auto', Math.abs(h2 - h0) <= 3 && !(await evalJs(c, `return ${ta}.dataset.userH||'';`)), h2);
+    ok('Enter on the grip hands it back to auto', Math.abs(h2 - h0) <= 3 && !(await evalJs(c, `return ${ta}.dataset.userH||'';`)), h2);
     const g2 = await rect(c, `${ta}.parentElement.querySelector('.a1-grip')`);
     await mouseDrag(c, g2.x, g2.y, 0, 60);
     const h3 = (await rect(c, ta)).h;

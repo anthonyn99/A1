@@ -2,8 +2,8 @@
  * OneInbox Worker — Gmail multi-account backend + Gemini email parser
  * ============================================================================
  *
- * OneInbox is a standalone A1 Suite app (oneinbox.html, at the A1 root beside
- * index.html / insight.html / vault.html). This worker is
+ * OneInbox is a standalone A1 Suite app (oneinbox.html, in A1-Priv since
+ * 2026-10-28, served at https://a1-priv.av1.workers.dev/). This worker is
  * the ONLY place that ever holds a Gmail refresh token or an API key: the front
  * end talks exclusively to these endpoints, authorized by an app-lock session
  * token. Nothing sensitive is ever shipped to the browser.
@@ -74,13 +74,16 @@
  */
 
 const ALLOWED_ORIGIN = 'https://anthonyn99.github.io';
+// OneInbox moved to A1-Priv's host on 2026-10-28 (docs/a1-priv-move-plan.md).
+// GitHub stays listed for TaskHub-side callers and the live tests.
+const ALLOWED_ORIGINS = [ALLOWED_ORIGIN, 'https://a1-priv.av1.workers.dev'];
 
 // ════════════════════════════════════════════════════════════════════════════
 // HTTP helpers
 // ════════════════════════════════════════════════════════════════════════════
 
 function corsHeaders(origin) {
-  const allow = origin === ALLOWED_ORIGIN ? origin : ALLOWED_ORIGIN;
+  const allow = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGIN;
   return {
     'Access-Control-Allow-Origin': allow,
     'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
@@ -261,7 +264,7 @@ function oauthDone(env, ok, msg) {
 <body style="background:#1a1a1d;color:#f4f3f0;font:15px/1.5 system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center">
 <div><div style="color:#e0b874;font-size:19px;font-weight:700;margin-bottom:8px">${ok ? 'Account connected' : 'Could not connect'}</div>
 <div style="opacity:.75">${msg || ''}</div></div>
-<script>try{window.opener&&window.opener.postMessage({oneinbox:'oauth',ok:${ok ? 'true' : 'false'}},'${ALLOWED_ORIGIN}');}catch(e){}setTimeout(function(){window.close();},${ok ? 900 : 4000});</script>`;
+<script>${JSON.stringify(ALLOWED_ORIGINS)}.forEach(function(o){try{window.opener&&window.opener.postMessage({oneinbox:'oauth',ok:${ok ? 'true' : 'false'}},o);}catch(e){}});setTimeout(function(){window.close();},${ok ? 900 : 4000});</script>`;
   return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
 }
 

@@ -35,6 +35,12 @@ const ok = (name, cond, extra) => {
 function py(body) {
   const prog = `
 import importlib.util, json, time
+# Off Windows (a cloud box) ctypes has no windll/WINFUNCTYPE: stand in for
+# them so the module imports. The checks stub the calls they exercise.
+import ctypes, unittest.mock
+if not hasattr(ctypes, 'windll'):
+    ctypes.windll = unittest.mock.MagicMock()
+    ctypes.WINFUNCTYPE = ctypes.CFUNCTYPE
 spec = importlib.util.spec_from_file_location("al", r"${LAUNCH.replace(/\\/g, '\\\\')}")
 al = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(al)

@@ -115,6 +115,12 @@ console.log('\nPython builds the same link JS reads');
   // and everything we need is module-level.
   const py = `
 import importlib.util, json, sys
+# Off Windows (a cloud box) ctypes has no windll/WINFUNCTYPE: stand in for
+# them so the module imports. The checks stub the calls they exercise.
+import ctypes, unittest.mock
+if not hasattr(ctypes, 'windll'):
+    ctypes.windll = unittest.mock.MagicMock()
+    ctypes.WINFUNCTYPE = ctypes.CFUNCTYPE
 spec = importlib.util.spec_from_file_location("al", r"${path.join(ROOT, 'trading-auto-launch', 'launch.py').replace(/\\/g, '\\\\')}")
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)

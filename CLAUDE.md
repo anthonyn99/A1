@@ -64,8 +64,8 @@
   Tony's TaskHub. **All 11 phases are done (2026-10-03).** §0 of
   [docs/theme-overhaul-plan.md](docs/theme-overhaul-plan.md) says what to do
   with a new theme ask; §2 is the spec. Never change Veda's side.
-- **TradeHub, Insight, Vault, RiftIQ, Everwell and the Vault Launcher are NOT
-  in A1** (moved 2026-10-10). They live in the private repo `C:\Users\antho\Desktop\A1-Priv`
+- **TradeHub, Insight, Vault, RiftIQ, Everwell, OneInbox and the Vault Launcher
+  are NOT in A1** (moved 2026-10-10; OneInbox 2026-10-28). They live in the private repo `C:\Users\antho\Desktop\A1-Priv`
   (anthonyn99/A1-Priv), served at `https://a1-priv.av1.workers.dev/<page>.html`.
   Edit them there; its own CLAUDE.md applies. A1 has no copy of them (its old
   redirect stubs were removed 2026-10-22); `Vault/` is a junction into A1-Priv. Shared files (LifeHub, Notebook, tabsync, ...) and

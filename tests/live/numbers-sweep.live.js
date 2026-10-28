@@ -130,7 +130,9 @@ async function scan(c, label, scope) {
   await load(c, 'oneinbox.html');
   await bodyTabular(c, 'oneinbox');
   for (const html of ['<div class="navitem"><span class="cnt">128</span></div>',
-                      '<div class="attach"><span class="sz">2.4 MB</span></div>',
+                      // The attachment cards (the old .attach row was replaced by them).
+                      '<div class="attcard"><div class="meta"><span class="sz">2.4 MB</span></div></div>',
+                      '<div class="attimg"><div class="cap"><span class="sz">812 KB</span></div></div>',
                       '<div class="achip"><span class="sz">340 KB</span></div>']) {
     const r = await probe(c, 'body', html, '.cnt,.sz');
     ok('oneinbox ' + html.match(/<div class="([^"]+)"/)[1] + ' figure is Inter 500 tabular', isNum(r), JSON.stringify(r));
@@ -149,7 +151,7 @@ async function scan(c, label, scope) {
   // TradeHub lives in ../A1-Priv; A1 has no copy (tests/moved.js).
   const src = require('../moved').read('tradehub.html');
   const plex = src.split('\n').filter((l) => /Plex Mono/.test(l) && !/fonts\.googleapis/.test(l));
-  ok('tradehub source: Plex Mono only on code blocks', plex.length === 2 && plex.every((l) => / code\{/.test(l)), plex.map((l) => l.trim().slice(0, 90)).join(' | '));
+  ok('tradehub source: Plex Mono only on code blocks', plex.length >= 2 && plex.every((l) => / code\{/.test(l)), plex.map((l) => l.trim().slice(0, 90)).join(' | '));
 
   // ── MyList: Tony's profile on Inter, Veda's untouched ──────────────────
   for (const who of ['tony', 'veda']) {

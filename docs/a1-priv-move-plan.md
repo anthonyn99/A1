@@ -13,6 +13,7 @@ account 1, deployed from this PC. Everything below moved in on 2026-10-10:
 | Vault Launcher extension + Vault modules | `A1-Priv/Vault/` | `A1\Vault`, now a git-ignored junction to it |
 | RiftIQ (second move) | https://a1-priv.av1.workers.dev/riftiq.html | `riftiq.html`, a redirect stub until 2026-10-22, now removed |
 | Solace (second move) | https://a1-priv.av1.workers.dev/solace.html | `solace.html`, a redirect stub until 2026-10-22, now removed |
+| OneInbox (third move, 2026-10-28) | https://a1-priv.av1.workers.dev/oneinbox.html | `oneinbox.html`, removed outright (no stub) |
 
 A1 stays public on GitHub Pages. The moved pages still use A1's shared files
 (LifeHub, Notebook, tabsync, dragsort, hoverfx, resizegrip, sweep). They load
@@ -36,6 +37,30 @@ follow "Moving another program later" at the bottom.
 - RiftIQ's live game card reads the local WarRoom Live Link proxy
   (127.0.0.1:2998), which accepts any origin. Brave asks once per site for
   local-network access, so allow it the first time on the new host.
+
+**Third move, 2026-10-28: OneInbox**, done with that recipe, no stub.
+- **oneinbox-api** pinned the GitHub origin twice: CORS, and the Gmail-connect
+  popup's `postMessage` target. Both now take `ALLOWED_ORIGINS` (GitHub and
+  this host); the popup posts to each, and the page only accepts the worker's
+  origin. `APP_URL` in its wrangler.toml names the new page. The Google OAuth
+  client needed nothing: the consent flow returns to the worker's own
+  `/oauth/callback`. Guardian's lock (taskhub-reminders) already allowed the
+  host. The worker deploys from GitHub Actions when `workers/**` reaches main.
+- **Links:** LifeHub's default is the new address, and `MOVED_PAGES` in
+  `LifeHub/lifehub.js` patches a stored tile still on the old one, once per
+  sync, through the normal patch path (this rewrites the stored link; it is
+  not a redirect). TaskHub's card deep link (`OI_openEmail`) opens the new
+  address. OneInbox has no built-in TaskHub opener, so there was nothing else.
+- **Already safe:** OneInbox's listeners wait for anonymous sign-in
+  (`authReady`), so a fresh browser on the new host does not hit TradeHub's
+  old race.
+- **Per-origin, once:** the OneInbox lock's biometric (turn Bio on again), the
+  account order and the signature-box height start fresh; the reinstalled PWA
+  must come from the new address. Their old github.io copies are listed in
+  `cleanup-rules.json`'s `moved-programs-old-origin`.
+- **Tests:** OneInbox is in `tests/moved.js` / `cdp.js`'s `MOVED`; A1-Priv's
+  `tests/wiring.test.js` §8 checks the worker, the deep link and that A1 has
+  no copy; `tests/lifehub-wiring.test.js` checks the tile rewrite.
 
 ## Why a Worker and not Cloudflare Pages
 

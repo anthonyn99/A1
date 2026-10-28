@@ -4137,7 +4137,7 @@ async function cronPrewarmNews(env, ctx){
     // into 5 articles / 0 analyzed, shown as "AI quota exhausted" — and it is the
     // likely cause of 2026-07-31's "0 events, twice" too. A degraded or empty cron
     // build is rebuilt instead by TradeHub's morning check (tradehub.html, the
-    // tb_morning_news_slot block), which kicks one fresh=1 build in a NEW
+    // morning-news slot block), which kicks one fresh=1 build in a NEW
     // invocation with its own 50.
     await env.NEWSHUB_CACHE.put('cron:lastnews',
       JSON.stringify({ at: Date.now(), events, articles, degraded, rich: useLimited }),

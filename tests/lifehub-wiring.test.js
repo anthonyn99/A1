@@ -92,7 +92,7 @@ for (const [file, want] of Object.entries(HOSTS)) {
 
 console.log('\nPrograms that moved to A1-Priv (docs/a1-priv-move-plan.md)');
 {
-  const moved = ['tradehub', 'insight', 'vault', 'riftiq'];
+  const moved = ['tradehub', 'insight', 'vault', 'riftiq', 'oneinbox'];
   for (const p of moved) ok(p + ' seeds on its new host', new RegExp("\\{ id: '" + p + "'[^}]*url: PRIV \\+ '" + p + "\\.html'").test(src));
   ok("LifeHub's PRIV is the private host", /var PRIV = 'https:\/\/a1-priv\.av1\.workers\.dev\/';/.test(src));
   ok('LifeHub has no Solace icon or seed left', !/\bsolace: "<svg/.test(src) && !/id: 'solace'/.test(src));
@@ -104,6 +104,18 @@ console.log('\nPrograms that moved to A1-Priv (docs/a1-priv-move-plan.md)');
   ok('Index has no old-address table', !/MOVED_PROGRAMS|_movedUrl/.test(idx) && !/id:'solace'/.test(idx));
   ok('Index no longer forwards ?goto=keychain', !/_gotoKeychain/.test(idx));
   for (const p of [...moved, 'solace']) ok('A1 holds no copy of ' + p + '.html', !fs.existsSync(path.join(ROOT, p + '.html')));
+  // OneInbox moved later (2026-10-28): a stored tile still on its GitHub
+  // address is patched to the new host once, through migrate().
+  const mp = /var MOVED_PAGES = (\[[^\n]*\]);/.exec(src);
+  let MP = [];
+  try { MP = mp ? new Function('PRIV', 'return ' + mp[1])('https://a1-priv.av1.workers.dev/') : []; } catch (e) {}
+  const mv = (u) => { for (const m of MP) if (m.from.test(u)) return u.replace(m.from, m.to); return u; };
+  ok('a stored OneInbox tile on the old address is moved to the new host',
+    mv('https://anthonyn99.github.io/A1/oneinbox.html') === 'https://a1-priv.av1.workers.dev/oneinbox.html');
+  ok('...keeping its query and hash', mv('https://anthonyn99.github.io/A1/oneinbox.html?x=1#msg=a') === 'https://a1-priv.av1.workers.dev/oneinbox.html?x=1#msg=a');
+  ok('...and no other page is touched', mv('https://anthonyn99.github.io/A1/mylist.html') === 'https://anthonyn99.github.io/A1/mylist.html'
+    && mv('https://anthonyn99.github.io/A1/oneinbox.html.bak') === 'https://anthonyn99.github.io/A1/oneinbox.html.bak');
+  ok('migrate() applies it as a patch, once per sync', /if \(!st\.movedDone\)/.test(src) && /MOVED_PAGES\.forEach/.test(src) && /patchOp\(m\.id, \{ url: m\.url \}\)/.test(src));
 }
 
 console.log("\nIndex: Tony's External Links are his LifeHub list");
@@ -230,7 +242,7 @@ console.log('\nIcons');
   // A program changes its favicon: LifeHub's copy must change with it, or the
   // launcher keeps showing the old mark. Each built-in icon is checked against
   // its program's <link rel="icon"> (private-repo pages when that repo is here).
-  const PAGES = { oneinbox: 'oneinbox.html', tradehub: '../A1-Priv/tradehub.html', mylist: 'mylist.html', insight: '../A1-Priv/insight.html', vault: '../A1-Priv/vault.html',
+  const PAGES = { oneinbox: '../A1-Priv/oneinbox.html', tradehub: '../A1-Priv/tradehub.html', mylist: 'mylist.html', insight: '../A1-Priv/insight.html', vault: '../A1-Priv/vault.html',
     everwell: '../A1-Priv/everwell.html', shield: 'shield.html', riftiq: '../A1-Priv/riftiq.html', magi: 'magi.html', taskhub: 'index.html', shruti: 'Shruti/shruti.html' };
   const svgs = {};
   for (const m of keys.matchAll(/^\s*'?([a-z-]+)'?:\s*"([^"]*)"/gm)) svgs[m[1]] = m[2];

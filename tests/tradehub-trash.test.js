@@ -50,7 +50,7 @@ function extract(startMarker, endMarker) {
   return SRC.slice(a, b);
 }
 
-const helperSrc = extract('const TB_TRASH_TTL =', 'function TBTrashButton');
+const helperSrc = extract('const TB_TRASH_TTL =', 'function TBTrashModal');
 const pbSrc = extract('const TB_PB_DAILY_ID=', 'function tbPbNormalize')
             + extract('function tbPbNormalize', '/* ── Playbook: a Notebook instance');
 

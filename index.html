@@ -8112,7 +8112,8 @@ function OI_useCards(){
 
 // Deep-link back to the message that produced a card.
 function OI_openEmail(c){
-  try{window.open("oneinbox.html#msg="+encodeURIComponent((c.account||"")+"|"+(c.emailId||"")),"_blank","noopener");}catch(e){}
+  // OneInbox lives on A1-Priv's host (moved 2026-10-28).
+  try{window.open("https://a1-priv.av1.workers.dev/oneinbox.html#msg="+encodeURIComponent((c.account||"")+"|"+(c.emailId||"")),"_blank","noopener");}catch(e){}
 }
 // Copy, and confirm on the button itself. A card can be rendered inside either
 // TaskHub layout, so it must not depend on any particular toast element existing.
