@@ -103,3 +103,36 @@ def test_the_finalize_fallback_chairman_stays_inside_the_session(monkeypatch):
 
     body = inspect.getsource(app.finalize_brainstorm)
     assert "pick_generator_id(settings, None, provider_ids)" in body
+
+
+def test_skip_api_keeps_the_engine_off_its_own_env_key(monkeypatch):
+    """magi.html refines on the personal-ai worker (the person's Notebook key)
+    and sends skip_api=1 when it falls back here: the engine's .env key is a
+    different key, so the fallback must be a ticked browser unit."""
+    from starlette.testclient import TestClient
+    from magi import settings as Sm
+
+    monkeypatch.delenv(Sm.api_token_env(), raising=False)
+    _with_key(monkeypatch)
+    built = []
+
+    class P:
+        kind = "browser"
+        id = display_name = "x"
+
+    def fake_build(_s, pid):
+        built.append(pid)
+        return P()
+
+    async def fake_refine(provider, q, ctx, kind=""):
+        return ("Rewritten.", True, None, 1)
+
+    monkeypatch.setattr(app, "build_provider", fake_build)
+    monkeypatch.setattr(app.refine_engine, "refine", fake_refine)
+    monkeypatch.setattr(app, "_profiles_busy", lambda: False)
+    api = TestClient(app.app, raise_server_exceptions=False)
+    form = {"question": "q", "providers": "gemini,chatgpt"}
+    assert api.post("/api/refine", data=form).status_code == 200
+    assert api.post("/api/refine", data={**form, "skip_api": "1"}).status_code == 200
+    assert built[0] == app.REFINER_PROVIDER_ID
+    assert built[1] in ("gemini", "chatgpt")
