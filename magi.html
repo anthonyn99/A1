@@ -7025,8 +7025,7 @@ const HOW = [
   {
     q: "Units \u2014 what ticking one does",
     a: [
-      "The tick boxes under the question decide exactly which models are used, and <b>nothing anywhere drives an unticked one</b>. Not the council, not the chairman, not Studio, not Brainstorm, not Refine, not the Doctor. (One exception: the <b>Daily kickstart</b> below reaches the Claude Pro account through Claude Code, not the unit&rsquo;s browser, whether Claude (Pro) is ticked or not.)",
-      "That includes reaching the same model another way: unticking Gemini also stops Refine using the Gemini API key, because the boxes name models, not connections.",
+      "The tick boxes under the question decide exactly which models are used, and <b>nothing anywhere drives an unticked one</b>. Not the council, not the chairman, not Studio, not Brainstorm, not the Doctor. (Two exceptions: <b>Refine</b> runs on your own Gemini API key whether Gemini is ticked or not &mdash; that box is for the Gemini browser unit; and the <b>Daily kickstart</b> below reaches the Claude Pro account through Claude Code, not the unit&rsquo;s browser, whether Claude (Pro) is ticked or not.)",
       "Selecting a single unit is a completely normal way to use MAGI. There is no minimum.",
       "<b>The council has seven members, and two of them are Claude.</b> One is signed in to the free account and one to the subscription, because they draw on different allowances &mdash; Code Mode spends the subscription, so pointing every deliberation at it means the two compete. Tick the free one for ordinary questions, the paid one when the answer is worth it, or both to get two independent answers.",
       "Copilot was a member until it was removed: it showed a sign-in wall with no reachable composer, so it took a browser and a timeout on every run and answered nothing.",
@@ -7117,9 +7116,9 @@ const HOW = [
     q: "Refine",
     a: [
       "Rewrites what is in the question box into a sharper prompt before you send it. Undo puts back exactly what you wrote.",
-      "With Gemini ticked it runs on the <b>personal-ai</b> worker, not the engine, so it answers in a second or two and works even while the PC is off. The fastest Gemini model goes first; if it has not answered within a second, Cloudflare&rsquo;s own Llama model races it (Google&rsquo;s servers do have bad days), then the next model, and so on down the chain.",
+      "It runs on the <b>personal-ai</b> worker with your Gemini API key, not the engine and whether or not Gemini is ticked (that box is for the Gemini browser unit), so it answers in a second or two and works even while the PC is off. The fastest Gemini model goes first; if it has not answered within a second, Cloudflare&rsquo;s own Llama model races it (Google&rsquo;s servers do have bad days), then the next model, and so on down the chain.",
       "<b>Nothing you wrote may be lost.</b> Every number, link, file name, name in code and quoted text in your request has to be in the rewrite, or that rewrite is thrown out and the next model gets a turn. If none manages it, you get the closest one with a note naming what it dropped.",
-      "<b>Each person's Refine uses their own key</b> &mdash; the same Gemini key as their Notebook AI tools (Tony's for Tony, Veda's for Veda), never the other's. With Gemini unticked, or if the worker cannot be reached, the engine refines on one of your ticked units instead &mdash; slower, but yours.",
+      "<b>Each person's Refine uses their own key</b> &mdash; the same Gemini key as their Notebook AI tools (Tony's for Tony, Veda's for Veda), never the other's. Only if the worker cannot be reached does the engine refine on one of your ticked units instead &mdash; slower, but yours.",
     ],
   },
   {
@@ -10017,20 +10016,20 @@ function renderChips() {
 }
 
 /* Every Refine button (composer, Brainstorm topic, a queued prompt) rewrites
-   through refineText. With Gemini among the units it goes straight to the
-   personal-ai worker, on this person's OWN Gemini key -- the same key as
-   their Notebook AI tools -- in about a second, Workers AI racing in when
-   Gemini is slow or down, and no engine needed. Only when that fails, or
-   Gemini is unticked (the tick boxes name models), does the engine refine on
-   a ticked browser unit; skip_api keeps it off its own .env key.
+   through refineText. It goes straight to the personal-ai worker, on this
+   person's OWN Gemini key -- the same key as their Notebook AI tools -- in
+   about a second, Workers AI racing in when Gemini is slow or down, and no
+   engine needed. Ticked or not, the GEMINI box is only about the browser
+   Gemini unit (Tony, 2026-10-28): the API key is not a unit. Only when the
+   worker fails does the engine refine on a ticked browser unit; skip_api
+   keeps it off its own .env key.
    `missing` is what the rewrite may have lost (the worker's fact check found
    no rewrite that kept everything) -- said under the box, never hidden. */
 const REFINE_API = "https://personal-ai.av1.workers.dev/prompt/refine";
 const REFINE_TIMEOUT_MS = 60000;
-const refineCanRun = (units) => units.includes("gemini") || online();
 async function refineText(q, units, kind = "") {
   let why = "";
-  if (units.includes("gemini")) {
+  {
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), REFINE_TIMEOUT_MS);
     try {
@@ -10049,7 +10048,7 @@ async function refineText(q, units, kind = "") {
       clearTimeout(timer);
     }
   }
-  if (!online()) throw new Error(why || "Refine needs Gemini ticked, or the engine online.");
+  if (!online() || !units.length) throw new Error(why || "Refine failed.");
   const form = new FormData();
   form.append("question", q);
   form.append("providers", units.join(","));
@@ -10082,7 +10081,7 @@ async function refine() {
   // In Code Mode: the ticked browser agents (they are council units), and
   // the rewrite is aimed at a coding agent rather than at the council.
   const units = coding ? codeRefineUnits() : [...S.selected];
-  if (!q || S.refining || S.running || !refineCanRun(units)) return;
+  if (!q || S.refining || S.running) return;
   const mode = MODE.cur;
   S.refining = true;
   setErr("refineError", null);
@@ -10202,10 +10201,8 @@ function updateEnabled() {
   }
   // A browser agent working a Code Mode task holds its profile, and Refine
   // may want the same one; a CLI-only task holds none.
-  // With Gemini ticked, Refine needs no engine (refineText).
-  $("btnRefine").disabled = busy || !q
-    || !refineCanRun(coding ? codeRefineUnits() : [...S.selected])
-    || (coding && codeTaskUsesBrowser());
+  // Refine needs no engine and no ticked unit (refineText).
+  $("btnRefine").disabled = busy || !q || (coding && codeTaskUsesBrowser());
   $("btnRefine").title = coding ? "Rewrite this into a clearer task for the agents"
     : "Rewrite this into a sharper prompt";
   // Queueing needs a prompt and units, but NOT a reachable engine: building
@@ -24043,7 +24040,7 @@ function syncBsStartBar() {
   if (!begin) return;
   const draft = S.bs.draft.trim();
   begin.disabled = bsBusy() || S.bs.refining || !draft || S.selected.size === 0 || !online();
-  if (refine) refine.disabled = bsBusy() || S.bs.refining || !draft || !refineCanRun([...S.selected]);
+  if (refine) refine.disabled = bsBusy() || S.bs.refining || !draft;
 }
 
 /** Prompt refinement for the topic, same contract as the council composer: the
@@ -24054,7 +24051,7 @@ function syncBsStartBar() {
  *  follows, so a vague one costs minutes of questions rather than one answer. */
 async function bsRefine() {
   const q = S.bs.draft.trim();
-  if (!q || S.bs.refining || bsBusy() || !refineCanRun([...S.selected])) return;
+  if (!q || S.bs.refining || bsBusy()) return;
   S.bs.refining = true;
   S.bs.refineError = null;
   renderBsView();
@@ -25767,7 +25764,7 @@ function queueEdit(id) {
   const refineUnits = () => (isCode ? codeRefineUnits([...units]) : [...units]);
   function sync() {
     save.disabled = !text.trim() || units.size === 0;
-    refine.disabled = refining || !text.trim() || !refineCanRun(refineUnits());
+    refine.disabled = refining || !text.trim();
     refine.textContent = refining ? "Refining\u2026" : "Refine";
     // Said out loud, because a Save that is greyed for a reason you cannot
     // see is indistinguishable from a broken button.
@@ -25778,7 +25775,7 @@ function queueEdit(id) {
   }
 
   refine.onclick = async () => {
-    if (refining || !refineCanRun(refineUnits())) return;
+    if (refining) return;
     refining = true; setErrEl(null); sync();
     try {
       const { refined, missing } = await refineText(text, refineUnits(), isCode ? "code" : "");
