@@ -126,6 +126,13 @@ async function side(c, name, errs) {
   for (let i = 0; i < 40; i++) { await sleep(250); D = await doc(); if (D && D['e_daily-reminder'] && /Breathe before entries\./.test(D['e_daily-reminder'].data.html)) break; }
   ok('editing it saves it under its fixed id', D && D['e_daily-reminder'] && /Breathe before entries\./.test(D['e_daily-reminder'].data.html), JSON.stringify(D && D['e_daily-reminder']));
   ok('...and onSave names it', await js(`return window.__saved.includes('daily-reminder');`));
+  // A margin drag and nothing else is a change too (2026-10-28: it used to leave
+  // the pill at Syncing... and save nothing until the text was edited).
+  await js(`window._${K}SetPageMargins({ mt: 96, mr: 96, mb: 96, ml: 150 }); window._docxApplyPageSetup('${K}'); 1`);
+  for (let i = 0; i < 40; i++) { await sleep(250); D = await doc(); if (D && D['e_daily-reminder'] && D['e_daily-reminder'].data.margins && D['e_daily-reminder'].data.margins.ml === 150) break; }
+  ok('a margin drag alone is saved', D && D['e_daily-reminder'] && JSON.stringify(D['e_daily-reminder'].data.margins) === JSON.stringify({ mt: 96, mr: 96, mb: 96, ml: 150 }), JSON.stringify(D && D['e_daily-reminder'] && D['e_daily-reminder'].data.margins));
+  for (let i = 0; i < 20 && (await js(`return ${$('sync-text')}.textContent.trim();`)) !== 'Synced'; i++) await sleep(250);
+  ok('...and the pill comes back to Synced', await js(`return ${$('sync-text')}.textContent.trim();`) === 'Synced', await js(`return ${$('sync-text')}.textContent;`));
   // The trash's "delete forever" is the one path left that names it directly.
   await js(`window._${K}TrashAPI.purge(['daily-reminder']); 1`); await sleep(1500);
   R = await rows();
