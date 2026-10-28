@@ -258,6 +258,11 @@ function sig(template, data, title) {
     default:           try { parts.push(JSON.stringify(d)); } catch (e) { parts.push('?'); }
   }
   try { parts.push(JSON.stringify(d.attachments || [])); } catch (e) {}
+  // A sheet's own margins are its content too: dragging one is a change to save
+  // (it used to be a no-op, so a margin-only edit sat at "Syncing..." forever).
+  if ((template === 'page' || template === 'journal-entries') && d.margins) {
+    try { parts.push('m' + JSON.stringify(d.margins)); } catch (e) {}
+  }
   return parts.join('');
 }
 
