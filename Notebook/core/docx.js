@@ -3107,15 +3107,16 @@ function injectRibbonExtras(ctx) {
     aiToolsPop(ctx, aiB);
   });
   var undoB = ptBtn(svg(IC.undo), 'Undo (Ctrl+Z)');
-  undoB.classList.add('pt-disabled', 'docx-r1');
+  undoB.classList.add('pt-disabled', 'docx-r1', 'docx-undo-btn');
   undoB.addEventListener('click', function() { if (!undoB.classList.contains('pt-disabled')) ctx.history.undo(); });
   var redoB = ptBtn(svg(IC.redo), 'Redo (Ctrl+Y)');
-  redoB.classList.add('pt-disabled', 'docx-r1');
+  redoB.classList.add('pt-disabled', 'docx-r1', 'docx-redo-btn');
   redoB.addEventListener('click', function() { if (!redoB.classList.contains('pt-disabled')) ctx.history.redo(); });
   ctx.undoBtn = undoB; ctx.redoBtn = redoB;
   // Desktop-only in the ribbon: File ▸ Print / Export PDF covers touch, and the
   // main toolbar already carries an Export PDF button.
   var printB = ptBtn(svg(IC.print), 'Print / Export PDF (Ctrl+P)');
+  printB.classList.add('docx-print-btn');
   printB.addEventListener('click', function() { var eb = $(APPS[ctx.app].exportBtn); if (eb) eb.click(); });
   startFrag.appendChild(aiB);
   startFrag.appendChild(ptSep());
@@ -3151,16 +3152,18 @@ function injectRibbonExtras(ctx) {
   var alignR = tb.querySelector('[id$="-alignR"]');
   var midFrag = document.createDocumentFragment();
   var justB = ptBtn(svg(IC.justify), 'Justify');
+  justB.classList.add('docx-justify-btn');
   justB.addEventListener('click', function() { exec(ctx, 'justifyFull'); });
   var outB = ptBtn(svg(IC.indentDec), 'Decrease indent');
-  outB.classList.add('docx-r2');
+  outB.classList.add('docx-r2', 'docx-outdent-btn');
   outB.addEventListener('mousedown', function(e) { e.preventDefault(); saveSel(ctx); });
   outB.addEventListener('click', function() { indentBlocks(ctx, -1); });
   var inB = ptBtn(svg(IC.indentInc), 'Increase indent');
-  inB.classList.add('docx-r2');
+  inB.classList.add('docx-r2', 'docx-indent-btn');
   inB.addEventListener('mousedown', function(e) { e.preventDefault(); saveSel(ctx); });
   inB.addEventListener('click', function() { indentBlocks(ctx, 1); });
   var lsB = ptBtn(svg(IC.spacing), 'Line & paragraph spacing');
+  lsB.classList.add('docx-spacing-btn');
   lsB.addEventListener('mousedown', function(e) { e.preventDefault(); saveSel(ctx); });
   lsB.addEventListener('click', function() { lineSpacingPop(ctx, lsB); });
   midFrag.appendChild(justB);
@@ -3174,7 +3177,7 @@ function injectRibbonExtras(ctx) {
   // ── Checklist button after the ordered-list button ──
   var olB = tb.querySelector('[id$="-ol"]');
   var clB = ptBtn(svg(IC.checklist), 'Checklist');
-  clB.classList.add('docx-r2');
+  clB.classList.add('docx-r2', 'docx-checklist-btn');
   // Same as every other toolbar button: keep the editor's selection alive across the click,
   // or a multi-line highlight is gone by the time the handler runs.
   clB.addEventListener('mousedown', function(e) { e.preventDefault(); saveSel(ctx); });
@@ -3217,7 +3220,7 @@ function injectRibbonExtras(ctx) {
   var endFrag = document.createDocumentFragment();
   endFrag.appendChild(ptSep());
   var findB = ptBtn(svg(IC.find), 'Find & replace (Ctrl+F)');
-  findB.classList.add('docx-r2');
+  findB.classList.add('docx-r2', 'docx-find-btn');
   findB.addEventListener('click', function() { frOpen(ctx, true); });
   endFrag.appendChild(findB);
   // Desktop-only: touch defaults to reflow, where zoom is a no-op. View ▸ Zoom
@@ -3242,6 +3245,7 @@ function injectRibbonExtras(ctx) {
   });
   endFrag.appendChild(zoomSel);
   var clearFB = ptBtn(svg(IC.clearFmt), 'Clear ALL formatting');
+  clearFB.classList.add('docx-clearfmt-btn');
   clearFB.addEventListener('mousedown', function(e) { e.preventDefault(); saveSel(ctx); });
   clearFB.addEventListener('click', function() { clearAllFormatting(ctx); });
   endFrag.appendChild(clearFB);
