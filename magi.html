@@ -95,7 +95,7 @@ button,[role="button"],input[type="button"],input[type="submit"],input[type="res
   --bg:#1B1C1E; --s1:#232427; --s2:#2b2c30; --s3:#34353a;
   --bd:rgba(255,255,255,0.09); --bdl:#4A4B51;
   --tx:#ECECEE; --txd:#AFB0B5; --txm:#8a8b90;
-  --ac:#A892B0; --acl:#c4b2cb; --acd:#8D769A;
+  --ac:#8D769A; --acl:#A892B0; --acd:#75627f;
   --grn:#8fd6ad; --red:#ef9f9f; --amber:#f0bd86; --gold:#dcc08a; --blue:#9dc0ee;
   --font:'MAGI Symbols','Nunito','Noto Sans Math',system-ui,-apple-system,sans-serif;
   --font-display:'MAGI Symbols','Lora','Noto Sans Math',Georgia,serif;
@@ -3581,12 +3581,12 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
 }
 .lock-in:focus { border-color: var(--ac); }
 
-/* The profile chip. Reads as a person, not as an icon button -- a coloured
-   dot with a name beside it, so "whose MAGI is this?" is answered without
-   hovering anything. Collapses to the avatar alone where the rail is narrow. */
+/* The profile chip: the person's mark alone, in a ring of their colour --
+   ⚜ or ✦ already says whose MAGI this is, and the name lives in the tooltip
+   and on the gate the moment you tap it. */
 .prof-btn {
-  display: inline-flex; align-items: center; gap: 7px;
-  height: 26px; padding: 0 9px 0 4px;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0; flex: 0 0 26px;
   background: none;
   border: 1px solid color-mix(in srgb, var(--pc) 45%, transparent);
   border-radius: 999px; color: var(--tx); font: inherit; cursor: pointer;
@@ -3601,10 +3601,6 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
   font-size: 10px; line-height: 1; border-radius: 50%;
   background: none;
   border: 1px solid var(--pc);
-}
-.prof-name {
-  font-size: 11px; font-weight: 600; letter-spacing: .2px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .nav-collapsed .sidebar .prof-btn { display: none; }
 
@@ -4631,12 +4627,6 @@ button.code-git-br:hover, button.code-git-br:focus-visible { border-color: var(-
 @media (max-width: 430px) {
   .eng-add { flex-direction: column; }
   .eng-add .btn { width: 100%; justify-content: center; }
-}
-@media (max-width: 760px) {
-  /* The mobile bar is 40px of very contested space: the dot alone still says
-     which person, and the gate says the name in full the moment you tap it. */
-  #profBtnM { padding: 0; width: 26px; justify-content: center; }
-  #profBtnM .prof-name { display: none; }
 }
 
 /* The header control. Sits at the right of the sidebar's top row, where the
