@@ -490,7 +490,7 @@
 #tj-root .modal-close:hover { color: var(--text); border-color: var(--border2); }
 
   /* ── CONTENT AREA ── */
-#tj-root #tj-content-area { flex: 1; overflow: auto; padding: 20px 22px 20px; position: relative; display: flex; flex-direction: column; min-height: 0; -webkit-overflow-scrolling: touch; }
+#tj-root #tj-content-area { --nb-cpt: 20px; --nb-cpx: 22px; flex: 1; overflow: auto; padding: 20px 22px 20px; position: relative; display: flex; flex-direction: column; min-height: 0; -webkit-overflow-scrolling: touch; }
 
   /* ── EMPTY STATE ── */
 #tj-root #tj-empty-state {
@@ -1073,6 +1073,7 @@
   /* ── CONTENT AREA ── */
   #tj-root #tj-content-area {
     flex: 1; min-height: 0;
+    --nb-cpt: 12px; --nb-cpx: 14px;
     padding: 12px 14px calc(64px + env(safe-area-inset-bottom, 0px));
     overflow-y: auto; -webkit-overflow-scrolling: touch;
   }
@@ -1120,7 +1121,7 @@
 @media (max-width: 430px) {
   #tj-root #tj-mobile-title { font-size: 13px !important; }
   #tj-root .wb-btn { width: 34px !important; height: 34px !important; }
-  #tj-root #tj-content-area { padding-left: 10px; padding-right: 10px; }
+  #tj-root #tj-content-area { --nb-cpx: 10px; padding-left: 10px; padding-right: 10px; }
   #tj-root #tj-page-editor-wrap { padding-left: 10px; padding-right: 10px; }
   #tj-root #tj-template-panel { width: calc(100vw - 20px); padding: 12px 10px; }
 }

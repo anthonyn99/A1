@@ -2067,19 +2067,19 @@ function aiRunWholeDoc(ctx, tool) {
       return;
     }
     if (!data || !data.ok || !data.html) { docxToast(tool.name + ' failed: ' + ((data && data.error) || 'try again'), true); return; }
-    var restored = aiRestoreImages(data.html, allImgs);
-
+    // Split into sections BEFORE restoring, so each section gets back its own
+    // images -- including any its tokens lost (see aiRestoreImages).
     var pieces;
     if (multi) {
       pieces = [];
       for (var i = 0; i < chunks.length; i++) {
         var re = new RegExp('\\[\\[SEC' + i + 'S\\]\\]([\\s\\S]*?)\\[\\[SEC' + i + 'E\\]\\]');
-        var m = restored.match(re);
+        var m = data.html.match(re);
         if (!m) { docxToast(tool.name + ' couldn\'t process multiple new sections at once — try one section at a time (select it first).', true); return; }
-        pieces.push(m[1]);
+        pieces.push(aiRestoreImages(m[1], chunks[i].imgs));
       }
     } else {
-      pieces = [restored];
+      pieces = [aiRestoreImages(data.html, allImgs)];
     }
 
     ctx.history.commit();          // snapshot the pre-run content (so Undo restores it)

@@ -452,7 +452,7 @@
 #bj-root .modal-close:hover { color: var(--text); border-color: var(--border2); }
 
   /* ── CONTENT AREA ── */
-#bj-root #bj-content-area { flex: 1; overflow: auto; padding: 20px 22px 20px; position: relative; display: flex; flex-direction: column; min-height: 0; -webkit-overflow-scrolling: touch; }
+#bj-root #bj-content-area { --nb-cpt: 20px; --nb-cpx: 22px; flex: 1; overflow: auto; padding: 20px 22px 20px; position: relative; display: flex; flex-direction: column; min-height: 0; -webkit-overflow-scrolling: touch; }
 
   /* ── EMPTY STATE ── */
 #bj-root #bj-empty-state {
@@ -1018,6 +1018,7 @@
   /* ── CONTENT AREA ── */
   #bj-root #bj-content-area {
     flex: 1; min-height: 0;
+    --nb-cpt: 12px; --nb-cpx: 14px;
     padding: 12px 14px calc(64px + env(safe-area-inset-bottom, 0px));
     overflow-y: auto; -webkit-overflow-scrolling: touch;
   }
@@ -1077,7 +1078,7 @@
 /* ── PHONE (≤430px) ── */
 @media (max-width: 430px) {
   #bj-root #bj-mobile-title { font-size: 13px !important; }
-  #bj-root #bj-content-area { padding-left: 10px; padding-right: 10px; }
+  #bj-root #bj-content-area { --nb-cpx: 10px; padding-left: 10px; padding-right: 10px; }
   #bj-root #bj-page-editor-wrap { padding-left: 10px; padding-right: 10px; }
   #bj-root #bj-template-panel { width: calc(100vw - 20px); padding: 12px 10px; }
 }
