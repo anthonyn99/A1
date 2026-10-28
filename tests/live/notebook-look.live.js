@@ -192,7 +192,7 @@ const HOSTS = [
     const got = await take(H.key);
     let d = compare(std.ribbon, got.ribbon, []);
     ok('its ribbon is MyJournal\'s: every button in the same place, the same size, the same look', d.length === 0, d.join('\n      '));
-    ok('it says it is T's Notebook (its root, and the line beside its title or its host's own bar)', await js(`var r=document.getElementById('${H.key}-root'), n=document.querySelector('#${H.key}-root .nb-done-note, #ew-nb-overlay .sub');
+    ok("it says it is T's Notebook (its root, and the line beside its title or its host's own bar)", await js(`var r=document.getElementById('${H.key}-root'), n=document.querySelector('#${H.key}-root .nb-done-note, #ew-nb-overlay .sub');
       return r.dataset.notebookSide === 'tony' && !!n && n.textContent.trim() === "Editing in T's Notebook";`));
     d = compare(std.bar, got.bar, H.missing.concat([/#K-sync-pill/, SIDE_LINE]), { sizeOnly: true, flex: /#K-entry-title-input$/ });
     ok('its title bar is MyJournal\'s (less what its mount turns off)', d.length === 0, d.join('\n      '));
@@ -238,6 +238,8 @@ const HOSTS = [
   ok('it opens the page in Notebook\'s editor, in edit mode', await until(`document.querySelector('#vn-root .docx-toolbar.edit-mode')`, 10000));
   await sleep(1500);
   const vgot = await take('vn');
+  ok("it says it is V's Notebook (its root, and the line beside its title)", await js(`var r=document.getElementById('vn-root'), n=document.querySelector('#vn-root .nb-done-note');
+    return r.dataset.notebookSide === 'veda' && !!n && n.textContent.trim() === "Editing in V's Notebook";`));
   let vd = compare(vstd.ribbon, vgot.ribbon, []);
   ok('its ribbon is her journal\'s: every button in the same place, the same size, the same look', vd.length === 0, vd.join('\n      '));
   vd = compare(vstd.bar, vgot.bar, [/#K-btn-lock/, /#K-sync-pill/, SIDE_LINE], { sizeOnly: true, flex: /#K-entry-title-input$/ });
