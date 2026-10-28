@@ -537,6 +537,12 @@ async function runFullSync(env, trigger) {
 // Unlink one item everywhere. Plaid first (an already-dead item is fine),
 // then the Firestore docs it wrote, then its KV token and cursor last, so a
 // failure part-way leaves it listed and the remove can simply be retried.
+//
+// A card can sit on two items at once: when Discover moved to Capital One,
+// the new Capital One link carried the same cards as the old one but only a
+// few months of history. So a card that another item also has (same name +
+// last 4) hands its older transactions — the ones before that item's
+// earliest — over to it instead of losing them.
 async function removeItem(env, item) {
   const out = { item_id: item.item_id, institution: item.institution_name };
   try { await plaidPost(env, '/item/remove', { access_token: item.access_token }); out.plaid = 'removed'; }
@@ -547,23 +553,48 @@ async function removeItem(env, item) {
   if (fsConfigured(env)) {
     const token = await getGoogleAccessToken(env);
     const root = fsDocRoot(env);
-    const deletes = [];
-    for (const coll of ['accounts', 'plaid_transactions']) {
+    const str = (d, f) => d.fields?.[f]?.stringValue ?? null;
+    const query = async (coll, field, value, fields) => {
       const res = await fetch(`https://firestore.googleapis.com/v1/${root}/dashboards/insight:runQuery`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ structuredQuery: {
           from: [{ collectionId: coll }],
-          where: { fieldFilter: { field: { fieldPath: 'item_id' }, op: 'EQUAL', value: { stringValue: item.item_id } } },
-          select: { fields: [{ fieldPath: '__name__' }] }
+          ...(field ? { where: { fieldFilter: { field: { fieldPath: field }, op: 'EQUAL', value: { stringValue: value } } } } : {}),
+          select: { fields: fields.map(f => ({ fieldPath: f })) }
         }})
       });
       if (!res.ok) throw new Error(`runQuery ${coll} failed (${res.status}): ${(await res.text()).slice(0, 200)}`);
-      const rows = (await res.json()).filter(r => r.document);
-      out[coll] = rows.length;
-      for (const r of rows) deletes.push({ delete: r.document.name });
+      return (await res.json()).filter(r => r.document).map(r => r.document);
+    };
+
+    const accounts = await query('accounts', null, null, ['item_id', 'account_id', 'name', 'mask']);
+    const cardKey = d => `${str(d, 'name')}|${str(d, 'mask')}`;
+    const heirs = {};          // removed account_id → { item_id, account_id, since }
+    for (const mine of accounts.filter(d => str(d, 'item_id') === item.item_id)) {
+      const twin = accounts.find(d => str(d, 'item_id') !== item.item_id && str(d, 'mask') && cardKey(d) === cardKey(mine));
+      if (!twin) continue;
+      const theirs = await query('plaid_transactions', 'account_id', str(twin, 'account_id'), ['date']);
+      const since = theirs.reduce((m, d) => (str(d, 'date') < m ? str(d, 'date') : m), '9999-99-99');
+      heirs[str(mine, 'account_id')] = { item_id: str(twin, 'item_id'), account_id: str(twin, 'account_id'), since };
     }
-    await fsBatchWrite(env, token, deletes);
+
+    const writes = [];
+    out.accounts = 0; out.plaid_transactions = 0; out.handedOver = 0;
+    for (const d of accounts.filter(d => str(d, 'item_id') === item.item_id)) {
+      writes.push({ delete: d.name }); out.accounts++;
+    }
+    for (const d of await query('plaid_transactions', 'item_id', item.item_id, ['account_id', 'date'])) {
+      const heir = heirs[str(d, 'account_id')];
+      if (heir && str(d, 'date') < heir.since) {
+        writes.push({ update: { name: d.name, fields: fsFields({ item_id: heir.item_id, account_id: heir.account_id }) },
+                      updateMask: { fieldPaths: ['item_id', 'account_id'] } });
+        out.handedOver++;
+      } else {
+        writes.push({ delete: d.name }); out.plaid_transactions++;
+      }
+    }
+    await fsBatchWrite(env, token, writes);
   }
   await env.INSIGHT_KV.delete(itemKey(item.item_id));
   await env.INSIGHT_KV.delete(cursorKey(item.item_id));
