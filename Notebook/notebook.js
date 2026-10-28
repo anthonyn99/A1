@@ -11,7 +11,9 @@
    Notebook.load('docx'), which keeps their place in the CSS cascade.
 
    MOUNTING. Notebook.mount({ profile, ... }) puts a side on the page: 'tony'
-   (the myjournal app, key tj) or 'veda' (the brainstorm app, key bj). Under its
+   is T's Notebook (the myjournal app, key tj), 'veda' is V's Notebook (the
+   brainstorm app, key bj). Notebook.side(profile) gives a side's name and its
+   "Editing in T's Notebook" line, for a host's own labels. Under its
    own key (index.html) an app is written in place while the page parses. Under
    any other key it is an INSTANCE: the app's own source with its key rewritten
    (tj or bj -> key, its store -> store, ...), its Firestore layer made from the
@@ -43,15 +45,22 @@ var GROUPS = {
 // makes an instance (see MOUNTING above).
 var NATIVE = { brainstorm: 'bj', myjournal: 'tj' };
 // Notebook's two sides. A host names a side, not an app:
-//   Notebook.mount({ profile: 'tony' })   Tony's journal (MyJournal, tj)
-//   Notebook.mount({ profile: 'veda' })   Veda's journal (bj)
-// They work and are named the same way (OurJournal + the person's own
-// journal); only the colours, fonts and Veda's extra templates differ.
-// profile + key + store mounts an instance of that side.
+//   Notebook.mount({ profile: 'tony' })   T's Notebook (myjournal app, tj)
+//   Notebook.mount({ profile: 'veda' })   V's Notebook (brainstorm app, bj)
+// They work and are named the same way (OurJournal + MyJournal, the person's
+// own); only the header, the colours and fonts, and Veda's extra templates
+// differ. profile + key + store mounts an instance of that side, and every
+// instance says which side it is ("Editing in T's Notebook").
 var PROFILES = {
-  tony: { app: 'myjournal', key: 'tj', store: 'tony_journal' },
-  veda: { app: 'brainstorm', key: 'bj', store: 'journal' }
+  tony: { app: 'myjournal', key: 'tj', store: 'tony_journal', name: 'T\'s Notebook' },
+  veda: { app: 'brainstorm', key: 'bj', store: 'journal', name: 'V\'s Notebook' }
 };
+// A side's names, for anything that labels it: { profile, name, editing }.
+function side(profile) {
+  var p = PROFILES[profile];
+  if (!p) throw new Error('Notebook.side: profile is tony or veda');
+  return { profile: profile, name: p.name, editing: 'Editing in ' + p.name };
+}
 function resolveProfile(cfg) {
   if (!cfg) return cfg;
   // The older { app } form: the profile is the app's side.
@@ -370,7 +379,7 @@ function instanceCss(cfg) {
 // how a program drifts from the others: refuse it. A new setting is added
 // here, documented in docs/Notebook/README.md, and defaults so that every
 // other program keeps working unchanged.
-var OPTIONS = { profile: 1, app: 1, key: 1, store: 1, container: 1, mode: 1, title: 1, templates: 1, features: 1, pinned: 1, onSave: 1, onReady: 1, done: 1 };
+var OPTIONS = { profile: 1, app: 1, key: 1, store: 1, container: 1, mode: 1, title: 1, templates: 1, features: 1, pinned: 1, onSave: 1, onReady: 1, done: 1, sideNote: 1 };
 var FEATURES = { ourjournal: 1, locks: 1, sidebar: 1 };
 function checkOptions(cfg) {
   Object.keys(cfg).forEach(function (k) { if (!OPTIONS[k]) throw new Error('Notebook.mount: unknown option ' + k); });
@@ -387,29 +396,37 @@ function vedaFonts() {
   document.head.appendChild(l);
 }
 
-// done: { note, label, onClick } puts a host's way out (TradeHub's prompt editor:
-// "Editing in Notebook" and Done) beside the page title, in the title bar and in
-// the phone header, so the host draws no bar of its own above the editor.
+// Beside an instance's page title: which side it is ("Editing in T's
+// Notebook"), and the host's way out when it passes done: { label, onClick }
+// (TradeHub's prompt editor: Done), in the title bar and in the phone header,
+// so the host draws no bar of its own above the editor. done.note replaces
+// the side line; sideNote: false leaves it out (a host that shows its own,
+// Everwell). The root carries the side too: data-notebook-side="tony".
 function addDone(cfg) {
-  var d = cfg.done, K = cfg.key;
-  if (!d || typeof d.onClick !== 'function') return;
+  var d = cfg.done || {}, K = cfg.key, out = typeof d.onClick === 'function';
+  var note = d.note !== undefined ? d.note : (cfg.sideNote === false ? '' : cfg.side.editing);
+  var root = document.getElementById(K + '-root');
+  if (root) { root.setAttribute('data-notebook-side', cfg.profile); root.setAttribute('aria-label', cfg.side.name); }
+  if (!out && !note) return;
   [[K + '-entry-title-input', true], [K + '-mobile-title', false]].forEach(function (x) {
     var title = document.getElementById(x[0]);
-    if (!title || !title.parentNode) return;
+    if (!title || !title.parentNode || !(out || x[1])) return;
     var wrap = document.createElement('span');
     wrap.className = 'nb-done';
     wrap.style.cssText = 'display:inline-flex;align-items:center;gap:10px;flex-shrink:0;margin:0 6px;';
-    if (x[1] && d.note) {
+    if (x[1] && note) {
       var n = document.createElement('span');
       n.className = 'nb-done-note';
       n.style.cssText = 'font-size:11.5px;opacity:.6;white-space:nowrap;';
-      n.textContent = d.note;
+      n.textContent = note;
       wrap.appendChild(n);
     }
-    var b = document.createElement('button');
-    b.type = 'button'; b.className = 'tb-btn nb-done-btn'; b.textContent = d.label || 'Done';
-    b.addEventListener('click', function () { d.onClick(); });
-    wrap.appendChild(b);
+    if (out) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'tb-btn nb-done-btn'; b.textContent = d.label || 'Done';
+      b.addEventListener('click', function () { d.onClick(); });
+      wrap.appendChild(b);
+    }
     title.parentNode.insertBefore(wrap, title.nextSibling);
   });
 }
@@ -446,23 +463,27 @@ window.Notebook = {
   version: STAMP,
   base: BASE,
   load: load,
-  // A host mounts a side: { profile: 'tony' | 'veda' } (PROFILES above; the
-  // older { app, key, store } form still works) and, for an instance, adds
-  // key + store and:
+  // A host mounts a side: { profile: 'tony' } is T's Notebook, { profile:
+  // 'veda' } V's Notebook (PROFILES above; the older { app, key, store } form
+  // still works) and, for an instance, adds key + store and:
   //   container   the element it lives in (mode 'inline', the default for an
   //               instance); title (the app's name in its UI);
   //   features    { ourjournal, locks, sidebar } (an instance: ourjournal and
   //               locks off unless set, sidebar on unless set to false);
   //   templates   the template cards to offer, e.g. ['page'];
   //   pinned      [{ id, title, html }] pages always first, never trashed;
-  //   onSave(entry), onReady()   hooks.
+  //   onSave(entry), onReady()   hooks;
+  //   done        { label, onClick, note } a Done button beside the title;
+  //   sideNote    false: no "Editing in T's Notebook" beside the title.
   // key is the DOM/CSS/localStorage prefix (bj, tj, pb, ...), store its
   // Firestore document under dashboards/. Returns a promise of the config.
   mounts: {},
   profiles: PROFILES,
+  side: side,
   mount: function (cfg) {
     cfg = resolveProfile(cfg);
     if (!cfg || !GROUPS[cfg.app] || !NATIVE[cfg.app] || !cfg.key || !/^[a-z]{2,8}$/.test(cfg.key)) throw new Error('Notebook.mount: bad config');
+    cfg.side = side(cfg.profile);
     if (this.mounts[cfg.key]) return this.mounts[cfg.key]._ready;
     if (NATIVE[cfg.app] === cfg.key) { this.mounts[cfg.key] = cfg; load(cfg.app); return (cfg._ready = Promise.resolve(cfg)); }
     if (!cfg.store || !/^[a-z0-9_]+$/.test(cfg.store) || cfg.store === 'tony_journal' || cfg.store === 'journal') throw new Error('Notebook.mount: an instance needs its own store');
