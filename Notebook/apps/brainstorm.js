@@ -1149,14 +1149,20 @@ window._bjTrashAPI = {
 
 // ── Per-page margins (Batch 10 #3): stored on the active PAGE entry, synced to
 // Firebase with the entry, so dragging a margin affects only that page. ──
+// A dragged margin waits here, not on the entry, until saveCurrentEntry commits
+// it like any edit (updated, rev, dirty, cloud). Written straight onto the entry
+// it made the save's no-op guard see nothing new, and the pill sat at Syncing.
+let _bjPendingMargins = null;   // { id, m }
 window._bjGetPageMargins = function() {
   const e = state.entries.find(x => x.id === state.activeId);
-  if (e && e.template === 'page' && e.data && e.data.margins && typeof e.data.margins.ml === 'number') return e.data.margins;
+  if (!e || e.template !== 'page') return null;
+  if (_bjPendingMargins && _bjPendingMargins.id === e.id) return _bjPendingMargins.m;
+  if (e.data && e.data.margins && typeof e.data.margins.ml === 'number') return e.data.margins;
   return null;
 };
 window._bjSetPageMargins = function(m) {
   const e = state.entries.find(x => x.id === state.activeId);
-  if (e && e.template === 'page') { e.data.margins = m; e.updated = Date.now(); autoSave(); }
+  if (e && e.template === 'page') { _bjPendingMargins = { id: e.id, m: m }; autoSave(); }
 };
 
 // ── UNIFIED SEARCH: title + full content + tags; multi-tag filter ──
@@ -1456,6 +1462,7 @@ function saveCurrentEntry() {
   // Read the DOM into a PROPOSED copy of data rather than straight into the entry,
   // so the two guards below can still refuse it. Nothing is committed until both pass.
   const _next = Object.assign({}, entry.data);
+  if (_bjPendingMargins && _bjPendingMargins.id === entry.id) _next.margins = _bjPendingMargins.m;
   // Visual templates keep their content in their own document (see VizEngine),
   // so what lands on the ENTRY is a fingerprint: the board's revision, how much
   // is on it, and a title to fall back on. That is enough for the sidebar, the
@@ -1528,6 +1535,7 @@ function saveCurrentEntry() {
   // Merged in place rather than reassigned: attachment lists, mindmap node arrays
   // and the whiteboard canvas are all held by reference elsewhere in this file.
   Object.assign(entry.data, _next);
+  if (_bjPendingMargins && _bjPendingMargins.id === entry.id) _bjPendingMargins = null;
   entry.updated = Date.now();
   // rev counts committed content changes, which is how two copies of an entry get
   // ordered WITHOUT trusting a device clock — see the merge rules in applyRemote.
