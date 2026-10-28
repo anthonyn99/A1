@@ -36,8 +36,11 @@
   (2026-10-09).** The contract is [docs/Notebook/README.md](docs/Notebook/README.md)
   (adding it to a program, data layout, why MyJournal names stay `tj`-prefixed);
   [docs/Notebook/plan.md](docs/Notebook/plan.md) is the record. Prove journal
-  changes with `node tests/live/notebook-baseline.live.js`. Never change how
-  Veda's side looks or works. **Every Notebook feature reaches every program
+  changes with `node tests/live/notebook-baseline.live.js`. The two sides are
+  **T's Notebook** (`profile: 'tony'`) and **V's Notebook** (`profile: 'veda'`):
+  the same program, differing only in header, colours/fonts and Veda's extra
+  templates (README, top). A feature reaches both sides; never change Veda's
+  look unless asked. **Every Notebook feature reaches every program
   that mounts it:** build it in `Notebook/`, never in a host; a program leaves
   one out only through its mount config (`features`, `templates`). A program
   talks to Notebook only through its API (mount options, `Notebook.open`,
