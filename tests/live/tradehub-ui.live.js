@@ -204,6 +204,12 @@ const worker = {
       await js(`return JSON.stringify([...document.querySelectorAll('#tradeboard-root .cat-day')].map(d=>[d.querySelector('.cat-dow').innerText, Math.round((function(e){var r=document.createRange();r.selectNodeContents(e);return r.getBoundingClientRect().right;})(d.querySelector('.cat-dow'))), Math.round(d.querySelector('.cat-events').getBoundingClientRect().left)]));`));
     ok(id + ': nothing scrolls sideways', await js(`return document.documentElement.scrollWidth <= window.innerWidth + 1 && [...document.querySelectorAll('#tradeboard-root .tbx-page')].every(p=>p.scrollWidth<=p.clientWidth+1);`), await js(`return document.documentElement.scrollWidth;`));
     await shot(name);
+    if (id === 'catalysts') {
+      await btn('#tradeboard-root .tbx-actions', 'DEBRIEF');
+      ok('the debrief panel fits a phone', await until(`!!document.querySelector('#tradeboard-root .dbf') && document.documentElement.scrollWidth <= window.innerWidth + 1 && document.querySelector('#tradeboard-root .dbf').scrollWidth <= document.querySelector('#tradeboard-root .dbf').clientWidth + 1`, 3000));
+      await sleep(300); await shot('tradehub-debrief-phone');
+      await btn('#tradeboard-root .tbx-actions', 'DEBRIEF');
+    }
   }
   await btn('#tradeboard-root .ctl-pr-bar', 'EDIT');
   ok('the editor opens on a phone too', await editorOpen('Be brief.'));
