@@ -1152,17 +1152,19 @@ window._bjTrashAPI = {
 // A dragged margin waits here, not on the entry, until saveCurrentEntry commits
 // it like any edit (updated, rev, dirty, cloud). Written straight onto the entry
 // it made the save's no-op guard see nothing new, and the pill sat at Syncing.
+// Both hooks deal in COPIES: the ruler edits what Get returns in place, and
+// handing it the entry's own object changed the entry before the save looked.
 let _bjPendingMargins = null;   // { id, m }
 window._bjGetPageMargins = function() {
   const e = state.entries.find(x => x.id === state.activeId);
   if (!e || e.template !== 'page') return null;
-  if (_bjPendingMargins && _bjPendingMargins.id === e.id) return _bjPendingMargins.m;
-  if (e.data && e.data.margins && typeof e.data.margins.ml === 'number') return e.data.margins;
+  if (_bjPendingMargins && _bjPendingMargins.id === e.id) return Object.assign({}, _bjPendingMargins.m);
+  if (e.data && e.data.margins && typeof e.data.margins.ml === 'number') return Object.assign({}, e.data.margins);
   return null;
 };
 window._bjSetPageMargins = function(m) {
   const e = state.entries.find(x => x.id === state.activeId);
-  if (e && e.template === 'page') { _bjPendingMargins = { id: e.id, m: m }; autoSave(); }
+  if (e && e.template === 'page') { _bjPendingMargins = { id: e.id, m: Object.assign({}, m) }; autoSave(); }
 };
 
 // ── UNIFIED SEARCH: title + full content + tags; multi-tag filter ──
@@ -1529,7 +1531,12 @@ function saveCurrentEntry() {
   // merge resolves conflicts on that timestamp, so a no-op save on a session holding
   // stale content used to make the stale copy the permanent winner.
   if (window.JGuard && window.JGuard.sig(entry.template, entry.data, entry.title) ===
-                       window.JGuard.sig(entry.template, _next, _title)) return;
+                       window.JGuard.sig(entry.template, _next, _title)) {
+    // Nothing new to save: autoSave already said Syncing, so say Synced again
+    // unless some entry is still waiting for the cloud to confirm it.
+    if (!state.entries.some(function (x) { return x._dirty; })) _bjSetSync('synced');
+    return;
+  }
 
   entry.title = _title;
   // Merged in place rather than reassigned: attachment lists, mindmap node arrays

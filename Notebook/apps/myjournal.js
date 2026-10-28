@@ -1028,17 +1028,19 @@ const _TJ_SHEET_TEMPLATES = ['page', 'journal-entries'];
 // A dragged margin waits here, not on the entry, until saveCurrentEntry commits
 // it like any edit (updated, rev, dirty, cloud). Written straight onto the entry
 // it made the save's no-op guard see nothing new, and the pill sat at Syncing.
+// Both hooks deal in COPIES: the ruler edits what Get returns in place, and
+// handing it the entry's own object changed the entry before the save looked.
 let _tjPendingMargins = null;   // { id, m }
 window._tjGetPageMargins = function() {
   const e = state.entries.find(x => x.id === state.activeId);
   if (!e || !_TJ_SHEET_TEMPLATES.includes(e.template)) return null;
-  if (_tjPendingMargins && _tjPendingMargins.id === e.id) return _tjPendingMargins.m;
-  if (e.data && e.data.margins && typeof e.data.margins.ml === 'number') return e.data.margins;
+  if (_tjPendingMargins && _tjPendingMargins.id === e.id) return Object.assign({}, _tjPendingMargins.m);
+  if (e.data && e.data.margins && typeof e.data.margins.ml === 'number') return Object.assign({}, e.data.margins);
   return null;
 };
 window._tjSetPageMargins = function(m) {
   const e = state.entries.find(x => x.id === state.activeId);
-  if (e && _TJ_SHEET_TEMPLATES.includes(e.template)) { _tjPendingMargins = { id: e.id, m: m }; autoSave(); }
+  if (e && _TJ_SHEET_TEMPLATES.includes(e.template)) { _tjPendingMargins = { id: e.id, m: Object.assign({}, m) }; autoSave(); }
 };
 
 // ── UNIFIED SEARCH: title + full content ──
@@ -1313,7 +1315,12 @@ function saveCurrentEntry() {
   // content was dropped on arrival and overwritten on the next write. This is the
   // root cause of content silently reverting after a background/refresh.
   if (window.JGuard && window.JGuard.sig(entry.template, entry.data, entry.title) ===
-                       window.JGuard.sig(entry.template, _next, _title)) return;
+                       window.JGuard.sig(entry.template, _next, _title)) {
+    // Nothing new to save: autoSave already said Syncing, so say Synced again
+    // unless some entry is still waiting for the cloud to confirm it.
+    if (!state.entries.some(function (x) { return x._dirty; })) _tjSetSync('synced');
+    return;
+  }
 
   entry.title = _title;
   // Merged in place rather than reassigned: attachment lists, mindmap node arrays
