@@ -2989,12 +2989,23 @@ people clicked twice. `magi/tests/test_halt.py` pins both halves.
 
 **Refine is a separate button, not a step inside Convene.** Refining on the way
 to a run would send the council a question the person never read. It lands in
-the composer instead, where it can be read, edited or undone first. It runs on
-the Gemini **API** rather than a browser session (~4s vs a Chrome launch plus a
-scrape-until-stable poll), with the model pinned to an exact version — the
-`gemini-flash-latest` alias measured 14–30s with intermittent 503s, so "newest"
-is not "fastest". Optional: without `GEMINI_API_KEY` in `magi/.env` it falls
-back to the slow browser path.
+the composer instead, where it can be read, edited or undone first.
+
+Since 2026-10-28 magi.html (`refineText`) sends it to the personal-ai worker's
+`POST /prompt/refine` with the profile, so it runs on that person's own
+Gemini key — the same key as their Notebook AI tools — and needs no engine.
+The worker races a chain (`REFINE_MODELS`): Gemini 3.5 Flash-Lite first,
+Workers AI's Llama 4 Scout joining after 1 s, then the rest, and takes the
+first rewrite that keeps every number, URL, path, identifier and quoted
+string of the request (`refineMissing`); if none does, the closest comes back
+with what it lost, shown under the box. Measured that day, with Gemini
+answering 503 on most models: 2.5–3 s, 20/20 sample prompts lossless (it was
+2+ minutes on Veda's side, whose engine had no key and drove a browser unit).
+With Gemini unticked, or the worker unreachable, the engine refines on a ticked
+browser unit (`skip_api=1`, so its own `magi/.env` key is not used). The prompt
+lives in the worker and in `engine/refine.py`; `test_refine.py` fails if they
+drift. Tests: `workers/personal-ai/refine.test.mjs`, `tests/magi-refine.test.js`,
+`tests/live/magi-refine.live.js`.
 
 ---
 
@@ -3004,7 +3015,7 @@ back to the slow browser path.
 |---|---|
 | `magi/config/selectors.yaml` | per-site selectors, timeouts and `dismiss_selectors` — **edit this when a site changes** |
 | `magi/config/magi.yaml` | pacing, which members are enabled, who chairs, artifact settings |
-| `magi/.env` | `GEMINI_API_KEY` for Refine (gitignored) |
+| `magi/.env` | `GEMINI_API_KEY` for scripts calling `/api/refine` without `skip_api` (gitignored); the console's Refine uses the personal-ai worker |
 | `MAGI_API_TOKEN` | env var; gates `/api/*` (see above) |
 | `MAGI_ALLOWED_ORIGINS` | env var; extra origins the engine answers, comma separated (`null` lets a `file://` page in; see *Who may drive the engine*) |
 
