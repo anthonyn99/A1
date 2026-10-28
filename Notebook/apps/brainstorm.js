@@ -66,7 +66,6 @@ var html = `
     <input id="bj-entry-title-input" type="text" placeholder="Untitled entry…" />
     <div class="toolbar-sep"></div>
     <div class="mode-toggle-wrap">
-      <svg class="mt-ic mt-ic-view" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="mt-ic mt-ic-edit" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
       <span class="mode-toggle-label" id="bj-mode-label">VIEW</span>
       <label class="mode-toggle" title="Toggle Edit / View mode">
         <input type="checkbox" id="bj-btn-edit" />
@@ -85,9 +84,8 @@ var html = `
       Export PDF
     </button>
     <div class="toolbar-sep"></div>
-    <button class="tb-btn lock-btn" id="bj-btn-lock" style="display:none;">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-      Lock
+    <button class="tb-btn lock-btn" id="bj-btn-lock" style="display:none;" aria-label="Lock this entry">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.75-1.4"/></svg>
     </button>
     <div class="toolbar-sep"></div>
 
@@ -3846,13 +3844,15 @@ window.hideBrainstormJournal = function() {
     var lock = blGetLock(entry.id);
     if (lock) {
       lockBtn.classList.add('locked');
-      lockBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Locked';
+      lockBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+      lockBtn.setAttribute('aria-label', 'Entry locked: manage its lock');
       // Class, not an inline colour — the unlocked branch used to clear the
       // inline colour and fall back to the UA's black buttontext.
       if (mobileLockBtn) { mobileLockBtn.innerHTML = TNI.lock; mobileLockBtn.classList.add('tl-locked'); mobileLockBtn.style.color = ''; }
     } else {
       lockBtn.classList.remove('locked');
-      lockBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Lock';
+      lockBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.75-1.4"/></svg>';
+      lockBtn.setAttribute('aria-label', 'Lock this entry');
       if (mobileLockBtn) { mobileLockBtn.innerHTML = TNI.unlock; mobileLockBtn.classList.remove('tl-locked'); mobileLockBtn.style.color = ''; }
     }
   }

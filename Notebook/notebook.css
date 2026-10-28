@@ -773,8 +773,9 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
      and groups wrap as units. Each side keeps its own accent (--purple: Tony's
      lavender, Veda's mauve) and font. The Journal Entries template
      (#tj-je-toolbar, being retired) keeps its old ribbon. Below it, the title bar: one height
-     for its buttons, the Edit/View switch drawn as one of them, no hover
-     tooltips.
+     for its buttons, the Edit/View switch in an outline of that height, a
+     square padlock for Lock, no hover tooltips. The ribbon is neutral grey and runs to the edges of the
+     content area (its padding, --nb-cpt/--nb-cpx, set beside it per app).
      ════════════════════════════════════════════════════════════════════════ */
 /* ── ribbon-look-css ── */
 #tj-root .docx-toolbar:not(#tj-je-toolbar), #bj-root .docx-toolbar {
@@ -785,6 +786,9 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   --nbt-hov: rgba(255,255,255,.075);
   --nbt-pop: #232327;
   padding: 8px 12px 10px !important;
+  background: #202022 !important; border-bottom: 1px solid #2c2c2f !important;
+  margin: calc(-1 * var(--nb-cpt, 0px)) calc(-1 * var(--nb-cpx, 0px)) 0 !important;
+  border-radius: 0 !important;
 }
 #bj-root .docx-toolbar { --nbt-pop: var(--card, #26272A); }
 #tj-root .docx-ribbonrow:has(> .docx-grp), #bj-root .docx-ribbonrow { gap: 6px !important; align-items: center; }
@@ -959,33 +963,23 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   #tj-root .docx-toolbar:not(#tj-je-toolbar), #bj-root .docx-toolbar { --nbt-h: 36px; --nbt-in: 30px; padding: 4px 8px 6px !important; }
 }
 
-/* ── Title bar: one height, Edit/View drawn as a button ── */
+/* ── Title bar: one height; Edit/View is a switch in a button-sized outline;
+   Lock is a square padlock (open or closed), no words. ── */
 #tj-root #tj-toolbar .tb-btn, #bj-root #bj-toolbar .tb-btn,
 #tj-root #tj-toolbar .mode-toggle-wrap, #bj-root #bj-toolbar .mode-toggle-wrap { height: 32px; box-sizing: border-box; padding: 0 12px; flex-shrink: 0; }
 #tj-root .mode-toggle-wrap, #bj-root .mode-toggle-wrap {
-  position: relative; gap: 6px !important; border: 1px solid var(--border2); border-radius: var(--radius);
-  background: transparent; color: var(--text2); cursor: pointer;
-  transition: background .12s, color .12s, border-color .12s, box-shadow .12s;
+  gap: 8px !important; padding: 0 9px 0 11px !important; border: 1px solid var(--border2); border-radius: var(--radius);
+  transition: border-color .12s;
 }
-#tj-root .mode-toggle-wrap:hover { color: var(--text); border-color: var(--ac); box-shadow: var(--suite-glow); }
-#bj-root .mode-toggle-wrap:hover { color: var(--text); background: var(--card2); }
-/* The switch's label covers the whole button, so a click anywhere toggles it. */
-#tj-root .mode-toggle, #bj-root .mode-toggle { position: absolute !important; inset: 0; width: auto !important; height: auto !important; z-index: 1; border-radius: inherit; }
-#tj-root .toggle-track, #tj-root .toggle-knob, #bj-root .toggle-track, #bj-root .toggle-knob { display: none !important; }
-#tj-root .mode-toggle-label, #bj-root .mode-toggle-label {
-  width: auto !important; text-align: left !important; color: inherit !important;
-  font-family: var(--font) !important; font-weight: 700 !important; text-transform: uppercase;
-}
-#tj-root .mode-toggle-label { font-size: 10px !important; letter-spacing: .03em !important; }
-#bj-root .mode-toggle-label { font-size: 11px !important; letter-spacing: .07em !important; }
-#tj-root .mode-toggle-wrap .mt-ic, #bj-root .mode-toggle-wrap .mt-ic { flex-shrink: 0; }
-#tj-root .mode-toggle-wrap .mt-ic-edit, #bj-root .mode-toggle-wrap .mt-ic-edit { display: none; }
-#tj-root .mode-toggle-wrap:has(input:checked) .mt-ic-edit, #bj-root .mode-toggle-wrap:has(input:checked) .mt-ic-edit { display: block; }
-#tj-root .mode-toggle-wrap:has(input:checked) .mt-ic-view, #bj-root .mode-toggle-wrap:has(input:checked) .mt-ic-view { display: none; }
-/* Editing: the accent, as the Export PDF button wears it. */
-#tj-root .mode-toggle-wrap:has(input:checked) { color: var(--ac); border-color: var(--ac); }
-#bj-root .mode-toggle-wrap:has(input:checked) { color: var(--purple); border-color: rgba(141,118,154,.55); }
-#tj-root .mode-toggle-wrap:has(input:focus-visible), #bj-root .mode-toggle-wrap:has(input:focus-visible) { outline: 2px solid var(--purple); outline-offset: 2px; }
+#tj-root .mode-toggle-wrap:has(input:checked) { border-color: var(--ac); }
+#bj-root .mode-toggle-wrap:has(input:checked) { border-color: rgba(141,118,154,.55); }
+#tj-root .mode-toggle-label, #bj-root .mode-toggle-label { width: auto !important; text-align: left !important; }
+#tj-root .mode-toggle, #bj-root .mode-toggle { width: 34px !important; height: 18px !important; }
+#tj-root .toggle-knob, #bj-root .toggle-knob { top: 3px; left: 3px; width: 12px !important; height: 12px !important; }
+#tj-root .mode-toggle input:checked ~ .toggle-knob, #bj-root .mode-toggle input:checked ~ .toggle-knob { transform: translateX(16px) !important; }
+#tj-root .mode-toggle:has(input:focus-visible), #bj-root .mode-toggle:has(input:focus-visible) { outline: 2px solid var(--purple); outline-offset: 2px; border-radius: 34px; }
+#tj-root #tj-toolbar .tb-btn.lock-btn, #bj-root #bj-toolbar .tb-btn.lock-btn { width: 32px; padding: 0 !important; justify-content: center; }
+#tj-root .tb-btn.lock-btn svg, #bj-root .tb-btn.lock-btn svg { width: 15px; height: 15px; display: block; }
 
 /* ════════════════════════════════════════════════════════════════════════
      Journal shell responsive layer — the chrome around the editor
