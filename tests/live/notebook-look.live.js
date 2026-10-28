@@ -23,7 +23,10 @@ const ok = (name, cond, extra) => {
 const ORIGIN = 'https://anthonyn99.github.io', BASE = ORIGIN + '/A1/';
 const HTML = '<h2>Heading</h2><p>Some <strong>bold</strong> text.</p><ul><li>one</li></ul>';
 const entry = (id, title) => ({ id, title, template: 'page', created: 1, updated: 1, tags: [], data: { html: HTML, attachments: [] }, rev: 1 });
-const WIDTH = 1180;   // both ribbons are laid out at this width before measuring
+const WIDTH = 1180;
+// What an instance adds beside its title and its journal lacks: which side it
+// is ("Editing in T's Notebook"), and a host's Done (notebook.js addDone).
+const SIDE_LINE = /\/span\.nb-done(\/|$)/;   // both ribbons are laid out at this width before measuring
 
 const PROPS = ['width', 'height', 'padding', 'margin', 'font-size', 'font-family', 'font-weight', 'border', 'border-radius', 'background-color',
   'color', 'display', 'flex', 'line-height', 'box-shadow', 'min-height', 'min-width', 'max-width', 'gap', 'cursor', 'transition', 'opacity',
@@ -74,7 +77,7 @@ function compare(a, b, allowMissing, opts) {
     for (const p in o.st) if (o.st[p] !== x.st[p] && !(p === 'width' && opts.flex && opts.flex.test(o.p))) d.push(p + ': ' + o.st[p] + ' -> ' + x.st[p]);
     if (d.length) diffs.push(o.p.slice(-90) + ' { ' + d.join('; ') + ' }');
   }
-  for (const [k, arr] of mb) arr.slice(seen.get(k) || 0).forEach((o) => diffs.push('extra ' + o.p));
+  for (const [k, arr] of mb) arr.slice(seen.get(k) || 0).forEach((o) => { if (!allowMissing.some((re) => re.test(o.p))) diffs.push('extra ' + o.p); });
   return diffs;
 }
 
@@ -189,7 +192,7 @@ const HOSTS = [
     const got = await take(H.key);
     let d = compare(std.ribbon, got.ribbon, []);
     ok('its ribbon is MyJournal\'s: every button in the same place, the same size, the same look', d.length === 0, d.join('\n      '));
-    d = compare(std.bar, got.bar, H.missing.concat([/#K-sync-pill/]), { sizeOnly: true, flex: /#K-entry-title-input$/ });
+    d = compare(std.bar, got.bar, H.missing.concat([/#K-sync-pill/, SIDE_LINE]), { sizeOnly: true, flex: /#K-entry-title-input$/ });
     ok('its title bar is MyJournal\'s (less what its mount turns off)', d.length === 0, d.join('\n      '));
     const hm = new Map(); got.hover.forEach(([k, v]) => { if (!hm.has(k)) hm.set(k, []); hm.get(k).push(v); });
     const seen = new Map();
@@ -235,7 +238,7 @@ const HOSTS = [
   const vgot = await take('vn');
   let vd = compare(vstd.ribbon, vgot.ribbon, []);
   ok('its ribbon is her journal\'s: every button in the same place, the same size, the same look', vd.length === 0, vd.join('\n      '));
-  vd = compare(vstd.bar, vgot.bar, [/#K-btn-lock/, /#K-sync-pill/], { sizeOnly: true, flex: /#K-entry-title-input$/ });
+  vd = compare(vstd.bar, vgot.bar, [/#K-btn-lock/, /#K-sync-pill/, SIDE_LINE], { sizeOnly: true, flex: /#K-entry-title-input$/ });
   ok('its title bar is her journal\'s (less the lock, off for an instance)', vd.length === 0, vd.join('\n      '));
   const vhm = new Map(); vgot.hover.forEach(([k, v]) => { if (!vhm.has(k)) vhm.set(k, []); vhm.get(k).push(v); });
   const vseen = new Map();
