@@ -25772,28 +25772,20 @@ function queueEdit(id) {
     unitCount.classList.toggle("empty", units.size === 0);
   }
 
+  // The row's own units, not the ticked set: this prompt is the one being
+  // rewritten, and an unticked unit must not be driven for it. A task's
+  // are its browser agents, and the rewrite is aimed at a coding agent.
+  const refineUnits = () => (isCode ? codeRefineUnits([...units]) : [...units]);
   refine.onclick = async () => {
-    if (refining || !online()) return;
+    if (refining || !refineCanRun(refineUnits())) return;
     refining = true; setErrEl(null); sync();
     try {
-      const form = new FormData();
-      form.append("question", text);
-      // The row's own units, not the ticked set: this prompt is the one being
-      // rewritten, and an unticked unit must not be driven for it. A task's
-      // are its browser agents, and the rewrite is aimed at a coding agent.
-      form.append("providers", (isCode ? codeRefineUnits([...units]) : [...units]).join(","));
-      if (isCode) form.append("kind", "code");
-      const r = await fetch(`${link.api}/api/refine`,
-                            authed({ method: "POST", body: form }));
-      if (!r.ok) {
-        const d = await r.json().catch(() => null);
-        throw new Error((d && d.detail) || `Refine failed (${r.status})`);
-      }
-      const { refined } = await r.json();
+      const { refined, missing } = await refineText(text, refineUnits(), isCode ? "code" : "");
       if (preRefine === null) preRefine = text;
       text = refined;
       ta.value = refined;
       undo.hidden = false;
+      setErrEl(refineLossNote(missing));
     } catch (e) {
       setErrEl((e && e.message) || "Refine failed.");
     }
