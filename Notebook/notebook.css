@@ -212,6 +212,17 @@ li.docx-cl-item.done > .docx-cl-text { text-decoration: line-through; opacity: .
   #bj-root .docx-toolbar.edit-mode ~ .docx-ruler { display: block; }
 }
 
+/* With the ruler showing, the page sits right under it: 5px below its bar,
+   the same gap the vertical ruler keeps from the page's side (updateVRuler).
+   The bar ends 20px into the 25px strip, and the page area's own top padding
+   goes. Not with the bar hidden (page fullscreen), nor on Journal Entries. */
+@media (min-width: 900px) {
+  #tj-root:not(.tj-fs-nobar) .docx-toolbar.edit-mode:not(#tj-je-toolbar) ~ .docx-ruler,
+  #bj-root:not(.bj-fs-nobar) .docx-toolbar.edit-mode ~ .docx-ruler { height: 25px; }
+  #tj-root:not(.tj-fs-nobar) .docx-toolbar.edit-mode:not(#tj-je-toolbar) ~ .docx-ruler + .docx-wrap:not(.docx-reflow),
+  #bj-root:not(.bj-fs-nobar) .docx-toolbar.edit-mode ~ .docx-ruler + .docx-wrap:not(.docx-reflow) { padding-top: 0 !important; }
+}
+
 /* ── Vertical ruler (Batch 11 #1: draggable TOP / BOTTOM margins) ── */
 #tj-root .docx-vruler, #bj-root .docx-vruler { display: none; position: absolute; width: 13px; background: #3a3b40; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0,0,0,.4); z-index: 4; user-select: none; }
 #tj-root .docx-vruler-page, #bj-root .docx-vruler-page { position: absolute; left: 0; right: 0; background: #26272B; }
