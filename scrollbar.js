@@ -226,6 +226,15 @@
     // where that header ends, not behind it.
     var pin = 0;
     if (isDoc) { var hd = document.querySelector('[data-sb-top]'); if (hd) pin = Math.max(0, hd.getBoundingClientRect().bottom); }
+    // A box that scrolls under its own sticky header (ProView's #pv-root) marks
+    // that header the same way; the lowest one showing is where the bar starts.
+    else if (el.querySelectorAll) {
+      var hs = el.querySelectorAll('[data-sb-top]');
+      for (var hi = 0; hi < hs.length; hi++) {
+        var hr = hs[hi].getBoundingClientRect();
+        if (hr.height > 0 && hr.bottom > pin && hr.bottom < rect.bottom) pin = hr.bottom;
+      }
+    }
     m.g = {
       top: Math.max(rect.top, pin, 0), bottom: Math.min(rect.bottom, vh()),
       left: Math.max(rect.left, 0), right: Math.min(rect.right, vw()), rect: rect,
