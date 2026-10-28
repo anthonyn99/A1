@@ -4621,6 +4621,7 @@ function wireColorShortcuts(ctx) {
   btn.addEventListener('click', function () {
     showPop(btn, function (pop) {
       pop.classList.add('docx-colorpop');
+      if (!_legacyRibbon(ctx)) pop.classList.add('docx-colorpop-v2');
       if (!_legacyRibbon(ctx)) pop.appendChild(mlabel('Text colour'));
       var grid = document.createElement('div'); grid.className = 'docx-color-grid';
       DOCX_COLORS.forEach(function (c) {
