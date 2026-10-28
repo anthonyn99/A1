@@ -3593,14 +3593,11 @@ textarea.bs-topic:focus, textarea.bs-topic:focus-visible { outline: none; }
   max-width: 100%; min-width: 0;
 }
 .prof-btn:hover { border-color: var(--pc); }
-/* Outlined, like the gate's. A tinted disc behind a person's mark reads as a
-   selected state rather than as an identity, and it is only ever an identity. */
+/* No disc and no second ring: the chip's own ring is the outline, and a
+   tinted disc behind a person's mark would read as a selected state. */
 .prof-av {
-  width: 18px; height: 18px; flex: 0 0 18px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 10px; line-height: 1; border-radius: 50%;
-  background: none;
-  border: 1px solid var(--pc);
+  font-size: 14px; line-height: 1; color: var(--pc);
 }
 .nav-collapsed .sidebar .prof-btn { display: none; }
 
