@@ -2074,30 +2074,23 @@ async def cancel_brainstorm_job(session_id: str, job_id: str):
 # cost of the feature. The API path answers in about a second.
 REFINER_PROVIDER_ID = "gemini-api"
 
-# Which UNIT an API-backed provider is. The tick boxes are about models, not
-# about transports: unticking GEMINI means "do not use Gemini", and reaching
-# the same model through an API key instead of a logged-in tab is still using
-# it -- same company, same account, same instruction being ignored.
+# Which UNIT an API-backed provider is reached instead of. The GEMINI tick
+# box is about the Gemini BROWSER unit only (Tony, 2026-10-28): the API key
+# refines whether or not it is ticked. Kept so skip_api can tell an API
+# refiner from a browser one.
 API_PROVIDER_UNIT = {"gemini-api": "gemini"}
 
 
 def _refiner_id(allowed: list[str] | None = None) -> str:
-    """The provider the refiner should use, within the units selected.
+    """The provider the refiner should use.
 
-    Refine is the quiet one. It is not a council run, it produces no History
-    row, and it is easy to forget it drives a model at all -- which is exactly
-    why it was the last place an unticked unit could still be used. It takes
-    the selection like everything else now.
-
-    Preference is still the Gemini API when its key is set AND Gemini is
-    selected: it answers in a second where the browser path spends several
-    launching Chrome to rewrite one sentence. Otherwise it falls back to a
-    selected browser member -- slow, but yours.
+    The Gemini API whenever its key is set, ticked or not: the GEMINI box is
+    the browser unit, and the key is not a unit (Tony, 2026-10-28). It answers
+    in a second where the browser path spends several launching Chrome to
+    rewrite one sentence. Without a key it falls back to a SELECTED browser
+    member -- browser units still obey the tick boxes.
     """
-    if (
-        gemini_api.load_api_key()
-        and (allowed is None or API_PROVIDER_UNIT[REFINER_PROVIDER_ID] in allowed)
-    ):
+    if gemini_api.load_api_key():
         return REFINER_PROVIDER_ID
     return studio_engine.pick_generator_id(settings, None, allowed)
 
@@ -2114,7 +2107,7 @@ def _resolve_refiner(requested: str, allowed: list[str] | None) -> str:
         requested
         and allowed
         and requested not in allowed
-        and API_PROVIDER_UNIT.get(requested) not in allowed
+        and requested not in API_PROVIDER_UNIT
     ):
         requested = ""
     return requested or _refiner_id(allowed)

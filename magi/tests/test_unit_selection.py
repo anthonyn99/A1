@@ -5,8 +5,8 @@ sweeps the three that were still doing it afterwards:
 
   · the DOCTOR opened a real Chrome against every configured site, signed in
     as you, regardless of the selection;
-  · REFINE reached Gemini through its API key even with Gemini unticked --
-    the tick boxes are about models, not about transports;
+  · REFINE's browser fallback must stay inside the selection (its Gemini
+    API key is not a unit and works ticked or not -- Tony, 2026-10-28);
   · the brainstorm FINALIZE fallback picked a chairman from every enabled
     unit when the critique pass produced no eligible member.
 
@@ -30,16 +30,11 @@ def _with_key(monkeypatch, present: bool = True):
     monkeypatch.setattr(app.gemini_api, "load_api_key", lambda: "k" if present else "")
 
 
-def test_the_api_refiner_is_refused_when_its_unit_is_unticked(monkeypatch):
-    """Reaching Gemini by API key is still using Gemini.
-
-    The tick boxes name MODELS. A key is a different door into the same
-    company, the same account and the same instruction being ignored.
-    """
+def test_the_api_refiner_works_with_gemini_unticked(monkeypatch):
+    """The GEMINI box is the browser unit; the API key is not a unit."""
     _with_key(monkeypatch)
-    got = app._refiner_id(["chatgpt", "claude"])
-    assert got != app.REFINER_PROVIDER_ID
-    assert got in ("chatgpt", "claude")
+    assert app._refiner_id(["chatgpt", "claude"]) == app.REFINER_PROVIDER_ID
+    assert app._resolve_refiner(app.REFINER_PROVIDER_ID, ["chatgpt"]) == app.REFINER_PROVIDER_ID
 
 
 def test_the_api_refiner_is_used_when_gemini_is_selected(monkeypatch):
@@ -62,7 +57,6 @@ def test_no_selection_at_all_still_works(monkeypatch):
 def test_an_explicit_provider_id_cannot_route_around_the_tick_boxes(monkeypatch):
     _with_key(monkeypatch)
     assert app._resolve_refiner("claude", ["chatgpt"]) != "claude"
-    assert app._resolve_refiner(app.REFINER_PROVIDER_ID, ["chatgpt"]) != app.REFINER_PROVIDER_ID
 
 
 def test_an_explicit_provider_id_is_honoured_when_it_is_selected(monkeypatch):
