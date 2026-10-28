@@ -341,7 +341,10 @@ document.addEventListener('pointerdown', function(e) {
   if (openPop && !openPop.contains(e.target) && e.target !== openPop._btn && !(openPop._btn && openPop._btn.contains(e.target))) closePop();
 }, true);
 document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closePop(); });
+// A second click on the button that opened a pop closes it (every pop: menus,
+// font, colour, table grid, spacing, AI Tools) and returns null.
 function showPop(anchor, build, opts) {
+  if (openPop && openPop._btn === anchor) { closePop(); return null; }
   closePop();
   var pop = document.createElement('div');
   pop.className = 'docx-pop';
