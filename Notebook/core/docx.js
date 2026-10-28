@@ -4497,9 +4497,11 @@ function wireHighlightClamp(ctx) {
     palette.style.top = ''; palette.style.left = ''; palette.style.right = '';
     var tr = trigger.getBoundingClientRect();
     var pw = palette.offsetWidth || 130, ph = palette.offsetHeight || 40;
-    var left = Math.max(8, Math.min(tr.right - pw, window.innerWidth - pw - 8));   // right-align, keep on-screen
-    var top = tr.bottom + 4;
-    if (top + ph > window.innerHeight - 8) top = Math.max(8, tr.top - ph - 4);      // flip above if no room below
+    // Under the button, left-aligned (the old ribbon right-aligns), kept on-screen.
+    var gap = _legacyRibbon(ctx) ? 4 : 8;
+    var left = Math.max(8, Math.min(_legacyRibbon(ctx) ? tr.right - pw : tr.left - 4, window.innerWidth - pw - 8));
+    var top = tr.bottom + gap;
+    if (top + ph > window.innerHeight - 8) top = Math.max(8, tr.top - ph - gap);      // flip above if no room below
     palette.style.left = left + 'px';
     palette.style.top = top + 'px';
   }

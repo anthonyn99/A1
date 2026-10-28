@@ -898,7 +898,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 
 /* ── The highlight palette: a proper popover ── */
 #tj-root .docx-toolbar:not(#tj-je-toolbar) .pt-hl-palette, #bj-root .pt-hl-palette {
-  top: calc(100% + 8px) !important; right: auto !important; left: -6px !important; z-index: 100030 !important;
+  z-index: 100030 !important;   /* placed by wireHighlightClamp (docx.js) */
   width: auto !important; max-width: calc(100vw - 24px);
   grid-template-columns: repeat(6, 24px); gap: 9px; padding: 12px;
   background: var(--nbt-pop) !important; border: 1px solid rgba(255,255,255,.09) !important; border-radius: 12px !important;
@@ -953,8 +953,6 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   .docx-colorpop-v2 .docx-color-sw { width: 34px !important; height: 34px !important; }
 }
 @media (max-width: 700px) {
-  /* The palette opens from a button that may sit at the right edge. */
-  #tj-root .docx-toolbar:not(#tj-je-toolbar) .pt-hl-palette, #bj-root .pt-hl-palette { left: auto !important; right: -6px !important; }
   #tj-root .docx-grp > .pt-select[id$="-block"], #bj-root .docx-grp > .pt-select[id$="-block"] { min-width: 104px !important; }
 }
 @media (max-height: 540px) and (max-width: 1024px) {
