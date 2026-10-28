@@ -228,6 +228,16 @@ store named `tony_journal`. An unprefixed name would be shared by every instance
 | Local cache | `localStorage['<store>_v3']`, `docx_*_<key>`, `<key>_unlocked*_<id>` |
 | Locks | taskhub-reminders worker, `jKey(<key>, entryId)` |
 
+**AI tools** (AI Format, AI Refine, custom tools) all post to personal-ai
+`/journal/format` with the mount's `aiProfile`, so each side runs on its own
+person's Gemini key (`TONY_` / `VEDA_GEMINI_KEY`, the same keys MAGI's Refine
+uses). Since 2026-10-28 the worker races its chain (`MODELS`: Gemini Flash
+models, Workers AI's Llama 4 Scout and Mistral Small behind them) and prefers
+an answer that kept every `[[IMGn]]` token and section marker, and for AI Format
+its length (`formatKeepsContent`); if a token is still lost, `aiRestoreImages`
+puts that image, file or link back at the end of its piece. Tests:
+`workers/personal-ai/refine.test.mjs`, `tests/notebook-ai-restore.test.js`.
+
 ## Firebase cost
 
 | Action | Reads | Writes |
