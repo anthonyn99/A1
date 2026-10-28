@@ -33,7 +33,9 @@
  * Endpoints:
  *   GET  /                   → health (env, item count — no secrets)
  *   POST /sandbox/e2e        → full Sandbox validation chain (sandbox-only)
- *   POST /link/token/create  → link_token for the Plaid Link widget
+ *   POST /link/token/create  → link_token for the Plaid Link widget; with
+ *                              item_id it's an update-mode token that
+ *                              re-logs an item the bank signed out
  *   POST /link/exchange      → public_token → access_token, stored in KV
  *   GET  /items              → stored items (names/ids only — no tokens)
  *   POST /sync               → full pipeline for every item: Plaid
@@ -442,6 +444,8 @@ async function fsBatchWrite(env, token, writes) {
   return written;
 }
 
+const LOGIN_CODES = new Set(['ITEM_LOGIN_REQUIRED', 'PENDING_EXPIRATION', 'PENDING_DISCONNECT']);
+
 // ── Full sync pipeline (cron + POST /sync share this) ───────────────────────
 // Per item: Plaid /transactions/sync → normalize → Firestore batchWrite
 // (upsert added+modified, delete removed) → refresh account balances →
@@ -492,6 +496,10 @@ async function runFullSync(env, trigger) {
     } catch (e) {
       r.ok = false;
       r.error = e.message;
+      // The bank signed the item out (password changed, MFA, consent
+      // expired). Only a Plaid Link update-mode session fixes it, so the
+      // page offers a Reconnect button for these.
+      if (LOGIN_CODES.has(e.plaid?.code)) r.needsLogin = true;
       out.ok = false;
     }
     out.results.push(r);
@@ -506,7 +514,8 @@ async function runFullSync(env, trigger) {
           lastSyncTrigger: trigger,
           env: plaidEnv(env),
           lastSyncResults: out.results.map(r => ({
-            institution: r.institution, ok: r.ok,
+            institution: r.institution, item_id: r.item_id, ok: r.ok,
+            needsLogin: !!r.needsLogin,
             added: r.added ?? 0, modified: r.modified ?? 0, removed: r.removed ?? 0
           }))
         })
@@ -605,6 +614,16 @@ export default {
         // If it isn't registered yet, Plaid rejects the whole request — so
         // fall back to a redirect-less token, which still connects every
         // non-OAuth bank. `oauthReady:false` tells the UI to say so.
+        // Update mode: an access_token instead of products re-logs that
+        // item in place; the item_id and token stay the same, so there is
+        // nothing to exchange afterwards.
+        if (body.item_id) {
+          const item = await env.INSIGHT_KV.get(itemKey(body.item_id), 'json');
+          if (!item) return json({ ok: false, error: 'unknown item' }, origin, 404);
+          delete base.products;
+          delete base.transactions;
+          base.access_token = item.access_token;
+        }
         let data, oauthReady = true;
         try {
           data = await plaidPost(env, '/link/token/create', { ...base, redirect_uri: redirectUriFor(origin) });
