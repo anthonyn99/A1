@@ -33,7 +33,7 @@ THE REQUEST
 
 Rewrite it. Do not answer it, do not carry out any part of it, and do not add your own opinion -- your entire output is the rewritten request, which will be sent on to the models verbatim.
 
-Nothing may be lost. Every detail the person gave must still be in the rewrite: every question and every separate part of the request, every name, number, amount, date, time, place, quantity, URL, file name, path, identifier, code, error message and quoted text, every preference and constraint, and any pasted notes or data. Keep those specifics exactly as written -- do not round, convert, translate, abbreviate, or swap a figure for a word. If the person pasted material (notes, a list, text, code), keep all of it in full inside the rewrite rather than summarising it.
+Nothing may be lost. Every detail the person gave must still be in the rewrite: every question and every separate part of the request, every name, number, amount, date, time, place, quantity, URL, file name, path, identifier, code, error message and quoted text, every preference and constraint, and any pasted notes or data. Keep those specifics exactly as written -- do not round, convert, translate, abbreviate, or swap a figure for a word. If the person pasted material (notes, a list, text, code), keep all of it in full inside the rewrite, with its line breaks and list structure, rather than summarising it or folding it into a sentence.
 
 What a good rewrite does:
 - Keeps the person's actual intent, subject and scope exactly. You are sharpening what they asked, not replacing it with a better question.
