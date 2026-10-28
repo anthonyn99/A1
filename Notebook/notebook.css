@@ -969,7 +969,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
    (the switch fills with the accent while editing); Lock is a square padlock
    (open or closed), no words. ── */
 #tj-root #tj-toolbar .tb-btn, #bj-root #bj-toolbar .tb-btn,
-#tj-root #tj-toolbar .mode-toggle-wrap, #bj-root #bj-toolbar .mode-toggle-wrap { height: 32px; box-sizing: border-box; padding: 0 12px; flex-shrink: 0; }
+#tj-root #tj-toolbar .mode-toggle-wrap, #bj-root #bj-toolbar .mode-toggle-wrap { height: 32px !important; min-height: 32px !important; max-height: 32px; box-sizing: border-box; padding: 0 12px; flex-shrink: 0; }
 #tj-root .mode-toggle-wrap, #bj-root .mode-toggle-wrap {
   gap: 8px !important; padding: 0 9px 0 11px !important; border: 1px solid var(--border2); border-radius: var(--radius);
   transition: border-color .12s;
@@ -992,7 +992,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 #tj-root .toggle-knob, #bj-root .toggle-knob { top: 3px; left: 3px; width: 12px !important; height: 12px !important; }
 #tj-root .mode-toggle input:checked ~ .toggle-knob, #bj-root .mode-toggle input:checked ~ .toggle-knob { transform: translateX(16px) !important; }
 #tj-root .mode-toggle:has(input:focus-visible), #bj-root .mode-toggle:has(input:focus-visible) { outline: 2px solid var(--purple); outline-offset: 2px; border-radius: 34px; }
-#tj-root #tj-toolbar .tb-btn.lock-btn, #bj-root #bj-toolbar .tb-btn.lock-btn { width: 32px; padding: 0 !important; justify-content: center; }
+#tj-root #tj-toolbar .tb-btn.lock-btn, #bj-root #bj-toolbar .tb-btn.lock-btn { width: 32px !important; min-width: 32px; padding: 0 !important; justify-content: center; }
 #tj-root .tb-btn.lock-btn svg, #bj-root .tb-btn.lock-btn svg { width: 15px; height: 15px; display: block; }
 
 /* ════════════════════════════════════════════════════════════════════════
