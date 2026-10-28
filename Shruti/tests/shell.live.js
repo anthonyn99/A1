@@ -161,7 +161,8 @@ async function load(c, { w, h, mobile, store, hash = '' }) {
   ok('the book opens straight away (he was here last)', await waitFor(c, `document.querySelectorAll('.ch').length===18`));
   ok('the bottom nav shows; the desktop tabs and crumbs hide', await ev(c, `return getComputedStyle(document.querySelector('.bnav')).display==='flex' && getComputedStyle(document.querySelector('#top .tnav')).display==='none'`));
   ok('nothing scrolls sideways', await ev(c, `return document.documentElement.scrollWidth<=innerWidth`), await ev(c, `return document.documentElement.scrollWidth+' > '+innerWidth`));
-  ok('touch targets are at least 44px', await ev(c, `return [...document.querySelectorAll('#top .ib')].every(b=>b.getBoundingClientRect().height>=44)`));
+  ok('one Settings: the header gear hides, the bottom nav keeps it', await ev(c, `return getComputedStyle(document.getElementById('settings-btn')).display==='none' && !!document.querySelector('.bnav [data-nav="settings"]').getClientRects().length`));
+  ok('touch targets are at least 44px', await ev(c, `return [...document.querySelectorAll('#top .ib')].filter(b=>b.getClientRects().length).every(b=>b.getBoundingClientRect().height>=44)`));
   await shot(c, 'tony-book-390');
   await ev(c, `window.Shruti.player.show({title:'Chapter 2 · Spiritual knowledge', sub:'Read-aloud'}); return 1`);
   await sleep(700);   // its slide-in has settled
