@@ -194,6 +194,8 @@ const HOSTS = [
     ok('its ribbon is MyJournal\'s: every button in the same place, the same size, the same look', d.length === 0, d.join('\n      '));
     ok("it says it is T's Notebook (its root, and the line beside its title or its host's own bar)", await js(`var r=document.getElementById('${H.key}-root'), n=document.querySelector('#${H.key}-root .nb-done-note, #ew-nb-overlay .sub');
       return r.dataset.notebookSide === 'tony' && !!n && n.textContent.trim() === "Editing in T's Notebook";`));
+    ok('its page title, focused, is plain text: no ring, outline or border from the host', await js(`var t=document.getElementById('${H.key}-entry-title-input'); t.focus(); var st=getComputedStyle(t);
+      var r = st.boxShadow === 'none' && st.outlineStyle === 'none' && st.borderTopStyle === 'none'; t.blur(); return r;`));
     d = compare(std.bar, got.bar, H.missing.concat([/#K-sync-pill/, SIDE_LINE]), { sizeOnly: true, flex: /#K-entry-title-input$/ });
     ok('its title bar is MyJournal\'s (less what its mount turns off)', d.length === 0, d.join('\n      '));
     const hm = new Map(); got.hover.forEach(([k, v]) => { if (!hm.has(k)) hm.set(k, []); hm.get(k).push(v); });
