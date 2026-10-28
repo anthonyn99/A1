@@ -353,6 +353,63 @@ async function geminiOnce(model, key, o, timeoutMs) {
   return { cls: 'retry', err: `${model}: unparseable output` };
 }
 
+// Workers AI: Cloudflare's own models, through the [ai] binding in
+// wrangler.toml. No key, a separate free daily allowance, and a different
+// company's servers -- so when Gemini sheds load (2026-10-28: 503 on nearly
+// every Flash model for hours, 11-20 s on the calls that did answer) these
+// still answer in 1-2 s. A model id starting "@cf/" in a chain runs here.
+// Same outcome classes as geminiOnce, so runStaggered treats both alike.
+// Gemini's schema dialect ("OBJECT"/"STRING") is lowercased for JSON Schema.
+function jsonSchemaOf(s) {
+  if (!s || typeof s !== 'object') return s;
+  const out = {};
+  for (const [k, v] of Object.entries(s)) {
+    if (k === 'type' && typeof v === 'string') out.type = v.toLowerCase();
+    else if (k === 'properties') out.properties = Object.fromEntries(Object.entries(v).map(([p, d]) => [p, jsonSchemaOf(d)]));
+    else if (k === 'items') out.items = jsonSchemaOf(v);
+    else out[k] = v;
+  }
+  return out;
+}
+async function cfOnce(model, o, timeoutMs) {
+  const ai = o.env && o.env.AI;
+  if (!ai) return { cls: 'fatal', err: `${model}: no AI binding` };
+  const input = {
+    messages: [{ role: 'user', content: o.prompt }],
+    max_tokens: Math.min(o.maxOutputTokens || 2048, 16000),
+    temperature: 0.2,
+  };
+  if (o.schema) input.response_format = { type: 'json_schema', json_schema: jsonSchemaOf(o.schema) };
+  let timer;
+  let r;
+  try {
+    r = await Promise.race([
+      ai.run(model, input),
+      new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('timeout')), timeoutMs); }),
+    ]);
+  } catch (e) {
+    const m = String((e && e.message) || e || 'error');
+    if (m === 'timeout') return { cls: 'next', err: `${model}: timeout ${timeoutMs}ms` };
+    // The daily free allowance or a per-minute cap: this model is done for now.
+    if (/\b429\b|capacity|neurons|limit|quota/i.test(m)) return { cls: 'quota', err: `${model}: ${m.slice(0, 120)}` };
+    return { cls: 'next', err: `${model}: ${m.slice(0, 120)}` };
+  } finally {
+    clearTimeout(timer);
+  }
+  let resp = r && (r.response !== undefined ? r.response
+    : r.choices && r.choices[0] && r.choices[0].message && r.choices[0].message.content);
+  if (resp && typeof resp === 'object') return { cls: 'ok', value: resp };
+  const text = String(resp || '').trim();
+  if (!text) return { cls: 'next', err: `${model}: empty` };
+  try { return { cls: 'ok', value: JSON.parse(text) }; } catch (e) { /* fall through */ }
+  const salvaged = o.salvage ? o.salvage(text) : null;
+  if (salvaged) return { cls: 'ok', value: salvaged };
+  return { cls: 'next', err: `${model}: unparseable output` };
+}
+const aiOnce = (model, key, o, timeoutMs) => (model.startsWith('@cf/')
+  ? cfOnce(model, o, timeoutMs)
+  : geminiOnce(model, key, o, timeoutMs));
+
 // Resolve with the first promise that yields a truthy value; null if none do.
 // Losers are abandoned in flight (a Worker just drops them).
 function firstTruthy(promises) {
@@ -1107,8 +1164,10 @@ function runStaggered(models, key, o) {
     const run = (model, opts, label, onDone) => {
       live++; tried.push(label);
       const attempt = async (n) => {
-        const r = await geminiOnce(model, key, opts, Math.min(o.timeoutMs || 20000, Math.max(1000, left())));
-        if (r.cls === 'retry' && n === 0 && !done && left() > 3000) { await sleep(250); return attempt(1); }
+        const r = await aiOnce(model, key, opts, Math.min(o.timeoutMs || 20000, Math.max(1000, left())));
+        // o.retry === false: a second try of the same model is slower than the
+        // next one in the chain (Refine, where every second shows).
+        if (r.cls === 'retry' && n === 0 && o.retry !== false && !done && left() > 3000) { await sleep(250); return attempt(1); }
         return r;
       };
       attempt(0).then((r) => { live--; if (!done) onDone(r); },
