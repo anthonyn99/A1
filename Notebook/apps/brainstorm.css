@@ -867,27 +867,6 @@
     padding: 2px 14px 5px;
   }
 
-  /* ── TOOLTIP ── */
-#bj-root [data-tip] { position: relative; }
-#bj-root [data-tip]::after {
-    content: attr(data-tip);
-    position: absolute;
-    bottom: calc(100% + 6px);
-    left: 50%; transform: translateX(-50%);
-    white-space: nowrap;
-    font-family: var(--font-mono);
-    font-size: 10px;
-    background: var(--card);
-    color: var(--text2);
-    border: 1px solid var(--border2);
-    padding: 3px 8px;
-    border-radius: 4px;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.15s;
-    z-index: 99;
-  }
-#bj-root [data-tip]:hover::after { opacity: 1; }
 
 /* ── BJ SYNC PILL ──────────────────────────────────────────────────
    Everwell's design, the same in every A1 program (apphead.js; Tony,
