@@ -3003,6 +3003,8 @@ var IC = {
   fullscreen: '<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>',
   fullscreenExit: '<path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/>',
 };
+// The one dropdown caret every ribbon control uses.
+var CARET = '<svg class="docx-caret" viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
 function svg(paths, size) {
   return '<svg width="' + (size || 15) + '" height="' + (size || 15) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + paths + '</svg>';
 }
@@ -3076,8 +3078,7 @@ function injectRibbonExtras(ctx) {
   var tb = ctx.tbEl;
   // ── AI Tools + Undo / Redo / Print at the very start (after menubar) ──
   var startFrag = document.createDocumentFragment();
-  var aiB = ptBtn(svg(IC.ai) + '<span class="docx-ai-lbl" style="margin-left:4px;font-weight:600;">AI Tools</span>' +
-                  '<span class="docx-ai-caret">▾</span>',
+  var aiB = ptBtn(svg(IC.ai) + '<span class="docx-ai-lbl">AI Tools</span>' + CARET,
                   'AI Tools — AI Format, AI Refine, or your own tools.\nHighlight text to run on the selection only; highlight nothing to run on the whole document.');
   aiB.className = 'pt-btn docx-ai-btn docx-r1';
   if (_docxFeatureLocked(ctx.app, 'aiFormat')) { aiB.classList.add('docx-feature-locked'); aiB.title = 'This feature has been disabled on your journal.'; }
@@ -3115,16 +3116,11 @@ function injectRibbonExtras(ctx) {
   var fsSel = tb.querySelector('[id$="-fontsize"]');
   var fontB = ptBtn('', 'Font family');
   fontB.className = 'pt-btn docx-fontfam-btn docx-r2';
-  fontB.style.minWidth = '104px';
-  fontB.style.justifyContent = 'space-between';
   var fontLbl = document.createElement('span');
+  fontLbl.className = 'docx-fontfam-lbl';
   fontLbl.textContent = 'Arial';
-  fontLbl.style.cssText = 'max-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
   fontB.appendChild(fontLbl);
-  var caret = document.createElement('span');
-  caret.textContent = '▾';
-  caret.style.cssText = 'font-size:9px;opacity:.7;margin-left:3px;';
-  fontB.appendChild(caret);
+  fontB.insertAdjacentHTML('beforeend', CARET);
   fontB.addEventListener('mousedown', function(e) { e.preventDefault(); saveSel(ctx); });
   fontB.addEventListener('click', function() { fontPop(ctx, fontB); });
   ctx.fontLbl = fontLbl;
@@ -3248,6 +3244,18 @@ function groupRibbon(ctx) {
   });
   tb.appendChild(row);
   ctx.ribbonRow = row;
+  // Each run of controls between two separators becomes one .docx-grp: one
+  // outline round its buttons, and it wraps as a unit, so a row never breaks
+  // mid-group. The separators and the old flex spacer go (the spacer pushed
+  // Clear all off on its own at the far right).
+  var grp = null;
+  Array.prototype.slice.call(row.children).forEach(function(k) {
+    if (k.classList.contains('pt-sep') || (k.tagName === 'DIV' && /flex:\s*1/.test(k.getAttribute('style') || ''))) {
+      k.remove(); grp = null; return;
+    }
+    if (!grp) { grp = document.createElement('div'); grp.className = 'docx-grp'; row.appendChild(grp); }
+    grp.appendChild(k);
+  });
 }
 
 /* ═══════════ Reflow (fit text to screen) ═══════════
