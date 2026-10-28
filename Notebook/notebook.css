@@ -965,8 +965,9 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   #tj-root .docx-toolbar:not(#tj-je-toolbar), #bj-root .docx-toolbar { --nbt-h: 36px; --nbt-in: 30px; padding: 0 8px 6px !important; }
 }
 
-/* ── Title bar: one height; Edit/View is a switch in a button-sized outline;
-   Lock is a square padlock (open or closed), no words. ── */
+/* ── Title bar: one height; Edit/View is a switch in a button-sized outline
+   (the switch fills with the accent while editing); Lock is a square padlock
+   (open or closed), no words. ── */
 #tj-root #tj-toolbar .tb-btn, #bj-root #bj-toolbar .tb-btn,
 #tj-root #tj-toolbar .mode-toggle-wrap, #bj-root #bj-toolbar .mode-toggle-wrap { height: 32px; box-sizing: border-box; padding: 0 12px; flex-shrink: 0; }
 #tj-root .mode-toggle-wrap, #bj-root .mode-toggle-wrap {
@@ -980,8 +981,12 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 #tj-root .mode-toggle-label, #bj-root .mode-toggle-label { pointer-events: none; }
 #tj-root .mode-toggle-wrap:hover { border-color: color-mix(in srgb, var(--ac) 60%, var(--border2)); }
 #bj-root .mode-toggle-wrap:hover { border-color: rgba(141,118,154,.45); }
-#tj-root .mode-toggle-wrap:has(input:checked) { border-color: var(--ac); }
-#bj-root .mode-toggle-wrap:has(input:checked) { border-color: rgba(141,118,154,.55); }
+/* Editing: the outline stays as it is; the switch fills with the accent. */
+#tj-root .mode-toggle input:checked ~ .toggle-track, #bj-root .mode-toggle input:checked ~ .toggle-track {
+  background: var(--purple) !important; border-color: var(--purple) !important;
+}
+#tj-root .mode-toggle input:checked ~ .toggle-knob { background: #1a1a1d !important; }
+#bj-root .mode-toggle input:checked ~ .toggle-knob { background: #1B1C1E !important; }
 #tj-root .mode-toggle-label, #bj-root .mode-toggle-label { width: auto !important; text-align: left !important; }
 #tj-root .mode-toggle, #bj-root .mode-toggle { width: 34px !important; height: 18px !important; }
 #tj-root .toggle-knob, #bj-root .toggle-knob { top: 3px; left: 3px; width: 12px !important; height: 12px !important; }
