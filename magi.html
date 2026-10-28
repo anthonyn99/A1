@@ -10015,6 +10015,57 @@ function renderChips() {
   autosize();
 }
 
+/* Every Refine button (composer, Brainstorm topic, a queued prompt) rewrites
+   through refineText. With Gemini among the units it goes straight to the
+   personal-ai worker, on this person's OWN Gemini key -- the same key as
+   their Notebook AI tools -- in about a second, Workers AI racing in when
+   Gemini is slow or down, and no engine needed. Only when that fails, or
+   Gemini is unticked (the tick boxes name models), does the engine refine on
+   a ticked browser unit; skip_api keeps it off its own .env key.
+   `missing` is what the rewrite may have lost (the worker's fact check found
+   no rewrite that kept everything) -- said under the box, never hidden. */
+const REFINE_API = "https://personal-ai.av1.workers.dev/prompt/refine";
+const REFINE_TIMEOUT_MS = 60000;
+const refineCanRun = (units) => units.includes("gemini") || online();
+async function refineText(q, units, kind = "") {
+  let why = "";
+  if (units.includes("gemini")) {
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), REFINE_TIMEOUT_MS);
+    try {
+      const res = await fetch(REFINE_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile: PROFILE.id, question: q, kind }),
+        signal: ac.signal,
+      });
+      const d = await res.json().catch(() => null);
+      if (res.ok && d && d.ok && d.refined) return { refined: d.refined, missing: d.missing || [] };
+      why = (d && d.error) ? `Refine failed: ${d.error}` : `Refine failed (${res.status})`;
+    } catch (e) {
+      why = e && e.name === "AbortError" ? "Refine timed out." : "Could not reach the refiner.";
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  if (!online()) throw new Error(why || "Refine needs Gemini ticked, or the engine online.");
+  const form = new FormData();
+  form.append("question", q);
+  form.append("providers", units.join(","));
+  form.append("skip_api", "1");
+  if (kind) form.append("kind", kind);
+  const res = await fetch(`${link.api}/api/refine`, authed({ method: "POST", body: form }));
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error((body && body.detail) || `Refine failed (${res.status})`);
+  }
+  const { refined } = await res.json();
+  return { refined, missing: [] };
+}
+const refineLossNote = (missing) => missing && missing.length
+  ? `Check the rewrite — it may have dropped: ${missing.slice(0, 6).join(", ")}. Undo puts your text back.`
+  : null;
+
 /** Rewrite the composer's text into a sharper prompt via one model.
  *
  *  Deliberately NOT a step inside start(): refining on the way to Convene
@@ -10024,27 +10075,19 @@ function renderChips() {
  *  anyone is asked anything. */
 async function refine() {
   const q = $("composer").value.trim();
-  if (!q || S.refining || S.running || !online()) return;
   const coding = typeof codeMode === "function" && codeMode();
+  // Refine drives a model too, quietly and with no History row to show for
+  // it -- so it gets the same tick boxes as everything else.
+  // In Code Mode: the ticked browser agents (they are council units), and
+  // the rewrite is aimed at a coding agent rather than at the council.
+  const units = coding ? codeRefineUnits() : [...S.selected];
+  if (!q || S.refining || S.running || !refineCanRun(units)) return;
   const mode = MODE.cur;
   S.refining = true;
   setErr("refineError", null);
   updateEnabled();
   try {
-    const form = new FormData();
-    form.append("question", q);
-    // Refine drives a model too, quietly and with no History row to show for
-    // it -- so it gets the same tick boxes as everything else.
-    // In Code Mode: the ticked browser agents (they are council units), and
-    // the rewrite is aimed at a coding agent rather than at the council.
-    form.append("providers", (coding ? codeRefineUnits() : [...S.selected]).join(","));
-    if (coding) form.append("kind", "code");
-    const res = await fetch(`${link.api}/api/refine`, authed({ method: "POST", body: form }));
-    if (!res.ok) {
-      const body = await res.json().catch(() => null);
-      throw new Error(body?.detail || `Refine failed (${res.status})`);
-    }
-    const { refined } = await res.json();
+    const { refined, missing } = await refineText(q, units, coding ? "code" : "");
     // Switched mode while it worked: the rewrite belongs to the box it was
     // asked for, which is now that mode's draft -- not this mode's text.
     if (MODE.cur !== mode) { MODE.drafts[mode] = refined; return; }
@@ -10052,6 +10095,7 @@ async function refine() {
     // — refining twice must not make the first rewrite the thing Undo restores.
     if (S.preRefine === null) S.preRefine = q;
     setQuestion(refined);
+    setErr("refineError", refineLossNote(missing));
     $("composer").focus();
   } catch (e) {
     setErr("refineError", e?.message || "Refine failed.");
