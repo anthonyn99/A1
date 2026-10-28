@@ -120,7 +120,8 @@ body[data-profile=veda] #top .brand { font-weight: 600; }
 #top #sync-pill { width: 84px; flex-shrink: 0; justify-content: flex-start; }
 /* Whose Shruti this is: the person's mark in a ring (MAGI's ⚜ / ✦). */
 #switch-btn .pf-av { width: 26px; height: 26px; border-radius: 50%; border: 1.6px solid currentColor; display: grid; place-items: center; font-size: 15px; line-height: 1; color: var(--ac); }
-#switch-btn .pf-av svg { width: 15px; height: 14px; }
+#switch-btn .pf-av { box-sizing: border-box; flex: none; padding: 0; }
+#switch-btn .pf-av svg { display: block; width: 15px; height: 14px; margin: auto; }
 body[data-profile=veda] #switch-btn .pf-av svg { width: 14px; height: 14px; }
 #switch-btn:hover .pf-av { color: var(--tx); }
 
