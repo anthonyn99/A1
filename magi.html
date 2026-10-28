@@ -16,7 +16,7 @@
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2096%2096%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%2722%27%20fill%3D%27%231a1a1d%27%2F%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%23c0aeea%27%20stroke-width%3D%274.2%27%3E%3Ccircle%20cx%3D%2748%27%20cy%3D%2735.3%27%20r%3D%2714.5%27%2F%3E%3Ccircle%20cx%3D%2736.4%27%20cy%3D%2754.4%27%20r%3D%2714.5%27%2F%3E%3Ccircle%20cx%3D%2759.6%27%20cy%3D%2754.4%27%20r%3D%2714.5%27%2F%3E%3C%2Fg%3E%3Ccircle%20cx%3D%2748%27%20cy%3D%2747.7%27%20r%3D%275.4%27%20fill%3D%27%23dbd0f5%27%2F%3E%3C%2Fsvg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..900&family=Manrope:wght@400..800&family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+Math&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..900&family=Manrope:wght@400..800&family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Sans+Math&family=Nunito:wght@400..800&family=Lora:wght@400..700&display=swap" rel="stylesheet">
 <style id="no-tap-box">/* Phones: no blue box when anything is tapped or held, and a held control never selects its label or opens the callout. */
 *,*::before,*::after{-webkit-tap-highlight-color:transparent}
 button,[role="button"],input[type="button"],input[type="submit"],input[type="reset"],summary,label,select{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
@@ -87,6 +87,30 @@ button,[role="button"],input[type="button"],input[type="submit"],input[type="res
   --font-mono:'IBM Plex Mono','MAGI Symbols','Noto Sans Math',ui-monospace,SFMono-Regular,Menlo,monospace;
   --r-sm:4px; --r-btn:6px; --r-card:8px;
 }
+/* Veda's MAGI wears HER theme, StudyOS's (V1/css/studyos.css): its grays, its
+   mauve accent, its pastel status colours, and its faces -- Nunito for running
+   UI, Lora for headings, IBM Plex Mono kept for numbers. PROFILE sets the
+   attribute the moment it resolves; Tony's side never sees any of this. */
+:root[data-profile="veda"]{
+  --bg:#1B1C1E; --s1:#232427; --s2:#2b2c30; --s3:#34353a;
+  --bd:rgba(255,255,255,0.09); --bdl:#4A4B51;
+  --tx:#ECECEE; --txd:#AFB0B5; --txm:#8a8b90;
+  --ac:#A892B0; --acl:#c4b2cb; --acd:#8D769A;
+  --grn:#8fd6ad; --red:#ef9f9f; --amber:#f0bd86; --gold:#dcc08a; --blue:#9dc0ee;
+  --font:'MAGI Symbols','Nunito','Noto Sans Math',system-ui,-apple-system,sans-serif;
+  --font-display:'MAGI Symbols','Lora','Noto Sans Math',Georgia,serif;
+}
+/* The in-UI dialog owns its colours (see #uim-box below); restate them. */
+:root[data-profile="veda"] #uim-box{background:#232427;border-color:#4A4B51;font-family:'Nunito',system-ui,sans-serif;}
+:root[data-profile="veda"] #uim-title,:root[data-profile="veda"] .uim-label{font-family:'Lora',Georgia,serif;color:#ECECEE;}
+:root[data-profile="veda"] #uim-msg{color:#AFB0B5;}
+:root[data-profile="veda"] .uim-input{background:#2b2c30;border-color:#4A4B51;color:#ECECEE;}
+:root[data-profile="veda"] .uim-input:focus{border-color:#A892B0;}
+:root[data-profile="veda"] #uim-err{color:#ef9f9f;}
+:root[data-profile="veda"] #uim-ok{border-color:rgba(168,146,176,.5);color:#c4b2cb;}
+:root[data-profile="veda"] #uim-ok:hover,:root[data-profile="veda"] #uim-box button:focus-visible{border-color:#A892B0;box-shadow:0 0 0 1px rgba(168,146,176,.45),0 0 16px rgba(168,146,176,.4);}
+:root[data-profile="veda"] #uim-ok.uim-danger{border-color:rgba(239,159,159,.5);color:#ef9f9f;}
+:root[data-profile="veda"] #uim-ok.uim-danger:hover{border-color:#ef9f9f;box-shadow:0 0 0 1px rgba(239,159,159,.5),0 0 16px rgba(239,159,159,.4);}
 
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html,body{height:100%;}
@@ -6177,6 +6201,9 @@ const PROFILE = {
 };
 
 const prof = () => MAGI_PROFILES[PROFILE.id];
+// Whose theme to wear (the :root[data-profile] block): set before anything renders.
+document.documentElement.dataset.profile = PROFILE.id;
+if (PROFILE.id === "veda") document.querySelector('meta[name="theme-color"]')?.setAttribute("content", "#1B1C1E");
 
 /** Every per-person localStorage key goes through here. `magi.tony.pins`,
  *  `magi.veda.pins` -- never a bare `magi.pins`, which is what the other
@@ -27827,8 +27854,9 @@ function syncProfileBtn() {
     if (!b) continue;
     b.textContent = "";
     b.style.setProperty("--pc", p.color);
-    b.append(avatar("span", "prof-av", p), el("span", "prof-name", p.label));
+    b.append(avatar("span", "prof-av", p));
     b.title = "Signed in as " + p.label + " — switch profile";
+    b.setAttribute("aria-label", b.title);
   }
 }
 

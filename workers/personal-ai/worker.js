@@ -2251,6 +2251,30 @@ function formatBudgets(len) {
   return { timeoutMs: 22000, deadlineMs: 66000 };
 }
 
+// Did a tool's answer keep everything it had to? Every [[IMGn]] token (an
+// image, file or link the model cannot see) and every [[SECnS]]/[[SECnE]]
+// section marker must survive, or the editor loses that image or cannot put
+// the sections back. AI Format only restructures, so its text cannot shrink
+// much either; Refine and custom tools may legitimately shorten, so only the
+// tokens bind them. A failing answer is kept as the fallback while the next
+// model gets a chance (runStaggered's `soft`).
+export function formatKeepsContent(text, html, tool) {
+  if (typeof html !== 'string' || !html.trim()) return false;
+  const tokens = String(text).match(/\[\[(?:IMG\d+|SEC\d+[SE])\]\]/g) || [];
+  for (const t of tokens) {
+    const re = t.startsWith('[[IMG')
+      ? new RegExp('\\[\\[' + t.slice(2, -2) + '(?:\\|(?:large|medium|small))?\\]\\]')
+      : new RegExp(t.replace(/[[\]]/g, '\\$&'));
+    if (!re.test(html)) return false;
+  }
+  if (tool === 'format') {
+    const plain = (s) => s.replace(/\[\[[^\]]+\]\]/g, '').replace(/<[^>]*>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, '').length;
+    const before = plain(String(text));
+    if (before > 80 && plain(html) < before * 0.6) return false;
+  }
+  return true;
+}
+
 async function handleFormat(body, env) {
   const profile = body.profile === 'veda' ? 'veda' : 'tony';
   const text = String(body.text || '').trim();
@@ -2267,15 +2291,21 @@ async function handleFormat(body, env) {
   const { timeoutMs, deadlineMs } = formatBudgets(clipped.length);
 
   try {
-    const { value, model, tried, soft } = await runModelChain(MODELS, key, {
+    // Staggered, not sequential: the leader runs alone for half its timeout,
+    // then the next model races it -- a Gemini slow spell (20 s+ on one page)
+    // no longer stacks timeout on timeout. A 503/429 starts the next at once.
+    const { value, model, tried, soft } = await runStaggered(MODELS, key, {
       prompt,
+      env,
       schema: FORMAT_SCHEMA,
       maxOutputTokens: 65536,
       feature: 'journal',
       timeoutMs,
       deadlineMs,
+      staggerMs: Math.round(timeoutMs / 2),
+      maxLive: 2,
       salvage: salvageHtml,
-      validate: v => !!(v && typeof v.html === 'string' && v.html.trim()),
+      validate: v => formatKeepsContent(clipped, v && v.html, tool),
     });
     return json({ ok: true, html: value.html, model, tool, tried, salvaged: !!soft });
   } catch (e) {
