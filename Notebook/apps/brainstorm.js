@@ -11,7 +11,7 @@ var html = `
 <div id="bj-nav-header" class="veda-hdr-outer">
   <div class="veda-hdr-inner">
   <div class="veda-hdr-left">
-    <div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:900;color:#8D769A;letter-spacing:1px;text-transform:uppercase;line-height:1;"><span class="a1-app-ic" aria-hidden="true" style="display:inline-block;width:1em;height:1em;margin-right:.4em;vertical-align:-.15em;color:#8D769A;line-height:0"><svg viewBox="14 14 68 68" fill="none" stroke="currentColor" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;display:block"><path d="M30 20h32a6 6 0 0 1 6 6v44a6 6 0 0 1-6 6H30Z"/><path d="M30 20a6 6 0 0 0-6 6v44a6 6 0 0 0 6 6"/><path d="M40 36h16"/><path d="M40 48h16"/></svg></span>Notebook</div>
+    <div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:900;color:#8D769A;letter-spacing:1px;text-transform:uppercase;line-height:1;"><span class="a1-app-ic" aria-hidden="true" style="display:inline-block;width:1em;height:1em;margin-right:.4em;vertical-align:-.15em;color:#8D769A;line-height:0"><svg viewBox="14 14 68 68" fill="none" stroke="currentColor" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;display:block"><path d="M30 20h32a6 6 0 0 1 6 6v44a6 6 0 0 1-6 6H30Z"/><path d="M30 20a6 6 0 0 0-6 6v44a6 6 0 0 0 6 6"/><path d="M40 36h16"/><path d="M40 48h16"/></svg></span>V's Notebook</div>
   </div>
   <div class="veda-hdr-right">
     <div class="veda-hbtns">
@@ -3482,9 +3482,9 @@ window._bjOJ = { enter: _bjOJEnter, leave: _bjOJLeave, active: _bjIsOJ };
       '<button class="oj-tab" data-oj="1" role="tab" title="OurJournal — shared with Tony">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.2c3 .2 5.5 2.6 5.5 5.8"/></svg>' +
         '<span class="oj-lbl">OurJournal</span></button>' +
-      '<button class="oj-tab" data-oj="0" role="tab" title="Journal — your own entries">' +
+      '<button class="oj-tab" data-oj="0" role="tab" title="MyJournal — your own entries">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5V5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2.5Z"/><path d="M8 7h7"/></svg>' +
-        '<span class="oj-lbl">Journal</span></button>';
+        '<span class="oj-lbl">MyJournal</span></button>';
     side.insertBefore(rail, nb);
     rail.addEventListener('click', function(ev) {
       var b = ev.target.closest('.oj-tab'); if (!b) return;

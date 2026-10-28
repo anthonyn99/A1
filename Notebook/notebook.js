@@ -486,7 +486,14 @@ window.Notebook = {
     if (!cfg || !GROUPS[cfg.app] || !NATIVE[cfg.app] || !cfg.key || !/^[a-z]{2,8}$/.test(cfg.key)) throw new Error('Notebook.mount: bad config');
     cfg.side = side(cfg.profile);
     if (this.mounts[cfg.key]) return this.mounts[cfg.key]._ready;
-    if (NATIVE[cfg.app] === cfg.key) { this.mounts[cfg.key] = cfg; load(cfg.app); return (cfg._ready = Promise.resolve(cfg)); }
+    if (NATIVE[cfg.app] === cfg.key) {
+      this.mounts[cfg.key] = cfg; load(cfg.app);
+      this._whenReady(function () {
+        var root = document.getElementById(cfg.key + '-root');
+        if (root) { root.setAttribute('data-notebook-side', cfg.profile); root.setAttribute('aria-label', cfg.side.name); }
+      });
+      return (cfg._ready = Promise.resolve(cfg));
+    }
     if (!cfg.store || !/^[a-z0-9_]+$/.test(cfg.store) || cfg.store === 'tony_journal' || cfg.store === 'journal') throw new Error('Notebook.mount: an instance needs its own store');
     checkOptions(cfg);
     this.mounts[cfg.key] = cfg;
