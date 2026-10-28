@@ -4,8 +4,9 @@
 //      CDP_PORT=9417 if another session may be running live tests)
 //
 // Checks, per profile:
-//   1. with Gemini ticked, Refine goes to personal-ai /prompt/refine with THIS
-//      profile's id (so the person's own Notebook Gemini key) -- not the engine
+//   1. with the GEMINI unit UNticked (that box is the browser unit only),
+//      Refine goes to personal-ai /prompt/refine with THIS profile's id (the
+//      person's own Notebook Gemini key) -- not the engine
 //   2. it lands in the composer in seconds, keeps every number/link/name in
 //      the request, and Undo puts the original back
 const { connect, evalJs, sleep } = require('./cdp.js');
@@ -51,8 +52,8 @@ const waitFor = async (c, expr, ms = 20000) => {
     const up = await evalJs(c, 'online()');
     console.log('  engine ' + (up ? 'online' : 'offline'));
     const had = await evalJs(c, 'S.selected.has("gemini")');
-    await evalJs(c, `(() => { S.selected.add("gemini"); const t = $("composer"); t.value = ${JSON.stringify(Q)}; t.dispatchEvent(new Event("input", { bubbles: true })); updateEnabled(); })()`);
-    ok('Refine is offered with Gemini ticked' + (up ? '' : ' and the engine offline'), await evalJs(c, '!$("btnRefine").disabled'));
+    await evalJs(c, `(() => { S.selected.delete("gemini"); const t = $("composer"); t.value = ${JSON.stringify(Q)}; t.dispatchEvent(new Event("input", { bubbles: true })); updateEnabled(); })()`);
+    ok('Refine is offered with Gemini unticked' + (up ? '' : ' and the engine offline'), await evalJs(c, '!$("btnRefine").disabled'));
     const t0 = Date.now();
     await evalJs(c, '$("btnRefine").click()');
     await waitFor(c, 'S.refining', 3000);
@@ -68,7 +69,7 @@ const waitFor = async (c, expr, ms = 20000) => {
     ok('no error under the box', !(await evalJs(c, '$("refineError").hidden === false && $("refineError").textContent')));
     await evalJs(c, '$("btnUndo").click()');
     ok('Undo puts the original back', (await evalJs(c, '$("composer").value')) === Q);
-    if (!had) await evalJs(c, 'S.selected.delete("gemini"); updateEnabled();');
+    if (had) await evalJs(c, 'S.selected.add("gemini"); updateEnabled();');
     await evalJs(c, '(() => { const t = $("composer"); t.value = ""; t.dispatchEvent(new Event("input", { bubbles: true })); })()');
   }
   ok('no page errors', !errs.length, errs.slice(0, 3).join(' | '));
