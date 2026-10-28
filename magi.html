@@ -7117,8 +7117,9 @@ const HOW = [
     q: "Refine",
     a: [
       "Rewrites what is in the question box into a sharper prompt before you send it. Undo puts back exactly what you wrote.",
-      "It prefers the Gemini API when your key is set and Gemini is ticked, because it answers in about a second where opening a browser to rewrite one sentence takes several. With Gemini unticked it uses one of your selected units instead &mdash; slower, but yours.",
-      "<b>Each person's Refine uses their own key.</b> Tony's engine reads <code>GEMINI_API_KEY</code>, Veda's reads <code>GEMINI_API_KEY_VEDA</code> (in <code>magi\\.env</code> or the environment) &mdash; never the other's, even when both engines run on one PC and share one <code>.env</code>. With no key of your own, Refine uses one of your ticked units.",
+      "With Gemini ticked it runs on the <b>personal-ai</b> worker, not the engine, so it answers in a second or two and works even while the PC is off. The fastest Gemini model goes first; if it has not answered in 1.5 seconds, Cloudflare&rsquo;s own Llama model races it (Google&rsquo;s servers do have bad days), then the next model, and so on down the chain.",
+      "<b>Nothing you wrote may be lost.</b> Every number, link, file name, name in code and quoted text in your request has to be in the rewrite, or that rewrite is thrown out and the next model gets a turn. If none manages it, you get the closest one with a note naming what it dropped.",
+      "<b>Each person's Refine uses their own key</b> &mdash; the same Gemini key as their Notebook AI tools (Tony's for Tony, Veda's for Veda), never the other's. With Gemini unticked, or if the worker cannot be reached, the engine refines on one of your ticked units instead &mdash; slower, but yours.",
     ],
   },
   {
