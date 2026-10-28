@@ -2877,36 +2877,76 @@ function buildMenubar(ctx) {
   var app = ctx.app, cfg = APPS[app];
   var bar = document.createElement('div');
   bar.className = 'docx-menubar';
+  // A menu item whose job a control on screen already does (a ribbon button,
+  // the title bar's Export PDF or title, the sidebar's New entry) is left out
+  // (Tony, 2026-10-28). Where that control is hidden (the ribbon is trimmed on
+  // phones and tablets) the item comes back, so nothing becomes unreachable.
+  // Each `dup` names those controls: '#id', or a selector in this toolbar.
+  // A menu left with no items is hidden. Journal Entries keeps every item.
+  function shown(el) { return !!(el && el.getClientRects().length); }
+  function covered(dup) {
+    if (_legacyRibbon(ctx)) return false;
+    return (dup || []).some(function(t) { return shown(t.charAt(0) === '#' ? $(t.slice(1)) : ctx.tbEl.querySelector(t)); });
+  }
+  function add(p, dup, item) { if (!covered(dup)) p.appendChild(item); }
+  // Separators and labels left with nothing to separate or label go.
+  function tidy(p) {
+    var kids = Array.prototype.slice.call(p.children);
+    for (var n = kids.length - 1; n >= 0; n--) {
+      var k = kids[n], next = k.nextElementSibling;
+      var isSep = k.classList.contains('docx-msep'), isLbl = k.classList.contains('docx-mlabel');
+      if (isSep && (!next || next.classList.contains('docx-msep'))) k.remove();
+      else if (isLbl && (!next || next.classList.contains('docx-msep') || next.classList.contains('docx-mlabel'))) k.remove();
+    }
+    while (p.firstElementChild && p.firstElementChild.classList.contains('docx-msep')) p.firstElementChild.remove();
+  }
+  var menus = [];
   function menu(name, build) {
     var b = document.createElement('button');
     b.className = 'docx-menu-btn';
     b.textContent = name;
     b.addEventListener('mousedown', function(e) { e.preventDefault(); saveSel(ctx); });
-    b.addEventListener('click', function() {
-      if (openPop && openPop._btn === b) { closePop(); return; }
-      showPop(b, build);
-    });
+    b.addEventListener('click', function() { showPop(b, function(p) { build(p); tidy(p); }); });
     bar.appendChild(b);
+    menus.push({ b: b, build: build });
+  }
+  // Hide the menus that have nothing to offer at this size. Run whenever the
+  // toolbar lays out (it is hidden in view mode: nothing to decide then).
+  function refreshMenus() {
+    var row = ctx.ribbonRow;
+    if (!row || !shown(row)) return;
+    menus.forEach(function(m) {
+      var scratch = document.createElement('div');
+      try { m.build(scratch); } catch (e) {}
+      tidy(scratch);
+      m.b.style.display = scratch.querySelector('.docx-mi') ? '' : 'none';
+    });
+  }
+  if (window.ResizeObserver) {
+    var rq = false;
+    new ResizeObserver(function() {
+      if (rq) return; rq = true;
+      requestAnimationFrame(function() { rq = false; refreshMenus(); });
+    }).observe(ctx.tbEl);
   }
   menu('File', function(p) {
-    p.appendChild(mi('New entry', function() { var nb = $(cfg.newBtn); if (nb) nb.click(); }));
-    p.appendChild(mi('Rename document', function() { var t = $(app + '-entry-title-input'); if (t) { t.focus(); t.select(); } }));
+    add(p, ['#' + cfg.newBtn, '#' + app + '-bb-new'], mi('New entry', function() { var nb = $(cfg.newBtn); if (nb) nb.click(); }));
+    add(p, ['#' + app + '-entry-title-input', '#' + app + '-mobile-title'], mi('Rename document', function() { var t = $(app + '-entry-title-input'); if (t) { t.focus(); t.select(); } }));
     p.appendChild(msep());
-    p.appendChild(mi('Print / Export PDF', function() { var eb = $(cfg.exportBtn); if (eb) eb.click(); }, 'Ctrl+P'));
+    add(p, ['#' + cfg.exportBtn, '.docx-print-btn'], mi('Print / Export PDF', function() { var eb = $(cfg.exportBtn); if (eb) eb.click(); }, 'Ctrl+P'));
     p.appendChild(msep());
-    // The ribbon's trash button is desktop-only; keep the action reachable on touch.
-    p.appendChild(mi('Clear all content', function() {
+    add(p, ['[id$="-pt-clear"]'], mi('Clear all content', function() {
       var cb = ctx.tbEl.querySelector('[id$="-pt-clear"]'); if (cb) cb.click();
     }));
   });
   menu('Edit', function(p) {
-    p.appendChild(mi('Undo', function() { ctx.history.undo(); }, 'Ctrl+Z'));
-    p.appendChild(mi('Redo', function() { ctx.history.redo(); }, 'Ctrl+Y'));
+    add(p, ['.docx-undo-btn'], mi('Undo', function() { ctx.history.undo(); }, 'Ctrl+Z'));
+    add(p, ['.docx-redo-btn'], mi('Redo', function() { ctx.history.redo(); }, 'Ctrl+Y'));
     p.appendChild(msep());
     p.appendChild(mi('Select all', function() { restoreSel(ctx); document.execCommand('selectAll'); }, 'Ctrl+A'));
     p.appendChild(msep());
-    p.appendChild(mi('Find…', function() { frOpen(ctx, false); }, 'Ctrl+F'));
-    p.appendChild(mi('Find & replace…', function() { frOpen(ctx, true); }, 'Ctrl+H'));
+    add(p, ['.docx-find-btn'], mi('Find…', function() { frOpen(ctx, false); }, 'Ctrl+F'));
+    add(p, ['.docx-find-btn'], mi('Find & replace…', function() { frOpen(ctx, true); }, 'Ctrl+H'));
   });
   menu('View', function(p) {
     p.appendChild(mlabel('Layout'));
@@ -2915,64 +2955,64 @@ function buildMenubar(ctx) {
     p.appendChild(msep());
     p.appendChild(mlabel('Zoom'));
     ZOOMS.forEach(function(z) {
-      p.appendChild(mi(Math.round(z * 100) + '%', function() { setZoom(app, z); }, null, zGet(app) === z));
+      add(p, ['.docx-zoom-sel'], mi(Math.round(z * 100) + '%', function() { setZoom(app, z); }, null, zGet(app) === z));
     });
-    p.appendChild(mi('Fit width', function() { setZoom(app, 'fit'); }, null, zGet(app) === 'fit'));
+    add(p, ['.docx-zoom-sel'], mi('Fit width', function() { setZoom(app, 'fit'); }, null, zGet(app) === 'fit'));
     p.appendChild(msep());
-    p.appendChild(mi('Toggle sidebar', function() { var sb = $(cfg.sidebarBtn); if (sb) sb.click(); }));
+    add(p, ['#' + cfg.sidebarBtn], mi('Toggle sidebar', function() { var sb = $(cfg.sidebarBtn); if (sb) sb.click(); }));
   });
   menu('Insert', function(p) {
-    if (ctx.imgEl) p.appendChild(mi('Image/File…', function() { ctx.imgEl.click(); }));
-    p.appendChild(mi('Table…', function() { tableGridPop(ctx, ctx.tbEl); }));
-    p.appendChild(mi('Link…', async function() { var url = await window.uiPrompt('Link URL:', {title:'Insert link', placeholder:'https://…'}); if (url) exec(ctx, 'createLink', url); }));
-    p.appendChild(mi('Horizontal divider', function() { exec(ctx, 'insertHorizontalRule'); }));
+    if (ctx.imgEl) add(p, ['[id$="-img-btn"]'], mi('Image/File…', function() { ctx.imgEl.click(); }));
+    add(p, ['[id$="-table"]'], mi('Table…', function() { tableGridPop(ctx, ctx.tbEl); }));
+    add(p, ['[id$="-pt-link"]'], mi('Link…', async function() { var url = await window.uiPrompt('Link URL:', {title:'Insert link', placeholder:'https://…'}); if (url) exec(ctx, 'createLink', url); }));
+    add(p, ['[id$="-pt-hr"]'], mi('Horizontal divider', function() { exec(ctx, 'insertHorizontalRule'); }));
     p.appendChild(mi('Page break', function() { insertHTML(ctx, '<hr class="docx-pagebreak"><p><br></p>'); }));
-    p.appendChild(mi('Code block', function() { exec(ctx, 'formatBlock', 'pre'); }));
-    p.appendChild(mi('Checklist', function() { insertChecklist(ctx); }));
+    add(p, ['[id$="-pt-block"]'], mi('Code block', function() { exec(ctx, 'formatBlock', 'pre'); }));
+    add(p, ['.docx-checklist-btn'], mi('Checklist', function() { insertChecklist(ctx); }));
     p.appendChild(msep());
     p.appendChild(mi('Date', function() { exec(ctx, 'insertText', new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })); }));
     p.appendChild(mi('Time', function() { exec(ctx, 'insertText', new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })); }));
   });
   menu('Format', function(p) {
-    // Font family lives only in the ribbon, which is trimmed on phones — expose it here too.
-    p.appendChild(mi('Font…', function() { fontPop(ctx, ctx.tbEl); }));
+    add(p, ['.docx-fontfam-btn'], mi('Font…', function() { fontPop(ctx, ctx.tbEl); }));
     p.appendChild(msep());
-    p.appendChild(mi('Bold', function() { exec(ctx, 'bold'); }, 'Ctrl+B'));
-    p.appendChild(mi('Italic', function() { exec(ctx, 'italic'); }, 'Ctrl+I'));
-    p.appendChild(mi('Underline', function() { exec(ctx, 'underline'); }, 'Ctrl+U'));
-    p.appendChild(mi('Strikethrough', function() { exec(ctx, 'strikeThrough'); }));
-    p.appendChild(mi('Inline code', function() { var cb = ctx.tbEl.querySelector('[id$="-pt-code"]'); if (cb) cb.click(); }));
+    add(p, ['[id$="-pt-bold"]'], mi('Bold', function() { exec(ctx, 'bold'); }, 'Ctrl+B'));
+    add(p, ['[id$="-pt-italic"]'], mi('Italic', function() { exec(ctx, 'italic'); }, 'Ctrl+I'));
+    add(p, ['[id$="-pt-underline"]'], mi('Underline', function() { exec(ctx, 'underline'); }, 'Ctrl+U'));
+    add(p, ['[id$="-pt-strike"]'], mi('Strikethrough', function() { exec(ctx, 'strikeThrough'); }));
+    add(p, ['[id$="-pt-code"]'], mi('Inline code', function() { var cb = ctx.tbEl.querySelector('[id$="-pt-code"]'); if (cb) cb.click(); }));
     p.appendChild(msep());
-    p.appendChild(mi('Align left', function() { exec(ctx, 'justifyLeft'); }));
-    p.appendChild(mi('Align center', function() { exec(ctx, 'justifyCenter'); }));
-    p.appendChild(mi('Align right', function() { exec(ctx, 'justifyRight'); }));
-    p.appendChild(mi('Justify', function() { exec(ctx, 'justifyFull'); }));
+    add(p, ['[id$="-alignL"]'], mi('Align left', function() { exec(ctx, 'justifyLeft'); }));
+    add(p, ['[id$="-alignC"]'], mi('Align center', function() { exec(ctx, 'justifyCenter'); }));
+    add(p, ['[id$="-alignR"]'], mi('Align right', function() { exec(ctx, 'justifyRight'); }));
+    add(p, ['.docx-justify-btn'], mi('Justify', function() { exec(ctx, 'justifyFull'); }));
     p.appendChild(msep());
-    p.appendChild(mi('Increase indent', function() { exec(ctx, 'indent'); }));
-    p.appendChild(mi('Decrease indent', function() { exec(ctx, 'outdent'); }));
-    p.appendChild(mi('Line & paragraph spacing…', function() { lineSpacingPop(ctx, ctx.tbEl); }));
+    add(p, ['.docx-indent-btn'], mi('Increase indent', function() { exec(ctx, 'indent'); }));
+    add(p, ['.docx-outdent-btn'], mi('Decrease indent', function() { exec(ctx, 'outdent'); }));
+    add(p, ['.docx-spacing-btn'], mi('Line & paragraph spacing…', function() { lineSpacingPop(ctx, ctx.tbEl); }));
     p.appendChild(msep());
-    p.appendChild(mi('Clear formatting', function() { exec(ctx, 'removeFormat'); }));
+    add(p, ['.docx-clearfmt-btn'], mi('Clear formatting', function() { exec(ctx, 'removeFormat'); }));
     p.appendChild(msep());
     p.appendChild(mi('Page setup…', function() { pageSetupModal(app); }));
   });
   menu('Tools', function(p) {
-    aiToolsMenuInto(p, ctx);
+    if (!covered(['.docx-ai-btn'])) aiToolsMenuInto(p, ctx);
     p.appendChild(msep());
     if (ctx.mdEl) {
       var mdMi = mi('Render Markdown', function() { ctx.mdEl.click(); });
       if (_docxFeatureLocked(app, 'renderMarkdown')) mdMi.classList.add('docx-feature-locked');
-      p.appendChild(mdMi);
+      add(p, ['[id$="-pt-md"]'], mdMi);
     }
     var unMi = mi('Unrender Markdown', function() { unrenderMarkdown(ctx); });
     if (_docxFeatureLocked(app, 'unrenderMarkdown')) unMi.classList.add('docx-feature-locked');
-    p.appendChild(unMi);
+    add(p, ['.docx-unmd-btn'], unMi);
     p.appendChild(msep());
     p.appendChild(mi('Word count', function() { wordCountModal(ctx); }));
-    p.appendChild(mi('Keyboard shortcuts', shortcutsModal));
+    // Keyboard shortcuts live under Help (the old ribbon has them here too).
+    if (_legacyRibbon(ctx)) p.appendChild(mi('Keyboard shortcuts', shortcutsModal));
   });
   menu('Table', function(p) {
-    p.appendChild(mi('Insert table…', function() { tableGridPop(ctx, ctx.tbEl); }));
+    add(p, ['[id$="-table"]'], mi('Insert table…', function() { tableGridPop(ctx, ctx.tbEl); }));
     p.appendChild(msep());
     p.appendChild(mi('Insert row above', function() { restoreSel(ctx); tblInsertRow(ctx, false); }));
     p.appendChild(mi('Insert row below', function() { restoreSel(ctx); tblInsertRow(ctx, true); }));
