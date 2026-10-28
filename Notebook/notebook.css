@@ -785,12 +785,14 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   --nbt-grp: rgba(255,255,255,.022);
   --nbt-hov: rgba(255,255,255,.075);
   --nbt-pop: #232327;
-  padding: 8px 12px 10px !important;
+  padding: 3px 12px 9px !important;
   background: #202022 !important; border-bottom: 1px solid #2c2c2f !important;
   margin: calc(-1 * var(--nb-cpt, 0px)) calc(-1 * var(--nb-cpx, 0px)) 0 !important;
   border-radius: 0 !important;
 }
 #bj-root .docx-toolbar { --nbt-pop: var(--card, #26272A); }
+/* The menu bar sits right under the title bar: no gap above it. */
+#tj-root .docx-toolbar:not(#tj-je-toolbar) .docx-menubar, #bj-root .docx-menubar { padding-top: 0 !important; margin-bottom: 6px !important; }
 #tj-root .docx-ribbonrow:has(> .docx-grp), #bj-root .docx-ribbonrow { gap: 6px !important; align-items: center; }
 
 /* A group: one rounded outline, its controls packed inside. */
