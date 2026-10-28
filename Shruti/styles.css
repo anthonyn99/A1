@@ -824,6 +824,8 @@ html.vid-pfs, html.vid-pfs body { overflow: hidden; }
   .bnav { display: flex; height: var(--bnav-h); }
   #top { padding: 0 6px 0 12px; }
   #top .tnav, #top .crumbs { display: none; }
+  /* The bottom nav carries Settings on a phone, so the header's gear would be a second one. */
+  #settings-btn { display: none; }
   #view { padding: 16px 16px calc(28px + var(--bnav-h) + var(--mini-h, 0px)); }
   .shelf { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px; }
   .cover .cv-title { font-size: 20px; }
