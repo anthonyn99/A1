@@ -1921,12 +1921,15 @@ function aiExtractFragment(container, counter) {
   return { text: (text || '').replace(/ /g, ' ').trim(), imgs: imgs };
 }
 // Restore [[IMGn]] / [[IMGn|size]] tokens in the AI's HTML back into the
-// original image/file/link HTML.
+// original image/file/link HTML. A token the AI dropped is not a deletion the
+// person asked for: its image/file/link goes back at the end of this piece
+// (the worker already prefers an answer that kept every token -- this is the
+// backstop for when none did), so an AI tool can never lose one.
 function aiRestoreImages(html, imgs) {
   if (!imgs.length) return html;
   var map = {}; imgs.forEach(function(o) { map[o.n] = o; });
   var SIZE = { large: '480px', medium: '320px', small: '160px' };
-  return html.replace(/\[\[IMG(\d+)(?:\|(large|medium|small))?\]\]/g, function(m, num, size) {
+  var out = html.replace(/\[\[IMG(\d+)(?:\|(large|medium|small))?\]\]/g, function(m, num, size) {
     var o = map[+num];
     if (!o) return '';
     var frag = o.html;
