@@ -593,8 +593,10 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 /* ════════ TABLET & BELOW (≤900px) — touch sizing, trimmed ribbon ════════ */
 @media (max-width: 900px) {
   /* Desktop-only controls: all of them are still in the menu bar. */
-  #tj-root .docx-ribbonrow > *:not(.docx-r1):not(.docx-r2),
-  #bj-root .docx-ribbonrow > *:not(.docx-r1):not(.docx-r2) { display: none !important; }
+  #tj-root .docx-ribbonrow .docx-grp > *:not(.docx-r1):not(.docx-r2),
+  #bj-root .docx-ribbonrow .docx-grp > *:not(.docx-r1):not(.docx-r2) { display: none !important; }
+  #tj-root .docx-grp:not(:has(> :is(.docx-r1, .docx-r2))),
+  #bj-root .docx-grp:not(:has(> :is(.docx-r1, .docx-r2))) { display: none !important; }
 
   #tj-root .docx-toolbar, #bj-root .docx-toolbar { padding: 5px 8px !important; gap: 4px; }
   #tj-root .docx-ribbonrow, #bj-root .docx-ribbonrow { gap: 4px; }
@@ -655,8 +657,10 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 
 /* ════════ PHONE / SMALL FOLDABLE (≤700px) — essentials only ════════ */
 @media (max-width: 700px) {
-  #tj-root .docx-ribbonrow > *:not(.docx-r1),
-  #bj-root .docx-ribbonrow > *:not(.docx-r1) { display: none !important; }
+  #tj-root .docx-ribbonrow .docx-grp > *:not(.docx-r1),
+  #bj-root .docx-ribbonrow .docx-grp > *:not(.docx-r1) { display: none !important; }
+  #tj-root .docx-grp:not(:has(> .docx-r1)),
+  #bj-root .docx-grp:not(:has(> .docx-r1)) { display: none !important; }
   /* "AI Format" shrinks to its icon; the label is what made it 110px wide. */
   #tj-root .docx-ai-lbl, #bj-root .docx-ai-lbl { display: none !important; }
   #tj-root .docx-copyall-btn:not(.copied) .docx-copyall-lbl, #bj-root .docx-copyall-btn:not(.copied) .docx-copyall-lbl { display: none; }
@@ -693,8 +697,10 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
    Vertical space is the scarce resource: at 844×390 the un-trimmed chrome left
    two visible lines of document. One menu row + one ribbon row, nothing more. */
 @media (max-height: 540px) and (max-width: 1024px) {
-  #tj-root .docx-ribbonrow > *:not(.docx-r1),
-  #bj-root .docx-ribbonrow > *:not(.docx-r1) { display: none !important; }
+  #tj-root .docx-ribbonrow .docx-grp > *:not(.docx-r1),
+  #bj-root .docx-ribbonrow .docx-grp > *:not(.docx-r1) { display: none !important; }
+  #tj-root .docx-grp:not(:has(> .docx-r1)),
+  #bj-root .docx-grp:not(:has(> .docx-r1)) { display: none !important; }
   #tj-root .docx-ai-lbl, #bj-root .docx-ai-lbl { display: none !important; }
   #tj-root .docx-copyall-btn:not(.copied) .docx-copyall-lbl, #bj-root .docx-copyall-btn:not(.copied) .docx-copyall-lbl { display: none; }
   #tj-root .docx-menubar, #bj-root .docx-menubar { padding: 0 0 3px; margin-bottom: 3px; }
@@ -722,8 +728,10 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
    and keep the targets big. A trackpad laptop at the same width is not, and
    keeps the full ribbon. */
 @media (min-width: 901px) and (max-width: 1180px) and (pointer: coarse) {
-  #tj-root .docx-ribbonrow > *:not(.docx-r1):not(.docx-r2),
-  #bj-root .docx-ribbonrow > *:not(.docx-r1):not(.docx-r2) { display: none !important; }
+  #tj-root .docx-ribbonrow .docx-grp > *:not(.docx-r1):not(.docx-r2),
+  #bj-root .docx-ribbonrow .docx-grp > *:not(.docx-r1):not(.docx-r2) { display: none !important; }
+  #tj-root .docx-grp:not(:has(> :is(.docx-r1, .docx-r2))),
+  #bj-root .docx-grp:not(:has(> :is(.docx-r1, .docx-r2))) { display: none !important; }
   #tj-root .docx-ribbonrow .pt-btn, #bj-root .docx-ribbonrow .pt-btn {
     min-height: 36px; min-width: 36px; border-radius: 7px;
   }
