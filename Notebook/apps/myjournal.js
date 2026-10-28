@@ -416,10 +416,10 @@ function _tjSetSync(status) {
     }
     else bb.style.opacity = '0';
   }
-  if (status === 'synced') {
-    clearTimeout(_tjSyncResetTimer);
-    _tjSyncResetTimer = setTimeout(() => _tjSetSync('idle'), 2000);
-  }
+  // "Synced" fades to idle after two seconds. Any other state cancels that:
+  // a save starting inside those two seconds used to be faded out mid-Syncing.
+  if (status !== 'idle') clearTimeout(_tjSyncResetTimer);
+  if (status === 'synced') _tjSyncResetTimer = setTimeout(() => _tjSetSync('idle'), 2000);
 }
 var _tjSyncResetTimer = null;
 
