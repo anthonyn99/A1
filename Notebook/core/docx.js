@@ -3167,7 +3167,18 @@ function injectRibbonExtras(ctx) {
   setBtnIcon(tb.querySelector('[id$="-page-img-btn"], [id$="-je-img-btn"]'), IC.image);
   var clearAllB = tb.querySelector('[id$="-pt-clear"]');
   if (clearAllB) { setBtnIcon(clearAllB, IC.eraser); if (!clearAllB.title) clearAllB.title = 'Clear all content'; }
-  var hlIcon = tb.querySelector('[id$="-hl-icon"]');   // keep the color swatch, leave as-is
+  // Highlight: a marker pen over a bar in the current colour, then the caret.
+  // The bar is the app's own -hl-icon element (its script recolours it by id),
+  // so it is kept; only the glyphs around it are replaced.
+  var hlIcon = tb.querySelector('[id$="-hl-icon"]');
+  if (hlIcon && hlIcon.parentNode) {
+    var hlTrig = hlIcon.parentNode;
+    Array.prototype.slice.call(hlTrig.childNodes).forEach(function(n) { if (n !== hlIcon) hlTrig.removeChild(n); });
+    hlIcon.textContent = '';
+    hlTrig.insertAdjacentHTML('afterbegin', '<span class="docx-swatch-ic">' + svg(IC.highlight) + '</span>');
+    hlTrig.querySelector('.docx-swatch-ic').appendChild(hlIcon);
+    hlTrig.insertAdjacentHTML('beforeend', CARET);
+  }
 
   // ── Table grid picker replaces the old fixed 3×3 insert on the table button. ──
   var tblB = tb.querySelector('[id$="-table"]');
@@ -3587,10 +3598,10 @@ function rebindPageButtons(ctx) {
     if (!tb.querySelector('.docx-fs-step')) {
       var decB = document.createElement('button');
       decB.className = 'pt-btn docx-fs-step docx-r2'; decB.title = 'Decrease font size';
-      decB.innerHTML = '<span style="font-size:10px;font-weight:800;line-height:1;">A</span><span style="font-size:8px;margin-left:1px;">▼</span>';
+      decB.innerHTML = '<span class="docx-fs-a" style="font-size:11px;">A</span><span class="docx-fs-pm">&minus;</span>';
       var incB = document.createElement('button');
       incB.className = 'pt-btn docx-fs-step docx-r2'; incB.title = 'Increase font size';
-      incB.innerHTML = '<span style="font-size:14px;font-weight:800;line-height:1;">A</span><span style="font-size:8px;margin-left:1px;">▲</span>';
+      incB.innerHTML = '<span class="docx-fs-a" style="font-size:14px;">A</span><span class="docx-fs-pm">+</span>';
       [decB, incB].forEach(function(b) { b.addEventListener('mousedown', function(e) { e.preventDefault(); saveSel(ctx); }); });
       decB.addEventListener('click', function() { stepFontSize(ctx, -1); });
       incB.addEventListener('click', function() { stepFontSize(ctx, 1); });
@@ -3613,7 +3624,6 @@ function rebindPageButtons(ctx) {
     if (!tb.querySelector('.docx-unmd-btn')) {
       var unmdB = document.createElement('button');
       unmdB.className = 'pt-btn docx-unmd-btn';
-      unmdB.style.cssText = 'font-weight:700;font-size:11px;';
       unmdB.textContent = 'Unrender';
       unmdB.title = 'Unrender Markdown — convert formatted content back to raw Markdown';
       if (_docxFeatureLocked(ctx.app, 'unrenderMarkdown')) { unmdB.classList.add('docx-feature-locked'); unmdB.title = 'This feature has been disabled on your journal.'; }
@@ -4554,9 +4564,11 @@ function wireColorShortcuts(ctx) {
   var input = ctx.tbEl.querySelector('[id$="-color-pick"]');
   if (!input) return;
   var btn = document.createElement('button');
-  btn.className = 'pt-btn docx-color-btn';
+  // The button takes the input's ribbon priority (.docx-r1/.docx-r2), so it
+  // shows on the same screens the input was meant to.
+  btn.className = 'pt-btn docx-color-btn ' + Array.prototype.filter.call(input.classList, function (k) { return /^docx-r\d$/.test(k); }).join(' ');
   btn.title = 'Text color';
-  btn.innerHTML = '<span class="docx-color-dot" style="background:#EDEEF0"></span><span style="font-size:9px;opacity:.7;margin-left:2px;">▾</span>';
+  btn.innerHTML = '<span class="docx-swatch-ic"><span class="docx-color-a">A</span><span class="docx-color-dot" style="background:#EDEEF0"></span></span>' + CARET;
   input.parentNode.insertBefore(btn, input);
   // keep the native input in the DOM (its position anchors the OS picker) but invisible
   input.style.cssText = 'position:absolute;width:22px;height:10px;opacity:0;border:none;padding:0;margin:0;pointer-events:none;';
@@ -4591,10 +4603,11 @@ function wireColorShortcuts(ctx) {
   btn.addEventListener('click', function () {
     showPop(btn, function (pop) {
       pop.classList.add('docx-colorpop');
+      pop.appendChild(mlabel('Text colour'));
       var grid = document.createElement('div'); grid.className = 'docx-color-grid';
       DOCX_COLORS.forEach(function (c) {
         var s = document.createElement('button'); s.className = 'docx-color-sw'; s.title = c[1];
-        s.style.background = c[0]; if (c[0] === '#FFFFFF') s.style.border = '1px solid #888';
+        s.style.background = c[0];
         s.addEventListener('click', function () { closePop(); applyColor(c[0]); });
         grid.appendChild(s);
       });
