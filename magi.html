@@ -7117,7 +7117,7 @@ const HOW = [
     q: "Refine",
     a: [
       "Rewrites what is in the question box into a sharper prompt before you send it. Undo puts back exactly what you wrote.",
-      "With Gemini ticked it runs on the <b>personal-ai</b> worker, not the engine, so it answers in a second or two and works even while the PC is off. The fastest Gemini model goes first; if it has not answered in 1.5 seconds, Cloudflare&rsquo;s own Llama model races it (Google&rsquo;s servers do have bad days), then the next model, and so on down the chain.",
+      "With Gemini ticked it runs on the <b>personal-ai</b> worker, not the engine, so it answers in a second or two and works even while the PC is off. The fastest Gemini model goes first; if it has not answered within a second, Cloudflare&rsquo;s own Llama model races it (Google&rsquo;s servers do have bad days), then the next model, and so on down the chain.",
       "<b>Nothing you wrote may be lost.</b> Every number, link, file name, name in code and quoted text in your request has to be in the rewrite, or that rewrite is thrown out and the next model gets a turn. If none manages it, you get the closest one with a note naming what it dropped.",
       "<b>Each person's Refine uses their own key</b> &mdash; the same Gemini key as their Notebook AI tools (Tony's for Tony, Veda's for Veda), never the other's. With Gemini unticked, or if the worker cannot be reached, the engine refines on one of your ticked units instead &mdash; slower, but yours.",
     ],

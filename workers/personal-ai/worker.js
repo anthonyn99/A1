@@ -2328,7 +2328,7 @@ async function handleFormat(body, env) {
 // her Refine drove a browser unit and took 2+ minutes for one sentence.
 //
 // Speed: a staggered race (runStaggered). The fastest Gemini lite model leads;
-// if it has not answered in 1.5 s, Workers AI's Llama 4 Scout (1-2 s, not
+// if it has not answered in 1 s, Workers AI's Llama 4 Scout (1-2 s, not
 // Google's servers) races it, and so on down the chain. Measured 2026-10-28:
 // Gemini answered 503 on nearly every model and took 11-20 s when it did, so
 // on a day like that Scout answers first; on a good day Gemini does in ~1 s.
@@ -2454,7 +2454,7 @@ async function handleRefine(body, env) {
       feature: 'refine',
       timeoutMs: long ? 30000 : 12000,
       deadlineMs: long ? 50000 : 25000,
-      staggerMs: long ? 6000 : 1500,
+      staggerMs: long ? 6000 : 1000,
       maxLive: 3,
       retry: false,
       validate: (v) => {

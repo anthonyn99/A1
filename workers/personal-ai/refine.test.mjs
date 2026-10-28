@@ -129,13 +129,13 @@ await t('Gemini 503: Workers AI answers at once, no waiting out a stagger', asyn
   eq(r.status, 200); eq(r.body.model, '@cf/meta/llama-4-scout-17b-16e-instruct');
   ok(Date.now() - t0 < 1000, 'took ' + (Date.now() - t0) + 'ms');
 });
-await t('slow Gemini (a 10 s answer): Scout is raced in at 1.5 s and wins', async () => {
+await t('slow Gemini (a 10 s answer): Scout is raced in at 1 s and wins', async () => {
   GEMINI = says(GOOD, 10000); CF = says(GOOD, 100);
   const t0 = Date.now();
   const r = await post('/prompt/refine', { profile: 'tony', question: Q });
   eq(r.body.model, '@cf/meta/llama-4-scout-17b-16e-instruct');
   const ms = Date.now() - t0;
-  ok(ms >= 1400 && ms < 3000, 'took ' + ms + 'ms');
+  ok(ms >= 900 && ms < 2500, 'took ' + ms + 'ms');
 });
 await t('a rewrite that drops a number is set aside for one that keeps everything', async () => {
   GEMINI = says("I need gift ideas for my mom's birthday. She enjoys gardening."); CF = says(GOOD);
