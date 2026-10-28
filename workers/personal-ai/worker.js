@@ -2303,8 +2303,11 @@ async function handleFormat(body, env) {
       feature: 'journal',
       timeoutMs,
       deadlineMs,
-      staggerMs: Math.round(timeoutMs / 2),
-      maxLive: 2,
+      // A healthy Flash formats a short page in ~5 s; past 6 s it is having a
+      // slow spell (live 2026-10-28: 28 s with only two racing), so the next
+      // model joins then. Long documents get longer before anyone joins.
+      staggerMs: clipped.length <= 3000 ? 6000 : clipped.length <= 12000 ? 10000 : Math.round(timeoutMs / 2),
+      maxLive: 3,
       salvage: salvageHtml,
       validate: v => formatKeepsContent(clipped, v && v.html, tool),
     });
