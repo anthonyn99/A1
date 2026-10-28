@@ -29,4 +29,3 @@ Everwell) are in A1-Priv's own `docs/`.
 | [tools/](tools/) | App Check maintenance |
 | [workers2/](workers2/) | The Cloudflare account-2 deploy lane |
 | [V1/](V1/) | Veda's earlier suite (StudyOS, Finance, TradeBoard, Launcher) |
-| [archive/](archive/) | Plans for projects that have left A1: `warden-handoff.md` (Warden moved to VedaCPatel/warden, 2026-08-25) |

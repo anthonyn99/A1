@@ -1282,7 +1282,7 @@ small change rather than a sweep.
    queue is mirrored to `localStorage`.
 3. **Firebase budget is shared across all of A1** — 20k writes / 50k reads a day. Nothing is written while work
    is in flight; one body write plus one debounced index update per *finished* unit of work.
-4. **1 MiB per document**, 900 KB house soft-guard (`docs/archive/warden-handoff.md`, `docs/TaskHub/taskhub-archive-handoff.md`).
+4. **1 MiB per document**, 900 KB house soft-guard (`docs/TaskHub/taskhub-archive-handoff.md`).
 5. **Engine code is inert until restarted.** Every engine change needs `magi/restart.ps1`.
 6. **`.claude/hooks/auto-push.sh` runs `git add -A` on every Stop.** Code Mode must stage *specific paths only*.
 7. **Tests lift strings out of `magi.html`** — `tests/magi-handoff.test.js`, `tests/ui-width-cap.test.js`,
