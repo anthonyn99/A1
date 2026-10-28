@@ -949,7 +949,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 
 /* ── Touch and small screens: bigger targets, same shapes ── */
 @media (max-width: 900px), (pointer: coarse) {
-  #tj-root .docx-toolbar:not(#tj-je-toolbar), #bj-root .docx-toolbar { --nbt-h: 42px; --nbt-in: 36px; padding: 6px 8px 8px !important; }
+  #tj-root .docx-toolbar:not(#tj-je-toolbar), #bj-root .docx-toolbar { --nbt-h: 42px; --nbt-in: 36px; padding: 2px 8px 8px !important; }
   #tj-root .docx-ribbonrow:has(> .docx-grp), #bj-root .docx-ribbonrow { gap: 5px !important; }
   #tj-root .docx-grp .pt-btn svg, #bj-root .docx-grp .pt-btn svg { width: 17px; height: 17px; }
   #tj-root .docx-toolbar:not(#tj-je-toolbar) .pt-hl-palette, #bj-root .pt-hl-palette { grid-template-columns: repeat(6, 32px); gap: 10px; }
@@ -962,7 +962,7 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   #tj-root .docx-grp > .pt-select[id$="-block"], #bj-root .docx-grp > .pt-select[id$="-block"] { min-width: 104px !important; }
 }
 @media (max-height: 540px) and (max-width: 1024px) {
-  #tj-root .docx-toolbar:not(#tj-je-toolbar), #bj-root .docx-toolbar { --nbt-h: 36px; --nbt-in: 30px; padding: 4px 8px 6px !important; }
+  #tj-root .docx-toolbar:not(#tj-je-toolbar), #bj-root .docx-toolbar { --nbt-h: 36px; --nbt-in: 30px; padding: 0 8px 6px !important; }
 }
 
 /* ── Title bar: one height; Edit/View is a switch in a button-sized outline;
