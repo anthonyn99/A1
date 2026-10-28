@@ -24042,7 +24042,7 @@ function syncBsStartBar() {
   if (!begin) return;
   const draft = S.bs.draft.trim();
   begin.disabled = bsBusy() || S.bs.refining || !draft || S.selected.size === 0 || !online();
-  if (refine) refine.disabled = bsBusy() || S.bs.refining || !draft || !online();
+  if (refine) refine.disabled = bsBusy() || S.bs.refining || !draft || !refineCanRun([...S.selected]);
 }
 
 /** Prompt refinement for the topic, same contract as the council composer: the
@@ -24053,24 +24053,17 @@ function syncBsStartBar() {
  *  follows, so a vague one costs minutes of questions rather than one answer. */
 async function bsRefine() {
   const q = S.bs.draft.trim();
-  if (!q || S.bs.refining || bsBusy() || !online()) return;
+  if (!q || S.bs.refining || bsBusy() || !refineCanRun([...S.selected])) return;
   S.bs.refining = true;
   S.bs.refineError = null;
   renderBsView();
   try {
-    const form = new FormData();
-    form.append("question", q);
-    form.append("providers", [...S.selected].join(","));
-    const res = await fetch(`${link.api}/api/refine`, authed({ method: "POST", body: form }));
-    if (!res.ok) {
-      const body = await res.json().catch(() => null);
-      throw new Error((body && body.detail) || `Refine failed (${res.status})`);
-    }
-    const { refined } = await res.json();
+    const { refined, missing } = await refineText(q, [...S.selected]);
     // Refining twice must not make the first rewrite the thing Undo restores —
     // only ever the text the person actually wrote.
     if (S.bs.preRefine === null) S.bs.preRefine = q;
     S.bs.draft = refined;
+    S.bs.refineError = refineLossNote(missing);
   } catch (e) {
     S.bs.refineError = (e && e.message) || "Refine failed.";
   } finally {
