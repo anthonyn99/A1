@@ -8,6 +8,7 @@
 //   POST /taskhub/parse   (was taskhub-voice /parse)  — voice/text → TaskHub actions
 //   POST /taskhub/prep    — one flagged task → AI prep kit (prompt, draft, sites, apps)
 //   POST /journal/format  (was journal-ai /format)    — messy text → clean HTML
+//   POST /prompt/refine   — MAGI's Refine: a prompt → a sharper prompt, nothing lost
 //   GET  /quote/daily     — Everwell's quote of the day (ORCA → Gemini, cached per day); &kind=buddhist: a real Buddhist quote + its source
 //   POST /fuel/plan       — Everwell's nutrition plan: a person's stats, training and photos → calories, macros, meals, water (ORCA → Gemini)
 //   GET  /health          — status (which keys are configured)
@@ -2441,7 +2442,6 @@ async function handleRefine(body, env) {
   // A long pasted request takes longer to write back out in full.
   const long = q.length > 2000;
   const t0 = Date.now();
-  let lossy = [];
   try {
     const { value, model, tried, soft } = await runStaggered(models, key, {
       prompt,
@@ -2456,10 +2456,7 @@ async function handleRefine(body, env) {
       retry: false,
       validate: (v) => {
         const text = cleanRefined(v && v.refined, q);
-        if (!text) return false;
-        const miss = refineMissing(q, text);
-        if (miss.length && !lossy.length) lossy = miss;
-        return !miss.length;
+        return !!text && !refineMissing(q, text).length;
       },
     });
     const refined = cleanRefined(value && value.refined, q);
@@ -4389,12 +4386,14 @@ export default {
       return json({
         ok: true,
         service: 'personal-ai',
-        version: 44, // bump when verifying a deploy went live
-        features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'watch', 'watch-ingest', 'quote', 'quote-buddhist', 'fuel', 'yt-playlist', 'ig-media', 'ig-thumb', 'ig-px', 'link-preview', 'link-parse'],
+        version: 45, // bump when verifying a deploy went live
+        features: ['list', 'recipe', 'taskhub', 'taskprep', 'journal', 'refine', 'watch', 'watch-ingest', 'quote', 'quote-buddhist', 'fuel', 'yt-playlist', 'ig-media', 'ig-thumb', 'ig-px', 'link-preview', 'link-parse'],
         quoteModels: { orca: QUOTE_ORCA_MODELS, gemini: QUOTE_GEMINI_MODELS },
         fuelModels: { orcaVision: FUEL_ORCA_VISION, orca: FUEL_ORCA_TEXT, gemini: FUEL_GEMINI_MODELS },
         orcaKey: !!env.TONY_ORCA_KEY,
         models: MODELS,
+        refineModels: REFINE_MODELS,
+        workersAi: !!env.AI,
         listModels: LIST_MODELS,
         listDictationModels: LIST_DICTATION_MODELS,
         listLinkModels: LIST_LINK_MODELS,
@@ -4432,6 +4431,7 @@ export default {
       if (path === '/taskhub/parse')  return handleTaskhub(body, env);
       if (path === '/taskhub/prep')   return handleTaskPrep(body, env);
       if (path === '/journal/format') return handleFormat(body, env);
+      if (path === '/prompt/refine')  return handleRefine(body, env);
       if (path === '/watch/check')    return handleWatchCheck(body, env);
       if (path === '/watch/resolve')  return handleWatchResolve(body, env);
       if (path === '/watch/state')    return handleWatchState(body, env);
