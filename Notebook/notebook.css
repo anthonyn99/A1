@@ -969,6 +969,15 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
   #tj-root .docx-toolbar:not(#tj-je-toolbar), #bj-root .docx-toolbar { --nbt-h: 36px; --nbt-in: 30px; padding: 0 8px 6px !important; }
 }
 
+/* ── The page title is plain text, focused or not: a host's own field focus
+   (Everwell's input:focus ring and border) never reaches it. ── */
+#tj-root #tj-entry-title-input, #bj-root #bj-entry-title-input,
+#tj-root #tj-mobile-title, #bj-root #bj-mobile-title,
+#tj-root #tj-entry-title-input:focus, #bj-root #bj-entry-title-input:focus,
+#tj-root #tj-mobile-title:focus, #bj-root #bj-mobile-title:focus {
+  outline: none !important; box-shadow: none !important; border: none !important; background: none !important;
+}
+
 /* ── Title bar: one height; Edit/View is a switch in a button-sized outline
    (the switch fills with the accent while editing); Lock is a square padlock
    (open or closed), no words. ── */
