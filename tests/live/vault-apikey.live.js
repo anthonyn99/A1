@@ -227,7 +227,7 @@ const panelHtml = `document.getElementById('vault-apikeys-panel').innerHTML`;
   console.log('\nWeb app · existing tabs still work');
   await evalJs(c, `document.querySelector('.vault-tab[data-tab="passwords"]').click(); true`);
   ok(await waitFor(c, `!!document.querySelector('#vault-pw-panel .vault-toolbar')`), 'Passwords renders');
-  await evalJs(c, `[...document.querySelectorAll('#vault-pw-panel button')].find(b => /\\+ Add/.test(b.textContent)).click(); true`);
+  await evalJs(c, `document.querySelector('#vault-pw-panel .vault-toolbar .vault-add').click(); true`);
   await waitFor(c, `!!document.querySelector('.vault-modal')`);
   await evalJs(c, typeJs(`document.querySelector('.vault-modal input[placeholder="e.g. GitHub"]')`, 'GitHub'));
   await evalJs(c, typeJs(`document.querySelector('.vault-modal input[placeholder="password"]')`, 'hunter2hunter2'));
