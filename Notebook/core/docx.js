@@ -1941,6 +1941,10 @@ function aiRestoreImages(html, imgs) {
     delete map[+num];       // consume so a duplicated token can't double an image
     return frag;
   });
+  imgs.forEach(function(o) {
+    if (map[o.n]) out += /^<a\b/i.test(o.html) ? '<p>' + o.html + '</p>' : o.html;
+  });
+  return out;
 }
 
 // Shared network call for both the whole-document and selection paths. Keeps
