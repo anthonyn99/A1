@@ -63,6 +63,10 @@ function compare(a, b, allowMissing, opts) {
     const k = norm(o.p), i = seen.get(k) || 0; seen.set(k, i + 1);
     const x = (mb.get(k) || [])[i];
     if (allowMissing.some((re) => re.test(o.p))) continue;   // a host may hide or drop it
+    // The menu bar leaves out a menu whose every item a visible control
+    // already does (docx.js buildMenubar), so which menus show depends on the
+    // host: no sidebar keeps File's New entry. Its buttons are not compared.
+    if (/\/div\.docx-menubar\/button\.docx-menu-btn$/.test(o.p)) continue;
     if (!x) { diffs.push('missing ' + o.p); continue; }
     const d = [];
     const shown = o.st.display !== 'none' && (o.box[2] || o.box[3]);   // a closed menu's options measure 0x0 off-screen
