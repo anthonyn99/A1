@@ -2135,6 +2135,7 @@ async def refine_prompt(
     provider_id: str = Form(""),
     providers: str = Form(""),
     kind: str = Form(""),
+    skip_api: str = Form(""),
 ):
     """Rewrite the composer's text into a sharper prompt, via one model.
 
@@ -2149,6 +2150,11 @@ async def refine_prompt(
     units currently selected and constrains every choice here, the API refiner
     included -- see _refiner_id. Pass provider_id to force a specific member,
     which is honoured only if that member is selected too.
+
+    skip_api=1 is what magi.html sends since 2026-10-28: it refines on the
+    personal-ai worker first (the person's Notebook Gemini key, Workers AI
+    behind it) and comes here only when that failed or Gemini is unticked --
+    so this engine's .env key is not used, and a browser unit refines.
     """
     q = question.strip()
     if not q:
@@ -2158,7 +2164,10 @@ async def refine_prompt(
 
     allowed = [p for p in providers.split(",") if p] or None
     try:
-        provider = build_provider(settings, _resolve_refiner(provider_id, allowed))
+        pid = _resolve_refiner(provider_id, allowed)
+        if skip_api and pid in API_PROVIDER_UNIT:
+            pid = studio_engine.pick_generator_id(settings, None, allowed)
+        provider = build_provider(settings, pid)
     except (KeyError, ValueError) as e:
         raise HTTPException(400, str(e))
 
