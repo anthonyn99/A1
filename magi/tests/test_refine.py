@@ -91,3 +91,28 @@ def test_refine_prompt_forbids_answering():
     dropped, the parser is carrying the whole job alone."""
     assert "Do not answer it" in REFINE_PROMPT
     assert "{question}" in REFINE_PROMPT
+
+
+def test_refine_prompt_matches_the_worker():
+    """MAGI refines on the personal-ai worker first and on a browser unit only
+    as the fallback; both must be told the same thing, or the fallback quietly
+    gets laxer rules (it used to be the only path, with no no-loss rule)."""
+    import re
+
+    from magi.engine.refine import CODE_NOTE
+
+    root = Path(__file__).resolve().parents[2]
+    w = (root / "workers" / "personal-ai" / "worker.js").read_text(encoding="utf-8")
+    worker_prompt = re.search(r"export const REFINE_PROMPT = `(.*?)`;", w, re.S).group(1)
+    worker_note = re.search(r"export const REFINE_CODE_NOTE = `(.*?)`;", w, re.S).group(1)
+    assert REFINE_PROMPT == worker_prompt
+    assert CODE_NOTE == worker_note
+    assert "Nothing may be lost." in REFINE_PROMPT
+
+
+def test_a_long_pasted_request_may_come_back_long():
+    """Pasted notes are kept in full, so a 3000-character request legitimately
+    rewrites to more than 4000 characters -- that is not an essay."""
+    notes = "- Tony to send Q3 numbers to Priya by 11/4\n" * 80
+    assert parse("Turn these notes into action items:\n" + notes, notes) is not None
+    assert parse("x" * 4100, "short question") is None
