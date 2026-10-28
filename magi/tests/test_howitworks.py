@@ -117,9 +117,9 @@ def test_it_promises_the_doctor_runs_in_parallel_and_scoped():
     assert "providers.split" in doctor, "the doctor no longer takes a selection"
 
 
-def test_it_promises_refine_respects_the_gemini_tick_box():
-    """The specific claim: unticking Gemini stops the API refiner too."""
-    assert "Gemini API key" in HOW
+def test_it_says_refine_does_not_need_the_gemini_tick_box():
+    """The Gemini box is the browser unit; Refine's API key works regardless."""
+    assert "whether Gemini is ticked or not" in HOW
     app = (REPO / "magi" / "app.py").read_text(encoding="utf-8")
     assert "API_PROVIDER_UNIT" in app
     assert "def _refiner_id(allowed" in app

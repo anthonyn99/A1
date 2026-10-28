@@ -293,7 +293,7 @@ def test_editing_opens_its_own_panel_rather_than_borrowing_the_composer():
 
 def test_the_editor_can_do_what_the_composer_can():
     body = _fn("queueEdit")
-    assert "/api/refine" in body, "no Refine"
+    assert "refineText(" in body, "no Refine"
     assert "MAX_ATTACHMENTS" in body and "fileIn.click()" in body, "cannot add files"
     assert "units.delete(p.id)" in body, "cannot change who is asked"
 
