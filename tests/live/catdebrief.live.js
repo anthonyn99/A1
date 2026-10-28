@@ -175,7 +175,7 @@ const CFG = { tony: { units: ['grok'] }, veda: { units: ['gemini', 'claude'] }, 
       await js(`var ta=document.querySelector('textarea.tb-debrief-tpl'); ta.style.height=''; 1`);
     }
     // Tick Grok for Veda: the doc gets it, in the canonical order.
-    await js(`var rows=[...document.querySelectorAll('div')].filter(d=>/^Veda’s TaskHub/.test(d.textContent) && d.children.length===0); var sec=rows[0].parentElement; [...sec.querySelectorAll('button')].find(b=>/Grok/.test(b.textContent)).click(); 1`);
+    await js(`var rows=[...document.querySelectorAll('#tradeboard-root .dbf-name')].filter(d=>/^Veda’s MAGI/.test(d.textContent)); var sec=rows[0].parentElement; [...sec.querySelectorAll('button')].find(b=>/Grok/.test(b.textContent)).click(); 1`);
     await sleep(1800);
     let d = JSON.parse(await js(`return JSON.stringify(__fakeFs.docs['dashboards/catalyst_debrief']);`));
     ok('ticking a unit for Veda writes her list', d.veda.units.join() === 'claude,gemini,grok', JSON.stringify(d.veda));
