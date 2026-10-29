@@ -19,11 +19,15 @@
  *                      "guardian" when the program locks with Guardian.
  *                      While that element is on screen the launcher is not
  *                      rendered at all (display:none — no empty slot).
- *   data-profile-attr  For programs with Tony AND Veda profiles: the <body>
- *                      attribute that holds the active profile ("tony" or
- *                      "veda"). Each profile has its OWN list (its own doc),
- *                      and the launcher follows the attribute live. Omit it
- *                      for Tony-only programs.
+ *   WHOSE LifeHub. There are exactly two: "LifeHub – Tony" (dashboards/
+ *   lifehub) and "LifeHub – Veda" (dashboards/lifehub_veda), and the panel's
+ *   title says which one is mounted. Every host names it with ONE of:
+ *   data-profile       "tony" or "veda": a one-person program always mounts
+ *                      that person's LifeHub (TradeHub "tony", StudyOS "veda").
+ *   data-profile-attr  A program with Tony AND Veda profiles: the attribute
+ *                      (on <body>, else <html>) that holds the active profile
+ *                      ("tony" or "veda"). The launcher follows it live.
+ *   A tag naming neither gets Tony's.
  *   data-accent        The program's accent colour (default MAGI purple #c0aeea).
  *   data-accent-veda   Veda's accent in a profile program (default #A892B0).
  *
@@ -120,6 +124,7 @@
 
   var CFG = {
     lock: sattr('data-lock'),
+    fixedProfile: sattr('data-profile'),
     profileAttr: sattr('data-profile-attr'),
     accent: sattr('data-accent'),
     accentVeda: sattr('data-accent-veda') || '#A892B0',
@@ -250,6 +255,9 @@
     veda: { doc: 'lifehub_veda', ls: 'lifehub:v1:veda', defaults: VEDA_APPS }
   };
   function isProfile(p) { return p === 'tony' || p === 'veda'; }
+  // The panel's title names whose LifeHub is mounted.
+  var TITLES = { tony: 'LifeHub \u2013 Tony', veda: 'LifeHub \u2013 Veda' };
+  function lhTitle() { return TITLES[AP] || 'LifeHub'; }
 
   /* ── Small helpers ────────────────────────────────────────────────────── */
   function clone(x) { return JSON.parse(JSON.stringify(x)); }
@@ -890,8 +898,12 @@
     try {
       var p;
       if (typeof CFG.profile === 'function') p = CFG.profile();
-      else if (!CFG.profileAttr) p = 'tony';
-      else p = document.body && document.body.getAttribute(CFG.profileAttr);
+      else if (CFG.profileAttr) {
+        // <body> first; a host that keeps it on <html> (MAGI) works too.
+        p = document.body && document.body.getAttribute(CFG.profileAttr);
+        if (!p) p = document.documentElement.getAttribute(CFG.profileAttr);
+      }
+      else p = CFG.fixedProfile || 'tony';
       return isProfile(p) ? p : null;
     } catch (e) { return null; }
   }
@@ -954,8 +966,10 @@
     if (watching) return;
     watching = true;
     document.addEventListener('visibilitychange', tick);
-    if (CFG.profileAttr && document.body) {
-      try { new MutationObserver(tick).observe(document.body, { attributes: true, attributeFilter: [CFG.profileAttr] }); } catch (e) {}
+    if (CFG.profileAttr) {
+      [document.body, document.documentElement].forEach(function (n) {
+        if (n) try { new MutationObserver(tick).observe(n, { attributes: true, attributeFilter: [CFG.profileAttr] }); } catch (e) {}
+      });
     }
   }
 
@@ -1165,7 +1179,7 @@
           '<div class="grab"></div>' +
           '<div class="hd">' +
             '<button class="ib back" type="button" aria-label="Back" hidden>' + SVG_BACK + '</button>' +
-            '<div class="ttl">LifeHub</div><span class="st" aria-live="polite"></span>' +
+            '<div class="ttl">' + lhTitle() + '</div><span class="st" aria-live="polite"></span>' +
             '<button class="ib rf" type="button" aria-label="Retry connection" title="Retry now" hidden>' + SVG_REFRESH + '</button>' +
             '<button class="ib openall-btn" type="button" aria-label="Open all apps" title="Open all apps">' + SVG_OPENALL + '</button>' +
             '<button class="ib edit-btn" type="button" aria-label="Edit apps" title="Edit apps">' + SVG_PENCIL + '</button>' +
@@ -1402,7 +1416,7 @@
     ui.btnAll.hidden = ui.btnEdit.hidden;
     ui.btnDone.hidden = !ui.edit || ui.view === 'ed';
     ui.ft.hidden = !ui.edit || ui.view === 'ed';
-    ui.ttl.textContent = ui.edit ? 'Edit apps' : 'LifeHub';
+    ui.ttl.textContent = ui.edit ? 'Edit apps' : lhTitle();
     ui.tiles = ui.tiles || {};
     render();
   }
