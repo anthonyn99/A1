@@ -114,6 +114,51 @@ console.log('\nThe prompt: fill in the blank, per event');
   ok('a custom template is used as written', cust === 'TSM earnings just came out. Give me the results, consensus, expected market movement', cust);
 }
 
+console.log('\nReleases that come out together share one card and one debrief');
+{
+  const day = '2026-10-29';
+  const ET = { ecb: { hh: 8, mm: 15 }, inflation: { hh: 8, mm: 30 }, growth: { hh: 8, mm: 30 }, jobs: { hh: 8, mm: 30 }, sentiment: { hh: 10, mm: 0 }, oil: { hh: 10, mm: 30 } };
+  const met = (e) => ET[e.category] || null;
+  const mk = (category, title, importance) => ({ kind: 'macro', category, title, importance, date: day, id: title });
+  const pce = mk('inflation', 'September PCE Report', 'high'), gdp = mk('growth', 'Q3 2026 GDP', 'high');
+  const ecb = mk('ecb', 'ECB Rate Decision', 'high'), claims = mk('jobs', 'Initial Jobless Claims', 'medium');
+  const umich = mk('sentiment', 'UMich Sentiment', 'low'), eia = mk('oil', 'EIA Crude Inventories', 'low');
+  const speech = mk('fed', 'Waller speaks', 'low');
+  const earn = { kind: 'earnings', title: 'SNDK Earnings', date: day, when: 'amc', id: 'e1' };
+  const g = D.groups([earn, pce, gdp, ecb, claims, umich, eia, speech], met);
+  const names = g.map((x) => x.map((e) => e.title).join('+'));
+  ok('earnings keep their one card, first', names[0] === 'SNDK Earnings', names);
+  ok('8:15 and three 8:30s share one card, in release order', names[1] === 'ECB Rate Decision+September PCE Report+Q3 2026 GDP+Initial Jobless Claims', names[1]);
+  ok('a run is measured from its FIRST release, so 10:00 and 10:30 do not chain', names[2] === 'UMich Sentiment' && names[3] === 'EIA Crude Inventories', names);
+  ok('a release with no clock stands alone, last', names[4] === 'Waller speaks' && g.length === 5, names);
+  ok('a 30-minute window takes 10:00 and 10:30 together', D.groups([umich, eia], met, 30).length === 1);
+  ok('0 turns grouping off', D.groups([pce, gdp], met, 0).length === 2);
+  ok('different days never share a card', D.groups([pce, { ...gdp, date: '2026-10-30' }], met).length === 2);
+  ok('the window comes from TradeHub’s settings', D.normalize({ groupMin: 30 }).groupMin === 30 && D.normalize(null).groupMin === 15
+    && D.normalize({ groupMin: -5 }).groupMin === 0 && D.normalize({ groupMin: 999 }).groupMin === D.GROUP_MAX && D.normalize({ groupMin: 'x' }).groupMin === 15);
+  const G = load(); G.D.setConfig({ groupMin: 0 });
+  ok('and groups() follows it', G.D.groups([pce, gdp], met).length === 2);
+
+  const run = g[1];
+  const last = D.dueAt(pce, met(pce)); // 8:40 ET
+  ok('no ▶ until the LAST release in the group is due', D.debriefable(run, met, D.dueAt(ecb, met(ecb))) === null && D.debriefable(run, met, last - 1000) === null);
+  ok('then one ▶ covers every release', (D.debriefable(run, met, last) || []).length === 4);
+  ok('an earnings card still debriefs the reports already out', D.debriefable([earn, { ...earn, when: 'bmo', id: 'e2' }], () => null, Date.parse('2026-10-29T13:00Z')).length === 1);
+  ok('a single release still gets its own ▶', (D.debriefable([pce], met, last) || []).length === 1);
+
+  const q = D.prompt(run, D.normalize(null), met);
+  ok('the group prompt names all of them in one go', /^These 4 releases just came out together \(8:15–8:30 AM ET, Thu, Oct 29, 2026\)/.test(q), q.slice(0, 90));
+  ok('one line per release with its category and time', /\n- ECB Rate Decision \(ECB, 8:15 AM ET\)\n- September PCE Report \(Inflation, 8:30 AM ET\)\n- Q3 2026 GDP \(Growth, 8:30 AM ET\)\n- Initial Jobless Claims \(Jobs, 8:30 AM ET\)\n/.test(q), q.slice(0, 260));
+  ok('and keeps the macro debrief’s asks', /vs\. consensus and the prior reading/.test(q) && /market reaction/.test(q) && /Expected market movement/.test(q) && !/\{[a-z]+\}/i.test(q));
+  ok('a shared clock reads as one time', /together \(8:30 AM ET,/.test(D.prompt([pce, gdp], null, met)));
+  ok('a span across noon keeps both halves', /\(11:45 AM–12:00 PM ET/.test(D.prompt([pce, gdp], null, (e) => e === pce ? { hh: 11, mm: 45 } : { hh: 12, mm: 0 })));
+  ok('a custom group template is used', D.prompt([pce, gdp], D.normalize({ templates: { group: 'Brief {count}: {events}' } }), met) === 'Brief 2: - September PCE Report (Inflation, 8:30 AM ET)\n- Q3 2026 GDP (Growth, 8:30 AM ET)');
+  const L = load(); L.D.setConfig({ tony: { units: ['claude'] } });
+  L.D.launch(run, 'tony', { macroET: met });
+  const p = payloadOf(L.opened.find((o) => o.nav).nav);
+  ok('one press sends ONE prompt covering the group', /^These 4 releases/.test(p.q) && p.units.join() === 'claude');
+}
+
 console.log('\nThe link MAGI reads');
 {
   const u = D.link('hello', ['gemini'], 'veda');
