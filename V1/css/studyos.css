@@ -263,9 +263,9 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
   min-width: 18px; text-align: center; line-height: 1.4; letter-spacing: 0;
   display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0;
 }
-#study-root .sos-cloud-badge svg { width: 11px; height: 11px; }
-#study-root .sos-cloud-badge.pending { background: #e3b489; color: #2a1c08; }
-#study-root .sos-cloud-badge.synced  { background: #93c4a4; color: #143323; }
+#study-root .sos-cloud-badge svg { width: 12px; height: 12px; stroke-width: 2.4; }
+#study-root .sos-cloud-badge.pending { background: var(--bg4); border: 1px solid #4A4B51; color: #e3b489; }
+#study-root .sos-cloud-badge.synced  { background: var(--bg4); border: 1px solid #4A4B51; color: #93c4a4; }
 
 /* Cloud capacity: a label, the used share, a slim mauve bar. */
 #study-root .sos-storage { margin: 8px 4px 0; padding: 12px 12px 11px; border-radius: 12px; background: rgba(255, 255, 255, .035); border: 1px solid var(--border); }
