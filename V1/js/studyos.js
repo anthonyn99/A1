@@ -3886,7 +3886,6 @@ function renderCalendar() {
     if (isToday) cell.classList.add('today');
     const dateStr = y + '-' + String(m+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
     cell.innerHTML = `<div class="day-num">${day}</div>`;
-    cell.title = formatDate(dateStr);
     const dayEvents = events.filter(e => e.date === dateStr);
     const dayTasks = tasks.filter(t => t.dueDate === dateStr);
     let shown = 0;
@@ -4002,7 +4001,6 @@ function _sosRenderDay() {
     const row = document.createElement('div');
     row.className = 'day-item' + (isTask && r.done ? ' done' : '');
     row.style.setProperty('--c', color);
-    row.title = isTask ? 'Edit task' : 'Edit event';
     row.onclick = () => isTask ? openEditTask(r.id) : openAddEvent(r);
     row.innerHTML = `
       <div class="day-time">${it.time ? _sosFmtTime(it.time) : 'All day'}</div>
