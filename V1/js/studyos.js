@@ -3888,7 +3888,7 @@ function renderCalendar() {
     if (isToday) cell.classList.add('today');
     const dateStr = y + '-' + String(m+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
     cell.innerHTML = `<div class="day-num">${day}</div>`;
-    cell.title = 'Add an event on ' + formatDate(dateStr);
+    cell.title = formatDate(dateStr);
     const dayEvents = events.filter(e => e.date === dateStr);
     const dayTasks = tasks.filter(t => t.dueDate === dateStr);
     let shown = 0;
@@ -3903,7 +3903,7 @@ function renderCalendar() {
       const t = document.createElement('span');
       t.textContent = ev.name;
       dot.appendChild(t);
-      dot.onclick = e => { e.stopPropagation(); openAddEvent(ev); };
+      dot.onclick = e => { e.stopPropagation(); if (_sosCalLinesOnly()) sosOpenDay(dateStr); else openAddEvent(ev); };
       cell.appendChild(dot);
     });
     dayTasks.forEach(task => {
@@ -3925,6 +3925,7 @@ function renderCalendar() {
       box.title = task.done ? 'Mark not done' : 'Mark done';
       box.onclick = e => {
         e.stopPropagation();
+        if (_sosCalLinesOnly()) { sosOpenDay(dateStr); return; }
         task.done = !task.done;
         persistTasks();
         row.classList.toggle('done', task.done);
@@ -3938,7 +3939,7 @@ function renderCalendar() {
       };
       const label = document.createElement('span');
       label.textContent = task.name;
-      label.onclick = e => { e.stopPropagation(); openEditTask(task.id); };
+      label.onclick = e => { e.stopPropagation(); if (_sosCalLinesOnly()) sosOpenDay(dateStr); else openEditTask(task.id); };
       row.appendChild(box);
       row.appendChild(label);
       cell.appendChild(row);
@@ -3950,12 +3951,85 @@ function renderCalendar() {
       more.textContent = '+' + rest + ' more';
       cell.appendChild(more);
     }
-    cell.onclick = () => openAddEvent(null, dateStr);
+    cell.onclick = () => sosOpenDay(dateStr);
     cells.appendChild(cell);
   }
 
   renderUpcoming();
+  // An open day view follows every change (a save, a tick, a delete).
+  if (_sosDayOpen && document.getElementById('modal-day').classList.contains('open')) _sosRenderDay();
 }
+
+/* ── The day view (Tony, 2026-10-29) ─────────────────────────────────────────
+ * A day on the calendar opens everything on it: events and tasks in time
+ * order, each in its class colour. A row opens its editor (which opens ABOVE
+ * this popup and leaves it there); the footer adds an event or a task on that
+ * day. On a phone the cells are only coloured lines, so a tap anywhere in a
+ * cell, line or not, opens the day. */
+let _sosDayOpen = null;
+function _sosCalLinesOnly() { return window.matchMedia('(max-width: 640px)').matches; }
+function sosOpenDay(dateStr) {
+  _sosDayOpen = dateStr;
+  _sosRenderDay();
+  _sosOpen('modal-day');
+}
+function _sosRenderDay() {
+  const date = _sosDayOpen;
+  if (!date) return;
+  const dt = new Date(date + 'T12:00:00');
+  const todayStr = sosLocalDate();
+  _sosEl('day-modal-title').textContent = dt.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const rel = _sosRelDay(date);
+  const items = events.filter(e => e.date === date)
+    .map(e => ({ kind: 'event', time: e.time || '', ref: e }))
+    .concat(tasks.filter(t => t.dueDate === date).map(t => ({ kind: 'task', time: t.dueTime || '', ref: t })))
+    .sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
+  const n = items.length;
+  const sub = [];
+  if (/^(Today|Tomorrow|Yesterday)$/.test(rel)) sub.push(rel);
+  sub.push(n ? n + (n === 1 ? ' item' : ' items') : 'Nothing yet');
+  _sosEl('day-modal-sub').textContent = sub.join(' · ');
+  _sosEl('day-modal-ic').classList.toggle('pink', date === todayStr);
+  const list = _sosEl('day-list');
+  list.innerHTML = '';
+  if (!n) {
+    list.innerHTML = '<div class="empty-note">Nothing on this day.</div>';
+    return;
+  }
+  items.forEach(it => {
+    const r = it.ref, isTask = it.kind === 'task';
+    const cls = classes.find(c => c.id === r.classId);
+    const type = isTask ? (r.type || 'hw') : r.type;
+    const color = cls ? sosPastel(cls.color) : (EVENT_COLORS[type] || (isTask && PRIORITY_COLORS[r.priority]) || '#B8A2C6');
+    const row = document.createElement('div');
+    row.className = 'day-item' + (isTask && r.done ? ' done' : '');
+    row.style.setProperty('--c', color);
+    row.title = isTask ? 'Edit task' : 'Edit event';
+    row.onclick = () => isTask ? openEditTask(r.id) : openAddEvent(r);
+    row.innerHTML = `
+      <div class="day-time">${it.time ? _sosFmtTime(it.time) : 'All day'}</div>
+      <div class="day-body">
+        <div class="day-name">${escHtml(r.name)}</div>
+        <div class="day-meta">
+          <span class="type-tag">${isTask ? 'Task' : escHtml(_sosTypeLabel(type))}</span>
+          ${cls ? `<span class="cls-tag" style="--c:${color}"><i></i><span>${escHtml(sosClassName(cls))}</span></span>` : ''}
+        </div>
+      </div>
+      ${isTask ? `<button class="day-check" type="button" title="${r.done ? 'Mark not done' : 'Mark done'}" aria-label="${r.done ? 'Mark not done' : 'Mark done'}">${SOI.check}</button>` : ''}`;
+    const chk = row.querySelector('.day-check');
+    if (chk) chk.onclick = e => { e.stopPropagation(); toggleTaskDone(r.id); };
+    list.appendChild(row);
+  });
+}
+function sosDayAdd(kind) {
+  const date = _sosDayOpen;
+  if (kind === 'event') { openAddEvent(null, date); return; }
+  openAddTaskGlobal();
+  const d = _sosEl('inp-task-date');
+  if (d && date) d.value = date;
+}
+window.sosOpenDay = sosOpenDay;
+window.sosDayAdd = sosDayAdd;
 
 /* The next fortnight of events AND open tasks, grouped by day, each with a
  * date tile in its class's colour. */
