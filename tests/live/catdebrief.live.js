@@ -42,7 +42,11 @@ if (PAST) EVENTS.push(
   { id: 'mc_cpi_' + PAST, kind: 'macro', category: 'inflation', name: 'September CPI Report', date: PAST, importance: 'high' },
   { id: 'mc_hol_' + PAST, kind: 'holiday', category: 'holiday', name: 'Market Holiday', date: PAST },
   { id: 'earn_TSM_' + PAST, kind: 'earnings', ticker: 'TSM', name: 'TSM Earnings', date: PAST, category: 'earnings', when: 'bmo', epsEst: 2.6 },
-  { id: 'earn_NFLX_' + PAST, kind: 'earnings', ticker: 'NFLX', name: 'NFLX Earnings', date: PAST, category: 'earnings', when: 'amc' });
+  { id: 'earn_NFLX_' + PAST, kind: 'earnings', ticker: 'NFLX', name: 'NFLX Earnings', date: PAST, category: 'earnings', when: 'amc' },
+  // Three releases at 10:00 ET: ONE card, ONE ▶ (grouped releases, 2026-10-29).
+  { id: 'mc_um_' + PAST, kind: 'macro', category: 'sentiment', name: 'UMich Consumer Sentiment', date: PAST, importance: 'medium' },
+  { id: 'mc_ism_' + PAST, kind: 'macro', category: 'growth', name: 'ISM Services PMI', date: PAST, importance: 'high' },
+  { id: 'mc_jolts_' + PAST, kind: 'macro', category: 'jobs', name: 'JOLTS Job Openings', date: PAST, importance: 'low' });
 if (FUTURE) EVENTS.push({ id: 'mc_ppi_' + FUTURE, kind: 'macro', category: 'inflation', name: 'September PPI Report', date: FUTURE, importance: 'medium' });
 const CFG = { tony: { units: ['grok'] }, veda: { units: ['gemini', 'claude'] }, templates: { earnings: '', macro: '' }, savedAt: Date.now() - 60000 };
 
@@ -85,11 +89,18 @@ const CFG = { tony: { units: ['grok'] }, veda: { units: ['gemini', 'claude'] }, 
       ok('the CPI print that came out has ▶', b.some((l) => /September CPI Report/.test(l)), b);
       ok('a day of two earnings shows ONE ▶, for both reports', b.filter((l) => /earnings/.test(l)).length === 1 && b.some((l) => /TSM, NFLX earnings/.test(l)), b);
       ok('a market holiday never does', !b.some((l) => /Holiday/.test(l)), b);
+      ok('three 10:00 releases show ONE ▶ for all of them', b.filter((l) => /UMich|ISM|JOLTS/.test(l)).length === 1 && b.some((l) => /UMich Consumer Sentiment, ISM Services PMI, JOLTS Job Openings/.test(l)), b);
+      const card = JSON.parse(await js(`var c=[...document.querySelectorAll('[data-mc-group]')].find(x=>x.offsetParent); return JSON.stringify(c?{n:c.getAttribute('data-mc-group'),t:c.innerText,stray:[...document.querySelectorAll('span')].filter(d=>d.offsetParent&&!d.closest('[data-mc-group]')&&/^ISM Services PMI$/.test(d.textContent.trim())).length}:null);`));
+      ok('…on one card listing each release with its impact', card && card.n === '3' && /3 releases/.test(card.t) && /High/.test(card.t) && /UMich Consumer Sentiment/.test(card.t) && /JOLTS Job Openings/.test(card.t) && card.stray === 0, JSON.stringify(card));
+      ok('…and the CPI print at 8:30 keeps its own card', b.some((l) => /^Debrief September CPI Report in MAGI$/.test(l)), b);
     }
     if (FUTURE) ok('a release still ahead has none yet', !b.some((l) => /PPI/.test(l)), b);
     await js(`document.querySelector('.mc-debrief') && document.querySelector('.mc-debrief').scrollIntoView({block:'center'}); 1`);
     await sleep(400);
     await shot(`taskhub-${who}-desktop`);
+    await js(`var c=[...document.querySelectorAll('[data-mc-group]')].find(x=>x.offsetParent); c && c.scrollIntoView({block:'center'}); 1`);
+    await sleep(300);
+    await shot(`taskhub-${who}-group`);
     if (PAST) {
       await js(STUB);
       await js(`[...document.querySelectorAll('.mc-debrief')].find(b=>b.offsetParent&&/CPI/.test(b.getAttribute('aria-label'))).click(); 1`);
@@ -105,6 +116,10 @@ const CFG = { tony: { units: ['grok'] }, veda: { units: ['gemini', 'claude'] }, 
       await js(`window.__opened.length = 0; [...document.querySelectorAll('.mc-debrief')].find(b=>b.offsetParent&&/earnings/.test(b.getAttribute('aria-label'))).click(); 1`);
       await sleep(400);
       const e = decode(JSON.parse(await js(`return JSON.stringify(window.__opened.find(x=>x.nav));`)).nav);
+      await js(`window.__opened.length = 0; [...document.querySelectorAll('.mc-debrief')].find(b=>b.offsetParent&&/JOLTS/.test(b.getAttribute('aria-label'))).click(); 1`);
+      await sleep(400);
+      const gq = decode(JSON.parse(await js(`return JSON.stringify(window.__opened.find(x=>x.nav));`)).nav);
+      ok('the group ▶ debriefs all three in one prompt', /^These 3 releases just came out together \(10:00 AM ET, /.test(gq.q) && /- UMich Consumer Sentiment \(Sentiment, 10:00 AM ET\)/.test(gq.q) && /- JOLTS Job Openings/.test(gq.q) && gq.p === who, gq.q.slice(0, 200));
       ok('the earnings ▶ debriefs each report on the card', /^Debrief each of these 2 reports separately \(TSM, NFLX\)/.test(e.q) && /TSM just reported earnings \(before the open/.test(e.q) && /consensus was \$2\.60/.test(e.q), e.q.slice(0, 120));
     }
     // Phone width: one day shows (today). Put a release on it and treat it as
@@ -218,6 +233,18 @@ const CFG = { tony: { units: ['grok'] }, veda: { units: ['gemini', 'claude'] }, 
     await press('/Reset to built-in/');
     await sleep(1800);
     d = JSON.parse(await js(`return JSON.stringify(__fakeFs.docs['dashboards/catalyst_debrief']);`));
+    // Releases together: the window and the Together prompt.
+    ok('the Together prompt has its own tab', await press('/^Together$/'));
+    await sleep(300);
+    ok('…with the group template and its blanks', await js(`var ta=document.querySelector('textarea[aria-label="Together debrief template"]'); return !!ta && ta.value === window.A1Debrief.TEMPLATES.group && document.querySelector('.dbf-tokens').textContent.indexOf('{events}') >= 0;`));
+    ok('…and a preview of releases together', await js(`var p=document.querySelector('pre'); return !!p && p.textContent.indexOf('releases just came out together') > 0;`), await js(`var p=document.querySelector('pre'); return p && p.textContent.slice(0,80);`));
+    await js(`[...document.querySelectorAll('.dbf-grp button')].find(b=>b.textContent.trim()==='30 min').click(); 1`);
+    await sleep(1800);
+    d = JSON.parse(await js(`return JSON.stringify(__fakeFs.docs['dashboards/catalyst_debrief']);`));
+    ok('the grouping window is stored', d.groupMin === 30, d.groupMin);
+    await shot('tradehub-together');
+    await press('/^Earnings$/');
+    await sleep(300);
     ok('Reset to built-in brings back the built-in prompt', await tplVal() === await js(`return window.A1Debrief.TEMPLATES.earnings;`));
     ok('…and clears the stored default', d.defaults.earnings === '' && d.templates.earnings === '', JSON.stringify(d));
   }
