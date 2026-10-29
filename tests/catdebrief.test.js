@@ -170,7 +170,12 @@ console.log('\nBoth TaskHubs are wired to it');
   ok('Veda’s card launches in Veda’s profile', /window\._mcDebrief\(l,"veda",/.test(INDEX));
   ok('both cards draw the button', /mcDebriefBtn\(e,!\(e\.importance/.test(INDEX) && /vdDebriefBtn\(e,!\(e\.importance/.test(INDEX));
   ok('both keep the fields the prompt needs', (INDEX.match(/ticker:ev\.ticker\|\|null,when:ev\.when\|\|null,epsEst:/g) || []).length === 2);
-  ok('a grouped earnings card carries its events', (INDEX.match(/_past:past,_group:earn\}/g) || []).length === 2);
+  ok('a grouped earnings card carries its events', (INDEX.match(/_past:g\.every\(e=>e\._past\),_group:g\}/g) || []).length === 2);
+  ok('both TaskHubs draw cards in A1Debrief.groups order', (INDEX.match(/return mcGroupsOf\(mcDay\)\.map\(/g) || []).length === 2
+    && (INDEX.match(/function mcGroupsOf\(day\)\{const D=window\.A1Debrief;if\(D&&D\.groups\)return D\.groups\(day,mcMacroET\)/g) || []).length === 2);
+  ok('both draw a group of releases as one card with one ▶', /mcDebriefBtn\(\{_group:g\}/.test(INDEX) && /vdDebriefBtn\(\{_group:g\}/.test(INDEX));
+  ok('both ask debriefable() which events the ▶ covers', (INDEX.match(/D\.debriefable\(g,mcMacroET\)/g) || []).length === 2);
+  ok('both redraw when the grouping window changes', (INDEX.match(/addEventListener\("a1debrief:config",f\)/g) || []).length === 2);
   ok('both re-render when the next one comes due', (INDEX.match(/D\.nextDue\(marketCal,e=>mcMacroET\(e\)\)/g) || []).length === 2);
   ok('the launcher passes the profile through to the module', /D\.launch\(events, profile, \{ macroET: macroET, magiUrl: base \}\)/.test(INDEX));
 }
