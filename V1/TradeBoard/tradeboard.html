@@ -790,33 +790,79 @@
   .nh-src .sep { opacity: 0.5; }
   @media (prefers-reduced-motion: reduce) { .nh-breaking i, .tbx-spin { animation: none; } }
 
-  /* Summary overlay */
-  #nh-sum-modal .modal { width: 860px; padding: 0; }
-  .nhs-head { display: flex; align-items: center; gap: 10px; padding: 15px 22px; border-bottom: 1px solid var(--border-soft);
+  /* Market Summary: TradeHub's 2026-10-29 redesign in TradeBoard's colours and
+     type. One reading column: a hero (headline + where the read sits between
+     bearish and bullish), numbered key points, ticker and theme cards, then
+     risks beside what to watch. Colour carries the stance: green bullish, red
+     bearish, grey neutral. */
+  #nh-sum-modal .modal { width: 860px; padding: 0; overscroll-behavior: contain; }
+  .nhs-head { display: flex; align-items: center; gap: 12px; padding: 14px 18px 14px 26px; border-bottom: 1px solid var(--border-soft);
     position: sticky; top: 0; background: var(--bg-card); z-index: 2; }
-  .nhs-head .ttl { font-size: 15px; font-weight: 700; }
-  .nhs-head .sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
-  .nhs-tone { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 4px 10px;
-    border-radius: 20px; border: 1px solid currentColor; flex-shrink: 0; }
-  .nhs-body { padding: 18px 22px 22px; display: flex; flex-direction: column; gap: 20px; }
-  .nhs-hl { font-size: 20px; font-weight: 700; line-height: 1.3; }
-  .nhs-meter { display: flex; align-items: center; gap: 9px; margin-top: 12px; font-size: 9px; font-weight: 700; }
-  .nhs-meter .bar { flex: 1; height: 4px; border-radius: 4px; background: var(--bg-slot); position: relative; }
-  .nhs-meter .knob { position: absolute; top: -3px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--bg-card); }
-  .nhs-ov { font-size: 13.5px; line-height: 1.65; color: var(--text-2); border-left: 2px solid var(--border); padding-left: 14px; }
-  .nhs-sec { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
-  .nhs-kp { display: flex; flex-direction: column; gap: 7px; }
-  .nhs-kp > div { padding: 9px 12px; border-radius: 8px; border-left: 3px solid var(--muted); background: var(--bg-inset);
-    font-size: 13px; line-height: 1.55; }
-  .nhs-kp .tix { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
-  .nhs-kp .tix span { font-family: var(--mono); font-size: 10px; color: var(--accent-hover); background: var(--bg-slot);
-    padding: 1px 6px; border-radius: 4px; }
-  .nhs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
-  .nhs-grid > div { display: flex; gap: 9px; padding: 8px 11px; border-radius: 8px; background: var(--bg-inset);
-    font-size: 12px; line-height: 1.45; color: var(--text-2); min-width: 0; }
-  .nhs-grid .t { font-family: var(--mono); font-weight: 600; min-width: 44px; flex-shrink: 0; }
-  .nhs-list { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; line-height: 1.5; color: var(--text-2); }
-  .nhs-foot { font-size: 10.5px; color: var(--muted); border-top: 1px solid var(--border-soft); padding-top: 11px; }
+  .nhs-mark { width: 30px; height: 30px; flex-shrink: 0; border-radius: 9px; border: 1px solid var(--border);
+    display: inline-flex; align-items: center; justify-content: center; color: var(--accent-hover); font-size: 15px; }
+  .nhs-head-txt { flex: 1; min-width: 0; }
+  .nhs-title { font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.2; }
+  .nhs-meta { font-size: 11.5px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nhs-meta span { margin: 0 6px; opacity: 0.7; }
+  .nhs-body { padding: 30px 36px 28px; display: flex; flex-direction: column; gap: 34px; }
+  .nhs-eyebrow, .nhs-sec-t { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; color: var(--accent-hover); }
+  .nhs-headline { margin: 10px 0 0; font-size: 27px; font-weight: 700; line-height: 1.24; letter-spacing: -0.4px; color: var(--text); text-wrap: balance; }
+  .nhs-tone { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 22px; margin-top: 22px;
+    padding: 16px 18px; border: 1px solid var(--border-soft); border-radius: var(--radius-sm); background: var(--bg-inset); }
+  .nhs-tone-v { display: flex; flex-direction: column; gap: 2px; min-width: 86px; }
+  .nhs-tone-l { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; }
+  .nhs-score { font-family: var(--mono); font-size: 26px; font-weight: 500; line-height: 1.1; letter-spacing: -0.5px; }
+  .nhs-gauge { min-width: 0; }
+  .nhs-track { position: relative; height: 6px; border-radius: 100px; background: var(--bg-slot); margin: 6px 7px 0; }
+  .nhs-fill { position: absolute; top: 0; bottom: 0; border-radius: 100px; }
+  .nhs-mid { position: absolute; left: 50%; top: -4px; width: 1px; height: 14px; background: var(--border); }
+  .nhs-dot { position: absolute; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
+    border: 3px solid var(--bg-inset); box-sizing: border-box; }
+  .nhs-scale { display: flex; justify-content: space-between; margin-top: 9px; font-size: 10px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+  .nhs-scale span:first-child { color: var(--red); }
+  .nhs-scale span:last-child { color: var(--green); }
+  .nhs-overview { margin: 22px 0 0; font-size: 15px; line-height: 1.75; color: var(--text-2); }
+  .nhs-sec-h { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .nhs-sec-h::after { content: ""; flex: 1; height: 1px; background: var(--border-soft); }
+  .nhs-sec-n { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .nhs-points { list-style: none; margin: 0; padding: 0; }
+  .nhs-pt { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px; padding: 15px 0; border-top: 1px solid var(--border-soft); }
+  .nhs-pt:first-child { border-top: none; padding-top: 4px; }
+  .nhs-pt-n { font-family: var(--mono); font-size: 13px; font-weight: 500; line-height: 1.6; }
+  .nhs-pt-t { font-size: 14.5px; line-height: 1.62; color: var(--text); }
+  .nhs-pt-f { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 9px; }
+  .nhs-st { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; border: 1px solid var(--border);
+    border-radius: 6px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; white-space: nowrap; flex-shrink: 0; }
+  .nhs-st i { font-style: normal; font-size: 8px; line-height: 1; }
+  .nhs-tk { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px; background: var(--bg-slot);
+    border: 1px solid var(--border-soft); font-family: var(--mono); font-size: 10.5px; font-weight: 600; color: var(--accent-hover); }
+  .nhs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+  .nhs-grid-wide { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+  .nhs-card { background: var(--bg-slot); border: 1px solid var(--border-soft); border-radius: var(--radius-sm); padding: 13px 15px 14px;
+    min-width: 0; transition: border-color var(--transition); }
+  .nhs-card:hover { border-color: var(--border); }
+  .nhs-card-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; }
+  .nhs-sym { font-family: var(--mono); font-size: 14px; font-weight: 600; }
+  .nhs-theme { font-size: 13.5px; font-weight: 700; color: var(--text); line-height: 1.3; min-width: 0; }
+  .nhs-card-n { margin-top: 7px; font-size: 12.5px; line-height: 1.58; color: var(--text-2); }
+  .nhs-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .nhs-panel { border: 1px solid var(--border-soft); border-radius: var(--radius-sm); padding: 16px 18px 18px; background: var(--bg-inset); min-width: 0; }
+  .nhs-panel-t { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.12em; margin-bottom: 12px; }
+  .nhs-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .nhs-list li { display: grid; grid-template-columns: 14px minmax(0, 1fr); font-size: 13px; line-height: 1.58; color: var(--text-2); }
+  .nhs-li-m { width: 5px; height: 5px; border-radius: 50%; margin-top: 8px; }
+  .nhs-foot { display: flex; flex-wrap: wrap; gap: 4px 14px; padding-top: 16px; border-top: 1px solid var(--border-soft); font-size: 11px; color: var(--muted); }
+  .nhs-foot span + span::before { content: "·"; margin-right: 14px; opacity: 0.6; }
+  .nhs-loading { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 10px; }
+  .nhs-load-note { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--muted); margin-bottom: 12px; }
+  .nhs-sk { border-radius: 6px; background: var(--bg-slot); animation: nhsk 1.4s ease-in-out infinite; }
+  @keyframes nhsk { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+  .nhs-error { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; }
+  .nhs-error > .tbi { color: var(--amber); flex-shrink: 0; margin-top: 3px; }
+  .nhs-error-t { font-size: 13.5px; line-height: 1.55; color: var(--text-2); }
+  @media (prefers-reduced-motion: reduce) { .nhs-sk { animation: none; } }
 
   @media (max-width: 900px) {
     .nh-pulse { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -856,10 +902,19 @@
     .nh-src { margin-left: 0; }
     .nh-movers { grid-auto-columns: 78%; }
     #nh-sum-modal .modal { padding: 0; }
-    .nhs-head { padding: 12px 16px; }
-    .nhs-body { padding: 14px 16px 18px; }
-    .nhs-hl { font-size: 17px; }
-    .nhs-grid { grid-template-columns: 1fr; }
+    .nhs-head { padding: 12px 10px 12px 16px; gap: 10px; }
+    .nhs-mark { width: 28px; height: 28px; }
+    .nhs-body { padding: 22px 16px calc(env(safe-area-inset-bottom, 0px) + 20px); gap: 28px; }
+    .nhs-headline { font-size: 21px; letter-spacing: -0.3px; }
+    .nhs-tone { grid-template-columns: 1fr; gap: 12px; padding: 14px 14px 12px; margin-top: 18px; }
+    .nhs-tone-v { flex-direction: row; align-items: baseline; justify-content: space-between; }
+    .nhs-score { font-size: 22px; }
+    .nhs-overview { font-size: 14px; line-height: 1.7; margin-top: 18px; }
+    .nhs-pt { grid-template-columns: 24px minmax(0, 1fr); gap: 10px; padding: 13px 0; }
+    .nhs-pt-t { font-size: 14px; }
+    .nhs-grid, .nhs-grid-wide, .nhs-cols { grid-template-columns: 1fr; }
+    .nhs-foot { flex-direction: column; }
+    .nhs-foot span + span::before { display: none; }
   }
 
   /* ═══════════════════════════════════════════════════════════════════════
@@ -1632,7 +1687,7 @@
 
 <!-- News: AI market summary of the current build -->
 <div class="modal-overlay" id="nh-sum-modal">
-  <div class="modal"><div id="nh-sum-host"></div></div>
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Market Summary"><div id="nh-sum-host"></div></div>
 </div>
 
 <div id="toast-host"></div>
@@ -5083,6 +5138,7 @@ TB.news = {
   openSummary() {
     TB.news.sumOpen = true;
     document.getElementById("nh-sum-modal").classList.add("open");
+    document.querySelector("#nh-sum-modal .modal").scrollTop = 0;
     const S = TB.news.sum;
     if (!(S.data && S.gen === TB.news.generatedAt)) TB.news.fetchSummary(TB.news.generatedAt, false);
     TB.news._renderSummary();
@@ -5318,37 +5374,63 @@ TB.news = {
     const N = TB.news, S = N.sum;
     const data = (S.data && N.generatedAt && S.gen === N.generatedAt) ? S.data : null;
     const stance = s => s === "bull" ? "var(--green)" : s === "bear" ? "var(--red)" : "var(--text-2)";
-    const tone = t => t === "bull" ? "var(--green)" : t === "bear" ? "var(--red)" : "var(--accent-hover)";
+    const toneColor = t => t === "bull" ? "var(--green)" : t === "bear" ? "var(--red)" : "var(--accent-hover)";
+    const TAG = { bull: ["▲", "Bull"], bear: ["▼", "Bear"], neutral: ["●", "Neutral"] };
+    const stTag = s => { const [g, l] = TAG[s] || TAG.neutral; return `<span class="nhs-st" style="color:${stance(s)}"><i aria-hidden="true">${g}</i>${l}</span>`; };
+    const has = a => Array.isArray(a) && a.length > 0;
+    const sec = (title, n, inner) => `<section class="nhs-sec"><div class="nhs-sec-h"><span class="nhs-sec-t">${title}</span>${n ? `<span class="nhs-sec-n">${n}</span>` : ""}</div>${inner}</section>`;
     let body = "";
     if (!data && (S.loading || S.inflight)) {
-      body = `<div style="display:flex;gap:12px;align-items:center;padding:30px 4px;color:var(--muted);"><span class="nh-spin" style="font-size:18px;">${TBICON.refresh}</span>
-        <div><div style="color:var(--text);font-weight:700;font-size:13px;">Reading the build…</div><div style="font-size:12px;margin-top:2px;">Turning ${N.events.length} events into one market read — about 5–30 seconds.</div></div></div>`;
+      const sk = (w, h, mt) => `<div class="nhs-sk" style="width:${w};height:${h}px;${mt ? "margin-top:" + mt + "px;" : ""}"></div>`;
+      body = `<div class="nhs-loading" aria-busy="true">
+        <div class="nhs-load-note"><span class="tbx-spin">${TBICON.refresh}</span>Reading ${N.events.length || ""} events into one market read. About 5–30 seconds.</div>
+        ${sk("86%", 24)}${sk("58%", 24)}${sk("100%", 6, 10)}${sk("100%", 12, 18)}${sk("94%", 12)}${sk("72%", 12)}</div>`;
     } else if (!data && S.error) {
-      body = `<div style="padding:22px 4px;"><div style="display:flex;gap:10px;color:var(--amber);">${TBICON.alert}<div style="color:var(--text-2);font-size:13px;">${U.esc(S.error)}</div></div>
-        <button class="btn btn-sm" style="margin-top:14px;" data-act="sum-retry">${TBICON.refresh}<span>Try again</span></button></div>`;
+      body = `<div class="nhs-error">${TBICON.alert}<div><div class="nhs-error-t">${U.esc(S.error)}</div>
+        <button type="button" class="btn btn-sm" style="margin-top:14px;" data-act="sum-retry">${TBICON.refresh}<span>Try again</span></button></div></div>`;
     } else if (data) {
-      const ts = Math.max(-1, Math.min(1, +data.toneScore || 0));
-      body = `<div><div class="nhs-hl">${U.esc(data.headline || "")}</div>
-          <div class="nhs-meter"><span style="color:var(--red)">BEAR</span><div class="bar"><div class="knob" style="left:calc(${((ts + 1) / 2 * 100).toFixed(1)}% - 5px);background:${tone(data.tone)}"></div></div><span style="color:var(--green)">BULL</span>
-          <span style="font-family:var(--mono);color:${tone(data.tone)};min-width:38px;text-align:right;">${ts > 0 ? "+" : ""}${ts.toFixed(2)}</span></div></div>
-        ${data.overview ? `<div class="nhs-ov">${U.esc(data.overview)}</div>` : ""}
-        ${(data.keyPoints || []).length ? `<div><div class="nhs-sec">Key points</div><div class="nhs-kp">${data.keyPoints.map(k => `<div style="border-left-color:${stance(k.stance)}">${U.esc(k.text)}
-          ${(k.tickers || []).length ? `<div class="tix">${k.tickers.map(t => `<span>${U.esc(t)}</span>`).join("")}</div>` : ""}</div>`).join("")}</div></div>` : ""}
-        ${(data.tickers || []).length ? `<div><div class="nhs-sec">By ticker</div><div class="nhs-grid">${data.tickers.map(t => `<div><span class="t" style="color:${stance(t.stance)}">${U.esc(t.ticker)}</span><span>${U.esc(t.note)}</span></div>`).join("")}</div></div>` : ""}
-        ${(data.themes || []).length ? `<div><div class="nhs-sec">Themes</div><div class="nhs-list">${data.themes.map(t => `<div><b style="color:${stance(t.stance)}">${U.esc(t.name)}</b> — ${U.esc(t.note)}</div>`).join("")}</div></div>` : ""}
-        ${((data.risks || []).length || (data.watch || []).length) ? `<div class="nhs-grid" style="background:none;">
-          ${(data.risks || []).length ? `<div style="flex-direction:column;"><div class="nhs-sec" style="color:var(--red)">Risks</div><div class="nhs-list">${data.risks.map(r => `<div>▾ ${U.esc(r)}</div>`).join("")}</div></div>` : ""}
-          ${(data.watch || []).length ? `<div style="flex-direction:column;"><div class="nhs-sec" style="color:var(--accent-hover)">What to watch</div><div class="nhs-list">${data.watch.map(w => `<div>• ${U.esc(w)}</div>`).join("")}</div></div>` : ""}
+      const score = isFinite(+data.toneScore) ? Math.max(-1, Math.min(1, +data.toneScore)) : 0;
+      const pos = (score + 1) / 2 * 100, tc = toneColor(data.tone);
+      const pad2 = n => String(n).padStart(2, "0");
+      body = `<section class="nhs-hero">
+          <div class="nhs-eyebrow">The read</div>
+          <h2 class="nhs-headline">${U.esc(data.headline || "")}</h2>
+          <div class="nhs-tone">
+            <div class="nhs-tone-v" style="color:${tc}"><span class="nhs-tone-l">${{ bull: "Bullish", bear: "Bearish", mixed: "Mixed" }[data.tone] || U.esc(data.tone || "")}</span>
+              <span class="nhs-score">${score > 0 ? "+" : ""}${score.toFixed(2)}</span></div>
+            <div class="nhs-gauge" role="meter" aria-valuemin="-1" aria-valuemax="1" aria-valuenow="${score}" aria-label="Net market tone, bearish to bullish">
+              <div class="nhs-track"><div class="nhs-fill" style="left:${Math.min(pos, 50).toFixed(1)}%;width:${Math.abs(pos - 50).toFixed(1)}%;background:${tc}"></div>
+                <div class="nhs-mid"></div><div class="nhs-dot" style="left:${pos.toFixed(1)}%;background:${tc}"></div></div>
+              <div class="nhs-scale"><span>Bearish</span><span>Neutral</span><span>Bullish</span></div>
+            </div>
+          </div>
+          ${data.overview ? `<p class="nhs-overview">${U.esc(data.overview)}</p>` : ""}
+        </section>
+        ${has(data.keyPoints) ? sec("Key points", data.keyPoints.length, `<ol class="nhs-points">${data.keyPoints.map((k, i) => `<li class="nhs-pt">
+          <span class="nhs-pt-n" style="color:${stance(k.stance)}">${pad2(i + 1)}</span>
+          <div class="nhs-pt-b"><div class="nhs-pt-t">${U.esc(k.text)}</div>
+            <div class="nhs-pt-f">${stTag(k.stance)}${(k.tickers || []).map(t => `<span class="nhs-tk">${U.esc(t)}</span>`).join("")}</div></div></li>`).join("")}</ol>`) : ""}
+        ${has(data.tickers) ? sec("By ticker", data.tickers.length, `<div class="nhs-grid">${data.tickers.map(t => `<div class="nhs-card">
+          <div class="nhs-card-h"><span class="nhs-sym" style="color:${stance(t.stance)}">${U.esc(t.ticker)}</span>${stTag(t.stance)}</div>
+          <div class="nhs-card-n">${U.esc(t.note)}</div></div>`).join("")}</div>`) : ""}
+        ${has(data.themes) ? sec("Themes", data.themes.length, `<div class="nhs-grid nhs-grid-wide">${data.themes.map(t => `<div class="nhs-card">
+          <div class="nhs-card-h"><span class="nhs-theme">${U.esc(t.name)}</span>${stTag(t.stance)}</div>
+          <div class="nhs-card-n">${U.esc(t.note)}</div></div>`).join("")}</div>`) : ""}
+        ${has(data.risks) || has(data.watch) ? `<div class="nhs-cols">
+          ${has(data.risks) ? `<div class="nhs-panel"><div class="nhs-panel-t" style="color:var(--red)">${TBICON.alert}Risks</div>
+            <ul class="nhs-list">${data.risks.map(r => `<li><span class="nhs-li-m" style="background:var(--red)"></span>${U.esc(r)}</li>`).join("")}</ul></div>` : ""}
+          ${has(data.watch) ? `<div class="nhs-panel"><div class="nhs-panel-t" style="color:var(--accent-hover)">${TBICON.clock}What to watch</div>
+            <ul class="nhs-list">${data.watch.map(w => `<li><span class="nhs-li-m" style="background:var(--accent)"></span>${U.esc(w)}</li>`).join("")}</ul></div>` : ""}
         </div>` : ""}
-        <div class="nhs-foot">AI summary of ${N.events.length} analyzed events${data.model ? " · " + U.esc(data.model) : ""} · rebuilt only when the news rebuilds</div>`;
+        <div class="nhs-foot"><span>AI summary of ${N.events.length} analyzed events</span>${data.model ? `<span>${U.esc(data.model)}</span>` : ""}<span>Regenerated only when the news rebuilds</span></div>`;
     } else {
       body = `<div style="padding:26px 4px;color:var(--muted);font-size:13px;">No summary yet.</div>`;
     }
     document.getElementById("nh-sum-host").innerHTML = `
-      <div class="nhs-head">${TBICON.sparkle.replace('class="tbi"', 'class="tbi" style="color:var(--accent-hover);font-size:16px;"')}
-        <div style="flex:1;min-width:0;"><div class="ttl">Market Summary</div>${N.generatedAt ? `<div class="sub">${N.events.length} events · built ${tbnAgo(N.generatedAt)}</div>` : ""}</div>
-        ${data ? `<span class="nhs-tone" style="color:${tone(data.tone)}">${{ bull: "Bullish", bear: "Bearish", mixed: "Mixed" }[data.tone] || U.esc(data.tone || "")}</span>` : ""}
-        <button class="btn-icon" data-act="sum-close" aria-label="Close summary">${TBICON.x}</button>
+      <div class="nhs-head">
+        <span class="nhs-mark">${TBICON.sparkle}</span>
+        <div class="nhs-head-txt"><div class="nhs-title">Market Summary</div>${N.generatedAt ? `<div class="nhs-meta">${N.events.length} events<span>·</span>built ${tbnAgo(N.generatedAt)}</div>` : ""}</div>
+        <button type="button" class="btn-icon" data-act="sum-close" aria-label="Close summary">${TBICON.x}</button>
       </div>
       <div class="nhs-body">${body}</div>`;
   },
