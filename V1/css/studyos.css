@@ -1517,5 +1517,5 @@ body.sos-guardian-open #study-root, body.sos-guardian-open #sos-intro {
    place; the box fills it. No native resize corner anywhere. */
 .sosc-ta { position: relative; display: flex; flex-direction: column; min-width: 0; width: 100%; }
 .sosc-ta > textarea { flex: 1 1 auto; width: 100%; }
-textarea { resize: none; }
+textarea:not(.sos-nb-host *) { resize: none; }
 .sosc-ta .a1-grip { --ds-txd: #7d7e83; --ds-tx: #ECECEE; --ds-ac: #A892B0; }
