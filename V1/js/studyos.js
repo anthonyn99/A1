@@ -473,7 +473,7 @@ function openKsuModuleDetail(mod) {
   const body = _sosEl('module-detail-body');
   body.innerHTML = '';
   moduleEditMode[mod.id] = false;
-  if (mod.type !== 'notes') body.appendChild(_sosModeToggle(mod, () => toggleKsuMode(mod.id)));
+  if (mod.type === 'documents') body.appendChild(_sosModeToggle(mod, () => toggleKsuMode(mod.id)));
   const content = document.createElement('div');
   content.id = 'module-content-' + mod.id;
   body.appendChild(content);
@@ -1765,9 +1765,9 @@ function openModuleDetail(cls, mod) {
   // Always default to view mode when opening
   moduleEditMode[mod.id] = false;
 
-  // Notes modules use Notebook's own editing — the View / Edit switch is for
-  // Documents and Prompts only.
-  if (mod.type !== 'notes') body.appendChild(_sosModeToggle(mod, () => toggleModuleMode(cls.id, mod.id)));
+  // The View / Edit switch is for Documents only: Notes edit in Notebook, and
+  // a Prompts module always shows Edit / Delete / Copy (Tony, 2026-10-29).
+  if (mod.type === 'documents') body.appendChild(_sosModeToggle(mod, () => toggleModuleMode(cls.id, mod.id)));
 
   const content = document.createElement('div');
   content.id = 'module-content-' + mod.id;
@@ -3391,30 +3391,35 @@ function formatBytes(b) {
 
 // ---- PROMPTS ----
 function renderPromptsModule(body, cls, mod) {
-  const editOn = !!moduleEditMode[mod.id];
-
   const listEl = document.createElement('div');
   listEl.className = 'prompt-list';
   listEl.id = 'prompt-list-' + mod.id;
   refreshPromptList(listEl, cls, mod);
   body.appendChild(listEl);
 
-  if (editOn) {
-    const addRow = document.createElement('div');
-    addRow.className = 'add-prompt-row';
-    addRow.innerHTML = `
-      <textarea id="new-prompt-${mod.id}" placeholder="Write a new prompt…"></textarea>
-      <button class="btn primary" onclick="addPrompt('${cls.id}','${mod.id}')">${SOI.plus}<span>Add</span></button>
-    `;
-    body.appendChild(addRow);
-  }
+  const addRow = document.createElement('div');
+  addRow.className = 'add-prompt-row';
+  addRow.innerHTML = `
+    <textarea id="new-prompt-${mod.id}" placeholder="Write a new prompt…" data-native></textarea>
+    <button class="btn primary" onclick="addPrompt('${cls.id}','${mod.id}')">${SOI.plus}<span>Add</span></button>
+  `;
+  _sosAutoGrow(addRow.querySelector('textarea'));
+  body.appendChild(addRow);
+}
+
+/* A prompt box has no resize grip: it grows with its text and the popup
+ * scrolls instead (a dragged box ran off the screen, Tony 2026-10-29). */
+function _sosAutoGrow(ta) {
+  const fit = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 2 + 'px'; };
+  ta.addEventListener('input', fit);
+  requestAnimationFrame(fit);
+  return fit;
 }
 
 function refreshPromptList(listEl, cls, mod) {
-  const editOn = !!moduleEditMode[mod.id];
   listEl.innerHTML = '';
   if (!mod.prompts || mod.prompts.length === 0) {
-    listEl.innerHTML = `<div class="doc-empty">${editOn ? 'No prompts yet. Write one below.' : 'No prompts saved yet. Switch to Edit to add one.'}</div>`;
+    listEl.innerHTML = '<div class="doc-empty">No prompts yet. Write one below.</div>';
     return;
   }
   mod.prompts.forEach(p => {
@@ -3426,8 +3431,8 @@ function refreshPromptList(listEl, cls, mod) {
     entry.innerHTML = `
       <div class="prompt-entry-text">${safeText}</div>
       <div class="prompt-entry-actions">
-        ${editOn ? `<button class="prompt-copy-btn" onclick="editPrompt('${cls.id}','${mod.id}','${p.id}')">${SOI.pencil}<span>Edit</span></button>` : ''}
-        ${editOn ? `<button class="prompt-del-btn" onclick="removePrompt('${cls.id}','${mod.id}','${p.id}')">${SOI.trash}<span>Delete</span></button>` : ''}
+        <button class="prompt-copy-btn" onclick="editPrompt('${cls.id}','${mod.id}','${p.id}')">${SOI.pencil}<span>Edit</span></button>
+        <button class="prompt-del-btn" onclick="removePrompt('${cls.id}','${mod.id}','${p.id}')">${SOI.trash}<span>Delete</span></button>
         <button class="prompt-copy-btn" id="cpbtn-${p.id}" onclick="copyPromptById('${p.id}')">${SOI.clip}<span>Copy</span></button>
       </div>
     `;
@@ -3468,7 +3473,8 @@ function editPrompt(classId, modId, promptId) {
   const textEl = row.querySelector('.prompt-entry-text');
   const ta = document.createElement('textarea');
   ta.value = p.text;
-  ta.rows = Math.min(16, Math.max(4, p.text.split('\n').length + 1));
+  ta.setAttribute('data-native', '');   // no grip (js/controls.js): it grows instead
+  ta.rows = 4;
   const bar = document.createElement('div');
   bar.style.cssText = 'display:flex;gap:6px;margin-top:8px';
   const save = document.createElement('button');
@@ -3484,8 +3490,10 @@ function editPrompt(classId, modId, promptId) {
   // The row is a drag handle in Edit mode; the box being typed in is not.
   ta.addEventListener('pointerdown', e => e.stopPropagation());
   textEl.replaceChildren(ta, bar);
+  textEl.classList.add('is-editing');
   bar.append(save, cancel);
-  ta.focus();
+  _sosAutoGrow(ta);
+  try { ta.focus({ preventScroll: true }); } catch (e) { ta.focus(); }
 }
 
 async function removePrompt(classId, modId, promptId) {
