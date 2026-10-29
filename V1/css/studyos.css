@@ -1571,3 +1571,10 @@ textarea:not(.sos-nb-host *) { resize: none; }
   #study-root .tb-mark { display: inline-flex; width: 34px; height: 34px; flex: 0 0 34px; }
   #study-root .tb-mark svg { width: 21px; height: 21px; }
 }
+
+/* LifeHub's launcher wears the lock's outlined box beside it. */
+#study-root .sb-tools a1-lifehub {
+  box-sizing: border-box; border: 1px solid #4A4B51; border-radius: 9px; background: var(--bg3);
+  transition: background .18s, border-color .18s;
+}
+#study-root .sb-tools a1-lifehub:hover { background: var(--bg4); border-color: var(--border2); }
