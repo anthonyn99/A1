@@ -1010,7 +1010,6 @@ function switchView(view, classId) {
   else if (activeView === 'notes' && window.SOSNotes) window.SOSNotes.hide(_sosEl('sos-notes-host'));
   activeView = view;
   const titles = { home:'Dashboard', calendar:'Calendar', notes:'Quick Notes', class:'Class', pomodoro:'Timer', ksu:'KSU', ai:'AI Settings', lesson:'Lesson' };
-  const eyebrows = { home:'StudyOS', calendar:'Plan', notes:'Write', class:'Class', pomodoro:'Focus', ksu:'Campus', ai:'Settings', lesson:'Study' };
   if (view === 'ksu') renderKsuModules();
   // ES-module views, reached through window.SOS (this is a classic script).
   try {
@@ -1018,8 +1017,6 @@ function switchView(view, classId) {
     if (view !== 'lesson' && window.SOS && window.SOS.lessonUi) window.SOS.lessonUi.leave();
   } catch (e) { console.warn('view hook failed:', e); }
   _sosEl('topbar-title').textContent = titles[view] || 'StudyOS';
-  const eb = _sosEl('topbar-eyebrow');
-  if (eb) eb.textContent = eyebrows[view] || '';
   if (view === 'class' && classId) openClassDetail(classId);
   if (view !== 'class') currentSidebarClass(null);
   if (view === 'calendar') renderCalendar();
@@ -1509,7 +1506,6 @@ function openClassDetail(id) {
   if (!cls) return;
   currentClassId = id;
   const name = sosClassName(cls);
-  _sosEl('breadcrumb-class').textContent = name;
   _sosEl('detail-title').textContent = name;
   _sosEl('detail-subtitle').textContent = [cls.code, cls.instructor].filter(Boolean).join(' · ');
   _sosEl('detail-color-bar').style.setProperty('--card-color', sosPastel(cls.color));
@@ -4158,8 +4154,6 @@ function updateStats() {
       const n = window.SOS.sessions.streak();
       const day = window.SOS.sessions.dayTotals();
       streakEl.textContent = n === 0 ? '0' : String(n);
-      const sub = streakEl.parentElement && streakEl.parentElement.querySelector('.stat-sub');
-      if (sub) sub.textContent = n === 1 ? 'day in a row' : 'days in a row';
       const tile = _sosEl('stat-card-streak');
       if (tile) {
         tile.title = day.minutes
@@ -4173,13 +4167,11 @@ function updateStats() {
       const daysUntil = Math.round((new Date(upcomingExams[0].date + 'T12:00:00') - new Date(todayStr + 'T12:00:00')) / 86400000);
       nextExamEl.textContent = daysUntil === 0 ? 'Today' : daysUntil === 1 ? '1 day' : daysUntil + ' days';
       nextExamEl.style.color = daysUntil <= 3 ? '#F2AFAF' : daysUntil <= 7 ? '#F2C9A0' : '';
-      const sub = nextExamEl.parentElement && nextExamEl.parentElement.querySelector('.stat-sub');
-      if (sub) sub.textContent = upcomingExams[0].name;
+      nextExamEl.title = upcomingExams[0].name;
     } else {
       nextExamEl.textContent = '—';
       nextExamEl.style.color = '';
-      const sub = nextExamEl.parentElement && nextExamEl.parentElement.querySelector('.stat-sub');
-      if (sub) sub.textContent = 'none scheduled';
+      nextExamEl.title = '';
     }
   }
   renderExamCountdown();
