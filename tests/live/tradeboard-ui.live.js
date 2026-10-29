@@ -202,6 +202,8 @@ const worker = {
   await until(`document.querySelector('#wl-host .ctl-tk')`, 5000);
   let o = JSON.parse(await overflow('wl-host'));
   ok('Control fits the width', !o.doc && !o.bad.length, JSON.stringify(o));
+  ok('the nav marks Control, and only Control', await js(`return [...document.querySelectorAll('#section-nav button.active')].map(b=>b.dataset.section).join()==='control';`));
+  ok('Trash stays beside the title', await js(`var t=document.querySelector('#wl-host .tbx-title').getBoundingClientRect(), b=document.querySelector('#wl-host [data-act="trash"]').getBoundingClientRect(); return b.top < t.bottom + 30 && b.left > t.right;`));
   ok('tiles sit two or more to a row; each remove button is a real target', await js(`var t=[...document.querySelectorAll('#wl-host .ctl-tk')]; var b=t[0].querySelector('button').getBoundingClientRect(); return t.length>1 && Math.abs(t[0].getBoundingClientRect().top - t[1].getBoundingClientRect().top) < 2 && b.width >= 28 && b.height >= 28;`));
   await shot('tradeboard-ui-control-phone');
   await js(`TB.showSection('news'); 1`);
