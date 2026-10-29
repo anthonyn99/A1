@@ -402,11 +402,25 @@ function renderKsuModules() {
   const grid = _sosEl('ksu-modules-grid');
   if (!grid) return;
   grid.innerHTML = '';
-  if (!ksuData.modules.length) {
-    grid.innerHTML = '<div class="empty-state"><h3>No modules yet</h3><p>Add one for documents, parking, scholarships: anything that isn’t a class.</p></div>';
-    return;
-  }
-  ksuData.modules.forEach(m => grid.appendChild(_sosModuleCard({ id: 'ksu', color: KSU_COLOR }, m)));
+  ksuData.modules.forEach(m => {
+    const meta = m.type === 'documents'
+      ? (m.files.length + ' file' + (m.files.length !== 1 ? 's' : ''))
+      : m.type === 'prompts'
+      ? (m.prompts.length + ' prompt' + (m.prompts.length !== 1 ? 's' : ''))
+      : 'Notes';   // its pages are a Notebook folder; m.notes is the old textarea copy
+    const btn = document.createElement('div');
+    btn.className = 'module-btn';
+    btn.dataset.id = m.id;
+    btn.innerHTML = `
+      <button class="rename-btn" title="Rename" onclick="event.stopPropagation();openRenameModule('ksu','${m.id}')">${SOI.pencil}</button>
+      <button class="delete-btn" title="Delete" aria-label="Delete" onclick="event.stopPropagation();deleteKsuModule('${m.id}')">${SOI.x}</button>
+      <div class="module-btn-icon" style="background:#8D769A22;color:#8D769A;font-size:11px">${sosModuleLabel(m.type)}</div>
+      <div class="module-btn-name">${escHtml(m.name)}</div>
+      <div class="module-btn-meta">${meta}</div>
+    `;
+    btn.onclick = () => openKsuModuleDetail(m);
+    grid.appendChild(btn);
+  });
   sosDragList(grid, '.module-btn', () => ksuData.modules, (arr) => { ksuData.modules = arr; }, () => { persistKsu(); renderKsuModules(); }, 'grid');
 }
 
@@ -420,30 +434,6 @@ function _sosModuleMeta(m) {
 }
 function _sosModuleIcon(type) {
   return type === 'prompts' ? SOI.sparkle : type === 'notes' ? SOI.note : SOI.doc;
-}
-function _sosModuleCard(cls, m) {
-  const color = sosPastel(cls.color) || KSU_COLOR;
-  const btn = document.createElement('div');
-  btn.className = 'module-btn';
-  btn.dataset.id = m.id;
-  btn.tabIndex = 0;
-  btn.style.setProperty('--card-color', color);
-  btn.innerHTML = `
-    <div class="module-btn-top">
-      <div class="module-btn-icon">${_sosModuleIcon(m.type)}</div>
-      <div class="module-btn-acts">
-        <button class="icon-chip sm" title="Rename" aria-label="Rename" data-act="rename">${SOI.pencil}</button>
-        <button class="icon-chip sm danger" title="Delete" aria-label="Delete" data-act="delete">${SOI.trash}</button>
-      </div>
-    </div>
-    <div class="module-btn-name">${escHtml(m.name)}</div>
-    <div class="module-btn-meta"><span class="module-kind">${sosModuleLabel(m.type)}</span><span>${_sosModuleMeta(m)}</span></div>
-  `;
-  btn.querySelector('[data-act="rename"]').onclick = (e) => { e.stopPropagation(); openRenameModule(cls.id, m.id); };
-  btn.querySelector('[data-act="delete"]').onclick = (e) => { e.stopPropagation(); cls.id === 'ksu' ? deleteKsuModule(m.id) : deleteModule(cls.id, m.id); };
-  btn.onclick = () => cls.id === 'ksu' ? openKsuModuleDetail(m) : openModuleDetail(classes.find(c => c.id === cls.id) || cls, m);
-  btn.onkeydown = (e) => { if (e.key === 'Enter' && e.target === btn) btn.onclick(); };
-  return btn;
 }
 
 async function deleteKsuModule(modId) {
@@ -498,9 +488,11 @@ function _sosModeToggle(mod, onToggle) {
   wrap.id = 'mode-toggle-' + mod.id;
   const editOn = !!moduleEditMode[mod.id];
   wrap.innerHTML = `
-    <button type="button" class="mode-seg m-view${editOn ? '' : ' active'}" data-m="view">${SOI.eye}<span>View</span></button>
-    <button type="button" class="mode-seg m-edit${editOn ? ' active' : ''}" data-m="edit">${SOI.pencil}<span>Edit</span></button>`;
-  wrap.querySelectorAll('.mode-seg').forEach(b => b.addEventListener('click', () => {
+    <span class="mode-toggle-label${editOn ? '' : ' active'}" data-m="view">View</span>
+    <div class="mode-slider${editOn ? ' edit-on' : ''}"><div class="mode-slider-thumb"></div></div>
+    <span class="mode-toggle-label${editOn ? ' active' : ''}" data-m="edit">Edit</span>`;
+  wrap.querySelector('.mode-slider').addEventListener('click', onToggle);
+  wrap.querySelectorAll('.mode-toggle-label').forEach(b => b.addEventListener('click', () => {
     if ((b.dataset.m === 'edit') !== !!moduleEditMode[mod.id]) onToggle();
   }));
   return wrap;
@@ -509,7 +501,9 @@ function _sosPaintModeToggle(modId) {
   const wrap = _sosEl('mode-toggle-' + modId);
   if (!wrap) return;
   const editOn = !!moduleEditMode[modId];
-  wrap.querySelectorAll('.mode-seg').forEach(b => b.classList.toggle('active', (b.dataset.m === 'edit') === editOn));
+  const sl = wrap.querySelector('.mode-slider');
+  if (sl) sl.classList.toggle('edit-on', editOn);
+  wrap.querySelectorAll('.mode-toggle-label').forEach(b => b.classList.toggle('active', (b.dataset.m === 'edit') === editOn));
 }
 
 function toggleKsuMode(modId) {
@@ -1021,7 +1015,6 @@ function switchView(view, classId) {
   if (view === 'class' && classId) openClassDetail(classId);
   if (view !== 'class') currentSidebarClass(null);
   if (view === 'calendar') renderCalendar();
-  if (view === 'home') _sosPaintGreeting();
   if (view === 'pomodoro') _sosPaintPomoToday();
   // A new tab starts at its top.
   const v = _sosEl('view-' + view);
@@ -1171,31 +1164,29 @@ function renderClassResources(cls) {
   list.innerHTML = '';
   const res = cls.resources || [];
   if (res.length === 0) {
-    list.innerHTML = '<div class="class-events-empty">No linked resources yet.<br>Add the sites and apps this class uses.</div>';
+    list.innerHTML = '<div class="class-events-empty">No linked resources.<br><span style="font-size:10px">Click + Resource to add a site or app.</span></div>';
     return;
   }
   res.forEach(r => {
     const item = document.createElement('div');
-    item.className = 'class-event-item static';
+    item.className = 'class-event-item';
+    item.style.cursor = 'default';
     // An app saved before Browse used the bridge has only a path; TaskHub
     // matches it by label, which can miss, so ask for a re-pick.
     const legacyApp = r.kind === 'app' && !r.appId;
     const target = r.kind === 'app'
       ? (legacyApp ? 'Pick again with Browse\u2026 so it opens reliably' : 'Program on your PC' + (r.appName && r.appName !== r.label ? ' \u00b7 ' + r.appName : ''))
       : (r.url || '');
-    const shown = r.kind === 'app' ? target : target.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, '');
+    const shown = target.length > 46 ? target.slice(0, 46) + '\u2026' : target;
     const icon = r.kind === 'app' ? SOI.monitor : SOI.globe;
-    item.style.setProperty('--c', sosPastel(cls.color) || KSU_COLOR);
     item.innerHTML = `
-      <div class="ce-ic">${icon}</div>
-      <div style="min-width:0">
+      <div style="width:14px;flex-shrink:0;margin-top:3px;color:${cls.color};font-size:12px;display:flex">${icon}</div>
+      <div style="flex:1;min-width:0">
         <div class="class-event-name">${escHtml(r.label)}</div>
-        <div class="class-event-meta${legacyApp ? ' warn' : ''}" title="${escHtml(target).replace(/"/g, '&quot;')}" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(shown)}</div>
+        <div class="class-event-meta"${legacyApp ? ' style="color:#ef9f9f"' : ''}>${escHtml(shown)}</div>
       </div>
-      <div class="ce-acts">
-        <button class="icon-chip sm" title="Edit" aria-label="Edit" onclick="openEditResource('${r.id}')">${SOI.pencil}</button>
-        <button class="icon-chip sm danger" title="Delete" aria-label="Delete" onclick="deleteResource('${r.id}')">${SOI.trash}</button>
-      </div>
+      <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 4px;border-radius:3px;transition:0.15s" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text3)'" title="Edit" aria-label="Edit" onclick="openEditResource('${r.id}')">${SOI.pencil}</button>
+      <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 4px;border-radius:3px;transition:0.15s" onmouseover="this.style.color='#ef9f9f'" onmouseout="this.style.color='var(--text3)'" title="Delete" aria-label="Delete" onclick="deleteResource('${r.id}')">${SOI.x}</button>
     `;
     list.appendChild(item);
   });
@@ -1406,47 +1397,24 @@ function renderClasses() {
     return;
   }
   empty.style.display = 'none';
-  const today = sosLocalDate();
-  const wk = new Date(); wk.setDate(wk.getDate() + 7);
-  const weekEnd = sosLocalDate(wk);
   classes.forEach(cls => {
     const card = document.createElement('div');
     card.className = 'class-card';
-    card.style.setProperty('--card-color', sosPastel(cls.color));
+    card.style.setProperty('--card-color', cls.color);
     card.onclick = () => switchView('class', cls.id);
-    card.tabIndex = 0;
-    card.onkeydown = (e) => { if (e.key === 'Enter') card.onclick(); };
-    const name = sosClassName(cls);
-    // At most four module chips, then "+N more": a class with fifteen modules
-    // reads as tidily as one with two.
-    const mods = cls.modules || [];
-    const SHOW = 4;
-    const chips = mods.slice(0, SHOW).map(m => `<span class="module-chip" title="${escHtml(m.name).replace(/"/g, '&quot;')}">${escHtml(m.name)}</span>`).join('')
-      + (mods.length > SHOW ? `<span class="module-chip more">+${mods.length - SHOW} more</span>` : '')
-      + (mods.length === 0 ? '<span class="module-chip none">No modules yet</span>' : '');
-    const files = mods.reduce((n, m) => n + ((m.files || []).length), 0);
-    const due = events.filter(e => e.classId === cls.id && e.date >= today && e.date <= weekEnd).length
-              + tasks.filter(t => t.classId === cls.id && !t.done && t.dueDate && t.dueDate >= today && t.dueDate <= weekEnd).length;
     card.innerHTML = `
-      <div class="class-card-top">
-        <div class="class-head">
-          <div class="class-name">${escHtml(name)}</div>
-          <div class="class-code">${[cls.code, cls.instructor].filter(Boolean).map(escHtml).join(' · ') || '&nbsp;'}</div>
-        </div>
-        <span class="class-go">${SOI.chevR}</span>
-      </div>
-      <div class="class-modules">${chips}</div>
-      <div class="class-foot">
-        <span>${SOI.module}${mods.length} module${mods.length === 1 ? '' : 's'}</span>
-        <span>${SOI.doc}${files} file${files === 1 ? '' : 's'}</span>
-        ${due ? `<span class="due">${SOI.calendar}${due} this week</span>` : ''}
+      <div class="class-name">${escHtml(sosClassName(cls))}</div>
+      <div class="class-code">${escHtml(cls.code)}${cls.instructor ? ' · ' + escHtml(cls.instructor) : ''}</div>
+      <div class="class-modules">
+        ${cls.modules.map(m => `<div class="module-chip">${escHtml(m.name)}</div>`).join('')}
+        ${cls.modules.length === 0 ? '<div class="module-chip" style="color:var(--text3)">No modules yet</div>' : ''}
       </div>
     `;
     grid.appendChild(card);
   });
   _sosEl('class-count').textContent = classes.length;
-  // Drag to reorder (Tony, 2026-10-29), as Everwell's cards: the order is the
-  // classes array itself, so the sidebar and every class list follow it.
+  // Drag to reorder (A1Drag): the order is the classes array itself, so the
+  // sidebar and every class list follow it.
   sosDragList(grid, '.class-card', () => classes, (arr) => { classes = arr; }, () => { persist(); renderClasses(); renderSidebarClasses(); }, 'grid');
 }
 
@@ -1479,18 +1447,17 @@ function renderSidebarClasses() {
     const item = document.createElement('div');
     item.className = 'nav-item nav-class';
     item.dataset.cls = cls.id;
+    item.style.borderLeft = '3px solid ' + cls.color;
+    item.style.paddingLeft = '9px';
     item.onclick = () => switchView('class', cls.id);
-    const name = sosClassName(cls);
-    item.title = name;
-    const dot = document.createElement('span');
-    dot.className = 'nav-dot';
-    dot.style.setProperty('--c', sosPastel(cls.color));
-    dot.textContent = (name.trim()[0] || '?').toUpperCase();
-    // textContent, not innerHTML: names are stored raw.
+    // textContent, not innerHTML: a class named "Computer Organization &
+    // Architecture" is stored raw, so assigning it as HTML made the browser
+    // parse "& Architecture" as an entity and render "& amp".
     const label = document.createElement('span');
     label.className = 'nav-label';
-    label.textContent = name;
-    item.appendChild(dot); item.appendChild(label);
+    label.textContent = sosClassName(cls);
+    item.title = label.textContent;
+    item.appendChild(label);
     if (activeView === 'class' && cls.id === currentClassId) item.classList.add('active');
     el.appendChild(item);
   });
@@ -1526,7 +1493,9 @@ function openClassDetail(id) {
 function renderClassEvents(cls) {
   const list = _sosEl('class-events-list');
   list.innerHTML = '';
-  const todayStr = sosLocalDate();
+  const _p=n=>String(n).padStart(2,'0');
+  const _now=new Date();
+  const todayStr = _now.getFullYear()+'-'+_p(_now.getMonth()+1)+'-'+_p(_now.getDate());
 
   // Build a mixed array of events and tasks, each tagged with kind + sort date
   const items = [];
@@ -1540,7 +1509,7 @@ function renderClassEvents(cls) {
     .forEach(t => items.push({ kind: 'task', date: t.dueDate || todayStr, data: t }));
 
   if (items.length === 0) {
-    list.innerHTML = '<div class="class-events-empty">Nothing coming up.<br>Add an event or a task for this class.</div>';
+    list.innerHTML = '<div class="class-events-empty">No upcoming events or tasks.<br><span style="font-size:10px">Click + Event or + Task to create one.</span></div>';
     return;
   }
 
@@ -1557,41 +1526,35 @@ function renderClassEvents(cls) {
     return 0;
   });
 
-  const when = (d, t) => _sosRelDay(d) + (t ? ' · ' + _sosFmtTime(t) : '');
   items.forEach(({ kind, data }) => {
     const item = document.createElement('div');
     item.className = 'class-event-item';
 
     if (kind === 'event') {
       const ev = data;
-      const color = EVENT_COLORS[ev.type] || '#B8A2C6';
-      item.title = 'Edit event';
+      const color = EVENT_COLORS[ev.type] || '#888';
+      item.title = 'Click to edit';
       item.onclick = () => openAddEvent(ev);
       item.innerHTML = `
         <div class="class-event-dot" style="background:${color}"></div>
-        <div style="min-width:0">
+        <div style="flex:1;min-width:0">
           <div class="class-event-name">${escHtml(ev.name)}</div>
-          <div class="class-event-meta">${when(ev.date, ev.time)} · ${escHtml(_sosTypeLabel(ev.type))}</div>
+          <div class="class-event-meta">${formatDate(ev.date)}${ev.time ? ' · ' + escHtml(ev.time) : ''} · ${escHtml(ev.type)}</div>
         </div>
-        <div class="ce-acts">
-          <button class="mini-act" title="Turn this event into a task" onclick="event.stopPropagation();convertEventToTask('${ev.id}')">${SOI.arrowR}<span>Task</span></button>
-        </div>
+        <button style="background:none;border:1px solid var(--border2);color:var(--text3);cursor:pointer;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;white-space:nowrap;flex-shrink:0;font-family:inherit;transition:0.15s" title="Convert to Task" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text3)'" onclick="event.stopPropagation();convertEventToTask('${ev.id}')">→ Task</button>
       `;
     } else {
       const t = data;
-      const pColor = PRIORITY_COLORS[t.priority] || '#B8A2C6';
-      item.title = 'Edit task';
-      item.onclick = () => openEditTask(t.id);
-      item.style.setProperty('--c', pColor);
+      const pColor = PRIORITY_COLORS[t.priority] || '#888';
+      item.style.cursor = 'default';
       item.innerHTML = `
-        <button class="ce-check${t.done ? ' on' : ''}" title="${t.done ? 'Mark not done' : 'Mark done'}" aria-label="${t.done ? 'Mark not done' : 'Mark done'}" onclick="event.stopPropagation();toggleTaskDone('${t.id}')">${t.done ? SOI.checkBold : ''}</button>
-        <div style="min-width:0">
-          <div class="class-event-name${t.done ? ' done' : ''}">${escHtml(t.name)}</div>
-          ${t.dueDate ? `<div class="class-event-meta">${when(t.dueDate, t.dueTime)} · ${escHtml(_sosTypeLabel(t.type || 'task'))}</div>` : (t.notes ? `<div class="class-event-meta">${escHtml(t.notes.slice(0,60))}${t.notes.length>60?'…':''}</div>` : '')}
+        <div style="width:8px;height:8px;border-radius:2px;margin-top:5px;flex-shrink:0;border:1.5px solid ${pColor};background:${t.done ? pColor : 'transparent'};cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:7px;color:#1B1C1E;font-weight:700;transition:0.2s" onclick="toggleTaskDone('${t.id}')">${t.done ? SOI.checkBold : ''}</div>
+        <div style="flex:1;min-width:0">
+          <div class="class-event-name" style="${t.done ? 'text-decoration:line-through;color:var(--text3)' : ''}">${escHtml(t.name)}</div>
+          ${t.dueDate ? `<div class="class-event-meta">${formatDate(t.dueDate)}${t.dueTime ? ' · ' + escHtml(t.dueTime) : ''} · ${escHtml(t.type || 'task')}</div>` : (t.notes ? `<div class="class-event-meta">${escHtml(t.notes.slice(0,40))}${t.notes.length>40?'…':''}</div>` : '')}
         </div>
-        <div class="ce-acts">
-          <button class="mini-act" title="Turn this task into an event" onclick="event.stopPropagation();convertTaskToEvent('${t.id}')">${SOI.arrowR}<span>Event</span></button>
-        </div>
+        <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 4px;border-radius:3px;transition:0.15s" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text3)'" title="Edit" aria-label="Edit" onclick="openEditTask('${t.id}')">${SOI.pencil}</button>
+        <button style="background:none;border:1px solid var(--border2);color:var(--text3);cursor:pointer;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;white-space:nowrap;flex-shrink:0;font-family:inherit;transition:0.15s" title="Convert to Event" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text3)'" onclick="convertTaskToEvent('${t.id}')">→ Event</button>
       `;
     }
 
@@ -1647,12 +1610,23 @@ function renderModules(cls) {
     if (!m.files) m.files = [];
     if (!m.prompts) m.prompts = [];
     if (m.noteBody === undefined) m.noteBody = '';
-    grid.appendChild(_sosModuleCard(cls, m));
+
+    const btn = document.createElement('div');
+    btn.className = 'module-btn';
+    btn.dataset.id = m.id;
+    const meta = m.type === 'documents' ? (m.files.length + ' file' + (m.files.length !== 1 ? 's' : ''))
+                : m.type === 'prompts' ? (m.prompts.length + ' prompt' + (m.prompts.length !== 1 ? 's' : ''))
+                : 'Notes';
+    btn.innerHTML = `
+      <button class="rename-btn" title="Rename" onclick="event.stopPropagation();openRenameModule('${cls.id}','${m.id}')">${SOI.pencil}</button>
+      <button class="delete-btn" title="Delete" aria-label="Delete" onclick="event.stopPropagation();deleteModule('${cls.id}','${m.id}')">${SOI.x}</button>
+      <div class="module-btn-icon" style="background:${cls.color}22;color:${cls.color};font-size:11px">${sosModuleLabel(m.type)}</div>
+      <div class="module-btn-name">${escHtml(m.name)}</div>
+      <div class="module-btn-meta">${meta}</div>
+    `;
+    btn.onclick = () => openModuleDetail(cls, m);
+    grid.appendChild(btn);
   });
-  if (!cls.modules.length) {
-    grid.innerHTML = '<div class="empty-state"><h3>No modules yet</h3><p>Add one for lecture slides, notes or AI prompts.</p></div>';
-    return;
-  }
   sosDragList(grid, '.module-btn', () => cls.modules, (arr) => { cls.modules = arr; }, () => { persistForCls(cls); renderModules(cls); renderClasses(); }, 'grid');
 }
 
@@ -1813,20 +1787,20 @@ function renderDocumentsModule(body, cls, mod) {
     const zone = document.createElement('div');
     zone.className = 'upload-zone';
     zone.innerHTML = `
-      <span class="uz-ic">${SOI.download.replace('M12 3v12', 'M12 15V3').replace('m7 10 5 5 5-5', 'm7 8 5-5 5 5')}</span>
-      <b>Drop files here, or click to choose</b>
-      <small>Any file type · saved on this device and synced to the cloud</small>
+      <div style="font-size:28px;margin-bottom:8px;opacity:.45;display:flex;justify-content:center">${SOI.clip}</div>
+      <div style="font-weight:700;margin-bottom:4px">Drop files or click to upload</div>
+      <div style="font-size:11px;color:var(--text3);font-family:var(--mono)">Any file type — stored locally in browser</div>
       <input type="file" multiple id="file-input-${mod.id}" onchange="handleFileUpload(event,'${cls.id}','${mod.id}')">
     `;
-    zone.ondragover = e => { e.preventDefault(); zone.classList.add('over'); };
-    zone.ondragleave = () => { zone.classList.remove('over'); };
+    zone.ondragover = e => { e.preventDefault(); zone.style.borderColor = 'var(--accent)'; };
+    zone.ondragleave = () => { zone.style.borderColor = ''; };
     zone.ondrop = e => {
       e.preventDefault();
       // Keep the global window drop handler out: this zone already knows the
       // destination, so it files directly. Without this the same files would
       // ALSO be ingested via the picker and land twice.
       e.stopPropagation();
-      zone.classList.remove('over');
+      zone.style.borderColor = '';
       handleFilesAdded(Array.from(e.dataTransfer.files), cls.id, mod.id);
     };
     body.appendChild(zone);
@@ -2417,9 +2391,11 @@ function _sosRefreshModFiles(cls, mod, modId) {
 function _sosRowActionBtn(label, title) {
   const b = document.createElement('button');
   b.className = 'doc-item-act';
-  b.type = 'button';
   b.title = title || label;
   b.textContent = label;
+  b.style.cssText = 'background:none;cursor:pointer;color:var(--text3);font-size:11px;font-family:var(--mono);padding:4px 8px;border-radius:4px;transition:0.15s;border:1px solid var(--border);white-space:nowrap';
+  b.addEventListener('mouseover', () => { b.style.color='var(--accent)'; b.style.borderColor='var(--accent)'; });
+  b.addEventListener('mouseout',  () => { b.style.color='var(--text3)';  b.style.borderColor='var(--border)'; });
   return b;
 }
 window._sosRowActionBtn = _sosRowActionBtn;
@@ -2433,7 +2409,7 @@ function refreshDocList(listEl, cls, mod) {
   const editOn = !!moduleEditMode[mod.id];
   listEl.innerHTML = '';
   if (!mod.files || mod.files.length === 0) {
-    listEl.innerHTML = `<div class="doc-empty">${editOn ? 'No files yet. Add some below.' : 'No files here yet. Switch to Edit to add some.'}</div>`;
+    listEl.innerHTML = `<div style="font-size:12px;color:var(--text3);font-family:var(--mono);padding:4px 0 8px">${editOn ? 'No files yet. Upload below.' : 'No files uploaded.'}</div>`;
     return;
   }
   mod.files.forEach((f, idx) => {
@@ -2443,6 +2419,7 @@ function refreshDocList(listEl, cls, mod) {
     const item = document.createElement('div');
     item.className = 'doc-item';
     item.dataset.id = f.id;
+    item.style.cursor = 'pointer';
 
     // The file's icon is its drag-OUT handle; the rest of the row reorders
     // (A1Drag, below, ignores the icon). Two gestures, two places.
@@ -2561,54 +2538,38 @@ function refreshDocList(listEl, cls, mod) {
       _releaseDrag(true);
     });
 
-    const main = document.createElement('div');
-    main.className = 'doc-item-main';
     const nameEl = document.createElement('div');
     nameEl.className = 'doc-item-name';
     nameEl.title = f.name;
     nameEl.textContent = f.name;
-    const sub = document.createElement('div');
-    sub.className = 'doc-item-sub';
-    const sizeEl = document.createElement('span');
+
+    const sizeEl = document.createElement('div');
     sizeEl.className = 'doc-item-size';
     sizeEl.textContent = formatBytes(f.size);
-    // Cloud-sync status — a readable word + live percentage, not a lone glyph,
-    // so it's obvious at a glance whether a file has actually reached the cloud.
-    const cloudEl = document.createElement('span');
-    cloudEl.className = 'doc-item-cloud';
-    cloudEl.dataset.fileId = f.fileId || '';
-    _sosApplyCloudStatus(cloudEl, f);
-    sub.appendChild(sizeEl); sub.appendChild(cloudEl);
-    main.appendChild(nameEl); main.appendChild(sub);
 
-    const acts = document.createElement('div');
-    acts.className = 'doc-item-acts';
+    const btnCss = 'background:none;cursor:pointer;color:var(--text3);text-decoration:none;font-size:14px;padding:4px 8px;border-radius:4px;transition:0.15s;border:1px solid var(--border);display:inline-flex;align-items:center';
+    const hover = (b, on) => { b.style.color = on ? 'var(--accent)' : 'var(--text3)'; b.style.borderColor = on ? 'var(--accent)' : 'var(--border)'; };
 
-    // Slides — the NotebookLM deck pipeline (spec P-3). Rendered only when the
-    // pipeline is configured AND on. A LOCAL blob is enough: the bridge runs on
-    // this PC and sosResolveBlob reads IndexedDB first.
-    if (window.sosRunPrompt && (f.fileId || f.storageUrl || f.storagePath)) {
-      const runBtn = _sosRowActionBtn('Slides', 'Make a slide deck from this file with NotebookLM');
-      runBtn.dataset.act = 'slides';
-      runBtn.addEventListener('click', e => {
-        e.stopPropagation();
-        try { window.sosRunPrompt(cls.id, f.id, mod.id); }
-        catch (err) { console.warn('run prompt failed:', err); }
-      });
-      acts.appendChild(runBtn);
-    }
+    // Download button
+    const dlBtn = document.createElement('a');
+    dlBtn.title = 'Download';
+    dlBtn.innerHTML = SOI.download;
+    dlBtn.style.cssText = btnCss;
+    dlBtn.addEventListener('mouseover', () => hover(dlBtn, true));
+    dlBtn.addEventListener('mouseout',  () => hover(dlBtn, false));
+    dlBtn.addEventListener('click', e => { e.stopPropagation(); sosDownloadFile(f); });
 
     // Copy to clipboard — the one route into another web app's upload box
     // (Gemini/NotebookLM/ChatGPT all accept a pasted file; none can receive a
     // drag from this page). Falls back to a download when the OS clipboard
     // refuses the type, since a real on-disk file can be dragged from Explorer.
     const cpBtn = document.createElement('button');
-    cpBtn.type = 'button';
-    cpBtn.className = 'icon-chip';
     cpBtn.dataset.act = 'copy';
     cpBtn.title = 'Send to another app — copies images to the clipboard, downloads everything else';
-    cpBtn.setAttribute('aria-label', 'Send to another app');
     cpBtn.innerHTML = SOI.clip;
+    cpBtn.style.cssText = btnCss;
+    cpBtn.addEventListener('mouseover', () => hover(cpBtn, true));
+    cpBtn.addEventListener('mouseout',  () => hover(cpBtn, false));
     cpBtn.addEventListener('click', async e => {
       e.stopPropagation();
       const ok = await sosCopyFileToClipboard(f);
@@ -2616,40 +2577,49 @@ function refreshDocList(listEl, cls, mod) {
         showNotif(SOI.check, 'Copied to clipboard', 'Click the upload box in the other app and press Ctrl+V.');
       } else {
         // Expected for PDF/DOCX/PPTX: the OS clipboard only carries a short
-        // list of types (images, text), so a download is the working route —
-        // once it's on disk it can be dragged or file-picked into any app.
+        // list of types (images, text), so a download is the working route.
         showNotif(SOI.download, 'Downloaded instead', 'The clipboard can’t hold this file type. It’s in your Downloads folder — drag it into the upload box from there.');
         sosDownloadFile(f);
       }
     });
-    acts.appendChild(cpBtn);
 
-    const dlBtn = document.createElement('button');
-    dlBtn.type = 'button';
-    dlBtn.className = 'icon-chip';
-    dlBtn.title = 'Download';
-    dlBtn.setAttribute('aria-label', 'Download');
-    dlBtn.innerHTML = SOI.download;
-    dlBtn.addEventListener('click', e => { e.stopPropagation(); sosDownloadFile(f); });
-    acts.appendChild(dlBtn);
+    // Slides — the NotebookLM deck pipeline (spec P-3). Rendered only when the
+    // pipeline is configured AND on. A LOCAL blob is enough: the bridge runs on
+    // this PC and sosResolveBlob reads IndexedDB first.
+    let runBtn = null;
+    if (window.sosRunPrompt && (f.fileId || f.storageUrl || f.storagePath)) {
+      runBtn = _sosRowActionBtn('Slides', 'Make a slide deck from this file with NotebookLM');
+      runBtn.dataset.act = 'slides';
+      runBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        try { window.sosRunPrompt(cls.id, f.id, mod.id); }
+        catch (err) { console.warn('run prompt failed:', err); }
+      });
+    }
+
+    // Cloud-sync status — a readable word + live percentage, not a lone glyph,
+    // so it's obvious at a glance whether a file has actually reached the cloud.
+    const cloudEl = document.createElement('div');
+    cloudEl.className = 'doc-item-cloud';
+    cloudEl.dataset.fileId = f.fileId || '';
+    _sosApplyCloudStatus(cloudEl, f);
+
+    item.appendChild(icon);
+    item.appendChild(nameEl);
+    item.appendChild(sizeEl);
+    item.appendChild(cloudEl);
+    if (runBtn) item.appendChild(runBtn);
+    item.appendChild(cpBtn);
+    item.appendChild(dlBtn);
 
     if (editOn) {
       const delBtn = document.createElement('button');
-      delBtn.type = 'button';
-      delBtn.className = 'icon-chip danger';
-      delBtn.title = 'Delete file';
-      delBtn.setAttribute('aria-label', 'Delete file');
-      delBtn.innerHTML = SOI.trash;
-      delBtn.addEventListener('click', e => {
-        e.stopPropagation();
-        removeFile(cls.id, mod.id, f.id);
-      });
-      acts.appendChild(delBtn);
+      delBtn.className = 'doc-item-del';
+      delBtn.title = 'Remove';
+      delBtn.innerHTML = SOI.x;
+      delBtn.addEventListener('click', e => { e.stopPropagation(); removeFile(cls.id, mod.id, f.id); });
+      item.appendChild(delBtn);
     }
-
-    item.appendChild(icon);
-    item.appendChild(main);
-    item.appendChild(acts);
 
     // Open in new tab — local IDB blob, else cloud copy.
     item.onclick = () => sosOpenFile(f);
@@ -3869,7 +3839,7 @@ function renderCalendar() {
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const daysInPrev = new Date(year, month, 0).getDate();
-  const MAX = 3;   // items drawn in a cell before "+N more"
+  const MAX = 3;   // items drawn in a cell before "+N more" (the rest are in the day view)
 
   cells.innerHTML = '';
   let totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7;
@@ -3889,73 +3859,69 @@ function renderCalendar() {
       day = i - firstDay + 1;
     }
     if (otherMonth) cell.classList.add('other-month');
-    if (i % 7 === 0 || i % 7 === 6) cell.classList.add('weekend');
     const isToday = day === today.getDate() && m === today.getMonth() && y === today.getFullYear();
     if (isToday) cell.classList.add('today');
     const dateStr = y + '-' + String(m+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
     cell.innerHTML = `<div class="day-num">${day}</div>`;
     const dayEvents = events.filter(e => e.date === dateStr);
     const dayTasks = tasks.filter(t => t.dueDate === dateStr);
-    let shown = 0;
-    dayEvents.forEach(ev => {
-      if (shown >= MAX) return;
-      shown++;
+    const evShown = dayEvents.slice(0, MAX), tkShown = dayTasks.slice(0, MAX - evShown.length);
+    evShown.forEach(ev => {
       const dot = document.createElement('div');
       dot.className = 'cal-event';
       const cls = classes.find(c => c.id === ev.classId);
-      dot.style.setProperty('--c', cls ? sosPastel(cls.color) : (EVENT_COLORS[ev.type] || '#C2CDDA'));
-      dot.title = ev.name + (ev.time ? ' · ' + _sosFmtTime(ev.time) : '') + (cls ? ' · ' + sosClassName(cls) : '');
-      const t = document.createElement('span');
-      t.textContent = ev.name;
-      dot.appendChild(t);
+      const color = cls ? sosPastel(cls.color) : (EVENT_COLORS[ev.type] || '#c2cdda');
+      dot.style.background = color + '33';
+      dot.style.color = color;
+      dot.style.cursor = 'pointer';
+      dot.textContent = ev.name;
       dot.onclick = e => { e.stopPropagation(); if (_sosCalLinesOnly()) sosOpenDay(dateStr); else openAddEvent(ev); };
       cell.appendChild(dot);
     });
-    dayTasks.forEach(task => {
-      if (shown >= MAX) return;
-      shown++;
+    tkShown.forEach(task => {
       // Color-coded by the class the task belongs to, matching how events are
       // tinted just above, so a month view reads as "which class" at a glance.
       // Priority only decides the fallback tint for class-less tasks.
       const tCls = classes.find(c => c.id === task.classId);
       const pColor = tCls ? sosPastel(tCls.color)
-                          : (EVENT_COLORS[task.type] || PRIORITY_COLORS[task.priority] || '#C2CDDA');
+                          : (EVENT_COLORS[task.type] || PRIORITY_COLORS[task.priority] || '#c2cdda');
       const row = document.createElement('div');
-      row.className = 'cal-task' + (task.done ? ' done' : '');
-      row.style.setProperty('--c', pColor);
-      row.title = task.name + (task.dueTime ? ' · ' + _sosFmtTime(task.dueTime) : '');
-      const box = document.createElement('span');
-      box.className = 'cal-box';
+      row.style.cssText = `display:flex;align-items:center;gap:3px;font-size:10px;padding:2px 4px;border-radius:4px;margin-bottom:2px;background:${pColor}18;color:${pColor};font-family:var(--mono);font-weight:700;min-width:0;overflow:hidden;`;
+      const box = document.createElement('div');
+      box.style.cssText = `width:9px;height:9px;border-radius:2px;flex-shrink:0;border:1.5px solid ${pColor};background:${task.done ? pColor : 'transparent'};cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:7px;color:#1B1C1E;transition:0.15s`;
       box.innerHTML = task.done ? SOI.checkBold : '';
-      box.title = task.done ? 'Mark not done' : 'Mark done';
       box.onclick = e => {
         e.stopPropagation();
         if (_sosCalLinesOnly()) { sosOpenDay(dateStr); return; }
         task.done = !task.done;
         persistTasks();
-        row.classList.toggle('done', task.done);
+        box.style.background = task.done ? pColor : 'transparent';
         box.innerHTML = task.done ? SOI.checkBold : '';
+        label.style.textDecoration = task.done ? 'line-through' : '';
+        label.style.opacity = task.done ? '0.5' : '1';
         // Sync to Veda TaskHub
         if (window._vedaTogTask) window._vedaTogTask('t_' + task.id, task.done);
-        // refresh class tasks panel if open, and the dashboard counts
+        // refresh class tasks panel if open
         const cls2 = classes.find(c => c.id === currentClassId);
         if (cls2) renderClassTasks(cls2);
-        updateStats();
       };
       const label = document.createElement('span');
-      label.textContent = task.name;
+      label.textContent = task.name + (task.dueTime ? ' · ' + task.dueTime : '');
+      label.style.cssText = `overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;${task.done ? 'text-decoration:line-through;opacity:0.5' : ''}`;
+      label.style.cursor = 'pointer';
       label.onclick = e => { e.stopPropagation(); if (_sosCalLinesOnly()) sosOpenDay(dateStr); else openEditTask(task.id); };
       row.appendChild(box);
       row.appendChild(label);
       cell.appendChild(row);
     });
-    const rest = dayEvents.length + dayTasks.length - shown;
+    const rest = dayEvents.length + dayTasks.length - evShown.length - tkShown.length;
     if (rest > 0) {
       const more = document.createElement('div');
       more.className = 'cal-more';
       more.textContent = '+' + rest + ' more';
       cell.appendChild(more);
     }
+    // A day opens everything on it (the day view), with Add Event / Add Task.
     cell.onclick = () => sosOpenDay(dateStr);
     cells.appendChild(cell);
   }
@@ -3994,7 +3960,6 @@ function _sosRenderDay() {
   if (/^(Today|Tomorrow|Yesterday)$/.test(rel)) sub.push(rel);
   sub.push(n ? n + (n === 1 ? ' item' : ' items') : 'Nothing yet');
   _sosEl('day-modal-sub').textContent = sub.join(' · ');
-  _sosEl('day-modal-ic').classList.toggle('pink', date === todayStr);
   const list = _sosEl('day-list');
   list.innerHTML = '';
   if (!n) {
@@ -4041,51 +4006,37 @@ function renderUpcoming() {
   const list = _sosEl('upcoming-list');
   if (!list) return;
   list.innerHTML = '';
-  const todayStr = sosLocalDate();
-  const items = events
+  const _p2=n=>String(n).padStart(2,'0');
+  const _n2=new Date();
+  const todayStr = _n2.getFullYear()+'-'+_p2(_n2.getMonth()+1)+'-'+_p2(_n2.getDate());
+  const future = events
     .filter(e => e.date >= todayStr)
-    .map(e => ({ kind: 'event', date: e.date, time: e.time || '', name: e.name, classId: e.classId, type: e.type, ref: e }))
-    .concat(tasks
-      .filter(t => t.dueDate && t.dueDate >= todayStr && !t.done)
-      .map(t => ({ kind: 'task', date: t.dueDate, time: t.dueTime || '', name: t.name, classId: t.classId, type: t.type || 'hw', ref: t })))
-    .sort((a, b) => a.date.localeCompare(b.date) || (a.time || '99').localeCompare(b.time || '99'))
-    .slice(0, 14);
-  if (items.length === 0) {
-    list.innerHTML = '<div class="class-events-empty">Nothing coming up.<br>Click a day on the calendar to add an event.</div>';
+    .map(e => ({ kind: 'event', date: e.date, time: e.time || '', name: e.name, classId: e.classId, type: e.type, id: e.id, ref: e }))
+    .concat(tasks.filter(t => t.dueDate && t.dueDate >= todayStr && !t.done)
+      .map(t => ({ kind: 'task', date: t.dueDate, time: t.dueTime || '', name: t.name, classId: t.classId, type: t.type || 'hw', id: t.id, ref: t })))
+    .sort((a,b) => a.date.localeCompare(b.date) || (a.time || '99').localeCompare(b.time || '99'))
+    .slice(0, 10);
+  if (future.length === 0) {
+    list.innerHTML = '<div style="padding:20px 18px;font-size:13px;color:var(--text3)">No upcoming events.</div>';
     return;
   }
-  let lastDay = '';
-  items.forEach(it => {
-    if (it.date !== lastDay) {
-      lastDay = it.date;
-      const g = document.createElement('div');
-      g.className = 'up-group' + (it.date === todayStr ? ' today' : '');
-      g.textContent = _sosRelDay(it.date);
-      list.appendChild(g);
-    }
-    const cls = classes.find(c => c.id === it.classId);
-    const color = cls ? sosPastel(cls.color) : (EVENT_COLORS[it.type] || '#B8A2C6');
-    const dt = new Date(it.date + 'T12:00:00');
+  future.forEach(it => {
+    const ev = it.ref, isTask = it.kind === 'task';
+    const cls = classes.find(c => c.id === ev.classId);
+    const color = cls ? cls.color : (EVENT_COLORS[ev.type] || '#888');
     const item = document.createElement('div');
     item.className = 'timeline-item';
-    item.style.setProperty('--c', color);
-    item.title = it.kind === 'task' ? 'Edit task' : 'Edit event';
-    item.onclick = () => it.kind === 'task' ? openEditTask(it.ref.id) : openAddEvent(it.ref);
+    item.style.cursor = 'pointer';
+    item.title = 'Click to edit';
+    item.onclick = () => isTask ? openEditTask(ev.id) : openAddEvent(ev);
     item.innerHTML = `
-      <div class="tl-date"><b>${dt.getDate()}</b><small>${dt.toLocaleDateString('en-US', { month: 'short' })}</small></div>
-      <div class="timeline-content">
-        <div class="timeline-title">${escHtml(it.name)}</div>
-        <div class="timeline-meta">
-          <span class="type-tag">${it.kind === 'task' ? 'Task' : escHtml(_sosTypeLabel(it.type))}</span>
-          ${it.time ? `<span>${_sosFmtTime(it.time)}</span>` : ''}
-          ${cls ? `<span class="cls-tag" style="--c:${color}"><i></i><span>${escHtml(sosClassName(cls))}</span></span>` : ''}
-        </div>
+      <div class="timeline-dot" style="background:${color}"></div>
+      <div class="timeline-content" style="flex:1;min-width:0">
+        <div class="timeline-title">${escHtml(ev.name)}</div>
+        <div class="timeline-meta">${formatDate(it.date)}${it.time ? ' · ' + escHtml(it.time) : ''}${cls ? ' · ' + escHtml(sosClassName(cls)) : ''}${isTask ? ' · task' : ''}</div>
       </div>
-      <div class="tl-acts">
-        ${it.kind === 'event'
-          ? `<button class="icon-chip sm pink" title="Turn this event into a task" aria-label="Turn into a task" onclick="event.stopPropagation();convertEventToTask('${it.ref.id}')">${SOI.task}</button>`
-          : `<button class="icon-chip sm" title="Mark done" aria-label="Mark done" onclick="event.stopPropagation();toggleTaskDone('${it.ref.id}')">${SOI.check}</button>`}
-      </div>
+      <button style="background:none;border:1px solid var(--border2);color:var(--text3);cursor:pointer;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;white-space:nowrap;flex-shrink:0;font-family:inherit;transition:0.15s;margin-right:4px" title="${isTask ? 'Mark done' : 'Convert to Task'}" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text3)'" onclick="event.stopPropagation();${isTask ? `toggleTaskDone('${ev.id}')` : `convertEventToTask('${ev.id}')`}">${isTask ? 'Done' : '→ Task'}</button>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="color:var(--text3);flex-shrink:0"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
     `;
     list.appendChild(item);
   });
@@ -4185,9 +4136,8 @@ function openNotifSettings() {
 // ===== STATS =====
 function updateStats() {
   const today = new Date();
-  const todayStr = sosLocalDate(today);
   const weekEnd = new Date(today); weekEnd.setDate(today.getDate() + 7);
-  const weekEndStr = sosLocalDate(weekEnd);
+  const todayStr = sosLocalDate(today), weekEndStr = sosLocalDate(weekEnd);
   const feed = _sosScheduleItems();
   const eventsThisWeek = feed.filter(e => e.date >= todayStr && e.date <= weekEndStr).length;
   _sosEl('stat-events').textContent = eventsThisWeek;
@@ -4210,8 +4160,9 @@ function updateStats() {
     try {
       const n = window.SOS.deck.countsFor(null).toStudy;
       cardsEl.textContent = n;
+      cardsEl.style.color = n > 0 ? 'var(--accent2)' : 'var(--text3)';
       const tile = _sosEl('stat-card-cards');
-      if (tile) tile.style.opacity = n > 0 ? '1' : '0.7';
+      if (tile) tile.style.opacity = n > 0 ? '1' : '0.6';
     } catch (e) {}
   }
 
@@ -4221,7 +4172,8 @@ function updateStats() {
     try {
       const n = window.SOS.sessions.streak();
       const day = window.SOS.sessions.dayTotals();
-      streakEl.textContent = n === 0 ? '0' : String(n);
+      streakEl.textContent = n === 0 ? '—' : n + (n === 1 ? ' day' : ' days');
+      streakEl.style.color = n > 0 ? 'var(--accent2)' : 'var(--text3)';
       const tile = _sosEl('stat-card-streak');
       if (tile) {
         tile.title = day.minutes
@@ -4232,45 +4184,20 @@ function updateStats() {
   }
   if (nextExamEl) {
     if (upcomingExams.length > 0) {
-      const daysUntil = Math.round((new Date(upcomingExams[0].date + 'T12:00:00') - new Date(todayStr + 'T12:00:00')) / 86400000);
-      nextExamEl.textContent = daysUntil === 0 ? 'Today' : daysUntil === 1 ? '1 day' : daysUntil + ' days';
-      nextExamEl.style.color = daysUntil <= 3 ? '#F2AFAF' : daysUntil <= 7 ? '#F2C9A0' : '';
-      nextExamEl.title = upcomingExams[0].name;
+      const daysUntil = _sosDaysLeft(upcomingExams[0].date);
+      nextExamEl.textContent = daysUntil === 0 ? 'TODAY' : daysUntil === 1 ? '1 day' : daysUntil + ' days';
+      nextExamEl.style.color = daysUntil <= 3 ? '#ef9f9f' : daysUntil <= 7 ? '#f0bd86' : 'var(--accent2)';
     } else {
       nextExamEl.textContent = '—';
-      nextExamEl.style.color = '';
-      nextExamEl.title = '';
+      nextExamEl.style.color = 'var(--accent2)';
     }
   }
   renderExamCountdown();
   renderPriorityQueue();
-  _sosPaintGreeting();
 }
 
 /* The dashboard's opening: a greeting for the hour, then the date and what is
  * next on her plate on the line UNDER it (nothing sits above a title). */
-function _sosPaintGreeting() {
-  const d = new Date();
-  const greetEl = _sosEl('sos-dash-greet'), nextEl = _sosEl('sos-dash-next');
-  if (!greetEl || !nextEl) return;
-  const date = escHtml(d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }));
-  const h = d.getHours();
-  greetEl.textContent = h < 5 ? 'Still up, Veda?' : h < 12 ? 'Good morning, Veda' : h < 17 ? 'Good afternoon, Veda' : 'Good evening, Veda';
-  const todayStr = sosLocalDate(d);
-  const next = _sosScheduleItems()
-    .filter(e => e.date >= todayStr)
-    .sort((a, b) => a.date.localeCompare(b.date) || (a.time || '99').localeCompare(b.time || '99'))[0];
-  if (!next) { nextEl.innerHTML = '<span class="dn-date">' + date + '</span><span class="dn-row"><span class="dn-k">Next up</span><span class="dn-none">Nothing due. A good day to get ahead.</span></span>'; return; }
-  const cls = classes.find(c => c.id === next.classId);
-  const rel = _sosRelDay(next.date);
-  // The date on its own quiet line; then the next thing as one tidy row: a
-  // label, the item, when (a chip), and its class (a dot tag).
-  nextEl.innerHTML = '<span class="dn-date">' + date + '</span>'
-    + '<span class="dn-row"><span class="dn-k">Next up</span>'
-    + '<b class="dn-name">' + escHtml(next.name) + '</b>'
-    + '<span class="dn-when' + (rel === 'Today' ? ' today' : '') + '">' + escHtml(rel) + (next.time ? ' · ' + escHtml(_sosFmtTime(next.time)) : '') + '</span>'
-    + (cls ? _sosClsTag(cls) : '') + '</span>';
-}
 
 // ── Urgency score helper ────────────────────────────────────────────────────
 // score = weight% × urgencyMultiplier where urgencyMultiplier decays over time
@@ -4365,38 +4292,39 @@ function renderExamCountdown() {
     .slice(0, 6);
 
   if (exams.length === 0) {
-    el.innerHTML = '<div class="sos-exam-empty">No exams or quizzes coming up.<br>Add one, or set an event’s type to <b>Exam</b> or <b>Quiz</b>.</div>';
+    el.innerHTML = '<div class="sos-exam-empty">No upcoming exams or quizzes.<br>Add one via <strong>+ Add Exam</strong> above,<br>or set type to Exam/Quiz when adding events or tasks.</div>';
     return;
   }
 
   el.innerHTML = '';
   exams.forEach(ev => {
     const cls = classes.find(c => c.id === ev.classId);
+    const color = cls ? cls.color : (EVENT_COLORS[ev.type] || '#8D769A');
     const daysLeft = _sosDaysLeft(ev.date);
+    const daysLabel = daysLeft === 0 ? 'TODAY' : daysLeft === 1 ? '1 day' : daysLeft + ' days';
     const weight = parseFloat(ev.weight) || 0;
 
-    // Pastel by urgency: rose, peach, butter, then lavender.
-    const tone = daysLeft <= 2 ? '#F2AFAF' : daysLeft <= 7 ? '#F2C9A0' : daysLeft <= 14 ? '#E8D49A' : '#B8A2C6';
+    // Badge color based on urgency
+    let badgeBg, badgeText;
+    if (daysLeft <= 2)       { badgeBg = 'rgba(239,159,159,0.18)'; badgeText = '#ef9f9f'; }
+    else if (daysLeft <= 7)  { badgeBg = 'rgba(240,189,134,0.18)';  badgeText = '#f0bd86'; }
+    else if (daysLeft <= 14) { badgeBg = 'rgba(220,192,138,0.15)';  badgeText = '#dcc08a'; }
+    else                     { badgeBg = 'rgba(141,118,154,0.15)'; badgeText = '#A892B0'; }
 
     const item = document.createElement('div');
     item.className = 'sos-exam-item';
-    item.title = 'Edit';
-    item.style.setProperty('--tone', tone);
+    item.title = 'Click to edit';
     item.onclick = () => ev.src === 'task' ? openEditTask(ev.id) : openAddEvent(ev.ref);
     item.innerHTML = `
-      <div class="sos-exam-cd-badge" style="background:color-mix(in srgb, ${tone} 13%, transparent);color:${tone}">
-        <div class="sos-exam-cd-days">${daysLeft === 0 ? '!' : daysLeft}</div>
-        <div class="sos-exam-cd-lbl">${daysLeft === 0 ? 'today' : daysLeft === 1 ? 'day' : 'days'}</div>
+      <div class="sos-exam-cd-badge" style="background:${badgeBg}">
+        <div class="sos-exam-cd-days" style="color:${badgeText}">${daysLeft <= 0 ? '0' : daysLeft}</div>
+        <div class="sos-exam-cd-lbl" style="color:${badgeText}">${daysLeft === 0 ? 'TODAY' : 'days'}</div>
       </div>
       <div class="sos-exam-info">
-        <div class="sos-exam-name" title="${escHtml(ev.name).replace(/"/g, '&quot;')}">${escHtml(ev.name)}</div>
-        <div class="sos-exam-meta">
-          <span>${formatDate(ev.date)}${ev.time ? ' · ' + _sosFmtTime(ev.time) : ''}</span>
-          ${cls ? '<span class="meta-dot"></span>' + _sosClsTag(cls) : ''}
-          <span class="type-tag">${escHtml(_sosTypeLabel(ev.type))}</span>
-        </div>
+        <div class="sos-exam-name">${escHtml(ev.name)}</div>
+        <div class="sos-exam-meta">${formatDate(ev.date)}${ev.time ? ' · ' + escHtml(ev.time) : ''}${cls ? ' · ' + escHtml(sosClassName(cls)) : ''} · ${escHtml(ev.type)}</div>
       </div>
-      ${weight > 0 ? `<div class="sos-exam-score-pill" style="background:color-mix(in srgb, ${tone} 13%, transparent);color:${tone}" title="Worth ${weight}% of the grade">${weight}%</div>` : ''}
+      ${weight > 0 ? `<div class="sos-exam-score-pill" style="background:${badgeBg};color:${badgeText}">${weight}%</div>` : ''}
     `;
     el.appendChild(item);
   });
@@ -4418,7 +4346,7 @@ function renderPriorityQueue() {
     .slice(0, 8);
 
   if (scored.length === 0) {
-    el.innerHTML = '<div class="sos-exam-empty">Nothing due in the next 30 days.<br>Exams, quizzes and homework rank here.</div>';
+    el.innerHTML = '<div class="sos-exam-empty">No exams, quizzes or<br>homework due in 30 days.</div>';
     return;
   }
 
@@ -4426,36 +4354,38 @@ function renderPriorityQueue() {
   const maxScore = scored[0].score || 1;
   scored.forEach(({ ev, score }, i) => {
     const cls = classes.find(c => c.id === ev.classId);
+    const color = cls ? cls.color : (EVENT_COLORS[ev.type] || '#888');
     const daysLeft = _sosDaysLeft(ev.date);
-    const when = daysLeft === 0 ? 'Due today' : daysLeft === 1 ? 'Tomorrow' : 'In ' + daysLeft + ' days';
-    const whenTone = daysLeft <= 2 ? '#F2AFAF' : daysLeft <= 7 ? '#F2C9A0' : '';
+    const daysStr = daysLeft === 0 ? 'today' : daysLeft === 1 ? '1d' : daysLeft + 'd';
     const weight = parseFloat(ev.weight) || 0;
-    const pct = Math.max(6, Math.round((score / maxScore) * 100));
+    const pct = Math.round((score / maxScore) * 100);
 
     const item = document.createElement('div');
     item.className = 'sos-pq-item';
-    item.title = _sosPriorityWhy(ev) + ' · click to edit';
+    item.title = _sosPriorityWhy(ev) + ' — click to edit';
     item.onclick = () => ev.src === 'task' ? openEditTask(ev.id) : openAddEvent(ev.ref);
-    // Start and Done (spec S-2): the queue ranked eight things and gave her
-    // nothing to do with any of them. Done is tasks-only: an exam is not
-    // something you complete.
+    // Start and Done (spec S-2). The queue ranked eight things and gave her
+    // nothing to do with any of them — it said what mattered and never "do this
+    // now", which is the whole gap between "HW3 · 5d · score 100" and actually
+    // starting HW3. Tick is tasks-only: an exam is not something you complete.
     item.innerHTML = `
       <div class="sos-pq-rank">${i + 1}</div>
+      <div class="sos-pq-dot" style="background:${color}"></div>
       <div class="sos-pq-info">
         <div class="sos-pq-name">${escHtml(ev.name)}</div>
-        <div class="sos-pq-meta">
-          <span class="sos-pq-when"${whenTone ? ` style="color:${whenTone}"` : ''}>${when}</span>
-          ${cls ? '<span class="meta-dot"></span>' + _sosClsTag(cls) : ''}
-          ${weight > 0 ? `<span class="meta-dot"></span><span>${weight}%</span>` : ''}
-        </div>
-        <div class="sos-pq-bar" title="Priority ${pct} of 100"><i style="width:${pct}%"></i></div>
+        <div class="sos-pq-meta">${daysStr} away${cls ? ' · ' + escHtml(sosClassName(cls)) : ''} · ${escHtml(ev.type)}${weight > 0 ? ' · ' + weight + '%' : ''}</div>
       </div>
-      <div class="sos-pq-actions">
-        <button class="sos-pq-btn" data-act="start" title="Start a focus session on this">${SOI.play}<span>Start</span></button>
-        ${ev.src === 'task' ? `<button class="sos-pq-btn" data-act="done" title="Mark done" aria-label="Mark done">${SOI.checkBold}</button>` : ''}
+      <div class="sos-pq-actions" style="display:flex;gap:4px;align-items:center">
+        <button class="sos-pq-btn" data-act="start" title="Start a focus session on this"
+          style="background:none;border:1px solid var(--border);color:var(--text3);border-radius:4px;cursor:pointer;font-size:10px;padding:3px 6px;min-height:26px;display:inline-flex;align-items:center">${SOI.play}</button>
+        ${ev.src === 'task' ? `<button class="sos-pq-btn" data-act="done" title="Mark done"
+          style="background:none;border:1px solid var(--border);color:var(--text3);border-radius:4px;cursor:pointer;font-size:10px;padding:3px 6px;min-height:26px;display:inline-flex;align-items:center">${SOI.check}</button>` : ''}
       </div>
+      <div class="sos-pq-score">${pct}</div>
     `;
     item.querySelectorAll('.sos-pq-btn').forEach(b => {
+      b.onmouseover = () => { b.style.color = 'var(--accent)'; b.style.borderColor = 'var(--accent)'; };
+      b.onmouseout  = () => { b.style.color = 'var(--text3)';  b.style.borderColor = 'var(--border)'; };
       b.onclick = (e) => {
         e.stopPropagation();                 // the row itself opens the editor
         if (b.dataset.act === 'done' && ev.src === 'task') {
@@ -5261,13 +5191,14 @@ function _sosSetSync(status) {
   // forest green and dusty salmon barely registered. Both states now use the
   // saturated success/danger pair, so a failed save is something you notice out
   // of the corner of your eye.
-  var greenColor  = '#A8DCC0';
-  var errColor    = '#F2AFAF';
+  var accentColor = '#8D769A';
+  var greenColor  = '#8fd6ad';
+  var errColor    = '#ef9f9f';
   var mutedColor  = 'var(--text2,#888)';
   if (status === 'saving') {
     el.style.visibility = 'visible';
     el.style.color = mutedColor;
-    el.innerHTML = SOI.refresh + '<span>Syncing…</span>';
+    el.textContent = 'Syncing…';
     if (_sosSyncTimer) { clearTimeout(_sosSyncTimer); _sosSyncTimer = null; }
   } else if (status === 'saved') {
     el.style.visibility = 'visible';

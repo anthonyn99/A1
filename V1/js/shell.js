@@ -28,15 +28,15 @@
     var tools = document.getElementById('sos-sb-tools');
     var sync  = document.getElementById('sos-sync-status');
     var row   = document.querySelector('#study-root .sb-tool-row');
-    var brand = document.querySelector('#study-root .sb-brand');
+    var home  = document.querySelector('#study-root .sidebar-logo');
     var bar   = document.querySelector('#study-root .topbar-actions');
-    if (!tools || !sync || !row || !brand || !bar) return;
+    if (!tools || !sync || !row || !home || !bar) return;
     if (NARROW.matches) {
       bar.insertBefore(sync, bar.firstChild);
       bar.insertBefore(tools, bar.firstChild);
     } else {
       row.appendChild(tools);
-      brand.appendChild(sync);
+      home.appendChild(sync);
     }
   }
 
