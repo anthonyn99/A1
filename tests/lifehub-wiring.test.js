@@ -250,7 +250,7 @@ console.log('\nIcons');
   // launcher keeps showing the old mark. Each built-in icon is checked against
   // its program's <link rel="icon"> (private-repo pages when that repo is here).
   const PAGES = { oneinbox: '../A1-Priv/oneinbox.html', tradehub: '../A1-Priv/tradehub.html', mylist: 'mylist.html', insight: '../A1-Priv/insight.html', vault: '../A1-Priv/vault.html',
-    everwell: '../A1-Priv/everwell.html', shield: 'shield.html', riftiq: '../A1-Priv/riftiq.html', magi: 'magi.html', taskhub: 'index.html', shruti: 'Shruti/shruti.html' };
+    everwell: '../A1-Priv/everwell.html', shield: 'shield.html', riftiq: '../A1-Priv/riftiq.html', magi: 'magi.html', taskhub: 'index.html', wellness: 'wellness.html', shruti: 'Shruti/shruti.html' };
   const svgs = {};
   for (const m of keys.matchAll(/^\s*'?([a-z-]+)'?:\s*"([^"]*)"/gm)) svgs[m[1]] = m[2];
   const favicon = (f) => {
