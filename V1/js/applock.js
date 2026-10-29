@@ -278,6 +278,10 @@
       if (ok) openApp();
     });
     window.addEventListener('guardian:status', refreshBtn);
+    // Guardian's card lives in its own shadow root, so StudyOS blurs what is
+    // behind it the way its own popups do (css: body.sos-guardian-open).
+    window.addEventListener('guardian:open', function () { document.body.classList.add('sos-guardian-open'); });
+    window.addEventListener('guardian:close', function () { document.body.classList.remove('sos-guardian-open'); });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);

@@ -1491,3 +1491,10 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
   opacity: 0; transform: translateY(-3px); transition: opacity .12s, transform .12s;
 }
 .sos-tip.on { opacity: 1; transform: none; }
+
+/* Guardian's lock card is up: the app behind it blurs and dims the same way
+   it does under StudyOS's own popups (Guardian's overlay is in its shadow
+   root, out of reach of this stylesheet). */
+body.sos-guardian-open #study-root, body.sos-guardian-open #sos-intro {
+  filter: blur(10px) brightness(.7); transition: filter .2s ease;
+}
