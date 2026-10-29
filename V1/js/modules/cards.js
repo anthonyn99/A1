@@ -14,10 +14,11 @@
  *      No markup at all. Structure has to be inferred from conventions the
  *      writer happened to use, so every regex here is best-effort by nature.
  *
- *   2. PAGE-EDITOR ENTRIES — localStorage['studyos_notes_' + moduleId],
- *      {…, data:{html}}, where `html` is real contentEditable HTML
- *      (notes-sync.js:338). Here <h2>/<strong>/<li> are RELIABLE structural
- *      signals, so extraction is much better. Pipeline output lands here too.
+ *   2. NOTEBOOK PAGES — a Notes module's folder of StudyOS's Notebook (V's
+ *      Notebook, js/sos-notebook.js; page-editor entries until 2026-10-29),
+ *      {…, data:{html}}, where `html` is real contentEditable HTML. Here
+ *      <h2>/<strong>/<li> are RELIABLE structural signals, so extraction is
+ *      much better. Pipeline output lands here too.
  *
  * ── A BAD CARD IS WORSE THAN NO CARD ──────────────────────────────────────
  * Every candidate passes a quality gate before it is kept. A card whose answer

@@ -357,6 +357,14 @@ function instanceCss(cfg) {
       + '--font-accent:\'Fraunces\',Georgia,serif;}');
     css.push(R + ' ' + K + '-nav-header{display:none!important;}');
   }
+  // index.html gives every control on Tony's side tabular numerals (its
+  // body[data-th-profile="tony"] rule), so MyJournal's buttons have them; an
+  // instance of his side gets them here (Everwell's ribbon was a fraction of a
+  // pixel narrower than MyJournal's without them).
+  if (cfg.app === 'myjournal') css.push(R + ' :is(input,select,textarea,button){font-variant-numeric:tabular-nums;}');
+  // A host's body line-height (TradeBoard's 1.55) is not the journal's: the
+  // root starts from the browser's, as in index.html.
+  css.push(R + '{line-height:normal;}');
   if (cfg.mode !== 'overlay') {
     css.push(R + '{position:relative!important;inset:auto!important;z-index:auto!important;'
       + 'display:flex!important;flex-direction:column;width:100%;height:100%;padding-top:0!important;}');
@@ -379,7 +387,7 @@ function instanceCss(cfg) {
 // how a program drifts from the others: refuse it. A new setting is added
 // here, documented in docs/Notebook/README.md, and defaults so that every
 // other program keeps working unchanged.
-var OPTIONS = { profile: 1, app: 1, key: 1, store: 1, container: 1, mode: 1, title: 1, templates: 1, features: 1, pinned: 1, onSave: 1, onReady: 1, done: 1, sideNote: 1 };
+var OPTIONS = { profile: 1, app: 1, key: 1, store: 1, container: 1, mode: 1, title: 1, templates: 1, features: 1, pinned: 1, onSave: 1, onReady: 1, done: 1, sideNote: 1, folder: 1 };
 var FEATURES = { ourjournal: 1, locks: 1, sidebar: 1 };
 function checkOptions(cfg) {
   // side is mount's own (Notebook.side of the profile), not a host's option.
@@ -414,17 +422,21 @@ function addDone(cfg) {
     if (!title || !title.parentNode || !(out || x[1])) return;
     var wrap = document.createElement('span');
     wrap.className = 'nb-done';
-    wrap.style.cssText = 'display:inline-flex;align-items:center;gap:10px;flex-shrink:0;margin:0 6px;';
+    // The note gives way first when the bar is narrow (a host's own layout
+    // beside the editor): it shrinks to an ellipsis, the title keeps its room.
+    wrap.style.cssText = 'display:inline-flex;align-items:center;gap:10px;flex:0 1 auto;min-width:0;margin:0 6px;';
     if (x[1] && note) {
       var n = document.createElement('span');
       n.className = 'nb-done-note';
-      n.style.cssText = 'font-size:11.5px;opacity:.6;white-space:nowrap;';
+      n.title = note;
+      n.style.cssText = 'font-size:11.5px;opacity:.6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;';
       n.textContent = note;
       wrap.appendChild(n);
     }
     if (out) {
       var b = document.createElement('button');
       b.type = 'button'; b.className = 'tb-btn nb-done-btn'; b.textContent = d.label || 'Done';
+      b.style.flexShrink = '0';
       b.addEventListener('click', function () { d.onClick(); });
       wrap.appendChild(b);
     }
@@ -476,6 +488,7 @@ window.Notebook = {
   //   onSave(entry), onReady()   hooks;
   //   done        { label, onClick, note } a Done button beside the title;
   //   sideNote    false: no "Editing in T's Notebook" beside the title.
+  //   folder      the folder on screen (see Notebook.folder); null: every page.
   // key is the DOM/CSS/localStorage prefix (bj, tj, pb, ...), store its
   // Firestore document under dashboards/. Returns a promise of the config.
   mounts: {},
@@ -534,6 +547,60 @@ window.Notebook = {
       var f = window['_' + key + 'OpenEntry'];
       if (typeof f !== 'function') throw new Error('Notebook.open: ' + key + ' cannot open entries');
       return f(id, opts);
+    });
+  },
+  // Show folder `id` in the app mounted under `key` (null: every page). A
+  // host that files its pages in groups (StudyOS: one per Notes module) keeps
+  // one instance and switches its folder: the list, its search and tags, the
+  // Trash and New Entry then work inside that folder, and a new page is made
+  // in it (entry.folder). The page being edited is saved first. Resolves true
+  // once the folder is on screen. Before the mount has finished it is the
+  // folder the app opens on.
+  folder: function (key, id) {
+    var cfg = this.mounts[key];
+    if (!cfg) return Promise.reject(new Error('Notebook.folder: nothing mounted as ' + key));
+    var f = id == null || id === '' ? null : String(id);
+    cfg.folder = f;
+    return Promise.resolve(cfg._ready).then(function () {
+      var set = window['_' + key + 'SetFolder'];
+      if (typeof set !== 'function') throw new Error('Notebook.folder: ' + key + ' has no folders');
+      // A later call has already set another folder: that one wins.
+      if (cfg.folder !== f) return false;
+      return set(f);
+    });
+  },
+  // Write one page of the host's own into the instance under `key` (StudyOS's
+  // AI-generated notes): { id, title, data: { html }, tags, folder, host } where
+  // `host` is the host's own data for the page (kept on it, read back through
+  // cfg.entries()). A new id makes the page; an id the store has takes what is
+  // given as an edit would, saved and synced by Notebook. Resolves the page as
+  // stored, or null when refused (a pinned page, one that is not a plain page).
+  putPage: function (key, page) {
+    var cfg = this.mounts[key];
+    if (!cfg) return Promise.reject(new Error('Notebook.putPage: nothing mounted as ' + key));
+    return Promise.resolve(cfg._ready).then(function () {
+      var f = window['_' + key + 'PutEntry'];
+      if (typeof f !== 'function') throw new Error('Notebook.putPage: ' + key + ' cannot take pages');
+      return f(page);
+    });
+  },
+  // Move a host's old pages into the instance under `key`, once: pages are
+  // entries in Notebook's shape ({ id, title, created, updated, tags, folder,
+  // data: { html } }, template 'page' by default). Only pages the store lacks
+  // go in (an id it has is never overwritten); their images move out to their
+  // own documents as on any save; `tag` is recorded in the store with them, so
+  // a second call (this device or another) resolves 'already'. Resolves
+  // { added, kept, failed } (a page in failed leaves the tag unrecorded, so
+  // the next call retries it). Needs the server: it rejects offline, and the
+  // host keeps its old copy as the backup either way.
+  importPages: function (key, pages, tag) {
+    var cfg = this.mounts[key];
+    if (!cfg) return Promise.reject(new Error('Notebook.importPages: nothing mounted as ' + key));
+    if (tag != null && !/^[A-Za-z0-9_-]{1,64}$/.test(String(tag))) return Promise.reject(new Error('Notebook.importPages: bad tag'));
+    return Promise.resolve(cfg._ready).then(function () {
+      var f = window['_fbImport' + cap(key) + 'Journal'];
+      if (typeof f !== 'function') throw new Error('Notebook.importPages: ' + key + ' cannot import');
+      return f(Array.isArray(pages) ? pages : [], tag == null ? null : String(tag));
     });
   },
   // Add a pinned page ({ id, title, html }) to an instance after it mounted:

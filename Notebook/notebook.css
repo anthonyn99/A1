@@ -992,6 +992,9 @@ a.tj-file-chip:hover .docx-clip, a.bj-file-chip:hover .docx-clip { opacity: 1; }
 #tj-root #tj-mobile-title:focus, #bj-root #bj-mobile-title:focus {
   outline: none !important; box-shadow: none !important; border: none !important; background: none !important;
 }
+/* ...and it keeps room to be read in a narrow title bar: the bar's other parts
+   (an instance's "Editing in V's Notebook" line, its buttons) give way first. */
+#tj-root #tj-entry-title-input, #bj-root #bj-entry-title-input { min-width: min(140px, 28%); }
 
 /* ── Title bar: one height; Edit/View is a switch in a button-sized outline
    (the switch fills with the accent while editing); Lock is a square padlock

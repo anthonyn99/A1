@@ -446,29 +446,13 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 #study-root .timeline-content { flex: 1; }
 #study-root .timeline-title { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
 #study-root .timeline-meta { font-size: 11px; color: var(--text2); font-family: var(--mono); }
-/* NOTES */
-#study-root .notes-layout { display: grid; grid-template-columns: 240px 1fr; gap: 16px; height: calc(100vh - 120px); }
-#study-root .notes-list-panel { background: var(--bg3); border: 1px solid var(--border); border-radius: 5px; display: flex; flex-direction: column; overflow: hidden; }
-#study-root .notes-list-header { padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
-#study-root .notes-list-header span { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text3); font-family: var(--mono); flex: 1; }
-#study-root .notes-list-scroll { flex: 1; overflow-y: auto; }
-#study-root .note-list-item { padding: 12px 14px; cursor: pointer; border-bottom: 1px solid var(--border); transition: 0.15s; border-left: 3px solid transparent; }
-#study-root .note-list-item:hover { background: var(--bg4); }
-#study-root .note-list-item.active { background: var(--bg4); border-left-color: var(--accent); }
-#study-root .note-list-title { font-size: 13px; font-weight: 700; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#study-root .note-list-preview { font-size: 11px; color: var(--text3); font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#study-root .note-list-date { font-size: 10px; color: var(--text3); font-family: var(--mono); margin-top: 4px; }
-#study-root .notes-editor-panel { background: var(--bg3); border: 1px solid var(--border); border-radius: 5px; display: flex; flex-direction: column; overflow: hidden; }
-#study-root .notes-editor-header { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
-#study-root .note-title-input { flex: 1; background: transparent; border: none; font-size: 15px; font-weight: 700; color: var(--text); font-family: 'Lora', serif; outline: none; }
-#study-root .note-title-input::placeholder { color: var(--text3); }
-#study-root .notes-area {
-  flex: 1; width: 100%; background: transparent; border: none;
-  padding: 16px 18px;
-  font-family: var(--mono); font-size: 13px; color: var(--text);
-  resize: none; line-height: 1.8; outline: none;
-}
-#study-root .notes-empty-state { flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; color: var(--text3); font-size: 13px; }
+/* NOTES: V's Notebook (js/sos-notebook.js). The Quick Notes view and each
+   Notes module's modal hold the one instance; it fills its box (Notebook's
+   own sidebar, phone drawer and bottom bar live inside it). */
+#study-root #view-notes.active { display: flex; flex-direction: column; }
+#study-root .sos-nb-page { position: relative; flex: 1; min-height: 360px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: #1B1C1E; }
+.sos-nb-host[data-nb-loading]::before { content: 'Opening notes…'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #76777C; font-family: 'IBM Plex Mono', monospace; font-size: 12px; z-index: 1; }
+.sos-nb-msg { padding: 28px 18px; text-align: center; color: #AFB0B5; font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
 /* MODAL */
 #study-root .modal-overlay {
   position: fixed; inset: 0;
@@ -732,12 +716,6 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
   min-height: 70px; transition: border-color 0.15s;
 }
 #study-root .add-prompt-row textarea:focus { outline: none; border-color: var(--accent); }
-#study-root .module-notes-area {
-  width: 100%; background: var(--bg3); border: 1px solid var(--border2);
-  border-radius: 6px; padding: 14px; font-family: var(--mono);
-  font-size: 13px; color: var(--text); resize: vertical;
-  min-height: 200px; line-height: 1.8; transition: border-color 0.15s;
-}
 /* POMODORO */
 #study-root .pomo-wrap { display:flex; flex-direction:column; align-items:center; justify-content:center; height:calc(100vh - 56px); gap:32px; }
 #study-root .pomo-modes { display:flex; gap:8px; }
@@ -766,29 +744,9 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 #study-root .pomo-setting input { width:64px; text-align:center; background:var(--bg3); border:1px solid var(--border2); border-radius:4px; padding:6px; font-size:14px; font-weight:700; color:var(--text); font-family:var(--mono); }
 #study-root .pomo-setting input:focus { outline:none; border-color:var(--accent); }
 
-/* NOTE FULLSCREEN */
-#study-root .note-fullscreen-overlay {
-  position:fixed;inset:0;z-index:10200;background:var(--bg2);
-  display:flex;flex-direction:column;overflow:hidden;
-}
-#study-root .note-fullscreen-header {
-  padding:12px 20px;border-bottom:1px solid var(--border);
-  display:flex;align-items:center;gap:10px;background:var(--bg2);flex-shrink:0;
-}
-#study-root .note-fullscreen-title {
-  flex:1;background:transparent;border:none;font-size:18px;font-weight:700;
-  color:var(--text);font-family:'Lora',serif;outline:none;
-}
-#study-root .note-fullscreen-body {
-  flex:1;background:transparent;border:none;padding:28px 40px;
-  font-family:var(--mono);font-size:14px;color:var(--text);
-  resize:none;line-height:1.9;outline:none;overflow-y:auto;
-  max-width:860px;width:100%;align-self:center;box-sizing:border-box;
-}
-
-#study-root .mode-toggle-wrap { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
-#study-root .mode-toggle-label { font-size:11px; font-weight:700; font-family:var(--mono); color:var(--text3); text-transform:uppercase; letter-spacing:1px; }
-#study-root .mode-toggle-label.active { color:var(--accent); }
+#study-root .mode-toggle-wrap:not(.sos-nb-host *) { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+#study-root .mode-toggle-label:not(.sos-nb-host *) { font-size:11px; font-weight:700; font-family:var(--mono); color:var(--text3); text-transform:uppercase; letter-spacing:1px; }
+#study-root .mode-toggle-label.active:not(.sos-nb-host *) { color:var(--accent); }
 #study-root .mode-slider {
   position:relative; width:44px; height:24px; cursor:pointer;
   background:var(--bg4); border-radius:12px; border:1px solid var(--border2);
@@ -832,6 +790,10 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
   transition: opacity 0.2s;
 }
 .sos-modal.open { opacity: 1; pointer-events: all; visibility: visible; }
+/* The modals inside #study-root are .modal-overlay too, and that rule's
+   z-index (9999, ID weight) used to win, so on a phone every one of them sat
+   UNDER the bottom nav (10050): a full-screen modal lost its foot to it. */
+#study-root .modal-overlay.sos-modal { z-index: 10100; }
 .sos-modal .modal {
   background: #1f2022; border: 1px solid #4A4B51;
   border-radius: 10px; padding: 28px;
@@ -885,7 +847,7 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 }
 
 /* ── CSS vars for elements outside #study-root (modals, fullscreen) ── */
-.sos-modal, .note-fullscreen-overlay {
+.sos-modal {
   --bg: #1B1C1E; --bg2: #1f2022; --bg3: #26272A; --bg4: #2e2f33;
   --border: rgba(255,255,255,0.09); --border2: #4A4B51;
   --text: #ECECEE; --text2: #AFB0B5; --text3: #76777C;
@@ -894,9 +856,9 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
   font-family: var(--sans); font-size: 15px; color: var(--text);
 }
 /* ── Unscoped rules for classes used inside .sos-modal content ── */
-.sos-modal .mode-toggle-wrap { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
-.sos-modal .mode-toggle-label { font-size:11px; font-weight:700; font-family:var(--mono); color:var(--text3); text-transform:uppercase; letter-spacing:1px; }
-.sos-modal .mode-toggle-label.active { color:var(--accent); }
+.sos-modal .mode-toggle-wrap:not(.sos-nb-host *) { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+.sos-modal .mode-toggle-label:not(.sos-nb-host *) { font-size:11px; font-weight:700; font-family:var(--mono); color:var(--text3); text-transform:uppercase; letter-spacing:1px; }
+.sos-modal .mode-toggle-label.active:not(.sos-nb-host *) { color:var(--accent); }
 .sos-modal .mode-slider { position:relative; width:44px; height:24px; cursor:pointer; background:var(--bg4); border-radius:12px; border:1px solid var(--border2); transition:background 0.25s; flex-shrink:0; }
 .sos-modal .mode-slider.edit-on { background:var(--accent); border-color:var(--accent); }
 .sos-modal .mode-slider-thumb { position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%; background:#fff; transition:transform 0.25s; box-shadow:0 1px 4px rgba(0,0,0,0.3); }
@@ -936,8 +898,6 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 .sos-modal .add-prompt-row { display:flex; gap:8px; align-items:flex-start; }
 .sos-modal .add-prompt-row textarea { flex:1; background:var(--bg3); border:1px solid var(--border2); border-radius:6px; padding:10px 12px; font-size:13px; color:var(--text); font-family:var(--mono); resize:vertical; min-height:70px; transition:border-color 0.15s; }
 .sos-modal .add-prompt-row textarea:focus { outline:none; border-color:var(--accent); }
-.sos-modal .module-notes-area { width:100%; background:var(--bg3); border:1px solid var(--border2); border-radius:6px; padding:14px; font-family:var(--mono); font-size:13px; color:var(--text); resize:vertical; min-height:200px; line-height:1.8; transition:border-color 0.15s; }
-.sos-modal .module-notes-area:focus { outline:none; border-color:var(--accent); }
 .sos-modal .delete-btn { position:absolute; top:8px; right:8px; opacity:0; transition:0.15s; background:var(--bg4); border:1px solid var(--border); border-radius:6px; padding:3px 6px; font-size:10px; color:var(--text2); cursor:pointer; }
 .sos-modal .module-btn:hover .delete-btn { opacity:1; }
 .sos-modal .rename-btn { position:absolute; top:8px; right:34px; opacity:0; transition:0.15s; background:var(--bg4); border:1px solid var(--border); border-radius:6px; padding:3px 6px; font-size:10px; color:var(--text2); cursor:pointer; }
@@ -1067,7 +1027,6 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
   #study-root .modules-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
 
   /* Notes */
-  #study-root .notes-layout { grid-template-columns: 200px 1fr; height: calc(100vh - 110px); }
 
   /* Touch: always show delete/menu */
   #study-root .module-btn .delete-btn { opacity: 1; }
@@ -1215,12 +1174,9 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
   #study-root .cal-header { padding: 12px 14px; }
   #study-root .cal-day-label { font-size: 9px; padding: 6px 2px; }
 
-  /* Notes */
-  #study-root .notes-layout {
-    grid-template-columns: 1fr; grid-template-rows: auto 1fr;
-    height: calc(100vh - 130px); gap: 10px;
-  }
-  #study-root .notes-list-panel { max-height: 180px; }
+  /* Notes: the view's own box, between the topbar and the bottom nav */
+  #study-root #view-notes { padding: 8px 8px calc(66px + env(safe-area-inset-bottom, 0px)); }
+  #study-root .sos-nb-page { min-height: 0; border-radius: 4px; }
 
   /* Modules */
   #study-root .module-btn { padding: 14px 16px; }
@@ -1241,10 +1197,6 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 
   /* Upload zone */
   #study-root .upload-zone { padding: 18px; }
-
-  /* Note fullscreen */
-  #study-root .note-fullscreen-header { padding: 12px 14px 12px max(14px, env(safe-area-inset-left)); }
-  #study-root .note-fullscreen-body { padding: 20px max(16px, env(safe-area-inset-right)) 20px max(16px, env(safe-area-inset-left)); }
 
   /* ── MODALS: bottom-sheet, simple scroll, footer always visible ──
      Key insight: overflow-y:auto on the modal + NO transform + generous
@@ -1544,4 +1496,35 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 }
 .sos-modal .pick-dest-empty {
   font-size: 13px; color: #AFB0B5; padding: 18px 4px; text-align: center;
+}
+
+/* ── A Notes module's modal: V's Notebook on the module's folder ─────────────
+   (js/sos-notebook.js). The modal grows to hold the editor and the notes fill
+   what is left under the title row; on a phone it is the whole screen, over
+   the bottom nav, with Close at the foot. Last in the file so it outranks the
+   phone bottom-sheet rules above (same weight, !important). */
+#module-detail-cards-btn[hidden] { display: none !important; }
+#module-detail-modal.notes-mode {
+  width: min(1320px, 96vw) !important; max-width: 96vw !important;
+  height: 92vh; height: 92dvh; max-height: 92dvh !important;
+  display: flex !important; flex-direction: column; overflow: hidden !important;
+  padding: 16px 18px 12px !important;
+}
+#module-detail-modal.notes-mode .modal-title { margin-bottom: 10px !important; flex-shrink: 0; }
+#module-detail-modal.notes-mode #module-detail-body,
+#module-detail-modal.notes-mode #module-detail-body > div { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#module-detail-modal.notes-mode .modal-footer { margin-top: 10px !important; flex-shrink: 0; }
+.sos-nb-modal-host { position: relative; flex: 1; min-height: 0; border: 1px solid rgba(255,255,255,0.09); border-radius: 6px; overflow: hidden; background: #1B1C1E; }
+@media (max-width: 640px) {
+  #module-detail-modal.notes-mode {
+    width: 100vw !important; max-width: 100vw !important;
+    height: 100vh; height: 100dvh; max-height: 100dvh !important;
+    border-radius: 0 !important; border: none !important;
+    padding: calc(env(safe-area-inset-top, 0px) + 10px) 8px calc(env(safe-area-inset-bottom, 0px) + 8px) !important;
+  }
+  #module-detail-modal.notes-mode .modal-title { font-size: 16px !important; margin-bottom: 8px !important; }
+  #module-detail-modal.notes-mode #module-detail-cards-btn span { display: none; }
+  #module-detail-modal.notes-mode .modal-footer { margin-top: 8px !important; }
+  #module-detail-modal.notes-mode .modal-footer .btn { padding: 8px 12px !important; }
+  .sos-nb-modal-host { border-radius: 4px; }
 }

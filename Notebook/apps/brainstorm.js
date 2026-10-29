@@ -378,6 +378,17 @@ const _bjPinned = Array.isArray(_bjCfg.pinned) ? _bjCfg.pinned : [];
 function _bjIsPinned(id) { return _bjPinned.some(function (p) { return p.id === id; }); }
 // For the host (e.g. in onReady): the entries as they stand, live and trashed.
 _bjCfg.entries = function () { return state.entries; };
+// folder: a host that files its pages in groups (StudyOS: one per Notes
+// module) shows one group at a time. A page carries the folder it was made in
+// (entry.folder); the list, its search and tags, the Trash and New Entry all
+// work inside the folder on screen. null (the default) is every page, as
+// before. Notebook.folder(key, id) switches it. Pinned pages show in every
+// folder; OurJournal has none.
+let _bjFolder = (_bjCfg.folder == null || _bjCfg.folder === '') ? null : String(_bjCfg.folder);
+const _bjFolderActive = {};   // folder -> the page last open in it (this session)
+function _bjInFolder(e) { return _bjFolder === null || _bjIsOJ() || !e || e.folder === _bjFolder || _bjIsPinned(e.id); }
+// The first live page on screen, for when the open one goes away.
+function _bjFirstLive() { return (state.entries.find(function (e) { return !e.trashed && _bjInFolder(e); }) || {}).id || null; }
 // Make every pinned page exist, out of the trash, at the top in its given order.
 function _bjPinFirst() {
   if (!_bjPinned.length || _bjIsOJ()) return;
@@ -919,8 +930,9 @@ function _bjApplyRemote(remote) {
   // If the active entry was deleted OR trashed on another device, switch to first available
   var _bjActiveGone = state.activeId && !state.entries.find(function(e) { return e.id === state.activeId; });
   var _bjActiveTrashed = state.activeId && (state.entries.find(function(e){ return e.id === state.activeId; }) || {}).trashed;
-  if (_bjActiveGone || _bjActiveTrashed) {
-    state.activeId = (state.entries.find(function(e){ return !e.trashed; }) || {}).id || null;
+  var _bjActiveAway = _bjFolder !== null && !_bjHidden && !_bjIsOJ() && (!state.activeId || !_bjInFolder(getActive()));
+  if (_bjActiveGone || _bjActiveTrashed || (_bjActiveAway && _bjFirstLive())) {
+    state.activeId = _bjFirstLive();
     loadActiveEntry();
   }
 
@@ -1028,6 +1040,8 @@ function createEntry(template) {
   entry._dirty = true;
   // A shared entry records who made it (Veda, from here) and opens its live document.
   if (_bjIsOJ() && window.OJ) window.OJ.created('bj', entry);
+  // Made in the folder on screen (OurJournal has none).
+  else if (_bjFolder !== null) entry.folder = _bjFolder;
   state.entries.unshift(entry);
   state.activeId = id;
   return entry;
@@ -1042,7 +1056,7 @@ function deleteEntry(id) {
   entry.trashed = _bjDelTs;
   entry.trashChangedAt = _bjDelTs;   // trash-action clock (drives cross-device delete sync)
   entry.updated = _bjDelTs;
-  if (state.activeId === id) state.activeId = (state.entries.find(e => !e.trashed) || {}).id || null;
+  if (state.activeId === id) state.activeId = _bjFirstLive();
   saveState(); renderSidebar(); loadActiveEntry();
   // Push the trashed entry itself (it isn't the active one, so the debounced save skips it)
   _bjFbSaveEntry(entry);
@@ -1069,7 +1083,7 @@ function hardDeleteEntry(id) {
   _bjForgetDeleted([id]);
   _bjFbDelete(id);
   state.entries = state.entries.filter(e => e.id !== id);
-  if (state.activeId === id) state.activeId = (state.entries.find(e => !e.trashed) || {}).id || null;
+  if (state.activeId === id) state.activeId = _bjFirstLive();
   saveState(); renderSidebar(); loadActiveEntry();
 }
 /* The 30-day trash purge is the ONE automatic, irreversible delete in this app:
@@ -1135,7 +1149,7 @@ function _bjSchedulePurge() {
   });
 }
 window._bjTrashAPI = {
-  list: () => state.entries.filter(e => e.trashed).sort((a,b) => (b.trashed||0)-(a.trashed||0)),
+  list: () => state.entries.filter(e => e.trashed && _bjInFolder(e)).sort((a,b) => (b.trashed||0)-(a.trashed||0)),
   restore: (ids) => {
     (ids||[]).forEach(id => {
       const e = state.entries.find(x => x.id === id);
@@ -1228,7 +1242,7 @@ function _bjRenderTrashBtn() {
     const stats = document.getElementById('bj-sidebar-stats');
     if (stats && stats.parentNode) stats.parentNode.insertBefore(btn, stats);
   }
-  const n = state.entries.filter(e => e.trashed).length;
+  const n = state.entries.filter(e => e.trashed && _bjInFolder(e)).length;
   btn.innerHTML = window.TNI.trash + '<span>Trash</span>' + (n ? ' <span class="docx-trash-count">' + n + '</span>' : '');
 }
 
@@ -1237,7 +1251,7 @@ function renderSidebar() {
   _bjPinFirst();
   const list = document.getElementById('bj-entries-list');
   const search = document.getElementById('bj-search-box').value.toLowerCase().trim();
-  const live = state.entries.filter(e => !e.trashed);
+  const live = state.entries.filter(e => !e.trashed && _bjInFolder(e));
   const entries = live.filter(e => {
     // Locked entries: search title/tags only (never their hidden content)
     const isLocked = window._bjGetLock && window._bjGetLock(e.id) && !(window._bjIsUnlocked && window._bjIsUnlocked(e.id));
@@ -3209,6 +3223,43 @@ window._bjPersistNow = function() {
 // does, then edit or view mode if asked. Waits for the entry to arrive from the
 // server (a host may ask before the first load). Resolves false if it never does,
 // or if a newer open call took over while it waited.
+// Notebook.putPage: a host writes one page of its own (StudyOS's generated
+// notes). A page the store lacks is made (in p.folder, else the folder on
+// screen); one it has takes the new title, html, tags, folder and host data
+// that are given, as an edit would: a new revision, saved and synced like any
+// edit, out of the Trash if it was there. The page being edited is saved
+// first and repainted after. A pinned page, or one that is not a plain page,
+// is refused (null). Returns a copy of the page as stored.
+window._bjPutEntry = function(p) {
+  if (!p || !p.id || /[.\/~*\[\]]/.test(String(p.id)) || _bjIsPinned(p.id)) return null;
+  return _bjWithPersonal(function() {
+    var now = Date.now(), e = state.entries.find(function(x) { return x.id === p.id; });
+    if (e && e.template !== 'page') return null;
+    var open = !_bjHidden && state.activeId === p.id;
+    if (open) { try { clearTimeout(autoTimer); saveCurrentEntry(); } catch (err) {} }
+    if (!e) {
+      e = { id: String(p.id), title: '', template: 'page', created: p.created || now, updated: now, tags: [], data: { html: '', attachments: [] }, rev: 0 };
+      var f = p.folder !== undefined ? p.folder : _bjFolder;
+      if (f != null && f !== '') e.folder = String(f);
+      state.entries.unshift(e);
+      // Made again on purpose: no longer a page this device purged.
+      if (Array.isArray(state.deletedIds)) state.deletedIds = state.deletedIds.filter(function(id) { return id !== e.id; });
+    } else if (p.folder !== undefined) {
+      if (p.folder == null || p.folder === '') delete e.folder; else e.folder = String(p.folder);
+    }
+    if (p.title !== undefined) e.title = String(p.title == null ? '' : p.title);
+    if (Array.isArray(p.tags)) e.tags = p.tags.map(String);
+    if (p.data && typeof p.data.html === 'string') e.data = Object.assign({ attachments: [] }, e.data || {}, { html: p.data.html });
+    if (p.host && typeof p.host === 'object') e.host = JSON.parse(JSON.stringify(p.host));
+    if (e.trashed) { delete e.trashed; e.trashChangedAt = now; }
+    e.updated = now; e.rev = (e.rev || 0) + 1; e._dirty = true;
+    saveState(); renderSidebar();
+    if (open) loadActiveEntry();
+    _bjFbSaveEntry(e);
+    var out = JSON.parse(JSON.stringify(e)); delete out._dirty; delete out._fbPushed;
+    return out;
+  });
+};
 let _bjOpenSeq = 0;
 window._bjOpenEntry = function(id, opts) {
   opts = opts || {};
@@ -3427,7 +3478,29 @@ document.getElementById('bj-new-entry-btn').addEventListener('click', () => {
 });
 document.getElementById('bj-search-box').addEventListener('input', renderSidebar);
 
-loadState(); purgeExpiredTrash(); renderSidebar(); loadActiveEntry(); setEditMode(false);
+loadState(); purgeExpiredTrash();
+// Mounted on a folder: open that folder's page, not the last one open anywhere.
+if (_bjFolder !== null && !_bjInFolder(getActive())) state.activeId = _bjFirstLive();
+renderSidebar(); loadActiveEntry(); setEditMode(false);
+
+// Notebook.folder(key, id): show folder id (null: every page). The page being
+// edited is saved first; the folder's last open page (or its first) opens.
+window._bjSetFolder = function(folder) {
+  folder = (folder == null || folder === '') ? null : String(folder);
+  if (folder === _bjFolder) return true;
+  if (_bjIsOJ()) _bjOJLeave();
+  try { saveCurrentEntry(); } catch (e) {}
+  try { _bjFbFlush(); } catch (e) {}
+  if (_bjFolder !== null && state.activeId) _bjFolderActive[_bjFolder] = state.activeId;
+  _bjFolder = folder; _bjCfg.folder = folder;
+  bjTagFilters = [];
+  var sb = document.getElementById('bj-search-box'); if (sb) sb.value = '';
+  var back = folder !== null && _bjFolderActive[folder];
+  if (back && state.entries.some(function(e) { return e.id === back && !e.trashed; })) state.activeId = back;
+  else if (!getActive() || getActive().trashed || !_bjInFolder(getActive())) state.activeId = _bjFirstLive();
+  renderSidebar(); loadActiveEntry();
+  return true;
+};
 
 /* ── OurJournal tab ──────────────────────────────────────────────────────────
  * Two tabs at the top of the sidebar: OurJournal (shared with Tony) and Journal
@@ -3468,7 +3541,7 @@ function _bjOJLeave() {
   var sb = document.getElementById('bj-search-box'); if (sb) sb.value = '';
   // The entry that was open may have been deleted elsewhere in the meantime.
   if (state.activeId && !state.entries.some(function(e) { return e.id === state.activeId && !e.trashed; })) {
-    state.activeId = (state.entries.find(function(e) { return !e.trashed; }) || {}).id || null;
+    state.activeId = _bjFirstLive();
   }
   _bjModeUI();
   renderSidebar(); loadActiveEntry();

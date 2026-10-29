@@ -26,7 +26,7 @@ be silently destroyed on the next build. All work happens in `V1/js/`,
 `V1/css/`, `V1/config/`, and `V1/studyos.html`.
 
 Line counts confirm the spec's audit is otherwise accurate:
-`studyos.js` 4,764 · `docx-engine.js` 3,473 · `notes-sync.js` 932 ·
+`studyos.js` 4,764 · `docx-engine.js` 3,473 · `notes-sync.js` 932 (both removed 2026-10-29: notes are V's Notebook, [notebook.md](notebook.md)) ·
 `d2l-sync.js` 679 · `firebase-sync.js` 481 · `taskmirror.js` 322.
 
 ---
@@ -69,7 +69,7 @@ document; see `_sosSerializeClasses()` below.
 | Path | Contents |
 |---|---|
 | `dashboards/studyos` | One doc: `{ classes, events, tasks, notes, ksu, d2l }` |
-| `studyos_notes/{moduleId}` | One doc per Notes module (rich-text bodies) |
+| `studyos_notes/{moduleId}` | One doc per Notes module (rich-text bodies). Read-only backup since 2026-10-29: notes are V's Notebook, `dashboards/studyos_notebook` (see [notebook.md](notebook.md)) |
 | `dashboards/studyos_lock` | App-lock state |
 | `dashboards/studyos_shield_apps` | Shield app list |
 
@@ -535,7 +535,7 @@ per session gets its own document.**
 | Entity | Document | Conflict policy |
 |---|---|---|
 | classes, events, tasks, notes, ksu, d2l | `dashboards/studyos` (one doc) | Whole-document last-write-wins, on a 400 ms debounce |
-| Page-editor notes | `studyos_notes/{moduleId}` | Per-module last-write-wins |
+| Notes (V's Notebook) | `dashboards/studyos_notebook` (was `studyos_notes/{moduleId}`) | Notebook's per-page sync ([notebook.md](notebook.md)) |
 | **Flashcards + review state** | `studyos_cards/{classId}` | **Union by card fingerprint; newest `lastReview` wins** |
 | **Study sessions** | `dashboards/studyos_sessions` | **Union by id** (append-only, so nothing is ever lost) |
 

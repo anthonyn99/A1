@@ -50,6 +50,8 @@ is left out. Both sides' instances save through the same store template
 | tradehub.html, Playbook (A1-Priv) | T's Notebook | `pb` | `tradehub_playbook` | inline (instance) |
 | tradehub.html, Control's prompts (A1-Priv) | T's Notebook | `prm` | `tradehub_prompts` | inline (instance, no sidebar) |
 | everwell.html, notes (A1-Priv) | T's Notebook | `ewn` | `everwell_notes` | inline (instance, its own bar: `sideNote: false`) |
+| V1/studyos.html, Quick Notes + every Notes module (A1) | V's Notebook | `stn` | `studyos_notebook` | inline (instance, one folder per place; [../V1/notebook.md](../V1/notebook.md)) |
+| V1/TradeBoard/tradeboard.html, Strats (A1) | V's Notebook | `vtb` | `tradeboard_strats` | inline (instance; [../V1/notebook.md](../V1/notebook.md)) |
 
 Plan and history: [plan.md](plan.md).
 
@@ -139,7 +141,7 @@ them, and its stand-ins are the browser's own dialogs.
 ### Host rules
 
 A host talks to its instance only through what this page documents: the mount
-options, `Notebook.open`, `Notebook.attach` / `Notebook.detach`, `Notebook.pin`, `Notebook.flushAll`,
+options, `Notebook.open`, `Notebook.attach` / `Notebook.detach`, `Notebook.pin`, `Notebook.folder`, `Notebook.importPages`, `Notebook.putPage`, `Notebook.flushAll`,
 and `cfg.entries()` (Notebook adds it to the config the host passed). Everything
 else (the instance's ids and classes, its `_<key>…` functions, its `<key>_…`
 storage keys, its ready events) is Notebook's to rename, so a host that touched
@@ -184,6 +186,7 @@ new host goes in its `HOSTS` list.
 | `onSave(entry)` | Called when `fb-<key>-saved` confirms that entry. |
 | `onReady()` | Called once, after the first server read. |
 | `done` | `{ note, label, onClick }`: a host's way out of the editor (TradeHub's prompts: "Editing in Notebook" and Done), drawn beside the page title in the title bar and the phone header. |
+| `folder` | The folder the instance opens on (default `null`: every page). See `Notebook.folder` below. |
 
 To open a page from the host (its own list, a link), call
 `Notebook.open(key, id, { edit: true })`. It does what a click on the page's row
@@ -191,6 +194,35 @@ does, switches edit (`true`) or view (`false`) mode when asked, and waits for th
 mount and for the page to load. It resolves `true` once the page is open, and
 `false` if the page never turns up or a newer `open` took over. Never click or
 read Notebook's own elements from a host: their ids are Notebook's to change.
+
+A host that files its pages in groups (StudyOS: one group per Notes module)
+keeps ONE instance and switches its folder with `Notebook.folder(key, id)`
+(added 2026-10-29). The list, its search and tags, the Trash and New Entry then
+work inside that folder; a page made there carries it (`entry.folder`); the
+page last open in a folder opens again when the host comes back to it; pinned
+pages show in every folder. `null` shows every page. It saves the page being
+edited first and resolves `true` once the folder is on screen (called before
+the mount finishes, it sets the folder the app opens on). Both sides have it
+(`_<key>SetFolder` in each app); `tests/live/notebook-host.live.js` runs it.
+
+A host moving its old pages in calls `Notebook.importPages(key, pages, tag)`
+once mounted (added 2026-10-29; StudyOS's notes and TradeBoard's Strats came in
+this way). `pages` are entries in the shape under "Data layout" (`id`, `title`,
+`created`, `updated`, `tags`, `folder`, `data: { html }`; template `page`).
+Only ids the store lacks go in, never overwriting a page; their images move
+out to their own documents as on a save; the write is split under the size
+guard; and `tag` is recorded in the store (`_imported.<tag>`) with the last
+part, so every later call, on any device, resolves `'already'`. It resolves
+`{ added, kept, failed }`; a page in `failed` (a bad id, or too big even with
+its images moved out) leaves the tag unrecorded, so the next call retries.
+It reads the server copy and rejects offline. Keep the old copy as the backup.
+
+A host that writes a page of its own (StudyOS's AI-generated notes) calls
+`Notebook.putPage(key, { id, title, data: { html }, tags, folder, host })`. A
+new id makes the page; an existing one takes what is given as an edit would
+(a new revision, synced by Notebook, out of the Trash). `host` is the host's
+own data for the page, kept on it and read back through `cfg.entries()`.
+It resolves the page, or `null` for a pinned page.
 
 A host that keeps its own list and adds to it after mounting (TradeHub's
 prompts) pins each new page with `Notebook.pin(key, { id, title, html })` before

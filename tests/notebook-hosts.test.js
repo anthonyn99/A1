@@ -54,6 +54,20 @@ function reaches(src, K) {
   return out;
 }
 
+// The scripts a host loads from its own folder (a relative src that exists).
+function localScripts(f) {
+  const src = fs.readFileSync(f, 'utf8'), out = [];
+  for (const m of src.matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)) {
+    const u = m[1].split(/[?#]/)[0];
+    if (/^([a-z]+:)?\/\//i.test(u) || u.startsWith('/')) continue;
+    const p = path.resolve(path.dirname(f), u);
+    // Notebook's own files are Notebook's (a fixture loads it by a relative path).
+    if (p.indexOf(path.join(ROOT, 'Notebook') + path.sep) === 0) continue;
+    if (fs.existsSync(p) && fs.statSync(p).isFile()) out.push(p);
+  }
+  return out;
+}
+
 for (const f of hosts) {
   const src = fs.readFileSync(f, 'utf8'), name = rel(f);
   console.log('\n' + name);
@@ -80,6 +94,12 @@ for (const f of hosts) {
     ok(m.key + ': has a store of its own (' + m.store + ')', m.store !== 'tony_journal' && m.store !== 'journal');
     const bad = reaches(src, m.key);
     ok(m.key + ': never reaches into the instance (Notebook.open / attach / detach / mount options instead)', !bad.length, '\n       ' + bad.join('\n       '));
+    // The host's own scripts beside it (StudyOS keeps its Notebook glue in
+    // js/sos-notebook.js): the same rule, file by file.
+    for (const own of localScripts(f)) {
+      const b2 = reaches(fs.readFileSync(own, 'utf8'), m.key);
+      ok(m.key + ': ' + rel(own) + ' never reaches into the instance either', !b2.length, '\n       ' + b2.join('\n       '));
+    }
   }
 }
 

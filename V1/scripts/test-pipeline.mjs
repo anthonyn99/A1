@@ -240,6 +240,27 @@ console.log('\nbridge: addGeneratedNote');
     t('an explicit notes module IS honoured',
       classes3[0].modules.find(x => x.id === 'mynotes').notes.length === 1);
     t('no extra Generated module was created', classes3[0].modules.length === 1);
+
+    // With the notes up (js/sos-notebook.js), the note is a Notebook page in
+    // the module's folder: handed to SOSNotes.putGenerated as HTML, with its
+    // source for replace-on-regenerate, and mod.notes is left alone.
+    const md = src.match(/function _sosMdToHtml\(md\) \{[\s\S]*?\n\}/);
+    const calls = [];
+    const classes4 = [{ id: 'c4', name: 'NB', modules: [
+      { id: 'nbmod', name: 'Lectures', type: 'notes', files: [], prompts: [], notes: [] } ] }];
+    let persisted4 = 0;
+    const fn4 = new Function(
+      'classes', 'findClassOrKsu', 'persistForCls', 'renderModules',
+      'refreshModuleNoteList', 'currentClassId', 'ICONS', 'window',
+      md[0] + '\n' + m[0] + '; return window._sosBridge.addGeneratedNote;'
+    )(classes4, (id) => classes4.find(c => c.id === id), () => { persisted4++; }, () => {}, () => {},
+      null, { notes: '📝' }, { _sosBridge: {}, SOSNotes: { putGenerated: (f, spec) => { calls.push([f, spec]); return Promise.resolve({ id: 'p1' }); } } });
+    const r4 = fn4({ classId: 'c4', moduleId: 'nbmod', title: 'Lecture 5', body: '## Heading\n- point', meta: { sourceFileId: 'f5', promptVersion: 4 } });
+    t('the notes path hands the page to SOSNotes.putGenerated', calls.length === 1 && calls[0][0] === 'nbmod', calls);
+    t('...as HTML, with its title and source', calls[0] && /<h2>Heading<\/h2>/.test(calls[0][1].html) && /<li>point<\/li>/.test(calls[0][1].html)
+      && calls[0][1].title === 'Lecture 5' && calls[0][1].sourceId === 'f5' && calls[0][1].meta.promptVersion === 4, calls[0] && calls[0][1]);
+    t('...returns the module and a saved promise', r4 && r4.moduleId === 'nbmod' && typeof r4.saved.then === 'function', r4);
+    t('...and never writes mod.notes', classes4[0].modules[0].notes.length === 0 && persisted4 === 1);
   }
 }
 

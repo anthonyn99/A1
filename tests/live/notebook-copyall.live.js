@@ -46,6 +46,9 @@ const SEED = { 'dashboards/nb_test': { _order: ['e_1_alpha'], activeId: 'e_1_alp
   ok('the editor shows the page', await js(`return /losers/.test(document.getElementById('nb-page-editor').innerHTML);`));
 
   console.log('\nCopy all');
+  // The ribbon (Copy all with it) shows in edit mode only, as everywhere.
+  await js(`if (document.getElementById('nb-page-editor').getAttribute('contenteditable') !== 'true') document.getElementById('nb-btn-edit').click(); 1`);
+  await until(`document.querySelector('#nb-page-toolbar.edit-mode')`, 5000); await sleep(300);
   await js(`window.__cb = {}; var o = DataTransfer.prototype.setData; DataTransfer.prototype.setData = function (t, v) { window.__cb[t] = v; return o.call(this, t, v); }; 1`);
   const btn = JSON.parse(await js(`var b=document.querySelector('#nb-page-toolbar .docx-copyall-btn'); if(!b) return 'null'; var r=b.getBoundingClientRect(); return JSON.stringify({x:r.left+r.width/2,y:r.top+r.height/2,w:r.width,txt:b.innerText});`));
   ok('the page toolbar has a Copy all button', btn && btn.w > 0 && /Copy all/.test(btn.txt), JSON.stringify(btn));

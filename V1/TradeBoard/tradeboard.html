@@ -36,6 +36,13 @@
 <meta name="format-detection" content="telephone=no" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<!-- Strats is V's Notebook (A1's Notebook, docs/Notebook/README.md), loaded
+     from A1's Pages URL so it is the same Notebook every program runs.
+     data-lazy: its engines load the first time Strats opens (TB.st). -->
+<script src="https://anthonyn99.github.io/A1/Notebook/notebook.js?v=063334e637" data-lazy></script>
+<!-- The suite's hover layer (A1's hoverfx.js), on the notes only, so they answer
+     the cursor as her journal does; nothing else here changes. -->
+<script src="https://anthonyn99.github.io/A1/hoverfx.js" data-roots="#st-host" defer></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -96,12 +103,12 @@
   button{font-family:inherit;cursor:pointer;}
   a{color:var(--accent);}
   /* Touch ergonomics: no 300ms delay, no grey flash, momentum scrolling. */
-  button, .btn, .btn-icon, .tb-btn, a, input, select, textarea, label,
-  .strat-item, .section-nav button, thead th.sortable {
+  button, .btn, .btn-icon, a, input, select, textarea, label,
+  .section-nav button, thead th.sortable {
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
   }
-  .section-view, .strats-list, .strats-editor-scroll, .table-wrap, .modal {
+  .section-view, .table-wrap, .modal {
     -webkit-overflow-scrolling: touch;
   }
   /* Mobile-only / desktop-only helpers (breakpoints defined in the media blocks) */
@@ -208,7 +215,7 @@
              calc(env(safe-area-inset-bottom, 0px) + 60px)
              calc(env(safe-area-inset-left, 0px) + 28px);
   }
-  .section-label {
+  .section-label:not(.tb-nb-host *) {
     font-size: 11px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
     color: var(--muted); margin: 0 0 13px; display: flex; align-items: center;
     justify-content: space-between; gap: 10px;
@@ -266,17 +273,18 @@
   /* ── tables ──────────────────────────────────────────────────────────── */
   .table-wrap { background: var(--bg-card); border: 1px solid var(--border-soft);
     border-radius: var(--radius-md); overflow-x: auto; box-shadow: var(--shadow-sm); }
-  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-  thead th { text-align: left; font-size: 9.5px; font-weight: 700; letter-spacing: 0.07em;
+  /* The app's own tables. Not the Strats notes' (V's Notebook styles its pages). */
+  table:not(.tb-nb-host *) { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  thead th:not(.tb-nb-host *) { text-align: left; font-size: 9.5px; font-weight: 700; letter-spacing: 0.07em;
     text-transform: uppercase; color: var(--muted); padding: 12px 13px; white-space: nowrap;
     border-bottom: 1px solid var(--border-soft); position: sticky; top: 0; background: var(--bg-card); z-index: 1; }
   thead th.num, tbody td.num { text-align: right; }
   thead th.sortable { cursor: pointer; user-select: none; }
   thead th.sortable:hover { color: var(--text-2); }
   thead th .arrow { color: var(--accent); font-size: 9px; margin-left: 3px; }
-  tbody td { padding: 11px 13px; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
-  tbody tr:last-child td { border-bottom: none; }
-  tbody tr:hover { background: rgba(141,118,154,0.06); }
+  tbody td:not(.tb-nb-host *) { padding: 11px 13px; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
+  tbody tr:last-child td:not(.tb-nb-host *) { border-bottom: none; }
+  tbody tr:hover:not(.tb-nb-host *) { background: rgba(141,118,154,0.06); }
   tbody tr.sel { background: rgba(141,118,154,0.12); }
   td.mono, th.mono { font-family: var(--mono); }
   .sym { font-family: var(--mono); font-weight: 600; letter-spacing: 0.02em; }
@@ -292,7 +300,7 @@
   .badge-long  { background: var(--green-dim); color: var(--green); }
   .badge-short { background: var(--red-dim); color: var(--red); }
   .badge-open  { background: var(--amber-dim); color: var(--amber); }
-  .tag { display: inline-block; font-family: var(--mono); font-size: 10px; background: var(--accent-light);
+  .tag:not(.tb-nb-host *) { display: inline-block; font-family: var(--mono); font-size: 10px; background: var(--accent-light);
     color: var(--accent-hover); padding: 1px 7px; border-radius: 5px; margin: 1px 3px 1px 0; }
 
   /* ── equity curve card ───────────────────────────────────────────────── */
@@ -359,71 +367,15 @@
   .callout code { font-family: var(--mono); background: var(--bg-slot); padding: 1px 6px; border-radius: 5px;
     font-size: 12px; color: var(--accent-hover); }
 
-  /* ═══ STRATS / RULES editor ═══════════════════════════════════════════ */
+  /* ═══ STRATS: V's Notebook (A1's Notebook, docs/Notebook/README.md) ════
+     The section is one Notebook box that fills it; Notebook brings its own
+     page list, editor, phone drawer and bottom bar, inside the box. */
   #view-strats .wrap { max-width: 100%; padding: 0; height: 100%; }
-  #view-strats.section-view { overflow: hidden; }   /* panes scroll, not the section */
-  .strats-shell { display: flex; height: 100%; min-height: 0; }
-  .strats-sidebar { width: 268px; flex-shrink: 0; border-right: 1px solid var(--border-soft);
-    display: flex; flex-direction: column; background: var(--bg-inset); }
-  .strats-side-head { padding: 16px 16px 10px; }
-  .strats-side-head .btn { width: 100%; justify-content: center; }
-  .strats-search { position: relative; padding: 0 16px 10px; }
-  .strats-search input { width: 100%; padding: 8px 11px 8px 32px; }
-  .strats-search svg { position: absolute; left: 26px; top: 9px; color: var(--muted); }
-  .strats-list { flex: 1; overflow-y: auto; padding: 0 10px 10px; }
-  .strat-item { padding: 11px 13px; border-radius: 10px; margin-bottom: 4px; cursor: pointer;
-    border: 1px solid transparent; transition: var(--transition); }
-  .strat-item:hover { background: var(--bg-slot); }
-  .strat-item.active { background: var(--accent-light); border-color: var(--accent); }
-  .strat-item .si-title { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap;
-    overflow: hidden; text-overflow: ellipsis; }
-  .strat-item .si-meta { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 3px;
-    display: flex; justify-content: space-between; gap: 8px; }
-  .strat-item .si-drag { cursor: grab; color: var(--muted); }
-  .strats-side-foot { padding: 10px 16px; border-top: 1px solid var(--border-soft);
-    font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
-  .strats-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-  .strats-titlebar { display: flex; align-items: center; gap: 10px; padding: 14px 20px;
-    border-bottom: 1px solid var(--border-soft); }
-  .strats-titlebar input.title { flex: 1; background: transparent; border: none; outline: none;
-    color: var(--text); font-size: 18px; font-weight: 700; font-family: var(--sans); min-width: 0; }
-  .strats-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 8px 16px;
-    border-bottom: 1px solid var(--border-soft); background: var(--bg-inset); }
-  .tb-btn { background: transparent; border: 1px solid transparent; color: var(--text-2); border-radius: 7px;
-    min-width: 30px; height: 30px; padding: 0 8px; font-size: 13px; display: inline-flex; align-items: center;
-    justify-content: center; transition: var(--transition); }
-  .tb-btn:hover { background: var(--bg-slot); color: var(--text); }
-  .tb-btn.on { background: var(--accent-light); color: var(--accent-hover); border-color: var(--accent); }
-  .tb-btn b { font-family: var(--mono); }
-  .tb-sep { width: 1px; height: 20px; background: var(--border); margin: 0 6px; }
-  .tb-select { background: var(--bg-slot); border: 1px solid var(--border); color: var(--text);
-    border-radius: 7px; height: 30px; font-size: 12px; padding: 0 6px; outline: none; }
-  .strats-editor-scroll { flex: 1; overflow-y: auto; }
-  .strats-editor { max-width: 820px; margin: 0 auto; padding: 30px 34px 120px; outline: none;
-    font-size: 15px; line-height: 1.75; color: var(--text); min-height: 100%; }
-  .strats-editor.md-mode { font-family: var(--mono); font-size: 13.5px; white-space: pre-wrap; }
-  .strats-editor:empty::before { content: attr(data-placeholder); color: var(--muted); }
-  .strats-editor h1 { font-size: 27px; font-weight: 700; margin: 22px 0 12px; }
-  .strats-editor h2 { font-size: 21px; font-weight: 700; margin: 20px 0 10px; }
-  .strats-editor h3 { font-size: 17px; font-weight: 700; margin: 16px 0 8px; }
-  .strats-editor p { margin: 0 0 12px; }
-  .strats-editor ul, .strats-editor ol { margin: 0 0 12px; padding-left: 26px; }
-  .strats-editor li { margin-bottom: 5px; }
-  .strats-editor blockquote { border-left: 3px solid var(--accent); padding: 4px 0 4px 16px;
-    margin: 0 0 12px; color: var(--text-2); }
-  .strats-editor a { color: var(--accent-hover); text-decoration: underline; }
-  .strats-editor code { font-family: var(--mono); background: var(--bg-slot); padding: 1px 6px;
-    border-radius: 5px; font-size: 0.9em; }
-  .strats-editor pre { background: var(--bg-inset); border: 1px solid var(--border-soft); border-radius: 10px;
-    padding: 14px 16px; margin: 0 0 12px; overflow-x: auto; font-family: var(--mono); font-size: 13px; }
-  .strats-editor table { width: auto; min-width: 60%; margin: 0 0 14px; border: 1px solid var(--border); }
-  .strats-editor th, .strats-editor td { border: 1px solid var(--border); padding: 7px 11px; text-align: left; }
-  .strats-editor th { background: var(--bg-inset); font-weight: 700; }
-  .strats-editor hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
-  .strats-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    color: var(--muted); text-align: center; padding: 40px; gap: 8px; }
-  .strats-empty svg { opacity: 0.4; }
-  .strats-empty h2 { font-size: 17px; color: var(--text-2); font-weight: 700; }
+  #view-strats.section-view { overflow: hidden; }   /* the notes scroll, not the section */
+  .tb-nb-host { position: relative; height: 100%; min-height: 0; overflow: hidden; background: var(--bg); }
+  .tb-nb-host[data-nb-loading]::before { content: 'Opening Strats…'; position: absolute; inset: 0; display: flex;
+    align-items: center; justify-content: center; color: var(--muted); font-family: var(--mono); font-size: 12px; }
+  .tb-nb-msg { padding: 40px 20px; text-align: center; color: var(--text-2); font-size: 13px; line-height: 1.7; }
 
   /* ═══════════════════════════════════════════════════════════════════════
      APPS — scheduled app/site launcher. Only functional inside the Tauri
@@ -859,8 +811,6 @@
     .hero-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
     .stat-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
     .pos-grid  { grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); }
-    .strats-sidebar { width: 232px; }
-    .strats-editor { padding: 26px 26px 110px; }
   }
 
   /* ═══════════════════════════════════════════════════════════════════════
@@ -999,38 +949,13 @@
                             calc(env(safe-area-inset-bottom,0px) + 20px);
                    align-items: flex-start; overflow-y: auto; }
     .lock-card { padding: 28px 22px 24px; margin: auto 0; }
-    .lock-btn, .lock-input { min-height: 48px; font-size: 16px; }
+    .lock-btn:not(.tb-nb-host *), .lock-input { min-height: 48px; font-size: 16px; }
     #applock-box { width: 100%; max-width: 360px; padding: 32px 22px; }
     #applock-pw { font-size: 16px; min-height: 48px; }
     #applock-submit { min-height: 48px; }
 
-    /* ═══ STRATS: sidebar + editor become a drill-down (list → page) ═══
-       .strats-shell gets .show-editor when a page is open; JS toggles it. */
-    .strats-shell { flex-direction: column; position: relative; }
-    .strats-sidebar {
-      width: 100%; border-right: none; height: 100%;
-      padding-bottom: env(safe-area-inset-bottom, 0px);
-    }
-    .strats-main { display: none; }
-    .strats-shell.show-editor .strats-sidebar { display: none; }
-    .strats-shell.show-editor .strats-main { display: flex; }
-    .st-back { display: inline-flex !important; }
-    .strat-item { padding: 14px 13px; }       /* taller rows = easier taps */
-    .strat-item .si-title { font-size: 14px; }
-    .strats-titlebar { padding: 10px 14px; gap: 8px; }
-    .strats-titlebar input.title { font-size: 17px; }
-    .strats-toolbar { padding: 6px 10px; gap: 3px; overflow-x: auto; flex-wrap: nowrap;
-      scrollbar-width: none; }
-    .strats-toolbar::-webkit-scrollbar { display: none; }
-    .tb-btn { min-width: 36px; height: 36px; flex-shrink: 0; }
-    .tb-select { height: 36px; flex-shrink: 0; font-size: 12px; }
-    .tb-sep { flex-shrink: 0; }
-    .strats-editor { padding: 20px 16px calc(env(safe-area-inset-bottom,0px) + 90px);
-      font-size: 16px; }
-    .strats-editor h1 { font-size: 23px; } .strats-editor h2 { font-size: 19px; }
-    .strats-editor h3 { font-size: 16px; }
-    .strats-editor table { display: block; overflow-x: auto; width: 100%; min-width: 0; }
-    #view-strats .strats-side-head .btn { min-height: 46px; }
+    /* ═══ STRATS: the notes keep clear of the home indicator ═══ */
+    .tb-nb-host { height: calc(100% - env(safe-area-inset-bottom, 0px)); }
   }
   @keyframes sheetUp { from { transform: translateY(18px); opacity: 0.6; } to { transform: none; opacity: 1; } }
 
@@ -1073,13 +998,11 @@
     .btn { min-height: 40px; }
     .btn-icon { min-width: 36px; min-height: 36px; }
     .checkbox { width: 18px; height: 18px; }
-    .strat-item { padding: 13px 13px; }
-    tbody td { padding: 13px 13px; }
+    tbody td:not(.tb-nb-host *) { padding: 13px 13px; }
     .form-input, .select, .lock-input, textarea.form-input, input, select, textarea {
       font-size: 16px;
     }
     .form-input, .select, .lock-input { min-height: 42px; }
-    .tb-select { font-size: 14px; }        /* editor toolbar stays compact */
     .filter-bar .select { min-height: 42px; }
   }
 
@@ -1121,14 +1044,14 @@
     transition: border-color var(--transition);
   }
   .lock-input:focus { outline: none; border-color: var(--accent); }
-  .lock-btn {
+  .lock-btn:not(.tb-nb-host *) {
     width: 100%; padding: 12px 14px; margin-top: 4px;
     background: var(--accent); color: #fff;
     border: none; border-radius: var(--radius-sm);
     font-size: 15px; font-weight: 600; font-family: var(--sans);
     cursor: pointer; transition: background var(--transition);
   }
-  .lock-btn:hover { background: var(--accent-hover); }
+  .lock-btn:not(.tb-nb-host *):hover { background: var(--accent-hover); }
   .lock-remember {
     display: flex; align-items: center; gap: 9px;
     font-size: 13px; color: var(--text-2); cursor: pointer; user-select: none;
@@ -1150,7 +1073,7 @@
   #lock-switch { color: var(--text-2); font-size: 12.5px; margin-top: 18px; }
   #lock-switch a { color: var(--accent-hover); text-decoration: none; font-weight: 600; }
   #lock-switch a:hover { text-decoration: underline; }
-  .lock-btn:disabled { opacity: 0.6; cursor: default; }
+  .lock-btn:not(.tb-nb-host *):disabled { opacity: 0.6; cursor: default; }
   /* Small "Lock now" affordance in the top bar */
   .lock-now-btn {
     background: none; border: 1px solid var(--border); color: var(--text-2);
@@ -1173,7 +1096,7 @@
         colour — accent, muted or danger — instead of a flat black glyph. ── */
   .tbi{width:1em;height:1em;flex:none;display:block;}
   th.sortable .arrow{display:inline-flex;align-items:center;margin-left:4px;font-size:.9em;vertical-align:-.1em;}
-  .btn-icon,.tb-btn{display:inline-flex;align-items:center;justify-content:center;}
+  .btn-icon{display:inline-flex;align-items:center;justify-content:center;}
   .btn .tbi{margin-right:6px;}
   .btn{align-items:center;}
   .asn-ico{display:inline-flex;align-items:center;font-size:15px;line-height:0;flex:none;}
@@ -1409,90 +1332,12 @@
   <div class="wrap" style="max-width:1100px;"><div id="nh-host"></div></div>
 </section>
 
-<!-- ══════════════════════ STRATS / RULES ══════════════════════ -->
+<!-- ══════════════════════ STRATS ══════════════════════ -->
+<!-- V's Notebook: Strats is an instance of Veda's side of A1's Notebook
+     (TB.st below); it fills this box with its own page list and editor. -->
 <section class="section-view" id="view-strats">
   <div class="wrap">
-    <div class="strats-shell" id="st-shell">
-      <!-- sidebar -->
-      <aside class="strats-sidebar">
-        <div class="strats-side-head">
-          <button class="btn btn-primary btn-sm" onclick="TB.st.newPage()"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span>New page</span></button>
-        </div>
-        <div class="strats-search">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input class="form-input" id="st-search" placeholder="Search pages…" oninput="TB.st.renderList()">
-        </div>
-        <div class="strats-list" id="st-list"></div>
-        <div class="strats-side-foot"><span id="st-count">0</span> pages · autosaved</div>
-      </aside>
-
-      <!-- main -->
-      <div class="strats-main" id="st-main">
-        <div class="strats-empty" id="st-empty">
-          <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-          <h2>No page selected</h2>
-          <p style="max-width:280px;">Create a strategy or rulebook page, or pick one from the sidebar. Rich text &amp; Markdown supported.</p>
-        </div>
-
-        <div id="st-editor-wrap" class="hidden" style="flex:1;display:flex;flex-direction:column;min-height:0;">
-          <div class="strats-titlebar">
-            <!-- phone-only: return to the page list (CSS hides it on desktop) -->
-            <button class="btn-icon st-back" style="display:none;" title="Back to pages"
-                    onclick="TB.st.backToList()">‹</button>
-            <input class="title" id="st-title" placeholder="Untitled page" oninput="TB.st.onTitle()">
-            <span class="tb-select" style="display:inline-flex;align-items:center;gap:6px;padding:0 8px;cursor:default;">
-              <input type="checkbox" class="checkbox" id="st-md-toggle" onchange="TB.st.toggleMarkdown(this.checked)">
-              <label for="st-md-toggle" style="cursor:pointer;font-size:11px;">Markdown</label>
-            </span>
-            <button class="btn-icon danger" title="Delete page" aria-label="Delete page" onclick="TB.st.deletePage()"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
-          </div>
-
-          <div class="strats-toolbar" id="st-toolbar">
-            <select class="tb-select" onchange="TB.st.cmd('formatBlock', this.value); this.selectedIndex=0;" title="Text style">
-              <option value="">Style</option>
-              <option value="H1">Heading 1</option><option value="H2">Heading 2</option>
-              <option value="H3">Heading 3</option><option value="P">Paragraph</option>
-              <option value="PRE">Code block</option><option value="BLOCKQUOTE">Quote</option>
-            </select>
-            <div class="tb-sep"></div>
-            <button class="tb-btn" data-cmd="bold" onclick="TB.st.cmd('bold')" title="Bold (Ctrl+B)"><b>B</b></button>
-            <button class="tb-btn" data-cmd="italic" onclick="TB.st.cmd('italic')" title="Italic (Ctrl+I)"><i>I</i></button>
-            <button class="tb-btn" data-cmd="underline" onclick="TB.st.cmd('underline')" title="Underline (Ctrl+U)"><u>U</u></button>
-            <button class="tb-btn" data-cmd="strikeThrough" onclick="TB.st.cmd('strikeThrough')" title="Strikethrough"><s>S</s></button>
-            <button class="tb-btn" onclick="TB.st.inlineCode()" title="Inline code">&lt;/&gt;</button>
-            <div class="tb-sep"></div>
-            <button class="tb-btn" data-cmd="insertUnorderedList" onclick="TB.st.cmd('insertUnorderedList')" title="Bulleted list">•</button>
-            <button class="tb-btn" data-cmd="insertOrderedList" onclick="TB.st.cmd('insertOrderedList')" title="Numbered list">1.</button>
-            <button class="tb-btn" onclick="TB.st.cmd('formatBlock','BLOCKQUOTE')" title="Quote" aria-label="Quote"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6C6 7 4.5 9.5 4.5 13V18h6v-6H7.5c0-2.5.8-4 3-4.6Z"/><path d="M19 6c-3 1-4.5 3.5-4.5 7V18h6v-6h-3c0-2.5.8-4 3-4.6Z"/></svg></button>
-            <div class="tb-sep"></div>
-            <button class="tb-btn" onclick="TB.st.insertLink()" title="Insert link" aria-label="Insert link"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg></button>
-            <button class="tb-btn" onclick="TB.st.insertTable()" title="Insert table" aria-label="Insert table"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M3 15h18"/><path d="M9 10v10"/><path d="M15 10v10"/></svg></button>
-            <button class="tb-btn" onclick="TB.st.cmd('insertHorizontalRule')" title="Divider">―</button>
-            <div class="tb-sep"></div>
-            <select class="tb-select" onchange="TB.st.cmd('fontName', this.value); this.selectedIndex=0;" title="Font">
-              <option value="">Font</option>
-              <option value="DM Sans">Sans</option><option value="IBM Plex Mono">Mono</option>
-              <option value="Georgia">Serif</option>
-            </select>
-            <select class="tb-select" onchange="TB.st.cmd('fontSize', this.value); this.selectedIndex=0;" title="Size">
-              <option value="">Size</option>
-              <option value="2">Small</option><option value="3">Normal</option>
-              <option value="5">Large</option><option value="6">Huge</option>
-            </select>
-            <div class="tb-sep"></div>
-            <button class="tb-btn" onclick="TB.st.cmd('undo')" title="Undo (Ctrl+Z)" aria-label="Undo"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-4"/></svg></button>
-            <button class="tb-btn" onclick="TB.st.cmd('redo')" title="Redo (Ctrl+Y)" aria-label="Redo"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h4"/></svg></button>
-            <button class="tb-btn" onclick="TB.st.cmd('removeFormat')" title="Clear formatting" aria-label="Clear formatting"><svg class="tbi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 6.5 17 17"/><path d="M9 5h9"/><path d="M13.5 5 10 19"/><path d="M6 19h7"/></svg></button>
-          </div>
-
-          <div class="strats-editor-scroll">
-            <div class="strats-editor" id="st-editor" contenteditable="true"
-                 data-placeholder="Write your strategy, rules, checklist…"
-                 oninput="TB.st.onEdit()" onkeydown="TB.st.onKey(event)"></div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <div class="tb-nb-host" id="st-host"></div>
   </div>
 </section>
 
@@ -2195,6 +2040,13 @@ const TBCloud = (() => {
       let first = true;
       fsMod.onSnapshot(docRef, snap => {
         _applySnapshot(snap.exists() ? snap.data() : null);
+        // The cloud's copy is now in localStorage. Strats (TB.st) waits for this
+        // before moving the old pages into Notebook: a move made from a stale
+        // or empty device cache would leave pages behind.
+        if (!(snap.metadata && snap.metadata.fromCache) && !window._tbCloudSeen) {
+          window._tbCloudSeen = true;
+          try { window.dispatchEvent(new Event("tb-cloud-seen")); } catch (e) {}
+        }
         if (first) {
           first = false;
           ready = true;
@@ -3140,236 +2992,130 @@ TB.startAutoSync = async function () {
   setInterval(tick, 15000);
 };
 /* ═══════════════════════════════════════════════════════════════════════════
-   STRATS / RULES — multi-page rich-text + Markdown editor (rebuilt from the
-   Brainstorm Journal pattern). Pages autosave to TBStore. Each page:
-     { id, title, html, md, isMarkdown, created, updated }
+   STRATS — V's Notebook (A1's Notebook, docs/Notebook/README.md; 2026-10-29).
+   The Strats section is an instance of Veda's side of Notebook (key vtb,
+   store dashboards/tradeboard_strats): the same editor, templates, AI tools,
+   trash and sync as her journal, every Notebook change reaching it by itself.
+   It mounts the first time Strats opens and stays mounted. Talk to it only
+   through Notebook's API.
+
+   FIREBASE. Notebook keeps its pages under dashboards/ in the INDEX project
+   (task-dashboard-d2b53), where her journal and StudyOS's notes live; this
+   page's own project (tradeboard-6b2ea) allows only TradeBoard's documents.
+   So Strats has a second, named Firebase app on Index, with Index's App Check
+   key (this host is on its allowlist: StudyOS is served from it) and its own
+   anonymous sign-in, made only when Strats first opens.
+
+   THE OLD PAGES. Until 2026-10-29 Strats was TradeBoard's own editor, its
+   pages a JSON field ("strats": [{ id, title, html, md, isMarkdown, created,
+   updated }]) of the tradeboard document. Once this device has the cloud's
+   copy of that field, they move into Notebook (Notebook.importPages, once,
+   whichever device gets there first; never over a page Notebook has), a
+   Markdown page as its rendered HTML. The field is left as it was: the backup.
    ═══════════════════════════════════════════════════════════════════════════ */
+const TB_NB_INDEX = {
+  apiKey: "AIzaSyC2aKunOKj5WS8NpgZhpyMzOYecBr5t2_4",
+  authDomain: "task-dashboard-d2b53.firebaseapp.com",
+  projectId: "task-dashboard-d2b53",
+  storageBucket: "task-dashboard-d2b53.firebasestorage.app",
+  messagingSenderId: "982539604706",
+  appId: "1:982539604706:web:e93da1aef499fcee2044bb",
+};
+// Index's ORIGINAL reCAPTCHA key, shared by every app on that project. Never
+// swap it (V1/config/config.js §1 tells why).
+const TB_NB_RECAPTCHA = "6LeUyAstAAAAAEciRypd1i4Akq6ueFUYfXLaLaUX";
+let _tbNbFirebase = null;
+window.NotebookFirebase = () => _tbNbFirebase || (_tbNbFirebase = (async () => {
+  const V = "https://www.gstatic.com/firebasejs/12.12.0/";
+  const [{ initializeApp }, authMod, fsMod, acMod] = await Promise.all([
+    import(V + "firebase-app.js"), import(V + "firebase-auth.js"),
+    import(V + "firebase-firestore.js"), import(V + "firebase-app-check.js"),
+  ]);
+  const app = initializeApp(TB_NB_INDEX, "tbnotebook");
+  try { acMod.initializeAppCheck(app, { provider: new acMod.ReCaptchaV3Provider(TB_NB_RECAPTCHA), isTokenAutoRefreshEnabled: true }); }
+  catch (e) { console.warn("Strats: App Check init skipped:", e); }
+  const auth = authMod.getAuth(app);
+  await authMod.signInAnonymously(auth);
+  return { db: fsMod.getFirestore(app), fs: fsMod };
+})().catch(e => { _tbNbFirebase = null; throw e; }));
+
 TB.st = {
-  pages: [],
-  activeId: null,
-  _saveTimer: null,
+  _mount: null,
+  _cfg: null,
+  _moved: false,
 
-  _init() {
-    const raw = TBStore.get(TBStore.KEYS.strats, null);
-    if (raw != null) TB.st.pages = raw;
-    else { TB.st.pages = TB.st._seed(); TB.st._save(); }
-    TB.st.activeId = TBStore.get(TBStore.KEYS.stratsActive, null);
-    if (!TB.st.pages.some(p => p.id === TB.st.activeId)) TB.st.activeId = TB.st.pages[0] ? TB.st.pages[0].id : null;
-  },
-  // Re-hydrate pages/active from storage after a cloud pull (no re-save/echo).
-  _reload() {
-    const raw = TBStore.get(TBStore.KEYS.strats, null);
-    if (raw != null) TB.st.pages = raw;
-    const act = TBStore.get(TBStore.KEYS.stratsActive, null);
-    if (act != null) TB.st.activeId = act;
-    if (!TB.st.pages.some(p => p.id === TB.st.activeId)) TB.st.activeId = TB.st.pages[0] ? TB.st.pages[0].id : null;
-  },
-  _seed() {
-    const now = Date.now();
-    return [{
-      id: U.uid(), title: "Breakout Playbook", isMarkdown: false,
-      html: `<h1>Breakout Playbook</h1>
-<h2>Setup</h2>
-<ul><li>Price consolidating below a clear prior high on the daily.</li>
-<li>Volume contracting into the range, then expanding on the break.</li>
-<li>Relative strength vs. the broader index.</li></ul>
-<h2>Entry Rules</h2>
-<ol><li>Trigger: 1-min close above the range high on 1.5× average volume.</li>
-<li>Stop: below the breakout candle low (or the range midpoint).</li>
-<li>Size so the stop risks ≤ 1R of the account.</li></ol>
-<blockquote>If it doesn't hold the breakout level within 5 minutes, it's a failed break — cut it.</blockquote>
-<h2>Exit / Management</h2>
-<ul><li>Trim ⅓ at +1R, trail the rest under the 20 EMA.</li>
-<li>Move stop to breakeven once +1R is hit.</li></ul>`,
-      md: "", created: now, updated: now,
-    }, {
-      id: U.uid(), title: "Daily Rules", isMarkdown: true,
-      html: "", md: `# Daily Trading Rules
+  // Nothing at boot: Strats mounts the first time it opens.
+  _init() {},
+  // The old pages field changed (another device): a move not made yet uses it.
+  _reload() { if (TB.st._cfg && !TB.st._moved) TB.st._move(); },
 
-## Before the open
-- [ ] Review overnight news + gap scan
-- [ ] Mark key levels (PDH, PDL, VWAP anchors)
-- [ ] Define max daily loss ($) and max trades
-
-## Discipline
-1. **No trade without a plan** — entry, stop, target written first.
-2. **One setup at a time** — no revenge trades after a loss.
-3. Stop trading for the day at **-3R** or **3 consecutive losses**.
-
-## Post-market
-- Journal every trade (screenshot + thesis).
-- Grade execution A–F independent of P&L.
-`,
-      created: now - 1000, updated: now - 1000,
-    }];
-  },
-  _save() { TBStore.set(TBStore.KEYS.strats, TB.st.pages); },
-  active() { return TB.st.pages.find(p => p.id === TB.st.activeId) || null; },
-
-  render() { TB.st.renderList(); TB.st.renderEditor(); },
-
-  renderList() {
-    const q = (document.getElementById("st-search").value || "").trim().toLowerCase();
-    const host = document.getElementById("st-list");
-    const list = TB.st.pages.slice().sort((a, b) => (b.updated || 0) - (a.updated || 0)).filter(p => {
-      if (!q) return true;
-      const body = p.isMarkdown ? (p.md || "") : (p.html || "").replace(/<[^>]+>/g, " ");
-      return (p.title + " " + body).toLowerCase().includes(q);
-    });
-    document.getElementById("st-count").textContent = TB.st.pages.length;
-    if (!list.length) {
-      host.innerHTML = `<div style="padding:16px;color:var(--muted);font-size:12px;text-align:center;">${TB.st.pages.length ? "No pages match." : "No pages yet."}</div>`;
+  // Show the notes (Strats opened, or a remote change while it is open).
+  render() {
+    const host = document.getElementById("st-host");
+    if (!host || !window.Notebook) {
+      if (host) host.innerHTML = '<div class="tb-nb-msg">Strats could not load. Check the connection, then reload TradeBoard.</div>';
       return;
     }
-    host.innerHTML = list.map(p => {
-      const when = p.updated ? new Date(p.updated) : null;
-      const stamp = when && !isNaN(when) ? when.toLocaleDateString() : "";
-      return `<div class="strat-item ${p.id === TB.st.activeId ? "active" : ""}" onclick="TB.st.open('${p.id}')">
-        <div class="si-title">${U.esc(p.title || "Untitled page")}</div>
-        <div class="si-meta"><span>${p.isMarkdown ? "MD" : "Rich"}</span><span>${U.esc(stamp)}</span></div>
-      </div>`;
-    }).join("");
+    if (TB.st._mount) { TB.st._refit(); return; }
+    host.setAttribute("data-nb-loading", "");
+    const cfg = { profile: 'veda', key: 'vtb', store: 'tradeboard_strats', title: 'Strats',
+      container: host,
+      onReady: () => TB.st._move() };
+    TB.st._cfg = cfg;
+    TB.st._mount = window.Notebook.mount(cfg)
+      .then(() => { host.removeAttribute("data-nb-loading"); TB.st._refit(); })
+      .catch(e => {
+        console.warn("Strats: the notes could not open:", e);
+        host.removeAttribute("data-nb-loading");
+        host.innerHTML = '<div class="tb-nb-msg">Strats could not open (offline?). Reload TradeBoard to try again.</div>';
+      });
   },
 
-  renderEditor() {
-    const p = TB.st.active();
-    const empty = document.getElementById("st-empty");
-    const wrap = document.getElementById("st-editor-wrap");
-    if (!p) { empty.classList.remove("hidden"); wrap.classList.add("hidden"); return; }
-    empty.classList.add("hidden"); wrap.classList.remove("hidden");
-    document.getElementById("st-title").value = p.title || "";
-    document.getElementById("st-md-toggle").checked = !!p.isMarkdown;
-    const ed = document.getElementById("st-editor");
-    if (p.isMarkdown) {
-      ed.classList.add("md-mode");
-      ed.textContent = p.md || "";
-    } else {
-      ed.classList.remove("md-mode");
-      ed.innerHTML = p.html || "";
-    }
+  // The page editor fits its sheet to the box; a box that just appeared (the
+  // section was hidden) has to be measured again.
+  _refit() {
+    [0, 150, 500].forEach(ms => setTimeout(() => { try { window.dispatchEvent(new Event("resize")); } catch (e) {} }, ms));
   },
 
-  // On phones the sidebar and editor are two stacked panes; .show-editor picks
-  // which one is visible. On desktop both are always shown and the class is inert.
-  _showEditorPane(on) {
-    document.getElementById("st-shell")?.classList.toggle("show-editor", !!on);
-  },
-  backToList() { TB.st.flush(); TB.st._showEditorPane(false); TB.st.renderList(); },
+  // Save what is being typed (leaving the page, the tab going to the background).
+  flush() { try { if (TB.st._mount && window.Notebook) window.Notebook.flushAll(); } catch (e) {} },
 
-  open(id) {
-    TB.st.flush(); TB.st.activeId = id; TBStore.set(TBStore.KEYS.stratsActive, id);
-    TB.st.render(); TB.st._showEditorPane(true);
-  },
-  newPage() {
-    TB.st.flush();
-    const p = { id: U.uid(), title: "Untitled page", isMarkdown: false, html: "", md: "", created: Date.now(), updated: Date.now() };
-    TB.st.pages.unshift(p); TB.st.activeId = p.id;
-    TBStore.set(TBStore.KEYS.stratsActive, p.id);
-    TB.st._save(); TB.st.render(); TB.st._showEditorPane(true);
-    document.getElementById("st-title").focus();
-  },
-  deletePage() {
-    const p = TB.st.active(); if (!p) return;
-    if (!confirm(`Delete “${p.title || "Untitled page"}”? This cannot be undone.`)) return;
-    TB.st.pages = TB.st.pages.filter(x => x.id !== p.id);
-    TB.st.activeId = TB.st.pages[0] ? TB.st.pages[0].id : null;
-    TBStore.set(TBStore.KEYS.stratsActive, TB.st.activeId);
-    TB.st._save(); TB.st.render();
-    TB.st._showEditorPane(false);   // deleting drops you back to the list on phones
-    U.toast("Page deleted.", "ok");
-  },
-  onTitle() {
-    const p = TB.st.active(); if (!p) return;
-    p.title = document.getElementById("st-title").value;
-    p.updated = Date.now();
-    TB.st._debouncedSave();
-    TB.st.renderList();
-  },
-  onEdit() {
-    const p = TB.st.active(); if (!p) return;
-    const ed = document.getElementById("st-editor");
-    if (p.isMarkdown) p.md = ed.textContent; else p.html = ed.innerHTML;
-    p.updated = Date.now();
-    TB.st._debouncedSave();
-  },
-  flush() {
-    const p = TB.st.active(); if (!p) return;
-    const ed = document.getElementById("st-editor");
-    if (!ed) return;
-    if (p.isMarkdown) p.md = ed.textContent; else p.html = ed.innerHTML;
-    TB.st._save();
-  },
-  _debouncedSave() {
-    clearTimeout(TB.st._saveTimer);
-    TB.st._saveTimer = setTimeout(() => { TB.st._save(); }, 500);
+  // An old page as a Notebook page.
+  _toPage(p) {
+    const now = Date.now();
+    const md = window._mdToHtml || TB.st._mdToHtml;
+    const html = p.isMarkdown ? md(String(p.md || "")) : String(p.html || "");
+    const t = Number(p.updated) || Number(p.created) || now;
+    return { id: "st_" + String(p.id).replace(/[^A-Za-z0-9_-]/g, "_"), title: String(p.title || ""),
+      created: Number(p.created) || t, updated: t, tags: [], data: { html: html || "<p><br></p>" } };
   },
 
-  toggleMarkdown(on) {
-    const p = TB.st.active(); if (!p) return;
-    const ed = document.getElementById("st-editor");
-    if (on) {
-      // convert current rich HTML → a simple markdown-ish source
-      if (!p.isMarkdown) p.md = TB.st._htmlToMd(ed.innerHTML);
-    } else {
-      // convert markdown source → rendered HTML
-      if (p.isMarkdown) p.html = TB.st._mdToHtml(ed.textContent);
-    }
-    p.isMarkdown = on; p.updated = Date.now();
-    TB.st._save(); TB.st.renderEditor(); TB.st.renderList();
+  // Move the old pages in, once, from the cloud's copy (see above).
+  _move() {
+    if (TB.st._moved || TB.st._moving) return TB.st._moving;
+    const seen = window._tbCloudSeen ? Promise.resolve()
+      : new Promise(res => window.addEventListener("tb-cloud-seen", () => setTimeout(res, 0), { once: true }));
+    TB.st._moving = seen.then(() => {
+      const pages = (TBStore.get(TBStore.KEYS.strats, null) || []).filter(p => p && p.id != null);
+      if (!pages.length) { TB.st._moved = true; return; }
+      return window.Notebook.importPages("vtb", pages.map(TB.st._toPage), "tb-strats").then(r => {
+        if (r === "already" || (r && !(r.failed || []).length)) TB.st._moved = true;
+        if (r && r.added && r.added.length) {
+          console.info("Strats: moved " + r.added.length + " page(s) into Notebook");
+          // Open the page that was open in the old editor (else the first).
+          const was = TBStore.get(TBStore.KEYS.stratsActive, null);
+          const open = pages.find(p => p.id === was) || pages[0];
+          window.Notebook.open("vtb", TB.st._toPage(open).id, { edit: false }).catch(() => {});
+        }
+        if (r && r.failed && r.failed.length) U.toast(r.failed.length + " Strats page(s) were too large to move yet. They are safe where they were.", "err");
+      });
+    }).catch(e => console.warn("Strats: moving the old pages paused (it retries next time):", e && e.message))
+      .then(() => { TB.st._moving = null; });
+    return TB.st._moving;
   },
 
-  // ── rich-text commands (execCommand: broad, dependency-free) ─────────────────
-  cmd(command, value) {
-    const p = TB.st.active();
-    if (p && p.isMarkdown) { U.toast("Switch off Markdown to use rich-text tools."); return; }
-    document.getElementById("st-editor").focus();
-    try { document.execCommand(command, false, value); } catch (e) {}
-    TB.st.onEdit(); TB.st._syncToolbarState();
-  },
-  inlineCode() {
-    const sel = window.getSelection();
-    if (!sel.rangeCount || sel.isCollapsed) { TB.st.cmd("insertHTML", "<code>code</code>&nbsp;"); return; }
-    const text = sel.toString();
-    TB.st.cmd("insertHTML", "<code>" + U.esc(text) + "</code>");
-  },
-  insertLink() {
-    const url = prompt("Link URL:", "https://");
-    if (!url) return;
-    const sel = window.getSelection();
-    if (sel && sel.toString()) TB.st.cmd("createLink", url);
-    else TB.st.cmd("insertHTML", `<a href="${U.esc(url)}">${U.esc(url)}</a>`);
-  },
-  insertTable() {
-    const cols = parseInt(prompt("Columns?", "3"), 10) || 3;
-    const rows = parseInt(prompt("Rows (incl. header)?", "3"), 10) || 3;
-    let html = "<table><thead><tr>";
-    for (let c = 0; c < cols; c++) html += "<th>Head</th>";
-    html += "</tr></thead><tbody>";
-    for (let r = 1; r < rows; r++) { html += "<tr>"; for (let c = 0; c < cols; c++) html += "<td>&nbsp;</td>"; html += "</tr>"; }
-    html += "</tbody></table><p><br></p>";
-    TB.st.cmd("insertHTML", html);
-  },
-  onKey(e) {
-    // Ctrl/Cmd shortcuts + tab-to-indent in markdown mode
-    const p = TB.st.active();
-    if (e.key === "Tab") { e.preventDefault(); document.execCommand("insertText", false, "  "); TB.st.onEdit(); return; }
-    if (!(e.ctrlKey || e.metaKey)) return;
-    const k = e.key.toLowerCase();
-    if (p && p.isMarkdown) return; // let native undo/redo work in plain text
-    const map = { b: "bold", i: "italic", u: "underline" };
-    if (map[k]) { e.preventDefault(); TB.st.cmd(map[k]); }
-    else if (k === "z") { setTimeout(() => TB.st._syncToolbarState(), 0); }
-  },
-  _syncToolbarState() {
-    ["bold", "italic", "underline", "strikeThrough", "insertUnorderedList", "insertOrderedList"].forEach(c => {
-      const btn = document.querySelector(`.tb-btn[data-cmd="${c}"]`);
-      if (!btn) return;
-      let on = false; try { on = document.queryCommandState(c); } catch (e) {}
-      btn.classList.toggle("on", on);
-    });
-  },
-
-  // ── minimal markdown ⇄ html (self-contained, no libraries) ───────────────────
+  // ── the old pages' Markdown → HTML, for a move made before Notebook's own
+  //    converter (window._mdToHtml) has loaded. Self-contained. ──────────────
   _mdToHtml(md) {
     const esc = U.esc;
     const lines = (md || "").replace(/\r\n/g, "\n").split("\n");
@@ -3405,48 +3151,11 @@ TB.st = {
     closeLists(); if (inCode) html += "</pre>";
     return html;
   },
-  _htmlToMd(html) {
-    const div = document.createElement("div"); div.innerHTML = html || "";
-    const out = [];
-    const inlineMd = (node) => {
-      let s = "";
-      node.childNodes.forEach(n => {
-        if (n.nodeType === 3) s += n.textContent;
-        else if (n.nodeType === 1) {
-          const t = n.tagName.toLowerCase(), inner = inlineMd(n);
-          if (t === "strong" || t === "b") s += "**" + inner + "**";
-          else if (t === "em" || t === "i") s += "*" + inner + "*";
-          else if (t === "code") s += "`" + n.textContent + "`";
-          else if (t === "a") s += "[" + inner + "](" + (n.getAttribute("href") || "") + ")";
-          else if (t === "br") s += "\n";
-          else s += inner;
-        }
-      });
-      return s;
-    };
-    div.childNodes.forEach(node => {
-      if (node.nodeType === 3) { const t = node.textContent.trim(); if (t) out.push(t); return; }
-      if (node.nodeType !== 1) return;
-      const tag = node.tagName.toLowerCase();
-      if (/^h[1-3]$/.test(tag)) out.push("#".repeat(+tag[1]) + " " + inlineMd(node));
-      else if (tag === "ul") node.querySelectorAll(":scope > li").forEach(li => out.push("- " + inlineMd(li)));
-      else if (tag === "ol") { let i = 1; node.querySelectorAll(":scope > li").forEach(li => out.push((i++) + ". " + inlineMd(li))); }
-      else if (tag === "blockquote") out.push("> " + inlineMd(node));
-      else if (tag === "pre") out.push("```\n" + node.textContent + "\n```");
-      else if (tag === "hr") out.push("---");
-      else out.push(inlineMd(node));
-      out.push("");
-    });
-    return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
-  },
 };
 
-// keep toolbar state in sync with the caret
-document.addEventListener("selectionchange", () => {
-  if (document.getElementById("view-strats").classList.contains("active")) TB.st._syncToolbarState();
-});
-// flush edits before the tab/window goes away
+// Save what is typed before the tab or window goes away.
 window.addEventListener("beforeunload", () => TB.st.flush());
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") TB.st.flush(); });
 
 /* ═══════════════════════════════════════════════════════════════════════════
    RULES — your trading rules + the once-a-day pre-market checklist.

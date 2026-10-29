@@ -28,4 +28,4 @@ Everwell) are in A1-Priv's own `docs/`.
 | [shield/](shield/) | The Shield desktop agent |
 | [tools/](tools/) | App Check maintenance |
 | [workers2/](workers2/) | The Cloudflare account-2 deploy lane |
-| [V1/](V1/) | Veda's earlier suite (StudyOS, Finance, TradeBoard, Launcher) |
+| [V1/](V1/) | Veda's earlier suite (StudyOS, Finance, TradeBoard, Launcher); `notebook.md`: StudyOS's notes and TradeBoard's Strats are V's Notebook (2026-10-29) |

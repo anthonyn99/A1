@@ -89,6 +89,27 @@ window.SOS.store = store;
     return r;
   };
 
+  // Every page of a Notes module (its folder of StudyOS's Notebook, handed
+  // over by js/studyos.js sosMakeCardsHere): pages are HTML, so the HTML
+  // extractor. One summary for the lot.
+  window.sosMakeCardsFromPages = (classId, moduleId, pages) => {
+    let added = 0, kept = 0;
+    for (const p of (pages || [])) {
+      if (!p || !p.id) continue;
+      const r = deck.generateFromNote(classId, moduleId, p, { html: true });
+      added += r.added.length; kept += r.kept.length;
+    }
+    const cls = store.getClass(classId);
+    try {
+      window.showNotif && window.showNotif(
+        added ? '🃏' : 'ℹ️',
+        added ? `${added} card${added === 1 ? '' : 's'} added` : 'No new cards',
+        added ? `${deck.countsFor(classId).total} in ${cls ? cls.name : 'this class'}`
+              : (kept ? 'These pages\' cards are already in your deck.' : 'Nothing to make cards from in these pages yet.'));
+    } catch (e) {}
+    return { added, kept };
+  };
+
   // Load each class's deck from the cloud once, and keep it current. Without
   // this a second device starts from an empty local deck.
   //

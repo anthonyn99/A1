@@ -149,7 +149,6 @@ let notesList = JSON.parse(localStorage.getItem('studyos_notes_v2') || '[]');
 // Kept here rather than in that module so it rides along in the same Firestore
 // document as everything else and therefore syncs across devices for free.
 let d2lMap = JSON.parse(localStorage.getItem('studyos_d2l') || 'null');
-let currentNoteId = null;
 let selectedColor = COLORS[0];
 let currentClassId = null;
 let calDate = new Date();
@@ -350,7 +349,7 @@ function renderKsuModules() {
       ? (m.files.length + ' file' + (m.files.length !== 1 ? 's' : ''))
       : m.type === 'prompts'
       ? (m.prompts.length + ' prompt' + (m.prompts.length !== 1 ? 's' : ''))
-      : ((m.notes||[]).length + ' note' + ((m.notes||[]).length !== 1 ? 's' : ''));
+      : 'Notes';   // its pages are a Notebook folder; m.notes is the old textarea copy
     const btn = document.createElement('div');
     btn.className = 'module-btn';
     btn.dataset.id = m.id;
@@ -474,7 +473,6 @@ function init() {
   renderSidebarClasses();
   renderCalendar();
   updateStats();
-  renderNotesList();
   setTodayDate();
   scheduleNotifications();
   renderKsuModules();
@@ -907,6 +905,9 @@ function switchView(view, classId) {
     const navEl = _sosEl('nav-' + view);
     if (navEl) navEl.classList.add('active');
   }
+  // Quick Notes: the notes on their 'quick' folder; leaving sets them aside.
+  if (view === 'notes' && window.SOSNotes) window.SOSNotes.show(_sosEl('sos-notes-host'), window.SOSNotes.QUICK);
+  else if (activeView === 'notes' && window.SOSNotes) window.SOSNotes.hide(_sosEl('sos-notes-host'));
   activeView = view;
   const titles = { home:'Dashboard', calendar:'Calendar', notes:'Quick Notes', class:'Class Detail', pomodoro:'Timer', ksu:'KSU', ai:'AI Settings', lesson:'Lesson' };
   if (view === 'ksu') renderKsuModules();
@@ -1583,18 +1584,11 @@ const moduleEditMode = {};
 let _sosCurrentModuleClassId = null;
 let _sosCurrentModuleId = null;
 
-// #so-root is a single persistent DOM node the Notes editor moves into whichever
-// module's modal is open (see openNotesModule in js/notes-sync.js). Since
-// openModuleDetail/openKsuModuleDetail wipe #module-detail-body via innerHTML='',
-// #so-root must be parked back at the document body first or that wipe deletes
-// it permanently — the next Notes module opened would find no #so-root to reuse.
-function _sosParkSoRoot() {
-  var soRoot = document.getElementById('so-root');
-  if (soRoot && soRoot.parentNode !== document.body) {
-    soRoot.style.display = 'none';
-    document.body.appendChild(soRoot);
-  }
-}
+// The notes (V's Notebook) live in the module modal only while a Notes module
+// is open. openModuleDetail/openKsuModuleDetail wipe #module-detail-body, so
+// the notes are set aside first (Notebook.detach, via SOSNotes.hide): wiped
+// with the body they could not come back.
+function _sosParkSoRoot() { _sosLeaveNotesModule(); }
 
 function openModuleDetail(cls, mod) {
   _sosCurrentModuleClassId = cls.id;
@@ -1648,16 +1642,13 @@ function toggleModuleMode(classId, modId) {
 function renderModuleContent(container, cls, mod) {
   if (mod.type === 'documents') renderDocumentsModule(container, cls, mod);
   else if (mod.type === 'prompts') renderPromptsModule(container, cls, mod);
-  else if (mod.type === 'notes') { if (window.openNotesModule) window.openNotesModule(cls.id, mod); }
+  else if (mod.type === 'notes') renderNotesModule(container, cls, mod);
 }
 
-// Flushes the page editor's pending save (if a Notes module is open) before
-// closing the shared module-detail modal, then hides #so-root so the next
-// module opened (of any type) doesn't briefly show stale editor content.
+// Saves and sets aside the notes (if a Notes module is open) before closing
+// the shared module-detail modal.
 function closeModuleDetail() {
-  var cls = findClassOrKsu(_sosCurrentModuleClassId);
-  var mod = cls && cls.modules.find(function(m) { return m.id === _sosCurrentModuleId; });
-  if (mod && mod.type === 'notes' && window.closeNotesModule) window.closeNotesModule();
+  _sosLeaveNotesModule();
   _sosClose('modal-module-detail');
 }
 document.addEventListener('DOMContentLoaded', function() {
@@ -2870,15 +2861,14 @@ async function sosIngestFiles(files) {
 // ── Layer 1: drop anywhere in the window ──────────────────────────────────
 let _sosDragDepth = 0;
 
-// True only for an OS file drag. Also false while a Notes editor is open:
-// notes-sync/docx-engine own drops in that region and their stopPropagation()
-// keeps the window handler out, but suppressing the overlay too avoids
-// flashing a prompt the user cannot act on.
+// True only for an OS file drag, and never over the notes (V's Notebook): a
+// file dropped on a page belongs to the page, so the "file it as a document"
+// overlay must not cover the editor it is meant for.
 function _sosDragHasFiles(e) {
   const dt = e.dataTransfer;
   if (!dt || !dt.types) return false;
   if (Array.prototype.indexOf.call(dt.types, 'Files') === -1) return false;
-  if (document.querySelector('#modal-module-detail.open #so-root')) return false;
+  if (e.target && e.target.closest && e.target.closest('.sos-nb-host')) return false;
   return true;
 }
 
@@ -2945,7 +2935,7 @@ function _sosOnPaste(e) {
   if (document.body.dataset.sosGate !== 'open') return;
   // Leave real text entry alone. Checked on both the event target and the
   // focused element, since paste can target <body> while focus sits elsewhere
-  // (the Notes editor has its own paste handler in docx-engine.js).
+  // (the notes, V's Notebook, have their own paste handling).
   if (_sosIsEditable(e.target) || _sosIsEditable(document.activeElement)) return;
   const files = Array.from((e.clipboardData && e.clipboardData.files) || []);
   if (!files.length) return;          // pasted text falls through untouched
@@ -3405,245 +3395,51 @@ function fallbackCopy(text) {
   document.body.removeChild(ta);
 }
 
-// ---- NOTES MODULE (multi-note) ----
+// ---- NOTES MODULE: V's Notebook on this module's folder ----
+// The module's pages are a folder of StudyOS's Notebook (js/sos-notebook.js):
+// its list, search, tags, Trash and every template are Notebook's. The modal
+// widens to hold it (notes-mode) and the title row gets Make flashcards.
 function renderNotesModule(body, cls, mod) {
-  const editOn = !!moduleEditMode[mod.id];
-
-  // migrate old single noteBody
-  if (!mod.notes) {
-    mod.notes = mod.noteBody ? [{ id: Date.now().toString(), title: 'Note 1', body: mod.noteBody, updated: Date.now() }] : [];
-    delete mod.noteBody;
-    persist();
-  }
-
-  const layout = document.createElement('div');
-  layout.style.cssText = 'display:grid;grid-template-columns:180px 1fr;gap:12px;height:320px';
-
-  const sidebar = document.createElement('div');
-  sidebar.style.cssText = 'background:var(--bg2);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;overflow:hidden';
-  sidebar.innerHTML = `
-    <div style="padding:8px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
-      <span style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--text3);font-family:var(--mono)">Notes</span>
-      ${editOn ? `<button class="btn primary" style="padding:2px 8px;font-size:10px" onclick="addModuleNote('${cls.id}','${mod.id}')">+ New</button>` : ''}
-    </div>
-    <div id="modnote-list-${mod.id}" style="flex:1;overflow-y:auto"></div>
-  `;
-
-  const editor = document.createElement('div');
-  editor.style.cssText = 'background:var(--bg2);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;overflow:hidden';
-  editor.innerHTML = `
-    <div id="modnote-empty-${mod.id}" style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:13px;font-family:var(--mono)">Select a note</div>
-    <div id="modnote-editor-${mod.id}" style="display:none;flex-direction:column;height:100%">
-      <div style="padding:8px 10px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center">
-        <input id="modnote-title-${mod.id}" style="flex:1;background:transparent;border:none;font-size:13px;font-weight:700;color:var(--text);font-family:var(--sans);outline:none;pointer-events:${editOn ? 'auto' : 'none'}" placeholder="Note title" ${editOn ? '' : 'readonly'}>
-        <button class="btn" style="padding:3px 8px;font-size:10px" title="Make flashcards from this note" aria-label="Make flashcards" onclick="window.sosMakeCardsHere('${cls.id}','${mod.id}')">🃏</button>
-        <button class="btn" style="padding:3px 8px;font-size:10px" title="Fullscreen" aria-label="Fullscreen" onclick="fullscreenModuleNote('${cls.id}','${mod.id}')">${SOI.expand}</button>
-        <button class="btn" style="padding:3px 8px;font-size:10px" title="Print / Save as PDF" aria-label="Print" onclick="printModuleNote('${mod.id}')">${SOI.printer}</button>
-        ${editOn ? `<button class="btn" style="padding:3px 8px;font-size:10px;color:#ef9f9f" onclick="deleteModuleNote('${cls.id}','${mod.id}')">Delete</button>` : ''}
-      </div>
-      <textarea id="modnote-body-${mod.id}" style="flex:1;background:transparent;border:none;padding:12px;font-family:var(--mono);font-size:12px;color:var(--text);resize:none;line-height:1.7;outline:none;${editOn ? '' : 'pointer-events:none'}" placeholder="${editOn ? 'Write here...' : ''}" ${editOn ? '' : 'readonly'}></textarea>
-      <div id="modnote-status-${mod.id}" style="padding:4px 10px;font-size:10px;color:var(--text3);font-family:var(--mono);border-top:1px solid var(--border)">${editOn ? 'Auto-saved' : 'Read-only — switch to Edit to modify'}</div>
-    </div>
-  `;
-
-  layout.appendChild(sidebar);
-  layout.appendChild(editor);
-  body.appendChild(layout);
-
-  refreshModuleNoteList(cls, mod);
-  if (mod.notes.length > 0) openModuleNote(cls, mod, mod.notes[0].id);
+  const modal = _sosEl('module-detail-modal');
+  if (modal) modal.classList.add('notes-mode');
+  const cardsBtn = _sosEl('module-detail-cards-btn');
+  if (cardsBtn) cardsBtn.hidden = false;
+  const host = document.createElement('div');
+  host.className = 'sos-nb-modal-host';
+  body.appendChild(host);
+  if (window.SOSNotes) window.SOSNotes.show(host, mod.id);
+  else host.innerHTML = '<div class="sos-nb-msg">Notes could not load. Reload StudyOS.</div>';
 }
 
-let currentModuleNoteId = {};
-
-function refreshModuleNoteList(cls, mod) {
-  const listEl = _sosEl('modnote-list-' + mod.id);
-  if (!listEl) return;
-  listEl.innerHTML = '';
-  if (mod.notes.length === 0) {
-    listEl.innerHTML = '<div style="padding:12px 10px;font-size:11px;color:var(--text3);font-family:var(--mono)">No notes yet.</div>';
-    return;
-  }
-  [...mod.notes].sort((a,b) => b.updated - a.updated).forEach(n => {
-    const item = document.createElement('div');
-    const isActive = currentModuleNoteId[mod.id] === n.id;
-    item.style.cssText = `padding:9px 10px;cursor:pointer;border-bottom:1px solid var(--border);border-left:3px solid ${isActive ? 'var(--accent)' : 'transparent'};background:${isActive ? 'var(--bg4)' : 'transparent'};transition:0.15s`;
-    item.innerHTML = `
-      <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(n.title || 'Untitled')}</div>
-      <div style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-top:2px">${new Date(n.updated).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>
-    `;
-    item.onmouseover = () => { if (!isActive) item.style.background = 'var(--bg3)'; };
-    item.onmouseout = () => { if (!isActive) item.style.background = 'transparent'; };
-    item.onclick = () => openModuleNote(cls, mod, n.id);
-    listEl.appendChild(item);
-  });
+// Back to a plain module modal: notes set aside (saved), the modal its own size.
+function _sosLeaveNotesModule() {
+  const host = document.querySelector('#module-detail-body .sos-nb-modal-host');
+  if (host && window.SOSNotes) window.SOSNotes.hide(host);
+  const modal = _sosEl('module-detail-modal');
+  if (modal) modal.classList.remove('notes-mode');
+  const cardsBtn = _sosEl('module-detail-cards-btn');
+  if (cardsBtn) cardsBtn.hidden = true;
 }
 
-/* Make flashcards from the note currently open in a module (spec R-1).
- *
- * Lives here rather than in the module because `currentModuleNoteId` is a
- * lexical global of this classic script — js/modules/boot.js has no way to
- * learn which note is on screen. It resolves the note and hands it to
- * window.sosMakeCards, which the recall module installs. */
+/* Make flashcards from every page of the open Notes module (spec R-1). Each
+ * page is HTML, so its headings, bold terms and lists are real structure
+ * (cards.js fromHtml). Re-running merges: a card is keyed to its page and its
+ * content, so nothing is duplicated and a deleted card stays deleted. */
 window.sosMakeCardsHere = function (classId, modId) {
-  const cls = findClassOrKsu(classId);
-  const mod = cls && (cls.modules || []).find(m => m.id === modId);
-  const noteId = currentModuleNoteId[modId];
-  if (!cls || !mod || !noteId) {
-    try { showNotif(SOI.alert, 'No note open', 'Open a note first, then make cards from it.'); } catch (e) {}
+  classId = classId || _sosCurrentModuleClassId;
+  modId = modId || _sosCurrentModuleId;
+  try { if (window.Notebook && window.SOSNotes && window.SOSNotes.mounted()) window.Notebook.flushAll(); } catch (e) {}
+  const pages = window.SOSNotes ? window.SOSNotes.pages(modId) : [];
+  if (!pages.length) {
+    try { showNotif(SOI.alert, 'No pages yet', 'Write a page in this module first, then make cards from it.'); } catch (e) {}
     return;
   }
-  if (!window.sosMakeCards) {
+  if (!window.sosMakeCardsFromPages) {
     try { showNotif(SOI.alert, 'Not ready', 'Flashcards are still loading — try again in a moment.'); } catch (e) {}
     return;
   }
-  // Save whatever is in the textarea first: extracting from a stale note body
-  // would silently miss everything typed since the last autosave.
-  try {
-    const bodyEl = _sosEl('modnote-body-' + modId);
-    const n = (mod.notes || []).find(x => x.id === noteId);
-    if (n && bodyEl) { n.body = bodyEl.value; n.updated = Date.now(); persistForCls(cls); }
-  } catch (e) {}
-  window.sosMakeCards(classId, modId, noteId, false);
+  window.sosMakeCardsFromPages(classId, modId, pages);
 };
-
-function openModuleNote(cls, mod, noteId) {
-  currentModuleNoteId[mod.id] = noteId;
-  const note = mod.notes.find(n => n.id === noteId);
-  if (!note) return;
-  const editOn = !!moduleEditMode[mod.id];
-
-  const emptyEl = _sosEl('modnote-empty-' + mod.id);
-  const editorEl = _sosEl('modnote-editor-' + mod.id);
-  if (emptyEl) emptyEl.style.display = 'none';
-  if (editorEl) editorEl.style.display = 'flex';
-
-  const titleEl = _sosEl('modnote-title-' + mod.id);
-  const bodyEl = _sosEl('modnote-body-' + mod.id);
-  const statusEl = _sosEl('modnote-status-' + mod.id);
-  if (titleEl) titleEl.value = note.title;
-  if (bodyEl) bodyEl.value = note.body;
-
-  if (editOn) {
-    const save = () => {
-      const n = mod.notes.find(x => x.id === currentModuleNoteId[mod.id]);
-      if (!n) return;
-      if (titleEl) n.title = titleEl.value;
-      if (bodyEl) n.body = bodyEl.value;
-      n.updated = Date.now();
-      persistForCls(cls);
-      if (statusEl) { statusEl.innerHTML = 'Saved ' + SOI.check; clearTimeout(titleEl._st); titleEl._st = setTimeout(() => { statusEl.textContent = 'Auto-saved'; }, 1500); }
-      refreshModuleNoteList(cls, mod);
-    };
-    if (titleEl) titleEl.oninput = save;
-    if (bodyEl) bodyEl.oninput = save;
-  }
-
-  refreshModuleNoteList(cls, mod);
-}
-
-function addModuleNote(classId, modId) {
-  const cls = findClassOrKsu(classId);
-  if (!cls) return;
-  const mod = cls.modules.find(m => m.id === modId);
-  if (!mod) return;
-  const n = { id: Date.now().toString(), title: '', body: '', updated: Date.now() };
-  mod.notes.unshift(n);
-  persistForCls(cls);
-  refreshModuleNoteList(cls, mod);
-  openModuleNote(cls, mod, n.id);
-  setTimeout(() => { const t = _sosEl('modnote-title-' + modId); if (t) t.focus(); }, 50);
-}
-
-async function deleteModuleNote(classId, modId) {
-  const cls = findClassOrKsu(classId);
-  if (!cls) return;
-  const mod = cls.modules.find(m => m.id === modId);
-  if (!mod) return;
-  const noteId = currentModuleNoteId[modId];
-  const note = mod.notes.find(n => n.id === noteId);
-  if (!(await window.uiConfirm('Delete "' + (note?.title || 'Untitled') + '"?', {danger:true, okLabel:'Delete'}))) return;
-  mod.notes = mod.notes.filter(n => n.id !== noteId);
-  delete currentModuleNoteId[modId];
-  persistForCls(cls);
-  refreshModuleNoteList(cls, mod);
-  // clear editor
-  const emptyEl = _sosEl('modnote-empty-' + modId);
-  const editorEl = _sosEl('modnote-editor-' + modId);
-  if (emptyEl) emptyEl.style.display = 'flex';
-  if (editorEl) editorEl.style.display = 'none';
-  // open first remaining note
-  if (mod.notes.length > 0) openModuleNote(cls, mod, mod.notes[0].id);
-}
-
-function fullscreenModuleNote(classId, modId) {
-  const titleEl = _sosEl('modnote-title-' + modId);
-  const bodyEl  = _sosEl('modnote-body-'  + modId);
-  if (!titleEl || !bodyEl) return;
-
-  const cls = findClassOrKsu(classId);
-  const mod = cls && cls.modules.find(m => m.id === modId);
-  const editOn = !!moduleEditMode[modId];
-
-  const overlay = document.createElement('div');
-  overlay.className = 'note-fullscreen-overlay';
-  overlay.innerHTML = `
-    <div class="note-fullscreen-header">
-      <input class="note-fullscreen-title" id="fs-title-${modId}" value="${titleEl.value.replace(/"/g,'&quot;')}" ${editOn ? '' : 'readonly'} placeholder="Untitled">
-      <button class="btn" style="padding:5px 12px;font-size:12px" title="Print / Save as PDF" onclick="printModuleNoteFs('${modId}')">${SOI.printer}<span>Print</span></button>
-      <button class="btn" style="padding:5px 12px;font-size:12px" onclick="_sosEl('fs-overlay-${modId}').remove()">${SOI.x}<span>Close</span></button>
-    </div>
-    <textarea class="note-fullscreen-body" id="fs-body-${modId}" ${editOn ? '' : 'readonly'} placeholder="${editOn ? 'Write here...' : ''}">${bodyEl.value}</textarea>
-  `;
-  overlay.id = 'fs-overlay-' + modId;
-  var sosRoot = document.getElementById('study-root');
-  (sosRoot || document.body).appendChild(overlay);
-
-  if (editOn && mod) {
-    const fsTitleEl = _sosEl('fs-title-' + modId);
-    const fsBodyEl  = _sosEl('fs-body-'  + modId);
-    const sync = () => {
-      const n = mod.notes.find(x => x.id === currentModuleNoteId[modId]);
-      if (!n) return;
-      n.title = fsTitleEl.value; n.body = fsBodyEl.value; n.updated = Date.now();
-      titleEl.value = n.title; bodyEl.value = n.body;
-      persistForCls(cls); refreshModuleNoteList(cls, mod);
-    };
-    fsTitleEl.addEventListener('input', sync);
-    fsBodyEl.addEventListener('input', sync);
-  }
-}
-
-function printModuleNote(modId) {
-  const titleEl = _sosEl('modnote-title-' + modId);
-  const bodyEl  = _sosEl('modnote-body-'  + modId);
-  if (!titleEl || !bodyEl) return;
-  _doPrint(titleEl.value, bodyEl.value);
-}
-
-function printModuleNoteFs(modId) {
-  const t = _sosEl('fs-title-' + modId);
-  const b = _sosEl('fs-body-'  + modId);
-  if (!t || !b) return;
-  _doPrint(t.value, b.value);
-}
-
-function _doPrint(title, body) {
-  const win = window.open('', '_blank');
-  if (!win) return;
-  const escaped = body.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  win.document.write(`<!DOCTYPE html><html><head><title>${title || 'Note'}</title>
-<style>
-  body{font-family:'Georgia',serif;max-width:760px;margin:48px auto;color:#111;line-height:1.8;font-size:15px}
-  h1{font-size:24px;font-weight:700;margin-bottom:28px;border-bottom:2px solid #ccc;padding-bottom:12px}
-  pre{font-family:'Courier New',monospace;white-space:pre-wrap;word-break:break-word;font-size:14px}
-  @media print{body{margin:24px}}
-</style></head><body>
-<h1>${title || 'Untitled'}</h1><pre>${escaped}</pre>
-<script>window.onload=function(){window.print();}<\/script>
-</body></html>`);
-  win.document.close();
-}
 
 // Escapes text for interpolation into an HTML *text node*. Coerces first:
 // callers pass stored values (class/event names) that may be null or numeric,
@@ -3657,73 +3453,9 @@ function escHtml(s) {
 // ===== AI PROMPTS =====
 
 // ===== NOTES =====
-function persistNotes() { _sosLsSet('studyos_notes_v2', JSON.stringify(notesList)); _sosFirebaseSave(); _sosEmit('notes'); }
-
-function renderNotesList() {
-  const list = _sosEl('notes-list');
-  list.innerHTML = '';
-  if (notesList.length === 0) {
-    list.innerHTML = '<div style="padding:20px 14px;font-size:12px;color:var(--text3);font-family:var(--mono)">No notes yet.</div>';
-    return;
-  }
-  [...notesList].sort((a,b) => b.updated - a.updated).forEach(n => {
-    const item = document.createElement('div');
-    item.className = 'note-list-item' + (n.id === currentNoteId ? ' active' : '');
-    const preview = n.body.replace(/\n/g,' ').slice(0, 60) || '—';
-    const d = new Date(n.updated);
-    const dateStr = d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
-    item.innerHTML = `
-      <div class="note-list-title">${escHtml(n.title || 'Untitled')}</div>
-      <div class="note-list-preview">${preview}</div>
-      <div class="note-list-date">${dateStr}</div>
-    `;
-    item.onclick = () => openNote(n.id);
-    list.appendChild(item);
-  });
-}
-
-function openNote(id) {
-  currentNoteId = id;
-  const n = notesList.find(x => x.id === id);
-  if (!n) return;
-  _sosEl('notes-empty-editor').style.display = 'none';
-  const active = _sosEl('notes-editor-active');
-  active.style.display = 'flex';
-  _sosEl('note-title-input').value = n.title;
-  _sosEl('notes-area').value = n.body;
-  renderNotesList();
-
-  // wire up autosave
-  _sosEl('note-title-input').oninput = e => {
-    const note = notesList.find(x => x.id === currentNoteId);
-    if (note) { note.title = e.target.value; note.updated = Date.now(); persistNotes(); renderNotesList(); }
-  };
-  _sosEl('notes-area').oninput = e => {
-    const note = notesList.find(x => x.id === currentNoteId);
-    if (note) { note.body = e.target.value; note.updated = Date.now(); persistNotes(); renderNotesList(); }
-  };
-}
-
-function createNote() {
-  const n = { id: Date.now().toString(), title: '', body: '', updated: Date.now() };
-  notesList.unshift(n);
-  persistNotes();
-  renderNotesList();
-  openNote(n.id);
-  setTimeout(() => _sosEl('note-title-input').focus(), 50);
-}
-
-async function deleteCurrentNote() {
-  if (!currentNoteId) return;
-  const n = notesList.find(x => x.id === currentNoteId);
-  if (!(await window.uiConfirm('Delete "' + (n?.title || 'Untitled') + '"?', {danger:true, okLabel:'Delete'}))) return;
-  notesList = notesList.filter(x => x.id !== currentNoteId);
-  currentNoteId = null;
-  persistNotes();
-  renderNotesList();
-  _sosEl('notes-empty-editor').style.display = '';
-  _sosEl('notes-editor-active').style.display = 'none';
-}
+// Quick Notes and every Notes module are V's Notebook (js/sos-notebook.js).
+// `notesList` (the main document's old quick notes) is still loaded and saved
+// as it was, untouched: it is the backup of what moved into Notebook.
 
 // ===== EVENTS =====
 function openAddEvent(ev, prefillDate) {
@@ -5308,7 +5040,6 @@ function sosInitFirebase() {
         renderSidebarClasses();
         renderCalendar();
         updateStats();
-        renderNotesList();
         renderKsuModules();
         renderExamCountdown();
         renderPriorityQueue();
@@ -5336,7 +5067,6 @@ function sosInitFirebase() {
     renderSidebarClasses();
     renderCalendar();
     updateStats();
-    renderNotesList();
     renderKsuModules();
     renderExamCountdown();
     renderPriorityQueue();
@@ -5522,28 +5252,22 @@ window._sosBridge.addGeneratedNote = (spec) => {
   mod.notes = mod.notes || [];
   const meta = spec.meta || {};
 
-  /* A `type:'notes'` module is rendered by js/notes-sync.js from
-   * localStorage['studyos_notes_<moduleId>'] — NOT from mod.notes, which is
-   * the plain-textarea note type. Writing to mod.notes stored the note
-   * correctly and displayed nothing: the module opened saying "0 pages" while
-   * the content sat in an array that editor never reads.
-   *
-   * So hand it to the editor's own store, converting the model's markdown to
-   * the HTML that editor speaks. */
-  if (window.soAddEntryExternal) {
-    const html = _sosMdToHtml(spec.body || '');
-    const entry = window.soAddEntryExternal(mod.id, {
-      title: String(spec.title || 'Generated note'),
-      html,
-      sourceId: meta.sourceFileId,
-      meta,
-    });
+  /* A `type:'notes'` module shows its folder of StudyOS's Notebook (V's
+   * Notebook, js/sos-notebook.js), so the note is a page there: the model's
+   * markdown as the HTML the editor speaks, written by Notebook (putPage),
+   * which syncs it like any edit. Re-running one source replaces its page.
+   * Resolves in the background; `saved` is that promise. */
+  if (window.SOSNotes) {
+    const title = String(spec.title || 'Generated note');
     persistForCls(cls);
     try { if (currentClassId === cls.id) renderModules(cls); } catch (e) {}
-    return entry;
+    const saved = window.SOSNotes.putGenerated(mod.id, {
+      title, html: _sosMdToHtml(spec.body || ''), sourceId: meta.sourceFileId, meta,
+    }).catch((e) => { console.warn('[StudyOS] generated note not saved:', e); return null; });
+    return { moduleId: mod.id, title, _sos: { generated: true, ...meta }, saved };
   }
 
-  // Fallback path, used only when notes-sync.js has not loaded. Re-running the
+  // Fallback path, used only when the notes (js/sos-notebook.js) have not loaded. Re-running the
   // same source replaces its previous note rather than stacking near-identical
   // copies — "Regenerate with a different prompt" runs repeatedly for one deck.
   const prior = meta.sourceFileId

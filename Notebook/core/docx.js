@@ -749,9 +749,20 @@ function applyPageSetup(app) {
   applyZoom(app);
   updateRulers(app);
 }
-// Default to fit-width below ~1200px: a letter page (816px) plus the sidebar
-// does not fit an iPad Pro portrait, so 100% would open with the page cut off.
-function zGet(app) { return lsGet('docx_zoom_' + app, (window.innerWidth < 1200 ? 'fit' : 1)); }
+// With no zoom chosen, fit the page to the width when the editor's box cannot
+// hold it at 100%, else 100%. It used to ask the WINDOW (fit below 1200px),
+// which an instance inside a host's own layout (StudyOS's Quick Notes beside
+// its sidebar, a modal) does not see: a wide window with a narrow box opened
+// the page cut off at the right. The box is measured each time (the
+// ResizeObserver below re-applies), so it follows the box as it changes.
+function zGet(app) {
+  var z = lsGet('docx_zoom_' + app, null);
+  if (z !== null) return z;
+  var w = 0;
+  try { (APPS[app].ctxs || []).forEach(function(c) { var el = $(c.wrap); if (!w && el && el.clientWidth) w = el.clientWidth; }); } catch (e) {}
+  if (w) return (w - 30) < _pageWidth(app) ? 'fit' : 1;
+  return window.innerWidth < 1200 ? 'fit' : 1;
+}
 function applyZoom(app) {
   var cfg = APPS[app], z = zGet(app), ps = psGet(app);
   var dim = SIZES[ps.size] || SIZES.letter;

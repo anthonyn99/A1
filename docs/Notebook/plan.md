@@ -14,6 +14,12 @@ TaskHub lists MyJournal as an external program that opens in-page. TradeHub's Pl
 is a Notebook instance (key pb) whose pinned Daily Reminder feeds the morning launcher.
 How to use it and change it is in [README.md](README.md). This file is the record.
 
+**2026-10-29:** Veda's StudyOS (notes) and TradeBoard (Strats) mount V's Notebook;
+Notebook gained `folder` / `Notebook.folder`, `Notebook.importPages` and
+`Notebook.putPage` for them (README), a fit-width default measured on the
+editor's own box, and two instance fixes (Tony's tabular numerals, a reset
+line-height). See [../V1/notebook.md](../V1/notebook.md).
+
 A new journal ask: change `Notebook/` (MyJournal's names stay `tj`-prefixed, so instances keep
 working). Prove it with `node tests/live/notebook-baseline.live.js` (index, vs tag `notebook-p0`;
 add an `EXPECTED` rule for each deliberate difference), `tests/live/notebook-host.live.js`

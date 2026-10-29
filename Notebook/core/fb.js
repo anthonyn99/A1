@@ -1034,6 +1034,54 @@ function install(F) {
       } catch(e) { console.warn('TJ save-one failed:', e.message); }
     });
 
+    // Notebook.importPages: a host moving its old pages in (StudyOS's notes,
+    // TradeBoard's Strats). Only from a SERVER read, never the cache. A page the
+    // store already has (same id) is never touched; the rest go in as written,
+    // their images moved out to their own documents exactly as a save does, and
+    // _order extended. `tag` names the import: it is recorded in the document
+    // (_imported.<tag>) in the same write as the pages, so it runs once, on
+    // whichever device gets there first. Writes in parts under the size guard;
+    // a part that fails throws, and what landed before it stays (a later call
+    // keeps those and adds the rest). A page that cannot be stored (a bad id, or
+    // too big even with its images moved out) is listed in `failed` and the tag
+    // is not recorded, so the next call tries again. Resolves { added, kept,
+    // failed } or 'already'.
+    window._fbImportTonyJournal = async (pages, tag) => {
+      const snap = await _freshGet(tjDocRef);
+      if (!snap || !_fbIsServerSnap(snap)) throw new Error('Notebook import: the server copy could not be read');
+      const d = snap.exists() ? snap.data() : {};
+      if (tag && d._imported && d._imported[tag]) return 'already';
+      const order = Array.isArray(d._order) ? d._order.slice() : [];
+      const added = [], kept = [], failed = [];
+      const limit = Math.min(FB_MAX_WRITE_BYTES || 900000, 700000);
+      let part = {}, partIds = [];
+      const write = async (last) => {
+        if (!partIds.length && !(last && tag)) return;
+        // A merge: the pages present, the order, and (last) the import's tag.
+        const payload = Object.assign({}, part, { _order: order.slice(), savedAt: Date.now() });
+        if (last && tag) payload._imported = { [tag]: Date.now() };
+        await _fbWriteRetry(() => setDoc(tjDocRef, payload, { merge: true }), 'TJ import');
+        part = {}; partIds = [];
+      };
+      for (const p of (pages || [])) {
+        if (!p || !p.id || /[.\/~*\[\]]/.test(String(p.id))) { if (p) failed.push(p.id || null); continue; }
+        if (d['e_' + p.id] || added.indexOf(p.id) >= 0) { kept.push(p.id); continue; }
+        const now = Date.now();
+        const e0 = Object.assign({ title: '', template: 'page', created: now, updated: now, tags: [] }, p);
+        e0.data = Object.assign({ html: '', attachments: [] }, p.data || {});
+        if (!Array.isArray(e0.tags)) e0.tags = [];
+        e0.rev = Math.max(1, e0.rev || 0);
+        const { entry } = await _tjStripEntry(e0);
+        const clean = _tjSanitize(entry);
+        if (_fbByteSize({ e: clean }) > limit) { console.warn('Notebook import: page ' + p.id + ' is too large to store'); failed.push(p.id); continue; }
+        if (partIds.length && _fbByteSize(part) + _fbByteSize({ e: clean }) > limit) await write(false);
+        part['e_' + p.id] = clean; partIds.push(p.id); added.push(p.id);
+        if (order.indexOf(p.id) < 0) order.push(p.id);
+      }
+      await write(!failed.length);
+      return { added, kept, failed };
+    };
+
     window._tjCompactImages = (opts) => _compactImages({
       ref: tjDocRef, label: 'MyJournal',
       stripEntry: _tjStripEntry, sanitize: _tjSanitize, opts

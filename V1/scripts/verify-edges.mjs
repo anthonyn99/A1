@@ -36,45 +36,36 @@ const t = (n, c, x) => { if (c) { pass++; console.log('  ok   ' + n); }
 
 // Start from a known state. A previous run may have left 'e1' behind in this
 // browser profile's localStorage, and a test that only passes on a fresh
-// profile is a test that will fail confusingly later.
+// profile is a test that will fail confusingly later. Generated notes are
+// pages of StudyOS's Notebook (js/sos-notebook.js), in the module's folder;
+// each run uses a fresh module id, so pages a previous run left there (in the
+// store, not on the class) are never counted.
+const G = 'g' + Date.now();
 await evalJs(`(function(){
   for (var i = classes.length - 1; i >= 0; i--) if (classes[i].id === 'e1') classes.splice(i, 1);
   if (typeof ksuData !== 'undefined' && ksuData.modules) {
     ksuData.modules = ksuData.modules.filter(function(m){ return m.name !== 'Generated'; });
   }
-  // Notes live in the EDITOR's store, not on the module, so dropping the class
-  // does not drop its notes. Those keys survive in this profile's
-  // localStorage, and the next run's assertions then counted entries left by
-  // the previous one — 4 notes where the test had just written 2, with
-  // notes[0] belonging to a run that finished minutes ago.
-  Object.keys(localStorage)
-    .filter(function(k){ return k.indexOf('studyos_notes_') === 0; })
-    .forEach(function(k){ localStorage.removeItem(k); });
   return true;
 })()`);
 
+// The pages in the Generated module's folder, once Notebook has them.
+const pagesOf = `(function(){ return window.SOSNotes.pages('${G}'); })()`;
+
 console.log('\nedge: regenerate replaces in the REAL app');
-const regen = await evalJs(`(function(){
+const regen = await evalJs(`(async function(){
   var cls = { id:'e1', name:'E', modules:[
-    { id:'g1', name:'Generated', type:'notes', files:[], prompts:[], notes:[] } ] };
+    { id:'${G}', name:'Generated', type:'notes', files:[], prompts:[], notes:[] } ] };
   classes.push(cls);
   var B = window._sosBridge;
-  var a = B.addGeneratedNote({ classId:'e1', title:'v1', body:'body v1',
-    meta:{ sourceFileId:'same', promptId:'p1', promptVersion:1 } });
-  var b = B.addGeneratedNote({ classId:'e1', title:'v2', body:'body v2',
-    meta:{ sourceFileId:'same', promptId:'p2', promptVersion:3 } });
-  var g = cls.modules.find(m=>m.name==='Generated');
-  // A type:'notes' module renders from the EDITOR's own store
-  // (localStorage['studyos_notes_<moduleId>']), not from mod.notes — see the
-  // comment in addGeneratedNote. Asserting on mod.notes read an array the
-  // editor never writes, so notes[0] was undefined and this crashed with
-  // "Cannot read properties of undefined (reading 'body')" — which looked
-  // like a filing bug when the note had in fact been filed correctly.
-  var st = JSON.parse(localStorage.getItem('studyos_notes_' + g.id) || '{}');
-  var es = st.entries || [];
-  return { count: es.length, sameId: a.id === b.id,
+  var a = await B.addGeneratedNote({ classId:'e1', title:'v1', body:'body v1',
+    meta:{ sourceFileId:'same', promptId:'p1', promptVersion:1 } }).saved;
+  var b = await B.addGeneratedNote({ classId:'e1', title:'v2', body:'body v2',
+    meta:{ sourceFileId:'same', promptId:'p2', promptVersion:3 } }).saved;
+  var es = ${pagesOf};
+  return { count: es.length, sameId: !!a && !!b && a.id === b.id,
            body: es[0] && es[0].data && es[0].data.html,
-           version: es[0] && es[0]._sos && es[0]._sos.promptVersion };
+           version: es[0] && es[0].host && es[0].host.promptVersion };
 })()`);
 t('one note, not two', regen.count === 1, regen);
 t('id is stable', regen.sameId === true, regen);
@@ -82,27 +73,19 @@ t('body is the new one', /body v2/.test(regen.body || ''), regen);
 t('provenance updated to v3', regen.version === 3, regen);
 
 console.log('\nedge: a second source adds, not replaces');
-const two = await evalJs(`(function(){
-  var B = window._sosBridge;
-  B.addGeneratedNote({ classId:'e1', title:'other', body:'other body',
-    meta:{ sourceFileId:'different' } });
-  var g = classes.find(c=>c.id==='e1').modules.find(m=>m.name==='Generated');
-  var st = JSON.parse(localStorage.getItem('studyos_notes_' + g.id) || '{}');
-  return (st.entries || []).length;
+const two = await evalJs(`(async function(){
+  await window._sosBridge.addGeneratedNote({ classId:'e1', title:'other', body:'other body',
+    meta:{ sourceFileId:'different' } }).saved;
+  return ${pagesOf}.length;
 })()`);
 t('two distinct sources -> two notes', two === 2, two);
 
 console.log('\nedge: a note with NO sourceFileId never collapses others');
-const nometa = await evalJs(`(function(){
+const nometa = await evalJs(`(async function(){
   var B = window._sosBridge;
-  B.addGeneratedNote({ classId:'e1', title:'nometa1', body:'x' });
-  B.addGeneratedNote({ classId:'e1', title:'nometa2', body:'y' });
-  var g = classes.find(c=>c.id==='e1').modules.find(m=>m.name==='Generated');
-  // The editor's store, not mod.notes — same reason as the regenerate check
-  // above: a type:'notes' module renders from localStorage, so mod.notes is
-  // legitimately empty and reading it reported 0 for a correct write.
-  var st = JSON.parse(localStorage.getItem('studyos_notes_' + g.id) || '{}');
-  return (st.entries || []).length;
+  await B.addGeneratedNote({ classId:'e1', title:'nometa1', body:'x' }).saved;
+  await B.addGeneratedNote({ classId:'e1', title:'nometa2', body:'y' }).saved;
+  return ${pagesOf}.length;
 })()`);
 t('both appended (2 + 2 = 4)', nometa === 4, nometa);
 

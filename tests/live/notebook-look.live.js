@@ -228,34 +228,66 @@ const HOSTS = [
   const vstd = await take('bj');
   ok('...and its ribbon is measured', vstd.ribbon.length > 40 && vstd.ribbon.some((o) => /docx-ai-btn/.test(o.p)), vstd.ribbon.length);
 
-  console.log('\nA program\'s own Notebook on Veda\'s side (vn)');
-  await fresh();
-  await js(`localStorage.clear(); sessionStorage.clear(); sessionStorage.setItem('__fakefs_docs', JSON.stringify({ 'dashboards/vn_test': { _order: ['e_a'], activeId: 'e_a', savedAt: 1, e_e_a: ${JSON.stringify(entry('e_a', 'A'))} } })); return 1;`);
-  await c.send('Page.navigate', { url: BASE + 'tests/live/fixtures/notebook-host.html' });
-  await until('window.__hostReady', 10000);
-  await js(`window.__mount({ profile: 'veda', key: 'vn', store: 'vn_test', title: 'Veda Notes', pinned: [], templates: null }).then(() => { window.__mounted = true; }); return 1;`);
-  await until('window.__mounted && document.querySelector("#vn-entries-list .entry-item")', 15000);
-  await js(`document.querySelector('#vn-entries-list .entry-item .entry-item-title').click(); return 1;`); await sleep(800);
-  await js(`if (document.getElementById('vn-page-editor').getAttribute('contenteditable') !== 'true') document.getElementById('vn-btn-edit').click(); return 1;`);
-  ok('it opens the page in Notebook\'s editor, in edit mode', await until(`document.querySelector('#vn-root .docx-toolbar.edit-mode')`, 10000));
-  await sleep(1500);
-  const vgot = await take('vn');
-  ok("it says it is V's Notebook (its root, and the line beside its title)", await js(`var r=document.getElementById('vn-root'), n=document.querySelector('#vn-root .nb-done-note');
-    return r.dataset.notebookSide === 'veda' && !!n && n.textContent.trim() === "Editing in V's Notebook";`));
-  let vd = compare(vstd.ribbon, vgot.ribbon, []);
-  ok('its ribbon is her journal\'s: every button in the same place, the same size, the same look', vd.length === 0, vd.join('\n      '));
-  vd = compare(vstd.bar, vgot.bar, [/#K-btn-lock/, /#K-sync-pill/, SIDE_LINE], { sizeOnly: true, flex: /#K-entry-title-input$/ });
-  ok('its title bar is her journal\'s (less the lock, off for an instance)', vd.length === 0, vd.join('\n      '));
-  const vhm = new Map(); vgot.hover.forEach(([k, v]) => { if (!vhm.has(k)) vhm.set(k, []); vhm.get(k).push(v); });
-  const vseen = new Map();
-  vd = [];
-  for (const [k, v] of vstd.hover) {
-    const i = vseen.get(k) || 0; vseen.set(k, i + 1);
-    const w = (vhm.get(k) || [])[i];
-    if (w === undefined && /#K-btn-lock/.test('#' + k.split('#')[1])) continue;
-    if (w !== v) vd.push(k + '\n        Veda\'s journal: ' + v + '\n        instance: ' + w);
+  // Her programs' own Notebooks: the test host, StudyOS's notes (stn) and
+  // TradeBoard's Strats (vtb). A new Veda host goes in VEDA_HOSTS.
+  const VEDA_HOSTS = [
+    { name: 'A program\'s own Notebook on Veda\'s side', key: 'vn',
+      async open() {
+        await js(`localStorage.clear(); sessionStorage.clear(); sessionStorage.setItem('__fakefs_docs', JSON.stringify({ 'dashboards/vn_test': { _order: ['e_a'], activeId: 'e_a', savedAt: 1, e_e_a: ${JSON.stringify(entry('e_a', 'A'))} } })); return 1;`);
+        await c.send('Page.navigate', { url: BASE + 'tests/live/fixtures/notebook-host.html' });
+        await until('window.__hostReady', 10000);
+        await js(`window.__mount({ profile: 'veda', key: 'vn', store: 'vn_test', title: 'Veda Notes', pinned: [], templates: null }).then(() => { window.__mounted = true; }); return 1;`);
+        return until('window.__mounted && document.querySelector("#vn-entries-list .entry-item")', 15000);
+      } },
+    { name: 'StudyOS notes (V1/studyos.html)', key: 'stn',
+      async open() {
+        await js(`localStorage.clear(); sessionStorage.clear(); sessionStorage.setItem('__fakefs_docs', JSON.stringify({
+          'dashboards/studyos': { classes: [], events: [], tasks: [], notes: [], ksu: { modules: [] } },
+          'dashboards/studyos_notebook': { _order: ['e_a'], activeId: 'e_a', savedAt: 1, e_e_a: ${JSON.stringify(Object.assign(entry('e_a', 'A'), { folder: 'quick' }))} } })); return 1;`);
+        await c.send('Page.navigate', { url: BASE + 'V1/studyos.html' });
+        if (!(await until(`window.SOSNotes && document.body.dataset.sosGate === 'open'`, 15000))) return false;
+        await js(`switchView('notes'); return 1;`);
+        return until('document.querySelector("#stn-entries-list .entry-item")', 20000);
+      } },
+    { name: 'TradeBoard Strats (V1/TradeBoard/tradeboard.html)', key: 'vtb',
+      async open() {
+        await js(`localStorage.clear(); sessionStorage.clear(); sessionStorage.setItem('__fakefs_docs', JSON.stringify({
+          'tradeboard/UboRGuQZT5QlGhJa1U4zMSd7Sm12': { strats: '[]', rulesDaily: JSON.stringify({ lastCompleted: null, enabled: false }), _updated: 1 },
+          'dashboards/tradeboard_strats': { _order: ['e_a'], activeId: 'e_a', savedAt: 1, e_e_a: ${JSON.stringify(entry('e_a', 'A'))} } })); return 1;`);
+        await c.send('Page.navigate', { url: BASE + 'V1/TradeBoard/tradeboard.html' });
+        if (!(await until(`typeof TB !== 'undefined' && window._tbCloudSeen`, 15000))) return false;
+        await sleep(800);
+        await js(`TB.showSection('strats'); return 1;`);
+        return until('document.querySelector("#vtb-entries-list .entry-item")', 20000);
+      } },
+  ];
+  for (const H of VEDA_HOSTS) {
+    const K = H.key;
+    console.log('\n' + H.name + ' (' + K + ')');
+    await fresh();
+    if (!(await H.open())) { ok('it opens', false); continue; }
+    await js(`document.querySelector('#${K}-entries-list .entry-item .entry-item-title').click(); return 1;`); await sleep(800);
+    await js(`if (document.getElementById('${K}-page-editor').getAttribute('contenteditable') !== 'true') document.getElementById('${K}-btn-edit').click(); return 1;`);
+    ok('it opens the page in Notebook\'s editor, in edit mode', await until(`document.querySelector('#${K}-root .docx-toolbar.edit-mode')`, 10000));
+    await sleep(1500);
+    const vgot = await take(K);
+    ok("it says it is V's Notebook (its root, and the line beside its title)", await js(`var r=document.getElementById('${K}-root'), n=document.querySelector('#${K}-root .nb-done-note');
+      return r.dataset.notebookSide === 'veda' && !!n && n.textContent.trim() === "Editing in V's Notebook";`));
+    let vd = compare(vstd.ribbon, vgot.ribbon, []);
+    ok('its ribbon is her journal\'s: every button in the same place, the same size, the same look', vd.length === 0, vd.join('\n      '));
+    vd = compare(vstd.bar, vgot.bar, [/#K-btn-lock/, /#K-sync-pill/, SIDE_LINE], { sizeOnly: true, flex: /#K-entry-title-input$/ });
+    ok('its title bar is her journal\'s (less the lock, off for an instance)', vd.length === 0, vd.join('\n      '));
+    const vhm = new Map(); vgot.hover.forEach(([k, v]) => { if (!vhm.has(k)) vhm.set(k, []); vhm.get(k).push(v); });
+    const vseen = new Map();
+    vd = [];
+    for (const [k, v] of vstd.hover) {
+      const i = vseen.get(k) || 0; vseen.set(k, i + 1);
+      const w = (vhm.get(k) || [])[i];
+      if (w === undefined && /#K-btn-lock/.test('#' + k.split('#')[1])) continue;
+      if (w !== v) vd.push(k + '\n        Veda\'s journal: ' + v + '\n        instance: ' + w);
+    }
+    ok('under the cursor every control answers as in her journal (hover colours and glow, hoverfx lift, press)', vd.length === 0, vd.join('\n      '));
   }
-  ok('under the cursor every control answers as in her journal (hover colours and glow, hoverfx lift, press)', vd.length === 0, vd.join('\n      '));
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

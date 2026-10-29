@@ -16,11 +16,11 @@
  * a phone session's entire review history. Losing a week of scheduling is worse
  * than losing a note, because nothing on screen would look wrong.
  *
- * So this follows the precedent js/notes-sync.js already set for per-module
- * notes: ONE DOCUMENT PER CLASS, written through its own debounced path, with
+ * So this follows the precedent the Notes modules' own documents set
+ * (studyos_notes/{moduleId}, before notes moved to Notebook in 2026-10):
+ * ONE DOCUMENT PER CLASS, written through its own debounced path, with
  * the same "never write before the server copy has been seen" guard that keeps
- * a cold start from clobbering another device (firebase-sync.js
- * _notesWhenServerSeen). Two classes studied on two devices never touch the
+ * a cold start from clobbering another device (firebase-sync.js). Two classes studied on two devices never touch the
  * same document at all.
  *
  * localStorage mirrors each class under studyos_cards_<classId> so a review

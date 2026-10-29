@@ -354,6 +354,17 @@ const _tjPinned = Array.isArray(_tjCfg.pinned) ? _tjCfg.pinned : [];
 function _tjIsPinned(id) { return _tjPinned.some(function (p) { return p.id === id; }); }
 // For the host (e.g. in onReady): the entries as they stand, live and trashed.
 _tjCfg.entries = function () { return state.entries; };
+// folder: a host that files its pages in groups (StudyOS: one per Notes
+// module) shows one group at a time. A page carries the folder it was made in
+// (entry.folder); the list, its search and tags, the Trash and New Entry all
+// work inside the folder on screen. null (the default) is every page, as
+// before. Notebook.folder(key, id) switches it. Pinned pages show in every
+// folder; OurJournal has none.
+let _tjFolder = (_tjCfg.folder == null || _tjCfg.folder === '') ? null : String(_tjCfg.folder);
+const _tjFolderActive = {};   // folder -> the page last open in it (this session)
+function _tjInFolder(e) { return _tjFolder === null || _tjIsOJ() || !e || e.folder === _tjFolder || _tjIsPinned(e.id); }
+// The first live page on screen, for when the open one goes away.
+function _tjFirstLive() { return (state.entries.find(function (e) { return !e.trashed && _tjInFolder(e); }) || {}).id || null; }
 // Make every pinned page exist, out of the trash, at the top in its given order.
 function _tjPinFirst() {
   if (!_tjPinned.length || _tjIsOJ()) return;
@@ -824,8 +835,9 @@ function _tjApplyRemote(remote) {
   // If the active entry was deleted OR trashed on another device, switch to first available
   var _activeGone = state.activeId && !state.entries.find(function(e) { return e.id === state.activeId; });
   var _activeTrashed = state.activeId && (state.entries.find(function(e){ return e.id === state.activeId; }) || {}).trashed;
-  if (_activeGone || _activeTrashed) {
-    state.activeId = (state.entries.find(function(e){ return !e.trashed; }) || {}).id || null;
+  var _tjActiveAway = _tjFolder !== null && !_tjHidden && !_tjIsOJ() && (!state.activeId || !_tjInFolder(getActive()));
+  if (_activeGone || _activeTrashed || (_tjActiveAway && _tjFirstLive())) {
+    state.activeId = _tjFirstLive();
     loadActiveEntry();
   }
 
@@ -929,6 +941,8 @@ function createEntry(template) {
   entry._dirty = true;
   // A shared entry records who made it (Tony, from here) and opens its live document.
   if (_tjIsOJ() && window.OJ) window.OJ.created('tj', entry);
+  // Made in the folder on screen (OurJournal has none).
+  else if (_tjFolder !== null) entry.folder = _tjFolder;
   state.entries.unshift(entry);
   state.activeId = id;
   saveState(); renderSidebar(); loadActiveEntry();
@@ -943,7 +957,7 @@ function deleteEntry(id) {
   entry.trashed = _bjDelTs;
   entry.trashChangedAt = _bjDelTs;   // trash-action clock (drives cross-device delete sync)
   entry.updated = _bjDelTs;
-  if (state.activeId === id) state.activeId = (state.entries.find(e => !e.trashed) || {}).id || null;
+  if (state.activeId === id) state.activeId = _tjFirstLive();
   saveState(); renderSidebar(); loadActiveEntry();
   // Push the trashed entry itself (it isn't the active one, so the debounced save skips it)
   _tjFbSaveEntry(entry);
@@ -970,7 +984,7 @@ function hardDeleteEntry(id) {
   _tjForgetDeleted([id]);
   _tjFbDelete(id);
   state.entries = state.entries.filter(e => e.id !== id);
-  if (state.activeId === id) state.activeId = (state.entries.find(e => !e.trashed) || {}).id || null;
+  if (state.activeId === id) state.activeId = _tjFirstLive();
   saveState(); renderSidebar(); loadActiveEntry();
 }
 /* The MyJournal twin of the Brainstorm Journal purge guard — same bug, same
@@ -1009,7 +1023,7 @@ function _tjSchedulePurge() {
   });
 }
 window._tjTrashAPI = {
-  list: () => state.entries.filter(e => e.trashed).sort((a,b) => (b.trashed||0)-(a.trashed||0)),
+  list: () => state.entries.filter(e => e.trashed && _tjInFolder(e)).sort((a,b) => (b.trashed||0)-(a.trashed||0)),
   restore: (ids) => {
     (ids||[]).forEach(id => {
       const e = state.entries.find(x => x.id === id);
@@ -1069,7 +1083,7 @@ function _tjRenderTrashBtn() {
     const stats = document.getElementById('tj-sidebar-stats');
     if (stats && stats.parentNode) stats.parentNode.insertBefore(btn, stats);
   }
-  const n = state.entries.filter(e => e.trashed).length;
+  const n = state.entries.filter(e => e.trashed && _tjInFolder(e)).length;
   btn.innerHTML = window.TNI.trash + '<span>Trash</span>' + (n ? ' <span class="docx-trash-count">' + n + '</span>' : '');
 }
 
@@ -1080,7 +1094,7 @@ function renderSidebar() {
   _tjPinFirst();
   const list = document.getElementById('tj-entries-list');
   const search = document.getElementById('tj-search-box').value.toLowerCase().trim();
-  const live = state.entries.filter(e => !e.trashed);
+  const live = state.entries.filter(e => !e.trashed && _tjInFolder(e));
   const entries = live.filter(e => {
     // Locked entries: search the title only (never their hidden content)
     const isLocked = window._tjGetLock && window._tjGetLock(e.id) && !(window._tjIsUnlocked && window._tjIsUnlocked(e.id));
@@ -2826,6 +2840,43 @@ window._tjPersistNow = function() {
 // does, then edit or view mode if asked. Waits for the entry to arrive from the
 // server (a host may ask before the first load). Resolves false if it never does,
 // or if a newer open call took over while it waited.
+// Notebook.putPage: a host writes one page of its own (StudyOS's generated
+// notes). A page the store lacks is made (in p.folder, else the folder on
+// screen); one it has takes the new title, html, tags, folder and host data
+// that are given, as an edit would: a new revision, saved and synced like any
+// edit, out of the Trash if it was there. The page being edited is saved
+// first and repainted after. A pinned page, or one that is not a plain page,
+// is refused (null). Returns a copy of the page as stored.
+window._tjPutEntry = function(p) {
+  if (!p || !p.id || /[.\/~*\[\]]/.test(String(p.id)) || _tjIsPinned(p.id)) return null;
+  return _tjWithPersonal(function() {
+    var now = Date.now(), e = state.entries.find(function(x) { return x.id === p.id; });
+    if (e && e.template !== 'page') return null;
+    var open = !_tjHidden && state.activeId === p.id;
+    if (open) { try { clearTimeout(autoTimer); saveCurrentEntry(); } catch (err) {} }
+    if (!e) {
+      e = { id: String(p.id), title: '', template: 'page', created: p.created || now, updated: now, tags: [], data: { html: '', attachments: [] }, rev: 0 };
+      var f = p.folder !== undefined ? p.folder : _tjFolder;
+      if (f != null && f !== '') e.folder = String(f);
+      state.entries.unshift(e);
+      // Made again on purpose: no longer a page this device purged.
+      if (Array.isArray(state.deletedIds)) state.deletedIds = state.deletedIds.filter(function(id) { return id !== e.id; });
+    } else if (p.folder !== undefined) {
+      if (p.folder == null || p.folder === '') delete e.folder; else e.folder = String(p.folder);
+    }
+    if (p.title !== undefined) e.title = String(p.title == null ? '' : p.title);
+    if (Array.isArray(p.tags)) e.tags = p.tags.map(String);
+    if (p.data && typeof p.data.html === 'string') e.data = Object.assign({ attachments: [] }, e.data || {}, { html: p.data.html });
+    if (p.host && typeof p.host === 'object') e.host = JSON.parse(JSON.stringify(p.host));
+    if (e.trashed) { delete e.trashed; e.trashChangedAt = now; }
+    e.updated = now; e.rev = (e.rev || 0) + 1; e._dirty = true;
+    saveState(); renderSidebar();
+    if (open) loadActiveEntry();
+    _tjFbSaveEntry(e);
+    var out = JSON.parse(JSON.stringify(e)); delete out._dirty; delete out._fbPushed;
+    return out;
+  });
+};
 let _tjOpenSeq = 0;
 window._tjOpenEntry = function(id, opts) {
   opts = opts || {};
@@ -3013,7 +3064,28 @@ document.getElementById('tj-new-entry-btn').addEventListener('click', () => {
 });
 document.getElementById('tj-search-box').addEventListener('input', renderSidebar);
 
-loadState(); purgeExpiredTrash(); renderSidebar(); loadActiveEntry(); setEditMode(false);
+loadState(); purgeExpiredTrash();
+// Mounted on a folder: open that folder's page, not the last one open anywhere.
+if (_tjFolder !== null && !_tjInFolder(getActive())) state.activeId = _tjFirstLive();
+renderSidebar(); loadActiveEntry(); setEditMode(false);
+
+// Notebook.folder(key, id): show folder id (null: every page). The page being
+// edited is saved first; the folder's last open page (or its first) opens.
+window._tjSetFolder = function(folder) {
+  folder = (folder == null || folder === '') ? null : String(folder);
+  if (folder === _tjFolder) return true;
+  if (_tjIsOJ()) _tjOJLeave();
+  try { saveCurrentEntry(); } catch (e) {}
+  try { _tjFbFlush(); } catch (e) {}
+  if (_tjFolder !== null && state.activeId) _tjFolderActive[_tjFolder] = state.activeId;
+  _tjFolder = folder; _tjCfg.folder = folder;
+  var sb = document.getElementById('tj-search-box'); if (sb) sb.value = '';
+  var back = folder !== null && _tjFolderActive[folder];
+  if (back && state.entries.some(function(e) { return e.id === back && !e.trashed; })) state.activeId = back;
+  else if (!getActive() || getActive().trashed || !_tjInFolder(getActive())) state.activeId = _tjFirstLive();
+  renderSidebar(); loadActiveEntry();
+  return true;
+};
 
 /* ── OurJournal tab ──────────────────────────────────────────────────────────
  * Sits first in the sidebar's rail (OurJournal · Journal). The rail module
@@ -3066,7 +3138,7 @@ function _tjOJLeave() {
   if (window.OJ) window.OJ.leave('tj');
   var sb = document.getElementById('tj-search-box'); if (sb) sb.value = '';
   if (state.activeId && !state.entries.some(function(e) { return e.id === state.activeId && !e.trashed; })) {
-    state.activeId = (state.entries.find(function(e) { return !e.trashed; }) || {}).id || null;
+    state.activeId = _tjFirstLive();
   }
   _tjModeUI();
   renderSidebar(); loadActiveEntry();

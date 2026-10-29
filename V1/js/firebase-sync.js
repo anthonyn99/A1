@@ -44,6 +44,9 @@ import {
   initializeFirestore, getFirestore, persistentLocalCache, persistentSingleTabManager,
   doc, setDoc, deleteDoc, onSnapshot, getDoc, getDocFromServer,
 } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js';
+// The whole module too: Notebook (V's Notebook, StudyOS's notes) is handed
+// { db, fs } and calls the SDK through it (window._fbNotebook below).
+import * as _fsNS from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js';
 
 const CFG   = window.STUDYOS_CONFIG || {};
 const FB    = CFG.firebase || {};
@@ -203,6 +206,11 @@ if (!window.STUDYOS_CONFIG_READY || !window.STUDYOS_CONFIG_READY('firebase')) {
   window._fbStudyDb = db;
   window.dispatchEvent(new CustomEvent('fb-studydb'));
 
+  // StudyOS's notes are V's Notebook (studyos.html, js/sos-notebook.js), on
+  // this same Firestore: dashboards/studyos_notebook. It waits for the
+  // anonymous sign-in, as every read here does.
+  window._fbNotebook = () => window._fbAuthReady.then(() => ({ db, fs: _fsNS }));
+
   const FB_MAX_WRITE_BYTES = FB.maxDocBytes || 900 * 1024;
   function _fbByteSize(obj) {
     try { return new Blob([JSON.stringify(obj)]).size; }
@@ -275,6 +283,9 @@ if (!window.STUDYOS_CONFIG_READY || !window.STUDYOS_CONFIG_READY('firebase')) {
   function _sosMarkServerSeen() {
     if (_sosServerSeen) return;
     _sosServerSeen = true;
+    // js/sos-notebook.js waits for this before moving old notes into Notebook:
+    // a move decided from this device's cache could miss notes it never had.
+    try { window.dispatchEvent(new CustomEvent('fb-sos-server-seen')); } catch (e) {}
     const q = _sosPendingWrites; _sosPendingWrites = [];
     q.forEach((fn) => { try { fn(); } catch (e) { console.warn('[StudyOS] deferred write failed:', e && e.message); } });
   }
@@ -406,103 +417,24 @@ if (!window.STUDYOS_CONFIG_READY || !window.STUDYOS_CONFIG_READY('firebase')) {
     _sosSaveTimer = setTimeout(() => { _sosWhenServerSeen(_sosDoSave); }, SOS_SAVE_DEBOUNCE_MS);
   };
 
-  /* ══ Notes-module page editor (docx engine "so" app) ═══════════════════════
-   * One Firestore doc per StudyOS Notes module, at studyos_notes/{moduleId} —
-   * unlike the single whole-suite StudyOS document above, each module's pages
-   * sync independently so opening one module's editor never has to read or
-   * write another module's (potentially large, image-heavy) page content.
-   * Mirrors the same stale-overwrite guard used for the main document: no
-   * write for a given module may land until this session has confirmed real
-   * server state for THAT module at least once. */
+  /* ══ The old Notes-module documents (read-only since 2026-10-29) ══════════
+   * Until 2026-10-29 each Notes module kept its pages in its own document,
+   * studyos_notes/{moduleId} ({ entries: [...], activeId, savedAt }), edited by
+   * the docx "so" editor. Notes are V's Notebook now (dashboards/
+   * studyos_notebook, one folder per module), and js/sos-notebook.js moves each
+   * module's pages there once. Nothing writes these documents any more: they
+   * stay as the backup of what was moved. Only a SERVER read counts, so a move
+   * is never made from this device's cached copy. */
   const NOTES_COLLECTION = PATHS.studyosNotes || 'studyos_notes';
-  const _notesServerSeen = {};      // moduleId -> bool
-  const _notesPendingWrites = {};   // moduleId -> [fn]
-  const _notesSaveTimers = {};      // moduleId -> timeout id
-  const _notesPendingPayload = {};  // moduleId -> payload
-  const _notesUnsub = {};           // moduleId -> unsubscribe fn
-
-  function _notesMarkServerSeen(modId) {
-    if (_notesServerSeen[modId]) return;
-    _notesServerSeen[modId] = true;
-    const q = _notesPendingWrites[modId] || []; _notesPendingWrites[modId] = [];
-    q.forEach((fn) => { try { fn(); } catch (e) { console.warn('[StudyOS Notes] deferred write failed:', e && e.message); } });
-  }
-  function _notesWhenServerSeen(modId, fn) {
-    if (_notesServerSeen[modId]) return fn();
-    if (!_notesPendingWrites[modId]) _notesPendingWrites[modId] = [];
-    if (_notesPendingWrites[modId].indexOf(fn) === -1) _notesPendingWrites[modId].push(fn);
-    return Promise.resolve();
-  }
-  function _notesDocRef(modId) { return doc(db, NOTES_COLLECTION, String(modId)); }
-
-  // Live per-module listener, started lazily the first time a module is opened
-  // (openNotesModule calls _fbLoadJournal, which starts this) — not for every
-  // module up front, since most modules are never opened in a given session.
-  function _notesWatch(modId) {
-    if (_notesUnsub[modId]) return;
-    _notesUnsub[modId] = onSnapshot(_notesDocRef(modId), { includeMetadataChanges: false }, (snap) => {
-      if (snap.metadata && snap.metadata.fromCache === false) _notesMarkServerSeen(modId);
-      if (!snap.exists()) return;
-      if (snap.metadata && snap.metadata.hasPendingWrites) return;   // our own echo
-      window.dispatchEvent(new CustomEvent('fb-notes-remote', { detail: { moduleId: modId, data: snap.data() } }));
-    }, (err) => { console.warn('[StudyOS Notes] onSnapshot error:', modId, err && err.code); });
-  }
-
-  window._fbLoadJournal = async (modId) => {
-    if (!modId) return null;
-    _notesWatch(modId);
-    try {
-      const snap = await _freshGet(_notesDocRef(modId));
-      if (snap && snap.metadata && snap.metadata.fromCache === false) _notesMarkServerSeen(modId);
-      if (snap && snap.exists()) return snap.data();
-      return null;
-    } catch (e) {
-      console.warn('[StudyOS Notes] load failed:', modId, e);
-      return null;
-    }
-  };
-
-  const _notesDoSave = async (modId) => {
-    const payload = _notesPendingPayload[modId];
-    if (!payload) return;
-    _notesPendingPayload[modId] = null;
-    const ok = await _guardedWrite(_notesDocRef(modId), payload, 'StudyOS Notes ' + modId);
-    window.dispatchEvent(new CustomEvent(ok ? 'fb-notes-saved' : 'fb-notes-error', { detail: { moduleId: modId } }));
-  };
+  // The debounce every per-document writer below shares (cards, topics,
+  // sessions, ...); it was the notes layer's, and the name stayed.
   const NOTES_SAVE_DEBOUNCE_MS = 400;
-  // getState is called lazily at flush time (not at call time) so the LATEST
-  // in-memory state is what gets written, even if more edits land during the
-  // debounce window — same reasoning as the StudyOS document's own pending-
-  // payload slot above.
-  window._fbSaveJournal = (modId, getState) => {
-    if (!modId) return;
-    const state = getState();
-    _notesPendingPayload[modId] = { entries: state.entries, activeId: state.activeId, savedAt: Date.now() };
-    if (_notesSaveTimers[modId]) clearTimeout(_notesSaveTimers[modId]);
-    _notesSaveTimers[modId] = setTimeout(() => { _notesWhenServerSeen(modId, () => _notesDoSave(modId)); }, NOTES_SAVE_DEBOUNCE_MS);
-  };
-  window._fbFlushJournal = (modId) => {
-    if (!modId || !_notesSaveTimers[modId]) return;
-    clearTimeout(_notesSaveTimers[modId]);
-    _notesWhenServerSeen(modId, () => _notesDoSave(modId));
-  };
-  // Single-entry / order-only writes read the full current entries array and
-  // save it via the same debounced path — StudyOS Notes stores the whole
-  // module's entries as one document (like the "so" state shape), not one
-  // Firestore doc per entry, so there is no smaller unit to write.
-  window._fbSaveJournalEntry = (modId, entry, allEntries) => {
-    if (!modId) return;
-    window._fbSaveJournal(modId, () => ({ entries: allEntries, activeId: entry.id }));
-  };
-  window._fbSaveJournalOrder = (modId, entries) => {
-    if (!modId) return;
-    window._fbSaveJournal(modId, () => ({ entries: entries, activeId: null }));
-  };
-  window._fbDeleteJournalEntry = async (modId, entryId) => {
-    // Entries live inside the one per-module document (not per-entry docs), so
-    // "deleting" an entry is just writing the module's array without it —
-    // openNotesModule's caller (hardDeleteEntry) already filtered state.entries
-    // before this is called; nothing further to do here.
+  window._fbReadOldNotes = async (modId) => {
+    if (!modId) return null;
+    if (window._fbAuthReady) { try { await window._fbAuthReady; } catch (e) {} }
+    const snap = await _freshGet(doc(db, NOTES_COLLECTION, String(modId)));
+    if (!snap || !snap.metadata || snap.metadata.fromCache) throw new Error('old notes: the server copy could not be read');
+    return snap.exists() ? snap.data() : null;
   };
 
   /* ══ Flashcards + review state ═══════════════════════════════════════════

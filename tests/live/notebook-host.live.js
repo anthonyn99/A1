@@ -70,7 +70,7 @@ async function side(c, name, errs) {
     await js(`return JSON.stringify(${$('root')}.getBoundingClientRect());`));
   ok('onReady fired after the first load', await js('return window.__ready === true;'));
   const rows = async () => JSON.parse(await js(`return JSON.stringify([...document.querySelectorAll('#${K}-entries-list .entry-item')].map(r => ({ id: r.dataset.entryId, del: !!r.querySelector('.entry-delete') && getComputedStyle(r.querySelector('.entry-delete')).display !== 'none', drag: r.draggable || !!r.querySelector('.entry-drag-handle'), t: r.querySelector('.entry-item-title').innerText })));`));
-  let R = await rows();
+  let R = await rows(), refused;
   ok('the list shows the store\'s entry, with the pinned page first', R.length === 2 && R[0].id === 'daily-reminder' && R[1].id === 'e_1_alpha', JSON.stringify(R));
   ok('the pinned page has no trash button; the others do', R[0].del === false && R[1].del === true);
   if (name === 'veda') ok('...and it cannot be dragged; the others can', R[0].drag === false && R[1].drag === true, JSON.stringify(R));
@@ -162,6 +162,75 @@ async function side(c, name, errs) {
   R = await rows();
   ok('after a reload: pinned first, the new page and the renamed one kept', R[0] && R[0].id === 'daily-reminder' && R.some((r) => r.id === newId) && R.some((r) => r.t === 'Alpha rules v2'), JSON.stringify(R));
 
+  console.log(`\n[${name}] Folders (Notebook.folder): one instance, one group of pages on screen`);
+  await boot({ folder: 'mod-a' });
+  R = await rows();
+  ok('mounted on a folder: only its pages (and the pinned one) are listed', R.length === 1 && R[0].id === 'daily-reminder', JSON.stringify(R));
+  const newIn = async (title) => {
+    await js(`${$('new-entry-btn')}.click(); 1`); await sleep(300);
+    await js(`document.querySelector('#${K}-root .template-card[data-template="page"]').click(); 1`); await sleep(400);
+    await js(`var t=${$('entry-title-input')}; t.value=${JSON.stringify(title)}; t.dispatchEvent(new Event('input',{bubbles:true})); 1`);
+    const id = await js(`return (document.querySelector('#${K}-entries-list .entry-item.active')||{dataset:{}}).dataset.entryId || null;`);
+    for (let i = 0; i < 40; i++) { await sleep(250); D = await doc(); if (D && D['e_' + id] && D['e_' + id].title === title) break; }
+    return id;
+  };
+  const aId = await newIn('Lecture 1');
+  ok('a page made there is saved in that folder', D && D['e_' + aId] && D['e_' + aId].folder === 'mod-a', JSON.stringify(D && D['e_' + aId]));
+  ok('Notebook.folder switches (resolves true)', await js(`return window.Notebook.folder('${K}', 'mod-b');`) === true);
+  R = await rows();
+  ok('another folder lists only its own pages', R.length === 1 && R[0].id === 'daily-reminder', JSON.stringify(R));
+  ok('...and nothing of the other folder is open', await js(`return ${$('entry-title-input')}.value !== 'Lecture 1';`), await js(`return ${$('entry-title-input')}.value;`));
+  const bId = await newIn('Lab notes');
+  ok('a page made in the second folder carries it', D && D['e_' + bId] && D['e_' + bId].folder === 'mod-b', JSON.stringify(D && D['e_' + bId]));
+  await js(`document.querySelector('#${K}-entries-list .entry-item[data-entry-id="${bId}"] .entry-delete').click(); 1`); await sleep(500);
+  ok('its Trash holds its trashed page', await js(`return window._${K}TrashAPI.list().map(e => e.id).join() === ${JSON.stringify(bId)};`), await js(`return JSON.stringify(window._${K}TrashAPI.list().map(e => e.id));`));
+  await js(`return window.Notebook.folder('${K}', 'mod-a');`); await sleep(300);
+  R = await rows();
+  ok('back in the first folder: its page is listed, and open again', R.length === 2 && R[1].id === aId && await js(`return ${$('entry-title-input')}.value === 'Lecture 1';`), JSON.stringify(R));
+  ok('...and its Trash does not show the other folder\'s page', await js(`return window._${K}TrashAPI.list().length === 0;`));
+  await js(`return window.Notebook.folder('${K}', null);`); await sleep(300);
+  R = await rows();
+  ok('folder null lists every page again', [aId, 'e_1_alpha', newId].every((id) => R.some((r) => r.id === id)) && !R.some((r) => r.id === bId), JSON.stringify(R));
+  refused = await js(`return window.Notebook.folder('zz', 'x').then(() => 'set', e => String(e.message));`);
+  ok('it refuses a key nothing is mounted under', /nothing mounted as zz/.test(refused), refused);
+
+  console.log(`\n[${name}] Notebook.importPages: a host's old pages moved in, once`);
+  const bigImg = 'data:image/png;base64,' + 'iVBORw0KGgo'.repeat(800);
+  const imp = await js(`return window.Notebook.importPages('${K}', [
+      { id: 'old_1', title: 'Old lecture', folder: 'mod-a', created: 1700000000000, updated: 1700000001000, tags: ['week1'], data: { html: '<p>Krebs cycle</p><img src="${bigImg}">' } },
+      { id: 'e_1_alpha', title: 'Should not overwrite', data: { html: '<p>nope</p>' } },
+      { id: 'old_2', title: 'Quick thought', data: { html: '<p>plain</p>' } }
+    ], 'test-import').then(r => JSON.stringify(r), e => 'ERR ' + e.message);`);
+  ok('it adds the pages the store lacks and keeps the one it has', imp === JSON.stringify({ added: ['old_1', 'old_2'], kept: ['e_1_alpha'], failed: [] }), imp);
+  D = await doc();
+  ok('...in Notebook\'s shape, folder and tags kept, created/updated kept', D && D.e_old_1 && D.e_old_1.folder === 'mod-a' && D.e_old_1.tags[0] === 'week1'
+    && D.e_old_1.created === 1700000000000 && D.e_old_1.template === 'page' && D.e_old_1.rev >= 1, JSON.stringify(D && D.e_old_1).slice(0, 300));
+  ok('...its big image moved to its own document', D && D.e_old_1 && !/data:image/.test(D.e_old_1.data.html)
+    && await js(`return Object.keys(__fakeFs.docs).some(k => k.indexOf('dashboards/${S}_img_old_1_') === 0);`), D && D.e_old_1 && D.e_old_1.data.html.slice(0, 200));
+  ok('...the page it had is untouched', D && D.e_e_1_alpha && D.e_e_1_alpha.title === 'Alpha rules v2');
+  ok('...the order lists the new ones and the tag is recorded', D && D._order.includes('old_1') && D._order.includes('old_2') && D._imported && D._imported['test-import'] > 0, JSON.stringify(D && { o: D._order, i: D._imported }));
+  ok('a second call does nothing', await js(`return window.Notebook.importPages('${K}', [{ id: 'old_9', data: { html: 'x' } }], 'test-import');`) === 'already');
+  await sleep(800);
+  await js(`return window.Notebook.folder('${K}', 'mod-a');`); await sleep(400);
+  R = await rows();
+  ok('the moved page shows in its folder, image back in place when opened', R.some((r) => r.id === 'old_1'), JSON.stringify(R));
+  await js(`return window.Notebook.open('${K}', 'old_1');`); await sleep(1200);
+  ok('...with its text and its image', await js(`var e=${$('page-editor')}; return /Krebs cycle/.test(e.innerHTML) && !!e.querySelector('img[src^="data:image"]');`),
+    await js(`return ${$('page-editor')}.innerHTML.slice(0, 200);`));
+  await js(`return window.Notebook.folder('${K}', null);`);
+
+  console.log(`\n[${name}] Notebook.putPage: a host writes one page`);
+  let put = JSON.parse(await js(`return window.Notebook.putPage('${K}', { id: 'gen_1', title: 'Generated v1', folder: 'mod-b', tags: ['generated'], host: { sourceFileId: 'f1' }, data: { html: '<p>first</p>' } }).then(r => JSON.stringify(r));`));
+  for (let i = 0; i < 40; i++) { await sleep(250); D = await doc(); if (D && D.e_gen_1) break; }
+  ok('a new page is made and saved, with its folder, tags and host data', put && put.id === 'gen_1' && D && D.e_gen_1 && D.e_gen_1.folder === 'mod-b'
+    && D.e_gen_1.host.sourceFileId === 'f1' && D.e_gen_1.tags[0] === 'generated' && /first/.test(D.e_gen_1.data.html) && D._order.includes('gen_1'), JSON.stringify(D && D.e_gen_1));
+  ok('...entries() shows it to the host', await js(`return window.Notebook.mounts['${K}'].entries().some(e => e.id === 'gen_1' && e.host && e.host.sourceFileId === 'f1');`));
+  put = JSON.parse(await js(`return window.Notebook.putPage('${K}', { id: 'gen_1', title: 'Generated v2', data: { html: '<p>second</p>' } }).then(r => JSON.stringify(r));`));
+  for (let i = 0; i < 40; i++) { await sleep(250); D = await doc(); if (D && D.e_gen_1 && /second/.test(D.e_gen_1.data.html)) break; }
+  ok('the same id again replaces its title and text, as a new revision, folder kept', D && D.e_gen_1 && D.e_gen_1.title === 'Generated v2' && /second/.test(D.e_gen_1.data.html)
+    && D.e_gen_1.rev > 1 && D.e_gen_1.folder === 'mod-b', JSON.stringify(D && D.e_gen_1));
+  ok('a pinned page is refused', await js(`return window.Notebook.putPage('${K}', { id: 'daily-reminder', title: 'x' });`) === null);
+
   console.log(`\n[${name}] A host that picks the page itself (features.sidebar false, Notebook.open)`);
   await boot({ features: { sidebar: false } });
   const shown = (id) => js(`var e=document.getElementById(${JSON.stringify(id)}); return !!e && e.getClientRects().length > 0 && getComputedStyle(e).display !== 'none';`);
@@ -180,7 +249,7 @@ async function side(c, name, errs) {
   await sleep(600);
   ok('a newer open takes over from one still waiting', await js(`return JSON.stringify(__race.slice().sort());`) === JSON.stringify([['alpha', true], ['missing', false]]),
     await js(`return JSON.stringify(__race);`));
-  let refused = await js(`return window.Notebook.open('zz', 'x').then(() => 'opened', e => String(e.message));`);
+  refused = await js(`return window.Notebook.open('zz', 'x').then(() => 'opened', e => String(e.message));`);
   ok('it refuses a key nothing is mounted under', /nothing mounted as zz/.test(refused), refused);
 
   console.log(`\n[${name}] attach / detach, and the options a mount takes`);
