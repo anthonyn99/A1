@@ -12,8 +12,9 @@
 //  3. It creeps into a place it was never meant to be: Wellness, or a
 //     launcher in Index (Index uses it headless: Tony's External Links ARE
 //     his LifeHub list, shown as header buttons, since 2026-10-12).
-//     Profile programs must pass data-profile-attr, or Veda would be shown
-//     Tony's list instead of her own.
+//     Every host must say whose LifeHub it mounts: data-profile="tony" or
+//     "veda" for a one-person program, data-profile-attr for one with both
+//     profiles. Without it MAGI showed Veda Tony's list (until 2026-10-29).
 //  4. The tab keys drift from index.html's. LifeHub and TaskHub then open
 //     the same program in two different tabs.
 //  5. The Spark budget erodes: a second listener, or a write outside the one
@@ -30,19 +31,20 @@ const ROOT = path.join(__dirname, '..');
 const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 
 // Every program LifeHub is integrated into, with what its tag must carry.
+// mounts: 'tony' / 'veda' = always that person's LifeHub (data-profile);
+// 'follow' = both profiles, follows the page's data-profile (data-profile-attr).
 const HOSTS = {
-  'oneinbox.html': { lock: 'guardian' },
-  'tradehub.html': { lock: 'guardian' },
-  'mylist.html':   { lock: 'guardian', profile: true },
-  'insight.html':  { lock: 'guardian' },
-  'vault.html':    { lock: 'guardian' },
-  'everwell.html': { lock: 'guardian' },
-  'shield.html':   { lock: 'guardian', profile: true },
-  'riftiq.html':   { lock: 'guardian' },
-  'magi.html':     { lock: '#lockScreen' },
-  'Shruti/shruti.html': { lock: 'guardian', profile: true },
-  // Veda's own program: always her list (body data-lh-profile="veda").
-  'V1/studyos.html': { lock: 'guardian', veda: true },
+  'oneinbox.html': { lock: 'guardian', mounts: 'tony' },
+  'tradehub.html': { lock: 'guardian', mounts: 'tony' },
+  'mylist.html':   { lock: 'guardian', mounts: 'follow' },
+  'insight.html':  { lock: 'guardian', mounts: 'tony' },
+  'vault.html':    { lock: 'guardian', mounts: 'tony' },
+  'everwell.html': { lock: 'guardian', mounts: 'tony' },
+  'shield.html':   { lock: 'guardian', mounts: 'follow' },
+  'riftiq.html':   { lock: 'guardian', mounts: 'tony' },
+  'magi.html':     { lock: '#lockScreen', mounts: 'follow' },
+  'Shruti/shruti.html': { lock: 'guardian', mounts: 'follow' },
+  'V1/studyos.html': { lock: 'guardian', mounts: 'veda' },
 };
 // Deliberately without it: Veda's own program.
 const NEVER = ['wellness.html'];
@@ -88,13 +90,17 @@ for (const [file, want] of Object.entries(HOSTS)) {
       new RegExp('\\.id\\s*=\\s*["\']' + id + '["\']').test(html);
     ok(file + ' actually has an element ' + lock, present);
   }
-  if (want.veda) {
-    ok(file + " shows Veda's list only (data-lh-profile, fixed to veda)",
-      /data-profile-attr=["']data-lh-profile["']/.test(tag) && /<body\s[^>]*data-lh-profile="veda"/.test(html), tag);
-    continue;
+  const fixed = (/\sdata-profile=["']([^"']*)["']/.exec(tag) || [])[1];
+  const follows = /data-profile-attr=["']data-profile["']/.test(tag);
+  if (want.mounts === 'follow') {
+    ok(file + ' follows the Tony/Veda profile (data-profile-attr, no fixed data-profile)', follows && !fixed, tag);
+    // Its page must actually carry the attribute, on <body> or <html>.
+    ok(file + ' sets data-profile on <body> or <html>',
+      /<body\b[^>]*data-profile=/.test(html) || /(body|documentElement)\.(dataset\.profile\s*=|setAttribute\(\s*['"]data-profile['"])/.test(html));
+  } else {
+    ok(file + ' always mounts LifeHub \u2013 ' + want.mounts + ' (data-profile="' + want.mounts + '")',
+      fixed === want.mounts && !/data-profile-attr/.test(tag), tag);
   }
-  ok(file + (want.profile ? ' follows the Tony/Veda profile (data-profile-attr)' : ' is Tony-only, no profile attr needed'),
-    want.profile ? /data-profile-attr=["']data-profile["']/.test(tag) : !/data-profile-attr/.test(tag), tag);
 }
 
 console.log('\nPrograms that moved to A1-Priv (docs/a1-priv-move-plan.md)');
