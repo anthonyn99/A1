@@ -34,6 +34,9 @@
   var LINK = 150;                       // px: points closer than this are joined
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
   var coarse = window.matchMedia('(pointer: coarse)').matches;
+  // Tap on a touch screen, click everywhere else.
+  var cta = el.querySelector('.sos-intro-cta');
+  if (cta) cta.textContent = coarse ? 'Tap to continue' : 'Click to continue';
   var focused = document.hasFocus();
   window.addEventListener('focus', function () { focused = true; });
   window.addEventListener('blur', function () { focused = false; });

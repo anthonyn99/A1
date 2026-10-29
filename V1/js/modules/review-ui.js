@@ -331,7 +331,7 @@ export function startReview(scope = {}, opts = {}) {
           ${revealed && f.extra ? `<div class="sos-review-extra">${renderCard(f.extra)}</div>` : ''}
           ${revealed && (card.tags || []).includes('leech') ? `<div class="sos-review-extra" data-leech>This card keeps slipping.
             <button class="sos-review-x" data-act="rewrite" style="min-width:0;padding:4px 10px;font-size:12px;margin-left:6px">Rewrite it with AI</button></div>` : ''}
-          ${!revealed && !typing ? `<div class="sos-review-hint">${ic('eye')}<span>Tap to reveal</span><kbd>Space</kbd></div>` : ''}
+          ${!revealed && !typing ? `<div class="sos-review-hint">${ic('eye')}<span>${matchMedia('(pointer: coarse)').matches ? 'Tap' : 'Click'} to reveal</span><kbd>Space</kbd></div>` : ''}
         </div>
       </div>
       ${revealed ? `<div class="sos-review-bar">${buttonsHtml(u, isLearn)}</div>` : ''}
