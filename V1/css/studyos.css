@@ -282,7 +282,6 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 #study-root .app.sb-collapsed .sidebar-logo { padding: 16px 0 12px; align-items: center; }
 #study-root .app.sb-collapsed .sidebar-logo-row { justify-content: center; }
 #study-root .app.sb-collapsed .sb-brand,
-#study-root .app.sb-collapsed .sb-mark,
 #study-root .app.sb-collapsed .sidebar-logo-row .sb-icon,
 #study-root .app.sb-collapsed .nav-label,
 #study-root .app.sb-collapsed .sos-cloud-badge,
