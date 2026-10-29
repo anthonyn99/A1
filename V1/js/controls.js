@@ -15,6 +15,8 @@
  *   - a pick sets the value and dispatches real `input` + `change` events
  *     (bubbling), so inline onchange="" handlers and listeners both fire.
  *
+ * Text areas get A1's resize grip (resizegrip.js) in place of the native corner.
+ *
  * Number fields keep their text box (typing a number is fastest) and gain a
  * minus / plus pair; the browser's spin arrows are hidden in CSS.
  *
@@ -29,7 +31,7 @@
   if (window.SosControls) return;
 
   var SKIP = '.sos-nb-host, .sos-nb-modal-host, [data-native]';
-  var SEL = 'select, input[type="date"], input[type="time"], input[type="number"]';
+  var SEL = 'select, input[type="date"], input[type="time"], input[type="number"], textarea';
   var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   var DOW = ['Su','Mo','Tu','We','Th','Fr','Sa'];
 
@@ -451,6 +453,27 @@
   window.addEventListener('blur', tipHide);
   document.addEventListener('scroll', tipHide, true);
 
+  /* ── Text boxes: A1's resize grip ─────────────────────────────────────────
+   * Every multi-line box gets A1's corner grip (resizegrip.js, A1Resize)
+   * instead of the browser's resize handle (Tony, 2026-10-29). The box is
+   * wrapped in a positioned span that takes the box's own place in its layout
+   * (its flex and width), so nothing around it moves. */
+  function enhanceTextarea(el) {
+    if (!window.A1Resize) return;
+    var cs = getComputedStyle(el);
+    if (cs.position === 'fixed' || cs.display === 'none') return;
+    var wrap = document.createElement('span');
+    wrap.className = 'sosc-ta';
+    wrap.style.flex = cs.flex;
+    wrap.style.alignSelf = cs.alignSelf;
+    ['width', 'maxWidth', 'minWidth'].forEach(function (k) { if (el.style[k]) { wrap.style[k] = el.style[k]; el.style[k] = ''; } });
+    el.parentNode.insertBefore(wrap, el);
+    wrap.appendChild(el);
+    var g = window.A1Resize.grip('text box');
+    wrap.appendChild(g);
+    window.A1Resize.attach(el, g);
+  }
+
   /* ── Wiring ─────────────────────────────────────────────────────────────── */
   function enhance(el) {
     if (el._sosc || (el.closest && el.closest(SKIP))) return;
@@ -460,6 +483,7 @@
       else if (el.type === 'date') enhanceDate(el);
       else if (el.type === 'time') enhanceTime(el);
       else if (el.type === 'number') enhanceNumber(el);
+      else if (el.tagName === 'TEXTAREA') enhanceTextarea(el);
     } catch (e) { console.warn('[StudyOS] control enhance failed:', e); }
   }
   function scan(root) {

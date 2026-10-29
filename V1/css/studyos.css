@@ -1512,3 +1512,10 @@ body.sos-guardian-open #study-root, body.sos-guardian-open #sos-intro {
 #study-root .dn-when { font-size: 11.5px; font-weight: 800; padding: 2px 9px; border-radius: 999px; background: var(--bg4); color: var(--text2); }
 #study-root .dn-when.today { background: var(--pink-soft); color: var(--pink); }
 #study-root .dn-none { font-size: 13.5px; color: var(--text2); }
+
+/* A text box and A1's grip (js/controls.js). The wrapper stands in the box's
+   place; the box fills it. No native resize corner anywhere. */
+.sosc-ta { position: relative; display: flex; flex-direction: column; min-width: 0; width: 100%; }
+.sosc-ta > textarea { flex: 1 1 auto; width: 100%; }
+textarea { resize: none; }
+.sosc-ta .a1-grip { --ds-txd: #7d7e83; --ds-tx: #ECECEE; --ds-ac: #A892B0; }
