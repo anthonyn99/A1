@@ -5,8 +5,8 @@
  * mortarboard, "StudyOS", one line under it, and "Tap to continue". The mark
  * in the sidebar brings it back (window.sosShowIntro).
  *
- * Behind it, one canvas: three slow pools of light (Veda's lavender, pastel
- * pink, a deeper mauve) and fine motes rising. Drawn after Everwell's
+ * Behind it, one canvas: three slow pools of soft mauve light and fine motes
+ * rising. Drawn after Everwell's
  * backdrop, much reduced: the light is redrawn 4 times a second, the motes at
  * 30fps (12 without focus), nothing at all while the cover is hidden or the
  * page is, and a still frame under prefers-reduced-motion.
@@ -23,7 +23,7 @@
   var ctx = cv.getContext('2d');
 
   var BASE = [19, 18, 22];
-  var GLOWS = [[201, 180, 216, .2], [240, 179, 203, .14], [141, 118, 154, .18]];
+  var GLOWS = [[168, 146, 176, .16], [141, 118, 154, .16], [120, 100, 132, .12]];
   var MOTE = [236, 222, 244];
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
   var coarse = window.matchMedia('(pointer: coarse)').matches;
@@ -37,7 +37,7 @@
   function rgba(c, a) { return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (a == null ? c[3] : a).toFixed(3) + ')'; }
   function newMote(anywhere) {
     return { x: Math.random() * W, y: anywhere ? Math.random() * H : H + 10, r: .5 + Math.pow(Math.random(), 2.2) * 2,
-             v: .006 + Math.random() * .016, ph: Math.random() * 6.28, tw: .0008 + Math.random() * .0016, pink: Math.random() < .3 };
+             v: .006 + Math.random() * .016, ph: Math.random() * 6.28, tw: .0008 + Math.random() * .0016 };
   }
   function resize() {
     W = window.innerWidth; H = window.innerHeight;
@@ -73,7 +73,7 @@
     // Three faint strands drifting across the lower half.
     ctx.lineWidth = 1.1;
     for (var j = 0; j < 3; j++) {
-      ctx.strokeStyle = rgba(j === 1 ? [240, 179, 203] : [201, 180, 216], .08 * (1 - j * .22));
+      ctx.strokeStyle = rgba([184, 162, 198], .08 * (1 - j * .22));
       ctx.beginPath();
       for (var x = -20; x <= W + 20; x += 18) {
         var y = H * (.62 + j * .07) + Math.sin(x * .0035 + now * .00022 * (j + 1) + j) * H * .05 + Math.sin(x * .011 + now * .0004) * 6;
@@ -90,7 +90,7 @@
         if (p.y < -12) { motes[m] = p = newMote(false); }
       }
       var a = .18 + .5 * (.5 + .5 * Math.sin(now * p.tw + p.ph));
-      var c = p.pink ? [246, 200, 220] : MOTE;
+      var c = MOTE;
       if (p.r > 1.5) { ctx.fillStyle = rgba(c, a * .1); ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 3.2, 0, 6.283); ctx.fill(); }
       ctx.fillStyle = rgba(c, a); ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.283); ctx.fill();
     }

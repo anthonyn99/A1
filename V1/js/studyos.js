@@ -85,10 +85,10 @@ var SOI = (function () {
  * shows an emoji (Tony, 2026-10-29). Each carries its pastel tone. */
 var SOS_NOTIF = {
   alert: ['alert', '#F2C9A0'], check: ['check', '#A8DCC0'], info: ['info', '#A9CBEF'],
-  cards: ['cards', '#F0B3CB'], calendar: ['calendar', '#C9B4D8'], bolt: ['bolt', '#F0B3CB'],
-  plug: ['plug', '#F2C9A0'], file: ['doc', '#C9B4D8'], cloud: ['cloud', '#A9CBEF'],
-  trash: ['trash', '#F2AFAF'], task: ['task', '#F0B3CB'], pencil: ['pencil', '#C9B4D8'],
-  bell: ['bell', '#C9B4D8'], download: ['download', '#A9CBEF'], timer: ['flame', '#F0B3CB']
+  cards: ['cards', '#B8A2C6'], calendar: ['calendar', '#B8A2C6'], bolt: ['bolt', '#B8A2C6'],
+  plug: ['plug', '#F2C9A0'], file: ['doc', '#B8A2C6'], cloud: ['cloud', '#A9CBEF'],
+  trash: ['trash', '#F2AFAF'], task: ['task', '#B8A2C6'], pencil: ['pencil', '#B8A2C6'],
+  bell: ['bell', '#B8A2C6'], download: ['download', '#A9CBEF'], timer: ['flame', '#B8A2C6']
 };
 var SOS_EMOJI_NOTIF = {
   '⚠️': 'alert', '⚠': 'alert', '✅': 'check', 'ℹ️': 'info', '🃏': 'cards', '🗓️': 'calendar', '📅': 'calendar',
@@ -412,7 +412,7 @@ function renderKsuModules() {
 
 /* One module card (a class's or KSU's). The whole card is the drag handle;
  * rename and remove are real buttons in its corner. */
-const KSU_COLOR = '#C9B4D8';
+const KSU_COLOR = '#B8A2C6';
 function _sosModuleMeta(m) {
   return m.type === 'documents' ? ((m.files || []).length + ' file' + ((m.files || []).length !== 1 ? 's' : ''))
        : m.type === 'prompts' ? ((m.prompts || []).length + ' prompt' + ((m.prompts || []).length !== 1 ? 's' : ''))
@@ -1428,7 +1428,6 @@ function renderClasses() {
               + tasks.filter(t => t.classId === cls.id && !t.done && t.dueDate && t.dueDate >= today && t.dueDate <= weekEnd).length;
     card.innerHTML = `
       <div class="class-card-top">
-        <div class="class-mono">${escHtml((name.trim()[0] || '?').toUpperCase())}</div>
         <div class="class-head">
           <div class="class-name">${escHtml(name)}</div>
           <div class="class-code">${[cls.code, cls.instructor].filter(Boolean).map(escHtml).join(' · ') || '&nbsp;'}</div>
@@ -1563,7 +1562,7 @@ function renderClassEvents(cls) {
 
     if (kind === 'event') {
       const ev = data;
-      const color = EVENT_COLORS[ev.type] || '#C9B4D8';
+      const color = EVENT_COLORS[ev.type] || '#B8A2C6';
       item.title = 'Edit event';
       item.onclick = () => openAddEvent(ev);
       item.innerHTML = `
@@ -1578,7 +1577,7 @@ function renderClassEvents(cls) {
       `;
     } else {
       const t = data;
-      const pColor = PRIORITY_COLORS[t.priority] || '#C9B4D8';
+      const pColor = PRIORITY_COLORS[t.priority] || '#B8A2C6';
       item.title = 'Edit task';
       item.onclick = () => openEditTask(t.id);
       item.style.setProperty('--c', pColor);
@@ -3996,7 +3995,7 @@ function renderUpcoming() {
       list.appendChild(g);
     }
     const cls = classes.find(c => c.id === it.classId);
-    const color = cls ? sosPastel(cls.color) : (EVENT_COLORS[it.type] || '#C9B4D8');
+    const color = cls ? sosPastel(cls.color) : (EVENT_COLORS[it.type] || '#B8A2C6');
     const dt = new Date(it.date + 'T12:00:00');
     const item = document.createElement('div');
     item.className = 'timeline-item';
@@ -4039,7 +4038,7 @@ function showNotif(icon, title, body) {
   // the emoji older callers pass; a name or an emoji draws as its SVG, so no
   // toast ever shows an emoji.
   let ic = String(icon == null ? '' : icon).trim();
-  let tone = '#C9B4D8';
+  let tone = '#B8A2C6';
   const named = SOS_NOTIF[ic] || SOS_NOTIF[SOS_EMOJI_NOTIF[ic]];
   if (named) { tone = named[1]; ic = SOI[named[0]] || ''; }
   else if (ic && ic.charAt(0) !== '<') ic = SOI.info;            // any other emoji or text
@@ -4303,7 +4302,7 @@ function renderExamCountdown() {
     const weight = parseFloat(ev.weight) || 0;
 
     // Pastel by urgency: rose, peach, butter, then lavender.
-    const tone = daysLeft <= 2 ? '#F2AFAF' : daysLeft <= 7 ? '#F2C9A0' : daysLeft <= 14 ? '#E8D49A' : '#C9B4D8';
+    const tone = daysLeft <= 2 ? '#F2AFAF' : daysLeft <= 7 ? '#F2C9A0' : daysLeft <= 14 ? '#E8D49A' : '#B8A2C6';
 
     const item = document.createElement('div');
     item.className = 'sos-exam-item';
