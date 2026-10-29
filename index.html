@@ -10029,23 +10029,20 @@ function App(){
       React.createElement("span",{style:{width:13,height:13,flexShrink:0,marginTop:2,display:"inline-flex"},dangerouslySetInnerHTML:{__html:e.kind==="earnings"?TNI.chartUp:e.kind==="holiday"?TNI.bank:TNI.calendar}}),
       React.createElement("span",{style:{fontSize:11,fontWeight:700,color:tone||T.TX,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word"}},e.title)));};
   // Grouped releases (A1Debrief.groups: same day, within TradeHub's window of
-  // the first): ONE card, ONE ▶. Top row = "N releases", the first release
-  // time, the highest impact and the ▶; below, each release with its own
-  // category and impact (and its time, when the group's times differ).
-  const mcGroupChip=(g,tone)=>{const lead=mcLead(g),tms=g.map(mcTimeLocal),known=tms.filter(Boolean),mix=new Set(known).size>1,span=known.length?(known[0]===known[known.length-1]?known[0]:known[0]+"–"+known[known.length-1]):"";
+  // the first): ONE card, ONE ▶. Top row = "N releases" and the ▶; below,
+  // each release with its own category, time and impact.
+  const mcGroupChip=(g,tone)=>{const lead=mcLead(g),tms=g.map(mcTimeLocal);
     return React.createElement("div",{key:"grp-"+g.map(e=>e.id).join("-"),"data-mc-group":g.length,style:{...wkCatalystCard(lead.category||lead.kind),display:"flex",flexDirection:"column",gap:4,marginBottom:isMobile?4:3,cursor:"default",opacity:g.every(e=>e._past)?0.5:1}},
       React.createElement("div",{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"nowrap",minWidth:0}},
         React.createElement("span",{style:{fontSize:9.5,color:T.TXD,background:T.TXD+"1a",borderRadius:6,padding:"1px 6px",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+T.TXD+"30"}},g.length+" releases"),
-        known.length?React.createElement("span",{title:"Release time"+(known.length>1&&span!==known[0]?"s":"")+" (your local zone): "+span,style:{fontSize:9.5,fontWeight:800,letterSpacing:.3,color:T.TXD,whiteSpace:"nowrap",flexShrink:0}},known[0]):null,
-        lead.importance&&MC_IMP[lead.importance]?React.createElement("span",{title:"Highest market impact: "+lead.importance,style:{fontSize:9.5,fontWeight:800,letterSpacing:.4,color:MC_IMP[lead.importance].c,background:MC_IMP[lead.importance].c+"1a",borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap",flexShrink:0,marginLeft:"auto",border:"1px solid "+MC_IMP[lead.importance].c+"40"}},MC_IMP[lead.importance].t):null,
-        mcDebriefBtn({_group:g},!(lead.importance&&MC_IMP[lead.importance]))),
+        mcDebriefBtn({_group:g},true)),
       g.map((e,i)=>React.createElement("div",{key:e.id||i,style:{display:"flex",alignItems:"flex-start",gap:6}},
         React.createElement("span",{style:{width:13,height:13,flexShrink:0,marginTop:2,display:"inline-flex"},dangerouslySetInnerHTML:{__html:TNI.calendar}}),
         React.createElement("div",{style:{flex:1,minWidth:0}},
           React.createElement("div",{style:{fontSize:11,fontWeight:700,color:tone||T.TX,lineHeight:1.35,wordBreak:"break-word"}},e.title),
           React.createElement("div",{style:{fontSize:9.5,fontWeight:700,color:T.TXD,lineHeight:1.3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},
-            [mcCatLabel(e.category),mix?tms[i]:""].filter(Boolean).join(" · "),
-            e.importance&&MC_IMP[e.importance]?React.createElement("span",{style:{color:MC_IMP[e.importance].c}},(mcCatLabel(e.category)||(mix&&tms[i])?" · ":"")+MC_IMP[e.importance].t):null)))));};
+            [mcCatLabel(e.category),tms[i]].filter(Boolean).join(" · "),
+            e.importance&&MC_IMP[e.importance]?React.createElement("span",{style:{color:MC_IMP[e.importance].c}},(mcCatLabel(e.category)||tms[i]?" · ":"")+MC_IMP[e.importance].t):null)))));};
   // Render a day's catalysts in A1Debrief.groups order: 2+ earnings collapse into ONE
   // card that looks IDENTICAL to a single earning — "Earnings" pill on top, "GOOGL, MMM …
   // Earnings" below — by routing it through the same mcChip; releases that come out
@@ -16519,20 +16516,18 @@ function App(){
       RC("span",{style:{width:13,height:13,flexShrink:0,marginTop:2,display:"inline-flex"},dangerouslySetInnerHTML:{__html:e.kind==="earnings"?TNI.chartUp:e.kind==="holiday"?TNI.bank:TNI.calendar}}),
       RC("span",{style:{fontSize:11,fontWeight:700,color:tone||TX,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word"}},e.title)));};
   // Grouped releases: the same card as Tony's mcGroupChip, in Veda's colours.
-  const mcGroupChip=(g,tone)=>{const lead=mcLead(g),tms=g.map(mcTimeLocal),known=tms.filter(Boolean),mix=new Set(known).size>1,span=known.length?(known[0]===known[known.length-1]?known[0]:known[0]+"–"+known[known.length-1]):"";
+  const mcGroupChip=(g,tone)=>{const lead=mcLead(g),tms=g.map(mcTimeLocal);
     return RC("div",{key:"grp-"+g.map(e=>e.id).join("-"),"data-mc-group":g.length,style:{...vdCatalystCard(lead.category||lead.kind),display:"flex",flexDirection:"column",gap:4,marginBottom:vrMobile?4:3,cursor:"default",opacity:g.every(e=>e._past)?0.5:1}},
       RC("div",{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"nowrap",minWidth:0}},
         RC("span",{style:{fontSize:9.5,color:TXD,background:TXD+"1a",borderRadius:6,padding:"1px 6px",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+TXD+"30"}},g.length+" releases"),
-        known.length?RC("span",{title:"Release time"+(known.length>1&&span!==known[0]?"s":"")+" (your local zone): "+span,style:{fontSize:9.5,fontWeight:800,letterSpacing:.3,color:TXD,whiteSpace:"nowrap",flexShrink:0}},known[0]):null,
-        lead.importance&&MC_IMP[lead.importance]?RC("span",{title:"Highest market impact: "+lead.importance,style:{fontSize:9.5,fontWeight:800,letterSpacing:.4,color:MC_IMP[lead.importance].c,background:MC_IMP[lead.importance].c+"1a",borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap",flexShrink:0,marginLeft:"auto",border:"1px solid "+MC_IMP[lead.importance].c+"40"}},MC_IMP[lead.importance].t):null,
-        vdDebriefBtn({_group:g},!(lead.importance&&MC_IMP[lead.importance]))),
+        vdDebriefBtn({_group:g},true)),
       g.map((e,i)=>RC("div",{key:e.id||i,style:{display:"flex",alignItems:"flex-start",gap:6}},
         RC("span",{style:{width:13,height:13,flexShrink:0,marginTop:2,display:"inline-flex"},dangerouslySetInnerHTML:{__html:TNI.calendar}}),
         RC("div",{style:{flex:1,minWidth:0}},
           RC("div",{style:{fontSize:11,fontWeight:700,color:tone||TX,lineHeight:1.35,wordBreak:"break-word"}},e.title),
           RC("div",{style:{fontSize:9.5,fontWeight:700,color:TXD,lineHeight:1.3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},
-            [mcCatLabel(e.category),mix?tms[i]:""].filter(Boolean).join(" · "),
-            e.importance&&MC_IMP[e.importance]?RC("span",{style:{color:MC_IMP[e.importance].c}},(mcCatLabel(e.category)||(mix&&tms[i])?" · ":"")+MC_IMP[e.importance].t):null)))));};
+            [mcCatLabel(e.category),tms[i]].filter(Boolean).join(" · "),
+            e.importance&&MC_IMP[e.importance]?RC("span",{style:{color:MC_IMP[e.importance].c}},(mcCatLabel(e.category)||tms[i]?" · ":"")+MC_IMP[e.importance].t):null)))));};
   // A1Debrief.groups order: 2+ earnings collapse into ONE card identical to a single earning
   // ("Earnings" pill on top, "GOOGL, MMM … Earnings" below) through the same mcChip;
   // releases that come out together share a mcGroupChip; the rest render individually.
