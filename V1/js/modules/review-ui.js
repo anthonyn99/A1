@@ -63,28 +63,38 @@ function styleOnce() {
   el.textContent = `
 .sos-review {
   /* Tokens are scoped to #study-root and this mounts outside it. */
-  --bg:#131216; --bg2:#17161b; --bg3:#1d1c22; --bg4:#25232b;
-  --border:rgba(255,255,255,0.09); --text:#EFECF3; --text2:#B9B4C3; --text3:#827D8D;
-  --accent:#8D769A; --good:#A8DCC0; --bad:#F2AFAF; --mono:'IBM Plex Mono',monospace; --sans:'Nunito',sans-serif;
-  position:fixed; inset:0; z-index:10300; background:var(--bg2);
+  --bg:#1B1C1E; --bg2:#1f2022; --bg3:#26272A; --bg4:#2e2f33; --border2:#3c3d43;
+  --border:rgba(255,255,255,0.08); --text:#ECECEE; --text2:#AFB0B5; --text3:#7d7e83;
+  --accent:#8D769A; --accent2:#B8A2C6; --good:#A8DCC0; --bad:#F2AFAF; --mono:'IBM Plex Mono',monospace; --sans:'Nunito',sans-serif;
+  position:fixed; inset:0; z-index:10300; background:var(--bg);
   display:flex; flex-direction:column; color:var(--text); font-family:var(--sans);
   padding-top:env(safe-area-inset-top,0px);
 }
-.sos-review-top { display:flex; align-items:center; gap:12px; padding:10px 16px; flex-shrink:0;
-  font-family:var(--mono); font-size:11px; color:var(--text3); }
-.sos-review-crumb { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.sos-review-progress { height:2px; background:var(--bg4); flex-shrink:0; }
-.sos-review-progress > i { display:block; height:100%; background:var(--accent); transition:width .2s; }
-.sos-review-x { background:none; border:1px solid var(--border); color:var(--text3); border-radius:6px;
+/* Header: close, where the card comes from (class over topic), and a count. */
+.sos-review-top { display:flex; align-items:center; gap:14px; padding:12px 20px; flex-shrink:0;
+  background:var(--bg2); border-bottom:1px solid var(--border); }
+.sos-review-crumb { flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
+.sos-review-crumb b { font-size:11px; font-weight:800; letter-spacing:1.2px; text-transform:uppercase; color:var(--accent2);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sos-review-crumb span { font-size:14px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sos-review-count { flex-shrink:0; font-size:12.5px; font-weight:800; color:var(--text2); background:var(--bg4);
+  border:1px solid var(--border2); border-radius:999px; padding:4px 11px; font-variant-numeric:tabular-nums; }
+.sos-review-count:empty { display:none; }
+.sos-review-progress { height:3px; background:var(--bg3); flex-shrink:0; }
+.sos-review-progress > i { display:block; height:100%; background:var(--accent); border-radius:0 3px 3px 0; transition:width .25s; }
+.sos-review-x { background:var(--bg3); border:1px solid var(--border2); color:var(--text2); border-radius:9px;
   cursor:pointer; font-size:14px; line-height:1; min-width:34px; min-height:34px; }
+.sos-review-x:hover { color:var(--text); border-color:#4A4B51; }
 .sos-review-body { flex:1; display:flex; flex-direction:column; min-height:0; }
 /* The whole face is the reveal target — a thumb should not have to aim. */
 .sos-review-face { flex:1; overflow-y:auto; cursor:pointer; -webkit-tap-highlight-color:transparent;
-  display:flex; flex-direction:column; align-items:center; padding:32px 20px 24px; }
-.sos-review-col { width:100%; max-width:680px; margin:auto 0; }
-.sos-review-mode { font-family:var(--mono); font-size:10px; letter-spacing:.06em; text-transform:uppercase;
-  color:var(--text3); margin-bottom:14px; }
-.sos-review-q { font-size:22px; line-height:1.55; }
+  display:flex; flex-direction:column; align-items:center; padding:28px 20px 20px; }
+/* The card: its own surface in the middle of the screen. */
+.sos-review-col { width:100%; max-width:720px; margin:auto 0; background:var(--bg3); border:1px solid var(--border);
+  border-radius:16px; padding:30px 34px 28px; }
+.sos-review-mode { display:inline-block; font-size:10.5px; font-weight:800; letter-spacing:1.3px; text-transform:uppercase;
+  color:var(--accent2); background:rgba(141,118,154,.16); border-radius:999px; padding:3px 10px; margin-bottom:16px; }
+.sos-review-q { font-size:21px; font-weight:600; line-height:1.55; color:var(--text); }
 .sos-review-a { font-size:18px; line-height:1.6; color:var(--text); border-top:1px solid var(--border);
   margin-top:22px; padding-top:22px; }
 .sos-review-extra { font-size:14px; line-height:1.55; color:var(--text3); margin-top:14px; }
@@ -98,7 +108,10 @@ function styleOnce() {
 .sos-review-face ul, .sos-review-face ol { padding-left:1.3em; margin:.3em 0; }
 .cz-hole { color:var(--accent); font-weight:700; }
 .cz-ans { background:rgba(141,118,154,.28); color:var(--text); border-radius:3px; padding:0 3px; }
-.sos-review-hint { font-family:var(--mono); font-size:11px; color:var(--text3); margin-top:26px; }
+.sos-review-hint { display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:700; color:var(--text3);
+  margin-top:24px; padding:7px 12px; border-radius:999px; border:1px dashed var(--border2); }
+.sos-review-hint svg { width:14px; height:14px; }
+.sos-review-hint kbd { font:700 11px var(--sans); color:var(--text2); background:var(--bg4); border:1px solid var(--border2); border-radius:5px; padding:1px 6px; }
 .sos-review-type { margin-top:18px; width:100%; background:var(--bg3); border:1px solid var(--border); color:var(--text);
   border-radius:6px; padding:10px 12px; font:16px var(--sans); }
 .sos-review-typed { font-family:var(--mono); font-size:12px; margin-top:10px; }
@@ -108,19 +121,24 @@ function styleOnce() {
 .sos-review-btn { min-height:56px; border-radius:10px; border:1px solid var(--border); background:var(--bg3);
   color:var(--text); cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center;
   gap:2px; font:600 15px var(--sans); }
-.sos-review-btn small { font-family:var(--mono); font-size:10px; color:var(--text3); font-weight:400; }
+.sos-review-btn small { font-size:11px; color:var(--text3); font-weight:600; }
 .sos-review-btn.bad { border-color:rgba(227,154,154,.35); } .sos-review-btn.bad span { color:var(--bad); }
 .sos-review-btn.good { border-color:rgba(127,200,160,.35); } .sos-review-btn.good span { color:var(--good); }
 .sos-review-btn.mid span { color:#f0bd86; } .sos-review-btn.blue span { color:#9dc0ee; }
-.sos-review-tools { display:flex; gap:6px; justify-content:center; padding:0 14px 8px; flex-shrink:0; flex-wrap:wrap; }
-.sos-review-tools button { background:none; border:none; color:var(--text3); font-family:var(--mono); font-size:11px;
-  cursor:pointer; padding:6px 8px; min-height:32px; border-radius:6px; }
-.sos-review-tools button:hover { color:var(--text2); background:var(--bg3); }
+/* Card tools: one quiet pill of icon + label buttons under the card. */
+.sos-review-tools { display:flex; gap:2px; justify-content:center; margin:4px auto calc(12px + env(safe-area-inset-bottom,0px)); padding:4px;
+  flex-shrink:0; flex-wrap:wrap; background:var(--bg2); border:1px solid var(--border); border-radius:12px; width:max-content; max-width:calc(100% - 24px); }
+.sos-review-tools button { display:inline-flex; align-items:center; gap:6px; background:none; border:none; color:var(--text2);
+  font:700 12.5px var(--sans); cursor:pointer; padding:0 11px; min-height:32px; border-radius:8px; }
+.sos-review-tools button svg { width:14px; height:14px; }
+.sos-review-tools button:hover { color:var(--text); background:var(--bg4); }
+.sos-review-tools button[data-act="delete"]:hover { color:var(--bad); }
 .sos-review-tools button:disabled { opacity:.35; cursor:default; background:none; }
+@media (max-width:600px) { .sos-review-col { padding:22px 18px; border-radius:14px; } .sos-review-tools button span { display:none; } .sos-review-tools button { padding:0 10px; } }
 .sos-review-recap { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px;
   padding:30px 20px; text-align:center; }
 .sos-review-recap h2 { font-family:'Lora',serif; font-size:26px; margin:0; color:var(--accent); }
-.sos-review-stat { font-family:var(--mono); font-size:13px; color:var(--text2); }
+.sos-review-stat { font-size:14px; font-weight:600; color:var(--text2); }
 .sos-review-edit { flex:1; display:flex; flex-direction:column; gap:10px; padding:20px; max-width:760px; width:100%;
   margin:0 auto; min-height:0; }
 .sos-review-edit textarea { flex:1; min-height:160px; background:var(--bg3); border:1px solid var(--border); color:var(--text);
@@ -211,7 +229,7 @@ export function startReview(scope = {}, opts = {}) {
     <div class="sos-review-top">
       <button class="sos-review-x" data-close title="Close (Esc)" aria-label="Close">${ic('x')}</button>
       <span class="sos-review-crumb" data-crumb></span>
-      <span data-count></span>
+      <span class="sos-review-count" data-count></span>
     </div>
     <div class="sos-review-progress"><i style="width:0%"></i></div>
     <div class="sos-review-body"></div>`;
@@ -290,7 +308,7 @@ export function startReview(scope = {}, opts = {}) {
     editing = false;
     const u = unit(), card = cardOf(u), f = faces(card, u);
     const isLearn = u.isNew && !cram;
-    countEl.textContent = `${i + 1} / ${queue.length}`;
+    countEl.textContent = `${i + 1} of ${queue.length}`;
     bar.style.width = Math.round((i / queue.length) * 100) + '%';
     crumbEl.textContent = crumb(card);
     const typing = set.typeCloze && f.cloze && !revealed;
@@ -311,18 +329,18 @@ export function startReview(scope = {}, opts = {}) {
           ${revealed && f.extra ? `<div class="sos-review-extra">${renderCard(f.extra)}</div>` : ''}
           ${revealed && (card.tags || []).includes('leech') ? `<div class="sos-review-extra" data-leech>This card keeps slipping.
             <button class="sos-review-x" data-act="rewrite" style="min-width:0;padding:4px 10px;font-size:12px;margin-left:6px">Rewrite it with AI</button></div>` : ''}
-          ${!revealed && !typing ? '<div class="sos-review-hint">tap or Space to reveal</div>' : ''}
+          ${!revealed && !typing ? `<div class="sos-review-hint">${ic('eye')}<span>Tap to reveal</span><kbd>Space</kbd></div>` : ''}
         </div>
       </div>
       ${revealed ? `<div class="sos-review-bar">${buttonsHtml(u, isLearn)}</div>` : ''}
       <div class="sos-review-tools">
-        <button data-act="undo" title="Undo (U)" ${history.length ? '' : 'disabled'}>${ic('undo')}<span>undo</span></button>
-        <button data-act="edit" title="Edit (E)">edit</button>
-        <button data-act="archive" title="Archive (A)">archive</button>
-        <button data-act="delete" title="Delete (Del)">delete</button>
-        ${sourceOf(card) ? '<button data-act="src" title="Source (S)">source</button>' : ''}
-        <button data-act="skip" title="Skip">skip</button>
-        <button data-act="help" title="Shortcuts (?)">?</button>
+        <button data-act="undo" title="Undo (U)" ${history.length ? '' : 'disabled'}>${ic('undo')}<span>Undo</span></button>
+        <button data-act="edit" title="Edit (E)">${ic('pencil')}<span>Edit</span></button>
+        <button data-act="archive" title="Archive (A)">${ic('box')}<span>Archive</span></button>
+        <button data-act="delete" title="Delete (Del)">${ic('trash')}<span>Delete</span></button>
+        ${sourceOf(card) ? `<button data-act="src" title="Source (S)">${ic('doc')}<span>Source</span></button>` : ''}
+        <button data-act="skip" title="Skip">${ic('chevR')}<span>Skip</span></button>
+        <button data-act="help" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">${ic('info')}</button>
       </div>`;
     body.querySelector('[data-face]').onclick = (e) => { if (!e.target.closest('input')) reveal(); };
     body.querySelectorAll('[data-a]').forEach((b) => { b.onclick = () => answer(b.dataset.a); });
