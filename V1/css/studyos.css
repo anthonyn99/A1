@@ -1,9 +1,9 @@
 /* ============================================================================
  * StudyOS — stylesheet
  * ============================================================================
- * The 2026-10-29 overhaul (Tony, for Veda): one quiet, deep plum-charcoal
- * ground, glass-soft surfaces, and ONLY pastels for colour, led by Veda's
- * lavender with pastel pink as the second voice. Her fonts stay: Lora for
+ * The 2026-10-29 overhaul (Tony, for Veda): the grey StudyOS always had, flat
+ * grey cards with hairline borders, no gradients or tinted cards, and Veda's
+ * mauve as the one accent (pastels only for meaning). Her fonts stay: Lora for
  * titles and big numbers, Nunito for everything else (IBM Plex Mono only for
  * code inside lessons and prompts).
  *
@@ -43,9 +43,9 @@
   --accent:  #8D769A;
   --accent2: #B8A2C6;
   --accent3: #A892B0;
-  --lav:     #C9B4D8;
+  --lav:     #A892B0;
   --lav-soft: rgba(141, 118, 154, .16);
-  --pink:    #F0B3CB;
+  --pink:    #A892B0;
   --pink-soft: rgba(141, 118, 154, .13);
   --peach:   #F2C9A0;
   --peach-soft: rgba(242, 201, 160, .13);
@@ -113,12 +113,6 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
   color: var(--text);
 }
 :where(#study-root) * { margin: 0; padding: 0; }
-/* Two still pools of light behind everything: lavender top-left, pink
-   bottom-right. Fixed and pointer-transparent; never moves, costs nothing. */
-#study-root .sos-ambient {
-  position: fixed; inset: 0; pointer-events: none; z-index: 0;
-  display: none;
-}
 .soi { display: inline-block; vertical-align: -0.14em; flex-shrink: 0; }
 
 /* ── 2. Cover page ────────────────────────────────────────────────────────── */
@@ -126,7 +120,7 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
   position: fixed; inset: 0; z-index: 10600;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   padding: calc(env(safe-area-inset-top, 0px) + 24px) 24px calc(env(safe-area-inset-bottom, 0px) + 28px);
-  background: #131216; cursor: pointer; outline: none;
+  background: #1B1C1E; cursor: pointer; outline: none;
   transition: opacity .42s var(--ease), transform .42s var(--ease), visibility 0s linear 0s;
 }
 #sos-intro[hidden] { display: none; }
@@ -134,7 +128,7 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 #sos-intro-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 #sos-intro .sos-intro-scrim {
   position: absolute; inset: 0; pointer-events: none;
-  background: radial-gradient(120% 90% at 50% 40%, rgba(19, 18, 22, 0) 0%, rgba(19, 18, 22, .5) 70%, rgba(19, 18, 22, .82) 100%);
+  background: radial-gradient(120% 90% at 50% 40%, rgba(27, 28, 30, 0) 0%, rgba(27, 28, 30, .5) 70%, rgba(27, 28, 30, .82) 100%);
 }
 @media (max-width: 1024px), (pointer: coarse) { #sos-intro { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 68px); } }
 .sos-intro-inner { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 18px; width: 100%; max-width: 760px; }
@@ -278,7 +272,7 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 #study-root .sos-cloud-badge.pending { background: var(--peach-soft); color: var(--peach); box-shadow: inset 0 0 0 1px rgba(242, 201, 160, .3); }
 #study-root .sos-cloud-badge.synced  { background: var(--mint-soft); color: var(--mint); box-shadow: inset 0 0 0 1px rgba(168, 220, 192, .28); }
 
-/* Cloud capacity: a label, the used share, a slim lavender-to-pink bar. */
+/* Cloud capacity: a label, the used share, a slim mauve bar. */
 #study-root .sos-storage { margin: 8px 4px 0; padding: 12px 12px 11px; border-radius: 12px; background: rgba(228, 214, 242, .035); border: 1px solid var(--border); }
 #study-root .sos-storage-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 #study-root .sos-storage-label { font-size: 10px; font-weight: 800; letter-spacing: 1.3px; text-transform: uppercase; color: var(--text3); }
@@ -1033,9 +1027,9 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
 
 /* ── 9. Modals ────────────────────────────────────────────────────────────── */
 .sos-modal {
-  --bg: #131216; --bg2: #17161b; --bg3: #1d1c22; --bg4: #25232b;
-  --border: rgba(228, 214, 242, .07); --border2: rgba(228, 214, 242, .12); --border3: rgba(228, 214, 242, .2);
-  --text: #EFECF3; --text2: #B9B4C3; --text3: #827D8D;
+  --bg: #1B1C1E; --bg2: #1f2022; --bg3: #26272A; --bg4: #2e2f33;
+  --border: rgba(255, 255, 255, .08); --border2: #3c3d43; --border3: #4A4B51;
+  --text: #ECECEE; --text2: #AFB0B5; --text3: #7d7e83;
   --accent: #8D769A; --accent2: #B8A2C6;
   position: fixed; inset: 0; z-index: 10100;
   display: flex; align-items: center; justify-content: center; padding: 20px;
@@ -1115,7 +1109,7 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
 .sos-modal .md-spacer { flex: 1; }
 .sos-modal .icon-chip.close { margin-left: 2px; }
 #module-detail-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: 0 -26px; padding: 0 26px 4px; scrollbar-width: thin; scrollbar-color: rgba(228, 214, 242, .14) transparent; }
-/* Make flashcards: a soft pink pill with a sparkle on the cards. */
+/* Make flashcards: a soft mauve pill with a sparkle on the cards. */
 .sos-modal .btn.cards-cta {
   height: 36px; padding: 0 15px 0 12px; border-radius: 999px; gap: 8px;
   background: rgba(141, 118, 154, .16);
