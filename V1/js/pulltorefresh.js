@@ -54,13 +54,41 @@
     return indicator;
   }
 
-  function activeView() {
+  /* Anything over the page owns the gesture: StudyOS's popups (.sos-modal.open),
+   * ui.js dialogs, Guardian's card, the review screen, the cover. Pulling
+   * inside one must never reload the site under it (Tony, 2026-10-29). */
+  function overlayOpen() {
+    if (document.querySelector('.sos-modal.open, .modal.active, .modal-overlay.active, [data-modal-open="1"]')) return true;
+    if (window.uiIsOpen && window.uiIsOpen()) return true;
+    if (window.Guardian && window.Guardian.isOpen && window.Guardian.isOpen()) return true;
+    if (document.body.classList.contains('sos-guardian-open')) return true;
+    var intro = document.getElementById('sos-intro');
+    if (intro && !intro.hidden) return true;
+    // Any other full-screen layer fixed over the view (the review screen…).
     var v = document.querySelector('#study-root .view.active');
-    // A modal owns the gesture while it is open — pulling inside a dialog must
-    // scroll the dialog, not refresh the page behind it.
-    if (document.querySelector('.modal.active, .modal-overlay.active, [data-modal-open="1"]')) return null;
-    return v;
+    if (v) {
+      var hit = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+      if (hit && !v.contains(hit) && !hit.closest('.topbar, .sos-ptr, .bottom-nav, nav')) return true;
+    }
+    return false;
   }
+  function activeView() {
+    if (overlayOpen()) return null;
+    return document.querySelector('#study-root .view.active');
+  }
+  // The finger is inside something that scrolls on its own and is not at its
+  // top (a list, a notes box): a downward swipe there scrolls it back up.
+  function innerScrolled(node, view) {
+    for (var n = node; n && n !== view && n.nodeType === 1; n = n.parentElement) {
+      if (n.scrollTop > 0) return true;
+    }
+    return false;
+  }
+  // A view still gliding from a flick (or scrolled a moment ago) is being
+  // read, not pulled: a swipe that catches it at the top must not refresh.
+  var lastScroll = 0;
+  document.addEventListener('scroll', function () { lastScroll = Date.now(); }, { capture: true, passive: true });
+  var SCROLL_QUIET = 450;
 
   function setPull(px) {
     var i = makeIndicator();
@@ -111,7 +139,8 @@
     // Strictly at rest at the very top. Anything else — even 1px of scroll —
     // means the user is reading, and an upward flick there is them chasing the
     // browser chrome, not asking for a refresh.
-    if (!scroller || scroller.scrollTop > TOP_SLOP) { pulling = false; return; }
+    if (!scroller || scroller.scrollTop > TOP_SLOP || Date.now() - lastScroll < SCROLL_QUIET ||
+        innerScrolled(e.target, scroller)) { pulling = false; return; }
     startY = e.touches[0].clientY;
     startX = e.touches[0].clientX;
     pulling = true; decided = false; committed = false; maxDy = 0;
@@ -140,8 +169,9 @@
       decided = true;
     }
 
-    // The view scrolled away from the top mid-gesture: abandon quietly.
-    if (scroller.scrollTop > TOP_SLOP) { pulling = false; reset(true); return; }
+    // The view scrolled away from the top mid-gesture, or a popup opened:
+    // abandon quietly.
+    if (scroller.scrollTop > TOP_SLOP || overlayOpen()) { pulling = false; reset(true); return; }
 
     if (dy > 0) {
       if (dy > maxDy) maxDy = dy;
