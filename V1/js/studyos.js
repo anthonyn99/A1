@@ -428,7 +428,6 @@ function _sosModuleCard(cls, m) {
   btn.dataset.id = m.id;
   btn.tabIndex = 0;
   btn.style.setProperty('--card-color', color);
-  btn.title = 'Open ' + (m.name || 'module') + ' · drag to reorder';
   btn.innerHTML = `
     <div class="module-btn-top">
       <div class="module-btn-icon">${_sosModuleIcon(m.type)}</div>
@@ -2444,7 +2443,6 @@ function refreshDocList(listEl, cls, mod) {
     const item = document.createElement('div');
     item.className = 'doc-item';
     item.dataset.id = f.id;
-    item.title = 'Click to open · drag to reorder';
 
     // The file's icon is its drag-OUT handle; the rest of the row reorders
     // (A1Drag, below, ignores the icon). Two gestures, two places.
