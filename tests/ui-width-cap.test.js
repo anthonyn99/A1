@@ -77,9 +77,6 @@ const DELIBERATE_FULL_BLEED = [
   // light the title sits on; the words are `.sos-intro-inner`, held to 760px
   // and centred. Capping the field would leave bare page beside it.
   /^#sos-intro$/,
-  // StudyOS's ambient light: two still radial glows behind the whole app,
-  // pointer-transparent background, not UI.
-  /\.sos-ambient$/,
   // Everwell's "Fill the window": a playing video filling the browser window
   // on purpose (Tony, 2026-10-11). Its content IS the picture, letterboxed by
   // the player, so every pixel of width is the video, not stretched UI.
