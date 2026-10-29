@@ -13,6 +13,9 @@ file. Don't copy its code into a program, and don't fork it.
   Lists sync live to every program and device.
 - A link can be a web URL **or a program on the PC** (`C:\Apps\app.exe`, a
   `\\server\share` path). See [Local programs](#local-programs).
+- **There are two LifeHubs, Tony's and Veda's**, and the panel's title says which
+  one is mounted: **LifeHub – Tony** or **LifeHub – Veda**. Every host names whose
+  it mounts (see [Whose LifeHub](#whose-lifehub)). Since 2026-10-29.
 - It shows only while the host program is **unlocked**. In programs with both
   profiles (MyList, Shield) it follows the active profile and shows that person's
   list in their accent colour.
@@ -32,7 +35,8 @@ Two lines. Nothing else in the program changes.
 | Script attribute | Needed when | Value |
 |---|---|---|
 | `data-lock` | always | CSS selector for the program's **existing** lock screen. While it is on screen the launcher is not rendered at all, so there is no empty slot. |
-| `data-profile-attr` | the program has Tony *and* Veda profiles | the `<body>` attribute holding the active profile, e.g. `data-profile`. `tony` shows Tony's list and `veda` shows Veda's. Any other value hides the launcher. Leave it out for Tony-only programs. |
+| `data-profile` | the program is one person's | `tony` or `veda`: always mounts that person's LifeHub. |
+| `data-profile-attr` | the program has Tony *and* Veda profiles | the attribute holding the active profile, on `<body>` (or `<html>`, as MAGI keeps it), e.g. `data-profile`. `tony` shows Tony's list and `veda` shows Veda's. Any other value hides the launcher. |
 | `data-accent` | the program's accent isn't A1 gold | e.g. `#c0aeea` (RiftIQ, MAGI) |
 | `data-accent-veda` | Veda's accent differs from the default | default `#A892B0` |
 
@@ -40,7 +44,19 @@ Optional, on the element: `style="--lh-size:30px"` to match the header's other
 icon buttons (default 34px). A program can place several `<a1-lifehub>` elements,
 for example one in a desktop header and one in a mobile header. They share one popup.
 
-Then add the program to `HOSTS` in `tests/lifehub-wiring.test.js`.
+Every host carries **one** of `data-profile` or `data-profile-attr`. Then add the
+program to `HOSTS` in `tests/lifehub-wiring.test.js` with its `mounts`
+(`'tony'`, `'veda'` or `'follow'`); the test fails a host that doesn't say.
+
+### Whose LifeHub
+
+| LifeHub | Firestore | Mounted by |
+|---|---|---|
+| **LifeHub – Tony** | `dashboards/lifehub` | TradeHub, Insight, Vault, Everwell, RiftIQ, OneInbox (`data-profile="tony"`); TaskHub's External Links (headless); Tony's profile in MAGI, MyList, Shield, Shruti, ORCA |
+| **LifeHub – Veda** | `dashboards/lifehub_veda` | StudyOS (`data-profile="veda"`); Veda's profile in MAGI, MyList, Shield, Shruti, ORCA |
+
+A Veda profile in any program shows the same list as StudyOS, because it is the
+same document. Before 2026-10-29 MAGI named no profile and showed Veda Tony's list.
 
 **Updates arrive on a plain refresh.** GitHub Pages lets browsers cache this file
 for 10 minutes, so on load LifeHub checks with the server whether it is current.
@@ -73,8 +89,7 @@ Shruti arrived this way (2026-10-19).
 ### A Veda-only program (StudyOS)
 
 StudyOS (`V1/studyos.html`, since 2026-10-29) always shows Veda's list: its
-`<body>` carries `data-lh-profile="veda"` and the script passes
-`data-profile-attr="data-lh-profile"`. It runs on more than one origin, so it
+script passes `data-profile="veda"`. It runs on more than one origin, so it
 loads `lifehub.js` by its absolute Pages URL, and it sets `window.LifeHubFirebase`
 to its own Firestore (`js/firebase-sync.js` `window._fbNotebook`), because its
 Firebase app is named `studyos`, not `[DEFAULT]`. The launcher sits beside the
