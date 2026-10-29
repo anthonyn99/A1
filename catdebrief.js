@@ -16,12 +16,18 @@
  * dashboards/market_calendar: TradeHub rewrites that doc whole on every
  * publish, so anything else stored there would be wiped by the next build.
  *   { tony:{units:[...]}, veda:{units:[...]},
- *     templates:{earnings:"...", macro:"..."},
- *     defaults:{earnings:"...", macro:"..."}, savedAt }
+ *     templates:{earnings:"...", macro:"...", group:"..."},
+ *     defaults:{earnings:"...", macro:"...", group:"..."}, groupMin, savedAt }
  * `defaults` is a template Tony set as his own default ("Set as default",
  * 2026-10-14): a blank template falls back to it, and a blank default to the
  * built-in TEMPLATES.
  * TradeHub is the only writer; index.html only listens.
+ *
+ * GROUPED RELEASES (2026-10-29). Macro releases on one day that come out
+ * within `groupMin` minutes of the first (default 15: the ECB at 8:15 with
+ * PCE, GDP and jobless claims at 8:30) draw as ONE card with ONE ▶, which
+ * sends the `group` template: every release debriefed in one go. groups()
+ * is the rule and both TaskHubs draw from it; 0 turns grouping off.
  *
  * THE HANDOFF is MAGI's own #tb= fragment (see magi.html "handoff"), with
  * one field added: `p`, the profile. MAGI opens in that profile, switching
@@ -43,6 +49,9 @@
   // The four verified units, the same default TradeHub's Analysis tab uses
   // (TB_MAGI_DEFAULT_UNITS). A unit the engine lacks is skipped by MAGI.
   var DEFAULT_UNITS = ['chatgpt', 'claude', 'gemini', 'deepseek'];
+  // Macro releases this close to the first one of a run share a card.
+  var GROUP_MIN = 15, GROUP_MAX = 120;
+  var KINDS = ['earnings', 'macro', 'group'];
 
   /* Earnings carry no release clock, only Finnhub's session tag. These are
    * the times a report in each session is reliably out by, in ET:
@@ -71,13 +80,22 @@
       '2. What surprised, and what it means for the Fed path and rate expectations.\n' +
       '3. The immediate market reaction: S&P 500 and Nasdaq futures, 2y and 10y Treasury yields, the dollar, and anything else that moved.\n' +
       '4. Expected market movement for the rest of the session, and what to watch next.\n\n' +
-      'Use the latest data available. If the release is not out yet, say so plainly instead of guessing.'
+      'Use the latest data available. If the release is not out yet, say so plainly instead of guessing.',
+    group:
+      'These {count} releases just came out together ({time}, {date}):\n{events}\n\n' +
+      'Debrief them all in one go, as one market picture:\n\n' +
+      '1. Each release: the actual numbers vs. consensus and the prior reading, headline and core or key components, plus any revisions.\n' +
+      '2. What surprised, whether the releases confirm or contradict each other, and what they mean together for the Fed path, rate expectations and any other central bank in the list.\n' +
+      '3. The immediate market reaction: S&P 500 and Nasdaq futures, 2y and 10y Treasury yields, the dollar, and anything else that moved, and which release drove it.\n' +
+      '4. Expected market movement for the rest of the session, and what to watch next.\n\n' +
+      'Use the latest data available. If any release is not out yet, say so plainly for that one instead of guessing.'
   };
 
   // What the settings screen lists under each template.
   var PLACEHOLDERS = {
     earnings: [['{ticker}', 'ticker, e.g. TSM'], ['{timing}', 'before the open / after the close'], ['{date}', 'report date'], ['{epsEst}', 'consensus EPS']],
-    macro: [['{event}', 'release name, e.g. September CPI Report'], ['{time}', 'release time, ET'], ['{date}', 'release date'], ['{category}', 'Inflation, Jobs, Fed…']]
+    macro: [['{event}', 'release name, e.g. September CPI Report'], ['{time}', 'release time, ET'], ['{date}', 'release date'], ['{category}', 'Inflation, Jobs, Fed…']],
+    group: [['{events}', 'one line per release: name, category, time'], ['{count}', 'how many releases'], ['{time}', 'release time or span, ET'], ['{date}', 'release date']]
   };
 
   function isEarn(ev) { return !!ev && ev.kind === 'earnings'; }
@@ -109,13 +127,15 @@
   function normalize(raw) {
     raw = (raw && typeof raw === 'object') ? raw : {};
     var out = { templates: {}, defaults: {} };
+    var gm = Number(raw.groupMin);
+    out.groupMin = (raw.groupMin == null || raw.groupMin === '' || !isFinite(gm)) ? GROUP_MIN : Math.max(0, Math.min(GROUP_MAX, Math.round(gm)));
     PROFILES.forEach(function (p) {
       var u = cleanUnits(raw[p] && raw[p].units);
       out[p] = { units: u === null ? DEFAULT_UNITS.slice() : u };
     });
     var t = (raw.templates && typeof raw.templates === 'object') ? raw.templates : {};
     var d = (raw.defaults && typeof raw.defaults === 'object') ? raw.defaults : {};
-    ['earnings', 'macro'].forEach(function (k) {
+    KINDS.forEach(function (k) {
       var ds = typeof d[k] === 'string' ? d[k].slice(0, 6000) : '';
       out.defaults[k] = ds.trim() ? ds : TEMPLATES[k];
       var s = typeof t[k] === 'string' ? t[k].slice(0, 6000) : '';
@@ -174,6 +194,49 @@
     return best;
   }
 
+  /* Split a day's catalysts into cards. Earnings share ONE card per day (as
+   * before); macro releases with a known release clock share a card when
+   * they come out within `groupMin` minutes of the run's FIRST release, so a
+   * run cannot creep across the morning. Untimed releases and holidays stand
+   * alone. Returns arrays in display order: earnings, then by release time. */
+  function groups(events, macroETof, groupMin) {
+    var gm = groupMin == null ? CFG.groupMin : Math.max(0, +groupMin || 0);
+    var list = (events || []).filter(Boolean), out = [];
+    var earn = list.filter(isEarn);
+    if (earn.length) out.push(earn);
+    var timed = [], solo = [];
+    list.forEach(function (ev, i) {
+      if (isEarn(ev)) return;
+      var t = ev.kind === 'holiday' ? null : (macroETof ? macroETof(ev) : null);
+      var x = { ev: ev, i: i, m: t ? t.hh * 60 + t.mm : null };
+      if (t && gm > 0) timed.push(x); else solo.push(x);
+    });
+    timed.sort(function (a, b) { return a.m - b.m || a.i - b.i; });
+    var runs = [], cur = null;
+    timed.forEach(function (x) {
+      if (cur && x.ev.date === cur.date && x.m - cur.m <= gm) cur.evs.push(x.ev);
+      else { cur = { date: x.ev.date, m: x.m, i: x.i, evs: [x.ev] }; runs.push(cur); }
+    });
+    // Back into time order with the stand-alone ones; untimed go last.
+    solo.forEach(function (x) { runs.push({ m: x.m == null ? 1e9 : x.m, i: x.i, evs: [x.ev] }); });
+    runs.sort(function (a, b) { return a.m - b.m || a.i - b.i; });
+    runs.forEach(function (r) { out.push(r.evs); });
+    return out;
+  }
+  function isGroup(list) {
+    return Array.isArray(list) && list.length > 1 && !list.some(isEarn);
+  }
+  /* What a card's ▶ debriefs right now, or null for no button. An earnings
+   * card debriefs every report already out; a group of releases waits for
+   * its LAST release, so one press covers them all. */
+  function debriefable(list, macroETof, now) {
+    list = (Array.isArray(list) ? list : [list]).filter(Boolean);
+    var due = list.filter(function (ev) { return isDue(ev, macroETof ? macroETof(ev) : null, now); });
+    if (!due.length) return null;
+    if (isGroup(list) && due.length < list.length) return null;
+    return due;
+  }
+
   function fmtDate(ds) {
     try {
       return new Date(ds + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
@@ -208,12 +271,36 @@
       .replace(/[ \t]{2,}/g, ' ').replace(/ +([,.;:])/g, '$1').trim();
   }
 
+  /* A group of releases → the `group` template. {events} is one line per
+   * release; {time} is the shared clock, or the span ("8:15–8:30 AM ET"). */
+  function fillGroup(tpl, list, macroETof) {
+    var ts = list.map(function (ev) { return macroETof ? macroETof(ev) : null; });
+    var lines = list.map(function (ev, i) {
+      var bits = [catLabel(ev.category), fmtET(ts[i])].filter(Boolean);
+      return '- ' + String(ev.title || ev.name || '').trim() + (bits.length ? ' (' + bits.join(', ') + ')' : '');
+    });
+    var known = ts.filter(Boolean).sort(function (a, b) { return (a.hh * 60 + a.mm) - (b.hh * 60 + b.mm); });
+    var time = '';
+    if (known.length) {
+      var a = known[0], b = known[known.length - 1];
+      time = (a.hh === b.hh && a.mm === b.mm) ? fmtET(a)
+        : fmtET(a).replace(/ (AM|PM) ET$/, (a.hh < 12) === (b.hh < 12) ? '' : ' $1') + '–' + fmtET(b);
+    }
+    var vals = { events: lines.join('\n'), count: String(list.length), time: time, date: list[0].date ? fmtDate(list[0].date) : '' };
+    var s = String(tpl || '').replace(/\{(events|count|time|date)\}/g, function (m, k) { return vals[k]; });
+    return s
+      .replace(/\(\s*[,;]\s*/g, '(').replace(/\s*[,;]\s*\)/g, ')').replace(/\(\s*\)/g, '')
+      .replace(/[ \t]{2,}/g, ' ').replace(/ +([,.;:])/g, '$1').trim();
+  }
+
   /* The whole prompt for one card. A day with several earnings shows ONE
-   * card, so it debriefs every report on it that is already out. */
+   * card, so it debriefs every report on it that is already out; a group of
+   * releases sends the `group` template, all of them in one go. */
   function prompt(events, cfg, macroETof) {
     cfg = cfg || CFG;
     var list = (Array.isArray(events) ? events : [events]).filter(Boolean);
     if (!list.length) return '';
+    if (isGroup(list)) return fillGroup((cfg.templates && cfg.templates.group) || TEMPLATES.group, list, macroETof);
     var parts = list.map(function (ev) {
       var met = macroETof ? macroETof(ev) : null;
       return fill(isEarn(ev) ? cfg.templates.earnings : cfg.templates.macro, ev, met);
@@ -320,7 +407,8 @@
   root.A1Debrief = {
     MAGI_URL: MAGI_URL, DOC: DOC, PROFILES: PROFILES, DELAY_MIN: DELAY_MIN,
     DEFAULT_UNITS: DEFAULT_UNITS, TEMPLATES: TEMPLATES, PLACEHOLDERS: PLACEHOLDERS,
-    EARN_ET: EARN_ET, LATE_ET: LATE_ET,
+    EARN_ET: EARN_ET, LATE_ET: LATE_ET, GROUP_MIN: GROUP_MIN, GROUP_MAX: GROUP_MAX, KINDS: KINDS,
+    groups: groups, isGroup: isGroup, debriefable: debriefable,
     normalize: normalize, setConfig: setConfig, config: config,
     releaseAt: releaseAt, dueAt: dueAt, isDue: isDue, nextDue: nextDue,
     fill: fill, prompt: prompt, link: link, b64u: b64u, openMagi: openMagi, launch: launch
