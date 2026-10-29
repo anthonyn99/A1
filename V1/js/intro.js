@@ -9,7 +9,9 @@
  * constellation. Points drift, and two that come near each other are joined by
  * a fine line that fades in as they close and out as they part: ideas finding
  * each other. A few points are brighter "stars" with a soft halo, and one in
- * pink, like the tassel. One still pool of mauve light sits under it all.
+ * pink, like the tassel. Under it, the cover's own light: a deep plum ground
+ * and three pools of soft mauve light orbiting very slowly (redrawn 4 times a
+ * second, at half resolution).
  *
  * Cheap on purpose: at most ~60 points (36 on a phone), 30fps (12 without
  * focus), nothing at all while the cover or the page is hidden, and a still
@@ -26,7 +28,8 @@
   if (!el || !cv) return;
   var ctx = cv.getContext('2d');
 
-  var BASE = '#1B1C1E';
+  var BASE = [19, 18, 22];
+  var GLOWS = [[168, 146, 176, .16], [141, 118, 154, .16], [120, 100, 132, .12]];
   var NODE = [214, 200, 226], PINK = [240, 179, 203], LINE = [184, 162, 198];
   var LINK = 150;                       // px: points closer than this are joined
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -36,8 +39,22 @@
   window.addEventListener('blur', function () { focused = false; });
 
   var W = 0, H = 0, dpr = 1, pts = [], running = false, raf = 0, wake = 0, prev = 0;
+  var glowCanvas = document.createElement('canvas'), gctx = glowCanvas.getContext('2d', { alpha: false }), glowAt = -1e9;
 
-  function rgba(c, a) { return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a.toFixed(3) + ')'; }
+  function rgba(c, a) { return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (a == null ? c[3] : a).toFixed(3) + ')'; }
+  function drawGlows(now) {
+    gctx.fillStyle = rgba(BASE, 1); gctx.fillRect(0, 0, W, H);
+    var big = Math.min(Math.max(W, H), Math.sqrt(W * H) * 1.15);
+    var tall = H > W * 1.2, ax = tall ? .3 : .38, ay = tall ? .38 : .3;
+    for (var i = 0; i < GLOWS.length; i++) {
+      var g = GLOWS[i], k = i + 1;
+      var gx = W * (.5 + ax * Math.sin(now * .00004 * k + i * 2.1));
+      var gy = H * ((tall ? .45 : .42) + ay * Math.cos(now * .000033 * k + i * 1.3));
+      var grd = gctx.createRadialGradient(gx, gy, 0, gx, gy, big * (.55 - i * .08));
+      grd.addColorStop(0, rgba(g)); grd.addColorStop(1, rgba(g, 0));
+      gctx.fillStyle = grd; gctx.fillRect(0, 0, W, H);
+    }
+  }
   function newPoint(i) {
     var ang = Math.random() * 6.283, sp = .006 + Math.random() * .012;   // px per ms
     return { x: Math.random() * W, y: Math.random() * H, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp,
@@ -51,17 +68,17 @@
     if (W * H * dpr * dpr > 3.5e6) dpr = Math.sqrt(3.5e6 / (W * H));
     cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    glowCanvas.width = Math.max(16, Math.round(W / 2)); glowCanvas.height = Math.max(16, Math.round(H / 2));
+    gctx.setTransform(glowCanvas.width / W, 0, 0, glowCanvas.height / H, 0, 0);
+    glowAt = -1e9;
     var want = Math.round(Math.min(coarse ? 36 : 60, (W * H) / 20000));
     while (pts.length < want) pts.push(newPoint(pts.length));
     if (pts.length > want) pts.length = want;
     draw(performance.now());
   }
   function draw(now) {
-    ctx.fillStyle = BASE; ctx.fillRect(0, 0, W, H);
-    // One still pool of mauve light, a little above the middle.
-    var g = ctx.createRadialGradient(W * .5, H * .4, 0, W * .5, H * .4, Math.max(W, H) * .6);
-    g.addColorStop(0, 'rgba(141,118,154,.13)'); g.addColorStop(1, 'rgba(141,118,154,0)');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    if (!running || now - glowAt >= 250) { glowAt = now; drawGlows(now); }
+    ctx.drawImage(glowCanvas, 0, 0, W, H);
 
     var dt = Math.min(64, now - (prev || now)); prev = now;
     var i, j, p, q;
@@ -118,7 +135,7 @@
     setTimeout(function () {
       el.hidden = true; el.classList.remove('leave'); leaving = false; stop();
       // Give the drawing buffer back: a hidden full-screen canvas still holds it.
-      cv.width = 0; cv.height = 0;
+      cv.width = 0; cv.height = 0; glowCanvas.width = 0; glowCanvas.height = 0;
     }, 420);
   }
   function show() {
