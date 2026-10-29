@@ -418,7 +418,7 @@
       '<button class="d2l-btn" data-x>Close</button></div>' +
       '<div class="d2l-bd">' + bodyHTML + '</div>' +
       '<div class="d2l-ft">' + (footHTML || '') + '</div></div>';
-    // Closes from its own Close button only, never a click outside (Tony, 2026-10-29).
+    elModal.addEventListener('click', function (e) { if (e.target === elModal) close(); });
     elModal.querySelector('[data-x]').onclick = close;
     document.body.appendChild(elModal);
     return elModal;
