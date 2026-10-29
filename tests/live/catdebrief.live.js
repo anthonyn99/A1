@@ -164,9 +164,9 @@ const CFG = { tony: { units: ['grok'] }, veda: { units: ['gemini', 'claude'] }, 
     if (!(await until("document.querySelector('.tb-navtab')", 20000))) { ok('TradeHub rendered', false); continue; }
     await sleep(2000);
     await js(`var t=[...document.querySelectorAll('.tb-navtab[data-navid="catalysts"]')].find(b=>b.offsetParent); if(t) t.click(); 1`);
-    ok(`(${tag}) the settings card is on Catalysts`, await until(`[...document.querySelectorAll('button')].some(b=>/Debrief in MAGI/.test(b.textContent))`, 10000));
-    ok(`(${tag}) its summary reads the stored units`, await js(`return /Tony: 1 unit · Veda: 2 units/.test(document.body.innerText);`), await js(`var b=[...document.querySelectorAll('button')].find(b=>/Debrief in MAGI/.test(b.textContent)); return b && b.innerText;`));
-    await js(`[...document.querySelectorAll('button')].find(b=>/Debrief in MAGI/.test(b.textContent)).click(); 1`);
+    ok(`(${tag}) the settings card is on Catalysts`, await until(`[...document.querySelectorAll('button')].some(b=>/^Debrief in MAGI/.test(b.title||''))`, 10000));
+    ok(`(${tag}) its summary reads the stored units`, await js(`var b=[...document.querySelectorAll('button')].find(b=>/^Debrief in MAGI/.test(b.title||'')); return !!b && /Tony: 1 unit · Veda: 2 units/.test(b.title);`), await js(`var b=[...document.querySelectorAll('button')].find(b=>/^Debrief in MAGI/.test(b.title||'')); return b && b.title;`));
+    await js(`[...document.querySelectorAll('button')].find(b=>/^Debrief in MAGI/.test(b.title||'')).click(); 1`);
     await sleep(500);
     const fits = await js(`return document.documentElement.scrollWidth <= innerWidth + 1;`);
     ok(`(${tag}) no sideways scroll when open`, fits);
