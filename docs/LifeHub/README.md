@@ -80,7 +80,7 @@ to its own Firestore (`js/firebase-sync.js` `window._fbNotebook`), because its
 Firebase app is named `studyos`, not `[DEFAULT]`. The launcher sits beside the
 lock in the sidebar's toggle row (`#sos-sb-tools`, moved into the topbar below 1024px).
 
-Veda's list gained TaskHub, Wellness and MAGI the same day, and Shruti was shown
+Veda's list gained TaskHub, StudyOS (`https://tradeboard.vedapatel05.workers.dev/studyos/`), Wellness and MAGI the same day, and Shruti was shown
 again. `READDED.veda` does that once per device (an entry with `show: true`
 switches a hidden tile back on), and a tile that already opens the same page under
 another id counts as present. Her own Brave blocks storage, so the markers can't
