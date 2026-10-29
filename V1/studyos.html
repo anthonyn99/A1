@@ -61,7 +61,7 @@
 
 <!-- data-sos-gate="pending" hides #study-root until the lock decides whether
      to gate it, so a locked app can never flash its data. -->
-<body data-sos-gate="pending" data-lh-profile="veda">
+<body data-sos-gate="pending">
 
 <!-- ══ COVER — shown on every launch, and again from the mark in the sidebar.
      The canvas behind it is drawn by js/intro.js (soft lavender and pink light,
@@ -970,8 +970,8 @@
 <!-- A1 self-cleanup (cleanup-rules.json at the repo root). On a build without
      it, the 404 is harmless: the sweep simply does not run. -->
 <script src="../sweep.js" data-program="studyos" defer></script>
-<!-- LifeHub (docs/LifeHub/README.md), Veda's list only: body[data-lh-profile]
-     is always "veda". It borrows StudyOS's own Firestore (js/firebase-sync.js
+<!-- LifeHub (docs/LifeHub/README.md): LifeHub – Veda, always (data-profile="veda").
+     It borrows StudyOS's own Firestore (js/firebase-sync.js
      window._fbNotebook), so this origin needs no second Firebase app. -->
 <script>
 window.LifeHubFirebase = function () {
@@ -985,6 +985,6 @@ window.LifeHubFirebase = function () {
   });
 };
 </script>
-<script src="https://anthonyn99.github.io/A1/LifeHub/lifehub.js" defer data-lock="guardian" data-profile-attr="data-lh-profile"></script>
+<script src="https://anthonyn99.github.io/A1/LifeHub/lifehub.js" defer data-lock="guardian" data-profile="veda"></script>
 </body>
 </html>
