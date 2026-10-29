@@ -57,8 +57,7 @@ export function render() {
 
   root.innerHTML = `
     <header class="ais-top">
-      <div class="ais-eyebrow">AI &amp; flashcards</div>
-      <h1 class="ais-h">Study settings</h1>
+      <h1 class="ais-h">AI &amp; flashcards</h1>
       <p class="ais-lead">Which model turns a document into topics, lessons and flashcards, and how your daily reviews feel.
         Slide decks always come from NotebookLM through the bridge on this PC.</p>
     </header>

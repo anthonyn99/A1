@@ -628,7 +628,6 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
   margin-bottom: 16px;
 }
 #study-root .dash-hello { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-#study-root .dash-date { font-size: 11px; font-weight: 800; letter-spacing: 1.8px; text-transform: uppercase; color: var(--accent2); }
 #study-root .dash-greet { font-family: var(--display); font-size: clamp(22px, 2.3vw, 27px); font-weight: 600; letter-spacing: -.6px; line-height: 1.15; color: #F4EEF8; }
 #study-root .dash-next { font-size: 13px; color: var(--text2); line-height: 1.5; }
 #study-root .dash-next b { color: var(--text); font-weight: 700; }

@@ -4179,22 +4179,22 @@ function updateStats() {
   _sosPaintGreeting();
 }
 
-/* The dashboard's opening line: the date, a greeting for the hour, and what
- * is next on her plate. */
+/* The dashboard's opening: a greeting for the hour, then the date and what is
+ * next on her plate on the line UNDER it (nothing sits above a title). */
 function _sosPaintGreeting() {
   const d = new Date();
-  const dateEl = _sosEl('sos-dash-date'), greetEl = _sosEl('sos-dash-greet'), nextEl = _sosEl('sos-dash-next');
-  if (!dateEl || !greetEl || !nextEl) return;
-  dateEl.textContent = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const greetEl = _sosEl('sos-dash-greet'), nextEl = _sosEl('sos-dash-next');
+  if (!greetEl || !nextEl) return;
+  const date = escHtml(d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }));
   const h = d.getHours();
   greetEl.textContent = h < 5 ? 'Still up, Veda?' : h < 12 ? 'Good morning, Veda' : h < 17 ? 'Good afternoon, Veda' : 'Good evening, Veda';
   const todayStr = sosLocalDate(d);
   const next = _sosScheduleItems()
     .filter(e => e.date >= todayStr)
     .sort((a, b) => a.date.localeCompare(b.date) || (a.time || '99').localeCompare(b.time || '99'))[0];
-  if (!next) { nextEl.textContent = 'Nothing due. A good day to get ahead.'; return; }
+  if (!next) { nextEl.innerHTML = date + ' · Nothing due. A good day to get ahead.'; return; }
   const cls = classes.find(c => c.id === next.classId);
-  nextEl.innerHTML = 'Next up: <b>' + escHtml(next.name) + '</b> · ' + escHtml(_sosRelDay(next.date))
+  nextEl.innerHTML = date + ' · Next up: <b>' + escHtml(next.name) + '</b> · ' + escHtml(_sosRelDay(next.date))
     + (next.time ? ' at ' + escHtml(_sosFmtTime(next.time)) : '')
     + (cls ? ' · ' + escHtml(sosClassName(cls)) : '');
 }
