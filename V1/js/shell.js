@@ -17,23 +17,25 @@
   var KEY   = 'sos_side_collapsed';
 
   /* ── Lock + sync placement ───────────────────────────────────────────────
-   * Both live in the sidebar logo block. Below 1024px the sidebar is either a
+   * Both live in the sidebar logo block (the lock in the toggle row, with
+   * LifeHub). Below 1024px the sidebar is either a
    * rail (tablet) or gone (phone), so neither has room: park them in the
    * topbar action row. Moving the single nodes keeps their ids unique, which
    * applock.js and _sosSetSync both look up by id. */
   var NARROW = window.matchMedia('(max-width: 1024px)');
   function placeChrome() {
-    var lock  = document.getElementById('sos-lock-btn');
+    // #sos-sb-tools = the lock and the LifeHub launcher, moved as one.
+    var tools = document.getElementById('sos-sb-tools');
     var sync  = document.getElementById('sos-sync-status');
-    var row   = document.querySelector('#study-root .sidebar-logo-row');
+    var row   = document.querySelector('#study-root .sb-tool-row');
     var brand = document.querySelector('#study-root .sb-brand');
     var bar   = document.querySelector('#study-root .topbar-actions');
-    if (!lock || !sync || !row || !brand || !bar) return;
+    if (!tools || !sync || !row || !brand || !bar) return;
     if (NARROW.matches) {
       bar.insertBefore(sync, bar.firstChild);
-      bar.insertBefore(lock, bar.firstChild);
+      bar.insertBefore(tools, bar.firstChild);
     } else {
-      row.appendChild(lock);
+      row.appendChild(tools);
       brand.appendChild(sync);
     }
   }
