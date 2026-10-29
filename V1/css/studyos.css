@@ -221,7 +221,9 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 }
 #study-root .sb-toggle svg { width: 16px; height: 16px; display: block; }
 #study-root .sb-toggle:hover { background: var(--bg4); color: var(--text); }
-#study-root .sidebar-logo > .sb-toggle { align-self: flex-start; margin-left: 2px; }
+#study-root .sb-tool-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; }
+#study-root .sb-tool-row > .sb-toggle { margin-left: 2px; }
+#study-root .sb-tools { display: flex; align-items: center; gap: 6px; }
 
 #study-root .sidebar-nav { flex: 1; min-height: 0; padding: 4px 10px 12px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; overflow-x: hidden; }
 #study-root .nav-item {
@@ -290,7 +292,7 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
    the words go. Section labels keep their height and become a hairline. */
 #study-root .app.sb-collapsed .sidebar { width: 58px; min-width: 58px; }
 #study-root .app.sb-collapsed .sb-brand,
-#study-root .app.sb-collapsed .sidebar-logo-row .sb-icon,
+#study-root .app.sb-collapsed .sb-tool-row .sb-tools,
 #study-root .app.sb-collapsed .nav-label,
 #study-root .app.sb-collapsed .sos-cloud-badge { display: none; }
 /* The storage box keeps its height in the rail (its words only fade), so the
@@ -315,7 +317,7 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 #study-root .topbar-title { font-family: var(--display); font-size: 18px; font-weight: 600; letter-spacing: -.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #F3EEF7; }
 #study-root .topbar-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
 #study-root .topbar-actions > #sos-sync-status { margin-right: 4px; }
-#study-root .topbar-actions > .sb-icon { order: -1; }
+#study-root .topbar-actions > .sb-icon, #study-root .topbar-actions > .sb-tools { order: -1; }
 #study-root #topbar-pomo {
   display: none; align-items: center; gap: 9px;
   height: 36px; padding: 0 6px 0 14px; border-radius: 999px; cursor: pointer;
