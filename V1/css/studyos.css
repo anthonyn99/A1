@@ -205,7 +205,7 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 }
 #study-root .sb-icon:hover { background: var(--bg4); color: var(--accent2); border-color: var(--border2); }
 #study-root .sb-icon.locked { color: var(--accent2); }
-/* MAGI's toggle: three lines, at the end of the logo row. */
+/* MAGI's toggle: three lines, right below the mark (centred under it). */
 #study-root .sb-toggle {
   width: 30px; height: 30px; flex: 0 0 30px; border-radius: 7px;
   display: inline-flex; align-items: center; justify-content: center;
@@ -214,6 +214,8 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 }
 #study-root .sb-toggle svg { width: 16px; height: 16px; display: block; }
 #study-root .sb-toggle:hover { background: var(--bg4); color: var(--text); }
+#study-root .sidebar-logo > .sb-toggle { align-self: flex-start; margin-left: 2px; }
+#study-root .app.sb-collapsed .sidebar-logo > .sb-toggle { align-self: center; margin-left: 0; }
 
 #study-root .sidebar-nav { flex: 1; min-height: 0; padding: 4px 10px 12px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; overflow-x: hidden; }
 #study-root .nav-item {
