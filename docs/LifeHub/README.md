@@ -70,6 +70,23 @@ Shruti arrived this way (2026-10-19).
   `LifeHub.refresh()` re-checks immediately. Otherwise it checks every 500ms,
   locally, with no DOM writes unless the answer changes.
 
+### A Veda-only program (StudyOS)
+
+StudyOS (`V1/studyos.html`, since 2026-10-29) always shows Veda's list: its
+`<body>` carries `data-lh-profile="veda"` and the script passes
+`data-profile-attr="data-lh-profile"`. It runs on more than one origin, so it
+loads `lifehub.js` by its absolute Pages URL, and it sets `window.LifeHubFirebase`
+to its own Firestore (`js/firebase-sync.js` `window._fbNotebook`), because its
+Firebase app is named `studyos`, not `[DEFAULT]`. The launcher sits beside the
+lock in the sidebar's toggle row (`#sos-sb-tools`, moved into the topbar below 1024px).
+
+Veda's list gained TaskHub, Wellness and MAGI the same day, and Shruti was shown
+again. `READDED.veda` does that once per device (an entry with `show: true`
+switches a hidden tile back on), and a tile that already opens the same page under
+another id counts as present. Her own Brave blocks storage, so the markers can't
+be set there and nothing runs on her devices; the additions were applied to
+`dashboards/lifehub_veda` from another browser on 2026-10-29.
+
 ### A host that shows the list its own way (TaskHub)
 
 Since 2026-10-12 Tony's External Links in TaskHub (`index.html`) **are** his LifeHub
