@@ -149,7 +149,9 @@
   var OWN = {
     'oneinbox.html': 'oneinbox', 'tradehub.html': 'tradehub', 'mylist.html': 'mylist',
     'insight.html': 'insight', 'vault.html': 'vault', 'everwell.html': 'everwell',
-    'riftiq.html': 'warroom', 'magi.html': 'magi', 'shruti.html': 'shruti'
+    'riftiq.html': 'warroom', 'magi.html': 'magi', 'shruti.html': 'shruti',
+    // On Veda's LifeHub since 2026-10-29.
+    'index.html': 'taskhub', 'wellness.html': 'wellness'
   };
   if (!key) {
     try {
