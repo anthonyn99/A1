@@ -269,14 +269,14 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 
 /* Cloud capacity: a label, the used share, a slim mauve bar. */
 #study-root .sos-storage { margin: 8px 4px 0; padding: 12px 12px 11px; border-radius: 12px; background: rgba(255, 255, 255, .035); border: 1px solid var(--border); }
-#study-root .sos-storage-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+#study-root .sos-storage-head { white-space: nowrap; overflow: hidden; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 #study-root .sos-storage-label { font-size: 10px; font-weight: 800; letter-spacing: 1.3px; text-transform: uppercase; color: var(--text3); }
 #study-root .sos-storage-pct { font-size: 12px; font-weight: 800; color: var(--accent2); font-variant-numeric: tabular-nums; }
 #study-root .sos-storage-track { height: 6px; border-radius: 999px; background: rgba(255, 255, 255, .07); overflow: hidden; }
 #study-root .sos-storage-fill { height: 100%; width: 0%; border-radius: inherit; background: var(--accent); transition: width .6s var(--ease); }
 #study-root .sos-storage-fill.near-full { background: var(--peach); }
 #study-root .sos-storage-fill.full { background: var(--rose); }
-#study-root .sos-storage-text { margin-top: 7px; font-size: 11.5px; font-weight: 600; color: var(--text2); font-variant-numeric: tabular-nums; }
+#study-root .sos-storage-text { white-space: nowrap; overflow: hidden; margin-top: 7px; font-size: 11.5px; font-weight: 600; color: var(--text2); font-variant-numeric: tabular-nums; }
 
 /* Collapsed: an icon rail. Labels hide (not removed), so each row's title
    still names it for pointer and screen-reader users. */
@@ -287,13 +287,14 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 #study-root .app.sb-collapsed .sb-brand,
 #study-root .app.sb-collapsed .sidebar-logo-row .sb-icon,
 #study-root .app.sb-collapsed .nav-label,
-#study-root .app.sb-collapsed .sos-cloud-badge,
+#study-root .app.sb-collapsed .sos-cloud-badge { display: none; }
+/* The storage box keeps its height in the rail (its words only fade), so the
+   bottom of the sidebar never bounces as it opens or closes. */
 #study-root .app.sb-collapsed .sos-storage-head,
-#study-root .app.sb-collapsed .sos-storage-text { display: none; }
+#study-root .app.sb-collapsed .sos-storage-text { visibility: hidden; }
 #study-root .app.sb-collapsed .nav-section-label { position: relative; color: transparent; }
 #study-root .app.sb-collapsed .nav-section-label::after { content: ''; position: absolute; left: 10px; right: 10px; top: 60%; height: 1px; background: var(--border2); }
 #study-root .app.sb-collapsed .nav-live { position: absolute; top: 7px; left: 26px; width: 6px; height: 6px; }
-#study-root .app.sb-collapsed .sos-storage { padding: 8px; }
 
 /* Main column */
 #study-root .main { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
