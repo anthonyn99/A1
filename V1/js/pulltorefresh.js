@@ -72,8 +72,11 @@
     }
     return false;
   }
+  // A row being dragged (A1Drag, dragsort.js, marks <html> while it moves):
+  // a downward drop is a move, never a refresh (Tony, 2026-10-29).
+  function dragging() { return document.documentElement.classList.contains('dsort-grabbing'); }
   function activeView() {
-    if (overlayOpen()) return null;
+    if (overlayOpen() || dragging()) return null;
     return document.querySelector('#study-root .view.active');
   }
   // The finger is inside something that scrolls on its own and is not at its
@@ -171,7 +174,7 @@
 
     // The view scrolled away from the top mid-gesture, or a popup opened:
     // abandon quietly.
-    if (scroller.scrollTop > TOP_SLOP || overlayOpen()) { pulling = false; reset(true); return; }
+    if (scroller.scrollTop > TOP_SLOP || overlayOpen() || dragging()) { pulling = false; committed = false; reset(true); return; }
 
     if (dy > 0) {
       if (dy > maxDy) maxDy = dy;
