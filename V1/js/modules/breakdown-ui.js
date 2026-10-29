@@ -48,11 +48,10 @@ export function decorate(item, cls, mod, f) {
   const before = item.querySelector('[data-act="copy"]');
   if (before) before.parentNode.insertBefore(btn, before); else (item.querySelector('.doc-item-acts') || item).appendChild(btn);
 
-  // Edit mode reorders rows by dragging; a sibling panel between rows would
-  // be dragged as if it were a file. The list comes back when editing ends.
-  const editing = item.classList.contains('editing');
+  // The topics panel sits after the row, outside the rows A1Drag moves
+  // (it matches .doc-item only), so a reorder redraws the list with it.
   let panel = null;
-  if (!editing) {
+  {
     panel = document.createElement('div');
     panel.className = 'sos-topics';
     panel.dataset.bdPanel = f.id;

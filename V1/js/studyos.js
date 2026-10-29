@@ -2439,16 +2439,6 @@ function _sosRowActionBtn(label, title) {
 }
 window._sosRowActionBtn = _sosRowActionBtn;
 
-// A file type's pastel, so the icons in a list read as a set with some life.
-function _sosFileTone(name) {
-  const ext = String(name || '').split('.').pop().toLowerCase();
-  if (ext === 'pdf') return '#F0B3CB';
-  if (/^(ppt|pptx|key)$/.test(ext)) return '#F2C9A0';
-  if (/^(xls|xlsx|csv)$/.test(ext)) return '#A8DCC0';
-  if (/^(doc|docx|txt|md|rtf)$/.test(ext)) return '#A9CBEF';
-  if (/^(png|jpg|jpeg|gif|webp|heic)$/.test(ext)) return '#E8D49A';
-  return '#C9B4D8';
-}
 
 // The release function of the one file row currently holding a drag payload
 // (see _prepDrag below). One slot for the whole page bounds that memory to a
