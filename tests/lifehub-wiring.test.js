@@ -91,7 +91,6 @@ for (const [file, want] of Object.entries(HOSTS)) {
   if (want.veda) {
     ok(file + " shows Veda's list only (data-lh-profile, fixed to veda)",
       /data-profile-attr=["']data-lh-profile["']/.test(tag) && /<body\s[^>]*data-lh-profile="veda"/.test(html), tag);
-    void (/<body[^>]*data-lh-profile="veda"/.test(html), tag);
     continue;
   }
   ok(file + (want.profile ? ' follows the Tony/Veda profile (data-profile-attr)' : ' is Tony-only, no profile attr needed'),
