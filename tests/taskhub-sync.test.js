@@ -149,15 +149,18 @@ const STUBS = {
 };
 
 // ── A device: its own Edge, its own profile ─────────────────────────────────
+// A1_CHROME names another Chromium-family browser (a Linux or cloud machine,
+// where there is no Edge); it is launched the same way.
 function findEdge() {
-  return ['C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
-          'C:/Program Files/Microsoft/Edge/Application/msedge.exe'].find((p) => fs.existsSync(p));
+  return [process.env.A1_CHROME, 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+          'C:/Program Files/Microsoft/Edge/Application/msedge.exe'].find((p) => p && fs.existsSync(p));
 }
 async function device(name) {
   const port = 9400 + Math.floor(Math.random() * 500);
   const udd = fs.mkdtempSync(path.join(os.tmpdir(), 'a1-sync-' + name + '-'));
   const proc = spawn(findEdge(), ['--headless=new', '--disable-gpu', '--no-first-run', '--mute-audio',
-    '--remote-debugging-port=' + port, '--user-data-dir=' + udd, '--window-size=1280,900', 'about:blank'], { stdio: 'ignore' });
+    '--remote-debugging-port=' + port, '--user-data-dir=' + udd, '--window-size=1280,900']
+    .concat(process.platform === 'linux' ? ['--no-sandbox'] : [], ['about:blank']), { stdio: 'ignore' });
   let list;
   for (let i = 0; i < 60 && !list; i++) { try { list = await (await fetch('http://127.0.0.1:' + port + '/json/list')).json(); } catch (e) { await sleep(200); } }
   const ws = new WebSocket(list.find((x) => x.type === 'page').webSocketDebuggerUrl);
@@ -191,6 +194,13 @@ async function device(name) {
       const type = { '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png' }[ext] || 'text/html';
       const buf = fs.readFileSync(file);
       return send('Fetch.fulfillRequest', { requestId: rid, responseCode: 200, responseHeaders: [{ name: 'Content-Type', value: type }], body: buf.toString('base64') });
+    }
+    // A1_CDN_DIR: a local mirror of cdnjs (<dir>/react/18.2.0/umd/...), for a
+    // machine that cannot reach it. A file it lacks still goes to the network.
+    const lib = /^https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/(.+)$/.exec(url.split('?')[0]);
+    if (lib && process.env.A1_CDN_DIR && fs.existsSync(path.join(process.env.A1_CDN_DIR, lib[1]))) {
+      return send('Fetch.fulfillRequest', { requestId: rid, responseCode: 200, responseHeaders: [{ name: 'Content-Type', value: 'text/javascript' }].concat(cors),
+        body: fs.readFileSync(path.join(process.env.A1_CDN_DIR, lib[1])).toString('base64') });
     }
     // Only the page's CDN libraries and fonts may load. Everything else (workers,
     // Google APIs, reCAPTCHA) is refused, so nothing real can be written.

@@ -59,6 +59,19 @@ to redo it. Tony's side had nothing. Neither guard was atomic.
   transaction. Otherwise every TaskHub would skip a restore as an older
   version.
 
+## A save that outlives a teardown (fixed 2026-10-29)
+
+A phone tears its connection down on every app switch, and the re-init makes a
+fresh `_savePending` / `_vdSavePending` (false). A save parked before the
+teardown waits in the module-level queue (`_thPendingWrites` / `_vdPendingWrites`)
+and replays on the new connection. The loader did not see it as pending, so it
+noted the server copy as the base; the replayed save, rebuilt from the phone's
+state, then passed the version check and overwrote the newer copy (the other
+device's change was lost). Now a parked save, or one still on the wire
+(`_cas[doc].flight`, which survives the re-init), counts as pending: the loader
+keeps the old base and waits for the save, which merges, and the listeners hold
+a server copy until it lands. `tests/live/veda-stale-write.live.js` replays it.
+
 ## Tests
 
 | Test | What it proves |
@@ -67,3 +80,6 @@ to redo it. Tony's side had nothing. Neither guard was atomic.
 | `node tests/taskhub-merge.test.js` | The merge rules |
 | `node tests/sync-guard.test.js` | The static guards, including "Static: versioned save" |
 | `node tests/backup-restore-page.test.js` | A restore moves the doc and its head together |
+| `node tests/live/veda-stale-write.live.js` | A phone that slept through another device's save, then edited, merges instead of overwriting |
+
+On a machine without Edge, run `taskhub-sync` with `A1_CHROME=<a Chromium>`; where cdnjs is unreachable, add `A1_CDN_DIR=<a local mirror of its paths>`.

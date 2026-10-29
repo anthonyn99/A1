@@ -10735,7 +10735,20 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   // A save from an old app version (no rev) after the head exists did not go
   // through this check. A device that has a base keeps its own state and saves
   // it over that copy (_casIsRogue); a fresh page has nothing better and takes it.
-  const _cas = { main: { base: null, headSeen: false }, vedasdash: { base: null, headSeen: false } };
+  //
+  // _cas[name].flight is the save of ours on the wire, kept here too: a phone's
+  // teardown/re-init makes a fresh _savePending / _vdSavePending (false), while a
+  // save parked before the teardown (in the module-level _thPendingWrites /
+  // _vdPendingWrites) replays on the new connection. The new loader and listener
+  // must treat that save as pending, or they note the server copy as the base and
+  // repaint over its edit, and the save then passes the version check and
+  // overwrites the newer copy (tests/live/veda-stale-write.live.js, 2026-10-29).
+  const _cas = { main: { base: null, headSeen: false, flight: null }, vedasdash: { base: null, headSeen: false, flight: null } };
+  function _casFly(name, p) {
+    _cas[name].flight = p;
+    p.then(() => { if (_cas[name].flight === p) _cas[name].flight = null; }, () => { if (_cas[name].flight === p) _cas[name].flight = null; });
+    return p;
+  }
   function _casNote(name, d) { _cas[name].base = { rev: (d && d.rev) || 0, doc: d || {} }; }
   function _casIsRogue(name, d) { return !!(d && _cas[name].headSeen && _cas[name].base && d.rev === undefined); }
   function _casTrusted(d) {
@@ -10836,10 +10849,13 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   }
   // A load that found a save of ours waiting: let that save settle (it merges
   // with the server copy and shows the result), then hand back what it saved.
-  async function _casAfterSave(name, pending, inFlight) {
-    try { await (inFlight() || Promise.resolve()); } catch (e) {}
+  async function _casAfterSave(name, pending, inFlight, read) {
+    try { await (inFlight() || _cas[name].flight || Promise.resolve()); } catch (e) {}
     const b = _cas[name].base;
-    return pending() || !b || !b.doc ? null : _casTrusted(Object.assign({}, b.doc));
+    // A save that did not land (offline) leaves the base older than the copy just
+    // read: show nothing then, the retry merges with it.
+    if (read && b && (read.rev || 0) > b.rev) return null;
+    return pending() || _cas[name].flight || !b || !b.doc ? null : _casTrusted(Object.assign({}, b.doc));
   }
   // A failed save is retried: on reconnect when offline, else with backoff.
   const _casRetryTimer = { main: 0, vedasdash: 0 }, _casRetryN = { main: 0, vedasdash: 0 };
@@ -11226,12 +11242,13 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         const d = snap && snap.exists() ? snap.data() : null;
         if (fromServer) {
           await _casHeadCheck('main', docRef);
-          // The version our state is about to be built on — unless a save of ours
-          // is waiting: that state is not built on this copy, and the save will
-          // merge with it (see _casWrite).
-          if (!_savePending) _casNote('main', d);
+          // The version our state is about to be built on, unless a save of ours
+          // is waiting (pending, parked before a teardown, or on the wire; see
+          // _cas): then the save merges with this copy (see _casWrite).
+          const _busy = _savePending || _thPendingWrites.length > 0 || !!_cas.main.flight;
+          if (!_busy) _casNote('main', d);
           _thMarkServerSeen();
-          if (_savePending) return _casAfterSave('main', () => _savePending, () => _thSaveInFlight);
+          if (_busy) return _casAfterSave('main', () => _savePending, () => _thSaveInFlight, d);
         }
         if (d) {
           // See the Veda loader: tag cache-fallback reads so the caller can refuse
@@ -11268,6 +11285,8 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     function _thDrainDeferred() {
       const d = _thDeferredRemote; _thDeferredRemote = null;
       if (!d || _savePending) return;
+      // A save from before a re-init still on the wire: wait for it (see _cas).
+      if (_cas.main.flight) { _thDeferredRemote = d; _cas.main.flight.then(() => setTimeout(_thDrainDeferred, 0), () => setTimeout(_thDrainDeferred, 0)); return; }
       // Our own echo, or something we have already superseded — no news.
       if (_thOwnWrites.has(d.savedAt || 0)) return;
       _thTakeRemote(d);
@@ -11477,7 +11496,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
           _thDrainDeferred();   // replay any remote doc held back during this write
         }
       })();
-      return _thSaveInFlight;
+      return _casFly('main', _thSaveInFlight);
     };
     window._fbSave = (payload) => {
       // An automated write composed before the cloud document has loaded is built
@@ -11587,6 +11606,9 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       // the "changes made on the phone don't come back to the PC" report. Hold it
       // instead, and replay it once our own write has settled (see _thDrainDeferred).
       if (_savePending) { _thDeferredRemote = d; return; }
+      // A save from before a re-init (replayed by the mark above) still on the
+      // wire: hold this copy too; the save merges with it (see _cas).
+      if (_cas.main.flight) { _thDeferredRemote = d; _cas.main.flight.then(() => setTimeout(_thDrainDeferred, 0), () => setTimeout(_thDrainDeferred, 0)); return; }
       // Our own write echoed back. Compare against every savedAt we've written this
       // session, not just the last one: with rapid edits an older echo can arrive
       // after a newer write, and matching only the latest would let that stale echo
@@ -11640,9 +11662,12 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         // synchronously. See the TaskHub loader.
         if (fromServer) {
           await _casHeadCheck('vedasdash', vdDocRef);
-          if (!_vdSavePending) _casNote('vedasdash', d);
+          // A save parked before a teardown (_vdPendingWrites) or still on the wire counts
+          // as pending too (see _cas): this copy is not what our state is built on.
+          const _busy = _vdSavePending || _vdPendingWrites.length > 0 || !!_cas.vedasdash.flight;
+          if (!_busy) _casNote('vedasdash', d);
           _vdMarkServerSeen();
-          if (_vdSavePending) return _casAfterSave('vedasdash', () => _vdSavePending, () => _vdSaveInFlight);
+          if (_busy) return _casAfterSave('vedasdash', () => _vdSavePending, () => _vdSaveInFlight, d);
         }
         if (d) {
           // Tag the origin. The caller MUST NOT repaint the UI from a cache-fallback
@@ -11674,6 +11699,8 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     function _vdDrainDeferred() {
       const d = _vdDeferredRemote; _vdDeferredRemote = null;
       if (!d || _vdSavePending) return;
+      // A save from before a re-init still on the wire: wait for it (see _cas).
+      if (_cas.vedasdash.flight) { _vdDeferredRemote = d; _cas.vedasdash.flight.then(() => setTimeout(_vdDrainDeferred, 0), () => setTimeout(_vdDrainDeferred, 0)); return; }
       if (_vdOwnWrites.has(d.savedAt || 0)) return;
       _vdTakeRemote(d);
     }
@@ -11754,7 +11781,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
           _vdDrainDeferred();   // replay any remote doc held back during this write
         }
       })();
-      return _vdSaveInFlight;
+      return _casFly('vedasdash', _vdSaveInFlight);
     };
     window._fbSaveVeda = (payload) => {
       // A write composed BEFORE this session ever applied cloud data is built from
@@ -11799,6 +11826,9 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       // Hold, never discard — see the TaskHub listener above for why a bare
       // `return` here silently lost the other device's edit in both directions.
       if (_vdSavePending) { _vdDeferredRemote = d; return; }
+      // A save from before a re-init (replayed by the mark above) still on the
+      // wire: hold this copy too; the save merges with it (see _cas).
+      if (_cas.vedasdash.flight) { _vdDeferredRemote = d; _cas.vedasdash.flight.then(() => setTimeout(_vdDrainDeferred, 0), () => setTimeout(_vdDrainDeferred, 0)); return; }
       if (_vdOwnWrites.has(d.savedAt || 0)) return;   // any of our own echoes
       _vdTakeRemote(d);
     }, (err) => { console.warn('[Veda TaskHub] onSnapshot error:', err && err.code); });

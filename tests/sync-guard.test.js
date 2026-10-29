@@ -290,7 +290,7 @@ t('Pending writes are flushed BEFORE teardown bumps the generation',
 t('Loader only unlocks on a genuine server read',
   (HTML.match(/const fromServer = _fbIsServerSnap\(snap\);/g) || []).length >= 2 &&
   /if \(fromServer\) \{\s*await _casHeadCheck\('main', docRef\);\s*[\s\S]{0,400}?_thMarkServerSeen\(\);/.test(HTML) &&
-  /if \(fromServer\) \{\s*await _casHeadCheck\('vedasdash', vdDocRef\);\s*[\s\S]{0,200}?_vdMarkServerSeen\(\);/.test(HTML) &&
+  /if \(fromServer\) \{\s*await _casHeadCheck\('vedasdash', vdDocRef\);\s*[\s\S]{0,400}?_vdMarkServerSeen\(\);/.test(HTML) &&
   /if \(_fbIsServerSnap\(snap\)\) _vdMarkServerSeen\(\);/.test(HTML) &&
   /function _fbIsServerSnap\(snap\)/.test(HTML) &&
   /snap\[_FB_FROM_SERVER\] === true/.test(HTML),
@@ -858,9 +858,16 @@ t('The base moves only to an applied server copy or our own successful save',
   (HTML.match(/_casNote\('(main|vedasdash)', d\);/g) || []).length >= 4 &&
   /st\.base = \{ rev: res\.rev, doc:/.test(HTML),
   'Never while a save of ours is pending: that state is not built on the new copy.');
-t('Loaders never take a new base while a save of ours is pending',
-  /if \(!_savePending\) _casNote\('main', d\);/.test(HTML) &&
-  /if \(!_vdSavePending\) _casNote\('vedasdash', d\);/.test(HTML));
+// "Pending" includes a save parked before a teardown (the module-level queue)
+// or still on the wire: a re-init makes a fresh, false _savePending, and taking
+// the server copy as the base then let that save overwrite it (2026-10-29,
+// tests/live/veda-stale-write.live.js).
+t('Loaders never take a new base while a save of ours is pending (parked or on the wire too)',
+  /const _busy = _savePending \|\| _thPendingWrites\.length > 0 \|\| !!_cas\.main\.flight;\s*if \(!_busy\) _casNote\('main', d\);/.test(HTML) &&
+  /const _busy = _vdSavePending \|\| _vdPendingWrites\.length > 0 \|\| !!_cas\.vedasdash\.flight;\s*if \(!_busy\) _casNote\('vedasdash', d\);/.test(HTML));
+t('A save on the wire is known across a re-init, and the listeners hold a copy while it lands',
+  /return _casFly\('main', _thSaveInFlight\);/.test(HTML) && /return _casFly\('vedasdash', _vdSaveInFlight\);/.test(HTML) &&
+  /if \(_cas\.main\.flight\) \{ _thDeferredRemote = d;/.test(HTML) && /if \(_cas\.vedasdash\.flight\) \{ _vdDeferredRemote = d;/.test(HTML));
 t('A failed save is kept and retried, not dropped',
   (HTML.match(/_casRetry\('(main|vedasdash)', r,/g) || []).length === 2);
 t('Internal fields never reach the document',
