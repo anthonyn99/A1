@@ -13821,6 +13821,10 @@ function mcMacroET(e){
 }
 // mcTicker: leading symbol from an earnings title ("AAPL Earnings" → "AAPL").
 function mcTicker(nm){const m=String(nm||'').match(/^\$?([A-Z]{1,6})\b/);return m?m[1]:String(nm||'').replace(/\s*earnings\s*$/i,'').trim();}
+// mcGroupsOf / mcLead / mcDebriefName: the same helpers as Tony's block (see there).
+function mcGroupsOf(day){const D=window.A1Debrief;if(D&&D.groups)return D.groups(day,mcMacroET);const earn=day.filter(e=>e.kind==='earnings');return (earn.length?[earn]:[]).concat(day.filter(e=>e.kind!=='earnings').map(e=>[e]));}
+function mcLead(g){const R={high:3,medium:2,low:1};return g.reduce((a,e)=>(R[e.importance]||0)>(R[a.importance]||0)?e:a,g[0]);}
+function mcDebriefName(l){if(l.length===1)return l[0].kind==='earnings'?mcTicker(l[0].title)+' earnings':l[0].title;if(l[0].kind==='earnings')return l.map(x=>mcTicker(x.title)).join(', ')+' earnings';return l.map(x=>x.title).join(', ');}
 function fmt12h(t,dateKey,tz){if(!t)return '';const[hh,mm]=t.split(':').map(Number);if(tz&&dateKey){try{const d=new Date(thZonedTs(dateKey,hh,mm,tz));return d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})+' '+thTzAbbr(d);}catch(e){}}const ap=hh<12?'AM':'PM';const h=hh%12||12;const lbl=thTzAbbr(dateKey?new Date(dateKey+'T12:00:00'):new Date());return h+':'+String(mm).padStart(2,'0')+' '+ap+(lbl?' '+lbl:'');}
 const A="#8D769A",AL="#A892B0",AD="#6E5C7A",ABG="rgba(141,118,154,.08)";
 // The ✦ profile switcher lives in a 10px uppercase nav button, so the bare glyph
