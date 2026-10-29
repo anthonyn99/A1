@@ -45,8 +45,8 @@
   --accent3: #A892B0;
   --lav:     #A892B0;
   --lav-soft: rgba(141, 118, 154, .16);
-  --pink:    #A892B0;
-  --pink-soft: rgba(141, 118, 154, .13);
+  --pink:    #F0B3CB;
+  --pink-soft: rgba(240, 179, 203, .13);
   --peach:   #F2C9A0;
   --peach-soft: rgba(242, 201, 160, .13);
   --mint:    #A8DCC0;
@@ -1456,3 +1456,21 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
   /* The class page's one wide button keeps its words. */
   #study-root .detail-actions .btn.primary .btn-label { display: inline; }
 }
+
+/* ── Pink, her second voice (purple stays the main one) ──────────────────────
+   Pastel pink marks "now" and "next": today, the top of the queue, a timer
+   that is running, and the two invitations to start (Just 10 min, Make
+   flashcards). Nowhere else. */
+#study-root .cal-cell.today { border-color: rgba(240, 179, 203, .35); }
+#study-root .cal-cell.today .day-num { background: var(--pink); color: #2a1f26; }
+#study-root .up-group.today, #study-root .sos-pq-item:nth-child(1) .sos-pq-when { color: var(--pink) !important; }
+.sosc-day.today { color: var(--pink); box-shadow: inset 0 0 0 1px rgba(240, 179, 203, .5); }
+#study-root .sos-pq-item:nth-child(1) .sos-pq-rank { background: var(--pink-soft); color: var(--pink); }
+#study-root .nav-live, #study-root #topbar-pomo .tp-dot, #sos-pomo-banner .spb-dot { background: var(--pink); }
+#study-root .pomo-ring-dot circle { fill: var(--pink); }
+#study-root .pomo-dot.done { background: var(--pink); }
+#study-root .btn.soft { background: var(--pink-soft); border-color: rgba(240, 179, 203, .35); color: #F6CADB; }
+#study-root .btn.soft:hover { background: rgba(240, 179, 203, .2); border-color: rgba(240, 179, 203, .55); }
+#study-root .section-header .count { background: var(--pink-soft); color: var(--pink); }
+.sos-modal .btn.cards-cta { background: var(--pink-soft); border-color: rgba(240, 179, 203, .45); color: #F6CADB; }
+.sos-modal .btn.cards-cta:hover { background: rgba(240, 179, 203, .22); border-color: var(--pink); color: #fff; }
