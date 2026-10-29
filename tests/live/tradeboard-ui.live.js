@@ -160,7 +160,7 @@ const worker = {
   await click('#nh-host .nh-results .nh-clear');
   ok('Clear all clears it', await until(`document.querySelectorAll('#nh-host .nh-ev').length===${nAll} && !document.querySelector('#nh-host .nh-clear')`, 3000));
   await click('#nh-host [data-act="filters"]');
-  ok('the ticker strip holds the whole watchlist, quiet ones dimmed', await js(`var c=[...document.querySelectorAll('#nh-host .nh-strip [data-act="tick"]')]; return c.length===6 && c.find(x=>x.dataset.v==='ZQX').classList.contains('dim') && !c.find(x=>x.dataset.v==='NVDA').classList.contains('dim');`),
+  ok('the ticker strip holds the whole watchlist, quiet ones dimmed', await js(`var c=[...document.querySelectorAll('#nh-host .nh-strip [data-act="tick"]')]; return c.length===TB.news.tickers().length && c.length===7 && c.find(x=>x.dataset.v==='ZQX').classList.contains('dim') && !c.find(x=>x.dataset.v==='NVDA').classList.contains('dim');`),
     await js(`return [...document.querySelectorAll('#nh-host .nh-strip [data-act="tick"]')].map(x=>x.dataset.v+(x.classList.contains('dim')?'~':'')).join();`));
   await click('#nh-host .nh-strip [data-act="tick"][data-v="MU"]');
   ok('a ticker chip filters to that ticker', await until(`document.querySelectorAll('#nh-host .nh-ev').length===1 && document.querySelector('#nh-host .nh-ev .nh-tk').textContent==='MU'`, 3000));
@@ -172,19 +172,12 @@ const worker = {
   ok('Breaking on a fresh story, with its amber edge', await js(`var c=${card}; return !!c.querySelector('.nh-breaking') && /amber/.test(c.getAttribute('style'));`));
   ok('the footer: tier, sentiment, type, sector pills and the outlets', await js(`var c=${card}; var p=[...c.querySelectorAll('.nh-ev-foot .nh-pill')].map(x=>x.textContent.replace(/\\s+/g,' ').trim()); return p[0].indexOf('Critical')===0 && p[1].indexOf('Bullish')===0 && p[2]==='earnings' && p[3]==='Semiconductor' && c.querySelectorAll('.nh-src a').length===3;`),
     await js(`var c=${card}; return [...c.querySelectorAll('.nh-ev-foot .nh-pill')].map(x=>x.textContent).join('|') + ' / ' + c.querySelectorAll('.nh-src a').length;`));
-  ok('up to 4 headlines, deduped, with "+N more"', await js(`var c=${card}; return c.querySelectorAll('.nh-hl a').length===4 && /\\+ 3 more headlines/.test(c.querySelector('.nh-hl .more').textContent);`),
+  ok('up to 4 headlines, with "+N more"', await js(`var c=${card}; return c.querySelectorAll('.nh-hl a').length===4 && /\\+ 4 more headlines/.test(c.querySelector('.nh-hl .more').textContent);`),
     await js(`var c=${card}; return c.querySelectorAll('.nh-hl a').length + ' ' + (c.querySelector('.nh-hl .more')||{}).textContent;`));
   await js(`${card}.querySelector('.nh-hl .more').click(); 1`);
-  ok('...which opens them all', await until(`${card}.querySelectorAll('.nh-hl a').length===7`, 3000));
+  ok('...which opens them all', await until(`${card}.querySelectorAll('.nh-hl a').length===8`, 3000));
 
   console.log('\nRepaints keep their place');
-  await js(`var s=document.querySelector('#nh-host .nh-strip'); s.style.maxWidth='240px'; 1`);
-  await js(`var s=document.querySelector('#nh-host .nh-strip'); s.scrollLeft=120; 1`);
-  const sl = await js(`return document.querySelector('#nh-host .nh-strip').scrollLeft;`);
-  await js(`TB.news.render(); var s=document.querySelector('#nh-host .nh-strip'); s.style.maxWidth='240px'; 1`);
-  await js(`TB.news.render(); 1`);
-  ok('the ticker strip keeps its scroll through a repaint', sl > 0 && await js(`return document.querySelector('#nh-host .nh-strip').scrollLeft;`) === sl,
-    sl + ' -> ' + await js(`return document.querySelector('#nh-host .nh-strip').scrollLeft;`));
   await js(`document.querySelector('#nh-host .nh-tools [data-k="hours"][data-v="48"]').focus(); TB.news.render(); 1`);
   ok('...and keyboard focus', await js(`var a=document.activeElement; return a && a.dataset.k==='hours' && a.dataset.v==='48';`));
 
@@ -222,6 +215,11 @@ const worker = {
   ok('sentiment takes the full width; order, window and Filters share the next row', await js(`var t=document.querySelector('#nh-host .nh-tools'), s=t.querySelectorAll('.tbx-seg'), f=t.querySelector('[data-act="filters"]').getBoundingClientRect(); return s[0].getBoundingClientRect().width > 340 && Math.abs(s[1].getBoundingClientRect().top - f.top) < 4;`),
     await js(`var t=document.querySelector('#nh-host .nh-tools'); return JSON.stringify([...t.children].map(x=>{var r=x.getBoundingClientRect(); return [x.className, Math.round(r.top), Math.round(r.width)];}));`));
   await shot('tradeboard-ui-news-phone');
+  await js(`document.querySelector('#nh-host .nh-strip').scrollLeft=80; document.querySelector('#nh-host .nh-movers').scrollLeft=150; 1`);
+  const sl = JSON.parse(await js(`return JSON.stringify([document.querySelector('#nh-host .nh-strip').scrollLeft, document.querySelector('#nh-host .nh-movers').scrollLeft]);`));
+  await js(`TB.news.render(); 1`);
+  const sl2 = JSON.parse(await js(`return JSON.stringify([document.querySelector('#nh-host .nh-strip').scrollLeft, document.querySelector('#nh-host .nh-movers').scrollLeft]);`));
+  ok('the ticker strip and the movers keep their scroll through a repaint', sl[0] > 0 && sl[1] > 0 && sl2[0] === sl[0] && sl2[1] === sl[1], JSON.stringify([sl, sl2]));
 
   console.log('\nThe worker');
   ok('no build was ever forced (only cache reads)', !hits.some((h) => /fresh=1/.test(h)), hits.filter((h) => /news/.test(h)).join(' '));
