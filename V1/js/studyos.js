@@ -1704,50 +1704,22 @@ function saveModule() {
   }
 }
 
-/* Rename a module where its name is: on its card, or in the title of its open
- * popup. The name becomes a text box; Enter or clicking away saves, Escape
- * keeps the old name. (A rename dialog used to open BEHIND the module popup,
- * Tony 2026-10-29.) */
-function openRenameModule(classId, modId) {
+/* Rename a module: StudyOS's own dialog (js/ui.js uiPrompt). It sits above
+ * every other layer, so renaming from inside the module's popup opens over it,
+ * never behind it (a separate rename popup used to, Tony 2026-10-29). */
+async function openRenameModule(classId, modId) {
   const cls = findClassOrKsu(classId);
   if (!cls) return;
   const mod = cls.modules.find(m => m.id === modId);
   if (!mod) return;
-  const popup = _sosEl('modal-module-detail');
-  const inPopup = popup && popup.classList.contains('open') && _sosCurrentModuleId === modId;
-  const target = inPopup
-    ? _sosEl('module-detail-title-text')
-    : document.querySelector('.module-btn[data-id="' + CSS.escape(modId) + '"] .module-btn-name');
-  if (!target || target.querySelector('input')) return;
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.className = 'inline-rename';
-  input.value = mod.name;
-  input.setAttribute('aria-label', 'Module name');
-  target.textContent = '';
-  target.appendChild(input);
-  input.focus();
-  input.select();
-  let done = false;
-  const finish = (save) => {
-    if (done) return;
-    done = true;
-    const name = input.value.trim();
-    if (save && name && name !== mod.name) {
-      mod.name = name;
-      persistForCls(cls);
-    }
-    // Redraw whatever shows the name: the grid always, the popup title if open.
-    if (cls._ksu) renderKsuModules(); else { const live = classes.find(c => c.id === cls.id); if (live) renderModules(live); renderClasses(); }
-    if (inPopup) { const t = _sosEl('module-detail-title-text'); if (t) t.textContent = mod.name; }
-  };
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
-    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); }
-  });
-  input.addEventListener('blur', () => finish(true));
-  // The card under it opens the module on a click; typing is not a click.
-  input.addEventListener('click', (e) => e.stopPropagation());
+  const name = await window.uiPrompt('', { title: 'Rename module', okLabel: 'Save', default: mod.name, placeholder: 'Module name' });
+  if (name == null) return;
+  const clean = String(name).trim();
+  if (!clean || clean === mod.name) return;
+  mod.name = clean;
+  persistForCls(cls);
+  if (cls._ksu) renderKsuModules(); else { const live = classes.find(c => c.id === cls.id); if (live) renderModules(live); renderClasses(); }
+  if (_sosCurrentModuleId === modId) { const t = _sosEl('module-detail-title-text'); if (t) t.textContent = clean; }
 }
 
 async function deleteModule(classId, modId) {
