@@ -6352,6 +6352,14 @@ function mcMacroET(e){
 }
 // mcTicker: leading symbol from an earnings title ("AAPL Earnings" \u2192 "AAPL").
 function mcTicker(nm){const m=String(nm||'').match(/^\$?([A-Z]{1,6})\b/);return m?m[1]:String(nm||'').replace(/\s*earnings\s*$/i,'').trim();}
+// mcGroupsOf: a day's catalysts as cards (catdebrief.js A1Debrief.groups:
+// earnings share one card, releases within TradeHub's window share one).
+// Without catdebrief.js: one earnings card, every other event on its own.
+function mcGroupsOf(day){const D=window.A1Debrief;if(D&&D.groups)return D.groups(day,mcMacroET);const earn=day.filter(e=>e.kind==='earnings');return (earn.length?[earn]:[]).concat(day.filter(e=>e.kind!=='earnings').map(e=>[e]));}
+// mcLead: the group's highest-impact release (it colours the card and its pill).
+function mcLead(g){const R={high:3,medium:2,low:1};return g.reduce((a,e)=>(R[e.importance]||0)>(R[a.importance]||0)?e:a,g[0]);}
+// mcDebriefName: what a ▶ says it debriefs ("NVDA, AMD earnings", "ECB Rate Decision + 3 more").
+function mcDebriefName(l){if(l.length===1)return l[0].kind==='earnings'?mcTicker(l[0].title)+' earnings':l[0].title;if(l[0].kind==='earnings')return l.map(x=>mcTicker(x.title)).join(', ')+' earnings';return l.map(x=>x.title).join(', ');}
 function fmt12h(t,dateKey,tz){if(!t)return '';const[hh,mm]=t.split(':').map(Number);if(tz&&dateKey){try{const d=new Date(thZonedTs(dateKey,hh,mm,tz));return d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})+'\u00a0'+thTzAbbr(d);}catch(e){}}const ap=hh<12?'AM':'PM';const h=hh%12||12;const lbl=thTzAbbr(dateKey?new Date(dateKey+'T12:00:00'):new Date());return h+':'+String(mm).padStart(2,'0')+'\u00a0'+ap+(lbl?'\u00a0'+lbl:'');}
 const CL  = ["work","finance","study","health","personal","urgent","other"];
 
@@ -9989,12 +9997,16 @@ function App(){
   const mcByDay=useMemo(()=>{const g={};const todayK=dkey(new Date().getFullYear(),new Date().getMonth(),new Date().getDate());(marketCal||[]).forEach(ev=>{if(!ev||!ev.date)return;(g[ev.date]=g[ev.date]||[]).push({id:ev.id,type:"event",_mc:true,kind:ev.kind,title:ev.name,category:ev.category,importance:ev.importance,date:ev.date,notifyAt:ev.notifyAt||null,ticker:ev.ticker||null,when:ev.when||null,epsEst:ev.epsEst==null?null:ev.epsEst,_past:ev.date<todayK});});return g;},[marketCal]);
   // ── Debrief ▶ (catdebrief.js) ── ten minutes after a catalyst comes out its
   // card offers a MAGI debrief, in Tony's profile. A grouped earnings card
-  // debriefs every report on it that is already out. mcDueTick re-renders on
+  // debriefs every report on it that is already out; a group of macro
+  // releases waits for its last one and debriefs them all in one go
+  // (A1Debrief.debriefable). mcDueTick re-renders on
   // the minute the next one becomes due, so it appears without a reload.
   const[mcDueTick,setMcDueTick]=useState(0);
   useEffect(()=>{const D=window.A1Debrief;if(!D)return;const nd=D.nextDue(marketCal,e=>mcMacroET(e));if(!nd)return;const id=setTimeout(()=>setMcDueTick(x=>x+1),Math.min(Math.max(nd-Date.now(),0)+500,2147000000));return()=>clearTimeout(id);},[marketCal,mcDueTick]);
-  const mcDebriefOf=e=>{const D=window.A1Debrief;if(!D)return null;const l=(e._group||[e]).filter(x=>D.isDue(x,mcMacroET(x)));return l.length?l:null;};
-  const mcDebriefBtn=(e,auto)=>{const l=mcDebriefOf(e);if(!l)return null;const nm=l.length===1?(l[0].kind==="earnings"?mcTicker(l[0].title)+" earnings":l[0].title):l.map(x=>mcTicker(x.title)).join(", ")+" earnings";
+  // TradeHub's grouping window lives in the same settings doc: redraw when it changes.
+  useEffect(()=>{const f=()=>setMcDueTick(x=>x+1);window.addEventListener("a1debrief:config",f);return()=>window.removeEventListener("a1debrief:config",f);},[]);
+  const mcDebriefOf=e=>{const D=window.A1Debrief;if(!D)return null;const g=e._group||[e];if(D.debriefable)return D.debriefable(g,mcMacroET);const l=g.filter(x=>D.isDue(x,mcMacroET(x)));return l.length?l:null;};
+  const mcDebriefBtn=(e,auto)=>{const l=mcDebriefOf(e);if(!l)return null;const nm=mcDebriefName(l);
     return React.createElement("button",{type:"button",className:"mc-debrief",title:"Debrief "+nm+" in MAGI","aria-label":"Debrief "+nm+" in MAGI",onClick:ev=>{ev.stopPropagation();window._mcDebrief&&window._mcDebrief(l,"tony",x=>mcMacroET(x));},
       style:{background:"transparent",border:"none",color:T.AC,cursor:"pointer",padding:0,width:20,height:20,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0,lineHeight:0,borderRadius:5,marginLeft:auto?"auto":0,fontFamily:"inherit"}},
       React.createElement("span",{style:{width:12,height:12,display:"inline-flex",lineHeight:0},dangerouslySetInnerHTML:{__html:TNI.play}}));};
@@ -10016,20 +10028,36 @@ function App(){
     React.createElement("div",{style:{display:"flex",alignItems:"flex-start",gap:6}},
       React.createElement("span",{style:{width:13,height:13,flexShrink:0,marginTop:2,display:"inline-flex"},dangerouslySetInnerHTML:{__html:e.kind==="earnings"?TNI.chartUp:e.kind==="holiday"?TNI.bank:TNI.calendar}}),
       React.createElement("span",{style:{fontSize:11,fontWeight:700,color:tone||T.TX,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word"}},e.title)));};
-  // Render a day's catalysts: collapse 2+ earnings into ONE card that looks IDENTICAL to a
-  // single earning — "Earnings" pill on top, "GOOGL, MMM … Earnings" below — by routing the
-  // grouped card through the same mcChip. Macros/holidays render as their own chip.
+  // Grouped releases (A1Debrief.groups: same day, within TradeHub's window of
+  // the first): ONE card, ONE ▶. Top row = "N releases", the first release
+  // time, the highest impact and the ▶; below, each release with its own
+  // category, time and impact.
+  const mcGroupChip=(g,tone)=>{const lead=mcLead(g),tms=g.map(mcTimeLocal),known=tms.filter(Boolean),span=known.length?(known[0]===known[known.length-1]?known[0]:known[0]+"–"+known[known.length-1]):"";
+    return React.createElement("div",{key:"grp-"+g.map(e=>e.id).join("-"),"data-mc-group":g.length,style:{...wkCatalystCard(lead.category||lead.kind),display:"flex",flexDirection:"column",gap:4,marginBottom:isMobile?4:3,cursor:"default",opacity:g.every(e=>e._past)?0.5:1}},
+      React.createElement("div",{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"nowrap",minWidth:0}},
+        React.createElement("span",{style:{fontSize:9.5,color:T.TXD,background:T.TXD+"1a",borderRadius:6,padding:"1px 6px",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+T.TXD+"30"}},g.length+" releases"),
+        known.length?React.createElement("span",{title:"Release time"+(known.length>1&&span!==known[0]?"s":"")+" (your local zone): "+span,style:{fontSize:9.5,fontWeight:800,letterSpacing:.3,color:T.TXD,whiteSpace:"nowrap",flexShrink:0}},known[0]):null,
+        lead.importance&&MC_IMP[lead.importance]?React.createElement("span",{title:"Highest market impact: "+lead.importance,style:{fontSize:9.5,fontWeight:800,letterSpacing:.4,color:MC_IMP[lead.importance].c,background:MC_IMP[lead.importance].c+"1a",borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap",flexShrink:0,marginLeft:"auto",border:"1px solid "+MC_IMP[lead.importance].c+"40"}},MC_IMP[lead.importance].t):null,
+        mcDebriefBtn({_group:g},!(lead.importance&&MC_IMP[lead.importance]))),
+      g.map((e,i)=>React.createElement("div",{key:e.id||i,style:{display:"flex",alignItems:"flex-start",gap:6}},
+        React.createElement("span",{style:{width:13,height:13,flexShrink:0,marginTop:2,display:"inline-flex"},dangerouslySetInnerHTML:{__html:TNI.calendar}}),
+        React.createElement("div",{style:{flex:1,minWidth:0}},
+          React.createElement("div",{style:{fontSize:11,fontWeight:700,color:tone||T.TX,lineHeight:1.35,wordBreak:"break-word"}},e.title),
+          React.createElement("div",{style:{fontSize:9.5,fontWeight:700,color:T.TXD,lineHeight:1.3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},
+            [mcCatLabel(e.category),tms[i]].filter(Boolean).join(" · "),
+            e.importance&&MC_IMP[e.importance]?React.createElement("span",{style:{color:MC_IMP[e.importance].c}},(mcCatLabel(e.category)||tms[i]?" · ":"")+MC_IMP[e.importance].t):null)))));};
+  // Render a day's catalysts in A1Debrief.groups order: 2+ earnings collapse into ONE
+  // card that looks IDENTICAL to a single earning — "Earnings" pill on top, "GOOGL, MMM …
+  // Earnings" below — by routing it through the same mcChip; releases that come out
+  // together share a mcGroupChip; anything else renders as its own chip.
   const mcRender=(mcDay,tone)=>{
     if(!mcDay||!mcDay.length)return null;
-    const earn=mcDay.filter(e=>e.kind==="earnings"),rest=mcDay.filter(e=>e.kind!=="earnings"),out=[];
-    if(earn.length===1)out.push(mcChip(earn[0],tone));
-    else if(earn.length>1){
-      const past=earn.every(e=>e._past);
-      const tickers=earn.map(e=>mcTicker(e.title)).join(", ");
-      out.push(mcChip({id:"earn-"+earn[0].date,date:earn[0].date,kind:"earnings",category:earn[0].category||"earnings",title:tickers+" Earnings",_past:past,_group:earn},tone));
-    }
-    rest.forEach(e=>out.push(mcChip(e,tone)));
-    return out;
+    return mcGroupsOf(mcDay).map(g=>{
+      if(g.length===1)return mcChip(g[0],tone);
+      if(g[0].kind!=="earnings")return mcGroupChip(g,tone);
+      const tickers=g.map(e=>mcTicker(e.title)).join(", ");
+      return mcChip({id:"earn-"+g[0].date,date:g[0].date,kind:"earnings",category:g[0].category||"earnings",title:tickers+" Earnings",_past:g.every(e=>e._past),_group:g},tone);
+    });
   };
 
   // `today` draws a pair of hairline rules down both sides of the current
@@ -16379,6 +16407,8 @@ function App(){
   // event becomes due (this TaskHub has no clock tick of its own).
   const[mcDueTick,setMcDueTick]=useState(0);
   useEffect(()=>{const D=window.A1Debrief;if(!D)return;const nd=D.nextDue(marketCal,e=>mcMacroET(e));if(!nd)return;const id=setTimeout(()=>setMcDueTick(x=>x+1),Math.min(Math.max(nd-Date.now(),0)+500,2147000000));return()=>clearTimeout(id);},[marketCal,mcDueTick]);
+  // TradeHub's grouping window lives in the same settings doc: redraw when it changes.
+  useEffect(()=>{const f=()=>setMcDueTick(x=>x+1);window.addEventListener("a1debrief:config",f);return()=>window.removeEventListener("a1debrief:config",f);},[]);
   // Claude reset times from MAGI — read-only, see CR_* in the first block.
   const crByDay=CR_useResets("veda");
   // Macro catalyst cards get a bordered card with a category-colored left stripe,
@@ -16469,8 +16499,8 @@ function App(){
   const vdEvtPassed=(e,k)=>{let latest=0;if(e.time){const[hh,mm]=e.time.split(":").map(Number);let ts;if(e.tz){try{ts=thZonedTs(k,hh,mm,e.tz);}catch(_){ts=new Date(k+"T"+e.time+":00").getTime();}}else{ts=new Date(k+"T"+e.time+":00").getTime();}if(ts)latest=Math.max(latest,ts);}if(e.notifyAt){const nt=new Date(e.notifyAt).getTime();if(nt)latest=Math.max(latest,nt);}if(!latest){latest=new Date(k+"T23:59:59").getTime();}return latest<Date.now();};
   // Macro release time in the viewer's LOCAL zone (CO→Mountain, GA→Eastern…). "" if unknown.
   const mcTimeLocal=(e)=>{const t=mcMacroET(e);if(!t)return"";try{const ts=thZonedTs(e.date,t.hh,t.mm,"America/New_York");return new Date(ts).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});}catch(_){return"";}};
-  const vdDebriefBtn=(e,auto)=>{const D=window.A1Debrief;if(!D)return null;const l=(e._group||[e]).filter(x=>D.isDue(x,mcMacroET(x)));if(!l.length)return null;
-    const nm=l.length===1?(l[0].kind==="earnings"?mcTicker(l[0].title)+" earnings":l[0].title):l.map(x=>mcTicker(x.title)).join(", ")+" earnings";
+  const vdDebriefBtn=(e,auto)=>{const D=window.A1Debrief;if(!D)return null;const g=e._group||[e];const l=D.debriefable?D.debriefable(g,mcMacroET):g.filter(x=>D.isDue(x,mcMacroET(x)));if(!l||!l.length)return null;
+    const nm=mcDebriefName(l);
     return RC("button",{type:"button",className:"mc-debrief",title:"Debrief "+nm+" in MAGI","aria-label":"Debrief "+nm+" in MAGI",style:{...vdIcoBtn(A),width:20,height:20,marginLeft:auto?"auto":0},
       onClick:ev=>{ev.stopPropagation();window._mcDebrief&&window._mcDebrief(l,"veda",x=>mcMacroET(x));}},vdIco(TNI.play,12));};
   // Two-row card: pills (time · category · impact) on top, then icon + full-width title
@@ -16484,19 +16514,32 @@ function App(){
     RC("div",{style:{display:"flex",alignItems:"flex-start",gap:6}},
       RC("span",{style:{width:13,height:13,flexShrink:0,marginTop:2,display:"inline-flex"},dangerouslySetInnerHTML:{__html:e.kind==="earnings"?TNI.chartUp:e.kind==="holiday"?TNI.bank:TNI.calendar}}),
       RC("span",{style:{fontSize:11,fontWeight:700,color:tone||TX,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word"}},e.title)));};
-  // Collapse 2+ earnings into ONE card identical to a single earning ("Earnings" pill on top,
-  // "GOOGL, MMM … Earnings" below) by routing it through the same mcChip. Macros render individually.
+  // Grouped releases: the same card as Tony's mcGroupChip, in Veda's colours.
+  const mcGroupChip=(g,tone)=>{const lead=mcLead(g),tms=g.map(mcTimeLocal),known=tms.filter(Boolean),span=known.length?(known[0]===known[known.length-1]?known[0]:known[0]+"–"+known[known.length-1]):"";
+    return RC("div",{key:"grp-"+g.map(e=>e.id).join("-"),"data-mc-group":g.length,style:{...vdCatalystCard(lead.category||lead.kind),display:"flex",flexDirection:"column",gap:4,marginBottom:vrMobile?4:3,cursor:"default",opacity:g.every(e=>e._past)?0.5:1}},
+      RC("div",{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"nowrap",minWidth:0}},
+        RC("span",{style:{fontSize:9.5,color:TXD,background:TXD+"1a",borderRadius:6,padding:"1px 6px",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+TXD+"30"}},g.length+" releases"),
+        known.length?RC("span",{title:"Release time"+(known.length>1&&span!==known[0]?"s":"")+" (your local zone): "+span,style:{fontSize:9.5,fontWeight:800,letterSpacing:.3,color:TXD,whiteSpace:"nowrap",flexShrink:0}},known[0]):null,
+        lead.importance&&MC_IMP[lead.importance]?RC("span",{title:"Highest market impact: "+lead.importance,style:{fontSize:9.5,fontWeight:800,letterSpacing:.4,color:MC_IMP[lead.importance].c,background:MC_IMP[lead.importance].c+"1a",borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap",flexShrink:0,marginLeft:"auto",border:"1px solid "+MC_IMP[lead.importance].c+"40"}},MC_IMP[lead.importance].t):null,
+        vdDebriefBtn({_group:g},!(lead.importance&&MC_IMP[lead.importance]))),
+      g.map((e,i)=>RC("div",{key:e.id||i,style:{display:"flex",alignItems:"flex-start",gap:6}},
+        RC("span",{style:{width:13,height:13,flexShrink:0,marginTop:2,display:"inline-flex"},dangerouslySetInnerHTML:{__html:TNI.calendar}}),
+        RC("div",{style:{flex:1,minWidth:0}},
+          RC("div",{style:{fontSize:11,fontWeight:700,color:tone||TX,lineHeight:1.35,wordBreak:"break-word"}},e.title),
+          RC("div",{style:{fontSize:9.5,fontWeight:700,color:TXD,lineHeight:1.3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},
+            [mcCatLabel(e.category),tms[i]].filter(Boolean).join(" · "),
+            e.importance&&MC_IMP[e.importance]?RC("span",{style:{color:MC_IMP[e.importance].c}},(mcCatLabel(e.category)||tms[i]?" · ":"")+MC_IMP[e.importance].t):null)))));};
+  // A1Debrief.groups order: 2+ earnings collapse into ONE card identical to a single earning
+  // ("Earnings" pill on top, "GOOGL, MMM … Earnings" below) through the same mcChip;
+  // releases that come out together share a mcGroupChip; the rest render individually.
   const mcRender=(mcDay,tone)=>{
     if(!mcDay||!mcDay.length)return null;
-    const earn=mcDay.filter(e=>e.kind==="earnings"),rest=mcDay.filter(e=>e.kind!=="earnings"),out=[];
-    if(earn.length===1)out.push(mcChip(earn[0],tone));
-    else if(earn.length>1){
-      const past=earn.every(e=>e._past);
-      const tickers=earn.map(e=>mcTicker(e.title)).join(", ");
-      out.push(mcChip({id:"earn-"+earn[0].date,date:earn[0].date,kind:"earnings",category:earn[0].category||"earnings",title:tickers+" Earnings",_past:past,_group:earn},tone));
-    }
-    rest.forEach(e=>out.push(mcChip(e,tone)));
-    return out;
+    return mcGroupsOf(mcDay).map(g=>{
+      if(g.length===1)return mcChip(g[0],tone);
+      if(g[0].kind!=="earnings")return mcGroupChip(g,tone);
+      const tickers=g.map(e=>mcTicker(e.title)).join(", ");
+      return mcChip({id:"earn-"+g[0].date,date:g[0].date,kind:"earnings",category:g[0].category||"earnings",title:tickers+" Earnings",_past:g.every(e=>e._past),_group:g},tone);
+    });
   };
 
   const bannerLesson=GITA_LESSONS[bannerIdx];
