@@ -453,12 +453,13 @@ t('the native path is feature-detected, not assumed',
   'Referencing window.__TAURI__.drag unguarded throws in a plain browser and\n' +
   '      takes the whole resource list down with it.');
 t('the shell turns the HTML5 drag OFF',
-  // `&& !editOn`: in Edit mode a drag reorders the rows instead (A1Drag).
-  /if \(SOS_NATIVE_DRAG(?: && !editOn)?\) \{\s*\n\s*item\.draggable = false;/.test(STUDYOS),
+  // The file's icon is the drag-out handle; the rest of the row reorders (A1Drag).
+  /if (SOS_NATIVE_DRAG) {s*
+s*icon.draggable = false;/.test(STUDYOS),
   'startDrag seizes the pointer. Leaving draggable=true means an HTML5 drag is\n' +
   '      already in flight for the same gesture and the native drag never starts.');
 t('the native drag is armed from a pointer gesture, not dragstart',
-  /if \(SOS_NATIVE_DRAG(?: && !editOn)?\)[\s\S]{0,900}?addEventListener\('mousedown'[\s\S]{0,900}?sosStartNativeDrag/.test(STUDYOS),
+  /if \(SOS_NATIVE_DRAG\)[\s\S]{0,900}?addEventListener\('mousedown'[\s\S]{0,900}?sosStartNativeDrag/.test(STUDYOS),
   'dragstart never fires once draggable is false, so wiring it there would\n' +
   '      leave the shell with no drag at all.');
 t('a plain click still opens the file rather than starting a drag',
