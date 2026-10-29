@@ -4182,11 +4182,16 @@ function _sosPaintGreeting() {
   const next = _sosScheduleItems()
     .filter(e => e.date >= todayStr)
     .sort((a, b) => a.date.localeCompare(b.date) || (a.time || '99').localeCompare(b.time || '99'))[0];
-  if (!next) { nextEl.innerHTML = date + ' · Nothing due. A good day to get ahead.'; return; }
+  if (!next) { nextEl.innerHTML = '<span class="dn-date">' + date + '</span><span class="dn-row"><span class="dn-k">Next up</span><span class="dn-none">Nothing due. A good day to get ahead.</span></span>'; return; }
   const cls = classes.find(c => c.id === next.classId);
-  nextEl.innerHTML = date + ' · Next up: <b>' + escHtml(next.name) + '</b> · ' + escHtml(_sosRelDay(next.date))
-    + (next.time ? ' at ' + escHtml(_sosFmtTime(next.time)) : '')
-    + (cls ? ' · ' + escHtml(sosClassName(cls)) : '');
+  const rel = _sosRelDay(next.date);
+  // The date on its own quiet line; then the next thing as one tidy row: a
+  // label, the item, when (a chip), and its class (a dot tag).
+  nextEl.innerHTML = '<span class="dn-date">' + date + '</span>'
+    + '<span class="dn-row"><span class="dn-k">Next up</span>'
+    + '<b class="dn-name">' + escHtml(next.name) + '</b>'
+    + '<span class="dn-when' + (rel === 'Today' ? ' today' : '') + '">' + escHtml(rel) + (next.time ? ' · ' + escHtml(_sosFmtTime(next.time)) : '') + '</span>'
+    + (cls ? _sosClsTag(cls) : '') + '</span>';
 }
 
 // ── Urgency score helper ────────────────────────────────────────────────────

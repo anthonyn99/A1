@@ -1501,3 +1501,14 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
 body.sos-guardian-open #study-root, body.sos-guardian-open #sos-intro {
   filter: blur(10px) brightness(.7); transition: filter .2s ease;
 }
+
+/* The dashboard's line under the greeting: the date alone, quiet; then the
+   next thing as one row of separate pieces instead of a run-on sentence. */
+#study-root .dash-next { display: flex; flex-direction: column; gap: 9px; margin-top: 4px; }
+#study-root .dn-date { font-size: 13px; color: var(--text3); font-weight: 600; }
+#study-root .dn-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+#study-root .dn-k { font-size: 10px; font-weight: 800; letter-spacing: 1.3px; text-transform: uppercase; color: var(--text3); }
+#study-root .dn-name { font-size: 14px; font-weight: 700; color: var(--text); }
+#study-root .dn-when { font-size: 11.5px; font-weight: 800; padding: 2px 9px; border-radius: 999px; background: var(--bg4); color: var(--text2); }
+#study-root .dn-when.today { background: var(--pink-soft); color: var(--pink); }
+#study-root .dn-none { font-size: 13.5px; color: var(--text2); }
