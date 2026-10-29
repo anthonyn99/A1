@@ -1185,7 +1185,7 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
 .sos-modal .prompt-entry.editing { cursor: grab; -webkit-touch-callout: none; }
 .sos-modal .prompt-entry-text { font-size: 13px; font-family: var(--mono); color: var(--text); line-height: 1.65; white-space: pre-wrap; word-break: break-word; margin-bottom: 10px; max-height: 260px; overflow-y: auto; }
 .sos-modal .prompt-entry-text.is-editing { max-height: none; overflow: visible; }
-.sos-modal .prompt-entry-text textarea { width: 100%; font-family: var(--mono); font-size: 12.5px; background: var(--bg2); color: var(--text); border: 1px solid var(--border2); border-radius: 10px; padding: 10px 12px; resize: none; overflow: hidden; outline: none; display: block; }
+.sos-modal .prompt-entry-text textarea { width: 100%; font-family: var(--mono); font-size: 12.5px; background: var(--bg2); color: var(--text); border: 1px solid var(--border2); border-radius: 10px; padding: 10px 12px; line-height: 1.65; resize: none; overflow: hidden; outline: none; display: block; }
 .sos-modal .prompt-entry-text textarea:focus { border-color: rgba(201, 180, 216, .6); box-shadow: var(--ring); }
 .sos-modal .prompt-entry-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
 .sos-modal .prompt-copy-btn, .sos-modal .prompt-del-btn {
