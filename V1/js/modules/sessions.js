@@ -205,7 +205,7 @@ export function byClass(days = 7, now = Date.now()) {
     .map(([classId, ms]) => ({
       classId,
       name: (classes.get(classId) || {}).name || 'Unassigned',
-      color: (classes.get(classId) || {}).color || '#76777C',
+      color: (classes.get(classId) || {}).color || '#827D8D',
       minutes: Math.round(ms / 60000),
     }))
     .sort((a, b) => b.minutes - a.minutes);

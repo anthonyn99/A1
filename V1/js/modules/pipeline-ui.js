@@ -42,8 +42,7 @@ export function sheet(title, bodyHtml, { wide } = {}) {
     overlay.classList.remove('open');
     setTimeout(() => overlay.remove(), 200);
   };
-  // Own listeners — the load-time pass in studyos.js never sees this element.
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  // Closes from its own buttons or Escape; a click outside does nothing.
   const onKey = (e) => { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onKey); } };
   document.addEventListener('keydown', onKey);
 
@@ -76,14 +75,14 @@ function deckReadyToast(job, doc) {
    * not there. Say what happened and that nothing was lost — the job is left
    * unfiled on purpose, so it re-files itself once the class is back. */
   if (doc && doc.unfiled) {
-    toast('⚠️', 'Deck could not be filed',
+    toast('alert', 'Deck could not be filed',
       'Its class is missing on this device. The deck is safe on the bridge and '
       + 'will file itself once the class is back.');
     return;
   }
 
-  const where = doc && doc.moduleName ? ` → ${doc.moduleName}` : '';
-  const el = toast('✅', 'Deck ready',
+  const where = doc && doc.moduleName  ? ` · ${doc.moduleName}` : '';
+  const el = toast('check', 'Deck ready',
     (job && job.sourceName) || (doc && doc.title) || 'Slide deck');
 
   /* Filed, but NOT where she chose. Landing somewhere unannounced is what made
@@ -179,13 +178,13 @@ const firstLineOf = (t) => String(t || '').split('\n').map(x => x.replace(/^#+\s
  */
 export function openRunSheet(cls, files, sourceModuleId) {
   if (!pipeline.enabled()) {
-    toast('⚠️', 'Pipeline is off', 'Turn on cloudflare.ai in config and start the bridge first.');
+    toast('alert', 'Pipeline is off', 'Turn on cloudflare.ai in config and start the bridge first.');
     return;
   }
   // NotebookLM needs a browser on this machine, which is what the local bridge
   // is. The Cloudflare Worker cannot drive one and never will.
   if (!pipeline.isLocalBridge()) {
-    toast('⚠️', 'Needs the local bridge',
+    toast('alert', 'Needs the local bridge',
       'Deck generation drives NotebookLM in a browser on this PC. Point config.cloudflare.ai.baseUrl at http://127.0.0.1:8781.');
     return;
   }
@@ -218,7 +217,7 @@ export function openRunSheet(cls, files, sourceModuleId) {
       const text = ta.value.trim();
       if (!text) { ta.focus(); return; }
       const modId = B && B.addModule && B.addModule(cls.id, name, 'prompts');
-      if (!modId) { toast('⚠️', 'Could not create the module', name); return; }
+      if (!modId) { toast('alert', 'Could not create the module', name); return; }
       const promptId = B.addPromptTo(cls.id, modId, text);
       saveDeckPrefs(cls.id, { ...deckPrefs(cls.id), promptModuleId: modId, promptId });
       s.close();
@@ -333,13 +332,13 @@ export function openRunSheet(cls, files, sourceModuleId) {
 
   run.onclick = async () => {
     const p = currentPrompt();
-    if (!p) { toast('⚠️', 'Pick a prompt', 'This prompt module is empty — add a prompt to it first.'); return; }
+    if (!p) { toast('alert', 'Pick a prompt', 'This prompt module is empty — add a prompt to it first.'); return; }
     let destId = destSel.value;
     if (destId === NEW_MODULE) {
       const name = newDest.value.trim();
       if (!name) { newDest.focus(); return; }
       destId = B && B.addModule ? B.addModule(cls.id, name, 'documents') : '';
-      if (!destId) { toast('⚠️', 'Could not create the module', name); return; }
+      if (!destId) { toast('alert', 'Could not create the module', name); return; }
     }
     saveDeckPrefs(cls.id, { promptModuleId: pmodSel.value, promptId: p.id, destModuleId: destId });
 
@@ -360,11 +359,11 @@ export function openRunSheet(cls, files, sourceModuleId) {
       s.close();
 
       if (failed.length) {
-        toast('⚠️', `${ok} queued, ${failed.length} failed`, failed[0].error);
+        toast('alert', `${ok} queued, ${failed.length} failed`, failed[0].error);
       } else if (cached === results.length) {
-        toast('✅', 'Already done', 'Re-filing the deck that was generated before — nothing was spent.');
+        toast('check', 'Already done', 'Re-filing the deck that was generated before — nothing was spent.');
       } else {
-        toast('⚡', `${ok} queued`, 'NotebookLM is building them. They keep running if you close the tab.');
+        toast('bolt', `${ok} queued`, 'NotebookLM is building them. They keep running if you close the tab.');
       }
       results.filter(r => r.ok && r.job && !r.cached).forEach(r => trackJob(r.job.id));
 
@@ -387,10 +386,10 @@ export function openRunSheet(cls, files, sourceModuleId) {
       // nothing about what to do. Name the actual cause and the one-time fix.
       const dead = /failed to fetch|networkerror|load failed/i.test(String(e.message || e));
       if (dead) {
-        toast('🔌', 'Bridge not running',
+        toast('plug', 'Bridge not running',
           'Start it once with:  python server.py autostart');
       } else {
-        toast('⚠️', 'Could not queue', String(e.message || e));
+        toast('alert', 'Could not queue', String(e.message || e));
       }
     }
   };
@@ -421,10 +420,10 @@ export function trackJob(id) {
       // claimable on purpose — see resumeWatches.
       if (doc && !doc.unfiled) pipeline.markFiled(job.id).catch(() => {});
       if (doc) deckReadyToast(job, doc);
-      else if (job.pdfError) toast('⚠️', 'Deck not built', job.pdfError);
+      else if (job.pdfError) toast('alert', 'Deck not built', job.pdfError);
     } else if (job.status === 'error') {
       watching.delete(id);
-      toast('⚠️', 'Job failed', job.error || 'unknown');
+      toast('alert', 'Job failed', job.error || 'unknown');
     }
   });
   watching.set(id, cancel);
@@ -480,7 +479,7 @@ export async function resumeWatches() {
 // ── P-3: the Jobs panel ───────────────────────────────────────────────────
 export async function openJobsPanel() {
   if (!pipeline.enabled()) {
-    toast('⚠️', 'Pipeline is off', 'Set up the studyos-ai Worker first.');
+    toast('alert', 'Pipeline is off', 'Set up the studyos-ai Worker first.');
     return;
   }
   const s = sheet('Jobs', '<div id="sos-ai-jobs" style="font-family:var(--mono);font-size:12px">Loading…</div>', { wide: true });
@@ -501,8 +500,8 @@ export async function openJobsPanel() {
     if (!jobs.length) { host.textContent = 'No jobs yet.'; return; }
 
     host.innerHTML = jobs.map(j => {
-      const color = j.status === 'done' ? '#8fd6ad'
-        : j.status === 'error' ? '#ef9f9f'
+      const color = j.status === 'done' ? '#A8DCC0'
+        : j.status === 'error' ? '#F2AFAF'
         : j.status === 'running' ? '#9dc0ee' : 'var(--text3)';
       const elapsed = j.startedAt
         ? Math.round(((j.finishedAt || Date.now()) - j.startedAt) / 1000) + 's'
@@ -518,7 +517,7 @@ export async function openJobsPanel() {
           </div>
         </div>
         ${j.status === 'error' ? `<button class="btn" data-retry="${esc(j.id)}" style="font-size:10px;padding:3px 8px">Retry</button>` : ''}
-        <button class="btn" data-del="${esc(j.id)}" style="font-size:10px;padding:3px 8px">✕</button>
+        <button class="icon-chip sm danger" data-del="${esc(j.id)}" title="Delete job" aria-label="Delete job">${window.SOI ? window.SOI.trash : ''}</button>
       </div>`;
     }).join('');
 
@@ -526,22 +525,24 @@ export async function openJobsPanel() {
       b.onclick = async () => {
         b.disabled = true;
         try { await pipeline.retryJob(b.dataset.retry); trackJob(b.dataset.retry); paint(); }
-        catch (e) { toast('⚠️', 'Retry failed', String(e.message || e)); b.disabled = false; }
+        catch (e) { toast('alert', 'Retry failed', String(e.message || e)); b.disabled = false; }
       };
     });
     host.querySelectorAll('[data-del]').forEach(b => {
       b.onclick = async () => {
+        if (!(await window.uiConfirm('The job and its status are removed. A finished deck stays where it was filed.', { title: 'Delete this job?', okLabel: 'Delete', danger: true }))) return;
         b.disabled = true;
         try { await pipeline.deleteJob(b.dataset.del); paint(); }
-        catch (e) { toast('⚠️', 'Delete failed', String(e.message || e)); b.disabled = false; }
+        catch (e) { toast('alert', 'Delete failed', String(e.message || e)); b.disabled = false; }
       };
     });
   };
 
   await paint();
   // Refresh while the panel is open; cleared on close so it cannot outlive it.
-  const timer = setInterval(paint, 5000);
-  s.overlay.addEventListener('click', (e) => { if (e.target === s.overlay) clearInterval(timer); });
+  // Stops when the panel is gone, however it closed (it used to stop only on a
+  // click outside, so Close left it polling for the life of the tab).
+  const timer = setInterval(() => { if (!s.overlay.isConnected) { clearInterval(timer); return; } paint(); }, 5000);
 }
 
 // ── P-4: per-module default prompt ────────────────────────────────────────
@@ -580,7 +581,7 @@ export function openAutoRunSheet(cls, mod) {
     const B = window._sosBridge;
     if (B && typeof B.setModuleDefaultPrompt === 'function') {
       B.setModuleDefaultPrompt(cls.id, mod.id, v || null);
-      toast('✅', v ? 'Auto-run on' : 'Auto-run off', mod.name);
+      toast('check', v ? 'Auto-run on' : 'Auto-run off', mod.name);
     }
     s.close();
   };

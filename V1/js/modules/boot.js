@@ -80,7 +80,7 @@ window.SOS.store = store;
     const r = deck.generateFromNote(classId, moduleId, note, { html: !!isHtml });
     try {
       window.showNotif && window.showNotif(
-        r.added.length ? '🃏' : 'ℹ️',
+        r.added.length ? 'cards' : 'info',
         r.added.length ? `${r.added.length} card${r.added.length === 1 ? '' : 's'} added` : 'No new cards',
         r.added.length
           ? `${deck.countsFor(classId).total} in ${cls ? cls.name : 'this class'}`
@@ -102,7 +102,7 @@ window.SOS.store = store;
     const cls = store.getClass(classId);
     try {
       window.showNotif && window.showNotif(
-        added ? '🃏' : 'ℹ️',
+        added ? 'cards' : 'info',
         added ? `${added} card${added === 1 ? '' : 's'} added` : 'No new cards',
         added ? `${deck.countsFor(classId).total} in ${cls ? cls.name : 'this class'}`
               : (kept ? 'These pages\' cards are already in your deck.' : 'Nothing to make cards from in these pages yet.'));
@@ -270,7 +270,7 @@ window.SOS.store = store;
       // Never block an upload on the pipeline: the file is already safely
       // stored, and a failed auto-run is a notification, not a lost file.
       console.warn('[StudyOS] auto-run failed:', err);
-      try { window.showNotif && window.showNotif('⚠️', 'Auto-run failed', String(err.message || err)); } catch (_) {}
+      try { window.showNotif && window.showNotif('alert', 'Auto-run failed', String(err.message || err)); } catch (_) {}
     }
   });
 

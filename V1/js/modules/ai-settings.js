@@ -35,6 +35,17 @@ const MODEL_HINT = {
 let draft = null;
 let _autoDetected = false;      // one automatic model listing per visit
 
+/* Each provider's mark in the picker: line icons in the app's own set. */
+const PROV_ICON = {
+  bridge:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>',
+  anthropic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg>',
+  openai:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18Z"/></svg>',
+  gemini:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c.6 5.4 4.6 9.4 10 10-5.4.6-9.4 4.6-10 10-.6-5.4-4.6-9.4-10-10 5.4-.6 9.4-4.6 10-10Z"/></svg>',
+  orca:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M8 7.5 11 16"/><path d="m16 7.5-3 8.5"/><path d="M8.5 6h7"/></svg>',
+};
+const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+const LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+
 export function render() {
   ensureStyle();
   const root = document.getElementById('sos-ai-root');
@@ -42,46 +53,62 @@ export function render() {
   if (!draft) draft = ai.settings();
   const p = draft.provider;
   const def = ai.PROVIDERS[p];
+  const active = ai.active();
 
   root.innerHTML = `
-    <h1 class="ais-h">AI settings</h1>
-    <div class="ais-lead">Which model writes your topic breakdowns — the lessons and flashcards made
-      from a document. Slide decks always come from NotebookLM through the local bridge.</div>
+    <header class="ais-top">
+      <div class="ais-eyebrow">AI &amp; flashcards</div>
+      <h1 class="ais-h">Study settings</h1>
+      <p class="ais-lead">Which model turns a document into topics, lessons and flashcards, and how your daily reviews feel.
+        Slide decks always come from NotebookLM through the bridge on this PC.</p>
+    </header>
 
-    <div class="ais-prov" role="radiogroup">
-      ${Object.entries(ai.PROVIDERS).map(([id, v]) => `
-        <button data-prov="${id}" class="${id === p ? 'on' : ''}" role="radio" aria-checked="${id === p}">
-          ${esc(v.label)}<small>${esc(BLURB[id])}</small>
-        </button>`).join('')}
-    </div>
+    <section class="ais-sec">
+      <div class="ais-sec-hd">
+        <div><h2>Breakdown model</h2><p>Writes the lessons and cards for “Break down”.</p></div>
+        <span class="ais-now" title="What breakdowns use right now">${esc(active.label || '')}</span>
+      </div>
+      <div class="ais-prov" role="radiogroup" aria-label="Model provider">
+        ${Object.entries(ai.PROVIDERS).map(([id, v]) => `
+          <button type="button" data-prov="${id}" class="${id === p ? 'on' : ''}" role="radio" aria-checked="${id === p}">
+            <span class="ais-prov-ic">${PROV_ICON[id] || PROV_ICON.anthropic}</span>
+            <span class="ais-prov-t">${esc(v.label)}</span>
+            <small>${esc(BLURB[id])}</small>
+            <span class="ais-prov-tick">${CHECK}</span>
+          </button>`).join('')}
+      </div>
 
-    ${p === 'bridge' ? `
-      <div class="ais-note">Uses the Claude Pro account signed in on the bridge's browser. Each topic is one
-        Claude message (plus one to list the topics), and the bridge must be running on this PC:
-        <code>python server.py autostart</code> once, in <code>V1/tools/sos-browser</code>.</div>` : `
-      ${p === 'openai' || p === 'orca' ? `
-        <div class="ais-field"><label for="ais-base">API base URL</label>
-          <input id="ais-base" value="${esc(draft.baseUrl[p] || def.defaultBase)}" spellcheck="false" autocomplete="off"></div>` : ''}
-      ${p === 'orca' ? orcaHtml() : `
-      <div class="ais-field"><label for="ais-key">${esc(def.label)} key</label>
-        <div class="ais-keyrow">
-          <input id="ais-key" type="password" value="${esc(draft.keys[p] || '')}" placeholder="${esc(KEY_HINT[p] || '')}" spellcheck="false" autocomplete="off">
-          <button class="btn" data-show type="button">Show</button>
-        </div></div>
-      <div class="ais-field"><label for="ais-model">Model</label>
-        <input id="ais-model" value="${esc(draft.models[p] || def.defaultModel || '')}" placeholder="${esc(MODEL_HINT[p] || '')}" spellcheck="false" autocomplete="off"></div>`}
-      <div class="ais-note">Your key is stored <b>in this browser only</b> — it is never synced to your other
-        devices or saved to the cloud, so add it on each device you break documents down from.
-        ${p === 'orca' ? 'ORCA gets the document as text (long text as an attached file), plus the PDF and its figures for models that read them; scanned PDFs are read by ORCA with OCR first (slower).' : 'The model has to read PDFs.'}</div>`}
+      <div class="ais-panel">
+        ${p === 'bridge' ? `
+          <div class="ais-note"><span>Uses the Claude Pro account signed in on the bridge's browser. Each topic is one
+            Claude message (plus one to list the topics). The bridge must be running on this PC:
+            <code>python server.py autostart</code> once, in <code>V1/tools/sos-browser</code>.</span></div>` : `
+          ${p === 'openai' || p === 'orca' ? `
+            <div class="ais-field"><label for="ais-base">API base URL</label>
+              <input id="ais-base" value="${esc(draft.baseUrl[p] || def.defaultBase)}" spellcheck="false" autocomplete="off"></div>` : ''}
+          ${p === 'orca' ? orcaHtml() : `
+          <div class="ais-grid">
+            <div class="ais-field"><label for="ais-key">${esc(def.label)} key</label>
+              <div class="ais-keyrow">
+                <input id="ais-key" type="password" value="${esc(draft.keys[p] || '')}" placeholder="${esc(KEY_HINT[p] || '')}" spellcheck="false" autocomplete="off">
+                <button class="btn ghost" data-show type="button">Show</button>
+              </div></div>
+            <div class="ais-field"><label for="ais-model">Model</label>
+              <input id="ais-model" value="${esc(draft.models[p] || def.defaultModel || '')}" placeholder="${esc(MODEL_HINT[p] || '')}" spellcheck="false" autocomplete="off"></div>
+          </div>`}
+          <div class="ais-note"><span class="ais-note-ic">${LOCK}</span><span>Your key is kept <b>in this browser only</b>: it is never synced or saved to the cloud,
+            so add it on each device you break documents down from.
+            ${p === 'orca' ? 'ORCA gets the document as text (long text as an attached file), plus the PDF and its figures for models that read them; scanned PDFs are read with OCR first (slower).' : 'The model has to read PDFs.'}</span></div>`}
 
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn primary" data-save>Save</button>
-      <button class="btn" data-test title="Sends one tiny request">Test connection</button>
-    </div>
-    <div class="ais-msg" id="ais-msg"></div>
+        <div class="ais-actions">
+          <button class="btn primary" data-save>Save</button>
+          <button class="btn ghost" data-test title="Sends one tiny request">Test connection</button>
+          <div class="ais-msg" id="ais-msg"></div>
+        </div>
+      </div>
+    </section>
     ${cardsHtml()}`;
   wireCards(root);
-
   const msg = (text, ok) => {
     const el = root.querySelector('#ais-msg');
     el.textContent = text;
@@ -186,7 +213,7 @@ function orcaHtml() {
       <div class="ais-field"><label for="ais-key">ORCA key</label>
         <div class="ais-keyrow">
           <input id="ais-key" type="password" value="${esc(draft.keys.orca || '')}" placeholder="${esc(KEY_HINT.orca)}" spellcheck="false" autocomplete="off">
-          <button class="btn" data-show type="button">Show</button>
+          <button class="btn ghost" data-show type="button">Show</button>
         </div></div>
       <div class="ais-field"><label for="ais-pick">Model</label>
         <div class="ais-keyrow">
@@ -195,7 +222,7 @@ function orcaHtml() {
             ${list.map(opt).join('')}
             ${pick !== 'auto' && !row ? `<option value="${esc(pick)}" selected>${esc(pick)} — not in ORCA's list</option>` : ''}
           </select>
-          <button class="btn" data-detect type="button" title="Ask ORCA which models this key can use">Detect models</button>
+          <button class="btn ghost" data-detect type="button" title="Ask ORCA which models this key can use">Detect models</button>
         </div>
         <div class="ais-note" id="ais-detected" style="margin-top:6px">${list.length
           ? `${usable} of ${list.length} models usable now${draft.orcaModels.detectedAt ? ` · checked ${esc(new Date(draft.orcaModels.detectedAt).toLocaleString())}` : ''}.`
@@ -212,27 +239,38 @@ function orcaHtml() {
  * change — there is nothing to test. Per device, like the AI keys. */
 function cardsHtml() {
   const s = cardSettings();
-  const chk = (id, on, label, note) => `
-    <label class="ais-check" style="display:flex;gap:10px;align-items:flex-start;margin:10px 0;cursor:pointer">
-      <input type="checkbox" id="${id}" ${on ? 'checked' : ''} style="margin-top:3px">
-      <span>${label}<br><small style="color:var(--text3)">${note}</small></span></label>`;
+  const sw = (id, on, label, note) => `
+    <label class="ais-switch-row" for="${id}">
+      <span class="ais-switch-txt"><b>${label}</b><small>${note}</small></span>
+      <input type="checkbox" class="ais-switch" id="${id}" ${on ? 'checked' : ''} data-native>
+      <span class="ais-switch-ui" aria-hidden="true"></span>
+    </label>`;
   return `
-    <h2 class="ais-h" style="font-size:20px;margin-top:34px">Flashcards</h2>
-    <div class="ais-lead">How many new cards you meet each day, and how reviewing feels. Saved on this device.</div>
-    <div class="ais-field"><label for="cs-new">New cards per day</label>
-      <input id="cs-new" type="number" min="0" max="500" value="${s.newPerDay}" style="max-width:120px">
-      <div class="ais-note" style="margin-top:6px">A handful a day adds up: 15 a day is about 450 a month.</div></div>
-    <div class="ais-field"><label for="cs-rev">Reviews per day (at most)</label>
-      <input id="cs-rev" type="number" min="10" max="5000" value="${s.reviewsPerDay}" style="max-width:120px"></div>
-    <div class="ais-field"><label for="cs-ret">Target retention</label>
-      <select id="cs-ret" style="max-width:220px">
-        ${[0.8, 0.85, 0.9, 0.93, 0.95].map((r) => `<option value="${r}"${Math.abs(r - s.retention) < 0.001 ? ' selected' : ''}>${Math.round(r * 100)}%${r === 0.9 ? ' (default)' : ''}</option>`).join('')}
-      </select>
-      <div class="ais-note" style="margin-top:6px">Higher remembers more, at the cost of more reviews.</div></div>
-    ${chk('cs-read', s.onlyReadLessons, 'Only introduce cards from lessons I’ve read', 'A breakdown’s cards wait until you open their lesson.')}
-    ${chk('cs-adv', s.advancedGrading, 'Advanced grading', 'Again / Hard / Good / Easy instead of Forgot / Remembered.')}
-    ${chk('cs-type', s.typeCloze, 'Type the answer on cloze cards', 'Type the hidden text before it is revealed.')}
-    <div class="ais-msg" id="cs-msg"></div>`;
+    <section class="ais-sec">
+      <div class="ais-sec-hd">
+        <div><h2>Flashcards</h2><p>How many new cards you meet each day, and how reviewing feels. Saved on this device.</p></div>
+      </div>
+      <div class="ais-panel">
+        <div class="ais-grid three">
+          <div class="ais-field"><label for="cs-new">New cards a day</label>
+            <input id="cs-new" type="number" min="0" max="500" value="${s.newPerDay}">
+            <div class="ais-hint">15 a day is about 450 a month.</div></div>
+          <div class="ais-field"><label for="cs-rev">Reviews a day, at most</label>
+            <input id="cs-rev" type="number" min="10" max="5000" step="10" value="${s.reviewsPerDay}"></div>
+          <div class="ais-field"><label for="cs-ret">Target retention</label>
+            <select id="cs-ret">
+              ${[0.8, 0.85, 0.9, 0.93, 0.95].map((r) => `<option value="${r}"${Math.abs(r - s.retention) < 0.001 ? ' selected' : ''}>${Math.round(r * 100)}%${r === 0.9 ? ' (default)' : ''}</option>`).join('')}
+            </select>
+            <div class="ais-hint">Higher remembers more, for more reviews.</div></div>
+        </div>
+        <div class="ais-switches">
+          ${sw('cs-read', s.onlyReadLessons, 'Only cards from lessons I’ve read', 'A breakdown’s cards wait until you open their lesson.')}
+          ${sw('cs-adv', s.advancedGrading, 'Advanced grading', 'Again, Hard, Good and Easy instead of Forgot and Remembered.')}
+          ${sw('cs-type', s.typeCloze, 'Type the answer on cloze cards', 'Type the hidden text before it is revealed.')}
+        </div>
+        <div class="ais-msg" id="cs-msg"></div>
+      </div>
+    </section>`;
 }
 
 function wireCards(root) {

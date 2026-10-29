@@ -46,12 +46,19 @@ const HOSTS = {
   'vault.html': [],
   'riftiq.html': [],
   'everwell.html': [],
+  // StudyOS (Veda's V1/): on Guardian since 2026-10-29, over its OWN backend.
+  'V1/studyos.html': ['V1/js/applock.js', 'V1/js/ui.js', 'V1/js/studyos.js'],
 };
+// Files that hand Guardian a custom `backend` (StudyOS's own studyos-api worker,
+// kept so Veda's password stays where it is). They may call THEIR worker's
+// password routes, inside that backend, and nothing else of a lock.
+const BACKENDS = ['V1/js/applock.js'];
+const ROUTES = /\/auth\/(?:journal|reset)\//;
 // Not migrated yet (shrinks phase by phase; must end empty).
 const PENDING = [];
-// Never touched by Guardian (user decision 2026-10-10): StudyOS keeps its own
-// backend (V1/ is Veda's StudyOS world), and Vault/'s WebAuthn is the vault
-// MASTER-password encryption (a PRF-derived key), not a lock.
+// Never scanned for a lock: the rest of V1/ (TradeBoard and Finance have their
+// own suite lock; StudyOS is a HOST above), and Vault/'s WebAuthn, which is the
+// vault MASTER-password encryption (a PRF-derived key), not a lock.
 // host/worker.js (A1-Priv's web host) is not a lock: it is the server-side
 // check of Vault's own Guardian lock (tony_vault_standalone, fixed in code)
 // before it hands out the Vault Launcher ZIP, through the same worker route.
@@ -88,7 +95,12 @@ for (const [file, extra] of Object.entries(HOSTS)) {
   ok(file + ' loads it before first paint (not defer/async)', tags[0] && !/\b(?:defer|async)\b/.test(tags[0][0]), tags[0] && tags[0][0]);
   for (const f of [file].concat(extra || [])) {
     const text = f === file ? html : M.read(f);
-    for (const [re, what] of OWN_LOCK) ok(f + ' has no ' + what, !re.test(text), (text.match(re) || [])[0]);
+    const backend = BACKENDS.includes(f);
+    for (const [re, what] of OWN_LOCK) {
+      if (backend && ROUTES.test(re.source.replace(/\\/g, ''))) continue;
+      ok(f + ' has no ' + what, !re.test(text), (text.match(re) || [])[0]);
+    }
+    if (backend) ok(f + ' gives Guardian its backend', /\.define\([^)]*/.test(text) && /\bbackend\s*:\s*backend\b/.test(text));
   }
 }
 

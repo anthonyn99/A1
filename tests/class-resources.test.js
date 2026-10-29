@@ -422,7 +422,7 @@ t('_sosDragOutHint takes no argument its caller stopped passing',
   /function _sosDragOutHint\(\)/.test(STUDYOS),
   'The call site passes nothing; a named parameter here would read undefined.');
 t('rows offer a clipboard route out',
-  /item\.appendChild\(cpBtn\);/.test(STUDYOS) &&
+  /(?:item|acts)\.appendChild\(cpBtn\);/.test(STUDYOS) &&
   /async function sosCopyFileToClipboard/.test(STUDYOS),
   'The clipboard is the ONLY transfer that reaches another origin, so without\n' +
   '      this button the drag failure leaves no working path at all.');
@@ -453,11 +453,12 @@ t('the native path is feature-detected, not assumed',
   'Referencing window.__TAURI__.drag unguarded throws in a plain browser and\n' +
   '      takes the whole resource list down with it.');
 t('the shell turns the HTML5 drag OFF',
-  /if \(SOS_NATIVE_DRAG\) \{\s*\n\s*item\.draggable = false;/.test(STUDYOS),
+  // `&& !editOn`: in Edit mode a drag reorders the rows instead (A1Drag).
+  /if \(SOS_NATIVE_DRAG(?: && !editOn)?\) \{\s*\n\s*item\.draggable = false;/.test(STUDYOS),
   'startDrag seizes the pointer. Leaving draggable=true means an HTML5 drag is\n' +
   '      already in flight for the same gesture and the native drag never starts.');
 t('the native drag is armed from a pointer gesture, not dragstart',
-  /if \(SOS_NATIVE_DRAG\)[\s\S]{0,900}?addEventListener\('mousedown'[\s\S]{0,900}?sosStartNativeDrag/.test(STUDYOS),
+  /if \(SOS_NATIVE_DRAG(?: && !editOn)?\)[\s\S]{0,900}?addEventListener\('mousedown'[\s\S]{0,900}?sosStartNativeDrag/.test(STUDYOS),
   'dragstart never fires once draggable is false, so wiring it there would\n' +
   '      leave the shell with no drag at all.');
 t('a plain click still opens the file rather than starting a drag',

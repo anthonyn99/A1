@@ -73,6 +73,13 @@ const DELIBERATE_FULL_BLEED = [
   // the words sit on. The words are `.rd-text`, held to 820px and centred, so
   // capping the field would only leave bare page beside it on a wide screen.
   /^\.rd-ov$/,
+  // StudyOS's cover page (Everwell's intro, ported): a full-bleed field of
+  // light the title sits on; the words are `.sos-intro-inner`, held to 760px
+  // and centred. Capping the field would leave bare page beside it.
+  /^#sos-intro$/,
+  // StudyOS's ambient light: two still radial glows behind the whole app,
+  // pointer-transparent background, not UI.
+  /\.sos-ambient$/,
   // Everwell's "Fill the window": a playing video filling the browser window
   // on purpose (Tony, 2026-10-11). Its content IS the picture, letterboxed by
   // the player, so every pixel of width is the video, not stretched UI.

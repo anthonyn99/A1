@@ -17,6 +17,7 @@ import * as pipeline from './pipeline.js';
 import { renderMarkdown, escapeHtml as esc, inline } from './md.js';
 import { ensureStyle } from './study-style.js';
 import { findFile } from './breakdown-ui.js';
+import { ic } from './icons.js';
 
 const LABEL = { read: 'Read', example: 'Worked example', steps: 'Step by step', check: 'Check yourself', recap: 'Recap',
   figure: 'Figure', source: 'From the document', cards: 'Key cards', pretest: 'Warm up', retry: 'Retry' };
@@ -201,7 +202,7 @@ function render() {
 
   root.innerHTML = `
     <div class="sl-top">
-      <button class="sl-back" data-back title="Back to the document">← ${esc(doc.sourceName || 'Document')}</button>
+      <button class="sl-back" data-back title="Back to the document">${ic('chevL')}<span>${esc(doc.sourceName || 'Document')}</span></button>
       <div class="sl-crumb">${esc(clsName)}${clsName ? ' · ' : ''}Topic ${doc.topics.indexOf(topic) + 1} of ${doc.topics.length}</div>
     </div>
     <h1 class="sl-title">${esc(topic.title)}</h1>
@@ -210,10 +211,10 @@ function render() {
     <div class="sl-count"><span>${screen + 1} of ${total}</span><span>${esc(LABEL[kind] || '')}</span></div>
     <div class="sl-card ${kind}">${block ? blockHtml(block, screen, doc) : cardsHtml(doc)}</div>
     <div class="sl-nav">
-      <button data-prev ${screen === 0 ? 'disabled' : ''}>← Back</button>
-      ${block ? `<button class="primary" data-next>${screen === blocks.length - 1 ? 'Key cards →'
-                : block.kind === 'pretest' || block.kind === 'retry' ? (S.checked[screen] ? 'Start the lesson →' : 'Skip →') : 'Next →'}</button>`
-              : (nextT ? `<button class="primary" data-topic="${esc(nextT.id)}">Next topic →</button>`
+      <button data-prev ${screen === 0 ? 'disabled' : ''}>${ic('chevL')}<span>Back</span></button>
+      ${block ? `<button class="primary" data-next>${screen === blocks.length - 1 ? 'Key cards ' + ic('chevR')
+                : block.kind === 'pretest' || block.kind === 'retry' ? (S.checked[screen] ? 'Start the lesson ' + ic('chevR') : 'Skip ' + ic('chevR')) : 'Next ' + ic('chevR')}</button>`
+              : (nextT ? `<button class="primary" data-topic="${esc(nextT.id)}">Next topic ${ic('chevR')}</button>`
                        : `<button class="primary" data-back>Back to the document</button>`)}
     </div>
     <div class="sl-topicnav">
@@ -297,7 +298,7 @@ function blockHtml(b, i, doc) {
         return `<button class="sl-choice ${cls}" data-q="${qi}" data-choice="${esc(ch)}" ${checked ? 'disabled' : ''}>${inline(esc(ch))}</button>`;
       }).join('');
       const expl = checked
-        ? `<div class="sl-expl">${picks[qi] === q.answer ? '✓ ' : '✗ '}${inline(esc(q.explanation || ('The answer is: ' + q.answer)))}</div>`
+        ? `<div class="sl-expl">${picks[qi] === q.answer ? ic('checkBold') + ' ' : ic('x') + ' '}${inline(esc(q.explanation || ('The answer is: ' + q.answer)))}</div>`
         : '';
       return `<div class="sl-q"><div class="sl-q-stem">${qi + 1}. ${inline(esc(q.q))}</div>${choices}${expl}</div>`;
     }).join('');
@@ -398,13 +399,13 @@ function wire(root, c, screen, total) {
   on('[data-newcard]', () => newCard(c, ''));
   on('[data-addcard]', (e) => { e.stopPropagation(); newCard(c, e.currentTarget.dataset.addcard + '\n---\n'); });
   on('[data-rewrite]', async () => {
-    if (!confirm('Write this lesson again from the document? It replaces the current one (one more AI request). Flashcards you have reviewed keep their schedule.')) return;
+    if (!(await window.uiConfirm('It replaces the current lesson (one more AI request). Flashcards you have reviewed keep their schedule.', { title: 'Write this lesson again?', okLabel: 'Rewrite' }))) return;
     const where = findFile(c.doc.fileId);
     if (!where) return;
     const topicId = c.topic.id;
     backToDocument(c.doc);
     try { await bd.regenerate(c.doc.fileId, topicId, where.file); }
-    catch (e) { window.showNotif && window.showNotif('⚠️', 'Rewrite failed', (e && e.message) || String(e)); }
+    catch (e) { window.showNotif && window.showNotif('alert', 'Rewrite failed', (e && e.message) || String(e)); }
   });
 }
 
@@ -414,7 +415,7 @@ function newCard(c, prefill) {
   if (!C) return;
   C.openEditor({ classId: c.doc.classId, noteId: bd.noteIdFor(c.doc.fileId, c.topic.id), title: c.topic.title, prefill,
     onSave: (card) => {
-      if (card) window.showNotif && window.showNotif('🃏', 'Card added', 'It joins your reviews with today\'s new cards.');
+      if (card) window.showNotif && window.showNotif('cards', 'Card added', 'It joins your reviews with today\'s new cards.');
       render();
     } });
 }
@@ -457,7 +458,7 @@ function onSelect() {
   const bar = document.createElement('div');
   bar.className = 'sl-selbar';
   bar.style.cssText = `position:fixed;z-index:9000;left:${Math.max(8, Math.min(window.innerWidth - 190, s.rect.left))}px;` +
-    `top:${Math.max(8, s.rect.top - 44)}px;display:flex;gap:4px;background:var(--bg4,#2e2f33);border:1px solid var(--border,rgba(255,255,255,.09));` +
+    `top:${Math.max(8, s.rect.top - 44)}px;display:flex;gap:4px;background:var(--bg4,#25232b);border:1px solid var(--border,rgba(255,255,255,.09));` +
     'border-radius:8px;padding:4px;box-shadow:0 4px 14px rgba(0,0,0,.35)';
   bar.innerHTML = '<button data-sel="card" class="sl-inline-btn" style="padding:6px 10px">＋ Card</button><button data-sel="cloze" class="sl-inline-btn" style="padding:6px 10px">＋ Cloze</button>';
   bar.addEventListener('mousedown', (e) => e.preventDefault());       // keep the selection
@@ -483,6 +484,7 @@ function backToDocument(doc) {
 
 // ── Keyboard: ← → move between screens while the reader is showing ─────────
 document.addEventListener('keydown', (e) => {
+  if (window.uiIsOpen && window.uiIsOpen()) return;   // a StudyOS dialog is answering
   if (!S) return;
   const view = document.getElementById('view-lesson');
   if (!view || !view.classList.contains('active')) return;

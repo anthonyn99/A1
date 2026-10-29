@@ -59,9 +59,67 @@ var SOI = (function () {
     expand:   I('<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>'),
     task:     I('<path d="M9 11.5 11 13.5 15.5 9"/><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4"/><path d="M16 2v4"/>'),
     globe:    I('<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18Z"/>'),
-    monitor:  I('<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/>')
+    monitor:  I('<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/>'),
+    play:     '<svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M7 4.8v14.4a1 1 0 0 0 1.5.86l12-7.2a1 1 0 0 0 0-1.72l-12-7.2A1 1 0 0 0 7 4.8z"/></svg>',
+    plus:     I('<path d="M12 5v14"/><path d="M5 12h14"/>', 2),
+    arrowR:   I('<path d="M5 12h14"/><path d="m13 6 6 6-6 6"/>', 1.8),
+    chevR:    I('<path d="m9 18 6-6-6-6"/>', 1.8),
+    chevL:    I('<path d="m15 18-6-6 6-6"/>', 1.8),
+    doc:      I('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h5"/>'),
+    sparkle:  I('<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/>'),
+    note:     I('<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>'),
+    cards:    I('<rect x="2.5" y="6" width="14" height="14" rx="2.5"/><path d="M7 3.5h11a2.5 2.5 0 0 1 2.5 2.5v11"/>'),
+    info:     I('<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.5h.01"/>'),
+    bolt:     I('<path d="M13 2 4 14h7l-1 8 9-12h-7Z"/>'),
+    plug:     I('<path d="M9 2v6"/><path d="M15 2v6"/><path d="M6 8h12v3a6 6 0 0 1-12 0Z"/><path d="M12 17v5"/>'),
+    star:     I('<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9Z"/>'),
+    undo:     I('<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>'),
+    eye:      I('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>'),
+    flame:    I('<path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5.3 1.6 1.2 2.5 2 2.5-1-3 0-5.5 1-8Z"/>'),
+    module:   I('<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/>')
   };
 })();
+
+/* Toast icons by name. showNotif() also takes the emoji the feature modules
+ * used to pass ('⚠️', '✅' …) and draws these instead, so no toast anywhere
+ * shows an emoji (Tony, 2026-10-29). Each carries its pastel tone. */
+var SOS_NOTIF = {
+  alert: ['alert', '#F2C9A0'], check: ['check', '#A8DCC0'], info: ['info', '#A9CBEF'],
+  cards: ['cards', '#F0B3CB'], calendar: ['calendar', '#C9B4D8'], bolt: ['bolt', '#F0B3CB'],
+  plug: ['plug', '#F2C9A0'], file: ['doc', '#C9B4D8'], cloud: ['cloud', '#A9CBEF'],
+  trash: ['trash', '#F2AFAF'], task: ['task', '#F0B3CB'], pencil: ['pencil', '#C9B4D8'],
+  bell: ['bell', '#C9B4D8'], download: ['download', '#A9CBEF'], timer: ['flame', '#F0B3CB']
+};
+var SOS_EMOJI_NOTIF = {
+  '⚠️': 'alert', '⚠': 'alert', '✅': 'check', 'ℹ️': 'info', '🃏': 'cards', '🗓️': 'calendar', '📅': 'calendar',
+  '⚡': 'bolt', '🔌': 'plug', '📄': 'file', '☁️': 'cloud', '🗑️': 'trash'
+};
+
+/* Today as YYYY-MM-DD in HER time zone. toISOString() is UTC, so after about
+ * 8pm in Georgia "today" became tomorrow: an exam due today dropped out of the
+ * countdown and every new event defaulted to the wrong day. */
+function sosLocalDate(d) {
+  d = d || new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+window.sosLocalDate = sosLocalDate;
+
+/* A1's drag (dragsort.js, window.A1Drag) on a list of cards or rows, the way
+ * Everwell wires it: a mouse takes a card by any part that is not a control, a
+ * finger holds it 300ms. No grip dots. Rows are matched by `row`; onDrop
+ * reorders the backing array by index and the caller saves and redraws. */
+function sosDragList(list, row, getArr, setArr, onDone, axis) {
+  if (!list || !window.A1Drag) return;
+  window.A1Drag.sort(list, {
+    row: row, hold: 300, axis: axis || 'y',
+    onDrop: function (from, to) {
+      const next = getArr().slice();
+      next.splice(to, 0, next.splice(from, 1)[0]);
+      setArr(next);
+      onDone && window.A1Drag.later(onDone);
+    }
+  });
+}
 
 /* ── Config-derived constants ──────────────────────────────────────────────
  * Read once at load. If the files worker is unconfigured, baseUrl stays null
@@ -344,32 +402,54 @@ function renderKsuModules() {
   const grid = _sosEl('ksu-modules-grid');
   if (!grid) return;
   grid.innerHTML = '';
-  ksuData.modules.forEach(m => {
-    const meta = m.type === 'documents'
-      ? (m.files.length + ' file' + (m.files.length !== 1 ? 's' : ''))
-      : m.type === 'prompts'
-      ? (m.prompts.length + ' prompt' + (m.prompts.length !== 1 ? 's' : ''))
-      : 'Notes';   // its pages are a Notebook folder; m.notes is the old textarea copy
-    const btn = document.createElement('div');
-    btn.className = 'module-btn';
-    btn.dataset.id = m.id;
-    btn.innerHTML = `
-      <div class="th-drag-handle" title="Drag to reorder" onclick="event.stopPropagation()">⠿</div>
-      <button class="rename-btn" title="Rename" onclick="event.stopPropagation();openRenameModule('ksu','${m.id}')">${SOI.pencil}</button>
-      <button class="delete-btn" title="Delete" aria-label="Delete" onclick="event.stopPropagation();deleteKsuModule('${m.id}')">${SOI.x}</button>
-      <div class="module-btn-icon" style="background:#8D769A22;color:#8D769A;font-size:11px">${sosModuleLabel(m.type)}</div>
-      <div class="module-btn-name">${escHtml(m.name)}</div>
-      <div class="module-btn-meta">${meta}</div>
-    `;
-    btn.onclick = () => openKsuModuleDetail(m);
-    grid.appendChild(btn);
-  });
-  thDragList(grid, () => ksuData.modules, (arr) => { ksuData.modules = arr; }, () => persistKsu(), '#8D769A');
+  if (!ksuData.modules.length) {
+    grid.innerHTML = '<div class="empty-state"><h3>No modules yet</h3><p>Add one for documents, parking, scholarships: anything that isn’t a class.</p></div>';
+    return;
+  }
+  ksuData.modules.forEach(m => grid.appendChild(_sosModuleCard({ id: 'ksu', color: KSU_COLOR }, m)));
+  sosDragList(grid, '.module-btn', () => ksuData.modules, (arr) => { ksuData.modules = arr; }, () => { persistKsu(); renderKsuModules(); }, 'grid');
+}
+
+/* One module card (a class's or KSU's). The whole card is the drag handle;
+ * rename and remove are real buttons in its corner. */
+const KSU_COLOR = '#C9B4D8';
+function _sosModuleMeta(m) {
+  return m.type === 'documents' ? ((m.files || []).length + ' file' + ((m.files || []).length !== 1 ? 's' : ''))
+       : m.type === 'prompts' ? ((m.prompts || []).length + ' prompt' + ((m.prompts || []).length !== 1 ? 's' : ''))
+       : 'Pages';   // its pages are a Notebook folder; m.notes is the old textarea copy
+}
+function _sosModuleIcon(type) {
+  return type === 'prompts' ? SOI.sparkle : type === 'notes' ? SOI.note : SOI.doc;
+}
+function _sosModuleCard(cls, m) {
+  const color = sosPastel(cls.color) || KSU_COLOR;
+  const btn = document.createElement('div');
+  btn.className = 'module-btn';
+  btn.dataset.id = m.id;
+  btn.tabIndex = 0;
+  btn.style.setProperty('--card-color', color);
+  btn.title = 'Open ' + (m.name || 'module') + ' · drag to reorder';
+  btn.innerHTML = `
+    <div class="module-btn-top">
+      <div class="module-btn-icon">${_sosModuleIcon(m.type)}</div>
+      <div class="module-btn-acts">
+        <button class="icon-chip sm" title="Rename" aria-label="Rename" data-act="rename">${SOI.pencil}</button>
+        <button class="icon-chip sm danger" title="Delete" aria-label="Delete" data-act="delete">${SOI.trash}</button>
+      </div>
+    </div>
+    <div class="module-btn-name">${escHtml(m.name)}</div>
+    <div class="module-btn-meta"><span class="module-kind">${sosModuleLabel(m.type)}</span><span>${_sosModuleMeta(m)}</span></div>
+  `;
+  btn.querySelector('[data-act="rename"]').onclick = (e) => { e.stopPropagation(); openRenameModule(cls.id, m.id); };
+  btn.querySelector('[data-act="delete"]').onclick = (e) => { e.stopPropagation(); cls.id === 'ksu' ? deleteKsuModule(m.id) : deleteModule(cls.id, m.id); };
+  btn.onclick = () => cls.id === 'ksu' ? openKsuModuleDetail(m) : openModuleDetail(classes.find(c => c.id === cls.id) || cls, m);
+  btn.onkeydown = (e) => { if (e.key === 'Enter' && e.target === btn) btn.onclick(); };
+  return btn;
 }
 
 async function deleteKsuModule(modId) {
   const mod = ksuData.modules.find(m => m.id === modId);
-  if (!(await window.uiConfirm('Remove "' + (mod ? mod.name : 'this module') + '"?', {danger:true, okLabel:'Remove'}))) return;
+  if (!(await window.sosConfirmDelete('“' + (mod ? mod.name : 'this module') + '”', 'The module and everything in it are removed from every device.'))) return;
   ksuData.modules = ksuData.modules.filter(m => m.id !== modId);
   persistKsu();
   renderKsuModules();
@@ -384,28 +464,17 @@ function openKsuAddModule() {
 
 function openKsuModuleDetail(mod) {
   // reuse existing module detail modal with a fake cls object
-  const fakeCls = { id: 'ksu', color: '#8D769A', modules: ksuData.modules,
+  const fakeCls = { id: 'ksu', color: KSU_COLOR, modules: ksuData.modules, _ksu: true,
     _persistFn: persistKsu };
   // patch persist to also save ksu
   _sosCurrentModuleClassId = 'ksu';
   _sosCurrentModuleId = mod.id;
   _sosParkSoRoot();
-  _sosEl('module-detail-title-text').textContent = mod.name;
+  _sosModuleHeader(fakeCls, mod);
   const body = _sosEl('module-detail-body');
   body.innerHTML = '';
   moduleEditMode[mod.id] = false;
-  if (mod.type !== 'notes') {
-    const toggleWrap = document.createElement('div');
-    toggleWrap.className = 'mode-toggle-wrap';
-    toggleWrap.innerHTML = `
-      <span class="mode-toggle-label active" id="lbl-view-${mod.id}">View</span>
-      <div class="mode-slider" id="mode-slider-${mod.id}" onclick="toggleKsuMode('${mod.id}')">
-        <div class="mode-slider-thumb"></div>
-      </div>
-      <span class="mode-toggle-label" id="lbl-edit-${mod.id}">Edit</span>
-    `;
-    body.appendChild(toggleWrap);
-  }
+  if (mod.type !== 'notes') body.appendChild(_sosModeToggle(mod, () => toggleKsuMode(mod.id)));
   const content = document.createElement('div');
   content.id = 'module-content-' + mod.id;
   body.appendChild(content);
@@ -413,23 +482,48 @@ function openKsuModuleDetail(mod) {
   _sosOpen('modal-module-detail');
 }
 
+/* The module popup's title row: type icon in the class's colour, the name. */
+function _sosModuleHeader(cls, mod) {
+  _sosEl('module-detail-title-text').textContent = mod.name;
+  const modal = _sosEl('module-detail-modal');
+  if (modal) modal.style.setProperty('--card-color', sosPastel(cls.color) || KSU_COLOR);
+  const t = _sosEl('module-detail-type');
+  if (t) t.innerHTML = _sosModuleIcon(mod.type);
+}
+
+/* View / Edit for a Documents or Prompts module: a two-part switch. Edit is
+ * where rows are dragged, files uploaded and things removed. */
+function _sosModeToggle(mod, onToggle) {
+  const wrap = document.createElement('div');
+  wrap.className = 'mode-toggle-wrap';
+  wrap.id = 'mode-toggle-' + mod.id;
+  const editOn = !!moduleEditMode[mod.id];
+  wrap.innerHTML = `
+    <button type="button" class="mode-seg m-view${editOn ? '' : ' active'}" data-m="view">${SOI.eye}<span>View</span></button>
+    <button type="button" class="mode-seg m-edit${editOn ? ' active' : ''}" data-m="edit">${SOI.pencil}<span>Edit</span></button>`;
+  wrap.querySelectorAll('.mode-seg').forEach(b => b.addEventListener('click', () => {
+    if ((b.dataset.m === 'edit') !== !!moduleEditMode[mod.id]) onToggle();
+  }));
+  return wrap;
+}
+function _sosPaintModeToggle(modId) {
+  const wrap = _sosEl('mode-toggle-' + modId);
+  if (!wrap) return;
+  const editOn = !!moduleEditMode[modId];
+  wrap.querySelectorAll('.mode-seg').forEach(b => b.classList.toggle('active', (b.dataset.m === 'edit') === editOn));
+}
+
 function toggleKsuMode(modId) {
   moduleEditMode[modId] = !moduleEditMode[modId];
-  const editOn = moduleEditMode[modId];
-  const slider = _sosEl('mode-slider-' + modId);
-  const lblView = _sosEl('lbl-view-' + modId);
-  const lblEdit = _sosEl('lbl-edit-' + modId);
-  if (slider) slider.className = 'mode-slider' + (editOn ? ' edit-on' : '');
-  if (lblView) lblView.classList.toggle('active', !editOn);
-  if (lblEdit) lblEdit.classList.toggle('active', editOn);
+  _sosPaintModeToggle(modId);
   const mod = ksuData.modules.find(m => m.id === modId);
-  const fakeCls = { id: 'ksu', color: '#8D769A', modules: ksuData.modules };
+  const fakeCls = { id: 'ksu', color: KSU_COLOR, modules: ksuData.modules, _ksu: true };
   const content = _sosEl('module-content-' + modId);
   if (mod && content) { content.innerHTML = ''; renderModuleContent(content, fakeCls, mod); }
 }
 
 function findClassOrKsu(classId) {
-  if (classId === 'ksu') return { id: 'ksu', color: '#8D769A', modules: ksuData.modules, _ksu: true };
+  if (classId === 'ksu') return { id: 'ksu', color: KSU_COLOR, modules: ksuData.modules, _ksu: true };
   return classes.find(c => c.id === classId);
 }
 function persistForCls(cls) {
@@ -478,6 +572,8 @@ function init() {
   renderKsuModules();
   renderExamCountdown();
   renderPriorityQueue();
+  setPomoMode(pomoMode);
+  updatePomoDots();
   // Migrate legacy base64 file blobs → IndexedDB (one-time, no-op if already done)
   // then push any local-only files up to the cloud (offline / no-Firebase path).
   _sosMigrateFilesToIdb()
@@ -604,7 +700,7 @@ function _sosApplyCloudStatus(el, f) {
     el.title = 'Saved on this device — retrying automatically until it reaches the cloud';
     el.classList.add('is-warn');
   } else {
-    el.textContent = '· Queued';
+    el.textContent = 'Queued';
     el.title = 'Waiting to upload to the cloud';
     el.classList.add('is-up');
   }
@@ -643,7 +739,9 @@ async function _sosRefreshStorage() {
       fill.classList.toggle('near-full', pct >= 80 && pct < 95);
       fill.classList.toggle('full', pct >= 95);
     }
-    if (text) text.textContent = _sosFmtBytes(used) + ' / ' + _sosFmtBytes(limit);
+    if (text) text.textContent = _sosFmtBytes(used) + ' of ' + _sosFmtBytes(limit) + ' used';
+    const pctEl = el.querySelector('.sos-storage-pct');
+    if (pctEl) pctEl.textContent = (pct > 0 && pct < 1 ? '<1' : Math.round(pct)) + '%';
     el.title = 'Cloud storage: ' + _sosFmtBytes(used) + ' of ' + _sosFmtBytes(limit) + ' used'
              + (u.files ? ' across ' + u.files + ' file' + (u.files > 1 ? 's' : '') : '')
              + '. Files up to ' + _sosFmtBytes(SOS_CLOUD_MAX) + ' each.';
@@ -798,7 +896,9 @@ async function sosCloudSyncClick() {
   _sosCloudSyncBusy = true;
   const btn = document.getElementById('sos-cloud-sync-btn');
   const label = btn ? btn.querySelector('.sos-cloud-sync-label') : null;
-  const setLabel = t => { if (label) label.textContent = t; };
+  // innerHTML: some states carry an icon (SOI.check). Through textContent they
+  // printed as raw "<svg …>" text in the sidebar.
+  const setLabel = t => { if (label) label.innerHTML = t; };
   const orig = label ? label.textContent : 'Sync to Cloud';
   if (btn) btn.disabled = true;
   setLabel('Syncing…');
@@ -833,11 +933,11 @@ window.sosCloudSyncClick = sosCloudSyncClick;
 function _sosRefreshAllDocLists() {
   const stamp = (cls, mods) => { for (const mod of (mods || [])) _sosRefreshModFiles(cls, mod, mod.id); };
   for (const cls of classes) stamp(cls, cls.modules);
-  stamp({ id: 'ksu', color: '#8D769A', modules: ksuData.modules, _ksu: true }, ksuData.modules);
+  stamp({ id: 'ksu', color: KSU_COLOR, modules: ksuData.modules, _ksu: true }, ksuData.modules);
 }
 
 function setTodayDate() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = sosLocalDate();
   _sosEl('inp-event-date').value = today;
 }
 
@@ -909,7 +1009,8 @@ function switchView(view, classId) {
   if (view === 'notes' && window.SOSNotes) window.SOSNotes.show(_sosEl('sos-notes-host'), window.SOSNotes.QUICK);
   else if (activeView === 'notes' && window.SOSNotes) window.SOSNotes.hide(_sosEl('sos-notes-host'));
   activeView = view;
-  const titles = { home:'Dashboard', calendar:'Calendar', notes:'Quick Notes', class:'Class Detail', pomodoro:'Timer', ksu:'KSU', ai:'AI Settings', lesson:'Lesson' };
+  const titles = { home:'Dashboard', calendar:'Calendar', notes:'Quick Notes', class:'Class', pomodoro:'Timer', ksu:'KSU', ai:'AI Settings', lesson:'Lesson' };
+  const eyebrows = { home:'StudyOS', calendar:'Plan', notes:'Write', class:'Class', pomodoro:'Focus', ksu:'Campus', ai:'Settings', lesson:'Study' };
   if (view === 'ksu') renderKsuModules();
   // ES-module views, reached through window.SOS (this is a classic script).
   try {
@@ -917,8 +1018,16 @@ function switchView(view, classId) {
     if (view !== 'lesson' && window.SOS && window.SOS.lessonUi) window.SOS.lessonUi.leave();
   } catch (e) { console.warn('view hook failed:', e); }
   _sosEl('topbar-title').textContent = titles[view] || 'StudyOS';
+  const eb = _sosEl('topbar-eyebrow');
+  if (eb) eb.textContent = eyebrows[view] || '';
   if (view === 'class' && classId) openClassDetail(classId);
+  if (view !== 'class') currentSidebarClass(null);
   if (view === 'calendar') renderCalendar();
+  if (view === 'home') _sosPaintGreeting();
+  if (view === 'pomodoro') _sosPaintPomoToday();
+  // A new tab starts at its top.
+  const v = _sosEl('view-' + view);
+  if (v) v.scrollTop = 0;
   // Sync bottom nav active state
   var bnViews = ['home','calendar','notes','ksu','pomodoro','ai'];
   bnViews.forEach(function(v) {
@@ -955,7 +1064,7 @@ function saveClass() {
   renderSidebarClasses();
   updateStats();
   populateEventClassSelect();
-  showNotif('', 'Class Created', cls.name + ' added to your semester.');
+  showNotif('check', 'Class created', sosClassName(cls) + ' is on your dashboard.');
 }
 
 let selectedColorEdit = COLORS[0];
@@ -1044,7 +1153,7 @@ function _sosResHint() {
   if (!_sosPickedFor(v)) _sosPickedApp = null;
   if (!v) { el.textContent = ''; return; }
   if (_sosPickedApp) {
-    el.textContent = 'Program on your PC — the ▶ button in TaskHub opens it through the StudyOS bridge.';
+    el.textContent = 'Program on your PC — the play button in TaskHub opens it through the StudyOS bridge.';
     el.style.color = 'var(--text3)';
   } else if (_sosIsLocalPath(v)) {
     el.textContent = 'A typed path cannot be opened. Use Browse… to pick the program.';
@@ -1064,29 +1173,31 @@ function renderClassResources(cls) {
   list.innerHTML = '';
   const res = cls.resources || [];
   if (res.length === 0) {
-    list.innerHTML = '<div class="class-events-empty">No linked resources.<br><span style="font-size:10px">Click + Resource to add a site or app.</span></div>';
+    list.innerHTML = '<div class="class-events-empty">No linked resources yet.<br>Add the sites and apps this class uses.</div>';
     return;
   }
   res.forEach(r => {
     const item = document.createElement('div');
-    item.className = 'class-event-item';
-    item.style.cursor = 'default';
+    item.className = 'class-event-item static';
     // An app saved before Browse used the bridge has only a path; TaskHub
     // matches it by label, which can miss, so ask for a re-pick.
     const legacyApp = r.kind === 'app' && !r.appId;
     const target = r.kind === 'app'
       ? (legacyApp ? 'Pick again with Browse\u2026 so it opens reliably' : 'Program on your PC' + (r.appName && r.appName !== r.label ? ' \u00b7 ' + r.appName : ''))
       : (r.url || '');
-    const shown = target.length > 46 ? target.slice(0, 46) + '\u2026' : target;
+    const shown = r.kind === 'app' ? target : target.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, '');
     const icon = r.kind === 'app' ? SOI.monitor : SOI.globe;
+    item.style.setProperty('--c', sosPastel(cls.color) || KSU_COLOR);
     item.innerHTML = `
-      <div style="width:14px;flex-shrink:0;margin-top:3px;color:${cls.color};font-size:12px;display:flex">${icon}</div>
-      <div style="flex:1;min-width:0">
+      <div class="ce-ic">${icon}</div>
+      <div style="min-width:0">
         <div class="class-event-name">${escHtml(r.label)}</div>
-        <div class="class-event-meta"${legacyApp ? ' style="color:#ef9f9f"' : ''}>${escHtml(shown)}</div>
+        <div class="class-event-meta${legacyApp ? ' warn' : ''}" title="${escHtml(target).replace(/"/g, '&quot;')}" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(shown)}</div>
       </div>
-      <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 4px;border-radius:3px;transition:0.15s" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text3)'" title="Edit" aria-label="Edit" onclick="openEditResource('${r.id}')">${SOI.pencil}</button>
-      <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 4px;border-radius:3px;transition:0.15s" onmouseover="this.style.color='#ef9f9f'" onmouseout="this.style.color='var(--text3)'" title="Delete" aria-label="Delete" onclick="deleteResource('${r.id}')">${SOI.x}</button>
+      <div class="ce-acts">
+        <button class="icon-chip sm" title="Edit" aria-label="Edit" onclick="openEditResource('${r.id}')">${SOI.pencil}</button>
+        <button class="icon-chip sm danger" title="Delete" aria-label="Delete" onclick="deleteResource('${r.id}')">${SOI.trash}</button>
+      </div>
     `;
     list.appendChild(item);
   });
@@ -1147,7 +1258,7 @@ async function openResourceBrowse() {
   const listEl = _sosEl('res-browse-list');
   const search = _sosEl('inp-res-browse-search');
   if (search) search.value = '';
-  if (listEl) listEl.innerHTML = '<div style="padding:18px 4px;color:var(--text3);font-size:12px">Loading programs…</div>';
+  if (listEl) listEl.innerHTML = '<div class="empty-note">Loading programs…</div>';
   _sosOpen('modal-res-browse');
 
   if (!_sosBrowseApps || !_sosBrowseApps.length) {
@@ -1173,7 +1284,7 @@ function _sosRenderBrowseList() {
     // Empty means her TaskHub has not yet reached the bridge on her PC, not
     // "no programs" -- say which, or the button looks broken.
     listEl.innerHTML =
-      '<div style="padding:16px 4px;color:var(--text3);font-size:12px;line-height:1.6">' +
+      '<div class="empty-note" style="text-align:left">' +
       'No programs available yet.<br>' +
       'This list comes from the <strong>StudyOS Bridge</strong> on your PC. Open TaskHub on your PC ' +
       'once while the bridge is running, then try Browse… again.' +
@@ -1187,7 +1298,7 @@ function _sosRenderBrowseList() {
     : apps;
 
   if (!shown.length) {
-    listEl.innerHTML = '<div style="padding:16px 4px;color:var(--text3);font-size:12px">No program matches that.</div>';
+    listEl.innerHTML = '<div class="empty-note">No program matches that.</div>';
     return;
   }
 
@@ -1195,12 +1306,8 @@ function _sosRenderBrowseList() {
   shown.forEach(function (a) {
     const row = document.createElement('button');
     row.type = 'button';
-    row.style.cssText =
-      'display:block;width:100%;text-align:left;background:none;border:none;border-radius:6px;' +
-      'padding:8px 10px;cursor:pointer;color:var(--text);font:inherit;transition:0.15s';
-    row.onmouseover = function () { row.style.background = 'var(--bg3, rgba(255,255,255,0.06))'; };
-    row.onmouseout  = function () { row.style.background = 'none'; };
-    row.innerHTML = '<div style="font-size:13px;font-weight:500">' + escHtml(String(a.name)) + '</div>';
+    row.className = 'browse-row';
+    row.innerHTML = SOI.monitor + '<span>' + escHtml(String(a.name)) + '</span>';
     row.onclick = function () { _sosPickBrowseApp(a); };
     listEl.appendChild(row);
   });
@@ -1264,9 +1371,11 @@ function saveResource() {
   renderClassResources(cls);
 }
 
-function deleteResource(id) {
+async function deleteResource(id) {
   const cls = classes.find(c => c.id === currentClassId);
   if (!cls) return;
+  const r = (cls.resources || []).find(x => x.id === id);
+  if (!(await window.sosConfirmDelete('“' + (r ? r.label : 'this resource') + '”', 'It no longer opens from this class or from TaskHub.'))) return;
   cls.resources = (cls.resources || []).filter(r => r.id !== id);
   persist();
   if (window._vedaUpdateTask) window._vedaUpdateTask();
@@ -1276,7 +1385,7 @@ function deleteResource(id) {
 async function deleteCurrentClass() {
   if (!currentClassId) return;
   const cls = classes.find(c => c.id === currentClassId);
-  if (!(await window.uiConfirm('Remove "' + (cls ? cls.name : '') + '" and all its modules?', {danger:true, okLabel:'Remove'}))) return;
+  if (!(await window.uiConfirm('Every module, document and prompt in it is removed from every device.', { title: 'Remove “' + (cls ? sosClassName(cls) : 'this class') + '”?', danger: true, okLabel: 'Remove class' }))) return;
   classes = classes.filter(c => c.id !== currentClassId);
   persist();
   _sosDropFilesOf(cls ? cls.modules : []);
@@ -1299,27 +1408,63 @@ function renderClasses() {
     return;
   }
   empty.style.display = 'none';
+  const today = sosLocalDate();
+  const wk = new Date(); wk.setDate(wk.getDate() + 7);
+  const weekEnd = sosLocalDate(wk);
   classes.forEach(cls => {
     const card = document.createElement('div');
     card.className = 'class-card';
-    card.style.setProperty('--card-color', cls.color);
+    card.style.setProperty('--card-color', sosPastel(cls.color));
     card.onclick = () => switchView('class', cls.id);
+    card.tabIndex = 0;
+    card.onkeydown = (e) => { if (e.key === 'Enter') card.onclick(); };
+    const name = sosClassName(cls);
+    // At most four module chips, then "+N more": a class with fifteen modules
+    // reads as tidily as one with two.
+    const mods = cls.modules || [];
+    const SHOW = 4;
+    const chips = mods.slice(0, SHOW).map(m => `<span class="module-chip" title="${escHtml(m.name).replace(/"/g, '&quot;')}">${escHtml(m.name)}</span>`).join('')
+      + (mods.length > SHOW ? `<span class="module-chip more">+${mods.length - SHOW} more</span>` : '')
+      + (mods.length === 0 ? '<span class="module-chip none">No modules yet</span>' : '');
+    const files = mods.reduce((n, m) => n + ((m.files || []).length), 0);
+    const due = events.filter(e => e.classId === cls.id && e.date >= today && e.date <= weekEnd).length
+              + tasks.filter(t => t.classId === cls.id && !t.done && t.dueDate && t.dueDate >= today && t.dueDate <= weekEnd).length;
     card.innerHTML = `
-      <div class="class-name">${escHtml(cls.name)}</div>
-      <div class="class-code">${escHtml(cls.code)}${cls.instructor ? ' · ' + escHtml(cls.instructor) : ''}</div>
-      <div class="class-modules">
-        ${cls.modules.map(m => `<div class="module-chip">${escHtml(m.name)}</div>`).join('')}
-        ${cls.modules.length === 0 ? '<div class="module-chip" style="color:var(--text3)">No modules yet</div>' : ''}
+      <div class="class-card-top">
+        <div class="class-mono">${escHtml((name.trim()[0] || '?').toUpperCase())}</div>
+        <div class="class-head">
+          <div class="class-name">${escHtml(name)}</div>
+          <div class="class-code">${[cls.code, cls.instructor].filter(Boolean).map(escHtml).join(' · ') || '&nbsp;'}</div>
+        </div>
+        <span class="class-go">${SOI.chevR}</span>
+      </div>
+      <div class="class-modules">${chips}</div>
+      <div class="class-foot">
+        <span>${SOI.module}${mods.length} module${mods.length === 1 ? '' : 's'}</span>
+        <span>${SOI.doc}${files} file${files === 1 ? '' : 's'}</span>
+        ${due ? `<span class="due">${SOI.calendar}${due} this week</span>` : ''}
       </div>
     `;
     grid.appendChild(card);
   });
   _sosEl('class-count').textContent = classes.length;
+  // Drag to reorder (Tony, 2026-10-29), as Everwell's cards: the order is the
+  // classes array itself, so the sidebar and every class list follow it.
+  sosDragList(grid, '.class-card', () => classes, (arr) => { classes = arr; }, () => { persist(); renderClasses(); renderSidebarClasses(); }, 'grid');
 }
+
+/* A class's name for display. Some names arrived from an import still
+ * HTML-escaped ("Computer Organization &amp"), which drew as "& amp". */
+function sosClassName(cls) {
+  const raw = String((cls && cls.name) || '');
+  const t = raw.replace(/&amp;?/gi, '&').replace(/&lt;?/gi, '<').replace(/&gt;?/gi, '>').replace(/&quot;?/gi, '"').replace(/&#0?39;?/g, "'");
+  return t.replace(/\s*&\s*$/, '').trim() || raw;
+}
+window.sosClassName = sosClassName;
 
 async function removeClass(id) {
   const cls = classes.find(c => c.id === id);
-  if (!(await window.uiConfirm('Remove "' + (cls ? cls.name : '') + '"?', {danger:true, okLabel:'Remove'}))) return;
+  if (!(await window.uiConfirm('Every module, document and prompt in it is removed from every device.', { title: 'Remove “' + (cls ? sosClassName(cls) : 'this class') + '”?', danger: true, okLabel: 'Remove class' }))) return;
   classes = classes.filter(c => c.id !== id);
   persist();
   _sosDropFilesOf(cls ? cls.modules : []);
@@ -1334,16 +1479,28 @@ function renderSidebarClasses() {
   el.innerHTML = '';
   classes.forEach(cls => {
     const item = document.createElement('div');
-    item.className = 'nav-item';
-    item.style.borderLeft = '3px solid ' + cls.color;
-    item.style.paddingLeft = '9px';
+    item.className = 'nav-item nav-class';
+    item.dataset.cls = cls.id;
     item.onclick = () => switchView('class', cls.id);
-    // textContent, not innerHTML: a class named "Computer Organization &
-    // Architecture" is stored raw, so assigning it as HTML made the browser
-    // parse "& Architecture" as an entity and render "& amp".
-    item.textContent = cls.name;
+    const name = sosClassName(cls);
+    item.title = name;
+    const dot = document.createElement('span');
+    dot.className = 'nav-dot';
+    dot.style.setProperty('--c', sosPastel(cls.color));
+    dot.textContent = (name.trim()[0] || '?').toUpperCase();
+    // textContent, not innerHTML: names are stored raw.
+    const label = document.createElement('span');
+    label.className = 'nav-label';
+    label.textContent = name;
+    item.appendChild(dot); item.appendChild(label);
+    if (activeView === 'class' && cls.id === currentClassId) item.classList.add('active');
     el.appendChild(item);
   });
+}
+
+/* Light the open class in the sidebar (null: none). */
+function currentSidebarClass(id) {
+  document.querySelectorAll('#sidebar-classes .nav-class').forEach(n => n.classList.toggle('active', !!id && n.dataset.cls === id));
 }
 
 // ===== CLASS DETAIL =====
@@ -1351,10 +1508,14 @@ function openClassDetail(id) {
   const cls = classes.find(c => c.id === id);
   if (!cls) return;
   currentClassId = id;
-  _sosEl('breadcrumb-class').textContent = cls.name;
-  _sosEl('detail-title').textContent = cls.name;
+  const name = sosClassName(cls);
+  _sosEl('breadcrumb-class').textContent = name;
+  _sosEl('detail-title').textContent = name;
   _sosEl('detail-subtitle').textContent = [cls.code, cls.instructor].filter(Boolean).join(' · ');
-  _sosEl('detail-color-bar').style.background = cls.color;
+  _sosEl('detail-color-bar').style.setProperty('--card-color', sosPastel(cls.color));
+  const tt = _sosEl('topbar-title');
+  if (tt && activeView === 'class') tt.textContent = name;
+  currentSidebarClass(id);
   renderModules(cls);
   renderClassEvents(cls);
   renderClassResources(cls);
@@ -1362,14 +1523,13 @@ function openClassDetail(id) {
   if (window.sosDecorateClass) {
     try { window.sosDecorateClass(cls); } catch (e) { console.warn('[StudyOS] cards section failed:', e); }
   }
+  try { sosSyncStickyHeader(); } catch (e) {}
 }
 
 function renderClassEvents(cls) {
   const list = _sosEl('class-events-list');
   list.innerHTML = '';
-  const _p=n=>String(n).padStart(2,'0');
-  const _now=new Date();
-  const todayStr = _now.getFullYear()+'-'+_p(_now.getMonth()+1)+'-'+_p(_now.getDate());
+  const todayStr = sosLocalDate();
 
   // Build a mixed array of events and tasks, each tagged with kind + sort date
   const items = [];
@@ -1383,7 +1543,7 @@ function renderClassEvents(cls) {
     .forEach(t => items.push({ kind: 'task', date: t.dueDate || todayStr, data: t }));
 
   if (items.length === 0) {
-    list.innerHTML = '<div class="class-events-empty">No upcoming events or tasks.<br><span style="font-size:10px">Click + Event or + Task to create one.</span></div>';
+    list.innerHTML = '<div class="class-events-empty">Nothing coming up.<br>Add an event or a task for this class.</div>';
     return;
   }
 
@@ -1400,41 +1560,67 @@ function renderClassEvents(cls) {
     return 0;
   });
 
+  const when = (d, t) => _sosRelDay(d) + (t ? ' · ' + _sosFmtTime(t) : '');
   items.forEach(({ kind, data }) => {
     const item = document.createElement('div');
     item.className = 'class-event-item';
 
     if (kind === 'event') {
       const ev = data;
-      const color = EVENT_COLORS[ev.type] || '#888';
-      item.title = 'Click to edit';
+      const color = EVENT_COLORS[ev.type] || '#C9B4D8';
+      item.title = 'Edit event';
       item.onclick = () => openAddEvent(ev);
       item.innerHTML = `
         <div class="class-event-dot" style="background:${color}"></div>
-        <div style="flex:1;min-width:0">
+        <div style="min-width:0">
           <div class="class-event-name">${escHtml(ev.name)}</div>
-          <div class="class-event-meta">${formatDate(ev.date)}${ev.time ? ' · ' + escHtml(ev.time) : ''} · ${escHtml(ev.type)}</div>
+          <div class="class-event-meta">${when(ev.date, ev.time)} · ${escHtml(_sosTypeLabel(ev.type))}</div>
         </div>
-        <button style="background:none;border:1px solid var(--border2);color:var(--text3);cursor:pointer;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;white-space:nowrap;flex-shrink:0;font-family:inherit;transition:0.15s" title="Convert to Task" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text3)'" onclick="event.stopPropagation();convertEventToTask('${ev.id}')">→ Task</button>
+        <div class="ce-acts">
+          <button class="mini-act" title="Turn this event into a task" onclick="event.stopPropagation();convertEventToTask('${ev.id}')">${SOI.arrowR}<span>Task</span></button>
+        </div>
       `;
     } else {
       const t = data;
-      const pColor = PRIORITY_COLORS[t.priority] || '#888';
-      item.style.cursor = 'default';
+      const pColor = PRIORITY_COLORS[t.priority] || '#C9B4D8';
+      item.title = 'Edit task';
+      item.onclick = () => openEditTask(t.id);
+      item.style.setProperty('--c', pColor);
       item.innerHTML = `
-        <div style="width:8px;height:8px;border-radius:2px;margin-top:5px;flex-shrink:0;border:1.5px solid ${pColor};background:${t.done ? pColor : 'transparent'};cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:7px;color:#1B1C1E;font-weight:700;transition:0.2s" onclick="toggleTaskDone('${t.id}')">${t.done ? SOI.checkBold : ''}</div>
-        <div style="flex:1;min-width:0">
-          <div class="class-event-name" style="${t.done ? 'text-decoration:line-through;color:var(--text3)' : ''}">${escHtml(t.name)}</div>
-          ${t.dueDate ? `<div class="class-event-meta">${formatDate(t.dueDate)}${t.dueTime ? ' · ' + escHtml(t.dueTime) : ''} · ${escHtml(t.type || 'task')}</div>` : (t.notes ? `<div class="class-event-meta">${escHtml(t.notes.slice(0,40))}${t.notes.length>40?'…':''}</div>` : '')}
+        <button class="ce-check${t.done ? ' on' : ''}" title="${t.done ? 'Mark not done' : 'Mark done'}" aria-label="${t.done ? 'Mark not done' : 'Mark done'}" onclick="event.stopPropagation();toggleTaskDone('${t.id}')">${t.done ? SOI.checkBold : ''}</button>
+        <div style="min-width:0">
+          <div class="class-event-name${t.done ? ' done' : ''}">${escHtml(t.name)}</div>
+          ${t.dueDate ? `<div class="class-event-meta">${when(t.dueDate, t.dueTime)} · ${escHtml(_sosTypeLabel(t.type || 'task'))}</div>` : (t.notes ? `<div class="class-event-meta">${escHtml(t.notes.slice(0,60))}${t.notes.length>60?'…':''}</div>` : '')}
         </div>
-        <button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 4px;border-radius:3px;transition:0.15s" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text3)'" title="Edit" aria-label="Edit" onclick="openEditTask('${t.id}')">${SOI.pencil}</button>
-        <button style="background:none;border:1px solid var(--border2);color:var(--text3);cursor:pointer;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;white-space:nowrap;flex-shrink:0;font-family:inherit;transition:0.15s" title="Convert to Event" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text3)'" onclick="convertTaskToEvent('${t.id}')">→ Event</button>
+        <div class="ce-acts">
+          <button class="mini-act" title="Turn this task into an event" onclick="event.stopPropagation();convertTaskToEvent('${t.id}')">${SOI.arrowR}<span>Event</span></button>
+        </div>
       `;
     }
 
     list.appendChild(item);
   });
 }
+
+/* "Today", "Tomorrow", a weekday this week, or "Nov 12" for a YYYY-MM-DD date. */
+function _sosRelDay(d) {
+  const today = sosLocalDate();
+  const t = new Date(); t.setDate(t.getDate() + 1);
+  if (d === today) return 'Today';
+  if (d === sosLocalDate(t)) return 'Tomorrow';
+  const days = Math.round((new Date(d + 'T12:00:00') - new Date(today + 'T12:00:00')) / 86400000);
+  if (days > 1 && days < 7) return new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' });
+  return formatDate(d);
+}
+/* "14:30" → "2:30 PM". */
+function _sosFmtTime(t) {
+  const m = /^(\d{1,2}):(\d{2})/.exec(t || '');
+  if (!m) return t || '';
+  const h = +m[1];
+  return (h % 12 || 12) + ':' + m[2] + ' ' + (h >= 12 ? 'PM' : 'AM');
+}
+const _SOS_TYPE_LABELS = { exam: 'Exam', hw: 'Homework', quiz: 'Quiz', lecture: 'Lecture', lab: 'Lab', other: 'Other', task: 'Task' };
+function _sosTypeLabel(t) { return _SOS_TYPE_LABELS[t] || (t ? t.charAt(0).toUpperCase() + t.slice(1) : ''); }
 
 function openAddEventForClass() {
   populateEventClassSelect();
@@ -1445,8 +1631,12 @@ function openAddEventForClass() {
   _sosEl('inp-event-time').value = '';
   _sosEl('inp-event-class').value = currentClassId || '';
   _sosEl('inp-event-type').value = 'hw';
+  // A new event starts clean: the weight and repeat of the last one edited
+  // used to carry over into it.
+  _sosEl('inp-event-weight').value = '';
   { const _nd=_sosEl('inp-event-notif-date'); if(_nd)_nd.value=''; const _nt=_sosEl('inp-event-notif-time'); if(_nt)_nt.value=''; }
   _sosEl('btn-delete-event').style.display = 'none';
+  _sosResetRepeatUI(null);
   _sosOpen('modal-add-event');
 }
 
@@ -1460,25 +1650,13 @@ function renderModules(cls) {
     if (!m.files) m.files = [];
     if (!m.prompts) m.prompts = [];
     if (m.noteBody === undefined) m.noteBody = '';
-
-    const btn = document.createElement('div');
-    btn.className = 'module-btn';
-    btn.dataset.id = m.id;
-    const meta = m.type === 'documents' ? (m.files.length + ' file' + (m.files.length !== 1 ? 's' : ''))
-                : m.type === 'prompts' ? (m.prompts.length + ' prompt' + (m.prompts.length !== 1 ? 's' : ''))
-                : 'Notes';
-    btn.innerHTML = `
-      <div class="th-drag-handle" title="Drag to reorder" onclick="event.stopPropagation()">⠿</div>
-      <button class="rename-btn" title="Rename" onclick="event.stopPropagation();openRenameModule('${cls.id}','${m.id}')">${SOI.pencil}</button>
-      <button class="delete-btn" title="Delete" aria-label="Delete" onclick="event.stopPropagation();deleteModule('${cls.id}','${m.id}')">${SOI.x}</button>
-      <div class="module-btn-icon" style="background:${cls.color}22;color:${cls.color};font-size:11px">${sosModuleLabel(m.type)}</div>
-      <div class="module-btn-name">${escHtml(m.name)}</div>
-      <div class="module-btn-meta">${meta}</div>
-    `;
-    btn.onclick = () => openModuleDetail(cls, m);
-    grid.appendChild(btn);
+    grid.appendChild(_sosModuleCard(cls, m));
   });
-  thDragList(grid, () => cls.modules, (arr) => { cls.modules = arr; }, () => persistForCls(cls), cls.color);
+  if (!cls.modules.length) {
+    grid.innerHTML = '<div class="empty-state"><h3>No modules yet</h3><p>Add one for lecture slides, notes or AI prompts.</p></div>';
+    return;
+  }
+  sosDragList(grid, '.module-btn', () => cls.modules, (arr) => { cls.modules = arr; }, () => { persistForCls(cls); renderModules(cls); renderClasses(); }, 'grid');
 }
 
 function openAddModule() {
@@ -1505,7 +1683,7 @@ function saveModule() {
     id: Date.now().toString(),
     name,
     type: pendingModuleType || 'documents',
-    icon: ICONS[pendingModuleType] || '📄',
+    icon: ICONS[pendingModuleType] || 'doc',
     files: [],
     prompts: [],
     notes: [],
@@ -1562,7 +1740,7 @@ async function deleteModule(classId, modId) {
   const cls = findClassOrKsu(classId);
   if (!cls) return;
   const mod = cls.modules.find(m => m.id === modId);
-  if (!(await window.uiConfirm('Remove "' + (mod ? mod.name : 'this module') + '"?', {danger:true, okLabel:'Remove'}))) return;
+  if (!(await window.sosConfirmDelete('“' + (mod ? mod.name : 'this module') + '”', 'The module and everything in it are removed from every device.'))) return;
   // findClassOrKsu('ksu') returns a stand-in object: reassigning ITS modules
   // would leave ksuData untouched and persist() would save nothing. Route the
   // KSU bucket to its own store.
@@ -1576,6 +1754,7 @@ async function deleteModule(classId, modId) {
   cls.modules = cls.modules.filter(m => m.id !== modId);
   persist();
   renderModules(cls);
+  renderClasses();
   updateStats();
   _sosDropFilesOf(mod ? [mod] : []);
 }
@@ -1594,27 +1773,16 @@ function openModuleDetail(cls, mod) {
   _sosCurrentModuleClassId = cls.id;
   _sosCurrentModuleId = mod.id;
   _sosParkSoRoot();
-  _sosEl('module-detail-title-text').textContent = mod.name;
+  _sosModuleHeader(cls, mod);
   const body = _sosEl('module-detail-body');
   body.innerHTML = '';
 
   // Always default to view mode when opening
   moduleEditMode[mod.id] = false;
 
-  // Notes modules use the page editor's own View/Edit toggle (so-btn-edit) —
-  // the generic slider below is for Documents/Prompts only.
-  if (mod.type !== 'notes') {
-    const toggleWrap = document.createElement('div');
-    toggleWrap.className = 'mode-toggle-wrap';
-    toggleWrap.innerHTML = `
-      <span class="mode-toggle-label ${!moduleEditMode[mod.id] ? 'active' : ''}" id="lbl-view-${mod.id}">View</span>
-      <div class="mode-slider ${moduleEditMode[mod.id] ? 'edit-on' : ''}" id="mode-slider-${mod.id}" onclick="toggleModuleMode('${cls.id}','${mod.id}')">
-        <div class="mode-slider-thumb"></div>
-      </div>
-      <span class="mode-toggle-label ${moduleEditMode[mod.id] ? 'active' : ''}" id="lbl-edit-${mod.id}">Edit</span>
-    `;
-    body.appendChild(toggleWrap);
-  }
+  // Notes modules use Notebook's own editing — the View / Edit switch is for
+  // Documents and Prompts only.
+  if (mod.type !== 'notes') body.appendChild(_sosModeToggle(mod, () => toggleModuleMode(cls.id, mod.id)));
 
   const content = document.createElement('div');
   content.id = 'module-content-' + mod.id;
@@ -1626,14 +1794,8 @@ function openModuleDetail(cls, mod) {
 
 function toggleModuleMode(classId, modId) {
   moduleEditMode[modId] = !moduleEditMode[modId];
-  const editOn = moduleEditMode[modId];
-  const slider = _sosEl('mode-slider-' + modId);
-  const lblView = _sosEl('lbl-view-' + modId);
-  const lblEdit = _sosEl('lbl-edit-' + modId);
-  if (slider) slider.className = 'mode-slider' + (editOn ? ' edit-on' : '');
-  if (lblView) lblView.classList.toggle('active', !editOn);
-  if (lblEdit) lblEdit.classList.toggle('active', editOn);
-  const cls = classes.find(c => c.id === classId);
+  _sosPaintModeToggle(modId);
+  const cls = findClassOrKsu(classId);
   const mod = cls && cls.modules.find(m => m.id === modId);
   const content = _sosEl('module-content-' + modId);
   if (cls && mod && content) { content.innerHTML = ''; renderModuleContent(content, cls, mod); }
@@ -1651,10 +1813,6 @@ function closeModuleDetail() {
   _sosLeaveNotesModule();
   _sosClose('modal-module-detail');
 }
-document.addEventListener('DOMContentLoaded', function() {
-  var overlay = document.getElementById('modal-module-detail');
-  if (overlay) overlay.addEventListener('click', function(e) { if (e.target === overlay) closeModuleDetail(); });
-});
 
 // ---- DOCUMENTS ----
 function renderDocumentsModule(body, cls, mod) {
@@ -1670,20 +1828,20 @@ function renderDocumentsModule(body, cls, mod) {
     const zone = document.createElement('div');
     zone.className = 'upload-zone';
     zone.innerHTML = `
-      <div style="font-size:28px;margin-bottom:8px;opacity:.45;display:flex;justify-content:center">${SOI.clip}</div>
-      <div style="font-weight:700;margin-bottom:4px">Drop files or click to upload</div>
-      <div style="font-size:11px;color:var(--text3);font-family:var(--mono)">Any file type — stored locally in browser</div>
+      <span class="uz-ic">${SOI.download.replace('M12 3v12', 'M12 15V3').replace('m7 10 5 5 5-5', 'm7 8 5-5 5 5')}</span>
+      <b>Drop files here, or click to choose</b>
+      <small>Any file type · saved on this device and synced to the cloud</small>
       <input type="file" multiple id="file-input-${mod.id}" onchange="handleFileUpload(event,'${cls.id}','${mod.id}')">
     `;
-    zone.ondragover = e => { e.preventDefault(); zone.style.borderColor = 'var(--accent)'; };
-    zone.ondragleave = () => { zone.style.borderColor = ''; };
+    zone.ondragover = e => { e.preventDefault(); zone.classList.add('over'); };
+    zone.ondragleave = () => { zone.classList.remove('over'); };
     zone.ondrop = e => {
       e.preventDefault();
       // Keep the global window drop handler out: this zone already knows the
       // destination, so it files directly. Without this the same files would
       // ALSO be ingested via the picker and land twice.
       e.stopPropagation();
-      zone.style.borderColor = '';
+      zone.classList.remove('over');
       handleFilesAdded(Array.from(e.dataTransfer.files), cls.id, mod.id);
     };
     body.appendChild(zone);
@@ -2274,14 +2432,23 @@ function _sosRefreshModFiles(cls, mod, modId) {
 function _sosRowActionBtn(label, title) {
   const b = document.createElement('button');
   b.className = 'doc-item-act';
+  b.type = 'button';
   b.title = title || label;
   b.textContent = label;
-  b.style.cssText = 'background:none;cursor:pointer;color:var(--text3);font-size:11px;font-family:var(--mono);padding:4px 8px;border-radius:4px;transition:0.15s;border:1px solid var(--border);white-space:nowrap';
-  b.addEventListener('mouseover', () => { b.style.color='var(--accent)'; b.style.borderColor='var(--accent)'; });
-  b.addEventListener('mouseout',  () => { b.style.color='var(--text3)';  b.style.borderColor='var(--border)'; });
   return b;
 }
 window._sosRowActionBtn = _sosRowActionBtn;
+
+// A file type's pastel, so the icons in a list read as a set with some life.
+function _sosFileTone(name) {
+  const ext = String(name || '').split('.').pop().toLowerCase();
+  if (ext === 'pdf') return '#F0B3CB';
+  if (/^(ppt|pptx|key)$/.test(ext)) return '#F2C9A0';
+  if (/^(xls|xlsx|csv)$/.test(ext)) return '#A8DCC0';
+  if (/^(doc|docx|txt|md|rtf)$/.test(ext)) return '#A9CBEF';
+  if (/^(png|jpg|jpeg|gif|webp|heic)$/.test(ext)) return '#E8D49A';
+  return '#C9B4D8';
+}
 
 // The release function of the one file row currently holding a drag payload
 // (see _prepDrag below). One slot for the whole page bounds that memory to a
@@ -2291,20 +2458,21 @@ function refreshDocList(listEl, cls, mod) {
   const editOn = !!moduleEditMode[mod.id];
   listEl.innerHTML = '';
   if (!mod.files || mod.files.length === 0) {
-    listEl.innerHTML = `<div style="font-size:12px;color:var(--text3);font-family:var(--mono);padding:4px 0 8px">${editOn ? 'No files yet. Upload below.' : 'No files uploaded.'}</div>`;
+    listEl.innerHTML = `<div class="doc-empty">${editOn ? 'No files yet. Add some below.' : 'No files here yet. Switch to Edit to add some.'}</div>`;
     return;
   }
   mod.files.forEach((f, idx) => {
-    // Migrate legacy files saved before .id existed (thDragList matches by .id).
+    // Migrate legacy files saved before .id existed (rows are keyed by .id).
     if (!f.id) f.id = f.fileId || ('legacy_' + idx + '_' + Date.now().toString(36));
 
     const item = document.createElement('div');
-    item.className = 'doc-item';
+    item.className = 'doc-item' + (editOn ? ' editing' : '');
     item.dataset.id = f.id;
-    item.style.cursor = 'pointer';
-    item.title = SOS_NATIVE_DRAG
-      ? 'Click to open · drag straight into any app'
-      : 'Click to open · drag out to a folder · use Copy to paste into another website';
+    item.title = editOn
+      ? 'Drag to reorder'
+      : SOS_NATIVE_DRAG
+        ? 'Click to open · drag straight into any app'
+        : 'Click to open · drag out to a folder · use Copy to paste into another website';
 
     // ── Drag-out: drag this file into Explorer / the desktop / a native app ──
     // DownloadURL is what makes the OS shell write a real file out on drop, and
@@ -2325,7 +2493,10 @@ function refreshDocList(listEl, cls, mod) {
     // them again. Veda's StudyOS tab reached 2-5 GB (2026-09-30). Now at most
     // ONE row holds a payload (_sosDragSlot), it is released 20 s after the
     // pointer leaves, and a plain hover never downloads a cloud-only file.
-    item.draggable = true;
+    //
+    // In Edit mode a drag REORDERS the rows instead (A1Drag, below), so the
+    // drag-out is off there: one gesture, one meaning.
+    item.draggable = !editOn;
     let _dragFile = null, _dragUrl = null, _dragReady = false, _dragIdle = null;
     // afterDrop: a drop target may still be reading the URL, so keep it a
     // minute; a payload that was never dragged is freed at once.
@@ -2340,7 +2511,7 @@ function refreshDocList(listEl, cls, mod) {
       if (_sosDragSlot === _releaseDrag) _sosDragSlot = null;
     };
     const _prepDrag = (ev) => {
-      if (_dragReady || (!f.fileId && !f.storageUrl)) return;
+      if (editOn || _dragReady || (!f.fileId && !f.storageUrl)) return;
       if (_sosDragSlot && _sosDragSlot !== _releaseDrag) _sosDragSlot();
       _sosDragSlot = _releaseDrag;
       _dragReady = true;
@@ -2371,7 +2542,7 @@ function refreshDocList(listEl, cls, mod) {
     // would fight it for the same gesture. So here draggable is turned OFF and
     // the drag is started once the pointer has actually moved a few pixels —
     // which also keeps a plain click (open the file) from starting a drag.
-    if (SOS_NATIVE_DRAG) {
+    if (SOS_NATIVE_DRAG && !editOn) {
       item.draggable = false;
       item.addEventListener('mouseenter', () => { sosStageForDrag(f); });
       item.addEventListener('mousedown', ev => {
@@ -2400,6 +2571,7 @@ function refreshDocList(listEl, cls, mod) {
     }
 
     item.addEventListener('dragstart', ev => {
+      if (editOn) { ev.preventDefault(); return; }
       if (!_dragFile) { _prepDrag(); ev.preventDefault(); return; }
       const mime = f.mime || 'application/octet-stream';
       try { ev.dataTransfer.items.add(_dragFile); } catch (_) {}
@@ -2416,40 +2588,57 @@ function refreshDocList(listEl, cls, mod) {
 
     const icon = document.createElement('div');
     icon.className = 'doc-item-icon';
-      icon.innerHTML = fileEmoji(f.name);
+    icon.style.setProperty('--ft', _sosFileTone(f.name));
+    icon.innerHTML = fileEmoji(f.name);
 
+    const main = document.createElement('div');
+    main.className = 'doc-item-main';
     const nameEl = document.createElement('div');
     nameEl.className = 'doc-item-name';
     nameEl.title = f.name;
     nameEl.textContent = f.name;
-
-    const sizeEl = document.createElement('div');
+    const sub = document.createElement('div');
+    sub.className = 'doc-item-sub';
+    const sizeEl = document.createElement('span');
     sizeEl.className = 'doc-item-size';
     sizeEl.textContent = formatBytes(f.size);
+    // Cloud-sync status — a readable word + live percentage, not a lone glyph,
+    // so it's obvious at a glance whether a file has actually reached the cloud.
+    const cloudEl = document.createElement('span');
+    cloudEl.className = 'doc-item-cloud';
+    cloudEl.dataset.fileId = f.fileId || '';
+    _sosApplyCloudStatus(cloudEl, f);
+    sub.appendChild(sizeEl); sub.appendChild(cloudEl);
+    main.appendChild(nameEl); main.appendChild(sub);
 
-    // Download button
-    const dlBtn = document.createElement('a');
-    dlBtn.title = 'Download';
-    dlBtn.innerHTML = SOI.download;
-    dlBtn.style.cssText = 'color:var(--text3);text-decoration:none;font-size:14px;padding:4px 8px;border-radius:4px;transition:0.15s;border:1px solid var(--border)';
-    dlBtn.addEventListener('mouseover', () => { dlBtn.style.color='var(--accent)'; dlBtn.style.borderColor='var(--accent)'; });
-    dlBtn.addEventListener('mouseout',  () => { dlBtn.style.color='var(--text3)';  dlBtn.style.borderColor='var(--border)'; });
-    dlBtn.addEventListener('click', e => {
-      e.stopPropagation();
-      sosDownloadFile(f);
-    });
+    const acts = document.createElement('div');
+    acts.className = 'doc-item-acts';
+
+    // Slides — the NotebookLM deck pipeline (spec P-3). Rendered only when the
+    // pipeline is configured AND on. A LOCAL blob is enough: the bridge runs on
+    // this PC and sosResolveBlob reads IndexedDB first.
+    if (window.sosRunPrompt && (f.fileId || f.storageUrl || f.storagePath)) {
+      const runBtn = _sosRowActionBtn('Slides', 'Make a slide deck from this file with NotebookLM');
+      runBtn.dataset.act = 'slides';
+      runBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        try { window.sosRunPrompt(cls.id, f.id, mod.id); }
+        catch (err) { console.warn('run prompt failed:', err); }
+      });
+      acts.appendChild(runBtn);
+    }
 
     // Copy to clipboard — the one route into another web app's upload box
     // (Gemini/NotebookLM/ChatGPT all accept a pasted file; none can receive a
     // drag from this page). Falls back to a download when the OS clipboard
     // refuses the type, since a real on-disk file can be dragged from Explorer.
     const cpBtn = document.createElement('button');
+    cpBtn.type = 'button';
+    cpBtn.className = 'icon-chip';
     cpBtn.dataset.act = 'copy';
     cpBtn.title = 'Send to another app — copies images to the clipboard, downloads everything else';
+    cpBtn.setAttribute('aria-label', 'Send to another app');
     cpBtn.innerHTML = SOI.clip;
-    cpBtn.style.cssText = 'background:none;cursor:pointer;color:var(--text3);text-decoration:none;font-size:14px;padding:4px 8px;border-radius:4px;transition:0.15s;border:1px solid var(--border)';
-    cpBtn.addEventListener('mouseover', () => { cpBtn.style.color='var(--accent)'; cpBtn.style.borderColor='var(--accent)'; });
-    cpBtn.addEventListener('mouseout',  () => { cpBtn.style.color='var(--text3)';  cpBtn.style.borderColor='var(--border)'; });
     cpBtn.addEventListener('click', async e => {
       e.stopPropagation();
       const ok = await sosCopyFileToClipboard(f);
@@ -2463,64 +2652,37 @@ function refreshDocList(listEl, cls, mod) {
         sosDownloadFile(f);
       }
     });
+    acts.appendChild(cpBtn);
 
-    // Slides — the NotebookLM deck pipeline (spec P-3). This is the button the
-    // two above exist to work around: copy/download are the manual route into
-    // another app's upload box, and this one does the job without leaving
-    // StudyOS. Rendered only when the pipeline is configured AND on.
-    //
-    // A LOCAL blob is enough: the bridge runs on this PC and sosResolveBlob
-    // reads IndexedDB first, so waiting for the cloud copy only hid the button
-    // on a freshly added file for no reason.
-    let runBtn = null;
-    if (window.sosRunPrompt && (f.fileId || f.storageUrl || f.storagePath)) {
-      runBtn = _sosRowActionBtn('Slides', 'Make a slide deck from this file with NotebookLM');
-      runBtn.dataset.act = 'slides';
-      runBtn.addEventListener('click', e => {
-        e.stopPropagation();
-        try { window.sosRunPrompt(cls.id, f.id, mod.id); }
-        catch (err) { console.warn('run prompt failed:', err); }
-      });
-    }
-
-    // Cloud-sync status — a readable word + live percentage, not a lone glyph,
-    // so it's obvious at a glance whether a file has actually reached the cloud.
-    const cloudEl = document.createElement('div');
-    cloudEl.className = 'doc-item-cloud';
-    cloudEl.dataset.fileId = f.fileId || '';
-    _sosApplyCloudStatus(cloudEl, f);
-
-    if (editOn) {
-      const handle = document.createElement('div');
-      handle.className = 'th-drag-handle row-drag-handle';
-      handle.title = 'Drag to reorder';
-      handle.textContent = '⠿';
-      handle.addEventListener('click', e => e.stopPropagation());
-      item.appendChild(handle);
-    }
-
-    item.appendChild(icon);
-    item.appendChild(nameEl);
-    item.appendChild(sizeEl);
-    item.appendChild(cloudEl);
-    if (runBtn) item.appendChild(runBtn);
-    item.appendChild(cpBtn);
-    item.appendChild(dlBtn);
+    const dlBtn = document.createElement('button');
+    dlBtn.type = 'button';
+    dlBtn.className = 'icon-chip';
+    dlBtn.title = 'Download';
+    dlBtn.setAttribute('aria-label', 'Download');
+    dlBtn.innerHTML = SOI.download;
+    dlBtn.addEventListener('click', e => { e.stopPropagation(); sosDownloadFile(f); });
+    acts.appendChild(dlBtn);
 
     if (editOn) {
       const delBtn = document.createElement('button');
-      delBtn.className = 'doc-item-del';
-      delBtn.title = 'Remove';
-      delBtn.innerHTML = SOI.x;
+      delBtn.type = 'button';
+      delBtn.className = 'icon-chip danger';
+      delBtn.title = 'Delete file';
+      delBtn.setAttribute('aria-label', 'Delete file');
+      delBtn.innerHTML = SOI.trash;
       delBtn.addEventListener('click', e => {
         e.stopPropagation();
-        removeFile(cls.id, mod.id, idx);
+        removeFile(cls.id, mod.id, f.id);
       });
-      item.appendChild(delBtn);
+      acts.appendChild(delBtn);
     }
 
-    // Open in new tab — local IDB blob, else cloud copy
-    item.onclick = () => sosOpenFile(f);
+    item.appendChild(icon);
+    item.appendChild(main);
+    item.appendChild(acts);
+
+    // Open in new tab — local IDB blob, else cloud copy. Not while arranging.
+    item.onclick = () => { if (!editOn) sosOpenFile(f); };
 
     listEl.appendChild(item);
     // Study tools (js/modules/breakdown-ui.js) add their button to the row and
@@ -2533,7 +2695,7 @@ function refreshDocList(listEl, cls, mod) {
   });
 
   if (editOn) {
-    thDragList(listEl, () => mod.files, (arr) => { mod.files = arr; }, () => { persistForCls(cls); refreshDocList(listEl, cls, mod); }, cls.color || '#8D769A');
+    sosDragList(listEl, '.doc-item', () => mod.files, (arr) => { mod.files = arr; }, () => { persistForCls(cls); refreshDocList(listEl, cls, mod); });
   }
 }
 
@@ -2639,7 +2801,7 @@ function _sosDocDestinations() {
   }
   for (const mod of (ksuData.modules || [])) {
     if (mod.type !== 'documents') continue;
-    out.push({ classId: 'ksu', className: 'KSU', color: '#8D769A',
+    out.push({ classId: 'ksu', className: 'KSU', color: KSU_COLOR,
                modId: mod.id, modName: mod.name || 'Module', count: (mod.files || []).length });
   }
   return out;
@@ -2674,8 +2836,9 @@ function _sosRenderDestList(dests) {
     main.className = 'pick-dest-main';
     const cn = document.createElement('div');
     cn.className = 'pick-dest-class';
-    cn.style.color = d.color;
-    cn.textContent = d.className;
+    cn.style.color = sosPastel(d.color);
+    row.style.setProperty('--rowc', sosPastel(d.color));
+    cn.textContent = d.classId === 'ksu' ? d.className : sosClassName({ name: d.className });
     const mn = document.createElement('div');
     mn.className = 'pick-dest-mod';
     mn.textContent = d.modName;
@@ -2729,16 +2892,8 @@ function _sosCancelPick() {
   p.resolve(null);
 }
 
-// The generic backdrop handler installed at parse time (see the
-// querySelectorAll('.sos-modal') loop further down) only strips the `open`
-// class — it never resolves anything. Without this listener a backdrop click
-// would close the picker and leave _sosPendingIngest dangling, hanging this
-// ingest and silently swallowing every later one. Runs after the generic
-// handler; resolution is idempotent, so the ordering does not matter.
-document.addEventListener('DOMContentLoaded', function() {
-  const ov = _sosEl('modal-pick-dest');
-  if (ov) ov.addEventListener('click', function(e) { if (e.target === ov) _sosCancelPick(); });
-});
+// The picker closes only through Cancel, a choice, or Escape (which the modal
+// key handler routes to _sosCancelPick), so _sosPendingIngest always resolves.
 
 // Deliberately not saveModule(): that one is wired to pendingModuleType,
 // _ksuAddPending, currentClassId and closing modal-module-create. This just
@@ -2774,7 +2929,7 @@ async function _sosCreateDestModule() {
     id: Date.now().toString(),
     name: String(name).trim(),
     type: 'documents',
-    icon: (typeof ICONS !== 'undefined' && ICONS.documents) || '📄',
+    icon: 'doc',
     files: [], prompts: [], notes: [],
   };
   cls.modules.push(mod);
@@ -2782,7 +2937,7 @@ async function _sosCreateDestModule() {
   _sosRefreshModuleGrid(cls);
   // Still mid-pick? Re-render so the new module is listed, then take it.
   if (_sosPendingIngest) { _sosRenderDestList(_sosDocDestinations()); _sosChooseDest(cls.id, mod.id); }
-  else showNotif('✅', 'Module created', mod.name + ' is ready for documents.');
+  else showNotif('check', 'Module created', mod.name + ' is ready for documents.');
 }
 
 // Repaints the picker list as a class chooser, then restores it. Resolves a
@@ -2851,7 +3006,7 @@ async function sosIngestFiles(files) {
   const cls = findClassOrKsu(dest.classId);
   const mod = cls && (cls.modules || []).find(function(m) { return m.id === dest.modId; });
   if (!mod) {
-    showNotif('⚠️', 'Destination gone', 'That module no longer exists — nothing was filed.');
+    showNotif('alert', 'Destination gone', 'That module no longer exists — nothing was filed.');
     return;
   }
   handleFilesAdded(files, dest.classId, dest.modId);
@@ -3204,20 +3359,29 @@ window._a1SweepIdb['studyos-orphan-files'] = {
   },
 };
 
-function removeFile(classId, modId, idx) {
+// `which` is the file's id (an index still works, for older callers). By id,
+// because a drag in Edit mode can reorder the list after the row was drawn.
+async function removeFile(classId, modId, which) {
   const cls = findClassOrKsu(classId);
   if (!cls) return;
   const mod = cls.modules.find(m => m.id === modId);
   if (!mod) return;
+  const idx = typeof which === 'number' ? which : mod.files.findIndex(x => x.id === which);
   const f = mod.files[idx];
-  if (f && f.fileId) SosFileStore.delete(f.fileId).catch(() => {});
-  if (f && (f.storagePath || f.fileId)) SosCloud.remove(f.storagePath || f.fileId, f.storageUrl);
-  if (f && f.fileId) _sosCloudUrls.delete(f.fileId);
-  mod.files.splice(idx, 1);
+  if (!f) return;
+  if (!(await window.sosConfirmDelete('“' + f.name + '”', 'The file is removed from this module, this device and the cloud.'))) return;
+  // The list may have changed while the question was up: find it again.
+  const at = mod.files.indexOf(f);
+  if (at < 0) return;
+  if (f.fileId) SosFileStore.delete(f.fileId).catch(() => {});
+  if (f.storagePath || f.fileId) SosCloud.remove(f.storagePath || f.fileId, f.storageUrl);
+  if (f.fileId) _sosCloudUrls.delete(f.fileId);
+  mod.files.splice(at, 1);
   persistForCls(cls);
   const listEl = _sosEl('doc-list-' + modId);
   if (listEl) refreshDocList(listEl, cls, mod);
   _sosUpdateCloudBadge();
+  if (cls._ksu) renderKsuModules(); else if (currentClassId === cls.id) renderModules(classes.find(c => c.id === cls.id) || cls);
   // KV deletes are eventually consistent; give it a moment before re-reading.
   setTimeout(_sosRefreshStorage, 1200);
 }
@@ -3270,8 +3434,8 @@ function renderPromptsModule(body, cls, mod) {
     const addRow = document.createElement('div');
     addRow.className = 'add-prompt-row';
     addRow.innerHTML = `
-      <textarea id="new-prompt-${mod.id}" placeholder="Type a new prompt..."></textarea>
-      <button class="btn primary" style="white-space:nowrap;align-self:flex-end" onclick="addPrompt('${cls.id}','${mod.id}')">+ Add</button>
+      <textarea id="new-prompt-${mod.id}" placeholder="Write a new prompt…"></textarea>
+      <button class="btn primary" onclick="addPrompt('${cls.id}','${mod.id}')">${SOI.plus}<span>Add</span></button>
     `;
     body.appendChild(addRow);
   }
@@ -3281,29 +3445,29 @@ function refreshPromptList(listEl, cls, mod) {
   const editOn = !!moduleEditMode[mod.id];
   listEl.innerHTML = '';
   if (!mod.prompts || mod.prompts.length === 0) {
-    listEl.innerHTML = `<div style="font-size:12px;color:var(--text3);font-family:var(--mono);padding:4px 0 8px">${editOn ? 'No prompts yet. Add one below.' : 'No prompts saved.'}</div>`;
+    listEl.innerHTML = `<div class="doc-empty">${editOn ? 'No prompts yet. Write one below.' : 'No prompts saved yet. Switch to Edit to add one.'}</div>`;
     return;
   }
   mod.prompts.forEach(p => {
     const entry = document.createElement('div');
-    entry.className = 'prompt-entry';
+    entry.className = 'prompt-entry' + (editOn ? ' editing' : '');
     entry.dataset.id = p.id;
+    if (editOn) entry.title = 'Drag to reorder';
     _promptTextStore[p.id] = p.text;
     const safeText = escHtml(p.text);
     entry.innerHTML = `
-      ${editOn ? `<div class="th-drag-handle row-drag-handle prompt-drag-handle" title="Drag to reorder">⠿</div>` : ''}
       <div class="prompt-entry-text">${safeText}</div>
       <div class="prompt-entry-actions">
-        ${editOn ? `<button class="prompt-copy-btn" onclick="editPrompt('${cls.id}','${mod.id}','${p.id}')">Edit</button>` : ''}
-        ${editOn ? `<button class="prompt-del-btn" onclick="removePrompt('${cls.id}','${mod.id}','${p.id}')">${SOI.x}<span>Remove</span></button>` : ''}
-        <button class="prompt-copy-btn" id="cpbtn-${p.id}" onclick="copyPromptById('${p.id}')">Copy</button>
+        ${editOn ? `<button class="prompt-copy-btn" onclick="editPrompt('${cls.id}','${mod.id}','${p.id}')">${SOI.pencil}<span>Edit</span></button>` : ''}
+        ${editOn ? `<button class="prompt-del-btn" onclick="removePrompt('${cls.id}','${mod.id}','${p.id}')">${SOI.trash}<span>Delete</span></button>` : ''}
+        <button class="prompt-copy-btn" id="cpbtn-${p.id}" onclick="copyPromptById('${p.id}')">${SOI.clip}<span>Copy</span></button>
       </div>
     `;
     listEl.appendChild(entry);
   });
 
   if (editOn) {
-    thDragList(listEl, () => mod.prompts, (arr) => { mod.prompts = arr; }, () => { persistForCls(cls); refreshPromptList(listEl, cls, mod); }, cls.color || '#8D769A');
+    sosDragList(listEl, '.prompt-entry', () => mod.prompts, (arr) => { mod.prompts = arr; }, () => { persistForCls(cls); refreshPromptList(listEl, cls, mod); });
   }
 }
 
@@ -3338,29 +3502,31 @@ function editPrompt(classId, modId, promptId) {
   const ta = document.createElement('textarea');
   ta.value = p.text;
   ta.rows = Math.min(16, Math.max(4, p.text.split('\n').length + 1));
-  ta.style.cssText = 'width:100%;font-family:var(--mono);font-size:12px;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:8px;resize:vertical';
   const bar = document.createElement('div');
-  bar.style.cssText = 'display:flex;gap:6px;margin-top:6px';
+  bar.style.cssText = 'display:flex;gap:6px;margin-top:8px';
   const save = document.createElement('button');
-  save.className = 'btn primary'; save.textContent = 'Save'; save.style.cssText = 'padding:3px 10px;font-size:11px';
+  save.className = 'btn primary xs'; save.textContent = 'Save';
   const cancel = document.createElement('button');
-  cancel.className = 'btn'; cancel.textContent = 'Cancel'; cancel.style.cssText = 'padding:3px 10px;font-size:11px';
+  cancel.className = 'btn ghost xs'; cancel.textContent = 'Cancel';
   save.onclick = () => {
     const text = ta.value.trim();
     if (text) { p.text = text; persistForCls(cls); }
     refreshPromptList(listEl, cls, mod);
   };
   cancel.onclick = () => refreshPromptList(listEl, cls, mod);
+  // The row is a drag handle in Edit mode; the box being typed in is not.
+  ta.addEventListener('pointerdown', e => e.stopPropagation());
   textEl.replaceChildren(ta, bar);
   bar.append(save, cancel);
   ta.focus();
 }
 
-function removePrompt(classId, modId, promptId) {
+async function removePrompt(classId, modId, promptId) {
   const cls = findClassOrKsu(classId);
   if (!cls) return;
   const mod = cls.modules.find(m => m.id === modId);
   if (!mod) return;
+  if (!(await window.sosConfirmDelete('this prompt'))) return;
   mod.prompts = mod.prompts.filter(p => p.id !== promptId);
   persistForCls(cls);
   const listEl = _sosEl('prompt-list-' + modId);
@@ -3378,10 +3544,10 @@ function copyPromptById(promptId) {
   }
   const btn = _sosEl('cpbtn-' + promptId);
   if (btn) {
-    const orig = btn.textContent;
-    btn.innerHTML = SOI.check + ' Copied!';
+    const orig = btn.innerHTML;
+    btn.innerHTML = SOI.check + '<span>Copied</span>';
     btn.classList.add('copied');
-    setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1800);
+    setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('copied'); }, 1800);
   }
 }
 
@@ -3490,11 +3656,11 @@ function openAddEvent(ev, prefillDate) {
 
 function populateEventClassSelect() {
   const sel = _sosEl('inp-event-class');
-  sel.innerHTML = '<option value="">— None —</option>';
+  sel.innerHTML = '<option value="">No class</option>';
   classes.forEach(c => {
     const opt = document.createElement('option');
     opt.value = c.id;
-    opt.textContent = c.name;
+    opt.textContent = sosClassName(c);
     sel.appendChild(opt);
   });
 }
@@ -3659,9 +3825,14 @@ async function deleteEditingEvent() {
   const deletedClassId = deletedEvent.classId || null;
 
   if (deletedEvent.repeatId) {
-    // Ask: delete this only, or all future?
-    const choice = await window.uiConfirm('This is a repeating event. Delete all future occurrences, or only this one?', {title:'Delete repeating event', okLabel:'All future', cancelLabel:'This only'});
-    if (choice) {
+    // Ask: this one, or this and every later one? Cancel (and Escape) delete
+    // nothing: Cancel used to be relabelled "This only", so backing out
+    // deleted an occurrence.
+    const choice = await window.uiChoice('“' + deletedEvent.name + '” repeats. Delete only this occurrence, or this one and every later one?', {
+      title: 'Delete repeating event', danger: true,
+      choices: [{ label: 'Only this one', value: 'one' }, { label: 'This and all future', value: 'all', danger: true }] });
+    if (!choice) return;
+    if (choice === 'all') {
       // Delete this + all future
       const rid = deletedEvent.repeatId;
       const cutoff = new Date(deletedEvent.date + 'T12:00:00');
@@ -3681,6 +3852,7 @@ async function deleteEditingEvent() {
       if (window._vedaRemoveTask) window._vedaRemoveTask(editingEventId);
     }
   } else {
+    if (!(await window.sosConfirmDelete('“' + deletedEvent.name + '”', 'The event and its reminder are removed from StudyOS and TaskHub.'))) return;
     if (window.thCancelNotif) window.thCancelNotif('sos_ev_' + editingEventId, null);
     events = events.filter(e => e.id !== editingEventId);
     // ── One-way sync: delete → Veda weekly tasks ────────────────────────────
@@ -3693,7 +3865,7 @@ async function deleteEditingEvent() {
   renderCalendar();
   renderUpcoming();
   updateStats();
-  showNotif(SOI.trash, 'Event Deleted', 'Event removed.');
+  showNotif(SOI.trash, 'Event deleted', deletedEvent.name);
   const affectedIds = new Set([deletedClassId, currentClassId].filter(Boolean));
   affectedIds.forEach(id => {
     const cls = classes.find(c => c.id === id);
@@ -3722,6 +3894,7 @@ function renderCalendar() {
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const daysInPrev = new Date(year, month, 0).getDate();
+  const MAX = 3;   // items drawn in a cell before "+N more"
 
   cells.innerHTML = '';
   let totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7;
@@ -3741,59 +3914,73 @@ function renderCalendar() {
       day = i - firstDay + 1;
     }
     if (otherMonth) cell.classList.add('other-month');
+    if (i % 7 === 0 || i % 7 === 6) cell.classList.add('weekend');
     const isToday = day === today.getDate() && m === today.getMonth() && y === today.getFullYear();
     if (isToday) cell.classList.add('today');
     const dateStr = y + '-' + String(m+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
     cell.innerHTML = `<div class="day-num">${day}</div>`;
+    cell.title = 'Add an event on ' + formatDate(dateStr);
     const dayEvents = events.filter(e => e.date === dateStr);
-    dayEvents.slice(0, 3).forEach(ev => {
+    const dayTasks = tasks.filter(t => t.dueDate === dateStr);
+    let shown = 0;
+    dayEvents.forEach(ev => {
+      if (shown >= MAX) return;
+      shown++;
       const dot = document.createElement('div');
       dot.className = 'cal-event';
       const cls = classes.find(c => c.id === ev.classId);
-      const color = cls ? sosPastel(cls.color) : (EVENT_COLORS[ev.type] || '#c2cdda');
-      dot.style.background = color + '33';
-      dot.style.color = color;
-      dot.style.cursor = 'pointer';
-      dot.textContent = ev.name;
+      dot.style.setProperty('--c', cls ? sosPastel(cls.color) : (EVENT_COLORS[ev.type] || '#C2CDDA'));
+      dot.title = ev.name + (ev.time ? ' · ' + _sosFmtTime(ev.time) : '') + (cls ? ' · ' + sosClassName(cls) : '');
+      const t = document.createElement('span');
+      t.textContent = ev.name;
+      dot.appendChild(t);
       dot.onclick = e => { e.stopPropagation(); openAddEvent(ev); };
       cell.appendChild(dot);
     });
-    const dayTasks = tasks.filter(t => t.dueDate === dateStr);
-    dayTasks.slice(0, 3).forEach(task => {
+    dayTasks.forEach(task => {
+      if (shown >= MAX) return;
+      shown++;
       // Color-coded by the class the task belongs to, matching how events are
       // tinted just above, so a month view reads as "which class" at a glance.
       // Priority only decides the fallback tint for class-less tasks.
       const tCls = classes.find(c => c.id === task.classId);
       const pColor = tCls ? sosPastel(tCls.color)
-                          : (EVENT_COLORS[task.type] || PRIORITY_COLORS[task.priority] || '#c2cdda');
+                          : (EVENT_COLORS[task.type] || PRIORITY_COLORS[task.priority] || '#C2CDDA');
       const row = document.createElement('div');
-      row.style.cssText = `display:flex;align-items:center;gap:3px;font-size:10px;padding:2px 4px;border-radius:4px;margin-bottom:2px;background:${pColor}18;color:${pColor};font-family:var(--mono);font-weight:700;min-width:0;overflow:hidden;`;
-      const box = document.createElement('div');
-      box.style.cssText = `width:9px;height:9px;border-radius:2px;flex-shrink:0;border:1.5px solid ${pColor};background:${task.done ? pColor : 'transparent'};cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:7px;color:#1B1C1E;transition:0.15s`;
+      row.className = 'cal-task' + (task.done ? ' done' : '');
+      row.style.setProperty('--c', pColor);
+      row.title = task.name + (task.dueTime ? ' · ' + _sosFmtTime(task.dueTime) : '');
+      const box = document.createElement('span');
+      box.className = 'cal-box';
       box.innerHTML = task.done ? SOI.checkBold : '';
+      box.title = task.done ? 'Mark not done' : 'Mark done';
       box.onclick = e => {
         e.stopPropagation();
         task.done = !task.done;
         persistTasks();
-        box.style.background = task.done ? pColor : 'transparent';
+        row.classList.toggle('done', task.done);
         box.innerHTML = task.done ? SOI.checkBold : '';
-        label.style.textDecoration = task.done ? 'line-through' : '';
-        label.style.opacity = task.done ? '0.5' : '1';
         // Sync to Veda TaskHub
         if (window._vedaTogTask) window._vedaTogTask('t_' + task.id, task.done);
-        // refresh class tasks panel if open
+        // refresh class tasks panel if open, and the dashboard counts
         const cls2 = classes.find(c => c.id === currentClassId);
         if (cls2) renderClassTasks(cls2);
+        updateStats();
       };
       const label = document.createElement('span');
-      label.textContent = task.name + (task.dueTime ? ' · ' + task.dueTime : '');
-      label.style.cssText = `overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;${task.done ? 'text-decoration:line-through;opacity:0.5' : ''}`;
-      label.style.cursor = 'pointer';
+      label.textContent = task.name;
       label.onclick = e => { e.stopPropagation(); openEditTask(task.id); };
       row.appendChild(box);
       row.appendChild(label);
       cell.appendChild(row);
     });
+    const rest = dayEvents.length + dayTasks.length - shown;
+    if (rest > 0) {
+      const more = document.createElement('div');
+      more.className = 'cal-more';
+      more.textContent = '+' + rest + ' more';
+      cell.appendChild(more);
+    }
     cell.onclick = () => openAddEvent(null, dateStr);
     cells.appendChild(cell);
   }
@@ -3801,80 +3988,109 @@ function renderCalendar() {
   renderUpcoming();
 }
 
+/* The next fortnight of events AND open tasks, grouped by day, each with a
+ * date tile in its class's colour. */
 function renderUpcoming() {
   const list = _sosEl('upcoming-list');
   if (!list) return;
   list.innerHTML = '';
-  const _p2=n=>String(n).padStart(2,'0');
-  const _n2=new Date();
-  const todayStr = _n2.getFullYear()+'-'+_p2(_n2.getMonth()+1)+'-'+_p2(_n2.getDate());
-  const future = events
+  const todayStr = sosLocalDate();
+  const items = events
     .filter(e => e.date >= todayStr)
-    .sort((a,b) => a.date.localeCompare(b.date))
-    .slice(0, 8);
-  if (future.length === 0) {
-    list.innerHTML = '<div style="padding:20px 18px;font-size:13px;color:var(--text3)">No upcoming events.</div>';
+    .map(e => ({ kind: 'event', date: e.date, time: e.time || '', name: e.name, classId: e.classId, type: e.type, ref: e }))
+    .concat(tasks
+      .filter(t => t.dueDate && t.dueDate >= todayStr && !t.done)
+      .map(t => ({ kind: 'task', date: t.dueDate, time: t.dueTime || '', name: t.name, classId: t.classId, type: t.type || 'hw', ref: t })))
+    .sort((a, b) => a.date.localeCompare(b.date) || (a.time || '99').localeCompare(b.time || '99'))
+    .slice(0, 14);
+  if (items.length === 0) {
+    list.innerHTML = '<div class="class-events-empty">Nothing coming up.<br>Click a day on the calendar to add an event.</div>';
     return;
   }
-  future.forEach(ev => {
-    const cls = classes.find(c => c.id === ev.classId);
-    const color = cls ? cls.color : (EVENT_COLORS[ev.type] || '#888');
+  let lastDay = '';
+  items.forEach(it => {
+    if (it.date !== lastDay) {
+      lastDay = it.date;
+      const g = document.createElement('div');
+      g.className = 'up-group' + (it.date === todayStr ? ' today' : '');
+      g.textContent = _sosRelDay(it.date);
+      list.appendChild(g);
+    }
+    const cls = classes.find(c => c.id === it.classId);
+    const color = cls ? sosPastel(cls.color) : (EVENT_COLORS[it.type] || '#C9B4D8');
+    const dt = new Date(it.date + 'T12:00:00');
     const item = document.createElement('div');
     item.className = 'timeline-item';
-    item.style.cursor = 'pointer';
-    item.title = 'Click to edit';
-    item.onclick = () => openAddEvent(ev);
+    item.style.setProperty('--c', color);
+    item.title = it.kind === 'task' ? 'Edit task' : 'Edit event';
+    item.onclick = () => it.kind === 'task' ? openEditTask(it.ref.id) : openAddEvent(it.ref);
     item.innerHTML = `
-      <div class="timeline-dot" style="background:${color}"></div>
-      <div class="timeline-content" style="flex:1;min-width:0">
-        <div class="timeline-title">${escHtml(ev.name)}</div>
-        <div class="timeline-meta">${formatDate(ev.date)}${ev.time ? ' · ' + escHtml(ev.time) : ''}${cls ? ' · ' + escHtml(cls.name) : ''}</div>
+      <div class="tl-date"><b>${dt.getDate()}</b><small>${dt.toLocaleDateString('en-US', { month: 'short' })}</small></div>
+      <div class="timeline-content">
+        <div class="timeline-title">${escHtml(it.name)}</div>
+        <div class="timeline-meta">
+          <span class="type-tag">${it.kind === 'task' ? 'Task' : escHtml(_sosTypeLabel(it.type))}</span>
+          ${it.time ? `<span>${_sosFmtTime(it.time)}</span>` : ''}
+          ${cls ? `<span class="cls-tag" style="--c:${color}"><i></i><span>${escHtml(sosClassName(cls))}</span></span>` : ''}
+        </div>
       </div>
-      <button style="background:none;border:1px solid var(--border2);color:var(--text3);cursor:pointer;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;white-space:nowrap;flex-shrink:0;font-family:inherit;transition:0.15s;margin-right:4px" title="Convert to Task" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text3)'" onclick="event.stopPropagation();convertEventToTask('${ev.id}')">→ Task</button>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="color:var(--text3);flex-shrink:0"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      <div class="tl-acts">
+        ${it.kind === 'event'
+          ? `<button class="icon-chip sm pink" title="Turn this event into a task" aria-label="Turn into a task" onclick="event.stopPropagation();convertEventToTask('${it.ref.id}')">${SOI.task}</button>`
+          : `<button class="icon-chip sm" title="Mark done" aria-label="Mark done" onclick="event.stopPropagation();toggleTaskDone('${it.ref.id}')">${SOI.check}</button>`}
+      </div>
     `;
     list.appendChild(item);
   });
 }
 
-function prevMonth() { calDate.setMonth(calDate.getMonth() - 1); renderCalendar(); }
-function nextMonth() { calDate.setMonth(calDate.getMonth() + 1); renderCalendar(); }
-
-// ===== TIMELINE =====
-
-function deleteEvent(id) {
-  events = events.filter(e => e.id !== id);
-  persistEvents();
-  renderCalendar();
-  updateStats();
-}
+// From the 1st: setMonth() on the 31st overflowed (Oct 31 + 1 month = Dec 1),
+// so Next skipped November.
+function prevMonth() { calDate = new Date(calDate.getFullYear(), calDate.getMonth() - 1, 1); renderCalendar(); }
+function nextMonth() { calDate = new Date(calDate.getFullYear(), calDate.getMonth() + 1, 1); renderCalendar(); }
+function sosCalToday() { calDate = new Date(); renderCalendar(); }
+window.sosCalToday = sosCalToday;
 
 // ===== NOTIFICATIONS =====
 function showNotif(icon, title, body) {
   const container = _sosEl('notif-container');
   const notif = document.createElement('div');
   notif.className = 'notif';
+  // The icon may be SVG markup (SOI.*), a name ('alert', 'check' …) or one of
+  // the emoji older callers pass; a name or an emoji draws as its SVG, so no
+  // toast ever shows an emoji.
+  let ic = String(icon == null ? '' : icon).trim();
+  let tone = '#C9B4D8';
+  const named = SOS_NOTIF[ic] || SOS_NOTIF[SOS_EMOJI_NOTIF[ic]];
+  if (named) { tone = named[1]; ic = SOI[named[0]] || ''; }
+  else if (ic && ic.charAt(0) !== '<') ic = SOI.info;            // any other emoji or text
+  else if (ic) {
+    for (const k in SOS_NOTIF) { if (SOI[SOS_NOTIF[k][0]] === ic) { tone = SOS_NOTIF[k][1]; break; } }
+  }
+  notif.style.setProperty('--tone', tone);
   // Title and body are TEXT (class and file names reach here raw — "&
   // Architecture" parsed as HTML rendered as "& amp"); only the icon is markup.
   notif.innerHTML = `
-    <div class="notif-icon">${icon}</div>
-    <div>
+    <div class="notif-icon">${ic}</div>
+    <div class="notif-text">
       <div class="notif-title">${escHtml(title)}</div>
-      <div class="notif-body">${escHtml(body)}</div>
+      ${body ? `<div class="notif-body">${escHtml(body)}</div>` : ''}
     </div>
-    <div class="notif-close" onclick="this.parentElement.remove()">×</div>
+    <button class="notif-close" type="button" aria-label="Dismiss">${SOI.x}</button>
   `;
+  notif.querySelector('.notif-close').onclick = (e) => { e.stopPropagation(); notif.classList.remove('show'); setTimeout(() => notif.remove(), 300); };
   container.appendChild(notif);
   requestAnimationFrame(() => notif.classList.add('show'));
   setTimeout(() => {
     notif.classList.remove('show');
     setTimeout(() => notif.remove(), 300);
-  }, 4000);
+  }, 4200);
   // Returned so a caller can make the toast actionable (the pipeline's "Deck
   // ready" opens the module it filed into). Callers that ignore it are
   // unaffected.
   return notif;
 }
+window.showNotif = showNotif;
 
 function scheduleNotifications() {
   if (!window.thScheduleNotif) return;
@@ -3887,7 +4103,7 @@ function scheduleNotifications() {
     if (new Date(notifyAt).getTime() <= nowT) return; // already past
     window.thScheduleNotif({
       id: nid,
-      title: '📅 ' + ev.name + (ev.time ? ' at ' + ev.time : ' on ' + formatDate(ev.date)),
+      title: ev.name + (ev.time ? ' at ' + _sosFmtTime(ev.time) : ' on ' + formatDate(ev.date)),
       notifyAt: notifyAt,
       dashboard: 'veda',
       notifyRepeat: 'none',
@@ -3906,7 +4122,7 @@ function scheduleNotifications() {
     if (new Date(notifyAt).getTime() <= nowT) return; // already past
     window.thScheduleNotif({
       id: nid,
-      title: '📚 ' + t.name + (t.dueTime ? ' at ' + t.dueTime : ''),
+      title: t.name + (t.dueTime ? ' at ' + _sosFmtTime(t.dueTime) : ''),
       notifyAt: notifyAt,
       dashboard: 'veda',
       notifyRepeat: 'none',
@@ -3922,16 +4138,14 @@ function openNotifSettings() {
 // ===== STATS =====
 function updateStats() {
   const today = new Date();
+  const todayStr = sosLocalDate(today);
   const weekEnd = new Date(today); weekEnd.setDate(today.getDate() + 7);
+  const weekEndStr = sosLocalDate(weekEnd);
   const feed = _sosScheduleItems();
-  const eventsThisWeek = feed.filter(e => {
-    const d = new Date(e.date + 'T12:00:00');
-    return d >= today && d <= weekEnd;
-  }).length;
+  const eventsThisWeek = feed.filter(e => e.date >= todayStr && e.date <= weekEndStr).length;
   _sosEl('stat-events').textContent = eventsThisWeek;
 
   // Exam-specific stats
-  const todayStr = today.toISOString().split('T')[0];
   const upcomingExams = feed
     .filter(e => (e.type === 'exam' || e.type === 'quiz') && e.date >= todayStr)
     .sort((a,b) => a.date.localeCompare(b.date));
@@ -3949,9 +4163,8 @@ function updateStats() {
     try {
       const n = window.SOS.deck.countsFor(null).toStudy;
       cardsEl.textContent = n;
-      cardsEl.style.color = n > 0 ? 'var(--accent2)' : 'var(--text3)';
       const tile = _sosEl('stat-card-cards');
-      if (tile) tile.style.opacity = n > 0 ? '1' : '0.6';
+      if (tile) tile.style.opacity = n > 0 ? '1' : '0.7';
     } catch (e) {}
   }
 
@@ -3960,29 +4173,55 @@ function updateStats() {
   if (streakEl && window.SOS && window.SOS.sessions) {
     try {
       const n = window.SOS.sessions.streak();
-      const today = window.SOS.sessions.dayTotals();
-      streakEl.textContent = n === 0 ? '—' : n + (n === 1 ? ' day' : ' days');
-      streakEl.style.color = n > 0 ? 'var(--accent2)' : 'var(--text3)';
+      const day = window.SOS.sessions.dayTotals();
+      streakEl.textContent = n === 0 ? '0' : String(n);
+      const sub = streakEl.parentElement && streakEl.parentElement.querySelector('.stat-sub');
+      if (sub) sub.textContent = n === 1 ? 'day in a row' : 'days in a row';
       const tile = _sosEl('stat-card-streak');
       if (tile) {
-        tile.title = today.minutes
-          ? `${today.minutes} min today · ${today.sessions} session${today.sessions === 1 ? '' : 's'}`
+        tile.title = day.minutes
+          ? `${day.minutes} min today · ${day.sessions} session${day.sessions === 1 ? '' : 's'}`
           : 'No session logged today yet';
       }
     } catch (e) {}
   }
   if (nextExamEl) {
     if (upcomingExams.length > 0) {
-      const daysUntil = Math.ceil((new Date(upcomingExams[0].date + 'T12:00:00') - today) / 86400000);
-      nextExamEl.textContent = daysUntil === 0 ? 'TODAY' : daysUntil === 1 ? '1 day' : daysUntil + ' days';
-      nextExamEl.style.color = daysUntil <= 3 ? '#ef9f9f' : daysUntil <= 7 ? '#f0bd86' : 'var(--accent2)';
+      const daysUntil = Math.round((new Date(upcomingExams[0].date + 'T12:00:00') - new Date(todayStr + 'T12:00:00')) / 86400000);
+      nextExamEl.textContent = daysUntil === 0 ? 'Today' : daysUntil === 1 ? '1 day' : daysUntil + ' days';
+      nextExamEl.style.color = daysUntil <= 3 ? '#F2AFAF' : daysUntil <= 7 ? '#F2C9A0' : '';
+      const sub = nextExamEl.parentElement && nextExamEl.parentElement.querySelector('.stat-sub');
+      if (sub) sub.textContent = upcomingExams[0].name;
     } else {
       nextExamEl.textContent = '—';
-      nextExamEl.style.color = 'var(--accent2)';
+      nextExamEl.style.color = '';
+      const sub = nextExamEl.parentElement && nextExamEl.parentElement.querySelector('.stat-sub');
+      if (sub) sub.textContent = 'none scheduled';
     }
   }
   renderExamCountdown();
   renderPriorityQueue();
+  _sosPaintGreeting();
+}
+
+/* The dashboard's opening line: the date, a greeting for the hour, and what
+ * is next on her plate. */
+function _sosPaintGreeting() {
+  const d = new Date();
+  const dateEl = _sosEl('sos-dash-date'), greetEl = _sosEl('sos-dash-greet'), nextEl = _sosEl('sos-dash-next');
+  if (!dateEl || !greetEl || !nextEl) return;
+  dateEl.textContent = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const h = d.getHours();
+  greetEl.textContent = h < 5 ? 'Still up, Veda?' : h < 12 ? 'Good morning, Veda' : h < 17 ? 'Good afternoon, Veda' : 'Good evening, Veda';
+  const todayStr = sosLocalDate(d);
+  const next = _sosScheduleItems()
+    .filter(e => e.date >= todayStr)
+    .sort((a, b) => a.date.localeCompare(b.date) || (a.time || '99').localeCompare(b.time || '99'))[0];
+  if (!next) { nextEl.textContent = 'Nothing due. A good day to get ahead.'; return; }
+  const cls = classes.find(c => c.id === next.classId);
+  nextEl.innerHTML = 'Next up: <b>' + escHtml(next.name) + '</b> · ' + escHtml(_sosRelDay(next.date))
+    + (next.time ? ' at ' + escHtml(_sosFmtTime(next.time)) : '')
+    + (cls ? ' · ' + escHtml(sosClassName(cls)) : '');
 }
 
 // ── Urgency score helper ────────────────────────────────────────────────────
@@ -4020,9 +4259,12 @@ function _sosScheduleItems() {
  */
 const MASTERY_MAX_DISCOUNT = 0.6;
 
+function _sosDaysLeft(date) {
+  return Math.max(0, Math.round((new Date(date + 'T12:00:00') - new Date(sosLocalDate() + 'T12:00:00')) / 86400000));
+}
+
 function _sosPriorityScore(ev) {
-  const today = new Date();
-  const daysLeft = Math.max(0, Math.ceil((new Date(ev.date + 'T12:00:00') - today) / 86400000));
+  const daysLeft = _sosDaysLeft(ev.date);
   const weight = parseFloat(ev.weight) || 10; // default 10% if unset
   // Urgency: 100 at 0 days, halves every 7 days (exponential decay)
   const urgency = 100 * Math.pow(0.5, daysLeft / 7);
@@ -4044,8 +4286,7 @@ function _sosPriorityScore(ev) {
 /** Why a row is ranked where it is — shown on hover so the order is trustable
  *  rather than magic (spec G-2). */
 function _sosPriorityWhy(ev) {
-  const today = new Date();
-  const daysLeft = Math.max(0, Math.ceil((new Date(ev.date + 'T12:00:00') - today) / 86400000));
+  const daysLeft = _sosDaysLeft(ev.date);
   const weight = parseFloat(ev.weight) || 10;
   const bits = [
     daysLeft === 0 ? 'due today' : `${daysLeft} day${daysLeft === 1 ? '' : 's'} away`,
@@ -4060,12 +4301,15 @@ function _sosPriorityWhy(ev) {
   return bits.join(' · ');
 }
 
+function _sosClsTag(cls) {
+  return cls ? `<span class="cls-tag" style="--c:${sosPastel(cls.color)}"><i></i><span>${escHtml(sosClassName(cls))}</span></span>` : '';
+}
+
 // ── Exam Countdown ──────────────────────────────────────────────────────────
 function renderExamCountdown() {
   const el = _sosEl('sos-exam-countdown-list');
   if (!el) return;
-  const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
+  const todayStr = sosLocalDate();
 
   const exams = _sosScheduleItems()
     .filter(e => (e.type === 'exam' || e.type === 'quiz') && e.date >= todayStr)
@@ -4073,39 +4317,38 @@ function renderExamCountdown() {
     .slice(0, 6);
 
   if (exams.length === 0) {
-    el.innerHTML = '<div class="sos-exam-empty">No upcoming exams or quizzes.<br>Add one via <strong>+ Add Exam</strong> above,<br>or set type to Exam/Quiz when adding events or tasks.</div>';
+    el.innerHTML = '<div class="sos-exam-empty">No exams or quizzes coming up.<br>Add one, or set an event’s type to <b>Exam</b> or <b>Quiz</b>.</div>';
     return;
   }
 
   el.innerHTML = '';
   exams.forEach(ev => {
     const cls = classes.find(c => c.id === ev.classId);
-    const color = cls ? cls.color : (EVENT_COLORS[ev.type] || '#8D769A');
-    const daysLeft = Math.ceil((new Date(ev.date + 'T12:00:00') - today) / 86400000);
-    const daysLabel = daysLeft === 0 ? 'TODAY' : daysLeft === 1 ? '1 day' : daysLeft + ' days';
+    const daysLeft = _sosDaysLeft(ev.date);
     const weight = parseFloat(ev.weight) || 0;
 
-    // Badge color based on urgency
-    let badgeBg, badgeText;
-    if (daysLeft <= 2)       { badgeBg = 'rgba(239,159,159,0.18)'; badgeText = '#ef9f9f'; }
-    else if (daysLeft <= 7)  { badgeBg = 'rgba(240,189,134,0.18)';  badgeText = '#f0bd86'; }
-    else if (daysLeft <= 14) { badgeBg = 'rgba(220,192,138,0.15)';  badgeText = '#dcc08a'; }
-    else                     { badgeBg = 'rgba(141,118,154,0.15)'; badgeText = '#A892B0'; }
+    // Pastel by urgency: rose, peach, butter, then lavender.
+    const tone = daysLeft <= 2 ? '#F2AFAF' : daysLeft <= 7 ? '#F2C9A0' : daysLeft <= 14 ? '#E8D49A' : '#C9B4D8';
 
     const item = document.createElement('div');
     item.className = 'sos-exam-item';
-    item.title = 'Click to edit';
+    item.title = 'Edit';
+    item.style.setProperty('--tone', tone);
     item.onclick = () => ev.src === 'task' ? openEditTask(ev.id) : openAddEvent(ev.ref);
     item.innerHTML = `
-      <div class="sos-exam-cd-badge" style="background:${badgeBg}">
-        <div class="sos-exam-cd-days" style="color:${badgeText}">${daysLeft <= 0 ? '0' : daysLeft}</div>
-        <div class="sos-exam-cd-lbl" style="color:${badgeText}">${daysLeft === 0 ? 'TODAY' : 'days'}</div>
+      <div class="sos-exam-cd-badge" style="background:color-mix(in srgb, ${tone} 13%, transparent);color:${tone}">
+        <div class="sos-exam-cd-days">${daysLeft === 0 ? '!' : daysLeft}</div>
+        <div class="sos-exam-cd-lbl">${daysLeft === 0 ? 'today' : daysLeft === 1 ? 'day' : 'days'}</div>
       </div>
       <div class="sos-exam-info">
-        <div class="sos-exam-name">${escHtml(ev.name)}</div>
-        <div class="sos-exam-meta">${formatDate(ev.date)}${ev.time ? ' · ' + escHtml(ev.time) : ''}${cls ? ' · ' + escHtml(cls.name) : ''} · ${escHtml(ev.type)}</div>
+        <div class="sos-exam-name" title="${escHtml(ev.name).replace(/"/g, '&quot;')}">${escHtml(ev.name)}</div>
+        <div class="sos-exam-meta">
+          <span>${formatDate(ev.date)}${ev.time ? ' · ' + _sosFmtTime(ev.time) : ''}</span>
+          ${cls ? '<span class="meta-dot"></span>' + _sosClsTag(cls) : ''}
+          <span class="type-tag">${escHtml(_sosTypeLabel(ev.type))}</span>
+        </div>
       </div>
-      ${weight > 0 ? `<div class="sos-exam-score-pill" style="background:${badgeBg};color:${badgeText}">${weight}%</div>` : ''}
+      ${weight > 0 ? `<div class="sos-exam-score-pill" style="background:color-mix(in srgb, ${tone} 13%, transparent);color:${tone}" title="Worth ${weight}% of the grade">${weight}%</div>` : ''}
     `;
     el.appendChild(item);
   });
@@ -4115,10 +4358,9 @@ function renderExamCountdown() {
 function renderPriorityQueue() {
   const el = _sosEl('sos-priority-queue-list');
   if (!el) return;
-  const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
-  const in30 = new Date(today); in30.setDate(today.getDate() + 30);
-  const in30Str = in30.toISOString().split('T')[0];
+  const todayStr = sosLocalDate();
+  const in30 = new Date(); in30.setDate(in30.getDate() + 30);
+  const in30Str = sosLocalDate(in30);
 
   // Include exams + hw + quiz within 30 days
   const scored = _sosScheduleItems()
@@ -4128,7 +4370,7 @@ function renderPriorityQueue() {
     .slice(0, 8);
 
   if (scored.length === 0) {
-    el.innerHTML = '<div class="sos-exam-empty">No exams, quizzes or<br>homework due in 30 days.</div>';
+    el.innerHTML = '<div class="sos-exam-empty">Nothing due in the next 30 days.<br>Exams, quizzes and homework rank here.</div>';
     return;
   }
 
@@ -4136,38 +4378,36 @@ function renderPriorityQueue() {
   const maxScore = scored[0].score || 1;
   scored.forEach(({ ev, score }, i) => {
     const cls = classes.find(c => c.id === ev.classId);
-    const color = cls ? cls.color : (EVENT_COLORS[ev.type] || '#888');
-    const daysLeft = Math.ceil((new Date(ev.date + 'T12:00:00') - today) / 86400000);
-    const daysStr = daysLeft === 0 ? 'today' : daysLeft === 1 ? '1d' : daysLeft + 'd';
+    const daysLeft = _sosDaysLeft(ev.date);
+    const when = daysLeft === 0 ? 'Due today' : daysLeft === 1 ? 'Tomorrow' : 'In ' + daysLeft + ' days';
+    const whenTone = daysLeft <= 2 ? '#F2AFAF' : daysLeft <= 7 ? '#F2C9A0' : '';
     const weight = parseFloat(ev.weight) || 0;
-    const pct = Math.round((score / maxScore) * 100);
+    const pct = Math.max(6, Math.round((score / maxScore) * 100));
 
     const item = document.createElement('div');
     item.className = 'sos-pq-item';
-    item.title = _sosPriorityWhy(ev) + ' — click to edit';
+    item.title = _sosPriorityWhy(ev) + ' · click to edit';
     item.onclick = () => ev.src === 'task' ? openEditTask(ev.id) : openAddEvent(ev.ref);
-    // ▶ Start and ✓ Done (spec S-2). The queue ranked eight things and gave her
-    // nothing to do with any of them — it said what mattered and never "do this
-    // now", which is the whole gap between "HW3 · 5d · score 100" and actually
-    // starting HW3. Tick is tasks-only: an exam is not something you complete.
+    // Start and Done (spec S-2): the queue ranked eight things and gave her
+    // nothing to do with any of them. Done is tasks-only: an exam is not
+    // something you complete.
     item.innerHTML = `
       <div class="sos-pq-rank">${i + 1}</div>
-      <div class="sos-pq-dot" style="background:${color}"></div>
       <div class="sos-pq-info">
         <div class="sos-pq-name">${escHtml(ev.name)}</div>
-        <div class="sos-pq-meta">${daysStr} away${cls ? ' · ' + escHtml(cls.name) : ''} · ${escHtml(ev.type)}${weight > 0 ? ' · ' + weight + '%' : ''}</div>
+        <div class="sos-pq-meta">
+          <span class="sos-pq-when"${whenTone ? ` style="color:${whenTone}"` : ''}>${when}</span>
+          ${cls ? '<span class="meta-dot"></span>' + _sosClsTag(cls) : ''}
+          ${weight > 0 ? `<span class="meta-dot"></span><span>${weight}%</span>` : ''}
+        </div>
+        <div class="sos-pq-bar" title="Priority ${pct} of 100"><i style="width:${pct}%"></i></div>
       </div>
-      <div class="sos-pq-actions" style="display:flex;gap:4px;align-items:center">
-        <button class="sos-pq-btn" data-act="start" title="Start a focus session on this"
-          style="background:none;border:1px solid var(--border);color:var(--text3);border-radius:4px;cursor:pointer;font-size:10px;padding:3px 6px;min-height:26px">▶</button>
-        ${ev.src === 'task' ? `<button class="sos-pq-btn" data-act="done" title="Mark done"
-          style="background:none;border:1px solid var(--border);color:var(--text3);border-radius:4px;cursor:pointer;font-size:10px;padding:3px 6px;min-height:26px">✓</button>` : ''}
+      <div class="sos-pq-actions">
+        <button class="sos-pq-btn" data-act="start" title="Start a focus session on this">${SOI.play}<span>Start</span></button>
+        ${ev.src === 'task' ? `<button class="sos-pq-btn" data-act="done" title="Mark done" aria-label="Mark done">${SOI.checkBold}</button>` : ''}
       </div>
-      <div class="sos-pq-score">${pct}</div>
     `;
     item.querySelectorAll('.sos-pq-btn').forEach(b => {
-      b.onmouseover = () => { b.style.color = 'var(--accent)'; b.style.borderColor = 'var(--accent)'; };
-      b.onmouseout  = () => { b.style.color = 'var(--text3)';  b.style.borderColor = 'var(--border)'; };
       b.onclick = (e) => {
         e.stopPropagation();                 // the row itself opens the editor
         if (b.dataset.act === 'done' && ev.src === 'task') {
@@ -4196,6 +4436,7 @@ function startFocusOn(ev, minutes) {
       currentClassId = ev.classId;
       _sosPomoClassId = ev.classId;
     }
+    _sosPomoFor = ev && ev.name ? ev.name : '';
     switchView('pomodoro');
     if (minutes) {
       const inp = _sosEl('pomo-inp-work');
@@ -4205,8 +4446,9 @@ function startFocusOn(ev, minutes) {
       if (pomoMode !== 'work') setPomoMode('work');
       togglePomo();
     }
+    _sosPaintPomoFor();
     const what = ev && ev.name ? ev.name : 'Focus';
-    showNotif(SOI.check, 'Started', what + (minutes ? ` · ${minutes} min` : ''));
+    showNotif('timer', 'Started', what + (minutes ? ` · ${minutes} min` : ''));
   } catch (e) { console.warn('startFocusOn failed:', e); }
 }
 
@@ -4217,12 +4459,11 @@ function startFocusOn(ev, minutes) {
  * minute one that does not.
  */
 window.sosStartSession = function (minutes) {
-  const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
-  const in30 = new Date(today); in30.setDate(today.getDate() + 30);
+  const todayStr = sosLocalDate();
+  const in30 = new Date(); in30.setDate(in30.getDate() + 30);
   const top = _sosScheduleItems()
     .filter(e => ['exam', 'hw', 'quiz'].includes(e.type)
-              && e.date >= todayStr && e.date <= in30.toISOString().split('T')[0])
+              && e.date >= todayStr && e.date <= sosLocalDate(in30))
     .map(e => ({ ev: e, score: _sosPriorityScore(e) }))
     .sort((a, b) => b.score - a.score)[0];
 
@@ -4231,7 +4472,7 @@ window.sosStartSession = function (minutes) {
     if (window.SOS && window.SOS.deck && window.SOS.deck.countsFor(null).toStudy > 0) {
       return window.sosStudyAll && window.sosStudyAll();
     }
-    showNotif(SOI.check, 'Nothing queued', 'No work due in the next 30 days.');
+    showNotif('check', 'Nothing queued', 'No work due in the next 30 days.');
     return;
   }
   startFocusOn(top.ev, minutes);
@@ -4244,7 +4485,7 @@ function openAddTaskForClass() {
   editingTaskId = null;
   _sosEl('add-task-modal-title').textContent = 'New Task';
   _sosEl('inp-task-name').value = '';
-  const today = new Date().toISOString().split('T')[0];
+  const today = sosLocalDate();
   _sosEl('inp-task-date').value = today;
   _sosEl('inp-task-time').value = '';
   _sosEl('inp-task-priority').value = 'medium';
@@ -4263,7 +4504,7 @@ function openAddTaskGlobal() {
   editingTaskId = null;
   _sosEl('add-task-modal-title').textContent = 'New Task';
   _sosEl('inp-task-name').value = '';
-  const today = new Date().toISOString().split('T')[0];
+  const today = sosLocalDate();
   _sosEl('inp-task-date').value = today;
   _sosEl('inp-task-time').value = '';
   _sosEl('inp-task-priority').value = 'medium';
@@ -4276,10 +4517,10 @@ function openAddTaskGlobal() {
   if (classField) classField.style.display = '';
   const sel = _sosEl('inp-task-class');
   if (sel) {
-    sel.innerHTML = '<option value="">— None —</option>';
+    sel.innerHTML = '<option value="">No class</option>';
     classes.forEach(c => {
       const opt = document.createElement('option');
-      opt.value = c.id; opt.textContent = c.name; sel.appendChild(opt);
+      opt.value = c.id; opt.textContent = sosClassName(c); sel.appendChild(opt);
     });
     sel.value = '';
   }
@@ -4305,10 +4546,10 @@ function openEditTask(taskId) {
   if (classField) classField.style.display = '';
   const sel = _sosEl('inp-task-class');
   if (sel) {
-    sel.innerHTML = '<option value="">— None —</option>';
+    sel.innerHTML = '<option value="">No class</option>';
     classes.forEach(c => {
       const opt = document.createElement('option');
-      opt.value = c.id; opt.textContent = c.name; sel.appendChild(opt);
+      opt.value = c.id; opt.textContent = sosClassName(c); sel.appendChild(opt);
     });
     sel.value = t.classId || '';
   }
@@ -4479,8 +4720,11 @@ async function deleteEditingTask() {
   if (!t) { editingTaskId = null; return; }
 
   if (t.repeatId) {
-    const choice = await window.uiConfirm('This is a repeating task. Delete all future occurrences, or only this one?', {title:'Delete repeating task', okLabel:'All future', cancelLabel:'This only'});
-    if (choice) {
+    const choice = await window.uiChoice('“' + t.name + '” repeats. Delete only this occurrence, or this one and every later one?', {
+      title: 'Delete repeating task', danger: true,
+      choices: [{ label: 'Only this one', value: 'one' }, { label: 'This and all future', value: 'all', danger: true }] });
+    if (!choice) return;
+    if (choice === 'all') {
       const rid = t.repeatId;
       const cutoff = new Date((t.dueDate || '9999') + 'T12:00:00');
       if (window.thCancelNotif) {
@@ -4498,7 +4742,7 @@ async function deleteEditingTask() {
       if (window._vedaRemoveTask) window._vedaRemoveTask('t_' + editingTaskId);
     }
   } else {
-    if (!(await window.uiConfirm('Delete "' + t.name + '"?', {danger:true, okLabel:'Delete'}))) return;
+    if (!(await window.sosConfirmDelete('“' + t.name + '”', 'The task and its reminder are removed from StudyOS and TaskHub.'))) return;
     if (window.thCancelNotif) window.thCancelNotif('sos_task_' + editingTaskId, null);
     tasks = tasks.filter(x => x.id !== editingTaskId);
     if (window._vedaRemoveTask) window._vedaRemoveTask('t_' + editingTaskId);
@@ -4508,9 +4752,10 @@ async function deleteEditingTask() {
   persistTasks();
   _sosClose('modal-add-task');
   renderCalendar();
+  updateStats();
   const cls = classes.find(c => c.id === currentClassId);
   if (cls) renderClassTasks(cls);
-  showNotif(SOI.trash, 'Task Deleted', 'Task removed.');
+  showNotif(SOI.trash, 'Task deleted', t.name);
 }
 
 function toggleTaskDone(taskId) {
@@ -4538,16 +4783,21 @@ function renderClassTasks(cls) {
 }
 
 // ===== POMODORO =====
-const POMO_CIRCUMFERENCE = 2 * Math.PI * 108;
+// The Timer view, after TaskHub Veda's timer (index.html Pomodoro): a ring
+// whose arc runs every frame off the exact end time with a dot riding its
+// end, a length stepper, and TaskHub's own sounds.
+const POMO_CIRCUMFERENCE = 2 * Math.PI * 122;
 let pomoMode = 'work';
 let pomoRunning = false;
 let pomoSeconds = 25 * 60;
 let pomoTotal = 25 * 60;
 let pomoSession = 0;
+let _pomoDone = false;          // a block just ended; the play button restarts it
+let _sosPomoFor = '';           // what Start Session / the queue started it for
 
-// Web Worker for accurate background timing
-// Inline timer replaces Web Worker (blob workers blocked by CSP)
-let _pomoIv = null, _pomoEnd = 0;
+// Inline timer (blob workers are blocked by CSP). Ticks whole seconds for the
+// digits; the ring reads _pomoEnd directly.
+let _pomoIv = null, _pomoEnd = 0, _pomoRemMs = null;
 const pomoWorker = {
   postMessage: function(data) {
     if (data.cmd === 'start') {
@@ -4570,13 +4820,15 @@ const pomoWorker = {
 };
 pomoWorker.onmessage = function(e) {
   if (e.data.type === 'tick') {
+    if (!_pomoEnd) return;
     pomoSeconds = e.data.left;
     updatePomoDisplay();
-    updatePomoRing();
     updateTopbarPomo();
   } else if (e.data.type === 'done') {
+    _pomoEnd = 0; _pomoRemMs = null;
     pomoSeconds = 0;
     pomoRunning = false;
+    _pomoDone = true;
     updatePomoDisplay();
     updatePomoRing();
     updatePomoPlayBtn();
@@ -4596,64 +4848,130 @@ pomoWorker.onmessage = function(e) {
       pomoSession = (pomoSession + 1) % 4;
       updatePomoDots();
       const nextMode = pomoSession === 0 ? 'long' : 'short';
-      showNotif('', 'Focus complete!', 'Time for a ' + (nextMode==='long'?'long':'short') + ' break.');
-      setPomoMode(nextMode);
+      showNotif('timer', 'Focus complete', 'Time for a ' + (nextMode === 'long' ? 'long' : 'short') + ' break.');
+      // Show "Complete" for a moment, then line up the break.
+      setTimeout(() => { if (_pomoDone && !pomoRunning) setPomoMode(nextMode); }, 2600);
     } else {
-      showNotif('', 'Break over!', 'Ready to focus again.');
-      setPomoMode('work');
+      showNotif('timer', 'Break over', 'Ready to focus again.');
+      setTimeout(() => { if (_pomoDone && !pomoRunning) setPomoMode('work'); }, 2600);
     }
+    _sosPaintPomoToday();
   }
 };
 
-function playPomoAlarm() {
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  if (ctx.state === 'suspended') ctx.resume();
-  const notes = [523.25, 659.25, 783.99, 659.25, 783.99, 1046.5, 783.99, 1046.5, 783.99, 659.25];
-  const dur = 0.45, gap = 0.05;
-  notes.forEach((freq, i) => {
-    const t = ctx.currentTime + i * (dur + gap);
-    const osc = ctx.createOscillator(); const gain = ctx.createGain();
-    osc.type = 'sine'; osc.frequency.setValueAtTime(freq, t);
-    gain.gain.setValueAtTime(0, t); gain.gain.linearRampToValueAtTime(0.18, t + 0.05);
-    gain.gain.setValueAtTime(0.18, t + dur * 0.6); gain.gain.linearRampToValueAtTime(0, t + dur);
-    osc.connect(gain); gain.connect(ctx.destination); osc.start(t); osc.stop(t + dur);
-    const osc2 = ctx.createOscillator(); const g2 = ctx.createGain();
-    osc2.type = 'triangle'; osc2.frequency.setValueAtTime(freq * 2, t);
-    g2.gain.setValueAtTime(0.08, t); osc2.connect(g2); g2.connect(ctx.destination);
-    osc2.start(t); osc2.stop(t + dur);
+/* ── Timer sounds: TaskHub's (index.html _tmBell / playAlarm / playTimerCue) ─
+ * A soft bell: each note is a sine fundamental plus three bell-like partials
+ * with an exponential decay, through a short generated room reverb and a
+ * gentle compressor, so overlapping notes stay smooth instead of clipping. */
+let _pomoAudioCtx = null;
+function _pomoCtx() {
+  try {
+    if (!_pomoAudioCtx) _pomoAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (_pomoAudioCtx.state === 'suspended') { const r = _pomoAudioCtx.resume(); if (r && r.catch) r.catch(() => {}); }
+  } catch (e) { _pomoAudioCtx = null; }
+  return _pomoAudioCtx;
+}
+function _tmBell(ctx, out, freq, t, vel) {
+  [[1, 1, 2.6], [2.01, .32, 1.7], [2.76, .16, 1.1], [4.07, .06, .6]].forEach(([mul, amp, len]) => {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(freq * mul, t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vel * amp, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+    o.connect(g); g.connect(out); o.start(t); o.stop(t + len + 0.05);
   });
-  setTimeout(() => ctx.close(), 6000);
+}
+function _tmChain(ctx) {
+  const comp = ctx.createDynamicsCompressor();
+  comp.threshold.setValueAtTime(-14, ctx.currentTime); comp.knee.setValueAtTime(12, ctx.currentTime);
+  comp.ratio.setValueAtTime(3, ctx.currentTime); comp.attack.setValueAtTime(0.004, ctx.currentTime); comp.release.setValueAtTime(0.25, ctx.currentTime);
+  comp.connect(ctx.destination);
+  const dry = ctx.createGain(); dry.gain.value = 0.8; dry.connect(comp);
+  const len = Math.floor(ctx.sampleRate * 1.8), ir = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3); }
+  const rev = ctx.createConvolver(); rev.buffer = ir; const wet = ctx.createGain(); wet.gain.value = 0.2;
+  dry.connect(rev); rev.connect(wet); wet.connect(comp);
+  return dry;
+}
+// The end-of-timer chime: a rising Cmaj7 arpeggio played twice, then a
+// resolving high C held over a low C. About five seconds in all.
+function playPomoAlarm() {
+  const ctx = _pomoCtx(); if (!ctx) return;
+  const out = _tmChain(ctx); const t0 = ctx.currentTime + 0.05;
+  const arp = [523.25, 659.25, 783.99, 987.77];
+  [0, 1.5].forEach(off => arp.forEach((f, i) => _tmBell(ctx, out, f, t0 + off + i * 0.17, 0.24 - i * 0.015)));
+  _tmBell(ctx, out, 1046.5, t0 + 3.0, 0.25); _tmBell(ctx, out, 523.25, t0 + 3.0, 0.17);
+}
+// A soft mallet note for the button cues: a rounder, shorter cousin of the
+// bell, lowpassed so it never sounds sharp.
+function _tmMallet(ctx, out, freq, t, vel, len) {
+  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(Math.min(9000, freq * 6), t); lp.Q.value = 0.4; lp.connect(out);
+  [[1, 1, len], [2, .2, len * .5], [3.98, .07, len * .2]].forEach(([mul, amp, l]) => {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(freq * mul, t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vel * amp, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + l);
+    o.connect(g); g.connect(lp); o.start(t); o.stop(t + l + 0.05);
+  });
+}
+// Button cues, all in G major so they sit with each other and the chime:
+// start = a rising G-B-D triad, resume = G up to D, pause = D down to G.
+function playTimerCue(kind) {
+  const ctx = _pomoCtx(); if (!ctx) return;
+  const out = _tmChain(ctx); const t = ctx.currentTime + 0.02;
+  const seq = kind === 'start' ? [[783.99, 0, .19], [987.77, .075, .16], [1174.66, .15, .17]]
+    : kind === 'resume' ? [[783.99, 0, .18], [1174.66, .085, .16]]
+    : [[1174.66, 0, .14], [783.99, .09, .15]];
+  seq.forEach(([f, d, v]) => _tmMallet(ctx, out, f, t + d, v, kind === 'pause' ? 0.7 : 0.95));
 }
 
-// Warm up AudioContext on first user interaction (required by browsers)
-let _pomoAudioCtx = null;
-document.addEventListener('click', function warmAudio() {
-  if (!_pomoAudioCtx) {
-    _pomoAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const o = _pomoAudioCtx.createOscillator(); const g = _pomoAudioCtx.createGain();
-    g.gain.setValueAtTime(0, _pomoAudioCtx.currentTime);
-    o.connect(g); g.connect(_pomoAudioCtx.destination);
-    o.start(); o.stop(_pomoAudioCtx.currentTime + 0.01);
-  }
-  document.removeEventListener('click', warmAudio);
-}, {once: true});
+/* Lengths, remembered on this device (a convenience: blocked storage just
+ * means 25 / 5 / 15). */
+const POMO_DEFAULTS = { work: 25, short: 5, long: 15 };
+const POMO_INPUT = { work: 'pomo-inp-work', short: 'pomo-inp-short', long: 'pomo-inp-long' };
+(function () {
+  try {
+    const s = JSON.parse(localStorage.getItem('sos_pomo_lengths') || 'null');
+    if (s) document.addEventListener('DOMContentLoaded', () => {
+      Object.keys(POMO_INPUT).forEach(k => { const el = _sosEl(POMO_INPUT[k]); if (el && s[k]) el.value = String(s[k]); });
+      if (!pomoRunning) setPomoMode(pomoMode);
+    });
+  } catch (e) {}
+})();
+function _pomoSaveLengths() {
+  try { localStorage.setItem('sos_pomo_lengths', JSON.stringify({ work: pomoMins('work'), short: pomoMins('short'), long: pomoMins('long') })); } catch (e) {}
+}
 
 function pomoMins(mode) {
-  const v = { work: 'pomo-inp-work', short: 'pomo-inp-short', long: 'pomo-inp-long' };
-  return parseInt(_sosEl(v[mode]).value) || (mode==='work'?25:mode==='short'?5:15);
+  const el = _sosEl(POMO_INPUT[mode]);
+  return Math.max(1, Math.min(180, parseInt(el && el.value) || POMO_DEFAULTS[mode]));
 }
 
+/* The stepper: −5 / −1 / +1 / +5 on the shown mode's length, while stopped. */
+function sosPomoAdjust(delta) {
+  if (pomoRunning) return;
+  const el = _sosEl(POMO_INPUT[pomoMode]);
+  if (!el) return;
+  el.value = String(Math.max(1, Math.min(180, pomoMins(pomoMode) + delta)));
+  _pomoSaveLengths();
+  setPomoMode(pomoMode);
+}
+window.sosPomoAdjust = sosPomoAdjust;
+
 function setPomoMode(mode) {
-  if (pomoRunning) { pomoWorker.postMessage({cmd:'stop'}); pomoRunning = false; updatePomoPlayBtn(); }
+  if (pomoRunning) { pomoWorker.postMessage({cmd:'stop'}); pomoRunning = false; }
+  if (mode !== pomoMode) _sosPomoFor = mode === 'work' ? _sosPomoFor : '';
   pomoMode = mode;
+  _pomoDone = false;
+  _pomoEnd = 0; _pomoRemMs = null;
   pomoTotal = pomoMins(mode) * 60;
   pomoSeconds = pomoTotal;
   document.querySelectorAll('#study-root .pomo-mode-btn').forEach(b => b.classList.remove('active'));
   _sosEl('pomo-btn-' + (mode==='work'?'work':mode==='short'?'short':'long')).classList.add('active');
-  const labels = { work:'Focus', short:'Short Break', long:'Long Break' };
-  _sosEl('pomo-mode-label').textContent = labels[mode];
   updatePomoDisplay();
   updatePomoRing();
+  updatePomoPlayBtn();
   updateTopbarPomo();
 }
 
@@ -4678,9 +4996,13 @@ function _sosLogSession(kind, fields) {
 }
 
 function togglePomo() {
+  if (_pomoDone) { setPomoMode(pomoMode); return; }   // "Restart" after a block ends
   if (pomoRunning) {
+    _pomoRemMs = Math.max(0, _pomoEnd - Date.now());
+    _pomoEnd = 0;
     pomoWorker.postMessage({cmd:'stop'});
     pomoRunning = false;
+    playTimerCue('pause');
     // A paused focus block still happened. Log what was done rather than
     // discarding it — pausing to answer the door should not erase 18 minutes.
     if (pomoMode === 'work' && _sosPomoStartedAt) {
@@ -4693,20 +5015,27 @@ function togglePomo() {
       _sosPomoStartedAt = null;
     }
   } else {
-    pomoWorker.postMessage({cmd:'start', secs: pomoSeconds});
+    const ms = _pomoRemMs != null ? _pomoRemMs : pomoSeconds * 1000;
+    playTimerCue(ms >= pomoTotal * 1000 ? 'start' : 'resume');
+    pomoWorker.postMessage({cmd:'start', secs: ms / 1000});
+    _pomoRemMs = null;
     pomoRunning = true;
     if (pomoMode === 'work' && !_sosPomoStartedAt) {
       _sosPomoStartedAt = Date.now();
       _sosPomoClassId = currentClassId || '';
     }
+    _pomoRingLoop();
   }
   updatePomoPlayBtn();
+  updatePomoRing();
   updateTopbarPomo();
 }
 
 function resetPomo() {
   pomoWorker.postMessage({cmd:'stop'});
   pomoRunning = false;
+  _pomoDone = false;
+  _pomoEnd = 0; _pomoRemMs = null;
   pomoSeconds = pomoTotal;
   updatePomoDisplay();
   updatePomoRing();
@@ -4717,15 +5046,11 @@ function resetPomo() {
 function skipPomo() {
   pomoWorker.postMessage({cmd:'stop'});
   pomoRunning = false;
-  pomoSeconds = 0;
-  updatePomoDisplay();
-  updatePomoRing();
-  updatePomoPlayBtn();
+  _pomoEnd = 0; _pomoRemMs = null;
   if (pomoMode === 'work') {
     pomoSession = (pomoSession + 1) % 4;
     updatePomoDots();
-    const nextMode = pomoSession === 0 ? 'long' : 'short';
-    setPomoMode(nextMode);
+    setPomoMode(pomoSession === 0 ? 'long' : 'short');
   } else {
     setPomoMode('work');
   }
@@ -4739,59 +5064,144 @@ function updatePomoDisplay() {
   _sosEl('topbar-pomo-time').textContent = str;
   var spbTime = document.getElementById('spb-time');
   if (spbTime) spbTime.textContent = str;
+  const len = _sosEl('pomo-len');
+  if (len) len.textContent = pomoMins(pomoMode) + ' min';
+  document.querySelectorAll('#pomo-stepper .pomo-step').forEach(b => { b.disabled = pomoRunning; });
+  const card = document.querySelector('#study-root .pomo-card');
+  if (card) {
+    card.classList.toggle('running', pomoRunning);
+    card.classList.toggle('done', _pomoDone);
+    card.classList.toggle('break', pomoMode !== 'work');
+  }
+  const lbl = _sosEl('pomo-mode-label');
+  if (lbl) lbl.textContent = _pomoDone ? 'Complete' : pomoRunning ? (pomoMode === 'work' ? 'Focusing' : 'On break') : (pomoSeconds < pomoTotal || _pomoRemMs != null ? 'Paused' : 'Ready');
+  const sess = _sosEl('pomo-sess-txt');
+  if (sess) sess.textContent = 'Block ' + (pomoSession + 1) + ' of 4';
+  _sosPaintPomoFor();
 }
 
+function _sosPaintPomoFor() {
+  const el = _sosEl('pomo-for');
+  if (el) { el.textContent = _sosPomoFor && pomoMode === 'work' ? 'for ' + _sosPomoFor : ''; el.title = el.textContent; }
+}
+
+/* Today's focus, from the session log (js/modules/sessions.js). */
+function _sosPaintPomoToday() {
+  const el = _sosEl('pomo-today');
+  if (!el) return;
+  try {
+    if (!(window.SOS && window.SOS.sessions)) { el.textContent = ''; return; }
+    const d = window.SOS.sessions.dayTotals();
+    el.innerHTML = d.minutes
+      ? '<b>' + d.minutes + ' min</b> focused today · ' + d.sessions + ' session' + (d.sessions === 1 ? '' : 's')
+      : 'No focus logged today yet. One block is a good start.';
+  } catch (e) { el.textContent = ''; }
+}
+
+/* The arc shows the time LEFT; the dot rides its end. While running, a frame
+ * loop writes it straight from the exact end time, so it glides instead of
+ * stepping once a second. */
+function _pomoFrac() {
+  if (_pomoDone) return 0;
+  const ms = _pomoEnd ? Math.max(0, _pomoEnd - Date.now()) : (_pomoRemMs != null ? _pomoRemMs : pomoSeconds * 1000);
+  return pomoTotal > 0 ? Math.min(1, ms / (pomoTotal * 1000)) : 0;
+}
 function updatePomoRing() {
-  const frac = pomoSeconds / pomoTotal;
-  const offset = POMO_CIRCUMFERENCE * (1 - frac);
-  _sosEl('pomo-ring').style.strokeDashoffset = offset;
+  const p = _pomoFrac();
+  const ring = _sosEl('pomo-ring');
+  if (ring) ring.style.strokeDashoffset = POMO_CIRCUMFERENCE * (1 - p);
+  const dot = _sosEl('pomo-ring-dot');
+  if (dot) { dot.style.transform = 'rotate(' + (360 * p) + 'deg)'; dot.style.opacity = p > 0.004 && p < 0.9995 ? 1 : 0; }
+}
+let _pomoRaf = 0;
+function _pomoRingLoop() {
+  cancelAnimationFrame(_pomoRaf);
+  const f = () => {
+    if (!pomoRunning || !_pomoEnd) { _pomoRaf = 0; return; }
+    if (activeView === 'pomodoro' && !document.hidden) updatePomoRing();
+    _pomoRaf = requestAnimationFrame(f);
+  };
+  _pomoRaf = requestAnimationFrame(f);
 }
 
 function updatePomoPlayBtn() {
-  const pause = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
-  const play = '<polygon points="5,3 19,12 5,21"/>';
-  _sosEl('pomo-play-icon').innerHTML = pomoRunning ? pause : play;
+  const pause = '<rect x="6" y="5" width="4" height="14" rx="1.2"/><rect x="14" y="5" width="4" height="14" rx="1.2"/>';
+  const play = '<path d="M7 4.8v14.4a1 1 0 0 0 1.5.86l12-7.2a1 1 0 0 0 0-1.72l-12-7.2A1 1 0 0 0 7 4.8z"/>';
+  const again = '<path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>';
+  const icon = _pomoDone ? again : pomoRunning ? pause : play;
+  _sosEl('pomo-play-icon').innerHTML = icon;
   _sosEl('topbar-pomo-icon').innerHTML = pomoRunning ? pause : play;
   var spbIcon = document.getElementById('spb-icon');
   if (spbIcon) spbIcon.innerHTML = pomoRunning ? pause : play;
+  const btn = _sosEl('pomo-play-btn');
+  if (btn) btn.setAttribute('aria-label', _pomoDone ? 'Restart' : pomoRunning ? 'Pause' : 'Start');
+  updatePomoDisplay();
 }
 
 function updateTopbarPomo() {
   const pill = _sosEl('topbar-pomo');
   const labels = { work:'Focus', short:'Short Break', long:'Long Break' };
   _sosEl('topbar-pomo-label').textContent = labels[pomoMode];
-  const active = pomoRunning || pomoSeconds < pomoTotal;
-  pill.style.display = active ? 'flex' : 'none';
-  // Mobile banner
+  const active = pomoRunning || pomoSeconds < pomoTotal || _pomoRemMs != null;
+  // On the Timer view itself the pill would repeat the big clock.
+  pill.style.display = active && activeView !== 'pomodoro' ? 'flex' : 'none';
+  // Phone / tablet strip
   var banner = document.getElementById('sos-pomo-banner');
   var spbLabel = document.getElementById('spb-label');
-  if (banner) banner.style.display = active ? 'flex' : 'none';
+  if (banner) banner.style.display = active && activeView !== 'pomodoro' ? 'flex' : 'none';
   if (spbLabel) spbLabel.textContent = labels[pomoMode];
+  const live = _sosEl('nav-timer-live');
+  if (live) live.hidden = !pomoRunning;
 }
 
 function updatePomoDots() {
   for (let i = 0; i < 4; i++) {
     _sosEl('pd'+i).classList.toggle('done', i < pomoSession);
   }
+  const sess = _sosEl('pomo-sess-txt');
+  if (sess) sess.textContent = 'Block ' + (pomoSession + 1) + ' of 4';
 }
 
 function onPomoSettingChange() {
+  _pomoSaveLengths();
   if (!pomoRunning) setPomoMode(pomoMode);
 }
 
-
+/* ── Modals ─────────────────────────────────────────────────────────────────
+ * Opened and closed only by their own buttons (Cancel, Close, Back, Save):
+ * a click outside the card does nothing (Tony, 2026-10-29: it threw away a
+ * half-filled form). Escape still backs out of the top one, as its Cancel. */
 function _sosOpen(id) {
   var el = document.getElementById(id);
-  if (el) el.classList.add('open');
+  if (!el) return;
+  el.classList.add('open');
+  // Desktop: the first field is ready to type in. Not on touch, where focus
+  // throws the keyboard over the form before she has looked at it.
+  if (window.matchMedia && window.matchMedia('(pointer: fine)').matches && id !== 'modal-module-detail') {
+    setTimeout(function () {
+      var f = el.querySelector('.modal input[type="text"]:not([disabled]), .modal textarea');
+      if (f && el.classList.contains('open')) try { f.focus({ preventScroll: true }); } catch (e) {}
+    }, 80);
+  }
 }
 function _sosClose(id) {
   var el = document.getElementById(id);
   if (el) el.classList.remove('open');
 }
-document.querySelectorAll('.sos-modal').forEach(function(overlay) {
-  overlay.addEventListener('click', function(e) {
-    if (e.target === overlay) overlay.classList.remove('open');
-  });
+document.addEventListener('keydown', function (e) {
+  if (e.key !== 'Escape') return;
+  if ((window.uiIsOpen && window.uiIsOpen()) || (window.Guardian && window.Guardian.isOpen && window.Guardian.isOpen())) return;
+  var open = Array.prototype.slice.call(document.querySelectorAll('.sos-modal.open'));
+  if (!open.length) return;
+  var top = open[open.length - 1];
+  e.preventDefault();
+  if (top.id === 'modal-module-detail') {
+    // Inside the notes editor Escape belongs to the editor.
+    if (top.querySelector('.notes-mode') && e.target && e.target.closest && e.target.closest('.sos-nb-modal-host')) return;
+    closeModuleDetail();
+  }
+  else if (top.id === 'modal-pick-dest') _sosCancelPick();
+  else _sosClose(top.id);
 });
 
 // ===== PERSIST =====
@@ -4803,14 +5213,13 @@ function _sosSetSync(status) {
   // forest green and dusty salmon barely registered. Both states now use the
   // saturated success/danger pair, so a failed save is something you notice out
   // of the corner of your eye.
-  var accentColor = '#8D769A';
-  var greenColor  = '#8fd6ad';
-  var errColor    = '#ef9f9f';
+  var greenColor  = '#A8DCC0';
+  var errColor    = '#F2AFAF';
   var mutedColor  = 'var(--text2,#888)';
   if (status === 'saving') {
     el.style.visibility = 'visible';
     el.style.color = mutedColor;
-    el.textContent = 'Syncing…';
+    el.innerHTML = SOI.refresh + '<span>Syncing…</span>';
     if (_sosSyncTimer) { clearTimeout(_sosSyncTimer); _sosSyncTimer = null; }
   } else if (status === 'saved') {
     el.style.visibility = 'visible';
@@ -4949,7 +5358,7 @@ async function convertTaskToEvent(taskId) {
   const newEvent = {
     id: newId,
     name: t.name,
-    date: t.dueDate || new Date().toISOString().split('T')[0],
+    date: t.dueDate || sosLocalDate(),
     time: t.dueTime || '',
     classId: t.classId || '',
     type: t.type || 'other',
@@ -5243,7 +5652,7 @@ window._sosBridge.addGeneratedNote = (spec) => {
       id: Date.now().toString(),
       name: 'Generated',
       type: 'notes',
-      icon: (typeof ICONS !== 'undefined' && ICONS.notes) || '📝',
+      icon: 'txt',
       files: [], prompts: [], notes: [],
     };
     cls.modules = cls.modules || [];
@@ -5410,7 +5819,7 @@ const _sosAddGeneratedDoc = async (spec) => {
       id: Date.now().toString(),
       name: 'Generated',
       type: 'documents',
-      icon: (typeof ICONS !== 'undefined' && ICONS.documents) || '📄',
+      icon: 'doc',
       files: [], prompts: [], notes: [],
     };
     cls.modules.push(mod);
@@ -5428,7 +5837,7 @@ const _sosAddGeneratedDoc = async (spec) => {
     fileId = await SosFileStore.saveBlob(file, name);
   } catch (e) {
     console.error('SOS generated-doc save failed:', name, e);
-    showNotif('⚠️', 'Could not save', name + ' could not be stored on this device.');
+    showNotif('alert', 'Could not save', name + ' could not be stored on this device.');
     return null;
   }
 
@@ -5567,7 +5976,7 @@ window._sosBridge.addModule = (classId, name, type = 'documents') => {
     id: Date.now().toString() + Math.random().toString(36).slice(2, 5),
     name: clean,
     type,
-    icon: ICON[type] || '📄',
+    icon: ICON[type] || 'doc',
     files: [], prompts: [], notes: [],
   };
   cls.modules = cls.modules || [];

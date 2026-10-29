@@ -1,1530 +1,1512 @@
 /* ============================================================================
  * StudyOS — stylesheet
  * ============================================================================
- * Three sections, in cascade order:
- *   1. Page baseline   — replaces the host-page reset StudyOS used to inherit
- *   2. App shell       — the sticky header (was .veda-hdr-* on the host page)
- *   3. StudyOS proper  — verbatim from the original build, still scoped to
- *                        #study-root so it can be embedded again without leaks
- *   4. App Lock        — the full-screen unlock overlay
+ * The 2026-10-29 overhaul (Tony, for Veda): one quiet, deep plum-charcoal
+ * ground, glass-soft surfaces, and ONLY pastels for colour, led by Veda's
+ * lavender with pastel pink as the second voice. Her fonts stay: Lora for
+ * titles and big numbers, Nunito for everything else (IBM Plex Mono only for
+ * code inside lessons and prompts).
+ *
+ * Sections, in cascade order:
+ *   1.  Tokens + page baseline (the lock gate)
+ *   2.  Cover page
+ *   3.  Shell: sidebar (collapsible rail), topbar, views + their entrances
+ *   4.  Buttons, chips, fields, checkboxes, StudyOS's own controls (sosc-*)
+ *   5.  Panels + dashboard
+ *   6.  Calendar + upcoming
+ *   7.  Class detail, KSU, modules
+ *   8.  Timer
+ *   9.  Modals (every one), documents, prompts
+ *   10. Toasts, drop overlay, pull to refresh
+ *   11. Tablet + phone, bottom nav
+ *   12. Notes mode (V's Notebook in a module)
  * ------------------------------------------------------------------------- */
 
-/* ── 1. Page baseline ─────────────────────────────────────────────────────── */
-
-/* Typography tokens the host page used to provide. The StudyOS rules and the
- * App Lock card both reference these, so they must exist at :root. */
+/* ── 1. Tokens + baseline ─────────────────────────────────────────────────── */
 :root {
-  --suite-display: 'Manrope', system-ui, -apple-system, sans-serif;
-  --font-accent:   'Fraunces', Georgia, serif;
+  /* Ground and surfaces: charcoal with a whisper of plum, so the pastels sit
+     in a world of their own colour rather than on neutral grey. */
+  --bg:  #131216;
+  --bg2: #17161b;
+  --bg3: #1d1c22;
+  --bg4: #25232b;
+  --bg5: #2e2c35;
+  --glass: rgba(29, 28, 34, .72);
+  --border:  rgba(228, 214, 242, .07);
+  --border2: rgba(228, 214, 242, .12);
+  --border3: rgba(228, 214, 242, .2);
+  --text:  #EFECF3;
+  --text2: #B9B4C3;
+  --text3: #827D8D;
+
+  /* Veda's purple: the deep mauve she has always had for fills, and a pastel
+     lavender for light-on-dark accents. Pink is the second voice. */
+  --accent:  #8D769A;
+  --accent2: #C9B4D8;
+  --accent3: #A892B0;
+  --lav:     #C9B4D8;
+  --lav-soft: rgba(201, 180, 216, .13);
+  --pink:    #F0B3CB;
+  --pink-soft: rgba(240, 179, 203, .13);
+  --peach:   #F2C9A0;
+  --peach-soft: rgba(242, 201, 160, .13);
+  --mint:    #A8DCC0;
+  --mint-soft: rgba(168, 220, 192, .13);
+  --sky:     #A9CBEF;
+  --sky-soft: rgba(169, 203, 239, .13);
+  --rose:    #F2AFAF;
+  --rose-soft: rgba(242, 175, 175, .13);
+  --butter:  #E8D49A;
+
+  --radius: 10px;
+  --radius2: 14px;
+  --radius3: 18px;
+  --ease: cubic-bezier(.2, .8, .2, 1);
+  --shadow1: 0 1px 0 rgba(255, 255, 255, .03) inset, 0 1px 2px rgba(0, 0, 0, .25);
+  --shadow2: 0 18px 44px -18px rgba(0, 0, 0, .65), 0 2px 6px rgba(0, 0, 0, .2);
+  --ring: 0 0 0 3px rgba(201, 180, 216, .2);
+
+  --display: 'Lora', Georgia, serif;
+  --sans: 'Nunito', system-ui, -apple-system, sans-serif;
+  --meta: 'Nunito', system-ui, -apple-system, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --suite-display: 'Lora', Georgia, serif;
+  --font-accent: 'Lora', Georgia, serif;
+  /* dragsort.js (A1Drag) tints its lifted card from these. */
+  --ds-ac: #C9B4D8; --ds-s2: #25232b; --ds-tx: #EFECF3; --ds-txm: #827D8D;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
 html, body {
   margin: 0; padding: 0;
   height: 100%;
-  background: #1B1C1E;
-  color: #ECECEE;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
   -webkit-font-smoothing: antialiased;
   -webkit-text-size-adjust: 100%;
   overscroll-behavior-y: none;
 }
 body { display: flex; flex-direction: column; }
-#study-root { flex: 1; min-height: 0; }
+::selection { background: rgba(201, 180, 216, .32); }
 
 /* == Suite-wide 2000px UI cap (ui-cap-2000) ================================
-   Past 2000px the interface stops growing and only the page BACKGROUND keeps
-   going, so on an ultrawide monitor StudyOS stays a readable centred column
-   instead of stretching its sidebar-plus-content layout across a metre of
-   glass. Every other A1 program carries the identical cap.
-
-   The background still fills the screen because html paints #1B1C1E in its
-   own right (see the html,body rule above) -- narrowing body therefore
-   reveals the page ground, not white.
-
-   #sos-bottom-nav needs the cap restated because a position:fixed element is
-   laid out against the VIEWPORT and ignores an ancestor's max-width entirely;
-   without this it is the one bar still running the full width of the screen.
-   `margin-inline:auto` centres it: with left and right both 0, auto margins
-   split the leftover space, so its existing inset rules stay untouched. */
+   Past 2000px the interface stops growing and only the page background keeps
+   going. #sos-bottom-nav restates it: a position:fixed bar is laid out against
+   the viewport and ignores an ancestor's max-width. */
 body { max-width: 2000px; margin-inline: auto; }
 #sos-bottom-nav { max-width: 2000px; margin-inline: auto; }
 
-
-/* Hide the app until the App Lock has decided whether to gate it. Removing
- * the attribute is the ONLY thing that reveals content, so a locked StudyOS
- * can never flash its data before the overlay paints. */
+/* Hide the app until the lock has decided whether to gate it. Removing the
+ * attribute is the ONLY thing that reveals content, so a locked StudyOS can
+ * never flash its data. */
 body[data-sos-gate="pending"] #study-root,
 body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 
-/* ── 2. App-lock button ───────────────────────────────────────────────────
-   All that survives of the old sticky "STUDYOS" header strip. The button now
-   sits in the sidebar logo row (or, below 1024px, in the topbar — see
-   shell.js), so only its own chrome is defined here. */
-.sos-hbtn {
-  background:transparent; color:#8D769A; border:1px solid #4A4B51; border-radius:5px;
-  padding:0 10px; height:28px; box-sizing:border-box; display:inline-flex; align-items:center;
-  font-size:10px; font-weight:700; cursor:pointer; font-family:'IBM Plex Mono',monospace;
-  text-transform:uppercase; letter-spacing:1px; transition:all .15s;
-  touch-action:manipulation; white-space:nowrap; flex-shrink:0; text-decoration:none;
-}
-.sos-hbtn:hover  { border-color:#8D769A; box-shadow:0 0 0 3px rgba(141,118,154,0.16), 0 0 12px rgba(141,118,154,0.38); }
-.sos-hbtn.active { background:#8D769A; color:#1B1C1E; border-color:#8D769A; }
-.sos-hbtn.icon   { padding:0 8px; font-size:13px; border-color:rgba(141,118,154,0.45); }
-/* `.sos-hbtn.icon` re-declares border-color at the same specificity as the
-   `:hover` rule above and wins on source order, so the icon variant (the app-lock
-   button) needs its own hover rule or it never lights up at all. */
-.sos-hbtn.icon:hover {
-  border-color:#8D769A; color:#A892B0;
-  box-shadow:0 0 0 3px rgba(141,118,154,0.16), 0 0 12px rgba(141,118,154,0.38);
-}
-.sos-hbtn:focus-visible {
-  outline:none; border-color:#8D769A;
-  box-shadow:0 0 0 3px rgba(141,118,154,0.16), 0 0 12px rgba(141,118,154,0.38);
-}
-
-/* ── 3. StudyOS proper ────────────────────────────────────────────────────── */
-
 #study-root {
-  --bg: #1B1C1E;
-  --bg2: #1f2022;
-  --bg3: #26272A;
-  --bg4: #2e2f33;
-  --border: rgba(255,255,255,0.09);
-  --border2: #4A4B51;
-  --text: #ECECEE;
-  --text2: #AFB0B5;
-  --text3: #76777C;
-  --accent: #8D769A;
-  --accent2: #A892B0;
-  --radius: 5px;
-  --radius2: 10px;
-  --mono: 'IBM Plex Mono', monospace;
-  --sans: 'Nunito', sans-serif;
-}
-* { box-sizing: border-box; margin: 0; padding: 0; }
-#study-root {
+  position: relative;
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column;
+  overflow: hidden;
   font-family: var(--sans);
   font-size: 15px;
   background: var(--bg);
   color: var(--text);
-  min-height: 100vh;
-  overflow-x: hidden;
 }
-/* LAYOUT */
-#study-root .app { display: flex; flex: 1; min-height: 0; overflow: hidden; max-width: 2000px; width: 100%; margin: 0 auto; }
+:where(#study-root) * { margin: 0; padding: 0; }
+/* Two still pools of light behind everything: lavender top-left, pink
+   bottom-right. Fixed and pointer-transparent; never moves, costs nothing. */
+#study-root .sos-ambient {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(900px 600px at 12% -8%, rgba(201, 180, 216, .085), transparent 62%),
+    radial-gradient(800px 560px at 102% 104%, rgba(240, 179, 203, .065), transparent 60%);
+}
+.soi { display: inline-block; vertical-align: -0.14em; flex-shrink: 0; }
+
+/* ── 2. Cover page ────────────────────────────────────────────────────────── */
+#sos-intro {
+  position: fixed; inset: 0; z-index: 10600;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 24px) 24px calc(env(safe-area-inset-bottom, 0px) + 28px);
+  background: #131216; cursor: pointer; outline: none;
+  transition: opacity .42s var(--ease), transform .42s var(--ease), visibility 0s linear 0s;
+}
+#sos-intro[hidden] { display: none; }
+#sos-intro.leave { opacity: 0; transform: scale(1.03); pointer-events: none; }
+#sos-intro-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#sos-intro .sos-intro-scrim {
+  position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(120% 90% at 50% 40%, rgba(19, 18, 22, 0) 0%, rgba(19, 18, 22, .5) 70%, rgba(19, 18, 22, .82) 100%);
+}
+@media (max-width: 1024px), (pointer: coarse) { #sos-intro { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 68px); } }
+.sos-intro-inner { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 18px; width: 100%; max-width: 760px; }
+.sos-intro-mark { width: 64px; height: 64px; color: #C9B4D8; opacity: 0; animation: sosRise .9s .05s var(--ease) forwards; filter: drop-shadow(0 6px 24px rgba(201, 180, 216, .35)); }
+.sos-intro-word {
+  font-family: var(--display); font-weight: 600; font-size: clamp(54px, 11vw, 116px); line-height: 1;
+  letter-spacing: -2px; color: #EADFF3;
+  background: linear-gradient(180deg, #F4EDF8 0%, #D9C6E6 60%, #EBC3D5 100%);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  opacity: 0; animation: sosWord 1.15s .15s var(--ease) forwards;
+}
+.sos-intro-rule { width: 64px; height: 1px; background: linear-gradient(90deg, transparent, #C9B4D8, #F0B3CB, transparent); opacity: 0; animation: sosRise .8s .55s var(--ease) forwards; }
+.sos-intro-sub {
+  font-family: var(--sans); font-weight: 700; font-size: clamp(11px, 1.6vw, 13px);
+  letter-spacing: 5px; text-transform: uppercase; color: #B9B4C3;
+  opacity: 0; animation: sosRise .9s .7s var(--ease) forwards;
+}
+.sos-intro-foot { position: absolute; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom, 0px) + 30px); display: flex; justify-content: center; }
+.sos-intro-cta {
+  font-size: 10px; font-weight: 800; letter-spacing: 2.6px; text-transform: uppercase; color: #9D97A8;
+  opacity: 0; animation: sosRise .8s 1.15s var(--ease) forwards, sosPulse 2.6s 2s ease-in-out infinite;
+}
+@keyframes sosRise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes sosWord { from { opacity: 0; letter-spacing: 10px; transform: translateY(6px); } to { opacity: 1; letter-spacing: -2px; transform: none; } }
+@keyframes sosPulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+
+/* ── 3. Shell ─────────────────────────────────────────────────────────────── */
+#study-root .app {
+  position: relative; z-index: 1;
+  display: flex; flex: 1; min-height: 0; overflow: hidden;
+  max-width: 2000px; width: 100%; margin: 0 auto;
+}
+
+/* Sidebar */
 #study-root .sidebar {
-  width: 220px;
-  min-width: 220px;
-  background: var(--bg2);
+  width: 248px; min-width: 248px;
+  background: linear-gradient(180deg, rgba(25, 24, 30, .92) 0%, rgba(21, 20, 26, .92) 100%);
   border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  padding: 0;
-  transition: width 0.3s;
+  display: flex; flex-direction: column;
+  transition: width .26s var(--ease), min-width .26s var(--ease);
+  overflow: hidden;
+  backdrop-filter: blur(12px);
 }
 #study-root .sidebar-logo {
-  padding: 10px 16px 12px 20px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
+  position: relative;
+  padding: 16px 14px 12px 16px;
+  display: flex; flex-direction: column; gap: 10px;
 }
-#study-root .sidebar-logo-row { display: flex; align-items: center; gap: 10px; }
-/* Pushed to the far edge of the wordmark row, mirroring where it sat in the
-   header this replaced. */
-#study-root .sidebar-logo-row #sos-lock-btn { margin-left: auto; }
-
-/* Sync state — icon and label are one flex line, so they read as a single
-   token instead of drifting apart the way the old inline-block span did with
-   its min-width and right-alignment. Hidden (not removed) between saves so the
-   logo block never changes height. */
+#study-root .sidebar-logo-row { display: flex; align-items: center; gap: 11px; min-height: 40px; }
+#study-root .sb-mark {
+  width: 40px; height: 40px; flex: 0 0 40px; border-radius: 12px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: linear-gradient(145deg, rgba(201, 180, 216, .2), rgba(240, 179, 203, .12));
+  border: 1px solid rgba(201, 180, 216, .24);
+  color: #D6C3E3; cursor: pointer;
+  box-shadow: 0 8px 22px -10px rgba(201, 180, 216, .55), inset 0 1px 0 rgba(255, 255, 255, .08);
+  transition: transform .2s var(--ease), box-shadow .2s, border-color .2s;
+}
+#study-root .sb-mark:hover { transform: translateY(-1px) rotate(-4deg); border-color: rgba(240, 179, 203, .45); box-shadow: 0 10px 26px -10px rgba(240, 179, 203, .6), inset 0 1px 0 rgba(255, 255, 255, .1); }
+#study-root .sb-mark:focus-visible { outline: none; box-shadow: var(--ring); }
+#study-root .sb-mark svg { width: 24px; height: 24px; display: block; }
+#study-root .sb-brand { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+#study-root .logo-text {
+  font-family: var(--display); font-size: 19px; font-weight: 600; letter-spacing: -.2px; line-height: 1.1;
+  color: #F1EAF6; white-space: nowrap;
+}
 #study-root #sos-sync-status {
   display: inline-flex; align-items: center; gap: 5px;
-  font-size: 10px; font-weight: 700; letter-spacing: 0.3px;
-  line-height: 1; white-space: nowrap; visibility: hidden;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .2px;
+  line-height: 1.2; white-space: nowrap; visibility: hidden; min-height: 13px;
 }
-#study-root #sos-sync-status svg { width: 12px; height: 12px; flex-shrink: 0; }
-#study-root .logo-mark {
-  width: 28px; height: 28px;
-  background: var(--accent);
-  border-radius: 5px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 13px; font-weight: 700; color: #fff;
-  font-family: var(--mono);
+#study-root #sos-sync-status svg { width: 11px; height: 11px; flex-shrink: 0; }
+#study-root .sb-icon {
+  width: 32px; height: 32px; flex: 0 0 32px; border-radius: 9px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid transparent; color: var(--text3);
+  cursor: pointer; font-size: 15px; transition: background .18s, color .18s, border-color .18s;
 }
-#study-root .logo-text { font-size: 17px; font-weight: 700; letter-spacing: 0.3px; font-family: 'Lora', serif; text-transform: uppercase; }
-#study-root .sidebar-nav { flex: 1; padding: 12px 10px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
+#study-root .sb-icon:hover { background: var(--bg4); color: var(--accent2); border-color: var(--border2); }
+#study-root .sb-icon.locked { color: var(--pink); }
+#study-root .sb-toggle {
+  position: absolute; top: 20px; right: -1px;
+  width: 26px; height: 32px; border-radius: 9px 0 0 9px;
+  display: none; align-items: center; justify-content: center;
+  background: transparent; border: none; color: var(--text3); cursor: pointer;
+}
+/* The toggle sits in the logo row's own flow on desktop: */
+#study-root .sidebar-logo-row + .sb-toggle {
+  position: static; display: inline-flex; align-self: flex-start;
+  width: 100%; height: 30px; border-radius: 9px; gap: 8px; justify-content: flex-start;
+  padding: 0 8px; font-size: 12px; font-weight: 700; color: var(--text3);
+}
+#study-root .sb-toggle svg { width: 17px; height: 17px; flex-shrink: 0; transition: transform .26s var(--ease); }
+#study-root .sb-toggle:hover { background: var(--bg4); color: var(--text); }
+#study-root .sb-toggle::after { content: 'Collapse'; letter-spacing: .2px; }
+
+#study-root .sidebar-nav { flex: 1; min-height: 0; padding: 4px 10px 12px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; overflow-x: hidden; }
 #study-root .nav-item {
-  display: flex; align-items: center; gap: 10px;
-  padding: 8px 10px; border-radius: 4px;
-  font-size: 14px; color: var(--text2); cursor: pointer;
-  transition: all 0.15s; user-select: none; font-weight: 700;
+  position: relative;
+  display: flex; align-items: center; gap: 11px;
+  padding: 0 11px; height: 38px; border-radius: 10px;
+  font-size: 14px; font-weight: 700; color: var(--text2); cursor: pointer;
+  transition: background .18s, color .18s; user-select: none;
+  background: transparent; border: none; width: 100%; text-align: left;
 }
-#study-root .nav-item:hover { background: var(--bg3); color: var(--text); }
-#study-root .nav-item.active { background: var(--bg3); color: var(--text); }
-#study-root .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+#study-root .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; color: var(--text3); transition: color .18s; }
+#study-root .nav-item:hover { background: rgba(228, 214, 242, .05); color: var(--text); }
+#study-root .nav-item:hover svg { color: var(--accent2); }
+#study-root .nav-item.active {
+  background: linear-gradient(90deg, rgba(201, 180, 216, .16), rgba(240, 179, 203, .07));
+  color: #F4EDF8;
+  box-shadow: inset 0 0 0 1px rgba(201, 180, 216, .14);
+}
+#study-root .nav-item.active svg { color: var(--accent2); }
+#study-root .nav-item.active::before {
+  content: ''; position: absolute; left: -10px; top: 9px; bottom: 9px; width: 3px; border-radius: 0 3px 3px 0;
+  background: linear-gradient(180deg, var(--lav), var(--pink));
+}
+#study-root .nav-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#study-root .nav-live { width: 7px; height: 7px; border-radius: 50%; background: var(--pink); box-shadow: 0 0 0 3px rgba(240, 179, 203, .18); animation: sosPulse 1.8s ease-in-out infinite; }
 #study-root .nav-section-label {
   font-size: 10px; font-weight: 800; color: var(--text3);
-  padding: 10px 10px 4px; letter-spacing: 1.4px; text-transform: uppercase;
-  font-family: var(--mono);
-}
-#study-root .sidebar-bottom { padding: 12px 10px; border-top: 1px solid var(--border); }
-/* MAIN */
-#study-root .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-#study-root .topbar {
-  height: 56px; min-height: 56px;
-  background: var(--bg2);
-  border-bottom: 1px solid var(--border);
-  display: flex; align-items: center;
-  padding: 0 24px; gap: 16px;
-}
-#study-root .topbar-title { font-size: 18px; font-weight: 700; flex: 1; font-family: 'Lora', serif; letter-spacing: -.2px; }
-#study-root .topbar-actions { display: flex; gap: 8px; align-items: center; }
-#study-root .btn {
-  display: flex; align-items: center; gap: 6px;
-  padding: 7px 14px; border-radius: 4px;
-  font-size: 13px; font-weight: 700; cursor: pointer;
-  border: 1px solid var(--border2); background: var(--bg3);
-  color: var(--text); transition: all 0.15s; font-family: var(--sans);
+  padding: 16px 11px 6px; letter-spacing: 1.6px; text-transform: uppercase;
   white-space: nowrap;
 }
-#study-root .btn:hover { background: var(--bg4); }
-#study-root .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-#study-root .btn.primary:hover { opacity: 0.88; }
-#study-root .btn svg { width: 14px; height: 14px; }
-#study-root .btn-icon {
-  width: 32px; height: 32px; border-radius: 4px;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; border: 1px solid var(--border); background: transparent;
-  color: var(--text2); transition: all 0.15s;
+/* A class in the sidebar: its colour as a soft monogram tile. */
+#study-root .nav-class .nav-dot {
+  width: 22px; height: 22px; flex: 0 0 22px; border-radius: 7px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 800; color: #1a181e;
+  background: var(--c, var(--lav));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .15);
 }
-#study-root .btn-icon:hover { background: var(--bg3); color: var(--text); }
-#study-root .btn-icon svg { width: 16px; height: 16px; }
+#study-root .nav-class { font-weight: 600; font-size: 13.5px; }
+#study-root .nav-class.active { font-weight: 700; }
+
+#study-root .sidebar-bottom { padding: 10px 10px 14px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 2px; }
+#study-root .sb-row { font-size: 13px; height: 36px; }
+#study-root .sb-row:disabled { opacity: .6; cursor: default; }
 #study-root .sos-cloud-badge {
-  font-size: 10px; font-weight: 800; border-radius: 10px; padding: 1px 6px;
-  min-width: 16px; text-align: center; line-height: 1.5; letter-spacing: 0;
+  font-size: 10.5px; font-weight: 800; border-radius: 999px; padding: 2px 8px;
+  min-width: 18px; text-align: center; line-height: 1.4; letter-spacing: 0;
+  display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0;
 }
-#study-root .sos-cloud-badge.pending { background: #e3b489; color: #2a1c08; }
-#study-root .sos-cloud-badge.synced  { background: #93c4a4; color: #143323; }
-/* Cloud capacity meter (sidebar, under Sync to Cloud) */
-#study-root .sos-storage { margin-top: 8px; padding: 0 2px; }
-#study-root .sos-storage-track {
-  height: 4px; border-radius: 3px; background: var(--bg3);
-  overflow: hidden; border: 1px solid var(--border);
-}
-#study-root .sos-storage-fill {
-  height: 100%; width: 0%; background: #93c4a4; transition: width 0.4s ease;
-}
-#study-root .sos-storage-fill.near-full { background: #e3b489; }
-#study-root .sos-storage-fill.full      { background: #dd9b9b; }
-#study-root .sos-storage-text {
-  margin-top: 4px; font-size: 9px; letter-spacing: 0.3px;
-  color: var(--text3); font-family: var(--mono); text-align: center;
-}
-/* Per-file cloud status in the document lists */
-#study-root .doc-item-cloud {
-  font-size: 9px; font-family: var(--mono); letter-spacing: 0.3px;
-  padding: 1px 5px; border-radius: 3px; white-space: nowrap;
-  border: 1px solid transparent; color: var(--text3);
-}
-#study-root .doc-item-cloud.is-up   { color: var(--text3); border-color: var(--border); }
-#study-root .doc-item-cloud.is-ok   { color: #93c4a4; border-color: rgba(147,196,164,0.4); }
-#study-root .doc-item-cloud.is-warn { color: #e3b489; border-color: rgba(227,180,137,0.4); }
-/* VIEWS */
-#study-root .view { flex: 1; overflow-y: auto; padding: 24px; display: none; }
-#study-root .view.active { display: block; }
-/* CLASSES GRID */
-#study-root .classes-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 16px;
-}
-#study-root .class-card {
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 20px;
-  cursor: pointer;
-  transition: all 0.2s;
-  position: relative;
-  overflow: hidden;
-}
-#study-root .class-card::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 3px;
-  background: var(--card-color, var(--accent));
-}
-#study-root .class-card:hover { border-color: var(--border2); transform: translateY(-2px); }
-#study-root .class-card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; }
-#study-root .class-emoji { font-size: 24px; line-height: 1; }
-#study-root .class-card-menu { opacity: 0; transition: 0.15s; }
-#study-root .class-card:hover .class-card-menu { opacity: 1; }
-#study-root .class-name { font-size: 17px; font-weight: 700; margin-bottom: 4px; font-family: 'Lora', serif; }
-#study-root .class-code { font-size: 11px; color: var(--text2); font-family: var(--mono); font-weight: 500; }
-#study-root .class-modules { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
-#study-root .module-chip {
-  font-size: 11px; padding: 4px 10px; border-radius: 4px;
-  background: var(--bg4); border: 1px solid var(--border);
-  color: var(--text2); font-weight: 600;
-}
-#study-root .empty-state {
-  text-align: center; padding: 80px 20px;
-  color: var(--text3);
-}
-#study-root .empty-state h3 { font-size: 18px; color: var(--text2); margin-bottom: 8px; }
-#study-root .empty-state p { font-size: 14px; margin-bottom: 24px; }
-/* CLASS DETAIL */
-#study-root .detail-header {
-  display: flex; align-items: center; gap: 14px;
-  margin-bottom: 28px; padding-bottom: 20px;
+#study-root .sos-cloud-badge svg { width: 11px; height: 11px; }
+#study-root .sos-cloud-badge.pending { background: var(--peach-soft); color: var(--peach); box-shadow: inset 0 0 0 1px rgba(242, 201, 160, .3); }
+#study-root .sos-cloud-badge.synced  { background: var(--mint-soft); color: var(--mint); box-shadow: inset 0 0 0 1px rgba(168, 220, 192, .28); }
+
+/* Cloud capacity: a label, the used share, a slim lavender-to-pink bar. */
+#study-root .sos-storage { margin: 8px 4px 0; padding: 12px 12px 11px; border-radius: 12px; background: rgba(228, 214, 242, .035); border: 1px solid var(--border); }
+#study-root .sos-storage-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+#study-root .sos-storage-label { font-size: 10px; font-weight: 800; letter-spacing: 1.3px; text-transform: uppercase; color: var(--text3); }
+#study-root .sos-storage-pct { font-size: 12px; font-weight: 800; color: var(--accent2); font-variant-numeric: tabular-nums; }
+#study-root .sos-storage-track { height: 6px; border-radius: 999px; background: rgba(228, 214, 242, .07); overflow: hidden; }
+#study-root .sos-storage-fill { height: 100%; width: 0%; border-radius: inherit; background: linear-gradient(90deg, var(--lav), var(--pink)); transition: width .6s var(--ease); }
+#study-root .sos-storage-fill.near-full { background: linear-gradient(90deg, var(--peach), #F5B98E); }
+#study-root .sos-storage-fill.full { background: linear-gradient(90deg, var(--rose), #EE9A9A); }
+#study-root .sos-storage-text { margin-top: 7px; font-size: 11.5px; font-weight: 600; color: var(--text2); font-variant-numeric: tabular-nums; }
+
+/* Collapsed: an icon rail. Labels hide (not removed), so each row's title
+   still names it for pointer and screen-reader users. */
+#study-root .app.sb-collapsed .sidebar { width: 72px; min-width: 72px; }
+#study-root .app.sb-collapsed .sidebar-logo { padding: 16px 0 12px; align-items: center; }
+#study-root .app.sb-collapsed .sidebar-logo-row { justify-content: center; }
+#study-root .app.sb-collapsed .sb-brand,
+#study-root .app.sb-collapsed .sidebar-logo-row .sb-icon,
+#study-root .app.sb-collapsed .nav-label,
+#study-root .app.sb-collapsed .sos-cloud-badge,
+#study-root .app.sb-collapsed .sos-storage-head,
+#study-root .app.sb-collapsed .sos-storage-text { display: none; }
+#study-root .app.sb-collapsed .sb-toggle { width: 40px; justify-content: center; padding: 0; align-self: center; }
+#study-root .app.sb-collapsed .sb-toggle::after { content: none; }
+#study-root .app.sb-collapsed .sb-toggle svg { transform: scaleX(-1); }
+#study-root .app.sb-collapsed .sidebar-nav { padding: 4px 12px 12px; }
+#study-root .app.sb-collapsed .nav-item { justify-content: center; padding: 0; }
+#study-root .app.sb-collapsed .nav-item.active::before { left: -12px; }
+#study-root .app.sb-collapsed .nav-section-label { height: 1px; padding: 0; margin: 12px 8px; background: var(--border2); overflow: hidden; color: transparent; }
+#study-root .app.sb-collapsed .nav-live { position: absolute; top: 7px; right: 8px; width: 6px; height: 6px; }
+#study-root .app.sb-collapsed .sos-storage { margin: 8px 6px 0; padding: 8px; }
+
+/* Main column */
+#study-root .main { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+#study-root .topbar {
+  position: relative; z-index: 40;
+  height: 68px; min-height: 68px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 16px;
+  padding: 0 28px;
+  background: rgba(19, 18, 22, .72);
+  backdrop-filter: blur(14px) saturate(130%);
   border-bottom: 1px solid var(--border);
 }
-/* The class / KSU header pins to the top while its view scrolls. The scroll
-   container is .view, so `top:0` means the top of that view's padding box.
-   Negative side margins (plus matching padding) bleed the opaque background
-   out over the view's gutters — without them, module cards scroll visibly
-   through the strip of padding either side of the header. */
-#study-root .view > .detail-header {
-  --sos-view-pad: 24px;
-  position: sticky;
-  top: 0;
-  z-index: 30;
-  background: var(--bg);
-  padding-top: 10px;
-  padding-left: var(--sos-view-pad);
-  padding-right: var(--sos-view-pad);
-  margin-left: calc(-1 * var(--sos-view-pad));
-  margin-right: calc(-1 * var(--sos-view-pad));
+#study-root .topbar-title-wrap { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+#study-root .topbar-eyebrow { font-size: 10px; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#study-root .topbar-eyebrow:empty { display: none; }
+#study-root .topbar-title { font-family: var(--display); font-size: 22px; font-weight: 600; letter-spacing: -.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #F3EEF7; }
+#study-root .topbar-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+#study-root .topbar-actions > #sos-sync-status { margin-right: 4px; }
+#study-root .topbar-actions > .sb-icon { order: -1; }
+#study-root #topbar-pomo {
+  display: none; align-items: center; gap: 9px;
+  height: 36px; padding: 0 6px 0 14px; border-radius: 999px; cursor: pointer;
+  background: linear-gradient(90deg, rgba(201, 180, 216, .14), rgba(240, 179, 203, .1));
+  border: 1px solid rgba(201, 180, 216, .24);
+  font-weight: 800; font-size: 13.5px; font-variant-numeric: tabular-nums; flex-shrink: 0;
 }
-/* A pinned sticky box stops at the scroll container's CONTENT box, so it comes
-   to rest one --sos-view-pad below the top of the view and content would scroll
-   through the strip left above it. This paints that strip in the view's own
-   background; where an engine pins flush to the top instead, the strip simply
-   sits off-screen. */
-#study-root .view > .detail-header::before {
-  content: '';
-  position: absolute;
-  left: 0; right: 0; bottom: 100%;
-  height: var(--sos-view-pad);
-  background: var(--bg);
+#study-root #topbar-pomo .tp-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--pink); animation: sosPulse 1.8s ease-in-out infinite; }
+#study-root #topbar-pomo-label { color: var(--text3); font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px; }
+#study-root #topbar-pomo-time { color: var(--text); }
+#study-root #topbar-pomo-playbtn { width: 26px; height: 26px; border-radius: 50%; border: none; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; background: var(--accent); color: #fff; }
+
+/* Views + their entrances (each tab plays a short entrance, like Everwell).
+   `backwards`, never `both`: a held transform would make the view the
+   containing block of fixed children (Notebook's phone drawer). */
+#study-root .view {
+  position: relative; z-index: 1;
+  flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
+  padding: 28px 32px 48px; display: none;
+  scrollbar-width: thin; scrollbar-color: rgba(228, 214, 242, .14) transparent;
 }
-#study-root .detail-color-bar {
-  width: 5px; height: 48px; border-radius: 4px;
-  background: var(--card-color, var(--accent));
+#study-root .view::-webkit-scrollbar { width: 8px; height: 8px; }
+#study-root .view::-webkit-scrollbar-thumb { background: rgba(228, 214, 242, .12); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+#study-root .view.active { display: block; animation: sosViewIn .34s var(--ease) backwards; }
+@keyframes sosViewIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+#study-root #view-home.active .dash-hero { animation: sosRise .42s .02s var(--ease) backwards; }
+#study-root #view-home.active .stat-card { animation: sosCardRise .44s var(--ease) backwards; }
+#study-root #view-home.active .stat-card:nth-child(1) { animation-delay: .05s; }
+#study-root #view-home.active .stat-card:nth-child(2) { animation-delay: .09s; }
+#study-root #view-home.active .stat-card:nth-child(3) { animation-delay: .13s; }
+#study-root #view-home.active .stat-card:nth-child(4) { animation-delay: .17s; }
+#study-root #view-home.active #sos-planner-row > .panel { animation: sosCardRise .48s .18s var(--ease) backwards; }
+#study-root #view-home.active #sos-planner-row > .panel + .panel { animation-delay: .24s; }
+#study-root #view-home.active .classes-grid { animation: sosCardRise .5s .3s var(--ease) backwards; }
+#study-root #view-calendar.active { animation: sosScaleIn .36s var(--ease) backwards; }
+#study-root #view-pomodoro.active { animation: sosSettle .5s var(--ease) backwards; }
+#study-root #view-ai.active { animation: sosSlideL .36s var(--ease) backwards; }
+#study-root #view-ksu.active .modules-grid,
+#study-root #view-class.active .class-detail-layout { animation: sosCardRise .44s .06s var(--ease) backwards; }
+#study-root #view-notes.active { animation: sosBlurIn .36s var(--ease) backwards; }
+@keyframes sosCardRise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes sosScaleIn { from { opacity: 0; transform: scale(.975); } to { opacity: 1; transform: none; } }
+@keyframes sosSettle { from { opacity: 0; transform: scale(1.03); } to { opacity: 1; transform: none; } }
+@keyframes sosSlideL { from { opacity: 0; transform: translateX(22px); } to { opacity: 1; transform: none; } }
+@keyframes sosBlurIn { from { opacity: 0; filter: blur(6px); } to { opacity: 1; filter: none; } }
+@media (prefers-reduced-motion: reduce) {
+  #study-root .view.active, #study-root .view.active * { animation: none !important; }
+  .sos-intro-mark, .sos-intro-word, .sos-intro-rule, .sos-intro-sub, .sos-intro-cta { animation: none !important; opacity: 1; }
 }
-#study-root .detail-title { font-size: 26px; font-weight: 700; margin-bottom: 2px; font-family: 'Lora', serif; }
-#study-root .detail-subtitle { font-size: 13px; color: var(--text2); font-family: var(--mono); }
-#study-root .modules-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 12px;
+#study-root .sos-loading { font-size: 13px; color: var(--text3); }
+
+/* ── 4. Buttons, chips, fields ────────────────────────────────────────────── */
+#study-root .btn, .sos-modal .btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  height: 38px; padding: 0 16px; border-radius: 11px;
+  font-family: var(--sans); font-size: 13.5px; font-weight: 700; letter-spacing: .1px;
+  cursor: pointer; white-space: nowrap;
+  border: 1px solid var(--border2); background: rgba(228, 214, 242, .04); color: var(--text);
+  transition: background .18s, border-color .18s, color .18s, transform .12s, box-shadow .18s;
 }
-#study-root .module-btn {
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 18px 20px;
-  cursor: pointer; text-align: left;
-  transition: all 0.15s;
+#study-root .btn:hover, .sos-modal .btn:hover { background: rgba(228, 214, 242, .08); border-color: var(--border3); }
+#study-root .btn:active, .sos-modal .btn:active { transform: scale(.97); }
+#study-root .btn:focus-visible, .sos-modal .btn:focus-visible { outline: none; box-shadow: var(--ring); }
+#study-root .btn:disabled, .sos-modal .btn:disabled { opacity: .5; cursor: default; transform: none; }
+#study-root .btn svg, .sos-modal .btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+#study-root .btn.ghost, .sos-modal .btn.ghost { background: transparent; }
+#study-root .btn.ghost:hover, .sos-modal .btn.ghost:hover { background: rgba(228, 214, 242, .06); }
+#study-root .btn.primary, .sos-modal .btn.primary {
+  background: linear-gradient(135deg, #9A83A8 0%, #8D769A 100%);
+  border-color: rgba(201, 180, 216, .35); color: #fff;
+  box-shadow: 0 10px 24px -12px rgba(141, 118, 154, .9), inset 0 1px 0 rgba(255, 255, 255, .14);
+}
+#study-root .btn.primary:hover, .sos-modal .btn.primary:hover { background: linear-gradient(135deg, #A690B3 0%, #977FA4 100%); border-color: rgba(201, 180, 216, .5); }
+#study-root .btn.soft, .sos-modal .btn.soft { background: var(--pink-soft); border-color: rgba(240, 179, 203, .3); color: #F6CADB; }
+#study-root .btn.soft:hover, .sos-modal .btn.soft:hover { background: rgba(240, 179, 203, .2); border-color: rgba(240, 179, 203, .5); }
+#study-root .btn.danger, .sos-modal .btn.danger { color: var(--rose); }
+#study-root .btn.danger:hover, .sos-modal .btn.danger:hover { background: var(--rose-soft); border-color: rgba(242, 175, 175, .4); color: #F8C6C6; }
+#study-root .btn.big { height: 52px; padding: 0 22px; border-radius: 14px; font-size: 15px; }
+#study-root .btn.big svg { width: 17px; height: 17px; }
+#study-root .btn.xs, .sos-modal .btn.xs { height: 30px; padding: 0 11px; border-radius: 9px; font-size: 12px; gap: 5px; }
+#study-root .btn.xs svg, .sos-modal .btn.xs svg { width: 13px; height: 13px; }
+#study-root .btn-icon, .sos-modal .btn-icon {
+  width: 34px; height: 34px; border-radius: 10px;
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; border: 1px solid var(--border2); background: transparent;
+  color: var(--text2); transition: background .18s, color .18s, border-color .18s;
+}
+#study-root .btn-icon:hover, .sos-modal .btn-icon:hover { background: var(--bg4); color: var(--accent2); border-color: var(--border3); }
+#study-root .btn-icon svg, .sos-modal .btn-icon svg { width: 16px; height: 16px; }
+
+/* Small square icon buttons used on rows (edit / remove / convert). Visible
+   at rest, never a bare glyph floating on the row. */
+.icon-chip {
+  width: 30px; height: 30px; flex: 0 0 30px; border-radius: 9px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border2); background: rgba(228, 214, 242, .04);
+  color: var(--text2); cursor: pointer; padding: 0;
+  transition: background .18s, color .18s, border-color .18s, transform .12s;
+}
+.icon-chip:hover { background: var(--lav-soft); color: var(--accent2); border-color: rgba(201, 180, 216, .4); }
+.icon-chip:active { transform: scale(.94); }
+.icon-chip.danger:hover { background: var(--rose-soft); color: var(--rose); border-color: rgba(242, 175, 175, .45); }
+.icon-chip.pink:hover { background: var(--pink-soft); color: var(--pink); border-color: rgba(240, 179, 203, .45); }
+.icon-chip svg { width: 15px; height: 15px; display: block; }
+.icon-chip.sm { width: 26px; height: 26px; flex-basis: 26px; border-radius: 8px; }
+.icon-chip.sm svg { width: 13px; height: 13px; }
+/* A labelled mini action ("To task", "Slides"). */
+.mini-act {
+  display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border-radius: 8px;
+  border: 1px solid var(--border2); background: transparent; color: var(--text2);
+  font-family: var(--sans); font-size: 11.5px; font-weight: 700; cursor: pointer; white-space: nowrap;
+  transition: background .18s, color .18s, border-color .18s;
+}
+.mini-act:hover { background: var(--lav-soft); color: var(--accent2); border-color: rgba(201, 180, 216, .4); }
+.mini-act svg { width: 12px; height: 12px; }
+
+/* Fields */
+#study-root .field, .sos-modal .field { margin-bottom: 16px; min-width: 0; }
+#study-root .field label, .sos-modal .field label {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  font-size: 11px; font-weight: 800; color: var(--text2); margin-bottom: 7px;
+  text-transform: uppercase; letter-spacing: 1.2px;
+}
+.sos-modal .field label em, #study-root .field label em { font-style: normal; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--text3); font-size: 11.5px; }
+#study-root .field input:not([type=checkbox]):not([type=radio]), #study-root .field textarea,
+.sos-modal .field input:not([type=checkbox]):not([type=radio]), .sos-modal .field textarea,
+.sos-modal .add-prompt-row textarea {
+  width: 100%; background: rgba(10, 9, 12, .45); border: 1px solid var(--border2);
+  border-radius: 11px; padding: 0 14px; height: 44px;
+  font-size: 14.5px; color: var(--text); font-family: var(--sans); font-weight: 600;
+  transition: border-color .18s, box-shadow .18s, background .18s; outline: none;
+}
+.sos-modal .field textarea, #study-root .field textarea { height: auto; padding: 11px 14px; line-height: 1.5; resize: vertical; min-height: 64px; }
+#study-root .field input:focus, #study-root .field textarea:focus,
+.sos-modal .field input:focus, .sos-modal .field textarea:focus { border-color: rgba(201, 180, 216, .6); box-shadow: var(--ring); background: rgba(10, 9, 12, .6); }
+.sos-modal ::placeholder, #study-root .field ::placeholder, .ais-field ::placeholder, .sosc-pop ::placeholder { color: #6E6979; opacity: 1; }
+.sos-modal .field-row, #study-root .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.sos-modal .field-row > .field { margin-bottom: 0; }
+.sos-modal .field-row { margin-bottom: 16px; }
+.sos-modal .field-row.tight { margin-bottom: 0; }
+.sos-modal .field.section { padding-top: 16px; margin-top: 4px; border-top: 1px solid var(--border); }
+.sos-modal .field-inline { display: flex; gap: 8px; align-items: stretch; }
+.sos-modal .field-inline input { flex: 1; min-width: 0; }
+.sos-modal .field-inline .btn { height: 44px; }
+.sos-modal .field-hint { font-size: 12px; color: var(--text3); margin-top: 7px; min-height: 15px; line-height: 1.45; }
+.sos-modal .field-warn {
+  display: flex; gap: 8px; align-items: flex-start;
+  font-size: 12.5px; color: #F6C3C3; font-weight: 600; line-height: 1.45;
+  margin-bottom: 10px; padding: 9px 12px; border-radius: 10px;
+  background: var(--rose-soft); border: 1px solid rgba(242, 175, 175, .24);
+}
+.sos-modal .field-warn svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; }
+.sos-modal .sub-label { font-size: 10.5px; font-weight: 800; color: var(--text3); text-transform: uppercase; letter-spacing: 1.3px; margin: 12px 0 7px; }
+/* Segmented repeat choice and day chips */
+.sos-modal .seg { display: inline-flex; gap: 3px; padding: 3px; border-radius: 12px; background: rgba(10, 9, 12, .45); border: 1px solid var(--border2); flex-wrap: wrap; }
+.sos-modal .sos-repeat-btn {
+  height: 34px; padding: 0 14px; border-radius: 9px; border: none;
+  background: transparent; color: var(--text2); cursor: pointer;
+  font-family: var(--sans); font-size: 13px; font-weight: 700; transition: background .18s, color .18s;
+}
+.sos-modal .sos-repeat-btn:hover { color: var(--text); background: rgba(228, 214, 242, .05); }
+.sos-modal .sos-repeat-btn.active { background: linear-gradient(135deg, #9A83A8, #8D769A); color: #fff; box-shadow: 0 6px 16px -8px rgba(141, 118, 154, .9); }
+.sos-modal .day-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.sos-modal .sos-day-btn {
+  width: 46px; height: 36px; border-radius: 10px; cursor: pointer;
+  font-family: var(--sans); font-size: 12.5px; font-weight: 700;
+  background: transparent; color: var(--text2); border: 1px solid var(--border2);
+  transition: background .18s, color .18s, border-color .18s;
+}
+.sos-modal .sos-day-btn:hover { border-color: var(--border3); color: var(--text); }
+.sos-modal .sos-day-btn.active { background: var(--pink-soft); color: #F8D0DF; border-color: rgba(240, 179, 203, .55); }
+.sos-modal .repeat-until .sosc-trigger { max-width: 260px; }
+
+/* Checkboxes and radios, drawn by StudyOS (never the browser's). */
+#study-root input[type=checkbox]:not(.sos-nb-host *), .sos-modal input[type=checkbox], .sc-ov input[type=checkbox], .sc-ed input[type=checkbox], .sos-review input[type=checkbox] {
+  -webkit-appearance: none; appearance: none;
+  width: 18px; height: 18px; flex: 0 0 18px; margin: 0; border-radius: 6px;
+  border: 1.5px solid var(--border3); background: rgba(10, 9, 12, .4);
+  display: inline-grid; place-content: center; cursor: pointer; vertical-align: -3px;
+  transition: background .16s, border-color .16s, box-shadow .16s;
+}
+#study-root input[type=checkbox]:not(.sos-nb-host *)::before, .sos-modal input[type=checkbox]::before, .sc-ov input[type=checkbox]::before, .sc-ed input[type=checkbox]::before, .sos-review input[type=checkbox]::before {
+  content: ''; width: 10px; height: 10px; transform: scale(0); transition: transform .16s var(--ease);
+  background: #1a181e; clip-path: polygon(14% 52%, 0 66%, 38% 100%, 100% 22%, 86% 8%, 38% 72%);
+}
+#study-root input[type=checkbox]:not(.sos-nb-host *):checked, .sos-modal input[type=checkbox]:checked, .sc-ov input[type=checkbox]:checked, .sc-ed input[type=checkbox]:checked, .sos-review input[type=checkbox]:checked { background: var(--lav); border-color: var(--lav); }
+#study-root input[type=checkbox]:not(.sos-nb-host *):checked::before, .sos-modal input[type=checkbox]:checked::before, .sc-ov input[type=checkbox]:checked::before, .sc-ed input[type=checkbox]:checked::before, .sos-review input[type=checkbox]:checked::before { transform: scale(1); }
+#study-root input[type=checkbox]:not(.sos-nb-host *):focus-visible, .sos-modal input[type=checkbox]:focus-visible { outline: none; box-shadow: var(--ring); }
+#study-root input[type=radio]:not(.sos-nb-host *), .sos-modal input[type=radio] {
+  -webkit-appearance: none; appearance: none; width: 18px; height: 18px; margin: 0; border-radius: 50%;
+  border: 1.5px solid var(--border3); background: rgba(10, 9, 12, .4); display: inline-grid; place-content: center; cursor: pointer;
+}
+#study-root input[type=radio]:not(.sos-nb-host *)::before, .sos-modal input[type=radio]::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--lav); transform: scale(0); transition: transform .16s; }
+#study-root input[type=radio]:not(.sos-nb-host *):checked, .sos-modal input[type=radio]:checked { border-color: var(--lav); }
+#study-root input[type=radio]:not(.sos-nb-host *):checked::before, .sos-modal input[type=radio]:checked::before { transform: scale(1); }
+/* No browser spin arrows on number boxes anywhere. */
+input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
+
+/* StudyOS's own controls (js/controls.js). The native field stays, hidden. */
+.sosc-native { position: absolute !important; width: 1px !important; height: 1px !important; opacity: 0 !important; pointer-events: none !important; overflow: hidden !important; clip: rect(0 0 0 0) !important; border: 0 !important; padding: 0 !important; margin: 0 !important; }
+.sosc-trigger {
+  display: flex; align-items: center; gap: 9px; width: 100%; min-width: 0;
+  height: 44px; padding: 0 12px 0 14px; border-radius: 11px;
+  background: rgba(10, 9, 12, .45); border: 1px solid var(--border2); color: var(--text);
+  font-family: var(--sans); font-size: 14.5px; font-weight: 600; text-align: left; cursor: pointer;
+  transition: border-color .18s, box-shadow .18s, background .18s;
+}
+.sosc-trigger:hover { border-color: var(--border3); }
+.sosc-trigger:focus-visible, .sosc-trigger[aria-expanded="true"] { outline: none; border-color: rgba(201, 180, 216, .6); box-shadow: var(--ring); }
+.sosc-trigger:disabled { opacity: .5; cursor: default; }
+.sosc-trigger .sosc-txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sosc-trigger .sosc-txt.ph { color: #6E6979; }
+.sosc-trigger .sosc-chev { color: var(--text3); display: inline-flex; transition: transform .2s var(--ease); }
+.sosc-trigger[aria-expanded="true"] .sosc-chev { transform: rotate(180deg); color: var(--accent2); }
+.sosc-trigger .sosc-ic { display: inline-flex; color: var(--accent2); }
+.sosc-trigger.sosc-time .sosc-ic { color: var(--pink); }
+.sosc-pop {
+  position: fixed; z-index: 2147483100; overflow: auto;
+  background: linear-gradient(180deg, #24222a 0%, #1e1c23 100%);
+  border: 1px solid rgba(228, 214, 242, .13); border-radius: 14px; padding: 6px;
+  box-shadow: 0 28px 60px -18px rgba(0, 0, 0, .75), 0 0 0 1px rgba(0, 0, 0, .35);
+  font-family: 'Nunito', system-ui, sans-serif; color: #EFECF3;
+  animation: soscIn .16s var(--ease); transform-origin: top center;
+  scrollbar-width: thin; scrollbar-color: rgba(228, 214, 242, .16) transparent;
+}
+.sosc-pop.up { transform-origin: bottom center; }
+.sosc-pop.leave { opacity: 0; transform: translateY(-4px) scale(.98); transition: opacity .12s, transform .12s; }
+@keyframes soscIn { from { opacity: 0; transform: translateY(-4px) scale(.98); } to { opacity: 1; transform: none; } }
+.sosc-opt {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 38px; padding: 8px 10px; border-radius: 9px;
+  border: none; background: transparent; color: #D8D3E0; text-align: left; cursor: pointer;
+  font-family: inherit; font-size: 14px; font-weight: 600; outline: none;
+}
+.sosc-opt .sosc-otxt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sosc-opt:hover, .sosc-opt:focus-visible { background: rgba(201, 180, 216, .1); color: #fff; }
+.sosc-opt.on { color: #E7D9F0; background: rgba(201, 180, 216, .14); }
+.sosc-opt .sosc-tick { color: #F0B3CB; display: inline-flex; }
+.sosc-opt:disabled { opacity: .4; cursor: default; background: none; }
+.sosc-grp { padding: 10px 10px 4px; font-size: 10px; font-weight: 800; letter-spacing: 1.3px; text-transform: uppercase; color: #827D8D; }
+.sosc-cal { padding: 12px; }
+.sosc-cal-hd { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.sosc-cal-t { font-family: 'Lora', Georgia, serif; font-size: 16px; font-weight: 600; }
+.sosc-cal-t span { color: #9D97A8; font-weight: 500; }
+.sosc-nav { width: 30px; height: 30px; border-radius: 9px; border: 1px solid rgba(228, 214, 242, .1); background: transparent; color: #B9B4C3; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.sosc-nav:hover { background: rgba(201, 180, 216, .12); color: #fff; }
+.sosc-dow, .sosc-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.sosc-dow span { text-align: center; font-size: 10.5px; font-weight: 800; color: #827D8D; padding: 4px 0 6px; letter-spacing: .5px; }
+.sosc-day {
+  height: 36px; border-radius: 10px; border: none; background: transparent; color: #D8D3E0; cursor: pointer;
+  font-family: inherit; font-size: 13.5px; font-weight: 700; font-variant-numeric: tabular-nums; outline: none;
+  transition: background .14s, color .14s;
+}
+.sosc-day:hover, .sosc-day:focus-visible { background: rgba(201, 180, 216, .12); color: #fff; }
+.sosc-day.today { color: #F0B3CB; box-shadow: inset 0 0 0 1px rgba(240, 179, 203, .45); }
+.sosc-day.on { background: linear-gradient(135deg, #C9B4D8, #E5BCD3); color: #1a181e; box-shadow: 0 6px 14px -6px rgba(201, 180, 216, .8); }
+.sosc-foot { display: flex; justify-content: space-between; gap: 8px; padding-top: 10px; margin-top: 8px; border-top: 1px solid rgba(228, 214, 242, .08); }
+.sosc-link { height: 32px; padding: 0 12px; border-radius: 9px; border: none; background: transparent; color: #9D97A8; font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.sosc-link:hover { background: rgba(228, 214, 242, .06); color: #EFECF3; }
+.sosc-link.pri { color: #E7D9F0; background: rgba(201, 180, 216, .14); }
+.sosc-link.pri:hover { background: rgba(201, 180, 216, .22); }
+.sosc-clock { padding: 10px; }
+.sosc-cols { display: grid; grid-template-columns: 1fr 1fr .9fr; gap: 6px; }
+.sosc-col { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; scrollbar-width: none; padding: 2px; }
+.sosc-col::-webkit-scrollbar { display: none; }
+.sosc-cell {
+  min-height: 34px; border-radius: 9px; border: none; background: transparent; color: #D8D3E0;
+  font-family: inherit; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; cursor: pointer; flex-shrink: 0;
+}
+.sosc-cell:hover { background: rgba(201, 180, 216, .1); color: #fff; }
+.sosc-cell.on { background: linear-gradient(135deg, #C9B4D8, #E5BCD3); color: #1a181e; }
+.sosc-num {
+  display: inline-flex; align-items: center; width: 100%; height: 44px;
+  background: rgba(10, 9, 12, .45); border: 1px solid var(--border2); border-radius: 11px;
+  transition: border-color .18s, box-shadow .18s; overflow: hidden;
+}
+.sosc-num:focus-within { border-color: rgba(201, 180, 216, .6); box-shadow: var(--ring); }
+.sosc-num input.sosc-numin, #study-root .field .sosc-num input.sosc-numin, .sos-modal .field .sosc-num input.sosc-numin, .ais-field .sosc-num input.sosc-numin {
+  flex: 1; min-width: 0; width: auto !important; max-width: none !important; height: 100% !important; border: none !important; background: transparent !important; box-shadow: none !important;
+  text-align: center; padding: 0 4px !important; font-variant-numeric: tabular-nums; outline: none; color: var(--text); font-family: var(--sans); font-size: 14.5px; font-weight: 700;
+}
+.sosc-step {
+  width: 40px; height: 100%; flex: 0 0 40px; border: none; background: transparent; color: var(--text3);
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: background .15s, color .15s;
+}
+.sosc-step:hover { background: rgba(201, 180, 216, .1); color: var(--accent2); }
+.sosc-step:active { background: rgba(201, 180, 216, .18); }
+
+/* ── 5. Panels + dashboard ────────────────────────────────────────────────── */
+#study-root .panel {
   position: relative;
+  background: linear-gradient(180deg, rgba(31, 30, 37, .78) 0%, rgba(26, 25, 31, .78) 100%);
+  border: 1px solid var(--border); border-radius: var(--radius3);
+  box-shadow: var(--shadow1);
+  overflow: hidden; min-width: 0;
 }
-#study-root .module-btn:hover { border-color: var(--border2); background: var(--bg4); }
-#study-root .module-btn-icon {
-  min-width: 36px; width: fit-content; height: 24px; border-radius: 4px;
-  padding: 0 9px; box-sizing: border-box;
-  display: flex; align-items: center; justify-content: center;
-  margin-bottom: 12px; font-size: 10px; font-weight: 800;
-  font-family: var(--mono); letter-spacing: 0.5px; text-transform: none;
-}
-#study-root .module-btn-name { font-size: 15px; font-weight: 700; margin-bottom: 3px; }
-#study-root .module-btn-meta { font-size: 11px; color: var(--text2); font-family: var(--mono); }
-#study-root .module-btn .delete-btn {
-  position: absolute; top: 8px; right: 8px;
-  opacity: 0; transition: 0.15s;
-  background: var(--bg4); border: 1px solid var(--border);
-  border-radius: 6px; padding: 3px 6px; font-size: 10px;
-  color: var(--text2); cursor: pointer;
-}
-#study-root .module-btn:hover .delete-btn { opacity: 1; }
-#study-root .module-btn .rename-btn {
-  position: absolute; top: 8px; right: 34px;
-  opacity: 0; transition: 0.15s;
-  background: var(--bg4); border: 1px solid var(--border);
-  border-radius: 6px; padding: 3px 6px; font-size: 10px;
-  color: var(--text2); cursor: pointer;
-}
-#study-root .module-btn:hover .rename-btn { opacity: 1; }
-#study-root .module-btn .th-drag-handle {
-  position: absolute; top: 8px; left: 8px;
-  width: 18px; height: 18px;
-  display: flex; align-items: center; justify-content: center;
-  opacity: 0; transition: 0.15s;
-  color: var(--text3); cursor: grab; font-size: 13px; line-height: 1;
-  touch-action: none;
-}
-#study-root .module-btn:hover .th-drag-handle { opacity: 1; }
-#study-root .th-drag-placeholder {
-  border: 1.5px dashed var(--border2);
-  border-radius: 5px;
-  background: var(--bg2);
-}
-/* FILES PANEL */
-#study-root .files-panel {
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  overflow: hidden;
-}
-#study-root .files-panel-header {
-  padding: 14px 18px; border-bottom: 1px solid var(--border);
+#study-root .panel-head {
   display: flex; align-items: center; gap: 10px;
+  padding: 14px 16px 12px 18px; border-bottom: 1px solid var(--border);
 }
-#study-root .files-panel-header h3 { font-size: 14px; font-weight: 700; flex: 1; }
-#study-root .file-item {
-  display: flex; align-items: center; gap: 12px;
-  padding: 12px 18px; border-bottom: 1px solid var(--border);
-  cursor: pointer; transition: 0.15s;
+#study-root .panel-title { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; }
+#study-root .panel-title h3 { font-family: var(--display); font-size: 16px; font-weight: 600; letter-spacing: -.1px; color: #F1EAF6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#study-root .panel-ic, .sos-modal .modal-ic, .module-type-ic {
+  width: 30px; height: 30px; flex: 0 0 30px; border-radius: 9px;
+  display: inline-flex; align-items: center; justify-content: center;
 }
-#study-root .file-item:last-child { border-bottom: none; }
-#study-root .file-item:hover { background: var(--bg4); }
-#study-root .file-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; background: var(--bg4); }
-#study-root .file-name { font-size: 13px; font-weight: 600; flex: 1; }
-#study-root .file-meta { font-size: 11px; color: var(--text2); font-family: var(--mono); }
-/* PROMPTS */
-#study-root .prompt-card {
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius2);
-  padding: 16px 20px;
-  margin-bottom: 10px;
-  cursor: pointer;
-  transition: all 0.15s;
+#study-root .panel-ic svg { width: 16px; height: 16px; }
+.lav  { --tone: var(--lav); }
+.pink { --tone: var(--pink); }
+.mint { --tone: var(--mint); }
+.peach { --tone: var(--peach); }
+#study-root .panel-ic.lav, .sos-modal .modal-ic.lav, .module-type-ic.lav { color: var(--lav); background: var(--lav-soft); }
+#study-root .panel-ic.pink, .sos-modal .modal-ic.pink, .module-type-ic.pink { color: var(--pink); background: var(--pink-soft); }
+.module-type-ic.mint { color: var(--mint); background: var(--mint-soft); }
+#study-root .panel-note { font-size: 11.5px; font-weight: 700; color: var(--text3); white-space: nowrap; cursor: help; }
+#study-root .panel-actions { display: flex; gap: 6px; }
+
+/* Greeting + Start Session */
+#study-root .dash-hero {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+#study-root .dash-hello { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+#study-root .dash-date { font-size: 11px; font-weight: 800; letter-spacing: 1.8px; text-transform: uppercase; color: var(--pink); }
+#study-root .dash-greet { font-family: var(--display); font-size: clamp(26px, 3vw, 34px); font-weight: 600; letter-spacing: -.6px; line-height: 1.15; color: #F4EEF8; }
+#study-root .dash-next { font-size: 14px; color: var(--text2); line-height: 1.5; }
+#study-root .dash-next b { color: var(--text); font-weight: 700; }
+#study-root .dash-start { display: flex; gap: 10px; align-items: center; }
+
+/* Stats */
+#study-root .stats-bar { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
+#study-root .stat-card {
+  --tone: var(--lav); --tone-soft: var(--lav-soft);
+  position: relative; display: flex; align-items: flex-start; gap: 14px;
+  padding: 18px 18px 16px; border-radius: var(--radius3);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--tone) 9%, #1d1c22) 0%, rgba(26, 25, 31, .82) 70%);
+  border: 1px solid color-mix(in srgb, var(--tone) 16%, transparent);
+  box-shadow: var(--shadow1); min-width: 0; overflow: hidden;
+  transition: transform .2s var(--ease), border-color .2s, box-shadow .2s;
+}
+#study-root .stat-card.tint-pink  { --tone: var(--pink);  --tone-soft: var(--pink-soft); }
+#study-root .stat-card.tint-peach { --tone: var(--peach); --tone-soft: var(--peach-soft); }
+#study-root .stat-card.tint-mint  { --tone: var(--mint);  --tone-soft: var(--mint-soft); }
+#study-root .stat-card.clickable { cursor: pointer; }
+#study-root .stat-card.clickable:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--tone) 40%, transparent); box-shadow: 0 16px 34px -20px color-mix(in srgb, var(--tone) 70%, transparent); }
+#study-root .stat-ic { width: 38px; height: 38px; flex: 0 0 38px; border-radius: 11px; display: inline-flex; align-items: center; justify-content: center; color: var(--tone); background: var(--tone-soft); }
+#study-root .stat-ic svg { width: 19px; height: 19px; }
+#study-root .stat-body { min-width: 0; }
+#study-root .stat-label { font-size: 11px; font-weight: 800; color: var(--text3); text-transform: uppercase; letter-spacing: 1.3px; margin-bottom: 3px; }
+#study-root .stat-value { font-family: var(--display); font-size: 28px; font-weight: 600; line-height: 1.1; color: #F4EEF8; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#study-root .stat-sub { font-size: 12px; color: var(--text3); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Exam countdown + priority queue */
+#study-root #sos-planner-row { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; margin-bottom: 30px; align-items: start; }
+#study-root .sos-exam-item {
   display: flex; align-items: center; gap: 14px;
+  padding: 12px 18px; cursor: pointer; transition: background .16s;
 }
-#study-root .prompt-card:hover { border-color: var(--border2); }
-#study-root .prompt-icon { font-size: 20px; }
-#study-root .prompt-text { font-size: 13px; color: var(--text2); font-family: var(--mono); flex: 1; }
-/* CALENDAR */
-#study-root .calendar-container { display: grid; grid-template-columns: 1fr 300px; gap: 20px; }
-#study-root .calendar-grid { background: var(--bg3); border: 1px solid var(--border); border-radius: 5px; overflow: hidden; }
-#study-root .cal-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
-#study-root .cal-header h3 { font-size: 15px; font-weight: 700; flex: 1; text-align: center; }
-#study-root .cal-days { display: grid; grid-template-columns: repeat(7, 1fr); border-bottom: 1px solid var(--border); }
-#study-root .cal-day-label { padding: 8px; text-align: center; font-size: 10px; font-weight: 600; color: var(--text3); font-family: var(--mono); text-transform: uppercase; border-right: 1px solid var(--border); }
-#study-root .cal-day-label:last-child { border-right: none; }
-#study-root .cal-cells { display: grid; grid-template-columns: repeat(7, 1fr); }
-#study-root .cal-cell {
-  min-height: 80px; padding: 8px 10px;
-  border-right: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  cursor: pointer; transition: 0.15s; position: relative;
-  min-width: 0; overflow: hidden;
+#study-root .sos-exam-item + .sos-exam-item { border-top: 1px solid var(--border); }
+#study-root .sos-exam-item:hover { background: rgba(228, 214, 242, .035); }
+#study-root .sos-exam-cd-badge {
+  width: 54px; height: 54px; flex: 0 0 54px; border-radius: 15px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--tone, var(--lav)) 30%, transparent);
 }
-#study-root .cal-cell:hover { background: var(--bg4); }
-#study-root .cal-cell:nth-child(7n) { border-right: none; }
-#study-root .cal-cell.other-month { opacity: 0.3; }
-#study-root .cal-cell.today .day-num { background: var(--accent); color: #fff; }
-#study-root .day-num {
-  font-size: 12px; font-weight: 700; font-family: var(--mono);
-  width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
-  border-radius: 4px; margin-bottom: 4px;
+#study-root .sos-exam-cd-days { font-family: var(--display); font-size: 22px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+#study-root .sos-exam-cd-lbl { font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-top: 3px; }
+#study-root .sos-exam-info { flex: 1; min-width: 0; }
+#study-root .sos-exam-name { font-size: 14.5px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
+#study-root .sos-exam-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--text3); }
+#study-root .meta-dot { width: 3px; height: 3px; border-radius: 50%; background: currentColor; opacity: .55; }
+#study-root .cls-tag {
+  display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%;
+  font-size: 11.5px; font-weight: 700; color: var(--text2);
 }
-#study-root .cal-event {
-  display: block; font-size: 10px; padding: 2px 6px; border-radius: 4px;
-  margin-bottom: 2px; font-weight: 700;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  font-family: var(--mono); min-width: 0; max-width: 100%;
+#study-root .cls-tag i { width: 7px; height: 7px; border-radius: 50%; background: var(--c, var(--lav)); flex-shrink: 0; }
+#study-root .cls-tag span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#study-root .type-tag { font-size: 10.5px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; padding: 2px 7px; border-radius: 6px; background: rgba(228, 214, 242, .06); color: var(--text2); }
+#study-root .sos-exam-score-pill { font-size: 11.5px; font-weight: 800; padding: 4px 9px; border-radius: 999px; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+#study-root .sos-exam-empty, #study-root .class-events-empty, .sos-modal .empty-note {
+  padding: 30px 20px; font-size: 13px; color: var(--text3); text-align: center; line-height: 1.6;
 }
-/* TIMELINE */
-#study-root .timeline-panel { background: var(--bg3); border: 1px solid var(--border); border-radius: 5px; overflow: hidden; }
-#study-root .timeline-item { display: flex; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--border); align-items: flex-start; }
-#study-root .timeline-item:last-child { border-bottom: none; }
-#study-root .timeline-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
-#study-root .timeline-content { flex: 1; }
-#study-root .timeline-title { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
-#study-root .timeline-meta { font-size: 11px; color: var(--text2); font-family: var(--mono); }
-/* NOTES: V's Notebook (js/sos-notebook.js). The Quick Notes view and each
-   Notes module's modal hold the one instance; it fills its box (Notebook's
-   own sidebar, phone drawer and bottom bar live inside it). */
-#study-root #view-notes.active { display: flex; flex-direction: column; }
-#study-root .sos-nb-page { position: relative; flex: 1; min-height: 360px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: #1B1C1E; }
-.sos-nb-host[data-nb-loading]::before { content: 'Opening notes…'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #76777C; font-family: 'IBM Plex Mono', monospace; font-size: 12px; z-index: 1; }
-.sos-nb-msg { padding: 28px 18px; text-align: center; color: #AFB0B5; font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
-/* MODAL */
-#study-root .modal-overlay {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.7);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 9999; opacity: 0; pointer-events: none;
-  transition: opacity 0.2s;
+#study-root .sos-exam-empty b, #study-root .class-events-empty b { color: var(--text2); }
+
+#study-root .sos-pq-item {
+  display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 12px;
+  padding: 12px 16px 12px 18px; cursor: pointer; transition: background .16s;
 }
-#study-root .modal-overlay.open { opacity: 1; pointer-events: all; }
-#study-root .modal {
-  background: var(--bg2);
-  border: 1px solid var(--border2);
-  border-radius: 10px;
-  padding: 28px;
-  width: 480px; max-width: 95vw;
-  max-height: 90vh; overflow-y: auto;
-  transform: scale(0.95);
-  transition: transform 0.2s;
+#study-root .sos-pq-item + .sos-pq-item { border-top: 1px solid var(--border); }
+#study-root .sos-pq-item:hover { background: rgba(228, 214, 242, .035); }
+#study-root .sos-pq-rank {
+  width: 24px; height: 24px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800; color: var(--text2); background: rgba(228, 214, 242, .06); font-variant-numeric: tabular-nums;
 }
-#study-root .modal-overlay.open .modal { transform: scale(1); }
-#study-root .modal-title { font-size: 20px; font-weight: 700; margin-bottom: 20px; font-family: 'Lora', serif; color: var(--accent); letter-spacing: -.2px; }
-#study-root .field { margin-bottom: 16px; }
-#study-root .field label { display: block; font-size: 10px; font-weight: 800; color: var(--text2); margin-bottom: 6px; font-family: 'Lora', serif; text-transform: uppercase; letter-spacing: 1.5px; }
-#study-root .field input, #study-root .field select, #study-root .field textarea {
-  width: 100%; background: var(--bg3); border: 1px solid var(--border2);
-  border-radius: 4px; padding: 10px 12px;
-  font-size: 14px; color: var(--text); font-family: var(--sans);
-  transition: border-color 0.15s; font-weight: 600;
+#study-root .sos-pq-item:nth-child(1) .sos-pq-rank { background: var(--pink-soft); color: var(--pink); }
+#study-root .sos-pq-item:nth-child(2) .sos-pq-rank, #study-root .sos-pq-item:nth-child(3) .sos-pq-rank { background: var(--lav-soft); color: var(--lav); }
+#study-root .sos-pq-info { min-width: 0; }
+#study-root .sos-pq-name {
+  font-size: 13.5px; font-weight: 700; color: var(--text); line-height: 1.35;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere;
 }
-#study-root .field input:focus, #study-root .field select:focus, #study-root .field textarea:focus {
-  outline: none; border-color: var(--accent);
+#study-root .sos-pq-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 11.5px; color: var(--text3); margin-top: 4px; }
+#study-root .sos-pq-when { font-weight: 800; }
+#study-root .sos-pq-bar { height: 3px; border-radius: 3px; background: rgba(228, 214, 242, .06); margin-top: 8px; overflow: hidden; }
+#study-root .sos-pq-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--lav), var(--pink)); }
+#study-root .sos-pq-actions { display: flex; gap: 6px; }
+#study-root .sos-pq-btn {
+  display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 10px; border-radius: 9px;
+  border: 1px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer;
+  font-family: var(--sans); font-size: 12px; font-weight: 700; white-space: nowrap;
+  transition: background .16s, color .16s, border-color .16s;
 }
-#study-root .field select option { background: var(--bg2); }
-#study-root .color-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; }
-#study-root .color-swatch {
-  width: 32px; height: 32px; border-radius: 4px; cursor: pointer;
-  border: 2px solid transparent; transition: all 0.15s;
+#study-root .sos-pq-btn svg { width: 12px; height: 12px; }
+#study-root .sos-pq-btn[data-act="start"]:hover { background: var(--lav-soft); color: var(--lav); border-color: rgba(201, 180, 216, .45); }
+#study-root .sos-pq-btn[data-act="done"] { width: 30px; padding: 0; justify-content: center; }
+#study-root .sos-pq-btn[data-act="done"]:hover { background: var(--mint-soft); color: var(--mint); border-color: rgba(168, 220, 192, .45); }
+
+/* Section header */
+#study-root .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+#study-root .section-header h2 { font-family: var(--display); font-size: 19px; font-weight: 600; letter-spacing: -.2px; color: #F1EAF6; }
+#study-root .section-header .count { min-width: 24px; height: 22px; padding: 0 8px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; background: var(--pink-soft); color: var(--pink); font-size: 12px; font-weight: 800; }
+#study-root .section-hint { margin-left: auto; font-size: 12px; color: var(--text3); font-weight: 600; }
+
+/* Class cards. Module chips are capped at two rows (+N more), so a class with
+   many modules stays as tidy as one with two. */
+#study-root .classes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 16px; }
+#study-root .class-card {
+  --card-color: var(--lav);
+  position: relative; display: flex; flex-direction: column; gap: 12px;
+  padding: 18px 18px 16px; border-radius: var(--radius3); cursor: pointer; overflow: hidden; min-width: 0;
+  background: linear-gradient(165deg, color-mix(in srgb, var(--card-color) 10%, #1d1c22) 0%, rgba(26, 25, 31, .86) 55%);
+  border: 1px solid color-mix(in srgb, var(--card-color) 18%, transparent);
+  box-shadow: var(--shadow1);
+  transition: transform .22s var(--ease), border-color .22s, box-shadow .22s;
 }
-#study-root .color-swatch.selected { border-color: white; transform: scale(1.15); }
-#study-root .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
-/* NOTIFICATIONS */
-#study-root .notif-container {
-  position: fixed; top: 16px; right: 16px; z-index: 2000;
-  display: flex; flex-direction: column; gap: 8px;
+#study-root .class-card::after {
+  content: ''; position: absolute; top: -40px; right: -40px; width: 140px; height: 140px; border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--card-color) 22%, transparent), transparent 70%);
   pointer-events: none;
 }
-#study-root .notif {
-  background: var(--bg2); border: 1px solid var(--border2);
-  border-radius: 5px; padding: 14px 18px;
-  min-width: 280px; max-width: 360px;
-  display: flex; align-items: flex-start; gap: 12px;
-  transform: translateX(120%);
-  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  pointer-events: all;
+#study-root .class-card:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--card-color) 45%, transparent); box-shadow: 0 22px 40px -24px color-mix(in srgb, var(--card-color) 80%, transparent); }
+#study-root .class-card-top { display: flex; align-items: center; gap: 12px; min-width: 0; }
+#study-root .class-mono {
+  width: 40px; height: 40px; flex: 0 0 40px; border-radius: 12px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--display); font-size: 18px; font-weight: 600; color: #1a181e; background: var(--card-color);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25);
 }
-#study-root .notif.show { transform: translateX(0); }
-#study-root .notif-icon { font-size: 20px; }
-#study-root .notif-title { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
-#study-root .notif-body { font-size: 12px; color: var(--text2); }
-#study-root .notif-close { cursor: pointer; color: var(--text3); margin-left: auto; font-size: 16px; }
-/* STATS BAR */
-#study-root .stats-bar { display: flex; gap: 12px; margin-bottom: 24px; }
-#study-root .stat-card {
-  background: var(--bg3); border: 1px solid var(--border);
-  border-radius: 5px; padding: 14px 18px; flex: 1;
+#study-root .class-head { min-width: 0; flex: 1; }
+#study-root .class-name { font-family: var(--display); font-size: 17px; font-weight: 600; line-height: 1.25; color: #F4EEF8; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+#study-root .class-code { font-size: 12px; color: var(--text3); font-weight: 600; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#study-root .class-go { color: var(--text3); transition: transform .2s var(--ease), color .2s; display: inline-flex; }
+#study-root .class-card:hover .class-go { transform: translateX(3px); color: var(--card-color); }
+#study-root .class-go svg { width: 18px; height: 18px; }
+#study-root .class-modules { display: flex; flex-wrap: wrap; gap: 6px; max-height: 58px; overflow: hidden; }
+#study-root .module-chip {
+  display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 999px; max-width: 100%;
+  font-size: 11.5px; font-weight: 700; color: var(--text2);
+  background: rgba(228, 214, 242, .05); border: 1px solid var(--border);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-#study-root .stat-label { font-size: 10px; font-weight: 700; color: var(--text3); font-family: var(--mono); text-transform: uppercase; letter-spacing: 1.4px; margin-bottom: 6px; }
-#study-root .stat-value { font-size: 26px; font-weight: 700; font-family: 'Lora', serif; color: var(--accent2); }
-/* SECTION HEADER */
-#study-root .section-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-#study-root .section-header h2 { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; font-family: 'Lora', serif; }
-#study-root .section-header .count { background: var(--bg4); border-radius: 4px; padding: 2px 8px; font-size: 11px; color: var(--text2); font-family: var(--mono); font-weight: 700; }
-/* ── EXAM COUNTDOWN ── */
-#study-root .sos-exam-item {
-  display: flex; align-items: center; gap: 12px;
-  padding: 12px 16px; border-bottom: 1px solid var(--border);
-  cursor: pointer; transition: background 0.15s;
+#study-root .module-chip.more { color: var(--card-color); border-color: color-mix(in srgb, var(--card-color) 35%, transparent); background: color-mix(in srgb, var(--card-color) 10%, transparent); }
+#study-root .module-chip.none { color: var(--text3); font-style: italic; font-weight: 600; }
+#study-root .class-foot { display: flex; align-items: center; gap: 14px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text3); font-weight: 600; }
+#study-root .class-foot span { display: inline-flex; align-items: center; gap: 5px; }
+#study-root .class-foot svg { width: 13px; height: 13px; }
+#study-root .class-foot .due { color: var(--peach); }
+#study-root .empty-state { grid-column: 1 / -1; text-align: center; padding: 60px 20px; color: var(--text3); border: 1px dashed var(--border2); border-radius: var(--radius3); }
+#study-root .empty-state h3 { font-family: var(--display); font-size: 19px; font-weight: 600; color: var(--text2); margin-bottom: 6px; }
+#study-root .empty-state p { font-size: 14px; }
+
+/* ── 6. Calendar + upcoming ───────────────────────────────────────────────── */
+#study-root .calendar-container { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; align-items: start; }
+#study-root .calendar-grid {
+  background: linear-gradient(180deg, rgba(31, 30, 37, .78) 0%, rgba(26, 25, 31, .78) 100%);
+  border: 1px solid var(--border); border-radius: var(--radius3); overflow: hidden; box-shadow: var(--shadow1);
 }
-#study-root .sos-exam-item:last-child { border-bottom: none; }
-#study-root .sos-exam-item:hover { background: var(--bg4); }
-#study-root .sos-exam-cd-badge {
-  min-width: 52px; height: 52px; border-radius: 6px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  flex-shrink: 0; font-family: var(--mono);
+#study-root .cal-header { padding: 16px 16px 14px 22px; display: flex; align-items: center; gap: 12px; }
+#study-root .cal-header h3 { flex: 1; font-family: var(--display); font-size: 22px; font-weight: 600; letter-spacing: -.3px; color: #F4EEF8; }
+#study-root .cal-nav { display: flex; gap: 6px; align-items: center; }
+#study-root .cal-days { display: grid; grid-template-columns: repeat(7, 1fr); padding: 0 10px; }
+#study-root .cal-day-label { padding: 8px 0 10px; text-align: center; font-size: 11px; font-weight: 800; color: var(--text3); text-transform: uppercase; letter-spacing: 1.2px; }
+#study-root .cal-cells { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; padding: 0 10px 10px; }
+#study-root .cal-cell {
+  min-height: 104px; padding: 7px 6px 6px; border-radius: 12px;
+  background: rgba(228, 214, 242, .022); border: 1px solid transparent;
+  cursor: pointer; transition: background .16s, border-color .16s; position: relative; min-width: 0; overflow: hidden;
+  display: flex; flex-direction: column; gap: 3px;
 }
-#study-root .sos-exam-cd-days { font-size: 22px; font-weight: 800; line-height: 1; }
-#study-root .sos-exam-cd-lbl { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
-#study-root .sos-exam-info { flex: 1; min-width: 0; }
-#study-root .sos-exam-name { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
-#study-root .sos-exam-meta { font-size: 11px; color: var(--text2); font-family: var(--mono); }
-#study-root .sos-exam-score-pill {
-  font-size: 10px; font-weight: 800; font-family: var(--mono);
-  padding: 3px 8px; border-radius: 20px; flex-shrink: 0;
-  letter-spacing: 0.3px;
+#study-root .cal-cell:hover { background: rgba(228, 214, 242, .05); border-color: var(--border); }
+#study-root .cal-cell.other-month { opacity: .32; }
+#study-root .cal-cell.weekend { background: rgba(228, 214, 242, .012); }
+#study-root .day-num {
+  font-size: 12.5px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text2);
+  width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 9px; margin-bottom: 1px;
 }
-#study-root .sos-exam-empty {
-  padding: 24px 16px; font-size: 12px; color: var(--text3);
-  font-family: var(--mono); text-align: center; line-height: 1.6;
+#study-root .cal-cell.today { background: rgba(240, 179, 203, .05); border-color: rgba(240, 179, 203, .2); }
+#study-root .cal-cell.today .day-num { background: linear-gradient(135deg, var(--lav), var(--pink)); color: #1a181e; box-shadow: 0 6px 14px -6px rgba(240, 179, 203, .8); }
+#study-root .cal-event, #study-root .cal-task {
+  display: flex; align-items: center; gap: 5px; min-width: 0; max-width: 100%;
+  font-size: 11px; font-weight: 700; padding: 3px 6px; border-radius: 7px; line-height: 1.25;
+  background: color-mix(in srgb, var(--c) 15%, transparent); color: var(--c);
+  cursor: pointer; transition: background .15s;
 }
-/* ── PRIORITY QUEUE ── */
-#study-root .sos-pq-item {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 14px; border-bottom: 1px solid var(--border);
-  cursor: pointer; transition: background 0.15s;
+#study-root .cal-event:hover, #study-root .cal-task:hover { background: color-mix(in srgb, var(--c) 26%, transparent); }
+#study-root .cal-event > span, #study-root .cal-task > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#study-root .cal-event::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+#study-root .cal-task .cal-box {
+  width: 11px; height: 11px; flex: 0 0 11px; border-radius: 4px; border: 1.5px solid currentColor;
+  display: inline-flex; align-items: center; justify-content: center; color: var(--c);
 }
-#study-root .sos-pq-item:last-child { border-bottom: none; }
-#study-root .sos-pq-item:hover { background: var(--bg4); }
-#study-root .sos-pq-rank {
-  font-size: 10px; font-weight: 800; font-family: var(--mono);
-  color: var(--text3); width: 16px; text-align: center; flex-shrink: 0;
+#study-root .cal-task.done > span { text-decoration: line-through; opacity: .55; }
+#study-root .cal-task.done .cal-box { background: var(--c); }
+#study-root .cal-task.done .cal-box svg { color: #1a181e; width: 8px; height: 8px; }
+#study-root .cal-more { font-size: 10.5px; font-weight: 800; color: var(--text3); padding: 0 6px; }
+
+#study-root .timeline-panel { position: sticky; top: 0; }
+#study-root #upcoming-list { max-height: calc(100vh - 220px); overflow-y: auto; scrollbar-width: thin; }
+#study-root .up-group { padding: 12px 18px 4px; font-size: 10.5px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase; color: var(--text3); }
+#study-root .up-group.today { color: var(--pink); }
+#study-root .timeline-item {
+  display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; gap: 12px; align-items: center;
+  padding: 10px 14px 10px 18px; cursor: pointer; transition: background .16s;
 }
-#study-root .sos-pq-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-#study-root .sos-pq-info { flex: 1; min-width: 0; }
-#study-root .sos-pq-name { font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#study-root .sos-pq-meta { font-size: 10px; color: var(--text3); font-family: var(--mono); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#study-root .sos-pq-score {
-  font-size: 11px; font-weight: 800; font-family: var(--mono); flex-shrink: 0; color: var(--text3);
+#study-root .timeline-item:hover { background: rgba(228, 214, 242, .035); }
+#study-root .tl-date {
+  width: 46px; height: 46px; border-radius: 13px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--c, var(--lav)) 13%, transparent); color: var(--c, var(--lav));
+  border: 1px solid color-mix(in srgb, var(--c, var(--lav)) 24%, transparent);
 }
-/* responsive: stack on narrow screens */
-@media (max-width: 760px) {
-  #study-root #sos-planner-row { grid-template-columns: 1fr !important; }
+#study-root .tl-date b { font-family: var(--display); font-size: 17px; font-weight: 600; line-height: 1; }
+#study-root .tl-date small { font-size: 9px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; }
+#study-root .timeline-content { min-width: 0; }
+#study-root .timeline-title { font-size: 13.5px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; }
+#study-root .timeline-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 11.5px; color: var(--text3); }
+#study-root .tl-acts { display: flex; gap: 4px; opacity: .65; transition: opacity .16s; }
+#study-root .timeline-item:hover .tl-acts { opacity: 1; }
+
+/* ── 7. Class detail, KSU, modules ────────────────────────────────────────── */
+#study-root .breadcrumb { display: flex; align-items: center; gap: 6px; margin-bottom: 14px; font-size: 13px; font-weight: 700; color: var(--text3); }
+#study-root .breadcrumb a { color: var(--text2); cursor: pointer; transition: color .16s; }
+#study-root .breadcrumb a:hover { color: var(--accent2); }
+#study-root .breadcrumb svg { width: 13px; height: 13px; }
+#study-root .breadcrumb span { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#study-root .detail-header {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--border);
 }
-/* SCROLLBAR */
-#study-root ::-webkit-scrollbar {display:none;width:0;height:0;}
-#study-root ::-webkit-scrollbar-track { background: transparent; }
-#study-root ::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 4px; }
-/* BREADCRUMB */
-#study-root .breadcrumb { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; font-size: 13px; }
-#study-root .breadcrumb span { color: var(--text3); }
-#study-root .breadcrumb a { color: var(--text2); cursor: pointer; transition: 0.15s; }
-#study-root .breadcrumb a:hover { color: var(--text); }
-/* FILE UPLOAD DROP */
-#study-root .drop-zone {
-  border: 2px dashed var(--border2);
-  border-radius: 5px;
-  padding: 32px;
-  text-align: center;
-  cursor: pointer;
-  transition: 0.15s;
-  color: var(--text3);
-  font-size: 13px;
+/* The header pins to the top while its view scrolls. Negative side margins
+   (plus matching padding) bleed its background over the view's gutters, so
+   cards never scroll visibly through the strip either side of it. */
+#study-root .view > .detail-header {
+  --sos-view-pad: 32px;
+  position: sticky; top: -28px; z-index: 30;
+  background: linear-gradient(180deg, rgba(19, 18, 22, .96) 70%, rgba(19, 18, 22, .9));
+  backdrop-filter: blur(10px);
+  padding: 28px var(--sos-view-pad) 18px;
+  margin: -28px calc(-1 * var(--sos-view-pad)) 24px;
 }
-#study-root .drop-zone:hover { border-color: var(--accent); color: var(--text2); }
-/* AI PROMPT QUICK */
-#study-root .prompt-quick {
-  background: var(--bg3); border: 1px solid var(--border);
-  border-radius: 5px; padding: 14px 16px;
-  display: flex; align-items: center; gap: 10px;
-  cursor: pointer; transition: 0.15s; margin-bottom: 8px;
+#study-root .detail-color-bar {
+  width: 6px; align-self: stretch; min-height: 52px; border-radius: 6px;
+  background: linear-gradient(180deg, var(--card-color, var(--lav)), color-mix(in srgb, var(--card-color, var(--lav)) 40%, var(--pink)));
+  box-shadow: 0 0 22px -4px var(--card-color, var(--lav));
 }
-#study-root .prompt-quick:hover { border-color: var(--border2); }
-#study-root .prompt-quick-text { font-size: 13px; color: var(--text2); flex: 1; }
-#study-root .prompt-quick-tag {
-  font-size: 10px; padding: 3px 8px; border-radius: 4px;
-  background: var(--bg4); color: var(--text3);
-  font-family: var(--mono); font-weight: 700;
-}
-/* CHIP ROW */
-#study-root .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
-#study-root .chip {
-  font-size: 12px; padding: 5px 12px; border-radius: 4px;
-  border: 1px solid var(--border); background: var(--bg3);
-  color: var(--text2); cursor: pointer; transition: 0.15s; font-weight: 700;
-}
-#study-root .chip.active { border-color: var(--accent); color: var(--accent); }
-/* CLASS DETAIL LAYOUT */
-#study-root .class-detail-layout { display: grid; grid-template-columns: 1fr 280px; gap: 20px; align-items: start; }
+#study-root .detail-head-text { flex: 1; min-width: 220px; }
+#study-root .detail-eyebrow { font-size: 10.5px; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase; color: var(--pink); margin-bottom: 2px; }
+#study-root .detail-title { font-family: var(--display); font-size: 30px; font-weight: 600; letter-spacing: -.5px; line-height: 1.15; color: #F4EEF8; overflow-wrap: anywhere; }
+#study-root .detail-subtitle { font-size: 14px; color: var(--text2); margin-top: 4px; }
+#study-root .detail-subtitle:empty { display: none; }
+#study-root .detail-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+#study-root .class-detail-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 22px; align-items: start; }
 #study-root .class-detail-main { min-width: 0; }
-/* Sits below the pinned .detail-header; --sos-sticky-top is the measured
-   header height, set by sosSyncStickyHeader() in js/studyos.js. */
-#study-root .class-events-panel { background: var(--bg3); border: 1px solid var(--border); border-radius: 5px; overflow: hidden; position: sticky; top: calc(var(--sos-sticky-top, 88px) + 14px); }
-/* Each panel scrolls INSIDE its own box: the header stays pinned and only the
-   list body moves, so a class with many events can never push Resources off
-   the screen. --sos-panel-max is the ceiling for one body; both panels plus
-   their headers and the 14px gap still have to fit under the sticky header,
-   hence the vh split. Generic on the class, so every panel added to this
-   column inherits the behaviour. */
-#study-root .class-events-panel { display: flex; flex-direction: column; max-height: calc(100vh - var(--sos-sticky-top, 88px) - 28px); }
-#study-root .class-events-panel > .files-panel-header { flex-shrink: 0; }
+#study-root .class-side { display: flex; flex-direction: column; gap: 16px; position: sticky; top: calc(var(--sos-sticky-top, 110px) - 12px); }
+#study-root .class-events-panel { display: flex; flex-direction: column; max-height: calc((100vh - var(--sos-sticky-top, 110px) - 100px) / 2 + 40px); }
+#study-root .class-events-panel > .panel-head { flex-shrink: 0; }
 #study-root .class-panel-body {
   flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
-  max-height: var(--sos-panel-max, clamp(160px, 34vh, 420px));
-  overscroll-behavior: contain; scrollbar-gutter: stable;
+  overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(228, 214, 242, .14) transparent;
 }
-#study-root .class-event-item { display: flex; gap: 10px; padding: 11px 16px; border-bottom: 1px solid var(--border); align-items: flex-start; cursor: pointer; transition: 0.15s; }
-#study-root .class-event-item:last-child { border-bottom: none; }
-#study-root .class-event-item:hover { background: var(--bg4); }
-#study-root .class-event-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
-#study-root .class-event-name { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
-#study-root .class-event-meta { font-size: 11px; color: var(--text2); font-family: var(--mono); }
-#study-root .class-events-empty { padding: 20px 16px; font-size: 12px; color: var(--text3); font-family: var(--mono); text-align: center; }
-/* MODULE TYPE PICKER */
-#study-root .module-type-card {
-  background: var(--bg3); border: 1px solid var(--border);
-  border-radius: 8px; padding: 18px 14px; cursor: pointer;
-  text-align: center; transition: all 0.15s;
+#study-root .class-event-item {
+  display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 11px; align-items: start;
+  padding: 11px 14px 11px 16px; cursor: pointer; transition: background .16s;
 }
-#study-root .module-type-card:hover { border-color: var(--accent); transform: translateY(-2px); }
-#study-root .module-type-icon { font-size: 26px; margin-bottom: 8px; }
-#study-root .module-type-name { font-size: 13px; font-weight: 800; margin-bottom: 4px; }
-#study-root .module-type-desc { font-size: 11px; color: var(--text3); font-family: var(--mono); line-height: 1.4; }
-/* MODULE DETAIL BODY */
-#study-root .doc-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
-#study-root .doc-item {
-  display: flex; align-items: center; gap: 12px;
-  background: var(--bg3); border: 1px solid var(--border);
-  border-radius: 6px; padding: 10px 14px;
-  position: relative;
-  transition: background 0.15s, border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+#study-root .class-event-item + .class-event-item { border-top: 1px solid var(--border); }
+#study-root .class-event-item:hover { background: rgba(228, 214, 242, .035); }
+#study-root .class-event-item.static { cursor: default; }
+#study-root .class-event-dot { width: 9px; height: 9px; border-radius: 50%; margin: 5px 0 0 4px; box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 0%, transparent); }
+#study-root .ce-check {
+  width: 18px; height: 18px; border-radius: 6px; margin-top: 1px; border: 1.5px solid var(--c); background: transparent;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; color: #1a181e; padding: 0;
+  transition: background .16s;
 }
-#study-root .doc-item:hover { border-color: var(--border2); background: var(--bg4); }
-#study-root .doc-item-icon { font-size: 20px; }
-#study-root .doc-item-name { font-size: 13px; font-weight: 700; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#study-root .doc-item-size { font-size: 11px; color: var(--text3); font-family: var(--mono); }
-#study-root .doc-item-del { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 4px; transition: 0.15s; }
-#study-root .doc-item-del:hover { color: #ef9f9f; background: var(--bg4); }
-#study-root .row-drag-handle {
-  flex-shrink: 0; width: 16px; text-align: center;
-  color: var(--text3); cursor: grab; font-size: 14px; line-height: 1;
-  opacity: 0; transition: opacity 0.15s, color 0.15s;
-  touch-action: none; margin-right: -4px;
-}
-#study-root .doc-item:hover .row-drag-handle,
-#study-root .prompt-entry:hover .row-drag-handle { opacity: 1; }
-#study-root .row-drag-handle:hover { color: var(--accent); }
-#study-root .th-drag-placeholder { border: 1.5px dashed var(--border2); border-radius: 6px; background: var(--bg2); }
-#study-root .upload-zone {
-  border: 2px dashed var(--border2); border-radius: 8px;
-  padding: 28px; text-align: center; cursor: pointer;
-  transition: 0.15s; color: var(--text3); font-size: 13px;
-  position: relative;
-}
-#study-root .upload-zone:hover { border-color: var(--accent); color: var(--text2); }
-#study-root .upload-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
-#study-root .prompt-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
-#study-root .prompt-entry {
-  background: var(--bg3); border: 1px solid var(--border);
-  border-radius: 8px; padding: 12px 14px;
-  position: relative;
-  transition: background 0.15s, border-color 0.15s;
-}
-#study-root .prompt-entry:hover { border-color: var(--border2); }
-#study-root .prompt-entry .prompt-drag-handle { position: absolute; top: 10px; left: -2px; }
-#study-root .prompt-entry:has(.prompt-drag-handle) { padding-left: 26px; }
-#study-root .prompt-entry-text { font-size: 13px; font-family: var(--mono); color: var(--text); line-height: 1.6; white-space: pre-wrap; word-break: break-word; margin-bottom: 8px; }
-#study-root .prompt-entry-actions { display: flex; gap: 6px; justify-content: flex-end; }
-#study-root .prompt-copy-btn {
-  font-size: 11px; padding: 4px 10px; border-radius: 4px;
-  background: var(--bg4); border: 1px solid var(--border);
-  color: var(--text2); cursor: pointer; font-weight: 700; transition: 0.15s; font-family: var(--mono);
-}
-#study-root .prompt-copy-btn:hover { border-color: var(--accent); color: var(--accent); }
-#study-root .prompt-copy-btn.copied { color: #8fd6ad; border-color: #8fd6ad; }
-#study-root .prompt-del-btn { font-size: 11px; padding: 4px 8px; border-radius: 4px; background: none; border: 1px solid transparent; color: var(--text3); cursor: pointer; transition: 0.15s; }
-#study-root .prompt-del-btn:hover { color: #ef9f9f; border-color: #ef9f9f33; }
-#study-root .add-prompt-row { display: flex; gap: 8px; align-items: flex-start; }
-#study-root .add-prompt-row textarea {
-  flex: 1; background: var(--bg3); border: 1px solid var(--border2);
-  border-radius: 6px; padding: 10px 12px; font-size: 13px;
-  color: var(--text); font-family: var(--mono); resize: vertical;
-  min-height: 70px; transition: border-color 0.15s;
-}
-#study-root .add-prompt-row textarea:focus { outline: none; border-color: var(--accent); }
-/* POMODORO */
-#study-root .pomo-wrap { display:flex; flex-direction:column; align-items:center; justify-content:center; height:calc(100vh - 56px); gap:32px; }
-#study-root .pomo-modes { display:flex; gap:8px; }
-#study-root .pomo-mode-btn { padding:6px 16px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; border:1px solid var(--border2); background:transparent; color:var(--text2); transition:0.15s; font-family:var(--mono); }
-#study-root .pomo-mode-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
-#study-root .pomo-ring-wrap { position:relative; width:240px; height:240px; }
-#study-root .pomo-ring-wrap svg { transform:rotate(-90deg); }
-#study-root .pomo-ring-bg { fill:none; stroke:var(--bg4); stroke-width:8; }
-#study-root .pomo-ring-fg { fill:none; stroke:var(--accent); stroke-width:8; stroke-linecap:round; transition:stroke-dashoffset 1s linear; }
-#study-root .pomo-time-display { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; }
-#study-root .pomo-time { font-size:52px; font-weight:700; font-family:'Lora',serif; letter-spacing:-2px; }
-#study-root .pomo-label { font-size:11px; font-weight:700; color:var(--text3); font-family:var(--mono); text-transform:uppercase; letter-spacing:1.5px; }
-#study-root .pomo-controls { display:flex; gap:12px; align-items:center; }
-#study-root .pomo-btn-main { width:56px; height:56px; border-radius:50%; background:var(--accent); border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:0.15s; }
-#study-root .pomo-btn-main:hover { opacity:0.85; }
-#study-root .pomo-btn-main svg { width:22px; height:22px; color:#fff; }
-#study-root .pomo-btn-sec { width:38px; height:38px; border-radius:50%; background:var(--bg3); border:1px solid var(--border2); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:0.15s; color:var(--text2); }
-#study-root .pomo-btn-sec:hover { background:var(--bg4); color:var(--text); }
-#study-root .pomo-btn-sec svg { width:16px; height:16px; }
-#study-root .pomo-sessions { font-size:12px; color:var(--text3); font-family:var(--mono); display:flex; gap:6px; align-items:center; }
-#study-root .pomo-dot { width:8px; height:8px; border-radius:50%; background:var(--bg4); transition:0.3s; }
-#study-root .pomo-dot.done { background:var(--accent); }
-#study-root .pomo-settings { display:flex; gap:20px; }
-#study-root .pomo-setting { display:flex; flex-direction:column; align-items:center; gap:4px; }
-#study-root .pomo-setting label { font-size:10px; font-weight:700; color:var(--text3); font-family:var(--mono); text-transform:uppercase; letter-spacing:1px; }
-#study-root .pomo-setting input { width:64px; text-align:center; background:var(--bg3); border:1px solid var(--border2); border-radius:4px; padding:6px; font-size:14px; font-weight:700; color:var(--text); font-family:var(--mono); }
-#study-root .pomo-setting input:focus { outline:none; border-color:var(--accent); }
+#study-root .ce-check.on { background: var(--c); }
+#study-root .ce-check svg { width: 11px; height: 11px; }
+#study-root .ce-ic { width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; margin-top: 1px; color: var(--c, var(--lav)); }
+#study-root .ce-ic svg { width: 16px; height: 16px; }
+#study-root .class-event-name { font-size: 13.5px; font-weight: 700; color: var(--text); line-height: 1.35; overflow-wrap: anywhere; }
+#study-root .class-event-name.done { text-decoration: line-through; color: var(--text3); }
+#study-root .class-event-meta { font-size: 11.5px; color: var(--text3); margin-top: 3px; line-height: 1.45; overflow-wrap: anywhere; }
+#study-root .class-event-meta.warn { color: var(--rose); }
+#study-root .ce-acts { display: flex; gap: 4px; align-items: center; }
 
-#study-root .mode-toggle-wrap:not(.sos-nb-host *) { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
-#study-root .mode-toggle-label:not(.sos-nb-host *) { font-size:11px; font-weight:700; font-family:var(--mono); color:var(--text3); text-transform:uppercase; letter-spacing:1px; }
-#study-root .mode-toggle-label.active:not(.sos-nb-host *) { color:var(--accent); }
-#study-root .mode-slider {
-  position:relative; width:44px; height:24px; cursor:pointer;
-  background:var(--bg4); border-radius:12px; border:1px solid var(--border2);
-  transition:background 0.25s;
-  flex-shrink:0;
+/* Module cards: the whole card is the handle (A1Drag), no grip dots. Edit and
+   remove are real buttons in the card's corner, visible on touch. */
+#study-root .modules-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(214px, 1fr)); gap: 14px; }
+#study-root .module-btn {
+  --card-color: var(--lav);
+  position: relative; display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 132px;
+  padding: 16px 16px 14px; border-radius: var(--radius3); cursor: pointer; text-align: left;
+  background: linear-gradient(170deg, color-mix(in srgb, var(--card-color) 8%, #1f1e24) 0%, rgba(26, 25, 31, .9) 70%);
+  border: 1px solid var(--border2);
+  box-shadow: var(--shadow1);
+  transition: transform .2s var(--ease), border-color .2s, box-shadow .2s, background .2s;
+  -webkit-touch-callout: none; user-select: none;
 }
-#study-root .mode-slider.edit-on { background:var(--accent); border-color:var(--accent); }
-#study-root .mode-slider-thumb {
-  position:absolute; top:3px; left:3px;
-  width:16px; height:16px; border-radius:50%;
-  background:#fff; transition:transform 0.25s;
-  box-shadow:0 1px 4px rgba(0,0,0,0.3);
+#study-root .module-btn:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--card-color) 45%, transparent); box-shadow: 0 18px 36px -22px color-mix(in srgb, var(--card-color) 80%, transparent); }
+#study-root .module-btn-top { display: flex; align-items: flex-start; gap: 10px; }
+#study-root .module-btn-icon {
+  width: 38px; height: 38px; flex: 0 0 38px; border-radius: 11px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--card-color); background: color-mix(in srgb, var(--card-color) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--card-color) 22%, transparent);
 }
-#study-root .mode-slider.edit-on .mode-slider-thumb { transform:translateX(20px); }
+#study-root .module-btn-icon svg { width: 19px; height: 19px; }
+#study-root .module-btn-acts { margin-left: auto; display: flex; gap: 5px; opacity: 0; transform: translateY(-2px); transition: opacity .18s, transform .18s; }
+#study-root .module-btn:hover .module-btn-acts, #study-root .module-btn:focus-within .module-btn-acts { opacity: 1; transform: none; }
+#study-root .module-btn-name { font-size: 15px; font-weight: 800; color: var(--text); line-height: 1.3; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+#study-root .module-btn-meta { margin-top: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text3); font-weight: 600; }
+#study-root .module-kind { font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; padding: 3px 7px; border-radius: 6px; color: var(--card-color); background: color-mix(in srgb, var(--card-color) 12%, transparent); }
+#study-root .modules-grid .empty-state { padding: 44px 20px; }
+@media (hover: none) { #study-root .module-btn-acts { opacity: 1; transform: none; } }
 
-
-
-/* Standalone StudyOS *is* the page, so #study-root is a normal flex child of
- * <body> and must be visible from the start.
- *
- * This rule previously read:
- *   position:fixed; inset:0; overflow:hidden; display:none; z-index:10002;
- * which is overlay styling left over from when StudyOS was a panel INSIDE
- * Index's page — hidden until Index's nav opened it. Nothing opens it here, so
- * `display:none` meant the app built its whole UI (11 children, ~37KB of
- * markup) into a permanently invisible element: a blank page with a clean
- * console, which looks like a Firebase failure but is purely CSS.
- *
- * The App Lock still gates the app: body[data-sos-gate="pending"|"locked"]
- * sets visibility:hidden on #study-root (see the rule near the top of this
- * file), so a locked app never paints its data. That is a separate mechanism
- * from this one and is unaffected. */
-#study-root { overflow:hidden;display:flex;background:#1B1C1E;flex-direction:column; }
-
-/* ── StudyOS modals: live outside #study-root, need unscoped rules ── */
-.sos-modal {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.75);
+/* ── 8. Timer ─────────────────────────────────────────────────────────────── */
+#study-root #view-pomodoro.active { display: flex; flex-direction: column; }
+#study-root .pomo-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; min-height: 100%; padding: 8px 0; }
+#study-root .pomo-card {
+  width: 100%; max-width: 440px; padding: 22px 26px 26px; border-radius: 28px;
+  background: linear-gradient(180deg, rgba(34, 32, 40, .9) 0%, rgba(25, 24, 30, .92) 100%);
+  border: 1px solid var(--border2);
+  box-shadow: 0 40px 80px -40px rgba(0, 0, 0, .8), 0 0 0 1px rgba(0, 0, 0, .3), inset 0 1px 0 rgba(255, 255, 255, .05);
+  display: flex; flex-direction: column; align-items: center;
+}
+#study-root .pomo-head { width: 100%; display: flex; align-items: center; gap: 9px; margin-bottom: 16px; }
+#study-root .pomo-led { width: 8px; height: 8px; border-radius: 50%; background: var(--lav); opacity: .45; transition: opacity .3s, box-shadow .3s, background .3s; }
+#study-root .pomo-card.running .pomo-led { opacity: 1; box-shadow: 0 0 0 4px rgba(201, 180, 216, .2); animation: sosPulse 1.8s ease-in-out infinite; }
+#study-root .pomo-card.break .pomo-led { background: var(--mint); }
+#study-root .pomo-card.done .pomo-led { background: var(--mint); opacity: 1; }
+#study-root .pomo-kicker { font-size: 11px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: var(--accent2); }
+#study-root .pomo-for { margin-left: auto; font-size: 12px; font-weight: 700; color: var(--text3); max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#study-root .pomo-modes { width: 100%; display: flex; gap: 3px; padding: 4px; border-radius: 14px; background: rgba(10, 9, 12, .5); border: 1px solid var(--border); }
+#study-root .pomo-mode-btn {
+  flex: 1; height: 34px; border-radius: 10px; border: none; cursor: pointer;
+  background: transparent; color: var(--text2); font-family: var(--sans); font-size: 13px; font-weight: 700;
+  transition: background .2s, color .2s;
+}
+#study-root .pomo-mode-btn:hover { color: var(--text); }
+#study-root .pomo-mode-btn.active { background: linear-gradient(135deg, #9A83A8, #8D769A); color: #fff; box-shadow: 0 6px 16px -8px rgba(141, 118, 154, .9); }
+#study-root .pomo-ring-wrap { position: relative; width: min(280px, 72vw); aspect-ratio: 1; margin: 20px auto 10px; }
+#study-root .pomo-ring-wrap svg { width: 100%; height: 100%; display: block; overflow: visible; }
+#study-root .pomo-ring-bg { fill: none; stroke: rgba(228, 214, 242, .07); stroke-width: 8; }
+#study-root .pomo-ring-fg { fill: none; stroke: url(#pomo-grad); stroke-width: 8; stroke-linecap: round; transition: stroke-dashoffset .6s cubic-bezier(.4, 0, .2, 1); filter: drop-shadow(0 0 10px rgba(240, 179, 203, .35)); }
+#study-root .pomo-card.running .pomo-ring-fg { transition: none; }
+#study-root .pomo-card.done .pomo-ring-fg { stroke: var(--mint); }
+#study-root .pomo-ring-dot { transform-origin: 140px 140px; transition: transform .6s cubic-bezier(.4, 0, .2, 1), opacity .3s; }
+#study-root .pomo-card.running .pomo-ring-dot { transition: opacity .3s; }
+#study-root .pomo-ring-dot circle { fill: #F0B3CB; stroke: #1d1c22; stroke-width: 4; }
+#study-root .pomo-time-display { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; pointer-events: none; }
+#study-root .pomo-time { font-family: var(--display); font-size: clamp(50px, 13vw, 64px); font-weight: 500; letter-spacing: -1.5px; line-height: 1; color: #F6F1F9; font-variant-numeric: tabular-nums; }
+#study-root .pomo-card.done .pomo-time { color: var(--mint); }
+#study-root .pomo-label { font-size: 11px; font-weight: 800; color: var(--text3); text-transform: uppercase; letter-spacing: 2px; }
+#study-root .pomo-card.running .pomo-label { color: var(--accent2); }
+#study-root .pomo-card.done .pomo-label { color: var(--mint); }
+#study-root .pomo-stepper { display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 18px; height: 32px; }
+#study-root .pomo-step {
+  width: 32px; height: 32px; border-radius: 10px; border: 1px solid var(--border2); background: transparent;
+  color: var(--text); font-family: var(--sans); font-size: 14px; font-weight: 700; cursor: pointer;
+  transition: border-color .16s, background .16s, opacity .2s;
+}
+#study-root .pomo-step.wide { width: 42px; font-size: 12.5px; }
+#study-root .pomo-step:hover:not(:disabled) { background: var(--lav-soft); border-color: rgba(201, 180, 216, .45); }
+#study-root .pomo-step:disabled { opacity: .3; cursor: default; }
+#study-root .pomo-len { min-width: 74px; text-align: center; font-size: 13.5px; font-weight: 700; color: var(--text2); font-variant-numeric: tabular-nums; }
+#study-root .pomo-controls { display: flex; gap: 26px; align-items: center; justify-content: center; }
+#study-root .pomo-btn-main {
+  width: 72px; height: 72px; border-radius: 50%; border: none; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  z-index: 10100; opacity: 0; pointer-events: none;
-  transition: opacity 0.2s;
+  background: linear-gradient(135deg, #C9B4D8 0%, #EBB9D0 100%); color: #1d1a22;
+  box-shadow: 0 16px 34px -12px rgba(240, 179, 203, .75), inset 0 1px 0 rgba(255, 255, 255, .4);
+  transition: transform .14s, box-shadow .2s;
 }
-.sos-modal.open { opacity: 1; pointer-events: all; visibility: visible; }
-/* The modals inside #study-root are .modal-overlay too, and that rule's
-   z-index (9999, ID weight) used to win, so on a phone every one of them sat
-   UNDER the bottom nav (10050): a full-screen modal lost its foot to it. */
-#study-root .modal-overlay.sos-modal { z-index: 10100; }
-.sos-modal .modal {
-  background: #1f2022; border: 1px solid #4A4B51;
-  border-radius: 10px; padding: 28px;
-  width: 480px; max-width: 95vw; max-height: 90vh; overflow-y: auto;
-  transform: scale(0.95); transition: transform 0.2s;
-  font-family: 'Nunito', sans-serif; color: #ECECEE; box-sizing: border-box;
+#study-root .pomo-btn-main:hover { transform: scale(1.04); }
+#study-root .pomo-btn-main:active { transform: scale(.96); }
+#study-root .pomo-btn-main svg { width: 26px; height: 26px; }
+#study-root .pomo-card:not(.running) .pomo-btn-main svg { margin-left: 3px; }
+#study-root .pomo-card.done .pomo-btn-main { background: linear-gradient(135deg, #A8DCC0, #C3E7D3); box-shadow: 0 16px 34px -12px rgba(168, 220, 192, .7); }
+#study-root .pomo-btn-sec {
+  width: 46px; height: 46px; border-radius: 50%; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid var(--border2); color: var(--text2);
+  transition: background .16s, color .16s, border-color .16s;
 }
-.sos-modal.open .modal { transform: scale(1); }
-.sos-modal .modal-title { font-size: 20px; font-weight: 700; margin-bottom: 20px; font-family: 'Lora', serif; color: #8D769A; letter-spacing: -.2px; }
-.sos-modal .field { margin-bottom: 16px; }
-.sos-modal .field label { display: block; font-size: 10px; font-weight: 800; color: #AFB0B5; margin-bottom: 6px; font-family: 'Lora', serif; text-transform: uppercase; letter-spacing: 1.5px; }
-.sos-modal .field input, .sos-modal .field select, .sos-modal .field textarea {
-  width: 100%; background: #26272A; border: 1px solid #4A4B51; border-radius: 4px;
-  padding: 10px 12px; font-size: 14px; color: #ECECEE;
-  font-family: 'Nunito', sans-serif; transition: border-color 0.15s; font-weight: 600;
-}
-.sos-modal .field input:focus, .sos-modal .field select:focus, .sos-modal .field textarea:focus { outline: none; border-color: #8D769A; }
-.sos-modal .field select option { background: #1f2022; }
-.sos-modal .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
-.sos-modal .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 4px; font-size: 13px; font-weight: 700; cursor: pointer; border: 1px solid #4A4B51; background: #26272A; color: #ECECEE; transition: all 0.15s; font-family: 'Nunito', sans-serif; white-space: nowrap; }
-.sos-modal .btn:hover { background: #2e2f33; }
-.sos-modal .btn.primary { background: #8D769A; border-color: #8D769A; color: #fff; }
-.sos-modal .btn.primary:hover { opacity: 0.88; }
-.sos-modal .color-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; }
-.sos-modal .color-swatch { width: 32px; height: 32px; border-radius: 4px; cursor: pointer; border: 2px solid transparent; transition: all 0.15s; }
-.sos-modal .color-swatch.selected { border-color: white; transform: scale(1.15); }
-.sos-modal .module-type-card { background: #26272A; border: 1px solid rgba(255,255,255,0.09); border-radius: 8px; padding: 18px 14px; cursor: pointer; text-align: center; transition: all 0.15s; }
-.sos-modal .module-type-card:hover { border-color: #8D769A; transform: translateY(-2px); }
-.sos-modal .module-type-name { font-size: 13px; font-weight: 800; margin-bottom: 4px; color: #ECECEE; }
-.sos-modal .module-type-desc { font-size: 11px; color: #76777C; font-family: 'IBM Plex Mono', monospace; line-height: 1.4; }
-.sos-modal #module-detail-body { font-family: 'Nunito', sans-serif; }
-/* modal-scroll-body: transparent passthrough on desktop, scrollable on mobile (set in @media) */
-.sos-modal .modal-scroll-body { padding: 0; }
-#study-root .modal .modal-scroll-body { padding: 0; }
-/* StudyOS repeat modal buttons */
-#study-root .sos-repeat-btn, .sos-modal .sos-repeat-btn {
-  font-size:11px; font-weight:700; padding:5px 14px; border-radius:4px; cursor:pointer;
-  font-family:var(--sans); background:var(--bg3); color:var(--text2);
-  border:1px solid var(--border2); transition:all .15s;
-}
-#study-root .sos-repeat-btn.active, .sos-modal .sos-repeat-btn.active {
-  background:var(--accent); color:#fff; border-color:var(--accent);
-}
-#study-root .sos-day-btn, .sos-modal .sos-day-btn {
-  font-size:11px; font-weight:700; padding:5px 10px; border-radius:4px; cursor:pointer;
-  font-family:var(--sans); background:var(--bg3); color:var(--text2);
-  border:1px solid var(--border2); transition:all .15s;
-}
-#study-root .sos-day-btn.active, .sos-modal .sos-day-btn.active {
-  background:var(--accent); color:#fff; border-color:var(--accent);
-}
+#study-root .pomo-btn-sec:hover { background: rgba(228, 214, 242, .06); color: var(--text); border-color: var(--border3); }
+#study-root .pomo-btn-sec svg { width: 18px; height: 18px; }
+#study-root .pomo-sessions { display: flex; align-items: center; gap: 7px; margin-top: 20px; }
+#study-root .pomo-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(228, 214, 242, .12); transition: background .3s, transform .3s; }
+#study-root .pomo-dot.done { background: var(--pink); transform: scale(1.1); }
+#study-root .pomo-sess-txt { margin-left: 6px; font-size: 12px; font-weight: 700; color: var(--text3); }
+#study-root .pomo-today { font-size: 13px; color: var(--text3); font-weight: 600; text-align: center; }
+#study-root .pomo-today b { color: var(--accent2); }
 
-/* ── CSS vars for elements outside #study-root (modals, fullscreen) ── */
+/* ── 9. Modals ────────────────────────────────────────────────────────────── */
 .sos-modal {
-  --bg: #1B1C1E; --bg2: #1f2022; --bg3: #26272A; --bg4: #2e2f33;
-  --border: rgba(255,255,255,0.09); --border2: #4A4B51;
-  --text: #ECECEE; --text2: #AFB0B5; --text3: #76777C;
-  --accent: #8D769A; --accent2: #A892B0;
-  --mono: 'IBM Plex Mono', monospace; --sans: 'Nunito', sans-serif;
+  --bg: #131216; --bg2: #17161b; --bg3: #1d1c22; --bg4: #25232b;
+  --border: rgba(228, 214, 242, .07); --border2: rgba(228, 214, 242, .12); --border3: rgba(228, 214, 242, .2);
+  --text: #EFECF3; --text2: #B9B4C3; --text3: #827D8D;
+  --accent: #8D769A; --accent2: #C9B4D8;
+  position: fixed; inset: 0; z-index: 10100;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+  background: rgba(10, 9, 12, .6);
+  backdrop-filter: blur(10px) saturate(120%); -webkit-backdrop-filter: blur(10px) saturate(120%);
+  opacity: 0; pointer-events: none; visibility: hidden;
+  transition: opacity .22s var(--ease), visibility 0s linear .22s;
   font-family: var(--sans); font-size: 15px; color: var(--text);
 }
-/* ── Unscoped rules for classes used inside .sos-modal content ── */
-.sos-modal .mode-toggle-wrap:not(.sos-nb-host *) { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
-.sos-modal .mode-toggle-label:not(.sos-nb-host *) { font-size:11px; font-weight:700; font-family:var(--mono); color:var(--text3); text-transform:uppercase; letter-spacing:1px; }
-.sos-modal .mode-toggle-label.active:not(.sos-nb-host *) { color:var(--accent); }
-.sos-modal .mode-slider { position:relative; width:44px; height:24px; cursor:pointer; background:var(--bg4); border-radius:12px; border:1px solid var(--border2); transition:background 0.25s; flex-shrink:0; }
-.sos-modal .mode-slider.edit-on { background:var(--accent); border-color:var(--accent); }
-.sos-modal .mode-slider-thumb { position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%; background:#fff; transition:transform 0.25s; box-shadow:0 1px 4px rgba(0,0,0,0.3); }
-.sos-modal .mode-slider.edit-on .mode-slider-thumb { transform:translateX(20px); }
-.sos-modal .module-type-card { background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:18px 14px; cursor:pointer; text-align:center; transition:all 0.15s; }
-.sos-modal .module-type-card:hover { border-color:var(--accent); transform:translateY(-2px); }
-.sos-modal .module-type-icon { font-size:26px; margin-bottom:8px; }
-.sos-modal .module-type-name { font-size:13px; font-weight:800; margin-bottom:4px; }
-.sos-modal .module-type-desc { font-size:11px; color:var(--text3); font-family:var(--mono); line-height:1.4; }
-.sos-modal .doc-list { display:flex; flex-direction:column; gap:8px; margin-bottom:16px; }
-.sos-modal .doc-item { display:flex; align-items:center; gap:12px; background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:10px 14px; position:relative; transition:background 0.15s, border-color 0.15s; }
-.sos-modal .doc-item:hover { border-color:var(--border2); background:var(--bg4); }
-.sos-modal .doc-item-icon { font-size:20px; }
-.sos-modal .doc-item-name { font-size:13px; font-weight:700; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.sos-modal .doc-item-size { font-size:11px; color:var(--text3); font-family:var(--mono); }
-.sos-modal .doc-item-del { background:none; border:none; color:var(--text3); cursor:pointer; font-size:14px; padding:2px 6px; border-radius:4px; transition:0.15s; }
-.sos-modal .doc-item-del:hover { color:#ef9f9f; background:var(--bg4); }
-.sos-modal .row-drag-handle { flex-shrink:0; width:16px; text-align:center; color:var(--text3); cursor:grab; font-size:14px; line-height:1; opacity:0; transition:opacity 0.15s, color 0.15s; touch-action:none; margin-right:-4px; }
-.sos-modal .doc-item:hover .row-drag-handle, .sos-modal .prompt-entry:hover .row-drag-handle { opacity:1; }
-.sos-modal .row-drag-handle:hover { color:var(--accent); }
-.sos-modal .th-drag-placeholder { border:1.5px dashed var(--border2); border-radius:6px; background:var(--bg2); }
-.sos-modal .upload-zone { border:2px dashed var(--border2); border-radius:8px; padding:28px; text-align:center; cursor:pointer; transition:0.15s; color:var(--text3); font-size:13px; position:relative; }
-.sos-modal .upload-zone:hover { border-color:var(--accent); color:var(--text2); }
-.sos-modal .upload-zone input[type=file] { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
-.sos-modal .prompt-list { display:flex; flex-direction:column; gap:10px; margin-bottom:14px; }
-.sos-modal .prompt-entry { background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:12px 14px; position:relative; transition:background 0.15s, border-color 0.15s; }
-.sos-modal .prompt-entry:hover { border-color:var(--border2); }
-.sos-modal .prompt-entry .prompt-drag-handle { position:absolute; top:10px; left:-2px; }
-.sos-modal .prompt-entry:has(.prompt-drag-handle) { padding-left:26px; }
-.sos-modal .prompt-entry-text { font-size:13px; font-family:var(--mono); color:var(--text); line-height:1.6; white-space:pre-wrap; word-break:break-word; margin-bottom:8px; }
-.sos-modal .prompt-entry-actions { display:flex; gap:6px; justify-content:flex-end; }
-.sos-modal .prompt-copy-btn { font-size:11px; padding:4px 10px; border-radius:4px; background:var(--bg4); border:1px solid var(--border); color:var(--text2); cursor:pointer; font-weight:700; transition:0.15s; font-family:var(--mono); }
-.sos-modal .prompt-copy-btn:hover { border-color:var(--accent); color:var(--accent); }
-.sos-modal .prompt-copy-btn.copied { color:#8fd6ad; border-color:#8fd6ad; }
-.sos-modal .prompt-del-btn { font-size:11px; padding:4px 8px; border-radius:4px; background:none; border:1px solid transparent; color:var(--text3); cursor:pointer; transition:0.15s; }
-.sos-modal .prompt-del-btn:hover { color:#ef9f9f; border-color:#ef9f9f33; }
-.sos-modal .add-prompt-row { display:flex; gap:8px; align-items:flex-start; }
-.sos-modal .add-prompt-row textarea { flex:1; background:var(--bg3); border:1px solid var(--border2); border-radius:6px; padding:10px 12px; font-size:13px; color:var(--text); font-family:var(--mono); resize:vertical; min-height:70px; transition:border-color 0.15s; }
-.sos-modal .add-prompt-row textarea:focus { outline:none; border-color:var(--accent); }
-.sos-modal .delete-btn { position:absolute; top:8px; right:8px; opacity:0; transition:0.15s; background:var(--bg4); border:1px solid var(--border); border-radius:6px; padding:3px 6px; font-size:10px; color:var(--text2); cursor:pointer; }
-.sos-modal .module-btn:hover .delete-btn { opacity:1; }
-.sos-modal .rename-btn { position:absolute; top:8px; right:34px; opacity:0; transition:0.15s; background:var(--bg4); border:1px solid var(--border); border-radius:6px; padding:3px 6px; font-size:10px; color:var(--text2); cursor:pointer; }
-.sos-modal .module-btn:hover .rename-btn { opacity:1; }
-.sos-modal .module-btn .th-drag-handle { position:absolute; top:8px; left:8px; width:18px; height:18px; display:flex; align-items:center; justify-content:center; opacity:0; transition:0.15s; color:var(--text3); cursor:grab; font-size:13px; line-height:1; touch-action:none; }
-.sos-modal .module-btn:hover .th-drag-handle { opacity:1; }
-.sos-modal .th-drag-placeholder { border:1.5px dashed var(--border2); border-radius:5px; background:var(--bg2); }
-/* Touch devices never fire :hover, so every hover-revealed control inside a
-   modal (module-card delete/rename/drag, and the in-list row drag handles
-   added for Documents/Prompts reordering) needs an explicit always-visible
-   fallback here — otherwise it's permanently opacity:0 on a phone/tablet. */
-@media (hover: none) {
-  .sos-modal .delete-btn,
-  .sos-modal .rename-btn,
-  .sos-modal .th-drag-handle { opacity: 1; }
-  .sos-modal .row-drag-handle { opacity: 0.6; }
-}
-.sos-modal .module-btn { background:var(--bg3); border:1px solid var(--border); border-radius:5px; padding:18px 20px; cursor:pointer; text-align:left; transition:all 0.15s; position:relative; }
-.sos-modal .module-btn:hover { border-color:var(--border2); background:var(--bg4); }
-.sos-modal .module-btn-icon { min-width:36px; width:fit-content; height:24px; padding:0 9px; box-sizing:border-box; border-radius:4px; display:flex; align-items:center; justify-content:center; margin-bottom:12px; font-size:10px; font-weight:800; font-family:var(--mono); letter-spacing:0.5px; text-transform:none; }
-.sos-modal .module-btn-name { font-size:15px; font-weight:700; margin-bottom:3px; }
-.sos-modal .module-btn-meta { font-size:11px; color:var(--text2); font-family:var(--mono); }
-/* notes module inside modal */
-.sos-modal .modules-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:12px; }
-
-/* ═══════════════════════════════════════════════════════════════
-   StudyOS — Responsive (single authoritative block)
-   641-1024px : tablet/iPad — slim sidebar, pomo banner
-   ≤ 640px   : phone — bottom nav, pomo banner, bottom-sheet modals
-═══════════════════════════════════════════════════════════════ */
-
-/* ── All sizes: layout, header, topbar overflows ── */
-#study-root { flex-direction: column; }
-#study-root > .veda-hdr-outer { flex-shrink: 0; }
-#study-root > .app { flex: 1; min-height: 0; overflow: hidden; }
-#study-root .veda-hdr-outer { overflow: hidden; }
-#study-root .veda-hdr-inner { overflow: hidden; min-width: 0; padding-top: calc(env(safe-area-inset-top,0px) + 4px); }
-#study-root .veda-hbtns {
-  overflow-x: auto; flex-wrap: nowrap;
-  justify-content: flex-end;
-  scrollbar-width: none; -ms-overflow-style: none;
-}
-#study-root .veda-hbtns::-webkit-scrollbar { display: none; }
-#study-root .topbar { overflow: hidden; flex-shrink: 0; flex-wrap: nowrap; }
-#study-root .topbar-title {
-  overflow: hidden; text-overflow: ellipsis;
-  white-space: nowrap; min-width: 0; flex: 1;
-}
-/* Topbar pomo pill: shrink so it never pushes layout */
-#study-root #topbar-pomo {
-  flex-shrink: 1; min-width: 0; max-width: 160px; overflow: hidden;
-}
-
-/* ── Pomo banner: hidden by default, JS toggles display ── */
-#sos-pomo-banner { display: none; }
-
-/* ══════════════════════════════════════════════════════
-   TABLET  641px – 1024px
-══════════════════════════════════════════════════════ */
-@media (min-width: 641px) and (max-width: 1024px) {
-  /* Sidebar → icon-only 60px */
-  #study-root .sidebar { width: 60px; min-width: 60px; overflow: hidden; }
-  #study-root .sidebar-logo { padding: 16px 0; align-items: center; }
-  #study-root .sidebar-logo-row { justify-content: center; }
-  #study-root .logo-text { display: none; }
-  #study-root .sidebar-nav { padding: 10px 8px; gap: 4px; }
-  #study-root .nav-item {
-    padding: 10px 0; justify-content: center;
-    border-radius: 6px; font-size: 0; gap: 0;
-  }
-  #study-root .nav-item svg { width: 20px; height: 20px; }
-  #study-root .nav-section-label { display: none; }
-  #study-root #sidebar-classes { display: none; }
-  #study-root .sidebar-bottom { padding: 10px 8px; }
-  #study-root .sos-cloud-sync-label { display: none; }
-  #study-root #sos-cloud-sync-btn { padding: 10px 0; gap: 0; }
-
-  /* Topbar */
-  #study-root .topbar { padding: 0 16px; gap: 10px; }
-  #study-root .topbar-title { font-size: 16px; }
-  #study-root .btn { padding: 6px 10px; font-size: 12px; }
-
-  /* Hide pill in topbar on tablet — use banner below instead */
-  #study-root #topbar-pomo { display: none !important; }
-  /* Pomo banner: elegant pill-style strip */
-  #sos-pomo-banner {
-    background: var(--bg4, #2e2f33);
-    border-bottom: 1px solid var(--border2, #4A4B51);
-    padding: 5px 20px;
-    display: flex; align-items: center; gap: 12px;
-    font-family: var(--mono, 'IBM Plex Mono', monospace);
-    font-size: 13px; font-weight: 700;
-    cursor: pointer; flex-shrink: 0;
-    touch-action: manipulation;
-    color: var(--text, #ECECEE);
-  }
-  #sos-pomo-banner .spb-label {
-    font-size: 10px; text-transform: uppercase;
-    letter-spacing: 1px; color: var(--text3, #76777C);
-  }
-  #sos-pomo-banner .spb-time { flex: 1; }
-  #sos-pomo-banner .spb-play {
-    background: none; border: none; cursor: pointer;
-    color: var(--accent, #8D769A); padding: 0;
-    display: flex; align-items: center;
-    touch-action: manipulation;
-  }
-
-  /* Views */
-  #study-root .view { padding: 16px; }
-  #study-root .view > .detail-header { --sos-view-pad: 16px; }
-
-  /* Stats 2-col */
-  #study-root .stats-bar { flex-wrap: wrap; }
-  #study-root .stat-card { min-width: calc(50% - 6px); }
-
-  /* Calendar stack */
-  #study-root .calendar-container { grid-template-columns: 1fr; }
-  #study-root .cal-cell { min-height: 60px; padding: 6px 8px; }
-
-  /* Class detail stack */
-  #study-root .class-detail-layout { grid-template-columns: 1fr; }
-  #study-root .class-events-panel { position: static; max-height: none; }
-  #study-root .class-panel-body { max-height: var(--sos-panel-max, clamp(160px, 42vh, 380px)); }
-
-  /* Modules tighter */
-  #study-root .modules-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
-
-  /* Notes */
-
-  /* Touch: always show delete/menu */
-  #study-root .module-btn .delete-btn { opacity: 1; }
-  #study-root .module-btn .rename-btn { opacity: 1; }
-  #study-root .module-btn .th-drag-handle { opacity: 0.6; }
-  #study-root .row-drag-handle { opacity: 0.6; }
-  #study-root .class-card-menu { opacity: 1; }
-
-  /* Modals: centered overlay, normal scroll */
-  #study-root .modal { width: 95vw; max-width: 540px; }
-  .sos-modal .modal { width: 95vw; max-width: 540px; }
-}
-
-/* ══════════════════════════════════════════════════════
-   PHONE  ≤ 640px
-══════════════════════════════════════════════════════ */
-@media (max-width: 640px) {
-  /* No sidebar */
-  #study-root .sidebar { display: none !important; }
-
-  /* Header: scrollable, NO scrollbar visible */
-  #study-root .veda-hdr-outer {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    flex-shrink: 0;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-  #study-root .veda-hdr-outer::-webkit-scrollbar { display: none; }
-  #study-root .veda-hdr-inner { flex-wrap: nowrap; gap: 6px; padding: calc(env(safe-area-inset-top,0px) + 6px) 10px 6px; min-width: 0; }
-
-  /* Layout */
-  #study-root { flex-direction: column !important; overflow: hidden; }
-  #study-root .app { flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
-  #study-root .main { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
-
-  /* Topbar compact */
-  #study-root .topbar { height: 48px; min-height: 48px; padding: 0 12px; gap: 8px; }
-  #study-root .topbar-title { font-size: 15px; }
-  #study-root .btn { padding: 5px 10px; font-size: 11px; gap: 4px; }
-  #study-root #sos-sync-status { font-size: 9px; }
-
-  /* The action row holds a sync label plus three buttons; at 390px that is
-   * wider than the bar, and .topbar's `overflow:hidden` silently clipped the
-   * last one ("New Class") instead of letting it be reached. Let the row scroll
-   * horizontally on its own and keep the buttons from being squeezed into
-   * unreadable slivers. The title yields space first — it can ellipsize, the
-   * controls cannot. */
-  #study-root .topbar-actions {
-    flex: 1 1 auto; min-width: 0;
-    overflow-x: auto; overflow-y: hidden;
-    scrollbar-width: none; -ms-overflow-style: none;
-    -webkit-overflow-scrolling: touch;
-    justify-content: flex-end;
-  }
-  #study-root .topbar-actions::-webkit-scrollbar { display: none; }
-  #study-root .topbar-actions > * { flex-shrink: 0; }
-  /* shell.js parks the sync line here once the sidebar is gone. Let it keep its
-   * intrinsic width and let the row scroll instead — flex collapsing it mid-word
-   * rendered "Synced"/"Sync failed" clipped, and truncating a sync state is
-   * worse than scrolling. */
-  #study-root #sos-sync-status {
-    min-width: max-content;
-    overflow: visible;
-  }
-  #study-root .topbar-title {
-    flex: 0 1 auto; min-width: 0;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-
-  /* Hide topbar pomo pill entirely on phone */
-  #study-root #topbar-pomo { display: none !important; }
-
-  /* Pomo banner */
-  #sos-pomo-banner {
-    background: var(--bg4, #2e2f33);
-    border-bottom: 1px solid var(--border2, #4A4B51);
-    padding: 5px 14px;
-    display: flex; align-items: center; gap: 10px;
-    font-family: var(--mono, 'IBM Plex Mono', monospace);
-    font-size: 12px; font-weight: 700;
-    cursor: pointer; flex-shrink: 0;
-    touch-action: manipulation;
-    color: var(--text, #ECECEE);
-  }
-  #sos-pomo-banner .spb-label {
-    font-size: 9px; text-transform: uppercase;
-    letter-spacing: 1px; color: var(--text3, #76777C);
-  }
-  #sos-pomo-banner .spb-time { flex: 1; }
-  #sos-pomo-banner .spb-play {
-    background: none; border: none; cursor: pointer;
-    color: var(--accent, #8D769A); padding: 0;
-    display: flex; align-items: center;
-    touch-action: manipulation;
-  }
-
-  /* Views — pad enough to clear fixed bottom nav + safe area */
-  #study-root .view {
-    flex: 1; overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    padding: 14px;
-    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
-    display: none;
-  }
-  #study-root .view.active { display: block; }
-
-  /* Pomodoro view: flex column so pomo-wrap centers inside it */
-  #study-root #view-pomodoro.active {
-    display: flex; flex-direction: column;
-    overflow-y: auto; -webkit-overflow-scrolling: touch;
-    padding: 16px 16px calc(90px + env(safe-area-inset-bottom, 0px));
-  }
-
-  /* Pomodoro: centered, elegant */
-  #study-root .pomo-wrap {
-    flex: 1; width: 100%;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    gap: 20px; padding: 10px 0; height: auto; min-height: 0;
-  }
-  #study-root .pomo-modes { justify-content: center; flex-wrap: wrap; gap: 6px; }
-  #study-root .pomo-ring-wrap { width: 200px; height: 200px; flex-shrink: 0; }
-  #study-root .pomo-time { font-size: 42px; }
-  #study-root .pomo-controls { justify-content: center; }
-  #study-root .pomo-sessions { justify-content: center; }
-  #study-root .pomo-settings { justify-content: center; gap: 14px; flex-wrap: wrap; width: 100%; max-width: 300px; }
-
-  /* Stats 2-col */
-  #study-root .stats-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
-  #study-root .stat-card { padding: 10px 12px; }
-  #study-root .stat-value { font-size: 22px; }
-  #study-root .stat-label { font-size: 9px; }
-
-  /* Classes grid */
-  #study-root .classes-grid { grid-template-columns: 1fr; gap: 10px; }
-  #study-root .class-card { padding: 14px 16px; }
-  #study-root .class-card-menu { opacity: 1; }
-
-  /* Calendar */
-  #study-root .calendar-container { grid-template-columns: 1fr; gap: 12px; }
-  #study-root .cal-cell { min-height: 44px; padding: 4px 5px; }
-  #study-root .cal-event { font-size: 9px; padding: 1px 4px; }
-  #study-root .day-num { font-size: 11px; width: 18px; height: 18px; }
-  #study-root .cal-header { padding: 12px 14px; }
-  #study-root .cal-day-label { font-size: 9px; padding: 6px 2px; }
-
-  /* Notes: the view's own box, between the topbar and the bottom nav */
-  #study-root #view-notes { padding: 8px 8px calc(66px + env(safe-area-inset-bottom, 0px)); }
-  #study-root .sos-nb-page { min-height: 0; border-radius: 4px; }
-
-  /* Modules */
-  #study-root .module-btn { padding: 14px 16px; }
-  #study-root .module-btn .delete-btn { opacity: 1; }
-  #study-root .modules-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
-
-  /* Class detail */
-  #study-root .class-detail-layout { grid-template-columns: 1fr; gap: 12px; }
-  #study-root .class-events-panel { position: static; max-height: none; }
-  #study-root .class-panel-body { max-height: var(--sos-panel-max, clamp(160px, 42vh, 380px)); }
-  #study-root .detail-header { margin-bottom: 16px; padding-bottom: 14px; }
-  #study-root .view > .detail-header { --sos-view-pad: 14px; padding-top: 8px; }
-  #study-root .detail-title { font-size: 20px; }
-
-  /* Section headers */
-  #study-root .section-header { margin-bottom: 12px; }
-  #study-root .section-header h2 { font-size: 10px; }
-
-  /* Upload zone */
-  #study-root .upload-zone { padding: 18px; }
-
-  /* ── MODALS: bottom-sheet, simple scroll, footer always visible ──
-     Key insight: overflow-y:auto on the modal + NO transform + generous
-     padding-bottom ensures the footer is always reachable by scrolling.
-     No flex, no sticky, no clips — just works on every iOS/Android. */
-  .sos-modal,
-  #study-root .modal-overlay {
-    align-items: flex-end !important;
-    padding: 0 !important;
-  }
-  .sos-modal .modal,
-  #study-root .modal {
-    width: 100vw !important;
-    max-width: 100vw !important;
-    border-radius: 16px 16px 0 0 !important;
-    padding: 22px 18px calc(80px + env(safe-area-inset-bottom, 0px)) !important;
-    max-height: 85vh !important;
-    overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-    transform: none !important;
-    display: block !important;
-    box-sizing: border-box !important;
-    background: #1f2022 !important;
-    border: 1px solid #4A4B51 !important;
-  }
-  /* Modal title stays prominent */
-  .sos-modal .modal-title,
-  #study-root .modal-title {
-    font-size: 18px !important;
-    margin-bottom: 18px !important;
-  }
-  /* Footer: normal block flow, wide buttons */
-  .sos-modal .modal-footer,
-  #study-root .modal-footer {
-    display: flex !important;
-    gap: 10px !important;
-    margin-top: 24px !important;
-    flex-wrap: wrap !important;
-    position: static !important;
-  }
-  .sos-modal .modal-footer .btn,
-  #study-root .modal-footer .btn {
-    flex: 1 !important;
-    justify-content: center !important;
-    min-width: 80px !important;
-    padding: 10px 12px !important;
-    font-size: 13px !important;
-  }
-  /* Module type picker: single column */
-  #modal-add-module .modal > div[style*="grid"] {
-    grid-template-columns: 1fr !important;
-  }
-  /* module-detail modal: full width */
-  #modal-module-detail .modal {
-    width: 100vw !important; max-width: 100vw !important;
-  }
-}
-
-/* ── Bottom nav (phone only) ── */
-#sos-bottom-nav { display: none; }
-@media (max-width: 640px) {
-  #sos-bottom-nav {
-    display: flex;
-    position: fixed; bottom: 0; left: 0; right: 0;
-    z-index: 10050;
-    background: var(--bg2, #1f2022);
-    border-top: 1px solid var(--border, rgba(255,255,255,0.09));
-    padding: 6px 0 max(6px, env(safe-area-inset-bottom));
-    align-items: stretch;
-  }
-  #sos-bottom-nav .sos-bn-item {
-    flex: 1;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    gap: 3px; padding: 4px 2px;
-    cursor: pointer; border: none;
-    background: transparent;
-    color: var(--text3, #76777C);
-    font-family: var(--sans, 'Nunito', sans-serif);
-    font-size: 9px; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0.5px;
-    transition: color 0.15s;
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
-  }
-  #sos-bottom-nav .sos-bn-item svg { width: 20px; height: 20px; flex-shrink: 0; }
-  #sos-bottom-nav .sos-bn-item.active { color: var(--accent, #8D769A); }
-  #sos-bottom-nav .sos-bn-item:active { opacity: 0.7; }
-}
-
-
-/* ── 4. App Lock overlay ──────────────────────────────────────────────────── */
-#applock-overlay {
-  position: fixed; inset: 0; z-index: 2147483000;
-  background: rgba(0,0,0,0.82);
-  display: none;
-  align-items: center; justify-content: center;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-}
-/* ── Lock card ──────────────────────────────────────────────────────────────
-   One authentication surface for the whole suite: a bordered card that holds
-   the mark, the prompt and the form on a single vertical rhythm. Cancel is no
-   longer squeezed beside "Forgot password?" — it sits alone in a ruled footer,
-   which is where a dismiss action belongs and what keeps the card balanced. */
-#applock-box {
-  display: flex; flex-direction: column; align-items: center; gap: 18px;
-  padding: 34px 30px 22px;
-  background: #232327;
-  border: 1px solid rgba(224,184,116,.22);
-  border-radius: 18px;
-  width: 350px; max-width: calc(100vw - 32px);
-  box-shadow: 0 32px 80px rgba(0,0,0,0.7);
+.sos-modal.open { opacity: 1; pointer-events: all; visibility: visible; transition: opacity .22s var(--ease), visibility 0s; }
+#study-root .modal-overlay.sos-modal { z-index: 10100; }
+.sos-modal .modal {
   position: relative;
+  background: linear-gradient(180deg, #211f26 0%, #1a191e 100%);
+  border: 1px solid rgba(228, 214, 242, .1);
+  border-radius: 22px; padding: 24px 26px 20px;
+  width: 520px; max-width: 100%; max-height: min(88vh, 900px);
+  display: flex; flex-direction: column;
+  box-shadow: 0 50px 100px -30px rgba(0, 0, 0, .8), 0 0 0 1px rgba(0, 0, 0, .35), inset 0 1px 0 rgba(255, 255, 255, .05);
+  transform: translateY(12px) scale(.97); opacity: .4;
+  transition: transform .3s var(--ease), opacity .22s;
+  color: var(--text); overflow: hidden;
 }
-@keyframes applock-shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-8px)} 40%,80%{transform:translateX(8px)} }
-#applock-box.shake { animation: applock-shake 0.4s ease; }
-#applock-icon { font-size: 36px; line-height: 1; }
-#applock-head { text-align: center; display: flex; flex-direction: column; gap: 5px; }
-#applock-form { width: 100%; display: flex; flex-direction: column; gap: 10px; }
-#applock-links { display: flex; flex-direction: column; align-items: center; gap: 5px; }
-#applock-foot { width: 100%; padding-top: 14px; border-top: 1px solid #34343a; display: flex; justify-content: center; }
-#applock-title { font-family: var(--suite-display); font-size: 24px; font-weight: 750; letter-spacing: -.4px; color: #f4f3f0; }
-#applock-sub { font-family: var(--font-accent); font-size: 13px; line-height: 1.5; color: #8d8d94; text-align: center; }
-#applock-pw {
-  background: #1a1a1d; border: 1px solid #45454c; border-radius: 6px;
-  color: #f4f3f0; font-size: 16px; font-weight: 600;
-  padding: 13px 16px; font-family: 'Inter', system-ui, -apple-system, sans-serif; outline: none;
-  width: 100%; text-align: center; letter-spacing: 4px; box-sizing: border-box;
-  transition: border-color .18s;
+.sos-modal.open .modal { transform: none; opacity: 1; }
+.sos-modal .modal-wide { width: 860px; }
+.sos-modal .modal-head { display: flex; align-items: center; gap: 13px; margin-bottom: 20px; flex-shrink: 0; }
+.sos-modal .modal-ic { width: 40px; height: 40px; flex-basis: 40px; border-radius: 12px; }
+.sos-modal .modal-ic svg { width: 20px; height: 20px; }
+.sos-modal .modal-title { font-family: var(--display); font-size: 21px; font-weight: 600; letter-spacing: -.3px; color: #F4EEF8; line-height: 1.25; }
+.sos-modal .modal-sub { font-size: 13.5px; color: var(--text3); margin-top: 2px; }
+.sos-modal .modal-scroll-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: 0 -26px; padding: 2px 26px 4px; scrollbar-width: thin; scrollbar-color: rgba(228, 214, 242, .14) transparent; }
+.sos-modal .modal-footer {
+  display: flex; gap: 8px; justify-content: flex-end; align-items: center; flex-shrink: 0;
+  margin: 18px -26px -20px; padding: 14px 26px 18px; border-top: 1px solid var(--border);
+  background: rgba(10, 9, 12, .22);
 }
-#applock-pw:focus { border-color: #e0b874; }
-#applock-pw.error { border-color: #dda398; }
-#applock-err { font-size: 12px; color: #dda398; font-weight: 700; text-align: center; min-height: 16px; }
-#applock-submit {
-  background: #e0b874; color: #1a1a1d; border: 1px solid #e0b874; border-radius: 6px;
-  padding: 12px 0; font-size: 14px; font-weight: 700; cursor: pointer;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif; width: 100%; transition: opacity .15s;
+.sos-modal .modal-footer .footer-sp { flex: 1; }
+.sos-modal .color-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 10px; }
+.sos-modal .color-swatch {
+  aspect-ratio: 1; width: 100%; max-width: 40px; border-radius: 12px; cursor: pointer;
+  border: 2px solid transparent; transition: transform .16s var(--ease), box-shadow .16s;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12);
 }
-#applock-submit:disabled { opacity: 0.55; cursor: default; }
-#applock-cancel {
-  background: transparent; border: none; color: #8d8d94;
-  font-size: 13px; cursor: pointer; font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  padding: 2px 10px; text-decoration: underline; text-underline-offset: 3px; transition: color .15s;
+.sos-modal .color-swatch:hover { transform: scale(1.08); }
+.sos-modal .color-swatch.selected { box-shadow: 0 0 0 2px #1a191e, 0 0 0 4px #F4EEF8; transform: scale(1.06); }
+/* Module type picker */
+.sos-modal .module-type-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.sos-modal .module-type-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 8px; text-align: left;
+  padding: 16px 14px; border-radius: 16px; cursor: pointer; font-family: var(--sans); color: var(--text);
+  background: rgba(228, 214, 242, .035); border: 1px solid var(--border2);
+  transition: transform .2s var(--ease), border-color .2s, background .2s;
 }
-#applock-forgot {
-  background: transparent; border: none; color: #8d8d94;
-  font-size: 12px; cursor: pointer; font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  padding: 0; text-decoration: underline; text-underline-offset: 3px; transition: color .15s;
-}
-#applock-reset {
-  background: transparent; border: none; color: #8d8d94;
-  font-size: 12px; cursor: pointer; font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  padding: 0; text-decoration: underline; text-underline-offset: 3px; text-align: center; transition: color .15s;
-}
-#applock-cancel:hover, #applock-forgot:hover, #applock-reset:hover { color: #adadb2; }
-/* ── Lock-manager rows ───────────────────────────────────────────────────────
-   applock.js builds these buttons as `icon + <span>`, so without the flex line
-   below the glyph sat on the text baseline instead of beside it. The border
-   comes from an inline shorthand in that JS, which is why the hover has to say
-   !important to reach it.
-   --al-glow / --al-glowl are painted on the card from the lock's configured
-   accent (config.js § appLock.accent), so no colour is hardcoded here.
-   `.al-ac` = accent rows (unlock / lock this device now), `.al-dg` = destructive. */
-#applock-box { --al-glow: #8D769A; --al-glowl: rgba(141,118,154,.40); }
-#applock-bio button, #al-menu-btns button {
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  transition: border-color .18s, box-shadow .18s, color .18s;
-}
-#applock-bio button svg, #al-menu-btns button svg { width: 15px; height: 15px; display: block; flex-shrink: 0; }
-@media (hover: hover) and (pointer: fine) {
-  #applock-bio button:hover, #al-menu-btns button:hover {
-    border-color: #adadb2 !important; box-shadow: 0 0 11px rgba(173,173,178,.28);
-  }
-  #al-menu-btns button.al-ac:hover, #applock-bio button:hover {
-    border-color: var(--al-glow) !important; box-shadow: 0 0 12px var(--al-glowl);
-  }
-  #al-menu-btns button.al-dg:hover { border-color: #dda398 !important; box-shadow: 0 0 12px rgba(221,163,152,.32); }
-  #applock-submit:hover:not(:disabled) { box-shadow: 0 0 12px var(--al-glowl); }
-}
-#applock-pw:focus { border-color: var(--al-glow); box-shadow: 0 0 11px var(--al-glowl); }
-#applock-submit, #applock-pw { transition: border-color .18s, box-shadow .18s, opacity .18s; }
-/* Phones: full-bleed card with 46px tap targets, and a scrolling body so a menu
-   carrying biometrics plus every action still fits a short screen. */
-@media (max-width: 520px) {
-  #applock-overlay { padding: 14px; }
-  #applock-box {
-    width: 100%; max-width: none; padding: 28px 20px 18px;
-    max-height: calc(100vh - 28px); max-height: calc(100dvh - 28px);
-    overflow-y: auto; -webkit-overflow-scrolling: touch;
-  }
-  #applock-bio button, #al-menu-btns button { min-height: 46px; font-size: 14px; }
-  #applock-pw, #applock-submit { min-height: 48px; }
-}
-/* Lock icon on nav buttons */
-.tn-btn .applock-badge, .veda-nav-btn .applock-badge {
-  font-size: 10px; margin-left: 3px; opacity: 0.75; pointer-events: none;
-}
-/* Gear icon injected inside TradeHub / WarRoom nav buttons */
-.tn-gear {
-  font-size: 9px; margin-left: 4px; opacity: 0.45; cursor: pointer;
-  pointer-events: auto; line-height: 1; flex-shrink: 0;
-  transition: opacity .15s, transform .2s;
-  display: inline-flex; align-items: center;
-}
-.tn-gear:hover { opacity: 1; transform: rotate(30deg); }
-/* Hide gear on mobile — long-press handles it */
-@media(max-width:900px){ .tn-gear { display: none !important; } }
+.sos-modal .module-type-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--tone, var(--lav)) 50%, transparent); background: color-mix(in srgb, var(--tone, var(--lav)) 7%, transparent); }
+.sos-modal .module-type-card:has(.pink) { --tone: var(--pink); }
+.sos-modal .module-type-card:has(.mint) { --tone: var(--mint); }
+.module-type-ic { width: 36px; height: 36px; flex-basis: 36px; border-radius: 11px; }
+.module-type-ic svg { width: 18px; height: 18px; }
+.sos-modal .module-type-name { font-size: 14.5px; font-weight: 800; }
+.sos-modal .module-type-desc { font-size: 12px; color: var(--text3); line-height: 1.45; }
+.sos-modal .browse-list { max-height: 340px; overflow-y: auto; margin: 0 -6px; padding: 0 6px; }
+.sos-modal .browse-row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: none; border: none; border-radius: 10px; padding: 10px 12px; cursor: pointer; color: var(--text); font-family: inherit; font-size: 14px; font-weight: 600; transition: background .15s; }
+.sos-modal .browse-row:hover, .sos-modal .browse-row:focus-visible { outline: none; background: var(--lav-soft); }
+.sos-modal .browse-row svg { width: 16px; height: 16px; color: var(--accent2); flex-shrink: 0; }
 
-/* ── Pull-to-refresh indicator (js/pulltorefresh.js) ───────────────────────
- * Parked above the top edge and translated down by the gesture. It sits inside
- * #study-root, which is `position:relative`-less but full-viewport, so `fixed`
- * keeps it correct regardless of which .view is scrolling underneath. */
-.sos-ptr {
-  position: fixed;
-  top: 8px; left: 50%;
-  transform: translateX(-50%) translateY(0);
-  opacity: 0;
-  z-index: 10050;              /* above content, below modals */
-  pointer-events: none;        /* never intercepts the touch it is reporting */
-  width: 34px; height: 34px;
-  border-radius: 50%;
-  background: var(--bg4, #2e2f33);
-  border: 1px solid var(--border2, #4A4B51);
-  box-shadow: 0 2px 10px rgba(0,0,0,.35);
-  display: flex; align-items: center; justify-content: center;
-  color: var(--text3, #76777C);
+/* Module detail: the documents / prompts / notes popup */
+.sos-modal .modal-title-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-shrink: 0; min-width: 0; }
+.sos-modal .modal-title-row .modal-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sos-modal .md-type {
+  width: 40px; height: 40px; flex: 0 0 40px; border-radius: 12px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--card-color, var(--lav)); background: color-mix(in srgb, var(--card-color, var(--lav)) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--card-color, var(--lav)) 24%, transparent);
 }
-/* Past the commit threshold: accent colour tells the thumb it can let go. */
-.sos-ptr-ready { color: var(--accent, #8D769A); border-color: var(--accent, #8D769A); }
-.sos-ptr-spinner { display: flex; align-items: center; justify-content: center; }
-.sos-ptr-spin .sos-ptr-spinner {
-  animation: sos-ptr-rot .7s linear infinite;
-  color: var(--accent, #8D769A);
+.sos-modal .md-type:empty { display: none; }
+.sos-modal .md-type svg { width: 20px; height: 20px; }
+.sos-modal .md-spacer { flex: 1; }
+.sos-modal .icon-chip.close { margin-left: 2px; }
+#module-detail-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: 0 -26px; padding: 0 26px 4px; scrollbar-width: thin; scrollbar-color: rgba(228, 214, 242, .14) transparent; }
+/* Make flashcards: a soft pink pill with a sparkle on the cards. */
+.sos-modal .btn.cards-cta {
+  height: 36px; padding: 0 15px 0 12px; border-radius: 999px; gap: 8px;
+  background: linear-gradient(135deg, rgba(240, 179, 203, .2), rgba(201, 180, 216, .16));
+  border: 1px solid rgba(240, 179, 203, .42); color: #F8D3E2;
+  box-shadow: 0 8px 20px -12px rgba(240, 179, 203, .8);
 }
-/* The inline rotate() the drag sets is overridden while spinning, so the
- * animation starts from wherever the pull left it without a visible jump. */
-.sos-ptr-spin .sos-ptr-spinner svg { transform: none !important; }
-@keyframes sos-ptr-rot { to { transform: rotate(360deg); } }
+.sos-modal .btn.cards-cta:hover { background: linear-gradient(135deg, rgba(240, 179, 203, .3), rgba(201, 180, 216, .24)); border-color: rgba(240, 179, 203, .65); color: #fff; }
+.sos-modal .btn.cards-cta svg { width: 17px; height: 17px; }
+#module-detail-cards-btn[hidden] { display: none !important; }
 
-@media (prefers-reduced-motion: reduce) {
-  .sos-ptr-spin .sos-ptr-spinner { animation-duration: 1.6s; }
+/* View / Edit switch */
+.sos-modal .mode-toggle-wrap:not(.sos-nb-host *) {
+  display: inline-flex; align-items: center; gap: 3px; margin-bottom: 16px; padding: 3px;
+  border-radius: 12px; background: rgba(10, 9, 12, .5); border: 1px solid var(--border);
 }
+.sos-modal .mode-seg {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px; border-radius: 9px; border: none;
+  background: transparent; color: var(--text2); font-family: var(--sans); font-size: 13px; font-weight: 700; cursor: pointer; transition: background .18s, color .18s;
+}
+.sos-modal .mode-seg svg { width: 14px; height: 14px; }
+.sos-modal .mode-seg:hover { color: var(--text); }
+.sos-modal .mode-seg.active { background: rgba(228, 214, 242, .1); color: #F4EEF8; box-shadow: inset 0 0 0 1px rgba(228, 214, 242, .1); }
+.sos-modal .mode-seg.active.m-edit { background: var(--pink-soft); color: #F8D3E2; box-shadow: inset 0 0 0 1px rgba(240, 179, 203, .3); }
+.sos-modal .mode-hint { font-size: 12px; color: var(--text3); margin-left: 10px; }
 
-/* ── Global file-drop overlay + destination picker ────────────────────────── */
-/* z-index sits BELOW .sos-modal (10100) so the destination picker draws on top
-   of the overlay, and pointer-events stay off in both states — the drop is
-   handled on `window`, and capturing pointers here would swallow drops meant
-   for the edit-mode upload zone beneath. */
+/* Documents */
+.sos-modal .doc-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.sos-modal .doc-item {
+  display: flex; align-items: center; gap: 12px; min-width: 0;
+  background: rgba(228, 214, 242, .035); border: 1px solid var(--border);
+  border-radius: 14px; padding: 10px 10px 10px 12px; position: relative; cursor: pointer;
+  transition: background .18s, border-color .18s, box-shadow .18s;
+}
+.sos-modal .doc-item:hover { border-color: var(--border3); background: rgba(228, 214, 242, .06); }
+.sos-modal .doc-item.editing { cursor: grab; -webkit-touch-callout: none; user-select: none; }
+.sos-modal .doc-item-icon {
+  width: 40px; height: 40px; flex: 0 0 40px; border-radius: 11px;
+  display: inline-flex; align-items: center; justify-content: center; font-size: 20px;
+  color: var(--ft, var(--lav)); background: color-mix(in srgb, var(--ft, var(--lav)) 13%, transparent);
+}
+.sos-modal .doc-item-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.sos-modal .doc-item-name { font-size: 14px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sos-modal .doc-item-sub { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sos-modal .doc-item-size { font-size: 12px; color: var(--text3); font-weight: 600; font-variant-numeric: tabular-nums; }
+.sos-modal .doc-item-cloud {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+  color: var(--text3); background: rgba(228, 214, 242, .05);
+}
+.sos-modal .doc-item-cloud svg { width: 11px; height: 11px; }
+.sos-modal .doc-item-cloud.is-ok   { color: var(--mint); background: var(--mint-soft); }
+.sos-modal .doc-item-cloud.is-warn { color: var(--peach); background: var(--peach-soft); }
+.sos-modal .doc-item-cloud.is-up   { color: var(--sky); background: var(--sky-soft); }
+.sos-modal .doc-item-acts { display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+.sos-modal .doc-item-act {
+  display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 11px; border-radius: 9px;
+  border: 1px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer;
+  font-family: var(--sans); font-size: 12px; font-weight: 700; white-space: nowrap;
+  transition: background .16s, color .16s, border-color .16s;
+}
+.sos-modal .doc-item-act:hover { background: var(--lav-soft); color: var(--lav); border-color: rgba(201, 180, 216, .45); }
+.sos-modal .doc-item-act[data-act="breakdown"]:hover { background: var(--pink-soft); color: var(--pink); border-color: rgba(240, 179, 203, .45); }
+.sos-modal .doc-item-act svg { width: 13px; height: 13px; }
+.sos-modal .doc-empty { font-size: 13.5px; color: var(--text3); padding: 24px 0; text-align: center; }
+.sos-modal .upload-zone {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  border: 1.5px dashed rgba(201, 180, 216, .3); border-radius: 16px;
+  padding: 26px 20px; text-align: center; cursor: pointer;
+  background: linear-gradient(135deg, rgba(201, 180, 216, .04), rgba(240, 179, 203, .04));
+  color: var(--text2); font-size: 13.5px; transition: border-color .18s, background .18s;
+}
+.sos-modal .upload-zone:hover, .sos-modal .upload-zone.over { border-color: var(--pink); background: linear-gradient(135deg, rgba(201, 180, 216, .08), rgba(240, 179, 203, .08)); }
+.sos-modal .upload-zone .uz-ic { width: 42px; height: 42px; border-radius: 13px; display: inline-flex; align-items: center; justify-content: center; background: var(--pink-soft); color: var(--pink); margin-bottom: 4px; }
+.sos-modal .upload-zone .uz-ic svg { width: 20px; height: 20px; }
+.sos-modal .upload-zone b { color: var(--text); font-size: 14px; }
+.sos-modal .upload-zone small { color: var(--text3); font-size: 12px; }
+.sos-modal .upload-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+
+/* Prompts */
+.sos-modal .prompt-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.sos-modal .prompt-entry {
+  background: rgba(228, 214, 242, .035); border: 1px solid var(--border);
+  border-radius: 14px; padding: 14px 14px 12px; position: relative;
+  transition: background .18s, border-color .18s;
+}
+.sos-modal .prompt-entry:hover { border-color: var(--border3); }
+.sos-modal .prompt-entry.editing { cursor: grab; -webkit-touch-callout: none; }
+.sos-modal .prompt-entry-text { font-size: 13px; font-family: var(--mono); color: var(--text); line-height: 1.65; white-space: pre-wrap; word-break: break-word; margin-bottom: 10px; max-height: 260px; overflow-y: auto; }
+.sos-modal .prompt-entry-text textarea { width: 100%; font-family: var(--mono); font-size: 12.5px; background: rgba(10, 9, 12, .5); color: var(--text); border: 1px solid var(--border2); border-radius: 10px; padding: 10px 12px; resize: vertical; outline: none; }
+.sos-modal .prompt-entry-text textarea:focus { border-color: rgba(201, 180, 216, .6); box-shadow: var(--ring); }
+.sos-modal .prompt-entry-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+.sos-modal .prompt-copy-btn, .sos-modal .prompt-del-btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 9px;
+  background: transparent; border: 1px solid var(--border2); color: var(--text2); cursor: pointer;
+  font-family: var(--sans); font-size: 12px; font-weight: 700; transition: background .16s, color .16s, border-color .16s;
+}
+.sos-modal .prompt-copy-btn svg, .sos-modal .prompt-del-btn svg { width: 13px; height: 13px; }
+.sos-modal .prompt-copy-btn:hover { background: var(--lav-soft); color: var(--lav); border-color: rgba(201, 180, 216, .45); }
+.sos-modal .prompt-copy-btn.copied { color: var(--mint); border-color: rgba(168, 220, 192, .5); background: var(--mint-soft); }
+.sos-modal .prompt-del-btn:hover { background: var(--rose-soft); color: var(--rose); border-color: rgba(242, 175, 175, .45); }
+.sos-modal .add-prompt-row { display: flex; gap: 10px; align-items: flex-end; }
+.sos-modal .add-prompt-row textarea { flex: 1; height: auto; min-height: 84px; padding: 12px 14px; font-family: var(--mono); font-size: 13px; resize: vertical; line-height: 1.55; }
+
+/* Pick destination */
+.sos-modal .pick-dest-summary { font-size: 12.5px; color: var(--text2); margin: -8px 0 14px; word-break: break-word; }
+.sos-modal #pick-dest-list { max-height: 46vh; overflow-y: auto; margin: 0 -4px; padding: 0 4px; }
+.sos-modal .pick-dest-row {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 11px 14px; margin-bottom: 6px; border-radius: 12px;
+  background: rgba(228, 214, 242, .035); border: 1px solid var(--border);
+  border-left: 3px solid var(--rowc, transparent);
+  cursor: pointer; text-align: left; transition: background .16s, border-color .16s;
+  font-family: var(--sans); color: var(--text);
+}
+.sos-modal .pick-dest-row:hover, .sos-modal .pick-dest-row:focus { outline: none; background: var(--lav-soft); border-color: rgba(201, 180, 216, .4); }
+.sos-modal .pick-dest-row.is-last { border-color: rgba(240, 179, 203, .4); background: var(--pink-soft); }
+.sos-modal .pick-dest-main { flex: 1; min-width: 0; }
+.sos-modal .pick-dest-class { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 2px; }
+.sos-modal .pick-dest-mod { font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sos-modal .pick-dest-count { font-size: 12px; color: var(--text3); flex-shrink: 0; font-weight: 600; }
+.sos-modal .pick-dest-empty { font-size: 13.5px; color: var(--text2); padding: 18px 4px; text-align: center; }
+
+/* ── 10. Toasts, drop overlay, pull to refresh ────────────────────────────── */
+.notif-container {
+  position: fixed; top: calc(env(safe-area-inset-top, 0px) + 16px); right: 16px; z-index: 10700;
+  display: flex; flex-direction: column; gap: 10px; pointer-events: none; width: min(380px, calc(100vw - 32px));
+}
+#study-root .notif, .notif {
+  display: flex; align-items: flex-start; gap: 12px; padding: 14px 14px 14px 14px;
+  background: linear-gradient(180deg, rgba(36, 34, 42, .96), rgba(29, 28, 34, .96));
+  border: 1px solid rgba(228, 214, 242, .12); border-radius: 16px;
+  box-shadow: 0 24px 50px -20px rgba(0, 0, 0, .75);
+  backdrop-filter: blur(10px);
+  transform: translateX(calc(100% + 24px)); opacity: 0;
+  transition: transform .42s cubic-bezier(.2, 1.1, .3, 1), opacity .3s;
+  pointer-events: all; font-family: var(--sans); color: var(--text);
+}
+.notif.show { transform: none; opacity: 1; }
+.notif-icon {
+  width: 34px; height: 34px; flex: 0 0 34px; border-radius: 11px; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--tone, var(--lav)); background: color-mix(in srgb, var(--tone, var(--lav)) 15%, transparent); font-size: 17px;
+}
+.notif-icon:empty { display: none; }
+.notif-icon svg { width: 17px; height: 17px; }
+.notif-text { flex: 1; min-width: 0; padding-top: 1px; }
+.notif-title { font-size: 14px; font-weight: 800; color: #F4EEF8; margin-bottom: 2px; }
+.notif-body { font-size: 13px; color: var(--text2); line-height: 1.45; overflow-wrap: anywhere; }
+.notif-close { width: 26px; height: 26px; flex: 0 0 26px; border-radius: 8px; border: none; background: transparent; color: var(--text3); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.notif-close:hover { background: rgba(228, 214, 242, .07); color: var(--text); }
+.notif-close svg { width: 13px; height: 13px; }
+
 #sos-drop-overlay {
   position: fixed; inset: 0; z-index: 10050;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(15,16,18,0.72); backdrop-filter: blur(2px);
-  opacity: 0; visibility: hidden; pointer-events: none;
-  transition: opacity 0.12s ease;
+  background: rgba(10, 9, 12, .66); backdrop-filter: blur(6px);
+  opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .14s ease;
 }
 #sos-drop-overlay.open { opacity: 1; visibility: visible; pointer-events: none; }
 #sos-drop-overlay .sos-drop-card {
-  border: 2px dashed #8D769A; border-radius: 14px;
-  padding: 40px 56px; text-align: center; background: rgba(38,39,42,0.92);
+  border: 2px dashed rgba(240, 179, 203, .55); border-radius: 26px;
+  padding: 44px 60px; text-align: center; background: rgba(29, 28, 34, .9);
+  box-shadow: 0 40px 80px -30px rgba(0, 0, 0, .8);
 }
-#sos-drop-overlay .sos-drop-icon { color: #8D769A; margin-bottom: 12px; }
-#sos-drop-overlay .sos-drop-icon svg { width: 34px; height: 34px; }
-#sos-drop-overlay .sos-drop-title {
-  font-family: 'Lora', serif; font-size: 19px; font-weight: 700; color: #ECECEE;
+#sos-drop-overlay .sos-drop-icon { display: inline-flex; width: 58px; height: 58px; border-radius: 18px; align-items: center; justify-content: center; color: #F0B3CB; background: rgba(240, 179, 203, .13); margin-bottom: 14px; }
+#sos-drop-overlay .sos-drop-icon svg { width: 28px; height: 28px; }
+#sos-drop-overlay .sos-drop-title { font-family: 'Lora', serif; font-size: 21px; font-weight: 600; color: #F4EEF8; }
+#sos-drop-overlay .sos-drop-sub { font-family: 'Nunito', sans-serif; font-size: 13px; color: #B9B4C3; margin-top: 6px; }
+
+.sos-ptr {
+  position: fixed; top: 8px; left: 50%;
+  transform: translateX(-50%) translateY(0); opacity: 0;
+  z-index: 10050; pointer-events: none;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: #25232b; border: 1px solid rgba(228, 214, 242, .14);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .4);
+  display: flex; align-items: center; justify-content: center; color: #827D8D;
 }
-#sos-drop-overlay .sos-drop-sub {
-  font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #AFB0B5; margin-top: 6px;
+.sos-ptr-ready { color: #F0B3CB; border-color: rgba(240, 179, 203, .5); }
+.sos-ptr-spinner { display: flex; align-items: center; justify-content: center; }
+.sos-ptr-spin .sos-ptr-spinner { animation: sos-ptr-rot .7s linear infinite; color: #C9B4D8; }
+.sos-ptr-spin .sos-ptr-spinner svg { transform: none !important; }
+@keyframes sos-ptr-rot { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .sos-ptr-spin .sos-ptr-spinner { animation-duration: 1.6s; } }
+
+/* ── NOTES: V's Notebook (js/sos-notebook.js) ─────────────────────────────── */
+#study-root #view-notes.active { display: flex; flex-direction: column; }
+#study-root .sos-nb-page { position: relative; flex: 1; min-height: 360px; border: 1px solid var(--border); border-radius: var(--radius3); overflow: hidden; background: #1B1C1E; }
+.sos-nb-host[data-nb-loading]::before { content: 'Opening notes…'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #827D8D; font-family: 'Nunito', sans-serif; font-size: 13px; z-index: 1; }
+.sos-nb-msg { padding: 28px 18px; text-align: center; color: #B9B4C3; font-family: 'Nunito', sans-serif; font-size: 13px; }
+
+/* ── 11. Tablet + phone ───────────────────────────────────────────────────── */
+#sos-pomo-banner { display: none; }
+@media (max-width: 1280px) {
+  #study-root .stats-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #study-root .calendar-container { grid-template-columns: minmax(0, 1fr) 300px; }
+}
+@media (max-width: 1100px) {
+  #study-root #sos-planner-row { grid-template-columns: minmax(0, 1fr); }
+  #study-root .class-detail-layout { grid-template-columns: minmax(0, 1fr); }
+  #study-root .class-side { position: static; display: grid; grid-template-columns: 1fr 1fr; }
+  #study-root .class-events-panel { max-height: 420px; }
+  #study-root .calendar-container { grid-template-columns: minmax(0, 1fr); }
+  #study-root .timeline-panel { position: static; }
+  #study-root #upcoming-list { max-height: none; }
+}
+/* Tablet: the sidebar starts collapsed (shell.js) and the timer strip shows. */
+@media (min-width: 641px) and (max-width: 1024px) {
+  #study-root .topbar { padding: 0 20px; }
+  #study-root .view { padding: 22px 22px 40px; }
+  #study-root .view > .detail-header { --sos-view-pad: 22px; top: -22px; padding-top: 22px; margin-top: -22px; }
+  #study-root #topbar-pomo { display: none !important; }
+  #study-root .btn-label { display: none; }
+  #study-root .topbar-actions .btn { width: 40px; padding: 0; }
+}
+@media (max-width: 1024px) {
+  #sos-pomo-banner {
+    display: none; align-items: center; gap: 10px; flex-shrink: 0; cursor: pointer;
+    padding: 7px 18px; font-weight: 800; font-size: 13.5px; font-variant-numeric: tabular-nums;
+    background: linear-gradient(90deg, rgba(201, 180, 216, .12), rgba(240, 179, 203, .1));
+    border-bottom: 1px solid var(--border2); color: var(--text); touch-action: manipulation;
+  }
+  #sos-pomo-banner .spb-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--pink); animation: sosPulse 1.8s ease-in-out infinite; }
+  #sos-pomo-banner .spb-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text3); }
+  #sos-pomo-banner .spb-time { flex: 1; }
+  #sos-pomo-banner .spb-play { width: 28px; height: 28px; border-radius: 50%; border: none; background: var(--accent); color: #fff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+}
+@media (max-width: 640px) {
+  #study-root .sidebar { display: none !important; }
+  #study-root .topbar { height: calc(56px + env(safe-area-inset-top, 0px)); min-height: 0; padding: env(safe-area-inset-top, 0px) 12px 0 16px; gap: 10px; }
+  #study-root .topbar-title { font-size: 19px; }
+  #study-root .topbar-eyebrow { display: none; }
+  #study-root .btn-label { display: none; }
+  #study-root .topbar-actions { gap: 6px; }
+  #study-root .topbar-actions .btn { width: 38px; height: 38px; padding: 0; border-radius: 11px; }
+  #study-root #topbar-pomo { display: none !important; }
+  #study-root #sos-sync-status { display: none; }
+
+  #study-root .view { padding: 18px 16px calc(96px + env(safe-area-inset-bottom, 0px)); }
+  #study-root #view-notes { padding: 8px 8px calc(74px + env(safe-area-inset-bottom, 0px)); }
+  #study-root .sos-nb-page { min-height: 0; border-radius: 12px; }
+  #study-root .view > .detail-header { --sos-view-pad: 16px; top: -18px; padding: 18px 16px 14px; margin: -18px -16px 18px; }
+
+  #study-root .dash-hero { align-items: stretch; flex-direction: column; margin-bottom: 18px; gap: 14px; }
+  #study-root .dash-start { width: 100%; }
+  #study-root .dash-start .btn.primary { flex: 1; }
+  #study-root .stats-bar { gap: 10px; }
+  #study-root .stat-card { padding: 14px; gap: 10px; flex-direction: column; }
+  #study-root .stat-ic { width: 32px; height: 32px; flex-basis: 32px; border-radius: 10px; }
+  #study-root .stat-value { font-size: 24px; }
+  #study-root .stat-sub { display: none; }
+  #study-root .classes-grid { grid-template-columns: 1fr; gap: 12px; }
+  #study-root .sos-pq-item { grid-template-columns: 24px minmax(0, 1fr); }
+  #study-root .sos-pq-actions { grid-column: 2; }
+  #study-root .sos-exam-item { padding: 12px 14px; }
+
+  #study-root .cal-header { padding: 14px 12px 10px 16px; }
+  #study-root .cal-header h3 { font-size: 19px; }
+  #study-root .cal-days, #study-root .cal-cells { padding-left: 6px; padding-right: 6px; gap: 3px; }
+  #study-root .cal-cell { min-height: 58px; padding: 4px 3px; border-radius: 9px; }
+  #study-root .day-num { font-size: 11.5px; width: 22px; height: 22px; border-radius: 7px; }
+  #study-root .cal-event, #study-root .cal-task { font-size: 0; padding: 0; height: 5px; border-radius: 3px; background: var(--c); }
+  #study-root .cal-event::before, #study-root .cal-task .cal-box { display: none; }
+  #study-root .cal-more { font-size: 9.5px; padding: 0 2px; }
+
+  #study-root .class-side { grid-template-columns: 1fr; }
+  #study-root .detail-title { font-size: 24px; }
+  #study-root .detail-actions { width: 100%; }
+  #study-root .detail-actions .btn.primary { flex: 1; }
+  #study-root .modules-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  #study-root .module-btn { min-height: 120px; padding: 14px 12px 12px; }
+  #study-root .module-btn-acts { position: absolute; top: 10px; right: 10px; }
+
+  #study-root .pomo-card { padding: 18px 18px 22px; border-radius: 24px; }
+
+  /* Modals: bottom sheets, footer always reachable. */
+  .sos-modal { align-items: flex-end; padding: 0; }
+  .sos-modal .modal, .sos-modal .modal-wide {
+    width: 100%; max-height: 92vh; max-height: 92dvh; border-radius: 24px 24px 0 0;
+    padding: 20px 18px 0; transform: translateY(40px); border-bottom: none;
+  }
+  .sos-modal .modal-scroll-body, #module-detail-body { margin: 0 -18px; padding: 2px 18px 4px; }
+  .sos-modal .modal-footer { margin: 16px -18px 0; padding: 12px 18px calc(env(safe-area-inset-bottom, 0px) + 14px); flex-wrap: wrap; }
+  .sos-modal .modal-footer .btn { flex: 1; min-width: 96px; height: 44px; }
+  .sos-modal .modal-footer .footer-sp { display: none; }
+  .sos-modal .field-row { grid-template-columns: 1fr; gap: 0; margin-bottom: 0; }
+  .sos-modal .field-row > .field { margin-bottom: 16px; }
+  .sos-modal .field-row.tight { gap: 10px; }
+  .sos-modal .field-row.tight > * { margin-bottom: 0; }
+  .sos-modal .field input:not([type=checkbox]), .sos-modal .sosc-trigger, .sos-modal textarea, .sosc-numin { font-size: 16px !important; }
+  .sos-modal .module-type-grid { grid-template-columns: 1fr; }
+  .sos-modal .module-type-card { flex-direction: row; align-items: center; flex-wrap: wrap; }
+  .sos-modal .module-type-desc { flex-basis: 100%; }
+  .sos-modal .color-grid { grid-template-columns: repeat(8, 1fr); gap: 7px; }
+  .sos-modal .doc-item { flex-wrap: wrap; }
+  .sos-modal .doc-item-acts { flex-basis: 100%; justify-content: flex-start; padding-left: 52px; }
+  .sos-modal .btn.cards-cta span { display: none; }
+  .sos-modal .btn.cards-cta { width: 36px; padding: 0; justify-content: center; }
+  .notif-container { top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 84px); right: 12px; left: 12px; width: auto; }
+  .notif { transform: translateY(24px); }
 }
 
-.sos-modal .pick-dest-summary {
-  font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #AFB0B5;
-  margin: -8px 0 14px; word-break: break-word;
-}
-.sos-modal #pick-dest-list { max-height: 46vh; overflow-y: auto; margin: 0 -4px; padding: 0 4px; }
-.sos-modal .pick-dest-row {
-  display: flex; align-items: center; gap: 10px; width: 100%;
-  padding: 10px 12px; margin-bottom: 6px; border-radius: 6px;
-  background: #26272A; border: 1px solid rgba(255,255,255,0.09);
-  border-left: 3px solid transparent;
-  cursor: pointer; text-align: left; transition: all 0.15s;
-  font-family: 'Nunito', sans-serif; color: #ECECEE;
-}
-.sos-modal .pick-dest-row:hover { background: #2e2f33; border-color: #8D769A; }
-.sos-modal .pick-dest-row:focus { outline: none; background: #2e2f33; border-color: #8D769A; }
-.sos-modal .pick-dest-row.is-last { border-left-color: #8D769A; }
-.sos-modal .pick-dest-main { flex: 1; min-width: 0; }
-.sos-modal .pick-dest-class {
-  font-family: 'Lora', serif; font-size: 9px; font-weight: 800;
-  text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 2px;
-}
-.sos-modal .pick-dest-mod {
-  font-size: 13px; font-weight: 700; overflow: hidden;
-  text-overflow: ellipsis; white-space: nowrap;
-}
-.sos-modal .pick-dest-count {
-  font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #AFB0B5; flex-shrink: 0;
-}
-.sos-modal .pick-dest-empty {
-  font-size: 13px; color: #AFB0B5; padding: 18px 4px; text-align: center;
+/* Phone bottom nav */
+#sos-bottom-nav { display: none; }
+@media (max-width: 640px) {
+  #sos-bottom-nav {
+    display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 10050;
+    background: rgba(23, 22, 27, .88); backdrop-filter: blur(16px) saturate(130%);
+    border-top: 1px solid rgba(228, 214, 242, .08);
+    padding: 6px 4px max(8px, env(safe-area-inset-bottom));
+  }
+  #sos-bottom-nav .sos-bn-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 4px; padding: 6px 2px; cursor: pointer; border: none; background: transparent;
+    color: #827D8D; font-family: 'Nunito', sans-serif; font-size: 10px; font-weight: 800; letter-spacing: .3px;
+    transition: color .18s; -webkit-tap-highlight-color: transparent; touch-action: manipulation; position: relative;
+  }
+  #sos-bottom-nav .sos-bn-item svg { width: 22px; height: 22px; flex-shrink: 0; }
+  #sos-bottom-nav .sos-bn-item.active { color: #E7D9F0; }
+  #sos-bottom-nav .sos-bn-item.active::before {
+    content: ''; position: absolute; top: 0; left: 30%; right: 30%; height: 3px; border-radius: 0 0 3px 3px;
+    background: linear-gradient(90deg, #C9B4D8, #F0B3CB);
+  }
+  #sos-bottom-nav .sos-bn-item:active { opacity: .7; }
 }
 
-/* ── A Notes module's modal: V's Notebook on the module's folder ─────────────
-   (js/sos-notebook.js). The modal grows to hold the editor and the notes fill
-   what is left under the title row; on a phone it is the whole screen, over
-   the bottom nav, with Close at the foot. Last in the file so it outranks the
-   phone bottom-sheet rules above (same weight, !important). */
-#module-detail-cards-btn[hidden] { display: none !important; }
+/* ── 12. Notes mode: V's Notebook inside a Notes module ───────────────────── */
 #module-detail-modal.notes-mode {
-  width: min(1320px, 96vw) !important; max-width: 96vw !important;
-  height: 92vh; height: 92dvh; max-height: 92dvh !important;
-  display: flex !important; flex-direction: column; overflow: hidden !important;
-  padding: 16px 18px 12px !important;
+  width: min(1320px, 96vw); max-width: 96vw;
+  height: 92vh; height: 92dvh; max-height: 92dvh;
+  padding: 16px 18px 12px;
 }
-#module-detail-modal.notes-mode .modal-title { margin-bottom: 10px !important; flex-shrink: 0; }
-#module-detail-modal.notes-mode #module-detail-body,
+#module-detail-modal.notes-mode .modal-title-row { margin-bottom: 10px; }
+#module-detail-modal.notes-mode #module-detail-body { margin: 0; padding: 0; overflow: hidden; display: flex; flex-direction: column; }
 #module-detail-modal.notes-mode #module-detail-body > div { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-#module-detail-modal.notes-mode .modal-footer { margin-top: 10px !important; flex-shrink: 0; }
-.sos-nb-modal-host { position: relative; flex: 1; min-height: 0; border: 1px solid rgba(255,255,255,0.09); border-radius: 6px; overflow: hidden; background: #1B1C1E; }
+#module-detail-modal.notes-mode .modal-footer { display: none; }
+.sos-nb-modal-host { position: relative; flex: 1; min-height: 0; border: 1px solid rgba(228, 214, 242, .08); border-radius: 14px; overflow: hidden; background: #1B1C1E; }
 @media (max-width: 640px) {
   #module-detail-modal.notes-mode {
-    width: 100vw !important; max-width: 100vw !important;
-    height: 100vh; height: 100dvh; max-height: 100dvh !important;
-    border-radius: 0 !important; border: none !important;
-    padding: calc(env(safe-area-inset-top, 0px) + 10px) 8px calc(env(safe-area-inset-bottom, 0px) + 8px) !important;
+    width: 100vw; max-width: 100vw;
+    height: 100vh; height: 100dvh; max-height: 100dvh;
+    border-radius: 0; border: none;
+    padding: calc(env(safe-area-inset-top, 0px) + 10px) 8px calc(env(safe-area-inset-bottom, 0px) + 8px);
   }
-  #module-detail-modal.notes-mode .modal-title { font-size: 16px !important; margin-bottom: 8px !important; }
-  #module-detail-modal.notes-mode #module-detail-cards-btn span { display: none; }
-  #module-detail-modal.notes-mode .modal-footer { margin-top: 8px !important; }
-  #module-detail-modal.notes-mode .modal-footer .btn { padding: 8px 12px !important; }
-  .sos-nb-modal-host { border-radius: 4px; }
+  .sos-nb-modal-host { border-radius: 10px; }
+}
+
+/* ── Feature-module touches (lesson reader, topics, cards, review) ───────────
+   Their own stylesheets come from js/modules; these give the icons that
+   replaced their old glyphs (← → ✓ ✕ ★ ↶) a size and a line to sit on. */
+.sl-back, .sl-nav button, .sl-topicnav button, .sc-btn, .sos-review-x, .sos-review-tools button, .sos-topics .bd-imp, .sos-topics .bd-info {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+}
+.sl-back .soi, .sl-nav .soi, .sc-btn .soi, .sos-review-x .soi, .sos-review-tools .soi, .sos-topics .bd-imp .soi, .sos-topics .bd-info .soi { width: 14px; height: 14px; }
+.sl-back { justify-content: flex-start; }
+.sl-nav button, .sl-inline-btn { border-radius: 11px !important; height: 40px; padding: 0 16px !important; }
+.sl-nav button.primary, .sl-inline-btn.primary { background: linear-gradient(135deg, #9A83A8, #8D769A) !important; color: #fff !important; border-color: rgba(201, 180, 216, .35) !important; }
+.sl-card { border-radius: 18px !important; }
+.sl-choice { border-radius: 11px !important; }
+.sos-topics .bd-num .soi { width: 12px; height: 12px; }
+.sos-topics .bd-num.done { background: linear-gradient(135deg, #C9B4D8, #F0B3CB) !important; border-color: transparent !important; color: #1a181e !important; }
+.sos-topics .bd-head .bd-imp { border-color: rgba(240, 179, 203, .5) !important; color: #F6CADB !important; border-radius: 999px !important; }
+.sos-topics .bd-head .bd-imp:hover { background: rgba(240, 179, 203, .16) !important; color: #fff !important; }
+.sc-btn { border-radius: 10px !important; }
+.sc-btn.sc-x { width: 34px; padding: 0 !important; }
+.sc-btn.primary { background: linear-gradient(135deg, #9A83A8, #8D769A) !important; }
+.sos-review-typed .soi { width: 14px; height: 14px; vertical-align: -2px; }
+.sos-ai-sheet .modal-title { margin-bottom: 16px; }
+.sos-ai-sheet .modal-footer:empty { display: none; }
+/* Lora's numerals are old-style (a "0" reads as an "o"): every number in a
+   display face uses lining figures. */
+#study-root .stat-value, #study-root .pomo-time, #study-root .sos-exam-cd-days, #study-root .tl-date b,
+#study-root .detail-title, #study-root .dash-greet, #study-root .class-mono, #study-root .cal-header h3,
+.sosc-cal-t, #sos-intro .sos-intro-word { font-variant-numeric: lining-nums tabular-nums; font-feature-settings: "lnum" 1, "tnum" 1; }
+@media (max-width: 640px) {
+  /* The class page's one wide button keeps its words. */
+  #study-root .detail-actions .btn.primary .btn-label { display: inline; }
 }

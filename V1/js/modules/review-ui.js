@@ -42,6 +42,7 @@ import * as cards from './cards.js';
 import { renderCard, closeEnough, escapeHtml as esc } from './md.js';
 import { store } from './store.js';
 import { cardSettings } from './card-settings.js';
+import { ic } from './icons.js';
 
 const G = { AGAIN: 1, HARD: 2, GOOD: 3, EASY: 4 };
 const GRADES4 = [
@@ -62,9 +63,9 @@ function styleOnce() {
   el.textContent = `
 .sos-review {
   /* Tokens are scoped to #study-root and this mounts outside it. */
-  --bg:#1B1C1E; --bg2:#1f2022; --bg3:#26272A; --bg4:#2e2f33;
-  --border:rgba(255,255,255,0.09); --text:#ECECEE; --text2:#AFB0B5; --text3:#76777C;
-  --accent:#8D769A; --good:#7fc8a0; --bad:#e39a9a; --mono:'IBM Plex Mono',monospace; --sans:'Nunito',sans-serif;
+  --bg:#131216; --bg2:#17161b; --bg3:#1d1c22; --bg4:#25232b;
+  --border:rgba(255,255,255,0.09); --text:#EFECF3; --text2:#B9B4C3; --text3:#827D8D;
+  --accent:#8D769A; --good:#A8DCC0; --bad:#F2AFAF; --mono:'IBM Plex Mono',monospace; --sans:'Nunito',sans-serif;
   position:fixed; inset:0; z-index:10300; background:var(--bg2);
   display:flex; flex-direction:column; color:var(--text); font-family:var(--sans);
   padding-top:env(safe-area-inset-top,0px);
@@ -193,7 +194,7 @@ export function startReview(scope = {}, opts = {}) {
       ? `${c.waiting} new card${c.waiting === 1 ? ' waits' : 's wait'} in lessons you haven't opened yet.`
       : mode === 'learn' && !deck.newRemaining(Date.now(), scope.classId) ? 'You have learned today\'s new cards. More tomorrow.'
       : 'No cards are waiting for this selection.';
-    try { window.showNotif && window.showNotif('✅', 'Nothing to study', why); } catch (e) {}
+    try { window.showNotif && window.showNotif('check', 'Nothing to study', why); } catch (e) {}
     return null;
   }
 
@@ -208,7 +209,7 @@ export function startReview(scope = {}, opts = {}) {
   el.className = 'sos-review';
   el.innerHTML = `
     <div class="sos-review-top">
-      <button class="sos-review-x" data-close title="Close (Esc)">✕</button>
+      <button class="sos-review-x" data-close title="Close (Esc)" aria-label="Close">${ic('x')}</button>
       <span class="sos-review-crumb" data-crumb></span>
       <span data-count></span>
     </div>
@@ -299,7 +300,7 @@ export function startReview(scope = {}, opts = {}) {
       : `<div class="sos-review-a">${renderCard(f.back)}</div>`;
     const typedHtml = revealed && typed != null
       ? `<div class="sos-review-typed" style="color:${closeEnough(typed, f.answer) ? 'var(--good)' : 'var(--bad)'}">${
-          closeEnough(typed, f.answer) ? '✓' : '✗'} you typed: ${esc(typed || '(nothing)')}</div>` : '';
+          closeEnough(typed, f.answer) ? ic('checkBold') : ic('x')} you typed: ${esc(typed || '(nothing)')}</div>` : '';
     body.innerHTML = `
       <div class="sos-review-face${flip ? ' flip' : ''}" data-face>
         <div class="sos-review-col">
@@ -315,7 +316,7 @@ export function startReview(scope = {}, opts = {}) {
       </div>
       ${revealed ? `<div class="sos-review-bar">${buttonsHtml(u, isLearn)}</div>` : ''}
       <div class="sos-review-tools">
-        <button data-act="undo" title="Undo (U)" ${history.length ? '' : 'disabled'}>↶ undo</button>
+        <button data-act="undo" title="Undo (U)" ${history.length ? '' : 'disabled'}>${ic('undo')}<span>undo</span></button>
         <button data-act="edit" title="Edit (E)">edit</button>
         <button data-act="archive" title="Archive (A)">archive</button>
         <button data-act="delete" title="Delete (Del)">delete</button>
@@ -488,11 +489,15 @@ export function startReview(scope = {}, opts = {}) {
       return;
     }
     if (act === 'delete') {
-      snapshot('delete');
-      deck.remove(card.classId, card.id);
-      stats.deleted++;
-      dropCard(card.id); revealed = false; typed = null;
-      render(); toast('Card deleted.');
+      // Every delete asks first (Tony, 2026-10-29); Undo still brings it back.
+      window.uiConfirm('It leaves your reviews and its schedule. Undo brings it back.', { title: 'Delete this card?', okLabel: 'Delete', danger: true }).then((ok) => {
+        if (!ok) return;
+        snapshot('delete');
+        deck.remove(card.classId, card.id);
+        stats.deleted++;
+        dropCard(card.id); revealed = false; typed = null;
+        render(); toast('Card deleted.');
+      });
     }
   }
 
@@ -558,6 +563,7 @@ export function startReview(scope = {}, opts = {}) {
   }
 
   function onKey(e) {
+    if (window.uiIsOpen && window.uiIsOpen()) return;   // a StudyOS dialog is answering
     if (helpOpen) { e.preventDefault(); el.querySelector('.sos-review-help').click(); return; }
     if (editing) return;                               // the editor's own handler
     if (e.target && /input|textarea/i.test(e.target.tagName)) {
@@ -621,7 +627,7 @@ function openSource(card) {
       return;
     }
     if (window.switchView) window.switchView('class', card.classId);
-    window.showNotif && window.showNotif('📄', 'Source', card.sourceTitle
+    window.showNotif && window.showNotif('file', 'Source', card.sourceTitle
       ? `${card.sourceTitle}${card.sourceSlide != null ? ' · slide ' + card.sourceSlide : ''}`
       : 'Opened the class.');
   } catch (e) {}

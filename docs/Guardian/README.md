@@ -2,9 +2,7 @@
 
 Guardian is the lock for every A1 program: app locks, profile locks, journal-entry locks and TradeHub's tab locks, across A1 and A1-Priv, and the card on ORCA's gate. It is one file, [Guardian/guardian.js](../../Guardian/guardian.js). No program builds a lock of its own, and `tests/guardian-wiring.test.js` fails if one ever does again.
 
-Two things are deliberately not on Guardian:
-- **StudyOS (`V1/`):** it keeps its own backend.
-- **Vault's master-password encryption:** `Vault/vault-bio.js` is a PRF-derived key, not a lock.
+One thing is deliberately not on Guardian: **Vault's master-password encryption** (`Vault/vault-bio.js` is a PRF-derived key, not a lock). StudyOS (`V1/`) joined on 2026-10-29 with a custom `backend` over its own worker, so Veda's password stayed where it was.
 
 ## Where it runs
 
@@ -22,6 +20,7 @@ Two things are deliberately not on Guardian:
 | Vault / RiftIQ (A1-Priv) | `tony_vault_standalone` / `tony_warroom_standalone` | hard gates |
 | Everwell (A1-Priv) | `tony_everwell_standalone`, `tony_everwell_tab_<tab>`; index's nav button `tony_everwell` | hard gate and per-tab locks (Solace's `tony_solace*` retired 2026-10-11) |
 | ORCA (Desktop\ORCA) | `<p>_orca` | `backend` over ORCA's own `/lock/*` routes (server sessions and passkeys) |
+| StudyOS (V1/) | `veda_studyos` | hard gate; `backend` over StudyOS's own `studyos-api` worker, Firestore lock doc and Formspree; legacy adoption reads `sos_al_unlockedat_studyos` and `sos_bio_studyos` (docs/V1/studyos-ui-overhaul.md) |
 
 ## Adding a lock to a program
 
@@ -146,6 +145,7 @@ Helpers:
    - `tj_unlocked*`, `bj_unlocked*`, `ml_unlocked_*`
    - `magi.<p>.lock_session` / `.locked` / `.bio_ver`
    - `oneinbox_locked`, `insight_locked`
+   - StudyOS: `sos_al_unlockedat_studyos`, `sos_bio_studyos` (keep `sos_al_locks`: it is StudyOS's lock-state cache)
    - `bio_cred_applock_*`, `bio_cred_tj_*`, `bio_cred_bj_*`, `bio_cred_plans_*`, `bio_cred_shield_*`, `bio_cred_mylist_*`, `bio_cred_magi_*`, `bio_cred_oneinbox_*`
    - A1-Priv: `bio_cred_tradehub*_*`, `bio_cred_vaultlock_*`, `bio_cred_warroomlock_*`, `bio_cred_solacelock_*`, `bio_cred_insight_*`
    - **Never `bio_cred_vault_*`:** that is the vault's encryption.

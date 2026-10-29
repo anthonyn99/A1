@@ -252,7 +252,7 @@ export async function maybeRun({ sheet } = {}) {
       e.currentTarget.disabled = true;
       await applyMigration(plan, ids);
       s.close();
-      try { window.showNotif && window.showNotif('✅', 'Flashcards tidied', `${rows.reduce((n, r) => n + r.active, 0)} cards in reviews, the rest kept as suggestions.`); } catch (err) {}
+      try { window.showNotif && window.showNotif('check', 'Flashcards tidied', `${rows.reduce((n, r) => n + r.active, 0)} cards in reviews, the rest kept as suggestions.`); } catch (err) {}
       resolve({ plan, applied: true });
     };
   });

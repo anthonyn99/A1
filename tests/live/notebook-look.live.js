@@ -246,7 +246,9 @@ const HOSTS = [
           'dashboards/studyos_notebook': { _order: ['e_a'], activeId: 'e_a', savedAt: 1, e_e_a: ${JSON.stringify(Object.assign(entry('e_a', 'A'), { folder: 'quick' }))} } })); return 1;`);
         await c.send('Page.navigate', { url: BASE + 'V1/studyos.html' });
         if (!(await until(`window.SOSNotes && document.body.dataset.sosGate === 'open'`, 15000))) return false;
-        await js(`switchView('notes'); return 1;`);
+        // Past the cover page (shown on every launch since 2026-10-29), as she taps through it.
+        await js(`window.sosHideIntro && sosHideIntro(); switchView('notes'); return 1;`);
+        await sleep(500);
         return until('document.querySelector("#stn-entries-list .entry-item")', 20000);
       } },
     { name: 'TradeBoard Strats (V1/TradeBoard/tradeboard.html)', key: 'vtb',

@@ -14,6 +14,7 @@ import { ensureStyle } from './study-style.js';
 import { escapeHtml as esc } from './md.js';
 import { isBreakable, isSlidesFile, isWordFile } from './pipeline.js';
 import * as prompts from './prompts.js';
+import { ic } from './icons.js';
 const _open = new Set();              // fileIds whose topic list is expanded
 
 /** A row's label, from the freshest thing known: the loaded doc, else the
@@ -26,8 +27,8 @@ function label(f) {
   if (bd.isRunning(f.id) || (st && st.status === 'running')) {
     return st && st.total ? `Writing ${st.done}/${st.total}` : 'Listing topics…';
   }
-  if (!st || !st.total) return st && st.status === 'failed' ? 'Break down ⚠' : 'Break down';
-  if (st.done < st.total) return `Topics · ${st.done}/${st.total} ⚠`;
+  if (!st || !st.total) return st && st.status === 'failed' ? 'Break down · retry' : 'Break down';
+  if (st.done < st.total) return `Topics · ${st.done} of ${st.total}`;
   return `Topics · ${st.total}`;
 }
 
@@ -43,12 +44,13 @@ export function decorate(item, cls, mod, f) {
   const btn = window._sosRowActionBtn(label(f), 'Break this document into topics, each with a lesson and flashcards');
   btn.dataset.act = 'breakdown';
   btn.dataset.bdFile = f.id;
+  // Beside Slides, ahead of Copy, in the row's action group.
   const before = item.querySelector('[data-act="copy"]');
-  if (before) item.insertBefore(btn, before); else item.appendChild(btn);
+  if (before) before.parentNode.insertBefore(btn, before); else (item.querySelector('.doc-item-acts') || item).appendChild(btn);
 
   // Edit mode reorders rows by dragging; a sibling panel between rows would
   // be dragged as if it were a file. The list comes back when editing ends.
-  const editing = !!item.querySelector('.row-drag-handle');
+  const editing = item.classList.contains('editing');
   let panel = null;
   if (!editing) {
     panel = document.createElement('div');
@@ -183,20 +185,20 @@ function wirePicker(root, cls, preset) {
       pmodSel.value = first ? first.id : NEW_MODULE;
       fillPrompts(null, true);
       if (!first) { newPm.focus(); newPm.select(); }
-      toast('ℹ️', first ? `Save it to “${first.name}”?` : 'Name the new prompts module', 'Then press Save again.');
+      toast('info', first ? `Save it to “${first.name}”?` : 'Name the new prompts module', 'Then press Save again.');
       return;
     }
     if (modId === NEW_MODULE) {
       const name = newPm.value.trim();
       if (!name) { newPm.focus(); return; }
       modId = B.addModule && B.addModule(cls.id, name, 'prompts');
-      if (!modId) { toast('⚠️', 'Could not create the module', name); return; }
+      if (!modId) { toast('alert', 'Could not create the module', name); return; }
     }
     const id = B.addPromptTo(cls.id, modId, text);
-    if (!id) { toast('⚠️', 'Could not save the prompt', ''); return; }
+    if (!id) { toast('alert', 'Could not save the prompt', ''); return; }
     fillModules(modId);
     fillPrompts(id, true);
-    toast('✅', 'Prompt saved', (pmOf(modId) || {}).name || '');
+    toast('check', 'Prompt saved', (pmOf(modId) || {}).name || '');
   });
 
   return () => {
@@ -244,7 +246,7 @@ function openStart(cls, mod, f, { redo } = {}) {
              : a.id === 'orca'
                ? ' — messages from your ORCA chat accounts, a few minutes per topic; a busy model is waited for, not skipped'
                : ' — billed to your API key'}. It runs in the background; keep studying.`}
-      <div style="margin-top:6px"><a href="#" data-ai-settings style="color:var(--accent2);font-size:11px;font-family:var(--mono)">Change the AI model →</a></div>
+      <div style="margin-top:6px"><a href="#" data-ai-settings style="color:var(--accent2);font-size:11px;font-family:var(--mono)">Change the AI model</a></div>
     </div>
     ${promptPickerHtml()}`, { wide: true });
   s.overlay.querySelector('[data-ai-settings]').addEventListener('click', (e) => {
@@ -276,10 +278,10 @@ function start(cls, mod, f, opts) {
   p.then((doc) => {
     if (!doc) return;
     const n = doc.topics.filter(t => t.status === 'ready').length;
-    if (doc.status === 'ready') toast('✅', 'Topics ready', `${f.name} — ${n} lesson${n === 1 ? '' : 's'} with flashcards.`);
-    else if (doc.status === 'partial') toast('⚠️', `${n} of ${doc.topics.length} topics written`, doc.error || 'Retry the rest from the list.');
-    else if (doc.status === 'failed') toast('⚠️', 'Breakdown stopped', doc.error || 'unknown error');
-  }).catch((e) => toast('⚠️', 'Breakdown failed', (e && e.message) || String(e)));
+    if (doc.status === 'ready') toast('check', 'Topics ready', `${f.name} — ${n} lesson${n === 1 ? '' : 's'} with flashcards.`);
+    else if (doc.status === 'partial') toast('alert', `${n} of ${doc.topics.length} topics written`, doc.error || 'Retry the rest from the list.');
+    else if (doc.status === 'failed') toast('alert', 'Breakdown stopped', doc.error || 'unknown error');
+  }).catch((e) => toast('alert', 'Breakdown failed', (e && e.message) || String(e)));
 }
 
 // ── The topics under a document ──────────────────────────────────────────
@@ -317,8 +319,8 @@ async function renderPanel(panel, cls, mod, f) {
     const important = D ? D.byNotePrefix(doc.classId, bd.notePrefixFor(f.id)).filter((c) => c.important && D.isActive(c)).length : 0;
     html.push(`<div class="bd-head"><div class="bd-status${doc.error && !running ? ' err' : ''}">${esc(status)}${
       ins ? ` · <span title="${esc(ins.text)}" style="cursor:help;border-bottom:1px dotted currentColor">prompt: ${esc(ins.name || 'custom')}</span>` : ''}${
-      detail && !running ? ` <button class="bd-info" data-info title="How it was written and checked" aria-expanded="${infoOpen}">ⓘ</button>` : ''}</div>${
-      important ? `<button class="bd-box bd-imp" data-important title="${important} card${important === 1 ? '' : 's'} you forgot — review them">★ Important</button>` : ''}</div>${
+      detail && !running ? ` <button class="bd-info" data-info title="How it was written and checked" aria-label="How it was written and checked" aria-expanded="${infoOpen}">${ic('info')}</button>` : ''}</div>${
+      important ? `<button class="bd-box bd-imp" data-important title="${important} card${important === 1 ? '' : 's'} you forgot — review them">${ic('star')}<span>Important</span></button>` : ''}</div>${
       detail && infoOpen && !running ? `<div class="bd-detail">${esc(detail)}</div>` : ''}`);
     topics.forEach((t, i) => {
       const ok = t.status === 'ready';
@@ -334,7 +336,7 @@ async function renderPanel(panel, cls, mod, f) {
         : running ? 'queued' : 'not written';
       html.push(`
         <div class="bd-row${ok ? '' : ' off'}" data-topic="${esc(t.id)}" ${ok ? 'role="button" tabindex="0"' : ''}>
-          <div class="bd-num${done ? ' done' : ''}">${done ? '✓' : i + 1}</div>
+          <div class="bd-num${done ? ' done' : ''}">${done ? ic('checkBold') : i + 1}</div>
           <div class="bd-main">
             <div class="bd-title">${esc(t.title)}</div>
             <div class="bd-sum">${esc(t.status === 'failed' ? (t.error || 'failed') : t.summary || '')}</div>
@@ -386,7 +388,7 @@ async function renderPanel(panel, cls, mod, f) {
   panel.querySelectorAll('[data-retry]').forEach((b) => b.addEventListener('click', (e) => {
     e.stopPropagation();
     b.disabled = true;
-    bd.regenerate(f.id, b.dataset.retry, f).catch((err) => toast('⚠️', 'Retry failed', err.message || String(err)));
+    bd.regenerate(f.id, b.dataset.retry, f).catch((err) => toast('alert', 'Retry failed', err.message || String(err)));
     refresh(f.id);
   }));
   const info = panel.querySelector('[data-info]');
@@ -413,7 +415,7 @@ async function renderPanel(panel, cls, mod, f) {
   });
   const rm = panel.querySelector('[data-remove]');
   if (rm) rm.addEventListener('click', async () => {
-    if (!confirm(`Remove the topics and lessons for "${f.name}"?\n\nFlashcards you have already reviewed are kept; the rest are removed.`)) return;
+    if (!(await window.uiConfirm('Flashcards you have already reviewed are kept; the rest are removed.', { title: `Delete the topics and lessons for “${f.name}”?`, okLabel: 'Delete', danger: true }))) return;
     await bd.remove(f.id);
     _open.delete(f.id);
     refresh(f.id);

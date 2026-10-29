@@ -572,7 +572,7 @@ export function restoreCard(snapshot) {
  * so it sees exactly what the dashboard sees.
  */
 export function nextExamFor(classId, now = Date.now()) {
-  const today = new Date(now).toISOString().slice(0, 10);
+  const today = (typeof window !== 'undefined' && window.sosLocalDate) ? window.sosLocalDate(new Date(now)) : new Date(now).toISOString().slice(0, 10);
   let best = null;
   for (const e of store.getEvents()) {
     if (!e || e.classId !== classId) continue;

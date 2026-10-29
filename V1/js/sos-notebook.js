@@ -174,7 +174,7 @@ function importOnce(tag, pages) {
     if (r && r.added && r.added.length) console.info('[StudyOS] moved ' + r.added.length + ' note page(s) into Notebook (' + tag + ')');
     if (r && r.failed && r.failed.length) {
       console.warn('[StudyOS] notes that could not move yet (' + tag + '):', r.failed);
-      try { window.showNotif && window.showNotif('⚠️', 'Some notes are still waiting to move', r.failed.length + ' page(s) were too large to store. They are safe where they were.'); } catch (e) {}
+      try { window.showNotif && window.showNotif('alert', 'Some notes are still waiting to move', r.failed.length + ' page(s) were too large to store. They are safe where they were.'); } catch (e) {}
     }
     return r;
   });

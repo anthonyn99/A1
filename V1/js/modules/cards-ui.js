@@ -16,6 +16,7 @@ import * as deck from './deck.js';
 import * as cards from './cards.js';
 import { renderCard, escapeHtml as esc } from './md.js';
 import { store } from './store.js';
+import { ic } from './icons.js';
 
 const LEECH_SYSTEM = 'You rewrite flashcards a student keeps forgetting, so they become easy to remember.';
 
@@ -31,8 +32,8 @@ function styleOnce() {
 .sc-btn:disabled { opacity:.4; cursor:default; }
 .sc-empty { font-size:12.5px; color:var(--text3); padding:6px 4px; }
 
-.sc-ov { --bg:#1B1C1E; --bg2:#1f2022; --bg3:#26272A; --bg4:#2e2f33; --border:rgba(255,255,255,0.09);
-  --text:#ECECEE; --text2:#AFB0B5; --text3:#76777C; --accent:#8D769A; --mono:'IBM Plex Mono',monospace; --sans:'Nunito',sans-serif;
+.sc-ov { --bg:#131216; --bg2:#17161b; --bg3:#1d1c22; --bg4:#25232b; --border:rgba(255,255,255,0.09);
+  --text:#EFECF3; --text2:#B9B4C3; --text3:#827D8D; --accent:#8D769A; --mono:'IBM Plex Mono',monospace; --sans:'Nunito',sans-serif;
   position:fixed; inset:0; z-index:10250; background:var(--bg2); color:var(--text); font-family:var(--sans);
   display:flex; flex-direction:column; padding-top:env(safe-area-inset-top,0px); }
 .sc-ov-top { display:flex; gap:8px; align-items:center; padding:10px 14px; border-bottom:1px solid var(--border); flex-wrap:wrap; }
@@ -51,9 +52,9 @@ function styleOnce() {
 .sc-tag { display:inline-block; font-family:var(--mono); font-size:10px; background:var(--bg4); border-radius:3px; padding:0 5px; margin-right:4px; }
 .sc-st-suggested .f { color:var(--text2); } .sc-st-archived .f { color:var(--text3); text-decoration:line-through; }
 .sc-ed { position:fixed; inset:0; z-index:10400; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; padding:16px; }
-.sc-ed > div { background:var(--bg2, #1f2022); color:var(--text, #ECECEE); border:1px solid var(--border, rgba(255,255,255,.09)); border-radius:10px;
+.sc-ed > div { background:var(--bg2, #17161b); color:var(--text, #EFECF3); border:1px solid var(--border, rgba(255,255,255,.09)); border-radius:10px;
   width:100%; max-width:720px; max-height:92vh; display:flex; flex-direction:column; gap:10px; padding:16px; overflow:auto;
-  --bg:#1B1C1E; --bg3:#26272A; --bg4:#2e2f33; --text2:#AFB0B5; --text3:#76777C; --accent:#8D769A; --mono:'IBM Plex Mono',monospace; font-family:'Nunito',sans-serif; }
+  --bg:#131216; --bg3:#1d1c22; --bg4:#25232b; --text2:#B9B4C3; --text3:#827D8D; --accent:#8D769A; --mono:'IBM Plex Mono',monospace; font-family:'Nunito',sans-serif; }
 .sc-ed textarea { min-height:170px; background:var(--bg3); border:1px solid var(--border, rgba(255,255,255,.09)); color:inherit; border-radius:8px;
   padding:12px; font:14px/1.55 var(--mono); resize:vertical; }
 .sc-ed .pv { background:var(--bg); border:1px solid rgba(255,255,255,.09); border-radius:8px; padding:12px 14px; font-size:15px; line-height:1.5; }
@@ -98,7 +99,7 @@ const DAY = 86400000;
 
 /** The next exam or quiz of a class: { name, type, at, days }, or null. */
 export function nextExam(classId, now = Date.now()) {
-  const today = new Date(now).toISOString().slice(0, 10);
+  const today = (typeof window !== 'undefined' && window.sosLocalDate) ? window.sosLocalDate(new Date(now)) : new Date(now).toISOString().slice(0, 10);
   let best = null;
   for (const e of store.getEvents() || []) {
     if (!e || e.classId !== classId || (e.type !== 'exam' && e.type !== 'quiz') || !e.date || e.date < today) continue;
@@ -130,7 +131,7 @@ export function retriesOf(cls, now = Date.now()) {
 }
 
 function toast(title, body) {
-  try { if (window.showNotif) window.showNotif('🗓️', title, body); } catch (e) {}
+  try { if (window.showNotif) window.showNotif('calendar', title, body); } catch (e) {}
 }
 
 // ── Suggested cards: triage, one at a time (overhaul §7.3) ────────────────
@@ -160,7 +161,7 @@ export function openTriage(scope = {}) {
     const back = cards.isClozeCard(c) ? cards.clozeText(c.q, 0, true, { marks: true }) : c.a;
     el.innerHTML = `
       <div class="sc-ov-top"><h3>Suggested cards · ${i + 1} of ${list.length}</h3>
-        <button class="sc-btn" data-close title="Close (Esc)">✕</button></div>
+        <button class="sc-btn sc-x" data-close title="Close (Esc)" aria-label="Close">${ic('x')}</button></div>
       <div style="flex:1;overflow:auto;display:flex;justify-content:center;padding:28px 20px">
         <div style="width:100%;max-width:640px">
           <div style="font-size:20px;line-height:1.5">${renderCard(front)}</div>
@@ -178,6 +179,7 @@ export function openTriage(scope = {}) {
     el.querySelector('[data-edit]').onclick = () => openEditor({ card: c, onSave: () => paint() });
   };
   const onKey = (e) => {
+    if (window.uiIsOpen && window.uiIsOpen()) return;   // a StudyOS dialog is answering
     if (document.querySelector('.sc-ed')) return;
     const k = e.key.toLowerCase();
     if (k === 'escape') { e.preventDefault(); return close(); }
@@ -208,6 +210,7 @@ export function openBrowse(scope = {}) {
     el.remove(); _browse = null;
   };
   const onKey = (e) => {
+    if (window.uiIsOpen && window.uiIsOpen()) return;   // a StudyOS dialog is answering
     if (e.key === 'Escape' && !document.querySelector('.sc-ed')) { e.preventDefault(); close(); }
   };
   document.addEventListener('keydown', onKey, true);
@@ -236,8 +239,8 @@ export function openBrowse(scope = {}) {
       <div class="sc-ov-top">
         <h3>${esc(scopeName(scope))} · ${list.length} card${list.length === 1 ? '' : 's'}</h3>
         <input type="search" data-q placeholder="Search cards" value="${esc(state.q)}" style="min-width:180px;flex:1;max-width:340px">
-        ${classId ? '<button class="sc-btn" data-new>+ Card</button>' : ''}
-        <button class="sc-btn" data-close title="Close (Esc)">✕</button>
+        ${classId ? `<button class="sc-btn" data-new>${ic('plus')}<span>Card</span></button>` : ''}
+        <button class="sc-btn sc-x" data-close title="Close (Esc)" aria-label="Close">${ic('x')}</button>
       </div>
       <div class="sc-filters">
         <select data-status>
@@ -288,10 +291,10 @@ export function openBrowse(scope = {}) {
         if (c) openEditor({ card: c, onSave: paint });
       });
     });
-    el.querySelectorAll('[data-bulk]').forEach((b) => b.addEventListener('click', () => {
+    el.querySelectorAll('[data-bulk]').forEach((b) => b.addEventListener('click', async () => {
       const ids = [...state.sel];
       if (b.dataset.bulk === 'delete') {
-        if (!confirm(`Delete ${ids.length} card${ids.length === 1 ? '' : 's'}? Reviewed cards lose their schedule.`)) return;
+        if (!(await window.uiConfirm('Reviewed cards lose their schedule.', { title: `Delete ${ids.length} card${ids.length === 1 ? '' : 's'}?`, okLabel: 'Delete', danger: true }))) return;
         const byClass = new Map();
         ids.forEach((id) => { const c = deck.get(id); if (c) (byClass.get(c.classId) || byClass.set(c.classId, []).get(c.classId)).push(id); });
         byClass.forEach((v, k) => deck.remove(k, v));
@@ -397,7 +400,7 @@ export function openEditor(o = {}) {
     <div class="row">
       <input data-tags class="grow" placeholder="tags, comma separated" value="${esc(editing ? (card.tags || []).join(', ') : '')}">
       ${decks.length ? `<select data-deck><option value="">No deck</option>${decks.map((d) => `<option value="${esc(d.id)}"${(editing ? card.deckId : o.deckId) === d.id ? ' selected' : ''}>${esc(d.name)}</option>`).join('')}</select>` : ''}
-      ${editing && cards.isClozeCard(card) ? '' : `<label style="font-size:12px;display:flex;gap:6px;align-items:center"><input type="checkbox" data-rev ${editing && card.kind === 'reverse-pair' ? 'checked' : ''}> also back→front</label>`}
+      ${editing && cards.isClozeCard(card) ? '' : `<label style="font-size:12px;display:flex;gap:6px;align-items:center"><input type="checkbox" data-rev ${editing && card.kind === 'reverse-pair' ? 'checked' : ''}> also review it back to front</label>`}
     </div>
     <div class="lbl">PREVIEW</div>
     <div class="pv" data-pv></div>
@@ -445,6 +448,7 @@ export function openEditor(o = {}) {
     if (o.onSave) o.onSave(saved);
   };
   const onKey = (e) => {
+    if (window.uiIsOpen && window.uiIsOpen()) return;   // a StudyOS dialog is answering
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); e.stopPropagation(); save(); }
     if (e.target === ta && e.key.toLowerCase() === 'c' && e.ctrlKey && e.shiftKey) {
@@ -457,11 +461,14 @@ export function openEditor(o = {}) {
   ta.addEventListener('input', preview);
   el.querySelector('[data-save]').onclick = save;
   el.querySelector('[data-cancel]').onclick = close;
-  el.addEventListener('click', (e) => { if (e.target === el) close(); });
+  // Closes only from Cancel / Save / Escape, never a click outside (Tony, 2026-10-29).
   const st = el.querySelector('[data-status]');
   if (st) st.onclick = () => { deck.setStatus(card.id, deck.statusOf(card) === 'active' ? 'archived' : 'active'); close(); if (o.onSave) o.onSave(deck.get(card.id)); };
   const del = el.querySelector('[data-del]');
-  if (del) del.onclick = () => { if (!confirm('Delete this card?')) return; deck.remove(card.classId, card.id); close(); if (o.onSave) o.onSave(null); };
+  if (del) del.onclick = async () => {
+    if (!(await window.uiConfirm('Its review history goes with it.', { title: 'Delete this card?', okLabel: 'Delete', danger: true }))) return;
+    deck.remove(card.classId, card.id); close(); if (o.onSave) o.onSave(null);
+  };
   preview();
   ta.focus();
   return { close, el };
