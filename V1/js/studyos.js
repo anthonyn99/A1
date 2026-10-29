@@ -813,7 +813,9 @@ async function _sosUpdateCloudBadge() {
           + (elsewhere ? ' · ' + elsewhere + ' more live on another device' : '');
       } else if (elsewhere > 0) {
         // Nothing to upload from here, but the account still has un-synced files elsewhere.
-        badge.textContent = elsewhere + ' elsewhere';
+        // A check, like fully synced: this device has nothing to upload. The
+        // count of files that live on another device is in the tooltip.
+        badge.innerHTML = SOI.check;
         badge.classList.add('synced');
         btn.title = 'All files on THIS device are synced. ' + elsewhere + ' file' + (elsewhere > 1 ? 's' : '') + ' not yet uploaded live on another device — open StudyOS there and click Sync.';
       } else {
