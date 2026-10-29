@@ -205,21 +205,15 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 }
 #study-root .sb-icon:hover { background: var(--bg4); color: var(--accent2); border-color: var(--border2); }
 #study-root .sb-icon.locked { color: var(--accent2); }
+/* MAGI's toggle: three lines, at the end of the logo row. */
 #study-root .sb-toggle {
-  position: absolute; top: 20px; right: -1px;
-  width: 26px; height: 32px; border-radius: 9px 0 0 9px;
-  display: none; align-items: center; justify-content: center;
-  background: transparent; border: none; color: var(--text3); cursor: pointer;
+  width: 30px; height: 30px; flex: 0 0 30px; border-radius: 7px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none; color: var(--text3); cursor: pointer; padding: 0;
+  transition: background .15s, color .15s;
 }
-/* The toggle sits in the logo row's own flow on desktop: */
-#study-root .sidebar-logo-row + .sb-toggle {
-  position: static; display: inline-flex; align-self: flex-start;
-  width: 100%; height: 30px; border-radius: 9px; gap: 8px; justify-content: flex-start;
-  padding: 0 8px; font-size: 12px; font-weight: 700; color: var(--text3);
-}
-#study-root .sb-toggle svg { width: 17px; height: 17px; flex-shrink: 0; transition: transform .26s var(--ease); }
+#study-root .sb-toggle svg { width: 16px; height: 16px; display: block; }
 #study-root .sb-toggle:hover { background: var(--bg4); color: var(--text); }
-#study-root .sb-toggle::after { content: 'Collapse'; letter-spacing: .2px; }
 
 #study-root .sidebar-nav { flex: 1; min-height: 0; padding: 4px 10px 12px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; overflow-x: hidden; }
 #study-root .nav-item {
@@ -249,13 +243,10 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
   padding: 12px 10px 5px; letter-spacing: 1.6px; text-transform: uppercase;
   white-space: nowrap;
 }
-/* A class in the sidebar: its colour as a soft monogram tile. */
+/* A class in the sidebar: a small dot of its colour. */
 #study-root .nav-class .nav-dot {
-  width: 22px; height: 22px; flex: 0 0 22px; border-radius: 7px;
-  display: inline-flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 800; color: #1a181e;
-  background: var(--c, var(--lav));
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .15);
+  width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; margin: 0 5px;
+  background: var(--c, var(--accent)); font-size: 0;
 }
 #study-root .nav-class { font-weight: 600; font-size: 13.5px; }
 #study-root .nav-class.active { font-weight: 700; }
@@ -289,14 +280,12 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 #study-root .app.sb-collapsed .sidebar-logo { padding: 16px 0 12px; align-items: center; }
 #study-root .app.sb-collapsed .sidebar-logo-row { justify-content: center; }
 #study-root .app.sb-collapsed .sb-brand,
+#study-root .app.sb-collapsed .sb-mark,
 #study-root .app.sb-collapsed .sidebar-logo-row .sb-icon,
 #study-root .app.sb-collapsed .nav-label,
 #study-root .app.sb-collapsed .sos-cloud-badge,
 #study-root .app.sb-collapsed .sos-storage-head,
 #study-root .app.sb-collapsed .sos-storage-text { display: none; }
-#study-root .app.sb-collapsed .sb-toggle { width: 40px; justify-content: center; padding: 0; align-self: center; }
-#study-root .app.sb-collapsed .sb-toggle::after { content: none; }
-#study-root .app.sb-collapsed .sb-toggle svg { transform: scaleX(-1); }
 #study-root .app.sb-collapsed .sidebar-nav { padding: 4px 12px 12px; }
 #study-root .app.sb-collapsed .nav-item { justify-content: center; padding: 0; }
 #study-root .app.sb-collapsed .nav-item.active::before { left: -12px; }
@@ -315,8 +304,6 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
   border-bottom: 1px solid var(--border);
 }
 #study-root .topbar-title-wrap { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-#study-root .topbar-eyebrow { font-size: 10px; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#study-root .topbar-eyebrow:empty { display: none; }
 #study-root .topbar-title { font-family: var(--display); font-size: 18px; font-weight: 600; letter-spacing: -.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #F3EEF7; }
 #study-root .topbar-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
 #study-root .topbar-actions > #sos-sync-status { margin-right: 4px; }
@@ -633,7 +620,6 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
 .mint { --tone: var(--mint); }
 .peach { --tone: var(--peach); }
 #study-root .panel-ic, .sos-modal .modal-ic, .module-type-ic { color: var(--accent2); background: var(--bg4); }
-#study-root .panel-note { font-size: 11.5px; font-weight: 700; color: var(--text3); white-space: nowrap; cursor: help; }
 #study-root .panel-actions { display: flex; gap: 6px; }
 
 /* Greeting + Start Session */
@@ -669,7 +655,6 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
 #study-root .stat-body { min-width: 0; }
 #study-root .stat-label { font-size: 11px; font-weight: 800; color: var(--text3); text-transform: uppercase; letter-spacing: 1.3px; margin-bottom: 3px; }
 #study-root .stat-value { font-family: var(--display); font-size: 23px; font-weight: 600; line-height: 1.1; color: #F4EEF8; font-variant-numeric: tabular-nums; white-space: nowrap; }
-#study-root .stat-sub { font-size: 12px; color: var(--text3); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Exam countdown + priority queue */
 #study-root #sos-planner-row { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 14px; margin-bottom: 22px; align-items: start; }
@@ -740,7 +725,6 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
 #study-root .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
 #study-root .section-header h2 { font-family: var(--display); font-size: 17px; font-weight: 600; letter-spacing: -.2px; color: #F1EAF6; }
 #study-root .section-header .count { min-width: 24px; height: 22px; padding: 0 8px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; background: var(--lav-soft); color: var(--accent2); font-size: 12px; font-weight: 800; }
-#study-root .section-hint { margin-left: auto; font-size: 12px; color: var(--text3); font-weight: 600; }
 
 /* Class cards. Module chips are capped at two rows (+N more), so a class with
    many modules stays as tidy as one with two. */
@@ -759,12 +743,6 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
 }
 #study-root .class-card:hover { border-color: var(--border3); transform: translateY(-2px); }
 #study-root .class-card-top { display: flex; align-items: center; gap: 12px; min-width: 0; }
-#study-root .class-mono {
-  width: 40px; height: 40px; flex: 0 0 40px; border-radius: 12px;
-  display: inline-flex; align-items: center; justify-content: center;
-  font-family: var(--display); font-size: 18px; font-weight: 600; color: #1a181e; background: var(--card-color);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25);
-}
 #study-root .class-head { min-width: 0; flex: 1; }
 #study-root .class-name { font-family: var(--display); font-size: 16px; font-weight: 600; line-height: 1.25; color: #F4EEF8; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 #study-root .class-code { font-size: 12px; color: var(--text3); font-weight: 600; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -880,7 +858,6 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
   background: var(--card-color, var(--accent));
 }
 #study-root .detail-head-text { flex: 1; min-width: 220px; }
-#study-root .detail-eyebrow { font-size: 10.5px; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase; color: var(--accent2); margin-bottom: 2px; }
 #study-root .detail-title { font-family: var(--display); font-size: 25px; font-weight: 600; letter-spacing: -.5px; line-height: 1.15; color: #F4EEF8; overflow-wrap: anywhere; }
 #study-root .detail-subtitle { font-size: 14px; color: var(--text2); margin-top: 4px; }
 #study-root .detail-subtitle:empty { display: none; }
@@ -1339,7 +1316,6 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
   #study-root .sidebar { display: none !important; }
   #study-root .topbar { height: calc(56px + env(safe-area-inset-top, 0px)); min-height: 0; padding: env(safe-area-inset-top, 0px) 12px 0 16px; gap: 10px; }
   #study-root .topbar-title { font-size: 19px; }
-  #study-root .topbar-eyebrow { display: none; }
   #study-root .btn-label { display: none; }
   #study-root .topbar-actions { gap: 6px; }
   #study-root .topbar-actions .btn { width: 38px; height: 38px; padding: 0; border-radius: 11px; }
@@ -1358,7 +1334,6 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
   #study-root .stat-card { padding: 14px; gap: 10px; flex-direction: column; }
   #study-root .stat-ic { width: 32px; height: 32px; flex-basis: 32px; border-radius: 10px; }
   #study-root .stat-value { font-size: 24px; }
-  #study-root .stat-sub { display: none; }
   #study-root .classes-grid { grid-template-columns: 1fr; gap: 12px; }
   #study-root .sos-pq-item { grid-template-columns: 24px minmax(0, 1fr); }
   #study-root .sos-pq-actions { grid-column: 2; }
@@ -1480,7 +1455,7 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
 /* Lora's numerals are old-style (a "0" reads as an "o"): every number in a
    display face uses lining figures. */
 #study-root .stat-value, #study-root .pomo-time, #study-root .sos-exam-cd-days, #study-root .tl-date b,
-#study-root .detail-title, #study-root .dash-greet, #study-root .class-mono, #study-root .cal-header h3,
+#study-root .detail-title, #study-root .dash-greet, #study-root .cal-header h3,
 .sosc-cal-t, #sos-intro .sos-intro-word { font-variant-numeric: lining-nums tabular-nums; font-feature-settings: "lnum" 1, "tnum" 1; }
 @media (max-width: 640px) {
   /* The class page's one wide button keeps its words. */
