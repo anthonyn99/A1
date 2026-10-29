@@ -4,7 +4,7 @@ Tony's brief, for Veda: an ultramodern, elegant StudyOS on desktop, tablet and p
 
 ## The look
 
-- **Palette:** pastels only, on a plum-charcoal ground (`--bg #131216`). Veda's mauve `#8D769A` fills primary buttons, pastel lavender `#C9B4D8` is the light accent, and pastel pink `#F0B3CB` is the second voice. Peach, mint, sky and rose are the semantic pastels. The tokens are on `:root` in `css/studyos.css` §1.
+- **Palette:** StudyOS's own greys (`--bg #1B1C1E`, cards `#26272A`, borders `#4A4B51`). Cards and panels are flat grey: no gradients, no tinted cards, no glows (Tony's second pass, 2026-10-29). Veda's mauve `#8D769A` is the one dominant accent (`--accent2 #B8A2C6` for light text). Pastel pink `#F0B3CB` is the second voice, in a few places only: today, the top of the priority queue, a running timer, and the two calls to start (Just 10 min, Make flashcards). A class's colour appears only as a thin line or dot. Peach, mint and rose are kept for meaning (due soon, synced, delete). The tokens are on `:root` in `css/studyos.css` §1.
 - **Fonts:** hers, unchanged. Lora for titles and big numbers (with lining figures, since Lora's old-style "0" reads as an "o"), Nunito for everything else. IBM Plex Mono is used only for code in lessons and prompts.
 - **Icons:** SVG only. `SOI` in `js/studyos.js` is the one set, and the feature modules draw from it through `js/modules/icons.js`. `showNotif()` turns any emoji a caller passes into its SVG, so no toast shows one. The OS notification titles lost their emoji too.
 - **App icon:** the mortarboard with a pink tassel dot (Tony's pick from six). Files: `assets/icon.svg`, `assets/icon-192.png`, `assets/icon-512.png`.
@@ -14,19 +14,24 @@ Tony's brief, for Veda: an ultramodern, elegant StudyOS on desktop, tablet and p
 | Piece | Where | Notes |
 |---|---|---|
 | Cover page | `js/intro.js`, `#sos-intro` | Shown on every launch, as Everwell's intro is. The sidebar mark brings it back. Skipped for `?class=` links, `?ingest=` and shared files. A Guardian card sits above it. |
-| Sidebar | `studyos.html`, `js/shell.js` | Collapses to a 72px rail, as MAGI's does. The choice is kept per device (`sos_side_collapsed`). A tablet starts collapsed. |
+| Sidebar | `studyos.html`, `js/shell.js` | MAGI's three-line toggle sits right under the mark. Collapsing leaves a 58px rail in which the mark, the toggle and every icon stay exactly where they were (nothing shifts). The choice is kept per device (`sos_side_collapsed`). A tablet starts collapsed. |
 | Tab entrances | `css/studyos.css` §3 | One short entrance per view. Always `backwards`, never `both`, so no transform is held on a view (the Notebook's phone drawer is `position:fixed`). |
 | Form controls | `js/controls.js` (`window.SosControls`) | Every `<select>`, date, time and number field gets StudyOS's own control. The native field stays in the DOM, hidden, as the source of truth: `.value` has an own setter that repaints, option lists are watched, and a pick fires real `input` and `change` events. V's Notebook and `[data-native]` are skipped. |
 | Dialogs | `js/ui.js` | `uiConfirm`, `uiPrompt`, `uiForm`, `uiAlert`, plus `uiChoice` (several answers and Cancel) and `sosConfirmDelete(what, detail)`. |
 | Timer | `js/studyos.js` POMODORO | Modelled on TaskHub Veda's timer: the ring runs every frame with a dot at its end, there is a length stepper, and it uses TaskHub's sounds (`_tmBell` chime, `playTimerCue` start, resume and pause). Lengths are kept per device (`sos_pomo_lengths`). |
-| Lock | `js/applock.js` | Guardian. See "The lock" below. |
+| Lock | `js/applock.js` | Guardian. See "The lock" below. While its card is up, `body.sos-guardian-open` blurs the app behind it. |
+| Scrollbar | A1's `scrollbar.js` | The one A1 bar on every scrolling box; StudyOS styles none of its own (V's Notebook's editor stands down for it). |
+| Tooltips | `js/controls.js` | StudyOS's own bubble replaces every browser `title` tooltip (mouse only). |
 
 ## Rules that came with it
 
+- **Clean, not chatty.** No helper text such as "Drag a card to reorder", and no small labels above any title.
+- **One size for her laptop:** a 56px top bar, a 220px sidebar, 14px body text. Everything was sized to fit a small laptop screen.
 - **No browser UI anywhere.** That means no native `confirm`, `alert` or `prompt`, no native select, date, time or number control, and no native checkbox. The four native `confirm()` calls in the feature modules now go through `uiConfirm`.
 - **Every delete asks first**, through `sosConfirmDelete` or a `uiConfirm` with `danger`. A repeating event or task asks with `uiChoice`: Only this one, This and all future, or Cancel. Cancel and Escape delete nothing. Before this change, Cancel was relabelled "This only" and deleted an occurrence.
 - **No popup closes on a click outside it.** Only its own Cancel, Close, Back or Save buttons close it, or Escape (`_sosOpen`/`_sosClose` and the key handler in `js/studyos.js`). The same applies to the cards editor, the pipeline sheet and the Brightspace import.
-- **Drag is A1's** (`dragsort.js`, loaded from Pages), wired by `sosDragList()` the way Everwell wires its cards. A mouse takes any part of a card that isn't a control, and a finger holds it for 300ms. There are no grip dots. This covers class cards on the dashboard, module cards (class and KSU), and document and prompt rows in a module's Edit mode. In Edit mode a document row reorders, so its drag-out to the desktop is off there. In View mode drag-out works as before.
+- **Drag is A1's** (`dragsort.js`, loaded from Pages), wired by `sosDragList()` the way Everwell wires its cards. A mouse takes any part of a card that isn't a control, and a finger holds it for 300ms. There are no grip dots. This covers class cards on the dashboard, module cards (class and KSU), and document and prompt rows, always (View or Edit). A document's icon is its drag-OUT handle (to the desktop or another app), and the rest of the row reorders.
+- **Renaming a module** uses StudyOS's own dialog (`uiPrompt`), which sits above the module popup.
 
 ## The lock
 
