@@ -619,8 +619,15 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
 .mint { --tone: var(--mint); }
 .peach { --tone: var(--peach); }
 #study-root .panel-ic, .sos-modal .modal-ic, .module-type-ic { color: var(--accent2); background: var(--bg4); }
-#study-root .panel-actions { display: flex; gap: 5px; flex-shrink: 0; }
-#study-root .panel-actions .btn.xs { padding: 0 9px; }
+#study-root .panel-actions { display: flex; gap: 6px; flex-shrink: 0; }
+/* The class page's side panels: the title gets the whole first line, the
+   buttons a line of their own under it, so neither is ever cut off. */
+#study-root .class-events-panel > .panel-head { flex-wrap: wrap; row-gap: 10px; }
+#study-root .class-events-panel > .panel-head > .panel-title { flex: 1 0 100%; }
+#study-root .class-events-panel > .panel-head > .panel-actions,
+#study-root .class-events-panel > .panel-head > .btn { flex: 1 0 100%; }
+#study-root .class-events-panel > .panel-head > .panel-actions > .btn { flex: 1; }
+#study-root .class-events-panel > .panel-head > .btn { justify-content: center; }
 
 /* Greeting + Start Session */
 #study-root .dash-hero {
@@ -857,7 +864,7 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
 #study-root .detail-subtitle:empty { display: none; }
 #study-root .detail-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
-#study-root .class-detail-layout { display: grid; grid-template-columns: minmax(0, 1fr) 322px; gap: 18px; align-items: start; }
+#study-root .class-detail-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
 #study-root .class-detail-main { min-width: 0; }
 #study-root .class-side { display: flex; flex-direction: column; gap: 16px; position: sticky; top: calc(var(--sos-sticky-top, 110px) - 12px); }
 #study-root .class-events-panel { display: flex; flex-direction: column; max-height: calc((100vh - var(--sos-sticky-top, 110px) - 100px) / 2 + 40px); }
