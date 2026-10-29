@@ -77,6 +77,9 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; }
+/* No blue flash on tap, anywhere (the browser's tap highlight). Inherited, so
+   it also reaches popups, pickers and Guardian's card. */
+html, * { -webkit-tap-highlight-color: transparent; }
 html, body {
   margin: 0; padding: 0;
   height: 100%;
