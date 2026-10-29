@@ -87,10 +87,11 @@
           <span id="sos-sync-status"></span>
         </div>
         <button class="sb-icon" id="sos-lock-btn" type="button" title="App Lock" aria-label="App Lock"><svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></button>
+        <!-- MAGI's toggle: three lines, nothing else. -->
+        <button type="button" class="sb-toggle" id="sos-side-toggle" title="Collapse the sidebar" aria-label="Collapse the sidebar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
+        </button>
       </div>
-      <button type="button" class="sb-toggle" id="sos-side-toggle" title="Collapse the sidebar" aria-label="Collapse the sidebar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/><path d="m15 10-2 2 2 2"/></svg>
-      </button>
     </div>
     <nav class="sidebar-nav">
       <div class="nav-item active" onclick="switchView('home')" id="nav-home" title="Dashboard">
@@ -156,7 +157,6 @@
 
     <header class="topbar">
       <div class="topbar-title-wrap">
-        <div class="topbar-eyebrow" id="topbar-eyebrow"></div>
         <div class="topbar-title" id="topbar-title">Dashboard</div>
       </div>
       <div id="topbar-pomo" style="display:none" onclick="switchView('pomodoro')" title="Open the timer">
@@ -208,23 +208,23 @@
       <div class="stats-bar" id="stats-bar">
         <div class="stat-card tint-lav">
           <div class="stat-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg></div>
-          <div class="stat-body"><div class="stat-label">This week</div><div class="stat-value" id="stat-events">0</div><div class="stat-sub">events &amp; deadlines</div></div>
+          <div class="stat-body"><div class="stat-label">This week</div><div class="stat-value" id="stat-events">0</div></div>
         </div>
         <!-- Cards Due replaced "Exams Coming Up" (spec M-7): the same glance, but
              actionable — tapping it starts a review. -->
         <div class="stat-card tint-pink clickable" id="stat-card-cards" onclick="window.sosStudyAll && window.sosStudyAll()" title="Start a review">
           <div class="stat-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="14" height="14" rx="2.5"/><path d="M7 3.5h11a2.5 2.5 0 0 1 2.5 2.5v11"/></svg></div>
-          <div class="stat-body"><div class="stat-label">Cards due</div><div class="stat-value" id="stat-cards">0</div><div class="stat-sub">tap to review</div></div>
+          <div class="stat-body"><div class="stat-label">Cards due</div><div class="stat-value" id="stat-cards">0</div></div>
         </div>
         <div class="stat-card tint-peach">
           <div class="stat-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 3 8.5l9 4.5 9-4.5Z"/><path d="M7 11v4c0 1.7 2.2 3 5 3s5-1.3 5-3v-4"/></svg></div>
-          <div class="stat-body"><div class="stat-label">Next exam</div><div class="stat-value" id="stat-next-exam">—</div><div class="stat-sub">exams &amp; quizzes</div></div>
+          <div class="stat-body"><div class="stat-label">Next exam</div><div class="stat-value" id="stat-next-exam">—</div></div>
         </div>
         <!-- A number that goes UP, to counterbalance a dashboard otherwise made
              entirely of numbers counting DOWN (spec M-1). -->
         <div class="stat-card tint-mint" id="stat-card-streak">
           <div class="stat-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5.3 1.6 1.2 2.5 2 2.5-1-3 0-5.5 1-8Z"/></svg></div>
-          <div class="stat-body"><div class="stat-label">Streak</div><div class="stat-value" id="stat-streak">0</div><div class="stat-sub">days in a row</div></div>
+          <div class="stat-body"><div class="stat-label">Streak</div><div class="stat-value" id="stat-streak">0</div></div>
         </div>
       </div>
 
@@ -241,7 +241,6 @@
         <section class="panel">
           <div class="panel-head">
             <div class="panel-title"><span class="panel-ic pink"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/></svg></span><h3>Priority Queue</h3></div>
-            <span class="panel-note" id="sos-pq-sort-label" title="Ranked by how soon it is due, how much of the grade it is worth, and how well you know the class's cards">By urgency</span>
           </div>
           <div id="sos-priority-queue-list"></div>
         </section>
@@ -310,7 +309,7 @@
         <div class="pomo-card">
           <div class="pomo-head">
             <span class="pomo-led" id="pomo-led"></span>
-            <span class="pomo-kicker">Focus timer</span>
+            <span class="pomo-kicker">Timer</span>
             <span class="pomo-for" id="pomo-for"></span>
           </div>
           <div class="pomo-modes" role="tablist">
@@ -320,12 +319,6 @@
           </div>
           <div class="pomo-ring-wrap">
             <svg viewBox="0 0 280 280" aria-hidden="true">
-              <defs>
-                <linearGradient id="pomo-grad" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0%" stop-color="#C9B4D8"/>
-                  <stop offset="100%" stop-color="#F0B3CB"/>
-                </linearGradient>
-              </defs>
               <circle class="pomo-ring-bg" cx="140" cy="140" r="122"/>
               <circle class="pomo-ring-fg" id="pomo-ring" cx="140" cy="140" r="122" transform="rotate(-90 140 140)"
                 stroke-dasharray="766.5" stroke-dashoffset="0"/>
@@ -384,11 +377,9 @@
     <!-- KSU VIEW -->
     <div class="view" id="view-ksu">
       <div class="detail-header">
-        <div class="detail-color-bar" style="--card-color:#C9B4D8"></div>
+        <div class="detail-color-bar" style="--card-color:#8D769A"></div>
         <div class="detail-head-text">
-          <div class="detail-eyebrow">Campus</div>
           <div class="detail-title">KSU</div>
-          <div class="detail-subtitle">Documents, parking, scholarships: everything that isn't one class.</div>
         </div>
         <div class="detail-actions">
           <button class="btn primary" onclick="openKsuAddModule()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span>Add Module</span></button>
@@ -422,7 +413,6 @@
           <div id="class-cards"></div>
           <div class="section-header">
             <h2>Modules</h2>
-            <span class="section-hint">Drag a card to reorder</span>
           </div>
           <div class="modules-grid" id="modules-grid"></div>
         </div>
