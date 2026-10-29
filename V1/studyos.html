@@ -675,6 +675,217 @@
   </div>
 </div>
 
+<!-- MODAL: MODULE DETAIL -->
+<div class="modal-overlay sos-modal" id="modal-module-detail">
+  <div class="modal modal-wide" id="module-detail-modal">
+    <div class="modal-title-row" id="module-detail-title">
+      <span class="md-type" id="module-detail-type"></span>
+      <span class="modal-title" id="module-detail-title-text">Module</span>
+      <button class="icon-chip" id="module-detail-rename-btn" title="Rename" aria-label="Rename" onclick="openRenameModule(_sosCurrentModuleClassId, _sosCurrentModuleId)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+      <span class="md-spacer"></span>
+      <!-- Notes modules only: flashcards from every page of the module. -->
+      <button class="btn cards-cta" id="module-detail-cards-btn" hidden title="Make flashcards from this module's pages" onclick="window.sosMakeCardsHere()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="14" height="14" rx="2.5"/><path d="M7 3.5h11a2.5 2.5 0 0 1 2.5 2.5v11"/><path d="m9.5 10 .8 2.1 2.2.9-2.2.9-.8 2.1-.8-2.1-2.2-.9 2.2-.9Z"/></svg>
+        <span>Make flashcards</span>
+      </button>
+      <button class="icon-chip close" onclick="closeModuleDetail()" title="Close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+    </div>
+    <div id="module-detail-body"></div>
+    <div class="modal-footer">
+      <button class="btn ghost" onclick="closeModuleDetail()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: ADD TASK -->
+<div class="modal-overlay sos-modal" id="modal-add-task">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-ic pink"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></div>
+      <div class="modal-title" id="add-task-modal-title">New Task</div>
+    </div>
+    <div class="modal-scroll-body">
+      <div class="field">
+        <label for="inp-task-name">Task</label>
+        <input type="text" id="inp-task-name" placeholder="e.g. Read chapter 5, finish problem set…">
+      </div>
+      <div class="field" id="inp-task-class-field">
+        <label for="inp-task-class">Class <em>optional</em></label>
+        <select id="inp-task-class">
+          <option value="">No class</option>
+        </select>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="inp-task-date">Due date <em>optional</em></label>
+          <input type="date" id="inp-task-date">
+        </div>
+        <div class="field">
+          <label for="inp-task-time">Due time <em>optional</em></label>
+          <input type="time" id="inp-task-time">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="inp-task-priority">Priority</label>
+          <select id="inp-task-priority">
+            <option value="low">Low</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="inp-task-type">Type</label>
+          <select id="inp-task-type">
+            <option value="exam">Exam</option>
+            <option value="hw">Homework due</option>
+            <option value="quiz">Quiz</option>
+            <option value="lecture">Lecture</option>
+            <option value="lab">Lab</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="inp-task-notes">Notes <em>optional</em></label>
+        <textarea id="inp-task-notes" rows="2" placeholder="Any extra details…"></textarea>
+      </div>
+      <div class="field section">
+        <label>Reminder <em>optional · exact date and time</em></label>
+        <div class="field-row tight">
+          <input type="date" id="inp-task-notif-date" placeholder="Reminder date">
+          <input type="time" id="inp-task-notif-time" placeholder="Reminder time">
+        </div>
+      </div>
+      <!-- TASK REPEAT SECTION -->
+      <div class="field section">
+        <label>Repeat</label>
+        <div id="sos-task-repeat-warning" class="field-warn" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg><span>This is a repeating task. Setting "No repeat" removes every future occurrence.</span>
+        </div>
+        <div class="seg">
+          <button type="button" class="sos-repeat-btn active" id="sos-trep-none"   onclick="sosSetTaskRepeat('none')">No repeat</button>
+          <button type="button" class="sos-repeat-btn"        id="sos-trep-daily"  onclick="sosSetTaskRepeat('daily')">Every day</button>
+          <button type="button" class="sos-repeat-btn"        id="sos-trep-weekly" onclick="sosSetTaskRepeat('weekly')">Specific days</button>
+        </div>
+        <div id="sos-task-repeat-days" class="repeat-days" style="display:none;">
+          <div class="sub-label">Repeat on</div>
+          <div class="day-row" id="sos-task-day-btns">
+            <button type="button" class="sos-day-btn" data-day="0" data-ctx="task" onclick="sosToggleTaskDay(0)">Mon</button>
+            <button type="button" class="sos-day-btn" data-day="1" data-ctx="task" onclick="sosToggleTaskDay(1)">Tue</button>
+            <button type="button" class="sos-day-btn" data-day="2" data-ctx="task" onclick="sosToggleTaskDay(2)">Wed</button>
+            <button type="button" class="sos-day-btn" data-day="3" data-ctx="task" onclick="sosToggleTaskDay(3)">Thu</button>
+            <button type="button" class="sos-day-btn" data-day="4" data-ctx="task" onclick="sosToggleTaskDay(4)">Fri</button>
+            <button type="button" class="sos-day-btn" data-day="5" data-ctx="task" onclick="sosToggleTaskDay(5)">Sat</button>
+            <button type="button" class="sos-day-btn" data-day="6" data-ctx="task" onclick="sosToggleTaskDay(6)">Sun</button>
+          </div>
+        </div>
+        <div id="sos-task-repeat-until" class="repeat-until" style="display:none;">
+          <div class="sub-label">Until</div>
+          <input type="date" id="inp-task-repeat-end" placeholder="Pick an end date">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn ghost danger" id="btn-delete-task" style="display:none" onclick="deleteEditingTask()">Delete</button>
+      <span class="footer-sp"></span>
+      <button class="btn ghost" onclick="_sosClose('modal-add-task')">Cancel</button>
+      <button class="btn primary" onclick="saveTask()">Save Task</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: ADD EVENT -->
+<div class="modal-overlay sos-modal" id="modal-add-event">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-ic lav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg></div>
+      <div class="modal-title">Add Event</div>
+    </div>
+    <div class="modal-scroll-body">
+      <div class="field">
+        <label for="inp-event-name">Event</label>
+        <input type="text" id="inp-event-name" placeholder="e.g. Midterm Exam, HW Due…">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="inp-event-date">Date</label>
+          <input type="date" id="inp-event-date">
+        </div>
+        <div class="field">
+          <label for="inp-event-time">Time <em>optional</em></label>
+          <input type="time" id="inp-event-time">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="inp-event-class">Class <em>optional</em></label>
+          <select id="inp-event-class">
+            <option value="">No class</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="inp-event-type">Type</label>
+          <select id="inp-event-type">
+            <option value="exam">Exam</option>
+            <option value="hw">Homework due</option>
+            <option value="quiz">Quiz</option>
+            <option value="lecture">Lecture</option>
+            <option value="lab">Lab</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="inp-event-weight">Grade weight <em>% · ranks it in the priority queue</em></label>
+        <input type="number" id="inp-event-weight" min="0" max="100" step="1" placeholder="e.g. 30" style="max-width:220px">
+      </div>
+      <div class="field section">
+        <label>Reminder <em>optional · exact date and time</em></label>
+        <div class="field-row tight">
+          <input type="date" id="inp-event-notif-date" placeholder="Reminder date">
+          <input type="time" id="inp-event-notif-time" placeholder="Reminder time">
+        </div>
+      </div>
+      <!-- REPEAT SECTION -->
+      <div class="field section">
+        <label>Repeat</label>
+        <div id="sos-repeat-warning" class="field-warn" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg><span>This is a repeating event. Setting "No repeat" removes every future occurrence.</span>
+        </div>
+        <div class="seg">
+          <button type="button" class="sos-repeat-btn active" id="sos-rep-none"   onclick="sosSetRepeat('none')">No repeat</button>
+          <button type="button" class="sos-repeat-btn"        id="sos-rep-daily"  onclick="sosSetRepeat('daily')">Every day</button>
+          <button type="button" class="sos-repeat-btn"        id="sos-rep-weekly" onclick="sosSetRepeat('weekly')">Specific days</button>
+        </div>
+        <div id="sos-repeat-days" class="repeat-days" style="display:none;">
+          <div class="sub-label">Repeat on</div>
+          <div class="day-row" id="sos-day-btns">
+            <button type="button" class="sos-day-btn" data-day="0" onclick="sosToggleDay(0)">Mon</button>
+            <button type="button" class="sos-day-btn" data-day="1" onclick="sosToggleDay(1)">Tue</button>
+            <button type="button" class="sos-day-btn" data-day="2" onclick="sosToggleDay(2)">Wed</button>
+            <button type="button" class="sos-day-btn" data-day="3" onclick="sosToggleDay(3)">Thu</button>
+            <button type="button" class="sos-day-btn" data-day="4" onclick="sosToggleDay(4)">Fri</button>
+            <button type="button" class="sos-day-btn" data-day="5" onclick="sosToggleDay(5)">Sat</button>
+            <button type="button" class="sos-day-btn" data-day="6" onclick="sosToggleDay(6)">Sun</button>
+          </div>
+        </div>
+        <div id="sos-repeat-until" class="repeat-until" style="display:none;">
+          <div class="sub-label">Until</div>
+          <input type="date" id="inp-event-repeat-end" placeholder="Pick an end date">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn ghost danger" id="btn-delete-event" style="display:none" onclick="deleteEditingEvent()">Delete</button>
+      <span class="footer-sp"></span>
+      <button class="btn ghost" onclick="_sosClose('modal-add-event')">Cancel</button>
+      <button class="btn primary" onclick="saveEvent()">Save Event</button>
+    </div>
+  </div>
+</div>
+</div>
+
 <!-- ══ Modules ══════════════════════════════════════════════════════════════
      Order is load-bearing:
        ui.js          defines uiConfirm/uiPrompt/uiForm/uiChoice
@@ -725,26 +936,4 @@
      it, the 404 is harmless: the sweep simply does not run. -->
 <script src="../sweep.js" data-program="studyos" defer></script>
 </body>
-</html><!-- MODAL: MODULE DETAIL -->
-<div class="modal-overlay sos-modal" id="modal-module-detail">
-  <div class="modal modal-wide" id="module-detail-modal">
-    <div class="modal-title-row" id="module-detail-title">
-      <span class="md-type" id="module-detail-type"></span>
-      <span class="modal-title" id="module-detail-title-text">Module</span>
-      <button class="icon-chip" id="module-detail-rename-btn" title="Rename" aria-label="Rename" onclick="openRenameModule(_sosCurrentModuleClassId, _sosCurrentModuleId)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
-      <span class="md-spacer"></span>
-      <!-- Notes modules only: flashcards from every page of the module. -->
-      <button class="btn cards-cta" id="module-detail-cards-btn" hidden title="Make flashcards from this module's pages" onclick="window.sosMakeCardsHere()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="14" height="14" rx="2.5"/><path d="M7 3.5h11a2.5 2.5 0 0 1 2.5 2.5v11"/><path d="m9.5 10 .8 2.1 2.2.9-2.2.9-.8 2.1-.8-2.1-2.2-.9 2.2-.9Z"/></svg>
-        <span>Make flashcards</span>
-      </button>
-      <button class="icon-chip close" onclick="closeModuleDetail()" title="Close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
-    </div>
-    <div id="module-detail-body"></div>
-    <div class="modal-footer">
-      <button class="btn ghost" onclick="closeModuleDetail()">Close</button>
-    </div>
-  </div>
-</div>
-
-
+</html>
