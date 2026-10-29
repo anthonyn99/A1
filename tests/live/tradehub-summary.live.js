@@ -1,6 +1,6 @@
 // TradeHub ▸ News ▸ Market Summary overlay (redesign, 2026-10-29), in the real
 // page against the fake Firestore: the overlay is mounted straight from the
-// page's own TBNewsSummaryOverlay with a full summary, so no newshub call is
+// page's own overlay (window.tbNewsSummary) with a full summary, so no newshub call is
 // needed. Checks the parts are there, the theme rules (no tinted washes,
 // Inter tabular numbers), that a phone gets one column with no sideways
 // scroll, and screenshots both widths plus the loading state.
@@ -62,7 +62,7 @@ const SUMMARY = {
     var host=document.getElementById('__sum'); if(host&&host.__root){host.__root.unmount();host.remove();}
     host=document.createElement('div'); host.id='__sum'; document.body.appendChild(host);
     host.__root=ReactDOM.createRoot(host);
-    host.__root.render(React.createElement(TBNewsSummaryOverlay, Object.assign({onClose:function(){window.__closed=1;}, generatedAt:Date.now()-20*60000, eventCount:55}, ${JSON.stringify(props)})));
+    host.__root.render(React.createElement(window.tbNewsSummary.Overlay, Object.assign({onClose:function(){window.__closed=1;}, generatedAt:Date.now()-20*60000, eventCount:55}, ${JSON.stringify(props)})));
     1`);
 
   await c.send('Storage.clearDataForOrigin', { origin: ORIGIN, storageTypes: 'all' });
@@ -73,7 +73,7 @@ const SUMMARY = {
     console.log(`\n${tag}`);
     await size(w, h);
     await c.send('Page.navigate', { url: ORIGIN + '/A1/tradehub.html' });
-    if (!(await until("document.querySelector('.tb-navtab') && typeof TBNewsSummaryOverlay==='function'", 25000))) { ok('TradeHub rendered', false); continue; }
+    if (!(await until("document.querySelector('.tb-navtab') && window.tbNewsSummary", 25000))) { ok('TradeHub rendered', false); continue; }
     await sleep(1500);
     await mount({ summary: SUMMARY, loading: false, error: '' });
     ok('the overlay opens', await until("document.querySelector('.nhs .nhs-headline')", 5000));
