@@ -2,6 +2,12 @@
 
 Tony's brief, for Veda: an ultramodern, elegant StudyOS on desktop, tablet and phone, with every feature kept. This file records what changed and the rules that came with it, so a later change keeps them.
 
+> **The look was rolled back the same day (2026-10-29, late).** Veda found the overhaul too big ("everything is blown up"), so StudyOS wears its earlier look again. The stylesheet is the pre-overhaul one (commit `e6aaab28`), and the dashboard, calendar, class page, KSU, module popups and the other popups use their earlier markup and renderers.
+>
+> **The features stayed:** A1 drag everywhere with no grip dots, A1's scrollbar, StudyOS's own controls and tooltips, every delete asking first, popups that close only from their own buttons, the Guardian lock and its blur, the cover page, the collapsible sidebar with the lock and Veda's LifeHub on the toggle row, the phone header mark, pull-to-refresh, the calendar day view (now a plain list), the prompt editor (no View/Edit, no grip), the date and "& amp" fixes, and SVG icons in place of emoji and glyphs. **The Timer and the AI tab keep their overhaul design.**
+>
+> The old stylesheet sits unchanged at the top of `css/studyos.css`; everything the kept features need is one block at the end ("Kept from the 2026-10-29 overhaul"). The sections below that describe the overhaul's look (palette, sizes, card designs) are history; the structure and feature rows still hold.
+
 ## The look
 
 - **Palette:** StudyOS's own greys (`--bg #1B1C1E`, cards `#26272A`, borders `#4A4B51`). Cards and panels are flat grey: no gradients, no tinted cards, no glows (Tony's second pass, 2026-10-29). Veda's mauve `#8D769A` is the one dominant accent (`--accent2 #B8A2C6` for light text). Pastel pink `#F0B3CB` is the second voice, in a few places only: today, the top of the priority queue, a running timer, and the two calls to start (Just 10 min, Make flashcards). A class's colour appears only as a thin line or dot. Peach, mint and rose are kept for meaning (due soon, synced, delete). The tokens are on `:root` in `css/studyos.css` §1.
