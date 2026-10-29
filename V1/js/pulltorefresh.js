@@ -10,7 +10,7 @@
  *
  * Refresh reloads the whole page (Tony, 2026-10-29). Open notes are flushed
  * first; the lock does not ask again on a device that is already unlocked, and
- * the cover page is skipped for that one load (sos.skipIntro, js/intro.js).
+ * the cover page is skipped for that one load (?fresh=1, read by js/intro.js).
  * ------------------------------------------------------------------------- */
 (function () {
   'use strict';
@@ -84,7 +84,7 @@
   }
 
   /* Reload the whole site (Tony, 2026-10-29). Open notes are saved first,
-   * and the cover page is skipped on the way back in (sos.skipIntro, read by
+   * and the cover page is skipped on the way back in (?fresh=1, read by
    * js/intro.js), so the pull lands back in the app, fresh. */
   function doRefresh() {
     if (refreshing) return Promise.resolve();
@@ -95,9 +95,13 @@
     i.style.transform = 'translateX(-50%) translateY(' + THRESHOLD + 'px)';
     i.style.opacity = '1';
     try { if (window.Notebook && window.Notebook.flushAll) window.Notebook.flushAll(); } catch (e) {}
-    try { sessionStorage.setItem('sos.skipIntro', '1'); } catch (e) {}
-    // A moment for a just-made edit's save to leave, and for the spinner to read.
-    setTimeout(function () { window.location.reload(); }, 450);
+    // ?fresh=1 tells js/intro.js to skip the cover (a URL, not sessionStorage:
+    // her Brave blocks storage). A moment first for a just-made edit's save to
+    // leave, and for the spinner to read.
+    setTimeout(function () {
+      try { var u = new URL(location.href); u.searchParams.set('fresh', '1'); location.replace(u.toString()); }
+      catch (e) { location.reload(); }
+    }, 450);
     return Promise.resolve();
   }
 
