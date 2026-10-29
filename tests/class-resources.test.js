@@ -454,8 +454,7 @@ t('the native path is feature-detected, not assumed',
   '      takes the whole resource list down with it.');
 t('the shell turns the HTML5 drag OFF',
   // The file's icon is the drag-out handle; the rest of the row reorders (A1Drag).
-  /if (SOS_NATIVE_DRAG) {s*
-s*icon.draggable = false;/.test(STUDYOS),
+  /if \(SOS_NATIVE_DRAG\) \{\s*\n\s*icon\.draggable = false;/.test(STUDYOS),
   'startDrag seizes the pointer. Leaving draggable=true means an HTML5 drag is\n' +
   '      already in flight for the same gesture and the native drag never starts.');
 t('the native drag is armed from a pointer gesture, not dragstart',
