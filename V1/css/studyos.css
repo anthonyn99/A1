@@ -259,8 +259,8 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 #study-root .sb-row { font-size: 13px; height: 32px; }
 #study-root .sb-row:disabled { opacity: .6; cursor: default; }
 #study-root .sos-cloud-badge {
-  font-size: 10.5px; font-weight: 800; border-radius: 999px; padding: 2px 8px;
-  min-width: 18px; text-align: center; line-height: 1.4; letter-spacing: 0;
+  font-size: 11px; font-weight: 800; border-radius: 7px; padding: 0 6px; height: 22px;
+  min-width: 24px; justify-content: center; text-align: center; line-height: 1.4; letter-spacing: 0;
   display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0;
 }
 #study-root .sos-cloud-badge svg { width: 12px; height: 12px; stroke-width: 2.4; }
