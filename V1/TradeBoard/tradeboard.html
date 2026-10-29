@@ -584,36 +584,102 @@
      CONTROL — the watchlist that drives News (rebuilt from TradeHub's Control
      tab, minus Prompts). NEWS — AI-curated news for that watchlist.
      ═══════════════════════════════════════════════════════════════════════ */
-  .wl-card { padding: 18px 20px 20px; margin-bottom: 18px; }
-  .wl-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
-    flex-wrap: wrap; margin-bottom: 16px; }
-  .wl-title { font-size: 17px; font-weight: 700; }
-  .wl-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
-  .wl-sub b { color: var(--text-2); font-weight: 600; }
-  .wl-acts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; flex: 1 1 auto; min-width: 0; }
-  .wl-add { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
-  .wl-add .form-input { flex: 1 1 240px; min-width: 0; font-family: var(--mono); font-weight: 600;
+  /* One page grammar for Control and News, TradeHub's (2026-10-27) in
+     TradeBoard's own colours and type: a header (title, one quiet meta line,
+     the actions on the right), notes in one style, then the content. */
+  .tbx-page { max-width: 1180px; margin: 0 auto; width: 100%; }
+  .tbx-page.narrow { max-width: 920px; }
+  .tbx-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px 18px;
+    flex-wrap: wrap; margin-bottom: 20px; }
+  .tbx-head > div:first-child { min-width: 0; flex: 1 1 260px; }
+  .tbx-title { font-size: 24px; font-weight: 700; color: var(--text); letter-spacing: -0.2px; line-height: 1.15; }
+  .tbx-sub { font-size: 12.5px; color: var(--muted); margin-top: 6px; display: flex; flex-wrap: wrap;
+    align-items: center; gap: 4px 21px; line-height: 1.5; overflow: hidden; }
+  /* Dots that split the meta items sit left of each item, so a wrapped line
+     never starts with one (overflow:hidden clips the first of each line). */
+  .tbx-sub > span { position: relative; display: inline-flex; align-items: center; gap: 5px; }
+  .tbx-sub > span::before { content: ''; position: absolute; left: -12px; top: 50%; width: 3px; height: 3px;
+    margin-top: -1.5px; border-radius: 50%; background: var(--border); }
+  .tbx-sub .is-warn { color: var(--amber); }
+  .tbx-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .tbx-actions .btn { height: 36px; padding: 0 15px; justify-content: center; }
+  .tbx-actions .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  /* A small tool button: an icon, or an icon and a short word. */
+  .tbx-ib { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; min-width: 36px;
+    padding: 0 11px; border-radius: 9px; border: 1px solid var(--border); background: transparent; color: var(--text-2);
+    font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap;
+    transition: border-color var(--transition), color var(--transition); }
+  .tbx-ib:hover { border-color: var(--accent); color: var(--text); }
+  .tbx-ib.on { border-color: var(--accent); color: var(--accent-hover); }
+  .tbx-ib:disabled { opacity: 0.4; cursor: not-allowed; border-color: var(--border); color: var(--text-2); }
+  .tbx-count { background: var(--accent); color: #1B1C1E; border-radius: 5px; padding: 0 5px; font-size: 10px;
+    font-weight: 700; letter-spacing: 0; line-height: 16px; font-family: var(--mono); }
+  .tbx-note { display: flex; gap: 11px; align-items: flex-start; padding: 11px 14px; border: 1px solid var(--border-soft);
+    border-left: 2px solid var(--accent); border-radius: var(--radius-sm); background: var(--bg-card);
+    font-size: 12.5px; line-height: 1.6; color: var(--text-2); margin-bottom: 14px; }
+  .tbx-note > .tbi { margin-top: 3px; color: var(--accent-hover); flex-shrink: 0; }
+  .tbx-note b { color: var(--text); font-weight: 700; }
+  .tbx-note.warn { border-left-color: var(--amber); }
+  .tbx-note.warn > .tbi, .tbx-note.warn b { color: var(--amber); }
+  .tbx-spin { animation: nhspin 1s linear infinite; display: inline-flex; }
+  /* Segmented control: the chosen segment is a raised surface with an accent line. */
+  .tbx-seg { display: inline-flex; align-items: center; background: var(--bg-card); border: 1px solid var(--border-soft);
+    border-radius: 10px; padding: 3px; gap: 2px; max-width: 100%; }
+  .tbx-seg button { border: none; background: transparent; color: var(--text-2); font-size: 12px; font-weight: 600;
+    padding: 0 11px; height: 28px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center;
+    gap: 6px; white-space: nowrap; transition: color var(--transition), background var(--transition); }
+  .tbx-seg button:hover { color: var(--text); }
+  .tbx-seg button.on { background: var(--bg-slot); color: var(--text); box-shadow: inset 0 0 0 1px var(--accent); }
+  .tbx-seg button.on.bull { color: var(--green); }
+  .tbx-seg button.on.bear { color: var(--red); }
+  .tbx-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; color: var(--accent-hover); }
+  .tbx-empty { text-align: center; padding: 56px 20px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+  .tbx-empty > .tbi { font-size: 32px; }
+  .tbx-empty .t { font-size: 17px; font-weight: 700; color: var(--text); margin: 12px 0 4px; }
+  .tbx-empty a { color: var(--accent-hover); }
+
+  /* ── Control: the watchlist that drives News (TradeHub's Control, minus Prompts) ── */
+  .ctl-card { padding: 20px; }
+  .ctl-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 16px; }
+  .ctl-meta { font-size: 12px; color: var(--muted); margin-top: 5px; }
+  .ctl-add { display: flex; gap: 8px; margin-bottom: 16px; }
+  .ctl-add .form-input { flex: 1; min-width: 0; height: 40px; font-family: var(--mono); font-weight: 600;
     letter-spacing: 0.03em; text-transform: uppercase; }
-  .wl-add .form-input::placeholder { text-transform: none; letter-spacing: 0; font-family: var(--sans); font-weight: 400; }
-  .wl-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 20px; }
-  .wl-chip { display: inline-flex; align-items: center; gap: 7px; padding: 5px 5px 5px 11px;
-    border-radius: 9px; border: 1px solid var(--border-soft); background: var(--bg-inset); }
-  .wl-chip .sym { font-size: 13px; }
-  .wl-chip .sec { font-size: 10px; font-weight: 600; color: var(--muted); background: var(--bg-slot);
-    padding: 2px 7px; border-radius: 20px; white-space: nowrap; }
-  .wl-chip .sec.pending { font-style: italic; opacity: 0.7; }
-  .wl-chip .x { background: none; border: none; color: var(--muted); font-size: 16px; line-height: 1;
-    width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; }
-  .wl-chip .x:hover { color: var(--red); background: var(--red-dim); }
-  .wl-label { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  .ctl-add .form-input::placeholder { text-transform: none; letter-spacing: 0; font-family: var(--sans); font-weight: 400; }
+  .ctl-add .btn { height: 40px; flex-shrink: 0; }
+  .ctl-add .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .ctl-tickers { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 7px; }
+  .ctl-tk { position: relative; padding: 9px 28px 9px 11px; border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
+    background: var(--bg-inset); min-width: 0; transition: border-color var(--transition); }
+  .ctl-tk:hover { border-color: var(--border); }
+  .ctl-tk b { display: block; font-family: var(--mono); font-size: 13.5px; font-weight: 600; color: var(--text); letter-spacing: 0.03em; }
+  .ctl-tk span { display: block; font-size: 10.5px; color: var(--muted); margin-top: 2px; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; }
+  .ctl-tk span.pending { font-style: italic; opacity: 0.7; }
+  .ctl-tk button { position: absolute; top: 5px; right: 5px; width: 22px; height: 22px; border: none; border-radius: 6px;
+    background: transparent; color: var(--muted); display: inline-flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity var(--transition), color var(--transition), background var(--transition); }
+  .ctl-tk:hover button, .ctl-tk button:focus-visible { opacity: 1; }
+  .ctl-tk button:hover { color: var(--red); background: var(--red-dim); }
+  @media (hover: none) { .ctl-tk button { opacity: 0.8; } }
+  .ctl-empty { font-size: 13px; color: var(--muted); padding: 6px 0 2px; }
+  .ctl-section { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border-soft); }
+  .ctl-section-t { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;
     color: var(--muted); margin-bottom: 9px; }
-  .wl-copy { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 20px; flex-wrap: wrap; }
-  .wl-copy-box { flex: 1 1 240px; min-width: 0; font-family: var(--mono); font-size: 12px; color: var(--text-2);
-    background: var(--bg-inset); border: 1px solid var(--border-soft); border-radius: 9px; padding: 9px 12px;
-    word-break: break-word; line-height: 1.6; }
-  .wl-secs { display: flex; flex-wrap: wrap; gap: 6px; }
-  .wl-secs span { font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 6px;
-    border: 1px solid var(--border-soft); color: var(--text-2); }
+  .ctl-sectors { display: flex; flex-wrap: wrap; gap: 5px; }
+  .ctl-sectors span { font-size: 11.5px; color: var(--text-2); padding: 3px 9px; border: 1px solid var(--border-soft); border-radius: 6px; }
+  .ctl-bracket { display: flex; align-items: flex-start; gap: 10px; width: 100%; text-align: left; padding: 10px 12px;
+    background: var(--bg-inset); border: 1px solid var(--border-soft); border-radius: var(--radius-sm); color: var(--text-2);
+    font-family: var(--mono); font-size: 12px; line-height: 1.6; word-break: break-word; transition: border-color var(--transition); }
+  .ctl-bracket:hover:not(:disabled) { border-color: var(--accent); }
+  .ctl-bracket:disabled { cursor: default; opacity: 0.6; }
+  .ctl-bracket .tbi { margin-top: 3px; color: var(--muted); flex-shrink: 0; }
+  .ctl-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .ctl-link { background: transparent; border: 1px solid var(--border); border-radius: 9px; height: 32px; padding: 0 12px;
+    color: var(--text-2); font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;
+    white-space: nowrap; transition: color var(--transition), border-color var(--transition); }
+  .ctl-link:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
+  .ctl-link:disabled { opacity: 0.4; cursor: not-allowed; }
   .wl-empty { font-size: 12.5px; color: var(--muted); }
   .trash-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border-soft); }
   .trash-row:last-child { border-bottom: none; }
@@ -624,94 +690,105 @@
     margin-left: 6px; vertical-align: middle; animation: livepulse 1.8s ease-in-out infinite; }
   .section-nav button.active .nav-dot { background: #1B1C1E; }
 
-  .nh-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
-  .nh-head-l { flex: 1; min-width: 0; }
-  .nh-title { font-size: 17px; font-weight: 700; }
-  .nh-meta { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 3px; }
-  .nh-meta .pill { font-family: var(--mono); font-size: 10.5px; background: var(--bg-slot); padding: 2px 8px;
-    border-radius: 5px; white-space: nowrap; }
-  .nh-meta .warn { color: var(--amber); }
-  .nh-btns { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
-  .nh-btns-row { display: flex; gap: 6px; }
-  .nh-btns .btn { justify-content: center; }
-  .nh-btns .btn:disabled { opacity: 0.45; cursor: not-allowed; }
-  .nh-sum-btn.ready { border-color: var(--accent); color: var(--accent-hover); }
-  .nh-sum-btn .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); margin-left: 6px; }
-  .nh-banner { padding: 12px 16px; margin-bottom: 14px; border-left: 3px solid var(--accent);
-    font-size: 12.5px; color: var(--text-2); display: flex; gap: 11px; align-items: flex-start; line-height: 1.55; }
-  .nh-banner.warn { border-left-color: var(--amber); }
-  .nh-banner b { color: var(--text); }
-  .nh-spin { animation: nhspin 1s linear infinite; display: inline-flex; }
+  /* ── News ── */
   @keyframes nhspin { to { transform: rotate(360deg); } }
-  .nh-label { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
-  .nh-movers { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(200px, 1fr); gap: 10px;
-    overflow-x: auto; padding: 3px; margin: 8px -3px 16px; overscroll-behavior-x: contain; scrollbar-width: none; }
-  .nh-movers::-webkit-scrollbar { display: none; }
-  .nh-mover { padding: 11px 13px; cursor: pointer; border-left: 3px solid var(--muted); }
-  .nh-mover.sel { outline: 2px solid var(--text); }
-  .nh-mover .top { display: flex; align-items: baseline; gap: 8px; font-family: var(--mono); white-space: nowrap; min-width: 0; }
-  .nh-mover .t { font-weight: 600; font-size: 13.5px; color: var(--accent-hover); }
-  .nh-mover .px { margin-left: auto; font-size: 11.5px; color: var(--text-2); }
-  .nh-mover .hl { font-size: 11.5px; line-height: 1.4; color: var(--muted); margin-top: 6px;
-    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .nh-stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 12px; }
-  .nh-stat { padding: 7px 10px; display: flex; align-items: baseline; gap: 6px; min-width: 0; }
-  .nh-stat .n { font-family: var(--mono); font-size: 16px; font-weight: 600; line-height: 1.1; flex-shrink: 0; }
-  .nh-stat .l { font-size: 9px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-  .nh-activebar { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-bottom: 12px; padding: 7px 12px;
-    border: 1px solid var(--border-soft); border-radius: 9px; font-size: 12px; color: var(--text-2); }
-  .nh-activebar b { color: var(--text); }
-  .nh-activebar .f { background: var(--bg-slot); padding: 2px 8px; border-radius: 20px; font-weight: 600; font-size: 11px; }
-  .nh-activebar .f button, .nh-activebar .clear { background: none; border: none; color: var(--muted); font-size: 12px; padding: 0 0 0 4px; }
-  .nh-activebar .clear { margin-left: auto; color: var(--accent-hover); font-weight: 700; }
-  .nh-filters { display: flex; flex-direction: column; gap: 9px; margin-bottom: 16px; }
-  .nh-frow { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
-  .nh-frow .nh-label { min-width: 52px; }
-  .nh-fgrp { display: inline-flex; align-items: center; gap: 7px; }
-  .nh-fspacer { flex: 1; min-width: 6px; }
-  .nh-seg { display: inline-flex; flex-wrap: wrap; background: var(--bg-inset); border: 1px solid var(--border-soft);
-    border-radius: 9px; padding: 3px; gap: 2px; }
-  .nh-seg button { background: transparent; border: none; color: var(--text-2); font-size: 11.5px; font-weight: 600;
-    padding: 5px 10px; border-radius: 6px; white-space: nowrap; transition: var(--transition); }
-  .nh-seg button:hover { color: var(--text); }
-  .nh-seg button.on { background: var(--bg-slot); color: var(--text); box-shadow: var(--shadow-sm); }
-  .nh-seg button.on.bull { color: var(--green); } .nh-seg button.on.bear { color: var(--red); }
-  .nh-seg button.on.crit { color: var(--red); } .nh-seg button.on.maj { color: var(--accent-hover); }
-  .nh-seg button.on.imp { color: var(--amber); }
-  .nh-chip { font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border-soft);
-    background: var(--bg-inset); color: var(--text-2); transition: var(--transition); white-space: nowrap; }
+  @keyframes nhpulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+  .nh-sum-btn .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+  .nh-sum-btn.ready { border-color: var(--accent); }
+  /* The pulse: the window at a glance. A count that maps to a filter is a
+     button that sets it; tapping it again clears it. */
+  .nh-pulse { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); background: var(--bg-card);
+    border: 1px solid var(--border-soft); border-radius: var(--radius-sm); margin-bottom: 16px; overflow: hidden; }
+  .nh-pulse > button { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 12px 16px;
+    border: none; border-left: 1px solid var(--border-soft); background: transparent; text-align: left; min-width: 0;
+    color: inherit; transition: background var(--transition); }
+  .nh-pulse > button:first-child { border-left: none; }
+  .nh-pulse > button:hover { background: var(--bg-slot); }
+  .nh-pulse > button.on { box-shadow: inset 0 -2px 0 var(--accent); }
+  .nh-pulse b { font-family: var(--mono); font-size: 20px; font-weight: 500; line-height: 1.1; }
+  .nh-pulse span { font-size: 10.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .nh-sec-t { display: flex; align-items: baseline; gap: 10px; margin-bottom: 9px; }
+  .nh-sec-t small { font-size: 11px; color: var(--muted); }
+  .nh-movers { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(200px, 1fr); gap: 8px; overflow-x: auto;
+    margin-bottom: 18px; overscroll-behavior-x: contain; scrollbar-width: none; }
+  .nh-movers::-webkit-scrollbar, .nh-strip::-webkit-scrollbar { display: none; }
+  .nh-mover { text-align: left; padding: 11px 13px; border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
+    background: var(--bg-card); min-width: 0; color: inherit; transition: border-color var(--transition); }
+  .nh-mover:hover { border-color: var(--border); }
+  /* Selected reads white, not accent: the move colour already speaks. */
+  .nh-mover.on { border-color: var(--text); }
+  .nh-mover-top { display: flex; align-items: baseline; gap: 8px; font-family: var(--mono); white-space: nowrap; min-width: 0; }
+  .nh-mover-top b { font-size: 13.5px; font-weight: 600; color: var(--text); }
+  .nh-mover-top .mv { font-size: 12.5px; }
+  .nh-mover-top .px { margin-left: auto; font-size: 12px; color: var(--muted); }
+  .nh-mover p { font-size: 12px; line-height: 1.45; color: var(--muted); margin: 6px 0 0; display: -webkit-box;
+    -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .nh-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .nh-tools .grow { flex: 1; }
+  .nh-tools .tbx-ib { height: 36px; }
+  .nh-panel { padding: 14px 16px; border: 1px solid var(--border-soft); border-radius: var(--radius-sm); background: var(--bg-card);
+    margin-bottom: 10px; display: flex; flex-direction: column; gap: 12px; }
+  .nh-panel-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .nh-panel-row > .k { width: 62px; flex-shrink: 0; font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.1em; color: var(--muted); }
+  .nh-panel-row .tbx-seg { flex-wrap: wrap; }
+  .nh-chips { display: flex; gap: 6px; flex-wrap: wrap; min-width: 0; flex: 1; }
+  .nh-strip { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 12px; scrollbar-width: none; overscroll-behavior-x: contain; }
+  .nh-chip { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px;
+    border: 1px solid var(--border-soft); border-radius: 8px; background: var(--bg-card); color: var(--text-2);
+    font-size: 12px; font-weight: 600; white-space: nowrap; transition: border-color var(--transition), color var(--transition); }
   .nh-chip.mono { font-family: var(--mono); }
-  .nh-chip:hover { border-color: var(--accent); }
+  .nh-chip:hover { border-color: var(--border); color: var(--text); }
   .nh-chip.on { background: var(--accent); border-color: var(--accent); color: #1B1C1E; }
-  .nh-chip.faded { opacity: 0.4; }
-  .nh-chip .ct { font-size: 9px; opacity: 0.75; margin-left: 3px; }
-  .nh-list { display: flex; flex-direction: column; gap: 10px; }
-  .nh-ev { padding: 14px 16px; border-left: 3px solid var(--muted); }
-  .nh-ev-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
-  .nh-ev-top .t { font-family: var(--mono); font-weight: 600; font-size: 13px; color: var(--accent-hover); }
-  .nh-ev-top .mv { font-family: var(--mono); font-size: 11px; }
-  .nh-ev-top .addl { font-family: var(--mono); font-size: 11px; color: var(--muted); }
-  .nh-ev-top .sec { font-size: 11px; color: var(--muted); padding-left: 8px; border-left: 1px solid var(--border-soft); }
-  .nh-ev-top .ago { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--muted); }
-  .nh-tag { font-size: 9.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; padding: 2px 8px;
-    border-radius: 20px; border: 1px solid currentColor; white-space: nowrap; }
-  .nh-tag.solid { color: #fff !important; border-color: transparent; }
-  .nh-tag .sc { font-family: var(--mono); font-weight: 500; opacity: 0.8; margin-left: 3px; }
-  .nh-sum { font-size: 14.5px; line-height: 1.55; color: var(--text); font-weight: 500; margin-bottom: 10px; }
-  .nh-hls { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
-  .nh-hls a { display: flex; gap: 8px; text-decoration: none; color: var(--text-2); font-size: 12.5px; line-height: 1.45; }
-  .nh-hls a:hover { color: var(--accent-hover); }
-  .nh-hls a .src { color: var(--muted); font-size: 10.5px; margin-left: 6px; }
-  .nh-hls .more { background: none; border: none; color: var(--accent-hover); font-size: 11px; font-weight: 700;
-    padding: 0; margin-left: 16px; text-align: left; }
-  .nh-srcs { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; padding-top: 9px;
-    border-top: 1px dashed var(--border-soft); font-size: 11px; color: var(--muted); }
-  .nh-srcs a { color: var(--muted); text-decoration: none; font-weight: 600; }
-  .nh-srcs a:hover { color: var(--accent-hover); }
-  .nh-empty { text-align: center; padding: 60px 20px; color: var(--muted); }
-  .nh-empty h3 { color: var(--text); font-size: 17px; margin: 10px 0 6px; }
-  .nh-empty p { font-size: 12.5px; max-width: 380px; margin: 0 auto; line-height: 1.6; }
+  .nh-chip.dim { opacity: 0.4; }
+  .nh-chip .n { font-family: var(--mono); font-size: 10.5px; font-weight: 500; opacity: 0.7; }
+  .nh-results { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--muted);
+    margin-bottom: 12px; min-height: 26px; }
+  .nh-results b { color: var(--text); font-weight: 600; }
+  .nh-tag { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 4px 0 9px; border: 1px solid var(--border-soft);
+    border-radius: 6px; color: var(--text-2); font-size: 11.5px; font-weight: 600; }
+  .nh-tag.mono { font-family: var(--mono); }
+  .nh-tag button { border: none; background: transparent; color: var(--muted); width: 18px; height: 18px; display: inline-flex;
+    align-items: center; justify-content: center; border-radius: 5px; font-size: 11px; }
+  .nh-tag button:hover { color: var(--red); }
+  .nh-clear { margin-left: auto; background: transparent; border: 1px solid var(--border); border-radius: 8px; height: 26px;
+    padding: 0 10px; color: var(--accent-hover); font-size: 11.5px; font-weight: 600; transition: border-color var(--transition); }
+  .nh-clear:hover { border-color: var(--accent); }
+  .nh-feed { display: flex; flex-direction: column; gap: 10px; }
+  .nh-ev { background: var(--bg-card); border: 1px solid var(--border-soft); border-left: 3px solid var(--tc, var(--border-soft));
+    border-radius: var(--radius-sm); padding: 16px 20px 14px; transition: border-color var(--transition); }
+  .nh-ev:hover { border-top-color: var(--border); border-right-color: var(--border); border-bottom-color: var(--border); }
+  .nh-ev-top { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 8px; }
+  .nh-tk { font-family: var(--mono); font-size: 13.5px; font-weight: 600; color: var(--accent-hover); }
+  .nh-move { font-family: var(--mono); font-size: 12px; }
+  .nh-alt { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+  .nh-ago { margin-left: auto; font-family: var(--mono); font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+  .nh-breaking { display: inline-flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--amber); }
+  .nh-breaking i { width: 6px; height: 6px; border-radius: 50%; background: var(--amber); animation: nhpulse 1.4s ease-in-out infinite; }
+  .nh-sum { font-size: 15px; line-height: 1.6; font-weight: 500; color: var(--text); margin-bottom: 10px; }
+  .nh-hl { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .nh-hl a { display: flex; gap: 8px; align-items: baseline; text-decoration: none; color: var(--text-2); font-size: 13px;
+    line-height: 1.45; transition: color var(--transition); }
+  .nh-hl a:hover { color: var(--accent-hover); }
+  .nh-hl a > i { font-style: normal; color: var(--muted); flex: none; }
+  .nh-hl a small { color: var(--muted); font-size: 11px; margin-left: 6px; }
+  .nh-hl .more { align-self: flex-start; margin-left: 16px; background: transparent; border: 1px solid var(--border);
+    border-radius: 100px; height: 24px; padding: 0 10px; color: var(--accent-hover); font-size: 11px; font-weight: 600;
+    transition: border-color var(--transition); }
+  .nh-hl .more:hover { border-color: var(--accent); }
+  .nh-ev-foot { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; padding-top: 11px; border-top: 1px solid var(--border-soft); }
+  .nh-tags { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .nh-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 600; color: var(--c, var(--text-2));
+    border: 1px solid color-mix(in srgb, var(--c, var(--text-2)) 38%, transparent); border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
+  .nh-pill.cap { text-transform: capitalize; }
+  .nh-pill small { font-family: var(--mono); font-size: 10px; font-weight: 500; opacity: 0.75; }
+  .nh-src { margin-left: auto; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 11.5px; color: var(--muted); }
+  .nh-src a { color: var(--muted); text-decoration: none; font-weight: 600; transition: color var(--transition); }
+  .nh-src a:hover { color: var(--accent-hover); }
+  .nh-src .sep { opacity: 0.5; }
+  @media (prefers-reduced-motion: reduce) { .nh-breaking i, .tbx-spin { animation: none; } }
 
   /* Summary overlay */
   #nh-sum-modal .modal { width: 860px; padding: 0; }
@@ -742,25 +819,42 @@
   .nhs-foot { font-size: 10.5px; color: var(--muted); border-top: 1px solid var(--border-soft); padding-top: 11px; }
 
   @media (max-width: 900px) {
-    .nh-stats { grid-template-columns: repeat(3, 1fr); }
+    .nh-pulse { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .nh-pulse > button:nth-child(4) { border-left: none; }
+    .nh-pulse > button:nth-child(n+4) { border-top: 1px solid var(--border-soft); }
   }
   @media (max-width: 720px) {
-    .wl-card { padding: 14px 14px 16px; }
-    .wl-acts { justify-content: flex-start; }
-    .wl-acts .btn { flex: 1 1 auto; justify-content: center; }
-    .wl-add .btn { flex: 1 1 100%; justify-content: center; }
-    .wl-chip .x { width: 32px; height: 32px; }
-    .nh-head { flex-direction: column; align-items: stretch; gap: 10px; }
-    .nh-btns-row .btn { flex: 1; }
-    .nh-movers { grid-auto-columns: minmax(170px, 78%); }
-    .nh-frow .nh-label { min-width: 48px; }
-    .nh-fspacer { display: none; }
-    .nh-mover .top { gap: 6px; }
-    .nh-mover .px { font-size: 11px; }
-    .nh-seg button { padding: 8px 11px; font-size: 12px; }
-    .nh-chip { padding: 7px 11px; font-size: 12px; }
-    .nh-ev { padding: 12px 13px; }
-    .nh-sum { font-size: 14px; }
+    .tbx-head { flex-direction: column; align-items: stretch; margin-bottom: 16px; }
+    .tbx-head > div:first-child { flex: none; }
+    .tbx-title { font-size: 21px; }
+    .tbx-actions > * { flex: 1 1 0; }
+    .tbx-actions > .tbx-ib { flex: 0 0 auto; }
+    /* One small tool button (Control's Trash) stays beside the title. */
+    .tbx-head.keep-row { flex-direction: row; align-items: flex-end; flex-wrap: nowrap; }
+    .tbx-head.keep-row > div:first-child { flex: 1 1 auto; }
+    .tbx-actions .btn { height: 42px; min-height: 42px; padding: 0 10px; }
+    .tbx-ib { height: 40px; min-width: 40px; }
+    .ctl-card { padding: 16px 14px; }
+    .ctl-add .form-input, .ctl-add .btn { height: 44px; }
+    .ctl-tickers { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+    .ctl-tk { padding-right: 34px; }
+    .ctl-tk button { width: 30px; height: 30px; top: 50%; margin-top: -15px; right: 3px; }
+    .ctl-link { height: 40px; flex: 1 1 auto; justify-content: center; }
+    .nh-pulse > button { padding: 10px 12px; }
+    .nh-pulse b { font-size: 17px; }
+    .nh-pulse span { font-size: 9.5px; letter-spacing: 0.04em; }
+    .nh-tools .grow { display: none; }
+    .nh-tools > .tbx-seg:first-child { width: 100%; }
+    .nh-tools > .tbx-seg:first-child button { flex: 1 1 0; padding: 0 6px; }
+    .nh-tools .tbx-seg button { padding: 0 9px; }
+    .nh-tools .tbx-ib { padding: 0 10px; }
+    .tbx-seg button { height: 34px; }
+    .nh-chip { height: 34px; }
+    .nh-panel-row > .k { width: 100%; }
+    .nh-ev { padding: 14px 14px 12px; }
+    .nh-sum { font-size: 14.5px; }
+    .nh-src { margin-left: 0; }
+    .nh-movers { grid-auto-columns: 78%; }
     #nh-sum-modal .modal { padding: 0; }
     .nhs-head { padding: 12px 16px; }
     .nhs-body { padding: 14px 16px 18px; }
@@ -1329,7 +1423,7 @@
 <!-- Rendered entirely by TB.news (see the NEWS module). One host, so a filter
      click re-renders the whole view in one pass. -->
 <section class="section-view" id="view-news">
-  <div class="wrap" style="max-width:1100px;"><div id="nh-host"></div></div>
+  <div class="wrap" style="max-width:1180px;"><div id="nh-host"></div></div>
 </section>
 
 <!-- ══════════════════════ STRATS ══════════════════════ -->
@@ -4255,6 +4349,8 @@ const TBICON = {
   copy:    TBI_SVG('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>'),
   trash:   TBI_SVG('<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>'),
   x:       TBI_SVG('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
+  plus:    TBI_SVG('<path d="M12 5v14"/><path d="M5 12h14"/>'),
+  filter:  TBI_SVG('<path d="M4 6h16"/><path d="M7 12h10"/><path d="M10 18h4"/>'),
 };
 
 /* ── shared helpers ── */
@@ -4381,8 +4477,9 @@ TB.wl = {
 
   _norm(raw) { return String(raw || "").trim().toUpperCase().replace(/[^A-Z0-9.\-]/g, "").slice(0, 6); },
   // Accepts one or many — "NVDA, MU AMD" and "[NVDA AMD]" both work.
+  _parse(raw) { return String(raw || "").split(/[,\s\[\]]+/).map(TB.wl._norm).filter(Boolean); },
   add(raw) {
-    const parts = String(raw || "").split(/[,\s\[\]]+/).map(TB.wl._norm).filter(Boolean);
+    const parts = TB.wl._parse(raw);
     if (!parts.length) return;
     const next = TB.wl.list.slice();
     const added = [];
@@ -4480,45 +4577,58 @@ TB.wl = {
     const L = TB.wl.list;
     const typed = (document.getElementById("wl-input") || {}).value || "";
     const focused = document.activeElement && document.activeElement.id === "wl-input";
-    const secs = [...new Set(L.map(TB.wl.sector))].sort();
+    // Sectors still being detected are left out of the list rather than shown
+    // as "Diversified" for a moment and then replaced.
+    const secs = [...new Set(L.filter(TB.wl.knowsSector).map(TB.wl.sector))].sort();
     const isDefault = tbnSig(L) === tbnSig(TB.wl.defaultList());
-    host.innerHTML = `
-      <div class="section-label"><span>Control</span><span class="meta">${TB.wl.def ? "custom default set" : ""}</span></div>
-      <div class="card wl-card">
-        <div class="wl-head">
+    const nT = TB.wl.trash.length;
+    host.innerHTML = `<div class="tbx-page narrow">
+      <div class="tbx-head keep-row">
+        <div>
+          <div class="tbx-title">Control</div>
+          <div class="tbx-sub"><span>${L.length} of ${TBW_MAX} tickers</span><span>${isDefault ? "Your default list" : TB.wl.def ? "Custom default saved" : "Changed from the default"}</span></div>
+        </div>
+        <div class="tbx-actions">
+          <button type="button" class="tbx-ib" data-act="trash" title="Removed tickers: recoverable for ${TBW_TRASH_DAYS} days">${TBICON.trash}<span>Trash</span>${nT ? `<span class="tbx-count">${nT}</span>` : ""}</button>
+        </div>
+      </div>
+      <section class="card ctl-card">
+        <div class="ctl-card-head">
           <div>
-            <div class="wl-title">Watchlist</div>
-            <div class="wl-sub"><b>${L.length}</b> ticker${L.length === 1 ? "" : "s"} · drives News${isDefault ? " · default list" : ""}</div>
-          </div>
-          <div class="wl-acts">
-            <button class="btn btn-sm" data-act="default" ${L.length ? "" : "disabled"} title="Save the current list as the default — what Reset restores">${TBICON.star}<span>Set current as default</span></button>
-            <button class="btn btn-sm" data-act="reset" title="Go back to your default watchlist">${TBICON.rotate}<span>Reset to default</span></button>
-            <button class="btn btn-sm" data-act="trash" title="Removed tickers (kept 30 days)">${TBICON.trash}<span>Trash${TB.wl.trash.length ? " (" + TB.wl.trash.length + ")" : ""}</span></button>
+            <div class="tbx-label">Watchlist</div>
+            <div class="ctl-meta">Drives News. Removed tickers wait ${TBW_TRASH_DAYS} days in the Trash.</div>
           </div>
         </div>
-        <div class="wl-add">
-          <input id="wl-input" class="form-input" autocomplete="off" autocapitalize="characters" spellcheck="false"
-                 placeholder="Add tickers — comma or space separated (e.g. NVDA, MU, AMD)" value="${U.esc(typed)}">
-          <button class="btn btn-primary" data-act="add">+ Add</button>
+        <div class="ctl-add">
+          <input id="wl-input" class="form-input" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Add tickers"
+                 placeholder="Add tickers, e.g. NVDA, MU" value="${U.esc(typed)}">
+          <button type="button" class="btn btn-primary" data-act="add" ${TB.wl._parse(typed).length ? "" : "disabled"}>${TBICON.plus}<span>Add</span></button>
         </div>
-        <div class="wl-chips">
-          ${!L.length ? `<span class="wl-empty">No tickers — add some above or reset to default.</span>` :
-            L.slice().sort().map(t => `<span class="wl-chip">
-              <span class="sym">${U.esc(t)}</span>
-              <span class="sec${TB.wl.knowsSector(t) ? "" : " pending"}" title="Sector">${TB.wl.knowsSector(t) ? U.esc(TB.wl.sector(t)) : "Detecting…"}</span>
-              <button class="x" data-act="remove" data-t="${U.esc(t)}" title="Remove ${U.esc(t)}" aria-label="Remove ${U.esc(t)}">×</button>
-            </span>`).join("")}
+        ${!L.length ? `<div class="ctl-empty">No tickers yet. Add some above or reset to your default.</div>` :
+          `<div class="ctl-tickers">${L.slice().sort().map(t => {
+            const known = TB.wl.knowsSector(t), sec = known ? TB.wl.sector(t) : "Detecting…";
+            return `<div class="ctl-tk"><b>${U.esc(t)}</b><span class="${known ? "" : "pending"}" title="${U.esc(sec)}">${U.esc(sec)}</span>
+              <button type="button" data-act="remove" data-t="${U.esc(t)}" title="Remove ${U.esc(t)}" aria-label="Remove ${U.esc(t)}">${TBICON.x}</button></div>`;
+          }).join("")}</div>`}
+        ${secs.length ? `<div class="ctl-section">
+          <div class="ctl-section-t">Sectors, auto-derived</div>
+          <div class="ctl-sectors">${secs.map(s => `<span>${U.esc(s)}</span>`).join("")}</div>
+        </div>` : ""}
+        <div class="ctl-section">
+          <div class="ctl-section-t">Copy list</div>
+          <button type="button" class="ctl-bracket" data-act="copy" ${L.length ? "" : "disabled"} title="Copy the list">
+            <span style="flex:1;min-width:0;">[${U.esc(L.join(", "))}]</span>${TBICON.copy}</button>
+          <div class="ctl-links">
+            <button type="button" class="ctl-link" data-act="default" ${L.length && !isDefault ? "" : "disabled"} title="Save the current list as your default: this is what Reset to default restores">${TBICON.star}<span>Set current as default</span></button>
+            <button type="button" class="ctl-link" data-act="reset" ${isDefault ? "disabled" : ""} title="Go back to your default watchlist">${TBICON.rotate}<span>Reset to default</span></button>
+          </div>
         </div>
-        <div class="wl-label">Copy list</div>
-        <div class="wl-copy">
-          <div class="wl-copy-box">[${U.esc(L.join(", "))}]</div>
-          <button class="btn btn-sm" data-act="copy" ${L.length ? "" : "disabled"}>${TBICON.copy}<span>Copy</span></button>
-        </div>
-        <div class="wl-label">Auto-detected sectors</div>
-        <div class="wl-secs">${secs.length ? secs.map(s => `<span>${U.esc(s)}</span>`).join("") : `<span class="wl-empty" style="border:none">—</span>`}</div>
-      </div>`;
+      </section>
+    </div>`;
     const inp = document.getElementById("wl-input");
+    const addBtn = host.querySelector('[data-act="add"]');
     inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); TB.wl.add(inp.value); } });
+    inp.addEventListener("input", () => { addBtn.disabled = !TB.wl._parse(inp.value).length; });
     if (focused) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
   },
 };
@@ -4554,6 +4664,7 @@ TB.news = {
   quotes: {}, quotesAt: 0, _qTimer: null,
   rlUsed: 0, rlCooldown: 0, _cdTimer: null,
   sum: { gen: 0, data: null, loading: false, inflight: false, error: "", warmedGen: 0 }, sumOpen: false,
+  filtersOpen: false,   // the Impact + Sector panel (this device only, like TradeHub)
   _openHl: new Set(),
   _escalatedAt: 0, _kickedAt: 0, _wlSig: "", _wlTimer: null,
   _cloud: { ref: null, fs: null, ready: false, timer: null, lastSavedAt: 0, failN: 0, retry: null },
@@ -4874,6 +4985,8 @@ TB.news = {
     // Prune right away so News never shows a removed ticker…
     TB.news.events = TB.news.events.filter(e => tset.has(e.primaryTicker) || (e.additionalTickers || []).some(t => tset.has(t)));
     TB.news.f.selTickers = TB.news.f.selTickers.filter(t => tset.has(t));
+    const secs = new Set(); TB.news.events.forEach(e => (e.sectors || []).forEach(x => secs.add(x)));
+    TB.news.f.selSectors = TB.news.f.selSectors.filter(x => secs.has(x));
     TB.news._saveLocal();
     TB.news.renderIfActive();
     // …and pull coverage for the new list once the edits settle (adding three
@@ -5005,8 +5118,8 @@ TB.news = {
     if (f.sortBy === "time") visible.sort((a, b) => (b.ts || 0) - (a.ts || 0));
     else visible.sort((a, b) => ((b.impact && b.impact.score) || 0) - ((a.impact && a.impact.score) || 0) || (b.ts || 0) - (a.ts || 0));
     const tickerCounts = new Map(), sectorCounts = new Map(), topBy = {};
-    const evTickers = new Set(), evSectors = new Set();
-    N.events.forEach(e => { if (e.primaryTicker) evTickers.add(e.primaryTicker); (e.additionalTickers || []).forEach(t => evTickers.add(t)); (e.sectors || []).forEach(s => evSectors.add(s)); });
+    const evSectors = new Set();
+    N.events.forEach(e => (e.sectors || []).forEach(s => evSectors.add(s)));
     windowed.forEach(e => {
       if (e.primaryTicker) tickerCounts.set(e.primaryTicker, (tickerCounts.get(e.primaryTicker) || 0) + 1);
       (e.additionalTickers || []).forEach(t => tickerCounts.set(t, (tickerCounts.get(t) || 0) + 1));
@@ -5021,9 +5134,9 @@ TB.news = {
       bear: windowed.filter(e => e.sentiment && e.sentiment.label === "bear").length };
     const movers = TB.news.tickers().map(t => ({ t, q: N.quotes[t] })).filter(m => m.q && m.q.dp != null && isFinite(m.q.dp))
       .sort((a, b) => Math.abs(b.q.dp) - Math.abs(a.q.dp)).slice(0, 6);
-    // Ticker chips: watchlist order for anything with news, so a quiet ticker
-    // doesn't sit in the filter row doing nothing.
-    const tickerChips = TB.news.tickers().filter(t => evTickers.has(t)).sort();
+    // Ticker chips: the whole watchlist in one sideways strip (as TradeHub);
+    // a ticker with nothing in the window is dimmed.
+    const tickerChips = TB.news.tickers();
     return { windowed, visible, counts, tickerCounts, sectorCounts, topBy, movers, tickerChips, sectorChips: [...evSectors].sort() };
   },
   _headlines(sources) {
@@ -5047,90 +5160,121 @@ TB.news = {
     const canForce = rlLeft > 0 && N.rlCooldown <= 0 && !busy && wl.length > 0;
     const sumReady = !!(N.sum.data && N.generatedAt && N.sum.gen === N.generatedAt);
     const mins = s => s < 60 ? s + "s" : Math.ceil(s / 60) + "m";
-    const seg = (key, opts) => `<div class="nh-seg">${opts.map(([v, l, cls]) =>
-      `<button class="${f[key] === v ? "on " : ""}${cls || ""}" data-act="f" data-k="${key}" data-v="${v}">${l}</button>`).join("")}</div>`;
-    let h = "";
-    h += `<div class="nh-head">
-      <div class="nh-head-l">
-        <div class="nh-title">News</div>
-        <div class="nh-meta">
-          ${N.building ? `<span class="warn" style="display:inline-flex;align-items:center;gap:5px;"><span class="nh-spin">${TBICON.refresh}</span>Building… checking every ${TBN_POLL_MS / 1000}s</span>`
-            : N.generatedAt && N.events.length ? `<span>Updated ${tbnAgo(N.generatedAt)} · ${N.events.length} events · ${wl.length} tickers</span>`
+    const seg = (key, label, opts) => `<div class="tbx-seg" role="group" aria-label="${label}">${opts.map(([v, l, cls]) =>
+      `<button type="button" class="${f[key] === v ? "on " : ""}${cls || ""}" data-act="f" data-k="${key}" data-v="${v}" aria-pressed="${f[key] === v}">${l}</button>`).join("")}</div>`;
+    const spin = (ic) => `<span class="tbx-spin">${ic}</span>`;
+    let h = `<div class="tbx-page">`;
+    h += `<div class="tbx-head">
+      <div>
+        <div class="tbx-title">News</div>
+        <div class="tbx-sub">
+          ${N.building ? `<span class="is-warn">${spin(TBICON.refresh)}Building · checking every ${TBN_POLL_MS / 1000}s</span>`
+            : N.generatedAt && N.events.length ? `<span>Updated ${tbnAgo(N.generatedAt)}</span><span>${N.events.length} events</span>`
             : `<span>No news loaded yet</span>`}
-          <span class="pill" title="Force fresh refreshes left today (resets midnight UTC)">${rlLeft}/${TBN_DAILY_LIMIT} left today</span>
-          ${N.rlCooldown > 0 ? `<span class="warn" style="display:inline-flex;align-items:center;gap:4px;">${TBICON.clock} ${mins(N.rlCooldown)}</span>` : ""}
+          <span title="Force refreshes left today (resets midnight UTC)">${rlLeft}/${TBN_DAILY_LIMIT} refreshes left today</span>
+          ${N.rlCooldown > 0 ? `<span class="is-warn">${TBICON.clock}${mins(N.rlCooldown)}</span>` : ""}
         </div>
       </div>
-      <div class="nh-btns">
-        <div class="nh-btns-row">
-          <button class="btn btn-sm" data-act="force" ${canForce ? "" : "disabled"} title="${!rlLeft ? "Daily limit reached" : N.rlCooldown > 0 ? "Wait " + mins(N.rlCooldown) : "Full re-fetch with every source"}">${TBICON.rotate}<span>Force fresh</span></button>
-          <button class="btn btn-sm btn-primary" data-act="refresh" ${busy || !wl.length ? "disabled" : ""}>${N.kicking ? "Loading…" : N.building ? "Building…" : TBICON.refresh + "<span>Refresh</span>"}</button>
-        </div>
-        <button class="btn btn-sm nh-sum-btn${sumReady ? " ready" : ""}" data-act="summary" ${!N.events.length || N.degraded ? "disabled" : ""}
-          title="${N.degraded ? "Raw headlines — nothing analyzed to summarize" : !N.events.length ? "No news to summarize yet" : "AI summary of this build"}">${TBICON.sparkle}<span>AI Summary</span>${sumReady ? `<span class="dot"></span>` : ""}</button>
+      <div class="tbx-actions">
+        <button type="button" class="btn nh-sum-btn${sumReady ? " ready" : ""}" data-act="summary" ${!N.events.length || N.degraded ? "disabled" : ""}
+          title="${N.degraded ? "Raw headlines — nothing analyzed to summarize" : !N.events.length ? "No news to summarize yet" : "AI summary of this build"}">${TBICON.sparkle}<span>Summary</span>${sumReady ? `<span class="dot"></span>` : ""}</button>
+        <button type="button" class="btn" data-act="force" ${canForce ? "" : "disabled"} title="${!rlLeft ? "Daily limit reached" : N.rlCooldown > 0 ? "Wait " + mins(N.rlCooldown) : busy ? "A build is already running" : "Force a full re-fetch with every source"}">${TBICON.rotate}<span>Force</span></button>
+        <button type="button" class="btn btn-primary" data-act="refresh" ${busy || !wl.length ? "disabled" : ""}>${busy ? spin(TBICON.refresh) : TBICON.refresh}<span>${N.kicking ? "Loading" : N.building ? "Building" : "Refresh"}</span></button>
       </div>
     </div>`;
     if (!wl.length) {
-      host.innerHTML = h + `<div class="nh-empty">${TBICON.sparkle.replace('class="tbi"', 'class="tbi" style="font-size:38px;margin:0 auto;"')}
-        <h3>Your watchlist is empty</h3><p>Add tickers in <a href="#" data-act="go-control">Control</a> and News will pull their coverage.</p></div>`;
+      host.innerHTML = h + `<div class="tbx-empty">${TBICON.sparkle}
+        <div class="t">Your watchlist is empty</div><div>Add tickers in <a href="#" data-act="go-control">Control</a> and News will pull their coverage.</div></div></div>`;
       return;
     }
-    if (N.notice) h += `<div class="card nh-banner">${TBICON.alert}<div>${U.esc(N.notice)}</div></div>`;
-    if (N.building) h += `<div class="card nh-banner warn"><span class="nh-spin">${TBICON.refresh}</span><div><b>AI pipeline running</b><br>Fetching news for your ${wl.length} tickers and scoring every story with Gemini. Usually 30–90 seconds — it keeps going if you switch tabs.</div></div>`;
-    if (!N.building && N.degraded && N.events.length) h += `<div class="card nh-banner warn">${TBICON.alert}<div><b>AI unavailable for this build</b> — showing raw headlines without sentiment or impact scores. Force fresh retries the AI.</div></div>`;
+    if (N.notice) h += `<div class="tbx-note">${TBICON.alert}<div>${U.esc(N.notice)}</div></div>`;
+    if (N.building) h += `<div class="tbx-note warn">${spin(TBICON.refresh)}<div><b>AI pipeline running in the background</b> · fetching news for your ${wl.length} tickers and scoring every story. Takes 30–90s; this page fills in by itself, even if you switch tabs.</div></div>`;
+    if (!N.building && N.degraded && N.events.length) h += `<div class="tbx-note warn">${TBICON.alert}<div><b>AI analysis missing</b> · this build came back as raw headlines, with no sentiment or impact scoring. Force retries the AI.</div></div>`;
+
+    if (N.events.length) {
+      const pulse = (n, label, color, act, on, title) => `<button type="button" data-act="${act}"${on ? ` class="on"` : ""} aria-pressed="${!!on}"${title ? ` title="${title}"` : ""}><b style="color:${color}">${n}</b><span>${label}</span></button>`;
+      h += `<div class="nh-pulse">
+        ${pulse(D.counts.total, "Events · " + f.hours + "h", "var(--text)", "clear", false, "Show everything in the window")}
+        ${pulse(D.counts.breaking, "Breaking", "var(--amber)", "p-time", f.sortBy === "time", "Newest first")}
+        ${pulse(D.counts.critical, "Critical", "var(--red)", "p-crit", f.impFilter === "critical")}
+        ${pulse(D.counts.major, "Major", "var(--accent-hover)", "p-major", f.impFilter === "major")}
+        ${pulse(D.counts.bull, "Bullish", "var(--green)", "p-bull", f.sentFilter === "bull")}
+        ${pulse(D.counts.bear, "Bearish", "var(--red)", "p-bear", f.sentFilter === "bear")}
+      </div>`;
+    }
 
     if (D.movers.length) {
-      h += `<div style="display:flex;align-items:baseline;gap:8px;"><span class="nh-label">Top Movers</span>${N.quotesAt ? `<span style="font-size:10.5px;color:var(--muted);">quotes ${tbnAgo(N.quotesAt)}</span>` : ""}</div>
-        <div class="nh-movers">${D.movers.map(m => {
+      h += `<div class="nh-sec-t"><span class="tbx-label">Top movers</span>${N.quotesAt ? `<small>quotes ${tbnAgo(N.quotesAt)}</small>` : ""}</div>
+        <div class="nh-movers" data-strip="movers" data-sb-strip="">${D.movers.map(m => {
           const ev = D.topBy[m.t];
           const hl = ev ? ((N._headlines(ev.sources)[0] || {}).headline || ev.summary) : "";
           const on = f.selTickers.length === 1 && f.selTickers[0] === m.t;
-          return `<div class="card nh-mover${on ? " sel" : ""}" data-act="mover" data-t="${U.esc(m.t)}" style="border-left-color:${tbnMoveColor(m.q.dp)}">
-            <div class="top"><span class="t">${U.esc(m.t)}</span><span style="color:${tbnMoveColor(m.q.dp)};font-size:12.5px;">${m.q.dp > 0 ? "▲" : "▼"} ${tbnPct(m.q.dp)}</span><span class="px">${tbnPrice(m.q.c)}</span></div>
-            <div class="hl">${hl ? U.esc(hl) : "No news in window"}</div></div>`;
+          return `<button type="button" class="nh-mover${on ? " on" : ""}" data-act="mover" data-t="${U.esc(m.t)}" aria-pressed="${on}">
+            <div class="nh-mover-top"><b>${U.esc(m.t)}</b><span class="mv" style="color:${tbnMoveColor(m.q.dp)}">${m.q.dp > 0 ? "▲" : "▼"} ${tbnPct(m.q.dp)}</span><span class="px">${tbnPrice(m.q.c)}</span></div>
+            <p>${hl ? U.esc(hl) : "No news in the window"}</p></button>`;
         }).join("")}</div>`;
     }
+
     if (N.events.length) {
-      h += `<div class="nh-stats">${[
-        [D.counts.total, "Events · " + f.hours + "h", "var(--text)"], [D.counts.breaking, "Breaking", "var(--amber)"],
-        [D.counts.critical, "Critical", "var(--red)"], [D.counts.major, "Major", "var(--accent-hover)"],
-        [D.counts.bull, "Bullish", "var(--green)"], [D.counts.bear, "Bearish", "var(--red)"],
-      ].map(([n, l, c]) => `<div class="card nh-stat"><div class="n" style="color:${c}">${n}</div><div class="l">${l}</div></div>`).join("")}</div>`;
-      const hasFilter = f.sentFilter !== "all" || f.impFilter !== "all" || f.selTickers.length || f.selSectors.length;
-      h += `<div class="nh-activebar"><span>Showing <b>${D.visible.length}</b> of ${D.windowed.length}</span>
-        ${f.sentFilter !== "all" ? `<span class="f">${TBN_SLABEL[f.sentFilter]}<button data-act="f" data-k="sentFilter" data-v="all" aria-label="Clear">×</button></span>` : ""}
-        ${f.impFilter !== "all" ? `<span class="f">${U.esc(f.impFilter)}+<button data-act="f" data-k="impFilter" data-v="all" aria-label="Clear">×</button></span>` : ""}
-        ${f.selSectors.map(s => `<span class="f">${U.esc(s)}<button data-act="sec" data-v="${U.esc(s)}" aria-label="Clear">×</button></span>`).join("")}
-        ${f.selTickers.map(t => `<span class="f mono">${U.esc(t)}<button data-act="tick" data-v="${U.esc(t)}" aria-label="Clear">×</button></span>`).join("")}
-        ${hasFilter ? `<button class="clear" data-act="clear">Clear all</button>` : ""}</div>`;
-    }
-    h += `<div class="nh-filters">
-      <div class="nh-frow"><span class="nh-fgrp"><span class="nh-label">Sort</span>${seg("sortBy", [["impact", "By impact"], ["time", "By time"]])}</span>
-        <span class="nh-fspacer"></span><span class="nh-fgrp"><span class="nh-label">Window</span>${seg("hours", [[24, "24h"], [48, "48h"], [72, "72h"]])}</span></div>
-      <div class="nh-frow"><span class="nh-label">View</span>${seg("sentFilter", [["all", "All"], ["bull", "Bullish", "bull"], ["neutral", "Neutral"], ["bear", "Bearish", "bear"]])}</div>
-      <div class="nh-frow"><span class="nh-label">Impact</span>${seg("impFilter", [["all", "All"], ["critical", "Critical", "crit"], ["major", "Major+", "maj"], ["important", "Important+", "imp"], ["notable", "Notable+"]])}</div>
-      ${D.sectorChips.length ? `<div class="nh-frow"><span class="nh-label">Sector</span>
-        <button class="nh-chip${f.selSectors.length ? "" : " on"}" data-act="secall">All</button>
-        ${D.sectorChips.map(s => { const ct = D.sectorCounts.get(s) || 0, on = f.selSectors.includes(s);
-          return `<button class="nh-chip${on ? " on" : ""}${!ct && !on ? " faded" : ""}" data-act="sec" data-v="${U.esc(s)}">${U.esc(s)}${ct ? `<span class="ct">${ct}</span>` : ""}</button>`; }).join("")}</div>` : ""}
-      ${D.tickerChips.length ? `<div class="nh-frow"><span class="nh-label">Ticker</span>
-        <button class="nh-chip${f.selTickers.length ? "" : " on"}" data-act="tickall">All</button>
+      const IMP = [["all", "All"], ["critical", "Critical"], ["major", "Major+"], ["important", "Important+"], ["notable", "Notable+"]];
+      const impLabel = k => (IMP.find(o => o[0] === k) || [k, k])[1];
+      const panelCount = (f.impFilter !== "all" ? 1 : 0) + f.selSectors.length;
+      h += `<div class="nh-tools">
+        ${seg("sentFilter", "Sentiment", [["all", "All"], ["bull", "Bullish", "bull"], ["neutral", "Neutral"], ["bear", "Bearish", "bear"]])}
+        <span class="grow"></span>
+        ${seg("sortBy", "Order", [["impact", "Impact"], ["time", "Latest"]])}
+        ${seg("hours", "Window", [[24, "24h"], [48, "48h"], [72, "72h"]])}
+        <button type="button" class="tbx-ib${N.filtersOpen ? " on" : ""}" data-act="filters" aria-expanded="${N.filtersOpen}">${TBICON.filter}<span>Filters</span>${panelCount ? `<span class="tbx-count">${panelCount}</span>` : ""}</button>
+      </div>`;
+      if (N.filtersOpen) {
+        h += `<div class="nh-panel">
+          <div class="nh-panel-row"><span class="k">Impact</span>${seg("impFilter", "Impact", IMP)}</div>
+          ${D.sectorChips.length ? `<div class="nh-panel-row"><span class="k">Sector</span><div class="nh-chips">
+            <button type="button" class="nh-chip${f.selSectors.length ? "" : " on"}" data-act="secall">All</button>
+            ${D.sectorChips.map(s => { const ct = D.sectorCounts.get(s) || 0, on = f.selSectors.includes(s);
+              return `<button type="button" class="nh-chip${on ? " on" : ""}${!ct && !on ? " dim" : ""}" data-act="sec" data-v="${U.esc(s)}">${U.esc(s)}${ct ? `<span class="n">${ct}</span>` : ""}</button>`; }).join("")}
+          </div></div>` : ""}
+        </div>`;
+      }
+      // Tickers: one sideways strip, however long the watchlist. Quiet ones dim.
+      h += `<div class="nh-strip" data-strip="tickers" data-sb-strip="">
+        <button type="button" class="nh-chip${f.selTickers.length ? "" : " on"}" data-act="tickall">All tickers</button>
         ${D.tickerChips.map(t => { const ct = D.tickerCounts.get(t) || 0, on = f.selTickers.includes(t);
-          return `<button class="nh-chip mono${on ? " on" : ""}${!ct && !on ? " faded" : ""}" data-act="tick" data-v="${U.esc(t)}">${U.esc(t)}${ct ? `<span class="ct">${ct}</span>` : ""}</button>`; }).join("")}</div>` : ""}
-    </div>`;
+          return `<button type="button" class="nh-chip mono${on ? " on" : ""}${!ct && !on ? " dim" : ""}" data-act="tick" data-v="${U.esc(t)}">${U.esc(t)}${ct ? `<span class="n">${ct}</span>` : ""}</button>`; }).join("")}
+      </div>`;
+      // What is showing, and every active filter as a removable tag.
+      const hasFilter = f.sentFilter !== "all" || f.impFilter !== "all" || f.selTickers.length || f.selSectors.length;
+      const tag = (label, act, k, v, mono) => `<span class="nh-tag${mono ? " mono" : ""}">${U.esc(label)}<button type="button" data-act="${act}"${k ? ` data-k="${k}"` : ""} data-v="${U.esc(v)}" aria-label="Clear ${U.esc(label)}">${TBICON.x}</button></span>`;
+      h += `<div class="nh-results"><span>Showing <b>${D.visible.length}</b> of ${D.windowed.length}</span>
+        ${f.sentFilter !== "all" ? tag(TBN_SLABEL[f.sentFilter], "f", "sentFilter", "all") : ""}
+        ${f.impFilter !== "all" ? tag(impLabel(f.impFilter), "f", "impFilter", "all") : ""}
+        ${f.selSectors.map(s => tag(s, "sec", "", s)).join("")}
+        ${f.selTickers.map(t => tag(t, "tick", "", t, true)).join("")}
+        ${hasFilter ? `<button type="button" class="nh-clear" data-act="clear">Clear all</button>` : ""}</div>`;
+    }
 
     if (N.kicking && !N.building && !N.events.length) {
-      h += `<div class="nh-empty"><span class="nh-spin" style="font-size:22px;">${TBICON.refresh}</span><h3>Checking for news…</h3></div>`;
+      h += `<div class="tbx-empty">${spin(TBICON.refresh)}<div class="t">Checking for news…</div></div>`;
     } else if (!D.visible.length) {
-      h += `<div class="nh-empty">${TBICON.sparkle.replace('class="tbi"', 'class="tbi" style="font-size:38px;margin:0 auto;"')}
-        <h3>${N.events.length ? "No matches" : N.building ? "Building your news…" : "No news loaded yet"}</h3>
-        <p>${N.events.length ? "Adjust or clear the filters above." : N.building ? "The first build for a new watchlist takes about a minute." : "Hit Refresh to pull AI-curated news for your watchlist."}</p></div>`;
+      h += `<div class="tbx-empty">${TBICON.sparkle}
+        <div class="t">${N.events.length ? "No matches" : N.building ? "Building your news…" : "No news loaded yet"}</div>
+        <div>${N.events.length ? "Loosen or clear the filters above." : N.building ? "The first build for a new watchlist takes about a minute." : "Hit Refresh to pull AI-curated news for your watchlist."}</div></div>`;
     } else {
-      h += `<div class="nh-list">${D.visible.map(e => N._eventCard(e)).join("")}</div>`;
+      h += `<div class="nh-feed">${D.visible.map(e => N._eventCard(e)).join("")}</div>`;
     }
-    const y = host.closest(".section-view") ? host.closest(".section-view").scrollTop : 0;
+    h += `</div>`;
+    // A repaint (every minute, every quote fetch) must not throw away where
+    // the page, the movers and the ticker strip were scrolled to, or focus.
+    const sv = host.closest(".section-view"), y = sv ? sv.scrollTop : 0;
+    const strips = {}; host.querySelectorAll("[data-strip]").forEach(el => { strips[el.dataset.strip] = el.scrollLeft; });
+    const fa = document.activeElement, fKey = fa && host.contains(fa) && fa.dataset ? [fa.dataset.act, fa.dataset.k || "", fa.dataset.v || "", fa.dataset.t || ""].join("|") : "";
     host.innerHTML = h;
-    const sv = host.closest(".section-view"); if (sv) sv.scrollTop = y;
+    host.querySelectorAll("[data-strip]").forEach(el => { if (strips[el.dataset.strip]) el.scrollLeft = strips[el.dataset.strip]; });
+    if (sv) sv.scrollTop = y;
+    if (fKey) {
+      const back = [...host.querySelectorAll("[data-act]")].find(el => [el.dataset.act, el.dataset.k || "", el.dataset.v || "", el.dataset.t || ""].join("|") === fKey);
+      if (back) try { back.focus({ preventScroll: true }); } catch (e) {}
+    }
   },
   _eventCard(e) {
     const N = TB.news;
@@ -5138,32 +5282,36 @@ TB.news = {
     const sl = (e.sentiment && e.sentiment.label) || "neutral", score = (e.sentiment && e.sentiment.score) || 0;
     const q = N.quotes[e.primaryTicker], hasPct = q && q.dp != null && isFinite(q.dp);
     const breaking = Date.now() - (e.ts || 0) < TBN_BREAKING_MS;
-    const hls = N._headlines(e.sources), open = N._openHl.has(e.id), CAP = 5;
+    const hls = N._headlines(e.sources), open = N._openHl.has(e.id), CAP = 4;
     const shownH = open ? hls : hls.slice(0, CAP), moreH = hls.length - shownH.length;
+    // One link per outlet, so "Yahoo · Yahoo · Yahoo" collapses; 3 shown, +N for the rest.
     const outlets = []; const seenN = new Set();
     for (const s of (e.sources || [])) { const nm = (s.name || "").trim().toLowerCase(); if (!nm || seenN.has(nm)) continue; seenN.add(nm); outlets.push(s); }
     const sentColor = sl === "bull" ? "var(--green)" : sl === "bear" ? "var(--red)" : "var(--text-2)";
-    const solid = tier === "critical" || tier === "major";
-    return `<div class="card nh-ev" style="border-left-color:${breaking ? "var(--amber)" : tm.c}">
+    const edge = breaking ? "var(--amber)" : tier === "minor" ? "var(--border-soft)" : tm.c;
+    return `<article class="nh-ev" style="--tc:${edge}">
       <div class="nh-ev-top">
-        ${breaking ? `<span class="nh-tag solid" style="background:var(--amber);">Breaking</span>` : ""}
-        <span class="t">${U.esc(e.primaryTicker || "")}</span>
-        ${hasPct ? `<span class="mv" style="color:${tbnMoveColor(q.dp)}" title="Today's move">${q.dp > 0 ? "▲" : "▼"} ${tbnPct(q.dp)}</span>` : ""}
-        ${(e.additionalTickers || []).length ? `<span class="addl">+ ${e.additionalTickers.map(U.esc).join(" · ")}</span>` : ""}
-        ${(e.sectors || []).length ? `<span class="sec">${U.esc(e.sectors[0])}</span>` : ""}
-        ${tier !== "minor" ? `<span class="nh-tag${solid ? " solid" : ""}" style="${solid ? "background:" + tm.c : "color:" + tm.c}">${tm.label}<span class="sc">${(e.impact && e.impact.score) || ""}</span></span>` : ""}
-        <span class="nh-tag" style="color:${sentColor}">${TBN_SLABEL[sl] || sl}${score ? `<span class="sc">${(score > 0 ? "+" : "") + (+score).toFixed(2)}</span>` : ""}</span>
-        ${e.eventType && e.eventType !== "other" ? `<span class="nh-tag" style="color:var(--muted)">${U.esc(e.eventType)}</span>` : ""}
-        ${e.aiAnalyzed === false ? `<span class="nh-tag" style="color:var(--amber)">Raw</span>` : ""}
-        <span class="ago">${tbnAgo(e.ts)}</span>
+        ${breaking ? `<span class="nh-breaking"><i></i>Breaking</span>` : ""}
+        <span class="nh-tk">${U.esc(e.primaryTicker || "")}</span>
+        ${hasPct ? `<span class="nh-move" style="color:${tbnMoveColor(q.dp)}" title="Today's move">${q.dp > 0 ? "▲" : "▼"} ${tbnPct(q.dp)}</span>` : ""}
+        ${(e.additionalTickers || []).length ? `<span class="nh-alt">+ ${e.additionalTickers.map(U.esc).join(" · ")}</span>` : ""}
+        <span class="nh-ago">${tbnAgo(e.ts)}</span>
       </div>
       <div class="nh-sum">${U.esc(e.summary || "")}</div>
-      ${shownH.length ? `<div class="nh-hls">${shownH.map(s => `<a href="${U.esc(tbnSafeUrl(s.url))}" target="_blank" rel="noopener noreferrer"><span style="opacity:.5">›</span><span>${U.esc(s.headline)}<span class="src">${U.esc(s.name || "")}${s.ts ? " · " + tbnAgo(s.ts) : ""}</span></span></a>`).join("")}
-        ${moreH > 0 || open ? `<button class="more" data-act="hl" data-id="${U.esc(e.id)}">${open ? "Show less" : "+ " + moreH + " more headline" + (moreH === 1 ? "" : "s")}</button>` : ""}</div>` : ""}
-      ${outlets.length ? `<div class="nh-srcs"><span style="font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:9.5px;">Sources</span>
-        ${outlets.slice(0, 3).map(s => `<a href="${U.esc(tbnSafeUrl(s.url))}" target="_blank" rel="noopener noreferrer">${U.esc(s.name)}</a>`).join('<span style="opacity:.4">·</span>')}
-        ${outlets.length > 3 ? `<span>+ ${outlets.length - 3} more</span>` : ""}</div>` : ""}
-    </div>`;
+      ${shownH.length ? `<div class="nh-hl">${shownH.map(s => `<a href="${U.esc(tbnSafeUrl(s.url))}" target="_blank" rel="noopener noreferrer"><i>›</i><span>${U.esc(s.headline)}<small>${U.esc(s.name || "")}${s.ts ? " · " + tbnAgo(s.ts) : ""}</small></span></a>`).join("")}
+        ${moreH > 0 || open ? `<button type="button" class="more" data-act="hl" data-id="${U.esc(e.id)}">${open ? "Show less" : "+ " + moreH + " more headline" + (moreH === 1 ? "" : "s")}</button>` : ""}</div>` : ""}
+      <div class="nh-ev-foot">
+        <div class="nh-tags">
+          ${tier !== "minor" ? `<span class="nh-pill" style="--c:${tm.c}">${tm.label}${e.impact && e.impact.score ? `<small>${U.esc(e.impact.score)}</small>` : ""}</span>` : ""}
+          <span class="nh-pill" style="--c:${sentColor}">${TBN_SLABEL[sl] || U.esc(sl)}${score ? `<small>${(score > 0 ? "+" : "") + (+score).toFixed(2)}</small>` : ""}</span>
+          ${e.eventType && e.eventType !== "other" ? `<span class="nh-pill cap">${U.esc(e.eventType)}</span>` : ""}
+          ${(e.sectors || []).length ? `<span class="nh-pill" style="--c:var(--muted)">${U.esc(e.sectors[0])}</span>` : ""}
+          ${e.aiAnalyzed === false ? `<span class="nh-pill" style="--c:var(--amber)" title="Not analyzed: a raw headline">Raw</span>` : ""}
+        </div>
+        ${outlets.length ? `<div class="nh-src">${outlets.slice(0, 3).map(s => `<a href="${U.esc(tbnSafeUrl(s.url))}" target="_blank" rel="noopener noreferrer">${U.esc(s.name)}</a>`).join('<span class="sep">·</span>')}
+          ${outlets.length > 3 ? `<span>+${outlets.length - 3}</span>` : ""}</div>` : ""}
+      </div>
+    </article>`;
   },
   _renderSummary() {
     if (!TB.news.sumOpen) return;
@@ -5218,6 +5366,12 @@ TB.news = {
     else if (a === "secall") N.setFilter({ selSectors: [] });
     else if (a === "clear") N.setFilter({ selTickers: [], selSectors: [], sentFilter: "all", impFilter: "all" });
     else if (a === "mover") { const t = b.dataset.t; const on = f.selTickers.length === 1 && f.selTickers[0] === t; N.setFilter({ selTickers: on ? [] : [t] }); }
+    else if (a === "filters") { N.filtersOpen = !N.filtersOpen; N.render(); }
+    else if (a === "p-time") N.setFilter({ sortBy: f.sortBy === "time" ? "impact" : "time" });
+    else if (a === "p-crit") N.setFilter({ impFilter: f.impFilter === "critical" ? "all" : "critical" });
+    else if (a === "p-major") N.setFilter({ impFilter: f.impFilter === "major" ? "all" : "major" });
+    else if (a === "p-bull") N.setFilter({ sentFilter: f.sentFilter === "bull" ? "all" : "bull" });
+    else if (a === "p-bear") N.setFilter({ sentFilter: f.sentFilter === "bear" ? "all" : "bear" });
     else if (a === "hl") { const id = b.dataset.id; N._openHl.has(id) ? N._openHl.delete(id) : N._openHl.add(id); N.render(); }
   },
   // Section shown / hidden (from TB.showSection).
