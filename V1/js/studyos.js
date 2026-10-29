@@ -1450,10 +1450,11 @@ function renderClasses() {
 }
 
 /* A class's name for display. Some names arrived from an import still
- * HTML-escaped ("Computer Organization &amp"), which drew as "& amp". */
+ * HTML-escaped ("Computer Organization &amp", or "& amp" with a space),
+ * which drew as "& amp". */
 function sosClassName(cls) {
   const raw = String((cls && cls.name) || '');
-  const t = raw.replace(/&amp;?/gi, '&').replace(/&lt;?/gi, '<').replace(/&gt;?/gi, '>').replace(/&quot;?/gi, '"').replace(/&#0?39;?/g, "'");
+  const t = raw.replace(/&s*amp;?/gi, '&').replace(/&lt;?/gi, '<').replace(/&gt;?/gi, '>').replace(/&quot;?/gi, '"').replace(/&#0?39;?/g, "'");
   return t.replace(/\s*&\s*$/, '').trim() || raw;
 }
 window.sosClassName = sosClassName;
