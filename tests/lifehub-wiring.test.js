@@ -185,6 +185,11 @@ ok("seeds Veda's own list: the programs with a Veda profile", names(veda).join()
 ok('a later program is added to existing lists once (ADDED_LATER)', /var ADDED_LATER = \['shruti'\];/.test(src) && /ADDED_LATER\.forEach\([\s\S]{0,400}localStorage\.setItem\(mark, '1'\)[\s\S]{0,120}if \(!byId\(list, id\)\) commit\(st, addOp/.test(src));
 ok("each profile has its own document and mirror (Tony's unchanged)",
   /tony: \{ doc: 'lifehub', ls: 'lifehub:v1'/.test(src) && /veda: \{ doc: 'lifehub_veda', ls: 'lifehub:v1:veda'/.test(src));
+ok("the panel's title names whose LifeHub it is ('LifeHub – Tony' / 'LifeHub – Veda')",
+  /var TITLES = \{ tony: 'LifeHub \\u2013 Tony', veda: 'LifeHub \\u2013 Veda' \};/.test(src) &&
+  /class="ttl">' \+ lhTitle\(\)/.test(src) && /'Edit apps' : lhTitle\(\)/.test(src));
+ok('a fixed data-profile mounts that person; data-profile-attr also reads <html>',
+  /else p = CFG\.fixedProfile \|\| 'tony';/.test(src) && /document\.documentElement\.getAttribute\(CFG\.profileAttr\)/.test(src));
 ok("Veda's Shield (HTML) opens under TaskHub's Veda key 'shield_veda'", /\{ id: 'shield_html'[^}]*tab: 'shield_veda'/.test(veda));
 ok("the desktop Shield tile is the agent's installed path, per profile",
   /url: SHIELD_EXE\.tony/.test(tony) && /url: SHIELD_EXE\.veda/.test(veda) &&
