@@ -725,4 +725,26 @@
      it, the 404 is harmless: the sweep simply does not run. -->
 <script src="../sweep.js" data-program="studyos" defer></script>
 </body>
-</html>
+</html><!-- MODAL: MODULE DETAIL -->
+<div class="modal-overlay sos-modal" id="modal-module-detail">
+  <div class="modal modal-wide" id="module-detail-modal">
+    <div class="modal-title-row" id="module-detail-title">
+      <span class="md-type" id="module-detail-type"></span>
+      <span class="modal-title" id="module-detail-title-text">Module</span>
+      <button class="icon-chip" id="module-detail-rename-btn" title="Rename" aria-label="Rename" onclick="openRenameModule(_sosCurrentModuleClassId, _sosCurrentModuleId)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+      <span class="md-spacer"></span>
+      <!-- Notes modules only: flashcards from every page of the module. -->
+      <button class="btn cards-cta" id="module-detail-cards-btn" hidden title="Make flashcards from this module's pages" onclick="window.sosMakeCardsHere()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="14" height="14" rx="2.5"/><path d="M7 3.5h11a2.5 2.5 0 0 1 2.5 2.5v11"/><path d="m9.5 10 .8 2.1 2.2.9-2.2.9-.8 2.1-.8-2.1-2.2-.9 2.2-.9Z"/></svg>
+        <span>Make flashcards</span>
+      </button>
+      <button class="icon-chip close" onclick="closeModuleDetail()" title="Close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+    </div>
+    <div id="module-detail-body"></div>
+    <div class="modal-footer">
+      <button class="btn ghost" onclick="closeModuleDetail()">Close</button>
+    </div>
+  </div>
+</div>
+
+
