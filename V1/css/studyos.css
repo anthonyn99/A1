@@ -72,6 +72,7 @@
   --suite-display: 'Lora', Georgia, serif;
   --font-accent: 'Lora', Georgia, serif;
   /* dragsort.js (A1Drag) tints its lifted card from these. */
+  --ac: #A892B0;   /* scrollbar.js thumb under the pointer */
   --ds-ac: #A892B0; --ds-s2: #2e2f33; --ds-tx: #ECECEE; --ds-txm: #7d7e83;
 }
 
@@ -328,10 +329,7 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
   position: relative; z-index: 1;
   flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
   padding: 20px 24px 36px; display: none;
-  scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .14) transparent;
 }
-#study-root .view::-webkit-scrollbar { width: 8px; height: 8px; }
-#study-root .view::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .12); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
 #study-root .view.active { display: block; animation: sosViewIn .34s var(--ease) backwards; }
 @keyframes sosViewIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 #study-root #view-home.active .dash-hero { animation: sosRise .42s .02s var(--ease) backwards; }
@@ -533,7 +531,7 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
   box-shadow: 0 28px 60px -18px rgba(0, 0, 0, .75), 0 0 0 1px rgba(0, 0, 0, .35);
   font-family: 'Nunito', system-ui, sans-serif; color: #EFECF3;
   animation: soscIn .16s var(--ease); transform-origin: top center;
-  scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .16) transparent;
+ 
 }
 .sosc-pop.up { transform-origin: bottom center; }
 .sosc-pop.leave { opacity: 0; transform: translateY(-4px) scale(.98); transition: opacity .12s, transform .12s; }
@@ -812,7 +810,7 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
 #study-root .cal-more { font-size: 10.5px; font-weight: 800; color: var(--text3); padding: 0 6px; }
 
 #study-root .timeline-panel { position: sticky; top: 0; }
-#study-root #upcoming-list { max-height: calc(100vh - 220px); overflow-y: auto; scrollbar-width: thin; }
+#study-root #upcoming-list { max-height: calc(100vh - 220px); overflow-y: auto; }
 #study-root .up-group { padding: 12px 18px 4px; font-size: 10.5px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase; color: var(--text3); }
 #study-root .up-group.today { color: var(--accent2); }
 #study-root .timeline-item {
@@ -865,7 +863,7 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
 #study-root .class-events-panel > .panel-head { flex-shrink: 0; }
 #study-root .class-panel-body {
   flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
-  overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .14) transparent;
+  overscroll-behavior: contain;
 }
 #study-root .class-event-item {
   display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 11px; align-items: start;
@@ -1032,7 +1030,7 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
 .sos-modal .modal-ic svg { width: 20px; height: 20px; }
 .sos-modal .modal-title { font-family: var(--display); font-size: 19px; font-weight: 600; letter-spacing: -.3px; color: #F4EEF8; line-height: 1.25; }
 .sos-modal .modal-sub { font-size: 13.5px; color: var(--text3); margin-top: 2px; }
-.sos-modal .modal-scroll-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: 0 -22px; padding: 2px 22px 4px; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .14) transparent; }
+.sos-modal .modal-scroll-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: 0 -22px; padding: 2px 22px 4px; }
 .sos-modal .modal-footer {
   display: flex; gap: 8px; justify-content: flex-end; align-items: center; flex-shrink: 0;
   margin: 16px -22px -18px; padding: 12px 22px 16px; border-top: 1px solid var(--border);
@@ -1080,7 +1078,7 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
 .sos-modal .md-type svg { width: 20px; height: 20px; }
 .sos-modal .md-spacer { flex: 1; }
 .sos-modal .icon-chip.close { margin-left: 2px; }
-#module-detail-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: 0 -22px; padding: 0 22px 4px; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .14) transparent; }
+#module-detail-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: 0 -22px; padding: 0 22px 4px; }
 /* Make flashcards: a soft mauve pill with a sparkle on the cards. */
 .sos-modal .btn.cards-cta {
   height: 36px; padding: 0 15px 0 12px; border-radius: 999px; gap: 8px;
