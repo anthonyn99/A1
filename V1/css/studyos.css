@@ -1522,3 +1522,12 @@ body.sos-guardian-open #study-root, body.sos-guardian-open #sos-intro {
 .sosc-ta > textarea { flex: 1 1 auto; width: 100%; }
 textarea:not(.sos-nb-host *) { resize: none; }
 .sosc-ta .a1-grip { --ds-txd: #7d7e83; --ds-tx: #ECECEE; --ds-ac: #A892B0; }
+
+/* Phones and tablets: the class page's side panels are part of the page, not
+   boxes that scroll on their own. A swipe that started on Upcoming or
+   Resources used to be caught by the panel (overscroll contain) and the page
+   would not move. */
+@media (max-width: 1100px) {
+  #study-root .class-events-panel { max-height: none; }
+  #study-root .class-panel-body { max-height: none; overflow: visible; overscroll-behavior: auto; }
+}
