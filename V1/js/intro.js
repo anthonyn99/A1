@@ -161,8 +161,11 @@
   window.addEventListener('resize', function () { if (!el.hidden) resize(); });
   document.addEventListener('visibilitychange', function () { if (document.hidden) stop(); else start(); });
 
-  // A deep link (?class=…) or a file being shared in goes straight to work.
-  if (/[?&](class|ingest)=/.test(location.search) || /\/(share|open-file)/.test(location.pathname)) {
+  // A deep link (?class=…), a file being shared in, or a pull-to-refresh
+  // (js/pulltorefresh.js) goes straight to work.
+  var skip = false;
+  try { skip = sessionStorage.getItem('sos.skipIntro') === '1'; sessionStorage.removeItem('sos.skipIntro'); } catch (e) {}
+  if (skip || /[?&](class|ingest)=/.test(location.search) || /\/(share|open-file)/.test(location.pathname)) {
     el.hidden = true;
   } else {
     resize();
