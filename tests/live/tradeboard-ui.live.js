@@ -185,6 +185,27 @@ const worker = {
   ok('Summary is marked ready once the digest is in', await until(`document.querySelector('#nh-host .nh-sum-btn.ready .dot')`, 6000));
   await click('#nh-host [data-act="summary"]');
   ok('Summary opens the market read', await until(`document.getElementById('nh-sum-modal').classList.contains('open') && /Chips lead, memory lags/.test(document.getElementById('nh-sum-host').textContent)`, 5000));
+  const sumShape = `var h=document.getElementById('nh-sum-host'); return JSON.stringify({
+    head: !!h.querySelector('.nhs-head .nhs-mark') && /5 events/.test(h.querySelector('.nhs-meta').textContent),
+    hero: h.querySelector('.nhs-eyebrow').textContent==='The read' && h.querySelector('.nhs-headline').textContent==='Chips lead, memory lags',
+    tone: h.querySelector('.nhs-tone-l').textContent==='Bullish' && h.querySelector('.nhs-score').textContent==='+0.35' && Math.abs(parseFloat(h.querySelector('.nhs-dot').style.left)-67.5)<0.1,
+    points: h.querySelectorAll('.nhs-pt').length===1 && h.querySelector('.nhs-pt-n').textContent==='01' && /Bull/.test(h.querySelector('.nhs-pt .nhs-st').textContent) && h.querySelector('.nhs-pt .nhs-tk').textContent==='NVDA',
+    cards: h.querySelectorAll('.nhs-card').length===2 && /Bear/.test(h.querySelector('.nhs-card .nhs-st').textContent),
+    cols: h.querySelectorAll('.nhs-panel').length===2,
+    foot: /AI summary of 5 analyzed events/.test(h.querySelector('.nhs-foot').textContent),
+    dialog: document.querySelector('#nh-sum-modal .modal').getAttribute('role')==='dialog' });`;
+  let shape = JSON.parse(await js(sumShape));
+  ok('the redesigned read: head, hero, tone gauge, numbered points, cards, risks + watch, foot', Object.values(shape).every(Boolean), JSON.stringify(shape));
+  ok('risks and what-to-watch sit side by side', await js(`var p=document.querySelectorAll('#nh-sum-host .nhs-panel'); return Math.abs(p[0].getBoundingClientRect().top-p[1].getBoundingClientRect().top)<2;`));
+  await shot('tradeboard-ui-summary');
+  await js(`document.querySelector('#nh-sum-modal .modal').scrollTop=400; TB.news.closeSummary(); TB.news.openSummary(); 1`);
+  ok('reopening starts at the top', await js(`return document.querySelector('#nh-sum-modal .modal').scrollTop===0;`));
+  await js(`TB.news.sum.data=null; TB.news.sum.error=''; TB.news.sum.loading=true; TB.news._renderSummary(); 1`);
+  ok('loading shows the skeleton', await js(`return document.querySelectorAll('#nh-sum-host .nhs-sk').length===6;`));
+  await js(`TB.news.sum.loading=false; TB.news.sum.error='Quota exhausted.'; TB.news._renderSummary(); 1`);
+  ok('an error shows Try again', await js(`return /Quota exhausted/.test(document.querySelector('#nh-sum-host .nhs-error').textContent) && !!document.querySelector('#nh-sum-host [data-act="sum-retry"]');`));
+  await js(`document.querySelector('#nh-sum-host [data-act="sum-retry"]').click(); 1`);
+  ok('...which fetches it again', await until(`/Chips lead/.test(document.getElementById('nh-sum-host').textContent)`, 5000));
   await js(`TB.news.closeSummary(); document.querySelector('#view-news').scrollTop=0; 1`);
   await shot('tradeboard-ui-news');
 
@@ -221,6 +242,15 @@ const worker = {
   const sl = JSON.parse(await js(`return JSON.stringify([document.querySelector('#nh-host .nh-strip').scrollLeft, document.querySelector('#nh-host .nh-movers').scrollLeft]);`));
   await js(`TB.news.render(); 1`);
   const sl2 = JSON.parse(await js(`return JSON.stringify([document.querySelector('#nh-host .nh-strip').scrollLeft, document.querySelector('#nh-host .nh-movers').scrollLeft]);`));
+  await until(`document.querySelector('#nh-host .nh-sum-btn.ready')`, 6000);
+  await click('#nh-host [data-act="summary"]');
+  await until(`/Chips lead/.test(document.getElementById('nh-sum-host').textContent)`, 5000); await sleep(400);
+  o = JSON.parse(await overflow('nh-sum-modal'));
+  ok('the summary fits the phone, one column, tone stacked', !o.doc && !o.bad.length
+    && await js(`var p=document.querySelectorAll('#nh-sum-host .nhs-panel'); var t=getComputedStyle(document.querySelector('#nh-sum-host .nhs-tone')).gridTemplateColumns.split(' ').length; return p[1].getBoundingClientRect().top > p[0].getBoundingClientRect().bottom - 1 && t===1;`), JSON.stringify(o));
+  ok('...as a bottom sheet with Close in reach', await js(`var m=document.querySelector('#nh-sum-modal .modal').getBoundingClientRect(), x=document.querySelector('#nh-sum-host [data-act="sum-close"]').getBoundingClientRect(); return Math.abs(m.bottom-innerHeight)<2 && x.top>=m.top && x.width>=36;`));
+  await shot('tradeboard-ui-summary-phone');
+  await js(`TB.news.closeSummary(); 1`);
   ok('the ticker strip and the movers keep their scroll through a repaint', sl[0] > 0 && sl[1] > 0 && sl2[0] === sl[0] && sl2[1] === sl[1], JSON.stringify([sl, sl2]));
 
   console.log('\nThe worker');
