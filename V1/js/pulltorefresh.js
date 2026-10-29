@@ -1,7 +1,7 @@
 /* ============================================================================
  * StudyOS — pull-to-refresh (touch devices)
  * ============================================================================
- * Drag down at the top of a scrolled view to reload data from the cloud.
+ * Drag down at the top of a scrolled view to reload the whole site.
  *
  * Why this file exists rather than a browser-native gesture: StudyOS is a PWA
  * whose scrolling lives in `.view` elements, not on `document`. The browser's
@@ -88,7 +88,9 @@
     if (animate) setTimeout(function () { if (indicator) indicator.style.transition = ''; }, 240);
   }
 
-  /* Re-read from the cloud and repaint. Resolves when the data is on screen. */
+  /* Reload the whole site (Tony, 2026-10-29). Open notes are saved first,
+   * and the cover page is skipped on the way back in (sos.skipIntro, read by
+   * js/intro.js), so the pull lands back in the app, fresh. */
   function doRefresh() {
     if (refreshing) return Promise.resolve();
     refreshing = true;
@@ -97,36 +99,11 @@
     i.style.transition = 'transform .18s ease';
     i.style.transform = 'translateX(-50%) translateY(' + THRESHOLD + 'px)';
     i.style.opacity = '1';
-
-    var done = function () {
-      refreshing = false;
-      reset(true);
-    };
-
-    // No cloud read available (Firebase disabled/offline boot) — fall back to a
-    // genuine reload rather than pretending the gesture did something.
-    if (typeof window._fbLoadStudyOs !== 'function') {
-      setTimeout(function () { window.location.reload(); }, 300);
-      return Promise.resolve();
-    }
-
-    return Promise.resolve()
-      .then(function () { return window._fbLoadStudyOs(); })
-      .then(function (remote) {
-        // _fbLoadStudyOs resolves with the server document. Hand it to the same
-        // path a live snapshot uses so there is exactly one merge+repaint
-        // implementation, rather than a second copy that can drift from it.
-        if (remote) {
-          window.dispatchEvent(new CustomEvent('fb-sos-remote', { detail: remote }));
-        }
-        // Keep the spinner visible briefly so a fast refresh still reads as a
-        // deliberate action rather than a flicker.
-        return new Promise(function (r) { setTimeout(r, 350); });
-      })
-      .catch(function (e) {
-        console.warn('[StudyOS] pull-to-refresh failed:', e);
-      })
-      .then(done, done);
+    try { if (window.Notebook && window.Notebook.flushAll) window.Notebook.flushAll(); } catch (e) {}
+    try { sessionStorage.setItem('sos.skipIntro', '1'); } catch (e) {}
+    // A moment for a just-made edit's save to leave, and for the spinner to read.
+    setTimeout(function () { window.location.reload(); }, 450);
+    return Promise.resolve();
   }
 
   document.addEventListener('touchstart', function (e) {
