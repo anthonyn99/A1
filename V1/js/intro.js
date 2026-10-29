@@ -2,7 +2,7 @@
  * StudyOS — the cover page
  * ============================================================================
  * Shown on every launch, the way Everwell opens (Tony, 2026-10-29): the
- * mortarboard, "StudyOS", one line under it, and "Tap to continue". The mark
+ * mortarboard, "StudyOS", one line under it, and "Click to continue" ("Tap" on a touch screen). The mark
  * in the sidebar brings it back (window.sosShowIntro).
  *
  * Behind it, one canvas of its own (not Everwell's motes): a slow
