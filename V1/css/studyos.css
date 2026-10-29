@@ -1547,7 +1547,7 @@ textarea:not(.sos-nb-host *) { resize: none; }
 .sos-modal .day-item:hover { background: var(--bg4); border-color: var(--border3); }
 .sos-modal .day-time { font-size: 11.5px; font-weight: 800; color: var(--c); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .sos-modal .day-body { min-width: 0; }
-.sos-modal .day-name { font-size: 13.5px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
+.sos-modal .day-name { font-size: 13.5px; font-weight: 700; color: var(--text); overflow-wrap: anywhere; line-height: 1.35; margin-bottom: 4px; }
 .sos-modal .day-meta { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .sos-modal .day-item.done .day-name { text-decoration: line-through; opacity: .5; }
 .sos-modal .day-check {
@@ -1561,5 +1561,4 @@ textarea:not(.sos-nb-host *) { resize: none; }
 .sos-modal .day-add svg { width: 14px; height: 14px; }
 @media (max-width: 640px) {
   .sos-modal .day-item { grid-template-columns: 52px minmax(0, 1fr) auto; gap: 10px; padding: 11px 10px 11px 12px; }
-  .sos-modal .day-name { white-space: normal; }
 }
