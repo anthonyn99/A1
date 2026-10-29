@@ -45,8 +45,10 @@
   }
   function resize() {
     W = window.innerWidth; H = window.innerHeight;
-    dpr = Math.min(window.devicePixelRatio || 1, coarse ? 1.5 : 2);
-    if (W * H * dpr * dpr > 5.2e6) dpr = Math.sqrt(5.2e6 / (W * H));
+    // Fine points and hairlines: 1.5x is sharp enough, and the buffer is a
+    // quarter of a 2x one (a 4K screen is capped at ~3.5M pixels).
+    dpr = Math.min(window.devicePixelRatio || 1, coarse ? 1.25 : 1.5);
+    if (W * H * dpr * dpr > 3.5e6) dpr = Math.sqrt(3.5e6 / (W * H));
     cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     var want = Math.round(Math.min(coarse ? 36 : 60, (W * H) / 20000));
@@ -113,7 +115,11 @@
     if (leaving || el.hidden) return;
     leaving = true;
     el.classList.add('leave');
-    setTimeout(function () { el.hidden = true; el.classList.remove('leave'); leaving = false; stop(); }, 420);
+    setTimeout(function () {
+      el.hidden = true; el.classList.remove('leave'); leaving = false; stop();
+      // Give the drawing buffer back: a hidden full-screen canvas still holds it.
+      cv.width = 0; cv.height = 0;
+    }, 420);
   }
   function show() {
     stop();
