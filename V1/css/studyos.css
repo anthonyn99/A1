@@ -1562,3 +1562,10 @@ textarea:not(.sos-nb-host *) { resize: none; }
 @media (max-width: 640px) {
   .sos-modal .day-item { grid-template-columns: 52px minmax(0, 1fr) auto; gap: 10px; padding: 11px 10px 11px 12px; }
 }
+
+/* The mark in the header: phones only, where there is no sidebar to hold it. */
+#study-root .tb-mark { display: none; }
+@media (max-width: 640px) {
+  #study-root .tb-mark { display: inline-flex; width: 34px; height: 34px; flex: 0 0 34px; }
+  #study-root .tb-mark svg { width: 21px; height: 21px; }
+}

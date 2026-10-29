@@ -68,9 +68,12 @@
       var on = !(app && app.classList.contains('sb-collapsed'));
       applyCollapse(on); remember(on);
     });
-    // The mark beside the wordmark returns to the cover page (js/intro.js).
-    var mark = document.getElementById('sos-mark-btn');
-    if (mark) mark.addEventListener('click', function () { if (window.sosShowIntro) window.sosShowIntro(); });
+    // The mark beside the wordmark (and its twin in a phone's header) returns
+    // to the cover page (js/intro.js).
+    ['sos-mark-btn', 'sos-mark-btn-top'].forEach(function (id) {
+      var mark = document.getElementById(id);
+      if (mark) mark.addEventListener('click', function () { if (window.sosShowIntro) window.sosShowIntro(); });
+    });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
