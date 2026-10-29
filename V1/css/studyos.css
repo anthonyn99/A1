@@ -139,7 +139,8 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
   letter-spacing: -2px; color: #EADFF3;
   opacity: 0; animation: sosWord 1.15s .15s var(--ease) forwards;
 }
-.sos-intro-rule { width: 64px; height: 1px; background: #8D769A; opacity: 0; animation: sosRise .8s .55s var(--ease) forwards; }
+/* Clear of the descender of the "y" above it. */
+.sos-intro-rule { width: 64px; height: 1px; margin-top: 22px; background: #8D769A; opacity: 0; animation: sosRise .8s .55s var(--ease) forwards; }
 .sos-intro-sub {
   font-family: var(--sans); font-weight: 700; font-size: clamp(11px, 1.6vw, 13px);
   letter-spacing: 5px; text-transform: uppercase; color: #B9B4C3;
