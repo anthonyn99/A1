@@ -5,12 +5,9 @@
  * panel, the per-module default-prompt toggle, and the budget readout.
  *
  * ── WHY THIS BUILDS ITS OWN DOM ───────────────────────────────────────────
- * studyos.html wires the overlay dismiss handler ONCE at load, over the
- * .sos-modal elements that exist at that moment
- * (`document.querySelectorAll('.sos-modal').forEach(...)` in studyos.js). A
- * modal appended later would look identical and silently not close on a
- * backdrop click. So every sheet here attaches its own listeners rather than
- * relying on that pass.
+ * studyos.js closes a popup on a backdrop click or Escape by its id
+ * (`_sosDismiss`). These sheets are built on demand and have no id, so every
+ * sheet here attaches its own listeners rather than relying on that.
  *
  * ── WHY IT IS ALL OPT-IN ──────────────────────────────────────────────────
  * Nothing here renders unless STUDYOS_CONFIG.cloudflare.ai.enabled is true.
