@@ -187,7 +187,7 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 #study-root .sb-mark:hover { border-color: var(--accent); }
 #study-root .sb-mark:focus-visible { outline: none; box-shadow: var(--ring); }
 #study-root .sb-mark svg { width: 21px; height: 21px; display: block; }
-#study-root .sb-brand { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+#study-root .sb-brand { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
 #study-root .logo-text {
   font-family: var(--display); font-size: 17px; font-weight: 600; letter-spacing: -.2px; line-height: 1.1;
   color: #F1EAF6; white-space: nowrap;
@@ -195,13 +195,15 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 #study-root #sos-sync-status {
   display: inline-flex; align-items: center; gap: 5px;
   font-size: 10.5px; font-weight: 700; letter-spacing: .2px;
-  line-height: 1.2; white-space: nowrap; visibility: hidden; min-height: 13px;
+  line-height: 1.2; white-space: nowrap; visibility: hidden;
 }
+/* Under the word, out of the flow, so the word stays centred on the mark. */
+#study-root .sb-brand > #sos-sync-status { position: absolute; left: 0; top: calc(100% + 1px); }
 #study-root #sos-sync-status svg { width: 11px; height: 11px; flex-shrink: 0; }
 #study-root .sb-icon {
   width: 32px; height: 32px; flex: 0 0 32px; border-radius: 9px;
   display: inline-flex; align-items: center; justify-content: center;
-  background: transparent; border: 1px solid transparent; color: var(--text3);
+  background: var(--bg3); border: 1px solid #4A4B51; color: var(--text2);
   cursor: pointer; font-size: 15px; transition: background .18s, color .18s, border-color .18s;
 }
 #study-root .sb-icon:hover { background: var(--bg4); color: var(--accent2); border-color: var(--border2); }
@@ -216,7 +218,6 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 #study-root .sb-toggle svg { width: 16px; height: 16px; display: block; }
 #study-root .sb-toggle:hover { background: var(--bg4); color: var(--text); }
 #study-root .sidebar-logo > .sb-toggle { align-self: flex-start; margin-left: 2px; }
-#study-root .app.sb-collapsed .sidebar-logo > .sb-toggle { align-self: center; margin-left: 0; }
 
 #study-root .sidebar-nav { flex: 1; min-height: 0; padding: 4px 10px 12px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; overflow-x: hidden; }
 #study-root .nav-item {
@@ -279,21 +280,20 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 
 /* Collapsed: an icon rail. Labels hide (not removed), so each row's title
    still names it for pointer and screen-reader users. */
-#study-root .app.sb-collapsed .sidebar { width: 72px; min-width: 72px; }
-#study-root .app.sb-collapsed .sidebar-logo { padding: 16px 0 12px; align-items: center; }
-#study-root .app.sb-collapsed .sidebar-logo-row { justify-content: center; }
+/* Collapsed: the rail is just the open sidebar's left edge. The mark, the
+   toggle and every icon keep exactly where they were, so nothing jumps; only
+   the words go. Section labels keep their height and become a hairline. */
+#study-root .app.sb-collapsed .sidebar { width: 58px; min-width: 58px; }
 #study-root .app.sb-collapsed .sb-brand,
 #study-root .app.sb-collapsed .sidebar-logo-row .sb-icon,
 #study-root .app.sb-collapsed .nav-label,
 #study-root .app.sb-collapsed .sos-cloud-badge,
 #study-root .app.sb-collapsed .sos-storage-head,
 #study-root .app.sb-collapsed .sos-storage-text { display: none; }
-#study-root .app.sb-collapsed .sidebar-nav { padding: 4px 12px 12px; }
-#study-root .app.sb-collapsed .nav-item { justify-content: center; padding: 0; }
-#study-root .app.sb-collapsed .nav-item.active::before { left: -12px; }
-#study-root .app.sb-collapsed .nav-section-label { height: 1px; padding: 0; margin: 12px 8px; background: var(--border2); overflow: hidden; color: transparent; }
-#study-root .app.sb-collapsed .nav-live { position: absolute; top: 7px; right: 8px; width: 6px; height: 6px; }
-#study-root .app.sb-collapsed .sos-storage { margin: 8px 6px 0; padding: 8px; }
+#study-root .app.sb-collapsed .nav-section-label { position: relative; color: transparent; }
+#study-root .app.sb-collapsed .nav-section-label::after { content: ''; position: absolute; left: 10px; right: 10px; top: 60%; height: 1px; background: var(--border2); }
+#study-root .app.sb-collapsed .nav-live { position: absolute; top: 7px; left: 26px; width: 6px; height: 6px; }
+#study-root .app.sb-collapsed .sos-storage { padding: 8px; }
 
 /* Main column */
 #study-root .main { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
