@@ -700,6 +700,27 @@
   </div>
 </div>
 
+<!-- MODAL: DAY — everything on one calendar day, and adding to it. Before the
+     Add Task / Add Event popups so they open above it. -->
+<div class="modal-overlay sos-modal" id="modal-day">
+  <div class="modal modal-day">
+    <div class="modal-head">
+      <div class="modal-ic" id="day-modal-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg></div>
+      <div>
+        <div class="modal-title" id="day-modal-title"></div>
+        <div class="modal-sub" id="day-modal-sub"></div>
+      </div>
+    </div>
+    <div class="modal-scroll-body"><div id="day-list" class="day-list"></div></div>
+    <div class="modal-footer">
+      <button class="btn ghost" onclick="_sosClose('modal-day')">Close</button>
+      <span class="footer-sp"></span>
+      <button class="btn ghost day-add" onclick="sosDayAdd('task')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>Task</button>
+      <button class="btn primary day-add" onclick="sosDayAdd('event')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>Event</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: ADD TASK -->
 <div class="modal-overlay sos-modal" id="modal-add-task">
   <div class="modal">

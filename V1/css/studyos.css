@@ -1531,3 +1531,35 @@ textarea:not(.sos-nb-host *) { resize: none; }
   #study-root .class-events-panel { max-height: none; }
   #study-root .class-panel-body { max-height: none; overflow: visible; overscroll-behavior: auto; }
 }
+
+/* ── Day view (modal-day): everything on one calendar day ───────────────── */
+.sos-modal .modal-day { width: 440px; }
+#day-modal-ic.pink { color: var(--pink); }
+.sos-modal .day-list { display: flex; flex-direction: column; gap: 6px; padding: 2px 0; }
+.sos-modal .day-item {
+  display: grid; grid-template-columns: 58px minmax(0, 1fr) auto; gap: 12px; align-items: center;
+  padding: 10px 12px 10px 14px; border-radius: 12px; cursor: pointer; position: relative;
+  background: var(--bg3); border: 1px solid var(--border); transition: background .16s, border-color .16s;
+}
+.sos-modal .day-item::before {
+  content: ''; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 0 3px 3px 0; background: var(--c);
+}
+.sos-modal .day-item:hover { background: var(--bg4); border-color: var(--border3); }
+.sos-modal .day-time { font-size: 11.5px; font-weight: 800; color: var(--c); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sos-modal .day-body { min-width: 0; }
+.sos-modal .day-name { font-size: 13.5px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
+.sos-modal .day-meta { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sos-modal .day-item.done .day-name { text-decoration: line-through; opacity: .5; }
+.sos-modal .day-check {
+  width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; cursor: pointer;
+  background: transparent; border: 1px solid var(--border3); color: var(--text3); transition: background .16s, color .16s, border-color .16s;
+}
+.sos-modal .day-check svg { width: 14px; height: 14px; }
+.sos-modal .day-check:hover { color: var(--text); border-color: var(--c); }
+.sos-modal .day-item.done .day-check { background: var(--c); border-color: var(--c); color: #1a181e; }
+.sos-modal .day-add { display: inline-flex; align-items: center; gap: 6px; }
+.sos-modal .day-add svg { width: 14px; height: 14px; }
+@media (max-width: 640px) {
+  .sos-modal .day-item { grid-template-columns: 52px minmax(0, 1fr) auto; gap: 10px; padding: 11px 10px 11px 12px; }
+  .sos-modal .day-name { white-space: normal; }
+}
