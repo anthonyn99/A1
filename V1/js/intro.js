@@ -163,8 +163,8 @@
 
   // A deep link (?class=…), a file being shared in, or a pull-to-refresh
   // (js/pulltorefresh.js) goes straight to work.
-  var skip = false;
-  try { skip = sessionStorage.getItem('sos.skipIntro') === '1'; sessionStorage.removeItem('sos.skipIntro'); } catch (e) {}
+  var skip = /[?&]fresh=1/.test(location.search);
+  if (skip) try { var fu = new URL(location.href); fu.searchParams.delete('fresh'); history.replaceState(history.state, '', fu.toString()); } catch (e) {}
   if (skip || /[?&](class|ingest)=/.test(location.search) || /\/(share|open-file)/.test(location.pathname)) {
     el.hidden = true;
   } else {
