@@ -1473,3 +1473,13 @@ input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
 #study-root .section-header .count { background: var(--pink-soft); color: var(--pink); }
 .sos-modal .btn.cards-cta { background: var(--pink-soft); border-color: rgba(240, 179, 203, .45); color: #F6CADB; }
 .sos-modal .btn.cards-cta:hover { background: rgba(240, 179, 203, .22); border-color: var(--pink); color: #fff; }
+
+/* StudyOS's tooltip (js/controls.js), in place of the browser's. */
+.sos-tip {
+  position: fixed; z-index: 2147483200; pointer-events: none; max-width: 280px;
+  padding: 6px 10px; border-radius: 8px; background: #2e2f33; border: 1px solid #4A4B51;
+  color: #ECECEE; font: 600 12px/1.4 'Nunito', system-ui, sans-serif;
+  box-shadow: 0 10px 24px -10px rgba(0, 0, 0, .6);
+  opacity: 0; transform: translateY(-3px); transition: opacity .12s, transform .12s;
+}
+.sos-tip.on { opacity: 1; transform: none; }

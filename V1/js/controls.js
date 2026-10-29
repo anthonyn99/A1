@@ -18,6 +18,8 @@
  * Number fields keep their text box (typing a number is fastest) and gain a
  * minus / plus pair; the browser's spin arrows are hidden in CSS.
  *
+ * It also draws StudyOS's own tooltips in place of the browser's (title).
+ *
  * Enhances everything already on the page at boot and anything added later
  * (one MutationObserver on <body>). Skips V's Notebook (its own UI) and any
  * element marked data-native.
@@ -398,6 +400,56 @@
       pair[0].addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); stepBy(pair[1]); } });
     });
   }
+
+  /* ── Tooltips ───────────────────────────────────────────────────────────
+   * The browser's own `title` tooltip is replaced by StudyOS's (Tony,
+   * 2026-10-29: no browser UI). On hover with a mouse, an element's title
+   * moves to data-sos-tip while the pointer is on it (so the native one never
+   * shows) and a small bubble appears after a short pause. Touch has no
+   * hover, so nothing changes there; V's Notebook keeps its own. */
+  var tip = null, tipFor = null, tipT = 0;
+  function tipHide() {
+    clearTimeout(tipT); tipT = 0;
+    if (tipFor && tipFor.hasAttribute('data-sos-tip')) {
+      tipFor.setAttribute('title', tipFor.getAttribute('data-sos-tip'));
+      tipFor.removeAttribute('data-sos-tip');
+    }
+    tipFor = null;
+    if (tip) tip.classList.remove('on');
+  }
+  function tipShow(el) {
+    if (!tip) { tip = document.createElement('div'); tip.className = 'sos-tip'; tip.setAttribute('role', 'tooltip'); document.body.appendChild(tip); }
+    tip.textContent = el.getAttribute('data-sos-tip') || '';
+    if (!tip.textContent) return;
+    var r = el.getBoundingClientRect();
+    tip.style.left = '0px'; tip.style.top = '0px';
+    tip.classList.add('on');
+    var w = tip.offsetWidth, h = tip.offsetHeight;
+    var left = Math.min(Math.max(8, r.left + r.width / 2 - w / 2), window.innerWidth - w - 8);
+    var top = r.bottom + 8;
+    if (top + h > window.innerHeight - 8) top = r.top - h - 8;
+    tip.style.left = left + 'px'; tip.style.top = top + 'px';
+  }
+  document.addEventListener('pointerover', function (e) {
+    if (e.pointerType !== 'mouse') return;
+    var el = e.target && e.target.closest ? e.target.closest('[title]') : null;
+    if (!el || el === tipFor) return;
+    tipHide();
+    if (el.closest(SKIP) || !el.getAttribute('title')) return;
+    tipFor = el;
+    el.setAttribute('data-sos-tip', el.getAttribute('title'));
+    el.removeAttribute('title');
+    tipT = setTimeout(function () { if (tipFor === el && el.isConnected) tipShow(el); }, 450);
+  }, true);
+  document.addEventListener('pointerout', function (e) {
+    if (!tipFor) return;
+    var to = e.relatedTarget;
+    if (to && tipFor.contains(to)) return;
+    tipHide();
+  }, true);
+  document.addEventListener('pointerdown', tipHide, true);
+  window.addEventListener('blur', tipHide);
+  document.addEventListener('scroll', tipHide, true);
 
   /* ── Wiring ─────────────────────────────────────────────────────────────── */
   function enhance(el) {
