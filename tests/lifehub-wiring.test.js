@@ -174,7 +174,7 @@ const block = (name) => (new RegExp('var ' + name + ' = \\[([\\s\\S]*?)\\n  \\];
 const names = (b) => [...b.matchAll(/\{ id: '([a-z_]+)', name: '([^']+)'/g)].map((m) => m[2]);
 const tony = block('DEFAULT_APPS'), veda = block('VEDA_APPS');
 ok("seeds exactly Tony's eleven programs, in order", names(tony).join() === 'OneInbox,TradeHub,MyList,Insight,Vault,Everwell,Shield,Shield (HTML),RiftIQ,MAGI,Shruti', names(tony));
-ok("seeds Veda's own list: the programs with a Veda profile", names(veda).join() === 'TaskHub,MyList,Shield,Shield (HTML),Wellness,MAGI,Shruti', names(veda));
+ok("seeds Veda's own list: the programs with a Veda profile", names(veda).join() === 'TaskHub,StudyOS,MyList,Shield,Shield (HTML),Wellness,MAGI,Shruti', names(veda));
 // A program added after the lists exist reaches them once per device, never twice.
 ok('a later program is added to existing lists once (ADDED_LATER)', /var ADDED_LATER = \['shruti'\];/.test(src) && /ADDED_LATER\.forEach\([\s\S]{0,400}localStorage\.setItem\(mark, '1'\)[\s\S]{0,120}if \(!byId\(list, id\)\) commit\(st, addOp/.test(src));
 ok("each profile has its own document and mirror (Tony's unchanged)",
@@ -250,13 +250,17 @@ console.log('\nIcons');
   // launcher keeps showing the old mark. Each built-in icon is checked against
   // its program's <link rel="icon"> (private-repo pages when that repo is here).
   const PAGES = { oneinbox: '../A1-Priv/oneinbox.html', tradehub: '../A1-Priv/tradehub.html', mylist: 'mylist.html', insight: '../A1-Priv/insight.html', vault: '../A1-Priv/vault.html',
-    everwell: '../A1-Priv/everwell.html', shield: 'shield.html', riftiq: '../A1-Priv/riftiq.html', magi: 'magi.html', taskhub: 'index.html', wellness: 'wellness.html', shruti: 'Shruti/shruti.html' };
+    everwell: '../A1-Priv/everwell.html', shield: 'shield.html', riftiq: '../A1-Priv/riftiq.html', magi: 'magi.html', taskhub: 'index.html', wellness: 'wellness.html', studyos: 'V1/studyos.html', shruti: 'Shruti/shruti.html' };
   const svgs = {};
   for (const m of keys.matchAll(/^\s*'?([a-z-]+)'?:\s*"([^"]*)"/gm)) svgs[m[1]] = m[2];
   const favicon = (f) => {
     const h = fs.readFileSync(path.join(ROOT, f), 'utf8');
     const tag = (h.match(/<link\b[^>]*>/gi) || []).find((t) => /\brel=["'](?:shortcut )?icon["']/i.test(t));
     const m = tag && (/href="([^"]+)"/.exec(tag) || /href='([^']+)'/.exec(tag));
+    if (m && !/^data:/.test(m[1])) {
+      const svg = fs.readFileSync(path.join(ROOT, path.dirname(f), m[1]), 'utf8');
+      return svg.replace(/"/g, "'").replace(/>\s+</g, '><').trim();
+    }
     return m ? decodeURIComponent(m[1].replace(/^data:image\/svg\+xml(;utf8)?,/, '')) : null;
   };
   Object.keys(PAGES).forEach((k) => {

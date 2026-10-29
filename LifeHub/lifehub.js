@@ -163,6 +163,8 @@
     taskhub: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='#1a1a1d'/><g fill='none' stroke='#c0aeea' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'><path d='M26 34l7 7 12-13'/><path d='M56 36h16'/><path d='M26 58h46'/><path d='M26 72h46'/></g></svg>",
     // Wellness (Veda's), its own favicon verbatim.
     wellness: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='#1B1C1E'/><g fill='none' stroke='#8D769A' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'><path d='M26 52c0-10 8-18 18-18s18 8 18 18'/><path d='M22 62h12l5-10 6 20 5-10h24'/></g></svg>",
+    // StudyOS (Veda's), V1/assets/icon.svg with single quotes, on one line.
+    studyos: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='112' fill='#26272A'/><g transform='translate(56 64) scale(4.1667)' fill='none' stroke='#B8A2C6' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'><path d='M48 22 14 38l34 16 34-16Z'/><path d='M28 46v14c0 6 9 12 20 12s20-6 20-12V46'/><path d='M82 38v18'/></g><circle cx='397.7' cy='322.3' r='25' fill='#F0B3CB'/></svg>",
     shruti: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='#1a1a1d'/><g fill='none' stroke='#c0aeea' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'><path d='M48 40c-6-4-14-6-24-6v38c10 0 18 2 24 6 6-4 14-6 24-6V34c-10 0-18 2-24 6Z'/><path d='M48 40v38'/><path d='M41 28a10 10 0 0 1 14 0'/><path d='M35 21a19 19 0 0 1 26 0'/></g></svg>",
     link: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='#1a1a1d'/><g fill='none' stroke='#c0aeea' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'><circle cx='48' cy='48' r='24'/><path d='M24 48h48'/><path d='M48 24c7 7 10 15 10 24s-3 17-10 24c-7-7-10-15-10-24s3-17 10-24z'/></g></svg>"
   };
@@ -177,6 +179,8 @@
      identical (tradehub, warroom, vault, everwell, magi, shield_tony) so both
      launchers land on one tab per program. */
   var BASE = 'https://anthonyn99.github.io/A1/';
+  // Veda's StudyOS is served from her own Cloudflare site (V1/scripts/build.mjs).
+  var STUDYOS = 'https://tradeboard.vedapatel05.workers.dev/studyos/';
   // Programs that moved to the private repo's host on 2026-10-10
   // (docs/a1-priv-move-plan.md).
   var PRIV = 'https://a1-priv.av1.workers.dev/';
@@ -210,9 +214,10 @@
   ];
   // Veda's own list: the programs that carry a Veda profile. Tab keys follow
   // TaskHub's per-profile ones (shield_veda), so both open the same tab.
-  // TaskHub, Wellness and MAGI joined 2026-10-29 (Tony), with StudyOS hosting it.
+  // TaskHub, StudyOS, Wellness and MAGI joined 2026-10-29 (Tony).
   var VEDA_APPS = [
     { id: 'taskhub', name: 'TaskHub', url: BASE + 'index.html', icon: 'a1:taskhub', tab: 'taskhub' },
+    { id: 'studyos', name: 'StudyOS', url: STUDYOS, icon: 'a1:studyos', tab: 'studyos' },
     { id: 'mylist', name: 'MyList', url: BASE + 'mylist.html', icon: 'a1:mylist', tab: 'mylist' },
     { id: 'shield', name: 'Shield', url: SHIELD_EXE.veda, icon: 'a1:shield-desktop', tab: 'shield_app' },
     { id: 'shield_html', name: 'Shield (HTML)', url: BASE + 'shield.html', icon: 'a1:shield', tab: 'shield_veda' },
@@ -228,13 +233,14 @@
   // Added once more for one profile, on every device, if it is missing (a new
   // marker, so a device that already ran ADDED_LATER does it again). Tony,
   // 2026-10-22: Shruti on Veda's LifeHub.
-  // 2026-10-29 (Tony): TaskHub, Wellness and MAGI on Veda's list, and Shruti
+  // 2026-10-29 (Tony): TaskHub, StudyOS, Wellness and MAGI on Veda's list, and Shruti
   // shown again (show: a tile that is there but hidden is switched back on).
   // A tile already opening the same page under another id counts as present.
   var READDED = { veda: [
     { id: 'shruti', mark: 'shruti@2' },
     { id: 'taskhub', mark: 'taskhub@1' }, { id: 'wellness', mark: 'wellness@1' },
-    { id: 'magi', mark: 'magi@1' }, { id: 'shruti', mark: 'shruti@3', show: true }
+    { id: 'magi', mark: 'magi@1' }, { id: 'shruti', mark: 'shruti@3', show: true },
+    { id: 'studyos', mark: 'studyos@1' }
   ] };
 
   // One list per profile, each its own document and its own local mirror.
