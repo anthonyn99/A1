@@ -1027,6 +1027,21 @@ function switchView(view, classId) {
   });
 }
 
+// Only the views scroll. If anything (a focus jump, a stray absolute element)
+// scrolls the page or the frames around the views, snap them back, whichever
+// tab is open.
+(function () {
+  function pin(el) { if (el && (el.scrollTop || el.scrollLeft)) { el.scrollTop = 0; el.scrollLeft = 0; } }
+  document.addEventListener('scroll', function (e) {
+    var t = e.target;
+    if (t === document || t === document.documentElement || t === document.body) {
+      pin(document.scrollingElement); pin(document.body);
+    } else if (t && (t.id === 'study-root' || (t.matches && t.matches('#study-root > .app, #study-root .main')))) {
+      pin(t);
+    }
+  }, true);
+})();
+
 // ===== CLASSES =====
 function openAddClass() {
   selectedColor = COLORS[0];

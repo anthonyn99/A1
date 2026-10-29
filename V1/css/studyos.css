@@ -28,6 +28,11 @@ html, body {
   -webkit-font-smoothing: antialiased;
   -webkit-text-size-adjust: 100%;
   overscroll-behavior-y: none;
+  /* The page itself never scrolls: each view scrolls inside its own pane.
+     Without this, anything that pokes out of a pane (a hidden absolute
+     input, say) stretches the document and the wheel drags the whole app
+     off screen. */
+  overflow: hidden;
 }
 body { display: flex; flex-direction: column; }
 #study-root { flex: 1; min-height: 0; }
@@ -232,7 +237,9 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 #study-root .doc-item-cloud.is-ok   { color: #93c4a4; border-color: rgba(147,196,164,0.4); }
 #study-root .doc-item-cloud.is-warn { color: #e3b489; border-color: rgba(227,180,137,0.4); }
 /* VIEWS */
-#study-root .view { flex: 1; overflow-y: auto; padding: 24px; display: none; }
+/* position:relative makes each view the containing block for its own
+   absolute children, so they scroll with the view instead of the page. */
+#study-root .view { flex: 1; overflow-y: auto; padding: 24px; display: none; position: relative; }
 #study-root .view.active { display: block; }
 /* CLASSES GRID */
 #study-root .classes-grid {

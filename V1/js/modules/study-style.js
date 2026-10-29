@@ -175,7 +175,7 @@ li:hover > .sl-add, .sl-add:focus { opacity: 1; }
 .ais-msg.ok { color: var(--mint, #A8DCC0); }
 .ais-msg.err { color: var(--rose, #F2AFAF); }
 .ais-switches { display: flex; flex-direction: column; border-top: 1px solid var(--border); margin-top: 4px; }
-.ais-switch-row { display: flex; align-items: center; gap: 16px; padding: 14px 2px; cursor: pointer; border-bottom: 1px solid var(--border); }
+.ais-switch-row { position: relative; display: flex; align-items: center; gap: 16px; padding: 14px 2px; cursor: pointer; border-bottom: 1px solid var(--border); }
 .ais-switch-row:last-child { border-bottom: none; }
 .ais-switch-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .ais-switch-txt b { font-size: 14px; font-weight: 700; color: var(--text); }
