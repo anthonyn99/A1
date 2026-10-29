@@ -42,7 +42,8 @@ export function sheet(title, bodyHtml, { wide } = {}) {
     overlay.classList.remove('open');
     setTimeout(() => overlay.remove(), 200);
   };
-  // Closes from its own buttons or Escape; a click outside does nothing.
+  // Its own: studyos.js closes popups by id, and a sheet has none.
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
   const onKey = (e) => { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onKey); } };
   document.addEventListener('keydown', onKey);
 

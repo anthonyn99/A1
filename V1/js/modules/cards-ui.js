@@ -461,7 +461,7 @@ export function openEditor(o = {}) {
   ta.addEventListener('input', preview);
   el.querySelector('[data-save]').onclick = save;
   el.querySelector('[data-cancel]').onclick = close;
-  // Closes only from Cancel / Save / Escape, never a click outside (Tony, 2026-10-29).
+  el.addEventListener('click', (e) => { if (e.target === el) close(); });
   const st = el.querySelector('[data-status]');
   if (st) st.onclick = () => { deck.setStatus(card.id, deck.statusOf(card) === 'active' ? 'archived' : 'active'); close(); if (o.onSave) o.onSave(deck.get(card.id)); };
   const del = el.querySelector('[data-del]');

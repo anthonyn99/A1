@@ -5146,9 +5146,8 @@ function onPomoSettingChange() {
 }
 
 /* ── Modals ─────────────────────────────────────────────────────────────────
- * Opened and closed only by their own buttons (Cancel, Close, Back, Save):
- * a click outside the card does nothing (Tony, 2026-10-29: it threw away a
- * half-filled form). Escape still backs out of the top one, as its Cancel. */
+ * A click outside the card closes a popup (Tony, 2026-10-29, brought back),
+ * and Escape backs out of the top one; both act as its Cancel / Close. */
 function _sosOpen(id) {
   var el = document.getElementById(id);
   if (!el) return;
@@ -5166,6 +5165,23 @@ function _sosClose(id) {
   var el = document.getElementById(id);
   if (el) el.classList.remove('open');
 }
+// Each popup backs out the way its own Close / Cancel does.
+function _sosDismiss(overlay) {
+  if (overlay.id === 'modal-module-detail') closeModuleDetail();
+  else if (overlay.id === 'modal-pick-dest') _sosCancelPick();
+  else _sosClose(overlay.id);
+}
+// Only a press that both starts and ends on the backdrop: selecting text in a
+// field and letting go outside the card must not close it.
+var _sosDownOn = null;
+document.addEventListener('pointerdown', function (e) { _sosDownOn = e.target; }, true);
+document.addEventListener('click', function (e) {
+  var ov = e.target;
+  if (!ov || !ov.classList || !ov.classList.contains('sos-modal') || !ov.classList.contains('open')) return;
+  if (_sosDownOn !== ov) return;
+  if ((window.uiIsOpen && window.uiIsOpen()) || (window.Guardian && window.Guardian.isOpen && window.Guardian.isOpen())) return;
+  _sosDismiss(ov);
+});
 document.addEventListener('keydown', function (e) {
   if (e.key !== 'Escape') return;
   if ((window.uiIsOpen && window.uiIsOpen()) || (window.Guardian && window.Guardian.isOpen && window.Guardian.isOpen())) return;
@@ -5173,13 +5189,9 @@ document.addEventListener('keydown', function (e) {
   if (!open.length) return;
   var top = open[open.length - 1];
   e.preventDefault();
-  if (top.id === 'modal-module-detail') {
-    // Inside the notes editor Escape belongs to the editor.
-    if (top.querySelector('.notes-mode') && e.target && e.target.closest && e.target.closest('.sos-nb-modal-host')) return;
-    closeModuleDetail();
-  }
-  else if (top.id === 'modal-pick-dest') _sosCancelPick();
-  else _sosClose(top.id);
+  // Inside the notes editor Escape belongs to the editor.
+  if (top.id === 'modal-module-detail' && top.querySelector('.notes-mode') && e.target && e.target.closest && e.target.closest('.sos-nb-modal-host')) return;
+  _sosDismiss(top);
 });
 
 // ===== PERSIST =====
