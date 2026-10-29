@@ -8,14 +8,9 @@
  * own overscroll refresh never fires because the body itself never scrolls, so
  * the gesture has to be implemented against the active `.view`.
  *
- * Refresh here means "re-read from Firestore and repaint", NOT location.reload().
- * A hard reload would discard unsaved edits and re-run the App Lock gate; the
- * cloud read produces the same visible result without either cost. If the read
- * path is unavailable for any reason we fall back to a real reload so the
- * gesture is never a no-op.
- *
- * Load AFTER js/studyos.js — it calls window._fbLoadStudyOs and the renderers
- * that studyos.js defines.
+ * Refresh reloads the whole page (Tony, 2026-10-29). Open notes are flushed
+ * first; the lock does not ask again on a device that is already unlocked, and
+ * the cover page is skipped for that one load (sos.skipIntro, js/intro.js).
  * ------------------------------------------------------------------------- */
 (function () {
   'use strict';
