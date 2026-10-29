@@ -206,10 +206,11 @@ async function servePagesFromWorkingCopy(ws, send, mock) {
     const priv = path.join(A1, '..', 'A1-Priv');
     const moved = MOVED.test(rel) && fs.existsSync(path.join(priv, rel));
     const base = moved ? priv : A1;
-    // EW_PAGE_FILE / TH_PAGE_FILE: serve a work-in-progress copy of everwell.html
-    // or tradehub.html (outside the repos, so the auto-deploy never ships it
-    // half-built) in its place.
-    const wip = (rel === 'everwell.html' && process.env.EW_PAGE_FILE) || (rel === 'tradehub.html' && process.env.TH_PAGE_FILE);
+    // EW_PAGE_FILE / TH_PAGE_FILE / TB_PAGE_FILE: serve a work-in-progress copy
+    // of everwell.html, tradehub.html or Veda's tradeboard.html (outside the
+    // repos, so the auto-deploy never ships it half-built) in its place.
+    const wip = (rel === 'everwell.html' && process.env.EW_PAGE_FILE) || (rel === 'tradehub.html' && process.env.TH_PAGE_FILE)
+      || (rel === 'V1/TradeBoard/tradeboard.html' && process.env.TB_PAGE_FILE);
     const file = wip ? path.resolve(wip) : path.resolve(base, rel);
     if (!wip && (!file.startsWith(base + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile())) {
       send('Fetch.continueRequest', { requestId });
