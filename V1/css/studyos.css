@@ -263,8 +263,8 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
   display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0;
 }
 #study-root .sos-cloud-badge svg { width: 11px; height: 11px; }
-#study-root .sos-cloud-badge.pending { background: var(--peach-soft); color: var(--peach); box-shadow: inset 0 0 0 1px rgba(242, 201, 160, .3); }
-#study-root .sos-cloud-badge.synced  { background: var(--mint-soft); color: var(--mint); box-shadow: inset 0 0 0 1px rgba(168, 220, 192, .28); }
+#study-root .sos-cloud-badge.pending { background: #e3b489; color: #2a1c08; }
+#study-root .sos-cloud-badge.synced  { background: #93c4a4; color: #143323; }
 
 /* Cloud capacity: a label, the used share, a slim mauve bar. */
 #study-root .sos-storage { margin: 8px 4px 0; padding: 12px 12px 11px; border-radius: 12px; background: rgba(255, 255, 255, .035); border: 1px solid var(--border); }
