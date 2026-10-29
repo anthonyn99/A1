@@ -21,10 +21,11 @@ const ok = (name, cond, extra) => {
   if (cond) { pass++; console.log('  ok   ' + name); }
   else { fail++; console.log('  FAIL ' + name + (extra !== undefined ? '  -> ' + String(extra).slice(0, 300) : '')); }
 };
-const BASE = 'https://anthonyn99.github.io/A1/__lhprof/';
+// A host on its own origin, loading lifehub.js by its Pages URL like StudyOS.
+const BASE = 'https://lhprof.example/';
 const page = (htmlAttr, bodyAttr, tagAttrs) => `<!doctype html><html${htmlAttr}><head><meta charset="utf-8"></head>
 <body${bodyAttr}><header><a1-lifehub></a1-lifehub></header>
-<script src="../LifeHub/lifehub.js" data-lock="#no-lock" ${tagAttrs} defer></script></body></html>`;
+<script src="https://anthonyn99.github.io/A1/LifeHub/lifehub.js" data-lock="#no-lock" ${tagAttrs} defer></script></body></html>`;
 const PAGES = {
   'fixed-veda.html': page('', '', 'data-profile="veda"'),
   'fixed-tony.html': page('', '', 'data-profile="tony"'),
