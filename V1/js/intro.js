@@ -5,11 +5,15 @@
  * mortarboard, "StudyOS", one line under it, and "Tap to continue". The mark
  * in the sidebar brings it back (window.sosShowIntro).
  *
- * Behind it, one canvas: three slow pools of soft mauve light and fine motes
- * rising. Drawn after Everwell's
- * backdrop, much reduced: the light is redrawn 4 times a second, the motes at
- * 30fps (12 without focus), nothing at all while the cover is hidden or the
- * page is, and a still frame under prefers-reduced-motion.
+ * Behind it, one canvas of its own (not Everwell's motes): a slow
+ * constellation. Points drift, and two that come near each other are joined by
+ * a fine line that fades in as they close and out as they part: ideas finding
+ * each other. A few points are brighter "stars" with a soft halo, and one in
+ * pink, like the tassel. One still pool of mauve light sits under it all.
+ *
+ * Cheap on purpose: at most ~60 points (36 on a phone), 30fps (12 without
+ * focus), nothing at all while the cover or the page is hidden, and a still
+ * frame under prefers-reduced-motion.
  *
  * A lock sits ABOVE the cover (Guardian's card is on top of everything), so a
  * locked StudyOS asks for its password over this page, never over her data.
@@ -22,22 +26,22 @@
   if (!el || !cv) return;
   var ctx = cv.getContext('2d');
 
-  var BASE = [19, 18, 22];
-  var GLOWS = [[168, 146, 176, .16], [141, 118, 154, .16], [120, 100, 132, .12]];
-  var MOTE = [236, 222, 244];
+  var BASE = '#1B1C1E';
+  var NODE = [214, 200, 226], PINK = [240, 179, 203], LINE = [184, 162, 198];
+  var LINK = 150;                       // px: points closer than this are joined
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
   var coarse = window.matchMedia('(pointer: coarse)').matches;
   var focused = document.hasFocus();
   window.addEventListener('focus', function () { focused = true; });
   window.addEventListener('blur', function () { focused = false; });
 
-  var W = 0, H = 0, dpr = 1, motes = [], running = false, raf = 0, wake = 0, prev = 0;
-  var glowCanvas = document.createElement('canvas'), gctx = glowCanvas.getContext('2d', { alpha: false }), glowAt = -1e9;
+  var W = 0, H = 0, dpr = 1, pts = [], running = false, raf = 0, wake = 0, prev = 0;
 
-  function rgba(c, a) { return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (a == null ? c[3] : a).toFixed(3) + ')'; }
-  function newMote(anywhere) {
-    return { x: Math.random() * W, y: anywhere ? Math.random() * H : H + 10, r: .5 + Math.pow(Math.random(), 2.2) * 2,
-             v: .006 + Math.random() * .016, ph: Math.random() * 6.28, tw: .0008 + Math.random() * .0016 };
+  function rgba(c, a) { return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a.toFixed(3) + ')'; }
+  function newPoint(i) {
+    var ang = Math.random() * 6.283, sp = .006 + Math.random() * .012;   // px per ms
+    return { x: Math.random() * W, y: Math.random() * H, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp,
+             r: .9 + Math.random() * 1.3, star: i % 9 === 0, pink: i === 4, ph: Math.random() * 6.283 };
   }
   function resize() {
     W = window.innerWidth; H = window.innerHeight;
@@ -45,54 +49,48 @@
     if (W * H * dpr * dpr > 5.2e6) dpr = Math.sqrt(5.2e6 / (W * H));
     cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    glowCanvas.width = Math.max(16, Math.round(W / 2)); glowCanvas.height = Math.max(16, Math.round(H / 2));
-    gctx.setTransform(glowCanvas.width / W, 0, 0, glowCanvas.height / H, 0, 0);
-    glowAt = -1e9;
-    var want = Math.round(Math.min(coarse ? 36 : 70, (W * H) / 16000));
-    while (motes.length < want) motes.push(newMote(true));
-    if (motes.length > want) motes.length = want;
+    var want = Math.round(Math.min(coarse ? 36 : 60, (W * H) / 20000));
+    while (pts.length < want) pts.push(newPoint(pts.length));
+    if (pts.length > want) pts.length = want;
     draw(performance.now());
   }
-  function drawGlows(now) {
-    gctx.fillStyle = rgba(BASE, 1); gctx.fillRect(0, 0, W, H);
-    var big = Math.min(Math.max(W, H), Math.sqrt(W * H) * 1.15);
-    var tall = H > W * 1.2, ax = tall ? .3 : .38, ay = tall ? .38 : .3;
-    for (var i = 0; i < GLOWS.length; i++) {
-      var g = GLOWS[i], k = i + 1;
-      var gx = W * (.5 + ax * Math.sin(now * .00004 * k + i * 2.1));
-      var gy = H * ((tall ? .45 : .42) + ay * Math.cos(now * .000033 * k + i * 1.3));
-      var r = big * (.55 - i * .08);
-      var grd = gctx.createRadialGradient(gx, gy, 0, gx, gy, r);
-      grd.addColorStop(0, rgba(g)); grd.addColorStop(1, rgba(g, 0));
-      gctx.fillStyle = grd; gctx.fillRect(0, 0, W, H);
-    }
-  }
   function draw(now) {
-    if (!running || now - glowAt >= 250) { glowAt = now; drawGlows(now); }
-    ctx.drawImage(glowCanvas, 0, 0, W, H);
-    // Three faint strands drifting across the lower half.
-    ctx.lineWidth = 1.1;
-    for (var j = 0; j < 3; j++) {
-      ctx.strokeStyle = rgba([184, 162, 198], .08 * (1 - j * .22));
-      ctx.beginPath();
-      for (var x = -20; x <= W + 20; x += 18) {
-        var y = H * (.62 + j * .07) + Math.sin(x * .0035 + now * .00022 * (j + 1) + j) * H * .05 + Math.sin(x * .011 + now * .0004) * 6;
-        if (x === -20) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-    }
+    ctx.fillStyle = BASE; ctx.fillRect(0, 0, W, H);
+    // One still pool of mauve light, a little above the middle.
+    var g = ctx.createRadialGradient(W * .5, H * .4, 0, W * .5, H * .4, Math.max(W, H) * .6);
+    g.addColorStop(0, 'rgba(141,118,154,.13)'); g.addColorStop(1, 'rgba(141,118,154,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
     var dt = Math.min(64, now - (prev || now)); prev = now;
-    for (var m = 0; m < motes.length; m++) {
-      var p = motes[m];
-      if (running) {
-        p.y -= p.v * .9 * dt;
-        p.x += Math.sin(now * .0003 + p.ph) * .012 * dt;
-        if (p.y < -12) { motes[m] = p = newMote(false); }
+    var i, j, p, q;
+    if (running) for (i = 0; i < pts.length; i++) {
+      p = pts[i];
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      // Wrap softly round the edges, so the field never thins out.
+      if (p.x < -20) p.x = W + 20; else if (p.x > W + 20) p.x = -20;
+      if (p.y < -20) p.y = H + 20; else if (p.y > H + 20) p.y = -20;
+    }
+    // Lines between near points, fading with distance.
+    ctx.lineWidth = .8;
+    for (i = 0; i < pts.length; i++) {
+      p = pts[i];
+      for (j = i + 1; j < pts.length; j++) {
+        q = pts[j];
+        var dx = p.x - q.x, dy = p.y - q.y;
+        if (dx > LINK || dx < -LINK || dy > LINK || dy < -LINK) continue;
+        var d = Math.sqrt(dx * dx + dy * dy);
+        if (d >= LINK) continue;
+        ctx.strokeStyle = rgba(LINE, .16 * (1 - d / LINK));
+        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke();
       }
-      var a = .18 + .5 * (.5 + .5 * Math.sin(now * p.tw + p.ph));
-      var c = MOTE;
-      if (p.r > 1.5) { ctx.fillStyle = rgba(c, a * .1); ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 3.2, 0, 6.283); ctx.fill(); }
-      ctx.fillStyle = rgba(c, a); ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.283); ctx.fill();
+    }
+    // The points; stars breathe and carry a halo.
+    for (i = 0; i < pts.length; i++) {
+      p = pts[i];
+      var c = p.pink ? PINK : NODE;
+      var a = p.star ? .55 + .3 * Math.sin(now * .0012 + p.ph) : .35;
+      if (p.star) { ctx.fillStyle = rgba(c, a * .14); ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 4.5, 0, 6.283); ctx.fill(); }
+      ctx.fillStyle = rgba(c, a); ctx.beginPath(); ctx.arc(p.x, p.y, p.star ? p.r + .6 : p.r, 0, 6.283); ctx.fill();
     }
   }
   function loop(now) {
