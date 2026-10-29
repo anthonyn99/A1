@@ -41,6 +41,8 @@ const HOSTS = {
   'riftiq.html':   { lock: 'guardian' },
   'magi.html':     { lock: '#lockScreen' },
   'Shruti/shruti.html': { lock: 'guardian', profile: true },
+  // Veda's own program: always her list (body data-lh-profile="veda").
+  'V1/studyos.html': { lock: 'guardian', veda: true },
 };
 // Deliberately without it: Veda's own program.
 const NEVER = ['wellness.html'];
@@ -85,6 +87,11 @@ for (const [file, want] of Object.entries(HOSTS)) {
     const present = html.includes('id="' + id + '"') || html.includes("id='" + id + "'") ||
       new RegExp('\\.id\\s*=\\s*["\']' + id + '["\']').test(html);
     ok(file + ' actually has an element ' + lock, present);
+  }
+  if (want.veda) {
+    ok(file + " shows Veda's list only (data-lh-profile, fixed to veda)",
+      /data-profile-attr=["']data-lh-profile["']/.test(tag) && /<body[^>]*data-lh-profile="veda"/.test(html), tag);
+    continue;
   }
   ok(file + (want.profile ? ' follows the Tony/Veda profile (data-profile-attr)' : ' is Tony-only, no profile attr needed'),
     want.profile ? /data-profile-attr=["']data-profile["']/.test(tag) : !/data-profile-attr/.test(tag), tag);
@@ -167,7 +174,7 @@ const block = (name) => (new RegExp('var ' + name + ' = \\[([\\s\\S]*?)\\n  \\];
 const names = (b) => [...b.matchAll(/\{ id: '([a-z_]+)', name: '([^']+)'/g)].map((m) => m[2]);
 const tony = block('DEFAULT_APPS'), veda = block('VEDA_APPS');
 ok("seeds exactly Tony's eleven programs, in order", names(tony).join() === 'OneInbox,TradeHub,MyList,Insight,Vault,Everwell,Shield,Shield (HTML),RiftIQ,MAGI,Shruti', names(tony));
-ok("seeds Veda's own list: the programs with a Veda profile", names(veda).join() === 'MyList,Shield,Shield (HTML),Shruti', names(veda));
+ok("seeds Veda's own list: the programs with a Veda profile", names(veda).join() === 'TaskHub,MyList,Shield,Shield (HTML),Wellness,MAGI,Shruti', names(veda));
 // A program added after the lists exist reaches them once per device, never twice.
 ok('a later program is added to existing lists once (ADDED_LATER)', /var ADDED_LATER = \['shruti'\];/.test(src) && /ADDED_LATER\.forEach\([\s\S]{0,400}localStorage\.setItem\(mark, '1'\)[\s\S]{0,120}if \(!byId\(list, id\)\) commit\(st, addOp/.test(src));
 ok("each profile has its own document and mirror (Tony's unchanged)",
