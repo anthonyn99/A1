@@ -251,9 +251,11 @@ export function startReview(scope = {}, opts = {}) {
   const cardOf = (u) => (u ? deck.get(u.id) : null);
 
   /** class › document › topic, from what the card knows. */
+  /* The header's two lines: the class above, then document and topic. */
   function crumb(card) {
     const c = store.getClass(card.classId);
-    const parts = [c ? (c.code || c.name) : ''];
+    const cls = c ? (window.sosClassName ? window.sosClassName(c) : c.name) : '';
+    const parts = [];
     const m = /^topic_(.+)_(t[0-9a-z]+)$/.exec(String(card.sourceNoteId || ''));
     if (m) {
       const bd = window.SOS && window.SOS.breakdown;
@@ -261,7 +263,7 @@ export function startReview(scope = {}, opts = {}) {
       parts.push(doc ? String(doc.sourceName || '').replace(/\.\w+$/, '') : '');
     }
     parts.push(card.topic || card.sourceTitle || '');
-    return parts.filter(Boolean).join(' › ');
+    return '<b>' + esc(cls) + '</b><span>' + esc(parts.filter(Boolean).join(' · ')) + '</span>';
   }
 
   function finish() {
@@ -310,7 +312,7 @@ export function startReview(scope = {}, opts = {}) {
     const isLearn = u.isNew && !cram;
     countEl.textContent = `${i + 1} of ${queue.length}`;
     bar.style.width = Math.round((i / queue.length) * 100) + '%';
-    crumbEl.textContent = crumb(card);
+    crumbEl.innerHTML = crumb(card);
     const typing = set.typeCloze && f.cloze && !revealed;
     const label = cram ? (opts.important ? 'Important' : 'Cram') : isLearn ? 'New card' : u.rereview ? 'Again — try once more' : 'Review';
     const answerHtml = !revealed ? '' : f.cloze
