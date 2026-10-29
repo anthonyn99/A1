@@ -108,10 +108,10 @@ window.sosLocalDate = sosLocalDate;
  * Everwell wires it: a mouse takes a card by any part that is not a control, a
  * finger holds it 300ms. No grip dots. Rows are matched by `row`; onDrop
  * reorders the backing array by index and the caller saves and redraws. */
-function sosDragList(list, row, getArr, setArr, onDone, axis) {
+function sosDragList(list, row, getArr, setArr, onDone, axis, ignore) {
   if (!list || !window.A1Drag) return;
   window.A1Drag.sort(list, {
-    row: row, hold: 300, axis: axis || 'y',
+    row: row, hold: 300, axis: axis || 'y', ignore: ignore || undefined,
     onDrop: function (from, to) {
       const next = getArr().slice();
       next.splice(to, 0, next.splice(from, 1)[0]);
@@ -2466,13 +2466,16 @@ function refreshDocList(listEl, cls, mod) {
     if (!f.id) f.id = f.fileId || ('legacy_' + idx + '_' + Date.now().toString(36));
 
     const item = document.createElement('div');
-    item.className = 'doc-item' + (editOn ? ' editing' : '');
+    item.className = 'doc-item';
     item.dataset.id = f.id;
-    item.title = editOn
-      ? 'Drag to reorder'
-      : SOS_NATIVE_DRAG
-        ? 'Click to open · drag straight into any app'
-        : 'Click to open · drag out to a folder · use Copy to paste into another website';
+    item.title = 'Click to open · drag to reorder';
+
+    // The file's icon is its drag-OUT handle; the rest of the row reorders
+    // (A1Drag, below, ignores the icon). Two gestures, two places.
+    const icon = document.createElement('div');
+    icon.className = 'doc-item-icon';
+    icon.innerHTML = fileEmoji(f.name);
+    icon.title = SOS_NATIVE_DRAG ? 'Drag into any app' : 'Drag out to a folder · use Copy to paste into another website';
 
     // ── Drag-out: drag this file into Explorer / the desktop / a native app ──
     // DownloadURL is what makes the OS shell write a real file out on drop, and
@@ -2494,9 +2497,8 @@ function refreshDocList(listEl, cls, mod) {
     // ONE row holds a payload (_sosDragSlot), it is released 20 s after the
     // pointer leaves, and a plain hover never downloads a cloud-only file.
     //
-    // In Edit mode a drag REORDERS the rows instead (A1Drag, below), so the
-    // drag-out is off there: one gesture, one meaning.
-    item.draggable = !editOn;
+    // The row itself reorders (A1Drag), so only the icon is draggable.
+    icon.draggable = true;
     let _dragFile = null, _dragUrl = null, _dragReady = false, _dragIdle = null;
     // afterDrop: a drop target may still be reading the URL, so keep it a
     // minute; a payload that was never dragged is freed at once.
@@ -2511,7 +2513,7 @@ function refreshDocList(listEl, cls, mod) {
       if (_sosDragSlot === _releaseDrag) _sosDragSlot = null;
     };
     const _prepDrag = (ev) => {
-      if (editOn || _dragReady || (!f.fileId && !f.storageUrl)) return;
+      if (_dragReady || (!f.fileId && !f.storageUrl)) return;
       if (_sosDragSlot && _sosDragSlot !== _releaseDrag) _sosDragSlot();
       _sosDragSlot = _releaseDrag;
       _dragReady = true;
@@ -2542,10 +2544,10 @@ function refreshDocList(listEl, cls, mod) {
     // would fight it for the same gesture. So here draggable is turned OFF and
     // the drag is started once the pointer has actually moved a few pixels —
     // which also keeps a plain click (open the file) from starting a drag.
-    if (SOS_NATIVE_DRAG && !editOn) {
-      item.draggable = false;
+    if (SOS_NATIVE_DRAG) {
+      icon.draggable = false;
       item.addEventListener('mouseenter', () => { sosStageForDrag(f); });
-      item.addEventListener('mousedown', ev => {
+      icon.addEventListener('mousedown', ev => {
         if (ev.button !== 0) return;
         if (ev.target.closest('button, a')) return;   // row actions aren't drag handles
         const x0 = ev.clientX, y0 = ev.clientY;
@@ -2570,8 +2572,7 @@ function refreshDocList(listEl, cls, mod) {
       });
     }
 
-    item.addEventListener('dragstart', ev => {
-      if (editOn) { ev.preventDefault(); return; }
+    icon.addEventListener('dragstart', ev => {
       if (!_dragFile) { _prepDrag(); ev.preventDefault(); return; }
       const mime = f.mime || 'application/octet-stream';
       try { ev.dataTransfer.items.add(_dragFile); } catch (_) {}
@@ -2579,17 +2580,12 @@ function refreshDocList(listEl, cls, mod) {
       if (_dragUrl) ev.dataTransfer.setData('DownloadURL', mime + ':' + f.name + ':' + _dragUrl);
       ev.dataTransfer.effectAllowed = 'copy';
     });
-    item.addEventListener('dragend', ev => {
+    icon.addEventListener('dragend', ev => {
       // dropEffect 'none' means nothing accepted the drag. A drop onto another
       // browser tab lands here too: the page took the drop but got no file.
       if (ev.dataTransfer && ev.dataTransfer.dropEffect === 'none') _sosDragOutHint();
       _releaseDrag(true);
     });
-
-    const icon = document.createElement('div');
-    icon.className = 'doc-item-icon';
-    icon.style.setProperty('--ft', _sosFileTone(f.name));
-    icon.innerHTML = fileEmoji(f.name);
 
     const main = document.createElement('div');
     main.className = 'doc-item-main';
@@ -2681,8 +2677,8 @@ function refreshDocList(listEl, cls, mod) {
     item.appendChild(main);
     item.appendChild(acts);
 
-    // Open in new tab — local IDB blob, else cloud copy. Not while arranging.
-    item.onclick = () => { if (!editOn) sosOpenFile(f); };
+    // Open in new tab — local IDB blob, else cloud copy.
+    item.onclick = () => sosOpenFile(f);
 
     listEl.appendChild(item);
     // Study tools (js/modules/breakdown-ui.js) add their button to the row and
@@ -2694,9 +2690,8 @@ function refreshDocList(listEl, cls, mod) {
     }
   });
 
-  if (editOn) {
-    sosDragList(listEl, '.doc-item', () => mod.files, (arr) => { mod.files = arr; }, () => { persistForCls(cls); refreshDocList(listEl, cls, mod); });
-  }
+  // Always reorderable, View or Edit (Tony, 2026-10-29).
+  sosDragList(listEl, '.doc-item', () => mod.files, (arr) => { mod.files = arr; }, () => { persistForCls(cls); refreshDocList(listEl, cls, mod); }, 'y', '.doc-item-icon');
 }
 
 function handleFileUpload(e, classId, modId) {
@@ -3450,9 +3445,8 @@ function refreshPromptList(listEl, cls, mod) {
   }
   mod.prompts.forEach(p => {
     const entry = document.createElement('div');
-    entry.className = 'prompt-entry' + (editOn ? ' editing' : '');
+    entry.className = 'prompt-entry';
     entry.dataset.id = p.id;
-    if (editOn) entry.title = 'Drag to reorder';
     _promptTextStore[p.id] = p.text;
     const safeText = escHtml(p.text);
     entry.innerHTML = `
@@ -3466,9 +3460,8 @@ function refreshPromptList(listEl, cls, mod) {
     listEl.appendChild(entry);
   });
 
-  if (editOn) {
-    sosDragList(listEl, '.prompt-entry', () => mod.prompts, (arr) => { mod.prompts = arr; }, () => { persistForCls(cls); refreshPromptList(listEl, cls, mod); });
-  }
+  // Always reorderable; the text stays selectable for copying by hand.
+  sosDragList(listEl, '.prompt-entry', () => mod.prompts, (arr) => { mod.prompts = arr; }, () => { persistForCls(cls); refreshPromptList(listEl, cls, mod); }, 'y', '.prompt-entry-text');
 }
 
 function addPrompt(classId, modId) {
