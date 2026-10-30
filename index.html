@@ -10064,14 +10064,13 @@ function App(){
   // or more in the same league on a day share ONE card, like grouped macro
   // releases (Tony, 2026-10-29): the league and "N matches" on top, then each
   // match with its time. `c` = the narrow 5/7-day grid.
-  // Team 1 on the left with VS (or the live dot) straight after its name, as
-  // before; team 2 mirrors it on the right edge (name, then logo). VS rides
-  // inline on team 1's last word, so a wrapped name keeps it beside the text.
+  // Team 1 on the left with VS straight after its name, as before; team 2
+  // mirrors it on the right edge (name, then logo). VS rides inline on team
+  // 1's last word, so a wrapped name keeps it beside the text. Always VS, live
+  // or not: TaskHub cards don't mark live matches (Tony, 2026-10-30).
   const pvTeams=(e,tone,c,sz)=>{
     const logo=(src,key)=>src&&React.createElement("img",{key,src,style:{width:sz,height:sz,objectFit:"contain",borderRadius:2,flexShrink:0},onError:ev=>ev.target.style.display="none"});
-    const live=e.state==="inProgress";
-    const vs=live&&c?React.createElement("span",{title:"Live",style:{display:"inline-block",width:5,height:5,borderRadius:"50%",background:"#8d8d94",verticalAlign:"middle",marginLeft:c?4:6}})
-      :React.createElement("span",{style:{fontSize:c?9.5:11,fontWeight:900,letterSpacing:.5,color:live?"#e06c75":"#8d8d94",marginLeft:c?4:6}},live?"LIVE":"VS");
+    const vs=React.createElement("span",{style:{fontSize:c?9.5:11,fontWeight:900,letterSpacing:.5,color:"#8d8d94",marginLeft:c?4:6}},"VS");
     const t1=e.team1||"TBD",t2=e.team2||"TBD",cut=t1.lastIndexOf(" ");
     const nmS=al=>({fontSize:c?11:13,fontWeight:800,color:tone,lineHeight:1.1,textAlign:al,overflowWrap:"break-word"});
     // Only the longer name wraps (between words); a short one keeps one line.
