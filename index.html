@@ -10070,7 +10070,7 @@ function App(){
   // or not: TaskHub cards don't mark live matches (Tony, 2026-10-30).
   const pvTeams=(e,tone,c,sz)=>{
     const logo=(src,key)=>src&&React.createElement("img",{key,src,style:{width:sz,height:sz,objectFit:"contain",borderRadius:2,flexShrink:0},onError:ev=>ev.target.style.display="none"});
-    const vs=React.createElement("span",{style:{fontSize:c?9.5:11,fontWeight:900,letterSpacing:.5,color:"#8d8d94",marginLeft:c?4:6}},"VS");
+    const vs=React.createElement("span",{style:{fontSize:c?9.5:11,fontWeight:900,letterSpacing:.5,color:"#8d8d94",marginLeft:c?8:10}},"VS");
     const t1=e.team1||"TBD",t2=e.team2||"TBD",cut=t1.lastIndexOf(" ");
     const nmS=al=>({fontSize:c?11:13,fontWeight:800,color:tone,lineHeight:1.1,textAlign:al,overflowWrap:"break-word"});
     // Names wrap only between words; both sides give way, so no name piles up to three lines.
