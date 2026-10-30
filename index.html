@@ -10261,13 +10261,14 @@ function App(){
 ),
               tasks.length>0&&React.createElement("div",{style:{width:"100%",height:3,background:T.BD,borderRadius:2,marginBottom:10,overflow:"hidden"}},React.createElement("div",{style:{width:p+"%",height:"100%",background:p===100?T.GRN:wkBarFill,borderRadius:2,transition:"width .35s"}})),
               mcRender(mcDay,dayTX),
-              CR_rows(crByDay[k],{card:wkEventCard(null,false),profile:"tony",edit:edit,dbtn:dbtn,tx:T.TXD,ac:T.AC,dim:dimA,fit:wkTitleFit}),
               /* OneInbox packages / bills / travel due on THIS day. Each card is
                  keyed by the shipment or the obligation, not by the email, so a
                  revised ETA moves the existing card to its new day instead of
                  leaving a stale one behind. */
               (oiByDay[k]||[]).map(c=>OI_weekCard(c,T,dayTX,edit)),
               pvRender(pvMatches,k,dayTX,false),
+              /* Claude resets sit below the ProView cards (Tony, 2026-10-30). */
+              CR_rows(crByDay[k],{card:wkEventCard(null,false),profile:"tony",edit:edit,dbtn:dbtn,tx:T.TXD,ac:T.AC,dim:dimA,fit:wkTitleFit}),
               React.createElement("div",{ref:thDragRef("tony","week:"+k,thDrag),style:thDragList},
               !tasks.length&&!events.length&&!mcDay.length&&!(crByDay[k]||[]).length&&!pvMatches.length&&!(oiByDay[k]||[]).length&&!edit&&React.createElement("div",{style:{fontSize:11,fontWeight:500,color:T.TXM,textAlign:"center",padding:"24px 0"}},"—"),
               tasks.map(t=>t._planId
@@ -10344,13 +10345,13 @@ function App(){
               ),
               tasks.length>0&&React.createElement("div",{style:{width:"100%",height:3,background:T.BD,borderRadius:2,marginBottom:8,overflow:"hidden"}},React.createElement("div",{style:{width:p+"%",height:"100%",background:p===100?T.GRN:wkBarFill,borderRadius:2,transition:"width .35s"}})),
               mcRender(mcDay,dayTX),
-              CR_rows(crByDay[k],{card:wkEventCard(null,false),profile:"tony",edit:edit,dbtn:dbtn,tx:T.TXD,ac:T.AC,dim:dimA,fit:wkTitleFit,compact:true}),
               /* OneInbox packages / bills / travel due on THIS day. Each card is
                  keyed by the shipment or the obligation, not by the email, so a
                  revised ETA moves the existing card to its new day instead of
                  leaving a stale one behind. */
               (oiByDay[k]||[]).map(c=>OI_weekCard(c,T,dayTX,edit)),
               pvRender(pvMatches,k,dayTX,true),
+              CR_rows(crByDay[k],{card:wkEventCard(null,false),profile:"tony",edit:edit,dbtn:dbtn,tx:T.TXD,ac:T.AC,dim:dimA,fit:wkTitleFit,compact:true}),
               React.createElement("div",{ref:thDragRef("tony","week:"+k,thDrag),style:thDragList},
               !tasks.length&&!events.length&&!mcDay.length&&!(crByDay[k]||[]).length&&!pvMatches.length&&!(oiByDay[k]||[]).length&&!edit&&React.createElement("div",{style:{fontSize:10,fontWeight:500,color:T.TXM,textAlign:"center",padding:"32px 0"}},"—"),
               tasks.map(t=>t._planId
