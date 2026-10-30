@@ -6628,7 +6628,8 @@ function tBuildSeed(){
     [{id:uid(),type:"task",title:"Family time",category:"personal",done:false}],
     [{id:uid(),type:"task",title:"Meal prep",category:"health",done:false},{id:uid(),type:"task",title:"Rest & recharge",category:"personal",done:false}]
   ];
-  w.forEach((wd,i)=>{if(s[i])data[dkey(wd.year,wd.month,wd.day)]=s[i];});
+  // _demo: the sample week is never merged into a real cloud copy (taskhub-merge.js).
+  w.forEach((wd,i)=>{if(s[i])data[dkey(wd.year,wd.month,wd.day)]=s[i].map(x=>({...x,_demo:true}));});
   return data;
 }
 const T_HAB_DEF=[{id:uid(),title:"Review daily progress"},{id:uid(),title:"Organize workspace"},{id:uid(),title:"Read 20 pages"},{id:uid(),title:"Exercise"},{id:uid(),title:"Meditate"},{id:uid(),title:"Drink water (8 glasses)"}];

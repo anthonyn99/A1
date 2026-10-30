@@ -14,7 +14,8 @@
  * Lists of items with ids (goals, habits, each data[<day>]) merge item by
  * item. Plain objects (hc, goalPrefs, rulesDaily) merge key by key. Anything
  * else is one value. Without a base (a fresh page that edited before the
- * cloud copy arrived) the merge is a union: nothing is deleted.
+ * cloud copy arrived) the merge is a union: nothing is deleted, and nothing
+ * of the sample week (_demo items) is added.
  *
  * Pure functions, no I/O: tested by tests/taskhub-merge.test.js.
  * ========================================================================== */
@@ -92,6 +93,10 @@
       if (tm[id] !== undefined) return;
       var b = bm[id];
       if (b !== undefined && same(m, b)) return;
+      // The sample week a brand-new device starts with is not something Tony
+      // added: one that saved before the cloud copy arrived merged it into
+      // the real document (2026-10-29). Seeded items carry _demo.
+      if (b === undefined && isObj(m) && m._demo) return;
       var at = 0;
       for (var k = i - 1; k >= 0; k--) {
         var pid = idOf(M[k]);
