@@ -10059,6 +10059,48 @@ function App(){
     });
   };
 
+  // ProView matches (RiftIQ, EC_useCards). One match keeps its own card; two
+  // or more in the same league on a day share ONE card, like grouped macro
+  // releases (Tony, 2026-10-29): the league and "N matches" on top, then each
+  // match with its time. `c` = the narrow 5/7-day grid.
+  const pvTeams=(e,tone,c,sz)=>React.createElement("div",{style:{display:"flex",alignItems:"center",gap:c?4:5,minWidth:0}},
+    e.team1Img&&React.createElement("img",{src:e.team1Img,style:{width:sz,height:sz,objectFit:"contain",borderRadius:2,flexShrink:0},onError:ev=>ev.target.style.display="none"}),
+    React.createElement("span",{style:{fontSize:c?11:13,fontWeight:800,color:tone,lineHeight:1}},e.team1||"TBD"),
+    React.createElement("span",{style:{fontSize:c?11:13,fontWeight:900,color:"#8d8d94",margin:c?"0 2px":"0 4px"}},e.state==="inProgress"?(c?"•":"LIVE"):"VS"),
+    e.team2Img&&React.createElement("img",{src:e.team2Img,style:{width:sz,height:sz,objectFit:"contain",borderRadius:2,flexShrink:0},onError:ev=>ev.target.style.display="none"}),
+    React.createElement("span",{style:{fontSize:c?11:13,fontWeight:800,color:tone,lineHeight:1}},e.team2||"TBD"));
+  const pvRender=(list,k,tone,c)=>{
+    if(!list||!list.length)return null;
+    const by={},order=[];
+    list.forEach(e=>{const lg=String(e.league||"");if(!by[lg]){by[lg]=[];order.push(lg);}by[lg].push(e);});
+    const box={border:"1px solid rgba(184,166,208,0.34)",borderLeft:"3px solid #b8a6d0",borderRadius:c?5:6,background:"rgba(184,166,208,0.08)",padding:c?"5px 7px":"6px 10px",flex:1,minWidth:0};
+    const lgS={fontSize:c?10:12,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"#c2b1dc",lineHeight:1};
+    const tmS={fontSize:c?10:12,fontWeight:700,color:T.TXD,opacity:.95,marginLeft:"auto",whiteSpace:"nowrap"};
+    const sz=c?20:26;
+    const del1=e=>edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:c?"0 5px":"0 6px",flexShrink:0},onClick:()=>del(k,e.id)},"×");
+    return order.map(lg=>{const g=by[lg];
+      if(g.length===1){const e=g[0];
+        return React.createElement("div",{key:e.id,style:{marginBottom:c?4:5,cursor:"default",display:"flex",alignItems:"center",gap:c?4:5}},
+          React.createElement("div",{style:box},
+            React.createElement("div",{style:{display:"flex",alignItems:"center",gap:c?3:4,marginBottom:c?3:4}},
+              React.createElement("span",{style:lgS},e.league),
+              e.time&&React.createElement("span",{style:tmS},fmt12h(e.time,k,e.tz))),
+            pvTeams(e,tone,c,sz)),
+          del1(e));}
+      return React.createElement("div",{key:"pvg-"+g.map(e=>e.id).join("-"),"data-pv-group":g.length,style:{marginBottom:c?4:5,cursor:"default",display:"flex"}},
+        React.createElement("div",{style:{...box,display:"flex",flexDirection:"column",gap:c?5:6}},
+          React.createElement("div",{style:{display:"flex",alignItems:"center",gap:c?4:5,minWidth:0}},
+            React.createElement("span",{style:lgS},lg),
+            React.createElement("span",{style:{fontSize:9.5,color:T.TXD,background:T.TXD+"1a",borderRadius:6,padding:"1px 6px",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+T.TXD+"30",marginLeft:"auto"}},g.length+" matches")),
+          g.map(e=>React.createElement("div",{key:e.id,style:{display:"flex",flexDirection:"column",gap:c?3:4}},
+            e.time&&React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4}},
+              React.createElement("span",{style:{...tmS,marginLeft:0}},fmt12h(e.time,k,e.tz)),
+              edit&&React.createElement("span",{style:{marginLeft:"auto"}},del1(e))),
+            pvTeams(e,tone,c,sz),
+            !e.time&&del1(e)))));
+    });
+  };
+
   // `today` draws a pair of hairline rules down both sides of the current
   // weekday's column, from the header through the last habit row — a quiet
   // "you are here" gutter that doesn't compete with the checked-off circles.
@@ -10217,19 +10259,8 @@ function App(){
                  revised ETA moves the existing card to its new day instead of
                  leaving a stale one behind. */
               (oiByDay[k]||[]).map(c=>OI_weekCard(c,T,dayTX,edit)),
-              pvMatches.map(e=>React.createElement("div",{key:e.id,style:{marginBottom:5,cursor:"default",display:"flex",alignItems:"center",gap:5}},
-                React.createElement("div",{style:{border:"1px solid rgba(184,166,208,0.34)",borderLeft:"3px solid #b8a6d0",borderRadius:6,background:"rgba(184,166,208,0.08)",padding:"6px 10px",flex:1,minWidth:0}},
-                  React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4,marginBottom:4}},
-                    React.createElement("span",{style:{fontSize:12,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"#c2b1dc",lineHeight:1}},e.league),
-                    e.time&&React.createElement("span",{style:{fontSize:12,fontWeight:700,color:T.TXD,opacity:.95,marginLeft:"auto"}},fmt12h(e.time,k,e.tz))),
-                  React.createElement("div",{style:{display:"flex",alignItems:"center",gap:5}},
-                    e.team1Img&&React.createElement("img",{src:e.team1Img,style:{width:26,height:26,objectFit:"contain",borderRadius:2},onError:ev=>ev.target.style.display="none"}),
-                    React.createElement("span",{style:{fontSize:13,fontWeight:800,color:dayTX,lineHeight:1}},e.team1||"TBD"),
-                    React.createElement("span",{style:{fontSize:13,fontWeight:900,color:"#8d8d94",margin:"0 4px"}},e.state==="inProgress"?"LIVE":"VS"),
-                    e.team2Img&&React.createElement("img",{src:e.team2Img,style:{width:26,height:26,objectFit:"contain",borderRadius:2},onError:ev=>ev.target.style.display="none"}),
-                    React.createElement("span",{style:{fontSize:13,fontWeight:800,color:dayTX,lineHeight:1}},e.team2||"TBD")),
-                  e.state==="completed"&&React.createElement("div",{style:{fontSize:9,fontWeight:600,color:T.TXD,opacity:.6,marginTop:3}},"")),
-                edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 6px",flexShrink:0},onClick:()=>del(k,e.id)},"×"))),              React.createElement("div",{ref:thDragRef("tony","week:"+k,thDrag),style:thDragList},
+              pvRender(pvMatches,k,dayTX,false),
+              React.createElement("div",{ref:thDragRef("tony","week:"+k,thDrag),style:thDragList},
               !tasks.length&&!events.length&&!mcDay.length&&!(crByDay[k]||[]).length&&!pvMatches.length&&!(oiByDay[k]||[]).length&&!edit&&React.createElement("div",{style:{fontSize:11,fontWeight:500,color:T.TXM,textAlign:"center",padding:"24px 0"}},"—"),
               tasks.map(t=>t._planId
               /* ── Shared plan ──────────────────────────────────────────────
@@ -10311,19 +10342,8 @@ function App(){
                  revised ETA moves the existing card to its new day instead of
                  leaving a stale one behind. */
               (oiByDay[k]||[]).map(c=>OI_weekCard(c,T,dayTX,edit)),
-              pvMatches.map(e=>React.createElement("div",{key:e.id,style:{marginBottom:4,cursor:"default",display:"flex",alignItems:"center",gap:4}},
-                React.createElement("div",{style:{border:"1px solid rgba(184,166,208,0.34)",borderLeft:"3px solid #b8a6d0",borderRadius:5,background:"rgba(184,166,208,0.08)",padding:"5px 7px",flex:1,minWidth:0}},
-                  React.createElement("div",{style:{display:"flex",alignItems:"center",gap:3,marginBottom:3}},
-                    React.createElement("span",{style:{fontSize:10,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"#c2b1dc",lineHeight:1}},e.league),
-                    e.time&&React.createElement("span",{style:{fontSize:10,fontWeight:700,color:T.TXD,opacity:.95,marginLeft:"auto"}},fmt12h(e.time,k,e.tz))),
-                  React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4}},
-                    e.team1Img&&React.createElement("img",{src:e.team1Img,style:{width:20,height:20,objectFit:"contain",borderRadius:2},onError:ev=>ev.target.style.display="none"}),
-                    React.createElement("span",{style:{fontSize:11,fontWeight:800,color:dayTX,lineHeight:1}},e.team1||"TBD"),
-                    React.createElement("span",{style:{fontSize:11,fontWeight:900,color:"#8d8d94",margin:"0 2px"}},e.state==="inProgress"?"•":"VS"),
-                    e.team2Img&&React.createElement("img",{src:e.team2Img,style:{width:20,height:20,objectFit:"contain",borderRadius:2},onError:ev=>ev.target.style.display="none"}),
-                    React.createElement("span",{style:{fontSize:11,fontWeight:800,color:dayTX,lineHeight:1}},e.team2||"TBD")),
-                  e.state==="completed"&&React.createElement("div",{style:{fontSize:8,fontWeight:600,color:T.TXD,opacity:.6,marginTop:2}},"")),
-                edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:"0 5px",flexShrink:0},onClick:()=>del(k,e.id)},"×"))),              React.createElement("div",{ref:thDragRef("tony","week:"+k,thDrag),style:thDragList},
+              pvRender(pvMatches,k,dayTX,true),
+              React.createElement("div",{ref:thDragRef("tony","week:"+k,thDrag),style:thDragList},
               !tasks.length&&!events.length&&!mcDay.length&&!(crByDay[k]||[]).length&&!pvMatches.length&&!(oiByDay[k]||[]).length&&!edit&&React.createElement("div",{style:{fontSize:10,fontWeight:500,color:T.TXM,textAlign:"center",padding:"32px 0"}},"—"),
               tasks.map(t=>t._planId
               /* Shared plan — content inert, position draggable; same rule as the
