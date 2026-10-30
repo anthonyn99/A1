@@ -11395,13 +11395,17 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
 
     function _thbCount(p) {
       if (!p || typeof p !== 'object') return 0;
+      // The sample week a fresh device starts with (_demo) is not data: counting
+      // it made dropping it, once the cloud copy arrived, look like a wipe, and
+      // that device's next real save was refused (2026-10-29).
       let n = 0;
+      const real = a => a.filter(x => !(x && x._demo)).length;
       ['goals', 'monthlyGoals', 'habits', 'rules', 'rulesDaily'].forEach(f => {
-        if (Array.isArray(p[f])) n += p[f].length;
+        if (Array.isArray(p[f])) n += real(p[f]);
       });
       const d = p.data;
       if (d && typeof d === 'object') {
-        Object.keys(d).forEach(k => { if (Array.isArray(d[k])) n += d[k].length; });
+        Object.keys(d).forEach(k => { if (Array.isArray(d[k])) n += real(d[k]); });
       }
       return n;
     }
