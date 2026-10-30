@@ -10064,24 +10064,19 @@ function App(){
   // or more in the same league on a day share ONE card, like grouped macro
   // releases (Tony, 2026-10-29): the league and "N matches" on top, then each
   // match with its time. `c` = the narrow 5/7-day grid.
-  // Team 1 on the left with VS straight after its name, as before; team 2
-  // mirrors it on the right edge (code, then logo). Teams go by their short
-  // code (HLE, not Hanwha Life Esports: Tony, 2026-10-30), which RiftIQ writes
-  // as team1Code/team2Code; a card written before that falls back to the name,
-  // and then VS rides inline on team 1's last word so a wrapped name keeps it
-  // beside the text. Always VS, live or not: TaskHub doesn't mark live matches.
+  // Team 1 on the left edge (logo, code), team 2 mirrored on the right (code,
+  // logo), VS centred between them. Teams go by their short code (HLE, not
+  // Hanwha Life Esports: Tony, 2026-10-30), which RiftIQ writes as
+  // team1Code/team2Code; a card written before that falls back to the name,
+  // which wraps between words. Always VS, live or not.
   const pvTeams=(e,tone,c,sz)=>{
     const logo=(src,key)=>src&&React.createElement("img",{key,src,style:{width:sz,height:sz,objectFit:"contain",borderRadius:2,flexShrink:0},onError:ev=>ev.target.style.display="none"});
-    const vs=React.createElement("span",{style:{fontSize:c?9.5:11,fontWeight:900,letterSpacing:.5,color:"#8d8d94",marginLeft:c?8:10}},"VS");
-    const t1=e.team1Code||e.team1||"TBD",t2=e.team2Code||e.team2||"TBD",cut=t1.lastIndexOf(" ");
-    const nmS=al=>({fontSize:c?11:13,fontWeight:800,color:tone,lineHeight:1.1,textAlign:al,overflowWrap:"break-word"});
-    // Names wrap only between words; both sides give way, so no name piles up to three lines.
-    const side=(kids,right)=>React.createElement("div",{style:{display:"flex",alignItems:"center",gap:c?3:5,flex:"0 1 auto",minWidth:0,marginLeft:right?"auto":0}},kids);
-    return React.createElement("div",{style:{display:"flex",alignItems:"center",gap:c?6:10,minWidth:0}},
-      side([logo(e.team1Img,"i"),React.createElement("span",{key:"n",style:nmS("left")},
-        cut>0?t1.slice(0,cut+1):"",
-        React.createElement("span",{style:{whiteSpace:"nowrap"}},cut>0?t1.slice(cut+1):t1,vs))],false),
-      side([React.createElement("span",{key:"n",style:nmS("right")},t2),logo(e.team2Img,"i")],true));
+    const name=(t,al,key)=>React.createElement("span",{key,style:{fontSize:c?13:15,fontWeight:800,color:tone,lineHeight:1.1,textAlign:al,overflowWrap:"break-word",minWidth:0}},t);
+    const side=(kids,right)=>React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:right?"flex-end":"flex-start",gap:c?4:6,minWidth:0}},kids);
+    return React.createElement("div",{style:{display:"grid",gridTemplateColumns:"minmax(0,1fr) auto minmax(0,1fr)",alignItems:"center",columnGap:c?6:10,minWidth:0}},
+      side([logo(e.team1Img,"i"),name(e.team1Code||e.team1||"TBD","left","n")],false),
+      React.createElement("span",{style:{fontSize:c?10:11,fontWeight:900,letterSpacing:.5,color:"#8d8d94",lineHeight:1}},"VS"),
+      side([name(e.team2Code||e.team2||"TBD","right","n"),logo(e.team2Img,"i")],true));
   };
   const pvRender=(list,k,tone,c)=>{
     if(!list||!list.length)return null;
@@ -10090,7 +10085,7 @@ function App(){
     const box={border:"1px solid rgba(184,166,208,0.34)",borderLeft:"3px solid #b8a6d0",borderRadius:c?5:6,background:"rgba(184,166,208,0.08)",padding:c?"5px 7px":"6px 10px",flex:1,minWidth:0};
     const lgS={fontSize:c?10:12,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"#c2b1dc",lineHeight:1};
     const tmS={fontSize:c?10:12,fontWeight:700,color:T.TXD,opacity:.95,marginLeft:"auto",whiteSpace:"nowrap"};
-    const sz=c?18:24;
+    const sz=c?22:28;
     const del1=e=>edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:c?"0 5px":"0 6px",flexShrink:0},onClick:()=>del(k,e.id)},"×");
     return order.map(lg=>{const g=by[lg];
       if(g.length===1){const e=g[0];
