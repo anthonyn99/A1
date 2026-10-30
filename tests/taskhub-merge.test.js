@@ -102,6 +102,18 @@ console.log('\nNo base (a fresh page edited before the cloud copy arrived)');
   ok(r.hc && r.hc['h1|mon'], 'an absent field is no news');
 }
 
+console.log('\nA fresh device’s sample week (2026-10-29)');
+{
+  const theirs = clone(base);
+  const mine = { goals: [{ id: 'd1', title: 'Review project roadmap', _demo: true }],
+    data: { '2026-10-28': [{ id: 'd2', title: 'Morning run', _demo: true }, { id: 'n1', title: 'Orca visual' }] } };
+  const r = syncMerge(null, mine, theirs);
+  ok(!r.goals.some((g) => g.id === 'd1') && ids(r.goals) === ids(base.goals), 'a demo goal the cloud never had is not added');
+  ok(ids(r.data['2026-10-28']) === 'n1', 'a demo task is not added, a real one made beside it is');
+  const both = clone(base); both.goals.push({ id: 'd1', title: 'Kept', _demo: true });
+  ok(syncMerge(null, clone(both), clone(both)).goals.some((g) => g.id === 'd1'), 'a demo item the cloud already holds stays');
+}
+
 console.log('\nBookkeeping');
 {
   const mine = clone(base), theirs = clone(base);
