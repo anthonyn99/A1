@@ -75,7 +75,7 @@ console.log('\nTiming: ten minutes after the release, in New York time');
   const earn = (when) => ({ kind: 'earnings', title: 'TSM Earnings', ticker: 'TSM', date: '2026-10-15', when });
   ok('before-the-open earnings: 8:00 ET', iso(D.dueAt(earn('bmo'))) === '2026-10-15T12:00Z', iso(D.dueAt(earn('bmo'))));
   ok('after-the-close earnings: 4:05 ET, no extra wait', iso(D.dueAt(earn('amc'))) === '2026-10-15T20:05Z', iso(D.dueAt(earn('amc'))));
-  ok('untagged earnings wait for the later session', iso(D.dueAt(earn(null))) === '2026-10-15T20:30Z');
+  ok('untagged earnings wait for the later session', iso(D.dueAt(earn(null))) === '2026-10-15T20:05Z');
   ok('a release with no clock waits for the close', iso(D.dueAt({ kind: 'macro', title: 'Waller speaks', date: '2026-10-15' }, null)) === '2026-10-15T20:40Z');
   ok('a market holiday never gets a button', D.dueAt({ kind: 'holiday', title: 'Thanksgiving', date: '2026-11-26' }) === null);
   ok('nor does an event with a bad date', D.dueAt({ kind: 'macro', date: 'soon' }, { hh: 8, mm: 30 }) === null);

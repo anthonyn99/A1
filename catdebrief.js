@@ -175,7 +175,7 @@
    * so this file does not grow a third copy of that list. */
   function releaseAt(ev, macroET) {
     if (!ev || !ev.date || !/^\d{4}-\d{2}-\d{2}$/.test(ev.date) || ev.kind === 'holiday') return null;
-    var t = isEarn(ev) ? (EARN_ET[ev.when] || LATE_ET) : (macroET || LATE_ET);
+    var t = isEarn(ev) ? (EARN_ET[ev.when] || EARN_ET.amc) : (macroET || LATE_ET);
     try { return nyTs(ev.date, t.hh, t.mm); } catch (e) { return null; }
   }
   function dueAt(ev, macroET) {
