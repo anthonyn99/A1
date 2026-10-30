@@ -308,9 +308,12 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
     bc.postMessage({ type: 'hand', from: 'probe', raw: ${JSON.stringify(b64(handed))} }); setTimeout(() => res(false), 2000); });`);
   await sleep(1200);
   ok('the open Everwell takes a sync handed over by the new tab, and answers', took && (await media()).some((x) => x.igc && x.igc.cid === CID && x.posts[0].c === 'HNDaaaa9'), JSON.stringify((await media()).map((x) => x.posts && x.posts[0] && x.posts[0].c)));
+  const atOf = async () => ((await media()).find((x) => x.igc && x.igc.cid === CID) || {}).igc.at;
+  const at1 = await atOf();
+  await sleep(50);
   await js(`window.postMessage({ type: 'ew-igc-ext', raw: ${JSON.stringify(b64(handed))} }, location.origin); return 1;`);
   await sleep(800);
-  ok('the same sync arriving again from the extension is not applied twice', !/Synced/.test(await toast()) || (await js(`return document.querySelectorAll('#ew-toast').length;`)) === 1);
+  ok('the same sync arriving again from the extension is not applied twice', (await atOf()) === at1, at1);
   const extOnly = { v: 2, cid: CID, user: 'tony', slug: 'discipline', name: 'Discipline', posts: [post('EXTaaaa7'), post('NEWaaaa6')] };
   await js(`window.postMessage({ type: 'ew-igc-ext', raw: ${JSON.stringify(b64(extOnly))} }, location.origin); return 1;`);
   await sleep(1200);
