@@ -10064,21 +10064,24 @@ function App(){
   // or more in the same league on a day share ONE card, like grouped macro
   // releases (Tony, 2026-10-29): the league and "N matches" on top, then each
   // match with its time. `c` = the narrow 5/7-day grid.
-  // Team 1 hugs the left edge with VS (or the live dot) right after it; team 2
-  // mirrors it on the right (name, then logo).
+  // Team 1 on the left with VS (or the live dot) straight after its name, as
+  // before; team 2 mirrors it on the right edge (name, then logo). VS rides
+  // inline on team 1's last word, so a wrapped name keeps it beside the text.
   const pvTeams=(e,tone,c,sz)=>{
     const logo=(src,key)=>src&&React.createElement("img",{key,src,style:{width:sz,height:sz,objectFit:"contain",borderRadius:2,flexShrink:0},onError:ev=>ev.target.style.display="none"});
-    // Names wrap only between words, and only as much as the row needs: each
-    // side shrinks from its natural width, so a short name keeps one line.
-    const name=(t,al,key)=>React.createElement("span",{key,style:{fontSize:c?11:13,fontWeight:800,color:tone,lineHeight:1.1,textAlign:al,overflowWrap:"break-word"}},t||"TBD");
-    const side=(img,t,right)=>React.createElement("div",{style:{display:"flex",alignItems:"center",gap:c?3:5,flex:"0 1 auto",minWidth:0,marginLeft:right?"auto":0}},
-      right?[name(t,"right","n"),logo(img,"i")]:[logo(img,"i"),name(t,"left","n")]);
     const live=e.state==="inProgress";
-    return React.createElement("div",{style:{display:"flex",alignItems:"center",gap:c?4:8,minWidth:0}},
-      side(e.team1Img,e.team1,false),
-      live&&c?React.createElement("span",{title:"Live",style:{width:5,height:5,borderRadius:"50%",background:"#8d8d94",flexShrink:0}})
-        :React.createElement("span",{style:{fontSize:c?9.5:11,fontWeight:900,letterSpacing:.5,color:live?"#e06c75":"#8d8d94",lineHeight:1,flexShrink:0}},live?"LIVE":"VS"),
-      side(e.team2Img,e.team2,true));
+    const vs=live&&c?React.createElement("span",{title:"Live",style:{display:"inline-block",width:5,height:5,borderRadius:"50%",background:"#8d8d94",verticalAlign:"middle",marginLeft:c?4:6}})
+      :React.createElement("span",{style:{fontSize:c?9.5:11,fontWeight:900,letterSpacing:.5,color:live?"#e06c75":"#8d8d94",marginLeft:c?4:6}},live?"LIVE":"VS");
+    const t1=e.team1||"TBD",t2=e.team2||"TBD",cut=t1.lastIndexOf(" ");
+    const nmS=al=>({fontSize:c?11:13,fontWeight:800,color:tone,lineHeight:1.1,textAlign:al,overflowWrap:"break-word"});
+    // Only the longer name wraps (between words); a short one keeps one line.
+    const shrink1=t1.length>=t2.length||t1.length>12?1:0,shrink2=t2.length>t1.length||t2.length>12?1:0;
+    const side=(kids,right,sh)=>React.createElement("div",{style:{display:"flex",alignItems:"center",gap:c?3:5,flex:"0 "+sh+" auto",minWidth:0,marginLeft:right?"auto":0}},kids);
+    return React.createElement("div",{style:{display:"flex",alignItems:"center",gap:c?6:10,minWidth:0}},
+      side([logo(e.team1Img,"i"),React.createElement("span",{key:"n",style:nmS("left")},
+        cut>0?t1.slice(0,cut+1):"",
+        React.createElement("span",{style:{whiteSpace:"nowrap"}},cut>0?t1.slice(cut+1):t1,vs))],false,shrink1),
+      side([React.createElement("span",{key:"n",style:nmS("right")},t2),logo(e.team2Img,"i")],true,shrink2));
   };
   const pvRender=(list,k,tone,c)=>{
     if(!list||!list.length)return null;
