@@ -137,7 +137,7 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   ok('the expanded collection shows its covers (through personal-ai /ig/thumb), kinds and lengths', await js(`const g = document.querySelector('#media-grid .igc-group[data-id="col1"]'); if (!g) return false;
     const cells = [...g.querySelectorAll('.igc-cell')]; return cells.length === 5 && cells[0].querySelector('img').src.indexOf('https://personal-ai.av1.workers.dev/ig/thumb?code=VIDaaaa1') === 0 &&
     !!cells[0].querySelector('.igc-k') && cells[0].querySelector('.igc-d').textContent === '0:12' && !!cells[3].querySelector('.igc-k') && !cells[2].querySelector('.igc-k') &&
-    g.querySelector('[data-igc-kind]').textContent === 'Instagram · synced 2 h ago' && !!g.querySelector('.igc-head .igc-acts [data-igplay]') && !!g.querySelector('.igc-acts [data-igsync]') && !!g.querySelector('.igc-acts [data-igcollapse]');`));
+    g.querySelector('[data-igc-kind]').textContent === 'Instagram · synced 2h ago' && !!g.querySelector('.igc-head .igc-acts [data-igplay]') && !!g.querySelector('.igc-acts [data-igsync]') && !!g.querySelector('.igc-acts [data-igcollapse]');`));
   ok('the pasted reel stays its own tile beside it, with its cover', await js(`const t = document.querySelector('#media-grid .media-tile[data-id="m1"]'); return !!t && /ig\\/thumb\\?code=VIDmanual/.test(t.querySelector('img').src) && t.querySelector('.k').textContent === 'Instagram reel';`));
   ok('nothing loads a post until one is played (covers only)', !net.some((u) => /ig\/media|cdn\.test/.test(u)));
 
