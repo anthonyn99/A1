@@ -263,4 +263,7 @@
 
   // Alt-tabbing away mid-hover never delivers a pointerout.
   window.addEventListener('blur', clear);
+  // A row lifted by dragsort.js: drop the hover and press before it copies the
+  // row, or the copy carries them.
+  document.addEventListener('a1drag:lift', clear);
 })();
