@@ -10064,12 +10064,19 @@ function App(){
   // or more in the same league on a day share ONE card, like grouped macro
   // releases (Tony, 2026-10-29): the league and "N matches" on top, then each
   // match with its time. `c` = the narrow 5/7-day grid.
-  const pvTeams=(e,tone,c,sz)=>React.createElement("div",{style:{display:"flex",alignItems:"center",gap:c?4:5,minWidth:0}},
-    e.team1Img&&React.createElement("img",{src:e.team1Img,style:{width:sz,height:sz,objectFit:"contain",borderRadius:2,flexShrink:0},onError:ev=>ev.target.style.display="none"}),
-    React.createElement("span",{style:{fontSize:c?11:13,fontWeight:800,color:tone,lineHeight:1}},e.team1||"TBD"),
-    React.createElement("span",{style:{fontSize:c?11:13,fontWeight:900,color:"#8d8d94",margin:c?"0 2px":"0 4px"}},e.state==="inProgress"?(c?"•":"LIVE"):"VS"),
-    e.team2Img&&React.createElement("img",{src:e.team2Img,style:{width:sz,height:sz,objectFit:"contain",borderRadius:2,flexShrink:0},onError:ev=>ev.target.style.display="none"}),
-    React.createElement("span",{style:{fontSize:c?11:13,fontWeight:800,color:tone,lineHeight:1}},e.team2||"TBD"));
+  // Team 1 hugs the left edge, team 2 mirrors it on the right (name, then
+  // logo), and VS / the live dot sits centred in its own column between them.
+  const pvTeams=(e,tone,c,sz)=>{
+    const logo=(src,key)=>src&&React.createElement("img",{key,src,style:{width:sz,height:sz,objectFit:"contain",borderRadius:2,flexShrink:0},onError:ev=>ev.target.style.display="none"});
+    const name=(t,al,key)=>React.createElement("span",{key,style:{fontSize:c?11:13,fontWeight:800,color:tone,lineHeight:1.15,minWidth:0,textAlign:al,overflowWrap:"anywhere"}},t||"TBD");
+    const side=(img,t,right)=>React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:right?"flex-end":"flex-start",gap:c?4:5,minWidth:0}},
+      right?[name(t,"right","n"),logo(img,"i")]:[logo(img,"i"),name(t,"left","n")]);
+    const live=e.state==="inProgress";
+    return React.createElement("div",{style:{display:"grid",gridTemplateColumns:"minmax(0,1fr) auto minmax(0,1fr)",alignItems:"center",columnGap:c?4:8,minWidth:0}},
+      side(e.team1Img,e.team1,false),
+      React.createElement("span",{style:{fontSize:c?10:11,fontWeight:900,letterSpacing:.5,color:live?"#e06c75":"#8d8d94",textAlign:"center",lineHeight:1}},live?(c?"•":"LIVE"):"VS"),
+      side(e.team2Img,e.team2,true));
+  };
   const pvRender=(list,k,tone,c)=>{
     if(!list||!list.length)return null;
     const by={},order=[];
