@@ -297,16 +297,17 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64').rep
   await sleep(2700);
   await fresh({ seed: await js(`return JSON.stringify(__fakeFs.docs);`).then(JSON.parse), hash: '#ew-igc=' + b64({ cid: 'nope', user: 'x', posts: [] }) });
   ok('a damaged sync link changes nothing and says so', /could not be read/.test(await toast()) && (await media()).length === 5);
-  // The second Everwell a link sync opens hands it to the open one and closes
-  // itself (2026-10-29). Played here as that second tab: a BroadcastChannel of
-  // our own sends the hand-off; the open page must answer and take the sync.
+  // The second Everwell a link sync opens asks the older one to close (2026-10-29).
+  // This page cannot close itself (DevTools opened it), so it must answer
+  // "stuck" and take the sync. Played here as the second tab: a BroadcastChannel
+  // of our own sends the hand-off.
   await sleep(2700);
   const snapDocs = await js(`return JSON.stringify(__fakeFs.docs);`).then(JSON.parse);
   const handed = { v: 2, cid: CID, user: 'tony', slug: 'discipline', name: 'Discipline', posts: [post('HNDaaaa9'), post('NEWaaaa6')] };
-  const took = await js(`return await new Promise((res) => { const bc = new BroadcastChannel('ew-igc'); bc.onmessage = (e) => { if (e.data && e.data.type === 'took' && e.data.to === 'probe') res(true); };
+  const took = await js(`return await new Promise((res) => { const bc = new BroadcastChannel('ew-igc'); bc.onmessage = (e) => { if (e.data && e.data.type === 'stuck' && e.data.to === 'probe') res(true); };
     bc.postMessage({ type: 'hand', from: 'probe', raw: ${JSON.stringify(b64(handed))} }); setTimeout(() => res(false), 2000); });`);
   await sleep(1200);
-  ok('the open Everwell takes a sync handed over by a second Everwell tab', took && (await media()).some((x) => x.igc && x.igc.cid === CID && x.posts[0].c === 'HNDaaaa9'), JSON.stringify((await media()).map((x) => x.posts && x.posts[0] && x.posts[0].c)));
+  ok('an older Everwell that cannot close says so and takes the sync from the new tab', took && (await media()).some((x) => x.igc && x.igc.cid === CID && x.posts[0].c === 'HNDaaaa9'), JSON.stringify((await media()).map((x) => x.posts && x.posts[0] && x.posts[0].c)));
   await fresh({ seed: snapDocs });   // what follows expects the collection as it was
 
   console.log('\nSync: the bookmarklet, on a (fake) Instagram collection page');
