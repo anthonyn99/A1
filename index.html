@@ -10073,14 +10073,13 @@ function App(){
     const vs=React.createElement("span",{style:{fontSize:c?9.5:11,fontWeight:900,letterSpacing:.5,color:"#8d8d94",marginLeft:c?4:6}},"VS");
     const t1=e.team1||"TBD",t2=e.team2||"TBD",cut=t1.lastIndexOf(" ");
     const nmS=al=>({fontSize:c?11:13,fontWeight:800,color:tone,lineHeight:1.1,textAlign:al,overflowWrap:"break-word"});
-    // Only the longer name wraps (between words); a short one keeps one line.
-    const shrink1=t1.length>=t2.length||t1.length>12?1:0,shrink2=t2.length>t1.length||t2.length>12?1:0;
-    const side=(kids,right,sh)=>React.createElement("div",{style:{display:"flex",alignItems:"center",gap:c?3:5,flex:"0 "+sh+" auto",minWidth:0,marginLeft:right?"auto":0}},kids);
+    // Names wrap only between words; both sides give way, so no name piles up to three lines.
+    const side=(kids,right)=>React.createElement("div",{style:{display:"flex",alignItems:"center",gap:c?3:5,flex:"0 1 auto",minWidth:0,marginLeft:right?"auto":0}},kids);
     return React.createElement("div",{style:{display:"flex",alignItems:"center",gap:c?6:10,minWidth:0}},
       side([logo(e.team1Img,"i"),React.createElement("span",{key:"n",style:nmS("left")},
         cut>0?t1.slice(0,cut+1):"",
-        React.createElement("span",{style:{whiteSpace:"nowrap"}},cut>0?t1.slice(cut+1):t1,vs))],false,shrink1),
-      side([React.createElement("span",{key:"n",style:nmS("right")},t2),logo(e.team2Img,"i")],true,shrink2));
+        React.createElement("span",{style:{whiteSpace:"nowrap"}},cut>0?t1.slice(cut+1):t1,vs))],false),
+      side([React.createElement("span",{key:"n",style:nmS("right")},t2),logo(e.team2Img,"i")],true));
   };
   const pvRender=(list,k,tone,c)=>{
     if(!list||!list.length)return null;
