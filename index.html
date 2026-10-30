@@ -9995,7 +9995,7 @@ function App(){
   const sbtn={background:"transparent",color:T.ACL,border:"1px solid "+T.AC,borderRadius:6,padding:"6px 14px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"'Inter',system-ui,-apple-system,sans-serif"};
   const ctag=c=>({fontSize:9,color:CC[c]||T.TXD,background:(CC[c]||T.TXD)+"1a",borderRadius:6,padding:"1px 5px",marginLeft:2,textTransform:"capitalize",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+(CC[c]||T.TXD)+"30"});
   const mcByDay=useMemo(()=>{const g={};const todayK=dkey(new Date().getFullYear(),new Date().getMonth(),new Date().getDate());(marketCal||[]).forEach(ev=>{if(!ev||!ev.date)return;(g[ev.date]=g[ev.date]||[]).push({id:ev.id,type:"event",_mc:true,kind:ev.kind,title:ev.name,category:ev.category,importance:ev.importance,date:ev.date,notifyAt:ev.notifyAt||null,ticker:ev.ticker||null,when:ev.when||null,epsEst:ev.epsEst==null?null:ev.epsEst,_past:ev.date<todayK});});return g;},[marketCal]);
-  // ── Debrief ▶ (catdebrief.js) ── ten minutes after a catalyst comes out its
+  // ── Debrief ▶ (catdebrief.js) ── once a catalyst is out (macro: ten minutes after) its
   // card offers a MAGI debrief, in Tony's profile. A grouped earnings card
   // debriefs every report on it that is already out; a group of macro
   // releases waits for its last one and debriefs them all in one go
@@ -22760,7 +22760,7 @@ window._magiClick = function(){
 };
 
 // ── Catalysts debrief ▶ ──
-// The button a catalyst card grows ten minutes after its release (both
+// The button a catalyst card grows once its release is out (both
 // TaskHubs). catdebrief.js builds the prompt from TradeHub's templates and
 // opens the ONE MAGI tab with it, in the profile of the TaskHub pressed, using
 // that profile's units. `macroET` is the TaskHub's own release-time table.
