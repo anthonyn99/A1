@@ -119,6 +119,28 @@
     '}'
   ].join('\n');
 
+  // A floating copy lives on <body>, so what its parts inherited in the list is
+  // gone -- and the copy's own line-height, copied as px, is inherited instead
+  // of the list's ratio: a 9px pill took a 22.5px line and grew, and the text
+  // beside it moved, the moment a row was lifted. Each part keeps exactly the
+  // type it had (colour excepted: a lifted row is always light on s2).
+  var TYPE = ['line-height', 'letter-spacing', 'word-spacing', 'font-family', 'font-size', 'font-weight',
+    'font-style', 'font-stretch', 'font-variant-numeric', 'font-feature-settings', 'text-transform',
+    'text-align', 'white-space'];
+  function pinType(src, dst) {
+    var a = src.querySelectorAll('*'), b = dst.querySelectorAll('*');
+    if (a.length !== b.length) return;
+    var want = [], fix = [], i, k, ca, cb;
+    for (i = 0; i < a.length; i++) {
+      ca = getComputedStyle(a[i]); want.push(TYPE.map(function (p) { return ca.getPropertyValue(p); }));
+    }
+    for (i = 0; i < b.length; i++) {
+      cb = getComputedStyle(b[i]);
+      for (k = 0; k < TYPE.length; k++) if (cb.getPropertyValue(TYPE[k]) !== want[i][k]) fix.push([i, k]);
+    }
+    fix.forEach(function (f) { b[f[0]].style.setProperty(TYPE[f[1]], want[f[0]][f[1]]); });
+  }
+
   function injectCss() {
     if (document.getElementById('a1-dragsort-css')) return;
     var st = document.createElement('style');
@@ -522,6 +544,7 @@
           gs.width = r0.width + 'px'; gs.height = r0.height + 'px';
           gs.boxSizing = 'border-box';
           document.body.appendChild(ghost);
+          pinType(row, row.tagName === 'TR' && ghost.tagName === 'TABLE' ? ghost.querySelector('tr') : ghost);
           row.classList.add(fly ? 'dsort-hole' : 'dsort-src');
         }
         (copy || fly ? ghost : row).classList.add('dsort-drag');
