@@ -506,6 +506,10 @@
       var start = function () {
         live = true;
         state.active = true;
+        // hoverfx.js lets go of its hover lift and 1px press first: a copy
+        // taken with them on kept them, so the part under the pointer sat 1px
+        // low and dimmed for the whole drag.
+        document.dispatchEvent(new CustomEvent('a1drag:lift'));
         if (copy || fly) {
           r0 = row.getBoundingClientRect();
           ghost = row.cloneNode(true);
