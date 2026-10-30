@@ -1,8 +1,8 @@
 /* catdebrief.js — "Debrief in MAGI" for TradeHub Catalysts events.
  *
  * Every earnings and macro event TradeHub Catalysts publishes shows up on both
- * TaskHubs (dashboards/market_calendar). Ten minutes after an event has come
- * out, its card grows a ▶ button: press it and MAGI opens (or the MAGI tab
+ * TaskHubs (dashboards/market_calendar). Ten minutes after a macro release has
+ * come out (an earnings report: the moment it is out), its card grows a ▶ button: press it and MAGI opens (or the MAGI tab
  * that is already open comes forward) and convenes a debrief of THAT event,
  * in the profile of the TaskHub you pressed it in.
  *
@@ -46,6 +46,10 @@
   // release minute; ten minutes gives every source time to print them and
   // the first market reaction time to happen, so the debrief has substance.
   var DELAY_MIN = 10;
+  // Earnings have no such wait: EARN_ET already names the time a report is
+  // out by, and Tony wants the button then (2026-10-29: 4:40 ET felt like
+  // "50 minutes after the close").
+  var EARN_DELAY_MIN = 0;
   // The four verified units, the same default TradeHub's Analysis tab uses
   // (TB_MAGI_DEFAULT_UNITS). A unit the engine lacks is skipped by MAGI.
   var DEFAULT_UNITS = ['chatgpt', 'claude', 'gemini', 'deepseek'];
@@ -56,13 +60,14 @@
   /* Earnings carry no release clock, only Finnhub's session tag. These are
    * the times a report in each session is reliably out by, in ET:
    *   bmo (before the open)  — almost all print 6:00–8:00
-   *   amc (after the close)  — almost all print 16:00–16:30
+   *   amc (after the close)  — almost all print 16:01–16:10 (the 4:05 wire
+ *                            is the norm; a few stragglers print by 16:30)
    *   dmh (during the day)   — rare; midday
    * An untagged report (TSM and other ADRs come from Nasdaq's scan with no
    * session) waits for the later of the two, so the button never offers a
    * debrief of numbers that cannot exist yet. A macro release with no fixed
    * clock (a Fed speaker) waits for the close the same way. */
-  var EARN_ET = { bmo: { hh: 8, mm: 0 }, amc: { hh: 16, mm: 30 }, dmh: { hh: 12, mm: 0 } };
+  var EARN_ET = { bmo: { hh: 8, mm: 0 }, amc: { hh: 16, mm: 5 }, dmh: { hh: 12, mm: 0 } };
   var LATE_ET = { hh: 16, mm: 30 };
 
   var TEMPLATES = {
@@ -175,7 +180,7 @@
   }
   function dueAt(ev, macroET) {
     var r = releaseAt(ev, macroET);
-    return r === null ? null : r + DELAY_MIN * 60000;
+    return r === null ? null : r + (isEarn(ev) ? EARN_DELAY_MIN : DELAY_MIN) * 60000;
   }
   function isDue(ev, macroET, now) {
     var d = dueAt(ev, macroET);
