@@ -10868,18 +10868,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
         let mine = body;
         try { const fresh = rebuild && rebuild(); if (fresh) mine = _casStrip(fresh); } catch (e) {}
         const rogue = res.seen && theirs.rev === undefined && !!base;
-        let merged = rogue ? mine : window.THMerge.syncMerge(base ? base.doc : null, mine, theirs);
-        // Edits made while the server copy was being read are in the state but
-        // not in `mine`; showing `merged` as it is would paint over them, and
-        // the next save rebuilds from that state, so they were lost for good
-        // (tests/taskhub-sync.test.js, "B's new tasks", 2026-10-29). Merge
-        // them in on top: mine is their base.
-        try {
-          const now = rebuild && rebuild();
-          if (now) { const cur = _casStrip(now); delete cur.savedAt;
-            const was = Object.assign({}, mine); delete was.savedAt;
-            if (JSON.stringify(cur) !== JSON.stringify(was)) merged = window.THMerge.syncMerge(mine, cur, merged); }
-        } catch (e) {}
+        const merged = rogue ? mine : window.THMerge.syncMerge(base ? base.doc : null, mine, theirs);
         merged.savedAt = Date.now();
         console.warn('[' + label + '] another device saved first (cloud v' + res.cur + ', ours built on v'
           + (base ? base.rev : 'none') + ') — ' + (rogue ? 'its copy came from an old app version; keeping ours' : 'merged both') + '.');
