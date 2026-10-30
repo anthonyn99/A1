@@ -23882,29 +23882,28 @@ function scheduleReapply(){
 // dropdown menu (even on wide screens). Measures with buttons shown, then
 // toggles a force class. Never relies only on fixed media-query breakpoints.
 // ════════════════════════════════════════════════════════════════════════════
-// Right edge (viewport X) of the left-hand title / Set-as-main cluster that the
-// program buttons must never overlap. Measured live so it's correct at any size.
+// Right edge (viewport X) of the left-hand program title that the program
+// buttons must never overlap. Set as main used to sit beside the title and was
+// measured here; it lives in Settings now, and measuring it there (Settings
+// open near the top) forced the dropdown at random until the next resize
+// (Tony, 2026-10-29). Nothing but the title shares the row any more.
 function tonyLeftZoneRight(){
-  var maxR=0;
-  var sm=document.getElementById('th-setmain-btn');
-  if(sm){ var r=sm.getBoundingClientRect(); if(r.width&&r.top<70&&r.left>=0) maxR=Math.max(maxR,r.right); }
-  // floor: clears the program title text even when Set-as-main isn't shown
-  var base=(window._tnCurApp==='taskhub')?210:185;
-  return Math.max(maxR+14, base);
+  return (window._tnCurApp==='taskhub')?210:185;
 }
 function checkTonyOverflow(){
   var inner=document.getElementById('tony-app-nav-inner'); if(!inner) return;
   if(window.innerWidth<=900){ inner.classList.remove('tn-force-dd'); return; } // media query collapses
+  // A hidden bar (lock, profile picker, mid-switch) measures every button at
+  // x=0, which reads as "doesn't fit": leave it as it is; showing the bar
+  // rechecks (_updateTonyNavActive).
+  if(!inner.getBoundingClientRect().width) return;
   var wasForced=inner.classList.contains('tn-force-dd');
   inner.classList.remove('tn-force-dd');                 // expand to measure (synchronous → no paint)
-  var btns=inner.querySelectorAll('.tn-btn');
-  var collide=false;
-  if(btns.length){
-    // leftmost button = first in DOM order (right-aligned row preserves L→R order)
-    var firstLeft=btns[0].getBoundingClientRect().left;
-    if(firstLeft < tonyLeftZoneRight()) collide=true;
-  }
-  if(collide) inner.classList.add('tn-force-dd');
+  // leftmost SHOWN button = first in DOM order (right-aligned row preserves L→R order)
+  var first=null,btns=inner.querySelectorAll('.tn-btn');
+  for(var i=0;i<btns.length&&!first;i++){ if(btns[i].getBoundingClientRect().width) first=btns[i]; }
+  if(!first){ if(wasForced) inner.classList.add('tn-force-dd'); return; }
+  if(first.getBoundingClientRect().left < tonyLeftZoneRight()) inner.classList.add('tn-force-dd');
 }
 function checkVedaOverflow(){
   document.querySelectorAll('.veda-hbtns').forEach(function(row){
@@ -23932,10 +23931,6 @@ function recheckOverflow(){
 window._navRecheckOverflow=recheckOverflow;
 window.addEventListener('resize',recheckOverflow);
 window.addEventListener('orientationchange',recheckOverflow);
-document.addEventListener('click',function(e){
-  var t=e.target&&e.target.closest&&e.target.closest('#th-setmain-btn,#vd-setmain-btn');
-  if(t){ setTimeout(recheckOverflow,60); setTimeout(recheckOverflow,260); }
-},true);
 if(document.fonts&&document.fonts.ready){ document.fonts.ready.then(recheckOverflow); }
 
 // ════════════════════════════════════════════════════════════════════════════
