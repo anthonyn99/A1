@@ -10821,6 +10821,12 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
   async function _casWrite(name, ref, payload, label, rebuild, apply) {
     const st = _cas[name];
     let body = payload;
+    // Built before ANY server copy was applied here (a fresh page's sample week,
+    // or an edit in the moment between the loader noting the cloud version and
+    // painting it): it is not built on st.base, whatever st.base is by now, so
+    // it must merge, never pass the version check and overwrite the cloud copy
+    // (tests/taskhub-sync.test.js, 2026-10-29: Tony's t1 was wiped that way).
+    const builtOnNothing = ('_baseRev' in body) && body._baseRev === undefined;
     // Built on an older version than the one now applied here: the state has
     // moved on since (a remote copy was applied), so take the current state.
     if (body._baseRev !== undefined && st.base && body._baseRev !== st.base.rev) {
@@ -10837,7 +10843,7 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     }
     if (navigator.onLine === false) return { ok: false, offline: true };
     const db_ = ref.firestore, headRef = doc(db_, ref.path + '_head');
-    let base = st.base;
+    let base = builtOnNothing ? null : st.base;
     try {
       for (let attempt = 0; attempt < 4; attempt++) {
         const res = await _casTimeout(runTransaction(db_, async (tx) => {
