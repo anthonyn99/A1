@@ -10000,9 +10000,11 @@ function App(){
   // debriefs every report on it that is already out; a group of macro
   // releases waits for its last one and debriefs them all in one go
   // (A1Debrief.debriefable). mcDueTick re-renders on
-  // the minute the next one becomes due, so it appears without a reload.
+  // the minute the next one becomes due, so it appears without a reload; a
+  // tab that slept through that minute (throttled timer, laptop lid) catches
+  // up the moment it is looked at again.
   const[mcDueTick,setMcDueTick]=useState(0);
-  useEffect(()=>{const D=window.A1Debrief;if(!D)return;const nd=D.nextDue(marketCal,e=>mcMacroET(e));if(!nd)return;const id=setTimeout(()=>setMcDueTick(x=>x+1),Math.min(Math.max(nd-Date.now(),0)+500,2147000000));return()=>clearTimeout(id);},[marketCal,mcDueTick]);
+  useEffect(()=>{const D=window.A1Debrief;if(!D)return;const nd=D.nextDue(marketCal,e=>mcMacroET(e));if(!nd)return;const bump=()=>setMcDueTick(x=>x+1);const id=setTimeout(bump,Math.min(Math.max(nd-Date.now(),0)+500,2147000000));const wake=()=>{if(document.visibilityState==="visible"&&Date.now()>=nd)bump();};document.addEventListener("visibilitychange",wake);window.addEventListener("focus",wake);return()=>{clearTimeout(id);document.removeEventListener("visibilitychange",wake);window.removeEventListener("focus",wake);};},[marketCal,mcDueTick]);
   // TradeHub's grouping window lives in the same settings doc: redraw when it changes.
   useEffect(()=>{const f=()=>setMcDueTick(x=>x+1);window.addEventListener("a1debrief:config",f);return()=>window.removeEventListener("a1debrief:config",f);},[]);
   const mcDebriefOf=e=>{const D=window.A1Debrief;if(!D)return null;const g=e._group||[e];if(D.debriefable)return D.debriefable(g,mcMacroET);const l=g.filter(x=>D.isDue(x,mcMacroET(x)));return l.length?l:null;};
@@ -16407,7 +16409,7 @@ function App(){
   // StudyOS ▶ on her study cards. mcDueTick re-renders on the minute the next
   // event becomes due (this TaskHub has no clock tick of its own).
   const[mcDueTick,setMcDueTick]=useState(0);
-  useEffect(()=>{const D=window.A1Debrief;if(!D)return;const nd=D.nextDue(marketCal,e=>mcMacroET(e));if(!nd)return;const id=setTimeout(()=>setMcDueTick(x=>x+1),Math.min(Math.max(nd-Date.now(),0)+500,2147000000));return()=>clearTimeout(id);},[marketCal,mcDueTick]);
+  useEffect(()=>{const D=window.A1Debrief;if(!D)return;const nd=D.nextDue(marketCal,e=>mcMacroET(e));if(!nd)return;const bump=()=>setMcDueTick(x=>x+1);const id=setTimeout(bump,Math.min(Math.max(nd-Date.now(),0)+500,2147000000));const wake=()=>{if(document.visibilityState==="visible"&&Date.now()>=nd)bump();};document.addEventListener("visibilitychange",wake);window.addEventListener("focus",wake);return()=>{clearTimeout(id);document.removeEventListener("visibilitychange",wake);window.removeEventListener("focus",wake);};},[marketCal,mcDueTick]);
   // TradeHub's grouping window lives in the same settings doc: redraw when it changes.
   useEffect(()=>{const f=()=>setMcDueTick(x=>x+1);window.addEventListener("a1debrief:config",f);return()=>window.removeEventListener("a1debrief:config",f);},[]);
   // Claude reset times from MAGI — read-only, see CR_* in the first block.
