@@ -10074,7 +10074,8 @@ function App(){
     const live=e.state==="inProgress";
     return React.createElement("div",{style:{display:"grid",gridTemplateColumns:"minmax(0,1fr) auto minmax(0,1fr)",alignItems:"center",columnGap:c?4:8,minWidth:0}},
       side(e.team1Img,e.team1,false),
-      React.createElement("span",{style:{fontSize:c?10:11,fontWeight:900,letterSpacing:.5,color:live?"#e06c75":"#8d8d94",textAlign:"center",lineHeight:1}},live?(c?"•":"LIVE"):"VS"),
+      live&&c?React.createElement("span",{title:"Live",style:{width:6,height:6,borderRadius:"50%",background:"#e06c75",justifySelf:"center"}})
+        :React.createElement("span",{style:{fontSize:c?10:11,fontWeight:900,letterSpacing:.5,color:live?"#e06c75":"#8d8d94",textAlign:"center",lineHeight:1}},live?"LIVE":"VS"),
       side(e.team2Img,e.team2,true));
   };
   const pvRender=(list,k,tone,c)=>{
