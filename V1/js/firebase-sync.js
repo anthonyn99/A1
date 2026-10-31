@@ -194,12 +194,16 @@ if (!window.STUDYOS_CONFIG_READY || !window.STUDYOS_CONFIG_READY('firebase')) {
 
   let db;
   try {
+    // ignoreUndefinedProperties: a field left undefined anywhere in the
+    // document made the SDK refuse the whole write, so nothing saved until a
+    // reload, and the reload then lost the change (2026-10-31).
     db = initializeFirestore(app, {
       localCache: persistentLocalCache({ tabManager: persistentSingleTabManager({}) }),
+      ignoreUndefinedProperties: true,
     });
   } catch (e) {
     console.warn('[StudyOS] Persistent cache unavailable, falling back to memory:', e);
-    try { db = initializeFirestore(app, {}); } catch (e2) { db = getFirestore(app); }
+    try { db = initializeFirestore(app, { ignoreUndefinedProperties: true }); } catch (e2) { db = getFirestore(app); }
   }
   // taskmirror.js waits for THIS instance rather than calling getFirestore()
   // itself; see the note there.
@@ -334,17 +338,35 @@ if (!window.STUDYOS_CONFIG_READY || !window.STUDYOS_CONFIG_READY('firebase')) {
    * 2026-09-30). With them on we always see the confirmation; _sosLastEmitted
    * keeps a metadata-only callback from re-rendering unchanged data. */
   let _sosLastEmitted = null;
+  /* Our own writes, coming back. When the server confirms a write, the
+   * snapshot that carries it has hasPendingWrites FALSE, so the check below
+   * took it for another device's state and applied it over everything edited
+   * since that write left: a task added half a second after deleting an event
+   * vanished, and the next save made the loss permanent (2026-10-31). Each
+   * write's signature is kept here, and a snapshot that is exactly one of
+   * them is our echo and is not applied. Key order does not matter (the
+   * server may return fields in another order), hence the sorted signature. */
+  const _sosOwnSigs = [];
+  const _sosSig = (v) => {
+    try {
+      return JSON.stringify(v, function (k, x) {
+        if (!x || typeof x !== 'object' || Array.isArray(x)) return x;
+        const o = {}; Object.keys(x).sort().forEach((key) => { o[key] = x[key]; }); return o;
+      });
+    } catch (e) { return null; }
+  };
   _sosUnsubscribe = onSnapshot(sosDocRef, { includeMetadataChanges: true }, (snap) => {
     const fromServer = !!(snap.metadata && snap.metadata.fromCache === false);
     // Our own not-yet-acknowledged write echoing back is skipped: the local UI
     // is already showing this exact state, so re-emitting it would churn the DOM.
     if (snap.exists() && !(snap.metadata && snap.metadata.hasPendingWrites)) {
       const data = snap.data();
-      let sig = null;
-      try { sig = JSON.stringify(data); } catch (e) {}
+      const sig = _sosSig(data);
       // Emit when the data changed, and once for the first server-confirmed
       // copy (so the app applies server state before writes unlock below).
-      if (sig === null || sig !== _sosLastEmitted || (fromServer && !_sosServerSeen)) {
+      if (sig !== null && _sosOwnSigs.indexOf(sig) !== -1) {
+        _sosLastEmitted = sig;
+      } else if (sig === null || sig !== _sosLastEmitted || (fromServer && !_sosServerSeen)) {
         _sosLastEmitted = sig;
         _sosEmitRemote(data);
       }
@@ -393,6 +415,9 @@ if (!window.STUDYOS_CONFIG_READY || !window.STUDYOS_CONFIG_READY('firebase')) {
       try { payload = window._sosBuildPayload() || payload; } catch (e) { console.warn('[StudyOS] payload rebuild failed:', e); }
     }
     _sosPendingPayload = null;
+    // Signed now, before the write: the payload holds the app's live arrays.
+    const own = _sosSig(payload);
+    if (own !== null) { _sosOwnSigs.push(own); if (_sosOwnSigs.length > 6) _sosOwnSigs.shift(); }
     try {
       _sosLastOwnSaveAt = Date.now();
       const ok = await _guardedWrite(sosDocRef, payload, 'StudyOS');

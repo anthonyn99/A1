@@ -3666,7 +3666,8 @@ function saveEvent() {
       });
       // Add back a single non-repeating event at the original date
       const singleId = uid();
-      events.push({ id: singleId, ...baseData, repeat: 'none', repeatDays: [], repeatEndDate: '', repeatId: undefined });
+      // No repeatId key at all: Firestore refuses a document holding undefined.
+      events.push({ id: singleId, ...baseData, repeat: 'none', repeatDays: [], repeatEndDate: '' });
       if (window._vedaRemoveTask) window._vedaRemoveTask('__repeatId__' + rid);
       if (window._vedaAddTask) {
         window._vedaAddTask(toVedaKey(editingEv.date), {
@@ -4608,7 +4609,8 @@ function saveTask() {
         return new Date((t.dueDate||'9999')+  'T12:00:00') < cutoff;
       });
       const singleId = uid();
-      tasks.push({ id: singleId, done: false, createdAt: Date.now(), ...baseData, repeat:'none', repeatDays:[], repeatEndDate:'', repeatId:undefined });
+      // No repeatId key at all: Firestore refuses a document holding undefined.
+      tasks.push({ id: singleId, done: false, createdAt: Date.now(), ...baseData, repeat:'none', repeatDays:[], repeatEndDate:'' });
       if (window._vedaRemoveTask) window._vedaRemoveTask('__repeatId__t_' + rid);
       if (window._vedaAddTask && dueDate) {
         const item = mkVedaItem(singleId, dueDate);
@@ -5223,23 +5225,23 @@ function _sosSetSync(status) {
   var errColor    = '#ef9f9f';
   var mutedColor  = 'var(--text2,#888)';
   if (status === 'saving') {
-    el.style.visibility = 'visible';
+    el.style.visibility = 'visible'; el.dataset.on = '1';
     el.style.color = mutedColor;
     el.textContent = 'Syncing…';
     if (_sosSyncTimer) { clearTimeout(_sosSyncTimer); _sosSyncTimer = null; }
   } else if (status === 'saved') {
-    el.style.visibility = 'visible';
+    el.style.visibility = 'visible'; el.dataset.on = '1';
     el.style.color = greenColor;
     el.innerHTML = SOI.check + '<span>Synced</span>';
     if (_sosSyncTimer) clearTimeout(_sosSyncTimer);
-    _sosSyncTimer = setTimeout(function() { el.style.visibility = 'hidden'; }, 2500);
+    _sosSyncTimer = setTimeout(function() { el.style.visibility = 'hidden'; delete el.dataset.on; }, 2500);
   } else if (status === 'error') {
-    el.style.visibility = 'visible';
+    el.style.visibility = 'visible'; el.dataset.on = '1';
     el.style.color = errColor;
     el.innerHTML = SOI.alert + '<span>Sync failed</span>';
     if (_sosSyncTimer) { clearTimeout(_sosSyncTimer); _sosSyncTimer = null; }
   } else {
-    el.style.visibility = 'hidden';
+    el.style.visibility = 'hidden'; delete el.dataset.on;
   }
 }
 

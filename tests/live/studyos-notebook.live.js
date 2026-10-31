@@ -71,6 +71,8 @@ const LOCAL = { studyos_notes_m1: JSON.stringify({ entries: [
   const boot = async () => {
     await c.send('Page.navigate', { url: URL });
     if (!(await until(`window.SOSNotes && document.body.dataset.sosGate === 'open'`, 15000))) throw new Error('StudyOS did not open');
+    // The cover (js/intro.js) shows on every launch; continue past it.
+    await js(`window.sosHideIntro && sosHideIntro(); 1`);
     await sleep(1500);
   };
   const openModule = async (cid, mid) => {

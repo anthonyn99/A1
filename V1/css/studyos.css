@@ -34,6 +34,11 @@ html, body {
      off screen. */
   overflow: hidden;
 }
+/* A phone's 100% (and 100vh) is the screen with the browser's toolbar hidden,
+   so an app sized to it ran a toolbar's height past the bottom of the screen
+   and every tab's last rows could never be scrolled into view. dvh is the
+   screen that is actually showing. */
+@supports (height: 100dvh) { html, body { height: 100dvh; } }
 body { display: flex; flex-direction: column; }
 #study-root { flex: 1; min-height: 0; }
 
@@ -113,7 +118,7 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
   font-size: 15px;
   background: var(--bg);
   color: var(--text);
-  min-height: 100vh;
+  min-height: 0;
   overflow-x: hidden;
 }
 /* LAYOUT */
@@ -637,7 +642,7 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
    their headers and the 14px gap still have to fit under the sticky header,
    hence the vh split. Generic on the class, so every panel added to this
    column inherits the behaviour. */
-#study-root .class-events-panel { display: flex; flex-direction: column; max-height: calc(100vh - var(--sos-sticky-top, 88px) - 28px); }
+#study-root .class-events-panel { display: flex; flex-direction: column; max-height: calc(100vh - var(--sos-sticky-top, 88px) - 28px); max-height: calc(100dvh - var(--sos-sticky-top, 88px) - 28px); }
 #study-root .class-events-panel > .files-panel-header { flex-shrink: 0; }
 #study-root .class-panel-body {
   flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
@@ -724,7 +729,7 @@ body[data-sos-gate="locked"]  #study-root { visibility: hidden; }
 }
 #study-root .add-prompt-row textarea:focus { outline: none; border-color: var(--accent); }
 /* POMODORO */
-#study-root .pomo-wrap { display:flex; flex-direction:column; align-items:center; justify-content:center; height:calc(100vh - 56px); gap:32px; }
+#study-root .pomo-wrap { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:32px; }
 #study-root .pomo-modes { display:flex; gap:8px; }
 #study-root .pomo-mode-btn { padding:6px 16px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer; border:1px solid var(--border2); background:transparent; color:var(--text2); transition:0.15s; font-family:var(--mono); }
 #study-root .pomo-mode-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
@@ -1592,38 +1597,16 @@ html, * { -webkit-tap-highlight-color: transparent; }
 @keyframes sosWord { from { opacity: 0; letter-spacing: 10px; transform: translateY(6px); } to { opacity: 1; letter-spacing: -2px; transform: none; } }
 @keyframes sosPulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 
-/* ── Sidebar: collapse (MAGI's three lines), the lock and LifeHub ── */
+/* ── Sidebar: the lock and LifeHub (no collapse since 2026-10-31) ── */
 #study-root .logo-mark { border: none; padding: 0; cursor: pointer; color: #C9B4D8; }
 #study-root .logo-mark svg { width: 70%; height: 70%; display: block; }
-#study-root .sb-tool-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px 8px 14px; }
-#study-root .sb-toggle {
-  width: 28px; height: 28px; flex: 0 0 28px; border-radius: 6px; padding: 0;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: transparent; border: none; color: var(--text3); cursor: pointer; transition: background .15s, color .15s;
-}
-#study-root .sb-toggle svg { width: 16px; height: 16px; display: block; }
-#study-root .sb-toggle:hover { background: var(--bg4); color: var(--text); }
+#study-root .sb-tool-row { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 8px 12px 0 14px; }
 #study-root .sb-tools { display: flex; align-items: center; gap: 6px; }
 #study-root .sb-tools a1-lifehub {
   box-sizing: border-box; border: 1px solid var(--border2); border-radius: var(--radius); background: transparent;
 }
 #study-root .topbar-actions > .sb-tools { order: -1; }
-#study-root .sidebar { transition: width .2s var(--ease), min-width .2s var(--ease); }
-#study-root .app.sb-collapsed .sidebar { width: 58px; min-width: 58px; }
-#study-root .app.sb-collapsed .logo-text,
-#study-root .app.sb-collapsed #sos-sync-status,
-#study-root .app.sb-collapsed .sb-tools,
-#study-root .app.sb-collapsed .nav-label,
-#study-root .app.sb-collapsed .sidebar-class-name,
-#study-root .app.sb-collapsed .sos-cloud-sync-label,
-#study-root .app.sb-collapsed #sos-d2l-btn span,
-#study-root .app.sb-collapsed .sos-cloud-badge,
-#study-root .app.sb-collapsed .sos-storage-text { display: none; }
-#study-root .app.sb-collapsed .nav-section-label { color: transparent; position: relative; }
-#study-root .app.sb-collapsed .nav-section-label::after { content: ''; position: absolute; left: 6px; right: 6px; top: 50%; height: 1px; background: var(--border); }
-#study-root .app.sb-collapsed .sidebar-bottom .btn { padding-left: 0; padding-right: 0; }
 #study-root .nav-live { width: 7px; height: 7px; border-radius: 50%; background: var(--accent2); margin-left: auto; animation: sosPulse 1.8s ease-in-out infinite; }
-#study-root .app.sb-collapsed .nav-live { position: absolute; top: 7px; left: 26px; width: 6px; height: 6px; }
 #study-root .nav-item { position: relative; }
 #study-root .tb-mark { display: none; }
 @media (max-width: 640px) {
@@ -1934,3 +1917,86 @@ textarea:not(.sos-nb-host *) { resize: none; }
 .sos-modal .add-prompt-row textarea, .sos-modal .prompt-entry-text textarea { resize: none !important; }
 #study-root .cal-more { font-family: var(--mono); font-size: 9.5px; color: var(--text3); padding: 0 4px; }
 
+
+/* ══ Fit and finish, all three sizes (2026-10-31) ═════════════════════════
+   Tony's audit for Veda: nothing cut off, nothing spilling, the same look. */
+
+/* Popups measure the screen that is showing (see the dvh note at the top). */
+@supports (height: 100dvh) {
+  .sos-modal .modal, #study-root .modal { max-height: 90dvh; }
+  #module-detail-modal:not(.notes-mode), #modal-add-task .modal { max-height: 92dvh !important; }
+}
+
+/* Sidebar foot: Brightspace, Sync to Cloud and the meter, evenly spaced. */
+#study-root .sidebar-bottom { display: flex; flex-direction: column; gap: 6px; }
+#study-root .sidebar-bottom .sos-storage { margin-top: 2px; }
+
+/* The sync line only takes room in the topbar while it has something to say. */
+@media (max-width: 1024px) {
+  #study-root .topbar #sos-sync-status:not([data-on]) { display: none; }
+}
+
+/* Tablet rail: the lock and LifeHub are in the topbar, so the empty tool row
+   goes; the foot is icon-only squares, and the cloud state is a dot. */
+@media (min-width: 641px) and (max-width: 1024px) {
+  #study-root .sb-tool-row { display: none; }
+  #study-root .sidebar-bottom { align-items: center; padding: 10px 8px; }
+  #study-root .sidebar-bottom .btn { width: 40px !important; height: 36px; padding: 0 !important; gap: 0; justify-content: center; position: relative; }
+  #study-root #sos-d2l-btn span, #study-root .sos-cloud-sync-label, #study-root .sos-storage-text { display: none; }
+  #study-root .sidebar-bottom .sos-cloud-badge {
+    position: absolute; top: -4px; right: -4px; width: 11px; height: 11px; min-width: 0; padding: 0;
+    font-size: 0; line-height: 0; border: 2px solid var(--bg2); border-radius: 50%;
+  }
+  #study-root .sidebar-bottom .sos-cloud-badge > * { display: none; }
+  #study-root .sidebar-bottom .sos-storage { width: 40px; padding: 0; }
+}
+
+/* Touch screens never hover: a module card's rename shows with its delete. */
+@media (hover: none) {
+  #study-root .module-btn .rename-btn, #study-root .module-btn .delete-btn { opacity: 1; }
+}
+
+/* Timer modes stay on one line. */
+#study-root .pomo-mode-btn { padding: 0 6px; white-space: nowrap; }
+
+@media (max-width: 640px) {
+  /* Header: the title takes what the buttons leave and ellipsizes; the
+     buttons never scroll out of reach. */
+  #study-root .topbar-title { flex: 1 1 auto; }
+  #study-root .topbar-actions { flex: 0 0 auto; overflow: visible; gap: 6px; }
+  #study-root .topbar-actions .sb-tools { gap: 6px; }
+
+  /* Class page header: the name on its own line, the three buttons under it. */
+  #study-root #view-class .detail-header { flex-wrap: wrap; row-gap: 12px; }
+  #study-root #view-class .detail-header > div:nth-child(2) { flex: 1; min-width: 0; }
+  #study-root #view-class .detail-header > div:last-child { flex: 1 0 100%; margin-left: 0 !important; }
+  #study-root #view-class .detail-header > div:last-child .btn { flex: 1; justify-content: center; padding: 8px 6px; }
+  #study-root .detail-title { overflow-wrap: anywhere; }
+
+  #study-root .pomo-mode-btn { font-size: 12.5px; }
+
+  .sos-modal .modal:not(.notes-mode), #study-root .modal:not(.notes-mode) { max-height: 85vh !important; }
+}
+@supports (height: 100dvh) {
+  @media (max-width: 640px) {
+    .sos-modal .modal:not(.notes-mode), #study-root .modal:not(.notes-mode) { max-height: 85dvh !important; }
+  }
+}
+
+/* Phone: a document row is the file's name on its own line, then its size,
+   cloud state and buttons under it (squeezed into one line, the name got
+   one letter). */
+@media (max-width: 640px) {
+  #study-root .doc-item { flex-wrap: wrap; row-gap: 8px; column-gap: 10px; }
+  #study-root .doc-item-name {
+    flex: 1 1 calc(100% - 44px); white-space: normal; overflow-wrap: anywhere;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  }
+  #study-root .doc-item-size { margin-left: 34px; }
+  #study-root .doc-item-cloud + * { margin-left: auto; }
+  /* Edit mode's delete sits at the end of the name's line. */
+  #study-root .doc-item-icon { order: -3; }
+  #study-root .doc-item-name { order: -2; }
+  #study-root .doc-item-del { order: -1; align-self: flex-start; }
+  #study-root .doc-item:has(.doc-item-del) .doc-item-name { flex-basis: calc(100% - 84px); }
+}

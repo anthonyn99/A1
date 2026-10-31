@@ -4,7 +4,7 @@ Tony's brief, for Veda: an ultramodern, elegant StudyOS on desktop, tablet and p
 
 > **The look was rolled back the same day (2026-10-29, late).** Veda found the overhaul too big ("everything is blown up"), so StudyOS wears its earlier look again. The stylesheet is the pre-overhaul one (commit `e6aaab28`), and the dashboard, calendar, class page, KSU, module popups and the other popups use their earlier markup and renderers.
 >
-> **The features stayed:** A1 drag everywhere with no grip dots, A1's scrollbar, StudyOS's own controls and tooltips, every delete asking first, popups that close only from their own buttons, the Guardian lock and its blur, the cover page, the collapsible sidebar with the lock and Veda's LifeHub on the toggle row, the phone header mark, pull-to-refresh, the calendar day view (now a plain list), the prompt editor (no View/Edit, no grip), the date and "& amp" fixes, and SVG icons in place of emoji and glyphs. **The Timer and the AI tab keep their overhaul design.**
+> **The features stayed:** A1 drag everywhere with no grip dots, A1's scrollbar, StudyOS's own controls and tooltips, every delete asking first, popups that close only from their own buttons, the Guardian lock and its blur, the cover page, the sidebar with the lock and Veda's LifeHub on its tool row (no collapse since 2026-10-31), the phone header mark, pull-to-refresh, the calendar day view (now a plain list), the prompt editor (no View/Edit, no grip), the date and "& amp" fixes, and SVG icons in place of emoji and glyphs. **The Timer and the AI tab keep their overhaul design.**
 >
 > The old stylesheet sits unchanged at the top of `css/studyos.css`; everything the kept features need is one block at the end ("Kept from the 2026-10-29 overhaul"). The sections below that describe the overhaul's look (palette, sizes, card designs) are history; the structure and feature rows still hold.
 
@@ -20,7 +20,7 @@ Tony's brief, for Veda: an ultramodern, elegant StudyOS on desktop, tablet and p
 | Piece | Where | Notes |
 |---|---|---|
 | Cover page | `js/intro.js`, `#sos-intro` | Shown on every launch, as Everwell's intro is. The sidebar mark brings it back. Skipped for `?class=` links, `?ingest=` and shared files. A Guardian card sits above it. |
-| Sidebar | `studyos.html`, `js/shell.js` | MAGI's three-line toggle sits right under the mark. Collapsing leaves a 58px rail in which the mark, the toggle and every icon stay exactly where they were (nothing shifts). The choice is kept per device (`sos_side_collapsed`). A tablet starts collapsed. |
+| Sidebar | `studyos.html`, `js/shell.js` | Always shown, never collapsed (Tony, 2026-10-31: the three-line toggle was removed). A desktop shows it whole, with the lock and LifeHub on a row under the mark. A tablet (641–1024px) shows the 60px icon rail; the lock, LifeHub and sync line move to the topbar, and the foot is icon-only (Brightspace, Sync to Cloud with a coloured dot for its state, the meter). A phone uses the bottom nav. |
 | Tab entrances | `css/studyos.css` §3 | One short entrance per view. Always `backwards`, never `both`, so no transform is held on a view (the Notebook's phone drawer is `position:fixed`). |
 | Form controls | `js/controls.js` (`window.SosControls`) | Every `<select>`, date, time and number field gets StudyOS's own control. The native field stays in the DOM, hidden, as the source of truth: `.value` has an own setter that repaints, option lists are watched, and a pick fires real `input` and `change` events. V's Notebook and `[data-native]` are skipped. |
 | Dialogs | `js/ui.js` | `uiConfirm`, `uiPrompt`, `uiForm`, `uiAlert`, plus `uiChoice` (several answers and Cancel) and `sosConfirmDelete(what, detail)`. |
@@ -60,3 +60,22 @@ The move to Guardian asked nobody anything. Legacy adoption reads `sos_al_unlock
 - Removing a file used its row index, which goes stale after a reorder. It now uses the file id.
 - Class names stored HTML-escaped ("Computer Organization &amp") showed as "& amp". `sosClassName()` decodes them for display.
 - Deleting a resource, a file, a prompt, a single event, a pipeline job or a card in review asked nothing.
+
+## Audit, 2026-10-31
+
+Tony's pass over every view and popup at phone (390), tablet (820 and 1180) and desktop (1440) widths, with the look unchanged. Checked by a headless run that scrolls each view to its end and simulates a phone's address bar.
+
+- **Phone: the bottom of every tab was out of reach.** The app was sized to `100vh`, which on a phone is the screen with the toolbar hidden, so a toolbar's height of every view sat below the screen. `html`/`body` are now `100dvh` and `#study-root` no longer has `min-height: 100vh`; popups use `dvh` too.
+- **Sidebar collapse removed** (see Structure). It also hid the lock and LifeHub on tablets, where they had moved into the topbar under the collapsed class.
+- **Tablet sidebar foot:** the Brightspace and Sync labels spilled out of the rail; now icon-only, with the cloud state as a dot.
+- **Phone header:** the hidden sync label still took room, and the buttons could scroll out of reach. It now takes room only while it shows, and the title ellipsizes instead.
+- **Phone class page:** the name wrapped a word per line and Remove Class ran off the screen. The name has its own line and the three buttons sit under it.
+- **Phone document rows:** a file's name was squeezed to one letter. The name has its own line, with size, cloud state and buttons under it; edit mode's delete sits beside the name.
+- **Touch:** a module card's rename button never showed (it was hover-only).
+- **Timer:** "Short break" and "Long break" wrapped onto two lines on a phone.
+- **Desktop sidebar foot:** Brightspace and Sync to Cloud touched; now evenly spaced.
+- **Sync: a new item could vanish** (`js/firebase-sync.js`). When the server confirmed a write, the snapshot carrying it (`hasPendingWrites` false) was applied as if from another device, replacing everything edited since that write left: deleting an event and then adding a task within about half a second lost the task, and the next save made it permanent. Each write's signature is kept and a snapshot that matches one is skipped as our own echo.
+- **Sync: saves could stop entirely.** Switching a repeating event or task to "No repeat" stored `repeatId: undefined`, and Firestore refuses a document with an undefined field, so nothing saved until a reload, which then lost the change. The field is no longer written and Firestore is set to `ignoreUndefinedProperties`.
+- **Memory:** measured on the live page, no leak: the JS heap is about 7 MB and flat over three minutes. The tab is ~160 MB working set, ~105 MB of it the browser's own empty-tab cost, plus a separate ~45–90 MB process for Google's reCAPTCHA (Firebase App Check, which the Index project requires). The cover's canvas already frees itself when hidden. The unused Playfair Display font was dropped.
+- **App icon:** the mortarboard fills about 80% of the tile (was about half).
+

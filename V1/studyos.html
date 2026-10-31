@@ -25,7 +25,7 @@
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
 
-<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Nunito:wght@400;500;600;700;800&family=Inter:wght@400;500;600&family=Manrope:wght@600..800&family=IBM+Plex+Mono:wght@400;500;600;700&family=Playfair+Display:wght@900&family=Fraunces:opsz,wght@9..144,400..700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Nunito:wght@400;500;600;700;800&family=Inter:wght@400;500;600&family=Manrope:wght@600..800&family=IBM+Plex+Mono:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,400..700&display=swap" rel="stylesheet">
 
 <link rel="stylesheet" href="css/studyos.css">
 
@@ -93,12 +93,10 @@
       </div>
       <span id="sos-sync-status"></span>
     </div>
-    <!-- MAGI's three-line toggle, the lock and Veda's LifeHub on one row. Below
-         1024px shell.js moves #sos-sb-tools (lock + LifeHub) into the topbar. -->
+    <!-- The lock and Veda's LifeHub. Below 1024px shell.js moves #sos-sb-tools
+         into the topbar. The sidebar is always open (no collapse, Tony
+         2026-10-31). -->
     <div class="sb-tool-row">
-      <button type="button" class="sb-toggle" id="sos-side-toggle" title="Collapse the sidebar" aria-label="Collapse the sidebar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
-      </button>
       <div class="sb-tools" id="sos-sb-tools">
         <button class="sos-hbtn icon" id="sos-lock-btn" type="button" title="App Lock" aria-label="App Lock"><svg class="soi" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></button>
         <a1-lifehub style="--lh-size:26px"></a1-lifehub>
