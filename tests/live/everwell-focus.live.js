@@ -194,6 +194,13 @@ const mock = {
   ok("…and the cover hides YouTube's pause screen (only Everwell's controls show)", await js(`return getComputedStyle(${tile(1)}.querySelector('[data-vp-poster]')).opacity === '1';`));
   await js(`${tile(1)}.querySelector('.vp-row [data-vp="toggle"]').click(); return 1;`); await sleep(500);
   ok('…and Play plays it again', await js(`return !${tile(1)}.querySelector('.media-frame').classList.contains('paused');`));
+  // Repeat (Tony, 2026-10-31): the video starts over at its end instead of moving on.
+  await js(`${tile(1)}.querySelector('[data-vp="repeat"]').click(); return 1;`); await sleep(200);
+  ok('Repeat switches on (pressed, remembered on this device)', await js(`const b = ${tile(1)}.querySelector('[data-vp="repeat"]'); return b.classList.contains('on') && b.getAttribute('aria-pressed') === 'true' && localStorage.getItem('ew_vp_repeat') === '1';`));
+  await js(`${tile(1)}.querySelector('iframe').contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'seekTo', args: [118.6] }), '*'); return 1;`); await sleep(1500);
+  ok('…and at the end the video goes back to the start (0:0x / 2:00), still playing', await js(`const f = ${tile(1)}.querySelector('.media-frame'); f.classList.add('ui-on'); return /^0:0\d \/ 2:00$/.test(f.querySelector('[data-vp-time]').textContent) && !f.classList.contains('paused');`), await js(`return ${tile(1)}.querySelector('[data-vp-time]').textContent;`));
+  await js(`${tile(1)}.querySelector('[data-vp="repeat"]').click(); return 1;`); await sleep(200);
+  ok('…and off again (forgotten)', await js(`return !${tile(1)}.querySelector('[data-vp="repeat"]').classList.contains('on') && localStorage.getItem('ew_vp_repeat') === null;`));
   // Lighter controls (Tony, 2026-10-12: the cursor lagged while a video played): the dot moves by transform, nothing redraws while they are hidden.
   ok('the seek dot moves by transform (no layout), from a measured track', await js(`const k = ${tile(1)}.querySelector('.vp-knob'); return k.style.left === '' && /px$/.test(k.style.getPropertyValue('--kx'));`));
   // The "now playing" pill plays and pauses it from another tab.
