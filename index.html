@@ -8230,7 +8230,8 @@ function OI_couponRow(c,T,edit){
 // Always shown; edit mode also keeps its full-width "+ Add" at the bottom of the day.
 // Grey, not the accent, so it stays quiet. Both TaskHubs; c = {tx, txHi, bd, bdHi, radius}.
 function thDayAddBtn(c,onClick){
-  return React.createElement("button",{type:"button",title:"Add a task or event",onClick:onClick,
+  // data-no-hoverfx: its own quiet outline hover is the whole answer, no lift on top.
+  return React.createElement("button",{type:"button",title:"Add a task or event",onClick:onClick,"data-no-hoverfx":"",
     style:{flexShrink:0,display:"inline-flex",alignItems:"center",gap:3,height:22,padding:"0 7px",borderRadius:c.radius,
       background:"transparent",border:"1px solid "+c.bd,color:c.tx,fontFamily:"inherit",fontSize:10,fontWeight:700,
       lineHeight:1,letterSpacing:.2,whiteSpace:"nowrap",cursor:"pointer",transition:"border-color .15s,color .15s"},
