@@ -97,10 +97,47 @@ def _parked_frames() -> list[int]:
     return found
 
 
+_tls = threading.local()
+
+
+def _taskbar():
+    """This thread's ITaskbarList (COM objects belong to the thread that made
+    them), or None if it can't be had."""
+    if not hasattr(_tls, "taskbar"):
+        _tls.taskbar = None
+        try:
+            ole32 = ctypes.windll.ole32
+            ole32.CoInitializeEx(None, 2)  # STA; a thread already in COM is fine
+            clsid, iid = (ctypes.create_string_buffer(16) for _ in range(2))
+            ole32.CLSIDFromString("{56FDF344-FD6D-11d0-958A-006097C9A090}", clsid)
+            ole32.CLSIDFromString("{56FDF342-FD6D-11d0-958A-006097C9A090}", iid)
+            ptr = ctypes.c_void_p()
+            if ole32.CoCreateInstance(clsid, None, 1, iid, ctypes.byref(ptr)) == 0:
+                vtbl = ctypes.cast(ctypes.cast(ptr, ctypes.POINTER(ctypes.c_void_p))[0],
+                                   ctypes.POINTER(ctypes.c_void_p))
+                hr_init = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p)(vtbl[3])
+                delete_tab = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p, wt.HWND)(vtbl[5])
+                if hr_init(ptr) == 0:
+                    _tls.taskbar = (ptr, delete_tab)
+        except Exception:  # noqa: BLE001 - hiding still works without it
+            _tls.taskbar = None
+    return _tls.taskbar
+
+
 def _hide(hwnd: int) -> None:
+    """Take a frame off the taskbar and the screen without waiting on Chrome.
+
+    ShowWindow on another process's window blocks until that window's thread
+    handles it, and a starting Chrome is busy for ~160 ms, all of it with a
+    taskbar button showing. So: the style first (applied at once, and a frame
+    Chrome shows again later then gets no button), then Explorer drops the
+    button itself (DeleteTab), then the hide is posted, not waited for."""
     ex = _user32.GetWindowLongW(hwnd, _GWL_EXSTYLE)
     _user32.SetWindowLongW(hwnd, _GWL_EXSTYLE, (ex | _WS_EX_TOOLWINDOW) & ~_WS_EX_APPWINDOW)
-    _user32.ShowWindow(hwnd, _SW_HIDE)
+    taskbar = _taskbar()
+    if taskbar is not None:
+        taskbar[1](taskbar[0], hwnd)
+    _user32.ShowWindowAsync(hwnd, _SW_HIDE)
 
 
 def hide_parked() -> int:
