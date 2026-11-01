@@ -19,6 +19,9 @@ No-op on non-Windows platforms.
 from __future__ import annotations
 
 import sys
+import threading
+import time
+from collections.abc import Callable
 from pathlib import Path
 
 _IS_WINDOWS = sys.platform == "win32"
@@ -54,22 +57,11 @@ def _top_level_windows(pids: set[int]) -> list[int]:
     return found
 
 
-def hide_windows_for_profile(profile_dir: Path) -> int:
-    """Hide every taskbar button for browsers using this profile.
-
-    Returns how many windows were hidden. Safe to call repeatedly -- Chrome can
-    create its window slightly after launch, so callers may retry.
-    """
-    if not _IS_WINDOWS:
+def hide_windows(pids: set[int]) -> int:
+    """Hide every visible Chrome frame of these processes. Returns how many
+    were hidden; a visible window is cosmetic, never a failure."""
+    if not _IS_WINDOWS or not pids:
         return 0
-
-    # Imported here to avoid a circular import at module load.
-    from .launcher import _chrome_pids_using
-
-    pids = set(_chrome_pids_using(profile_dir))
-    if not pids:
-        return 0
-
     hidden = 0
     for hwnd in _top_level_windows(pids):
         try:
@@ -80,7 +72,70 @@ def hide_windows_for_profile(profile_dir: Path) -> int:
             _user32.ShowWindow(hwnd, _SW_HIDE)
             hidden += 1
         except Exception:
-            # Best effort: a visible window is a cosmetic problem, not a
-            # reason to fail someone's question.
             pass
     return hidden
+
+
+def hide_windows_for_profile(profile_dir: Path) -> int:
+    """Hide every taskbar button for browsers using this profile.
+
+    Returns how many windows were hidden. Safe to call repeatedly.
+    """
+    if not _IS_WINDOWS:
+        return 0
+
+    # Imported here to avoid a circular import at module load.
+    from .launcher import _chrome_pids_using
+
+    return hide_windows(set(_chrome_pids_using(profile_dir)))
+
+
+class KeepHidden:
+    """Keep every Chrome window of one profile hidden for a whole run.
+
+    Hiding once at launch was not enough: on a busy PC Chrome opens its frame
+    after the short retry gave up, a new page or popup opens a new frame, and a
+    crash-restore brings back a second window -- each kept a taskbar button
+    until someone clicked it. So a daemon thread re-hides every TICK_S for as
+    long as the run lasts. Started BEFORE the launch, so the first frame is
+    caught the moment it appears. The slow process list (a PowerShell call) is
+    re-read only while no process is known, and every REFRESH_S after that.
+    """
+
+    TICK_S = 0.15
+    EMPTY_REREAD_S = 0.5
+    REFRESH_S = 30.0
+
+    def __init__(self, pids_fn: Callable[[], list[int]]):
+        self._pids_fn = pids_fn
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+        self.hidden = 0
+
+    def start(self) -> "KeepHidden":
+        if _IS_WINDOWS and self._thread is None:
+            self._thread = threading.Thread(target=self._run, name="winhide", daemon=True)
+            self._thread.start()
+        return self
+
+    def stop(self) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=2)
+            self._thread = None
+
+    def _run(self) -> None:
+        pids: set[int] = set()
+        read_at = float("-inf")
+        while not self._stop.is_set():
+            now = time.monotonic()
+            due = self.EMPTY_REREAD_S if not pids else self.REFRESH_S
+            if now - read_at >= due:
+                try:
+                    pids = set(self._pids_fn())
+                except Exception:
+                    pids = set()
+                read_at = now
+            if pids:
+                self.hidden += hide_windows(pids)
+            self._stop.wait(self.TICK_S)
