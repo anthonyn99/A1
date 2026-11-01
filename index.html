@@ -8177,8 +8177,14 @@ function OI_dismiss(card){
   ids.forEach(id=>{try{window._fbDeleteOICard&&window._fbDeleteOICard(id);}catch(e){}});
 }
 // The boxed ✕ every TaskHub row and card carries (thIconBtn).
-function OI_delBtn(c,T,pad){
-  return thIconBtn({bd:T.BD,bdHi:T.BDL,radius:5},"Remove this card",T.ERR||"#f85149",e=>{e.stopPropagation();OI_dismiss(c);},TH_X,{marginLeft:pad?2:4});
+function OI_delBtn(c,T){
+  return thIconBtn({bd:T.BD,bdHi:T.BDL,radius:5},"Remove this card",T.ERR||"#f85149",e=>{e.stopPropagation();OI_dismiss(c);},TH_X);
+}
+// A card's last button, which in edit mode stays in place (hidden) under the ✕,
+// so the card's row neither grows nor rewraps when edit opens.
+function OI_lastBtn(edit,el,x){
+  return React.createElement("span",{style:{position:"relative",display:"inline-flex"}},thHide(edit,el),
+    edit&&React.createElement("span",{style:{position:"absolute",right:0,top:"50%",transform:"translateY(-50%)",display:"inline-flex"}},x));
 }
 function OI_dayKey(iso){
   // OneInbox stores plain YYYY-MM-DD; TaskHub's day keys use the same shape,
@@ -8216,8 +8222,7 @@ function OI_couponRow(c,T,edit){
         c.discount&&React.createElement("span",{style:{fontSize:11.5,fontWeight:800,color:T.TXD,whiteSpace:"nowrap",marginRight:2}},c.discount),
         c.code&&btn("Copy Code",e=>OI_copy(e,c.code),true),
         c.storeUrl&&btn("Open Store",()=>{try{window.open(c.storeUrl,"_blank","noopener");}catch(e){}}),
-        btn("View Email",()=>OI_openEmail(c)),
-        edit&&OI_delBtn(c,T,"0 0 0 2px"))),
+        OI_lastBtn(edit,btn("View Email",()=>OI_openEmail(c)),OI_delBtn(c,T)))),
     React.createElement("div",{style:{fontSize:9.5,color:T.TXM,lineHeight:1.45,marginTop:3,wordBreak:"break-word"}},
       c.code&&React.createElement("span",{style:{fontFamily:"ui-monospace,SFMono-Regular,Menlo,monospace",fontSize:10.5,fontWeight:700,color:T.TXD,letterSpacing:0.8}},c.code),
       c.code&&" · ",
@@ -8295,8 +8300,8 @@ function OI_weekCard(c,T,dayTX,edit){
   // tighten it further so a day with three deliveries still fits its cell.
   const tight=isPkg&&!line2;
   const amt=c.amount&&!isPkg?c.amount:"";
-  // One header row, then full-width text. The label, the amount, the buttons and
-  // the "x" all share the top row, so the title and the tracking number below it
+  // One header row, then full-width text. The label, the amount and the buttons
+  // (in edit mode the ✕ over the last one) all share the top row, so the title and the tracking number below it
   // get the WHOLE card width instead of the column left over beside a button
   // stack. flex-wrap is the safety valve: if the label plus the buttons cannot fit
   // one line (a long "Carrier · DELIVERED" in a narrow cell) the buttons drop to
@@ -8310,8 +8315,7 @@ function OI_weekCard(c,T,dayTX,edit){
         amt&&React.createElement("span",{style:{fontSize:11,fontWeight:800,color:col,lineHeight:"16px",whiteSpace:"nowrap",marginRight:2}},amt),
         isPkg&&c.trackUrl&&btn("Track",()=>{try{window.open(c.trackUrl,"_blank","noopener");}catch(e){}}),
         isPkg&&c.tracking&&btn("Copy #",e=>OI_copy(e,c.tracking)),
-        btn("Email",()=>OI_openEmail(c)),
-        edit&&OI_delBtn(c,T,"0 0 0 3px"))),
+        OI_lastBtn(edit,btn("Email",()=>OI_openEmail(c)),OI_delBtn(c,T)))),
     line2&&React.createElement("div",{style:{fontSize:12,fontWeight:700,color:dayTX,lineHeight:1.25,marginTop:2,wordBreak:"break-word"}},line2),
     detail&&React.createElement("div",{style:{fontSize:9.5,color:T.TXM,marginTop:tight?2:1,lineHeight:1.3,fontFamily:isPkg?"ui-monospace,SFMono-Regular,Menlo,monospace":"inherit",wordBreak:"break-all"}},detail));
 }
@@ -8555,14 +8559,17 @@ function CR_rows(list,o){
         style:{...(o.card||{}),borderLeft:"3px solid "+CR_COLOR,display:"flex",alignItems:"flex-start",gap:7,marginBottom:4,opacity:o.dim==null?1:o.dim,cursor:"default"}},
       React.createElement("div",{style:{width:6,height:6,borderRadius:"50%",background:CR_COLOR,marginTop:5,flexShrink:0}}),
       React.createElement("div",{style:{flex:1,minWidth:0,display:"flow-root"}},
-        React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:5,marginBottom:1}},
+        // Edit mode hides the time and bell IN PLACE and puts the ✕ over them,
+        // the same as a task's pills: the title keeps its lines.
+        React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:5,marginBottom:1,position:"relative",minHeight:20,visibility:o.edit?"hidden":"visible"}},
+          o.edit&&o.box&&React.createElement("span",{style:{position:"absolute",top:0,right:0,visibility:"visible",zIndex:1}},
+            thIconBtn(o.box,"Remove this reset"+(r.notify?" and its notification":""),o.box.del,()=>{if(window._crDismiss)window._crDismiss(o.profile,r.id);},TH_X)),
           React.createElement("span",{style:{fontSize:o.compact?10:11,fontWeight:600,color:o.tx,opacity:0.65,whiteSpace:"nowrap"}},time),
           r.notify&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",fontSize:10,color:o.ac,opacity:0.85},"aria-label":"Notifies at reset"},
             React.createElement("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}}))),
-        React.createElement("span",{style:{fontSize:o.compact?13:14,fontWeight:600,color:o.tx,lineHeight:o.compact?1.35:1.4,...(o.fit||{})}},CR_TITLE[r.kind])),
-      // Edit mode: the same boxed ✕ as any task. It hides this one reset and
-      // cancels its push; the next reset arrives as usual (see _crDismiss).
-      o.edit&&o.box&&thIconBtn(o.box,"Remove this reset"+(r.notify?" and its notification":""),o.box.del,()=>{if(window._crDismiss)window._crDismiss(o.profile,r.id);},TH_X,{marginLeft:4}));
+        React.createElement("span",{style:{fontSize:o.compact?13:14,fontWeight:600,color:o.tx,lineHeight:o.compact?1.35:1.4,...(o.fit||{})}},CR_TITLE[r.kind])));
+      // The ✕ (above) hides this one reset and cancels its push; the next reset
+      // arrives as usual (see _crDismiss).
   });
 }
 
