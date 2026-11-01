@@ -6357,6 +6357,9 @@ function mcTicker(nm){const m=String(nm||'').match(/^\$?([A-Z]{1,6})\b/);return 
 function mcEarnWhen(e){return e&&e.kind==='earnings'?({bmo:'Before open',amc:'After close',dmh:'During the day'})[e.when]||'':'';}
 // mcChipC: the category chip's colour. Earnings keep TradeHub's pink; the rest are neutral.
 function mcChipC(e,base){return e&&e.kind==='earnings'?'#e7a6b4':base;}
+// mcTitleC: a card's title. Today's stays white; other days' a light grey, a clear step
+// above the chip and time under it (TXM), so the name reads first.
+function mcTitleC(tone,white,light){return !tone||tone===white?white:light;}
 // mcCardTitle: an earnings card names only its tickers; the Earnings chip already says the rest.
 function mcCardTitle(e){return e&&e.kind==='earnings'?String(e.title||'').replace(/\s*earnings\s*$/i,''):e.title;}
 // mcGroupsOf: a day's catalysts as cards (catdebrief.js A1Debrief.groups:
@@ -10027,29 +10030,29 @@ function App(){
   // Two-row card: pills (time · category · impact) on top, then icon + full-width title
   // below — so long names ("June PCE Report") stretch the whole box instead of wrapping
   // into a narrow column beside the pills.
-  const mcChip=(e,tone)=>{const tm=mcTimeLocal(e)||mcEarnWhen(e),cc=mcChipC(e,T.TXD);return React.createElement("div",{key:e.id,style:{...wkCatalystCard(e.category||e.kind),display:"flex",flexDirection:"column",gap:4,marginBottom:isMobile?4:3,cursor:"default",opacity:e._past?0.5:1}},
+  const mcChip=(e,tone)=>{const tm=mcTimeLocal(e)||mcEarnWhen(e),cc=mcChipC(e,T.TXM),tt=mcTitleC(tone,T.TX,"#cfced2");return React.createElement("div",{key:e.id,style:{...wkCatalystCard(e.category||e.kind),display:"flex",flexDirection:"column",gap:4,marginBottom:isMobile?4:3,cursor:"default",opacity:e._past?0.5:1}},
     React.createElement("div",{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"nowrap",minWidth:0}},
       /* Catalysts-pushed events use a neutral GRAY category chip here (Tony's TaskHub),
          to match Veda's. The colorful category chips stay in the Catalysts tab only. */
-      React.createElement("span",{style:{fontSize:9.5,color:cc,background:cc+"1a",borderRadius:6,padding:"1px 6px",textTransform:"none",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+cc+(cc===T.TXD?"30":"55")}},mcCatLabel(e.category)),
-      tm?React.createElement("span",{title:"Release time (your local zone)",style:{fontSize:9.5,fontWeight:800,letterSpacing:.3,color:T.TXD,whiteSpace:"nowrap",flexShrink:0}},tm):null,
+      React.createElement("span",{style:{fontSize:9.5,color:cc,background:cc+"1a",borderRadius:6,padding:"1px 6px",textTransform:"none",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+cc+(cc===T.TXM?"30":"55")}},mcCatLabel(e.category)),
+      tm?React.createElement("span",{title:"Release time (your local zone)",style:{fontSize:9.5,fontWeight:800,letterSpacing:.3,color:T.TXM,whiteSpace:"nowrap",flexShrink:0}},tm):null,
       e.importance&&MC_IMP[e.importance]?React.createElement("span",{title:"Market impact: "+e.importance,style:{fontSize:9.5,fontWeight:800,letterSpacing:.4,color:MC_IMP[e.importance].c,background:MC_IMP[e.importance].c+"1a",borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap",flexShrink:0,marginLeft:"auto",border:"1px solid "+MC_IMP[e.importance].c+"40"}},MC_IMP[e.importance].t):null,
       mcDebriefBtn(e,!(e.importance&&MC_IMP[e.importance]))),
     React.createElement("div",{style:{display:"flex",alignItems:"flex-start",gap:6}},
       React.createElement("span",{style:{width:13,height:13,flexShrink:0,marginTop:2,display:"inline-flex"},dangerouslySetInnerHTML:{__html:e.kind==="earnings"?TNI.chartUp:e.kind==="holiday"?TNI.bank:TNI.calendar}}),
-      React.createElement("span",{style:{fontSize:11,fontWeight:700,color:tone||T.TX,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word"}},mcCardTitle(e))));};
+      React.createElement("span",{style:{fontSize:11,fontWeight:700,color:tt,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word"}},mcCardTitle(e))));};
   // Grouped releases (A1Debrief.groups: same day, within TradeHub's window of
   // the first): ONE card, ONE ▶. Top row = "N releases" and the ▶; below,
   // each release with its own category, time and impact.
   const mcGroupChip=(g,tone)=>{const lead=mcLead(g),tms=g.map(mcTimeLocal);
     return React.createElement("div",{key:"grp-"+g.map(e=>e.id).join("-"),"data-mc-group":g.length,style:{...wkCatalystCard(lead.category||lead.kind),display:"flex",flexDirection:"column",gap:4,marginBottom:isMobile?4:3,cursor:"default",opacity:g.every(e=>e._past)?0.5:1}},
       React.createElement("div",{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"nowrap",minWidth:0}},
-        React.createElement("span",{style:{fontSize:9.5,color:T.TXD,background:T.TXD+"1a",borderRadius:6,padding:"1px 6px",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+T.TXD+"30"}},g.length+" releases"),
+        React.createElement("span",{style:{fontSize:9.5,color:T.TXM,background:T.TXM+"1a",borderRadius:6,padding:"1px 6px",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+T.TXM+"30"}},g.length+" releases"),
         mcDebriefBtn({_group:g},true)),
       g.map((e,i)=>React.createElement("div",{key:e.id||i,style:{display:"flex",alignItems:"flex-start",gap:6}},
         React.createElement("span",{style:{width:13,height:13,flexShrink:0,marginTop:2,display:"inline-flex"},dangerouslySetInnerHTML:{__html:TNI.calendar}}),
         React.createElement("div",{style:{flex:1,minWidth:0}},
-          React.createElement("div",{style:{fontSize:11,fontWeight:700,color:tone||T.TX,lineHeight:1.35,wordBreak:"break-word"}},e.title),
+          React.createElement("div",{style:{fontSize:11,fontWeight:700,color:mcTitleC(tone,T.TX,"#cfced2"),lineHeight:1.35,wordBreak:"break-word"}},e.title),
           React.createElement("div",{style:{fontSize:9.5,fontWeight:700,color:T.TXM,lineHeight:1.3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},
             [mcCatLabel(e.category),tms[i]].filter(Boolean).join(" · "))),
         e.importance&&MC_IMP[e.importance]?React.createElement("span",{title:"Market impact: "+e.importance,style:{fontSize:9.5,fontWeight:800,letterSpacing:.4,color:MC_IMP[e.importance].c,background:MC_IMP[e.importance].c+"1a",borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap",flexShrink:0,marginLeft:"auto",border:"1px solid "+MC_IMP[e.importance].c+"40"}},MC_IMP[e.importance].t):null)));};
@@ -13872,6 +13875,9 @@ function mcTicker(nm){const m=String(nm||'').match(/^\$?([A-Z]{1,6})\b/);return 
 function mcEarnWhen(e){return e&&e.kind==='earnings'?({bmo:'Before open',amc:'After close',dmh:'During the day'})[e.when]||'':'';}
 // mcChipC: the category chip's colour. Earnings keep TradeHub's pink; the rest are neutral.
 function mcChipC(e,base){return e&&e.kind==='earnings'?'#e7a6b4':base;}
+// mcTitleC: a card's title. Today's stays white; other days' a light grey, a clear step
+// above the chip and time under it (TXM), so the name reads first.
+function mcTitleC(tone,white,light){return !tone||tone===white?white:light;}
 // mcCardTitle: an earnings card names only its tickers; the Earnings chip already says the rest.
 function mcCardTitle(e){return e&&e.kind==='earnings'?String(e.title||'').replace(/\s*earnings\s*$/i,''):e.title;}
 // mcGroupsOf / mcLead / mcDebriefName: the same helpers as Tony's block (see there).
@@ -16562,25 +16568,25 @@ function App(){
       onClick:ev=>{ev.stopPropagation();window._mcDebrief&&window._mcDebrief(l,"veda",x=>mcMacroET(x));}},vdIco(TNI.play,12));};
   // Two-row card: pills (time · category · impact) on top, then icon + full-width title
   // below — so long macro names span the whole box instead of wrapping into a narrow column.
-  const mcChip=(e,tone)=>{const tm=mcTimeLocal(e)||mcEarnWhen(e),cc=mcChipC(e,TXD);return RC("div",{key:e.id,style:{...vdCatalystCard(e.category||e.kind),display:"flex",flexDirection:"column",gap:4,marginBottom:vrMobile?4:3,cursor:"default",opacity:e._past?0.5:1}},
+  const mcChip=(e,tone)=>{const tm=mcTimeLocal(e)||mcEarnWhen(e),cc=mcChipC(e,TXM),tt=mcTitleC(tone,TX,"#cfd0d4");return RC("div",{key:e.id,style:{...vdCatalystCard(e.category||e.kind),display:"flex",flexDirection:"column",gap:4,marginBottom:vrMobile?4:3,cursor:"default",opacity:e._past?0.5:1}},
     RC("div",{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"nowrap",minWidth:0}},
-      RC("span",{style:{fontSize:9.5,color:cc,background:cc+"1a",borderRadius:6,padding:"1px 6px",textTransform:"none",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+cc+(cc===TXD?"30":"55")}},mcCatLabel(e.category)),
-      tm?RC("span",{title:"Release time (your local zone)",style:{fontSize:9.5,fontWeight:800,letterSpacing:.3,color:TXD,whiteSpace:"nowrap",flexShrink:0}},tm):null,
+      RC("span",{style:{fontSize:9.5,color:cc,background:cc+"1a",borderRadius:6,padding:"1px 6px",textTransform:"none",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+cc+(cc===TXM?"30":"55")}},mcCatLabel(e.category)),
+      tm?RC("span",{title:"Release time (your local zone)",style:{fontSize:9.5,fontWeight:800,letterSpacing:.3,color:TXM,whiteSpace:"nowrap",flexShrink:0}},tm):null,
       e.importance&&MC_IMP[e.importance]?RC("span",{title:"Market impact: "+e.importance,style:{fontSize:9.5,fontWeight:800,letterSpacing:.4,color:MC_IMP[e.importance].c,background:MC_IMP[e.importance].c+"1a",borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap",flexShrink:0,marginLeft:"auto",border:"1px solid "+MC_IMP[e.importance].c+"40"}},MC_IMP[e.importance].t):null,
       vdDebriefBtn(e,!(e.importance&&MC_IMP[e.importance]))),
     RC("div",{style:{display:"flex",alignItems:"flex-start",gap:6}},
       RC("span",{style:{width:13,height:13,flexShrink:0,marginTop:2,display:"inline-flex"},dangerouslySetInnerHTML:{__html:e.kind==="earnings"?TNI.chartUp:e.kind==="holiday"?TNI.bank:TNI.calendar}}),
-      RC("span",{style:{fontSize:11,fontWeight:700,color:tone||TX,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word"}},mcCardTitle(e))));};
+      RC("span",{style:{fontSize:11,fontWeight:700,color:tt,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word"}},mcCardTitle(e))));};
   // Grouped releases: the same card as Tony's mcGroupChip, in Veda's colours.
   const mcGroupChip=(g,tone)=>{const lead=mcLead(g),tms=g.map(mcTimeLocal);
     return RC("div",{key:"grp-"+g.map(e=>e.id).join("-"),"data-mc-group":g.length,style:{...vdCatalystCard(lead.category||lead.kind),display:"flex",flexDirection:"column",gap:4,marginBottom:vrMobile?4:3,cursor:"default",opacity:g.every(e=>e._past)?0.5:1}},
       RC("div",{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"nowrap",minWidth:0}},
-        RC("span",{style:{fontSize:9.5,color:TXD,background:TXD+"1a",borderRadius:6,padding:"1px 6px",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+TXD+"30"}},g.length+" releases"),
+        RC("span",{style:{fontSize:9.5,color:TXM,background:TXM+"1a",borderRadius:6,padding:"1px 6px",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+TXM+"30"}},g.length+" releases"),
         vdDebriefBtn({_group:g},true)),
       g.map((e,i)=>RC("div",{key:e.id||i,style:{display:"flex",alignItems:"flex-start",gap:6}},
         RC("span",{style:{width:13,height:13,flexShrink:0,marginTop:2,display:"inline-flex"},dangerouslySetInnerHTML:{__html:TNI.calendar}}),
         RC("div",{style:{flex:1,minWidth:0}},
-          RC("div",{style:{fontSize:11,fontWeight:700,color:tone||TX,lineHeight:1.35,wordBreak:"break-word"}},e.title),
+          RC("div",{style:{fontSize:11,fontWeight:700,color:mcTitleC(tone,TX,"#cfd0d4"),lineHeight:1.35,wordBreak:"break-word"}},e.title),
           RC("div",{style:{fontSize:9.5,fontWeight:700,color:TXM,lineHeight:1.3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},
             [mcCatLabel(e.category),tms[i]].filter(Boolean).join(" · "))),
         e.importance&&MC_IMP[e.importance]?RC("span",{title:"Market impact: "+e.importance,style:{fontSize:9.5,fontWeight:800,letterSpacing:.4,color:MC_IMP[e.importance].c,background:MC_IMP[e.importance].c+"1a",borderRadius:6,padding:"1px 6px",whiteSpace:"nowrap",flexShrink:0,marginLeft:"auto",border:"1px solid "+MC_IMP[e.importance].c+"40"}},MC_IMP[e.importance].t):null)));};
