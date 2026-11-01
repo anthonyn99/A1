@@ -129,15 +129,17 @@ def _hide(hwnd: int) -> None:
 
     ShowWindow on another process's window blocks until that window's thread
     handles it, and a starting Chrome is busy for ~160 ms, all of it with a
-    taskbar button showing. So: the style first (applied at once, and a frame
-    Chrome shows again later then gets no button), then Explorer drops the
-    button itself (DeleteTab), then the hide is posted, not waited for."""
-    ex = _user32.GetWindowLongW(hwnd, _GWL_EXSTYLE)
-    _user32.SetWindowLongW(hwnd, _GWL_EXSTYLE, (ex | _WS_EX_TOOLWINDOW) & ~_WS_EX_APPWINDOW)
+    taskbar button showing (SetWindowLong blocks the same way: it messages
+    Chrome). So: Explorer drops the button itself first (DeleteTab, ~2 ms
+    once warm), the hide is posted rather than waited for, and the style
+    goes last -- it is what keeps the button away if Chrome shows the frame
+    again, and by then nothing visible waits on it."""
     taskbar = _taskbar()
     if taskbar is not None:
         taskbar[1](taskbar[0], hwnd)
     _user32.ShowWindowAsync(hwnd, _SW_HIDE)
+    ex = _user32.GetWindowLongW(hwnd, _GWL_EXSTYLE)
+    _user32.SetWindowLongW(hwnd, _GWL_EXSTYLE, (ex | _WS_EX_TOOLWINDOW) & ~_WS_EX_APPWINDOW)
 
 
 def hide_parked() -> int:
@@ -233,6 +235,7 @@ class KeepHidden:
         # its frame and only then move it off-screen), out of context: they
         # arrive through this thread's message queue, so the loop below pumps
         # messages while it waits.
+        _taskbar()  # made now, so the first DeleteTab doesn't pay for COM
         proc = _WINEVENTPROC(self._on_show)
         hooks = [_user32.SetWinEventHook(e, e, 0, proc, 0, 0, 0) for e in (0x8002, 0x800B)]
         msg = wt.MSG()
