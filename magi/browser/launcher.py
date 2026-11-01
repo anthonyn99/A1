@@ -35,6 +35,9 @@ from . import winhide
 # Chrome versions -- Windows uses "lockfile", POSIX uses the Singleton* set.
 _LOCK_FILES = ("SingletonLock", "SingletonCookie", "SingletonSocket", "lockfile")
 
+# How long closing a run's browser may take before the leftovers are killed.
+CLOSE_TIMEOUT_S = 15.0
+
 
 def _clear_stale_locks(profile_dir: Path) -> list[str]:
     """Remove lock files left behind by a crashed or killed Chrome.
@@ -69,7 +72,7 @@ def _chrome_pids_using(profile_dir: Path) -> list[int]:
     silently reported every locked profile as free and produced a confusing
     "browser_crash" instead of an actionable message.
     """
-    target = str(profile_dir).lower().replace("/", "\\")
+    target = str(profile_dir).lower().replace("/", "\\").rstrip("\\")
     ps = (
         "Get-CimInstance Win32_Process -Filter \"Name='chrome.exe'\" | "
         "ForEach-Object { \"$($_.ProcessId)`t$($_.CommandLine)\" }"
@@ -79,9 +82,22 @@ def _chrome_pids_using(profile_dir: Path) -> list[int]:
     pids: list[int] = []
     for line in out.splitlines():
         pid, _, cmd = line.partition("\t")
-        if target in cmd.lower() and pid.strip().isdigit():
+        if pid.strip().isdigit() and _names_profile(cmd.lower(), target):
             pids.append(int(pid.strip()))
     return pids
+
+
+def _names_profile(cmd: str, target: str) -> bool:
+    """Whether a command line names exactly this profile directory, not one
+    that merely starts with it (`claude` must not match `claude_pro`): the
+    reclaim and the end-of-run sweep kill what this matches."""
+    i = cmd.find(target)
+    while i != -1:
+        end = i + len(target)
+        if end == len(cmd) or cmd[end] in ' "\':
+            return True
+        i = cmd.find(target, end)
+    return False
 
 
 def _profile_in_use(profile_dir: Path) -> bool:
@@ -262,6 +278,17 @@ async def _launch_unlocked(
     _clear_stale_locks(profile_dir)
 
     w, h = cfg.window_size
+    effective_headless = cfg.headless if headless is None else headless
+    # Off-screen windows still get a taskbar button, and Chrome can open a
+    # frame at any point in a run (late on a busy PC, for a new page, for a
+    # crash-restore). Keep every frame of this profile hidden for the whole
+    # run, so a run leaves no visible trace. Not when the window is meant to be
+    # seen (login), and unnecessary in true headless.
+    keeper = (
+        winhide.KeepHidden(lambda: _chrome_pids_using(profile_dir))
+        if cfg.offscreen and not force_visible and not effective_headless
+        else None
+    )
     async with async_playwright() as p:
 
         if force_visible:
@@ -273,7 +300,6 @@ async def _launch_unlocked(
 
         # Headless Chrome leaks "HeadlessChrome" in its user agent, which is
         # what gets it challenged. Override it whenever running headless.
-        effective_headless = cfg.headless if headless is None else headless
         extra_args = (
             [f"--user-agent={_headless_user_agent(cfg)}"] if effective_headless else []
         )
@@ -313,6 +339,8 @@ async def _launch_unlocked(
                 ],
             )
 
+        if keeper is not None:
+            keeper.start()
         try:
             try:
                 context: BrowserContext = await _try_launch()
@@ -334,8 +362,12 @@ async def _launch_unlocked(
                 await asyncio.sleep(0.6)
                 context = await _try_launch()
         except ProviderError:
+            if keeper is not None:
+                keeper.stop()
             raise
         except Exception as e:
+            if keeper is not None:
+                keeper.stop()
             msg = str(e)
             if "executable doesn't exist" in msg.lower() or "channel" in msg.lower():
                 raise ProviderError(
@@ -346,23 +378,19 @@ async def _launch_unlocked(
                 ) from e
             raise ProviderError(FailureKind.BROWSER_CRASH, msg) from e
 
-        # Off-screen windows still get a taskbar button. Hide it at the Win32
-        # level so a run leaves no visible trace. Skipped when the window is
-        # meant to be seen (login), and unnecessary in true headless.
-        if cfg.offscreen and not force_visible:
-            effective_headless = cfg.headless if headless is None else headless
-            if not effective_headless:
-                # Chrome can create its window a moment after launch returns,
-                # so retry briefly rather than racing it.
-                for _ in range(6):
-                    if winhide.hide_windows_for_profile(profile_dir):
-                        break
-                    await asyncio.sleep(0.25)
-
         try:
             yield context
         finally:
             try:
-                await context.close()
-            except Exception:
+                await asyncio.wait_for(context.close(), timeout=CLOSE_TIMEOUT_S)
+            except BaseException:
                 pass
+            if keeper is not None:
+                keeper.stop()
+            # A Chrome that outlives its context (a close that hung, a child
+            # that never exited) would sit in the taskbar until clicked. The
+            # run is over and the profile lock is still held, so anything left
+            # on the profile is ours to close.
+            left = await asyncio.to_thread(_chrome_pids_using, profile_dir)
+            if left:
+                await asyncio.to_thread(_kill_pids, left)
