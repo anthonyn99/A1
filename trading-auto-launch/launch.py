@@ -9,9 +9,14 @@ confirm your Daily Reminder, and only then opens:
                         open, moved to the middle panel; only if Brave has no
                         window at all does this open one)
   - TaskHub          →  right  panel  (Brave app shortcut)
-  - Your AI site     →  your selected TradeHub "Analysis" prompt, AUTO-SUBMITTED,
-                        plus your configured Analysis search tabs — all as tabs in
-                        that same TradeHub window.
+  - Your Analysis search tabs, in that same TradeHub window.
+
+THE DAILY PROMPT IS NOT PART OF THIS FLOW ANY MORE (2026-11-01). The prompt you
+picked in TradeHub → Analysis goes to its AI destination (MAGI, or the chat site
+you chose) ON ITS OWN, from a second scheduled task: `launch.py --analysis`, at
+6 AM in this PC's own time zone (Mountain, Eastern, wherever it is; the same rule
+TradeHub builds its tabs by), or the first time the PC is opened after that. It
+never waits for the Daily Reminder or for anything else here. See DAILY ANALYSIS.
 
 You can also deploy this whole flow ON DEMAND from TradeHub → Analysis → "Deploy
 Trading Auto Launch". Because TradeHub is already open there, it reuses that
@@ -24,7 +29,7 @@ launches until you click Confirm; closing it cancels the launch and leaves the d
 unmarked, so the next wake/unlock asks again. See the DAILY REMINDER GATE config
 block below.
 
-The AI step is the automated equivalent of clicking "Launch Analysis": it fetches the
+The daily analysis is the automated equivalent of clicking "Launch Analysis": it fetches the
 prompt you picked in TradeHub's Analysis tab (TradeHub pushes it to the trade-dashboard
 Cloudflare worker) and opens the AI site with that prompt already sent — no manual
 paste / Enter. WHICH site is whatever TradeHub → Analysis → "AI destination" is set to
@@ -128,9 +133,30 @@ TRADEHUB_URL = "https://a1-priv.av1.workers.dev/tradehub.html"
 CHATGPT_ANALYSIS_ENABLED = True   # master switch for the whole AI analysis step
 TD_WORKER_URL            = "https://trade-dashboard.av1-2.workers.dev"
 
-# On the morning run, the AI site + searches open as TABS in the existing TradeHub
-# window, so this position is only used in the standalone --test-chatgpt case.
+# On the morning run the searches open as TABS in the existing TradeHub window, so
+# this position is only used when there is no TradeHub window to add them to.
 CHATGPT_POS = [1707, 0, 1706, SCREEN_H]
+
+# ==============================================================================
+#  DAILY ANALYSIS  (its own scheduled task since 2026-11-01)
+#  The prompt goes to the AI on its own: no Daily Reminder, no Trading Auto Launch.
+#  `launch.py --analysis` runs from the TradingDailyAnalysis task on the same four
+#  triggers (6 AM daily, logon, unlock, wake) and sends it ONCE per market day,
+#  at the first trigger at or after ANALYSIS_HOUR in THIS PC'S OWN time zone, so
+#  6 AM is 6 AM local in Mountain or Eastern alike, exactly as TradeHub builds
+#  its tabs (tbLastMorningSlot). Before 6 it simply exits: the 6 AM trigger, or
+#  the next unlock after it, sends it. No process sits waiting, and the only
+#  network call is the one GET of /analysis-config the launch always made (a
+#  worker read: no KV write, no cron, nothing new on Cloudflare).
+# ==============================================================================
+
+ANALYSIS_HOUR      = 6
+ANALYSIS_TASK_NAME = "TradingDailyAnalysis"
+# MAGI convenes on arrival, so at a cold boot the console must not beat its
+# engine (it starts at the same logon). Tony's engine answers here; the run waits
+# up to MAGI_ENGINE_WAIT seconds for it, then opens MAGI regardless.
+MAGI_ENGINE_HEALTH = "http://127.0.0.1:8000/api/health"
+MAGI_ENGINE_WAIT   = 180
 
 # ==============================================================================
 #  DAILY REMINDER GATE
@@ -245,6 +271,7 @@ from pathlib import Path
 
 SCRIPT_PATH = Path(__file__).resolve()
 STATE_FILE  = SCRIPT_PATH.parent / ".last_run"
+ANALYSIS_STATE_FILE = SCRIPT_PATH.parent / ".last_analysis"
 LOG_FILE    = SCRIPT_PATH.parent / "launch.log"
 TASK_NAME   = "TradingAutoLaunch"
 TASK_FOLDER = "\\Custom\\"
@@ -423,6 +450,16 @@ def already_ran_today() -> bool:
 
 def mark_ran():
     STATE_FILE.write_text(str(mountain_today()))
+
+
+# The daily analysis keys off the PC's own calendar day (date.today()), not
+# Mountain's: its 6 AM is local, so its day must be too.
+def analysis_ran_today() -> bool:
+    return ANALYSIS_STATE_FILE.exists() and ANALYSIS_STATE_FILE.read_text().strip() == str(date.today())
+
+
+def mark_analysis():
+    ANALYSIS_STATE_FILE.write_text(str(date.today()))
 
 
 _ECHO = False   # when True, log() also prints to the console (set by --test-chatgpt)
@@ -1483,130 +1520,148 @@ def _focus_window_patient(hwnd, timeout: float = 12.0) -> bool:
 #  into the composer directly, and does (see Vault/vault-ai-prompt.js).
 
 
-def open_chatgpt_analysis(target_hwnd=None):
-    """Open the configured searches (left tabs) plus the AI site (last tab) and submit
-    the selected Analysis prompt into it. Fully automated.
+def _analysis_destination(cfg: dict):
+    """(ai_url, magi_units, use_magi) from the pushed Analysis config.
 
-    If target_hwnd is given (the TradeHub window from the morning run), the tabs open
-    INSIDE that window so everything shares one browser window. Otherwise (e.g.
-    --test-chatgpt) a fresh window is opened at CHATGPT_POS.
-
-    WHICH DESTINATION: whatever TradeHub's Analysis tab is set to (it pushes aiUrl with
-    the prompt). Older configs have no aiUrl — those fall back to ChatGPT, as before.
-
-    HOW THE PROMPT GETS IN — MAGI: nothing is typed. The console is opened with the
-    prompt and the ticked units in the url fragment and it convenes on arrival, so
-    there is no composer to find and no extension in the path. This is the case when
-    the config carries magiUnits.
-
-    HOW THE PROMPT GETS IN — a chat site: the AI tab is opened with a #tbauto marker
-    and the Vault extension takes it from there — it fetches this same prompt from the
-    worker, brings the tab to the front, types into the composer and clicks send. We do
-    NOT drive the page with keystrokes any more; see the AI ANALYSIS AUTOMATION block at
-    the top of this file for why that was actively dangerous in Brave.
-
-    Either way the prompt also goes on the clipboard, so if the extension is missing, a
-    site redesign defeats it, or the MAGI engine is down, Ctrl+V is one keypress away."""
-    if not CHATGPT_ANALYSIS_ENABLED:
-        return
-
-    brave = _find_brave()
-    if not brave:
-        log("AI analysis: Brave not found; skipping.")
-        return
-
-    cfg = _fetch_analysis_config()
-    if not cfg:
-        log("AI analysis: no analysis prompt available from worker yet — open TradeHub's "
-            "Analysis tab once so it syncs, then it'll work next time. Skipping.")
-        return
-
-    prompt   = (cfg.get("text") or "")[:16000]
-    name     = cfg.get("name") or "Prompt"
-    searches = cfg.get("searches") or []
-    # A non-empty unit list IS the signal that Analysis is set to the council.
-    # Both halves are required: a stale KV record could hold units from before the
-    # destination was changed back to a chat site.
+    A non-empty unit list IS the signal that Analysis is set to the council. Both
+    halves are required: a stale KV record could hold units from before the
+    destination was changed back to a chat site. An empty aiUrl means "no AI tab
+    at all", a deliberate setting; a config from before aiUrl existed means ChatGPT."""
     magi_units = [str(u) for u in (cfg.get("magiUnits") or []) if str(u).strip()]
-
-    # The AI destination chosen in TradeHub. An empty aiUrl there means "open no AI
-    # tab at all", which is a deliberate setting — honour it and just open searches.
     ai_url = (cfg.get("aiUrl") or "").strip()
     if "aiUrl" not in cfg:
-        ai_url = "https://chatgpt.com/"      # pre-aiUrl config: behave as it always did
-    use_magi = bool(magi_units) and _is_magi_url(ai_url)
-    ai_label = "MAGI" if use_magi else (_host_of(ai_url) or "AI")
+        ai_url = "https://chatgpt.com/"
+    return ai_url, magi_units, bool(magi_units) and _is_magi_url(ai_url)
 
-    # 1) Load the prompt onto the clipboard BEFORE opening anything — the manual
-    #    fallback for the case where the extension can't do it.
-    if not _set_clipboard_text(prompt):
-        log("AI analysis: could not set clipboard (continuing — the extension submits "
-            "the prompt itself; you just won't have it on the clipboard as a fallback).")
-    else:
-        log(f"AI analysis: prompt '{name}' ({len(prompt)} chars) copied to clipboard.")
 
-    # 2) Build the tab list: searches first (skipping any that point at the AI
-    #    destination itself), then the AI tab last — carrying the prompt for MAGI,
-    #    or the #tbauto marker for a chat site the extension has to type into.
-    if use_magi:
-        tabs = [u for u in (_resolve_search_url(q) for q in searches)
-                if u and not _is_magi_url(u)]
-        tabs.append(_magi_link(ai_url, prompt, magi_units))
-    else:
-        tabs = [u for u in (_resolve_search_url(q) for q in searches)
-                if u and not _is_ai_url(u, ai_url)]
-        if ai_url:
-            tabs.append(_mark_autosubmit(ai_url))
-        else:
-            log("AI analysis: no AI destination set in TradeHub — opening searches only.")
+def open_analysis_searches(target_hwnd=None):
+    """Trading Auto Launch's half of the Analysis config: the search tabs, opened
+    INTO the TradeHub window when target_hwnd is a real Brave window (so everything
+    shares one window), else in one new window at CHATGPT_POS. The prompt is not
+    sent from here: run_daily_analysis does that on its own."""
+    if not CHATGPT_ANALYSIS_ENABLED:
+        return
+    brave = _find_brave()
+    if not brave:
+        log("Searches: Brave not found; skipping.")
+        return
+    cfg = _fetch_analysis_config()
+    if not cfg:
+        log("Searches: no Analysis config from the worker yet — open TradeHub once so it syncs.")
+        return
+    ai_url, _, use_magi = _analysis_destination(cfg)
+    # A search that points at the AI destination itself is skipped: the daily
+    # analysis already opened that tab, with the prompt in it.
+    tabs = [u for u in (_resolve_search_url(q) for q in (cfg.get("searches") or []))
+            if u and not (_is_magi_url(u) if use_magi else _is_ai_url(u, ai_url))]
     if not tabs:
-        log("AI analysis: nothing to open.")
+        log("Searches: none configured.")
         return
 
-    n_searches = len(tabs) - (1 if ai_url else 0)
-
-    # Only reuse target_hwnd if it's a real BRAVE window (never a lookalike like a
-    # VS Code window whose title happens to contain "tradehub").
     use_existing = bool(target_hwnd) and target_hwnd in set(_all_visible_hwnds()) \
         and _is_brave_hwnd(target_hwnd)
     if use_existing:
-        # Open the tabs INTO the TradeHub window: focus it first so Brave adds the tabs
-        # there (a bare `brave <urls>` goes to the last-focused browser window).
-        hwnd = target_hwnd
-        _focus_window(hwnd)
-        log(f"AI analysis: adding {n_searches} search tab(s)"
-            + (f" + {ai_label} to the TradeHub window..." if ai_url else " to the TradeHub window..."))
+        # Focus it first so Brave adds the tabs there (a bare `brave <urls>` goes to
+        # the last-focused browser window).
+        _focus_window(target_hwnd)
+        log(f"Searches: adding {len(tabs)} tab(s) to the TradeHub window...")
         subprocess.Popen([brave] + tabs)
-    else:
-        # No TradeHub window to add to (nothing was open to reuse, or it went away):
-        # fall back to one dedicated new window (searches + the AI site as tabs).
-        x, y, w, h = CHATGPT_POS
-        snapshot = _all_brave_hwnds()
-        log(f"AI analysis: opening 1 window with {n_searches} search tab(s)"
-            + (f" + {ai_label}..." if ai_url else "..."))
-        subprocess.Popen([
-            brave,
-            f"--window-position={x},{y}",
-            f"--window-size={w},{h}",
-            "--new-window",
-        ] + tabs)
-        hwnd = _wait_for_new_brave_window(snapshot, timeout=25)
-        if not hwnd:
-            log("AI analysis: new window not detected; it may still have opened. The "
-                "extension submits the prompt on its own once the tab loads.")
-            return
+        return
+    x, y, w, h = CHATGPT_POS
+    snapshot = _all_brave_hwnds()
+    log(f"Searches: opening 1 window with {len(tabs)} tab(s)...")
+    subprocess.Popen([brave, f"--window-position={x},{y}", f"--window-size={w},{h}", "--new-window"] + tabs)
+    hwnd = _wait_for_new_brave_window(snapshot, timeout=25)
+    if hwnd:
         time.sleep(1)
         _place(hwnd, x, y, w, h)
 
+
+def _wait_for_magi_engine(timeout: int = MAGI_ENGINE_WAIT) -> bool:
+    """True once the MAGI engine on this PC answers /api/health (loopback only)."""
+    end = time.time() + max(0, timeout)
+    while True:
+        try:
+            with urllib.request.urlopen(MAGI_ENGINE_HEALTH, timeout=4) as r:
+                if json.loads(r.read().decode("utf-8")).get("ok"):
+                    return True
+        except Exception:
+            pass
+        if time.time() >= end:
+            return False
+        time.sleep(5)
+
+
+def open_ai_prompt() -> bool:
+    """Send the prompt picked in TradeHub → Analysis to its AI destination. True
+    once it is out (or there is deliberately nothing to send), False when it could
+    not be, so the day stays unmarked and the next trigger tries again.
+
+    MAGI: nothing is typed. The console opens with the prompt and the ticked units
+    in the url FRAGMENT and convenes on arrival; a fragment never reaches a server,
+    so a long prompt cannot 431. A CHAT SITE: the tab opens with the #tbauto marker
+    and the Vault extension fetches this same prompt, types it in and sends it (see
+    the AI ANALYSIS AUTOMATION block for why nothing else works in Brave).
+
+    `brave <url>` puts the tab in the last-used Brave window, or starts Brave if it
+    is closed. Either way the prompt also goes on the clipboard as a fallback."""
+    if not CHATGPT_ANALYSIS_ENABLED:
+        log("Daily analysis: switched off (CHATGPT_ANALYSIS_ENABLED).")
+        return True
+    brave = _find_brave()
+    if not brave:
+        log("Daily analysis: Brave not found.")
+        return False
+    cfg = _fetch_analysis_config()
+    if not cfg:
+        log("Daily analysis: no prompt from the worker yet — open TradeHub's Analysis tab "
+            "once so it syncs.")
+        return False
+    prompt = (cfg.get("text") or "")[:16000]
+    name   = cfg.get("name") or "Prompt"
+    ai_url, magi_units, use_magi = _analysis_destination(cfg)
+    if not ai_url:
+        log("Daily analysis: TradeHub's AI destination is set to none — nothing to send.")
+        return True
+    if _set_clipboard_text(prompt):
+        log(f"Daily analysis: prompt '{name}' ({len(prompt)} chars) copied to the clipboard.")
     if use_magi:
-        log(f"AI analysis: MAGI opened with the prompt '{name}' and {len(magi_units)} unit(s) "
-            f"({', '.join(magi_units)}) — it convenes on arrival. If nothing happens, the MAGI "
-            "engine is not running on this PC (it starts at logon; see docs/MAGI/magi.md).")
-    elif ai_url:
-        log(f"AI analysis: {ai_label} opened with the #tbauto marker — the Vault extension "
-            "types the prompt in and sends it, and brings that tab to the front. If nothing "
-            "is submitted, check that the Vault extension is enabled (the prompt is on your "
-            "clipboard as a fallback).")
+        if not _wait_for_magi_engine():
+            log(f"Daily analysis: the MAGI engine did not answer within {MAGI_ENGINE_WAIT}s — "
+                "opening MAGI anyway (it starts at logon; see docs/MAGI/magi.md).")
+        subprocess.Popen([brave, _magi_link(ai_url, prompt, magi_units)])
+        log(f"Daily analysis: MAGI opened with '{name}' and {len(magi_units)} unit(s) "
+            f"({', '.join(magi_units)}) — it convenes on arrival.")
+    else:
+        subprocess.Popen([brave, _mark_autosubmit(ai_url)])
+        log(f"Daily analysis: {_host_of(ai_url) or 'AI'} opened with the #tbauto marker — the "
+            "Vault extension types the prompt in and sends it.")
+    return True
+
+
+def run_daily_analysis(test: bool = False):
+    """The scheduled daily analysis (--analysis). Once per market day, at the
+    first trigger at or after ANALYSIS_HOUR local. Independent of the Daily
+    Reminder and of Trading Auto Launch: neither waits for the other."""
+    log("Daily analysis: triggered" + (" [TEST]" if test else ""))
+    if not test:
+        if analysis_ran_today():
+            log("Daily analysis: already sent today — skipping.")
+            return
+        today = date.today()
+        if not is_market_day(today):
+            log(f"Daily analysis: {today} is a weekend or NYSE holiday — skipping.")
+            return
+        now = datetime.now()
+        if now.hour < ANALYSIS_HOUR:
+            log(f"Daily analysis: {now:%H:%M} local is before {ANALYSIS_HOUR}:00 — the "
+                f"{ANALYSIS_HOUR} AM trigger (or the next unlock after it) sends it.")
+            return
+    if not wait_for_connectivity():
+        log(f"Daily analysis: no internet after {CONNECTIVITY_WAIT}s — the next trigger retries.")
+        return
+    if open_ai_prompt() and not test:
+        mark_analysis()
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -2279,17 +2334,13 @@ def _launch_all(test: bool, from_tradehub: bool = False):
 
     time.sleep(1.5)
     open_taskhub_app()
-    # WeBull BEFORE the AI step, not after it. The AI step hands its tab to the
-    # Vault extension, which deliberately holds that tab in front for as long as
-    # it takes to type and send the prompt -- tens of seconds -- and Windows will
-    # not give a background process the foreground while another app is using
-    # it. Run after, the WeBull step lost that fight on 09-14 (1.6s of trying)
-    # and again on 09-16 (8s settle + 12s of retries, still inside the typing).
-    # Nothing is competing for the foreground here: the launcher has just had
-    # the Daily Reminder's Confirm click, and the windows above are placed.
+    # WeBull before the searches: Windows will not give a background process the
+    # foreground while another app holds it, and the WeBull step needs it. (It
+    # lost that fight on 09-14 and 09-16 to the Vault extension typing a prompt;
+    # the prompt now goes out on its own, see run_daily_analysis.)
     webull_post_launch(webull_hwnd)
-    # Open the AI site + searches as tabs in the SAME TradeHub window, auto-submitted.
-    open_chatgpt_analysis(target_hwnd=tradehub_hwnd)
+    # The Analysis searches as tabs in the SAME TradeHub window.
+    open_analysis_searches(target_hwnd=tradehub_hwnd)
     if not test:
         mark_ran()
     log("=== Done ===")
@@ -2400,12 +2451,38 @@ def setup():
     except Exception as e:
         print(f"  (tzdata install skipped: {e} — Windows timezone fallback will be used)")
 
+    # The morning windows, and (its own task, never waiting on the first) the
+    # daily prompt. Both on the same four triggers; the 6 AM one is the PC's
+    # local time, which is what the daily analysis wants.
+    for name, arg, limit, desc in (
+        (TASK_NAME, "", 12,
+         f"Opens WeBull + TradeHub + TaskHub on the first wake/unlock/login of each market weekday (>= {TRIGGER_HOUR} AM MT)."),
+        (ANALYSIS_TASK_NAME, " --analysis", 1,
+         f"Sends TradeHub's Analysis prompt to its AI at {ANALYSIS_HOUR} AM local (or the first wake/unlock/login after) on each market day."),
+    ):
+        _register_task(name, arg, limit, desc)
+    print(f"\nInstalled '{TASK_FOLDER}{TASK_NAME}' and '{TASK_FOLDER}{ANALYSIS_TASK_NAME}'.")
+    print("Triggers: session-unlock (open laptop) | logon (boot) | daily 6 AM | wake event.")
+    print("Runs on battery, only on market weekdays, once per day. Logs -> " + str(LOG_FILE))
+
+    # Drop any pre-rename tasks so we don't leave a dead one (e.g. an old
+    # "MorningLauncher" / "TradingAutoLauncher") behind.
+    for legacy in LEGACY_TASK_NAMES:
+        _remove_task(legacy)
+    # Clear any prior-named protocol registration before installing the current one.
+    for legacy in LEGACY_PROTOCOLS:
+        _unregister_protocol(legacy)
+    # Register the URL protocol used by the TradeHub Deploy button.
+    _register_protocol()
+
+
+def _register_task(name: str, arg: str, hours: int, desc: str):
     pw       = _pythonw()
     script   = str(SCRIPT_PATH)
     work_dir = str(SCRIPT_PATH.parent)
 
     ps = f"""
-$action   = New-ScheduledTaskAction -Execute '{pw}' -Argument '"{script}"' -WorkingDirectory '{work_dir}'
+$action   = New-ScheduledTaskAction -Execute '{pw}' -Argument '"{script}"{arg}' -WorkingDirectory '{work_dir}'
 
 # Settings tuned for a LAPTOP:
 #   -AllowStartIfOnBatteries / -DontStopIfGoingOnBatteries → run even when unplugged
@@ -2414,7 +2491,7 @@ $action   = New-ScheduledTaskAction -Execute '{pw}' -Argument '"{script}"' -Work
 #   -StartWhenAvailable → re-run a missed trigger as soon as possible
 #   -RestartCount       → retry a few times if it fails to start
 $settings = New-ScheduledTaskSettingsSet `
-    -ExecutionTimeLimit (New-TimeSpan -Hours 12) `
+    -ExecutionTimeLimit (New-TimeSpan -Hours {hours}) `
     -StartWhenAvailable `
     -MultipleInstances IgnoreNew `
     -AllowStartIfOnBatteries `
@@ -2448,32 +2525,19 @@ $wakeTrigger = $wakeClass | New-CimInstance -ClientOnly
 $wakeTrigger.Subscription = '<QueryList><Query Id="0" Path="System"><Select Path="System">*[System[Provider[@Name=''Microsoft-Windows-Power-Troubleshooter''] and EventID=1]]</Select></Query></QueryList>'
 $wakeTrigger.Enabled = $True
 
-Register-ScheduledTask -TaskName '{TASK_NAME}' -TaskPath '{TASK_FOLDER}' `
+Register-ScheduledTask -TaskName '{name}' -TaskPath '{TASK_FOLDER}' `
     -Action $action -Trigger @($dailyTrigger, $logonTrigger, $unlockTrigger, $wakeTrigger) `
     -Principal $principal -Settings $settings `
-    -Description 'Opens WeBull + TradeHub + TaskHub on the first wake/unlock/login of each market weekday (>= {TRIGGER_HOUR} AM MT).' -Force
+    -Description '{desc}' -Force
 Write-Host 'Registered.'
 """
     result = subprocess.run(["powershell", "-NoProfile", "-Command", ps],
                             capture_output=True, text=True)
     if result.returncode != 0:
-        print("ERROR: Could not register task. Try running from an Administrator terminal.")
+        print(f"ERROR: Could not register {name}. Try running from an Administrator terminal.")
         print(result.stderr)
         sys.exit(1)
-    print(result.stdout.strip())
-    print(f"\nInstalled as '{TASK_FOLDER}{TASK_NAME}'.")
-    print("Triggers: session-unlock (open laptop) | logon (boot) | daily 6 AM | wake event.")
-    print("Runs on battery, only on market weekdays, once per day. Logs -> " + str(LOG_FILE))
-
-    # Drop any pre-rename tasks so we don't leave a dead one (e.g. an old
-    # "MorningLauncher" / "TradingAutoLauncher") behind.
-    for legacy in LEGACY_TASK_NAMES:
-        _remove_task(legacy)
-    # Clear any prior-named protocol registration before installing the current one.
-    for legacy in LEGACY_PROTOCOLS:
-        _unregister_protocol(legacy)
-    # Register the URL protocol used by the TradeHub Deploy button.
-    _register_protocol()
+    print(f"{name}: {result.stdout.strip()}")
 
 
 def uninstall():
@@ -2481,6 +2545,7 @@ def uninstall():
           f"-TaskPath '{TASK_FOLDER}' -Confirm:$false")
     r = subprocess.run(["powershell", "-NoProfile", "-Command", ps],
                        capture_output=True, text=True)
+    _remove_task(ANALYSIS_TASK_NAME)
     for legacy in LEGACY_TASK_NAMES:   # also clear any legacy tasks if they linger
         _remove_task(legacy)
     _unregister_protocol()
@@ -2499,7 +2564,8 @@ if __name__ == "__main__":
     parser.add_argument("--uninstall", action="store_true", help="Remove from Task Scheduler + unregister the protocol")
     parser.add_argument("--test",      action="store_true", help="Open everything immediately, skipping time / market / once-per-day checks")
     parser.add_argument("--from-tradehub", action="store_true", help="On-demand deploy from the TradeHub button: run the full flow but reuse the already-open TradeHub window")
-    parser.add_argument("--test-chatgpt", action="store_true", help="Run ONLY the AI analysis step (fetch prompt + open your TradeHub AI destination auto-submitted + searches); prints progress to the console")
+    parser.add_argument("--analysis", action="store_true", help="The daily analysis (its own scheduled task): send TradeHub's Analysis prompt to its AI, once per market day at/after 6 AM local")
+    parser.add_argument("--test-analysis", "--test-chatgpt", dest="test_analysis", action="store_true", help="Send the Analysis prompt now, skipping the day/time checks; prints progress to the console")
     parser.add_argument("--test-reminder", action="store_true", help="Run ONLY the Daily Reminder gate (fetch TradeHub → Playbook → Daily Reminder + show the confirm dialog); launches nothing")
     parser.add_argument("--test-webull", action="store_true", help="Run ONLY the WeBull tab/account switch on an already-open WeBull window (for tuning the click coordinates); prints progress to the console")
     parser.add_argument("--webull-coords", action="store_true", help="Print the mouse cursor's offset from the WeBull window as you hover — use it to read exact click coordinates for the WEBULL_* settings")
@@ -2515,6 +2581,8 @@ if __name__ == "__main__":
         uninstall()
     elif args.from_tradehub:
         deploy_from_tradehub()
+    elif args.analysis:
+        run_daily_analysis()
     elif args.webull_coords:
         # Tuning aid: put WeBull in its morning position (left panel), then hover over
         # each target and read its offset from the window top-left.
@@ -2559,17 +2627,10 @@ if __name__ == "__main__":
         ok = daily_reminder_gate()
         log(f"Result: {'CONFIRMED — the real run would launch now.' if ok else 'NOT confirmed — the real run would launch nothing.'}")
         log("=== Daily Reminder gate test done ===")
-    elif args.test_chatgpt:
+    elif args.test_analysis:
         _ECHO = True
-        log("=== AI analysis test ===")
-        _apply_work_area()   # size the AI window to the taskbar-free height
-        # If a TradeHub BRAVE window is already open, add the tabs to it (mirrors the
-        # morning run); otherwise open a standalone window. Only Brave windows match —
-        # never an editor/terminal window that happens to show "tradehub".
-        th = _find_brave_window_by_title("tradehub", timeout=2)
-        if th:
-            log("AI analysis test: found an open TradeHub Brave window — using it.")
-        open_chatgpt_analysis(target_hwnd=th)
-        log("=== AI analysis test done ===")
+        log("=== Daily analysis test ===")
+        run_daily_analysis(test=True)
+        log("=== Daily analysis test done ===")
     else:
         run_morning(test=args.test)
