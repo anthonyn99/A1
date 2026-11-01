@@ -107,7 +107,7 @@ const orderNames = (c) => evalJs(c, 'return JSON.stringify([...document.querySel
       mid: async () => {
         mid = JSON.parse(await evalJs(c, `return JSON.stringify({
           lifted: !!document.querySelector(".code-order-row.dsort-drag"),
-          moved: [...document.querySelectorAll(".code-order-row")].slice(1, 3).every(r => /translate3d\\(0px, -/.test(r.style.transform)),
+          moved: [...document.querySelectorAll(".code-order-row")].slice(1, 3).every(r => /^-/.test(r.style.top)),   // pushed rows move by a relative top (dragsort.js nudge)
           grabbing: document.documentElement.classList.contains("dsort-grabbing") })`));
       },
     });
