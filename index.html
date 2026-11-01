@@ -8257,6 +8257,9 @@ function thRowEdit(c,onEdit,onDel,inline){
     btn("Edit",c.tx,onEdit,"M8.4 1.6l2 2-6.3 6.3-2.6.6.6-2.6z"),
     btn("Delete",c.del,onDel,"M3 3l6 6M9 3l-6 6"));
 }
+// What a habit's edit cell holds in view mode: the buttons' height, so a row is
+// exactly as tall in both modes and its name doesn't drop when edit opens.
+function thRowEditSpacer(){ return React.createElement("span",{"aria-hidden":"true",style:{display:"inline-block",width:1,height:20,verticalAlign:"top"}}); }
 // Edit mode keeps a row's side buttons where they were, hidden, so nothing reflows.
 function thHide(on,el){
   return on&&el?React.cloneElement(el,{style:{...(el.props.style||{}),visibility:"hidden"},tabIndex:-1,"aria-hidden":"true"}):el;
@@ -10467,7 +10470,7 @@ function App(){
                   h.notifyAt&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:T.AC,opacity:0.85,whiteSpace:"nowrap",marginLeft:6},title:habReminderLabel(h)},React.createElement("span",{style:{width:12,height:12,fontSize:12,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}})," "+habTimeLabel(h))),
                 ...wd.map((w2,di)=>{const hk=`${h.id}-${w2.year}-${w2.month}-${w2.day}`,ch=!!hc[hk];return habCell(ch,()=>togH(h.id,di),dkey(w2.year,w2.month,w2.day)===tk);}),
                 React.createElement("td",{style:{textAlign:"right",paddingTop:7,paddingBottom:7,borderBottom:"1px solid "+T.BD+"22",width:50,paddingRight:2,paddingLeft:4,whiteSpace:"nowrap"}},
-                  edit&&thRowEdit({tx:T.TXD,del:T.ERR,bd:T.BD,bdHi:T.BDL,radius:5},()=>setEditingHabit(h),()=>delH(h.id),true))))))),
+                  edit?thRowEdit({tx:T.TXD,del:T.ERR,bd:T.BD,bdHi:T.BDL,radius:5},()=>setEditingHabit(h),()=>delH(h.id),true):thRowEditSpacer())))))),
         ),
 
       React.createElement("div",{style:{...sec,display:"flex",flexDirection:"column"}},
@@ -16887,7 +16890,7 @@ function App(){
                                 h.title,
                 h.notifyAt&&RC("span",{style:{display:"inline-flex",alignItems:"center",gap:2,fontSize:10,fontWeight:700,color:A,opacity:0.85,whiteSpace:"nowrap",marginLeft:6},title:habReminderLabel(h)},RC("span",{style:{width:12,height:12,fontSize:12,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}})," "+habTimeLabel(h))),
               ...wd.map((w2,di)=>{const hk=`${h.id}-${w2.year}-${w2.month}-${w2.day}`,ch=!!hc[hk],isTd=dkey(w2.year,w2.month,w2.day)===tk;return RC("td",{key:di,style:{textAlign:"center",paddingTop:6,paddingBottom:6,borderBottom:"1px solid "+BD+"44",width:28,minWidth:28,borderLeft:isTd?habTodayRule:undefined,borderRight:isTd?habTodayRule:undefined}},RC("div",{onClick:()=>togH(h.id,di),style:{display:"flex",alignItems:"center",justifyContent:"center",width:16,height:16,margin:"0 auto",borderRadius:"50%",cursor:"pointer",transition:"background .15s, border-color .15s",border:ch?"2px solid "+A:"2px solid "+BDL,background:ch?A:"transparent"}},ch&&RC(Chk,{s:7})));}),
-              RC("td",{style:{textAlign:"right",padding:"6px 2px 6px 4px",borderBottom:"1px solid "+BD+"44",whiteSpace:"nowrap",width:50}},edit&&thRowEdit({tx:TXD,del:"#f85149",bd:BD,bdHi:BDL,radius:4},()=>setEditingHabit(h),()=>delH(h.id),true))))))),
+              RC("td",{style:{textAlign:"right",padding:"6px 2px 6px 4px",borderBottom:"1px solid "+BD+"44",whiteSpace:"nowrap",width:50}},edit?thRowEdit({tx:TXD,del:"#f85149",bd:BD,bdHi:BDL,radius:4},()=>setEditingHabit(h),()=>delH(h.id),true):thRowEditSpacer())))))),
         ),
 
       RC("div",{style:{...sec,display:"flex",flexDirection:"column"}},
