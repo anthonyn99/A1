@@ -945,6 +945,17 @@ function buildVRuler(ctx) {
   function reflow() { if (pending) return; pending = true; requestAnimationFrame(function() { pending = false; updateVRuler(ctx); }); }
   wrap.addEventListener('scroll', reflow, { passive: true });
   ctx.edEl.addEventListener('input', reflow);
+  // Deleting a highlight's text leaves an empty <mark> (a padded bar); drop it with the text.
+  ctx.edEl.addEventListener('input', function() { dropEmptyHighlights(ctx.edEl); });
+}
+function dropEmptyHighlights(ed) {
+  Array.prototype.forEach.call(ed.querySelectorAll('mark,[data-tj-hl],[data-bj-hl]'), function(el) {
+    if (el.textContent.replace(/​/g, '') !== '' || el.querySelector('img,br,table,hr,input')) return;
+    var sel = window.getSelection(), p = el.parentNode, i = Array.prototype.indexOf.call(p.childNodes, el);
+    var inside = sel && sel.rangeCount && el.contains(sel.anchorNode);
+    p.removeChild(el);
+    if (inside) { try { sel.collapse(p, Math.min(i, p.childNodes.length)); } catch (e) {} }
+  });
 }
 function _pageHeight(app) {
   var ps = psGet(app), dim = SIZES[ps.size] || SIZES.letter;
