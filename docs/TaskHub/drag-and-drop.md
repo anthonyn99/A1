@@ -17,6 +17,18 @@ and the `_XDRAG` registry on both sides.
   (`.dsort-hole`). Weekly is its own scroll box and clipped a row dragged out
   of it. The rows it passes slide out of its way, and on release the copy
   glides into the slot and the row shows again.
+- **No pixel shifts (2026-11-01).** The rows a drag pushes aside, and the
+  glide into the slot, move by a relative `left`/`top` offset, never a
+  transform. The page draws layout offsets on the same pixels the reordered
+  list uses. A fractional transform (rows of unequal height: 33.5px) drew text
+  and boxes about a pixel off, so they hopped on release. Only the row or copy
+  under the pointer uses a transform.
+- **Edit mode never moves text.** A row's pill column (time, category,
+  bell) stays in place, hidden, in edit mode, with the outlined pencil and ✕
+  (`thRowEdit`) over it. Side buttons (AI prep, SOS play) stay hidden in place
+  (`thHide`). Habits keep a 50px edit column and goals a 44px slot in both
+  modes. Cards: a Claude reset's time column and a OneInbox card's last button
+  are hidden in place under the boxed ✕ (`thIconBtn`). Worlds cards have no ✕.
 - **No crossovers.** A day draws open tasks (Veda: SOS ones first), then
   checked tasks, then events. Goals draw open, then done. A row only lands
   among rows of its own kind (`segment` → `thDragRank`), including in the list
