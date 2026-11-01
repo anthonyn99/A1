@@ -80,9 +80,9 @@ async function drag(target, from, to, kind) {
   await drag(L.rows[0].querySelector('.txt'), [50, 20], [50, 105]);
   ok('down: row 0 to slot 2 (leading edge past the middle)', JSON.stringify(L.drops.map((d) => d.slice(0, 2))) === '[[0,2]]', JSON.stringify(L.drops.map((d) => d.slice(0, 2))));
   ok('onDrop gets the list as fromList and toList', L.drops[0][2] === L.list && L.drops[0][3] === L.list);
-  ok('the landed rows are held until the redraw', L.rows.some((r) => r.style.transform));
+  ok('the landed rows are held until the redraw', L.rows.some((r) => r.style.top && r.style.top !== '0px'));
   await wait(HOLD);
-  ok('rows are put back after the glide', L.rows.every((r) => !r.style.transform && !r.classList.contains('dsort-drag')));
+  ok('rows are put back after the glide', L.rows.every((r) => !r.style.transform && !r.style.top && !r.style.position && !r.classList.contains('dsort-drag')));
   ok('the list is not left in drag mode', !L.list.classList.contains('dsort-on') && !doc.documentElement.classList.contains('dsort-grabbing'));
   L.list.remove();
 
@@ -128,8 +128,10 @@ async function drag(target, from, to, kind) {
   ptr('pointerdown', L.rows[0].querySelector('.txt'), 50, 20);
   ptr('pointermove', window, 50, 60);
   ptr('pointermove', window, 50, 110);
-  ok('lifted: dsort-drag, moved by transform only', L.rows[0].classList.contains('dsort-drag') && /translate3d\(0, 90px, 0\)/.test(L.rows[0].style.transform), L.rows[0].style.transform);
-  ok('neighbours slide out of the way', /-40px/.test(L.rows[1].style.transform) && /-40px/.test(L.rows[2].style.transform) && !L.rows[3].style.transform);
+  ok('lifted: dsort-drag, moved by transform only', L.rows[0].classList.contains('dsort-drag') && /^translate\(0px?, 90px\)$/.test(L.rows[0].style.transform), L.rows[0].style.transform);
+  // By a relative offset, not a transform: layout, so a pushed row draws on the
+  // pixels the reordered list will use (no hop on release).
+  ok('neighbours slide out of the way (relative top, not a transform)', L.rows[1].style.top === '-40px' && L.rows[2].style.top === '-40px' && !L.rows[1].style.transform && (!L.rows[3].style.top || L.rows[3].style.top === '0px'), [L.rows[1].style.top, L.rows[2].style.top, L.rows[3].style.top].join());
   ok('a drag is visible to A1Drag.active', A1Drag.active === true);
   let ran = 0;
   A1Drag.later(() => ran++);
@@ -184,7 +186,7 @@ async function drag(target, from, to, kind) {
   ok('chip row: a 300ms hold picks the chip up', c0.classList.contains('dsort-drag') && c0.classList.contains('dsort-chip'));
   ptr('pointermove', window, 150, 15, 'touch');
   ptr('pointermove', window, 250, 15, 'touch');
-  ok('chip row: the chip moves along x', /translate3d\(210px, 0px, 0\)|translate3d\(210px, 0, 0\)/.test(c0.style.transform), c0.style.transform);
+  ok('chip row: the chip moves along x', /^translate\(210px, 0px\) scale/.test(c0.style.transform), c0.style.transform);
   ok('chip row: the lifted chip is 1.06 inside its own transform', /scale\(1\.06\)$/.test(c0.style.transform), c0.style.transform);
   ptr('pointerup', window, 250, 15, 'touch');
   await wait(SETTLE);
@@ -301,7 +303,7 @@ async function drag(target, from, to, kind) {
     ptr('pointermove', window, 100, 14);
     ptr('pointermove', window, 180, 30);
     const gh = doc.querySelector('.dsort-ghost');
-    ok('free: a floating copy follows the pointer sideways too', !!gh && gh.parentNode === doc.body && /translate3d\(80px, 20px, 0\)/.test(gh.style.transform), gh && gh.style.transform);
+    ok('free: a floating copy follows the pointer sideways too', !!gh && gh.parentNode === doc.body && /^translate\(80px, 20px\)$/.test(gh.style.transform), gh && gh.style.transform);
     ok('free: the row itself stays in its list, hidden, as the gap', S.rows[0].classList.contains('dsort-hole') && !S.rows[0].style.transform);
     ptr('pointerup', window, 180, 30); await wait(SETTLE + 50);
     ok('free: the copy is gone and the row shows again after the drop', !doc.querySelector('.dsort-ghost') && !S.rows[0].classList.contains('dsort-hole'));
