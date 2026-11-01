@@ -2458,7 +2458,7 @@ def setup():
         (TASK_NAME, "", 12,
          f"Opens WeBull + TradeHub + TaskHub on the first wake/unlock/login of each market weekday (>= {TRIGGER_HOUR} AM MT)."),
         (ANALYSIS_TASK_NAME, " --analysis", 1,
-         f"Sends TradeHub's Analysis prompt to its AI at {ANALYSIS_HOUR} AM local (or the first wake/unlock/login after) on each market day."),
+         f"Sends the TradeHub Analysis prompt to its AI at {ANALYSIS_HOUR} AM local (or the first wake/unlock/login after) on each market day."),
     ):
         _register_task(name, arg, limit, desc)
     print(f"\nInstalled '{TASK_FOLDER}{TASK_NAME}' and '{TASK_FOLDER}{ANALYSIS_TASK_NAME}'.")
