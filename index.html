@@ -10277,12 +10277,11 @@ function App(){
             const pvMatches=ecByDay[k]||[];
             const events=allItems.filter(i=>i.type==="event");
             return React.createElement("div",{style:{background:td?(T.TODAYBG||T.S2):T.BG,border:td?"1.5px solid "+(T.TODAYBD||T.AC+"60"):"1px solid "+T.BD,borderRadius:6,padding:12,minHeight:80,display:"flex",flexDirection:"column"}},
-              edit&&React.createElement("button",{type:"button",style:{fontSize:11,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:6,padding:"9px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
               React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:tasks.length>0?6:10,gap:4}},
                 React.createElement("div",{style:{minWidth:0}},
                   React.createElement("div",{style:{fontFamily:td?"var(--font-accent)":"'Manrope',system-ui,sans-serif",fontSize:14,fontWeight:700,color:td?T.AC:T.TXD,whiteSpace:"nowrap"}},DOW[mobDayIdx]),
                   React.createElement("div",{style:{fontSize:12,fontWeight:500,color:T.TXM,marginTop:2,whiteSpace:"nowrap"}},w.day+" "+MO[w.month])),
-),
+                !edit&&thDayAddBtn({ac:T.AC,bd:T.BDL,hoverBg:T.AC+"14",radius:6},()=>{setEi(null);setMdt(k);setMo(true);})),
               tasks.length>0&&React.createElement("div",{style:{width:"100%",height:3,background:T.BD,borderRadius:2,marginBottom:10,overflow:"hidden"}},React.createElement("div",{style:{width:p+"%",height:"100%",background:p===100?T.GRN:wkBarFill,borderRadius:2,transition:"width .35s"}})),
               mcRender(mcDay,dayTX),
               /* OneInbox packages / bills / travel due on THIS day. Each card is
@@ -10361,12 +10360,11 @@ function App(){
             const pvMatches=ecByDay[k]||[];
             const events=allItems.filter(i=>i.type==="event");
             return React.createElement("div",{key:k,style:({background:td?(T.TODAYBG||T.S2):T.BG,border:td?"1.5px solid "+(T.TODAYBD||T.AC+"60"):"1px solid "+T.BD,borderRadius:6,padding:"clamp(8px,1.2vw,12px)",minHeight:"clamp(200px,22vh,280px)",display:"flex",flexDirection:"column"})},
-              edit&&React.createElement("button",{type:"button",style:{fontSize:10,fontWeight:700,color:T.AC,background:"transparent",border:"1px solid "+T.AC,borderRadius:6,padding:"5px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
               React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:tasks.length>0?4:10,gap:4}},
                 React.createElement("div",{style:{minWidth:0}},
                   React.createElement("div",{style:{fontFamily:td?"var(--font-accent)":"'Manrope',system-ui,sans-serif",fontSize:13,fontWeight:700,color:td?T.AC:T.TXD,whiteSpace:"nowrap",textTransform:"none"}},DS[i]),
                   React.createElement("div",{style:{fontSize:11,fontWeight:500,color:T.TXM,marginTop:2,whiteSpace:"nowrap"}},w.day+" "+MO[w.month].slice(0,3))),
-              ),
+                !edit&&thDayAddBtn({ac:T.AC,bd:T.BDL,hoverBg:T.AC+"14",radius:6},()=>{setEi(null);setMdt(k);setMo(true);})),
               tasks.length>0&&React.createElement("div",{style:{width:"100%",height:3,background:T.BD,borderRadius:2,marginBottom:8,overflow:"hidden"}},React.createElement("div",{style:{width:p+"%",height:"100%",background:p===100?T.GRN:wkBarFill,borderRadius:2,transition:"width .35s"}})),
               mcRender(mcDay,dayTX),
               /* OneInbox packages / bills / travel due on THIS day. Each card is
@@ -16739,12 +16737,13 @@ function App(){
             const dayTX=td?TX:TXD;
             const dimA=vdDim(td);
             return RC("div",{style:{background:td?"#303135":BG,border:td?"1px solid "+A:"1px solid "+BD,borderRadius:8,padding:12,minHeight:80,display:"flex",flexDirection:"column"}},
-              edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,borderRadius:4,padding:"9px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
               RC("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8,gap:4}},
                 RC("div",{style:{minWidth:0}},
                   RC("div",{style:{fontSize:14,fontWeight:700,color:td?A:TXD,letterSpacing:.5,whiteSpace:"nowrap"}},DOW[vrMobDayIdx]),
                   RC("div",{style:{fontSize:11,fontWeight:500,color:TXM,marginTop:2,whiteSpace:"nowrap"}},w.day+" "+MO[w.month])),
-                ts.length>0&&RC("span",{style:{fontSize:10,fontWeight:700,color:l===0?GRN:A,background:l===0?"rgba(86,211,100,.1)":ABG,borderRadius:3,padding:"2px 7px",flexShrink:0}},l===0?RC("span",{style:{display:"inline-flex",alignItems:"center",gap:3}},RC("span",{style:{width:9,height:9,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.check}}),"Done"):l+" left")),
+                RC("div",{style:{display:"flex",alignItems:"center",gap:6,flexShrink:0}},
+                  ts.length>0&&RC("span",{style:{fontSize:10,fontWeight:700,color:l===0?GRN:A,background:l===0?"rgba(86,211,100,.1)":ABG,borderRadius:3,padding:"2px 7px",flexShrink:0}},l===0?RC("span",{style:{display:"inline-flex",alignItems:"center",gap:3}},RC("span",{style:{width:9,height:9,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.check}}),"Done"):l+" left"),
+                  !edit&&thDayAddBtn({ac:A,bd:BD,hoverBg:ABG,radius:4},()=>{setEi(null);setMdt(k);setMo(true);}))),
               ts.length>0&&RC("div",{style:{width:"100%",height:3,background:BD,borderRadius:2,marginBottom:8,overflow:"hidden"}},RC("div",{style:{width:p+"%",height:"100%",background:p===100?GRN:"linear-gradient(90deg,"+AD+","+AL+")",borderRadius:2,transition:"width .35s"}})),
               mcRender(mcByDay[k]||[],dayTX),
               CR_rows(crByDay[k],{card:vdEventCard(null,false),profile:"veda",edit:edit,dbtn:dbtn,tx:"#C3B2D0",ac:A,dim:dimA,fit:vdTitleFit}),
@@ -16804,12 +16803,13 @@ function App(){
             const dayTX=td?TX:TXD;
             const dimA=vdDim(td);
             return RC("div",{key:k,style:({background:td?"#303135":BG,border:td?"1px solid "+A:"1px solid "+BD,borderRadius:6,padding:"8px 8px",minHeight:150,display:"flex",flexDirection:"column"})},
-              edit&&RC("button",{style:{fontSize:11,fontWeight:700,color:A,background:"transparent",border:"1px solid "+A,borderRadius:4,padding:"4px 0",width:"100%",cursor:"pointer",marginBottom:8,fontFamily:"inherit",transition:"all .15s"},onClick:()=>{setEi(null);setMdt(k);setMo(true);}},"+ Add"),
-              RC("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}},
-                RC("div",null,
+              RC("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6,gap:4}},
+                RC("div",{style:{minWidth:0}},
                   RC("div",{style:{fontSize:13,fontWeight:700,color:td?A:TXD,textTransform:"uppercase",letterSpacing:.5}},DS[i]),
                   RC("div",{style:{fontSize:10,fontWeight:600,color:TXM,marginTop:1}},w.day+" "+MO[w.month].slice(0,3))),
-                ts.length>0&&RC("span",{style:{fontSize:10,fontWeight:700,color:l===0?GRN:A,background:l===0?"rgba(86,211,100,.1)":ABG,borderRadius:3,padding:"2px 7px"}},l===0?RC("span",{style:{display:"inline-flex",alignItems:"center",gap:3}},RC("span",{style:{width:9,height:9,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.check}}),"Done"):l+" left")),
+                RC("div",{style:{display:"flex",alignItems:"center",gap:4,flexShrink:0}},
+                  ts.length>0&&RC("span",{style:{fontSize:10,fontWeight:700,color:l===0?GRN:A,background:l===0?"rgba(86,211,100,.1)":ABG,borderRadius:3,padding:"2px 7px"}},l===0?RC("span",{style:{display:"inline-flex",alignItems:"center",gap:3}},RC("span",{style:{width:9,height:9,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.check}}),"Done"):l+" left"),
+                  !edit&&thDayAddBtn({ac:A,bd:BD,hoverBg:ABG,radius:4},()=>{setEi(null);setMdt(k);setMo(true);}))),
               ts.length>0&&RC("div",{style:{width:"100%",height:3,background:BD,borderRadius:2,marginBottom:7,overflow:"hidden"}},RC("div",{style:{width:p+"%",height:"100%",background:p===100?GRN:"linear-gradient(90deg,"+AD+","+AL+")",borderRadius:2,transition:"width .35s"}})),
               mcRender(mcByDay[k]||[],dayTX),
               CR_rows(crByDay[k],{card:vdEventCard(null,false),profile:"veda",edit:edit,dbtn:dbtn,tx:"#C3B2D0",ac:A,dim:dimA,fit:vdTitleFit,compact:true}),
