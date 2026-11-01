@@ -143,8 +143,8 @@ console.log('\nThe two WeBull actions are still both there');
   // 09-16: the step ran after the AI tab opened and lost the foreground to the
   // Vault extension, which holds that tab in front while it types. Order is the fix.
   const flow = SRC.slice(SRC.indexOf('webull_hwnd = open_webull()'));
-  ok('WeBull acts BEFORE the AI step takes the foreground',
-    flow.indexOf('webull_post_launch(webull_hwnd)') < flow.indexOf('open_chatgpt_analysis(target_hwnd=tradehub_hwnd)'));
+  ok('WeBull acts BEFORE the searches open',
+    flow.indexOf('webull_post_launch(webull_hwnd)') < flow.indexOf('open_analysis_searches(target_hwnd=tradehub_hwnd)'));
   ok('and waits for WeBull to be READY rather than assuming a delay',
     /_wait_webull_ready\(\)/.test(SRC.slice(SRC.indexOf('def webull_post_launch('))));
   ok('the patient focus releases the foreground lock before giving up',
