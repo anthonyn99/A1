@@ -114,11 +114,7 @@ def hide_windows(pids: set[int]) -> int:
     hidden = 0
     for hwnd in _top_level_windows(pids):
         try:
-            ex = _user32.GetWindowLongW(hwnd, _GWL_EXSTYLE)
-            _user32.SetWindowLongW(
-                hwnd, _GWL_EXSTYLE, (ex | _WS_EX_TOOLWINDOW) & ~_WS_EX_APPWINDOW
-            )
-            _user32.ShowWindow(hwnd, _SW_HIDE)
+            _hide(hwnd)
             hidden += 1
         except Exception:
             pass
