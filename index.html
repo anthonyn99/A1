@@ -6357,6 +6357,8 @@ function mcTicker(nm){const m=String(nm||'').match(/^\$?([A-Z]{1,6})\b/);return 
 function mcEarnWhen(e){return e&&e.kind==='earnings'?({bmo:'Before open',amc:'After close',dmh:'During the day'})[e.when]||'':'';}
 // mcChipC: the category chip's colour. Earnings keep TradeHub's pink; the rest are neutral.
 function mcChipC(e,base){return e&&e.kind==='earnings'?'#e7a6b4':base;}
+// mcCardTitle: an earnings card names only its tickers; the Earnings chip already says the rest.
+function mcCardTitle(e){return e&&e.kind==='earnings'?String(e.title||'').replace(/\s*earnings\s*$/i,''):e.title;}
 // mcGroupsOf: a day's catalysts as cards (catdebrief.js A1Debrief.groups:
 // earnings share one card, releases within TradeHub's window share one).
 // Without catdebrief.js: one earnings card, every other event on its own.
@@ -10035,7 +10037,7 @@ function App(){
       mcDebriefBtn(e,!(e.importance&&MC_IMP[e.importance]))),
     React.createElement("div",{style:{display:"flex",alignItems:"flex-start",gap:6}},
       React.createElement("span",{style:{width:13,height:13,flexShrink:0,marginTop:2,display:"inline-flex"},dangerouslySetInnerHTML:{__html:e.kind==="earnings"?TNI.chartUp:e.kind==="holiday"?TNI.bank:TNI.calendar}}),
-      React.createElement("span",{style:{fontSize:11,fontWeight:700,color:tone||T.TX,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word"}},e.title)));};
+      React.createElement("span",{style:{fontSize:11,fontWeight:700,color:tone||T.TX,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word"}},mcCardTitle(e))));};
   // Grouped releases (A1Debrief.groups: same day, within TradeHub's window of
   // the first): ONE card, ONE ▶. Top row = "N releases" and the ▶; below,
   // each release with its own category, time and impact.
@@ -13870,6 +13872,8 @@ function mcTicker(nm){const m=String(nm||'').match(/^\$?([A-Z]{1,6})\b/);return 
 function mcEarnWhen(e){return e&&e.kind==='earnings'?({bmo:'Before open',amc:'After close',dmh:'During the day'})[e.when]||'':'';}
 // mcChipC: the category chip's colour. Earnings keep TradeHub's pink; the rest are neutral.
 function mcChipC(e,base){return e&&e.kind==='earnings'?'#e7a6b4':base;}
+// mcCardTitle: an earnings card names only its tickers; the Earnings chip already says the rest.
+function mcCardTitle(e){return e&&e.kind==='earnings'?String(e.title||'').replace(/\s*earnings\s*$/i,''):e.title;}
 // mcGroupsOf / mcLead / mcDebriefName: the same helpers as Tony's block (see there).
 function mcGroupsOf(day){const D=window.A1Debrief;if(D&&D.groups)return D.groups(day,mcMacroET);const earn=day.filter(e=>e.kind==='earnings');return (earn.length?[earn]:[]).concat(day.filter(e=>e.kind!=='earnings').map(e=>[e]));}
 function mcLead(g){const R={high:3,medium:2,low:1};return g.reduce((a,e)=>(R[e.importance]||0)>(R[a.importance]||0)?e:a,g[0]);}
@@ -16566,7 +16570,7 @@ function App(){
       vdDebriefBtn(e,!(e.importance&&MC_IMP[e.importance]))),
     RC("div",{style:{display:"flex",alignItems:"flex-start",gap:6}},
       RC("span",{style:{width:13,height:13,flexShrink:0,marginTop:2,display:"inline-flex"},dangerouslySetInnerHTML:{__html:e.kind==="earnings"?TNI.chartUp:e.kind==="holiday"?TNI.bank:TNI.calendar}}),
-      RC("span",{style:{fontSize:11,fontWeight:700,color:tone||TX,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word"}},e.title)));};
+      RC("span",{style:{fontSize:11,fontWeight:700,color:tone||TX,lineHeight:1.35,flex:1,minWidth:0,wordBreak:"break-word"}},mcCardTitle(e))));};
   // Grouped releases: the same card as Tony's mcGroupChip, in Veda's colours.
   const mcGroupChip=(g,tone)=>{const lead=mcLead(g),tms=g.map(mcTimeLocal);
     return RC("div",{key:"grp-"+g.map(e=>e.id).join("-"),"data-mc-group":g.length,style:{...vdCatalystCard(lead.category||lead.kind),display:"flex",flexDirection:"column",gap:4,marginBottom:vrMobile?4:3,cursor:"default",opacity:g.every(e=>e._past)?0.5:1}},
