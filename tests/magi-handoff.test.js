@@ -215,9 +215,9 @@ console.log('\nTradeHub keeps the two kinds of destination apart');
   ok('the worker stores them', /magiUnits:tdMagiUnits\(/.test(WORKER));
   ok('the worker hands them back', /magiUnits:p\.magiUnits/.test(WORKER));
   ok('the launcher only treats it as MAGI when BOTH agree',
-    /use_magi = bool\(magi_units\) and _is_magi_url\(ai_url\)/.test(LAUNCH));
+    /return ai_url, magi_units, bool\(magi_units\) and _is_magi_url\(ai_url\)/.test(LAUNCH));
   ok('the extension’s #tbauto marker never reaches the console',
-    /if use_magi:\n        tabs = \[u for u in \(_resolve_search_url/.test(LAUNCH));
+    /if use_magi:[\s\S]{0,400}?_magi_link\(ai_url, prompt, magi_units\)[\s\S]{0,400}?else:\n\s+subprocess\.Popen\(\[brave, _mark_autosubmit\(ai_url\)\]\)/.test(LAUNCH));
 }
 
 
