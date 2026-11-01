@@ -47,6 +47,7 @@ const CAL = [
   { id: 'c3', date: day(2), kind: 'macro', category: 'fed', name: 'FOMC Rate Decision', importance: 'high' },
   { id: 'c4', date: day(3), kind: 'earnings', category: 'earnings', name: 'MU Earnings', ticker: 'MU', when: 'bmo', confirmed: false },
   { id: 'c5', date: day(5), kind: 'macro', category: 'jobs', name: 'Jobless Claims', importance: 'medium' },
+  { id: 'c7', date: day(5), kind: 'macro', category: 'retail', name: 'Retail Sales', importance: 'high' },
 ];
 
 const worker = {
@@ -163,6 +164,7 @@ const worker = {
     await js(`var t=[...document.querySelectorAll('#tradeboard-root .cat-imp')].find(x=>x.innerText==='High'); return t?getComputedStyle(t).color:'none';`));
   ok('an earnings card says when it lands', await js(`return [...document.querySelectorAll('#tradeboard-root .cat-time')].some(x=>x.innerText==='After close') && [...document.querySelectorAll('#tradeboard-root .cat-time')].some(x=>x.innerText==='Before open');`));
   ok('the debrief ▶ shows exactly when catdebrief.js says the release is out', await js(`var c=document.querySelector('#tradeboard-root .cat-col[data-date="${day(0)}"]'); var card=[...c.querySelectorAll('.cat-card')].find(x=>/CPI Report/.test(x.innerText)); var due=A1Debrief.isDue({kind:'macro',category:'inflation',name:'CPI Report',date:'${day(0)}'},{hh:8,mm:30}); return !!card && !!card.querySelector('.cat-play')===due;`));
+  ok('releases out together share ONE card, like TaskHub', await js(`var g=document.querySelector('#tradeboard-root .cat-col[data-date="${day(5)}"] [data-cat-group]'); return !!g && g.getAttribute('data-cat-group')==='2' && /2 releases/.test(g.innerText) && /Jobless Claims/.test(g.innerText) && /Retail Sales/.test(g.innerText);`));
   ok('a future release has no ▶', await js(`var c=document.querySelector('#tradeboard-root .cat-col[data-date="${day(2)}"]'); return !!c && !c.querySelector('.cat-play');`));
   await shot('tradehub-catalysts');
   await js(`[...document.querySelectorAll('#tradeboard-root .cat-bar button')].find(b=>/^Earnings/.test(b.innerText)).click(); 1`); await sleep(300);
