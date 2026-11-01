@@ -157,14 +157,16 @@ const worker = {
 
   console.log('\nCatalysts');
   await tab('catalysts');
-  ok('a row per day, today first', await until(`document.querySelectorAll('#tradeboard-root .cat-day').length===5 && document.querySelector('#tradeboard-root .cat-day').classList.contains('is-today')`, 6000), await js(`return document.querySelectorAll('#tradeboard-root .cat-day').length;`));
+  ok('a TaskHub column per day, today lit', await until(`document.querySelectorAll('#tradeboard-root .cat-col').length>=5 && !!document.querySelector('#tradeboard-root .cat-col.is-today[data-date="${day(0)}"]')`, 6000), await js(`return document.querySelectorAll('#tradeboard-root .cat-col').length;`));
+  ok('every catalyst is a TaskHub card', await js(`return document.querySelectorAll('#tradeboard-root .cat-card').length===6;`), await js(`return document.querySelectorAll('#tradeboard-root .cat-card').length;`));
   ok('the High tag is pastel red', await js(`var t=[...document.querySelectorAll('#tradeboard-root .cat-imp')].find(x=>x.innerText==='High'); return !!t && getComputedStyle(t).color==='rgb(239, 154, 154)';`),
     await js(`var t=[...document.querySelectorAll('#tradeboard-root .cat-imp')].find(x=>x.innerText==='High'); return t?getComputedStyle(t).color:'none';`));
-  ok('an earnings row says when it lands', await js(`return [...document.querySelectorAll('#tradeboard-root .cat-time')].some(x=>x.innerText==='After close');`));
-  ok('every day label (TOMORROW too) stays clear of the times', await js(`return [...document.querySelectorAll('#tradeboard-root .cat-day')].every(d=>(function(e){var r=document.createRange();r.selectNodeContents(e);return r.getBoundingClientRect().right;})(d.querySelector('.cat-dow')) <= d.querySelector('.cat-events').getBoundingClientRect().left - 12);`), await js(`return JSON.stringify([...document.querySelectorAll('#tradeboard-root .cat-day')].map(d=>[Math.round((function(e){var r=document.createRange();r.selectNodeContents(e);return r.getBoundingClientRect().right;})(d.querySelector('.cat-dow'))), Math.round(d.querySelector('.cat-events').getBoundingClientRect().left)]));`));
+  ok('an earnings card says when it lands', await js(`return [...document.querySelectorAll('#tradeboard-root .cat-time')].some(x=>x.innerText==='After close') && [...document.querySelectorAll('#tradeboard-root .cat-time')].some(x=>x.innerText==='Before open');`));
+  ok('the debrief ▶ shows exactly when catdebrief.js says the release is out', await js(`var c=document.querySelector('#tradeboard-root .cat-col[data-date="${day(0)}"]'); var card=[...c.querySelectorAll('.cat-card')].find(x=>/CPI Report/.test(x.innerText)); var due=A1Debrief.isDue({kind:'macro',category:'inflation',name:'CPI Report',date:'${day(0)}'},tbMacroET({kind:'macro',category:'inflation',name:'CPI Report',date:'${day(0)}'})); return !!card && !!card.querySelector('.cat-play')===due;`));
+  ok('a future release has no ▶', await js(`var c=document.querySelector('#tradeboard-root .cat-col[data-date="${day(2)}"]'); return !!c && !c.querySelector('.cat-play');`));
   await shot('tradehub-catalysts');
   await js(`[...document.querySelectorAll('#tradeboard-root .cat-bar button')].find(b=>/^Earnings/.test(b.innerText)).click(); 1`); await sleep(300);
-  ok('the Earnings view shows only earnings', await js(`return document.querySelectorAll('#tradeboard-root .cat-ev').length===2;`), await js(`return document.querySelectorAll('#tradeboard-root .cat-ev').length;`));
+  ok('the Earnings view shows only earnings', await js(`return document.querySelectorAll('#tradeboard-root .cat-card').length===2 && [...document.querySelectorAll('#tradeboard-root .cat-chip')].every(x=>x.innerText==='Earnings');`), await js(`return document.querySelectorAll('#tradeboard-root .cat-card').length;`));
   await js(`[...document.querySelectorAll('#tradeboard-root .cat-bar button')].find(b=>/^All/.test(b.innerText)).click(); 1`);
   await btn('#tradeboard-root .tbx-actions', 'DEBRIEF');
   ok('Debrief opens its settings under the header', await until(`[...document.querySelectorAll('#tradeboard-root .cat-debrief')].length===1`, 3000));
@@ -199,9 +201,8 @@ const worker = {
   await size(390, 844); await sleep(1000);
   for (const [id, name] of [['analysis', 'tradehub-analysis-phone'], ['news', 'tradehub-news-phone'], ['catalysts', 'tradehub-catalysts-phone'], ['prompt', 'tradehub-control-phone']]) {
     await tab(id); await sleep(600);
-    if (id === 'catalysts') ok('catalysts: every day label (TOMORROW too) stays clear of the times',
-      await js(`return [...document.querySelectorAll('#tradeboard-root .cat-day')].every(d=>{ var w=d.querySelector('.cat-dow').getBoundingClientRect(), e=d.querySelector('.cat-events').getBoundingClientRect(); return w.right <= e.left - 4; });`),
-      await js(`return JSON.stringify([...document.querySelectorAll('#tradeboard-root .cat-day')].map(d=>[d.querySelector('.cat-dow').innerText, Math.round((function(e){var r=document.createRange();r.selectNodeContents(e);return r.getBoundingClientRect().right;})(d.querySelector('.cat-dow'))), Math.round(d.querySelector('.cat-events').getBoundingClientRect().left)]));`));
+    if (id === 'catalysts') ok('catalysts: a phone stacks only the days that have something', await js(`var cols=[...document.querySelectorAll('#tradeboard-root .cat-col')].filter(c=>c.offsetParent); return cols.length===5 && cols.every(c=>c.querySelector('.cat-card')) && new Set(cols.map(c=>Math.round(c.getBoundingClientRect().left))).size===1;`),
+      await js(`return [...document.querySelectorAll('#tradeboard-root .cat-col')].filter(c=>c.offsetParent).length;`));
     ok(id + ': nothing scrolls sideways', await js(`return document.documentElement.scrollWidth <= window.innerWidth + 1 && [...document.querySelectorAll('#tradeboard-root .tbx-page')].every(p=>p.scrollWidth<=p.clientWidth+1);`), await js(`return document.documentElement.scrollWidth;`));
     await shot(name);
     if (id === 'catalysts') {
