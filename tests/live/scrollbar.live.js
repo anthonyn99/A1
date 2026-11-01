@@ -39,7 +39,11 @@ const GUTTERS = `
 const OLD_BARS = `return ['.sbar.on', '.vsb', '#scroller.on', '.docx-scrollbar.on', '#pv-sbar']
   .filter(function (s) { var e = document.querySelector(s); return e && e.offsetParent !== null && getComputedStyle(e).display !== 'none' && getComputedStyle(e).opacity !== '0'; });`;
 
-const VEDA_THUMB = `var t = document.querySelector('.vc-rail .vc-thumb'); return t && getComputedStyle(t).backgroundColor;`;
+// The colour a thumb wears (a probe one when no rail is drawn yet: a page
+// that scrolls an inner box rather than <body>).
+const VEDA_THUMB = `var t = document.querySelector('.vc-rail .vc-thumb'), probe = !t;
+  if (probe) { t = document.createElement('div'); t.className = 'vc-thumb'; document.body.appendChild(t); }
+  var bg = getComputedStyle(t).backgroundColor; if (probe) t.remove(); return bg;`;
 // Veda's side of each two-profile program: how the page switches to her.
 const VEDA = [
   ['index.html', "document.body.setAttribute('data-th-profile', 'veda')"],
@@ -234,12 +238,15 @@ async function go(c, url, wait) {
   }
   // MyList's list strip (the one Tony saw missing): hovering it shows her bar.
   await go(c, BASE + 'mylist.html', 3000);
+  // Past the picker and lock (no sign-in here): the app shell is enough.
   await evalJs(c, `document.body.setAttribute('data-profile', 'veda');
+    document.getElementById('app').style.display = 'flex';
+    document.querySelectorAll('#profile-overlay, guardian-lock, #lockScreen, .pp-overlay').forEach(function (e) { e.style.display = 'none'; });
     var b = document.getElementById('lists-bar');
     if (b && b.scrollWidth <= b.clientWidth) for (var i = 0; i < 12; i++) { var x = document.createElement('button'); x.textContent = 'Test list ' + i; x.style.cssText = 'flex:none;padding:8px 20px'; b.appendChild(x); }
     return 1;`);
   await sleep(200);
-  const lb = await evalJs(c, "var r = document.getElementById('lists-bar'); if (!r) return null; r = r.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 };");
+  const lb = await evalJs(c, "var e = document.getElementById('lists-bar'); if (!e) return null; var r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, over: e.scrollWidth - e.clientWidth, hit: e.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)) };");
   if (lb) {
     await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: lb.x - 5, y: lb.y });
     await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: lb.x, y: lb.y });
@@ -247,7 +254,7 @@ async function go(c, url, wait) {
   }
   const strip = await evalJs(c, `var r = Array.prototype.find.call(document.querySelectorAll('.vc-rail.h.on'), function (x) { return x.style.display !== 'none'; });
     return r ? { w: r.offsetWidth, bg: getComputedStyle(r.querySelector('.vc-thumb')).backgroundColor } : null;`);
-  ok("mylist.html (Veda): hovering the lists strip shows her sideways bar", !!strip && strip.w > 50 && /168, 146, 176/.test(strip.bg), strip);
+  ok("mylist.html (Veda): hovering the lists strip shows her sideways bar", !!strip && strip.w > 50 && /168, 146, 176/.test(strip.bg), { strip, lb });
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
