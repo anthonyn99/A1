@@ -86,7 +86,7 @@ const SUMMARY = {
       var card=q('.nhs').getBoundingClientRect();
       return JSON.stringify({
         headline:q('.nhs-headline').textContent, score:q('.nhs-score').textContent, tone:q('.nhs-tone-l').textContent,
-        points:qa('.nhs-pt').length, nums:qa('.nhs-pt-n').map(e=>e.textContent).join(), tags:qa('.nhs-pt .nhs-st').map(e=>e.textContent).join(),
+        points:qa('.nhs-pt').length, nums:qa('.nhs-pt-n').length, boxed:qa('.nhs-pt').every(e=>{var c=getComputedStyle(e); return c.borderTopStyle==='solid' && parseFloat(c.borderLeftWidth)===3 && c.borderLeftColor!==c.borderTopColor;}), tags:qa('.nhs-pt .nhs-st').map(e=>e.textContent).join(),
         chips:qa('.nhs-pt .nhs-tk').length, tickers:qa('.nhs-sym').length, themes:qa('.nhs-theme').length, risks:qa('.nhs-list li').length,
         foot:q('.nhs-foot').textContent, washes:washes, grads:grads,
         scoreFont:sc.fontFamily+'|'+sc.fontWeight+'|'+sc.fontVariantNumeric,
@@ -99,7 +99,7 @@ const SUMMARY = {
       });`));
     ok('headline, tone and score', r.headline === SUMMARY.headline && r.tone === 'Mixed' && r.score === '+0.20', JSON.stringify([r.tone, r.score]));
     ok('the gauge marks +0.20 (60%), filled from the centre', r.dotLeft === '60%' && parseFloat(r.fillW) === 10, r.dotLeft + ' ' + r.fillW);
-    ok('numbered key points with their stance and tickers', r.points === 4 && r.nums === '01,02,03,04' && /▲Bull,▼Bear,▲Bull,●Neutral/.test(r.tags) && r.chips === 6, JSON.stringify([r.nums, r.tags, r.chips]));
+    ok('key points: each an outlined card, edged in its stance, unnumbered, with stance and tickers', r.points === 4 && r.nums === 0 && r.boxed && /▲Bull,▼Bear,▲Bull,●Neutral/.test(r.tags) && r.chips === 6, JSON.stringify([r.nums, r.tags, r.chips]));
     ok('ticker and theme cards, risks and what to watch', r.tickers === 3 && r.themes === 2 && r.risks === 4, JSON.stringify([r.tickers, r.themes, r.risks]));
     ok('footer names the model', /55 analyzed events/.test(r.foot) && /gemini-2\.5-flash/.test(r.foot), r.foot);
     ok('no tinted washes and no gradients (MAGI theme)', !r.washes.length && !r.grads, JSON.stringify(r.washes) + ' grads=' + r.grads);
