@@ -180,10 +180,12 @@ class KeepHidden:
             pass
 
     def _run(self) -> None:
-        # EVENT_OBJECT_SHOW, out of context: delivered through this thread's
-        # message queue, so the loop below pumps messages while it waits.
+        # EVENT_OBJECT_SHOW and EVENT_OBJECT_LOCATIONCHANGE (Chrome can show
+        # its frame and only then move it off-screen), out of context: they
+        # arrive through this thread's message queue, so the loop below pumps
+        # messages while it waits.
         proc = _WINEVENTPROC(self._on_show)
-        hook = _user32.SetWinEventHook(0x8002, 0x8002, 0, proc, 0, 0, 0)
+        hooks = [_user32.SetWinEventHook(e, e, 0, proc, 0, 0, 0) for e in (0x8002, 0x800B)]
         msg = wt.MSG()
         read_at = float("-inf")
         try:
@@ -206,5 +208,6 @@ class KeepHidden:
                     _user32.TranslateMessage(ctypes.byref(msg))
                     _user32.DispatchMessageW(ctypes.byref(msg))
         finally:
-            if hook:
-                _user32.UnhookWinEvent(hook)
+            for hook in hooks:
+                if hook:
+                    _user32.UnhookWinEvent(hook)
