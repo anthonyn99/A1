@@ -42,7 +42,9 @@ if (PAST) EVENTS.push(
   { id: 'mc_cpi_' + PAST, kind: 'macro', category: 'inflation', name: 'September CPI Report', date: PAST, importance: 'high' },
   { id: 'mc_hol_' + PAST, kind: 'holiday', category: 'holiday', name: 'Market Holiday', date: PAST },
   { id: 'earn_TSM_' + PAST, kind: 'earnings', ticker: 'TSM', name: 'TSM Earnings', date: PAST, category: 'earnings', when: 'bmo', epsEst: 2.6 },
-  { id: 'earn_NFLX_' + PAST, kind: 'earnings', ticker: 'NFLX', name: 'NFLX Earnings', date: PAST, category: 'earnings', when: 'amc' },
+  { id: 'earn_NFLX_' + PAST, kind: 'earnings', ticker: 'NFLX', name: 'NFLX Earnings', date: PAST, category: 'earnings', when: 'bmo' },
+  // After the close: its own card (a card per session, 2026-11-01).
+  { id: 'earn_AMD_' + PAST, kind: 'earnings', ticker: 'AMD', name: 'AMD Earnings', date: PAST, category: 'earnings', when: 'amc' },
   // Three releases at 10:00 ET: ONE card, ONE ▶ (grouped releases, 2026-10-29).
   { id: 'mc_um_' + PAST, kind: 'macro', category: 'sentiment', name: 'UMich Consumer Sentiment', date: PAST, importance: 'medium' },
   { id: 'mc_ism_' + PAST, kind: 'macro', category: 'growth', name: 'ISM Services PMI', date: PAST, importance: 'high' },
@@ -87,7 +89,9 @@ const CFG = { tony: { units: ['grok'] }, veda: { units: ['gemini', 'claude'] }, 
     const b = await btns();
     if (PAST) {
       ok('the CPI print that came out has ▶', b.some((l) => /September CPI Report/.test(l)), b);
-      ok('a day of two earnings shows ONE ▶, for both reports', b.filter((l) => /earnings/.test(l)).length === 1 && b.some((l) => /TSM, NFLX earnings/.test(l)), b);
+      ok('two earnings in one session show ONE ▶, for both reports', b.some((l) => /TSM, NFLX earnings/.test(l)), b);
+      ok('an after-close report gets its own card and ▶', b.filter((l) => /earnings/.test(l)).length === 2 && b.some((l) => /^Debrief AMD earnings in MAGI$/.test(l)), b);
+      ok('each earnings card says when it lands, its chip in pink', await js(`var t=[...document.querySelectorAll('span')].filter(s=>s.offsetParent); var chip=t.find(s=>s.textContent==='Earnings'); return t.some(s=>s.textContent==='Before open') && t.some(s=>s.textContent==='After close') && !!chip && getComputedStyle(chip).color==='rgb(231, 166, 180)';`));
       ok('a market holiday never does', !b.some((l) => /Holiday/.test(l)), b);
       ok('three 10:00 releases show ONE ▶ for all of them', b.filter((l) => /UMich|ISM|JOLTS/.test(l)).length === 1 && b.some((l) => /UMich Consumer Sentiment, ISM Services PMI, JOLTS Job Openings/.test(l)), b);
       const card = JSON.parse(await js(`var c=[...document.querySelectorAll('[data-mc-group]')].find(x=>x.offsetParent); return JSON.stringify(c?{n:c.getAttribute('data-mc-group'),t:c.innerText,stray:[...document.querySelectorAll('span')].filter(d=>d.offsetParent&&!d.closest('[data-mc-group]')&&/^ISM Services PMI$/.test(d.textContent.trim())).length}:null);`));
