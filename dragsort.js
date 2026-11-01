@@ -325,8 +325,13 @@
       var float = function () { ghost.style.transform = lift(pos2(lastX - e.clientX, lastY - e.clientY)); };
 
       var coord = function (b) { return { x: b.x, y: b.y }; };
-      var pos1 = function (r, v) { return X ? 'translate3d(' + v + 'px, 0, 0)' : 'translate3d(0, ' + v + 'px, 0)'; };
-      var pos2 = function (dx, dy) { return 'translate3d(' + dx + 'px, ' + dy + 'px, 0)'; };
+      // 2D translate, never translate3d: a 3D one keeps the row on a GPU layer of
+      // its own, and moved by a fractional distance (rows of unequal height:
+      // 33.5px) its text and box drew a pixel off where the reordered list then
+      // puts them -- every pushed row jumped on release. A 2D one leaves the
+      // layer once its slide ends and paints exactly as it will after the drop.
+      var pos1 = function (r, v) { return X ? 'translate(' + v + 'px, 0)' : 'translate(0, ' + v + 'px)'; };
+      var pos2 = function (dx, dy) { return 'translate(' + dx + 'px, ' + dy + 'px)'; };
       var lift = function (t) { return ax !== 'y' ? t + ' scale(1.06)' : t; };   // the lifted row only
 
       // Where the dragged row would sit, list-relative, unclamped.
