@@ -947,15 +947,31 @@ function buildVRuler(ctx) {
   ctx.edEl.addEventListener('input', reflow);
   // Deleting a highlight's text leaves an empty <mark> (a padded bar); drop it with the text.
   ctx.edEl.addEventListener('input', function() { dropEmptyHighlights(ctx.edEl); });
+  // Backspace/Delete on an already-empty bar changes nothing, so no 'input' fires: sweep on keyup too.
+  ctx.edEl.addEventListener('keyup', function(e) {
+    if (e.key === 'Backspace' || e.key === 'Delete') dropEmptyHighlights(ctx.edEl);
+  });
 }
 function dropEmptyHighlights(ed) {
-  Array.prototype.forEach.call(ed.querySelectorAll('mark,[data-tj-hl],[data-bj-hl]'), function(el) {
-    if (el.textContent.replace(/​/g, '') !== '' || el.querySelector('img,br,table,hr,input')) return;
+  Array.prototype.forEach.call(ed.querySelectorAll('mark,[data-tj-hl],[data-bj-hl],span[style]'), function(el) {
+    if (!_isHL(el)) return;
+    if (el.textContent.replace(/​/g, '') !== '' || el.querySelector('img,table,hr,input')) return;
+    if (el.querySelector('br')) { _unwrap(el); return; }   // keep the line, lose the bar
     var sel = window.getSelection(), p = el.parentNode, i = Array.prototype.indexOf.call(p.childNodes, el);
     var inside = sel && sel.rangeCount && el.contains(sel.anchorNode);
     p.removeChild(el);
     if (inside) { try { sel.collapse(p, Math.min(i, p.childNodes.length)); } catch (e) {} }
   });
+}
+// Text colours the highlighter sets for contrast (dark on pastel); they must go with the highlight.
+var _hlTextColors = null;
+function _isHLTextColor(c) {
+  if (!c) return false;
+  if (!_hlTextColors) {
+    var d = document.createElement('span');
+    _hlTextColors = ['#2a2000', '#082b0e', '#052240', '#3a0012', '#2d1a00', '#1e0050', '#111', '#111111'].map(function(h) { d.style.color = ''; d.style.color = h; return d.style.color; });
+  }
+  return _hlTextColors.indexOf(c) >= 0;
 }
 function _pageHeight(app) {
   var ps = psGet(app), dim = SIZES[ps.size] || SIZES.letter;
@@ -1311,6 +1327,21 @@ window._docxStripHighlight = function(ed, range) {
       if (!(el.getAttribute('style') || '').trim()) el.removeAttribute('style');
       if (!el.attributes.length) _unwrap(el);
     }
+  });
+  // Leftover highlight text colour (spans/fonts the browser split off) would show as odd-coloured text.
+  Array.prototype.slice.call(ed.querySelectorAll('span[style],font[color]')).forEach(function(el) {
+    var hit = false;
+    try { hit = r.intersectsNode(el); } catch (e) { hit = true; }
+    if (!hit) return;
+    if (el.tagName === 'FONT') {
+      var d = document.createElement('span'); d.style.color = el.getAttribute('color');
+      if (_isHLTextColor(d.style.color)) { el.removeAttribute('color'); if (!el.attributes.length) _unwrap(el); }
+      return;
+    }
+    if (!_isHLTextColor(el.style.color)) return;
+    el.style.color = '';
+    if (!(el.getAttribute('style') || '').trim()) el.removeAttribute('style');
+    if (!el.attributes.length) _unwrap(el);
   });
   ed.normalize();
 };
