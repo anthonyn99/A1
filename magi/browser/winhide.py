@@ -102,7 +102,7 @@ class KeepHidden:
     re-read only while no process is known, and every REFRESH_S after that.
     """
 
-    TICK_S = 0.15
+    TICK_S = 0.05
     EMPTY_REREAD_S = 0.5
     REFRESH_S = 30.0
 
