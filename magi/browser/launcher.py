@@ -94,7 +94,7 @@ def _names_profile(cmd: str, target: str) -> bool:
     i = cmd.find(target)
     while i != -1:
         end = i + len(target)
-        if end == len(cmd) or cmd[end] in ' "\':
+        if end == len(cmd) or cmd[end] in ' "\\':
             return True
         i = cmd.find(target, end)
     return False
