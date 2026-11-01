@@ -10137,7 +10137,8 @@ function App(){
     const lgS={fontSize:c?10:12,fontWeight:800,letterSpacing:1,textTransform:"uppercase",color:"#c2b1dc",lineHeight:1};
     const tmS={fontSize:c?10:12,fontWeight:700,color:T.TXD,opacity:.95,marginLeft:"auto",whiteSpace:"nowrap"};
     const sz=c?20:26;
-    const del1=e=>edit&&React.createElement("button",{type:"button",style:{...dbtn,padding:c?"0 5px":"0 6px",flexShrink:0},onClick:()=>del(k,e.id)},"×");
+    // No ✕ in edit mode (Tony, 2026-11-01): RiftIQ writes these from the live
+    // schedule, so a card is never removed by hand here.
     return order.map(lg=>{const g=by[lg];
       if(g.length===1){const e=g[0];
         return React.createElement("div",{key:e.id,style:{marginBottom:c?4:5,cursor:"default",display:"flex",alignItems:"center",gap:c?4:5}},
@@ -10145,8 +10146,7 @@ function App(){
             React.createElement("div",{style:{display:"flex",alignItems:"center",gap:c?3:4,marginBottom:c?3:4}},
               React.createElement("span",{style:lgS},e.league),
               e.time&&React.createElement("span",{style:tmS},fmt12h(e.time,k,e.tz))),
-            pvTeams(e,tone,c,sz)),
-          del1(e));}
+            pvTeams(e,tone,c,sz)));}
       return React.createElement("div",{key:"pvg-"+g.map(e=>e.id).join("-"),"data-pv-group":g.length,style:{marginBottom:c?4:5,cursor:"default",display:"flex"}},
         React.createElement("div",{style:{...box,display:"flex",flexDirection:"column",gap:c?5:6}},
           React.createElement("div",{style:{display:"flex",alignItems:"center",gap:c?4:5,minWidth:0}},
@@ -10154,10 +10154,8 @@ function App(){
             React.createElement("span",{style:{fontSize:9.5,color:T.TXD,background:T.TXD+"1a",borderRadius:6,padding:"1px 6px",fontWeight:700,whiteSpace:"nowrap",flexShrink:0,border:"1px solid "+T.TXD+"30",marginLeft:"auto"}},g.length+" matches")),
           g.map(e=>React.createElement("div",{key:e.id,style:{display:"flex",flexDirection:"column",gap:c?3:4}},
             e.time&&React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4}},
-              React.createElement("span",{style:{...tmS,marginLeft:0}},fmt12h(e.time,k,e.tz)),
-              edit&&React.createElement("span",{style:{marginLeft:"auto"}},del1(e))),
-            pvTeams(e,tone,c,sz),
-            !e.time&&del1(e)))));
+              React.createElement("span",{style:{...tmS,marginLeft:0}},fmt12h(e.time,k,e.tz))),
+            pvTeams(e,tone,c,sz)))));
     });
   };
 
