@@ -8413,8 +8413,8 @@ function TgScrollBox(props){
   }
 
   const pad=props.trackInset||6;
-  // Tony's side: scrollbar.js already draws the one A1 bar on this scroller, so
-  // this older thumb stands down (Veda's side, where it is off, keeps this one).
+  // scrollbar.js already draws the one A1 bar on this scroller (both sides), so
+  // this older thumb stands down; it shows only if that file failed to load.
   const oneBar=!!(window.A1Scrollbar&&window.A1Scrollbar.active&&window.A1Scrollbar.active());
   return React.createElement("div",{style:{position:"relative",flex:1,minHeight:0,display:"flex",flexDirection:"column"}},
     React.createElement("div",{ref:boxRef,onScroll:function(){ sync(); wake(); },className:"tg-scrollbox",
@@ -19853,7 +19853,7 @@ window.PlansCore={
      OurJournal) and their Firestore adapters, loaded in place by notebook.js.
      MyJournal itself still lives below until Phase 3
      (docs/Notebook/plan.md). ── -->
-<script src="Notebook/notebook.js?v=47c06255dd"></script>
+<script src="Notebook/notebook.js?v=d54646ad72"></script>
 
 <!-- ── Brainstorm Journal: Notebook's brainstorm app (Notebook/apps/brainstorm.*). ── -->
 <script>Notebook.mount({ profile: 'veda' });</script>

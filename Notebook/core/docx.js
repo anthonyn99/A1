@@ -4633,7 +4633,7 @@ function addFadingScrollbar(ctx) {
   wrap.insertBefore(holder, wrap.firstChild);
   var hideT = null, dragging = false, raf = null;
   // A page running the shared A1 scrollbar (scrollbar.js) draws this box's bar
-  // itself; this one only shows where that is off (Veda's side).
+  // itself, on both sides; this one only shows where that file isn't loaded.
   function shared() { return !!(window.A1Scrollbar && window.A1Scrollbar.active()); }
   function geom() {
     var sh = wrap.scrollHeight, ch = wrap.clientHeight;

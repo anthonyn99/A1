@@ -1938,7 +1938,8 @@ var Scroll = (function(){
 
   function paint(){
     raf = 0;
-    // The shared A1 scrollbar (scrollbar.js) draws Tony's; this one is Veda's.
+    // The shared A1 scrollbar (scrollbar.js) draws both sides' bar; this one
+    // shows only if that file failed to load.
     if (window.A1Scrollbar && window.A1Scrollbar.active()){ el.classList.remove('on'); return; }
     var m = metrics();
     // Nothing to scroll: the control would be a lie, so it is not drawn at all.
