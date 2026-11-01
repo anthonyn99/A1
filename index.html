@@ -10462,8 +10462,9 @@ function App(){
                   "Prayer",
                   React.createElement("span",{"aria-label":"from Everwell",style:{display:"inline-flex",width:20,height:20,marginLeft:7,verticalAlign:"-5px",color:T.AC},dangerouslySetInnerHTML:{__html:'<svg viewBox="0 0 96 96" width="20" height="20" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"><path d="M48 30C38 43 38 59 48 72 58 59 58 43 48 30Z"/><path d="M48 72C34 70 24 59 22 47 36 49 44 58 48 72Z"/><path d="M48 72C62 70 72 59 74 47 60 49 52 58 48 72Z"/></g><circle cx="48" cy="14" r="9" fill="currentColor"/></svg>'}})),
                 ...wd.map((w2,di)=>{const k=dkey(w2.year,w2.month,w2.day),ch=!!ewPrayer[k];return habCell(ch,()=>{if(window._fbEwPrayerSet)window._fbEwPrayerSet(k,!ch);},k===tk);}),
-                // The same (empty) edit cell as a habit's, so the columns line up.
-                React.createElement("td",{"aria-hidden":"true",style:{paddingTop:7,paddingBottom:7,borderBottom:"1px solid "+T.BD+"22",width:50}}))
+                // The same edit cell as a habit's, empty (no edit, no delete), so the
+                // columns line up and the row is a habit row's height in both modes.
+                React.createElement("td",{"aria-hidden":"true",style:{paddingTop:7,paddingBottom:7,borderBottom:"1px solid "+T.BD+"22",width:50,paddingRight:2,paddingLeft:4}},thRowEditSpacer()))
               :React.createElement("tr",{key:h.id,"data-dkey":h.id,"data-kind":"habit",style:{cursor:"grab"}},
                 React.createElement("td",{style:{fontSize:13,fontWeight:700,color:T.TX,paddingLeft:4,paddingTop:7,paddingBottom:7,wordBreak:"break-word",whiteSpace:"normal",borderBottom:"1px solid "+T.BD+"22",width:"100%"}},
                                     h.title,
