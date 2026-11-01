@@ -35,6 +35,13 @@ if _IS_WINDOWS:
     _WS_EX_TOOLWINDOW = 0x00000080
     _WS_EX_APPWINDOW = 0x00040000
     _SW_HIDE = 0
+    _WINEVENTPROC = ctypes.WINFUNCTYPE(
+        None, wt.HANDLE, wt.DWORD, wt.HWND, wt.LONG, wt.LONG, wt.DWORD, wt.DWORD
+    )
+    _user32.SetWinEventHook.restype = wt.HANDLE
+    _user32.SetWinEventHook.argtypes = (
+        wt.DWORD, wt.DWORD, wt.HMODULE, _WINEVENTPROC, wt.DWORD, wt.DWORD, wt.DWORD
+    )
 
 
 def _top_level_windows(pids: set[int]) -> list[int]:
@@ -151,8 +158,9 @@ class KeepHidden:
     EMPTY_REREAD_S = 0.5
     REFRESH_S = 30.0
 
-    def __init__(self, pids_fn: Callable[[], list[int]]):
+    def __init__(self, pids_fn: Callable[[], list[int]]) -> None:
         self._pids_fn = pids_fn
+        self._pids: set[int] = set()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self.hidden = 0
@@ -169,21 +177,48 @@ class KeepHidden:
             self._thread.join(timeout=2)
             self._thread = None
 
+    def _on_show(self, _hook, _event, hwnd, id_object, id_child, _thread, _time) -> None:
+        """A window just became visible: hide it there and then if it is one
+        of ours, so even the first frame never reaches the taskbar. The
+        polling below is the backstop for a show this misses."""
+        if id_object != 0 or id_child != 0:  # OBJID_WINDOW, the window itself
+            return
+        try:
+            pid = wt.DWORD()
+            _user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+            if pid.value in self._pids or hwnd in _parked_frames():
+                if hwnd in _top_level_windows({pid.value}) or hwnd in _parked_frames():
+                    _hide(hwnd)
+                    self.hidden += 1
+        except Exception:  # noqa: BLE001 - a visible window is cosmetic
+            pass
+
     def _run(self) -> None:
-        pids: set[int] = set()
+        # EVENT_OBJECT_SHOW, out of context: delivered through this thread's
+        # message queue, so the loop below pumps messages while it waits.
+        proc = _WINEVENTPROC(self._on_show)
+        hook = _user32.SetWinEventHook(0x8002, 0x8002, 0, proc, 0, 0, 0)
+        msg = wt.MSG()
         read_at = float("-inf")
-        while not self._stop.is_set():
-            now = time.monotonic()
-            due = self.EMPTY_REREAD_S if not pids else self.REFRESH_S
-            if now - read_at >= due:
-                try:
-                    pids = set(self._pids_fn())
-                except Exception:
-                    pids = set()
-                read_at = now
-            # Parked frames first: they are hidden before the process
-            # list (a slow read) even knows Chrome has started.
-            self.hidden += hide_parked()
-            if pids:
-                self.hidden += hide_windows(pids)
-            self._stop.wait(self.TICK_S)
+        try:
+            while not self._stop.is_set():
+                now = time.monotonic()
+                due = self.EMPTY_REREAD_S if not self._pids else self.REFRESH_S
+                if now - read_at >= due:
+                    try:
+                        self._pids = set(self._pids_fn())
+                    except Exception:  # noqa: BLE001 - try again next round
+                        self._pids = set()
+                    read_at = now
+                # Parked frames first: they are hidden before the process
+                # list (a slow read) even knows Chrome has started.
+                self.hidden += hide_parked()
+                if self._pids:
+                    self.hidden += hide_windows(self._pids)
+                _user32.MsgWaitForMultipleObjects(0, None, False, int(self.TICK_S * 1000), 0x04FF)
+                while _user32.PeekMessageW(ctypes.byref(msg), 0, 0, 0, 1):
+                    _user32.TranslateMessage(ctypes.byref(msg))
+                    _user32.DispatchMessageW(ctypes.byref(msg))
+        finally:
+            if hook:
+                _user32.UnhookWinEvent(hook)
