@@ -8226,6 +8226,19 @@ function OI_couponRow(c,T,edit){
       c.restrictions?(" · "+c.restrictions):""));
 }
 
+// A week day card's "+ Add", in its top-right corner beside the day and date.
+// View mode only: edit mode keeps its full-width "+ Add" at the bottom of the day.
+// Both TaskHubs; c = {ac, bd, hoverBg, radius}.
+function thDayAddBtn(c,onClick){
+  return React.createElement("button",{type:"button",title:"Add a task or event",onClick:onClick,
+    style:{flexShrink:0,display:"inline-flex",alignItems:"center",gap:3,height:22,padding:"0 7px",borderRadius:c.radius,
+      background:"transparent",border:"1px solid "+c.bd,color:c.ac,fontFamily:"inherit",fontSize:10,fontWeight:700,
+      lineHeight:1,letterSpacing:.2,whiteSpace:"nowrap",cursor:"pointer",transition:"border-color .15s,background-color .15s"},
+    onMouseEnter:e=>{e.currentTarget.style.borderColor=c.ac;e.currentTarget.style.background=c.hoverBg;},
+    onMouseLeave:e=>{e.currentTarget.style.borderColor=c.bd;e.currentTarget.style.background="transparent";}},
+    React.createElement("span",{style:{fontSize:12,fontWeight:600,marginTop:-1}},"+"),"Add");
+}
+
 // A package / bill / travel card, drawn inside a weekly day cell.
 function OI_weekCard(c,T,dayTX,edit){
   const col=OI_COLOR[c.kind]||OI_COLOR.package;
