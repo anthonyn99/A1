@@ -57,6 +57,55 @@ def _top_level_windows(pids: set[int]) -> list[int]:
     return found
 
 
+#: Where every background run parks its window (MAGI, ORCA and StudyOS all
+#: pass --window-position=-32000,-32000). A minimised window reports the same
+#: spot, so only frames that are NOT minimised count as parked.
+_PARKED_AT = -30000
+
+
+def _parked_frames() -> list[int]:
+    """Visible, non-minimised Chrome frames parked off-screen: only a
+    background run puts a frame there, so it can be hidden before its
+    process is known (closing the flash at launch)."""
+    found: list[int] = []
+    callback_type = ctypes.WINFUNCTYPE(ctypes.c_bool, wt.HWND, wt.LPARAM)
+
+    def _cb(hwnd, _lparam):
+        if _user32.IsWindowVisible(hwnd) and not _user32.IsIconic(hwnd):
+            rect = wt.RECT()
+            if _user32.GetWindowRect(hwnd, ctypes.byref(rect)) and (
+                rect.left <= _PARKED_AT and rect.top <= _PARKED_AT
+            ):
+                buf = ctypes.create_unicode_buffer(256)
+                _user32.GetClassNameW(hwnd, buf, 256)
+                if "Chrome_WidgetWin" in buf.value:
+                    found.append(hwnd)
+        return True
+
+    _user32.EnumWindows(callback_type(_cb), 0)
+    return found
+
+
+def _hide(hwnd: int) -> None:
+    ex = _user32.GetWindowLongW(hwnd, _GWL_EXSTYLE)
+    _user32.SetWindowLongW(hwnd, _GWL_EXSTYLE, (ex | _WS_EX_TOOLWINDOW) & ~_WS_EX_APPWINDOW)
+    _user32.ShowWindow(hwnd, _SW_HIDE)
+
+
+def hide_parked() -> int:
+    """Hide every parked background frame; how many."""
+    if not _IS_WINDOWS:
+        return 0
+    hidden = 0
+    for hwnd in _parked_frames():
+        try:
+            _hide(hwnd)
+            hidden += 1
+        except Exception:  # noqa: BLE001 - a visible window is cosmetic
+            pass
+    return hidden
+
+
 def hide_windows(pids: set[int]) -> int:
     """Hide every visible Chrome frame of these processes. Returns how many
     were hidden; a visible window is cosmetic, never a failure."""
@@ -136,6 +185,9 @@ class KeepHidden:
                 except Exception:
                     pids = set()
                 read_at = now
+            # Parked frames first: they are hidden before the process
+            # list (a slow read) even knows Chrome has started.
+            self.hidden += hide_parked()
             if pids:
                 self.hidden += hide_windows(pids)
             self._stop.wait(self.TICK_S)
