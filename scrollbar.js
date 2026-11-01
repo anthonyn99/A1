@@ -17,11 +17,12 @@
  * strip's bottom padding or just under it, and the wheel scrolls it sideways.
  * A finger just swipes the strip.
  *
- * Tony's side only. Veda's side of a two-profile page (body data-profile or
- * data-th-profile = "veda") keeps the bars it always had: this file switches
- * itself off there, live, and A1Scrollbar.active() says which is in force. A
- * program's older bar (the journal editor's, Shield's, MAGI's, OneInbox's,
- * ProView's) checks active() and stands down while this one is on.
+ * Both sides wear it. Veda's side of a two-profile page (data-profile or
+ * data-th-profile = "veda" on <body> or <html>, followed live) gets the same
+ * bar in her mauve; a Veda-only page says so on its tag:
+ *   <script src="scrollbar.js" data-profile="veda"></script>
+ * A program's older bar (the journal editor's, Shield's, MAGI's, OneInbox's,
+ * ProView's) checks A1Scrollbar.active() and stands down while this one is on.
  *
  * Vault itself keeps loading vault-controls.js (which carries the same code
  * plus its select/date/tooltip controls), so this file stands down when that
@@ -34,6 +35,8 @@
   var root = doc.documentElement;
   var coarse = window.matchMedia ? window.matchMedia('(pointer:coarse)') : { matches: false };
   var reduced = window.matchMedia ? window.matchMedia('(prefers-reduced-motion:reduce)') : { matches: false };
+  var tag = doc.currentScript;
+  var vedaOnly = !!tag && tag.getAttribute('data-profile') === 'veda';
 
   var CSS = [
     // Native scrollbars off everywhere — the overlay thumb below replaces them.
@@ -55,6 +58,9 @@
     '.vc-rail:hover .vc-thumb,.vc-rail.drag .vc-thumb{background:var(--ac,#c0aeea)}',
     '.vc-rail.v:hover .vc-thumb,.vc-rail.v.drag .vc-thumb{width:9px}.vc-rail.h:hover .vc-thumb,.vc-rail.h.drag .vc-thumb{height:9px}',
     '.vc-rail.drag .vc-thumb{cursor:grabbing}',
+    // Veda's colours: her mauve (StudyOS's --ac / --acl), the same bar.
+    'html.vc-veda .vc-thumb{background:rgba(168,146,176,.42)}',
+    'html.vc-veda .vc-rail:hover .vc-thumb,html.vc-veda .vc-rail.drag .vc-thumb{background:#A892B0}',
     '@media (pointer:coarse){',
     // Finger-sized grab area, thin visible pill.
     '  .vc-rail.v{width:28px}.vc-rail.h{height:28px}',
@@ -76,14 +82,13 @@
     sync();
   }
   function veda() {
-    var b = doc.body;
-    return !!b && (b.getAttribute('data-profile') === 'veda' || b.getAttribute('data-th-profile') === 'veda');
+    return vedaOnly || [doc.body, root].some(function (e) {
+      return !!e && (e.getAttribute('data-profile') === 'veda' || e.getAttribute('data-th-profile') === 'veda');
+    });
   }
   function sync() {
-    var on = !veda();
-    if (root.classList.contains('vc-on') === on) return;
-    root.classList.toggle('vc-on', on);
-    if (!on) bars.forEach(function (b) { b.live = false; ['v', 'h'].forEach(function (a) { if (b[a]) hideRail(b[a]); }); });
+    root.classList.add('vc-on');
+    root.classList.toggle('vc-veda', veda());
   }
 
   function h(tag, cls, html) { var e = doc.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
@@ -433,7 +438,10 @@
   function start() {
     injectStyles();
     // The profile can change after load (Index and Shield switch it live).
-    if (doc.body) new MutationObserver(sync).observe(doc.body, { attributes: true, attributeFilter: ['data-profile', 'data-th-profile'] });
+    var mo = new MutationObserver(sync), who = { attributes: true, attributeFilter: ['data-profile', 'data-th-profile'] };
+    mo.observe(root, who);
+    if (doc.body) mo.observe(doc.body, who);
+    sync();
   }
   if (doc.head) injectStyles();
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', start); else start();
