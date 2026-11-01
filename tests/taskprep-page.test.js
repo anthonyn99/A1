@@ -361,7 +361,7 @@ section('request');
     t('it is loaded from the item being edited', vModal.includes('setAiPrep(!!initial?.aiPrep);setAiNote(initial?.aiNote||"");setAiSite(initial?.aiSite||"")'));
     const builds = vModal.match(/\.\.\.aiF\}/g) || [];
     t('all three item builds carry the AI fields', builds.length === 3, 'found ' + builds.length);
-    t('rows show ✨ only on her own flagged items', (html.slice(vApp).match(/!edit&&[te]\.aiPrep&&![te]\._sosId&&vdPrepBtn\([te],k\)/g) || []).length === 4);
+    t('rows show ✨ only on her own flagged items', (html.slice(vApp).match(/[te]\.aiPrep&&![te]\._sosId&&thHide\(edit,vdPrepBtn\([te],k\)\)/g) || []).length === 4);
     t('the panel is mounted', html.slice(vApp).includes('RC(VdPrepPanel,{'));
     t("Veda's side never names Tony's prep", !/_thPrep|_thBridge|_thPcApps|th-prep-|ThPrepPanel/.test(html.slice(vStart, html.indexOf('ReactDOM.render(RC(App)', vStart))));
   }
@@ -380,7 +380,7 @@ section('request');
     t('all three item builds carry the AI fields', (tModal.match(/\.\.\.aiF,\n/g) || []).length === 3, 'found ' + (tModal.match(/\.\.\.aiF,\n/g) || []).length);
     t('a saved flagged task is prepped with Tony\'s request, never Veda\'s', tModal.includes('window._thPrepRequest(item,startDateKey)') && !/_vdPrep/.test(tModal));
     t('the panel is Tony\'s own', html.includes('function ThPrepPanel({item,dateKey,onClose,T})') && !/_vd/.test(html.slice(html.indexOf('function ThPrepPanel('), html.indexOf('function PlanCheck('))));
-    t('rows show ✦ on his flagged items, both week layouts', (tony.match(/!edit&&[te]\.aiPrep&&![te]\._sosId&&thPrepBtn\([te],k\)/g) || []).length === 4);
+    t('rows show ✦ on his flagged items, both week layouts', (tony.match(/[te]\.aiPrep&&![te]\._sosId&&thHide\(edit,thPrepBtn\([te],k\)\)/g) || []).length === 4);
     t('the panel is mounted', tony.includes('React.createElement(ThPrepPanel,{T,'));
     t('the background run reads Tony\'s data', tony.includes('window._thPrepRun(stateRef.current.data,'));
   }
