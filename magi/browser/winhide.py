@@ -204,6 +204,18 @@ class KeepHidden:
         except Exception:  # noqa: BLE001 - a visible window is cosmetic
             pass
 
+    def _read_pids(self) -> None:
+        read_at = float("-inf")
+        while not self._stop.is_set():
+            due = self.EMPTY_REREAD_S if not self._pids else self.REFRESH_S
+            if time.monotonic() - read_at >= due:
+                try:
+                    self._pids = set(self._pids_fn())
+                except Exception:  # noqa: BLE001 - try again next round
+                    self._pids = set()
+                read_at = time.monotonic()
+            self._stop.wait(self.TICK_S)
+
     def _run(self) -> None:
         # EVENT_OBJECT_SHOW and EVENT_OBJECT_LOCATIONCHANGE (Chrome can show
         # its frame and only then move it off-screen), out of context: they
@@ -212,17 +224,12 @@ class KeepHidden:
         proc = _WINEVENTPROC(self._on_show)
         hooks = [_user32.SetWinEventHook(e, e, 0, proc, 0, 0, 0) for e in (0x8002, 0x800B)]
         msg = wt.MSG()
-        read_at = float("-inf")
+        # The process list is a slow read (PowerShell); on its own thread, so
+        # it never stalls the hook or the sweep while Chrome is starting.
+        reader = threading.Thread(target=self._read_pids, name="winhide-pids", daemon=True)
+        reader.start()
         try:
             while not self._stop.is_set():
-                now = time.monotonic()
-                due = self.EMPTY_REREAD_S if not self._pids else self.REFRESH_S
-                if now - read_at >= due:
-                    try:
-                        self._pids = set(self._pids_fn())
-                    except Exception:  # noqa: BLE001 - try again next round
-                        self._pids = set()
-                    read_at = now
                 # Parked frames first: they are hidden before the process
                 # list (a slow read) even knows Chrome has started.
                 self.hidden += hide_parked()
@@ -233,6 +240,7 @@ class KeepHidden:
                     _user32.TranslateMessage(ctypes.byref(msg))
                     _user32.DispatchMessageW(ctypes.byref(msg))
         finally:
+            reader.join(timeout=0.1)
             for hook in hooks:
                 if hook:
                     _user32.UnhookWinEvent(hook)
