@@ -79,7 +79,7 @@
   var groups = {};          // group name -> [{ list, o }]
 
   var CSS = [
-    '.dsort > * { transition: transform .17s cubic-bezier(.2, .8, .2, 1); }',
+    '.dsort > * { transition: transform .17s cubic-bezier(.2, .8, .2, 1), left .17s cubic-bezier(.2, .8, .2, 1), top .17s cubic-bezier(.2, .8, .2, 1); }',
     // !important: themed rows carry their own `transition: all` and inline
     // backgrounds, and a lifted row that eases after the pointer lags behind it.
     '.dsort-drag {',
@@ -93,7 +93,7 @@
     // A lifted chip's 1.06 is part of its transform (lift() in begin), never
     // the `scale` property: that multiplies the translate too, so the chip
     // trailed the pointer by 6% of the distance dragged.
-    '.dsort-settle { transition: transform .17s cubic-bezier(.2, .8, .2, 1), box-shadow .17s !important; }',
+    '.dsort-settle { transition: transform .17s cubic-bezier(.2, .8, .2, 1), left .17s cubic-bezier(.2, .8, .2, 1), top .17s cubic-bezier(.2, .8, .2, 1), box-shadow .17s !important; }',
     '.dsort-on > :not(.dsort-drag) { pointer-events: none; }',
     // Held for the instant the transforms are cleared and the caller redraws the
     // new order: without it each row EASED from its settled offset back to 0 and
@@ -325,36 +325,30 @@
       var float = function () { ghost.style.transform = lift(pos2(lastX - e.clientX, lastY - e.clientY)); };
 
       var coord = function (b) { return { x: b.x, y: b.y }; };
-      // 2D translate, never translate3d: a 3D one keeps the row on a GPU layer of
-      // its own, and moved by a fractional distance (rows of unequal height:
-      // 33.5px) its text and box drew a pixel off where the reordered list then
-      // puts them -- every pushed row jumped on release. A 2D one leaves the
-      // layer once its slide ends and paints exactly as it will after the drop.
-      //
-      // And snapped: the page draws a row's own position on whole device pixels
-      // but a transform's offset as given, so a row at 338.59 slid 33.5px drew
-      // its text half a pixel from where the reordered list puts it (372.09),
-      // and it hopped on release. Each offset is rounded so the row ends on the
-      // device pixel its new place will use. `at` is the element moved (or its
-      // untransformed {x, y}); without one (the row under the pointer) no snap.
-      var baseOf = function (el) {
-        if (!el.nodeType) return el;
-        var b = el.getBoundingClientRect(), t = getComputedStyle(el).transform;
-        var m = t && t !== 'none' && window.DOMMatrixReadOnly ? new DOMMatrixReadOnly(t) : null;
-        return { x: b.left - (m ? m.e : 0), y: b.top - (m ? m.f : 0) };
+      // The row under the pointer (or its copy) follows it with a transform. The
+      // rows it pushes aside, and its glide into the slot, move by a relative
+      // offset instead: left / top is layout, so the page draws it on exactly the
+      // pixels the reordered list will use. A transform is drawn at its offset as
+      // given, so a row slid a fractional distance (rows of unequal height:
+      // 33.5px) showed its text and box a pixel off, and hopped on release.
+      var pos2 = function (dx, dy) { return 'translate(' + dx + 'px, ' + dy + 'px)'; };
+      var pos1 = function (r, v) { return X ? pos2(v, 0) : pos2(0, v); };
+      var nudge = function (r, dx, dy) {
+        if (!r._dsRel) {
+          var cs = getComputedStyle(r);
+          r._dsRel = { pos: r.style.position, l: r.style.left, t: r.style.top,
+            bl: cs.position === 'static' ? 0 : parseFloat(cs.left) || 0, bt: cs.position === 'static' ? 0 : parseFloat(cs.top) || 0 };
+          if (cs.position === 'static') r.style.position = 'relative';
+          r.style.left = r._dsRel.bl + 'px'; r.style.top = r._dsRel.bt + 'px';
+          void getComputedStyle(r).top;   // a start value, or the first push jumps instead of sliding
+        }
+        r.style.left = (r._dsRel.bl + (dx || 0)) + 'px'; r.style.top = (r._dsRel.bt + (dy || 0)) + 'px';
       };
-      var snap = function (b, v) {
-        var p = window.devicePixelRatio || 1;
-        return (Math.round((b + v) * p) - Math.round(b * p)) / p;
+      var unnudge = function (r) {
+        var o = r._dsRel; if (!o) return;
+        r.style.position = o.pos; r.style.left = o.l; r.style.top = o.t; r._dsRel = null;
       };
-      var pos1 = function (r, v) {
-        if (r) { var b = baseOf(r); v = snap(X ? b.x : b.y, v); }
-        return X ? 'translate(' + v + 'px, 0)' : 'translate(0, ' + v + 'px)';
-      };
-      var pos2 = function (dx, dy, at) {
-        if (at) { var b = baseOf(at); dx = snap(b.x, dx); dy = snap(b.y, dy); }
-        return 'translate(' + dx + 'px, ' + dy + 'px)';
-      };
+      var still = function (r) { nudge(r, 0, 0); };
       var lift = function (t) { return ax !== 'y' ? t + ' scale(1.06)' : t; };   // the lifted row only
 
       // Where the dragged row would sit, list-relative, unclamped.
@@ -383,7 +377,7 @@
         var d = drag(), t = from;
         if (copy) {
           ghost.style.transform = lift(pos2(d.dx, d.dy));
-          if (to !== from || tgt) { to = from; rows.forEach(function (r) { r.style.transform = ''; }); }
+          if (to !== from || tgt) { to = from; rows.forEach(still); }
           return;
         }
         if (grid) {
@@ -414,10 +408,10 @@
             if (r === row) return;
             if (grid) {
               var k = from < to && i > from && i <= to ? i - 1 : from > to && i >= to && i < from ? i + 1 : i;
-              r.style.transform = k === i ? '' : pos2(boxes[k].x - boxes[i].x, boxes[k].y - boxes[i].y, r);
+              nudge(r, boxes[k].x - boxes[i].x, boxes[k].y - boxes[i].y);
             } else {
               var s = from < to && i > from && i <= to ? -shift : from > to && i >= to && i < from ? shift : 0;
-              r.style.transform = s ? pos1(r, s) : '';
+              nudge(r, X ? s : 0, X ? 0 : s);
             }
           });
         }
@@ -464,8 +458,8 @@
           // The source closes the gap the row left.
           if (!copy) rows.forEach(function (r, i) {
             if (r === row) return;
-            if (grid) r.style.transform = i > from ? pos2(boxes[i - 1].x - boxes[i].x, boxes[i - 1].y - boxes[i].y, r) : '';
-            else r.style.transform = i > from ? pos1(r, -shift) : '';
+            if (grid) { if (i > from) nudge(r, boxes[i - 1].x - boxes[i].x, boxes[i - 1].y - boxes[i].y); else still(r); }
+            else nudge(r, X && i > from ? -shift : 0, !X && i > from ? -shift : 0);
           });
           to = -1;
         }
@@ -484,16 +478,19 @@
         tTo = k; tgt._placed = true;
         var ts = boxes[from][S] + (gap(tgt.boxes) || gap(boxes));
         tgt.rows.forEach(function (r, i) {
-          if (i < k) { r.style.transform = ''; return; }
+          if (i < k) { still(r); return; }
           if (grid) {
             var nx = i + 1 < tgt.boxes.length ? tgt.boxes[i + 1] : slotPos(tgt, tgt.boxes.length);
-            r.style.transform = pos2(nx.x - tgt.boxes[i].x, nx.y - tgt.boxes[i].y, r);
-          } else r.style.transform = pos1(r, ts);
+            nudge(r, nx.x - tgt.boxes[i].x, nx.y - tgt.boxes[i].y);
+          } else nudge(r, X ? ts : 0, X ? 0 : ts);
         });
       };
       var clearTarget = function () {
         if (!tgt) return;
-        tgt.rows.forEach(function (r) { r.style.transform = ''; });
+        // They slide home, then let go of their offset once there.
+        var left = tgt.rows;
+        left.forEach(still);
+        setTimeout(function () { left.forEach(function (r) { if (!tgt || tgt.rows.indexOf(r) < 0) unnudge(r); }); }, SETTLE_MS + 30);
         tgt.list.classList.remove('dsort-on');
         tgt = null; tTo = 0;
       };
@@ -505,7 +502,7 @@
       };
       var placeNowhere = function () {
         if (fly) float(); else { var d = drag(); row.style.transform = lift(pos2(d.dx, d.dy)); }
-        if (to !== from) { to = from; rows.forEach(function (r) { if (r !== row) r.style.transform = ''; }); }
+        if (to !== from) { to = from; rows.forEach(function (r) { if (r !== row) still(r); }); }
       };
       var place = function () {
         var g = over();
@@ -631,13 +628,13 @@
           var sp = slotPos(tgt, tTo);
           var tb = tgt.list.getBoundingClientRect(), lb = list.getBoundingClientRect();
           land = copy || fly
-            ? pos2(sp.x - tgt.list.scrollLeft + tb.left - r0.left, sp.y - tgt.list.scrollTop + tb.top - r0.top, { x: r0.left, y: r0.top })
-            : pos2(sp.x - tgt.list.scrollLeft + tb.left - (boxes[from].x - list.scrollLeft + lb.left),
-              sp.y - tgt.list.scrollTop + tb.top - (boxes[from].y - list.scrollTop + lb.top), row);
+            ? { dx: sp.x - tgt.list.scrollLeft + tb.left - r0.left, dy: sp.y - tgt.list.scrollTop + tb.top - r0.top }
+            : { dx: sp.x - tgt.list.scrollLeft + tb.left - (boxes[from].x - list.scrollLeft + lb.left),
+              dy: sp.y - tgt.list.scrollTop + tb.top - (boxes[from].y - list.scrollTop + lb.top) };
         } else if (copy) {
-          land = '';
+          land = null;
         } else if (grid) {
-          land = to === from || to < 0 ? '' : pos2(boxes[to].x - boxes[from].x, boxes[to].y - boxes[from].y, row);
+          land = to === from || to < 0 ? null : { dx: boxes[to].x - boxes[from].x, dy: boxes[to].y - boxes[from].y };
         } else {
           var v = to === from || to < 0 ? 0 : to > from
             ? (boxes[to][P] + boxes[to][S]) - (boxes[from][P] + boxes[from][S])
@@ -645,16 +642,21 @@
           if (fly) {
             // The copy glides to where the row's slot is now on screen.
             var lbn = list.getBoundingClientRect();
-            land = pos2(lbn.left - list.scrollLeft + boxes[from].x + (X ? v : 0) - r0.left,
-              lbn.top - list.scrollTop + boxes[from].y + (X ? 0 : v) - r0.top, { x: r0.left, y: r0.top });
-          } else land = pos1(row, v);
+            land = { dx: lbn.left - list.scrollLeft + boxes[from].x + (X ? v : 0) - r0.left,
+              dy: lbn.top - list.scrollTop + boxes[from].y + (X ? 0 : v) - r0.top };
+          } else land = X ? { dx: v, dy: 0 } : { dx: 0, dy: v };
         }
         if (to < 0 && !cross) to = from;
         var mover = copy || fly ? ghost : row;
         mover.classList.add('dsort-settle');
         mover.classList.remove('dsort-chip');
-        mover.style.transform = land || '';
-        if (!cross && to === from) rows.forEach(function (r) { if (r !== row) r.style.transform = ''; });
+        // The pointer's transform eases out while the offset eases in: one glide,
+        // ending on layout pixels (see nudge).
+        if (mover === ghost) {
+          if (land) { ghost.style.left = (r0.left + land.dx) + 'px'; ghost.style.top = (r0.top + land.dy) + 'px'; }
+        } else nudge(mover, land ? land.dx : 0, land ? land.dy : 0);
+        mover.style.transform = '';
+        if (!cross && to === from) rows.forEach(function (r) { if (r !== row) still(r); });
         var tl = cross ? tgt : null, tk = tTo, onDrop = me.o.onDrop;
         setTimeout(function () {
           var nt = [list]; if (tl) nt.push(tl.list);
@@ -675,9 +677,9 @@
             if (done) return;
             done = true;
             obs.forEach(function (o) { o.disconnect(); });
-            rows.forEach(function (r) { r.style.transform = ''; r.classList.remove('dsort-drag', 'dsort-settle', 'dsort-chip', 'dsort-src', 'dsort-hole'); });
+            rows.forEach(function (r) { r.style.transform = ''; unnudge(r); r.classList.remove('dsort-drag', 'dsort-settle', 'dsort-chip', 'dsort-src', 'dsort-hole'); });
             if (fly && ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
-            if (tl) tl.rows.forEach(function (r) { r.style.transform = ''; });
+            if (tl) tl.rows.forEach(function (r) { r.style.transform = ''; unnudge(r); });
             // Transitions come back only after the new order has painted.
             requestAnimationFrame(function () { requestAnimationFrame(function () { nt.forEach(function (l) { l.classList.remove('dsort-nt'); }); }); });
           };
