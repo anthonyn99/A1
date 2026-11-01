@@ -70,6 +70,23 @@ def _top_level_windows(pids: set[int]) -> list[int]:
 _PARKED_AT = -30000
 
 
+def _is_chrome_frame(hwnd: int) -> bool:
+    if not _user32.IsWindowVisible(hwnd):
+        return False
+    buf = ctypes.create_unicode_buffer(256)
+    _user32.GetClassNameW(hwnd, buf, 256)
+    return "Chrome_WidgetWin" in buf.value
+
+
+def _is_parked(hwnd: int) -> bool:
+    if _user32.IsIconic(hwnd):
+        return False
+    rect = wt.RECT()
+    return bool(_user32.GetWindowRect(hwnd, ctypes.byref(rect))) and (
+        rect.left <= _PARKED_AT and rect.top <= _PARKED_AT
+    )
+
+
 def _parked_frames() -> list[int]:
     """Visible, non-minimised Chrome frames parked off-screen: only a
     background run puts a frame there, so it can be hidden before its
@@ -78,15 +95,8 @@ def _parked_frames() -> list[int]:
     callback_type = ctypes.WINFUNCTYPE(ctypes.c_bool, wt.HWND, wt.LPARAM)
 
     def _cb(hwnd, _lparam):
-        if _user32.IsWindowVisible(hwnd) and not _user32.IsIconic(hwnd):
-            rect = wt.RECT()
-            if _user32.GetWindowRect(hwnd, ctypes.byref(rect)) and (
-                rect.left <= _PARKED_AT and rect.top <= _PARKED_AT
-            ):
-                buf = ctypes.create_unicode_buffer(256)
-                _user32.GetClassNameW(hwnd, buf, 256)
-                if "Chrome_WidgetWin" in buf.value:
-                    found.append(hwnd)
+        if _is_chrome_frame(hwnd) and _is_parked(hwnd):
+            found.append(hwnd)
         return True
 
     _user32.EnumWindows(callback_type(_cb), 0)
@@ -184,12 +194,13 @@ class KeepHidden:
         if id_object != 0 or id_child != 0:  # OBJID_WINDOW, the window itself
             return
         try:
+            if _user32.GetAncestor(hwnd, 2) != hwnd or not _is_chrome_frame(hwnd):
+                return  # GA_ROOT: only top-level frames
             pid = wt.DWORD()
             _user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-            if pid.value in self._pids or hwnd in _parked_frames():
-                if hwnd in _top_level_windows({pid.value}) or hwnd in _parked_frames():
-                    _hide(hwnd)
-                    self.hidden += 1
+            if pid.value in self._pids or _is_parked(hwnd):
+                _hide(hwnd)
+                self.hidden += 1
         except Exception:  # noqa: BLE001 - a visible window is cosmetic
             pass
 
