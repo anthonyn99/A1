@@ -330,8 +330,31 @@
       // 33.5px) its text and box drew a pixel off where the reordered list then
       // puts them -- every pushed row jumped on release. A 2D one leaves the
       // layer once its slide ends and paints exactly as it will after the drop.
-      var pos1 = function (r, v) { return X ? 'translate(' + v + 'px, 0)' : 'translate(0, ' + v + 'px)'; };
-      var pos2 = function (dx, dy) { return 'translate(' + dx + 'px, ' + dy + 'px)'; };
+      //
+      // And snapped: the page draws a row's own position on whole device pixels
+      // but a transform's offset as given, so a row at 338.59 slid 33.5px drew
+      // its text half a pixel from where the reordered list puts it (372.09),
+      // and it hopped on release. Each offset is rounded so the row ends on the
+      // device pixel its new place will use. `at` is the element moved (or its
+      // untransformed {x, y}); without one (the row under the pointer) no snap.
+      var baseOf = function (el) {
+        if (!el.nodeType) return el;
+        var b = el.getBoundingClientRect(), t = getComputedStyle(el).transform;
+        var m = t && t !== 'none' && window.DOMMatrixReadOnly ? new DOMMatrixReadOnly(t) : null;
+        return { x: b.left - (m ? m.e : 0), y: b.top - (m ? m.f : 0) };
+      };
+      var snap = function (b, v) {
+        var p = window.devicePixelRatio || 1;
+        return (Math.round((b + v) * p) - Math.round(b * p)) / p;
+      };
+      var pos1 = function (r, v) {
+        if (r) { var b = baseOf(r); v = snap(X ? b.x : b.y, v); }
+        return X ? 'translate(' + v + 'px, 0)' : 'translate(0, ' + v + 'px)';
+      };
+      var pos2 = function (dx, dy, at) {
+        if (at) { var b = baseOf(at); dx = snap(b.x, dx); dy = snap(b.y, dy); }
+        return 'translate(' + dx + 'px, ' + dy + 'px)';
+      };
       var lift = function (t) { return ax !== 'y' ? t + ' scale(1.06)' : t; };   // the lifted row only
 
       // Where the dragged row would sit, list-relative, unclamped.
@@ -391,7 +414,7 @@
             if (r === row) return;
             if (grid) {
               var k = from < to && i > from && i <= to ? i - 1 : from > to && i >= to && i < from ? i + 1 : i;
-              r.style.transform = k === i ? '' : pos2(boxes[k].x - boxes[i].x, boxes[k].y - boxes[i].y);
+              r.style.transform = k === i ? '' : pos2(boxes[k].x - boxes[i].x, boxes[k].y - boxes[i].y, r);
             } else {
               var s = from < to && i > from && i <= to ? -shift : from > to && i >= to && i < from ? shift : 0;
               r.style.transform = s ? pos1(r, s) : '';
@@ -441,7 +464,7 @@
           // The source closes the gap the row left.
           if (!copy) rows.forEach(function (r, i) {
             if (r === row) return;
-            if (grid) r.style.transform = i > from ? pos2(boxes[i - 1].x - boxes[i].x, boxes[i - 1].y - boxes[i].y) : '';
+            if (grid) r.style.transform = i > from ? pos2(boxes[i - 1].x - boxes[i].x, boxes[i - 1].y - boxes[i].y, r) : '';
             else r.style.transform = i > from ? pos1(r, -shift) : '';
           });
           to = -1;
@@ -464,7 +487,7 @@
           if (i < k) { r.style.transform = ''; return; }
           if (grid) {
             var nx = i + 1 < tgt.boxes.length ? tgt.boxes[i + 1] : slotPos(tgt, tgt.boxes.length);
-            r.style.transform = pos2(nx.x - tgt.boxes[i].x, nx.y - tgt.boxes[i].y);
+            r.style.transform = pos2(nx.x - tgt.boxes[i].x, nx.y - tgt.boxes[i].y, r);
           } else r.style.transform = pos1(r, ts);
         });
       };
@@ -608,13 +631,13 @@
           var sp = slotPos(tgt, tTo);
           var tb = tgt.list.getBoundingClientRect(), lb = list.getBoundingClientRect();
           land = copy || fly
-            ? pos2(sp.x - tgt.list.scrollLeft + tb.left - r0.left, sp.y - tgt.list.scrollTop + tb.top - r0.top)
+            ? pos2(sp.x - tgt.list.scrollLeft + tb.left - r0.left, sp.y - tgt.list.scrollTop + tb.top - r0.top, { x: r0.left, y: r0.top })
             : pos2(sp.x - tgt.list.scrollLeft + tb.left - (boxes[from].x - list.scrollLeft + lb.left),
-              sp.y - tgt.list.scrollTop + tb.top - (boxes[from].y - list.scrollTop + lb.top));
+              sp.y - tgt.list.scrollTop + tb.top - (boxes[from].y - list.scrollTop + lb.top), row);
         } else if (copy) {
           land = '';
         } else if (grid) {
-          land = to === from || to < 0 ? '' : pos2(boxes[to].x - boxes[from].x, boxes[to].y - boxes[from].y);
+          land = to === from || to < 0 ? '' : pos2(boxes[to].x - boxes[from].x, boxes[to].y - boxes[from].y, row);
         } else {
           var v = to === from || to < 0 ? 0 : to > from
             ? (boxes[to][P] + boxes[to][S]) - (boxes[from][P] + boxes[from][S])
@@ -623,7 +646,7 @@
             // The copy glides to where the row's slot is now on screen.
             var lbn = list.getBoundingClientRect();
             land = pos2(lbn.left - list.scrollLeft + boxes[from].x + (X ? v : 0) - r0.left,
-              lbn.top - list.scrollTop + boxes[from].y + (X ? 0 : v) - r0.top);
+              lbn.top - list.scrollTop + boxes[from].y + (X ? 0 : v) - r0.top, { x: r0.left, y: r0.top });
           } else land = pos1(row, v);
         }
         if (to < 0 && !cross) to = from;
