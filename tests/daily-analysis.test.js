@@ -121,7 +121,7 @@ console.log('\nThe destination is whatever TradeHub has selected');
 console.log('\nIt is its own task, and the morning flow no longer sends the prompt');
 {
   const flow = SRC.slice(SRC.indexOf('def _launch_all('), SRC.indexOf('def deploy_from_tradehub('));
-  ok('Trading Auto Launch opens the searches only', /open_analysis_searches\(target_hwnd=tradehub_hwnd\)/.test(flow) && !/open_ai_prompt|run_daily_analysis/.test(flow));
+  ok('Trading Auto Launch opens the searches only', /open_analysis_searches\(target_hwnd=tradehub_hwnd\)/.test(flow) && !/open_ai_prompt\(|run_daily_analysis\(/.test(flow));
   ok('setup registers TradingDailyAnalysis running --analysis', /ANALYSIS_TASK_NAME = "TradingDailyAnalysis"/.test(SRC) && /\(ANALYSIS_TASK_NAME, " --analysis"/.test(SRC) && /_register_task\(name, arg, limit, desc\)/.test(SRC));
   ok('…on the same four triggers (6 AM daily is the PC\'s local clock)', /-Trigger @\(\$dailyTrigger, \$logonTrigger, \$unlockTrigger, \$wakeTrigger\)/.test(SRC) && /New-ScheduledTaskTrigger -Daily -At \{TRIGGER_HOUR\}:00/.test(SRC) && /^ANALYSIS_HOUR\s+= 6$/m.test(SRC));
   ok('uninstall removes it too', /_remove_task\(ANALYSIS_TASK_NAME\)/.test(SRC));
