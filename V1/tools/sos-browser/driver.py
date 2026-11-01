@@ -61,6 +61,8 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import winhide
+
 try:
     import yaml
 except ImportError:
@@ -569,6 +571,27 @@ async def launch(pw, site, headless: bool, visible: bool = False,
             **extra,
         )
 
+    # Off-screen still means a taskbar button, and Chrome opens new frames
+    # mid-run; keep them all hidden until close_quietly (winhide.py).
+    hider = None
+    if not headless and not visible:
+        hider = winhide.KeepHidden(lambda: _profile_holder_pids(profile)).start()
+    try:
+        ctx = await _launch_with_retry(_launch, profile, site)
+    except BaseException:
+        if hider is not None:
+            hider.stop()
+        raise
+    if hider is not None:
+        _HIDERS[id(ctx)] = hider
+    return ctx
+
+
+# The taskbar hider of each live context, stopped by close_quietly.
+_HIDERS: dict[int, "winhide.KeepHidden"] = {}
+
+
+async def _launch_with_retry(_launch, profile: Path, site):
     try:
         return await asyncio.wait_for(_launch(), timeout=LAUNCH_TIMEOUT_S)
     except (asyncio.TimeoutError, Exception) as first:
@@ -828,6 +851,9 @@ async def close_quietly(ctx) -> None:
     except Exception as e:                          # noqa: BLE001
         print(f"[driver] ignoring teardown error: {str(e)[:120]}",
               file=sys.stderr, flush=True)
+    hider = _HIDERS.pop(id(ctx), None)
+    if hider is not None:
+        hider.stop()
 
 
 def looks_like_pdf(head: bytes) -> bool:
