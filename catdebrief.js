@@ -69,6 +69,8 @@
    * clock (a Fed speaker) waits for the close the same way. */
   var EARN_ET = { bmo: { hh: 8, mm: 0 }, amc: { hh: 16, mm: 5 }, dmh: { hh: 12, mm: 0 } };
   var LATE_ET = { hh: 16, mm: 30 };
+  // The order a day's earnings cards come in; '' = no session tag.
+  var EARN_ORDER = ['bmo', 'dmh', 'amc', ''];
 
   var TEMPLATES = {
     earnings:
@@ -199,16 +201,21 @@
     return best;
   }
 
-  /* Split a day's catalysts into cards. Earnings share ONE card per day (as
-   * before); macro releases with a known release clock share a card when
+  /* Split a day's catalysts into cards. Earnings share ONE card per session
+   * (2026-11-01: before the open, during the day, after the close, untagged:
+   * a card each, so each ▶ comes up when ITS reports are out); macro releases with a known release clock share a card when
    * they come out within `groupMin` minutes of the run's FIRST release, so a
    * run cannot creep across the morning. Untimed releases and holidays stand
-   * alone. Returns arrays in display order: earnings, then by release time. */
+   * alone. Returns arrays in display order: earnings by session, then by
+   * release time. */
   function groups(events, macroETof, groupMin) {
     var gm = groupMin == null ? CFG.groupMin : Math.max(0, +groupMin || 0);
     var list = (events || []).filter(Boolean), out = [];
     var earn = list.filter(isEarn);
-    if (earn.length) out.push(earn);
+    EARN_ORDER.forEach(function (w) {
+      var s = earn.filter(function (ev) { return (EARN_ET[ev.when] ? ev.when : '') === w; });
+      if (s.length) out.push(s);
+    });
     var timed = [], solo = [];
     list.forEach(function (ev, i) {
       if (isEarn(ev)) return;
