@@ -3,11 +3,14 @@
  *
  * Fixture: no native bar takes width anywhere (so nothing shifts), the overlay
  * rail appears on scroll, a fixed drawer holds its own rail, data-native-scroll
- * opts out, Veda's side switches the whole thing off live, and a touch phone
+ * opts out, Veda's side keeps it (in her mauve, live), and a touch phone
  * gets the finger-sized rail.
  *
  * Every program: with the page made taller than the window, no native bar
  * takes width, and none of the programs' older bars is drawn beside ours.
+ *
+ * Veda's side of every two-profile program: the same bar, her colours, and
+ * no older bar beside it.
  *
  *   node tests/live/scrollbar.live.js
  */
@@ -35,6 +38,17 @@ const GUTTERS = `
   return out;`;
 const OLD_BARS = `return ['.sbar.on', '.vsb', '#scroller.on', '.docx-scrollbar.on', '#pv-sbar']
   .filter(function (s) { var e = document.querySelector(s); return e && e.offsetParent !== null && getComputedStyle(e).display !== 'none' && getComputedStyle(e).opacity !== '0'; });`;
+
+const VEDA_THUMB = `var t = document.querySelector('.vc-rail .vc-thumb'); return t && getComputedStyle(t).backgroundColor;`;
+// Veda's side of each two-profile program: how the page switches to her.
+const VEDA = [
+  ['index.html', "document.body.setAttribute('data-th-profile', 'veda')"],
+  ['magi.html', "document.documentElement.setAttribute('data-profile', 'veda')"],
+  ['mylist.html', "document.body.setAttribute('data-profile', 'veda')"],
+  ['shield.html', "document.body.setAttribute('data-profile', 'veda')"],
+  ['Shruti/shruti.html', "document.body.setAttribute('data-profile', 'veda')"],
+  ['V1/studyos.html', ''],
+];
 
 const near = (a, b, tol) => Math.abs(a - b) <= (tol || 0.02);
 // Where a scroller is (frac) against where its thumb says it is (thumb), and
@@ -94,15 +108,21 @@ async function go(c, url, wait) {
     await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: th.x, y: th.y + 300, button: 'left', clickCount: 1 });
     ok('dragging the thumb scrolls the page', (await evalJs(c, 'window.scrollY')) > 500);
   }
-  // Veda's side: off, live.
+  // Veda's side: the same bar, in her mauve, live.
   await evalJs(c, "document.body.setAttribute('data-profile', 'veda'); return 1;");
   await sleep(100);
   g = await evalJs(c, GUTTERS);
-  ok("Veda's side: the shared bar switches off", (await evalJs(c, 'window.A1Scrollbar.active()')) === false);
-  ok("Veda's side: her native bars come back", g.doc > 0, g);
+  ok("Veda's side: the shared bar stays on, no bar width", (await evalJs(c, 'window.A1Scrollbar.active()')) === true && g.doc === 0, g);
+  await evalJs(c, 'window.scrollBy(0, -50); return 1;');
+  await sleep(200);
+  ok("Veda's side: her mauve thumb", (await evalJs(c, VEDA_THUMB)) === 'rgba(168, 146, 176, 0.42)');
   await evalJs(c, "document.body.setAttribute('data-profile', 'tony'); return 1;");
   await sleep(100);
-  ok("back to Tony: on again, no bar width", (await evalJs(c, GUTTERS)).doc === 0);
+  ok("back to Tony: his grey thumb", (await evalJs(c, VEDA_THUMB)) === 'rgba(173, 173, 178, 0.45)');
+  await evalJs(c, "document.documentElement.setAttribute('data-profile', 'veda'); return 1;");
+  await sleep(100);
+  ok("Veda on <html> (MAGI's way) counts too", await evalJs(c, "document.documentElement.classList.contains('vc-veda')"));
+  await evalJs(c, "document.documentElement.removeAttribute('data-profile'); return 1;");
 
   console.log('Fixture — phone (touch)');
   await c.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 3, mobile: true });
@@ -196,6 +216,38 @@ async function go(c, url, wait) {
         active && r.doc === 0 && r.boxes.length === 0 && old.length === 0, { active, doc: r.doc, boxes: r.boxes.slice(0, 5), old });
     }
   }
+
+  console.log("Veda's side of every program — desktop");
+  await c.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+  for (const [p, flip] of VEDA) {
+    await go(c, BASE + p, 3000);
+    if (flip) await evalJs(c, flip + '; return 1;');
+    await evalJs(c, "var d = document.createElement('div'); d.style.height = '4000px'; d.id = 'sb-test-tall'; document.body.appendChild(d); window.scrollTo(0, 200); return 1;");
+    await sleep(400);
+    const r = await evalJs(c, GUTTERS);
+    const st = await evalJs(c, "return { active: !!(window.A1Scrollbar && window.A1Scrollbar.active()), veda: document.documentElement.classList.contains('vc-veda') };");
+    const old = await evalJs(c, OLD_BARS);
+    const thumb = await evalJs(c, VEDA_THUMB);
+    ok(`${p} (Veda): shared bar on in her mauve, no native bar width, no second bar`,
+      st.active && st.veda && thumb === 'rgba(168, 146, 176, 0.42)' && r.doc === 0 && r.boxes.length === 0 && old.length === 0,
+      { st, thumb, doc: r.doc, boxes: r.boxes.slice(0, 5), old });
+  }
+  // MyList's list strip (the one Tony saw missing): hovering it shows her bar.
+  await go(c, BASE + 'mylist.html', 3000);
+  await evalJs(c, `document.body.setAttribute('data-profile', 'veda');
+    var b = document.getElementById('lists-bar');
+    if (b && b.scrollWidth <= b.clientWidth) for (var i = 0; i < 12; i++) { var x = document.createElement('button'); x.textContent = 'Test list ' + i; x.style.cssText = 'flex:none;padding:8px 20px'; b.appendChild(x); }
+    return 1;`);
+  await sleep(200);
+  const lb = await evalJs(c, "var r = document.getElementById('lists-bar'); if (!r) return null; r = r.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 };");
+  if (lb) {
+    await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: lb.x - 5, y: lb.y });
+    await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: lb.x, y: lb.y });
+    await sleep(300);
+  }
+  const strip = await evalJs(c, `var r = Array.prototype.find.call(document.querySelectorAll('.vc-rail.h.on'), function (x) { return x.style.display !== 'none'; });
+    return r ? { w: r.offsetWidth, bg: getComputedStyle(r.querySelector('.vc-thumb')).backgroundColor } : null;`);
+  ok("mylist.html (Veda): hovering the lists strip shows her sideways bar", !!strip && strip.w > 50 && /168, 146, 176/.test(strip.bg), strip);
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
