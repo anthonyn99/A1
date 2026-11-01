@@ -8227,7 +8227,7 @@ function OI_couponRow(c,T,edit){
 }
 
 // A week day card's "+ Add", in its top-right corner beside the day and date.
-// View mode only: edit mode keeps its full-width "+ Add" at the bottom of the day.
+// Always shown; edit mode also keeps its full-width "+ Add" at the bottom of the day.
 // Grey, not the accent, so it stays quiet. Both TaskHubs; c = {tx, txHi, bd, bdHi, radius}.
 function thDayAddBtn(c,onClick){
   return React.createElement("button",{type:"button",title:"Add a task or event",onClick:onClick,
@@ -10281,7 +10281,7 @@ function App(){
                 React.createElement("div",{style:{minWidth:0}},
                   React.createElement("div",{style:{fontFamily:td?"var(--font-accent)":"'Manrope',system-ui,sans-serif",fontSize:14,fontWeight:700,color:td?T.AC:T.TXD,whiteSpace:"nowrap"}},DOW[mobDayIdx]),
                   React.createElement("div",{style:{fontSize:12,fontWeight:500,color:T.TXM,marginTop:2,whiteSpace:"nowrap"}},w.day+" "+MO[w.month])),
-                !edit&&thDayAddBtn({tx:T.TXM,txHi:T.TX,bd:T.BD,bdHi:T.BDL,radius:6},()=>{setEi(null);setMdt(k);setMo(true);})),
+                thDayAddBtn({tx:T.TXM,txHi:T.TX,bd:T.BD,bdHi:T.BDL,radius:6},()=>{setEi(null);setMdt(k);setMo(true);})),
               tasks.length>0&&React.createElement("div",{style:{width:"100%",height:3,background:T.BD,borderRadius:2,marginBottom:10,overflow:"hidden"}},React.createElement("div",{style:{width:p+"%",height:"100%",background:p===100?T.GRN:wkBarFill,borderRadius:2,transition:"width .35s"}})),
               mcRender(mcDay,dayTX),
               /* OneInbox packages / bills / travel due on THIS day. Each card is
@@ -10364,7 +10364,7 @@ function App(){
                 React.createElement("div",{style:{minWidth:0}},
                   React.createElement("div",{style:{fontFamily:td?"var(--font-accent)":"'Manrope',system-ui,sans-serif",fontSize:13,fontWeight:700,color:td?T.AC:T.TXD,whiteSpace:"nowrap",textTransform:"none"}},DS[i]),
                   React.createElement("div",{style:{fontSize:11,fontWeight:500,color:T.TXM,marginTop:2,whiteSpace:"nowrap"}},w.day+" "+MO[w.month].slice(0,3))),
-                !edit&&thDayAddBtn({tx:T.TXM,txHi:T.TX,bd:T.BD,bdHi:T.BDL,radius:6},()=>{setEi(null);setMdt(k);setMo(true);})),
+                thDayAddBtn({tx:T.TXM,txHi:T.TX,bd:T.BD,bdHi:T.BDL,radius:6},()=>{setEi(null);setMdt(k);setMo(true);})),
               tasks.length>0&&React.createElement("div",{style:{width:"100%",height:3,background:T.BD,borderRadius:2,marginBottom:8,overflow:"hidden"}},React.createElement("div",{style:{width:p+"%",height:"100%",background:p===100?T.GRN:wkBarFill,borderRadius:2,transition:"width .35s"}})),
               mcRender(mcDay,dayTX),
               /* OneInbox packages / bills / travel due on THIS day. Each card is
@@ -16743,7 +16743,7 @@ function App(){
                   RC("div",{style:{fontSize:11,fontWeight:500,color:TXM,marginTop:2,whiteSpace:"nowrap"}},w.day+" "+MO[w.month])),
                 RC("div",{style:{display:"flex",alignItems:"center",gap:6,flexShrink:0}},
                   ts.length>0&&RC("span",{style:{fontSize:10,fontWeight:700,color:l===0?GRN:A,background:l===0?"rgba(86,211,100,.1)":ABG,borderRadius:3,padding:"2px 7px",flexShrink:0}},l===0?RC("span",{style:{display:"inline-flex",alignItems:"center",gap:3}},RC("span",{style:{width:9,height:9,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.check}}),"Done"):l+" left"),
-                  !edit&&thDayAddBtn({tx:TXM,txHi:TX,bd:BD,bdHi:TXM,radius:4},()=>{setEi(null);setMdt(k);setMo(true);}))),
+                  thDayAddBtn({tx:TXM,txHi:TX,bd:BD,bdHi:BDL,radius:4},()=>{setEi(null);setMdt(k);setMo(true);}))),
               ts.length>0&&RC("div",{style:{width:"100%",height:3,background:BD,borderRadius:2,marginBottom:8,overflow:"hidden"}},RC("div",{style:{width:p+"%",height:"100%",background:p===100?GRN:"linear-gradient(90deg,"+AD+","+AL+")",borderRadius:2,transition:"width .35s"}})),
               mcRender(mcByDay[k]||[],dayTX),
               CR_rows(crByDay[k],{card:vdEventCard(null,false),profile:"veda",edit:edit,dbtn:dbtn,tx:"#C3B2D0",ac:A,dim:dimA,fit:vdTitleFit}),
@@ -16809,7 +16809,7 @@ function App(){
                   RC("div",{style:{fontSize:10,fontWeight:600,color:TXM,marginTop:1}},w.day+" "+MO[w.month].slice(0,3))),
                 RC("div",{style:{display:"flex",alignItems:"center",gap:4,flexShrink:0}},
                   ts.length>0&&RC("span",{style:{fontSize:10,fontWeight:700,color:l===0?GRN:A,background:l===0?"rgba(86,211,100,.1)":ABG,borderRadius:3,padding:"2px 7px"}},l===0?RC("span",{style:{display:"inline-flex",alignItems:"center",gap:3}},RC("span",{style:{width:9,height:9,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.check}}),"Done"):l+" left"),
-                  !edit&&thDayAddBtn({tx:TXM,txHi:TX,bd:BD,bdHi:TXM,radius:4},()=>{setEi(null);setMdt(k);setMo(true);}))),
+                  thDayAddBtn({tx:TXM,txHi:TX,bd:BD,bdHi:BDL,radius:4},()=>{setEi(null);setMdt(k);setMo(true);}))),
               ts.length>0&&RC("div",{style:{width:"100%",height:3,background:BD,borderRadius:2,marginBottom:7,overflow:"hidden"}},RC("div",{style:{width:p+"%",height:"100%",background:p===100?GRN:"linear-gradient(90deg,"+AD+","+AL+")",borderRadius:2,transition:"width .35s"}})),
               mcRender(mcByDay[k]||[],dayTX),
               CR_rows(crByDay[k],{card:vdEventCard(null,false),profile:"veda",edit:edit,dbtn:dbtn,tx:"#C3B2D0",ac:A,dim:dimA,fit:vdTitleFit,compact:true}),
