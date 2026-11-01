@@ -8176,12 +8176,9 @@ function OI_dismiss(card){
   window.dispatchEvent(new CustomEvent("oi-cards-update",{detail:window._oiCards}));
   ids.forEach(id=>{try{window._fbDeleteOICard&&window._fbDeleteOICard(id);}catch(e){}});
 }
-// Matches `dbtn` inside the TaskHub components, which is out of scope here.
+// The boxed ✕ every TaskHub row and card carries (thIconBtn).
 function OI_delBtn(c,T,pad){
-  return React.createElement("button",{type:"button",title:"Remove this card",
-    onClick:e=>{e.stopPropagation();OI_dismiss(c);},
-    style:{background:"transparent",border:"none",color:T.ERR,cursor:"pointer",
-      fontSize:15,padding:pad||"0 4px",lineHeight:1,fontFamily:"inherit",fontWeight:700,flexShrink:0}},"×");
+  return thIconBtn({bd:T.BD,bdHi:T.BDL,radius:5},"Remove this card",T.ERR||"#f85149",e=>{e.stopPropagation();OI_dismiss(c);},TH_X,{marginLeft:pad?2:4});
 }
 function OI_dayKey(iso){
   // OneInbox stores plain YYYY-MM-DD; TaskHub's day keys use the same shape,
@@ -8248,16 +8245,22 @@ function thDayAddBtn(c,onClick){
 // column, which stays in place (hidden) in edit mode, so the title keeps
 // exactly the lines it has in view mode. c = {tx, del, bd, bdHi, radius}.
 // inline: in a cell or slot of its own (habits, goals) instead of over the pills.
-function thRowEdit(c,onEdit,onDel,inline){
-  const btn=(title,col,onClick,path)=>React.createElement("button",{type:"button",title:title,"aria-label":title,onClick:onClick,
+const TH_PENCIL="M8.4 1.6l2 2-6.3 6.3-2.6.6.6-2.6z",TH_X="M3 3l6 6M9 3l-6 6";
+// One outlined 20px icon button: the pencil and ✕ on rows, and the ✕ on every
+// card (OneInbox, Claude resets). c = {bd, bdHi, radius}.
+function thIconBtn(c,title,col,onClick,path,style){
+  return React.createElement("button",{type:"button",title:title,"aria-label":title,onClick:onClick,
     style:{width:20,height:20,padding:0,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0,background:"transparent",
-      border:"1px solid "+c.bd,borderRadius:c.radius,color:col,cursor:"pointer",lineHeight:0,transition:"border-color .15s"},
+      border:"1px solid "+c.bd,borderRadius:c.radius,color:col,cursor:"pointer",lineHeight:0,transition:"border-color .15s",...(style||{})},
     onMouseEnter:e=>{e.currentTarget.style.borderColor=c.bdHi;},onMouseLeave:e=>{e.currentTarget.style.borderColor=c.bd;}},
     React.createElement("svg",{width:11,height:11,viewBox:"0 0 12 12",fill:"none",stroke:"currentColor",strokeWidth:1.5,strokeLinecap:"round",strokeLinejoin:"round","aria-hidden":"true",style:{display:"block"}},
       React.createElement("path",{d:path})));
+}
+function thRowEdit(c,onEdit,onDel,inline){
+  const btn=(title,col,onClick,path)=>thIconBtn(c,title,col,onClick,path);
   return React.createElement("span",{style:inline?{display:"inline-flex",gap:4,verticalAlign:"top"}:{position:"absolute",top:0,right:0,display:"inline-flex",gap:4,visibility:"visible",zIndex:1}},
-    btn("Edit",c.tx,onEdit,"M8.4 1.6l2 2-6.3 6.3-2.6.6.6-2.6z"),
-    btn("Delete",c.del,onDel,"M3 3l6 6M9 3l-6 6"));
+    btn("Edit",c.tx,onEdit,TH_PENCIL),
+    btn("Delete",c.del,onDel,TH_X));
 }
 // What a habit's edit cell holds in view mode: the buttons' height, so a row is
 // exactly as tall in both modes and its name doesn't drop when edit opens.
@@ -8557,9 +8560,9 @@ function CR_rows(list,o){
           r.notify&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",fontSize:10,color:o.ac,opacity:0.85},"aria-label":"Notifies at reset"},
             React.createElement("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}}))),
         React.createElement("span",{style:{fontSize:o.compact?13:14,fontWeight:600,color:o.tx,lineHeight:o.compact?1.35:1.4,...(o.fit||{})}},CR_TITLE[r.kind])),
-      // Edit mode: the same × as any task. It hides this one reset and cancels
-      // its push; the next reset arrives as usual (see _crDismiss).
-      o.edit&&o.dbtn&&React.createElement("button",{type:"button",style:{...o.dbtn,padding:"0 6px"},title:"Remove this reset"+(r.notify?" and its notification":""),onClick:()=>{if(window._crDismiss)window._crDismiss(o.profile,r.id);}},"×"));
+      // Edit mode: the same boxed ✕ as any task. It hides this one reset and
+      // cancels its push; the next reset arrives as usual (see _crDismiss).
+      o.edit&&o.box&&thIconBtn(o.box,"Remove this reset"+(r.notify?" and its notification":""),o.box.del,()=>{if(window._crDismiss)window._crDismiss(o.profile,r.id);},TH_X,{marginLeft:4}));
   });
 }
 
@@ -10317,7 +10320,7 @@ function App(){
               (oiByDay[k]||[]).map(c=>OI_weekCard(c,T,dayTX,edit)),
               pvRender(pvMatches,k,dayTX,false),
               /* Claude resets sit below the ProView cards (Tony, 2026-10-30). */
-              CR_rows(crByDay[k],{card:wkEventCard(null,false),profile:"tony",edit:edit,dbtn:dbtn,tx:T.TXD,ac:T.AC,dim:dimA,fit:wkTitleFit}),
+              CR_rows(crByDay[k],{card:wkEventCard(null,false),profile:"tony",edit:edit,box:{del:T.ERR,bd:T.BD,bdHi:T.BDL,radius:5},tx:T.TXD,ac:T.AC,dim:dimA,fit:wkTitleFit}),
               React.createElement("div",{ref:thDragRef("tony","week:"+k,thDrag),style:thDragList},
               !tasks.length&&!events.length&&!mcDay.length&&!(crByDay[k]||[]).length&&!pvMatches.length&&!(oiByDay[k]||[]).length&&!edit&&React.createElement("div",{style:{fontSize:11,fontWeight:500,color:T.TXM,textAlign:"center",padding:"24px 0"}},"—"),
               tasks.map(t=>t._planId
@@ -10397,7 +10400,7 @@ function App(){
                  leaving a stale one behind. */
               (oiByDay[k]||[]).map(c=>OI_weekCard(c,T,dayTX,edit)),
               pvRender(pvMatches,k,dayTX,true),
-              CR_rows(crByDay[k],{card:wkEventCard(null,false),profile:"tony",edit:edit,dbtn:dbtn,tx:T.TXD,ac:T.AC,dim:dimA,fit:wkTitleFit,compact:true}),
+              CR_rows(crByDay[k],{card:wkEventCard(null,false),profile:"tony",edit:edit,box:{del:T.ERR,bd:T.BD,bdHi:T.BDL,radius:5},tx:T.TXD,ac:T.AC,dim:dimA,fit:wkTitleFit,compact:true}),
               React.createElement("div",{ref:thDragRef("tony","week:"+k,thDrag),style:thDragList},
               !tasks.length&&!events.length&&!mcDay.length&&!(crByDay[k]||[]).length&&!pvMatches.length&&!(oiByDay[k]||[]).length&&!edit&&React.createElement("div",{style:{fontSize:10,fontWeight:500,color:T.TXM,textAlign:"center",padding:"32px 0"}},"—"),
               tasks.map(t=>t._planId
@@ -16768,7 +16771,7 @@ function App(){
                   thDayAddBtn({tx:TXM,txHi:TX,bd:BD,bdHi:BDL,radius:4},()=>{setEi(null);setMdt(k);setMo(true);}))),
               ts.length>0&&RC("div",{style:{width:"100%",height:3,background:BD,borderRadius:2,marginBottom:8,overflow:"hidden"}},RC("div",{style:{width:p+"%",height:"100%",background:p===100?GRN:"linear-gradient(90deg,"+AD+","+AL+")",borderRadius:2,transition:"width .35s"}})),
               mcRender(mcByDay[k]||[],dayTX),
-              CR_rows(crByDay[k],{card:vdEventCard(null,false),profile:"veda",edit:edit,dbtn:dbtn,tx:"#C3B2D0",ac:A,dim:dimA,fit:vdTitleFit}),
+              CR_rows(crByDay[k],{card:vdEventCard(null,false),profile:"veda",edit:edit,box:{del:"#f85149",bd:BD,bdHi:BDL,radius:4},tx:"#C3B2D0",ac:A,dim:dimA,fit:vdTitleFit}),
               RC("div",{ref:thDragRef("veda","week:"+k,thDrag),style:thDragList},
               !it.length&&!(mcByDay[k]||[]).length&&!(crByDay[k]||[]).length&&!edit&&RC("div",{style:{fontSize:11,fontWeight:600,color:TXM,textAlign:"center",padding:"24px 0"}},"—"),
               ts.map(t=>t._planId
@@ -16832,7 +16835,7 @@ function App(){
                   thDayAddBtn({tx:TXM,txHi:TX,bd:BD,bdHi:BDL,radius:4},()=>{setEi(null);setMdt(k);setMo(true);}))),
               ts.length>0&&RC("div",{style:{width:"100%",height:3,background:BD,borderRadius:2,marginBottom:7,overflow:"hidden"}},RC("div",{style:{width:p+"%",height:"100%",background:p===100?GRN:"linear-gradient(90deg,"+AD+","+AL+")",borderRadius:2,transition:"width .35s"}})),
               mcRender(mcByDay[k]||[],dayTX),
-              CR_rows(crByDay[k],{card:vdEventCard(null,false),profile:"veda",edit:edit,dbtn:dbtn,tx:"#C3B2D0",ac:A,dim:dimA,fit:vdTitleFit,compact:true}),
+              CR_rows(crByDay[k],{card:vdEventCard(null,false),profile:"veda",edit:edit,box:{del:"#f85149",bd:BD,bdHi:BDL,radius:4},tx:"#C3B2D0",ac:A,dim:dimA,fit:vdTitleFit,compact:true}),
               RC("div",{ref:thDragRef("veda","week:"+k,thDrag),style:thDragList},
               !it.length&&!(mcByDay[k]||[]).length&&!(crByDay[k]||[]).length&&!edit&&RC("div",{style:{fontSize:11,fontWeight:600,color:TXM,textAlign:"center",padding:"30px 0"}},"—"),
               ts.map(t=>t._planId
