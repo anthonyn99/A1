@@ -383,7 +383,7 @@ async def _launch_unlocked(
         finally:
             try:
                 await asyncio.wait_for(context.close(), timeout=CLOSE_TIMEOUT_S)
-            except BaseException:
+            except Exception:
                 pass
             if keeper is not None:
                 keeper.stop()
