@@ -199,7 +199,7 @@ const VEDA = [
   await sleep(300);
   const empty = await evalJs(c, "var e = document.getElementById('cb'), cs = getComputedStyle(e); return { bg: cs.backgroundColor, color: cs.color, label: getComputedStyle(e.parentElement).color };");
   // Inputs don't inherit text colour, so a box drawn from currentColor came out black (Tony, 2026-11-02).
-  ok('an empty box is grey from the text around it (not the input's black default)', empty.color === empty.label && empty.color !== 'rgb(0, 0, 0)' && empty.bg !== 'rgba(0, 0, 0, 0)', empty);
+  ok('an empty box is grey from the text around it (not the input default black)', empty.color === empty.label && empty.color !== 'rgb(0, 0, 0)' && empty.bg !== 'rgba(0, 0, 0, 0)', empty);
   ok('a gold box stays gold', boxes.gold.a && boxes.gold.bg === 'rgb(224, 184, 116)', boxes.gold);
   ok("the page's own toggle switch is left alone", !boxes.sw.a && boxes.sw.w === 40, boxes.sw);
   ok('radio and range are A1\'s, the range fill tracks', boxes.r1.a && boxes.rng.a && boxes.pct === '50%', boxes);
