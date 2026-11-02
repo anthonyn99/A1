@@ -12,7 +12,8 @@
 //                                  connection modal's resize grip
 //   tests/live/vault-harness.html  the Secure Notes list (the one reorder engine
 //                                  Payments and API Keys share) and the tab bar
-//   Vault/popup.html               the Launcher: theme + Reorder-mode card drag,
+//   Vault/popup.html               the Launcher: theme, card drag and link drag
+//                                  (within a card and between cards),
 //                                  with chrome.* and the keychain Worker stubbed
 'use strict';
 const fs = require('fs');
@@ -297,7 +298,8 @@ const row = (name) => `[...document.querySelectorAll('#kc-conns-list .kc-item-ro
   ok('popup renders the cards', await waitFor(c, `document.querySelectorAll('#groups .card').length === 4`, 8000), await evalJs(c, `return document.body.innerText.slice(0,200);`));
   const pt = JSON.parse(await evalJs(c, `var t=document.querySelector('.tab.active'); return JSON.stringify({ tab: getComputedStyle(t).backgroundColor + ' ' + getComputedStyle(t).color, logo: getComputedStyle(document.querySelector('.logo')).color, logoBg: getComputedStyle(document.querySelector('.logo')).backgroundImage, hover: document.body.getAttribute('data-hoverfx'), grips: document.querySelectorAll('.grip').length, num: getComputedStyle(document.body).fontVariantNumeric });`));
   ok('popup: current tab solid purple, wordmark #dbd0f5 (no gradient text), magi hover, tabular', pt.tab === 'rgb(192, 174, 234) rgb(26, 26, 29)' && pt.logo === 'rgb(219, 208, 245)' && pt.logoBg === 'none' && pt.hover === 'magi' && pt.num === 'tabular-nums', pt);
-  ok('popup: no grip dots in Reorder mode', pt.grips === 0 && await evalJs(c, `return document.getElementById('app').classList.contains('reorder');`));
+  // Reorder mode is gone: cards (and since 2026-11-02 their links) always drag.
+  ok('popup: no grip dots, no Reorder switch', pt.grips === 0 && await evalJs(c, `return !document.getElementById('reorder-toggle');`));
   const pcols = () => evalJs(c, `return JSON.stringify([].map.call(document.querySelectorAll('#groups .col'), function(col){ return [].map.call(col.querySelectorAll('.card-name'), function(n){ return n.textContent; }); }));`).then(JSON.parse);
   const pc0 = await pcols();
   const pa = await rect(c, `document.querySelectorAll('#groups .col')[0].querySelector('.card-name')`);
@@ -309,11 +311,30 @@ const row = (name) => `[...document.querySelectorAll('#kc-conns-list .kc-item-ro
   ok('popup: a card drags to the other column', pc1[1][pc1[1].length - 1] === pc0[0][0] && pc1[0].length === pc0[0].length - 1, { pc0, pc1 });
   ok('...and is PUT to the keychain doc (order + colmap)', put && put.connections[3].name === pc0[0][0] && JSON.stringify(put.colmap) === '[0,1,1,1]', put && { names: put.connections.map((x) => x.name), colmap: put.colmap });
   await shot(c, 'popup');
-  await evalJs(c, `document.getElementById('reorder-toggle').click(); return 1;`);
-  const pb = await rect(c, `document.querySelectorAll('#groups .col')[0].querySelector('.card-name')`);
-  const pc2 = await pcols();
-  await mouseDrag(c, pb.x, pb.y, 0, 160);
-  ok('popup: with Reorder off a card stays put', JSON.stringify(await pcols()) === JSON.stringify(pc2));
+
+  // Links inside cards (Tony, 2026-11-02): within a card, into another card,
+  // and the card's hidden items (Alpha's email) keep their places.
+  const prow = (n) => `[...document.querySelectorAll('#groups .link-row')].find(function(r){ return r.querySelector('.link-name').textContent === '${n}'; })`;
+  const items = () => evalJs(c, `return JSON.stringify(window.__puts[window.__puts.length-1] || null);`).then(JSON.parse)
+    .then((d) => d && Object.fromEntries(d.connections.map((x) => [x.name, x.items.map((i) => i.name || i.value)])));
+  const plinks = () => evalJs(c, `return JSON.stringify([].map.call(document.querySelectorAll('#groups .card'), function(k){ return k.querySelector('.card-name').textContent + ':' + [].map.call(k.querySelectorAll('.link-name'), function(n){ return n.textContent; }).join('|'); }));`).then(JSON.parse);
+  ok('popup: every card\'s links are an A1Drag list', await evalJs(c, `return [].every.call(document.querySelectorAll('#groups .card'), function(k){ var l = k.querySelector('.links'); return l && l.classList.contains('dsort'); });`));
+  let r1 = await rect(c, prow('C1') + '.querySelector(".link-name")'), r2 = await rect(c, prow('C2'));
+  await mouseDrag(c, r1.x, r1.y, 0, r2.t + r2.h - r1.y - 4);
+  await sleep(300);
+  let it = await items();
+  ok('popup: a link drags down its own card, and is PUT', it && it.Charlie.join() === 'C2,C1' && (await plinks()).includes('Charlie:C2|C1'), { it, shown: await plinks() });
+  r1 = await rect(c, prow('B1') + '.querySelector(".link-name")'); r2 = await rect(c, prow('D1'));
+  await mouseDrag(c, r1.x, r1.y, r2.x - r1.x, r2.t + r2.h - r1.y - 4);
+  await sleep(300);
+  it = await items();
+  ok('popup: a link drags into another card, and is PUT', it && it.Delta.join() === 'D1,B1' && it.Bravo.length === 0, it);
+  ok('...and the emptied card leaves the Launcher (it has no links)', !(await plinks()).some((x) => x.startsWith('Bravo')), await plinks());
+  r1 = await rect(c, prow('A2') + '.querySelector(".link-name")'); r2 = await rect(c, prow('C2'));
+  await mouseDrag(c, r1.x, r1.y, r2.x - r1.x, r2.t - r1.y + 4);
+  await sleep(300);
+  it = await items();
+  ok("popup: a link moved out of a card with an email: the email stays, the link lands where dropped", it && it.Alpha.join() === 'A1,a@example.com' && it.Charlie.join() === 'A2,C2,C1', it);
 
   ok('no uncaught page errors', !errors.filter(Boolean).length, errors);
   console.log(`\n  ${pass} passed, ${fail} failed`);
