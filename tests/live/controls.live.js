@@ -78,7 +78,7 @@ const AUDIT = `var bad = [];
     if (s.multiple || s.size > 1 || out(s)) return;
     if (!s.hasAttribute('data-a1c')) bad.push(name(s));
   });
-  document.querySelectorAll('input[type=date],input[type=time],input[type=datetime-local],input[type=month],input[type=week],input[type=color]').forEach(function (i) {
+  document.querySelectorAll('input[type=date],input[type=time],input[type=datetime-local],input[type=month],input[type=week]').forEach(function (i) {
     if (out(i) || i.classList.contains('a1c-src')) return;
     bad.push(name(i));
   });
@@ -86,6 +86,7 @@ const AUDIT = `var bad = [];
     if (out(i)) return;
     if (getComputedStyle(i).appearance !== 'none') bad.push(name(i));
   });
+  document.querySelectorAll('input[type=color]').forEach(function (i) { if (!out(i) && !i.hasAttribute('data-a1c')) bad.push(name(i)); });
   document.querySelectorAll('input[list]').forEach(function (i) { if (!out(i)) bad.push(name(i) + '[list]'); });
   document.querySelectorAll('summary').forEach(function (s) { if (getComputedStyle(s).display === 'list-item' && !s.hasAttribute('data-a1c') && !out(s)) bad.push('summary'); });
   document.querySelectorAll('input[type=number]').forEach(function (i) {
