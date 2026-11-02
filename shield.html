@@ -2414,6 +2414,10 @@ function pullAgentHistory(){
    which is the entire reason the agent exists. */
 function pushConfig(){
   if (!caps().agent) return Promise.resolve();
+  // No record means nothing is known about this device yet, not "no targets".
+  // The agent works offline from what it was last told, so pushing defaults
+  // here would leave the tray and hotkeys with nothing to close.
+  if (!myDev()) return Promise.resolve();
   var e = cfgEmg(S.devId);
   return Agent.invoke('sh_set_config', { cfg: {
     profile: S.profile,
