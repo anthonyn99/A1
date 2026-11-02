@@ -892,25 +892,33 @@
   }
 
   // ── tooltips ───────────────────────────────────────────────────────────────
-  var tip = null, tipFor = null, tipTimer = 0;
+  // The title comes off while the pointer is over its element (so the
+  // browser's own tooltip never shows) and goes back when it leaves, so code
+  // and tests that read or select by title see the page as it was.
+  var tip = null, tipFor = null, tipTimer = 0, stripped = [];
   function hideTip() {
     clearTimeout(tipTimer); tipFor = null;
     if (tip) { var t = tip; tip = null; t.classList.remove('on'); setTimeout(function () { unmount(t); }, 140); }
   }
+  function restore(keepFor) {
+    stripped = stripped.filter(function (el) {
+      if (keepFor && el.contains(keepFor)) return true;
+      if (!el.hasAttribute('title')) el.setAttribute('title', el._a1cTitle);
+      if (el._a1cAria) { el.removeAttribute('aria-label'); el._a1cAria = false; }
+      return false;
+    });
+  }
   doc.addEventListener('pointerover', function (e) {
     if (e.pointerType === 'touch') return;
-    var el = e.target && e.target.closest && e.target.closest('[title],[data-a1c-tip]');
-    if (!el || el === tipFor || el.tagName === 'IFRAME' || skip(el) || el.closest('svg') !== null && el.tagName.toLowerCase() !== 'svg' && !el.closest('a,button')) return;
-    if (el.hasAttribute('title')) {
-      var t = el.getAttribute('title');
-      el.removeAttribute('title');
-      if (!t) return;
-      el.setAttribute('data-a1c-tip', t);
-      // Keep the accessible name the title used to give.
-      if (!el.hasAttribute('aria-label') && !(el.textContent || '').trim()) el.setAttribute('aria-label', t);
-    }
-    var text = el.getAttribute('data-a1c-tip');
+    var el = e.target && e.target.closest && e.target.closest('[title]');
+    if (!el || el.tagName === 'IFRAME' || skip(el)) return;
+    var text = el.getAttribute('title');
+    el.removeAttribute('title');
     if (!text) return;
+    el._a1cTitle = text;
+    if (stripped.indexOf(el) < 0) stripped.push(el);
+    // Keep the accessible name the title gave while it is off.
+    if (!el.hasAttribute('aria-label') && !(el.textContent || '').trim()) { el.setAttribute('aria-label', text); el._a1cAria = true; }
     hideTip();
     tipFor = el;
     tipTimer = setTimeout(function () {
@@ -930,8 +938,10 @@
     }, 450);
   }, true);
   doc.addEventListener('pointerout', function (e) {
+    var to = e.relatedTarget;
+    if (stripped.length) restore(to);
     if (!tipFor) return;
-    if (e.relatedTarget && tipFor.contains(e.relatedTarget)) return;
+    if (to && tipFor.contains(to)) return;
     if (tipFor.contains(e.target)) hideTip();
   }, true);
   ['pointerdown', 'keydown', 'wheel'].forEach(function (ev) { doc.addEventListener(ev, hideTip, true); });
@@ -941,6 +951,8 @@
   var SEL = 'select,input[type=date],input[type=time],input[type=datetime-local],input[list],input[type=checkbox],input[type=radio],input[type=range],summary';
   function one(n) {
     var t = n.tagName;
+    // React moved an input it owns: its button goes with it.
+    if (n._a1cBtn && n.nextSibling !== n._a1cBtn && n.parentNode) { n.parentNode.insertBefore(n._a1cBtn, n.nextSibling); return; }
     if (t === 'SELECT') enhanceSelect(n);
     else if (t === 'SUMMARY') enhanceSummary(n);
     else if (t === 'INPUT') {
@@ -956,11 +968,18 @@
     if (scope.nodeType === 1 && scope.matches(SEL)) one(scope);
     if (scope.querySelectorAll) Array.prototype.forEach.call(scope.querySelectorAll(SEL), one);
   }
-  var pending = [], flushQueued = false;
+  var pending = [], gone = [], flushQueued = false;
   function flush() {
     flushQueued = false;
     var list = pending; pending = [];
     list.forEach(function (n) { if (n.isConnected) enhance(n); });
+    // An input taken out on its own (React's `cond && <input>`) takes its
+    // button with it.
+    var g = gone; gone = [];
+    g.forEach(function (n) {
+      var srcs = n._a1cBtn ? [n] : (n.querySelectorAll ? Array.prototype.slice.call(n.querySelectorAll('input.a1c-src')) : []);
+      srcs.forEach(function (s) { if (!s.isConnected && s._a1cBtn && s._a1cBtn.isConnected) s._a1cBtn.remove(); });
+    });
   }
   function start() {
     injectStyles();
@@ -973,6 +992,7 @@
           if (m.target.tagName === 'INPUT' && !m.target._a1c) pending.push(m.target);
           continue;
         }
+        for (var k = 0; k < m.removedNodes.length; k++) if (m.removedNodes[k].nodeType === 1) gone.push(m.removedNodes[k]);
         var added = m.addedNodes;
         for (var j = 0; j < added.length; j++) {
           var n = added[j];
@@ -982,7 +1002,7 @@
       }
       // Microtask: after the code that built the node has set it up (type,
       // value, options), but before the next paint.
-      if (pending.length && !flushQueued) { flushQueued = true; Promise.resolve().then(flush); }
+      if ((pending.length || gone.length) && !flushQueued) { flushQueued = true; Promise.resolve().then(flush); }
     }).observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['type', 'list'] });
   }
   if (doc.head) injectStyles();
