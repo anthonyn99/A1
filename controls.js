@@ -205,11 +205,15 @@
     '.a1c-pop .a1c-tgrid .a1c-cell{height:32px}',
     '@media (pointer:coarse){.a1c-pop .a1c-tgrid .a1c-cell{height:38px}}',
     // tooltip
-    '.a1c-tip{position:fixed;inset:auto;margin:0;z-index:2147483646;pointer-events:none;box-sizing:border-box;',
-    '  background:color-mix(in srgb,var(--p-bg) 84%,var(--p-tx));color:var(--p-tx);border:1px solid color-mix(in srgb,var(--p-tx) 16%,transparent);',
-    '  font-size:12px;font-weight:600;letter-spacing:.1px;line-height:1.35;padding:6px 10px;border-radius:6px;white-space:normal;text-transform:none;',
-    '  box-shadow:0 6px 18px rgba(0,0,0,.38);max-width:280px;opacity:0;transform:translateY(3px);transition:opacity .12s,transform .12s}',
-    '.a1c-tip.light{background:color-mix(in srgb,var(--p-bg) 20%,#fff);box-shadow:0 6px 18px rgba(0,0,0,.14)}',
+    // Hardened: a tooltip mounts inside the page (Notebook's roots style their
+    // descendants by id), and no page rule may change its box or its type.
+    '.a1c-tip{position:fixed!important;inset:auto;margin:0!important;z-index:2147483646;pointer-events:none;box-sizing:border-box!important;display:block!important;',
+    '  background:color-mix(in srgb,var(--p-bg) 84%,var(--p-tx))!important;color:var(--p-tx)!important;border:1px solid color-mix(in srgb,var(--p-tx) 14%,transparent)!important;',
+    '  font-family:var(--a1c-tip-font)!important;font-size:12px!important;font-weight:600!important;font-style:normal!important;letter-spacing:.1px!important;',
+    '  line-height:1.35!important;padding:6px 10px!important;border-radius:6px!important;white-space:normal!important;text-transform:none!important;',
+    '  text-align:left!important;width:max-content!important;height:auto!important;min-width:0!important;min-height:0!important;text-shadow:none!important;',
+    '  box-shadow:0 6px 18px rgba(0,0,0,.38)!important;max-width:280px!important;opacity:0;transform:translateY(3px);transition:opacity .12s,transform .12s}',
+    '.a1c-tip.light{background:color-mix(in srgb,var(--p-bg) 20%,#fff)!important;box-shadow:0 6px 18px rgba(0,0,0,.14)!important}',
     '.a1c-tip.on{opacity:1;transform:none}',
     '@media (prefers-reduced-motion:reduce){.a1c-pop,.a1c-tip,.a1c-trig .a1c-ic,summary[data-a1c]::before{transition:none!important}}',
   ].join('\n');
@@ -1060,7 +1064,12 @@
       tip = h('div', 'a1c-tip');
       tip.textContent = text;
       tip.setAttribute('role', 'tooltip');
-      paint(tip, palette(el));
+      var pal = palette(el);
+      paint(tip, pal);
+      // A tooltip is chrome, not the control: plain text colour for its
+      // ground (never the control's accent or a mono font), each side's UI face.
+      tip.style.setProperty('--p-tx', pal.dark ? '#f4f3f0' : '#26232b');
+      tip.style.setProperty('--a1c-tip-font', isVeda(el) ? "'Nunito','Inter',system-ui,sans-serif" : "'Inter',system-ui,sans-serif");
       mount(tip, el);
       var r = el.getBoundingClientRect(), o = fixedOrigin(tip);
       var tw = tip.offsetWidth, th = tip.offsetHeight;
