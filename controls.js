@@ -91,7 +91,7 @@
     '[contenteditable] input[type=checkbox]:not([data-native]):checked{background:var(--a1c-ac,var(--a1c-side-ac));border-color:var(--a1c-ac,var(--a1c-side-ac))}',
     'input[data-a1c]:checked::after,[contenteditable] input[type=checkbox]:not([data-native]):checked::after{transform:scale(1)}',
     'input[data-a1c][type=checkbox]:indeterminate::after{transform:scale(1);height:2px;width:8px;-webkit-mask:none;mask:none;border-radius:1px}',
-    'input[data-a1c][type=checkbox]:focus-visible,input[data-a1c][type=radio]:focus-visible{outline:2px solid var(--a1c-ac,var(--a1c-side-ac));outline-offset:2px}',
+    'input[data-a1c][type=checkbox]:focus-visible,input[data-a1c][type=radio]:focus-visible{outline:1.5px solid color-mix(in srgb,var(--a1c-ac,var(--a1c-side-ac)) 55%,transparent);outline-offset:2px}',
     'input[data-a1c][type=checkbox]:disabled,input[data-a1c][type=radio]:disabled{opacity:.4;cursor:not-allowed}',
     // ── range ── --a1c-pct is kept current by JS so the filled part tracks.
     'input[data-a1c][type=range]{-webkit-appearance:none;appearance:none;background:transparent;height:22px;cursor:pointer;touch-action:pan-y}',
@@ -110,7 +110,9 @@
     'select[data-a1c=sel]{-webkit-appearance:none!important;appearance:none!important;cursor:pointer;padding-right:24px!important;',
     '  background-image:var(--a1c-chev)!important;background-repeat:no-repeat!important;background-position:right 8px center!important;background-size:11px 11px!important}',
     'select[data-a1c=own]{cursor:pointer}',
-    'select[data-a1c][aria-expanded=true]{border-color:var(--a1c-ac,var(--a1c-side-ac))!important}',
+    'select[data-a1c][aria-expanded=true],.a1c-trig[aria-expanded=true]{border-color:color-mix(in srgb,var(--a1c-ac,var(--a1c-side-ac)) 55%,transparent)!important;outline:none!important;box-shadow:none!important}',
+    'select[data-a1c]:focus:not(:focus-visible),.a1c-trig:focus:not(:focus-visible){outline:none!important}',
+    'select[data-a1c]:focus-visible,.a1c-trig:focus-visible{outline:1.5px solid color-mix(in srgb,var(--a1c-ac,var(--a1c-side-ac)) 55%,transparent)!important;outline-offset:1px!important;box-shadow:none!important}',
     // ── colour ── a visible colour input is a plain swatch; its dialog is A1's.
     'input[type=color]:not([data-native]){-webkit-appearance:none;appearance:none;width:28px;height:28px;padding:2px;box-sizing:border-box;cursor:pointer;',
     '  border:1px solid color-mix(in srgb,currentColor 30%,transparent);border-radius:6px;background:transparent}',
@@ -145,7 +147,6 @@
     '.a1c-trig .a1c-lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}',
     '.a1c-trig .a1c-ic{flex-shrink:0;display:flex;opacity:.65;transition:opacity .15s,color .15s}',
     '.a1c-trig:hover .a1c-ic{opacity:1}',
-    '.a1c-trig[aria-expanded=true]{border-color:var(--a1c-ac,var(--a1c-side-ac))!important}',
     '.a1c-trig[aria-expanded=true] .a1c-ic{opacity:1;color:var(--a1c-ac,var(--a1c-side-ac))}',
     '.a1c-trig:disabled{opacity:.5;cursor:not-allowed}',
     '.a1c-ph{opacity:.55}',
@@ -161,8 +162,8 @@
     '.a1c-opt .a1c-otext{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
     '.a1c-opt .a1c-ocheck{flex-shrink:0;color:var(--p-ac);opacity:0;display:flex}',
     '.a1c-opt.sel{color:var(--p-ac);font-weight:600}.a1c-opt.sel .a1c-ocheck{opacity:1}',
-    '.a1c-opt.act{background:color-mix(in srgb,var(--p-ac) 32%,transparent)}',
-    '.a1c-opt.sel.act{background:color-mix(in srgb,var(--p-ac) 38%,transparent)}',
+    '.a1c-opt.act{background:color-mix(in srgb,var(--p-ac) 26%,transparent)}',
+    '.a1c-opt.sel.act{background:color-mix(in srgb,var(--p-ac) 26%,transparent)}',
     '.a1c-opt[aria-disabled=true]{opacity:.38;cursor:not-allowed}',
     '.a1c-grp{font-size:10px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;opacity:.55;padding:9px 10px 4px}',
     '.a1c-empty{padding:10px;opacity:.6}',
@@ -187,7 +188,7 @@
     '.a1c-pop .a1c-cell.today{border-color:color-mix(in srgb,var(--p-tx) 30%,transparent)!important}',
     '.a1c-pop .a1c-cell.sel,.a1c-pop .a1c-cell.sel:hover{background:var(--p-ac)!important;color:var(--p-on)!important;font-weight:700!important;opacity:1}',
     '.a1c-pop .a1c-cell:disabled{opacity:.22;cursor:not-allowed;background:transparent!important}',
-    '.a1c-pop .a1c-btn:focus-visible{outline:2px solid var(--p-ac)!important;outline-offset:-2px}',
+    '.a1c-pop .a1c-btn:focus-visible{outline:1.5px solid color-mix(in srgb,var(--p-ac) 65%,transparent)!important;outline-offset:-1.5px}',
     '.a1c-foot{display:flex;justify-content:space-between;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid color-mix(in srgb,var(--p-tx) 12%,transparent)}',
     '.a1c-pop .a1c-link{color:var(--p-ac)!important;font-size:12px!important;font-weight:700!important;padding:6px 10px}',
     '.a1c-pop .a1c-link:hover{background:color-mix(in srgb,var(--p-ac) 18%,transparent)!important}',
@@ -420,7 +421,7 @@
     if (e.key === 'Escape') {
       e.preventDefault(); e.stopImmediatePropagation();
       var a = openPop.anchor; closePopover();
-      try { a.focus({ preventScroll: true }); } catch (x) {}
+      try { a.focus({ preventScroll: true, focusVisible: false }); } catch (x) {}
       return;
     }
     if (openPop.onKey && (doc.activeElement === openPop.anchor || openPop.pop.contains(doc.activeElement))) { if (openPop.onKey(e)) e.stopPropagation(); }
@@ -519,7 +520,7 @@
     var lb = listbox(items, function (k) {
       var i = shown[k], changed = sel.selectedIndex !== i;
       closePopover();
-      try { sel.focus({ preventScroll: true }); } catch (e) {}
+      try { sel.focus({ preventScroll: true, focusVisible: false }); } catch (e) {}
       if (!changed) return;
       sel.selectedIndex = i;
       fire(sel);
@@ -540,7 +541,7 @@
     if (!sel || e.button !== 0) return;
     e.preventDefault();
     if (isOpenFor(sel)) { closePopover(); return; }
-    try { sel.focus({ preventScroll: true }); } catch (x) {}
+    try { sel.focus({ preventScroll: true, focusVisible: false }); } catch (x) {}
     openSelect(sel);
   }, true);
   // Touch: a tap's touchend, prevented, never becomes a mousedown, focus or
@@ -678,7 +679,7 @@
   function set(inp, btn, v, close) {
     var changed = inp.value !== v;
     setRaw(inp, v);
-    if (close) { closePopover(); try { btn.focus({ preventScroll: true }); } catch (e) {} }
+    if (close) { closePopover(); try { btn.focus({ preventScroll: true, focusVisible: false }); } catch (e) {} }
     if (changed) fire(inp);
   }
 
@@ -732,7 +733,7 @@
     var clr = h('button', 'a1c-btn a1c-link'); clr.type = 'button'; clr.textContent = 'Clear';
     clr.addEventListener('click', function () { set(inp, btn, '', true); });
     var done = h('button', 'a1c-btn a1c-link'); done.type = 'button'; done.textContent = 'Done';
-    done.addEventListener('click', function () { closePopover(); btn.focus(); });
+    done.addEventListener('click', function () { closePopover(); btn.focus({ focusVisible: false }); });
     foot.appendChild(inp.required ? h('span') : clr); foot.appendChild(done);
     pop.appendChild(foot);
     openPopover(pop, btn, { minWidth: 256 });
@@ -829,7 +830,7 @@
       right.appendChild(tod);
       if (withTime) {
         var done = h('button', 'a1c-btn a1c-link'); done.type = 'button'; done.textContent = 'Done';
-        done.addEventListener('click', function () { closePopover(); btn.focus(); });
+        done.addEventListener('click', function () { closePopover(); btn.focus({ focusVisible: false }); });
         right.appendChild(done);
       }
       foot.appendChild(inp.required ? h('span') : clr); foot.appendChild(right);
