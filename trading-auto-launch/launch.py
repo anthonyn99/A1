@@ -2,21 +2,25 @@
 Trading Auto Launch
 =====================
 On every market weekday (Mon–Fri, skipping NYSE holidays), the FIRST time you
-wake / unlock / boot your laptop at or after 6 AM Mountain Time, it first makes you
-confirm your Daily Reminder, and only then opens:
+wake / unlock / boot your laptop at or after 6 AM in this PC's own time zone, it
+first makes you confirm your Daily Reminder, and only then opens:
   - WeBull Desktop   →  left   panel
   - TradeHub         →  middle panel  (a tab in the Brave window you already have
                         open, moved to the middle panel; only if Brave has no
                         window at all does this open one)
   - TaskHub          →  right  panel  (Brave app shortcut)
-  - Your Analysis search tabs, in that same TradeHub window.
 
-THE DAILY PROMPT IS NOT PART OF THIS FLOW ANY MORE (2026-11-01). The prompt you
-picked in TradeHub → Analysis goes to its AI destination (MAGI, or the chat site
-you chose) ON ITS OWN, from a second scheduled task: `launch.py --analysis`, at
-6 AM in this PC's own time zone (Mountain, Eastern, wherever it is; the same rule
-TradeHub builds its tabs by), or the first time the PC is opened after that. It
-never waits for the Daily Reminder or for anything else here. See DAILY ANALYSIS.
+THE ANALYSIS TAB IS NOT PART OF THIS FLOW ANY MORE. The prompt you picked in
+TradeHub → Analysis (2026-11-01) and its search tabs (2026-11-02) go out ON THEIR
+OWN, from a second scheduled task: `launch.py --analysis`, at 6 AM in this PC's
+own time zone (Mountain, Eastern, wherever it is; the same rule TradeHub builds
+its tabs by), or the first time the PC is opened after that. It never waits for
+the Daily Reminder or for anything else here. See DAILY ANALYSIS.
+
+6 AM is wall-clock time all year: standard and daylight time alike. Every check
+here reads the PC's local clock, and setup() registers the 6 AM trigger WITHOUT
+a UTC offset, so Task Scheduler does not pin it to UTC (a pinned trigger drifts
+to 5 or 7 AM when the clocks change).
 
 You can also deploy this whole flow ON DEMAND from TradeHub → Analysis → "Deploy
 Trading Auto Launch". Because TradeHub is already open there, it reuses that
@@ -139,7 +143,8 @@ CHATGPT_POS = [1707, 0, 1706, SCREEN_H]
 
 # ==============================================================================
 #  DAILY ANALYSIS  (its own scheduled task since 2026-11-01)
-#  The prompt goes to the AI on its own: no Daily Reminder, no Trading Auto Launch.
+#  The prompt goes to the AI, and the search tabs open, on their own: no Daily
+#  Reminder, no Trading Auto Launch.
 #  `launch.py --analysis` runs from the TradingDailyAnalysis task on the same four
 #  triggers (6 AM daily, logon, unlock, wake) and sends it ONCE per market day,
 #  at the first trigger at or after ANALYSIS_HOUR in THIS PC'S OWN time zone, so
@@ -222,11 +227,11 @@ WEBULL_MARGIN_ITEM    = (1452, 214)  # LAST-RESORT fallback only: used if UI Aut
                                      # the account list is y=180, row 2 y=214, row 3 y=248.
 
 # ==============================================================================
-#  TRIGGER WINDOW  (Mountain Time)
+#  TRIGGER WINDOW  (this PC's local time, standard or daylight)
 # ==============================================================================
 
 TRIGGER_HOUR = 6    # Earliest launch time. Open before this → it waits until 6:00 AM.
-LATEST_HOUR  = 12   # If your FIRST open of the day is at/after this hour (noon MT),
+LATEST_HOUR  = 12   # If your FIRST open of the day is at/after this hour (noon),
                     # it won't auto-launch — assumes you're not starting a trading day.
 
 # WiFi/network gate. Opening the laptop lid fires the unlock trigger INSTANTLY, but
