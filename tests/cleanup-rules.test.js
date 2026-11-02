@@ -386,10 +386,18 @@ const clone = () => JSON.parse(JSON.stringify(RULES));
     ok('and never on a1-priv, where the key may be live', wp.localStorage.getItem('dead_here') === '1' && !repP.error, repP.error);
     const ru = clone(); ru.items[0].origin = 'elsewhere';
     ok('an unknown origin fails closed', (await boot({ rules: ru }).A1Sweep.run()).error);
-    const wd = boot({ seed: { tb_quick_prompt: '1' }, url: 'https://anthonyn99.github.io/A1/index.html' });
+    // moved-programs-old-origin is approved but held until its notBefore day:
+    // a dry run before it, deleted from it on, with nobody switching it on.
+    const mp = RULES.items.find((i) => i.id === 'moved-programs-old-origin');
+    ok('moved-programs-old-origin waits for 2026-11-10', mp.delete === true && mp.notBefore === '2026-11-10');
+    const asOf = (iso) => { const r = clone(); r.items.find((i) => i.id === mp.id).notBefore = iso; return r; };
+    const wd = boot({ rules: asOf('2999-01-01'), seed: { tb_quick_prompt: '1' }, url: 'https://anthonyn99.github.io/A1/index.html' });
     const repD = await wd.A1Sweep.run();
-    ok('moved-programs-old-origin ships as a dry run', wd.localStorage.getItem('tb_quick_prompt') === '1' &&
+    ok('…before that day it only lists the old keys', wd.localStorage.getItem('tb_quick_prompt') === '1' &&
       repD.wouldDelete.some((x) => x === 'moved-programs-old-origin: localStorage tb_quick_prompt'), repD.wouldDelete);
+    const we = boot({ rules: asOf('2000-01-01'), seed: { tb_quick_prompt: '1' }, url: 'https://anthonyn99.github.io/A1/index.html' });
+    await we.A1Sweep.run();
+    ok('…and from it they go on their own', we.localStorage.getItem('tb_quick_prompt') === null);
   }
 
   // "notBefore": an approved item stays a dry run until that local day, then goes on its own.
