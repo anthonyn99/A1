@@ -7,8 +7,8 @@
 //
 // Three pages, all served from this working copy by cdp.js (Firebase blocked):
 //   vault.html                     the theme, the numbers face, Keychain's card
-//                                  and link drags (edit mode, mouse + held
-//                                  finger), the header buttons, the uiModal, the
+//                                  and link drags (any time since Vault dropped
+//                                  edit mode, 2026-10-27; mouse + held finger), the header buttons, the uiModal, the
 //                                  connection modal's resize grip
 //   tests/live/vault-harness.html  the Secure Notes list (the one reorder engine
 //                                  Payments and API Keys share) and the tab bar
@@ -139,13 +139,9 @@ const row = (name) => `[...document.querySelectorAll('#kc-conns-list .kc-item-ro
   ok('no gold left on the Keychain screen', !gold.length, gold);
   await shot(c, 'keychain');
 
-  console.log('\nKeychain cards (edit mode, mouse)');
-  ok('view mode: a card does not drag', await (async () => {
-    const a = await rect(c, card('Alpha') + '.querySelector(".kc-card-name")');
-    await mouseDrag(c, a.x, a.y, 0, 160);
-    return JSON.stringify(await cols(c)) === JSON.stringify([['Alpha', 'Bravo'], ['Charlie', 'Delta']]);
-  })(), await cols(c));
-  await evalJs(c, `kcToggleMode(); return 1;`);
+  console.log('\nKeychain cards (mouse)');
+  // No edit mode since 2026-10-27: cards and rows drag any time.
+  ok('no edit / view toggle left', await evalJs(c, `return !document.getElementById('kc-edit-toggle') && typeof window.kcToggleMode === 'undefined';`));
   ok('no grip dots on cards or rows', await evalJs(c, `return !document.querySelector('.kc-drag-handle, .kc-item-handle, .dsort-grip');`));
   ok('every column is an A1Drag list', await evalJs(c, `return [].every.call(document.querySelectorAll('#kc-conns-list .kc-col'), function(l){ return l.classList.contains('dsort'); });`));
   let a = await rect(c, card('Alpha') + '.querySelector(".kc-card-name")');
@@ -161,7 +157,7 @@ const row = (name) => `[...document.querySelectorAll('#kc-conns-list .kc-item-ro
   ok('a card moves across to the other column', JSON.stringify(await cols(c)) === JSON.stringify([['Bravo'], ['Charlie', 'Delta', 'Alpha']]), await cols(c));
   ok('...saved: reading order + column map', JSON.stringify(s1.colmap) === '[0,1,1,1]' && s1.names[3].startsWith('Alpha'), s1);
 
-  console.log('\nLink rows (edit mode)');
+  console.log('\nLink rows');
   const r1 = await rect(c, row('C1') + '.querySelector(".kc-link-name")');
   const r2 = await rect(c, row('C2'));
   await mouseDrag(c, r1.x, r1.y, 0, r2.h + 4);
@@ -215,7 +211,6 @@ const row = (name) => `[...document.querySelectorAll('#kc-conns-list .kc-item-ro
   console.log('\nPhone: held finger vs swipe');
   await view(c, 390, 844, true);
   await openApp(c);
-  await evalJs(c, `if(!document.getElementById('kc-root').classList.contains('edit-mode')) kcToggleMode(); return 1;`);
   await sleep(300);
   const before = JSON.stringify(await cols(c));
   const p1 = await rect(c, `document.querySelectorAll('#kc-conns-list .kc-card')[1].querySelector('.kc-card-name')`);
