@@ -214,7 +214,7 @@ const VEDA = [
   ok('React select: a pick reaches onChange and state', (await evalJs(c, 'window.reactState.cat + "|" + window.reactLog.join()')) === 'home|cat:home', await evalJs(c, 'window.reactLog'));
   await evalJs(c, "window.reactSet.cat('work'); return 1;");
   await sleep(100);
-  ok('React setting state shows in the select', (await evalJs(c, "var s = document.getElementById('rsel'); s.options[s.selectedIndex].text")) === 'Work');
+  ok('React setting state shows in the select', (await evalJs(c, "var s = document.getElementById('rsel'); return s.options[s.selectedIndex].text;")) === 'Work');
   ok('React date: button shows its value', /May/.test(await evalJs(c, trigText('rdate'))), await evalJs(c, trigText('rdate')));
   await click(c, '#rdate + .a1c-trig');
   await evalJs(c, "Array.prototype.find.call(document.querySelectorAll('.a1c-pop.on .a1c-cal-grid .a1c-cell'), function (x) { return x.textContent === '20' && !x.classList.contains('out'); }).click(); return 1;");
