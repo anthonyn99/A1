@@ -79,7 +79,7 @@
   var groups = {};          // group name -> [{ list, o }]
 
   var CSS = [
-    '.dsort > * { transition: transform .17s cubic-bezier(.2, .8, .2, 1), left .17s cubic-bezier(.2, .8, .2, 1), top .17s cubic-bezier(.2, .8, .2, 1); }',
+    '.dsort > * { transition: transform .17s cubic-bezier(.2, .8, .2, 1); }',
     // !important: themed rows carry their own `transition: all` and inline
     // backgrounds, and a lifted row that eases after the pointer lags behind it.
     '.dsort-drag {',
@@ -93,7 +93,7 @@
     // A lifted chip's 1.06 is part of its transform (lift() in begin), never
     // the `scale` property: that multiplies the translate too, so the chip
     // trailed the pointer by 6% of the distance dragged.
-    '.dsort-settle { transition: transform .17s cubic-bezier(.2, .8, .2, 1), left .17s cubic-bezier(.2, .8, .2, 1), top .17s cubic-bezier(.2, .8, .2, 1), box-shadow .17s !important; }',
+    '.dsort-settle { transition: transform .17s cubic-bezier(.2, .8, .2, 1), box-shadow .17s !important; }',
     '.dsort-on > :not(.dsort-drag) { pointer-events: none; }',
     // Held for the instant the transforms are cleared and the caller redraws the
     // new order: without it each row EASED from its settled offset back to 0 and
@@ -333,20 +333,38 @@
       // 33.5px) showed its text and box a pixel off, and hopped on release.
       var pos2 = function (dx, dy) { return 'translate(' + dx + 'px, ' + dy + 'px)'; };
       var pos1 = function (r, v) { return X ? pos2(v, 0) : pos2(0, v); };
+      //
+      // And smooth: animating left / top would lay the page out again every
+      // frame. So a row JUMPS to its new offset and a transform (composited,
+      // off the main thread) eases it from where it was drawn down to none --
+      // FLIP. It moves on the GPU and rests on layout pixels.
+      var SLIDE = 'transform .17s cubic-bezier(.2, .8, .2, 1)';
+      var shown = function (r) {   // the transform drawn right now, a slide in flight included
+        var t = getComputedStyle(r).transform;
+        return t && t !== 'none' && window.DOMMatrixReadOnly ? new DOMMatrixReadOnly(t) : null;
+      };
       var nudge = function (r, dx, dy) {
-        if (!r._dsRel) {
+        dx = dx || 0; dy = dy || 0;
+        var o = r._dsRel;
+        if (!o) {
           var cs = getComputedStyle(r);
-          r._dsRel = { pos: r.style.position, l: r.style.left, t: r.style.top,
+          o = r._dsRel = { pos: r.style.position, l: r.style.left, t: r.style.top, tr: r.style.transition, x: 0, y: 0,
             bl: cs.position === 'static' ? 0 : parseFloat(cs.left) || 0, bt: cs.position === 'static' ? 0 : parseFloat(cs.top) || 0 };
           if (cs.position === 'static') r.style.position = 'relative';
-          r.style.left = r._dsRel.bl + 'px'; r.style.top = r._dsRel.bt + 'px';
-          void getComputedStyle(r).top;   // a start value, or the first push jumps instead of sliding
         }
-        r.style.left = (r._dsRel.bl + (dx || 0)) + 'px'; r.style.top = (r._dsRel.bt + (dy || 0)) + 'px';
+        if (o.x === dx && o.y === dy && r.style.left) return;
+        var m = shown(r), fx = o.x + (m ? m.e : 0) - dx, fy = o.y + (m ? m.f : 0) - dy;
+        r.style.transition = 'none';
+        r.style.left = (o.bl + dx) + 'px'; r.style.top = (o.bt + dy) + 'px';
+        r.style.transform = fx || fy ? pos2(fx, fy) : '';
+        void r.offsetWidth;   // that start, drawn, before the slide begins
+        r.style.transition = SLIDE;
+        r.style.transform = '';
+        o.x = dx; o.y = dy;
       };
       var unnudge = function (r) {
         var o = r._dsRel; if (!o) return;
-        r.style.position = o.pos; r.style.left = o.l; r.style.top = o.t; r._dsRel = null;
+        r.style.position = o.pos; r.style.left = o.l; r.style.top = o.t; r.style.transition = o.tr; r._dsRel = null;
       };
       var still = function (r) { nudge(r, 0, 0); };
       var lift = function (t) { return ax !== 'y' ? t + ' scale(1.06)' : t; };   // the lifted row only
@@ -650,12 +668,20 @@
         var mover = copy || fly ? ghost : row;
         mover.classList.add('dsort-settle');
         mover.classList.remove('dsort-chip');
-        // The pointer's transform eases out while the offset eases in: one glide,
-        // ending on layout pixels (see nudge).
+        // One glide, on the GPU, ending on layout pixels (see nudge): the copy
+        // jumps to its slot and a transform eases it there from where it is.
         if (mover === ghost) {
-          if (land) { ghost.style.left = (r0.left + land.dx) + 'px'; ghost.style.top = (r0.top + land.dy) + 'px'; }
-        } else nudge(mover, land ? land.dx : 0, land ? land.dy : 0);
-        mover.style.transform = '';
+          var gm = shown(ghost), lx = land ? land.dx : 0, ly = land ? land.dy : 0;
+          ghost.classList.remove('dsort-settle');
+          ghost.style.left = (r0.left + lx) + 'px'; ghost.style.top = (r0.top + ly) + 'px';
+          ghost.style.transform = gm ? 'matrix(' + [gm.a, gm.b, gm.c, gm.d, gm.e - lx, gm.f - ly].join(',') + ')' : '';
+          void ghost.offsetWidth;
+          ghost.classList.add('dsort-settle');
+          ghost.style.transform = '';
+        } else {
+          nudge(mover, land ? land.dx : 0, land ? land.dy : 0);
+          mover.style.transform = '';
+        }
         if (!cross && to === from) rows.forEach(function (r) { if (r !== row) still(r); });
         var tl = cross ? tgt : null, tk = tTo, onDrop = me.o.onDrop;
         setTimeout(function () {
