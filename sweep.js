@@ -162,6 +162,12 @@
 
         if (full && !set(STAMP, today())) throw new Error('localStorage still full after the localStorage removals; stopping before Firestore/IndexedDB');
 
+        // A page's Firestore guard can clear well after the first minute (index's
+        // waits for MyJournal to hear from the server), so wait for it, up to
+        // READY_WAIT_MS, rather than skipping the item for the whole day.
+        if (!dry && p.fs.some(function (x) { return x.del; })) {
+          await until(function () { var a = window._a1SweepFirestore; return !!(a && a.ready && a.ready()); }, opts.readyWaitMs);
+        }
         var fsa = window._a1SweepFirestore;
         var budget = rules.limits.firestoreDeletesPerSweep;
         for (var i = 0; i < p.fs.length; i++) {

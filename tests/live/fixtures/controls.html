@@ -48,6 +48,10 @@
     <input id="hidcol" type="color" value="#ffffff" style="position:absolute;width:22px;height:10px;opacity:0;pointer-events:none">
     <button id="opencol" class="fld" onclick="document.getElementById('hidcol').click()">custom</button>
   </div>
+  <!-- Notebook's shape: a filled lavender tab inside a root whose id rules
+       strip padding and set a mono font on every descendant. -->
+  <style>#nbroot div { padding: 0; font-family: monospace; font-size: 15px; line-height: 1; background: #dbd0f5; }</style>
+  <div id="nbroot" style="position:relative;padding:10px;background:#232327"><button id="pilltab" title="MyJournal" style="background:#c0aeea;color:#1a1a1d;border:0;border-radius:6px;padding:8px 14px">MYJOURNAL</button></div>
   <details id="det"><summary id="sum">More</summary><p>inside</p></details>
   <div id="ce" contenteditable="true"><ul><li><input type="checkbox" id="ce-cb" contenteditable="false"> item</li></ul></div>
   <div id="light" data-th-profile="veda">

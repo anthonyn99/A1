@@ -213,6 +213,15 @@ const VEDA = [
   ok('hovering shows an A1 tooltip, the title is off while over it', tip.text === 'Hello tip' && tip.title === null, tip);
   await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 5, y: 880 });
   await sleep(250);
+  const pt = await center(c, '#pilltab');
+  await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: pt.x, y: pt.y });
+  await sleep(700);
+  const ptip = await evalJs(c, "var t = document.querySelector('.a1c-tip.on'); if (!t) return null; var cs = getComputedStyle(t); return { light: t.classList.contains('light'), pad: cs.paddingTop + ' ' + cs.paddingLeft, font: cs.fontFamily, size: cs.fontSize, color: cs.color };");
+  // Notebook's active tab gave a lavender, unpadded, mono tooltip (Tony, 2026-11-02).
+  ok("a filled tab's tooltip takes the panel behind it (dark), keeps its padding and A1's font against the page's id rules",
+    ptip && !ptip.light && ptip.pad === '6px 10px' && /Inter/.test(ptip.font) && ptip.size === '12px' && ptip.color === 'rgb(244, 243, 240)', ptip);
+  await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: tp.x, y: tp.y });
+  await sleep(700);
   ok('leaving hides it and puts the title back', (await evalJs(c, "!document.querySelector('.a1c-tip.on') && document.getElementById('tipped').getAttribute('title')")) === 'Hello tip');
 
   await evalJs(c, "window.colLog = []; ['input', 'change'].forEach(function (t) { document.getElementById('col').addEventListener(t, function (e) { window.colLog.push(t + ':' + e.target.value); }); }); return 1;");
