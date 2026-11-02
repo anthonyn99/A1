@@ -81,7 +81,8 @@
       "prefix": [],
       "owner": "tradehub.html Analysis Quick Prompt grip (replaced 2026-10-02, theme overhaul phase 4)",
       "reason": "The Quick Prompt box's old hand-rolled grip stored its height here. The box now uses resizegrip.js, which stores a1.h.th.quick instead. The key sits in github.io's localStorage from before TradeHub moved to A1-Priv (2026-10-10), and index's sweep runs on that origin.",
-      "delete": false,
+      "delete": true,
+      "approved": "2026-11-02: Tony approved turning deletion on so the cleanup runs fully on its own; replaced a month ago, no live code reads it",
       "origin": "a1"
     },
     {
@@ -213,7 +214,8 @@
       "glob": "profiles/{profile}/cli/codex-*/sessions/**/rollout-*.jsonl",
       "owner": "magi/code/agents/codex_cli.py (Code Mode follow-ups, Track F)",
       "reason": "Codex's own record of each Code Mode task. Since F3 (2026-09-30) they are kept, not ephemeral, so a follow-up can resume the same Codex session. A session untouched for 30 days is continued from its transcript instead, and nothing else ever removes them. Accounts' usage reading only looks at the newest few.",
-      "delete": false
+      "delete": true,
+      "approved": "2026-11-02: Tony approved turning deletion on so the cleanup runs fully on its own; a follow-up after 30 days continues from the transcript, so nothing is lost"
     },
     {
       "id": "trading-launch-log",
@@ -305,7 +307,8 @@
       ],
       "owner": "tradehub.html Playbook (before Notebook)",
       "reason": "This device's copy of the old Playbook pages[]. Since 2026-10-09 (Notebook Phase 6) the Playbook is a Notebook instance on dashboards/tradehub_playbook, and the first open migrated these pages there (this copy is only read when the cloud document never existed). The old dashboards/tradeboard_playbook document is kept as a backup.",
-      "delete": false,
+      "delete": true,
+      "approved": "2026-11-02: Tony approved turning deletion on so the cleanup runs fully on its own; the Playbook moved to dashboards/tradehub_playbook on 2026-10-09 and the old cloud doc stays as the backup",
       "origin": "a1-priv"
     },
     {
@@ -370,7 +373,9 @@
       ],
       "owner": "tradehub.html, insight.html, vault.html, riftiq.html, solace.html (moved to A1-Priv, 2026-10-10; Solace is Everwell since 2026-10-11), oneinbox.html (moved 2026-10-28)",
       "reason": "These five programs now run on a1-priv.av1.workers.dev, and their A1 files were removed (redirect stubs until 2026-10-22), so this origin's copies of their keys are never read again. They are local mirrors and settings (the data is in Firestore) taking room that TaskHub's journal caches need. Left out on purpose: keys a page here still uses (al_locks, td6_mainDash, pl_device_name, kc_icon_cache_v1, bio_cred_*), pv_sched_v1 (index clears it itself) and Vault's device keys (vault.deviceId, vault.deviceKey), which are key material. Keep it a dry run until 2026-11-10, a month after the move, so the old copies stay as a fallback.",
-      "delete": false
+      "delete": true,
+      "approved": "2026-11-02: Tony approved turning deletion on so the cleanup runs fully on its own; waits for 2026-11-10, a month after the move, then deletes by itself",
+      "notBefore": "2026-11-10"
     },
     {
       "id": "solace-priv-leftovers",
@@ -387,7 +392,9 @@
       "prefix": [],
       "owner": "solace.html on a1-priv.av1.workers.dev (replaced by everwell.html, 2026-10-11)",
       "reason": "Solace's local copies of the circuits and routines, its microphone choice and its last view. Everwell replaced Solace (Everwell plan Phase 9), caches nothing in localStorage, and keeps its microphone as ew.tony.micDevice, so these keys on A1-Priv's origin are never read again. The data itself is in Firestore (dashboards/motioncore). Left out on purpose: a1.h.sol.* (Everwell still uses those grip heights) and al_locks (Guardian's).",
-      "delete": false,
+      "delete": true,
+      "approved": "2026-11-02: Tony approved turning deletion on so the cleanup runs fully on its own; same 2026-11-10 date as the moved programs, then deletes by itself",
+      "notBefore": "2026-11-10",
       "origin": "a1-priv"
     },
     {
@@ -403,7 +410,9 @@
       "prefix": [],
       "owner": "riftiq-live/ui.js before 2026-10-25 (one ORCA key for everyone)",
       "reason": "WarRoom Live's one shared ORCA key and AI switch. Since 2026-10-25 each device says whose it is and keeps only that person's key (riftiq_orca_key_<who>, riftiq_ai_on_<who>); ui.js moves the old key to Tony's and removes these on its first load, so they only linger on a device that hasn't opened Live since.",
-      "delete": false,
+      "delete": true,
+      "approved": "2026-11-02: Tony approved turning deletion on so the cleanup runs fully on its own; a month after 2026-10-25 so a device that has not opened Live yet still migrates the key first",
+      "notBefore": "2026-11-25",
       "origin": "a1-priv"
     },
     {
