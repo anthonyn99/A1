@@ -354,11 +354,17 @@
         }
         if (o.x === dx && o.y === dy && r.style.left) return;
         var m = shown(r), fx = o.x + (m ? m.e : 0) - dx, fy = o.y + (m ? m.f : 0) - dy;
-        r.style.transition = 'none';
+        // Inline AND !important: the released row carries .dsort-drag /
+        // .dsort-settle, whose `transition … !important` beat a plain inline
+        // `none`. The row then jumped to its new top while its old drag offset
+        // eased away on top of it: down by the whole offset, then back up, a
+        // bounce on every drop of a row that is not flown as a copy (Vault's
+        // cards, 2026-11-02). Only an inline !important outranks them.
+        r.style.setProperty('transition', 'none', 'important');
         r.style.left = (o.bl + dx) + 'px'; r.style.top = (o.bt + dy) + 'px';
         r.style.transform = fx || fy ? pos2(fx, fy) : '';
         void r.offsetWidth;   // that start, drawn, before the slide begins
-        r.style.transition = SLIDE;
+        r.style.setProperty('transition', SLIDE, 'important');
         r.style.transform = '';
         o.x = dx; o.y = dy;
       };
