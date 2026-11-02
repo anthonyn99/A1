@@ -57,8 +57,8 @@ service = "studyos-files"
 enabled = true
 
 # ── NO [triggers] BLOCK ON PURPOSE ──────────────────────────────────────────
-# The account is capped at 5 cron triggers and 4 are already spent (newshub-api,
-# personal-ai, taskhub-reminders, tradeboard-api). Instead of consuming the last
+# The account is capped at 5 cron triggers and 3 are spent (newshub-api,
+# personal-ai, taskhub-reminders; tradeboard-api's was removed 2026-11-02). Instead of spending
 # one, taskhub-reminders' existing every-minute tick POSTs /cron here, which is
 # already the account's fan-out point for insight-api and oneinbox-api.
 #
