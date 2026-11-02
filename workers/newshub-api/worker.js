@@ -4150,12 +4150,20 @@ async function cronPrewarmNews(env, ctx){
   }
 }
 
+// True when a cron run lands in the 6 AM hour in Mountain time. The cron fires
+// at 12:00 and 13:00 UTC because a UTC schedule cannot follow daylight saving:
+// 12:00 UTC is 6 AM in MDT, 13:00 UTC is 6 AM in MST. Exactly one of the two
+// passes on any day, so the builds begin at 6 AM all year, never at 5.
+function isCronBuildHour(ms){
+  const h = +new Intl.DateTimeFormat('en-US', { timeZone:'America/Denver', hour:'numeric', hourCycle:'h23' }).format(new Date(ms));
+  return h === 6;
+}
+
 // ─── HTTP handler ─────────────────────────────────────────────────────────
 export default {
   // Cron — pre-warms cache. Uses Finnhub+TickerTick every run (no daily cap),
   // but only spends Marketaux/StockData/AlphaVantage quota a few times/day at
   // staggered hours so they don't get exhausted.
-  isCronBuildHour,
   async scheduled(event, env, ctx){
     // Fires at 12:00 AND 13:00 UTC; only the run at 6 AM Mountain builds (see
     // isCronBuildHour and wrangler.toml), so builds begin at 06:00 MST or MDT.
