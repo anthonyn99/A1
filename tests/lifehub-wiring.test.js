@@ -119,15 +119,24 @@ console.log('\nPrograms that moved to A1-Priv (docs/a1-priv-move-plan.md)');
   for (const p of [...moved, 'solace']) ok('A1 holds no copy of ' + p + '.html', !fs.existsSync(path.join(ROOT, p + '.html')));
   // OneInbox moved later (2026-10-28): a stored tile still on its GitHub
   // address is patched to the new host once, through migrate().
-  const mp = /var MOVED_PAGES = (\[[^\n]*\]);/.exec(src);
+  const mp = /var MOVED_PAGES = (\[[\s\S]*?\n?\s*\]);/.exec(src);
   let MP = [];
-  try { MP = mp ? new Function('PRIV', 'return ' + mp[1])('https://a1-priv.av1.workers.dev/') : []; } catch (e) {}
+  try { MP = mp ? new Function('PRIV', 'BASE', 'return ' + mp[1])('https://a1-priv.av1.workers.dev/', 'https://anthonyn99.github.io/A1/') : []; } catch (e) {}
   const mv = (u) => { for (const m of MP) if (m.from.test(u)) return u.replace(m.from, m.to); return u; };
   ok('a stored OneInbox tile on the old address is moved to the new host',
     mv('https://anthonyn99.github.io/A1/oneinbox.html') === 'https://a1-priv.av1.workers.dev/oneinbox.html');
   ok('...keeping its query and hash', mv('https://anthonyn99.github.io/A1/oneinbox.html?x=1#msg=a') === 'https://a1-priv.av1.workers.dev/oneinbox.html?x=1#msg=a');
   ok('...and no other page is touched', mv('https://anthonyn99.github.io/A1/mylist.html') === 'https://anthonyn99.github.io/A1/mylist.html'
     && mv('https://anthonyn99.github.io/A1/oneinbox.html.bak') === 'https://anthonyn99.github.io/A1/oneinbox.html.bak');
+  // Wellness moved into V1/ (2026-11-02): Veda's stored tile follows it, the
+  // default points there, and the old address still forwards.
+  ok("a stored Wellness tile is moved to V1/, query and hash kept",
+    mv('https://anthonyn99.github.io/A1/wellness.html?a=1#b') === 'https://anthonyn99.github.io/A1/V1/wellness.html?a=1#b');
+  ok('…and a tile already on V1/ is left alone', mv('https://anthonyn99.github.io/A1/V1/wellness.html') === 'https://anthonyn99.github.io/A1/V1/wellness.html');
+  ok("Veda's default Wellness tile points at V1/", /\{ id: 'wellness', name: 'Wellness', url: BASE \+ 'V1\/wellness\.html'/.test(src));
+  const stub = fs.existsSync(path.join(ROOT, 'wellness.html')) ? fs.readFileSync(path.join(ROOT, 'wellness.html'), 'utf8') : '';
+  ok('the old wellness.html address forwards to V1/, keeping query and hash',
+    /location\.replace\('V1\/wellness\.html' \+ location\.search \+ location\.hash\)/.test(stub) && stub.length < 1500);
   ok('migrate() applies it as a patch, once per sync', /if \(!st\.movedDone\)/.test(src) && /MOVED_PAGES\.forEach/.test(src) && /patchOp\(m\.id, \{ url: m\.url \}\)/.test(src));
 }
 
