@@ -19704,7 +19704,13 @@ $("navCodeHistory").onclick = () =>
   setView(S.view === "codeHistory" ? "council" : "codeHistory");
 $("navHistory").onclick = () => setView(S.view === "history" ? "council" : "history");
 $("navDoctor").onclick = runDoctor;
-$("navAudio").onclick = () => { S.muted = !S.muted; applyMute(); applyAudioNav(); if (!S.muted) beepUnit(); };
+$("navAudio").onclick = () => { S.muted = !S.muted; applyMute(); applyAudioNav();
+  if (!S.muted) {
+    // A run started while muted never began its thinking tone (it skips when
+    // muted), so switching sound on mid-run has to start it, not wait for the next run.
+    if (S.running && !S.halting && !S.procTimer) startProcessingTone(); else beepUnit();
+  }
+};
 $("navHalt").onclick = cancelRun;
 $("linkBtn").onclick = openSetup;
 
