@@ -111,6 +111,27 @@
     '  background-image:var(--a1c-chev)!important;background-repeat:no-repeat!important;background-position:right 8px center!important;background-size:11px 11px!important}',
     'select[data-a1c=own]{cursor:pointer}',
     'select[data-a1c][aria-expanded=true]{border-color:var(--a1c-ac,var(--a1c-side-ac))!important}',
+    // ── colour ── a visible colour input is a plain swatch; its dialog is A1's.
+    'input[type=color]:not([data-native]){-webkit-appearance:none;appearance:none;width:28px;height:28px;padding:2px;box-sizing:border-box;cursor:pointer;',
+    '  border:1px solid color-mix(in srgb,currentColor 30%,transparent);border-radius:6px;background:transparent}',
+    'input[type=color]:not([data-native])::-webkit-color-swatch-wrapper{padding:0}',
+    'input[type=color]:not([data-native])::-webkit-color-swatch{border:none;border-radius:4px}',
+    'input[type=color]:not([data-native])::-moz-color-swatch{border:none;border-radius:4px}',
+    '.a1c-color{width:236px;padding:10px}',
+    '.a1c-sv{position:relative;height:150px;border-radius:6px;cursor:crosshair;touch-action:none;',
+    '  background:linear-gradient(to top,#000,transparent),linear-gradient(to right,#fff,var(--a1c-hue))}',
+    '.a1c-hue{position:relative;height:14px;margin-top:10px;border-radius:7px;cursor:pointer;touch-action:none;',
+    '  background:linear-gradient(to right,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)}',
+    '.a1c-knob{position:absolute;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.45);pointer-events:none;box-sizing:border-box}',
+    '.a1c-hue .a1c-knob{top:50%}',
+    '.a1c-crow{display:flex;align-items:center;gap:8px;margin-top:10px}',
+    '.a1c-cprev{width:28px;height:28px;border-radius:6px;flex-shrink:0;border:1px solid color-mix(in srgb,var(--p-tx) 20%,transparent)}',
+    '.a1c-hex{flex:1;min-width:0;background:transparent;color:inherit;font:inherit;font-variant-numeric:tabular-nums;text-transform:uppercase;',
+    '  border:1px solid color-mix(in srgb,var(--p-tx) 20%,transparent);border-radius:6px;padding:6px 8px;outline:none}',
+    '.a1c-hex:focus{border-color:var(--p-ac)}',
+    '.a1c-sws{display:grid;grid-template-columns:repeat(8,1fr);gap:5px;margin-top:10px}',
+    '.a1c-sw{aspect-ratio:1;border-radius:5px;border:1px solid color-mix(in srgb,var(--p-tx) 18%,transparent);cursor:pointer;padding:0}',
+    '.a1c-sw:hover{transform:scale(1.1)}',
     // ── <details> ──
     'summary[data-a1c]{list-style:none;cursor:pointer}',
     'summary[data-a1c]::-webkit-details-marker{display:none}',
@@ -884,6 +905,92 @@
     }
   }
 
+  // ── colour ─────────────────────────────────────────────────────────────────
+  // A colour input's click (a user's, or code's `input.click()`) is cancelled,
+  // so the system dialog never opens, and A1's picker opens at the input
+  // instead: shade square, hue bar, hex field, swatches. Every move fires
+  // `input`, closing fires `change` (once, if the colour moved), like the
+  // system dialog does.
+  var SWATCHES = ['#ffffff', '#d9d9de', '#9a9aa5', '#5c5c66', '#000000', '#c0aeea', '#8d769a', '#e0b874',
+    '#d68a7c', '#e0b57c', '#e5c84a', '#a4b986', '#5daf6d', '#22d3ee', '#8fa6d8', '#a78bda'];
+  function hexOf(r, g, b) { return '#' + [r, g, b].map(function (x) { return pad16(Math.round(x)); }).join(''); }
+  function pad16(n) { var s = Math.max(0, Math.min(255, n)).toString(16); return s.length < 2 ? '0' + s : s; }
+  function hsvToRgb(hh, s, v) {
+    var f = function (n) { var k = (n + hh / 60) % 6; return v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); };
+    return [f(5) * 255, f(3) * 255, f(1) * 255];
+  }
+  function rgbToHsv(c) {
+    var r = c.r / 255, g = c.g / 255, b = c.b / 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn, hh = 0;
+    if (d) hh = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return { h: (hh * 60 + 360) % 360, s: mx ? d / mx : 0, v: mx };
+  }
+  function enhanceColor(inp) {
+    if (inp._a1c || skip(inp)) return;
+    inp._a1c = true;
+    inp.setAttribute('data-a1c', '');
+  }
+  doc.addEventListener('click', function (e) {
+    var inp = e.target;
+    if (!inp || inp.tagName !== 'INPUT' || inp.type !== 'color' || !inp._a1c || inp.disabled) return;
+    e.preventDefault();
+    if (isOpenFor(inp)) { closePopover(); return; }
+    openColor(inp);
+  }, true);
+  function openColor(inp) {
+    var start = (inp.value || '#000000').toLowerCase();
+    var hsv = rgbToHsv(hexRgb(start) || { r: 0, g: 0, b: 0 });
+    var pop = h('div', 'a1c-pop a1c-color');
+    pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-label', 'Choose a colour');
+    var sv = h('div', 'a1c-sv'), svK = h('span', 'a1c-knob'); sv.appendChild(svK);
+    var hue = h('div', 'a1c-hue'), hueK = h('span', 'a1c-knob'); hue.appendChild(hueK);
+    var row = h('div', 'a1c-crow'), prev = h('span', 'a1c-cprev'), hex = h('input', 'a1c-hex');
+    hex.type = 'text'; hex.maxLength = 7; hex.spellcheck = false; hex.setAttribute('aria-label', 'Hex colour');
+    row.appendChild(prev); row.appendChild(hex);
+    var sws = h('div', 'a1c-sws');
+    SWATCHES.forEach(function (c) {
+      var b = h('button', 'a1c-sw'); b.type = 'button'; b.style.background = c; b.setAttribute('aria-label', c);
+      b.addEventListener('click', function () { hsv = rgbToHsv(hexRgb(c)); draw(true); });
+      sws.appendChild(b);
+    });
+    var foot = h('div', 'a1c-foot'), done = h('button', 'a1c-btn a1c-link');
+    done.type = 'button'; done.textContent = 'Done'; done.style.marginLeft = 'auto';
+    done.addEventListener('click', function () { closePopover(); });
+    foot.appendChild(done);
+    [sv, hue, row, sws, foot].forEach(function (n) { pop.appendChild(n); });
+    function draw(commit, fromHex) {
+      var c = hsvToRgb(hsv.h, hsv.s, hsv.v), x = hexOf(c[0], c[1], c[2]);
+      sv.style.setProperty('--a1c-hue', 'hsl(' + hsv.h + ',100%,50%)');
+      svK.style.left = (hsv.s * 100) + '%'; svK.style.top = ((1 - hsv.v) * 100) + '%';
+      hueK.style.left = (hsv.h / 360 * 100) + '%';
+      prev.style.background = x;
+      if (!fromHex) hex.value = x;
+      if (commit && inp.value !== x) { setRaw(inp, x); inp.dispatchEvent(new Event('input', { bubbles: true })); }
+    }
+    function drag(el, fn) {
+      el.addEventListener('pointerdown', function (e) {
+        e.preventDefault();
+        try { el.setPointerCapture(e.pointerId); } catch (x) {}
+        var move = function (ev) { var r = el.getBoundingClientRect(); fn(Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width)), Math.max(0, Math.min(1, (ev.clientY - r.top) / r.height))); draw(true); };
+        var up = function () { el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); };
+        el.addEventListener('pointermove', move); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+        move(e);
+      });
+    }
+    drag(sv, function (x, y) { hsv.s = x; hsv.v = 1 - y; });
+    drag(hue, function (x) { hsv.h = Math.min(359.9, x * 360); });
+    hex.addEventListener('input', function () {
+      var v = hex.value.trim(); if (v[0] !== '#') v = '#' + v;
+      var c = hexRgb(v); if (c) { hsv = rgbToHsv(c); draw(true, true); }
+    });
+    hex.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); closePopover(); } });
+    draw(false);
+    openPopover(pop, inp, {
+      minWidth: 236,
+      onClose: function () { if (inp.value.toLowerCase() !== start) inp.dispatchEvent(new Event('change', { bubbles: true })); },
+    });
+  }
+
   // ── <details> markers ──────────────────────────────────────────────────────
   function enhanceSummary(s) {
     if (s._a1c || skip(s) || editable(s)) return;
@@ -950,7 +1057,7 @@
   doc.addEventListener('scroll', hideTip, true);
 
   // ── enhancement ────────────────────────────────────────────────────────────
-  var SEL = 'select,input[type=date],input[type=time],input[type=datetime-local],input[list],input[type=checkbox],input[type=radio],input[type=range],summary';
+  var SEL = 'select,input[type=date],input[type=time],input[type=datetime-local],input[list],input[type=checkbox],input[type=radio],input[type=range],input[type=color],summary';
   function one(n) {
     var t = n.tagName;
     // React moved an input it owns: its button goes with it.
@@ -961,6 +1068,7 @@
       var ty = n.type;
       if (ty === 'date' || ty === 'time' || ty === 'datetime-local') enhancePicker(n);
       else if (ty === 'checkbox' || ty === 'radio' || ty === 'range') enhanceBox(n);
+      else if (ty === 'color') enhanceColor(n);
       if (n.hasAttribute('list')) enhanceDatalist(n);
     }
   }
