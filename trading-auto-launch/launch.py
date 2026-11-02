@@ -453,7 +453,7 @@ _ECHO = False   # when True, log() also prints to the console (set by --test-cha
 # trading-launch-log and trading-debug-log.
 LOG_KEEP_DAYS = 30
 _LOG_DATE = (
-    (re.compile(r"^\[(\d{4})-(\d{2})-(\d{2}) "), True),   # launch.log: [2026-09-29 13:59:45 MT]
+    (re.compile(r"^\[(\d{4})-(\d{2})-(\d{2}) "), True),   # launch.log: [2026-09-29 13:59:45]
     (re.compile(r"^\[(\d{2})(\d{2})/\d{6}"), False),      # debug.log:  [0929/093114.446:ERROR...
 )
 
