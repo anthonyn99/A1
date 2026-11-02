@@ -240,12 +240,13 @@
 
   window.A1Sweep = { run: run, report: report, program: PROGRAM };
 
-  // Off the hot path: a minute after load, then whenever the browser is idle.
+  // Off the hot path: a minute after this script runs, then whenever the
+  // browser is idle. The minute is counted from here, not from the page's
+  // "load" event: a page holding a frame or stream open (A1-Priv's signed-in
+  // pages) may never fire it, and until 2026-11-02 their sweeps never ran.
   function later() {
     var idle = window.requestIdleCallback || function (fn) { return setTimeout(fn, 1); };
     idle(function () { run(); }, { timeout: 30000 });
   }
-  function arm() { setTimeout(later, 60000); }
-  if (document.readyState === 'complete') arm();
-  else window.addEventListener('load', arm, { once: true });
+  setTimeout(later, 60000);
 })();
