@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>controls fixture</title>
+<style>
+  body { margin: 0; padding: 20px; background: #1a1a1d; color: #f4f3f0; font: 14px Inter, system-ui, sans-serif; }
+  .row { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+  .fld { background: #232327; border: 1px solid #45454c; color: #f4f3f0; border-radius: 6px; padding: 7px 10px; font: inherit; }
+  /* A page that draws its own select chevron. */
+  .own-sel { appearance: none; -webkit-appearance: none; background: #2c2c31; color: #f4f3f0; border: 1px solid #45454c; border-radius: 6px; padding: 6px 10px; }
+  /* OneInbox-style toggle switch: a checkbox the page draws itself. */
+  .sw { appearance: none; -webkit-appearance: none; width: 40px; height: 24px; border-radius: 12px; background: #45454c; margin: 0; }
+  .sw:checked { background: #a4b986; }
+  #modal { position: fixed; left: 400px; top: 300px; width: 260px; height: 80px; overflow: hidden; background: #232327; border: 1px solid #45454c; transform: translateZ(0); }
+  #light { background: #f5f0e8; color: #2b2622; padding: 12px; }
+  .wide { width: 100%; box-sizing: border-box; }
+</style>
+<script src="../../../controls.js"></script>
+</head>
+<body>
+  <div class="row">
+    <select id="plain" class="fld"><option value="a">Apple</option><option value="b">Banana</option><option value="c" disabled>Cherry</option><option value="d">Date</option></select>
+    <select id="own" class="own-sel"><option>One</option><option>Two</option></select>
+    <select id="inline" class="fld" onchange="window.inlineFired = this.value"><option value="x">X</option><option value="y">Y</option></select>
+    <select id="native" data-native><option>Native</option></select>
+    <select id="multi" multiple><option>M1</option><option>M2</option></select>
+  </div>
+  <div class="row">
+    <input id="date" type="date" class="fld" value="2026-03-04" min="2026-03-02">
+    <input id="time" type="time" class="fld" value="14:35">
+    <input id="dtl" type="datetime-local" class="fld">
+    <input id="dl" class="fld" list="fruits" placeholder="fruit">
+    <datalist id="fruits"><option value="Mango"><option value="Melon"><option value="Lime"></datalist>
+  </div>
+  <div class="row" style="width:400px"><input id="wide-date" type="date" class="fld wide"></div>
+  <div class="row">
+    <label><input id="cb" type="checkbox"> plain</label>
+    <label><input id="gold" type="checkbox" style="accent-color:#e0b874" checked> gold</label>
+    <input id="sw" type="checkbox" class="sw">
+    <label><input id="r1" type="radio" name="r" checked> r1</label>
+    <input id="rng" type="range" min="0" max="10" value="5">
+    <input id="num" type="number" class="fld" value="3">
+    <button id="tipped" class="fld" title="Hello tip">hover</button>
+  </div>
+  <details id="det"><summary id="sum">More</summary><p>inside</p></details>
+  <div id="ce" contenteditable="true"><ul><li><input type="checkbox" id="ce-cb" contenteditable="false"> item</li></ul></div>
+  <div id="light" data-th-profile="veda">
+    <select id="vsel" style="background:#fff;border:1px solid #d8cfc0;color:#2b2622;padding:5px 8px;border-radius:6px"><option>Veda one</option><option>Veda two</option></select>
+    <label><input id="vcb" type="checkbox" checked> hers</label>
+  </div>
+  <div id="modal"><select id="msel" class="fld"><option>m1</option><option>m2</option><option>m3</option><option>m4</option><option>m5</option></select></div>
+  <div id="react"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script>
+    window.reactLog = [];
+    (function () {
+      var e = React.createElement;
+      function App() {
+        var c = React.useState(''), cat = c[0], setCat = c[1];
+        var d = React.useState('2026-05-06'), date = d[0], setDate = d[1];
+        var t = React.useState(''), time = t[0], setTime = t[1];
+        var p = React.useState(false), prep = p[0], setPrep = p[1];
+        var s = React.useState(true), show = s[0], setShow = s[1];
+        window.reactState = { cat: cat, date: date, time: time, prep: prep };
+        window.reactSet = { cat: setCat, date: setDate, show: setShow };
+        return e('div', { className: 'row' },
+          e('select', { id: 'rsel', style: { background: '#2c2c31', border: '1px solid #45454c', color: '#f4f3f0', padding: '5px 8px', borderRadius: 6 }, value: cat,
+            onChange: function (ev) { window.reactLog.push('cat:' + ev.target.value); setCat(ev.target.value); } },
+            e('option', { value: '' }, '— None —'), e('option', { value: 'work' }, 'Work'), e('option', { value: 'home' }, 'Home')),
+          show ? e('input', { id: 'rdate', type: 'date', style: { background: '#2c2c31', border: '1px solid #45454c', color: '#f4f3f0', padding: '5px 8px', borderRadius: 6 }, value: date,
+            onChange: function (ev) { window.reactLog.push('date:' + ev.target.value); setDate(ev.target.value); } }) : null,
+          e('input', { id: 'rtime', type: 'time', style: { background: '#2c2c31', border: '1px solid #45454c', color: '#f4f3f0', padding: '5px 8px', borderRadius: 6 }, value: time,
+            onChange: function (ev) { window.reactLog.push('time:' + ev.target.value); setTime(ev.target.value); } }),
+          e('label', null, e('input', { id: 'rcb', type: 'checkbox', checked: prep, onChange: function (ev) { setPrep(ev.target.checked); }, style: { accentColor: '#c0aeea', margin: 0 } }), ' AI prep'));
+      }
+      ReactDOM.createRoot(document.getElementById('react')).render(e(App));
+    })();
+  </script>
+</body>
+</html>
