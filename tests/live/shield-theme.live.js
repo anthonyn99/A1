@@ -73,13 +73,13 @@ export const getFirestore = () => ({});
 export const memoryLocalCache = () => ({});
 export const deleteField = () => ({ __delete: true });
 export const doc = (db, ...p) => ({ path: p.join('/'), kind: 'doc' });
-const snap = (ref) => ({ exists: () => !!SEED[ref.path], data: () => JSON.parse(JSON.stringify(SEED[ref.path])) });
+const snap = (ref) => ({ exists: () => !!SEED[ref.path], data: () => JSON.parse(JSON.stringify(SEED[ref.path])), metadata: { fromCache: false, hasPendingWrites: false } });
 const rec = (ref, data) => { (window.__fsWrites = window.__fsWrites || []).push({ path: ref.path, data: JSON.parse(JSON.stringify(data)) }); return Promise.resolve(); };
 export const getDoc = (ref) => Promise.resolve(snap(ref));
 export const getDocFromServer = (ref) => Promise.resolve(snap(ref));
 export const setDoc = rec;
 export const updateDoc = rec;
-export const onSnapshot = (ref, cb) => { setTimeout(() => cb(snap(ref)), 30); return () => {}; };
+export const onSnapshot = (ref, a, b) => { const cb = typeof a === 'function' ? a : b; setTimeout(() => cb(snap(ref)), 30); return () => {}; };
 `;
 
 const mock = {
