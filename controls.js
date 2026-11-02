@@ -422,7 +422,12 @@
         rows.forEach(function (x, j) { x.classList.toggle('act', j === n); });
         lb.act = n;
       },
-      scrollAct: function () { var x = rows[lb.act]; if (x) x.scrollIntoView({ block: 'nearest' }); },
+      // By hand, not scrollIntoView, which could scroll the page behind.
+      scrollAct: function () {
+        var x = rows[lb.act]; if (!x) return;
+        if (x.offsetTop < pop.scrollTop) pop.scrollTop = x.offsetTop - 4;
+        else if (x.offsetTop + x.offsetHeight > pop.scrollTop + pop.clientHeight) pop.scrollTop = x.offsetTop + x.offsetHeight - pop.clientHeight + 4;
+      },
       move: function (dir) {
         var n = lb.act;
         do { n += dir; } while (rows[n] && rows[n].getAttribute('aria-disabled') === 'true');
@@ -562,14 +567,14 @@
     'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'boxSizing', 'width', 'minWidth', 'maxWidth',
     'height', 'minHeight', 'marginTop', 'marginRight', 'marginBottom', 'marginLeft', 'flexGrow', 'flexShrink', 'flexBasis', 'alignSelf', 'boxShadow'];
   function copyLook(src, btn) {
-    btn.className = ((src.className && src.className.baseVal === undefined ? src.className : '') || '').replace(/\ba1c-src\b/g, '').trim() + ' a1c-trig';
+    btn.className = String(src.className || '').replace(/\ba1c-src\b/g, '').trim() + ' a1c-trig';
     btn.style.cssText = src.style.cssText.replace(/(^|;)\s*display\s*:[^;]+/i, '$1');
     var s = getComputedStyle(src), b = getComputedStyle(btn);   // src is display:none, so it reports what its rules say
     LOOK.forEach(function (p) {
       var v = s[p];
       if (v && v !== b[p] && !(p === 'width' && v === 'auto') && !(p === 'height' && v === 'auto')) btn.style[p] = v;
     });
-    if (s.display === 'block' || s.display === 'flex' || s.display === 'grid') btn.style.display = 'flex';
+    btn._disp = s.display === 'block' || s.display === 'flex' || s.display === 'grid' ? 'flex' : '';
     ['aria-label', 'aria-describedby', 'title'].forEach(function (a) { if (src.hasAttribute(a)) btn.setAttribute(a, src.getAttribute(a)); });
   }
   function enhancePicker(inp) {
@@ -587,6 +592,8 @@
     function look() {
       if (looking) return;
       looking = true;
+      // React rewrites className whole when the prop changes: hide it again.
+      if (!inp.classList.contains('a1c-src')) inp.classList.add('a1c-src');
       var keep = btn.getAttribute('aria-expanded');
       copyLook(inp, btn);
       btn.setAttribute('aria-haspopup', 'dialog');
@@ -599,7 +606,7 @@
       lbl.textContent = v ? fmtValue(type, v) : (inp.getAttribute('placeholder') || (type === 'time' ? 'Pick a time' : 'Pick a date'));
       lbl.classList.toggle('a1c-ph', !v);
       btn.setAttribute('aria-label', (inp.getAttribute('aria-label') || (type === 'time' ? 'Time' : 'Date')) + (v ? ': ' + lbl.textContent : ''));
-      btn.style.display = inp.hidden || inp.style.display === 'none' ? 'none' : (btn.style.display === 'none' ? '' : btn.style.display);
+      btn.style.display = inp.hidden || inp.style.display === 'none' ? 'none' : (btn._disp || '');
       btn.disabled = !!inp.disabled;
     }
     inp._a1cSync = sync;
