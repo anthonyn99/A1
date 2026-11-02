@@ -72,6 +72,26 @@ def test_delete_false_is_a_dry_run(fake):
     assert rep["would_delete"] and not rep["deleted"]
 
 
+def test_not_before_is_a_dry_run_until_that_day(fake):
+    root, rules = fake
+    day = lambda off: time.strftime("%Y-%m-%d", time.localtime(NOW + off * 86400))
+    old = _file(root / "artifacts/tony/a-old.png", 30)
+    rules(_item(notBefore=day(1)))
+    rep = sweep.run(now=NOW)
+    assert old.exists() and rep["would_delete"] and not rep["deleted"]
+    rules(_item(notBefore=day(0)))
+    rep = sweep.run(force=True, now=NOW)
+    assert not old.exists() and rep["deleted"]
+
+
+def test_malformed_not_before_deletes_nothing(fake):
+    root, rules = fake
+    rules(_item(notBefore="11/10/2026"))
+    old = _file(root / "artifacts/tony/a-old.png", 30)
+    rep = sweep.run(now=NOW)
+    assert old.exists() and rep["error"]
+
+
 def test_once_a_day_unless_forced(fake):
     root, rules = fake
     rules(_item())
