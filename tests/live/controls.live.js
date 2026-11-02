@@ -161,13 +161,18 @@ const VEDA = [
   ok('code setting .value repaints the button', /Dec/.test(await evalJs(c, trigText('date'))), await evalJs(c, trigText('date')));
   ok('a time shows as 2:35 PM', (await evalJs(c, trigText('time'))) === '2:35 PM');
   await click(c, '#time + .a1c-trig');
-  await pick(c, '9', '.a1c-col.h .a1c-cell');
+  const clock = await evalJs(c, `var p = document.querySelector('.a1c-pop.on.a1c-clock'); if (!p) return null;
+    var scrolls = Array.prototype.filter.call(p.querySelectorAll('*'), function (e) { return e.scrollHeight > e.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(e).overflowY); }).length;
+    return { now: p.querySelector('.a1c-now').textContent, hours: p.querySelectorAll('.a1c-tgrid.h .a1c-cell').length, mins: p.querySelectorAll('.a1c-tgrid.m .a1c-cell').length,
+      scrolls: scrolls + (p.scrollHeight > p.clientHeight + 1 ? 1 : 0), hover: p.hasAttribute('data-no-hoverfx') };`);
+  ok('the clock shows the time and every hour and minute at once: nothing scrolls', clock && clock.now === '2:35 PM' && clock.hours === 12 && clock.mins === 12 && clock.scrolls === 0 && clock.hover, clock);
+  await pick(c, '9', '.a1c-tgrid.h .a1c-cell');
   ok('the clock: tapping 9 keeps PM (21:35)', (await evalJs(c, "document.getElementById('time').value")) === '21:35');
-  await pick(c, 'AM', '.a1c-col.ap .a1c-cell');
+  await pick(c, 'AM', '.a1c-tgrid.ap .a1c-cell');
   ok('…and AM makes it 09:35', (await evalJs(c, "document.getElementById('time').value")) === '09:35');
   await key(c, 'Escape');
   await click(c, '#dtl + .a1c-trig');
-  ok('datetime-local: calendar plus clock', (await evalJs(c, "!!document.querySelector('.a1c-pop.on.a1c-cal .a1c-cols')")) === true);
+  ok('datetime-local: calendar plus clock', (await evalJs(c, "!!document.querySelector('.a1c-pop.on.a1c-cal .a1c-tgrid.h')")) === true);
   await evalJs(c, "var p = document.querySelector('.a1c-pop.on.a1c-cal'); Array.prototype.find.call(p.querySelectorAll('.a1c-cal-grid .a1c-cell'), function (x) { return x.textContent === '15' && !x.classList.contains('out'); }).click(); return 1;");
   await sleep(150);
   ok('picking a day gives the day at 9:00 and keeps the picker open', /-15T09:00$/.test(await evalJs(c, "document.getElementById('dtl').value")) && !!(await evalJs(c, "document.querySelector('.a1c-pop.on')")));
@@ -183,11 +188,17 @@ const VEDA = [
   console.log('Fixture — boxes, ranges, details, tooltips');
   await evalJs(c, "document.getElementById('cb').checked = true; return 1;");
   await sleep(300);
-  const boxes = await evalJs(c, `function s(id) { var e = document.getElementById(id), cs = getComputedStyle(e); return { a: e.hasAttribute('data-a1c'), app: cs.appearance, w: e.offsetWidth, bg: cs.backgroundColor }; }
+  const boxes = await evalJs(c, `function s(id) { var e = document.getElementById(id), cs = getComputedStyle(e), t = getComputedStyle(e, '::after');
+      return { a: e.hasAttribute('data-a1c'), app: cs.appearance, w: e.offsetWidth, bg: cs.backgroundColor, tick: t.width + ' ' + t.transform + ' ' + (t.webkitMaskImage || t.maskImage || '').slice(0, 20) }; }
     return { cb: s('cb'), gold: s('gold'), sw: s('sw'), r1: s('r1'), rng: s('rng'), ce: s('ce-cb'), vcb: s('vcb'),
       pct: document.getElementById('rng').style.getPropertyValue('--a1c-pct'), sum: document.getElementById('sum').hasAttribute('data-a1c'),
       spin: getComputedStyle(document.getElementById('num')).appearance };`);
   ok('a plain checkbox is A1\'s: 16px, Tony\'s purple when ticked', boxes.cb.a && boxes.cb.app === 'none' && boxes.cb.w === 16 && boxes.cb.bg === 'rgb(192, 174, 234)', boxes.cb);
+  ok('a ticked box shows a real tick mark (10px, full size, the tick shape)', /^10px matrix\(1, 0, 0, 1, 0, 0\) url\(/.test(boxes.cb.tick), boxes.cb.tick);
+  await evalJs(c, "document.getElementById('cb').checked = false; return 1;");
+  await sleep(300);
+  const empty = await evalJs(c, "var cs = getComputedStyle(document.getElementById('cb')); return { bg: cs.backgroundColor, border: cs.borderTopColor };");
+  ok('an empty box is visible: a soft fill and a clear border, not a black hole', /^(rgba|color)\(/.test(empty.bg) && empty.bg !== 'rgba(0, 0, 0, 0)', empty);
   ok('a gold box stays gold', boxes.gold.a && boxes.gold.bg === 'rgb(224, 184, 116)', boxes.gold);
   ok("the page's own toggle switch is left alone", !boxes.sw.a && boxes.sw.w === 40, boxes.sw);
   ok('radio and range are A1\'s, the range fill tracks', boxes.r1.a && boxes.rng.a && boxes.pct === '50%', boxes);
@@ -228,6 +239,30 @@ const VEDA = [
   pop = await evalJs(c, POP);
   ok('inside a clipping modal: the list lives in the modal but is not cut off', pop && pop.parent === 'modal' && pop.top && pop.h > 120, pop);
   await key(c, 'Escape');
+
+  // The Add-task bug (2026-11-02): Clear, a day or a time inside a modal closed the modal.
+  await click(c, '#ovdate + .a1c-trig');
+  await pick(c, '12', '.a1c-cal-grid .a1c-cell:not(.out)');
+  await click(c, '#ovdate + .a1c-trig');
+  await pick(c, 'Next', '.a1c-cal-nav');
+  await evalJs(c, "return 1;");
+  const nav = await center(c, '.a1c-pop.on .a1c-cal-nav[aria-label=Next]');
+  if (nav) { await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: nav.x, y: nav.y, button: 'left', clickCount: 1 }); await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: nav.x, y: nav.y, button: 'left', clickCount: 1 }); await sleep(150); }
+  await pick(c, 'Clear', '.a1c-link');
+  await click(c, '#ovtime + .a1c-trig');
+  await pick(c, '4', '.a1c-tgrid.h .a1c-cell');
+  await pick(c, ':15', '.a1c-tgrid.m .a1c-cell');
+  await pick(c, 'Clear', '.a1c-link');
+  await click(c, '#ovsel');
+  await pick(c, 'o2');
+  ok('inside a modal: a day, the month arrows, a time, Clear and a list pick never reach the modal as an outside click',
+    (await evalJs(c, 'window.ovClosed.join()')) === '' && (await evalJs(c, "document.getElementById('ovsel').value")) === 'o2', await evalJs(c, 'window.ovClosed'));
+  await evalJs(c, "document.getElementById('ovsel').focus(); window.enterLeaks = 0; return 1;");
+  await key(c, 'ArrowDown');
+  await key(c, 'ArrowUp');
+  await key(c, 'Enter');
+  ok("Enter picking from a list doesn't reach the page (a modal's Enter-to-save)", (await evalJs(c, 'window.enterLeaks')) === 0 && (await evalJs(c, "document.getElementById('ovsel').value")) === 'o1', await evalJs(c, 'window.enterLeaks'));
+
   await click(c, '#rsel');
   await pick(c, 'Home');
   ok('React select: a pick reaches onChange and state', (await evalJs(c, 'window.reactState.cat + "|" + window.reactLog.join()')) === 'home|cat:home', await evalJs(c, 'window.reactLog'));
@@ -243,8 +278,8 @@ const VEDA = [
   await sleep(100);
   ok('React setting the date repaints the button', /Jul/.test(await evalJs(c, trigText('rdate'))), await evalJs(c, trigText('rdate')));
   await click(c, '#rtime + .a1c-trig');
-  await pick(c, '30', '.a1c-col.m .a1c-cell');
-  ok('React time: a pick reaches state', (await evalJs(c, 'window.reactState.time')) === '09:30', await evalJs(c, 'window.reactLog'));
+  await pick(c, ':30', '.a1c-tgrid.m .a1c-cell');
+  ok('React time: a pick reaches state (an empty time takes this hour)', /^\d\d:30$/.test(await evalJs(c, 'window.reactState.time')), await evalJs(c, 'window.reactLog'));
   await key(c, 'Escape');
   await click(c, '#rcb');
   ok('React checkbox: A1\'s and still toggles state', (await evalJs(c, "window.reactState.prep && document.getElementById('rcb').hasAttribute('data-a1c')")) === true);
