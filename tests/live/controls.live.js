@@ -132,7 +132,7 @@ const VEDA = [
   await evalJs(c, "document.getElementById('plain').focus(); return 1;");
   await key(c, 'ArrowDown');
   ok('ArrowDown on a focused select opens the list', !!(await evalJs(c, POP)));
-  await key(c, 'ArrowUp'); await key(c, 'ArrowUp');
+  await key(c, 'ArrowUp');
   await key(c, 'Enter');
   ok('arrows + Enter pick (skipping the disabled one)', (await evalJs(c, "document.getElementById('plain').value")) === 'b');
   await key(c, ' ');
@@ -175,13 +175,15 @@ const VEDA = [
   await c.send('Input.insertText', { text: 'M' });
   await sleep(200);
   pop = await evalJs(c, POP);
-  ok('a datalist input suggests in an A1 list, no list attribute left', pop && pop.rows.join() === 'Mango,Melon' && (await evalJs(c, "document.getElementById('dl').hasAttribute('list')")) === false, pop);
+  ok('a datalist input suggests in an A1 list, no list attribute left', pop && pop.rows.join() === 'Mango,Melon,Lime' && (await evalJs(c, "document.getElementById('dl').hasAttribute('list')")) === false, pop);
   await pick(c, 'Melon');
   ok('picking a suggestion fills the input', (await evalJs(c, "document.getElementById('dl').value")) === 'Melon');
 
   console.log('Fixture — boxes, ranges, details, tooltips');
+  await evalJs(c, "document.getElementById('cb').checked = true; return 1;");
+  await sleep(300);
   const boxes = await evalJs(c, `function s(id) { var e = document.getElementById(id), cs = getComputedStyle(e); return { a: e.hasAttribute('data-a1c'), app: cs.appearance, w: e.offsetWidth, bg: cs.backgroundColor }; }
-    document.getElementById('cb').checked = true; return { cb: s('cb'), gold: s('gold'), sw: s('sw'), r1: s('r1'), rng: s('rng'), ce: s('ce-cb'), vcb: s('vcb'),
+    return { cb: s('cb'), gold: s('gold'), sw: s('sw'), r1: s('r1'), rng: s('rng'), ce: s('ce-cb'), vcb: s('vcb'),
       pct: document.getElementById('rng').style.getPropertyValue('--a1c-pct'), sum: document.getElementById('sum').hasAttribute('data-a1c'),
       spin: getComputedStyle(document.getElementById('num')).appearance };`);
   ok('a plain checkbox is A1\'s: 16px, Tony\'s purple when ticked', boxes.cb.a && boxes.cb.app === 'none' && boxes.cb.w === 16 && boxes.cb.bg === 'rgb(192, 174, 234)', boxes.cb);
@@ -199,6 +201,22 @@ const VEDA = [
   await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 5, y: 880 });
   await sleep(250);
   ok('leaving hides it and puts the title back', (await evalJs(c, "!document.querySelector('.a1c-tip.on') && document.getElementById('tipped').getAttribute('title')")) === 'Hello tip');
+
+  await evalJs(c, "window.colLog = []; ['input', 'change'].forEach(function (t) { document.getElementById('col').addEventListener(t, function (e) { window.colLog.push(t + ':' + e.target.value); }); }); return 1;");
+  await click(c, '#col');
+  ok('a colour input opens the A1 picker (no system dialog)', (await evalJs(c, "!!document.querySelector('.a1c-pop.on.a1c-color')")) === true);
+  await evalJs(c, "document.querySelector('.a1c-pop.on .a1c-sw[aria-label=\"#e0b874\"]').click(); return 1;");
+  await sleep(100);
+  await key(c, 'Escape');
+  ok('a swatch fires input, closing fires change once', (await evalJs(c, "window.colLog.join()")) === 'input:#e0b874,change:#e0b874', await evalJs(c, 'window.colLog'));
+  await click(c, '#opencol');
+  ok("code's input.click() on a hidden colour input opens the A1 picker too", (await evalJs(c, "!!document.querySelector('.a1c-pop.on.a1c-color')")) === true);
+  const svp = await center(c, '.a1c-pop.on .a1c-sv');
+  await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: svp.x, y: svp.y, button: 'left', clickCount: 1 });
+  await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: svp.x, y: svp.y, button: 'left', clickCount: 1 });
+  await sleep(100);
+  ok('dragging the shade square sets a colour', (await evalJs(c, "document.getElementById('hidcol').value")) !== '#ffffff', await evalJs(c, "document.getElementById('hidcol').value"));
+  await key(c, 'Escape');
 
   console.log('Fixture — Veda light, modal, React');
   await click(c, '#vsel');

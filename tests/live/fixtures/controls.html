@@ -43,6 +43,10 @@
     <input id="rng" type="range" min="0" max="10" value="5">
     <input id="num" type="number" class="fld" value="3">
     <button id="tipped" class="fld" title="Hello tip">hover</button>
+    <input id="col" type="color" value="#336699">
+    <!-- Notebook's way: a hidden colour input opened from code. -->
+    <input id="hidcol" type="color" value="#ffffff" style="position:absolute;width:22px;height:10px;opacity:0;pointer-events:none">
+    <button id="opencol" class="fld" onclick="document.getElementById('hidcol').click()">custom</button>
   </div>
   <details id="det"><summary id="sum">More</summary><p>inside</p></details>
   <div id="ce" contenteditable="true"><ul><li><input type="checkbox" id="ce-cb" contenteditable="false"> item</li></ul></div>
