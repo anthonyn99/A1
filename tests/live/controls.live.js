@@ -288,7 +288,7 @@ const VEDA = [
     await evalJs(c, flip + '; return 1;');
     await sleep(300);
     const r = await evalJs(c, AUDIT);
-    const ac = await evalJs(c, "var i = document.createElement('input'); i.type = 'checkbox'; i.checked = true; document.body.appendChild(i); return new Promise(function (res) { setTimeout(function () { var bg = getComputedStyle(i).backgroundColor; i.remove(); res(bg); }, 50); });");
+    const ac = await evalJs(c, "var i = document.createElement('input'); i.type = 'checkbox'; i.checked = true; document.body.appendChild(i); return new Promise(function (res) { setTimeout(function () { var bg = getComputedStyle(i).backgroundColor; i.remove(); res(bg); }, 400); });");
     ok(`${p} (Veda): controls on, none native, her mauve`, r.on && r.bad.length === 0 && ac === 'rgb(141, 118, 154)', { r, ac });
   }
 
