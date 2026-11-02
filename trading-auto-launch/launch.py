@@ -2290,8 +2290,7 @@ def _launch_all(test: bool, from_tradehub: bool = False):
 
     if from_tradehub:
         # Deployed from the TradeHub button: TradeHub is ALREADY open (it's the page
-        # that launched us). Reuse that window instead of opening a new one, so the
-        # searches + the AI tab open next to it.
+        # that launched us). Reuse that window instead of opening a new one.
         tradehub_hwnd = _find_open_tradehub_window()
         if tradehub_hwnd:
             _place(tradehub_hwnd, *TRADEHUB_POS)     # move it to the middle panel
@@ -2305,13 +2304,11 @@ def _launch_all(test: bool, from_tradehub: bool = False):
 
     time.sleep(1.5)
     open_taskhub_app()
-    # WeBull before the searches: Windows will not give a background process the
-    # foreground while another app holds it, and the WeBull step needs it. (It
-    # lost that fight on 09-14 and 09-16 to the Vault extension typing a prompt;
-    # the prompt now goes out on its own, see run_daily_analysis.)
+    # The Analysis prompt and its search tabs are not opened here: they go out
+    # at 6 AM on their own (run_daily_analysis). The WeBull step needs the
+    # foreground, which it lost on 09-14 and 09-16 to the Vault extension typing
+    # a prompt.
     webull_post_launch(webull_hwnd)
-    # The Analysis searches as tabs in the SAME TradeHub window.
-    open_analysis_searches(target_hwnd=tradehub_hwnd)
     if not test:
         mark_ran()
     log("=== Done ===")
