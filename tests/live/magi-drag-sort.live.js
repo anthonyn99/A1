@@ -197,6 +197,9 @@ const orderNames = (c) => evalJs(c, 'return JSON.stringify([...document.querySel
         renderQueue(); return 1;`);
       ok('the queue is drawn, without grips', await waitFor(c, 'document.querySelectorAll("#queueRows .q-row").length === 4 && !document.querySelector("#queueRows .dsort-grip")', 5000));
       const q = (s) => `document.querySelector('#queueRows .q-row[data-dkey="${s}"]')`;
+      // Code Mode's queue sits lower on the page: at 900px tall its last row
+      // was below the window and the press landed off-screen.
+      await evalJs(c, q('dq1') + '.scrollIntoView({ block: "center" }); return 1;');
       await settled(c, q('dq4'));   // the drawer has finished sliding in
       const qStep = (await rect(c, q('dq2'))).t - (await rect(c, q('dq1'))).t;
       const ids = () => evalJs(c, `return JSON.stringify(queueSorted(QUEUES[${JSON.stringify(lane)}]).map(x => x.id));`).then(JSON.parse);
