@@ -43,6 +43,20 @@ const shot = async (c, name) => {
 };
 const rect = async (c, js) => JSON.parse(await evalJs(c, `return JSON.stringify((() => { const b = (${js}).getBoundingClientRect(); return {x: b.left + b.width / 2, y: b.top + b.height / 2, l: b.left, t: b.top, w: b.width, h: b.height}; })())`));
 
+// The box of `js` once it has stopped moving: a drawer sliding in or a page
+// still laying out after a reload measured mid-way, and the drag or click
+// then landed beside its target (the Code Mode queue, the resize grip).
+async function settled(c, js) {
+  let prev = null;
+  for (let i = 0; i < 40; i++) {
+    const r = await rect(c, js);
+    if (prev && Math.abs(r.t - prev.t) < 0.5 && Math.abs(r.l - prev.l) < 0.5 && Math.abs(r.h - prev.h) < 0.5) return r;
+    prev = r;
+    await sleep(100);
+  }
+  return prev;
+}
+
 async function mouseDrag(c, x, y, dy, { steps = 14, mid = null, cancel = false } = {}) {
   await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
   await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
@@ -124,7 +138,11 @@ const orderNames = (c) => evalJs(c, 'return JSON.stringify([...document.querySel
     ok('nothing left lifted or shifted', await evalJs(c, '![...document.querySelectorAll(".code-order-row")].some(r => r.style.transform || r.classList.contains("dsort-drag")) && !document.documentElement.classList.contains("dsort-grabbing")'));
     const gaps = JSON.parse(await evalJs(c, 'return JSON.stringify(window.__gaps.slice(1, 60));'));
     const worst = Math.max(...gaps);
-    ok('smooth: no frame gap over 50 ms during the drag', worst < 50, `${worst.toFixed(1)} ms worst of ${gaps.length}`);
+    // The guard is for the old ~270ms freeze (the audio device opened inside
+    // the first press). A busy headless browser drops 100-180ms frames on its
+    // own, with or without any of A1's code (measured 2026-11-02), so 50ms
+    // only measured the machine.
+    ok('smooth: no frame gap over 200 ms during the drag', worst < 200, `${worst.toFixed(1)} ms worst of ${gaps.length}`);
     ok('the audio context is made once input goes quiet, and runs', await waitFor(c, 'actx && actx.state === "running"', 6000));
     // Back where it was.
     const back = await rect(c, 'document.querySelectorAll(".code-order-row")[2].querySelector(".code-order-name")');
@@ -178,8 +196,8 @@ const orderNames = (c) => evalJs(c, 'return JSON.stringify([...document.querySel
         ];
         renderQueue(); return 1;`);
       ok('the queue is drawn, without grips', await waitFor(c, 'document.querySelectorAll("#queueRows .q-row").length === 4 && !document.querySelector("#queueRows .dsort-grip")', 5000));
-      await sleep(400);   // the drawer settles before rows are measured
       const q = (s) => `document.querySelector('#queueRows .q-row[data-dkey="${s}"]')`;
+      await settled(c, q('dq4'));   // the drawer has finished sliding in
       const qStep = (await rect(c, q('dq2'))).t - (await rect(c, q('dq1'))).t;
       const ids = () => evalJs(c, `return JSON.stringify(queueSorted(QUEUES[${JSON.stringify(lane)}]).map(x => x.id));`).then(JSON.parse);
       const g4 = await rect(c, q('dq4') + '.querySelector(".q-text")');
@@ -244,9 +262,10 @@ const orderNames = (c) => evalJs(c, 'return JSON.stringify([...document.querySel
     await c.send('Page.navigate', { url: URL });
     ok('reloaded', await waitFor(c, '!!document.getElementById("composerGrip") && !!window.A1Resize', 20000));
     ok('an old magi.h height is carried over', await evalJs(c, 'document.getElementById("composer").style.height === "222px" && localStorage.getItem("a1.h.magi.composer") === "222" && localStorage.getItem("magi.h.composer") === null'));
-    const gr = await rect(c, 'document.getElementById("composerGrip")');
+    const gr = await settled(c, 'document.getElementById("composerGrip")');
     ok('the grip is the shared one, 38px', await evalJs(c, 'document.getElementById("composerGrip").classList.contains("a1-grip")') && Math.round(gr.w) === 38, `${gr.w}`);
     const h0 = await evalJs(c, 'Math.round(document.getElementById("composer").getBoundingClientRect().height)');
+    await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: gr.x, y: gr.y });
     await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: gr.x, y: gr.y, button: 'left', clickCount: 1 });
     for (let i = 1; i <= 8; i++) { await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: gr.x, y: gr.y + 10 * i, button: 'left', buttons: 1 }); await sleep(16); }
     await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: gr.x, y: gr.y + 80, button: 'left', clickCount: 1 });
@@ -257,7 +276,8 @@ const orderNames = (c) => evalJs(c, 'return JSON.stringify([...document.querySel
     await c.send('Page.navigate', { url: URL });
     await waitFor(c, '!!document.getElementById("composerGrip") && !!window.A1Resize', 20000);
     ok('the height survives a reload', await evalJs(c, 'Math.round(document.getElementById("composer").getBoundingClientRect().height)') === h1);
-    const gr2 = await rect(c, 'document.getElementById("composerGrip")');
+    const gr2 = await settled(c, 'document.getElementById("composerGrip")');
+    await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: gr2.x, y: gr2.y });
     await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: gr2.x, y: gr2.y, button: 'left', clickCount: 1 });
     await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: gr2.x, y: gr2.y, button: 'left', clickCount: 1 });
     await sleep(100);
