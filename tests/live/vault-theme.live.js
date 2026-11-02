@@ -159,9 +159,9 @@ const row = (name) => `[...document.querySelectorAll('#kc-conns-list .kc-item-ro
   ok('...saved: reading order + column map', JSON.stringify(s1.colmap) === '[0,1,1,1]' && s1.names[3].startsWith('Alpha'), s1);
 
   console.log('\nLink rows');
-  const q1 = await rect(c, row('C1') + '.querySelector(".kc-link-name")');
-  const q2 = await rect(c, row('C2'));
-  await mouseDrag(c, q1.x, q1.y, 0, q2.h + 4);
+  const r1 = await rect(c, row('C1') + '.querySelector(".kc-link-name")');
+  const r2 = await rect(c, row('C2'));
+  await mouseDrag(c, r1.x, r1.y, 0, r2.h + 4);
   s1 = await saved(c);
   ok('a link row drags within its card, not the card around it', s1.names.find((n) => n.startsWith('Charlie')) === 'Charlie:C2|C1' && JSON.stringify(await cols(c)) === JSON.stringify([['Bravo'], ['Charlie', 'Delta', 'Alpha']]), s1);
   const ra = await rect(c, row('A1') + '.querySelector(".kc-link-name")');
@@ -319,19 +319,19 @@ const row = (name) => `[...document.querySelectorAll('#kc-conns-list .kc-item-ro
     .then((d) => d && Object.fromEntries(d.connections.map((x) => [x.name, x.items.map((i) => i.name || i.value)])));
   const plinks = () => evalJs(c, `return JSON.stringify([].map.call(document.querySelectorAll('#groups .card'), function(k){ return k.querySelector('.card-name').textContent + ':' + [].map.call(k.querySelectorAll('.link-name'), function(n){ return n.textContent; }).join('|'); }));`).then(JSON.parse);
   ok('popup: every card\'s links are an A1Drag list', await evalJs(c, `return [].every.call(document.querySelectorAll('#groups .card'), function(k){ var l = k.querySelector('.links'); return l && l.classList.contains('dsort'); });`));
-  let q1 = await rect(c, prow('C1') + '.querySelector(".link-name")'), q2 = await rect(c, prow('C2'));
-  await mouseDrag(c, q1.x, q1.y, 0, q2.t + q2.h - q1.y - 4);
+  let lr1 = await rect(c, prow('C1') + '.querySelector(".link-name")'), lr2 = await rect(c, prow('C2'));
+  await mouseDrag(c, lr1.x, lr1.y, 0, lr2.t + lr2.h - lr1.y - 4);
   await sleep(300);
   let it = await items();
   ok('popup: a link drags down its own card, and is PUT', it && it.Charlie.join() === 'C2,C1' && (await plinks()).includes('Charlie:C2|C1'), { it, shown: await plinks() });
-  q1 = await rect(c, prow('B1') + '.querySelector(".link-name")'); q2 = await rect(c, prow('D1'));
-  await mouseDrag(c, q1.x, q1.y, q2.x - q1.x, q2.t + q2.h - q1.y - 4);
+  lr1 = await rect(c, prow('B1') + '.querySelector(".link-name")'); lr2 = await rect(c, prow('D1'));
+  await mouseDrag(c, lr1.x, lr1.y, lr2.x - lr1.x, lr2.t + lr2.h - lr1.y - 4);
   await sleep(300);
   it = await items();
   ok('popup: a link drags into another card, and is PUT', it && it.Delta.join() === 'D1,B1' && it.Bravo.length === 0, it);
   ok('...and the emptied card leaves the Launcher (it has no links)', !(await plinks()).some((x) => x.startsWith('Bravo')), await plinks());
-  q1 = await rect(c, prow('A2') + '.querySelector(".link-name")'); q2 = await rect(c, prow('C2'));
-  await mouseDrag(c, q1.x, q1.y, q2.x - q1.x, q2.t - q1.y + 4);
+  lr1 = await rect(c, prow('A2') + '.querySelector(".link-name")'); lr2 = await rect(c, prow('C2'));
+  await mouseDrag(c, lr1.x, lr1.y, lr2.x - lr1.x, lr2.t - lr1.y + 4);
   await sleep(300);
   it = await items();
   ok("popup: a link moved out of a card with an email: the email stays, the link lands where dropped", it && it.Alpha.join() === 'A1,a@example.com' && it.Charlie.join() === 'A2,C2,C1', it);
