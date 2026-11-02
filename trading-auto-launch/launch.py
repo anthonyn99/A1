@@ -1513,33 +1513,23 @@ def _analysis_destination(cfg: dict):
     return ai_url, magi_units, bool(magi_units) and _is_magi_url(ai_url)
 
 
-def open_analysis_searches(target_hwnd=None):
-    """Trading Auto Launch's half of the Analysis config: the search tabs, opened
-    INTO the TradeHub window when target_hwnd is a real Brave window (so everything
-    shares one window), else in one new window at CHATGPT_POS. The prompt is not
-    sent from here: run_daily_analysis does that on its own."""
-    if not CHATGPT_ANALYSIS_ENABLED:
-        return
-    brave = _find_brave()
-    if not brave:
-        log("Searches: Brave not found; skipping.")
-        return
-    cfg = _fetch_analysis_config()
-    if not cfg:
-        log("Searches: no Analysis config from the worker yet — open TradeHub once so it syncs.")
-        return
+def open_analysis_searches(brave: str, cfg: dict):
+    """The search tabs picked in TradeHub → Analysis, opened by the daily analysis
+    just before the prompt goes out: INTO the TradeHub window when one is open (so
+    everything shares one window), else in one new window at CHATGPT_POS. The AI
+    tab then follows them into that same window (`brave <url>` goes to the
+    last-used one)."""
     ai_url, _, use_magi = _analysis_destination(cfg)
     # A search that points at the AI destination itself is skipped: the daily
-    # analysis already opened that tab, with the prompt in it.
+    # analysis opens that tab next, with the prompt in it.
     tabs = [u for u in (_resolve_search_url(q) for q in (cfg.get("searches") or []))
             if u and not (_is_magi_url(u) if use_magi else _is_ai_url(u, ai_url))]
     if not tabs:
         log("Searches: none configured.")
         return
 
-    use_existing = bool(target_hwnd) and target_hwnd in set(_all_visible_hwnds()) \
-        and _is_brave_hwnd(target_hwnd)
-    if use_existing:
+    target_hwnd = _find_open_tradehub_window(timeout=2)
+    if target_hwnd:
         # Focus it first so Brave adds the tabs there (a bare `brave <urls>` goes to
         # the last-focused browser window).
         _focus_window(target_hwnd)
@@ -1572,9 +1562,10 @@ def _wait_for_magi_engine(timeout: int = MAGI_ENGINE_WAIT) -> bool:
 
 
 def open_ai_prompt() -> bool:
-    """Send the prompt picked in TradeHub → Analysis to its AI destination. True
-    once it is out (or there is deliberately nothing to send), False when it could
-    not be, so the day stays unmarked and the next trigger tries again.
+    """Open the search tabs picked in TradeHub → Analysis, then send its prompt to
+    its AI destination. True once it is out (or there is deliberately nothing to
+    send), False when it could not be, so the day stays unmarked and the next
+    trigger tries again.
 
     MAGI: nothing is typed. The console opens with the prompt and the ticked units
     in the url FRAGMENT and convenes on arrival; a fragment never reaches a server,
@@ -1596,6 +1587,7 @@ def open_ai_prompt() -> bool:
         log("Daily analysis: no prompt from the worker yet — open TradeHub's Analysis tab "
             "once so it syncs.")
         return False
+    open_analysis_searches(brave, cfg)
     prompt = (cfg.get("text") or "")[:16000]
     name   = cfg.get("name") or "Prompt"
     ai_url, magi_units, use_magi = _analysis_destination(cfg)
@@ -2275,11 +2267,11 @@ def daily_reminder_gate() -> bool:
 # Main routine
 # ──────────────────────────────────────────────────────────────────────────────
 
-def _find_open_tradehub_window() -> int | None:
-    """The already-open TradeHub Brave window (for --from-tradehub deploys). Matches
-    only a real Brave window, never an editor tab that merely has 'tradehub' in its
-    title."""
-    return _find_brave_window_by_title("tradehub", timeout=10)
+def _find_open_tradehub_window(timeout: int = 10) -> int | None:
+    """The already-open TradeHub Brave window (for --from-tradehub deploys and the
+    daily analysis's search tabs). Matches only a real Brave window, never an
+    editor tab that merely has 'tradehub' in its title."""
+    return _find_brave_window_by_title("tradehub", timeout=timeout)
 
 
 def _launch_all(test: bool, from_tradehub: bool = False):
