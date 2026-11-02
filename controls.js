@@ -207,8 +207,8 @@
     // tooltip
     '.a1c-tip{position:fixed;inset:auto;margin:0;z-index:2147483646;pointer-events:none;box-sizing:border-box;',
     '  background:color-mix(in srgb,var(--p-bg) 84%,var(--p-tx));color:var(--p-tx);border:1px solid color-mix(in srgb,var(--p-tx) 16%,transparent);',
-    '  font-size:11.5px;font-weight:500;line-height:1.35;padding:5px 9px;border-radius:6px;white-space:normal;',
-    '  box-shadow:0 8px 22px rgba(0,0,0,.42);max-width:280px;opacity:0;transform:translateY(3px);transition:opacity .12s,transform .12s}',
+    '  font-size:12px;font-weight:600;letter-spacing:.1px;line-height:1.35;padding:6px 10px;border-radius:6px;white-space:normal;text-transform:none;',
+    '  box-shadow:0 6px 18px rgba(0,0,0,.38);max-width:280px;opacity:0;transform:translateY(3px);transition:opacity .12s,transform .12s}',
     '.a1c-tip.light{background:color-mix(in srgb,var(--p-bg) 20%,#fff);box-shadow:0 6px 18px rgba(0,0,0,.14)}',
     '.a1c-tip.on{opacity:1;transform:none}',
     '@media (prefers-reduced-motion:reduce){.a1c-pop,.a1c-tip,.a1c-trig .a1c-ic,summary[data-a1c]::before{transition:none!important}}',
@@ -271,12 +271,19 @@
   }
   function lum(c) { return (0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b) / 255; }
   function css(c) { return 'rgb(' + Math.round(c.r) + ',' + Math.round(c.g) + ',' + Math.round(c.b) + ')'; }
+  // The ground is the panel the control sits on, not the control: a filled
+  // pill (Notebook's active MyJournal tab, a purple button) would otherwise
+  // give a lavender tooltip that reads like the browser's own. So the first
+  // opaque box clearly bigger than the control counts, then the page.
   function groundOf(el) {
+    var r = el.getBoundingClientRect(), area = Math.max(1, r.width * r.height);
     for (var e = el; e && e.nodeType === 1; e = e.parentElement) {
       var c = rgb(getComputedStyle(e).backgroundColor);
-      if (c && c.a > 0.5) return c;
+      if (!c || c.a <= 0.5) continue;
+      var b = e.getBoundingClientRect();
+      if (e === doc.body || e === root || b.width * b.height >= area * 4) return c;
     }
-    return { r: 26, g: 26, b: 29, a: 1 };
+    return rgb(getComputedStyle(doc.body).backgroundColor) || rgb(getComputedStyle(root).backgroundColor) || { r: 26, g: 26, b: 29, a: 1 };
   }
   function isVeda(el) {
     if (vedaOnly) return true;
