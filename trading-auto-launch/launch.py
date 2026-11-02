@@ -289,41 +289,20 @@ PROTOCOL = "tradingautolaunch"
 # Prior protocol name, unregistered on --setup / --uninstall for a clean rename.
 LEGACY_PROTOCOLS = ["tradingautolauncher"]
 
-try:
-    from zoneinfo import ZoneInfo
-    _MOUNTAIN_TZ = ZoneInfo("America/Denver")
-except Exception:
-    _MOUNTAIN_TZ = None
-
-
 # ──────────────────────────────────────────────────────────────────────────────
 # Time / timezone
 # ──────────────────────────────────────────────────────────────────────────────
-
-def mountain_now() -> datetime:
-    if _MOUNTAIN_TZ:
-        return datetime.now(tz=_MOUNTAIN_TZ)
-    # Fallback: ask Windows — works even without tzdata installed
-    raw = subprocess.check_output(
-        ["powershell", "-NoProfile", "-Command",
-         "[System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId("
-         "[datetime]::Now,'Mountain Standard Time').ToString('yyyy-MM-dd HH:mm:ss')"],
-        text=True
-    ).strip()
-    return datetime.strptime(raw, "%Y-%m-%d %H:%M:%S")
-
-
-def mountain_today() -> date:
-    try:
-        return mountain_now().date()
-    except Exception:
-        return date.today()
-
+# Everything runs on THIS PC'S local clock (it was Mountain until 2026-11-02):
+# 6 AM is 6 AM wherever the PC is, as TradeHub's tabs build. Windows applies
+# daylight saving to the local clock itself, so 6 AM stays 6 AM all year.
 
 def seconds_until_trigger() -> float:
-    now    = mountain_now()
+    # Through .timestamp(), which reads a naive datetime as local time with
+    # daylight saving applied: subtracting the two datetimes directly would be an
+    # hour off on the morning the clocks change.
+    now    = datetime.now()
     target = now.replace(hour=TRIGGER_HOUR, minute=0, second=0, microsecond=0)
-    return max((target - now).total_seconds(), 0.0)
+    return max(target.timestamp() - now.timestamp(), 0.0)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -450,15 +429,13 @@ def is_market_day(d: date) -> bool:
 # ──────────────────────────────────────────────────────────────────────────────
 
 def already_ran_today() -> bool:
-    return STATE_FILE.exists() and STATE_FILE.read_text().strip() == str(mountain_today())
+    return STATE_FILE.exists() and STATE_FILE.read_text().strip() == str(date.today())
 
 
 def mark_ran():
-    STATE_FILE.write_text(str(mountain_today()))
+    STATE_FILE.write_text(str(date.today()))
 
 
-# The daily analysis keys off the PC's own calendar day (date.today()), not
-# Mountain's: its 6 AM is local, so its day must be too.
 def analysis_ran_today() -> bool:
     return ANALYSIS_STATE_FILE.exists() and ANALYSIS_STATE_FILE.read_text().strip() == str(date.today())
 
@@ -527,10 +504,7 @@ def trim_logs(today=None) -> None:
 
 
 def log(msg: str):
-    try:
-        ts = mountain_now().strftime("%Y-%m-%d %H:%M:%S MT")
-    except Exception:
-        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     line = f"[{ts}] {msg}\n"
     with open(LOG_FILE, "a", encoding="utf-8") as f:
         f.write(line)
