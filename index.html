@@ -8168,13 +8168,28 @@ function OI_copy(ev,text){
 // it (OI_foldPkgs records them in _ids), and dismissing it has to take all of
 // them. Deleting only the survivor's document would let the ones it absorbed
 // re-appear on the next snapshot as cards in their own right.
-function OI_dismiss(card){
+// An action that lives outside a TaskHub's own data (a Claude reset, a OneInbox
+// card, a quote) joins that profile's undo history: op = {undo, redo}.
+window.thUndoable=function(profile,op){
+  const v=profile==="veda"?window._vdVoice:window._thVoice;
+  if(v&&v.pushUndo)v.pushUndo(op);
+};
+function OI_dismiss(card,noHist){
   const ids=(card&&card._ids&&card._ids.length?card._ids:[card&&card.id])
     .filter(Boolean).map(String);
   const gone=new Set(ids);
+  // The raw card docs, kept so an undo can write them back.
+  const raw=(window._oiCards||[]).filter(c=>c&&gone.has(String(c.id)));
   window._oiCards=(window._oiCards||[]).filter(c=>c&&!gone.has(String(c.id)));
   window.dispatchEvent(new CustomEvent("oi-cards-update",{detail:window._oiCards}));
   ids.forEach(id=>{try{window._fbDeleteOICard&&window._fbDeleteOICard(id);}catch(e){}});
+  if(!noHist)window.thUndoable("tony",{undo:()=>OI_restore(raw),redo:()=>OI_dismiss(card,true)});
+}
+function OI_restore(raw){
+  const back=new Set(raw.map(c=>String(c.id)));
+  window._oiCards=(window._oiCards||[]).filter(c=>c&&!back.has(String(c.id))).concat(raw);
+  window.dispatchEvent(new CustomEvent("oi-cards-update",{detail:window._oiCards}));
+  raw.forEach(c=>{try{window._fbRestoreOICard&&window._fbRestoreOICard(c);}catch(e){}});
 }
 // The boxed ✕ every TaskHub row and card carries (thIconBtn).
 function OI_delBtn(c,T){
@@ -8551,6 +8566,14 @@ function CR_useResets(profile){
 
 // One reset, drawn as an event row. `card` is the caller's own event-card
 // style so it sits in either TaskHub's week like one of its events.
+// Remove one reset (edit-mode ✕), undoably: the undo takes it off the
+// `dismissed` map and puts its push reminder back (_crRestore).
+async function CR_remove(p,id,noHist){
+  if(!window._crDismiss)return;
+  const saved=await window._crDismiss(p,id);
+  if(!saved||noHist)return;
+  window.thUndoable(p,{undo:()=>window._crRestore&&window._crRestore(p,id,saved.rem),redo:()=>CR_remove(p,id,true)});
+}
 function CR_rows(list,o){
   return (list||[]).map(r=>{
     const d=new Date(r.at);
@@ -8564,7 +8587,7 @@ function CR_rows(list,o){
         // the same as a task's pills: the title keeps its lines.
         React.createElement("div",{style:{float:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,marginLeft:5,marginBottom:1,position:"relative",minHeight:20,visibility:o.edit?"hidden":"visible"}},
           o.edit&&o.box&&React.createElement("span",{style:{position:"absolute",top:0,right:0,visibility:"visible",zIndex:1}},
-            thIconBtn(o.box,"Remove this reset"+(r.notify?" and its notification":""),o.box.del,()=>{if(window._crDismiss)window._crDismiss(o.profile,r.id);},TH_X)),
+            thIconBtn(o.box,"Remove this reset"+(r.notify?" and its notification":""),o.box.del,()=>CR_remove(o.profile,r.id),TH_X)),
           React.createElement("span",{style:{fontSize:o.compact?10:11,fontWeight:600,color:o.tx,opacity:0.65,whiteSpace:"nowrap"}},time),
           r.notify&&React.createElement("span",{style:{display:"inline-flex",alignItems:"center",fontSize:10,color:o.ac,opacity:0.85},"aria-label":"Notifies at reset"},
             React.createElement("span",{style:{width:13,height:13,fontSize:13,lineHeight:0,display:"inline-flex",flexShrink:0},dangerouslySetInnerHTML:{__html:TNI.bellFill}}))),
@@ -8743,7 +8766,13 @@ function App(){
   const setMg=useCallback(fn=>{setMgState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(T_SK.goals,next);stateRef.current={...stateRef.current,goals:next};fbPush();return next;});},[fbPush]);
   const setMgMonthly=useCallback(fn=>{setMgMonthlyState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(T_SK.mgoals,next);stateRef.current={...stateRef.current,monthlyGoals:next};fbPush();return next;});},[fbPush]);
   const setGoalPrefs=useCallback(fn=>{setGoalPrefsState(prev=>{const next=typeof fn==="function"?fn(prev):fn;saveJ(T_SK.goalPrefs,next);stateRef.current={...stateRef.current,goalPrefs:next};fbPush();return next;});},[fbPush]);
-  const setTgQuotes=useCallback(next=>{tgCustomRef.current=next;setTgCustomState(next);saveJ("td6_quotes",next);fbPush();},[fbPush]);
+  // Quotes live outside the undo snapshots, so each change is an action entry.
+  const setTgQuotes=useCallback(next=>{
+    const prev=tgCustomRef.current;
+    const put=q=>{tgCustomRef.current=q;setTgCustomState(q);saveJ("td6_quotes",q);fbPush();};
+    put(next);
+    window.thUndoable&&window.thUndoable("tony",{undo:()=>put(prev),redo:()=>put(next)});
+  },[fbPush]);
 
   // ── Voice control: undo/redo history (covers BOTH manual edits and AI/voice changes) + button state ──
   const vxHist=useRef({past:[],future:[],base:null,timer:null,applying:false});
@@ -8764,8 +8793,12 @@ function App(){
   // the grid until the next reconcile puts them back.
   const vxApply=useCallback((s)=>{vxHist.current.applying=true;const d=thGraftPlanItems(s.data,stateRef.current.data);setDataState(d);setHabitsState(s.habits);setHcState(s.hc);setMgState(s.goals);setMgMonthlyState(s.monthlyGoals);stateRef.current={data:d,habits:s.habits,hc:s.hc,goals:s.goals,monthlyGoals:s.monthlyGoals,goalPrefs:stateRef.current.goalPrefs};saveJ(T_SK.data,d);saveJ(T_SK.habits,s.habits);saveJ(T_SK.hc,s.hc);saveJ(T_SK.goals,s.goals);saveJ(T_SK.mgoals,s.monthlyGoals);fbPush();},[fbPush,thGraftPlanItems]);
   const vxFlush=useCallback(()=>{const h=vxHist.current;clearTimeout(h.timer);const cur=vxSnap();if(h.base!=null&&cur!==h.base){h.past.push(h.base);if(h.past.length>100)h.past.shift();h.base=cur;h.future=[];vxBtns();}},[vxSnap,vxBtns]);
-  const vxDoUndo=useCallback(()=>{const h=vxHist.current;vxFlush();if(!h.past.length)return false;h.future.push(vxSnap());const prev=h.past.pop();h.base=prev;vxApply(JSON.parse(prev));vxBtns();return true;},[vxFlush,vxSnap,vxApply,vxBtns]);
-  const vxDoRedo=useCallback(()=>{const h=vxHist.current;if(!h.future.length)return false;h.past.push(vxSnap());const nxt=h.future.pop();h.base=nxt;vxApply(JSON.parse(nxt));vxBtns();return true;},[vxSnap,vxApply,vxBtns]);
+  // History entries are snapshots (strings) or actions ({undo, redo}): things
+  // kept outside this dashboard -- a Claude reset, a OneInbox card, a quote --
+  // that a snapshot can't bring back (vxPushOp, window.thUndoable).
+  const vxDoUndo=useCallback(()=>{const h=vxHist.current;vxFlush();if(!h.past.length)return false;const prev=h.past.pop();if(typeof prev!=="string"){try{prev.undo();}catch(e){console.warn("[undo]",e);}h.future.push(prev);vxBtns();return true;}h.future.push(vxSnap());h.base=prev;vxApply(JSON.parse(prev));vxBtns();return true;},[vxFlush,vxSnap,vxApply,vxBtns]);
+  const vxDoRedo=useCallback(()=>{const h=vxHist.current;if(!h.future.length)return false;const nxt=h.future.pop();if(typeof nxt!=="string"){try{nxt.redo();}catch(e){console.warn("[redo]",e);}h.past.push(nxt);vxBtns();return true;}h.past.push(vxSnap());h.base=nxt;vxApply(JSON.parse(nxt));vxBtns();return true;},[vxSnap,vxApply,vxBtns]);
+  const vxPushOp=useCallback(op=>{const h=vxHist.current;vxFlush();h.past.push(op);if(h.past.length>100)h.past.shift();h.future=[];vxBtns();},[vxFlush,vxBtns]);
   useEffect(()=>{const h=vxHist.current;if(h.base===null){h.base=vxSnap();h.applying=false;return;}if(h.applying){h.applying=false;return;}clearTimeout(h.timer);h.timer=setTimeout(()=>{const cur=vxSnap();if(cur===h.base)return;h.past.push(h.base);if(h.past.length>100)h.past.shift();h.base=cur;h.future=[];vxBtns();},600);},[data,habits,hc,mg,mgMonthly,vxSnap,vxBtns]);
   useEffect(()=>{window._thVoiceUI={setRec:setVxRec,setUndo:setVxUndo,setRedo:setVxRedo};return()=>{if(window._thVoiceUI&&window._thVoiceUI.setRec===setVxRec)delete window._thVoiceUI;};},[]);
   useEffect(()=>()=>{if(window._thVoice&&window._thVoice.profile==='tony')delete window._thVoice;},[]);
@@ -10189,7 +10222,7 @@ function App(){
     goToDate:(y,m,d)=>{setSel({year:y,month:m,day:d});setVm(m);setVy(y);},
     openTimer:()=>setShowPomo(true),
     timer:(cmd,arg)=>{setShowPomo(true);setTimeout(()=>{if(window._vdTimerExec)window._vdTimerExec(cmd,arg);},140);},
-    undo:vxDoUndo,redo:vxDoRedo,flushHistory:vxFlush,
+    undo:vxDoUndo,redo:vxDoRedo,flushHistory:vxFlush,pushUndo:vxPushOp,
     canUndo:()=>{const h=vxHist.current;return h.past.length>0||(h.base!=null&&vxSnap()!==h.base);},
     canRedo:()=>vxHist.current.future.length>0};
 
@@ -12555,14 +12588,25 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
     // never re-armed, and its push reminder is deleted now. The next reset has
     // a new id, so it comes through as usual.
     window._crDismiss = async (p, id) => {
-      if (!/^[a-z]+$/.test(p || '') || !/^[\w-]+$/.test(id || '')) return;
+      if (!/^[a-z]+$/.test(p || '') || !/^[\w-]+$/.test(id || '')) return null;
       const cur = (window._crResets || {})[p];
       const at = ((cur && cur.resets) || []).find(r => r && r.id === id);
+      // Its push reminder is read first, so an undo can put it back.
+      let rem = null;
+      try { const rs = await getDoc(doc(db, 'reminders', id)); if (rs.exists()) rem = rs.data(); } catch (e) {}
       try {
         await setDoc(doc(db, 'dashboards/claude_resets_' + p),
           { dismissed: { [id]: at ? Number(at.at) : Date.now() + 86400000 } }, { merge: true });
-      } catch (e) { console.warn('[ClaudeResets] dismiss failed:', e); return; }
+      } catch (e) { console.warn('[ClaudeResets] dismiss failed:', e); return null; }
       try { await deleteDoc(doc(db, 'reminders', id)); } catch (e) {}
+      return { rem };
+    };
+    // Undo of a dismiss: off the `dismissed` map, and its reminder written back.
+    window._crRestore = async (p, id, rem) => {
+      if (!/^[a-z]+$/.test(p || '') || !/^[\w-]+$/.test(id || '')) return;
+      try { await setDoc(doc(db, 'dashboards/claude_resets_' + p), { dismissed: { [id]: deleteField() } }, { merge: true }); }
+      catch (e) { console.warn('[ClaudeResets] restore failed:', e); return; }
+      if (rem) { try { await setDoc(doc(db, 'reminders', id), rem); } catch (e) {} }
     };
 
     // ── AppLock locked-set sync — which apps are locked, shared across ALL devices ──
@@ -12629,6 +12673,12 @@ ReactDOM.render(React.createElement(Root),document.getElementById("root"));
       if (!id) return;
       try { await deleteDoc(doc(db, 'dashboards/oneinbox/cards', String(id))); }
       catch (e) { console.warn('[OneInbox] card delete failed:', e); }
+    };
+    // Undo of a dismiss: the card doc written back exactly as it was.
+    window._fbRestoreOICard = async (card) => {
+      if (!card || !card.id) return;
+      try { await setDoc(doc(db, 'dashboards/oneinbox/cards', String(card.id)), card); }
+      catch (e) { console.warn('[OneInbox] card restore failed:', e); }
     };
 
     // ── NavOrder — drag-to-reorder app buttons, synced across all devices ──
@@ -15732,8 +15782,12 @@ function App(){
   const vxBtns=useCallback(()=>{const h=vxHist.current;setVxUndo(h.past.length>0);setVxRedo(h.future.length>0);},[]);
   const vxApply=useCallback((s)=>{vxHist.current.applying=true;const d=vdGraftPlanItems(s.data,vdRef.current.data);setDataState(d);setHabitsState(s.habits);setHcState(s.hc);setMgState(s.goals);setMgMonthlyState(s.monthlyGoals);/* MERGE, never replace: undo history holds only data/habits/hc/goals, and rebuilding vdRef from scratch here dropped rules+rulesDaily — the next save then uploaded rules:[] and erased Veda's rules on every device. */vdRef.current={...vdRef.current,data:d,habits:s.habits,hc:s.hc,goals:s.goals,monthlyGoals:s.monthlyGoals};saveJ(SK.data,d);saveJ(SK.habits,s.habits);saveJ(SK.hc,s.hc);saveJ(SK.goals,s.goals);saveJ(SK.mgoals,s.monthlyGoals);vdFbPush();},[vdFbPush,vdGraftPlanItems]);
   const vxFlush=useCallback(()=>{const h=vxHist.current;clearTimeout(h.timer);const cur=vxSnap();if(h.base!=null&&cur!==h.base){h.past.push(h.base);if(h.past.length>100)h.past.shift();h.base=cur;h.future=[];vxBtns();}},[vxSnap,vxBtns]);
-  const vxDoUndo=useCallback(()=>{const h=vxHist.current;vxFlush();if(!h.past.length)return false;h.future.push(vxSnap());const prev=h.past.pop();h.base=prev;vxApply(JSON.parse(prev));vxBtns();return true;},[vxFlush,vxSnap,vxApply,vxBtns]);
-  const vxDoRedo=useCallback(()=>{const h=vxHist.current;if(!h.future.length)return false;h.past.push(vxSnap());const nxt=h.future.pop();h.base=nxt;vxApply(JSON.parse(nxt));vxBtns();return true;},[vxSnap,vxApply,vxBtns]);
+  // History entries are snapshots (strings) or actions ({undo, redo}): things
+  // kept outside this dashboard -- a Claude reset, a OneInbox card, a quote --
+  // that a snapshot can't bring back (vxPushOp, window.thUndoable).
+  const vxDoUndo=useCallback(()=>{const h=vxHist.current;vxFlush();if(!h.past.length)return false;const prev=h.past.pop();if(typeof prev!=="string"){try{prev.undo();}catch(e){console.warn("[undo]",e);}h.future.push(prev);vxBtns();return true;}h.future.push(vxSnap());h.base=prev;vxApply(JSON.parse(prev));vxBtns();return true;},[vxFlush,vxSnap,vxApply,vxBtns]);
+  const vxDoRedo=useCallback(()=>{const h=vxHist.current;if(!h.future.length)return false;const nxt=h.future.pop();if(typeof nxt!=="string"){try{nxt.redo();}catch(e){console.warn("[redo]",e);}h.past.push(nxt);vxBtns();return true;}h.past.push(vxSnap());h.base=nxt;vxApply(JSON.parse(nxt));vxBtns();return true;},[vxSnap,vxApply,vxBtns]);
+  const vxPushOp=useCallback(op=>{const h=vxHist.current;vxFlush();h.past.push(op);if(h.past.length>100)h.past.shift();h.future=[];vxBtns();},[vxFlush,vxBtns]);
   useEffect(()=>{const h=vxHist.current;if(h.base===null){h.base=vxSnap();h.applying=false;return;}if(h.applying){h.applying=false;return;}clearTimeout(h.timer);h.timer=setTimeout(()=>{const cur=vxSnap();if(cur===h.base)return;h.past.push(h.base);if(h.past.length>100)h.past.shift();h.base=cur;h.future=[];vxBtns();},600);},[dataState,habitsState,hcState,mgState,mgMonthlyState,vxSnap,vxBtns]);
   useEffect(()=>{window._vdVoiceUI={setRec:setVxRec,setUndo:setVxUndo,setRedo:setVxRedo};return()=>{if(window._vdVoiceUI&&window._vdVoiceUI.setRec===setVxRec)delete window._vdVoiceUI;};},[]);
   useEffect(()=>()=>{if(window._vdVoice&&window._vdVoice.profile==='veda')delete window._vdVoice;},[]);
@@ -16658,7 +16712,7 @@ function App(){
     goToDate:(y,m,d)=>{setSel({year:y,month:m,day:d});setVm(m);setVy(y);},
     openTimer:()=>setShowPomo(true),
     timer:(cmd,arg)=>{setShowPomo(true);setTimeout(()=>{if(window._vdTimerExec)window._vdTimerExec(cmd,arg);},140);},
-    undo:vxDoUndo,redo:vxDoRedo,flushHistory:vxFlush,
+    undo:vxDoUndo,redo:vxDoRedo,flushHistory:vxFlush,pushUndo:vxPushOp,
     canUndo:()=>{const h=vxHist.current;return h.past.length>0||(h.base!=null&&vxSnap()!==h.base);},
     canRedo:()=>vxHist.current.future.length>0};
 
