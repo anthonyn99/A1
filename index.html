@@ -8288,7 +8288,7 @@ function thRowEdit(c,onEdit,onDel,inline){
 function thRowEditSpacer(){ return React.createElement("span",{"aria-hidden":"true",style:{display:"inline-block",width:1,height:20,verticalAlign:"top"}}); }
 // Edit mode keeps a row's side buttons where they were, hidden, so nothing reflows.
 function thHide(on,el){
-  return on&&el?React.cloneElement(el,{style:{...(el.props.style||{}),visibility:"hidden"},tabIndex:-1,"aria-hidden":"true"}):el;
+  return on&&el?React.cloneElement(el,{style:{...(el.props.style||{}),visibility:"hidden",transition:"none"},tabIndex:-1,"aria-hidden":"true"}):el;
 }
 
 // A package / bill / travel card, drawn inside a weekly day cell.
