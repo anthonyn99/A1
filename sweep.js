@@ -104,6 +104,21 @@
     return (it.prefix || []).some(function (p) { return p && k.indexOf(p) === 0; });
   }
 
+  // Resolves once test() is true, or after ms (default READY_WAIT_MS), checking
+  // every READY_POLL_MS. Only reads the page's own flag: no network, no storage.
+  var READY_WAIT_MS = 30 * 60000, READY_POLL_MS = 15000;
+  function until(test, ms) {
+    var end = Date.now() + (typeof ms === 'number' ? ms : READY_WAIT_MS);
+    return new Promise(function (done) {
+      (function poll() {
+        var ok = false;
+        try { ok = test(); } catch (e) {}
+        if (ok || Date.now() >= end) return done(ok);
+        setTimeout(poll, Math.min(READY_POLL_MS, Math.max(0, end - Date.now())));
+      })();
+    });
+  }
+
   // Deletion on: approved, and past its notBefore day if it has one.
   function live(it) { return it.delete && !(it.notBefore && today() < it.notBefore); }
 
@@ -190,6 +205,7 @@
         var budgets = { indexeddb: rules.limits.idbDeletesPerSweep, cloudfiles: rules.limits.kvDeletesPerDayPerAccount };
         for (var j = 0; j < p.adapted.length; j++) {
           var y = p.adapted[j], kind = ADAPTED[y.store];
+          await until(function () { var a = (window[kind.global] || {})[y.id]; return !!(a && a.ready && a.ready()); }, opts.readyWaitMs);
           var ad = (window[kind.global] || {})[y.id];
           if (!ad || typeof ad.list !== 'function' || typeof ad.del !== 'function' || !ad.ready || !ad.ready()) {
             rep.skipped.push(y.id + ': ' + kind.label + ' adapter not ready'); continue;
