@@ -215,6 +215,10 @@ function boot({ rules = RULES, storage = true, adapter, seed = {}, program = 'in
   s.setAttribute('data-program', program);
   Object.defineProperty(w.document, 'currentScript', { configurable: true, get: () => s });
   w.eval(SWEEP);
+  // The shipped sweep waits up to 30 min for a page adapter to be ready; the
+  // cases here say how long, or get no wait at all.
+  const run0 = w.A1Sweep.run;
+  w.A1Sweep.run = (o = {}) => run0(Object.assign({ readyWaitMs: 0 }, o));
   return w;
 }
 const clone = () => JSON.parse(JSON.stringify(RULES));
@@ -384,6 +388,41 @@ const clone = () => JSON.parse(JSON.stringify(RULES));
     ok('moved-programs-old-origin ships as a dry run', wd.localStorage.getItem('tb_quick_prompt') === '1' &&
       repD.wouldDelete.some((x) => x === 'moved-programs-old-origin: localStorage tb_quick_prompt'), repD.wouldDelete);
   }
+
+  // "notBefore": an approved item stays a dry run until that local day, then goes on its own.
+  {
+    const ymd = (off) => { const d = new Date(); d.setDate(d.getDate() + off); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+    const withNb = (nb) => { const r = clone(); r.items.push({ id: 'graced', store: 'localStorage', program: 'index', category: 'unused',
+      capDays: 0, exact: ['graced_key'], owner: 't', reason: 't', delete: true, approved: 'test fixture only', notBefore: nb }); return r; };
+    const wf = boot({ rules: withNb(ymd(1)), seed: { graced_key: '1' } });
+    const repF = await wf.A1Sweep.run();
+    ok('notBefore tomorrow: listed, not deleted', wf.localStorage.getItem('graced_key') === '1' && repF.wouldDelete.includes('graced: localStorage graced_key'), repF.wouldDelete);
+    const wt = boot({ rules: withNb(ymd(0)), seed: { graced_key: '1' } });
+    await wt.A1Sweep.run();
+    ok('notBefore today: deleted on its own', wt.localStorage.getItem('graced_key') === null);
+    const wb = boot({ rules: withNb('11/10/2026'), seed: { graced_key: '1' } });
+    const repB = await wb.A1Sweep.run();
+    ok('a malformed notBefore fails closed', !!repB.error && wb.localStorage.getItem('graced_key') === '1', repB.error);
+  }
+
+  // A Firestore guard that clears after the first minute is waited for, not skipped for the day.
+  {
+    const r = clone(); r.items.forEach((i) => { if (i.store !== 'firestore') i.delete = false; });
+    let isReady = false; const calls = [];
+    const w = boot({ rules: r, adapter: { ready: () => isReady, del: async (p) => { calls.push(p); } } });
+    setTimeout(() => { isReady = true; }, 300);
+    const rep = await w.A1Sweep.run({ readyWaitMs: 5000 });
+    ok('a late-clearing Firestore guard is waited for, then the doc goes', calls.includes('dashboards/myjournal_docs') && !rep.skipped.length, JSON.stringify(rep.skipped));
+    const w2 = boot({ rules: r, adapter: { ready: () => false, del: async (p) => { calls.push(p); } } });
+    const t0 = Date.now();
+    const rep2 = await w2.A1Sweep.run({ readyWaitMs: 400 });
+    ok('…and a guard that never clears is given up on after the wait', Date.now() - t0 >= 350 && rep2.skipped.some((x) => /not ready/.test(x)));
+    ok('the shipped wait is 30 minutes, polled every 15 s', /READY_WAIT_MS = 30 \* 60000, READY_POLL_MS = 15000/.test(SWEEP));
+  }
+
+  // The first run is counted from the script, not from window "load", which a
+  // page holding a frame open may never fire (A1-Priv's sweeps never ran).
+  ok('the first run does not wait for the load event', !/addEventListener\('load'/.test(SWEEP) && /\n  setTimeout\(later, \d+\);\n/.test(SWEEP));
 
   console.log(`\n  ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
