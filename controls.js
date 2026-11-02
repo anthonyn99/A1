@@ -904,18 +904,20 @@
     stripped = stripped.filter(function (el) {
       if (keepFor && el.contains(keepFor)) return true;
       if (!el.hasAttribute('title')) el.setAttribute('title', el._a1cTitle);
+      el.removeAttribute('data-a1c-tip');
       if (el._a1cAria) { el.removeAttribute('aria-label'); el._a1cAria = false; }
       return false;
     });
   }
   doc.addEventListener('pointerover', function (e) {
     if (e.pointerType === 'touch') return;
-    var el = e.target && e.target.closest && e.target.closest('[title]');
-    if (!el || el.tagName === 'IFRAME' || skip(el)) return;
-    var text = el.getAttribute('title');
+    var el = e.target && e.target.closest && e.target.closest('[title],[data-a1c-tip]');
+    if (!el || el === tipFor || el.tagName === 'IFRAME' || skip(el)) return;
+    var text = el.hasAttribute('title') ? el.getAttribute('title') : el._a1cTitle;
     el.removeAttribute('title');
     if (!text) return;
     el._a1cTitle = text;
+    el.setAttribute('data-a1c-tip', '');
     if (stripped.indexOf(el) < 0) stripped.push(el);
     // Keep the accessible name the title gave while it is off.
     if (!el.hasAttribute('aria-label') && !(el.textContent || '').trim()) { el.setAttribute('aria-label', text); el._a1cAria = true; }
