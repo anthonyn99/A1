@@ -55,6 +55,27 @@
     <label><input id="vcb" type="checkbox" checked> hers</label>
   </div>
   <div id="modal"><select id="msel" class="fld"><option>m1</option><option>m2</option><option>m3</option><option>m4</option><option>m5</option></select></div>
+  <!-- TaskHub's modal shape: a fixed overlay holding a box, closed by a click
+       on the overlay itself or by any click that lands outside the box. -->
+  <div id="ov" style="position:fixed;right:10px;bottom:10px;width:330px;height:240px;background:rgba(0,0,0,.4)">
+    <div id="ovbox" style="margin:20px;padding:12px;background:#232327;border:1px solid #45454c;display:flex;gap:8px;flex-wrap:wrap">
+      <input id="ovdate" type="date" class="fld"><input id="ovtime" type="time" class="fld">
+      <select id="ovsel" class="fld"><option>o1</option><option>o2</option></select>
+    </div>
+  </div>
+  <script>
+    window.ovClosed = [];
+    document.getElementById('ov').addEventListener('click', function (e) { if (e.target === e.currentTarget) window.ovClosed.push('overlay'); });
+    ['mousedown', 'click'].forEach(function (t) {
+      document.addEventListener(t, function (e) {
+        var ov = document.getElementById('ov');
+        if (ov.contains(e.target) && !document.getElementById('ovbox').contains(e.target)) window.ovClosed.push(t + ':outside-box');
+        if (!e.target.isConnected) window.ovClosed.push(t + ':detached');
+      });
+    });
+    window.enterLeaks = 0;
+    document.addEventListener('keydown', function (e) { if (e.key === 'Enter') window.enterLeaks++; });
+  </script>
   <div id="react"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
