@@ -94,7 +94,7 @@ const brief = (path) => path.filter((p, i, a) => i === 0 || p.join() !== a[i - 1
   await boot(c);
   const d = await rect(c, card('Delta'));
   a = await rect(c, card('Alpha') + '.querySelector(".kc-card-name")');
-  p = await dropPaths(c, 'Alpha', d.x - a.x, d.t + d.h - a.y + 10);
+  p = await dropPaths(c, 'Alpha', d.x - a.x, d.t + d.h * 0.75 - a.y);
   const e2 = p.Alpha[p.Alpha.length - 1];
   ok('it moved to the other column', Math.abs(e2[0] - Math.round(d.l)) <= 1, { end: e2, deltaLeft: d.l });
   ok('it lands without a bounce', straight(p.Alpha), brief(p.Alpha));
