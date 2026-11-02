@@ -100,6 +100,7 @@ const mock = {
 
 const css = (c, sel, prop) => evalJs(c, `var e=document.querySelector(${JSON.stringify(sel)}); return e?getComputedStyle(e)[${JSON.stringify(prop)}]:'(none)';`);
 const PURPLE = 'rgb(192, 174, 234)', DARK = 'rgb(26, 26, 29)', ACL = 'rgb(219, 208, 245)', ACD = 'rgb(154, 134, 201)';
+const BDL = 'rgb(69, 69, 76)', S2 = 'rgb(44, 44, 49)';
 const MAUVE = 'rgb(141, 118, 154)';
 
 // profile: 'tony' | 'veda' | null (the chooser). emg: start locked down.
@@ -175,8 +176,10 @@ async function shotsFor(c, p) {
   ok('its label is dark', (await css(c, '.nav > .pill.on', 'color')) === DARK);
   ok('the current pill has no halo', (await css(c, '.nav > .pill.on', 'boxShadow')) === 'none');
   ok(".btn is MAGI's (10px / 700 / 1px)", (await css(c, '.btn', 'fontSize')) === '10px' && (await css(c, '.btn', 'fontWeight')) === '700' && (await css(c, '.btn', 'letterSpacing')) === '1px');
-  ok('cards sit on a hairline, radius 8', (await css(c, '.card, .dev', 'borderTopLeftRadius')) === '8px', await css(c, '.card, .dev', 'borderTopLeftRadius'));
-  ok('the Close Apps button is an acd outline', (await css(c, '.big.close', 'borderTopColor')) === ACD, await css(c, '.big.close', 'borderTopColor'));
+  // The 2026-10-27 SLEEK redesign (shield.html): cards round to --rg (12px).
+  ok('cards round to the SLEEK 12px', (await css(c, '.card, .dev', 'borderTopLeftRadius')) === '12px', await css(c, '.card, .dev', 'borderTopLeftRadius'));
+  // SLEEK: Close Apps is a quiet tile on a light hairline (--bdl); purple only on hover.
+  ok('the Close Apps tile sits on a hairline, not purple', (await css(c, '.big.close', 'borderTopColor')) === BDL, await css(c, '.big.close', 'borderTopColor'));
   const grad = await evalJs(c, "return [...document.querySelectorAll('#app *')].filter(e=>/gradient\\(/.test(getComputedStyle(e).backgroundImage)).length;");
   ok('no gradient fills in the app', grad === 0, grad);
   const gold = await evalJs(c, "return [...document.querySelectorAll('#app *')].filter(e=>!e.closest('.warn,.part')).filter(e=>{const s=getComputedStyle(e); return [s.color,s.borderTopColor,s.backgroundColor].some(v=>/224, 184, 116/.test(v));}).map(e=>e.className).slice(0,5).join('|');");
@@ -191,7 +194,8 @@ async function shotsFor(c, p) {
   ok('a set chip count is Inter 500', (await css(c, '.setchip-n', 'fontWeight')) === '500');
   await evalJs(c, "document.querySelector('.toggle').classList.add('on'); 1"); await sleep(400);
   ok('a toggle that is on is solid purple', (await css(c, '.toggle.on', 'backgroundColor')) === PURPLE, await css(c, '.toggle.on', 'backgroundColor'));
-  ok('a sub-tab that is on is an accent outline', (await css(c, '.pill.sub.on', 'borderTopColor')) === PURPLE, await css(c, '.pill.sub.on', 'borderTopColor'));
+  // SLEEK: the selected sub-tab sits on a soft gray pill (--s2), no outline, no purple.
+  ok('a sub-tab that is on is a gray pill with no outline', (await css(c, '.pill.sub.on', 'backgroundColor')) === S2 && (await css(c, '.pill.sub.on', 'borderTopWidth')) === '0px', (await css(c, '.pill.sub.on', 'backgroundColor')) + ' / ' + (await css(c, '.pill.sub.on', 'borderTopWidth')));
   ok('a selected set chip has no halo', (await css(c, '.setchip.on', 'boxShadow')) === 'none');
   await view(c, 'home');
 
@@ -200,7 +204,7 @@ async function shotsFor(c, p) {
   await evalJs(c, "uiConfirm('Sure?', {okLabel:'Yes'}); 1"); await sleep(300);
   ok('uiModal OK is solid purple with a dark label', (await css(c, '#uim-ok', 'backgroundColor')) === PURPLE && (await css(c, '#uim-ok', 'color')) === DARK);
   ok('uiModal backdrop is .62 with a 2px blur', (await css(c, '#uim-overlay', 'backgroundColor')) === 'rgba(0, 0, 0, 0.62)' && (await css(c, '#uim-overlay', 'backdropFilter')) === 'blur(2px)');
-  ok('uiModal box is s1, radius 8', (await css(c, '#uim-box', 'backgroundColor')) === 'rgb(35, 35, 39)' && (await css(c, '#uim-box', 'borderTopLeftRadius')) === '8px', (await css(c, '#uim-box', 'backgroundColor')) + ' / ' + (await css(c, '#uim-box', 'borderTopLeftRadius')));
+  ok('uiModal box is s1, SLEEK radius 14', (await css(c, '#uim-box', 'backgroundColor')) === 'rgb(35, 35, 39)' && (await css(c, '#uim-box', 'borderTopLeftRadius')) === '14px', (await css(c, '#uim-box', 'backgroundColor')) + ' / ' + (await css(c, '#uim-box', 'borderTopLeftRadius')));
   ok('the uiModal title is Manrope', /^Manrope/.test(await css(c, '#uim-title', 'fontFamily')));
   await evalJs(c, "document.getElementById('uim-cancel').click(); uiConfirm('Delete?', {danger:true, okLabel:'Delete'}); 1"); await sleep(300);
   ok('a danger OK is a red outline', (await css(c, '#uim-ok', 'backgroundColor')) === 'rgba(0, 0, 0, 0)' && (await css(c, '#uim-ok', 'color')) === 'rgb(214, 138, 124)');
