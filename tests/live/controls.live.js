@@ -197,8 +197,9 @@ const VEDA = [
   ok('a ticked box shows a real tick mark (10px, full size, the tick shape)', /^10px matrix\(1, 0, 0, 1, 0, 0\) url\(/.test(boxes.cb.tick), boxes.cb.tick);
   await evalJs(c, "document.getElementById('cb').checked = false; return 1;");
   await sleep(300);
-  const empty = await evalJs(c, "var cs = getComputedStyle(document.getElementById('cb')); return { bg: cs.backgroundColor, border: cs.borderTopColor };");
-  ok('an empty box is visible: a soft fill and a clear border, not a black hole', /^(rgba|color)\(/.test(empty.bg) && empty.bg !== 'rgba(0, 0, 0, 0)', empty);
+  const empty = await evalJs(c, "var e = document.getElementById('cb'), cs = getComputedStyle(e); return { bg: cs.backgroundColor, color: cs.color, label: getComputedStyle(e.parentElement).color };");
+  // Inputs don't inherit text colour, so a box drawn from currentColor came out black (Tony, 2026-11-02).
+  ok('an empty box is grey from the text around it (not the input's black default)', empty.color === empty.label && empty.color !== 'rgb(0, 0, 0)' && empty.bg !== 'rgba(0, 0, 0, 0)', empty);
   ok('a gold box stays gold', boxes.gold.a && boxes.gold.bg === 'rgb(224, 184, 116)', boxes.gold);
   ok("the page's own toggle switch is left alone", !boxes.sw.a && boxes.sw.w === 40, boxes.sw);
   ok('radio and range are A1\'s, the range fill tracks', boxes.r1.a && boxes.rng.a && boxes.pct === '50%', boxes);
