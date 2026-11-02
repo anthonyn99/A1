@@ -7,11 +7,13 @@ account_id = "b9a33dd573c14d5f446516ea8b46285f"
 main = "worker.js"
 compatibility_date = "2025-06-01"
 
-# Pre-warm so data is built for the user opening TradeHub on any device. ONE daily cron
-# at 12:00 UTC = builds BEGIN at 06:00 MDT (summer) / 05:00 MST (winter) Mountain time.
-# A single UTC cron can't track DST to keep the same local time both seasons, and the
-# account is capped at 5 cron triggers total, so two-per-worker (one per offset) isn't
-# an option.
+# Pre-warm so data is built for the user opening TradeHub on any device: builds BEGIN
+# at 06:00 Mountain, standard and daylight time alike. A UTC cron cannot follow
+# daylight saving, so this ONE trigger fires at both 12:00 and 13:00 UTC (it is
+# still one of the account's 5 cron triggers) and scheduled() builds only on the
+# run that lands on 6 AM in America/Denver: 12:00 UTC in daylight time (MDT),
+# 13:00 UTC in standard time (MST). The other run returns at once: no fetch, no
+# KV write. (Until 2026-11-02 it was 12:00 UTC alone, i.e. 5 AM all winter.)
 # Fires every day, and scheduled() pre-warms BOTH News and Catalysts on every run
 # (Mon-Sun, not holiday-gated): world/company news doesn't stop on market holidays,
 # and the forward earnings/macro dates shift daily while the client only ever shows
@@ -19,7 +21,7 @@ compatibility_date = "2025-06-01"
 # morning at/after 6 finds the full calendar — earnings dates included — already
 # built, with nothing left for the browser to do but publish it to Firebase.
 [triggers]
-crons = ["0 12 * * *"]
+crons = ["0 12,13 * * *"]
 
 [[kv_namespaces]]
 binding = "NEWSHUB_CACHE"

@@ -4155,8 +4155,11 @@ export default {
   // Cron — pre-warms cache. Uses Finnhub+TickerTick every run (no daily cap),
   // but only spends Marketaux/StockData/AlphaVantage quota a few times/day at
   // staggered hours so they don't get exhausted.
+  isCronBuildHour,
   async scheduled(event, env, ctx){
-    // Fires once daily at 12:00 UTC (= builds begin 06:00 MDT / 05:00 MST Mountain).
+    // Fires at 12:00 AND 13:00 UTC; only the run at 6 AM Mountain builds (see
+    // isCronBuildHour and wrangler.toml), so builds begin at 06:00 MST or MDT.
+    if (!isCronBuildHour(event.scheduledTime)) return;
     // Both pre-warms run EVERY day (Mon-Sun), not day/holiday-gated: world/company
     // news doesn't stop on weekends, and forward earnings/macro dates shift daily
     // while the client only ever surfaces the forward 30-day window.
