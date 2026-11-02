@@ -220,8 +220,8 @@ const VEDA = [
   // Notebook's active tab gave a lavender, unpadded, mono tooltip (Tony, 2026-11-02).
   ok("a filled tab's tooltip takes the panel behind it (dark), keeps its padding and A1's font against the page's id rules",
     ptip && !ptip.light && ptip.pad === '6px 10px' && /Inter/.test(ptip.font) && ptip.size === '12px' && ptip.color === 'rgb(244, 243, 240)', ptip);
-  await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: tp.x, y: tp.y });
-  await sleep(700);
+  await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 5, y: 880 });
+  await sleep(250);
   ok('leaving hides it and puts the title back', (await evalJs(c, "!document.querySelector('.a1c-tip.on') && document.getElementById('tipped').getAttribute('title')")) === 'Hello tip');
 
   await evalJs(c, "window.colLog = []; ['input', 'change'].forEach(function (t) { document.getElementById('col').addEventListener(t, function (e) { window.colLog.push(t + ':' + e.target.value); }); }); return 1;");
