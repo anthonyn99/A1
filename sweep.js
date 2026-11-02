@@ -29,6 +29,9 @@
  *     nothing is deleted that run.
  *   - An item with "delete": false is a dry run. It is listed in the report and
  *     left alone. In the console: A1Sweep.report(), or A1Sweep.run({force:true}).
+ *   - An approved item with "notBefore": "YYYY-MM-DD" stays a dry run until that
+ *     local day, then deletes on its own: a grace period nobody has to remember
+ *     to end.
  *   - An item with an "origin" runs only on that host (ORIGINS below). A1's
  *     pages and A1-Priv's are separate origins with separate localStorage, so a
  *     key can be dead on one and live on the other (a program that moved).
@@ -85,6 +88,7 @@
       if (typeof it.delete !== 'boolean' || typeof it.capDays !== 'number') throw new Error('rules: ' + it.id + ' lacks delete/capDays');
       if (!it.owner || !it.reason) throw new Error('rules: ' + it.id + ' lacks an owner or a reason');
       if (it.origin !== undefined && !ORIGINS[it.origin]) throw new Error('rules: ' + it.id + ' has an unknown origin');
+      if (it.notBefore !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(it.notBefore)) throw new Error('rules: ' + it.id + ' has a bad notBefore');
       if (it.store === 'firestore' && !DOC_RE.test(it.doc || '')) throw new Error('rules: ' + it.id + ' is not a fixed doc id');
       // A key in localStorage has no timestamp, so only "gone on the first sweep" works there.
       if (it.store === 'localStorage' && it.capDays !== 0) throw new Error('rules: ' + it.id + ' localStorage items cannot age');
@@ -100,6 +104,9 @@
     return (it.prefix || []).some(function (p) { return p && k.indexOf(p) === 0; });
   }
 
+  // Deletion on: approved, and past its notBefore day if it has one.
+  function live(it) { return it.delete && !(it.notBefore && today() < it.notBefore); }
+
   function doneList() { try { return JSON.parse(get(DONE) || '[]') || []; } catch (e) { return []; } }
 
   // Works out the run without touching anything.
@@ -111,11 +118,11 @@
     if (s) { for (var i = 0; i < s.length; i++) { var k = s.key(i); if (k) keys.push(k); } }
     mine.forEach(function (it) {
       if (it.store === 'localStorage') {
-        keys.forEach(function (k) { if (matches(it, k)) out.ls.push({ id: it.id, key: k, del: it.delete }); });
+        keys.forEach(function (k) { if (matches(it, k)) out.ls.push({ id: it.id, key: k, del: live(it) }); });
       } else if (it.store === 'firestore') {
-        if (doneList().indexOf(it.id) === -1) out.fs.push({ id: it.id, doc: it.doc, del: it.delete });
+        if (doneList().indexOf(it.id) === -1) out.fs.push({ id: it.id, doc: it.doc, del: live(it) });
       } else if (ADAPTED[it.store]) {
-        out.adapted.push({ id: it.id, store: it.store, capDays: it.capDays, del: it.delete });
+        out.adapted.push({ id: it.id, store: it.store, capDays: it.capDays, del: live(it) });
       }
     });
     return out;
