@@ -373,7 +373,7 @@
     // (Tony, 2026-11-02). Its pointer and click events stop at the popover.
     // controls.js's own listeners are capture-phase on the document and still
     // see them first.
-    ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'dblclick', 'touchstart', 'touchend', 'contextmenu'].forEach(function (t) {
+    ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'dblclick', 'touchstart', 'touchend', 'contextmenu', 'keydown', 'keyup'].forEach(function (t) {
       pop.addEventListener(t, function (e) { e.stopPropagation(); });
     });
     pop.setAttribute('data-no-hoverfx', '');
@@ -423,7 +423,7 @@
       try { a.focus({ preventScroll: true }); } catch (x) {}
       return;
     }
-    if (openPop.onKey && (doc.activeElement === openPop.anchor || openPop.pop.contains(doc.activeElement))) openPop.onKey(e);
+    if (openPop.onKey && (doc.activeElement === openPop.anchor || openPop.pop.contains(doc.activeElement))) { if (openPop.onKey(e)) e.stopPropagation(); }
   }, true);
 
   // ── option lists (select + datalist) ───────────────────────────────────────
@@ -525,7 +525,7 @@
       fire(sel);
     });
     openPopover(lb.pop, sel, {
-      onKey: function (e) { lb.key(e); },
+      onKey: function (e) { return lb.key(e); },
     });
     lb.setAct(Math.max(0, shown.indexOf(sel.selectedIndex)));
     lb.scrollAct();
@@ -887,7 +887,7 @@
         onKey: function (e) {
           if (e.key === ' ' || (e.key.length === 1 && !e.altKey)) return;      // typing goes to the input
           if (e.key === 'Enter' && lb.act < 0) return;
-          lb.key(e);
+          return lb.key(e);
         },
       });
     }
