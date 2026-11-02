@@ -13,7 +13,8 @@
 //   4. Escape mid-drag puts it back; the first click after a drop works.
 //   5. Unit chips: a mouse drag moves a chip and does not toggle it; a touch
 //      hold moves it too; the order is saved.
-//   6. The prompt box's corner grip (resizegrip.js): drag, click toggle, the
+//   6. The prompt box's corner grip (resizegrip.js): drag, a click does nothing,
+//      Enter hands it back to auto, the
 //      height survives a reload, and an old magi.h.* height is carried over.
 // Since theme phase 11 all of it is the shared dragsort.js / resizegrip.js.
 // The test browser's own profile; its queue rows are put back after.
@@ -284,7 +285,14 @@ const orderNames = (c) => evalJs(c, 'return JSON.stringify([...document.querySel
     await c.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: gr2.x, y: gr2.y, button: 'left', clickCount: 1 });
     await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: gr2.x, y: gr2.y, button: 'left', clickCount: 1 });
     await sleep(100);
-    ok('a click hands a sized box back to auto', await evalJs(c, '!document.getElementById("composer").dataset.userH && localStorage.getItem("a1.h.magi.composer") === null'));
+    // Since 2026-10-14 a click does nothing (a drag that barely moved kept
+    // snapping the box, Tony); Enter / Space hand a sized box back to auto.
+    ok('a click leaves the sized box alone', await evalJs(c, 'Math.round(document.getElementById("composer").getBoundingClientRect().height)') === h1 && await evalJs(c, '!!document.getElementById("composer").dataset.userH'));
+    await evalJs(c, 'document.getElementById("composerGrip").focus(); return 1;');
+    await c.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+    await c.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+    await sleep(150);
+    ok('Enter on the grip hands a sized box back to auto', await evalJs(c, '!document.getElementById("composer").dataset.userH && localStorage.getItem("a1.h.magi.composer") === null'));
   } catch (e) {
     fail++;
     console.log('  FAIL  crashed: ' + (e.stack || e));
