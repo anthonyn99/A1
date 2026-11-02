@@ -7,7 +7,8 @@
 //   3. phone width: a held finger drags a dropdown row (no grips: Tony, 2026-10-02)
 //   4. phone width: a quick swipe on a dropdown row does not drag
 //   5. Settings → External links: mouse-drag a row
-//   6. Veda's dropdown still carries her own grip (untouched)
+//   6. Veda's program dropdown still carries her own grip (untouched); her
+//      TaskHub's lists use A1Drag since 2026-10-27
 //
 // Run: node tests/live/index-drag.live.js
 'use strict';
@@ -134,7 +135,12 @@ async function load(c, who, w, h, mobile) {
 
   console.log('\nVeda: untouched');
   await load(c, 'veda', 390, 844, true);
-  ok('Veda\'s nav is not an A1Drag list', await evalJs(c, "return !document.querySelector('#veda-root .dsort, .vd-dd-item .dsort-grip');"));
+  // Her TaskHub's own lists drag with A1Drag since 2026-10-27 (both
+  // TaskHubs); what stays hers is the program dropdown, with its own drag.
+  await evalJs(c, "var t = [].find.call(document.querySelectorAll('#vd-dd-trigger'), function (x) { return x.offsetParent; }); if (t) t.click(); return 1;");
+  await sleep(300);
+  const vdd = JSON.parse(await evalJs(c, "return JSON.stringify({ items: document.querySelectorAll('.vd-dd-item').length, own: document.querySelectorAll('.vd-dd-item .dd-grip').length, a1: !!document.querySelector('#vd-dd-panel.dsort, #vd-dd-panel .dsort, .vd-dd-item .dsort-grip') });"));
+  ok('Veda\'s program dropdown keeps its own drag (her grips), not A1Drag', vdd.items > 0 && vdd.own === vdd.items && !vdd.a1, JSON.stringify(vdd));
 
   ok('no page errors', errs.length === 0, errs.join(' | '));
   console.log(`\n  ${pass} passed, ${fail} failed`);
