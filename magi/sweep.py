@@ -14,7 +14,8 @@ Local disk costs no quota, so the only limits are the safety ones:
   unknown `test`, a glob that leaves magi/artifacts or magi/data), delete
   nothing that run.
 * An item with "delete": false is a dry run. Its files are listed in
-  data/<profile>/sweep.json and left where they are.
+  data/<profile>/sweep.json and left where they are. So is an approved item
+  before its "notBefore" day (YYYY-MM-DD, local), as in sweep.js.
 * Never the database, uploads or browser profiles, whatever a glob says.
   The one thing under magi/profiles it may touch is a Codex slot's session
   rollouts (`CODEX_ROLLOUTS`): since Track F they persist so a follow-up
@@ -73,6 +74,10 @@ def load_rules(path: Path | None = None) -> list[dict]:
         if not (glob.startswith("artifacts/") or glob.startswith("data/") or rollouts) \
                 or ".." in glob:
             raise ValueError(f"{it.get('id')}: glob leaves magi/artifacts and magi/data")
+        nb = it.get("notBefore")
+        if nb is not None and not (isinstance(nb, str) and len(nb) == 10
+                                   and datetime.strptime(nb, "%Y-%m-%d")):
+            raise ValueError(f"{it.get('id')}: bad notBefore")
         test = it.get("test")
         if test is not None and not any(test.startswith(t) for t in _TESTS):
             raise ValueError(f"{it.get('id')}: unknown test {test!r}")
@@ -134,7 +139,7 @@ def run(force: bool = False, dry_run: bool = False, now: float | None = None) ->
         targets = []
     for it, p in targets:
         rel = f"{it['id']}: {p.relative_to(S.ROOT).as_posix()}"
-        if not it["delete"] or dry_run:
+        if not it["delete"] or day < it.get("notBefore", "") or dry_run:
             rep["would_delete"].append(rel)
             continue
         try:
