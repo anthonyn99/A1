@@ -26,7 +26,7 @@ const ROOT = path.join(__dirname, '..');
 const PAGES = [
   'index.html', 'insight.html', 'magi.html', 'mylist.html', 'oneinbox.html',
   'riftiq.html', 'shield.html', 'tradehub.html', 'vault.html',
-  'wellness.html', 'everwell.html', 'Shruti/shruti.html',
+  'V1/wellness.html', 'everwell.html', 'Shruti/shruti.html',
 ];
 // StudyOS is the one multi-file app; its cap lives in its stylesheet.
 const SHEETS = ['V1/css/studyos.css', 'Shruti/styles.css'];

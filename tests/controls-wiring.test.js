@@ -21,10 +21,10 @@ const M = require('./moved');
 
 const ROOT = path.join(__dirname, '..');
 const TAG = new RegExp('<script[^>]+src=["\']' + M.src('controls.js') + '["\'][^>]*>');
-const PAGES = ['index.html', 'magi.html', 'mylist.html', 'shield.html', 'Shruti/shruti.html', 'wellness.html',
+const PAGES = ['index.html', 'magi.html', 'mylist.html', 'shield.html', 'Shruti/shruti.html', 'V1/wellness.html',
   'backup-restore.html', 'backup-export.html', 'V1/studyos.html',
   'oneinbox.html', 'insight.html', 'tradehub.html', 'riftiq.html', 'everwell.html'];
-const VEDA_ONLY = ['wellness.html', 'V1/studyos.html'];
+const VEDA_ONLY = ['V1/wellness.html', 'V1/studyos.html'];
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => {

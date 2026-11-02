@@ -12,7 +12,7 @@ the Cloudflare Workers each have their own folder.
 | --- | --- |
 | `index.html` | **TaskHub** — the suite shell and profile gate (Tony / Veda): weekly grid, daily habits, goals, MyJournal, ProView, Plans, Veda's Links and Rules |
 | `mylist.html` | **MyList** — shopping list with Price Watch |
-| `wellness.html` | **Wellness** — Veda's tracker |
+| `V1/wellness.html` | **Wellness** — Veda's tracker (the old `wellness.html` address forwards here) |
 | `shield.html` | **Shield** — front end for the desktop agent |
 | `magi.html` | **MAGI** — multi-model council: one question to ChatGPT/Claude/Gemini/DeepSeek, one synthesised verdict. The console only — the engine runs on Tony's PC (`magi/`, `docs/MAGI/magi.md`) |
 

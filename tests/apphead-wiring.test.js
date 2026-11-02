@@ -27,7 +27,7 @@ const PAGES = {
   'mylist.html': ['mylist'],
   'oneinbox.html': ['oneinbox'],
   'magi.html': ['magi'],
-  'wellness.html': ['wellness'],
+  'V1/wellness.html': ['wellness'],
   'tradehub.html': ['tradehub'],
   'insight.html': ['insight'],
   'vault.html': ['vault'],
@@ -87,7 +87,7 @@ const GONE = [
   ['insight.html', /class="syncind"/],
   ['riftiq.html', /class="syncind"/],
   ['shield.html', /class="sync" id="sync"/],
-  ['wellness.html', /class="wl-sync"/],
+  ['V1/wellness.html', /class="wl-sync"/],
   ['index.html', /syncStatus==="saving"\?"Syncing…"/],
   ['tradehub.html', /syncLabel/],
 ];

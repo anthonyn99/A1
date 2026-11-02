@@ -23,7 +23,7 @@ const ok = (name, cond) => {
 
 const PAGES = [
   'index.html', 'magi.html', 'mylist.html', 'oneinbox.html', 'shield.html',
-  'wellness.html', 'backup-export.html', 'backup-restore.html',
+  'V1/wellness.html', 'backup-export.html', 'backup-restore.html',
   'insight.html', 'riftiq.html', 'tradehub.html', 'vault.html',
   'everwell.html', 'Shruti/shruti.html',
 ];

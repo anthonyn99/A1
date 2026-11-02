@@ -94,7 +94,7 @@ const AUDIT = `var bad = [];
   });
   return { on: !!window.A1Controls || !!window.VaultControls || !!window.SosControls, bad: bad };`;
 
-const PAGES = ['index.html', 'magi.html', 'mylist.html', 'shield.html', 'Shruti/shruti.html', 'wellness.html',
+const PAGES = ['index.html', 'magi.html', 'mylist.html', 'shield.html', 'Shruti/shruti.html', 'V1/wellness.html',
   'backup-restore.html', 'backup-export.html', 'V1/studyos.html',
   'oneinbox.html', 'insight.html', 'tradehub.html', 'riftiq.html', 'everwell.html', 'vault.html'];
 const VEDA = [
