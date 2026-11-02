@@ -176,6 +176,27 @@ directory, which is what "reopen the app" actually means.
 
 ---
 
+## Never blank a device record
+
+On 2026-11-01 the agent opened the page hidden at logon, before the network was
+up. Firestore's memory cache answered "document does not exist", the page
+believed it, and re-registered Tony's PC over its own record: name back to
+"PC", every Emergency target gone, and the empty config pushed down into
+`state.json`. Three rules now stop that, and `tests/shield-registration.test.js`
+runs each against the real function text:
+
+1. `_shWatch` ignores a **cache-only** "does not exist", and only a server answer
+   lifts the write barrier (`includeMetadataChanges` so that answer arrives).
+2. `ensureRegistered` writes `platform`/`type`/`ver`/`caps`/`lastSeen` field by
+   field, **never** the whole `devices.<id>` map, the name, `closer` or
+   `emergency`. Readers default the missing ones (`devName`, `cfgCloser`, `cfgEmg`).
+3. `pushConfig` sends nothing to the agent while this device has no record.
+
+If it ever happens again, the targets can be rebuilt from close history: the
+agent's `%APPDATA%\Shield\history.json` and the page's `sh_hist_<profile>_<id>`
+in the agent WebView's Local Storage (`%LOCALAPPDATA%\com.a1.shield\EBWebView`)
+list every target an Emergency closed, with its match path and hidden icons.
+
 ## Limits, stated plainly
 
 - **No true launch blocking.** Windows 11 Home has no AppLocker and no Software
