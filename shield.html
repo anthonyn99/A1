@@ -1407,10 +1407,19 @@ window._shDeleteDevice = async (profile, devId) => {
 
 window._shWatch = (profile, onData, onErr) => {
   const ref = shRef(profile);
-  return onSnapshot(ref, snap => {
-    // A delivered snapshot proves reads work, so it lifts the barrier — even an
-    // "does not exist" answer, which is a real answer and means we may create it.
-    window._shLoadOk = true;
+  // includeMetadataChanges so the server's confirmation still arrives when it
+  // says nothing new — a doc that genuinely does not exist yet would otherwise
+  // never get past the cache answer skipped below.
+  return onSnapshot(ref, { includeMetadataChanges: true }, snap => {
+    // "Does not exist" FROM THE CACHE is not an answer. The cache is memory-only,
+    // so at logon — the agent opens this page hidden, often before the network
+    // is up — it is empty and reports every document missing. Taking that as
+    // real re-registered Tony's PC as a blank "PC" with no targets and pushed
+    // the blank config to the agent (2026-11-01). Wait for the server.
+    if (snap.metadata.fromCache && !snap.exists()) return;
+    // A server answer proves reads work, so it lifts the barrier — even "does
+    // not exist", which is a real answer and means we may create it.
+    if (!snap.metadata.fromCache) window._shLoadOk = true;
     onData(snap.exists() ? (snap.data() || {}) : null);
   }, err => { console.warn('[Shield] snapshot error', err); if (onErr) onErr(err); });
 };
@@ -2528,15 +2537,18 @@ function ensureRegistered(){
   // Never create a record under a profile that does not own this device.
   if (!d && claimedBy() && claimedBy() !== S.profile) return Promise.resolve();
   if (!d){
-    var rec = {
-      name: defaultName(), platform: platform(), type: deviceType(),
-      ver: '1.0.0', caps: c, lastSeen: now(),
-      local: { active:false, at:0, source:'local' },
-      closer: { targets: [] },
-      emergency: { targets: [], lockWorkstation:false, watchdog:true, lockA1Apps:true },
-      optOutV: 0
-    };
-    var f = {}; f['devices.' + S.devId] = rec;
+    // Field by field, and never the name or the target lists. Writing the whole
+    // `devices.<id>` map replaced whatever the server already held, so one
+    // wrong "not registered" verdict wiped a device's name and every target.
+    // Readers default the missing ones (defaultName, cfgCloser, cfgEmg), so a
+    // new device looks the same and an existing one cannot lose anything.
+    var pre = 'devices.' + S.devId + '.';
+    var f = {};
+    f[pre + 'platform'] = platform();
+    f[pre + 'type'] = deviceType();
+    f[pre + 'ver'] = '1.0.0';
+    f[pre + 'caps'] = c;
+    f[pre + 'lastSeen'] = now();
     return write(f, true).then(function(){ setClaim(S.profile); }).catch(function(){});
   }
   // Already registered here — make the claim explicit for devices that
