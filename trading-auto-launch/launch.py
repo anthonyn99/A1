@@ -2338,19 +2338,19 @@ def run_morning(test: bool = False):
         log("Already launched today — skipping.")
         return
 
-    today = mountain_today()
+    today = date.today()
     if not is_market_day(today):
         log(f"{today} is a weekend or NYSE holiday — market closed, skipping.")
         return
 
-    now = mountain_now()
+    now = datetime.now()
     if now.hour < TRIGGER_HOUR:
         wait = seconds_until_trigger()
         log(f"Woke before {TRIGGER_HOUR}:00 — waiting {wait / 60:.1f} min until market-open prep time.")
         time.sleep(wait)
     elif now.hour >= LATEST_HOUR:
-        log(f"First open of the day at {now:%H:%M} MT is past the morning window "
-            f"({TRIGGER_HOUR}:00–{LATEST_HOUR}:00 MT) — not auto-launching. "
+        log(f"First open of the day at {now:%H:%M} local is past the morning window "
+            f"({TRIGGER_HOUR}:00–{LATEST_HOUR}:00) — not auto-launching. "
             f"Run 'python launch.py --test' to open manually.")
         return
 
@@ -2413,20 +2413,14 @@ def _remove_task(name: str):
 
 
 def setup():
-    print("Installing tzdata for timezone support...")
-    try:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "--quiet", "tzdata"])
-    except Exception as e:
-        print(f"  (tzdata install skipped: {e} — Windows timezone fallback will be used)")
-
     # The morning windows, and (its own task, never waiting on the first) the
-    # daily prompt. Both on the same four triggers; the 6 AM one is the PC's
-    # local time, which is what the daily analysis wants.
+    # daily prompt + search tabs. Both on the same four triggers; the 6 AM one
+    # is the PC's local time.
     for name, arg, limit, desc in (
         (TASK_NAME, "", 12,
-         f"Opens WeBull + TradeHub + TaskHub on the first wake/unlock/login of each market weekday (>= {TRIGGER_HOUR} AM MT)."),
+         f"Opens WeBull + TradeHub + TaskHub on the first wake/unlock/login of each market weekday (>= {TRIGGER_HOUR} AM local)."),
         (ANALYSIS_TASK_NAME, " --analysis", 1,
-         f"Sends the TradeHub Analysis prompt to its AI at {ANALYSIS_HOUR} AM local (or the first wake/unlock/login after) on each market day."),
+         f"Opens the TradeHub Analysis searches and sends its prompt to its AI at {ANALYSIS_HOUR} AM local (or the first wake/unlock/login after) on each market day."),
     ):
         _register_task(name, arg, limit, desc)
     print(f"\nInstalled '{TASK_FOLDER}{TASK_NAME}' and '{TASK_FOLDER}{ANALYSIS_TASK_NAME}'.")
@@ -2472,7 +2466,12 @@ $settings = New-ScheduledTaskSettingsSet `
 $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\\$env:USERNAME" -LogonType Interactive -RunLevel Limited
 
 # Trigger 1: daily at {TRIGGER_HOUR}:00 AM — fires when the laptop is already on & unlocked.
+# New-ScheduledTaskTrigger writes the start WITH today's UTC offset (…T06:00:00-07:00),
+# which turns on "Synchronize across time zones": the trigger is pinned to UTC and
+# fires at 5 or 7 AM once the clocks change. Rewritten without the offset, it is
+# plain local wall-clock time, 6 AM in standard and daylight time alike.
 $dailyTrigger = New-ScheduledTaskTrigger -Daily -At {TRIGGER_HOUR}:00
+$dailyTrigger.StartBoundary = (Get-Date -Hour {TRIGGER_HOUR} -Minute 0 -Second 0).ToString("yyyy-MM-dd'T'HH:mm:ss")
 
 # Trigger 2: fresh boot / login (covers cold starts).
 $logonTrigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERNAME"
