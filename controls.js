@@ -366,6 +366,17 @@
     closePopover();
     opts = opts || {};
     paint(pop, palette(anchor));
+    // A popover lives inside the modal it opened from (see mount), so its
+    // clicks would bubble on to the modal, and a tap that rebuilds or closes
+    // the popover leaves a detached target that the modal's outside-click test
+    // reads as "outside": the whole Add-task window closed on Clear or a day
+    // (Tony, 2026-11-02). Its pointer and click events stop at the popover.
+    // controls.js's own listeners are capture-phase on the document and still
+    // see them first.
+    ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'dblclick', 'touchstart', 'touchend', 'contextmenu'].forEach(function (t) {
+      pop.addEventListener(t, function (e) { e.stopPropagation(); });
+    });
+    pop.setAttribute('data-no-hoverfx', '');
     mount(pop, anchor);
     place(pop, anchor, opts.minWidth);
     requestAnimationFrame(function () { pop.classList.add('on'); });
@@ -671,41 +682,42 @@
     if (changed) fire(inp);
   }
 
-  // Three columns, hour / minute / AM-PM. Every tap commits.
+  // The time picked so far, then hour and minute grids and AM / PM. All of it
+  // shows at once: nothing scrolls, so nothing moves under the pointer. Every
+  // tap commits. With no time yet, the first tap fills the rest from now
+  // (minute :00, this half of the day).
   function clockPanel(get, put) {
     var wrap = h('div', 'a1c-clock-in');
     function draw() {
-      var t = get(), has = !!t;
-      t = t || { h: 9, m: 0 };
+      var cur = get(), has = !!cur, now = new Date();
+      var t = cur || { h: now.getHours(), m: 0 };
       var pm = t.h >= 12, h12 = t.h % 12 || 12;
       wrap.innerHTML = '';
-      var cols = h('div', 'a1c-cols');
-      function col(cls, list, isOn, pick) {
-        var c = h('div', 'a1c-col ' + cls);
+      var big = h('div', 'a1c-now' + (has ? '' : ' empty'));
+      big.textContent = has ? fmtTime(pad2(t.h) + ':' + pad2(t.m)) : '–:–';
+      wrap.appendChild(big);
+      function grid(label, cls, list, isOn, pick) {
+        if (label) wrap.appendChild(h('div', 'a1c-tlbl')).textContent = label;
+        var g = h('div', 'a1c-tgrid ' + cls);
+        g.setAttribute('role', 'group');
+        if (label) g.setAttribute('aria-label', label);
         list.forEach(function (it) {
-          var b = h('button', 'a1c-btn a1c-cell' + (has && isOn(it) ? ' sel' : ''));
+          var on = has && isOn(it);
+          var b = h('button', 'a1c-btn a1c-cell' + (on ? ' sel' : ''));
           b.type = 'button'; b.textContent = it.label;
+          b.setAttribute('aria-pressed', on ? 'true' : 'false');
           b.addEventListener('click', function () { pick(it); draw(); });
-          c.appendChild(b);
+          g.appendChild(b);
         });
-        cols.appendChild(c);
-        return c;
+        wrap.appendChild(g);
       }
       var hours = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(function (x) { return { label: String(x), v: x }; });
       var mins = [];
-      for (var i = 0; i < 60; i += 5) mins.push({ label: pad2(i), v: i });
-      if (t.m % 5) { mins.push({ label: pad2(t.m), v: t.m }); mins.sort(function (a, b) { return a.v - b.v; }); }
-      col('h', hours, function (it) { return it.v === h12; }, function (it) { put({ h: (it.v % 12) + (pm ? 12 : 0), m: t.m }); });
-      col('m', mins, function (it) { return it.v === t.m; }, function (it) { put({ h: t.h, m: it.v }); });
-      col('ap', [{ label: 'AM', v: false }, { label: 'PM', v: true }], function (it) { return it.v === pm; },
+      for (var i = 0; i < 60; i += 5) mins.push({ label: ':' + pad2(i), v: i });
+      grid('Hour', 'h', hours, function (it) { return it.v === h12; }, function (it) { put({ h: (it.v % 12) + (pm ? 12 : 0), m: t.m }); });
+      grid('Minute', 'm', mins, function (it) { return it.v === t.m; }, function (it) { put({ h: t.h, m: it.v }); });
+      grid('', 'ap', [{ label: 'AM', v: false }, { label: 'PM', v: true }], function (it) { return it.v === pm; },
         function (it) { put({ h: (t.h % 12) + (it.v ? 12 : 0), m: t.m }); });
-      wrap.appendChild(cols);
-      requestAnimationFrame(function () {
-        cols.querySelectorAll('.a1c-col').forEach(function (c) {
-          var on = c.querySelector('.sel');
-          if (on) c.scrollTop = on.offsetTop - c.offsetTop - c.clientHeight / 2 + on.offsetHeight / 2;
-        });
-      });
     }
     draw();
     return wrap;
@@ -720,10 +732,10 @@
     var clr = h('button', 'a1c-btn a1c-link'); clr.type = 'button'; clr.textContent = 'Clear';
     clr.addEventListener('click', function () { set(inp, btn, '', true); });
     var done = h('button', 'a1c-btn a1c-link'); done.type = 'button'; done.textContent = 'Done';
-    done.addEventListener('click', function () { if (!inp.value) set(inp, btn, '09:00', true); else { closePopover(); btn.focus(); } });
+    done.addEventListener('click', function () { closePopover(); btn.focus(); });
     foot.appendChild(inp.required ? h('span') : clr); foot.appendChild(done);
     pop.appendChild(foot);
-    openPopover(pop, btn, { minWidth: 220 });
+    openPopover(pop, btn, { minWidth: 256 });
   }
 
   function openCalendar(inp, btn, withTime) {
