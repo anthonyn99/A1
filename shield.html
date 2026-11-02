@@ -1904,12 +1904,15 @@ function deviceType(){
   if (/iPhone|Android.*Mobile|Mobile/.test(ua)) return 'phone';
   return 'desktop';
 }
-function defaultName(){
-  var t = deviceType(), p = platform();
+function defaultName(){ return nameFor(deviceType(), platform()); }
+function nameFor(t, p){
   if (t==='phone') return p==='ios' ? 'iPhone' : 'Phone';
   if (t==='tablet') return p==='ios' ? 'iPad' : 'Tablet';
   return p==='windows' ? 'PC' : (p==='mac' ? 'Mac' : 'Desktop');
 }
+/* A record's display name. Registration no longer writes one (see
+   ensureRegistered), so an unnamed device is named from its own platform. */
+function devName(d){ return (d && d.name) || (d && d.platform ? nameFor(d.type, d.platform) : 'Device'); }
 
 /* ── Agent bridge ─────────────────────────────────────────────────────────
    Phase 2 ships the Tauri tray agent; this is the seam it plugs into. Until
@@ -3368,7 +3371,7 @@ function devRowHtml(d, compact){
   var me = d.id === S.devId, on = devOnline(d), locked = devLocked(d);
   var h = '<div class="dev' + (me?' me':'') + '">';
   h += '<span class="dot' + (on?' on':'') + '"></span>';
-  h += '<div class="dev-main"><div class="dev-name">' + esc(d.name || 'Device');
+  h += '<div class="dev-main"><div class="dev-name">' + esc(devName(d));
   if (me) h += '<span class="tag me">This device</span>';
   if (locked) h += '<span class="tag locked">Locked</span>';
   h += '</div><div class="dev-meta">' + platLabel(d.platform) + ' · ' + (on ? 'Active' : 'Last seen ' + ago(d.lastSeen))
@@ -3499,7 +3502,7 @@ async function downloadAgent(){
 async function removeDevice(id){
   var d = devRec(id); if (!d) return;
   var locked = devLocked(d);
-  var msg = 'Remove “' + (d.name||'Device') + '” from this profile? It will stop syncing and has to re-register with the passcode.';
+  var msg = 'Remove “' + devName(d) + '” from this profile? It will stop syncing and has to re-register with the passcode.';
   if (locked) msg += '\n\nNote: that device is currently in Emergency Mode. Removing it does NOT unlock it — revoking a device must never be a way around the passcode. It stays locked until someone disables Emergency Mode on the device itself.';
   var ok = await window.uiConfirm(msg, { title:'Remove device', okLabel:'Remove', danger:true });
   if (!ok) return;
@@ -3599,7 +3602,7 @@ function renderHistory(){
   if (withHist.length){
     h += '<div class="sec"><div class="sec-head"><span class="sec-title">Other devices</span></div>';
     withHist.forEach(function(d){
-      h += '<div class="dev-meta" style="margin:12px 0 6px">' + esc(d.name || 'Device') + ' · ' + platLabel(d.platform) + '</div>';
+      h += '<div class="dev-meta" style="margin:12px 0 6px">' + esc(devName(d)) + ' · ' + platLabel(d.platform) + '</div>';
       h += (d.history || []).map(histCardRemoteHtml).join('');
     });
     h += '</div>';
@@ -4747,7 +4750,7 @@ function renderEmergency(){
     h += '<div class="emg-devs">';
     h += devs.map(function(d){
       var mine = d.id === S.devId;
-      return '<div class="emg-dev"><span class="n">' + esc(d.name || 'Device') + (mine ? ' · this device' : '') + '</span>'
+      return '<div class="emg-dev"><span class="n">' + esc(devName(d)) + (mine ? ' · this device' : '') + '</span>'
            + '<span class="tag ' + (devLocked(d) ? 'locked' : '') + '">' + (devLocked(d) ? 'Locked' : (devOnline(d) ? 'Open' : 'Offline')) + '</span></div>';
     }).join('');
     h += '</div>';
