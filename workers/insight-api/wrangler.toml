@@ -19,7 +19,7 @@ PLAID_ENV = "production"
 # ── Cron: this worker has none, and the reason has CHANGED ──────────────────
 # It used to be that account 1's 5-cron free-plan limit was full. It is not any
 # more: as of 2026-09-07 the account uses 4 of 5 (taskhub-reminders every
-# minute, newshub-api 12:00, personal-ai 10:00, tradeboard-api 12:30) — a slot
+# minute, newshub-api 12:00+13:00 (6 AM Mountain), personal-ai 10:00, tradeboard-api 12:30) — a slot
 # freed up when trade-dashboard's MacroBoard pre-build was removed. Account 2
 # (workers2/, av1-2) has all five free.
 #
