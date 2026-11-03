@@ -344,11 +344,11 @@ ok('MAGI hands over its own lazily-started Firebase', /window\.LifeHubFirebase\s
   on.load.forEach((f) => f());
   pong();
   ok('a live bridge\'s answer turns the extension path on', ctx.state()[1] === true, ctx.state());
-  on.visibilitychange.forEach((f) => f());
+  (on.visibilitychange || []).forEach((f) => f());
   ok('the page coming back (wake, tab switch) asks again and forgets the old yes', ctx.state()[1] === false && posted.some((m) => m.action === 'tabPing'), ctx.state());
   pong();
   ok('…a live bridge answers again and it is back on', ctx.state()[1] === true);
-  on.pageshow.forEach((f) => f({ persisted: true }));
+  (on.pageshow || []).forEach((f) => f({ persisted: true }));
   ok('a back/forward-cache restore asks again too', ctx.state()[1] === false);
 }
 
