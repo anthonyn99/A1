@@ -227,5 +227,32 @@ if (clsSrc && holdSrc && late && hold) {
   check('due reminders wait for their minute before sending', /holdFor\(at, Date\.now\(\)\)[\s\S]{0,120}setTimeout/.test(worker));
 }
 
+console.log('\nRe-scheduling a series diffs instead of delete-all/rewrite-all');
+{
+  const diffSrc = grab(html, 'window.thReminderDiff=function(have,fresh){');
+  check('thReminderDiff ships in index.html', !!diffSrc);
+  if (diffSrc) {
+    const w = {}; new Function('window', diffSrc)(w);
+    const mk = (id, at, extra) => ({ id, title: 'Gym', notifyAt: at, dashboard: 'tony', tag: id, collapseKey: id,
+      notifyRepeat: 'none', notifyRepeatDays: [], notifyRepeatId: 'S', fired: false, createdAt: 1, ...extra });
+    const fresh = [mk('S_1', 'a'), mk('S_2', 'b'), mk('S_3', 'c')];
+    const same = w.thReminderDiff(fresh.map((f) => ({ id: f.id, data: { ...f, createdAt: 99 } })), fresh);
+    check('an unchanged series costs no deletes and no writes', same.del.length === 0 && same.put.length === 0);
+    const grow = w.thReminderDiff([{ id: 'S_0', data: mk('S_0', 'z', { fired: true }) }, { id: 'S_1', data: fresh[0] }, { id: 'S_2', data: fresh[1] }], fresh);
+    check('a day rolling forward writes only the new occurrence', grow.put.join() === 'S_3');
+    check('…and deletes only the one that dropped out', grow.del.join() === 'S_0');
+    const retitled = w.thReminderDiff(fresh.map((f) => ({ id: f.id, data: { ...f, title: 'Old' } })), fresh);
+    check('a changed title rewrites every occurrence', retitled.put.length === 3 && retitled.del.length === 0);
+    const firedNow = w.thReminderDiff([{ id: 'S_1', data: { ...fresh[0], fired: true } }], [fresh[0]]);
+    check('a doc that just fired is never rewritten as unfired', firedNow.put.length === 0 && firedNow.del.length === 0);
+  }
+  const sched = grab(html, 'window._fcmScheduleNotif=async function(item,opts){');
+  check('the scheduler goes through the diff', !!sched && /thReminderDiff\(have,/.test(sched) && !/snap\.docs\.map\(ds=>deleteDoc/.test(sched));
+  check('…and reports whether every write landed', !!sched && /return !writeErr;/.test(sched));
+  check('re-arm skips a series armed with the same definition', !!rearm && /a\.fp===fp&&a\.until-nowA>14\*864e5/.test(rearm) && /if\(!force&&a/.test(rearm));
+  check('…and records it only when the schedule succeeded', !!rearm && /if\(ok===true\)armed\[k\]/.test(rearm));
+  check('the dedup sweep reads a bounded window', !!sweep && /wh2\('notifyAt','<=',toIso\)/.test(sweep));
+}
+
 console.log('\n' + passed + ' passed, ' + fail.length + ' failed');
 if (fail.length) { fail.forEach((f) => console.log('  FAIL ' + f)); process.exit(1); }
