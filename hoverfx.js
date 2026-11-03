@@ -40,8 +40,9 @@
  *
  * MAGI MODE — data-hoverfx="magi" on any ancestor
  * Inside such a subtree the control speaks MAGI's hover language instead (see
- * magi.html's "global hover layer"): every control LIFTS — brightness(1.15),
- * no luminance measurement, no settle — and a press sinks it
+ * magi.html's "global hover layer"): the hover is the same measured highlight
+ * as everywhere (since 2026-11-03; it was a flat brightness(1.15) lift), an
+ * outline button's border turns full accent (see ring()), and a press sinks it
  * (brightness(.94) + 1px down) until the pointer lets go. Keyboard focus gets
  * MAGI's 2px accent ring. The accent is read from --fx-ac on the subtree
  * (default MAGI purple #c0aeea). This is how the theme overhaul
@@ -72,9 +73,8 @@
       SETTLE_GHOST = 'brightness(0.88)',  /* no fill, light ground: deepen the ink instead */
       SETTLE       = 'brightness(0.86)';  /* bright fill: StudyOS's .primary opacity .88 */
 
-  /* MAGI mode (magi.html's global hover layer): lift only, and a press. */
-  var MAGI_LIFT  = 'brightness(1.15)',
-      MAGI_PRESS = 'brightness(0.94)',
+  /* MAGI mode: the same measured highlight, plus a press and outline buttons. */
+  var MAGI_PRESS = 'brightness(0.94)',
       MAGI       = '[data-hoverfx="magi"]';
 
   var CONTROLS = 'button,select,summary,a[href],[role="button"]';
