@@ -2187,8 +2187,10 @@ async function markFired(docName, accessToken) {
   }).catch(e => console.warn('markFired failed:', e.message));
 }
 
+// Deletes fired reminder docs regardless of age (up to 50 per idle top-of-hour
+// tick). Nothing reads a fired doc after it went off, and every one left behind
+// is re-read — and billed — by each tick whose 16-minute lookback covers it.
 async function cleanupFiredReminders(baseUrl, authHdr) {
-  const cutoff = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
   try {
     const res = await fetch(`${baseUrl}:runQuery`, {
       method: 'POST', headers: authHdr,
@@ -2210,7 +2212,7 @@ async function cleanupFiredReminders(baseUrl, authHdr) {
         }).catch(() => {})
       )
     );
-    console.log(`[cleanup] deleted ${docs.filter(r => r.document).length} old fired reminders`);
+    console.log(`[cleanup] deleted ${docs.filter(r => r.document).length} fired reminders`);
   } catch(e) {
     console.warn('[cleanup] failed:', e.message);
   }
