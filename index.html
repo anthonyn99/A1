@@ -17903,6 +17903,31 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
   // ── Schedule reminder ─────────────────────────────────────────────────
   // Helper: Mon-based index (0=Mon…6=Sun) from JS getDay() (0=Sun…6=Sat)
   function toMonIdxFCM(jsd){return jsd===0?6:jsd-1;}
+  // Which reminder docs a re-schedule must delete and which it must (re)write.
+  // have:  [{id, data}] — the series' docs in Firestore now.
+  // fresh: [doc]        — the occurrence docs it should hold (each with .id).
+  // A doc already matching on every field the worker reads is left alone. A
+  // FIRED doc that is still in the fresh set (it went off seconds ago) is left
+  // alone too: rewriting it with fired:false is what would make it ring twice.
+  window.thReminderDiff=function(have,fresh){
+    var FIELDS=['title','notifyAt','dashboard','tag','collapseKey','notifyRepeat','notifyRepeatId'];
+    var byId={},del=[],put=[];
+    (have||[]).forEach(function(h){if(h&&h.id)byId[h.id]=h.data||{};});
+    var keep={};
+    (fresh||[]).forEach(function(f){
+      keep[f.id]=1;
+      var d=byId[f.id];
+      if(!d){put.push(f.id);return;}
+      if(d.fired===true)return;
+      for(var i=0;i<FIELDS.length;i++){
+        var a=d[FIELDS[i]],b=f[FIELDS[i]];
+        if((a==null?null:a)!==(b==null?null:b)){put.push(f.id);return;}
+      }
+      if(d.fired!==false||(Array.isArray(d.notifyRepeatDays)?d.notifyRepeatDays.length:1)!==0)put.push(f.id);
+    });
+    Object.keys(byId).forEach(function(id){if(!keep[id])del.push(id);});
+    return {del:del,put:put};
+  };
   // Helper: small uid for repeat occurrence docs
   
 
@@ -18063,6 +18088,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com
         showPushFailBanner('Reminder saved. ');
       }
     }
+    return !writeErr;   // re-arm records a series as armed only when every write landed
   };
 
   // ── Wake the reminders cron ───────────────────────────────────────────────
