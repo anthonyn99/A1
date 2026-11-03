@@ -4251,12 +4251,12 @@ export default {
     }
 
     // ── /quotes?tickers=A,B,C — real-time Finnhub quotes for the watchlist,
-    // KV-cached ~60s. Powers the Top Movers strip + per-card % change (price-move
+    // cached 5 min (Cache API). Powers the Top Movers strip + per-card % change (price-move
     // correlation). Cheap: Finnhub quotes are 60/min, effectively unlimited daily.
     // ?fresh=1 bypasses the cache. Returns { quotes:{T:{c,d,dp,h,l,o,pc}}, asOf }.
     // Cache window for /quotes. Keep this >= the client's poll cadence in
     // tradehub.html (5 min) — a TTL shorter than the poll guarantees a miss
-    // and a write on every single request.
+    // and an upstream fetch on every single request.
     const QUOTES_TTL = 300;
     if (url.pathname === '/quotes'){
       const tk = parseTickers(url.searchParams.get('tickers')) || WATCHLIST;
