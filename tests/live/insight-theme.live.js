@@ -226,7 +226,9 @@ async function shot(c, name) {
     await c.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: 5, y: 895, button: 'left', clickCount: 1 });
     await c.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 5, y: 895 }); await sleep(300);
     await evalJs(c, "document.getElementById('manualModal').classList.remove('open'); 1");
-    ok('hover lifts brightness(1.15)', hv === 'brightness(1.15)', hv);
+    // Since 2026-11-03 hoverfx answers with StudyOS's measured highlight, not a
+    // flat brightness(1.15): a bright filled button like this one dims a step.
+    ok('hover dims a bright button a step (brightness(0.86))', hv === 'brightness(0.86)', hv);
     ok('press is brightness(0.94) + 1px', /brightness\(0\.94\)/.test(pr) && /1px/.test(pr), pr);
   }
   {
