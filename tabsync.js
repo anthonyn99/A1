@@ -1,0 +1,278 @@
+/**
+ * tabsync — one tab per destination, even after the browser has been closed.
+ *
+ * THE PROBLEM THIS SOLVES
+ * Every button in TaskHub that leaves the page goes through _tnOpenTab
+ * (index.html), which opens each destination in a window with a STABLE name —
+ * 'a1tab_magi', 'a1tab_tradehub', 'a1tab_link_veda_<id>'. A second click calls
+ * window.open('', NAME), which re-targets the tab that is already open instead
+ * of stacking up another one. That works perfectly for as long as the browser
+ * is running.
+ *
+ * It stops working the moment the browser is closed and reopened. Chrome
+ * restores the tabs but NOT the opener relationships between them, and a named
+ * window is only findable from inside the same browsing-context group — the
+ * family of windows linked by opener. So after a restart the restored MAGI tab
+ * is invisible to the restored TaskHub tab, the name lookup misses, and the
+ * click opens a second MAGI beside the first.
+ *
+ * WHAT THIS FILE DOES
+ * Gives those orphaned tabs a way to answer. Any A1 page opened through
+ * _tnOpenTab carries its key in window.name, so on load it can say "I am the
+ * tab for 'magi'": it writes a heartbeat to localStorage and listens on a
+ * BroadcastChannel. Both are same-origin channels that do not care about opener
+ * relationships, so they survive a restart exactly where window names do not.
+ *
+ * When TaskHub is about to open a destination and the name lookup gave it a
+ * blank tab, it checks the heartbeat first. If some tab claims that key it asks
+ * over the channel, and the answer decides what happens:
+ *
+ *   • the old tab managed to focus itself  → TaskHub closes the blank tab it
+ *     just opened. One tab, still holding everything it had.
+ *   • it could not                         → it is told to retire: it stops
+ *     claiming the key and closes itself, and TaskHub navigates the blank tab.
+ *     One tab again, freshly loaded.
+ *   • nobody answers                       → ordinary open, same as before.
+ *
+ * THE FOURTH MESSAGE: 'deliver'
+ * An opener that is not merely re-opening a destination but SENDING it
+ * something — TradeHub's Analysis tab hands MAGI a prompt in the url fragment
+ * — cannot use the first branch as it stands: the old tab comes forward
+ * holding everything it had, which is everything except the thing it was just
+ * sent. So the opener may hand over the url instead of only asking for focus,
+ * and the tab navigates itself to it. When the two differ by fragment alone
+ * that is a same-document navigation — no reload, so a page mid-something is
+ * not wiped, and it hears `hashchange` exactly as if the opener had reached in.
+ *
+ * The url is trusted only as far as the channel is: BroadcastChannel is
+ * same-origin, and this checks that the url is too, so 'deliver' can never
+ * send one of these tabs somewhere off-origin.
+ *
+ * TWO HONEST LIMITS
+ *   • Chrome only lets a background tab call window.focus() on itself when it
+ *     has recent user interaction, so the first branch is the lucky one and the
+ *     retire-and-reopen branch is the usual outcome after a restart. Both end
+ *     with exactly one tab, which is the point.
+ *   • window.close() only works on a tab the browser considers script-closable:
+ *     one it opened itself, or one whose session history holds a single entry.
+ *     A tab opened the normal way qualifies — the destination replaces the
+ *     initial empty document rather than pushing onto it, measured at
+ *     history.length === 1 — but a page that pushes history entries as you use
+ *     it can grow out of it. A retired tab that cannot close has
+ *     already given up the key, so the next click is clean; that one time you
+ *     are left with the old tab sitting there, which is the behaviour we had
+ *     before and never worse.
+ *
+ * A tab can also be handed its key in the url as ?a1tab=<key>, for an opener
+ * that has no way to set window.name — the Vault extension's toolbar popup
+ * opens vault.html with chrome.tabs.create, which takes a url and nothing else.
+ * The parameter is adopted and stripped on load, and from there the tab behaves
+ * like any other named one.
+ *
+ * Cross-origin destinations (a custom link to gmail.com) cannot run any of
+ * this. They keep the window-name pairing and nothing else, which is all a page
+ * is allowed to know about another origin's tabs.
+ *
+ * Include it on every A1 page. A page opened directly — bookmark, typed URL,
+ * the very first tab — names itself after its program (OWN below, the same
+ * keys LifeHub's tiles and TaskHub's buttons use), so a tab Tony opened by
+ * hand still answers when a launcher looks for it. A page not in OWN has no
+ * key and this file does nothing at all, UNLESS the page names itself before
+ * loading this file (magi.html does). A page may also define
+ * window.a1TabBusy() so a claim answer can say "do not retire me".
+ *
+ * THE OTHER ORIGIN
+ * A1 is split over two origins (anthonyn99.github.io and a1-priv.av1.workers.dev),
+ * and the heartbeat and channel above are per-origin: a launcher on one cannot
+ * see a RiftIQ tab on the other. Brave also wipes window.name on a cross-site
+ * navigation, so even the name pairing is lost on the way over. Launchers
+ * therefore hand a cross-origin destination its key as ?a1tab=<key>, and the
+ * tab that arrives that way runs the handshake ITSELF, on its own origin, where
+ * the existing tab can hear it (see `dedupe`): if that tab comes forward this
+ * one closes; if it cannot, it is retired and this one stays. One tab either way.
+ */
+(function () {
+  'use strict';
+
+  var PREFIX = 'a1tab_';
+  var CHANNEL = 'a1tabs';
+  var LS_PREFIX = 'a1tab:';
+  var BEAT_MS = 5000;
+
+  // A third way in, for openers that cannot name a window: ?a1tab=<key> in the
+  // url. The Vault browser extension opens vault.html from its toolbar popup,
+  // where there is no window.open to name the tab with — chrome.tabs.create
+  // takes a url and nothing else — so the key travels in the query string. It
+  // is consumed here and stripped from the address bar, leaving the tab paired
+  // exactly as if _tnOpenTab had opened it, so Index's Vault button finds it
+  // instead of opening a second copy.
+  //
+  // Sanitised the same way index.html's tabName()/storeKey() sanitise, or the
+  // two sides would disagree about the key for any id carrying a dash, and
+  // ranked FIRST: a key in the url is the opener saying what this tab is for
+  // now, which outranks one left in sessionStorage from what it used to be.
+  var urlKey = null;
+  try {
+    var params = new URLSearchParams(location.search);
+    var raw = params.get('a1tab');
+    if (raw) {
+      urlKey = raw.replace(/[^A-Za-z0-9_]/g, '_');
+      params.delete('a1tab');
+      var qs = params.toString();
+      history.replaceState(history.state, '',
+        location.pathname + (qs ? '?' + qs : '') + location.hash);
+    }
+  } catch (e) { urlKey = null; }
+
+  // Otherwise the key comes from window.name, which _tnOpenTab set when it
+  // opened this tab. sessionStorage is the backup copy: it is per-tab and IS
+  // restored with the tab, so the pairing survives even if the name does not
+  // come back.
+  var key = urlKey;
+  if (!key) {
+    var m = /^a1tab_(.+)$/.exec(String(window.name || ''));
+    if (m) key = m[1];
+  }
+  try {
+    if (key) {
+      sessionStorage.setItem('a1TabKey', key);
+      window.name = PREFIX + key;   // a no-op unless the key arrived by url
+    } else {
+      key = sessionStorage.getItem('a1TabKey') || null;
+      if (key) window.name = PREFIX + key;
+    }
+  } catch (e) {}
+  // Opened by hand: take the program's own key. Only a top-level tab with no
+  // name at all — a popup named for something else (vault.html's OAuth window)
+  // keeps its name. Keys match LifeHub's DEFAULT_APPS `tab` and index.html's
+  // _tnOpenTab calls; shield.html is left out (its key is per profile).
+  var OWN = {
+    'oneinbox.html': 'oneinbox', 'tradehub.html': 'tradehub', 'mylist.html': 'mylist',
+    'insight.html': 'insight', 'vault.html': 'vault', 'everwell.html': 'everwell',
+    'riftiq.html': 'warroom', 'magi.html': 'magi', 'shruti.html': 'shruti',
+    // On Veda's LifeHub since 2026-10-29.
+    'index.html': 'taskhub', 'wellness.html': 'wellness'
+  };
+  if (!key) {
+    try {
+      var own = OWN[location.pathname.split('/').pop().toLowerCase()];
+      if (own && window.top === window && !window.name) {
+        key = own;
+        window.name = PREFIX + key;
+        sessionStorage.setItem('a1TabKey', key);
+      }
+    } catch (e) {}
+  }
+  if (!key) return;
+
+  var LS = LS_PREFIX + key;
+  var ID = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  var retired = false;
+
+  function beat() {
+    try { localStorage.setItem(LS, JSON.stringify({ id: ID, t: Date.now() })); } catch (e) {}
+  }
+  // Only ever clear OUR OWN claim. If a replacement tab has already written its
+  // own id we would otherwise delete the live entry on the way out and the next
+  // click would open a third tab.
+  function release() {
+    try {
+      var r = JSON.parse(localStorage.getItem(LS) || 'null');
+      if (!r || r.id === ID) localStorage.removeItem(LS);
+    } catch (e) {}
+  }
+
+  try { window.a1TabId = ID; } catch (e) {}
+  beat();
+  var hb = setInterval(beat, BEAT_MS);
+  // pagehide (not unload) so the entry clears on a bfcache navigation too.
+  window.addEventListener('pagehide', release);
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') beat();
+  });
+
+  var bc = null;
+  try { bc = new BroadcastChannel(CHANNEL); } catch (e) { bc = null; }
+  if (!bc) return;   // heartbeat only: the opener's handshake times out and opens normally
+
+  function retire() {
+    if (retired) return;
+    retired = true;
+    clearInterval(hb);
+    release();
+    // Give up the key BEFORE trying to close, so a tab the browser refuses to
+    // close is inert rather than a second claimant for the same destination.
+    try { window.name = ''; } catch (e) {}
+    try { sessionStorage.removeItem('a1TabKey'); } catch (e) {}
+    try { bc.close(); } catch (e) {}
+    try { window.close(); } catch (e) {}
+  }
+
+  // Same-origin only. The channel already guarantees it for the SENDER; this
+  // is about the payload, so a delivered url cannot point off-origin.
+  function ownOrigin(u) {
+    try { return new URL(String(u), location.href).origin === location.origin; }
+    catch (e) { return false; }
+  }
+
+  // Arrived by ?a1tab=: a launcher sent us here, possibly from the other origin,
+  // where it could not see a tab that already holds this key. Ask here. Same
+  // rules as the opener's handOver (index.html): the old tab came forward, or
+  // must not be retired (busy / not closable) → this tab goes; otherwise the
+  // old one retires and this one stays. No answer → nobody else, carry on.
+  // Closing ourselves is allowed: a launcher opened us, at one history entry.
+  var askRid = null;
+  function dedupe() {
+    askRid = Math.random().toString(36).slice(2);
+    setTimeout(function () { askRid = null; }, 400);
+    try { bc.postMessage({ t: 'claim', k: key, rid: askRid }); } catch (e) { askRid = null; }
+  }
+  function answered(d) {
+    askRid = null;
+    if (d.ok || d.busy || d.closable === false) {
+      retired = true;
+      clearInterval(hb);
+      release();
+      try { window.close(); } catch (e) {}
+    } else {
+      try { bc.postMessage({ t: 'retire', k: key, except: ID }); } catch (e) {}
+    }
+  }
+
+  bc.onmessage = function (ev) {
+    var d = ev && ev.data;
+    if (!d || d.k !== key || retired) return;
+    if (d.t === 'claimed') { if (askRid && d.rid === askRid && d.id !== ID) answered(d); return; }
+    // `except` lets a tab retire every OTHER claimant without retiring itself.
+    if (d.t === 'retire') { if (!(d.except && d.except === ID)) retire(); return; }
+    if (d.t === 'deliver') {
+      // Come forward if the browser allows it, and take the url either way:
+      // being handed the question matters more than winning the focus race.
+      // replace(), not href: every delivered prompt used to push a history
+      // entry, and a tab with more than one entry can no longer close itself —
+      // so the NEXT retire left it standing beside its replacement.
+      try { window.focus(); } catch (e) {}
+      if (ownOrigin(d.url)) { try { location.replace(d.url); } catch (e) { try { location.href = d.url; } catch (e2) {} } }
+      return;
+    }
+    if (d.t !== 'claim') return;
+    try { window.focus(); } catch (e) {}
+    // Answer on the next frames, not immediately: the opener has just opened a
+    // blank tab, so focus is still settling and an instant reading of
+    // hasFocus() reports the state before our own focus() call landed.
+    //
+    // Two more facts ride along so the opener never retires a tab it should
+    // not: `busy` — the page says it is mid-something (MAGI mid-council) and
+    // closing it would throw that away; `closable` — window.close() will only
+    // succeed on a single-entry history, so a retire would leave it standing
+    // and the opener would have made the duplicate it set out to prevent.
+    setTimeout(function () {
+      var ok = false, busy = false, closable = true;
+      try { ok = document.visibilityState === 'visible' && document.hasFocus(); } catch (e) {}
+      try { busy = typeof window.a1TabBusy === 'function' && !!window.a1TabBusy(); } catch (e) {}
+      try { closable = !(history.length > 1); } catch (e) {}
+      try { bc.postMessage({ t: 'claimed', k: key, rid: d.rid, id: ID, ok: ok, busy: busy, closable: closable }); } catch (e) {}
+    }, 90);
+  };
+  if (urlKey) dedupe();
+})();
