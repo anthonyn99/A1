@@ -333,7 +333,13 @@ async function shot(c, name) {
     ok('the height is stored', (await evalJs(c, "return localStorage.getItem('a1.h.ins.rNotes');")) === String(h1));
     const g2 = await rect(c, "document.getElementById('rNotes').parentElement.querySelector('.a1-grip')");
     await click(c, g2.x + 8, g2.y + 8);
-    ok('a click hands it back to auto', (await evalJs(c, "return document.getElementById('rNotes').style.height;")) === '' && (await evalJs(c, "return localStorage.getItem('a1.h.ins.rNotes');")) === null);
+    // A click does nothing since 2026-10-14 (Tony: it kept snapping the box);
+    // the keyboard's Enter is what hands a hand-sized box back to auto.
+    ok('a click leaves the chosen height alone', (await evalJs(c, "return Math.round(document.getElementById('rNotes').getBoundingClientRect().height);")) === h1
+      && (await evalJs(c, "return localStorage.getItem('a1.h.ins.rNotes');")) === String(h1));
+    await evalJs(c, "document.getElementById('rNotes').parentElement.querySelector('.a1-grip').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true})); 1");
+    await sleep(200);
+    ok('Enter hands it back to auto', (await evalJs(c, "return document.getElementById('rNotes').style.height;")) === '' && (await evalJs(c, "return localStorage.getItem('a1.h.ins.rNotes');")) === null);
     ok('the entry note has a grip too', !!(await evalJs(c, "return document.getElementById('mNote').parentElement.querySelector('.a1-grip')?1:0;")));
     await evalJs(c, "document.getElementById('recModal').classList.remove('open'); 1");
   }
