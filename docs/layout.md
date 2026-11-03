@@ -41,7 +41,7 @@ follows the same rules (its own `docs/layout.md`).
 | `404.html` | GitHub Pages' not-found page. It forwards a moved page's old address to the new one, keeping the query and hash. |
 | `firebase-messaging-sw.js` | The push service worker. Its scope must cover `index.html`, so it sits beside it. |
 | `CLAUDE.md`, `README.md`, `package.json` | Read from the root by Claude Code, GitHub and npm. |
-| `scrollbar.js`, `popups.js`, `dragsort.js` | **Temporary.** Exact copies of their `Shared/` files for ORCA (Veda's repo), which still loads them from the old root address. `tests/layout.test.js` keeps them identical. Once ORCA's templates and worker load `Shared/...` (one-line URL changes in `app/web/templates/base.html`, `_picker_base.html` and `worker/src/web/html.ts`), delete them and their `Rules/layout.json` entries. |
+| `scrollbar.js`, `popups.js`, `dragsort.js` | Copies of their `Shared/` files for ORCA (Veda's repo), which loads them from these old root addresses. **Edit `Shared/`, never these:** the pre-commit hook rewrites each copy from `Shared/` in the same commit, so ORCA gets every change in the same push, and `tests/layout.test.js` checks they match. Once ORCA's templates and worker load `Shared/...` (one-line URL changes in `app/web/templates/base.html`, `_picker_base.html` and `worker/src/web/html.ts`), delete them and their `Rules/layout.json` entries. |
 
 | Folder | What |
 |---|---|
