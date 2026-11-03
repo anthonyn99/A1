@@ -203,7 +203,7 @@ async function shotsFor(c, p) {
   console.log('dialogs');
   await evalJs(c, "uiConfirm('Sure?', {okLabel:'Yes'}); 1"); await sleep(300);
   ok('uiModal OK is solid purple with a dark label', (await css(c, '#uim-ok', 'backgroundColor')) === PURPLE && (await css(c, '#uim-ok', 'color')) === DARK);
-  ok('uiModal backdrop is .62 with a 2px blur', (await css(c, '#uim-overlay', 'backgroundColor')) === 'rgba(0, 0, 0, 0.62)' && (await css(c, '#uim-overlay', 'backdropFilter')) === 'blur(2px)');
+  ok('uiModal backdrop is A1\'s (popups.js)', (await css(c, '#uim-overlay', 'backgroundColor')) === 'rgba(0, 0, 0, 0.6)' && (await css(c, '#uim-overlay', 'backdropFilter')) === 'blur(7px) saturate(0.9)');
   ok('uiModal box is s1, SLEEK radius 14', (await css(c, '#uim-box', 'backgroundColor')) === 'rgb(35, 35, 39)' && (await css(c, '#uim-box', 'borderTopLeftRadius')) === '14px', (await css(c, '#uim-box', 'backgroundColor')) + ' / ' + (await css(c, '#uim-box', 'borderTopLeftRadius')));
   ok('the uiModal title is Manrope', /^Manrope/.test(await css(c, '#uim-title', 'fontFamily')));
   await evalJs(c, "document.getElementById('uim-cancel').click(); uiConfirm('Delete?', {danger:true, okLabel:'Delete'}); 1"); await sleep(300);

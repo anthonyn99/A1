@@ -227,7 +227,7 @@ async function shot(c, name) {
   }
   {
     await evalJs(c, "document.getElementById('addManualBtn').click(); 1"); await sleep(300);
-    ok('dialog backdrop is MAGI\'s', (await css(c, '#manualModal', 'backgroundColor')) === 'rgba(0, 0, 0, 0.62)');
+    ok('dialog backdrop is A1\'s (popups.js)', (await css(c, '#manualModal', 'backgroundColor')) === 'rgba(0, 0, 0, 0.6)');
     ok('the selected segment is solid purple', (await css(c, '#typeSeg button.on', 'backgroundColor')) === 'rgb(192, 174, 234)');
     await evalJs(c, "document.getElementById('mName').focus(); 1"); await sleep(250);
     ok('a focused field has the accent ring', /192, 174, 234/.test(await css(c, '#mName', 'boxShadow')) && (await css(c, '#mName', 'borderColor')) === 'rgb(192, 174, 234)');
