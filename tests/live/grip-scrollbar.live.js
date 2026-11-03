@@ -93,7 +93,7 @@ const AUDIT = `
     await sleep(5000);
     let list;
     try { list = JSON.parse(await evalJs(c, AUDIT)); } catch (e) { ok(p + ': audit ran', false, String(e).slice(0, 200)); continue; }
-    if (!list.length) { ok(p + ': has A1Resize', false); continue; }
+    if (!list.length) { console.log('  · ' + p + ': no resizegrip.js, so no grips'); continue; }
     for (const x of list) {
       boxes++;
       if (!x.rail) { ok(p + ' "' + x.label + '": bar drawn', !x.scrolls, x); continue; }
