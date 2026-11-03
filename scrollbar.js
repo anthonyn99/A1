@@ -205,6 +205,35 @@
       if (r.rail.style.display === 'none') r.rail.style.display = '';
     });
   }
+  // A box with A1's corner resize grip (resizegrip.js) ends its bars where the
+  // grip's strokes begin, never across the handle (Tony, 2026-11-03). The grip
+  // is found through the box it was attached to (A1Resize.attach marks it), or
+  // as a sibling .a1-grip; it only counts when it sits on the box's corner.
+  var GRIP_GAP = 4;
+  function gripOf(el) {
+    for (var n = el, i = 0; n && i < 3; n = n.parentElement, i++) {
+      if (n.__a1Grip && n.__a1Grip.isConnected) return n.__a1Grip;
+    }
+    var p = el.parentElement;
+    if (p) for (var c = p.firstElementChild; c; c = c.nextElementSibling) {
+      if (c.classList && c.classList.contains('a1-grip')) return c;
+    }
+    return null;
+  }
+  function gripStop(el, rect) {
+    var gp = gripOf(el);
+    if (!gp) return null;
+    var gr = gp.getBoundingClientRect();
+    if (!gr.width || gr.right < rect.right - 24 || gr.bottom < rect.bottom - 24 || gr.top > rect.bottom) return null;
+    // The strokes are the grip's ::before; read once per grip.
+    var hx = gp.__a1Hatch;
+    if (!hx) {
+      var cs = getComputedStyle(gp, '::before');
+      var b = parseFloat(cs.bottom), h = parseFloat(cs.height), rt = parseFloat(cs.right), w = parseFloat(cs.width);
+      hx = gp.__a1Hatch = { y: (b >= 0 ? b : 7) + (h > 0 ? h : 11), x: (rt >= 0 ? rt : 7) + (w > 0 ? w : 11) };
+    }
+    return { top: gr.bottom - hx.y - GRIP_GAP, left: gr.right - hx.x - GRIP_GAP };
+  }
   // Reads only.
   function measure(b) {
     var el = b.el, isDoc = el === docScroller(), m = { v: null, h: null };
@@ -240,6 +269,7 @@
         if (hr.height > 0 && hr.bottom > pin && hr.bottom < rect.bottom) pin = hr.bottom;
       }
     }
+    if (!isDoc) m.grip = gripStop(el, rect);
     m.g = {
       top: Math.max(rect.top, pin, 0), bottom: Math.min(rect.bottom, vh()),
       left: Math.max(rect.left, 0), right: Math.min(rect.right, vw()), rect: rect,
@@ -261,6 +291,7 @@
       var len = vert
         ? g.bottom - g.top - g.border.t - g.border.b - (m.h ? 14 : 0)
         : g.right - g.left - g.border.l - g.border.r - (m.v ? 14 : 0);
+      if (m.grip) len = Math.min(len, vert ? m.grip.top - g.top - g.border.t : m.grip.left - g.left - g.border.l);
       len = Math.max(0, len);
       var x = s.x;
       var size = Math.min(len, Math.max(coarse.matches ? 44 : 32, len * (x.view / (x.view + x.max))));
