@@ -6353,6 +6353,10 @@ function mcMacroET(e){
   if(/fomc|rate decision|fed funds|interest rate|fed minutes|meeting minutes/.test(n))return{hh:14,mm:0};   // Fed: 2:00 PM ET
   if(e.category==='fed'||e.category==='rates')return{hh:14,mm:0};
   if(e.category==='oil'||e.category==='energy'||/crude|petroleum|\beia\b|oil inventories|natural gas storage/.test(n))return{hh:10,mm:30}; // EIA: 10:30 AM ET
+  // ADP publishes at 8:15 AM ET, S&P Global's flash PMI and the Chicago PMI at
+  // 9:45 AM ET -- not the 8:30 / 10:00 the broader rules below would give them.
+  if(/\badp\b/.test(n))return{hh:8,mm:15};
+  if(/flash pmi|s&p global|chicago pmi|chicago business/.test(n))return{hh:9,mm:45};
   if(/sentiment|michigan|umich|\bism\b|\bpmi\b|jolts|job openings|consumer confidence|existing home|new home sales|factory orders|business inventories|construction spending|wholesale|leading index/.test(n))return{hh:10,mm:0}; // 10:00 AM ET
   if(e.category==='sentiment')return{hh:10,mm:0};
   if(e.kind==='macro'||['inflation','jobs','growth','gdp','retail','housing','trade'].indexOf(e.category)>=0)return{hh:8,mm:30};        // most releases: 8:30 AM ET
@@ -13963,6 +13967,10 @@ function mcMacroET(e){
   if(/fomc|rate decision|fed funds|interest rate|fed minutes|meeting minutes/.test(n))return{hh:14,mm:0};   // Fed: 2:00 PM ET
   if(e.category==='fed'||e.category==='rates')return{hh:14,mm:0};
   if(e.category==='oil'||e.category==='energy'||/crude|petroleum|\beia\b|oil inventories|natural gas storage/.test(n))return{hh:10,mm:30}; // EIA: 10:30 AM ET
+  // ADP publishes at 8:15 AM ET, S&P Global's flash PMI and the Chicago PMI at
+  // 9:45 AM ET -- not the 8:30 / 10:00 the broader rules below would give them.
+  if(/\badp\b/.test(n))return{hh:8,mm:15};
+  if(/flash pmi|s&p global|chicago pmi|chicago business/.test(n))return{hh:9,mm:45};
   if(/sentiment|michigan|umich|\bism\b|\bpmi\b|jolts|job openings|consumer confidence|existing home|new home sales|factory orders|business inventories|construction spending|wholesale|leading index/.test(n))return{hh:10,mm:0}; // 10:00 AM ET
   if(e.category==='sentiment')return{hh:10,mm:0};
   if(e.kind==='macro'||['inflation','jobs','growth','gdp','retail','housing','trade'].indexOf(e.category)>=0)return{hh:8,mm:30};        // most releases: 8:30 AM ET
