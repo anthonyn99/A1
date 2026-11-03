@@ -21,6 +21,10 @@
  * data-th-profile = "veda" on <body> or <html>, followed live) gets the same
  * bar in her mauve; a Veda-only page says so on its tag:
  *   <script src="scrollbar.js" data-profile="veda"></script>
+ * A box with A1's corner resize grip (resizegrip.js) ends its bar 4px above
+ * the grip's strokes, so the thumb never covers the handle; proven in every
+ * program by tests/live/grip-scrollbar.live.js.
+ *
  * A program's older bar (the journal editor's, Shield's, MAGI's, OneInbox's,
  * ProView's) checks A1Scrollbar.active() and stands down while this one is on.
  *
